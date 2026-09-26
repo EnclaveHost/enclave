@@ -1,4 +1,6 @@
-# v41 candidate canary on the NucBox (252602c8, initrd 41cacbc8 = guest source 4cdd5169): what to run, what to see
+# The v41/v42 candidate canary on the NucBox: what to run, what to see
+(Written for 252602c8 / guest 4cdd5169, which FAILED item 1's load on every domain; the rebuilt candidate is from
+guest d9176ed5, section 0.)
 
 For enclave-d1's isolated lab manager on nucbox-k11 (own instance prefix and ports, `uefi-probe.lock` held, the candidate as
 an explicit override). Everything here is SYNTHETIC: no tenant data, no production deployment. Nothing is improvised on the
@@ -20,6 +22,15 @@ The sentinel app, staged on the workstation (copy it to the box's lab directory)
   - `SNTLa67d9469ffe1-STDOUT-REQ <path>` / `-STDERR-REQ <path>` per request;
   - on `GET /panic…` it panics with `SNTLa67d9469ffe1-PANIC <path>` (the runtime prints the panic and the trap on stderr).
   Every request is answered `200 ok` (Content-Length 2, Connection: close).
+
+## 0. The rebuilt candidate (isolation/front-console-guard d9176ed5: 683798d0 + 139c3fdd + d9176ed5)
+The failure of 252602c8 (every domain: `DOM1 ERROR runtime exited status=126`, the chroot had no /dev) is fixed by the
+monitor handing the null device to domexec on fd 3. The front is also hardened. On EVERY load, the console must show:
+- `MON yama …`, once at boot, right after `MON boundary`: which case the NucBox kernel is in (`yama ptrace_scope=N -> 2`,
+  `(already >= 2)`, or `yama absent …`). RECORD it; an absent Yama is stated, not a failure;
+- `DOM front: not dumpable`, from each domain's front, before `DOM serving`;
+- NEVER `DOM front: traced at start (pid N): refusing`, `… ERROR the monitor handed no null device …`, or
+  `DOM<n> ERROR runtime exited status=126`.
 
 ## 1. domexec's app-stdio discard (the tenant runtime gets /dev/null)
 1. Load the sentinel through the lab manager / wmiserve (`--bundle <sentinel>`, label e.g. `canary-sentinel`; no cert name
