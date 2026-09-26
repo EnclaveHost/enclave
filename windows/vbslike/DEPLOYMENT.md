@@ -91,7 +91,7 @@ never deleted; the legacy `ee-engine` is never restored or signed; respawn is OF
 Source-side (no box): every windows-node suite passes at `07fc4f55`, 307/307 under the warden-host guards. The node's
 own attach against the real relay (`test/windows-node-hv-attach-relay.test.mjs`) gives v1 host-only on today's relay
 and v2 owner-only on main+B. b4's node landings were each pushed alone and detect-only (Deploy 36205813636,
-36208165412, 36208281464, 36208809559, 36209446162, 36210014221) ⟨5d: the recovery and hvcert landings' runs⟩.
+36208165412, 36208281464, 36208809559, 36209446162, 36210014221); the recovery landing `fa4284db` Deploy 36209525281 (01:46:04Z) and the hvcert landing `bab1e36b`+`e1c665fd` (pushed together: ONE run on `e1c665fd`) Deploy 36208848926 (01:33:49Z), both detect-only; also 5d's cli/address-book-fallback `c2bbf951` Deploy 36213407535 (02:59:40Z), detect-only (read with `gh run view`).
 
 ## 4. Operations
 
