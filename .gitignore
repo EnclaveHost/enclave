@@ -94,6 +94,7 @@ windows/enclave-rt/target/
 windows/enclave-rt/precompile/target/
 windows/enclave-rt/*.lib
 windows/enclave-rt/*.exe
+windows/tray/*.exe
 windows/enclave-rt/*.cwasm
 windows/enclave-app-hello/target/
 
