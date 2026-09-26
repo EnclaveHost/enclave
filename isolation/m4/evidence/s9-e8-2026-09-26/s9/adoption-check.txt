@@ -1,0 +1,1 @@
+guestd 4cd26e58bf44958fdf37b063408640f35596dc02 sha256 25d638c39d7ec3cb70ace9e4d4d6364a2fe09e78ea12b5ab5f1a0562dfb37b18 tree 4cd26e58bf44958fdf37b063408640f35596dc02 at 2026-09-26T07:36:12Z epoch 1790408172: 3/3 canaries verify with the new tree's judge (gd2ae6d157 gd490b00fb gdded47deb); runtime identity byte-equal, fwd code equal (its VCS stamp aside)

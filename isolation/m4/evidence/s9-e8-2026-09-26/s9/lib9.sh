@@ -100,6 +100,7 @@ node_on_n2() { [ "$(node_attested)" = "$NODEM $NODEC" ] && node_runs_from /home/
 # in ITS state (a copy of e7's); once that differs from e7's it is current. Sourced after lib-e7.sh, so it overrides
 # lib-e7's KEYS4/TSV4 for check_guestd4 (TSV4) and public_ok4 (KEYS4). Before e8 only; after an e8 relaunch: OVERRIDE.
 NAK=~/enclave-bench/n2acc-20260926/state
-if [ -f "$NAK/canary-keys.txt" ] && [ -f "$NAK/canaries.tsv" ] && ! { cmp -s "$NAK/canary-keys.txt" "$KEYS4" && cmp -s "$NAK/canaries.tsv" "$TSV4"; }; then
+# only where lib-e7.sh was sourced (s9t-apply, s9t-rollback): the install and preflight scripts use no canary keys
+if [ -n "${KEYS4:-}" ] && [ -n "${TSV4:-}" ] && [ -f "$NAK/canary-keys.txt" ] && [ -f "$NAK/canaries.tsv" ] && ! { cmp -s "$NAK/canary-keys.txt" "$KEYS4" && cmp -s "$NAK/canaries.tsv" "$TSV4"; }; then
   KEYS4=$NAK/canary-keys.txt; TSV4=$NAK/canaries.tsv
 fi

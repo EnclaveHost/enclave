@@ -1,0 +1,44 @@
+RESULT mode=trusted
+RESULT tier=T1
+RESULT spki_sha256=d5bbe935a55370f6a602a6f8627fd63afc679ea9697aca46232a4b13d289e9d9
+RESULT doc_key_matches_handshake=1
+evidence: the runtime identity is the expected one: wasmtime/48.0.1 execution=jit target=x86_64 host=x86_64 features=host-detected wx=enforced cache=none
+evidence: the scan covered every process with an address space in this domain (3: runtime=1, root=2)
+evidence: the domain measured that it may hold an executable page (exec_pages=allowed), which execution=jit requires, and found no writable-and-executable mapping among 3 processes in scope all-processes
+evidence: that self-test is the measured front's own word, relayed over this attested connection; the hardware does not attest it (see judge.mjs checkRuntime)
+evidence: enclave-domain-abi/2: report_data[0:32] must bind the transport key, the nonce AND runtime id ccadb38a67796155…
+evidence: report is from VMPL0 (full privilege inside the CVM)
+evidence: guest policy 0x30000: DEBUG off, MIGRATE_MA off
+evidence: measurement on Metal release allowlist
+evidence: report_data binds the caller's expected binding (transport key + fresh challenge + runtime identity)
+evidence: AMD signature chain verified (VCEK auxblob → ASK → ARK, Turin)
+evidence: VCEK chip ID and TCB extensions match the report
+evidence: reported TCB meets the supplied Turin minimum (fmc 1, bootloader 3, tee 2, snp 5, microcode 117)
+evidence: report_data[32:64] names the expected app
+evidence: host_data names the expected deployment 0x0ddbd82423a22883… (signed by the PSP; outside the measurement)
+evidence: no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed
+RESULT measurement=6716ef1462e1ebabc4fd388c44dea5da1fe6902a60bedbc47aaaeae5199ee91003c8c842c34dde264b31d10c68d5871b
+RESULT report_data=d8f2e6797c5f68e84dc35013a4f81b2bc5267e403fe8db404ae64a000926d057d2c4dfc0ec475910aa509d1045ae4f2997346c1cd666a167cd5fc959c036aa24
+RESULT expected_vmpl=0
+RESULT host_data=0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76
+RESULT host_data_checked=1
+RESULT report_vmpl=0
+RESULT boundary=null
+RESULT abi=enclave-domain-abi/2
+RESULT runtime_pinned=1
+RESULT runtime={"name":"wasmtime","version":"48.0.1","execution":"jit","targetIsa":"x86_64","hostIsa":"x86_64","cpuFeatures":"host-detected","wx":"enforced","cache":"none"}
+RESULT runtime_selftest="exec_pages=allowed wx=clean maps=3 runtime=1 root=2 scope=all-processes"
+RESULT wx_coverage=runtime-covered
+RESULT tcb_product=Turin
+RESULT tcb_reported={"fmc":1,"bootloader":3,"tee":2,"snp":5,"microcode":117}
+RESULT tcb_checked=1
+VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed"
+RESULT gate=open
+RESULT key_stable_in_launch=1
+RESULT second_nonce_verdict=attested
+RESULT replay_rejected=1
+RESULT app_status=404
+RESULT app_body="{\"error\":\"gone\"}"
+RESULT app_on_pinned_key=1
+RESULT app_requests_sent=1
+RESULT refused_handshakes=0

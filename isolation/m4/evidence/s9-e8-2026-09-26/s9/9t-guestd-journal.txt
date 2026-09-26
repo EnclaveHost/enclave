@@ -1,0 +1,14 @@
+2026/09/26 00:36:12 exiting; guests keep running for the next guestd to adopt (end them with: systemctl --user stop 'm2-gd*')
+Stopping Enclave guestd: per-app SEV-SNP guest manager for the isolation tier (M4a)...
+Stopped Enclave guestd: per-app SEV-SNP guest manager for the isolation tier (M4a).
+enclave-guestd.service: Consumed 37.355s CPU time over 2h 10min 22.085s wall clock time, 231.3M memory peak.
+Started Enclave guestd: per-app SEV-SNP guest manager for the isolation tier (M4a).
+2026/09/26 00:36:13 per-release W^X: this tree's guests are named [aee2059ffcc7bd8a459001cba02a7e9139d6a4aa964fd6de68047407f8597532]; the legacy tree's [5c3561f91bc76a7aab5830071d1093162c5833872884c938574673f491dd87f2 6f14ce7537082bd2a68d96ead6a133af4a5134e97e9b43ebc210a3cb957c1adb]; unrecorded adoptions []
+2026/09/26 00:36:13 adopted 3 guest(s) a previous guestd left, each verified again as the same guest: [gd2ae6d157 gd490b00fb gdded47deb]
+2026/09/26 00:36:13 guest pool: 3 guest(s) hold 5376 MiB / 300% CPU of 65536 MiB / 1600% CPU
+2026/09/26 00:36:13 host memory floor 16384 MiB: MemAvailable now 83560 MiB
+2026/09/26 00:36:13 data plane (enclave-splice/1) on 127.0.0.1:8096: ciphertext only, admitted per verified instance identity
+2026/09/26 00:36:13 non-release deployment guests are built from /home/steven/enclave-prod/iso-03be27d6/isolation
+2026/09/26 00:36:13 attested release ON: tickets on vsock 9444, egress on vsock 9443 (guests guestd launched only)
+2026/09/26 00:36:13 guestd-control/1: kid 7dbd27b4352d10e1, instance 867707efe95e2bd8406199ae1f6e3097; every request but the handshake is authenticated
+2026/09/26 00:36:13 guestd serving the /vms contract on 127.0.0.1:8095 (firmware 142589cc4882f29a, root /home/steven/enclave-prod/guestd-root)
