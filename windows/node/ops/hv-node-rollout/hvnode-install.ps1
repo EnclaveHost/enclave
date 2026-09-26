@@ -107,13 +107,27 @@ if (-not (Test-Path $mcopy)) {
   Invoke-Native { & robocopy (Join-Path $Pkg 'control') (Join-Path $mcopy 'control') /E /NFL /NDL /NJH /NJS /NP 2>&1 | Out-Null }
   if ($LASTEXITCODE -ge 8) { Die "robocopy of control\ failed ($LASTEXITCODE)" }
 } elseif (-not $Replace) { Die "$mcopy exists (-Replace to reuse it)" }
+$listed = @{}
 foreach ($f in $ctl) {
-  $p = Join-Path $mcopy ("$($f.path)" -replace '/', '\')
+  $rel = ("$($f.path)" -replace '/', '\'); $listed[$rel.ToLower()] = $true
+  $p = Join-Path $mcopy $rel
   if (-not (Test-Path -LiteralPath $p) -or (Sha256Of $p) -ne "$($f.sha256)".ToLower()) { Die "manager copy file $($f.path) does not match the package MANIFEST" }
 }
-$extra = @(Get-ChildItem -Recurse -File (Join-Path $mcopy 'control')).Count - $ctl.Count
-if ($extra -ne 0) { Die "the manager copy has $extra file(s) the MANIFEST does not list (a __pycache__ in the package?)" }
-Note "manager copy $mcopy = the package MANIFEST's control/ ($($ctl.Count) files)"
+# every copied file outside node_modules must be one the MANIFEST lists (a __pycache__ or a stray file refuses) ...
+$cbase = (Join-Path $mcopy 'control')
+$unlisted = @(Get-ChildItem -Recurse -File $cbase | Where-Object { $_.FullName -notlike '*\node_modules\*' } |
+  Where-Object { -not $listed.ContainsKey(('control' + $_.FullName.Substring($cbase.Length)).ToLower()) })
+if ($unlisted.Count) { Die "the manager copy has $($unlisted.Count) file(s) the MANIFEST does not list, e.g. $($unlisted[0].FullName)" }
+# ... and node_modules (installed at stage time, verified by stage.ps1; not in the MANIFEST: enclave-d1) must be a
+# BYTE-IDENTICAL copy of the staged package's: the sorted (relative path, sha256) lists of both are equal
+function NodeModulesList([string]$base) {
+  @(Get-ChildItem -Recurse -File $base | Where-Object { $_.FullName -like '*\node_modules\*' } |
+    ForEach-Object { $_.FullName.Substring($base.Length).ToLower() + ' ' + (Sha256Of $_.FullName) } | Sort-Object)
+}
+$nmPkg = NodeModulesList (Join-Path $Pkg 'control'); $nmCopy = NodeModulesList $cbase
+if ($nmPkg.Count -eq 0) { Die "the package's control\ has no node_modules (was it staged?)" }
+if (($nmPkg -join "`n") -ne ($nmCopy -join "`n")) { Die "the manager copy's node_modules differs from the staged package's" }
+Note "manager copy $mcopy = the package MANIFEST's control/ ($($ctl.Count) files) + its node_modules byte for byte ($($nmPkg.Count) files)"
 
 # ---- 4. configuration: the manager from its copy (the package's managerEnv), the node from main ----
 $mgrDir = Join-Path $mcopy 'control\windows\vbslike\manager'
@@ -157,7 +171,7 @@ function RunLoop([string]$cfg, [string]$dir, [string]$script, [string]$log) {
   @('@echo off', "call `"$cfg`"", "cd /d `"$dir`"", ':loop',
     "`"$NodeExe`" `"$(Join-Path $dir $script)`" >> `"$log`" 2>&1",
     "echo %date% %time% [run] $script exited %errorlevel%; restarting in 10 s >> `"$log`"",
-    'timeout /t 10 /nobreak >nul', 'goto loop')
+    'ping -n 11 127.0.0.1 >nul', 'goto loop')   # not timeout.exe: it exits at once with no console (a SYSTEM task; enclave-d1)
 }
 $runMgr = RunLoop (Join-Path $Root 'manager-config.cmd') $mgrDir 'main.mjs' (Join-Path $Root 'logs\manager.log')
 $runNode = RunLoop (Join-Path $Root 'node-config.cmd') $nodeDir 'agent.mjs' (Join-Path $Root 'logs\node.log')
