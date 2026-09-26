@@ -7,8 +7,9 @@
  *
  * Each refusal is told apart from the kernel's own answer where the kernel would answer differently without the filter
  * (process_vm_readv on ITSELF succeeds; ptrace PEEKDATA on an untraced parent gives ESRCH; keyctl on its session
- * keyring succeeds; userfaultfd in user mode succeeds; bpf with an invalid command gives EINVAL): run unfiltered, 28
- * of the runtime's checks fail. The KILL rules run in forked children, which must die by SIGSYS. */
+ * keyring succeeds; userfaultfd in user mode succeeds; bpf with an invalid command gives EINVAL; pidfd_getfd lifts a
+ * descriptor; kcmp answers): run UNFILTERED, every refusal and kill check fails (32 of 41; the 9 that pass are the
+ * allowances). The KILL rules run in forked children, which must die by SIGSYS. */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
