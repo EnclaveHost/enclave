@@ -1,0 +1,14 @@
+== rs5-apply-accept-52156652.txt
+ok   0x0ddbd824: measurement be6b8644384e predicted under release 5c3561f91bc7; release 52156652d67a predicted (f4fb208aeddd) and admitted
+ok   0x395bed3e: measurement c068f423578c predicted under release 6f14ce753708; release 52156652d67a predicted (5f2f238c88e1) and admitted
+ok   0x4e62e60d: measurement c068f423578c predicted under release 6f14ce753708; release 52156652d67a predicted (5f2f238c88e1) and admitted
+FAIL release-ticket answered 403, expected 503
+ok   unknown deployment 404
+ok   malformed id 422
+== rs5-apply-accept-79c5ecf2.txt
+ok   0x0ddbd824: measurement be6b8644384e predicted under release 5c3561f91bc7; release 79c5ecf24eb4 predicted (2317370df656) and admitted
+ok   0x395bed3e: measurement c068f423578c predicted under release 6f14ce753708; release 79c5ecf24eb4 predicted (6de873656f88) and admitted
+ok   0x4e62e60d: measurement c068f423578c predicted under release 6f14ce753708; release 79c5ecf24eb4 predicted (6de873656f88) and admitted
+FAIL release-ticket answered 403, expected 503
+ok   unknown deployment 404
+ok   malformed id 422
