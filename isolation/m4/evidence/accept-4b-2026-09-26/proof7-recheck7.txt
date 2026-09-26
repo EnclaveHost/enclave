@@ -1,9 +1,7 @@
-4b evidence 2026-09-26T00:44:00Z: deployment 0x6b1781ff95a6fdf54afc69795c4e47fa1973a597848edfa61b32722c271a0286, bin accept-5d-1e5d6190, config sha256 ba647df72274606e45e37c7504d34cfcd34072687769e58655799a8fd1bf2613
-sha256(ACCEPT_API_KEY) df5733d91650cd2e1ac7908def3588b7f758dcd2e627ac0bf628f2b2fad6becc; sha256(ACCEPT_TOKEN) 0719b8cf6f0d2387a96e91a2811c324bcf7a48e08abc46e12692773792296614; proofs 3-7: 1 failure(s)
 recheck7 2026-09-26T00:54:16Z: deployment 0x6b1781ff95a6fdf54afc69795c4e47fa1973a597848edfa61b32722c271a0286, window since 2026-09-26 00:35:50 UTC, pattern acc-[0-9a-f]{24}
 ok   proof 7: warden-host user journal since 2026-09-26 00:35:50 UTC: 0 hit(s) of the value FORMAT (control: 12 '6b1781ff' line(s))
 ok   proof 7: warden-host system journal since 2026-09-26 00:35:50 UTC: 0 hit(s) of the value FORMAT (control: 224 '.' line(s))
-info proof 7 (recheck): the test guest serial is not re-checkable; at run: see the run output
+info proof 7: the test guest's serial went with its guest at teardown: not re-checkable. At run: not in evidence.txt (the run's script predates per-channel evidence lines): cite the run's own output
 ok   proof 7: the hookbin canary's serial: 0 hit(s) of the value FORMAT (control: 1 'DOM serving' line(s))
 ok   proof 7: nan api-relay journal since 2026-09-26 00:35:50 UTC: 0 hit(s) (same plumbing, control 'secrets-release': 1 line(s))
 recheck7: 0 failure(s)
