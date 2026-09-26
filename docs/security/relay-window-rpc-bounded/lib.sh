@@ -4,7 +4,7 @@
 B=${B_DIR:-$HOME/enclave-bench/relay-window-rpc-bounded}; mkdir -p $B; LOG=$B/rollout.log; MAIN=/home/steven/Projects/enclave; H=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 HEALTH=$H/../hvnode-owner-only-rollout/health.sh   # KAT, canaries on boot keys, us-west, the 7 listed; CERT_SEPARATE=1 after step 3
 NAN="ssh -i $HOME/.ssh/nan-ci-deploy -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=15 nan"
-PC=323d89db2ab6c004235dc94f29bfbc33fe92797f   # relay/rpc-bounded: 1 commit on main c6347dd20 (bf GO)
+PC=b291c6c0eddc3b1759dda94da0685db0d4daac91   # relay/rpc-bounded: 1 commit on main c6347dd20 (bf GO)
 BASE=$(git -C $MAIN rev-parse "$PC~1" 2>/dev/null || echo unknown)
 REVIEW_BASE=c6347dd20   # the main bf reviewed the commit on (relay-rpc-bounded 1/1, secrets-release 23/23)
 # the REVIEWED patch (git patch-id --stable): 323d89db (bf GO); a re-cut must reproduce it exactly
