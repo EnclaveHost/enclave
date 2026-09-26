@@ -1516,3 +1516,77 @@ test("v41's node tree is what enclave-5d's stage-hvnode.sh (rollout v2.2.3 7fcaa
     assert.equal(crypto.createHash("sha256").update(fs.readFileSync(path.join(dir, "out", n))).digest("hex"), d.files.find((f) => f.path === `node/${n}`).sha256, n);
   for (const c of ["a3c9d808e", "792d71f47"]) assert.equal(spawnSync("git", ["-C", top, "merge-base", "--is-ancestor", c, "013deb51cbef481c23bdc66f5922d991c3058f02"]).status, 0, `${c} is in 013deb51`);
 });
+
+test("draft v42 moves ONE SET together (enclave-d1's and enclave-5d's invariant): the rollover to the candidate built from the domexec fix, the manager at m4-cert-name's head, enclave-d1's launcher 10547aca, and the node install re-pinned; b7ba7731 and v41's failed 252602c8 superseded and not shipped; rollback to v41 as a set", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-42.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  const v41 = JSON.parse(fs.readFileSync(path.join(HERE, "drafts/nucbox-ownguest-41.json"), "utf8"));
+  const TREE = "90eab896b5e27004d2535827e3190a5595e9bc55", M4 = "e36f233b78289472dad0a2103f3f2f3b8e2791b7", top = path.join(HERE, "../../..");
+  const blob = (c, p) => crypto.createHash("sha256").update(spawnSync("git", ["-C", top, "show", `${c}:${p}`], { maxBuffer: 1 << 26 }).stdout).digest("hex");
+  const NEWF = d.profiles.vbsLinux.firmware, NEWD = d.profiles.vbsLinux.debugTwin, [, I8, C8] = NEWF.match(/^guest\/igvm-vbs\/vbs-linux-candidate-([0-9a-f]{8})-([0-9a-f]{8})\.bin$/);
+  const F252 = "guest/igvm-vbs/vbs-linux-candidate-41cacbc8-252602c8.bin", D252 = "guest/igvm-vbs/PROBE-FIRMWARE-never-a-serving-candidate/vbs-linux-candidate-41cacbc8-DEBUG-TRUSTS-HOST-4df033e8.bin";
+  const OLDF = "guest/igvm-vbs/vbs-linux-candidate-1539-b7ba7731.bin", OLDD = "guest/igvm-vbs/PROBE-FIRMWARE-never-a-serving-candidate/vbs-linux-candidate-1539-DEBUG-TRUSTS-HOST-95de03cc.bin";
+  const f = (p) => d.files.find((x) => x.path === p);
+  assert.match(d.status, /^DRAFT \(supersedes v41, which is staged at pkg\\23a41fbd3babf52b\\\)\. /);
+  // 1. the rollover: the fixed candidate is the firmware, the one eligible image and granted to the VM worker;
+  //    b7ba7731 and v41's 252602c8 (failed its canary) are gone, both refused by their exact digests
+  assert.match(NEWD, new RegExp(`^guest/igvm-vbs/PROBE-FIRMWARE-never-a-serving-candidate/vbs-linux-candidate-${I8}-DEBUG-TRUSTS-HOST-[0-9a-f]{8}\\.bin$`));
+  assert.notEqual(C8, "252602c8", "not v41's failed candidate");
+  assert.deepEqual(d.profiles.vbsLinux.managerEnv.filter((e) => /^ENCLAVE_GUEST_IGVM/.test(e.name)).map((e) => e.file || e.sha256Of), [NEWF, NEWF]);
+  assert.ok(!f(OLDF) && !f(OLDD) && !f(F252) && !f(D252), "b7ba7731, 252602c8 and their twins are not shipped");
+  assert.ok(d.vmWorkerRead.includes(NEWF) && d.vmWorkerRead.includes(NEWD) && !d.vmWorkerRead.includes(OLDF));
+  assert.ok(f(NEWF).sha256.startsWith(C8) && f(NEWF).role === "candidate.igvm" && !f(NEWF).boxReuse, "the fixed candidate ships in the package (it was never staged)");
+  assert.equal(d.inputs.find((i) => i.name === `mon-${I8}.cpio.gz`).sha256.slice(0, 8), I8);
+  const ref = JSON.parse(refRawFor(D)), dv = deriveReferenceDigests(ref);
+  const ne = ref.images.find((e) => e.id === `vbs-linux-candidate-${I8}`);
+  assert.deepEqual(dv.eligible, [ne.vbsBootDigest]); assert.match(ne.booted, /^yes\b/);
+  for (const x of ["56FBB27F", "8E9D6ACB", "231D1AB7", "25E0E2C6"]) assert.ok(dv.refused.some((y) => y.startsWith(x)), `${x} refused`);
+  assert.deepEqual(ref.superseded.slice(0, 4).map((e) => e.id), ["vbs-linux-candidate-1539", "vbs-linux-candidate-1539-debug-twin", "vbs-linux-candidate-41cacbc8", "vbs-linux-candidate-41cacbc8-debug-twin"]);
+  assert.match(ref.superseded[2].reason, /failed its canary: domexec's quiet spawn opened \/dev\/null inside a chroot with no \/dev/);
+  assert.ok(!d.rebuild.vbsLinux1539 && !d.rebuild.vbsLinux41cacbc8 && d.rebuild[`vbsLinux${I8}`] && d.rebuild[`vbsLinux${I8}Debug`], "the old recipes leave with their images");
+  assert.deepEqual({ ...d.rebuild[`vbsLinux${I8}`].resources, linux_initrd: "x" }, { ...v41.rebuild.vbsLinux1539.resources, linux_initrd: "x" }, "b7ba7731's resources with only linux_initrd swapped");
+  assert.ok(!d.profiles.vbsLinux.nextCandidate && d.profiles.vbsLinux.firmwareRecord.promotedV42);
+  assert.match(d.profiles.vbsLinux.firmwareRecord.candidateV41.failed, /^v41's pending 252602c8 failed its canary/);
+  // 2. the manager: control/ = 90eab896, whose manager is m4-cert-name's head byte for byte except manager-accept.ps1
+  const ctl = d.files.filter((x) => /^control\./.test(x.role) && x.role !== "control.acceptance" && x.from?.git);
+  assert.ok(ctl.length >= 42 && ctl.every((x) => x.from.git.commit === TREE), "every control.* git pin is 90eab896");
+  for (const x of d.files.filter((y) => y.role === "control.manager")) assert.equal(x.sha256, blob(M4, x.from.git.path), x.path);
+  const moved = d.files.filter((x) => x.path.startsWith("control/") && x.path !== "control/vbslike-host.exe").filter((x) => x.sha256 !== v41.files.find((y) => y.path === x.path)?.sha256).map((x) => x.path).sort();
+  assert.deepEqual(moved, ["control/windows/vbslike/manager/server.mjs", "control/windows/vbslike/manager/wmi-launcher.mjs", "control/windows/vbslike/manager/wmiserve-run.mjs",
+    "control/windows/vbslike/ops/uefi-dev-boot.ps1"]);
+  // the dev-boot script: ad61cb02 plus exactly one probe-build line, for THIS firmware (kit item 4, the neighbour probe)
+  const DB = f("control/windows/vbslike/ops/uefi-dev-boot.ps1");
+  assert.equal(DB.from.git.commit, "804a4107301002f7ba4cc5853387430b7be6c681");
+  const dbOld = spawnSync("git", ["-C", top, "show", "ad61cb022208836870033078823c4d6acaab3389:windows/vbslike/ops/uefi-dev-boot.ps1"], { encoding: "utf8" }).stdout.split("\r\n");
+  const dbNew = spawnSync("git", ["-C", top, "show", `${DB.from.git.commit}:windows/vbslike/ops/uefi-dev-boot.ps1`], { encoding: "utf8" }).stdout.split("\r\n");
+  assert.equal(dbNew.length, dbOld.length + 1, "one line added");
+  assert.ok(dbNew.some((l) => l.startsWith(`  '${f(NEWF).sha256}' = @{ initrd = '${I8}'; domprobe = '2c2600495d07d292'; tpm = $true }`)), "the probe build of THIS firmware is pinned");
+  // 3. the launcher, box-built from ce123042
+  const L = f("control/vbslike-host.exe");
+  assert.ok(L.role === "control.launcher" && L.sha256 === "10547aca82ad48be021828164cd11a649cd324e37932b388449f3f44530929ba" && L.bytes === 1136128 && L.source.commit === "ce123042566d81845de2b36ab28fc1ae42914f03");
+  // 4. the node install and the node pin: the archive is what the install's own stage-hvnode.sh makes
+  const RO = f("win/node-install.ps1").from.git.commit, NA = d.files.find((x) => /^node\/hvnode-[0-9a-f]{8}\.tar\.gz$/.test(x.path));
+  for (const [p, src] of [["win/node-install.ps1", "hvnode-install.ps1"], ["win/node-rollback.ps1", "hvnode-rollback.ps1"], ["win/node-preflight.ps1", "hvnode-preflight.ps1"]])
+    assert.equal(f(p).sha256, blob(RO, `windows/node/ops/hv-node-rollout/${src}`), p);
+  assert.ok(NA && f(NA.path.replace(/hvnode-(\w+)\.tar\.gz$/, "MANIFEST-hvnode-$1.txt")), "the node archive ships with its MANIFEST");
+  // the node archive is what the install commit's own stage-hvnode.sh makes from that node commit, byte for byte
+  const n8 = NA.path.match(/hvnode-([0-9a-f]{8})\.tar\.gz$/)[1], NODE = spawnSync("git", ["-C", top, "rev-parse", n8], { encoding: "utf8" }).stdout.trim();
+  const sd = fs.mkdtempSync(path.join(WORK, "hvnode-stage42-")), script = path.join(sd, "stage-hvnode.sh");
+  fs.writeFileSync(script, spawnSync("git", ["-C", top, "show", `${RO}:windows/node/ops/hv-node-rollout/stage-hvnode.sh`]).stdout);
+  const st = spawnSync("bash", [script, NODE, "154b41a9e1e14bac386b6375275d7a3049e50271", path.join(sd, "out")], { cwd: top, encoding: "utf8" });
+  assert.equal(st.status, 0, st.stderr); assert.match(st.stderr, /import closure: \d+ files, 0 missing/);
+  for (const n of [`hvnode-${n8}.tar.gz`, `MANIFEST-hvnode-${n8}.txt`])
+    assert.equal(crypto.createHash("sha256").update(fs.readFileSync(path.join(sd, "out", n))).digest("hex"), f(`node/${n}`).sha256, n);
+  // unchanged: runtime.json, host-prereq, the dev profiles
+  for (const p of ["guest/runtime.json", "win/host-prereq.ps1", "guest/mon.cpio.gz"]) assert.equal(f(p).sha256, v41.files.find((x) => x.path === p).sha256, p);
+  for (const p of ["hcs-dev", "igvm", "uefi"]) assert.deepEqual(d.profiles[p], v41.profiles[p], p);
+  // rollback: v41 as staged, the whole set
+  assert.equal(d.rollback.version, 41); assert.equal(d.rollback.manifestSha256, "23a41fbd3babf52b29793f1d39f30a06ec707f6ce3fed06800913a72661dedce");
+  assert.equal(d.rollback.stagedAt, "C:\\Users\\claude\\vbs-like\\pkg\\23a41fbd3babf52b\\");
+  assert.deepEqual(d.rollback.files.map((x) => x.sha256.slice(0, 8)), ["b7ba7731", "95de03cc", "435717de", "3bb33297"]);
+  assert.match(d.rollback.note, /roll back the WHOLE SET/);
+  assert.match(d.status, /\(5\) v41's two recorded gaps, closed: \(a\) v41 did not list its pending candidate and twin in vmWorkerRead.*\(b\) v41's rollback note called its reference 'unchanged in v41', but v41 ships 3bb33297/);
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   vmWorkerRead names every firmware image the package ships/);
+  assert.match(r.out, /ok   the rollback record names a committed version and exactly its pins \(v41, 3b0d739e\)/);
+});
