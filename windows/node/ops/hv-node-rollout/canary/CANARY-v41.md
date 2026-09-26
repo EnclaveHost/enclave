@@ -25,7 +25,20 @@ The sentinel app, staged on the workstation (copy it to the box's lab directory)
 
 ## 0. The rebuilt candidate (isolation/front-console-guard: 683798d0 + 139c3fdd + d9176ed5 + 298924ae, or the head enclave-87 names)
 The failure of 252602c8 (every domain: `DOM1 ERROR runtime exited status=126`, the chroot had no /dev) is fixed by the
-monitor handing the null device to domexec on fd 3. The front is also hardened. On EVERY load, the console must show:
+monitor handing the null device to domexec on fd 3. The front is also hardened.
+**Where each line can be read (enclave-bf):**
+- `console-read.ps1` attaches only after the launcher lets go of COM1 at `MON ready`.
+- The launcher's record keeps only the first 400 bytes (`guest.head`).
+- `MON boundary` and `MON yama` print BEFORE `ready`, so neither capture can hold them, and their absence from those files
+  is EXPECTED, not a failure.
+- (a) The explicit `MON yama` line is read ONCE PER CANDIDATE IMAGE, from a `uefi-dev-boot.ps1 -LinuxDirect` boot of that
+  IGVM. Its `CONSOLE:` lines hold the whole pre-ready console.
+- (b) Per load, the evidence is `MON ready` / `readyLine: true` on the pinned image: from 298924ae that monitor cannot
+  print `ready` without Yama read back at >= 2.
+- (c) The `DOM` lines below come from `console-read.ps1` after `ready`.
+0891c740 (298924ae), all 4 dev boots: `MON boundary …`, then `MON yama ptrace_scope=1 -> 2`, then `MON boot …`, then
+`MON ready …` (enclave-d1, evidence/nucbox-canary-0891c740 8d488dbf).
+The console must show:
 - `MON yama ptrace_scope=1 -> 2` (or `MON yama ptrace_scope=N (already >= 2)`), exactly once at boot, right after
   `MON boundary` and before `MON ready` and the first domain's DOM lines. Anything else is a FAILURE (enclave-bf): no
   `MON yama` line, `yama absent`, `unparsable`, `NOT raised`, `-> unreadable`, `not the 2 asked`, or
@@ -47,8 +60,12 @@ monitor handing the null device to domexec on fd 3. The front is also hardened. 
    `Select-String -Path <console file>,<lab manager log>,<wmiserve output> -SimpleMatch 'SNTLa67d9469ffe1'` must find
    **nothing**.
    The console must also hold only MON/DOM lines (and kernel `[ t.tttttt]` lines):
-   `Get-Content <console file> | Where-Object { $_ -and $_ -notmatch '^(DOM|MON)' -and $_ -notmatch '^\[\s*\d+\.\d+\]' }`
+   `Get-Content <console file> | Where-Object { $_ -and $_ -notmatch '^(\d{4}/\d\d/\d\d \d\d:\d\d:\d\d(\.\d+)? )?(DOM|MON)' -and $_ -notmatch '^\[\s*\d+\.\d+\]' }`
    must print **nothing**.
+   - The optional date is the std logger's prefix, which consoleFilter keeps on a passing `DOM` line (console.go
+     `logPrefix`/`domLine`). It appears on the front's own `DOM proxy: <method> unreachable|timeout …` lines (ready.go),
+     e.g. `2026/09/26 02:35:48 DOM proxy: GET unreachable` after the `/panic` (enclave-d1's run 023514).
+   - The strict `^(DOM|MON)` flagged that line.
 4. **Positive markers** (the capture saw this domain; a zero above is not a blind spot):
    - `MON domain <n> loaded label=canary-sentinel app_sha256=2609d1f4… … mode=run http=8000`;
    - `DOM<n> started runtime=<pid> front=<pid> mode=run http=8000 (/data 64 MiB scratch)`;
