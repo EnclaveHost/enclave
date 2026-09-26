@@ -141,11 +141,11 @@ and v2 owner-only on main+B. b4's node landings were each pushed alone and detec
 
 | Item | State | Owner |
 |---|---|---|
-| KAT cert set | ⟨87/e3: one line⟩ | ⟨⟩ |
-| ownerOf grace | The relay re-reads the name's on-chain owner every 60 s. An RPC failure falls back to the last known owner (fail-closed against a known owner); a changed owner ends owner-only serving until the next attach. ⟨e3: the grace question⟩ | e3 |
+| KAT cert set | The relay certifies against every INSTALLED release. After rs-6 (02:11:58Z) the installed set is {`5c3561f9`, `6f14ce75`, `52156652`}. `5c3561f9` and `6f14ce75` are the canaries' 09-24 legacy images, kept ONLY because they carry the relay's known-answer-test vectors, so a guest on either can still obtain a CERTIFICATE (never secrets: admitted = {`52156652`}). Fix: a certificate set separate from the KAT set, branch `cert-set-separate` `6e301b16`; lands after B, bf reviews | e3 |
+| ownerOf grace | In B as reviewed (`e4d9098d`, `relay/tunnel.js`): the relay re-reads the name's on-chain owner every 60 s (`recheckOwnerOnly`, :216-236). An RPC failure returns the CACHED owner (:264, "fail closed against a known owner"), so a failed read does not end serving; a name with no cached owner reads as none. A CHANGED owner (or one no longer in `RELAY_HVNODE_OPERATORS`) ends owner-only serving at once, until the node attaches again under the new owner's signature (:227). bf's earlier should-fix was worded differently. ⟨e3: confirm this is the B that is deployed⟩ | e3 |
 | Separate front uid | The runtime and the front share the domain's uid. `139c3fdd4` makes the front non-dumpable and raises Yama to ≥ 2 (verified: a same-uid process is refused the front's maps, fd links and `pidfd_getfd`). Still open: its own uid, and the startup window (domexec spawns the runtime before the front; open only without Yama) | 5d |
 | SNP front hardening | `dumpable.go` is shared with the SNP front. The current SNP release does not carry it; the next one does | 5d / 53 |
-| Pre-warm | relay release pre-warm, `relay/release-prewarm` `f0759181`, not on main | ⟨owner⟩ |
+| Pre-warm | `relay/release-prewarm` `f0759181` (bf GO on `73662f6b` + `dc3a3ede`; the KAT-recovery follow-up in review). Not on main; lands after B. Until then each relay restart costs about 60-90 s of "warming" per cache key (fail-closed, retried) | e3 |
 | Reboot capture S1/S2 | Required by 87: the recovery line bound to the pre instance, and pre requires the one tagged VM. In `c040c9ce` ⟨b4: review⟩ | 5d |
 | Logs | `node.log` and `manager.log` grow without bound; rotation later | 5d |
 | B1 / B2 / B3, P1, U5 | parked or paused (READINESS.md §4, §5); they gate any isolation claim | Steven / provider |
