@@ -339,6 +339,38 @@ export class Host {
   }
 
   /**
+   * restartRefusal(id, d) -> why this box will not restart deployment `id`, or null. `d` is the LEDGER record.
+   *
+   * A restart re-runs a deployment this box already serves; it never claims one. So it needs this box's own LIVE
+   * lease (the ledger's runner is this enclave and the lease has not ended) and, in owner-only scope, the box
+   * owner's deployment. ensureApp checks neither: the route used to hand it ANY ledger id, and on the isolation
+   * backend that spawned a stranger's opted-in deployment as a partition here, with no claim, no lease and no owner
+   * (enclave-b4's N1). consider() is not the gate for this: it claims on chain, and a restart must not.
+   */
+  restartRefusal(id, d) {
+    if (!/^0x[0-9a-f]{64}$/.test(String(id))) return "id must be the bytes32 deployment id";
+    if (!d || typeof d !== "object") return "no such deployment on the ledger";
+    const ours = String(d.runner || "").toLowerCase() === String(this.enclaveId).toLowerCase();
+    if (!ours || !(Number(d.leaseUntil) * 1000 > Date.now()))
+      return "this box does not hold a live lease on it, so there is nothing here to restart";
+    if (this.scope() === "owner-only") {
+      const owner = this.ownerAllow();
+      if (!owner) return "this node is in owner-only scope and no owner wallet is declared";
+      if (String(d.owner || "").toLowerCase() !== String(owner).toLowerCase())
+        return `this node is in owner-only scope and restarts only ${owner}'s deployments (this one is owned by ${d.owner})`;
+    }
+    return null;
+  }
+
+  /** Restart deployment `id` (ledger record `d`) if restartRefusal allows it: { refused: true, reason } or ensureApp's record. */
+  async restart(id, d) {
+    id = String(id).toLowerCase();
+    const refuse = this.restartRefusal(id, d);
+    if (refuse) { this.log(`restart ${id.slice(0, 10)} refused: ${refuse}`); return { refused: true, reason: refuse }; }
+    return this.ensureApp(id, d, { force: true });
+  }
+
+  /**
    * An owner resized the deployment on-chain (setShares). Honour it, or hand the lease back.
    *
    * The ledger starts billing the new shares at once, so the only two honest outcomes are to serve
