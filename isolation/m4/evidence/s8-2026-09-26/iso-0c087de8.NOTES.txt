@@ -1,0 +1,7 @@
+iso-0c087de8 (release 5db18199; guestd.0c087de8's -isolation tree since S8, 2026-09-26 05:25:50Z). Notes kept BESIDE the
+tree, never in it: the worktree must stay clean (s8 lib8.sh tree_ok; guestd builds from it).
+- REQUIRED (enclave-87, 2026-09-26): the next chain rev (the one carrying b4's positive seccomp evidence) REMOVES
+  f7888d86 from isolation/m2/judge.mjs LEGACY_WX_RELEASES. This tree still lists it; after e3's rs-10 retires f7888d86
+  on the relay, the relay is the gate and no guest runs f7888d86 (e7 moved the 3 canaries to 5db18199).
+- ROLLBACK ORDER after rs-10 is ACCEPTED (enclave-87): never s8t-rollback.sh alone. Roll back rs-10 FIRST (e3's rollback:
+  re-admit f7888d86), THEN S8. Otherwise, fix forward on 5db18199.

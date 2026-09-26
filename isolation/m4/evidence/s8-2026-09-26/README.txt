@@ -30,3 +30,14 @@ field, and iso-b63c2def's judge ignores the attest-time form's role keys, so it 
 After an S8 ROLLBACK (enclave-bf's note a): a first launch whose guest was created during the S8 window (so on
 5db18199) HOLDs in fl-check as "created after the S7 switch but runs 5db18199" once the S8 epoch is removed. Fail-closed
 and expected: check that guest by hand (a 5db18199 guest the relay admits) and report it to enclave-87.
+
+ROLLBACK ORDER AFTER rs-10 (enclave-87's ruling, 2026-09-26): once e3's rs-10 (retire f7888d86 from the relay's installed,
+admitted and certifiable lines) is ACCEPTED, s8t-rollback.sh ALONE IS NOT ALLOWED. Reason: the rollback puts guestd back
+on iso-b63c2def, which builds f7888d86 guests; with f7888d86 retired, those guests get no release and no certificate (the
+relay's prediction gate), and every relaunch or first launch would fail. The only way back to f7888d86 is:
+  1. roll back rs-10 FIRST (e3's rollback: re-admit f7888d86), and check /v1/expected-guest lists f7888d86 admitted for
+     each canary;
+  2. THEN s8t-rollback.sh (with OVERRIDE=<reason> once any canary runs 5db18199, which all 3 do since e7).
+Otherwise, fix forward on 5db18199.
+LEGACY_WX_RELEASES (enclave-87, required): the next chain rev removes f7888d86 from judge.mjs's table; noted beside the tree
+in ~/enclave-prod/iso-0c087de8.NOTES.txt.
