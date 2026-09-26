@@ -307,7 +307,9 @@ func main() {
 	idPrefix := flag.String("instance-prefix", "gd", "two lowercase letters for this guestd's instance ids and guest units (m2-<prefix>…); a SECOND guestd on a host needs its own, or its boot sweep stops the first one's guests")
 	ticketPort := flag.Uint("ticket-port", release.TicketPort, "vsock host port of the ticket service (-release); a LAB guestd uses its lab image's (19444) so it never holds production's")
 	egressPortFlag := flag.Uint("egress-port", egressPort, "vsock host port of the egress server (-release); a LAB guestd moves it off production's too")
-	legacyWX := flag.String("legacy-wx-releases", "", "comma-separated 64-hex ids of the PRE-CHAIN domain releases this host may run (its -legacy-isolation tree's, and those of guests an earlier guestd started): named to the judge for those guests only, so their legacy runtime self-test is accepted as UNMEASURED; empty = every guest must state the attest-time self-test")
+	isoRelease := flag.String("isolation-release", "", "the domain release(s) the -isolation tree was installed from, comma-separated: a 64-hex id, or @<release.json> (its sha256 IS the id). Named to the judge for every guest this tree builds and recorded with it; the judge's table (m2/judge.mjs LEGACY_WX_RELEASES) decides what that release may state. REQUIRED when the tree predates per-release W^X")
+	legacyIsoRelease := flag.String("legacy-isolation-release", "", "the same, for the -legacy-isolation tree (REQUIRED with it when that tree predates per-release W^X)")
+	unrecordedRel := flag.String("unrecorded-releases", "", "the release(s) named when ADOPTING an instance whose record names none (written by a guestd before per-release records): the pre-chain releases this host ran; empty = none named, and such a pre-chain guest is not adopted")
 	releaseOn := flag.Bool("release", false, "deliver attested-release tickets (vsock host port 9444) and serve deployment guests' egress (9443) (release.go); off = neither, and /health says supports.release=false")
 	flag.Parse()
 	if *guestMem < 0 || *guestCPUs < 0 || (*guestMem > 0) != (*guestCPUs > 0) {
@@ -380,16 +382,23 @@ func main() {
 	l := &realLauncher{m4: filepath.Join(*iso, "m4"), m2: filepath.Join(*iso, "m2"), fwd: fwd, vcek: *vcek,
 		chain: *chain, product: *product, minTCB: *minTCB, runtimeIdentity: rid, env: env}
 	s := newServer(l, *root)
-	wx, err := parseReleaseIDs(*legacyWX)
-	if err != nil {
-		log.Fatalf("-legacy-wx-releases: %v", err)
+	if s.TreeReleases, err = parseReleaseIDs(*isoRelease); err != nil {
+		log.Fatalf("-isolation-release: %v", err)
 	}
-	s.LegacyWXReleases = wx
-	if len(wx) == 0 {
-		log.Printf("no -legacy-wx-releases: EVERY guest, adopted ones included, must state the attest-time runtime self-test; a pre-chain guest (legacy tree, or started by an earlier guestd) will not verify")
-	} else {
-		log.Printf("pre-chain releases named to the judge for legacy-tree and earlier-guestd guests: %s", strings.Join(wx, ","))
+	if s.LegacyTreeReleases, err = parseReleaseIDs(*legacyIsoRelease); err != nil {
+		log.Fatalf("-legacy-isolation-release: %v", err)
 	}
+	if s.UnrecordedReleases, err = parseReleaseIDs(*unrecordedRel); err != nil {
+		log.Fatalf("-unrecorded-releases: %v", err)
+	}
+	// A tree whose own judge predates per-release W^X builds guests that state the LEGACY self-test; unnamed, their
+	// records would say "none", and a later tree's judge would refuse them on adoption - the running guests dropped at
+	// a tree switch (enclave-bf's hazard). So such a tree must be named, and a mislabel is a start-up error, not that.
+	if why := needsRelease(*iso, s.TreeReleases); why != "" {
+		log.Fatalf("-isolation-release: %s", why)
+	}
+	log.Printf("per-release W^X: this tree's guests are named %v; the legacy tree's %v; unrecorded adoptions %v",
+		s.TreeReleases, s.LegacyTreeReleases, s.UnrecordedReleases)
 	// The prefix names this guestd's instances AND its guest units, and the boot sweep below stops only those: a second
 	// guestd on this host with the default prefix would stop the first one's guests. Two letters exactly, so no two
 	// prefixes' unit patterns overlap.
@@ -474,6 +483,9 @@ func main() {
 			legacy.m4 = filepath.Join(*legacyIso, "m4")
 			legacy.bootWait = 0
 			s.Legacy = &legacy
+			if why := needsRelease(*legacyIso, s.LegacyTreeReleases); why != "" {
+				log.Fatalf("-legacy-isolation-release: %s", why)
+			}
 			log.Printf("non-release deployment guests are built from %s", *legacyIso)
 		}
 		tl, err := vsock.Listen(uint32(*ticketPort))
@@ -567,15 +579,25 @@ func hostAddrs() []netip.Addr {
 	return out
 }
 
-// parseReleaseIDs reads -legacy-wx-releases: comma-separated 64-hex domain release ids, lowercased, each once.
+// parseReleaseIDs reads a release flag: comma-separated domain release ids, each 64 hex or @<release.json> (the id is
+// that file's sha256, as the release publication defines it), lowercased, each once.
 func parseReleaseIDs(v string) ([]string, error) {
 	var out []string
 	seen := map[string]bool{}
 	for _, f := range strings.Split(v, ",") {
-		f = strings.ToLower(strings.TrimSpace(f))
+		f = strings.TrimSpace(f)
 		if f == "" {
 			continue
 		}
+		if p, ok := strings.CutPrefix(f, "@"); ok {
+			b, err := os.ReadFile(p)
+			if err != nil {
+				return nil, err
+			}
+			sum := sha256.Sum256(b)
+			f = hex.EncodeToString(sum[:])
+		}
+		f = strings.ToLower(f)
 		if !isHex(f, 32) {
 			return nil, fmt.Errorf("%q is not a 64-hex release id", f)
 		}
@@ -585,4 +607,17 @@ func parseReleaseIDs(v string) ([]string, error) {
 		}
 	}
 	return out, nil
+}
+
+// needsRelease: why a tree must be named with its release before guestd uses it, or "". A tree whose own judge has no
+// LEGACY_WX_RELEASES table predates per-release W^X: its guests state the legacy runtime self-test.
+func needsRelease(isoDir string, named []string) string {
+	b, err := os.ReadFile(filepath.Join(isoDir, "m2", "judge.mjs"))
+	if err != nil {
+		return fmt.Sprintf("cannot read the tree's judge: %v", err)
+	}
+	if len(named) == 0 && !bytes.Contains(b, []byte("LEGACY_WX_RELEASES")) {
+		return fmt.Sprintf("%s predates per-release W^X (its judge has no LEGACY_WX_RELEASES): its guests state the legacy runtime self-test, so name the release it was installed from, or a later tree's judge refuses them on adoption", isoDir)
+	}
+	return ""
 }

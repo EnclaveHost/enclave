@@ -212,7 +212,12 @@ export function checkRuntime(doc, handshakeSpki, nonce, want = {}) {
 // with the measurement pinned, and then as "W^X of the runtime UNMEASURED" (coverage: runtime-unmeasured), never clean.
 // A form that names roles is judged by the full rule whatever the release; a legacy form for any release not listed,
 // or with no release named, is refused. A release's entry is REMOVED when that release is retired (the relay's rs-N;
-// a guest on it can then neither be released to nor certified), and this judge then refuses its legacy form.
+// a guest on it can then neither be released to nor certified), and this judge then refuses its legacy form. The two
+// change TOGETHER (enclave-5d, enclave-bf): a retirement on the relay is paired with this table's change on every tree
+// a consumer runs - guestd's -isolation tree and the node image's. Who names a release: supervisor-guestcert (the relay
+// prediction the verified measurement matched), guestd (the release each guest's tree was installed from,
+// -isolation-release / -legacy-isolation-release, recorded per instance; -unrecorded-releases for older records),
+// client.mjs --release.
 //
 // The releases the relay could still predict when this table was written (enclave-e3, from nan's live env at
 // 2026-09-26T04:29:16Z), every one built before the attest-time scan. Retired, so NOT listed: 52156652 (rs-8),
