@@ -38,7 +38,7 @@ fi
 # (FROM_APPLY, token-checked above) is exempt: it runs mid-switch, where a half-switched unit is worse; S8 has run and
 # s8t-apply.sh refuses a re-run while $BAK exists. test-rollback-guard.sh runs this block verbatim.
 # BEGIN f7888d86-admitted guard
-adm_f7888d86() {
+adm_f7888d86() {   # the canary ids are HARD-CODED here (enclave-bf): a new canary set makes this refuse (fail closed) until updated
   local cid eg
   for cid in 0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76 0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595 0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e; do
     eg=$(curl -sS --max-time 30 "https://api.enclave.host/v1/expected-guest?id=$cid" 2>/dev/null) || return 1

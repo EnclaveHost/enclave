@@ -41,3 +41,8 @@ relay's prediction gate), and every relaunch or first launch would fail. The onl
 Otherwise, fix forward on 5db18199.
 LEGACY_WX_RELEASES (enclave-87, required): the next chain rev removes f7888d86 from judge.mjs's table; noted beside the tree
 in ~/enclave-prod/iso-0c087de8.NOTES.txt.
+
+The enforced guard (s8t-rollback.sh v5+, bf GO 45983e80): it reads ONLY the admission line (/v1/expected-guest
+releaseAdmitted for f7888d86), not the certificate set; that suffices because rs-10's rollback moves all three relay lines
+(PREDICT, DOMAIN, CERT) together under its own accept (enclave-bf's note 1). The canary ids are hard-coded in adm_f7888d86:
+a new canary set makes the guard refuse (fail closed) until they are updated (note 2). Bypass: OVERRIDE_UNADMITTED=<reason>.
