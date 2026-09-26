@@ -400,7 +400,7 @@ export class Host {
     const here = Host.occupies(this.records.get(id) || {});
     const refuse = this.claimRefusal(d, { version: v, capacity: this.capacity({ exclude: id, capped: !here }),
                                           appsEnabled: this.cfg.appsEnabled, invited: invited || force });
-    if (refuse) { this.#record(id, { status: "refused", reason: refuse, appRef: d?.appRef || "" }); return { accepted: false, reason: refuse }; }
+    if (refuse) { this.#record(id, { status: "refused", reason: refuse, appRef: d?.appRef || "" }); return { accepted: false, reason: refuse, standing: "refused" }; }
     // A deployment for the ISOLATED backend that this box would still have to CLAIM is judged by the partition verdict
     // first: nothing is tracked and no chain call is made for one it would refuse or cannot judge (#preclaimVerdict).
     const heldHere = String(d.runner || "").toLowerCase() === this.enclaveId.toLowerCase() && Number(d.leaseUntil) * 1000 > Date.now();
@@ -429,10 +429,12 @@ export class Host {
           const reason = "the ledger will not let this box claim it: its rate cap, its funded balance or a live lease says no"
             + ` (this box charges ${this.cfg.cpuPricePerSec6}/sec per whole node, ${Math.round(Number(d.cpuMilli) / 10)}% of it here)`;
           this.#record(id, { status: "queued", reason, appRef: d.appRef });
-          return { accepted: false, reason };
+          return { accepted: false, reason, standing: "queued" };
         }
       } catch (e) { this.log(`claimableBy ${id.slice(0, 10)}: ${e.shortMessage || e.message}`); }
-      // claimAttempted: this call went on to a claim TRANSACTION - what spends the ledger scan's one claim per pass
+      // claimAttempted: this call went on to a claim TRANSACTION - what spends the ledger scan's one claim per pass. It is
+      // carried through ANY later throw (the launch's relay read, its spawn cap, a giveUp's chain tx): a claim once sent
+      // must count, or a throw after it lets a second claim go out in the same pass (enclave-bf's NO-GO on 3d37709a).
       try {
         this.#record(id, { status: "claiming", appRef: d.appRef });
         const hash = await chain.claimDeployment(id, this.enclaveId);
@@ -443,7 +445,8 @@ export class Host {
         const reason = `claim failed: ${e.shortMessage || e.message}`;
         this.#record(id, { status: "failed", reason, appRef: d.appRef }); return { accepted: false, reason, claimAttempted: true };
       }
-      await this.ensureApp(id, d, { force, version: v });
+      try { await this.ensureApp(id, d, { force, version: v }); }
+      catch (e) { throw Object.assign(e instanceof Error ? e : new Error(String(e)), { claimAttempted: true }); }
       return { accepted: true, status: this.records.get(id)?.status || "unknown", claimAttempted: true };
     }
     await this.ensureApp(id, d, { force, version: v });
@@ -725,7 +728,7 @@ export class Host {
     const was = this.preclaim.get(id);
     if (!force && was && was.key === key && Date.now() - was.at < Host.PRECLAIM_RECHECK_MS) {
       this.#record(id, { status: "refused", reason: was.reason, appRef: d.appRef });
-      return { accepted: false, reason: was.reason };
+      return { accepted: false, reason: was.reason, standing: "refused" };
     }
     const plan = await this.isolationVerdict(id, d, v, { envOpts, envRead });
     if (plan.ok) { this.preclaim.delete(id); return null; }
@@ -734,12 +737,12 @@ export class Host {
       this.preclaim.delete(id);
       this.#record(id, { status: "queued", reason, appRef: d.appRef });
       this.log(`${id.slice(0, 10)} not claimed: ${reason}`);
-      return { accepted: false, reason };
+      return { accepted: false, reason, standing: "queued" };
     }
     this.preclaim.set(id, { key, reason, at: Date.now() });
     this.#record(id, { status: "refused", reason, appRef: d.appRef });
     this.log(`${id.slice(0, 10)} not claimed: ${reason}`);
-    return { accepted: false, reason };
+    return { accepted: false, reason, standing: "refused" };
   }
 
   /**
@@ -1433,10 +1436,11 @@ export class Host {
    *
    * ONE new claim per pass. A claim costs gas and a lease commits capacity, and a scan that took
    * every row it liked at once would spend both before the first app had proved it starts. The slot is
-   * spent only by a row that goes on to a claim TRANSACTION (consider()'s claimAttempted): a row refused
-   * on policy (claimRefusal, the same predicate consider() asks), or declined by consider() without a
-   * claim (queued, the partition verdict), leaves it for the next row - and a declined row is not asked
-   * again while its inputs are unchanged (scanHold), so it cannot starve the rows behind it (enclave-d1's TEST2).
+   * spent by a row that goes on to a claim TRANSACTION (consider()'s claimAttempted, set at send and carried
+   * through any later throw): a row refused on policy (claimRefusal, the same predicate consider() asks), or
+   * declined by consider() without a claim (queued, the partition verdict), leaves it for the next row - and
+   * a row declined with a STANDING answer is not asked again while its inputs are unchanged (scanHold), so it
+   * cannot starve the rows behind it (enclave-d1's TEST2). At most SCAN_DECLINED_PER_PASS declines a pass.
    */
   async scanLedger() {
     const owners = this.ownerSet();
@@ -1456,7 +1460,7 @@ export class Host {
     const rank = (d) => (String(d.runner || "").toLowerCase() === ourId ? 0 : isOwners(d) ? 1 : 2);
     pool.sort((a, b) => rank(a) - rank(b) || Number(a.createdAt) - Number(b.createdAt));
     const ov = this.ownersVersion();
-    let claimed = 0;
+    let claimed = 0, declined = 0;
     for (const d of pool) {
       const id = String(d.id).toLowerCase();
       if (this.blocked.has(id)) continue;                  // already tried, already handed back
@@ -1474,7 +1478,7 @@ export class Host {
       // during a restart and finding it marked refused while the lease was live.
       if (ours && live) continue;
       if (!ours && live && !/^0x0+$/.test(String(d.runner || ""))) continue;   // somebody else is running it
-      if (!ours && claimed >= 1) continue;
+      if (!ours && (claimed >= 1 || declined >= Host.SCAN_DECLINED_PER_PASS)) continue;
       const holdKey = this.scanHoldKey(d, ov);
       const held = this.scanHold.get(id);
       if (held && held.key === holdKey && Date.now() - held.at < held.ms) continue;   // declined, and nothing it was judged on changed
@@ -1487,13 +1491,18 @@ export class Host {
         continue;
       }
       this.log(`ledger: considering ${id.slice(0, 10)} (${d.appRef}, owner ${d.owner}, ${Math.round(Number(d.cpuMilli) / 10)}% of a node)`);
-      const r = await this.consider(id).catch((e) => { this.log(`consider ${id.slice(0, 10)}: ${e.message}`); return null; });
-      // held only on a STANDING answer: refused (policy, partition verdict) or queued (the ledger's claimableBy, a
-      // verdict input not known yet); a transient failure (chain unavailable, a read that failed) is asked next pass
-      const st = this.records.get(id)?.status;
-      if (r && r.claimAttempted) { if (!ours) claimed++; this.scanHold.delete(id); }
-      else if (r && !r.accepted && (st === "refused" || st === "queued"))
-        this.scanHold.set(id, { key: holdKey, at: Date.now(), ms: st === "refused" ? Host.SCAN_HOLD_MS : Host.SCAN_QUEUED_HOLD_MS });
+      // a throw still says whether a claim went out before it (consider()'s claimAttempted, set at send)
+      const r = await this.consider(id).catch((e) => {
+        this.log(`consider ${id.slice(0, 10)}: ${e.message}`);
+        return { accepted: false, claimAttempted: e?.claimAttempted === true };
+      });
+      if (r.claimAttempted) { if (!ours) claimed++; this.scanHold.delete(id); continue; }
+      if (!ours) declined++;
+      // held only on an answer consider() says is STANDING - refused (policy, partition verdict) or queued (the ledger's
+      // claimableBy, a verdict input not known yet) - never read off the record, which may be an OLDER answer; a transient
+      // failure (chain unavailable, a read that failed, a throw) is asked the next pass (enclave-5d's should-fix)
+      if (!r.accepted && (r.standing === "refused" || r.standing === "queued"))
+        this.scanHold.set(id, { key: holdKey, at: Date.now(), ms: r.standing === "refused" ? Host.SCAN_HOLD_MS : Host.SCAN_QUEUED_HOLD_MS });
       else this.scanHold.delete(id);
     }
   }
@@ -2034,6 +2043,10 @@ export class Host {
   }
   static SCAN_HOLD_MS = 10 * 60_000;       // a refused row
   static SCAN_QUEUED_HOLD_MS = 2 * 60_000; // a queued one: its input may come back soon (the preclaim's unknown, the ledger's cap)
+  // at most this many rows a pass hands consider() and it declines, so a pool full of refused rows cannot make one pass
+  // ask the chain and the relay about every row (enclave-bf's should-fix, enclave-87's bound); the next pass moves on,
+  // past the ones now held
+  static SCAN_DECLINED_PER_PASS = 16;
   /**
    * scanHoldKey(d, ownersVersion) -> what a row consider() declined is judged on, as the scan can see it: the row
    * (envelope, app, size, visibility, owner, active, funding, rate cap, lease) and this box (whom it serves, what it
