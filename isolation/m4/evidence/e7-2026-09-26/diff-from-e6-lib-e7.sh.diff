@@ -1,0 +1,71 @@
+--- ../e6-20260926/lib-e6.sh	2026-09-25 20:08:59.501744523 -0700
++++ lib-e7.sh	2026-09-25 22:20:25.683433079 -0700
+@@ -1,18 +1,20 @@
+-# e6: the 3 canaries, RELEASE guests on 52156652 since e5, relaunch one at a time onto the HARDENED f7888d86 (image
+-# b63c2def: dominit holds yama ptrace_scope 2, user.max_user_namespaces 0, kernel.io_uring_disabled 2 and drops the app's
+-# privileges, on top of the console guard), by the owner's restart, AFTER the S7 tree switch put guestd on iso-b63c2def.
+-# Derived from lib-e5.sh. LEGM = each canary's CURRENT (52156652) measurement; RELM = its f7888d86 measurement computed
+-# INDEPENDENTLY with expected-measurement.sh --pin f7888d86 over the canary's live bundle (= e3's prediction, 03:07Z).
+-E4=~/enclave-bench/e6-20260926; LOG4=$E4/e6.log; ST=$E4/state
++# e7: the 3 canaries, RELEASE guests on the hardened f7888d86 since e6, relaunch one at a time onto 5db18199 (image
++# 0c087de8: per-release W^X, the runtime self-test stated AT ATTEST and covering the runtime; the app under dominit's
++# seccomp filter; the e6 hardening kept), by the owner's restart, AFTER S8 put guestd.0c087de8 on iso-0c087de8.
++# Derived from lib-e6.sh. LEGM = each canary's CURRENT (f7888d86) measurement (e6's RELM); RELM = its 5db18199
++# measurement computed INDEPENDENTLY with iso-0c087de8's expected-measurement.sh --pin 5db18199 over the canary's live
++# bundle, and required equal to the relay's admitted prediction at the restart. The state starts as a COPY of e6's
++# (canaries.tsv, canary-keys.txt: the live e6 keys); e7 updates its own copy, never e6's.
++E4=~/enclave-bench/e7-20260926; LOG4=$E4/e7.log; ST=$E4/state
+ KEYS4=$ST/canary-keys.txt; TSV4=$ST/canaries.tsv
+-REL=f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca; RUNTIME=ccadb38a
+-OLDREL=52156652d67a20a71643a5158624058dfeb6b88b58d8de47b360cf0a2a2eb6a1; NEWT=/home/steven/enclave-prod/iso-b63c2def
++REL=5db18199ef0d321ea9dc8c81e385cb057efd05c2ef5d29e471b81fb2b78c2a77   # the runtime: from the relay prediction at the restart (before.json), never a constant
++OLDREL=f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca; NEWT=/home/steven/enclave-prod/iso-0c087de8; NBIN=/home/steven/enclave-prod/bin/guestd.0c087de8
+ say() { local m; m="$(date -u +%H:%M:%SZ) $*"; echo "$m"; { echo "$m" >> "$LOG4"; } 2>/dev/null || true; }
+-# id8 -> full id, LEGM = its CURRENT measurement (the 52156652 release guest's, from e5), the app's own stdout marker (must
++# id8 -> full id, LEGM = its CURRENT measurement (the f7888d86 release guest's, from e6), the app's own stdout marker (must
+ # stay absent: both releases discard the app's stdio), PREV (the order), CFGB (the version config it gets, unchanged), and
+-# RELM: its 52156652 measurement computed INDEPENDENTLY (enclave-bf, enclave-87: never only the relay's own prediction) with
+-# the installed tree's expected-measurement.sh --pin 52156652 ~/enclave-prod/release-4cdd5169 <the canary's app.bundle> 1;
+-# here with --pin f7888d86 over 53's release dir (byte-equal to e3's predictions at 03:07Z)
++# RELM: its 5db18199 measurement computed INDEPENDENTLY (enclave-bf, enclave-87: never only the relay's own prediction) with
++# the installed tree's expected-measurement.sh --pin 5db18199 ~/enclave-prod/release-0c087de8 <the canary's app.bundle> 1
++# (e7-pins.sh re-derives and checks them after the S8 install; e7-restart.sh refuses without its record)
+ # CFGB: the config the relay releases. ENABLEMENT's "config:null" was a mis-prediction (0ddbd824, 23:50Z): the canaries'
+ # on-chain envelope is {"isolation":{"require":"snp-guest-per-app"}} (45 bytes, sha256 42c6f115f763f544...: the serial's
+ # envelope tag), which names no config, so the relay releases the catalog VERSION's inline config verbatim
+@@ -22,17 +24,17 @@
+ canary() {
+   case $1 in
+     0ddbd824) FULL=0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76
+-              LEGM=f4fb208aedddf04b29f65039f9f86008c7c65e4fd69bdb59fce6ffc3c9aa3c1d5e3ed14558f9728e0799357ab91dc11f
++              LEGM=a0101960e272080545e5c0ba7b32c74bbf16849050871b33cb9d52d5749c4b2df082b14148f27bc217ae02bf09f6541a
+               MARK='^\[hookbin'; PREV=; CFGB=177
+-              RELM=a0101960e272080545e5c0ba7b32c74bbf16849050871b33cb9d52d5749c4b2df082b14148f27bc217ae02bf09f6541a;;
++              RELM=6716ef1462e1ebabc4fd388c44dea5da1fe6902a60bedbc47aaaeae5199ee91003c8c842c34dde264b31d10c68d5871b;;
+     395bed3e) FULL=0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595
+-              LEGM=5f2f238c88e1ae555e3aa0e5ec8d240e202089a23a7a896b8912e616efb66c5125aab1204a2e1925a5db6f888f5b5e8e
++              LEGM=4bfae407cddd0e7cac1a886aabdc45711ab7718053f27c1f28f64eb6c3bfd2ca239f5613f270b4ef51f897116f28e84e
+               MARK='^Serving HTTP on '; PREV=0ddbd824; CFGB=194
+-              RELM=4bfae407cddd0e7cac1a886aabdc45711ab7718053f27c1f28f64eb6c3bfd2ca239f5613f270b4ef51f897116f28e84e;;
++              RELM=be2bb73c799fa8315d23101521da7f2bf944d7964a56793ce713266426af47237758961ee2b9c2ca22683e43aac13f2b;;
+     4e62e60d) FULL=0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e
+-              LEGM=5f2f238c88e1ae555e3aa0e5ec8d240e202089a23a7a896b8912e616efb66c5125aab1204a2e1925a5db6f888f5b5e8e
++              LEGM=4bfae407cddd0e7cac1a886aabdc45711ab7718053f27c1f28f64eb6c3bfd2ca239f5613f270b4ef51f897116f28e84e
+               MARK='^Serving HTTP on '; PREV=395bed3e; CFGB=194
+-              RELM=4bfae407cddd0e7cac1a886aabdc45711ab7718053f27c1f28f64eb6c3bfd2ca239f5613f270b4ef51f897116f28e84e;;
++              RELM=be2bb73c799fa8315d23101521da7f2bf944d7964a56793ce713266426af47237758961ee2b9c2ca22683e43aac13f2b;;
+     *) return 1;;
+   esac
+   LABEL=$1; HOST=$1.app.enclave.host
+@@ -78,8 +80,10 @@
+ }
+ cert_serial() { timeout 20 openssl s_client -connect $1:443 -servername $1 </dev/null 2>/dev/null | openssl x509 -serial -noout 2>/dev/null | sed 's/^serial=//'; }
+ cert_names() { timeout 20 openssl s_client -connect $1:443 -servername $1 </dev/null 2>/dev/null | openssl x509 -noout -subject -ext subjectAltName 2>/dev/null | tr '\n' ' '; }
+-# the relay's expected-guest image for $FULL under release $REL (f7888d86), and whether it is admitted
++# the relay's expected-guest image for $FULL under release $REL (5db18199), and whether it is admitted
+ expected_rel() { curl -sS --max-time 20 "https://api.enclave.host/v1/expected-guest?id=$1" | python3 -c "import json,sys; r=json.load(sys.stdin); i=[x for x in r.get('images',[]) if x.get('release')=='$REL' and x.get('releaseAdmitted') is True]; sys.exit(1) if len(i)!=1 else print(i[0]['measurement'])"; }
++# the same image's runtimeId (64 hex): the runtime the relay predicts for 5db18199, recorded at the restart
++expected_rt() { curl -sS --max-time 20 "https://api.enclave.host/v1/expected-guest?id=$1" | python3 -c "import json,sys,re; r=json.load(sys.stdin); i=[x for x in r.get('images',[]) if x.get('release')=='$REL' and x.get('releaseAdmitted') is True]; sys.exit(1) if len(i)!=1 or not re.fullmatch('[0-9a-f]{64}', i[0].get('runtimeId','')) else print(i[0]['runtimeId'])"; }
+ # a serial with control codes stripped, CR removed
+ serial_clean() { sed 's/\x1b\[[0-9;=?]*[A-Za-z]//g' "$1" | tr -d '\r'; }
+ # lines that are neither the front/init's (DOM ..., the front's Go log: "YYYY/MM/DD hh:mm:ss DOM|http: ..."), the kernel's,
