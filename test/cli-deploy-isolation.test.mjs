@@ -339,7 +339,7 @@ test("a large config with --isolation snp is PINNED for the release, though the 
   assert.equal(r.code, 0, r.err);
   assert.deepEqual(S.pinnedJson, [JSON.parse(BIG)]);
   assert.equal(creates()[0].args[6], `{"isolation":{"require":"snp-guest-per-app"},"configCid":"${PINNED_CID}"}`);
-  assert.match(r.out, /config: pinned; it reaches the snp-guest-per-app guest only through the attested release, which resolves its CID/);
+  assert.match(r.out, /config: pinned; on metal-iso0 it reaches the snp-guest-per-app guest only through the attested release, which resolves its CID/);
   assert.equal(events.includes("api:availability"), false, "the aggregate would have refused it");
 });
 
@@ -358,5 +358,16 @@ test("a large config for an hv host that takes it PINNED goes through", async ()
   assert.equal(r.code, 0, r.err);
   assert.equal(S.pinnedJson.length, 1);
   assert.equal(creates()[0].args[6], `{"isolation":{"require":"hyperv-partition-per-app"},"configCid":"${PINNED_CID}"}`);
-  assert.match(r.out, /config: pinned; the hyperv-partition-per-app host\(s\) take a pinned config/);
+  assert.match(r.out, /config: pinned; nucbox-k11 take\(s\) a pinned config/);
+});
+
+test("a tier that MIXES host kinds is judged per host: an inline-only host does not veto a pinned config another can take", async () => {
+  // hypothetical today (every tier has one host of one kind): A takes config only inline, B takes it through the release
+  const A = { name: "inline-only", availability: { isolation: "snp-guest-per-app", configOverride: true, configCidOverride: false } };
+  reset({ depRev: 5n, fleet: [A, SNP_ROW] });
+  const r = await run([...DEPLOY, "--isolation", "snp-guest-per-app", "--config", BIG]);
+  assert.equal(r.code, 0, r.err);
+  assert.equal(S.pinnedJson.length, 1);
+  assert.match(r.out, /config: pinned; on metal-iso0 it reaches the snp-guest-per-app guest only through the attested release/);
+  assert.ok(!/inline-only take/.test(r.out), "the inline-only host is not named as taking it");
 });
