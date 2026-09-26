@@ -26,6 +26,8 @@
 #include <cpuid.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
+#include <poll.h>
 #include <grp.h>
 #include <limits.h>
 #include <net/if.h>
@@ -278,11 +280,31 @@ static int seccomp_status_fd = -1;
 #define SECCOMP_STATEMENT SECCOMP_DIR "/seccomp"
 /* Read the app child's seccomp statement (to EOF: its exec, or its exit on a failure, closes the other end). A valid one
  * is printed - the positive line - and written, root-only, where the front reads it into every attested self-test; none
- * means the child failed before exec (it has said why, exits 125, and the domain ends). */
-static void seccomp_statement_from(int fd) {
+ * means the child failed before exec (it has said why, exits 125, and the domain ends).
+ * BOUNDED (enclave-5d's N1, enclave-87: required): this is PID 1, so a child that neither writes nor reaches exec within
+ * SECCOMP_STATEMENT_MS must not hang the boot. It is killed, the console says so, and PID 1's wait loop sees the app end
+ * and ends the domain - it never serves (fail closed). */
+#ifndef SECCOMP_STATEMENT_MS
+#define SECCOMP_STATEMENT_MS 10000
+#endif
+static void seccomp_statement_from(int fd, pid_t child) {
     char st[160];
     size_t got = 0;
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
     for (;;) {
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        long left = SECCOMP_STATEMENT_MS - ((t1.tv_sec - t0.tv_sec) * 1000L + (t1.tv_nsec - t0.tv_nsec) / 1000000L);
+        struct pollfd p = {.fd = fd, .events = POLLIN};
+        int r = left > 0 ? poll(&p, 1, (int)left) : 0;
+        if (r < 0 && errno == EINTR) continue;
+        if (r == 0) {
+            if (got) printf("DOM ERROR the app held init's seccomp statement pipe past its exec (no EOF within %d ms): killed, not started\n", SECCOMP_STATEMENT_MS);
+            else printf("DOM ERROR the app gave no seccomp statement within %d ms: killed, not started\n", SECCOMP_STATEMENT_MS);
+            if (child > 0) kill(child, SIGKILL);
+            return;
+        }
+        if (r < 0) break;
         ssize_t n = read(fd, st + got, sizeof st - 1 - got);
         if (n < 0 && errno == EINTR) continue;
         if (n <= 0) break;
@@ -318,7 +340,7 @@ static pid_t spawn_app(char *const argv[], char *extra, int flags) {
     pid_t pid = spawn(argv, extra, -1, flags);
     close(sfd[1]);
     seccomp_status_fd = -1;
-    seccomp_statement_from(sfd[0]);
+    seccomp_statement_from(sfd[0], pid);
     close(sfd[0]);
     return pid;
 }
