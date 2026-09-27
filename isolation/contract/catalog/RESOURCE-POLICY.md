@@ -46,9 +46,11 @@ routing manifest when bulk config moves to a CID.
 
 Remaining gates:
 
-- Update and exercise the production owner's independent expected-identity
-  derivation and release preparation with the new version metadata. Verify
-  the measurement tool's vCPU input agrees with the bundle policy.
+- Exercise the complete production relay prediction/release path using the
+  staged selector and the pinned toolchain commit before signing activation.
+  The relay now independently selects policy from the catalog's inline config;
+  both RPCs must agree on that field. The measurement command refuses a vCPU
+  argument that disagrees with its validated, snapshotted bundle.
 - Validate the full published-version path and restart/migration on a staging
   deployment before rolling out the supervisor. Unit and scripted-manager
   tests do not establish that a production migration has succeeded.
@@ -82,3 +84,12 @@ The staged integration passes 61 resource-policy, claim, reservation, release,
 restart-input and cross-platform tests, plus 31 existing sizing, version-switch
 and publishing regression tests. These include refusing an underfunded launch
 and missing immutable metadata before posting any VM request.
+
+The relay predictor source is based on production ports commit `fa7ecd7a5`.
+It independently derives policy/2, compares all relevant catalog fields across
+RPCs, and keys its prediction cache by the resulting resource policy. Its 29
+checks pass, including 88 comparisons with the independent Python selector,
+RPC disagreement on profile metadata, and refusal of unknown rules. The
+measurement-policy integration test reconstructs both previously attested RISC
+identities and refuses five mismatched/invalid CPU counts without producing
+acceptance output. No production relay rollout has occurred.

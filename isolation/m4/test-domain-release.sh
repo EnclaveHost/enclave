@@ -79,10 +79,19 @@ INSPECT=1 tamper "non-verifying firmware, manifest made consistent" "not pinned 
 check "D3 every tampering is refused ($ok of $n), the consistent rewrite only by the pinned id" $r
 
 # D4 ------------------------------------------------------------------------------------------------------------
-a1=$(acc "$W/rel1" "$G/A.bundle" 1 | meas); a2=$(acc "$W/rel1" "$G/A.bundle" 2 | meas)
+a1=$(acc "$W/rel1" "$G/A.bundle" 1 | meas)
 b1=$(acc "$W/rel1" "$G/B.bundle" 1 | meas)
+# A two-vCPU shape must be declared in a new bundle, never substituted only in
+# the measurement command. Rebuild the same artifact with an explicit policy.
+BT=$here/.bundle
+"$BT" extract "$G/A.bundle" "$W/A.component"
+"$BT" build -cpu 200 -mem 512 -vcpus 2 "$W/A.component" "$W/A.two.bundle" > /dev/null
+a2=$(acc "$W/rel1" "$W/A.two.bundle" 2 | meas)
 [ ${#a2} = 96 ] && [ "$a1" != "$a2" ] && [ "$a1" != "$b1" ] && r=ok || r=no
-check "D4 the vCPU count and the app each move the measurement" $r
+acc "$W/rel1" "$G/A.bundle" 2 > "$W/mismatch.out" && r=no
+grep -q 'does not match the bundle policy' "$W/em.err" || r=no
+[ ! -s "$W/mismatch.out" ] || r=no
+check "D4 a changed bundle shape changes the measurement; a contradictory vCPU argument is refused" $r
 
 # D5 ------------------------------------------------------------------------------------------------------------
 BT=$here/.bundle
