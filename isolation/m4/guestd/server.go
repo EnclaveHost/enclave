@@ -128,6 +128,7 @@ func unsupported(r *Request) string {
 
 type vm struct {
 	ID, Name, AppID, Measurement, Status, Error, Verdict string
+	RuntimeID                                            string // identity actually verified for this guest
 	RecordSha256                                         string // the catalog derivation, when the app came from one
 	TransportKeySha256                                   string // the key the verifying handshake saw
 	HostData                                             string // SEV-SNP HOST_DATA the guest was launched with (hex), "" = none
@@ -271,7 +272,7 @@ func (v *vm) public() map[string]any {
 func (s *server) view(v *vm) map[string]any {
 	m := v.public()
 	if s.RuntimeID != "" {
-		m["runtimeId"] = s.RuntimeID
+		m["runtimeId"] = s.vmRuntime(v)
 	}
 	return m
 }
@@ -306,7 +307,7 @@ func (s *server) route(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 		cat := map[string]any{"derivations": []string{}}
 		if s.Store != nil {
-			cat = map[string]any{"derivations": []string{catalog.V1, catalog.V2}, "runtimeId": s.Store.RuntimeID}
+			cat = map[string]any{"derivations": []string{catalog.V1, catalog.V2, catalog.V3}, "runtimeId": s.Store.RuntimeID}
 		}
 		s.json(w, 200, map[string]any{"ok": true, "backend": "snp-guest-per-app", "guests": n,
 			"set": s.RuntimeSET, "setRequiresRelease": s.RuntimeSET && s.Release,
@@ -316,7 +317,7 @@ func (s *server) route(w http.ResponseWriter, r *http.Request) {
 			// release: config and secrets reach a DEPLOYMENT guest only through the attested release, sealed to it, with
 			// egress to its own allowlist (release.go); nothing of them crosses this host, so config/secrets stay false
 			"supports": map[string]bool{"gpu": false, "secrets": false, "egress": false, "config": false,
-				"ports": false, "configCid": false, "release": s.Release,
+				"ports": false, "protectedPorts": true, "configCid": false, "release": s.Release,
 				// legacyImage: a deployment that is not a release guest can still run here (on the previous image)
 				"legacyImage": s.Release && s.Legacy != nil}})
 	case r.Method == http.MethodPost && r.URL.Path == "/vms":
@@ -407,6 +408,10 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 		s.json(w, 422, map[string]any{"error": "not a contract bundle this backend can name: " + err.Error()})
 		return
 	}
+	if legacy && len(m.Ports) != 0 {
+		s.json(w, 422, map[string]any{"error": "protected ports require this release image, not a legacy guest"})
+		return
+	}
 	id := contract.AppID(raw)
 	pol := contract.EffectivePolicy(&m, contract.Request{})
 	mem := guestMemMiB(pol.MemMiB)
@@ -430,7 +435,7 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 		s.json(w, 503, map[string]any{"error": err.Error()})
 		return
 	}
-	v := &vm{ID: s.newID(), Name: req.Name, AppID: hex.EncodeToString(id[:]), Status: "starting", RecordSha256: record,
+	v := &vm{ID: s.newID(), Name: req.Name, AppID: hex.EncodeToString(id[:]), Status: "starting", RecordSha256: record, RuntimeID: s.RuntimeID,
 		HostData: hostDataFor(req.Name),
 		Vcpus:    pol.Vcpus, MemMiB: mem, CPUPct: pol.CPUPercent, Created: s.Now(),
 		lc: contract.NewLifecycle(contract.Starting), leaseUntil: s.Now().Add(s.LeaseTTL), cid: cid}

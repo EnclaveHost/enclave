@@ -51,6 +51,7 @@ import tls from 'node:tls';
 import fs from 'node:fs';
 import { createHash, randomBytes } from 'node:crypto';
 import { judge } from './judge.mjs';
+import { startConnector, parseBindings } from './port-connector.mjs';
 import { seedCertChain } from '../../relay/snp-verify.mjs';
 
 const args = process.argv.slice(2);
@@ -74,6 +75,11 @@ if (opt('--release') !== undefined) want.release = opt('--release').split(',');
 if (opt('--amd-chain')) {
   const [product, file] = opt('--amd-chain').split('=');
   seedCertChain(product, fs.readFileSync(file, 'utf8'));                       // throws unless the ARK is the pin
+}
+const bindings = opt('--forward');
+if (bindings) {
+  parseBindings(bindings);
+  if (mode !== 'trusted' || !want.runtime || !want.hostData || !want.minTcb) throw new Error('--forward requires trusted mode, --runtime, --host-data and --min-tcb');
 }
 const t0 = Number(opt('--t0') || 0);
 const servername = opt('--servername');
@@ -99,7 +105,7 @@ class PinnedAgent extends https.Agent {
     let settled = false;
     const done = (err, s) => { if (!settled) { settled = true; cb(err, s); } };
     const s = tls.connect({ ...options, ...(servername ? { servername } : {}), rejectUnauthorized: false,
-      session: undefined });                                                             // trust = the report
+      session: undefined, allowHalfOpen: true });                                                             // trust = the report
     s.once('secureConnect', () => {
       const cert = s.getPeerX509Certificate();
       const key = cert ? cert.publicKey.export({ type: 'spki', format: 'der' }) : null;
@@ -198,8 +204,35 @@ try {
     const a2 = await attest(side, n2);
     side.destroy();
     out('key_stable_in_launch', a2.spki && a2.spki.equals(pin) ? 1 : 0);
-    out('second_nonce_verdict', (await judge(a2.doc, a2.spki, n2, want)).verdict);
+    const j2 = await judge(a2.doc, a2.spki, n2, want);
+    out('second_nonce_verdict', j2.verdict);
+    if (bindings && !j2.gateOpen) throw new Error('fresh attestation refused before opening ports');
     out('replay_rejected', (await judge(a1.doc, a1.spki, n2, want)).verdict === 'reject' ? 1 : 0);
+  }
+
+  if (bindings) {
+    const stop = await startConnector(bindings, (protocol, port) => new Promise((resolve, reject) => {
+      const a = new PinnedAgent(pin);
+      const req = https.request({ host: url.hostname, port: url.port, agent: a, method: 'GET',
+        path: `/.well-known/enclave-tunnel/${protocol}/${port}`,
+        headers: { Connection: 'Upgrade', Upgrade: 'enclave-port/1' } });
+      req.setTimeout(10000, () => req.destroy(new Error('tunnel upgrade timeout')));
+      req.once('upgrade', (res, socket, head) => {
+        if (res.statusCode !== 101 || res.headers.upgrade !== 'enclave-port/1') {
+          socket.destroy(); a.destroy(); reject(new Error('invalid tunnel upgrade')); return;
+        }
+        socket.setTimeout(0);
+        if (head.length) socket.unshift(head);
+        socket.once('close', () => a.destroy());
+        resolve(socket);
+      });
+      req.once('response', res => { res.resume(); a.destroy(); reject(new Error(`tunnel refused: HTTP ${res.statusCode}`)); });
+      req.once('error', e => { a.destroy(); reject(e); });
+      req.end();
+    }));
+    process.once('SIGINT', () => { stop(); finish(0); });
+    process.once('SIGTERM', () => { stop(); finish(0); });
+    await new Promise(() => {});
   }
 
   // the app (it may still be starting behind the front: retry a 502 briefly)

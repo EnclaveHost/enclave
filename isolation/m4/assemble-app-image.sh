@@ -11,7 +11,7 @@
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
 t=${1:?usage: assemble-app-image.sh <template> <bundle> <out>}; bundle=${2:?}; out=${3:?}
-for f in app.bundle app.wasm app.sha256; do
+for f in app.bundle app.wasm app.sha256 app.run app.ports; do
   [ ! -e "$t/$f" ] || { echo "assemble-app-image.sh: the template already carries $f" >&2; exit 2; }
 done
 d=$(mktemp -d); s=$(mktemp -d)
@@ -37,6 +37,8 @@ case "$mode" in
   "run "*) printf '%s\n' "${mode#run }" > "$d/app.run" ;;
   *) echo "assemble-app-image.sh: the bundle states no runnable mode ($mode)" >&2; exit 1 ;;
 esac
+"$BUNDLETOOL" ports "$s/app.bundle" > "$s/ports"
+[ ! -s "$s/ports" ] || cp "$s/ports" "$d/app.ports"
 cp "$s/app.bundle" "$d/app.bundle"
 printf '%s\n' "$app_id" > "$d/app.sha256"
 # modes, ownership and times normalised, so the measurement depends on contents alone (pack-initrd.sh)

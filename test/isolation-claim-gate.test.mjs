@@ -165,7 +165,7 @@ test("the record digest a tier spawn compares is guestd's recordSha256 for the s
   assert.notEqual(r.recordDigest[1], r.recordDigest[0]);
 });
 
-test("one declared HTTP port is served (enclave-catalog-bundle/2) when the manager derives it; nothing else is", async () => {
+test("one declared HTTP port is served (enclave-catalog-bundle/2) when the manager derives it; older managers refuse tunnels", async () => {
   const v2 = { ...GUESTD, catalog: { derivations: ["enclave-catalog-bundle/1", "enclave-catalog-bundle/2"] } };
   const v1only = { ...GUESTD, catalog: { derivations: ["enclave-catalog-bundle/1"] } };
   const r = await seam({ verdicts: [
@@ -177,10 +177,10 @@ test("one declared HTTP port is served (enclave-catalog-bundle/2) when the manag
   ] }, TIER);
   assert.equal(r.verdicts[0], null);
   assert.match(r.verdicts[1], /cannot derive such a bundle \(enclave-catalog-bundle\/2\)/);
-  for (const v of r.verdicts.slice(2)) assert.match(v, /beyond one HTTP port/);
+  for (const v of r.verdicts.slice(2)) assert.match(v, /beyond one HTTP port|protected TCP\/UDP tunnels/);
 });
 
-test("a command's derivation and prefetch carry its HTTP port; tcp/udp never derive", async () => {
+test("a command's derivation and prefetch carry its HTTP port; tunnel-only versions are refused", async () => {
   const app = "0x" + "ab".repeat(32), rt = "7e".repeat(32);
   const g = { ref: `catalog://${app}/4`, wasmRef: "ipfs://bafkreidocbixnql7lroykdtwx4r2fmi5n6sra4lj7b7vhscsfqn4gctlee",
               min: { memMb: 256 }, ports: "http:8000" };
@@ -192,8 +192,25 @@ test("a command's derivation and prefetch carry its HTTP port; tcp/udp never der
   assert.deepEqual(r.derive[0], { derivation: "enclave-catalog-bundle/2", catalog: { app, version: 4 },
     cid: "bafkreidocbixnql7lroykdtwx4r2fmi5n6sra4lj7b7vhscsfqn4gctlee", policy: { cpuPercent: 100, memMiB: 256, vcpus: 1 },
     runtimeId: rt, http: 8000 });
-  assert.match(r.derive[1].error, /at most one declared HTTP port/);
+  assert.match(r.derive[1].error, /one HTTP port/);
   assert.equal(r.derive[2].derivation, "enclave-catalog-bundle/1");
   assert.equal(r.derive[2].http, undefined);
   assert.deepEqual(r.prefetch[0].derive, r.derive[0]);
+});
+
+test("protected ports require V3 and an explicit manager capability; the full sorted port set is measured", async () => {
+  const ports = ["http:8000", "udp:47998", "tcp:2222"];
+  const capable = { ...GUESTD, supports: { ...GUESTD.supports, protectedPorts: true }, catalog: { derivations: ["enclave-catalog-bundle/3"] } };
+  const base = { catalogRef: `catalog://0x${"ab".repeat(32)}/54`, wasmRef: "ipfs://bafkreidocbixnql7lroykdtwx4r2fmi5n6sra4lj7b7vhscsfqn4gctlee", memMb: 3072, runtimeId: "49".repeat(32), ports };
+  const r = await seam({ verdicts: [
+    { ...clean, firewall: ports, manager: capable },
+    { ...clean, firewall: ports, manager: { ...capable, supports: GUESTD.supports } },
+    { ...clean, firewall: ports, manager: { ...capable, catalog: { derivations: ["enclave-catalog-bundle/2"] } } },
+    { ...clean, firewall: [...ports, "tcp:2222"], manager: capable },
+  ], derive: [base, { ...base, ports: [...ports].reverse() }] }, TIER);
+  assert.equal(r.verdicts[0], null);
+  for (const v of r.verdicts.slice(1)) assert.ok(v);
+  assert.equal(r.derive[0].derivation, "enclave-catalog-bundle/3");
+  assert.deepEqual(r.derive[0].ports, ["tcp:2222", "udp:47998"]);
+  assert.deepEqual(r.derive[0], r.derive[1]);
 });

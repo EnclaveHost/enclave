@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"enclave.host/isolation/contract"
 )
@@ -25,6 +26,7 @@ func main() {
 		label := fs.String("label", "", "label")
 		world := fs.String("world", "wasi:http", "world")
 		httpPort := fs.Int("http", 0, "wasi:cli only: the port the app serves HTTP on")
+		ports := fs.String("ports", "", "sorted tcp:N,udp:N tunnel destinations")
 		kind := fs.String("kind", "wasm-component", "artifact kind")
 		cpu := fs.Int("cpu", 100, "cpu percent")
 		mem := fs.Int("mem", 256, "memory MiB")
@@ -36,7 +38,12 @@ func main() {
 		}
 		art, err := os.ReadFile(fs.Arg(0))
 		die(err)
-		b, err := contract.Build(contract.Manifest{ABI: contract.ABI, Label: *label, World: *world, HTTP: *httpPort,
+		var pp []string
+		if *ports != "" {
+			pp = strings.Split(*ports, ",")
+		}
+		die(contract.ValidatePorts(pp, *world, *httpPort))
+		b, err := contract.Build(contract.Manifest{ABI: contract.ABI, Label: *label, World: *world, HTTP: *httpPort, Ports: pp,
 			Artifact: contract.Artifact{Kind: *kind}, Policy: contract.Policy{CPUPercent: *cpu, MemMiB: *mem, Vcpus: *vcpus}}, art)
 		die(err)
 		die(os.WriteFile(fs.Arg(1), b, 0o644))
@@ -70,6 +77,14 @@ func main() {
 			fmt.Printf("run %d\n", m.HTTP)
 		} else {
 			fmt.Println("serve")
+		}
+	case "ports":
+		b, err := os.ReadFile(os.Args[2])
+		die(err)
+		m, _, err := contract.Parse(b)
+		die(err)
+		for _, p := range m.Ports {
+			fmt.Println(p)
 		}
 	case "extract":
 		if len(os.Args) < 4 {

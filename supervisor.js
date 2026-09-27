@@ -2272,30 +2272,36 @@ function isolationPolicyFor(version) {
 // The derivation record guestd needs to turn a catalog version into the exact bundle it runs
 // (enclave-catalog-bundle/1): the catalog ref, the component CID, the policy above, and the runtime the host's
 // images carry (guestd's own /health states it; guestd refuses a record pinned to any other).
-function isolationDerivation(catalogRef, wasmRef, policy, runtimeId, httpPort = 0) {
+function isolationDerivation(catalogRef, wasmRef, policy, runtimeId, httpPort = 0, tunnelPorts = []) {
   const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d+)$/.exec(String(catalogRef || ""));
   const c = /^ipfs:\/\/([A-Za-z0-9]+)$/.exec(String(wasmRef || ""));
   if (!m || !c) throw new Error(`per-app isolation needs a catalog version and its component CID (got ${catalogRef} / ${wasmRef})`);
   if (!/^[0-9a-f]{64}$/.test(String(runtimeId || ""))) throw new Error("the per-app manager states no runtime identity");
   // a command that declares its HTTP port is enclave-catalog-bundle/2: the bundle states world wasi:cli and the port
-  return { derivation: httpPort ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
+  return { derivation: tunnelPorts.length ? "enclave-catalog-bundle/3" : httpPort ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
            catalog: { app: m[1].toLowerCase(), version: Number(m[2]) }, cid: c[1], policy, runtimeId,
-           ...(httpPort ? { http: httpPort } : {}) };
+           ...(httpPort ? { http: httpPort } : {}), ...(tunnelPorts.length ? { ports: tunnelPorts } : {}) };
 }
 
 // The ports a tier app may declare: none (a wasi:http component the runtime serves) or exactly ONE "http:N" (a wasi:cli
 // command that serves HTTP on N inside its own guest; enclave-catalog-bundle/2). Returns N, or 0 for none; throws for
 // anything else - raw tcp/udp ports and a second HTTP port are not offered on this tier.
-function isolationHttpPortOf(ports) {
+function isolationPortsOf(ports) {
   const list = (Array.isArray(ports) ? ports : String(ports || "").split(","))
-    .map((p) => String(p).trim().toLowerCase()).filter(Boolean);
-  if (!list.length) return 0;
-  const m = list.length === 1 ? /^http:(\d{1,5})$/.exec(list[0]) : null;
-  const n = m ? Number(m[1]) : 0;
-  if (!m || n < 1 || n > 49999)
-    throw new Error(`the per-app guest tier serves at most one declared HTTP port (http:N); ${list.join(", ")} is not offered`);
-  return n;
+    .map(p => String(p).trim().toLowerCase()).filter(Boolean);
+  if (!list.length) return { http: 0, ports: [] };
+  let http = 0; const dests = [];
+  for (const p of list) {
+    const m = /^(http|tcp|udp):([1-9][0-9]{0,4})$/.exec(p);
+    if (!m || +m[2] > 49999) throw new Error(`invalid declared port ${p}`);
+    if (m[1] === "http") { if (http) throw new Error("only one HTTP port is supported"); http = +m[2]; }
+    else dests.push(p);
+  }
+  if (!http || dests.length > 32 || new Set(dests).size !== dests.length || dests.includes(`tcp:${http}`))
+    throw new Error("tunnel destinations need one HTTP port, no duplicates or HTTP collision, and at most 32 ports");
+  return { http, ports: dests.sort() };
 }
+function isolationHttpPortOf(ports) { return isolationPortsOf(ports).http; }
 
 // sha256 of the derivation record's canonical JSON (compact, keys sorted at every level): catalog.Derivation.Digest,
 // the key guestd files a mapping under and reports as recordSha256.
@@ -2309,12 +2315,12 @@ function derivationDigest(d) {
 // catalog CID alone names bytes, not a contract identity, and guestd refuses it).
 function isolationPrefetchBody(g, runtimeId) {
   return { image: g.wasmRef, derive: isolationDerivation(g.ref, g.wasmRef, isolationPolicyFor(g.min), runtimeId,
-    isolationHttpPortOf(g.ports)) };
+    isolationHttpPortOf(g.ports), isolationPortsOf(g.ports).ports) };
 }
 // The derivation record the SPAWN sends for a catalog version (spawnContainer): the ONE function the resume's
 // same-record test and the self-test use too, so the three can never drift apart (enclave-e3).
 function isolationSpawnDerivation({ catalogRef, wasmRef, versionMemMb, runtimeId, ports }) {
-  return isolationDerivation(catalogRef, wasmRef, isolationPolicyFor({ memMb: versionMemMb }), runtimeId, isolationHttpPortOf(ports));
+  return isolationDerivation(catalogRef, wasmRef, isolationPolicyFor({ memMb: versionMemMb }), runtimeId, isolationHttpPortOf(ports), isolationPortsOf(ports).ports);
 }
 // Whether the guest guestd holds under this deployment's name was launched from exactly the record the spawn would
 // send for version g (PURE; considerClaim's resume credit). The spawn derives its port from the PARSED firewall
@@ -2325,7 +2331,7 @@ function isolationHeldSameRecord(held, g, firewall, runtimeId) {
     // what the claim path would put on the record (rec.image = g.ref, rec.appWasm = g.wasmRef, rec._versionMemMb =
     // g.min.memMb, rec.firewall = the parsed firewall), through the spawn's own derivation
     return held.recordSha256 === derivationDigest(isolationSpawnDerivation({ catalogRef: g.ref, wasmRef: g.wasmRef,
-      versionMemMb: g.min && g.min.memMb, runtimeId, ports: firewall || [] }));
+      versionMemMb: g.min && g.min.memMb, runtimeId: held.runtimeId || runtimeId, ports: firewall || [] }));
   } catch { return false; }
 }
 async function managerPrefetchBody(g) {
@@ -2379,7 +2385,9 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
     try { port = isolationHttpPortOf(firewall); }
     catch { return `the version declares ports (${firewall.join(", ")}) beyond one HTTP port, which a per-app guest does not forward`; }
     const derivations = (manager.catalog && manager.catalog.derivations) || [];
-    if (port && !derivations.includes("enclave-catalog-bundle/2"))
+    if (isolationPortsOf(firewall).ports.length && (!derivations.includes("enclave-catalog-bundle/3") || sup.protectedPorts !== true || (sup.release === true && !released)))
+      return "the version needs protected TCP/UDP tunnels inside its release guest; this manager cannot provide them";
+    if (port && !isolationPortsOf(firewall).ports.length && !derivations.includes("enclave-catalog-bundle/2"))
       return `the version serves HTTP on its own port (http:${port}), and this box's per-app manager cannot derive such a bundle (enclave-catalog-bundle/2)`;
   }
   // A -release guestd starts THIS tree's image only for a release guest; any other deployment runs its legacy image
@@ -2536,7 +2544,7 @@ if (process.env.ISOLATION_SELFTEST) {
     appConfig: (c.appConfig || []).map((x) => isolationAppConfig(x)),
     recordDigest: (c.recordDigest || []).map((d) => derivationDigest(d)),
     prefetch: (c.prefetch || []).map((x) => { try { return isolationPrefetchBody(x.g, x.runtimeId); } catch (err) { return { error: err.message }; } }),
-    derive: (c.derive || []).map((d) => { try { return isolationDerivation(d.catalogRef, d.wasmRef, isolationPolicyFor({ memMb: d.memMb }), d.runtimeId, isolationHttpPortOf(d.ports)); }
+    derive: (c.derive || []).map((d) => { try { return isolationDerivation(d.catalogRef, d.wasmRef, isolationPolicyFor({ memMb: d.memMb }), d.runtimeId, isolationHttpPortOf(d.ports), isolationPortsOf(d.ports).ports); }
                                           catch (err) { return { error: err.message }; } }),
   }));
   process.exit(0);
@@ -3914,7 +3922,7 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
     // itself, and any other guest may not have any; `secretsStaged` is only whether some are staged
     const released = await isolationSpawnRelease(h, deploymentId,
       { config, configCid, staged: secrets ? true : (secretsStaged === undefined ? false : secretsStaged) });
-    isolationHttpPortOf(ports);                    // throws for tcp/udp or a second port
+    isolationPortsOf(ports); // validate the complete measured port set
     // The policy is the version's; a record that lost the version's memMb must not guess one (a different policy
     // is a different AppID and measurement for the same version).
     if (versionMemMb == null) throw new Error("per-app isolation: this record does not carry its version's on-chain memMb");
@@ -3936,7 +3944,7 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
       const cur = await vmReq("GET", `/vms/${encodeURIComponent(r.body.id)}`, null, 10_000);
       const v = cur && cur.status === 200 && cur.body;
       if (v && v.name === deploymentId && (v.status === "running" || v.status === "starting")
-          && v.recordSha256 === derivationDigest(derive)) {
+          && v.recordSha256 === derivationDigest({ ...derive, runtimeId: v.runtimeId || derive.runtimeId })) {
         console.log(`[isolation] ${deploymentId.slice(0, 10)}: adopted guest ${v.id} (${v.status}), launched from this record before the node restarted`);
         if (v.status === "starting" && v.release === true) pumpReleaseTicket(deploymentId, v.id);
         return { internalPort: 0, vmId: v.id, hostPort: 0, appId: v.appId };
@@ -4548,13 +4556,13 @@ function depAddrFor(id) {
 // public deployments exposing udp ports, with their address + logical ports —
 // the udp-relay reads this to know what to bind and where to route.
 const udpMap = () => [...deployments.values()]
-  .filter((r) => r.public && r.status === "running" && fwUdpPorts(r).length)
+  .filter((r) => !ISOLATION_BACKEND && r.public && r.status === "running" && fwUdpPorts(r).length)
   .map((r) => ({ id: r.id, address: depAddrFor(r.id), ports: fwUdpPorts(r) }));
 // public deployments with tcp OR udp ports, each with its dedicated address and
 // per-protocol logical ports — the tcp6-relay (tcp) and udp-relay (udp) poll
 // this to bind [address]:port and route into /x/:id/(tcp|udp)/:port.
 const netMap = () => [...deployments.values()]
-  .filter((r) => r.public && r.status === "running" && (fwTcpPorts(r).length || fwUdpPorts(r).length))
+  .filter((r) => !ISOLATION_BACKEND && r.public && r.status === "running" && (fwTcpPorts(r).length || fwUdpPorts(r).length))
   .map((r) => ({ id: r.id, address: depAddrFor(r.id), tcp: fwTcpPorts(r), udp: fwUdpPorts(r) }));
 
 // --- dedicated-IP EGRESS (the outbound half of depAddrFor) ------------------
@@ -6109,7 +6117,10 @@ const view = (rec) => {
   // (network.egress marks the outbound half so clients can label it).
   const tcpPorts = fwTcpPorts(rec), udpPorts = fwUdpPorts(rec);
   const depAddr = depAddrFor(rec.id);
-  if (depAddr && (tcpPorts.length || udpPorts.length || egress)) {
+  if (ISOLATION_BACKEND && (tcpPorts.length || udpPorts.length)) {
+    o.network = { ...o.network, protectedTunnel: { protocol: "enclave-port/1", endpoint: APP_CERT_DOMAIN ? `https://${appCertName(rec.id)}` : null, tcp: tcpPorts, udp: udpPorts, requiresLocalConnector: true } };
+  }
+  if (!ISOLATION_BACKEND && depAddr && (tcpPorts.length || udpPorts.length || egress)) {
     o.network = { ...o.network, address: depAddr };
     if (egress) o.network.egress = true;
     if (tcpPorts.length) o.network.tcp = { address: depAddr, ports: tcpPorts };

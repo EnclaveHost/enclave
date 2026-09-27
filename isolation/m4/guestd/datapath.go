@@ -223,7 +223,7 @@ func (d *dataPlane) admit(v *vm, w spliceWant) (outcome, why string) {
 		return "refused:identity", "the instance is not that app"
 	case w.measurement != v.Measurement:
 		return "refused:identity", "the instance was not launched with that measurement"
-	case w.runtime != d.s.RuntimeID:
+	case w.runtime != d.s.vmRuntime(v):
 		return "refused:identity", "the instance does not carry that runtime"
 	case w.key != v.TransportKeySha256:
 		return "refused:identity", "the instance's verified transport key is not that key"
