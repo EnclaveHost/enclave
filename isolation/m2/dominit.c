@@ -240,13 +240,14 @@ static const char *app_reaches(void) {
     return NULL;
 }
 
-static void insmod(const char *p) {
+static void insmod_args(const char *p, const char *args) {
     int fd = open(p, O_RDONLY | O_CLOEXEC);
     if (fd < 0) { printf("DOM insmod %s: %s\n", p, strerror(errno)); return; }
-    long r = syscall(SYS_finit_module, fd, "", 4 /* MODULE_INIT_COMPRESSED_FILE */);
+    long r = syscall(SYS_finit_module, fd, args, 4 /* MODULE_INIT_COMPRESSED_FILE */);
     if (r != 0 && errno != EEXIST) printf("DOM insmod %s failed: %s\n", p, strerror(errno));
     close(fd);
 }
+static void insmod(const char *p) { insmod_args(p, ""); }
 
 /* the kernel gives lo 127.0.0.1/8 itself once it is up */
 static void lo_up(void) {
@@ -554,6 +555,14 @@ int main(void) {
     shield_profile();
     pid_t shield_pid = -1;
     if (shield_on) {
+        // Bounded adaptive polling avoids an SNP halt/wake transition for
+        // every split-helper handoff. The measured module/parameters mirror
+        // the control VM's idle policy; it shrinks back when the guest idles.
+        insmod_args("/cpuidle-haltpoll.ko.zst", "force=1");
+        char driver[64] = {0};
+        FILE *idle = fopen("/sys/devices/system/cpu/cpuidle/current_driver", "r");
+        if (idle) { (void)fgets(driver,sizeof driver,idle); fclose(idle); }
+        printf("DOM Shield idle driver: %s\n", driver[0] ? driver : "unavailable");
         if (shield_rings() != 0) { printf("DOM ERROR invalid Shield rings\n"); reboot(RB_POWER_OFF); _exit(1); }
         if (shield_large) {
             char *mv[] = {"/shieldmodel", NULL}; int status=0;

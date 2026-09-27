@@ -17,7 +17,9 @@ or ntsnap patches are included. `check-shielded-worker-config.py OUT/runtime` ch
 both socket and shared-ring routes against the actual compiled backend.
 
 `build-shielded-release.py` additionally needs `--model27` and `--tokenizer27`.
-The release pins their SHA-256 digests. The large model is not packed into the
+The release pins their SHA-256 digests. Supply `--haltpoll-module` with the
+`cpuidle-haltpoll.ko.zst` built for the release kernel. Its measured, bounded
+adaptive polling avoids frequent SNP halt/wake transitions on helper handoffs. The large model is not packed into the
 initramfs: the measured loader copies the read-only host block device into private
 RAM and checks its full digest before starting the app. Mutating the host source
 cannot change the authenticated private copy. The tokenizer and Q4 calibration
