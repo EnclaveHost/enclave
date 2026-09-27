@@ -49,8 +49,9 @@ type instanceRecord struct {
 	// Releases: the release(s) of the tree that built the guest (server.go treeReleases), named to the judge again on
 	// adoption. Absent (null) in a record an earlier guestd wrote: adoption then names -unrecorded-releases. The record
 	// only picks what the judge is told; the judge's own table decides what a release may state.
-	Releases []string
-	Created  time.Time
+	RuntimeID string
+	Releases  []string
+	Created   time.Time
 }
 
 // persistRunning writes the record of an instance that just became running. Best effort: without it the instance
@@ -60,7 +61,7 @@ func (s *server) persistRunning(v *vm) {
 	rec := instanceRecord{ID: v.ID, Name: v.Name, AppID: v.AppID, Measurement: v.Measurement, RecordSha256: v.RecordSha256,
 		HostData: v.HostData, TransportKeySha256: v.TransportKeySha256, Unit: v.unit, Verdict: v.Verdict, CID: v.cid,
 		Vcpus: v.Vcpus, MemMiB: v.MemMiB, CPUPct: v.CPUPct, Created: v.Created, Release: v.release, Legacy: v.legacy,
-		Releases: append([]string{}, v.releases...)}
+		Releases: append([]string{}, v.releases...), RuntimeID: s.vmRuntime(v)}
 	dir := v.workdir
 	s.mu.Unlock()
 	b, _ := json.Marshal(rec)
@@ -127,10 +128,24 @@ func (s *server) adoptOne(ctx context.Context, dir string) string {
 		}
 		return fmt.Sprintf("it presents key %.16s..., not the recorded %.16s... (not the same guest)", keySha, rec.TransportKeySha256)
 	}
+	rid := s.RuntimeID
+	if resolver, ok := s.L.(interface {
+		RuntimeForReleases([]string) (string, error)
+	}); ok {
+		rid, err = resolver.RuntimeForReleases(rel)
+		if err != nil {
+			stop()
+			return "runtime pin: " + err.Error()
+		}
+	}
+	if rec.RuntimeID != "" && rec.RuntimeID != rid {
+		stop()
+		return "recorded runtime changed"
+	}
 	lc := contract.NewLifecycle(contract.Starting)
 	lc.FinishStart()
 	v := &vm{ID: rec.ID, Name: rec.Name, AppID: rec.AppID, Measurement: rec.Measurement, Status: "running", Verdict: verdict,
-		RecordSha256: rec.RecordSha256, TransportKeySha256: keySha, HostData: rec.HostData, HostPort: port,
+		RecordSha256: rec.RecordSha256, RuntimeID: rid, TransportKeySha256: keySha, HostData: rec.HostData, HostPort: port,
 		Vcpus: rec.Vcpus, MemMiB: rec.MemMiB, CPUPct: rec.CPUPct, Created: rec.Created, unit: rec.Unit, cid: rec.CID,
 		workdir: dir, stopFwd: stop, lc: lc, leaseUntil: s.Now().Add(s.LeaseTTL), release: rec.Release, legacy: rec.Legacy, releases: rel}
 	s.mu.Lock()

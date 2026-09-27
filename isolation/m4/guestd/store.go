@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -162,7 +163,7 @@ func (s *store) load(rec catalog.Derivation, key string) (catalog.Mapping, []byt
 	if err == nil {
 		err = json.Unmarshal(raw, &m)
 	}
-	if err != nil || m.RecordSha256 != key || m.Record != rec {
+	if err != nil || m.RecordSha256 != key || !reflect.DeepEqual(m.Record, rec) {
 		return s.quarantine(fmt.Sprintf("mapping %s does not describe its own record", key[:16]), mp)
 	}
 	bp := s.path("bundles", m.AppID+".bundle")
@@ -178,7 +179,7 @@ func (s *store) load(rec catalog.Derivation, key string) (catalog.Mapping, []byt
 		return s.quarantine("the stored bundle no longer parses: "+err.Error(), mp, bp)
 	}
 	again, rebuilt, err := catalog.Map(rec, comp)
-	if err != nil || again != m || !bytes.Equal(rebuilt, bundle) {
+	if err != nil || !reflect.DeepEqual(again, m) || !bytes.Equal(rebuilt, bundle) {
 		return s.quarantine("the stored mapping does not re-derive under the rule", mp, bp)
 	}
 	return m, bundle, nil

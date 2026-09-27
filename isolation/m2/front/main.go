@@ -101,6 +101,7 @@ type front struct {
 	monitor          string      // M3: the monitor's socket, and then this process never opens configfs at all
 	plane            *appidPlane // M4b: the measured SVSM names this plane and computes the binding itself
 	boundary         string      // the self-test init produced; relayed verbatim, never composed here
+	tunnels          *portTunnels
 	app              http.Handler
 	certs            *certState // a CA certificate for this domain's own key and deployment name (certs.go)
 	ready            *readiness // GET /.well-known/enclave-ready: the app's port accepts (ready.go)
@@ -289,10 +290,21 @@ func main() {
 		fp := sha256.Sum256(spki)
 		fmt.Printf("DOM serving %s spki_sha256=%x ready_ms=%.0f\n", where, fp, monoMs())
 	}()
+	_, hp, err := net.SplitHostPort(*upstream)
+	must(err)
+	var portNumber int
+	_, err = fmt.Sscanf(hp, "%d", &portNumber)
+	must(err)
+	f.tunnels, err = loadPortTunnels("/app.ports", portNumber)
+	must(err)
 	must(srv.Serve(tl))
 }
 
 func (f *front) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, tunnelPrefix) {
+		f.tunnels.ServeHTTP(w, r)
+		return
+	}
 	switch r.URL.Path {
 	case attestPath:
 		f.attest(w, r)

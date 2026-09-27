@@ -36,6 +36,7 @@ import (
 type realLauncher struct {
 	m4, m2, fwd                                   string
 	vcek, chain, product, minTCB, runtimeIdentity string
+	runtimePins                                   map[string]string
 	env                                           []string
 	prefix                                        string        // the two-letter instance prefix whose units this guestd owns; "" = "gd"
 	bootWait                                      time.Duration // until "DOM serving"; 0 = 180 s (release mode waits for a ticket too)
@@ -165,7 +166,7 @@ func (l *realLauncher) verifyArgs(port int, measurement, appID, hostData, workdi
 	args := []string{filepath.Join(l.m2, "client.mjs"),
 		"https://127.0.0.1:" + strconv.Itoa(port), "--measurement", measurement, "--app-sha", appID, "--no-kds",
 		"--vcek", l.vcek, "--amd-chain", l.product + "=" + l.chain, "--min-tcb", "@" + l.minTCB,
-		"--runtime", l.runtimeIdentity, "--save", filepath.Join(workdir, "doc.json")}
+		"--runtime", l.runtimePath(releases), "--save", filepath.Join(workdir, "doc.json")}
 	if hostData != "" {
 		args = append(args, "--host-data", hostData)
 	}
@@ -176,6 +177,9 @@ func (l *realLauncher) verifyArgs(port int, measurement, appID, hostData, workdi
 }
 
 func (l *realLauncher) Verify(ctx context.Context, port int, measurement, appID, hostData, workdir string, releases []string) (string, string, error) {
+	if _, err := l.RuntimeForReleases(releases); err != nil {
+		return "", "", err
+	}
 	out, _ := l.run(ctx, workdir, "verify.txt", "node", l.verifyArgs(port, measurement, appID, hostData, workdir, releases)...)
 	verdict, keySha := "", ""
 	for _, ln := range strings.Split(out, "\n") {
@@ -311,6 +315,8 @@ func main() {
 	legacyIsoRelease := flag.String("legacy-isolation-release", "", "the same, for the -legacy-isolation tree (REQUIRED with it when that tree predates per-release W^X)")
 	unrecordedRel := flag.String("unrecorded-releases", "", "the release(s) named when ADOPTING an instance whose record names none (written by a guestd before per-release records): the pre-chain releases this host ran; empty = none named, and such a pre-chain guest is not adopted")
 	releaseOn := flag.Bool("release", false, "deliver attested-release tickets (vsock host port 9444) and serve deployment guests' egress (9443) (release.go); off = neither, and /health says supports.release=false")
+	adoptCheck := flag.Bool("adopt-check", false, "verify adoption of every existing guest without sweeping, stopping guests, or serving")
+	adoptRuntimes := flag.String("adopt-runtimes", "", "explicit historical release=runtime.json pins, comma-separated; verified again on adoption")
 	flag.Parse()
 	if *guestMem < 0 || *guestCPUs < 0 || (*guestMem > 0) != (*guestCPUs > 0) {
 		log.Fatal("-guest-mem-mib and -guest-cpus are set together, both positive (or neither: then every create is refused)")
@@ -381,6 +387,10 @@ func main() {
 	}
 	l := &realLauncher{m4: filepath.Join(*iso, "m4"), m2: filepath.Join(*iso, "m2"), fwd: fwd, vcek: *vcek,
 		chain: *chain, product: *product, minTCB: *minTCB, runtimeIdentity: rid, env: env}
+	l.runtimePins, err = parseRuntimePins(*adoptRuntimes)
+	if err != nil {
+		log.Fatal(err)
+	}
 	s := newServer(l, *root)
 	// Same executable and probe as runtime-set.sh, which emits the measured
 	// marker dominit needs before passing SET flags. Legacy guests do not gain
@@ -428,6 +438,31 @@ func main() {
 	// F7: a previous guestd's guests are ADOPTED when they verify again as the same guest (persist.go); every other
 	// guest unit is stopped and every other workdir scrubbed, as a boot sweep always did.
 	actx, acancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	if *adoptCheck {
+		dirs, err := filepath.Glob(filepath.Join(s.Root, s.idPrefix()+"*"))
+		if err != nil {
+			log.Fatal(err)
+		}
+		failed := false
+		for _, dir := range dirs {
+			why := s.adoptOne(context.Background(), dir)
+			if why != "" {
+				failed = true
+				log.Printf("ADOPT REFUSED %s: %s", filepath.Base(dir), why)
+			} else {
+				log.Printf("ADOPT OK %s", filepath.Base(dir))
+			}
+		}
+		for _, v := range s.vms {
+			if v.stopFwd != nil {
+				v.stopFwd()
+			}
+		}
+		if failed {
+			os.Exit(1)
+		}
+		return
+	}
 	keep, adopted, dropped := s.adoptOnBoot(actx)
 	acancel()
 	if len(adopted) > 0 {

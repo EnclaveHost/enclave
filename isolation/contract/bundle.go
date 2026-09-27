@@ -41,6 +41,7 @@ type Manifest struct {
 	ABI      string   `json:"abi"`
 	Label    string   `json:"label,omitempty"`
 	World    string   `json:"world,omitempty"` // WorldHTTP (served by the runtime) or WorldCLI (a command that listens itself)
+	Ports    []string `json:"ports,omitempty"` // V3: sorted measured tcp:N/udp:N tunnel destinations
 	HTTP     int      `json:"http,omitempty"`  // WorldCLI only: the port the app serves HTTP on inside its domain
 	Artifact Artifact `json:"artifact"`
 	Policy   Policy   `json:"policy"`
@@ -177,6 +178,9 @@ func Parse(b []byte) (Manifest, []byte, error) {
 	}
 	if m.ABI != ABI {
 		return m, nil, fmt.Errorf("bundle abi %q is not %q", m.ABI, ABI)
+	}
+	if err := ValidatePorts(m.Ports, m.World, m.HTTP); err != nil {
+		return m, nil, err
 	}
 	switch m.World {
 	case "", WorldHTTP:

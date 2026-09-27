@@ -42,6 +42,9 @@ fi
 (cd "$m2" && GOFLAGS= CGO_ENABLED=0 go build $tags -trimpath -buildvcs=false -ldflags='-s -w -buildid=' -o "$t/front" ./front)
 mkdir -p "$t/proc" "$t/sys" "$t/dev" "$t/tmp"
 "$here/runtime-set.sh" compose "$t/rt"
+# Capability is part of the pinned release, checked by the predictor before
+# admitting a V3 port bundle to this front. Older releases carry no marker.
+printf '1\n' > "$t/rt/protected-ports.enabled"
 # The guest kernel's module tree is named after the GUEST kernel, not the host's: see ../m1/domain.env.
 . "$here/../m1/domain.env"
 M=/lib/modules/$GUEST_KREL/kernel
