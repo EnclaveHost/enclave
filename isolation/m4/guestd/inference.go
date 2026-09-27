@@ -50,14 +50,14 @@ func (s *server) inferenceHealthLocked() any {
 		return nil
 	}
 	used := s.gpuAllocatedLocked()
-	return map[string]any{"model": contract.ShieldModel, "cards": 2, "cardBudgetBytes": contract.ShieldCardBytes,
+	return map[string]any{"model": contract.ShieldModel, "models": []string{contract.ShieldModel, contract.Shield27BModel}, "cards": 2, "cardBudgetBytes": contract.ShieldCardBytes,
 		"cardAllocatedBytes": used, "cardFreeBytes": max(int64(0), contract.ShieldCardBytes-used), "minimumGpuMilli": 70,
-		"guestFloorMiB": 8192, "release": s.ShieldReleases}
+		"guestFloorMiB": 8192, "modelFloorsMiB": map[string]int{contract.ShieldModel: 8192, contract.Shield27BModel: 51200}, "release": s.ShieldReleases}
 }
 
 func (s *server) inferenceVolumes() []map[string]any {
 	if !s.ShieldEnabled {
 		return []map[string]any{}
 	}
-	return []map[string]any{{"name": contract.ShieldModel, "bytes": 675710816, "backend": "ggml"}}
+	return []map[string]any{{"name": contract.ShieldModel, "bytes": 675710816, "backend": "ggml"}, {"name": contract.Shield27BModel, "bytes": 17559178144, "backend": "ggml", "minimumGpuMilli": 500}}
 }

@@ -2280,8 +2280,8 @@ function isolationPolicyFor(version) {
 function isolatedInference(gpuMilli, volumes) {
   const g = Number(gpuMilli || 0);
   if (!g && !(volumes || []).length) return null;
-  if (!Number.isInteger(g) || g < 70 || g > 1000 || g % 10 !== 0 || !Array.isArray(volumes) || volumes.length !== 1 || volumes[0] !== "qwen2.5-0.5b-q8-gguf")
-    throw new Error("isolated inference requires qwen2.5-0.5b-q8-gguf and whole-percent GPU shares of at least 7%");
+  if (!Number.isInteger(g) || g < 70 || g > 1000 || g % 10 !== 0 || !Array.isArray(volumes) || volumes.length !== 1 || !["qwen2.5-0.5b-q8-gguf", "qwen3.8-27b-mtp-q4-vl-gguf"].includes(volumes[0]) || (volumes?.[0] === "qwen3.8-27b-mtp-q4-vl-gguf" && g < 500))
+    throw new Error("isolated inference requires a supported model and whole-percent GPU shares: at least 7% for 0.5B or 50% for 27B");
   return { model: volumes[0], gpuMilli: g };
 }
 function isolationDerivation(catalogRef, wasmRef, policy, runtimeId, httpPort = 0, tunnelPorts = [], inference = null) {
@@ -2289,6 +2289,7 @@ function isolationDerivation(catalogRef, wasmRef, policy, runtimeId, httpPort = 
   const c = /^ipfs:\/\/([A-Za-z0-9]+)$/.exec(String(wasmRef || ""));
   if (!m || !c) throw new Error(`per-app isolation needs a catalog version and its component CID (got ${catalogRef} / ${wasmRef})`);
   if (!/^[0-9a-f]{64}$/.test(String(runtimeId || ""))) throw new Error("the per-app manager states no runtime identity");
+  if (inference?.model === "qwen3.8-27b-mtp-q4-vl-gguf") policy = {...policy, cpuPercent:800, vcpus:8, memMiB:Math.max(policy.memMiB,51200-384)};
   // a command that declares its HTTP port is enclave-catalog-bundle/2: the bundle states world wasi:cli and the port
   return { ...(inference ? { inference } : {}), derivation: inference ? "enclave-catalog-bundle/4" : tunnelPorts.length ? "enclave-catalog-bundle/3" : httpPort ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
            catalog: { app: m[1].toLowerCase(), version: Number(m[2]) }, cid: c[1], policy, runtimeId,
@@ -2408,11 +2409,11 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
     return "this box's per-app guests need the attested release, and this deployment is not a release guest here (not listed by the relay, or this box has not opted in), and its manager has no legacy image to run it on";
   if (Number(gpuMilli)>0 || (volumes || []).length) {
     let inf; try { inf=isolatedInference(gpuMilli,volumes); } catch(e) { return e.message; }
-    if (!released || !manager.inference || manager.inference.model!==inf.model || sup.gpu!==true)
+    if (!released || !manager.inference || !(manager.inference.models || [manager.inference.model]).includes(inf.model) || sup.gpu!==true)
       return "the measured Shield model release is not ready for this deployment";
     const needs = Math.floor(31*2**30*inf.gpuMilli/1000);
     if (!heldSameRecord && needs > Number(manager.inference.cardFreeBytes || 0)) return "the isolated GPU reservation pool is full";
-    policy = { ...policy, memMiB: Math.max(Number(policy?.memMiB)||0, 8192-384) };
+    policy = { ...policy, ...(inf.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? {cpuPercent:800,vcpus:8} : {}), memMiB: Math.max(Number(policy?.memMiB)||0, (inf.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? 51200 : 8192)-384) };
   }
   // The next two are enforced in THIS process on every other backend, on the plaintext of each request. Here the
   // plaintext exists only inside the guest (the session is spliced unopened), so neither could be applied: an

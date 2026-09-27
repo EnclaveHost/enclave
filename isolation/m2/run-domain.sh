@@ -68,17 +68,34 @@ start)
   else
     cid=$(( 65536 + $(od -An -N2 -tu2 /dev/urandom) ))
   fi
+  set --
+  if [ -f "$img.shield" ]; then
+    model=$(cat "$img.shield")
+    case "$model" in qwen2.5-0.5b-q8-gguf|qwen3.8-27b-mtp-q4-vl-gguf) ;; *) echo "invalid Shield model" >&2; exit 2;; esac
+    [ -n "${SHIELDED_SHM_DIR:-}" ] || { echo "missing Shield rings" >&2; exit 2; }
+    case "$SHIELDED_SHM_DIR${SHIELDED_MODEL_FILE:-}" in *,*) echo "commas are forbidden in QEMU asset paths" >&2; exit 2;; esac
+    for card in 0 1; do
+      ring="$SHIELDED_SHM_DIR/card-$card"
+      [ -f "$ring" ] && [ "$(stat -c %s "$ring")" = 67108864 ] || { echo "bad Shield ring" >&2; exit 2; }
+      set -- "$@" -object "memory-backend-file,id=sh$card,mem-path=$ring,size=64M,share=on" -device "ivshmem-plain,memdev=sh$card,addr=$((5+card))"
+    done
+    if [ "$model" = qwen3.8-27b-mtp-q4-vl-gguf ]; then
+      [ -f "${SHIELDED_MODEL_FILE:-}" ] || { echo "missing Shield model" >&2; exit 2; }
+      set -- "$@" -drive "file=$SHIELDED_MODEL_FILE,format=raw,if=virtio,readonly=on,cache=none"
+    fi
+  fi
   unit="m2-$tag-$$"
   t0=$(date +%s%3N)
-  # The domain's only device besides the console is its vsock (the one port). Devices are not part
-  # of the SNP launch digest, so this does not change the domain's identity.
+  # CPU domains have only the console and vsock. Shield additionally maps two
+  # untrusted masked-data BARs and, for 27B, a public model block device whose
+  # contents the measured loader copies and authenticates before execution.
   # shellcheck disable=SC2086
   systemd-run --user --unit="$unit" --collect -q \
     -p CPUQuota="${quota}%" -p MemoryMax="$((mem + 768))M" -p TasksMax=256 \
     qemu-system-x86_64 $MACH -cpu host -smp "$vcpus" -m "${mem}M" -bios "$OVMF" \
       -kernel "$KERNEL" -initrd "$(realpath "$img")" -append "$APPEND" \
       -device "vhost-vsock-pci,guest-cid=$cid" \
-      -nodefaults -display none -serial "file:$W/$tag.serial" ${FW_DEBUGCON:+-debugcon "file:$W/$tag.debugcon" -global isa-debugcon.iobase=0x402} -no-reboot
+      "$@" -nodefaults -display none -serial "file:$W/$tag.serial" ${FW_DEBUGCON:+-debugcon "file:$W/$tag.debugcon" -global isa-debugcon.iobase=0x402} -no-reboot
   echo "HOST mode=$mode vcpus=$vcpus memMiB=$mem cpuQuota=${quota}% unit=$unit cid=$cid t0_ms=$t0"
   ;;
 stop)

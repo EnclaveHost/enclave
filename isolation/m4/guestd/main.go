@@ -65,6 +65,19 @@ func (l *realLauncher) Build(ctx context.Context, bundle, workdir string, vcpus 
 	if err != nil {
 		return "", "", fmt.Errorf("build-app-guest.sh: %v", err)
 	}
+	raw, e := os.ReadFile(bundle)
+	if e != nil {
+		return "", "", e
+	}
+	manifest, _, e := contract.Parse(raw)
+	if e != nil {
+		return "", "", e
+	}
+	if manifest.Inference != nil {
+		if e = os.WriteFile(image+".shield", []byte(manifest.Inference.Model), 0600); e != nil {
+			return "", "", e
+		}
+	}
 	m := predicted.FindStringSubmatch(out)
 	if m == nil {
 		return "", "", errors.New("build-app-guest.sh printed no predicted measurement")
@@ -319,6 +332,8 @@ func main() {
 	adoptRuntimes := flag.String("adopt-runtimes", "", "explicit historical release=runtime.json pins, comma-separated; verified again on adoption")
 	cpuTemplate := flag.String("cpu-template", "", "pinned CPU release template")
 	shieldTemplate := flag.String("shield-template", "", "pinned measured Shield inference release template")
+	shieldModel := flag.String("shield-model-file", "", "read-only public Q4 GGUF; hash verified inside the measured guest")
+	shieldSHM := flag.String("shield-shm-dir", "", "directory with card-0 and card-1 masked transport rings")
 	shieldRelease := flag.String("shield-release", "", "64-hex release ID for the Shield template")
 	flag.Parse()
 	if *guestMem < 0 || *guestCPUs < 0 || (*guestMem > 0) != (*guestCPUs > 0) {
@@ -411,10 +426,13 @@ func main() {
 			log.Fatalf("Shield release does not verify: %s", out)
 		}
 		model, e := os.ReadFile(filepath.Join(*shieldTemplate, "rt/shield-model"))
-		if e != nil || strings.TrimSpace(string(model)) != contract.ShieldModel {
+		if e != nil || strings.TrimSpace(string(model)) != contract.ShieldModel+"\n"+contract.Shield27BModel {
 			log.Fatal("Shield release has no supported model marker")
 		}
-		l.env = append(l.env, "SHIELDED_IMAGE_TEMPLATE="+*shieldTemplate)
+		if !filepath.IsAbs(*shieldModel) || !filepath.IsAbs(*shieldSHM) {
+			log.Fatal("Shield needs absolute model and ring paths")
+		}
+		l.env = append(l.env, "SHIELDED_IMAGE_TEMPLATE="+*shieldTemplate, "SHIELDED_MODEL_FILE="+*shieldModel, "SHIELDED_SHM_DIR="+*shieldSHM)
 		s.ShieldEnabled = true
 		s.ShieldReleases = ids
 		if l.runtimePins == nil {

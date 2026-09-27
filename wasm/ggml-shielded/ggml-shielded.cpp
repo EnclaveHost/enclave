@@ -689,7 +689,7 @@ static void sh_pool_init(sh_pool &p) {
         if (local_broker) {
             const std::string id = parts[0].substr(broker_prefix.size());
             if (id.empty() || id.size() > 2 || id.find_first_not_of("0123456789") != std::string::npos ||
-                (id.size() > 1 && id[0] == '0') || atoi(id.c_str()) >= 16 || parts.size() != 4) {
+                (id.size() > 1 && id[0] == '0') || atoi(id.c_str()) >= 16) {
                 reject("invalid private broker path"); return;
             }
         } else if (parts[0].find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-") != std::string::npos) {

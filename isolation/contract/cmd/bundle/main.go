@@ -31,6 +31,8 @@ func main() {
 		cpu := fs.Int("cpu", 100, "cpu percent")
 		mem := fs.Int("mem", 256, "memory MiB")
 		vcpus := fs.Int("vcpus", 1, "vcpus")
+		model := fs.String("inference-model", "", "measured Enclave Shield model")
+		gpuMilli := fs.Int("gpu-milli", 0, "GPU reservation in thousandths")
 		fs.Parse(os.Args[2:])
 		if fs.NArg() != 2 {
 			fmt.Fprintln(os.Stderr, "build needs <artifact> <out>")
@@ -43,8 +45,13 @@ func main() {
 			pp = strings.Split(*ports, ",")
 		}
 		die(contract.ValidatePorts(pp, *world, *httpPort))
+		var inf *contract.Inference
+		if *model != "" || *gpuMilli != 0 {
+			inf = &contract.Inference{Model: *model, GPUMilli: *gpuMilli}
+			die(inf.Validate())
+		}
 		b, err := contract.Build(contract.Manifest{ABI: contract.ABI, Label: *label, World: *world, HTTP: *httpPort, Ports: pp,
-			Artifact: contract.Artifact{Kind: *kind}, Policy: contract.Policy{CPUPercent: *cpu, MemMiB: *mem, Vcpus: *vcpus}}, art)
+			Inference: inf, Artifact: contract.Artifact{Kind: *kind}, Policy: contract.Policy{CPUPercent: *cpu, MemMiB: *mem, Vcpus: *vcpus}}, art)
 		die(err)
 		die(os.WriteFile(fs.Arg(1), b, 0o644))
 		id := contract.AppID(b)

@@ -1,3 +1,48 @@
+# Optimized 27B profile (2026-09-27)
+
+The per-app Shield release now admits `qwen3.8-27b-mtp-q4-vl-gguf` as well as
+`qwen2.5-0.5b-q8-gguf`. The 27B model requires at least 50% of each 31 GiB V100
+worker, a 50 GiB guest, and eight vCPUs. The catalog derivation binds this policy,
+model and GPU reservation to the app identity; the relay independently reproduces it.
+CPU-only apps retain their existing release and policy.
+
+`build-shielded-engine.py --engine-git CHECKOUT --runtime GGML_RUNTIME --out OUT`
+rebuilds the accepted engine patches from a fixed clean source commit, including
+parallel rows and in-place recurrent state. The CPU module and engine are rebuilt
+together; the GGML-only Wasmtime binary and existing dependency closure are retained.
+The build emits library hashes and source/patch provenance. No experimental regrow
+or ntsnap patches are included. `check-shielded-worker-config.py OUT/runtime` checks
+both socket and shared-ring routes against the actual compiled backend.
+
+`build-shielded-release.py` additionally needs `--model27` and `--tokenizer27`.
+The release pins their SHA-256 digests. The large model is not packed into the
+initramfs: the measured loader copies the read-only host block device into private
+RAM and checks its full digest before starting the app. Mutating the host source
+cannot change the authenticated private copy. The tokenizer and Q4 calibration
+are in the measured image.
+
+Guestd requires `-shield-model-file /absolute/model.gguf` and
+`-shield-shm-dir /absolute/rings`. Each worker must use `--shm DIR/card-N`, with
+exactly 64 MiB per file. Create the directory/files with mode 0700/0600 at service
+startup; preserve existing file contents when a worker is already using them.
+Do not restart workers while GPU apps are running. Workers must outlive control
+VM restarts. The guest sees each file through a fixed ivshmem BAR; init checks its
+PCI identity/size and exposes only that BAR under the backend's restricted device
+paths. Raw vsock access remains denied to the app. The ring contains masked wire
+messages, never private model inputs or pads; replies retain bounded copies and
+integrity checks. This transport provides no availability guarantee against a host.
+
+The measured 27B settings use column splitting, verification overlap, 64-row pad
+pools/refills, eight CPU/refill threads, a 95% weight budget and one recurrent-state
+snapshot for MTP k=1. Apps choose speculative decoding through the existing WASI-NN
+API; enabling the snapshot does not force every app to use MTP. Guest context is
+512 tokens and batch/ubatch 16, matching the evaluated profile.
+
+Benchmark release IDs and results are recorded in the rollout evidence. Historical
+native-process 24.51 tok/s is not a claim for this per-app SNP runtime.
+
+---
+
 # Per-app SNP guests and Enclave Shield GPU workers
 
 ## Status, 2026-09-27

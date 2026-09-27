@@ -42,7 +42,7 @@ def validate(rec):
     ports = rec.get("ports", [])
     if rec.get("derivation") == V4:
         inf=rec.get("inference")
-        if not isinstance(inf,dict) or set(inf)!={"model","gpuMilli"} or inf["model"]!="qwen2.5-0.5b-q8-gguf" or type(inf["gpuMilli"]) is not int or not 65<=inf["gpuMilli"]<=1000:
+        if not isinstance(inf,dict) or set(inf)!={"model","gpuMilli"} or inf["model"] not in ("qwen2.5-0.5b-q8-gguf","qwen3.8-27b-mtp-q4-vl-gguf") or type(inf["gpuMilli"]) is not int or not (500 if inf["model"]=="qwen3.8-27b-mtp-q4-vl-gguf" else 65)<=inf["gpuMilli"]<=1000:
             raise ValueError("invalid inference")
     elif "inference" in rec:
         raise ValueError("inference requires V4")
