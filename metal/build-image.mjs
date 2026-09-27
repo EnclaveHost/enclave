@@ -189,7 +189,7 @@ if (OVERLAY_SRC) {
                  'isolation/m4/guestd/control-client.mjs', 'isolation/m4/guestd/supervisor-splice.mjs',
                  // the guest-certificate relay and the judge it verifies each guest with (and the judge's imports)
                  'isolation/m4/guestd/supervisor-guestcert.mjs', 'isolation/m2/judge.mjs',
-                 'isolation/contract/runtime.mjs', 'relay/snp-verify.mjs'];
+                 'isolation/contract/runtime.mjs', 'isolation/contract/catalog/policy.mjs', 'relay/snp-verify.mjs'];
   const git = (...a) => spawnSync('git', ['-C', src, ...a], { encoding: 'utf8' }).stdout.trim();
   const dirty = git('status', '--porcelain', '--', ...files) !== '';
   supervisorOverlay = { commit: git('rev-parse', 'HEAD'), dirty, files: [] };
