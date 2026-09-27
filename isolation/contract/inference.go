@@ -10,6 +10,15 @@ type Inference struct {
 }
 
 const ShieldModel = "qwen2.5-0.5b-q8-gguf"
+const Shield27BModel = "qwen3.8-27b-mtp-q4-vl-gguf"
+
+func (i *Inference) GuestFloorMiB() int {
+	if i != nil && i.Model == Shield27BModel {
+		return 51200
+	}
+	return 8192
+}
+
 const ShieldCardBytes int64 = 31 << 30
 const ShieldMinBytes int64 = 2 << 30
 
@@ -17,11 +26,15 @@ func (i *Inference) Validate() error {
 	if i == nil {
 		return nil
 	}
-	if i.Model != ShieldModel {
+	if i.Model != ShieldModel && i.Model != Shield27BModel {
 		return fmt.Errorf("unsupported isolated inference model %q", i.Model)
 	}
-	if i.GPUMilli < 65 || i.GPUMilli > 1000 {
-		return fmt.Errorf("isolated inference requires gpuMilli in 65..1000")
+	minimum := 65
+	if i.Model == Shield27BModel {
+		minimum = 500
+	}
+	if i.GPUMilli < minimum || i.GPUMilli > 1000 {
+		return fmt.Errorf("isolated inference requires gpuMilli in %d..1000", minimum)
 	}
 	return nil
 }

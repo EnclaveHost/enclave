@@ -268,21 +268,48 @@ static void lo_up(void) {
  * A drop, reach or filter failure exits 125, so the app never starts privileged or unfiltered, and the domain powers
  * off as for any app exit. The app gets all three; the front none. */
 /* Measured, bundle-derived inference profile. Never read a host environment. */
-static int shield_on;
-static char shield_workers[256];
+static int shield_on, shield_large;
+static char shield_model[64], shield_graph[128], shield_models_env[96], shield_preloads_env[96], shield_calib[128];
+static char shield_workers[512];
 static void shield_profile(void) {
     FILE *f = fopen("/app.shield", "r");
     if (!f) return;
-    char model[64], extra; int milli; unsigned long long bytes;
+    char *model = shield_model; char extra; int milli; unsigned long long bytes;
     int n = fscanf(f, "%63s %d %llu %c", model, &milli, &bytes, &extra);
     fclose(f);
-    if (n != 3 || strcmp(model, "qwen2.5-0.5b-q8-gguf") || milli < 65 || milli > 1000 ||
+    shield_large = !strcmp(model, "qwen3.8-27b-mtp-q4-vl-gguf");
+    if (n != 3 || (!shield_large && strcmp(model, "qwen2.5-0.5b-q8-gguf")) || milli < (shield_large ? 500 : 65) || milli > 1000 ||
         bytes != (31ULL * 1024 * 1024 * 1024 * milli / 1000)) {
         printf("DOM ERROR invalid measured Shield profile\n"); fflush(stdout); reboot(RB_POWER_OFF); _exit(1);
     }
     snprintf(shield_workers, sizeof shield_workers,
-        "SHIELDED_WORKERS=unix:/run/enclave-shield/gpu0|9501|0|%llu\nunix:/run/enclave-shield/gpu1|9502|0|%llu", bytes, bytes);
+        "SHIELDED_WORKERS=unix:/run/enclave-shield/gpu0|9501|0|%llu|/dev/enclave-shielded-shm/card-0|67108864\nunix:/run/enclave-shield/gpu1|9502|0|%llu|/dev/enclave-shielded-shm/card-1|67108864", bytes, bytes);
+    snprintf(shield_graph, sizeof shield_graph, "nn-graph=ggml::/models/%s", model);
+    snprintf(shield_models_env, sizeof shield_models_env, "ENCLAVE_MODELS=%s", model);
+    snprintf(shield_preloads_env, sizeof shield_preloads_env, "ENCLAVE_NN_PRELOADS=%s", model);
+    snprintf(shield_calib, sizeof shield_calib, "SHIELDED_CALIB=/rt/calib/%s.calib", model);
     shield_on = 1;
+}
+
+static int shield_rings(void) {
+    if (mkdir("/dev/enclave-shielded-shm",0755) != 0) return -1;
+    for (int card=0; card<2; card++) {
+        char path[160], line[160]; unsigned vendor=0, device=0;
+        snprintf(path,sizeof path,"/sys/bus/pci/devices/0000:00:0%d.0/vendor",5+card);
+        FILE *f=fopen(path,"r"); if(!f) return -1; int n=fscanf(f,"%x",&vendor); fclose(f); if(n!=1 || vendor!=0x1af4) return -1;
+        snprintf(path,sizeof path,"/sys/bus/pci/devices/0000:00:0%d.0/device",5+card);
+        f=fopen(path,"r"); if(!f) return -1; n=fscanf(f,"%x",&device); fclose(f); if(n!=1 || device!=0x1110) return -1;
+        snprintf(path,sizeof path,"/sys/bus/pci/devices/0000:00:0%d.0/resource",5+card);
+        f=fopen(path,"r"); if(!f) return -1;
+        int ok=1; for(int j=0;j<3;j++) if(!fgets(line,sizeof line,f)) ok=0; fclose(f);
+        unsigned long long start,end,flags;
+        if(!ok || sscanf(line,"%llx %llx %llx",&start,&end,&flags)!=3 || end<start || end-start+1!=67108864ULL || !(flags&0x200)) return -1;
+        snprintf(path,sizeof path,"/sys/bus/pci/devices/0000:00:0%d.0/resource2_wc",5+card);
+        if(chown(path,APP_UID,APP_GID) || chmod(path,0600)) return -1;
+        char link[80]; snprintf(link,sizeof link,"/dev/enclave-shielded-shm/card-%d",card);
+        if(symlink(path,link)) return -1;
+    }
+    return 0;
 }
 
 #define SPAWN_QUIET 1
@@ -400,7 +427,7 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
                 _exit(125);
             }
         }
-        char *envp[32] = {"HOME=/tmp", "PATH=/rt"};
+        char *envp[40] = {"HOME=/tmp", "PATH=/rt"};
         int ei = 2;
         if (shield_on && drop) {
             envp[ei++] = "ENCLAVE_GGML_BACKEND_DIR=/rt/backends";
@@ -408,16 +435,23 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = "SHIELDED_HOST=unix:/run/enclave-shield/gpu0";
             envp[ei++] = "SHIELDED_PORT=9501";
             envp[ei++] = shield_workers;
-            envp[ei++] = "SHIELDED_CALIB=/rt/calib/model.calib";
+            envp[ei++] = shield_calib;
             envp[ei++] = "ENCLAVE_GGML_EXTRA_BUFTS=0";
             envp[ei++] = "ENCLAVE_GGML_N_CTX=512";
             envp[ei++] = "ENCLAVE_GGML_N_BATCH=16";
             envp[ei++] = "ENCLAVE_GGML_N_UBATCH=16";
-            envp[ei++] = "SHIELDED_REFILL_THREADS=2";
-            envp[ei++] = "SHIELDED_POOL_DEPTH=8";
-            envp[ei++] = "OMP_NUM_THREADS=2";
-            envp[ei++] = "ENCLAVE_MODELS=qwen2.5-0.5b-q8-gguf";
-            envp[ei++] = "ENCLAVE_NN_PRELOADS=qwen2.5-0.5b-q8-gguf";
+            envp[ei++] = shield_large ? "ENCLAVE_GGML_N_RS_SEQ=1" : "ENCLAVE_GGML_N_RS_SEQ=0";
+            envp[ei++] = shield_large ? "SHIELDED_REFILL_THREADS=8" : "SHIELDED_REFILL_THREADS=2";
+            envp[ei++] = shield_large ? "SHIELDED_POOL_DEPTH=64" : "SHIELDED_POOL_DEPTH=16";
+            envp[ei++] = "SHIELDED_REFILL_BATCH=64";
+            envp[ei++] = "SHIELDED_MAX_M=64";
+            envp[ei++] = "SHIELDED_SHM_STREAM_LOAD=1";
+            envp[ei++] = "SHIELDED_SPLIT_COLS=1";
+            envp[ei++] = "SHIELDED_OVERLAP_VERIFY=1";
+            envp[ei++] = "SHIELDED_WEIGHT_BUDGET_FRAC=0.95";
+            envp[ei++] = shield_large ? "OMP_NUM_THREADS=8" : "OMP_NUM_THREADS=2";
+            envp[ei++] = shield_models_env;
+            envp[ei++] = shield_preloads_env;
         }
         envp[ei++] = extra; envp[ei] = NULL;
         execve(argv[0], argv, envp);
@@ -518,6 +552,14 @@ int main(void) {
     shield_profile();
     pid_t shield_pid = -1;
     if (shield_on) {
+        if (shield_rings() != 0) { printf("DOM ERROR invalid Shield rings\n"); reboot(RB_POWER_OFF); _exit(1); }
+        if (shield_large) {
+            char *mv[] = {"/shieldmodel", NULL}; int status=0;
+            pid_t pid=spawn(mv,NULL,-1,0);
+            if(pid<0 || waitpid(pid,&status,0)!=pid || !WIFEXITED(status) || WEXITSTATUS(status)!=0) {
+                printf("DOM ERROR model verification failed\n"); reboot(RB_POWER_OFF); _exit(1);
+            }
+        }
         char *av[] = {"/shieldbroker", NULL};
         shield_pid = spawn(av, NULL, -1, 0);
         for (int i = 0; access("/run/enclave-shield/gpu1", F_OK) != 0; i++) {
@@ -655,7 +697,7 @@ int main(void) {
         }
         if (shield_on && strcmp(base[i], "/app.wasm") == 0) {
             app[k++]="-S"; app[k++]="nn";
-            app[k++]="-S"; app[k++]="nn-graph=ggml::/models/qwen2.5-0.5b-q8-gguf";
+            app[k++]="-S"; app[k++]=shield_graph;
             app[k++]="--dir"; app[k++]="/models::/models";
             app[k++]="--env"; app[k++]="ENCLAVE_MODELS";
             app[k++]="--env"; app[k++]="ENCLAVE_NN_PRELOADS";

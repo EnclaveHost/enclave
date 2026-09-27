@@ -83,3 +83,30 @@ func TestConcurrentInferenceCreateReservesBeforeLaunch(t *testing.T) {
 		}
 	}
 }
+
+func Test27BReservesPrivateModelMemoryAndBothCards(t *testing.T) {
+	r := newRig(t)
+	r.s.ShieldEnabled = true
+	r.s.ShieldReleases = []string{"shield-release"}
+	inf := &contract.Inference{Model: contract.Shield27BModel, GPUMilli: 500}
+	b, err := contract.Build(contract.Manifest{Label: "27b", Inference: inf,
+		Policy: contract.Policy{CPUPercent: 800, Vcpus: 8, MemMiB: 50816}}, []byte("\x00asm component"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(r.dir, "27b.bundle")
+	if err = os.WriteFile(file, b, 0600); err != nil {
+		t.Fatal(err)
+	}
+	code, body := r.do("POST", "/vms", map[string]any{"name": name(9), "image": "file://" + file, "gpuShare": .5})
+	if code != 201 {
+		t.Fatalf("%d %v", code, body)
+	}
+	r.s.mu.Lock()
+	defer r.s.mu.Unlock()
+	for _, v := range r.s.vms {
+		if v.MemMiB != 51200 || v.Vcpus != 8 || v.GPUCardBytes != inf.CardBytes() {
+			t.Fatalf("incorrect 27B reservation: %+v", v)
+		}
+	}
+}

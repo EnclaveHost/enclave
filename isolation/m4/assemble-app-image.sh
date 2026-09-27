@@ -42,7 +42,7 @@ esac
 "$BUNDLETOOL" inference "$s/app.bundle" > "$s/inference"
 if [ -s "$s/inference" ]; then
   read -r model milli bytes < "$s/inference"
-  [ -f "$d/rt/shield-model" ] && [ "$(cat "$d/rt/shield-model")" = "$model" ] && [ -f "$d/shieldbroker" ] || {
+  [ -f "$d/rt/shield-model" ] && grep -Fxq "$model" "$d/rt/shield-model" && [ -f "$d/shieldbroker" ] || {
     echo "inference bundle needs its pinned Shield model/runtime release" >&2; exit 2;
   }
   cp "$s/inference" "$d/app.shield"

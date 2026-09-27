@@ -431,7 +431,7 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 	var gpuBytes int64
 	var model string
 	if m.Inference != nil {
-		mem = max(mem, 8192)
+		mem = max(mem, m.Inference.GuestFloorMiB())
 		gpuBytes = m.Inference.CardBytes()
 		model = m.Inference.Model
 	}
