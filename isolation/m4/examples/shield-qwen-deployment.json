@@ -1,0 +1,23 @@
+{
+  "isolation": { "require": "snp-guest-per-app" },
+  "config": {
+    "volumes": ["qwen2.5-0.5b-q8-gguf"],
+    "models": {
+      "qwen2.5-0.5b-q8-gguf": {
+        "name": "qwen2.5-0.5b-instruct-q8",
+        "backend": "ggml",
+        "model_file": "model.gguf",
+        "tokenizer_file": "tokenizer.json",
+        "n_layers": 24,
+        "n_kv_heads": 2,
+        "head_dim": 64,
+        "vocab": 151936,
+        "eos": [151645, 151643],
+        "template": "chatml",
+        "max_prompt_tokens": 256,
+        "default_max_new": 64,
+        "max_new_cap": 128
+      }
+    }
+  }
+}

@@ -5434,6 +5434,7 @@ if (RELAY_SERVICES)
 // (`_shieldedAdopted` is declared with the card pool above, because the pool
 // math reads it and the POOL_SELFTEST seam runs before this point.)
 function adoptShieldedCards(values) {
+  const previousGpuPrice = SELL_GPU_PRICE6;
   if (!values.length) return;
   _shieldedAdopted = true;
   IS_GPU = true;
@@ -5468,6 +5469,10 @@ function adoptShieldedCards(values) {
     const rate = _shieldedPool.pricing;
     SELL_GPU_PRICE6 = Math.round((CARD_TFLOPS * rate.tflopUsdHr + CARD_VRAM_GB * rate.vramGiBUsdHr) * 1e6 / 3600);
   } else if (prices.length) SELL_GPU_PRICE6 = Math.min(...prices);
+  // Discovery can finish after registration. Publish the new ask immediately,
+  // rather than quoting it while the ledger retains a zero GPU price for 15 minutes.
+  if (_enclaveId && SELL_GPU_PRICE6 !== previousGpuPrice)
+    syncRegisteredPrice(_enclaveId).catch(e => console.warn(`[registry] GPU price update will retry on heartbeat: ${e.shortMessage || e.message}`));
   // Reconstruct every sibling's holds after discovery (restored arrays may
   // predate the probe that creates card 1..N in this process).
   if (_shieldedPool) reconcilePools();
