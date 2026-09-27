@@ -30,25 +30,31 @@ export function isolationPolicyFor(version) {
   const mem = Math.max(128, Math.ceil(Number(version && version.memMb) || 0));
   return { cpuPercent: 100, memMiB: mem, vcpus: 1 };
 }
-export function isolationHttpPortOf(ports) {
+export function isolationPortsOf(ports) {
   const list = (Array.isArray(ports) ? ports : String(ports || "").split(","))
-    .map((p) => String(p).trim().toLowerCase()).filter(Boolean);
-  if (!list.length) return 0;
-  const m = list.length === 1 ? /^http:(\d{1,5})$/.exec(list[0]) : null;
-  const n = m ? Number(m[1]) : 0;
-  if (!m || n < 1 || n > 49999)
-    throw new Error(`the per-app guest tier serves at most one declared HTTP port (http:N); ${list.join(", ")} is not offered`);
-  return n;
+    .map(p => String(p).trim().toLowerCase()).filter(Boolean);
+  if (!list.length) return { http: 0, ports: [] };
+  let http = 0; const dests = [];
+  for (const p of list) {
+    const m = /^(http|tcp|udp):([1-9][0-9]{0,4})$/.exec(p);
+    if (!m || +m[2] > 49999) throw new Error(`invalid declared port ${p}`);
+    if (m[1] === "http") { if (http) throw new Error("only one HTTP port is supported"); http = +m[2]; }
+    else dests.push(p);
+  }
+  if (!http || dests.length > 32 || new Set(dests).size !== dests.length || dests.includes(`tcp:${http}`))
+    throw new Error("tunnel destinations need one HTTP port, no duplicates or HTTP collision, and at most 32 ports");
+  return { http, ports: dests.sort() };
 }
+export function isolationHttpPortOf(ports) { return isolationPortsOf(ports).http; }
 export function derivationRecord(catalogRef, version, runtimeId) {
   const m = CATALOG_REF_RE.exec(String(catalogRef || ""));
   if (!m) throw new Error("not a catalog://<app>/<index> reference");
   if (!/^[A-Za-z0-9]+$/.test(String(version.cid || ""))) throw new Error("the catalog version names no CID");
   if (!HEX(64).test(String(runtimeId || ""))) throw new Error("no runtime identity");
-  const http = isolationHttpPortOf(version.ports);
-  return { derivation: http ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
+  const { http, ports } = isolationPortsOf(version.ports);
+  return { derivation: ports.length ? "enclave-catalog-bundle/3" : http ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
            catalog: { app: m[1].toLowerCase(), version: Number(m[2]) }, cid: String(version.cid),
-           policy: isolationPolicyFor(version), runtimeId, ...(http ? { http } : {}) };
+           policy: isolationPolicyFor(version), runtimeId, ...(http ? { http } : {}), ...(ports.length ? { ports } : {}) };
 }
 // the supervisor's approvalVerdict: an approved, unyanked version of a listed app; a PENDING one only for a private
 // deployment (forPrivate = !isPublic, as the supervisor runs it); a rejected one never
@@ -309,6 +315,7 @@ export function makePredictor(o) {
         if (!r.ok) return r;
         images.push(...r.images);
       }
+      if (!images.length) return { ok: false, code: "version_not_admitted", reason: "no admitted release implements this version’s protected ports" };
       return { ok: true, appId, images };
     } finally { fs.rmSync(job, { recursive: true, force: true }); }
   }
@@ -330,6 +337,13 @@ export function makePredictor(o) {
       if (kv.app_id !== appId) return { ok: false, code: "prediction_failed", reason: `release ${id.slice(0, 12)} assembled another AppID` };
       // the VERIFIED release's runtime is the one the record was derived for (read before the release was verified)
       if (kv.runtime_id !== record.runtimeId) return { ok: false, code: "prediction_failed", reason: `release ${id.slice(0, 12)}'s verified runtime is not the record's` };
+      if (record.derivation === "enclave-catalog-bundle/3") {
+        let marker = "";
+        try { marker = fs.readFileSync(path.join(snap, "template/rt/protected-ports.enabled"), "utf8"); } catch {}
+        // This snapshot has just passed the pinned manifest check. A marker
+        // added to an old release cannot pass that check under its old ID.
+        if (marker !== "1\n") continue;
+      }
       images.push({ release: id, runtimeId: kv.runtime_id, measurement: kv.measurement });
     }
     return { ok: true, images };
