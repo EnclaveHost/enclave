@@ -2289,7 +2289,7 @@ function isolationDerivation(catalogRef, wasmRef, policy, runtimeId, httpPort = 
   const c = /^ipfs:\/\/([A-Za-z0-9]+)$/.exec(String(wasmRef || ""));
   if (!m || !c) throw new Error(`per-app isolation needs a catalog version and its component CID (got ${catalogRef} / ${wasmRef})`);
   if (!/^[0-9a-f]{64}$/.test(String(runtimeId || ""))) throw new Error("the per-app manager states no runtime identity");
-  if (inference?.model === "qwen3.8-27b-mtp-q4-vl-gguf") policy = {...policy, cpuPercent:800, vcpus:8, memMiB:Math.max(policy.memMiB,51200-384)};
+  if (inference?.model === "qwen3.8-27b-mtp-q4-vl-gguf") policy = {...policy, cpuPercent:1600, vcpus:16, memMiB:Math.max(policy.memMiB,51200-384)};
   // a command that declares its HTTP port is enclave-catalog-bundle/2: the bundle states world wasi:cli and the port
   return { ...(inference ? { inference } : {}), derivation: inference ? "enclave-catalog-bundle/4" : tunnelPorts.length ? "enclave-catalog-bundle/3" : httpPort ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
            catalog: { app: m[1].toLowerCase(), version: Number(m[2]) }, cid: c[1], policy, runtimeId,
@@ -2413,7 +2413,7 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
       return "the measured Shield model release is not ready for this deployment";
     const needs = Math.floor(31*2**30*inf.gpuMilli/1000);
     if (!heldSameRecord && needs > Number(manager.inference.cardFreeBytes || 0)) return "the isolated GPU reservation pool is full";
-    policy = { ...policy, ...(inf.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? {cpuPercent:800,vcpus:8} : {}), memMiB: Math.max(Number(policy?.memMiB)||0, (inf.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? 51200 : 8192)-384) };
+    policy = { ...policy, ...(inf.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? {cpuPercent:1600,vcpus:16} : {}), memMiB: Math.max(Number(policy?.memMiB)||0, (inf.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? 51200 : 8192)-384) };
   }
   // The next two are enforced in THIS process on every other backend, on the plaintext of each request. Here the
   // plaintext exists only inside the guest (the session is spliced unopened), so neither could be applied: an
