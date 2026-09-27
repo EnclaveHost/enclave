@@ -2373,7 +2373,7 @@ async function confirmRow(id) {
   const ledger = await confirmedLedger();
   const got = await Promise.all(catalogClients.map((c) => c.readContract({ address: ledger, abi: DEP_GET_ABI, functionName: "get", args: [id] })));
   const pick = (d) => ({ id: String(d.id).toLowerCase(), runner: String(d.runner).toLowerCase(), leaseUntil: String(d.leaseUntil), appRef: d.appRef,
-                         isPublic: !!d.isPublic, configCid: d.configCid, active: !!d.active });
+                         isPublic: !!d.isPublic, configCid: d.configCid, gpuMilli: String(d.gpuMilli), active: !!d.active });
   const rows = got.map(pick);
   if (rows.some((r) => JSON.stringify(r) !== JSON.stringify(rows[0]))) throw new Error("the RPCs disagree about the deployment's record");
   if (rows[0].id !== String(id).toLowerCase()) throw Object.assign(new Error("the ledger holds no such deployment"), { code: "no_deployment" });
@@ -2381,7 +2381,28 @@ async function confirmRow(id) {
 }
 let _predictor = null;
 const predictor = () => _predictor || (_predictor = makePredictor({ ...predictorEnv(), readCatalog: catalogReader(catalogClients, catalogAddress) }));
-const expectedGuestFor = (row, o) => predictor().expectedFor(row && row.appRef, o);
+const expectedGuestFor = async (row, o) => {
+  // The chain allocation and routing manifest choose the measured profile,
+  // never the manager or the guest being verified.
+  const confirmed = await confirmRow(row.id);
+  if (confirmed.appRef !== row.appRef || confirmed.configCid !== row.configCid)
+    return {ok:false,code:"deployment_changed",reason:"deployment changed during prediction"};
+  const gpuMilli=Number(confirmed.gpuMilli);
+  if (!Number.isInteger(gpuMilli) || gpuMilli < 0 || gpuMilli > 1000)
+    return {ok:false,code:"unsupported_inference",reason:"invalid confirmed GPU allocation"};
+  let inference=null;
+  if (gpuMilli>0) {
+    const envelope=confirmed.configCid ? JSON.parse(confirmed.configCid) : {};
+    let config;
+    if (Object.hasOwn(envelope,"config") || Object.hasOwn(envelope,"configCid")) config=envelope.config || {};
+    else { const version=await versionConfigFor(confirmed.id); config=JSON.parse(version?.config || "{}"); }
+    const vols=config?.volumes;
+    if (!Number.isInteger(gpuMilli) || gpuMilli<65 || gpuMilli>1000 || !Array.isArray(vols) || vols.length!==1 || vols[0]!=="qwen2.5-0.5b-q8-gguf")
+      return {ok:false,code:"unsupported_inference",reason:"unsupported isolated model or GPU allocation"};
+    inference={model:vols[0],gpuMilli};
+  }
+  return predictor().expectedFor(confirmed.appRef,{...o,inference});
+};
 // the catalog VERSION's { config, configCid } for the deployment's CONFIRMED appRef, through the same agreeing RPCs
 const _versionConfig = { read: null };
 async function versionConfigFor(id) {

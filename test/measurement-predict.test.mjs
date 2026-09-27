@@ -110,7 +110,7 @@ const R1 = "a1".repeat(32), R2 = "a2".repeat(32), R3 = "a3".repeat(32), RK = "ab
 const RT_OTHER = WASMTIME_48.replace("48.0.1", "49.0.0");
 const REL = { [R1]: release("r1"), [R2]: release("r2"), [R3]: release("r3", RT_OTHER), [RK]: release("rk") };
 // the stub tools: a "bundle" is canonical({policy, http, component}); a "measurement" is sha384(release id ‖ AppID ‖ runtime)
-const stubBundle = (rec, comp) => Buffer.from(P.canonical({ policy: rec.policy, http: rec.http || 0, comp: comp.toString() }));
+const stubBundle = (rec, comp) => Buffer.from(P.canonical({ policy: rec.policy, http: rec.http || 0, ...(rec.inference ? { inference: rec.inference } : {}), comp: comp.toString() }));
 const stubMeasure = (id, appId, rid) => createHash("sha384").update(id + appId + rid).digest("hex");
 function stubs(over = {}) {
   const calls = [];
@@ -537,4 +537,41 @@ test("V3 prediction excludes releases without the measured protected-port capabi
  assert.equal(r.ok,true,JSON.stringify(r));assert.deepEqual(r.images.map(x=>x.release),[R3]);
  const absent=predictor({versions}).p;
  const no=await absent.expectedFor(REF);assert.equal(no.ok,false);assert.match(no.reason,/protected ports/);
+});
+
+
+test("Shield model selection excludes CPU images and binds GPU shares in prediction/cache", async () => {
+  const id="da".repeat(32), dir=release("shield");
+  fs.writeFileSync(path.join(dir,"template/rt/shield-model"),"qwen2.5-0.5b-q8-gguf\n");
+  const releases=[...Object.entries(REL).map(([id,dir])=>({id,dir})),{id,dir}];
+  const {p}=predictor({admit:[R1,id],opts:{releases}});
+  const cpu=await p.expectedFor(REF);
+  assert.equal(cpu.ok,true,JSON.stringify(cpu));
+  assert.deepEqual(cpu.images.map(i=>i.release),[R1]);
+  const inference={model:"qwen2.5-0.5b-q8-gguf",gpuMilli:100};
+  const gpu=await p.expectedFor(REF,{inference});
+  assert.equal(gpu.ok,true,JSON.stringify(gpu));
+  assert.deepEqual(gpu.images.map(i=>i.release),[id]);
+  const resized=await p.expectedFor(REF,{inference:{...inference,gpuMilli:200}});
+  assert.equal(resized.ok,true);
+  assert.notEqual(resized.appId,gpu.appId,"resizing changes attested identity and cannot reuse the old cache entry");
+  assert.equal((await p.expectedFor(REF,{inference:{...inference,gpuMilli:64}})).code,"unsupported_inference");
+  assert.equal((await p.expectedFor(REF,{inference:{...inference,model:"unmeasured"}})).code,"unsupported_inference");
+  assert.equal((await predictor().p.expectedFor(REF,{inference})).code,"unsupported_inference");
+});
+
+
+test("V4 predictor matches the committed Shield scheduler rule", () => {
+ const src=supervisorAt(P.SHIELD_SUPERVISOR_COMMIT);
+ assert.ok(src,"the pinned Shield scheduler source must be present");
+ assert.equal(P.supervisorRuleSha256(src),P.SHIELD_SUPERVISOR_RULE_SHA256);
+ const fn=n=>{const i=src.indexOf(`function ${n}(`);assert.ok(i>=0);return src.slice(i,src.indexOf("\n}\n",i)+2)};
+ const sup=vm.runInNewContext(["isolationPolicyFor","isolationPortsOf","isolationHttpPortOf","isolationDerivation"].map(fn).join("\n")+"\n({isolationPolicyFor,isolationPortsOf,isolationDerivation})");
+ const ref=`catalog://0x${"ab".repeat(32)}/4`,rid="49".repeat(32);
+ for(const gpuMilli of [70,100,200,1000]) for(const ports of ["","http:8000","http:8000,tcp:2222"]) {
+  const inference={model:"qwen2.5-0.5b-q8-gguf",gpuMilli},v={cid:"bafkreicomponent",memMb:128,ports};
+  const parsed=sup.isolationPortsOf(ports);
+  const theirs=sup.isolationDerivation(ref,"ipfs://"+v.cid,sup.isolationPolicyFor(v),rid,parsed.http,parsed.ports,inference);
+  assert.equal(P.canonical(P.derivationRecord(ref,v,rid,inference)),P.canonical(theirs));
+ }
 });
