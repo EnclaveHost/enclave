@@ -20,15 +20,17 @@ try {
  await page.evaluate(({ method }) => {
    window.id = '0x' + 'a'.repeat(64);
    window.zero = '0x' + '0'.repeat(64);
-   window.makePanel = async (panel, support = false, single = false) => {
+   window.makePanel = async (panel, support = false, single = false, abandoned = false) => {
      window.model = { owner: '0x123', appRef: 'catalog://app/0', active: true, runner: '0x' + 'b'.repeat(64), leaseUntil: Math.floor(Date.now()/1000)+300, cpuMilli: 10, gpuMilli: 0, balance6: 1000000, rate: 9 };
      window.calls = []; window.support = support;
+     if (abandoned) Object.assign(window.model, { active: false, gpuMilli: 10, cpuMilli: 350, leaseUntil: 1790316195 });
      document.querySelector('main').innerHTML = '<div class="enc-row"><div class="enc-tabs"><button id="version">Version</button><button id="shares">Shares</button></div><div class="enc-upg" hidden></div><div class="enc-shares" hidden></div></div>';
      const versions = [{ version: '1.0', approval: 1, mins: { gpuPct: 0, cpuPct: 1 } }, ...(single ? [] : [{ version: '1.1', approval: 1, mins: { gpuPct: 0, cpuPct: 2 } }, { version: '1.2', approval: 1, mins: { gpuPct: 0, cpuPct: 1 } }])];
      const deps = {
        ...window.real,
        esc: s => String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;'),
        depGet: async () => ({ ...window.model }), depSchemaRev: async () => 13,
+       depSnapshot: async () => ({ ...window.model, blockTimestamp: abandoned ? 1790487045 : Math.floor(Date.now()/1000) }),
        loadCatalog: async () => {}, adoptServerSpec: () => {},
        Enclave: { provider: {}, base: 'https://not-real.invalid', getAvailability: async () => ({ shareResize: window.support, rateCap: true }), getEnclaves: async () => [] },
        parseCatalogRef: () => ({ appId: 'app', index: 0 }), catalogRef: (_, i) => 'catalog://app/'+i,
@@ -70,6 +72,16 @@ try {
  const inside = finish.args[0].map(data => decodeFunctionData({ abi, data }));
  assert.deepEqual(inside.map(x => x.functionName), ['setShares','setActive']);
  assert.equal(Number(inside[0].args[2]), 30); assert.equal(inside[1].args[1], true);
+ await page.evaluate(() => window.makePanel('shares', false, true, true));
+ assert.equal(await page.locator('.eu-go').innerText(), 'Update shares');
+ assert.match(await page.locator('.enc-upg-status').innerText(), /Use Resume afterward/);
+ await page.locator('.eu-gpu').fill('0');
+ await page.locator('.eu-go').click();
+ await page.waitForFunction(() => window.calls.length === 1 && document.querySelector('.enc-upg-status').textContent.includes('saved; use Resume'));
+ const recovered = decodeFunctionData({ abi, data: (await page.evaluate(() => window.calls))[0] });
+ assert.equal(recovered.functionName, 'setShares');
+ assert.equal(Number(recovered.args[1]), 0); assert.equal(Number(recovered.args[2]), 350);
+ assert.equal((await page.evaluate(() => window.calls)).length, 1);
  await page.evaluate(() => window.makePanel('version', true));
  assert.equal(await page.locator('.enc-upg .eu-cpu').count(), 0);
  assert.equal(await page.locator('.enc-upg .eu-cap').count(), 0);
