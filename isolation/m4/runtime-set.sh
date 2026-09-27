@@ -30,6 +30,15 @@ compose)
   W=$(command -v wasmtime)
   cp -L "$W" "$rt/wasmtime"
   "$here/../contract/runtime-identity.sh" "$W" > "$rt/runtime.json"
+  # Measured launch policy, generated only after a real SET worker executes.
+  # Old runtimes keep their existing launch path; no optimistic capability bit.
+  for feature in set mem64; do
+    if "$here/probe-$feature.sh" "$W" > "$rt/$feature.enabled.tmp"; then
+      mv "$rt/$feature.enabled.tmp" "$rt/$feature.enabled"
+    else
+      rm -f "$rt/$feature.enabled.tmp"
+    fi
+  done
   # "=> not found" makes $3 the word "not", and the cp of it fails the build, which is the right outcome.
   ldd "$W" | awk '/=>/ {print $3}' | while read -r lib; do cp -L "$lib" "$rt/"; done
   cp -L /lib64/ld-linux-x86-64.so.2 "$rt/" 2>/dev/null || cp -L /lib/ld-linux-x86-64.so.2 "$rt/"

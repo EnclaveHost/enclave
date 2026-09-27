@@ -382,6 +382,17 @@ func main() {
 	l := &realLauncher{m4: filepath.Join(*iso, "m4"), m2: filepath.Join(*iso, "m2"), fwd: fwd, vcek: *vcek,
 		chain: *chain, product: *product, minTCB: *minTCB, runtimeIdentity: rid, env: env}
 	s := newServer(l, *root)
+	// Same executable and probe as runtime-set.sh, which emits the measured
+	// marker dominit needs before passing SET flags. Legacy guests do not gain
+	// this capability merely because the new release has it.
+	probeCtx, probeCancel := context.WithTimeout(context.Background(), 25*time.Second)
+	probeOut, probeErr := exec.CommandContext(probeCtx, "sh", filepath.Join(*iso, "m4", "probe-set.sh"), wt).Output()
+	probeCancel()
+	s.RuntimeSET = probeErr == nil && string(probeOut) == "1\n"
+	probeCtx, probeCancel = context.WithTimeout(context.Background(), 25*time.Second)
+	probeOut, probeErr = exec.CommandContext(probeCtx, "sh", filepath.Join(*iso, "m4", "probe-mem64.sh"), wt).Output()
+	probeCancel()
+	s.RuntimeMem64 = probeErr == nil && string(probeOut) == "1\n"
 	if why := releaseNamingRefusal(*releaseOn, *isoRelease, *legacyIso, *legacyIsoRelease); why != "" {
 		log.Fatal(why)
 	}

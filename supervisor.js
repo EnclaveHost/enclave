@@ -10257,6 +10257,8 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     const sh = await vmHealth().catch(() => null);
     if (!sh) return "app uses shared-everything threads and the app manager cannot be asked (unreachable)";
     if (sh.set !== true) return "app uses shared-everything threads and this box's runtime does not serve them";
+    if (sh.setRequiresRelease === true && !isolationReleaseGuest(sh, await releaseListedFor(d.id)))
+      return "app uses shared-everything threads and must use this host's updated attested guest release";
   }
   // wasm64 (memory64): gated exactly the same, on the manager's own flagless
   // memory64 compile probe (`mem64` on /health). A box whose engine cannot
@@ -10265,6 +10267,8 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     const mh = await vmHealth().catch(() => null);
     if (!mh) return "app is a wasm64 (memory64) module and the app manager cannot be asked (unreachable)";
     if (mh.mem64 !== true) return "app is a wasm64 (memory64) module and this box's runtime does not serve it";
+    if (mh.mem64RequiresRelease === true && !isolationReleaseGuest(mh, await releaseListedFor(d.id)))
+      return "app uses 64-bit memory and must use this host's updated attested guest release";
   }
   // The firewall is the VERSION's declared ports — part of what approval
   // covered. The deployment's own ports field is ignored (create() still

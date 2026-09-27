@@ -486,7 +486,26 @@ int main(void) {
      * rule 5, contract.CacheKey). We hold no such cache, so the domain states cache: "none" in its runtime
      * identity - and this flag is what makes that statement true by construction rather than by the
      * accident of HOME being unset in the guest. */
+    /* The build probes actual SET execution and measures this marker into the
+     * image. Flags apply inside the same dropped, filtered app process. Epoch
+     * cancellation stays enabled; no new socket or host capability is granted. */
+    char thread_features[192] = "threads";
+    FILE *sf = fopen("/rt/set.enabled", "r");
+    if (sf) {
+        int valid = fgetc(sf) == '1' && fgetc(sf) == '\n' && fgetc(sf) == EOF;
+        fclose(sf);
+        if (!valid) { printf("DOM ERROR invalid SET runtime marker\n"); fflush(stdout); reboot(RB_POWER_OFF); _exit(1); }
+        strcat(thread_features, ",shared-everything-threads,component-model-threading,shared-memory");
+    }
+    sf = fopen("/rt/mem64.enabled", "r");
+    if (sf) {
+        int valid = fgetc(sf) == '1' && fgetc(sf) == '\n' && fgetc(sf) == EOF;
+        fclose(sf);
+        if (!valid) { printf("DOM ERROR invalid memory64 runtime marker\n"); fflush(stdout); reboot(RB_POWER_OFF); _exit(1); }
+        strcat(thread_features, ",memory64,component-model-memory64");
+    }
     char *serve[] = {"/rt/ld-linux-x86-64.so.2", "--library-path", "/rt", "/rt/wasmtime", "serve", "-S", "cli",
+                     "-W", thread_features,
                      "-C", "cache=n", "--addr", "127.0.0.1:8080", "/app.wasm", NULL};
     /* HOW the app runs is the bundle's own word, not the host's: /app.run exists only when the bundle's measured
      * manifest states world wasi:cli, and holds the port it serves HTTP on (assemble-app-image.sh writes it from
@@ -511,6 +530,7 @@ int main(void) {
     snprintf(upstream, sizeof upstream, "127.0.0.1:%d", port ? port : 8080);
     snprintf(ports_env, sizeof ports_env, "ENCLAVE_PORTS=http:%d=%d", port, port);
     char *run[] = {"/rt/ld-linux-x86-64.so.2", "--library-path", "/rt", "/rt/wasmtime", "run", "-S", "cli",
+                   "-W", thread_features,
                    "-S", "tcp", "-S", "udp", "-S", "inherit-network", "-S", "allow-ip-name-lookup",
                    "-C", "cache=n", "--dir", "/data::/data", "--env", ports_env, "/app.wasm", NULL};
     if (port) {
