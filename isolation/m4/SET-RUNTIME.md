@@ -52,10 +52,7 @@ and supervisor, and handle existing guests under their original runtime pins
 before moving them. A naive switch from the global runtime-48 pin to runtime-49
 would reject the existing guests during adoption; do not perform that switch.
 
-The existing RISC Box catalog version additionally declares SSH and GameStream
-TCP/UDP ports. The current per-app guest contract/forwarder supports one HTTP
-port. SET support must not bypass that admission check or silently drop those
-ports. Restoring the browser alone needs an explicitly HTTP-only version;
-preserving the full published functionality needs additional protected routing.
-The owner's isolation opt-in and attested config/secret release must also be
-in place before the production deployment is eligible.
+The complete declared HTTP/TCP/UDP port set is now implemented by the protected
+port tunnel described in [PROTECTED-PORTS.md](PROTECTED-PORTS.md). It passed
+real SNP hardware tests. The owner's isolation opt-in and attested config/secret
+release must also be in place before the production deployment is eligible.
