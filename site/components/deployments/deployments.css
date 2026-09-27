@@ -147,13 +147,15 @@ c-deployments{display:contents;}
 .enc-fund-status:empty{display:none;}
 
 /* per-row Version (switch to another approved release; setAppRef) */
-.enc-upg,.enc-move{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:var(--well);}
+.enc-upg,.enc-shares,.enc-move{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:var(--well);}
 .enc-upg-body{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;}
 .enc-upg-body label{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);}
 .eu-sel{max-width:100%;background:var(--bg-1);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:.84rem;padding:.4em .6em;}
 .eu-sel:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
 /* share dials (rev-6 ledger + a fleet that re-slices): re-buy gpu/cpu in the same tx */
-.eu-dials{display:flex;align-items:center;gap:8px;}
+.eu-dials{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.enc-shares-note{margin:12px 18px 0;color:var(--text-muted);font-size:.8rem;line-height:1.6;}
+.eu-dials input:disabled{cursor:not-allowed;color:var(--text-dim);background:var(--well);}
 .eu-dials input{width:5.5em;background:var(--bg-1);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:.84rem;padding:.4em .6em;}
 .eu-dials input:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
 .enc-upg-status{padding:0 18px 10px;min-height:0;}
