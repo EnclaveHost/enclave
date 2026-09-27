@@ -57,6 +57,11 @@ import { seedCertChain } from '../../relay/snp-verify.mjs';
 const args = process.argv.slice(2);
 const url = new URL(args[0]);
 const opt = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
+// App-specific health/inference probes still use the attested connection and
+// cannot redirect to another origin. The historical fixture path is unchanged.
+const appPath = opt('--path') || '/hello?from=client';
+if (!appPath.startsWith('/') || appPath.startsWith('//') || /[\r\n]/.test(appPath))
+  throw new Error('--path must be an origin-relative HTTP path');
 const lab = args.includes('--lab-unsigned'), t0diag = args.includes('--t0-diagnostic');
 if (lab && t0diag) { console.error('--lab-unsigned and --t0-diagnostic are exclusive'); process.exit(2); }
 const mode = lab ? 'lab-unsigned' : t0diag ? 't0-diagnostic' : 'trusted';
@@ -238,7 +243,7 @@ try {
   // the app (it may still be starting behind the front: retry a 502 briefly)
   let app;
   for (const until = Date.now() + 60000; ; await new Promise((r) => setTimeout(r, 50))) {
-    app = await request(agent, 'GET', '/hello?from=client');
+    app = await request(agent, 'GET', appPath);
     if (app.status !== 502 || Date.now() > until) break;
   }
   if (t0) out('first_app_response_ms', Date.now() - t0);

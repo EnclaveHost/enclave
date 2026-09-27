@@ -8,7 +8,7 @@ against both cards over AF_VSOCK. It checks exact arithmetic against the CPU
 reference, Freivalds acceptance and rejection, packed-result equivalence, and
 rejection of an unsupported nonlinear operation.
 
-**This is hardware transport validation, not production app GPU admission.**
+**Hardware transport and fixed-prompt WASI-NN inference are validated; production app GPU admission is not enabled.**
 The five existing production apps continue using their original per-app guests.
 The production manager still reports `supports.gpu=false` and rejects GPU
 allocations. No GPU capacity should be sold or reported as ready merely because
@@ -70,3 +70,64 @@ encoding. The production app runtime's restriction on raw AF_VSOCK is unchanged.
 Do not remove the launcher's rejection of legacy `shieldedWorkers` under
 `ISOLATION_BACKEND` to force this through. That setting wires the old shared
 control-VM tenant runtime; it does not implement the per-app runtime above.
+
+## In-guest WASI-NN inference, 2026-09-27
+
+A **public fixed-prompt canary** now runs Qwen2.5-0.5B-Instruct Q8_0
+through the Wasmtime WASI-NN GGML backend inside a 4-vCPU, 8-GiB SNP guest.
+The two V100 workers receive masked matrix operations through fixed vsock
+routes. A measured root broker exposes private Unix sockets to the runtime's
+UID, leaving the app runtime's raw-vsock seccomp prohibition intact. The broker
+has a five-second connect deadline, bounded connection count and lifetime, and
+closes connections on guest shutdown. It handles no masks or plaintext prompts.
+
+Hardware observations (diagnostic image, not a production release):
+
+- Fresh AMD/TCB/measurement/AppID/runtime/TLS attestation, a second nonce and
+  replay rejection passed before sending the inference request.
+- Initial eight-token sample: 15.84 decode tokens/s, including cold effects.
+- Two subsequent 64-token samples: 64.88 and 58.55 decode tokens/s; identical
+  token IDs. This is **0.5B**, not the 27B model, and not a CPU-vs-GPU speedup
+  claim. These are short samples, not a sustained-load benchmark.
+- Runtime counters recorded 2,094 and 2,002 successful masked socket GEMM
+  exchanges on the two cards at the first periodic counter snapshot.
+- A lab proxy flipped one byte of a real packed GPU reply. The guest detected
+  a wrong product and returned HTTP 500 without generated-token output.
+  Replacing the faulty worker with the honest worker did not clear the failure:
+  the same trusted engine continued refusing inference. A fresh engine is
+  required after an integrity failure.
+- The original full NN runtime was rejected by W^X attestation because ONNX
+  requested an executable stack. The canary uses a GGML-only Wasmtime build;
+  no W^X or attestation checks were weakened.
+
+### Reproduce the inference canary
+
+Use `build-shielded-inference-canary.py --help`. Inputs are a pinned CPU app
+image template, a prepared GGML-only runtime directory, the public model and a
+WASI-NN fixed-token probe bundle. The builder pins the model SHA-256 to
+`f81d63cf49568f78154f6ddc8b114f603579360c7c878831a7f95a51dc284d24`, uses
+this tree's matching calibration and broker, rejects executable-stack shared
+libraries, and records input hashes. The runtime directory must include the
+matching CPU and Shielded backend libraries under `backends/` and the
+transitive shared-library closure. Use the vendored GGML 0.18 headers to build
+Shielded against the same GGML engine.
+
+The tested Wasmtime source is the existing Enclave-patched v49.0.0 tree
+(upstream base `ac0772970`) with these Cargo features and no defaults:
+
+```
+run,serve,compile,wat,parallel-compilation,cache,cranelift,component-model,
+component-model-async,threads,wasi-http,wasi-nn,wasmtime-wasi-nn/ggml,pooling-allocator
+```
+
+`ELL_LIB_LOCATION` must name the matching engine libraries when building.
+Do not copy unrelated ONNX/Stable-Diffusion/CUDA runtime libraries into this
+profile. No GPU device is attached to the guest. Run the image with four vCPUs
+and 8192 MiB, predict the measurement for those same launch inputs, then use
+`client.mjs --path '/?steps=64'` with all the normal trust pins.
+
+**The builder intentionally enables diagnostic logging of a public fixture.**
+It is not suitable for user prompts or production admission. Normal hosted
+apps still have `supports.gpu=false`. Remaining production requirements above
+still apply: measured model selection, share-bound reservations, a quiet
+production image, independent release admission, and scheduler integration.

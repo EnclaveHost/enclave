@@ -681,15 +681,28 @@ static void sh_pool_init(sh_pool &p) {
         std::istringstream fields(line);
         std::string part;
         while (std::getline(fields, part, '|')) parts.push_back(part);
-        if ((parts.size() != 4 && parts.size() != 6) || parts[0].empty() || parts[0].size() > 127 || parsed.size() >= 16 ||
-            parts[0].find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-") != std::string::npos) { reject("line needs 4 or 6 fields with a valid host"); return; }
+        if ((parts.size() != 4 && parts.size() != 6) || parts[0].empty() || parts[0].size() > 127 || parsed.size() >= 16) {
+            reject("line needs 4 or 6 fields with a valid host"); return;
+        }
+        const std::string broker_prefix = "unix:/run/enclave-shield/gpu";
+        const bool local_broker = parts[0].compare(0, broker_prefix.size(), broker_prefix) == 0;
+        if (local_broker) {
+            const std::string id = parts[0].substr(broker_prefix.size());
+            if (id.empty() || id.size() > 2 || id.find_first_not_of("0123456789") != std::string::npos ||
+                (id.size() > 1 && id[0] == '0') || atoi(id.c_str()) >= 16 || parts.size() != 4) {
+                reject("invalid private broker path"); return;
+            }
+        } else if (parts[0].find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-") != std::string::npos) {
+            reject("invalid worker host"); return;
+        }
         uint64_t nums[3];
         for (int i = 0; i < 3; i++) {
             if (parts[i+1].empty() || parts[i+1].find_first_not_of("0123456789") != std::string::npos || parts[i+1].size() > 15) { reject("port/vsock/reservation must be plain decimal"); return; }
             nums[i] = strtoull(parts[i+1].c_str(), nullptr, 10);
         }
         if (nums[0] < 1 || nums[0] > 65535 || nums[1] > (1U << 30) || nums[2] < 1 || nums[2] > (1ULL << 50) ||
-            !endpoints.insert(parts[0] + ":" + std::to_string(nums[0])).second) { reject("port out of range, reservation out of range, or duplicate endpoint"); return; }
+            (local_broker && nums[1] != 0) ||
+            !endpoints.insert(local_broker ? parts[0] : parts[0] + ":" + std::to_string(nums[0])).second) { reject("port out of range, reservation out of range, or duplicate endpoint"); return; }
         auto s = std::make_unique<sh_state>();
         sh_env_defaults(*s);
         if (parts.size() == 6) {
