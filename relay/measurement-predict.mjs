@@ -54,7 +54,7 @@ export function derivationRecord(catalogRef, version, runtimeId, inference = nul
   const { http, ports } = isolationPortsOf(version.ports);
   return { ...(inference ? { inference } : {}), derivation: inference ? "enclave-catalog-bundle/4" : ports.length ? "enclave-catalog-bundle/3" : http ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
            catalog: { app: m[1].toLowerCase(), version: Number(m[2]) }, cid: String(version.cid),
-           policy: inference?.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? {...isolationPolicyFor(version),cpuPercent:800,vcpus:8,memMiB:Math.max(isolationPolicyFor(version).memMiB,51200-384)} : isolationPolicyFor(version), runtimeId, ...(http ? { http } : {}), ...(ports.length ? { ports } : {}) };
+           policy: inference?.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? {...isolationPolicyFor(version),cpuPercent:1600,vcpus:16,memMiB:Math.max(isolationPolicyFor(version).memMiB,51200-384)} : isolationPolicyFor(version), runtimeId, ...(http ? { http } : {}), ...(ports.length ? { ports } : {}) };
 }
 // the supervisor's approvalVerdict: an approved, unyanked version of a listed app; a PENDING one only for a private
 // deployment (forPrivate = !isPublic, as the supervisor runs it); a rejected one never
@@ -69,8 +69,8 @@ export function versionRefusal(app, v, forPrivate = false) {
 // sha256 of the supervisor's three rule functions' source (isolationPolicyFor, isolationHttpPortOf, isolationDerivation),
 // identical at 0181bce3 and c42612c0. test/measurement-predict.test.mjs fails when a supervisor this repository holds (or
 // the working tree's) carries another rule, so the predictor is changed with it.
-export const SHIELD_SUPERVISOR_COMMIT = "dafade281";
-export const SHIELD_SUPERVISOR_RULE_SHA256 = "b2107b7e23158c644196be5f5465a9aab9b7f0af6cbaf36f6ba221ecd334ae3e";
+export const SHIELD_SUPERVISOR_COMMIT = "caa47a0c8";
+export const SHIELD_SUPERVISOR_RULE_SHA256 = "0c05967041f871e641720f29658a5ffd85fcddef0719ab4e649ee5eb2c163dcf";
 export const SUPERVISOR_RULE_SHA256 = "2ad995d42e42988151b95f0c1dd70c57130ed9f245d49da7167b6a076664796a";
 export function supervisorRuleSha256(src) {
   const parts = ["isolationPolicyFor", "isolationHttpPortOf", "isolationDerivation"].map((n) => {
