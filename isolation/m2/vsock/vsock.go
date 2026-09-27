@@ -4,6 +4,7 @@
 package vsock
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -126,6 +127,14 @@ func (l *Listener) Addr() net.Addr { return l.addr }
 
 // Dial connects to (cid, port). The connect is non-blocking so a signal cannot interrupt it half way.
 func Dial(cid, port uint32) (*Conn, error) {
+	return DialContext(context.Background(), cid, port)
+}
+
+// DialContext cancels a pending connection by closing its pollable descriptor.
+func DialContext(ctx context.Context, cid, port uint32) (*Conn, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	fd, err := syscall.Socket(afVsock, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC|syscall.SOCK_NONBLOCK, 0)
 	if err != nil {
 		return nil, fmt.Errorf("vsock socket: %w", err)
@@ -133,6 +142,8 @@ func Dial(cid, port uint32) (*Conn, error) {
 	sa := sockaddrVM{family: afVsock, port: port, cid: cid}
 	_, _, e := syscall.Syscall(syscall.SYS_CONNECT, uintptr(fd), uintptr(unsafe.Pointer(&sa)), unsafe.Sizeof(sa))
 	f := os.NewFile(uintptr(fd), "vsock")
+	stop := context.AfterFunc(ctx, func() { f.Close() })
+	defer stop()
 	if e != 0 && e != syscall.EINPROGRESS {
 		f.Close()
 		return nil, fmt.Errorf("vsock connect %d:%d: %w", cid, port, e)
@@ -165,6 +176,10 @@ func Dial(cid, port uint32) (*Conn, error) {
 			f.Close()
 			return nil, fmt.Errorf("vsock connect %d:%d: %w", cid, port, werr)
 		}
+	}
+	if !stop() || ctx.Err() != nil {
+		f.Close()
+		return nil, ctx.Err()
 	}
 	return &Conn{File: f, remote: Addr{cid, port}}, nil
 }

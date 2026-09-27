@@ -11,7 +11,7 @@
 # alone could not have matched it. So every mode is set here, explicitly; ownership is 0:0; times are 0.
 #
 # Executable: exactly the files something executes - /init (the kernel), /front (init), the ELF interpreter
-# (init, directly) and the runtime. Everything else is 0644: a shared library is mapped by the loader, and mmap
+# (init, directly), the optional measured Shield broker, and the runtime. Everything else is 0644: a shared library is mapped by the loader, and mmap
 # does not consult the execute bit.
 #
 #   usage: pack-initrd.sh <dir> <out.cpio.gz>
@@ -19,7 +19,7 @@ set -e
 d=${1:?usage: pack-initrd.sh <dir> <out.cpio.gz>}; out=${2:?usage: pack-initrd.sh <dir> <out.cpio.gz>}
 find "$d" -type d -exec chmod 0755 {} +
 find "$d" -type f -exec chmod 0644 {} +
-for x in init front rt/ld-linux-x86-64.so.2 rt/wasmtime; do
+for x in init front shieldbroker rt/ld-linux-x86-64.so.2 rt/wasmtime; do
   [ -f "$d/$x" ] && chmod 0755 "$d/$x"
 done
 find "$d" -exec touch -h -d @0 {} +
