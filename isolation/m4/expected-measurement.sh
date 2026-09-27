@@ -32,7 +32,7 @@ case "${1:-}" in
   *) echo "REFUSED: acceptance needs an explicit pinned release id (--pin <id>); --inspect is inspection only" >&2
      usage ;;
 esac
-case "$vcpus" in ''|*[!0-9]*) echo "vcpus must be a number" >&2; exit 2 ;; esac
+case "$vcpus" in [1-9]|1[0-6]) ;; *) echo "vcpus must be an integer from 1 through 16" >&2; exit 2 ;; esac
 if [ "$mode" = accept ]; then
   echo "$pin" | grep -qE '^[0-9a-f]{64}$' || { echo "REFUSED: the pin must be a 64-hex release id" >&2; exit 2; }
 fi
@@ -52,7 +52,14 @@ grep -qE "^$fw[[:space:]]" "$here/verifying-firmware.txt" || {
   echo "REFUSED: the release's firmware ($fw) is not pinned as verifying" >&2; exit 1; }
 # shellcheck disable=SC2086
 field() { $M field "$R" "$1" $PIN; }
-a=$("$here/assemble-app-image.sh" "$R/template" "$t/app.bundle" "$t/image.cpio.gz")
+# A policy's vCPU count is part of its identity. Never produce an acceptance
+# measurement for a caller-supplied shape that contradicts the snapshotted bundle.
+(cd "$here/../contract" && CGO_ENABLED=0 go build -trimpath -buildvcs=false \
+  -ldflags='-s -w -buildid=' -o "$t/bundletool" ./cmd/bundle)
+policy_vcpus=$("$t/bundletool" vcpus "$t/app.bundle")
+[ "$vcpus" = "$policy_vcpus" ] || {
+  echo "REFUSED: vCPU argument $vcpus does not match the bundle policy ($policy_vcpus)" >&2; exit 1; }
+a=$(BUNDLETOOL="$t/bundletool" "$here/assemble-app-image.sh" "$R/template" "$t/app.bundle" "$t/image.cpio.gz")
 m=$(~/.local/bin/sev-snp-measure --mode "$(field measure.mode)" --vcpus "$vcpus" --vcpu-family "$(field measure.vcpuFamily)" \
   --vcpu-model "$(field measure.vcpuModel)" --vcpu-stepping "$(field measure.vcpuStepping)" \
   --vmm-type "$(field measure.vmmType)" --ovmf "$R/firmware.fd" --kernel "$R/kernel" --initrd "$t/image.cpio.gz" \

@@ -54,6 +54,19 @@ func main() {
 		die(err)
 		id := contract.AppID(b)
 		fmt.Println(hex.EncodeToString(id[:]))
+	case "vcpus":
+		if len(os.Args) != 3 {
+			fmt.Fprintln(os.Stderr, "usage: bundle vcpus BUNDLE")
+			os.Exit(2)
+		}
+		b, err := os.ReadFile(os.Args[2])
+		die(err)
+		m, _, err := contract.Parse(b)
+		die(err)
+		if m.Policy.Vcpus < 1 || m.Policy.Vcpus > 16 {
+			die(fmt.Errorf("bundle policy vcpus must be 1 through 16"))
+		}
+		fmt.Println(m.Policy.Vcpus)
 	case "show":
 		b, err := os.ReadFile(os.Args[2])
 		die(err)
