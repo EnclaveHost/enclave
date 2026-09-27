@@ -542,7 +542,7 @@ test("V3 prediction excludes releases without the measured protected-port capabi
 
 test("Shield model selection excludes CPU images and binds GPU shares in prediction/cache", async () => {
   const id="da".repeat(32), dir=release("shield");
-  fs.writeFileSync(path.join(dir,"template/rt/shield-model"),"qwen2.5-0.5b-q8-gguf\n");
+  fs.writeFileSync(path.join(dir,"template/rt/shield-model"),"qwen2.5-0.5b-q8-gguf\nqwen3.8-27b-mtp-q4-vl-gguf\n");
   const releases=[...Object.entries(REL).map(([id,dir])=>({id,dir})),{id,dir}];
   const {p}=predictor({admit:[R1,id],opts:{releases}});
   const cpu=await p.expectedFor(REF);
@@ -552,6 +552,13 @@ test("Shield model selection excludes CPU images and binds GPU shares in predict
   const gpu=await p.expectedFor(REF,{inference});
   assert.equal(gpu.ok,true,JSON.stringify(gpu));
   assert.deepEqual(gpu.images.map(i=>i.release),[id]);
+  const large={model:"qwen3.8-27b-mtp-q4-vl-gguf",gpuMilli:500};
+  const gpu27=await p.expectedFor(REF,{inference:large});
+  assert.equal(gpu27.ok,true,JSON.stringify(gpu27));
+  assert.notEqual(gpu27.appId,gpu.appId);
+  assert.equal((await p.expectedFor(REF,{inference:{...large,gpuMilli:499}})).code,"unsupported_inference");
+  assert.deepEqual(P.derivationRecord(REF,{cid:"bafkreicomponent",memMb:128},"49".repeat(32),large).policy,
+    {cpuPercent:800,memMiB:50816,vcpus:8});
   const resized=await p.expectedFor(REF,{inference:{...inference,gpuMilli:200}});
   assert.equal(resized.ok,true);
   assert.notEqual(resized.appId,gpu.appId,"resizing changes attested identity and cannot reuse the old cache entry");
@@ -568,8 +575,8 @@ test("V4 predictor matches the committed Shield scheduler rule", () => {
  const fn=n=>{const i=src.indexOf(`function ${n}(`);assert.ok(i>=0);return src.slice(i,src.indexOf("\n}\n",i)+2)};
  const sup=vm.runInNewContext(["isolationPolicyFor","isolationPortsOf","isolationHttpPortOf","isolationDerivation"].map(fn).join("\n")+"\n({isolationPolicyFor,isolationPortsOf,isolationDerivation})");
  const ref=`catalog://0x${"ab".repeat(32)}/4`,rid="49".repeat(32);
- for(const gpuMilli of [70,100,200,1000]) for(const ports of ["","http:8000","http:8000,tcp:2222"]) {
-  const inference={model:"qwen2.5-0.5b-q8-gguf",gpuMilli},v={cid:"bafkreicomponent",memMb:128,ports};
+ for(const model of ["qwen2.5-0.5b-q8-gguf","qwen3.8-27b-mtp-q4-vl-gguf"]) for(const gpuMilli of [500,1000]) for(const ports of ["","http:8000","http:8000,tcp:2222"]) {
+  const inference={model,gpuMilli},v={cid:"bafkreicomponent",memMb:128,ports};
   const parsed=sup.isolationPortsOf(ports);
   const theirs=sup.isolationDerivation(ref,"ipfs://"+v.cid,sup.isolationPolicyFor(v),rid,parsed.http,parsed.ports,inference);
   assert.equal(P.canonical(P.derivationRecord(ref,v,rid,inference)),P.canonical(theirs));

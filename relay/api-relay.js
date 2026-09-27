@@ -2397,7 +2397,7 @@ const expectedGuestFor = async (row, o) => {
     if (Object.hasOwn(envelope,"config") || Object.hasOwn(envelope,"configCid")) config=envelope.config || {};
     else { const version=await versionConfigFor(confirmed.id); config=JSON.parse(version?.config || "{}"); }
     const vols=config?.volumes;
-    if (!Number.isInteger(gpuMilli) || gpuMilli<65 || gpuMilli>1000 || !Array.isArray(vols) || vols.length!==1 || vols[0]!=="qwen2.5-0.5b-q8-gguf")
+    if (!Number.isInteger(gpuMilli) || gpuMilli<65 || gpuMilli>1000 || !Array.isArray(vols) || vols.length!==1 || !["qwen2.5-0.5b-q8-gguf","qwen3.8-27b-mtp-q4-vl-gguf"].includes(vols[0]) || (vols?.[0]==="qwen3.8-27b-mtp-q4-vl-gguf" && gpuMilli<500))
       return {ok:false,code:"unsupported_inference",reason:"unsupported isolated model or GPU allocation"};
     inference={model:vols[0],gpuMilli};
   }

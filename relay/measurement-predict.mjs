@@ -54,7 +54,7 @@ export function derivationRecord(catalogRef, version, runtimeId, inference = nul
   const { http, ports } = isolationPortsOf(version.ports);
   return { ...(inference ? { inference } : {}), derivation: inference ? "enclave-catalog-bundle/4" : ports.length ? "enclave-catalog-bundle/3" : http ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
            catalog: { app: m[1].toLowerCase(), version: Number(m[2]) }, cid: String(version.cid),
-           policy: isolationPolicyFor(version), runtimeId, ...(http ? { http } : {}), ...(ports.length ? { ports } : {}) };
+           policy: inference?.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? {...isolationPolicyFor(version),cpuPercent:800,vcpus:8,memMiB:Math.max(isolationPolicyFor(version).memMiB,51200-384)} : isolationPolicyFor(version), runtimeId, ...(http ? { http } : {}), ...(ports.length ? { ports } : {}) };
 }
 // the supervisor's approvalVerdict: an approved, unyanked version of a listed app; a PENDING one only for a private
 // deployment (forPrivate = !isPublic, as the supervisor runs it); a rejected one never
@@ -69,8 +69,8 @@ export function versionRefusal(app, v, forPrivate = false) {
 // sha256 of the supervisor's three rule functions' source (isolationPolicyFor, isolationHttpPortOf, isolationDerivation),
 // identical at 0181bce3 and c42612c0. test/measurement-predict.test.mjs fails when a supervisor this repository holds (or
 // the working tree's) carries another rule, so the predictor is changed with it.
-export const SHIELD_SUPERVISOR_COMMIT = "d760ef584";
-export const SHIELD_SUPERVISOR_RULE_SHA256 = "6241e251108ef4b1dad120f712cb4f72bc6ea342dd511f3c16027f0b82caf2dc";
+export const SHIELD_SUPERVISOR_COMMIT = "dafade281";
+export const SHIELD_SUPERVISOR_RULE_SHA256 = "b2107b7e23158c644196be5f5465a9aab9b7f0af6cbaf36f6ba221ecd334ae3e";
 export const SUPERVISOR_RULE_SHA256 = "2ad995d42e42988151b95f0c1dd70c57130ed9f245d49da7167b6a076664796a";
 export function supervisorRuleSha256(src) {
   const parts = ["isolationPolicyFor", "isolationHttpPortOf", "isolationDerivation"].map((n) => {
@@ -426,13 +426,13 @@ export function makePredictor(o) {
     const vr = versionRefusal(cat && cat.app, cat && cat.version, forPrivate);
     if (vr) return refuse("version_not_admitted", vr);
     // one record per distinct runtime among the admitted releases (the AppID excludes the runtime; the record does not)
-    if (inference && (inference.model !== "qwen2.5-0.5b-q8-gguf" || !Number.isInteger(inference.gpuMilli) || inference.gpuMilli < 65 || inference.gpuMilli > 1000))
+    if (inference && (!["qwen2.5-0.5b-q8-gguf","qwen3.8-27b-mtp-q4-vl-gguf"].includes(inference.model) || !Number.isInteger(inference.gpuMilli) || inference.gpuMilli < (inference.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? 500 : 65) || inference.gpuMilli > 1000))
       return refuse("unsupported_inference", "unsupported isolated model or GPU allocation");
     const byRuntime = new Map();
     for (const id of admitIds) {
       const marker=path.join(releases.get(id),"template/rt/shield-model");
       let model=null; try { model=fs.readFileSync(marker,"utf8").trim(); } catch(e) { if(e.code!=="ENOENT") return refuse("prediction_unavailable","unreadable inference profile"); }
-      if (inference ? model!==inference.model : model!==null) continue;
+      if (inference ? !model?.split(/\s+/).includes(inference.model) : model!==null) continue;
       let rid;
       try { rid = runtimeIdOfJson(fs.readFileSync(path.join(releases.get(id), "template/rt/runtime.json"), "utf8")); }
       catch (e) { return refuse("prediction_unavailable", `release ${id.slice(0, 12)} states no readable runtime identity`); }
