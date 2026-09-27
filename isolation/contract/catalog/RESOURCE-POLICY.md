@@ -7,7 +7,7 @@ about 20 game FPS in this shape. This proposal enables an explicit larger shape;
 it does not claim a measured frame-rate improvement yet.
 
 The publisher may put this metadata in a **new immutable catalog version's**
-config (inline, or fetched and verified against that version's config CID):
+inline config (the on-chain routing manifest when bulk config uses a CID):
 
 ```json
 {"_isolationPolicy":{"rule":"enclave-isolation-policy/2","vcpus":2}}
@@ -30,20 +30,28 @@ release before releasing configuration or secrets.
 
 ## Rollout gates still required
 
-The pure JavaScript selector and independent Python reference are staged here.
-They are **not wired into live scheduling**, and this is not yet a published
-resource policy. Before rollout:
+The selector, independent Python reference and supervisor integration are staged
+here. They are **not deployed to live scheduling**, and this is not yet a
+published resource policy. The inline routing manifest is authoritative; a
+profile hidden only in bulk config cannot change the shape.
 
-- Wire immutable version metadata through prefetch, claim/pool reservation,
-  spawn, restart, same-record comparison and version switching. Never reuse a
-  deployment override as the policy input or silently default missing state.
-- Update independent client derivation and Windows planning consistently;
-  unsupported managers must refuse the profile.
-- Ensure the bought CPU share covers the pinned quota and the host has room;
-  bill/resource-account consistently. Extra vCPUs are not permission to exceed
-  a tenant's purchase.
-- Reconstruct and verify a new multi-vCPU SNP canary measurement using the
-  pinned runtime release; retain wrong-shape/identity negative tests.
+The staged supervisor carries the immutable inline config separately from a
+deployment override through prefetch, claim, launch, restart and version changes.
+Persisted older records recover it from the approved catalog before relaunch.
+Explicit profiles require sufficient purchased CPU at claim and launch; share
+sizing includes that quota, and the existing pool gate reserves the actual
+shape. The Windows planner refuses explicit profiles until its matching path
+is implemented. CLI and browser publishing retain the metadata in the inline
+routing manifest when bulk config moves to a CID.
+
+Remaining gates:
+
+- Update and exercise the production owner's independent expected-identity
+  derivation and release preparation with the new version metadata. Verify
+  the measurement tool's vCPU input agrees with the bundle policy.
+- Validate the full published-version path and restart/migration on a staging
+  deployment before rolling out the supervisor. Unit and scripted-manager
+  tests do not establish that a production migration has succeeded.
 - Benchmark the same RISC Box artifact, guest snapshot, resolution, sound and
   input workload. Do not report synthetic worker throughput as game FPS.
 - Publish the new version through the owner's normal signing flow and release
@@ -69,3 +77,8 @@ This confirms that the candidate shape boots and attests, **not** that Doom is
 faster. Full-workload benchmarking and the rollout gates above remain pending.
 The experimental derivation records use version 54 to compare only the shape;
 they do not change or authorize the actual catalog version's policy.
+
+The staged integration passes 61 resource-policy, claim, reservation, release,
+restart-input and cross-platform tests, plus 31 existing sizing, version-switch
+and publishing regression tests. These include refusing an underfunded launch
+and missing immutable metadata before posting any VM request.

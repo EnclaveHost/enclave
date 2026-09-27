@@ -111,3 +111,16 @@ test("every launch site builds its spec through launchSpec", () => {
   const builders = [...src.matchAll(/^\s*return launchSpecFrom\(/gm)];
   assert.equal(builders.length, 1, "a spec is built somewhere other than launchSpec");
 });
+
+test("restart carries immutable version metadata separately from the deployment override", async () => {
+  const versionConfig = '{"_isolationPolicy":{"rule":"enclave-isolation-policy/2","vcpus":2}}';
+  const override = '{"_isolationPolicy":{"rule":"enclave-isolation-policy/2","vcpus":16},"endpoint":"https://example.test"}';
+  const [spec, missing] = await specs([
+    { rec: { ...REC, _versionMemMb: 3072, _versionConfig: versionConfig, config: override }, sec: null, hosts: [] },
+    { rec: { ...REC, config: override }, sec: null, hosts: [] },
+  ]);
+  assert.equal(spec.versionConfig, versionConfig);
+  assert.equal(spec.versionMemMb, 3072);
+  assert.equal(spec.config, override);
+  assert.equal(missing.versionConfig, undefined, "missing authority is not substituted with an override");
+});

@@ -86,7 +86,7 @@ const CONFIG_MAX_BYTES  = 1024 * 1024;
 // whole document — the manifest is a projection, not a split. Derived, never
 // hand-written: publish stamps wasi/threads/set from the binary's own exports.
 // Mirrors ROUTING_KEYS in site/js/core/chain.js — keep them in lockstep.
-const ROUTING_KEYS = ["wasi", "threads", "set", "mem64", "gpuOptional", "cpuFallback", "volumes", "_media"];
+const ROUTING_KEYS = ["wasi", "threads", "set", "mem64", "gpuOptional", "cpuFallback", "volumes", "_media", "_isolationPolicy"];
 
 // Minimal ABIs — mirror contracts/*.abi.json (checked in, re-emitted by the
 // deploy scripts); embedded so the installed binary is self-contained.

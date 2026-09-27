@@ -67,7 +67,8 @@ test("the rules agree with supervisor.js's, case for case", { timeout: 60_000 },
       const [, app, idx] = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d+)$/.exec(d.catalogRef);
       mine = derivationOf(app, idx, d.wasmRef.slice(7), policyFor(d.memMb), d.runtimeId, httpPortOf(d.ports));
     } catch (e) { mine = { error: e.message }; }
-    assert.deepEqual(mine, s.derive[i], `derive case ${i}`);
+    if (mine.error) assert.ok(s.derive[i].error, `both backends must refuse derive case ${i}`);
+    else assert.deepEqual(mine, s.derive[i], `derive case ${i}`);
   });
 });
 
@@ -77,7 +78,9 @@ test("the rules agree with supervisor.js's, case for case", { timeout: 60_000 },
 // "unknown" below.)
 test("the plan refuses exactly when supervisor.js's claim gate refuses, input for input", { timeout: 60_000 }, async () => {
   const gateMgr = (m) => m && { backend: m.backend, supports: { gpu: false, secrets: false, egress: false, config: false, ports: false },
-                                catalog: { derivations: m.catalog && m.catalog.derivations } };
+                                catalog: { derivations: m.catalog && m.catalog.derivations },
+                                pool: { budget: { memMiB: 32768, cpuPct: 800 }, free: { memMiB: 32768, cpuPct: 800 },
+                                  allocated: { memMiB: 0, cpuPct: 0 }, perGuest: { floorMiB: 1024, runtimeMiB: 384, unitOverheadMiB: 768 } } };
   const cases = [
     {}, { require: "snp-guest-per-app" }, { require: "" }, { manager: { ...MGR, backend: "snp-guest-per-app" } },
     { deployment: { ...ledger, gpuMilli: 250 } }, { appConfig: JSON.stringify({ _media: {}, TOKEN: "x" }) }, { appConfig: MEDIA },
@@ -92,7 +95,7 @@ test("the plan refuses exactly when supervisor.js's claim gate refuses, input fo
     const fw = String(x.version.ports || "").split(",").map((p) => p.trim()).filter(Boolean);
     return { require: x.require, manager: gateMgr(x.manager), gpuMilli: x.deployment.gpuMilli, config: appConfigOf(x.appConfig),
              appConfigCid: x.appConfigCid || x.version.configCid || "", hasSecrets: x.hasSecrets, firewall: fw, volumes: x.volumes,
-             isPublic: x.deployment.isPublic, waf: x.waf };
+             isPublic: x.deployment.isPublic, waf: x.waf, policy: policyFor(x.version.memMb) };
   });
   const s = await seam({ verdicts: gateIn });
   cases.forEach((c, i) => assert.equal(planned[i].ok, s.verdicts[i] === null,
@@ -252,4 +255,15 @@ test("the join: relay-shaped WebSocket -> splicer -> data plane -> the domain's 
   for (let i = 0; i < 50 && outcomes.length < 4; i++) await new Promise((r) => setTimeout(r, 20));
   const kinds = outcomes.map((o) => o.outcome === "spliced" ? "spliced" : o.kind).sort();
   assert.deepEqual(kinds, ["no-route", "refused", "spliced", "wrong-name"].sort(), JSON.stringify(outcomes));
+});
+
+test("Windows refuses explicit profiles until its matching admission path is implemented", () => {
+  const config = '{"_isolationPolicy":{"rule":"enclave-isolation-policy/2","vcpus":2}}';
+  const r = plan({ version: { ...HOOKBIN, config }, appConfig: "" });
+  assert.equal(r.ok, false);
+  assert.match(r.why, /explicit isolation resource profiles are not supported/);
+  assert.deepEqual(policyFor(3072, config), { cpuPercent: 200, memMiB: 3072, vcpus: 2 });
+  const override = plan({ appConfig: config });
+  assert.equal(override.ok, true);
+  assert.equal(override.policy.vcpus, 1, "override metadata cannot change the approved shape");
 });

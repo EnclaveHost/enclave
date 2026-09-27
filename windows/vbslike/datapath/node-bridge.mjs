@@ -18,6 +18,7 @@
 //
 // UNKNOWN IS NOT NO. Every input isolationPlan cannot verify - a caller that did not state it, or stated null - is a
 // refusal that says so (`unknown: true`), never read as "none". A refusal always names the input that decided it.
+import { catalogResourcePolicy, EXPLICIT_POLICY_RULE } from "../../../isolation/contract/catalog/policy.mjs";
 import { spliceStream } from "../../../isolation/m4/guestd/supervisor-splice.mjs";
 import { createDataPlane } from "./datapath.mjs";
 
@@ -32,22 +33,22 @@ const unknownInput = (input, what) => refused(input, `${what} is not known here,
 
 // ---- the same rules as the Linux tier (supervisor.js), held to them by node-bridge.test.mjs ------------------------
 
-// supervisor.js isolationAppConfig: the config WITHOUT `_media` (store display metadata, never app input); "" if
+// supervisor.js isolationAppConfig: the config WITHOUT platform metadata; "" if
 // nothing else remains.
 export function appConfigOf(config) {
   if (!config) return "";
   let o;
   try { o = typeof config === "string" ? JSON.parse(config) : config; } catch { return String(config); }
   if (!o || typeof o !== "object" || Array.isArray(o)) return String(config);
-  const { _media, ...rest } = o;
+  const { _media, _isolationPolicy, ...rest } = o;
   return Object.keys(rest).length ? JSON.stringify(rest) : "";
 }
 
-// supervisor.js isolationPolicyFor: enclave-isolation-policy/1 - the version's ON-CHAIN memMb (floor 128), 1 vCPU,
-// cpuPercent 100. Never a deployment's purchase and never a node's own floor (cpuFallback): another number is another
-// AppID for the same version, and a verifier recomputes it from the chain.
-export function policyFor(memMb) {
-  return { cpuPercent: 100, memMiB: Math.max(128, Math.ceil(Number(memMb) || 0)), vcpus: 1 };
+// Shared deterministic policy selection. The Windows planner below refuses
+// explicit profiles until its admission path supports them; it never defaults
+// them to a different one-vCPU identity.
+export function policyFor(memMb, versionConfig = "") {
+  return catalogResourcePolicy(memMb, versionConfig).policy;
 }
 
 // supervisor.js isolationHttpPortOf: none (0), or exactly one http:N; anything else is not offered on this tier.
@@ -147,7 +148,15 @@ export function isolationPlan({ deploymentId, deployment, version, appConfig, ha
       : `the manager does not serve ${V1}`);
   if (!HEX(32).test(String(runtimeId || ""))) return unknownInput("runtimeId", "the runtime identity the manager pins");
 
-  const policy = policyFor(version.memMb);
+  // Explicit profiles need a matching Windows admission/accounting rollout.
+  // Until then refuse them, rather than silently running a different one-core identity.
+  if (typeof version.config !== "string") return unknownInput("version.config", "the immutable routing manifest");
+  let profile;
+  try { profile = catalogResourcePolicy(version.memMb, version.config); }
+  catch (e) { return refused("version.config", e.message); }
+  if (profile.rule === EXPLICIT_POLICY_RULE)
+    return refused("version.config", "explicit isolation resource profiles are not supported by this Windows planner yet");
+  const policy = profile.policy;
   const derive = derivationOf(version.appId, version.index, version.cid, policy, runtimeId, httpPort);
   return { ok: true, derivation, httpPort, policy,
            spawn: { image: `ipfs://${version.cid}`, name: deploymentId, cpuShare: cpu / 1000, gpuShare: 0,
