@@ -30,7 +30,8 @@ int main(void) {
         {.K=5120, .u_len=248320, .depth=16, .count=12},
         {.K=5120, .u_len=5120, .depth=16, .count=16},
     };
-    sh_link l = {.groups=groups, .n_groups=3};
+    /* refill_unit is SHIELDED_REFILL_UNIT's default, 16 (bfdc30e56); left 0 here, the unit min(B, 0) made no group LOW */
+    sh_link l = {.groups=groups, .n_groups=3, .refill_unit=16};
     choose(&l, 0, 8);                  /* existing largest-deficit policy */
     l.refill_cost_priority = 1;
     choose(&l, 1, 4);                  /* prepare the expensive full batch earlier */
@@ -50,6 +51,13 @@ int main(void) {
     groups[0]=(sh_group){.K=INT64_MAX,.u_len=INT64_MAX,.depth=16,.count=12};
     groups[1]=(sh_group){.K=5120,.u_len=248320,.depth=16,.count=4};
     choose(&l, 0, 4);                  /* priority multiplication cannot wrap */
+    /* the unit is min(B, refill_unit), no longer min(B, 8) (bfdc30e56): with B=64 and the default unit 16, group 0
+     * (12 coming) is LOW and wins; under a unit of 8 it would not be low, and group 1's larger deficit (108) would win */
+    l.refill_cost_priority = 0;
+    groups[0]=(sh_group){.K=5120,.u_len=5120,.depth=64,.count=12};
+    groups[1]=(sh_group){.K=5120,.u_len=5120,.depth=128,.count=20};
+    groups[2]=(sh_group){.K=5120,.u_len=5120,.depth=16,.count=16};   /* full: never picked */
+    { int d = -1; sh_group *g = pick_refill_group(&l, 64, &d); assert(g == &groups[0]); assert(d == 52); }
     return 0;
 }
 `);

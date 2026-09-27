@@ -31,6 +31,18 @@ static int test_create(pthread_t *t,const pthread_attr_t *a,void *(*fn)(void*),v
     if(inject_thread && rc==0)handles[made++]=*t;
     return rc;
 }
+/* Since 349d5d0d5 shielded-tee.c spawns its worker threads through shielded-parwork.c's sh_thread_create, which calls
+ * pthread_create from its OWN translation unit, where the #define below never reaches: the fault is injected at
+ * sh_thread_create too, with the same counters, so "the second thread creation fails" still means what it did. */
+#include "../../wasm/ggml-shielded/shielded-parwork.h"
+static int sh_create_call;
+static int test_sh_create(pthread_t *t,void *(*fn)(void*),void *arg) {
+    sh_create_call++;
+    if(inject_thread && create_call++==1)return EAGAIN;
+    int rc=sh_thread_create(t,fn,arg);
+    if(inject_thread && rc==0)handles[made++]=*t;
+    return rc;
+}
 static int test_join(pthread_t t,void **result) {
     if(inject_thread) {
         int found=0;for(int i=0;i<made;i++)if(pthread_equal(t,handles[i]))found=1;
@@ -44,6 +56,7 @@ static int test_join(pthread_t t,void **result) {
 #define realloc test_realloc
 #define getrandom test_random
 #define pthread_create test_create
+#define sh_thread_create test_sh_create
 #define pthread_join test_join
 #include "../../wasm/ggml-shielded/shielded-tee.c"
 #undef malloc
@@ -51,6 +64,7 @@ static int test_join(pthread_t t,void **result) {
 #undef realloc
 #undef getrandom
 #undef pthread_create
+#undef sh_thread_create
 #undef pthread_join
 
 static void reference_prepare(const int8_t *w,int64_t k,int64_t n,const int64_t *s,int reps,int64_t *out) {
@@ -121,6 +135,8 @@ int main(void) {
     fv_prepare_parallel(l,weights,K,256,s,2,got);
     inject_thread=0;assert(made==joined);
     if(sysconf(_SC_NPROCESSORS_ONLN)>1)assert(create_call>1 && made>0);
+    /* the registration spawns through sh_thread_create (349d5d0d5): the fault must be injected at that seam */
+    if(sysconf(_SC_NPROCESSORS_ONLN)>1)assert(sh_create_call>0);
     reference_prepare(weights,K,256,s,2,want);assert(!memcmp(want,got,sizeof want));
     sh_link_close(l);
     /* Invalid shapes/offsets and sharing leave a valid prior group usable. */

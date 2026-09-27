@@ -28,7 +28,9 @@ test('balanced mint files retain original PRF groups and scalar products when th
       ['-mavx512f', '-mavx512bw', '-mavx512dq', '-mavx512vl', '-mavx512vnni', '-DSH_SIMD_AVX512']),
       '-c', join(gg, 'shielded-simd.c'), '-o', fast], {timeout: 20_000});
     execFileSync('cc', [...flags, join(root, 'test/fixtures/shielded-mint-balanced-files.c'),
-      ...['shielded-tee.c', 'shielded-field.c', 'shielded-wire.c', 'shielded-pads.c', 'shielded-bank.c',
+      // shielded-parwork.c: tee.c spawns its mint workers through sh_thread_create since 349d5d0d5; --wrap still reaches the
+      // pthread_create inside it, so the thread-creation failure below is injected as before
+      ...['shielded-tee.c', 'shielded-field.c', 'shielded-parwork.c', 'shielded-wire.c', 'shielded-pads.c', 'shielded-bank.c',
         'shielded-http.c', 'tweetnacl.c', 'poly1305-donna.c'].map(f => join(gg, f)), simd, fast,
       '-Wl,--wrap=pthread_create', '-Wl,--gc-sections', '-pthread', '-lm', '-o', bin], {timeout: 30_000});
     execFileSync(bin, [dir], {timeout: 10_000,
