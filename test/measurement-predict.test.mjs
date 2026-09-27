@@ -32,7 +32,7 @@ test("the rule reproduces guestd's real derivation records, byte for byte (recor
   // a mixed-case catalog ref is the same record (the supervisor lowercases the app)
   assert.deepEqual(P.derivationRecord(`catalog://${k1.record.catalog.app.toUpperCase().replace("0X", "0x")}/4`, { cid: k1.record.cid, memMb: 128, ports: "" }, rid), r1);
   for (const [ports, ok] of [["", 0], ["http:8000", 8000], [" HTTP:1 ", 1], ["tcp:22", null], ["http:80,http:81", null], ["http:0", null], ["http:50000", null], ["udp:53", null]]) {
-    if (ok === null) assert.throws(() => P.isolationHttpPortOf(ports), /not offered/, ports);
+    if (ok === null) assert.throws(() => P.isolationHttpPortOf(ports), /port|HTTP/, ports);
     else assert.equal(P.isolationHttpPortOf(ports), ok, ports);
   }
   assert.throws(() => P.derivationRecord("ipfs://bafy", { cid: "x", memMb: 1 }, rid), /catalog/);
@@ -512,4 +512,29 @@ test("certReleases misconfigured is a PROBLEM (every prediction refused), never 
   const c = P.predictorEnv({ SECRETS_RELEASE_CERT_RELEASES: ` ${R1.toUpperCase()}, ${R2} ` });
   assert.deepEqual(c.certReleases, [R1, R2]);
   assert.deepEqual(P.predictorEnv({}).certReleases, [], "unset: none named (every installed release)");
+});
+
+
+test("V3 measures sorted protected destinations without changing V1/V2", () => {
+ const ref = `catalog://0x${"ab".repeat(32)}/54`, rid = "49".repeat(32);
+ const version = {cid: "bafkreidocbixnql7lroykdtwx4r2fmi5n6sra4lj7b7vhscsfqn4gctlee", memMb: 3072, ports: "udp:48000,http:8000,tcp:2222"};
+ const r = P.derivationRecord(ref, version, rid);
+ assert.equal(r.derivation,"enclave-catalog-bundle/3");
+ assert.equal(r.http,8000); assert.deepEqual(r.ports,["tcp:2222","udp:48000"]);
+ assert.deepEqual(P.derivationRecord(ref,{...version,ports:"http:8000,tcp:2222,udp:48000"},rid),r);
+ for(const ports of ["http:8000,tcp:8000","http:8000,udp:0","http:8000,tcp:02222","http:8000,tcp:22,tcp:22"])
+   assert.throws(()=>P.derivationRecord(ref,{...version,ports},rid));
+});
+
+test("V3 prediction excludes releases without the measured protected-port capability", async () => {
+ const marked = fs.mkdtempSync(path.join(TMP,"ports-release-"));
+ fs.cpSync(REL[R3], marked, { recursive: true });
+ fs.writeFileSync(path.join(marked,"template/rt/protected-ports.enabled"),"1\n");
+ const versions = { [REF]: { app:{active:true},version:{cid:CID,memMb:300,ports:"http:8000,tcp:2222,udp:47998",approval:1,yanked:false} } };
+ const releases = Object.entries(REL).map(([id,dir])=>({id,dir:id===R3?marked:dir}));
+ const {p}=predictor({versions,opts:{releases}});
+ const r=await p.expectedFor(REF);
+ assert.equal(r.ok,true,JSON.stringify(r));assert.deepEqual(r.images.map(x=>x.release),[R3]);
+ const absent=predictor({versions}).p;
+ const no=await absent.expectedFor(REF);assert.equal(no.ok,false);assert.match(no.reason,/protected ports/);
 });
