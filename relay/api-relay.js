@@ -114,7 +114,9 @@ installProcessGuards("api-relay");
 // an optional env of raw name:token pairs the relay hashes itself. Attach auth
 // is routing-only; clients still verify each enclave's attestation end-to-end.
 const DEFAULT_METAL_ALLOW = [
-  { name: "metal0", tokenSha256: "3b28c8d9564f47b1f5031e519c8f6e7bbfaca99e41884b2740e7958e83acec81" },
+  // metal0 now uses the per-app SNP isolation control image and attaches with
+  // fresh hardware attestation plus its registered operator identity. Its old
+  // token reservation must stay retired: it blocks the attested attach path.
   // us-west attaches by ON-CHAIN OWNERSHIP instead (TUNNEL_OPERATOR_ATTACH):
   // it signs the hub's challenge with the operator key that registered its
   // endpoint, so nothing about it is hardcoded here. Its token entry was
