@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resizeAfterStop, leaseReleased } from '../site/js/core/share-resize.js';
+import { resizeAfterStop, leaseReleased, leaseAvailable } from '../site/js/core/share-resize.js';
 const zero = '0x' + '0'.repeat(64);
 const held = { owner: '0xabc', appRef: 'catalog://app/2', cpuMilli: 10, gpuMilli: 0,
-  active: true, runner: '0x' + '1'.repeat(64), leaseUntil: 10 };
+  active: true, runner: '0x' + '1'.repeat(64), leaseUntil: 10, blockTimestamp: 1 };
 const released = { ...held, active: false, runner: zero, leaseUntil: 0 };
 function rig(rows, overrides = {}) {
   const events = []; let time = 0, i = 0;
@@ -21,12 +21,41 @@ test('a deployment already suspended remains suspended after resize', async () =
   assert.deepEqual(await resizeAfterStop(r.options), { resumed: false });
   assert.deepEqual(r.events, ['read', 'read', ['apply', false]]);
 });
-test('an expired lease is not a release; timeouts never submit new shares', async () => {
+test('live leases time out without submitting shares', async () => {
   assert.equal(leaseReleased({ ...held, active: false, leaseUntil: 0 }), false);
   assert.equal(leaseReleased({ ...released, leaseUntil: 1 }), false);
-  const r = rig([held, { ...held, active: false, leaseUntil: 0 }]);
-  await assert.rejects(resizeAfterStop(r.options), /has not released.*may be suspended/);
+  const r = rig([held, { ...held, active: false }]);
+  await assert.rejects(resizeAfterStop(r.options), /lease is still held.*may be suspended/);
   assert.equal(r.events.some(e => Array.isArray(e)), false);
+});
+test('RISC Box: an abandoned expired lease does not need runner release', async () => {
+  const stale = { ...held, active: false, leaseUntil: 1790316195, blockTimestamp: 1790487045 };
+  assert.equal(leaseReleased(stale), false);
+  const r = rig([stale]);
+  assert.deepEqual(await resizeAfterStop(r.options), { resumed: false });
+  assert.deepEqual(r.events, ['read', 'read', ['apply', false]]);
+});
+test('an active deployment with an expired lease suspends, resizes and resumes', async () => {
+  const r = rig([{ ...held, blockTimestamp: 11 }, { ...held, active: false, blockTimestamp: 11 }]);
+  assert.deepEqual(await resizeAfterStop(r.options), { resumed: true });
+  assert.deepEqual(r.events, ['read', 'suspend', 'read', ['apply', true]]);
+});
+test('expiry is strict and uses chain time, never the browser clock', async () => {
+  assert.equal(leaseAvailable({ ...held, blockTimestamp: 10 }), false);
+  assert.equal(leaseAvailable({ ...held, blockTimestamp: 11 }), true);
+  for (const blockTimestamp of [undefined, null, NaN, Infinity, 0, -1])
+    assert.equal(leaseAvailable({ ...held, blockTimestamp }), false);
+  for (const leaseUntil of [undefined, null, NaN, Infinity, -1])
+    assert.equal(leaseAvailable({ ...held, leaseUntil, blockTimestamp: 11 }), false);
+  const r = rig([held, { ...held, active: false }], { now: () => 9e12, timeoutMs: 0 });
+  await assert.rejects(resizeAfterStop(r.options), /lease is still held/);
+  assert.equal(r.events.some(e => Array.isArray(e)), false);
+});
+test('a lease that expires while waiting proceeds once chain time passes it', async () => {
+  const r = rig([held, { ...held, active: false, blockTimestamp: 10 },
+    { ...held, active: false, blockTimestamp: 11 }]);
+  await resizeAfterStop(r.options);
+  assert.deepEqual(r.events, ['read', 'suspend', 'read', 'wait', 'read', ['apply', true]]);
 });
 test('concurrent resume prevents resize', async () => {
   const r = rig([held, { ...released, active: true }]);

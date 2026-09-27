@@ -26,6 +26,7 @@ import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
 import { resizeAfterStop } from "../../js/core/share-resize.js";
+import { depSnapshot } from "../../js/core/chain.js";
 import { BUCKETS, bucketOf, countBuckets } from "../../js/core/deploy-status.js";
 import { LastGood, listIdentity, failureReason, asOf } from "../../js/core/list-state.js";
 import { shareRates, minPctsOf, cpuFloorFor, cardServesApp, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf, hostChargeWaived, sharesLegalOn, liftSharesForLedger } from "../../js/core/pricing.js";
@@ -1325,7 +1326,9 @@ class Deployments extends EnclaveElement {
     const intro = () => {
       if (sharesOnly) {
         if (resizable) paint("info", restartResize
-          ? "The app will stop and restart at the new size. Its URL and balance stay the same; in-memory state resets. Confirm suspension, then the new allocation."
+          ? d.active === false
+            ? "Update the allocation while the app is stopped. Its URL and balance stay the same. Use Resume afterward to start it at the new size."
+            : "The app will stop and restart at the new size. Its URL and balance stay the same; in-memory state resets. Confirm suspension, then the new allocation."
           : "The host applies the new allocation and may restart the app. Its URL and balance stay the same; in-memory state may reset.");
         if (cur) paint("dimln", "Minimum: " + Math.max(1, cpuNeedOf(cur, dials().gpuMilli)) + "% CPU"
           + (cur.mins.gpuPct ? " · " + cur.mins.gpuPct + "% GPU" : "") + (hw ? " on " + hw.name : ""));
@@ -1422,7 +1425,7 @@ class Deployments extends EnclaveElement {
         const t = dials();
         const resized = t.gpuMilli !== bought.gpuMilli || t.cpuMilli !== bought.cpuMilli;
         const verChange = r.i !== cr.index;
-        go.textContent = restartResize ? "Resize and restart" : "Update shares";
+        go.textContent = restartResize && d.active !== false ? "Resize and restart" : "Update shares";
         go.disabled = !verChange && !resized;
         const bad = problem(r, t, resized);
         if (bad){ paint("warn", bad); return; }   // hint only - the click re-checks
@@ -1473,7 +1476,7 @@ class Deployments extends EnclaveElement {
           const sharesCall = encCall(DEP_SEL.setShares, [{ t: "bytes32", v: id }, { t: "uint", v: t.gpuMilli }, { t: "uint", v: t.cpuMilli }]);
           const vault = via ? (await import("../../js/core/vault.js")).vaultOp : null;
           const result = await resizeAfterStop({
-            expected: d, read: () => depGet(id),
+            expected: d, read: () => depSnapshot(id),
             suspend: () => via ? vault("control", { id, action: "suspend" }) : walletTx(activeCall(false)),
             progress: message => paint("info", message),
             apply: async ({ resume }) => {

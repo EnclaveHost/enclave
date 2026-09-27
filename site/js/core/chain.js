@@ -303,15 +303,26 @@ export async function baseRpc(method, params, opts){
 export async function ethCall(data){
   return (await baseRpc("eth_call", [{ to: APP_CATALOG_ADDRESS, data }, "latest"], { emptyRetry: true })) || "0x";
 }
-export async function depCall(data){
-  return (await baseRpc("eth_call", [{ to: DEPLOYMENTS_ADDRESS, data }, "latest"], { emptyRetry: true })) || "0x";
+export async function depCall(data, block = "latest"){
+  return (await baseRpc("eth_call", [{ to: DEPLOYMENTS_ADDRESS, data }, block], { emptyRetry: true })) || "0x";
 }
 // EnclaveDeployments.get(id) -> one Deployment struct (see DEP_SCHEMA). The tuple
 // contains dynamic strings, so the return is offset-prefixed like a dynamic type.
-export async function depGet(id){
+export async function depGet(id, block = "latest"){
   const schema = (await depSchemaRev()) >= 2 ? DEP_SCHEMA : DEP_SCHEMA_V1;
-  const obj = decodeStruct(await depCall("0x" + DEP_SEL.get + pad32(id.replace(/^0x/, ""))), schema);
+  const obj = decodeStruct(await depCall("0x" + DEP_SEL.get + pad32(id.replace(/^0x/, "")), block), schema);
   return obj && Number(obj.createdAt) ? obj : null;           // a never-created id decodes to an all-zero record
+}
+// Lease expiry uses the chain's clock, not the browser's. Pin the deployment
+// read to that same block so RPC rotation cannot mix times and lease states.
+export async function depSnapshot(id){
+  const block = await baseRpc("eth_getBlockByNumber", ["latest", false]);
+  if (!/^0x[0-9a-f]+$/i.test(block?.number || "")
+    || !/^0x[0-9a-f]+$/i.test(block?.timestamp || "")
+    || !Number.isSafeInteger(Number(block.timestamp)) || Number(block.timestamp) <= 0)
+    throw new EnclaveError("Unable to verify the current lease time. Try again.", 0);
+  const d = await depGet(id, block.number);
+  return d ? { ...d, blockTimestamp: Number(block.timestamp) } : null;
 }
 // The live full-card / full-node per-second prices (6dp USDC), read once and
 // cached: EVERY money estimate must come from these, never from client
