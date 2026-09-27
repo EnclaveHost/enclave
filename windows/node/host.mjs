@@ -1640,6 +1640,13 @@ export class Host {
           this.log(`${id.slice(0, 10)} NOT renewed: this box is not serving it (${rec.reason || "held"}); the lease ends ${new Date(untilMs).toISOString()}`);
         }
       }
+      // Expired leases retain their old runner on chain, but renew() cannot extend them.
+      // Retire locally and let scanLedger/consider enforce funding and policy before a new
+      // claim. In particular, an exhausted deployment must not send failing renewals forever.
+      if (!leaseLive) {
+        await this.#stopApp(id, "the lease expired; a new claim must pass the current funding and hosting policy");
+        continue;
+      }
       if (rec.boundaryHeld !== true && rec.capHeld !== true && !notServing && untilMs - Date.now() < RENEW_LEAD_MS) {
         try { await chain.renewDeployment(id); this.log(`renewed ${id.slice(0, 10)}`); d = await chain.readDeployment(id); }
         catch (e) {

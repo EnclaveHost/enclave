@@ -251,6 +251,22 @@ test("tick: a cap-held deployment is NOT renewed inside its window; once the cap
   assert.ok(logs.some(RENEWAL), `served again, so renewed again (it fails here, with no key): ${logs.filter(RENEWAL).join(" / ")}`);
 });
 
+test("tick: an expired lease still naming this runner is retired without a renewal attempt or permanent block", async () => {
+  const fake = new FakeHost(); const { port } = await bootManager(fake);
+  const logs = []; const h = onTick(hvBox(port, logs));
+  ledgerRow();
+  assert.equal((await h.ensureApp(DEP, dep(), { version: PLANNED })).status, "running");
+  ledgerRow({ leaseUntil: BigInt(nowS() - 60), balance6: 0n });
+  await h.tick();
+  assert.equal(h.records.get(DEP).status, "stopped");
+  assert.match(h.records.get(DEP).reason, /lease expired/);
+  assert.deepEqual(logs.filter(RENEWAL), [], "an expired lease cannot be renewed");
+  assert.equal(fake.running().length, 0);
+  assert.equal(h.tracked.has(DEP), false);
+  assert.equal(h.blocked.has(DEP), false, "funding can make it claimable again");
+  assert.ok(!logs.some((l) => /released .* back to the fleet/.test(l)));
+});
+
 test("tick: a cap-held deployment whose lease LAPSED is let go locally - not renewed, not blocked, nothing released on chain", async () => {
   const fake = new FakeHost(); const { port } = await bootManager(fake);
   const logs = []; const h = onTick(hvBox(port, logs));
