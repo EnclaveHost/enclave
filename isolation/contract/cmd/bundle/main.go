@@ -54,6 +54,14 @@ func main() {
 		die(err)
 		id := contract.AppID(b)
 		fmt.Println(hex.EncodeToString(id[:]))
+	case "inference":
+		b, err := os.ReadFile(os.Args[2])
+		die(err)
+		m, _, err := contract.Parse(b)
+		die(err)
+		if m.Inference != nil {
+			fmt.Printf("%s %d %d\n", m.Inference.Model, m.Inference.GPUMilli, m.Inference.CardBytes())
+		}
 	case "show":
 		b, err := os.ReadFile(os.Args[2])
 		die(err)

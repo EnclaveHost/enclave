@@ -35,7 +35,15 @@ app_id=$("$BUNDLETOOL" id "$bundle")
 [ ${#app_id} = 64 ] || { echo "bundle id did not give 32 bytes of hex: $app_id"; exit 1; }
 
 # template + one app: the same two steps a verifier reassembles from a published release (domain-release.sh)
-"$here/app-image-template.sh" "$d/template"
+inference=$("$BUNDLETOOL" inference "$bundle")
+if [ -n "$inference" ]; then
+  [ -n "${SHIELDED_IMAGE_TEMPLATE:-}" ] || { echo "no Shield inference template configured" >&2; exit 2; }
+  cp -a "$SHIELDED_IMAGE_TEMPLATE" "$d/template"
+elif [ -n "${APP_IMAGE_TEMPLATE:-}" ]; then
+  cp -a "$APP_IMAGE_TEMPLATE" "$d/template"
+else
+  "$here/app-image-template.sh" "$d/template"
+fi
 "$here/assemble-app-image.sh" "$d/template" "$bundle" "$out" > /dev/null
 . "$here/../m1/domain.env"
 echo "app_guest $out: app_id $app_id, $(stat -c %s "$out") bytes, vcpus $vcpus"

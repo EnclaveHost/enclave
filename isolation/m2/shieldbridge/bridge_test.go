@@ -132,3 +132,40 @@ func TestPeerIdentity(t *testing.T) {
 		t.Fatal("peer identity was not enforced")
 	}
 }
+
+func TestActiveSessionOutlivesIdleTimeoutThenExpires(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	path := filepath.Join(t.TempDir(), "gpu")
+	b := Bridge{Path: path, UID: os.Getuid(), IdleTimeout: 200 * time.Millisecond, Dial: func(context.Context) (net.Conn, error) {
+		a, z := net.Pipe()
+		go func() { defer z.Close(); io.Copy(z, z) }()
+		return a, nil
+	}}
+	ready := make(chan error, 1)
+	go b.Serve(ctx, ready)
+	if e := <-ready; e != nil {
+		t.Fatal(e)
+	}
+	c, e := net.Dial("unix", path)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer c.Close()
+	for i := 0; i < 12; i++ {
+		c.SetDeadline(time.Now().Add(time.Second))
+		if _, e = c.Write([]byte{42}); e != nil {
+			t.Fatal(e)
+		}
+		buf := make([]byte, 1)
+		if _, e = io.ReadFull(c, buf); e != nil || buf[0] != 42 {
+			t.Fatal(buf, e)
+		}
+		time.Sleep(40 * time.Millisecond)
+	}
+	c.SetReadDeadline(time.Now().Add(time.Second))
+	buf := make([]byte, 1)
+	if _, e = c.Read(buf); e == nil {
+		t.Fatal("silent session not closed")
+	}
+}

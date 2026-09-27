@@ -46,6 +46,7 @@ const World = "wasi:http"
 // binds N itself, so the bundle states WorldCLI and HTTP N. Every other field and rule is V1's. The port comes from
 // the version's on-chain record, like the policy, so it is fixed per version.
 const V2 = "enclave-catalog-bundle/2"
+const V4 = "enclave-catalog-bundle/4" // measured model and GPU allocation
 const V3 = "enclave-catalog-bundle/3" // V2 plus measured protected TCP/UDP destinations
 
 // The component-model preamble: magic, version 0x0d, layer 1. A core module carries 01 00 00 00 instead and is
@@ -62,13 +63,14 @@ type Ref struct {
 
 // Derivation is the record of one derivation: everything it takes, and nothing it does not.
 type Derivation struct {
-	Derivation string          `json:"derivation"`
-	Catalog    Ref             `json:"catalog"`
-	CID        string          `json:"cid"`
-	Policy     contract.Policy `json:"policy"`
-	RuntimeID  string          `json:"runtimeId"` // hex RuntimeID the mapping is pinned to; recorded, not in the bundle
-	Ports      []string        `json:"ports,omitempty"`
-	HTTP       int             `json:"http,omitempty"` // V2 only: the port the command serves HTTP on
+	Inference  *contract.Inference `json:"inference,omitempty"`
+	Derivation string              `json:"derivation"`
+	Catalog    Ref                 `json:"catalog"`
+	CID        string              `json:"cid"`
+	Policy     contract.Policy     `json:"policy"`
+	RuntimeID  string              `json:"runtimeId"` // hex RuntimeID the mapping is pinned to; recorded, not in the bundle
+	Ports      []string            `json:"ports,omitempty"`
+	HTTP       int                 `json:"http,omitempty"` // V2 only: the port the command serves HTTP on
 }
 
 var (
@@ -81,12 +83,14 @@ var (
 // missing policy field defaulted here would be an identity nobody asked for.
 func (d Derivation) Validate() error {
 	switch {
-	case d.Derivation != V1 && d.Derivation != V2 && d.Derivation != V3:
+	case d.Derivation != V1 && d.Derivation != V2 && d.Derivation != V3 && d.Derivation != V4:
 		return fmt.Errorf("derivation %q is not %q or %q", d.Derivation, V1, V2)
 	case d.Derivation == V1 && d.HTTP != 0:
 		return fmt.Errorf("%s names no port (http %d); a version that declares one is %s", V1, d.HTTP, V2)
 	case (d.Derivation == V2 || d.Derivation == V3) && (d.HTTP < 1 || d.HTTP > contract.MaxHTTPPort):
 		return fmt.Errorf("%s must name the port the command serves HTTP on (1-%d)", V2, contract.MaxHTTPPort)
+	case d.Derivation == V4 && (d.HTTP < 0 || d.HTTP > contract.MaxHTTPPort):
+		return errors.New("invalid V4 HTTP port")
 	case !catalogAppRE.MatchString(d.Catalog.App):
 		return errors.New("catalog.app must be 0x + 64 lowercase hex, as the catalog's bytes32 app id")
 	case !cidRE.MatchString(d.CID):
@@ -99,6 +103,23 @@ func (d Derivation) Validate() error {
 		return errors.New("policy.vcpus must be pinned in 1..16")
 	case !hex64RE.MatchString(d.RuntimeID):
 		return errors.New("runtimeId must be the 64-hex RuntimeID the mapping is pinned to")
+	}
+	if d.Derivation == V4 {
+		if d.Inference == nil {
+			return errors.New("V4 requires inference")
+		}
+		if err := d.Inference.Validate(); err != nil {
+			return err
+		}
+		return contract.ValidatePorts(d.Ports, func() string {
+			if d.HTTP != 0 {
+				return contract.WorldCLI
+			}
+			return World
+		}(), d.HTTP)
+	}
+	if d.Inference != nil {
+		return errors.New("inference requires V4")
 	}
 	if d.Derivation != V3 && len(d.Ports) != 0 {
 		return errors.New("only V3 may name tunnel ports")
@@ -129,6 +150,13 @@ func DeriveBundle(d Derivation, component []byte) ([]byte, error) {
 	}
 	if !IsComponent(component) {
 		return nil, errors.New("the catalog bytes are not a WebAssembly component (a core module or something else)")
+	}
+	if d.Derivation == V4 {
+		world := World
+		if d.HTTP != 0 {
+			world = contract.WorldCLI
+		}
+		return contract.Build(contract.Manifest{ABI: contract.ABI, World: world, HTTP: d.HTTP, Ports: d.Ports, Policy: d.Policy, Inference: d.Inference}, component)
 	}
 	if d.Derivation == V2 || d.Derivation == V3 {
 		return contract.Build(contract.Manifest{ABI: contract.ABI, World: contract.WorldCLI, HTTP: d.HTTP, Ports: d.Ports, Policy: d.Policy}, component)

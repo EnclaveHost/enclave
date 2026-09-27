@@ -223,6 +223,15 @@ const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', rel
   // for the part: the agent sends it with a tunnel quote so the relay can chain it to AMD's root. Public data,
   // judged by the chain, never trusted as delivered.
   ...(cfg.vcekFile ? { vcek: fs.readFileSync(cfg.vcekFile).toString('base64') } : {}) };
+// Inventory/probe routes only. Tenant inference still runs in guestd's measured
+// app guest; these externally managed workers are never attached to a control-VM tenant.
+if (ISO?.shieldedInference === true) {
+  runtimeCfg.isolationShieldedWorkers = [9501,9502].map(port => ({host:'10.0.2.2',port,vsockPort:port}));
+  const pricing = ISO.shieldedPricing;
+  if (!pricing || ![pricing.tflopUsdHr,pricing.vramGiBUsdHr].every(v=>Number.isFinite(v)&&v>=0&&v<=100) || pricing.tflopUsdHr+pricing.vramGiBUsdHr<=0)
+    throw new Error('isolation.shieldedInference requires explicit shieldedPricing');
+  runtimeCfg.shieldedPool = {mode:'layers',cardIds:[0,1],pricing};
+}
 if (ISO && VOLUMES.length) throw new Error('an isolation-tier node runs no apps itself, so it attaches no model volumes');
 
 // Optional egress helper. QEMU user-net (slirp) NATs outbound for a normal host,

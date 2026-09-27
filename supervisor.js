@@ -419,13 +419,18 @@ function vmReq(method, path, body, timeoutMs = 120000) {
     if (data) r.write(data); r.end();
   });
 }
+let _isolationInferenceHealth = null;
 async function vmHealth(timeoutMs = 3000) {
   const r = await vmReq("GET", "/health", null, timeoutMs);
   if (r.status !== 200) throw new Error(`vmmanager /health ${r.status}`);
   // the wasm-manager holds the card this container can't see: adopt its probed VRAM
   if (r.body && r.body.gpuVramSource === "nvidia-smi") adoptCardVram(r.body.gpuVramGb, "manager");
   // guestd's guest pool is the tier's node (TASK 4c): every answer refreshes it, an answer without one clears it
-  if (ISOLATION_BACKEND && r.body) adoptGuestPool(r.body.pool);
+  if (ISOLATION_BACKEND) {
+    adoptGuestPool(r.body?.pool);
+    _isolationInferenceHealth = r.body?.supports?.gpu === true && r.body?.inference?.model === "qwen2.5-0.5b-q8-gguf"
+      ? { ...r.body.inference, at: Date.now() } : null;
+  }
   return r.body;
 }
 
@@ -2272,13 +2277,20 @@ function isolationPolicyFor(version) {
 // The derivation record guestd needs to turn a catalog version into the exact bundle it runs
 // (enclave-catalog-bundle/1): the catalog ref, the component CID, the policy above, and the runtime the host's
 // images carry (guestd's own /health states it; guestd refuses a record pinned to any other).
-function isolationDerivation(catalogRef, wasmRef, policy, runtimeId, httpPort = 0, tunnelPorts = []) {
+function isolatedInference(gpuMilli, volumes) {
+  const g = Number(gpuMilli || 0);
+  if (!g && !(volumes || []).length) return null;
+  if (!Number.isInteger(g) || g < 70 || g > 1000 || g % 10 !== 0 || !Array.isArray(volumes) || volumes.length !== 1 || volumes[0] !== "qwen2.5-0.5b-q8-gguf")
+    throw new Error("isolated inference requires qwen2.5-0.5b-q8-gguf and whole-percent GPU shares of at least 7%");
+  return { model: volumes[0], gpuMilli: g };
+}
+function isolationDerivation(catalogRef, wasmRef, policy, runtimeId, httpPort = 0, tunnelPorts = [], inference = null) {
   const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d+)$/.exec(String(catalogRef || ""));
   const c = /^ipfs:\/\/([A-Za-z0-9]+)$/.exec(String(wasmRef || ""));
   if (!m || !c) throw new Error(`per-app isolation needs a catalog version and its component CID (got ${catalogRef} / ${wasmRef})`);
   if (!/^[0-9a-f]{64}$/.test(String(runtimeId || ""))) throw new Error("the per-app manager states no runtime identity");
   // a command that declares its HTTP port is enclave-catalog-bundle/2: the bundle states world wasi:cli and the port
-  return { derivation: tunnelPorts.length ? "enclave-catalog-bundle/3" : httpPort ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
+  return { ...(inference ? { inference } : {}), derivation: inference ? "enclave-catalog-bundle/4" : tunnelPorts.length ? "enclave-catalog-bundle/3" : httpPort ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
            catalog: { app: m[1].toLowerCase(), version: Number(m[2]) }, cid: c[1], policy, runtimeId,
            ...(httpPort ? { http: httpPort } : {}), ...(tunnelPorts.length ? { ports: tunnelPorts } : {}) };
 }
@@ -2319,19 +2331,19 @@ function isolationPrefetchBody(g, runtimeId) {
 }
 // The derivation record the SPAWN sends for a catalog version (spawnContainer): the ONE function the resume's
 // same-record test and the self-test use too, so the three can never drift apart (enclave-e3).
-function isolationSpawnDerivation({ catalogRef, wasmRef, versionMemMb, runtimeId, ports }) {
-  return isolationDerivation(catalogRef, wasmRef, isolationPolicyFor({ memMb: versionMemMb }), runtimeId, isolationHttpPortOf(ports), isolationPortsOf(ports).ports);
+function isolationSpawnDerivation({ catalogRef, wasmRef, versionMemMb, runtimeId, ports, inference = null }) {
+  return isolationDerivation(catalogRef, wasmRef, isolationPolicyFor({ memMb: versionMemMb }), runtimeId, isolationHttpPortOf(ports), isolationPortsOf(ports).ports, inference);
 }
 // Whether the guest guestd holds under this deployment's name was launched from exactly the record the spawn would
 // send for version g (PURE; considerClaim's resume credit). The spawn derives its port from the PARSED firewall
 // (rec.firewall), so this does too; anything missing or underivable is false: a replacement, the conservative side.
-function isolationHeldSameRecord(held, g, firewall, runtimeId) {
+function isolationHeldSameRecord(held, g, firewall, runtimeId, inference = null) {
   if (!held || typeof held.recordSha256 !== "string" || !/^[0-9a-f]{64}$/.test(held.recordSha256) || !g || !runtimeId) return false;
   try {
     // what the claim path would put on the record (rec.image = g.ref, rec.appWasm = g.wasmRef, rec._versionMemMb =
     // g.min.memMb, rec.firewall = the parsed firewall), through the spawn's own derivation
     return held.recordSha256 === derivationDigest(isolationSpawnDerivation({ catalogRef: g.ref, wasmRef: g.wasmRef,
-      versionMemMb: g.min && g.min.memMb, runtimeId: held.runtimeId || runtimeId, ports: firewall || [] }));
+      versionMemMb: g.min && g.min.memMb, runtimeId: held.runtimeId || runtimeId, ports: firewall || [], inference }));
   } catch { return false; }
 }
 async function managerPrefetchBody(g) {
@@ -2394,8 +2406,14 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
   // (d1's rollout option (i)), and without one it cannot run here at all.
   if (sup.release === true && !released && sup.legacyImage !== true)
     return "this box's per-app guests need the attested release, and this deployment is not a release guest here (not listed by the relay, or this box has not opted in), and its manager has no legacy image to run it on";
-  if ((volumes || []).length)
-    return "the deployment needs model volumes, which are not mounted into a per-app guest";
+  if (Number(gpuMilli)>0 || (volumes || []).length) {
+    let inf; try { inf=isolatedInference(gpuMilli,volumes); } catch(e) { return e.message; }
+    if (!released || !manager.inference || manager.inference.model!==inf.model || sup.gpu!==true)
+      return "the measured Shield model release is not ready for this deployment";
+    const needs = Math.floor(31*2**30*inf.gpuMilli/1000);
+    if (!heldSameRecord && needs > Number(manager.inference.cardFreeBytes || 0)) return "the isolated GPU reservation pool is full";
+    policy = { ...policy, memMiB: Math.max(Number(policy?.memMiB)||0, 8192-384) };
+  }
   // The next two are enforced in THIS process on every other backend, on the plaintext of each request. Here the
   // plaintext exists only inside the guest (the session is spliced unopened), so neither could be applied: an
   // owner gate that is not applied is a private app served to anyone, and a rule that is not applied is a
@@ -2544,7 +2562,7 @@ if (process.env.ISOLATION_SELFTEST) {
     appConfig: (c.appConfig || []).map((x) => isolationAppConfig(x)),
     recordDigest: (c.recordDigest || []).map((d) => derivationDigest(d)),
     prefetch: (c.prefetch || []).map((x) => { try { return isolationPrefetchBody(x.g, x.runtimeId); } catch (err) { return { error: err.message }; } }),
-    derive: (c.derive || []).map((d) => { try { return isolationDerivation(d.catalogRef, d.wasmRef, isolationPolicyFor({ memMb: d.memMb }), d.runtimeId, isolationHttpPortOf(d.ports), isolationPortsOf(d.ports).ports); }
+    derive: (c.derive || []).map((d) => { try { return isolationDerivation(d.catalogRef, d.wasmRef, isolationPolicyFor({ memMb: d.memMb }), d.runtimeId, isolationHttpPortOf(d.ports), isolationPortsOf(d.ports).ports, d.inference || null); }
                                           catch (err) { return { error: err.message }; } }),
   }));
   process.exit(0);
@@ -3494,10 +3512,10 @@ if (process.env.GUEST_POOL_SELFTEST) {
     shares: (c.shares || []).map((m) => minSharesOf(m)),
     reservations: (c.reservations || []).map((v) => _guestPool && guestReservationFor(isolationPolicyFor(v), _guestPool.perGuest)),
     verdicts: (c.verdicts || []).map((v) => isolationClaimVerdict({ backend: ISOLATION_BACKEND, ...v })),
-    sameRecord: (c.sameRecord || []).map((x) => isolationHeldSameRecord(x.held, x.g, x.firewall, x.runtimeId)),
+    sameRecord: (c.sameRecord || []).map((x) => isolationHeldSameRecord(x.held, x.g, x.firewall, x.runtimeId, x.inference)),
     // the digest the SPAWN would record for a version (its own derivation function), to compare the resume's test with
     ...(c.recordOf ? { recordOf: derivationDigest(isolationSpawnDerivation({ catalogRef: c.recordOf.g.ref, wasmRef: c.recordOf.g.wasmRef,
-      versionMemMb: c.recordOf.g.min.memMb, runtimeId: c.recordOf.runtimeId, ports: c.recordOf.ports })) } : {}),
+      versionMemMb: c.recordOf.g.min.memMb, runtimeId: c.recordOf.runtimeId, ports: c.recordOf.ports, inference: c.recordOf.inference })) } : {}),
   }));
   process.exit(0);
 }
@@ -3928,9 +3946,10 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
     if (versionMemMb == null) throw new Error("per-app isolation: this record does not carry its version's on-chain memMb");
     // ONE derivation for the spawn, the resume's same-record test and the self-test (isolationSpawnDerivation)
     const derive = isolationSpawnDerivation({ catalogRef, wasmRef: image && image.reference, versionMemMb,
-      runtimeId: h && h.catalog && h.catalog.runtimeId, ports });
+      runtimeId: h && h.catalog && h.catalog.runtimeId, ports,
+      inference: isolatedInference(Math.round((gpuShare || 0)*1000),volumesInConfig(config)) });
     const body = { image: image.reference, name: deploymentId, cpuShare: cpuShare ?? 0.05,
-      gpuShare: 0, appPort: appPort || 8080, ports: [], config: "", configCid: "", egress: "", derive,
+      gpuShare: gpuShare || 0, appPort: appPort || 8080, ports: [], config: "", configCid: "", egress: "", derive,
       ...(hosts && hosts.length ? { hosts: hosts.join(",") } : {}),
       // sent only when true: a guestd that predates the release refuses unknown fields, and it is never asked for one
       ...(released ? { release: true } : {}) };
@@ -5458,6 +5477,8 @@ const SHIELDED_VERDICT = process.env.SHIELDED_VERDICT || "/run/shielded-gpu.json
 let _shieldedCache = { at: 0, cards: [] };
 function shieldedCapacity(cardId = null) {
   const now = Date.now();
+  // A worker probe alone does not establish that the measured model can launch.
+  if (ISOLATION_BACKEND && (!_isolationInferenceHealth || now - _isolationInferenceHealth.at > 30_000)) return null;
   if (now - _shieldedCache.at >= 10_000) {
     const cards = [], ids = new Set(), endpoints = new Set(), devices = new Set();
     let pool = null;
@@ -10320,6 +10341,8 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   }
   // Shared-everything threads (⚡): gated exactly like coop threads, on the
   // manager's own thread.spawn-indirect compile probe (`set` on /health).
+  if (ISOLATION_BACKEND && Number(d.gpuMilli) > 0 && (setOfConfig(g.config) || mem64OfConfig(g.config) || threadsOfConfig(g.config) || wasiOfConfig(g.config) === "p3"))
+    return "this measured inference profile does not yet admit the app’s optional runtime ABI";
   if (setOfConfig(g.config)) {
     const sh = await vmHealth().catch(() => null);
     if (!sh) return "app uses shared-everything threads and the app manager cannot be asked (unreachable)";
@@ -10371,7 +10394,8 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     const isoHeld = resume ? await isolationHeldGuest(d.id) : null;
     // ...and whether the spawn would ADOPT it (the same derivation record) or replace it (a different one); only an
     // adoption takes no new host memory. Unknown counts as a replacement (the conservative side).
-    const heldSameRecord = isolationHeldSameRecord(isoHeld, g, firewall, isoMgr && isoMgr.catalog && isoMgr.catalog.runtimeId);
+    const heldSameRecord = isolationHeldSameRecord(isoHeld, g, firewall, isoMgr && isoMgr.catalog && isoMgr.catalog.runtimeId,
+      (()=>{ try { return isolatedInference(d.gpuMilli,neededVolumes(d,g)); } catch { return null; } })());
     // the relay's list is read only for a deployment that passes the cheap checks first (it requires this tier, and
     // the manager IS this tier's) on an opted-in box: one status call per real candidate, not per sweep entry (L1)
     const isoAsk = claimOpts.isolation === ISOLATION_BACKEND && isoMgr && isoMgr.backend === ISOLATION_BACKEND && isolationReleaseOn(isoMgr);

@@ -267,6 +267,24 @@ static void lo_up(void) {
  *   SPAWN_FILTER the child installs app-seccomp.h's filter last, right before exec (it needs the drop's no_new_privs).
  * A drop, reach or filter failure exits 125, so the app never starts privileged or unfiltered, and the domain powers
  * off as for any app exit. The app gets all three; the front none. */
+/* Measured, bundle-derived inference profile. Never read a host environment. */
+static int shield_on;
+static char shield_workers[256];
+static void shield_profile(void) {
+    FILE *f = fopen("/app.shield", "r");
+    if (!f) return;
+    char model[64], extra; int milli; unsigned long long bytes;
+    int n = fscanf(f, "%63s %d %llu %c", model, &milli, &bytes, &extra);
+    fclose(f);
+    if (n != 3 || strcmp(model, "qwen2.5-0.5b-q8-gguf") || milli < 65 || milli > 1000 ||
+        bytes != (31ULL * 1024 * 1024 * 1024 * milli / 1000)) {
+        printf("DOM ERROR invalid measured Shield profile\n"); fflush(stdout); reboot(RB_POWER_OFF); _exit(1);
+    }
+    snprintf(shield_workers, sizeof shield_workers,
+        "SHIELDED_WORKERS=unix:/run/enclave-shield/gpu0|9501|0|%llu\nunix:/run/enclave-shield/gpu1|9502|0|%llu", bytes, bytes);
+    shield_on = 1;
+}
+
 #define SPAWN_QUIET 1
 #define SPAWN_DROP 2
 #define SPAWN_FILTER 4
@@ -382,7 +400,26 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
                 _exit(125);
             }
         }
-        char *envp[] = {"HOME=/tmp", "PATH=/rt", extra, NULL};
+        char *envp[32] = {"HOME=/tmp", "PATH=/rt"};
+        int ei = 2;
+        if (shield_on && drop) {
+            envp[ei++] = "ENCLAVE_GGML_BACKEND_DIR=/rt/backends";
+            envp[ei++] = "GGML_BACKEND_PATH=/rt/backends/libggml-shielded.so";
+            envp[ei++] = "SHIELDED_HOST=unix:/run/enclave-shield/gpu0";
+            envp[ei++] = "SHIELDED_PORT=9501";
+            envp[ei++] = shield_workers;
+            envp[ei++] = "SHIELDED_CALIB=/rt/calib/model.calib";
+            envp[ei++] = "ENCLAVE_GGML_EXTRA_BUFTS=0";
+            envp[ei++] = "ENCLAVE_GGML_N_CTX=512";
+            envp[ei++] = "ENCLAVE_GGML_N_BATCH=16";
+            envp[ei++] = "ENCLAVE_GGML_N_UBATCH=16";
+            envp[ei++] = "SHIELDED_REFILL_THREADS=2";
+            envp[ei++] = "SHIELDED_POOL_DEPTH=8";
+            envp[ei++] = "OMP_NUM_THREADS=2";
+            envp[ei++] = "ENCLAVE_MODELS=qwen2.5-0.5b-q8-gguf";
+            envp[ei++] = "ENCLAVE_NN_PRELOADS=qwen2.5-0.5b-q8-gguf";
+        }
+        envp[ei++] = extra; envp[ei] = NULL;
         execve(argv[0], argv, envp);
         if (con >= 0) dprintf(con, "DOM ERROR exec %s: %s\n", argv[0], strerror(errno));
         _exit(127);
@@ -478,6 +515,16 @@ int main(void) {
         insmod("/sev-guest.ko.zst");
     }
     lo_up();
+    shield_profile();
+    pid_t shield_pid = -1;
+    if (shield_on) {
+        char *av[] = {"/shieldbroker", NULL};
+        shield_pid = spawn(av, NULL, -1, 0);
+        for (int i = 0; access("/run/enclave-shield/gpu1", F_OK) != 0; i++) {
+            if (i > 1000 || shield_pid < 0) { printf("DOM ERROR Shield broker not ready\n"); fflush(stdout); reboot(RB_POWER_OFF); _exit(1); }
+            usleep(10000);
+        }
+    }
 
     /* -C cache=n: the runtime compiles the verified component INSIDE this domain every time, and keeps no
      * compiled artifact anywhere. wasmtime's module cache is ON by default (it writes under
@@ -599,12 +646,20 @@ int main(void) {
 
     /* the runtime passes ENCLAVE_CONFIG to the guest program from its own environment (--env NAME, no value), so the
      * value is never an argument */
-    char **base = port ? run : serve, *app[48];
+    char **base = port ? run : serve, *app[64];
     int k = 0;
     for (int i = 0; base[i]; i++) {
         if (cfg_env && strcmp(base[i], "/app.wasm") == 0) {
             app[k++] = "--env";
             app[k++] = "ENCLAVE_CONFIG";
+        }
+        if (shield_on && strcmp(base[i], "/app.wasm") == 0) {
+            app[k++]="-S"; app[k++]="nn";
+            app[k++]="-S"; app[k++]="nn-graph=ggml::/models/qwen2.5-0.5b-q8-gguf";
+            app[k++]="--dir"; app[k++]="/models::/models";
+            app[k++]="--env"; app[k++]="ENCLAVE_MODELS";
+            app[k++]="--env"; app[k++]="ENCLAVE_NN_PRELOADS";
+            app[k++]="--env"; app[k++]="ENCLAVE_GGML_N_CTX";
         }
         app[k++] = base[i];
     }
@@ -624,7 +679,7 @@ int main(void) {
         int st = 0;
         pid_t w = wait(&st);
         if (w < 0 && errno == ECHILD) break;
-        if (w == app_pid || w == front_pid) {
+        if (w == app_pid || w == front_pid || (shield_on && w == shield_pid)) {
             printf("DOM ERROR %s exited status=%d\n", w == app_pid ? "app" : "front",
                    WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st));
             break;
