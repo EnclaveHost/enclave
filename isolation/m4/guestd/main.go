@@ -317,6 +317,9 @@ func main() {
 	releaseOn := flag.Bool("release", false, "deliver attested-release tickets (vsock host port 9444) and serve deployment guests' egress (9443) (release.go); off = neither, and /health says supports.release=false")
 	adoptCheck := flag.Bool("adopt-check", false, "verify adoption of every existing guest without sweeping, stopping guests, or serving")
 	adoptRuntimes := flag.String("adopt-runtimes", "", "explicit historical release=runtime.json pins, comma-separated; verified again on adoption")
+	cpuTemplate := flag.String("cpu-template", "", "pinned CPU release template")
+	shieldTemplate := flag.String("shield-template", "", "pinned measured Shield inference release template")
+	shieldRelease := flag.String("shield-release", "", "64-hex release ID for the Shield template")
 	flag.Parse()
 	if *guestMem < 0 || *guestCPUs < 0 || (*guestMem > 0) != (*guestCPUs > 0) {
 		log.Fatal("-guest-mem-mib and -guest-cpus are set together, both positive (or neither: then every create is refused)")
@@ -382,6 +385,9 @@ func main() {
 	}
 	rid := filepath.Join(*root, "expected-runtime.json")
 	ridOut, err := exec.Command(filepath.Join(*iso, "contract", "runtime-identity.sh"), wt).Output()
+	if *cpuTemplate != "" {
+		ridOut, err = os.ReadFile(filepath.Join(*cpuTemplate, "rt/runtime.json"))
+	}
 	if err != nil || os.WriteFile(rid, ridOut, 0o600) != nil {
 		log.Fatalf("runtime identity: %v", err)
 	}
@@ -392,6 +398,30 @@ func main() {
 		log.Fatal(err)
 	}
 	s := newServer(l, *root)
+	if *cpuTemplate != "" {
+		l.env = append(l.env, "APP_IMAGE_TEMPLATE="+*cpuTemplate)
+	}
+	if *shieldTemplate != "" || *shieldRelease != "" {
+		ids, e := parseReleaseIDs(*shieldRelease)
+		if e != nil || len(ids) != 1 || !filepath.IsAbs(*shieldTemplate) {
+			log.Fatal("Shield needs an absolute template and exactly one pinned release")
+		}
+		out, e := exec.Command("python3", filepath.Join(*iso, "m4/release-manifest.py"), "verify", filepath.Dir(*shieldTemplate), "--expect", ids[0]).CombinedOutput()
+		if e != nil {
+			log.Fatalf("Shield release does not verify: %s", out)
+		}
+		model, e := os.ReadFile(filepath.Join(*shieldTemplate, "rt/shield-model"))
+		if e != nil || strings.TrimSpace(string(model)) != contract.ShieldModel {
+			log.Fatal("Shield release has no supported model marker")
+		}
+		l.env = append(l.env, "SHIELDED_IMAGE_TEMPLATE="+*shieldTemplate)
+		s.ShieldEnabled = true
+		s.ShieldReleases = ids
+		if l.runtimePins == nil {
+			l.runtimePins = map[string]string{}
+		}
+		l.runtimePins[ids[0]] = filepath.Join(*shieldTemplate, "rt/runtime.json")
+	}
 	// Same executable and probe as runtime-set.sh, which emits the measured
 	// marker dominit needs before passing SET flags. Legacy guests do not gain
 	// this capability merely because the new release has it.
@@ -403,6 +433,12 @@ func main() {
 	probeOut, probeErr = exec.CommandContext(probeCtx, "sh", filepath.Join(*iso, "m4", "probe-mem64.sh"), wt).Output()
 	probeCancel()
 	s.RuntimeMem64 = probeErr == nil && string(probeOut) == "1\n"
+	if *cpuTemplate != "" {
+		set, e := os.ReadFile(filepath.Join(*cpuTemplate, "rt/set.enabled"))
+		s.RuntimeSET = e == nil && string(set) == "1\n"
+		mem, e := os.ReadFile(filepath.Join(*cpuTemplate, "rt/mem64.enabled"))
+		s.RuntimeMem64 = e == nil && string(mem) == "1\n"
+	}
 	if why := releaseNamingRefusal(*releaseOn, *isoRelease, *legacyIso, *legacyIsoRelease); why != "" {
 		log.Fatal(why)
 	}

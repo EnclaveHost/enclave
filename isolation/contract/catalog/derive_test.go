@@ -58,7 +58,7 @@ func TestDerivationMatchesTheIndependentReference(t *testing.T) {
 		// and the bundle is a bundle the contract itself accepts, naming this component
 		man, art, err := contract.Parse(b)
 		wantWorld, wantHTTP := World, 0
-		if c.Record.Derivation == V2 || c.Record.Derivation == V3 {
+		if c.Record.Derivation == V2 || c.Record.Derivation == V3 || (c.Record.Derivation == V4 && c.Record.HTTP != 0) {
 			wantWorld, wantHTTP = contract.WorldCLI, c.Record.HTTP
 		}
 		if err != nil || string(art) != string(comp) || man.World != wantWorld || man.HTTP != wantHTTP || man.Label != "" {

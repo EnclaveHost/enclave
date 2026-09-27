@@ -18,10 +18,10 @@ import { fileURLToPath } from "node:url";
 const pexec = promisify(execFile);
 const SUPERVISOR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "supervisor.js");
 
-async function seam(c, backend = "") {
+async function seam(c, backend = "", release = "") {
   const { stdout } = await pexec(process.execPath, [SUPERVISOR], {
     env: { ...process.env, SECRET: "test-secret", ISOLATION_BACKEND: backend,
-           ISOLATION_SELFTEST: JSON.stringify(c),
+           ISOLATION_SELFTEST: JSON.stringify(c), ISOLATION_RELEASE: release,
            INSTANCE_SELFTEST: "", POOL_SELFTEST: "", SWEEP_SELFTEST: "", REACH_SELFTEST: "", ACME_SELFTEST: "",
            CFG_EDIT_SELFTEST: "", ADDRESS_BOOK_ADDRESS: "", REGISTRY_ENABLED: "", CLAIM_ENABLED: "",
            ACME_EAB_KID: "", ACME_EAB_HMAC: "", APP_CERT_DOMAIN: "", DNS_API: "" } });
@@ -91,7 +91,7 @@ test("flag SET: every feature the guest cannot honour is REFUSED", async () => {
     [{ hasSecrets: true }, /staged secrets, and they would cross this host in plaintext/],
     [{ hasSecrets: null }, /cannot verify the deployment has no staged secrets/],
     [{ firewall: ["tcp:5432"] }, /ports \(tcp:5432\)/],
-    [{ volumes: ["gemma"] }, /model volumes/],
+    [{ volumes: ["gemma"] }, /isolated inference requires/],
     // enforced on the plaintext everywhere else; on this backend the plaintext exists only in the guest
     [{ isPublic: false }, /private, and its owner gate needs the request's plaintext/],
     [{ isPublic: undefined }, /private/],
@@ -213,4 +213,26 @@ test("protected ports require V3 and an explicit manager capability; the full so
   assert.equal(r.derive[0].derivation, "enclave-catalog-bundle/3");
   assert.deepEqual(r.derive[0].ports, ["tcp:2222", "udp:47998"]);
   assert.deepEqual(r.derive[0], r.derive[1]);
+});
+
+
+test("Shield claims require a released, pinned model and room on both cards", async () => {
+  const manager = { ...GUESTD, supports: { ...GUESTD.supports, gpu: true, release: true },
+    inference: { model: "qwen2.5-0.5b-q8-gguf", cardFreeBytes: 31*2**30 } };
+  const valid = { ...clean, manager, listed: "listed", gpuMilli: 100, volumes: [manager.inference.model] };
+  const r = await seam({ verdicts: [valid, { ...valid, gpuMilli: 64 }, { ...valid, volumes: ["unmeasured-model"] },
+    { ...valid, listed: "unlisted" }, { ...valid, manager: { ...manager, inference: { ...manager.inference, cardFreeBytes: 0 } } },
+    { ...valid, manager: { ...manager, pool: { ...POOL, free: { memMiB: 8192, cpuPct: 800 } } } }] }, TIER, "1");
+  assert.equal(r.verdicts[0], null);
+  for (const why of r.verdicts.slice(1)) assert.ok(why, "unsupported model/allocation/release or insufficient pool must refuse");
+});
+
+test("the measured derivation binds model and GPU allocation", async () => {
+  const base = { catalogRef: `catalog://0x${"ab".repeat(32)}/1`, wasmRef: "ipfs://bafkreicomponent", memMb: 128, runtimeId: "49".repeat(32), ports: [] };
+  const inf = { model: "qwen2.5-0.5b-q8-gguf", gpuMilli: 100 };
+  const r = await seam({ derive: [base, { ...base, inference: inf }, { ...base, inference: { ...inf, gpuMilli: 200 } }] }, TIER);
+  assert.equal(r.derive[0].derivation, "enclave-catalog-bundle/1");
+  assert.equal(r.derive[1].derivation, "enclave-catalog-bundle/4");
+  assert.deepEqual(r.derive[1].inference, inf);
+  assert.notDeepEqual(r.derive[1], r.derive[2]);
 });

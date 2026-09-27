@@ -112,7 +112,7 @@ type Request struct {
 // unsupported names the first feature this backend cannot honour inside the guest, or "".
 func unsupported(r *Request) string {
 	switch {
-	case r.GPUShare > 0 || len(r.Shielded) > 0:
+	case len(r.Shielded) > 0:
 		return "a GPU share: a per-app SNP guest has no GPU path"
 	case len(r.Secrets) > 0:
 		return "owner secrets: they would cross this host in plaintext, and attested in-guest delivery is not built"
@@ -127,6 +127,8 @@ func unsupported(r *Request) string {
 }
 
 type vm struct {
+	GPUCardBytes                                         int64 // one reservation on EACH of the two workers
+	InferenceModel                                       string
 	ID, Name, AppID, Measurement, Status, Error, Verdict string
 	RuntimeID                                            string // identity actually verified for this guest
 	RecordSha256                                         string // the catalog derivation, when the app came from one
@@ -151,20 +153,22 @@ type vm struct {
 }
 
 type server struct {
-	RuntimeSET   bool // a real worker execution probe of the runtime used by this tree
-	RuntimeMem64 bool // a real 64-bit canonical ABI execution probe
-	L            Launcher
-	Auth         *controlAuth // guestd-control/1; nil = the unauthenticated, loopback-only lab mode
-	Store        *store       // catalog mappings; nil = only file:// bundles are accepted
-	Root         string       // per-guest workdirs live under here, and nothing else does
-	LeaseTTL     time.Duration
-	Silence      time.Duration
-	Now          func() time.Time
-	Firmware     map[string]any
-	RuntimeID    string     // hex; the runtime identity every guest image here carries (the judge pins it)
-	Data         *dataPlane // nil = no data plane (the default)
-	Budget       poolBudget // the guest pool's budget; the zero value admits no guest (pool.go)
-	IDPrefix     string     // two lowercase letters for this guestd's instance ids and guest units; "" = "gd" (-instance-prefix)
+	ShieldEnabled  bool
+	ShieldReleases []string
+	RuntimeSET     bool // a real worker execution probe of the runtime used by this tree
+	RuntimeMem64   bool // a real 64-bit canonical ABI execution probe
+	L              Launcher
+	Auth           *controlAuth // guestd-control/1; nil = the unauthenticated, loopback-only lab mode
+	Store          *store       // catalog mappings; nil = only file:// bundles are accepted
+	Root           string       // per-guest workdirs live under here, and nothing else does
+	LeaseTTL       time.Duration
+	Silence        time.Duration
+	Now            func() time.Time
+	Firmware       map[string]any
+	RuntimeID      string     // hex; the runtime identity every guest image here carries (the judge pins it)
+	Data           *dataPlane // nil = no data plane (the default)
+	Budget         poolBudget // the guest pool's budget; the zero value admits no guest (pool.go)
+	IDPrefix       string     // two lowercase letters for this guestd's instance ids and guest units; "" = "gd" (-instance-prefix)
 	// Release: deliver attested-release tickets and serve egress to deployment guests (release.go, -release).
 	Release bool
 	// Legacy builds and starts the deployment guests that are NOT release guests on a -release guestd: the previous
@@ -252,6 +256,10 @@ func (v *vm) public() map[string]any {
 	if v.HostData != "" {
 		m["hostData"] = v.HostData
 	}
+	if v.GPUCardBytes > 0 {
+		m["inferenceModel"] = v.InferenceModel
+		m["gpuCardBytes"] = v.GPUCardBytes
+	}
 	if v.release {
 		m["release"] = true // a release guest: its config and secrets come sealed from the relay (release.go)
 	}
@@ -304,19 +312,20 @@ func (s *server) route(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		n := len(s.vms)
 		pool := s.poolLocked()
+		inference := s.inferenceHealthLocked()
 		s.mu.Unlock()
 		cat := map[string]any{"derivations": []string{}}
 		if s.Store != nil {
-			cat = map[string]any{"derivations": []string{catalog.V1, catalog.V2, catalog.V3}, "runtimeId": s.Store.RuntimeID}
+			cat = map[string]any{"derivations": []string{catalog.V1, catalog.V2, catalog.V3, catalog.V4}, "runtimeId": s.Store.RuntimeID}
 		}
 		s.json(w, 200, map[string]any{"ok": true, "backend": "snp-guest-per-app", "guests": n,
 			"set": s.RuntimeSET, "setRequiresRelease": s.RuntimeSET && s.Release,
 			"mem64": s.RuntimeMem64, "mem64RequiresRelease": s.RuntimeMem64 && s.Release,
-			"firmware": s.Firmware, "catalog": cat, "pool": pool,
+			"firmware": s.Firmware, "catalog": cat, "pool": pool, "inference": inference, "volumes": s.inferenceVolumes(), "shieldedPool": s.ShieldEnabled,
 			// what a tenant here does NOT get, so a claim gate can refuse deployments that need it
 			// release: config and secrets reach a DEPLOYMENT guest only through the attested release, sealed to it, with
 			// egress to its own allowlist (release.go); nothing of them crosses this host, so config/secrets stay false
-			"supports": map[string]bool{"gpu": false, "secrets": false, "egress": false, "config": false,
+			"supports": map[string]bool{"gpu": s.ShieldEnabled, "secrets": false, "egress": false, "config": false,
 				"ports": false, "protectedPorts": true, "configCid": false, "release": s.Release,
 				// legacyImage: a deployment that is not a release guest can still run here (on the previous image)
 				"legacyImage": s.Release && s.Legacy != nil}})
@@ -408,6 +417,10 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 		s.json(w, 422, map[string]any{"error": "not a contract bundle this backend can name: " + err.Error()})
 		return
 	}
+	if why := s.inferenceRefusal(&req, m, legacy); why != "" {
+		s.json(w, 422, map[string]any{"error": why})
+		return
+	}
 	if legacy && len(m.Ports) != 0 {
 		s.json(w, 422, map[string]any{"error": "protected ports require this release image, not a legacy guest"})
 		return
@@ -415,6 +428,13 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 	id := contract.AppID(raw)
 	pol := contract.EffectivePolicy(&m, contract.Request{})
 	mem := guestMemMiB(pol.MemMiB)
+	var gpuBytes int64
+	var model string
+	if m.Inference != nil {
+		mem = max(mem, 8192)
+		gpuBytes = m.Inference.CardBytes()
+		model = m.Inference.Model
+	}
 	s.mu.Lock()
 	for _, o := range s.vms {
 		if o.Name == req.Name && o.lc.State() != contract.Ended && o.Status != "failed" {
@@ -429,13 +449,18 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 		s.json(w, http.StatusInsufficientStorage, refusal)
 		return
 	}
+	if err := s.gpuAdmitLocked(gpuBytes); err != nil {
+		s.mu.Unlock()
+		s.json(w, 507, map[string]any{"error": err.Error()})
+		return
+	}
 	cid, err := s.pickCIDLocked()
 	if err != nil {
 		s.mu.Unlock()
 		s.json(w, 503, map[string]any{"error": err.Error()})
 		return
 	}
-	v := &vm{ID: s.newID(), Name: req.Name, AppID: hex.EncodeToString(id[:]), Status: "starting", RecordSha256: record, RuntimeID: s.RuntimeID,
+	v := &vm{GPUCardBytes: gpuBytes, InferenceModel: model, ID: s.newID(), Name: req.Name, AppID: hex.EncodeToString(id[:]), Status: "starting", RecordSha256: record, RuntimeID: s.RuntimeID,
 		HostData: hostDataFor(req.Name),
 		Vcpus:    pol.Vcpus, MemMiB: mem, CPUPct: pol.CPUPercent, Created: s.Now(),
 		lc: contract.NewLifecycle(contract.Starting), leaseUntil: s.Now().Add(s.LeaseTTL), cid: cid}
@@ -591,6 +616,9 @@ func (s *server) launch(v *vm) {
 	}
 	s.set(v, func() { v.HostPort = port })
 	rel := s.treeReleases(v.legacy)
+	if v.GPUCardBytes > 0 {
+		rel = append([]string{}, s.ShieldReleases...)
+	}
 	s.set(v, func() { v.releases = rel })
 	verdict, keySha, err := s.L.Verify(ctx, port, meas, v.AppID, v.HostData, v.workdir, rel)
 	if err == nil && !isHex(keySha, 32) {

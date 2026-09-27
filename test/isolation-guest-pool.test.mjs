@@ -180,7 +180,7 @@ test("the claim path judges the pool with the version's policy and, on a resume,
   assert.match(call, /policy: isolationPolicyFor\(g\.min\)/);
   assert.match(src, /const isoHeld = resume \? await isolationHeldGuest\(d\.id\) : null;/);
   assert.match(call, /held: isoHeld, heldSameRecord,/);
-  assert.match(src, /const heldSameRecord = isolationHeldSameRecord\(isoHeld, g, firewall, isoMgr && isoMgr\.catalog && isoMgr\.catalog\.runtimeId\);/,
+  assert.match(src, /const heldSameRecord = isolationHeldSameRecord\(isoHeld, g, firewall, isoMgr && isoMgr\.catalog && isoMgr\.catalog\.runtimeId,[\s\S]{0,160}isolatedInference\(d\.gpuMilli,neededVolumes\(d,g\)\)/,
     "an adoption is the SAME record, derived as the spawn derives it (the parsed firewall)");
   // ONE derivation for the spawn and the resume's test (enclave-e3): spawnContainer builds its record through it
   const spawn = src.slice(src.indexOf("async function spawnContainer("), src.indexOf("let r = await vmReq(\"POST\", \"/vms\", body, SPAWN_TIMEOUT_MS);"));

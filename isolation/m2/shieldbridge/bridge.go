@@ -16,11 +16,11 @@ import (
 )
 
 type Bridge struct {
-	Path     string
-	UID      int
-	Dial     func(context.Context) (net.Conn, error)
-	Limit    int
-	Lifetime time.Duration
+	Path        string
+	UID         int
+	Dial        func(context.Context) (net.Conn, error)
+	Limit       int
+	IdleTimeout time.Duration
 }
 
 func (b Bridge) Serve(ctx context.Context, ready chan<- error) error {
@@ -52,7 +52,7 @@ func (b Bridge) Serve(ctx context.Context, ready chan<- error) error {
 	if limit <= 0 {
 		limit = 32
 	}
-	idle := b.Lifetime
+	idle := b.IdleTimeout
 	if idle <= 0 {
 		idle = 10 * time.Minute
 	}
@@ -99,11 +99,14 @@ func (b Bridge) Serve(ctx context.Context, ready chan<- error) error {
 			}
 			defer up.Close()
 			end := make(chan struct{}, 2)
-			// A bounded connection lifetime also caps a silent malicious worker.
-			c.SetDeadline(time.Now().Add(idle))
-			up.SetDeadline(time.Now().Add(idle))
-			go func() { io.Copy(up, c); end <- struct{}{} }()
-			go func() { io.Copy(c, up); end <- struct{}{} }()
+			// Bound silence, not an active model session's age. Both directions
+			// share the activity deadline, including a pending read.
+			touch := func() { until := time.Now().Add(idle); c.SetDeadline(until); up.SetDeadline(until) }
+			touch()
+			down := &activityConn{Conn: c, touch: touch}
+			worker := &activityConn{Conn: up, touch: touch}
+			go func() { io.Copy(worker, down); end <- struct{}{} }()
+			go func() { io.Copy(down, worker); end <- struct{}{} }()
 			select {
 			case <-ctx.Done():
 			case <-end:
@@ -123,4 +126,25 @@ func peerUID(c *net.UnixConn, uid int) bool {
 		cred, inner = syscall.GetsockoptUcred(int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
 	})
 	return err == nil && inner == nil && cred != nil && int(cred.Uid) == uid
+}
+
+// Wrapping Conn also avoids io.Copy's raw-socket fast path skipping activity.
+type activityConn struct {
+	net.Conn
+	touch func()
+}
+
+func (c *activityConn) Read(p []byte) (int, error) {
+	n, e := c.Conn.Read(p)
+	if n > 0 {
+		c.touch()
+	}
+	return n, e
+}
+func (c *activityConn) Write(p []byte) (int, error) {
+	n, e := c.Conn.Write(p)
+	if n > 0 {
+		c.touch()
+	}
+	return n, e
 }

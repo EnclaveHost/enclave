@@ -501,7 +501,7 @@ start('metal-agent', ['/usr/local/bin/node', '/opt/metal/agent.mjs'], {
 // It is deliberately at boot rather than on demand. The failure this catches --
 // a worker that is absent, wrong-version, or quietly returning garbage -- is one
 // you want to find before a tenant's request depends on it.
-const configuredShieldedWorkers = fw.shieldedWorkers ?? (fw.shieldedWorker ? [fw.shieldedWorker] : []);
+const configuredShieldedWorkers = fw.isolation && fw.isolationShieldedWorkers ? fw.isolationShieldedWorkers : fw.shieldedWorkers ?? (fw.shieldedWorker ? [fw.shieldedWorker] : []);
 const shieldedWorkers = Array.isArray(configuredShieldedWorkers) ? configuredShieldedWorkers.slice(0, 16) : [];
 const shieldedVerdicts = new Map();
 const VERDICT = '/run/shielded-gpu.json';

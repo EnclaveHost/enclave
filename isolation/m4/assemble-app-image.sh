@@ -11,7 +11,7 @@
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
 t=${1:?usage: assemble-app-image.sh <template> <bundle> <out>}; bundle=${2:?}; out=${3:?}
-for f in app.bundle app.wasm app.sha256 app.run app.ports; do
+for f in app.bundle app.wasm app.sha256 app.run app.ports app.shield; do
   [ ! -e "$t/$f" ] || { echo "assemble-app-image.sh: the template already carries $f" >&2; exit 2; }
 done
 d=$(mktemp -d); s=$(mktemp -d)
@@ -39,6 +39,16 @@ case "$mode" in
 esac
 "$BUNDLETOOL" ports "$s/app.bundle" > "$s/ports"
 [ ! -s "$s/ports" ] || cp "$s/ports" "$d/app.ports"
+"$BUNDLETOOL" inference "$s/app.bundle" > "$s/inference"
+if [ -s "$s/inference" ]; then
+  read -r model milli bytes < "$s/inference"
+  [ -f "$d/rt/shield-model" ] && [ "$(cat "$d/rt/shield-model")" = "$model" ] && [ -f "$d/shieldbroker" ] || {
+    echo "inference bundle needs its pinned Shield model/runtime release" >&2; exit 2;
+  }
+  cp "$s/inference" "$d/app.shield"
+else
+  [ ! -e "$d/rt/shield-model" ] || { echo "inference release refuses a CPU-only bundle" >&2; exit 2; }
+fi
 cp "$s/app.bundle" "$d/app.bundle"
 printf '%s\n' "$app_id" > "$d/app.sha256"
 # modes, ownership and times normalised, so the measurement depends on contents alone (pack-initrd.sh)

@@ -39,7 +39,8 @@ shutil.copy2(a.model,t/'models/model/model.gguf')
 (t/'run').mkdir(exist_ok=True)
 subprocess.run(['go','build','-trimpath','-buildvcs=false','-ldflags=-s -w -buildid=','-o',str(t/'shieldbroker'),'./shieldbroker'],cwd=repo/'isolation/m2',env={**os.environ,'CGO_ENABLED':'0','GOFLAGS':''},check=True)
 shutil.copy2(a.bundle,w/'app.bundle')
-s=(repo/'isolation/m2/dominit.c').read_text()
+# Historical public diagnostic fixture, pinned before production inference init.
+s=subprocess.check_output(['git','show','e424d1fab4c2:isolation/m2/dominit.c'],cwd=repo,text=True)
 needle='    lo_up();\n';assert s.count(needle)==1
 s=s.replace(needle,needle+'''    char *shield_argv[] = {"/shieldbroker", NULL};
     pid_t shield_pid = spawn(shield_argv, NULL, -1, 0);

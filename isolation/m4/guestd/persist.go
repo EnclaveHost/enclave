@@ -39,6 +39,8 @@ const (
 )
 
 type instanceRecord struct {
+	GPUCardBytes                                                                            int64
+	InferenceModel                                                                          string
 	ID, Name, AppID, Measurement, RecordSha256, HostData, TransportKeySha256, Unit, Verdict string
 	CID                                                                                     uint32
 	Vcpus, MemMiB, CPUPct                                                                   int
@@ -58,7 +60,7 @@ type instanceRecord struct {
 // is simply not adoptable after a guestd restart, which is today's behaviour.
 func (s *server) persistRunning(v *vm) {
 	s.mu.Lock()
-	rec := instanceRecord{ID: v.ID, Name: v.Name, AppID: v.AppID, Measurement: v.Measurement, RecordSha256: v.RecordSha256,
+	rec := instanceRecord{GPUCardBytes: v.GPUCardBytes, InferenceModel: v.InferenceModel, ID: v.ID, Name: v.Name, AppID: v.AppID, Measurement: v.Measurement, RecordSha256: v.RecordSha256,
 		HostData: v.HostData, TransportKeySha256: v.TransportKeySha256, Unit: v.unit, Verdict: v.Verdict, CID: v.cid,
 		Vcpus: v.Vcpus, MemMiB: v.MemMiB, CPUPct: v.CPUPct, Created: v.Created, Release: v.release, Legacy: v.legacy,
 		Releases: append([]string{}, v.releases...), RuntimeID: s.vmRuntime(v)}
@@ -109,6 +111,26 @@ func (s *server) adoptOne(ctx context.Context, dir string) string {
 	if rec.ID != filepath.Base(dir) || !isHex(rec.TransportKeySha256, 32) || !isHex(rec.AppID, 32) || rec.Unit == "" || rec.CID == 0 {
 		return "incomplete instance record"
 	}
+	if s.ShieldEnabled || rec.GPUCardBytes != 0 || rec.InferenceModel != "" {
+		raw, readErr := os.ReadFile(filepath.Join(dir, "app.bundle"))
+		if readErr != nil {
+			return "missing measured bundle"
+		}
+		manifest, _, parseErr := contract.Parse(raw)
+		if parseErr != nil {
+			return "invalid measured bundle"
+		}
+		appID := contract.AppID(raw)
+		if fmt.Sprintf("%x", appID) != rec.AppID {
+			return "bundle identity changed"
+		}
+		if rec.GPUCardBytes != manifest.Inference.CardBytes() {
+			return "GPU reservation differs from measured bundle"
+		}
+		if (manifest.Inference == nil && rec.InferenceModel != "") || (manifest.Inference != nil && rec.InferenceModel != manifest.Inference.Model) {
+			return "inference model differs from measured bundle"
+		}
+	}
 	if !s.L.Alive(rec.Unit) {
 		return "its unit is no longer active"
 	}
@@ -144,7 +166,7 @@ func (s *server) adoptOne(ctx context.Context, dir string) string {
 	}
 	lc := contract.NewLifecycle(contract.Starting)
 	lc.FinishStart()
-	v := &vm{ID: rec.ID, Name: rec.Name, AppID: rec.AppID, Measurement: rec.Measurement, Status: "running", Verdict: verdict,
+	v := &vm{GPUCardBytes: rec.GPUCardBytes, InferenceModel: rec.InferenceModel, ID: rec.ID, Name: rec.Name, AppID: rec.AppID, Measurement: rec.Measurement, Status: "running", Verdict: verdict,
 		RecordSha256: rec.RecordSha256, RuntimeID: rid, TransportKeySha256: keySha, HostData: rec.HostData, HostPort: port,
 		Vcpus: rec.Vcpus, MemMiB: rec.MemMiB, CPUPct: rec.CPUPct, Created: rec.Created, unit: rec.Unit, cid: rec.CID,
 		workdir: dir, stopFwd: stop, lc: lc, leaseUntil: s.Now().Add(s.LeaseTTL), release: rec.Release, legacy: rec.Legacy, releases: rel}
