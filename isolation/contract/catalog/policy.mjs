@@ -1,5 +1,5 @@
 // Resource policy derived ONLY from an immutable, approved catalog version.
-// Callers must pass its resolved, CID-verified config, never a deployment's
+// Callers must pass its immutable inline config (the routing manifest for config-CID versions), never a deployment's
 // config override, a host's capability report, or a purchased share.
 export const LEGACY_POLICY_RULE = "enclave-isolation-policy/1";
 export const EXPLICIT_POLICY_RULE = "enclave-isolation-policy/2";

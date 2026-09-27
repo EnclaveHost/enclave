@@ -177,7 +177,7 @@ test("the budget floor for a 1% app: 12800 MiB is 1%, 12799 MiB is 2%, over a69d
 test("the claim path judges the pool with the version's policy and, on a resume, the guest guestd holds (pinned in source)", () => {
   const src = fs.readFileSync(SUPERVISOR, "utf8");
   const call = src.slice(src.indexOf("const isoWhy = isolationClaimVerdict({"), src.indexOf("if (isoWhy) return isoWhy;"));
-  assert.match(call, /policy: isolationPolicyFor\(g\.min\)/);
+  assert.match(call, /policy: isolationPolicyFor\(g\.min, g\.config \|\| ""\)/);
   assert.match(src, /const isoHeld = resume \? await isolationHeldGuest\(d\.id\) : null;/);
   assert.match(call, /held: isoHeld, heldSameRecord,/);
   assert.match(src, /const heldSameRecord = isolationHeldSameRecord\(isoHeld, g, firewall, isoMgr && isoMgr\.catalog && isoMgr\.catalog\.runtimeId\);/,
@@ -292,4 +292,28 @@ test("off the tier nothing of the pool applies: the node is the NODE_* constants
   assert.equal(r.node.ramGb, 6);
   assert.equal(r.maxFreeCpu, 0.7);
   assert.equal(r.shares[0].cpuShare, 0.03);
+});
+
+test("explicit resource profile share sizing covers the complete pinned quota", async () => {
+  const r = await seam({ pool: pool(B), shares: [
+    { memMb: 128, isolationCpuPercent: 200 }, { memMb: 128, isolationCpuPercent: 400 },
+    { memMb: 20000, isolationCpuPercent: 200 },
+  ] });
+  assert.equal(r.shares[0].cpuShare, 0.25);
+  assert.equal(r.shares[1].cpuShare, 0.5);
+  assert.ok(r.shares[2].cpuShare >= 20000 / 32768, "memory can still set a higher floor");
+});
+
+test("resume never adopts a guest with the old version's resource profile", async () => {
+  const runtimeId = "cd".repeat(32);
+  const old = { ref: "catalog://0x" + "ab".repeat(32) + "/55", wasmRef: "ipfs://bafylabcomponent", min: { memMb: 3072 }, config: "", ports: "http:8000" };
+  const current = { ...old, config: '{"_isolationPolicy":{"rule":"enclave-isolation-policy/2","vcpus":2}}' };
+  const a = await seam({ recordOf: { g: old, runtimeId, ports: ["http:8000"] } });
+  const b = await seam({ recordOf: { g: current, runtimeId, ports: ["http:8000"] } });
+  assert.notEqual(a.recordOf, b.recordOf);
+  const r = await seam({ sameRecord: [
+    { held: { recordSha256: a.recordOf }, g: current, firewall: ["http:8000"], runtimeId },
+    { held: { recordSha256: b.recordOf }, g: current, firewall: ["http:8000"], runtimeId },
+  ] });
+  assert.deepEqual(r.sameRecord, [false, true]);
 });

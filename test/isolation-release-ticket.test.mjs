@@ -295,15 +295,25 @@ test("the spawn site: release:true and a ticket pump only for a listed deploymen
   const health = { backend: TIER, pool: POOL, catalog: { runtimeId: "cd".repeat(32), derivations: ["enclave-catalog-bundle/1"] },
     supports: { gpu: false, secrets: false, egress: false, config: false, ports: false, release: true, legacyImage: true } };
   const spec = (id) => ({ deploymentId: id, image: { reference: "ipfs://bafylabcomponent" }, catalogRef: "catalog://0x" + "ab".repeat(32) + "/0",
-    versionMemMb: 128, ports: [], config: "", configCid: "", secrets: null, secretsStaged: false, cpuShare: 0.05, gpuShare: 0, appPort: 8080, hosts: [] });
-  const site = (id) => run({ SECRETS_API: relay.url, ISOLATION_BACKEND: TIER, ISOLATION_RELEASE: "1", PROVISION_BACKEND: "vm",
-    RELEASE_SELFTEST: JSON.stringify({ spawnSite: { health, spec: spec(id) } }) });
+    versionMemMb: 128, versionConfig: "", ports: [], config: "", configCid: "", secrets: null, secretsStaged: false, cpuShare: 0.05, gpuShare: 0, appPort: 8080, hosts: [] });
+  const site = (id, override = {}) => run({ SECRETS_API: relay.url, ISOLATION_BACKEND: TIER, ISOLATION_RELEASE: "1", PROVISION_BACKEND: "vm",
+    RELEASE_SELFTEST: JSON.stringify({ spawnSite: { health, spec: { ...spec(id), ...override } } }) });
   try {
     const listed = await site(hexId("11"));
     assert.equal(listed.error, null);
     assert.equal(listed.posted.length, 1);
     assert.equal(listed.posted[0].release, true, "a listed deployment is created as a release guest");
     assert.deepEqual(listed.pumped, ["gd0a0b0c0d"], "and its ticket is pumped");
+    const versionConfig = '{"_isolationPolicy":{"rule":"enclave-isolation-policy/2","vcpus":2}}';
+    const larger = await site(hexId("11"), { versionConfig, cpuShare: 0.25 });
+    assert.equal(larger.error, null);
+    assert.deepEqual(larger.posted[0].derive.policy, { cpuPercent: 200, memMiB: 128, vcpus: 2 });
+    const underpaid = await site(hexId("11"), { versionConfig, cpuShare: 0.01 });
+    assert.match(underpaid.error, /buy at least/);
+    assert.deepEqual(underpaid.posted, [], "insufficient purchase posts no launch");
+    const lost = await site(hexId("11"), { versionConfig: undefined });
+    assert.match(lost.error, /immutable version config/);
+    assert.deepEqual(lost.posted, [], "missing immutable metadata posts no launch");
     const unlisted = await site(hexId("22"));
     assert.equal(unlisted.error, null);
     assert.equal(unlisted.posted[0].release, undefined, "an unlisted deployment is not a release guest (the legacy image)");

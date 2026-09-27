@@ -14,6 +14,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY supervisor.js ./
+COPY isolation/contract/catalog/policy.mjs ./isolation/contract/catalog/policy.mjs
 # dedicated-IP egress: the enclave-side SOCKS front + its SSRF classifier
 # (net-guard.mjs is also symlinked into relay/ and shipped to the relay box).
 COPY egress.js ./

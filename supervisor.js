@@ -18,6 +18,7 @@
 //
 // >>> The ONLY thing left to implement for your CVM is spawn/stop/measure below.
 
+import { catalogResourcePolicy, EXPLICIT_POLICY_RULE } from "./isolation/contract/catalog/policy.mjs";
 import express from "express";
 import cors from "cors";
 import http from "node:http";
@@ -2248,8 +2249,8 @@ if (process.env.CFG_EDIT_SELFTEST) {
 }
 
 // ---- per-app isolation: what a catalog version becomes on the per-app guest tier ----
-// The app config a guest on this tier would receive: the version's (or override's) config WITHOUT `_media`, which is
-// the catalog store's display metadata and never an app's input. "" when nothing else remains. Anything that does
+// The app config a guest on this tier would receive: the version's (or override's) config WITHOUT platform metadata (`_media` and `_isolationPolicy`), which is
+// never an app's input. "" when nothing else remains. Anything that does
 // remain is app config, which this tier refuses (isolationClaimVerdict), so a store thumbnail never blocks a claim
 // and a real config never slips through.
 function isolationAppConfig(config) {
@@ -2257,17 +2258,30 @@ function isolationAppConfig(config) {
   let o;
   try { o = typeof config === "string" ? JSON.parse(config) : config; } catch { return String(config); }
   if (!o || typeof o !== "object" || Array.isArray(o)) return String(config);
-  const { _media, ...rest } = o;
+  const { _media, _isolationPolicy, ...rest } = o;
   return Object.keys(rest).length ? JSON.stringify(rest) : "";
 }
-// enclave-isolation-policy/1: the ONE policy a catalog version runs under on this tier, fixed per version and
-// recomputable by anyone from the chain (isolation/contract/catalog/DERIVE.md): 1 vCPU (part of the measurement),
-// memMiB = the version's own on-chain memMb (floor 128), cpuPercent 100. It reads only the version's immutable
-// record, never a deployment's purchase, so every deployment of a version is the same AppID and measurement.
-const ISOLATION_POLICY_RULE = "enclave-isolation-policy/1";
-function isolationPolicyFor(version) {
-  const mem = Math.max(128, Math.ceil(Number(version && version.memMb) || 0));
-  return { cpuPercent: 100, memMiB: mem, vcpus: 1 };
+// The shape belongs to the approved version's immutable inline config (the routing
+// manifest on config-CID versions), never the deployment override or purchase.
+function isolationProfileFor(version, versionConfig = "") {
+  const profile = catalogResourcePolicy(version?.memMb ?? 0, versionConfig);
+  if (profile.rule === EXPLICIT_POLICY_RULE && ISOLATION_BACKEND && ISOLATION_BACKEND !== "snp-guest-per-app")
+    throw new Error("explicit isolation resource profiles are not supported by this backend yet");
+  return profile;
+}
+function isolationPolicyFor(version, versionConfig = "") {
+  return isolationProfileFor(version, versionConfig).policy;
+}
+// Legacy versions retain their existing allocation semantics. An explicit profile
+// must fit both the tenant's bought fraction and guestd's actual pool reservation.
+function isolationPurchaseRefusal(profile, cpuShare, pool) {
+  if (profile.rule !== EXPLICIT_POLICY_RULE) return null;
+  const budget = pool?.budget?.cpuPct;
+  if (!(Number.isFinite(budget) && budget > 0 && Number.isFinite(cpuShare) && cpuShare > 0))
+    return "cannot verify the purchased CPU share covers this explicit isolation profile";
+  if (cpuShare * budget + 1e-9 < profile.policy.cpuPercent)
+    return `the isolation profile needs ${profile.policy.cpuPercent}% CPU quota; buy at least ${Math.ceil(profile.policy.cpuPercent / budget * 1000) / 10}% of this host's CPU pool`;
+  return null;
 }
 // The derivation record guestd needs to turn a catalog version into the exact bundle it runs
 // (enclave-catalog-bundle/1): the catalog ref, the component CID, the policy above, and the runtime the host's
@@ -2314,13 +2328,13 @@ function derivationDigest(d) {
 // What the manager's /prefetch needs for a version: on the tier, the same derivation record the spawn will send (a
 // catalog CID alone names bytes, not a contract identity, and guestd refuses it).
 function isolationPrefetchBody(g, runtimeId) {
-  return { image: g.wasmRef, derive: isolationDerivation(g.ref, g.wasmRef, isolationPolicyFor(g.min), runtimeId,
+  return { image: g.wasmRef, derive: isolationDerivation(g.ref, g.wasmRef, isolationPolicyFor(g.min, g.config || ""), runtimeId,
     isolationHttpPortOf(g.ports), isolationPortsOf(g.ports).ports) };
 }
 // The derivation record the SPAWN sends for a catalog version (spawnContainer): the ONE function the resume's
 // same-record test and the self-test use too, so the three can never drift apart (enclave-e3).
-function isolationSpawnDerivation({ catalogRef, wasmRef, versionMemMb, runtimeId, ports }) {
-  return isolationDerivation(catalogRef, wasmRef, isolationPolicyFor({ memMb: versionMemMb }), runtimeId, isolationHttpPortOf(ports), isolationPortsOf(ports).ports);
+function isolationSpawnDerivation({ catalogRef, wasmRef, versionMemMb, versionConfig, runtimeId, ports }) {
+  return isolationDerivation(catalogRef, wasmRef, isolationPolicyFor({ memMb: versionMemMb }, versionConfig), runtimeId, isolationHttpPortOf(ports), isolationPortsOf(ports).ports);
 }
 // Whether the guest guestd holds under this deployment's name was launched from exactly the record the spawn would
 // send for version g (PURE; considerClaim's resume credit). The spawn derives its port from the PARSED firewall
@@ -2331,7 +2345,7 @@ function isolationHeldSameRecord(held, g, firewall, runtimeId) {
     // what the claim path would put on the record (rec.image = g.ref, rec.appWasm = g.wasmRef, rec._versionMemMb =
     // g.min.memMb, rec.firewall = the parsed firewall), through the spawn's own derivation
     return held.recordSha256 === derivationDigest(isolationSpawnDerivation({ catalogRef: g.ref, wasmRef: g.wasmRef,
-      versionMemMb: g.min && g.min.memMb, runtimeId: held.runtimeId || runtimeId, ports: firewall || [] }));
+      versionMemMb: g.min && g.min.memMb, versionConfig: g.config || "", runtimeId: held.runtimeId || runtimeId, ports: firewall || [] }));
   } catch { return false; }
 }
 async function managerPrefetchBody(g) {
@@ -2352,7 +2366,7 @@ async function managerPrefetchBody(g) {
 //     is a leak, a dropped config is a wrong app. guestd refuses the same things at launch; refusing here keeps
 //     the lease from being taken for work that could only fail.
 function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, appConfigCid, hasSecrets,
-                                 firewall, volumes, isPublic, waf, policy, held, heldSameRecord, listed }) {
+                                 firewall, volumes, isPublic, waf, policy, policyRule, cpuShare, held, heldSameRecord, listed }) {
   if (!backend) return null;
   if (!ISOLATION_BACKENDS.includes(backend))
     return `ISOLATION_BACKEND=${JSON.stringify(backend)} is not a backend this build knows; taking no tenant work`;
@@ -2362,6 +2376,8 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
     return `the app manager at VMMGR_URL is not the ${backend} manager (its /health says `
          + `${manager ? "backend=" + JSON.stringify(manager.backend ?? null) : "nothing: unreachable"}); `
          + "refusing rather than running this deployment without the isolation it requires";
+  const purchaseWhy = isolationPurchaseRefusal({ rule: policyRule, policy }, cpuShare, manager.pool);
+  if (purchaseWhy) return purchaseWhy;
   const sup = manager.supports || {};
   if (Number(gpuMilli) > 0 && sup.gpu !== true)
     return "the deployment bought a GPU share, and a per-app SNP guest has no GPU path";
@@ -2544,7 +2560,7 @@ if (process.env.ISOLATION_SELFTEST) {
     appConfig: (c.appConfig || []).map((x) => isolationAppConfig(x)),
     recordDigest: (c.recordDigest || []).map((d) => derivationDigest(d)),
     prefetch: (c.prefetch || []).map((x) => { try { return isolationPrefetchBody(x.g, x.runtimeId); } catch (err) { return { error: err.message }; } }),
-    derive: (c.derive || []).map((d) => { try { return isolationDerivation(d.catalogRef, d.wasmRef, isolationPolicyFor({ memMb: d.memMb }), d.runtimeId, isolationHttpPortOf(d.ports), isolationPortsOf(d.ports).ports); }
+    derive: (c.derive || []).map((d) => { try { return isolationDerivation(d.catalogRef, d.wasmRef, isolationPolicyFor({ memMb: d.memMb }, d.versionConfig), d.runtimeId, isolationHttpPortOf(d.ports), isolationPortsOf(d.ports).ports); }
                                           catch (err) { return { error: err.message }; } }),
   }));
   process.exit(0);
@@ -2980,7 +2996,10 @@ function guestPoolReport() {
 function minSharesOf(min, opts = {}) {
   const volGb = Math.max(0, Number(opts.volGb) || 0);
   const memMb = min.memMb || 0, cpuGflops = min.cpuGflops || 0;
-  const cpu = (memMb || cpuGflops) ? cpuShareOf(memMb, cpuGflops) : 0;
+  const declaredCpu = (memMb || cpuGflops) ? cpuShareOf(memMb, cpuGflops) : 0;
+  const profileCpu = ISOLATION_BACKEND && min.isolationCpuPercent > 0
+    ? Math.ceil(min.isolationCpuPercent / (100 * nodeSpec().vcpus) * 1000) / 1000 : 0;
+  const cpu = Math.max(declaredCpu, profileCpu);
   // ...and the same app WITHOUT a card, when its publisher sized that case
   // (cpuFallbackOfConfig). The card case cannot describe both: on a card the
   // weights are in the tenant's VRAM slice and the node holds only the guest;
@@ -3497,7 +3516,7 @@ if (process.env.GUEST_POOL_SELFTEST) {
     sameRecord: (c.sameRecord || []).map((x) => isolationHeldSameRecord(x.held, x.g, x.firewall, x.runtimeId)),
     // the digest the SPAWN would record for a version (its own derivation function), to compare the resume's test with
     ...(c.recordOf ? { recordOf: derivationDigest(isolationSpawnDerivation({ catalogRef: c.recordOf.g.ref, wasmRef: c.recordOf.g.wasmRef,
-      versionMemMb: c.recordOf.g.min.memMb, runtimeId: c.recordOf.runtimeId, ports: c.recordOf.ports })) } : {}),
+      versionMemMb: c.recordOf.g.min.memMb, versionConfig: c.recordOf.g.config || "", runtimeId: c.recordOf.runtimeId, ports: c.recordOf.ports })) } : {}),
   }));
   process.exit(0);
 }
@@ -3878,7 +3897,7 @@ function launchSpecFrom(rec, sec, hosts) {
     gpuCardsHeld: rec._gpu?.cards,
     gpuShare: rec.resources.gpuShare || 0, cpuShare: rec.resources.cpuShare,
     image: { reference: rec.appWasm || (rec.image && rec.image.reference) },
-    catalogRef: rec.image && rec.image.reference, versionMemMb: rec._versionMemMb,
+    catalogRef: rec.image && rec.image.reference, versionMemMb: rec._versionMemMb, versionConfig: rec._versionConfig,
     appPort: rec.network.port, ports: rec.firewall,
     config: rec.config || "", configCid: rec.appConfigCid || "",
     secrets: sec && Object.keys(sec.env).length ? sec.env : null,
@@ -3897,7 +3916,7 @@ if (process.env.LAUNCH_SPEC_SELFTEST) {
   })));
   process.exit(0);
 }
-async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVramGb, gpuCardsHeld, image, appPort, ports, config, configCid, secrets, secretsStaged, hosts, catalogRef, versionMemMb }) {
+async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVramGb, gpuCardsHeld, image, appPort, ports, config, configCid, secrets, secretsStaged, hosts, catalogRef, versionMemMb, versionConfig }) {
   // Two backends. "vm": hand the app reference to the app manager on VMMGR_URL
   // (the wasm-manager runs it as a `wasmtime serve` process; cpuShare is its
   // admission unit and sets the guest memory cap — cpuShare × node RAM;
@@ -3926,8 +3945,12 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
     // The policy is the version's; a record that lost the version's memMb must not guess one (a different policy
     // is a different AppID and measurement for the same version).
     if (versionMemMb == null) throw new Error("per-app isolation: this record does not carry its version's on-chain memMb");
+    if (typeof versionConfig !== "string") throw new Error("per-app isolation: this record does not carry its immutable version config");
+    const profile = isolationProfileFor({ memMb: versionMemMb }, versionConfig);
+    const purchaseWhy = isolationPurchaseRefusal(profile, cpuShare, h?.pool);
+    if (purchaseWhy) throw new Error(purchaseWhy);
     // ONE derivation for the spawn, the resume's same-record test and the self-test (isolationSpawnDerivation)
-    const derive = isolationSpawnDerivation({ catalogRef, wasmRef: image && image.reference, versionMemMb,
+    const derive = isolationSpawnDerivation({ catalogRef, wasmRef: image && image.reference, versionMemMb, versionConfig,
       runtimeId: h && h.catalog && h.catalog.runtimeId, ports });
     const body = { image: image.reference, name: deploymentId, cpuShare: cpuShare ?? 0.05,
       gpuShare: 0, appPort: appPort || 8080, ports: [], config: "", configCid: "", egress: "", derive,
@@ -3956,7 +3979,7 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
     }
     if (r.status !== 201) throw new Error(`guestd refused the launch (HTTP ${r.status}): ${(r.body && r.body.error) || JSON.stringify(r.body)}`);
     console.log(`[isolation] ${deploymentId.slice(0, 10)}: guest ${r.body.id} app ${String(r.body.appId).slice(0, 16)}… `
-              + `(${ISOLATION_POLICY_RULE} ${JSON.stringify(derive.policy)}, record ${String(r.body.recordSha256 || "").slice(0, 16)}…)${r.reconciled ? " [reconciled]" : ""}`);
+              + `(${profile.rule} ${JSON.stringify(derive.policy)}, record ${String(r.body.recordSha256 || "").slice(0, 16)}…)${r.reconciled ? " [reconciled]" : ""}`);
     // A release guest's front reads a ticket before it serves, config or not (the host must not be able to start one
     // without its owner's release), so its ticket is pumped; a legacy guest takes none.
     if (released) pumpReleaseTicket(deploymentId, r.body.id);
@@ -6299,10 +6322,16 @@ async function gateAppReference(reference, opts = {}) {
       return deny(503, "catalog_unreachable", "Could not read this app's config reference from the on-chain catalog; try again shortly.");
     }
   }
+  let resourceProfile = null;
+  if (ISOLATION_BACKEND) {
+    try { resourceProfile = isolationProfileFor({ memMb: Number(v.memMb) }, v.config || ""); }
+    catch (e) { return deny(422, "invalid_isolation_profile", e.message); }
+  }
   return { ref, wasmRef: "ipfs://" + v.cid, config: v.config || "", configCid, ports: v.ports || "", feePerSec6,
            pending: Number(v.approval) !== 1,   // true only on the forPrivate dev-mode path
            app: { appId, index, slug: a.slug, version: v.version, publisher: a.publisher },
-           min: { vramMb: Number(v.vramMb) || 0, gpuGflops: Number(v.gpuGflops) || 0,
+           min: { ...(resourceProfile?.rule === EXPLICIT_POLICY_RULE ? { isolationCpuPercent: resourceProfile.policy.cpuPercent } : {}),
+                  vramMb: Number(v.vramMb) || 0, gpuGflops: Number(v.gpuGflops) || 0,
                   memMb: Number(v.memMb) || 0, cpuGflops: Number(v.cpuGflops) || 0,
                   // The publisher's own word on whether the card is required,
                   // read from the VERSION config - the same place `volumes`
@@ -6863,6 +6892,15 @@ async function launchSpec(rec) {
   // them from the relay itself, sealed to it, and no other guest there may have any. It asks only WHETHER some are
   // staged (true / false / null = unknown), which is what decides whether the guest may start.
   if (relayHeld && ISOLATION_BACKEND) {
+    // Upgrade a persisted pre-profile record from its approved catalog version.
+    // Missing immutable data is never recovered from rec.config (an override).
+    if (rec._versionMemMb == null || typeof rec._versionConfig !== "string") {
+      const g = await gateAppReference(rec.image?.reference, { forPrivate: !rec.public });
+      if (g.error) throw new Error(`cannot recover immutable isolation policy: ${g.error.msg}`);
+      if (g.wasmRef !== rec.appWasm) throw new Error("catalog component differs while recovering isolation policy");
+      rec._versionMemMb = g.min.memMb;
+      rec._versionConfig = g.config || "";
+    }
     const staged = await depHasSecrets(rec.id);
     await fetchDepDomains(rec.id).catch(() => {});
     return { ...launchSpecFrom(rec, null, hostsFor(rec)), secretsStaged: staged };
@@ -9314,6 +9352,11 @@ async function switchTenantVersion(rec, d) {
   const mins = minSharesOf(g.min,
     { volGb: volumeGb(neededVolumes(d, g), await vmHealth().catch(() => null)) });
   const gpuShare = Number(d.gpuMilli) / 1000, cpuShare = Number(d.cpuMilli) / 1000;
+  if (ISOLATION_BACKEND) {
+    const health = await vmHealth().catch(() => null);
+    const why = isolationPurchaseRefusal(isolationProfileFor(g.min, g.config || ""), cpuShare, health?.pool);
+    if (why) return refuse(why, !health?.pool?.budget);
+  }
   const needGpu = onGpu ? mins.gpuFloor : 0;
   const needCpu = cpuFloorFor(mins, onGpu);
   if (gpuShare < needGpu - 1e-9 || cpuShare < needCpu - 1e-9)
@@ -9366,7 +9409,7 @@ async function switchTenantVersion(rec, d) {
   }
   const httpFw = firewall.find((x) => x.startsWith("http:"));
   rec.image = { reference: g.ref };
-  rec.app = g.app; rec.appWasm = g.wasmRef; rec._versionMemMb = g.min && g.min.memMb;
+  rec.app = g.app; rec.appWasm = g.wasmRef; rec._versionMemMb = g.min && g.min.memMb; rec._versionConfig = g.config || "";
   // the deployer's config override rides the DEPLOYMENT (the on-chain
   // envelope), not the version — a version switch keeps it; only an
   // override-free deployment follows the new version's config. The envelope
@@ -10378,7 +10421,7 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     const isoWhy = isolationClaimVerdict({ backend: ISOLATION_BACKEND, require: claimOpts.isolation,
       manager: isoMgr, listed: isoAsk ? await releaseListedFor(d.id) : "unlisted",
       gpuMilli: d.gpuMilli, ...cf, config: isolationAppConfig(cf.config),
-      policy: isolationPolicyFor(g.min),
+      policy: isolationPolicyFor(g.min, g.config || ""), policyRule: isolationProfileFor(g.min, g.config || "").rule, cpuShare,
       held: isoHeld, heldSameRecord,
       hasSecrets: await depHasSecrets(d.id), firewall, volumes: neededVolumes(d, g), isPublic: d.isPublic === true,
       waf: claimOpts.waf || null });
@@ -10526,7 +10569,7 @@ async function adopt(d, g, firewall, slice) {
     // dashboard shows app.slug:app.version from it); the wasm CID in appWasm
     // is only the manager's fetch address
     image: { reference: g.ref }, command: [],
-    app: g.app, appWasm: g.wasmRef, config: g.config || "", _versionMemMb: g.min && g.min.memMb,
+    app: g.app, appWasm: g.wasmRef, config: g.config || "", _versionMemMb: g.min && g.min.memMb, _versionConfig: g.config || "",
     // rev-7: when the version keeps its config at a CID, `config` above is only
     // the routing manifest and this is where the real one lives (the manager
     // fetches and hash-checks it). Empty on every inline version.

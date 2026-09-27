@@ -214,3 +214,38 @@ test("protected ports require V3 and an explicit manager capability; the full so
   assert.deepEqual(r.derive[0].ports, ["tcp:2222", "udp:47998"]);
   assert.deepEqual(r.derive[0], r.derive[1]);
 });
+
+test("immutable profile selects the same prefetch and spawn identity, despite an app override", async () => {
+  const versionConfig = JSON.stringify({ _isolationPolicy: { rule: "enclave-isolation-policy/2", vcpus: 2 } });
+  const g = { ref: "catalog://0x" + "ab".repeat(32) + "/55", wasmRef: "ipfs://bafylabcomponent",
+    min: { memMb: 3072 }, config: versionConfig, ports: "http:8000,tcp:2222" };
+  const runtimeId = "cd".repeat(32);
+  const r = await seam({ prefetch: [{ g, runtimeId }], derive: [{ catalogRef: g.ref, wasmRef: g.wasmRef,
+    memMb: 3072, versionConfig, runtimeId, ports: g.ports,
+    config: JSON.stringify({ _isolationPolicy: { rule: "enclave-isolation-policy/2", vcpus: 16 } }) }],
+    appConfig: [JSON.stringify({ _media: {}, _isolationPolicy: { rule: "enclave-isolation-policy/2", vcpus: 2 }, endpoint: "https://example.test" })] }, TIER);
+  assert.deepEqual(r.prefetch[0].derive, r.derive[0]);
+  assert.deepEqual(r.derive[0].policy, { cpuPercent: 200, memMiB: 3072, vcpus: 2 });
+  assert.deepEqual(JSON.parse(r.appConfig[0]), { endpoint: "https://example.test" });
+});
+
+test("explicit profile admission requires enough purchased CPU and a known pool budget", async () => {
+  const c = { ...clean, policyRule: "enclave-isolation-policy/2", policy: { cpuPercent: 200, memMiB: 128, vcpus: 2 } };
+  const r = await seam({ verdicts: [
+    { ...c, cpuShare: 0.25 }, { ...c, cpuShare: 0.249 }, { ...c, cpuShare: undefined },
+    { ...c, cpuShare: 0.25, manager: { ...GUESTD, pool: { ...POOL, budget: null } } },
+    { ...clean, cpuShare: 0.01 },
+  ] }, TIER);
+  assert.equal(r.verdicts[0], null);
+  assert.match(r.verdicts[1], /buy at least 25%/);
+  assert.match(r.verdicts[2], /cannot verify the purchased CPU share/);
+  assert.match(r.verdicts[3], /cannot verify the purchased CPU share/);
+  assert.equal(r.verdicts[4], null, "legacy allocation semantics remain unchanged");
+});
+
+test("unknown explicit profile refuses before prefetch rather than using legacy identity", async () => {
+  const r = await seam({ prefetch: [{ runtimeId: "cd".repeat(32), g: {
+    ref: "catalog://0x" + "ab".repeat(32) + "/55", wasmRef: "ipfs://bafylabcomponent", min: { memMb: 3072 },
+    config: '{"_isolationPolicy":{"rule":"unknown","vcpus":2}}', ports: "http:8000" } }] }, TIER);
+  assert.match(r.prefetch[0].error, /unsupported catalog resource policy/);
+});
