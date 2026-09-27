@@ -90,7 +90,7 @@ func Test27BReservesPrivateModelMemoryAndBothCards(t *testing.T) {
 	r.s.ShieldReleases = []string{"shield-release"}
 	inf := &contract.Inference{Model: contract.Shield27BModel, GPUMilli: 500}
 	b, err := contract.Build(contract.Manifest{Label: "27b", Inference: inf,
-		Policy: contract.Policy{CPUPercent: 800, Vcpus: 8, MemMiB: 50816}}, []byte("\x00asm component"))
+		Policy: contract.Policy{CPUPercent: 1600, Vcpus: 16, MemMiB: 50816}}, []byte("\x00asm component"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func Test27BReservesPrivateModelMemoryAndBothCards(t *testing.T) {
 	r.s.mu.Lock()
 	defer r.s.mu.Unlock()
 	for _, v := range r.s.vms {
-		if v.MemMiB != 51200 || v.Vcpus != 8 || v.GPUCardBytes != inf.CardBytes() {
+		if v.MemMiB != 51200 || v.Vcpus != 16 || v.GPUCardBytes != inf.CardBytes() {
 			t.Fatalf("incorrect 27B reservation: %+v", v)
 		}
 	}

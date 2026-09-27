@@ -2,9 +2,11 @@
 
 The per-app Shield release now admits `qwen3.8-27b-mtp-q4-vl-gguf` as well as
 `qwen2.5-0.5b-q8-gguf`. The 27B model requires at least 50% of each 31 GiB V100
-worker, a 50 GiB guest, and eight vCPUs. The catalog derivation binds this policy,
+worker, a 50 GiB guest, and sixteen vCPUs. The catalog derivation binds this policy,
 model and GPU reservation to the app identity; the relay independently reproduces it.
-CPU-only apps retain their existing release and policy.
+The guest needs CPU headroom for both pools; an eight-vCPU guest starves the
+helper chain. On metal0 the total pool is 24 logical CPUs, leaving room for the
+five existing CPU apps and host/control processes. CPU-only apps retain their existing release and policy.
 
 `build-shielded-engine.py --engine-git CHECKOUT --runtime GGML_RUNTIME --out OUT`
 rebuilds the accepted engine patches from a fixed clean source commit, including
@@ -33,7 +35,7 @@ messages, never private model inputs or pads; replies retain bounded copies and
 integrity checks. This transport provides no availability guarantee against a host.
 
 The measured 27B settings use column splitting, verification overlap, 64-row pad
-pools/refills, eight CPU/refill threads, a 95% weight budget and one recurrent-state
+pools/refills, eight decode threads and eight refill threads, a 95% weight budget and one recurrent-state
 snapshot for MTP k=1. Apps choose speculative decoding through the existing WASI-NN
 API; enabling the snapshot does not force every app to use MTP. Guest context is
 512 tokens and batch/ubatch 16, matching the evaluated profile.

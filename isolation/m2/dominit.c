@@ -438,6 +438,8 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = shield_calib;
             envp[ei++] = "ENCLAVE_GGML_EXTRA_BUFTS=0";
             envp[ei++] = "ENCLAVE_GGML_N_CTX=512";
+            envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS=8" : "ENCLAVE_GGML_N_THREADS=2";
+            envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS_BATCH=8" : "ENCLAVE_GGML_N_THREADS_BATCH=2";
             envp[ei++] = "ENCLAVE_GGML_N_BATCH=16";
             envp[ei++] = "ENCLAVE_GGML_N_UBATCH=16";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_RS_SEQ=1" : "ENCLAVE_GGML_N_RS_SEQ=0";

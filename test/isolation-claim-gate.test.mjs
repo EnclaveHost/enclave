@@ -237,17 +237,17 @@ test("the measured derivation binds model and GPU allocation", async () => {
   assert.notDeepEqual(r.derive[1], r.derive[2]);
 });
 
-test("27B admission accounts for model RAM and eight CPUs before claiming", async () => {
+test("27B admission accounts for model RAM and sixteen CPUs before claiming", async () => {
   const model="qwen3.8-27b-mtp-q4-vl-gguf";
   const manager={...GUESTD,supports:{...GUESTD.supports,gpu:true,release:true},
     inference:{models:[model],cardFreeBytes:31*2**30},
-    pool:{...POOL,free:{memMiB:53760,cpuPct:1100}}};
+    pool:{...POOL,free:{memMiB:53760,cpuPct:1900}}};
   const valid={...clean,manager,listed:"listed",gpuMilli:500,volumes:[model]};
   const r=await seam({verdicts:[valid,{...valid,gpuMilli:490},
-    {...valid,manager:{...manager,pool:{...manager.pool,free:{memMiB:51000,cpuPct:1100}}}},
-    {...valid,manager:{...manager,pool:{...manager.pool,free:{memMiB:53760,cpuPct:700}}}}],
+    {...valid,manager:{...manager,pool:{...manager.pool,free:{memMiB:51000,cpuPct:1900}}}},
+    {...valid,manager:{...manager,pool:{...manager.pool,free:{memMiB:53760,cpuPct:1500}}}}],
     derive:[{catalogRef:`catalog://0x${"ab".repeat(32)}/1`,wasmRef:"ipfs://bafkreicomponent",memMb:128,runtimeId:"49".repeat(32),ports:[],inference:{model,gpuMilli:500}}]},TIER,"1");
   assert.equal(r.verdicts[0],null);
   for(const why of r.verdicts.slice(1)) assert.ok(why);
-  assert.deepEqual(r.derive[0].policy,{cpuPercent:800,memMiB:50816,vcpus:8});
+  assert.deepEqual(r.derive[0].policy,{cpuPercent:1600,memMiB:50816,vcpus:16});
 });
