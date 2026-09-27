@@ -60,10 +60,10 @@ jobs:
           "$RUNNER_TEMP/shielded-test-python/bin/python" -c 'import numpy, torch; assert torch.version.cuda is None; print("CPU worker dependencies:", numpy.__version__, torch.__version__)'
           echo "$RUNNER_TEMP/shielded-test-python/bin" >> "$GITHUB_PATH"
       - name: node --test
-        # npm test verbatim but with CI headroom on the per-file timeout:
-        # cli.test.mjs runs ~14s here vs ~8s locally, and root package.json
-        # is release-triggering so the longer timeout cannot live there
-        run: node --test --test-timeout=60000 test/*.test.mjs
+        # Match npm test's per-file bound. The CLI and owner-grace suites include
+        # multiple subprocess/real-timer cases and exceed 60s on shared runners.
+        # Keep the job's overall 15-minute bound as well.
+        run: node --test --test-timeout=120000 test/*.test.mjs
 
   contracts:
     runs-on: ubuntu-latest

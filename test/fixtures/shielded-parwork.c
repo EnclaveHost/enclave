@@ -7,7 +7,20 @@
  * EXACTLY once at every width, that two owner threads do not serialise or
  * corrupt each other, and that helpers are reclaimed when their owner exits.
  * Off by default (width 1), so the width-1 path is a case, not a skip. */
+/* Turn off the production timeout recovery in this fixture. A missed signal
+ * must stall and hit the watchdog, rather than being inferred from wall time
+ * (eight helpers on a small CI runner can legitimately be much slower).
+ * The production source and its memory-ordering handshake are unchanged. */
+#define _GNU_SOURCE
+#include <pthread.h>
+static int regression_cond_wait(pthread_cond_t *cv, pthread_mutex_t *mu,
+                                const struct timespec *deadline) {
+    (void)deadline;
+    return pthread_cond_wait(cv, mu);
+}
+#define pthread_cond_timedwait regression_cond_wait
 #include "../../wasm/ggml-shielded/shielded-parwork.c"
+#undef pthread_cond_timedwait
 
 #include <assert.h>
 #include <stdio.h>
@@ -123,8 +136,8 @@ static void teardown(void) {
  * So the check is a watchdog -- a thread that aborts if any dispatch takes
  * absurdly longer than the work in it. Correctness of the slices is still
  * asserted, because a torn dispatch would show up there too. */
-static volatile int wd_done = 0;
-static volatile int wd_round = -1;
+static atomic_int wd_done = 0;
+static atomic_int wd_round = -1;
 static void *watchdog(void *arg) {
     const int rounds = *(const int *)arg;
     int last = -1, stuck = 0;
@@ -165,19 +178,10 @@ static void park_boundary(void) {
     assert(pthread_join(wd, NULL) == 0);
     struct timespec t1; clock_gettime(CLOCK_MONOTONIC, &t1);
     const double ms = (t1.tv_sec - t0.tv_sec) * 1000.0 + (t1.tv_nsec - t0.tv_nsec) / 1e6;
-    /* The helper parks with a BOUNDED wait as defence in depth, so a lost
-     * wakeup would be recovered rather than hang -- and would therefore slip
-     * past the watchdog above. It cannot slip past the clock: the deliberate
-     * sleeps here total ~2.2 s, while one lost wakeup per dispatch would add
-     * up to a thousand timeout periods on top. Anything near that means the
-     * park/dispatch handshake stopped working even though the answers are
-     * still right. */
+    /* Timing is diagnostic. Recovery is disabled above, so an actual lost
+     * wakeup cannot hide behind a timeout; the watchdog detects no progress.
+     * Scheduler contention alone is not evidence of a missing signal. */
     fprintf(stderr, "parwork: park boundary %d dispatches in %.0f ms\n", ROUNDS, ms);
-    if (ms > 8000.0) {
-        fprintf(stderr, "parwork: park boundary took %.0f ms, expected ~2500: wakeups are being lost "
-                        "and recovered by the timeout\n", ms);
-        assert(!"park/dispatch handshake is losing wakeups");
-    }
     free(seen);
 }
 
