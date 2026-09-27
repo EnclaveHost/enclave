@@ -1323,6 +1323,15 @@ class Deployments extends EnclaveElement {
     const gIn = box.querySelector(".eu-gpu"), cIn = box.querySelector(".eu-cpu");
     const paint = (cls, txt) => paintLine(st, cls, txt);
     const intro = () => {
+      if (sharesOnly) {
+        if (resizable) paint("info", restartResize
+          ? "The app will stop and restart at the new size. Its URL and balance stay the same; in-memory state resets. Confirm suspension, then the new allocation."
+          : "The host applies the new allocation and may restart the app. Its URL and balance stay the same; in-memory state may reset.");
+        if (cur) paint("dimln", "Minimum: " + Math.max(1, cpuNeedOf(cur, dials().gpuMilli)) + "% CPU"
+          + (cur.mins.gpuPct ? " · " + cur.mins.gpuPct + "% GPU" : "") + (hw ? " on " + hw.name : ""));
+        if (restartResize && resizable) paint("dimln", "Pricing is an estimate. The new instance must fit an eligible host and your hourly rate cap.");
+        return;
+      }
       if (sharesOnly && resizable && restartResize)
         paint("info", "// resizing stops this instance, waits for its lease to be released, then starts a fresh instance with the new shares. The URL and balance carry over; in-memory state is lost. Wallet confirmations are required for suspension and the resize/restart.");
       else if (!sharesOnly || resizable) paint("info", "// paid time carries over: the runner restarts the app in place (~a minute); the endpoint and balance don’t change, app state is ephemeral");
