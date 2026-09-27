@@ -150,18 +150,20 @@ type vm struct {
 }
 
 type server struct {
-	L         Launcher
-	Auth      *controlAuth // guestd-control/1; nil = the unauthenticated, loopback-only lab mode
-	Store     *store       // catalog mappings; nil = only file:// bundles are accepted
-	Root      string       // per-guest workdirs live under here, and nothing else does
-	LeaseTTL  time.Duration
-	Silence   time.Duration
-	Now       func() time.Time
-	Firmware  map[string]any
-	RuntimeID string     // hex; the runtime identity every guest image here carries (the judge pins it)
-	Data      *dataPlane // nil = no data plane (the default)
-	Budget    poolBudget // the guest pool's budget; the zero value admits no guest (pool.go)
-	IDPrefix  string     // two lowercase letters for this guestd's instance ids and guest units; "" = "gd" (-instance-prefix)
+	RuntimeSET   bool // a real worker execution probe of the runtime used by this tree
+	RuntimeMem64 bool // a real 64-bit canonical ABI execution probe
+	L            Launcher
+	Auth         *controlAuth // guestd-control/1; nil = the unauthenticated, loopback-only lab mode
+	Store        *store       // catalog mappings; nil = only file:// bundles are accepted
+	Root         string       // per-guest workdirs live under here, and nothing else does
+	LeaseTTL     time.Duration
+	Silence      time.Duration
+	Now          func() time.Time
+	Firmware     map[string]any
+	RuntimeID    string     // hex; the runtime identity every guest image here carries (the judge pins it)
+	Data         *dataPlane // nil = no data plane (the default)
+	Budget       poolBudget // the guest pool's budget; the zero value admits no guest (pool.go)
+	IDPrefix     string     // two lowercase letters for this guestd's instance ids and guest units; "" = "gd" (-instance-prefix)
 	// Release: deliver attested-release tickets and serve egress to deployment guests (release.go, -release).
 	Release bool
 	// Legacy builds and starts the deployment guests that are NOT release guests on a -release guestd: the previous
@@ -307,6 +309,8 @@ func (s *server) route(w http.ResponseWriter, r *http.Request) {
 			cat = map[string]any{"derivations": []string{catalog.V1, catalog.V2}, "runtimeId": s.Store.RuntimeID}
 		}
 		s.json(w, 200, map[string]any{"ok": true, "backend": "snp-guest-per-app", "guests": n,
+			"set": s.RuntimeSET, "setRequiresRelease": s.RuntimeSET && s.Release,
+			"mem64": s.RuntimeMem64, "mem64RequiresRelease": s.RuntimeMem64 && s.Release,
 			"firmware": s.Firmware, "catalog": cat, "pool": pool,
 			// what a tenant here does NOT get, so a claim gate can refuse deployments that need it
 			// release: config and secrets reach a DEPLOYMENT guest only through the attested release, sealed to it, with

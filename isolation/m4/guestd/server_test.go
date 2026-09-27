@@ -454,3 +454,22 @@ func TestHostDataIsTheDeploymentID(t *testing.T) {
 		}
 	}
 }
+
+func TestSETCapabilityIsProbedAndReleaseScoped(t *testing.T) {
+	r := newRig(t)
+	_, h := r.do("GET", "/health", nil)
+	if h["set"] != false || h["setRequiresRelease"] != false || h["mem64"] != false {
+		t.Fatal("unprobed runtime advertised SET", h)
+	}
+	r.s.RuntimeSET = true
+	r.s.RuntimeMem64 = true
+	_, h = r.do("GET", "/health", nil)
+	if h["set"] != true || h["setRequiresRelease"] != false || h["mem64"] != true || h["mem64RequiresRelease"] != false {
+		t.Fatal("probed standalone runtime did not advertise SET", h)
+	}
+	r.s.Release = true
+	_, h = r.do("GET", "/health", nil)
+	if h["set"] != true || h["setRequiresRelease"] != true || h["mem64"] != true || h["mem64RequiresRelease"] != true {
+		t.Fatal("SET must not imply support in legacy guests", h)
+	}
+}
