@@ -558,7 +558,7 @@ test("Shield model selection excludes CPU images and binds GPU shares in predict
   assert.notEqual(gpu27.appId,gpu.appId);
   assert.equal((await p.expectedFor(REF,{inference:{...large,gpuMilli:499}})).code,"unsupported_inference");
   assert.deepEqual(P.derivationRecord(REF,{cid:"bafkreicomponent",memMb:128},"49".repeat(32),large).policy,
-    {cpuPercent:800,memMiB:50816,vcpus:8});
+    {cpuPercent:1600,memMiB:50816,vcpus:16});
   const resized=await p.expectedFor(REF,{inference:{...inference,gpuMilli:200}});
   assert.equal(resized.ok,true);
   assert.notEqual(resized.appId,gpu.appId,"resizing changes attested identity and cannot reuse the old cache entry");
