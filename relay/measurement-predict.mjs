@@ -46,13 +46,13 @@ export function isolationPortsOf(ports) {
   return { http, ports: dests.sort() };
 }
 export function isolationHttpPortOf(ports) { return isolationPortsOf(ports).http; }
-export function derivationRecord(catalogRef, version, runtimeId) {
+export function derivationRecord(catalogRef, version, runtimeId, inference = null) {
   const m = CATALOG_REF_RE.exec(String(catalogRef || ""));
   if (!m) throw new Error("not a catalog://<app>/<index> reference");
   if (!/^[A-Za-z0-9]+$/.test(String(version.cid || ""))) throw new Error("the catalog version names no CID");
   if (!HEX(64).test(String(runtimeId || ""))) throw new Error("no runtime identity");
   const { http, ports } = isolationPortsOf(version.ports);
-  return { derivation: ports.length ? "enclave-catalog-bundle/3" : http ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
+  return { ...(inference ? { inference } : {}), derivation: inference ? "enclave-catalog-bundle/4" : ports.length ? "enclave-catalog-bundle/3" : http ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
            catalog: { app: m[1].toLowerCase(), version: Number(m[2]) }, cid: String(version.cid),
            policy: isolationPolicyFor(version), runtimeId, ...(http ? { http } : {}), ...(ports.length ? { ports } : {}) };
 }
@@ -69,6 +69,8 @@ export function versionRefusal(app, v, forPrivate = false) {
 // sha256 of the supervisor's three rule functions' source (isolationPolicyFor, isolationHttpPortOf, isolationDerivation),
 // identical at 0181bce3 and c42612c0. test/measurement-predict.test.mjs fails when a supervisor this repository holds (or
 // the working tree's) carries another rule, so the predictor is changed with it.
+export const SHIELD_SUPERVISOR_COMMIT = "d760ef584";
+export const SHIELD_SUPERVISOR_RULE_SHA256 = "6241e251108ef4b1dad120f712cb4f72bc6ea342dd511f3c16027f0b82caf2dc";
 export const SUPERVISOR_RULE_SHA256 = "2ad995d42e42988151b95f0c1dd70c57130ed9f245d49da7167b6a076664796a";
 export function supervisorRuleSha256(src) {
   const parts = ["isolationPolicyFor", "isolationHttpPortOf", "isolationDerivation"].map((n) => {
@@ -400,16 +402,16 @@ export function makePredictor(o) {
   // the expected guest for a deployment's catalog reference: { ok, appId, images: [{ release, runtimeId, measurement }] }
   // or { ok: false, code, reason }. Never throws. `forPrivate`: the deployment is private (a pending version is allowed).
   // `waitMs`: answer { ok: false, code: "warming" } rather than wait longer; the prediction continues and is cached.
-  async function expectedFor(catalogRef, { forPrivate = false, waitMs, set = "release" } = {}) {
+  async function expectedFor(catalogRef, { forPrivate = false, waitMs, set = "release", inference = null } = {}) {
     const ids = set === "cert" ? certAdmit : set === "release" ? admit : null;
     if (!ids) return { ok: false, code: "predictor_unconfigured", reason: `no admitted set named ${set}` };
-    const p = predict(catalogRef, forPrivate, ids);
+    const p = predict(catalogRef, forPrivate, ids, inference);
     if (!(waitMs >= 0)) return p;
     let timer;
     const late = new Promise((resolve) => { timer = setTimeout(() => resolve({ ok: false, code: "warming", reason: "the prediction is still being computed; retry shortly" }), waitMs); });
     try { return await Promise.race([p, late]); } finally { clearTimeout(timer); }
   }
-  async function predict(catalogRef, forPrivate, admitIds) {
+  async function predict(catalogRef, forPrivate, admitIds, inference = null) {
     const refuse = (code, reason) => { stats.refusals++; return { ok: false, code, reason }; };
     if (problems.length) return refuse("predictor_unconfigured", `measurement prediction is not configured (missing: ${problems.join(", ")})`);
     const m = CATALOG_REF_RE.exec(String(catalogRef || ""));
@@ -424,16 +426,22 @@ export function makePredictor(o) {
     const vr = versionRefusal(cat && cat.app, cat && cat.version, forPrivate);
     if (vr) return refuse("version_not_admitted", vr);
     // one record per distinct runtime among the admitted releases (the AppID excludes the runtime; the record does not)
+    if (inference && (inference.model !== "qwen2.5-0.5b-q8-gguf" || !Number.isInteger(inference.gpuMilli) || inference.gpuMilli < 65 || inference.gpuMilli > 1000))
+      return refuse("unsupported_inference", "unsupported isolated model or GPU allocation");
     const byRuntime = new Map();
     for (const id of admitIds) {
+      const marker=path.join(releases.get(id),"template/rt/shield-model");
+      let model=null; try { model=fs.readFileSync(marker,"utf8").trim(); } catch(e) { if(e.code!=="ENOENT") return refuse("prediction_unavailable","unreadable inference profile"); }
+      if (inference ? model!==inference.model : model!==null) continue;
       let rid;
       try { rid = runtimeIdOfJson(fs.readFileSync(path.join(releases.get(id), "template/rt/runtime.json"), "utf8")); }
       catch (e) { return refuse("prediction_unavailable", `release ${id.slice(0, 12)} states no readable runtime identity`); }
       if (!byRuntime.has(rid)) byRuntime.set(rid, []);
       byRuntime.get(rid).push(id);
     }
+    if (!byRuntime.size) return refuse("unsupported_inference", "no admitted release for the selected model profile");
     let records;
-    try { records = [...byRuntime].map(([rid, ids]) => ({ record: derivationRecord(catalogRef, cat.version, rid), ids })); }
+    try { records = [...byRuntime].map(([rid, ids]) => ({ record: derivationRecord(catalogRef, cat.version, rid, inference), ids })); }
     catch (e) { return refuse("version_not_admitted", `the version is not derivable for a per-app guest: ${e.message}`); }
     const key = sha256hex(canonical({ commit, records: records.map((r) => ({ record: r.record, releases: [...r.ids].sort() })) }));
     const hit = cacheGet(key);
