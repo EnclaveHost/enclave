@@ -6,7 +6,7 @@ by assemble-app-image.sh from a validated V4 bundle, reproduced by the verifier.
 import argparse,hashlib,json,os,shutil,subprocess
 from pathlib import Path
 p=argparse.ArgumentParser(description=__doc__)
-for name in ['base','runtime','model','tokenizer','model27','tokenizer27','out']: p.add_argument('--'+name,required=True,type=Path)
+for name in ['base','runtime','model','tokenizer','model27','tokenizer27','haltpoll-module','out']: p.add_argument('--'+name,required=True,type=Path)
 a=p.parse_args();repo=Path(__file__).resolve().parents[2];out=a.out.resolve()
 if out.exists():p.error('release output already exists')
 for f,h in [(a.model,'f81d63cf49568f78154f6ddc8b114f603579360c7c878831a7f95a51dc284d24'),(a.tokenizer,'c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539'),(a.model27,'3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e'),(a.tokenizer27,'0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3')]:
@@ -16,6 +16,7 @@ for f in a.runtime.rglob('*.so*'):
  if any('GNU_STACK' in l and 'RWE' in l for l in text.splitlines()):p.error('executable stack: '+str(f))
 shutil.copytree(a.base,out);(out/'release.json').unlink()
 t=out/'template';shutil.rmtree(t/'rt');shutil.copytree(a.runtime,t/'rt')
+shutil.copy2(a.haltpoll_module,t/'cpuidle-haltpoll.ko.zst')
 # The inference profile doesn't advertise unprobed optional app ABIs.
 for n in ['set.enabled','mem64.enabled']:(t/'rt'/n).unlink(missing_ok=True)
 (t/'rt/shield-model').write_text('qwen2.5-0.5b-q8-gguf\nqwen3.8-27b-mtp-q4-vl-gguf\n')
