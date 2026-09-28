@@ -132,3 +132,16 @@ The regular init leaves aggregate diagnostic timers and performance headers
 unset. The quiet candidate differs from the verified caller-placement release
 only in init and that marker; all inference libraries are identical. Performance
 qualification is recorded separately after the production test.
+
+The quiet release `1d2263e6` passed independent image prediction, fresh AMD
+attestation and normal public WebPKI validation. Cold128 measured 17.3 tok/s;
+cached128 measured 18.2 tok/s. Removing diagnostics did not establish a speed
+gain. An identically configured longer request unexpectedly rendered a
+2,894-token prompt and took a routing path, so it is not a comparable baseline.
+The following 3,781-token cached request measured 15.3 tok/s (1 ms prefill).
+Cache occupancy/physical placement after mixed requests is a hypothesis for
+that drop, not yet verified. Moving only guest vCPU7 from host CPU7 to CPU24
+measured 15.0 and was restored to CPU7. All five other guests, both GPU workers
+and the control VM remained running. No scratch attention-kernel prototype
+was deployed. The owner's draft-threshold update is still waiting for a wallet
+signature; no config change is assumed. The production target remains unmet.
