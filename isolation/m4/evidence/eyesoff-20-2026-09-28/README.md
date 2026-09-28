@@ -47,3 +47,13 @@ Counters are atomic but a cross-bucket snapshot is not a transaction; collect
 between requests and compare deltas. Diagnostic timing overhead is not treated
 as a performance gain. Build with --cpu-profile and enable only via the measured
 ENCLAVE_GGML_CPU_PROFILE=1 environment.
+
+The CPU-profile run measured 11.6 tok/s on the cached 3,781-token prompt.
+24,783 CPU graphs consumed 6.397 s; recorded operations consumed 3.356 s.
+About 3.04 s was outside the recorded CPU operations. Attention matrix products
+were 1.667 s and softmax 0.302 s. Shield graphs consumed 4.191 s.
+The opt-in small-graph patch tests a one-thread plan for bounded linear F32
+islands only; matrix products, recurrent updates and larger work retain their
+existing plans. The fixture compares complete outputs byte-for-byte and checks
+that larger graphs retain six-thread dispatch. No production speed gain claimed
+until measured through the app.
