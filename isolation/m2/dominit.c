@@ -449,6 +449,7 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = "SHIELDED_REFILL_BATCH=64";
             /* Eight refill workers per card; exact vector CRT is qualified for the 27B profile. */
             if (shield_large) envp[ei++] = "SHIELDED_REFILL_VECTOR_CRT=1";
+            if (shield_large) envp[ei++] = "SHIELDED_MASK_CHACHA16=1";
             if (shield_large) {
                 envp[ei++] = "LD_PRELOAD=/rt/libshielded-omp-affinity.so";
                 envp[ei++] = "SHIELDED_CPU_COMPUTE=0,2,3,4,5,6";

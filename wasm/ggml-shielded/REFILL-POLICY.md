@@ -60,3 +60,33 @@ Benchmark SHA-256:
 `78af89be1999c9179ad7b239bd3db65c2c4dd35bd9cef7e21b1e79edded175ad`.
 These artifacts include isolated benchmark hooks; they are not deployed
 binaries. No live worker or phone setting was changed for this comparison.
+
+## Vector mask sampler
+
+`SHIELDED_MASK_CHACHA16=1` opts the local mask bank into a sixteen-block
+AVX-512 implementation of its existing ChaCha20 stream. It uses all twenty
+rounds, the same 256-bit key from OS entropy, the same 64-bit counter, and the
+same 64-bit-draw reduction into the field. The mask bytes are identical for
+identical keys and issuance indices. This is not reduced-strength randomness
+or reuse of a pad. Dealt-pad derivation and ARM builds are unchanged.
+
+Selection happens at bank creation, requires successful AVX-512 admission and
+an additional scalar/vector stream agreement check, and respects
+`SHIELDED_NO_SIMD`. Unset, empty, zero and invalid values keep the scalar
+sampler. A failed stream self-test refuses the bank. Issuance still reserves
+one unique counter window under the existing mutex before generating anything.
+Requests exceeding its 2^24-block window are rejected before reservation.
+
+Focused checks cover a public ChaCha20 known-answer vector, all lengths 0–513,
+large model-sized batches, 32-bit counter carries, the final issuance window,
+output canaries, concurrent issuance, exhaustion, disabled/invalid settings,
+and the generic override:
+
+```sh
+node --test test/shielded-mask-stream.test.mjs
+SHIELDED_TEST_SANITIZE=1 node --test test/shielded-mask-stream.test.mjs
+```
+
+Sampler microbenchmarks measure only random-mask generation. They must not be
+reported as inference throughput or as the speedup of the complete refill,
+which also computes each pad's matrix product inside the trusted boundary.

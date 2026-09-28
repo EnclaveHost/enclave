@@ -250,11 +250,49 @@ typedef struct {
     uint64_t counter;      /* strictly monotonic; the machine-checkable form of "never reused" */
     uint64_t issued_hi;
     uint64_t capacity;
+    void (*stream)(const uint32_t *, uint64_t, int32_t *, size_t);
 } sh_maskbank;
+
+#if !defined(__aarch64__)
+/* Public self-test material only. Include a carry into the high counter word,
+ * multiple SIMD blocks and a partial block before admitting the sampler. */
+static bool mask_stream_agrees(void) {
+    const uint32_t key[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+    const uint64_t starts[] = {0, UINT64_C(0xfffffff9), UINT64_MAX - 255};
+    for (size_t t = 0; t < sizeof starts / sizeof *starts; t++) {
+        int32_t fast[259], scalar[259];
+        sh_simd_avx512_mask_stream(key, starts[t], fast, 259);
+        size_t at = 0;
+        for (uint64_t ctr = starts[t]; at < 259; ctr++) {
+            uint32_t words[16]; chacha20_block(key, ctr, words);
+            for (int j = 0; j < 8 && at < 259; j++) {
+                const uint64_t v = ((uint64_t)words[2*j+1] << 32) | words[2*j];
+                scalar[at++] = (int32_t)(v % (uint64_t)SH_M_MOD);
+            }
+        }
+        if (memcmp(fast, scalar, sizeof fast)) return false;
+    }
+    return true;
+}
+#endif
 
 static bool maskbank_init(sh_maskbank *b) {
     pthread_mutex_init(&b->mu, NULL);
     b->counter = 0; b->issued_hi = 0; b->capacity = UINT64_C(1) << 40;
+    b->stream = NULL;
+#if !defined(__aarch64__)
+    const char *vector = getenv("SHIELDED_MASK_CHACHA16");
+    const sh_simd *simd = sh_simd_get();
+    if (vector && !strcmp(vector, "1") &&
+        (simd == &simd_avx512 || simd == &simd_avx512_crt)) {
+        if (!mask_stream_agrees()) {
+            fprintf(stderr, "[shielded] vector mask stream disagrees; refusing mask bank\n");
+            pthread_mutex_destroy(&b->mu);
+            return false;
+        }
+        b->stream = sh_simd_avx512_mask_stream;
+    }
+#endif
     return os_random(b->key, sizeof b->key);
 }
 
@@ -263,12 +301,19 @@ static bool maskbank_init(sh_maskbank *b) {
  * issuance index covers one call, however many values it produces; the index
  * never repeats, so no two calls share keystream. */
 static int maskbank_issue(sh_maskbank *b, int32_t *dst, size_t n) {
+    /* One issuance owns 2^24 blocks, eight field values per block. Reject a
+     * request that could overlap the next window before consuming an index. */
+    if (!dst || n > (UINT64_C(1) << 27)) return SH_ERR_RANGE;
     pthread_mutex_lock(&b->mu);
     if (b->counter >= b->capacity) { pthread_mutex_unlock(&b->mu); return SH_ERR_EXHAUST; }
     const uint64_t index = b->counter++;
     if (b->counter <= b->issued_hi) { pthread_mutex_unlock(&b->mu); return SH_ERR_EXHAUST; }
     b->issued_hi = b->counter;
     pthread_mutex_unlock(&b->mu);
+    if (b->stream) {
+        b->stream(b->key, index << 24, dst, n);
+        return SH_OK;
+    }
     uint32_t blk[16];
     uint64_t ctr = index << 24;      /* room for 2^24 blocks under one index */
     size_t produced = 0;
