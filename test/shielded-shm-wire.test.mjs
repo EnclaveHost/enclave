@@ -180,3 +180,49 @@ int main(int argc, char **argv) {
     execFileSync(join(dir, 'test'), [join(dir, 'bar')], { timeout: 20_000 });
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+
+test('idle ring refresh uses the socket once and detects peer shutdown without consuming data', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'shielded-idle-wire-'));
+  const source = fileURLToPath(new URL('../wasm/ggml-shielded/shielded-wire.c', import.meta.url));
+  try {
+    writeFileSync(join(dir, 'test.c'), `
+#include ${JSON.stringify(source)}
+#include <assert.h>
+#include <pthread.h>
+static int calls;
+static void work(void *unused) { (void)unused; calls++; }
+static void *serve(void *arg) {
+    int fd = *(int *)arg;
+    uint8_t req[9]; assert(read_all(fd, req, 9, NULL) == SH_OK);
+    assert(req[0] == SH_CMD_FIELD_GEMM && get_u64(req + 1) == 0);
+    uint8_t reply[9] = {0}; assert(write(fd, reply, 9) == 9);
+    return NULL;
+}
+int main(void) {
+    int sockets[2]; assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+    sh_pipe *p = calloc(1, sizeof *p); assert(p); p->fd = sockets[0];
+    assert(sh_pipe_is_live(p));
+    assert(write(sockets[1], "a", 1) == 1);
+    assert(sh_pipe_is_live(p)); char c; assert(read(sockets[0], &c, 1) == 1 && c == 'a');
+    p->ring = calloc(1, SH_RING_BYTES); assert(p->ring);
+    p->last_socket_ms = wire_now_ms() - 30001;
+    sh_frame f = {SH_CMD_FIELD_GEMM, NULL, 0, NULL, 0}; sh_reply reply;
+    assert(sh_pipe_ring_exchange_work(p, &f, 0, &reply, work, NULL) == SH_ERR_IO);
+    assert(calls == 0 && ld_acq(p->ring + SH_RING_OFF_REQ) == 0);
+    pthread_t thread; assert(!pthread_create(&thread, NULL, serve, &sockets[1]));
+    assert(sh_pipe_exchange_work(p, &f, 1, &reply, work, NULL) == SH_OK);
+    pthread_join(thread, NULL);
+    assert(calls == 1 && wire_now_ms() - p->last_socket_ms < 1000);
+    assert(sh_pipe_is_live(p));
+    assert(!shutdown(sockets[1], SHUT_WR));
+    assert(!sh_pipe_is_live(p));
+    close(sockets[1]); free(p->ring); p->ring = NULL; sh_pipe_close(p);
+    assert(!sh_pipe_is_live(NULL));
+}
+`);
+    execFileSync('cc', ['-std=c11', '-O1', '-Wall', '-Wextra', '-ffunction-sections', '-fdata-sections',
+      join(dir, 'test.c'), '-Wl,--gc-sections', '-lpthread', '-o', join(dir, 'test')], { timeout: 30_000 });
+    execFileSync(join(dir, 'test'), [], { timeout: 5_000 });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

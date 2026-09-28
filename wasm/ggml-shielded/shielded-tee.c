@@ -2030,7 +2030,7 @@ int sh_link_gemm_local_stride(sh_link *l, const int *nodes, size_t n_nodes,
     return SH_OK;
 }
 
-bool sh_link_is_live(const sh_link *l) { return l && l->pipe; }
+bool sh_link_is_live(const sh_link *l) { return l && sh_pipe_is_live(l->pipe); }
 bool sh_link_is_dealt(const sh_link *l) { return l && l->dealt; }
 
 const int8_t *sh_link_weight(const sh_link *l, int node) {

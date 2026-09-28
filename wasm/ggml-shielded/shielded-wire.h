@@ -18,6 +18,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -114,6 +115,8 @@ typedef struct {
 
 sh_pipe *sh_pipe_open(const char *host, int port, int *err);
 void     sh_pipe_close(sh_pipe *p);
+/* Nonblocking transport liveness only; never an integrity assertion. */
+bool     sh_pipe_is_live(const sh_pipe *p);
 
 /* The last violation reason the worker sent, or "" -- diagnostics only. */
 const char *sh_pipe_last_error(const sh_pipe *p);
