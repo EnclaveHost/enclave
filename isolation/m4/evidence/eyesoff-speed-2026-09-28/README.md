@@ -77,3 +77,8 @@ which Eyesoff reads from host capabilities. Wide-batch logits match physical
 batch 16 exactly across the resident/branch/rewind test; both 64-token
 cache-pressure tests pass. Public-model fixtures only; no user chat/config
 contents are included in these artifacts.
+
+MTP qualification: 43-token prefill, 32 generated tokens, sequence 13 of 16,
+batch/ubatch 64, explicit attention OFF. Speculative and plain greedy text
+are identical; 13/19 draft proposals accepted; zero observation failures.
+Small-model CPU timings are correctness diagnostics, not 27B speed claims.
