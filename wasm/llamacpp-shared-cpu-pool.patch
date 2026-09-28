@@ -1,0 +1,193 @@
+--- a/ggml/src/ggml-cpu/ggml-cpu.c
++++ b/ggml/src/ggml-cpu/ggml-cpu.c
+@@ -501,6 +501,7 @@
+     uint32_t     poll;        // Polling level (0 - no polling)
+ 
+     enum ggml_status ec;
++    int * enclave_cpus; // immutable after paused construction
+ };
+ 
+ // Per-thread state
+@@ -2735,6 +2736,7 @@
+ #endif // GGML_USE_OPENMP
+ 
+     const size_t workers_size = sizeof(struct ggml_compute_state) * n_threads;
++    free(threadpool->enclave_cpus);
+     ggml_aligned_free(threadpool->workers, workers_size);
+     ggml_aligned_free(threadpool, sizeof(struct ggml_threadpool));
+ }
+@@ -3118,6 +3120,18 @@
+     struct ggml_compute_state * state = (struct ggml_compute_state *) data;
+     struct ggml_threadpool    * tp    = state->threadpool;
+ 
++#if defined(__linux__)
++    if (tp->enclave_cpus) {
++        cpu_set_t want, current;
++        CPU_ZERO(&want); CPU_SET(tp->enclave_cpus[state->ith], &want);
++        // The GPU placement sweep can move workers between graphs. Recheck
++        // rather than trusting a stale thread-local affinity cache.
++        if (sched_getaffinity(0, sizeof current, &current) ||
++            (!CPU_EQUAL(&want, &current) && sched_setaffinity(0, sizeof want, &want)))
++            GGML_ABORT("cannot place shared CPU worker");
++    }
++#endif
++
+     const struct ggml_cgraph * cgraph = tp->cgraph;
+     const struct ggml_cplan  * cplan  = tp->cplan;
+ 
+@@ -3215,7 +3229,9 @@
+     if (n_graph != state->last_graph) {
+         state->pending    = (state->ith < n_threads);
+         state->last_graph = n_graph;
+-        return true;
++        // Keep shared workers polling across one-thread islands. Otherwise
++        // every tiny island would put them to sleep before the next matmul.
++        return state->pending || !threadpool->enclave_cpus;
+     }
+ 
+     return false;
+@@ -3373,6 +3389,7 @@
+     }
+ 
+     threadpool->workers = workers;
++    threadpool->enclave_cpus = NULL;
+ 
+ #ifdef GGML_USE_OPENMP
+     int32_t cpumask_iter = 0;
+@@ -3413,6 +3430,18 @@
+ 
+ struct ggml_threadpool * ggml_threadpool_new(struct ggml_threadpool_params * tpp) {
+     return ggml_threadpool_new_impl(tpp, NULL, NULL);
++}
++
++struct ggml_threadpool * ggml_threadpool_new_enclave(
++        struct ggml_threadpool_params * params, const int * cpus, size_t count) {
++    GGML_ASSERT(cpus && count >= (size_t) params->n_threads);
++    struct ggml_threadpool_params paused = *params;
++    paused.paused = true;
++    struct ggml_threadpool * pool = ggml_threadpool_new_impl(&paused, NULL, NULL);
++    pool->enclave_cpus = malloc(sizeof(int) * params->n_threads);
++    GGML_ASSERT(pool->enclave_cpus);
++    memcpy(pool->enclave_cpus, cpus, sizeof(int) * params->n_threads);
++    return pool;
+ }
+ 
+ enum ggml_status ggml_graph_compute(struct ggml_cgraph * cgraph, struct ggml_cplan * cplan) {
+--- a/ggml/src/ggml-cpu/ggml-cpu.cpp
++++ b/ggml/src/ggml-cpu/ggml-cpu.cpp
+@@ -9,6 +9,10 @@
+ #include <cctype>
+ #include <string>
+ #include <vector>
++#include <map>
++#include <memory>
++#include <mutex>
++#include <cstdlib>
+ 
+ #ifdef GGML_USE_CPU_HBM
+ #    include "hbm.h"
+@@ -109,6 +113,50 @@
+     bool                use_ref;  // use reference implementation
+ };
+ 
++// A process-wide native team serves serialized CPU islands even when async
++// HTTP requests resume on different OS threads. External caller-owned pools
++// retain their existing semantics. Separate sizes remain alive for old plans.
++static std::mutex enclave_pool_mutex;
++struct enclave_pool_owner {
++    ggml_threadpool_t pool;
++    ~enclave_pool_owner() { ggml_threadpool_free(pool); }
++};
++static std::map<int, std::unique_ptr<enclave_pool_owner>> enclave_pools;
++static bool enclave_pool_enabled() {
++    static const bool on = [] {
++        const char * e = getenv("ENCLAVE_GGML_SHARED_CPU_POOL");
++        return e && !strcmp(e, "1");
++    }();
++#ifdef GGML_USE_OPENMP
++    if (on) GGML_ABORT("shared CPU pool requires native threads, not OpenMP");
++#endif
++    return on;
++}
++// Caller holds enclave_pool_mutex.
++static ggml_threadpool_t enclave_pool_get(int n) {
++    auto found = enclave_pools.find(n);
++    if (found != enclave_pools.end()) return found->second->pool;
++    std::vector<int> cpus;
++    const char * s = getenv("SHIELDED_CPU_COMPUTE");
++    GGML_ASSERT(s && *s && n > 0 && n <= GGML_MAX_N_THREADS);
++    bool seen[GGML_MAX_N_THREADS] = {};
++    for (;;) {
++        GGML_ASSERT(*s >= '0' && *s <= '9');
++        char * end; long cpu = strtol(s, &end, 10);
++        GGML_ASSERT(cpu >= 0 && cpu < GGML_MAX_N_THREADS && !seen[cpu]);
++        seen[cpu] = true; cpus.push_back((int)cpu);
++        if (!*end) break;
++        GGML_ASSERT(*end == ',' && end[1]); s = end + 1;
++    }
++    GGML_ASSERT(cpus.size() >= (size_t)n);
++    auto params = ggml_threadpool_params_default(n);
++    auto owner = std::make_unique<enclave_pool_owner>();
++    owner->pool = ggml_threadpool_new_enclave(&params, cpus.data(), cpus.size());
++    auto * result = owner->pool;
++    enclave_pools.emplace(n, std::move(owner));
++    return result;
++}
++
+ static const char * ggml_backend_cpu_get_name(ggml_backend_t backend) {
+     return "CPU";
+ 
+@@ -125,6 +173,7 @@
+ struct ggml_backend_plan_cpu {
+     struct ggml_cplan cplan;
+     struct ggml_cgraph cgraph;
++    bool enclave_shared;
+ };
+ 
+ static ggml_backend_graph_plan_t ggml_backend_cpu_graph_plan_create(ggml_backend_t backend, const struct ggml_cgraph * cgraph) {
+@@ -132,7 +181,11 @@
+ 
+     struct ggml_backend_plan_cpu * cpu_plan = new ggml_backend_plan_cpu;
+ 
+-    cpu_plan->cplan = ggml_graph_plan(cgraph, cpu_ctx->n_threads, cpu_ctx->threadpool);
++    cpu_plan->enclave_shared = enclave_pool_enabled() && !cpu_ctx->threadpool;
++    std::unique_lock<std::mutex> lock(enclave_pool_mutex, std::defer_lock);
++    if (cpu_plan->enclave_shared) lock.lock();
++    auto pool = cpu_plan->enclave_shared ? enclave_pool_get(cpu_ctx->n_threads) : cpu_ctx->threadpool;
++    cpu_plan->cplan = ggml_graph_plan(cgraph, cpu_ctx->n_threads, pool);
+     cpu_plan->cgraph = *cgraph; // FIXME: deep copy
+ 
+     if (cpu_plan->cplan.work_size > 0) {
+@@ -162,6 +215,8 @@
+ static enum ggml_status ggml_backend_cpu_graph_plan_compute(ggml_backend_t backend, ggml_backend_graph_plan_t plan) {
+     struct ggml_backend_plan_cpu * cpu_plan = (struct ggml_backend_plan_cpu *)plan;
+ 
++    std::unique_lock<std::mutex> lock(enclave_pool_mutex, std::defer_lock);
++    if (cpu_plan->enclave_shared) lock.lock();
+     return ggml_graph_compute(&cpu_plan->cgraph, &cpu_plan->cplan);
+ 
+     GGML_UNUSED(backend);
+@@ -170,7 +225,11 @@
+ static enum ggml_status ggml_backend_cpu_graph_compute(ggml_backend_t backend, struct ggml_cgraph * cgraph) {
+     struct ggml_backend_cpu_context * cpu_ctx = (struct ggml_backend_cpu_context *)backend->context;
+ 
+-    struct ggml_cplan cplan = ggml_graph_plan(cgraph, cpu_ctx->n_threads, cpu_ctx->threadpool);
++    const bool shared = enclave_pool_enabled() && !cpu_ctx->threadpool;
++    std::unique_lock<std::mutex> lock(enclave_pool_mutex, std::defer_lock);
++    if (shared) lock.lock();
++    auto pool = shared ? enclave_pool_get(cpu_ctx->n_threads) : cpu_ctx->threadpool;
++    struct ggml_cplan cplan = ggml_graph_plan(cgraph, cpu_ctx->n_threads, pool);
+ 
+     if (cpu_ctx->work_size < cplan.work_size) {
+         delete[] cpu_ctx->work_data;
+--- a/ggml/include/ggml-cpu.h
++++ b/ggml/include/ggml-cpu.h
+@@ -6,6 +6,8 @@
+ #ifdef  __cplusplus
+ extern "C" {
+ #endif
++
++    GGML_API struct ggml_threadpool * ggml_threadpool_new_enclave(struct ggml_threadpool_params *, const int *, size_t);
+ 
+     GGML_BACKEND_API int ggml_backend_cpu_profile_snapshot(uint64_t *out, size_t count);
+ 

@@ -57,3 +57,32 @@ islands only; matrix products, recurrent updates and larger work retain their
 existing plans. The fixture compares complete outputs byte-for-byte and checks
 that larger graphs retain six-thread dispatch. No production speed gain claimed
 until measured through the app.
+
+## Persistent native CPU team candidate
+
+Small-graph dispatch reached 15.5 tok/s for cached128, 14.2 for cached384,
+and 14.4 on a later cached128 repeat. The first comparison also had a shorter
+attention-cache extent (4096 versus 5376 rows), so the total gain is not solely
+a dispatch effect. Moving the GPU workers to host CPUs 18/20 reached 14.6 and
+was reverted. F32 attention-cache microbenchmarks were slower than F16 and were
+not deployed.
+
+The next opt-in candidate builds the CPU plugin with OpenMP disabled and shares
+native worker teams by thread count across CPU backends in the same process.
+A mutex serializes use of their graph/scratch metadata, including stored graph
+plans. Explicit caller-owned pools retain their existing behavior and ownership.
+Each worker checks its measured CPU placement before a graph because the GPU
+backend may move idle threads. Inactive workers keep polling across one-thread
+islands, then fall back to the existing bounded wait policy when idle.
+
+Build with --shared-cpu-pool; enable ENCLAVE_GGML_SHARED_CPU_POOL=1 and provide
+SHIELDED_CPU_COMPUTE. The candidate disables ENCLAVE_GGML_SMALL_GRAPH: cheap
+parallel dispatch changes that tradeoff. Its runtime keeps the prior GPU backend
+and all other modules unchanged. The complete 699,269,120-byte hybrid-model
+logit fixture is identical to the accepted engine through sixteen branches,
+divergence, rewind and recycling. Eight concurrent callers reuse five helper
+threads; stored/direct graphs agree with a one-thread reference. The fixture
+also checks repair after an affinity sweep and external pool lifetime.
+
+These are correctness/qualification results, not a production speed claim.
+The 20 tok/s target remains unmet pending actual app measurements.
