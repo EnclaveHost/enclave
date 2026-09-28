@@ -27,7 +27,7 @@ The final guest passed fresh AMD attestation with measurement `c0ebdc375310acfe6
 
 Site build and automated production deployment succeeded (run `36391208558`). Normal browser loading of build `57396f0d` populated the Config editor with valid JSON. No secrets, config values or private wallet material are included in the config evidence.
 
-A browser chat with the existing tool-enabled configuration completed and returned exactly “Eyesoff is online.” The UI reported GPU, 30 generated tokens, 10.5 tok/s; its 3774-token cold prompt took several minutes to process. Neither the missing-Host error nor the one-session deadlock occurred. This short application-level result does not reproduce the earlier short-context benchmark throughput. Vision/video and the custom `eyesoff.ai` domain were not validated by this rollout. The measured context remains 8192 tokens despite the larger value in the saved app configuration.
+A browser chat with the existing tool-enabled configuration completed and returned exactly “Eyesoff is online.” The UI reported GPU, 30 generated tokens, 10.5 tok/s; its 3774-token cold prompt took several minutes to process. A follow-up also returned exactly “Ready.” (GPU, 36 tokens, 9.9 tok/s). It reprocessed 3806 prompt tokens, so prompt reuse remains a performance issue beyond startup. Neither the missing-Host error nor the one-session deadlock occurred. This short application-level result does not reproduce the earlier short-context benchmark throughput. Vision/video and the custom `eyesoff.ai` domain were not validated by this rollout. The measured context remains 8192 tokens despite the larger value in the saved app configuration.
 
 ## Private material
 
