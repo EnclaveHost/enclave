@@ -439,20 +439,22 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = shield_calib;
             envp[ei++] = "ENCLAVE_GGML_EXTRA_BUFTS=0";
             envp[ei++] = "ENCLAVE_GGML_N_CTX=512";
-            envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS=8" : "ENCLAVE_GGML_N_THREADS=2";
-            envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS_BATCH=8" : "ENCLAVE_GGML_N_THREADS_BATCH=2";
+            envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS=4" : "ENCLAVE_GGML_N_THREADS=2";
+            envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS_BATCH=4" : "ENCLAVE_GGML_N_THREADS_BATCH=2";
             envp[ei++] = "ENCLAVE_GGML_N_BATCH=16";
             envp[ei++] = "ENCLAVE_GGML_N_UBATCH=16";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_RS_SEQ=1" : "ENCLAVE_GGML_N_RS_SEQ=0";
-            envp[ei++] = shield_large ? "SHIELDED_REFILL_THREADS=8" : "SHIELDED_REFILL_THREADS=2";
+            envp[ei++] = shield_large ? "SHIELDED_REFILL_THREADS=16" : "SHIELDED_REFILL_THREADS=2";
             envp[ei++] = shield_large ? "SHIELDED_POOL_DEPTH=64" : "SHIELDED_POOL_DEPTH=16";
             envp[ei++] = "SHIELDED_REFILL_BATCH=64";
+            /* Eight refill workers per card; exact vector CRT is qualified for the 27B profile. */
+            if (shield_large) envp[ei++] = "SHIELDED_REFILL_VECTOR_CRT=1";
             envp[ei++] = "SHIELDED_MAX_M=64";
             envp[ei++] = "SHIELDED_SHM_STREAM_LOAD=1";
             envp[ei++] = "SHIELDED_SPLIT_COLS=1";
             envp[ei++] = "SHIELDED_OVERLAP_VERIFY=1";
             envp[ei++] = "SHIELDED_WEIGHT_BUDGET_FRAC=0.95";
-            envp[ei++] = shield_large ? "OMP_NUM_THREADS=8" : "OMP_NUM_THREADS=2";
+            envp[ei++] = shield_large ? "OMP_NUM_THREADS=4" : "OMP_NUM_THREADS=2";
             envp[ei++] = shield_models_env;
             envp[ei++] = shield_preloads_env;
         }
