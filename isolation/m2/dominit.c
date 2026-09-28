@@ -443,6 +443,11 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_CTX=8192" : "ENCLAVE_GGML_N_CTX=512";
             /* Tool-enabled apps retain a tokenizer session while generating. One slot deadlocks them. */
             envp[ei++] = "ENCLAVE_GGML_MAX_SESSIONS=8";
+            /* Keep prompt forks in private guest RAM across HTTP requests.
+             * Separate shared system/tool prefixes from per-conversation turns.
+             * Active + turn + shared-prefix slots must fit N_BATCH (8+6+2=16). */
+            envp[ei++] = shield_large ? "ENCLAVE_GGML_PARK_SLOTS=6" : "ENCLAVE_GGML_PARK_SLOTS=0";
+            envp[ei++] = shield_large ? "ENCLAVE_GGML_PREFIX_SLOTS=2" : "ENCLAVE_GGML_PREFIX_SLOTS=0";
             envp[ei++] = "ENCLAVE_GGML_POOLED=1";
             envp[ei++] = shield_vram_env;
             /* Weights and KV live in private guest RAM; VRAM is only the masked-offload reservation.

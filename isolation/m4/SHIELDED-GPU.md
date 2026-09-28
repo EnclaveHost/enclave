@@ -18,6 +18,11 @@ it, MCP tool discovery can fail with HTTP 400 even when the app configuration is
 intact. The application cannot set this forbidden header itself. The Eyesoff
 recovery evidence records a failing old-runtime request and a passing corrected
 request against a server that requires the header.
+Use `build-shielded-wasmtime.py --source ENCLAVE_PATCHED_WASMTIME --runtime RUNTIME
+--out OUT` to refresh the GGML backend and its prefix-coordination module from
+the tracked patch before building. A retained benchmark binary may predate
+prompt caching even when its Wasmtime version matches. The release builder now
+rejects a binary without the cache protocol markers.
 The build emits library hashes and source/patch provenance. No experimental regrow
 or ntsnap patches are included. `check-shielded-worker-config.py OUT/runtime` checks
 both socket and shared-ring routes against the actual compiled backend.
@@ -66,6 +71,14 @@ cap are also forwarded to the app so its memory estimate describes the shared po
 Eight engine slots are not a guarantee of eight simultaneous full chats: tool
 turns retain an extra tokenizer slot, and all sequences share the 8192-token KV
 pool. Concurrent capacity depends on those allocations and prompt lengths.
+The large profile also retains six conversation prompt forks and two shared
+system/tool-prefix forks, entirely in private guest memory. These are additional
+sequence IDs, so active + conversation + prefix slots must fit the engine's
+batch limit: `8 + 6 + 2 = 16`. Cache matching uses exact tokens; an appended turn
+branches from the longest matching prefix and computes the remaining tokens.
+The cache lasts across HTTP requests, not guest restarts. The runtime identity's
+`cache: none` describes the executable/JIT artifact cache, not inference KV state.
+The small-model profile keeps its previous cache-disabled memory budget.
 
 Benchmark release IDs and results are recorded in [the production rollout evidence](evidence/shield-27b-production-2026-09-27/README.md). Historical
 native-process 24.51 tok/s is not a claim for this per-app SNP runtime.
