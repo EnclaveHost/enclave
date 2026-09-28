@@ -1,0 +1,12 @@
+[
+  {
+    "runtime": "old",
+    "result": "HTTP 400 host=None",
+    "upstreamHost": null
+  },
+  {
+    "runtime": "fixed",
+    "result": "HTTP 200 host=127.0.0.1:18772",
+    "upstreamHost": "127.0.0.1:18772"
+  }
+]

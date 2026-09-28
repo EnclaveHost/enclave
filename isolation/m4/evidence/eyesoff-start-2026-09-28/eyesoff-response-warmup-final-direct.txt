@@ -1,0 +1,1 @@
+{"feed_ms":135236,"load_ms":137,"model":"qwen3.8-27b-mtp","ok":true,"prefix":null,"target":"gpu","volume":"qwen3.8-27b-mtp-q4-vl-gguf"}

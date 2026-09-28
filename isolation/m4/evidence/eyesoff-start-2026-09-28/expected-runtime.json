@@ -1,0 +1,49 @@
+{
+  "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+  "catalogRef": "catalog://0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737/66",
+  "appId": "ba5495a0b06fe423c74f3e1ecc9aa5614fa75d3991c02fdbd60a00ec37080a1b",
+  "images": [
+    {
+      "release": "f674c047ad946c351ab8607bca69ea72c94d704f4151c599f67c76f9609e0644",
+      "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+      "measurement": "d5399aa92cc4f082db04d133d219cf2dce48631a1042c72f3a7818938c57103381b4915f793f03ab2d2a2d2cf57bf286",
+      "releaseAdmitted": true
+    },
+    {
+      "release": "c427ef6351b62a190eff7d0361c641268211e8eeee26c986388ec52463d17b48",
+      "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+      "measurement": "c5bad056eadf3e6f5337e6d1d2a1294cc7b7370823cdb8ab70c0337deeb07eaf23a0dc4d6683fe2322029fdd3dd97b3c",
+      "releaseAdmitted": true
+    },
+    {
+      "release": "f61fed6187c32316fcbc41d3364139a66d06a98e181efacad58cc3127b477b46",
+      "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+      "measurement": "7d0a4e8c7bfdc2125ac170039aaae57358c53b1273f2892f74b09bd486fe87a064fba9babf5b58271fd34c346d7de3f4",
+      "releaseAdmitted": true
+    },
+    {
+      "release": "5463501b563f5ca6a627266979cc61b26a230a50f3b71ebb9df75f17040da7a9",
+      "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+      "measurement": "a70c8bf37a3d2d79b4112ce7ce1ed3c7c3ccb7ddee28e76b6461a899f924e42c945b3d69a30a5fac53ce63c9681f2ae4",
+      "releaseAdmitted": true
+    },
+    {
+      "release": "fef26ae1521fe1350a04acad826e76cb8a0e5e215acf0010671c2d6119dbbda9",
+      "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+      "measurement": "a97459a5262131fbdb8b5cbf6d0bed2bdd88711c5cf2263882078bf03229612302549fdd2b9ceea93769457ba6bc6b35",
+      "releaseAdmitted": true
+    },
+    {
+      "release": "9b088f90cfbe2284587b255e66cf5885d19209925ef638824a9ee0f61ec51347",
+      "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+      "measurement": "d73560a6a4132f88b7e470c848c03f57a3345fee95fdd3c13a3cde576ed0f4095794987c642a390aad99ad9a049d8cfc",
+      "releaseAdmitted": true
+    },
+    {
+      "release": "ff8ef20e215bc4608bca9ac860b15c31871784138e11e4c7ff49279310639da6",
+      "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+      "measurement": "c7797a612d15d15b119527ebc530e7ca0410156ee5e337bd4953f702266125b745327117e25564fd9dbb2079caa39243",
+      "releaseAdmitted": true
+    }
+  ]
+}

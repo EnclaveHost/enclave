@@ -1,0 +1,25 @@
+
+DOM snp=1 vcpus=16 memMiB=59803 boot_ms=6839
+DOM yama ptrace_scope=1 -> 2
+DOM user.max_user_namespaces=237030 -> 0
+DOM kernel.io_uring_disabled=0 -> 2
+DOM Shield idle driver: haltpoll
+
+MODEL verified bytes=17559178144 sha256=3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e copy_verify_ms=35251
+Shield private worker routes ready
+DOM front: not dumpable; none of its 5 threads traced
+DOM runtime wasmtime/49.0.0 execution=jit target=x86_64 host=x86_64 features=host-detected wx=enforced cache=none id=297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8
+DOM runtime selftest exec_pages=allowed wx=at-each-attestation
+DOM certificate: this domain may certify 9eb4e600.app.enclave.host (HOST_DATA 9eb4e60063aa079c...)
+DOM release: deployment 0x9eb4e600... envelope ed7a9dc19c30f536... 3 allowed origin(s), 0 refused, config 8260 bytes
+DOM app config: 8260 bytes (ENCLAVE_CONFIG)
+DOM seccomp: app filter installed (sha256 d4d17c9f53832439c92a3232fd09feed8b28f0e3c7dd357d26468a9566f62b66, 71 rules)
+DOM started app=218 front=211 at_ms=45353
+DOM serving vsock=443 spki_sha256=695ad8e358012e278147b5bdf8f509c0a0f260ad784bc784d96daf88c15f9edb ready_ms=45817
+DOM front: tls handshake error
+DOM front: tls handshake error
+DOM front: tls handshake error
+DOM front: tls handshake error
+DOM front: tls handshake error
+DOM front: tls handshake error
+DOM certificate installed for 9eb4e600.app.enclave.host: issuer "ZeroSSL ECC DV SSL CA 2", valid until 2026-12-27T23:59:59Z

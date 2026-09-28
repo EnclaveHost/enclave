@@ -12,6 +12,12 @@ five existing CPU apps and host/control processes. CPU-only apps retain their ex
 rebuilds the accepted engine patches from a fixed clean source commit, including
 parallel rows and in-place recurrent state. The CPU module and engine are rebuilt
 together; the GGML-only Wasmtime binary and existing dependency closure are retained.
+That Wasmtime build must include `wasm/wasmtime-p2-host-header.patch`: outbound
+Preview 2 HTTP requests need a `Host` header derived from their authority. Without
+it, MCP tool discovery can fail with HTTP 400 even when the app configuration is
+intact. The application cannot set this forbidden header itself. The Eyesoff
+recovery evidence records a failing old-runtime request and a passing corrected
+request against a server that requires the header.
 The build emits library hashes and source/patch provenance. No experimental regrow
 or ntsnap patches are included. `check-shielded-worker-config.py OUT/runtime` checks
 both socket and shared-ring routes against the actual compiled backend.
@@ -57,6 +63,9 @@ The shared KV pool permits eight live inference sessions. A tool-enabled Eyesoff
 one tokenizer session while opening a second for generation; the old one-session
 benchmark profile deadlocked that workflow. `ENCLAVE_GGML_POOLED=1` and the session
 cap are also forwarded to the app so its memory estimate describes the shared pool.
+Eight engine slots are not a guarantee of eight simultaneous full chats: tool
+turns retain an extra tokenizer slot, and all sequences share the 8192-token KV
+pool. Concurrent capacity depends on those allocations and prompt lengths.
 
 Benchmark release IDs and results are recorded in [the production rollout evidence](evidence/shield-27b-production-2026-09-27/README.md). Historical
 native-process 24.51 tok/s is not a claim for this per-app SNP runtime.
