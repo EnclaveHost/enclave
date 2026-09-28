@@ -53,6 +53,7 @@ struct sh_pipe {
      * exactly what any further overlap has to fit into. Measured rather than
      * modelled, because every estimate of it so far has been a projection. */
     uint64_t spin_ns, spin_n;
+    double last_socket_ms;
     /* The reply buffer: grows to the largest reply ever seen, never shrinks,
      * and is reused by every exchange. Before this each decode exchange paid a
      * malloc and a free of the reply (608 KB for one lm_head row of the 0.5B)
@@ -142,6 +143,14 @@ void sh_pipe_wire_timing(const sh_pipe *p, sh_wire_timing *out) {
 static double wire_now_ms(void) {
     struct timespec t = {0}; clock_gettime(CLOCK_MONOTONIC, &t);
     return (double)t.tv_sec * 1000.0 + (double)t.tv_nsec / 1e6;
+}
+
+bool sh_pipe_is_live(const sh_pipe *p) {
+    if (!p || p->fd < 0) return false;
+    struct pollfd fd = { p->fd, POLLIN | POLLRDHUP, 0 };
+    int rc;
+    do { rc = poll(&fd, 1, 0); } while (rc < 0 && errno == EINTR);
+    return rc >= 0 && !(fd.revents & (POLLERR | POLLHUP | POLLRDHUP | POLLNVAL));
 }
 
 sh_pipe *sh_pipe_open(const char *host, int port, int *err) {
@@ -541,6 +550,7 @@ int sh_pipe_exchange_work(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply
         }
         used += (size_t)size;
     }
+    p->last_socket_ms = wire_now_ms();
     used = 0;
     for (size_t i = 0; i < n; i++) { out[i].data = out[i].len ? p->rbuf + used : NULL; used += out[i].len; }
     if (profile) {
@@ -746,6 +756,15 @@ int sh_pipe_ring_exchange_work(sh_pipe *p, const sh_frame *f, size_t want, sh_re
                                sh_pipe_work_fn work, void *ctx) {
     if (!p || !p->ring) return SH_ERR_IO;
     memset(out, 0, sizeof *out);
+    /* Ring traffic bypasses the guest broker's socket activity deadline.
+     * Send one ordinary, masked exchange through that socket every 30 s.
+     * Returning before publication makes the existing socket fallback run
+     * its verification callback exactly once; no new wire opcode is needed.
+     * A truly idle connection may still expire and is reconnected by the
+     * backend on its next use. */
+    const double now = wire_now_ms();
+    if (p->last_socket_ms == 0) p->last_socket_ms = now;
+    if (now - p->last_socket_ms >= 30000) return SH_ERR_IO;
     const size_t total = f->len + f->len2;
     /* Both directions must fit by OUR arithmetic before a byte moves. */
     if (f->cmd != SH_CMD_FIELD_GEMM || total > SH_RING_REQ_CAP || want > SH_RING_REP_CAP || want == 0) return SH_ERR_IO;

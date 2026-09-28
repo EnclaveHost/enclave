@@ -1593,7 +1593,7 @@ static int sh_split_exchange(sh_pool &p, std::vector<sh_state::entry *> &xents,
             sh_state *card = p.cards[e0.part_cards[c]];
             const int r = sh_link_gemm_stride(card->link, pnodes[c].data(), pnodes[c].size(), x, m, pyp[c].data(), pstride[c].data());
             if (r == SH_OK && post) sh_split_post_slice(*post, pcol0[c].data(), pncols[c].data());
-            if (rc == SH_OK) rc = r;
+            if (rc == SH_OK || r == SH_ERR_VERIFY) rc = r;
             if (c > 0 && r == SH_OK) card->exchanges++;
         }
         return rc;
@@ -2124,6 +2124,7 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
     /* A failed link is retried once its backoff has passed: the same start
      * path as the first connection, carrying the whole weight set again. */
     if (s.link_failed && s.link && sh_now_ms() >= s.link_retry_at) { s.link_failed = false; s.dirty = true; }
+    if (s.link && !s.link_failed && !sh_link_is_live(s.link)) s.dirty = true;
     if (s.dirty && s.link && !s.link_failed) {
         const double t0 = sh_now_ms();
         const int rc = sh_link_start(s.link);
@@ -2167,6 +2168,7 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
             if (o == &s || !o->link) continue;
             std::lock_guard<std::mutex> olk(o->mu);
             if (o->link_failed && sh_now_ms() >= o->link_retry_at) { o->link_failed = false; o->dirty = true; }
+            if (!o->link_failed && !sh_link_is_live(o->link)) o->dirty = true;
             if (!o->dirty || o->link_failed) continue;
             const double t0 = sh_now_ms();
             const int rc = sh_link_start(o->link);
@@ -2481,6 +2483,46 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
                 }
             }
             rc = all_live ? sh_split_exchange(pool, xents, yp, x_gpu.data(), m, post_ok ? &post : nullptr) : SH_ERR_IO;
+            /* Unlike a shape refusal, a broken transport must re-enter the
+             * start path. Otherwise column splitting silently stays on the
+             * whole-model CPU fallback forever after the broker goes idle.
+             * Both split threads have joined here. Reconnect once and retry
+             * this still-uncommitted product with fresh pads. A verifier
+             * failure is never eligible for this recovery. */
+            if (rc == SH_ERR_IO || rc == SH_ERR_VIOLATION) {
+                bool recovered = true;
+                for (int ci : xents[0]->part_cards) {
+                    sh_state *card = pool.cards[ci];
+                    std::unique_lock<std::mutex> card_lock(card->mu, std::defer_lock);
+                    if (card != &s) card_lock.lock();
+                    if (sh_card_integrity_failed(*card)) {
+                        rc = SH_ERR_VERIFY; recovered = false; break;
+                    }
+                    if (!card->link) { recovered = false; break; }
+                    const int start_rc = sh_link_start(card->link);
+                    if (start_rc != SH_OK) {
+                        sh_link_down(*card);
+                        recovered = false;
+                        if (start_rc == SH_ERR_VERIFY) { rc = SH_ERR_VERIFY; break; }
+                    } else {
+                        card->dirty = false;
+                        card->link_failed = false;
+                        card->link_backoff_ms = 1000;
+                    }
+                }
+                if (recovered) rc = sh_split_exchange(pool, xents, yp, x_gpu.data(), m, post_ok ? &post : nullptr);
+                if (rc != SH_OK && rc != SH_ERR_VERIFY) {
+                    for (int ci : xents[0]->part_cards) {
+                        sh_state *card = pool.cards[ci];
+                        std::unique_lock<std::mutex> card_lock(card->mu, std::defer_lock);
+                        if (card != &s) card_lock.lock();
+                        sh_link_down(*card);
+                    }
+                    sh_link_set_idle_work(s.link, nullptr, nullptr);
+                    fprintf(stderr, "[shielded] split transport recovery failed; refusing a silent CPU downgrade\n");
+                    return GGML_STATUS_FAILED;
+                }
+            }
             if (!idle.items.empty()) {
                 sh_link_set_idle_work(s.link, nullptr, nullptr);
                 /* Mark only what actually completed. A pilot must not be able
