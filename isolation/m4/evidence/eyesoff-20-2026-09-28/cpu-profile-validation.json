@@ -1,0 +1,9 @@
+{
+  "fullLogitsIdentical": true,
+  "bytes": 699269120,
+  "sha256": "603649f6f9c6ac3bbab78bd0bc01a8455fdd6ca9ea8417608e2f7ad81276ad64",
+  "buckets": 103,
+  "activeBuckets": 19,
+  "disabledSnapshot": 0,
+  "shortBuffer": -1
+}
