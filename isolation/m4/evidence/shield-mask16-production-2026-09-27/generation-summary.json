@@ -1,0 +1,86 @@
+[
+  {
+    "shapeKNB": [
+      5120,
+      2560,
+      16
+    ],
+    "scalar": {
+      "sampler_ms": 0.853784,
+      "planes_ms": 0.016954999999999998,
+      "product_ms": 2.293902,
+      "total_ms": 3.167541
+    },
+    "vector": {
+      "sampler_ms": 0.200478,
+      "planes_ms": 0.0169445,
+      "product_ms": 2.2578215,
+      "total_ms": 2.4803395000000004
+    },
+    "samplerSpeedup": 4.258741607557937,
+    "totalTimeReductionPercent": 21.6951098659812
+  },
+  {
+    "shapeKNB": [
+      5120,
+      8704,
+      64
+    ],
+    "scalar": {
+      "sampler_ms": 3.4669670000000004,
+      "planes_ms": 0.093859,
+      "product_ms": 32.2876885,
+      "total_ms": 35.8658585
+    },
+    "vector": {
+      "sampler_ms": 0.8375945,
+      "planes_ms": 0.092384,
+      "product_ms": 32.737487,
+      "total_ms": 33.669940499999996
+    },
+    "samplerSpeedup": 4.139195040082045,
+    "totalTimeReductionPercent": 6.122585912728129
+  },
+  {
+    "shapeKNB": [
+      5120,
+      124160,
+      16
+    ],
+    "scalar": {
+      "sampler_ms": 0.8342045,
+      "planes_ms": 0.017595,
+      "product_ms": 114.920356,
+      "total_ms": 115.7726855
+    },
+    "vector": {
+      "sampler_ms": 0.2009775,
+      "planes_ms": 0.017195000000000002,
+      "product_ms": 115.19691800000001,
+      "total_ms": 115.41387
+    },
+    "samplerSpeedup": 4.150735778880721,
+    "totalTimeReductionPercent": 0.30993105018712885
+  },
+  {
+    "shapeKNB": [
+      17408,
+      2560,
+      32
+    ],
+    "scalar": {
+      "sampler_ms": 5.759983,
+      "planes_ms": 0.165193,
+      "product_ms": 15.0529425,
+      "total_ms": 21.040188
+    },
+    "vector": {
+      "sampler_ms": 1.408702,
+      "planes_ms": 0.167033,
+      "product_ms": 15.565791,
+      "total_ms": 17.139486499999997
+    },
+    "samplerSpeedup": 4.088858395885007,
+    "totalTimeReductionPercent": 18.539290143224974
+  }
+]

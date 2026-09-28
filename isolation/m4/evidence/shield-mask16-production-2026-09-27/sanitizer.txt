@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: SIMD mask sampler preserves the ChaCha20 stream and bank uniqueness
+ok 1 - SIMD mask sampler preserves the ChaCha20 stream and bank uniqueness
+  ---
+  duration_ms: 9981.996331
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10029.10668
