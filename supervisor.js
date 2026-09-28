@@ -2462,6 +2462,21 @@ async function releaseListedFor(id) {
     return b.listed ? "listed" : "unlisted";
   } catch { return "unknown"; }
 }
+// CID configs on an isolated release guest arrive through the attested relay,
+// not guestd's host-side fetcher. Keep the per-deployment release check here:
+// advertising release support alone never authorizes config delivery.
+async function configCidClaimRefusal(manager, id, listedFor = releaseListedFor) {
+  if (!manager) return "app keeps its config at a CID and the app manager cannot be asked (unreachable)";
+  if (manager.configCid === true) return null;
+  if (ISOLATION_BACKEND && isolationReleaseOn(manager)) {
+    const listed = await listedFor(id);
+    if (isolationReleaseGuest(manager, listed)) return null;
+    if (listed === "unknown") return "the relay's release list could not be read for this CID-config deployment; retrying";
+    return "app keeps its config at a CID and is not enabled for attested configuration delivery";
+  }
+  return "app keeps its config at a CID and this box's manager cannot fetch it";
+}
+
 // The spawn's release decision, in one place (so a test can hold it): a release guest per isolationReleaseGuest; an
 // unknown list THROWS, never a fall back to the legacy image; config or staged secrets (known, or unknown) that no
 // guest here could receive also throw. `staged` is depHasSecrets' answer: true, false, or null (unknown).
@@ -5807,8 +5822,9 @@ app.get("/availability", async (_req, res) => {
     // manager too old to have an opinion, which the AND correctly reads as
     // false. `configMaxBytes` is the spam ceiling it will actually honor, so
     // the publish UI can size its own check off the fleet rather than guess.
-    const ccid = PROVISION_BACKEND === "vm" && h.configCid !== undefined
-      ? { configCid: h.configCid === true,
+    const attestedConfig = !!ISOLATION_BACKEND && isolationReleaseOn(h);
+    const ccid = PROVISION_BACKEND === "vm" && (h.configCid !== undefined || attestedConfig)
+      ? { configCid: h.configCid === true || attestedConfig,
           ...(h.configMaxBytes ? { configMaxBytes: Number(h.configMaxBytes) } : {}) } : {};
     // attached model volumes this enclave carries (Modelwrap): the console and
     // clients read this to know which volumes a deployment here can mount.
@@ -8964,6 +8980,12 @@ if (process.env.RELEASE_SELFTEST) {
     console.log(JSON.stringify({ posted, pumped, error }));
     process.exit(0);
   }
+  if (Array.isArray(c.cidClaims)) {
+    const out = [];
+    for (const x of c.cidClaims) out.push(await configCidClaimRefusal(x.h, x.id));
+    console.log(JSON.stringify({ cidClaims: out }));
+    process.exit(0);
+  }
   if (Array.isArray(c.spawn)) {    // {"spawn":[{h, id, config, configCid, staged}]}: the spawn's release decision, against SECRETS_API
     const out = [];
     for (const x of c.spawn) {
@@ -10076,10 +10098,10 @@ async function depHasSecrets(id){
   } catch { return null; }
 }
 
-const volumesInConfig = (cfgStr) => {
+function volumesInConfig(cfgStr) {
   try { const c = JSON.parse(cfgStr || "{}"); if (Array.isArray(c.volumes)) return c.volumes.map(String); } catch {}
   return [];
-};
+}
 
 // The model volumes the app will actually mount: the version's config, or the
 // deployment's override where it has one. Pure — no I/O, so both the volume
@@ -10334,8 +10356,8 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   // let a capable box take it.
   if (g.configCid) {
     const ch = await vmHealth().catch(() => null);
-    if (!ch) return "app keeps its config at a CID and the app manager cannot be asked (unreachable)";
-    if (ch.configCid !== true) return "app keeps its config at a CID and this box's manager cannot fetch it";
+    const cidWhy = await configCidClaimRefusal(ch, d.id);
+    if (cidWhy) return cidWhy;
   }
   // Cooperative threads (🧵): gated exactly like p3 — the manager probed its
   // own engine (coopThreads on /health: the thread.new-indirect compile

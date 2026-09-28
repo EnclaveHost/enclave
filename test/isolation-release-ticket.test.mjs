@@ -313,3 +313,31 @@ test("the spawn site: release:true and a ticket pump only for a listed deploymen
     assert.deepEqual(unknown.posted, [], "an unknown list creates nothing");
   } finally { relay.close(); }
 });
+
+test("CID config claim uses attested delivery only for a listed isolated release guest", async () => {
+  const relay = await statusRelay((id) => id === hexId("33") ? { code: 503, body: {} }
+    : { body: { id, listed: id === hexId("11") } });
+  try {
+    const cases = [
+      { h: guestd(true), id: hexId("11") },
+      { h: guestd(true), id: hexId("22") },
+      { h: guestd(true), id: hexId("33") },
+      { h: guestd(false), id: hexId("11") },
+      { h: null, id: hexId("11") },
+      { h: { configCid: true }, id: hexId("22") },
+    ];
+    const args = { SECRETS_API: relay.url, ISOLATION_BACKEND: TIER,
+      ISOLATION_RELEASE: "1", RELEASE_SELFTEST: JSON.stringify({ cidClaims: cases }) };
+    const r = await run(args);
+    assert.equal(r.cidClaims[0], null);
+    assert.match(r.cidClaims[1], /not enabled for attested/);
+    assert.match(r.cidClaims[2], /could not be read/);
+    assert.match(r.cidClaims[3], /cannot fetch/);
+    assert.match(r.cidClaims[4], /unreachable/);
+    assert.equal(r.cidClaims[5], null);
+    const off = await run({ ...args, ISOLATION_RELEASE: "" });
+    assert.match(off.cidClaims[0], /cannot fetch/);
+    const ordinary = await run({ ...args, ISOLATION_BACKEND: "" });
+    assert.match(ordinary.cidClaims[0], /cannot fetch/);
+  } finally { await relay.close(); }
+});
