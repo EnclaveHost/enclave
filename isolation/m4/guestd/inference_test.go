@@ -105,8 +105,36 @@ func Test27BReservesPrivateModelMemoryAndBothCards(t *testing.T) {
 	r.s.mu.Lock()
 	defer r.s.mu.Unlock()
 	for _, v := range r.s.vms {
-		if v.MemMiB != 51200 || v.Vcpus != 16 || v.GPUCardBytes != inf.CardBytes() {
+		if v.MemMiB != 61440 || v.Vcpus != 16 || v.GPUCardBytes != inf.CardBytes() {
 			t.Fatalf("incorrect 27B reservation: %+v", v)
 		}
+	}
+}
+
+func Test27BRefusesPoolThatOnlyFitsOldMemoryFloor(t *testing.T) {
+	r := newRig(t)
+	r.s.ShieldEnabled = true
+	r.s.ShieldReleases = []string{"shield-release"}
+	r.s.Budget = poolBudget{MemMiB: 53760, CPUPct: 1600}
+	b, err := contract.Build(contract.Manifest{Label: "27b-old-policy", Inference: &contract.Inference{Model: contract.Shield27BModel, GPUMilli: 500}, Policy: contract.Policy{CPUPercent: 1600, Vcpus: 16, MemMiB: 50816}}, []byte("\x00asm component"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(r.dir, "27b.bundle")
+	if err = os.WriteFile(file, b, 0600); err != nil {
+		t.Fatal(err)
+	}
+	code, body := r.do("POST", "/vms", map[string]any{"name": name(9), "image": "file://" + file, "gpuShare": .5})
+	if code != 507 {
+		t.Fatalf("undersized pool admitted: %d %v", code, body)
+	}
+	r.s.mu.Lock()
+	defer r.s.mu.Unlock()
+	if len(r.s.vms) != 0 {
+		t.Fatal("refused admission left a guest")
+	}
+	h := r.s.inferenceHealthLocked().(map[string]any)
+	if h["modelFloorsMiB"].(map[string]int)[contract.Shield27BModel] != 61440 {
+		t.Fatal("health understates required RAM")
 	}
 }

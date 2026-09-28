@@ -428,7 +428,7 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
                 _exit(125);
             }
         }
-        char *envp[40] = {"HOME=/tmp", "PATH=/rt"};
+        char *envp[64] = {"HOME=/tmp", "PATH=/rt"};
         int ei = 2;
         if (shield_on && drop) {
             envp[ei++] = "ENCLAVE_GGML_BACKEND_DIR=/rt/backends";
@@ -445,11 +445,13 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = "ENCLAVE_GGML_N_UBATCH=16";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_RS_SEQ=1" : "ENCLAVE_GGML_N_RS_SEQ=0";
             envp[ei++] = shield_large ? "SHIELDED_REFILL_THREADS=16" : "SHIELDED_REFILL_THREADS=2";
-            envp[ei++] = shield_large ? "SHIELDED_POOL_DEPTH=64" : "SHIELDED_POOL_DEPTH=16";
+            envp[ei++] = shield_large ? "SHIELDED_POOL_DEPTH=128" : "SHIELDED_POOL_DEPTH=16";
             envp[ei++] = "SHIELDED_REFILL_BATCH=64";
             /* Eight refill workers per card; exact vector CRT is qualified for the 27B profile. */
             if (shield_large) envp[ei++] = "SHIELDED_REFILL_VECTOR_CRT=1";
             if (shield_large) envp[ei++] = "SHIELDED_MASK_CHACHA16=1";
+            if (shield_large) envp[ei++] = "SHIELDED_REFILL_UNIT=32";
+            if (shield_large) envp[ei++] = "SHIELDED_REFILL_COST_PRIORITY=1";
             if (shield_large) {
                 envp[ei++] = "LD_PRELOAD=/rt/libshielded-omp-affinity.so";
                 envp[ei++] = "SHIELDED_CPU_COMPUTE=0,2,3,4,5,6";
