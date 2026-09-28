@@ -222,7 +222,7 @@ new file mode 100644
 index 0000000..fdde186
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,3738 @@
+@@ -0,0 +1,3768 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -1753,30 +1753,30 @@ index 0000000..fdde186
 +            if last_only {
 +                let count = tokens.len() as i32;
 +                if k_cap > 0 {
-+                    let r = unsafe {
++                    let r = self.decode_reclaim(|| unsafe {
 +                        ell_decode_batch_topk(self.raw, self.model.raw, 1,
 +                            &seq_id, &count, &pos0, tokens.as_ptr(), self.dev_topk,
 +                            tk_ids.as_mut_ptr(), logits.as_mut_ptr())
-+                    };
++                    });
 +                    if r > 0 { k_eff = r as usize; 0 } else { r }
 +                } else {
-+                    unsafe {
++                    self.decode_reclaim(|| unsafe {
 +                        ell_decode_batch(self.raw, self.model.raw, 1,
 +                            &seq_id, &count, &pos0, tokens.as_ptr(), logits.as_mut_ptr())
-+                    }
++                    })
 +                }
 +            } else if k_cap > 0 {
-+                let r = unsafe {
++                let r = self.decode_reclaim(|| unsafe {
 +                    ell_decode_seq_topk(self.raw, self.model.raw, seq_id, pos0,
 +                                        tokens.as_ptr(), tokens.len() as i32,
 +                                        self.dev_topk, tk_ids.as_mut_ptr(), logits.as_mut_ptr())
-+                };
++                });
 +                if r > 0 { k_eff = r as usize; 0 } else { r }
 +            } else {
-+                unsafe {
++                self.decode_reclaim(|| unsafe {
 +                    ell_decode_seq_full(self.raw, self.model.raw, seq_id, pos0,
 +                                        tokens.as_ptr(), tokens.len() as i32, logits.as_mut_ptr())
-+                }
++                })
 +            }
 +        } else {
 +            0
@@ -1949,17 +1949,17 @@ index 0000000..fdde186
 +        let ph_alloc = ph_t1.elapsed().as_micros() as i64;
 +        let ph_t2 = std::time::Instant::now();
 +        let rc = if k_cap > 0 {
-+            let r = unsafe {
++            let r = self.decode_reclaim(|| unsafe {
 +                ell_decode_seq_topk(self.raw, self.model.raw, seq_id, pos0,
 +                                    ids.as_ptr(), ids.len() as i32,
 +                                    self.dev_topk, tk_ids.as_mut_ptr(), logits.as_mut_ptr())
-+            };
++            });
 +            if r > 0 { k_eff = r as usize; 0 } else { r }
 +        } else {
-+            unsafe {
++            self.decode_reclaim(|| unsafe {
 +                ell_decode_seq_full(self.raw, self.model.raw, seq_id, pos0,
 +                                    ids.as_ptr(), ids.len() as i32, logits.as_mut_ptr())
-+            }
++            })
 +        };
 +        let ph_decode = ph_t2.elapsed().as_micros() as i64;
 +        let mut gperf = [0i64; 8];
@@ -2286,6 +2286,36 @@ index 0000000..fdde186
 +        drop(q);
 +    }
 +
++    /// Caller owns the exclusive decode turn. A parked prefix is expendable
++    /// cache, not an active chat's allocation. Reclaim one oldest unpinned
++    /// entry on KV exhaustion, preferring turn parks over shared boundaries.
++    /// Pins protect hybrid source cells until every borrower has diverged.
++    fn evict_park_for_decode(&self) -> bool {
++        let mut parks = self.parked.lock().unwrap();
++        let victim = parks.iter().enumerate()
++            .filter(|(_, p)| p.pin.load(Ordering::Acquire) == 0)
++            .min_by_key(|(_, p)| (p.boundary, p.at))
++            .map(|(i, _)| i);
++        let Some(i) = victim else { return false };
++        let old = parks.remove(i);
++        unsafe { ell_seq_remove(self.raw, old.seq_id) };
++        self.mtp_reset(old.seq_id);
++        self.alias.lock().unwrap().remove(&old.seq_id);
++        self.slots.lock().unwrap().push(old.seq_id);
++        true
++    }
++
++    /// llama_decode restores its input state on rc=1 (no KV slot). Retry
++    /// only that admission failure, never a compute/verification error, and
++    /// never remove live sequences or pinned donors. Each retry consumes a
++    /// park, so the loop is bounded by the configured cache-slot count.
++    fn decode_reclaim(&self, mut decode: impl FnMut() -> i32) -> i32 {
++        loop {
++            let rc = decode();
++            if rc != 1 || !self.evict_park_for_decode() { return rc; }
++        }
++    }
++
 +    /// The FFI call itself; Err carries the raw llama_decode rc.
 +    fn decode_raw(&self, items: &[PendingItem]) -> Result<Vec<RowOut>, i32> {
 +        let n = items.len();
@@ -2297,7 +2327,7 @@ index 0000000..fdde186
 +        if self.dev_topk > 0 {
 +            let k_cap = self.dev_topk as usize;
 +            let mut ids = vec![0i32; n * k_cap];
-+            let rc = unsafe {
++            let rc = self.decode_reclaim(|| unsafe {
 +                ell_decode_batch_topk(
 +                    self.raw,
 +                    self.model.raw,
@@ -2310,7 +2340,7 @@ index 0000000..fdde186
 +                    ids.as_mut_ptr(),
 +                    logits.as_mut_ptr(),
 +                )
-+            };
++            });
 +            if rc < 0 {
 +                return Err(rc);
 +            }
@@ -2329,7 +2359,7 @@ index 0000000..fdde186
 +                .map(|c| RowOut::Dense(c.to_vec()))
 +                .collect());
 +        }
-+        let rc = unsafe {
++        let rc = self.decode_reclaim(|| unsafe {
 +            ell_decode_batch(
 +                self.raw,
 +                self.model.raw,
@@ -2340,7 +2370,7 @@ index 0000000..fdde186
 +                flat.as_ptr(),
 +                logits.as_mut_ptr(),
 +            )
-+        };
++        });
 +        if rc != 0 {
 +            return Err(rc);
 +        }

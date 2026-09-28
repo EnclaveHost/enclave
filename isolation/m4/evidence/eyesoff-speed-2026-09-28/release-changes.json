@@ -1,0 +1,17 @@
+[
+  {
+    "path": "template/init",
+    "beforeSha256": "836c401b3b6d0c6add3c5b685f7a175d5cc943496e3010659451af676aaf920c",
+    "afterSha256": "ddca647c2724915b6547b4c5698dea9935c398142ab570f46f650722c0d09d47"
+  },
+  {
+    "path": "template/rt/backends/libggml-cpu.so",
+    "beforeSha256": "2156d9fa0742445c27371a657b55baaa56e6c8d870bfddd5f54e7a0fde29ea7f",
+    "afterSha256": "ad2f391ff04ec3a6b26172801a2130680c30a340a88902ec3b375390d68bf451"
+  },
+  {
+    "path": "template/rt/wasmtime",
+    "beforeSha256": "ebd80da44d6d6f6f3c97e0a0dd16ddf88a2dd3e41cb1ff29c727b89b4c49c258",
+    "afterSha256": "b88be91320a3e9b17d2f0be6e57c65b94bed07dfaa6e3e94df27cd07ee32116e"
+  }
+]

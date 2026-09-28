@@ -1,0 +1,20 @@
+{
+  "source": "/home/steven/enclave-bench/v100-shield-20260927/inference/wasmtime-src",
+  "patchSha256": "6423bd5c899809ac7f7f4a8660b6e02474c8751c353c4bfde7c4c8e9f3dcf9b8",
+  "sources": {
+    "crates/wasi-nn/src/backend/ggml.rs": "c3cbac2c7f5770453de2d921b57788cebdf6b896f20a4f5529ecb3d2a9ed19fb",
+    "crates/wasi-nn/src/backend/prefix_claims.rs": "0ee2ce1f46dddb988fdbe7449aabee1f69adbfbe1c5020ba866ba02874ecbd62"
+  },
+  "command": [
+    "cargo",
+    "build",
+    "--release",
+    "--locked",
+    "-j",
+    "4",
+    "--no-default-features",
+    "--features",
+    "run,serve,compile,wat,parallel-compilation,cache,cranelift,component-model,component-model-async,threads,wasi-http,wasi-nn,wasmtime-wasi-nn/ggml,pooling-allocator"
+  ],
+  "wasmtimeSha256": "b88be91320a3e9b17d2f0be6e57c65b94bed07dfaa6e3e94df27cd07ee32116e"
+}
