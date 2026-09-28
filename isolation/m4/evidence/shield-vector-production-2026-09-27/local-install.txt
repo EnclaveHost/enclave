@@ -1,0 +1,1 @@
+Installed measured vector profile and restarted guest manager for adoption; control VM and workers untouched.

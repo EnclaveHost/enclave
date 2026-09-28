@@ -1,0 +1,23 @@
+{
+  "ordinary": {
+    "rates": [
+      14.52,
+      13.47
+    ],
+    "aggregateTokPerSec": 13.974471830985916,
+    "medianTokPerSec": 13.995000000000001,
+    "tokensPerResponse": 128
+  },
+  "mtp": {
+    "rates": [
+      13.99,
+      13.48,
+      12.97
+    ],
+    "aggregateTokPerSec": 13.468132489660292,
+    "medianTokPerSec": 13.48,
+    "tokensPerResponse": 128
+  },
+  "allTokensIdentical": true,
+  "promptTokens": 17
+}

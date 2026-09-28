@@ -1,0 +1,19 @@
+{
+  "sourceCommit": "0b9104abee1da5b8440726b95eb24a486809c90b",
+  "oldRelease": "f674c047ad946c351ab8607bca69ea72c94d704f4151c599f67c76f9609e0644",
+  "newRelease": "c427ef6351b62a190eff7d0361c641268211e8eeee26c986388ec52463d17b48",
+  "oldDropinSha256": "c8b39eb2410a52336e4c2880c78d5e5c5248016f18b087c0c7b6f45bb09e12da",
+  "newDropinSha256": "5b04a9199b8700716e53eb4c2a51832b064f5ae39c5b62e7d8429f04b3a432a9",
+  "changedReleaseFiles": [
+    "template/init"
+  ],
+  "productionCpuRelease": "85948b987bcd621d1b47bbaa402ea293720e7cbc77961e4f5dd670b552a72ee0",
+  "profile": {
+    "decodeThreads": 4,
+    "refillThreadsTotal": 16,
+    "vectorCRT": true,
+    "vcpus": 16,
+    "memMiB": 51200
+  },
+  "nativeAffinityHelper": false
+}
