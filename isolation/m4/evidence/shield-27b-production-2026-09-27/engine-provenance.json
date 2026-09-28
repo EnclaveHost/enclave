@@ -1,0 +1,37 @@
+{
+  "engineCommit": "ddd4ec1428a6201e18975ea52b07c71e0f9aef26",
+  "patches": {
+    "llamacpp-graph-slot.patch": "0c5ab3e452f170bd0f2f58d80ff8538d55440c1f130dac0f0d2dbb727798bbdd",
+    "llamacpp-cuda-graph-ptr-update.patch": "70c6b15c2526539b93f8ea0a81dad65d14ee8904e72b342fd3401aae34c66ae6",
+    "llamacpp-sync-instr.patch": "753d9ae78081dbcad2ad1139a04e107761210e1e007a0903248f428ba79cdcfb",
+    "llamacpp-rs-pin-cells.patch": "f74bb2e109df62a1cf9b82481859744369822dda4eac825baa4df24698cf6ecf",
+    "llamacpp-topk-rows.patch": "4ce792925a91e018278bde4e65bdc467359487962d0c7a1939a24e45730447db",
+    "llamacpp-parallel-copy.patch": "28a09d95c8de21df270d0b3b1099b9e97eaefe6209217e3a2075d164e7f0970b",
+    "llamacpp-parallel-rows.patch": "ae5450a5877f27f191d0d318846355657e0067a01c01c5e96d0c08982a4975e6",
+    "llamacpp-rs-inplace.patch": "17c8442eb7904ac8b756c40dbeffe8814065cccd74edb69668ec630361a38026"
+  },
+  "abi": "GGML_MAX_NAME=128 across engine, CPU, shim and Shield backend",
+  "runtime": {
+    "backends/libggml-cpu.so": "2156d9fa0742445c27371a657b55baaa56e6c8d870bfddd5f54e7a0fde29ea7f",
+    "backends/libggml-shielded.so": "67b369704ed77c8b2f2a2810cf911aad25354db1e0db83e58ae83128f6173fb3",
+    "calib/model.calib": "25698f09603838fbb840dfbf1b0eeb87883326130e85156bfc142805fff26ce7",
+    "ld-linux-x86-64.so.2": "d011113b7054c641c8ca064f58bcc23804fd2654a3dff2444dad06ddeda61bfb",
+    "libc.so.6": "e221b10fee9ee4776d8f0f1701253bc06817f7a4dbe6c5292487277d0bf8ffff",
+    "libenclave_llama.so": "c2657077e7cae7cc3cc19a852f7e58fab8deafbe4e471b5c2dbf8a02a0291aee",
+    "libgcc_s.so.1": "e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a",
+    "libggml-base.so.0": "c427fac4e59ded2d0889b20c5aadafb98a8458ec0f324754f0522c777ce58304",
+    "libggml.so.0": "2fc3c55e37179c52bb2f164eda3b9532942264471063a12452aa3d11af19e96b",
+    "libgomp.so.1": "d6c6309ee83dbe9b50bf38342489799a4822ee22451677730ff5542aa74bdefc",
+    "libllama.so.0": "168d565c9add7f1e5d57685fd4f1158cf30b1eab2bbddbd8ba260e4d8d079425",
+    "libm.so.6": "965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d",
+    "libmtmd.so.0": "d886ca4c8845ada0032516a868de7a2807e514acdc37e2b5d5fb2a4756ad785f",
+    "libstdc++.so.6": "f5fc7380f2ae46fa4053a64be04e7b98109f1066a4bbfff3c37042488aa0be0e",
+    "runtime.json": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+    "wasmtime": "0931201837ade40d36f3ce5578872ccf9445bbc74ad39e68892f301d7479a351"
+  },
+  "engineSourceCommit": "dafade281d26d19c785d9b8a48f8ab7bdc78418d",
+  "integrationCommit": "ffb5b3e8f208bfef29ad1aae6300af2a807e4880",
+  "relayCommit": "878cbe9b5f3f435e78b3b406134d2c5ece2a983d",
+  "releaseId": "f674c047ad946c351ab8607bca69ea72c94d704f4151c599f67c76f9609e0644",
+  "releaseManifestSha256": "f674c047ad946c351ab8607bca69ea72c94d704f4151c599f67c76f9609e0644"
+}
