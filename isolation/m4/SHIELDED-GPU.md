@@ -80,6 +80,16 @@ The cache lasts across HTTP requests, not guest restarts. The runtime identity's
 `cache: none` describes the executable/JIT artifact cache, not inference KV state.
 The small-model profile keeps its previous cache-disabled memory budget.
 
+The measured Shield broker keeps idle GPU connections open for the lifetime of
+the app's engine connection. It sets `KeepIdleConnections` so the bridge's
+default ten-minute silence cutoff does not discard the worker's resident model
+and force both cards to reload on the next request. This needs no dummy inference
+requests or periodic model warmups. The private socket's peer check, connection
+limit and worker VRAM reservation limits still apply. Closing the engine
+connection, stopping the app or shutting down the broker releases the connection
+and its worker allocations. Guest/worker restarts still require a fresh load.
+Bridge users that do not opt into residency retain their existing idle timeout.
+
 Benchmark release IDs and results are recorded in [the production rollout evidence](evidence/shield-27b-production-2026-09-27/README.md). Historical
 native-process 24.51 tok/s is not a claim for this per-app SNP runtime.
 The affinity follow-up uses a measured OpenMP helper with the existing AVX2

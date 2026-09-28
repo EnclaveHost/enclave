@@ -21,6 +21,10 @@ type Bridge struct {
 	Dial        func(context.Context) (net.Conn, error)
 	Limit       int
 	IdleTimeout time.Duration
+	// KeepIdleConnections ties a private GPU reservation to the app connection's
+	// lifetime, rather than evicting it merely because inference is idle.
+	// Peer checks, connection limits, disconnect cleanup and cancellation still apply.
+	KeepIdleConnections bool
 }
 
 func (b Bridge) Serve(ctx context.Context, ready chan<- error) error {
@@ -99,9 +103,15 @@ func (b Bridge) Serve(ctx context.Context, ready chan<- error) error {
 			}
 			defer up.Close()
 			end := make(chan struct{}, 2)
-			// Bound silence, not an active model session's age. Both directions
-			// share the activity deadline, including a pending read.
-			touch := func() { until := time.Now().Add(idle); c.SetDeadline(until); up.SetDeadline(until) }
+			// Timed routes bound silence, not a session's age. Both directions
+			// share the deadline. Resident routes wait for disconnect/cancellation.
+			touch := func() {
+				if !b.KeepIdleConnections {
+					until := time.Now().Add(idle)
+					c.SetDeadline(until)
+					up.SetDeadline(until)
+				}
+			}
 			touch()
 			down := &activityConn{Conn: c, touch: touch}
 			worker := &activityConn{Conn: up, touch: touch}
