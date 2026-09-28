@@ -1,0 +1,55 @@
+{
+  "128-token": {
+    "actualTokens": 128,
+    "ordinaryMtpTokensIdentical": true,
+    "ordinary": {
+      "rates": [
+        18.7,
+        16.73
+      ],
+      "aggregateTokPerSec": 17.66096509525796
+    },
+    "mtp": {
+      "rates": [
+        16.31,
+        15.27,
+        16.65
+      ],
+      "aggregateTokPerSec": 16.05224352222456
+    }
+  },
+  "128-token-repeat": {
+    "actualTokens": 128,
+    "ordinaryMtpTokensIdentical": true,
+    "ordinary": {
+      "rates": [
+        16.29
+      ],
+      "aggregateTokPerSec": 16.29249518922386
+    },
+    "mtp": {
+      "rates": [
+        17.15
+      ],
+      "aggregateTokPerSec": 17.145943026866476
+    }
+  },
+  "64-token": {
+    "actualTokens": 64,
+    "ordinaryMtpTokensIdentical": true,
+    "ordinary": {
+      "rates": [
+        16.38
+      ],
+      "aggregateTokPerSec": 16.376397192617624
+    },
+    "mtp": {
+      "rates": [
+        18.94,
+        16.41,
+        14.6
+      ],
+      "aggregateTokPerSec": 16.46198066370525
+    }
+  }
+}

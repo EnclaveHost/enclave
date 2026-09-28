@@ -45,8 +45,11 @@ API; enabling the snapshot does not force every app to use MTP. Guest context is
 
 Benchmark release IDs and results are recorded in [the production rollout evidence](evidence/shield-27b-production-2026-09-27/README.md). Historical
 native-process 24.51 tok/s is not a claim for this per-app SNP runtime.
-The affinity follow-up uses a measured OpenMP helper and an AVX-512 CPU module
-built with `build-shielded-engine.py --cpu-avx512`. It assigns compute to guest
+The affinity follow-up uses a measured OpenMP helper with the existing AVX2
+CPU module. An AVX-512 candidate built with `build-shielded-engine.py --cpu-avx512`
+showed one ordinary/MTP output mismatch at token 75 and was not selected for
+production; that optional build remains available for investigation. The profile
+assigns compute to guest
 CPUs 0,2,3,4,5,6, the split helper to CPU 1, and refill/background work to 7-15.
 The helper restores the caller mask after each OpenMP region so subsequent
 children do not accidentally inherit one CPU. Invalid CPU lists or failed
@@ -59,7 +62,8 @@ The mapping comes from the host's actual topology and permitted CPU set, not
 fixed host CPU numbers. An unsuitable topology or failed mapping stops the
 canary before the app starts. `*.cpu-placement.json` records the applied map.
 Host placement is a performance policy, not an isolation guarantee or an
-exclusive core reservation. The SNP measurement still binds the guest runtime;
+exclusive core reservation. See the [affinity rollout results](evidence/shield-affinity-production-2026-09-27/README.md)
+for deployed release pins, validation and measured throughput. The SNP measurement still binds the guest runtime;
 no security decision trusts host topology reports. CPU-only and small-model
 launches do not use the QMP placement path. The small-model profile retains
 its previous thread counts and refill kernel.

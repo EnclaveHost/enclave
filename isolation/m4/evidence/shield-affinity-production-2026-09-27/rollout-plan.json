@@ -1,0 +1,22 @@
+{
+  "sourceCommit": "160ef357ed192a9c1f8f8a1204df81638cd9e210",
+  "managerBinary": "guestd.ffb5b3e8",
+  "sourcePath": "/home/steven/enclave-prod/iso-160ef357",
+  "newRelease": "f61fed6187c32316fcbc41d3364139a66d06a98e181efacad58cc3127b477b46",
+  "oldRelease": "c427ef6351b62a190eff7d0361c641268211e8eeee26c986388ec52463d17b48",
+  "oldDropinSha256": "5b04a9199b8700716e53eb4c2a51832b064f5ae39c5b62e7d8429f04b3a432a9",
+  "guestVcpus": 16,
+  "decodeThreads": 6,
+  "refillThreads": 16,
+  "computeCpus": [
+    0,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "helperCpu": 1,
+  "refillCpus": "7-15",
+  "cpuModule": "existing AVX2 production module; AVX-512 candidate had one MTP output mismatch"
+}
