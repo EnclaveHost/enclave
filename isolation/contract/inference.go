@@ -14,7 +14,8 @@ const Shield27BModel = "qwen3.8-27b-mtp-q4-vl-gguf"
 
 func (i *Inference) GuestFloorMiB() int {
 	if i != nil && i.Model == Shield27BModel {
-		return 51200
+		// Includes the 128-pad pools and simultaneous ordinary/MTP contexts.
+		return 61440
 	}
 	return 8192
 }
