@@ -37,13 +37,17 @@ messages, never private model inputs or pads; replies retain bounded copies and
 integrity checks. This transport provides no availability guarantee against a host.
 
 The measured 27B settings use column splitting, verification overlap, 64-row pad
-pools/refills, eight decode threads and eight refill threads, a 95% weight budget and one recurrent-state
+pools/refills, four decode threads and sixteen total refill threads (eight per card),
+the checked vector CRT refill kernel, a 95% weight budget and one recurrent-state
 snapshot for MTP k=1. Apps choose speculative decoding through the existing WASI-NN
 API; enabling the snapshot does not force every app to use MTP. Guest context is
 512 tokens and batch/ubatch 16, matching the evaluated profile.
 
 Benchmark release IDs and results are recorded in [the production rollout evidence](evidence/shield-27b-production-2026-09-27/README.md). Historical
 native-process 24.51 tok/s is not a claim for this per-app SNP runtime.
+The September 27 follow-up uses the guest-tested four-thread/vector profile;
+the host-specific native affinity shim is not part of the production image.
+The small-model profile retains its previous thread counts and refill kernel.
 
 ---
 
