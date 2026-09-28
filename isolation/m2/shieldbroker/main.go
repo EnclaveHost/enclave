@@ -24,6 +24,9 @@ func main() {
 	result := make(chan error, 2)
 	for i, port := range []uint32{9501, 9502} {
 		b := shieldbridge.Bridge{Path: fmt.Sprintf("/run/enclave-shield/gpu%d", i), UID: 1000,
+			// The running app owns this bounded private reservation. Silence must
+			// not discard its resident model; exit/disconnect still releases it.
+			KeepIdleConnections: true,
 			Dial: func(ctx context.Context) (net.Conn, error) {
 				ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 				defer cancel()
