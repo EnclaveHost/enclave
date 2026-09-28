@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
     if (!__builtin_cpu_supports("avx512vnni") || !__builtin_cpu_supports("avx512bw") ||
         !__builtin_cpu_supports("avx512dq") || !__builtin_cpu_supports("avx512vl")) return 77;
     const int sizes[] = {1, 63, 64, 65, 127, 128, 129, 191, 192, 193, 255, 256, 257, 5119, 5120, 17408, 70000};
-    const int widths[] = {1, 2, 3, 4, 5, 6, 7, 8, 16, 17};
+    const int widths[] = {1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 16, 17, 23, 24, 25, 35, 36, 37};
     for (unsigned i = 0; i < sizeof sizes / sizeof *sizes; i++)
         for (int b = 1; b <= 9; b++)
             for (int extremes = 0; extremes <= 3; extremes++)
