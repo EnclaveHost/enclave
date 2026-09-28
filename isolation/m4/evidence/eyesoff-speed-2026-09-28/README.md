@@ -64,3 +64,16 @@ new multi-slot alias on both attention and hybrid models. The complete engine
 patch recipe applies to its pinned source; changed files match the incremental
 build source exactly. GPU workers, masking and private-state boundaries are
 unchanged.
+
+## Automatic attention was not sufficient
+
+The c9fdc728 cold run took 347187 ms prefill and 19837 ms decode (6.5 tok/s);
+its cached repeat took 2 ms prefill and 20684 ms decode (6.2 tok/s), both without
+decode-gate contention. Removing the explicit ON setting did **not** restore
+performance. These are rejected performance results, not an improvement.
+
+The next candidate e95d2d79 explicitly sets attention OFF and batch/ubatch 64,
+which Eyesoff reads from host capabilities. Wide-batch logits match physical
+batch 16 exactly across the resident/branch/rewind test; both 64-token
+cache-pressure tests pass. Public-model fixtures only; no user chat/config
+contents are included in these artifacts.

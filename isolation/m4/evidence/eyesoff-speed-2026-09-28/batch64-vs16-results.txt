@@ -1,0 +1,1 @@
+All rows argmax identical; maximum logit difference 0.0

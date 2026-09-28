@@ -1,0 +1,20 @@
+{
+  "release": "c9fdc728392d3da524a8de72600b78fb79ecc883423afe0ea82e89675614fdc5",
+  "cold": {
+    "prompt_tokens": 3781,
+    "tokens": 128,
+    "prefill_ms": 347187,
+    "decode_ms": 19837,
+    "tok_per_s": 6.5,
+    "gate_us": 0
+  },
+  "hot": {
+    "prompt_tokens": 3781,
+    "tokens": 128,
+    "prefill_ms": 2,
+    "decode_ms": 20684,
+    "tok_per_s": 6.2,
+    "gate_us": 0
+  },
+  "decision": "Auto was insufficient. Next candidate explicitly disables flash attention and raises prefill batch/ubatch to 64."
+}
