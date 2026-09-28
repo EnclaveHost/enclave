@@ -243,3 +243,26 @@ It is not suitable for user prompts or production admission. Normal hosted
 apps still have `supports.gpu=false`. Remaining production requirements above
 still apply: measured model selection, share-bound reservations, a quiet
 production image, independent release admission, and scheduler integration.
+
+
+### CPU attention and prefix-cache pressure
+
+The large-model profile explicitly enables fused attention. Shield claims the
+matrix operations, while attention stays inside the private CPU guest; the
+engine's automatic device-match heuristic otherwise disables CPU fused attention.
+The engine recipe includes `llamacpp-cpu-flash-f32.patch` so the CPU kernel honors
+the model's requested FP32 accumulation instead of accumulating FP16 values in
+half precision. This does not move attention, KV state or plaintext to the GPU.
+
+Parked prefixes are a cache, not guaranteed reservations. If a target decode
+cannot allocate KV cells, the runtime evicts the oldest unpinned conversation
+prefix first, then an unpinned shared prefix, retrying only the engine's
+allocation-failure code. Active sequences and donors still borrowed by an
+undiverged sequence are protected. Compute/verification failures are never
+retried by this mechanism. A prompt that cannot fit after reclaim still fails
+rather than overwriting another conversation.
+
+`test/fixtures/wasi-nn-cache-pressure.rs` tests repeated distinct prompts in a
+512-token pool against uncached full-logit results, plus a pinned borrower
+resuming after other requests cause eviction. Run against attention and hybrid
+models with eight active slots, six park slots, two prefix slots and batch 16.

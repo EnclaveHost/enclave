@@ -10,7 +10,7 @@ from pathlib import Path
 
 PIN = 'ddd4ec1428a6201e18975ea52b07c71e0f9aef26'
 PATCHES = ['graph-slot','cuda-graph-ptr-update','sync-instr','rs-pin-cells',
-           'topk-rows','parallel-copy','parallel-rows','rs-inplace']
+           'topk-rows','parallel-copy','parallel-rows','rs-inplace','cpu-flash-f32']
 p=argparse.ArgumentParser(description=__doc__)
 for k in ['engine-git','runtime','out']: p.add_argument('--'+k,type=Path,required=True)
 p.add_argument('--jobs',type=int,default=6)
