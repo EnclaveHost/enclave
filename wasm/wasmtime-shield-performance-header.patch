@@ -1,0 +1,59 @@
+--- a/src/commands/serve.rs
++++ b/src/commands/serve.rs
+@@ -1397,9 +1397,11 @@
+         req.uri()
+     );
+ 
++    let want_shield_profile = req.headers().get("x-enclave-performance").is_some_and(|v| v == "1")
++        && std::env::var("ENCLAVE_SHIELD_PERF_HEADER").as_deref() == Ok("1");
+     let req = req.map(|body| body.map_err(|e| e.into()).boxed_unsync());
+ 
+-    match debuggee_store {
++    let mut response = match debuggee_store {
+         // For debugging go ahead and synchronously execute the instance here
+         // in a single instance. This is debugging-specific to use the store
+         // passed in.
+@@ -1421,6 +1423,43 @@
+ 
+         // For when debugging is disabled delegate to the default handling path.
+         None => handler.handle(request_id, req).await,
++    }?;
++    #[cfg(target_os = "linux")]
++    if want_shield_profile {
++        if let Some(value) = shield_performance_header() {
++            response.headers_mut().insert("x-enclave-shield-performance", value);
++        }
++    }
++    Ok(response)
++}
++
++// Explicit diagnostic opt-in. Only fixed aggregate integer counters leave the
++// per-app engine; no stderr, model values, prompts, credentials or file contents.
++// Never load an arbitrary library or wait for an in-flight graph.
++#[cfg(target_os = "linux")]
++fn shield_performance_header() -> Option<HeaderValue> {
++    use std::ffi::{c_char, c_int, c_void, CString};
++    #[link(name = "dl")]
++    unsafe extern "C" {
++        fn dlopen(path: *const c_char, flags: c_int) -> *mut c_void;
++        fn dlsym(handle: *mut c_void, name: *const c_char) -> *mut c_void;
++        fn dlclose(handle: *mut c_void) -> c_int;
++    }
++    let root = std::env::var("ENCLAVE_GGML_BACKEND_DIR").ok()?;
++    let path = CString::new(format!("{root}/libggml-shielded.so")).ok()?;
++    unsafe {
++        let handle = dlopen(path.as_ptr(), 2 | 4); // RTLD_NOW | RTLD_NOLOAD
++        if handle.is_null() { return None; }
++        let sym = dlsym(handle, c"ggml_backend_shielded_profile_snapshot".as_ptr());
++        let mut values = [0u64; 24];
++        let ok = if sym.is_null() { false } else {
++            let snapshot: unsafe extern "C" fn(*mut u64, usize) -> c_int = std::mem::transmute(sym);
++            snapshot(values.as_mut_ptr(), values.len()) == 1
++        };
++        dlclose(handle);
++        if !ok || values[0] != 1 { return None; }
++        let text = values.iter().map(u64::to_string).collect::<Vec<_>>().join(",");
++        HeaderValue::from_str(&text).ok()
+     }
+ }
+ 

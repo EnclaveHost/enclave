@@ -516,6 +516,37 @@ void ggml_backend_shielded_pads_used(uint64_t *used, uint64_t *missed) {
     if (missed) *missed = m;
 }
 
+int ggml_backend_shielded_profile_snapshot(uint64_t *out, size_t count) {
+    // v1: version, cards, exchanges, offloaded nodes, local nodes;
+    // cumulative microseconds: encode, link, post, graph, split gemm/post/join,
+    // mask, wire, refill-on-path, unmask-lhs, rhs, check, pads, idle, pad-wait;
+    // then pads used, missed, waited. Card times overlap; do not sum as wall time.
+    if (!out || count < 24) return -1;
+    sh_pool &p = sh_pool_get();
+    std::unique_lock<std::mutex> lock(p.mu, std::try_to_lock);
+    if (!lock.owns_lock()) return 0;
+    std::vector<std::unique_lock<std::mutex>> cards;
+    for (auto *s : p.cards) {
+        cards.emplace_back(s->mu, std::try_to_lock);
+        if (!cards.back().owns_lock()) return 0;
+    }
+    uint64_t v[24] = {1, (uint64_t)p.cards.size()};
+    for (auto *s : p.cards) {
+        sh_link_profile lp{}; sh_link_profile_snapshot(s->link, &lp);
+        uint64_t used=0, missed=0, waited=0; double wait_ms=0;
+        sh_link_pool_stats(s->link, &used, &missed);
+        sh_link_pad_wait_stats(s->link, &waited, &wait_ms);
+        v[2] += s->exchanges; v[3] += s->offloaded_nodes; v[4] += s->local_nodes;
+        const double ms[] = {s->t_encode,s->t_link,s->t_post,s->t_graph,
+            s->t_split_gemm,s->t_split_post,s->t_split_join,lp.mask_ms,lp.wire_ms,
+            lp.refill_ms,lp.unmask_lhs_ms,lp.rhs_ms,lp.check_ms,lp.pads_ms,lp.idle_ms,wait_ms};
+        for (size_t i=0; i<16; ++i) v[5+i] += (uint64_t)(std::max(0.0,ms[i])*1000.0);
+        v[21] += used; v[22] += missed; v[23] += waited;
+    }
+    std::copy(v,v+24,out);
+    return 1;
+}
+
 void ggml_backend_shielded_stats(uint64_t *off, uint64_t *loc, uint64_t *macs, uint64_t *vf) {
     sh_pool &p = sh_pool_get();
     std::lock_guard<std::mutex> lock(p.mu);
