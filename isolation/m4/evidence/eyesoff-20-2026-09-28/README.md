@@ -143,5 +143,29 @@ Cache occupancy/physical placement after mixed requests is a hypothesis for
 that drop, not yet verified. Moving only guest vCPU7 from host CPU7 to CPU24
 measured 15.0 and was restored to CPU7. All five other guests, both GPU workers
 and the control VM remained running. No scratch attention-kernel prototype
-was deployed. The owner's draft-threshold update is still waiting for a wallet
-signature; no config change is assumed. The production target remains unmet.
+was deployed. At this checkpoint the owner's draft-threshold update was still
+waiting for a wallet signature. The production target remained unmet.
+
+## Owner-signed zero-threshold experiment
+
+The owner transaction confirmed, changing only `draft_p_min` from 0.4 to 0.
+`owner-pmin0-performance.json` records the transaction, config CID and actual
+full-context app results: cold128 16.0 tok/s; two cached384 runs 17.1 tok/s,
+with 1 ms prefill. This did not improve on the earlier 0.4-threshold results.
+No tool-discovery notices occurred. An initial pair of overlapping requests
+was excluded. Moving the guest's compute team to the other physical CPU
+cluster produced 17.3 tok/s and was restored; inference libraries are unchanged.
+Attention microbenchmarks preserved identical output across tested thread
+counts, but did not establish a general improvement over six workers.
+
+Both inference GPUs held their default application clocks (1260/1230 MHz)
+during a 25-second observation, below their supported 1380 MHz maximum.
+No clock setting was changed: administrator access is needed for that trial.
+
+The signed config initially failed to download through the public gateway
+(HTTP 520). Exact CID-verified bytes from Enclave's gateway restored startup;
+the successful guest is `gd4a54e36f`, not the failed `gdb7c768db` attempt.
+Fresh AMD attestation and public WebPKI passed. Relay commit `e974ea2fd` adds
+a preferred config gateway with verified fallback; all 30 predictor tests and
+both production known-answer tests passed. Other guests were not restarted.
+See `config-gateway-rollout.json`. The >=20 tok/s production target is unmet.
