@@ -17,7 +17,13 @@ func main() {
 	}
 }
 func load() error {
-	return copyVerified("/dev/vda", "/models/qwen3.8-27b-mtp-q4-vl-gguf/model.gguf", 17559178144, "3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e")
+	const dir = "/models/qwen3.8-27b-mtp-q4-vl-gguf/"
+	if err := copyVerified("/dev/vda", dir+"model.gguf", 17559178144, "3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e"); err != nil {
+		return err
+	}
+	// Preserve the published model's filename for existing app configurations.
+	// Both names refer to the same verified private copy; no second weights allocation.
+	return os.Symlink("model.gguf", dir+"Qwen3.8-27B-UD-Q4_K_XL.gguf")
 }
 
 func copyVerified(source, dest string, size int64, expected string) error {

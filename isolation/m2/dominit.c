@@ -271,7 +271,7 @@ static void lo_up(void) {
 /* Measured, bundle-derived inference profile. Never read a host environment. */
 static int shield_on, shield_large;
 static char shield_model[64], shield_graph[128], shield_models_env[96], shield_preloads_env[96], shield_calib[128];
-static char shield_workers[512];
+static char shield_workers[512], shield_vram_env[80];
 static void shield_profile(void) {
     FILE *f = fopen("/app.shield", "r");
     if (!f) return;
@@ -288,6 +288,8 @@ static void shield_profile(void) {
     snprintf(shield_graph, sizeof shield_graph, "nn-graph=ggml::/models/%s", model);
     snprintf(shield_models_env, sizeof shield_models_env, "ENCLAVE_MODELS=%s", model);
     snprintf(shield_preloads_env, sizeof shield_preloads_env, "ENCLAVE_NN_PRELOADS=%s", model);
+    /* Two worker reservations, derived from the measured bundle, not the host environment. */
+    snprintf(shield_vram_env, sizeof shield_vram_env, "ENCLAVE_VRAM_BYTES=%llu", bytes * 2);
     snprintf(shield_calib, sizeof shield_calib, "SHIELDED_CALIB=/rt/calib/%s.calib", model);
     shield_on = 1;
 }
@@ -438,7 +440,12 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = shield_workers;
             envp[ei++] = shield_calib;
             envp[ei++] = "ENCLAVE_GGML_EXTRA_BUFTS=0";
-            envp[ei++] = "ENCLAVE_GGML_N_CTX=512";
+            envp[ei++] = shield_large ? "ENCLAVE_GGML_N_CTX=8192" : "ENCLAVE_GGML_N_CTX=512";
+            envp[ei++] = shield_vram_env;
+            /* Weights and KV live in private guest RAM; VRAM is only the masked-offload reservation.
+             * Leave room for the mask pool and runtime within each measured model profile's floor. */
+            envp[ei++] = shield_large ? "ENCLAVE_NN_SERVE_BYTES=34359738368" : "ENCLAVE_NN_SERVE_BYTES=2147483648";
+            envp[ei++] = "ENCLAVE_NN_SERVE_KIND=RAM";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS=6" : "ENCLAVE_GGML_N_THREADS=2";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS_BATCH=6" : "ENCLAVE_GGML_N_THREADS_BATCH=2";
             envp[ei++] = "ENCLAVE_GGML_N_BATCH=16";
@@ -725,6 +732,9 @@ int main(void) {
             app[k++]="--env"; app[k++]="ENCLAVE_MODELS";
             app[k++]="--env"; app[k++]="ENCLAVE_NN_PRELOADS";
             app[k++]="--env"; app[k++]="ENCLAVE_GGML_N_CTX";
+            app[k++]="--env"; app[k++]="ENCLAVE_VRAM_BYTES";
+            app[k++]="--env"; app[k++]="ENCLAVE_NN_SERVE_BYTES";
+            app[k++]="--env"; app[k++]="ENCLAVE_NN_SERVE_KIND";
         }
         app[k++] = base[i];
     }
