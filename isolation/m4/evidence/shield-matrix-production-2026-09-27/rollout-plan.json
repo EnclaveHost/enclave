@@ -1,0 +1,10 @@
+{
+  "oldRelease": "5463501b563f5ca6a627266979cc61b26a230a50f3b71ebb9df75f17040da7a9",
+  "newRelease": "fef26ae1521fe1350a04acad826e76cb8a0e5e215acf0010671c2d6119dbbda9",
+  "oldDropinSha256": "6cb97a6c9b5f05f21c10cdd9c6fbc80c2edb1b025a5d9c9049741b0c0df137d2",
+  "releasePath": "/home/steven/enclave-prod/release-fef26ae1",
+  "sourcePath": "/home/steven/enclave-prod/iso-160ef357",
+  "cpuModule": "unchanged AVX2",
+  "sampler": "unchanged ChaCha20 vector16",
+  "matrix": "4 mask rows x 6 columns, 12-column tile, exact integer products"
+}
