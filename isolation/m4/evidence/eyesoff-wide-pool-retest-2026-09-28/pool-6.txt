@@ -1,0 +1,2 @@
+SHARED_POOL_CONCURRENCY_PASS callers=8 peak_threads=14 persistent_workers=5 bit_identical=1 affinity_repaired=1 external_pool_preserved=1 caller_affinity_preserved=1
+base=1 peak=14 remaining=6

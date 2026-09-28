@@ -1,0 +1,46 @@
+{
+  "release": "f7fae72afbddbcb3f8b29782f34ae2ce49410a0a53ad6a6d7bb5a3b988270e43",
+  "guest": "gde2460f71",
+  "state": "complete",
+  "prompt_tokens": 3781,
+  "tokens": 384,
+  "outputSha256": "734bc8f0fcda21c12e64ada36fadc957858be54a828888b8c5ddb3b5d617e511",
+  "all_output_hashes_equal": true,
+  "all_http_status": 200,
+  "all_draft_tokens": 218,
+  "all_draft_accepted": 166,
+  "runs": [
+    {
+      "at": 1790632933332,
+      "decode_ms": 21151,
+      "prefill_ms": 1,
+      "wall_ms": 26765.3,
+      "mtp_draft_us": 1080103,
+      "mtp_verify_decode_us": 19822740
+    },
+    {
+      "at": 1790632960098,
+      "decode_ms": 21069,
+      "prefill_ms": 1,
+      "wall_ms": 23481.4,
+      "mtp_draft_us": 1049755,
+      "mtp_verify_decode_us": 19777825
+    },
+    {
+      "at": 1790632983580,
+      "decode_ms": 20981,
+      "prefill_ms": 1,
+      "wall_ms": 23280.4,
+      "mtp_draft_us": 1057606,
+      "mtp_verify_decode_us": 19674872
+    },
+    {
+      "at": 1790633006860,
+      "decode_ms": 20742,
+      "prefill_ms": 1,
+      "wall_ms": 23641.2,
+      "mtp_draft_us": 1057085,
+      "mtp_verify_decode_us": 19445869
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "baseline_release": "f7fae72afbddbcb3f8b29782f34ae2ce49410a0a53ad6a6d7bb5a3b988270e43",
+  "candidate_release": "65bb936887301d362a26d7c8a18ba0ea86f2eb2e013076d917d2af34a36d7ecb",
+  "changed_files": [
+    "template/init",
+    "template/rt/shield-wide-cpu-pool.enabled"
+  ],
+  "removed_files": [],
+  "cpu_library": {
+    "sha256": "2e816c2fe5572491ed36bd1eb215d40ddc5213ee9daac7dce919c518873dd84c",
+    "size": 1187720
+  },
+  "gpu_library": {
+    "sha256": "5fb16f44edb5cf0c85db4a6b3595383ef183ad8bb79938632be69609379d930c",
+    "size": 618312
+  },
+  "same_runtime_identity": true
+}
