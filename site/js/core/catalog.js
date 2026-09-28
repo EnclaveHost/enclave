@@ -370,7 +370,9 @@ export async function fetchConfigCid(cid){
   if (cid in _cfgCidCache) return _cfgCidCache[cid];
   let out = null;
   try {
-    const r = await fetch(IPFS_IMG_GATEWAY + encodeURIComponent(cid), { signal: AbortSignal.timeout(15000) });
+    // A cached immutable gateway response may predate its CORS repair. Fetch
+    // fresh headers once per page; successful content remains memoized by CID.
+    const r = await fetch(IPFS_IMG_GATEWAY + encodeURIComponent(cid), { cache: "reload", signal: AbortSignal.timeout(15000) });
     if (r.ok) {
       const text = await r.text();
       JSON.parse(text);                     // must parse, or it is not a config
