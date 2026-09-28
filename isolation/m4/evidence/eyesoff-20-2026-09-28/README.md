@@ -169,3 +169,16 @@ Fresh AMD attestation and public WebPKI passed. Relay commit `e974ea2fd` adds
 a preferred config gateway with verified fallback; all 30 predictor tests and
 both production known-answer tests passed. Other guests were not restarted.
 See `config-gateway-rollout.json`. The >=20 tok/s production target is unmet.
+
+## Supported GPU application clocks
+
+The owner set both inference GPUs to their supported 1380 MHz application
+clock, preserving memory clocks and power limits. The same 3,781-token prompt
+with 384 generated tokens measured 18.0 and 18.1 tok/s, versus 17.1 before.
+Prefill reuse took 1–4 ms. No inference code, arithmetic, or isolation changed.
+The first request after a long idle gap measured 6.2 tok/s because its drafting
+stage included about 40 extra seconds. Worker logs show sequential shared-ring
+reattachment during that interval, consistent with reconnecting after the
+broker's ten-minute idle timeout. This remains a separate latency issue; the
+slow run is retained in the evidence rather than excluded from reporting.
+See `clock1380-performance.json`. The production target remains unmet.
