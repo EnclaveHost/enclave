@@ -12,7 +12,7 @@ Production release `ba14bafdf06f6287efd13337570df94f97c0362b1ce1ed1ec7f28f05a140
 
 The first full request rebuilt 3,781 prompt tokens in 248,769 ms and decoded 384 tokens in 22,162 ms. The warm repeat used 2 ms cached prefill, 0 ms model load and 21,344 ms decode (17.99 tok/s). Both outputs match the prior production SHA256 `734bc8f0fcda21c12e64ada36fadc957858be54a828888b8c5ddb3b5d617e511`; MTP accepted 166/218 draft tokens. The repeat's 33.649 s total also includes application/tool-discovery overhead, separate from decode.
 
-The 660.034-second idle observation passed. All 23 samples retained exactly 31,277 MiB and 31,305 MiB on the two V100s; GPU utilization was 0% throughout those samples. Worker logs contain zero disconnects in the interval. No test inference or periodic warmup requests were sent during it.
+The 660.034-second idle observation passed. All 23 samples retained exactly 31,277 MiB and 31,305 MiB on the two V100s; Sampled GPU utilization ranged from 0% to 1%. Worker logs contain zero disconnects in the interval. No test inference or periodic warmup requests were sent during it.
 
 The first request after idle returned HTTP 200 with 0 ms model load, 1 ms cached prefill and 20,974 ms decode for 384 tokens (18.3 tok/s). MTP draft work totaled 1.035 seconds, with no prior roughly 40-second reconnect penalty. Whole-request time was 26.048 seconds, including application/tool-discovery overhead. Output SHA256 and 166/218 draft acceptance match the pre-idle request; there were no notices or errors.
 
