@@ -53,7 +53,7 @@ the WASI app as well as the engine. The loader exposes the published filename
 `Qwen3.8-27B-UD-Q4_K_XL.gguf` as an alias of its verified private `model.gguf`,
 so existing application configurations resolve without copying weights twice.
 An application's requested `nnCtx` does not override this measured profile.
-The shared KV pool permits two live sessions. A tool-enabled Eyesoff turn holds
+The shared KV pool permits eight live inference sessions. A tool-enabled Eyesoff turn holds
 one tokenizer session while opening a second for generation; the old one-session
 benchmark profile deadlocked that workflow. `ENCLAVE_GGML_POOLED=1` and the session
 cap are also forwarded to the app so its memory estimate describes the shared pool.

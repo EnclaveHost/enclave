@@ -442,7 +442,7 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = "ENCLAVE_GGML_EXTRA_BUFTS=0";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_CTX=8192" : "ENCLAVE_GGML_N_CTX=512";
             /* Tool-enabled apps retain a tokenizer session while generating. One slot deadlocks them. */
-            envp[ei++] = "ENCLAVE_GGML_MAX_SESSIONS=2";
+            envp[ei++] = "ENCLAVE_GGML_MAX_SESSIONS=8";
             envp[ei++] = "ENCLAVE_GGML_POOLED=1";
             envp[ei++] = shield_vram_env;
             /* Weights and KV live in private guest RAM; VRAM is only the masked-offload reservation.
