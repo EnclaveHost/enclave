@@ -1,0 +1,8 @@
+{
+  "floatCount": 174817280,
+  "maxAbsoluteLogitDifference": 0.458229660987854,
+  "rmsLogitDifference": 0.05706032269582431,
+  "differingFloats": 168360690,
+  "top1Matches": 687,
+  "rows": 704
+}
