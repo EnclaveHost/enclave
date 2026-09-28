@@ -1,0 +1,11 @@
+{
+  "release": "e53c01ae44a48380f194221a31b870b69d463563e18e135355b1849e22366e66",
+  "callerAffinityRegressionFailsOld": true,
+  "callerAffinityRegressionPassesFixed": true,
+  "concurrentCallers": 8,
+  "persistentHelpers": 5,
+  "fullLogitsIdentical": true,
+  "logitsBytes": 699269120,
+  "logitsSha256": "603649f6f9c6ac3bbab78bd0bc01a8455fdd6ca9ea8417608e2f7ad81276ad64",
+  "productionSpeedQualified": false
+}

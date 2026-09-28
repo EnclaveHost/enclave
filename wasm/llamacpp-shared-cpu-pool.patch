@@ -54,12 +54,10 @@
  
  #ifdef GGML_USE_OPENMP
      int32_t cpumask_iter = 0;
-@@ -3413,6 +3430,18 @@
- 
- struct ggml_threadpool * ggml_threadpool_new(struct ggml_threadpool_params * tpp) {
+@@ -3415,6 +3432,18 @@
      return ggml_threadpool_new_impl(tpp, NULL, NULL);
-+}
-+
+ }
+ 
 +struct ggml_threadpool * ggml_threadpool_new_enclave(
 +        struct ggml_threadpool_params * params, const int * cpus, size_t count) {
 +    GGML_ASSERT(cpus && count >= (size_t) params->n_threads);
@@ -70,9 +68,40 @@
 +    GGML_ASSERT(pool->enclave_cpus);
 +    memcpy(pool->enclave_cpus, cpus, sizeof(int) * params->n_threads);
 +    return pool;
- }
- 
++}
++
  enum ggml_status ggml_graph_compute(struct ggml_cgraph * cgraph, struct ggml_cplan * cplan) {
+     ggml_cpu_init();
+     const uint64_t profile_start = enclave_cpu_profile_on ? ggml_time_us() : 0;
+@@ -3425,6 +3454,16 @@
+ 
+     int n_threads                               = cplan->n_threads;
+     struct ggml_threadpool * threadpool = cplan->threadpool;
++
++#if defined(__linux__)
++    // Pin only this CPU island. The async caller may next create model-load
++    // threads, which must inherit its original mask rather than one CPU.
++    const bool enclave_restore_affinity = threadpool && threadpool->enclave_cpus;
++    cpu_set_t enclave_caller_affinity;
++    if (enclave_restore_affinity &&
++        sched_getaffinity(0, sizeof enclave_caller_affinity, &enclave_caller_affinity))
++        GGML_ABORT("cannot save CPU caller affinity");
++#endif
+ 
+     bool disposable_threadpool = false;
+ 
+@@ -3483,6 +3522,11 @@
+ 
+     // don't leave affinity set on the main thread
+     clear_numa_thread_affinity();
++#if defined(__linux__)
++    if (enclave_restore_affinity &&
++        sched_setaffinity(0, sizeof enclave_caller_affinity, &enclave_caller_affinity))
++        GGML_ABORT("cannot restore CPU caller affinity");
++#endif
+ 
+     enum ggml_status ret = threadpool->ec;
+ 
 --- a/ggml/src/ggml-cpu/ggml-cpu.cpp
 +++ b/ggml/src/ggml-cpu/ggml-cpu.cpp
 @@ -9,6 +9,10 @@

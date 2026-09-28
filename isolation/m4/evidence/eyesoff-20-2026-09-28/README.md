@@ -86,3 +86,13 @@ also checks repair after an affinity sweep and external pool lifetime.
 
 These are correctness/qualification results, not a production speed claim.
 The 20 tok/s target remains unmet pending actual app measurements.
+
+### Shared CPU pool caller affinity correction
+
+The first production `fb81c249` request timed out before generation. The native
+pool left its async caller pinned to CPU 0 after each graph; model-registration
+threads created next inherited that one-core mask. Preserve and restore the
+caller mask around the CPU island, while helpers retain their compute placement.
+The regression fails with the preceding binary and passes with the fix for both
+direct and stored graph plans across eight callers. All 699,269,120 reference
+logit bytes remain identical. Candidate `e53c01ae` is not yet speed-qualified.

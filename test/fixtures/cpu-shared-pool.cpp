@@ -44,6 +44,8 @@ struct Test {
   ~Test() { ggml_free(c); }
 };
 int main() {
+  cpu_set_t initial_affinity;
+  assert(!sched_getaffinity(0, sizeof initial_affinity, &initial_affinity));
   setenv("ENCLAVE_GGML_SHARED_CPU_POOL", "1", 1);
   auto ref = ggml_backend_cpu_init();
   ggml_backend_cpu_set_n_threads(ref, 1);
@@ -51,6 +53,9 @@ int main() {
   for (int i = 0; i < 8; i++) {
     auto *t = new Test(i);
     assert(ggml_backend_graph_compute(ref, t->g) == 0);
+    cpu_set_t after_reference;
+    assert(!sched_getaffinity(0, sizeof after_reference, &after_reference));
+    assert(CPU_EQUAL(&initial_affinity, &after_reference));
     memcpy(t->expected.data(), t->out->data, t->expected.size());
     cases.push_back(t);
   }
@@ -68,11 +73,16 @@ int main() {
       ready++;
       while (!go.load())
         std::this_thread::yield();
+      cpu_set_t caller_before;
+      assert(!sched_getaffinity(0, sizeof caller_before, &caller_before));
       for (int j = 0; j < 200; j++) {
         assert((j % 2 ? ggml_backend_graph_plan_compute(b, plan)
                       : ggml_backend_graph_compute(b, t->g)) ==
                GGML_STATUS_SUCCESS);
         assert(!memcmp(t->expected.data(), t->out->data, t->expected.size()));
+        cpu_set_t caller_after;
+        assert(!sched_getaffinity(0, sizeof caller_after, &caller_after));
+        assert(CPU_EQUAL(&caller_before, &caller_after));
       }
       ggml_backend_graph_plan_free(b, plan);
       ggml_backend_free(b);
@@ -149,6 +159,6 @@ int main() {
     delete t;
   printf("SHARED_POOL_CONCURRENCY_PASS callers=8 peak_threads=%d "
          "persistent_workers=%d bit_identical=1 affinity_repaired=1 "
-         "external_pool_preserved=1\n",
+         "external_pool_preserved=1 caller_affinity_preserved=1\n",
          peak, threads() - base);
 }
