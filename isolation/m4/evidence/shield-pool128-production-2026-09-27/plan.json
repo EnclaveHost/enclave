@@ -1,0 +1,12 @@
+{
+  "sourceCommit": "adcfe5e76a38e4cd66ed8bfd0371a3ebfea573c0",
+  "oldRelease": "fef26ae1521fe1350a04acad826e76cb8a0e5e215acf0010671c2d6119dbbda9",
+  "newRelease": "9b088f90cfbe2284587b255e66cf5885d19209925ef638824a9ee0f61ec51347",
+  "oldConfigSha256": "4ae92dc9d998bc38d7ed46fbb9f393d254140d854072e0582f4a20fb57e69271",
+  "binary": "/home/steven/enclave-prod/bin/guestd.adcfe5e7",
+  "binarySha256": "5929c8880add96273366929e485fe2525670dbfd89ec863397a1b3f5decd14c5",
+  "release": "/home/steven/enclave-prod/release-9b088f90",
+  "poolMiB": 81920,
+  "modelFloorMiB": 61440,
+  "hostFloorMiB": 16384
+}

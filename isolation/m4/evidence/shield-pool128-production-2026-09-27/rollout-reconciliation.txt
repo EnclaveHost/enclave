@@ -1,0 +1,18 @@
+Sep 27 22:55:12 warden-host node[792091]: [claim] 0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b resuming our own live lease after a restart
+Sep 27 22:55:13 warden-host node[792091]: [claim] 0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b adopted: app=risc-box:0.6.54 (catalog://0xa856a26bd6ab39807baa0b6d9a54eaa7b29eeda18be71cd6b75e4d1b65922094/54) gpuShare=0 cpuShare=0.35 lease until 2026-09-28T06:14:41.000Z
+Sep 27 22:55:13 warden-host node[792091]: [claim] 0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33 resuming our own live lease after a restart
+Sep 27 22:55:14 warden-host node[792091]: [claim] 0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33 adopted: app=s3-ipfs-adapter:1.0.11 (catalog://0x4306e588755347dbb30b5e2090cacbc7e20b00afedff750fe352fe99d6d77a7c/11) gpuShare=0 cpuShare=0.02 lease until 2026-09-28T06:16:41.000Z
+Sep 27 22:55:15 warden-host node[792091]: [claim] 0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a resuming our own live lease after a restart
+Sep 27 22:55:16 warden-host node[792091]: [claim] 0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a adopted: app=ipns-publisher:1.0.3 (catalog://0x9afdfb401d6f2cfea70c446f9f5874bbca8ce7dd116e2b15715312d8d32a65ef/3) gpuShare=0 cpuShare=0.01 lease until 2026-09-28T06:18:39.000Z
+Sep 27 22:55:17 warden-host node[792091]: [claim] 0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371 resuming our own live lease after a restart
+Sep 27 22:55:17 warden-host node[792091]: [claim] 0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371 adopted: app=jot:1.0.4 (catalog://0x550d4da98ad8ece07c0def18c095c7f01bc695727a35d953a2096c49713eaef7/4) gpuShare=0 cpuShare=0.01 lease until 2026-09-28T06:20:41.000Z
+Sep 27 22:55:18 warden-host node[792091]: [claim] sweep skips 0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77: no free CPU capacity here right now
+Sep 27 22:55:18 warden-host node[792091]: [claim] holding new claims: own lease not yet resumed (0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77: no free CPU capacity here right now)
+Sep 27 22:56:10 warden-host node[792091]: [instance] reaped orphan 0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77 (vm=gdc72fb541) - no record owns it; its slice and any resident model weights are back in the pool
+Sep 27 22:57:11 warden-host node[792091]: [claim] 0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77 resuming our own live lease after a restart
+Sep 27 22:57:11 warden-host node[792091]: [claim] 0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77 adopted: app=api-mcp-adapter:1.0.0 (catalog://0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc/0) gpuShare=0 cpuShare=0.01 lease until 2026-09-28T06:22:41.000Z
+Sep 27 22:57:13 warden-host node[792091]: [claim] sweep skips 0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7: no free CPU capacity here right now
+Sep 27 22:57:16 warden-host node[792091]: [claim] sweep skips 0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e: no free CPU capacity here right now
+Sep 27 22:57:16 warden-host node[792091]: [claim] sweep skips 0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595: no free CPU capacity here right now
+Sep 27 22:57:17 warden-host node[792091]: [claim] sweep skips 0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76: no free CPU capacity here right now
+Sep 27 22:58:23 warden-host node[792091]: [instance] reaped orphan pool128-production-canary (vm=gd9e08c430) - no record owns it; its slice and any resident model weights are back in the pool

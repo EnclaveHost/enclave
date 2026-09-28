@@ -1,0 +1,120 @@
+{
+  "status": 200,
+  "body": {
+    "vms": [
+      {
+        "appId": "aaaf407b6deb9e1c140c08c285c4bd2d3707ebed9cdfbf533e62414402557e65",
+        "backend": "snp-guest-per-app",
+        "createdAt": 1790537784,
+        "hostData": "e64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+        "hostPort": 33413,
+        "id": "gd3d72abda",
+        "measurement": "9e7c4d8f1ef55543250106ebfec84eff497d750de8692bd3e6ce4a96ddf5b73790911fad2b5c78f275ea0f24dfaa2985",
+        "memMiB": 3456,
+        "name": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+        "openSplices": 2,
+        "recordSha256": "b0c9ef34f57f3891f8c0e1a76589dc0f4056ca3e8e6e30089817c77cd2336e71",
+        "release": true,
+        "reserved": {
+          "memMiB": 4224,
+          "cpuPct": 100
+        },
+        "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+        "status": "running",
+        "transportKeySha256": "8341c29e2559bef39f50826be0596c4ede659de62b6bf75b69820a3e553d15ec",
+        "vcpus": 1,
+        "verdict": "attested"
+      },
+      {
+        "appId": "e95a23b61e99c631e59deb0faa1b3cb4cc435131c03eba3e3f2a47dcddf9da37",
+        "backend": "snp-guest-per-app",
+        "createdAt": 1790537791,
+        "hostData": "d9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+        "hostPort": 41575,
+        "id": "gd5eff8cbc",
+        "measurement": "4a8b9d8452a9c5f656062043c91862156bfef5c825eaee09b85aa874857e66917a94982ce3bdc2e409f3855be6f7a672",
+        "memMiB": 1024,
+        "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+        "openSplices": 1,
+        "recordSha256": "f3d504affc0e8653ce468f72f1123ec507d1822d157803d25a25620d8e5118ba",
+        "release": true,
+        "reserved": {
+          "memMiB": 1792,
+          "cpuPct": 100
+        },
+        "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+        "status": "running",
+        "transportKeySha256": "74a44ea7bcd28ffd9fd8d9460a7ea75537056d56f624b6af57f5d4b2a63b10db",
+        "vcpus": 1,
+        "verdict": "attested"
+      },
+      {
+        "appId": "f187928c68071bf05ff50de307479a3cdbfad7b96c00ebcb6b2caa6424d52189",
+        "backend": "snp-guest-per-app",
+        "createdAt": 1790537793,
+        "hostData": "7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+        "hostPort": 38885,
+        "id": "gd848555a5",
+        "measurement": "bf42c4f2e35b839e49160ee9cbd8a951bc424814b7cc4fcd53d2807e2e812217be793cf1bbff8f10c4f9ec6be28b24f5",
+        "memMiB": 1408,
+        "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+        "openSplices": 1,
+        "recordSha256": "4bf66bb689c3cfaeca76ef02e08002d97236b7b4112060a85c01d2866f19576f",
+        "release": true,
+        "reserved": {
+          "memMiB": 2176,
+          "cpuPct": 100
+        },
+        "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+        "status": "running",
+        "transportKeySha256": "5b723c7b2219e06cfeaf37caefced3fda9bc1ab8f9be9fe0a5d376b5810c1e4c",
+        "vcpus": 1,
+        "verdict": "attested"
+      },
+      {
+        "appId": "c8a709d9cfcfdcf1c5137befc264bdbe80f81e66538015d8d184260aedae7f5b",
+        "backend": "snp-guest-per-app",
+        "createdAt": 1790537849,
+        "hostData": "a77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+        "hostPort": 33155,
+        "id": "gd87cd5193",
+        "measurement": "222d691e14f38742f8966a8512c0d9fe3a7805a53e6f3e3ec98c6c4bf5211b3ac9bc9e8102aae4dcf4ca376ad3491467",
+        "memMiB": 1024,
+        "name": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+        "recordSha256": "83a8d1c3a71291d6feec21467bbaae9b9bf8ee2a6fd51874ec276040a0848915",
+        "release": true,
+        "reserved": {
+          "memMiB": 1792,
+          "cpuPct": 100
+        },
+        "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+        "status": "running",
+        "transportKeySha256": "40910e52f247c58638c80c34bd3dba26717aa2ba329fd0468cc4120331c14fd1",
+        "vcpus": 1,
+        "verdict": "attested"
+      },
+      {
+        "appId": "94c04c0edb6b4ca11b9bd0b6e4adfa98afdfa04692e6c10af79755e6db0ba0f2",
+        "backend": "snp-guest-per-app",
+        "createdAt": 1790575031,
+        "hostData": "a69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+        "hostPort": 43665,
+        "id": "gdc001cf7c",
+        "measurement": "c4393fede5b6344e5b6b5a8dd15809f14374ccc8e11ca27d474a62a77a18e8cc4ea33dc9490eee9c33ad8cb72afbeae4",
+        "memMiB": 1024,
+        "name": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+        "recordSha256": "3bb6a58022c9c6a69ce52e3df8555dcd032dcbf76c2c026db6cc78e309ec0c1a",
+        "release": true,
+        "reserved": {
+          "memMiB": 1792,
+          "cpuPct": 100
+        },
+        "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+        "status": "running",
+        "transportKeySha256": "8ea268a1f6c5b7c1c770391218a3ffb100364d5141fce5cfaa7a7e1825cea853",
+        "vcpus": 1,
+        "verdict": "attested"
+      }
+    ]
+  }
+}

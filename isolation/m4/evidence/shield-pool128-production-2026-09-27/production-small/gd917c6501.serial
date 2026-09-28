@@ -1,0 +1,16 @@
+DOM snp=1 vcpus=1 memMiB=7475 boot_ms=4591
+DOM yama ptrace_scope=1 -> 2
+DOM user.max_user_namespaces=27746 -> 0
+DOM kernel.io_uring_disabled=0 -> 2
+DOM Shield idle driver: haltpoll
+
+Shield private worker routes ready
+DOM front: not dumpable; none of its 3 threads traced
+DOM runtime wasmtime/49.0.0 execution=jit target=x86_64 host=x86_64 features=host-detected wx=enforced cache=none id=297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8
+DOM runtime selftest exec_pages=allowed wx=at-each-attestation
+DOM certificate: HOST_DATA names no deployment; self-signed only
+DOM release: none (this guest's HOST_DATA names no deployment)
+DOM app config: none
+DOM seccomp: app filter installed (sha256 d4d17c9f53832439c92a3232fd09feed8b28f0e3c7dd357d26468a9566f62b66, 71 rules)
+DOM started app=87 front=83 at_ms=4653
+DOM serving vsock=443 spki_sha256=3e89fcf35c5a459804a63284104df74de645ad412af5802381ed32ac90540500 ready_ms=4736

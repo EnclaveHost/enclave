@@ -1,0 +1,21 @@
+{
+  "appId": "06711cc2e9f822b44c5c82b8477ef6a5865499d4d3ef583a52ece37ff5ee9b25",
+  "backend": "snp-guest-per-app",
+  "createdAt": 1790575192,
+  "gpuCardBytes": 3328599654,
+  "hostPort": 38757,
+  "id": "gd917c6501",
+  "inferenceModel": "qwen2.5-0.5b-q8-gguf",
+  "measurement": "6e7322c6f342ecc0ba34e962c51ddf56215fc515fdece4bb44a9ffa595ef0c7f487f2436a769c5a2278e848288bfb058",
+  "memMiB": 8192,
+  "name": "pool128-production-small",
+  "reserved": {
+    "memMiB": 8960,
+    "cpuPct": 100
+  },
+  "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+  "status": "running",
+  "transportKeySha256": "3e89fcf35c5a459804a63284104df74de645ad412af5802381ed32ac90540500",
+  "vcpus": 1,
+  "verdict": "attested"
+}
