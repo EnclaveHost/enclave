@@ -69,6 +69,7 @@ start)
     cid=$(( 65536 + $(od -An -N2 -tu2 /dev/urandom) ))
   fi
   set --
+  pin_shield=0
   if [ -f "$img.shield" ]; then
     model=$(cat "$img.shield")
     case "$model" in qwen2.5-0.5b-q8-gguf|qwen3.8-27b-mtp-q4-vl-gguf) ;; *) echo "invalid Shield model" >&2; exit 2;; esac
