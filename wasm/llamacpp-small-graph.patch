@@ -1,0 +1,49 @@
+--- a/ggml/src/ggml-cpu/ggml-cpu.c
++++ b/ggml/src/ggml-cpu/ggml-cpu.c
+@@ -2778,6 +2778,37 @@
+ #endif
+ }
+ 
++// Tiny CPU islands between masked GPU products cost more to dispatch than
++// to execute. Keep the existing kernels and arithmetic; only choose a one-
++// thread plan when every operation has bounded, linear work. Never serialize
++// matrix products, recurrent state updates, custom ops, or large copies.
++static bool enclave_cpu_small_graph(const struct ggml_cgraph * graph) {
++    const char * enabled = getenv("ENCLAVE_GGML_SMALL_GRAPH");
++    if (!enabled || strcmp(enabled, "1")) return false;
++    int64_t work = 0;
++    for (int i = 0; i < graph->n_nodes; ++i) {
++        const struct ggml_tensor * node = graph->nodes[i];
++        if (ggml_is_empty(node)) continue;
++        switch (node->op) {
++            case GGML_OP_NONE: case GGML_OP_VIEW: case GGML_OP_RESHAPE:
++            case GGML_OP_PERMUTE: case GGML_OP_TRANSPOSE: continue;
++            case GGML_OP_ADD: case GGML_OP_MUL: case GGML_OP_SCALE:
++            case GGML_OP_RMS_NORM: case GGML_OP_L2_NORM:
++            case GGML_OP_UNARY: case GGML_OP_GLU: case GGML_OP_ROPE:
++            case GGML_OP_CONCAT: case GGML_OP_CONT: case GGML_OP_CPY:
++            case GGML_OP_DUP:
++                if (node->type != GGML_TYPE_F32 || !node->src[0] ||
++                    node->src[0]->type != GGML_TYPE_F32) return false;
++                break;
++            default: return false;
++        }
++        const int64_t n = ggml_nelements(node);
++        if (n > 49152 || n > 131072 - work) return false;
++        work += n;
++    }
++    return true;
++}
++
+ struct ggml_cplan ggml_graph_plan(
+           const struct ggml_cgraph * cgraph,
+                                int   n_threads,
+@@ -2794,6 +2825,8 @@
+     // Emscripten without pthreads support can only use a single thread
+     n_threads = 1;
+ #endif
++
++    if (n_threads > 1 && enclave_cpu_small_graph(cgraph)) n_threads = 1;
+ 
+     size_t work_size = 0;
+ 
