@@ -248,8 +248,9 @@ production image, independent release admission, and scheduler integration.
 ### CPU attention and prefix-cache pressure
 
 Explicit CPU fused attention was tested and rejected for the 27B serving profile:
-it reduced an uncontended tool-enabled chat from 10.7 to 6.0 tok/s. Leave the
-engine's automatic selection in place. The recipe retains
+it reduced an uncontended tool-enabled chat from 10.7 to 6.0 tok/s. The large profile explicitly
+selects unfused attention (`ENCLAVE_GGML_FLASH_ATTN=off`): automatic selection
+did not remove the regression in the live preload path. The recipe retains
 `llamacpp-cpu-flash-f32.patch` as a correctness fix for configurations that do
 select CPU fused attention: it honors the requested FP32 accumulation.
 
@@ -274,3 +275,12 @@ rather than overwriting another conversation.
 512-token pool against uncached full-logit results, plus a pinned borrower
 resuming after other requests cause eviction. Run against attention and hybrid
 models with eight active slots, six park slots, two prefix slots and batch 16.
+
+The large profile advertises a 64-token batch and physical microbatch (the small
+profile stays at 16), matching `SHIELDED_MAX_M=64`. Eyesoff discovers that cap
+and adapts prompt chunks without an app/config change. Wider shapes do not
+relax masking, verification, admission or the eight-session limit. Numerical
+qualification compares every output row across 16/64-token physical batches,
+with recurrent COW/rollback and slot recycling, and exercises cache pressure
+at 64-token chunks through the actual Wasmtime backend. The final production
+timings are in the Eyesoff speed evidence directory.

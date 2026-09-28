@@ -456,8 +456,9 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = "ENCLAVE_NN_SERVE_KIND=RAM";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS=6" : "ENCLAVE_GGML_N_THREADS=2";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS_BATCH=6" : "ENCLAVE_GGML_N_THREADS_BATCH=2";
-            envp[ei++] = "ENCLAVE_GGML_N_BATCH=16";
-            envp[ei++] = "ENCLAVE_GGML_N_UBATCH=16";
+            envp[ei++] = shield_large ? "ENCLAVE_GGML_N_BATCH=64" : "ENCLAVE_GGML_N_BATCH=16";
+            envp[ei++] = shield_large ? "ENCLAVE_GGML_N_UBATCH=64" : "ENCLAVE_GGML_N_UBATCH=16";
+            if (shield_large) envp[ei++] = "ENCLAVE_GGML_FLASH_ATTN=off";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_RS_SEQ=1" : "ENCLAVE_GGML_N_RS_SEQ=0";
             envp[ei++] = shield_large ? "SHIELDED_REFILL_THREADS=16" : "SHIELDED_REFILL_THREADS=2";
             envp[ei++] = shield_large ? "SHIELDED_POOL_DEPTH=128" : "SHIELDED_POOL_DEPTH=16";
