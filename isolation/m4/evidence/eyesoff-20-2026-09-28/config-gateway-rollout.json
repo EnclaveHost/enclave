@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-28",
+  "relay_commit": "e974ea2fd",
+  "deployed_at": "2026-09-28T19:35:07Z",
+  "host": "nan",
+  "service": "enclave-api-relay",
+  "module_sha256": "019ecdc95252b03c7fae5a7755c8aba0e03ff354f8fb9398f619f58f83d98d2a",
+  "preferred_config_gateway": "https://ipfs.enclave.host",
+  "fallback_gateway": "https://trustless-gateway.link",
+  "verification": "Both sources use the pinned platform CID verifier, bounded output, and raw-CID SHA256 validation. Cached bytes are rehashed on read. Image prediction and admission rules unchanged.",
+  "tests": "30 predictor tests passed, including corrupted and oversized responses, fallback, and total failure",
+  "startup_known_answers": "PASS: 2 known answer(s) reproduced exactly at 19:35:25 UTC",
+  "backup": "/var/backups/enclave-config-gateway-20260928T193507Z",
+  "guests_restarted_by_relay_rollout": 0,
+  "running_guests": ["gd2612b38d","gd4a54e36f","gd5eff8cbc","gd848555a5","gd87cd5193","gdc001cf7c"],
+  "note": "gdb7c768db was a failed startup while the public config gateway returned HTTP 520. gd4a54e36f is the successful replacement. Its fresh AMD attestation and public TLS certificate passed at 19:25:15 UTC."
+}

@@ -1,0 +1,21 @@
+{
+  "date": "2026-09-28",
+  "goal_met": false,
+  "release": "1d2263e694aa02eef0dd0a262d239d0707c24ecddc9f14ed2507ca43590af002",
+  "guest": "gd4a54e36f",
+  "config_cid": "bafkreies6f7rkeer3irnmy2lsdzhfqokzgerhk7bijcfpmepuqlawpfj6a",
+  "owner_transaction": "0xcf9937355ba3953c5feb46f13e59f1d3cec44d477d610d0a1b90fb4e59a9ee5f",
+  "receipt_status": "0x1",
+  "change": "draft_p_min 0.4 -> 0; draft_tokens remains 1",
+  "benchmark": "Actual Eyesoff /chat, same 3781-token prompt with full tool definitions, temperature 0, masked GPU inference, no tool-discovery notices",
+  "runs": [
+    {"label":"cold128","at":"2026-09-28T19:25:29.379Z","tokens":128,"prompt_tokens":3781,"prefill_ms":252330,"decode_ms":7997,"tok_per_s":16.0,"drafted":72,"accepted":56,"rounds":72},
+    {"label":"cached384","at":"2026-09-28T19:33:41.554Z","tokens":384,"prompt_tokens":3781,"prefill_ms":1,"decode_ms":22469,"tok_per_s":17.1,"drafted":218,"accepted":166,"rounds":218},
+    {"label":"second_cpu_ccd_experiment","at":"2026-09-28T19:35:38.435Z","tokens":384,"prompt_tokens":3781,"prefill_ms":2,"decode_ms":22202,"tok_per_s":17.3,"drafted":218,"accepted":166,"rounds":218},
+    {"label":"original_cpu_placement_restored","at":"2026-09-28T19:37:18.702Z","tokens":384,"prompt_tokens":3781,"prefill_ms":1,"decode_ms":22500,"tok_per_s":17.1,"drafted":218,"accepted":166,"rounds":218}
+  ],
+  "excluded": "An initial cached128 completion was not captured; the next cached384 began before confirming that request was finished. Both excluded from comparison.",
+  "cpu_placement_restored": true,
+  "gpu_clocks": {"samples_per_gpu":50,"interval_ms":500,"gpu1_sm_mhz":1260,"gpu2_sm_mhz":1230,"supported_max_sm_mhz":1380,"changed":false},
+  "conclusion": "Zero confidence threshold did not reproduce the historical short-prompt 25 tok/s result. Cached prefill works; sustained full-context decode remains below 20. Alternate CPU placement had little effect and was restored."
+}

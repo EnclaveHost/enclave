@@ -1,0 +1,107 @@
+[
+  {
+    "kv": 4096,
+    "tokens": 2,
+    "threads": 6,
+    "output_sha256": "459d5c22a027f5caf5de090b2eac91d738a8532c5008c90df82d55f7c7ad4a15",
+    "result": "kv=4096 tokens=2 threads=6 16_layers_ms=15.776"
+  },
+  {
+    "kv": 4096,
+    "tokens": 2,
+    "threads": 4,
+    "output_sha256": "459d5c22a027f5caf5de090b2eac91d738a8532c5008c90df82d55f7c7ad4a15",
+    "result": "kv=4096 tokens=2 threads=4 16_layers_ms=17.758"
+  },
+  {
+    "kv": 4096,
+    "tokens": 2,
+    "threads": 3,
+    "output_sha256": "459d5c22a027f5caf5de090b2eac91d738a8532c5008c90df82d55f7c7ad4a15",
+    "result": "kv=4096 tokens=2 threads=3 16_layers_ms=22.129"
+  },
+  {
+    "kv": 4096,
+    "tokens": 2,
+    "threads": 8,
+    "output_sha256": "459d5c22a027f5caf5de090b2eac91d738a8532c5008c90df82d55f7c7ad4a15",
+    "result": "kv=4096 tokens=2 threads=8 16_layers_ms=14.749"
+  },
+  {
+    "kv": 4096,
+    "tokens": 2,
+    "threads": 6,
+    "output_sha256": "459d5c22a027f5caf5de090b2eac91d738a8532c5008c90df82d55f7c7ad4a15",
+    "result": "kv=4096 tokens=2 threads=6 16_layers_ms=14.466"
+  },
+  {
+    "kv": 4352,
+    "tokens": 2,
+    "threads": 6,
+    "output_sha256": "c47d1247f83c752d851bed2f0aa6ae6b5d4869fcce4e09b939cb3c584a09beaa",
+    "result": "kv=4352 tokens=2 threads=6 16_layers_ms=16.491"
+  },
+  {
+    "kv": 4352,
+    "tokens": 2,
+    "threads": 4,
+    "output_sha256": "c47d1247f83c752d851bed2f0aa6ae6b5d4869fcce4e09b939cb3c584a09beaa",
+    "result": "kv=4352 tokens=2 threads=4 16_layers_ms=19.121"
+  },
+  {
+    "kv": 4352,
+    "tokens": 2,
+    "threads": 3,
+    "output_sha256": "c47d1247f83c752d851bed2f0aa6ae6b5d4869fcce4e09b939cb3c584a09beaa",
+    "result": "kv=4352 tokens=2 threads=3 16_layers_ms=24.194"
+  },
+  {
+    "kv": 4352,
+    "tokens": 2,
+    "threads": 8,
+    "output_sha256": "c47d1247f83c752d851bed2f0aa6ae6b5d4869fcce4e09b939cb3c584a09beaa",
+    "result": "kv=4352 tokens=2 threads=8 16_layers_ms=15.634"
+  },
+  {
+    "kv": 4352,
+    "tokens": 2,
+    "threads": 6,
+    "output_sha256": "c47d1247f83c752d851bed2f0aa6ae6b5d4869fcce4e09b939cb3c584a09beaa",
+    "result": "kv=4352 tokens=2 threads=6 16_layers_ms=15.392"
+  },
+  {
+    "kv": 4096,
+    "tokens": 1,
+    "threads": 6,
+    "output_sha256": "84ef167128994bfbf82eab3b6fdc9ce73f4cc7a95413f6b7956757638079f88a",
+    "result": "kv=4096 tokens=1 threads=6 16_layers_ms=11.496"
+  },
+  {
+    "kv": 4096,
+    "tokens": 1,
+    "threads": 4,
+    "output_sha256": "84ef167128994bfbf82eab3b6fdc9ce73f4cc7a95413f6b7956757638079f88a",
+    "result": "kv=4096 tokens=1 threads=4 16_layers_ms=15.319"
+  },
+  {
+    "kv": 4096,
+    "tokens": 1,
+    "threads": 3,
+    "output_sha256": "84ef167128994bfbf82eab3b6fdc9ce73f4cc7a95413f6b7956757638079f88a",
+    "result": "kv=4096 tokens=1 threads=3 16_layers_ms=18.514"
+  },
+  {
+    "kv": 4096,
+    "tokens": 1,
+    "threads": 8,
+    "output_sha256": "84ef167128994bfbf82eab3b6fdc9ce73f4cc7a95413f6b7956757638079f88a",
+    "result": "kv=4096 tokens=1 threads=8 16_layers_ms=9.679"
+  },
+  {
+    "kv": 4096,
+    "tokens": 1,
+    "threads": 6,
+    "output_sha256": "84ef167128994bfbf82eab3b6fdc9ce73f4cc7a95413f6b7956757638079f88a",
+    "result": "kv=4096 tokens=1 threads=6 16_layers_ms=11.151"
+  }
+]
