@@ -469,6 +469,10 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             if (shield_large) envp[ei++] = "SHIELDED_REFILL_UNIT=32";
             if (shield_large) envp[ei++] = "SHIELDED_REFILL_COST_PRIORITY=1";
             if (shield_large) {
+                /* This marker is part of the measured runtime, never host input.
+                 * OpenMP releases keep their existing worker profile. */
+                if (access("/rt/shield-native-cpu-pool.enabled", F_OK) == 0)
+                    envp[ei++] = "ENCLAVE_GGML_SHARED_CPU_POOL=1";
                 envp[ei++] = "LD_PRELOAD=/rt/libshielded-omp-affinity.so";
                 envp[ei++] = "SHIELDED_CPU_COMPUTE=0,2,3,4,5,6";
                 envp[ei++] = "SHIELDED_CPU_MAIN=0";

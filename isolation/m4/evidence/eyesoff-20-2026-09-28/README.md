@@ -115,3 +115,20 @@ No field arithmetic, masks, pad lifetime or verification rules change.
 The wider CPU vector candidate is not deployed: 17/704 top-1 reference rows
 changed and maximum absolute logit difference was 0.458. Pair-dot prototypes
 showed no clear gain; native small-graph serialization was slower.
+
+## Quiet measured native-worker profile
+
+The per-graph GPU caller-placement correction restored cached128 to 18.5 tok/s
+(6.906 s) and cached384 to 17.8 tok/s (21.542 s), with the same 3,781-token
+prompt and 1 ms cached prefill. CPU graph time for cached128 was 2.890 s.
+The 20 tok/s app target remains unmet; the historical 25 tok/s engine benchmark
+used a 17-token prompt and is not an end-to-end Eyesoff result.
+
+`build-shielded-engine.py --shared-cpu-pool` now emits the measured capability
+marker `shield-native-cpu-pool.enabled`; rebuilding without that flag removes
+an inherited marker. Official init enables the native pool only for the large
+model when that marker is present. Existing OpenMP releases keep their profile.
+The regular init leaves aggregate diagnostic timers and performance headers
+unset. The quiet candidate differs from the verified caller-placement release
+only in init and that marker; all inference libraries are identical. Performance
+qualification is recorded separately after the production test.
