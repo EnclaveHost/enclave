@@ -55,7 +55,8 @@ int main(int argc, char **argv) {
     const int   threads = env_int("THREADS", 8);
     const int   seq = env_int("SEQ_ID", 0);
     const int   n_seqs = env_int("N_SEQS", seq + 1);
-    const uint32_t n_ctx = 1024, n_batch = 1024;
+    const uint32_t n_ctx = 1024, n_batch = env_int("N_BATCH", 1024);
+    const int flash = env_int("FLASH_ATTN", 0);
     if (K < 1 || K > 16) { fprintf(stderr, "K must be 1..16\n"); return 2; }
     if (seq < 0 || seq >= n_seqs || n_seqs > 1024) { fprintf(stderr, "invalid SEQ_ID/N_SEQS\n"); return 2; }
     /* The shim's supported setting reaches both contexts; do not inspect its
@@ -91,7 +92,7 @@ int main(int argc, char **argv) {
             ell_mtp_available(model), llama_model_n_layer_nextn((llama_model *)model), ell_model_recurrent(model));
     if (!ell_mtp_available(model)) { fprintf(stderr, "no MTP head in this GGUF (n_layer_nextn=0)\n"); return 4; }
 
-    void *ctx = ell_new_server(model, n_ctx, n_batch, n_seqs, 0, 0, 0);
+    void *ctx = ell_new_server(model, n_ctx, n_batch, n_seqs, 0, 0, flash);
     if (!ctx) { fprintf(stderr, "ctx failed\n"); return 2; }
     llama_set_n_threads((llama_context *)ctx, threads, threads);
     const int depth = ell_rewind_depth(ctx);
@@ -135,7 +136,7 @@ int main(int argc, char **argv) {
     const int plain_gen = (int)plain.size();
 
     /* ---- 2. speculative ---- */
-    void *mtp = ell_mtp_new(model, ctx, n_ctx, n_batch, n_seqs, 0, 0, 0);
+    void *mtp = ell_mtp_new(model, ctx, n_ctx, n_batch, n_seqs, 0, 0, flash);
     if (!mtp) { fprintf(stderr, "ell_mtp_new failed\n"); return 2; }
     std::vector<int32_t> spec; std::string text;
     int rounds = 0, drafted = 0, accepted = 0, obs_fail = 0;
