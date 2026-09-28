@@ -15,6 +15,7 @@ p=argparse.ArgumentParser(description=__doc__)
 for k in ['engine-git','runtime','out']: p.add_argument('--'+k,type=Path,required=True)
 p.add_argument('--jobs',type=int,default=6)
 p.add_argument('--active-kv-extent',action='store_true',help='omit attention-cache tail cells owned only by other sessions')
+p.add_argument('--cpu-profile',action='store_true',help='include opt-in aggregate CPU operation counters for diagnosis')
 p.add_argument('--cpu-avx512',action='store_true',help='measured AVX-512/BF16/VBMI/VNNI CPU profile; requires those guest CPU features')
 a=p.parse_args();r=Path(__file__).resolve().parents[2];w=a.out.resolve()
 if w.exists():p.error('output exists')
@@ -28,6 +29,7 @@ with archive.open('wb') as f:run(['git','-C',a.engine_git,'archive',PIN],stdout=
 run(['tar','-xf',archive,'-C',src]);archive.unlink()
 patches={}
 if a.active_kv_extent: PATCHES.append('kv-active-extent')
+if a.cpu_profile: PATCHES.append('cpu-profile')
 for n in PATCHES:
  f=r/'wasm'/('llamacpp-'+n+'.patch');patches[f.name]=digest(f);run(['git','apply',f],cwd=src)
 flags=['CMAKE_BUILD_TYPE=Release','BUILD_SHARED_LIBS=ON','GGML_BACKEND_DL=ON',

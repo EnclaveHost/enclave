@@ -1,0 +1,9 @@
+{
+  "release": "ee973c11eec61f87c1bdf81f03695c10585cb6b9de33acf044ea5252d39c4e53",
+  "cpuPatchSha256": "085a1b5df544673ee414ffa75cef87a7ab29eeb4dcabbad5b35a31c398e6b3df",
+  "headerPatchSha256": "1d4c2c223e93b7b2d9d6bda31bb4bb1a92c64672a6f28779e1beecbad61701b3",
+  "wasmtimeSha256": "51f9de6acec8bb6a4fc2311f0a09280357c835bf77ad7e235b4284b269828b07",
+  "cpuSha256": "0fc6738a87ee8c31d1f0e9668c0ea33c137a17bbf42823c0004024038814edbc",
+  "base": "fbb40c8e, unchanged math; opt-in CPU timing",
+  "counterLayout": "v1: version, buckets; six integers per bucket: count, us, max output ne[0..4]. OP_COUNT is total graph, OP_COUNT+1 quantized MUL_MAT."
+}

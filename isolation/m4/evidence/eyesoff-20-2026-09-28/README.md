@@ -26,3 +26,24 @@ Counter times across cards overlap and MUST NOT be summed as request wall time.
 Production's normal quiet stdout/stderr policy remains intact. Diagnostics do not
 export arbitrary strings or private engine logs. These counters are diagnostic,
 not security evidence or a replacement for independent image/AMD attestation.
+
+## CPU diagnosis
+
+The opt-in Shield trace measured a cached 128-token run at 12.7 tok/s (10.074 s),
+with 3,781 prompt tokens and 1 ms cached prefill. No decode-gate wait, no missing
+pads, no request-path refill and zero local product fallbacks were recorded.
+Shield graph time was 4.043 s. Model decode plus drafting was 10.002 s, leaving
+approximately 5.96 s outside Shield graph accounting. This motivated CPU operation
+timing rather than more mask-generation tuning. Card/link sub-times overlap.
+
+The next diagnostic patch adds opt-in CPU operation and graph timing counters.
+It preserves existing barriers and all arithmetic. Each CPU operation includes
+its existing barrier; the last operation is recorded after the existing final
+barrier. Fused operations are charged to the first op. Quantized MUL_MAT has its
+own bucket; max output dimensions contain shape metadata only. Profile on/off
+and the original engine produced byte-identical full-logit fixtures (eight
+resident sessions, sixteen branches, rewind, divergence, slot recycling).
+Counters are atomic but a cross-bucket snapshot is not a transaction; collect
+between requests and compare deltas. Diagnostic timing overhead is not treated
+as a performance gain. Build with --cpu-profile and enable only via the measured
+ENCLAVE_GGML_CPU_PROFILE=1 environment.
