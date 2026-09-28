@@ -13,13 +13,24 @@ A separate 1545-token no-tools request failed at 1280 prefilled tokens with
 `kv_pool_full` even with no other active chat: parked prefixes could consume
 the pool without being reclaimed. Baseline evidence is in baseline.json.
 
-## Changes
+## Changes and rejected experiment
 
-Explicit CPU fused attention for the measured 27B profile, a CPU-kernel fix to
-honor FP32 accumulation, and bounded eviction of unpinned cache entries on
-KV allocation pressure. All attention, caches and accumulators remain private
-CPU state. Model weights, masking, verification and both GPU workers are
-unchanged. The release changes only init, Wasmtime and the CPU backend module.
+Parked-cache pressure now reclaims unpinned cached prefixes instead of failing
+an otherwise admissible decode. Eight active sessions remain supported.
+
+Explicit CPU fused attention was trialed in e182e690. It passed the corrected
+FP32 numerical tests but regressed the same uncontended 3781-token workload
+from 10.7 to **6.0 tok/s** (21261 ms for 128 tokens, zero decode-gate wait).
+Two earlier runs overlapped a user's chat and are not fair performance
+comparisons. e182e690 was rolled back to 9958ac99; explicit fused attention
+is removed. The FP32 kernel fix remains for configurations that select it.
+
+The replacement c9fdc728 extends recurrent-state in-place updates to one
+active sequence inside a multislotted cache. Previously the fast path required
+cache size one, excluding production's eight active plus eight parked slots.
+The new guard requires source row == destination head; COW branches, rollback
+snapshots and multi-sequence batches keep their copies. The view uses the
+actual head offset and graph reuse checks that head and the guard.
 
 ## Qualification
 
@@ -40,3 +51,16 @@ the 0.02 maximum-logit-difference bound or argmax equality check.
 Source/contract checks: 12 passed, seven environment-dependent checks skipped.
 Skipped checks are not counted as runtime validation. Full production results
 are recorded after deployment below.
+
+## Multi-slot recurrent qualification
+
+`test-rs-multislot.py` / `rs-multislot.cpp`: eight resident sessions branch into
+sixteen, diverge, alternate nonzero heads, rewind speculative tokens, resume
+and recycle slots. All full logits are **bit-identical** to aliasing disabled
+(max difference 0). Audit: 168 aliased / 24 copied builds, zero violations.
+
+Cache pressure and append tests also pass with rollback depth one and the
+new multi-slot alias on both attention and hybrid models. The complete engine
+patch recipe applies to its pinned source; changed files match the incremental
+build source exactly. GPU workers, masking and private-state boundaries are
+unchanged.

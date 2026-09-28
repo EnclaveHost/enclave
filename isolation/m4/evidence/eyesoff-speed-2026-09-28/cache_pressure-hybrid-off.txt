@@ -1,5 +1,5 @@
-load_backend: loaded CPU backend from /home/steven/enclave-prod/release-9958ac99/template/rt/backends/libggml-cpu.so
-load_backend: loaded CPU backend from /home/steven/enclave-prod/release-9958ac99/template/rt/backends/libggml-cpu.so
+load_backend: loaded CPU backend from /home/steven/enclave-bench/eyesoff-speed-20260928/multislot-runtime/backends/libggml-cpu.so
+load_backend: loaded CPU backend from /home/steven/enclave-bench/eyesoff-speed-20260928/multislot-runtime/backends/libggml-cpu.so
 llama_model_loader: loaded meta data with 48 key-value pairs and 335 tensors from /home/steven/Projects/enclave-models/qwen3.5-0.8b-mtp-gguf/Qwen3.5-0.8B-Q8_0.gguf (version GGUF V3 (latest))
 llama_model_loader: Dumping metadata keys/values. Note: KV overrides do not apply in this output.
 llama_model_loader: - kv   0:                       general.architecture str              = qwen35
@@ -1055,7 +1055,7 @@ llama_context: flash_attn    = disabled
 llama_context: kv_unified    = true
 llama_context: freq_base     = 10000000.0
 llama_context: freq_scale    = 1
-llama_context: n_rs_seq      = 0
+llama_context: n_rs_seq      = 1
 llama_context: n_outputs_max = 16
 llama_context: n_ctx_seq (512) < n_ctx_train (262144) -- the full capacity of the model will not be utilized
 set_abort_callback: call
@@ -1114,8 +1114,8 @@ llama_memory_recurrent, layer  20: dev = CPU
 llama_memory_recurrent, layer  21: dev = CPU
 llama_memory_recurrent, layer  22: dev = CPU
 llama_memory_recurrent: layer  23: skipped
-llama_memory_recurrent:        CPU RS buffer size =   308.25 MiB
-llama_memory_recurrent: size =  308.25 MiB (    16 cells,  24 layers, 16 seqs  0 rs_seq), R (f32):   20.25 MiB, S (f32):  288.00 MiB
+llama_memory_recurrent:        CPU RS buffer size =   616.50 MiB
+llama_memory_recurrent: size =  616.50 MiB (    16 cells,  24 layers, 16 seqs  1 rs_seq), R (f32):   40.50 MiB, S (f32):  576.00 MiB
 llama_context: enumerating backends
 llama_context: backend_ptrs.size() = 1
 sched_reserve: reserving ...
@@ -1140,10 +1140,10 @@ resolve_fused_ops: fused DeepSeek V4 HC post enabled
 graph_reserve: reserving a graph for ubatch with n_tokens =   16, n_seqs = 16, n_outputs =   16
 graph_reserve: reserving a graph for ubatch with n_tokens =   16, n_seqs = 16, n_outputs =   16
 graph_reserve: reserving a graph for ubatch with n_tokens =   16, n_seqs = 16, n_outputs =   16
-sched_reserve:        CPU compute buffer size =    35.41 MiB
-sched_reserve: graph nodes  = 1405
+sched_reserve:        CPU compute buffer size =    51.41 MiB
+sched_reserve: graph nodes  = 1459
 sched_reserve: graph splits = 1
-sched_reserve: reserve took 3.92 ms, sched copies = 1
+sched_reserve: reserve took 4.29 ms, sched copies = 1
 llama_context: constructing llama_context
 llama_context: n_seq_max     = 16
 llama_context: n_ctx         = 512
@@ -1155,7 +1155,7 @@ llama_context: flash_attn    = disabled
 llama_context: kv_unified    = true
 llama_context: freq_base     = 10000000.0
 llama_context: freq_scale    = 1
-llama_context: n_rs_seq      = 0
+llama_context: n_rs_seq      = 1
 llama_context: n_outputs_max = 16
 llama_context: n_ctx_seq (512) < n_ctx_train (262144) -- the full capacity of the model will not be utilized
 set_abort_callback: call
@@ -1214,8 +1214,8 @@ llama_memory_recurrent, layer  20: dev = CPU
 llama_memory_recurrent, layer  21: dev = CPU
 llama_memory_recurrent, layer  22: dev = CPU
 llama_memory_recurrent: layer  23: skipped
-llama_memory_recurrent:        CPU RS buffer size =   308.25 MiB
-llama_memory_recurrent: size =  308.25 MiB (    16 cells,  24 layers, 16 seqs  0 rs_seq), R (f32):   20.25 MiB, S (f32):  288.00 MiB
+llama_memory_recurrent:        CPU RS buffer size =   616.50 MiB
+llama_memory_recurrent: size =  616.50 MiB (    16 cells,  24 layers, 16 seqs  1 rs_seq), R (f32):   40.50 MiB, S (f32):  576.00 MiB
 llama_context: enumerating backends
 llama_context: backend_ptrs.size() = 1
 sched_reserve: reserving ...
@@ -1240,12 +1240,13 @@ resolve_fused_ops: fused DeepSeek V4 HC post enabled
 graph_reserve: reserving a graph for ubatch with n_tokens =   16, n_seqs = 16, n_outputs =   16
 graph_reserve: reserving a graph for ubatch with n_tokens =   16, n_seqs = 16, n_outputs =   16
 graph_reserve: reserving a graph for ubatch with n_tokens =   16, n_seqs = 16, n_outputs =   16
-sched_reserve:        CPU compute buffer size =    35.41 MiB
-sched_reserve: graph nodes  = 1405
+sched_reserve:        CPU compute buffer size =    51.41 MiB
+sched_reserve: graph nodes  = 1459
 sched_reserve: graph splits = 1
-sched_reserve: reserve took 5.91 ms, sched copies = 1
+sched_reserve: reserve took 5.17 ms, sched copies = 1
 PRESSURE_CASE_PASS 0
 PRESSURE_CASE_PASS 1
+[rs] alias=1 n_rs=1 head=13 rs_z=-1 s_copy=[ 13] (alias 58 / copy 6 / VIOLATIONS 0)
 init_batch: failed to prepare attention ubatches
 decode: failed to find a memory slot for batch of size 16
 init_batch: failed to prepare attention ubatches
@@ -1258,6 +1259,7 @@ decode: failed to find a memory slot for batch of size 16
 PRESSURE_CASE_PASS 3
 init_batch: failed to prepare attention ubatches
 decode: failed to find a memory slot for batch of size 16
+[rs] alias=1 n_rs=1 head=14 rs_z=-1 s_copy=[ 14] (alias 116 / copy 12 / VIOLATIONS 0)
 init_batch: failed to prepare attention ubatches
 decode: failed to find a memory slot for batch of size 16
 PRESSURE_CASE_PASS 4
@@ -1268,6 +1270,7 @@ decode: failed to find a memory slot for batch of size 16
 PRESSURE_CASE_PASS 5
 init_batch: failed to prepare attention ubatches
 decode: failed to find a memory slot for batch of size 16
+[rs] alias=1 n_rs=1 head=15 rs_z=-1 s_copy=[ 15] (alias 174 / copy 18 / VIOLATIONS 0)
 init_batch: failed to prepare attention ubatches
 decode: failed to find a memory slot for batch of size 16
 PRESSURE_CASE_PASS 6
@@ -1279,6 +1282,7 @@ PRESSURE_CASE_PASS 7
 init_batch: failed to prepare attention ubatches
 decode: failed to find a memory slot for batch of size 16
 BORROWER_PREFIX_PASS
+[rs] alias=0 n_rs=1 head=11 rs_z=11 s_copy=[ 10] (alias 229 / copy 27 / VIOLATIONS 0)
 init_batch: failed to prepare attention ubatches
 decode: failed to find a memory slot for batch of size 16
 init_batch: failed to prepare attention ubatches
@@ -1291,5 +1295,5 @@ init_batch: failed to prepare attention ubatches
 decode: failed to find a memory slot for batch of size 16
 BORROWER_RESUMING
 PINNED_BORROWER_PASS; CACHE_PRESSURE_PASS
-~llama_context:        CPU compute buffer size is  35.4068 MiB, matches expectation of  35.4068 MiB
-~llama_context:        CPU compute buffer size is  35.4068 MiB, matches expectation of  35.4068 MiB
+~llama_context:        CPU compute buffer size is  51.4068 MiB, matches expectation of  51.4068 MiB
+~llama_context:        CPU compute buffer size is  51.4068 MiB, matches expectation of  51.4068 MiB

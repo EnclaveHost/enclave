@@ -1,0 +1,82 @@
+TAP version 13
+# Subtest: the refusal marker is the exact literal a guest substring-matches
+ok 1 - the refusal marker is the exact literal a guest substring-matches
+  ---
+  duration_ms: 1.353594
+  type: 'test'
+  ...
+# Subtest: both speculative verbs gate the refusal on the caller's opt-in
+ok 2 - both speculative verbs gate the refusal on the caller's opt-in
+  ---
+  duration_ms: 0.489627
+  type: 'test'
+  ...
+# Subtest: the opt-in defaults to false, so silence means the old behaviour
+ok 3 - the opt-in defaults to false, so silence means the old behaviour
+  ---
+  duration_ms: 0.164059
+  type: 'test'
+  ...
+# Subtest: a speculative round marks its sequence as generating
+ok 4 - a speculative round marks its sequence as generating
+  ---
+  duration_ms: 0.139769
+  type: 'test'
+  ...
+# Subtest: caps[12] is the shared bit; a guest length-checks and reads it by INDEX
+ok 5 - caps[12] is the shared bit; a guest length-checks and reads it by INDEX
+  ---
+  duration_ms: 0.338588
+  type: 'test'
+  ...
+# Subtest: the refusal marker is the exact literal a guest substring-matches, with progress
+ok 6 - the refusal marker is the exact literal a guest substring-matches, with progress
+  ---
+  duration_ms: 1.306613
+  type: 'test'
+  ...
+# Subtest: waiting is opt-in: only a caller that sent prefix_wait=1 can be refused
+ok 7 - waiting is opt-in: only a caller that sent prefix_wait=1 can be refused
+  ---
+  duration_ms: 0.519697
+  type: 'test'
+  ...
+# Subtest: a refused follower is left untouched: the wait returns before the copy, the pin and the plan
+ok 8 - a refused follower is left untouched: the wait returns before the copy, the pin and the plan
+  ---
+  duration_ms: 0.258989
+  type: 'test'
+  ...
+# Subtest: claims are settled as marks are crossed and never outlive their owner
+ok 9 - claims are settled as marks are crossed and never outlive their owner
+  ---
+  duration_ms: 0.496017
+  type: 'test'
+  ...
+# Subtest: the coordination lives on the shared server, keyed by a stable per-context id
+ok 10 - the coordination lives on the shared server, keyed by a stable per-context id
+  ---
+  duration_ms: 0.395398
+  type: 'test'
+  ...
+# Subtest: the pure claims table has its own tests and the staleness knob is documented
+ok 11 - the pure claims table has its own tests and the staleness knob is documented
+  ---
+  duration_ms: 0.250748
+  type: 'test'
+  ...
+# Subtest: measured OpenMP placement preserves output, repins workers, and restores caller/child affinity
+ok 12 - measured OpenMP placement preserves output, repins workers, and restores caller/child affinity
+  ---
+  duration_ms: 154.889425
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 206.531983

@@ -458,9 +458,6 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS_BATCH=6" : "ENCLAVE_GGML_N_THREADS_BATCH=2";
             envp[ei++] = "ENCLAVE_GGML_N_BATCH=16";
             envp[ei++] = "ENCLAVE_GGML_N_UBATCH=16";
-            /* Shield offloads matrix products, while attention remains private on the CPU.
-             * Auto disables fused attention when the layer device differs from the CPU. */
-            if (shield_large) envp[ei++] = "ENCLAVE_GGML_FLASH_ATTN=on";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_RS_SEQ=1" : "ENCLAVE_GGML_N_RS_SEQ=0";
             envp[ei++] = shield_large ? "SHIELDED_REFILL_THREADS=16" : "SHIELDED_REFILL_THREADS=2";
             envp[ei++] = shield_large ? "SHIELDED_POOL_DEPTH=128" : "SHIELDED_POOL_DEPTH=16";
