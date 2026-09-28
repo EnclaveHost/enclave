@@ -1,0 +1,4 @@
+RESULT mode=trusted
+VERDICT reject reason="the domain never answered"
+RESULT app_requests_sent=0
+RESULT refused_handshakes=0

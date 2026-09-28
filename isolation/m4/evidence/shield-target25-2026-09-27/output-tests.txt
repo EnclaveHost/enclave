@@ -1,0 +1,68 @@
+TAP version 13
+# In file included from /tmp/shielded-pad-wait-6WIItr/test.c:2:
+# /home/steven/Projects/enclave-v100-isolation/wasm/ggml-shielded/shielded-tee.c: In function ‘dealt_reserve_http’:
+# /home/steven/Projects/enclave-v100-isolation/wasm/ggml-shielded/shielded-tee.c:1226:98: warning: ‘%s’ directive output may be truncated writing up to 1023 bytes into a region of size 211 [-Wformat-truncation=]
+#  1226 |             } else snprintf(l->err, sizeof l->err, "dealt pads: window signature REJECTED (agent %s)", l->win_url);
+#       |                                                                                                  ^~
+# /home/steven/Projects/enclave-v100-isolation/wasm/ggml-shielded/shielded-tee.c:1226:20: note: ‘snprintf’ output between 47 and 1070 bytes into a destination of size 256
+#  1226 |             } else snprintf(l->err, sizeof l->err, "dealt pads: window signature REJECTED (agent %s)", l->win_url);
+#       |                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# /home/steven/Projects/enclave-v100-isolation/wasm/ggml-shielded/shielded-tee.c:1227:83: warning: ‘%s’ directive output may be truncated writing up to 1023 bytes into a region of size 222 [-Wformat-truncation=]
+#  1227 |         } else snprintf(l->err, sizeof l->err, "dealt pads: malformed window from %s", l->win_url);
+#       |                                                                                   ^~
+# /home/steven/Projects/enclave-v100-isolation/wasm/ggml-shielded/shielded-tee.c:1227:16: note: ‘snprintf’ output between 35 and 1058 bytes into a destination of size 256
+#  1227 |         } else snprintf(l->err, sizeof l->err, "dealt pads: malformed window from %s", l->win_url);
+#       |                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# /home/steven/Projects/enclave-v100-isolation/wasm/ggml-shielded/shielded-tee.c:1228:70: warning: ‘%s’ directive output may be truncated writing up to 1023 bytes into a region of size 231 [-Wformat-truncation=]
+#  1228 |     } else snprintf(l->err, sizeof l->err, "dealt pads: window agent %s answered http %d", l->win_url, status);
+#       |                                                                      ^~
+# /home/steven/Projects/enclave-v100-isolation/wasm/ggml-shielded/shielded-tee.c:1228:12: note: ‘snprintf’ output between 42 and 1075 bytes into a destination of size 256
+#  1228 |     } else snprintf(l->err, sizeof l->err, "dealt pads: window agent %s answered http %d", l->win_url, status);
+#       |            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# /home/steven/Projects/enclave-v100-isolation/wasm/ggml-shielded/shielded-tee.c:1215:141: warning: ‘%s’ directive output may be truncated writing up to 1023 bytes into a region of size 231 [-Wformat-truncation=]
+#  1215 |     if (sh_http_post_json(l->win_url, body, 30000, &resp, &rlen, &status) != 0) { snprintf(l->err, sizeof l->err, "dealt pads: window agent %s unreachable", l->win_url); return SH_ERR_IO; }
+#       |                                                                                                                                             ^~
+# /home/steven/Projects/enclave-v100-isolation/wasm/ggml-shielded/shielded-tee.c:1215:83: note: ‘snprintf’ output between 38 and 1061 bytes into a destination of size 256
+#  1215 |     if (sh_http_post_json(l->win_url, body, 30000, &resp, &rlen, &status) != 0) { snprintf(l->err, sizeof l->err, "dealt pads: window agent %s unreachable", l->win_url); return SH_ERR_IO; }
+#       |                                                                                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# /home/steven/Projects/enclave-v100-isolation/wasm/ggml-shielded/shielded-tee.c: In function ‘dealt_bind’:
+# /home/steven/Projects/enclave-v100-isolation/wasm/ggml-shielded/shielded-tee.c:1449:110: warning: ‘%s’ directive output may be truncated writing up to 1023 bytes into a region of size 211 [-Wformat-truncation=]
+#  1449 |             if (!l->padbank) { snprintf(l->err, sizeof l->err, "dealt pads: cannot start the bank client for %s (cache %s)", l->bank_url, l->pad_dir); return err ? err : SH_ERR_IO; }
+#       |                                                                                                              ^~
+# /home/steven/Projects/enclave-v100-isolation/wasm/ggml-shielded/shielded-tee.c:1449:32: note: ‘snprintf’ output between 55 and 1589 bytes into a destination of size 256
+#  1449 |             if (!l->padbank) { snprintf(l->err, sizeof l->err, "dealt pads: cannot start the bank client for %s (cache %s)", l->bank_url, l->pad_dir); return err ? err : SH_ERR_IO; }
+#       |                                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# /home/steven/Projects/enclave-v100-isolation/wasm/ggml-shielded/shielded-tee.c:1452:82: warning: ‘%s’ directive output may be truncated writing up to 511 bytes into a region of size 232 [-Wformat-truncation=]
+#  1452 |         if (!l->pads) { snprintf(l->err, sizeof l->err, "dealt pads: cannot read %s", l->pad_dir); return err ? err : SH_ERR_IO; }
+#       |                                                                                  ^~
+# /home/steven/Projects/enclave-v100-isolation/wasm/ggml-shielded/shielded-tee.c:1452:25: note: ‘snprintf’ output between 25 and 536 bytes into a destination of size 256
+#  1452 |         if (!l->pads) { snprintf(l->err, sizeof l->err, "dealt pads: cannot read %s", l->pad_dir); return err ? err : SH_ERR_IO; }
+#       |                         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# /home/steven/Projects/enclave-v100-isolation/wasm/ggml-shielded/shielded-tee.c: In function ‘dealt_open’:
+# /home/steven/Projects/enclave-v100-isolation/wasm/ggml-shielded/shielded-tee.c:1482:115: warning: ‘%s’ directive output may be truncated writing up to 511 bytes into a region of size 198 [-Wformat-truncation=]
+#  1482 |     if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "dealt pads: invalid, replayed or exhausted ledger window (%s)", l->win_fn ? "provider refused" : l->pad_ledger); return rc; }
+#       |                                                                                                                   ^~
+# /home/steven/Projects/enclave-v100-isolation/wasm/ggml-shielded/shielded-tee.c:1482:24: note: ‘snprintf’ output between 60 and 571 bytes into a destination of size 256
+#  1482 |     if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "dealt pads: invalid, replayed or exhausted ledger window (%s)", l->win_fn ? "provider refused" : l->pad_ledger); return rc; }
+#       |                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Subtest: waiting for in-flight pads preserves consumption and times out without taking unpublished slots
+ok 1 - waiting for in-flight pads preserves consumption and times out without taking unpublished slots
+  ---
+  duration_ms: 893.011007
+  type: 'test'
+  ...
+# Subtest: refill cost priority preserves urgency, full batches, and reserved slots
+ok 2 - refill cost priority preserves urgency, full batches, and reserved slots
+  ---
+  duration_ms: 1512.735408
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1557.586407

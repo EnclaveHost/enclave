@@ -1,0 +1,22 @@
+{
+  "off": {
+    "sha256": "f4dad881e46eeec1b19f387a1c9bfa7fc9a8ff5964b7f031f5a324f58d1681b3",
+    "bytes": 448983256,
+    "cases": 72
+  },
+  "row": {
+    "sha256": "f4dad881e46eeec1b19f387a1c9bfa7fc9a8ff5964b7f031f5a324f58d1681b3",
+    "bytes": 448983256,
+    "cases": 72
+  },
+  "snapshot": {
+    "sha256": "f4dad881e46eeec1b19f387a1c9bfa7fc9a8ff5964b7f031f5a324f58d1681b3",
+    "bytes": 448983256,
+    "cases": 72
+  },
+  "both": {
+    "sha256": "f4dad881e46eeec1b19f387a1c9bfa7fc9a8ff5964b7f031f5a324f58d1681b3",
+    "bytes": 448983256,
+    "cases": 72
+  }
+}

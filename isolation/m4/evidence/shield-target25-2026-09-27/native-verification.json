@@ -1,0 +1,79 @@
+{
+  "native-base": {
+    "final_verification": "[bench] shielded: offloaded=83412 local=0 GMAC=8475.02 verify_fail=0",
+    "final_card_profiles": [
+      "[shielded] profile: exchanges=53466 nodes=83412 (completions=13262 served=16684) | link: mask=622.3ms wire=4185.1ms refill-on-path=72.4ms unmask+lhs=499.7ms rhs=696.4ms check=42.2ms pads=22.6ms idle=3841.0ms/53463ex total=7709.8ms | backend: encode=280.0ms post=124.7ms graph_compute=65176.0ms | split: gemm=6215.3ms post=456.2ms join=781.3ms | pads used=84409 missed=2 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=8 refill_priority=deficit omp_spincount=default",
+      "[shielded] profile: exchanges=53466 nodes=0 (completions=0 served=0) | link: mask=918.2ms wire=4690.4ms refill-on-path=367.5ms unmask+lhs=453.7ms rhs=582.7ms check=41.4ms pads=21.7ms idle=4417.3ms/53463ex total=0.0ms | backend: encode=0.0ms post=0.0ms graph_compute=0.0ms | split: gemm=0.0ms post=0.0ms join=0.0ms | pads used=84409 missed=11 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=8 refill_priority=deficit omp_spincount=default"
+    ]
+  },
+  "native-cpu": {
+    "final_verification": "[bench] shielded: offloaded=83412 local=0 GMAC=8475.02 verify_fail=0",
+    "final_card_profiles": [
+      "[shielded] profile: exchanges=53466 nodes=83412 (completions=13262 served=16684) | link: mask=533.7ms wire=4236.9ms refill-on-path=0.0ms unmask+lhs=512.1ms rhs=736.7ms check=41.9ms pads=19.3ms idle=3919.4ms/53463ex total=7887.8ms | backend: encode=302.9ms post=120.0ms graph_compute=65653.8ms | split: gemm=6231.8ms post=479.1ms join=913.3ms | pads used=84409 missed=0 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=8 refill_priority=cost omp_spincount=default",
+      "[shielded] profile: exchanges=53466 nodes=0 (completions=0 served=0) | link: mask=905.8ms wire=4882.3ms refill-on-path=356.6ms unmask+lhs=454.7ms rhs=608.1ms check=42.2ms pads=15.9ms idle=4565.1ms/53463ex total=0.0ms | backend: encode=0.0ms post=0.0ms graph_compute=0.0ms | split: gemm=0.0ms post=0.0ms join=0.0ms | pads used=84409 missed=10 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=8 refill_priority=cost omp_spincount=default"
+    ]
+  },
+  "native-k2": {
+    "final_verification": "[bench] shielded: offloaded=76365 local=0 GMAC=8968.70 verify_fail=0",
+    "final_card_profiles": [
+      "[shielded] profile: exchanges=48960 nodes=76365 (completions=12127 served=15278) | link: mask=1041.7ms wire=4131.3ms refill-on-path=527.6ms unmask+lhs=488.3ms rhs=587.1ms check=41.3ms pads=15.5ms idle=3850.4ms/48957ex total=8105.7ms | backend: encode=261.5ms post=104.4ms graph_compute=66613.1ms | split: gemm=6468.6ms post=414.1ms join=980.7ms | pads used=88978 missed=16 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=8 refill_priority=deficit omp_spincount=default",
+      "[shielded] profile: exchanges=48960 nodes=0 (completions=0 served=0) | link: mask=1377.1ms wire=4231.8ms refill-on-path=789.2ms unmask+lhs=493.9ms rhs=668.4ms check=45.8ms pads=12.0ms idle=3918.1ms/48957ex total=0.0ms | backend: encode=0.0ms post=0.0ms graph_compute=0.0ms | split: gemm=0.0ms post=0.0ms join=0.0ms | pads used=88978 missed=21 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=8 refill_priority=deficit omp_spincount=default"
+    ]
+  },
+  "native-output128-unit16": {
+    "final_verification": "[bench] shielded: offloaded=83412 local=0 GMAC=8475.02 verify_fail=0",
+    "final_card_profiles": [
+      "[shielded] profile: exchanges=53466 nodes=83412 (completions=13262 served=16684) | link: mask=567.8ms wire=4230.0ms refill-on-path=51.0ms unmask+lhs=488.6ms rhs=643.0ms check=41.7ms pads=22.7ms idle=3929.0ms/53463ex total=7696.8ms | backend: encode=270.0ms post=106.0ms graph_compute=66170.0ms | split: gemm=6151.8ms post=415.2ms join=888.9ms | pads used=84409 missed=11 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=8 refill_priority=cost omp_spincount=default",
+      "[shielded] profile: exchanges=53466 nodes=0 (completions=0 served=0) | link: mask=791.4ms wire=4774.3ms refill-on-path=213.4ms unmask+lhs=461.4ms rhs=669.7ms check=41.4ms pads=15.4ms idle=4473.2ms/53463ex total=0.0ms | backend: encode=0.0ms post=0.0ms graph_compute=0.0ms | split: gemm=0.0ms post=0.0ms join=0.0ms | pads used=84409 missed=47 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=8 refill_priority=cost omp_spincount=default"
+    ]
+  },
+  "native-output128": {
+    "final_verification": "[bench] shielded: offloaded=83412 local=0 GMAC=8475.02 verify_fail=0",
+    "final_card_profiles": [
+      "[shielded] profile: exchanges=53466 nodes=83412 (completions=13262 served=16684) | link: mask=1364.5ms wire=4163.5ms refill-on-path=906.3ms unmask+lhs=414.6ms rhs=531.6ms check=36.6ms pads=13.0ms idle=3911.8ms/53463ex total=8251.4ms | backend: encode=230.7ms post=90.2ms graph_compute=65524.2ms | split: gemm=6680.5ms post=349.7ms join=996.6ms | pads used=84409 missed=245 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=8 refill_priority=cost omp_spincount=default",
+      "[shielded] profile: exchanges=53466 nodes=0 (completions=0 served=0) | link: mask=871.9ms wire=4810.8ms refill-on-path=345.1ms unmask+lhs=434.4ms rhs=600.3ms check=39.4ms pads=14.5ms idle=4461.4ms/53463ex total=0.0ms | backend: encode=0.0ms post=0.0ms graph_compute=0.0ms | split: gemm=0.0ms post=0.0ms join=0.0ms | pads used=84409 missed=118 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=8 refill_priority=cost omp_spincount=default"
+    ]
+  },
+  "native-pool128-long": {
+    "final_verification": "[bench] shielded: offloaded=241244 local=0 GMAC=22118.76 verify_fail=0",
+    "final_card_profiles": [
+      "[shielded] profile: exchanges=154634 nodes=241244 (completions=38358 served=48252) | link: mask=1276.9ms wire=11484.9ms refill-on-path=0.0ms unmask+lhs=1150.0ms rhs=1483.9ms check=99.6ms pads=52.4ms idle=10849.9ms/154631ex total=20081.6ms | backend: encode=666.6ms post=253.4ms graph_compute=79688.4ms | split: gemm=15993.1ms post=976.1ms join=2534.2ms | pads used=220121 missed=0 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=8 refill_priority=cost omp_spincount=default",
+      "[shielded] profile: exchanges=154634 nodes=0 (completions=0 served=0) | link: mask=2256.5ms wire=12539.8ms refill-on-path=803.5ms unmask+lhs=1172.3ms rhs=1752.9ms check=112.8ms pads=44.3ms idle=11863.5ms/154631ex total=0.0ms | backend: encode=0.0ms post=0.0ms graph_compute=0.0ms | split: gemm=0.0ms post=0.0ms join=0.0ms | pads used=220121 missed=161 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=8 refill_priority=cost omp_spincount=default"
+    ]
+  },
+  "native-pool128-repeat": {
+    "final_verification": "[bench] shielded: offloaded=83412 local=0 GMAC=8475.02 verify_fail=0",
+    "final_card_profiles": [
+      "[shielded] profile: exchanges=53466 nodes=83412 (completions=13262 served=16684) | link: mask=476.4ms wire=4162.7ms refill-on-path=0.0ms unmask+lhs=439.6ms rhs=567.0ms check=39.8ms pads=12.5ms idle=3897.7ms/53463ex total=6989.0ms | backend: encode=252.6ms post=92.9ms graph_compute=65333.2ms | split: gemm=5848.9ms post=368.2ms join=543.0ms | pads used=84409 missed=0 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=8 refill_priority=cost omp_spincount=default",
+      "[shielded] profile: exchanges=53466 nodes=0 (completions=0 served=0) | link: mask=511.9ms wire=4581.9ms refill-on-path=0.0ms unmask+lhs=431.7ms rhs=561.0ms check=41.3ms pads=9.3ms idle=4308.2ms/53463ex total=0.0ms | backend: encode=0.0ms post=0.0ms graph_compute=0.0ms | split: gemm=0.0ms post=0.0ms join=0.0ms | pads used=84409 missed=0 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=8 refill_priority=cost omp_spincount=default"
+    ]
+  },
+  "native-pool128": {
+    "final_verification": "[bench] shielded: offloaded=83412 local=0 GMAC=8475.02 verify_fail=0",
+    "final_card_profiles": [
+      "[shielded] profile: exchanges=53466 nodes=83412 (completions=13262 served=16684) | link: mask=480.6ms wire=4246.3ms refill-on-path=0.0ms unmask+lhs=455.2ms rhs=559.6ms check=40.5ms pads=11.4ms idle=3970.3ms/53463ex total=7047.5ms | backend: encode=248.8ms post=95.0ms graph_compute=65878.7ms | split: gemm=5959.7ms post=371.3ms join=482.1ms | pads used=84409 missed=0 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=8 refill_priority=cost omp_spincount=default",
+      "[shielded] profile: exchanges=53466 nodes=0 (completions=0 served=0) | link: mask=530.6ms wire=4615.0ms refill-on-path=0.0ms unmask+lhs=445.6ms rhs=554.6ms check=41.5ms pads=10.0ms idle=4322.0ms/53463ex total=0.0ms | backend: encode=0.0ms post=0.0ms graph_compute=0.0ms | split: gemm=0.0ms post=0.0ms join=0.0ms | pads used=84409 missed=0 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=8 refill_priority=cost omp_spincount=default"
+    ]
+  },
+  "native-priority": {
+    "final_verification": "[bench] shielded: offloaded=83412 local=0 GMAC=8475.02 verify_fail=0",
+    "final_card_profiles": [
+      "[shielded] profile: exchanges=53466 nodes=83412 (completions=13262 served=16684) | link: mask=496.8ms wire=4232.6ms refill-on-path=0.0ms unmask+lhs=453.1ms rhs=566.3ms check=39.2ms pads=20.0ms idle=3963.8ms/53463ex total=7409.5ms | backend: encode=252.2ms post=98.4ms graph_compute=64717.3ms | split: gemm=5958.6ms post=379.2ms join=824.3ms | pads used=84409 missed=0 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=8 refill_priority=cost omp_spincount=default",
+      "[shielded] profile: exchanges=53466 nodes=0 (completions=0 served=0) | link: mask=827.5ms wire=4632.4ms refill-on-path=287.7ms unmask+lhs=449.9ms rhs=566.3ms check=40.9ms pads=17.3ms idle=4343.0ms/53462ex total=0.0ms | backend: encode=0.0ms post=0.0ms graph_compute=0.0ms | split: gemm=0.0ms post=0.0ms join=0.0ms | pads used=84409 missed=8 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=8 refill_priority=cost omp_spincount=default"
+    ]
+  },
+  "native-priority32": {
+    "final_verification": "[bench] shielded: offloaded=83412 local=0 GMAC=8475.02 verify_fail=0",
+    "final_card_profiles": [
+      "[shielded] profile: exchanges=53466 nodes=83412 (completions=13262 served=16684) | link: mask=1892.0ms wire=4120.4ms refill-on-path=1441.6ms unmask+lhs=402.8ms rhs=519.3ms check=35.7ms pads=21.5ms idle=3884.7ms/53463ex total=9007.7ms | backend: encode=219.7ms post=83.5ms graph_compute=66550.6ms | split: gemm=7139.1ms post=331.5ms join=1317.1ms | pads used=84409 missed=262 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=8 refill_priority=cost omp_spincount=default",
+      "[shielded] profile: exchanges=53466 nodes=0 (completions=0 served=0) | link: mask=2385.9ms wire=4515.0ms refill-on-path=1858.7ms unmask+lhs=427.0ms rhs=636.5ms check=39.6ms pads=12.4ms idle=4239.5ms/53463ex total=0.0ms | backend: encode=0.0ms post=0.0ms graph_compute=0.0ms | split: gemm=0.0ms post=0.0ms join=0.0ms | pads used=84409 missed=232 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=8 refill_priority=cost omp_spincount=default"
+    ]
+  },
+  "native-refill8": {
+    "final_verification": "[bench] shielded: offloaded=83412 local=0 GMAC=8475.02 verify_fail=0",
+    "final_card_profiles": [
+      "[shielded] profile: exchanges=53466 nodes=83412 (completions=13262 served=16684) | link: mask=1544.2ms wire=4238.6ms refill-on-path=1077.2ms unmask+lhs=444.7ms rhs=542.0ms check=37.9ms pads=11.4ms idle=3978.5ms/53463ex total=8085.9ms | backend: encode=245.6ms post=92.7ms graph_compute=68619.2ms | split: gemm=6956.0ms post=365.8ms join=525.4ms | pads used=84409 missed=154 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=4 refill_priority=cost omp_spincount=default",
+      "[shielded] profile: exchanges=53466 nodes=0 (completions=0 served=0) | link: mask=1094.8ms wire=4627.4ms refill-on-path=588.8ms unmask+lhs=425.1ms rhs=522.9ms check=38.8ms pads=9.8ms idle=4353.5ms/53462ex total=0.0ms | backend: encode=0.0ms post=0.0ms graph_compute=0.0ms | split: gemm=0.0ms post=0.0ms join=0.0ms | pads used=84409 missed=28 waited=0 wait=0.0ms | contended=0 events=0 | simd=avx512-vnni-vector-crt refill_threads=4 refill_priority=cost omp_spincount=default"
+    ]
+  }
+}

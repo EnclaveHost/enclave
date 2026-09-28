@@ -1,0 +1,12 @@
+{"round": 0, "mode": "off", "stdout": "regrow=(default) tokfuse=(default) n_t=2 threads=6 K=2 states=48 warm=0 calls=192  206.8 us/call\n  anon=299 MB thp=298 MB"}
+{"round": 0, "mode": "row", "stdout": "regrow=(default) tokfuse=(default) n_t=2 threads=6 K=2 states=48 warm=0 calls=192  190.9 us/call\n  anon=299 MB thp=298 MB"}
+{"round": 0, "mode": "snapshot", "stdout": "regrow=(default) tokfuse=(default) n_t=2 threads=6 K=2 states=48 warm=0 calls=192  167.7 us/call\n  anon=299 MB thp=298 MB"}
+{"round": 0, "mode": "both", "stdout": "regrow=(default) tokfuse=(default) n_t=2 threads=6 K=2 states=48 warm=0 calls=192  163.0 us/call\n  anon=299 MB thp=298 MB"}
+{"round": 1, "mode": "both", "stdout": "regrow=(default) tokfuse=(default) n_t=2 threads=6 K=2 states=48 warm=0 calls=192  177.2 us/call\n  anon=299 MB thp=298 MB"}
+{"round": 1, "mode": "snapshot", "stdout": "regrow=(default) tokfuse=(default) n_t=2 threads=6 K=2 states=48 warm=0 calls=192  163.8 us/call\n  anon=299 MB thp=298 MB"}
+{"round": 1, "mode": "row", "stdout": "regrow=(default) tokfuse=(default) n_t=2 threads=6 K=2 states=48 warm=0 calls=192  191.6 us/call\n  anon=299 MB thp=298 MB"}
+{"round": 1, "mode": "off", "stdout": "regrow=(default) tokfuse=(default) n_t=2 threads=6 K=2 states=48 warm=0 calls=192  191.4 us/call\n  anon=299 MB thp=298 MB"}
+{"round": 2, "mode": "off", "stdout": "regrow=(default) tokfuse=(default) n_t=2 threads=6 K=2 states=48 warm=0 calls=192  204.2 us/call\n  anon=299 MB thp=298 MB"}
+{"round": 2, "mode": "row", "stdout": "regrow=(default) tokfuse=(default) n_t=2 threads=6 K=2 states=48 warm=0 calls=192  191.2 us/call\n  anon=299 MB thp=298 MB"}
+{"round": 2, "mode": "snapshot", "stdout": "regrow=(default) tokfuse=(default) n_t=2 threads=6 K=2 states=48 warm=0 calls=192  169.3 us/call\n  anon=299 MB thp=298 MB"}
+{"round": 2, "mode": "both", "stdout": "regrow=(default) tokfuse=(default) n_t=2 threads=6 K=2 states=48 warm=0 calls=192  160.3 us/call\n  anon=299 MB thp=298 MB"}

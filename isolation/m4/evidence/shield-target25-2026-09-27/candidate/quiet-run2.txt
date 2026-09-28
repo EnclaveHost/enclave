@@ -1,0 +1,45 @@
+RESULT mode=trusted
+RESULT tier=T1
+RESULT spki_sha256=d18fd30ff9f2cf54ef541fd63c5d4ae804480b4867ca05ba7de1ac68f3a405f9
+RESULT doc_key_matches_handshake=1
+evidence: the runtime identity is the expected one: wasmtime/49.0.0 execution=jit target=x86_64 host=x86_64 features=host-detected wx=enforced cache=none
+evidence: the scan covered every process with an address space in this domain (4: runtime=1, root=3)
+evidence: the domain measured that it may hold an executable page (exec_pages=allowed), which execution=jit requires, and found no writable-and-executable mapping among 4 processes in scope all-processes
+evidence: every runtime process is under the seccomp filter with program sha256 d4d17c9f53832439…, measured at this attestation (init's statement; the kernel's mode)
+evidence: that self-test is the measured front's own word, relayed over this attested connection; the hardware does not attest it (see judge.mjs checkRuntime)
+evidence: enclave-domain-abi/2: report_data[0:32] must bind the transport key, the nonce AND runtime id 297b6c2c0aee68c3…
+evidence: report is from VMPL0 (full privilege inside the CVM)
+evidence: guest policy 0x30000: DEBUG off, MIGRATE_MA off
+evidence: measurement on Metal release allowlist
+evidence: report_data binds the caller's expected binding (transport key + fresh challenge + runtime identity)
+evidence: AMD signature chain verified (VCEK auxblob → ASK → ARK, Turin)
+evidence: VCEK chip ID and TCB extensions match the report
+evidence: reported TCB meets the supplied Turin minimum (fmc 1, bootloader 3, tee 2, snp 5, microcode 117)
+evidence: report_data[32:64] names the expected app
+evidence: host_data NOT CHECKED: no expected deployment was given, so another instance of this same app version would verify identically
+evidence: no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed
+RESULT measurement=9fd85101a2d81a7d0d7c322e1a60f4b99e4eb6cb73413ecb7c9c9c149bc40e69036c91c2bcb6c65f76c633d931482ace
+RESULT report_data=04a831c1ac80ab37b8b9f1a5b5f86e6e00e6111b3260235731b3e630d2da4dd93f9895fea80dbe83ae6ce1d1c27b833fb260c5a8a5556854c7c8a00233337eaf
+RESULT expected_vmpl=0
+RESULT host_data=0000000000000000000000000000000000000000000000000000000000000000
+RESULT host_data_checked=0
+RESULT report_vmpl=0
+RESULT boundary=null
+RESULT abi=enclave-domain-abi/2
+RESULT runtime_pinned=1
+RESULT runtime={"name":"wasmtime","version":"49.0.0","execution":"jit","targetIsa":"x86_64","hostIsa":"x86_64","cpuFeatures":"host-detected","wx":"enforced","cache":"none"}
+RESULT runtime_selftest="exec_pages=allowed wx=clean maps=4 runtime=1 root=3 seccomp=d4d17c9f53832439c92a3232fd09feed8b28f0e3c7dd357d26468a9566f62b66 scope=all-processes"
+RESULT wx_coverage=runtime-covered
+RESULT tcb_product=Turin
+RESULT tcb_reported={"fmc":1,"bootloader":3,"tee":2,"snp":5,"microcode":117}
+RESULT tcb_checked=1
+VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed"
+RESULT gate=open
+RESULT key_stable_in_launch=1
+RESULT second_nonce_verdict=attested
+RESULT replay_rejected=1
+RESULT app_status=200
+RESULT app_body="{\"graph\":\"qwen3.8-27b-mtp-q4-vl-gguf\",\"n_vocab\":248320,\"prompt_tokens\":17,\"tokens\":[271, 760, 12515, 7701, 6105, 4016, 310, 264, 24057, 2512, 12870, 60845, 69377, 11, 1332, 37728, 80291, 440, 279, 33470, 321, 2526, 18167, 303, 8964, 579, 16078, 13, 8938, 22602, 89661, 314, 3000, 318, 4650, 6105, 321, 76990, 8, 43000, 777, 28750, 1056, 4860, 89661, 318, 4650, 2438, 321, 18016, 681, 279, 6105, 3000, 369, 74087, 303, 660, 17425, 11, 3154, 279, 12515, 4833, 45239, 6105, 310, 1004, 6213, 13, 271, 19041, 5265, 41724, 25, 198, 16, 13, 2972, 29108, 4758, 321, 7806, 81, 4750, 92217, 11615, 1439, 2942, 11, 37728, 33060, 1472, 264, 4860, 1752, 303, 279, 16078, 11, 69377, 3023, 1379, 314, 279, 6105, 3000, 321, 9101, 279, 2438, 321, 18016, 78841, 9155, 13, 198, 17, 13, 2972, 760, 3605, 3366, 314, 20403, 92217, 561, 60049],\"mtp\":false,\"k\":1,\"drafted\":0,\"accepted\":0,\"load_ms\":0,\"prefill_ms\":349,\"decode_ms\":6597,\"tok_per_s\":19.25}"
+RESULT app_on_pinned_key=1
+RESULT app_requests_sent=1
+RESULT refused_handshakes=0

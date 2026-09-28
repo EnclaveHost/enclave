@@ -1,0 +1,21 @@
+{
+  "appId": "3f9895fea80dbe83ae6ce1d1c27b833fb260c5a8a5556854c7c8a00233337eaf",
+  "backend": "snp-guest-per-app",
+  "createdAt": 1790571570,
+  "gpuCardBytes": 16642998272,
+  "hostPort": 40299,
+  "id": "tt8e806a8f",
+  "inferenceModel": "qwen3.8-27b-mtp-q4-vl-gguf",
+  "measurement": "eb6f2515e5130a9e9fe3b0e80ce312338973d3eeab8904a4a5569c9029efaf7985e672e7eb2743b85614c0b04656aab8",
+  "memMiB": 51584,
+  "name": "target25-canary",
+  "reserved": {
+    "memMiB": 52352,
+    "cpuPct": 1600
+  },
+  "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+  "status": "running",
+  "transportKeySha256": "5a76f39aedced03846a96f79e6dbd5117416d885eff691763ebf26d59eccd419",
+  "vcpus": 16,
+  "verdict": "attested"
+}
