@@ -1,0 +1,78 @@
+{
+  "date": "2026-09-28",
+  "goal_met": false,
+  "guest": "gd4a54e36f",
+  "release": "1d2263e694aa02eef0dd0a262d239d0707c24ecddc9f14ed2507ca43590af002",
+  "change": "Owner set supported application clocks: GPU1 memory1107/SM1380, GPU2 memory877/SM1380; no power-limit or voltage change",
+  "baseline_cached384": {
+    "prompt_tokens": 3781,
+    "tokens": 384,
+    "decode_ms": 22500,
+    "prefill_ms": 1,
+    "tok_per_s": 17.1
+  },
+  "runs": [
+    {
+      "label": "first_after_idle",
+      "prompt_tokens": 3781,
+      "tokens": 384,
+      "decode_ms": 61639,
+      "prefill_ms": 1,
+      "tok_per_s": 6.2,
+      "draft_us": 41361277,
+      "verify_us": 20040738
+    },
+    {
+      "label": "warm_repeat1",
+      "prompt_tokens": 3781,
+      "tokens": 384,
+      "decode_ms": 21320,
+      "prefill_ms": 4,
+      "tok_per_s": 18.0,
+      "draft_us": 1009957,
+      "verify_us": 20058077
+    },
+    {
+      "label": "warm_repeat2",
+      "prompt_tokens": 3781,
+      "tokens": 384,
+      "decode_ms": 21200,
+      "prefill_ms": 1,
+      "tok_per_s": 18.1,
+      "draft_us": 1038092,
+      "verify_us": 19939416
+    },
+    {
+      "label": "warm128",
+      "prompt_tokens": 3781,
+      "tokens": 128,
+      "decode_ms": 6980,
+      "prefill_ms": 0,
+      "tok_per_s": 18.3,
+      "draft_us": 329965,
+      "verify_us": 6574577,
+      "drafted": 72,
+      "accepted": 56
+    }
+  ],
+  "same_workload": "Actual Eyesoff /chat, full tool definitions, temperature0, draft_p_min0, draft_tokens1. Each384-token run drafted218 and accepted166 tokens.",
+  "first_request_delay": "Draft stage included approximately40 extra seconds. Worker0 reattached guest142043 shared ring at20:17:42UTC; worker1 at20:18:03UTC. Consistent with reconnect and re-registration after the measured broker's10-minute idle timeout, rather than lost prefill. Reconnection cost not fixed in this change.",
+  "persistence_mode": "Disabled; observed application clocks still held1380MHz. No persistence setting changed.",
+  "conclusion": "About6 percent warm decode improvement; retain supported clocks. Full-context20 tok/s target remains unmet.",
+  "warm_gpu_observation": {
+    "1": {
+      "samples": 36,
+      "sm_min_mhz": 1380.0,
+      "sm_max_mhz": 1380.0,
+      "max_temp_c": 35.0,
+      "max_power_w": 67.42
+    },
+    "2": {
+      "samples": 36,
+      "sm_min_mhz": 1380.0,
+      "sm_max_mhz": 1380.0,
+      "max_temp_c": 36.0,
+      "max_power_w": 70.44
+    }
+  }
+}
