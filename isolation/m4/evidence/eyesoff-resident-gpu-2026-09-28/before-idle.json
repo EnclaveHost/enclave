@@ -1,0 +1,30 @@
+{
+  "release": "ba14bafdf06f6287efd13337570df94f97c0362b1ce1ed1ec7f28f05a140b376",
+  "guest": "gd5248b907",
+  "prompt_tokens": 3781,
+  "tokens": 384,
+  "all_http_status": 200,
+  "all_output_sha256": "734bc8f0fcda21c12e64ada36fadc957858be54a828888b8c5ddb3b5d617e511",
+  "all_draft_accepted": 166,
+  "all_draft_tokens": 218,
+  "notices": [],
+  "runs": [
+    {
+      "at": 1790637983723,
+      "cold": true,
+      "load_ms": 0,
+      "prefill_ms": 248769,
+      "decode_ms": 22162,
+      "wall_ms": 276171.6,
+      "mtp_draft_us": 1209229
+    },
+    {
+      "at": 1790638259895,
+      "load_ms": 0,
+      "prefill_ms": 2,
+      "decode_ms": 21344,
+      "wall_ms": 33649,
+      "mtp_draft_us": 1108107
+    }
+  ]
+}
