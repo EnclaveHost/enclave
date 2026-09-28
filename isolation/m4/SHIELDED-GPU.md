@@ -37,7 +37,7 @@ messages, never private model inputs or pads; replies retain bounded copies and
 integrity checks. This transport provides no availability guarantee against a host.
 
 The measured 27B settings use column splitting, verification overlap, 64-row pad
-pools/refills, four decode threads and sixteen total refill threads (eight per card),
+pools/refills, six decode threads and sixteen total refill threads (eight per card),
 the checked vector CRT refill kernel, a 95% weight budget and one recurrent-state
 snapshot for MTP k=1. Apps choose speculative decoding through the existing WASI-NN
 API; enabling the snapshot does not force every app to use MTP. Guest context is
@@ -45,9 +45,24 @@ API; enabling the snapshot does not force every app to use MTP. Guest context is
 
 Benchmark release IDs and results are recorded in [the production rollout evidence](evidence/shield-27b-production-2026-09-27/README.md). Historical
 native-process 24.51 tok/s is not a claim for this per-app SNP runtime.
-The September 27 follow-up uses the guest-tested four-thread/vector profile;
-the host-specific native affinity shim is not part of the production image.
-The small-model profile retains its previous thread counts and refill kernel.
+The affinity follow-up uses a measured OpenMP helper and an AVX-512 CPU module
+built with `build-shielded-engine.py --cpu-avx512`. It assigns compute to guest
+CPUs 0,2,3,4,5,6, the split helper to CPU 1, and refill/background work to 7-15.
+The helper restores the caller mask after each OpenMP region so subsequent
+children do not accidentally inherit one CPU. Invalid CPU lists or failed
+placement refuse execution instead of silently claiming placement succeeded.
+
+For 27B, the host launcher pauses QEMU before guest execution and uses a private
+QMP socket to map vCPUs 0..6 onto seven distinct physical cores sharing one L3.
+It gives the other vCPUs separate cores first, then refill-core SMT siblings.
+The mapping comes from the host's actual topology and permitted CPU set, not
+fixed host CPU numbers. An unsuitable topology or failed mapping stops the
+canary before the app starts. `*.cpu-placement.json` records the applied map.
+Host placement is a performance policy, not an isolation guarantee or an
+exclusive core reservation. The SNP measurement still binds the guest runtime;
+no security decision trusts host topology reports. CPU-only and small-model
+launches do not use the QMP placement path. The small-model profile retains
+its previous thread counts and refill kernel.
 
 ---
 

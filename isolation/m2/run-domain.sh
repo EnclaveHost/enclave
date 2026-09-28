@@ -82,6 +82,11 @@ start)
     if [ "$model" = qwen3.8-27b-mtp-q4-vl-gguf ]; then
       [ -f "${SHIELDED_MODEL_FILE:-}" ] || { echo "missing Shield model" >&2; exit 2; }
       set -- "$@" -drive "file=$SHIELDED_MODEL_FILE,format=raw,if=virtio,readonly=on,cache=none"
+      # Pause until critical vCPUs are placed on physical cores sharing an L3.
+      qmp_dir=$(mktemp -d /tmp/enclave-shield-qmp.XXXXXX)
+      trap 'rm -rf "$qmp_dir"' EXIT
+      set -- "$@" -S -qmp "unix:$qmp_dir/qmp,server=on,wait=off"
+      pin_shield=1
     fi
   fi
   unit="m2-$tag-$$"
@@ -96,6 +101,13 @@ start)
       -kernel "$KERNEL" -initrd "$(realpath "$img")" -append "$APPEND" \
       -device "vhost-vsock-pci,guest-cid=$cid" \
       "$@" -nodefaults -display none -serial "file:$W/$tag.serial" ${FW_DEBUGCON:+-debugcon "file:$W/$tag.debugcon" -global isa-debugcon.iobase=0x402} -no-reboot
+  if [ "${pin_shield:-0}" = 1 ]; then
+    if ! python3 "$here/pin-shield-cpus.py" --qmp "$qmp_dir/qmp" --vcpus "$vcpus" --out "$W/$tag.cpu-placement.json"; then
+      systemctl --user stop "$unit"
+      echo "Shield vCPU placement failed; guest stopped before app startup" >&2
+      exit 1
+    fi
+  fi
   echo "HOST mode=$mode vcpus=$vcpus memMiB=$mem cpuQuota=${quota}% unit=$unit cid=$cid t0_ms=$t0"
   ;;
 stop)

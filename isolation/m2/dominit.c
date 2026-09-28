@@ -439,8 +439,8 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = shield_calib;
             envp[ei++] = "ENCLAVE_GGML_EXTRA_BUFTS=0";
             envp[ei++] = "ENCLAVE_GGML_N_CTX=512";
-            envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS=4" : "ENCLAVE_GGML_N_THREADS=2";
-            envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS_BATCH=4" : "ENCLAVE_GGML_N_THREADS_BATCH=2";
+            envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS=6" : "ENCLAVE_GGML_N_THREADS=2";
+            envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS_BATCH=6" : "ENCLAVE_GGML_N_THREADS_BATCH=2";
             envp[ei++] = "ENCLAVE_GGML_N_BATCH=16";
             envp[ei++] = "ENCLAVE_GGML_N_UBATCH=16";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_RS_SEQ=1" : "ENCLAVE_GGML_N_RS_SEQ=0";
@@ -449,12 +449,19 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = "SHIELDED_REFILL_BATCH=64";
             /* Eight refill workers per card; exact vector CRT is qualified for the 27B profile. */
             if (shield_large) envp[ei++] = "SHIELDED_REFILL_VECTOR_CRT=1";
+            if (shield_large) {
+                envp[ei++] = "LD_PRELOAD=/rt/libshielded-omp-affinity.so";
+                envp[ei++] = "SHIELDED_CPU_COMPUTE=0,2,3,4,5,6";
+                envp[ei++] = "SHIELDED_CPU_MAIN=0";
+                envp[ei++] = "SHIELDED_CPU_HELPER=1";
+                envp[ei++] = "SHIELDED_CPU_REST=7-15";
+            }
             envp[ei++] = "SHIELDED_MAX_M=64";
             envp[ei++] = "SHIELDED_SHM_STREAM_LOAD=1";
             envp[ei++] = "SHIELDED_SPLIT_COLS=1";
             envp[ei++] = "SHIELDED_OVERLAP_VERIFY=1";
             envp[ei++] = "SHIELDED_WEIGHT_BUDGET_FRAC=0.95";
-            envp[ei++] = shield_large ? "OMP_NUM_THREADS=4" : "OMP_NUM_THREADS=2";
+            envp[ei++] = shield_large ? "OMP_NUM_THREADS=6" : "OMP_NUM_THREADS=2";
             envp[ei++] = shield_models_env;
             envp[ei++] = shield_preloads_env;
         }
