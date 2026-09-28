@@ -1,0 +1,10 @@
+{
+  "guestManagerPID": "403551",
+  "activeRelease": "fef26ae1521fe1350a04acad826e76cb8a0e5e215acf0010671c2d6119dbbda9",
+  "backendSha256": "88892569f98a0d88a4e8920c4c3e67dd26481cf36b04e2d8624a7a7f5f35c742",
+  "controlAndWorkers": {
+    "enclave-metal": "3924144",
+    "enclave-metal0-shield-v100-0": "3882218",
+    "enclave-metal0-shield-v100-1": "3882221"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "backend/libggml-shielded.so": "88892569f98a0d88a4e8920c4c3e67dd26481cf36b04e2d8624a7a7f5f35c742",
+  "kernel-bench": "09696c8e23617b020a635a7926ab533abdfec3f87827ed9f559bd403db6a98af",
+  "kernel-bench.c": "ad3ba3c97260a344dc2110fc3072c17e167100a5c6f53ca0fdb47453a1fb10e3",
+  "release/template/init": "3d1b832de05e5ee395df3839556d518ce52544c87fc8ad595ebe530c39f31fa5"
+}
