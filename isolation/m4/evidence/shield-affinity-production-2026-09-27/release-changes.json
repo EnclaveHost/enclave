@@ -1,0 +1,8 @@
+{
+  "changed": [
+    "template/init",
+    "template/rt/libshielded-omp-affinity.so"
+  ],
+  "cpuModuleUnchanged": true,
+  "baseRelease": "c427ef6351b62a190eff7d0361c641268211e8eeee26c986388ec52463d17b48"
+}

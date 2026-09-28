@@ -1,0 +1,8 @@
+{
+  "requestedSteps": 256,
+  "actualLengths": [
+    128,
+    128
+  ],
+  "reason": "public probe clamps requested steps to 128; these are repeat 128-token checks, not 256-token throughput"
+}
