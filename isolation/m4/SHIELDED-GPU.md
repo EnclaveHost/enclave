@@ -42,14 +42,17 @@ snapshot for MTP k=1. Apps choose speculative decoding through the existing WASI
 API; enabling the snapshot does not force every app to use MTP. Guest context is
 512 tokens and batch/ubatch 16, matching the evaluated profile.
 
-Benchmark release IDs and results are recorded in the rollout evidence. Historical
+Benchmark release IDs and results are recorded in [the production rollout evidence](evidence/shield-27b-production-2026-09-27/README.md). Historical
 native-process 24.51 tok/s is not a claim for this per-app SNP runtime.
 
 ---
 
-# Per-app SNP guests and Enclave Shield GPU workers
+# Historical canary stage (superseded by the production rollout above)
 
-## Status, 2026-09-27
+The rest of this document records the earlier transport/inference bring-up.
+Its GPU-admission-off statements describe that stage, not current production.
+
+## Status at the initial canary stage, 2026-09-27
 
 The two V100-class GPUs on metal0 have dedicated untrusted CUDA workers.
 A measured SNP canary executes the production Shield C client inside its guest
