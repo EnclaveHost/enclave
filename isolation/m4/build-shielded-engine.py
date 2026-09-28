@@ -46,6 +46,11 @@ if a.cpu_avx512: flags += ['GGML_AVX512=ON','GGML_AVX512_BF16=ON','GGML_AVX512_V
 run(['cmake','-S',src,'-B',build]+['-D'+f for f in flags])
 run(['cmake','--build',build,'--target','llama','ggml-cpu','-j',a.jobs])
 shutil.copytree(a.runtime,rt)
+# A measured capability marker lets init select the matching worker model.
+# Clear inherited markers when rebuilding an OpenMP closure.
+pool_marker=rt/'shield-native-cpu-pool.enabled'
+if a.shared_cpu_pool: pool_marker.write_text('1\n')
+else: pool_marker.unlink(missing_ok=True)
 for n in ['libggml-base.so.0','libggml.so.0','libllama.so.0']:shutil.copyfile(build/'bin'/n,rt/n)
 shutil.copyfile(build/'bin/libggml-cpu.so',rt/'backends/libggml-cpu.so')
 run(['cc','-shared','-fPIC','-O2','-Wl,-soname,libenclave_llama.so','-DGGML_MAX_NAME=128',

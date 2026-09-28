@@ -1,0 +1,21 @@
+{
+  "release": "ee79c59e6e04394bd26fa489f9fb973145e9e51dcb633e525b490e8ee6026792",
+  "prompt_tokens": 3781,
+  "cold128": {
+    "decode_ms": 7204,
+    "tok_per_s": 17.8,
+    "prefill_ms": 243464
+  },
+  "cached128": {
+    "decode_ms": 6906,
+    "tok_per_s": 18.5,
+    "prefill_ms": 1
+  },
+  "cached384": {
+    "decode_ms": 21542,
+    "tok_per_s": 17.8,
+    "prefill_ms": 1
+  },
+  "cpu_cached128_graph_us": 2890073,
+  "goal_met": false
+}
