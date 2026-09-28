@@ -1,0 +1,12 @@
+{
+  "at": "2026-09-28T08:07:55.920Z",
+  "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+  "short": "9eb4e600",
+  "attested": true,
+  "measurement": "d701c9893a20609849b302545cd525baaa3d279dc85fb5e9e72407be60851f91b79f70b4a662eaa7a5fed30a7192d83c",
+  "appId": "ba5495a0b06fe423c74f3e1ecc9aa5614fa75d3991c02fdbd60a00ec37080a1b",
+  "release": "9958ac99a4492bc9cf5d3b598dd6a7e4b04d27c99d7f7526b6ccc7042f4c5724",
+  "spkiSha256": "f442ec203da4cdf9462bd07298021b2369c6642a036439a2fd17374978e00993",
+  "healthPath": "/warmup?model=qwen3.8-27b-mtp&progress=1",
+  "healthStatus": 200
+}
