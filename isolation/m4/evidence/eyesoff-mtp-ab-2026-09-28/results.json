@@ -1,0 +1,111 @@
+{
+  "date": "2026-09-28",
+  "deployment": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+  "release": "1d2263e694aa02eef0dd0a262d239d0707c24ecddc9f14ed2507ca43590af002",
+  "config_restored_exactly": true,
+  "restored_config_cid": "bafkreies6f7rkeer3irnmy2lsdzhfqokzgerhk7bijcfpmepuqlawpfj6a",
+  "changed_field": "models.qwen3.8-27b-mtp-q4-vl-gguf.draft",
+  "off_value": null,
+  "on_value": "mtp",
+  "method": {
+    "endpoint": "https://9eb4e600.app.enclave.host/chat",
+    "model": "qwen3.8-27b-mtp",
+    "prompt": "Explain how hardware isolation protects application memory. Give a detailed answer in plain English. Do not use tools.",
+    "temperature": 0,
+    "max_tokens": 384,
+    "web_search": "auto",
+    "tools": {
+      "off": []
+    },
+    "loop": true,
+    "gpu_sm_mhz": [
+      1380,
+      1380
+    ],
+    "draft_tokens": 1,
+    "draft_p_min": 0,
+    "warmup": "Each setting owner-signed; fresh guest, attested warmup, full cold prompt, then two serial cached repeats. No request overlaps."
+  },
+  "off_guest": "gda9bd663f",
+  "on_guest": "gdce7361bc",
+  "off": [
+    {
+      "phase": "cold",
+      "prompt_tokens": 3781,
+      "tokens": 384,
+      "prefill_ms": 242041,
+      "decode_ms": 26610,
+      "tok_per_s": 14.4
+    },
+    {
+      "phase": "warm1",
+      "prompt_tokens": 3781,
+      "tokens": 384,
+      "prefill_ms": 1,
+      "decode_ms": 26057,
+      "tok_per_s": 14.7
+    },
+    {
+      "phase": "warm2",
+      "prompt_tokens": 3781,
+      "tokens": 384,
+      "prefill_ms": 1,
+      "decode_ms": 26379,
+      "tok_per_s": 14.6
+    }
+  ],
+  "on": [
+    {
+      "phase": "cold",
+      "prompt_tokens": 3781,
+      "tokens": 384,
+      "prefill_ms": 250001,
+      "decode_ms": 22868,
+      "tok_per_s": 16.8,
+      "draft_tokens": 218,
+      "draft_accepted": 166
+    },
+    {
+      "phase": "warm1",
+      "prompt_tokens": 3781,
+      "tokens": 384,
+      "prefill_ms": 0,
+      "decode_ms": 22283,
+      "tok_per_s": 17.2,
+      "draft_tokens": 218,
+      "draft_accepted": 166
+    },
+    {
+      "phase": "warm2",
+      "prompt_tokens": 3781,
+      "tokens": 384,
+      "prefill_ms": 1,
+      "decode_ms": 22210,
+      "tok_per_s": 17.3,
+      "draft_tokens": 218,
+      "draft_accepted": 166
+    }
+  ],
+  "warm_aggregate": {
+    "off_tok_s": 14.646426119459914,
+    "on_tok_s": 17.261142202144157,
+    "mtp_gain_percent": 17.85224642078529
+  },
+  "output": {
+    "all_six_texts_identical": true,
+    "text_chars": 1757,
+    "sha256": "734bc8f0fcda21c12e64ada36fadc957858be54a828888b8c5ddb3b5d617e511"
+  },
+  "notices": 0,
+  "errors_in_completed_runs": 0,
+  "plain_path_confirmed": "No draft counters; feed/feed_batch verbs and ordinary-prefill status. MTP runs use feed_mtp/mtp_round verbs.",
+  "earlier_used_cache_baseline": {
+    "tok_s": [
+      14.7,
+      14.8
+    ],
+    "reason_not_paired": "Same prompt but long-lived guest with other cached histories; not equivalent to fresh restarted MTP-off. Repeated MTP-on after equivalent restart instead. Earlier output differed; no explanation established."
+  },
+  "limitations": "One prompt and two warm repeats per mode on a shared production host. Decode speed comparison, not a universal speedup or cold end-to-end latency claim. Twenty tok/s goal remains unmet.",
+  "final_state": "MTP on, one draft per round, p_min0, clocks1380; no inference or isolation code changed."
+}
