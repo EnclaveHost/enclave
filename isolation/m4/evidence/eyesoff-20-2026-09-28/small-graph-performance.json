@@ -1,0 +1,29 @@
+{
+  "release": "cbe77ed8ef2691ea196170e033ab05c17bd392c5cd3bd13034ecebbaae4c47fa",
+  "promptTokens": 3781,
+  "cached128": {
+    "tokS": 15.5,
+    "decodeMs": 8274,
+    "prefillMs": 1,
+    "cpuGraphUs": 3763723,
+    "cpuOutsideOpsUs": 977577,
+    "shieldGraphUs": 4009777
+  },
+  "cached384": {
+    "tokS": 14.2,
+    "decodeMs": 26979,
+    "prefillMs": 1,
+    "cpuGraphUs": 13754175,
+    "shieldGraphUs": 11776692
+  },
+  "repeat128": {
+    "tokS": 14.4,
+    "decodeMs": 8876
+  },
+  "workerAffinity18_20": {
+    "tokS": 14.6,
+    "decodeMs": 8760,
+    "restored": true
+  },
+  "note": "Attention extent differed from the preceding profile release: 4096 versus 5376 max rows. Do not attribute all first-run improvement to the small-graph patch. Sustained 20 target remains unmet."
+}

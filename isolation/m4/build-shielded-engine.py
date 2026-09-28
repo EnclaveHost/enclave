@@ -15,6 +15,7 @@ p=argparse.ArgumentParser(description=__doc__)
 for k in ['engine-git','runtime','out']: p.add_argument('--'+k,type=Path,required=True)
 p.add_argument('--jobs',type=int,default=6)
 p.add_argument('--active-kv-extent',action='store_true',help='omit attention-cache tail cells owned only by other sessions')
+p.add_argument('--shared-cpu-pool',action='store_true',help='build opt-in shared native CPU workers instead of OpenMP teams')
 p.add_argument('--small-graph',action='store_true',help='include opt-in single-thread dispatch for bounded CPU islands')
 p.add_argument('--cpu-profile',action='store_true',help='include opt-in aggregate CPU operation counters for diagnosis')
 p.add_argument('--cpu-avx512',action='store_true',help='measured AVX-512/BF16/VBMI/VNNI CPU profile; requires those guest CPU features')
@@ -30,8 +31,9 @@ with archive.open('wb') as f:run(['git','-C',a.engine_git,'archive',PIN],stdout=
 run(['tar','-xf',archive,'-C',src]);archive.unlink()
 patches={}
 if a.active_kv_extent: PATCHES.append('kv-active-extent')
-if a.cpu_profile: PATCHES.append('cpu-profile')
+if a.cpu_profile or a.shared_cpu_pool: PATCHES.append('cpu-profile')
 if a.small_graph: PATCHES.append('small-graph')
+if a.shared_cpu_pool: PATCHES.append('shared-cpu-pool')
 for n in PATCHES:
  f=r/'wasm'/('llamacpp-'+n+'.patch');patches[f.name]=digest(f);run(['git','apply',f],cwd=src)
 flags=['CMAKE_BUILD_TYPE=Release','BUILD_SHARED_LIBS=ON','GGML_BACKEND_DL=ON',
@@ -39,6 +41,7 @@ flags=['CMAKE_BUILD_TYPE=Release','BUILD_SHARED_LIBS=ON','GGML_BACKEND_DL=ON',
  'GGML_CUDA=OFF','GGML_BUILD_TESTS=OFF','LLAMA_BUILD_TESTS=OFF','LLAMA_BUILD_EXAMPLES=OFF',
  'LLAMA_BUILD_TOOLS=OFF','LLAMA_BUILD_SERVER=OFF','LLAMA_CURL=OFF',
  'CMAKE_C_FLAGS=-DGGML_MAX_NAME=128','CMAKE_CXX_FLAGS=-DGGML_MAX_NAME=128']
+if a.shared_cpu_pool: flags += ['GGML_OPENMP=OFF']
 if a.cpu_avx512: flags += ['GGML_AVX512=ON','GGML_AVX512_BF16=ON','GGML_AVX512_VBMI=ON','GGML_AVX512_VNNI=ON']
 run(['cmake','-S',src,'-B',build]+['-D'+f for f in flags])
 run(['cmake','--build',build,'--target','llama','ggml-cpu','-j',a.jobs])
