@@ -2091,13 +2091,20 @@ static void sh_place_helper_self() {
     p.helper_tid.store(tid);
     if (p.has_helper) sh_place_set(tid, &p.helper_set, nullptr);
 }
-/* Called by card 0's compute thread, under its state mutex, every 256 graphs. */
-static void sh_place_sweep() {
+/* Async callers can change between graphs. Place the active caller on every
+ * graph; the less frequent sweep below only handles other idle threads. */
+static void sh_place_main_self() {
     sh_placement &p = sh_place();
     if (!p.on) return;
     const pid_t self = (pid_t)syscall(SYS_gettid);
     if (p.main_tid.load() != self) { p.main_tid.store(self); }
     sh_place_set(self, &p.main_set, &p.moved);
+}
+/* Called by card 0's compute thread, under its state mutex, every 256 graphs. */
+static void sh_place_sweep() {
+    sh_placement &p = sh_place();
+    if (!p.on) return;
+    const pid_t self = (pid_t)syscall(SYS_gettid);
     if (!p.has_rest) return;
     const pid_t helper = p.helper_tid.load();
     DIR *d = opendir("/proc/self/task");
@@ -2144,7 +2151,10 @@ static void sh_place_report() {
 
 static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
     std::lock_guard<std::mutex> lk(s.mu);
-    if (s.card_index == 0 && (s.graph_calls & 255) == 0) sh_place_sweep();
+    if (s.card_index == 0) {
+        sh_place_main_self();
+        if ((s.graph_calls & 255) == 0) sh_place_sweep();
+    }
     if (sh_card_integrity_failed(s) || s.weight_cache_failed || s.source_verification_failed) return GGML_STATUS_FAILED;
     const double tg0 = sh_now_ms();
     s.graph_calls++;

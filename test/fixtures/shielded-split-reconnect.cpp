@@ -3,6 +3,21 @@
 #include <cassert>
 int main(int argc, char **argv) {
     assert(argc == 3);
+    cpu_set_t allowed, main_cpu, other_cpu;
+    assert(!sched_getaffinity(0, sizeof allowed, &allowed));
+    std::vector<int> cpus;
+    for (int i = 0; i < CPU_SETSIZE; i++) if (CPU_ISSET(i, &allowed)) cpus.push_back(i);
+    assert(cpus.size() >= 2);
+    CPU_ZERO(&main_cpu); CPU_SET(cpus[0], &main_cpu);
+    CPU_ZERO(&other_cpu); CPU_SET(cpus[1], &other_cpu);
+    setenv("SHIELDED_CPU_MAIN", std::to_string(cpus[0]).c_str(), 1);
+    setenv("SHIELDED_CPU_HELPER", std::to_string(cpus[1]).c_str(), 1);
+    setenv("SHIELDED_CPU_REST", std::to_string(cpus[1]).c_str(), 1);
+    auto check_placement = [&] {
+        cpu_set_t current;
+        assert(!sched_getaffinity(0, sizeof current, &current));
+        assert(CPU_EQUAL(&current, &main_cpu));
+    };
     uint64_t counters[24] = {99};
     assert(ggml_backend_shielded_profile_snapshot(nullptr, 24) == -1);
     assert(ggml_backend_shielded_profile_snapshot(counters, 23) == -1 && counters[0] == 99);
@@ -31,14 +46,20 @@ int main(int argc, char **argv) {
     auto *y = ggml_mul_mat(ctx, w, x);
     auto *g = ggml_new_graph_custom(ctx, 8, false); ggml_graph_add_node(g, y);
     assert(sh_card_compute(*p.cards[0], g) == GGML_STATUS_SUCCESS);
+    check_placement();
     std::vector<float> first((float *)y->data, (float *)y->data + 128);
     // The worker fixture closes after the first product. This graph must notice
     // the FIN and upload/reconnect before use instead of staying on CPU.
     usleep(100000);
+    // Model an async caller arriving from the background mask between sweeps.
+    assert(!sched_setaffinity(0, sizeof other_cpu, &other_cpu));
     assert(sh_card_compute(*p.cards[0], g) == GGML_STATUS_SUCCESS);
+    check_placement();
     assert(!memcmp(first.data(), y->data, 128*sizeof(float)));
     // The fixture drops the next product mid-exchange; retry must use fresh pads.
+    assert(!sched_setaffinity(0, sizeof other_cpu, &other_cpu));
     assert(sh_card_compute(*p.cards[0], g) == GGML_STATUS_SUCCESS);
+    check_placement();
     assert(!memcmp(first.data(), y->data, 128*sizeof(float)));
     assert(p.cards[0]->local_nodes == 0 && p.cards[1]->local_nodes == 0);
     assert(ggml_backend_shielded_profile_snapshot(counters, 24) == 1);

@@ -96,3 +96,22 @@ caller mask around the CPU island, while helpers retain their compute placement.
 The regression fails with the preceding binary and passes with the fix for both
 direct and stored graph plans across eight callers. All 699,269,120 reference
 logit bytes remain identical. Candidate `e53c01ae` is not yet speed-qualified.
+
+### CPU/GPU caller handoff
+
+`fb81c249` reached cached128 18.9 tok/s and cached384 18.7 tok/s on the
+3,781-token prompt. Worker placement on CPUs 18/20 gave 18.6 and was restored.
+The caller-affinity correction `e53c01ae` fixed startup but sustained384
+regressed to 14.2: CPU graph time was 13.268 s, with roughly 5 s outside CPU
+operations. The GPU only placed an async caller once per 256 graphs, so a
+caller arriving on the background mask migrated on each CPU island.
+
+Place card 0's active caller on every GPU graph while retaining the full
+background sweep every 256 graphs. The real split-worker reconnect fixture
+now moves the caller off its designated core between graphs and asserts its
+placement is repaired; verified outputs and idle/mid-product recovery pass.
+No field arithmetic, masks, pad lifetime or verification rules change.
+
+The wider CPU vector candidate is not deployed: 17/704 top-1 reference rows
+changed and maximum absolute logit difference was 0.458. Pair-dot prototypes
+showed no clear gain; native small-graph serialization was slower.
