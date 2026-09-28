@@ -441,6 +441,9 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = shield_calib;
             envp[ei++] = "ENCLAVE_GGML_EXTRA_BUFTS=0";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_CTX=8192" : "ENCLAVE_GGML_N_CTX=512";
+            /* Tool-enabled apps retain a tokenizer session while generating. One slot deadlocks them. */
+            envp[ei++] = "ENCLAVE_GGML_MAX_SESSIONS=2";
+            envp[ei++] = "ENCLAVE_GGML_POOLED=1";
             envp[ei++] = shield_vram_env;
             /* Weights and KV live in private guest RAM; VRAM is only the masked-offload reservation.
              * Leave room for the mask pool and runtime within each measured model profile's floor. */
@@ -732,6 +735,8 @@ int main(void) {
             app[k++]="--env"; app[k++]="ENCLAVE_MODELS";
             app[k++]="--env"; app[k++]="ENCLAVE_NN_PRELOADS";
             app[k++]="--env"; app[k++]="ENCLAVE_GGML_N_CTX";
+            app[k++]="--env"; app[k++]="ENCLAVE_GGML_MAX_SESSIONS";
+            app[k++]="--env"; app[k++]="ENCLAVE_GGML_POOLED";
             app[k++]="--env"; app[k++]="ENCLAVE_VRAM_BYTES";
             app[k++]="--env"; app[k++]="ENCLAVE_NN_SERVE_BYTES";
             app[k++]="--env"; app[k++]="ENCLAVE_NN_SERVE_KIND";

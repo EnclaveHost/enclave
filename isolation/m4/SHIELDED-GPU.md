@@ -2,7 +2,7 @@
 
 The per-app Shield release now admits `qwen3.8-27b-mtp-q4-vl-gguf` as well as
 `qwen2.5-0.5b-q8-gguf`. The 27B model requires at least 50% of each 31 GiB V100
-worker, a 50 GiB guest, and sixteen vCPUs. The catalog derivation binds this policy,
+worker, a 60 GiB guest, and sixteen vCPUs. The catalog derivation binds this policy,
 model and GPU reservation to the app identity; the relay independently reproduces it.
 The guest needs CPU headroom for both pools; an eight-vCPU guest starves the
 helper chain. On metal0 the total pool is 24 logical CPUs, leaving room for the
@@ -36,12 +36,27 @@ paths. Raw vsock access remains denied to the app. The ring contains masked wire
 messages, never private model inputs or pads; replies retain bounded copies and
 integrity checks. This transport provides no availability guarantee against a host.
 
-The measured 27B settings use column splitting, verification overlap, 64-row pad
-pools/refills, six decode threads and sixteen total refill threads (eight per card),
+The measured 27B settings use column splitting, verification overlap, a 128-pad
+pool with 64-row refills, six decode threads and sixteen total refill threads (eight per card),
 the checked vector CRT refill kernel, a 95% weight budget and one recurrent-state
 snapshot for MTP k=1. Apps choose speculative decoding through the existing WASI-NN
 API; enabling the snapshot does not force every app to use MTP. Guest context is
-512 tokens and batch/ubatch 16, matching the evaluated profile.
+8,192 tokens and batch/ubatch 16 for application serving. The earlier throughput
+qualification used a 512-token context; its numbers are not a measurement of
+the expanded application profile. The small model retains 512 tokens.
+
+Apps receive `ENCLAVE_VRAM_BYTES` from the two measured worker reservations,
+plus a separate `ENCLAVE_NN_SERVE_KIND=RAM` budget for private weights and KV.
+The 27B serving budget is 32 GiB within its 60 GiB guest; the remainder provides
+headroom for mask pools and runtime allocations. These values are passed into
+the WASI app as well as the engine. The loader exposes the published filename
+`Qwen3.8-27B-UD-Q4_K_XL.gguf` as an alias of its verified private `model.gguf`,
+so existing application configurations resolve without copying weights twice.
+An application's requested `nnCtx` does not override this measured profile.
+The shared KV pool permits two live sessions. A tool-enabled Eyesoff turn holds
+one tokenizer session while opening a second for generation; the old one-session
+benchmark profile deadlocked that workflow. `ENCLAVE_GGML_POOLED=1` and the session
+cap are also forwarded to the app so its memory estimate describes the shared pool.
 
 Benchmark release IDs and results are recorded in [the production rollout evidence](evidence/shield-27b-production-2026-09-27/README.md). Historical
 native-process 24.51 tok/s is not a claim for this per-app SNP runtime.
