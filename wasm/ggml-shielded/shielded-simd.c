@@ -89,6 +89,57 @@ static inline int32_t crt_balanced(int32_t a0, int32_t a1, int32_t a2) {
     return x > (int32_t)(M_MOD / 2) ? x - (int32_t)M_MOD : x;
 }
 
+#ifdef SH_SIMD_AVX512
+/* Sixteen independent blocks of the existing 20-round ChaCha stream.
+ * Vector lanes are block counters, not different keys. The 64-bit draw and
+ * modulo rule are identical to maskbank_issue's scalar implementation.
+ * This only produces local pads; no secret input or pad crosses the boundary.
+ * Caller reserves a disjoint 2^24-block window before entering this function.
+ */
+#define SH_CHACHA16_QR(a,b,c,d) do { \
+    a = _mm512_add_epi32(a, b); d = _mm512_rol_epi32(_mm512_xor_si512(d, a), 16); \
+    c = _mm512_add_epi32(c, d); b = _mm512_rol_epi32(_mm512_xor_si512(b, c), 12); \
+    a = _mm512_add_epi32(a, b); d = _mm512_rol_epi32(_mm512_xor_si512(d, a),  8); \
+    c = _mm512_add_epi32(c, d); b = _mm512_rol_epi32(_mm512_xor_si512(b, c),  7); \
+} while (0)
+void sh_simd_avx512_mask_stream(const uint32_t key[8], uint64_t ctr, int32_t *out, size_t n) {
+    while (n) {
+        __m512i x[16], initial[16];
+        uint32_t lo[16], hi[16];
+        for (int block = 0; block < 16; block++) {
+            lo[block] = (uint32_t)(ctr + block);
+            hi[block] = (uint32_t)((ctr + block) >> 32);
+        }
+        initial[0] = _mm512_set1_epi32(0x61707865);
+        initial[1] = _mm512_set1_epi32(0x3320646e);
+        initial[2] = _mm512_set1_epi32(0x79622d32);
+        initial[3] = _mm512_set1_epi32(0x6b206574);
+        for (int i = 0; i < 8; i++) initial[4 + i] = _mm512_set1_epi32(key[i]);
+        initial[12] = _mm512_loadu_si512(lo);
+        initial[13] = _mm512_loadu_si512(hi);
+        initial[14] = initial[15] = _mm512_setzero_si512();
+        for (int i = 0; i < 16; i++) x[i] = initial[i];
+        for (int i = 0; i < 10; i++) {
+            SH_CHACHA16_QR(x[0],x[4],x[8],x[12]); SH_CHACHA16_QR(x[1],x[5],x[9],x[13]);
+            SH_CHACHA16_QR(x[2],x[6],x[10],x[14]); SH_CHACHA16_QR(x[3],x[7],x[11],x[15]);
+            SH_CHACHA16_QR(x[0],x[5],x[10],x[15]); SH_CHACHA16_QR(x[1],x[6],x[11],x[12]);
+            SH_CHACHA16_QR(x[2],x[7],x[8],x[13]); SH_CHACHA16_QR(x[3],x[4],x[9],x[14]);
+        }
+        uint32_t words[16][16];
+        for (int i = 0; i < 16; i++)
+            _mm512_storeu_si512(words[i], _mm512_add_epi32(x[i], initial[i]));
+        const size_t take = n < 128 ? n : 128;
+        for (size_t i = 0; i < take; i++) {
+            const int block = (int)(i / 8), word = 2 * (int)(i % 8);
+            const uint64_t v = ((uint64_t)words[word + 1][block] << 32) | words[word][block];
+            out[i] = (int32_t)(v % (uint64_t)SH_M_MOD);
+        }
+        n -= take; out += take; ctr += 16;
+    }
+}
+#undef SH_CHACHA16_QR
+#endif
+
 /* Unsigned residue planes of a pad, [0,q). The pad is in [0,M). */
 void FN(pad_planes)(const int32_t *r, size_t n, uint8_t *p0, uint8_t *p1, uint8_t *p2) {
     for (size_t i = 0; i < n; i++) {

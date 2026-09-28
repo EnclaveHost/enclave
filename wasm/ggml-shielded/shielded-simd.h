@@ -98,6 +98,10 @@ const sh_simd *sh_simd_generic(void);
     void    sh_simd_##sfx##_unmask24_fv(const uint8_t *, const int32_t *, const int32_t *, int, int64_t, int64_t *, int64_t *); \
     int     sh_simd_##sfx##_encode_checked(const float *, size_t, float, float, int64_t *);
 SH_SIMD_DECL(avx512)
+/* Internal mask-bank sampler. Call only after AVX-512 admission. n must fit
+ * the caller's reserved counter window; output order matches scalar ChaCha20. */
+void sh_simd_avx512_mask_stream(const uint32_t key[8], uint64_t counter,
+                               int32_t *out, size_t n);
 void sh_simd_avx512_refill_vector_crt(const uint8_t *, int, const int8_t *,
     int64_t, int64_t, int32_t *, int64_t, int32_t *);
 SH_SIMD_DECL(generic)
