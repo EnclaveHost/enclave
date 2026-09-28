@@ -173,6 +173,9 @@ export function runBounded(cmd, args, { env, cwd, timeoutMs, input }) {
 //   components           (optional) where verified raw-CID components are kept; each is re-verified against its CID on read
 export function makePredictor(o) {
   const { repo, commit, readCatalog, gateway, sevSnpMeasure, sevSnpMeasureSha256 } = o;
+  // Newly pinned configs may not yet be reachable through a public gateway.
+  // Each source still goes through the same pinned CAR/CID verifier.
+  const configGateways = [...new Set([o.configGateway, gateway].filter(Boolean))];
   const digestTool = o.digestTool || ((exe) => sevSnpMeasureDigest(exe, run));
   const work = o.work ? path.resolve(o.work) : "";
   const run = o.run || runBounded, now = o.now || Date.now;
@@ -199,6 +202,7 @@ export function makePredictor(o) {
     !HEX(40).test(String(commit || "")) && "the toolchain commit (40 hex)",
     !repo && "the toolchain repository", typeof readCatalog !== "function" && "the catalog reader",
     !/^https:\/\//.test(String(gateway || "")) && "an https gateway", !sevSnpMeasure && "sev-snp-measure",
+    o.configGateway && !/^https:\/\//.test(String(o.configGateway)) && "an https config gateway",
     !HEX(64).test(String(sevSnpMeasureSha256 || "")) && "sev-snp-measure's pinned digest", !work && "a work directory",
     !admit.length && "at least one admitted release",
     ...[...(o.toolPath || []), ...(o.seedComponents || [])].filter((d) => d && !path.isAbsolute(d)).map((d) => `an absolute tool/seed directory (not ${d})`),
@@ -477,9 +481,17 @@ export function makePredictor(o) {
     const job = fs.mkdtempSync(path.join(work, "tmp", "cid-"));
     try {
       const out = path.join(job, "bytes");
-      const f = await run("python3", [path.join(tc.dir, "isolation/m4/guestd/fetch-cid.py"), tc.dir, cid, out, String(maxBytes), gateway], { env: tc.env, cwd: job, timeoutMs });
-      if (f.code !== 0) return { ok: false, code: "unavailable", reason: `${cid} did not fetch and verify: ${lastLine(f.err)}` };
-      const b = fs.readFileSync(out);
+      let b, reason = "no configured gateway";
+      for (const source of configGateways) {
+        if (!/^https:\/\//.test(String(source))) { reason = "config gateway must use https"; continue; }
+        fs.rmSync(out, { force: true });
+        const f = await run("python3", [path.join(tc.dir, "isolation/m4/guestd/fetch-cid.py"), tc.dir, cid, out, String(maxBytes), source], { env: tc.env, cwd: job, timeoutMs });
+        if (f.code !== 0) { reason = lastLine(f.err); continue; }
+        const candidate = fs.readFileSync(out);
+        if (candidate.length > maxBytes || (digest && sha256hex(candidate) !== digest)) { reason = "verified output size or CID mismatch"; continue; }
+        b = candidate; break;
+      }
+      if (!b) return { ok: false, code: "unavailable", reason: `${cid} did not fetch and verify: ${reason}` };
       if (digest && sha256hex(b) === digest) {
         try { fs.mkdirSync(components, { recursive: true, mode: 0o700 }); const tmp = `${kept}.${randomBytes(6).toString("hex")}`; fs.writeFileSync(tmp, b, { mode: 0o600 }); fs.renameSync(tmp, kept); } catch {}
       }
@@ -571,6 +583,7 @@ export function versionConfigReader(clients, catalogAddress) {
 //                                      installed release. Must include every admitted release. A release installed only for
 //                                      the known-answer test is left out, so its guests are not certifiable.
 //   SECRETS_RELEASE_PREDICT_GATEWAY    https trustless gateway
+//   SECRETS_RELEASE_CONFIG_GATEWAY     optional preferred config gateway; same CID verification, public gateway fallback
 //   SECRETS_RELEASE_SEV_SNP_MEASURE    the pinned sev-snp-measure executable
 //   SECRETS_RELEASE_SEV_SNP_MEASURE_SHA256  its sevSnpMeasureDigest (node relay/measurement-predict.mjs digest <exe> prints it)
 //   SECRETS_RELEASE_CATALOG_RPCS       two or more independent Base RPC URLs for the catalog read (api-relay.js)
@@ -585,6 +598,7 @@ export function predictorEnv(env = process.env) {
            releases, admit: String(env.SECRETS_RELEASE_DOMAIN_RELEASES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
            certReleases: String(env.SECRETS_RELEASE_CERT_RELEASES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
            gateway: env.SECRETS_RELEASE_PREDICT_GATEWAY || "", sevSnpMeasure: env.SECRETS_RELEASE_SEV_SNP_MEASURE || "",
+           configGateway: env.SECRETS_RELEASE_CONFIG_GATEWAY || "",
            sevSnpMeasureSha256: String(env.SECRETS_RELEASE_SEV_SNP_MEASURE_SHA256 || "").toLowerCase(),
            toolPath: String(env.SECRETS_RELEASE_PREDICT_PATH || "").split(":").filter(Boolean),
            seedComponents: String(env.SECRETS_RELEASE_PREDICT_SEED || "").split(":").filter(Boolean),

@@ -386,6 +386,34 @@ test("fetchVerified: a config CID through the platform's fetcher; a raw-CID answ
   assert.equal(tools.calls.filter((c) => c.script === "expected-measurement.sh").length, 0, "no measurement ran");
 });
 
+test("config gateway: preferred source and verified fallback preserve CID and size checks", async () => {
+  const bytes = Buffer.from('{"draft_p_min":0}');
+  const raw = Buffer.concat([Buffer.from([1, 0x55, 0x12, 0x20]), createHash("sha256").update(bytes).digest()]);
+  let bits = 0, v = 0, cid = "b";
+  for (const x of raw) { v = (v << 8) | x; bits += 8; while (bits >= 5) { cid += "abcdefghijklmnopqrstuvwxyz234567"[(v >>> (bits - 5)) & 31]; bits -= 5; } }
+  if (bits) cid += "abcdefghijklmnopqrstuvwxyz234567"[(v << (5 - bits)) & 31];
+  for (const mode of ["ok", "down", "corrupt", "all-down", "oversize"]) {
+    const seen = [];
+    const { p } = predictor({ opts: { configGateway: "https://pin.example" }, tools: {
+      "fetch-cid.py": (a) => {
+        if (a[2] !== cid) return null;
+        seen.push(a[5]); assert.equal(a[4], String(bytes.length));
+        const first = a[5] === "https://pin.example";
+        if (mode === "all-down" || (first && mode === "down")) return { code: 1, err: "HTTP 520", out: "" };
+        const body = first && mode === "corrupt" ? Buffer.alloc(bytes.length, 1)
+          : first && mode === "oversize" ? Buffer.alloc(bytes.length + 1) : bytes;
+        fs.writeFileSync(a[3], body); return { code: 0, err: "", out: "ok" };
+      }
+    } });
+    const got = await p.fetchVerified(cid, bytes.length);
+    assert.equal(got.ok, mode !== "all-down", mode);
+    if (got.ok) assert.deepEqual(got.bytes, bytes, mode);
+    assert.deepEqual(seen, mode === "ok" ? ["https://pin.example"] : ["https://pin.example", "https://trustless.example"]);
+  }
+  assert.ok(predictor({ opts: { configGateway: "http://insecure.example" } }).p.problems.includes("an https config gateway"));
+  assert.equal(P.predictorEnv({ SECRETS_RELEASE_CONFIG_GATEWAY: "https://pin.example" }).configGateway, "https://pin.example");
+});
+
 test("versionConfigReader: the version's inline config and configCid through agreeing RPCs; a revert on versionConfigCid is none; a disagreement refuses", async () => {
   const mk = (over = {}) => ({ readContract: async ({ functionName }) => {
     if (functionName === "getVersion") return { cid: CID, version: "1", vramMb: 0, gpuGflops: 0, memMb: 128, cpuGflops: 0, createdAt: 0n, verified: false, yanked: false, ports: "", approval: 1, config: over.config ?? '{"wasi":"p2"}' };
