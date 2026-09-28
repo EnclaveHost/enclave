@@ -458,6 +458,20 @@ static inline void refill_rows4(const uint8_t *planes,int b,int b0,
     }
 }
 
+/* Allocation-free fallback shared by both blocked layouts. */
+static void refill_rows_fallback(const uint8_t *planes, int b, const int8_t *W,
+        int64_t K, int64_t N, int32_t *u, int64_t u_stride, int32_t *acc) {
+    for (int b0 = 0; b0 < b; b0 += 4) {
+        refill_rows4(planes, b, b0, W, K, N, acc);
+        const int rows = b - b0 < 4 ? b - b0 : 4;
+        for (int r = 0; r < rows; r++) {
+            const int32_t *a0 = acc + (0 * 4 + r) * N, *a1 = acc + (1 * 4 + r) * N, *a2 = acc + (2 * 4 + r) * N;
+            int32_t *o = u + (int64_t)(b0 + r) * u_stride;
+            for (int64_t j = 0; j < N; j++) o[j] = crt_balanced(a0[j], a1[j], a2[j]);
+        }
+    }
+}
+
 /* ROW-BLOCKED refill: every row of the batch against one weight tile before
  * the next tile, so the weight stream is paid once per BATCH rather than once
  * per four rows (the wrapper's four-row loop below re-read W for each group
@@ -479,15 +493,7 @@ static void refill_rows_blocked(const uint8_t *planes, int b, const int8_t *W,
     __m512i *saved = (__m512i *)sh_aligned_alloc64((size_t)G * 3 * 4 * 16 * sizeof(__m512i));
     if (!saved) { /* The caller's 12*N scratch makes fallback allocation-free.
                    * A second failed allocation must not silently leave u stale. */
-        for (int b0 = 0; b0 < b; b0 += 4) {
-            refill_rows4(planes, b, b0, W, K, N, acc);
-            const int rows = b - b0 < 4 ? b - b0 : 4;
-            for (int r = 0; r < rows; r++) {
-                const int32_t *a0 = acc + (0 * 4 + r) * N, *a1 = acc + (1 * 4 + r) * N, *a2 = acc + (2 * 4 + r) * N;
-                int32_t *o = u + (int64_t)(b0 + r) * u_stride;
-                for (int64_t j = 0; j < N; j++) o[j] = crt_balanced(a0[j], a1[j], a2[j]);
-            }
-        }
+        refill_rows_fallback(planes, b, W, K, N, u, u_stride, acc);
         return;
     }
     const uint8_t *pl[3][4];
@@ -561,6 +567,74 @@ static void refill_rows_blocked(const uint8_t *planes, int b, const int8_t *W,
     }
     sh_aligned_free(saved);
 }
+/* The vector-CRT profile reuses each mask vector across six output columns,
+ * with 24 independent accumulators instead of 16. Two column groups form a
+ * 12-column tile: its 24-KiB weight slab plus 8 KiB of mask rows fits in L1,
+ * and its saved accumulators need 25% less space than the 16-column layout.
+ * Input layout, dot products, CRT arithmetic and one-use pads are unchanged.
+ * Tail columns/rows compute valid duplicates; only real outputs are written.
+ */
+static void refill_rows_wide(const uint8_t *planes, int b, const int8_t *W,
+        int64_t K, int64_t N, int32_t *u, int64_t u_stride, int32_t *acc) {
+    enum { ROWS = 4, COLS = 6, TILES = 2, NC = COLS * TILES };
+    const int G = (b + ROWS - 1) / ROWS;
+    const int64_t K64 = K & ~(int64_t)63;
+    const __mmask64 tail = (K & 63) ? (((__mmask64)1 << (K & 63)) - 1) : 0;
+    __m512i *saved = (__m512i *)sh_aligned_alloc64((size_t)G * 3 * NC * ROWS * sizeof(__m512i));
+    if (!saved) {
+        refill_rows_fallback(planes, b, W, K, N, u, u_stride, acc);
+        return;
+    }
+    for (int64_t j0 = 0; j0 < N; j0 += NC) {
+        const int8_t *wp[NC];
+        for (int c = 0; c < NC; c++) wp[c] = W + (j0 + c < N ? j0 + c : j0) * K;
+        memset(saved, 0, (size_t)G * 3 * NC * ROWS * sizeof(__m512i));
+        for (int64_t k0 = 0; k0 < K; k0 += SH_BLK_K) {
+            const int64_t k_end = k0 + SH_BLK_K < K64 ? k0 + SH_BLK_K : K64;
+            const int do_tail = tail && k0 <= K64 && K64 < k0 + SH_BLK_K;
+            for (int g = 0; g < G; g++) for (int p = 0; p < 3; p++) {
+                const uint8_t *pl[ROWS];
+                for (int r = 0; r < ROWS; r++) {
+                    const int row = g * ROWS + r < b ? g * ROWS + r : b - 1;
+                    pl[r] = planes + ((size_t)p * b + row) * K;
+                }
+                for (int t = 0; t < TILES; t++) {
+                    __m512i *sv = saved + (((size_t)g * 3 + p) * TILES + t) * COLS * ROWS;
+                    __m512i a[COLS][ROWS];
+                    for (int c = 0; c < COLS; c++) for (int r = 0; r < ROWS; r++) a[c][r] = sv[c * ROWS + r];
+                    for (int64_t k = k0; k < k_end; k += 64) {
+                        __m512i x[COLS];
+                        for (int c = 0; c < COLS; c++) x[c] = _mm512_loadu_si512(wp[t * COLS + c] + k);
+                        for (int r = 0; r < ROWS; r++) {
+                            const __m512i v = _mm512_loadu_si512(pl[r] + k);
+                            for (int c = 0; c < COLS; c++) a[c][r] = _mm512_dpbusd_epi32(a[c][r], v, x[c]);
+                        }
+                    }
+                    if (do_tail) {
+                        __m512i x[COLS];
+                        for (int c = 0; c < COLS; c++) x[c] = _mm512_maskz_loadu_epi8(tail, wp[t * COLS + c] + K64);
+                        for (int r = 0; r < ROWS; r++) {
+                            const __m512i v = _mm512_maskz_loadu_epi8(tail, pl[r] + K64);
+                            for (int c = 0; c < COLS; c++) a[c][r] = _mm512_dpbusd_epi32(a[c][r], v, x[c]);
+                        }
+                    }
+                    for (int c = 0; c < COLS; c++) for (int r = 0; r < ROWS; r++) sv[c * ROWS + r] = a[c][r];
+                }
+            }
+        }
+        for (int g = 0; g < G; g++) for (int r = 0; r < ROWS && g * ROWS + r < b; r++) {
+            int32_t reduced[3][NC];
+            for (int p = 0; p < 3; p++) for (int t = 0; t < TILES; t++) for (int c = 0; c < COLS; c++)
+                reduced[p][t * COLS + c] = _mm512_reduce_add_epi32(
+                    saved[(((size_t)g * 3 + p) * TILES + t) * COLS * ROWS + c * ROWS + r]);
+            const int count = N - j0 < NC ? (int)(N - j0) : NC;
+            for (int c = 0; c < count; c++)
+                u[(int64_t)(g * ROWS + r) * u_stride + j0 + c] = crt_balanced(reduced[0][c], reduced[1][c], reduced[2][c]);
+        }
+    }
+    sh_aligned_free(saved);
+}
+
 #elif defined(SH_SIMD_NEON)
 /* SDOT is signed x signed; the planes are unsigned residues. The exact identity
  *   sum_k x[k]*w[k] = sum_k (x[k]-128)*w[k] + 128*sum_k w[k]
@@ -641,7 +715,7 @@ void FN(refill)(const uint8_t *planes, int b, const int8_t *W, int64_t K, int64_
  * allocation-free four-row fallback as the default entry point. */
 void FN(refill_vector_crt)(const uint8_t *planes, int b, const int8_t *W,
         int64_t K, int64_t N, int32_t *u, int64_t u_stride, int32_t *acc) {
-    if (b > 4) { refill_rows_blocked(planes, b, W, K, N, u, u_stride, acc, 1); return; }
+    if (b > 4) { refill_rows_wide(planes, b, W, K, N, u, u_stride, acc); return; }
     FN(refill)(planes, b, W, K, N, u, u_stride, acc);
 }
 #endif

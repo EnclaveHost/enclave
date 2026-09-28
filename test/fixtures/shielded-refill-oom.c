@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
     __builtin_cpu_init();
     if(!__builtin_cpu_supports("avx512vnni")||!__builtin_cpu_supports("avx512bw")||
        !__builtin_cpu_supports("avx512dq")||!__builtin_cpu_supports("avx512vl"))return 77;
-    const int sizes[]={63,64,65,511,512,513,1023,1024,1025,2047,2048,2049,4095,4096,4097,8191,8192,8193,5120,17408},widths[]={1,17,35},batches[]={5,8,9,16,33};
+    const int sizes[]={63,64,65,511,512,513,1023,1024,1025,2047,2048,2049,4095,4096,4097,8191,8192,8193,5120,17408},widths[]={1,12,17,25,35},batches[]={5,8,9,16,33,63,64};
     unsigned cases=0;
     for(unsigned k=0;k<sizeof sizes/sizeof*sizes;++k)
         for(unsigned n=0;n<sizeof widths/sizeof*widths;++n)
