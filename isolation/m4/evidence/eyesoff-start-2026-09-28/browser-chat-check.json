@@ -11,5 +11,15 @@
   "toolConfiguration": "existing tool-enabled configuration retained",
   "missingHostError": false,
   "sessionBusyError": false,
-  "notes": "Observed via browser UI after Enclave SSO. Cold prompt processing took several minutes; this short chat result is not a repeat of the 512-token throughput benchmark."
+  "notes": "Observed via browser UI after Enclave SSO. Cold prompt processing took several minutes; this short chat result is not a repeat of the 512-token throughput benchmark.",
+  "followup": {
+    "observedAt": "2026-09-28T07:31:27.602991+00:00",
+    "prompt": "Reply with exactly: Ready. Do not use any tools.",
+    "answer": "Ready.",
+    "reportedTarget": "gpu",
+    "reportedTokens": 36,
+    "reportedTokensPerSecond": 9.9,
+    "promptTokens": 3806,
+    "notes": "Successful second turn, but it reprocessed the long prompt. Prompt reuse is a remaining performance issue, not just cold-start latency."
+  }
 }
