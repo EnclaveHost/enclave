@@ -1,0 +1,100 @@
+{
+  "status": 200,
+  "body": {
+    "backend": "snp-guest-per-app",
+    "catalog": {
+      "derivations": [
+        "enclave-catalog-bundle/1",
+        "enclave-catalog-bundle/2",
+        "enclave-catalog-bundle/3",
+        "enclave-catalog-bundle/4"
+      ],
+      "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8"
+    },
+    "firmware": {
+      "path": "/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd",
+      "pinnedVerifying": true,
+      "sha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9"
+    },
+    "guests": 5,
+    "inference": {
+      "cardAllocatedBytes": 0,
+      "cardBudgetBytes": 33285996544,
+      "cardFreeBytes": 33285996544,
+      "cards": 2,
+      "guestFloorMiB": 8192,
+      "minimumGpuMilli": 70,
+      "model": "qwen2.5-0.5b-q8-gguf",
+      "modelFloorsMiB": {
+        "qwen2.5-0.5b-q8-gguf": 8192,
+        "qwen3.8-27b-mtp-q4-vl-gguf": 61440
+      },
+      "models": [
+        "qwen2.5-0.5b-q8-gguf",
+        "qwen3.8-27b-mtp-q4-vl-gguf"
+      ],
+      "release": [
+        "9b088f90cfbe2284587b255e66cf5885d19209925ef638824a9ee0f61ec51347"
+      ]
+    },
+    "mem64": true,
+    "mem64RequiresRelease": true,
+    "ok": true,
+    "pool": {
+      "allocated": {
+        "memMiB": 11776,
+        "cpuPct": 500
+      },
+      "basis": "allocated = the reservations of the guests guestd holds (each unit's MemoryMax and CPUQuota), not observed use",
+      "budget": {
+        "memMiB": 81920,
+        "cpuPct": 2400
+      },
+      "free": {
+        "memMiB": 70144,
+        "cpuPct": 1900
+      },
+      "guests": 5,
+      "host": {
+        "floorMiB": 16384,
+        "memAvailableMiB": 82542,
+        "pendingMiB": 3612,
+        "unreadUnits": 0
+      },
+      "overcommitted": false,
+      "perGuest": {
+        "floorMiB": 1024,
+        "runtimeMiB": 384,
+        "unitOverheadMiB": 768
+      },
+      "pricing": "a deployment's share is priced as a fraction of the budget; its guest reserves its own reservation, which admission uses"
+    },
+    "set": true,
+    "setRequiresRelease": true,
+    "shieldedPool": true,
+    "supports": {
+      "config": false,
+      "configCid": false,
+      "egress": false,
+      "gpu": true,
+      "legacyImage": true,
+      "ports": false,
+      "protectedPorts": true,
+      "release": true,
+      "secrets": false
+    },
+    "volumes": [
+      {
+        "backend": "ggml",
+        "bytes": 675710816,
+        "name": "qwen2.5-0.5b-q8-gguf"
+      },
+      {
+        "backend": "ggml",
+        "bytes": 17559178144,
+        "minimumGpuMilli": 500,
+        "name": "qwen3.8-27b-mtp-q4-vl-gguf"
+      }
+    ]
+  }
+}

@@ -1,5 +1,8 @@
 # Masked 27B: 25 tok/s native result and isolated-guest limit
 
+Historical qualification snapshot. The subsequent user-authorized deployment is recorded in
+[the production rollout](../shield-pool128-production-2026-09-27/README.md).
+
 The native masked benchmark reached **25.34 and 25.37 tok/s** in two
 128-token runs, then **24.97 tok/s** over 384 tokens. The setting was a
 128-pad pool, refill unit 32, and cost priority. All three runs matched the
