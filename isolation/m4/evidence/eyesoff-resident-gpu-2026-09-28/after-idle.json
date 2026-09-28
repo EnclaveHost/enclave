@@ -1,0 +1,18 @@
+{
+  "state": "complete",
+  "at": 1790638995596,
+  "status": 200,
+  "load_ms": 0,
+  "prefill_ms": 1,
+  "decode_ms": 20974,
+  "wall_ms": 26047.8,
+  "tokens": 384,
+  "prompt_tokens": 3781,
+  "tok_per_s": 18.3,
+  "mtp_draft_us": 1035463,
+  "draft_accepted": 166,
+  "draft_tokens": 218,
+  "notices": [],
+  "text_chars": 1757,
+  "output_sha256": "734bc8f0fcda21c12e64ada36fadc957858be54a828888b8c5ddb3b5d617e511"
+}

@@ -1,0 +1,9 @@
+{
+  "baseline_release": "f7fae72afbddbcb3f8b29782f34ae2ce49410a0a53ad6a6d7bb5a3b988270e43",
+  "new_release": "ba14bafdf06f6287efd13337570df94f97c0362b1ce1ed1ec7f28f05a140b376",
+  "changed_files": [
+    "template/shieldbroker"
+  ],
+  "broker_sha256": "ef2b96af4e6e39b12d73c6344f8ce77cff5aa10f089ab23117006087a10c3741",
+  "go_version": "go version go1.27.0-X:nodwarf5 linux/amd64"
+}

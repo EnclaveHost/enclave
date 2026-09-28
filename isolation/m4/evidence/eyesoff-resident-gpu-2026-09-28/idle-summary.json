@@ -1,0 +1,11 @@
+{
+  "elapsed_s": 660.0339006009744,
+  "samples": 23,
+  "gpu1_initial_mib": 31277,
+  "gpu2_initial_mib": 31305,
+  "gpu1_min_mib": 31277,
+  "gpu2_min_mib": 31305,
+  "worker_disconnects": 0,
+  "disconnect_events": [],
+  "no_test_inference_requests": true
+}
