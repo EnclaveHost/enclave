@@ -1,0 +1,29 @@
+{
+  "release": "e9aae5415ba5fc9ec27b7436a8eed5416f93aad1167b8b37b1c2556b62f44294",
+  "promptTokens": 3781,
+  "runs": [
+    {
+      "label": "cold, overlapped compilation; not a speed comparison",
+      "tokens": 128,
+      "decodeMs": 12251,
+      "prefillMs": 250850,
+      "tokS": 10.4
+    },
+    {
+      "label": "cached128",
+      "tokens": 128,
+      "decodeMs": 9438,
+      "prefillMs": 1,
+      "tokS": 13.6,
+      "decodeGateUs": 0
+    },
+    {
+      "label": "cached384",
+      "tokens": 384,
+      "decodeMs": 27066,
+      "prefillMs": 1,
+      "tokS": 14.2,
+      "decodeGateUs": 0
+    }
+  ]
+}

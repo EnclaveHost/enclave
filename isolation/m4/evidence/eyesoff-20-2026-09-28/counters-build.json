@@ -1,0 +1,24 @@
+{
+  "release": "fbb40c8e278acecfd77feb24ab2afb72ff7ddb07ed78a302b4b0d9ee37b9aa23",
+  "wasmtimeSource": "/home/steven/enclave-bench/v100-shield-20260927/inference/wasmtime-src",
+  "base": "accepted mm36 prefix-cache/multislot runtime; source of previous production build",
+  "patchSha256": "5786e19cdb048efe727bbedf16d9eab0a9b5b6f3407f20a3ab7fe53b33ed0faf",
+  "wasmtimeSha256": "e209621304509a6b0e025bb52841da5b4e8f7ffcf8d6c784b2db071cd0a44655",
+  "backendSha256": "48406388316c60b2d04d3743c01b2e6c71384ffbd1da0dfd935cb892f243134a",
+  "llamaSha256": "1d84a421cdc6864bffa59cab547f264cef3dbc6bb288ad7f12e15d583e319a04",
+  "enginePin": "ddd4ec1428a6201e18975ea52b07c71e0f9aef26",
+  "buildCommand": [
+    "cargo",
+    "build",
+    "--release",
+    "--locked",
+    "-j",
+    "4",
+    "--no-default-features",
+    "--features",
+    "run,serve,compile,wat,parallel-compilation,cache,cranelift,component-model,component-model-async,threads,wasi-http,wasi-nn,wasmtime-wasi-nn/ggml,pooling-allocator"
+  ],
+  "buildEnv": {
+    "ELL_LIB_LOCATION": "/home/steven/enclave-bench/eyesoff-speed-20260928/runtime-build/link-libs"
+  }
+}

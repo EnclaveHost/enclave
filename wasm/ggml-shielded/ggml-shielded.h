@@ -46,6 +46,11 @@ GGML_BACKEND_API ggml_backend_t     ggml_backend_shielded_init(void);
 GGML_BACKEND_API bool               ggml_backend_is_shielded(ggml_backend_t backend);
 GGML_BACKEND_API ggml_backend_reg_t ggml_backend_shielded_reg(void);
 
+/* Optional aggregate diagnostics, never tensor values or log text. Nonblocking:
+ * returns 0 while a graph owns the pool, 1 on a complete snapshot, -1 for a
+ * short output buffer. See implementation for the versioned fixed layout. */
+GGML_BACKEND_API int ggml_backend_shielded_profile_snapshot(uint64_t *out, size_t count);
+
 /* Where the worker is, and which calibration to trust. Both default from the
  * environment (SHIELDED_HOST, SHIELDED_PORT, SHIELDED_CALIB) so an engine can
  * enable the tier as launch configuration without an app-visible API -- which is
