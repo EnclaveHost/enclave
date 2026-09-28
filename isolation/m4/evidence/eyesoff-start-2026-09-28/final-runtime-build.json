@@ -1,0 +1,14 @@
+{
+  "release": "057b2c667661f47dadd1b94153896ddd367e03ced7e18f0cf82143285fab19eb",
+  "changedFilesSince9b088f90": [
+    "template/init",
+    "template/rt/wasmtime",
+    "template/shieldmodel"
+  ],
+  "wasmtimeSha256": "d714003fa41851df0d7202cebd60db4b59d5b5cd36f5c7725800be217dfcea04",
+  "hostHeaderPatch": "wasm/wasmtime-p2-host-header.patch",
+  "hostHeaderPatchSha256": "a3d1bd5f3de474f113aa23e9dffdccc2835a54f3a1219a1b4bbb7ec67a34d3c7",
+  "buildCommand": "ELL_LIB_LOCATION=/home/steven/enclave-bench/v100-shield-20260927/inference/engine-root/usr/local/lib cargo build --release --locked -j 4 --no-default-features --features run,serve,compile,wat,parallel-compilation,cache,cranelift,component-model,component-model-async,threads,wasi-http,wasi-nn,wasmtime-wasi-nn/ggml,pooling-allocator",
+  "buildResult": "success",
+  "notes": "Rebuilt existing Enclave-patched Wasmtime source with the tracked Host-header patch. No ONNX or stable-diffusion backend; no executable-stack relaxation. Engine and GPU worker libraries unchanged."
+}

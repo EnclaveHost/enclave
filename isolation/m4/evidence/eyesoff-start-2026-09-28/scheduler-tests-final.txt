@@ -1,0 +1,268 @@
+TAP version 13
+# Subtest: flag UNSET: a deployment that requires isolation is refused, and saying so
+ok 1 - flag UNSET: a deployment that requires isolation is refused, and saying so
+  ---
+  duration_ms: 378.421826
+  type: 'test'
+  ...
+# Subtest: flag UNSET: every other envelope parses exactly as before
+ok 2 - flag UNSET: every other envelope parses exactly as before
+  ---
+  duration_ms: 317.712671
+  type: 'test'
+  ...
+# Subtest: flag UNSET: the verdict never refuses on its own
+ok 3 - flag UNSET: the verdict never refuses on its own
+  ---
+  duration_ms: 307.014435
+  type: 'test'
+  ...
+# Subtest: flag SET: the namespace parses, strictly
+ok 4 - flag SET: the namespace parses, strictly
+  ---
+  duration_ms: 317.910439
+  type: 'test'
+  ...
+# Subtest: flag SET: a clean isolated deployment is claimable, and only while the manager IS guestd
+ok 5 - flag SET: a clean isolated deployment is claimable, and only while the manager IS guestd
+  ---
+  duration_ms: 339.086713
+  type: 'test'
+  ...
+# Subtest: flag SET: the box takes nothing that does not ask for it
+ok 6 - flag SET: the box takes nothing that does not ask for it
+  ---
+  duration_ms: 313.945925
+  type: 'test'
+  ...
+# Subtest: flag SET: every feature the guest cannot honour is REFUSED
+ok 7 - flag SET: every feature the guest cannot honour is REFUSED
+  ---
+  duration_ms: 312.124161
+  type: 'test'
+  ...
+# Subtest: an unknown ISOLATION_BACKEND takes no tenant work
+ok 8 - an unknown ISOLATION_BACKEND takes no tenant work
+  ---
+  duration_ms: 322.267432
+  type: 'test'
+  ...
+# Subtest: changing the requirement of a RUNNING deployment is surfaced, never swapped in silently
+ok 9 - changing the requirement of a RUNNING deployment is surfaced, never swapped in silently
+  ---
+  duration_ms: 1086.672529
+  type: 'test'
+  ...
+# Subtest: the tier's view of a version: _media is not app config, anything else is
+ok 10 - the tier's view of a version: _media is not app config, anything else is
+  ---
+  duration_ms: 361.195509
+  type: 'test'
+  ...
+# Subtest: the derivation record a spawn sends: the version's catalog ref, CID, pinned policy and the host's runtime
+ok 11 - the derivation record a spawn sends: the version's catalog ref, CID, pinned policy and the host's runtime
+  ---
+  duration_ms: 372.914025
+  type: 'test'
+  ...
+# Subtest: the prefetch a tier box asks for carries the same derivation record as its spawn
+ok 12 - the prefetch a tier box asks for carries the same derivation record as its spawn
+  ---
+  duration_ms: 316.929848
+  type: 'test'
+  ...
+# Subtest: the record digest a tier spawn compares is guestd's recordSha256 for the same record
+ok 13 - the record digest a tier spawn compares is guestd's recordSha256 for the same record
+  ---
+  duration_ms: 295.900334
+  type: 'test'
+  ...
+# Subtest: one declared HTTP port is served (enclave-catalog-bundle/2) when the manager derives it; older managers refuse tunnels
+ok 14 - one declared HTTP port is served (enclave-catalog-bundle/2) when the manager derives it; older managers refuse tunnels
+  ---
+  duration_ms: 312.666056
+  type: 'test'
+  ...
+# Subtest: a command's derivation and prefetch carry its HTTP port; tunnel-only versions are refused
+ok 15 - a command's derivation and prefetch carry its HTTP port; tunnel-only versions are refused
+  ---
+  duration_ms: 302.369198
+  type: 'test'
+  ...
+# Subtest: protected ports require V3 and an explicit manager capability; the full sorted port set is measured
+ok 16 - protected ports require V3 and an explicit manager capability; the full sorted port set is measured
+  ---
+  duration_ms: 300.693692
+  type: 'test'
+  ...
+# Subtest: Shield claims require a released, pinned model and room on both cards
+ok 17 - Shield claims require a released, pinned model and room on both cards
+  ---
+  duration_ms: 301.174788
+  type: 'test'
+  ...
+# Subtest: the measured derivation binds model and GPU allocation
+ok 18 - the measured derivation binds model and GPU allocation
+  ---
+  duration_ms: 304.250181
+  type: 'test'
+  ...
+# Subtest: 27B admission accounts for model RAM and sixteen CPUs before claiming
+ok 19 - 27B admission accounts for model RAM and sixteen CPUs before claiming
+  ---
+  duration_ms: 317.817681
+  type: 'test'
+  ...
+# Subtest: on the tier a share is a fraction of the guest pool: a 128 MB app still needs 1%, and 1% of the posted price stays under its cap
+ok 20 - on the tier a share is a fraction of the guest pool: a 128 MB app still needs 1%, and 1% of the posted price stays under its cap
+  ---
+  duration_ms: 968.882995
+  type: 'test'
+  ...
+# Subtest: a version's guest reserves its unit's ceilings, as guestd admits it
+ok 21 - a version's guest reserves its unit's ceilings, as guestd admits it
+  ---
+  duration_ms: 365.532691
+  type: 'test'
+  ...
+# Subtest: what is free is the pool's room, never more than the share ledger, and nothing unless a smallest guest fits
+ok 22 - what is free is the pool's room, never more than the share ledger, and nothing unless a smallest guest fits
+  ---
+  duration_ms: 3021.031271
+  type: 'test'
+  ...
+# Subtest: a claim is refused when the app's guest does not fit the pool by its reservation, even though its share would
+ok 23 - a claim is refused when the app's guest does not fit the pool by its reservation, even though its share would
+  ---
+  duration_ms: 317.715671
+  type: 'test'
+  ...
+# Subtest: a resume of a guest guestd already holds is judged with the room that guest holds; a new claim on the same full pool is refused
+ok 24 - a resume of a guest guestd already holds is judged with the room that guest holds; a new claim on the same full pool is refused
+  ---
+  duration_ms: 315.912577
+  type: 'test'
+  ...
+# Subtest: an answer without a readable pool clears the mirror: nothing is offered or claimed, and the node keeps the budget last heard
+ok 25 - an answer without a readable pool clears the mirror: nothing is offered or claimed, and the node keeps the budget last heard
+  ---
+  duration_ms: 634.097665
+  type: 'test'
+  ...
+# Subtest: the budget floor for a 1% app: 12800 MiB is 1%, 12799 MiB is 2%, over a69dcbba's cap
+ok 26 - the budget floor for a 1% app: 12800 MiB is 1%, 12799 MiB is 2%, over a69dcbba's cap
+  ---
+  duration_ms: 686.843022
+  type: 'test'
+  ...
+# Subtest: the claim path judges the pool with the version's policy and, on a resume, the guest guestd holds (pinned in source)
+ok 27 - the claim path judges the pool with the version's policy and, on a resume, the guest guestd holds (pinned in source)
+  ---
+  duration_ms: 3.3511
+  type: 'test'
+  ...
+# Subtest: the host's live memory floor gates claims and caps the advertised share; without it nothing changes
+ok 28 - the host's live memory floor gates claims and caps the advertised share; without it nothing changes
+  ---
+  duration_ms: 4709.457481
+  type: 'test'
+  ...
+# Subtest: a resume adopting the same record skips the host check; a replacement is credited only its guest's RAM
+ok 29 - a resume adopting the same record skips the host check; a replacement is credited only its guest's RAM
+  ---
+  duration_ms: 584.662092
+  type: 'test'
+  ...
+# Subtest: a held guest is the same record only when the spawn would send exactly that record
+ok 30 - a held guest is the same record only when the spawn would send exactly that record
+  ---
+  duration_ms: 951.467683
+  type: 'test'
+  ...
+# Subtest: off the tier nothing of the pool applies: the node is the NODE_* constants and free is the share ledger
+ok 31 - off the tier nothing of the pool applies: the node is the NODE_* constants and free is the share ledger
+  ---
+  duration_ms: 288.736698
+  type: 'test'
+  ...
+# Subtest: config and secrets are claimable only for a RELEASE GUEST: guestd -release, the operator's opt-in AND the relay's list
+ok 32 - config and secrets are claimable only for a RELEASE GUEST: guestd -release, the operator's opt-in AND the relay's list
+  ---
+  duration_ms: 1352.861693
+  type: 'test'
+  ...
+# Subtest: a deployment that is not a release guest runs on a -release box only if its guestd has the legacy image
+ok 33 - a deployment that is not a release guest runs on a -release box only if its guestd has the legacy image
+  ---
+  duration_ms: 613.105479
+  type: 'test'
+  ...
+# Subtest: the relay's list has THREE answers, and only a clear one is listed or unlisted
+ok 34 - the relay's list has THREE answers, and only a clear one is listed or unlisted
+  ---
+  duration_ms: 803.390754
+  type: 'test'
+  ...
+# Subtest: the spawn's decision: a listed deployment is a release guest, an unknown list THROWS, never the legacy image
+ok 35 - the spawn's decision: a listed deployment is a release guest, an unknown list THROWS, never the legacy image
+  ---
+  duration_ms: 801.56958
+  type: 'test'
+  ...
+# Subtest: the ticket is fetched only once the guest awaits it, signed by this endpoint's operator, and handed to guestd
+ok 36 - the ticket is fetched only once the guest awaits it, signed by this endpoint's operator, and handed to guestd
+  ---
+  duration_ms: 419.597915
+  type: 'test'
+  ...
+# Subtest: a relay refusal is retried while the guest waits, and logged by status and code only
+ok 37 - a relay refusal is retried while the guest waits, and logged by status and code only
+  ---
+  duration_ms: 465.032174
+  type: 'test'
+  ...
+# Subtest: a guest that is no longer starting ends the pump, and no ticket is fetched for it
+ok 38 - a guest that is no longer starting ends the pump, and no ticket is fetched for it
+  ---
+  duration_ms: 1305.76647
+  type: 'test'
+  ...
+# Subtest: a malformed ticket is never handed on, and without an operator key nothing is asked
+ok 39 - a malformed ticket is never handed on, and without an operator key nothing is asked
+  ---
+  duration_ms: 1427.234722
+  type: 'test'
+  ...
+# Subtest: guestd refusing the ticket (already pending, or taken) counts as handed: one fetch, however short the retry
+ok 40 - guestd refusing the ticket (already pending, or taken) counts as handed: one fetch, however short the retry
+  ---
+  duration_ms: 457.243283
+  type: 'test'
+  ...
+# Subtest: depHasSecrets: only a clean answer is yes or no
+ok 41 - depHasSecrets: only a clean answer is yes or no
+  ---
+  duration_ms: 433.549942
+  type: 'test'
+  ...
+# Subtest: the spawn site: release:true and a ticket pump only for a listed deployment; an unknown list posts nothing
+ok 42 - the spawn site: release:true and a ticket pump only for a listed deployment; an unknown list posts nothing
+  ---
+  duration_ms: 1191.542848
+  type: 'test'
+  ...
+# Subtest: CID config claim uses attested delivery only for a listed isolated release guest
+ok 43 - CID config claim uses attested delivery only for a listed isolated release guest
+  ---
+  duration_ms: 1239.298998
+  type: 'test'
+  ...
+1..43
+# tests 43
+# suites 0
+# pass 43
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 12900.348093

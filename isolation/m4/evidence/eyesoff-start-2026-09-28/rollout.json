@@ -1,0 +1,13 @@
+{
+  "sourceCommit": "36df253a2b66",
+  "controlMeasurement": "9e6205b20bb8ffa94d0afaa01c3b45f708b771036308691cf00cb9608e4edd143bbdc76ec9cfb1ad2a3e24e0d88b3c3f",
+  "deployment": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+  "configCid": "bafkreih662plyjjjqzgmla75stqdgl5situtmynfvhdgdtbt35gdlvzngm",
+  "configSha256": "fef69ebc2529864cc583fd94e0332fb244e93661a5a9c661cc33df4c35d72d33",
+  "savedConfigUnchanged": true,
+  "testCount": 43,
+  "initialModelRelease": "9b088f90cfbe2284587b255e66cf5885d19209925ef638824a9ee0f61ec51347",
+  "finalModelRelease": "057b2c667661f47dadd1b94153896ddd367e03ced7e18f0cf82143285fab19eb",
+  "finalGuest": "gd90f86444",
+  "siteCommit": "57396f0d230a04207237854b6e3ae38810a8b848"
+}

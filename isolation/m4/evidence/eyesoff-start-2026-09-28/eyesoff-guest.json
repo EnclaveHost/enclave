@@ -1,0 +1,24 @@
+{
+  "appId": "ba5495a0b06fe423c74f3e1ecc9aa5614fa75d3991c02fdbd60a00ec37080a1b",
+  "backend": "snp-guest-per-app",
+  "createdAt": 1790579971,
+  "gpuCardBytes": 32287416647,
+  "hostData": "9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+  "hostPort": 41935,
+  "id": "gd90f86444",
+  "inferenceModel": "qwen3.8-27b-mtp-q4-vl-gguf",
+  "measurement": "c0ebdc375310acfe6d94ab21659e3aef6e48751374a5b76e17d9557ff65a4d1859226f712256b628d058d0ae53a0e645",
+  "memMiB": 61440,
+  "name": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+  "recordSha256": "ea3cd98c9314ef4cd1a2c912b0ff43113c07cf7a7da04f582550b3db3cfb1040",
+  "release": true,
+  "reserved": {
+    "memMiB": 62208,
+    "cpuPct": 1600
+  },
+  "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+  "status": "running",
+  "transportKeySha256": "695ad8e358012e278147b5bdf8f509c0a0f260ad784bc784d96daf88c15f9edb",
+  "vcpus": 16,
+  "verdict": "attested"
+}

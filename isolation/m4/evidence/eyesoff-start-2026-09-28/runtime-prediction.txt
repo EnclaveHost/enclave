@@ -1,0 +1,5 @@
+release ff8ef20e215bc4608bca9ac860b15c31871784138e11e4c7ff49279310639da6
+app_id ba5495a0b06fe423c74f3e1ecc9aa5614fa75d3991c02fdbd60a00ec37080a1b
+runtime_id 297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8
+runtime_identity_json {"name":"wasmtime","version":"49.0.0","execution":"jit","targetIsa":"x86_64","hostIsa":"x86_64","cpuFeatures":"host-detected","wx":"enforced","cache":"none"}
+measurement c7797a612d15d15b119527ebc530e7ca0410156ee5e337bd4953f702266125b745327117e25564fd9dbb2079caa39243
