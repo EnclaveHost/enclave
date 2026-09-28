@@ -1,5 +1,5 @@
-load_backend: loaded CPU backend from /home/steven/enclave-prod/release-9958ac99/template/rt/backends/libggml-cpu.so
-load_backend: loaded CPU backend from /home/steven/enclave-prod/release-9958ac99/template/rt/backends/libggml-cpu.so
+load_backend: loaded CPU backend from /home/steven/enclave-bench/eyesoff-speed-20260928/multislot-runtime/backends/libggml-cpu.so
+load_backend: loaded CPU backend from /home/steven/enclave-bench/eyesoff-speed-20260928/multislot-runtime/backends/libggml-cpu.so
 llama_model_loader: loaded meta data with 26 key-value pairs and 291 tensors from /home/steven/enclave-prod/release-9958ac99/template/models/qwen2.5-0.5b-q8-gguf/model.gguf (version GGUF V3 (latest))
 llama_model_loader: Dumping metadata keys/values. Note: KV overrides do not apply in this output.
 llama_model_loader: - kv   0:                       general.architecture str              = qwen2
@@ -889,6 +889,7 @@ done_getting_tensors: tensor 'token_embd.weight' (q8_0) (and 290 others) cannot 
 load_tensors:   CPU_Mapped model buffer size =   638.74 MiB
 ...........................................................
 llama_context: constructing llama_context
+llama_context: n_rs_seq=1 requested but model arch does not support recurrent partial rollback; clamping to 0
 llama_context: n_seq_max     = 16
 llama_context: n_ctx         = 512
 llama_context: n_ctx_seq     = 512
@@ -960,8 +961,9 @@ graph_reserve: reserving a graph for ubatch with n_tokens =   16, n_seqs = 16, n
 sched_reserve:        CPU compute buffer size =     9.38 MiB
 sched_reserve: graph nodes  = 942
 sched_reserve: graph splits = 1
-sched_reserve: reserve took 2.02 ms, sched copies = 1
+sched_reserve: reserve took 2.55 ms, sched copies = 1
 llama_context: constructing llama_context
+llama_context: n_rs_seq=1 requested but model arch does not support recurrent partial rollback; clamping to 0
 llama_context: n_seq_max     = 16
 llama_context: n_ctx         = 512
 llama_context: n_ctx_seq     = 512
@@ -1033,7 +1035,7 @@ graph_reserve: reserving a graph for ubatch with n_tokens =   16, n_seqs = 16, n
 sched_reserve:        CPU compute buffer size =     9.38 MiB
 sched_reserve: graph nodes  = 942
 sched_reserve: graph splits = 1
-sched_reserve: reserve took 2.20 ms, sched copies = 1
+sched_reserve: reserve took 2.41 ms, sched copies = 1
 PRESSURE_CASE_PASS 0
 PRESSURE_CASE_PASS 1
 decode: failed to find a memory slot for batch of size 16

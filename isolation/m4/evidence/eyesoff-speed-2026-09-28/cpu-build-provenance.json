@@ -1,0 +1,18 @@
+{
+  "baseCpuSha256": "2156d9fa0742445c27371a657b55baaa56e6c8d870bfddd5f54e7a0fde29ea7f",
+  "newCpuSha256": "ad2f391ff04ec3a6b26172801a2130680c30a340a88902ec3b375390d68bf451",
+  "beforeOpsSha256": "798071b09a87b89f57094e499c48792d57396ed3a7cba780829c32c80eaf142a",
+  "afterOpsSha256": "7634b119ae2ba83da2e5631bff858b2927db8cdbfbbc59a2771e0502796d51c7",
+  "patchSha256": "e82b8028d1fae72b2b41c7d000f98e3126fc469cd8db4df9359dbd1e54fcaadb",
+  "recipe": "isolation/m4/build-shielded-engine.py",
+  "incrementalBuild": [
+    "cmake",
+    "--build",
+    "/home/steven/enclave-bench/v100-shield-20260927/optimized/engine-build",
+    "--target",
+    "ggml-cpu",
+    "-j",
+    "4"
+  ],
+  "engineCommit": "ddd4ec1428a6201e18975ea52b07c71e0f9aef26"
+}

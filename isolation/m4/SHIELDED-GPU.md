@@ -247,12 +247,20 @@ production image, independent release admission, and scheduler integration.
 
 ### CPU attention and prefix-cache pressure
 
-The large-model profile explicitly enables fused attention. Shield claims the
-matrix operations, while attention stays inside the private CPU guest; the
-engine's automatic device-match heuristic otherwise disables CPU fused attention.
-The engine recipe includes `llamacpp-cpu-flash-f32.patch` so the CPU kernel honors
-the model's requested FP32 accumulation instead of accumulating FP16 values in
-half precision. This does not move attention, KV state or plaintext to the GPU.
+Explicit CPU fused attention was tested and rejected for the 27B serving profile:
+it reduced an uncontended tool-enabled chat from 10.7 to 6.0 tok/s. Leave the
+engine's automatic selection in place. The recipe retains
+`llamacpp-cpu-flash-f32.patch` as a correctness fix for configurations that do
+select CPU fused attention: it honors the requested FP32 accumulation.
+
+`llamacpp-rs-multislot.patch` extends the existing recurrent-state alias to a
+single active sequence in a multi-session context. It requires the gather
+source to equal the current destination head. Copy-on-write branches and
+rollback snapshots still gather; graph reuse checks both head and alias status.
+The view includes the actual head offset, so the in-place GDN kernel updates
+only that conversation's state. Eight active session slots remain configured.
+`test-rs-multislot.py` compares full logits with aliasing disabled/enabled through
+sixteen resident branches, nonzero heads, divergence, rollback and slot reuse.
 
 Parked prefixes are a cache, not guaranteed reservations. If a target decode
 cannot allocate KV cells, the runtime evicts the oldest unpinned conversation

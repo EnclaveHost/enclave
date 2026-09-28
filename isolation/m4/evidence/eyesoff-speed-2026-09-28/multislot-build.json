@@ -1,0 +1,7 @@
+{
+  "engineSource": "ddd4ec1428a6201e18975ea52b07c71e0f9aef26 + accepted build recipe patches",
+  "multiSlotPatchSha256": "b404209b55d1987f10be3948d6c947d6dc7143ae429bd7a2741a0a42ebd38762",
+  "libllamaSha256": "438037474e1295ab78fd73e843f914d8fe7e710a4f0be39c6b728c8ba0b3d300",
+  "release": "c9fdc728392d3da524a8de72600b78fb79ecc883423afe0ea82e89675614fdc5",
+  "flashAttention": "auto (explicit on rejected)"
+}

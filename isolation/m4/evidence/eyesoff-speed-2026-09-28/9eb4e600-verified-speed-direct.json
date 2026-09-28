@@ -1,0 +1,13 @@
+{
+  "transport": "direct; AMD attestation and TLS key pin, no WebPKI claim",
+  "at": "2026-09-28T08:49:52.550Z",
+  "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+  "short": "9eb4e600",
+  "attested": true,
+  "measurement": "af615c867c469f2cf40f3a5c3ce79e2b7ad1437ce5ad4919c9bc3514b3e93dc704cd485527d436fc33820d7a8a6517f0",
+  "appId": "ba5495a0b06fe423c74f3e1ecc9aa5614fa75d3991c02fdbd60a00ec37080a1b",
+  "release": "e182e690c202b2833e124a1a18cd0c649fc7b9ff41c4f655419dd19ba559f73e",
+  "spkiSha256": "09e257a46ec61c8f3c881e755bd21939ca57c195d173101b752954306b14dde4",
+  "healthPath": "/ping",
+  "healthStatus": 200
+}

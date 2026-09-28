@@ -1,0 +1,18 @@
+{
+  "baseline": {
+    "prompt_tokens": 3781,
+    "tokens": 128,
+    "prefill_ms": 1430,
+    "decode_ms": 11940,
+    "tok_per_s": 10.7
+  },
+  "rejected_uncontended_fused_fp32": {
+    "prompt_tokens": 3781,
+    "tokens": 128,
+    "prefill_ms": 2,
+    "decode_ms": 21261,
+    "tok_per_s": 6.0,
+    "gate_us": 0
+  },
+  "decision": "Rolled back e182e690. Explicit fused attention is not enabled in c9fdc728."
+}

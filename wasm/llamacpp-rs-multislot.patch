@@ -1,0 +1,66 @@
+diff --git a/src/llama-graph.cpp b/src/llama-graph.cpp
+--- a/src/llama-graph.cpp
++++ b/src/llama-graph.cpp
+@@ -341,10 +341,10 @@
+     }
+ }
+ 
+-// One sequence, one cell, head at 0, and the sequence's rollback index clear --
+-// then the only row the gather could pick is row 0, and build_rs hands back a
+-// view of the state instead of a copy of it. s_copy_peek() is used rather than
+-// s_copy() because the latter consumes the rollback index.
++// One active sequence whose gather source is its own destination cell. The
++// cache may also hold other sessions: find_slot has already split shared tails
++// before this check. A COW copy or rollback snapshot has a different source
++// and must retain the gather. Peek does not consume the rollback index.
+ bool llm_graph_input_rs::is_identity_gather(const llama_memory_recurrent_context * mctx, int64_t n_seqs) {
+     static const bool on = []{
+         const char * e = getenv("ENCLAVE_GGML_RS_ALIAS");
+@@ -353,9 +353,8 @@
+     return on
+         && n_seqs == 1
+         && mctx->get_n_rs() == 1
+-        && mctx->get_size() == 1
+-        && mctx->get_head() == 0
+-        && mctx->s_copy_peek(0) == 0;
++        && mctx->get_head() < mctx->get_size()
++        && mctx->s_copy_peek(0) == (int32_t) mctx->get_head();
+ }
+ 
+ // Diagnostic (ENCLAVE_RS_DEBUG=1): assert at RUNTIME that every graph built
+@@ -373,7 +372,7 @@
+     std::string vals;
+     for (int64_t i = 0; i < n_rs; ++i) { vals += ' '; vals += std::to_string(mctx->s_copy_peek((int) i)); }
+     (aliased ? n_alias : n_copy)++;
+-    const bool bad = aliased && (n_rs != 1 || mctx->s_copy_peek(0) != 0);
++    const bool bad = aliased && (n_rs != 1 || mctx->s_copy_peek(0) != (int32_t) mctx->get_head());
+     if (bad) n_bad++;
+     if (bad || ((n_alias + n_copy) % 64) == 0) {
+         fprintf(stderr, "[rs] alias=%d n_rs=%lld head=%u rs_z=%d s_copy=[%s] (alias %lld / copy %lld / VIOLATIONS %lld)\n",
+@@ -3200,20 +3199,13 @@
+     ggml_tensor * state_zero = ggml_view_1d(ctx0, states, state_size*(rs_zero >= 0), rs_zero*states->nb[1]*(rs_zero >= 0));
+     ggml_build_forward_expand(gf, ggml_scale_inplace(ctx0, state_zero, 0));
+ 
+-    // When the gather cannot be anything but the identity -- one sequence, and
+-    // a recurrent cache one cell wide, so row 0 is the only row that exists --
+-    // hand back the state itself instead of copying it. On the 27B hybrid that
+-    // copy is 3 MiB per delta-net layer per token in and the same again on the
+-    // write-back, for a permutation of one element. The consumer only READS
+-    // the state (ggml_gated_delta_net stages each head into its own scratch
+-    // and publishes the update through a separate copy), so the alias is safe.
+-    // ENCLAVE_GGML_RS_ALIAS=0 restores the copy.
++    // The single active sequence already owns this cell and reads its current
++    // state, not a COW source or rollback snapshot. Graph reuse guards both the
++    // head and identity flag. Returning the actual head offset enables the
++    // in-place GDN path without touching any other session's state.
+     if (identity_gather) {
+-        // states is {state_size, rs_size * n_rollback_groups}; the gather would
+-        // have returned its first row. Hand back a view of that row instead --
+-        // it lives in the recurrent cache, which the graph allocator does not
+-        // manage, so nothing moves underneath it.
+-        return ggml_view_2d(ctx0, states, state_size, n_seqs, states->nb[1], 0);
++        return ggml_view_2d(ctx0, states, state_size, n_seqs, states->nb[1],
++                            rs_head * states->nb[1]);
+     }
+ 
+     // copy states
