@@ -1,0 +1,12 @@
+{
+  "at": "2026-09-28T10:13:20.408Z",
+  "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+  "short": "9eb4e600",
+  "attested": true,
+  "measurement": "584598f60e50c78ed9987de55f1cd6f2edda8cde24fdc8431e45423dacafc0ee1d78f15fb2090a06538f9bfb25ffc8dd",
+  "appId": "ba5495a0b06fe423c74f3e1ecc9aa5614fa75d3991c02fdbd60a00ec37080a1b",
+  "release": "e95d2d79d1c1ca4c005b33c852d8d0810b08064896269ab2e14d8c9c2a4592b6",
+  "spkiSha256": "a64ee1831a15620b608ef6e87458aba6b15834f4112cc9112c30e5dddacd5b00",
+  "healthPath": "/ping",
+  "healthStatus": 200
+}

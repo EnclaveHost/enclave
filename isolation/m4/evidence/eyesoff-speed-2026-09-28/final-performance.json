@@ -1,0 +1,87 @@
+{
+  "release": "e95d2d79d1c1ca4c005b33c852d8d0810b08064896269ab2e14d8c9c2a4592b6",
+  "source": "Eyesoff browser API streamed completion timing frames; synthetic requests, not user chat history",
+  "request": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "Explain how hardware isolation protects application memory. Give a detailed answer in plain English. Do not use tools."
+      }
+    ],
+    "target": "gpu",
+    "model": "qwen3.8-27b-mtp",
+    "temperature": 0,
+    "max_tokens": 128,
+    "web_search": "auto",
+    "tools": {
+      "off": []
+    },
+    "loop": true
+  },
+  "append": "Actual generated assistant output followed by user: Summarize the key point in two sentences. Do not use tools.",
+  "decode_gate_wait_us": 0,
+  "runs": [
+    {
+      "label": "original_cached_baseline",
+      "release": "9958ac99",
+      "prompt_tokens": 3781,
+      "tokens": 128,
+      "prefill_ms": 1430,
+      "decode_ms": 11940,
+      "tok_per_s": 10.7
+    },
+    {
+      "label": "final_cold",
+      "prompt_tokens": 3781,
+      "tokens": 128,
+      "prefill_ms": 246380,
+      "decode_ms": 11439,
+      "tok_per_s": 11.2,
+      "wall_ms": 261870.5
+    },
+    {
+      "label": "final_cached",
+      "prompt_tokens": 3781,
+      "tokens": 128,
+      "prefill_ms": 1,
+      "decode_ms": 9617,
+      "tok_per_s": 13.3,
+      "wall_ms": 11932.4
+    },
+    {
+      "label": "final_appended_turn",
+      "prompt_tokens": 3942,
+      "tokens": 98,
+      "prefill_ms": 7040,
+      "decode_ms": 8545,
+      "tok_per_s": 11.5,
+      "wall_ms": 20515.3,
+      "enable_thinking": false
+    },
+    {
+      "label": "final_cached_controller_stopped_0",
+      "prompt_tokens": 3781,
+      "tokens": 128,
+      "prefill_ms": 1,
+      "decode_ms": 10374,
+      "tok_per_s": 12.3,
+      "wall_ms": 12959.8
+    },
+    {
+      "label": "final_cached_controller_stopped_1",
+      "prompt_tokens": 3781,
+      "tokens": 128,
+      "prefill_ms": 1,
+      "decode_ms": 9884,
+      "tok_per_s": 13.0,
+      "wall_ms": 12199.4
+    }
+  ],
+  "limitations": [
+    "One original cached baseline; no comparable original cold baseline.",
+    "Final cold prefill remains 246.38 seconds.",
+    "Appended turn used enable_thinking=false and is not a controlled decode-speed comparison.",
+    "Controller-stopped samples were similar to the earlier hot result; no causal controller speed benefit established.",
+    "Prior native short-prompt throughput is not representative of this 3781-token tool-enabled prompt."
+  ]
+}

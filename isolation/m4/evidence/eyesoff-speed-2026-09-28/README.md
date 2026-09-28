@@ -82,3 +82,42 @@ MTP qualification: 43-token prefill, 32 generated tokens, sequence 13 of 16,
 batch/ubatch 64, explicit attention OFF. Speculative and plain greedy text
 are identical; 13/19 draft proposals accepted; zero observation failures.
 Small-model CPU timings are correctness diagnostics, not 27B speed claims.
+
+Rollout note: repeated direct guest-manager DELETEs were counted by the
+supervisor as app deaths. The fourth hit released the lease and caused a
+five-minute backoff, so the first e95d2d79 instance could not receive secrets.
+The scheduler reaped it and reclaimed the deployment at 09:49:55 UTC, with
+a fresh lease until 10:19:53 UTC. Use the owner-authorized deployment restart
+endpoint for planned future restarts; it resets the crash budget. The five
+other guests, control VM and GPU workers remained running.
+
+
+## Final deployed result
+
+Release **e95d2d79d1c1ca4c005b33c852d8d0810b08064896269ab2e14d8c9c2a4592b6**
+is running in Eyesoff, with fresh public TLS and AMD attestation verified.
+`final-performance.json` records the actual browser API timing frames for a
+3,781-token prompt with the normal tool definitions included.
+
+The original cached sample delivered **10.7 tok/s**. Final cached samples
+were **13.3, 12.3 and 13.0 tok/s**, with **1 ms prefill** each. The last two
+ran with the browser automation controller stopped. Their similar results
+mean no causal controller-related speed improvement is claimed.
+
+An actual appended conversation turn (3,942 prompt tokens, 161 more than
+the original) took **7.04 seconds prefill**, demonstrating prefix reuse on
+an appended turn rather than only an identical request. Its 98-token
+completion used thinking disabled and is not a controlled decode comparison.
+
+Cold first prefill still took **246.38 seconds**, followed by 11.2 tok/s
+decode. There is no comparable original cold baseline, so no cold speedup
+is claimed. The remaining cold latency is substantial. Earlier native
+short-prompt results should not be presented as real tool-enabled chat speed.
+
+The final profile preserves eight active sessions, parked-prefix caching,
+masking and isolation. Cache-pressure retries, multi-slot recurrent updates,
+and 64-token physical batches passed the qualification above. Control-VM
+and GPU-worker process start ticks are unchanged. Temporary benchmark
+localStorage data was removed after collecting the results.
+
+Final check at 10:13 UTC: all six guests running and attested; all six public app health endpoints returned HTTP 200 with fresh attestation verification. See `final-*-health.json`.
