@@ -92,6 +92,7 @@ type doc struct {
 }
 
 type front struct {
+	publicHTTPS  bool // set only by successful attested provisioning
 	spki, appSha []byte
 	rt           *runtimeState // ABI/2 when non-nil, ABI/1 when the image carries no runtime identity
 	// seccompStatement: where init (dominit, root) records the app runtime's seccomp filter once it is installed; read
@@ -268,6 +269,7 @@ func main() {
 			if err != nil {
 				return "", err
 			}
+			f.publicHTTPS = prov.fwd.Policy.PublicHTTPS
 			warmupPath = configuredWarmup(prov.config)
 			return prov.config, nil
 		})
@@ -583,7 +585,7 @@ func (f *front) releaseForInit(initPipe *os.File, hd []byte, hdErr error, provis
 		initPipe.Close()
 		return err
 	}
-	return handToInit(initPipe, config)
+	return handToInitMode(initPipe, config, f.publicHTTPS)
 }
 
 func must(err error) {
