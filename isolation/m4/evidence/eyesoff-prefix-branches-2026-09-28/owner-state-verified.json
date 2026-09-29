@@ -1,0 +1,41 @@
+{
+  "at": "2026-09-29T04:46:30.686Z",
+  "checks": [
+    {
+      "rpc": "base-rpc.publicnode.com",
+      "receipts": [
+        {
+          "mode": "publish",
+          "hash": "0x30b4819ce80aba6c1a871059f2cfa2b30461ba930fa657f8680b47bd2371ed44",
+          "receiptUnavailable": true
+        },
+        {
+          "mode": "upgrade",
+          "hash": "0x40b4b03b79e60895b5daff36f122a485ccedce2520e4dbe41f2ac40944e95bc5",
+          "receiptUnavailable": true
+        }
+      ],
+      "appRef": "catalog://0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737/68",
+      "ownerConfigSharesUnchanged": true
+    },
+    {
+      "rpc": "base.drpc.org",
+      "receipts": [
+        {
+          "mode": "publish",
+          "hash": "0x30b4819ce80aba6c1a871059f2cfa2b30461ba930fa657f8680b47bd2371ed44",
+          "status": "success",
+          "blockNumber": "51933694"
+        },
+        {
+          "mode": "upgrade",
+          "hash": "0x40b4b03b79e60895b5daff36f122a485ccedce2520e4dbe41f2ac40944e95bc5",
+          "status": "success",
+          "blockNumber": "51933712"
+        }
+      ],
+      "appRef": "catalog://0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737/68",
+      "ownerConfigSharesUnchanged": true
+    }
+  ]
+}
