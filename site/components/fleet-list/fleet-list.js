@@ -13,7 +13,7 @@ import { hrevConfigured, hrevTallies, hrevMine, encCall, HREV_SEL, waitReceipt, 
 import { HOST_REVIEWS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
-import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedPoolOf, teeCpuOf, computeEligibleOf, appHostVisible, ownerHostedDeploymentCount, ownerHostCpuCapacity, ownerHostVisibleTo } from "../../js/core/pricing.js";
+import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedHostCapacity, teeCpuOf, computeEligibleOf, appHostVisible, ownerHostedDeploymentCount, ownerHostCpuCapacity, ownerHostVisibleTo } from "../../js/core/pricing.js";
 import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
 
@@ -72,6 +72,16 @@ class FleetList extends EnclaveElement {
       + (price != null ? '<span class="fleet-pool-price"><b>' + perHr(price) + '</b>/hr</span>' : '')
       + '<span class="fleet-stats">' + stats + '</span>'
       + '</div>';
+    const computeStat = gpu => {
+      const value = n => n === null ? '—' : String(Math.round(n * 100) / 100);
+      const title = gpu.names.join(', ') + '. ' + gpu.cardCount + ' GPU' + (gpu.cardCount === 1 ? '' : 's') + '. '
+        + (gpu.basis === 'rated' ? 'Combined rated dense FP16 capacity. '
+          : gpu.basis === 'measured' ? 'Measured masked field GEMM, converted at two operations per MAC to TFLOPS-equivalent. Not manufacturer-rated floating-point throughput. '
+          : 'A complete comparable compute rate has not been reported. ')
+        + 'Available capacity follows each card’s unallocated share. Aggregate capacity is not guaranteed single-request throughput.';
+      return stat(value(gpu.availableTflops), value(gpu.tflops), '',
+        gpu.basis === 'measured' ? 'tflops equiv. available' : 'tflops available', title);
+    };
     // A FAILED read is not an empty fleet: say it failed (retrying) rather than "no hosts",
     // and under last-good rows say how old they are.
     const failed = this.error ? String(this.error) : "";
@@ -181,27 +191,11 @@ class FleetList extends EnclaveElement {
           // untrusted host keeps the rest (on a desktop, an X server). Showing the
           // physical total here while the GPU pool showed the budget is what put
           // two differently-sized GPU rows on one single-card box.
-          const shPool = shieldedPoolOf(e);
-          const shTotal = shPool ? shPool.total : 0;
-          // LEASABLE, not resident. A shielded worker keeps only the model's
-          // encoded weights on the card, so the silicon reads nearly empty while
-          // the card is fully booked; showing that reading as "available" quoted
-          // capacity the allocator would refuse to sell. The physical number is
-          // still true and still worth saying, so it moves into the tooltip.
-          const shLeasableGb = shPool ? shPool.leasableGb : 0;
-          const shPhysFreeGb = shPool ? shPool.freeGb : 0;
-          const shReservedGb = shPool ? shPool.reservedGb : 0;
-          const shFree = shPool ? shPool.frac : 0;
-          const shPct = Math.floor(shFree * 100);
-          const shVramTitle = sh?.pooled
-            ? fmtNum(shTotal) + ' GB combined across ' + sh.cardCount + ' GPUs. Each share reserves the same fraction of every card. Models are split automatically; overflow uses the enclave CPU.'
-            : shPool
-            ? fmtNum(shPhysFreeGb) + ' GB of the ' + fmtNum(shTotal) + ' GB budget is free on the card'
-              + (shReservedGb > 0 ? ' (' + fmtNum(shReservedGb) + ' GB is held by tenants)' : '')
-              + ', and ' + shPct + '% is available to lease. A tenant reserves its share of the'
-              + ' card when it connects and the worker holds exactly that, so the two figures'
-              + ' differ only by what the host is doing with the card outside Enclave.'
-            : '';
+          const shPool = shieldedHostCapacity(e);
+          const shPct = shPool ? Math.floor(shPool.frac * 100) : 0;
+          const shVramTitle = shPool ? fmtNum(shPool.total) + ' GB combined worker budget across '
+            + shPool.cardCount + ' GPU(s). ' + fmtNum(shPool.reservedGb)
+            + ' GB reserved by apps. Available capacity follows unallocated shares, not instantaneous GPU activity.' : '';
           const s = serverSpec();   // adopted fleet hardware; display fallback for rows that omit their own
           const vramGb = a.cardVramGb || s.cardVramGb, tflops = a.cardTflops || s.cardTflops;
           const ramGb = a.nodeRamGb || s.nodeRamGb, vcpus = a.nodeVcpus || s.nodeVcpus;
@@ -211,52 +205,9 @@ class FleetList extends EnclaveElement {
             + '<span class="fleet-name">' + esc(name) + '</span>'
             + this._ratingHtml(e)
             + '</span>'
-            + (sh ? pool(cardBadge, shPct,
-                stat(fmtNum(shLeasableGb), fmtNum(shTotal), "GB", "vram available", shVramTitle)
-                // The card's RATED figure, which is what every other row quotes and
-                // what a share is sized against. This cell used to show the MEASURED
-                // masked rate instead -- honest in isolation, and unreadable in a
-                // list: an RTX 3070 drew "0 / 2 tflops" beside an H200's "175 / 989",
-                // so the columns implied a 500x gap where the real one is ~23x, and
-                // the number did not match the basis the same row's share was
-                // computed from.
-                //
-                // The measured rate has not been dropped, it has moved to the
-                // tooltip, which is the only place the two can sit together without
-                // being read as one scale. Rows too old to report a rated figure
-                // keep the previous behaviour.
-                + ((sh.cardTflops || a.cardTflops) > 0
-                    ? stat(fmtNum(shFree * (sh.cardTflops || a.cardTflops)), fmtNum(sh.cardTflops || a.cardTflops), "", "tflops available",
-                           (sh.pooled ? "Combined rated dense fp16 across the GPU pool. Model layers are distributed across cards; a single request is not guaranteed this aggregate throughput. " : "Rated dense fp16 for this card. ")
-                           + "The same basis every other box "
-                           + "quotes, so boxes and shares compare like for like."
-                           + (sh.gmacPerSec > 0
-                               ? " The masked path itself sustains " + Math.round(sh.gmacPerSec)
-                                 + " G-MAC/s here, about " + fmtNum(sh.gmacPerSec * 2 / 1000)
-                                 + " TFLOPS at 2 FLOP per MAC -- that is what this tier delivers, "
-                                 + "and it is measured rather than rated."
-                               : ""))
-                    : sh.gmacPerSec > 0
-                      ? stat(Math.round(shFree * sh.gmacPerSec * 2 / 1000),
-                             Math.round(sh.gmacPerSec * 2 / 1000), "", "tflops available",
-                             "Measured on this box: " + Math.round(sh.gmacPerSec)
-                             + " G-MAC/s sustained by the masked field GEMM that actually runs "
-                             + "here, converted at 2 FLOP per MAC. This box reports no rated "
-                             + "figure, so the two columns are not directly comparable.")
-                      : stat(esc(sh.card || "gpu"), "", "", "card")),
-                price.shielded) : "")
-            + (!sh?.pooled && Array.isArray(a.shieldedCards) ? a.shieldedCards.filter(c => c.id !== sh?.id).map(c => {
-                const p = shieldedPoolOf({ availability: { shielded: c, gpuShareFree: c.gpuShareFree } });
-                if (!p) return "";
-                const badge = '<span class="ap-badge info" title="Masked GPU offload on the host\u2019s card: masked inputs and verified results.">'
-                  + esc(c.card || "gpu") + '</span>';
-                return pool(badge, Math.floor(p.frac * 100),
-                  stat(fmtNum(p.leasableGb), fmtNum(p.total), "GB", "vram available",
-                    fmtNum(p.freeGb) + " GB free on the card; " + fmtNum(p.reservedGb) + " GB reserved by tenants.")
-                  + stat(fmtNum(p.frac * c.cardTflops), fmtNum(c.cardTflops), "", "tflops available",
-                    "Rated dense fp16. Masked field GEMM measured at " + Math.round(c.gmacPerSec) + " G-MAC/s."),
-                  price.shielded);
-              }).join("") : "")
+            + (shPool ? pool(cardBadge, shPct,
+                stat(fmtNum(shPool.leasableGb), fmtNum(shPool.total), "GB", "vram available", shVramTitle)
+                + computeStat(shPool), price.shielded) : "")
             // ONLY when the card is in the enclave. A shielded card already drew its
             // pool above, from the numbers the probe actually measured; drawing
             // this one too would advertise one piece of silicon twice.
@@ -283,16 +234,14 @@ class FleetList extends EnclaveElement {
         }).join(""));
     list.innerHTML += ownerRows.map(({ row: e, count }) => {
       const cpu = ownerHostCpuCapacity(e);
-      const sh = e.availability?.shielded;
-      const gpu = shieldedPoolOf(e);
+      const gpu = shieldedHostCapacity(e);
       const gpuCapacity = gpu ? pool(
         '<span class="ap-badge info" title="Enclave Shield masked GPU offload for authorized owners. This is not a confidential-computing GPU.">GPU</span>',
         Math.floor(gpu.frac * 100),
         stat(fmtNum(gpu.leasableGb), fmtNum(gpu.total), 'GB', 'vram available',
           'Unallocated GPU shares in the worker pool, not instantaneous GPU activity. '
           + fmtNum(gpu.reservedGb) + ' GB reserved by apps.')
-        + '<span class="fleet-stat"><b>' + esc(sh.device || sh.card || 'GPU')
-          + '</b><small>Enclave Shield</small></span>', null) : '';
+        + computeStat(gpu), null) : '';
       const value = v => v === null ? '—' : fmtNum(v);
       const stats = stat(value(cpu.ramFreeGb), value(cpu.ramGb), 'GB', 'ram available')
         + stat(value(cpu.vcpusFree), value(cpu.vcpus), '', 'vcpu available', 'Unallocated CPU shares on this host, not instantaneous processor activity.');

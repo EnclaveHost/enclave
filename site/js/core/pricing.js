@@ -524,6 +524,57 @@ export function shieldedPoolOf(row){
   return { total, freeGb, reservedGb, vramFrac, frac, leasableGb: total * frac };
 }
 
+// Display aggregate for the host's Shield cards. A pooled report already
+// includes its members; distinct-card reports must be summed exactly once.
+export function shieldedHostCapacity(row){
+  const a = row?.availability || {}, sh = a.shielded;
+  if (!sh || sh.available === false) return null;
+  const identity = c => c.deviceUuid ? 'uuid:' + c.deviceUuid
+    : c.id != null ? 'id:' + c.id : c.endpoint ? 'endpoint:' + c.endpoint : null;
+  const inventory = [], seen = new Set();
+  for (const c of Array.isArray(a.shieldedCards) ? a.shieldedCards : []) {
+    if (!c) continue;
+    const key = identity(c);
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    inventory.push(c);
+  }
+  const primaryKey = identity(sh);
+  // An anonymous primary is an alias for the primary inventory entry, not an
+  // additional card. Names alone cannot identify cards (identical models exist).
+  const cards = sh.pooled ? [sh] : inventory.length
+    ? (primaryKey && !seen.has(primaryKey) ? [sh, ...inventory] : inventory)
+    : [sh];
+  const usable = cards.filter(c => c.available !== false && c.vramGb > 0);
+  if (!usable.length) return null;
+  const positive = v => Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null;
+  const rates = usable.map(c => {
+    let rated = positive(c.cardTflops);
+    let measured = positive(c.gmacPerSec);
+    if (c.pooled) {
+      rated ??= positive(a.cardTflops);
+      if (inventory.length && inventory.length === Number(c.cardCount)) {
+        if (!rated && inventory.every(x => positive(x.cardTflops))) rated = inventory.reduce((n,x) => n + Number(x.cardTflops), 0);
+        if (!measured && inventory.every(x => positive(x.gmacPerSec))) measured = inventory.reduce((n,x) => n + Number(x.gmacPerSec), 0);
+      }
+    } else if (usable.length === 1 && !inventory.length) rated ??= positive(a.cardTflops);
+    return { rated, measured: measured === null ? null : measured * 2 / 1000 };
+  });
+  const basis = rates.every(r => r.rated !== null) ? 'rated'
+    : rates.every(r => r.measured !== null) ? 'measured' : null;
+  const pools = usable.map(c => shieldedPoolOf({ availability: {
+    shielded: c, gpuShareFree: c.gpuShareFree ?? (c === sh || usable.length === 1 ? a.gpuShareFree : undefined)
+  }}));
+  const sum = key => pools.reduce((n,p) => n + p[key], 0);
+  const total = sum('total'), leasableGb = sum('leasableGb');
+  return { total, leasableGb, freeGb: sum('freeGb'), reservedGb: sum('reservedGb'),
+    frac: total > 0 ? leasableGb / total : 0,
+    cardCount: sh.pooled ? Number(sh.cardCount) || inventory.length || 1 : usable.length,
+    names: (sh.pooled && inventory.length ? inventory : usable).map(c => c.device || c.card || 'GPU'),
+    basis, tflops: basis ? rates.reduce((n,r) => n + r[basis], 0) : null,
+    availableTflops: basis ? rates.reduce((n,r,i) => n + r[basis] * pools[i].frac, 0) : null };
+}
+
 // One enclave row's sizing hardware: its own advertised numbers per axis, the
 // fallback constants for anything it omits (old builds).
 export function enclaveSpecOf(row){
