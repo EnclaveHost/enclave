@@ -35,3 +35,9 @@ test('pool can derive complete rated rate from member inventory without adding p
  const p=shieldedHostCapacity(host({pooled:true,cardCount:2,vramGb:24,vramFreeGb:24},[card(0,10,1),card(1,20,1)],1));
  assert.equal(p.tflops,30);assert.equal(p.total,24);
 });
+
+test('primary identified by id matches inventory that also supplies UUID',()=>{
+ const primary=card(0,10,1), member={...primary,deviceUuid:'uuid-0'};
+ const p=shieldedHostCapacity(host(primary,[member,card(1,20,1)],1));
+ assert.equal(p.cardCount,2);assert.equal(p.tflops,30);
+});
