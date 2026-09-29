@@ -20,6 +20,8 @@ p.add_argument('--grouped-attn',action='store_true',help='combine adjacent atten
 p.add_argument('--small-graph',action='store_true',help='include opt-in single-thread dispatch for bounded CPU islands')
 p.add_argument('--cpu-profile',action='store_true',help='include opt-in aggregate CPU operation counters for diagnosis')
 p.add_argument('--cpu-avx512',action='store_true',help='measured AVX-512/BF16/VBMI/VNNI CPU profile; requires those guest CPU features')
+p.add_argument('--original-source-reclaim',action='store_true',help='authenticated private GGUF source-page reclamation; retains encoded mask weights')
+p.add_argument('--reuse-engine-runtime',action='store_true',help='retain input libllama/GGML/CPU binaries; use only with an ABI-matching pinned runtime')
 a=p.parse_args();r=Path(__file__).resolve().parents[2];w=a.out.resolve()
 if w.exists():p.error('output exists')
 w.mkdir();src=w/'engine-src';src.mkdir();build=w/'engine-build';rt=w/'runtime'
@@ -53,11 +55,26 @@ shutil.copytree(a.runtime,rt)
 pool_marker=rt/'shield-native-cpu-pool.enabled'
 if a.shared_cpu_pool: pool_marker.write_text('1\n')
 else: pool_marker.unlink(missing_ok=True)
-for n in ['libggml-base.so.0','libggml.so.0','libllama.so.0']:shutil.copyfile(build/'bin'/n,rt/n)
-shutil.copyfile(build/'bin/libggml-cpu.so',rt/'backends/libggml-cpu.so')
-run(['cc','-shared','-fPIC','-O2','-Wl,-soname,libenclave_llama.so','-DGGML_MAX_NAME=128',
+if not a.reuse_engine_runtime:
+ for n in ['libggml-base.so.0','libggml.so.0','libllama.so.0']:shutil.copyfile(build/'bin'/n,rt/n)
+ shutil.copyfile(build/'bin/libggml-cpu.so',rt/'backends/libggml-cpu.so')
+shim_flags=['-DELL_SHIELD_SOURCE_LOADER'] if a.original_source_reclaim else []
+shim_extra=[]
+if a.original_source_reclaim:
+ obj=w/'shield-loader.o'
+ run(['c++','-c','-fPIC','-O2','-std=c++17','-DGGML_MAX_NAME=128','-Wno-deprecated-declarations',
+  '-I',src/'include','-I',src/'src','-I',src/'ggml/include','-I',r/'wasm/ggml-shielded',
+  r/'wasm/llama-shim/enclave_shield_loader.cpp','-o',obj])
+ shim_extra=[obj,'-lstdc++','-lcrypto']
+ crypto=Path(subprocess.check_output(['cc','-print-file-name=libcrypto.so'],text=True).strip()).resolve()
+ if not crypto.is_file():raise SystemExit('libcrypto unavailable')
+ shutil.copyfile(crypto,rt/'libcrypto.so.3')
+ (rt/'shield-original-source-reclaim.enabled').write_text('1\n')
+else:
+ (rt/'shield-original-source-reclaim.enabled').unlink(missing_ok=True)
+run(['cc','-shared','-fPIC','-O2','-Wl,-soname,libenclave_llama.so','-DGGML_MAX_NAME=128']+shim_flags+[
  '-I',src/'include','-I',src/'ggml/include','-I',src/'tools/mtmd',r/'wasm/llama-shim/enclave_llama.c',
- '-L',build/'bin','-L',rt,'-lllama','-lggml','-l:libmtmd.so.0','-o',rt/'libenclave_llama.so'])
+ '-L',build/'bin','-L',rt,'-lllama','-lggml','-l:libmtmd.so.0']+shim_extra+['-o',rt/'libenclave_llama.so'])
 backend=w/'backend-src';backend.mkdir()
 tracked=subprocess.check_output(['git','ls-files','wasm/ggml-shielded'],cwd=r,text=True).splitlines()
 for n in tracked:
@@ -74,5 +91,8 @@ for f in rt.rglob('*.so*'):
  text=subprocess.check_output(['readelf','-W','-l',str(f)],text=True)
  if any('GNU_STACK' in l and 'RWE' in l for l in text.splitlines()):raise SystemExit('executable stack: '+str(f))
 (w/'provenance.json').write_text(json.dumps({'engineCommit':PIN,'patches':patches,'cmake':flags,
+ 'reusedEngineRuntime':a.reuse_engine_runtime,
+ 'shimSources':{str(f.relative_to(r)):digest(f) for f in [r/'wasm/llama-shim/enclave_llama.c',
+  r/'wasm/llama-shim/enclave_shield_loader.cpp',r/'wasm/llama-shim/shield-original-source.hpp']},
  'runtime':{str(f.relative_to(rt)):digest(f) for f in sorted(rt.rglob('*')) if f.is_file()}},indent=2)+'\n')
 print(rt)
