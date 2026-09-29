@@ -14,8 +14,9 @@ const Shield27BModel = "qwen3.8-27b-mtp-q4-vl-gguf"
 
 func (i *Inference) GuestFloorMiB() int {
 	if i != nil && i.Model == Shield27BModel {
-		// Includes the 128-pad pools and simultaneous ordinary/MTP contexts.
-		return 61440
+		// Includes 128-pad pools and both ordinary/MTP contexts, each with
+		// eight active, six conversation and eight shared-prefix state slots.
+		return 73728
 	}
 	return 8192
 }
