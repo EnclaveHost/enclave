@@ -385,6 +385,11 @@ COPY wasmtime-shared-utf8-adapters.patch /tmp/
 RUN git apply --check /tmp/wasmtime-shared-utf8-adapters.patch \
  && git apply /tmp/wasmtime-shared-utf8-adapters.patch
 
+# Optional transport reuse within a runtime dedicated to one isolated app.
+COPY wasmtime-http-pool.patch /tmp/
+RUN git apply --check /tmp/wasmtime-http-pool.patch \
+ && git apply /tmp/wasmtime-http-pool.patch
+
 # System-linked ORT: the binary NEEDS libonnxruntime.so.1 at runtime; ship it
 # plus the two provider dylibs the CUDA EP dlopens (providers_shared is the
 # dispatcher). providers_tensorrt is deliberately not shipped (never

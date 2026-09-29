@@ -1,0 +1,453 @@
+diff --git a/crates/wasi-http/src/default_send_request.rs b/crates/wasi-http/src/default_send_request.rs
+--- a/crates/wasi-http/src/default_send_request.rs
++++ b/crates/wasi-http/src/default_send_request.rs
+@@ -8,7 +8,6 @@
+ use http_body::Body;
+ use std::time::Duration;
+ use tokio::io::{AsyncRead, AsyncWrite};
+-use tokio::net::TcpStream;
+ 
+ trait TokioStream: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static {
+     fn boxed(self) -> Box<dyn TokioStream>
+@@ -20,6 +19,27 @@
+ }
+ impl<T> TokioStream for T where T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static {}
+ 
++type WireBody = http_body_util::combinators::UnsyncBoxBody<Bytes, Error>;
++type WireDriver = Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
++
++/// Send an outbound HTTP request. Connection reuse is opt-in for an Enclave
++/// runtime dedicated to one app; general embedders keep the upstream lifecycle.
++pub async fn default_send_request(
++    req: Request<impl Body<Data = Bytes, Error = Error> + Send + 'static>,
++    options: Option<RequestOptions>,
++) -> Result<(Response<WireBody>, WireDriver), Error> {
++    use http_body_util::BodyExt;
++    if std::env::var("ENCLAVE_HTTP_POOL").as_deref() == Ok("1") {
++        let response = pool::send(req.map(BodyExt::boxed_unsync), options).await?;
++        return Ok((response, Box::pin(async { Ok(()) })));
++    }
++    let (response, driver) = send_unpooled(req, options).await?;
++    Ok((response.map(BodyExt::boxed_unsync), Box::pin(driver)))
++}
++
++#[path = "outgoing_pool.rs"]
++mod pool;
++
+ /// The default implementation of how an outgoing request is sent.
+ ///
+ /// This implementation is used by the `wasi:http/handler` interface
+@@ -31,7 +51,7 @@
+ /// a result resolved from it will be forwarded to the guest on the future handle returned.
+ ///
+ /// This function performs no `Content-Length` validation.
+-pub async fn default_send_request(
++async fn send_unpooled(
+     mut req: Request<impl Body<Data = Bytes, Error = Error> + Send + 'static>,
+     options: Option<RequestOptions>,
+ ) -> Result<
+@@ -63,53 +83,8 @@
+         .and_then(|r| r.between_bytes_timeout)
+         .unwrap_or(Duration::from_secs(600));
+ 
+-    // enclave transparent egress: when on, route the outgoing request's TCP dial
+-    // through the enclave's loopback SOCKS front (dedicated source at the relay)
+-    // so a `serve`-mode app's wasi:http leaves from the deployment's own IPv6.
+-    // The host name is sent to the front as a SOCKS DOMAIN (socks5h — remote
+-    // resolution, so SSRF is enforced post-DNS at the relay). TLS, when used,
+-    // rides on top of the returned tunnel exactly as over a direct socket.
+-    // (v45 hooked p2 and p3 send paths separately; 49 unified them here.)
+-    let connect_fut = async {
+-        if wasmtime_wasi::egress::enabled() {
+-            let (host, port) = wasmtime_wasi::egress::split_authority(&authority);
+-            wasmtime_wasi::egress::connect_authority(host, port).await
+-        } else {
+-            // egress off: still subject to the loopback policy, which this path
+-            // would otherwise escape entirely (wasi:http does not consult the
+-            // socket-address check). No policy set = plain upstream connect.
+-            wasmtime_wasi::egress::connect_direct(&authority).await
+-        }
+-    };
+-    let stream = match tokio::time::timeout(connect_timeout, connect_fut).await {
+-        Ok(stream) => stream.map_err(Error::Connect)?,
+-        Err(..) => return Err(Error::ConnectionTimeout),
+-    };
+-    let stream = if use_tls {
+-        // derived from https://github.com/rustls/rustls/blob/main/examples/src/bin/simpleclient.rs
+-        let root_cert_store = rustls::RootCertStore {
+-            roots: webpki_roots::TLS_SERVER_ROOTS.into(),
+-        };
+-        let config = rustls::ClientConfig::builder()
+-            .with_root_certificates(root_cert_store)
+-            .with_no_client_auth();
+-        let connector = tokio_rustls::TlsConnector::from(std::sync::Arc::new(config));
+-        let domain = tls_server_name(&authority)?;
+-        let stream = connector
+-            .connect(domain, stream)
+-            .await
+-            .map_err(Error::Tls)?;
+-        stream.boxed()
+-    } else {
+-        stream.boxed()
+-    };
+-    let (mut sender, conn) = tokio::time::timeout(
+-        connect_timeout,
+-        // TODO: we should plumb the builder through the http context, and use it here
+-        hyper::client::conn::http1::Builder::new().handshake(crate::io::TokioIo::new(stream)),
+-    )
+-    .await
+-    .map_err(|_| Error::ConnectionTimeout)??;
++    let (sender, conn) = open_connection::<_>(&authority, use_tls, connect_timeout).await?;
++    let mut sender = sender;
+ 
+     // at this point, the request contains the scheme and the authority, but
+     // the http packet should only include those if addressing a proxy, so
+@@ -216,6 +191,61 @@
+     }))
+ }
+ 
++async fn open_connection<B>(authority: &str, use_tls: bool, connect_timeout: Duration)
++    -> Result<(hyper::client::conn::http1::SendRequest<B>,
++               hyper::client::conn::http1::Connection<crate::io::TokioIo<Box<dyn TokioStream>>, B>), Error>
++where B: Body<Data = Bytes, Error = Error> + Send + 'static {
++    // enclave transparent egress: when on, route the outgoing request's TCP dial
++    // through the enclave's loopback SOCKS front (dedicated source at the relay)
++    // so a `serve`-mode app's wasi:http leaves from the deployment's own IPv6.
++    // The host name is sent to the front as a SOCKS DOMAIN (socks5h — remote
++    // resolution, so SSRF is enforced post-DNS at the relay). TLS, when used,
++    // rides on top of the returned tunnel exactly as over a direct socket.
++    // (v45 hooked p2 and p3 send paths separately; 49 unified them here.)
++    let connect_fut = async {
++        if wasmtime_wasi::egress::enabled() {
++            let (host, port) = wasmtime_wasi::egress::split_authority(&authority);
++            wasmtime_wasi::egress::connect_authority(host, port).await
++        } else {
++            // egress off: still subject to the loopback policy, which this path
++            // would otherwise escape entirely (wasi:http does not consult the
++            // socket-address check). No policy set = plain upstream connect.
++            wasmtime_wasi::egress::connect_direct(&authority).await
++        }
++    };
++    let stream = match tokio::time::timeout(connect_timeout, connect_fut).await {
++        Ok(stream) => stream.map_err(Error::Connect)?,
++        Err(..) => return Err(Error::ConnectionTimeout),
++    };
++    let stream = if use_tls {
++        // derived from https://github.com/rustls/rustls/blob/main/examples/src/bin/simpleclient.rs
++        let root_cert_store = rustls::RootCertStore {
++            roots: webpki_roots::TLS_SERVER_ROOTS.into(),
++        };
++        let config = rustls::ClientConfig::builder()
++            .with_root_certificates(root_cert_store)
++            .with_no_client_auth();
++        let connector = tokio_rustls::TlsConnector::from(std::sync::Arc::new(config));
++        let domain = tls_server_name(&authority)?;
++        let stream = connector
++            .connect(domain, stream)
++            .await
++            .map_err(Error::Tls)?;
++        stream.boxed()
++    } else {
++        stream.boxed()
++    };
++    let (sender, conn) = tokio::time::timeout(
++        connect_timeout,
++        // TODO: we should plumb the builder through the http context, and use it here
++        hyper::client::conn::http1::Builder::new().handshake(crate::io::TokioIo::new(stream)),
++    )
++    .await
++    .map_err(|_| Error::ConnectionTimeout)??;
++
++    Ok((sender, conn))
++}
++
+ /// Resolve the rustls [`ServerName`] used for TLS certificate verification from
+ /// an outbound request `authority`.
+ ///
+diff --git a/crates/wasi-http/src/outgoing_pool.rs b/crates/wasi-http/src/outgoing_pool.rs
+new file mode 100644
+--- /dev/null
++++ b/crates/wasi-http/src/outgoing_pool.rs
+@@ -0,0 +1,282 @@
++//! Bounded HTTP/1 keep-alive for a process dedicated to one isolated app.
++//! No response or credentials are cached; authorization still runs per request.
++//! A failed send is never replayed, including a stale keep-alive connection.
++
++use super::{WireBody, open_connection};
++use crate::{Error, RequestOptions};
++use bytes::Bytes;
++use http::{Request, Response};
++use http_body::{Body, Frame, SizeHint};
++use http_body_util::BodyExt;
++use std::pin::Pin;
++use std::sync::{Mutex, OnceLock};
++use std::task::{Context, Poll};
++use std::time::{Duration, Instant};
++
++const MAX_IDLE: usize = 16;
++const MAX_ORIGIN_IDLE: usize = 2;
++const MAX_IDLE_AGE: Duration = Duration::from_secs(120);
++const MAX_LIFETIME: Duration = Duration::from_secs(600);
++
++struct Connection {
++    key: String,
++    sender: hyper::client::conn::http1::SendRequest<WireBody>,
++    driver: tokio::task::JoinHandle<()>,
++    born: Instant,
++    idle: Instant,
++}
++
++impl Drop for Connection {
++    fn drop(&mut self) { self.driver.abort(); }
++}
++
++impl Connection {
++    fn usable(&self, now: Instant) -> bool {
++        !self.sender.is_closed() && !self.driver.is_finished()
++            && now.duration_since(self.born) < MAX_LIFETIME
++            && now.duration_since(self.idle) < MAX_IDLE_AGE
++    }
++}
++
++fn pool() -> &'static Mutex<Vec<Connection>> {
++    static POOL: OnceLock<Mutex<Vec<Connection>>> = OnceLock::new();
++    POOL.get_or_init(|| Mutex::new(Vec::new()))
++}
++
++fn start_reaper() {
++    // Close expired idle sockets even when the app receives no more requests.
++    // A test/embedder may replace its Tokio runtime; restart a finished worker.
++    static REAPER: Mutex<Option<tokio::task::JoinHandle<()>>> = Mutex::new(None);
++    let mut worker = REAPER.lock().unwrap();
++    if worker.as_ref().is_none_or(|w| w.is_finished()) {
++        *worker = Some(tokio::spawn(async {
++            loop {
++                tokio::time::sleep(Duration::from_secs(30)).await;
++                let now = Instant::now();
++                pool().lock().unwrap().retain(|c| c.usable(now));
++            }
++        }));
++    }
++}
++
++fn take(key: &str) -> Option<Connection> {
++    let mut p = pool().lock().unwrap();
++    let now = Instant::now();
++    p.retain(|c| c.usable(now));
++    let i = p.iter().rposition(|c| c.key == key)?;
++    Some(p.swap_remove(i))
++}
++
++fn recycle(mut c: Connection) {
++    let now = Instant::now();
++    if !c.usable(now) { return; }
++    c.idle = now;
++    let mut p = pool().lock().unwrap();
++    p.retain(|v| v.usable(now));
++    if p.len() < MAX_IDLE && p.iter().filter(|v| v.key == c.key).count() < MAX_ORIGIN_IDLE {
++        p.push(c);
++    }
++}
++
++fn wants_close(headers: &http::HeaderMap) -> bool {
++    headers.get_all(http::header::CONNECTION).iter().any(|v|
++        v.to_str().map_or(true, |s| s.split(',').any(|v| v.trim().eq_ignore_ascii_case("close"))))
++}
++
++pub(super) async fn send(mut req: Request<WireBody>, options: Option<RequestOptions>)
++    -> Result<Response<WireBody>, Error> {
++    start_reaper();
++    let options = options.unwrap_or_default();
++    let use_tls = req.uri().scheme_str() == Some("https");
++    let authority = req.uri().authority().ok_or(Error::HttpRequestUriInvalid)?;
++    let authority = if authority.port().is_some() { authority.to_string() }
++        else { format!("{authority}:{}", if use_tls { 443 } else { 80 }) };
++    // Separate schemes and explicit ports. The egress policy and app identity
++    // are immutable for this process. Reuse never crosses an app process.
++    let key = format!("{}://{authority}", if use_tls { "https" } else { "http" });
++    let connect_timeout = options.connect_timeout.unwrap_or(Duration::from_secs(600));
++    let mut conn = if let Some(c) = take(&key) { c } else {
++        // Bound the complete SOCKS + TLS + HTTP establishment, not only TCP.
++        let (sender, driver) = tokio::time::timeout(connect_timeout,
++            open_connection::<WireBody>(&authority, use_tls, connect_timeout)).await
++            .map_err(|_| Error::ConnectionTimeout)??;
++        let driver = tokio::spawn(async move { let _ = driver.await; });
++        Connection { key, sender, driver, born: Instant::now(), idle: Instant::now() }
++    };
++    let close = wants_close(req.headers()) || req.headers().contains_key(http::header::UPGRADE)
++        || req.method() == http::Method::CONNECT;
++    *req.uri_mut() = http::Uri::builder().path_and_query(
++        req.uri().path_and_query().map(|p| p.as_str()).unwrap_or("/"))
++        .build().map_err(|_| Error::HttpRequestUriInvalid)?;
++    let timeout = options.first_byte_timeout.unwrap_or(Duration::from_secs(600));
++    let response = tokio::time::timeout(timeout, async {
++        conn.sender.ready().await?;
++        conn.sender.send_request(req).await
++    }).await.map_err(|_| Error::ConnectionReadTimeout)??;
++    let close = close || wants_close(response.headers()) || response.status() == 101;
++    let (parts, incoming) = response.into_parts();
++    let timeout = Box::pin(tokio::time::sleep(
++        options.between_bytes_timeout.unwrap_or(Duration::from_secs(600))));
++    let body = PooledBody { incoming, conn: Some(conn), close, timeout,
++        between: options.between_bytes_timeout.unwrap_or(Duration::from_secs(600)) };
++    Ok(Response::from_parts(parts, body.boxed_unsync()))
++}
++
++struct PooledBody {
++    incoming: hyper::body::Incoming,
++    conn: Option<Connection>,
++    close: bool,
++    timeout: Pin<Box<tokio::time::Sleep>>,
++    between: Duration,
++}
++
++impl Drop for PooledBody {
++    fn drop(&mut self) {
++        // Cancellation, partial reads and body errors close the connection.
++        // Only a fully drained response can hand its socket to another turn.
++        if !self.close && self.incoming.is_end_stream() {
++            if let Some(c) = self.conn.take() { recycle(c); }
++        }
++    }
++}
++
++impl Body for PooledBody {
++    type Data = Bytes;
++    type Error = Error;
++    fn poll_frame(mut self: Pin<&mut Self>, cx: &mut Context<'_>)
++        -> Poll<Option<Result<Frame<Bytes>, Error>>> {
++        match Pin::new(&mut self.incoming).poll_frame(cx) {
++            Poll::Ready(Some(Ok(f))) => {
++                let next = tokio::time::Instant::now() + self.between;
++                self.timeout.as_mut().reset(next);
++                Poll::Ready(Some(Ok(f)))
++            }
++            Poll::Ready(Some(Err(e))) => {
++                self.close = true;
++                self.conn.take();
++                Poll::Ready(Some(Err(e.into())))
++            }
++            Poll::Ready(None) => {
++                if !self.close {
++                    if let Some(c) = self.conn.take() { recycle(c); }
++                }
++                Poll::Ready(None)
++            }
++            Poll::Pending => {
++                if self.timeout.as_mut().poll(cx).is_ready() {
++                    self.close = true;
++                    self.conn.take();
++                    Poll::Ready(Some(Err(Error::ConnectionReadTimeout)))
++                } else { Poll::Pending }
++            }
++        }
++    }
++    fn is_end_stream(&self) -> bool { self.incoming.is_end_stream() }
++    fn size_hint(&self) -> SizeHint { self.incoming.size_hint() }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
++    use tokio::io::{AsyncReadExt, AsyncWriteExt};
++
++    async fn server(mode: &'static str) -> (String, Arc<AtomicUsize>, Arc<AtomicUsize>, tokio::task::JoinHandle<()>) {
++        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
++        let url = format!("http://{}", listener.local_addr().unwrap());
++        let connections = Arc::new(AtomicUsize::new(0));
++        let requests = Arc::new(AtomicUsize::new(0));
++        let (c, r) = (connections.clone(), requests.clone());
++        let task = tokio::spawn(async move {
++            while let Ok((mut s, _)) = listener.accept().await {
++                c.fetch_add(1, Ordering::SeqCst);
++                let r = r.clone();
++                tokio::spawn(async move {
++                    loop {
++                        let mut header = Vec::new();
++                        while !header.ends_with(b"\r\n\r\n") {
++                            let Ok(b) = s.read_u8().await else { return; };
++                            header.push(b);
++                        }
++                        r.fetch_add(1, Ordering::SeqCst);
++                        if mode == "fail" { return; }
++                        if mode == "partial" {
++                            let _ = s.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 100000\r\n\r\nx").await;
++                            let _ = s.read_u8().await;
++                            return;
++                        }
++                        let text = String::from_utf8(header).unwrap();
++                        let identity = text.lines().find_map(|l| l.strip_prefix("x-test-user: ")).unwrap_or("none");
++                        let close = if mode == "close" { "Connection: close\r\n" } else { "" };
++                        let response = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n{close}\r\n{identity}", identity.len());
++                        if s.write_all(response.as_bytes()).await.is_err() || mode == "close" { return; }
++                    }
++                });
++            }
++        });
++        (url, connections, requests, task)
++    }
++
++    fn request(url: &str, user: &str) -> Request<WireBody> {
++        Request::builder().method("POST").uri(format!("{url}/tools"))
++            .header("host", url.trim_start_matches("http://"))
++            .header("x-test-user", user)
++            .body(http_body_util::Empty::<Bytes>::new().map_err(Error::from).boxed_unsync()).unwrap()
++    }
++
++    #[tokio::test]
++    async fn reuses_connection_but_never_credentials_or_responses() {
++        let (url, connections, requests, task) = server("normal").await;
++        for user in ["alice", "bob", "anonymous"] {
++            let response = send(request(&url, user), None).await.unwrap();
++            assert_eq!(response.into_body().collect().await.unwrap().to_bytes(), user);
++        }
++        assert_eq!(connections.load(Ordering::SeqCst), 1);
++        assert_eq!(requests.load(Ordering::SeqCst), 3);
++        task.abort();
++    }
++
++    #[tokio::test]
++    async fn origins_and_server_close_are_respected() {
++        let (a, ca, _, ta) = server("normal").await;
++        let (b, cb, _, tb) = server("close").await;
++        for url in [&a, &b, &a, &b] {
++            send(request(url, "test"), None).await.unwrap().into_body().collect().await.unwrap();
++        }
++        assert_eq!(ca.load(Ordering::SeqCst), 1);
++        assert_eq!(cb.load(Ordering::SeqCst), 2);
++        ta.abort(); tb.abort();
++    }
++
++    #[tokio::test]
++    async fn an_incomplete_response_is_not_reused() {
++        let (url, count, _, task) = server("partial").await;
++        for _ in 0..2 {
++            let response = send(request(&url, "test"), None).await.unwrap();
++            drop(response);
++        }
++        assert_eq!(count.load(Ordering::SeqCst), 2);
++        task.abort();
++    }
++
++    #[tokio::test]
++    async fn failed_post_is_never_replayed() {
++        let (url, connections, requests, task) = server("fail").await;
++        assert!(send(request(&url, "test"), None).await.is_err());
++        assert_eq!(connections.load(Ordering::SeqCst), 1);
++        assert_eq!(requests.load(Ordering::SeqCst), 1);
++        task.abort();
++    }
++
++    #[tokio::test]
++    async fn body_timeout_discards_connection() {
++        let (url, count, _, task) = server("partial").await;
++        let options = Some(RequestOptions { between_bytes_timeout: Some(Duration::from_millis(20)), ..Default::default() });
++        for _ in 0..2 {
++            let response = send(request(&url, "test"), options).await.unwrap();
++            assert!(response.into_body().collect().await.is_err());
++        }
++        assert_eq!(count.load(Ordering::SeqCst), 2);
++        task.abort();
++    }
++}

@@ -1,0 +1,23 @@
+{
+  "source": "/home/steven/enclave-bench/v100-shield-20260927/inference/wasmtime-src",
+  "patchSha256": "6423bd5c899809ac7f7f4a8660b6e02474c8751c353c4bfde7c4c8e9f3dcf9b8",
+  "httpPoolPatchSha256": "4cb4b1fc3dda63e9d42b00f83c810902939eaf323f699bd32bfac7319f4944c8",
+  "sources": {
+    "crates/wasi-http/src/default_send_request.rs": "ed893f8ad5ad9f7901297e4f6cbc3a86c42f319018f4778004b4ec0bb5b6afb9",
+    "crates/wasi-http/src/outgoing_pool.rs": "48b4a30ffacf8ba395180c9904c216762d8fac5d924597693ad49c1889b4fce2",
+    "crates/wasi-nn/src/backend/ggml.rs": "c3cbac2c7f5770453de2d921b57788cebdf6b896f20a4f5529ecb3d2a9ed19fb",
+    "crates/wasi-nn/src/backend/prefix_claims.rs": "0ee2ce1f46dddb988fdbe7449aabee1f69adbfbe1c5020ba866ba02874ecbd62"
+  },
+  "command": [
+    "cargo",
+    "build",
+    "--release",
+    "--locked",
+    "-j",
+    "4",
+    "--no-default-features",
+    "--features",
+    "run,serve,compile,wat,parallel-compilation,cache,cranelift,component-model,component-model-async,threads,wasi-http,wasi-nn,wasmtime-wasi-nn/ggml,pooling-allocator"
+  ],
+  "wasmtimeSha256": "f7d3104cdd44eb225eb13c089783144e3fa9449123e82b4a5e008f18c12b55da"
+}

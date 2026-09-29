@@ -433,6 +433,9 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
         char *envp[64] = {"HOME=/tmp", "PATH=/rt"};
         int ei = 2;
         if (shield_on && drop) {
+            /* This runtime belongs to one isolated app. Reuse only transport
+             * connections; every tool request still carries fresh credentials. */
+            envp[ei++] = "ENCLAVE_HTTP_POOL=1";
             envp[ei++] = "ENCLAVE_GGML_BACKEND_DIR=/rt/backends";
             envp[ei++] = "GGML_BACKEND_PATH=/rt/backends/libggml-shielded.so";
             envp[ei++] = "SHIELDED_HOST=unix:/run/enclave-shield/gpu0";
