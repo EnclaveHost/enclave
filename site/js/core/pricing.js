@@ -438,7 +438,7 @@ export const HOST_STALE_AFTER_SEC = 3600;
  * a day and a half, under the heading "what can I deploy on right now".
  */
 export function appHostVisible(row, nowSec){
-  if (!row || row.relay === true) return false;
+  if (!row || row.relay === true || row.ownerOnly === true) return false;
   if (row.serving !== true) return false;
   if (computeEligibleOf(row) !== true) return false;
   const seen = Number(row.lastSeen || 0);
@@ -458,6 +458,19 @@ export function ownerHostedDeploymentCount(row, nowSec){
   const deps = Array.isArray(row.servesDeployments) ? row.servesDeployments : [];
   return new Set(deps.filter(d => /^0x[0-9a-f]{64}$/.test(d?.id || "")
     && Number.isFinite(Number(d.until)) && Number(d.until) > now).map(d => d.id)).size;
+}
+
+// Personalize inventory using the relay's operator/delegation list. This is
+// display filtering, not an authorization boundary or a claim of private data.
+export function ownerHostVisibleTo(row, address, nowSec){
+  if (!/^0x[0-9a-f]{40}$/i.test(address || "") || /^0x0{40}$/i.test(address)) return false;
+  if (!ownerHostedDeploymentCount(row, nowSec)) return false;
+  const wallet = address.toLowerCase();
+  if (String(row.operator || "").toLowerCase() === wallet) return true;
+  const now = Number.isFinite(nowSec) ? nowSec : Math.floor(Date.now() / 1000);
+  return Array.isArray(row.served) && row.served.some(s =>
+    String(s?.owner || "").toLowerCase() === wallet && s.expires != null
+    && Number.isFinite(Number(s.expires)) && Number(s.expires) > now);
 }
 
 // Capacity shown for owner-only hosts uses only that host's reported pool.
