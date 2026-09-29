@@ -326,3 +326,25 @@ test('Shield marketplace claims require the isolated backend and an unexpired re
  h.shieldMarketUntil=Date.now()+60000;h.cfg.engineRetired=false;
  assert.equal(h.scope(),'owner-only');
 });
+
+
+test("explicit app RAM budget is independent of CPU reserve, bounded by physical RAM and fail closed", () => {
+  const h = box({ ramGb: 112, appRamGb: 64, reservedShare: 0.25 });
+  h.records.set(A, { ...running(A, 0.1), memMb: 8192 });
+  assert.equal(h.capacity().ramMbPool, 65536);
+  assert.equal(h.capacity().ramMbFree, 57344);
+  h.cfg.reservedShare = 0.5;
+  assert.equal(h.capacity().ramMbPool, 65536);
+  assert.equal(h.capacity({ exclude: A }).ramMbFree, 65536);
+  h.records.set(B, { ...running(B, 0.1), memMb: 65536 });
+  assert.equal(h.capacity().ramMbFree, 0);
+  assert.equal(h.records.size, 2, "lower budgets do not destroy running apps");
+  for (const v of [-1, NaN, Infinity, '64', 0]) {
+    h.cfg.appRamGb = v;
+    assert.equal(h.capacity().ramMbPool, 0);
+  }
+  h.cfg.appRamGb = 200;
+  assert.equal(h.capacity().ramMbPool, 112 * 1024);
+  delete h.cfg.appRamGb;
+  assert.equal(h.capacity().ramMbPool, 56 * 1024);
+});

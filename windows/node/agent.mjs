@@ -190,6 +190,7 @@ const host = new Host({
   measurement: process.env.ENCLAVE_MEASUREMENT || '0x0000000000000000000000000000000000000000000000000000000000000000',
   vcpus: Number(process.env.NODE_VCPUS || os.cpus().length),
   ramGb: Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
+  appRamGb: process.env.NODE_APP_RAM_GB === undefined ? undefined : Number(process.env.NODE_APP_RAM_GB),
   // the fleet's convention for a node's compute (metal gsup.mjs): 62.5 GFLOPS a vCPU
   gflops: Math.round(62.5 * Number(process.env.NODE_VCPUS || os.cpus().length)),
   // what stays with the enclave, the shielded worker and the owner of the PC, never sold
@@ -458,9 +459,7 @@ async function handle(frame) {
     // share ledger. What is left of it rides beside this as ramGbFree, measured: the enclave's own
     // size less what the engine holds (asked of the enclave before any app was claimed) and less
     // what each running app was promised. The machine's own figure is machineRamGb.
-    nodeRamGb: host.appsInTee()
-      ? Number(host.cfg.enclaveGb) || 0
-      : Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
+    nodeRamGb: host.capacity().ramMbPool / 1024,
     machineRamGb: Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
     nodeGflops: Math.round(62.5 * Number(process.env.NODE_VCPUS || os.cpus().length)),   // the fleet's convention (metal gsup.mjs)
     // teeCpu names a CPU TEE this box's own attestation shows. An isolation-only node has none: its attach is a
