@@ -453,12 +453,8 @@ async function handle(frame) {
     gpu: false, maxShare: host.cpuShareFree(),
     gpuShareFree: APPS ? host.gpuShareFree() : 0, cpuShareFree: host.cpuShareFree(),
     nodeVcpus: Number(process.env.NODE_VCPUS || os.cpus().length),
-    // RAM, and the honest number here is NOT the machine's. An app on this box runs inside the
-    // enclave, so the pool is the ENCLAVE - a fixed, dedicated allocation made when it was created
-    // (ee-main.cpp EnclaveSize), not a slice of the machine's 112 GB and not a fraction of the
-    // share ledger. What is left of it rides beside this as ramGbFree, measured: the enclave's own
-    // size less what the engine holds (asked of the enclave before any app was claimed) and less
-    // what each running app was promised. The machine's own figure is machineRamGb.
+    // Report the actual admission budget, independently of physical RAM and CPU
+    // shares. For an in-enclave engine this is its fixed enclave allocation.
     nodeRamGb: host.capacity().ramMbPool / 1024,
     machineRamGb: Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
     nodeGflops: Math.round(62.5 * Number(process.env.NODE_VCPUS || os.cpus().length)),   // the fleet's convention (metal gsup.mjs)
