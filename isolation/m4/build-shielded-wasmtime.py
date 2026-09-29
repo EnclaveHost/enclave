@@ -25,6 +25,16 @@ out.mkdir()
 patch = r / 'wasm/wasmtime-nn-ggml.patch'
 parts = patch.read_text().split('diff --git ')
 sources = {}
+http_patch = r / 'wasm/wasmtime-http-pool.patch'
+# Idempotent, but never silently accept a different or partly patched client.
+check = subprocess.run(['git', 'apply', '--reverse', '--check', str(http_patch)],
+                       cwd=s, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+if check.returncode != 0:
+    subprocess.run(['git', 'apply', '--check', str(http_patch)], cwd=s, check=True)
+    subprocess.run(['git', 'apply', str(http_patch)], cwd=s, check=True)
+for rel in ['crates/wasi-http/src/default_send_request.rs',
+            'crates/wasi-http/src/outgoing_pool.rs']:
+    sources[rel] = hashlib.sha256((s / rel).read_bytes()).hexdigest()
 for name in ['ggml.rs', 'prefix_claims.rs']:
     rel = 'crates/wasi-nn/src/backend/' + name
     part = next(x for x in parts if x.startswith('a/' + rel + ' b/' + rel + '\n'))
@@ -62,6 +72,7 @@ binary = out / 'wasmtime'
 shutil.copy2(s / 'target/release/wasmtime', binary)
 (out / 'provenance.json').write_text(json.dumps({
     'source': str(s), 'patchSha256': hashlib.sha256(patch.read_bytes()).hexdigest(),
+    'httpPoolPatchSha256': hashlib.sha256(http_patch.read_bytes()).hexdigest(),
     'sources': sources, 'command': cmd,
     'wasmtimeSha256': hashlib.sha256(binary.read_bytes()).hexdigest(),
 }, indent=2) + '\n')
