@@ -13,7 +13,7 @@ import { hrevConfigured, hrevTallies, hrevMine, encCall, HREV_SEL, waitReceipt, 
 import { HOST_REVIEWS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
-import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedPoolOf, teeCpuOf, computeEligibleOf, appHostVisible, ownerHostedDeploymentCount } from "../../js/core/pricing.js";
+import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedPoolOf, teeCpuOf, computeEligibleOf, appHostVisible, ownerHostedDeploymentCount, ownerHostCpuCapacity } from "../../js/core/pricing.js";
 import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
 
@@ -265,9 +265,17 @@ class FleetList extends EnclaveElement {
             + '</div>';
         }).join(""));
     list.innerHTML += ownerRows.map(({ row: e, count }) => {
+      const cpu = ownerHostCpuCapacity(e);
+      const value = v => v === null ? '—' : fmtNum(v);
+      const stats = stat(value(cpu.ramFreeGb), value(cpu.ramGb), 'GB', 'ram available')
+        + stat(value(cpu.vcpusFree), value(cpu.vcpus), '', 'vcpu available', 'Unallocated CPU shares on this host, not instantaneous processor activity.');
+      const capacity = cpu.fraction === null
+        ? '<div class="fleet-pool"><span class="fleet-pool-label"><span class="ap-badge info">CPU</span></span><span class="fleet-pool-pct">Availability unknown</span><span class="fleet-stats">' + stats + '</span></div>'
+        : pool('<span class="ap-badge info">CPU</span>', Math.floor(cpu.fraction * 100), stats, null);
       const name = e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "host";
       return '<div class="fleet-row fleet-owner-row">'
         + '<span class="fleet-head"><span class="fleet-name">' + esc(name) + '</span><span class="ap-badge info">Owner-only</span></span>'
+        + capacity
         + '<span class="fleet-owner-status">' + count + ' active deployment' + (count === 1 ? '' : 's') + '</span>'
         + '<span class="fleet-owner-note">Hosting for authorized owners. Unavailable for general deployments.</span></div>';
     }).join("");
