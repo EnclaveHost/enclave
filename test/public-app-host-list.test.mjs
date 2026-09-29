@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { appHostVisible, ownerHostedDeploymentCount, HOST_STALE_AFTER_SEC } from "../site/js/core/pricing.js";
+import { appHostVisible, ownerHostedDeploymentCount, ownerHostCpuCapacity, HOST_STALE_AFTER_SEC } from "../site/js/core/pricing.js";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const NOW = 1790266080;
@@ -139,4 +139,17 @@ test("owner-only inventory counts only fresh, unexpired relay-authorized deploym
     { servesDeployments: [{ id: "bad", until: NOW + 60 }] }, { servesDeployments: [{ id }] }]) {
     assert.equal(ownerHostedDeploymentCount({ ...row, ...change }, NOW), 0, JSON.stringify(change));
   }
+});
+
+
+test("owner-only capacity shows the host's allocation and RAM figures without marketplace defaults", () => {
+  assert.deepEqual(ownerHostCpuCapacity({ availability: { cpuShareFree: 0.73, nodeVcpus: 16, nodeRamGb: 112, ramGbFree: 83.8 } }),
+    { fraction: 0.73, vcpus: 16, vcpusFree: 11.68, ramGb: 112, ramFreeGb: 83.8 });
+  assert.deepEqual(ownerHostCpuCapacity({}), { fraction: null, vcpus: null, vcpusFree: null, ramGb: null, ramFreeGb: null });
+  assert.equal(ownerHostCpuCapacity({ availability: { ramMbFree: 4096 } }).ramFreeGb, 4);
+  assert.deepEqual(ownerHostCpuCapacity({ availability: { cpuShareFree: 0, nodeVcpus: 16, nodeRamGb: 112, ramGbFree: 0 } }),
+    { fraction: 0, vcpus: 16, vcpusFree: 0, ramGb: 112, ramFreeGb: 0 });
+  assert.equal(ownerHostCpuCapacity({ availability: { cpuShareFree: 3, nodeRamGb: 8, ramGbFree: 12 } }).ramFreeGb, 8);
+  assert.equal(ownerHostCpuCapacity({ availability: { cpuShareFree: 3 } }).fraction, 1);
+  assert.equal(ownerHostCpuCapacity({ availability: { cpuShareFree: NaN, ramGbFree: -1 } }).fraction, null);
 });

@@ -460,6 +460,19 @@ export function ownerHostedDeploymentCount(row, nowSec){
     && Number.isFinite(Number(d.until)) && Number(d.until) > now).map(d => d.id)).size;
 }
 
+// Capacity shown for owner-only hosts uses only that host's reported pool.
+// Missing values remain unknown; never substitute the marketplace's server spec.
+export function ownerHostCpuCapacity(row){
+  const a = row?.availability || {};
+  const number = v => typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null;
+  const reported = number(a.cpuShareFree);
+  const fraction = reported === null ? null : Math.min(1, reported);
+  const vcpus = number(a.nodeVcpus), ramGb = number(a.nodeRamGb);
+  const reportedRam = number(a.ramGbFree) ?? (number(a.ramMbFree) === null ? null : a.ramMbFree / 1024);
+  const ramFreeGb = reportedRam === null ? null : ramGb === null ? reportedRam : Math.min(ramGb, reportedRam);
+  return { fraction, vcpus, vcpusFree: fraction === null || vcpus === null ? null : fraction * vcpus, ramGb, ramFreeGb };
+}
+
 // The VRAM a shielded card actually sells: the worker's budget, not the physical
 // total. The untrusted host keeps the rest (on a desktop, an X server), and
 // quoting the physical number would advertise capacity no tenant can have.
