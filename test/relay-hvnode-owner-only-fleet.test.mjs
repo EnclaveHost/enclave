@@ -161,3 +161,16 @@ test("owner-only SNI e2e: relay.js splices <label>.<app zone> to an owner-only h
   assert.deepEqual(reached, ["/x/0xa1a1a1a1/https"], "and never reaches the host");
   assert.match(logs.join(""), /REFUSED: not an eligible host \(U7\) and not an owner-only host of this deployment/);
 });
+
+test('Shield marketplace capacity is eligible but data-plane authority stays per app', async () => {
+  const api=await enclavesApi(()=>[{endpoint:HV,id:idOf(HV),mode:'hv-node',eligible:true,ownerOnly:false,
+    appEvidenceRequired:true,servesDeployments:[{id:D1,until:Math.floor(Date.now()/1000)+60}]}]);
+  const fleet=createFleet(fleetConfig({ENCLAVES:HV,ELIGIBILITY_API:api.url}));
+  await fleet.start();await fleet.startEligibility();
+  try {
+    assert.equal(await fleet.eligibleOrigin(HV),false);
+    assert.equal(fleet.eligibleId(idOf(HV)),false);
+    assert.equal(await fleet.servesDeployment(HV,D1),true);
+    assert.equal(await fleet.servesDeployment(HV,D3),false);
+  } finally {fleet.stopEligibility();api.close();}
+});

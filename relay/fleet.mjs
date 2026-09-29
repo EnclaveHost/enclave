@@ -435,13 +435,13 @@ export function createFleet(cfg, log = () => {}) {
       if (!cfg.eligibilityApi) return;
       const j = await fetchJson(cfg.eligibilityApi + "/enclaves", 5000).catch(() => null);
       if (!j || !Array.isArray(j.enclaves)) { log(`eligibility poll failed (${cfg.eligibilityApi}/enclaves): keeping the last verdict until it ages out`); return; }
-      const ids = new Set(j.enclaves.filter((e) => e && e.eligible === true && /^0x[0-9a-f]{64}$/i.test(String(e.id || "")))
+      const ids = new Set(j.enclaves.filter((e) => e && e.eligible === true && e.appEvidenceRequired !== true && /^0x[0-9a-f]{64}$/i.test(String(e.id || "")))
                                      .map((e) => String(e.id).toLowerCase()));
       // (B) an OWNER-ONLY hv-node row (never eligible): the deployments the api relay says it carries now. The daemon takes
       // that verdict as given and never re-derives the rule from row fields (enclave-bf); anything else about the row is ignored.
       const served = new Map();   // endpoint id -> Map(deployment id -> until, unix seconds)
       for (const e of j.enclaves) {
-        if (!e || e.eligible === true || e.ownerOnly !== true || String(e.mode || "") !== "hv-node" || !/^0x[0-9a-f]{64}$/i.test(String(e.id || ""))) continue;
+        if (!e || (e.eligible === true && e.appEvidenceRequired !== true) || (e.ownerOnly !== true && e.appEvidenceRequired !== true) || String(e.mode || "") !== "hv-node" || !/^0x[0-9a-f]{64}$/i.test(String(e.id || ""))) continue;
         const deps = new Map((Array.isArray(e.servesDeployments) ? e.servesDeployments : [])
           .filter((x) => x && /^0x[0-9a-f]{64}$/.test(String(x.id || "")) && Number.isFinite(Number(x.until)))
           .map((x) => [String(x.id), Number(x.until)]));

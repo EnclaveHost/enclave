@@ -701,6 +701,11 @@ test("hv-node: the NucBox node attaches as mode hv-node through the vbs-keys/vbs
     assert.match(row.hvNode.idksModulusSha256, /^[0-9a-f]{64}$/, "the boot's IDKS, for a same-boot VM report"); assert.equal(row.hvNode.hostStatement, undefined, "the node's statement stays in the hub");
     const info = h.hub.info("nucbox-1");
     assert.equal(info.mode, "hv-node"); assert.equal(info.padKey, "", "a host is never a pad consumer"); assert.equal(info.spki, w.transport.spki.toString("base64"));
+    assert.equal(info.hvAppSession, undefined);
+    assert.equal(row.hvAppSession, undefined);
+    assert.equal(h.hub.verifyShieldApp("missing", {}, {}).ok, false);
+    assert.equal(h.hub.verifyShieldApp("nucbox-1", { hostSession: {} }, {}).ok, false,
+      "an attachment without an authorized operator cannot grant app admission");
     assert.equal(info.hvNode.hostStatement.json.backend, "custom-type1"); assert.match(info.hvNode.hostStatement.note, /never read for admission/);
     // a genuine reconnect (same transport key) may retake the name
     const again = await nodeAttach(h, "nucbox-1"); assert.equal(again.ok, true, again.reason); again.ws.close(); try { good.ws.close(); } catch {}
