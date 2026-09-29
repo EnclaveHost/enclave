@@ -30,25 +30,31 @@ export function isolationPolicyFor(version) {
   const mem = Math.max(128, Math.ceil(Number(version && version.memMb) || 0));
   return { cpuPercent: 100, memMiB: mem, vcpus: 1 };
 }
-export function isolationHttpPortOf(ports) {
+export function isolationPortsOf(ports) {
   const list = (Array.isArray(ports) ? ports : String(ports || "").split(","))
-    .map((p) => String(p).trim().toLowerCase()).filter(Boolean);
-  if (!list.length) return 0;
-  const m = list.length === 1 ? /^http:(\d{1,5})$/.exec(list[0]) : null;
-  const n = m ? Number(m[1]) : 0;
-  if (!m || n < 1 || n > 49999)
-    throw new Error(`the per-app guest tier serves at most one declared HTTP port (http:N); ${list.join(", ")} is not offered`);
-  return n;
+    .map(p => String(p).trim().toLowerCase()).filter(Boolean);
+  if (!list.length) return { http: 0, ports: [] };
+  let http = 0; const dests = [];
+  for (const p of list) {
+    const m = /^(http|tcp|udp):([1-9][0-9]{0,4})$/.exec(p);
+    if (!m || +m[2] > 49999) throw new Error(`invalid declared port ${p}`);
+    if (m[1] === "http") { if (http) throw new Error("only one HTTP port is supported"); http = +m[2]; }
+    else dests.push(p);
+  }
+  if (!http || dests.length > 32 || new Set(dests).size !== dests.length || dests.includes(`tcp:${http}`))
+    throw new Error("tunnel destinations need one HTTP port, no duplicates or HTTP collision, and at most 32 ports");
+  return { http, ports: dests.sort() };
 }
-export function derivationRecord(catalogRef, version, runtimeId) {
+export function isolationHttpPortOf(ports) { return isolationPortsOf(ports).http; }
+export function derivationRecord(catalogRef, version, runtimeId, inference = null) {
   const m = CATALOG_REF_RE.exec(String(catalogRef || ""));
   if (!m) throw new Error("not a catalog://<app>/<index> reference");
   if (!/^[A-Za-z0-9]+$/.test(String(version.cid || ""))) throw new Error("the catalog version names no CID");
   if (!HEX(64).test(String(runtimeId || ""))) throw new Error("no runtime identity");
-  const http = isolationHttpPortOf(version.ports);
-  return { derivation: http ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
+  const { http, ports } = isolationPortsOf(version.ports);
+  return { ...(inference ? { inference } : {}), derivation: inference ? "enclave-catalog-bundle/4" : ports.length ? "enclave-catalog-bundle/3" : http ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
            catalog: { app: m[1].toLowerCase(), version: Number(m[2]) }, cid: String(version.cid),
-           policy: isolationPolicyFor(version), runtimeId, ...(http ? { http } : {}) };
+           policy: inference?.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? {...isolationPolicyFor(version),cpuPercent:1600,vcpus:16,memMiB:Math.max(isolationPolicyFor(version).memMiB,51200-384)} : isolationPolicyFor(version), runtimeId, ...(http ? { http } : {}), ...(ports.length ? { ports } : {}) };
 }
 // the supervisor's approvalVerdict: an approved, unyanked version of a listed app; a PENDING one only for a private
 // deployment (forPrivate = !isPublic, as the supervisor runs it); a rejected one never
@@ -63,6 +69,8 @@ export function versionRefusal(app, v, forPrivate = false) {
 // sha256 of the supervisor's three rule functions' source (isolationPolicyFor, isolationHttpPortOf, isolationDerivation),
 // identical at 0181bce3 and c42612c0. test/measurement-predict.test.mjs fails when a supervisor this repository holds (or
 // the working tree's) carries another rule, so the predictor is changed with it.
+export const SHIELD_SUPERVISOR_COMMIT = "caa47a0c8";
+export const SHIELD_SUPERVISOR_RULE_SHA256 = "0c05967041f871e641720f29658a5ffd85fcddef0719ab4e649ee5eb2c163dcf";
 export const SUPERVISOR_RULE_SHA256 = "2ad995d42e42988151b95f0c1dd70c57130ed9f245d49da7167b6a076664796a";
 export function supervisorRuleSha256(src) {
   const parts = ["isolationPolicyFor", "isolationHttpPortOf", "isolationDerivation"].map((n) => {
@@ -165,6 +173,9 @@ export function runBounded(cmd, args, { env, cwd, timeoutMs, input }) {
 //   components           (optional) where verified raw-CID components are kept; each is re-verified against its CID on read
 export function makePredictor(o) {
   const { repo, commit, readCatalog, gateway, sevSnpMeasure, sevSnpMeasureSha256 } = o;
+  // Newly pinned configs may not yet be reachable through a public gateway.
+  // Each source still goes through the same pinned CAR/CID verifier.
+  const configGateways = [...new Set([o.configGateway, gateway].filter(Boolean))];
   const digestTool = o.digestTool || ((exe) => sevSnpMeasureDigest(exe, run));
   const work = o.work ? path.resolve(o.work) : "";
   const run = o.run || runBounded, now = o.now || Date.now;
@@ -191,6 +202,7 @@ export function makePredictor(o) {
     !HEX(40).test(String(commit || "")) && "the toolchain commit (40 hex)",
     !repo && "the toolchain repository", typeof readCatalog !== "function" && "the catalog reader",
     !/^https:\/\//.test(String(gateway || "")) && "an https gateway", !sevSnpMeasure && "sev-snp-measure",
+    o.configGateway && !/^https:\/\//.test(String(o.configGateway)) && "an https config gateway",
     !HEX(64).test(String(sevSnpMeasureSha256 || "")) && "sev-snp-measure's pinned digest", !work && "a work directory",
     !admit.length && "at least one admitted release",
     ...[...(o.toolPath || []), ...(o.seedComponents || [])].filter((d) => d && !path.isAbsolute(d)).map((d) => `an absolute tool/seed directory (not ${d})`),
@@ -309,6 +321,7 @@ export function makePredictor(o) {
         if (!r.ok) return r;
         images.push(...r.images);
       }
+      if (!images.length) return { ok: false, code: "version_not_admitted", reason: "no admitted release implements this version’s protected ports" };
       return { ok: true, appId, images };
     } finally { fs.rmSync(job, { recursive: true, force: true }); }
   }
@@ -330,6 +343,13 @@ export function makePredictor(o) {
       if (kv.app_id !== appId) return { ok: false, code: "prediction_failed", reason: `release ${id.slice(0, 12)} assembled another AppID` };
       // the VERIFIED release's runtime is the one the record was derived for (read before the release was verified)
       if (kv.runtime_id !== record.runtimeId) return { ok: false, code: "prediction_failed", reason: `release ${id.slice(0, 12)}'s verified runtime is not the record's` };
+      if (record.derivation === "enclave-catalog-bundle/3") {
+        let marker = "";
+        try { marker = fs.readFileSync(path.join(snap, "template/rt/protected-ports.enabled"), "utf8"); } catch {}
+        // This snapshot has just passed the pinned manifest check. A marker
+        // added to an old release cannot pass that check under its old ID.
+        if (marker !== "1\n") continue;
+      }
       images.push({ release: id, runtimeId: kv.runtime_id, measurement: kv.measurement });
     }
     return { ok: true, images };
@@ -386,16 +406,16 @@ export function makePredictor(o) {
   // the expected guest for a deployment's catalog reference: { ok, appId, images: [{ release, runtimeId, measurement }] }
   // or { ok: false, code, reason }. Never throws. `forPrivate`: the deployment is private (a pending version is allowed).
   // `waitMs`: answer { ok: false, code: "warming" } rather than wait longer; the prediction continues and is cached.
-  async function expectedFor(catalogRef, { forPrivate = false, waitMs, set = "release" } = {}) {
+  async function expectedFor(catalogRef, { forPrivate = false, waitMs, set = "release", inference = null } = {}) {
     const ids = set === "cert" ? certAdmit : set === "release" ? admit : null;
     if (!ids) return { ok: false, code: "predictor_unconfigured", reason: `no admitted set named ${set}` };
-    const p = predict(catalogRef, forPrivate, ids);
+    const p = predict(catalogRef, forPrivate, ids, inference);
     if (!(waitMs >= 0)) return p;
     let timer;
     const late = new Promise((resolve) => { timer = setTimeout(() => resolve({ ok: false, code: "warming", reason: "the prediction is still being computed; retry shortly" }), waitMs); });
     try { return await Promise.race([p, late]); } finally { clearTimeout(timer); }
   }
-  async function predict(catalogRef, forPrivate, admitIds) {
+  async function predict(catalogRef, forPrivate, admitIds, inference = null) {
     const refuse = (code, reason) => { stats.refusals++; return { ok: false, code, reason }; };
     if (problems.length) return refuse("predictor_unconfigured", `measurement prediction is not configured (missing: ${problems.join(", ")})`);
     const m = CATALOG_REF_RE.exec(String(catalogRef || ""));
@@ -410,16 +430,22 @@ export function makePredictor(o) {
     const vr = versionRefusal(cat && cat.app, cat && cat.version, forPrivate);
     if (vr) return refuse("version_not_admitted", vr);
     // one record per distinct runtime among the admitted releases (the AppID excludes the runtime; the record does not)
+    if (inference && (!["qwen2.5-0.5b-q8-gguf","qwen3.8-27b-mtp-q4-vl-gguf"].includes(inference.model) || !Number.isInteger(inference.gpuMilli) || inference.gpuMilli < (inference.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? 500 : 65) || inference.gpuMilli > 1000))
+      return refuse("unsupported_inference", "unsupported isolated model or GPU allocation");
     const byRuntime = new Map();
     for (const id of admitIds) {
+      const marker=path.join(releases.get(id),"template/rt/shield-model");
+      let model=null; try { model=fs.readFileSync(marker,"utf8").trim(); } catch(e) { if(e.code!=="ENOENT") return refuse("prediction_unavailable","unreadable inference profile"); }
+      if (inference ? !model?.split(/\s+/).includes(inference.model) : model!==null) continue;
       let rid;
       try { rid = runtimeIdOfJson(fs.readFileSync(path.join(releases.get(id), "template/rt/runtime.json"), "utf8")); }
       catch (e) { return refuse("prediction_unavailable", `release ${id.slice(0, 12)} states no readable runtime identity`); }
       if (!byRuntime.has(rid)) byRuntime.set(rid, []);
       byRuntime.get(rid).push(id);
     }
+    if (!byRuntime.size) return refuse("unsupported_inference", "no admitted release for the selected model profile");
     let records;
-    try { records = [...byRuntime].map(([rid, ids]) => ({ record: derivationRecord(catalogRef, cat.version, rid), ids })); }
+    try { records = [...byRuntime].map(([rid, ids]) => ({ record: derivationRecord(catalogRef, cat.version, rid, inference), ids })); }
     catch (e) { return refuse("version_not_admitted", `the version is not derivable for a per-app guest: ${e.message}`); }
     const key = sha256hex(canonical({ commit, records: records.map((r) => ({ record: r.record, releases: [...r.ids].sort() })) }));
     const hit = cacheGet(key);
@@ -455,9 +481,17 @@ export function makePredictor(o) {
     const job = fs.mkdtempSync(path.join(work, "tmp", "cid-"));
     try {
       const out = path.join(job, "bytes");
-      const f = await run("python3", [path.join(tc.dir, "isolation/m4/guestd/fetch-cid.py"), tc.dir, cid, out, String(maxBytes), gateway], { env: tc.env, cwd: job, timeoutMs });
-      if (f.code !== 0) return { ok: false, code: "unavailable", reason: `${cid} did not fetch and verify: ${lastLine(f.err)}` };
-      const b = fs.readFileSync(out);
+      let b, reason = "no configured gateway";
+      for (const source of configGateways) {
+        if (!/^https:\/\//.test(String(source))) { reason = "config gateway must use https"; continue; }
+        fs.rmSync(out, { force: true });
+        const f = await run("python3", [path.join(tc.dir, "isolation/m4/guestd/fetch-cid.py"), tc.dir, cid, out, String(maxBytes), source], { env: tc.env, cwd: job, timeoutMs });
+        if (f.code !== 0) { reason = lastLine(f.err); continue; }
+        const candidate = fs.readFileSync(out);
+        if (candidate.length > maxBytes || (digest && sha256hex(candidate) !== digest)) { reason = "verified output size or CID mismatch"; continue; }
+        b = candidate; break;
+      }
+      if (!b) return { ok: false, code: "unavailable", reason: `${cid} did not fetch and verify: ${reason}` };
       if (digest && sha256hex(b) === digest) {
         try { fs.mkdirSync(components, { recursive: true, mode: 0o700 }); const tmp = `${kept}.${randomBytes(6).toString("hex")}`; fs.writeFileSync(tmp, b, { mode: 0o600 }); fs.renameSync(tmp, kept); } catch {}
       }
@@ -549,6 +583,7 @@ export function versionConfigReader(clients, catalogAddress) {
 //                                      installed release. Must include every admitted release. A release installed only for
 //                                      the known-answer test is left out, so its guests are not certifiable.
 //   SECRETS_RELEASE_PREDICT_GATEWAY    https trustless gateway
+//   SECRETS_RELEASE_CONFIG_GATEWAY     optional preferred config gateway; same CID verification, public gateway fallback
 //   SECRETS_RELEASE_SEV_SNP_MEASURE    the pinned sev-snp-measure executable
 //   SECRETS_RELEASE_SEV_SNP_MEASURE_SHA256  its sevSnpMeasureDigest (node relay/measurement-predict.mjs digest <exe> prints it)
 //   SECRETS_RELEASE_CATALOG_RPCS       two or more independent Base RPC URLs for the catalog read (api-relay.js)
@@ -563,6 +598,7 @@ export function predictorEnv(env = process.env) {
            releases, admit: String(env.SECRETS_RELEASE_DOMAIN_RELEASES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
            certReleases: String(env.SECRETS_RELEASE_CERT_RELEASES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
            gateway: env.SECRETS_RELEASE_PREDICT_GATEWAY || "", sevSnpMeasure: env.SECRETS_RELEASE_SEV_SNP_MEASURE || "",
+           configGateway: env.SECRETS_RELEASE_CONFIG_GATEWAY || "",
            sevSnpMeasureSha256: String(env.SECRETS_RELEASE_SEV_SNP_MEASURE_SHA256 || "").toLowerCase(),
            toolPath: String(env.SECRETS_RELEASE_PREDICT_PATH || "").split(":").filter(Boolean),
            seedComponents: String(env.SECRETS_RELEASE_PREDICT_SEED || "").split(":").filter(Boolean),
