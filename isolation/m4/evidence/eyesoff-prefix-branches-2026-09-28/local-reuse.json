@@ -1,0 +1,20 @@
+[
+  {
+    "name": "default",
+    "tokens": 513,
+    "prefill_ms": 12,
+    "plan_ms": 210
+  },
+  {
+    "name": "loop",
+    "tokens": 729,
+    "prefill_ms": 0,
+    "plan_ms": 177
+  },
+  {
+    "name": "chat-only",
+    "tokens": 119,
+    "prefill_ms": 0,
+    "plan_ms": 165
+  }
+]
