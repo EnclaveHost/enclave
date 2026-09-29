@@ -91,6 +91,22 @@ function exchange(dataAddr, route, servername, method, path, body, timeoutMs) {
   }));
 }
 
+// Read-only proof transport for an external verifier. The node forwards public
+// evidence; its manager verdict is not a hardware trust decision. A relay must
+// verify the returned report against its own nonce, expected app and boot chain.
+export async function readGuestAttestation({ transport, dataAddr, instanceId, expectAppId, name, nonce,
+  timeoutMs = 15_000 }) {
+  if (!Buffer.isBuffer(nonce) || nonce.length !== 32) throw new Error('a 32-byte verifier nonce is required');
+  const route = await routeFor(transport, instanceId, expectAppId, { timeoutMs });
+  const a = await exchange(dataAddr, route, name, 'GET',
+    `/.well-known/enclave-attestation?nonce=${nonce.toString('hex')}`, null, timeoutMs);
+  if (a.status !== 200) throw new Error(`guest attestation HTTP ${a.status}`);
+  const doc = JSON.parse(a.body.toString('utf8'));
+  if (doc?.nonce !== nonce.toString('hex') || doc.appSha256 !== expectAppId ||
+      doc.transportKey !== a.spki.toString('base64')) throw new Error('guest evidence differs from request or TLS peer');
+  return { doc, handshakeSpki: a.spki.toString('base64') };
+}
+
 const renewAtOf = (leaf) => {
   const nb = new Date(leaf.validFrom).getTime(), na = new Date(leaf.validTo).getTime();
   return { notAfter: na, renewAt: nb + Math.round((na - nb) * 2 / 3) };

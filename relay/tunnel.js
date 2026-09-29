@@ -16,6 +16,7 @@
 // secret and no secret-in-code is required.
 import { WebSocketServer } from "ws";
 import { createHash, timingSafeEqual, randomBytes } from "node:crypto";
+import { verifyShieldAppPolicy } from './shield-app-policy.mjs';
 import { verifyQuote, provenSnpChip } from "./snp-verify.mjs";
 import { verifyAvfEvidence } from "./avf-verify.mjs";
 import { admitPvmCpu, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
@@ -327,6 +328,8 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                 // mode "hv-node": the boot this attach proved (boot counter, the IDKS a same-boot VM report must
                 // verify under, PCRs, EK and AK), its omissions, and the node's own statement (recorded, never read)
                 hvNode: meta.hvNode || null,
+                // Private authenticated context: never exported in info/origins.
+                hvAppSession: meta.hvAppSession || null,
                 // mode "hv-node", owner-only serving (enclave-87's (B)): the name's on-chain operator, set ONLY when it signed
                 // the v2 attach message (this transport key, this EK) and is a trusted operator of this relay; the owners it
                 // may serve (the operator + each VALID delegation's owner); and the raw delegations, re-verified as they age.
@@ -555,6 +558,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             // holder's chip): kept only from a VCEK-verified, VCEK-signed report with a non-zero CHIP_ID -- a
             // measurement-only attach never had its signature checked against the chip, so its CHIP_ID proves nothing
             let snpChip = null;
+            let hvAppSession = null;
             // DEVELOPMENT ONLY, double-gated (the hub's option AND the process
             // env): a phone whose VM cannot attest yet (vendor level below the
             // RKP admission) binds on its transport key alone so the rest of
@@ -597,8 +601,9 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
               if (!spki) return deny("hv-node attach must carry transportKey");
               if (typeof f.rad.body !== "string" || f.rad.body.length > 12 * 1024 * 1024) return deny("hv-node body exceeds size limit");
               let ev; try { ev = JSON.parse(Buffer.from(f.rad.body, "base64").toString("utf8")); } catch { return deny("hv-node body is not JSON"); }
-              res = verifyHvNodeEvidence({ evidence: ev, nonce, transportKeySpki: spki, expectedCredential: vbs.credential,
-                                           mintedFor: { ekCert: vbs.ekCert, aikName: vbs.aikName } }, attest.hvNode);
+              hvAppSession = { evidence: ev, nonce, transportKeySpki: spki, expectedCredential: vbs.credential,
+                               mintedFor: { ekCert: vbs.ekCert, aikName: vbs.aikName } };
+              res = verifyHvNodeEvidence(hvAppSession, attest.hvNode);
               if (!res.ok || !res.admissible) return deny(res.reasons.join("; ") || "hv-node evidence invalid");
             } else {
               if (!/sev-snp-guest/.test(f.rad.format || "")) return deny(`format ${f.rad.format} not SEV-SNP, AVF or hv-node`);
@@ -664,7 +669,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             const padKey = padEligible && /^[0-9a-f]{64}$/.test(String(f.rad.padKey || "")) ? f.rad.padKey : "";
             bind(name, ws, { via: isHv ? "attestation(hv-node)" : isAvf ? "attestation(avf)" : res.vcekVerified ? "attestation" : "attestation(measurement-only)",
                              measurement: res.measurement, mode: isHv ? "hv-node" : isAvf ? "avf" : "snp", keyFp, tier: isHv ? HVNODE_TIER : "",
-                             snpChip,
+                             snpChip, hvAppSession,
                              hvNode: isHv ? { boot: res.boot, omissions: res.omissions, hostStatement: res.hostStatement, verifiedAt: new Date().toISOString() } : null,
                              ...(operator ? { operator, served: served.served, delegations } : {}),
                              spki: spki ? spki.toString("base64") : "", padKey,
@@ -763,6 +768,16 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     // One attached tunnel's identity, for modules that authenticate a tunnel's
     // own requests (relay/pads.mjs): null when nothing by that name is attached.
     info: (name) => { const t = tunnels.get(name); return t ? { name, mode: t.mode, tier: t.tier || "", keyFp: t.keyFp, spki: t.spki, padKey: t.padKey, ...(t.hvNode ? { hvNode: t.hvNode } : {}) } : null; },
+    // Verification uses only this live attachment's authenticated boot. A
+    // caller-provided hostSession is overwritten, and detach/reconnect cannot
+    // reuse the previous connection's context. This grants no host eligibility.
+    verifyShieldApp: (name, input, policy) => {
+      const t = tunnels.get(name);
+      if (!t || t.ws.readyState !== t.ws.OPEN || t.mode !== "hv-node" || !t.hvAppSession ||
+          !t.operator || t.ownerSuspended)
+        return { ok: false, reason: "no active authenticated Shield host session" };
+      return verifyShieldAppPolicy({ ...input, hostSession: t.hvAppSession }, policy);
+    },
     nameOf: (origin) => (String(origin || "").match(NAME_RE) || [])[1] || null,
     // synthetic registry rows for the attached tunnels (bypass the dial-based
     // discovery filters; auth already happened at attach time). `endpoint`

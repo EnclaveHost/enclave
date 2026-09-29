@@ -41,3 +41,31 @@ test('rejects debug firmware, missing image/root pins and a report from another 
  assert.equal(run(fixture({signer:generateKeyPairSync('rsa',{modulusLength:2048}).privateKey})).ok,false);
  assert.equal(run(fixture({boot:{secureBoot:0}})).ok,false);
 });
+
+// Admission is deliberately stricter than the general evidence verifier.
+import { verifyShieldAppPolicy } from '../relay/shield-app-policy.mjs';
+function shieldPolicy(f) {
+ return {schema:'enclave-shield-app-policy/1',ekRoots:world.ca.bundlePem,
+  platforms:[{ekCertSha256:sha(world.ek.cert).toString('hex'),pcr0:world.pcr0.toString('hex')}],
+  images:[{measurement:image,runtimeId:f.expectedRuntimeId}]};
+}
+test('Shield policy accepts only the pinned platform, runtime/image pair and certificate key',options,()=>{
+ const f=fixture(),p=shieldPolicy(f),csr=sha(f.handshakeSpki).toString('hex');
+ const v=verifyShieldAppPolicy({...f,expectedCsrSpkiSha256:csr},p);
+ assert.equal(v.ok,true,v.reason);assert.equal(v.spkiSha256,csr);
+ assert.equal(v.hostEligible,undefined);assert.equal(v.admissible,undefined);
+ for(const platforms of [[],[{...p.platforms[0],pcr0:'00'.repeat(32)}],
+   [{...p.platforms[0],ekCertSha256:'00'.repeat(32)}]])
+   assert.equal(verifyShieldAppPolicy(f,{...p,platforms}).ok,false);
+ for(const images of [[],[{measurement:image,runtimeId:'00'.repeat(32)}],
+   [{measurement:'00'.repeat(32),runtimeId:f.expectedRuntimeId}]])
+   assert.equal(verifyShieldAppPolicy(f,{...p,images}).ok,false);
+ assert.equal(verifyShieldAppPolicy({...f,expectedCsrSpkiSha256:'00'.repeat(32)},p).ok,false);
+ assert.equal(verifyShieldAppPolicy(f,{}).ok,false);
+});
+test('Shield policy never combines separately admitted runtime and image pairs',options,()=>{
+ const f=fixture(),p=shieldPolicy(f);
+ p.images=[{measurement:image,runtimeId:'00'.repeat(32)},
+           {measurement:'00'.repeat(32),runtimeId:f.expectedRuntimeId}];
+ assert.equal(verifyShieldAppPolicy(f,p).ok,false);
+});

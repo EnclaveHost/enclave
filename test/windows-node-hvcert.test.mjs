@@ -97,7 +97,7 @@ async function front({ csr = GUEST.csr, runtime = RT, selfTest = ATTEST_TIME, im
       if (f.tamper) signed[0] ^= 1;                              // a report the launcher key does not verify
       const sig = signed.toString("base64");
       return json(200, { format: FORMAT, tier: TIER, nonce: nonce.toString("hex"), appSha256: APP, abi: ABI2, runtime,
-        runtimeSelfTest: selfTest,
+        runtimeSelfTest: selfTest, transportKey: GUEST_SPKI.toString("base64"),
         report: Buffer.from(JSON.stringify({ doc: report, sig })).toString("base64") });
     }
     if (u.pathname === "/.well-known/enclave-csr") { f.csrAsked++; res.writeHead(200, { "content-type": "application/x-pem-file" }); return res.end(csr); }
@@ -333,4 +333,27 @@ test("certificate runtime selection is per deployment and never defaults an unkn
   const cpu = passFor(box, svc, { runtimeId: pick });
   await cpu.pass(records(box.instance, { gpuShare: 0 }));
   assert.equal(svc.issued, 1);
+});
+
+import { readGuestAttestation } from '../isolation/m4/guestd/supervisor-guestcert.mjs';
+import { viewTransport } from '../windows/node/hvcert.mjs';
+import { Host } from '../windows/node/host.mjs';
+test('external verifier can read fresh public guest evidence through the real manager data plane', async () => {
+  const f=await front(),box=await managerFor(f),nonce=crypto.randomBytes(32);
+  const opts={transport:viewTransport(box.client),dataAddr:box.dataAddr,instanceId:box.instance,expectAppId:APP,name:NAME,nonce};
+  const got=await readGuestAttestation(opts);
+  assert.equal(got.handshakeSpki,GUEST_SPKI.toString('base64'));
+  assert.equal(got.doc.nonce,nonce.toString('hex'));
+  assert.equal(got.doc.appSha256,APP);
+  assert.equal(f.csrAsked,0);assert.equal(f.installs,0);
+  await assert.rejects(readGuestAttestation({...opts,nonce:Buffer.alloc(31)}),/32-byte/);
+  await assert.rejects(readGuestAttestation({...opts,expectAppId:'00'.repeat(32)}),/app|identity/i);
+  const host={records:records(box.instance),cfg:{isolationManager:box.client.base,isolationDataAddr:box.dataAddr,appZone:'app.enclave.host'}};
+  const proof=await Host.prototype.shieldEvidence.call(host,DEP,nonce.toString('hex'));
+  assert.equal(proof.doc.appSha256,APP);
+  for(const over of [{isPublic:false},{isPublic:undefined},{status:'stopped'},{isolation:null}]) {
+    host.records=records(box.instance,over);
+    await assert.rejects(Host.prototype.shieldEvidence.call(host,DEP,nonce.toString('hex')),/no running public partition/);
+  }
+  await assert.rejects(Host.prototype.shieldEvidence.call(host,DEP.slice(0,10),nonce.toString('hex')),/exact deployment/);
 });

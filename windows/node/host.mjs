@@ -739,6 +739,22 @@ export class Host {
     });
   }
 
+  /** Forward public app evidence over its existing partition route. No verdict
+   * here can grant marketplace admission; the relay authenticates the report. */
+  async shieldEvidence(id, nonce) {
+    if (!/^0x[0-9a-f]{64}$/.test(String(id)) || !/^[0-9a-f]{64}$/.test(String(nonce)))
+      throw new Error('exact deployment id and 32-byte nonce required');
+    const rec = this.records.get(id);
+    if (!rec || rec.status !== 'running' || rec.isPublic !== true || !rec.isolation?.instance || !rec.isolation.appId)
+      throw new Error('no running public partition for this deployment');
+    const { IsolationManagerClient } = await import('./isolation-client.mjs');
+    const { viewTransport } = await import('./hvcert.mjs');
+    const { readGuestAttestation } = await import('../../isolation/m4/guestd/supervisor-guestcert.mjs');
+    return readGuestAttestation({ transport: viewTransport(new IsolationManagerClient({ base: this.cfg.isolationManager })),
+      dataAddr: this.cfg.isolationDataAddr, instanceId: rec.isolation.instance,
+      expectAppId: rec.isolation.appId, name: appHostFor(id, this.cfg.appZone), nonce: Buffer.from(nonce, 'hex') });
+  }
+
   // A DEFINITE pre-claim refusal is reused for this long while the ledger's inputs are unchanged; whether secrets are
   // staged and what the manager serves are not on the ledger, so they are asked again after it.
   static PRECLAIM_RECHECK_MS = 10 * 60_000;
