@@ -19,8 +19,8 @@ The existing uid/capability drop, protected-path checks and seccomp filter remai
 
 The native loader parses only metadata using llama's no-allocation mode. It
 binds tensor name, type, dimensions, length and SHA-256 to the already verified
-private bytes. CPU tensors (including token embeddings) are copied into private
-resident buffers. Only calibrated quantized matrices accepted by the backend's
+private bytes. CPU tensors (including token embeddings) remain in their original
+private pages under one read-only mapping and CPU buffer. Only calibrated quantized matrices accepted by the backend's
 source-placement rules get non-host source buffers, whose guarded pointers
 cannot be accessed as ordinary CPU memory.
 
@@ -29,7 +29,8 @@ only complete pages strictly within that tensor's extent are punched out of the
 private file. Adjacent tensor boundary pages remain intact. The backend verifies
 the destination before encoding it. A subsequent source read uses the public
 backing device and authenticates the entire tensor against the private table.
-No host-backed mmap or one-time verification of mutable host bytes is used.
+The CPU mapping is of the authenticated private tmpfs, never the public block
+device. No host-backed mmap or one-time verification of mutable host bytes is used.
 An unexpected fallback still passes through this authenticated read interface.
 A failed read, authentication or reclamation refuses the load rather than
 silently using missing or unauthenticated data. Source and backing files must
@@ -59,7 +60,11 @@ Checks run for the implementation:
   The fallback must never treat one card’s half-width product as a full tensor
   or read the retired original mapping after a shape refusal.
 - Real 0.5B and 27B no-allocation loader integration; full 27B test constrained
-  to a 4 GiB cgroup, with a 3 GiB peak and no swap.
+  to a 4 GiB cgroup and no swap. The revised mapping test additionally hashes
+  every retained CPU tensor before and after reclaiming all 408 GPU sources,
+  and verifies that CPU tensors share one buffer. The first implementation
+  peaked at 3 GiB; the revised file-backed test reached its 4 GiB cgroup limit
+  while reclaiming page cache, without an OOM or swap.
 - Inherited-descriptor integration against the unchanged production engine,
   with the model file read-only by path.
 - Measured model copy/hash tests and guest seccomp statement/mutation tests.
@@ -78,3 +83,11 @@ predict/admit that release before restarting the app. Keep the prior release
 admitted for rollback. Guest reservation floors and the host's app-RAM budget
 must not be lowered merely from the static tensor estimate: qualify actual
 inference peak memory, cache occupancy and throughput first.
+
+The first production qualification saved 13.35 GiB of total guest RAM after
+prefix warmup (57.88 to 44.53 GiB), while preserving output and MTP acceptance.
+It was withdrawn because cached throughput measured about 15.0 tok/s versus a
+back-to-back baseline near 15.7. The revised loader preserves the original CPU
+mapping/buffer layout rather than copying every CPU tensor into a separate
+allocation. Its performance qualification must pass before it replaces the
+baseline; loader correctness alone is not evidence of unchanged throughput.
