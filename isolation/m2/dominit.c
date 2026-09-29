@@ -445,9 +445,9 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = "ENCLAVE_GGML_MAX_SESSIONS=8";
             /* Keep prompt forks in private guest RAM across HTTP requests.
              * Separate shared system/tool prefixes from per-conversation turns.
-             * Active + turn + shared-prefix slots must fit N_BATCH (8+6+2=16). */
+             * Active + turn + shared-prefix slots must fit N_BATCH (8+6+8=22 <= 64). */
             envp[ei++] = shield_large ? "ENCLAVE_GGML_PARK_SLOTS=6" : "ENCLAVE_GGML_PARK_SLOTS=0";
-            envp[ei++] = shield_large ? "ENCLAVE_GGML_PREFIX_SLOTS=2" : "ENCLAVE_GGML_PREFIX_SLOTS=0";
+            envp[ei++] = shield_large ? "ENCLAVE_GGML_PREFIX_SLOTS=8" : "ENCLAVE_GGML_PREFIX_SLOTS=0";
             envp[ei++] = "ENCLAVE_GGML_POOLED=1";
             envp[ei++] = shield_vram_env;
             /* Weights and KV live in private guest RAM; VRAM is only the masked-offload reservation.
