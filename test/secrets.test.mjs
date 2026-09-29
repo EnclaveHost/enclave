@@ -400,3 +400,14 @@ test("U7: fetch is refused to an INELIGIBLE lease holder, and to any holder when
   res = await call("/v1/secrets/fetch", req(ts + 2));
   assert.equal(res.code, 200, JSON.stringify(res.body)); assert.ok(res.body.env, "eligible again: released");
 });
+
+test('Shield marketplace eligibility never authorizes plaintext secret release to the host', async () => {
+  rows = [leaseRow()];
+  const saved = ctx.hostEligibility;
+  ctx.hostEligibility = () => ({eligible:true, appEvidenceRequired:true, plaintextSecrets:false});
+  try {
+    const ts = Math.floor(Date.now()/1000) + 37;
+    const res = await call('/v1/secrets/fetch', {id:ID, endpoint:ENDPOINT, ts, sig:fetchSig(KEY,ID,ENDPOINT,ts)});
+    assert.equal(res.code,403); assert.equal(res.body.env,undefined);
+  } finally { ctx.hostEligibility = saved; }
+});

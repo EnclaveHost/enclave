@@ -7,7 +7,7 @@ import { verifyHvNodeEvidence } from './hvnode-verify.mjs';
 import { parseTcgLog, vsmKey } from './vbs-tcglog.mjs';
 import { rsaKeyFromModulus } from './vbs-verify.mjs';
 import { verifyVbsVmReport } from './vbs-vm-report.mjs';
-import { ABI2, bind2, runtimeId, validateRuntimeIdentity } from '../isolation/contract/runtime.mjs';
+import { ABI2, bind2, runtimeId, validateRuntimeIdentity } from './vbs-runtime.mjs';
 
 export function verifyVbsAppEvidence({ doc, handshakeSpki, nonce, expectedAppSha256,
   expectedRuntimeId, hostSession } = {}, policy = {}) {

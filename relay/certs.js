@@ -928,6 +928,19 @@ export async function handleCerts(req, res, u, ctx) {
       `This endpoint holds the lease but is not eligible to serve tenant apps${el && el.reason ? ": " + el.reason : ""}.`);
   }
 
+  // A Shield host's boot attachment is not proof of this app's key custody.
+  // Require fresh relay-verified guest evidence before cache/order handling.
+  if (el?.appEvidenceRequired === true) {
+    let proof = null;
+    try {
+      if (typeof ctx.verifyAppCertificate === 'function')
+        proof = await ctx.verifyAppCertificate(epId, d, spkiHash);
+    } catch { /* unknown evidence is a refusal */ }
+    if (proof?.ok !== true || proof.spkiSha256 !== spkiHash)
+      return bad(ctx, res, req, 403, 'app_evidence_required',
+        'This certificate key has not passed the app isolation policy. Retry after the guest evidence is available.');
+  }
+
   // 7. cache
   const key = cacheKey(name, spkiHash);
   const hit = store.data.certs[key];

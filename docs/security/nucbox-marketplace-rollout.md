@@ -40,3 +40,28 @@ Still required before promotion:
 The owner-only admission decision has not changed. This document supersedes
 older notes that said the guest report chain itself had not been implemented;
 that chain now verifies on the production CPU and masked-GPU app images.
+
+## Restricted marketplace integration
+
+The relay now independently derives the expected app identity from agreeing
+ledger/catalog reads and CID-verified component bytes. Certificate issuance
+requires fresh app evidence matching the CSR key before either a cache return or
+an ACME order. Configured Shield hosts cannot fetch plaintext staged secrets.
+
+`RELAY_SHIELD_MARKET_POLICY` names a local JSON policy with paired platform and
+image/runtime pins, explicit host names, CPU/GPU profiles and `marketEnabled`.
+False enables verification-only operation; no marketplace claim window is sent.
+True permits a five-minute claim window only after an actual running app passes.
+The window is bound to the authenticated tunnel connection and must be renewed
+by fresh evidence. A reconnect invalidates it. At present a running qualification
+app is needed to keep an otherwise empty host qualified; dedicated admission
+witness bootstrapping is not implemented.
+
+Public app routing remains TLS-only and per-deployment, even though the host is
+counted as eligible capacity. The SNI fleet consumes each app's expiring evidence
+entry. It never treats Shield capacity admission as blanket routing authority.
+No private apps, plaintext secret delivery, config CIDs, arbitrary model volumes
+or undeclared runtime capabilities are admitted. CPU components with no app
+configuration and the measured Qwen 0.5B masked-inference profile are supported.
+The hypervisor and physical operator remain trusted; this is not SNP/TDX operator
+exclusion. The LiveKD failures above remain inconclusive, not security passes.
