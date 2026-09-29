@@ -1,7 +1,7 @@
 {
   "schema": "enclave-nucbox-shield-candidate/1",
   "date": "2026-09-29",
-  "status": "hardware app evidence and restored-NV regression verified; full serving/recovery acceptance passed; runtime installed on production manager; public owner deployment pending wallet authorization; no marketplace admission",
+  "status": "runtime installed on production manager; owner-authorized public CPU app serving over verified HTTPS; hardware app evidence and recovery acceptance passed; no marketplace admission",
   "guestSource": "d023349fd586",
   "guestBase": "4cd26e58bf44958fdf37b063408640f35596dc02",
   "openhclBase": "a7b0bd4a653ba1c9192497a9d3669b14e7f3bc58",
@@ -157,6 +157,36 @@
       "runtimeWxSeccomp": "PASS",
       "retiredAfterVerification": true
     },
-    "hostSecureBoot": true
+    "hostSecureBoot": true,
+    "publicOwnerDemo": {
+      "id": "0x23ff439acb34a1cb6bdb86f58f8c56cae893998ee0c5fb7cdb65c2f5af2d411b",
+      "createTransaction": "0xedd5b085c68f42c939f2fae57c8a8365e2a40bcf8359ff5a5742825a3c2f26fe",
+      "url": "https://23ff439a.app.enclave.host/",
+      "http": "200 Hello World",
+      "selfHostingRate6": "0",
+      "publicTls": {
+        "time": "2026-09-29T15:24:09.470Z",
+        "host": "23ff439a.app.enclave.host",
+        "status": 200,
+        "tlsChainVerified": true,
+        "spkiSha256": "53c4cdfd63222f0b30a3836f8327ceb67eeb7dc55e8352ab0691b916fb3e28fe",
+        "issuer": "C=AT\nO=ZeroSSL GmbH\nCN=ZeroSSL ECC DV SSL CA 2"
+      },
+      "hardwareAppEvidence": "PASS",
+      "backend": "hyperv-partition-per-app",
+      "scope": "owner-only CPU hosting; hostExcluded remains false; no marketplace admission or GPU"
+    },
+    "usWestRouting": {
+      "sourceCommit": "407f0936e",
+      "reason": "deployed SNI relay lacked owner-only hv-node deployment routing already present in source control",
+      "relaySha256": "68cd3b938f374a65a6014c51ea9c6b99237cec394f360ece4a0142ef5bced973",
+      "fleetSha256": "0441e47decd6bb065a03b0f56fcc3327ebbbbd4e6dfcb57a64b0f81e1555c3db",
+      "tests": {
+        "passed": 27,
+        "failed": 0
+      },
+      "rollback": "/opt/nan-relay/rollback-nucbox-20260929",
+      "regressionCheck": "eyesoff.ai HTTP 200 before and after relay restart"
+    }
   }
 }
