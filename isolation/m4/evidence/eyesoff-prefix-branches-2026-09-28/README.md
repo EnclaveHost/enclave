@@ -1,6 +1,8 @@
 # Startup shared-prefix branches — 2026-09-28
 
-Status: implementation tested; runtime installed and admitted; app activation pending owner transactions.
+Status: deployed. Eyesoff AI 1.0.68 is running in guest gd31b02bc8 on release
+4f6fcd61. Automatic startup warmup completed; both public domains passed fresh
+AMD attestation, TLS-key binding, and WebPKI validation with HTTP 200.
 
 The candidate changes only `template/init` relative to release `16ef43bd`:
 large-model shared-prefix slots increase from 2 to 8. Active sessions remain 8,
@@ -35,13 +37,36 @@ prefix branching, not concatenation of independently calculated KV blocks.
   numerical sensitivity. These tests do not promise bit-identical quantized
   logits across cache layouts. Production quantization is unchanged.
 
+## Production results
+
+The guest startup hook logged warmup started and completed before the explicit
+cache probes. Both V100s loaded the model during that warmup without opening a
+new chat. Cold startup warmup was observed complete within about six minutes,
+including model load and feature-prefix preparation.
+
+All five selected production variants reported `complete: true` and reused
+1516–3222-token prefixes in 1 ms each. Tool-enabled request plans took
+1721–2017 ms overall because tool discovery/prompt preparation remain outside
+the cached prefill; chat-only took 13 ms. A subsequent full startup-plan probe
+completed all five variants using exactly eight unique prefix boundaries, with
+0–1 ms per-variant prefill and 7342 ms total. This is prefill reuse evidence,
+not a new decode-throughput benchmark.
+
+Eight active inference slots and six conversation-cache slots are preserved.
+The model, quantization, masking, MTP, config, shares and domains are unchanged.
+All five other running guest IDs remained unchanged through the rollout.
+
 ## Rollout
 
-Nan has the verified candidate release and admission entries. Its independent
-measurement prediction matched the locally reconstructed measurement for the
-current app under the new release. The guest manager now uses the candidate
-runtime for new shielded guests and adopted all six existing running guests
-without restarting them. The running Eyesoff guest remains on its old runtime
-until the owner updates its app reference. The owner publishes 1.0.68 and updates only Eyesoff's catalog
-reference. No shares, config, domain, balances, or other app references change.
-Production startup timing and attested endpoint checks remain pending.
+Both owner transactions succeeded; two RPCs confirm the new catalog reference
+and unchanged owner/config/shares. Receipt details are in owner-state-verified.json.
+Nan independently reconstructed the new app image and matched the locally
+predicted measurement. The production guest and both public HTTPS endpoints
+matched that image and its TLS key. See the verified JSON artifacts.
+
+The first startup attempts timed out while Nan rebuilt ten runtime predictions;
+see rollout-notes.md. The initial bundle availability problem was resolved by
+CAR-verifying, pinning and announcing the published content through Nan Kubo.
+Automatic recovery then started the current healthy guest. Future rollout
+activation must wait for predictions of the newly published *app version*,
+not just checks of the runtime with the previous app.

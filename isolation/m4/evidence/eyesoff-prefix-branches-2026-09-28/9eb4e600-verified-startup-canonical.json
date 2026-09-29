@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-29T04:57:20.455Z",
+  "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+  "short": "9eb4e600",
+  "hostname": "9eb4e600.app.enclave.host",
+  "attested": true,
+  "measurement": "3b3596ddbd6466525b6daed74116447aa86dc7fa1881959bd16a73f372e6703162e338c6bad70f1278bc7fc86f648412",
+  "appId": "f4e6c00c95e2008e8310d5fb2ab8c32e29516c244f8c3052301a9b4d277a1177",
+  "release": "4f6fcd616a3d5bb6e22c1628ed3824d06f301d89cfda760d839fb19ea7da7f0d",
+  "spkiSha256": "a1faa6e6a40b5b98e11aaf31e94fa783e185c9d7d5530a7173b8cf8d3a222700",
+  "healthPath": "/ping",
+  "healthStatus": 200
+}

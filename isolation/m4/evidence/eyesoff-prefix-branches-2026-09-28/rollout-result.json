@@ -1,0 +1,8 @@
+{
+  "eyesoffGuest": "gd31b02bc8",
+  "status": "running",
+  "otherFiveGuestsPreserved": true,
+  "activeInferenceSlots": 8,
+  "conversationCacheSlots": 6,
+  "sharedPrefixSlots": 8
+}

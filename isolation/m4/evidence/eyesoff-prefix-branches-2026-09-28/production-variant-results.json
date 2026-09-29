@@ -1,0 +1,47 @@
+[
+  {
+    "name": "default",
+    "complete": true,
+    "parked": true,
+    "tokens": 2813,
+    "prefillMs": 1,
+    "planMs": 2017,
+    "uniquePrefixes": 3
+  },
+  {
+    "name": "loop",
+    "complete": true,
+    "parked": true,
+    "tokens": 3222,
+    "prefillMs": 1,
+    "planMs": 1736,
+    "uniquePrefixes": 3
+  },
+  {
+    "name": "search-off",
+    "complete": true,
+    "parked": true,
+    "tokens": 2423,
+    "prefillMs": 1,
+    "planMs": 1721,
+    "uniquePrefixes": 3
+  },
+  {
+    "name": "search-off-loop",
+    "complete": true,
+    "parked": true,
+    "tokens": 2832,
+    "prefillMs": 1,
+    "planMs": 1745,
+    "uniquePrefixes": 3
+  },
+  {
+    "name": "chat-only",
+    "complete": true,
+    "parked": true,
+    "tokens": 1516,
+    "prefillMs": 1,
+    "planMs": 13,
+    "uniquePrefixes": 1
+  }
+]

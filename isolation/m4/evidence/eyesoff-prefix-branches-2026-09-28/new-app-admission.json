@@ -1,0 +1,13 @@
+{
+  "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+  "catalogRef": "catalog://0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737/68",
+  "appId": "f4e6c00c95e2008e8310d5fb2ab8c32e29516c244f8c3052301a9b4d277a1177",
+  "images": [
+    {
+      "release": "4f6fcd616a3d5bb6e22c1628ed3824d06f301d89cfda760d839fb19ea7da7f0d",
+      "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+      "measurement": "3b3596ddbd6466525b6daed74116447aa86dc7fa1881959bd16a73f372e6703162e338c6bad70f1278bc7fc86f648412",
+      "releaseAdmitted": true
+    }
+  ]
+}
