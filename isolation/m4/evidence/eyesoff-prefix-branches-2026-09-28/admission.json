@@ -1,0 +1,13 @@
+{
+  "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+  "catalogRef": "catalog://0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737/66",
+  "images": [
+    {
+      "release": "4f6fcd616a3d5bb6e22c1628ed3824d06f301d89cfda760d839fb19ea7da7f0d",
+      "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+      "measurement": "e4a7c33293fa6b0f3fcf4c7856db0ca49d21faf4d5b6215fe834b54994be8ec81396611eda3a1c3309db6e1e63ab7507",
+      "releaseAdmitted": true
+    }
+  ],
+  "allSixRunningGuestsPreserved": true
+}
