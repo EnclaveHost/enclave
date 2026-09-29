@@ -32,10 +32,13 @@ const (
 
 // Forwarder runs one loopback listener per allowed origin.
 type Forwarder struct {
-	Policy   *Policy
-	Port     int                      // 443 in a guest; a free port in tests
-	Upstream func() (net.Conn, error) // a new stream to the host's egress server (vsock to the host CID in a guest)
-	Logf     func(string, ...any)     // the guest's own log; never a URL or header, only the origin's index and outcome
+	PublicListen string // test override; empty uses PublicSOCKSAddress
+	publicAddr   netip.AddrPort
+	publicSlots  chan struct{}
+	Policy       *Policy
+	Port         int                      // 443 in a guest; a free port in tests
+	Upstream     func() (net.Conn, error) // a new stream to the host's egress server (vsock to the host CID in a guest)
+	Logf         func(string, ...any)     // the guest's own log; never a URL or header, only the origin's index and outcome
 
 	mu    sync.Mutex
 	ls    []net.Listener
@@ -74,6 +77,12 @@ func (f *Forwarder) Start(ctx context.Context) error {
 		f.addrs[o.Host] = a
 		f.mu.Unlock()
 		go f.serve(ctx, l, i, o)
+	}
+	if f.Policy.PublicHTTPS {
+		if err := f.startPublic(ctx); err != nil {
+			f.Close()
+			return err
+		}
 	}
 	go func() { <-ctx.Done(); f.Close() }()
 	return nil

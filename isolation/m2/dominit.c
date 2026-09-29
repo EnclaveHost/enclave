@@ -5,7 +5,7 @@
  *      under SEV-SNP, the report interface;
  *   2. brings up loopback and starts /front, which mints the domain's TLS key in guest memory, terminates TLS on
  *      vsock port 443, serves the attestation document binding that key, and proxies everything else to the app;
- *   3. waits for the front's ONE message on the pipe it gave it (fd 3): "N" (no config) or "C" + the app's config.
+ *   3. waits for the front's ONE message on the pipe it gave it (fd 3): "N" (no config), "C" + the app's config, or "P" + config for owner-opted public HTTPS.
  *      For a guest that serves a deployment, the front sends it only after the attested release has delivered the
  *      owner's config and secrets and the egress forwarders are up (front/provision.go); an empty pipe means the
  *      front died first, and the domain powers off rather than start an app without the config it should have;
@@ -374,6 +374,7 @@ static void seccomp_statement_from(int fd, pid_t child) {
         printf("DOM ERROR could not record the app's seccomp statement for the front: %s\n", strerror(errno));
 }
 
+static int public_https_egress; /* only the authenticated front handoff can enable it */
 static pid_t spawn(char *const argv[], char *extra, int fd3, int flags);
 /* The app, through the seccomp statement channel: a close-on-exec pipe made here (the front, already running, never
  * holds it), handed to the child, and read to EOF - until the child's exec closes its end - so the positive line and the
@@ -432,6 +433,9 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
         }
         char *envp[64] = {"HOME=/tmp", "PATH=/rt"};
         int ei = 2;
+        /* Protocol credential, not a security boundary: one app owns this guest.
+         * Policy is enforced by the measured front, CID admission and host IP checks. */
+        if (public_https_egress && drop) envp[ei++] = "ENCLAVE_EGRESS_CRED=guest:public-https";
         if (shield_on && drop) {
             /* This runtime belongs to one isolated app. Reuse only transport
              * connections; every tool request still carries fresh credentials. */
@@ -499,7 +503,7 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
     return pid;
 }
 
-/* The front's one message on the pipe: "N" (no config), or "C" + the app's config, at most the standard runtime's
+/* The front's one message on the pipe: "N" (no config), "C" + config, or "P" + config (public HTTPS), at most the runtime's
  * ENCLAVE_CONFIG ceiling (64 KiB), then EOF. On "C" *env is a malloc'd "ENCLAVE_CONFIG=<config>" and *len the config's
  * length; on "N" *env stays NULL. Anything else - an empty pipe (the front died first), one byte over the ceiling, a
  * NUL, another tag - returns why, and the caller does not start the app. The read buffer is wiped either way. */
@@ -518,9 +522,10 @@ static const char *read_front_msg(int fd, char **env, size_t *len) {
     }
     *env = NULL;
     *len = 0;
+    public_https_egress = 0;
     if (n == 0) why = "ended before it handed over the app's config";
     else if (n == 1 && msg[0] == 'N') why = NULL;
-    else if (msg[0] != 'C' || n < 2) why = "sent no valid config message";
+    else if ((msg[0] != 'C' && msg[0] != 'P') || n < 2) why = "sent no valid config message";
     else if (n == sizeof msg) why = "sent a config over the 64 KiB ENCLAVE_CONFIG ceiling";
     else if (memchr(msg + 1, 0, n - 1)) why = "sent a config with a NUL byte";
     else {
@@ -531,6 +536,7 @@ static const char *read_front_msg(int fd, char **env, size_t *len) {
             memcpy(*env, pre, sizeof pre - 1);
             memcpy(*env + sizeof pre - 1, msg + 1, *len);
             (*env)[sizeof pre - 1 + *len] = 0;
+            public_https_egress = msg[0] == 'P';
         }
     }
     explicit_bzero(msg, n);
@@ -734,9 +740,12 @@ int main(void) {
 
     /* the runtime passes ENCLAVE_CONFIG to the guest program from its own environment (--env NAME, no value), so the
      * value is never an argument */
-    char **base = port ? run : serve, *app[64];
+    char **base = port ? run : serve, *app[96];
     int k = 0;
     for (int i = 0; base[i]; i++) {
+        if (public_https_egress && strcmp(base[i], "/app.wasm") == 0) {
+            app[k++] = "-S"; app[k++] = "egress=127.0.0.2:1080";
+        }
         if (cfg_env && strcmp(base[i], "/app.wasm") == 0) {
             app[k++] = "--env";
             app[k++] = "ENCLAVE_CONFIG";

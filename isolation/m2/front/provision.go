@@ -171,6 +171,9 @@ func (p *provisioner) run(ctx context.Context, hostData, spki []byte, rt *runtim
 		return nil, err
 	}
 	var want []netip.AddrPort
+	if a, ok := out.fwd.PublicAddr(); ok {
+		want = append(want, a)
+	}
 	for _, o := range pol.Origins {
 		a, _ := out.fwd.Addr(o.Host)
 		want = append(want, a)
@@ -320,12 +323,21 @@ func isZero(b []byte) bool {
 // config) or "C" followed by the resolved config, then EOF. A front that dies first leaves the pipe empty, and init
 // powers the guest off rather than start an app that has no config it should have had.
 func handToInit(w *os.File, config string) error {
+	return handToInitMode(w, config, false)
+}
+
+// P is emitted only after the authenticated owner policy enabled the public HTTPS listener and its audit passed.
+func handToInitMode(w *os.File, config string, publicHTTPS bool) error {
 	defer w.Close()
 	msg := make([]byte, 0, len(config)+1)
 	if config == "" {
 		msg = append(msg, 'N')
 	} else {
-		msg = append(msg, 'C')
+		tag := byte('C')
+		if publicHTTPS {
+			tag = 'P'
+		}
+		msg = append(msg, tag)
 		msg = append(msg, config...)
 	}
 	_, err := w.Write(msg)
