@@ -79,7 +79,9 @@ int main(int argc, char **argv) {
     setenv("SHIELDED_PAD_SK", std::string(64, '0').c_str(), 1);
     setenv("SHIELDED_PAD_CHECK", "1", 1); setenv("SHIELDED_NO_SIMD", "1", 1);
     setenv("SHIELDED_MIN_MACS", "0", 1); setenv("SHIELDED_MAX_M", "16", 1);
-    const bool local_mint = scenario == "source_local_mint";
+    const bool split_local = scenario == "source_split_local";
+    const bool local_mint = scenario == "source_local_mint" || split_local;
+    const int expected_reads = split_local ? 4 : 2;
     if (local_mint) unsetenv("SHIELDED_PAD_SOURCE");
     auto *cpu = ggml_backend_cpu_init(); assert(cpu); ggml_backend_cpu_set_n_threads(cpu, 1);
     verifier_state state;
@@ -144,13 +146,26 @@ int main(int argc, char **argv) {
         ggml_free(ctx); ggml_backend_free(cpu);
         puts("weight-verifier: private-copy encoding and authenticated CPU fallback passed"); return 0;
     }
-    sh_plan(p);
+    if (split_local) {
+        p.extra.emplace_back(new sh_state()); p.cards.push_back(p.extra.back().get());
+        auto &other = *p.cards.back();
+        other.configured = other.calib_loaded = true; other.calib_version = 2; other.calib = s.calib;
+        for (auto *w : weights) {
+            assert(sh_register(s, w, nullptr, nullptr, 0, 4));
+            assert(sh_register(other, w, nullptr, nullptr, 4, 4));
+            auto &e = s.weights.at(w->name);
+            e.part_cards = {0, 1}; e.part_nodes = {e.node, other.weights.at(w->name).node}; e.part_col0 = {0, 4};
+            p.owners[e.group] = 0;
+        }
+        p.pending.clear();
+        other.link_failed = true; other.link_retry_at = DBL_MAX; other.dirty = false;
+    } else sh_plan(p);
     ggml_cgraph empty = {};
     if (scenario != "honest" && scenario != "source" && !local_mint && scenario != "background_integrity") {
         assert(s.source_verification_failed && s.weights.empty() && state.calls == (state.read_fail ? 0 : 1));
         assert(ggml_backend_shielded_graph_compute(nullptr, &empty) == GGML_STATUS_FAILED);
     } else {
-        assert(state.calls == 2 && s.weights.size() == 2 && !s.source_verification_failed);
+        assert(state.calls == expected_reads && s.weights.size() == 2 && !s.source_verification_failed);
         for (const auto &kv : s.weights) {
             assert(kv.second.source_verified);
             if (local_mint) assert(!kv.second.w.empty() && !kv.second.w_cache);
@@ -184,8 +199,8 @@ int main(int argc, char **argv) {
                 }
             }
         }
-        assert(state.calls == 2); // no reread/reverification of the revoked source
-        assert(state.reads == (streamed ? 2 : 0));
+        assert(state.calls == expected_reads); // no reread/reverification of the revoked source
+        assert(state.reads == (streamed ? expected_reads : 0));
         ggml_backend_shielded_weight_cache_stats(&cache_calls, &cache_bytes);
         if (local_mint) {
             assert(cache_calls == 0 && cache_bytes == 0);
@@ -195,7 +210,7 @@ int main(int argc, char **argv) {
             const std::string minted = std::string(argv[1]) + "/local-source-discard.pads";
             assert(!sh_link_is_dealt(s.link));
             assert(sh_link_mint_shipment(s.link, seed, seed, seed, 0, 2, pk, minted.c_str()) == SH_OK);
-            assert(state.reads == 2 && state.calls == 2);
+            assert(state.reads == expected_reads && state.calls == expected_reads);
             assert(unlink(minted.c_str()) == 0);
             source_stats_check(state);
             for (auto *buf : source_buffers) ggml_backend_buffer_free(buf);
