@@ -106,6 +106,7 @@ import { VBS_DEFAULT_EK_ROOTS } from "./vbs-policy.mjs";
 import { createPadsLedger, createPrefixStore, createShipmentStore, padsRouter } from "./pads.mjs";
 import { dataDir } from "./store.js";
 import { expectedGuest, prewarmReleasePredictions } from "./secrets-release.mjs";
+import { expectedForRow } from "./guest-prediction-row.mjs";
 import { boxOrigin, boxLabelOfHost } from "./boxhost.js";
 installProcessGuards("api-relay");
 
@@ -2388,12 +2389,18 @@ const shieldMarket = createShieldMarketplace({ hub: tunnelHub,
   readConfig: versionConfigReader(catalogClients, catalogAddress),
   fetchVerified: (cid, max) => predictor().fetchVerified(cid, max),
 });
-const expectedGuestFor = (row, o) => predictor().expectedFor(row && row.appRef, o);
+const expectedGuestFor = (row, o) => expectedForRow(row, o, {
+  confirmRow, readVersionConfig: versionConfigAt,
+  predict: (ref, options) => predictor().expectedFor(ref, options),
+});
 // the catalog VERSION's { config, configCid } for the deployment's CONFIRMED appRef, through the same agreeing RPCs
 const _versionConfig = { read: null };
 async function versionConfigFor(id) {
   const row = await confirmRow(id);
-  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(String(row.appRef || ""));
+  return versionConfigAt(row.appRef);
+}
+async function versionConfigAt(ref) {
+  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(String(ref || ""));
   if (!m) return null;
   _versionConfig.read ||= versionConfigReader(catalogClients, catalogAddress);
   return _versionConfig.read(m[1].toLowerCase(), Number(m[2]));
