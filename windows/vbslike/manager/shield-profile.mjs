@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import { runtimeId } from "../../../isolation/contract/runtime.mjs";
 import { shieldedCard } from "../../node/shieldedcard.mjs";
 export const MODEL = "qwen2.5-0.5b-q8-gguf";
-export const CARD_BYTES = 4 * 2 ** 30;
+export const CARD_BYTES = 12 * 2 ** 30;
 export function profile(runtime) {
   return { model: MODEL, models: [MODEL], minimumGpuMilli: 500, cardBudgetBytes: CARD_BYTES,
     cards: 1, minimumCpuMilli: 250, guestFloorMiB: 8192, runtime, runtimeId: Buffer.from(runtimeId(runtime)).toString("hex") };
@@ -55,8 +55,8 @@ export async function startBridge({ exe, sha256, vmId, port = 19595 }) {
   } catch (e) { await stop(); throw e; }
 }
 export async function probeWorker(port = 19595) {
-  const c = await shieldedCard({ port, budgetGb: 4 });
-  if (c.vramBudgetGb !== 4) throw new Error("worker must enforce the profile's 4-GiB budget");
+  const c = await shieldedCard({ port, budgetGb: CARD_BYTES / 2 ** 30 });
+  if (c.vramBudgetGb !== CARD_BYTES / 2 ** 30) throw new Error("worker must enforce the profile's 12-GiB budget");
   return c;
 }
 // Both images use the same ownership/inventory. Selection is per request, never

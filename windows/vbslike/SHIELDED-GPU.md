@@ -94,7 +94,8 @@ hold all GPU capacity until reconciled. A manager restart requires controlled
 partition relaunch; recovery does not rebuild live relays. Worker failure
 withdraws the profile on the next health refresh (15 seconds). The node only
 advertises a fresh ready profile, and cannot claim the entire physical 16-GiB
-UMA allocation: the worker pool is 4 GiB.
+UMA allocation. The current worker pool is 12 GiB, leaving 4 GiB outside
+the hosted budget. The initial rollout used a 4-GiB pool.
 
 A real WASI canary generated 16 tokens at 15.69 tok/s (single short warm run).
 The worker confirmed a 4-GiB reservation; full fresh-nonce app/runtime/TLS
@@ -126,3 +127,15 @@ not started.
 The certificate naming patch is preserved from `enclave-m4name` (719133eed);
 its existing production launcher binary is pinned at
 `10547aca82ad48be021828164cd11a649cd324e37932b388449f3f44530929ba`.
+
+## Twelve-GiB pool update, 2026-09-29
+
+The guest, manager profile, and worker now use the same 12-GiB pool. The guest
+derives a 6-GiB reservation for each existing 500-milli app from its measured
+allocation; this is not a dashboard-only capacity override. Shares and deployment
+identities are unchanged, so two half-pool apps still reserve 100% of the pool.
+The guest image was rebuilt deterministically with debug and measurement-mutation
+checks. The prior 4-GiB image and worker/profile configuration are retained for
+rollback. Current pins and production checks are recorded in
+`gpu/hosted-nucbox-12g-20260929.json`; the preceding figures document the initial
+4-GiB release.
