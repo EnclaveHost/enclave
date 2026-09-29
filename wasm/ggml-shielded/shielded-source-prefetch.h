@@ -1,4 +1,5 @@
 #pragma once
+#include "shielded-source-bytes.h"
 
 #ifndef SH_SOURCE_PREFETCH_RESIZE
 #define SH_SOURCE_PREFETCH_RESIZE(v, n) (v).resize(n)
@@ -11,7 +12,7 @@
 // source reader is active. Destruction joins before model cleanup can proceed.
 struct sh_prefetched_source {
     ggml_tensor descriptor = {};
-    std::vector<uint8_t> bytes;
+    sh_source_bytes bytes;
     int status = 0; // 0: allocation unavailable, 1: read complete, -1: read failed
 };
 

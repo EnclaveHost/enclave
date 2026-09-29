@@ -88,7 +88,11 @@ int main(int argc, char **argv) {
         state.release.store(true);
         auto got = prefetch.take(tensors[state.mode == "mismatch" ? 0 : 1]);
         if (state.mode == "mismatch") assert(!got);
-        else assert(got && got->status == 1 && got->bytes == state.values.expected[second_name].bytes);
+        else {
+            const auto &want = state.values.expected[second_name].bytes;
+            assert(got && got->status == 1 && got->bytes.size() == want.size() &&
+                   std::equal(got->bytes.begin(), got->bytes.end(), want.begin()));
+        }
         assert(state.values.calls == 0); // reads alone never count as authentication
         pool.pending.clear();
     } else if (state.mode == "cap") {
@@ -110,7 +114,7 @@ int main(int argc, char **argv) {
             for (auto *w : tensors) {
                 auto &e = s.weights.at(ggml_get_name(w)); assert(e.w.empty() && e.source_verified);
                 int8_t encoded[256]; int fw[8];
-                assert(sh_prepare_rows_threaded(state.values.expected[w->name].bytes.data(), 32, 8, encoded, fw) == 0);
+                assert(sh_prepare_rows_threaded(state.values.expected[w->name].bytes.data(), GGML_TYPE_Q8_0, 32, 8, encoded, fw) == 0);
                 int64_t x[32], y[8];
                 for (int k = 0; k < 32; k++) x[k] = k % 5 - 2;
                 for (int j = 0; j < 8; j++) { y[j] = 0; for (int k = 0; k < 32; k++) y[j] += x[k] * encoded[j * 32 + k]; }
