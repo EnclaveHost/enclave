@@ -57,7 +57,7 @@ struct shield_original_source {
         entry e{}; e.type = type; memcpy(e.ne.data(), ne, sizeof(int64_t)*4); e.offset=offset; e.size=n;
         // Bounded temporary storage, independent of the largest tensor.
         SHA256_CTX hash; SHA256_Init(&hash);
-        std::vector<unsigned char> buf(4u << 20);
+        std::array<unsigned char, 64u << 10> buf;
         for (uint64_t at=0; at<n;) {
             const size_t count = std::min<uint64_t>(buf.size(), n-at);
             if (!read_at(private_fd, buf.data(), count, offset+at)) throw std::runtime_error("private source read");

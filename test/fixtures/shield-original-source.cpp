@@ -1,10 +1,25 @@
 #include "../../wasm/llama-shim/shield-original-source.hpp"
+#include "../../wasm/ggml-shielded/shielded-source-bytes.h"
 #include <cassert>
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <cstdio>
 int main(int argc, char **argv) {
     assert(argc == 2);
+    // Scratch copies move without duplicating their mapping and return every
+    // page to the kernel instead of leaving a large free chunk in malloc.
+    sh_source_bytes scratch(32u << 20, 0x5a);
+    auto *address = scratch.data();
+    sh_source_bytes moved = std::move(scratch);
+    assert(moved.data() == address && moved.front() == 0x5a && moved.back() == 0x5a);
+    sh_source_bytes().swap(moved);
+    unsigned char residency;
+    errno = 0;
+    assert(mincore(address, 4096, &residency) == -1 && errno == ENOMEM);
+    bool overflow = false;
+    try { sh_source_allocator<uint64_t>().allocate(SIZE_MAX); }
+    catch (const std::bad_array_new_length &) { overflow = true; }
+    assert(overflow);
     std::string base = argv[1];
     shield_original_source s;
     s.page = sysconf(_SC_PAGESIZE); s.file_size = s.page*1024;

@@ -1007,7 +1007,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
     }
     if (!hit) {
     const void *source = w->data;
-    std::vector<uint8_t> private_source;
+    sh_source_bytes private_source;
     if (g_weight_verifier) {
         // Hashing the mapping and encoding it afterwards would race hostile
         // page replacements. Copy first; authenticate and encode this copy.
@@ -1074,7 +1074,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
     // Encoding has consumed every authenticated source byte. Release this
     // potentially GiB-sized copy before cache writeback and worker upload;
     // all remaining registration work reads the encoded rows in e.w.
-    std::vector<uint8_t>().swap(private_source);
+    sh_source_bytes().swap(private_source);
     source = nullptr;
     t_encode = profile_registration ? sh_now_ms() : 0;
     }   /* !hit */
