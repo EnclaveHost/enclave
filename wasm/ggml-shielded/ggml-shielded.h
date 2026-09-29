@@ -88,6 +88,9 @@ typedef int (*ggml_shielded_weight_reader)(void *ctx, const char *name,
     uint32_t type, const int64_t ne[4], void *bytes, size_t nbytes);
 GGML_BACKEND_API ggml_backend_buffer_t ggml_backend_shielded_weight_source(
     struct ggml_tensor *tensor, ggml_shielded_weight_reader reader, void *ctx);
+/* Conservative, metadata-only source placement. Embeddings and uncalibrated
+ * CPU weights must remain resident. This does not promise GPU admission. */
+GGML_BACKEND_API bool ggml_backend_shielded_source_candidate(const struct ggml_tensor *tensor);
 /* Cumulative encoded-cache read requests and bytes actually read from storage,
  * including block authentication over-read. Snapshot after prefill and decode
  * to distinguish initial upload from steady inference I/O. */

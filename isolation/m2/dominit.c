@@ -400,6 +400,17 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
     if (pid == 0) {
         if (fd3 == 3) fcntl(3, F_SETFD, 0);                      /* already fd 3: only drop CLOEXEC */
         else if (fd3 >= 0 && dup2(fd3, 3) < 0) _exit(127);       /* dup2 leaves the new fd 3 without CLOEXEC */
+        const int reclaim_sources = shield_on && shield_large && drop &&
+            access("/rt/shield-original-source-reclaim.enabled", R_OK) == 0;
+        if (reclaim_sources) {
+            /* Narrow native-loader capabilities, opened BEFORE dropping uid.
+             * Do not make the model device writable or relax filesystem access.
+             * WASI does not inherit native descriptor numbers as WASI handles. */
+            int model = open("/models/qwen3.8-27b-mtp-q4-vl-gguf/model.gguf", O_RDWR | O_CLOEXEC);
+            int backing = open("/dev/vda", O_RDONLY | O_CLOEXEC);
+            if (model < 0 || backing < 0 || dup2(model, 198) < 0 || dup2(backing, 199) < 0) _exit(125);
+            close(model); close(backing);
+        }
         int con = 1;
         if (quiet) {
             con = fcntl(1, F_DUPFD_CLOEXEC, 10);
@@ -431,7 +442,7 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
                 _exit(125);
             }
         }
-        char *envp[64] = {"HOME=/tmp", "PATH=/rt"};
+        char *envp[80] = {"HOME=/tmp", "PATH=/rt"};
         int ei = 2;
         /* Protocol credential, not a security boundary: one app owns this guest.
          * Policy is enforced by the measured front, CID admission and host IP checks. */
@@ -488,6 +499,10 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             }
             envp[ei++] = "SHIELDED_MAX_M=64";
             envp[ei++] = "SHIELDED_SHM_STREAM_LOAD=1";
+            if (reclaim_sources) {
+                envp[ei++] = "ENCLAVE_SHIELD_ORIGINAL_SOURCE=fd:199";
+                envp[ei++] = "ENCLAVE_SHIELD_PRIVATE_SOURCE=fd:198";
+            }
             envp[ei++] = "SHIELDED_SPLIT_COLS=1";
             envp[ei++] = "SHIELDED_OVERLAP_VERIFY=1";
             envp[ei++] = "SHIELDED_WEIGHT_BUDGET_FRAC=0.95";

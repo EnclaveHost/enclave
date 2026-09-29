@@ -846,6 +846,21 @@ static const sh_calib_site *sh_site_for(sh_state &s, const char *name) {
     return it == s.calib.end() ? nullptr : &it->second;
 }
 
+bool ggml_backend_shielded_source_candidate(const ggml_tensor *w) {
+    if (!w || w->view_src || !ggml_is_contiguous(w) || w->ne[2] != 1 || w->ne[3] != 1 ||
+        w->ne[0] <= 0 || w->ne[1] <= 0 || !sh_source_type_ok(w->type) ||
+        !sh_source_geometry_ok(w->type, w->ne[0]) || w->ne[0] % SH_QK ||
+        !sh_layout_fits(w->ne[0], w->ne[1], sh_max_m()) ||
+        w->ne[0] * w->ne[1] < sh_min_macs()) return false;
+    // Never make a token-indexed embedding lookup an observable storage read.
+    const char *name = ggml_get_name(w);
+    if (strncmp(name, "blk.", 4) || strstr(name, "token_embd")) return false;
+    sh_pool &p = sh_pool_get();
+    std::lock_guard<std::mutex> lk(p.mu);
+    sh_pool_init(p);
+    return !p.invalid && sh_site_for(*p.cards[0], name);
+}
+
 /* --------------------------------------------------------------------------
  * Weight registration: from ggml's rows into THE encoding, one row per output,
  * which is also what the worker wants. No transpose anywhere. A q8_0 source
@@ -2992,7 +3007,12 @@ static const struct ggml_backend_reg_i ggml_backend_shielded_reg_i = {
     /* .get_name         = */ sh_reg_get_name,
     /* .get_device_count = */ sh_reg_get_device_count,
     /* .get_device       = */ sh_reg_get_device,
-    /* .get_proc_address = */ NULL,
+    /* .get_proc_address = */ [](ggml_backend_reg_t, const char *name) -> void * {
+        if (!strcmp(name, "ggml_backend_shielded_set_weight_verifier")) return (void *)ggml_backend_shielded_set_weight_verifier;
+        if (!strcmp(name, "ggml_backend_shielded_weight_source")) return (void *)ggml_backend_shielded_weight_source;
+        if (!strcmp(name, "ggml_backend_shielded_source_candidate")) return (void *)ggml_backend_shielded_source_candidate;
+        return nullptr;
+    },
 };
 
 ggml_backend_reg_t ggml_backend_shielded_reg(void) {

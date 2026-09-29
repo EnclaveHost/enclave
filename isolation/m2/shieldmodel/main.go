@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"syscall"
 	"time"
 )
 
@@ -18,7 +19,25 @@ func main() {
 }
 func load() error {
 	const dir = "/models/qwen3.8-27b-mtp-q4-vl-gguf/"
-	if err := copyVerified("/dev/vda", dir+"model.gguf", 17559178144, "3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e"); err != nil {
+	dest := dir + "model.gguf"
+	if _, err := os.Stat("/rt/shield-original-source-reclaim.enabled"); err == nil {
+		// initramfs may be ramfs, which cannot punch holes. An explicit PRIVATE
+		// tmpfs gives the native loader reclaimable pages without host mappings.
+		private := dir + "private"
+		if err := os.Mkdir(private, 0755); err != nil {
+			return err
+		}
+		if err := syscall.Mount("tmpfs", private, "tmpfs", syscall.MS_NODEV|syscall.MS_NOSUID, "size=18g,mode=0755"); err != nil {
+			return err
+		}
+		dest = private + "/model.gguf"
+		if err := os.Symlink("private/model.gguf", dir+"model.gguf"); err != nil {
+			return err
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	if err := copyVerified("/dev/vda", dest, 17559178144, "3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e"); err != nil {
 		return err
 	}
 	// Preserve the published model's filename for existing app configurations.
