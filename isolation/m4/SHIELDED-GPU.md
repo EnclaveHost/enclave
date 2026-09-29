@@ -90,6 +90,16 @@ connection, stopping the app or shutting down the broker releases the connection
 and its worker allocations. Guest/worker restarts still require a fresh load.
 Bridge users that do not opt into residency retain their existing idle timeout.
 
+The measured front also honors the authenticated owner config's `warmup` path.
+Once the app's loopback port listens, it makes one background GET inside the
+guest. Eyesoff's existing `"warmup": "/warmup"` therefore loads its model and
+prepares its default prompt prefix at boot, without a browser visit. Readiness
+still means the HTTP port accepts connections, not that model loading finished.
+The hook is optional, accepts only a bounded local path, never follows redirects,
+and has a fifteen-minute deadline and a one-MiB response limit. Only fixed outcome
+classes are logged; configuration URLs and response bodies stay inside the guest.
+Loading failure leaves the app available to report/retry the failure normally.
+
 Benchmark release IDs and results are recorded in [the production rollout evidence](evidence/shield-27b-production-2026-09-27/README.md). Historical
 native-process 24.51 tok/s is not a claim for this per-app SNP runtime.
 The affinity follow-up uses a measured OpenMP helper with the existing AVX2
