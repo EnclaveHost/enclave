@@ -318,8 +318,21 @@ export function releaseStatus(u, req, res, ctx, { bad, rate }) {
 // runtimeId) PAIR of one image, with appId equal. Never waits long for a cold prediction: 503 warming, Retry-After.
 const EXPECTED_WAIT_MS = 3_000;
 export async function expectedGuest(u, req, res, ctx, { bad, rate }) {
+  return predictPublicGuest(u, req, res, ctx, { bad, rate }, false);
+}
+
+// Preparation is deliberately a different endpoint from the live trust root.
+// It warms the published next version in the SAME predictor/cache used by
+// release and certificates, without changing the ledger or authorizing it to
+// serve. Both consumers still consult the actual confirmed deployment row.
+export async function prepareGuestUpdate(u, req, res, ctx, { bad, rate }) {
+  return predictPublicGuest(u, req, res, ctx, { bad, rate }, true);
+}
+
+async function predictPublicGuest(u, req, res, ctx, { bad, rate }, preparation) {
   if (!rate(`expected:${ctx.clientIp(req)}`)) return bad(429, "rate_limited", "Too many expected-guest requests; retry shortly.");
   const missing = [typeof ctx.expectedGuestFor !== "function" && "the measurement predictor", typeof ctx.confirmRow !== "function" && "the confirmed ledger read",
+                   preparation && typeof ctx.prepareGuestFor !== "function" && "update preparation",
                    ...(typeof ctx.predictorProblems === "function" ? ctx.predictorProblems() : [])].filter(Boolean);
   if (missing.length) return bad(503, "prediction_unconfigured", "Guest prediction is not configured on this relay.");
   const id = String(u.searchParams.get("id") || "").toLowerCase();
@@ -333,8 +346,34 @@ export async function expectedGuest(u, req, res, ctx, { bad, rate }) {
   if (row.isPublic === false) return bad(403, "not_public", "Only a public deployment's expected guest is published here.");
   if (/^0x0*$/.test(String(row.runner || "")) || !(Number(row.leaseUntil) * 1000 > Date.now()))
     return bad(409, "not_leased", "The deployment holds no live lease, so no guest of it is expected now.");
+  const deployedCatalogRef = String(row.appRef || "").toLowerCase();
+  let preparedRef;
+  if (preparation) {
+    const ref = String(u.searchParams.get("appRef") || "").toLowerCase();
+    const pattern = /^catalog:\/\/(0x[0-9a-f]{64})\/(0|[1-9][0-9]{0,9})$/;
+    const current = pattern.exec(deployedCatalogRef), next = pattern.exec(ref);
+    if (!current || !next || current[1] !== next[1]
+        || Number(next[2]) < Number(current[2]) || Number(next[2]) > Number(current[2]) + 1)
+      return bad(422, "bad_update_ref", "Prepare the current or next version of this same catalog app.");
+    preparedRef = ref;
+    if (typeof res.setHeader === "function") res.setHeader("Cache-Control", "no-store");
+  }
   let p;
-  try { p = await timedStep("expected-guest", id, "the prediction", () => ctx.expectedGuestFor(row, { forPrivate: false, waitMs: EXPECTED_WAIT_MS, set: "cert" })); }
+  try {
+    p = await timedStep("expected-guest", id, "the prediction", async () => {
+      const options = { forPrivate: false, waitMs: EXPECTED_WAIT_MS, set: "cert" };
+      const cert = preparation ? ctx.prepareGuestFor(row, preparedRef, options) : ctx.expectedGuestFor(row, options);
+      if (!preparation) return cert;
+      // The two sets may have different cache keys. Ready means BOTH gates
+      // are warm, not merely the public certificate expectation.
+      const [c, r] = await Promise.all([cert,
+        ctx.prepareGuestFor(row, preparedRef, { ...options, set: "release" })]);
+      if (!r || r.ok !== true || !Array.isArray(r.images) || !r.images.length) return r;
+      if (c?.ok === true && c.appId !== r.appId)
+        return { ok: false, code: "prediction_failed", reason: "Release and certificate predictions disagree." };
+      return c;
+    });
+  }
   catch (e) { p = { ok: false, code: "prediction_failed", reason: e.message }; }
   if (!p || p.ok !== true || !Array.isArray(p.images) || !p.images.length) {
     const code = (p && p.ok === false && p.code) || "prediction_unavailable";
@@ -348,7 +387,8 @@ export async function expectedGuest(u, req, res, ctx, { bad, rate }) {
     return bad(status, error, message);
   }
   const releaseSet = new Set((typeof ctx.predictorSets === "function" && ctx.predictorSets().release) || []);
-  ctx.json(res, 200, { id, catalogRef: String(row.appRef || "").toLowerCase(), appId: p.appId,
+  ctx.json(res, 200, { ...(preparation ? { preparationOnly: true, deployedCatalogRef } : {}),
+    id, catalogRef: preparedRef || deployedCatalogRef, appId: p.appId,
     images: p.images.map((i) => ({ release: i.release, runtimeId: i.runtimeId, measurement: i.measurement, releaseAdmitted: releaseSet.has(i.release) })) }, req);
 }
 

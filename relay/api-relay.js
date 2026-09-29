@@ -104,7 +104,8 @@ import { pvmCpuPolicyFromEnv, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
 import { VBS_DEFAULT_EK_ROOTS } from "./vbs-policy.mjs";
 import { createPadsLedger, createPrefixStore, createShipmentStore, padsRouter } from "./pads.mjs";
 import { dataDir } from "./store.js";
-import { expectedGuest, prewarmReleasePredictions } from "./secrets-release.mjs";
+import { expectedGuest, prepareGuestUpdate, prewarmReleasePredictions } from "./secrets-release.mjs";
+import { expectedForRow, prepareForRow } from "./guest-prediction-row.mjs";
 import { boxOrigin, boxLabelOfHost } from "./boxhost.js";
 installProcessGuards("api-relay");
 
@@ -2381,33 +2382,18 @@ async function confirmRow(id) {
 }
 let _predictor = null;
 const predictor = () => _predictor || (_predictor = makePredictor({ ...predictorEnv(), readCatalog: catalogReader(catalogClients, catalogAddress) }));
-const expectedGuestFor = async (row, o) => {
-  // The chain allocation and routing manifest choose the measured profile,
-  // never the manager or the guest being verified.
-  const confirmed = await confirmRow(row.id);
-  if (confirmed.appRef !== row.appRef || confirmed.configCid !== row.configCid)
-    return {ok:false,code:"deployment_changed",reason:"deployment changed during prediction"};
-  const gpuMilli=Number(confirmed.gpuMilli);
-  if (!Number.isInteger(gpuMilli) || gpuMilli < 0 || gpuMilli > 1000)
-    return {ok:false,code:"unsupported_inference",reason:"invalid confirmed GPU allocation"};
-  let inference=null;
-  if (gpuMilli>0) {
-    const envelope=confirmed.configCid ? JSON.parse(confirmed.configCid) : {};
-    let config;
-    if (Object.hasOwn(envelope,"config") || Object.hasOwn(envelope,"configCid")) config=envelope.config || {};
-    else { const version=await versionConfigFor(confirmed.id); config=JSON.parse(version?.config || "{}"); }
-    const vols=config?.volumes;
-    if (!Number.isInteger(gpuMilli) || gpuMilli<65 || gpuMilli>1000 || !Array.isArray(vols) || vols.length!==1 || !["qwen2.5-0.5b-q8-gguf","qwen3.8-27b-mtp-q4-vl-gguf"].includes(vols[0]) || (vols?.[0]==="qwen3.8-27b-mtp-q4-vl-gguf" && gpuMilli<500))
-      return {ok:false,code:"unsupported_inference",reason:"unsupported isolated model or GPU allocation"};
-    inference={model:vols[0],gpuMilli};
-  }
-  return predictor().expectedFor(confirmed.appRef,{...o,inference});
-};
+const predictionRowDeps = { confirmRow, readVersionConfig: versionConfigAt,
+  predict: (ref, options) => predictor().expectedFor(ref, options) };
+const expectedGuestFor = (row, o) => expectedForRow(row, o, predictionRowDeps);
+const prepareGuestFor = (row, ref, o) => prepareForRow(row, ref, o, predictionRowDeps);
 // the catalog VERSION's { config, configCid } for the deployment's CONFIRMED appRef, through the same agreeing RPCs
 const _versionConfig = { read: null };
 async function versionConfigFor(id) {
   const row = await confirmRow(id);
-  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(String(row.appRef || ""));
+  return versionConfigAt(row.appRef);
+}
+async function versionConfigAt(ref) {
+  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(String(ref || ""));
   if (!m) return null;
   _versionConfig.read ||= versionConfigReader(catalogClients, catalogAddress);
   return _versionConfig.read(m[1].toLowerCase(), Number(m[2]));
@@ -2461,7 +2447,7 @@ const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostE
                    // (B) does this endpoint id's live row serve this ledger deployment NOW (hv-node owner-only: served owner,
                    // this row's live lease, isolation.require = hyperv-partition-per-app)? certs.js 6b and secrets.js has-secrets
                    ownerServesDeployment: (epId, d) => servesDeploymentUntil(live.find((x) => x.id && String(x.id).toLowerCase() === String(epId || "").toLowerCase()), d) > 0,
-                   expectedGuestFor, predictorProblems, predictorSets, runtimeIdOf, confirmRow, verifyGuestEvidence, prewarmCollateral, versionConfigFor, resolveConfigCid,
+                   expectedGuestFor, prepareGuestFor, predictorProblems, predictorSets, runtimeIdOf, confirmRow, verifyGuestEvidence, prewarmCollateral, versionConfigFor, resolveConfigCid,
                    deploymentsAddress: () => DEPLOYMENTS_ADDRESS,
                    // billing.js quotes at the fleet's cheapest posted price
                    // (rev-8 ledgers carry none of their own)
@@ -2680,9 +2666,10 @@ function handleRequest(req, res) {
   // block that).
   // the guest a deployment must run, PREDICTED by this relay (secrets-release.mjs expectedGuest): the per-app certificate
   // gate's independent trust root. Public, GET only, and independent of the secrets store and the release switch.
-  if (u.pathname === "/v1/expected-guest") {
+  if (u.pathname === "/v1/expected-guest" || u.pathname === "/v1/prepare-guest-update") {
     if (req.method !== "GET") return json(res, 405, { error: "method_not_allowed", message: "GET only." }, req);
-    return expectedGuest(u, req, res, relayCtx, { bad: (code, error, message) => json(res, code, { error, message }, req),
+    const handler = u.pathname === "/v1/prepare-guest-update" ? prepareGuestUpdate : expectedGuest;
+    return handler(u, req, res, relayCtx, { bad: (code, error, message) => json(res, code, { error, message }, req),
       rate: (k) => rlExpected(k) }).catch((e) => json(res, 500, { error: "expected_guest_error", message: e.message }, req));
   }
   if (u.pathname === "/v1/secrets" || u.pathname.startsWith("/v1/secrets/"))

@@ -695,6 +695,47 @@ test("GET /v1/expected-guest: the confirmed record's PREDICTED guest over the in
   } finally { process.env.SECRETS_ATTESTED_RELEASE = saved; rows = [leaseRow(A)]; }
 });
 
+test("update preparation warms both gates without changing the live expectation", async () => {
+  rows = [leaseRow(A)];
+  const candidate = REF.replace(/\/3$/, "/4"), asked = [];
+  const prepared = { ...predicted, appId: "ab".repeat(32) };
+  const call = async (ref, over = {}, live = false) => {
+    const res = { headers: {}, setHeader(k, v) { this.headers[k] = v; } };
+    const handler = live ? R.expectedGuest : R.prepareGuestUpdate;
+    await handler(new URL(`http://x/v1/${live ? "expected-guest" : "prepare-guest-update"}?id=${A}&appRef=${encodeURIComponent(ref)}`), {}, res,
+      { ...ctx, prepareGuestFor: async (row, ref, options) => { asked.push({ row: { ...row }, ref, options }); return prepared; }, ...over },
+      { bad: (code, error, message) => ctx.json(res, code, { error, message }), rate: () => true });
+    return res;
+  };
+  const ready = await call(candidate);
+  assert.equal(ready.code, 200);
+  assert.equal(ready.body.preparationOnly, true);
+  assert.equal(ready.body.deployedCatalogRef, REF);
+  assert.equal(ready.body.catalogRef, candidate);
+  assert.equal(ready.headers["Cache-Control"], "no-store");
+  assert.deepEqual(asked.map(v => v.options.set).sort(), ["cert", "release"]);
+  assert.ok(asked.every(v => v.row.appRef === REF && v.ref === candidate && v.options.forPrivate === false));
+  assert.equal(rows[0].appRef, REF);
+  const live = await call(candidate, {}, true);
+  assert.equal(live.body.catalogRef, REF);
+  assert.equal(live.body.appId, predicted.appId);
+  assert.equal(live.body.preparationOnly, undefined);
+  assert.equal(asked.length, 2, "the live endpoint ignores candidate query parameters");
+  const cold = await call(candidate, { prepareGuestFor: async (_, __, o) => o.set === "release"
+    ? { ok: false, code: "warming", reason: "cold release cache" } : prepared });
+  assert.equal(cold.code, 503);
+  assert.equal(cold.body.error, "warming");
+  const yanked = await call(candidate, { prepareGuestFor: async () => ({ ok: false, code: "version_not_admitted", reason: "yanked" }) });
+  assert.equal(yanked.code, 403);
+  const mismatch = await call(candidate, { prepareGuestFor: async (_, __, o) => o.set === "release" ? predicted : prepared });
+  assert.equal(mismatch.code, 503);
+  for (const ref of [REF.replace(/\/3$/, "/2"), REF.replace(/\/3$/, "/5"), "catalog://0x" + "09".repeat(32) + "/4"])
+    assert.equal((await call(ref)).code, 422);
+  rows = [leaseRow(A, { isPublic: false })];
+  assert.equal((await call(candidate)).code, 403);
+  rows = [leaseRow(A)];
+});
+
 test("rate keys: a ticket request by client IP; a release by its ticket's ENDPOINT (many guests behind one host address); an unknown ticket by IP", async () => {
   rows = [leaseRow(A)]; ineligible = false; chips = [S.chip.toString("hex")];
   const keys = [], rate = (k) => { keys.push(k); return true; };
