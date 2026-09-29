@@ -105,3 +105,8 @@ c-fleet-list{display:contents;}
    already uses for capacity you are getting; keeping the TEE card green and the
    outside card blue means the distinction reads before the words do.
    A shielded pool posts its own ask like any other, in the same price slot. */
+
+/* Owner-authorized hosting is live inventory, not rental capacity. */
+.fleet-owner-row .fleet-head{flex-wrap:wrap;}
+.fleet-owner-status{color:var(--text);}
+.fleet-owner-note{font-size:.68rem;line-height:1.6;color:var(--text-dim);}

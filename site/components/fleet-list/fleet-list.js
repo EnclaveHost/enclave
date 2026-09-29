@@ -13,7 +13,7 @@ import { hrevConfigured, hrevTallies, hrevMine, encCall, HREV_SEL, waitReceipt, 
 import { HOST_REVIEWS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
-import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedPoolOf, teeCpuOf, computeEligibleOf, appHostVisible } from "../../js/core/pricing.js";
+import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedPoolOf, teeCpuOf, computeEligibleOf, appHostVisible, ownerHostedDeploymentCount } from "../../js/core/pricing.js";
 import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
 
@@ -25,21 +25,10 @@ class FleetList extends EnclaveElement {
 
   renderedCallback() {
     const list = this.querySelector(".fleet-list"); if (!list) return;
-    // THIS IS A PUBLIC INVENTORY OF APP HOSTS, so a row appears only when the relay's own
-    // current verdict says a deployment can land on it: serving AND eligible AND not stale
-    // (appHostVisible). Everything else is left out rather than explained.
-    //
-    // It used to carry two exceptions and both were wrong on this page. A relay-only row was
-    // rendered as "carries traffic", which sells nothing. And a consumer node was kept even at
-    // serving:false, with e.ineligible printed underneath - so for a day and a half the public
-    // list headed "what can I deploy on right now" showed a PC whose operator key had run out of
-    // gas, with a paragraph of security caveats where its capacity should be. Attached, honest,
-    // and not something anyone could buy.
-    //
-    // None of that evidence is lost: /enclaves carries status, eligible, ineligible and
-    // notClaiming for operators and for host management, and the architecture page says in prose
-    // what the consumer tier does and does not prove. It is just not a row in a sales list.
+    // Marketplace capacity keeps its eligibility gate. Active owner-only hosts
+    // get a separate status row, with no rental prices or available-capacity meters.
     const rows = (this.rows || []).filter((e) => appHostVisible(e));
+    const ownerRows = (this.rows || []).map(e => ({ row: e, count: ownerHostedDeploymentCount(e) })).filter(e => e.count > 0);
     const meter = (pct) => '<i class="fleet-meter" aria-hidden="true"><b style="width:' + Math.max(0, Math.min(100, pct)) + '%"></b></i>';
     // one stat cell: bright available amount, then the "≈"/"/ total" context and
     // the label in dim ink so the number is what the eye lands on
@@ -69,10 +58,10 @@ class FleetList extends EnclaveElement {
     // A FAILED read is not an empty fleet: say it failed (retrying) rather than "no hosts",
     // and under last-good rows say how old they are.
     const failed = this.error ? String(this.error) : "";
-    const staleNote = failed && rows.length
+    const staleNote = failed && (rows.length || ownerRows.length)
       ? '<div class="fleet-stale" role="status">Showing hosts as of ' + esc(asOf(this.staleAt)) + ': the latest read failed (' + esc(failed) + '). Retrying.</div>'
       : "";
-    list.innerHTML = (!rows.length
+    list.innerHTML = (!rows.length && !ownerRows.length
       ? (failed
         ? '<div class="fleet-empty fleet-error" role="alert">Couldn’t load the app hosts: ' + esc(failed) + '. This is a failed read, not an empty fleet. Retrying.</div>'
         // Honest and short. It is said the same way whether the fleet is empty or every attached
@@ -275,6 +264,13 @@ class FleetList extends EnclaveElement {
             + '<div class="fleet-rateform" data-form="' + esc(e.id || "") + '" hidden></div>'
             + '</div>';
         }).join(""));
+    list.innerHTML += ownerRows.map(({ row: e, count }) => {
+      const name = e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "host";
+      return '<div class="fleet-row fleet-owner-row">'
+        + '<span class="fleet-head"><span class="fleet-name">' + esc(name) + '</span><span class="ap-badge info">Owner-only</span></span>'
+        + '<span class="fleet-owner-status">' + count + ' active deployment' + (count === 1 ? '' : 's') + '</span>'
+        + '<span class="fleet-owner-note">Hosting for authorized owners. Unavailable for general deployments.</span></div>';
+    }).join("");
     this._wireRate();
     // footer row: a manual refresh (dispatches `refresh`; the HOST owns the
     // fetch and re-assigns .rows, which re-renders and re-arms the button) +

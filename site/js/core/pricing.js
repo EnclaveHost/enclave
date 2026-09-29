@@ -447,6 +447,19 @@ export function appHostVisible(row, nowSec){
   return true;
 }
 
+// Display-only inventory of owner-authorized work. This never grants marketplace
+// eligibility or adds capacity to pricing/placement. Leases come from the relay.
+export function ownerHostedDeploymentCount(row, nowSec){
+  if (!row || row.relay === true || row.mode !== "hv-node" || row.ownerOnly !== true
+      || row.eligible !== false || row.availability?.ok === false) return 0;
+  const now = Number.isFinite(nowSec) ? nowSec : Math.floor(Date.now() / 1000);
+  const seen = Number(row.lastSeen);
+  if (!Number.isFinite(seen) || seen <= 0 || now - seen > HOST_STALE_AFTER_SEC) return 0;
+  const deps = Array.isArray(row.servesDeployments) ? row.servesDeployments : [];
+  return new Set(deps.filter(d => /^0x[0-9a-f]{64}$/.test(d?.id || "")
+    && Number.isFinite(Number(d.until)) && Number(d.until) > now).map(d => d.id)).size;
+}
+
 // The VRAM a shielded card actually sells: the worker's budget, not the physical
 // total. The untrusted host keeps the rest (on a desktop, an X server), and
 // quoting the physical number would advertise capacity no tenant can have.
