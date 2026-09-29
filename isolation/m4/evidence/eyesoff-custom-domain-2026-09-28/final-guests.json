@@ -1,0 +1,65 @@
+{
+  "at": "2026-09-29T03:00:01.347361+00:00",
+  "vms": [
+    {
+      "id": "gd5eff8cbc",
+      "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "status": "running",
+      "measurement": "4a8b9d8452a9c5f656062043c91862156bfef5c825eaee09b85aa874857e66917a94982ce3bdc2e409f3855be6f7a672",
+      "reserved": {
+        "memMiB": 1792,
+        "cpuPct": 100
+      }
+    },
+    {
+      "id": "gd848555a5",
+      "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "status": "running",
+      "measurement": "bf42c4f2e35b839e49160ee9cbd8a951bc424814b7cc4fcd53d2807e2e812217be793cf1bbff8f10c4f9ec6be28b24f5",
+      "reserved": {
+        "memMiB": 2176,
+        "cpuPct": 100
+      }
+    },
+    {
+      "id": "gd87cd5193",
+      "name": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "status": "running",
+      "measurement": "222d691e14f38742f8966a8512c0d9fe3a7805a53e6f3e3ec98c6c4bf5211b3ac9bc9e8102aae4dcf4ca376ad3491467",
+      "reserved": {
+        "memMiB": 1792,
+        "cpuPct": 100
+      }
+    },
+    {
+      "id": "gd9592fea9",
+      "name": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "status": "running",
+      "measurement": "9e7c4d8f1ef55543250106ebfec84eff497d750de8692bd3e6ce4a96ddf5b73790911fad2b5c78f275ea0f24dfaa2985",
+      "reserved": {
+        "memMiB": 4224,
+        "cpuPct": 100
+      }
+    },
+    {
+      "id": "gd97c11271",
+      "name": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "status": "running",
+      "measurement": "8489060385f3e83eeaff6eded39d8baab9d6fd42c05338dad057b50fbec42291c2a14204cd6dc767d39591ad06b09209",
+      "reserved": {
+        "memMiB": 62208,
+        "cpuPct": 1600
+      }
+    },
+    {
+      "id": "gdc001cf7c",
+      "name": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "status": "running",
+      "measurement": "c4393fede5b6344e5b6b5a8dd15809f14374ccc8e11ca27d474a62a77a18e8cc4ea33dc9490eee9c33ad8cb72afbeae4",
+      "reserved": {
+        "memMiB": 1792,
+        "cpuPct": 100
+      }
+    }
+  ]
+}
