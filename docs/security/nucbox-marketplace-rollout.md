@@ -65,3 +65,11 @@ or undeclared runtime capabilities are admitted. CPU components with no app
 configuration and the measured Qwen 0.5B masked-inference profile are supported.
 The hypervisor and physical operator remain trusted; this is not SNP/TDX operator
 exclusion. The LiveKD failures above remain inconclusive, not security passes.
+
+Live verification-only rollout: both CPU deployments and both masked GPU test
+deployments pass independent catalog derivation and the full report/key policy.
+Pending catalog versions retain the existing owner/delegated-owner testing
+exception; they are not approved for other customers. Rejected/yanked versions
+are always refused. A transfer or delegation expiry revokes that exception.
+Background evidence attempts are spaced by one minute per app, including
+failures, to avoid retry bursts against independent RPC providers.
