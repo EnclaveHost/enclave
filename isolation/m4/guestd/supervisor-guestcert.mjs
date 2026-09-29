@@ -189,7 +189,7 @@ export function expectedGuestFetcher({ base, fetchImpl = globalThis.fetch, timeo
 //                                  and meet the prediction. Default true; only a NucBox (T0-hv) box passes false.
 export async function ensureGuestCert({ transport, dataAddr, instanceId, expectAppId, deploymentId, name, judge,
                                         judgeOk = ["attested", "no-tcb-policy"], judgeMode = "trusted", issue, expected,
-                                        requirePrediction = true,
+                                        requirePrediction = true, customName = false,
                                         minTcb, reuse = true, timeoutMs = 20_000,
                                         _deps: { routeFor: rf = routeFor, servedReusable: sr = servedReusable, exchange: ex = exchange } = {} }) {
   const route = await rf(transport, instanceId, expectAppId, { timeoutMs });
@@ -226,7 +226,7 @@ export async function ensureGuestCert({ transport, dataAddr, instanceId, expectA
     if (!paired.ok) throw new Error(`${paired.why}; nothing issued`);
   }
   // 4. its CSR, for exactly its key
-  const c = await ex(dataAddr, route, name, "GET", "/.well-known/enclave-csr", null, timeoutMs);
+  const c = await ex(dataAddr, route, name, "GET", "/.well-known/enclave-csr" + (customName ? "?name=" + encodeURIComponent(name) : ""), null, timeoutMs);
   if (c.status !== 200) throw new Error(`the guest produced no CSR (HTTP ${c.status}: ${c.body.toString().slice(0, 120)})`);
   const csrPem = c.body.toString();
   if (sha(csrSpki(csrPem)) !== route.key) throw new Error("the CSR is not for the guest's verified key; nothing issued");
@@ -235,7 +235,7 @@ export async function ensureGuestCert({ transport, dataAddr, instanceId, expectA
   if (sha(leaf.publicKey.export({ type: "spki", format: "der" })) !== route.key)
     throw new Error("the issued certificate is not for the guest's key; not installed");
   if (!leaf.checkHost(name)) throw new Error(`the issued certificate is not for ${name}; not installed`);
-  const i = await ex(dataAddr, route, name, "POST", "/.well-known/enclave-cert", chain, timeoutMs);
+  const i = await ex(dataAddr, route, name, "POST", "/.well-known/enclave-cert" + (customName ? "?name=" + encodeURIComponent(name) : ""), chain, timeoutMs);
   if (i.status !== 200) throw new Error(`the guest refused the certificate (HTTP ${i.status}: ${i.body.toString().slice(0, 160)})`);
   return { instanceId: route.id, key: route.key, name, serial: leaf.serialNumber, issuer: leaf.issuer.replace(/\n/g, ", "),
            ...renewAtOf(leaf), verdict: v.verdict, ...(image ? { release: image.release ?? null } : {}),

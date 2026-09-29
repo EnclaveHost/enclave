@@ -14,7 +14,9 @@ compressed=(base/'initramfs.cpio.gz').read_bytes()
 if sha(compressed)!=m['initramfs']['sha256']:raise SystemExit('base initramfs hash mismatch')
 if sha((base/'vmlinuz').read_bytes())!=m['kernel']['sha256']:raise SystemExit('base kernel hash mismatch')
 commit=subprocess.check_output(['git','rev-parse',commit+'^{commit}'],cwd=repo,text=True).strip()
-paths={'app/supervisor.js':'supervisor.js','opt/metal/gsup.mjs':'metal/guest/gsup.mjs'}
+paths={'app/supervisor.js':'supervisor.js','opt/metal/gsup.mjs':'metal/guest/gsup.mjs',
+ 'app/isolation/m4/guestd/supervisor-splice.mjs':'isolation/m4/guestd/supervisor-splice.mjs',
+ 'app/isolation/m4/guestd/supervisor-guestcert.mjs':'isolation/m4/guestd/supervisor-guestcert.mjs'}
 replacements={k:subprocess.check_output(['git','show',commit+':'+v],cwd=repo) for k,v in paths.items()}
 m.pop('expectedMeasurement',None);m.pop('initramfs',None)
 m['controlOverlay']={'baseInitramfsSha256':sha(compressed),'commit':commit,'builder':'metal/overlay-control-image.py','files':[{'path':'/'+k,'sha256':sha(v)} for k,v in replacements.items()]}

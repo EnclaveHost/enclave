@@ -8447,6 +8447,7 @@ async function isolationHttps(req, socket, head, rec, deny) {
   try { [mod, transport] = await Promise.all([isolationSplice(), guestdTransport()]); }
   catch (e) { console.warn(`[isolation] ${rec.id.slice(0, 10)}: no splice (${e.message})`); return deny("503 Service Unavailable"); }
   const o = await mod.handleIsolationHttps({ wss, req, socket, head, expectName: appCertName(rec.id),
+    allowedNames: _depDomains.get(String(rec.id).toLowerCase()) || [],
     instanceId: rec._vmId, expectAppId: rec._vmAppId, transport, dataAddr: GUESTD_DATA_ADDR });
   const key = `${o.outcome}:${o.kind || o.why}`;
   isolationSpliceCounts.set(key, (isolationSpliceCounts.get(key) || 0) + 1);
@@ -8649,29 +8650,35 @@ async function guestCertPassOnce() {
   } catch (e) { console.warn(`[isolation] guest certificates unavailable: ${e.message}`); return; }
   for (const rec of deployments.values()) {
     if (rec.status !== "running" || !rec._vmId || !rec.public) continue;
-    const st = _guestCerts.get(rec.id);
-    if (guestCertSkip(st, rec._vmId, Date.now())) continue;   // this instance's back-off, or its certificate is fresh
-    const name = appCertName(rec.id);
-    try {
-      const got = await mod.ensureGuestCert({ transport, dataAddr: GUESTD_DATA_ADDR, instanceId: rec._vmId,
-        expectAppId: rec._vmAppId, deploymentId: rec.id, name, judge: judgeMod.judge, judgeMode: _guestCertJudgeMode,
-        expected: _expectedGuest || (_expectedGuest = mod.expectedGuestFetcher({ base: SECRETS_API })),
-        requirePrediction: ISOLATION_BACKEND === "snp-guest-per-app",   // the MEASURED cmdline's tier, never guestd's word
-        judgeOk: _guestCertJudgeMode !== "trusted" ? ["attested", "no-tcb-policy", "unauthenticated"]
-          : ISOLATION_MIN_TCB !== undefined ? ["attested"] : ["attested", "no-tcb-policy"],
-        minTcb: ISOLATION_MIN_TCB, issue: issueGuestCsr });
-      _guestCerts.set(rec.id, got);
-      console.log(got.reused
-        ? `[isolation] ${rec.id.slice(0, 10)}: guest ${got.instanceId} already serves a valid certificate for ${name} on its `
-          + `key ${got.key.slice(0, 16)}… (serial ${got.serial}, ${got.issuer.slice(0, 60)}, until ${new Date(got.notAfter).toISOString()}); `
-          + `nothing issued until ${new Date(got.renewAt).toISOString()}`
-        : `[isolation] ${rec.id.slice(0, 10)}: certificate for ${name} installed in guest ${got.instanceId} `
-          + `(key ${got.key.slice(0, 16)}…, ${got.issuer.slice(0, 60)}, until ${new Date(got.notAfter).toISOString()}; guest ${got.verdict}`
-          + `${got.wxCoverage === "runtime-unmeasured" ? `; runtime W^X UNMEASURED: legacy release ${String(got.release).slice(0, 8)}` : ""})`);
-    } catch (e) {
-      const { wait, entry } = guestCertFailure(st, rec._vmId, e, Date.now());
-      _guestCerts.set(rec.id, entry);
-      console.warn(`[isolation] ${rec.id.slice(0, 10)}: no certificate for ${name} (${e.message}); retry in ${Math.round(wait / 1000)}s`);
+    const names = [appCertName(rec.id), ...await fetchDepDomains(rec.id)];
+    for (const name of new Set(names)) {
+      const cacheKey = name === appCertName(rec.id) ? rec.id : rec.id + ":" + name;
+      const st = _guestCerts.get(cacheKey);
+      if (guestCertSkip(st, rec._vmId, Date.now())) continue;   // this instance's back-off, or its certificate is fresh
+
+      try {
+        const got = await mod.ensureGuestCert({ transport, dataAddr: GUESTD_DATA_ADDR, instanceId: rec._vmId,
+          expectAppId: rec._vmAppId, deploymentId: rec.id, name, judge: judgeMod.judge, judgeMode: _guestCertJudgeMode,
+          expected: _expectedGuest || (_expectedGuest = mod.expectedGuestFetcher({ base: SECRETS_API })),
+          requirePrediction: ISOLATION_BACKEND === "snp-guest-per-app",   // the MEASURED cmdline's tier, never guestd's word
+          judgeOk: _guestCertJudgeMode !== "trusted" ? ["attested", "no-tcb-policy", "unauthenticated"]
+            : ISOLATION_MIN_TCB !== undefined ? ["attested"] : ["attested", "no-tcb-policy"],
+          minTcb: ISOLATION_MIN_TCB, customName: name !== appCertName(rec.id), issue: issueGuestCsr });
+        _guestCerts.set(cacheKey, got);
+        if (name !== appCertName(rec.id) && customDomainOwner(name) === rec.id.toLowerCase())
+          _certReports.set(name, { owner: rec.id.toLowerCase(), ok: true, ca: got.issuer });
+        console.log(got.reused
+          ? `[isolation] ${rec.id.slice(0, 10)}: guest ${got.instanceId} already serves a valid certificate for ${name} on its `
+            + `key ${got.key.slice(0, 16)}… (serial ${got.serial}, ${got.issuer.slice(0, 60)}, until ${new Date(got.notAfter).toISOString()}); `
+            + `nothing issued until ${new Date(got.renewAt).toISOString()}`
+          : `[isolation] ${rec.id.slice(0, 10)}: certificate for ${name} installed in guest ${got.instanceId} `
+            + `(key ${got.key.slice(0, 16)}…, ${got.issuer.slice(0, 60)}, until ${new Date(got.notAfter).toISOString()}; guest ${got.verdict}`
+            + `${got.wxCoverage === "runtime-unmeasured" ? `; runtime W^X UNMEASURED: legacy release ${String(got.release).slice(0, 8)}` : ""})`);
+      } catch (e) {
+        const { wait, entry } = guestCertFailure(st, rec._vmId, e, Date.now());
+        _guestCerts.set(cacheKey, entry);
+        console.warn(`[isolation] ${rec.id.slice(0, 10)}: no certificate for ${name} (${e.message}); retry in ${Math.round(wait / 1000)}s`);
+      }
     }
   }
 }

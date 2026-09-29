@@ -47,16 +47,17 @@ assert.equal(sha(new X509Certificate(LEAF).publicKey.export({ type: "spki", form
 const doc = (over = {}) => ({ format: "sev-snp-guest-domain-v1", abi: ABI2, runtime: RUNTIME, ...over });
 // one run of the gate with every network step faked; returns what happened
 async function run({ route = { id: "gd0a0b0c0d", appId: APP, measurement: MEAS, runtimeId: RID, key: KEY }, expected = async () => expectedOk(),
-                     noExpected = false, reusable = null, attestation = doc(), verdict = "attested", expectAppId = APP, requirePrediction } = {}) {
-  const calls = { expected: 0, judge: [], issue: 0, exchanges: [] };
+                     noExpected = false, reusable = null, attestation = doc(), verdict = "attested", expectAppId = APP, requirePrediction, customName = false } = {}) {
+  const calls = { expected: 0, judge: [], issue: 0, exchanges: [], urls: [] };
   const deps = {
     routeFor: async () => route,
     servedReusable: async () => reusable,
     exchange: async (_a, _r, _n, method, p, body) => {
+      calls.urls.push(p);
       calls.exchanges.push(`${method} ${p.split("?")[0]}`);
       if (p.startsWith("/.well-known/enclave-attestation")) return { status: 200, body: Buffer.from(JSON.stringify(attestation)), spki: Buffer.alloc(0) };
-      if (p === "/.well-known/enclave-csr") return { status: 200, body: Buffer.from(CSR) };
-      if (p === "/.well-known/enclave-cert") return { status: 200, body: Buffer.from("{}") };
+      if (p === "/.well-known/enclave-csr" + (customName ? "?name=" + encodeURIComponent(NAME) : "")) return { status: 200, body: Buffer.from(CSR) };
+      if (p === "/.well-known/enclave-cert" + (customName ? "?name=" + encodeURIComponent(NAME) : "")) return { status: 200, body: Buffer.from("{}") };
       throw new Error("unexpected " + p);
     },
   };
@@ -67,7 +68,7 @@ async function run({ route = { id: "gd0a0b0c0d", appId: APP, measurement: MEAS, 
       issue: async () => { calls.issue++; return LEAF; },
       ...(noExpected ? {} : { expected: async (id) => { calls.expected++; return expected(id); } }),
       ...(requirePrediction === undefined ? {} : { requirePrediction }),
-      _deps: deps });
+      customName, _deps: deps });
   } catch (e) { err = e; }
   return { out, err, calls };
 }
@@ -195,4 +196,11 @@ test("supervisor.js hands the gate its relay prediction and decides the requirem
   assert.match(call, /expected: _expectedGuest \|\| \(_expectedGuest = mod\.expectedGuestFetcher\(\{ base: SECRETS_API \}\)\)/);
   assert.match(call, /requirePrediction: ISOLATION_BACKEND === "snp-guest-per-app"/);
   assert.match(src, /const SECRETS_API = \(process\.env\.SECRETS_API \?\? "https:\/\/api\.enclave\.host"\)/, "the relay origin's measured default");
+});
+
+test("custom certificate selection explicitly names the requested domain", async () => {
+  const r = await run({customName:true});
+  assert.equal(r.err, undefined, r.err?.message);
+  assert.equal(r.calls.issue,1);
+  assert.ok(r.calls.urls.includes("/.well-known/enclave-csr?name="+encodeURIComponent(NAME)));
 });
