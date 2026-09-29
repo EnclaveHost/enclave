@@ -26,7 +26,7 @@ class FleetList extends EnclaveElement {
   renderedCallback() {
     const list = this.querySelector(".fleet-list"); if (!list) return;
     // Marketplace capacity keeps its eligibility gate. Active owner-only hosts
-    // get a separate status row, with no rental prices or available-capacity meters.
+    // get a separate status row with reported capacity, but no rental prices.
     const rows = (this.rows || []).filter((e) => appHostVisible(e));
     const ownerRows = (this.rows || []).map(e => ({ row: e, count: ownerHostedDeploymentCount(e) })).filter(e => e.count > 0);
     const meter = (pct) => '<i class="fleet-meter" aria-hidden="true"><b style="width:' + Math.max(0, Math.min(100, pct)) + '%"></b></i>';
@@ -266,6 +266,16 @@ class FleetList extends EnclaveElement {
         }).join(""));
     list.innerHTML += ownerRows.map(({ row: e, count }) => {
       const cpu = ownerHostCpuCapacity(e);
+      const sh = e.availability?.shielded;
+      const gpu = shieldedPoolOf(e);
+      const gpuCapacity = gpu ? pool(
+        '<span class="ap-badge info" title="Enclave Shield masked GPU offload for authorized owners. This is not a confidential-computing GPU.">GPU</span>',
+        Math.floor(gpu.frac * 100),
+        stat(fmtNum(gpu.leasableGb), fmtNum(gpu.total), 'GB', 'vram available',
+          'Unallocated GPU shares in the worker pool, not instantaneous GPU activity. '
+          + fmtNum(gpu.reservedGb) + ' GB reserved by apps.')
+        + '<span class="fleet-stat"><b>' + esc(sh.device || sh.card || 'GPU')
+          + '</b><small>Enclave Shield</small></span>', null) : '';
       const value = v => v === null ? '—' : fmtNum(v);
       const stats = stat(value(cpu.ramFreeGb), value(cpu.ramGb), 'GB', 'ram available')
         + stat(value(cpu.vcpusFree), value(cpu.vcpus), '', 'vcpu available', 'Unallocated CPU shares on this host, not instantaneous processor activity.');
@@ -275,7 +285,7 @@ class FleetList extends EnclaveElement {
       const name = e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "host";
       return '<div class="fleet-row fleet-owner-row">'
         + '<span class="fleet-head"><span class="fleet-name">' + esc(name) + '</span><span class="ap-badge info">Owner-only</span></span>'
-        + capacity
+        + gpuCapacity + capacity
         + '<span class="fleet-owner-status">' + count + ' active deployment' + (count === 1 ? '' : 's') + '</span>'
         + '<span class="fleet-owner-note">Hosting for authorized owners. Unavailable for general deployments.</span></div>';
     }).join("");
