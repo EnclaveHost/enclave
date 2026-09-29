@@ -1,0 +1,152 @@
+{
+  "date": "2026-09-29",
+  "model": "qwen2.5-0.5b-q8-gguf",
+  "modelSha256": "f81d63cf49568f78154f6ddc8b114f603579360c7c878831a7f95a51dc284d24",
+  "imageSha256": "7c41baaf494bebc631e83a548d5bc363ca6dbdda72947acbe739aa306d35398b",
+  "vbsMeasurement": "6f8d078a3fb585473cb8c611be881a67dd0eaabb838ca127018502182fdd4709",
+  "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+  "bridgeSha256": "4a17c12f993f9e97e99d130d61e9340a48c2fa6e3cee29d53f5ad3c885a23af6",
+  "componentSha256": "1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339",
+  "componentCid": "bafkreia22f5ulyjkvppmrsqikogodu5hswt6ndb3q7ktjnidaxkwktfdhe",
+  "catalogAppId": "0x160599c2cf27bd41e95157abae7da0e01f8907d9cdbf0b54418364728200f3dc",
+  "gpuPoolBytes": 4294967296,
+  "minimumGpuMilli": 500,
+  "minimumCpuMilli": 250,
+  "minimumMemoryMiB": 8192,
+  "canaryTokensPerSecond": 15.69,
+  "canaryQualification": "Short public fixture, not 27B or sustained throughput",
+  "ownerOnly": true,
+  "hostExcluded": false,
+  "deterministicBuild": true,
+  "artifactDirectory": "/home/steven/enclave-bench/nucbox-shield-20260929/hosted-gpu",
+  "paravisorBaseBytes": 1073741824,
+  "deploymentIds": [
+    "0xfa8d0ea575a59c6c8a6866bf7ef8320e65f685132791fe8be13bdd2a06471956",
+    "0x2bad651cc9aacab826721d9f8168df17a069e881d17a7186191b07dc40269c96"
+  ],
+  "guestSourceCommit": "a135564546f1",
+  "productionEvidence": {
+    "fa8d0ea5": {
+      "httpsVerified": true,
+      "hardwareBindingVerified": true,
+      "scope": "hardware-bound app evidence; admission is a separate policy decision",
+      "shortFixtureRuns": [
+        {
+          "graph": "qwen2.5-0.5b-q8-gguf",
+          "n_vocab": 151936,
+          "prompt_tokens": 9,
+          "tokens": [
+            6771,
+            752,
+            1414,
+            421,
+            498,
+            646,
+            1492,
+            752,
+            448,
+            4113,
+            382,
+            16,
+            13,
+            3555,
+            374,
+            279
+          ],
+          "load_ms": 8,
+          "prefill_ms": 3592,
+          "decode_ms": 1625,
+          "tok_per_s": 9.23
+        },
+        {
+          "graph": "qwen2.5-0.5b-q8-gguf",
+          "n_vocab": 151936,
+          "prompt_tokens": 9,
+          "tokens": [
+            6771,
+            752,
+            1414,
+            421,
+            498,
+            646,
+            1492,
+            752,
+            448,
+            4113,
+            382,
+            16,
+            13,
+            3555,
+            374,
+            279
+          ],
+          "load_ms": 0,
+          "prefill_ms": 685,
+          "decode_ms": 960,
+          "tok_per_s": 15.62
+        }
+      ]
+    },
+    "2bad651c": {
+      "httpsVerified": true,
+      "hardwareBindingVerified": true,
+      "scope": "hardware-bound app evidence; admission is a separate policy decision",
+      "shortFixtureRuns": [
+        {
+          "graph": "qwen2.5-0.5b-q8-gguf",
+          "n_vocab": 151936,
+          "prompt_tokens": 9,
+          "tokens": [
+            6771,
+            752,
+            1414,
+            421,
+            498,
+            646,
+            1492,
+            752,
+            448,
+            4113,
+            382,
+            16,
+            13,
+            3555,
+            374,
+            279
+          ],
+          "load_ms": 8,
+          "prefill_ms": 3570,
+          "decode_ms": 3066,
+          "tok_per_s": 4.89
+        },
+        {
+          "graph": "qwen2.5-0.5b-q8-gguf",
+          "n_vocab": 151936,
+          "prompt_tokens": 9,
+          "tokens": [
+            6771,
+            752,
+            1414,
+            421,
+            498,
+            646,
+            1492,
+            752,
+            448,
+            4113,
+            382,
+            16,
+            13,
+            3555,
+            374,
+            279
+          ],
+          "load_ms": 0,
+          "prefill_ms": 703,
+          "decode_ms": 1645,
+          "tok_per_s": 9.12
+        }
+      ]
+    }
+  }
+}

@@ -109,6 +109,14 @@ const readCard = async () => {
     card = null;
   }
 };
+// Read-only discovery for the new isolated profile; never starts the legacy engine.
+async function refreshPartitionGpu() {
+  const h = await isolationHealth();
+  host.managerSupports = h?.supports || null;
+  host.managerInference = h?.inference || null;
+  card = h?.supports?.gpu === true && h?.inference?.ready && Date.now()-h.inference.checkedAt < 45000
+    ? h.inference.card : null;
+}
 // The live tunnel's sender, so the app-zone half can answer stream frames from outside connect()'s
 // closure. Replaced on every redial; a frame sent while the tunnel is down is dropped, which is
 // what the relay's own open timeout already handles.
@@ -450,9 +458,8 @@ async function handle(frame) {
     // fallback is what this box knows without asking - a worker that is down must not leave the
     // row advertising a card nobody can use.
     // An isolation-only node starts no worker, so it advertises no card at all.
-    shielded: !LEGACY_ENGINE ? null : (card ? { ...card, ...(cardProof ? { proof: cardProof } : {}) } : null) || { worker: 'vulkan', protocol: '1.4.0', vramGiB: Number(WORKER_VRAM_GB), vramGb: Number(WORKER_VRAM_GB),
-                        vramBudgetGb: Number(WORKER_VRAM_GB), vramFreeGb: 0, vramReservedGb: 0,
-                        ...(gpuName ? { device: gpuName } : {}), note: 'the worker has not answered a HELLO yet' },
+    shielded: card && host.sellsCard() ? { ...card, ...(cardProof ? { proof:cardProof } : {}),
+      ...(host.managerInference?.ready ? { model:host.managerInference.model, minimumGpuMilli:host.managerInference.minimumGpuMilli, runtimeId:host.managerInference.runtimeId } : {}) } : null,
     model: MODEL ? path.basename(MODEL) : null, attachedAt, ...(APPS ? host.availability() : {}) });
   // ---- who is asking ---------------------------------------------------------------------
   // The public half of this box's session key. Anyone can verify a token it minted - and confirm
@@ -710,7 +717,8 @@ async function startHostingControls() {
 (async () => {
   startHostingControls().catch((e) => log(`hosting controls: OFF (${e.message})`));
   if (LEGACY_ENGINE) { await startWorker(); await startHost(); }
-  else {
+  else { await refreshPartitionGpu(); setInterval(() => refreshPartitionGpu().catch(() => { card=null; host.managerInference=null; host.managerSupports=null; }),15000).unref();
+
     nodeKey = loadOrCreateNodeKey(DIR);
     log(`isolation-only node: the VBS enclave engine is retired; transport key ${createHash('sha256').update(nodeKey.spki).digest('hex').slice(0, 16)}… `
       + '(a host key: it proves only that an admin-level process on this host chose it)');
@@ -780,7 +788,8 @@ async function startHostingControls() {
         const { createHvCertPass } = await import('./hvcert.mjs');
         const certs = createHvCertPass({
           client: new IsolationManagerClient({ base: host.cfg.isolationManager }), dataAddr: host.cfg.isolationDataAddr,
-          runtimeId: host.cfg.isolationRuntimeId, endpoint: host.cfg.endpoint, sign: (message) => acct.signMessage({ message }),
+          runtimeId: rec => Number(rec.gpuShare) > 0 ? host.managerInference?.runtimeId : host.cfg.isolationRuntimeId,
+          endpoint: host.cfg.endpoint, sign: (message) => acct.signMessage({ message }),
           served: (owner) => host.ownerSet().has(owner), log: (m) => log(m) });
         let running = false;
         const tick = () => { if (running) return; running = true;

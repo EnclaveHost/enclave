@@ -5,7 +5,7 @@
 mod hvsock;
 use std::io;
 use std::net::{Ipv4Addr, Shutdown, SocketAddr, TcpStream};
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+use std::sync::{Arc, atomic::{AtomicUsize, AtomicBool, Ordering}};
 use std::time::{Duration, Instant};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -20,14 +20,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let port: u32 = a[2].parse()?;
     let worker: u16 = a[3].parse()?;
     let seconds: u64 = a[4].parse()?;
-    if port == 0 || worker == 0 || !(1..=86400).contains(&seconds) {
-        return Err("nonzero ports and lifetime 1..86400 required".into());
+    if port == 0 || worker == 0 || seconds > 86400 {
+        return Err("nonzero ports and lifetime 0..86400 required (0: supervised stdin)".into());
     }
     let listener = hvsock::Listener::bind(&vm, port)?;
+    let stopped = Arc::new(AtomicBool::new(false));
+    if seconds == 0 {
+        let stop = stopped.clone();
+        std::thread::spawn(move || {
+            use std::io::Read;
+            let mut b = [0u8; 1];
+            let _ = std::io::stdin().read(&mut b);
+            stop.store(true, Ordering::SeqCst);
+        });
+    }
     let end = Instant::now() + Duration::from_secs(seconds);
     let active = Arc::new(AtomicUsize::new(0));
     println!("shielded bridge ready vm={} port={} worker=127.0.0.1:{}", a[1], port, worker);
-    while Instant::now() < end {
+    while !stopped.load(Ordering::SeqCst) && (seconds == 0 || Instant::now() < end) {
         let Some((guest, peer)) = listener.accept_timeout(500)? else { continue };
         if hvsock::guid_string(&peer) != hvsock::guid_string(&vm) || active.load(Ordering::SeqCst) >= 8 {
             let _ = guest.shutdown(Shutdown::Both);
@@ -36,7 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let active = active.clone();
         active.fetch_add(1, Ordering::SeqCst);
         std::thread::spawn(move || {
-            if let Err(e) = relay(guest, worker) { eprintln!("shielded bridge connection ended: {e}"); }
+            if let Err(e) = relay(guest, worker, seconds == 0) { eprintln!("shielded bridge connection ended: {e}"); }
             active.fetch_sub(1, Ordering::SeqCst);
         });
     }
@@ -45,12 +55,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn relay(mut guest: TcpStream, port: u16) -> io::Result<()> {
+fn relay(mut guest: TcpStream, port: u16, persistent: bool) -> io::Result<()> {
     let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
     let mut worker = TcpStream::connect_timeout(&addr, Duration::from_secs(3))?;
     worker.set_nodelay(true)?;
     for socket in [&guest, &worker] {
-        socket.set_read_timeout(Some(Duration::from_secs(60)))?;
+        socket.set_read_timeout(if persistent { None } else { Some(Duration::from_secs(60)) })?;
         socket.set_write_timeout(Some(Duration::from_secs(60)))?;
     }
     let mut gr = guest.try_clone()?;
