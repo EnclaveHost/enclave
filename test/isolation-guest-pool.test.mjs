@@ -178,7 +178,8 @@ test("the claim path judges the pool with the version's policy and, on a resume,
   const src = fs.readFileSync(SUPERVISOR, "utf8");
   const call = src.slice(src.indexOf("const isoWhy = isolationClaimVerdict({"), src.indexOf("if (isoWhy) return isoWhy;"));
   assert.match(call, /policy: isolationPolicyFor\(g\.min\)/);
-  assert.match(src, /const isoHeld = resume \? await isolationHeldGuest\(d\.id\) : null;/);
+  assert.match(src, /const resumeHeld = resume && ISOLATION_BACKEND \? await isolationHeldGuest\(d\.id\) : null;/);
+  assert.match(src, /const isoHeld = resumeHeld;/);
   assert.match(call, /held: isoHeld, heldSameRecord,/);
   assert.match(src, /const heldSameRecord = isolationHeldSameRecord\(isoHeld, g, firewall, isoMgr && isoMgr\.catalog && isoMgr\.catalog\.runtimeId,[\s\S]{0,160}isolatedInference\(d\.gpuMilli,neededVolumes\(d,g\)\)/,
     "an adoption is the SAME record, derived as the spawn derives it (the parsed firewall)");
@@ -292,4 +293,15 @@ test("off the tier nothing of the pool applies: the node is the NODE_* constants
   assert.equal(r.node.ramGb, 6);
   assert.equal(r.maxFreeCpu, 0.7);
   assert.equal(r.shares[0].cpuShare, 0.03);
+});
+
+
+test("resuming held isolated guests rebuilds shares without requiring a second guest reservation", async () => {
+  const c = {pool: pool(B, B), shareFree: 0.4,
+    claimHeld: [null, {status: "running"}, {status: "starting"}, {status: "failed"}]};
+  const r = await seam(c);
+  assert.equal(r.maxFreeCpu, 0, "full pool remains unavailable to new claims");
+  assert.deepEqual(r.claimFreeCpu, [0, 0.4, 0.4, 0], "only held guests receive pool credit; share ledger still caps them");
+  const off = await seam(c, "");
+  assert.deepEqual(off.claimFreeCpu, [0.4, 0.4, 0.4, 0.4]);
 });

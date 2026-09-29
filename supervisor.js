@@ -3128,6 +3128,15 @@ function allocCpu(share) {
 }
 // On the per-app isolation tier the share ledger is capped by the guest pool's own free room (guestPoolFreeFraction).
 const maxFreeCpu = () => Math.max(0, Math.min(1, cpuPool.shareFree, ISOLATION_BACKEND ? guestPoolFreeFraction() : 1));
+// A resumed isolated guest already occupies the guest pool. The share ledger
+// still needs rebuilding, but comparing its share with NEW-guest room counts
+// its reservation twice. The later isolationClaimVerdict independently checks
+// the held record, replacement size and live host floor before any adoption.
+function claimFreeCpu(held = null) {
+  return ISOLATION_BACKEND && held && (held.status === "running" || held.status === "starting")
+    ? Math.max(0, Math.min(1, cpuPool.shareFree)) : maxFreeCpu();
+}
+
 // CPU requests use the same whole-percent grain as GPU compute; priced at the
 // share of the whole-node rate.
 const normalizeCpuReq = (share) => { const pct = quantizePct(share); return { cpu: true, gpuShare: 0, cpuShare: pct / 100, share: pct / 100, pct }; };
@@ -3521,7 +3530,7 @@ if (process.env.GUEST_POOL_SELFTEST) {
   for (const p of c.pools || []) adoptGuestPool(p);               // answers in order, as successive vmHealth() calls
   if (c.shareFree != null) cpuPool.shareFree = c.shareFree;
   console.log(JSON.stringify({
-    node: nodeSpec(), maxFreeCpu: round3(maxFreeCpu()), guestPool: guestPoolReport(), sellCpuPrice6: SELL_CPU_PRICE6,
+    node: nodeSpec(), claimFreeCpu: (c.claimHeld || []).map(claimFreeCpu), maxFreeCpu: round3(maxFreeCpu()), guestPool: guestPoolReport(), sellCpuPrice6: SELL_CPU_PRICE6,
     ...(c.viaHealth ? { healthError, healthVerdict: health && isolationClaimVerdict({ backend: ISOLATION_BACKEND,
       require: ISOLATION_BACKEND, manager: health, gpuMilli: 0, config: "", appConfigCid: "", hasSecrets: false, firewall: [],
       volumes: [], isPublic: true, waf: null, policy: isolationPolicyFor({ memMb: c.viaHealth.memMb }), held }), held } : {}),
@@ -10255,6 +10264,8 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   const wantVols = neededVolumes(d, g);
   const health = (wantVols.length || gpuShare > 0) ? await vmHealth().catch(() => null) : undefined;
   const mins = minSharesOf(g.min, { volGb: wantVols.length ? volumeGb(wantVols, health) : 0 });
+  const resumeHeld = resume && ISOLATION_BACKEND ? await isolationHeldGuest(d.id) : null;
+  const cpuRoom = claimFreeCpu(resumeHeld);
   // The PUBLISHER's own declaration, not the volume-corrected figure: this is
   // "did the version state a card requirement", which is what decides whether
   // the OWNER's envelope flag is allowed to waive it.
@@ -10292,7 +10303,7 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     if (_shieldedPool && h.shieldedPool !== true)
       return "shielded model-layer backend is not ready";
     slice = normalizeGpuReq(gpuShare, cpuShare);
-    if (slice.vramGb > maxFreeVram() + 1e-9 || slice.cpuShare > maxFreeCpu() + 1e-9)
+    if (slice.vramGb > maxFreeVram() + 1e-9 || slice.cpuShare > cpuRoom + 1e-9)
       return "no free capacity for those shares here right now";
     // The card's own count outranks the share arithmetic when it says LESS.
     // Every check above is a ledger: it knows what was handed out, never what
@@ -10319,7 +10330,7 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
       if (Date.now() < (claimableSince + CPU_CLAIM_GRACE_SEC) * 1000) return "cpu-first grace";
     }
     slice = normalizeCpuReq(cpuShare);
-    if (slice.cpuShare > maxFreeCpu() + 1e-9) return "no free CPU capacity here right now";
+    if (slice.cpuShare > cpuRoom + 1e-9) return "no free CPU capacity here right now";
   }
   // the app's catalog specs set its MINIMUM shares on our hardware, gating
   // claims exactly like HTTP deploys: a deployment that bought less than
@@ -10426,7 +10437,7 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     const cf = overrideConfigFields(claimOpts, g);
     const isoMgr = await vmHealth().catch(() => null);
     // a resume after this CVM restarted: the guest guestd kept for it already holds its room (guestPoolRefusal)
-    const isoHeld = resume ? await isolationHeldGuest(d.id) : null;
+    const isoHeld = resumeHeld;
     // ...and whether the spawn would ADOPT it (the same derivation record) or replace it (a different one); only an
     // adoption takes no new host memory. Unknown counts as a replacement (the conservative side).
     const heldSameRecord = isolationHeldSameRecord(isoHeld, g, firewall, isoMgr && isoMgr.catalog && isoMgr.catalog.runtimeId,
