@@ -1,0 +1,1 @@
+../isolation/contract/runtime.mjs

@@ -185,6 +185,7 @@ async function ownerGate(ctx, req, res, id, b, message) {
 }
 
 const recOf = (id) => store.data.byId[id] || null;
+export const hasStagedSecrets = (id) => !!recOf(String(id).toLowerCase());
 const namesOf = (env) => Object.keys(env).sort();
 
 // Core mutate. Exported for TESTS only - and it performs NO authorization: the
@@ -333,7 +334,7 @@ export async function handleSecrets(req, res, u, ctx) {
     // ...and the lease holder must be a host the relay holds ELIGIBLE (U7): a deployment's secrets never leave for a
     // host the relay would not route its traffic to. A context without the verdict refuses: unknown is not permission.
     const el = typeof ctx.hostEligibility === "function" ? ctx.hostEligibility(epId) : null;
-    if (!el || el.eligible !== true) {
+    if (!el || el.eligible !== true || el.plaintextSecrets === false) {
       console.error(`[secrets] ${endpoint} fetch REFUSED for ${id}: the lease holder is not an eligible host (${el ? el.reason : "no eligibility verdict"})`);
       return bad(ctx, res, req, 403, "host_ineligible",
         `This endpoint holds the lease but is not eligible to serve tenant apps${el && el.reason ? ": " + el.reason : ""}.`);

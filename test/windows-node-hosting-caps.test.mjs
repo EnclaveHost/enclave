@@ -122,7 +122,7 @@ test("persistence through the Host: a restarted node reads the caps the tray set
 test("the view says what the GPU is for on each backend, and never implies GPU hosting that is not happening", () => {
   const hv = box({ engineRetired: true });
   assert.equal(hv.hostingView().backend, "hv");
-  assert.equal(hv.gpuConsumer().consumer, false); assert.match(hv.gpuConsumer().why, /nothing on it uses the GPU yet/);
+  assert.equal(hv.gpuConsumer().consumer, false); assert.match(hv.gpuConsumer().why, /no partition currently holds a masked GPU allocation/);
   // a partition that bought a card share but was spawned with none holds none
   hv.records.set(A, { ...running(A, 0.1, 0.3), isolation: { instance: "hv1" }, partitionGpuShare: 0 });
   assert.deepEqual([hv.hostingView().sold.gpuShare, hv.hostingView().inUse.gpuShare], [0.3, 0]);
@@ -312,4 +312,17 @@ test("consider(): a hint for a partition this box already runs is accepted under
   const r = await h.consider(DEP);
   assert.equal(r.accepted, true, r.reason); assert.equal(h.records.get(DEP).status, "running"); assert.equal(fake.running().length, 1);
   assert.match(policy(h, newDep({ owner: OWNER, cpuMilli: 50 })), /the owner offers 20% of this box's CPU to hosting with 60% of that in use/);
+});
+
+test('Shield marketplace claims require the isolated backend and an unexpired relay window', () => {
+ const h=box({engineRetired:true,isolationManager:'http://127.0.0.1:8091',claimScope:'market'});
+ h.relayTier='hv-node';
+ assert.equal(h.scope(),'owner-only');
+ h.shieldMarketUntil=Date.now()+60000;
+ assert.equal(h.scope(),'market');
+ assert.equal(h.ownerNotServed(newDep()),false);
+ h.shieldMarketUntil=Date.now()-1;
+ assert.equal(h.scope(),'owner-only');
+ h.shieldMarketUntil=Date.now()+60000;h.cfg.engineRetired=false;
+ assert.equal(h.scope(),'owner-only');
 });

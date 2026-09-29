@@ -965,3 +965,19 @@ test("(B) an ineligible holder gets a certificate only when the owner-only predi
     assert.deepEqual(asked[0], [RUNNER, ID, '{"isolation":{"require":"hyperv-partition-per-app"}}'], "the lease holder's id and the ledger row (with its envelope)");
   } finally { INELIGIBLE.delete(RUNNER); if (saved) ctx.ownerServesDeployment = saved; else delete ctx.ownerServesDeployment; await settle(); }
 });
+
+test('Shield requires matching per-app key evidence before cached certificates or orders', async () => {
+  EP='https://enclave97.example';rows=[leaseRow()];
+  const saved=ctx.hostEligibility, savedVerify=ctx.verifyAppCertificate;
+  ctx.hostEligibility=()=>({eligible:true,appEvidenceRequired:true});
+  const issued=ca1.calls.newOrder;
+  try {
+    let r=await call(await body());
+    assert.equal(r.code,403);assert.equal(r.body.error,'app_evidence_required');
+    ctx.verifyAppCertificate=async()=>({ok:true,spkiSha256:'00'.repeat(32)});
+    r=await call(await body());assert.equal(r.code,403);assert.equal(r.body.error,'app_evidence_required');
+    ctx.verifyAppCertificate=async()=>{throw Error('unavailable')};
+    r=await call(await body());assert.equal(r.code,403);
+    assert.equal(ca1.calls.newOrder,issued);
+  } finally {ctx.hostEligibility=saved;ctx.verifyAppCertificate=savedVerify;}
+});

@@ -778,6 +778,17 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
         return { ok: false, reason: "no active authenticated Shield host session" };
       return verifyShieldAppPolicy({ ...input, hostSession: t.hvAppSession }, policy);
     },
+    shieldSessionId: (name) => {
+      const t = tunnels.get(name);
+      if (!t || t.ws.readyState !== t.ws.OPEN || t.mode !== "hv-node" || !t.hvAppSession || !t.operator || t.ownerSuspended) return null;
+      return t.shieldSessionId ||= randomBytes(24).toString("hex");
+    },
+    notifyShieldMarket: (name, sessionId, until) => {
+      const t = tunnels.get(name);
+      if (!t || t.shieldSessionId !== sessionId || t.ownerSuspended || t.ws.readyState !== t.ws.OPEN) return false;
+      t.ws.send(JSON.stringify({ t: "shield-market", until }));
+      return true;
+    },
     nameOf: (origin) => (String(origin || "").match(NAME_RE) || [])[1] || null,
     // synthetic registry rows for the attached tunnels (bypass the dial-based
     // discovery filters; auth already happened at attach time). `endpoint`

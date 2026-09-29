@@ -650,6 +650,7 @@ function connect() {
                         log('re-attach: the standby tunnel serves now; the replaced one is closed, with no gap on the relay');
                       }
                       if (standby) serve();
+                      host.shieldMarketUntil = 0;
                       tier = f.tier || '';   // the relay's verdict (vbs | vbs-dev); never our own claim
                       attachedOwnersVersion = s.attachSent && s.attachSent.version === 2 ? s.attachSent.owners : null;
                       attachedOwners = s.attachSent && s.attachSent.version === 2 ? s.attachSent.served : null;
@@ -661,6 +662,9 @@ function connect() {
             log(`attach REJECTED: ${f.reason}${standby ? ' (a standby: the live tunnel still serves)' : ''}`);
             if (standby) { try { ws.terminate(); } catch {} }
           }
+        } else if (f.t === 'shield-market') {
+          // Only the currently accepted relay connection can open this bounded claim window.
+          if (s === tunnels.current) host.shieldMarketUntil = Math.min(Number(f.until) || 0, Date.now() + 300000);
         } else if (f.t === 'ping') send({ t: 'pong' });
         else if (f.t === 'req') { const r = await handle(f); send({ t: 'res', id: f.id, status: r.status, headers: r.headers, body: Buffer.from(r.body).toString('base64') }); }
         // The app's OWN origin arrives as a raw stream with the WebSocket upgrade replayed into
@@ -676,7 +680,7 @@ function connect() {
     ws.on('close', () => {
       clearInterval(live);
       const { lost, redial } = tunnels.closed(s);
-      if (lost) { if (zone) zone.closeAll(); attachedAt = 0; }
+      if (lost) { if (zone) zone.closeAll(); attachedAt = 0; host.shieldMarketUntil = 0; }
       log(lost ? 'tunnel closed' : s.superseded ? 'the replaced tunnel closed' : 'the standby tunnel closed; the live one still serves');
       if (redial) setTimeout(() => dial(), 5000);
     });
@@ -802,7 +806,7 @@ async function startHostingControls() {
           client: new IsolationManagerClient({ base: host.cfg.isolationManager }), dataAddr: host.cfg.isolationDataAddr,
           runtimeId: rec => Number(rec.gpuShare) > 0 ? host.managerInference?.runtimeId : host.cfg.isolationRuntimeId,
           endpoint: host.cfg.endpoint, sign: (message) => acct.signMessage({ message }),
-          served: (owner) => host.ownerSet().has(owner), log: (m) => log(m) });
+          served: (owner) => host.scope() === "market" || host.ownerSet().has(owner), log: (m) => log(m) });
         let running = false;
         const tick = () => { if (running) return; running = true;
           certs.pass(host.records).catch((e) => log(`certificates: pass failed: ${e.message}`)).finally(() => { running = false; }); };

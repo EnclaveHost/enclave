@@ -4,8 +4,7 @@
 // Scope (see chain.mjs claimPolicy for each refusal and its reason): PUBLIC deployments, on CORES,
 // whose options this box actually enforces, that FIT in what it has left to sell. The scope is
 // OWNER-ONLY - the operator's and its delegated owners' deployments (ownerSet) - unless the box meets
-// the isolation contract AND CLAIM_SCOPE=market (scope()); no Windows node meets it today, so none
-// takes a stranger's deployment.
+// the isolation contract AND CLAIM_SCOPE=market (scope()); the relay grants a bounded window only after verifying guest app evidence.
 //
 // It advertises `claimEnabled: true` (it takes work) with `fullService: false` (it sells a subset
 // of the platform's features). The relay keeps a partial box out of the fleet-AND capability flags,
@@ -2126,22 +2125,14 @@ export class Host {
     return "this node runs only the isolated backend (the legacy VBS-enclave backend is retired): "
       + `it claims only deployments that require ${this.isolationBackend || "an isolation backend it does not have"}`;
   }
-  /**
-   * Does this box meet the isolation contract it would be SOLD under (site: Develop > Architecture,
-   * "The isolation contract")? Tenant work needs every property, and this box knows which it lacks
-   * today: the app-zone TLS key and the app traffic run through VTL0 (windows/PARITY.md, the
-   * declared gap), and a test-signed enclave is the development tier, not a production trusted
-   * layer. Both are facts about this build, not switches: appTrafficInsideEnclave() is false by
-   * construction until the code that terminates app TLS inside VTL1 exists, and the tier is the
-   * RELAY's verdict from attach (relayTier, set by the agent from attest-result), never this box's
-   * own word. Until both hold, the box is implementation evidence and takes its OWNER's apps only.
-   * The relay applies the same rule from its side (relay/api-relay.js computeEligible), so a build
-   * that lied here would still not be routed work; this gate keeps the box from claiming it off
-   * the ledger on its own.
-   */
+  /** Marketplace claims require a fresh relay decision. The relay checks the
+   * pinned boot/image/runtime and actual guest TLS key. The host's manager
+   * statements and this local flag cannot authorize routing or certificates.
+   * Only the restricted public partition runtime is currently admitted. */
   appTrafficInsideEnclave() { return false; }
   meetsIsolationContract() {
-    return this.appsInTee() && this.appTrafficInsideEnclave() && String(this.relayTier || "") === "vbs";
+    return this.cfg.engineRetired === true && this.isolationBackend === "hyperv-partition-per-app"
+      && this.relayTier === "hv-node" && Number(this.shieldMarketUntil || 0) > Date.now();
   }
   /**
    * Which scope this box claims in. The market is only open when an app runs inside the enclave
@@ -2211,9 +2202,9 @@ export class Host {
       } : this.isolationBackend ? {
         // THE ISOLATED BACKEND (enclave-b4's N5): each deployment in its own Hyper-V partition. It used to fall into the
         // branch below and say isolation "none", capacity 0 and "sells no app hosting" while partitions served.
-        isolation: this.isolationBackend, tier: "T0-hv", hostExcluded: false, inTee: false,
+        isolation: this.isolationBackend, tier: this.meetsIsolationContract() ? "enclave-shield" : "T0-hv", hostExcluded: false, hostOsExcluded: this.meetsIsolationContract(), operatorExcluded: false, inTee: false,
         running: partitions, capacity: cap.slots, scope: this.scope(),
-        note: "each deployment runs in its own Hyper-V partition (T0-hv), which holds its TLS key and ends TLS; the host is NOT excluded from it",
+        note: this.meetsIsolationContract() ? "each app has a measured Shield partition and guest-held TLS key; the relay verifies app evidence; physical operator and hypervisor remain trusted" : "each deployment runs in its own Hyper-V partition; marketplace admission awaits the relay’s app-evidence check",
       } : {
         // No app runtime in this enclave image: the box hosts nothing for a tenant. The VTL0
         // wasmtime path still exists for the box owner's own bring-up, and is not an offer.
