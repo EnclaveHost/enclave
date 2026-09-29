@@ -1,0 +1,3 @@
+ok  	enclave.host/isolation/contract	0.014s
+ok  	enclave.host/isolation/contract/catalog	0.004s
+?   	enclave.host/isolation/contract/cmd/bundle	[no test files]

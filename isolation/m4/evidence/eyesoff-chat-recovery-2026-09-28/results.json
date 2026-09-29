@@ -1,0 +1,27 @@
+{
+  "guest": "gd06695dad",
+  "guestMemMiB": 73728,
+  "managerPoolMiB": 90112,
+  "hostFloorMiB": 16384,
+  "observedQemuUnitPeakBytes": 67448193024,
+  "otherFiveGuestIdsPreserved": true,
+  "startupWarmupCompleted": true,
+  "generationChecks": [
+    {
+      "prompt": "Explain confidential computing in simple terms",
+      "completed": true,
+      "tokens": 823,
+      "tokensPerSecond": 15.9,
+      "mtp": true
+    },
+    {
+      "prompt": "Summarize that in one short sentence.",
+      "completed": true,
+      "tokens": 54,
+      "tokensPerSecond": 16.4,
+      "mtp": true
+    }
+  ],
+  "browser": "signed-in eyesoff.ai Chrome UI",
+  "noGuestRestartDuringSuccessfulTests": true
+}
