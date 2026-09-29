@@ -4,12 +4,12 @@ import { randomBytes } from 'node:crypto';
 import { CATALOG_REF_RE, derivationRecord, versionRefusal } from './measurement-predict.mjs';
 import { derive } from './shield-derive.mjs';
 
-export async function expectedShieldApp(row, { policy, readCatalog, readConfig, fetchVerified }) {
+export async function expectedShieldApp(row, { policy, readCatalog, readConfig, fetchVerified, allowPendingOwner = false }) {
   if (!row || row.isPublic !== true) throw new Error('only public apps are supported');
   const ref = CATALOG_REF_RE.exec(String(row.appRef || ''));
   if (!ref) throw new Error('catalog app reference required');
   const catalog = await readCatalog(ref[1].toLowerCase(), Number(ref[2]));
-  const refusal = versionRefusal(catalog?.app, catalog?.version, false);
+  const refusal = versionRefusal(catalog?.app, catalog?.version, allowPendingOwner === true);
   if (refusal) throw new Error(refusal);
   const version = catalog.version;
   if (!Number.isSafeInteger(version.memMb) || version.memMb < 0) throw new Error('invalid catalog memory');
@@ -61,12 +61,12 @@ export async function expectedShieldApp(row, { policy, readCatalog, readConfig, 
 
 export function createShieldAppVerifier({ hub, policy, readCatalog, readConfig, fetchVerified }) {
   let active = 0;
-  return async function verifyApp(name, row, { csrSpkiSha256 } = {}) {
+  return async function verifyApp(name, row, { csrSpkiSha256, allowPendingOwner = false } = {}) {
     if (active >= 2) return { ok: false, reason: 'Shield verification busy; retry shortly' };
     active++;
     try {
       if (!/^0x[0-9a-f]{64}$/.test(String(row?.id || ''))) throw new Error('exact deployment id required');
-      const expected = await expectedShieldApp(row, { policy, readCatalog, readConfig, fetchVerified });
+      const expected = await expectedShieldApp(row, { policy, readCatalog, readConfig, fetchVerified, allowPendingOwner });
       const nonce = randomBytes(32);
       const proof = await hub.fetchJson(`tunnel://${name}`,
         `/v1/shield/evidence?deployment=${row.id}&nonce=${nonce.toString('hex')}`);

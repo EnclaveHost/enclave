@@ -2373,7 +2373,7 @@ async function confirmRow(id) {
   const ledger = await confirmedLedger();
   const got = await Promise.all(catalogClients.map((c) => c.readContract({ address: ledger, abi: DEP_GET_ABI, functionName: "get", args: [id] })));
   const pick = (d) => ({ id: String(d.id).toLowerCase(), runner: String(d.runner).toLowerCase(), leaseUntil: String(d.leaseUntil), appRef: d.appRef,
-                         isPublic: !!d.isPublic, configCid: d.configCid, active: !!d.active, cpuMilli: Number(d.cpuMilli), gpuMilli: Number(d.gpuMilli) });
+                         owner: String(d.owner).toLowerCase(), isPublic: !!d.isPublic, configCid: d.configCid, active: !!d.active, cpuMilli: Number(d.cpuMilli), gpuMilli: Number(d.gpuMilli) });
   const rows = got.map(pick);
   if (rows.some((r) => JSON.stringify(r) !== JSON.stringify(rows[0]))) throw new Error("the RPCs disagree about the deployment's record");
   if (rows[0].id !== String(id).toLowerCase()) throw Object.assign(new Error("the ledger holds no such deployment"), { code: "no_deployment" });
@@ -2383,6 +2383,7 @@ let _predictor = null;
 const predictor = () => _predictor || (_predictor = makePredictor({ ...predictorEnv(), readCatalog: catalogReader(catalogClients, catalogAddress) }));
 const shieldMarket = createShieldMarketplace({ hub: tunnelHub,
   policyFile: process.env.RELAY_SHIELD_MARKET_POLICY || "", confirmRow, hasSecrets: hasStagedSecrets,
+  isOwnerDeployment: (host, d) => !!servedEntryNow(host, d.owner),
   readCatalog: catalogReader(catalogClients, catalogAddress),
   readConfig: versionConfigReader(catalogClients, catalogAddress),
   fetchVerified: (cid, max) => predictor().fetchVerified(cid, max),

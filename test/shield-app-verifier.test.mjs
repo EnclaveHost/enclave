@@ -42,3 +42,11 @@ test('fresh nonce, independent expectations and CSR key reach the current-sessio
  assert.notEqual(seen[0],seen[1]);
  assert.equal((await verify('nucbox-k11',{...row,isPublic:false})).ok,false);
 });
+
+test('only the relay-authorized owner exception admits pending test versions; rejection remains final', async()=>{
+ const pending={...deps,readCatalog:async()=>({app:{active:true},version:{...version,approval:0}})};
+ await assert.rejects(expectedShieldApp(row,pending));
+ assert.ok((await expectedShieldApp(row,{...pending,allowPendingOwner:true})).appSha256);
+ await assert.rejects(expectedShieldApp(row,{...pending,allowPendingOwner:true,
+  readCatalog:async()=>({app:{active:true},version:{...version,approval:2}})}));
+});
