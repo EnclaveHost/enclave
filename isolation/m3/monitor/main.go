@@ -58,6 +58,7 @@ import (
 
 	"enclave.host/isolation/contract"
 	"enclave.host/isolation/m2/vsock"
+	"enclave.host/isolation/m3/vtpmclient"
 )
 
 // Bounds. A domain is untrusted, and the host is trusted only to choose what to load, so everything
@@ -162,6 +163,7 @@ func (d *domain) state() contract.State { return d.lifecycle().State() }
 type reporter func(rd []byte) (report, certs []byte, err error)
 
 type monitor struct {
+	vtpm    *vtpmclient.Client // guest-owned hardware report channel; nil on unchanged legacy images
 	mu      sync.Mutex
 	doms    map[int]*domain
 	byUID   map[int]*domain // by the FRONT's uid: the only caller a report is ever made for
@@ -205,6 +207,7 @@ func main() {
 	root := flag.String("domains", "/domains", "directory holding one subtree per domain")
 	basePort := flag.Uint("base-port", 40000, "domain N serves on this vsock port + N")
 	baseUID := flag.Int("base-uid", 5000, "domain N runs as this uid + N")
+	vtpmPath := flag.String("vbs-tpm", "", "required guest TPM report device for the measured VBS image")
 	flag.Parse()
 
 	m := newMonitor(*snp, *plat, *root, uint32(*basePort), *baseUID)
@@ -212,6 +215,14 @@ func main() {
 		m.hostPort = uint32(*reportHost)
 		m.report = m.hostReport
 		m.tier, m.format = contract.TierHyperV, contract.FormatHyperV
+	}
+	if *vtpmPath != "" {
+		if m.hostPort == 0 || m.snp {
+			panic("VBS TPM transport requires the Hyper-V app backend")
+		}
+		var err error
+		m.vtpm, err = vtpmclient.Open(*vtpmPath)
+		must(err)
 	}
 	must(os.MkdirAll(m.root, 0o755))
 	must(os.MkdirAll(filepath.Dir(*sock), 0o755))
@@ -1380,6 +1391,23 @@ func (m *monitor) hostReport(rd []byte) ([]byte, []byte, error) {
 	}
 	if len(resp.Report) == 0 {
 		return nil, nil, errors.New("host report service: empty answer")
+	}
+	if m.vtpm != nil {
+		// rd is composed by oneReport from the authenticated front's binding and
+		// this monitor's own app hash. The host never supplies either report input.
+		hardware, err := m.vtpm.Report(rd)
+		if err != nil {
+			return nil, nil, fmt.Errorf("guest VBS report: %w", err)
+		}
+		var envelope map[string]json.RawMessage
+		if err := json.Unmarshal(resp.Report, &envelope); err != nil || envelope == nil {
+			return nil, nil, errors.New("invalid launcher report envelope")
+		}
+		// Supplement outside the launcher's signed doc. Existing judges retain
+		// their existing verdict; only a VBS-aware verifier may use this evidence.
+		envelope["vbsVmReport"], _ = json.Marshal(base64.StdEncoding.EncodeToString(hardware))
+		raw, err := json.Marshal(envelope)
+		return raw, nil, err
 	}
 	return []byte(resp.Report), nil, nil
 }
