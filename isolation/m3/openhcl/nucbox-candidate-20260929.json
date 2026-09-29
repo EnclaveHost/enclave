@@ -1,7 +1,7 @@
 {
   "schema": "enclave-nucbox-shield-candidate/1",
   "date": "2026-09-29",
-  "status": "hardware app evidence verified; recovery acceptance and production rollout pending; no marketplace admission",
+  "status": "hardware app evidence and restored-NV regression verified; full serving/recovery acceptance passed; runtime installed on production manager; public owner deployment pending wallet authorization; no marketplace admission",
   "guestSource": "d023349fd586",
   "guestBase": "4cd26e58bf44958fdf37b063408640f35596dc02",
   "openhclBase": "a7b0bd4a653ba1c9192497a9d3669b14e7f3bc58",
@@ -139,5 +139,24 @@
       "scope": "VBS image and guest input under supplied IDKS; caller must authenticate IDKS and app key custody",
       "userData": "a5b2579bec0ea0db24e03ca2e88943eb155b1eb22b4f00bfeee50a4dd2f718e091b06e9c68d2cd75d84f596803769078bf18697604e3aacc995774d6d193d51b"
     }
+  },
+  "acceptance": {
+    "run": "mgraccept-20260929-100132",
+    "serving": "PASS",
+    "recovery": "PASS",
+    "cleanup": "PASS"
+  },
+  "production": {
+    "release": "C:\\Users\\claude\\vbs-like\\releases\\shield-cpu-20260929",
+    "rollback": "C:\\Users\\claude\\vbs-like\\hvnode\\rollback-shield-20260929",
+    "nodeRestarted": false,
+    "servingCanary": {
+      "instance": "hvf546d051247bd43d0c8c4f48264d836f",
+      "http": "200 Hello World",
+      "hardwareAppEvidence": "PASS",
+      "runtimeWxSeccomp": "PASS",
+      "retiredAfterVerification": true
+    },
+    "hostSecureBoot": true
   }
 }
