@@ -1,6 +1,6 @@
 # Startup shared-prefix branches — 2026-09-28
 
-Status: implementation tested; production activation pending owner transactions.
+Status: implementation tested; runtime installed and admitted; app activation pending owner transactions.
 
 The candidate changes only `template/init` relative to release `16ef43bd`:
 large-model shared-prefix slots increase from 2 to 8. Active sessions remain 8,
@@ -37,9 +37,11 @@ prefix branching, not concatenation of independently calculated KV blocks.
 
 ## Rollout
 
-Nan has the verified candidate release and admission entries. The guest manager
-candidate passes adoption checks for all six running guests. Before activation,
-independent Nan measurement prediction must match the locally reconstructed
-measurement. The owner publishes 1.0.68 and updates only Eyesoff's catalog
+Nan has the verified candidate release and admission entries. Its independent
+measurement prediction matched the locally reconstructed measurement for the
+current app under the new release. The guest manager now uses the candidate
+runtime for new shielded guests and adopted all six existing running guests
+without restarting them. The running Eyesoff guest remains on its old runtime
+until the owner updates its app reference. The owner publishes 1.0.68 and updates only Eyesoff's catalog
 reference. No shares, config, domain, balances, or other app references change.
 Production startup timing and attested endpoint checks remain pending.
