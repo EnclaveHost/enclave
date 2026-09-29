@@ -65,6 +65,10 @@ The engine recipe can retain the existing ABI-matching pinned llama/GGML/CPU
 binaries with `--reuse-engine-runtime`. Use the matching existing engine flags
 and pinned revision; this is not permission to combine unrelated engine ABIs.
 The new shim links the measured libcrypto closure for accelerated SHA-256.
+`runtime-closure.py` includes its transitive dependencies while preserving the
+existing pinned runtime libraries. It checks all ELF dependencies and runs the
+loader with only the bundled filesystem visible. A host `ldd` check alone can
+silently resolve omitted libraries from the build machine and is insufficient.
 
 Changing the runtime changes the domain release measurement. Independently
 predict/admit that release before restarting the app. Keep the prior release

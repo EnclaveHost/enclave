@@ -69,6 +69,7 @@ if a.original_source_reclaim:
  crypto=Path(subprocess.check_output(['cc','-print-file-name=libcrypto.so'],text=True).strip()).resolve()
  if not crypto.is_file():raise SystemExit('libcrypto unavailable')
  shutil.copyfile(crypto,rt/'libcrypto.so.3')
+ run(['python3',r/'isolation/m4/runtime-closure.py',rt,'--complete-library','libcrypto.so.3'])
  (rt/'shield-original-source-reclaim.enabled').write_text('1\n')
 else:
  (rt/'shield-original-source-reclaim.enabled').unlink(missing_ok=True)
@@ -87,6 +88,7 @@ env={**os.environ,'LD_LIBRARY_PATH':str(rt)+':'+str(rt/'backends'),'LD_PRELOAD':
 check=subprocess.check_output(['ldd','-r',str(rt/'libenclave_llama.so'),str(rt/'backends/libggml-shielded.so')],env=env,text=True,stderr=subprocess.STDOUT)
 (w/'link-check.txt').write_text(check)
 if 'undefined symbol' in check or 'not found' in check:raise SystemExit('runtime link check failed')
+run(['python3',r/'isolation/m4/runtime-closure.py',rt])
 for f in rt.rglob('*.so*'):
  text=subprocess.check_output(['readelf','-W','-l',str(f)],text=True)
  if any('GNU_STACK' in l and 'RWE' in l for l in text.splitlines()):raise SystemExit('executable stack: '+str(f))
