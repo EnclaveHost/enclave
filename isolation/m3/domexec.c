@@ -315,7 +315,7 @@ int main(int argc, char **argv) {
         int milli=0; char extra=0;
         if (!f || fscanf(f, "%d %c", &milli, &extra) != 1 || milli < 500 || milli > 1000) die("Shield profile");
         fclose(f);
-        unsigned long long bytes = (4ULL<<30) * (unsigned)milli / 1000;
+        unsigned long long bytes = (12ULL<<30) * (unsigned)milli / 1000;
         snprintf(shield_workers,sizeof shield_workers,"SHIELDED_WORKERS=unix:/run/enclave-shield/gpu0|19595|0|%llu",bytes);
         snprintf(shield_vram,sizeof shield_vram,"ENCLAVE_VRAM_BYTES=%llu",bytes);
         shield_on=1;
