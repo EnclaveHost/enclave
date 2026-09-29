@@ -50,6 +50,8 @@
 
 #include "../m2/app-seccomp.h"   /* the app runtime's seccomp filter, shared with the SNP guest's m2/dominit.c */
 
+static int shield_on = 0;
+static char shield_workers[192], shield_vram[80];
 static const char *dom_id = "?";
 static volatile sig_atomic_t front_pid_g = -1;
 
@@ -190,7 +192,27 @@ static pid_t spawn(char *const argv[], uid_t uid, int quiet, int filter) {
                 _exit(1);
             }
         }
-        char *envp[] = {"HOME=/tmp", "PATH=/plat", NULL};
+        char *envp[48] = {"HOME=/tmp", "PATH=/plat", NULL};
+        if (shield_on && filter) {
+            const char *fixed[] = {
+                "ENCLAVE_GGML_BACKEND_DIR=/plat/rt-shield/backends",
+                "GGML_BACKEND_PATH=/plat/rt-shield/backends/libggml-shielded.so",
+                "SHIELDED_HOST=unix:/run/enclave-shield/gpu0", "SHIELDED_PORT=19595",
+                "SHIELDED_CALIB=/plat/rt-shield/calib/qwen2.5-0.5b-q8-gguf.calib",
+                "ENCLAVE_GGML_EXTRA_BUFTS=0", "ENCLAVE_GGML_N_GPU_LAYERS=0", "ENCLAVE_GGML_N_CTX=512",
+                "ENCLAVE_GGML_MAX_SESSIONS=8", "ENCLAVE_GGML_POOLED=1",
+                "ENCLAVE_GGML_PARK_SLOTS=0", "ENCLAVE_GGML_PREFIX_SLOTS=0",
+                "ENCLAVE_NN_SERVE_BYTES=2147483648", "ENCLAVE_NN_SERVE_KIND=RAM",
+                "ENCLAVE_GGML_N_THREADS=2", "ENCLAVE_GGML_N_THREADS_BATCH=2",
+                "ENCLAVE_GGML_N_BATCH=16", "ENCLAVE_GGML_N_UBATCH=16",
+                "SHIELDED_REFILL_THREADS=2", "SHIELDED_POOL_DEPTH=8", "OMP_NUM_THREADS=2",
+                "SHIELDED_MAX_M=64", "SHIELDED_OVERLAP_VERIFY=1", "SHIELDED_WEIGHT_BUDGET_FRAC=0.95",
+                "ENCLAVE_MODELS=qwen2.5-0.5b-q8-gguf", "ENCLAVE_NN_PRELOADS=qwen2.5-0.5b-q8-gguf", NULL
+            };
+            int i=2;
+            for (int j=0; fixed[j]; j++) envp[i++]=(char *)fixed[j];
+            envp[i++]=shield_workers; envp[i++]=shield_vram; envp[i]=NULL;
+        }
         execve(argv[0], argv, envp);
         if (con >= 0) dprintf(con, "DOM%s ERROR exec %s: %s\n", dom_id, argv[0], strerror(errno));
         _exit(127);
@@ -285,6 +307,53 @@ int main(int argc, char **argv) {
     sa_term.sa_handler = on_term;
     sigaction(SIGTERM, &sa_term, NULL);
 
+    pid_t shield_pid = -1;
+    struct stat profile_st;
+    if (stat("/shield.profile", &profile_st) == 0) {
+        if (!S_ISREG(profile_st.st_mode) || profile_st.st_uid != 0 || (profile_st.st_mode & 0222)) die("Shield profile permissions");
+        FILE *f = fopen("/shield.profile", "r");
+        int milli=0; char extra=0;
+        if (!f || fscanf(f, "%d %c", &milli, &extra) != 1 || milli < 500 || milli > 1000) die("Shield profile");
+        fclose(f);
+        unsigned long long bytes = (4ULL<<30) * (unsigned)milli / 1000;
+        snprintf(shield_workers,sizeof shield_workers,"SHIELDED_WORKERS=unix:/run/enclave-shield/gpu0|19595|0|%llu",bytes);
+        snprintf(shield_vram,sizeof shield_vram,"ENCLAVE_VRAM_BYTES=%llu",bytes);
+        shield_on=1;
+        shield_pid=fork();
+        if (shield_pid < 0) die("fork Shield broker");
+        if (shield_pid == 0) {
+            char uid_arg[32]; snprintf(uid_arg,sizeof uid_arg,"%u",(unsigned)uid);
+            // This measured broker alone retains AF_VSOCK. It authenticates the runtime UID.
+            char *av[]={"/plat/shieldbroker",uid_arg,NULL};
+            char *env[]={"PATH=/plat",NULL};
+            execve(av[0],av,env); _exit(127);
+        }
+        for (int i=0; access("/run/enclave-shield/gpu0",F_OK)!=0; i++) {
+            int st;
+            if (i>=1000 || waitpid(shield_pid,&st,WNOHANG)!=0) die("Shield broker readiness");
+            usleep(10000);
+        }
+        front[2]="/plat/rt-shield/runtime.json";
+        front[4]="/run/front/front.sock"; front[6]="/run/front/monitor.sock";
+        run_front[4]="/run/front/front.sock"; run_front[6]="/run/front/monitor.sock";
+        run_front[2]="/plat/rt-shield/runtime.json";
+    } else if (errno != ENOENT) die("stat Shield profile");
+    char **base = run_port ? run : rt;
+    char *shield_app[64]; int ai=0;
+    for (int i=0; base[i]; i++) {
+        char *v=base[i];
+        if (shield_on) {
+            if (!strcmp(v,"/plat/rt/ld-linux-x86-64.so.2")) v="/plat/rt-shield/ld-linux-x86-64.so.2";
+            else if (!strcmp(v,"/plat/rt")) v="/plat/rt-shield";
+            else if (!strcmp(v,"/plat/rt/wasmtime")) v="/plat/rt-shield/wasmtime";
+            else if (!strcmp(v,"/app.wasm")) {
+                shield_app[ai++]="-S"; shield_app[ai++]="nn";
+                shield_app[ai++]="-S"; shield_app[ai++]="nn-graph=ggml::/plat/models/qwen2.5-0.5b-q8-gguf";
+            }
+        }
+        shield_app[ai++]=v;
+    }
+    shield_app[ai]=NULL;
     pid_t rt_pid, front_pid;
     if (argc > 3 && strcmp(argv[3], "probe") == 0) {
         if (seccomp_fd >= 0) { close(seccomp_fd); seccomp_fd = -1; }   /* the probe states no filter */
@@ -292,14 +361,14 @@ int main(int argc, char **argv) {
         front_pid = -1;
         printf("DOM%s started adversary probe=%d (no app, no front)\n", dom_id, rt_pid);
     } else if (run_port) {
-        rt_pid = spawn(run, uid, 1, 1);                 /* the runtime: quiet and filtered */
+        rt_pid = spawn(shield_app, uid, 1, 1);                 /* the runtime: quiet and filtered */
         if (seccomp_fd >= 0) { close(seccomp_fd); seccomp_fd = -1; }   /* its child holds the statement pipe until exec */
         front_pid = spawn(run_front, front_uid, 0, 0);  /* the front: its own uid, neither quiet nor filtered */
         front_pid_g = front_pid;
         printf("DOM%s started runtime=%d front=%d mode=run http=%d (/data 64 MiB scratch)\n", dom_id, rt_pid, front_pid,
                run_port);
     } else {
-        rt_pid = spawn(rt, uid, 1, 1);                  /* the runtime: quiet and filtered */
+        rt_pid = spawn(shield_app, uid, 1, 1);                  /* the runtime: quiet and filtered */
         if (seccomp_fd >= 0) { close(seccomp_fd); seccomp_fd = -1; }   /* its child holds the statement pipe until exec */
         front_pid = spawn(front, front_uid, 0, 0);      /* the front: its own uid, neither quiet nor filtered */
         front_pid_g = front_pid;
@@ -313,8 +382,8 @@ int main(int argc, char **argv) {
         pid_t w = wait(&st);
         if (w < 0 && errno == EINTR) continue;   /* the SIGTERM we forwarded, not a child exiting */
         if (w < 0 && errno == ECHILD) break;
-        if (w == rt_pid || w == front_pid) {
-            printf("DOM%s ERROR %s exited status=%d\n", dom_id, w == rt_pid ? "runtime" : "front",
+        if (w == rt_pid || w == front_pid || w == shield_pid) {
+            printf("DOM%s ERROR %s exited status=%d\n", dom_id, w == rt_pid ? "runtime" : w == front_pid ? "front" : "Shield broker",
                    WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st));
             break;
         }
