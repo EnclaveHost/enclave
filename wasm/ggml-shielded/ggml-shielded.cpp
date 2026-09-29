@@ -2010,6 +2010,46 @@ static void sh_link_down(sh_state &s) {
 static int sh_local_products(sh_state &s, const std::vector<int> &nodes,
                             const std::vector<sh_state::entry *> &entries,
                             const int64_t *x, int32_t m, int64_t **y) {
+    if (!entries.empty() && entries[0]->part_cards.size() > 1) {
+        // A link owns only its columns. Reconstruct every authenticated slice
+        // into the full-width result, including prefill wider than max_m.
+        if (nodes.empty() || nodes.size() > SH_GROUP_MAX || entries.size() != nodes.size() ||
+            m <= 0 || sh_max_m() <= 0) return SH_ERR_PROTO;
+        sh_pool &pool = sh_pool_get();
+        for (size_t t = 0; t < entries.size(); t++) {
+            const auto &e = *entries[t];
+            if (e.part_nodes.size() != e.part_cards.size() || e.part_col0.size() != e.part_cards.size())
+                return SH_ERR_PROTO;
+            for (size_t c = 0; c < e.part_cards.size(); c++) {
+                const int ci = e.part_cards[c];
+                if (ci < 0 || (size_t)ci >= pool.cards.size()) return SH_ERR_PROTO;
+                sh_state &card = *pool.cards[ci];
+                std::unique_lock<std::mutex> lock(card.mu, std::defer_lock);
+                if (&card != &s) lock.lock();
+                if (!card.link) return SH_ERR_IO;
+                uint64_t failures = 0;
+                sh_link_stats(card.link, nullptr, nullptr, &failures);
+                if (card.verify_fail || failures) return SH_ERR_VERIFY;
+                const int64_t col = e.part_col0[c];
+                const int64_t end = c + 1 < e.part_col0.size() ? e.part_col0[c + 1] : e.N;
+                if (col < 0 || end <= col || end > e.N || (c == 0 && col != 0)) return SH_ERR_PROTO;
+                const size_t width = (size_t)(end - col);
+                std::vector<int64_t> slice((size_t)std::min(m, sh_max_m()) * width);
+                int64_t *dst = slice.data();
+                for (int32_t at = 0; at < m;) {
+                    const int32_t rows = std::min(sh_max_m(), m - at);
+                    const int rc = sh_link_gemm_local(card.link, &e.part_nodes[c], 1,
+                                                      x + (size_t)at * e.K, rows, &dst);
+                    if (rc != SH_OK) return rc;
+                    for (int32_t r = 0; r < rows; r++)
+                        memcpy(y[t] + (size_t)(at + r) * e.N + col,
+                               slice.data() + (size_t)r * width, width * sizeof(int64_t));
+                    at += rows;
+                }
+            }
+        }
+        return SH_OK;
+    }
     if (!g_weight_verifier || m <= sh_max_m())
         return sh_link_gemm_local(s.link, nodes.data(), nodes.size(), x, m, y);
     if (nodes.empty() || nodes.size() > SH_GROUP_MAX || entries.size() != nodes.size() || sh_max_m() <= 0)
@@ -2632,7 +2672,10 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
                             (long long)(xents[t]->part_col0.size() > 1 ? xents[t]->N - xents[t]->part_col0[1] : 0));
                 return GGML_STATUS_FAILED;
             }
-            if (rc != SH_OK) {
+            if (rc != SH_OK && g_weight_verifier) {
+                rc = sh_local_products(s, nodes, xents, x_gpu.data(), m, yp.data());
+                s.local_nodes += members.size();
+            } else if (rc != SH_OK) {
                 /* A card that is not live cannot produce its columns, and this
                  * card's own nodes are only a SLICE of each weight -- so the
                  * local fallback is the whole-tensor one, straight from the

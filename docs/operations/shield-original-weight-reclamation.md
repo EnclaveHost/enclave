@@ -54,7 +54,10 @@ Checks run for the implementation:
   authenticated rereads, tampered/truncated backing, descriptor mismatches and
   explicit hole-punch failure.
 - Existing backend authentication tests, including local mask minting and exact
-  narrow/wide fallback after original source mappings are absent.
+  narrow/wide fallback after original source mappings are absent, including
+  reconstruction of both column slices when a two-card link is unavailable.
+  The fallback must never treat one card’s half-width product as a full tensor
+  or read the retired original mapping after a shape refusal.
 - Real 0.5B and 27B no-allocation loader integration; full 27B test constrained
   to a 4 GiB cgroup, with a 3 GiB peak and no swap.
 - Inherited-descriptor integration against the unchanged production engine,
