@@ -243,6 +243,7 @@ func main() {
 	}
 	// M2: a guest that serves a deployment gets its owner's config and secrets through the attested release, and its
 	// allowlist from them, BEFORE init starts the app (provision.go). Any failure ends the domain.
+	warmupPath := ""
 	if *initFD > 0 {
 		initPipe := os.NewFile(uintptr(*initFD), "init-pipe")
 		err := f.releaseForInit(initPipe, hd, hdErr, func() (string, error) {
@@ -267,6 +268,7 @@ func main() {
 			if err != nil {
 				return "", err
 			}
+			warmupPath = configuredWarmup(prov.config)
 			return prov.config, nil
 		})
 		if err != nil {
@@ -289,6 +291,10 @@ func main() {
 		}
 		fp := sha256.Sum256(spki)
 		fmt.Printf("DOM serving %s spki_sha256=%x ready_ms=%.0f\n", where, fp, monoMs())
+		if warmupPath != "" {
+			fmt.Println("DOM warmup: started")
+			fmt.Printf("DOM warmup: %s\n", bootWarmup(context.Background(), *upstream, warmupPath, 15*time.Minute))
+		}
 	}()
 	_, hp, err := net.SplitHostPort(*upstream)
 	must(err)
