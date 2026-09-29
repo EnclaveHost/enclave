@@ -52,12 +52,14 @@ const (
 )
 
 type certState struct {
-	name      string // "" = no deployment bound: nothing to certify
-	key       crypto.Signer
-	spki      []byte
-	self      *tls.Certificate
-	mu        sync.RWMutex
-	installed *tls.Certificate
+	name         string // "" = no deployment bound: nothing to certify
+	key          crypto.Signer
+	spki         []byte
+	self         *tls.Certificate
+	mu           sync.RWMutex
+	installed    *tls.Certificate
+	aliases      map[string]*certState
+	aliasesUntil time.Time
 }
 
 // nameFromHostData: <first 4 bytes of the deployment id, hex>.<zone>, or "" when HOST_DATA is all zero or no zone.
@@ -91,6 +93,9 @@ func launcherName(path, zone string) string {
 }
 
 func (c *certState) getCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	if alias := c.forName(strings.ToLower(hello.ServerName)); alias != nil && alias != c {
+		return alias.getCertificate(hello)
+	}
 	if c.name != "" && strings.EqualFold(hello.ServerName, c.name) {
 		c.mu.RLock()
 		inst := c.installed
@@ -168,7 +173,12 @@ func (c *certState) serveCSR(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "GET only", http.StatusMethodNotAllowed)
 		return
 	}
-	p, err := c.csr()
+	target := c.forName(r.URL.Query().Get("name"))
+	if target == nil {
+		http.Error(w, "name is not authorized for this deployment", http.StatusForbidden)
+		return
+	}
+	p, err := target.csr()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -187,14 +197,19 @@ func (c *certState) serveInstall(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "the chain exceeds its bound", http.StatusRequestEntityTooLarge)
 		return
 	}
-	leaf, err := c.install(body, time.Now())
+	target := c.forName(r.URL.Query().Get("name"))
+	if target == nil {
+		http.Error(w, "name is not authorized for this deployment", http.StatusForbidden)
+		return
+	}
+	leaf, err := target.install(body, time.Now())
 	if err != nil {
 		http.Error(w, "refused: "+err.Error(), http.StatusUnprocessableEntity)
 		return
 	}
-	fmt.Printf("DOM certificate installed for %s: issuer %q, valid until %s\n", c.name, leaf.Issuer.CommonName,
+	fmt.Printf("DOM certificate installed for %s: issuer %q, valid until %s\n", target.name, leaf.Issuer.CommonName,
 		leaf.NotAfter.UTC().Format(time.RFC3339))
 	w.Header().Set("content-type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"installed": c.name, "notAfter": leaf.NotAfter.UTC().Format(time.RFC3339),
+	_ = json.NewEncoder(w).Encode(map[string]any{"installed": target.name, "notAfter": leaf.NotAfter.UTC().Format(time.RFC3339),
 		"issuer": leaf.Issuer.CommonName})
 }

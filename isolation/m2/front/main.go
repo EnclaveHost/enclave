@@ -275,6 +275,9 @@ func main() {
 			die("release: %v", err)
 		}
 	}
+	if *initFD > 0 && f.certs.name != "" && len(hd) == 32 && !isZero(hd) {
+		go f.certs.watchDomains(context.Background(), "0x"+hex.EncodeToString(hd))
+	}
 	tl := tls.NewListener(l, &tls.Config{GetCertificate: f.certs.getCertificate, MinVersion: tls.VersionTLS13,
 		SessionTicketsDisabled: true})
 
