@@ -94,9 +94,10 @@ import { isMcpHost, handleMcp } from "./mcp.js";
 import { handleAccount, initAccounts } from "./auth.js";
 import { handleSso, initSso } from "./sso.js";
 import { handleBilling, initBilling } from "./billing.js";
-import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep } from "./secrets.js";
+import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep, hasStagedSecrets } from "./secrets.js";
 import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDeployment, tlsAskAllowed } from "./domains.js";
 import { handleCerts, initCerts } from "./certs.js";
+import { createShieldMarketplace } from "./shield-marketplace.mjs";
 import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson } from "./measurement-predict.mjs";
 import { createTunnelHub } from "./tunnel.js";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
@@ -113,9 +114,7 @@ installProcessGuards("api-relay");
 // {name, tokenSha256} (only the hash is public; the token stays off-repo) plus
 // an optional env of raw name:token pairs the relay hashes itself. Attach auth
 // is routing-only; clients still verify each enclave's attestation end-to-end.
-// metal0 uses a fresh SNP quote plus its registered operator signature;
-// us-west uses its registered operator signature. Token entries reserve names
-// against both paths, so neither belongs in the bootstrap token allowlist.
+// Attested Metal0 and operator-authenticated us-west must not be reserved by legacy tokens.
 const DEFAULT_METAL_ALLOW = [];
 const ENV_METAL_ALLOW = (process.env.METAL_TUNNEL_TOKENS || "").split(",").map((s) => s.trim()).filter(Boolean)
   .map((pair) => { const i = pair.indexOf(":"); const name = pair.slice(0, i), token = pair.slice(i + 1);
@@ -947,6 +946,7 @@ async function pollAvailability() {
   // (B) an owner-only row's served deployments are read from the ledger: keep it loaded while such a row is live (the
   // common poll pays nothing; a failed read leaves the last rows, and none at first, which serves nothing: fail closed)
   if (live.some((e) => e.ownerOnly)) await ledgerRows().catch(() => null);
+  await shieldMarket.refresh(live, _ledger.rows || []).catch(e => console.warn(`[shield-market] ${e.message}`));
   updatedAt = new Date().toISOString();
   sweepIneligibleUpgrades();
 }
@@ -1090,7 +1090,7 @@ const gpuFreeOf = (a) => a.gpuShareFree ?? (a.gpu ? a.maxShare ?? 0 : 0);
 const cpuFreeOf = (a) => a.cpuShareFree ?? (a.gpu ? 0 : a.maxShare ?? 0);
 function pick(want = {}) {
   const { gpuShare = 0, cpuShare = 0 } = want;
-  const pool = servingEnclaves();   // only boxes that CLAIM can be routed to (a tunnel demo box has no dialable endpoint and takes no work)
+  const pool = servingEnclaves().filter(e => !want.legacy || e.mode !== "hv-node");   // only boxes that CLAIM can be routed to (a tunnel demo box has no dialable endpoint and takes no work)
   if (gpuShare > 0) {
     return pool
       .filter((e) => e.availability.gpu && gpuFreeOf(e.availability) >= gpuShare
@@ -1253,7 +1253,7 @@ const proxied = (p) => p.startsWith("/v1/") || p === "/availability" || p === "/
 // clean 503 that says nobody is taking work beats /v1/auth and /v1/pricing 404ing off a box that
 // never implemented them.
 const sticky = () => {
-  const s = servingEnclaves().filter((e) => e.availability?.fullService !== false);
+  const s = servingEnclaves().filter((e) => e.mode !== "hv-node" && e.availability?.fullService !== false);
   return s.filter((e) => e.availability?.gpu === true).sort((a, b) => a.endpoint.localeCompare(b.endpoint))[0]
       || s.slice().sort((a, b) => a.endpoint.localeCompare(b.endpoint))[0] || null;
 };
@@ -1284,7 +1284,7 @@ const ownerCached = (id) => {
   const hit = OWNER.get(id);
   // U7: a cached owner is an answer about WHERE, never permission to route. It is used only while its row is live AND
   // eligible right now, so a host that loses eligibility stops receiving the cached tenant at once.
-  return (hit && Date.now() - hit.at < OWNER_TTL_MS && live.some((e) => e.endpoint === hit.endpoint && computeEligible(e)))
+  return (hit && Date.now() - hit.at < OWNER_TTL_MS && live.some((e) => e.endpoint === hit.endpoint && e.mode !== "hv-node" && computeEligible(e)))
     ? hit.endpoint : null;
 };
 const ownerNegRecent = (id) => { const at = OWNER_NEG.get(id); return at != null && Date.now() - at < OWNER_NEG_TTL_MS; };
@@ -1348,12 +1348,13 @@ async function tenantRoute(id, { auth = null } = {}) {
     const row = live.find((x) => x.id && x.id.toLowerCase() === l.runner);
     if (!row) return deny(503, "runner_unreachable", `The host holding ${id}'s lease is not attached to this relay right now.`);
     if (!computeEligible(row)) return deny(503, "host_ineligible", `The host holding ${id}'s lease is not eligible to serve tenant apps: ${ineligibleReason(row)}.`);
+    if (row.mode === "hv-node") return deny(403, "shield_tls_only", "Shield apps are available only through their isolated HTTPS origin.");
     ownerLearn(h, row.endpoint);
     return { endpoint: row.endpoint };
   }
   // no ledger answer is possible for this id: the cache, then the probe, over ELIGIBLE rows only
   const hit = ownerCached(h); if (hit) return { endpoint: hit };
-  const pool = live.filter((e) => !e.relay && computeEligible(e));
+  const pool = live.filter((e) => !e.relay && computeEligible(e) && e.mode !== "hv-node");
   if (!pool.length) return deny(503, "no_eligible_host", "No eligible host is serving tenant apps right now.");
   let ep = null;
   if (auth && fanoutReserve(pool.length)) {
@@ -1383,7 +1384,9 @@ function hostEligibility(epId) {
   const id = String(epId || "").toLowerCase();
   const row = live.find((x) => x.id && x.id.toLowerCase() === id);
   if (!row) return { eligible: false, reason: "the host is not attached to this relay right now" };
-  return computeEligible(row) ? { eligible: true, reason: null } : { eligible: false, reason: ineligibleReason(row) };
+  const verdict = computeEligible(row) ? { eligible: true, reason: null } : { eligible: false, reason: ineligibleReason(row) };
+  return row.mode === "hv-node" && shieldMarket.configured(row.name)
+    ? { ...verdict, appEvidenceRequired: true, plaintextSecrets: false } : verdict;
 }
 // ---- (B) OWNER-ONLY serving on an hv-node row (enclave-87, 2026-09-26) -------------------------------------------------
 // An hv-node row (the NucBox: a host-attested boot state, never a TEE, never eligible) may carry a deployment D ONLY when ALL
@@ -1421,6 +1424,10 @@ function servesDeploymentUntil(row, d, nowSec = Math.floor(Date.now() / 1000)) {
   if (!isOwnerOnlyRow(row) || !d) return 0;
   const lease = Number(d.leaseUntil);
   if (String(d.runner || "").toLowerCase() !== String(row.id).toLowerCase() || !(lease > nowSec)) return 0;
+  const admittedUntil = shieldMarket.servesUntil(row, d);
+  if (admittedUntil) return Math.min(lease, admittedUntil);
+  // Once admitted to the marketplace, every app must retain its own evidence.
+  if (shieldMarket.eligible(row)) return 0;
   const e = servedEntryNow(row, d.owner, nowSec);
   if (!e) return 0;
   if (isolationRequireOf(d) !== HVNODE_BACKEND) return 0;
@@ -1526,7 +1533,7 @@ function sweepIneligibleUpgrades() {
 function tunnelEligible(origin) { const row = live.find((x) => x.endpoint === origin); return !!(row && computeEligible(row)); }
 function tunnelTenantRefusal(origin, path, method = "GET") {
   const row = live.find((x) => x.endpoint === origin);
-  if (row && computeEligible(row)) return null;
+  if (row && computeEligible(row) && row.mode !== "hv-node") return null;
   const raw = String(path || "/").toLowerCase(), canon = canonicalBoxPath(path);
   const unaltered = canon !== null && canon === raw;          // canonicalizing changed nothing but case
   if (unaltered && /^(?:GET|HEAD|OPTIONS)$/i.test(String(method || ""))
@@ -1635,7 +1642,7 @@ const TENANT_COMPUTE_MODES = new Set(["snp"]);
 const CONFIDENTIAL_CPU = new Set(["amd-sev-snp", "intel-tdx"]);
 function computeEligible(e) {
   if (!e || e.relay) return false;
-  if (e.tunnel) return TENANT_COMPUTE_MODES.has(String(e.mode || ""));
+  if (e.tunnel) return TENANT_COMPUTE_MODES.has(String(e.mode || "")) || shieldMarket.eligible(e);
   // a dialed row: its own word, and (RELAY_REVERIFY=enforce) this relay's re-verification of it; shadow/off leave the word
   return reverifier.eligible(e, CONFIDENTIAL_CPU.has(String(e.availability?.teeCpu || "")));
 }
@@ -2057,7 +2064,7 @@ async function gateway(u, req, res) {
     let want = {};
     try { const r = JSON.parse(body.toString() || "{}").resources || {};
           want = { gpuShare: Number(r.gpuShare) || 0, cpuShare: Number(r.cpuShare) || 0 }; } catch {}
-    const c = pick(want);
+    const c = pick({ ...want, legacy: true });
     if (!c) return json(res, 409, { error: "no_capacity",
       message: `No live enclave has gpuShare >= ${want.gpuShare} and cpuShare >= ${want.cpuShare} free.`, updatedAt }, req);
     const r = await forward(c.endpoint, req, body).catch((e) => ({ status: 502, contentType: "application/json",
@@ -2083,7 +2090,7 @@ async function gateway(u, req, res) {
   // taking new work, since the box that hosts a signed-in owner's app may be full). A crafted link naming an ineligible
   // box falls back to sticky like an unknown name, so a platform sign-in never lands on a box that could not host.
   const pinned = pin && p.startsWith("/v1/auth/")
-    ? live.find((e) => !e.relay && computeEligible(e) && (String(e.name || "").toLowerCase() === pin
+    ? live.find((e) => !e.relay && computeEligible(e) && e.mode !== "hv-node" && (String(e.name || "").toLowerCase() === pin
                     || String(e.endpoint || "").toLowerCase() === pin)) : null;
   const c = pinned || sticky();                              // auth, pricing, version, attestation, ...
   // Say so, rather than dereferencing null: with no serving enclave there is nowhere to ask.
@@ -2110,7 +2117,7 @@ async function listDeployments(u, req, res) {
   // no token = no enclave view (they'd all 401); the ledger alone answers
   // U7 (enclave-d1's review): the caller's SESSION rides this fan-out, so it goes to ELIGIBLE hosts only. An ineligible
   // live row (a token tunnel, a relay, an hv-node) never receives a session minted by a box that could be replayed there.
-  const rs = auth ? await Promise.all(live.filter((e) => !e.relay && computeEligible(e)).map((e) =>
+  const rs = auth ? await Promise.all(live.filter((e) => !e.relay && computeEligible(e) && e.mode !== "hv-node").map((e) =>
     forward(e.endpoint, req, null).then((r) => ({ e, r })).catch(() => null))) : [];
   const answered = rs.filter(Boolean);
   const oks = answered.filter((x) => x.r.status === 200);
@@ -2366,7 +2373,7 @@ async function confirmRow(id) {
   const ledger = await confirmedLedger();
   const got = await Promise.all(catalogClients.map((c) => c.readContract({ address: ledger, abi: DEP_GET_ABI, functionName: "get", args: [id] })));
   const pick = (d) => ({ id: String(d.id).toLowerCase(), runner: String(d.runner).toLowerCase(), leaseUntil: String(d.leaseUntil), appRef: d.appRef,
-                         isPublic: !!d.isPublic, configCid: d.configCid, active: !!d.active });
+                         owner: String(d.owner).toLowerCase(), isPublic: !!d.isPublic, configCid: d.configCid, active: !!d.active, cpuMilli: Number(d.cpuMilli), gpuMilli: Number(d.gpuMilli) });
   const rows = got.map(pick);
   if (rows.some((r) => JSON.stringify(r) !== JSON.stringify(rows[0]))) throw new Error("the RPCs disagree about the deployment's record");
   if (rows[0].id !== String(id).toLowerCase()) throw Object.assign(new Error("the ledger holds no such deployment"), { code: "no_deployment" });
@@ -2374,6 +2381,13 @@ async function confirmRow(id) {
 }
 let _predictor = null;
 const predictor = () => _predictor || (_predictor = makePredictor({ ...predictorEnv(), readCatalog: catalogReader(catalogClients, catalogAddress) }));
+const shieldMarket = createShieldMarketplace({ hub: tunnelHub,
+  policyFile: process.env.RELAY_SHIELD_MARKET_POLICY || "", confirmRow, hasSecrets: hasStagedSecrets,
+  isOwnerDeployment: (host, d) => !!servedEntryNow(host, d.owner),
+  readCatalog: catalogReader(catalogClients, catalogAddress),
+  readConfig: versionConfigReader(catalogClients, catalogAddress),
+  fetchVerified: (cid, max) => predictor().fetchVerified(cid, max),
+});
 const expectedGuestFor = (row, o) => predictor().expectedFor(row && row.appRef, o);
 // the catalog VERSION's { config, configCid } for the deployment's CONFIRMED appRef, through the same agreeing RPCs
 const _versionConfig = { read: null };
@@ -2430,6 +2444,7 @@ async function prewarmCollateral(doc) {
 // is admitted only when it equals an admitted domain release's own
 const runtimeIdOf = (r) => Buffer.from(runtimeIdOfJson(JSON.stringify(r)), "hex");
 const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility, leaseHolderChipIds,
+                   verifyAppCertificate: (epId, d, spki) => shieldMarket.certificate(live.find(e => String(e.id).toLowerCase() === String(epId).toLowerCase()), d, spki),
                    // (B) does this endpoint id's live row serve this ledger deployment NOW (hv-node owner-only: served owner,
                    // this row's live lease, isolation.require = hyperv-partition-per-app)? certs.js 6b and secrets.js has-secrets
                    ownerServesDeployment: (epId, d) => servesDeploymentUntil(live.find((x) => x.id && String(x.id).toLowerCase() === String(epId || "").toLowerCase()), d) > 0,
@@ -2584,6 +2599,7 @@ function handleRequest(req, res) {
                                     // (B) the deployments an owner-only hv-node row carries now: the data-plane daemons splice
                                     // ONLY these to it (fleet.mjs servesDeployment), never re-deriving the rule from row fields
                                     ...(e.ownerOnly ? { servesDeployments: ownerServedDeployments(e) } : {}),
+                                    ...(shieldMarket.eligible(e) ? { ownerOnly: false, tier: "enclave-shield", appEvidenceRequired: true, protection: "host-os-isolation", operatorExcluded: false } : {}),
                                     ...(inferenceLaneOf(e) ? { lane: inferenceLaneOf(e) } : {}) }));
     const agg = {
       enclaves: live.length, serving: serving.length,
