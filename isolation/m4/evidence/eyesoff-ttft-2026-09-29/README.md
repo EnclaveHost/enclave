@@ -30,3 +30,9 @@ The runtime build leaves ggml.rs and prefix_claims.rs byte-identical. The candid
 Startup/browser warmup previously omitted the verified caller. The MCP adapter therefore omitted identity-dependent tools, yielding a different prefix from authenticated chat. 1.0.69 passes verified identity from request credentials through warmup, sends browser credentials on both warmup paths, and prepares again after popup sign-in. Anonymous boot probes stay anonymous. Settings cannot inject identity or conversation contents.
 
 216 Rust and 9 browser tests passed. The application was built with nightly-2026-07-25. Publication/activation require the owner's hardware-wallet signature. Activation must wait for independent prediction of the new app/runtime pair, then preserve the 72-GiB guest floor and other guests. Verify real MTP chat and first-token timing after rollout, not only warmup responses.
+
+## Additional local model validation
+
+Using the actual candidate runtime/app with the small 0.5B CPU model and a local MCP fixture: anonymous warmup prepared 344 tokens; a spoofed caller in settings stayed anonymous at 344; a verified synthetic sign-in exposed the authenticated 578-token prefix. Its first warmup cost 1480 ms and repeat cost 0 ms. The following real authenticated chat had 589 prompt tokens and 36 ms prefill, demonstrating reuse across the warmup-to-chat path. Synthetic signer credentials were generated in memory and never saved. This validates behavior; it is not a 27B production latency claim.
+
+The candidate manager configuration's read-only adoption check accepted all six current guests, including Eyesoff. Runtime files and additive release pins are staged on the independent verifier; its live process has not been restarted yet. Production remains on release 4f6fcd61 and app 1.0.68 pending publication and independent prediction of the candidate pair.
