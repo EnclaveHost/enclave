@@ -1253,7 +1253,7 @@ const proxied = (p) => p.startsWith("/v1/") || p === "/availability" || p === "/
 // clean 503 that says nobody is taking work beats /v1/auth and /v1/pricing 404ing off a box that
 // never implemented them.
 const sticky = () => {
-  const s = servingEnclaves().filter((e) => e.availability?.fullService !== false);
+  const s = servingEnclaves().filter((e) => e.mode !== "hv-node" && e.availability?.fullService !== false);
   return s.filter((e) => e.availability?.gpu === true).sort((a, b) => a.endpoint.localeCompare(b.endpoint))[0]
       || s.slice().sort((a, b) => a.endpoint.localeCompare(b.endpoint))[0] || null;
 };
@@ -1284,7 +1284,7 @@ const ownerCached = (id) => {
   const hit = OWNER.get(id);
   // U7: a cached owner is an answer about WHERE, never permission to route. It is used only while its row is live AND
   // eligible right now, so a host that loses eligibility stops receiving the cached tenant at once.
-  return (hit && Date.now() - hit.at < OWNER_TTL_MS && live.some((e) => e.endpoint === hit.endpoint && computeEligible(e)))
+  return (hit && Date.now() - hit.at < OWNER_TTL_MS && live.some((e) => e.endpoint === hit.endpoint && e.mode !== "hv-node" && computeEligible(e)))
     ? hit.endpoint : null;
 };
 const ownerNegRecent = (id) => { const at = OWNER_NEG.get(id); return at != null && Date.now() - at < OWNER_NEG_TTL_MS; };

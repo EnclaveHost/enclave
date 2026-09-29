@@ -46,3 +46,12 @@ test('a change in the ledger during verification, private apps and staged secret
   assert.equal(x.market.eligible(x.host),false);
  }
 });
+
+test('background failures are spaced rather than retried on every availability poll',async()=>{
+ const x=fixture();let calls=0;
+ x.hub.fetchJson=async()=>{calls++;throw new Error('temporary provider failure');};
+ await x.market.refresh([x.host],[x.row]);
+ await x.market.refresh([x.host],[x.row]);
+ assert.equal(calls,1);assert.equal(x.market.eligible(x.host),false);
+ x.setClock(1060001);await x.market.refresh([x.host],[x.row]);assert.equal(calls,2);
+});
