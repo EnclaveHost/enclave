@@ -32,7 +32,7 @@ test("the rule reproduces guestd's real derivation records, byte for byte (recor
   // a mixed-case catalog ref is the same record (the supervisor lowercases the app)
   assert.deepEqual(P.derivationRecord(`catalog://${k1.record.catalog.app.toUpperCase().replace("0X", "0x")}/4`, { cid: k1.record.cid, memMb: 128, ports: "" }, rid), r1);
   for (const [ports, ok] of [["", 0], ["http:8000", 8000], [" HTTP:1 ", 1], ["tcp:22", null], ["http:80,http:81", null], ["http:0", null], ["http:50000", null], ["udp:53", null]]) {
-    if (ok === null) assert.throws(() => P.isolationHttpPortOf(ports), /not offered/, ports);
+    if (ok === null) assert.throws(() => P.isolationHttpPortOf(ports), /port|HTTP/, ports);
     else assert.equal(P.isolationHttpPortOf(ports), ok, ports);
   }
   assert.throws(() => P.derivationRecord("ipfs://bafy", { cid: "x", memMb: 1 }, rid), /catalog/);
@@ -110,7 +110,7 @@ const R1 = "a1".repeat(32), R2 = "a2".repeat(32), R3 = "a3".repeat(32), RK = "ab
 const RT_OTHER = WASMTIME_48.replace("48.0.1", "49.0.0");
 const REL = { [R1]: release("r1"), [R2]: release("r2"), [R3]: release("r3", RT_OTHER), [RK]: release("rk") };
 // the stub tools: a "bundle" is canonical({policy, http, component}); a "measurement" is sha384(release id ‖ AppID ‖ runtime)
-const stubBundle = (rec, comp) => Buffer.from(P.canonical({ policy: rec.policy, http: rec.http || 0, comp: comp.toString() }));
+const stubBundle = (rec, comp) => Buffer.from(P.canonical({ policy: rec.policy, http: rec.http || 0, ...(rec.inference ? { inference: rec.inference } : {}), comp: comp.toString() }));
 const stubMeasure = (id, appId, rid) => createHash("sha384").update(id + appId + rid).digest("hex");
 function stubs(over = {}) {
   const calls = [];
@@ -386,6 +386,34 @@ test("fetchVerified: a config CID through the platform's fetcher; a raw-CID answ
   assert.equal(tools.calls.filter((c) => c.script === "expected-measurement.sh").length, 0, "no measurement ran");
 });
 
+test("config gateway: preferred source and verified fallback preserve CID and size checks", async () => {
+  const bytes = Buffer.from('{"draft_p_min":0}');
+  const raw = Buffer.concat([Buffer.from([1, 0x55, 0x12, 0x20]), createHash("sha256").update(bytes).digest()]);
+  let bits = 0, v = 0, cid = "b";
+  for (const x of raw) { v = (v << 8) | x; bits += 8; while (bits >= 5) { cid += "abcdefghijklmnopqrstuvwxyz234567"[(v >>> (bits - 5)) & 31]; bits -= 5; } }
+  if (bits) cid += "abcdefghijklmnopqrstuvwxyz234567"[(v << (5 - bits)) & 31];
+  for (const mode of ["ok", "down", "corrupt", "all-down", "oversize"]) {
+    const seen = [];
+    const { p } = predictor({ opts: { configGateway: "https://pin.example" }, tools: {
+      "fetch-cid.py": (a) => {
+        if (a[2] !== cid) return null;
+        seen.push(a[5]); assert.equal(a[4], String(bytes.length));
+        const first = a[5] === "https://pin.example";
+        if (mode === "all-down" || (first && mode === "down")) return { code: 1, err: "HTTP 520", out: "" };
+        const body = first && mode === "corrupt" ? Buffer.alloc(bytes.length, 1)
+          : first && mode === "oversize" ? Buffer.alloc(bytes.length + 1) : bytes;
+        fs.writeFileSync(a[3], body); return { code: 0, err: "", out: "ok" };
+      }
+    } });
+    const got = await p.fetchVerified(cid, bytes.length);
+    assert.equal(got.ok, mode !== "all-down", mode);
+    if (got.ok) assert.deepEqual(got.bytes, bytes, mode);
+    assert.deepEqual(seen, mode === "ok" ? ["https://pin.example"] : ["https://pin.example", "https://trustless.example"]);
+  }
+  assert.ok(predictor({ opts: { configGateway: "http://insecure.example" } }).p.problems.includes("an https config gateway"));
+  assert.equal(P.predictorEnv({ SECRETS_RELEASE_CONFIG_GATEWAY: "https://pin.example" }).configGateway, "https://pin.example");
+});
+
 test("versionConfigReader: the version's inline config and configCid through agreeing RPCs; a revert on versionConfigCid is none; a disagreement refuses", async () => {
   const mk = (over = {}) => ({ readContract: async ({ functionName }) => {
     if (functionName === "getVersion") return { cid: CID, version: "1", vramMb: 0, gpuGflops: 0, memMb: 128, cpuGflops: 0, createdAt: 0n, verified: false, yanked: false, ports: "", approval: 1, config: over.config ?? '{"wasi":"p2"}' };
@@ -512,4 +540,73 @@ test("certReleases misconfigured is a PROBLEM (every prediction refused), never 
   const c = P.predictorEnv({ SECRETS_RELEASE_CERT_RELEASES: ` ${R1.toUpperCase()}, ${R2} ` });
   assert.deepEqual(c.certReleases, [R1, R2]);
   assert.deepEqual(P.predictorEnv({}).certReleases, [], "unset: none named (every installed release)");
+});
+
+
+test("V3 measures sorted protected destinations without changing V1/V2", () => {
+ const ref = `catalog://0x${"ab".repeat(32)}/54`, rid = "49".repeat(32);
+ const version = {cid: "bafkreidocbixnql7lroykdtwx4r2fmi5n6sra4lj7b7vhscsfqn4gctlee", memMb: 3072, ports: "udp:48000,http:8000,tcp:2222"};
+ const r = P.derivationRecord(ref, version, rid);
+ assert.equal(r.derivation,"enclave-catalog-bundle/3");
+ assert.equal(r.http,8000); assert.deepEqual(r.ports,["tcp:2222","udp:48000"]);
+ assert.deepEqual(P.derivationRecord(ref,{...version,ports:"http:8000,tcp:2222,udp:48000"},rid),r);
+ for(const ports of ["http:8000,tcp:8000","http:8000,udp:0","http:8000,tcp:02222","http:8000,tcp:22,tcp:22"])
+   assert.throws(()=>P.derivationRecord(ref,{...version,ports},rid));
+});
+
+test("V3 prediction excludes releases without the measured protected-port capability", async () => {
+ const marked = fs.mkdtempSync(path.join(TMP,"ports-release-"));
+ fs.cpSync(REL[R3], marked, { recursive: true });
+ fs.writeFileSync(path.join(marked,"template/rt/protected-ports.enabled"),"1\n");
+ const versions = { [REF]: { app:{active:true},version:{cid:CID,memMb:300,ports:"http:8000,tcp:2222,udp:47998",approval:1,yanked:false} } };
+ const releases = Object.entries(REL).map(([id,dir])=>({id,dir:id===R3?marked:dir}));
+ const {p}=predictor({versions,opts:{releases}});
+ const r=await p.expectedFor(REF);
+ assert.equal(r.ok,true,JSON.stringify(r));assert.deepEqual(r.images.map(x=>x.release),[R3]);
+ const absent=predictor({versions}).p;
+ const no=await absent.expectedFor(REF);assert.equal(no.ok,false);assert.match(no.reason,/protected ports/);
+});
+
+
+test("Shield model selection excludes CPU images and binds GPU shares in prediction/cache", async () => {
+  const id="da".repeat(32), dir=release("shield");
+  fs.writeFileSync(path.join(dir,"template/rt/shield-model"),"qwen2.5-0.5b-q8-gguf\nqwen3.8-27b-mtp-q4-vl-gguf\n");
+  const releases=[...Object.entries(REL).map(([id,dir])=>({id,dir})),{id,dir}];
+  const {p}=predictor({admit:[R1,id],opts:{releases}});
+  const cpu=await p.expectedFor(REF);
+  assert.equal(cpu.ok,true,JSON.stringify(cpu));
+  assert.deepEqual(cpu.images.map(i=>i.release),[R1]);
+  const inference={model:"qwen2.5-0.5b-q8-gguf",gpuMilli:100};
+  const gpu=await p.expectedFor(REF,{inference});
+  assert.equal(gpu.ok,true,JSON.stringify(gpu));
+  assert.deepEqual(gpu.images.map(i=>i.release),[id]);
+  const large={model:"qwen3.8-27b-mtp-q4-vl-gguf",gpuMilli:500};
+  const gpu27=await p.expectedFor(REF,{inference:large});
+  assert.equal(gpu27.ok,true,JSON.stringify(gpu27));
+  assert.notEqual(gpu27.appId,gpu.appId);
+  assert.equal((await p.expectedFor(REF,{inference:{...large,gpuMilli:499}})).code,"unsupported_inference");
+  assert.deepEqual(P.derivationRecord(REF,{cid:"bafkreicomponent",memMb:128},"49".repeat(32),large).policy,
+    {cpuPercent:1600,memMiB:50816,vcpus:16});
+  const resized=await p.expectedFor(REF,{inference:{...inference,gpuMilli:200}});
+  assert.equal(resized.ok,true);
+  assert.notEqual(resized.appId,gpu.appId,"resizing changes attested identity and cannot reuse the old cache entry");
+  assert.equal((await p.expectedFor(REF,{inference:{...inference,gpuMilli:64}})).code,"unsupported_inference");
+  assert.equal((await p.expectedFor(REF,{inference:{...inference,model:"unmeasured"}})).code,"unsupported_inference");
+  assert.equal((await predictor().p.expectedFor(REF,{inference})).code,"unsupported_inference");
+});
+
+
+test("V4 predictor matches the committed Shield scheduler rule", () => {
+ const src=supervisorAt(P.SHIELD_SUPERVISOR_COMMIT);
+ assert.ok(src,"the pinned Shield scheduler source must be present");
+ assert.equal(P.supervisorRuleSha256(src),P.SHIELD_SUPERVISOR_RULE_SHA256);
+ const fn=n=>{const i=src.indexOf(`function ${n}(`);assert.ok(i>=0);return src.slice(i,src.indexOf("\n}\n",i)+2)};
+ const sup=vm.runInNewContext(["isolationPolicyFor","isolationPortsOf","isolationHttpPortOf","isolationDerivation"].map(fn).join("\n")+"\n({isolationPolicyFor,isolationPortsOf,isolationDerivation})");
+ const ref=`catalog://0x${"ab".repeat(32)}/4`,rid="49".repeat(32);
+ for(const model of ["qwen2.5-0.5b-q8-gguf","qwen3.8-27b-mtp-q4-vl-gguf"]) for(const gpuMilli of [500,1000]) for(const ports of ["","http:8000","http:8000,tcp:2222"]) {
+  const inference={model,gpuMilli},v={cid:"bafkreicomponent",memMb:128,ports};
+  const parsed=sup.isolationPortsOf(ports);
+  const theirs=sup.isolationDerivation(ref,"ipfs://"+v.cid,sup.isolationPolicyFor(v),rid,parsed.http,parsed.ports,inference);
+  assert.equal(P.canonical(P.derivationRecord(ref,v,rid,inference)),P.canonical(theirs));
+ }
 });
