@@ -8,8 +8,8 @@
 // security caveats where its capacity should have been - because the component kept an explicit
 // exception for a consumer node at serving:false and printed e.ineligible underneath.
 //
-// The rule now: a row appears only when the relay's own current verdict says a deployment can land
-// on it. Everything else is left out rather than explained. The evidence is not deleted - it is in
+// Marketplace rows require a current serving/eligible verdict. Separately labeled owner-only
+// inventory requires fresh, unexpired relay-authorized deployments. The evidence is not deleted - it is in
 // /enclaves (status, eligible, ineligible, notClaiming) and in the architecture page's prose - it is
 // just not a row in a list of machines a reader is about to buy from.
 import { test } from "node:test";
@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { appHostVisible, HOST_STALE_AFTER_SEC } from "../site/js/core/pricing.js";
+import { appHostVisible, ownerHostedDeploymentCount, HOST_STALE_AFTER_SEC } from "../site/js/core/pricing.js";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const NOW = 1790266080;
@@ -98,7 +98,7 @@ test("stale and offline rows drop out even if they were serving when last heard"
 
 // The component, pinned: the predicate is only worth anything if the list actually calls it, and
 // the two exceptions that caused this are gone rather than merely unreachable.
-test("the fleet list filters on that rule and keeps no exceptions (pinned in source)", () => {
+test("the fleet list keeps marketplace eligibility and separates owner-only inventory (pinned in source)", () => {
   const src = fs.readFileSync(path.join(ROOT, "site/components/fleet-list/fleet-list.js"), "utf8");
   assert.match(src, /const rows = \(this\.rows \|\| \[\]\)\.filter\(\(e\) => appHostVisible\(e\)\);/,
                "one filter, the shared rule, no local variant");
@@ -108,6 +108,9 @@ test("the fleet list filters on that rule and keeps no exceptions (pinned in sou
   assert.doesNotMatch(code, /e\.relay === true/, "relay-only rows are filtered out, not rendered");
   assert.doesNotMatch(code, /availability\?\.claimEnabled|a\.claimEnabled/, "the box's own claim flag decides nothing here");
   assert.match(src, /No app hosts available right now/, "and the empty state says so plainly");
+  assert.match(src, /ownerHostedDeploymentCount\(e\)/);
+  assert.match(src, /fleet-owner-row/);
+  assert.match(src, /Owner-only/);
 });
 
 test("every public consumer feeds the component the same unfiltered relay rows (pinned in source)", () => {
@@ -120,5 +123,20 @@ test("every public consumer feeds the component the same unfiltered relay rows (
     const src = fs.readFileSync(path.join(ROOT, page), "utf8");
     assert.match(src, /refreshFleetInto\(document\.querySelector\("\.[a-z]+-fleet c-fleet-list"\), Enclave\.base\)/, `${page} feeds the component through the shared reader`);
     assert.doesNotMatch(src, /\.filter\(\s*\(?e\)?\s*=>\s*e\.serving/, `${page} must not keep its own visibility rule`);
+  }
+});
+
+
+test("owner-only inventory counts only fresh, unexpired relay-authorized deployments without granting marketplace visibility", () => {
+  const id = "0x" + "a".repeat(64);
+  const row = { ...nucbox, mode: "hv-node", ownerOnly: true, servesDeployments: [{ id, until: NOW + 60 }] };
+  assert.equal(ownerHostedDeploymentCount(row, NOW), 1);
+  assert.equal(appHostVisible(row, NOW), false);
+  assert.equal(ownerHostedDeploymentCount({ ...row, servesDeployments: [...row.servesDeployments, ...row.servesDeployments] }, NOW), 1);
+  for (const change of [{ ownerOnly: false }, { mode: "vbs" }, { eligible: true }, { relay: true },
+    { lastSeen: 0 }, { lastSeen: NOW - HOST_STALE_AFTER_SEC - 1 }, { availability: { ok: false } },
+    { servesDeployments: [] }, { servesDeployments: [{ id, until: NOW }] },
+    { servesDeployments: [{ id: "bad", until: NOW + 60 }] }, { servesDeployments: [{ id }] }]) {
+    assert.equal(ownerHostedDeploymentCount({ ...row, ...change }, NOW), 0, JSON.stringify(change));
   }
 });
