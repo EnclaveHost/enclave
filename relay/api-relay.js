@@ -113,15 +113,10 @@ installProcessGuards("api-relay");
 // {name, tokenSha256} (only the hash is public; the token stays off-repo) plus
 // an optional env of raw name:token pairs the relay hashes itself. Attach auth
 // is routing-only; clients still verify each enclave's attestation end-to-end.
-const DEFAULT_METAL_ALLOW = [
-  { name: "metal0", tokenSha256: "3b28c8d9564f47b1f5031e519c8f6e7bbfaca99e41884b2740e7958e83acec81" },
-  // us-west attaches by ON-CHAIN OWNERSHIP instead (TUNNEL_OPERATOR_ATTACH):
-  // it signs the hub's challenge with the operator key that registered its
-  // endpoint, so nothing about it is hardcoded here. Its token entry was
-  // removed deliberately and must not come back — a name on this list is
-  // RESERVED against every other path, so re-adding it would silently disable
-  // the very mechanism it now uses.
-];
+// metal0 uses a fresh SNP quote plus its registered operator signature;
+// us-west uses its registered operator signature. Token entries reserve names
+// against both paths, so neither belongs in the bootstrap token allowlist.
+const DEFAULT_METAL_ALLOW = [];
 const ENV_METAL_ALLOW = (process.env.METAL_TUNNEL_TOKENS || "").split(",").map((s) => s.trim()).filter(Boolean)
   .map((pair) => { const i = pair.indexOf(":"); const name = pair.slice(0, i), token = pair.slice(i + 1);
                    return name && token ? { name, tokenSha256: createHash("sha256").update(token).digest("hex") } : null; })
