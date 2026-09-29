@@ -296,12 +296,23 @@ test("off the tier nothing of the pool applies: the node is the NODE_* constants
 });
 
 
-test("resuming held isolated guests rebuilds shares without requiring a second guest reservation", async () => {
+test("isolated claims check pricing shares separately from exact guest reservations", async () => {
   const c = {pool: pool(B, B), shareFree: 0.4,
     claimHeld: [null, {status: "running"}, {status: "starting"}, {status: "failed"}]};
   const r = await seam(c);
   assert.equal(r.maxFreeCpu, 0, "full pool remains unavailable to new claims");
-  assert.deepEqual(r.claimFreeCpu, [0, 0.4, 0.4, 0], "only held guests receive pool credit; share ledger still caps them");
+  assert.deepEqual(r.claimFreeCpu, [0.4, 0.4, 0.4, 0.4], "share ledger caps the preliminary check; policy admission judges actual room");
   const off = await seam(c, "");
   assert.deepEqual(off.claimFreeCpu, [0.4, 0.4, 0.4, 0.4]);
+});
+
+test("large pricing share does not block a small reservation that fits; oversized guests still fail", async () => {
+  const p = pool({memMiB: 81920, cpuPct: 2400}, {memMiB: 68608, cpuPct: 2000});
+  const r = await seam({pool:p,shareFree:0.88,claimHeld:[null],verdicts:[
+    verdict(MGR(p),{cpuPercent:100,memMiB:3456,vcpus:1}),
+    verdict(MGR(p),{cpuPercent:500,memMiB:3456,vcpus:5})]});
+  assert.ok(r.maxFreeCpu < 0.35);
+  assert.ok(r.claimFreeCpu[0] >= 0.35);
+  assert.equal(r.verdicts[0], null);
+  assert.match(r.verdicts[1], /cannot fit/);
 });

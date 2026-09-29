@@ -3128,15 +3128,14 @@ function allocCpu(share) {
 }
 // On the per-app isolation tier the share ledger is capped by the guest pool's own free room (guestPoolFreeFraction).
 const maxFreeCpu = () => Math.max(0, Math.min(1, cpuPool.shareFree, ISOLATION_BACKEND ? guestPoolFreeFraction() : 1));
-// A resumed isolated guest already occupies the guest pool. The share ledger
-// still needs rebuilding, but comparing its share with NEW-guest room counts
-// its reservation twice. The later isolationClaimVerdict independently checks
-// the held record, replacement size and live host floor before any adoption.
-function claimFreeCpu(held = null) {
-  return ISOLATION_BACKEND && held && (held.status === "running" || held.status === "starting")
-    ? Math.max(0, Math.min(1, cpuPool.shareFree)) : maxFreeCpu();
+// Isolated guests are sized by their catalog policy, not by the pricing share.
+// Check the share ledger here; isolationClaimVerdict below checks the exact
+// reservation against guestd's pool and live host floor. Applying the pool's
+// free fraction here double-counts resumed guests and wrongly refuses a small
+// new guest whose owner bought a larger share.
+function claimFreeCpu() {
+  return ISOLATION_BACKEND ? Math.max(0, Math.min(1, cpuPool.shareFree)) : maxFreeCpu();
 }
-
 // CPU requests use the same whole-percent grain as GPU compute; priced at the
 // share of the whole-node rate.
 const normalizeCpuReq = (share) => { const pct = quantizePct(share); return { cpu: true, gpuShare: 0, cpuShare: pct / 100, share: pct / 100, pct }; };
@@ -10265,7 +10264,7 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   const health = (wantVols.length || gpuShare > 0) ? await vmHealth().catch(() => null) : undefined;
   const mins = minSharesOf(g.min, { volGb: wantVols.length ? volumeGb(wantVols, health) : 0 });
   const resumeHeld = resume && ISOLATION_BACKEND ? await isolationHeldGuest(d.id) : null;
-  const cpuRoom = claimFreeCpu(resumeHeld);
+  const cpuRoom = claimFreeCpu();
   // The PUBLISHER's own declaration, not the volume-corrected figure: this is
   // "did the version state a card requirement", which is what decides whether
   // the OWNER's envelope flag is allowed to waive it.
