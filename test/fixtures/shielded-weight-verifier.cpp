@@ -79,6 +79,8 @@ int main(int argc, char **argv) {
     setenv("SHIELDED_PAD_SK", std::string(64, '0').c_str(), 1);
     setenv("SHIELDED_PAD_CHECK", "1", 1); setenv("SHIELDED_NO_SIMD", "1", 1);
     setenv("SHIELDED_MIN_MACS", "0", 1); setenv("SHIELDED_MAX_M", "16", 1);
+    const bool local_mint = scenario == "source_local_mint";
+    if (local_mint) unsetenv("SHIELDED_PAD_SOURCE");
     auto *cpu = ggml_backend_cpu_init(); assert(cpu); ggml_backend_cpu_set_n_threads(cpu, 1);
     verifier_state state;
     source_stats_check(state);
@@ -144,12 +146,16 @@ int main(int argc, char **argv) {
     }
     sh_plan(p);
     ggml_cgraph empty = {};
-    if (scenario != "honest" && scenario != "source" && scenario != "background_integrity") {
+    if (scenario != "honest" && scenario != "source" && !local_mint && scenario != "background_integrity") {
         assert(s.source_verification_failed && s.weights.empty() && state.calls == (state.read_fail ? 0 : 1));
         assert(ggml_backend_shielded_graph_compute(nullptr, &empty) == GGML_STATUS_FAILED);
     } else {
         assert(state.calls == 2 && s.weights.size() == 2 && !s.source_verification_failed);
-        for (const auto &kv : s.weights) assert(kv.second.source_verified && kv.second.w.empty() && kv.second.w_cache);
+        for (const auto &kv : s.weights) {
+            assert(kv.second.source_verified);
+            if (local_mint) assert(!kv.second.w.empty() && !kv.second.w_cache);
+            else assert(kv.second.w.empty() && kv.second.w_cache);
+        }
         uint64_t cache_calls = 99, cache_bytes = 99;
         ggml_backend_shielded_weight_cache_stats(&cache_calls, &cache_bytes);
         assert(cache_calls == 0 && cache_bytes == 0); // creation does not count as reading
@@ -181,6 +187,22 @@ int main(int argc, char **argv) {
         assert(state.calls == 2); // no reread/reverification of the revoked source
         assert(state.reads == (streamed ? 2 : 0));
         ggml_backend_shielded_weight_cache_stats(&cache_calls, &cache_bytes);
+        if (local_mint) {
+            assert(cache_calls == 0 && cache_bytes == 0);
+            // The original tensor pages are absent. The same resident encoded
+            // rows still support CPU pad minting, without rereading the source.
+            uint8_t seed[32] = {}, pk[32]; crypto_scalarmult_base(pk, seed);
+            const std::string minted = std::string(argv[1]) + "/local-source-discard.pads";
+            assert(!sh_link_is_dealt(s.link));
+            assert(sh_link_mint_shipment(s.link, seed, seed, seed, 0, 2, pk, minted.c_str()) == SH_OK);
+            assert(state.reads == 2 && state.calls == 2);
+            assert(unlink(minted.c_str()) == 0);
+            source_stats_check(state);
+            for (auto *buf : source_buffers) ggml_backend_buffer_free(buf);
+            ggml_free(ctx); ggml_backend_free(cpu);
+            puts("weight-verifier: private-copy encoding, discarded source, local pad minting and exact fallback passed");
+            return 0;
+        }
         assert(cache_calls > 0 && cache_bytes == cache_calls * 256); // each small cached matrix is one full authenticated block
 
         // A real authenticated-cache read failure must reach the backend's
