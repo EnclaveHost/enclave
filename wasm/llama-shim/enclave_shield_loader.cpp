@@ -9,13 +9,18 @@
 #include <memory>
 #include <set>
 #include <sys/stat.h>
+#include <sys/mman.h>
 
 namespace {
 struct loader_state {
     shield_original_source source;
     std::vector<ggml_backend_buffer_t> buffers;
     llama_model *model = nullptr;
-    ~loader_state() { for (auto *b : buffers) ggml_backend_buffer_free(b); }
+    void *private_mapping = MAP_FAILED;
+    ~loader_state() {
+        for (auto *b : buffers) ggml_backend_buffer_free(b);
+        if (private_mapping != MAP_FAILED) munmap(private_mapping, source.file_size);
+    }
 };
 // The Shield backend's model registry is process-lifetime and single-model.
 // Keep verifier metadata alive for exactly that lifetime, including load errors.
@@ -24,6 +29,10 @@ bool attempted = false;
 void free_buffers(loader_state &s) {
     for (auto *b : s.buffers) ggml_backend_buffer_free(b);
     s.buffers.clear();
+    if (s.private_mapping != MAP_FAILED) {
+        munmap(s.private_mapping, s.source.file_size);
+        s.private_mapping = MAP_FAILED;
+    }
 }
 int source_fd(const char *name, int mode) {
     if (!strncmp(name, "fd:", 3)) {
@@ -75,6 +84,16 @@ extern "C" llama_model *ell_shield_load_model(const char *path, llama_model_para
         params.n_gpu_layers = 0; // all GPU work still goes through Shield's ACCEL backend
         s.model = llama_model_load_from_file(path, params);
         if (!s.model) throw std::runtime_error("model metadata load");
+        // Preserve the original private CPU-weight layout. Only GPU-source
+        // interiors are retired; CPU row gathers still address private RAM.
+        // This maps the guest's authenticated tmpfs, NEVER the public backing.
+        s.private_mapping = mmap(nullptr, s.source.file_size, PROT_READ, MAP_SHARED,
+                                 s.source.private_fd, 0);
+        if (s.private_mapping == MAP_FAILED) throw std::runtime_error("private CPU mapping");
+        auto *cpu_buffer = ggml_backend_cpu_buffer_from_ptr(s.private_mapping, s.source.file_size);
+        if (!cpu_buffer) throw std::runtime_error("private CPU buffer");
+        ggml_backend_buffer_set_usage(cpu_buffer, GGML_BACKEND_BUFFER_USAGE_WEIGHTS);
+        s.buffers.push_back(cpu_buffer);
         // Bind only after metadata parsing, before any graph or registration.
         if (bind(shield_original_source::verify, &s.source)) throw std::runtime_error("verifier admission");
         uint64_t streamed = 0, resident = 0; size_t count = 0;
@@ -97,20 +116,16 @@ extern "C" llama_model *ell_shield_load_model(const char *path, llama_model_para
                 if (!b) throw std::runtime_error("source buffer");
                 streamed += n; count++;
             } else {
-                // Embeddings, norms and other CPU weights stay in PRIVATE RAM;
-                // secret-dependent row gathers never become backing-store I/O.
-                b = ggml_backend_buft_alloc_buffer(ggml_backend_cpu_buffer_type(), n);
-                if (!b) throw std::runtime_error("CPU allocation");
+                // Keep embeddings, norms and other CPU weights in their
+                // original private pages, with the same shared CPU buffer.
+                // No secret-dependent access reaches the backing device.
+                b = cpu_buffer;
                 t->buffer = nullptr;
-                if (ggml_backend_tensor_alloc(b, t, ggml_backend_buffer_get_base(b)) != GGML_STATUS_SUCCESS) {
-                    ggml_backend_buffer_free(b); throw std::runtime_error("CPU placement");
-                }
-                if (!shield_original_source::read_at(s.source.private_fd, t->data, n, offset) ||
-                    !s.source.retire(offset, n)) { ggml_backend_buffer_free(b); throw std::runtime_error("CPU private copy"); }
-                ggml_backend_buffer_set_usage(b, GGML_BACKEND_BUFFER_USAGE_WEIGHTS);
+                if (ggml_backend_tensor_alloc(b, t, (char *)s.private_mapping + offset) != GGML_STATUS_SUCCESS)
+                    throw std::runtime_error("CPU placement");
                 resident += n;
             }
-            s.buffers.push_back(b);
+            if (b != cpu_buffer) s.buffers.push_back(b);
         }
         gguf_free(uf); uf=nullptr; ggml_free(metadata); metadata=nullptr;
         s.model->hparams.no_alloc = false;
