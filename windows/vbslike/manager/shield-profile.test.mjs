@@ -51,3 +51,8 @@ test('a late readiness success cannot revive an exited Shield transport', async 
  assert.equal(m.get(started.id).reason,'Shield transport exited');
  assert.equal(m.gpuAllocated(),1000);
 });
+
+test('profile budgets twelve GiB, with six GiB for each half-pool allocation',()=>{
+ assert.equal(shield.cardBudgetBytes,12*2**30);
+ assert.equal(shield.cardBudgetBytes*500/1000,6*2**30);
+});
