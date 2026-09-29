@@ -2004,7 +2004,14 @@ export class Host {
     // reported 14 GB of its enclave "used" while four apps between them held half a gigabyte.
     // Cores are sold as a share; this memory is a fixed allocation, and it reports as one.
     const enclaveMb = Math.round((Number(this.cfg.enclaveGb) || 0) * 1024);
-    const hostMb = Math.round((Number(this.cfg.ramGb) || 0) * 1024 * (1 - (this.cfg.reservedShare ?? 0.25)));
+    const physicalMb = Math.round((Number(this.cfg.ramGb) || 0) * 1024);
+    // RAM is an independent hosting budget, not a CPU share. Invalid explicit
+    // budgets admit nothing; absence preserves the older reserved-share policy.
+    const configuredRam = this.cfg.appRamGb;
+    const hostMb = configuredRam === undefined || configuredRam === null
+      ? Math.round(physicalMb * (1 - (this.cfg.reservedShare ?? 0.25)))
+      : (Number.isFinite(configuredRam) && configuredRam >= 0
+        ? Math.min(physicalMb, Math.floor(configuredRam * 1024)) : 0);
     // UNKNOWN is not ZERO. `engineHeldMb` is null until the node has asked the enclave what the
     // model, its KV cache and the pads hold (the host protocol's `mem`), and treating that as "the
     // engine holds nothing" would offer a tenant the WHOLE enclave including the part the engine
