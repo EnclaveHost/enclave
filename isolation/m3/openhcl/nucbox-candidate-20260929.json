@@ -1,0 +1,143 @@
+{
+  "schema": "enclave-nucbox-shield-candidate/1",
+  "date": "2026-09-29",
+  "status": "hardware app evidence verified; recovery acceptance and production rollout pending; no marketplace admission",
+  "guestSource": "d023349fd586",
+  "guestBase": "4cd26e58bf44958fdf37b063408640f35596dc02",
+  "openhclBase": "a7b0bd4a653ba1c9192497a9d3669b14e7f3bc58",
+  "openhclPatch": "db3c09e",
+  "openhclPatchSha256": "170057cb07b8365cd27e1eda69f67b08403a5f1f6d6ea6a6f4f8cbeff40f4f51",
+  "kernelConfigSha256": "9cbd23301bd7563331c046298b9c22effb2cc9c5035f51aceef27590497a3209",
+  "kernelElfSha256": "6bbd7340f7505cffb4d00cfa84604052b394f2d6467918e24d4c44935783e0c0",
+  "guestInitrdSha256": "ddb963a3c8a8fe5b2186f605612f036b459f70362d34156a7de9e77b749a10d0",
+  "paravisorInitrdSha256": "71a91101f8f9b870199946076db2b220c68167e029539d4619a6b7600432124e",
+  "runtimeBuild": {
+    "reproduceCurrent": {
+      "binSha": "b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748",
+      "digest": "56FBB27F363A7FEDC83FD56CB4FF39C5411140300BB8F8496C35893A061077E1",
+      "ok": true
+    },
+    "twinProof": {
+      "digest": "77C6616040679733D26D561D861B9124191D8B08A4DB4C6626CF04CCAD9A2CE1",
+      "ok": true
+    },
+    "candidate": {
+      "binSha": "88c124abd86b81a12fa0ba98f110e8822cfa91292baced07427f7c428e28dbde",
+      "bytes": 78080540,
+      "vbsSha": "b891c871face6f2dc28f1e46d71e83793496f2510f7d13a6c0db0f01966ddd33",
+      "digest": "4B19E8F04A1BA77882176854F14E0A816154711C509CD69CC4B1C8B9F276CA22",
+      "deterministic": true,
+      "sameAsCurrent": false,
+      "strings": {
+        "mustContain": [
+          [
+            "OPENHCL_FORCE_LOAD_VTL0_IMAGE=linux",
+            true
+          ],
+          [
+            "console=ttyS0 rdinit=/init loglevel=3 report_host=9001",
+            true
+          ]
+        ],
+        "mustNotContain": [
+          [
+            "OPENHCL_CONFIDENTIAL_DEBUG=1",
+            false
+          ]
+        ]
+      }
+    },
+    "debugTwin": {
+      "binSha": "8f0a2541fa747c82340312c775b629db4d2449a219166815604b316841f575ae",
+      "bytes": 78080540,
+      "digest": "54C6F8259439CAB1081F6620AA1045BCD6E2B64CDA4E788148FB529BBF7DE3DD",
+      "strings": [
+        [
+          "OPENHCL_FORCE_LOAD_VTL0_IMAGE=linux OPENHCL_CONFIDENTIAL_DEBUG=1",
+          true
+        ]
+      ]
+    },
+    "mutations": [
+      {
+        "name": "one byte of the VTL0 kernel",
+        "digest": "EB32DF93F27D3D0DCB10766329B23E44C469405C7C7C669C7614AF490BD8A647",
+        "changed": true,
+        "sameAsPinnedMutation": false
+      },
+      {
+        "name": "one byte of the VTL0 initrd",
+        "digest": "3F4DC5FB566E560B2BF6E4F794B60D2488A53A026DF4D8CBCA80087BE734666C",
+        "changed": true,
+        "sameAsPinnedMutation": false
+      },
+      {
+        "name": "the VTL0 command line",
+        "digest": "D438BF1ECC3898BAD7F8DFF1652F57D2E1AA52166C851CCDE26D631F0A562B22",
+        "changed": true,
+        "sameAsPinnedMutation": false
+      },
+      {
+        "name": "the static paravisor command line",
+        "digest": "8967163D8F7E2A5F3EBE1F5D9F3796F670C0BA64EF6904CB47C89901A794AC17",
+        "changed": true,
+        "sameAsPinnedMutation": false
+      },
+      {
+        "name": "static_command_line=false",
+        "digest": "21858EFBA796643B7096DFB21832C279DDADEA493B89C8240CBE0DBCD2A8AFF0",
+        "changed": true,
+        "sameAsPinnedMutation": false
+      }
+    ],
+    "kept": "shield-runtime-images/vbs-linux-88c124ab",
+    "inputs": {
+      "linux_initrd": "ddb963a3c8a8fe5b2186f605612f036b459f70362d34156a7de9e77b749a10d0",
+      "linux_kernel": "6bbd7340f7505cffb4d00cfa84604052b394f2d6467918e24d4c44935783e0c0",
+      "manifest": "0ce9d8a87582bb5d60200d7f98c67ee357dbd042aec7338649c981753753df61",
+      "igvmfilegen": "81647f66a88559d68c4d7565dfdcc355305c00cc842b49403a3c5188c36e1a1c"
+    }
+  },
+  "appEvidence": {
+    "ok": true,
+    "scope": "hardware-bound app evidence; admission is a separate policy decision",
+    "measurement": "4b19e8f04a1ba77882176854f14e0a816154711c509cd69cc4b1c8b9f276ca22",
+    "appSha256": "9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45",
+    "runtimeId": "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8",
+    "boot": {
+      "bootCounter": 234,
+      "resetCount": 2023672342,
+      "idksModulusSha256": "01fba71173239d8904c6a0c59f691c5dee9c0413c718da81a58ae0f2106c4147",
+      "secureBoot": 1,
+      "testSigning": [
+        0,
+        0
+      ],
+      "pcr0": "711c1943ccff765a589a31b0347ce1b7356b0661f9ef7dabfbe9c622340b0433",
+      "pcrs": {
+        "7": "eb97f18e4b7ff57e64b70fb0631283ed3e9dfc00fa0aee9212b8687023724db8",
+        "12": "61afd10b09d831fd003ff5c17bdbf3e95fef1669a4155e5e170dfc2134ee5c24",
+        "13": "1e0fac4fed660db547fde374af1dd7d60a2ff2411ffef8b6218e6e79cc8729f0",
+        "14": "9f0d7bb7b7856dfe73bf0cacb2a16d54986658d4f631d5a823d3137831a6d634"
+      },
+      "ekCertSha256": "86b95e8a766bd60a62c0f2a710a943f38be29c6f8558b87ebbd1e138823d4717",
+      "akName": "000b23f3c08324370f9dedea7e16dd502df88a22348d73c8a36a6227a93b9f998617"
+    }
+  },
+  "regression": {
+    "before-report": {
+      "ok": true,
+      "measurement": "2fb7482fef20cb0990b54b580a1b83699efae8b31b45bd1a989fb2a42af7f82a",
+      "guestSvn": 0,
+      "scope": "VBS image and guest input under supplied IDKS; caller must authenticate IDKS and app key custody",
+      "userData": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "report": {
+      "ok": true,
+      "measurement": "2fb7482fef20cb0990b54b580a1b83699efae8b31b45bd1a989fb2a42af7f82a",
+      "guestSvn": 0,
+      "scope": "VBS image and guest input under supplied IDKS; caller must authenticate IDKS and app key custody",
+      "userData": "a5b2579bec0ea0db24e03ca2e88943eb155b1eb22b4f00bfeee50a4dd2f718e091b06e9c68d2cd75d84f596803769078bf18697604e3aacc995774d6d193d51b"
+    }
+  }
+}
