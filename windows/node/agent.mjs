@@ -423,9 +423,21 @@ async function measureEngineHold() {
 }
 
 // ---- the public surface over the tunnel ------------------------------------------------------
+let shieldEvidenceReads = 0;
 async function handle(frame) {
   const p = String(frame.path || '').split('?')[0]; const method = frame.method || 'GET';
   const json = (status, o) => ({ status, headers: { 'content-type': 'application/json' }, body: JSON.stringify(o) });
+  if (APPS && p === '/v1/shield/evidence' && method === 'GET') {
+    if (shieldEvidenceReads >= 2) return json(429, { error: 'evidence_busy' });
+    const query = new URL(String(frame.path), 'http://localhost').searchParams;
+    const id = query.get('deployment'), nonce = query.get('nonce');
+    if (!/^0x[0-9a-f]{64}$/.test(id || '') || !/^[0-9a-f]{64}$/.test(nonce || ''))
+      return json(400, { error: 'exact_deployment_and_nonce_required' });
+    shieldEvidenceReads++;
+    try { return json(200, await host.shieldEvidence(id, nonce)); }
+    catch (e) { return json(503, { error: 'app_evidence_unavailable', reason: String(e.message).slice(0, 300) }); }
+    finally { shieldEvidenceReads--; }
+  }
   if (p === '/availability') return json(200, { ok: true, role: LEGACY_ENGINE ? 'windows-vbs-node' : 'windows-hv-node', name: NAME,
     // gpu:false stays false, and it is not a statement about whether the card is for sale: on this
     // fleet that flag means the card is INSIDE the measured enclave, and this one is not. It sits
