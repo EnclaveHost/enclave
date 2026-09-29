@@ -529,21 +529,18 @@ export function shieldedPoolOf(row){
 export function shieldedHostCapacity(row){
   const a = row?.availability || {}, sh = a.shielded;
   if (!sh || sh.available === false) return null;
-  const identity = c => c.deviceUuid ? 'uuid:' + c.deviceUuid
-    : c.id != null ? 'id:' + c.id : c.endpoint ? 'endpoint:' + c.endpoint : null;
-  const inventory = [], seen = new Set();
+  const sameCard = (x,y) => x.deviceUuid && y.deviceUuid ? x.deviceUuid === y.deviceUuid
+    : x.id != null && y.id != null ? x.id === y.id
+    : !!(x.endpoint && y.endpoint && x.endpoint === y.endpoint);
+  const inventory = [];
   for (const c of Array.isArray(a.shieldedCards) ? a.shieldedCards : []) {
-    if (!c) continue;
-    const key = identity(c);
-    if (key && seen.has(key)) continue;
-    if (key) seen.add(key);
-    inventory.push(c);
+    if (c && !inventory.some(x => sameCard(x,c))) inventory.push(c);
   }
-  const primaryKey = identity(sh);
+  const primaryIdentified = sh.deviceUuid || sh.id != null || sh.endpoint;
   // An anonymous primary is an alias for the primary inventory entry, not an
   // additional card. Names alone cannot identify cards (identical models exist).
   const cards = sh.pooled ? [sh] : inventory.length
-    ? (primaryKey && !seen.has(primaryKey) ? [sh, ...inventory] : inventory)
+    ? (primaryIdentified && !inventory.some(c => sameCard(c,sh)) ? [sh, ...inventory] : inventory)
     : [sh];
   const usable = cards.filter(c => c.available !== false && c.vramGb > 0);
   if (!usable.length) return null;
