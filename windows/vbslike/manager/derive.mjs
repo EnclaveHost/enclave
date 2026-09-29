@@ -16,7 +16,9 @@ export const DERIVATION = "enclave-catalog-bundle/1";
    declares. In the canonical manifest `http` sits between `artifact` and `policy` - keys sorted, so
    that is not a choice, but it is worth stating because a wrong order is a different AppID. */
 export const DERIVATION_V2 = "enclave-catalog-bundle/2";
-export const DERIVATIONS = [DERIVATION, DERIVATION_V2];
+export const DERIVATION_V3 = "enclave-catalog-bundle/3";
+export const DERIVATION_V4 = "enclave-catalog-bundle/4";
+export const DERIVATIONS = [DERIVATION, DERIVATION_V2, DERIVATION_V3, DERIVATION_V4];
 const MAX_PORT = 49999;
 export const ABI = "enclave-domain-abi/1";
 export const BUNDLE_MAGIC = "ENCLAVE-BUNDLE/1\n";
@@ -42,11 +44,13 @@ export function canonical(v) {
 export function sha256Hex(b) { return crypto.createHash("sha256").update(b).digest("hex"); }
 
 /** Build(Manifest{abi, world, artifact, policy}, component). The label is empty, so it is omitted. */
-export function buildBundle({ world, policy, component, http = 0 }) {
+export function buildBundle({ world, policy, component, http = 0, inference = null, ports = [] }) {
   const manifest = {
     abi: ABI,
     artifact: { kind: KIND, sha256: sha256Hex(component) },
     ...(http ? { http } : {}),          // omitted when zero, as the Go tag's omitempty does
+    ...(inference ? { inference } : {}),
+    ...(ports.length ? { ports } : {}),
     policy: { cpuPercent: policy.cpuPercent, memMiB: policy.memMiB, vcpus: policy.vcpus },
     ...(world ? { world } : {}),
   };
@@ -72,18 +76,32 @@ export function derive({ record, component }) {
   const r = record || {};
   if (!DERIVATIONS.includes(r.derivation)) throw new Error(`unknown derivation ${JSON.stringify(r.derivation ?? null)}`);
   const v2 = r.derivation === DERIVATION_V2;
-  // A version that declares a port is /2, and only /2. The two rules are not interchangeable: the
-  // same component under each gives a different world, a different manifest and a different AppID.
-  const port = r.http;
-  if (v2) {
-    if (!Number.isInteger(port) || port < 1 || port > MAX_PORT)
-      throw new Error(`enclave-catalog-bundle/2 needs http in 1..${MAX_PORT}, got ${JSON.stringify(port ?? null)}`);
-  } else if (port !== undefined && port !== null && Number(port) !== 0) {
-    throw new Error("enclave-catalog-bundle/1 carries no http: a version that declares a port is /2");
+  const v3 = r.derivation === DERIVATION_V3;
+  const v4 = r.derivation === DERIVATION_V4;
+  const port = r.http ?? 0;
+  if (!Number.isInteger(port) || port < ((v2 || v3) ? 1 : 0) || port > MAX_PORT || (r.derivation === DERIVATION && port !== 0))
+    throw new Error("invalid HTTP port for derivation");
+  const ports = r.ports ?? [];
+  if (!Array.isArray(ports) || ((!v3 && !v4) && ports.length) || (v3 && !ports.length) || ports.length > 32 || (ports.length && !port))
+    throw new Error("invalid tunnel ports for derivation");
+  let previous = "";
+  for (const p of ports) {
+    const m = /^(tcp|udp):([1-9][0-9]*)$/.exec(p);
+    if (!m || Number(m[2]) > MAX_PORT || p <= previous || (m[1] === "tcp" && Number(m[2]) === port))
+      throw new Error("noncanonical tunnel port");
+    previous = p;
   }
+  let inference = null;
+  if (v4) {
+    const i = r.inference;
+    if (!i || !["qwen2.5-0.5b-q8-gguf", "qwen3.8-27b-mtp-q4-vl-gguf"].includes(i.model)
+      || !Number.isInteger(i.gpuMilli) || i.gpuMilli < (i.model === "qwen2.5-0.5b-q8-gguf" ? 65 : 500) || i.gpuMilli > 1000)
+      throw new Error("invalid measured inference profile");
+    inference = { model: i.model, gpuMilli: i.gpuMilli };
+  } else if (r.inference != null) throw new Error("inference requires V4");
   const cat = r.catalog || {};
   if (!HEX32.test(String(cat.app ?? ""))) throw new Error("catalog.app must be 0x + 64 lowercase hex");
-  if (!Number.isInteger(cat.version) || cat.version < 0) throw new Error("catalog.version must be a non-negative integer");
+  if (!Number.isInteger(cat.version) || cat.version < 0 || cat.version > 0xffffffff) throw new Error("catalog.version must be a non-negative integer");
   if (typeof r.cid !== "string" || !CID_RE.test(r.cid))
     throw new Error("cid is not a CIDv0 (Qm...) or a base32/base58 CIDv1");
   if (!HEX64.test(String(r.runtimeId ?? ""))) throw new Error("runtimeId must be 64 lowercase hex");
@@ -91,13 +109,15 @@ export function derive({ record, component }) {
   for (const k of ["cpuPercent", "memMiB", "vcpus"]) {
     if (!Number.isInteger(p[k]) || p[k] <= 0) throw new Error(`policy.${k} must be a positive integer`);
   }
+  if (p.cpuPercent > 1600 || p.memMiB < 64 || p.memMiB > 65536 || p.vcpus > 16) throw new Error("policy outside contract bounds");
   if (!Buffer.isBuffer(component) || component.length === 0) throw new Error("component bytes are required");
   if (!component.subarray(0, 8).equals(COMPONENT_PREAMBLE))
     throw new Error("artifact is not a wasm component (a core module is refused)");
 
-  const bundle = buildBundle({ world: v2 ? "wasi:cli" : "wasi:http", policy: p, component, http: v2 ? port : 0 });
+  const bundle = buildBundle({ world: port ? "wasi:cli" : "wasi:http", policy: p, component, http: port, inference, ports });
   const rec = { catalog: { app: cat.app, version: cat.version }, cid: r.cid,
-                derivation: r.derivation, ...(v2 ? { http: port } : {}),
+                derivation: r.derivation, ...(port ? { http: port } : {}),
+                ...(inference ? { inference } : {}), ...(ports.length ? { ports } : {}),
                 policy: { cpuPercent: p.cpuPercent, memMiB: p.memMiB, vcpus: p.vcpus },
                 runtimeId: r.runtimeId };
   return {

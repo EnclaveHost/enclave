@@ -313,7 +313,7 @@ export class Host {
    */
   /** Does this node sell a card at all? Not with the engine retired (gpu:false): the card was reached only through the
    *  enclave's model, so its desired card price is 0. */
-  sellsCard() { return this.cfg.engineRetired !== true; }
+  sellsCard() { return this.cfg.engineRetired !== true || (this.partitionOffers("gpu") && this.managerInference?.ready === true); }
   cardPrice() {
     if (!this.sellsCard()) return 0;
     const card = this.card();
@@ -715,6 +715,8 @@ export class Host {
     // The WHOLE /health object: the plan checks the manager's backend name and its derivations. null = could not ask.
     let managerHealth = null;
     try { managerHealth = (await client.health()) ?? null; } catch { managerHealth = null; }
+    this.managerInference = managerHealth?.inference || null;
+    if (!managerHealth) this.managerSupports = null;
     // what the manager says it can give a partition (/health supports), for features(): kept when it answered
     if (managerHealth && managerHealth.supports && typeof managerHealth.supports === "object") this.managerSupports = { ...managerHealth.supports };
     // Which model volumes this version needs, from its own config; null (unknown) when the config cannot be read.
@@ -1887,13 +1889,13 @@ export class Host {
    * down sells nothing rather than selling from memory.
    */
   gpuShareFree({ exclude = null, capped = true } = {}) {
-    if (!this.cfg.appsEnabled) return 0;
+    if (!this.cfg.appsEnabled || !this.sellsCard()) return 0;
     const card = this.card && this.card();
     if (!card || !(Number(card.vramBudgetGb) > 0)) return 0;
     const sold = this.shareUse({ exclude }).gpu;
     const onCard = Number(card.vramFreeGb) / Number(card.vramBudgetGb);
     // ...and a third, the owner's cap, which can only lower it (1.0 by default, where it never binds).
-    return Math.max(0, Math.min(1, 1 - sold, Number.isFinite(onCard) ? onCard : 0, capped ? this.caps.gpuShare - sold : Infinity));
+    return Math.max(0, Math.min(1, 1 - sold, Number.isFinite(onCard) ? onCard : 0, capped ? this.caps.gpuShare - sold : Infinity, this.partitionsOnly() ? Number(this.managerInference?.freeGpuMilli || 0) / 1000 : Infinity));
   }
   /**
    * capRefusal(id, {cpuShare, gpuShare}) -> why a NEW unit with these shares does not fit under the owner's caps beside
@@ -1929,8 +1931,7 @@ export class Host {
     if (this.cfg.engineRetired === true) {
       const held = this.shareUse().gpuInUse;
       return held > 0 ? { consumer: true, why: `partitions on the isolated backend hold ${Math.round(held * 100)}% of the GPU` }
-        : { consumer: false, why: "no partition on the isolated backend holds a GPU share (it spawns them with gpuShare 0,"
-            + " windows/vbslike/datapath/node-bridge.mjs), so nothing on it uses the GPU yet" };
+        : { consumer: false, why: "no partition currently holds a masked GPU allocation" };
     }
     const card = this.card && this.card();
     return card && Number(card.vramBudgetGb) > 0
@@ -2282,7 +2283,7 @@ export class Host {
     if (this.partitionsOnly()) {
       const config = this.partitionOffers("config"), configCid = this.partitionOffers("configCid");
       return {
-        configOverride: config, gpuOptional: this.partitionOffers("gpu"), cpuFallback: true,
+        configOverride: config, gpuOptional: false, cpuFallback: true,
         networkOptions: this.partitionOffers("egress"), rateCap: true, proofOfTime: true,
         waf: this.partitionOffers("waf"),
         secrets: this.partitionOffers("secrets") && !!this.cfg.secretsSign,
@@ -2292,7 +2293,7 @@ export class Host {
         customDomains: this.partitionOffers("customDomains"),
         devDeploy: this.partitionOffers("privateDeployments") && !!this.cfg.sessionKid,
         mem64: false, set: false, p3: false, coopThreads: false,
-        volumes: [],
+        volumes: this.managerInference?.ready ? [this.managerInference.model] : [],
       };
     }
     return {

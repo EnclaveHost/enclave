@@ -322,3 +322,15 @@ test("hvJudge per image: the legacy self-test is certified only for v42's image 
   const r4 = await hvJudge({ ...base, image: IMAGE, guestIdentity: stated }, PIN)(await docOf(f4, n4), GUEST_SPKI, n4, want);
   assert.equal(r4.verdict, "monitor-signed", r4.reasons.join("; ")); assert.equal(r4.wxCoverage, "runtime-covered");
 });
+
+test("certificate runtime selection is per deployment and never defaults an unknown GPU profile to CPU", async () => {
+  const f = await front(), box = await managerFor(f), svc = await certsService();
+  const pick = rec => rec.gpuShare > 0 ? undefined : PIN;
+  const p = passFor(box, svc, { runtimeId: pick });
+  await p.pass(records(box.instance, { gpuShare: 0.5 }));
+  assert.equal(svc.asked, 0);
+  assert.match(p.state(DEP).why, /pins no runtime/);
+  const cpu = passFor(box, svc, { runtimeId: pick });
+  await cpu.pass(records(box.instance, { gpuShare: 0 }));
+  assert.equal(svc.issued, 1);
+});

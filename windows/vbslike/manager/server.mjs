@@ -18,9 +18,10 @@
      absent rather than null-shaped or "pending". Nothing here produces a report.
    ============================================================ */
 import http from "node:http";
+import { inferenceRefusal } from "./shield-profile.mjs";
 import { runtimeId as runtimeId_ } from "../../../isolation/contract/runtime.mjs";
 import crypto from "node:crypto";
-import { derive, DERIVATION, DERIVATION_V2, DERIVATIONS } from "./derive.mjs";
+import { derive, DERIVATION, DERIVATION_V2, DERIVATION_V4, DERIVATIONS } from "./derive.mjs";
 
 /* What this backend can actually SERVE, as opposed to derive. /2 needs a command's own socket
    inside the partition; when that exists, it moves into this list and the gate follows. */
@@ -46,9 +47,8 @@ export function policyFor({ memMb }) {
 }
 
 /** What a spawn may NOT ask for here, checked again on this side of the wire. */
-export function refuseUnsupported(req = {}) {
-  const s = SUPPORTS;
-  if (Number(req.gpuMilli) > 0 && !s.gpu) return "a GPU share: a per-app partition has no GPU path";
+export function refuseUnsupported(req = {}, s = SUPPORTS) {
+  if ((Number(req.gpuMilli) > 0 || Number(req.gpuShare) > 0) && !s.gpu) return "a GPU share: a per-app partition has no GPU path";
   if ((req.config || req.appConfigCid) && !s.config) return "app config: it is not delivered into a per-app partition";
   if (req.hasSecrets !== false && !s.secrets)
     return req.hasSecrets === true ? "staged secrets: they would cross this host in plaintext"
@@ -67,8 +67,9 @@ export class Manager {
    * @param readyDeadlineMs  how long a domain has to become ready before it is failed.
    */
   constructor({ backend = new HyperVPartitionBackend(), fetchComponent = null, runtimeId = "",
-                runtime = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null } = {}) {
+                runtime = null, shield = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null } = {}) {
     this.backend = backend;
+    this.shield = shield;
     this.fetchComponent = fetchComponent;       // (cid) -> Buffer, CID-verified by the caller's fetcher
     // THE RUNTIME IDENTITY, not just its hash. judge-hv hands `expectRuntime` to the shared
     // checkRuntime as `want.runtime`, which DIFFS IT FIELD BY FIELD against the identity the
@@ -158,9 +159,12 @@ export class Manager {
       const v = await judge({ host: rec.relay.host, port: rec.relay.port, appId: rec.appId,
                               launcherKey: handle.launcherKey, expectedVmId: handle.launcherVmId, ...statement,
                               // the IDENTITY object, which is what checkRuntime compares; never the hash
-                              expectRuntime: this.runtime ?? undefined,
+                              expectRuntime: rec.inference ? this.shield?.runtime : this.runtime ?? undefined,
                               deadlineMs: this.readyDeadlineMs });
       if (this.domains.get(rec.id) !== rec) return;         // removed, or replaced, while we were judging (63's P3: identity, not presence)
+      // A relay/Shield bridge may exit while the evidence request is pending.
+      // A late readiness success must not resurrect that failed transport.
+      if (rec.status === "failed" || rec.status === "stopped" || this.#stopping.has(rec)) return;
       rec.transportKeySha256 = v.transportKeySha256 ?? null;
       rec.verdict = v.checks?.document?.verdict ?? null;
       if (v.status === "running") { rec.status = "running"; rec.appReady = true; rec.reason = null; }
@@ -237,12 +241,19 @@ export class Manager {
     return this.inventory;
   }
 
+  gpuAllocated() {
+    // Failed/starting instances still hold their reservation until confirmed removed.
+    // Recovered VMs have unknown allocations: close admission until reconciled.
+    if ([...this.domains.values()].some(r => r.recovered || r.unattributed)) return 1000;
+    return [...this.domains.values()].reduce((n,r) => n+(r.gpuMilli || 0),0);
+  }
   health() {
     return {
       managerEpoch: this.epoch,
       inventory: this.inventory,
       backend: this.backend.backend,
-      supports: { ...this.backend.supports },
+      supports: { ...this.backend.supports, ...(this.shield?.ready ? { gpu: true } : {}) },
+      inference: this.shield ? { ...this.shield, allocatedGpuMilli: this.gpuAllocated(), freeGpuMilli: this.shield.ready ? Math.max(0, 1000-this.gpuAllocated()) : 0 } : null,
       // DEFECT 4: /health had no boundary at all, so a reader could learn everything about this
       // manager EXCEPT what its isolation actually is. It is carried verbatim from the backend,
       // including hostExcluded:false, because that is the word that must never be lost.
@@ -255,7 +266,7 @@ export class Manager {
       // free. Silence in this list is the refusal the gate understands. (enclave-5d, who owns the
       // consumer, asked for exactly this, and they are right.)
       catalog: {
-        derivations: SERVES,                    // what it can serve: the gate reads this
+        derivations: this.shield?.ready ? [...SERVES, DERIVATION_V4] : SERVES,                    // what it can serve: the gate reads this
         derives: DERIVATIONS,                   // what it can COMPUTE, byte-exactly: information only
         runtimeId: this.runtimeId || null,
       },
@@ -294,9 +305,13 @@ export class Manager {
     if (d.derivation === "enclave-catalog-bundle/2")
       throw badRequest("this backend derives enclave-catalog-bundle/2 but cannot serve it yet: "
         + "a command serving its own socket needs wasi:sockets inside the partition and an in-guest TLS front");
-    if (this.runtimeId && d.runtimeId !== this.runtimeId)
+    const shieldWhy = inferenceRefusal(d, body, this.shield);
+    if (shieldWhy) throw badRequest(shieldWhy);
+    if (d.derivation === DERIVATION_V4 && !this.shield?.ready) throw badRequest("Shield profile unavailable");
+    if (d.derivation !== DERIVATION && d.derivation !== DERIVATION_V4) throw badRequest("derivation is not served");
+    if (!d.inference && this.runtimeId && d.runtimeId !== this.runtimeId)
       throw badRequest(`the mapping is pinned to runtime ${d.runtimeId}, and this host runs ${this.runtimeId}`);
-    const refusal = refuseUnsupported(body);
+    const refusal = refuseUnsupported(body, { ...SUPPORTS, gpu: !!this.shield?.ready });
     if (refusal) throw badRequest(`this backend does not honour ${refusal}`);
     if (!this.fetchComponent) throw badRequest("no component fetcher configured");
 
@@ -327,7 +342,10 @@ export class Manager {
     // `status`, not `state`: guestd's vocabulary, which the supervisor reads (starting | running |
     // failed | stopped). The old "guest-booted" was a fifth word no consumer knew, so a booted
     // domain read as dead every tick and was respawned.
-    const rec = { id, name, instanceId, appId: mapping.appId, recordSha256: mapping.recordSha256,
+    // No await between reservation check and insertion: concurrent fetches cannot oversell.
+    const gpuMilli = mapping.record.inference?.gpuMilli || 0;
+    if (gpuMilli + this.gpuAllocated() > 1000) throw badRequest("Shield GPU allocation is full");
+    const rec = { launching: true, inference: mapping.record.inference || null, gpuMilli, id, name, instanceId, appId: mapping.appId, recordSha256: mapping.recordSha256,
                   componentSha256: mapping.componentSha256, policy: mapping.record.policy,
                   catalog: mapping.record.catalog, cid: mapping.record.cid,
                   runtimeId: mapping.record.runtimeId, status: "starting", startedAt: null, reason: null,
@@ -340,6 +358,12 @@ export class Manager {
     this.domains.set(id, rec);
     try {
       const h = await this.backend.start(mapping, { instanceId, identity: { id, name, instanceId, appId: mapping.appId } });
+      if (h?.transport?.exited) h.transport.exited.then(() => {
+        if (this.domains.get(id) === rec && !this.#stopping.has(rec) && rec.status !== "stopped") {
+          rec.status="failed"; rec.appReady=false; rec.reason="Shield transport exited";
+          this.onReclaim?.(id, rec.reason);
+        }
+      });
       // WHAT WAS ESTABLISHED, and no more. The launcher returns only when the VM is Running and the
       // guest produced output, which means something inside the partition executed. It does NOT
       // mean the component was delivered, compiled or served: there is no app-readiness handshake
@@ -398,6 +422,7 @@ export class Manager {
       rec.reason = e.message;
       if (e.prerequisites) rec.prerequisites = e.prerequisites;
     }
+    rec.launching = false;
     return this.publicOf(rec);
   }
 
@@ -514,6 +539,16 @@ export class Manager {
       if (!this.inventoryReady) throw unavailable(this.inventory);
       if (!this.mayAnswerAbsent(id)) throw unattributedUnknown(id, this.unattributed());
       return { removed: false, absent: true };
+    }
+    if (r.launching) { const e=new Error("instance is still launching; retry removal after launch settles");e.status=409;throw e; }
+    if (r.gpuMilli && !r.handle && this.backend.canSurvey) {
+      const inventory=await this.backend.survey();
+      if (!Array.isArray(inventory?.vms)) throw new Error("cannot confirm failed GPU launch cleanup");
+      for (const vm of inventory.vms) {
+        const parsed=parseNotes(vm.notes);
+        if (!parsed.identity) throw new Error("unattributed VM prevents releasing the GPU reservation");
+        if (parsed.identity.id===r.id) r.handle={vmId:vm.vmId,name:vm.name};
+      }
     }
     this.#stopping.add(r);
     try {

@@ -16,9 +16,9 @@ shielded-bridge <partition-guid> 19595 19595 180
 
 The final argument bounds its lifetime in seconds. It connects only to
 `127.0.0.1:<worker-port>`, binds one explicit partition, checks accepted peer
-identity, limits simultaneous connections to eight, and closes stalled links
-after 60 seconds. The deadline and idle policy are for qualification; persistent
-app reservations need the same lifecycle handling as the existing Linux broker.
+identity, limits simultaneous connections to eight, and bounds stalled writes to 60 seconds. Lifetime zero uses supervisor stdin
+EOF to close every link. Idle reads remain open so an idle app retains its
+reservation; the partition lifecycle owns the bridge.
 It never modifies guest or host admission, opens a public TCP listener, or
 enables a retired enclave engine.
 
@@ -68,19 +68,61 @@ image passed deterministic twin and measurement-mutation checks.
 hashes and counters. `gpu/inference-probe-init.c` is the diagnostic wrapper; it
 logs only a fixed public fixture and must stay out of production images.
 
-## Remaining production integration
+## Hosted-app release, 2026-09-29
 
-`PARTITION_OFFERS.gpu` remains false. The current hosted-app runtime has no
-model-volume delivery or admitted inference profile. Do not toggle the offer
-based on this transport test. A complete release needs:
+The production manager accepts V4 measured inference bundles when its pinned
+Shield profile and worker are ready. The same model and allocation are checked
+by the scheduler, manager, and guest. The initial profile serves public
+`wasi:http` apps with `wasi-nn`, Qwen2.5-0.5B Q8, 500–1000 GPU milli,
+at least 250 CPU milli, and 8192 MiB of declared app memory. This is not an
+arbitrary model-volume service, a graphics/encode API, or a 27B profile.
 
-1. A measured GGML runtime and hash-pinned model profile, reusing the Linux
-   Shield engine, with masking and nonlinear work inside the per-app guest.
-2. A private, credential-checked guest broker for the runtime (WASI apps must
-   not gain arbitrary host socket access), supervised with its partition.
-3. Model/allocation binding, atomic GPU reservation and recovery, worker-failure
-   withdrawal, and matching node/manager/scheduler capability checks.
-4. An actual catalog app performing inference, its full app/TLS evidence chain,
-   restart/adoption and teardown checks, before the fleet advertises capacity.
+The CPU runtime and image remain separately pinned. Inference runs in measured
+Wasmtime 49 with the existing ggml-shielded engine, model, and a private
+UID-checked Unix broker. Masking, nonlinear operations and result verification
+stay in the app guest. The host bridge binds one VM and transports masked
+worker messages. The broker uses `/run/enclave-shield/gpu0`; the TLS front and
+report socket remain inaccessible to the app UID under `/run/front`.
 
-The existing owner-only classification is unchanged by this work.
+The native engine treats Shield as an ACCEL backend, so `N_GPU_LAYERS=0` is
+intentional: setting -1 demands a normal GPU and refuses the graph. The budget
+variable is `ENCLAVE_VRAM_BYTES`; neither knob is supplied by the app or host.
+
+The manager reserves shares before launch, retains them on uncertain failures,
+and releases them only after confirmed removal. Recovered or unattributed VMs
+hold all GPU capacity until reconciled. A manager restart requires controlled
+partition relaunch; recovery does not rebuild live relays. Worker failure
+withdraws the profile on the next health refresh (15 seconds). The node only
+advertises a fresh ready profile, and cannot claim the entire physical 16-GiB
+UMA allocation: the worker pool is 4 GiB.
+
+A real WASI canary generated 16 tokens at 15.69 tok/s (single short warm run).
+The worker confirmed a 4-GiB reservation; full fresh-nonce app/runtime/TLS
+hardware evidence verification passed. Build and model pins are recorded in
+[`gpu/hosted-nucbox-20260929.json`](gpu/hosted-nucbox-20260929.json).
+
+Certificate selection uses the runtime pinned for the deployment's CPU/GPU
+profile. Preserve the production `certNameFor`/`--cert-name` handoff: the
+monitor needs it to expose CSR and certificate-install endpoints. The raw-CID
+fetch path hashes the bounded raw block directly; DAG-PB continues to use CAR
+block verification. A gateway's inability to export a raw CID as CAR cannot
+bypass content verification.
+
+The existing owner-only T0-hv classification is unchanged. Successful app
+binding verification does not establish malicious-host exclusion and does not
+enable general marketplace admission.
+
+Production acceptance: two owner-created catalog deployments (`fa8d0ea5` and
+`2bad651c`) each ran with 500 GPU milli / 2 GiB. Both public HTTPS names passed
+WebPKI verification and the full fresh-nonce app evidence check, then generated
+16 tokens. Short warm responses measured 15.62 and 9.12 tok/s respectively;
+these are not comparable to a sustained dedicated GPU benchmark. Both CPU
+apps remained served after the controlled relaunch, with HTTP 200. Killing the
+worker withdrew availability; confirmed teardown released all reservations.
+With both inference apps loaded the worker reported 4 GiB reserved / 0 free.
+Secure Boot remains enabled, testsigning is absent, and the legacy engine is
+not started.
+
+The certificate naming patch is preserved from `enclave-m4name` (719133eed);
+its existing production launcher binary is pinned at
+`10547aca82ad48be021828164cd11a649cd324e37932b388449f3f44530929ba`.

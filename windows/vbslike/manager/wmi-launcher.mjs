@@ -40,7 +40,15 @@
 import path from "node:path";
 import { BOOT_STATEMENTS, bootFormOfStatement } from "../verify/boot-statements.mjs";
 import fs from "node:fs";
-import { runWmiserve, writeBundle, freePort } from "./wmiserve-run.mjs";
+import { runWmiserve, writeBundle, freePort, CERT_NAME } from "./wmiserve-run.mjs";
+/** The name a deployment's domain may be certified for (M4): the first 8 hex of its id in the app zone, or null for a
+ *  name that is not a deployment id (a lab label): such a domain gets no certificate endpoints at all. */
+export function certNameFor(name) {
+  const m = /^0x([0-9a-fA-F]{64})$/.exec(String(name ?? ""));
+  if (!m) return null;
+  const n = `${m[1].slice(0, 8).toLowerCase()}.app.enclave.host`;
+  return CERT_NAME.test(n) ? n : null;
+}
 
 /*  THE VM MUST BE CREATED WITH A GUEST-STATE ISOLATION TYPE, or FirmwareFile is inert.
  *
@@ -766,7 +774,7 @@ export class WmiHyperVLauncher {
   constructor({ run, imagePath, imageSha256, boot = null, medium = null, mediumSha256 = null,
                 guestStateMaster = null, guestStateMasterSha256 = null, guestStateRunDir = null, guestStateArchiveDir = null,
                 hypervModule = null, hypervModuleSha256 = HYPERV_MODULE_SHA256, hypervUtilitiesSha256 = null,
-                prefix = "enclave-app-", pipeFor = null, serve = null }) {
+                prefix = "enclave-app-", pipeFor = null, serve = null, startTransport = null }) {
     if (typeof run !== "function") throw new Error("a PowerShell runner must be injected");
     // THE BOOT FORM IS STATED. Inferring it from whether a medium happens to be set would let a
     // missing variable silently turn a medium boot into a linux-direct one, and the identity with it.
@@ -804,6 +812,7 @@ export class WmiHyperVLauncher {
     // THE APP AND ITS RELAY (wmiserve-run.mjs, enclave-5d), opt-in: { exe, bundleDir, portFor?, readyTimeoutMs?, run? }.
     // Without it this launcher boots the VM and stops there, exactly as before (no relay, and the domain stays starting).
     this.serve = serve;
+    this.startTransport = startTransport;
   }
 
   async #ps(script) {
@@ -943,7 +952,7 @@ export class WmiHyperVLauncher {
     if (!guestStateRun) throw new Error(`no per-run guest-state path can be made for ${name}`);
     const vcpus = Math.max(1, Math.floor(mapping.record.policy.vcpus));
     const memMiB = type1VmMemMiB(mapping.record.policy.memMiB);   // the VM's RAM, not the app's share
-    let created = null, served = null;
+    let created = null, served = null, transport = null;
     try {
       created = await this.#ps(CMD.defineType1({
         name, memMiB, vcpus, notes, pipe, boot: this.boot,
@@ -982,11 +991,12 @@ export class WmiHyperVLauncher {
       const uefi = this.boot === BOOT_UEFI;
       // THE APP AND ITS RELAY, when this launcher was given wmiserve to run (enclave-5d, wmiserve-run.mjs): the bundle
       // into the guest over hv_sock 9000, the report service for THIS VM, and a loopback TCP relay to the domain.
-      if (this.serve) served = await this.#serveApp({ mapping, instanceId, vmId: created.id, uefi, created, vcpus, memMiB });
+      if (this.startTransport) transport = await this.startTransport(created.id);
+      if (this.serve) served = await this.#serveApp({ mapping, instanceId, vmId: created.id, uefi, created, vcpus, memMiB, certName: certNameFor(identity && identity.name) });
       const guestIdentity = uefi
         ? uefiImageIdentity({ mediumSha256: created.mediumSha256, mediumPath: created.mediumPath ?? this.medium })
         : linuxDirectIdentity({ igvmSha256: created.firmwareSha256, igvmPath: this.imagePath });
-      return { instanceId, name, vmId: created.id, pipe, state: started.state,
+      return { transport, instanceId, name, vmId: created.id, pipe, state: started.state,
                boot: this.boot, isolationType: 1,
                image: uefi ? guestIdentity.guestImageSha256 : guestIdentity.igvmSha256,
                guestIdentity, firmware, boundary: boundaryFor(this.boot), appId: mapping.appId,
@@ -1009,8 +1019,9 @@ export class WmiHyperVLauncher {
                // report's partition.vmId against it, so a report from another partition's launcher never reads as this one
                ...(served ? { tcpPort: served.tcpPort, launcherKey: served.launcherKey, launcherVmId: served.vm, domainId: served.domainId,
                               guestPort: served.guestPort, boot: served.boot, relayNote: served.note, wmiserve: served } : {}),
-               stop: async () => await this.stop({ name, vmId: created.id, wmiserve: served }) };
+               stop: async () => await this.stop({ name, vmId: created.id, wmiserve: served, transport }) };
     } catch (e) {
+      if (transport) await transport.stop();
       if (served) { e.relay = await this.#closeServed(served); }       // before its VM goes
       const vmId = created && GUID.test(String(created.id || "")) ? String(created.id) : null;
       let swept;
@@ -1044,14 +1055,14 @@ export class WmiHyperVLauncher {
   }
 
   /** The app into the guest and a relay to it (wmiserve-run.mjs). Its bundle file is removed if this fails. */
-  async #serveApp({ mapping, instanceId, vmId, uefi, created, vcpus, memMiB }) {
+  async #serveApp({ mapping, instanceId, vmId, uefi, created, vcpus, memMiB, certName = null }) {
     const s = this.serve;
     const bundleFile = writeBundle({ dir: s.bundleDir, instanceId, bundle: mapping.bundle, appId: mapping.appId });
     try {
       const tcpPort = await (s.portFor ? s.portFor(instanceId) : freePort());
       const run = await (s.run || runWmiserve)({ exe: s.exe, vmId, bundleFile, appId: mapping.appId, tcpPort,
         ...(uefi ? { mediumSha256: created.mediumSha256 } : { igvmSha256: created.firmwareSha256 }),
-        isolationType: 1, label: instanceId, vcpus, memMiB,
+        isolationType: 1, label: instanceId, vcpus, memMiB, ...(certName ? { certName } : {}),
         ...(s.readyTimeoutMs ? { readyTimeoutMs: s.readyTimeoutMs } : {}), ...(s.spawn ? { spawn: s.spawn } : {}) });
       run.bundleFile = bundleFile;
       return run;
@@ -1066,6 +1077,7 @@ export class WmiHyperVLauncher {
 
   /** Stop, and SAY when it did not: "ok" for a VM that is still running is how one gets orphaned. */
   async stop(handle) {
+    if (handle?.transport) await handle.transport.stop();
     // The relay and report service first (wmiserve closes on a stdin line), then the VM. Its outcome is REPORTED on the
     // result and never blocks the removal: a relay that will not close is killed, and the VM must go either way.
     const relay = handle && handle.wmiserve ? await this.#closeServed(handle.wmiserve) : null;

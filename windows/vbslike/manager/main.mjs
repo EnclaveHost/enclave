@@ -5,6 +5,7 @@
    runner, the WMI launcher with the guest image pinned BY HASH, and a CID-verified component
    fetcher. The manager then asks the host what it can actually do (probe) before it answers
    /health, so "canStart" is the host's answer rather than a configuration detail. */
+import { profile, probeWorker, startBridge, ProfileLauncher } from "./shield-profile.mjs";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
@@ -67,9 +68,10 @@ if (wmiserveExe || wmiserveSha || bundleDir) {
 }
 
 let launcher = null;
+let launcherOptions = null;
 if (imagePath && imageSha256) {
   try {
-    launcher = new WmiHyperVLauncher({
+    launcherOptions = {
       run: powershellRunner(), imagePath, imageSha256,
       boot: env("ENCLAVE_BOOT_FORM") || null,
       medium: env("ENCLAVE_GUEST_MEDIUM") || null,
@@ -82,7 +84,8 @@ if (imagePath && imageSha256) {
       hypervModuleSha256: env("ENCLAVE_HYPERV_MODULE_SHA256", HYPERV_MODULE_SHA256),
       hypervUtilitiesSha256: env("ENCLAVE_HYPERV_UTILITIES_SHA256") || null,
       serve,
-    });
+    };
+    launcher = new WmiHyperVLauncher(launcherOptions);
   } catch (e) {
     // A contradictory launcher configuration (a medium with linux-direct, an unknown boot form, a
     // medium with no boot form) is refused at startup rather than guessed at.
@@ -131,8 +134,29 @@ if (runtimeIdentityPath) {
   process.exit(2);
 }
 
+let shield = null;
+const shieldConfig = env("ENCLAVE_SHIELD_PROFILE");
+if (shieldConfig) {
+  if (!launcherOptions) throw new Error("Shield requires an existing CPU launcher");
+  const cfg = JSON.parse(fs.readFileSync(shieldConfig,"utf8"));
+  shield = { ...profile(cfg.runtime), ready:false, imageSha256:cfg.imageSha256 };
+  const gpuLauncher = new WmiHyperVLauncher({ ...launcherOptions,
+    imagePath:cfg.imagePath, imageSha256:cfg.imageSha256,
+    startTransport:vmId => startBridge({ exe:cfg.bridgeExe, sha256:cfg.bridgeSha256, vmId, port:cfg.workerPort || 19595 }) });
+  await gpuLauncher.verifyImage();
+  if (createHash("sha256").update(fs.readFileSync(cfg.bridgeExe)).digest("hex") !== cfg.bridgeSha256) throw new Error("Shield bridge differs from its pin");
+  launcher = new ProfileLauncher(launcher,gpuLauncher);
+  const refresh = async () => {
+    try { shield.card=await probeWorker(cfg.workerPort || 19595); shield.ready=true; shield.checkedAt=Date.now(); shield.error=null; }
+    catch(e) { shield.ready=false; shield.card=null; shield.error=e.message; shield.checkedAt=Date.now(); }
+  };
+  await refresh();
+  setInterval(refresh,15000).unref();
+}
+
 const manager = new Manager({ judgeReady: judgeRunning, answerCheck: checkAnswer,
   runtime,
+  shield,
   runtimeId,
   fetchComponent,
   backend: new HyperVPartitionBackend({ launcher }),
