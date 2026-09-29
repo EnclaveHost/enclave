@@ -84,11 +84,12 @@ const (
 // every backend ends a domain the same way; this file supplies what reclamation DOES here.
 
 type domain struct {
-	ID     int    `json:"id"`
-	Label  string `json:"label"`
-	AppSha string `json:"appSha256"`
-	Port   uint32 `json:"port"`
-	UID    int    `json:"uid"`
+	Inference *contract.Inference `json:"inference,omitempty"`
+	ID        int                 `json:"id"`
+	Label     string              `json:"label"`
+	AppSha    string              `json:"appSha256"`
+	Port      uint32              `json:"port"`
+	UID       int                 `json:"uid"`
 	// FrontUID is the uid the domain's FRONT runs as, never the runtime's (UID): the front is the trusted component in a
 	// domain and the runtime is not (enclave-87's ruling on enclave-bf's finding: a runtime sharing the front's uid could
 	// obtain reports for keys of its choosing and replace the front's listen socket). Reports are answered for this uid
@@ -463,6 +464,24 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 		return nil, fmt.Errorf("bundle refused: %w", err)
 	}
 	pol := contract.EffectivePolicy(manifest, contract.Request{CPU: req.CPU, MemMiB: req.MemMiB})
+	var inference *contract.Inference
+	if manifest != nil {
+		if len(manifest.Ports) != 0 {
+			return nil, fmt.Errorf("protected tunnel ports are not supported in this image")
+		}
+		inference = manifest.Inference
+		if inference != nil {
+			if _, err := os.Stat(filepath.Join(m.plat, "shield-nucbox.enabled")); err != nil {
+				return nil, fmt.Errorf("Shield profile is not in this measured image")
+			}
+			if inference.Model != contract.ShieldModel || inference.GPUMilli < 500 || inference.GPUMilli > 1000 {
+				return nil, fmt.Errorf("NucBox Shield requires qwen2.5-0.5b-q8-gguf and 500..1000 GPU milli")
+			}
+			if pol.MemMiB < 8192 || pol.CPUPercent < 400 || manifest.Policy.Vcpus < 4 {
+				return nil, fmt.Errorf("Shield profile requires 8192 MiB and four vCPUs")
+			}
+		}
+	}
 
 	m.mu.Lock()
 	id := m.next
@@ -480,7 +499,7 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 	if id >= frontUIDOffset {
 		return nil, fmt.Errorf("domain id %d would give its runtime a uid in the fronts' range", id)
 	}
-	d := &domain{ID: id, Boot: m.boot, Label: req.Label, AppSha: hex.EncodeToString(sum[:]), appHash: sum, Mode: mode, HTTP: httpPort, Name: req.Name,
+	d := &domain{Inference: inference, ID: id, Boot: m.boot, Label: req.Label, AppSha: hex.EncodeToString(sum[:]), appHash: sum, Mode: mode, HTTP: httpPort, Name: req.Name,
 		Port: m.basePrt + uint32(id), UID: m.baseUID + id, FrontUID: m.baseUID + frontUIDOffset + id, CPU: pol.CPUPercent, MemMiB: pol.MemMiB,
 		dir: filepath.Join(m.root, strconv.Itoa(id)), cgroup: "/sys/fs/cgroup/dom" + strconv.Itoa(id),
 		Probe: req.Probe, exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
@@ -521,6 +540,15 @@ func (m *monitor) start(d *domain, app []byte) error {
 			return fail(err)
 		}
 	}
+	if d.Inference != nil {
+		// Derived only from the hashed bundle, never from host flags/environment.
+		if err := os.WriteFile(filepath.Join(d.dir, "shield.profile"), []byte(strconv.Itoa(d.Inference.GPUMilli)+"\n"), 0444); err != nil {
+			return fail(err)
+		}
+		if err := os.Mkdir(filepath.Join(d.dir, "run", "enclave-shield"), 0755); err != nil {
+			return fail(err)
+		}
+	}
 	// the platform tree (runtime, front, domexec) read-only, and the monitor's socket, are all the
 	// domain gets from outside itself
 	platAt := filepath.Join(d.dir, "plat")
@@ -530,7 +558,14 @@ func (m *monitor) start(d *domain, app []byte) error {
 	if err := syscall.Mount("", platAt, "", syscall.MS_BIND|syscall.MS_REMOUNT|syscall.MS_RDONLY|syscall.MS_REC, ""); err != nil {
 		return fail(fmt.Errorf("remount ro %s: %w", platAt, err))
 	}
-	sockAt := filepath.Join(d.dir, "run", "monitor.sock")
+	runAt := filepath.Join(d.dir, "run")
+	if d.Inference != nil {
+		runAt = filepath.Join(runAt, "front")
+		if err := os.Mkdir(runAt, 0700); err != nil {
+			return fail(err)
+		}
+	}
+	sockAt := filepath.Join(runAt, "monitor.sock")
 	if f, err := os.OpenFile(sockAt, os.O_CREATE|os.O_RDONLY, 0o600); err == nil {
 		f.Close()
 	}
@@ -539,7 +574,6 @@ func (m *monitor) start(d *domain, app []byte) error {
 	}
 	// /run is the FRONT's alone (0700, its uid): it creates its listen socket there and reaches the report socket bind-mounted
 	// there, and the runtime (another uid) can do neither - not replace the front's socket, not ask for a report
-	runAt := filepath.Join(d.dir, "run")
 	if err := os.Chown(runAt, d.FrontUID, d.FrontUID); err != nil {
 		return fail(err)
 	}
@@ -651,7 +685,7 @@ func (m *monitor) launch(d *domain, cmd *exec.Cmd, ln *vsock.Listener) error {
 					c.Close()
 					continue
 				}
-				go relay(c, filepath.Join(d.dir, "run", "front.sock"))
+				go relay(c, d.frontPath("front.sock"))
 			}
 		}()
 	}
@@ -762,7 +796,7 @@ func (d *domain) release() {
 				fmt.Printf("MON WARN domain %d did not exit within %s; reclaiming anyway\n", d.ID, exitGrace)
 			}
 		}
-		for _, mp := range []string{filepath.Join(d.dir, "run", "monitor.sock"), filepath.Join(d.dir, "plat")} {
+		for _, mp := range []string{d.frontPath("monitor.sock"), filepath.Join(d.dir, "plat")} {
 			if err := syscall.Unmount(mp, syscall.MNT_DETACH); err != nil &&
 				!errors.Is(err, syscall.EINVAL) && !errors.Is(err, syscall.ENOENT) {
 				fmt.Printf("MON WARN domain %d unmount %s: %v\n", d.ID, mp, err)
@@ -1554,4 +1588,13 @@ func raisePtraceScopeWith(path string, want int, write func(string, []byte, os.F
 		return fmt.Sprintf("yama ptrace_scope=%d -> %q, not the %d asked: %s", was, strings.TrimSpace(string(raw)), want, yamaRefused), false
 	}
 	return fmt.Sprintf("yama ptrace_scope=%d -> %d", was, now), true
+}
+
+// Shield's broker is reachable by the runtime in /run/enclave-shield. Its
+// report and TLS sockets remain behind a distinct 0700, front-owned directory.
+func (d *domain) frontPath(name string) string {
+	if d.Inference != nil {
+		return filepath.Join(d.dir, "run", "front", name)
+	}
+	return filepath.Join(d.dir, "run", name)
 }

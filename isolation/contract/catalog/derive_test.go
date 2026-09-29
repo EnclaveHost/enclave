@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"os"
+	"reflect"
 	"testing"
 
 	"enclave.host/isolation/contract"
@@ -51,13 +52,13 @@ func TestDerivationMatchesTheIndependentReference(t *testing.T) {
 			t.Fatalf("%s: %v", c.Name, err)
 		}
 		s := sha256.Sum256(b)
-		if hex.EncodeToString(s[:]) != c.BundleSha256 || m != c.Mapping {
+		if hex.EncodeToString(s[:]) != c.BundleSha256 || !reflect.DeepEqual(m, c.Mapping) {
 			t.Fatalf("%s: Go derived\n %+v\nthe reference\n %+v", c.Name, m, c.Mapping)
 		}
 		// and the bundle is a bundle the contract itself accepts, naming this component
 		man, art, err := contract.Parse(b)
 		wantWorld, wantHTTP := World, 0
-		if c.Record.Derivation == V2 {
+		if c.Record.Derivation == V2 || c.Record.Derivation == V3 || (c.Record.Derivation == V4 && c.Record.HTTP != 0) {
 			wantWorld, wantHTTP = contract.WorldCLI, c.Record.HTTP
 		}
 		if err != nil || string(art) != string(comp) || man.World != wantWorld || man.HTTP != wantHTTP || man.Label != "" {
