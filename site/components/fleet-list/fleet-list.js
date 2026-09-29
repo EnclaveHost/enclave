@@ -13,7 +13,7 @@ import { hrevConfigured, hrevTallies, hrevMine, encCall, HREV_SEL, waitReceipt, 
 import { HOST_REVIEWS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
-import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedPoolOf, teeCpuOf, computeEligibleOf, appHostVisible, ownerHostedDeploymentCount, ownerHostCpuCapacity } from "../../js/core/pricing.js";
+import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedPoolOf, teeCpuOf, computeEligibleOf, appHostVisible, ownerHostedDeploymentCount, ownerHostCpuCapacity, ownerHostVisibleTo } from "../../js/core/pricing.js";
 import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
 
@@ -23,12 +23,29 @@ class FleetList extends EnclaveElement {
   static properties = { rows: null, error: null, staleAt: 0 };
   static templateUrl = new URL("./fleet-list.html", import.meta.url);
 
+  connectedCallback() {
+    this._walletChanged ||= () => {
+      // A wallet switch must update personal rows immediately, even while a
+      // rating form had deferred ordinary telemetry refreshes.
+      this._rateOpen = false;
+      this._renderDeferred = false;
+      super.requestRender();
+    };
+    document.addEventListener("enclave:wallet", this._walletChanged);
+    super.connectedCallback();
+  }
+  disconnectedCallback() {
+    document.removeEventListener("enclave:wallet", this._walletChanged);
+    super.disconnectedCallback();
+  }
+
   renderedCallback() {
     const list = this.querySelector(".fleet-list"); if (!list) return;
     // Marketplace capacity keeps its eligibility gate. Active owner-only hosts
     // get a separate status row with reported capacity, but no rental prices.
     const rows = (this.rows || []).filter((e) => appHostVisible(e));
-    const ownerRows = (this.rows || []).map(e => ({ row: e, count: ownerHostedDeploymentCount(e) })).filter(e => e.count > 0);
+    const ownerRows = (this.rows || []).filter(e => ownerHostVisibleTo(e, Enclave.address))
+      .map(e => ({ row: e, count: ownerHostedDeploymentCount(e) }));
     const meter = (pct) => '<i class="fleet-meter" aria-hidden="true"><b style="width:' + Math.max(0, Math.min(100, pct)) + '%"></b></i>';
     // one stat cell: bright available amount, then the "≈"/"/ total" context and
     // the label in dim ink so the number is what the eye lands on

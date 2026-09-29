@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { appHostVisible, ownerHostedDeploymentCount, ownerHostCpuCapacity, HOST_STALE_AFTER_SEC } from "../site/js/core/pricing.js";
+import { appHostVisible, ownerHostedDeploymentCount, ownerHostCpuCapacity, ownerHostVisibleTo, HOST_STALE_AFTER_SEC } from "../site/js/core/pricing.js";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const NOW = 1790266080;
@@ -152,4 +152,25 @@ test("owner-only capacity shows the host's allocation and RAM figures without ma
   assert.equal(ownerHostCpuCapacity({ availability: { cpuShareFree: 3, nodeRamGb: 8, ramGbFree: 12 } }).ramFreeGb, 8);
   assert.equal(ownerHostCpuCapacity({ availability: { cpuShareFree: 3 } }).fraction, 1);
   assert.equal(ownerHostCpuCapacity({ availability: { cpuShareFree: NaN, ramGbFree: -1 } }).fraction, null);
+});
+
+
+test("owner-only rows appear only for the operator or a currently delegated wallet", () => {
+  const operator = "0x" + "b".repeat(40), owner = "0x" + "c".repeat(40);
+  const row = { ...nucbox, mode: "hv-node", ownerOnly: true, operator,
+    served: [{ owner, expires: NOW + 60 }],
+    servesDeployments: [{ id: "0x" + "a".repeat(64), until: NOW + 60 }] };
+  for (const address of [null, undefined, "", "invalid", "0x" + "d".repeat(40), "0x" + "0".repeat(40)])
+    assert.equal(ownerHostVisibleTo(row, address, NOW), false);
+  assert.equal(ownerHostVisibleTo(row, operator, NOW), true);
+  assert.equal(ownerHostVisibleTo(row, "0x" + "C".repeat(40), NOW), true);
+  for (const expires of [NOW, NOW - 1, null, undefined, "bad"])
+    assert.equal(ownerHostVisibleTo({ ...row, served: [{ owner, expires }] }, owner, NOW), false);
+  assert.equal(ownerHostVisibleTo({ ...row, served: null }, owner, NOW), false);
+  assert.equal(ownerHostVisibleTo({ ...row, lastSeen: NOW - HOST_STALE_AFTER_SEC - 1 }, owner, NOW), false);
+  assert.equal(ownerHostVisibleTo({ ...row, servesDeployments: [] }, owner, NOW), false);
+  assert.equal(ownerHostVisibleTo({ ...row, served: [], availability: { owners: [owner] } }, owner, NOW), false,
+    "self-reported owners do not replace the relay's delegation list");
+  assert.equal(appHostVisible({ ...row, serving: true, eligible: true }, NOW), false,
+    "owner-only hosts cannot leak into the public branch");
 });
