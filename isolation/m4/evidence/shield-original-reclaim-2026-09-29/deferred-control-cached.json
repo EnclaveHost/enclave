@@ -1,0 +1,35 @@
+{
+  "release": "f8a5940b",
+  "guest": "gdc7518590",
+  "helperPaused": true,
+  "tokens": 128,
+  "draft_accepted": 49,
+  "draft_tokens": 79,
+  "answerSha256": "4cff39011a4c0f1786975c673cec775363dda45b46fba6494a3fc61096050c98",
+  "samples": [
+    {
+      "tok_per_s": 15.0,
+      "decode_ms": 8544,
+      "first_delta_ms": 741.9,
+      "prefill_ms": 1
+    },
+    {
+      "tok_per_s": 14.9,
+      "decode_ms": 8589,
+      "first_delta_ms": 704.9,
+      "prefill_ms": 1
+    },
+    {
+      "tok_per_s": 14.9,
+      "decode_ms": 8590,
+      "first_delta_ms": 720.7,
+      "prefill_ms": 0
+    },
+    {
+      "tok_per_s": 15.2,
+      "decode_ms": 8433,
+      "first_delta_ms": 726.3,
+      "prefill_ms": 0
+    }
+  ]
+}

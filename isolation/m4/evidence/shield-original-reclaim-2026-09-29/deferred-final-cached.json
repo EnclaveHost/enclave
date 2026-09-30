@@ -1,0 +1,35 @@
+{
+  "release": "83b38d61",
+  "guest": "gdfd55468e",
+  "helperPaused": true,
+  "tokens": 128,
+  "draft_accepted": 46,
+  "draft_tokens": 82,
+  "answerSha256": "aa4bd224f36de823f19f53ad0e86a468e07b36814ea657313e09a8f3354648db",
+  "samples": [
+    {
+      "tok_per_s": 14.4,
+      "decode_ms": 8897,
+      "first_delta_ms": 738.4,
+      "prefill_ms": 1
+    },
+    {
+      "tok_per_s": 14.4,
+      "decode_ms": 8863,
+      "first_delta_ms": 724.4,
+      "prefill_ms": 1
+    },
+    {
+      "tok_per_s": 14.4,
+      "decode_ms": 8883,
+      "first_delta_ms": 722.6,
+      "prefill_ms": 1
+    },
+    {
+      "tok_per_s": 14.3,
+      "decode_ms": 8931,
+      "first_delta_ms": 712.7,
+      "prefill_ms": 1
+    }
+  ]
+}

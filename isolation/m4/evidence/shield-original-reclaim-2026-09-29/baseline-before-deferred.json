@@ -1,0 +1,36 @@
+{
+  "at": "2026-09-30T00:54:35.298337+00:00",
+  "release": "f8a5940bddf8e5eb5fa965c4ee466279644a8aec5f39448afeaf8514358b35d1",
+  "guest": "gd562eb153",
+  "helperPaused": true,
+  "tokens": 128,
+  "draft_accepted": 50,
+  "draft_tokens": 78,
+  "answerSha256": "1968b8daf91476f3fad756b5eec6809056ab751ad703ee97f9242924b3c12539",
+  "samples": [
+    {
+      "tok_per_s": 16,
+      "decode_ms": 7988,
+      "first_delta_ms": 721.6,
+      "prefill_ms": 0
+    },
+    {
+      "tok_per_s": 16.6,
+      "decode_ms": 7713,
+      "first_delta_ms": 678.8,
+      "prefill_ms": 1
+    },
+    {
+      "tok_per_s": 16.5,
+      "decode_ms": 7750,
+      "first_delta_ms": 688.9,
+      "prefill_ms": 0
+    },
+    {
+      "tok_per_s": 16.5,
+      "decode_ms": 7770,
+      "first_delta_ms": 682.7,
+      "prefill_ms": 1
+    }
+  ]
+}
