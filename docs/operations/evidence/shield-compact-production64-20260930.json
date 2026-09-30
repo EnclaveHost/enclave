@@ -1,0 +1,112 @@
+{
+  "status": "rejected_production_decode_regression",
+  "candidate": "4bb9f020d0d3c0760c60f7e3a28e32e4429139c82023785d5415f83bcb054170",
+  "prediction": {
+    "release": "4bb9f020d0d3c0760c60f7e3a28e32e4429139c82023785d5415f83bcb054170",
+    "app_id": "2ab2808111216719dcd361a5f8062fe06ad0d4eb62709a7df686ecbb2da156aa",
+    "runtime_id": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+    "runtime_identity_json": "{\"name\":\"wasmtime\",\"version\":\"49.0.0\",\"execution\":\"jit\",\"targetIsa\":\"x86_64\",\"hostIsa\":\"x86_64\",\"cpuFeatures\":\"host-detected\",\"wx\":\"enforced\",\"cache\":\"none\"}",
+    "measurement": "7d6b593f89f2ed02099a740ff127d1035f9482c426c728747155f4d8326a38d99d2c20dcbdb733b219e8586d7cc1e9bd"
+  },
+  "correction_commit": "057221e8884ca4858a9551523ad177f7d9b52c8d",
+  "rejected_release": "b8aaaea96d8ca39bf3da6c0931e7c81c153aa4b25cc388e0190916d4e3d4056a",
+  "restored_release": "83b38d61b87fd2da5b97e8cdf707e26c8bf14d5efe927a14f27f2ffb842259cc",
+  "logs": {
+    "late-register-before.log": "778e1d214b8e560ab8cb6d4b98a1d7646193770aaf114704bf836fa6b388e95e",
+    "late-register-after.log": "1add4d66ba4db736c351936035d28c8ab6a55e216b7d39260130382c6c32cd8f",
+    "build-late-fixed.log": "5a9130416da3d96f1fdb4f296b3f0f9fdd8dbf3bc2f9bab0a01e2c17cc727354"
+  },
+  "baseline": {
+    "release": "83b38d61b87fd2da5b97e8cdf707e26c8bf14d5efe927a14f27f2ffb842259cc",
+    "prompt": "Write a vivid short story about a robot tending a garden on the Moon.",
+    "settings": {
+      "model": "qwen3.8-27b-mtp",
+      "max_tokens": 128,
+      "temperature": 0,
+      "enable_thinking": false,
+      "web_search": "off",
+      "image_gen": "off",
+      "tools": false
+    },
+    "method": "Authenticated browser same-origin /chat; warm repeated requests, browser automation worker active. Initial cold/prefix request excluded.",
+    "samples": [
+      {
+        "first_ms": 858,
+        "total_ms": 9144.1,
+        "decode_ms": 8706,
+        "tok_per_s": 14.7,
+        "tokens": 128,
+        "draft_accepted": 49,
+        "draft_tokens": 79,
+        "prefill_ms": 0,
+        "prompt_tokens": 1544,
+        "target": "gpu"
+      },
+      {
+        "first_ms": 864.5,
+        "total_ms": 9109.3,
+        "decode_ms": 8701,
+        "tok_per_s": 14.7,
+        "tokens": 128,
+        "draft_accepted": 49,
+        "draft_tokens": 79,
+        "prefill_ms": 2,
+        "prompt_tokens": 1544,
+        "target": "gpu"
+      }
+    ]
+  },
+  "predictor_retry": {
+    "reason": "The final independent image build exhausted disk while earlier abandoned scratch directories occupied about 14 GiB.",
+    "action": "Removed seven dated scratch directories after checking /proc command lines, cwd and open file descriptors for references; no release or app data removed.",
+    "available_gib_after_cleanup": 26.82,
+    "status": "automatic retry rebuilding release set"
+  },
+  "production_samples": [
+    {
+      "decode_ms": 9223,
+      "first_ms": 815.2,
+      "total_ms": 9632.8,
+      "tok_per_s": 13.9,
+      "tokens": 128,
+      "draft_accepted": 49,
+      "draft_tokens": 79,
+      "prompt_tokens": 1544,
+      "target": "gpu"
+    },
+    {
+      "decode_ms": 9237,
+      "first_ms": 1000.7,
+      "total_ms": 9692.2,
+      "tok_per_s": 13.9,
+      "tokens": 128,
+      "draft_accepted": 49,
+      "draft_tokens": 79,
+      "prompt_tokens": 1544,
+      "target": "gpu"
+    },
+    {
+      "decode_ms": 9105,
+      "first_ms": 875.8,
+      "total_ms": 9548.2,
+      "tok_per_s": 14.1,
+      "tokens": 128,
+      "draft_accepted": 49,
+      "draft_tokens": 79,
+      "prompt_tokens": 1544,
+      "target": "gpu"
+    }
+  ],
+  "production_aggregate_tok_s": 13.930709232722656,
+  "initial_samples": [
+    {
+      "decode_ms": 9312,
+      "tok_per_s": 13.7
+    },
+    {
+      "decode_ms": 9423,
+      "tok_per_s": 13.6
+    }
+  ],
+  "note": "Corrected late-registration MTP inference succeeds, but after warmup completed three warm trials remain below the 14.7 tok/s baseline. GPU clocks and CPU placement checked. Restoring baseline before trying unit 32."
+}

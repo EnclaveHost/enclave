@@ -129,11 +129,10 @@ GEMM and W^X checks; earlier stock-oneDNN builds are explicitly rejected.
 These checks preserve the existing security mechanisms, but are not a new
 independent security proof.
 
-Candidate release:
+Initial benchmark artifact (subsequently withdrawn after its production trial):
 `b8aaaea96d8ca39bf3da6c0931e7c81c153aa4b25cc388e0190916d4e3d4056a`.
-Its 45-file manifest verifies, and its runtime hashes match the benchmarked
-runtime. It is **not admitted or deployed**. Base production remains
-`83b38d61b87fd2da5b97e8cdf707e26c8bf14d5efe927a14f27f2ffb842259cc`.
+Its 45-file manifest verified, and its runtime hashes matched the benchmarked
+runtime. See the rollout correction below; this artifact must not be deployed.
 See [qualification evidence](evidence/shield-compact-20260930.json) for timings,
 source and runtime hashes. Local artifact and raw logs are under
 `/home/steven/enclave-bench/shield-compact-production-20260930/`;
@@ -161,3 +160,21 @@ source authentication/lifecycle suite also passes under ASAN/UBSAN.
 Corrected candidate: `4bb9f020d0d3c0760c60f7e3a28e32e4429139c82023785d5415f83bcb054170`.
 The b8aaaea9 artifact is withdrawn. The correction changes registration only;
 production inference qualification of the corrected release is still required.
+
+
+## Production MTP comparison and refill-unit follow-up
+
+Corrected unit-64 release 4bb9f020 completed real MTP chat with 49 of 79 draft
+suggestions accepted for the same 128-token test output. After startup warmup
+completed, three cached-prompt samples measured 13.9, 13.9 and 14.1 tok/s
+(9,223, 9,237 and 9,105 ms decode), below the 14.7 tok/s baseline. GPU clocks
+remained 1380 MHz, memory clocks 1107/877 MHz, and the guest used the normal
+16-core placement. The rollout was rejected for decode regression despite
+saving approximately 2 GiB of guest resident memory. Baseline 83b38d61 was
+selected again; unrelated app guests were preserved.
+
+The next candidate retains the compact backend and late-registration fix but
+uses refill unit 32, which passed the earlier native comparison. This setting
+is compiled into measured init and cannot be selected by the host or app
+configuration. Candidate 79eb055a74f4b2c440ceaa3fa7c80862a0842d663a78bd5aefddefa79be16347
+still requires independent prediction and production qualification.
