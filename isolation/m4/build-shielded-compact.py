@@ -68,6 +68,7 @@ if a.base_release:
  musl=Path(os.environ.get('MUSL_PREFIX',str(Path.home()/'.cache/enclave-isolation/musl-1.2.6')))
  env={k:v for k,v in os.environ.items() if k not in ('CPATH','C_INCLUDE_PATH','LIBRARY_PATH','GCC_EXEC_PREFIX','COMPILER_PATH')}
  subprocess.run(['/usr/bin/gcc','-specs',str(musl/'lib/musl-gcc.specs'),'-static','-O2','-o',str(release/'template/init'),str(root/'isolation/m2/dominit.c')],env=env,check=True)
+ (release/'template/rt/shield-ram-admission.enabled').write_text('1\n')
  run(['python3',root/'isolation/m4/release-manifest.py','write',release,'--cmdline',json.loads((base/'release.json').read_text())['cmdline']])
  run(['python3',root/'isolation/m4/release-manifest.py','verify',release,'--expect',digest(release/'release.json')])
  print(release)

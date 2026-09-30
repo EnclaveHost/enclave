@@ -2417,6 +2417,8 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
     if (!Number.isSafeInteger(floor) || floor <= 0)
       return "the inference manager reports no model RAM requirement; refusing an unbudgeted launch";
     policy = { ...policy, ...(inf.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? {cpuPercent:1600,vcpus:16} : {}), memMiB: Math.max(Number(policy?.memMiB)||0, floor-384) };
+    if (manager.inference.shareBoundedMemory === true && Number.isInteger(cpuMilli) && cpuMilli > 0 && cpuMilli <= 1000 && manager.pool?.budget?.memMiB > 0)
+      policy = { ...policy, memMiB: Math.min(policy.memMiB, Math.floor(manager.pool.budget.memMiB * cpuMilli / 1000)) };
   }
   // The next two are enforced in THIS process on every other backend, on the plaintext of each request. Here the
   // plaintext exists only inside the guest (the session is spliced unopened), so neither could be applied: an
@@ -4006,6 +4008,8 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
       const floor = Number(h?.inference?.modelFloorsMiB?.[derive.inference.model]);
       if (!Number.isSafeInteger(floor) || floor <= 0) throw new Error("manager has no model RAM floor");
       requiredPolicy = { ...requiredPolicy, memMiB: Math.max(requiredPolicy.memMiB, floor - 384) };
+      if (h.inference.shareBoundedMemory === true && Number(cpuShare) > 0 && Number(cpuShare) <= 1 && h.pool?.budget?.memMiB > 0)
+        requiredPolicy = { ...requiredPolicy, memMiB: Math.min(requiredPolicy.memMiB, Math.floor(h.pool.budget.memMiB * Math.round(Number(cpuShare)*1000)/1000)) };
     }
     const shareWhy = guestMemoryShareRefusal(h?.pool, requiredPolicy, Math.round(Number(cpuShare) * 1000));
     if (shareWhy) throw new Error(shareWhy);

@@ -277,3 +277,13 @@ test("purchased RAM is enforced before claim and cannot be bypassed by a model f
   assert.equal(r.verdicts[7],null,"fixed boot overhead is booked to pool, not charged as app RAM");
   assert.match(r.verdicts[8], /requires 4096 MiB/,"ordinary CPU apps are subject to share limits too");
 });
+
+test("a measured RAM-aware model runtime may start the app without loading an oversized model", async () => {
+ const model="qwen3.8-27b-mtp-q4-vl-gguf";
+ const manager={...GUESTD,supports:{...GUESTD.supports,gpu:true,release:true},inference:{models:[model],modelFloorsMiB:{[model]:73728},cardFreeBytes:31*2**30,shareBoundedMemory:true},pool:{...POOL,budget:{memMiB:90112,cpuPct:2400},free:{memMiB:10000,cpuPct:1900}}};
+ const valid={...clean,manager,listed:"listed",gpuMilli:500,volumes:[model],cpuMilli:70};
+ const r=await seam({verdicts:[valid,{...valid,held:{status:"running",reserved:{memMiB:74496,cpuPct:1600}},heldSameRecord:true}, {...valid,manager:{...manager,inference:{...manager.inference,shareBoundedMemory:false}}}]},TIER,"1");
+ assert.equal(r.verdicts[0],null);
+ assert.match(r.verdicts[1],/requires 73344 MiB/);
+ assert.ok(r.verdicts[2]);
+});

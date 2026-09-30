@@ -269,7 +269,9 @@ static void lo_up(void) {
  * A drop, reach or filter failure exits 125, so the app never starts privileged or unfiltered, and the domain powers
  * off as for any app exit. The app gets all three; the front none. */
 /* Measured, bundle-derived inference profile. Never read a host environment. */
-static int shield_on, shield_large;
+static int shield_on, shield_large, shield_load_allowed;
+static char shield_ram_env[96];
+#include "shield-memory.h"
 static char shield_model[64], shield_graph[128], shield_models_env[96], shield_preloads_env[96], shield_calib[128];
 static char shield_workers[512], shield_vram_env[80];
 static void shield_profile(void) {
@@ -292,6 +294,15 @@ static void shield_profile(void) {
     snprintf(shield_vram_env, sizeof shield_vram_env, "ENCLAVE_VRAM_BYTES=%llu", bytes * 2);
     snprintf(shield_calib, sizeof shield_calib, "SHIELDED_CALIB=/rt/calib/%s.calib", model);
     shield_on = 1;
+    struct sysinfo si;
+    unsigned long long total = sysinfo(&si) == 0 ? (unsigned long long)si.totalram * si.mem_unit : 0;
+    shield_load_allowed = shield_memory_fits(total, shield_large);
+    unsigned long long budget = shield_serve_budget(total, shield_large, shield_load_allowed);
+    snprintf(shield_ram_env, sizeof shield_ram_env, "ENCLAVE_NN_SERVE_BYTES=%llu", budget);
+    if (!shield_load_allowed) {
+        snprintf(shield_preloads_env, sizeof shield_preloads_env, "ENCLAVE_NN_PRELOADS=");
+        printf("DOM Shield model not loaded: insufficient guest RAM; app remains available\n");
+    }
 }
 
 static int shield_rings(void) {
@@ -400,7 +411,7 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
     if (pid == 0) {
         if (fd3 == 3) fcntl(3, F_SETFD, 0);                      /* already fd 3: only drop CLOEXEC */
         else if (fd3 >= 0 && dup2(fd3, 3) < 0) _exit(127);       /* dup2 leaves the new fd 3 without CLOEXEC */
-        const int reclaim_sources = shield_on && shield_large && drop &&
+        const int reclaim_sources = shield_on && shield_load_allowed && shield_large && drop &&
             access("/rt/shield-original-source-reclaim.enabled", R_OK) == 0;
         if (reclaim_sources) {
             /* Narrow native-loader capabilities, opened BEFORE dropping uid.
@@ -470,7 +481,7 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = shield_vram_env;
             /* Weights and KV live in private guest RAM; VRAM is only the masked-offload reservation.
              * Leave room for the mask pool and runtime within each measured model profile's floor. */
-            envp[ei++] = shield_large ? "ENCLAVE_NN_SERVE_BYTES=34359738368" : "ENCLAVE_NN_SERVE_BYTES=2147483648";
+            envp[ei++] = shield_ram_env;
             envp[ei++] = "ENCLAVE_NN_SERVE_KIND=RAM";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS=6" : "ENCLAVE_GGML_N_THREADS=2";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS_BATCH=6" : "ENCLAVE_GGML_N_THREADS_BATCH=2";
@@ -619,7 +630,7 @@ int main(void) {
     lo_up();
     shield_profile();
     pid_t shield_pid = -1;
-    if (shield_on) {
+    if (shield_on && shield_load_allowed) {
         // Bounded adaptive polling avoids an SNP halt/wake transition for
         // every split-helper handoff. The measured module/parameters mirror
         // the control VM's idle policy; it shrinks back when the guest idles.
@@ -776,7 +787,7 @@ int main(void) {
         }
         if (shield_on && strcmp(base[i], "/app.wasm") == 0) {
             app[k++]="-S"; app[k++]="nn";
-            app[k++]="-S"; app[k++]=shield_graph;
+            if (shield_load_allowed) { app[k++]="-S"; app[k++]=shield_graph; }
             app[k++]="--dir"; app[k++]="/models::/models";
             app[k++]="--env"; app[k++]="ENCLAVE_MODELS";
             app[k++]="--env"; app[k++]="ENCLAVE_NN_PRELOADS";

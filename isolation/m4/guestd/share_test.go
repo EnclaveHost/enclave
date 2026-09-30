@@ -71,3 +71,30 @@ func TestUnderSharedInferenceNeverCreatesOrAdopts(t *testing.T) {
 		t.Fatalf("duplicate-name bypass: %d %v", code, body)
 	}
 }
+
+func TestShareBoundedModelKeepsAppRunning(t *testing.T) {
+	r := newRig(t)
+	r.s.ShieldEnabled = true
+	r.s.ShieldShareMemory = true
+	r.s.ShieldReleases = []string{"bounded-shield"}
+	r.s.Budget = poolBudget{MemMiB: 90112, CPUPct: 2400}
+	b, err := contract.Build(contract.Manifest{Label: "bounded-app", Inference: &contract.Inference{Model: contract.Shield27BModel, GPUMilli: 500}, Policy: contract.Policy{CPUPercent: 1600, Vcpus: 16, MemMiB: 50816}}, []byte("\x00asm component"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(r.dir, "bounded.bundle")
+	if err := os.WriteFile(p, b, 0600); err != nil {
+		t.Fatal(err)
+	}
+	code, body := r.do("POST", "/vms", map[string]any{"name": name(90), "image": "file://" + p, "gpuShare": .5, "cpuShare": .07})
+	if code != 201 {
+		t.Fatalf("app should boot: %d %v", code, body)
+	}
+	r.s.mu.Lock()
+	defer r.s.mu.Unlock()
+	for _, v := range r.s.vms {
+		if v.MemMiB != 6691 {
+			t.Fatalf("guest memory %d exceeds 6307 MiB plus 384 MiB overhead", v.MemMiB)
+		}
+	}
+}

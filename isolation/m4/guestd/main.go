@@ -433,6 +433,10 @@ func main() {
 			log.Fatal("Shield needs absolute model and ring paths")
 		}
 		l.env = append(l.env, "SHIELDED_IMAGE_TEMPLATE="+*shieldTemplate, "SHIELDED_MODEL_FILE="+*shieldModel, "SHIELDED_SHM_DIR="+*shieldSHM)
+		s.ShieldShareMemory = false
+		if marker, err := os.ReadFile(filepath.Join(*shieldTemplate, "rt/shield-ram-admission.enabled")); err == nil && string(marker) == "1\n" {
+			s.ShieldShareMemory = true
+		}
 		s.ShieldEnabled = true
 		s.ShieldReleases = ids
 		if l.runtimePins == nil {
