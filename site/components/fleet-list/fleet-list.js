@@ -185,12 +185,7 @@ class FleetList extends EnclaveElement {
             ? '<span class="ap-badge ok" title="This card is INSIDE the confidential'
               + ' enclave and covered by its attestation.">tee gpu</span>'
             : sh
-            ? '<span class="ap-badge info" title="' + esc(sh.card || "gpu")
-              + ' on this box\u2019s untrusted host, used by masked offload: it receives '
-              + 'public weights and one-time-padded activations, and every result is '
-              + 'verified. The card is outside the enclave and outside its measurement, '
-              + 'so this is NOT a TEE GPU \u2014 your activations are protected by the '
-              + 'masking, not by the card.">gpu</span>'
+            ? '<span class="ap-badge info" title="Enclave Shield: masked GPU offload protects activations and verifies results. The GPU remains outside the confidential boundary.">gpu</span>'
             : "";
           // What is SELLABLE is the worker's budget, not the physical card: the
           // untrusted host keeps the rest (on a desktop, an X server). Showing the
