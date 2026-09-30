@@ -1,0 +1,163 @@
+{
+  "status": "rejected_production_decode_regression",
+  "release": "79eb055a74f4b2c440ceaa3fa7c80862a0842d663a78bd5aefddefa79be16347",
+  "baseline": {
+    "release": "83b38d61b87fd2da5b97e8cdf707e26c8bf14d5efe927a14f27f2ffb842259cc",
+    "prompt": "Write a vivid short story about a robot tending a garden on the Moon.",
+    "settings": {
+      "model": "qwen3.8-27b-mtp",
+      "max_tokens": 128,
+      "temperature": 0,
+      "enable_thinking": false,
+      "web_search": "off",
+      "image_gen": "off",
+      "tools": false
+    },
+    "method": "Repeat baseline after rollback and completed startup warmup; authenticated same-origin browser chat; first contended request excluded, all three selected samples had zero mtp_round#gate wait; identical answer text.",
+    "samples": [
+      {
+        "first_ms": 851.5,
+        "total_ms": 9076.6,
+        "decode_ms": 8665,
+        "tok_per_s": 14.8,
+        "tokens": 128,
+        "draft_accepted": 50,
+        "draft_tokens": 78,
+        "prefill_ms": 1,
+        "prompt_tokens": 1544,
+        "target": "gpu"
+      },
+      {
+        "first_ms": 848.8,
+        "total_ms": 9056.9,
+        "decode_ms": 8649,
+        "tok_per_s": 14.8,
+        "tokens": 128,
+        "draft_accepted": 50,
+        "draft_tokens": 78,
+        "prefill_ms": 1,
+        "prompt_tokens": 1544,
+        "target": "gpu"
+      },
+      {
+        "first_ms": 900.9,
+        "total_ms": 9190.6,
+        "decode_ms": 8742,
+        "tok_per_s": 14.6,
+        "tokens": 128,
+        "draft_accepted": 50,
+        "draft_tokens": 78,
+        "prefill_ms": 1,
+        "prompt_tokens": 1544,
+        "target": "gpu"
+      }
+    ],
+    "aggregate_tok_s": 14.73748848633712
+  },
+  "same_answers": true,
+  "method": "Three authenticated warm browser /chat requests; startup and browser prefix warmup completed before first request, no gate wait in selected samples.",
+  "samples": [
+    {
+      "first_ms": 873.5,
+      "total_ms": 9616,
+      "decode_ms": 9203,
+      "tok_per_s": 13.9,
+      "prefill_ms": 0,
+      "tokens": 128,
+      "draft_accepted": 49,
+      "draft_tokens": 79,
+      "gate_us": 0,
+      "prompt_tokens": 1544,
+      "target": "gpu"
+    },
+    {
+      "first_ms": 867.1,
+      "total_ms": 9748.2,
+      "decode_ms": 9343,
+      "tok_per_s": 13.7,
+      "prefill_ms": 1,
+      "tokens": 128,
+      "draft_accepted": 49,
+      "draft_tokens": 79,
+      "gate_us": 0,
+      "prompt_tokens": 1544,
+      "target": "gpu"
+    },
+    {
+      "first_ms": 930.8,
+      "total_ms": 9690.8,
+      "decode_ms": 9247,
+      "tok_per_s": 13.8,
+      "prefill_ms": 1,
+      "tokens": 128,
+      "draft_accepted": 49,
+      "draft_tokens": 79,
+      "gate_us": 0,
+      "prompt_tokens": 1544,
+      "target": "gpu"
+    }
+  ],
+  "aggregate_tok_s": 13.816428597128773,
+  "change_percent": -6.249775123232471,
+  "attestation_checks": [
+    {
+      "at": "2026-09-30T07:24:19.082Z",
+      "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "short": "9eb4e600",
+      "hostname": "9eb4e600.app.enclave.host",
+      "attested": true,
+      "measurement": "2067e8e3248a3e41a198c111202dc803aedeaf121e8bcebbd2ad4dda016657c46a8e952515dd368467cd667e58a4d428",
+      "appId": "2ab2808111216719dcd361a5f8062fe06ad0d4eb62709a7df686ecbb2da156aa",
+      "release": "79eb055a74f4b2c440ceaa3fa7c80862a0842d663a78bd5aefddefa79be16347",
+      "spkiSha256": "90ede19e6a377dbee9bcdc0225b53f5df9a6b0f2469077e1a7688e19c3b6e794",
+      "healthPath": "/",
+      "healthStatus": 200
+    },
+    {
+      "at": "2026-09-30T07:24:19.431Z",
+      "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "short": "9eb4e600",
+      "hostname": "eyesoff.ai",
+      "attested": true,
+      "measurement": "2067e8e3248a3e41a198c111202dc803aedeaf121e8bcebbd2ad4dda016657c46a8e952515dd368467cd667e58a4d428",
+      "appId": "2ab2808111216719dcd361a5f8062fe06ad0d4eb62709a7df686ecbb2da156aa",
+      "release": "79eb055a74f4b2c440ceaa3fa7c80862a0842d663a78bd5aefddefa79be16347",
+      "spkiSha256": "90ede19e6a377dbee9bcdc0225b53f5df9a6b0f2469077e1a7688e19c3b6e794",
+      "healthPath": "/",
+      "healthStatus": 200
+    }
+  ],
+  "rollback": {
+    "release": "83b38d61b87fd2da5b97e8cdf707e26c8bf14d5efe927a14f27f2ffb842259cc",
+    "instance": "gd2b31d1f8",
+    "public_custom_domain_tls": "verified with curl default certificate validation",
+    "checks": [
+      {
+        "at": "2026-09-30T07:29:47.032Z",
+        "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+        "short": "9eb4e600",
+        "hostname": "9eb4e600.app.enclave.host",
+        "attested": true,
+        "measurement": "fa51e36388cbc3836d749fb31ff099486c3aad97c1ddf210017c567d3f7ce993ff1c5e2f63a51f52fa5ef08c49662c3f",
+        "appId": "2ab2808111216719dcd361a5f8062fe06ad0d4eb62709a7df686ecbb2da156aa",
+        "release": "83b38d61b87fd2da5b97e8cdf707e26c8bf14d5efe927a14f27f2ffb842259cc",
+        "spkiSha256": "1428c1fffb244225301f864f05ec43d4810b37b93c43084b8825e2b6b4d6971b",
+        "healthPath": "/",
+        "healthStatus": 200
+      },
+      {
+        "at": "2026-09-30T07:29:48.215Z",
+        "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+        "short": "9eb4e600",
+        "hostname": "eyesoff.ai",
+        "attested": true,
+        "measurement": "fa51e36388cbc3836d749fb31ff099486c3aad97c1ddf210017c567d3f7ce993ff1c5e2f63a51f52fa5ef08c49662c3f",
+        "appId": "2ab2808111216719dcd361a5f8062fe06ad0d4eb62709a7df686ecbb2da156aa",
+        "release": "83b38d61b87fd2da5b97e8cdf707e26c8bf14d5efe927a14f27f2ffb842259cc",
+        "spkiSha256": "1428c1fffb244225301f864f05ec43d4810b37b93c43084b8825e2b6b4d6971b",
+        "healthPath": "/",
+        "healthStatus": 200
+      }
+    ]
+  }
+}
