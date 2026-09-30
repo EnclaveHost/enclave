@@ -54,3 +54,5 @@ A synthetic warmup request returned HTTP 500 while the app stayed available: a s
 The live host unit used 6,430,822,400 bytes (about 5.99 GiB) against a 7,821,328,384-byte cap (7.28 GiB, including platform overhead); guest RAM is 6,691 MiB. All five other apps retained their original guest IDs and reservations and returned HTTP 200: ipns-publisher, api-mcp-adapter, jot, s3-ipfs-adapter and risc-box.
 
 Local evidence: `9eb4e600-verified-{root,custom,models,refusal,after-refusal}.json`, `all-apps-verified.json`, and the associated response files in the rollout evidence directory. These tests establish availability and bounded RAM with the model unloaded; 27B inference requires a larger RAM allocation.
+
+At 18:16 UTC, new ZeroSSL certificates were installed in the same attested guest for both addresses. Ordinary curl HTTPS checks, with standard CA and hostname validation enabled, returned HTTP 200 for both `https://eyesoff.ai/` and the canonical app address. No TLS verification bypass is needed by browsers.
