@@ -129,12 +129,9 @@ function compile() {
     language: "Solidity",
     sources: { "EnclaveDeployments.sol": { content: source } },
     settings: {
-      // runs=100, NOT the repo-wide 200: rev 12 (free self-hosting) costs 177
-      // bytes and rev 11 had 78 free, so the size/gas dial buys the room that
-      // deleting a shipped feature would otherwise have to. Behaviour is
-      // identical either way. build-contract-artifacts.mjs and foundry.toml
-      // pin the same number — see the BUILD SETTING note in the contract.
-      optimizer: { enabled: true, runs: 100 },
+      // Rev 14 negotiated rates: runs=1 preserves EIP-170 headroom.
+      // Match build-contract-artifacts.mjs and foundry.toml exactly.
+      optimizer: { enabled: true, runs: 1 },
       // rev 7 (runner payout) outgrew legacy codegen's EIP-170 headroom;
       // viaIR keeps it deployable. build-contract-artifacts.mjs mirrors this.
       viaIR: true,

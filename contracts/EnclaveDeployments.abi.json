@@ -473,6 +473,37 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "enclaveId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint96",
+        "name": "hostRate6",
+        "type": "uint96"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "expires",
+        "type": "uint64"
+      }
+    ],
+    "name": "JobRateOffered",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": false,
         "internalType": "uint64",
         "name": "leaseSec",
@@ -1160,6 +1191,29 @@
         "type": "bytes32"
       },
       {
+        "internalType": "uint256",
+        "name": "value",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "payer",
+        "type": "address"
+      }
+    ],
+    "name": "fundFor",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
         "internalType": "address",
         "name": "from",
         "type": "address"
@@ -1658,6 +1712,34 @@
         "type": "bytes[]"
       }
     ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "enclaveId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint96",
+        "name": "hostRate6",
+        "type": "uint96"
+      },
+      {
+        "internalType": "uint64",
+        "name": "expires",
+        "type": "uint64"
+      }
+    ],
+    "name": "offerJobRate",
+    "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },

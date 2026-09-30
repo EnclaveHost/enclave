@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // build-contract-artifacts.mjs - compile every contracts/*.sol exactly the way
 // its deploy script does (solc, optimizer runs=200 - except the deployments
-// ledger at 100, see its DEFS entry - viaIR for the catalog and the deployments
+// ledger at 1, see its DEFS entry - viaIR for the catalog and the deployments
 // ledger) and emit the results where the browser can use them:
 //
 //   site/js/gen/contract-artifacts.js   ES module: { abi, bytecode, selectors,
@@ -37,14 +37,13 @@ const DEFS = [
   { name: "EnclaveRegistry",     bookKey: "registry" },
   { name: "EnclaveAppCatalog",   bookKey: "appCatalog", viaIR: true },
   { name: "EnclavePay",          bookKey: "enclavePay" },
-  // runs=100 is NOT a typo and NOT a default: the ledger is the one contract
-  // at the EIP-170 wall, and rev 12 (free self-hosting) needed 177 bytes it did
-  // not have. Must equal scripts/deploy-deployments.mjs and foundry.toml, or the
-  // console deploys bytecode nobody can reproduce. See the contract's header.
-  { name: "EnclaveDeployments",  bookKey: "deployments", viaIR: true, runs: 100 },   // rev 7 outgrew legacy codegen's EIP-170 headroom
+  // Rev 14 negotiated rates require runs=1 to remain below EIP-170.
+  // Keep this identical to deploy-deployments.mjs and foundry.toml.
+  { name: "EnclaveDeployments",  bookKey: "deployments", viaIR: true, runs: 1 },   // rev 7 outgrew legacy codegen's EIP-170 headroom
   { name: "EnclaveProofOfTime",  bookKey: "proofOfTime", viaIR: true },   // rev-9 proof of time; bound into the ledger once (setProver)
                                                              // viaIR since the rev-10 clock charge: Checkpointed's 6 args
                                                              // overflow legacy codegen's stack (mirror deploy-proof-of-time.mjs)
+  { name: "EnclaveAvailability", bookKey: "availability", viaIR: true },
   { name: "EnclaveFeatured",     bookKey: "featured" },
   { name: "EnclaveReviews",      bookKey: "reviews" },
   { name: "EnclaveHostReviews",  bookKey: "hostReviews" },   // ratings for the enclaves that RUN apps (seller-side reputation)

@@ -146,21 +146,12 @@ pragma solidity ^0.8.20;
 ///     broken prover degrades this ledger to rev-8 held-time metering at
 ///     worst; it can never overpay beyond what a rev-8 ledger already would.
 ///
-/// BUILD SETTING, not a preference: this contract compiles at optimizer
-///         runs=100, every other contract in the repo at the usual 200. Rev 12
-///         costs 177 bytes of runtime code and rev 11 had 78 free, so the
-///         choice was to spend the optimizer's size/gas dial or delete
-///         something already shipped (sweepEscrow is 518 bytes, the claim-bond
-///         family 1443). runs=100 changes no behaviour whatsoever - it only
-///         tells solc to weight deploy size over per-call gas. Rev 13 gave
-///         ~130 bytes back by DELETING the gpuMilli >= cpuMilli rule from
-///         create and setShares, so the headroom is ~250 bytes.
-///         scripts/deploy-deployments.mjs,
-///         scripts/build-contract-artifacts.mjs and foundry.toml all pin it;
-///         they must move together or the deployed bytecode stops being
-///         reproducible from this source. Anything that needs materially more
-///         room than that should go behind a companion binding, the way proof
-///         of time did.
+/// BUILD SETTING: revision 14 compiles with solc 0.8.35, viaIR and optimizer
+///         runs=1. Negotiated per-job rates and explicit fundFor attribution
+///         fit EIP-170 at 24,483 runtime bytes (93 bytes headroom).
+///         scripts/deploy-deployments.mjs, scripts/build-contract-artifacts.mjs
+///         and foundry.toml pin the same settings. Keep them synchronized.
+///         Substantial future features belong in a companion contract.
 ///
 /// Fairness bounds (the cost of decentralized failover):
 ///   - a runner that dies mid-lease has already burned that lease: the TENANT
@@ -362,7 +353,23 @@ contract EnclaveDeployments {
     // longer require gpuMilli >= cpuMilli. Nothing changed shape, so a client
     // that never dials CPU above GPU cannot tell 12 from 13 — clients gate on
     // >= 13 only to know that offering the wider dial will not revert here.
-    uint256 public constant deploymentsSchema = 13;
+    // Rev 14: optional host-authored rates for individual resource allocations.
+    uint256 public constant deploymentsSchema = 14;
+    struct JobRate { address operator; address tenant; uint96 rate6; uint64 expires; uint16 gpuMilli; uint16 cpuMilli; }
+    mapping(bytes32 => mapping(bytes32 => JobRate)) private _jobRates;
+    event JobRateOffered(bytes32 indexed id, bytes32 indexed enclaveId, uint96 hostRate6, uint64 expires);
+
+    /// An operator explicitly offers a host-component rate for this exact owner
+    /// and allocation. Claims accept it; existing leases retain their price.
+    /// Expiry/resize/transfer/operator rotation returns future claims to the
+    /// advertised tariff. Owner caps and publisher fees remain enforced.
+    function offerJobRate(bytes32 id, bytes32 enclaveId, uint96 hostRate6, uint64 expires) external {
+        require(registry.get(enclaveId).operator == msg.sender, "not runner");
+        require(_exists[id], "unknown");
+        Deployment storage d = _deployments[id];
+        _jobRates[id][enclaveId] = JobRate(msg.sender, d.owner, hostRate6, expires, d.gpuMilli, d.cpuMilli);
+        emit JobRateOffered(id, enclaveId, hostRate6, expires);
+    }
 
     /// @dev Publisher-fee snapshot, taken at create from the catalog version
     ///      the deployment references (recipient = the app's publisher wallet).
@@ -702,10 +709,13 @@ contract EnclaveDeployments {
     ///      owner (rev 12): a seller's own app on a seller's own box is free.
     ///      That comparison is the whole feature; everything else it touches is
     ///      just arithmetic that must not divide by the zero it produces.
-    function _hostRate(IEnclaveRegistry.Enclave memory e, Deployment storage d,
+    function _hostRate(IEnclaveRegistry.Enclave memory e, Deployment storage d, bytes32 enclaveId,
                        uint16 gpuMilli, uint16 cpuMilli) private view returns (uint256)
     {
         if (e.payoutWallet == d.owner) return 0;
+        JobRate storage q = _jobRates[d.id][enclaveId];
+        if (q.operator == e.operator && q.tenant == d.owner && q.expires > block.timestamp
+            && q.gpuMilli == gpuMilli && q.cpuMilli == cpuMilli) return q.rate6;
         return (uint256(e.gpuPricePerSec6) * gpuMilli + uint256(e.cpuPricePerSec6) * cpuMilli + 999) / 1000;
     }
 
@@ -716,7 +726,7 @@ contract EnclaveDeployments {
     function rateFor(bytes32 id, bytes32 enclaveId) public view returns (uint256) {
         require(_exists[id], "unknown");
         Deployment storage d = _deployments[id];
-        return _hostRate(registry.get(enclaveId), d, d.gpuMilli, d.cpuMilli) + _fees[id].rate6;
+        return _hostRate(registry.get(enclaveId), d, enclaveId, d.gpuMilli, d.cpuMilli) + _fees[id].rate6;
     }
 
     /// @notice True iff `enclaveId` could claim `id` right now: open (active,
@@ -841,7 +851,7 @@ contract EnclaveDeployments {
         if (d.leaseUntil <= block.timestamp) return _unleasedRate(id, d);
         IEnclaveRegistry.Enclave memory e = registry.get(d.runner);
         if (e.operator == address(0)) return _unleasedRate(id, d);
-        return _hostRate(e, d, gpuMilli, cpuMilli) + _fees[id].rate6;
+        return _hostRate(e, d, d.runner, gpuMilli, cpuMilli) + _fees[id].rate6;
     }
 
     /// @dev The spend ceiling, enforced everywhere time is BOUGHT (claim /
@@ -938,10 +948,17 @@ contract EnclaveDeployments {
     ///         them. Same non-custodial forward, payer -> payout (and payer ->
     ///         publisher for the fee cut) straight from the allowance.
     function fund(bytes32 id, uint256 value) external {
+        fundFor(id, value, msg.sender);
+    }
+
+    /// @notice Opt-in gifting/atomic funding adapters: caller supplies the USDC
+    /// but attributes refundable escrow to `payer`. This never debits payer.
+    /// Callers must choose the beneficiary explicitly; fund() keeps its semantics.
+    function fundFor(bytes32 id, uint256 value, address payer) public {
         Deployment storage d = _requireActive(id);
         require(value > 0, "amount=0");
         require(usdc.transferFrom(msg.sender, address(this), value), "USDC transfer failed");
-        _splitFunding(id, msg.sender, d.rate, value);
+        _splitFunding(id, payer, d.rate, value);
         d.balance6 += value;
         emit Funded(id, msg.sender, value);
     }
@@ -1052,7 +1069,7 @@ contract EnclaveDeployments {
         }
         _creditRunner(d);                        // settle the PREVIOUS runner's expired-lease tail at ITS rate
 
-        uint256 newRate = _hostRate(e, d, d.gpuMilli, d.cpuMilli) + _fees[id].rate6;
+        uint256 newRate = _hostRate(e, d, enclaveId, d.gpuMilli, d.cpuMilli) + _fees[id].rate6;
         _requireUnderCap(id, newRate);
         d.rate = newRate;                        // the price in force for this lease
         _snapRunnerRate(d);                      // this host earns runnerBps of its OWN ask

@@ -1,0 +1,453 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "ledger_",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "proof_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "source",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "serviceCredit6",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "budget6",
+        "type": "uint256"
+      }
+    ],
+    "name": "BudgetEarned",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "source",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "job",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "payer",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount6",
+        "type": "uint256"
+      }
+    ],
+    "name": "JobFunded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "source",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "payer",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "executor",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint16",
+        "name": "bps",
+        "type": "uint16"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "dailyCap6",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "jobCap6",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "expires",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "epoch",
+        "type": "uint64"
+      }
+    ],
+    "name": "PolicySet",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "enclaveId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint64",
+        "name": "upto",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "anchorBlock",
+        "type": "uint64"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "anchorHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes",
+        "name": "sig",
+        "type": "bytes"
+      }
+    ],
+    "name": "checkpoint",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "dailySpend",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "day",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "spent6",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "source",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "job",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint64",
+        "name": "epoch",
+        "type": "uint64"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "expectedJobHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount6",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "validAfter",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "validBefore",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "nonce",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes",
+        "name": "signature",
+        "type": "bytes"
+      }
+    ],
+    "name": "fundJob",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "fundedJob",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "source",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "job",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint64",
+        "name": "epoch",
+        "type": "uint64"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "expectedJobHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "fundingNonce",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "isSource",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "job",
+        "type": "bytes32"
+      }
+    ],
+    "name": "jobHash",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "ledger",
+    "outputs": [
+      {
+        "internalType": "contract IAvailabilityLedger",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "policies",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "payer",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "executor",
+        "type": "address"
+      },
+      {
+        "internalType": "uint16",
+        "name": "bps",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint64",
+        "name": "expires",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "epoch",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint256",
+        "name": "dailyCap6",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "jobCap6",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "available6",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "proof",
+    "outputs": [
+      {
+        "internalType": "contract IAvailabilityProof",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "source",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "executor",
+        "type": "address"
+      },
+      {
+        "internalType": "uint16",
+        "name": "bps",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint256",
+        "name": "dailyCap6",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "jobCap6",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint64",
+        "name": "expires",
+        "type": "uint64"
+      }
+    ],
+    "name": "setPolicy",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]
