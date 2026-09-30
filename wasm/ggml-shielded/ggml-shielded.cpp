@@ -1210,6 +1210,15 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
     stored.col0 = split_col0; stored.ncols = split_ncols;
     auto gf = s.group_first.find(stored.group);
     const int share = gf == s.group_first.end() ? -1 : gf->second;
+#if defined(SHIELDED_COMPACT) && !defined(SHIELDED_DEALER_MODE)
+    // A later graph (notably MTP drafting) can discover another weight after
+    // prefill opened the link. Registration already excludes active exchanges;
+    // stop refill users and close the old upload before attaching its private
+    // adapter. Quiesce burns unused pads and preserves integrity latches and
+    // mask counters. The dirty plan reconnects with the complete registry.
+    if (sh_env_int("SHIELDED_COMPACT_WEIGHTS", 0) && !sh_link_is_dealt(s.link))
+        sh_link_quiesce(s.link);
+#endif
     const int node = sh_link_add_weight(s.link, name.c_str(), stored.w.data(), K, link_N, sh_max_m(), share);
     if (node < 0) {
         SH_LOG("%s: %s\n", name.c_str(), sh_link_last_error(s.link));

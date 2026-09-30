@@ -139,3 +139,25 @@ source and runtime hashes. Local artifact and raw logs are under
 `/home/steven/enclave-bench/shield-compact-production-20260930/`;
 `production-qualified/release` is the candidate, with dependency licenses in
 `production-qualified/licenses`.
+
+
+## Production first-use regression and correction
+
+The first b8aaaea9 rollout passed attestation and startup but failed chat decode.
+It was rolled back to 83b38d61. A regression fixture reproduced a concrete gap:
+a later graph can discover another weight after prefill has opened the GPU
+links. Compact adapter installation correctly requires a closed link, but the
+registration caller had not closed it. Admission failed and latched the backend
+closed; native target decoding with MTP observation had missed this path.
+
+Compact registration now quiesces the old link before adding the new weight.
+It joins refill workers, discards unused pads, closes the connection and retains
+mask counters and integrity latches. The existing dirty-plan path reuploads the
+complete registry. No verification guard was removed. A test using two real CPU
+protocol workers fails before this correction and passes after it, including
+late weight registration, reconnect and identical verified output. The existing
+source authentication/lifecycle suite also passes under ASAN/UBSAN.
+
+Corrected candidate: `4bb9f020d0d3c0760c60f7e3a28e32e4429139c82023785d5415f83bcb054170`.
+The b8aaaea9 artifact is withdrawn. The correction changes registration only;
+production inference qualification of the corrected release is still required.

@@ -20,7 +20,14 @@ test('column-split graph recovers both idle and mid-product disconnects with ver
   const fast=join(d,'fast.o');objs.push(fast);
   run('cc',['-O1','-mavx512f','-mavx512bw','-mavx512dq','-mavx512vl','-mavx512vnni','-DSH_SIMD_AVX512','-c',join(gg,'shielded-simd.c'),'-o',fast]);
   const bin=join(d,'test');
-  run('c++',['-O1','-std=c++17','-DGGML_MAX_NAME=128','-I'+join(headers,'ggml/include'),'-I'+join(headers,'ggml/src'),join(root,'test/fixtures/shielded-split-reconnect.cpp'),...objs,'-L'+libs,'-lggml-base','-lggml','-lggml-cpu','-lpthread','-lm','-Wl,-rpath,'+libs,'-o',bin]);
+  const compactRoot=process.env.SHIELDED_COMPACT_TEST_ROOT, extra=[];
+  if(compactRoot){
+   const co=join(d,'compact.o');objs.push(co);
+   run('c++',['-O2','-std=c++17','-I'+join(compactRoot,'usr/include'),'-mavx512f','-mavx512bw','-mavx512dq','-mavx512vl','-mavx512vnni','-c',join(gg,'shielded-compact.cpp'),'-o',co]);
+   extra.push('-DSHIELDED_COMPACT','-L'+join(compactRoot,'usr/lib'),'-ldnnl','-lgomp','-Wl,-rpath,'+join(compactRoot,'usr/lib'));
+  }
+  run('c++',['-O1','-std=c++17','-DGGML_MAX_NAME=128','-I'+join(headers,'ggml/include'),'-I'+join(headers,'ggml/src'),join(root,'test/fixtures/shielded-split-reconnect.cpp'),...objs,...extra,'-L'+libs,'-lggml-base','-lggml','-lggml-cpu','-lpthread','-lm','-Wl,-rpath,'+libs,'-o',bin]);
   assert.match(run('python3',[join(root,'test/fixtures/shielded-split-reconnect.py'),bin]),/both split connections recovered/);
+  if(compactRoot) assert.match(run('env',['TEST_COMPACT=1','python3',join(root,'test/fixtures/shielded-split-reconnect.py'),bin]),/both split connections recovered/);
  } finally {rmSync(d,{recursive:true,force:true});}
 });

@@ -9,7 +9,7 @@ servers=[];threads=[];errors=[];counts=[]
 def serve(server):
  try:
   ledger=ReservationLedger(16<<20);cache=PublicWeightCache(2<<20)
-  for turn in range(3):
+  for turn in range(4 if os.environ.get('TEST_COMPACT') else 3):
    sock,addr=server.accept();sock.settimeout(15)
    c=worker.Connection(sock,addr,16<<20,lambda _:None,ledger,cache);gemms=0
    try:
