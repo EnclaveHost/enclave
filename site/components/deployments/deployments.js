@@ -369,6 +369,8 @@ function cfgPlan(ctx){
   const verdictOf = (o) => {
     const mine = JSON.stringify(o);
     if (stockC !== null && mine === stockC) return hasOv ? { clear: true } : { same: true };
+    // No new envelope or pin is needed for the body already stored here.
+    if (ovCid && !ovLost && mine === JSON.stringify(o0)) return { same: true };
     // INLINE while the whole document fits the ledger's one options field
     const inlineEnv = JSON.stringify({ ...curBase, config: o });
     const inlineBytes = bytesOf(inlineEnv);
@@ -377,13 +379,16 @@ function cfgPlan(ctx){
       return { set: true, envelope: inlineEnv, bytes: inlineBytes, mode: "inline" };
     }
     // ...otherwise SPLIT: pin the body, keep the routing manifest on-chain
-    if (!splitOk) return { err: "this config is " + bytesOf(mine) + " bytes and the ledger's options field caps at " + cap
+    // Fleet support gates INTRODUCING the configCid namespace. An existing
+    // pinned override already needs it, so replacing its body adds no new
+    // runner requirement (the relay's build_set_config uses the same rule).
+    // Keep it editable when a partial host makes the fleet aggregate false.
+    if (!splitOk && !ovCid) return { err: "this config is " + bytesOf(mine) + " bytes and the ledger's options field caps at " + cap
       + " - the live fleet can’t serve a config pinned off-chain yet, so for now only a smaller document can override this version. Try again after the fleet updates" };
     const preview = splitEnvelope(o, CID_SIZE_HINT);
     const previewBytes = bytesOf(preview);
     if (previewBytes > cap) return { err: "even split, the envelope would be " + previewBytes + " bytes; the ledger caps it at " + cap
       + " - the routing manifest (" + MANIFEST_KEYS.join(", ") + ") plus this deployment’s protection settings don’t leave room for the reference. Trim the volumes list" };
-    if (ovCid && !ovLost && mine === JSON.stringify(o0)) return { same: true };
     return { set: true, bytes: previewBytes, mode: "split", body: mine, cfg: o };
   };
   return { verdictOf, clearEnvelope, splitEnvelope };
