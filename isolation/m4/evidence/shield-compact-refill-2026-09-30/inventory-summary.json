@@ -1,0 +1,13 @@
+{
+  "matrices": 262,
+  "all_exact": true,
+  "source_encoded_bytes": 18541445120,
+  "compact_bytes": 16778250115,
+  "saved_bytes": 1763195005,
+  "saved_percent": 9.509479943923594,
+  "source_encoded_GiB": 17.26806640625,
+  "compact_GiB": 15.625963094644248,
+  "saved_GiB": 1.6421033116057515,
+  "sum_K": 2211840,
+  "sum_N": 2750976
+}

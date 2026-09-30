@@ -12,12 +12,15 @@ invalidates the entire output, including already computed chunks. Callers must
 not publish anything until successful completion. Deterministic masks here are
 test fixtures only, never production mask material.
 
-Three readers are compared:
+Four readers are available:
 
 * `scalar`: existing `sh_weight_cache` SHA-256 path.
 * `openssl`: identical block digest check with CPU-accelerated OpenSSL SHA-256.
 * `openssl-direct`: accelerated SHA-256 and aligned `O_DIRECT` reads. Failure to
   open/read directly is fatal; it never silently falls back to cached reads.
+* `gmac-direct`: experimental AES-256 GMAC block authentication and direct I/O.
+  This changes the cache-authentication design and requires separate review;
+  it does not replace SHA-256 model admission. See [COMPACT-REFILL.md](COMPACT-REFILL.md).
 
 The existing project SHA-256 and OpenSSL digests cross-check in the tests. The
 OpenSSL dependency is experimental and would need inclusion in any measured
@@ -54,7 +57,7 @@ reference outputs; RSS is not an estimate of the entire deployed application.
 ## Scope and safeguards
 
 * Full per-output int64 oracle checks cover small/tail dimensions, output
-  strides, batches through 512, and all three reader modes. Large real-model
+  strides, batches through 512, and all four reader modes. Large real-model
   outputs are compared element-for-element against resident production-kernel
   results, not merely non-cryptographic checksums.
 * Test corruption, truncation after successful earlier chunks, exceptions, and

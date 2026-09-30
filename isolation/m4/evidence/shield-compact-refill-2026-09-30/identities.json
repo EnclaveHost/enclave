@@ -1,0 +1,17 @@
+{
+  "onednn/usr/lib/libdnnl.so.3.11": "9b85472ee7a98fbee386816cf1f4443cc6bba9d49edd2677f5eb892a837965b6",
+  "sha-final/compact": "9da74bf2591782d81106d891b6c003669ebb3791cf4162c5221e38e6c543ce9c",
+  "dnnl/compact": "3939b9b9f1c0979313a8f6ca62c1cb8451757060efa3584c7f2cb01bb77c5bfb",
+  "final/compact": "b035287620bb073347aec158be1fc3f6b421a4ca3e71539cd071a4d8a2a4a57d",
+  "model_sha256": "3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e",
+  "cpu": "AMD EPYC 9115",
+  "storage": "cryptroot on NVMe CT4000T500SSD3",
+  "oneDNN": "3.11.3-1 Arch signed package extracted locally",
+  "package_signer": "8FC15A064950A99DD1BD14DD39E4B877E62EB915",
+  "compute_threads": 1,
+  "optional_read_threads": 1,
+  "OMP_NUM_THREADS": "1",
+  "OMP_DYNAMIC": "FALSE",
+  "production_modified": false,
+  "boundary/compact": "28a1e2c15f65ffd42fb8a6c1b0d553e47844dd407ffaae537ea44d507766b168"
+}
