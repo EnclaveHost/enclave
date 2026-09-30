@@ -425,9 +425,20 @@ async function measureEngineHold() {
 
 // ---- the public surface over the tunnel ------------------------------------------------------
 let shieldEvidenceReads = 0;
+let shieldWitness = null;
 async function handle(frame) {
   const p = String(frame.path || '').split('?')[0]; const method = frame.method || 'GET';
   const json = (status, o) => ({ status, headers: { 'content-type': 'application/json' }, body: JSON.stringify(o) });
+  if (APPS && p === '/v1/shield/readiness' && method === 'GET') {
+    if (!shieldWitness) return json(503, {error:'witness_not_configured'});
+    if (shieldEvidenceReads >= 2) return json(429, {error:'evidence_busy'});
+    const nonce = new URL(String(frame.path), 'http://localhost').searchParams.get('nonce');
+    if (!/^[0-9a-f]{64}$/.test(nonce || '')) return json(400, {error:'nonce_required'});
+    shieldEvidenceReads++;
+    try { return json(200, await shieldWitness.evidence(nonce)); }
+    catch (e) { return json(503, {error:'witness_unavailable', reason:String(e.message).slice(0,300)}); }
+    finally { shieldEvidenceReads--; }
+  }
   if (APPS && p === '/v1/shield/evidence' && method === 'GET') {
     if (shieldEvidenceReads >= 2) return json(429, { error: 'evidence_busy' });
     const query = new URL(String(frame.path), 'http://localhost').searchParams;
@@ -774,6 +785,17 @@ async function startHostingControls() {
     log(`session: ES256 key ${sessionKey.kid.slice(0, 12)}… (in the agent's process, not the enclave)`);
     setInterval(() => nonces.sweep(), 60_000).unref?.();
     await host.init();
+    if (process.env.SHIELD_WITNESS_CONFIG && host.cfg.isolationManager && host.cfg.isolationDataAddr) {
+      const {createShieldWitness} = await import('./shield-witness.mjs');
+      shieldWitness = createShieldWitness({config:JSON.parse(fs.readFileSync(process.env.SHIELD_WITNESS_CONFIG,'utf8')),
+        base:host.cfg.isolationManager, dataAddr:host.cfg.isolationDataAddr});
+      let lastWitnessError = '';
+      const tickWitness = () => shieldWitness.ensure().then(() => { lastWitnessError = ''; }).catch(e => {
+        if (e.message !== lastWitnessError) log(`readiness witness: ${e.message}`);
+        lastWitnessError = e.message;
+      });
+      tickWitness(); setInterval(tickWitness, 30000).unref?.();
+    }
     // resolve(id): the app's loopback port and its certificate, or null. Both come from the host,
     // which is the half that holds leases; a deployment this box does not serve resolves to null
     // and the stream is refused with a status rather than a silent close.

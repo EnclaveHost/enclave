@@ -53,9 +53,8 @@ image/runtime pins, explicit host names, CPU/GPU profiles and `marketEnabled`.
 False enables verification-only operation; no marketplace claim window is sent.
 True permits a five-minute claim window only after an actual running app passes.
 The window is bound to the authenticated tunnel connection and must be renewed
-by fresh evidence. A reconnect invalidates it. At present a running qualification
-app is needed to keep an otherwise empty host qualified; dedicated admission
-witness bootstrapping is not implemented.
+by fresh evidence. A reconnect invalidates it. The initial rollout needed a running customer app to keep an empty host qualified.
+This was superseded on September 30 by the [dedicated readiness witness](../operations/nucbox-readiness-witness.md), which grants capacity only; per-app routing still requires each app’s own evidence.
 
 Public app routing remains TLS-only and per-deployment, even though the host is
 counted as eligible capacity. The SNI fleet consumes each app's expiring evidence
