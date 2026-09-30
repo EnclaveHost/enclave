@@ -23,6 +23,7 @@ t=out/'template';shutil.rmtree(t/'rt');shutil.copytree(a.runtime,t/'rt')
 shutil.copy2(a.haltpoll_module,t/'cpuidle-haltpoll.ko.zst')
 # The inference profile doesn't advertise unprobed optional app ABIs.
 for n in ['set.enabled','mem64.enabled']:(t/'rt'/n).unlink(missing_ok=True)
+(t/'rt/shield-ram-admission.enabled').write_text('1\n')
 (t/'rt/shield-model').write_text('qwen2.5-0.5b-q8-gguf\nqwen3.8-27b-mtp-q4-vl-gguf\n')
 (t/'rt/calib').mkdir(exist_ok=True)
 shutil.copy2(repo/'metal/shielded-overlay/calib/qwen2.5-0.5b-q8-gguf.calib',t/'rt/calib/qwen2.5-0.5b-q8-gguf.calib')

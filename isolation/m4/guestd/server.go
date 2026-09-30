@@ -40,6 +40,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -153,22 +154,23 @@ type vm struct {
 }
 
 type server struct {
-	ShieldEnabled  bool
-	ShieldReleases []string
-	RuntimeSET     bool // a real worker execution probe of the runtime used by this tree
-	RuntimeMem64   bool // a real 64-bit canonical ABI execution probe
-	L              Launcher
-	Auth           *controlAuth // guestd-control/1; nil = the unauthenticated, loopback-only lab mode
-	Store          *store       // catalog mappings; nil = only file:// bundles are accepted
-	Root           string       // per-guest workdirs live under here, and nothing else does
-	LeaseTTL       time.Duration
-	Silence        time.Duration
-	Now            func() time.Time
-	Firmware       map[string]any
-	RuntimeID      string     // hex; the runtime identity every guest image here carries (the judge pins it)
-	Data           *dataPlane // nil = no data plane (the default)
-	Budget         poolBudget // the guest pool's budget; the zero value admits no guest (pool.go)
-	IDPrefix       string     // two lowercase letters for this guestd's instance ids and guest units; "" = "gd" (-instance-prefix)
+	ShieldShareMemory bool // measured runtime skips models that do not fit the guest
+	ShieldEnabled     bool
+	ShieldReleases    []string
+	RuntimeSET        bool // a real worker execution probe of the runtime used by this tree
+	RuntimeMem64      bool // a real 64-bit canonical ABI execution probe
+	L                 Launcher
+	Auth              *controlAuth // guestd-control/1; nil = the unauthenticated, loopback-only lab mode
+	Store             *store       // catalog mappings; nil = only file:// bundles are accepted
+	Root              string       // per-guest workdirs live under here, and nothing else does
+	LeaseTTL          time.Duration
+	Silence           time.Duration
+	Now               func() time.Time
+	Firmware          map[string]any
+	RuntimeID         string     // hex; the runtime identity every guest image here carries (the judge pins it)
+	Data              *dataPlane // nil = no data plane (the default)
+	Budget            poolBudget // the guest pool's budget; the zero value admits no guest (pool.go)
+	IDPrefix          string     // two lowercase letters for this guestd's instance ids and guest units; "" = "gd" (-instance-prefix)
 	// Release: deliver attested-release tickets and serve egress to deployment guests (release.go, -release).
 	Release bool
 	// Legacy builds and starts the deployment guests that are NOT release guests on a -release guestd: the previous
@@ -435,7 +437,15 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 		gpuBytes = m.Inference.CardBytes()
 		model = m.Inference.Model
 	}
-	if refusal := s.memoryShareRefusal(req.CPUShare, pol.MemMiB, mem); refusal != nil {
+	// Old inference images copy/load the model unconditionally. Only a pinned
+	// image with the admission marker may boot below that model requirement.
+	if m.Inference != nil && s.ShieldShareMemory {
+		if req.CPUShare > 0 && req.CPUShare <= 1 && s.Budget.configured() {
+			mem = min(mem, guestMemMiB(int(math.Floor(req.CPUShare*float64(s.Budget.MemMiB)+1e-7))))
+		}
+	}
+	policyNeed := min(pol.MemMiB, max(0, mem-guestRuntimeMiB))
+	if refusal := s.memoryShareRefusal(req.CPUShare, policyNeed, mem); refusal != nil {
 		s.json(w, http.StatusUnprocessableEntity, refusal)
 		return
 	}

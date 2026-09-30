@@ -237,7 +237,7 @@ if command -v unshare >/dev/null 2>&1 && unshare --map-root-user --map-auto -U t
 run_all() {  # <dominit.c> <app-seccomp.h> <cc...>
   src=$1; hdr=$2; shift 2
   rm -rf "$d/b" && mkdir -p "$d/b/t" "$d/b/o" && chmod 0755 "$d/b" && chmod 1777 "$d/b/o"
-  cp "$src" "$d/b/dominit.c" && cp "$hdr" "$d/b/app-seccomp.h" && cp "$here/sha256-min.h" "$d/b/" && cp "$d/h.c" "$d/b/"
+  cp "$src" "$d/b/dominit.c" && cp "$hdr" "$d/b/app-seccomp.h" && cp "$here/sha256-min.h" "$here/shield-memory.h" "$d/b/" && cp "$d/h.c" "$d/b/"
   "$@" -O2 -Wall -Wextra -Wno-unused-function -o "$d/b/h" "$d/b/h.c" || return 1
   "$@" -O2 -o "$d/b/probe" "$d/probe.c" || return 1
   gcc -static -pthread -O2 -o "$d/b/rt-probe" "$here/app-seccomp-probe.c" 2>/dev/null || return 1
