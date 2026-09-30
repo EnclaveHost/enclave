@@ -1,5 +1,9 @@
 # Streamed encoded-weight prototype: tested, not production-qualified
 
+Follow-up: [compact/radix integer-GEMM experiments](../shield-compact-refill-2026-09-30/README.md)
+test a faster CPU multiplication algorithm alongside this reader. The historical
+results below use the original production multiplication kernel.
+
 2026-09-30 UTC (2026-09-29 America/Phoenix).
 
 The prototype can discard a resident encoded matrix and compute identical

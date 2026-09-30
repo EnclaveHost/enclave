@@ -23,7 +23,7 @@ test('offline streamed refill matches the exact oracle and rejects damaged stora
     if(run.status===77)return t.skip('requires AVX512 VNNI');
     assert.equal(run.status,0,run.stderr||String(run.error));
     const result=JSON.parse(run.stdout);
-    assert.equal(result.oracle_cases,288);
+    assert.equal(result.oracle_cases,384);
     assert.equal(result.tamper_truncation_exception,'passed');
   } finally {rmSync(dir,{recursive:true,force:true});}
 });
