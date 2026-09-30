@@ -1,0 +1,17 @@
+{
+  "appId": "a79db30fdf40b37499c8dbf955728c74541fa140201059158694c841736f5030",
+  "derive": {
+    "derivation": "enclave-catalog-bundle/1",
+    "catalog": {
+      "app": "0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed",
+      "version": 4
+    },
+    "cid": "bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza",
+    "runtimeId": "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8",
+    "policy": {
+      "vcpus": 1,
+      "memMiB": 256,
+      "cpuPercent": 100
+    }
+  }
+}
