@@ -1,8 +1,8 @@
 # Compact encoded weights: memory-priority runtime
 
-**Production selection (2026-09-30): compact unit 64, rollout in progress.**
+**Production status (2026-09-30): compact unit 64 deployed and verified.**
 The owner explicitly prioritizes memory over the measured loss of approximately
-one token per second. Corrected release `4bb9f020` is selected for this rollout;
+one token per second. Corrected release `4bb9f020` is active on Eyesoff-AI;
 raw-weight release `83b38d61` remains the rollback. Both compact profiles passed
 functional checks. Their earlier performance-based rejections below describe
 the previous no-performance-loss requirement, which this decision supersedes.
@@ -221,3 +221,27 @@ startup and concurrency headroom; the 16 GiB host memory floor is preserved.
 Fresh release admission, independent image prediction, SNP attestation, public
 TLS, real MTP chat and post-inference memory checks are required for this rollout.
 No isolation, mask, verification or W^X policy changes are part of the selection.
+
+
+### Final rollout verification
+
+At 2026-09-30 08:14 UTC, guest `gda1386696` served corrected release `4bb9f020`.
+Fresh independent prediction matched the measured image. Fresh nonce-bound SNP
+attestation and W^X checks passed after real MTP inference on both the canonical
+app domain and `eyesoff.ai`; both domains passed normal public TLS verification.
+The other five app guests retained their identities and remained running.
+
+Three sequential warm 128-token requests measured 14.2, 14.3 and 13.8 tok/s
+(14.075 aggregate), versus the earlier 14.737 baseline. MTP accepted 49 of 79
+suggestions in each run, outputs matched, prefill used its cache, and speculative
+gate wait was zero. First-token times were 915, 1,014 and 803 ms. These are short
+single-session checks, not sustained-load or eight-session qualification.
+
+Guest MemoryCurrent fell from 58,443,456,512 to 56,446,390,272 bytes: **1.86 GiB
+less resident guest RAM** (54.43 to 52.57 GiB). Exact encoded-matrix savings
+remain 2.224 GiB; other guest allocations explain why whole-guest savings differ.
+The remaining private encoded-weight copy still exists. Existing reservations
+and security policies are unchanged. The user accepted this memory/speed tradeoff,
+and the compact release remains selected in production.
+
+See [final rollout evidence](evidence/shield-compact-memory-priority-20260930.json).

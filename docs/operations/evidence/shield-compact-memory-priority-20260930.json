@@ -1,0 +1,222 @@
+{
+  "status": "deployed_memory_priority",
+  "verified_at": "2026-09-30T08:14:13.783Z",
+  "decision": "Owner explicitly accepted the measured decode loss to prioritize resident RAM savings.",
+  "release": "4bb9f020d0d3c0760c60f7e3a28e32e4429139c82023785d5415f83bcb054170",
+  "artifact_source_commit": "057221e8884ca4858a9551523ad177f7d9b52c8d",
+  "selection_commit": "515a1d1c6615",
+  "prediction": {
+    "release": "4bb9f020d0d3c0760c60f7e3a28e32e4429139c82023785d5415f83bcb054170",
+    "app_id": "2ab2808111216719dcd361a5f8062fe06ad0d4eb62709a7df686ecbb2da156aa",
+    "runtime_id": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+    "runtime_identity_json": "{\"name\":\"wasmtime\",\"version\":\"49.0.0\",\"execution\":\"jit\",\"targetIsa\":\"x86_64\",\"hostIsa\":\"x86_64\",\"cpuFeatures\":\"host-detected\",\"wx\":\"enforced\",\"cache\":\"none\"}",
+    "measurement": "7d6b593f89f2ed02099a740ff127d1035f9482c426c728747155f4d8326a38d99d2c20dcbdb733b219e8586d7cc1e9bd"
+  },
+  "instance": "gda1386696",
+  "samples": [
+    {
+      "first_ms": 915.4,
+      "total_ms": 9489.5,
+      "decode_ms": 9037,
+      "tok_per_s": 14.2,
+      "tokens": 128,
+      "draft_accepted": 49,
+      "draft_tokens": 79,
+      "prefill_ms": 1,
+      "prompt_tokens": 1544,
+      "target": "gpu",
+      "gate_us": 0
+    },
+    {
+      "first_ms": 1013.6,
+      "total_ms": 9435.8,
+      "decode_ms": 8982,
+      "tok_per_s": 14.3,
+      "tokens": 128,
+      "draft_accepted": 49,
+      "draft_tokens": 79,
+      "prefill_ms": 2,
+      "prompt_tokens": 1544,
+      "target": "gpu",
+      "gate_us": 0
+    },
+    {
+      "first_ms": 802.5,
+      "total_ms": 9674.3,
+      "decode_ms": 9263,
+      "tok_per_s": 13.8,
+      "tokens": 128,
+      "draft_accepted": 49,
+      "draft_tokens": 79,
+      "prefill_ms": 0,
+      "prompt_tokens": 1544,
+      "target": "gpu",
+      "gate_us": 0
+    }
+  ],
+  "answers_identical": true,
+  "aggregate_tok_s": 14.075214427094787,
+  "method": "Authenticated same-origin browser /chat; three sequential 128-token requests after DOM startup warmup, browser prefix warmup, and one complete initial request. No speculative gate wait. Single-session smoke benchmark, not an eight-session capacity test.",
+  "prompt": "Write a vivid short story about a robot tending a garden on the Moon.",
+  "settings": {
+    "model": "qwen3.8-27b-mtp",
+    "max_tokens": 128,
+    "temperature": 0,
+    "enable_thinking": false,
+    "web_search": "off",
+    "image_gen": "off",
+    "tools": false
+  },
+  "initial_request_excluded": {
+    "first_ms": 51411.8,
+    "total_ms": 59745.9,
+    "decode_ms": 8739,
+    "prefill_ms": 50555,
+    "tokens": 128,
+    "draft_accepted": 49,
+    "draft_tokens": 79
+  },
+  "baseline_aggregate_tok_s": 14.7374884863,
+  "memory": {
+    "before": {
+      "at": "2026-09-30T07:42:07.712Z",
+      "instance": "gd2b31d1f8",
+      "measurement": "fa51e36388cbc3836d749fb31ff099486c3aad97c1ddf210017c567d3f7ce993ff1c5e2f63a51f52fa5ef08c49662c3f",
+      "phase": "memory-priority-before",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/m2-gd2b31d1f8-3599761.service",
+      "MemoryCurrent": "58443456512",
+      "MemoryPeak": "58445352960",
+      "otherGuests": [
+        {
+          "id": "gd3f112c5e",
+          "status": "running"
+        },
+        {
+          "id": "gd46ad5e46",
+          "status": "running"
+        },
+        {
+          "id": "gd481d1411",
+          "status": "running"
+        },
+        {
+          "id": "gdabe06812",
+          "status": "running"
+        },
+        {
+          "id": "gdfb2bacd3",
+          "status": "running"
+        }
+      ]
+    },
+    "after": {
+      "at": "2026-09-30T08:14:03.179Z",
+      "instance": "gda1386696",
+      "measurement": "7d6b593f89f2ed02099a740ff127d1035f9482c426c728747155f4d8326a38d99d2c20dcbdb733b219e8586d7cc1e9bd",
+      "phase": "memory-priority-final",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/m2-gda1386696-3628458.service",
+      "MemoryCurrent": "56446390272",
+      "MemoryPeak": "56447496192",
+      "otherGuests": [
+        {
+          "id": "gd3f112c5e",
+          "status": "running"
+        },
+        {
+          "id": "gd46ad5e46",
+          "status": "running"
+        },
+        {
+          "id": "gd481d1411",
+          "status": "running"
+        },
+        {
+          "id": "gdabe06812",
+          "status": "running"
+        },
+        {
+          "id": "gdfb2bacd3",
+          "status": "running"
+        }
+      ]
+    },
+    "saved_bytes": 1997066240,
+    "saved_gib": 1.8599128723144531,
+    "scope": "Whole guest cgroup MemoryCurrent after warm inference; approximate comparison, not all encoded weights removed."
+  },
+  "attestations": [
+    {
+      "at": "2026-09-30T08:14:08.524Z",
+      "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "short": "9eb4e600",
+      "hostname": "9eb4e600.app.enclave.host",
+      "attested": true,
+      "measurement": "7d6b593f89f2ed02099a740ff127d1035f9482c426c728747155f4d8326a38d99d2c20dcbdb733b219e8586d7cc1e9bd",
+      "appId": "2ab2808111216719dcd361a5f8062fe06ad0d4eb62709a7df686ecbb2da156aa",
+      "release": "4bb9f020d0d3c0760c60f7e3a28e32e4429139c82023785d5415f83bcb054170",
+      "spkiSha256": "056093f2474c9211dc0f08673696e47cc20a8fb557393040eae36b35ceb28bbb",
+      "healthPath": "/",
+      "healthStatus": 200
+    },
+    {
+      "at": "2026-09-30T08:14:13.783Z",
+      "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "short": "9eb4e600",
+      "hostname": "eyesoff.ai",
+      "attested": true,
+      "measurement": "7d6b593f89f2ed02099a740ff127d1035f9482c426c728747155f4d8326a38d99d2c20dcbdb733b219e8586d7cc1e9bd",
+      "appId": "2ab2808111216719dcd361a5f8062fe06ad0d4eb62709a7df686ecbb2da156aa",
+      "release": "4bb9f020d0d3c0760c60f7e3a28e32e4429139c82023785d5415f83bcb054170",
+      "spkiSha256": "056093f2474c9211dc0f08673696e47cc20a8fb557393040eae36b35ceb28bbb",
+      "healthPath": "/",
+      "healthStatus": 200
+    }
+  ],
+  "public_tls": {
+    "canonical_http_status": 200,
+    "custom_http_status": 200,
+    "certificate_validation": true
+  },
+  "profile": {
+    "refill_unit": 64,
+    "vcpus": 16,
+    "host_cpu_affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "sm_clock_mhz": [
+      1380,
+      1380
+    ],
+    "memory_clock_mhz": [
+      1107,
+      877
+    ],
+    "app_reservation_mib": 74496,
+    "host_memory_floor_mib": 16384
+  },
+  "unchanged_security": "Masking, Freivalds verification, SNP guest isolation, measured runtime and W^X checks remain enabled. No policy relaxation.",
+  "rollback_release": "83b38d61b87fd2da5b97e8cdf707e26c8bf14d5efe927a14f27f2ffb842259cc",
+  "local_evidence_directory": "/home/steven/enclave-bench/shield-compact-production-20260930/rollout-compact64-memory-priority",
+  "file_sha256": {
+    "expected-compact.json": "1c6ed5262c103afc5240f6820b7369da71e1554de4a09643df293ba477a78be7",
+    "activation.log": "b4f268d68802b45cc91185e4f00e3eb8b4bc03424f61a359b34e9f5b8b603450",
+    "manager-compact.conf": "4a8eed913a613c2079f92933118c4eedcf33abaa549c70c06865ca6b899e4c38",
+    "prediction-compact.txt": "16f39716dad9178fab7cd2f1a2c41af21501ca30419b16d96a39e662bc7a5f3a",
+    "9eb4e600-attestation.json": "e8e9d7af329670b0fb5fc7433e1ceb9cc4073dd7d35fe8c0d5b72a0a81255b51"
+  }
+}
