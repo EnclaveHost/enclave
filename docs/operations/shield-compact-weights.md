@@ -1,8 +1,11 @@
-# Compact encoded weights: experimental runtime
+# Compact encoded weights: memory-priority runtime
 
-**Production status (2026-09-30): not selected for production.** Both compact
-refill profiles passed functional checks but regressed real MTP chat decode.
-The working raw-weight release remains 83b38d61; see the rollout results below.
+**Production selection (2026-09-30): compact unit 64, rollout in progress.**
+The owner explicitly prioritizes memory over the measured loss of approximately
+one token per second. Corrected release `4bb9f020` is selected for this rollout;
+raw-weight release `83b38d61` remains the rollback. Both compact profiles passed
+functional checks. Their earlier performance-based rejections below describe
+the previous no-performance-loss requirement, which this decision supersedes.
 
 This opt-in runtime replaces the resident int8 mask-weight matrices with exact
 private bit-packed frames. It preserves the original-weight reclamation loader,
@@ -163,7 +166,7 @@ source authentication/lifecycle suite also passes under ASAN/UBSAN.
 
 Corrected candidate: `4bb9f020d0d3c0760c60f7e3a28e32e4429139c82023785d5415f83bcb054170`.
 The b8aaaea9 artifact is withdrawn. The correction changes registration only;
-production inference qualification of the corrected release is still required.
+production inference qualification is recorded in the comparisons below.
 
 
 ## Production MTP comparison and refill-unit follow-up
@@ -181,7 +184,7 @@ The next candidate retains the compact backend and late-registration fix but
 uses refill unit 32, which passed the earlier native comparison. This setting
 is compiled into measured init and cannot be selected by the host or app
 configuration. Candidate 79eb055a74f4b2c440ceaa3fa7c80862a0842d663a78bd5aefddefa79be16347
-still requires independent prediction and production qualification.
+was subsequently independently predicted and qualified as recorded below.
 
 
 ## Unit-32 production result
@@ -194,11 +197,27 @@ measured 14.8, 14.8 and 14.6 tok/s (14.737 aggregate). The selected samples had
 zero speculative-gate wait and cached prefill; startup and browser warmup were
 completed first. One earlier contended baseline sample was excluded explicitly.
 The candidate regressed 6.25%, so it was rejected and baseline 83b38d61 selected
-again. Neither compact candidate is recommended for production. Native target
+again. Under the then-current no-regression requirement, neither candidate was selected. Native target
 benchmarks did not predict this real speculative application workload.
 
 See [unit-32 production evidence](evidence/shield-compact-production32-20260930.json)
 and [unit-64 production evidence](evidence/shield-compact-production64-20260930.json).
-The local candidate directories contain NOT-FOR-PRODUCTION.txt markers. The
-backend remains opt-in for further work; the normal production runtime is
-unchanged. Do not report the native 19.44 tok/s result as a deployed Eyesoff rate.
+Those trial directories originally received NOT-FOR-PRODUCTION.txt markers
+because of the performance requirement. The memory-priority rollout supersedes
+that disposition for corrected unit-64 release 4bb9f020 only. The original b8aaaea9
+artifact remains withdrawn for its functional defect. Do not report the native
+19.44 tok/s result as a deployed Eyesoff rate.
+
+## Memory-priority production selection
+
+The owner explicitly accepted the approximately 0.8 tok/s production decode
+loss in return for roughly 2 GiB lower resident guest memory. Unit 64 is selected:
+it measured slightly faster than compact unit 32 with comparable memory savings.
+The deployed artifact is the already-tested corrected release built from commit
+`057221e88`, not a new unqualified backend. Source init selection again matches
+its measured 64-pad profile. The unchanged 74,496 MiB app reservation retains
+startup and concurrency headroom; the 16 GiB host memory floor is preserved.
+
+Fresh release admission, independent image prediction, SNP attestation, public
+TLS, real MTP chat and post-inference memory checks are required for this rollout.
+No isolation, mask, verification or W^X policy changes are part of the selection.
