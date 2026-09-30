@@ -1,6 +1,8 @@
 # Compact-weight layout investigation, 2026-09-30
 
-Status: **offline candidate, not deployed or production-qualified**. Production
+Historical experiment: **not deployed or production-qualified**.
+The subsequent [runtime implementation](shield-compact-layout-runtime-20260930.md)
+is staged separately. Production
 remains compact64 release `4bb9f020`. This change adds a reproducible experiment;
 it does not change the runtime provider, app, scheduler, admission or isolation.
 

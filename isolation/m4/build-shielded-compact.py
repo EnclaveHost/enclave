@@ -38,6 +38,23 @@ for f in rt.rglob('*.so*'):
 probe=out/'onednn-wx-probe'
 run(['c++','-O2',root/'shielded/bench/onednn-wx-probe.cpp','-I'+str(a.onednn_root/'usr/include'),'-L'+str(rt),'-l:libdnnl.so.3','-Wl,-rpath-link,'+str(rt),'-o',probe])
 run(['bwrap','--unshare-all','--ro-bind',rt,'/rt','--ro-bind',probe,'/probe','--proc','/proc','--dev','/dev','--setenv','OMP_NUM_THREADS','1','/rt/ld-linux-x86-64.so.2','--library-path','/rt','/probe'])
+# Exercise the actual provider's blocked matmul plans as well as legacy GEMM.
+# Use the copied build sources, not a potentially changed working tree, and
+# resolve all dynamic dependencies exclusively from the staged closure.
+fixture=out/'compact-release-check.cpp'
+fixture.write_text((root/'test/fixtures/shielded-compact-runtime.cpp').read_text().replace(
+ '#include "../../wasm/ggml-shielded/shielded-compact.cpp"',
+ '#include "'+str(src/'shielded-compact.cpp')+'"'))
+simd=['-mavx512f','-mavx512bw','-mavx512dq','-mavx512vl','-mavx512vnni']
+for name in ['shielded-simd','shielded-field']:
+ run(['cc','-O2',*simd,'-DSH_SIMD_AVX512','-c',src/(name+'.c'),'-o',out/(name+'-check.o')])
+layout_probe=out/'compact-release-check'
+run(['c++','-O2',*simd,'-std=c++17','-pthread','-I'+str(a.onednn_root/'usr/include'),fixture,
+ out/'shielded-simd-check.o',out/'shielded-field-check.o','-L'+str(rt),'-l:libdnnl.so.3',
+ '-lgomp','-Wl,-rpath-link,'+str(rt),'-o',layout_probe])
+run(['bwrap','--unshare-all','--ro-bind',rt,'/rt','--ro-bind',layout_probe,'/probe',
+ '--proc','/proc','--dev','/dev','--setenv','OMP_NUM_THREADS','1','--setenv','OMP_DYNAMIC','FALSE',
+ '/rt/ld-linux-x86-64.so.2','--library-path','/rt','/probe'])
 (rt/'shield-compact-weights.enabled').write_text('1\n')
 def digest(f):return hashlib.sha256(f.read_bytes()).hexdigest()
 (out/'provenance.json').write_text(json.dumps({'baseRuntime':str(a.runtime.resolve()),'oneDNN':digest(rt/'libdnnl.so.3'),'runtime':{str(f.relative_to(rt)):digest(f) for f in sorted(rt.rglob('*')) if f.is_file()},'sources':{str(f.relative_to(src)):digest(f) for f in sorted(src.rglob('*')) if f.is_file() and f.suffix in ['.c','.cpp','.h','.inc']}},indent=2)+'\n')
