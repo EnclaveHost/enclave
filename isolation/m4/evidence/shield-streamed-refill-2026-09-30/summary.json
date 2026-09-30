@@ -1,0 +1,83 @@
+{
+  "results": [
+    {
+      "tensor": "blk.0.ffn_gate.weight",
+      "batch": 64,
+      "pairs": 4,
+      "resident_median_s": 0.05948825,
+      "stream_median_s": 0.0801221,
+      "wall_ratio": 1.3468558917097073,
+      "cpu_ratio_median": 1.948734501869477,
+      "all_exact": true,
+      "disk_bytes_min": 89128960,
+      "encoded_bytes": 89128960
+    },
+    {
+      "tensor": "blk.0.ffn_gate.weight",
+      "batch": 256,
+      "pairs": 4,
+      "resident_median_s": 0.221108,
+      "stream_median_s": 0.23018450000000001,
+      "wall_ratio": 1.0410500750764333,
+      "cpu_ratio_median": 1.3139787300032584,
+      "all_exact": true,
+      "disk_bytes_min": 89128960,
+      "encoded_bytes": 89128960
+    },
+    {
+      "tensor": "blk.0.ffn_down.weight",
+      "batch": 64,
+      "pairs": 4,
+      "resident_median_s": 0.0518317,
+      "stream_median_s": 0.0864605,
+      "wall_ratio": 1.6681007954591494,
+      "cpu_ratio_median": 2.1094571404815055,
+      "all_exact": true,
+      "disk_bytes_min": 99614720,
+      "encoded_bytes": 89128960
+    },
+    {
+      "tensor": "blk.0.ffn_down.weight",
+      "batch": 256,
+      "pairs": 4,
+      "resident_median_s": 0.230089,
+      "stream_median_s": 0.2471375,
+      "wall_ratio": 1.0740952414065863,
+      "cpu_ratio_median": 1.3088820204690421,
+      "all_exact": true,
+      "disk_bytes_min": 99614720,
+      "encoded_bytes": 89128960
+    },
+    {
+      "tensor": "output.weight",
+      "batch": 64,
+      "pairs": 4,
+      "resident_median_s": 0.8391885,
+      "stream_median_s": 1.15431,
+      "wall_ratio": 1.3755074098370033,
+      "cpu_ratio_median": 2.0014009125887373,
+      "all_exact": true,
+      "disk_bytes_min": 1271398400,
+      "encoded_bytes": 1271398400
+    },
+    {
+      "tensor": "output.weight",
+      "batch": 256,
+      "pairs": 4,
+      "resident_median_s": 3.2196949999999998,
+      "stream_median_s": 3.42633,
+      "wall_ratio": 1.064178439262104,
+      "cpu_ratio_median": 1.309610528493691,
+      "all_exact": true,
+      "disk_bytes_min": 1271398400,
+      "encoded_bytes": 1271398400
+    }
+  ],
+  "qualified_for_production": false,
+  "scope": "Offline per-matrix mask refill, not inference tok/s",
+  "model": "Qwen3.8-27B-UD-Q4_K_XL.gguf",
+  "machine": "Linux-7.2.0-gbf5bafed3e6d-x86_64-with-glibc2.44",
+  "compiler": "c++ (GCC) 16.2.1 20260810",
+  "openssl": "OpenSSL 3.6.4 25 Aug 2026 (Library: OpenSSL 3.6.4 25 Aug 2026)",
+  "final_bench_sha256": "82319a61ac71a5d49f39bbaf2fc75f2863a6a7298e5a77307923aef6f1421a1c"
+}
