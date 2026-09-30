@@ -168,14 +168,18 @@ export const BOOT_UEFI = "uefi-medium";
  * policy's memMiB, so a real hello-world spawn (memMiB 128) would have defined a 128 MiB type-1 VM. The canaries never
  * hit that because they passed 2048 themselves.
  * The rule: guestd's (policy + 384 for the guest kernel and runtime) plus 256 for VTL2 and the paravisor, with a floor
- * of 2048. 2048 is the only size run on nucbox-k11, where the guest saw 1833 MiB, so VTL2 and the firmware took about
+ * of 2048 for general apps. At 2048 on nucbox-k11 the guest saw 1833 MiB, so VTL2 and the firmware took about
  * 215. Like memMiB on every backend, this is an availability property the host controls, never an attested one.
  */
 export const TYPE1_VM_MEM_FLOOR_MIB = 2048;
 export const TYPE1_VM_MEM_OVERHEAD_MIB = 384 + 256;
-export function type1VmMemMiB(policyMemMiB) {
+// Qualified separately on NucBox: fixed diagnostic bundle, no models/customer data.
+// New witness identities keep the normal floor until independently qualified.
+export const READINESS_WITNESS_APP_ID = 'a79db30fdf40b37499c8dbf955728c74541fa140201059158694c841736f5030';
+export function type1VmMemMiB(policyMemMiB, {name, appId} = {}) {
   const p = policyMemMiB;   // a JSON number from the derivation record; a string is refused, never coerced
   if (typeof p !== "number" || !Number.isInteger(p) || p <= 0) throw new Error(`the policy's memMiB must be a positive integer, not ${JSON.stringify(policyMemMiB)}`);
+  if (name === 'shield-readiness-v1' && appId === READINESS_WITNESS_APP_ID && p === 256) return 512;
   return Math.max(TYPE1_VM_MEM_FLOOR_MIB, p + TYPE1_VM_MEM_OVERHEAD_MIB);
 }
 
@@ -951,7 +955,7 @@ export class WmiHyperVLauncher {
     const guestStateRun = this.guestStateRunFor(name);
     if (!guestStateRun) throw new Error(`no per-run guest-state path can be made for ${name}`);
     const vcpus = Math.max(1, Math.floor(mapping.record.policy.vcpus));
-    const memMiB = type1VmMemMiB(mapping.record.policy.memMiB);   // the VM's RAM, not the app's share
+    const memMiB = type1VmMemMiB(mapping.record.policy.memMiB, {name:identity?.name, appId:mapping.appId});   // the VM's RAM, not the app's share
     let created = null, served = null, transport = null;
     try {
       created = await this.#ps(CMD.defineType1({
@@ -1002,7 +1006,7 @@ export class WmiHyperVLauncher {
                guestIdentity, firmware, boundary: boundaryFor(this.boot), appId: mapping.appId,
                vtpm: { enabled: created.tpmEnabled === true, pcrsRead: false, note: VTPM_NOTE },
                memory: { policyMiB: mapping.record.policy.memMiB, vmMiB: memMiB,
-                         rule: `max(${TYPE1_VM_MEM_FLOOR_MIB}, policy + ${TYPE1_VM_MEM_OVERHEAD_MIB})` },
+                         rule: memMiB === 512 ? "qualified pinned readiness witness: 512 MiB" : `max(${TYPE1_VM_MEM_FLOOR_MIB}, policy + ${TYPE1_VM_MEM_OVERHEAD_MIB})` },
                definition: { recipe: "petri New-CustomVM, GuestStateIsolationType 1 (uefi-dev-boot.ps1 e0de58cf)",
                              hypervModuleSha256: created.hypervModuleSha256, hypervUtilitiesSha256: created.hypervUtilitiesSha256 ?? null,
                              featureSet: created.featureSet, vtl2Mode: created.vtl2Mode, vbsOptOut: created.vbsOptOut,
