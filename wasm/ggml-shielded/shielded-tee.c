@@ -334,6 +334,7 @@ typedef struct {
     char     name[64];
     const int8_t *w;            /* (N,K) borrowed */
     sh_weight_read_fn w_read; void *w_ctx; /* optional authenticated public-weight storage */
+    sh_weight_refill_fn w_refill; /* optional trusted local pad computation */
     uint8_t public_digest[32]; bool public_digest_ready; /* private registered byte identity */
     int64_t   K, N;
     int32_t   max_m;
@@ -671,6 +672,13 @@ static void free_pools(sh_link *l) {
     }
 }
 
+void sh_link_quiesce(sh_link *l) {
+    if (!l) return;
+    stop_threads(l);
+    free_pools(l);
+    sh_pipe_close(l->pipe); l->pipe = NULL;
+}
+
 static void node_free_checks(sh_node *nd) {
     free(nd->s); free(nd->s_tilde); free(nd->s32); free(nd->st32);
     free(nd->sM); free(nd->stM);
@@ -922,6 +930,16 @@ int sh_link_set_weight_reader(sh_link *l, int node, sh_weight_read_fn reader, vo
     return SH_OK;
 }
 
+int sh_link_set_local_weight_source(sh_link *l, int node, sh_weight_read_fn reader,
+                                    sh_weight_refill_fn refill, void *ctx) {
+    if (!l || !reader || !refill || !ctx || node < 0 || (size_t)node >= l->n_nodes ||
+        l->dealt || !l->verify || l->pipe || l->threads_running) return SH_ERR_RANGE;
+    sh_node *nd = &l->nodes[node];
+    if (!nd->w || nd->w_read || nd->w_refill || !nd->s32 || !nd->st32) return SH_ERR_RANGE;
+    nd->w_read = reader; nd->w_refill = refill; nd->w_ctx = ctx; nd->w = NULL;
+    return SH_OK;
+}
+
 /* ---------------------------------------------------------------------------
  * Pad generation: r from the bank, u = r.W for every node of the group.
  * Runs on the refill threads, and on the request path only when the pool is
@@ -939,6 +957,34 @@ static int gen_scratch_init(const sh_link *l, gen_scratch *s, int b) {
     return SH_ERR_NOMEM;
 }
 
+static int generate_products(sh_link *l, const sh_group *g, int b,
+                             const int32_t *r, uint8_t *planes,
+                             int32_t *u_out, int32_t *acc) {
+    bool planes_ready = false;
+    for (int i = 0; i < g->n_nodes; i++) {
+        const sh_node *nd = &l->nodes[g->nodes[i]];
+        if (nd->w_refill) {
+            const int rrc = nd->w_refill(nd->w_ctx, r, b, u_out + nd->u_off, g->u_len);
+            if (rrc != SH_OK) {
+                memset(u_out, 0, (size_t)b * g->u_len * sizeof *u_out);
+                __atomic_store_n(&l->pad_integrity_failed, true, __ATOMIC_RELEASE);
+                return SH_ERR_VERIFY;
+            }
+            continue;
+        }
+        if (!nd->w) return SH_ERR_RANGE; /* compact dealt nodes never mint */
+        // Compact providers prepare their own exact representation. Do not
+        // also compute and write the unused CRT planes for those groups.
+        if (!planes_ready) {
+            const size_t n = (size_t)b * g->K;
+            l->simd->pad_planes(r, n, planes, planes + n, planes + 2*n);
+            planes_ready = true;
+        }
+        l->simd->refill(planes, b, nd->w, g->K, nd->N, u_out + nd->u_off, g->u_len, acc);
+    }
+    return SH_OK;
+}
+
 static int generate(sh_link *l, const sh_group *g, int b, int32_t *r_out, int32_t *u_out, gen_scratch *s) {
     const int64_t K = g->K;
 #ifdef SHIELDED_DEALER_MODE
@@ -950,13 +996,7 @@ static int generate(sh_link *l, const sh_group *g, int b, int32_t *r_out, int32_
 #endif
     int rc = maskbank_issue(&l->bank, r_out, (size_t)b * K);
     if (rc != SH_OK) return rc;
-    l->simd->pad_planes(r_out, (size_t)b * K, s->planes, s->planes + (size_t)b * K, s->planes + (size_t)2 * b * K);
-    for (int i = 0; i < g->n_nodes; i++) {
-        const sh_node *nd = &l->nodes[g->nodes[i]];
-        if (!nd->w) return SH_ERR_RANGE; /* compact dealt nodes never mint */
-        l->simd->refill(s->planes, b, nd->w, K, nd->N, u_out + nd->u_off, g->u_len, s->acc);
-    }
-    return SH_OK;
+    return generate_products(l, g, b, r_out, s->planes, u_out, s->acc);
 }
 
 /* Slots a refill may write: everything that is not ready, held or reserved. */
@@ -2531,11 +2571,7 @@ static void *sh_mint_worker(void *arg) {
         for (uint64_t i0 = 0; i0 < t->count && rc == SH_OK; i0 += B) {
             const int b = (int)((t->count - i0) < B ? (t->count - i0) : B);
             for (int i = 0; i < b; i++) sh_pad_r(t->seed, (uint32_t)gi, t->index0 + i0 + (uint64_t)i, K, r + (size_t)i * K);
-            l->simd->pad_planes(r, (size_t)b * K, s.planes, s.planes + (size_t)b * K, s.planes + (size_t)2 * b * K);
-            for (int n = 0; n < g->n_nodes; n++) {
-                const sh_node *nd = &l->nodes[g->nodes[n]];
-                l->simd->refill(s.planes, b, nd->w, K, nd->N, u + nd->u_off, g->u_len, s.acc);
-            }
+            rc = generate_products(l, g, b, r, s.planes, u, s.acc);
             for (int i = 0; i < b && rc == SH_OK; i++) rc = sh_pads_writer_cell_with(t->w, t->index0 + i0 + (uint64_t)i, (uint32_t)gi, u + (size_t)i * g->u_len, wplain, wcell);
         }
     }
@@ -2547,7 +2583,8 @@ static void *sh_mint_worker(void *arg) {
 int sh_link_mint_shipment(sh_link *l, const uint8_t seed[32], const uint8_t seed_id[16], const uint8_t model_digest[32],
                           uint64_t index0, uint64_t count, const uint8_t consumer_pk[32], const char *path) {
     if (!l || !l->n_groups || !count) return SH_ERR_RANGE;
-    for (size_t i = 0; i < l->n_nodes; i++) if (!l->nodes[i].w) return SH_ERR_RANGE;
+    if (sh_integrity_failed(l)) return SH_ERR_VERIFY;
+    for (size_t i = 0; i < l->n_nodes; i++) if (!l->nodes[i].w && !l->nodes[i].w_refill) return SH_ERR_RANGE;
     int nth = env_int("SHIELDED_MINT_THREADS", 1, 1, 64);
     if ((size_t)nth > l->n_groups) nth = (int)l->n_groups;
     sh_mint_assignment balanced;

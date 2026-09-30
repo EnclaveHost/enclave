@@ -1,4 +1,7 @@
 #include "ggml-shielded.h"
+#ifdef SHIELDED_COMPACT
+#include "shielded-compact.h"
+#endif
 #include "shielded-latency.h"
 #include "shielded-fusion.h"
 #include "shielded-weight-cache.h"
@@ -236,6 +239,9 @@ struct sh_state {
         const sh_calib_site *site = nullptr;
         std::string group;
         std::vector<int8_t> w;          /* (N,K): THE encoding, borrowed by the link */
+#ifdef SHIELDED_COMPACT
+        std::unique_ptr<sh_compact_store, decltype(&sh_compact_free)> compact{nullptr, sh_compact_free};
+#endif
         std::unique_ptr<sh_weight_cache> w_cache; /* opt-in, authenticated public blocks on disk */
         bool source_verified = false;
         bool encoded_hit = false;       /* w_cache is a catalog artifact (its later reads report a failed block by name) */
@@ -328,6 +334,7 @@ static sh_state &sh_get() { static sh_state s; return s; }
 struct sh_pool {
     std::mutex mu;
     bool initialized = false, invalid = false;
+    size_t backend_refs = 0;
     ggml_shielded_cpu_idle_hook cpu_idle_hook = nullptr;
     void *cpu_idle_ctx = nullptr;
     std::vector<std::unique_ptr<sh_state>> extra;
@@ -1238,6 +1245,22 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
             stored.w_cache.reset(); stored.w_cache_ctx.reset();
         }
     }
+#if defined(SHIELDED_COMPACT) && !defined(SHIELDED_DEALER_MODE)
+    if (sh_env_int("SHIELDED_COMPACT_WEIGHTS", 0) && !sh_link_is_dealt(s.link) && !stored.w.empty()) {
+        stored.compact.reset(sh_compact_create(stored.w.data(), K, link_N));
+        if (!stored.compact || sh_link_set_local_weight_source(s.link, node,
+                sh_compact_read, sh_compact_refill, stored.compact.get()) != SH_OK) {
+            // Keep the borrowed raw vector alive until link teardown on failure.
+            s.weight_cache_failed = true;
+            fprintf(stderr, "[shielded] %s: private compact storage admission failed\n", name.c_str());
+            return false;
+        }
+        const size_t original_bytes = stored.w.size();
+        std::vector<int8_t>().swap(stored.w);
+        fprintf(stderr, "[shielded] %s: private compact weights %zu -> %zu bytes\n",
+                name.c_str(), original_bytes, sh_compact_bytes(stored.compact.get()));
+    }
+#endif
     s.device_bytes += dev_add;   /* committed to the card; counts against reserve_cap */
     if (share < 0) s.group_first[stored.group] = node;
     s.group_members[stored.group].push_back(name);
@@ -1418,7 +1441,14 @@ static void sh_plan(sh_pool &p) {
  * The backend
  * ----------------------------------------------------------------------- */
 static const char *ggml_backend_shielded_get_name(ggml_backend_t) { return "Shielded"; }
-static void ggml_backend_shielded_free(ggml_backend_t backend) { delete backend; }
+static void sh_pool_quiesce(sh_pool &p);
+static void ggml_backend_shielded_free(ggml_backend_t backend) {
+    auto &p = sh_pool_get();
+    std::lock_guard<std::mutex> lock(p.mu);
+    GGML_ASSERT(p.backend_refs > 0);
+    if (--p.backend_refs == 0) sh_pool_quiesce(p);
+    delete backend;
+}
 
 /* Claimable at all: a calibrated q8_0 weight times an f32 activation, above the
  * size floor. Collects the public weight metadata on first sight of its data,
@@ -1523,7 +1553,7 @@ struct sh_split_worker {
     std::thread th;
     std::mutex mu; std::condition_variable cv;
     std::atomic<uint64_t> gen{0}, done{0};
-    bool quit = false;
+    std::atomic<bool> quit{false};
     sh_link *link = nullptr; const int *nodes = nullptr; size_t n = 0;
     const int64_t *x = nullptr; int32_t m = 0; int64_t **y = nullptr; const int64_t *stride = nullptr;
     const sh_split_post *post = nullptr; const int64_t *col0 = nullptr, *ncols = nullptr;
@@ -1535,6 +1565,22 @@ struct sh_split_worker {
     double t_dispatch = 0, t_start_delay = 0, t_gemm = 0, t_post = 0;
     uint64_t runs = 0;
 };
+/* Context teardown must join library callers before oneDNN's process-exit
+ * cache destructors run. Static sh_state teardown alone is too late. Preserve
+ * the registry and mask bank so a later context can reconnect safely. */
+static void sh_pool_quiesce(sh_pool &p) {
+    for (auto *w : p.split_workers) {
+        { std::lock_guard<std::mutex> lock(w->mu); w->quit.store(true); }
+        w->cv.notify_all();
+        if (w->th.joinable()) w->th.join();
+        delete w;
+    }
+    p.split_workers.clear();
+    for (auto *s : p.cards) {
+        if (s->link) sh_link_quiesce(s->link);
+        s->dirty = true;
+    }
+}
 static int sh_split_spin_us() { static int v = -1; if (v < 0) v = sh_env_int("SHIELDED_SPLIT_SPIN_US", 2000); return v; }
 static double sh_split_helper_gemm() { double t = 0; for (auto *w : sh_pool_get().split_workers) if (w) t += w->t_gemm; return t; }
 static double sh_split_helper_post() { double t = 0; for (auto *w : sh_pool_get().split_workers) if (w) t += w->t_post; return t; }
@@ -3017,6 +3063,7 @@ static ggml_backend_t sh_dev_init_backend(ggml_backend_dev_t dev, const char *) 
         /* .device  = */ dev,
         /* .context = */ NULL,
     };
+    { auto &p = sh_pool_get(); std::lock_guard<std::mutex> lock(p.mu); ++p.backend_refs; }
     return backend;
 }
 static ggml_backend_buffer_type_t sh_dev_get_buffer_type(ggml_backend_dev_t) {
