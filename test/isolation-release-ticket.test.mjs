@@ -46,7 +46,7 @@ const POOL = { budget: { memMiB: 32768, cpuPct: 800 }, allocated: { memMiB: 0, c
   guests: 0, overcommitted: false, perGuest: { floorMiB: 1024, runtimeMiB: 384, unitOverheadMiB: 768 } };
 const guestd = (release) => ({ backend: TIER, pool: POOL,
   supports: { gpu: false, secrets: false, egress: false, config: false, ports: false, ...(release === undefined ? {} : { release }) } });
-const dep = (manager, extra) => ({ require: TIER, manager, gpuMilli: 0, config: "", appConfigCid: "", hasSecrets: false,
+const dep = (manager, extra) => ({ require: TIER, manager, cpuMilli: 1000, gpuMilli: 0, config: "", appConfigCid: "", hasSecrets: false,
   firewall: [], volumes: [], isPublic: true, waf: null, policy: { cpuPercent: 100, memMiB: 128, vcpus: 1 }, ...extra });
 const withConfig = { config: '{"api_key":"$MCP_ADAPTER_API_KEY"}' };
 const withSecrets = { hasSecrets: true };

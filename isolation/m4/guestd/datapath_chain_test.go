@@ -597,7 +597,7 @@ func newChain(t *testing.T) *chain {
 		}
 		p := filepath.Join(dir, label+".bundle")
 		_ = os.WriteFile(p, b, 0o600)
-		code, body := ch.direct("POST", "/vms", map[string]any{"image": "file://" + p, "name": ch.deps[label]})
+		code, body := ch.direct("POST", "/vms", map[string]any{"cpuShare": 1.0, "image": "file://" + p, "name": ch.deps[label]})
 		if code != 201 {
 			t.Fatalf("create %s: %d %v", label, code, body)
 		}

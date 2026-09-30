@@ -170,7 +170,7 @@ func TestTheHandshakeIsMutualAndAuthorisesSignedRequests(t *testing.T) {
 		t.Fatal(err)
 	}
 	p, _ := r.bundle("A", contract.Policy{})
-	body, _ := json.Marshal(map[string]any{"image": "file://" + p, "name": "0xa"})
+	body, _ := json.Marshal(map[string]any{"cpuShare": 1.0, "image": "file://" + p, "name": "0xa"})
 	code, got, ok := c.do("POST", "/vms", body)
 	if code != 201 || !ok {
 		t.Fatalf("signed launch: %d %v (response mac ok=%v)", code, got, ok)
@@ -268,7 +268,7 @@ func TestATamperedRequestOrAnswerIsCaught(t *testing.T) {
 		t.Fatal(err)
 	}
 	p, _ := r.bundle("A", contract.Policy{})
-	body, _ := json.Marshal(map[string]any{"image": "file://" + p, "name": "0xa"})
+	body, _ := json.Marshal(map[string]any{"cpuShare": 1.0, "image": "file://" + p, "name": "0xa"})
 	for name, alter := range map[string]func(s signed) signed{
 		"body":   func(s signed) signed { s.body = bytes.Replace(s.body, []byte("0xa"), []byte("0xb"), 1); return s },
 		"path":   func(s signed) signed { s.path = "/vms/lease"; return s },

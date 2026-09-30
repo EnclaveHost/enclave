@@ -18,9 +18,9 @@
 //     decision, not accounting). If that leaves allocated > B the pool is OVERCOMMITTED: free is 0, every create is
 //     refused, nothing is killed, and creates resume as guests end.
 //   - `allocated` is reservations ONLY, never observed use, and observed use never feeds admission.
-//   - Pricing is NOT this ledger. On this tier a deployment's share is a price unit, a fraction of B at the host's posted
-//     price, while its guest reserves R: a 128 MB app's 1% share is priced at 1% of B and its guest reserves ~1792 MiB.
-//     Admission uses R, never the share. The gap is a pricing question for the operator, not a correctness one.
+//   - A deployment's CPU share bounds its app RAM to floor(share * B.memMiB), in addition to pricing.
+//     Admission checks that bound before reserving R; model minimums cannot bypass it. Runtime, the generic boot
+//     floor and QEMU overhead are separately reserved platform costs, never unbounded app memory.
 //   - B is the host's own configuration. It is no security claim and is in no attested statement: a host that lies
 //     about its pool costs only availability, which the host controls anyway.
 package main
@@ -294,9 +294,10 @@ func (s *server) poolLocked() map[string]any {
 		"overcommitted": overcommitted(s.Budget, a),
 		// how a guest's reservation follows from its policy, so a consumer sizes a claim exactly as guestd admits it:
 		// memMiB = max(floorMiB, policy memMiB + runtimeMiB) + unitOverheadMiB, cpuPct = policy cpuPercent
-		"perGuest": map[string]int{"floorMiB": guestFloorMiB, "runtimeMiB": guestRuntimeMiB, "unitOverheadMiB": unitOverheadMiB},
-		"basis":    "allocated = the reservations of the guests guestd holds (each unit's MemoryMax and CPUQuota), not observed use",
-		"pricing":  "a deployment's share is priced as a fraction of the budget; its guest reserves its own reservation, which admission uses",
+		"perGuest":         map[string]int{"floorMiB": guestFloorMiB, "runtimeMiB": guestRuntimeMiB, "unitOverheadMiB": unitOverheadMiB},
+		"basis":            "allocated = the reservations of the guests guestd holds (each unit's MemoryMax and CPUQuota), not observed use",
+		"ramShareEnforced": true,
+		"pricing":          "CPU share bounds app RAM as a fraction of the budget; platform overhead is reserved separately",
 	}
 }
 

@@ -69,7 +69,7 @@ for (const [name, chunked] of [["oversize", false], ["oversizeChunked", true]]) 
   });
 }
 
-const launch = (name, opts) => c.request("POST", "/vms", { image: "file://" + bundle, name }, opts);
+const launch = (name, opts) => c.request("POST", "/vms", { cpuShare: 1, image: "file://" + bundle, name }, opts);
 const executed = async (name) => ((await stats()).names || {})[name] || 0;
 const findByName = (name) => async (cl) => (await cl.request("GET", "/vms")).body.vms.find((v) => v.name === name) || null;
 

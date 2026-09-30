@@ -148,6 +148,14 @@ func (r *rig) bundle(label string, pol contract.Policy) (string, string) {
 }
 
 func (r *rig) do(method, path string, body any) (int, map[string]any) {
+	// Old fixtures buy the whole node unless testing an explicit smaller share.
+	if method == "POST" && path == "/vms" {
+		if b, ok := body.(map[string]any); ok {
+			if _, present := b["cpuShare"]; !present {
+				b["cpuShare"] = 1.0
+			}
+		}
+	}
 	var rd *bytes.Reader
 	if body != nil {
 		b, _ := json.Marshal(body)

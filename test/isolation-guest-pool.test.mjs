@@ -21,6 +21,7 @@ const TIER = "snp-guest-per-app";
 
 // metal-iso0's control CVM (metal/config.iso.json: 4 CPUs, 6144 MiB) and its posted price (none set: the default 834)
 async function seam(c, backend = TIER, env = {}) {
+  c = { ...c, verdicts: c.verdicts?.map(v => ({ cpuMilli: 1000, ...v })) };
   const { stdout } = await pexec(process.execPath, [SUPERVISOR], {
     env: { ...process.env, SECRET: "test-secret", ISOLATION_BACKEND: backend, GUEST_POOL_SELFTEST: JSON.stringify(c), ISOLATION_SELFTEST: "",
            NODE_RAM_GB: "6", NODE_VCPUS: "4", NODE_GFLOPS: "250", SELL_CPU_PRICE6: "", SELL_GPU_PRICE6: "",
@@ -108,12 +109,12 @@ test("a claim is refused when the app's guest does not fit the pool by its reser
   assert.equal(r.shares[0].cpuShare, 0.01);
   assert.equal(r.verdicts[0], null);
   assert.match(r.verdicts[1], /cannot fit this app's guest: it reserves 1792 MiB \/ 100% CPU .*1500 MiB/);
-  assert.match(r.verdicts[2], /cannot fit this app's guest: it reserves 41152 MiB/);
+  assert.match(r.verdicts[2], /requires 40000 MiB.*cannot fit this host/);
   assert.match(r.verdicts[3], /cannot fit this app's guest/);
-  assert.match(r.verdicts[4], /reports no readable guest pool/);
-  assert.match(r.verdicts[5], /no budget .*-guest-mem-mib/);
+  assert.match(r.verdicts[4], /no readable guest pool/);
+  assert.match(r.verdicts[5], /no readable guest pool/);
   assert.match(r.verdicts[6], /overcommitted/);
-  assert.match(r.verdicts[7], /no isolation policy/);
+  assert.match(r.verdicts[7], /no valid RAM requirement/);
 });
 
 // enclave-99's review of 829ea21b: after the control CVM's update reboot (the release that ships this change is one),
@@ -144,7 +145,7 @@ test("a resume of a guest guestd already holds is judged with the room that gues
   assert.match(r.verdicts[5], /cannot fit .* 1792 MiB \/ 100% is free counting the room its current guest holds/);
   assert.equal(r.verdicts[6], null);
   assert.equal(r.verdicts[7], null, "an overcommitted pool still lets a running guest resume in its own room");
-  assert.equal(r.verdicts[8], null);
+  assert.match(r.verdicts[8], /no readable guest pool/, "cannot adopt without an enforceable share budget");
   assert.match(r.verdicts[9], /no readable guest pool/);
   assert.match(r.verdicts[10], /no readable guest pool/);
   assert.match(r.verdicts[11], /cannot fit this app's guest: it reserves 1792 MiB .* 0 MiB \/ 0% is free$/);
