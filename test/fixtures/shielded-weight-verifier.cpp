@@ -257,6 +257,24 @@ int main(int argc, char **argv) {
                 assert(f.calls==calls);sh_link_close(probe);unlink(minted.c_str());
             }
             if (compact_local) {
+#ifdef SHIELDED_COMPACT
+                // Exercise a geometry eligible for the prearranged codec,
+                // after discarding the original matrix. Minting and quiesce
+                // must use the private reader/refill adapters across restart.
+                std::vector<int8_t> original(256*64,3);
+                auto *packed=sh_compact_create(original.data(),256,64);assert(packed);
+                int err=SH_OK;
+                auto *isolated=sh_link_open("127.0.0.1",1,true,&err);assert(isolated);
+                int node=sh_link_add_weight(isolated,"layout",original.data(),256,64,16,-1);assert(node>=0);
+                assert(sh_link_set_local_weight_source(isolated,node,sh_compact_read,sh_compact_refill,packed)==SH_OK);
+                original.clear();original.shrink_to_fit();
+                assert(sh_link_mint_shipment(isolated,seed,seed,seed,0,2,pk,minted.c_str())==SH_OK);
+                assert(unlink(minted.c_str())==0);
+                sh_link_quiesce(isolated);
+                assert(sh_link_mint_shipment(isolated,seed,seed,seed,2,2,pk,minted.c_str())==SH_OK);
+                assert(unlink(minted.c_str())==0);
+                sh_link_close(isolated);sh_compact_free(packed);
+#endif
                 auto *first = ggml_backend_shielded_init();
                 auto *second = ggml_backend_shielded_init();
                 assert(p.backend_refs == 2);

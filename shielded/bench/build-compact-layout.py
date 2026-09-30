@@ -21,7 +21,10 @@ def change(text, old, new):
  if text.count(old) != 1:
   raise ValueError('provider shape changed; review transformation: '+old[:80])
  return text.replace(old,new)
-code=(src/'shielded-compact.cpp').read_text()
+baseline='7728ee9ee' # Freeze the original experiment; runtime has since evolved.
+def original(path):
+ return subprocess.check_output(['git','show',baseline+':'+path],cwd=root,text=True)
+code=original('wasm/ggml-shielded/shielded-compact.cpp')
 candidate=change(code,'#include <vector>','#include <vector>\n#include <memory>\n#include <oneapi/dnnl/dnnl.hpp>')
 kernel='''
 static dnnl::engine eng(dnnl::engine::kind::cpu,0);
@@ -102,7 +105,7 @@ for name,body in [('base',code),('prepack',candidate),('primitive',plain)]:
 subprocess.run(['c++',*flags,*simd,'-std=c++20','-I'+str(gg),str(root/'shielded/bench/compact-layout.cpp'),*objs,'-L'+str(dn/'usr/lib'),'-ldnnl','-lgomp','-Wl,-rpath,'+str(dn/'usr/lib'),'-L'+str(lib),'-lggml','-lggml-base','-lcrypto','-pthread','-lm','-Wl,--gc-sections','-Wl,-rpath,'+str(lib),'-o',str(w/'compact-layout')],check=True)
 print(w/'compact-layout')
 if a.sanitize:
- fixture=(root/'test/fixtures/shielded-compact-runtime.cpp').read_text()
+ fixture=original('test/fixtures/shielded-compact-runtime.cpp')
  fixture=fixture.replace('#include "../../wasm/ggml-shielded/shielded-compact.cpp"','#include "prepack.cpp"')
  fixture=fixture.replace('sh_compact_','prepack_compact_').replace('{1,16,32,64}','{64}').replace('{64,16,32}','{64}')
  extra='''

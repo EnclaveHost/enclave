@@ -5,9 +5,12 @@ extern "C" {
 #endif
 typedef struct sh_compact_store sh_compact_store;
 /* Private immutable lossless storage; no host mapping, disk, or mask reuse.
+ * Eligible tiles use a prearranged integer-matmul layout only when its encoded
+ * payload is within 1% of the original format. Reads preserve original order.
  * NULL on unsupported CPU/geometry or allocation/validation failure. */
 sh_compact_store *sh_compact_create(const int8_t *, int64_t K, int64_t N);
 void sh_compact_free(sh_compact_store *);
+/* Store buffers and container metadata, excluding shared JIT plans and workers. */
 size_t sh_compact_bytes(const sh_compact_store *);
 int sh_compact_read(void *, uint64_t, uint8_t *, size_t);
 int sh_compact_refill(void *, const int32_t *, int, int32_t *, int64_t);

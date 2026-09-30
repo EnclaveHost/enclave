@@ -251,3 +251,7 @@ See [final rollout evidence](evidence/shield-compact-memory-priority-20260930.js
 The [offline layout investigation](shield-compact-layout-20260930.md) tests
 avoiding repeated GEMM weight packing while retaining compressed private
 weights. It is not part of the deployed provider or a qualified release.
+
+The [runtime integration](shield-compact-layout-runtime-20260930.md) is now
+implemented and staged, including all refill sizes and bounded payload growth.
+It remains undeployed pending full-model qualification.
