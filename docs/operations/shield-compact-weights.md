@@ -1,4 +1,8 @@
-# Compact encoded weights: production candidate
+# Compact encoded weights: experimental runtime
+
+**Production status (2026-09-30): not selected for production.** Both compact
+refill profiles passed functional checks but regressed real MTP chat decode.
+The working raw-weight release remains 83b38d61; see the rollout results below.
 
 This opt-in runtime replaces the resident int8 mask-weight matrices with exact
 private bit-packed frames. It preserves the original-weight reclamation loader,
@@ -178,3 +182,23 @@ uses refill unit 32, which passed the earlier native comparison. This setting
 is compiled into measured init and cannot be selected by the host or app
 configuration. Candidate 79eb055a74f4b2c440ceaa3fa7c80862a0842d663a78bd5aefddefa79be16347
 still requires independent prediction and production qualification.
+
+
+## Unit-32 production result
+
+The unit-32 candidate 79eb055a passed independent image prediction, fresh SNP
+attestation, unchanged W^X checks after real inference, and public TLS on both
+app and custom domains. It generated the same answer in three warm tests, but
+measured 13.9, 13.7 and 13.8 tok/s (13.816 aggregate). A fresh baseline check
+measured 14.8, 14.8 and 14.6 tok/s (14.737 aggregate). The selected samples had
+zero speculative-gate wait and cached prefill; startup and browser warmup were
+completed first. One earlier contended baseline sample was excluded explicitly.
+The candidate regressed 6.25%, so it was rejected and baseline 83b38d61 selected
+again. Neither compact candidate is recommended for production. Native target
+benchmarks did not predict this real speculative application workload.
+
+See [unit-32 production evidence](evidence/shield-compact-production32-20260930.json)
+and [unit-64 production evidence](evidence/shield-compact-production64-20260930.json).
+The local candidate directories contain NOT-FOR-PRODUCTION.txt markers. The
+backend remains opt-in for further work; the normal production runtime is
+unchanged. Do not report the native 19.44 tok/s result as a deployed Eyesoff rate.
