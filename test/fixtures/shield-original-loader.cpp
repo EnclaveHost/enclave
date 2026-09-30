@@ -8,6 +8,7 @@
 #include <vector>
 #include <array>
 #include <openssl/sha.h>
+extern "C" int ell_shield_release_consumed_sources();
 int main(int argc,char **argv) {
     assert(argc==2);
     ell_init();
@@ -35,6 +36,9 @@ int main(int argc,char **argv) {
         ggml_backend_tensor_get(t,data.data(),0,data.size());
         read+=data.size(); count++;
     }
+    assert(!stat(argv[1],&after));
+    assert(before.st_blocks == after.st_blocks);
+    assert(ell_shield_release_consumed_sources() == 0);
     assert(!stat(argv[1],&after));
     assert(count && before.st_blocks>after.st_blocks);
     for (const auto &entry:cpu) {

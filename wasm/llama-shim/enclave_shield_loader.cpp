@@ -54,9 +54,10 @@ extern "C" llama_model *ell_shield_load_model(const char *path, llama_model_para
     attempted = true;
     auto *reg = ggml_backend_reg_by_name("Shielded");
     auto bind = reg ? (decltype(&ggml_backend_shielded_set_weight_verifier))ggml_backend_reg_get_proc_address(reg, "ggml_backend_shielded_set_weight_verifier") : nullptr;
+    auto release = reg ? (decltype(&ggml_backend_shielded_set_source_release))ggml_backend_reg_get_proc_address(reg, "ggml_backend_shielded_set_source_release") : nullptr;
     auto source = reg ? (decltype(&ggml_backend_shielded_weight_source))ggml_backend_reg_get_proc_address(reg, "ggml_backend_shielded_weight_source") : nullptr;
     auto candidate = reg ? (decltype(&ggml_backend_shielded_source_candidate))ggml_backend_reg_get_proc_address(reg, "ggml_backend_shielded_source_candidate") : nullptr;
-    if (!bind || !source || !candidate || params.use_extra_bufts) {
+    if (!bind || !release || !source || !candidate || params.use_extra_bufts) {
         fprintf(stderr, "[shield-source] incompatible loader/backend; refusing unverified fallback\n"); return nullptr;
     }
     state.reset(new loader_state);
@@ -96,6 +97,8 @@ extern "C" llama_model *ell_shield_load_model(const char *path, llama_model_para
         s.buffers.push_back(cpu_buffer);
         // Bind only after metadata parsing, before any graph or registration.
         if (bind(shield_original_source::verify, &s.source)) throw std::runtime_error("verifier admission");
+        s.source.defer_retirement = true;
+        if (release(shield_original_source::release_consumed, &s.source)) throw std::runtime_error("source retirement admission");
         uint64_t streamed = 0, resident = 0; size_t count = 0;
         std::set<ggml_tensor *> seen;
         for (const auto &kv : llama_internal_get_tensor_map(s.model)) {
@@ -140,6 +143,12 @@ extern "C" llama_model *ell_shield_load_model(const char *path, llama_model_para
         s.model=nullptr; free_buffers(s);
         return nullptr;
     }
+}
+// Also used by the full-model loader fixture, which reads every source without
+// allocating the encoded 27B model. Normal inference invokes the same callback
+// automatically at the end of each successful backend registration batch.
+extern "C" int ell_shield_release_consumed_sources() {
+    return state ? shield_original_source::release_consumed(&state->source) : -1;
 }
 extern "C" void ell_shield_free_model(llama_model *model) {
     llama_model_free(model);

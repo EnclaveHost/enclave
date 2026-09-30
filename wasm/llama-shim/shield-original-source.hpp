@@ -23,10 +23,12 @@ struct shield_original_source {
         uint64_t offset, size;
         std::array<unsigned char, SHA256_DIGEST_LENGTH> digest;
         bool retired = false;
+        bool consumed = false;
     };
     int private_fd = -1, backing_fd = -1;
     uint64_t file_size = 0, released_bytes = 0, reread_bytes = 0;
     size_t page = 0;
+    bool defer_retirement = false;
     std::map<std::string, entry> entries;
     std::mutex mu;
     ~shield_original_source() {
@@ -77,6 +79,17 @@ struct shield_original_source {
         released_bytes += end-begin;
         return true;
     }
+    static int release_consumed(void *ctx) {
+        auto &s = *static_cast<shield_original_source *>(ctx);
+        std::lock_guard<std::mutex> lock(s.mu);
+        for (auto &kv : s.entries) {
+            auto &e = kv.second;
+            if (!e.consumed || e.retired) continue;
+            if (!s.retire(e.offset, e.size)) return -1;
+            e.retired = true;
+        }
+        return 0;
+    }
     static int verify(void *ctx, const char *name, uint32_t type, const int64_t ne[4], const void *bytes, size_t n) {
         auto &s = *static_cast<shield_original_source *>(ctx);
         const auto *e = s.find(name, type, ne, n);
@@ -95,6 +108,11 @@ struct shield_original_source {
             s.reread_bytes += n;
             posix_fadvise(fd, e.offset, n, POSIX_FADV_DONTNEED);
         } else {
+            e.consumed = true;
+            // Preserve the original allocation order while encoded weights
+            // are being built. The planner releases this batch after all its
+            // registrations have authenticated and allocated their weights.
+            if (s.defer_retirement) return 0;
             // The verifier consumes this private destination, never this file
             // again. Authentication failure latches the backend closed.
             if (!s.retire(e.offset, e.size)) return -1;

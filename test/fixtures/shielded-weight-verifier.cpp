@@ -85,10 +85,22 @@ int main(int argc, char **argv) {
     if (local_mint) unsetenv("SHIELDED_PAD_SOURCE");
     auto *cpu = ggml_backend_cpu_init(); assert(cpu); ggml_backend_cpu_set_n_threads(cpu, 1);
     verifier_state state;
+    struct release_state { verifier_state *state; int calls; bool fail; } release{&state, 0, scenario == "source_release_fail"};
+    auto release_sources = +[](void *opaque) {
+        auto &r = *static_cast<release_state *>(opaque);
+        assert(r.state->calls == 2); // every source authenticated first
+        assert(sh_pool_get().cards[0]->weights.size() == 2); // encoded storage exists
+        r.calls++;
+        return r.fail ? SH_ERR_IO : SH_OK;
+    };
     source_stats_check(state);
+    assert(ggml_backend_shielded_set_source_release(release_sources, &release) == SH_ERR_RANGE);
     assert(ggml_backend_shielded_set_weight_verifier(nullptr, &state) == SH_ERR_RANGE);
     assert(ggml_backend_shielded_set_weight_verifier(verify, &state) == SH_OK);
     assert(ggml_backend_shielded_set_weight_verifier(verify, &state) == SH_ERR_RANGE);
+    assert(ggml_backend_shielded_set_source_release(nullptr, &release) == SH_ERR_RANGE);
+    assert(ggml_backend_shielded_set_source_release(release_sources, &release) == SH_OK);
+    assert(ggml_backend_shielded_set_source_release(release_sources, &release) == SH_ERR_RANGE);
     sh_pool &p = sh_pool_get(); sh_state &s = *p.cards[0];
     s.configured = s.calib_loaded = true; s.calib_version = 2;
     s.calib["blk.0.ffn_gate.weight"] = {8, {}};
@@ -161,10 +173,15 @@ int main(int argc, char **argv) {
         other.link_failed = true; other.link_retry_at = DBL_MAX; other.dirty = false;
     } else sh_plan(p);
     ggml_cgraph empty = {};
-    if (scenario != "honest" && scenario != "source" && !local_mint && scenario != "background_integrity") {
+    if (scenario == "source_release_fail") {
+        assert(release.calls == 1 && state.calls == 2 && s.weights.size() == 2 && s.source_verification_failed);
+        assert(ggml_backend_shielded_graph_compute(nullptr, &empty) == GGML_STATUS_FAILED);
+    } else if (scenario != "honest" && scenario != "source" && !local_mint && scenario != "background_integrity") {
+        assert(release.calls == 0);
         assert(s.source_verification_failed && s.weights.empty() && state.calls == (state.read_fail ? 0 : 1));
         assert(ggml_backend_shielded_graph_compute(nullptr, &empty) == GGML_STATUS_FAILED);
     } else {
+        assert(release.calls == (split_local ? 0 : 1));
         assert(state.calls == expected_reads && s.weights.size() == 2 && !s.source_verification_failed);
         for (const auto &kv : s.weights) {
             assert(kv.second.source_verified);
