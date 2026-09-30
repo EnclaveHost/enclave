@@ -71,6 +71,13 @@ typedef int (*ggml_shielded_weight_verifier)(void *ctx, const char *name,
 GGML_BACKEND_API int ggml_backend_shielded_set_weight_verifier(
     ggml_shielded_weight_verifier verifier, void *ctx);
 
+/* Optional source retirement after a successful registration batch. Installed
+ * after the verifier and before any graph. Called under the pool lock; it must
+ * not reenter the backend. Failure latches source verification closed. */
+typedef int (*ggml_shielded_source_release)(void *ctx);
+GGML_BACKEND_API int ggml_backend_shielded_set_source_release(
+    ggml_shielded_source_release release, void *ctx);
+
 /* Optional streamed PUBLIC weights. The reader fills exactly nbytes of private
  * storage; it may read an untrusted file. The installed verifier authenticates
  * those same bytes before encoding or copying them to another backend.

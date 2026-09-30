@@ -39,9 +39,18 @@ int main(int argc, char **argv) {
     s.add("blk.0.attn_q.weight", 8, ne, off, n);
     struct stat before{},after{}; assert(!fstat(s.private_fd,&before));
     std::vector<unsigned char> out(n), neighbour(64);
+    s.defer_retirement = true;
     assert(!s.read(&s,"blk.0.attn_q.weight",8,ne,out.data(),n));
     assert(out == std::vector<unsigned char>(bytes.begin()+off,bytes.begin()+off+n));
     assert(!s.verify(&s,"blk.0.attn_q.weight",8,ne,out.data(),n));
+    assert(!fstat(s.private_fd,&after));
+    assert(before.st_blocks == after.st_blocks && s.released_bytes == 0);
+    // A second card still reads the private original until the complete
+    // registration batch has allocated its encoded weights.
+    assert(!s.read(&s,"blk.0.attn_q.weight",8,ne,out.data(),n));
+    assert(s.reread_bytes == 0);
+    assert(!s.release_consumed(&s));
+    assert(!s.release_consumed(&s)); // idempotent, no duplicate retirement
     assert(!fstat(s.private_fd,&after));
     assert(before.st_blocks>after.st_blocks && (before.st_blocks-after.st_blocks)*512 == (int64_t)s.released_bytes);
     assert(s.released_bytes==s.page*99 && s.reread_bytes==0);

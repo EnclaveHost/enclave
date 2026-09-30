@@ -2,7 +2,7 @@
 
 The opt-in measured Shield runtime (`--original-source-reclaim` in
 `isolation/m4/build-shielded-engine.py`) retires the original quantized GGUF
-pages after copying their tensor into private memory for authenticated encoding.
+pages after a registration batch finishes authenticated encoding and allocation.
 It does **not** remove the encoded int8 rows used for local mask generation,
 change the pad dealer, relax GPU result verification, or reduce the KV/MTP caches.
 
@@ -24,11 +24,14 @@ private pages under one read-only mapping and CPU buffer. Only calibrated quanti
 source-placement rules get non-host source buffers, whose guarded pointers
 cannot be accessed as ordinary CPU memory.
 
-On the first source read, a private destination receives the original bytes;
-only complete pages strictly within that tensor's extent are punched out of the
-private file. Adjacent tensor boundary pages remain intact. The backend verifies
-the destination before encoding it. A subsequent source read uses the public
-backing device and authenticates the entire tensor against the private table.
+Each source read first fills a private destination, which the backend verifies
+before encoding. The original private pages remain throughout the registration
+batch, including both cards' reads, so their early retirement cannot change the
+allocation of long-lived encoded weights. At the successful end of the batch, a
+registered callback punches only complete interior pages of consumed tensors.
+CPU tensors and unread sources remain intact. A release failure latches the
+backend closed before inference. Later reads of retired sources use the public
+backing device and authenticate the entire tensor against the private table.
 The CPU mapping is of the authenticated private tmpfs, never the public block
 device. No host-backed mmap or one-time verification of mutable host bytes is used.
 An unexpected fallback still passes through this authenticated read interface.
@@ -87,7 +90,36 @@ inference peak memory, cache occupancy and throughput first.
 The first production qualification saved 13.35 GiB of total guest RAM after
 prefix warmup (57.88 to 44.53 GiB), while preserving output and MTP acceptance.
 It was withdrawn because cached throughput measured about 15.0 tok/s versus a
-back-to-back baseline near 15.7. The revised loader preserves the original CPU
-mapping/buffer layout rather than copying every CPU tensor into a separate
-allocation. Its performance qualification must pass before it replaces the
-baseline; loader correctness alone is not evidence of unchanged throughput.
+back-to-back baseline near 15.7. The second candidate preserved the original CPU mapping/buffer layout, but
+also measured about 15.0 tok/s and was withdrawn. The next candidate puts only
+temporary source copies in direct anonymous mappings and unmaps them after
+encoding. The SHA streaming scratch uses a bounded 64 KiB stack buffer. These
+changes avoid large scratch allocations changing glibc's dynamic mmap threshold
+and the allocation of long-lived encoded weights. This is an allocator
+hypothesis until qualified by a production A/B test; encoded int8 allocation,
+masking and verification remain unchanged.
+
+Scratch-buffer tests verify move ownership, allocation failure and that released
+mappings are absent (`mincore` returns `ENOMEM`). Prefetch and authenticated
+source tests pass, and the revised runtime completes 16 native decode steps on
+the small model with 720 MiB peak RAM. A full 27B loader run releases
+15,752,638,464 bytes (14.671 GiB), retains all CPU tensor hashes and uses a 3 GiB
+peak without swap. Allocated-block accounting differs by a few pages between fixture runs. Performance qualification must pass before retaining this
+release in production; loader correctness alone is not throughput evidence.
+
+A fresh baseline measurement before the third candidate produced 14.8, 15.1,
+15.1 and 14.8 tok/s (median 14.95), with 709–738 ms first-token latency and
+0–1 ms cached prefill. It overlaps the withdrawn candidates, so the earlier
+15.7-versus-15.0 difference cannot yet be attributed solely to reclamation.
+Compare the third candidate with this fresh baseline using the same prompt,
+MTP acceptance, cache state and inactive browser automation helper.
+
+The scratch candidate was also withdrawn after 14.4–14.9 tok/s samples versus
+the latest 14.8–15.1 baseline. It reduced total guest RAM from 62.46 to 48.85 GiB
+after cached chat, but the small speed difference remains unresolved. Two host
+CPU-placement trials were reverted. The next candidate defers retirement until
+all registrations in the current planner batch have completed, preserving the
+private original pages while encoded allocations are created. Its callback is
+installed only with the verifier before registration; failures latch all cards
+closed. Unit coverage checks callback ordering, rejection before verifier
+admission, duplicate/late installation, and failure before graph execution.

@@ -86,6 +86,8 @@ static int64_t sh_af_delta(const sh_state &s);
 static sh_window_fn g_win_fn; static void *g_win_ctx;   /* dealt pads: see ggml_backend_shielded_set_window_provider */
 static ggml_shielded_weight_verifier g_weight_verifier;
 static void *g_weight_verifier_ctx;
+static ggml_shielded_source_release g_source_release;
+static void *g_source_release_ctx;
 static ggml_shielded_encoded_source g_encoded_source;   /* optional catalog hit path (shielded-encoded-source.h) */
 static void *g_encoded_source_ctx;
 static ggml_shielded_encoded_failure g_encoded_failure;  /* optional: names the tensor whose catalog artifact failed a verified read */
@@ -362,6 +364,27 @@ int ggml_backend_shielded_set_weight_verifier(ggml_shielded_weight_verifier veri
             return SH_ERR_RANGE;
     g_weight_verifier = verifier; g_weight_verifier_ctx = ctx;
     return SH_OK;
+}
+
+int ggml_backend_shielded_set_source_release(ggml_shielded_source_release release, void *ctx) {
+    sh_pool &p = sh_pool_get();
+    std::lock_guard<std::mutex> lk(p.mu);
+    if (!release || g_source_release || !g_weight_verifier || p.invalid || !p.pending.empty()) return SH_ERR_RANGE;
+    for (const auto *s : p.cards)
+        if (!s->weights.empty() || !s->refused.empty() || s->source_verification_failed || s->weight_cache_failed)
+            return SH_ERR_RANGE;
+    g_source_release = release; g_source_release_ctx = ctx;
+    return SH_OK;
+}
+
+static void sh_release_consumed_sources(sh_pool &p) {
+    if (!g_source_release) return;
+    int rc = SH_ERR_IO;
+    try { rc = g_source_release(g_source_release_ctx); } catch (...) { }
+    if (rc != SH_OK) {
+        for (auto *s : p.cards) s->source_verification_failed = true;
+        fprintf(stderr, "[shielded] consumed source retirement failed; aborting model load\n");
+    }
 }
 
 /* Same admission rules as the verifier: only before any registration, and only WITH a verifier (the catalog is an
@@ -1349,6 +1372,7 @@ static void sh_plan(sh_pool &p) {
             }
         }
         p.pending.clear();
+        sh_release_consumed_sources(p);
         return;
     }
     for (auto &layer : layers) {
@@ -1387,6 +1411,7 @@ static void sh_plan(sh_pool &p) {
         }
     }
     p.pending.clear();
+    sh_release_consumed_sources(p);
 }
 
 /* --------------------------------------------------------------------------
@@ -3052,6 +3077,7 @@ static const struct ggml_backend_reg_i ggml_backend_shielded_reg_i = {
     /* .get_device       = */ sh_reg_get_device,
     /* .get_proc_address = */ [](ggml_backend_reg_t, const char *name) -> void * {
         if (!strcmp(name, "ggml_backend_shielded_set_weight_verifier")) return (void *)ggml_backend_shielded_set_weight_verifier;
+        if (!strcmp(name, "ggml_backend_shielded_set_source_release")) return (void *)ggml_backend_shielded_set_source_release;
         if (!strcmp(name, "ggml_backend_shielded_weight_source")) return (void *)ggml_backend_shielded_weight_source;
         if (!strcmp(name, "ggml_backend_shielded_source_candidate")) return (void *)ggml_backend_shielded_source_candidate;
         return nullptr;
