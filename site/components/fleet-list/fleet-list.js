@@ -148,7 +148,12 @@ class FleetList extends EnclaveElement {
           // tier is under construction - CPU-only inference inside the pVM, admission by proven
           // capability - so the badge is its identity and the tooltip is future tense. Never the jade
           // "tee cpu" of the server contract, which this is not.
-          const teeCpuBadge = tc.real && tc.phone
+          // Shield marketplace admission is a relay verdict, separate from a CPU TEE.
+          const shieldCpu = e.tunnel === true && e.mode === "hv-node" && e.tier === "enclave-shield"
+            && e.eligible === true && e.appEvidenceRequired === true;
+          const teeCpuBadge = shieldCpu
+            ? '<span class="ap-badge info" title="Enclave Shield: the relay verifies each app’s measured partition and guest-held TLS key. The physical operator and hypervisor remain trusted.">cpu</span>'
+            : tc.real && tc.phone
             ? '<span class="ap-badge warn" title="' + esc(tc.note) + '. The relay verified this phone\u2019s protected-VM attestation chain when it attached and admitted its capability report'
               + (e.pvmCpu && e.pvmCpu.model ? ' (model ' + esc(e.pvmCpu.model) + ')' : '') + '. The tier is being built for Pixel 10 and Pixel 11 and is not available for deployments yet.">pvm cpu</span>'
             : tc.real && tc.phoneUntiered
