@@ -1,44 +1,157 @@
 # Paid capacity verification
 
-Status: pricing component implemented and unit-tested; scheduling, contracts and production rollout remain incomplete. No audit spending is enabled.
+Implementation branch: `codex/paid-capacity-audits-20260930`. Workload app:
+`EnclaveHost/enclave-apps`, branch `codex/capacity-work-20260930`, directory
+`capacity-work`. These changes are not deployed and no verification spending is enabled.
 
-## Current direction: transparent tests and supply/demand pricing
+## Price follows paid demand and qualified supply
 
-The user subsequently accepted that verification jobs may be recognizable and requested that their price rise with paid customer demand relative to qualified supply, falling when supply exceeds demand. The historical concealment discussion below records why absolute indistinguishability was not adopted. It is no longer a rollout requirement.
+`availability/pricing.mjs` prices a fixed-duration offer within one comparable
+resource/isolation class. Demand and supply are normalized resource-seconds over
+the same finalized observation window. Supply includes occupied qualified
+capacity; only spare capacity can receive verification work.
 
-`availability/pricing.mjs` implements a deterministic quote for a fixed-duration job. The inputs are comparable resource-seconds within one resource/isolation class and one time window, not host counts. Demand must come from real customer work; verification-generated demand is excluded. Supply is the total recently qualified capacity, including capacity occupied by customer work. Separately, a job can only be offered against spare capacity. Otherwise useful customer work shrinking the idle pool would artificially inflate the scarcity signal.
+The initial curve is `anchorRate × (paidDemand / qualifiedSupply)²`, bounded by
+configured multiplier limits, a payer maximum rate, per-job spending and available
+budget. At demand/supply 0.5, 1 and 2, the unconstrained multipliers are 0.25, 1 and
+4. These are curve examples, not production dollar prices. A class-specific anchor
+is still needed: a dimensionless ratio cannot set a dollar price by itself.
 
-The initial configurable curve is `anchorRate * (paidDemand / qualifiedSupply)^2`, bounded by explicit multiplier and payer price limits. At demand/supply 0.5 the unconstrained multiplier is 0.25; at 1 it is 1; at 2 it is 4. These are a policy shape, not deployed dollar prices. The anchor gives the ratio a currency value and must be agreed for each comparable resource class; a dimensionless demand/supply ratio cannot determine dollars on its own. The minimum multiplier permits a small offer under low demand only when an already-authorized budget exists. Zero budget or no qualified spare resources produces no offer.
+Stale observations, insufficient funds, unavailable capacity and offers below a
+host's acceptance floor produce no job. Ordered observation epochs and elapsed-time
+price-change limits prevent repeated polls from ratcheting the rate. Quotes expire.
+Hosts explicitly accept negotiated rates; customer tariffs and already-claimed
+lease prices remain intact. Compatible queued customer jobs take priority over new
+verification work, even if the scarcity quote would be high.
 
-Quotes enforce observation freshness, duration bounds, host minimum acceptance, payer maximum rate, per-job spend and remaining authorized budget. Epoch ordering and elapsed-time price-change limits stop repeated reads from ratcheting prices. Each quote expires and fixes the rate for its purchased interval. Policy changes cannot reprice existing leases. A host can decline; a lower verification offer is a separate voluntarily accepted purchase, not unilateral underpayment of its customer tariff.
+## Accounting and execution
 
-This is not a finished economic mechanism. The demand/supply aggregator must exclude wash demand, duplicate capacity and stale evidence, distinguish resource classes, normalize protected execution performance, and resist short-term supply withholding. Queued demand must be backed by real purchasing authority and bounded so cheap queue spam cannot raise rewards. Customer work has priority; refusing compatible work must not generate replacement audit allocations. Reward spending is limited by actual customer revenue, so scarcity cannot create an unfunded promise. Thin-market anchors, observation windows, smoothing, revenue percentage and daily caps remain explicit configuration decisions.
+- `chain-observation.mjs` replays finalized ledger events with archive snapshots.
+  Demand comes from USDC runner credits paired with proof-of-time checkpoints.
+  Verification-funded jobs and known verification app versions are excluded.
+  Missing archive state or a proof-policy change invalidates the observation.
+- `accounting.mjs` matches that work to qualified hardware identities. It rejects
+  conflicting aliases, duplicate service events and overlapping service intervals;
+  excludes direct operator/payout self-hosting; and bounds funded queued demand
+  and each owner's influence. Supply certificates must cover the observation
+  window. Recent spare-capacity observations are required separately.
+- `evidence.mjs` checks domain-bound EIP-712 capacity receipts. At least two
+  configured independent witness groups must sign; the host's own configured
+  group cannot count. `observation.mjs` binds their receipt to the current registry
+  identity and payout wallet. Witness membership is explicit payer policy.
+- `scheduler.mjs` spreads concurrent jobs across hardware identities, with
+  cooldowns and budget reservations. `coordinator.mjs` persists pricing epochs and
+  reservations and resumes unfinished jobs. It processes independent hosts
+  concurrently; native reference computations are serialized to bound verifier RAM.
+- `chain-adapter.mjs` creates ordinary catalog deployments, stages a per-job secret,
+  obtains the host's rate offer, requests exact payer authorization and funds the
+  job. It checks the actual lease identity and rate. Wrong-host results are rejected
+  and the deployment is stopped. Existing permissionless claims do not guarantee
+  that only the intended host can briefly claim a job.
+- `workload.mjs` sends a fresh CPU/RAM challenge and compares the full result with
+  a native reference. `verified-http.mjs` verifies the live Shield/SNP app evidence
+  against independently loaded ledger, catalog, runtime and host expectations,
+  and pins the workload request to that same TLS key. WebPKI alone is insufficient.
+- The durable state directory holds private job tokens and authorizations with
+  restrictive permissions. Transactions are journaled before submission. An
+  uncertain broadcast with no transaction hash requires explicit reconciliation;
+  the driver never guesses and submits a second payment. Interrupted tests fail
+  rather than being rerun to select a better result. Completion waits for lease
+  release/expiry and any currently refundable escrow to be returned.
 
-Validation: ten pricing tests cover scarcity response, extreme demand, funding limits, host minimums, stale and out-of-order observations, disabled policy, rate-change limits, malformed inputs and monotonic demand/supply sweeps. No live customer funds were spent.
+The app is deliberately recognizable verification work. It uses normal WASI HTTP,
+isolation, shares, scheduling and proof-of-time payments. Passing establishes the
+work actually exercised, not every advertised CPU/RAM/GPU resource, exclusive
+hardware possession or resistance to outsourced computation. The CPU/RAM algorithm
+has possible time/memory tradeoffs and makes no GPU capacity claim. Witness trust
+and per-owner demand limits are not Sybil-proof consensus or a complete defense
+against wash trading or coordinated supply withholding.
 
-## Requirement
+## Contracts and payer authority
 
-A host must not be able to give preferential service to verification work over customer work. Both must use the same scheduling, isolation, resource limits, networking, billing and proof-of-time paths, and successful work must earn the usual hosting payment. Revenue-derived funding is authorized by the paying wallet, not a shared reserve.
+`EnclaveDeployments` revision 14 adds `offerJobRate` and `fundFor` without changing
+the deployment tuple. The operator's offer snapshots owner and shares, expires,
+and cannot reprice an existing lease. Ordinary owner caps, publisher fees and free
+self-hosting still apply. `fundFor` debits its caller and explicitly attributes
+refundable owner escrow; it cannot debit the named beneficiary.
 
-The initial companion-contract prototype is not suitable for a claim that audits are impossible to recognize. Its funding transactions identify sponsored deployments, and distinct application binaries, configuration, request patterns and funding accounts can reveal synthetic tests. Keeping an audit flag out of the deployment record alone does not fix this.
+`EnclaveAvailability` is an opt-in companion with no admin, pooled reserve or
+retained job funds. A source deployment's payer sets executor, percentage (at most 10%), expiry,
+per-job limit and a payer-wide daily limit. Only newly proof-credited service
+submitted through its checkpoint wrapper unlocks budget. Verification-funded jobs
+cannot recursively earn funding allowance through the same companion. Editing a
+policy clears accrued allowance without resetting the payer's daily spend.
 
-## Two architectures that remove advance selection
+Each job needs an exact USDC authorization addressed to the companion, with a nonce
+bound to chain, contract, source, policy epoch, deployment and reviewed job fields.
+Only that companion can redeem it. Within one atomic transaction it enforces the
+limits, receives USDC, grants the ledger an exact allowance and forwards the funds
+with the original payer's refund attribution. No balance or residual allowance
+remains after successful funding. A failed transfer rolls back budget accounting.
 
-1. Verify every ordinary paid job. There is no distinct audit population to recognize. Verification cost must be supported by the application's verification method and payment budget. A generic program does not automatically have cheap verification; attestation proves a specific trust boundary and is not itself proof of output correctness or idle capacity.
-2. Commit ordinary job results and execution evidence, then select completed jobs using fresh independent randomness. Selection cannot be computed from a public job ID, predictable timestamp, disclosed seed, or host-controlled input before execution. Commitments must be fixed before randomness is available, with enforceable deadlines and no ability to discard losing outcomes, retry identities or selectively omit jobs. The randomness source, its manipulation resistance, finality and outage behavior must be specified before deployment. This establishes a conditional guarantee about selection before commitment, not absolute invisibility across all side channels.
+**Funding limitation:** this implementation is an explicit additional allocation
+from the payer, bounded by a fraction of proven service revenue. It does not yet
+carve money out of the existing platform fee or reduce an existing host/publisher
+payment. Do not describe it as the requested automatic fee split. That integration
+remains separate work. Native gas must still be supplied by transaction submitters;
+this does not remove the host's gas requirement. EOA hardware-wallet users must
+sign each authorization unless they separately configure a supported wallet policy.
 
-Neither design relies on making a specially recognizable synthetic benchmark look ordinary. Both need a complete, attributable job ledger so a host cannot report only its successful jobs. A completion commitment must bind chain/contract, deployment and lease, job identity, execution image, input/output commitments, allocated resources and measurement interval. Private contents require explicit authorization and protected verifier execution; publishing hashes or granting a verifier access must not silently weaken app privacy.
+## Deployment dependencies
 
-## What capacity results mean
+The reusable coordinator entry point is:
 
-Observed performance substantiates the resources and interval actually exercised. A small successful request is not proof of the entire advertised RAM, VRAM, CPU or concurrent job capacity. Independently witnessed completion latency includes network and queue delays; a host-provided timer alone is not reliable. Concurrent reservations and overlap must be checked before aggregating capacity. On Shield hardware, successful computation does not establish exclusive ownership of a physical GPU or prevent all outsourcing.
+```
+node scripts/availability/run.mjs /absolute/private/config.mjs --once
+```
 
-Idle capacity has no real workload to sample. It must either receive real paid work, run additionally funded work whose observability must be analyzed, or remain unverified for the idle period. Neither post-completion selection nor universal verification justifies an availability payment based only on a host's online claim.
+The configuration exports `stateDirectory`, `intervalSec` (1–60), and
+`configure(store)`. The latter returns `chain`, `workload`, `loadObservation`,
+`policy`, and `scheduling` for `runRound`. Compose the real adapters above; do not
+substitute a host-reported utilization value or an `attestationVerified` Boolean
+for a verifier. A live configuration requires:
 
-## Payments and rollout constraints
+1. An approved ledger revision-14 migration preserving existing deployments,
+   escrow, leases and ownership, plus its bound availability companion. Generated
+   browser-admin artifacts contain the new contracts; nothing was deployed.
+2. A published, pinned `capacity-work` app version, reviewed resource sizes and
+   performance thresholds, authenticated secret staging, and real app-attestation
+   expectations. The initial profile supports CPU/RAM work only.
+3. Independent witness identities/groups, capacity qualification evidence,
+   receipt expiry and resource normalization policy. A tiny readiness VM being
+   responsive is not evidence for a machine's full advertised capacity.
+4. Explicit payer source, funding percentage, daily/per-job limits, expiry,
+   price anchors and wallet signing policy. No production funding values were
+   inferred from the test fixtures. Fix the fee-allocation limitation above before
+   claiming the original fee-funded availability design is complete.
+5. Host-side offer acceptance and checkpoint submission through the companion.
+   Choose observation freshness/window limits consistent with chain finality;
+   never substitute unfinalized state just to keep quoting during an outage.
+6. A hardware staging run covering valid and rejected evidence, then a bounded
+   production canary. Local WASM and Anvil tests do not prove hardware isolation.
 
-Keep successful host payouts on the ordinary proof-of-time path. Funding limits must be based on newly credited paid service, never advertised capacity or purchased but unserved lease time. Enforce payer authorization, an explicit percentage, per-job and daily limits, expiry, revocation, replay protection and no recursive rewards. A source deployment's owner transfer must invalidate the former payer's authority.
+## Validation
 
-USDC authorizations must remain bound to the intended deployment and ledger. Routing funds with the companion contract as the apparent payer would lose the existing owner's refund attribution; the production path must preserve the true payer. Transaction submitters still need upfront native gas or a separately specified sponsorship mechanism. No change to gas funding or an automatic fee diversion has been deployed.
+- 32 JavaScript tests cover pricing, accounting, real event ABI replay, signature
+  domains/quorums, durable recovery, concurrent scheduling, binding failures and
+  workload/lease bounds.
+- 180 relevant Solidity tests cover the ledger and companion (including 512-run
+  funding fuzz coverage), ordinary pricing, self-hosting, publisher fees, fixed
+  lease rates, revocation, daily limits, authorization bypass attempts, refunds
+  and token-failure rollback.
+- A local Anvil integration uses real contracts and signatures to prove source
+  credit → accepted negotiated price → exact job funding → lease release/refund.
+  Hardware attestation is mocked only in that test and explicitly labeled.
+- The real WASI HTTP component matches its native reference at 0, 1 and 8 MiB,
+  and refuses missing authentication and out-of-bounds requests. Three Rust tests
+  cover input bounds and challenge sensitivity.
+- solc 0.8.35/viaIR/runs=1 produces a 24,483-byte ledger runtime, below EIP-170.
 
-Pending decisions: funding percentage and daily cap; pricing anchors and observation parameters; resource-specific verifiable workloads; privacy-preserving verifier admission; robust demand/supply accounting and witness selection. No absolute unrecognizability claim is warranted without a precise adversary model and a supported proof.
+Commands:
+
+```
+node --test test/availability-*.test.mjs
+forge test --match-contract 'JobRatesTest|EnclaveAvailabilityTest|EnclaveDeployments.*'
+node scripts/availability/test-chain.mjs
+node scripts/availability/test-workload.mjs /absolute/path/to/enclave-apps/capacity-work
+```
