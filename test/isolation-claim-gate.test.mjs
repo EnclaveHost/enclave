@@ -19,6 +19,7 @@ const pexec = promisify(execFile);
 const SUPERVISOR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "supervisor.js");
 
 async function seam(c, backend = "", release = "") {
+  c = { ...c, verdicts: c.verdicts?.map(v => ({ cpuMilli: 1000, ...v })) };
   const { stdout } = await pexec(process.execPath, [SUPERVISOR], {
     env: { ...process.env, SECRET: "test-secret", ISOLATION_BACKEND: backend,
            ISOLATION_SELFTEST: JSON.stringify(c), ISOLATION_RELEASE: release,
@@ -218,7 +219,7 @@ test("protected ports require V3 and an explicit manager capability; the full so
 
 test("Shield claims require a released, pinned model and room on both cards", async () => {
   const manager = { ...GUESTD, supports: { ...GUESTD.supports, gpu: true, release: true },
-    inference: { model: "qwen2.5-0.5b-q8-gguf", cardFreeBytes: 31*2**30 } };
+    inference: { modelFloorsMiB: {"qwen2.5-0.5b-q8-gguf":8192}, model: "qwen2.5-0.5b-q8-gguf", cardFreeBytes: 31*2**30 } };
   const valid = { ...clean, manager, listed: "listed", gpuMilli: 100, volumes: [manager.inference.model] };
   const r = await seam({ verdicts: [valid, { ...valid, gpuMilli: 64 }, { ...valid, volumes: ["unmeasured-model"] },
     { ...valid, listed: "unlisted" }, { ...valid, manager: { ...manager, inference: { ...manager.inference, cardFreeBytes: 0 } } },
@@ -240,8 +241,8 @@ test("the measured derivation binds model and GPU allocation", async () => {
 test("27B admission accounts for model RAM and sixteen CPUs before claiming", async () => {
   const model="qwen3.8-27b-mtp-q4-vl-gguf";
   const manager={...GUESTD,supports:{...GUESTD.supports,gpu:true,release:true},
-    inference:{models:[model],cardFreeBytes:31*2**30},
-    pool:{...POOL,free:{memMiB:53760,cpuPct:1900}}};
+    inference:{models:[model],modelFloorsMiB:{[model]:73728},cardFreeBytes:31*2**30},
+    pool:{...POOL,budget:{memMiB:90112,cpuPct:2400},free:{memMiB:75000,cpuPct:1900}}};
   const valid={...clean,manager,listed:"listed",gpuMilli:500,volumes:[model]};
   const r=await seam({verdicts:[valid,{...valid,gpuMilli:490},
     {...valid,manager:{...manager,pool:{...manager.pool,free:{memMiB:51000,cpuPct:1900}}}},
@@ -250,4 +251,29 @@ test("27B admission accounts for model RAM and sixteen CPUs before claiming", as
   assert.equal(r.verdicts[0],null);
   for(const why of r.verdicts.slice(1)) assert.ok(why);
   assert.deepEqual(r.derive[0].policy,{cpuPercent:1600,memMiB:50816,vcpus:16});
+});
+
+test("purchased RAM is enforced before claim and cannot be bypassed by a model floor or adoption", async () => {
+  const model = "qwen3.8-27b-mtp-q4-vl-gguf";
+  const manager = { ...GUESTD, supports: { ...GUESTD.supports, gpu:true, release:true },
+    inference:{models:[model], modelFloorsMiB:{[model]:73728}, cardFreeBytes:31*2**30},
+    pool:{...POOL,budget:{memMiB:90112,cpuPct:2400},free:{memMiB:90112,cpuPct:2400}} };
+  const valid = {...clean,manager,listed:"listed",gpuMilli:500,volumes:[model],cpuMilli:820};
+  const held = {status:"running",reserved:{memMiB:74496,cpuPct:1600}};
+  const r = await seam({verdicts:[
+    {...valid,cpuMilli:70}, {...valid,cpuMilli:810}, valid,
+    {...valid,cpuMilli:70,held,heldSameRecord:true},
+    {...valid,cpuMilli:0}, {...valid,cpuMilli:1001},
+    {...valid,manager:{...manager,inference:{...manager.inference,modelFloorsMiB:{}}}},
+    {...clean,cpuMilli:10},
+    {...clean,cpuMilli:70,policy:{...clean.policy,memMiB:4096}},
+  ]},TIER,"1");
+  assert.match(r.verdicts[0], /allows 6307 MiB.*requires 73344 MiB.*82%/);
+  assert.match(r.verdicts[1], /requires 73344 MiB/);
+  assert.equal(r.verdicts[2],null);
+  assert.match(r.verdicts[3], /requires 73344 MiB/, "existing guest must not grandfather an undersized share");
+  for (const i of [4,5]) assert.match(r.verdicts[i], /valid CPU share/);
+  assert.match(r.verdicts[6], /no model RAM requirement/);
+  assert.equal(r.verdicts[7],null,"fixed boot overhead is booked to pool, not charged as app RAM");
+  assert.match(r.verdicts[8], /requires 4096 MiB/,"ordinary CPU apps are subject to share limits too");
 });

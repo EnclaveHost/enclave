@@ -2365,7 +2365,7 @@ async function managerPrefetchBody(g) {
 //     is a leak, a dropped config is a wrong app. guestd refuses the same things at launch; refusing here keeps
 //     the lease from being taken for work that could only fail.
 function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, appConfigCid, hasSecrets,
-                                 firewall, volumes, isPublic, waf, policy, held, heldSameRecord, listed }) {
+                                 firewall, volumes, isPublic, waf, policy, held, heldSameRecord, listed, cpuMilli }) {
   if (!backend) return null;
   if (!ISOLATION_BACKENDS.includes(backend))
     return `ISOLATION_BACKEND=${JSON.stringify(backend)} is not a backend this build knows; taking no tenant work`;
@@ -2413,7 +2413,10 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
       return "the measured Shield model release is not ready for this deployment";
     const needs = Math.floor(31*2**30*inf.gpuMilli/1000);
     if (!heldSameRecord && needs > Number(manager.inference.cardFreeBytes || 0)) return "the isolated GPU reservation pool is full";
-    policy = { ...policy, ...(inf.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? {cpuPercent:1600,vcpus:16} : {}), memMiB: Math.max(Number(policy?.memMiB)||0, (inf.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? 51200 : 8192)-384) };
+    const floor = Number(manager.inference.modelFloorsMiB?.[inf.model]);
+    if (!Number.isSafeInteger(floor) || floor <= 0)
+      return "the inference manager reports no model RAM requirement; refusing an unbudgeted launch";
+    policy = { ...policy, ...(inf.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? {cpuPercent:1600,vcpus:16} : {}), memMiB: Math.max(Number(policy?.memMiB)||0, floor-384) };
   }
   // The next two are enforced in THIS process on every other backend, on the plaintext of each request. Here the
   // plaintext exists only inside the guest (the session is spliced unopened), so neither could be applied: an
@@ -2424,9 +2427,11 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
   if (waf && Object.keys(waf).length)
     return "the deployment sets protection rules (waf), which need the request's plaintext, which exists only inside the guest on this backend";
   // Last, the guest pool (TASK 4c): this version's guest must fit what guestd has free, by the reservation guestd
-  // admits it at (its unit's ceilings), never by the share bought. guestd refuses the same at create (507
+  // admits it at (its unit's ceilings), as well as the app's share allowance. guestd refuses the same at create (507
   // pool_full); refusing here keeps a lease from being taken for work that could only be refused. A create that still
   // meets a 507 (a race between two claims) is a failed provision like any other: noted, backed off, released once.
+  const shareWhy = guestMemoryShareRefusal(manager.pool, policy, cpuMilli, held);
+  if (shareWhy) return shareWhy;
   return guestPoolRefusal(manager.pool || null, policy, held || null, heldSameRecord === true);
 }
 
@@ -2828,13 +2833,11 @@ const cpuShareOf = (memMb, cpuGflops = 0) => {
 // admitted by guestd into a budget the operator set. So on that tier "the node" a share is a fraction of is guestd's
 // GUEST POOL (its /health.pool budget), not this CVM's NODE_RAM_GB / NODE_VCPUS, and what is free is the pool's free
 // room, never this CVM's. Everywhere else nothing changes: nodeSpec() is the NODE_* constants.
-//   - A share stays a PRICE unit: a fraction of the pool at SELL_CPU_PRICE6, which is unchanged, and app minimums are
-//     unchanged (the declared memMb against the pool, so a 128 MB app still needs 1%).
-//   - The pool is a separate RESERVATION ledger, and it decides fit: an app's guest reserves its unit's ceilings
-//     (guestReservationFor), whatever share it bought. A 128 MB app's 1% share is priced at 1% of the pool while its
-//     guest reserves ~1792 MiB. That gap is a pricing question for the operator; admission never uses the share.
-//   - guestd is the authority: it refuses a guest that does not fit (507 pool_full). This process mirrors it only so
-//     it never CLAIMS work guestd must refuse (isolationClaimVerdict) and never advertises room there is not.
+//   - CPU share prices the pool fraction and caps app RAM to that fraction of the pool budget.
+//     Model minimums are requirements, never exemptions from the RAM allowance.
+//   - The pool separately reserves guest ceilings, including runtime, minimum boot and QEMU overhead.
+//   - guestd rejects an insufficient RAM share (422) or insufficient free pool (507). The claim gate mirrors
+//     both checks before claiming and when adopting an existing guest.
 let _guestPool = null;   // guestd's last /health.pool, checked; null = not heard (the tier then offers and claims nothing)
 // A {memMiB, cpuPct} of non-negative numbers, or null.
 function readRoom(x) {
@@ -2886,6 +2889,32 @@ function nodeSpec() {
 function guestReservationFor(policy, perGuest) {
   const mem = Math.max(perGuest.floorMiB, Number(policy.memMiB) + perGuest.runtimeMiB) + perGuest.unitOverheadMiB;
   return { memMiB: mem, cpuPct: Number(policy.cpuPercent) };
+}
+// RAM entitlement is independent of free pool space and applies on adoption too.
+function guestMemoryShareRefusal(rawPool, policy, cpuMilli, held = null) {
+  const pool = readGuestPool(rawPool);
+  if (!Number.isInteger(cpuMilli) || cpuMilli <= 0 || cpuMilli > 1000)
+    return "the deployment has no valid CPU share to enforce its RAM limit";
+  if (!pool?.budget) return "the manager reports no readable guest pool or RAM budget to enforce the deployment's share";
+  const mem = Number(policy?.memMiB);
+  if (!Number.isSafeInteger(mem) || mem <= 0) return "the version has no valid RAM requirement";
+  let need = mem;
+  // An already-running guest cannot bypass the limit through adoption. The
+  // immutable guest policy may be smaller than a later model runtime floor.
+  if (held && (held.status === "running" || held.status === "starting")) {
+    const r = readRoom(held.reserved);
+    if (!r) return "the held guest reports no RAM reservation to check against its share";
+    const guest = r.memMiB - pool.perGuest.unitOverheadMiB;
+    if (guest > pool.perGuest.floorMiB) need = Math.max(need, guest - pool.perGuest.runtimeMiB);
+  }
+  const allowance = Math.floor(pool.budget.memMiB * cpuMilli / 1000);
+  if (need > allowance) {
+    const pct = Math.ceil(need * 100 / pool.budget.memMiB);
+    return `CPU share allows ${allowance} MiB RAM, but this isolated app requires ${need} MiB; `
+      + (pct > 100 ? "it cannot fit this host even at 100% CPU share" : `resize to at least ${pct}% CPU share on this host`)
+      + " (fixed VM overhead is accounted separately)";
+  }
+  return null;
 }
 // The pool's free room as a fraction of its budget: 0 unless one smallest guest still fits (and never while it is
 // unheard, unconfigured or overcommitted), so a full pool is never advertised as a sliver of free share.
@@ -2974,7 +3003,7 @@ function guestPoolReport() {
     // the floor's VERDICT, never the host's live MemAvailable (published availability must not carry, or jitter with, it)
     host: host ? { floorMiB: host.floorMiB, admitsSmallestGuest: room !== undefined && room >= g.floorMiB + g.unitOverheadMiB } : null,
     basis: "allocated = the reservations of the guests guestd holds (each unit's MemoryMax and CPUQuota), not observed use",
-    pricing: "a share is priced as a fraction of this pool's budget; an app's guest reserves its own reservation, which admission uses" };
+    pricing: "CPU share bounds app RAM as a fraction of this pool; platform overhead is reserved separately" };
 }
 // An app's catalog specs -> the minimum shares a deployment must buy here.
 // Zero-guarded: axes the app didn't declare add no minimum. Each axis floors on
@@ -3128,9 +3157,9 @@ function allocCpu(share) {
 }
 // On the per-app isolation tier the share ledger is capped by the guest pool's own free room (guestPoolFreeFraction).
 const maxFreeCpu = () => Math.max(0, Math.min(1, cpuPool.shareFree, ISOLATION_BACKEND ? guestPoolFreeFraction() : 1));
-// Isolated guests are sized by their catalog policy, not by the pricing share.
-// Check the share ledger here; isolationClaimVerdict below checks the exact
-// reservation against guestd's pool and live host floor. Applying the pool's
+// Isolated guests are sized by their catalog policy and model requirements.
+// Check the share ledger here; isolationClaimVerdict below checks the RAM share
+// allowance, exact pool reservation and live host floor. Applying the pool's
 // free fraction here double-counts resumed guests and wrongly refuses a small
 // new guest whose owner bought a larger share.
 function claimFreeCpu() {
@@ -3532,7 +3561,7 @@ if (process.env.GUEST_POOL_SELFTEST) {
     node: nodeSpec(), claimFreeCpu: (c.claimHeld || []).map(claimFreeCpu), maxFreeCpu: round3(maxFreeCpu()), guestPool: guestPoolReport(), sellCpuPrice6: SELL_CPU_PRICE6,
     ...(c.viaHealth ? { healthError, healthVerdict: health && isolationClaimVerdict({ backend: ISOLATION_BACKEND,
       require: ISOLATION_BACKEND, manager: health, gpuMilli: 0, config: "", appConfigCid: "", hasSecrets: false, firewall: [],
-      volumes: [], isPublic: true, waf: null, policy: isolationPolicyFor({ memMb: c.viaHealth.memMb }), held }), held } : {}),
+      volumes: [], isPublic: true, waf: null, cpuMilli: c.viaHealth.cpuMilli ?? 1000, policy: isolationPolicyFor({ memMb: c.viaHealth.memMb }), held }), held } : {}),
     shares: (c.shares || []).map((m) => minSharesOf(m)),
     reservations: (c.reservations || []).map((v) => _guestPool && guestReservationFor(isolationPolicyFor(v), _guestPool.perGuest)),
     verdicts: (c.verdicts || []).map((v) => isolationClaimVerdict({ backend: ISOLATION_BACKEND, ...v })),
@@ -3972,7 +4001,15 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
     const derive = isolationSpawnDerivation({ catalogRef, wasmRef: image && image.reference, versionMemMb,
       runtimeId: h && h.catalog && h.catalog.runtimeId, ports,
       inference: isolatedInference(Math.round((gpuShare || 0)*1000),volumesInConfig(config)) });
-    const body = { image: image.reference, name: deploymentId, cpuShare: cpuShare ?? 0.05,
+    let requiredPolicy = derive.policy;
+    if (derive.inference) {
+      const floor = Number(h?.inference?.modelFloorsMiB?.[derive.inference.model]);
+      if (!Number.isSafeInteger(floor) || floor <= 0) throw new Error("manager has no model RAM floor");
+      requiredPolicy = { ...requiredPolicy, memMiB: Math.max(requiredPolicy.memMiB, floor - 384) };
+    }
+    const shareWhy = guestMemoryShareRefusal(h?.pool, requiredPolicy, Math.round(Number(cpuShare) * 1000));
+    if (shareWhy) throw new Error(shareWhy);
+    const body = { image: image.reference, name: deploymentId, cpuShare,
       gpuShare: gpuShare || 0, appPort: appPort || 8080, ports: [], config: "", configCid: "", egress: "", derive,
       ...(hosts && hosts.length ? { hosts: hosts.join(",") } : {}),
       // sent only when true: a guestd that predates the release refuses unknown fields, and it is never asked for one
@@ -10446,7 +10483,7 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     const isoAsk = claimOpts.isolation === ISOLATION_BACKEND && isoMgr && isoMgr.backend === ISOLATION_BACKEND && isolationReleaseOn(isoMgr);
     const isoWhy = isolationClaimVerdict({ backend: ISOLATION_BACKEND, require: claimOpts.isolation,
       manager: isoMgr, listed: isoAsk ? await releaseListedFor(d.id) : "unlisted",
-      gpuMilli: d.gpuMilli, ...cf, config: isolationAppConfig(cf.config),
+      cpuMilli: d.cpuMilli, gpuMilli: d.gpuMilli, ...cf, config: isolationAppConfig(cf.config),
       policy: isolationPolicyFor(g.min),
       held: isoHeld, heldSameRecord,
       hasSecrets: await depHasSecrets(d.id), firewall, volumes: neededVolumes(d, g), isPublic: d.isPublic === true,

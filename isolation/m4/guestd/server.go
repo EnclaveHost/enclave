@@ -435,6 +435,10 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 		gpuBytes = m.Inference.CardBytes()
 		model = m.Inference.Model
 	}
+	if refusal := s.memoryShareRefusal(req.CPUShare, pol.MemMiB, mem); refusal != nil {
+		s.json(w, http.StatusUnprocessableEntity, refusal)
+		return
+	}
 	s.mu.Lock()
 	for _, o := range s.vms {
 		if o.Name == req.Name && o.lc.State() != contract.Ended && o.Status != "failed" {

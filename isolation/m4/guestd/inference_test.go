@@ -126,7 +126,7 @@ func Test27BRefusesPoolThatOnlyFitsOldMemoryFloor(t *testing.T) {
 		t.Fatal(err)
 	}
 	code, body := r.do("POST", "/vms", map[string]any{"name": name(9), "image": "file://" + file, "gpuShare": .5})
-	if code != 507 {
+	if code != 422 || body["error"] != "ram_share_too_small" {
 		t.Fatalf("undersized pool admitted: %d %v", code, body)
 	}
 	r.s.mu.Lock()
