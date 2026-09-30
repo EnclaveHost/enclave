@@ -108,6 +108,10 @@ void sh_link_configure(sh_link *l, int vsock_port, uint64_t reserve_bytes, int r
 /* Per-card optional BAR, before start. Empty path explicitly keeps sockets. */
 void sh_link_configure_shm(sh_link *l, const char *path, uint64_t bytes);
 void     sh_link_close(sh_link *l);
+/* Stop/join refill workers, discard unused pads and disconnect. The caller
+ * excludes exchanges/start; registration, integrity latch and mask counters
+ * survive. A later sh_link_start obtains fresh pools without pad reuse. */
+void     sh_link_quiesce(sh_link *l);
 const char *sh_link_last_error(const sh_link *l);
 /* A remote product verification failure retires the link permanently. Further
  * start/register/compute calls return SH_ERR_VERIFY without consuming pads or
@@ -152,6 +156,15 @@ int sh_link_add_weight(sh_link *l, const char *name, const int8_t *w_fixed,
  * SH_ERR_VERIFY and must abort the request. No disk read during normal GEMM. */
 typedef int (*sh_weight_read_fn)(void *ctx, uint64_t offset, uint8_t *out, size_t bytes);
 int sh_link_set_weight_reader(sh_link *l, int node, sh_weight_read_fn reader, void *ctx);
+
+/* Trusted local-mint storage adapter. Installed only before start, after
+ * verification vectors were built from the exact registered bytes. It owns no
+ * mask state: refill receives fresh bank-issued r and returns exact r.W mod M.
+ * A failure retires the link; no partial result may be published. */
+typedef int (*sh_weight_refill_fn)(void *ctx, const int32_t *r, int batch,
+                                 int32_t *u, int64_t stride);
+int sh_link_set_local_weight_source(sh_link *, int node, sh_weight_read_fn,
+                                    sh_weight_refill_fn, void *ctx);
 
 /* Ship the public weights, install the vetted graph, start the refill threads.
  * Restartable: a weight added after start means a fresh connection carrying

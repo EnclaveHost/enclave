@@ -481,10 +481,16 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = shield_large ? "SHIELDED_REFILL_THREADS=16" : "SHIELDED_REFILL_THREADS=2";
             envp[ei++] = shield_large ? "SHIELDED_POOL_DEPTH=128" : "SHIELDED_POOL_DEPTH=16";
             envp[ei++] = "SHIELDED_REFILL_BATCH=64";
+            /* Candidate capability belongs to the measured runtime, never to
+             * host-supplied app configuration. The release must include the
+             * matching compact backend and pinned integer-GEMM dependency. */
+            int shield_compact = shield_large && access("/rt/shield-compact-weights.enabled", R_OK) == 0;
+            if (shield_compact)
+                envp[ei++] = "SHIELDED_COMPACT_WEIGHTS=1";
             /* Eight refill workers per card; exact vector CRT is qualified for the 27B profile. */
             if (shield_large) envp[ei++] = "SHIELDED_REFILL_VECTOR_CRT=1";
             if (shield_large) envp[ei++] = "SHIELDED_MASK_CHACHA16=1";
-            if (shield_large) envp[ei++] = "SHIELDED_REFILL_UNIT=32";
+            if (shield_large) envp[ei++] = shield_compact ? "SHIELDED_REFILL_UNIT=64" : "SHIELDED_REFILL_UNIT=32";
             if (shield_large) envp[ei++] = "SHIELDED_REFILL_COST_PRIORITY=1";
             if (shield_large) {
                 /* This marker is part of the measured runtime, never host input.

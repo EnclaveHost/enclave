@@ -79,8 +79,10 @@ int main(int argc, char **argv) {
     setenv("SHIELDED_PAD_SK", std::string(64, '0').c_str(), 1);
     setenv("SHIELDED_PAD_CHECK", "1", 1); setenv("SHIELDED_NO_SIMD", "1", 1);
     setenv("SHIELDED_MIN_MACS", "0", 1); setenv("SHIELDED_MAX_M", "16", 1);
-    const bool split_local = scenario == "source_split_local";
-    const bool local_mint = scenario == "source_local_mint" || split_local;
+    const bool compact_local = scenario == "source_compact_local" || scenario == "source_compact_split";
+    if(compact_local) setenv("SHIELDED_COMPACT_WEIGHTS","1",1);
+    const bool split_local = scenario == "source_split_local" || scenario == "source_compact_split";
+    const bool local_mint = scenario == "source_local_mint" || split_local || compact_local;
     const int expected_reads = split_local ? 4 : 2;
     if (local_mint) unsetenv("SHIELDED_PAD_SOURCE");
     auto *cpu = ggml_backend_cpu_init(); assert(cpu); ggml_backend_cpu_set_n_threads(cpu, 1);
@@ -185,7 +187,8 @@ int main(int argc, char **argv) {
         assert(state.calls == expected_reads && s.weights.size() == 2 && !s.source_verification_failed);
         for (const auto &kv : s.weights) {
             assert(kv.second.source_verified);
-            if (local_mint) assert(!kv.second.w.empty() && !kv.second.w_cache);
+            if (compact_local) {assert(kv.second.w.empty() && !kv.second.w_cache);}
+            else if (local_mint) assert(!kv.second.w.empty() && !kv.second.w_cache);
             else assert(kv.second.w.empty() && kv.second.w_cache);
         }
         uint64_t cache_calls = 99, cache_bytes = 99;
@@ -229,6 +232,42 @@ int main(int argc, char **argv) {
             assert(sh_link_mint_shipment(s.link, seed, seed, seed, 0, 2, pk, minted.c_str()) == SH_OK);
             assert(state.reads == expected_reads && state.calls == expected_reads);
             assert(unlink(minted.c_str()) == 0);
+            if (compact_local) {
+                // An adapter error retires the link even if that adapter would
+                // later recover; previously staged pad outputs cannot be reused.
+                struct failing_source { int8_t w[256] = {}; int calls = 0; bool fail = true; } f;
+                int open_rc = SH_OK;
+                sh_link *probe = sh_link_open("127.0.0.1", 1, true, &open_rc); assert(probe);
+                int nid = sh_link_add_weight(probe, "failure", f.w, 32, 8, 16, -1); assert(nid >= 0);
+                auto read = +[](void *ctx, uint64_t off, uint8_t *out, size_t n) {
+                    auto &f = *static_cast<failing_source *>(ctx);
+                    if(off > sizeof f.w || n > sizeof f.w-off)return SH_ERR_RANGE;
+                    memcpy(out,f.w+off,n);return SH_OK;
+                };
+                auto refill = +[](void *ctx, const int32_t *, int, int32_t *, int64_t) {
+                    auto &f = *static_cast<failing_source *>(ctx); f.calls++;
+                    return f.fail ? SH_ERR_IO : SH_OK;
+                };
+                assert(sh_link_set_local_weight_source(probe,nid,read,refill,&f)==SH_OK);
+                assert(sh_link_set_local_weight_source(probe,nid,read,refill,&f)==SH_ERR_RANGE);
+                assert(sh_link_mint_shipment(probe,seed,seed,seed,0,2,pk,minted.c_str())==SH_ERR_VERIFY);
+                const int calls=f.calls;assert(calls>0);f.fail=false;
+                sh_link_quiesce(probe); // disconnect cannot reset an integrity failure
+                assert(sh_link_mint_shipment(probe,seed,seed,seed,0,2,pk,minted.c_str())==SH_ERR_VERIFY);
+                assert(f.calls==calls);sh_link_close(probe);unlink(minted.c_str());
+            }
+            if (compact_local) {
+                auto *first = ggml_backend_shielded_init();
+                auto *second = ggml_backend_shielded_init();
+                assert(p.backend_refs == 2);
+                ggml_backend_free(first); assert(p.backend_refs == 1);
+                ggml_backend_free(second); assert(p.backend_refs == 0 && s.dirty);
+                assert(s.weights.size() == 2 && s.link);
+                // Context restart retains verified rows and can mint fresh pads.
+                auto *again = ggml_backend_shielded_init();
+                assert(sh_link_mint_shipment(s.link,seed,seed,seed,2,2,pk,minted.c_str())==SH_OK);
+                unlink(minted.c_str()); ggml_backend_free(again);
+            }
             source_stats_check(state);
             for (auto *buf : source_buffers) ggml_backend_buffer_free(buf);
             ggml_free(ctx); ggml_backend_free(cpu);

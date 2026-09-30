@@ -126,8 +126,8 @@ ggml-test: ggml-test.cpp ggml-shielded.o $(CORE_OBJ)
 # live under /dev/shm on a box that has no CVM ring directory. Production
 # builds pass nothing here and keep the single root-owned ring path.
 SHIELDED_EXTRA_DEFS ?=
-ggml-shielded-dl.o: ggml-shielded.cpp ggml-shielded.h shielded-latency.h shielded-tee.h shielded-field.h shielded-simd.h shielded-source-bytes.h shielded-source-prefetch.h
-	$(CXX) $(CXXFLAGS) -DGGML_BACKEND_DL -DGGML_BACKEND_SHARED $(SHIELDED_EXTRA_DEFS) $(GGML_INC) -c $< -o $@
+ggml-shielded-dl.o: ggml-shielded.cpp ggml-shielded.h shielded-compact.h shielded-latency.h shielded-tee.h shielded-field.h shielded-simd.h shielded-source-bytes.h shielded-source-prefetch.h
+	$(CXX) $(CXXFLAGS) -DGGML_BACKEND_DL -DGGML_BACKEND_SHARED $(SHIELDED_EXTRA_DEFS) $(COMPACT_DEFS) $(GGML_INC) -c $< -o $@
 
 libggml-shielded.so: ggml-shielded-dl.o $(CORE_OBJ)
 	$(CXX) $(CXXFLAGS) -shared -o $@ $^ -L$(GGML_LIB) -lggml-base $(LDLIBS) -Wl,-rpath,$(GGML_LIB)
@@ -178,6 +178,17 @@ bench-spec: bench-spec.cpp ../llama-shim/enclave_llama.h
 	  -L$(GGML_LIB) -lenclave_llama -lllama -lggml -lggml-base -ldl -Wl,-rpath,$(GGML_LIB)
 
 clean:
-	rm -f $(CORE_OBJ) ggml-shielded-dl.o shielded-probe field-selftest prepare-selftest half-selftest refill-selftest dealt-selftest pads-unbox pads-keygen ggml-shielded.o ggml-test shielded-run shielded-calib libggml-shielded.so bench-batch bench-spec
+	rm -f $(CORE_OBJ) shielded-compact.o ggml-shielded-dl.o shielded-probe field-selftest prepare-selftest half-selftest refill-selftest dealt-selftest pads-unbox pads-keygen ggml-shielded.o ggml-test shielded-run shielded-calib libggml-shielded.so bench-batch bench-spec
 
 .PHONY: all clean ggml run calib bench
+
+# Opt-in measured x86 production candidate. Default builds have no new library
+# dependency. The release builder pins the oneDNN/OpenMP closure explicitly.
+ifneq ($(SHIELDED_COMPACT_ROOT),)
+COMPACT_DEFS := -DSHIELDED_COMPACT
+COMPACT_LIBDIR := $(SHIELDED_COMPACT_ROOT)/usr/lib
+libggml-shielded.so: shielded-compact.o
+LDLIBS += -L$(COMPACT_LIBDIR) -ldnnl -lgomp
+shielded-compact.o: shielded-compact.cpp shielded-compact.h
+	$(CXX) $(CXXFLAGS) -I$(SHIELDED_COMPACT_ROOT)/usr/include -O3 -mavx512f -mavx512bw -mavx512dq -mavx512vl -mavx512vnni -c $< -o $@
+endif
