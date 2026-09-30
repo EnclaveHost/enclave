@@ -245,3 +245,9 @@ and security policies are unchanged. The user accepted this memory/speed tradeof
 and the compact release remains selected in production.
 
 See [final rollout evidence](evidence/shield-compact-memory-priority-20260930.json).
+
+## Follow-up layout experiment
+
+The [offline layout investigation](shield-compact-layout-20260930.md) tests
+avoiding repeated GEMM weight packing while retaining compressed private
+weights. It is not part of the deployed provider or a qualified release.
