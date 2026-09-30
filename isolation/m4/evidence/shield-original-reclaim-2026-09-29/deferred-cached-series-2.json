@@ -1,0 +1,34 @@
+{
+  "release": "83b38d61",
+  "guest": "gdda0bd2fc",
+  "helperPaused": true,
+  "tokens": 128,
+  "draft_accepted": 49,
+  "draft_tokens": 79,
+  "samples": [
+    {
+      "tok_per_s": 15.2,
+      "decode_ms": 8415,
+      "first_delta_ms": 772.7,
+      "prefill_ms": 1
+    },
+    {
+      "tok_per_s": 15.9,
+      "decode_ms": 8061,
+      "first_delta_ms": 677.9,
+      "prefill_ms": 1
+    },
+    {
+      "tok_per_s": 15.7,
+      "decode_ms": 8139,
+      "first_delta_ms": 674.5,
+      "prefill_ms": 1
+    },
+    {
+      "tok_per_s": 15.9,
+      "decode_ms": 8066,
+      "first_delta_ms": 672.1,
+      "prefill_ms": 0
+    }
+  ]
+}

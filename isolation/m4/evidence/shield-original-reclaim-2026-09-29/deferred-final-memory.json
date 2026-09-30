@@ -1,0 +1,31 @@
+{
+  "at": "2026-09-30T01:41:53.426Z",
+  "instance": "gdfd55468e",
+  "measurement": "fa51e36388cbc3836d749fb31ff099486c3aad97c1ddf210017c567d3f7ce993ff1c5e2f63a51f52fa5ef08c49662c3f",
+  "phase": "deferred-final-memory",
+  "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/m2-gdfd55468e-3003215.service",
+  "MemoryCurrent": "58430832640",
+  "MemoryPeak": "58432729088",
+  "otherGuests": [
+    {
+      "id": "gd3f112c5e",
+      "status": "running"
+    },
+    {
+      "id": "gd46ad5e46",
+      "status": "running"
+    },
+    {
+      "id": "gd481d1411",
+      "status": "running"
+    },
+    {
+      "id": "gdabe06812",
+      "status": "running"
+    },
+    {
+      "id": "gdfb2bacd3",
+      "status": "running"
+    }
+  ]
+}

@@ -87,39 +87,65 @@ admitted for rollback. Guest reservation floors and the host's app-RAM budget
 must not be lowered merely from the static tensor estimate: qualify actual
 inference peak memory, cache occupancy and throughput first.
 
-The first production qualification saved 13.35 GiB of total guest RAM after
-prefix warmup (57.88 to 44.53 GiB), while preserving output and MTP acceptance.
-It was withdrawn because cached throughput measured about 15.0 tok/s versus a
-back-to-back baseline near 15.7. The second candidate preserved the original CPU mapping/buffer layout, but
-also measured about 15.0 tok/s and was withdrawn. The next candidate puts only
-temporary source copies in direct anonymous mappings and unmaps them after
-encoding. The SHA streaming scratch uses a bounded 64 KiB stack buffer. These
-changes avoid large scratch allocations changing glibc's dynamic mmap threshold
-and the allocation of long-lived encoded weights. This is an allocator
-hypothesis until qualified by a production A/B test; encoded int8 allocation,
-masking and verification remain unchanged.
+## Production qualification
 
-Scratch-buffer tests verify move ownership, allocation failure and that released
-mappings are absent (`mincore` returns `ENOMEM`). Prefetch and authenticated
-source tests pass, and the revised runtime completes 16 native decode steps on
-the small model with 720 MiB peak RAM. A full 27B loader run releases
-15,752,638,464 bytes (14.671 GiB), retains all CPU tensor hashes and uses a 3 GiB
-peak without swap. Allocated-block accounting differs by a few pages between fixture runs. Performance qualification must pass before retaining this
-release in production; loader correctness alone is not throughput evidence.
+The rollout compares the unchanged release `f8a5940b` with the deferred-release
+candidate `83b38d61`. Both use the same pinned model, runtime settings, MTP,
+GPU workers and 128-token public prompt. Cached requests have 0–1 ms prefill.
+The browser automation helper is paused during timing because its CPU usage
+otherwise materially changes the result. Model and prompt warmup are excluded
+from the cached measurements.
 
-A fresh baseline measurement before the third candidate produced 14.8, 15.1,
-15.1 and 14.8 tok/s (median 14.95), with 709–738 ms first-token latency and
-0–1 ms cached prefill. It overlaps the withdrawn candidates, so the earlier
-15.7-versus-15.0 difference cannot yet be attributed solely to reclamation.
-Compare the third candidate with this fresh baseline using the same prompt,
-MTP acceptance, cache state and inactive browser automation helper.
+| Measurement | Cached decode (tok/s) | First token (ms) | MTP accepted/drafted |
+| --- | --- | --- | --- |
+| Baseline before candidate | 16.0, 16.6, 16.5, 16.5 | 679–722 | 50/78 |
+| Deferred candidate, first batch | 15.9, 16.2, 16.1, 16.0 | 671–718 | 49/79 |
+| Deferred candidate, repeat | 15.2, 15.9, 15.7, 15.9 | 672–773 | 49/79 |
+| Unchanged baseline after rollback | 15.0, 14.9, 14.9, 15.2 | 705–742 | 49/79 |
+| Final deployed candidate instance | 14.4, 14.4, 14.4, 14.3 | 713–738 | 46/82 |
 
-The scratch candidate was also withdrawn after 14.4–14.9 tok/s samples versus
-the latest 14.8–15.1 baseline. It reduced total guest RAM from 62.46 to 48.85 GiB
-after cached chat, but the small speed difference remains unresolved. Two host
-CPU-placement trials were reverted. The next candidate defers retirement until
-all registrations in the current planner batch have completed, preserving the
-private original pages while encoded allocations are created. Its callback is
-installed only with the verifier before registration; failures latch all cards
-closed. Unit coverage checks callback ordering, rejection before verifier
-admission, duplicate/late installation, and failure before graph execution.
+The unchanged baseline itself varies substantially between instances. The
+first candidate instance overlapped the baseline range and exceeded the adjacent
+control run. The final instance used three more MTP rounds, with lower raw
+throughput. Mean wall decode time per round was 108.46 ms versus 108.09 ms
+in that control (about 0.35% difference). This supports comparable steady-state
+processing cost; it does not prove identical end-to-end tok/s or zero performance
+difference under every workload. Do not summarize these results as an
+unconditional performance guarantee. Public response hashes also vary
+between unchanged baseline instances, so production text is not claimed to be
+bit-identical across restarts. The fixed native small-model probe produced the
+same 16 token IDs before and after the change.
+
+In the first deferred candidate instance, host-accounted guest RAM after cached
+chat was 58,449,432,576 bytes (54.44 GiB), versus 67,014,017,024 bytes (62.41 GiB)
+in the preceding baseline: a 7.98 GiB reduction. Releasing 14.67 GiB of private
+model pages does not imply a 14.67 GiB drop in the host's SNP VM footprint;
+already-touched guest pages and their reuse affect that accounting. Keep the
+existing reservation until peak usage under the full supported concurrency is
+separately qualified.
+
+Earlier immediate-retirement variants saved about 13.6 GiB of host-accounted
+RAM but measured 14.4–15.1 tok/s. The deferred variant deliberately preserves
+the original private pages while long-lived encoded buffers are allocated.
+Temporary source buffers use direct anonymous mappings that are unmapped after
+encoding; this avoids changing glibc's allocation policy for encoded weights.
+Tests cover move ownership, allocation failure and actual unmapping. The latest
+full-model loader fixture checks unchanged allocated blocks before the batch
+flush, then the release of 14.67 GiB while every CPU tensor hash remains intact.
+
+Both releases retain the existing GPU reconnect cleanup race: a connection can
+briefly be refused while its predecessor still holds a reservation. Qualification
+waits for successful warmup and a priming request before comparing cached
+throughput. This work does not change the GPU reservation protocol.
+
+The release is deployed on metal0 as `gdfd55468e`, with warmup complete and
+fresh nonce/SNP/TLS verification passing on both `eyesoff.ai` and its canonical
+app address. All five other app instances remained running and unchanged.
+Final host-accounted guest RAM is 58,430,832,640 bytes (54.42 GiB), versus
+67,279,228,928 bytes (62.66 GiB) in the adjacent control: **8.24 GiB less**.
+The 24.3 GiB encoded masking data and the existing RAM reservation are unchanged.
+
+Evidence lives in
+`/home/steven/enclave-bench/shield-original-reclaim-20260929/`, including the
+independently predicted release, source/backend sanitizer logs, native loader
+results and the before/candidate/after benchmark JSON files.
