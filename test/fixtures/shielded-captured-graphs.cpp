@@ -90,6 +90,43 @@ static void failure() {
     assert(refused && live == 1 && c.size() == 1);
 }
 
+static void borrowed_keys() {
+    Cache c(1024);
+    uint32_t key[67]{};
+    // Every prefix length, including all 64 node indices, remains distinct.
+    // Mutating the caller's storage must not change any previously stored key.
+    FakeGraph *saved[68]{};
+    for (size_t n = 0; n <= 67; ++n) {
+        for (size_t i = 0; i < n; ++i) key[i] = uint32_t(i + 1);
+        saved[n] = c.get(key, n, capture);
+        for (auto &v : key) v = 0xffffffffu;
+    }
+    for (size_t n = 0; n <= 67; ++n) {
+        for (size_t i = 0; i < n; ++i) key[i] = uint32_t(i + 1);
+        fail_allocation_after = 0;
+        assert(c.get(key, n, []() -> FakeGraph * { std::abort(); }) == saved[n]);
+        fail_allocation_after = -1;
+    }
+    // Packed mode, row count, destination and EVERY node index affect identity.
+    uint32_t base[67]{};
+    FakeGraph *zero = c.get(base, 67, capture);
+    for (size_t i = 0; i < 67; ++i) {
+        base[i] = 0xffffffffu;
+        FakeGraph *different = c.get(base, 67, capture);
+        assert(different != zero);
+        fail_allocation_after = 0;
+        assert(c.get(base, 67, []() -> FakeGraph * { std::abort(); }) == different);
+        base[i] = 0;
+        assert(c.get(base, 67, []() -> FakeGraph * { std::abort(); }) == zero);
+        fail_allocation_after = -1;
+    }
+    bool refused = false;
+    try { c.get(nullptr, 1, capture); } catch (const std::invalid_argument &) { refused = true; }
+    assert(refused);
+    assert(c.get(nullptr, 0, []() -> FakeGraph * { std::abort(); }) == saved[0]);
+    c.invalidate(); assert(live == 0);
+}
+
 static void repeated_passes() {
     // This is a controlled key trace, not a replay of measured phone traffic.
     // A 257-key pass straddles the old 256-entry whole-cache eviction boundary.
@@ -116,5 +153,6 @@ static void repeated_passes() {
 
 int main() {
     limits(); ownership(); failure(); assert(live == 0);
+    borrowed_keys(); assert(live == 0);
     repeated_passes(); assert(live == 0 && created == destroyed);
 }

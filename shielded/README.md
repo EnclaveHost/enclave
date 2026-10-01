@@ -152,6 +152,26 @@ CUDA_VISIBLE_DEVICES=<test-card> python3 shielded/worker-cuda/test_install_memor
 CUDA_VISIBLE_DEVICES=<test-card> python3 shielded/worker-cuda/test_install_memory.py --worker-bin shielded/worker-cuda/shielded-worker --benchmark
 ```
 
+### Graph-cache lookup allocations
+
+The worker builds each exchange's graph key on the stack and borrows it for
+lookup. Cache hits allocate nothing; misses keep their own compact key copy.
+The key still distinguishes packing mode, row count, reply destination and the
+complete ordered node list. Capacity eviction and staging invalidation are unchanged.
+
+On 2026-10-01, seven alternating host-only benchmark runs, pinned to one logical
+CPU and compiled with `c++ -O3`, measured median lookup time of 34.0 → 22.3 ns
+for 274 cached keys and 38.3 → 25.3 ns for 514 keys (1–4 nodes per key).
+The 64-node case measured 122.5 → 98.5 ns. Each two-million-hit sample went from
+two million temporary allocations to zero. These are lookup microbenchmarks;
+they do not establish a change in end-to-end token throughput or retained RAM.
+
+`shielded/bench/graph_cache_bench.cpp` reproduces the lookup/allocation measurement.
+Compile with `-std=c++17 -O3 -I shielded/worker-cuda -DSH_BORROWED_GRAPH_KEYS` for
+the current caller, or omit the define and use the previous cache header for
+the baseline. The sanitizer fixture covers all key lengths through 64 nodes,
+caller storage mutation, allocation-free hits and failure cleanup.
+
 ### Which calibrator
 
 `shielded-calib` (C, `wasm/ggml-shielded/`) is the one that produces the files in

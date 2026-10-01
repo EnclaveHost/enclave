@@ -43,8 +43,23 @@ inline bool sh_graph_cache_limit(const char *value, size_t *out) {
 template<class Handle, class Destroy> class CapturedGraphs {
     static_assert(std::is_pointer<Handle>::value, "graph handles must be pointers");
     using Key = std::vector<uint32_t>;
+    struct KeyView { const uint32_t *data; size_t size; };
+    struct KeyLess {
+        using is_transparent = void;
+        static bool less(KeyView a, KeyView b) {
+            const size_t n = a.size < b.size ? a.size : b.size;
+            for (size_t i = 0; i < n; ++i) {
+                if (a.data[i] < b.data[i]) return true;
+                if (a.data[i] > b.data[i]) return false;
+            }
+            return a.size < b.size;
+        }
+        bool operator()(const Key &a, const Key &b) const { return less({a.data(), a.size()}, {b.data(), b.size()}); }
+        bool operator()(const Key &a, KeyView b) const { return less({a.data(), a.size()}, b); }
+        bool operator()(KeyView a, const Key &b) const { return less(a, {b.data(), b.size()}); }
+    };
     using Owned = std::unique_ptr<typename std::remove_pointer<Handle>::type, Destroy>;
-    std::map<Key, Owned> entries_;
+    std::map<Key, Owned, KeyLess> entries_;
     const size_t limit_;
 public:
     struct Stats {
@@ -64,7 +79,13 @@ public:
         entries_.clear();
     }
     template<class Capture> Handle get(const Key &key, Capture capture) {
-        auto it = entries_.find(key);
+        return get(key.data(), key.size(), std::move(capture));
+    }
+    // Borrow the request's key for lookup only. Hits allocate nothing; misses
+    // retain a compact owned copy, never a pointer to the caller's stack.
+    template<class Capture> Handle get(const uint32_t *key, size_t n, Capture capture) {
+        if (n && !key) throw std::invalid_argument("null graph cache key");
+        auto it = entries_.find(KeyView{key, n});
         if (it != entries_.end()) { ++stats.hits; return it->second.get(); }
         ++stats.misses;
         if (entries_.size() == limit_) {
@@ -76,7 +97,7 @@ public:
         Owned owned(capture());
         if (!owned) throw std::runtime_error("capture returned a null graph");
         const Handle value = owned.get();
-        entries_.emplace(key, std::move(owned));
+        entries_.emplace(n ? Key(key, key + n) : Key{}, std::move(owned));
         if (entries_.size() > stats.high_water) stats.high_water = entries_.size();
         return value;
     }
