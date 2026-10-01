@@ -775,7 +775,7 @@ export function pickEnclaveFor(v, rows){
 }
 
 // Where a deployment could be moved RIGHT NOW: every enclave that could host
-// it, minus the one already holding its lease. Same eligibility rule as the
+// it, including the one already holding its lease. Same eligibility rule as the
 // deploy target list (rankEnclavesFor) — hardware, model volumes and free pool
 // — because a move IS a re-claim: the current runner hands the lease back and
 // the fleet claims it again, so a target that would refuse the record at
@@ -788,7 +788,7 @@ export function pickEnclaveFor(v, rows){
 export function moveTargetsFor(v, rows, currentRunnerId){
   const cur = String(currentRunnerId || "").toLowerCase();
   return rankEnclavesFor(v, rows)
-    .filter((c) => String((c.row && c.row.id) || "").toLowerCase() !== cur);
+    .map((c) => ({ ...c, current: !!cur && String((c.row && c.row.id) || "").toLowerCase() === cur }));
 }
 
 // Why a deployment has nowhere to go, in the reader's terms. Only called when
