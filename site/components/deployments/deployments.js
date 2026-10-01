@@ -21,7 +21,8 @@ import { APP_DOMAIN, DEPLOYMENTS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { pad32, encUint, encCall, hexBig, DEP_SEL, APPROVAL, depPrices6, rate6Of, depMaxGpuMilli, depGet, depSchemaRev, depFeeOf, depCapOf, depRefundableOf, depCall, catVersionFee, waitReceipt } from "../../js/core/chain.js";
 import { authenticate, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx, personalSign } from "../../js/core/wallet.js";
-import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, STORE, fetchConfigCid, stripMedia, putConfig } from "../../js/core/catalog.js";
+import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, specOfRef, STORE, fetchConfigCid, stripMedia, putConfig } from "../../js/core/catalog.js";
+import { appResources } from "../../js/core/app-resources.js";
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
@@ -394,10 +395,8 @@ function cfgPlan(ctx){
   return { verdictOf, clearEnvelope, splitEnvelope };
 }
 function encTier(d){
-  const r = d.resources || {};
-  const g = r.gpuShare || 0, c = r.cpuShare != null ? r.cpuShare : (r.share || 0);
-  if (g > 0) return Math.round(g * 100) + "% GPU · " + Math.round(c * 100) + "% CPU";
-  return c ? (Math.round(c * 100) + "% CPU") : "CPU";
+  const ref = d.image?.reference || (d.app?.appId != null && d.app?.index != null ? catalogRef(d.app.appId, d.app.index) : "");
+  return appResources(specOfRef(ref), d);
 }
 // A deployment's DEDICATED IPv6 (per-deployment addressing): declared tcp/udp
 // ports are served at [address]:<logical port> via the relays, and outbound

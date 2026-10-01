@@ -11,7 +11,7 @@ import "../../components/section-head/section-head.js";
 import "../../components/app-card/app-card.js";
 import "../../components/app-detail/app-detail.js";
 import "../../components/app-reviews/app-reviews.js";
-import { $, $$, esc, short, blen, fmtDur, fmtNum, showToast, on, tosAccepted, setTosAccepted } from "../core/util.js";
+import { $, $$, esc, short, blen, fmtDur, showToast, on, tosAccepted, setTosAccepted } from "../core/util.js";
 import { APP_CATALOG_ADDRESS, APP_CATALOG_CHAIN, FEATURED_ADDRESS, REVIEWS_ADDRESS, USDC_BASE, IPFS_UPLOAD_URL, IPFS_IMAGE_UPLOAD_URL, IPFS_JSON_UPLOAD_URL, IPFS_GATEWAY, MAX_WASM_MB, MAX_WASM_BYTES, MAX_IMAGE_MB, MAX_IMAGE_BYTES, BASE_CHAIN, ACCOUNTS_ENABLED } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
 import { catConfigured, catExplorer, encCall, CAT_SEL, CAT_MAX, ROUTING_KEYS, APPROVAL, depPrices6, depMaxGpuMilli, depSchemaRev, rate6Of, waitReceipt, catSchemaRev, catMaxFeePerSec6, catVersionFee, featConfigured, featMaxBid, FEAT_SEL, revConfigured, REV_SEL } from "../core/chain.js";
@@ -21,6 +21,7 @@ import { payForRuntime } from "../core/fund.js";
 import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf, personalSign } from "../core/wallet.js";
 import { STORE, loadCatalog, noteCatalogWrite, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, specOf, fetchConfigCid, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia, signedUploadToken, putConfig, cpuFallbackOfConfig } from "../core/catalog.js";
 import { minPctsOf, startSharesFor, shareRates, pickEnclaveFor, rankEnclavesFor, liftSharesForLedger } from "../core/pricing.js";
+import { appResources } from "../core/app-resources.js";
 import { navigate } from "../boot.js";
 
 /* ---- render: filter + sort the catalog into <c-app-card>s ---- */
@@ -576,14 +577,10 @@ function quickDeploy(app, v, idx){
   const paintRate = () => {
     rate = baseRate + fee;
     const rEl = host.querySelector(".qd-rate"); if (rEl) rEl.textContent = "$" + (rate * 3600).toFixed(2) + "/hr";
-    // SAY the slice, don't just price it. A one-click deploy still mints
-    // immutable shares, and "CPU only" is the fact a deployer of a model app
-    // most needs to see BEFORE signing - the rate alone never said it.
+    // Before launch, show the app's requirements for the selected placement.
     const sEl = host.querySelector(".qd-shares");
     if (sEl){
-      const s = shareRates(buy.gpuPct, buy.cpuPct, target && !target.none ? target.spec : undefined);
-      sEl.textContent = (s.gpuPct > 0 ? s.gpuPct + "% of a card (" + s.vramGb.toFixed(0) + " GB VRAM) · " : "CPU only · ")
-                      + s.cpuPct + "% of a node (" + fmtNum(s.ramGb) + " GB RAM)";
+      sEl.textContent = appResources(vspec, { resources: { gpuShare: buy.gpuPct / 100 } });
     }
     est();
   };
