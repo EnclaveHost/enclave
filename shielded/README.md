@@ -198,6 +198,31 @@ CUDA_VISIBLE_DEVICES=<test-card> python3 shielded/worker-cuda/test_reply_staging
 CUDA_VISIBLE_DEVICES=<test-card> python3 shielded/worker-cuda/test_reply_staging.py --worker-bin shielded/worker-cuda/shielded-worker --benchmark
 ```
 
+### Trusted scheduler allocations
+
+The trusted backend borrows tensor names when looking up registered weights;
+the map continues to own its keys and keep entries at stable addresses. It also
+allocates the overlap pilot's produced-output flags only when overlap is enabled.
+Neither change alters weight identity, admission, verification or readiness rules.
+
+On 2026-10-01, seven alternating runs of the real scheduler fixture against
+`06e9a2500` measured 34,000 → 28,000 calling-thread C++ allocations per 1,000
+graph executions with local fusion off, and 63,000 → 58,000 with fusion on.
+Allocated bytes fell from 762,000 → 692,000 and 1,635,000 → 1,562,000 respectively.
+Counts were identical for 1, 8 and 16 rows; both graph outputs remained bit-identical.
+This is a tiny synthetic graph using trusted exact CPU fallback, with changing
+inputs and warmed scratch storage. Timing differences were below 1%; these results
+do not establish faster inference or a reduction in retained model memory.
+
+The benchmark builds both backend sources against the same current headers,
+core objects and local ggml libraries, and counts ordinary `new`/`new[]` calls
+only during graph computation. A held, non-listening port prevents contact with
+a GPU worker. Set `GGML_SRC` and `GGML_LIB` if the local engine is elsewhere.
+
+```
+python3 shielded/bench/scheduler_alloc_bench.py --baseline-ref 06e9a2500 --repetitions 7
+```
+
 ### Which calibrator
 
 `shielded-calib` (C, `wasm/ggml-shielded/`) is the one that produces the files in

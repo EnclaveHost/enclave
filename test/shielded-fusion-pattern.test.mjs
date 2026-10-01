@@ -45,7 +45,7 @@ test('the real scheduler admits only opted-in calibrated islands and preserves b
   try {
     const cflags = ['-O1', ...sanitize, '-ffunction-sections', '-fdata-sections'];
     const objects = [];
-    for (const name of ['shielded-field', 'shielded-wire', 'shielded-tee', 'shielded-pads', 'shielded-bank',
+    for (const name of ['shielded-field', 'shielded-wire', 'shielded-tee', 'shielded-parwork', 'shielded-pads', 'shielded-bank',
       'shielded-http', 'tweetnacl', 'poly1305-donna', 'shielded-simd']) {
       const obj = join(dir, `${name}.o`); objects.push(obj);
       execFileSync('cc', ['-std=c11', ...cflags, '-ffp-contract=off', '-c', source(`${name}.c`), '-o', obj],
