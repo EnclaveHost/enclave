@@ -2329,7 +2329,10 @@ struct Conn {
              * The destination is BAKED INTO THE CAPTURED GRAPH, so it is part
              * of the cache key -- a socket-served exchange must not replay a
              * graph that writes into the ring. */
-            const size_t want_out = packed ? std::max((ybytes + 3) & ~(size_t)3, E * 4) : ybytes;
+            /* Only CPU packing reads int32 products from host staging. GPU
+             * packing writes three bytes each (the pack kernel rounds its
+             * final store to a word); its int32 scratch is separately owned. */
+            const size_t want_out = !packed ? ybytes : pm == PACK_CPU ? E * 4 : (ybytes + 3) & ~(size_t)3;
             const bool to_ring = ring_serving && ring_out_d && want_out <= RING_REP_CAP &&
                                  !(packed && pm == PACK_CPU);
             if (!to_ring) ensure_host_out(want_out);
