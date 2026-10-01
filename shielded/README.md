@@ -172,6 +172,32 @@ the current caller, or omit the define and use the previous cache header for
 the baseline. The sanitizer fixture covers all key lengths through 64 nodes,
 caller storage mutation, allocation-free hits and failure cleanup.
 
+### Packed reply staging
+
+For socket `FIELD_GEMM24` exchanges, GPU packing reserves three host bytes per
+result, rounded up to a four-byte boundary for the pack kernel's final store.
+CPU packing still needs four host bytes per result. The kernel packing mode's
+separate int32 device scratch is unchanged. Buffers retain their high-water size,
+so an earlier, larger 32-bit reply can limit the savings on a mixed connection.
+The shared-memory ring currently accepts only 32-bit exchanges and is unaffected.
+
+On 2026-10-01, five alternating fresh-worker trials per version on a V100
+(sm_70) used K=32, N=65536 and m=32. Against `5cb177af3`, both GPU packing modes
+requested 6 MiB of pinned output staging instead of 8 MiB (25% less); the median
+RSS increase across the first exchange fell by 2 MiB. CPU packing was unchanged.
+This measures one connection's staging, not whole-model RAM or inference speed.
+
+The integration test builds a Linux/CUDA allocation interposer that checks
+64 guard bytes beyond every requested pinned allocation after synchronization.
+It checks exact products in all three packing modes, small and odd widths,
+multiple kernel passes, buffer growth, cache replay, and switches to 32-bit replies.
+Use an idle test GPU; the script starts and stops only its own scratch workers.
+
+```
+CUDA_VISIBLE_DEVICES=<test-card> python3 shielded/worker-cuda/test_reply_staging.py --worker-bin shielded/worker-cuda/shielded-worker
+CUDA_VISIBLE_DEVICES=<test-card> python3 shielded/worker-cuda/test_reply_staging.py --worker-bin shielded/worker-cuda/shielded-worker --benchmark
+```
+
 ### Which calibrator
 
 `shielded-calib` (C, `wasm/ggml-shielded/`) is the one that produces the files in
