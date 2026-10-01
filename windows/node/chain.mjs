@@ -454,12 +454,15 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
   if (scope === "owner-only") {
     if (!allow.size) return "this node is in owner-only scope and serves nobody: no operator key and no valid delegation";
     if (!owners) return `this node is in owner-only scope and hosts only its operator's and its delegated owners' deployments (${[...allow].join(", ")}; this one is owned by ${d.owner})`;
-  } else if (!owners && !invited && !legacy && Number(listedAt) > 0 && Number(d.createdAt) < Number(listedAt)) {
+  } else if (!owners && !invited && !legacy && !["snp-guest-per-app", "hyperv-partition-per-app"].includes(isolationBackend)
+      && Number(listedAt) > 0 && Number(d.createdAt) < Number(listedAt)) {
     return "it was created before this box was listed, and this box is a VBS enclave on a consumer PC:"
          + " an app runs inside the enclave, but the enclave protects it against this machine's software,"
          + " not against whoever physically holds the machine. Pick this enclave in the deploy console,"
          + " or redeploy, and it will run here";
   }
+  // Supported per-app backends honor the owner's explicit TEE flags below.
+  // The historical listing-date consent gate applies only to the legacy engine.
   // A PRIVATE deployment is served to its owner alone. This box verifies the session token that
   // proves that (windows/node/session.mjs), so it may take one - but only when it HAS a key to
   // verify with: a box that took a private deployment and then let anybody reach it would be
