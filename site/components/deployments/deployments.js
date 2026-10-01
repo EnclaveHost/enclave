@@ -19,7 +19,7 @@ import "../volume-picker/volume-picker.js";   // the Models tab's checklist
 import { $$, esc, hlJson, fmtDur, statusCls, copyText, showToast, lsGet, lsSet } from "../../js/core/util.js";
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
-import { pad32, encUint, encCall, hexBig, DEP_SEL, APPROVAL, depPrices6, rate6Of, depMaxGpuMilli, depGet, depSchemaRev, depFeeOf, depCapOf, depRefundableOf, depCall, catVersionFee, waitReceipt } from "../../js/core/chain.js";
+import { pad32, encUint, encCall, hexBig, DEP_SEL, APPROVAL, depPrices6, rate6Of, depMaxGpuMilli, depGet, depSchemaRev, depFeeOf, depCapOf, depRefundableOf, depCall, catVersionFee, catGetVersion, waitReceipt } from "../../js/core/chain.js";
 import { authenticate, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx, personalSign } from "../../js/core/wallet.js";
 import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, specOfRef, STORE, fetchConfigCid, stripMedia, putConfig } from "../../js/core/catalog.js";
 import { appShareLabel } from "../../js/core/app-resources.js";
@@ -1222,8 +1222,15 @@ class Deployments extends EnclaveElement {
     if (!d) return fail("[x] couldn’t read this deployment from the ledger - try again shortly");
     const cr = parseCatalogRef(d.appRef);
     if (!cr) return fail("[x] this deployment doesn’t reference a catalog version (" + (d.appRef || "no appRef") + ") - only catalog deployments can switch versions");
-    const app = STORE.byId[cr.appId];
+    const app = STORE.byId[cr.appId] || (sharesOnly ? { slug: 'app', versions: [] } : null);
     if (!app || !app.versions) return fail("[x] the catalog doesn’t list this deployment’s app (delisted?) - nothing to switch to");
+    let currentVersion = null;
+    if (sharesOnly) {
+      try { currentVersion = await catGetVersion(cr.appId, cr.index); }
+      catch (e) { return fail("[x] Could not read this app’s requirements. Close and reopen Shares to retry."); }
+      if (box.hidden || !box.isConnected) return;
+    }
+    const versions = sharesOnly ? [{ v: currentVersion, i: cr.index }] : app.versions.map((v, i) => ({ v, i }));
     if (rev < 3)
       return fail("[!] the live ledger contract predates version changes - the Version control activates with the next contract upgrade. Until then: deploy the new version fresh, then suspend this one (its balance stays on the record).");
     // The deployment's publisher-fee snapshot is immutable:
@@ -1235,7 +1242,7 @@ class Deployments extends EnclaveElement {
     let snapFee = 0n; const verFees = {};
     try {
       snapFee = (await depFeeOf(id)).feePerSec6;
-      await Promise.all(app.versions.map(async (v, i) => {
+      await Promise.all(versions.map(async ({ v, i }) => {
         verFees[i] = (!v.yanked && v.approval === APPROVAL.approved) ? await catVersionFee(cr.appId, i) : 0n;
       }));
     } catch(e){ return fail("[x] couldn’t read the publisher fees involved - try again shortly"); }
@@ -1248,6 +1255,9 @@ class Deployments extends EnclaveElement {
     if (resizable){
       try { [prices, maxGpu] = await Promise.all([depPrices6(), depMaxGpuMilli()]); }
       catch(e){ resizable = false; resizeReason = "Current prices could not be loaded. Close and reopen Shares to retry."; }
+    }
+    if (sharesOnly && (currentVersion.yanked || currentVersion.approval !== APPROVAL.approved)) {
+      resizable = false; resizeReason = 'This app version is not approved for a new launch. Select an approved version before changing its allocation.';
     }
     // The owner's hourly ceiling (rev 8). Editable here whenever every live
     // runner honors it — the fleet-AND flag, same rule as the resize dials:
@@ -1304,9 +1314,9 @@ class Deployments extends EnclaveElement {
       ? cpuFloorFor(r.mins, gpuMilli > 0 && (!hw || cardServesApp(hostAvail, r.mins)) ? 1 : 0)
       : !hw || d.active === false ? r.mins.cpuPct : cpuFloorFor(r.mins,
         gpuMilli > 0 && cardServesApp(hostAvail, r.mins) ? 1 : 0);
-    const rows = app.versions
-      .map((v, i) => ({ v, i, mins: minPctsOf(specOf(v), hw && hw.spec) }))
-      .filter(r => !r.v.yanked && r.v.approval === APPROVAL.approved)
+    const rows = versions
+      .map(({ v, i }) => ({ v, i, mins: minPctsOf(specOf(v), hw && hw.spec) }))
+      .filter(r => sharesOnly || (!r.v.yanked && r.v.approval === APPROVAL.approved))
       .map(r => ({ ...r,
         shareFit: r.mins.gpuPct * 10 <= bought.gpuMilli && cpuNeedOf(r) * 10 <= bought.cpuMilli,
         feeFit: (verFees[r.i] || 0n) <= snapFee }))

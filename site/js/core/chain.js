@@ -562,6 +562,16 @@ export async function catMaxFeePerSec6(){
 export async function catGetAppsPage(start, n){
   return decodeStructArray(await ethCall(encCall(CAT_SEL.getAppsPage, [{t:"uint",v:start},{t:"uint",v:n}])), APP_SCHEMA);
 }
+// A deployment may reference a version newer than the cached app listing.
+// Read that exact record without depending on the listing's versionCount.
+export async function catGetVersion(appId, index){
+  const rev = await catSchemaRev();
+  const versions = decodeStructArray(await ethCall(encCall(CAT_SEL.getVersionsPage,
+    [{ t: "bytes32", v: appId }, { t: "uint", v: index }, { t: "uint", v: 1 }])), rev >= 4 ? VER_SCHEMA : VER_SCHEMA_V2);
+  if (versions.length !== 1) throw new EnclaveError("The deployed app version is unavailable from the catalog.", 0);
+  if (rev < 4) versions[0].config = "";
+  return versions[0];
+}
 export async function catGetVersions(appId, count){
   const rev = await catSchemaRev();
   const schema = rev >= 4 ? VER_SCHEMA : VER_SCHEMA_V2;
