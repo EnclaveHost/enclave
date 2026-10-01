@@ -8,8 +8,8 @@
 // constant of the spawn body / the splice route), and test/windows-node-availability-flags.test.mjs holds the two together.
 export const PARTITION_OFFERS = Object.freeze({
   secrets: false,        // isolationPlan: "the deployment has staged secrets ... cannot deliver them into a partition"
-  config: false,         // isolationPlan: config beyond _media is not delivered into a partition
-  configCid: false,      // isolationPlan: a config override CID, or a version keeping its config at a CID, is refused
+  config: true,          // V5 measured config; also requires manager image capability
+  configCid: true,       // manager independently CID-verifies the public config before bundling it
   waf: false,            // isolationPlan: protection rules need the request's plaintext, which only the partition has
   customDomains: false,  // the splice serves only <label>.<zone> (isolatedTarget expectName); no other hostname reaches it
   gpu: true,             // gated again by the manager's measured Shield profile

@@ -19,7 +19,8 @@ export function verifyShieldAppPolicy(input, policy = {}) {
       return no('explicit image/runtime pairs are required');
     // Caller must obtain these expected identities independently from the
     // deployment and its catalog artifact, not from the app's report.
-    const candidates = images.filter(p => p.runtimeId === input?.expectedRuntimeId);
+    const candidates = images.filter(p => p.runtimeId === input?.expectedRuntimeId &&
+      (!input.requiresConfigBundleV5 || p.configBundleV5 === true));
     if (!candidates.length) return no('runtime has no admitted image');
     const v = verifyVbsAppEvidence(input, {
       ekRoots: policy.ekRoots,

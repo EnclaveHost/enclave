@@ -2,7 +2,7 @@
 // runtime or firmware against which its report is checked.
 import { randomBytes } from 'node:crypto';
 import { CATALOG_REF_RE, derivationRecord, versionRefusal } from './measurement-predict.mjs';
-import { derive } from './shield-derive.mjs';
+import { derive, appConfigText, DERIVATION_V5 } from './shield-derive.mjs';
 
 export async function expectedShieldApp(row, { policy, readCatalog, readConfig, fetchVerified, allowPendingOwner = false }) {
   if (!row || row.isPublic !== true) throw new Error('only public apps are supported');
@@ -19,8 +19,8 @@ export async function expectedShieldApp(row, { policy, readCatalog, readConfig, 
     throw new Error('unsupported deployment options');
   if (envelope.isolation?.require !== 'hyperv-partition-per-app' ||
       Object.keys(envelope.isolation).some(k => k !== 'require')) throw new Error('deployment must require Shield partition isolation');
-  if (envelope.configCid || (envelope.waf && Object.keys(envelope.waf).length))
-    throw new Error('configuration CID and protection rules are not supported');
+  if (envelope.waf && Object.keys(envelope.waf).length)
+    throw new Error('protection rules are not supported');
   for (const [key, allowed] of [['network', ['relay']], ['gpu', ['optional']], ['waf', []]]) {
     if (!(key in envelope)) continue;
     const value = envelope[key];
@@ -38,8 +38,17 @@ export async function expectedShieldApp(row, { policy, readCatalog, readConfig, 
   const profile = gpu > 0 ? policy?.gpu : policy?.cpu;
   if (!profile?.runtimeId) throw new Error('no admitted runtime for this workload');
   const c = await readConfig(ref[1].toLowerCase(), Number(ref[2]));
-  if (!c || c.configCid) throw new Error('catalog configuration must be available inline');
+  if (!c) throw new Error('catalog configuration is unavailable');
+  const configCid = envelope.configCid || (envelope.config !== undefined ? "" : c.configCid || "");
   let config = envelope.config !== undefined ? envelope.config : c.config || {};
+  if (configCid) {
+    if (profile.configBundleV5 !== true || gpu) throw new Error('configuration CID is not supported by the admitted image');
+    if (typeof configCid !== "string" || !/^(Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{50,120}|z[1-9A-HJ-NP-Za-km-z]{40,120})$/.test(configCid))
+      throw new Error('invalid configuration CID');
+    const got = await fetchVerified(configCid, 1 << 20);
+    if (!got?.ok || !Buffer.isBuffer(got.bytes) || got.bytes.length > (1 << 20)) throw new Error('configuration could not be CID-verified');
+    config = new TextDecoder('utf-8', { fatal: true }).decode(got.bytes);
+  }
   if (typeof config === 'string') config = JSON.parse(config || '{}');
   if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('configuration is not an object');
   const { _media, ...appConfig } = config;
@@ -53,10 +62,15 @@ export async function expectedShieldApp(row, { policy, readCatalog, readConfig, 
     record.derivation = 'enclave-catalog-bundle/4';
     record.policy = { cpuPercent: 400, vcpus: 4, memMiB: version.memMb };
     record.inference = { model: profile.model, gpuMilli: gpu };
-  } else if (Object.keys(appConfig).length) throw new Error('app configuration is not supported by this runtime');
+  } else if (Object.keys(appConfig).length || configCid) {
+    if (profile.configBundleV5 !== true || record.http) throw new Error('app configuration is not supported by this runtime');
+    record.derivation = DERIVATION_V5;
+    record.config = appConfigText(config);
+    if (configCid) record.configCid = configCid;
+  }
   const component = await fetchVerified(version.cid, 256 << 20);
   if (!component?.ok || !Buffer.isBuffer(component.bytes)) throw new Error('catalog component could not be CID-verified');
-  return { appSha256: derive({ record, component: component.bytes }).appId, runtimeId: profile.runtimeId };
+  return { appSha256: derive({ record, component: component.bytes }).appId, runtimeId: profile.runtimeId, requiresConfigBundleV5: record.derivation === DERIVATION_V5 };
 }
 
 export function createShieldAppVerifier({ hub, policy, readCatalog, readConfig, fetchVerified }) {
@@ -73,7 +87,7 @@ export function createShieldAppVerifier({ hub, policy, readCatalog, readConfig, 
       if (!proof || typeof proof.handshakeSpki !== 'string' || proof.handshakeSpki.length > 5500)
         throw new Error('no bounded app proof from the live node');
       return hub.verifyShieldApp(name, { doc: proof.doc, handshakeSpki: Buffer.from(proof.handshakeSpki, 'base64'),
-        nonce, expectedAppSha256: expected.appSha256, expectedRuntimeId: expected.runtimeId,
+        nonce, expectedAppSha256: expected.appSha256, expectedRuntimeId: expected.runtimeId, requiresConfigBundleV5: expected.requiresConfigBundleV5,
         ...(csrSpkiSha256 !== undefined ? { expectedCsrSpkiSha256: csrSpkiSha256 } : {}) }, policy);
     } catch (e) { return { ok: false, reason: e.message }; }
     finally { active--; }

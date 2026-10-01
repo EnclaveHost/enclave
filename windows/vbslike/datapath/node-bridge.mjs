@@ -20,6 +20,7 @@
 // refusal that says so (`unknown: true`), never read as "none". A refusal always names the input that decided it.
 import { spliceStream } from "../../../isolation/m4/guestd/supervisor-splice.mjs";
 import { createDataPlane } from "./datapath.mjs";
+import { appConfigText, DERIVATION_V5 } from "../manager/derive.mjs";
 
 export const BACKEND = "hyperv-partition-per-app";
 export const V1 = "enclave-catalog-bundle/1";
@@ -94,7 +95,7 @@ export function derivationOf(appId, index, cid, policy, runtimeId, httpPort = 0)
  * -> { ok: false, input, why, unknown }
  */
 export function isolationPlan({ deploymentId, deployment, version, appConfig, hasSecrets, waf, volumes, runtimeId,
-                                require, manager, appConfigCid, backend = BACKEND } = {}) {
+                                require, manager, appConfigCid, configSourceCid, backend = BACKEND } = {}) {
   if (!/^0x[0-9a-f]{64}$/.test(String(deploymentId || ""))) return refused("deploymentId", `${deploymentId} is not a deployment id`);
   if (!deployment || typeof deployment !== "object") return unknownInput("deployment", "the ledger record");
   // the tenant's opt-in, then the manager's identity: supervisor.js checks these first, in this order
@@ -142,10 +143,16 @@ export function isolationPlan({ deploymentId, deployment, version, appConfig, ha
       if (Array.isArray(configVolumes) && configVolumes.length === 1 && configVolumes[0] === inf.model && Object.keys(other).length === 0) deliveredConfig="";
     } catch {}
   }
-  if (deliveredConfig) return refused("appConfig", "the app has config beyond _media, which is not delivered into a partition");
+  const sourceCid = configSourceCid ?? (appConfigCid || version.configCid || "");
+  const configRequested = !!deliveredConfig || !!sourceCid;
+  if (configRequested && (inf || manager.supports?.config !== true || (sourceCid && manager.supports?.configCid !== true)))
+    return refused("appConfig", "this partition image does not support measured app configuration");
+  let measuredConfig = null;
+  if (configRequested) {
+    try { measuredConfig = appConfigText(appConfig || "{}"); }
+    catch (e) { return refused("appConfig", e.message); }
+  }
   if (appConfigCid === undefined || appConfigCid === null) return unknownInput("appConfigCid", "whether the deployment overrides its config by CID");
-  if (appConfigCid) return refused("appConfigCid", "the deployment overrides its config by CID, which is not delivered into a partition");
-  if (version.configCid) return refused("version.configCid", "the version keeps its config at a CID, which is not delivered into a partition");
 
   if (waf === undefined || waf === null) return unknownInput("waf", "the deployment's protection rules");
   if (typeof waf !== "object" || Object.keys(waf).length)
@@ -158,7 +165,8 @@ export function isolationPlan({ deploymentId, deployment, version, appConfig, ha
   let httpPort;
   try { httpPort = httpPortOf(version.ports); } catch (e) { return refused("version.ports", e.message); }
   if (inf && httpPort) return refused("version.ports", "initial Shield profile serves wasi:http components");
-  const derivation = inf ? V4 : httpPort ? V2 : V1;
+  if (configRequested && httpPort) return refused("version.ports", "measured configuration currently serves wasi:http components");
+  const derivation = configRequested ? DERIVATION_V5 : inf ? V4 : httpPort ? V2 : V1;
   if (!Array.isArray(derivations)) return unknownInput("manager.catalog.derivations", "what the manager can serve");
   if (!derivations.includes(derivation))
     return refused("manager.catalog.derivations", httpPort
@@ -169,6 +177,7 @@ export function isolationPlan({ deploymentId, deployment, version, appConfig, ha
 
   const policy = inf ? { cpuPercent: 400, vcpus: 4, memMiB: Math.max(8192, Number(version.memMb)) } : policyFor(version.memMb);
   const derive = derivationOf(version.appId, version.index, version.cid, policy, runtimeId, httpPort);
+  if (configRequested) { derive.derivation=DERIVATION_V5; derive.config=measuredConfig; if (sourceCid) derive.configCid=sourceCid; }
   if (inf) { derive.derivation=V4; derive.inference={model:inf.model,gpuMilli:gpu}; }
   return { ok: true, derivation, httpPort, policy,
            spawn: { image: `ipfs://${version.cid}`, name: deploymentId, cpuShare: cpu / 1000, gpuShare: gpu / 1000,

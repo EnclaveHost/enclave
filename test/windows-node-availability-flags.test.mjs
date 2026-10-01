@@ -37,8 +37,10 @@ test("the isolated backend advertises none of what a partition cannot be given -
     h.managerSupports = supports;
     const f = h.features(), a = h.availability();
     for (const k of FLAGS) {
-      assert.equal(f[k], false, `features().${k} with supports=${JSON.stringify(supports)}`);
-      assert.equal(a[k], false, `availability.${k}`);
+      const configFlag = ["configOverride", "configCid", "configCidOverride", "configEdit"].includes(k);
+      const expected = !!supports && configFlag;
+      assert.equal(f[k], expected, `features().${k} with supports=${JSON.stringify(supports)}`);
+      assert.equal(a[k], expected, `availability.${k}`);
     }
   }
 });
@@ -68,7 +70,7 @@ test("every false in PARTITION_OFFERS is a refusal in isolationPlan (or a consta
     volumes: { volumes: ["gemma"] },
   };
   for (const [k, over] of Object.entries(refused)) {
-    assert.equal(PARTITION_OFFERS[k], k === "gpu", k);
+    assert.equal(PARTITION_OFFERS[k], ["gpu", "config", "configCid"].includes(k), k);
     const r = isolationPlan({ ...base, ...over });
     assert.equal(r.ok, false, `${k} was planned: ${JSON.stringify(r).slice(0, 120)}`);
   }
@@ -76,7 +78,7 @@ test("every false in PARTITION_OFFERS is a refusal in isolationPlan (or a consta
   assert.equal(PARTITION_OFFERS.customDomains, false);
   const t = isolatedTarget(DEP, { status: "running", isolation: { instance: "hv1", appId: "1".repeat(64) } }, "app.enclave.host");
   assert.equal(t.isolation.expectName, `${DEP.slice(2, 10)}.app.enclave.host`, "only the platform's own name is spliced");
-  assert.deepEqual(Object.entries(PARTITION_OFFERS).filter(([, v]) => v !== false), [["gpu", true]], "a partition offer turned true without its test");
+  assert.deepEqual(Object.entries(PARTITION_OFFERS).filter(([, v]) => v !== false), [["config", true], ["configCid", true], ["gpu", true]], "a partition offer turned true without its test");
 });
 
 test("the claim gate follows the flags: the isolated backend refuses a PRIVATE deployment at claim, by name, not after claiming it", async () => {
@@ -97,4 +99,16 @@ test("the claim gate follows the flags: the isolated backend refuses a PRIVATE d
   const l = await legacy.consider(id);
   assert.doesNotMatch(String(l.reason || ""), /private deployment/);
   assert.ok(enclaveIdOf);
+});
+
+test("isolated config resolution prefers verified CID over inline routing and refuses broken CID config",async()=>{
+  const h=box(),cid='bafkrei'+'a'.repeat(52);
+  fs.mkdirSync(path.join(h.cfg.dir,'apps'),{recursive:true});
+  const file=path.join(h.cfg.dir,'apps',`cfg-${cid}.json`);
+  fs.writeFileSync(file,'{"title":"CID app"}');
+  const d={id:DEP,gpuMilli:0,configCid:JSON.stringify({config:{volumes:[]},configCid:cid})};
+  assert.equal(await h.appConfig(d,{config:'{}'},{strictCid:true}),'{"title":"CID app"}');
+  fs.writeFileSync(file,'broken');
+  await assert.rejects(h.appConfig(d,{config:'{}'},{strictCid:true}));
+  fs.rmSync(h.cfg.dir,{recursive:true,force:true});
 });
