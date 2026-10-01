@@ -18,7 +18,7 @@ Release: `d4fab4c8727ce0d07cc850d29236ec2365903789dd8c81fb008210934b22f4c8`. Onl
 - A final-candidate 20 GiB guest served Eyesoff's interface successfully. This checks startup, not generation.
 - A fixed public MTP inference probe at the owner's 45,440 MiB allocation exhausted its dynamically computed 40,587 MiB group limit. Init restarted the app without the graph, and a new attestation plus `/ping` check passed on the same guest TLS key.
 
-Evidence: `/home/steven/enclave-bench/dynamic-model-ram-20261001`. Larger-allocation inference testing and production activation are recorded below once complete.
+Evidence: `/home/steven/enclave-bench/dynamic-model-ram-20261001`. Larger-allocation inference testing and production activation are recorded below.
 
 ## Successful larger-allocation generation
 
@@ -27,3 +27,11 @@ The exact final runtime completed the public 32-token decode probe in a 57,344 M
 The archived speculative probe first reached an obsolete `rewind` API and returned a structured `rewind_unsupported` error. The production application uses branch/copy speculation instead. The successful result above is ordinary decode; do not report it as a production MTP benchmark. The speculative probe did exercise model/context initialization, and the runtime stayed alive after that ordinary application error.
 
 The 44.4 GiB probe's post-OOM attestation and liveness check passed with the same TLS key. The 56 GiB canary was stopped before production activation, releasing its GPU and RAM resources.
+
+## Production activation and recovery
+
+Activated the candidate for Eyesoff-AI without changing its 45,440 MiB allocation or application configuration. The public predictor independently matched measurement `59deeccf13fd5e0286243e50c569448ad6b754374b37dfc9fba4f7078cebd87fd21754a9266503e9672684acae38dd34`. Other running guests were adopted rather than relaunched.
+
+The production guest authenticated the model, enforced a 40,571 MiB dynamic group budget, and attempted startup warmup. That real load exhausted the budget. Init restarted Eyesoff without the graph, retaining its front, attestation identity and TLS key. A fresh independent SNP check and HTTP 200 interface check passed after recovery. The 27B model is therefore **not loaded** at this allocation; removing the cutoff did not make this load fit.
+
+Both `https://9eb4e600.app.enclave.host/` and `https://eyesoff.ai/` subsequently returned HTTP 200 with ordinary public certificate validation. A transient ZeroSSL finalize/download failure had orphaned an already issued custom-domain certificate; the existing order was recovered using the relay's ACME account. Installation checked fresh attestation, independent image prediction, CSR/key binding and the certificate hostname. No guest private key was exported and no new certificate order was needed for this recovery. Evidence includes `9eb4e600-verified-post-oom.json`, `recovered-cert-install.json`, and the production serial log.
