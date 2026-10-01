@@ -201,3 +201,12 @@ test("the envelope parser returns what it accepted, so the guest gets what the p
   assert.throws(() => parseEnvelope(JSON.stringify({ network: { relay: "UPPER" } }), 0), /must be a relay name/);
   assert.throws(() => parseEnvelope(JSON.stringify({ config: "a string" }), 0), /config must be a JSON object/);
 });
+
+test('per-app isolation uses TEE requirements, not the host listing date', () => {
+  const old = dep({createdAt: 1n});
+  const c = ctx({listedAt: 1790000000, isolationBackend: 'hyperv-partition-per-app'});
+  assert.equal(claimPolicy(old, c), null);
+  assert.equal(claimPolicy({...old,configCid: JSON.stringify({isolation:{cpuTee:false,gpuTee:false}})}, c), null);
+  assert.match(String(claimPolicy({...old,configCid: JSON.stringify({isolation:{cpuTee:true}})}, c)), /TEE CPU/);
+  assert.match(String(claimPolicy({...old,configCid: JSON.stringify({isolation:{gpuTee:true}})}, c)), /TEE GPU/);
+});
