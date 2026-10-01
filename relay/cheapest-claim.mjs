@@ -5,11 +5,11 @@ export const CLAIM_QUOTE_ABI = ['rateFor', 'claimableBy'].map(name => ({
   inputs:[{name:'id',type:'bytes32'},{name:'enclaveId',type:'bytes32'}],
   outputs:[{type:name === 'rateFor' ? 'uint256' : 'bool'}],
 }));
-export async function claimCheapest({pool, quote, hint, preferred = ''}) {
+export async function claimCheapest({pool, quote, hint, preferred = '', allowFallback = true}) {
   const prefers = host => !!preferred && [host.id, host.name, host.endpoint]
     .some(value => String(value || '').toLowerCase() === preferred.toLowerCase());
   let failedQuotes=0;
-  const priced=await Promise.all(pool.map(async host=>{
+  const priced=await Promise.all(pool.filter(host => allowFallback || !preferred || prefers(host)).map(async host=>{
     try {
       const {rate,claimable,selfHosted}=await quote(host);
       if (claimable !== true) return null;
@@ -31,7 +31,7 @@ export async function claimCheapest({pool, quote, hint, preferred = ''}) {
       if(result?.reason) declined=result.reason;
     } catch { declined='A candidate host did not answer.'; }
   }
-  return {accepted:false,strategy:'cheapest',reason:declined || (failedQuotes
+  return {accepted:false,strategy:'cheapest',reason:declined || (preferred && !allowFallback ? 'The pinned host is unavailable or does not meet the app’s criteria. Waiting for that host.' : failedQuotes
     ? 'Could not confirm eligible host prices on-chain. The app remains queued.'
     : 'No eligible host can claim within the app’s rate cap and balance right now. The app remains queued.')};
 }

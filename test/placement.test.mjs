@@ -33,7 +33,7 @@ test('owner-signed preference and explicit Auto survive relay restart and fallba
  const restored=createPlacement(f.deps);
  assert.equal((await restored.get(ID)).hostId,HOST);
  await restored.put(ID,await f.signed(''),{headers:{}});
- assert.deepEqual(await createPlacement(f.deps).get(ID),{configured:true,hostId:'',name:'',isolation:'',updatedAt:1800000000000});
+ assert.deepEqual(await createPlacement(f.deps).get(ID),{configured:true,hostId:'',name:'',allowFallback:true,isolation:'',updatedAt:1800000000000});
 });
 test('wrong owner, changed host, expired signature and signature replay cannot change preference',async t=>{
  const f=fixture(t),other=privateKeyToAccount(generatePrivateKey());
@@ -76,5 +76,34 @@ test('preferred host is tried before cheaper hosts, with fallback on decline or 
    hint:async h=>{calls.push(h.name);return {accepted:h.id!==HOST||reason==='accept'};}});
   assert.equal(result.accepted,true);
   assert.deepEqual(calls,reason==='accept'?['nucbox']:reason==='decline'?['nucbox','metal0']:['metal0']);
+ }
+});
+
+test('fallback policy is signed, persistent and backed by the ledger for a strict pin',async t=>{
+ const f=fixture(t);
+ const sign=async allowFallback=>{
+  const body=await f.signed(); body.allowFallback=allowFallback;
+  body.signature=await f.owner.signMessage({message:placementMessage(LEDGER,ID,body.hostId,body.expiry,body.nonce,allowFallback)});
+  return body;
+ };
+ const strict=await sign(false);
+ await assert.rejects(f.service.put(ID,{...strict,allowFallback:true},{headers:{}}),/owner|signature/);
+ await assert.rejects(f.service.put(ID,strict,{headers:{}}),/ledger/);
+ f.row.configCid=JSON.stringify({placement:{hostId:HOST}});
+ await f.service.put(ID,strict,{headers:{}});
+ const saved=await createPlacement(f.deps).get(ID);
+ assert.equal(saved.hostId,HOST);assert.equal(saved.allowFallback,false);
+ await assert.rejects(f.service.put(ID,await sign(true),{headers:{}}),/ledger/);
+ f.row.configCid='';await f.service.put(ID,await sign(true),{headers:{}});
+ assert.equal((await createPlacement(f.deps).get(ID)).allowFallback,true);
+});
+test('strict pins never quote or hint another host, including offline, over-cap and declined pins',async()=>{
+ for (const state of ['offline','over-cap','declined']) {
+  const calls=[];
+  const result=await claimCheapest({preferred:HOST,allowFallback:false,
+   pool:state==='offline'?[{id:OTHER}]:[{id:OTHER},{id:HOST}],
+   quote:async h=>{assert.equal(h.id,HOST);return {rate:1,claimable:state!=='over-cap'}},
+   hint:async h=>{calls.push(h.id);return {accepted:false}}});
+  assert.equal(result.accepted,false);assert.deepEqual(calls,state==='declined'?[HOST]:[]);
  }
 });

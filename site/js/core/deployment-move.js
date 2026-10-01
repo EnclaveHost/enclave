@@ -1,4 +1,4 @@
-// Placement is a claim hint, not a permanent host lock. Use the current lease,
+// Saved placement policy is applied separately before this lease handoff. Use the current lease,
 // never a stale dashboard status, to decide whether there is anything to stop.
 export function moveLeaseLive(d, now = Date.now()) {
   return !!d && /^0x[0-9a-f]{64}$/i.test(String(d.runner || "")) &&

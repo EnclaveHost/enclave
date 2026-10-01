@@ -27,7 +27,7 @@ import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
 import { moveLeaseLive, prepareDeploymentMove } from "../../js/core/deployment-move.js";
 import { isolationOptions, withIsolationRequirements, hostMeetsTeeRequirements } from "../../js/core/isolation-options.js";
-import { placementMessage } from "../../js/core/placement-options.js";
+import { placementMessage, pinnedHost, withPlacementPin } from "../../js/core/placement-options.js";
 import { resizeAfterStop } from "../../js/core/share-resize.js";
 import { depSnapshot } from "../../js/core/chain.js";
 import { BUCKETS, bucketOf, countBuckets } from "../../js/core/deploy-status.js";
@@ -3083,7 +3083,7 @@ class Deployments extends EnclaveElement {
      funded; then the chosen box gets a claim hint and first crack at it.
 
      The relay saves the owner's preferred host and tries it first whenever
-     the app is queued. Other eligible hosts remain fallbacks. A preference
+     the app is queued. The ledger envelope enforces pins without fallback. A preference
      stays saved even when a fallback holds the lease.
 
      Cost: the app stops and relaunches, so this is the same interruption as
@@ -3151,14 +3151,16 @@ class Deployments extends EnclaveElement {
       + '<p class="enc-pin-help">Unchecked allows either supported isolation implementation. TEE GPU requires confidential GPU hardware; masked GPU offload does not qualify.</p>'
       + '<div class="enc-pin-placement"><div class="enc-pin-host"><label for="' + selId + '">Host</label>'
       + '<select class="eu-sel" id="' + selId + '"></select></div><button class="btn btn-sm btn-primary mv-go">Apply</button></div>'
+      + '<label><input type="checkbox" class="mv-fallback"' + (placement?.allowFallback !== false ? ' checked' : '') + '> Allow Fallback</label>'
       + '<p class="enc-pin-help">' + (currentRunner ? 'Changing hosts restarts the app. Keeping this host leaves it running. ' : !d.active ? 'Applying placement resumes the app. ' : '')
-      + 'A pinned host is preferred; other eligible hosts are fallbacks. Your rate cap in Shares still applies.</p>'
+      + 'Auto uses the cheapest eligible hosts. A selected host stays pinned; Allow Fallback lets another eligible host run the app when that host cannot. Without fallback, the app waits. Your rate cap in Shares still applies.</p>'
       + '<div class="enc-pin-notice" role="status" aria-live="polite"></div>'
       + '<div class="enc-upg-body mv-upg" hidden></div>'
       + '<div class="term enc-move-status" role="status" aria-live="polite"></div></div>';
     const sel = box.querySelector("#" + selId), go = box.querySelector(".mv-go");
     const cpu = box.querySelector(".mv-tee-cpu"), gpu = box.querySelector(".mv-tee-gpu");
     const notice = box.querySelector(".enc-pin-notice");
+    const fallback = box.querySelector(".mv-fallback");
     box._placement = placement;
     box._placementTargets = targets;
     let initialized = false;
@@ -3168,7 +3170,7 @@ class Deployments extends EnclaveElement {
       const selected = initialized ? sel.value : initialHost;
       initialized = true;
       const eligible = targets.filter(t => hostMeetsTeeRequirements(t.row, choice));
-      sel.innerHTML = '<option value="">Auto — your free host first, then cheapest eligible</option>'
+      sel.innerHTML = '<option value="">Auto — cheapest eligible host</option>'
         + eligible.map(t => '<option value="' + esc(t.name) + '">' + esc(t.name) + (t.current ? ' · current host' : t.unavailable ? ' · currently unavailable' : t.queued ? ' · currently full' : '') + '</option>').join('');
       sel.value = eligible.some(t => t.name === selected) ? selected : "";
       notice.textContent = eligible.length ? '' : gpu.checked
@@ -3182,6 +3184,7 @@ class Deployments extends EnclaveElement {
     const upgWrap = box.querySelector(".mv-upg");
     const bought = { gpuMilli: Number(d.gpuMilli) || 0, cpuMilli: Number(d.cpuMilli) || 0 };
     const syncUpg = () => {
+      fallback.disabled = !sel.value;
       const t = targets.find((x) => x.name === sel.value && !x.unavailable && !x.current);
       go.textContent = "Apply";
       const vv = { ...spec, depGpuOptional: depSoftGpu };
@@ -3233,6 +3236,13 @@ class Deployments extends EnclaveElement {
     };
     go.disabled = true; go.textContent = "Applying…";
     const choice = box._isolationChoice;
+    const placementTarget = (box._placementTargets || []).find(t => t.name === target);
+    const hostId = target ? String(placementTarget?.row?.id || '').toLowerCase() : '';
+    const allowFallback = !target || box.querySelector('.mv-fallback')?.checked !== false;
+    if (box._placementTargets && target && !/^0x[0-9a-f]{64}$/.test(hostId)) {
+      paintLine(s, 'warn', '[x] Reopen Pin to refresh the selected host.');
+      go.disabled = false; go.textContent = label; return;
+    }
     if (choice) {
       try {
         const fresh = await depGet(id);
@@ -3240,9 +3250,13 @@ class Deployments extends EnclaveElement {
         const initial = isolationOptions(JSON.parse(choice.original));
         if (JSON.stringify(old.envelope.isolation) !== JSON.stringify(initial.envelope.isolation))
           throw new Error("The hardware requirements changed elsewhere. Reopen Pin before applying.");
-        const envelope = withIsolationRequirements(fresh.configCid, choice, (await depSchemaRev()) >= 5 ? 4096 : 100);
+        if (box._placementTargets && pinnedHost(fresh.configCid) !== pinnedHost(JSON.parse(choice.original)))
+          throw new Error("The placement policy changed elsewhere. Reopen Pin before applying.");
+        const cap = (await depSchemaRev()) >= 5 ? 4096 : 100;
+        let envelope = withIsolationRequirements(fresh.configCid, choice, cap);
+        if (box._placementTargets) envelope = withPlacementPin(envelope, hostId, allowFallback, cap);
         if (envelope !== String(fresh.configCid || "")) {
-          paintLine(s, "info", "Confirm the hardware requirements in your wallet. Placement follows after confirmation.");
+          paintLine(s, "info", "Confirm the placement and hardware requirements in your wallet.");
           if (via) await vault("control", { id, action: "options", envelope });
           else {
             if (!Enclave.provider) await connectWallet();
@@ -3259,22 +3273,19 @@ class Deployments extends EnclaveElement {
         return;
       }
     }
-    const placementTarget = (box._placementTargets || []).find(t => t.name === target);
     if (box._placementTargets) {
       try {
-        const hostId = target ? String(placementTarget?.row?.id || '').toLowerCase() : '';
-        if (target && !/^0x[0-9a-f]{64}$/.test(hostId)) throw Error('Reopen Pin to refresh the selected host.');
-        if (!box._placement?.configured || box._placement.hostId !== hostId) {
-          const body = { hostId };
+        if (!box._placement?.configured || box._placement.hostId !== hostId || (box._placement.allowFallback !== false) !== allowFallback) {
+          const body = { hostId, allowFallback };
           if (!via) {
             if (!Enclave.provider) await connectWallet();
             body.expiry = Math.floor(Date.now() / 1000) + 300;
             body.nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
             paintLine(s, 'info', 'Confirm the placement preference in your wallet.');
-            body.signature = await personalSign(placementMessage(DEPLOYMENTS_ADDRESS.toLowerCase(), id.toLowerCase(), hostId, body.expiry, body.nonce));
+            body.signature = await personalSign(placementMessage(DEPLOYMENTS_ADDRESS.toLowerCase(), id.toLowerCase(), hostId, body.expiry, body.nonce, allowFallback));
           }
           box._placement = await Enclave.savePlacement(id, body, via);
-          paintLine(s, 'ok', hostId ? 'Preferred host saved: ' + target + '. Other eligible hosts can serve as fallbacks.' : 'Auto placement saved.');
+          paintLine(s, 'ok', hostId ? 'Host pin saved: ' + target + (allowFallback ? '. Other eligible hosts can serve as fallbacks.' : '. Fallback is off; the app will wait for this host.') : 'Auto placement saved.');
         }
       } catch (e) {
         paintLine(s, 'warn', '[x] Placement was not saved: ' + e.message);

@@ -1970,6 +1970,33 @@ function setOfConfig(cfg) {
 function mem64OfConfig(cfg) {
   try { return JSON.parse(String(cfg || "{}") || "{}").mem64 === true; } catch { return false; }
 }
+function pinnedHost(raw = '') {
+  const envelope = JSON.parse(String(raw || '{}'));
+  if (!envelope || Array.isArray(envelope) || typeof envelope !== 'object') throw Error('Invalid deployment options.');
+  if (!('placement' in envelope)) return '';
+  const p = envelope.placement;
+  if (!p || Array.isArray(p) || typeof p !== 'object' || Object.keys(p).some(k => k !== 'hostId')
+      || typeof p.hostId !== 'string' || !/^0x[0-9a-f]{64}$/.test(p.hostId) || /^0x0{64}$/.test(p.hostId))
+    throw Error('Invalid placement pin.');
+  return p.hostId;
+}
+function placementRefusal(raw, enclaveId) {
+  let pin;
+  try { pin = pinnedHost(raw); } catch { return null; } // malformed live edits retain the old configuration
+  return pin && pin !== String(enclaveId || '').toLowerCase()
+    ? `Pinned to host ${pin}; fallback is disabled.` : null;
+}
+
+async function retireForPlacement(rec, why) {
+  // Stop before releasing: two hosts must never serve this pin concurrently.
+  await stopContainer(rec);
+  await proveAndRelease(rec, why);
+  if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
+  rec.status = "terminated";
+  rec.error = why;
+  saveStateSoon();
+}
+
 function parseDepOptions(raw, gpuMilli) {
   const s = String(raw || "").trim();
   if (!s) return {};
@@ -1978,9 +2005,10 @@ function parseDepOptions(raw, gpuMilli) {
     throw new Error("configCid is retired: a CID names bytes nobody validated — this field may only carry a deployment-options JSON envelope like {\"waf\":{…},\"config\":{…}} (config = an inline app-config override for this deployment); recreate the deployment without a config reference");
   let o; try { o = JSON.parse(s); } catch (e) { throw new Error("options envelope is not valid JSON: " + e.message); }
   if (!o || Array.isArray(o) || typeof o !== "object") throw new Error("options envelope must be a JSON object");
-  const unknown = Object.keys(o).filter((k) => k !== "waf" && k !== "config" && k !== "configCid" && k !== "gpu" && k !== "network");
-  if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: waf, config, configCid, gpu, network)`);
+  const unknown = Object.keys(o).filter((k) => k !== "waf" && k !== "config" && k !== "configCid" && k !== "gpu" && k !== "network" && k !== "placement");
+  if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: waf, config, configCid, gpu, network, placement)`);
   const opts = {};
+  const pin = pinnedHost(raw); if (pin) opts.pinnedHost = pin;
   if ("network" in o) {
     // WHICH RELAY carries this deployment's traffic. Unlike every other
     // namespace here, nothing in this CVM acts on it: the choice is consumed at
@@ -8337,6 +8365,9 @@ async function renewLeases() {
     const lapsed = rec._leaseUntil * 1000 <= Date.now();
     rec._renewing = true;
     try {
+      const fresh = await readLedgerContract("get", [rec.id]);
+      const pinRefusal = placementRefusal(fresh.configCid, _enclaveId);
+      if (pinRefusal) { await retireForPlacement(rec, pinRefusal); continue; }
       const sent = lapsed ? sendClaimTx("claim", [rec.id, _enclaveId]) : sendClaimTx("renew", [rec.id]);
       await sent;
       const rcpt = await sent.receipt;
@@ -8684,6 +8715,11 @@ async function auditClaims(ledgerById) {
     // AND the sweep (per-record re-reads were what blew the RPC rate budget)
     const d = ledgerById.get(rec.id.toLowerCase());
     if (!d) continue;                         // not in the page (RPC anomaly): keep serving, the lease is prepaid
+    const pinRefusal = placementRefusal(d.configCid, _enclaveId);
+    if (pinRefusal) {
+      await retireForPlacement(rec, pinRefusal);
+      continue;
+    }
     rec.paidUsdc = Number(d.spent6 + d.balance6);
     rec._balance6 = Number(d.balance6);          // funded-runtime display: balance beyond the current lease
     rec.rate = Number(d.rate) / 1e6;             // a setShares resize recalculates it on-chain; keep the mirror honest
@@ -9252,6 +9288,8 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   // config the owner believes was overridden.
   try { parseDepOptions(d.configCid, d.gpuMilli); }
   catch (e) { return "deployment options refused: " + e.message; }
+  const pinRefusal = placementRefusal(d.configCid, _enclaveId);
+  if (pinRefusal) return pinRefusal;
   // Routing: the deployment bought two shares. GPU work (gpuMilli > 0)
   // runs ONLY on GPU enclaves and must fit a card AND the node's cpu pool.
   // CPU-only work runs on CPU enclaves immediately; a GPU enclave bids on
@@ -9560,6 +9598,10 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false 
       return;
     }
   }
+  // Prefetch can take minutes; re-check the owner policy before spending a lease.
+  const latest = await readLedgerContract("get", [d.id]);
+  const latestPinRefusal = placementRefusal(latest.configCid, _enclaveId);
+  if (latestPinRefusal) return latestPinRefusal;
   if (resume) {
     // we already HOLD this lease (a previous life of this enclave claimed
     // it; the reboot wiped local state, not the chain) - no claim tx, just

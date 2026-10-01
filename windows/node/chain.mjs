@@ -331,16 +331,34 @@ export function nodeFloorOf(v) {
  * NOT known here: nothing. Any other namespace is still refused by name, because the envelope is
  * fail-closed and silently ignoring an option an owner paid for is the one unacceptable answer.
  */
+export function pinnedHost(raw = '') {
+  const envelope = JSON.parse(String(raw || '{}'));
+  if (!envelope || Array.isArray(envelope) || typeof envelope !== 'object') throw Error('Invalid deployment options.');
+  if (!('placement' in envelope)) return '';
+  const p = envelope.placement;
+  if (!p || Array.isArray(p) || typeof p !== 'object' || Object.keys(p).some(k => k !== 'hostId')
+      || typeof p.hostId !== 'string' || !/^0x[0-9a-f]{64}$/.test(p.hostId) || /^0x0{64}$/.test(p.hostId))
+    throw Error('Invalid placement pin.');
+  return p.hostId;
+}
+export function placementRefusal(raw, enclaveId) {
+  let pin;
+  try { pin = pinnedHost(raw); } catch { return null; } // malformed live edits retain the old configuration
+  return pin && pin !== String(enclaveId || '').toLowerCase()
+    ? `Pinned to host ${pin}; fallback is disabled.` : null;
+}
+
 export function parseEnvelope(raw, gpuMilli) {
   const s = String(raw || "").trim();
   if (!s) return {};
   if (!s.startsWith("{")) throw new Error("its options field is a bare CID, not a JSON options envelope");
   let o; try { o = JSON.parse(s); } catch (e) { return void 0, (() => { throw new Error("its options envelope is not readable JSON: " + e.message); })(); }
   if (!o || Array.isArray(o) || typeof o !== "object") throw new Error("its options envelope is not a JSON object");
-  const known = ["config", "gpu", "network", "configCid", "waf", "isolation"];
+  const known = ["config", "gpu", "network", "configCid", "waf", "isolation", "placement"];
   const unknown = Object.keys(o).filter((k) => !known.includes(k));
   if (unknown.length) throw new Error(`its options envelope carries ${unknown.join(", ")}, which this node does not enforce (it knows: ${known.join(", ")})`);
   const opts = {};
+  const pin = pinnedHost(raw); if (pin) opts.pinnedHost = pin;
   if ("gpu" in o) {
     const g = o.gpu;
     if (!g || Array.isArray(g) || typeof g !== "object") throw new Error('gpu must be a JSON object like {"optional":true}');
@@ -483,6 +501,8 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
   // version's gpuOptional.
   let opts;
   try { opts = parseEnvelope(d.configCid, d.gpuMilli); } catch (e) { return e.message; }
+  if (opts.pinnedHost && opts.pinnedHost !== String(enclaveId || '').toLowerCase())
+    return `Pinned to host ${opts.pinnedHost}; fallback is disabled.`;
   // A DEPLOYMENT THAT REQUIRES ISOLATION may only be claimed by a box that actually runs that
   // backend. Taking it and running it in the shared enclave would give the tenant the opposite of
   // what they asked for while looking like success; refusing here leaves it free for a box that can.
