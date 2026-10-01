@@ -14,7 +14,10 @@ export function shareEditor({ id, spec, mins, allocation, maxGpu, rev, cpuMinimu
     const name = key === 'cpu' ? 'CPU / RAM' : 'GPU / VRAM', inputId = panelId(mode + '-' + key);
     return '<section class="enc-resource-pool enc-resource-' + key + '" data-pool="' + key + '" data-mode="' + mode + '">'
       + '<div class="enc-resource-poolhead"><label for="' + inputId + '">' + name + '</label><output for="' + inputId + '"></output></div>'
-      + '<input class="enc-share-slider" id="' + inputId + '" type="range" step="0.1" aria-describedby="' + inputId + '-bounds">'
+      + '<div class="enc-share-control"><div class="enc-share-rail" aria-hidden="true">'
+      + '<span class="enc-share-fill"></span><span class="enc-share-blocked"></span>'
+      + '<span class="enc-share-limit"></span><span class="enc-share-limit-label"></span></div>'
+      + '<input class="enc-share-slider" id="' + inputId + '" type="range" step="0.1" aria-describedby="' + inputId + '-bounds"></div>'
       + '<div class="enc-share-bounds" id="' + inputId + '-bounds"></div><dl class="enc-resource-metrics"></dl></section>';
   };
   root.innerHTML = '<p class="enc-resource-note enc-resource-context">'
@@ -49,11 +52,23 @@ export function shareEditor({ id, spec, mins, allocation, maxGpu, rev, cpuMinimu
       input.min = low / 10; input.max = high / 10; input.value = value / 10;
       input.disabled = !editable || !spec || min > max;
       input.setAttribute('aria-valuetext', pct(value) + ' allocated; minimum ' + pct(min));
-      const fill = high > low ? Math.max(0, Math.min(100, (value - low) / (high - low) * 100)) : 100;
-      input.style.setProperty('--share-fill', fill + '%');
+      // Keep the visible rail on the full capacity scale. The native range
+      // occupies only its permitted segment, so its thumb stops exactly at
+      // the minimum marker, including while dragging beyond the left edge.
+      // Its 20px thumb needs the same inset as the rail at both ends.
+      const scale = Math.max(1000, high), minimum = Math.min(100, min / scale * 100);
+      const control = group.querySelector('.enc-share-control');
+      control.style.setProperty('--share-fill', (value / scale * 100) + '%');
+      control.style.setProperty('--share-minimum', minimum + '%');
+      control.style.setProperty('--slider-start', (low / scale * 100) + '%');
+      control.style.setProperty('--slider-inset', (low / scale * 20) + 'px');
+      control.style.setProperty('--slider-span', ((high - low) / scale * 100) + '%');
+      control.style.setProperty('--slider-padding', (20 * (1 - (high - low) / scale)) + 'px');
+      control.style.setProperty('--minimum-label-shift', minimum < 15 ? '0%' : minimum > 85 ? '-100%' : '-50%');
+      group.querySelector('.enc-share-limit-label').textContent = 'Min ' + pct(min);
       group.querySelector('output').textContent = pct(value);
-      group.querySelector('.enc-share-bounds').innerHTML = '<span>Minimum ' + pct(min)
-        + (key === 'gpu' && hasFallback ? ' · optional GPU' : '') + '</span><span>' + pct(max) + '</span>';
+      group.querySelector('.enc-share-bounds').innerHTML = '<span>0%</span><span class="enc-share-floor-text">Minimum ' + pct(min)
+        + (key === 'gpu' && hasFallback ? ' · optional GPU' : ' · hatched area unavailable') + '</span><span>' + pct(scale) + '</span>';
       const rows = appResourceRows(spec, { resources: { gpuShare: draft.gpuMilli / 1000 } }, isFallback ? 'fallback' : 'current');
       group.querySelector('dl').innerHTML = rows.slice(key === 'cpu' ? 0 : 2, key === 'cpu' ? 2 : 4)
         .map(row => '<div><dt>' + row.name + ' required</dt><dd>' + row.required + '</dd></div>').join('');
