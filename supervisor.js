@@ -2584,6 +2584,7 @@ if (process.env.ISOLATION_SELFTEST) {
     edits: (c.edits || []).map((r) => envelopeEditVerdict(r.rec || {}, r.chainCid)),
     appConfig: (c.appConfig || []).map((x) => isolationAppConfig(x)),
     recordDigest: (c.recordDigest || []).map((d) => derivationDigest(d)),
+    heldMatches: (c.heldMatches || []).map(x => isolationHeldSameRecord(x.held, x.g, x.firewall, x.runtimeId, x.inference)),
     prefetch: (c.prefetch || []).map((x) => { try { return isolationPrefetchBody(x.g, x.runtimeId); } catch (err) { return { error: err.message }; } }),
     derive: (c.derive || []).map((d) => { try { return isolationDerivation(d.catalogRef, d.wasmRef, isolationPolicyFor({ memMb: d.memMb }), d.runtimeId, isolationHttpPortOf(d.ports), isolationPortsOf(d.ports).ports, d.inference || null); }
                                           catch (err) { return { error: err.message }; } }),
@@ -10271,6 +10272,18 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   const health = (wantVols.length || gpuShare > 0) ? await vmHealth().catch(() => null) : undefined;
   const mins = minSharesOf(g.min, { volGb: wantVols.length ? volumeGb(wantVols, health) : 0 });
   const resumeHeld = resume && ISOLATION_BACKEND ? await isolationHeldGuest(d.id) : null;
+  // Existing isolated guests already reserve their GPU/CPU room. Credit only
+  // a live-lease resume whose derivation matches exactly; replacements still
+  // need free capacity and all manager admission checks below still apply.
+  let resumeSameRecord = false;
+  if (resumeHeld) {
+    try {
+      const resumeManager = health || await vmHealth();
+      const resumeFirewall = parseFirewall({ ports: g.ports ? String(g.ports).split(",") : [] });
+      resumeSameRecord = isolationHeldSameRecord(resumeHeld, g, resumeFirewall,
+        resumeManager?.catalog?.runtimeId, isolatedInference(d.gpuMilli, neededVolumes(d, g)));
+    } catch { resumeSameRecord = false; }
+  }
   const cpuRoom = claimFreeCpu();
   // The PUBLISHER's own declaration, not the volume-corrected figure: this is
   // "did the version state a card requirement", which is what decides whether
@@ -10309,7 +10322,7 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     if (_shieldedPool && h.shieldedPool !== true)
       return "shielded model-layer backend is not ready";
     slice = normalizeGpuReq(gpuShare, cpuShare);
-    if (slice.vramGb > maxFreeVram() + 1e-9 || slice.cpuShare > cpuRoom + 1e-9)
+    if (!resumeSameRecord && (slice.vramGb > maxFreeVram() + 1e-9 || slice.cpuShare > cpuRoom + 1e-9))
       return "no free capacity for those shares here right now";
     // The card's own count outranks the share arithmetic when it says LESS.
     // Every check above is a ledger: it knows what was handed out, never what
@@ -10321,7 +10334,7 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     // fit is refused HERE, before a lease is burned. Absent field (older
     // manager, probe failure) skips the check - the ledgers above still hold.
     const devFreeGb = Number(h && h.capacity && h.capacity.vramDevFreeGb);
-    if (Number.isFinite(devFreeGb) && slice.vramGb + CTX_OVERHEAD_GB > devFreeGb + 1e-9) {
+    if (!resumeSameRecord && Number.isFinite(devFreeGb) && slice.vramGb + CTX_OVERHEAD_GB > devFreeGb + 1e-9) {
       console.warn(`[claim] ${d.id}: needs ${slice.vramGb} GB VRAM but the device physically has `
         + `${devFreeGb} GB free (ledger free ${h.capacity.vramFreeGb ?? "?"} GB, divergence `
         + `${h.capacity.vramDivergenceGb ?? "?"} GB) - refusing the claim`);
@@ -10336,7 +10349,7 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
       if (Date.now() < (claimableSince + CPU_CLAIM_GRACE_SEC) * 1000) return "cpu-first grace";
     }
     slice = normalizeCpuReq(cpuShare);
-    if (slice.cpuShare > cpuRoom + 1e-9) return "no free CPU capacity here right now";
+    if (!resumeSameRecord && slice.cpuShare > cpuRoom + 1e-9) return "no free CPU capacity here right now";
   }
   // the app's catalog specs set its MINIMUM shares on our hardware, gating
   // claims exactly like HTTP deploys: a deployment that bought less than
