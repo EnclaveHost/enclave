@@ -91,7 +91,8 @@ catch (e) { console.error(`[reverify] relay/reverify.mjs is not on this box (${e
 import { readCappedText, MAX_BODY_BYTES, installProcessGuards } from "./fleet.mjs";
 import { isBlockedHost } from "./net-guard.mjs";
 import { isMcpHost, handleMcp } from "./mcp.js";
-import { handleAccount, initAccounts } from "./auth.js";
+import { handleAccount, initAccounts, verifyAccountSession, vaultKeyOf } from "./auth.js";
+import { vaultAddressFor } from "./vaultsvc.js";
 import { handleSso, initSso } from "./sso.js";
 import { handleBilling, initBilling } from "./billing.js";
 import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep, hasStagedSecrets } from "./secrets.js";
@@ -99,6 +100,7 @@ import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDep
 import { handleCerts, initCerts } from "./certs.js";
 import { createShieldMarketplace } from "./shield-marketplace.mjs";
 import { claimCheapest, CLAIM_QUOTE_ABI } from "./cheapest-claim.mjs";
+import { createPlacement } from "./placement.mjs";
 import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson } from "./measurement-predict.mjs";
 import { createTunnelHub } from "./tunnel.js";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
@@ -2040,6 +2042,13 @@ async function gateway(u, req, res) {
     let prefer = "", selection = {};
     try { const parsed = JSON.parse(body.toString() || "{}"); selection = parsed && typeof parsed === "object" ? parsed : {}; prefer = String(selection.enclave || "").trim().toLowerCase(); } catch {}
     const cheapest = !prefer && selection.strategy === "cheapest";
+    const placementId = String(selection.id || '').toLowerCase();
+    if (/^0x[0-9a-f]{64}$/.test(placementId) && (selection.strategy === 'preferred' || placement.has(placementId))) {
+      await resolveDeployments();
+      const d = await placementRead(placementId);
+      const saved = placement.saved(placementId, d.owner);
+      return json(res, 200, await claimPlacement(placementId, saved ? saved.hostId : prefer, d, selection.force === true), req);
+    }
     if (cheapest && !/^0x[0-9a-f]{64}$/i.test(String(selection.id || "")))
       return json(res, 400, { accepted:false, reason:"A ledger deployment ID is required." }, req);
     const serving = servingEnclaves();
@@ -2513,6 +2522,57 @@ const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostE
                      return e?.active && !/^0x0{40}$/i.test(op) ? op.toLowerCase() : null;
                    } };
 
+async function placementRead(id) {
+  await resolveDeployments();
+  if (!DEPLOYMENTS_ADDRESS) throw Error('The deployments ledger is unavailable.');
+  return (await chain()).readContract({ address: DEPLOYMENTS_ADDRESS, abi: DEP_GET_ABI, functionName: 'get', args: [id] });
+}
+const placementDir = dataDir();
+const placement = createPlacement({
+  file: placementDir ? `${placementDir}/placement.json` : '',
+  ledgerAddress: () => DEPLOYMENTS_ADDRESS, read: placementRead, fleet: () => live,
+  accountOwner: async req => {
+    const session = await verifyAccountSession(req.headers.authorization);
+    const key = session && vaultKeyOf(session.accountId);
+    return key ? String(await vaultAddressFor(key)).toLowerCase() : null;
+  },
+});
+async function claimPlacement(id, preferred, deployment, force = false) {
+  const pool = servingEnclaves();
+  if (!fanoutReserve(pool.length)) return { accepted: false, reason: 'Relay busy; placement will retry shortly.' };
+  try {
+    const client = await chain(), ledger = DEPLOYMENTS_ADDRESS;
+    const owner = String(deployment.owner || '').toLowerCase();
+    return await claimCheapest({ pool, preferred,
+      quote: async host => {
+        const args = [id, host.id];
+        const [rate, claimable] = await Promise.all([
+          client.readContract({ address: ledger, abi: CLAIM_QUOTE_ABI, functionName: 'rateFor', args }),
+          client.readContract({ address: ledger, abi: CLAIM_QUOTE_ABI, functionName: 'claimableBy', args }),
+        ]);
+        return { rate, claimable, selfHosted: !/^0x0{40}$/.test(owner) && String(host.payoutWallet || '').toLowerCase() === owner };
+      },
+      hint: async host => {
+        const body = Buffer.from(JSON.stringify({ id, ...(force ? { force: true } : {}) }));
+        if (tunnelHub.isTunnel(host.endpoint)) {
+          const r = await tunnelHub.request(host.endpoint, { method: 'POST', path: '/v1/claim-hint', headers: { 'content-type': 'application/json' }, body });
+          return JSON.parse(r.body.toString('utf8').slice(0, 4096));
+        }
+        const r = await fetch(host.endpoint + '/v1/claim-hint', { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: AbortSignal.timeout(15000) });
+        return JSON.parse(await readCappedText(r));
+      },
+    });
+  } finally { fanoutRelease(pool.length); }
+}
+let placementSweeping = false;
+async function sweepPlacement() {
+  if (placementSweeping || !placement.hasAny()) return;
+  placementSweeping = true;
+  try { await placement.sweep(await ledgerRows(), claimPlacement); }
+  catch (e) { console.warn(`[placement] retrying later: ${e.message}`); }
+  finally { placementSweeping = false; }
+}
+
 // Every inbound request runs inside one guard, for two reasons.
 //
 // The request TARGET first. Node hands an absolute-form target (`GET
@@ -2711,6 +2771,21 @@ function handleRequest(req, res) {
     return expectedGuest(u, req, res, relayCtx, { bad: (code, error, message) => json(res, code, { error, message }, req),
       rate: (k) => rlExpected(k) }).catch((e) => json(res, 500, { error: "expected_guest_error", message: e.message }, req));
   }
+  const placementPath = /^\/v1\/placement\/(0x[0-9a-f]{64})$/i.exec(u.pathname);
+  if (placementPath) {
+    const id = placementPath[1].toLowerCase();
+    return (async () => {
+    try {
+      if (!rlHint(clientIp(req))) return json(res, 429, { message: 'Too many placement requests; retry shortly.' }, req);
+      if (req.method === 'GET') return json(res, 200, await placement.get(id), req);
+      if (req.method === 'POST') {
+        const body = JSON.parse((await readBody(req, 4096)).toString());
+        return json(res, 200, await placement.put(id, body, req), req);
+      }
+      return json(res, 405, { message: 'GET or POST only.' }, req);
+    } catch (e) { return json(res, e.status || 503, { message: e.message }, req); }
+    })();
+  }
   if (u.pathname === "/v1/secrets" || u.pathname.startsWith("/v1/secrets/"))
     return handleSecrets(req, res, u, relayCtx).catch((e) =>
       json(res, 500, { error: "secrets_error", message: e.message }, req));
@@ -2882,6 +2957,7 @@ await initAccounts();          // no data dir/deps => disabled with one log line
 await initSso();               // SSO_SIGNER_KEY unset => disabled with one log line
 await initBilling(relayCtx);   // needs accounts; degrades the same way
 await initSecrets();           // needs SECRETS_KEY + the same data dir; degrades the same way
+setInterval(sweepPlacement, 10000).unref?.();
 // attested release on: run the predictor's known-answer test now, in the background, so the first release after a restart
 // does not wait for it (a failure is logged and every release refused until a later test passes)
 // whenever the predictor is configured (it also serves /v1/expected-guest with the release OFF)

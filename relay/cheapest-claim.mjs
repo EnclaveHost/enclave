@@ -5,7 +5,9 @@ export const CLAIM_QUOTE_ABI = ['rateFor', 'claimableBy'].map(name => ({
   inputs:[{name:'id',type:'bytes32'},{name:'enclaveId',type:'bytes32'}],
   outputs:[{type:name === 'rateFor' ? 'uint256' : 'bool'}],
 }));
-export async function claimCheapest({pool, quote, hint}) {
+export async function claimCheapest({pool, quote, hint, preferred = ''}) {
+  const prefers = host => !!preferred && [host.id, host.name, host.endpoint]
+    .some(value => String(value || '').toLowerCase() === preferred.toLowerCase());
   let failedQuotes=0;
   const priced=await Promise.all(pool.map(async host=>{
     try {
@@ -16,7 +18,7 @@ export async function claimCheapest({pool, quote, hint}) {
       return {host,price,selfHosted:selfHosted === true};
     } catch { failedQuotes++; return null; }
   }));
-  const ranked=priced.filter(Boolean).sort((a,b)=>Number(b.selfHosted)-Number(a.selfHosted) ||
+  const ranked=priced.filter(Boolean).sort((a,b)=>Number(prefers(b.host))-Number(prefers(a.host)) || Number(b.selfHosted)-Number(a.selfHosted) ||
     (a.price < b.price ? -1 : a.price > b.price ? 1 :
       String(a.host.name || a.host.endpoint).localeCompare(String(b.host.name || b.host.endpoint))));
   let declined;

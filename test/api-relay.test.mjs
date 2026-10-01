@@ -1082,3 +1082,40 @@ test("api-relay: Auto uses contract quotes and gives cheaper eligible hosts firs
   assert.equal(result.ratePerSec6,'1');assert.deepEqual(calls,[1]);
   assert.equal((await request({id:'invalid',strategy:'cheapest'})).status,400);
 });
+
+test('api-relay: saved preferred host is tried first, falls back, and explicit Auto clears it',async t=>{
+ const {generatePrivateKey,privateKeyToAccount}=await import('viem/accounts');
+ const {placementMessage}=await import('../relay/placement.mjs');
+ const owner=privateKeyToAccount(generatePrivateKey()),calls=[],quotes={},endpoints=[];
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'placement-api-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+ let preferredAccepts=true;
+ for(const rate of [1,30]) {
+  const server=http.createServer((req,res)=>{
+   res.setHeader('content-type','application/json');
+   if(req.url==='/availability')return res.end(JSON.stringify({teeCpu:'amd-sev-snp',claimEnabled:true,gpu:false,cpuShareFree:1,nodeVcpus:16,nodeRamGb:64}));
+   if(req.url==='/v1/claim-hint'){calls.push(rate);return res.end(JSON.stringify({accepted:rate===1||preferredAccepts}));}
+   res.end('{}');
+  });
+  await listenOnFreePort(server);t.after(()=>server.close());
+  const endpoint='http://127.0.0.1:'+server.address().port;endpoints.push(endpoint);
+  quotes[keccak256(stringToBytes(endpoint))]={rate,claimable:true};
+ }
+ const origin=await startRelay(t,{enclaves:endpoints.join(','),quotes,ledger:[{...LEDGER[0],owner:owner.address}],env:{AUTH_DATA_DIR:dir}});
+ const hostId=keccak256(stringToBytes(endpoints[1]));
+ let sequence=0;
+ const save=async host=>{
+  const expiry=Math.floor(Date.now()/1000)+300,nonce=(++sequence).toString(16).padStart(32,'0');
+  const signature=await owner.signMessage({message:placementMessage('0x'+'12'.repeat(20),ID('11'),host,expiry,nonce)});
+  return fetch(origin+'/v1/placement/'+ID('11'),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({hostId:host,expiry,nonce,signature})});
+ };
+ const hint=()=>fetch(origin+'/v1/claim-hint',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:ID('11')})});
+ assert.equal((await save(hostId)).status,200);
+ assert.equal((await getJson(origin,'/v1/placement/'+ID('11'))).body.hostId,hostId);
+ assert.equal((await hint()).status,200);assert.deepEqual(calls,[30]);
+ preferredAccepts=false;calls.length=0;
+ await hint();assert.deepEqual(calls,[30,1]);
+ assert.equal((await getJson(origin,'/v1/placement/'+ID('11'))).body.hostId,hostId,'fallback preserves the preference');
+ assert.equal((await save('')).status,200);calls.length=0;
+ await hint();assert.deepEqual(calls,[1]);
+ assert.equal((await getJson(origin,'/v1/placement/'+ID('11'))).body.hostId,'');
+});

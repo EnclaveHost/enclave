@@ -7,9 +7,10 @@ export function moveLeaseLive(d, now = Date.now()) {
 
 export async function prepareDeploymentMove({ read, release, resume, progress = () => {},
   sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), now = Date.now,
-  connected = () => true, timeoutMs = 60000 }) {
+  connected = () => true, timeoutMs = 60000, keepRunner = '' }) {
   let d = await read();
   if (!d) throw Error("Could not read this deployment from the ledger.");
+  if (d.active && moveLeaseLive(d, now()) && String(d.runner).toLowerCase() === keepRunner.toLowerCase()) return d;
   const owner = String(d.owner || "").toLowerCase();
   const refresh = async () => {
     if (!connected()) throw Error("Pin panel closed; reopen it to continue.");

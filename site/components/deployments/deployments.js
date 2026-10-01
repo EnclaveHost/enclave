@@ -27,6 +27,7 @@ import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
 import { moveLeaseLive, prepareDeploymentMove } from "../../js/core/deployment-move.js";
 import { isolationOptions, withIsolationRequirements, hostMeetsTeeRequirements } from "../../js/core/isolation-options.js";
+import { placementMessage } from "../../js/core/placement-options.js";
 import { resizeAfterStop } from "../../js/core/share-resize.js";
 import { depSnapshot } from "../../js/core/chain.js";
 import { BUCKETS, bucketOf, countBuckets } from "../../js/core/deploy-status.js";
@@ -3081,10 +3082,9 @@ class Deployments extends EnclaveElement {
      balance and puts the record back in the open queue still active and
      funded; then the chosen box gets a claim hint and first crack at it.
 
-     Nothing on-chain pins placement, so this is a STEER, not a guarantee. What
-     makes it land is timing: the hinted box evaluates immediately while every
-     other enclave only notices on its next sweep (CLAIM_POLL_SEC, 60s). We
-     watch the ledger and report where it ACTUALLY went rather than assuming.
+     The relay saves the owner's preferred host and tries it first whenever
+     the app is queued. Other eligible hosts remain fallbacks. A preference
+     stays saved even when a fallback holds the lease.
 
      Cost: the app stops and relaunches, so this is the same interruption as
      Restart plus a claim. No time is lost - release refunds, claim re-burns. ---- */
@@ -3102,9 +3102,9 @@ class Deployments extends EnclaveElement {
     const controller = ctlOf((this._list || []).find(x => x.id === id));
     if (controller === "order")
       return fail("This payment order is still being provisioned. Pin becomes actionable once its deployment is created.");
-    let d = null, fleet = null, rev = 1;
+    let d = null, fleet = null, rev = 1, placement = null;
     try {
-      [d, fleet, rev] = await Promise.all([depGet(id), Enclave.getEnclaves().catch(() => null), depSchemaRev().catch(() => 1)]);
+      [d, fleet, rev, placement] = await Promise.all([depGet(id), Enclave.getEnclaves().catch(() => null), depSchemaRev().catch(() => 1), Enclave.getPlacement(id)]);
       await loadCatalog();
       await Enclave.getAvailability().then(a => adoptServerSpec(a)).catch(() => null);
     } catch(e){ d = null; }
@@ -3131,6 +3131,16 @@ class Deployments extends EnclaveElement {
       catch { return false; }
     })();
     const targets = moveTargetsFor({ ...spec, depGpuOptional: depSoftGpu, gpuMilli: Number(d.gpuMilli) || 0 }, fleet, currentRunner);
+    if (here && !targets.some(t => t.name === here.name))
+      targets.unshift({ ...here, current: true });
+    if (placement?.hostId && !targets.some(t => String(t.row.id).toLowerCase() === placement.hostId)) {
+      const row = fleet.find(h => String(h.id).toLowerCase() === placement.hostId)
+        || { id: placement.hostId, availability: { isolation: placement.isolation } };
+      targets.push({ name: placement.name, row, unavailable: true });
+    }
+    const initialHost = placement?.configured
+      ? (placement.hostId ? targets.find(t => String(t.row.id).toLowerCase() === placement.hostId)?.name || placement.name || '' : '')
+      : here?.name || '';
     const selId = "mvSel" + appLabel(id);
     box.innerHTML = '<div class="ap-attbar">pin · ' + esc(id) + '</div>'
       + '<div class="enc-pin-form">'
@@ -3141,21 +3151,25 @@ class Deployments extends EnclaveElement {
       + '<p class="enc-pin-help">Unchecked allows either supported isolation implementation. TEE GPU requires confidential GPU hardware; masked GPU offload does not qualify.</p>'
       + '<div class="enc-pin-placement"><div class="enc-pin-host"><label for="' + selId + '">Host</label>'
       + '<select class="eu-sel" id="' + selId + '"></select></div><button class="btn btn-sm btn-primary mv-go">Apply</button></div>'
-      + '<p class="enc-pin-help">' + (currentRunner ? 'Applying placement restarts the app. ' : !d.active ? 'Applying placement resumes the app. ' : '')
-      + 'Your rate cap in Shares still applies. Auto waits if no eligible host is available.</p>'
+      + '<p class="enc-pin-help">' + (currentRunner ? 'Changing hosts restarts the app. Keeping this host leaves it running. ' : !d.active ? 'Applying placement resumes the app. ' : '')
+      + 'A pinned host is preferred; other eligible hosts are fallbacks. Your rate cap in Shares still applies.</p>'
       + '<div class="enc-pin-notice" role="status" aria-live="polite"></div>'
       + '<div class="enc-upg-body mv-upg" hidden></div>'
       + '<div class="term enc-move-status" role="status" aria-live="polite"></div></div>';
     const sel = box.querySelector("#" + selId), go = box.querySelector(".mv-go");
     const cpu = box.querySelector(".mv-tee-cpu"), gpu = box.querySelector(".mv-tee-gpu");
     const notice = box.querySelector(".enc-pin-notice");
+    box._placement = placement;
+    box._placementTargets = targets;
+    let initialized = false;
     const syncRequirements = () => {
       const choice = { cpuTee: cpu.checked, gpuTee: gpu.checked };
       box._isolationChoice = { ...choice, original: JSON.stringify(d.configCid || "") };
-      const selected = sel.value;
+      const selected = initialized ? sel.value : initialHost;
+      initialized = true;
       const eligible = targets.filter(t => hostMeetsTeeRequirements(t.row, choice));
       sel.innerHTML = '<option value="">Auto — your free host first, then cheapest eligible</option>'
-        + eligible.map(t => '<option value="' + esc(t.name) + '">' + esc(t.name) + (t.queued ? ' · currently full' : '') + '</option>').join('');
+        + eligible.map(t => '<option value="' + esc(t.name) + '">' + esc(t.name) + (t.current ? ' · current host' : t.unavailable ? ' · currently unavailable' : t.queued ? ' · currently full' : '') + '</option>').join('');
       sel.value = eligible.some(t => t.name === selected) ? selected : "";
       notice.textContent = eligible.length ? '' : gpu.checked
         ? 'No eligible TEE GPU host is currently available. This requirement will keep the app queued.'
@@ -3168,7 +3182,7 @@ class Deployments extends EnclaveElement {
     const upgWrap = box.querySelector(".mv-upg");
     const bought = { gpuMilli: Number(d.gpuMilli) || 0, cpuMilli: Number(d.cpuMilli) || 0 };
     const syncUpg = () => {
-      const t = targets.find((x) => x.name === sel.value);
+      const t = targets.find((x) => x.name === sel.value && !x.unavailable && !x.current);
       go.textContent = "Apply";
       const vv = { ...spec, depGpuOptional: depSoftGpu };
       // the upgrade buys the slice the version declares; a pre-13 ledger still
@@ -3245,6 +3259,29 @@ class Deployments extends EnclaveElement {
         return;
       }
     }
+    const placementTarget = (box._placementTargets || []).find(t => t.name === target);
+    if (box._placementTargets) {
+      try {
+        const hostId = target ? String(placementTarget?.row?.id || '').toLowerCase() : '';
+        if (target && !/^0x[0-9a-f]{64}$/.test(hostId)) throw Error('Reopen Pin to refresh the selected host.');
+        if (!box._placement?.configured || box._placement.hostId !== hostId) {
+          const body = { hostId };
+          if (!via) {
+            if (!Enclave.provider) await connectWallet();
+            body.expiry = Math.floor(Date.now() / 1000) + 300;
+            body.nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+            paintLine(s, 'info', 'Confirm the placement preference in your wallet.');
+            body.signature = await personalSign(placementMessage(DEPLOYMENTS_ADDRESS.toLowerCase(), id.toLowerCase(), hostId, body.expiry, body.nonce));
+          }
+          box._placement = await Enclave.savePlacement(id, body, via);
+          paintLine(s, 'ok', hostId ? 'Preferred host saved: ' + target + '. Other eligible hosts can serve as fallbacks.' : 'Auto placement saved.');
+        }
+      } catch (e) {
+        paintLine(s, 'warn', '[x] Placement was not saved: ' + e.message);
+        go.disabled = false; go.textContent = label;
+        return;
+      }
+    }
     // Re-buy the card BEFORE handing the lease back, so the destination claims
     // the record already sized for its GPU and provisions once. Resizing after
     // the move would land it on cores first and restart it again to add the
@@ -3278,6 +3315,7 @@ class Deployments extends EnclaveElement {
     try {
       prepared = await prepareDeploymentMove({
         read: () => depGet(id), connected: () => box.isConnected,
+        keepRunner: target ? String(placementTarget?.row?.id || '') : '',
         progress: message => paintLine(s, "info", "[*] " + message),
         resume: () => via ? vault("control", { id, action: "resume" }) : walletActive(true),
         release: async d => {
@@ -3316,7 +3354,7 @@ class Deployments extends EnclaveElement {
       // funded record with no hint sits until someone's 60s sweep finds it.
       if (i % 4 === 0){
         try {
-          const h = await Enclave.claimHint(id, target, target ? {} : { strategy: "cheapest" });
+          const h = await Enclave.claimHint(id, target, { strategy: target ? "preferred" : "cheapest" });
           if (h && h.accepted === false && h.reason && h.reason !== lastReason){
             lastReason = h.reason;
             paintLine(s, "warn", "[!] " + (target || "the fleet") + " declines: " + h.reason);
@@ -3338,8 +3376,8 @@ class Deployments extends EnclaveElement {
       if (!target || where.toLowerCase() === String(target).toLowerCase())
         paintLine(s, "ok", "[✓] running on " + where + " now");
       else {
-        paintLine(s, "warn", "[!] claimed by " + where + ", not " + target);
-        paintLine(s, "dimln", "    this is a preferred host, not an exclusive lock; another eligible host may claim first. Pin again to retry.");
+        paintLine(s, "ok", "[✓] running on fallback host " + where);
+        paintLine(s, "dimln", "    " + target + " remains the preferred host for future placement.");
       }
     }
     go.disabled = false; go.textContent = label;

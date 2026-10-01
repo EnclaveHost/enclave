@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {isolationOptions, withIsolationRequirements} from '../site/js/core/isolation-options.js';
 import {moveLeaseLive, prepareDeploymentMove} from '../site/js/core/deployment-move.js';
+import {placementMessage} from '../site/js/core/placement-options.js';
 const A='0x'+'aa'.repeat(32),B='0x'+'bb'.repeat(32),ZERO='0x'+'00'.repeat(32);
 function fixture(overrides={}) {
  let clock=100000, row={owner:'alice',active:true,runner:ZERO,leaseUntil:0,...overrides};
@@ -60,13 +61,13 @@ const source=readFileSync(new URL('../site/components/deployments/deployments.js
 const method=source.match(/^  async _doMove\([^]*?^  }/m)[0];
 const makePanel=new Function('Enclave','depGet','ctlOf','prepareDeploymentMove','moveLeaseLive','paintLine',
  'setTimeout','leaseHostOf','connectWallet','ensureBaseChain','sendTx','waitReceipt','encCall','DEP_SEL','DEPLOYMENTS_ADDRESS',
- 'isolationOptions','withIsolationRequirements','depSchemaRev',
+ 'isolationOptions','withIsolationRequirements','depSchemaRev','placementMessage','personalSign',
  `return new (class { ${method} })()`);
 for (const target of ['nucbox-k11', '']) for (const active of [true, false]) for (const saveRequirements of [false,true]) {
  test(`dashboard Pin ${target || 'Auto'} ${active ? 'queued' : 'ended'} ${saveRequirements ? 'with requirements' : ''} respects resume and target selection`, async()=>{
   let row={owner:'alice',active,runner:ZERO,leaseUntil:0};const hints=[],messages=[],signatures=[];
   const api={provider:true,claimHint:async(id,name,options)=>{
-   assert.deepEqual(options,target?{}:{strategy:"cheapest"});
+   assert.deepEqual(options,{strategy:target?"preferred":"cheapest"});
    assert.equal(row.active,true);hints.push([id,name]);row={...row,runner:B,leaseUntil:Date.now()/1000+60};return {accepted:true};
   },getEnclaves:async()=>[]};
   const unexpected=()=>{throw Error('unexpected host authentication or lease release')};
@@ -82,3 +83,29 @@ for (const target of ['nucbox-k11', '']) for (const active of [true, false]) for
   assert.deepEqual(signatures,[...(saveRequirements?['requirements']:[]),...(active?[]:['resume'])]);assert.equal(go.disabled,false);
  });
 }
+
+test('keeping the selected live host performs no release, resume or claim',async()=>{
+ const f=fixture({runner:A,leaseUntil:200});f.opts.keepRunner=A.toUpperCase();
+ assert.equal((await f.run()).runner,A);assert.deepEqual(f.calls,[]);
+ const g=fixture({runner:A,leaseUntil:200});g.opts.keepRunner=B;
+ await g.run();assert.deepEqual(g.calls,['release']);
+});
+
+for (const alreadySaved of [false,true]) test(`applying the current host ${alreadySaved ? 'keeps' : 'saves'} preference without stopping the app`,async()=>{
+ const row={id:A,owner:'alice',active:true,runner:B,leaseUntil:Date.now()/1000+600,configCid:'{"isolation":{"cpuTee":false,"gpuTee":false}}'};
+ const target={name:'nucbox-k11',row:{id:B}},saved=[],signed=[],messages=[];
+ const unexpected=()=>{throw Error('keeping the current host must not release, resize, resume or hint')};
+ const api={provider:true,getEnclaves:async()=>[target.row],claimHint:unexpected,terminateDeployment:unexpected,
+  savePlacement:async(id,body,via)=>{assert.equal(id,A);assert.equal(body.hostId,B);assert.equal(via,false);saved.push(body);return {configured:true,hostId:B,name:target.name};}};
+ const panel=makePanel(api,async()=>row,()=> 'wallet',prepareDeploymentMove,moveLeaseLive,
+  (_el,_style,message)=>messages.push(message),()=>0,()=>target,unexpected,unexpected,unexpected,unexpected,unexpected,
+  {},'ledger',isolationOptions,withIsolationRequirements,async()=>15,placementMessage,async message=>{signed.push(message);return 'signed';});
+ panel._list=[{id:A}];panel._envLearn=unexpected;
+ const box={isConnected:true,querySelector:()=>({}),_placementTargets:[target],_placement:{configured:alreadySaved,hostId:alreadySaved?B:''},
+  _isolationChoice:{cpuTee:false,gpuTee:false,original:JSON.stringify(row.configCid)}};
+ const go={textContent:'Apply',disabled:false};
+ await panel._doMove(A,target.name,box,go,target.name);
+ assert.equal(saved.length,alreadySaved?0:1);assert.equal(signed.length,alreadySaved?0:1);
+ assert.ok(messages.some(message=>message.includes('running on nucbox-k11')));
+ assert.equal(go.disabled,false);assert.equal(row.runner,B);
+});
