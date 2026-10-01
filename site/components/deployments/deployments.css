@@ -105,24 +105,26 @@ c-deployments{display:contents;}
 .enc-resource-app{font:.78rem var(--font-mono);color:var(--text-muted);margin:8px 0 0;overflow-wrap:anywhere;}
 .enc-resource-close{flex:none;width:36px;height:36px;display:grid;place-items:center;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text-muted);font-size:1.45rem;cursor:pointer;}
 .enc-resource-close:hover{color:var(--text);border-color:var(--line-strong);}
-.enc-resource-chart{width:100%;border-collapse:collapse;font:.8rem var(--font-mono);font-variant-numeric:tabular-nums;table-layout:fixed;}
-.enc-resource-chart th,.enc-resource-chart td{text-align:left;padding:16px 12px;border-bottom:1px solid var(--line-soft);overflow-wrap:anywhere;}
-.enc-resource-chart th:first-child,.enc-resource-chart td:first-child{padding-left:0;}
-.enc-resource-chart th:last-child,.enc-resource-chart td:last-child{padding-right:0;}
-.enc-resource-chart thead th{font-size:.68rem;font-weight:400;color:var(--text-muted);padding-top:0;padding-bottom:10px;}
-.enc-resource-chart thead th:nth-child(1){width:28%;}
-.enc-resource-chart thead th:nth-child(2){width:28%;}
-.enc-resource-chart thead th:nth-child(3){width:44%;}
-.enc-resource-chart tbody th{font-weight:500;}
-.enc-resource-chart .enc-resource-vram>*{border-top:1px solid var(--line-strong);}
-.enc-resource-allocation{display:flex;align-items:center;gap:12px;}
-.enc-resource-allocation>span:last-child{width:5.5ch;flex:none;text-align:right;color:var(--jade-2);}
-.enc-resource-track{height:8px;flex:1;overflow:hidden;border-radius:4px;background:var(--surface-3);}
+/* One allocation bar per pool; its memory and compute requirements sit below. */
+.enc-resource-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:20px;}
+.enc-resource-tabs button{font:.78rem var(--font-mono);padding:10px 12px;background:none;border:0;border-bottom:2px solid transparent;color:var(--text-muted);cursor:pointer;}
+.enc-resource-tabs button[aria-selected="true"]{border-bottom-color:var(--jade);color:var(--jade-2);}
+.enc-resource-tabs button:focus-visible{outline:2px solid var(--jade);outline-offset:2px;}
+.enc-resource-pool{margin-top:14px;padding:18px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+.enc-resource-poolhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;}
+.enc-resource-poolhead h3{margin:0;font-size:.82rem;font-weight:600;}
+.enc-resource-poolhead>span{font-size:.7rem;color:var(--text-muted);text-align:right;}
+.enc-resource-poolhead b{font-size:.95rem;font-weight:500;color:var(--jade-2);white-space:nowrap;margin-left:6px;}
+.enc-resource-track{height:8px;overflow:hidden;border-radius:4px;background:var(--surface-3);}
 .enc-resource-track>span{display:block;height:100%;border-radius:4px;background:var(--jade);}
-.enc-resource-vram .enc-resource-track>span,.enc-resource-gpu .enc-resource-track>span{background:var(--iris);}
-.enc-resource-vram .enc-resource-allocation>span:last-child,.enc-resource-gpu .enc-resource-allocation>span:last-child{color:var(--iris);}
+.enc-resource-gpu .enc-resource-track>span{background:var(--iris);}
+.enc-resource-gpu .enc-resource-poolhead b{color:var(--iris);}
+.enc-resource-metrics{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin:16px 0 0;}
+.enc-resource-metrics dt{font-size:.68rem;color:var(--text-muted);}
+.enc-resource-metrics dd{margin:6px 0 0;font-size:.92rem;overflow-wrap:anywhere;}
 .enc-resource-note{margin:18px 0 0;color:var(--text-muted);font-size:.78rem;line-height:1.6;}
-@media(max-width:480px){.enc-resource-dialog{padding:18px 14px;}.enc-resource-chart{font-size:.7rem;}.enc-resource-chart th,.enc-resource-chart td{padding:14px 7px;}.enc-resource-chart thead th{font-size:.64rem;}.enc-resource-allocation{gap:6px;}.enc-resource-head{margin-bottom:20px;}}
+.enc-resource-context{margin:0 0 16px;}
+@media(max-width:480px){.enc-resource-dialog{padding:18px 14px;}.enc-resource-pool{padding:14px 12px;}.enc-resource-head{margin-bottom:20px;}.enc-resource-tabs button{font-size:.71rem;padding:10px 8px;}.enc-resource-poolhead{gap:8px;}.enc-resource-metrics{gap:12px;}.enc-resource-metrics dd{font-size:.83rem;}}
 .enc-spend{font-family:var(--font-mono);font-size:.76rem;color:var(--text-muted);font-variant-numeric:tabular-nums;}
 .enc-acts{margin-left:auto;display:flex;gap:8px;}
 .enc-ep{display:block;margin-top:9px;background:var(--well);border:1px solid var(--line-soft);color:var(--jade-2);font-family:var(--font-mono);font-size:.76rem;cursor:pointer;text-align:left;padding:.5em .7em;border-radius:8px;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:border-color .15s var(--ease);}
