@@ -233,6 +233,13 @@ export async function handleSecrets(req, res, u, ctx) {
   let raw; try { raw = await ctx.readBody(req, 32768); } catch (e) { return bad(ctx, res, req, 413, "too_large", e.message); }
   let b; try { b = JSON.parse(raw.toString() || "{}"); } catch { return bad(ctx, res, req, 400, "bad_json", "Body must be JSON."); }
 
+  if (u.pathname === "/v1/secrets/shield-release") {
+    if (!rlRelease(ctx.clientIp(req))) return bad(ctx,res,req,429,"rate_limited","Too many release requests.");
+    if (typeof ctx.shieldSecretRelease !== "function") return bad(ctx,res,req,503,"shield_release_disabled","Shield release is unavailable.");
+    try { return ctx.json(res,200,await ctx.shieldSecretRelease(b,ctx,readSecrets),req); }
+    catch (e) { return bad(ctx,res,req,Number.isInteger(e.status)?e.status:503,"shield_release_refused",e.message); }
+  }
+
   // attested release to a per-app SNP guest (secrets-release.mjs; OFF unless SECRETS_ATTESTED_RELEASE and its policy)
   if (await handleRelease(u.pathname, b, req, res, ctx, {
     envOf: (id) => { const rec = recOf(id); return rec ? open(id, rec.blob) : {}; },

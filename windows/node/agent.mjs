@@ -426,10 +426,28 @@ async function measureEngineHold() {
 // ---- the public surface over the tunnel ------------------------------------------------------
 let shieldEvidenceReads = 0;
 let shieldWitness = null;
+let shieldSecrets = null;
 async function handle(frame) {
   const p = String(frame.path || '').split('?')[0]; const method = frame.method || 'GET';
   const json = (status, o) => ({ status, headers: { 'content-type': 'application/json' }, body: JSON.stringify(o) });
-  if (APPS && p === '/v1/shield/readiness' && method === 'GET') {
+  if (APPS && ['/v1/shield/secret-evidence','/v1/shield/secret-install'].includes(p)) {
+    if (!shieldSecrets) return json(503,{error:'sealed_secrets_disabled'});
+    if (shieldEvidenceReads >= 2) return json(429,{error:'evidence_busy'});
+    shieldEvidenceReads++;
+    try {
+      if (p.endsWith('secret-evidence') && method === 'GET') {
+        const q=new URL(frame.path,'http://localhost').searchParams;
+        return json(200,await shieldSecrets.evidence(q.get('deployment'),q.get('nonce')));
+      }
+      if (p.endsWith('secret-install') && method === 'POST') {
+        if (String(frame.body||'').length>90000) return json(413,{error:'release_too_large'});
+        return json(200,await shieldSecrets.install(JSON.parse(Buffer.from(frame.body||'','base64').toString('utf8'))));
+      }
+      return json(405,{error:'method_refused'});
+    } catch { return json(503,{error:'guest_release_unavailable'}); }
+    finally { shieldEvidenceReads--; }
+  }
+  if (APPS && p === '/v1/shield/readiness'  && method === 'GET') {
     if (!shieldWitness) return json(503, {error:'witness_not_configured'});
     if (shieldEvidenceReads >= 2) return json(429, {error:'evidence_busy'});
     const nonce = new URL(String(frame.path), 'http://localhost').searchParams.get('nonce');
@@ -818,6 +836,11 @@ async function startHostingControls() {
       let acct = null;
       try { acct = loadOperator(path.join(DIR, 'operator.key')); } catch (e) { log(`certificates: no operator key (${e.message})`); }
       if (acct) {
+        const {createShieldSecrets}=await import('./shield-secrets.mjs');
+        shieldSecrets=createShieldSecrets({base:host.cfg.isolationManager,endpoint:host.cfg.endpoint,relayBase:host.cfg.relayBase,
+          sign:message=>acct.signMessage({message}),log:m=>log(m)});
+        const provision=()=>shieldSecrets.pass().catch(()=>{});
+        setInterval(provision,5000).unref?.();setTimeout(provision,3000).unref?.();
         const { createHvCertPass } = await import('./hvcert.mjs');
         const certs = createHvCertPass({
           client: new IsolationManagerClient({ base: host.cfg.isolationManager }), dataAddr: host.cfg.isolationDataAddr,

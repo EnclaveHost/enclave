@@ -2,9 +2,9 @@
 // runtime or firmware against which its report is checked.
 import { randomBytes } from 'node:crypto';
 import { CATALOG_REF_RE, derivationRecord, versionRefusal } from './measurement-predict.mjs';
-import { derive, appConfigText, DERIVATION_V5 } from './shield-derive.mjs';
+import { derive, appConfigText, DERIVATION_V5, DERIVATION_V6 } from './shield-derive.mjs';
 
-export async function expectedShieldApp(row, { policy, readCatalog, readConfig, fetchVerified, allowPendingOwner = false }) {
+export async function expectedShieldApp(row, { policy, readCatalog, readConfig, fetchVerified, allowPendingOwner = false, secretsRequired = false }) {
   if (!row || row.isPublic !== true) throw new Error('only public apps are supported');
   const ref = CATALOG_REF_RE.exec(String(row.appRef || ''));
   if (!ref) throw new Error('catalog app reference required');
@@ -41,6 +41,7 @@ export async function expectedShieldApp(row, { policy, readCatalog, readConfig, 
     throw new Error('invalid resource shares');
   const profile = gpu > 0 ? policy?.gpu : policy?.cpu;
   if (!profile?.runtimeId) throw new Error('no admitted runtime for this workload');
+  if (secretsRequired && (gpu || profile.secretsV1 !== true)) throw new Error("sealed secrets are not supported by this image");
   const c = await readConfig(ref[1].toLowerCase(), Number(ref[2]));
   if (!c) throw new Error('catalog configuration is unavailable');
   const configCid = envelope.configCid || (envelope.config !== undefined ? "" : c.configCid || "");
@@ -66,32 +67,33 @@ export async function expectedShieldApp(row, { policy, readCatalog, readConfig, 
     record.derivation = 'enclave-catalog-bundle/4';
     record.policy = { cpuPercent: 400, vcpus: 4, memMiB: version.memMb };
     record.inference = { model: profile.model, gpuMilli: gpu };
-  } else if (Object.keys(appConfig).length || configCid) {
+  } else if (Object.keys(appConfig).length || configCid || secretsRequired) {
     if (profile.configBundleV5 !== true || record.http) throw new Error('app configuration is not supported by this runtime');
-    record.derivation = DERIVATION_V5;
+    record.derivation = secretsRequired ? DERIVATION_V6 : DERIVATION_V5;
+    if (secretsRequired) record.secretDeployment = row.id;
     record.config = appConfigText(config);
     if (configCid) record.configCid = configCid;
   }
   const component = await fetchVerified(version.cid, 256 << 20);
   if (!component?.ok || !Buffer.isBuffer(component.bytes)) throw new Error('catalog component could not be CID-verified');
-  return { appSha256: derive({ record, component: component.bytes }).appId, runtimeId: profile.runtimeId, requiresConfigBundleV5: record.derivation === DERIVATION_V5 };
+  return { appSha256: derive({ record, component: component.bytes }).appId, runtimeId: profile.runtimeId, requiresConfigBundleV5: [DERIVATION_V5,DERIVATION_V6].includes(record.derivation), requiresSecretsV1: secretsRequired };
 }
 
-export function createShieldAppVerifier({ hub, policy, readCatalog, readConfig, fetchVerified }) {
+export function createShieldAppVerifier({ hub, policy, readCatalog, readConfig, fetchVerified, hasSecrets = () => false }) {
   let active = 0;
   return async function verifyApp(name, row, { csrSpkiSha256, allowPendingOwner = false } = {}) {
     if (active >= 2) return { ok: false, reason: 'Shield verification busy; retry shortly' };
     active++;
     try {
       if (!/^0x[0-9a-f]{64}$/.test(String(row?.id || ''))) throw new Error('exact deployment id required');
-      const expected = await expectedShieldApp(row, { policy, readCatalog, readConfig, fetchVerified, allowPendingOwner });
+      const expected = await expectedShieldApp(row, { policy, readCatalog, readConfig, fetchVerified, allowPendingOwner, secretsRequired: hasSecrets(row.id) });
       const nonce = randomBytes(32);
       const proof = await hub.fetchJson(`tunnel://${name}`,
         `/v1/shield/evidence?deployment=${row.id}&nonce=${nonce.toString('hex')}`);
       if (!proof || typeof proof.handshakeSpki !== 'string' || proof.handshakeSpki.length > 5500)
         throw new Error('no bounded app proof from the live node');
       return hub.verifyShieldApp(name, { doc: proof.doc, handshakeSpki: Buffer.from(proof.handshakeSpki, 'base64'),
-        nonce, expectedAppSha256: expected.appSha256, expectedRuntimeId: expected.runtimeId, requiresConfigBundleV5: expected.requiresConfigBundleV5,
+        nonce, expectedAppSha256: expected.appSha256, expectedRuntimeId: expected.runtimeId, requiresConfigBundleV5: expected.requiresConfigBundleV5, requiresSecretsV1: expected.requiresSecretsV1,
         ...(csrSpkiSha256 !== undefined ? { expectedCsrSpkiSha256: csrSpkiSha256 } : {}) }, policy);
     } catch (e) { return { ok: false, reason: e.message }; }
     finally { active--; }

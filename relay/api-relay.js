@@ -1,3 +1,4 @@
+import {createShieldSecretRelease} from './shield-secrets.mjs';
 // Enclave API relay — discovery + placement front door for the fleet. UNTRUSTED
 // as a router (it can misroute, not impersonate: enclaves are attested on
 // their own origins), but on the /v1 gateway path it IS a TLS terminator and
@@ -2420,6 +2421,11 @@ const shieldMarket = createShieldMarketplace({ hub: tunnelHub,
   readConfig: versionConfigReader(catalogClients, catalogAddress),
   fetchVerified: (cid, max) => predictor().fetchVerified(cid, max),
 });
+const shieldSecretRelease=createShieldSecretRelease({hub:tunnelHub,policyFile:process.env.RELAY_SHIELD_MARKET_POLICY||"",confirmRow,
+  readCatalog:catalogReader(catalogClients,catalogAddress),readConfig:versionConfigReader(catalogClients,catalogAddress),
+  fetchVerified:(cid,max)=>predictor().fetchVerified(cid,max),
+  hostForEndpoint:id=>live.find(e=>String(e.id).toLowerCase()===String(id).toLowerCase()),
+  isOwnerDeployment:(host,d)=>!!servedEntryNow(host,d.owner)});
 const expectedGuestFor = (row, o) => expectedForRow(row, o, {
   confirmRow, readVersionConfig: versionConfigAt,
   predict: (ref, options) => predictor().expectedFor(ref, options),
@@ -2481,7 +2487,7 @@ async function prewarmCollateral(doc) {
 // the RuntimeID of the runtime identity a guest states (isolation/contract/runtime.go: sha256 of its canonical JSON); it
 // is admitted only when it equals an admitted domain release's own
 const runtimeIdOf = (r) => Buffer.from(runtimeIdOfJson(JSON.stringify(r)), "hex");
-const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility, leaseHolderChipIds,
+const relayCtx = { shieldSecretRelease, json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility, leaseHolderChipIds,
                    verifyAppCertificate: (epId, d, spki) => shieldMarket.certificate(live.find(e => String(e.id).toLowerCase() === String(epId).toLowerCase()), d, spki),
                    // (B) does this endpoint id's live row serve this ledger deployment NOW (hv-node owner-only: served owner,
                    // this row's live lease, isolation.require = hyperv-partition-per-app)? certs.js 6b and secrets.js has-secrets
