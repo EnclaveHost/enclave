@@ -2034,6 +2034,33 @@ function setOfConfig(cfg) {
 function mem64OfConfig(cfg) {
   try { return JSON.parse(String(cfg || "{}") || "{}").mem64 === true; } catch { return false; }
 }
+function pinnedHost(raw = '') {
+  const envelope = JSON.parse(String(raw || '{}'));
+  if (!envelope || Array.isArray(envelope) || typeof envelope !== 'object') throw Error('Invalid deployment options.');
+  if (!('placement' in envelope)) return '';
+  const p = envelope.placement;
+  if (!p || Array.isArray(p) || typeof p !== 'object' || Object.keys(p).some(k => k !== 'hostId')
+      || typeof p.hostId !== 'string' || !/^0x[0-9a-f]{64}$/.test(p.hostId) || /^0x0{64}$/.test(p.hostId))
+    throw Error('Invalid placement pin.');
+  return p.hostId;
+}
+function placementRefusal(raw, enclaveId) {
+  let pin;
+  try { pin = pinnedHost(raw); } catch { return null; } // malformed live edits retain the old configuration
+  return pin && pin !== String(enclaveId || '').toLowerCase()
+    ? `Pinned to host ${pin}; fallback is disabled.` : null;
+}
+
+async function retireForPlacement(rec, why) {
+  // Stop before releasing: two hosts must never serve this pin concurrently.
+  await stopContainer(rec);
+  await proveAndRelease(rec, why);
+  if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
+  rec.status = "terminated";
+  rec.error = why;
+  saveStateSoon();
+}
+
 function parseDepOptions(raw, gpuMilli) {
   const s = String(raw || "").trim();
   if (!s) return ISOLATION_BACKEND ? { isolation: ISOLATION_BACKEND } : {};
@@ -2047,10 +2074,11 @@ function parseDepOptions(raw, gpuMilli) {
   // deployment that is already serving here - with a message that says what the deployment asked for.
   if ("isolation" in o && !ISOLATION_BACKEND)
     throw new Error(`this deployment requires per-app hardware isolation (isolation.require=${JSON.stringify(o.isolation && o.isolation.require)}), which this runner does not provide`);
-  const known = ["waf", "config", "configCid", "gpu", "network", ...(ISOLATION_BACKEND ? ["isolation"] : [])];
+  const known = ["waf", "config", "configCid", "gpu", "network", "placement", ...(ISOLATION_BACKEND ? ["isolation"] : [])];
   const unknown = Object.keys(o).filter((k) => !known.includes(k));
   if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: ${known.join(", ")})`);
   const opts = ISOLATION_BACKEND ? { isolation: ISOLATION_BACKEND } : {};
+  const pin = pinnedHost(raw); if (pin) opts.pinnedHost = pin;
   if ("isolation" in o) {
     const iso = o.isolation;
     if (!iso || Array.isArray(iso) || typeof iso !== "object")
@@ -9282,6 +9310,9 @@ async function renewLeases() {
     const lapsed = rec._leaseUntil * 1000 <= Date.now();
     rec._renewing = true;
     try {
+      const fresh = await readLedgerContract("get", [rec.id]);
+      const pinRefusal = placementRefusal(fresh.configCid, _enclaveId);
+      if (pinRefusal) { await retireForPlacement(rec, pinRefusal); continue; }
       const sent = lapsed ? sendClaimTx("claim", [rec.id, _enclaveId]) : sendClaimTx("renew", [rec.id]);
       await sent;
       const rcpt = await sent.receipt;
@@ -9629,6 +9660,11 @@ async function auditClaims(ledgerById) {
     // AND the sweep (per-record re-reads were what blew the RPC rate budget)
     const d = ledgerById.get(rec.id.toLowerCase());
     if (!d) continue;                         // not in the page (RPC anomaly): keep serving, the lease is prepaid
+    const pinRefusal = placementRefusal(d.configCid, _enclaveId);
+    if (pinRefusal) {
+      await retireForPlacement(rec, pinRefusal);
+      continue;
+    }
     rec.paidUsdc = Number(d.spent6 + d.balance6);
     rec._balance6 = Number(d.balance6);          // funded-runtime display: balance beyond the current lease
     rec.rate = Number(d.rate) / 1e6;             // a setShares resize recalculates it on-chain; keep the mirror honest
@@ -10206,6 +10242,8 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   let claimOpts;
   try { claimOpts = parseDepOptions(d.configCid, d.gpuMilli); }
   catch (e) { return "deployment options refused: " + e.message; }
+  const pinRefusal = placementRefusal(d.configCid, _enclaveId);
+  if (pinRefusal) return pinRefusal;
   // Routing: the deployment bought two shares. GPU work (gpuMilli > 0)
   // runs ONLY on GPU enclaves and must fit a card AND the node's cpu pool.
   // CPU-only work runs on CPU enclaves immediately; a GPU enclave bids on
@@ -10557,6 +10595,10 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false 
       return;
     }
   }
+  // Prefetch can take minutes; re-check the owner policy before spending a lease.
+  const latest = await readLedgerContract("get", [d.id]);
+  const latestPinRefusal = placementRefusal(latest.configCid, _enclaveId);
+  if (latestPinRefusal) return latestPinRefusal;
   if (resume) {
     // we already HOLD this lease (a previous life of this enclave claimed
     // it; the reboot wiped local state, not the chain) - no claim tx, just
