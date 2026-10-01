@@ -16,11 +16,11 @@ export async function resizeAfterStop({ expected, target, read, apply, resume, p
   expected = { ...expected };
   const identity = d => {
     if (!d || String(d.owner).toLowerCase() !== String(expected.owner).toLowerCase() || d.appRef !== expected.appRef)
-      throw new Error("The deployment owner or version changed. Reopen Shares before trying again.");
+      throw new Error("The deployment owner or version changed. Reopen Resources before trying again.");
   };
   const matches = (d, s) => Number(d.gpuMilli) === Number(s.gpuMilli) && Number(d.cpuMilli) === Number(s.cpuMilli);
   let d = await read(); identity(d);
-  if (!matches(d, expected)) throw new Error("The deployment's shares changed. Reopen Shares before trying again.");
+  if (!matches(d, expected)) throw new Error("The deployment's shares changed. Reopen Resources before trying again.");
   if (!Number.isSafeInteger(Number(d.leaseUntil)) || Number(d.leaseUntil) < 0
     || !Number.isSafeInteger(Number(d.blockTimestamp)) || Number(d.blockTimestamp) <= 0)
     throw new Error("Unable to verify the current lease. Nothing changed; try again.");
@@ -68,7 +68,7 @@ export async function resizeAfterStop({ expected, target, read, apply, resume, p
     await resume();
     return { resumed: true };
   } catch (e) {
-    if (committed) e.message += " Your new shares are saved. Reopen Shares and choose Save to finish re-queuing; no need to enter them again.";
+    if (committed) e.message += " Your new shares are saved. Use Resume to start the app with the saved allocation; no need to enter it again.";
     throw e;
   }
 }
