@@ -29,3 +29,29 @@ test('host matching uses advertised per-app backend with the existing top-level 
   assert.equal(hostIsolationBackend({ availability: { isolation: SNP } }), SNP);
   assert.equal(hostIsolationBackend({}), '');
 });
+
+// Exercise the actual dashboard save callback, with signing replaced by a capture.
+const { readFileSync } = await import('node:fs');
+const source = readFileSync(new URL('../site/components/deployments/deployments.js', import.meta.url), 'utf8');
+const callback = source.match(/isoSave\.addEventListener\("click", async \(\) => \{([^]*?)\n    \}\);/)[1];
+const saveHandler = new Function('depGet', 'isolationOptions', 'withIsolationBackend', 'isoSave', 'isoSel', 'go',
+  'id', 'd', 'isolation', 'rev', 'box', 'btn', 'isoInfo', 'syncIsolation', 'paintLine', `return async function () {${callback}}`);
+
+test('dashboard saves against fresh options and requires the existing owner and requirement to still match', async () => {
+  for (const changed of ['config', 'owner', 'requirement']) {
+    const fresh = { owner: changed === 'owner' ? 'bob' : 'alice',
+      configCid: JSON.stringify({ isolation: { require: changed === 'requirement' ? SHIELD : SNP }, config: { freshlyEdited: true } }) };
+    const saves = [], errors = [];
+    const handle = saveHandler(async () => fresh, isolationOptions, withIsolationBackend,
+      {}, { value: SHIELD }, {}, 'app', { owner: 'alice' }, { required: SNP }, 5, {}, {}, {}, () => {},
+      (_node, _style, message) => errors.push(message));
+    await handle.call({ _cfgSubmit: async (...args) => saves.push(args) });
+    if (changed === 'config') {
+      assert.equal(saves.length, 1);
+      assert.deepEqual(JSON.parse(saves[0][3]), { isolation: { require: SHIELD }, config: { freshlyEdited: true } });
+    } else {
+      assert.equal(saves.length, 0);
+      assert.ok(errors.some(s => /changed/.test(s)));
+    }
+  }
+});
