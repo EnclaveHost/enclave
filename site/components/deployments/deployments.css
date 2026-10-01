@@ -95,6 +95,34 @@ c-deployments{display:contents;}
 .enc-mob-body .em-dl .btn{text-decoration:none;}
 .enc-mob-body .qd-sub{margin:0;font-family:var(--font-mono);font-size:.74rem;line-height:1.6;color:var(--text-dim);max-width:78ch;}
 .enc-meta{font-family:var(--font-mono);font-size:.76rem;color:var(--text);overflow-wrap:anywhere;font-variant-numeric:tabular-nums;} .enc-meta .dim{color:var(--text-muted);}
+.enc-resources{font:inherit;color:var(--jade-2);background:var(--jade-deep);border:1px solid var(--jade-dim);border-radius:6px;padding:4px 8px;min-height:30px;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:4px;}
+.enc-resources:hover{color:var(--text);border-color:var(--jade);}
+.enc-resources:focus-visible,.enc-resource-close:focus-visible{outline:2px solid var(--jade);outline-offset:3px;}
+.enc-resource-dialog{width:min(660px,calc(100vw - 32px));max-height:calc(100dvh - 32px);margin:auto;padding:24px;border:1px solid var(--line-strong);border-radius:var(--radius);background:var(--bg-1);color:var(--text);box-shadow:0 24px 80px #0008;overflow:auto;}
+.enc-resource-dialog::backdrop{background:rgba(4,7,11,.76);backdrop-filter:blur(5px);}
+.enc-resource-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:24px;}
+.enc-resource-head h2{font:600 1.15rem var(--font-sans);margin:0;}
+.enc-resource-app{font:.78rem var(--font-mono);color:var(--text-muted);margin:8px 0 0;overflow-wrap:anywhere;}
+.enc-resource-close{flex:none;width:36px;height:36px;display:grid;place-items:center;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text-muted);font-size:1.45rem;cursor:pointer;}
+.enc-resource-close:hover{color:var(--text);border-color:var(--line-strong);}
+.enc-resource-chart{width:100%;border-collapse:collapse;font:.8rem var(--font-mono);font-variant-numeric:tabular-nums;table-layout:fixed;}
+.enc-resource-chart th,.enc-resource-chart td{text-align:left;padding:16px 12px;border-bottom:1px solid var(--line-soft);overflow-wrap:anywhere;}
+.enc-resource-chart th:first-child,.enc-resource-chart td:first-child{padding-left:0;}
+.enc-resource-chart th:last-child,.enc-resource-chart td:last-child{padding-right:0;}
+.enc-resource-chart thead th{font-size:.68rem;font-weight:400;color:var(--text-muted);padding-top:0;padding-bottom:10px;}
+.enc-resource-chart thead th:nth-child(1){width:28%;}
+.enc-resource-chart thead th:nth-child(2){width:28%;}
+.enc-resource-chart thead th:nth-child(3){width:44%;}
+.enc-resource-chart tbody th{font-weight:500;}
+.enc-resource-chart .enc-resource-vram>*{border-top:1px solid var(--line-strong);}
+.enc-resource-allocation{display:flex;align-items:center;gap:12px;}
+.enc-resource-allocation>span:last-child{width:5.5ch;flex:none;text-align:right;color:var(--jade-2);}
+.enc-resource-track{height:8px;flex:1;overflow:hidden;border-radius:4px;background:var(--surface-3);}
+.enc-resource-track>span{display:block;height:100%;border-radius:4px;background:var(--jade);}
+.enc-resource-vram .enc-resource-track>span,.enc-resource-gpu .enc-resource-track>span{background:var(--iris);}
+.enc-resource-vram .enc-resource-allocation>span:last-child,.enc-resource-gpu .enc-resource-allocation>span:last-child{color:var(--iris);}
+.enc-resource-note{margin:18px 0 0;color:var(--text-muted);font-size:.78rem;line-height:1.6;}
+@media(max-width:480px){.enc-resource-dialog{padding:18px 14px;}.enc-resource-chart{font-size:.7rem;}.enc-resource-chart th,.enc-resource-chart td{padding:14px 7px;}.enc-resource-chart thead th{font-size:.64rem;}.enc-resource-allocation{gap:6px;}.enc-resource-head{margin-bottom:20px;}}
 .enc-spend{font-family:var(--font-mono);font-size:.76rem;color:var(--text-muted);font-variant-numeric:tabular-nums;}
 .enc-acts{margin-left:auto;display:flex;gap:8px;}
 .enc-ep{display:block;margin-top:9px;background:var(--well);border:1px solid var(--line-soft);color:var(--jade-2);font-family:var(--font-mono);font-size:.76rem;cursor:pointer;text-align:left;padding:.5em .7em;border-radius:8px;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:border-color .15s var(--ease);}
