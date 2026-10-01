@@ -7,7 +7,7 @@
 // only when both the node's plan and the manager would honour it. Every false here is a refusal in isolationPlan (or a
 // constant of the spawn body / the splice route), and test/windows-node-availability-flags.test.mjs holds the two together.
 export const PARTITION_OFFERS = Object.freeze({
-  secrets: false,        // isolationPlan: "the deployment has staged secrets ... cannot deliver them into a partition"
+  secrets: true,         // ANDed with manager support for sealed, deployment-bound guest release
   config: true,          // V5 measured config; also requires manager image capability
   configCid: true,       // manager independently CID-verifies the public config before bundling it
   waf: false,            // isolationPlan: protection rules need the request's plaintext, which only the partition has

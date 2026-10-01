@@ -21,7 +21,7 @@ import http from "node:http";
 import { inferenceRefusal } from "./shield-profile.mjs";
 import { runtimeId as runtimeId_ } from "../../../isolation/contract/runtime.mjs";
 import crypto from "node:crypto";
-import { derive, appConfigText, MAX_CONFIG_BYTES, DERIVATION, DERIVATION_V2, DERIVATION_V4, DERIVATION_V5, DERIVATIONS } from "./derive.mjs";
+import { derive, appConfigText, MAX_CONFIG_BYTES, DERIVATION, DERIVATION_V2, DERIVATION_V4, DERIVATION_V5, DERIVATION_V6, DERIVATIONS } from "./derive.mjs";
 
 /* What this backend can actually SERVE, as opposed to derive. /2 needs a command's own socket
    inside the partition; when that exists, it moves into this list and the gate follows. */
@@ -67,11 +67,12 @@ export class Manager {
    * @param readyDeadlineMs  how long a domain has to become ready before it is failed.
    */
   constructor({ backend = new HyperVPartitionBackend(), fetchComponent = null, runtimeId = "",
-                runtime = null, shield = null, configEnabled = false, fetchConfig = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null } = {}) {
+                runtime = null, shield = null, configEnabled = false, secretsEnabled = false, fetchConfig = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null } = {}) {
     this.backend = backend;
     this.shield = shield;
     this.configEnabled = configEnabled === true && typeof fetchConfig === "function";
     this.fetchConfig = fetchConfig;
+    this.secretsEnabled = secretsEnabled === true && this.configEnabled;
     this.fetchComponent = fetchComponent;       // (cid) -> Buffer, CID-verified by the caller's fetcher
     // THE RUNTIME IDENTITY, not just its hash. judge-hv hands `expectRuntime` to the shared
     // checkRuntime as `want.runtime`, which DIFFS IT FIELD BY FIELD against the identity the
@@ -162,7 +163,7 @@ export class Manager {
                               launcherKey: handle.launcherKey, expectedVmId: handle.launcherVmId, ...statement,
                               // the IDENTITY object, which is what checkRuntime compares; never the hash
                               expectRuntime: rec.inference ? this.shield?.runtime : this.runtime ?? undefined,
-                              deadlineMs: this.readyDeadlineMs });
+                              deadlineMs: rec.derivation === DERIVATION_V6 ? Math.max(300_000,this.readyDeadlineMs) : this.readyDeadlineMs });
       if (this.domains.get(rec.id) !== rec) return;         // removed, or replaced, while we were judging (63's P3: identity, not presence)
       // A relay/Shield bridge may exit while the evidence request is pending.
       // A late readiness success must not resurrect that failed transport.
@@ -254,7 +255,7 @@ export class Manager {
       managerEpoch: this.epoch,
       inventory: this.inventory,
       backend: this.backend.backend,
-      supports: { ...this.backend.supports, gpu: !!this.shield?.ready, config: this.configEnabled, configCid: this.configEnabled },
+      supports: { ...this.backend.supports, gpu: !!this.shield?.ready, config: this.configEnabled, configCid: this.configEnabled, secrets: this.secretsEnabled },
       configMaxBytes: this.configEnabled ? MAX_CONFIG_BYTES : 0,
       inference: this.shield ? { ...this.shield, allocatedGpuMilli: this.gpuAllocated(), freeGpuMilli: this.shield.ready ? Math.max(0, 1000-this.gpuAllocated()) : 0 } : null,
       // DEFECT 4: /health had no boundary at all, so a reader could learn everything about this
@@ -269,7 +270,7 @@ export class Manager {
       // free. Silence in this list is the refusal the gate understands. (enclave-5d, who owns the
       // consumer, asked for exactly this, and they are right.)
       catalog: {
-        derivations: [...SERVES, ...(this.shield?.ready ? [DERIVATION_V4] : []), ...(this.configEnabled ? [DERIVATION_V5] : [])],                    // what it can serve: the gate reads this
+        derivations: [...SERVES, ...(this.shield?.ready ? [DERIVATION_V4] : []), ...(this.configEnabled ? [DERIVATION_V5] : []), ...(this.secretsEnabled ? [DERIVATION_V6] : [])],                    // what it can serve: the gate reads this
         derives: DERIVATIONS,                   // what it can COMPUTE, byte-exactly: information only
         runtimeId: this.runtimeId || null,
       },
@@ -300,6 +301,7 @@ export class Manager {
         + "spawning is refused until they are removed, rather than guessing whether one of them is this deployment");
       e.status = 503; throw e;
     }
+    if (["secrets", "env", "secretValues"].some(k => k in body)) throw badRequest("plaintext secrets are not manager inputs");
     const d = body.derive || {};
     if (!DERIVATIONS.includes(d.derivation)) throw badRequest(`unknown derivation ${JSON.stringify(d.derivation ?? null)}`);
     // Refuse rather than approximate. The identity is right either way - derive() proves that -
@@ -311,10 +313,10 @@ export class Manager {
     const shieldWhy = inferenceRefusal(d, body, this.shield);
     if (shieldWhy) throw badRequest(shieldWhy);
     if (d.derivation === DERIVATION_V4 && !this.shield?.ready) throw badRequest("Shield profile unavailable");
-    if (d.derivation !== DERIVATION && d.derivation !== DERIVATION_V4 && !(d.derivation === DERIVATION_V5 && this.configEnabled))
+    if (d.derivation !== DERIVATION && d.derivation !== DERIVATION_V4 && !(d.derivation === DERIVATION_V5 && this.configEnabled) && !(d.derivation === DERIVATION_V6 && this.secretsEnabled))
       throw badRequest("derivation is not served");
     // The new config lives only in the measured record; never ignore a second, unmeasured input.
-    if (d.derivation === DERIVATION_V5) {
+    if (d.derivation === DERIVATION_V5 || d.derivation === DERIVATION_V6) {
       if (body.config || body.configCid || body.appConfigCid) throw badRequest("configuration must be carried in the V5 record only");
       if (d.configCid) {
         const bytes = await this.fetchConfig(d.configCid);
@@ -325,7 +327,8 @@ export class Manager {
     }
     if (!d.inference && this.runtimeId && d.runtimeId !== this.runtimeId)
       throw badRequest(`the mapping is pinned to runtime ${d.runtimeId}, and this host runs ${this.runtimeId}`);
-    const refusal = refuseUnsupported(body, { ...SUPPORTS, gpu: !!this.shield?.ready });
+    if (d.derivation === DERIVATION_V6 && (body.hasSecrets !== true || body.name !== d.secretDeployment)) throw badRequest("secret deployment differs from spawn identity");
+    const refusal = refuseUnsupported(body, { ...SUPPORTS, gpu: !!this.shield?.ready, secrets: this.secretsEnabled && d.derivation === DERIVATION_V6 });
     if (refusal) throw badRequest(`this backend does not honour ${refusal}`);
     if (!this.fetchComponent) throw badRequest("no component fetcher configured");
 
@@ -359,7 +362,7 @@ export class Manager {
     // No await between reservation check and insertion: concurrent fetches cannot oversell.
     const gpuMilli = mapping.record.inference?.gpuMilli || 0;
     if (gpuMilli + this.gpuAllocated() > 1000) throw badRequest("Shield GPU allocation is full");
-    const rec = { launching: true, inference: mapping.record.inference || null, gpuMilli, id, name, instanceId, appId: mapping.appId, recordSha256: mapping.recordSha256,
+    const rec = { derivation: mapping.record.derivation, secretDeployment: mapping.record.secretDeployment || null, launching: true, inference: mapping.record.inference || null, gpuMilli, id, name, instanceId, appId: mapping.appId, recordSha256: mapping.recordSha256,
                   componentSha256: mapping.componentSha256, policy: mapping.record.policy,
                   catalog: mapping.record.catalog, cid: mapping.record.cid,
                   runtimeId: mapping.record.runtimeId, status: "starting", startedAt: null, reason: null,

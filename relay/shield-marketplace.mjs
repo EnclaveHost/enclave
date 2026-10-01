@@ -13,7 +13,7 @@ export function createShieldMarketplace({ hub, policyFile = '', policy: supplied
   if (policy && (policy.schema !== 'enclave-shield-app-policy/1' || !Array.isArray(policy.hosts) ||
       !policy.hosts.length || !policy.ekRoots || !policy.cpu?.runtimeId)) throw new Error('invalid Shield marketplace policy');
   const configured = name => !!policy?.hosts.includes(name);
-  const verify = policy ? createShieldAppVerifier({ hub, policy, readCatalog, readConfig, fetchVerified }) : null;
+  const verify = policy ? createShieldAppVerifier({ hub, policy, readCatalog, readConfig, fetchVerified, hasSecrets }) : null;
   const witness = policy?.witness;
   if (witness && (!/^[0-9a-f]{64}$/.test(witness.appSha256 || '') ||
       !/^[0-9a-f]{64}$/.test(witness.runtimeId || '') || witness.runtimeId !== policy.cpu.runtimeId))
@@ -29,7 +29,7 @@ export function createShieldMarketplace({ hub, policyFile = '', policy: supplied
   function servesUntil(host, d) {
     const state = stateFor(host), app = state?.apps.get(d?.id);
     if (!app || !eligible(host) || app.until <= now() || fingerprint(d) !== app.fingerprint ||
-        d.active !== true || d.isPublic !== true || hasSecrets(d.id) || (app.ownerException && !isOwnerDeployment(host,d)) ||
+        d.active !== true || d.isPublic !== true || (hasSecrets(d.id) && !policy?.cpu?.secretsV1) || (app.ownerException && !isOwnerDeployment(host,d)) ||
         String(d.runner).toLowerCase() !== String(host.id).toLowerCase()) return 0;
     return Math.floor(Math.min(app.until, Number(d.leaseUntil) * 1000) / 1000);
   }
@@ -42,15 +42,15 @@ export function createShieldMarketplace({ hub, policyFile = '', policy: supplied
     try {
       const d = await confirmRow(candidate.id);
       if (d.active !== true || d.isPublic !== true || Number(d.leaseUntil)*1000 <= now() ||
-          String(d.runner).toLowerCase() !== String(host.id).toLowerCase() || hasSecrets(d.id))
-        throw new Error('deployment must be public, secret-free and leased to this host');
+          String(d.runner).toLowerCase() !== String(host.id).toLowerCase() || (hasSecrets(d.id) && !policy?.cpu?.secretsV1))
+        throw new Error('deployment must be public, compatible and leased to this host');
       const ownerException = isOwnerDeployment(host,d);
       const proof = await verify(host.name, d, {csrSpkiSha256, allowPendingOwner:ownerException});
       if (!proof.ok) throw new Error(proof.reason);
       if (session(host) !== sid) throw new Error('Shield attachment changed during verification');
       // A ledger mutation during the round trip must not acquire the old app's evidence.
       const current = await confirmRow(d.id);
-      if (fingerprint(current) !== fingerprint(d) || Number(current.leaseUntil)*1000 <= now() || hasSecrets(d.id) || (ownerException && !isOwnerDeployment(host,current)))
+      if (fingerprint(current) !== fingerprint(d) || Number(current.leaseUntil)*1000 <= now() || (hasSecrets(d.id) && !policy?.cpu?.secretsV1) || (ownerException && !isOwnerDeployment(host,current)))
         throw new Error('deployment changed during verification');
       state = stateFor(host);
       const until = now() + TTL;

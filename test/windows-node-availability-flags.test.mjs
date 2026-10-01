@@ -38,7 +38,7 @@ test("the isolated backend advertises none of what a partition cannot be given -
     const f = h.features(), a = h.availability();
     for (const k of FLAGS) {
       const configFlag = ["configOverride", "configCid", "configCidOverride", "configEdit"].includes(k);
-      const expected = !!supports && configFlag;
+      const expected = !!supports && (configFlag || ["secrets","secretsInConfig"].includes(k));
       assert.equal(f[k], expected, `features().${k} with supports=${JSON.stringify(supports)}`);
       assert.equal(a[k], expected, `availability.${k}`);
     }
@@ -70,7 +70,7 @@ test("every false in PARTITION_OFFERS is a refusal in isolationPlan (or a consta
     volumes: { volumes: ["gemma"] },
   };
   for (const [k, over] of Object.entries(refused)) {
-    assert.equal(PARTITION_OFFERS[k], ["gpu", "config", "configCid"].includes(k), k);
+    assert.equal(PARTITION_OFFERS[k], ["secrets", "gpu", "config", "configCid"].includes(k), k);
     const r = isolationPlan({ ...base, ...over });
     assert.equal(r.ok, false, `${k} was planned: ${JSON.stringify(r).slice(0, 120)}`);
   }
@@ -78,7 +78,7 @@ test("every false in PARTITION_OFFERS is a refusal in isolationPlan (or a consta
   assert.equal(PARTITION_OFFERS.customDomains, false);
   const t = isolatedTarget(DEP, { status: "running", isolation: { instance: "hv1", appId: "1".repeat(64) } }, "app.enclave.host");
   assert.equal(t.isolation.expectName, `${DEP.slice(2, 10)}.app.enclave.host`, "only the platform's own name is spliced");
-  assert.deepEqual(Object.entries(PARTITION_OFFERS).filter(([, v]) => v !== false), [["config", true], ["configCid", true], ["gpu", true]], "a partition offer turned true without its test");
+  assert.deepEqual(Object.entries(PARTITION_OFFERS).filter(([, v]) => v !== false), [["secrets", true], ["config", true], ["configCid", true], ["gpu", true]], "a partition offer turned true without its test");
 });
 
 test("the claim gate follows the flags: the isolated backend refuses a PRIVATE deployment at claim, by name, not after claiming it", async () => {

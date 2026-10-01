@@ -20,7 +20,7 @@
 // refusal that says so (`unknown: true`), never read as "none". A refusal always names the input that decided it.
 import { spliceStream } from "../../../isolation/m4/guestd/supervisor-splice.mjs";
 import { createDataPlane } from "./datapath.mjs";
-import { appConfigText, DERIVATION_V5 } from "../manager/derive.mjs";
+import { appConfigText, DERIVATION_V5, DERIVATION_V6 } from "../manager/derive.mjs";
 
 export const BACKEND = "hyperv-partition-per-app";
 export const V1 = "enclave-catalog-bundle/1";
@@ -130,10 +130,8 @@ export function isolationPlan({ deploymentId, deployment, version, appConfig, ha
     return refused("version.memMb", "NucBox Shield needs at least 25% CPU and an app version declaring 8192 MiB");
 
   if (hasSecrets !== true && hasSecrets !== false) return unknownInput("hasSecrets", "whether the deployment has staged secrets");
-  if (hasSecrets === true)
-    // What the refusal prevents, and no more (enclave-b4's N4): a partition started WITHOUT its secrets. It does not
-    // keep the secrets away from this host - the node learned this by fetching them as the lease holder.
-    return refused("hasSecrets", "the deployment has staged secrets, and this tier cannot deliver them into a partition (attested in-partition delivery is not built), so it is not started without them; the refusal does not keep them from this host, which fetched them as the lease holder to find this out");
+  if (hasSecrets === true && (inf || manager.supports?.secrets !== true))
+    return refused("hasSecrets", "this image cannot deliver sealed secrets to the app");
 
   if (appConfig === undefined) return unknownInput("appConfig", "the config the app would run with");
   let deliveredConfig = appConfigOf(appConfig);
@@ -144,7 +142,7 @@ export function isolationPlan({ deploymentId, deployment, version, appConfig, ha
     } catch {}
   }
   const sourceCid = configSourceCid ?? (appConfigCid || version.configCid || "");
-  const configRequested = !!deliveredConfig || !!sourceCid;
+  const configRequested = !!deliveredConfig || !!sourceCid || hasSecrets === true;
   if (configRequested && (inf || manager.supports?.config !== true || (sourceCid && manager.supports?.configCid !== true)))
     return refused("appConfig", "this partition image does not support measured app configuration");
   let measuredConfig = null;
@@ -166,7 +164,7 @@ export function isolationPlan({ deploymentId, deployment, version, appConfig, ha
   try { httpPort = httpPortOf(version.ports); } catch (e) { return refused("version.ports", e.message); }
   if (inf && httpPort) return refused("version.ports", "initial Shield profile serves wasi:http components");
   if (configRequested && httpPort) return refused("version.ports", "measured configuration currently serves wasi:http components");
-  const derivation = configRequested ? DERIVATION_V5 : inf ? V4 : httpPort ? V2 : V1;
+  const derivation = hasSecrets === true ? DERIVATION_V6 : configRequested ? DERIVATION_V5 : inf ? V4 : httpPort ? V2 : V1;
   if (!Array.isArray(derivations)) return unknownInput("manager.catalog.derivations", "what the manager can serve");
   if (!derivations.includes(derivation))
     return refused("manager.catalog.derivations", httpPort
@@ -177,12 +175,13 @@ export function isolationPlan({ deploymentId, deployment, version, appConfig, ha
 
   const policy = inf ? { cpuPercent: 400, vcpus: 4, memMiB: Math.max(8192, Number(version.memMb)) } : policyFor(version.memMb);
   const derive = derivationOf(version.appId, version.index, version.cid, policy, runtimeId, httpPort);
-  if (configRequested) { derive.derivation=DERIVATION_V5; derive.config=measuredConfig; if (sourceCid) derive.configCid=sourceCid; }
+  if (configRequested) { derive.derivation=derivation; derive.config=measuredConfig; if (sourceCid) derive.configCid=sourceCid; }
+  if (hasSecrets === true) derive.secretDeployment = deploymentId;
   if (inf) { derive.derivation=V4; derive.inference={model:inf.model,gpuMilli:gpu}; }
   return { ok: true, derivation, httpPort, policy,
            spawn: { image: `ipfs://${version.cid}`, name: deploymentId, cpuShare: cpu / 1000, gpuShare: gpu / 1000,
                     appPort: httpPort || Number(deployment.appPort) || 8080, ports: [], config: "", configCid: "",
-                    egress: "", derive, isPublic: true, hasSecrets: false } };
+                    egress: "", derive, isPublic: true, hasSecrets } };
 }
 
 /**
