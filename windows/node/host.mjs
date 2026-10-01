@@ -421,7 +421,7 @@ export class Host {
     if (!heldHere && this.isolation) {
       let envOpts = {}, envRead = false;
       try { envOpts = chain.parseEnvelope(d.configCid, d.gpuMilli) || {}; envRead = true; } catch { envRead = false; }
-      if (envRead && envOpts.isolationRequire === this.isolationBackend) {
+      if (envRead && chain.isolationForBackend(envOpts, this.isolationBackend)) {
         const pre = await this.#preclaimVerdict(id, d, v, { envOpts, envRead, force });
         if (pre) return pre;
       }
@@ -736,7 +736,7 @@ export class Host {
       waf: envRead ? (envOpts.waf || {}) : null,
       volumes,
       runtimeId: this.cfg.isolationRuntimeId,
-      require: envOpts.isolationRequire ?? null,
+      require: envRead && chain.isolationForBackend(envOpts, this.isolationBackend) ? this.isolationBackend : (envOpts.isolationRequire ?? null),
       manager: managerHealth,
       appConfigCid: envRead ? String(envOpts.configCid || "") : null,
     });
@@ -1015,7 +1015,7 @@ export class Host {
       // the config changed under a live lease.
       // null when the envelope could not be read: UNKNOWN, which #isolationReconcile already treats as "not read" and
       // #retireIsolated as "may have been isolated" (it asks the manager by name rather than assume nothing is there).
-      isolationRequired: envRead ? (!!envOpts.isolationRequire && envOpts.isolationRequire === this.isolationBackend) : null,
+      isolationRequired: envRead ? (chain.isolationForBackend(envOpts, this.isolationBackend)) : null,
     });
     let v = version;
     if (!v) try { v = await chain.resolveAppRef(d.appRef); } catch (e) { return this.#record(id, { status: "failed", reason: `catalog: ${e.message}` }); }
@@ -2074,7 +2074,7 @@ export class Host {
    */
   isolatedForThisBox(d) {
     if (!this.isolationBackend) return false;
-    try { return (chain.parseEnvelope(d?.configCid, d?.gpuMilli) || {}).isolationRequire === this.isolationBackend; }
+    try { return chain.isolationForBackend(chain.parseEnvelope(d?.configCid, d?.gpuMilli), this.isolationBackend); }
     catch { return false; }
   }
   /**
@@ -2137,7 +2137,7 @@ export class Host {
   retiredEngineClaimRefusal(d) {
     if (this.cfg.engineRetired !== true || this.isolatedForThisBox(d)) return null;
     return "this node runs only the isolated backend (the legacy VBS-enclave backend is retired): "
-      + `it claims only deployments that require ${this.isolationBackend || "an isolation backend it does not have"}`;
+      + `it claims only deployments compatible with ${this.isolationBackend || "an isolation backend it does not have"}`;
   }
   /** Marketplace claims require a fresh relay decision. The relay checks the
    * pinned boot/image/runtime and actual guest TLS key. The host's manager

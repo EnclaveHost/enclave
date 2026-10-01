@@ -98,6 +98,7 @@ import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep, hasStage
 import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDeployment, tlsAskAllowed } from "./domains.js";
 import { handleCerts, initCerts } from "./certs.js";
 import { createShieldMarketplace } from "./shield-marketplace.mjs";
+import { claimCheapest, CLAIM_QUOTE_ABI } from "./cheapest-claim.mjs";
 import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson } from "./measurement-predict.mjs";
 import { createTunnelHub } from "./tunnel.js";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
@@ -106,6 +107,7 @@ import { VBS_DEFAULT_EK_ROOTS } from "./vbs-policy.mjs";
 import { createPadsLedger, createPrefixStore, createShipmentStore, padsRouter } from "./pads.mjs";
 import { dataDir } from "./store.js";
 import { expectedGuest, prewarmReleasePredictions } from "./secrets-release.mjs";
+import { expectedForRow } from "./guest-prediction-row.mjs";
 import { boxOrigin, boxLabelOfHost } from "./boxhost.js";
 installProcessGuards("api-relay");
 
@@ -1416,8 +1418,15 @@ function servedEntryNow(row, owner, nowSec = Math.floor(Date.now() / 1000)) {
 }
 // 3. the backend D's envelope requires ("" when none or unreadable: never served)
 function isolationRequireOf(d) {
-  try { const o = JSON.parse(String((d && d.configCid) || "")); const r = o && o.isolation && o.isolation.require; return typeof r === "string" ? r : ""; }
-  catch { return ""; }
+  try {
+    const o = JSON.parse(String(d?.configCid || "{}"));
+    if (!o || typeof o !== "object" || Array.isArray(o)) return null;
+    const iso = "isolation" in o ? o.isolation : {};
+    if (!iso || typeof iso !== "object" || Array.isArray(iso) ||
+        Object.keys(iso).some(k => !["require", "cpuTee", "gpuTee"].includes(k)) ||
+        ["cpuTee", "gpuTee"].some(k => iso[k] !== undefined && iso[k] !== false)) return null;
+    return iso.require === undefined ? HVNODE_BACKEND : iso.require;
+  } catch { return null; }
 }
 // all three -> the unix second until which D is served by this row (min of the lease end and the delegation's expiry), or 0
 function servesDeploymentUntil(row, d, nowSec = Math.floor(Date.now() / 1000)) {
@@ -2028,17 +2037,18 @@ async function gateway(u, req, res) {
     if (!rlHint(clientIp(req)))
       return json(res, 429, { error: "rate_limited", message: "Too many claim hints; retry shortly." }, req);
     let body; try { body = await readBody(req); } catch (e) { return json(res, 413, { error: "too_large", message: e.message }, req); }
-    let prefer = "";
-    try { prefer = String(JSON.parse(body.toString() || "{}").enclave || "").trim().toLowerCase(); } catch {}
+    let prefer = "", selection = {};
+    try { const parsed = JSON.parse(body.toString() || "{}"); selection = parsed && typeof parsed === "object" ? parsed : {}; prefer = String(selection.enclave || "").trim().toLowerCase(); } catch {}
+    const cheapest = !prefer && selection.strategy === "cheapest";
+    if (cheapest && !/^0x[0-9a-f]{64}$/i.test(String(selection.id || "")))
+      return json(res, 400, { accepted:false, reason:"A ledger deployment ID is required." }, req);
     const serving = servingEnclaves();
     const match = prefer ? serving.filter((e) =>
       String(e.name || "").toLowerCase() === prefer || String(e.endpoint || "").toLowerCase() === prefer) : [];
     const pool = match.length ? match : serving;
     if (!fanoutReserve(pool.length))
       return json(res, 503, { accepted: false, reason: "Relay busy (fan-out cap); the sweep will still pick the deployment up." }, req);
-    let results;
-    try {
-      results = await Promise.all(pool.map(async (e) => {
+    const hint = async e => {
         try {
           // tunnel-attached enclaves (Phase C sellers) have no dialable
           // endpoint - the hint rides the hub, like every relay->tunnel call
@@ -2052,7 +2062,29 @@ async function gateway(u, req, res) {
               body, signal: AbortSignal.timeout(15_000) });
           return JSON.parse(await readCappedText(r));
         } catch { return null; }
-      }));
+    };
+    let results;
+    try {
+      if (cheapest) {
+        await resolveDeployments();
+        if (!DEPLOYMENTS_ADDRESS) return json(res, 503, {accepted:false,reason:"The ledger is unavailable; no placement was attempted."}, req);
+        const client = await chain();
+        const ledger = DEPLOYMENTS_ADDRESS;
+        const deployment = await client.readContract({address:ledger,abi:DEP_GET_ABI,functionName:"get",args:[selection.id]});
+        const owner = String(deployment.owner || "").toLowerCase();
+        const result = await claimCheapest({pool,hint,quote:async host => {
+          const args=[selection.id,host.id];
+          const [rate,claimable]=await Promise.all([
+            client.readContract({address:ledger,abi:CLAIM_QUOTE_ABI,functionName:"rateFor",args}),
+            client.readContract({address:ledger,abi:CLAIM_QUOTE_ABI,functionName:"claimableBy",args}),
+          ]);
+          const selfHosted = /^0x[0-9a-f]{40}$/.test(owner) && !/^0x0{40}$/.test(owner)
+            && String(host.payoutWallet || "").toLowerCase() === owner;
+          return {rate,claimable,selfHosted};
+        }});
+        return json(res, 200, result, req);
+      }
+      results = await Promise.all(pool.map(hint));
     } finally { fanoutRelease(pool.length); }
     const best = results.find(r => r && r.accepted) || results.find(Boolean)
               || { accepted: false, reason: "No live enclave answered the hint; the sweep will still pick the deployment up." };
@@ -2388,12 +2420,18 @@ const shieldMarket = createShieldMarketplace({ hub: tunnelHub,
   readConfig: versionConfigReader(catalogClients, catalogAddress),
   fetchVerified: (cid, max) => predictor().fetchVerified(cid, max),
 });
-const expectedGuestFor = (row, o) => predictor().expectedFor(row && row.appRef, o);
+const expectedGuestFor = (row, o) => expectedForRow(row, o, {
+  confirmRow, readVersionConfig: versionConfigAt,
+  predict: (ref, options) => predictor().expectedFor(ref, options),
+});
 // the catalog VERSION's { config, configCid } for the deployment's CONFIRMED appRef, through the same agreeing RPCs
 const _versionConfig = { read: null };
 async function versionConfigFor(id) {
   const row = await confirmRow(id);
-  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(String(row.appRef || ""));
+  return versionConfigAt(row.appRef);
+}
+async function versionConfigAt(ref) {
+  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(String(ref || ""));
   if (!m) return null;
   _versionConfig.read ||= versionConfigReader(catalogClients, catalogAddress);
   return _versionConfig.read(m[1].toLowerCase(), Number(m[2]));
