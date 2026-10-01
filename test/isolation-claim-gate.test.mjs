@@ -113,7 +113,7 @@ test("changing the requirement of a RUNNING deployment is surfaced, never swappe
   const r = await seam({ edits: [{ rec, chainCid: "" }, { rec, chainCid: '{"isolation":{"require":"snp-guest-per-app"},"waf":{"blockScanners":true}}' },
                                  { rec: { ...rec, _envelope: "" }, chainCid: REQ }] }, TIER);
   // the middle edit adds protection rules: on this tier they could never be applied, so it is surfaced too
-  assert.deepEqual(r.edits, ["error", "error", "error"]);
+  assert.deepEqual(r.edits, ["waf", "error", "waf"], "removing a backend preference does not remove the existing isolated boundary");
   const wafOnly = await seam({ edits: [{ rec, chainCid: '{"isolation":{"require":"snp-guest-per-app"},"waf":{"blockScanners":true}}' }] });
   assert.deepEqual(wafOnly.edits, ["error"], "without the flag the namespace does not parse at all, as before");
   // and on a box without the backend, adding the requirement to a running app is an error, as for any

@@ -2036,7 +2036,7 @@ function mem64OfConfig(cfg) {
 }
 function parseDepOptions(raw, gpuMilli) {
   const s = String(raw || "").trim();
-  if (!s) return {};
+  if (!s) return ISOLATION_BACKEND ? { isolation: ISOLATION_BACKEND } : {};
   if (s.length > DEP_OPTIONS_MAX_BYTES) throw new Error(`options exceed ${DEP_OPTIONS_MAX_BYTES} bytes`);
   if (!s.startsWith("{") && !s.startsWith("["))
     throw new Error("configCid is retired: a CID names bytes nobody validated — this field may only carry a deployment-options JSON envelope like {\"waf\":{…},\"config\":{…}} (config = an inline app-config override for this deployment); recreate the deployment without a config reference");
@@ -2050,16 +2050,23 @@ function parseDepOptions(raw, gpuMilli) {
   const known = ["waf", "config", "configCid", "gpu", "network", ...(ISOLATION_BACKEND ? ["isolation"] : [])];
   const unknown = Object.keys(o).filter((k) => !known.includes(k));
   if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: ${known.join(", ")})`);
-  const opts = {};
+  const opts = ISOLATION_BACKEND ? { isolation: ISOLATION_BACKEND } : {};
   if ("isolation" in o) {
     const iso = o.isolation;
     if (!iso || Array.isArray(iso) || typeof iso !== "object")
       throw new Error("isolation must be a JSON object like {\"require\":\"snp-guest-per-app\"}");
-    const badI = Object.keys(iso).filter((k) => k !== "require");
+    const badI = Object.keys(iso).filter((k) => !["require", "cpuTee", "gpuTee"].includes(k));
     if (badI.length) throw new Error(`unknown isolation option ${JSON.stringify(badI[0])} (this runner knows: require)`);
-    if (!ISOLATION_BACKENDS.includes(iso.require))
+    for (const key of ["cpuTee", "gpuTee"]) {
+      if (key in iso && typeof iso[key] !== "boolean") throw new Error(`isolation.${key} must be true or false`);
+    }
+    if (iso.cpuTee === true && ISOLATION_BACKEND !== "snp-guest-per-app")
+      throw new Error("this deployment requires a TEE CPU");
+    // Current per-app GPU implementations are masked offload, not confidential-mode GPUs.
+    if (iso.gpuTee === true) throw new Error("this deployment requires a TEE GPU; masked GPU offload does not qualify");
+    if (iso.require !== undefined && !ISOLATION_BACKENDS.includes(iso.require))
       throw new Error(`isolation.require must be one of: ${ISOLATION_BACKENDS.join(", ")}`);
-    opts.isolation = iso.require;
+    opts.isolation = iso.require ?? ISOLATION_BACKEND;
   }
   if ("network" in o) {
     // WHICH RELAY carries this deployment's traffic. Unlike every other
