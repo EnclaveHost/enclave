@@ -2,7 +2,7 @@
 
 Implementation branch: `codex/paid-capacity-audits-20260930`. Workload app:
 `EnclaveHost/enclave-apps`, branch `codex/capacity-work-20260930`, directory
-`capacity-work`. These changes are not deployed and no verification spending is enabled.
+`capacity-work`. Capacity Work 1.0.0 is published and approved on Base; contract migration and verification spending are not activated. The relay supports contract-wallet secret staging.
 
 ## Price follows paid demand and qualified supply
 
@@ -35,17 +35,20 @@ verification work, even if the scarcity quote would be high.
   excludes direct operator/payout self-hosting; and bounds funded queued demand
   and each owner's influence. Supply certificates must cover the observation
   window. Recent spare-capacity observations are required separately.
-- `evidence.mjs` checks domain-bound EIP-712 capacity receipts. At least two
-  configured independent witness groups must sign; the host's own configured
-  group cannot count. `observation.mjs` binds their receipt to the current registry
-  identity and payout wallet. Witness membership is explicit payer policy.
+- `evidence.mjs` checks domain-bound EIP-712 capacity receipts. Independent mode
+  requires two configured independent groups, excluding the host's group. The
+  explicitly authorized bootstrap mode permits one Enclave-operated group, but
+  requires the signed payload and scheduler offers to say `operator-bootstrap`.
+  Such receipts cannot satisfy independent mode. `observation.mjs` binds receipts
+  to the registry identity and payout wallet. Membership is explicit payer policy.
 - `scheduler.mjs` spreads concurrent jobs across hardware identities, with
   cooldowns and budget reservations. `coordinator.mjs` persists pricing epochs and
   reservations and resumes unfinished jobs. It processes independent hosts
   concurrently; native reference computations are serialized to bound verifier RAM.
-- `chain-adapter.mjs` creates ordinary catalog deployments, stages a per-job secret,
-  obtains the host's rate offer, requests exact payer authorization and funds the
-  job. It checks the actual lease identity and rate. Wrong-host results are rejected
+- `fee-chain-adapter.mjs` creates ordinary catalog deployments owned by a
+  segregated fee wallet, stages a per-job secret using ERC-1271, obtains the
+  host's explicit price acceptance, and funds within on-chain policy limits.
+  It checks the actual lease identity and rate. Wrong-host results are rejected
   and the deployment is stopped. Existing permissionless claims do not guarantee
   that only the intended host can briefly claim a job.
 - `workload.mjs` sends a fresh CPU/RAM challenge and compares the full result with
@@ -69,33 +72,43 @@ against wash trading or coordinated supply withholding.
 
 ## Contracts and payer authority
 
-`EnclaveDeployments` revision 14 adds `offerJobRate` and `fundFor` without changing
-the deployment tuple. The operator's offer snapshots owner and shares, expires,
-and cannot reprice an existing lease. Ordinary owner caps, publisher fees and free
-self-hosting still apply. `fundFor` debits its caller and explicitly attributes
-refundable owner escrow; it cannot debit the named beneficiary.
+`EnclaveDeployments` revision 15 adds negotiated job rates, explicit refund
+attribution, and a one-time binding to `EnclaveVerificationFees`. The bound router
+must identify this ledger. Ordinary caps, publisher fees, runner escrow and free
+self-hosting retain their behavior.
 
-`EnclaveAvailability` is an opt-in companion with no admin, pooled reserve or
-retained job funds. A source deployment's payer sets executor, percentage (at most 10%), expiry,
-per-job limit and a payer-wide daily limit. Only newly proof-credited service
-submitted through its checkpoint wrapper unlocks budget. Verification-funded jobs
-cannot recursively earn funding allowance through the same companion. Editing a
-policy clears accrued allowance without resetting the payer's daily spend.
+The router directs 5% of an opted-in source's existing platform fee to its
+`VerificationFeeWallet`; at the current 80/20 split this is 1% of the gross host
+charge. It adds no payer charge and reduces neither publisher nor runner proceeds.
+Each source/payer pair has a separate immutable wallet. There is no pooled reserve,
+admin withdrawal or arbitrary-call facility. Unallocated fees follow the ordinary
+platform payout. Revoked/expired unused fees return only to that same platform
+payout, since they came from its share.
 
-Each job needs an exact USDC authorization addressed to the companion, with a nonce
-bound to chain, contract, source, policy epoch, deployment and reviewed job fields.
-Only that companion can redeem it. Within one atomic transaction it enforces the
-limits, receives USDC, grants the ledger an exact allowance and forwards the funds
-with the original payer's refund attribution. No balance or residual allowance
-remains after successful funding. A failed transfer rolls back budget accounting.
+The payer configures executor, pinned workload/backend, expiry, maximum CPU share,
+rate, per-job limit, payer-wide daily limit and proven-revenue fraction (at most
+10%). Newly proof-credited paid source service unlocks a spending allowance; jobs
+are additionally bounded by actual segregated fee funds. Verification jobs cannot
+recursively earn budget. Policy edits clear allowance, preserve the daily spend
+counter and invalidate old offers. The executor cannot fund arbitrary deployments.
 
-**Funding limitation:** this implementation is an explicit additional allocation
-from the payer, bounded by a fraction of proven service revenue. It does not yet
-carve money out of the existing platform fee or reduce an existing host/publisher
-payment. Do not describe it as the requested automatic fee split. That integration
-remains separate work. Native gas must still be supplied by transaction submitters;
-this does not remove the host's gas requirement. EOA hardware-wallet users must
-sign each authorization unless they separately configure a supported wallet policy.
+Ordinary ledger funding escrows the runner share and attributes refundable amounts
+to the fee wallet. Each approval is exact and cleared after use. Unused job escrow
+returns to that wallet, not the executor. Anyone may finish cleanup after the job's
+funding deadline plus its complete duration, policy expiry or revocation. Before
+then only the payer/executor may stop it. Completing a job does not drain an
+otherwise active source policy's wallet.
+
+ERC-1271 support authorizes only readable `enclave-secrets:put:` messages signed by
+the policy's current executor. It cannot authorize token typed-data transfers.
+The relay reads the deployment owner from the ledger, validates that contract's
+signature and preserves payload binding, expiry, replay checks and isolated secret
+release. This does not grant access to ordinary customer deployments.
+
+`EnclaveAvailability` and `chain-adapter.mjs` remain an earlier, separately funded
+prototype. They are not the production funding route and must not be activated for
+this rollout. Native transaction gas still comes from submitters: fee-funded USDC
+verification payments do not themselves implement host gas sponsorship.
 
 ## Deployment dependencies
 
@@ -111,19 +124,21 @@ The configuration exports `stateDirectory`, `intervalSec` (1–60), and
 substitute a host-reported utilization value or an `attestationVerified` Boolean
 for a verifier. A live configuration requires:
 
-1. An approved ledger revision-14 migration preserving existing deployments,
-   escrow, leases and ownership, plus its bound availability companion. Generated
-   browser-admin artifacts contain the new contracts; nothing was deployed.
+1. A revision-15 migration preserving deployments, escrow and ownership, with
+   a coordinated lease cutover and a new proof-of-time contract bound to that
+   ledger. The current migration engine clears leases and cannot transfer USDC: a
+   dry-run import alone is insufficient. Reconcile backing and owner refund rights
+   before sealing or changing the address book. A staged deployment is unused.
 2. A published, pinned `capacity-work` app version, reviewed resource sizes and
    performance thresholds, authenticated secret staging, and real app-attestation
    expectations. The initial profile supports CPU/RAM work only.
-3. Independent witness identities/groups, capacity qualification evidence,
+3. Explicitly labeled bootstrap or independent witness identities/groups, capacity qualification evidence,
    receipt expiry and resource normalization policy. A tiny readiness VM being
    responsive is not evidence for a machine's full advertised capacity.
 4. Explicit payer source, funding percentage, daily/per-job limits, expiry,
    price anchors and wallet signing policy. No production funding values were
-   inferred from the test fixtures. Fix the fee-allocation limitation above before
-   claiming the original fee-funded availability design is complete.
+   inferred from the test fixtures. Free self-hosting produces no paid demand or
+   fee funding; an empty budget must pause verification rather than invent revenue.
 5. Host-side offer acceptance and checkpoint submission through the companion.
    Choose observation freshness/window limits consistent with chain finality;
    never substitute unfinalized state just to keep quoting during an outage.
@@ -132,26 +147,42 @@ for a verifier. A live configuration requires:
 
 ## Validation
 
-- 32 JavaScript tests cover pricing, accounting, real event ABI replay, signature
-  domains/quorums, durable recovery, concurrent scheduling, binding failures and
-  workload/lease bounds.
-- 180 relevant Solidity tests cover the ledger and companion (including 512-run
+- 79 JavaScript tests cover pricing, accounting, real event ABI replay, signature
+  domains/quorums, durable recovery, concurrent scheduling, binding failures,
+  workload/lease bounds and existing/contract-wallet secret authorization.
+- 42 admin-console tests cover encoding, migration and generated artifacts.
+- 193 relevant Solidity tests cover the ledger and companion (including 512-run
   funding fuzz coverage), ordinary pricing, self-hosting, publisher fees, fixed
   lease rates, revocation, daily limits, authorization bypass attempts, refunds
   and token-failure rollback.
 - A local Anvil integration uses real contracts and signatures to prove source
-  credit → accepted negotiated price → exact job funding → lease release/refund.
+  credit → existing platform-fee allocation → accepted negotiated price → exact
+  job funding → lease release/refund, with no additional payer charge.
   Hardware attestation is mocked only in that test and explicitly labeled.
 - The real WASI HTTP component matches its native reference at 0, 1 and 8 MiB,
   and refuses missing authentication and out-of-bounds requests. Three Rust tests
   cover input bounds and challenge sensitivity.
-- solc 0.8.35/viaIR/runs=1 produces a 24,483-byte ledger runtime, below EIP-170.
+- solc 0.8.35/viaIR/runs=1 produces a 24,267-byte ledger runtime, below EIP-170.
 
 Commands:
 
 ```
 node --test test/availability-*.test.mjs
-forge test --match-contract 'JobRatesTest|EnclaveAvailabilityTest|EnclaveDeployments.*'
-node scripts/availability/test-chain.mjs
+forge test --match-contract 'VerificationFeesTest|JobRatesTest|EnclaveAvailabilityTest|EnclaveDeployments.*'
+node scripts/availability/test-fee-chain.mjs
 node scripts/availability/test-workload.mjs /absolute/path/to/enclave-apps/capacity-work
 ```
+
+## Published workload
+
+Capacity Work 1.0.0 is approved with zero publisher fee and catalog requirements
+256 MiB RAM, CPU only. No hardware capacity result is implied by publication.
+
+- App: `catalog://0x962622b0284b438f58ad480b824d4fbf7fa9ce3dc84e2af97b65bd15392a5e6f/0`
+- CID: `bafkreihcpsmtq246majw4ncfam7j3fauj57vfsfbb3cn5ace5k2lmas72i`
+- WASM SHA-256: `e27c99386b9e60136e3445033e9d94144f7f52c8a10ec4de8044eab4b6025fd2`
+
+The published bytes were retrieved through the production IPFS gateway and
+compared with the tested build. Bootstrap capacity receipts and a production
+verification canary remain rollout work; no capacity has been certified by this
+publication alone.

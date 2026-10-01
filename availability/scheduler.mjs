@@ -42,7 +42,7 @@ export function planRound({observation, policy, previous, nowSec, durationSec,
     if(!q.accepted) continue;
     budget-=q.maximumSpend6;
     offers.push({...q,id:'0x'+randomBytes(32).toString('hex'),hostId:h.hostId,hardwareId:h.hardwareId,
-      operator:h.operator,shareMilli,allocationUnits:actualUnits,capacityExpiresSec:h.expiresSec});
+      operator:h.operator,shareMilli,allocationUnits:actualUnits,capacityExpiresSec:h.expiresSec,trustMode:observation.trustMode||"independent"});
   }
   return {offers,reserved6:availableBudget6-budget,remaining6:budget};
 }

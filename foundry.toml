@@ -17,7 +17,7 @@ optimizer_runs = 200
 via_ir = true
 fs_permissions = [{ access = "read", path = "contracts/foundry/test/fixtures" }]
 
-# Rev 14 negotiated rates fit EIP-170 at runs=1. Match both deploy builders.
+# Rev 15 negotiated rates and bound fee routing fit EIP-170 at runs=1.
 [[profile.default.additional_compiler_profiles]]
 name = "ledger"
 optimizer = true
