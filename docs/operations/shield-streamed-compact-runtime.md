@@ -132,3 +132,20 @@ MemoryCurrent includes the reserved SNP guest pages, not just the model heap.
 Existing application share limits, TLS binding, and admission checks remain
 required. No LPN or noise-based privacy change is included: those alternatives
 do not by themselves remove the correction matrix and remain research.
+
+## Production recovery after qualification
+
+At 2026-10-01 06:28 UTC, Eyesoff-AI was restored on its existing production
+release as guest `gd3d682731` (58,956 MiB reserved; CPU share 65%, GPU share 80%).
+Its independently verified SNP attestation matched the expected app, runtime,
+release, deployment identity, and live TLS key. Public `eyesoff.ai` certificate
+verification, `/ping`, and `/models` passed. A GPU-only warm-up returned HTTP 200
+and `ok: true` for `qwen3.8-27b-mtp`; both V100s held the model.
+
+RISC Box returned to `queued`, with the supervisor reporting insufficient free
+CPU capacity. The four other guests kept their IDs and remained running. The
+manager configuration and launcher were byte-for-byte restored from their
+pre-test backups; no canary timer, memory hold, or temporary RISC launch guard
+remains. This recovery did not change production shares or reduce its reserved
+RAM. Evidence is in `9eb4e600-verified-restored.json` and
+`eyesoff-restored-warmup.json` in the artifact directory above.
