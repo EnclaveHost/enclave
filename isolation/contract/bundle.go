@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"unicode/utf8"
 )
 
@@ -44,6 +45,9 @@ const MaxConfigBytes = 32 << 10
 // Public app configuration is measured with the artifact. Base64 keeps the bundle
 // canonical across JSON encoders; it is not encryption or a secret channel.
 func (m Manifest) AppConfig() ([]byte, error) {
+	if m.SecretDeployment != "" && (!regexp.MustCompile(`^0x[0-9a-f]{64}$`).MatchString(m.SecretDeployment) || m.ConfigBase64 == "") {
+		return nil, errors.New("secrets require a deployment-bound configuration bundle")
+	}
 	if m.ConfigBase64 == "" {
 		return nil, nil
 	}
@@ -65,15 +69,16 @@ func (m Manifest) AppConfig() ([]byte, error) {
 }
 
 type Manifest struct {
-	ConfigBase64 string     `json:"configBase64,omitempty"`
-	Inference    *Inference `json:"inference,omitempty"`
-	ABI          string     `json:"abi"`
-	Label        string     `json:"label,omitempty"`
-	World        string     `json:"world,omitempty"` // WorldHTTP (served by the runtime) or WorldCLI (a command that listens itself)
-	Ports        []string   `json:"ports,omitempty"` // V3: sorted measured tcp:N/udp:N tunnel destinations
-	HTTP         int        `json:"http,omitempty"`  // WorldCLI only: the port the app serves HTTP on inside its domain
-	Artifact     Artifact   `json:"artifact"`
-	Policy       Policy     `json:"policy"`
+	SecretDeployment string     `json:"secretDeployment,omitempty"`
+	ConfigBase64     string     `json:"configBase64,omitempty"`
+	Inference        *Inference `json:"inference,omitempty"`
+	ABI              string     `json:"abi"`
+	Label            string     `json:"label,omitempty"`
+	World            string     `json:"world,omitempty"` // WorldHTTP (served by the runtime) or WorldCLI (a command that listens itself)
+	Ports            []string   `json:"ports,omitempty"` // V3: sorted measured tcp:N/udp:N tunnel destinations
+	HTTP             int        `json:"http,omitempty"`  // WorldCLI only: the port the app serves HTTP on inside its domain
+	Artifact         Artifact   `json:"artifact"`
+	Policy           Policy     `json:"policy"`
 }
 
 // The two worlds a bundle may state. WorldHTTP: a wasi:http proxy component the runtime SERVES (it owns the

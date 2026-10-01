@@ -134,6 +134,7 @@ static void probe_report_as_root(void) {
  * enclave-d1's canary of 4cdd5169 (252602c8): the quiet runtime opened "/dev/null" INSIDE the chroot, got ENOENT and
  * exited 126 on every m3 domain, so domexec ended each domain before it served (enclave-87 chose this design). */
 #define CONFIG_MAX_BYTES 32768
+static int secret_pipe[2] = {-1,-1};
 static char app_config_env[CONFIG_MAX_BYTES + sizeof "ENCLAVE_CONFIG="];
 /* Read only the monitor's immutable copy from the measured bundle. Never print it. */
 static void read_app_config(void) {
@@ -222,6 +223,12 @@ static pid_t spawn(char *const argv[], uid_t uid, int quiet, int filter) {
                 _exit(1);
             }
         }
+        if (secret_pipe[0] >= 0) {
+            int keep = filter ? secret_pipe[0] : secret_pipe[1];
+            if (dup2(keep, 7) < 0 || fcntl(7, F_SETFD, 0) < 0) _exit(126);
+            if (secret_pipe[0] != 7) close(secret_pipe[0]);
+            if (secret_pipe[1] != 7) close(secret_pipe[1]);
+        }
         char *envp[48] = {"HOME=/tmp", "PATH=/plat", NULL};
         if (shield_on && filter) {
             const char *fixed[] = {
@@ -307,7 +314,7 @@ int main(int argc, char **argv) {
     read_app_config();
     char *rt[64] = {"/plat/rt/ld-linux-x86-64.so.2", "--library-path", "/plat/rt", "/plat/rt/wasmtime",
                   "serve", "-S", "cli", "-C", "cache=n", "--addr", "127.0.0.1:8080", "/app.wasm", NULL};
-    char *front[] = {"/plat/front", "-runtime-identity", "/plat/rt/runtime.json",
+    char *front[32] = {"/plat/front", "-runtime-identity", "/plat/rt/runtime.json",
                      "-listen-unix", "/run/front.sock", "-report-unix", "/run/monitor.sock",
                      "-upstream", "127.0.0.1:8080", "-app-sha", "/app.sha256", "-app-mode", "serve",
                      "-cert-name-file", "/cert.name", NULL};
@@ -390,6 +397,20 @@ int main(int argc, char **argv) {
         shield_app[ai++]=v;
     }
     shield_app[ai]=NULL;
+    struct stat secret_st;
+    char *secret_app[66];
+    if (stat("/secret.id", &secret_st) == 0) {
+        if (shield_on || run_port || !S_ISREG(secret_st.st_mode) || secret_st.st_uid != 0 || (secret_st.st_mode & 0222) || secret_st.st_size != 66) die("secret deployment");
+        int raw[2]; if (pipe2(raw, O_CLOEXEC) != 0) die("secret pipe");
+        // Keep both originals away from the fixed inherited fd before duplicating it.
+        secret_pipe[0]=fcntl(raw[0],F_DUPFD_CLOEXEC,20);
+        secret_pipe[1]=fcntl(raw[1],F_DUPFD_CLOEXEC,20);
+        close(raw[0]);close(raw[1]);
+        if (secret_pipe[0]<0 || secret_pipe[1]<0) die("secret pipe fds");
+        secret_app[0]="/plat/secretrun";
+        int i=0;for (;shield_app[i];i++) secret_app[i+1]=shield_app[i];secret_app[i+1]=NULL;
+        int j=0;while(front[j])j++;front[j++]="-shield-secrets-fd";front[j++]="7";front[j]=NULL;
+    } else if (errno != ENOENT) die("secret deployment stat");
     pid_t rt_pid, front_pid;
     if (argc > 3 && strcmp(argv[3], "probe") == 0) {
         if (seccomp_fd >= 0) { close(seccomp_fd); seccomp_fd = -1; }   /* the probe states no filter */
@@ -397,19 +418,20 @@ int main(int argc, char **argv) {
         front_pid = -1;
         printf("DOM%s started adversary probe=%d (no app, no front)\n", dom_id, rt_pid);
     } else if (run_port) {
-        rt_pid = spawn(shield_app, uid, 1, 1);                 /* the runtime: quiet and filtered */
+        rt_pid = spawn(secret_pipe[0]>=0 ? secret_app : shield_app, uid, 1, 1);                 /* the runtime: quiet and filtered */
         if (seccomp_fd >= 0) { close(seccomp_fd); seccomp_fd = -1; }   /* its child holds the statement pipe until exec */
         front_pid = spawn(run_front, front_uid, 0, 0);  /* the front: its own uid, neither quiet nor filtered */
         front_pid_g = front_pid;
         printf("DOM%s started runtime=%d front=%d mode=run http=%d (/data 64 MiB scratch)\n", dom_id, rt_pid, front_pid,
                run_port);
     } else {
-        rt_pid = spawn(shield_app, uid, 1, 1);                  /* the runtime: quiet and filtered */
+        rt_pid = spawn(secret_pipe[0]>=0 ? secret_app : shield_app, uid, 1, 1);                  /* the runtime: quiet and filtered */
         if (seccomp_fd >= 0) { close(seccomp_fd); seccomp_fd = -1; }   /* its child holds the statement pipe until exec */
         front_pid = spawn(front, front_uid, 0, 0);      /* the front: its own uid, neither quiet nor filtered */
         front_pid_g = front_pid;
         printf("DOM%s started runtime=%d front=%d mode=serve\n", dom_id, rt_pid, front_pid);
     }
+    if (secret_pipe[0]>=0) { close(secret_pipe[0]);close(secret_pipe[1]);secret_pipe[0]=secret_pipe[1]=-1; }
     usleep(200000);
     probe(uid, front_uid);
 

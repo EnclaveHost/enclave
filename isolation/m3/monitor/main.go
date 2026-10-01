@@ -84,13 +84,14 @@ const (
 // every backend ends a domain the same way; this file supplies what reclamation DOES here.
 
 type domain struct {
-	AppConfig []byte              `json:"-"` // copied only from the measured bundle
-	Inference *contract.Inference `json:"inference,omitempty"`
-	ID        int                 `json:"id"`
-	Label     string              `json:"label"`
-	AppSha    string              `json:"appSha256"`
-	Port      uint32              `json:"port"`
-	UID       int                 `json:"uid"`
+	SecretDeployment string              `json:"-"`
+	AppConfig        []byte              `json:"-"` // copied only from the measured bundle
+	Inference        *contract.Inference `json:"inference,omitempty"`
+	ID               int                 `json:"id"`
+	Label            string              `json:"label"`
+	AppSha           string              `json:"appSha256"`
+	Port             uint32              `json:"port"`
+	UID              int                 `json:"uid"`
 	// FrontUID is the uid the domain's FRONT runs as, never the runtime's (UID): the front is the trusted component in a
 	// domain and the runtime is not (enclave-87's ruling on enclave-bf's finding: a runtime sharing the front's uid could
 	// obtain reports for keys of its choosing and replace the front's listen socket). Reports are answered for this uid
@@ -508,7 +509,11 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 	if id >= frontUIDOffset {
 		return nil, fmt.Errorf("domain id %d would give its runtime a uid in the fronts' range", id)
 	}
-	d := &domain{AppConfig: appConfig, Inference: inference, ID: id, Boot: m.boot, Label: req.Label, AppSha: hex.EncodeToString(sum[:]), appHash: sum, Mode: mode, HTTP: httpPort, Name: req.Name,
+	secretDeployment := ""
+	if manifest != nil {
+		secretDeployment = manifest.SecretDeployment
+	}
+	d := &domain{SecretDeployment: secretDeployment, AppConfig: appConfig, Inference: inference, ID: id, Boot: m.boot, Label: req.Label, AppSha: hex.EncodeToString(sum[:]), appHash: sum, Mode: mode, HTTP: httpPort, Name: req.Name,
 		Port: m.basePrt + uint32(id), UID: m.baseUID + id, FrontUID: m.baseUID + frontUIDOffset + id, CPU: pol.CPUPercent, MemMiB: pol.MemMiB,
 		dir: filepath.Join(m.root, strconv.Itoa(id)), cgroup: "/sys/fs/cgroup/dom" + strconv.Itoa(id),
 		Probe: req.Probe, exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
@@ -542,6 +547,11 @@ func (m *monitor) start(d *domain, app []byte) error {
 	}
 	if err := os.WriteFile(filepath.Join(d.dir, "app.sha256"), []byte(d.AppSha), 0o444); err != nil {
 		return fail(err)
+	}
+	if d.SecretDeployment != "" {
+		if err := os.WriteFile(filepath.Join(d.dir, "secret.id"), []byte(d.SecretDeployment), 0444); err != nil {
+			return fail(err)
+		}
 	}
 	if err := writeAppConfig(d.dir, d.AppConfig); err != nil {
 		return fail(err)
