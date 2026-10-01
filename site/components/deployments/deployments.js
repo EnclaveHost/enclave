@@ -26,6 +26,7 @@ import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
 import { moveLeaseLive, prepareDeploymentMove } from "../../js/core/deployment-move.js";
+import { ISOLATION_BACKENDS, isolationOptions, withIsolationBackend, hostIsolationBackend } from "../../js/core/isolation-options.js";
 import { resizeAfterStop } from "../../js/core/share-resize.js";
 import { depSnapshot } from "../../js/core/chain.js";
 import { BUCKETS, bucketOf, countBuckets } from "../../js/core/deploy-status.js";
@@ -3110,6 +3111,9 @@ class Deployments extends EnclaveElement {
     if (box.hidden || !box.isConnected) return;             // closed while loading
     if (!d) return fail("[x] couldn’t read this deployment from the ledger - try again shortly");
     if (!fleet) return fail("[x] couldn’t read the fleet list - try again shortly");
+    let isolation;
+    try { isolation = isolationOptions(d.configCid); }
+    catch (e) { return fail("[x] Cannot safely edit deployment options: " + e.message); }
     const currentRunner = moveLeaseLive(d) ? d.runner : "";
     const here = currentRunner ? leaseHostOf(d, fleet) : null;
     const moveLabel = d.active ? "Pin" : "Resume and pin";
@@ -3129,13 +3133,29 @@ class Deployments extends EnclaveElement {
     })();
     const targets = moveTargetsFor({ ...spec, depGpuOptional: depSoftGpu, gpuMilli: Number(d.gpuMilli) || 0 }, fleet, currentRunner);
     const selId = "mvSel" + appLabel(id);
+    const isoId = "isoSel" + appLabel(id);
+    const backendChoices = [...ISOLATION_BACKENDS];
+    if (!backendChoices.some(b => b.value === isolation.required))
+      backendChoices.unshift({ value: isolation.required, label: isolation.required || "Not set — select a backend" });
     box.innerHTML = '<div class="ap-attbar">pin · ' + esc(id) + '</div>'
+      + '<div class="enc-upg-body">'
+      +   '<label for="' + isoId + '">Isolation backend</label>'
+      +   '<select class="eu-sel mv-isolation" id="' + isoId + '">'
+      +     backendChoices.map(b => '<option value="' + esc(b.value) + '"' + (b.value === isolation.required ? ' selected' : '')
+      +       (!ISOLATION_BACKENDS.some(k => k.value === b.value) ? ' disabled' : '') + '>' + esc(b.label) + '</option>').join('')
+      +   '</select><button class="btn btn-sm mv-isolation-save" disabled>Save requirement</button>'
+      + '</div>'
+      + '<p class="en-intro">This requirement restricts which hosts can claim the app. Confidential VMs and Shield partitions have different protection boundaries. '
+      +   'Changing it requires an owner signature and applies on the next claim; it does not convert the running instance. Save first, then use Pin to relaunch on a compatible host.</p>'
+      + '<div class="term mv-isolation-info" role="status" aria-live="polite"></div>'
       + '<div class="enc-upg-body">'
       +   '<label for="' + selId + '">Preferred host' + (here ? " (currently " + esc(here.name) + ")" : "") + '</label>'
       +   '<select class="eu-sel" id="' + selId + '">'
       +     '<option value="" selected>Auto — cheapest eligible host within your rate cap</option>'
-      +     targets.map(t => '<option value="' + esc(t.name) + '">'
-      +       esc(t.name)
+      +     targets.map(t => '<option value="' + esc(t.name) + '"'
+      +       (isolation.required && hostIsolationBackend(t.row) !== isolation.required ? ' disabled' : '') + '>'
+      +       esc(t.name) + ' · ' + esc(hostIsolationBackend(t.row) || 'backend unreported')
+      +       (isolation.required && hostIsolationBackend(t.row) !== isolation.required ? ' · requires a backend change' : '')
       +       (t.queued ? " · full right now (waits in the queue)" : "")
       +       (t.cpuNn ? " · CPU only" : "")
       +     '</option>').join("")
@@ -3144,7 +3164,43 @@ class Deployments extends EnclaveElement {
       + '</div>'
       + '<div class="enc-upg-body mv-upg" hidden></div>'
       + '<div class="term enc-move-status" role="status" aria-live="polite"></div>';
-    const sel = box.querySelector(".eu-sel"), go = box.querySelector(".mv-go");
+    const sel = box.querySelector("#" + selId), go = box.querySelector(".mv-go");
+    const isoSel = box.querySelector(".mv-isolation"), isoSave = box.querySelector(".mv-isolation-save");
+    const isoInfo = box.querySelector(".mv-isolation-info");
+    const syncIsolation = () => {
+      const dirty = isoSel.value !== isolation.required;
+      isoSave.disabled = !dirty;
+      go.disabled = dirty;
+      isoInfo.innerHTML = "";
+      paintLine(isoInfo, "dimln", "// saved requirement: " + (isolation.required || "not set"));
+      const hosts = fleet.filter(h => hostIsolationBackend(h) === isoSel.value).map(h => h.name);
+      paintLine(isoInfo, "dimln", "// matching backend: " + (hosts.join(", ") || "no host currently advertises this backend"));
+      if (isoSel.value === "snp-guest-per-app")
+        paintLine(isoInfo, "info", "// requires an AMD SEV-SNP confidential guest for each app.");
+      if (isoSel.value === "hyperv-partition-per-app")
+        paintLine(isoInfo, "info", "// requires an Enclave Shield app partition; this is not SEV-SNP encrypted guest memory.");
+      if (dirty) paintLine(isoInfo, "warn", "// save this requirement before choosing a host. Other deployment options are preserved.");
+    };
+    isoSel.addEventListener("change", syncIsolation);
+    syncIsolation();
+    isoSave.addEventListener("click", async () => {
+      isoSave.disabled = true; isoSel.disabled = true; go.disabled = true;
+      try {
+        // Re-read immediately before signing; don't overwrite concurrent Config/Network edits.
+        const fresh = await depGet(id);
+        if (String(fresh.owner).toLowerCase() !== String(d.owner).toLowerCase()) throw new Error("Deployment ownership changed. Reopen Pin.");
+        if (isolationOptions(fresh.configCid).required !== isolation.required) throw new Error("The isolation requirement changed. Reopen Pin before saving.");
+        const envelope = withIsolationBackend(fresh.configCid, isoSel.value, rev >= 5 ? 4096 : 100);
+        await this._cfgSubmit(id, { applyWord: "applies on the next claim; reopen Pin to select a compatible host" }, {
+          box, btn, st: isoInfo,
+          lock: () => { isoSave.disabled = true; isoSel.disabled = true; go.disabled = true; },
+          unlock: () => { isoSel.disabled = false; syncIsolation(); },
+        }, envelope, "isolation requirement saved");
+      } catch (e) {
+        isoSel.disabled = false; syncIsolation();
+        paintLine(isoInfo, "warn", "[x] " + e.message);
+      }
+    });
     const s = stEl();
     paintLine(s, "dimln", currentRunner
       ? "// releases the current host and requests the selected one; same URL, version and balance."
