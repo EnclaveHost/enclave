@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {isolationOptions, withIsolationRequirements} from '../site/js/core/isolation-options.js';
 import {moveLeaseLive, prepareDeploymentMove} from '../site/js/core/deployment-move.js';
 const A='0x'+'aa'.repeat(32),B='0x'+'bb'.repeat(32),ZERO='0x'+'00'.repeat(32);
 function fixture(overrides={}) {
@@ -59,9 +60,10 @@ const source=readFileSync(new URL('../site/components/deployments/deployments.js
 const method=source.match(/^  async _doMove\([^]*?^  }/m)[0];
 const makePanel=new Function('Enclave','depGet','ctlOf','prepareDeploymentMove','moveLeaseLive','paintLine',
  'setTimeout','leaseHostOf','connectWallet','ensureBaseChain','sendTx','waitReceipt','encCall','DEP_SEL','DEPLOYMENTS_ADDRESS',
+ 'isolationOptions','withIsolationRequirements','depSchemaRev',
  `return new (class { ${method} })()`);
-for (const target of ['nucbox-k11', '']) for (const active of [true, false]) {
- test(`dashboard Pin ${target || 'Auto'} ${active ? 'queued' : 'ended'} respects resume and target selection`, async()=>{
+for (const target of ['nucbox-k11', '']) for (const active of [true, false]) for (const saveRequirements of [false,true]) {
+ test(`dashboard Pin ${target || 'Auto'} ${active ? 'queued' : 'ended'} ${saveRequirements ? 'with requirements' : ''} respects resume and target selection`, async()=>{
   let row={owner:'alice',active,runner:ZERO,leaseUntil:0};const hints=[],messages=[],signatures=[];
   const api={provider:true,claimHint:async(id,name,options)=>{
    assert.deepEqual(options,target?{}:{strategy:"cheapest"});
@@ -71,12 +73,12 @@ for (const target of ['nucbox-k11', '']) for (const active of [true, false]) {
   const panel=makePanel(api,async()=>row,()=> 'wallet',prepareDeploymentMove,moveLeaseLive,
    (_el,_style,message)=>messages.push(message),(callback)=>{callback();return 1},()=>({name:'nucbox-k11'}),
    unexpected,async()=>{},async(_address,data)=>{signatures.push(data);return '0xreceipt'},
-   async()=>{row.active=true},(selector,args)=>{assert.equal(selector,'activate');assert.equal(args[1].v,true);return 'resume';},
-   {setActive:'activate'},'ledger');
-  panel._list=[{id:A}];panel.refresh=()=>{};
-  const box={isConnected:true,querySelector:()=>({})};const go={textContent:'Pin',disabled:false};
+   async()=>{if(signatures.at(-1)==='resume')row.active=true},(selector,args)=>{if(selector==='options'){assert.deepEqual(JSON.parse(args[1].v),{isolation:{cpuTee:false,gpuTee:false}});return 'requirements';}assert.equal(selector,'activate');assert.equal(args[1].v,true);return 'resume';},
+   {setActive:'activate',setConfig:'options'},'ledger',isolationOptions,withIsolationRequirements,async()=>15);
+  panel._list=[{id:A}];panel.refresh=()=>{};panel._envLearn=()=>{};
+  const box={isConnected:true,querySelector:()=>({}),...(saveRequirements?{_isolationChoice:{cpuTee:false,gpuTee:false,original:JSON.stringify('')}}:{})};const go={textContent:'Pin',disabled:false};
   await panel._doMove(A,target,box,go);
   assert.deepEqual(hints,[[A,target]]);assert.ok(messages.some(m=>m.includes('running on nucbox-k11')));
-  assert.deepEqual(signatures,active?[]:['resume']);assert.equal(go.disabled,false);
+  assert.deepEqual(signatures,[...(saveRequirements?['requirements']:[]),...(active?[]:['resume'])]);assert.equal(go.disabled,false);
  });
 }

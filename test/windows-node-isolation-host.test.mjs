@@ -147,11 +147,12 @@ test("giving up when the DELETE fails (H6): no block, no release, still tracked,
   assert.equal(host.running().length, 1);
 });
 
-test("a deployment KNOWN not to be isolated gives up without asking the manager", async () => {
+test("an unspecified hardware requirement still holds its isolated reservation until the manager confirms retirement", async () => {
   const h = box(1);                                                    // port 1: nothing answers there
   const d = { ...dep(), configCid: "" };
   const r = await h.ensureApp("0x" + "5f".repeat(32), d, { version: YANKED });
-  assert.equal(h.blocked.has("0x" + "5f".repeat(32)), true, JSON.stringify(r));
+  assert.equal(h.blocked.has("0x" + "5f".repeat(32)), false, JSON.stringify(r));
+  assert.equal(r.status, "held");
 });
 
 // ---- enclave-d1's re-review of d626da4e ----
@@ -217,3 +218,15 @@ test("an ISOLATED deployment provisioning with no instance id yet (held on a man
   h.records.set("0x" + "b2".repeat(32), { id: "0x" + "b2".repeat(32), status: "provisioning", cpuShare: 0.3, isolationRequired: false });
   assert.ok(Math.abs(h.cpuShareFree() - 0.7) < 1e-9, `only the isolated one is counted: cpuShareFree ${h.cpuShareFree()}`);
 });
+
+for (const configCid of ['', '{"isolation":{"cpuTee":false,"gpuTee":false}}']) {
+ test('unchecked hardware requirements still launch a real isolated partition: ' + (configCid || 'absent'), async()=>{
+  const host = new FakeHost(); const manager = await bootManager(host);
+  const h = box(manager.port); noSecrets(h);
+  const r = await h.ensureApp(DEP, {...dep(),configCid}, {version: PLANNED});
+  assert.equal(r.status,'running',r.reason);
+  assert.equal(r.isolationRequired,true);
+  assert.ok(r.isolation?.instance);
+  assert.equal(host.running().length,1);
+ });
+}
