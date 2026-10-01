@@ -14,6 +14,24 @@
 #include <string>
 #include <vector>
 
+#ifdef SH_SCHEDULER_ALLOC_BENCH
+#include <chrono>
+#include <new>
+static thread_local bool count_allocations = false;
+static thread_local size_t allocation_count = 0, allocation_bytes = 0;
+void *operator new(size_t n) {
+    void *p = std::malloc(n ? n : 1);
+    if (!p) throw std::bad_alloc();
+    if (count_allocations) { ++allocation_count; allocation_bytes += n; }
+    return p;
+}
+void *operator new[](size_t n) { return ::operator new(n); }
+void operator delete(void *p) noexcept { std::free(p); }
+void operator delete[](void *p) noexcept { std::free(p); }
+void operator delete(void *p, size_t) noexcept { std::free(p); }
+void operator delete[](void *p, size_t) noexcept { std::free(p); }
+#endif
+
 static void fill_weight(ggml_tensor *w, int seed) {
     std::vector<float> raw(ggml_nelements(w));
     for (size_t i = 0; i < raw.size(); i++) raw[i] = float((i * 7 + seed) % 31 - 15.0) / 1024;
@@ -104,6 +122,29 @@ int main(int argc, char **argv) {
     assert(ggml_backend_sched_graph_compute(sched, g) == GGML_STATUS_SUCCESS);
     const auto h2 = hash_tensor(out), r2 = hash_tensor(residual_out);
     assert(h1 != h2 && r1 != r2);
+#ifdef SH_SCHEDULER_ALLOC_BENCH
+    // Reuse the real scheduled graph. Warm all scratch storage before counting
+    // C++ allocations on the calling thread; input setup/output hashing are
+    // outside the counters. This tiny exact-fallback graph is not inference.
+    for (int i = 0; i < 8; ++i)
+        assert(ggml_backend_sched_graph_compute(sched, g) == GGML_STATUS_SUCCESS);
+    constexpr int iterations = 1000;
+    double elapsed_us = 0;
+    for (int i = 0; i < iterations; ++i) {
+        fill_input(x, 23 + i % 7);
+        const auto start = std::chrono::steady_clock::now();
+        count_allocations = true;
+        const auto status = ggml_backend_sched_graph_compute(sched, g);
+        count_allocations = false;
+        elapsed_us += std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - start).count();
+        assert(status == GGML_STATUS_SUCCESS);
+    }
+    std::printf("{\"iterations\":%d,\"allocations\":%zu,\"allocated_bytes\":%zu,\"us_per_graph\":%.3f}\n",
+                iterations, allocation_count, allocation_bytes, elapsed_us / iterations);
+    fill_input(x, 23);
+    assert(ggml_backend_sched_graph_compute(sched, g) == GGML_STATUS_SUCCESS);
+    assert(hash_tensor(out) == h2 && hash_tensor(residual_out) == r2);
+#endif
     if (argc == 4) {
         for (float value : {std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity(),
                 -std::numeric_limits<float>::infinity(), std::numeric_limits<float>::max(), 0x1p32f, -0x1p32f}) {
