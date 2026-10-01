@@ -76,15 +76,19 @@ test('the real scheduler admits only opted-in calibrated islands and preserves b
         if (scenario === 'invalid-pool') env.SHIELDED_WORKERS = '';
         if (scenario === 'bad-delta') env.SHIELDED_AF_DELTA = '2147483647';
         const invalidCases = m === 3 && (scenario === 'attn' || scenario === 'outliers') ? ['invalid'] : [];
-        const run = (knob) => JSON.parse(execFileSync(bin, [String(m), scenario, ...invalidCases], {
+        const run = (knob, noSimd = '1') => JSON.parse(execFileSync(bin, [String(m), scenario, ...invalidCases], {
           timeout: 15_000, encoding: 'utf8', stdio: 'pipe',
-          env: knob === undefined ? env : { ...env, SHIELDED_FUSE_LOCAL: knob },
+          env: { ...env, SHIELDED_NO_SIMD: noSimd, ...(knob === undefined ? {} : { SHIELDED_FUSE_LOCAL: knob }) },
         }).trim().split('\n').at(-1));
         const baseline = run(undefined), off = run('0'), on = run('1');
         assert.deepEqual(off, baseline, `${scenario} m=${m}: default differs from explicit off`);
         assert.deepEqual(on.output, baseline.output, `${scenario} m=${m}: final FFN result changed`);
         assert.deepEqual(on.residual, baseline.residual, `${scenario} m=${m}: residual lifetime changed`);
         assert.equal(on.island_nodes, (scenario === 'attn' || scenario === 'ssm' || scenario === 'outliers' || scenario.startsWith('bad-')) && m <= 16 ? 3 : 0);
+        if (scenario === 'attn' || scenario === 'outliers') {
+          assert.deepEqual(run('0', '0'), off, `${scenario} m=${m}: SIMD changed unfused results or recovery`);
+          assert.deepEqual(run('1', '0'), on, `${scenario} m=${m}: SIMD changed fused results or recovery`);
+        }
       }
     }
   } finally { rmSync(dir, { recursive: true, force: true }); }
