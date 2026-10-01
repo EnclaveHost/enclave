@@ -242,7 +242,9 @@ struct sh_state {
         std::vector<float> inv;         /* per-column descale 2^-(af + f_w[j]) */
         float act_scale = 0, encode_limit = 0;
     };
-    std::map<std::string, entry> weights;
+    // Borrow ggml's tensor names for lookup; the map still owns every key.
+    // Long tensor names otherwise allocate a temporary string on each find.
+    std::map<std::string, entry, std::less<>> weights;
     std::map<std::string, int> group_first;   /* group key -> first node in it */
     /* Every registered weight of each group, in registration order.
      *
@@ -2185,7 +2187,7 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
         }
         if (widest > 0) s.graph_w[widest <= 1 ? 0 : widest <= 4 ? 1 : widest <= 8 ? 2 : 3]++;
     }
-    std::unordered_map<const ggml_tensor *, int> idx_of;   /* built lazily; only the overlap pilot uses it */
+    std::unordered_map<const ggml_tensor *, int> idx_of;   /* only the overlap pilot uses it */
     /* `done` means SCHEDULED, not produced: the gathering loop marks the whole
      * activation group done BEFORE the exchange is issued, so a node marked
      * done may still be in flight. The overlap pilot's first version read
@@ -2194,10 +2196,11 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
      * prefill actually was. `produced` is set only after an output has been
      * written and, for offloaded nodes, only after the exchange returned
      * SH_OK and the post step reconstructed the result. */
-    std::vector<char> produced(n, 0);
+    std::vector<char> produced;
     if (sh_overlap_cpu_enabled()) {          /* eagerly: a lazily built map would
                                               * miss everything produced before the
                                               * first eligible exchange */
+        produced.assign((size_t)n, 0);       /* unused when overlap is disabled */
         idx_of.reserve((size_t)n * 2);
         for (int q = 0; q < n; q++) idx_of[ggml_graph_node(cgraph, q)] = q;
     }
