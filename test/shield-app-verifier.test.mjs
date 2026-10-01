@@ -22,7 +22,7 @@ test('relay derives CPU and GPU app identities from catalog bytes and purchased 
  assert.notEqual(a.appSha256,b.appSha256);assert.equal(a.runtimeId,policy.gpu.runtimeId);
 });
 test('unsupported, unapproved and unverified inputs never acquire an expected identity',async()=>{
- for(const r of [{...row,isPublic:false},{...row,configCid:''},{...row,appRef:'host:chosen'},
+ for(const r of [{...row,isPublic:false},{...row,configCid:'{"isolation":{"cpuTee":true}}'}, {...row,configCid:'{"isolation":{"gpuTee":true}}'},{...row,appRef:'host:chosen'},
   {...row,gpuMilli:500},{...row,configCid:JSON.stringify({isolation:{require:'hyperv-partition-per-app'},waf:{enabled:true}})}])
   await assert.rejects(expectedShieldApp(r,deps));
  for(const d of [{...deps,fetchVerified:async()=>({ok:false})},
@@ -49,4 +49,10 @@ test('only the relay-authorized owner exception admits pending test versions; re
  assert.ok((await expectedShieldApp(row,{...pending,allowPendingOwner:true})).appSha256);
  await assert.rejects(expectedShieldApp(row,{...pending,allowPendingOwner:true,
   readCatalog:async()=>({app:{active:true},version:{...version,approval:2}})}));
+});
+
+test('no TEE requirement permits Shield without relaxing app identity verification', async()=>{
+ const a=await expectedShieldApp(row,deps);
+ for(const configCid of ['', '{"isolation":{"cpuTee":false,"gpuTee":false}}'])
+  assert.deepEqual(await expectedShieldApp({...row,configCid},deps),a);
 });

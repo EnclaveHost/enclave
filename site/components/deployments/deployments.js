@@ -26,7 +26,7 @@ import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
 import { moveLeaseLive, prepareDeploymentMove } from "../../js/core/deployment-move.js";
-import { ISOLATION_BACKENDS, isolationOptions, withIsolationBackend, hostIsolationBackend } from "../../js/core/isolation-options.js";
+import { isolationOptions, withIsolationRequirements, hostMeetsTeeRequirements } from "../../js/core/isolation-options.js";
 import { resizeAfterStop } from "../../js/core/share-resize.js";
 import { depSnapshot } from "../../js/core/chain.js";
 import { BUCKETS, bucketOf, countBuckets } from "../../js/core/deploy-status.js";
@@ -3116,7 +3116,6 @@ class Deployments extends EnclaveElement {
     catch (e) { return fail("[x] Cannot safely edit deployment options: " + e.message); }
     const currentRunner = moveLeaseLive(d) ? d.runner : "";
     const here = currentRunner ? leaseHostOf(d, fleet) : null;
-    const moveLabel = d.active ? "Pin" : "Resume and pin";
     // The app's own requirements decide where it can go. A catalog deployment
     // carries its version's spec (hardware + model volumes); the deployment's
     // own config overrides the volume list (the row's Models tab edits it).
@@ -3133,93 +3132,48 @@ class Deployments extends EnclaveElement {
     })();
     const targets = moveTargetsFor({ ...spec, depGpuOptional: depSoftGpu, gpuMilli: Number(d.gpuMilli) || 0 }, fleet, currentRunner);
     const selId = "mvSel" + appLabel(id);
-    const isoId = "isoSel" + appLabel(id);
-    const backendChoices = [...ISOLATION_BACKENDS];
-    if (!backendChoices.some(b => b.value === isolation.required))
-      backendChoices.unshift({ value: isolation.required, label: isolation.required || "Not set — select a backend" });
     box.innerHTML = '<div class="ap-attbar">pin · ' + esc(id) + '</div>'
-      + '<div class="enc-upg-body">'
-      +   '<label for="' + isoId + '">Isolation backend</label>'
-      +   '<select class="eu-sel mv-isolation" id="' + isoId + '">'
-      +     backendChoices.map(b => '<option value="' + esc(b.value) + '"' + (b.value === isolation.required ? ' selected' : '')
-      +       (!ISOLATION_BACKENDS.some(k => k.value === b.value) ? ' disabled' : '') + '>' + esc(b.label) + '</option>').join('')
-      +   '</select><button class="btn btn-sm mv-isolation-save" disabled>Save requirement</button>'
-      + '</div>'
-      + '<p class="en-intro">This requirement restricts which hosts can claim the app. Confidential VMs and Shield partitions have different protection boundaries. '
-      +   'Changing it requires an owner signature and applies on the next claim; it does not convert the running instance. Save first, then use Pin to relaunch on a compatible host.</p>'
-      + '<div class="term mv-isolation-info" role="status" aria-live="polite"></div>'
-      + '<div class="enc-upg-body">'
-      +   '<label for="' + selId + '">Preferred host' + (here ? " (currently " + esc(here.name) + ")" : "") + '</label>'
-      +   '<select class="eu-sel" id="' + selId + '">'
-      +     '<option value="" selected>Auto — cheapest eligible host within your rate cap</option>'
-      +     targets.map(t => '<option value="' + esc(t.name) + '"'
-      +       (isolation.required && hostIsolationBackend(t.row) !== isolation.required ? ' disabled' : '') + '>'
-      +       esc(t.name) + ' · ' + esc(hostIsolationBackend(t.row) || 'backend unreported')
-      +       (isolation.required && hostIsolationBackend(t.row) !== isolation.required ? ' · requires a backend change' : '')
-      +       (t.queued ? " · full right now (waits in the queue)" : "")
-      +       (t.cpuNn ? " · CPU only" : "")
-      +     '</option>').join("")
-      +   '</select>'
-      +   '<button class="btn btn-sm mv-go">' + moveLabel + '</button>'
-      + '</div>'
+      + '<div class="enc-pin-form">'
+      + '<fieldset class="enc-pin-requirements"><legend>Hardware requirements</legend>'
+      + '<label><input type="checkbox" class="mv-tee-cpu"' + (isolation.cpuTee ? ' checked' : '') + '> Require TEE CPU</label>'
+      + '<label><input type="checkbox" class="mv-tee-gpu"' + (isolation.gpuTee ? ' checked' : '') + '> Require TEE GPU</label>'
+      + '</fieldset>'
+      + '<p class="enc-pin-help">Unchecked allows either supported isolation implementation. TEE GPU requires confidential GPU hardware; masked GPU offload does not qualify.</p>'
+      + '<div class="enc-pin-placement"><div class="enc-pin-host"><label for="' + selId + '">Host</label>'
+      + '<select class="eu-sel" id="' + selId + '"><option value="">Auto — your free host first, then cheapest eligible</option>'
+      + targets.map(t => '<option value="' + esc(t.name) + '">' + esc(t.name) + (t.queued ? ' · currently full' : '') + '</option>').join('')
+      + '</select></div><button class="btn btn-sm btn-primary mv-go">Apply</button></div>'
+      + '<p class="enc-pin-help">' + (currentRunner ? 'Applying placement restarts the app. ' : !d.active ? 'Applying placement resumes the app. ' : '')
+      + 'Your rate cap in Shares still applies. Auto waits if no eligible host is available.</p>'
+      + '<div class="enc-pin-notice" role="status" aria-live="polite"></div>'
       + '<div class="enc-upg-body mv-upg" hidden></div>'
-      + '<div class="term enc-move-status" role="status" aria-live="polite"></div>';
+      + '<div class="term enc-move-status" role="status" aria-live="polite"></div></div>';
     const sel = box.querySelector("#" + selId), go = box.querySelector(".mv-go");
-    const isoSel = box.querySelector(".mv-isolation"), isoSave = box.querySelector(".mv-isolation-save");
-    const isoInfo = box.querySelector(".mv-isolation-info");
-    const syncIsolation = () => {
-      const dirty = isoSel.value !== isolation.required;
-      isoSave.disabled = !dirty;
-      go.disabled = dirty;
-      isoInfo.innerHTML = "";
-      paintLine(isoInfo, "dimln", "// saved requirement: " + (isolation.required || "not set"));
-      const hosts = fleet.filter(h => hostIsolationBackend(h) === isoSel.value).map(h => h.name);
-      paintLine(isoInfo, "dimln", "// matching backend: " + (hosts.join(", ") || "no host currently advertises this backend"));
-      if (isoSel.value === "snp-guest-per-app")
-        paintLine(isoInfo, "info", "// requires an AMD SEV-SNP confidential guest for each app.");
-      if (isoSel.value === "hyperv-partition-per-app")
-        paintLine(isoInfo, "info", "// requires an Enclave Shield app partition; this is not SEV-SNP encrypted guest memory.");
-      if (dirty) paintLine(isoInfo, "warn", "// save this requirement before choosing a host. Other deployment options are preserved.");
-    };
-    isoSel.addEventListener("change", syncIsolation);
-    syncIsolation();
-    isoSave.addEventListener("click", async () => {
-      isoSave.disabled = true; isoSel.disabled = true; go.disabled = true;
-      try {
-        // Re-read immediately before signing; don't overwrite concurrent Config/Network edits.
-        const fresh = await depGet(id);
-        if (String(fresh.owner).toLowerCase() !== String(d.owner).toLowerCase()) throw new Error("Deployment ownership changed. Reopen Pin.");
-        if (isolationOptions(fresh.configCid).required !== isolation.required) throw new Error("The isolation requirement changed. Reopen Pin before saving.");
-        const envelope = withIsolationBackend(fresh.configCid, isoSel.value, rev >= 5 ? 4096 : 100);
-        await this._cfgSubmit(id, { applyWord: "applies on the next claim; reopen Pin to select a compatible host" }, {
-          box, btn, st: isoInfo,
-          lock: () => { isoSave.disabled = true; isoSel.disabled = true; go.disabled = true; },
-          unlock: () => { isoSel.disabled = false; syncIsolation(); },
-        }, envelope, "isolation requirement saved");
-      } catch (e) {
-        isoSel.disabled = false; syncIsolation();
-        paintLine(isoInfo, "warn", "[x] " + e.message);
+    const cpu = box.querySelector(".mv-tee-cpu"), gpu = box.querySelector(".mv-tee-gpu");
+    const notice = box.querySelector(".enc-pin-notice");
+    const syncRequirements = () => {
+      const choice = { cpuTee: cpu.checked, gpuTee: gpu.checked };
+      box._isolationChoice = { ...choice, original: JSON.stringify(d.configCid || "") };
+      for (const opt of sel.options) {
+        if (!opt.value) continue;
+        const host = targets.find(t => t.name === opt.value);
+        opt.disabled = !host || !hostMeetsTeeRequirements(host.row, choice);
       }
-    });
+      if (sel.selectedOptions[0]?.disabled) sel.value = "";
+      const count = fleet.filter(h => hostMeetsTeeRequirements(h, choice)).length;
+      notice.textContent = count ? '' : gpu.checked
+        ? 'No eligible TEE GPU host is currently available. This requirement will keep the app queued.'
+        : 'No host currently meets these hardware requirements.';
+    };
+    cpu.addEventListener("change", () => { syncRequirements(); syncUpg(); });
+    gpu.addEventListener("change", () => { syncRequirements(); syncUpg(); });
+    syncRequirements();
     const s = stEl();
-    paintLine(s, "dimln", currentRunner
-      ? "// releases the current host and requests the selected one; same URL, version and balance."
-      : d.active ? "// requests the selected host for this queued app; no current host needs to stop."
-      : "// resumes this app and requests the selected host; confirm the resume when prompted.");
-    paintLine(s, "dimln", "// Auto prefers your own eligible host, then the cheapest available host within the rate cap set in Shares. If none fits, the app stays queued.");
-    paintLine(s, "dimln", "// a named host is a preference, not an exclusive reservation.");
-    if (!targets.length) paintLine(s, "dimln", "// no alternative host currently fits; Auto can wait for eligible capacity.");
-    paintLine(s, "dimln", "// HTTPS returns once the new box issues its own certificate for this URL (~1 min).");
-    // Moving soft-GPU work ONTO a card: without re-buying the slice the app
-    // would run on that box's CPU cores, which is the slow thing on the fast
-    // machine. Offer the resize with the price attached, and make it the
-    // default — landing on a GPU box and not using the GPU is almost never
-    // what the move was for.
     const upgWrap = box.querySelector(".mv-upg");
     const bought = { gpuMilli: Number(d.gpuMilli) || 0, cpuMilli: Number(d.cpuMilli) || 0 };
     const syncUpg = () => {
       const t = targets.find((x) => x.name === sel.value);
-      go.textContent = t ? moveLabel : d.active ? "Use auto" : "Resume with auto";
+      go.textContent = "Apply";
       const vv = { ...spec, depGpuOptional: depSoftGpu };
       // the upgrade buys the slice the version declares; a pre-13 ledger still
       // rounds it up to the CPU share, because its setShares would revert
@@ -3267,7 +3221,34 @@ class Deployments extends EnclaveElement {
       await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS,
         encCall(DEP_SEL.setActive, [{ t: "bytes32", v: id }, { t: "bool", v: active }])));
     };
-    go.disabled = true; go.textContent = "pinning…";
+    go.disabled = true; go.textContent = "Applying…";
+    const choice = box._isolationChoice;
+    if (choice) {
+      try {
+        const fresh = await depGet(id);
+        const old = isolationOptions(fresh.configCid);
+        const initial = isolationOptions(JSON.parse(choice.original));
+        if (JSON.stringify(old.envelope.isolation) !== JSON.stringify(initial.envelope.isolation))
+          throw new Error("The hardware requirements changed elsewhere. Reopen Pin before applying.");
+        const envelope = withIsolationRequirements(fresh.configCid, choice, (await depSchemaRev()) >= 5 ? 4096 : 100);
+        if (envelope !== String(fresh.configCid || "")) {
+          paintLine(s, "info", "Confirm the hardware requirements in your wallet. Placement follows after confirmation.");
+          if (via) await vault("control", { id, action: "options", envelope });
+          else {
+            if (!Enclave.provider) await connectWallet();
+            await ensureBaseChain();
+            await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS,
+              encCall(DEP_SEL.setConfig, [{ t: "bytes32", v: id }, { t: "str", v: envelope }])));
+          }
+          this._envLearn(id, envelope);
+          choice.original = JSON.stringify(envelope);
+        }
+      } catch(e) {
+        paintLine(s, "warn", "[x] " + e.message);
+        go.disabled = false; go.textContent = label;
+        return;
+      }
+    }
     // Re-buy the card BEFORE handing the lease back, so the destination claims
     // the record already sized for its GPU and provisions once. Resizing after
     // the move would land it on cores first and restart it again to add the

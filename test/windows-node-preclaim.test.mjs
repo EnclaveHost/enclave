@@ -108,16 +108,15 @@ test("a verdict that passes goes on to the claim (the ledger is asked and a clai
   assert.ok(claimSide(from).length > 0 || /claim failed/.test(String(out.reason)), `no claim was attempted: ${JSON.stringify(out)}`);
 });
 
-test("87's backend rule: a SERVED owner's deployment requiring another backend, or none, is never claimed - and never probed", async () => {
-  for (const configCid of [env("snp-guest-per-app"), ""]) {
+test("87's backend rule: a SERVED owner's deployment requiring another backend or a TEE CPU, is never claimed - and never probed", async () => {
+  for (const configCid of [env("snp-guest-per-app"), '{"isolation":{"cpuTee":true}}', '{"isolation":{"gpuTee":true}}']) {
     rpc.row.current = row({ configCid });
     const { h, r } = await node((b) => ({ status: 200, body: { id: b.id, exists: false } }));
     const from = rpc.calls.length;
     const out = await h.consider(DEP);
     r.close();
     assert.equal(out.accepted, false, configCid);
-    assert.match(out.reason, configCid ? /requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app/
-                                       : /claims only deployments that require hyperv-partition-per-app/);
+    assert.match(out.reason, /requires isolation backend|requires a TEE/);
     assert.deepEqual(claimSide(from), []);
     assert.deepEqual(r.paths, [], "the relay was asked about a deployment this box would never claim");
     // ...and held if it were ever this box's: not restarted, not spawned

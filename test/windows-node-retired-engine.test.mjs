@@ -31,10 +31,10 @@ test("the legacy behaviour is unchanged unless the engine is retired", () => {
   assert.equal(h.retiredEngineClaimRefusal(dep()), null);
 });
 
-test("retired engine: a deployment that does not require this box's isolation backend is held, and not claimed", () => {
+test("retired engine: unspecified requirements still use the isolated backend", () => {
   const h = box({ ...MANAGER, engineRetired: true });
-  assert.match(h.heldReason(dep()), /held - not started, not renewed, not released/);
-  assert.match(h.retiredEngineClaimRefusal(dep()), /claims only deployments that require hyperv-partition-per-app/);
+  assert.equal(h.heldReason(dep()), null);
+  assert.equal(h.retiredEngineClaimRefusal(dep()), null);
 });
 
 test("retired engine: a deployment requiring this box's backend by name runs (is neither held nor refused)", () => {
@@ -51,18 +51,18 @@ test("retired engine: another backend's name, an unreadable envelope, or no isol
   assert.ok(noManager.heldReason(dep(ISOLATED)), "a node with no isolation manager can run nothing");
 });
 
-test("ensureApp on a retired-engine node HOLDS a legacy deployment BEFORE any gate that could release it", async () => {
+test("ensureApp on a retired-engine node HOLDS a TEE-CPU deployment BEFORE any gate that could release it", async () => {
   const h = box({ ...MANAGER, engineRetired: true });
   const id = "0x" + "4e".repeat(32);
   // a YANKED version: without the hold, ensureApp gives the lease back (#giveUp -> an on-chain release)
-  const r = await h.ensureApp(id, dep(), { version: { yanked: true, cid: "bafy", version: 4 } });
+  const r = await h.ensureApp(id, dep('{"isolation":{"cpuTee":true}}'), { version: { yanked: true, cid: "bafy", version: 4 } });
   assert.equal(r.status, "held", JSON.stringify(r));
   assert.match(r.reason, /pending the operator's decision/);
   assert.equal(h.blocked.has(id), false, "not blocked: nothing was given up");
 });
 
 test("ensureApp on a legacy node still takes the old path (the yanked version is given up)", async () => {
-  const h = box(MANAGER);
+  const h = box();
   const id = "0x" + "5e".repeat(32);
   const r = await h.ensureApp(id, dep(), { version: { yanked: true, cid: "bafy", version: 4 } });
   assert.notEqual(r.status, "held");

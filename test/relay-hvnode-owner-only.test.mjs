@@ -49,7 +49,7 @@ const lease = BigInt(Math.floor(Date.now() / 1000) + 3600);
 const row = (id, owner, runner, configCid = HV_ENV) => ({ id, owner: owner.address, appRef: "catalog://0x" + "5a".repeat(32) + "/1", ports: "", configCid, gpuMilli: 0, cpuMilli: 100, appPort: 0,
   isPublic: true, active: true, createdAt: 1n, rate: 1n, balance6: 10n ** 6n, spent6: 0n, runner, runnerOperator: OPERATOR.address, leaseUntil: lease });
 const BASE_ROWS = [row(D_OWN, OPERATOR, EP_ID), row(D_DELEG, OWNER, EP_ID), row(D_STRANGER, STRANGER, EP_ID), row(D_ELSEWHERE, OPERATOR, OTHER_EP),
-                   row(D_SNP, OWNER, EP_ID, SNP_ENV), row(D_NOREQ, OWNER, EP_ID, ""), row(D_OP_SNP, OPERATOR, EP_ID, SNP_ENV)];
+                   row(D_SNP, OWNER, EP_ID, SNP_ENV), row(D_NOREQ, OWNER, EP_ID, '{"isolation":{"cpuTee":true}}'), row(D_OP_SNP, OPERATOR, EP_ID, SNP_ENV)];
 let ROWS = BASE_ROWS;
 // the registry's answer for the box's name: its owner, or (registryDown) an RPC error (an outage)
 let registryOwner = null, registryDown = false;   // a test may swap the ledger (a transfer) and restores it
@@ -199,7 +199,7 @@ test("owner-only: served now + this row's lease + isolation.require hyperv-parti
   for (const [label, p] of [["a stranger's deployment on this row", `/t/${NAME}/x/${D_STRANGER}/https`],
                             ["the operator's own, leased ELSEWHERE", `/t/${NAME}/x/${D_ELSEWHERE}/https`],
                             ["E4: the delegating owner's SNP-required app (a VALID delegation)", `/t/${NAME}/x/${D_SNP}/https`],
-                            ["E4: the delegating owner's app requiring nothing", `/t/${NAME}/x/${D_NOREQ}/https`],
+                            ["E4: the delegating owner's TEE-CPU-required app", `/t/${NAME}/x/${D_NOREQ}/https`],
                             ["E4: the operator's own SNP-required app", `/t/${NAME}/x/${D_OP_SNP}/https`],
                             ["a query-string variant", `/t/${NAME}/x/${D_OWN}/https?x=1`],
                             ["an encoded variant", `/t/${NAME}/x/${D_OWN}/%68ttps`],

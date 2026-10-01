@@ -1418,8 +1418,15 @@ function servedEntryNow(row, owner, nowSec = Math.floor(Date.now() / 1000)) {
 }
 // 3. the backend D's envelope requires ("" when none or unreadable: never served)
 function isolationRequireOf(d) {
-  try { const o = JSON.parse(String((d && d.configCid) || "")); const r = o && o.isolation && o.isolation.require; return typeof r === "string" ? r : ""; }
-  catch { return ""; }
+  try {
+    const o = JSON.parse(String(d?.configCid || "{}"));
+    if (!o || typeof o !== "object" || Array.isArray(o)) return null;
+    const iso = "isolation" in o ? o.isolation : {};
+    if (!iso || typeof iso !== "object" || Array.isArray(iso) ||
+        Object.keys(iso).some(k => !["require", "cpuTee", "gpuTee"].includes(k)) ||
+        ["cpuTee", "gpuTee"].some(k => iso[k] !== undefined && iso[k] !== false)) return null;
+    return iso.require === undefined ? HVNODE_BACKEND : iso.require;
+  } catch { return null; }
 }
 // all three -> the unix second until which D is served by this row (min of the lease end and the delegation's expiry), or 0
 function servesDeploymentUntil(row, d, nowSec = Math.floor(Date.now() / 1000)) {
