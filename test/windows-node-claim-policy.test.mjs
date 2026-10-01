@@ -201,3 +201,21 @@ test("the envelope parser returns what it accepted, so the guest gets what the p
   assert.throws(() => parseEnvelope(JSON.stringify({ network: { relay: "UPPER" } }), 0), /must be a relay name/);
   assert.throws(() => parseEnvelope(JSON.stringify({ config: "a string" }), 0), /config must be a JSON object/);
 });
+
+test('per-app isolation uses TEE requirements, not the host listing date', () => {
+  const old = dep({createdAt: 1n});
+  const c = ctx({listedAt: 1790000000, isolationBackend: 'hyperv-partition-per-app'});
+  assert.equal(claimPolicy(old, c), null);
+  assert.equal(claimPolicy({...old,configCid: JSON.stringify({isolation:{cpuTee:false,gpuTee:false}})}, c), null);
+  assert.match(String(claimPolicy({...old,configCid: JSON.stringify({isolation:{cpuTee:true}})}, c)), /TEE CPU/);
+  assert.match(String(claimPolicy({...old,configCid: JSON.stringify({isolation:{gpuTee:true}})}, c)), /TEE GPU/);
+});
+
+test('a strict host pin accepts its named host and refuses every other host, even on resume',()=>{
+ const configCid=JSON.stringify({placement:{hostId:ENCLAVE}});
+ assert.equal(claimPolicy(dep({configCid}),ctx()),null);
+ const other='0x'+'bb'.repeat(32);
+ for(const runner of [ZERO32,other]) assert.match(claimPolicy(dep({configCid,runner,leaseUntil:runner===other?BigInt(Date.now()/1000|0)+60n:0n}),ctx({enclaveId:other})),/Pinned to host/);
+ for(const placement of [{hostId:''},{hostId:ZERO32},{hostId:ENCLAVE,allowFallback:true},[]])
+  assert.throws(()=>parseEnvelope(JSON.stringify({placement})),/placement pin/);
+});

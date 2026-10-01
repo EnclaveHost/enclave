@@ -28,7 +28,7 @@ const ledgerRow = (leaseSec) => ({ id: DEP, owner: OWNER, ports: "", configCid: 
   runner: ME, runnerOperator: "0x" + "00".repeat(20), leaseUntil: BigInt(Math.floor(Date.now() / 1000) + leaseSec) });
 
 // one tick over DEP with record `rec`; the lease ends in `leaseSec` (inside the 15-min renewal window, or past)
-async function tickWith(rec, leaseSec, { port, keepEnsure = true } = {}) {
+async function tickWith(rec, leaseSec, { port, keepEnsure = true, pin = null } = {}) {
   if (!port) ({ port } = await bootManager(new FakeHost(), 0));
   const logs = [];
   const h = servedOwner(new Host({ dir: fs.mkdtempSync(path.join(os.tmpdir(), "ee-norenew-")), endpoint: ENDPOINT, name: "test",
@@ -40,6 +40,7 @@ async function tickWith(rec, leaseSec, { port, keepEnsure = true } = {}) {
   h.tracked.add(DEP);
   h.records.set(DEP, { id: DEP, owner: OWNER, ...rec });
   rpc.row.current = ledgerRow(leaseSec);
+  if (pin) rpc.row.current.configCid=JSON.stringify({...JSON.parse(ISOLATED),placement:{hostId:pin}});
   await h.tick();
   return { h, logs, renewed: logs.filter((l) => /^renewed 0x|renew failed/.test(l)).length, rec: h.records.get(DEP) };
 }
@@ -88,4 +89,13 @@ test("a REBOOT-RECOVERY hold (#rebootHold: the fresh partition did not come up, 
   assert.equal(b.rec.status, "stopped", JSON.stringify(b.rec));
   assert.equal(b.rec.rebootHeld ?? null, null, "cleared once stopped");
   assert.equal(b.h.tracked.has(DEP), false);
+});
+
+test('a live app pinned elsewhere is retired before any renewal and can be claimed again after unpinning',async()=>{
+ const {host,m2,instanceId}=await recoveredOnManager();
+ const r=await tickWith({status:'running',isolationHeld:instanceId},600,{port:m2.port,pin:'0x'+'bb'.repeat(32)});
+ assert.equal(r.renewed,0,r.logs.join(' / '));
+ assert.equal(host.running().length,0,'pin must retire the old partition');
+ assert.equal(r.h.blocked.has(DEP),false,'a later Auto choice must remain eligible');
+ assert.match(r.rec.reason,/Pinned to host/);
 });
