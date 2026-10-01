@@ -1,0 +1,42 @@
+package contract
+
+import (
+	"bytes"
+	"encoding/base64"
+	"testing"
+)
+
+func TestMeasuredAppConfig(t *testing.T) {
+	text := []byte(`{"http":[{"name":"ping"}],"unicode":"你好"}`)
+	m := Manifest{ABI: ABI, World: WorldHTTP, Artifact: Artifact{Kind: KindWasmComponent}, ConfigBase64: base64.StdEncoding.EncodeToString(text)}
+	b, e := Build(m, []byte("component"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	got, _, e := Parse(b)
+	if e != nil {
+		t.Fatal(e)
+	}
+	cfg, e := got.AppConfig()
+	if e != nil || !bytes.Equal(cfg, text) {
+		t.Fatalf("config mismatch: %v", e)
+	}
+	m.ConfigBase64 = base64.StdEncoding.EncodeToString([]byte(`{"different":true}`))
+	b2, _ := Build(m, []byte("component"))
+	if AppID(b) == AppID(b2) {
+		t.Fatal("config not measured")
+	}
+	for _, bad := range []string{"%%%", base64.StdEncoding.EncodeToString([]byte("null")), base64.StdEncoding.EncodeToString([]byte("[]")), base64.StdEncoding.EncodeToString([]byte{0xff}), base64.StdEncoding.EncodeToString(bytes.Repeat([]byte("x"), MaxConfigBytes+1))} {
+		m.ConfigBase64 = bad
+		b, _ := Build(m, []byte("component"))
+		if _, _, e := Parse(b); e == nil {
+			t.Fatal("invalid config accepted")
+		}
+	}
+	m.ConfigBase64 = base64.StdEncoding.EncodeToString(text)
+	m.World = WorldCLI
+	m.HTTP = 8080
+	if _, e := m.AppConfig(); e == nil {
+		t.Fatal("command config was admitted")
+	}
+}
