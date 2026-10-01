@@ -322,7 +322,7 @@ export async function depSnapshot(id){
     || !Number.isSafeInteger(Number(block.timestamp)) || Number(block.timestamp) <= 0)
     throw new EnclaveError("Unable to verify the current lease time. Try again.", 0);
   const d = await depGet(id, block.number);
-  return d ? { ...d, blockTimestamp: Number(block.timestamp) } : null;
+  return d ? { ...d, blockNumber: Number(block.number), blockTimestamp: Number(block.timestamp) } : null;
 }
 // The live full-card / full-node per-second prices (6dp USDC), read once and
 // cached: EVERY money estimate must come from these, never from client

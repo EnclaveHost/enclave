@@ -12,8 +12,14 @@ const method = text.slice(text.indexOf('  async _upgrade('), text.indexOf('  /* 
 const bundle = await build({ stdin: { contents: `import * as chain from './site/js/core/chain.js'; import * as resize from './site/js/core/share-resize.js'; window.real = { ...chain, ...resize };`, resolveDir: root.pathname }, bundle: true, write: false, format: 'iife', platform: 'browser' });
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined });
 try {
+ const abi = JSON.parse(await fs.readFile(new URL('contracts/EnclaveDeployments.abi.json', root), 'utf8'));
  const page = await browser.newPage({ viewport: { width: 1000, height: 650 } });
  await page.route('**/*', route => route.abort());
+ await page.exposeFunction('applyTx', data => {
+   const decoded = decodeFunctionData({ abi, data });
+   const calls = decoded.functionName === 'multicall' ? decoded.args[0].map(data => decodeFunctionData({ abi, data })) : [decoded];
+   return calls.map(c => ({ name: c.functionName, args: c.args.map(x => typeof x === 'bigint' ? Number(x) : x) }));
+ });
  const errors = []; page.on('pageerror', e => errors.push(e.message));
  await page.setContent('<main></main>');
  await page.addScriptTag({ content: bundle.outputFiles[0].text });
@@ -45,7 +51,14 @@ try {
        paintLine: (el, cls, value) => { const p=document.createElement('p');p.className=cls;p.textContent=value;el.append(p); },
        ensureBaseChain: async () => {}, connectWallet: async () => {}, refreshWallet: () => {},
        DEPLOYMENTS_ADDRESS: '0x'+'1'.repeat(40),
-       sendTx: async (_, data) => { window.calls.push(data); if (window.calls.length === 1 && !window.support) { window.model.active=false;window.model.runner=window.zero;window.model.leaseUntil=0; } return '0xabc'; },
+       sendTx: async (_, data) => {
+         const decoded = await window.applyTx(data); window.calls.push(data);
+         for (const c of decoded) {
+           if (c.name === 'setShares') Object.assign(window.model, { gpuMilli: c.args[1], cpuMilli: c.args[2] });
+           if (c.name === 'setActive') { window.model.active=c.args[1]; if (!c.args[1]) { window.model.runner=window.zero;window.model.leaseUntil=0; } }
+         }
+         return '0xabc';
+       },
        waitReceipt: async () => {}, showToast: () => {},
        fetch: async () => ({}), setTimeout: () => 0,
      };
@@ -63,24 +76,26 @@ try {
  assert.equal(await page.locator('.eu-go').innerText(), 'Resize and restart');
  await page.locator('.eu-go').click();
  await page.waitForFunction(() => window.calls.length === 2);
- const abi = JSON.parse(await fs.readFile(new URL('contracts/EnclaveDeployments.abi.json', root), 'utf8'));
  const calls = await page.evaluate(() => window.calls);
- const suspend = decodeFunctionData({ abi, data: calls[0] });
- assert.equal(suspend.functionName, 'setActive'); assert.equal(suspend.args[1], false);
- const finish = decodeFunctionData({ abi, data: calls[1] });
- assert.equal(finish.functionName, 'multicall');
- const inside = finish.args[0].map(data => decodeFunctionData({ abi, data }));
+ const change = decodeFunctionData({ abi, data: calls[0] });
+ assert.equal(change.functionName, 'multicall');
+ const inside = change.args[0].map(data => decodeFunctionData({ abi, data }));
  assert.deepEqual(inside.map(x => x.functionName), ['setShares','setActive']);
- assert.equal(Number(inside[0].args[2]), 30); assert.equal(inside[1].args[1], true);
+ assert.equal(Number(inside[0].args[2]), 30); assert.equal(inside[1].args[1], false);
+ const finish = decodeFunctionData({ abi, data: calls[1] });
+ assert.equal(finish.functionName, 'setActive'); assert.equal(finish.args[1], true);
  await page.evaluate(() => window.makePanel('shares', false, true, true));
- assert.equal(await page.locator('.eu-go').innerText(), 'Update shares');
- assert.match(await page.locator('.enc-upg-status').innerText(), /Use Resume afterward/);
+ assert.equal(await page.locator('.eu-go').innerText(), 'Resize and restart');
+ assert.match(await page.locator('.enc-upg-status').innerText(), /re-queue/);
  await page.locator('.eu-gpu').fill('0');
  await page.locator('.eu-go').click();
- await page.waitForFunction(() => window.calls.length === 1 && document.querySelector('.enc-upg-status').textContent.includes('saved; use Resume'));
+ await page.waitForFunction(() => window.calls.length === 1 && document.querySelector('.enc-upg-status').textContent.includes('queued for a fresh instance'));
  const recovered = decodeFunctionData({ abi, data: (await page.evaluate(() => window.calls))[0] });
- assert.equal(recovered.functionName, 'setShares');
- assert.equal(Number(recovered.args[1]), 0); assert.equal(Number(recovered.args[2]), 350);
+ assert.equal(recovered.functionName, 'multicall');
+ const recovery = recovered.args[0].map(data => decodeFunctionData({ abi, data }));
+ assert.deepEqual(recovery.map(x => x.functionName), ['setShares', 'setActive']);
+ assert.equal(Number(recovery[0].args[1]), 0); assert.equal(Number(recovery[0].args[2]), 350);
+ assert.equal(recovery[1].args[1], true);
  assert.equal((await page.evaluate(() => window.calls)).length, 1);
  await page.evaluate(() => window.makePanel('version', true));
  assert.equal(await page.locator('.enc-upg .eu-cpu').count(), 0);
@@ -95,8 +110,8 @@ try {
  await page.locator('.eu-cpu').fill('0'); await page.locator('.eu-go').click();
  assert.equal((await page.evaluate(() => window.calls)).length, 0);
  await page.locator('.eu-cpu').fill('2'); await page.locator('.eu-go').click();
- await page.waitForFunction(() => window.calls.length === 1);
- assert.equal(decodeFunctionData({ abi, data: (await page.evaluate(() => window.calls))[0] }).functionName, 'setShares');
+ await page.waitForFunction(() => window.calls.length === 2);
+ assert.equal(decodeFunctionData({ abi, data: (await page.evaluate(() => window.calls))[0] }).functionName, 'multicall');
  assert.deepEqual(errors, []);
- console.log('PASS: separate panels, current-version pin, app floors, restart resize, direct resize, exact calldata');
+ console.log('PASS: separate panels, current-version pin, app floors, atomic share-save/stop, requeue, stopped-app recovery, exact calldata');
 } finally { await browser.close(); }

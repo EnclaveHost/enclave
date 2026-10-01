@@ -151,7 +151,7 @@ export function verifyPrepare(op, prep, params) {
 
 /* The exact calldata a control action must carry. Rebuilt from the caller's
    own arguments, so the comparison never consults anything the relay said. */
-export function expectedControlCall({ id, action, ref, gpuMilli, cpuMilli, envelope, maxRate6 }) {
+export function expectedControlCall({ id, action, ref, gpuMilli, cpuMilli, envelope, maxRate6, active }) {
   const b32 = { t: "bytes32", v: id };
   const setAppRef = () => encCall(DEP_SEL.setAppRef, [b32, { t: "str", v: String(ref) }]);
   if (action === "suspend" || action === "resume")
@@ -161,8 +161,10 @@ export function expectedControlCall({ id, action, ref, gpuMilli, cpuMilli, envel
   if (action === "maxrate") return encCall(DEP_SEL.setMaxRate, [b32, { t: "uint", v: BigInt(maxRate6) }]);
   if (action === "resize") {
     const shares = encCall(DEP_SEL.setShares, [b32, { t: "uint", v: Number(gpuMilli) }, { t: "uint", v: Number(cpuMilli) }]);
-    if (ref === undefined || ref === null || ref === "") return shares;
-    return encCall(DEP_SEL.multicall, [{ t: "bytes[]", v: [setAppRef(), shares] }]);
+    if (active !== undefined && typeof active !== "boolean") throw new EnclaveError("active must be boolean", 0);
+    const calls = ref ? [setAppRef(), shares] : [shares];
+    if (active !== undefined) calls.push(encCall(DEP_SEL.setActive, [b32, { t: "bool", v: active }]));
+    return calls.length === 1 ? shares : encCall(DEP_SEL.multicall, [{ t: "bytes[]", v: calls }]);
   }
   throw new EnclaveError("Unknown control action: " + action, 0);
 }
