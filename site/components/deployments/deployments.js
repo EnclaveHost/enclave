@@ -3140,9 +3140,7 @@ class Deployments extends EnclaveElement {
       + '</fieldset>'
       + '<p class="enc-pin-help">Unchecked allows either supported isolation implementation. TEE GPU requires confidential GPU hardware; masked GPU offload does not qualify.</p>'
       + '<div class="enc-pin-placement"><div class="enc-pin-host"><label for="' + selId + '">Host</label>'
-      + '<select class="eu-sel" id="' + selId + '"><option value="">Auto — your free host first, then cheapest eligible</option>'
-      + targets.map(t => '<option value="' + esc(t.name) + '">' + esc(t.name) + (t.queued ? ' · currently full' : '') + '</option>').join('')
-      + '</select></div><button class="btn btn-sm btn-primary mv-go">Apply</button></div>'
+      + '<select class="eu-sel" id="' + selId + '"></select></div><button class="btn btn-sm btn-primary mv-go">Apply</button></div>'
       + '<p class="enc-pin-help">' + (currentRunner ? 'Applying placement restarts the app. ' : !d.active ? 'Applying placement resumes the app. ' : '')
       + 'Your rate cap in Shares still applies. Auto waits if no eligible host is available.</p>'
       + '<div class="enc-pin-notice" role="status" aria-live="polite"></div>'
@@ -3154,14 +3152,12 @@ class Deployments extends EnclaveElement {
     const syncRequirements = () => {
       const choice = { cpuTee: cpu.checked, gpuTee: gpu.checked };
       box._isolationChoice = { ...choice, original: JSON.stringify(d.configCid || "") };
-      for (const opt of sel.options) {
-        if (!opt.value) continue;
-        const host = targets.find(t => t.name === opt.value);
-        opt.disabled = !host || !hostMeetsTeeRequirements(host.row, choice);
-      }
-      if (sel.selectedOptions[0]?.disabled) sel.value = "";
-      const count = fleet.filter(h => hostMeetsTeeRequirements(h, choice)).length;
-      notice.textContent = count ? '' : gpu.checked
+      const selected = sel.value;
+      const eligible = targets.filter(t => hostMeetsTeeRequirements(t.row, choice));
+      sel.innerHTML = '<option value="">Auto — your free host first, then cheapest eligible</option>'
+        + eligible.map(t => '<option value="' + esc(t.name) + '">' + esc(t.name) + (t.queued ? ' · currently full' : '') + '</option>').join('');
+      sel.value = eligible.some(t => t.name === selected) ? selected : "";
+      notice.textContent = eligible.length ? '' : gpu.checked
         ? 'No eligible TEE GPU host is currently available. This requirement will keep the app queued.'
         : 'No host currently meets these hardware requirements.';
     };
