@@ -697,10 +697,6 @@ class Deployments extends EnclaveElement {
     body.before(el);
   }
 
-  _resources(id, trigger) {
-    trigger.closest('.enc-row')?.querySelector('.enc-sharesbtn')?.click();
-  }
-
   async _shares(id, btn) {
     if (btn.dataset.editable === 'true') return this._upgrade(id, btn, 'shares');
     const d = (this._list || []).find(row => row.id === id);
@@ -807,8 +803,7 @@ class Deployments extends EnclaveElement {
           '<span class="ap-badge ep-relay" data-relayb="' + esc(d.id) + '" hidden></span>' +
           '<button class="enc-id" data-copy="' + esc(d.id) + '" title="' + esc(d.id) + '" aria-label="copy deployment id">' + esc(idShort) + ' ⧉</button>' +
           '<span class="enc-br" aria-hidden="true"></span>' +
-          '<span class="enc-meta"><button type="button" class="enc-resources" data-id="' + esc(d.id)
-            + '" title="Open Shares to view requirements and adjust allocations">' + esc(encTier(d)) + '</button>'
+          '<span class="enc-meta"><span class="enc-allocation">' + esc(encTier(d)) + '</span>'
             // which box serves it (relay stamps `enclave` on live-hosted and
             // lease-held rows alike; absent while queued/stopped - nothing runs it)
             + (d.enclave ? ' · <span class="dim enc-host" title="the enclave this app runs on">on ' + esc(d.enclave) + '</span>' : '') + '</span>' +
@@ -880,7 +875,6 @@ class Deployments extends EnclaveElement {
       '</div>';
     }).join("");
     $$(".enc-id", body).forEach(b => b.addEventListener("click", () => copyText(b.dataset.copy)));
-    $$(".enc-resources", body).forEach(b => b.addEventListener("click", () => this._resources(b.dataset.id, b)));
     $$(".enc-ep", body).forEach(b => b.addEventListener("click", () => copyText(b.dataset.ep)));
     // STRICT tabs: opening one panel first closes any open sibling - via the
     // open tab's own click path (capture phase runs before the open handler),
