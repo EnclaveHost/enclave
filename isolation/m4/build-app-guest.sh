@@ -45,6 +45,11 @@ else
   "$here/app-image-template.sh" "$d/template"
 fi
 "$here/assemble-app-image.sh" "$d/template" "$bundle" "$out" > /dev/null
+if [ -n "$inference" ] && [ -f "$d/template/rt/shield-streamed-weights.enabled" ]; then
+  printf '1\n' > "$out.shield-stream"
+else
+  rm -f "$out.shield-stream"
+fi
 . "$here/../m1/domain.env"
 echo "app_guest $out: app_id $app_id, $(stat -c %s "$out") bytes, vcpus $vcpus"
 

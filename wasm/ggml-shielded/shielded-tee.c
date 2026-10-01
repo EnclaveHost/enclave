@@ -557,7 +557,7 @@ sh_link *sh_link_open(const char *host, int port, bool verify, int *err) {
     pthread_condattr_destroy(&filled_attr);
     l->threads_env  = env_int("SHIELDED_REFILL_THREADS", -1, 0, 64);
     l->pool_depth   = env_int("SHIELDED_POOL_DEPTH", -1, -1, 4096);   /* -1: 4 x the widest max_m, within [16, 32] */
-    l->refill_batch = env_int("SHIELDED_REFILL_BATCH", 4, 1, 64);
+    l->refill_batch = env_int("SHIELDED_REFILL_BATCH", 4, 1, 256);
     /* The refill unit (pick_refill_group): a group short of this many pads is
      * refilled at once, one missing at least this many is topped up. Bounded
      * by the batch, so the default batch of 4 is untouched. With a 64-row
@@ -565,7 +565,7 @@ sh_link *sh_link_open(const char *host, int port, bool verify, int *err) {
      * unit 8 -> 8.4 plain / 10.0 spec tok/s, 16 -> 9.2 / 11.0, 32 -> 9.2 /
      * 10.9 with pads starting to miss. 16 streams the weights once per 16
      * pads; a pool should hold at least twice the unit. */
-    l->refill_unit  = env_int("SHIELDED_REFILL_UNIT", 16, 1, 64);
+    l->refill_unit  = env_int("SHIELDED_REFILL_UNIT", 16, 1, 256);
     l->target_ms    = env_int("SHIELDED_REFILL_TARGET_MS", 6, 1, 10000);
     l->warm_ms      = env_int("SHIELDED_WARM_MS", 5000, 0, 600000);
     l->pad_wait_us  = env_int("SHIELDED_PAD_WAIT_US", 0, 0, 50000);

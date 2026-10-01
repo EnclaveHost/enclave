@@ -1,5 +1,9 @@
 # Original model-weight reclamation
 
+The newer [incremental retirement candidate](shield-streamed-compact-runtime.md)
+can release each fully registered tensor during loading. The batch-end behavior
+described below remains the deployed baseline until that candidate is activated.
+
 The opt-in measured Shield runtime (`--original-source-reclaim` in
 `isolation/m4/build-shielded-engine.py`) retires the original quantized GGUF
 pages after a registration batch finishes authenticated encoding and allocation.

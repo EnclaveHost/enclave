@@ -384,14 +384,15 @@ int ggml_backend_shielded_set_source_release(ggml_shielded_source_release releas
     return SH_OK;
 }
 
-static void sh_release_consumed_sources(sh_pool &p) {
-    if (!g_source_release) return;
+static bool sh_release_consumed_sources(sh_pool &p) {
+    if (!g_source_release) return true;
     int rc = SH_ERR_IO;
     try { rc = g_source_release(g_source_release_ctx); } catch (...) { }
     if (rc != SH_OK) {
         for (auto *s : p.cards) s->source_verification_failed = true;
         fprintf(stderr, "[shielded] consumed source retirement failed; aborting model load\n");
     }
+    return rc == SH_OK;
 }
 
 /* Same admission rules as the verifier: only before any registration, and only WITH a verifier (the catalog is an
@@ -1256,7 +1257,10 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
     }
 #if defined(SHIELDED_COMPACT) && !defined(SHIELDED_DEALER_MODE)
     if (sh_env_int("SHIELDED_COMPACT_WEIGHTS", 0) && !sh_link_is_dealt(s.link) && !stored.w.empty()) {
-        stored.compact.reset(sh_compact_create(stored.w.data(), K, link_N));
+        const char *stream_dir = getenv("SHIELDED_COMPACT_STREAM_DIR");
+        stored.compact.reset(stream_dir ?
+            sh_compact_create_streamed(stored.w.data(), K, link_N, stream_dir) :
+            sh_compact_create(stored.w.data(), K, link_N));
         if (!stored.compact || sh_link_set_local_weight_source(s.link, node,
                 sh_compact_read, sh_compact_refill, stored.compact.get()) != SH_OK) {
             // Keep the borrowed raw vector alive until link teardown on failure.
@@ -1307,6 +1311,17 @@ static void sh_plan(sh_pool &p) {
         layers[sh_layer_key(kv.first)][sh_group_key(kv.first)].push_back(&kv.second);
     const char *ahead = getenv("SHIELDED_SOURCE_PREFETCH");
     const bool want_ahead = ahead && !strcmp(ahead, "1");
+    const char *retire = getenv("SHIELDED_SOURCE_RECLAIM_INCREMENTAL");
+    const bool incremental = retire && !strcmp(retire, "1");
+    // The release callback retires every consumed source. A read-ahead job
+    // marks its next source consumed before registration has authenticated it;
+    // keep these modes mutually exclusive rather than retiring that source.
+    if ((retire && *retire && strcmp(retire, "0") && !incremental) ||
+        (incremental && (!g_source_release || !g_weight_verifier || want_ahead))) {
+        p.cards[0]->source_verification_failed = true;
+        fprintf(stderr, "[shielded] incremental retirement requires authenticated sources, a release callback, and no source prefetch\n");
+        p.pending.clear(); return;
+    }
     if ((ahead && *ahead && strcmp(ahead, "0") && !want_ahead) ||
         (want_ahead && (!g_weight_verifier || g_encoded_source))) {
         p.cards[0]->source_verification_failed = true;
@@ -1401,6 +1416,9 @@ static void sh_plan(sh_pool &p) {
                     pit->second.part_col0.push_back(it->second.col0);
                 }
                 SH_LOG("split placement %s over %zu cards (N=%lld)\n", wname.c_str(), nc, (long long)N);
+                // Both cards have finished encoding before either source is
+                // retired. The next tensor no longer overlaps this GGUF copy.
+                if (incremental && !sh_release_consumed_sources(p)) { p.pending.clear(); return; }
             }
         }
         p.pending.clear();
@@ -1439,6 +1457,7 @@ static void sh_plan(sh_pool &p) {
                     fprintf(stderr, "[shielded] %s: authenticated registration failed; aborting model load\n", ggml_get_name(w));
                 }
                 if (p.cards[card]->weight_cache_failed || p.cards[card]->source_verification_failed) { p.pending.clear(); return; }
+                if (incremental && !sh_release_consumed_sources(p)) { p.pending.clear(); return; }
             }
         }
     }

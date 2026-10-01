@@ -79,6 +79,9 @@ int main(int argc, char **argv) {
     setenv("SHIELDED_PAD_SK", std::string(64, '0').c_str(), 1);
     setenv("SHIELDED_PAD_CHECK", "1", 1); setenv("SHIELDED_NO_SIMD", "1", 1);
     setenv("SHIELDED_MIN_MACS", "0", 1); setenv("SHIELDED_MAX_M", "16", 1);
+    const bool incremental = scenario == "source_incremental" || scenario == "source_incremental_fail" || scenario == "source_incremental_prefetch";
+    if (incremental) setenv("SHIELDED_SOURCE_RECLAIM_INCREMENTAL", "1", 1);
+    if (scenario == "source_incremental_prefetch") setenv("SHIELDED_SOURCE_PREFETCH", "1", 1);
     const bool compact_local = scenario == "source_compact_local" || scenario == "source_compact_split";
     if(compact_local) setenv("SHIELDED_COMPACT_WEIGHTS","1",1);
     const bool split_local = scenario == "source_split_local" || scenario == "source_compact_split";
@@ -87,11 +90,12 @@ int main(int argc, char **argv) {
     if (local_mint) unsetenv("SHIELDED_PAD_SOURCE");
     auto *cpu = ggml_backend_cpu_init(); assert(cpu); ggml_backend_cpu_set_n_threads(cpu, 1);
     verifier_state state;
-    struct release_state { verifier_state *state; int calls; bool fail; } release{&state, 0, scenario == "source_release_fail"};
+    struct release_state { verifier_state *state; int calls; bool fail; bool incremental; } release{&state, 0, scenario == "source_release_fail" || scenario == "source_incremental_fail", incremental};
     auto release_sources = +[](void *opaque) {
         auto &r = *static_cast<release_state *>(opaque);
-        assert(r.state->calls == 2); // every source authenticated first
-        assert(sh_pool_get().cards[0]->weights.size() == 2); // encoded storage exists
+        const int expected = r.incremental ? std::min(r.calls + 1, 2) : 2;
+        assert(r.state->calls == expected); // retire before reading the next tensor
+        assert(sh_pool_get().cards[0]->weights.size() == (size_t)expected);
         r.calls++;
         return r.fail ? SH_ERR_IO : SH_OK;
     };
@@ -175,15 +179,19 @@ int main(int argc, char **argv) {
         other.link_failed = true; other.link_retry_at = DBL_MAX; other.dirty = false;
     } else sh_plan(p);
     ggml_cgraph empty = {};
-    if (scenario == "source_release_fail") {
-        assert(release.calls == 1 && state.calls == 2 && s.weights.size() == 2 && s.source_verification_failed);
+    if (scenario == "source_incremental_prefetch") {
+        assert(release.calls == 0 && state.calls == 0 && s.source_verification_failed);
         assert(ggml_backend_shielded_graph_compute(nullptr, &empty) == GGML_STATUS_FAILED);
-    } else if (scenario != "honest" && scenario != "source" && !local_mint && scenario != "background_integrity") {
+    } else if (scenario == "source_release_fail" || scenario == "source_incremental_fail") {
+        const int expected = incremental ? 1 : 2;
+        assert(release.calls == 1 && state.calls == expected && s.weights.size() == (size_t)expected && s.source_verification_failed);
+        assert(ggml_backend_shielded_graph_compute(nullptr, &empty) == GGML_STATUS_FAILED);
+    } else if (scenario != "honest" && scenario != "source" && !incremental && !local_mint && scenario != "background_integrity") {
         assert(release.calls == 0);
         assert(s.source_verification_failed && s.weights.empty() && state.calls == (state.read_fail ? 0 : 1));
         assert(ggml_backend_shielded_graph_compute(nullptr, &empty) == GGML_STATUS_FAILED);
     } else {
-        assert(release.calls == (split_local ? 0 : 1));
+        assert(release.calls == (split_local ? 0 : incremental ? 3 : 1));
         assert(state.calls == expected_reads && s.weights.size() == 2 && !s.source_verification_failed);
         for (const auto &kv : s.weights) {
             assert(kv.second.source_verified);

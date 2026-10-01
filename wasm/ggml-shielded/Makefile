@@ -188,7 +188,7 @@ ifneq ($(SHIELDED_COMPACT_ROOT),)
 COMPACT_DEFS := -DSHIELDED_COMPACT
 COMPACT_LIBDIR := $(SHIELDED_COMPACT_ROOT)/usr/lib
 libggml-shielded.so: shielded-compact.o
-LDLIBS += -L$(COMPACT_LIBDIR) -ldnnl -lgomp
+LDLIBS += -L$(COMPACT_LIBDIR) -ldnnl -lgomp -lcrypto
 shielded-compact.o: shielded-compact.cpp shielded-compact.h
 	$(CXX) $(CXXFLAGS) -I$(SHIELDED_COMPACT_ROOT)/usr/include -O3 -mavx512f -mavx512bw -mavx512dq -mavx512vl -mavx512vnni -c $< -o $@
 endif

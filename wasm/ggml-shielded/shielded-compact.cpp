@@ -13,6 +13,14 @@
 #include <oneapi/dnnl/dnnl.hpp>
 #include <stdexcept>
 #include <vector>
+#include <array>
+#include <cerrno>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/vfs.h>
+#include <sys/stat.h>
+#include <linux/magic.h>
+#include <openssl/sha.h>
 static void require(bool ok, const char *why) {
   if (!ok)
     throw std::runtime_error(why);
@@ -231,9 +239,100 @@ struct sh_compact_store {
   std::vector<std::vector<uint8_t>> chunks;
   std::vector<std::shared_ptr<compact_layout>> layouts;
   size_t bytes = 0;
+  struct extent {
+    uint64_t offset;
+    size_t size;
+    std::array<uint8_t, SHA256_DIGEST_LENGTH> hash;
+  };
+  std::vector<extent> disk;
+  int fd = -1;
+  uint64_t disk_bytes = 0;
+  uint64_t disk_base = 0;
+  uint64_t synced_bytes = 0;
+  ~sh_compact_store() { if (fd >= 0) close(fd); }
+  void spill(const std::vector<uint8_t> &packed) {
+    extent e{disk_base + disk_bytes, packed.size(), {}};
+    require(SHA256(packed.data(), packed.size(), e.hash.data()), "weight digest");
+    size_t at = 0;
+    while (at < packed.size()) {
+      ssize_t n = pwrite(fd, packed.data() + at, packed.size() - at, e.offset + at);
+      if (n < 0 && errno == EINTR) continue;
+      require(n > 0, "weight spill write"); at += size_t(n);
+    }
+    disk_bytes += packed.size();
+    disk.push_back(e);
+    // Batch durability work for this ephemeral PUBLIC cache. Synchronizing
+    // every ~MiB tile forces thousands of journal/device flushes at cold start.
+    // Bound dirty pages per store and finish before publishing the provider.
+    if (disk_bytes - synced_bytes >= (32U << 20)) sync_pending();
+  }
+  void sync_pending() {
+    if (disk_bytes == synced_bytes) return;
+    int rc;
+    do { rc = fdatasync(fd); } while (rc < 0 && errno == EINTR);
+    require(rc == 0, "weight spill sync");
+    posix_fadvise(fd, disk_base + synced_bytes, disk_bytes - synced_bytes, POSIX_FADV_DONTNEED);
+    synced_bytes = disk_bytes;
+  }
+  const std::vector<uint8_t> &chunk(size_t ci, std::vector<uint8_t> &buffer) const {
+    if (fd < 0) return chunks.at(ci);
+    const auto &e = disk.at(ci);
+    buffer.resize(e.size);
+    size_t at = 0;
+    while (at < e.size) {
+      ssize_t n = pread(fd, buffer.data() + at, e.size - at, e.offset + at);
+      if (n < 0 && errno == EINTR) continue;
+      require(n > 0, "weight spill read"); at += size_t(n);
+    }
+    std::array<uint8_t, SHA256_DIGEST_LENGTH> hash;
+    require(SHA256(buffer.data(), buffer.size(), hash.data()) && hash == e.hash,
+            "weight spill authentication");
+    // Only authenticated private bytes are decompressed or multiplied. Hints
+    // reclaim this public file's pages and overlap the next sequential read.
+    posix_fadvise(fd, e.offset, e.size, POSIX_FADV_DONTNEED);
+    if (ci + 1 < disk.size()) {
+      const auto &next = disk[ci + 1];
+      posix_fadvise(fd, next.offset, next.size, POSIX_FADV_WILLNEED);
+    }
+    return buffer;
+  }
 };
-extern "C" sh_compact_store *sh_compact_create(const int8_t *w, int64_t K,
-                                               int64_t N) {
+// A measured guest can hand us a dedicated raw PUBLIC scratch disk. No host
+// filesystem is mounted inside the guest. Process-private allocation metadata
+// prevents matrices/cards from aliasing, and no prior disk bytes are trusted.
+static void reserve_public_disk(sh_compact_store &s, const char *spec) {
+  struct arena {
+    std::mutex mu;
+    int fd = -1, source = -1;
+    uint64_t next = 0, capacity = 0;
+    ~arena() { if (fd >= 0) close(fd); }
+  };
+  static arena a;
+  char *end = nullptr;
+  long source = strtol(spec + 3, &end, 10);
+  require(end && !*end && source >= 3 && source <= 1023, "public disk descriptor");
+  std::lock_guard<std::mutex> lock(a.mu);
+  if (a.fd < 0) {
+    require((fcntl(source, F_GETFL) & O_ACCMODE) == O_RDWR, "public disk writable");
+    struct stat st;
+    require(fstat(source, &st) == 0 && S_ISBLK(st.st_mode), "public disk must be a block device");
+    off_t size = lseek(source, 0, SEEK_END);
+    require(size > 0 && uint64_t(size) <= (UINT64_C(64) << 30), "public disk size");
+    a.fd = fcntl(source, F_DUPFD_CLOEXEC, 3);
+    require(a.fd >= 0, "public disk duplicate");
+    a.source = source; a.capacity = uint64_t(size);
+  }
+  require(a.source == source, "one public disk per runtime");
+  // Conservative upper bound: independently padded 64-byte frames per tile.
+  const uint64_t tiles = (s.N + s.rows - 1) / s.rows;
+  const uint64_t bound = (((uint64_t(s.K) * s.N / 64 + tiles) * 66 + 4095) / 4096) * 4096;
+  require(a.next <= a.capacity && bound <= a.capacity - a.next, "public disk full");
+  s.fd = fcntl(a.fd, F_DUPFD_CLOEXEC, 3);
+  require(s.fd >= 0, "public disk store descriptor");
+  s.disk_base = a.next; a.next += bound;
+}
+static sh_compact_store *compact_create(const int8_t *w, int64_t K,
+                                       int64_t N, const char *directory) {
   sh_compact_store *s = nullptr;
   try {
     __builtin_cpu_init();
@@ -248,6 +347,20 @@ extern "C" sh_compact_store *sh_compact_create(const int8_t *w, int64_t K,
     s = new sh_compact_store;
     s->K = K;
     s->N = N;
+    if (directory) {
+      require(*directory, "empty spill directory");
+      if (!strncmp(directory, "fd:", 3)) reserve_public_disk(*s, directory);
+      else {
+      std::string path = std::string(directory) + "/.shield-public-weights-XXXXXX";
+      s->fd = mkstemp(path.data());
+      require(s->fd >= 0, "weight spill open");
+      const bool removed = unlink(path.c_str()) == 0;
+      require(removed && fcntl(s->fd, F_SETFD, FD_CLOEXEC) == 0, "weight spill fd");
+      struct statfs fs;
+      require(fstatfs(s->fd, &fs) == 0 && fs.f_type != TMPFS_MAGIC &&
+              fs.f_type != RAMFS_MAGIC, "weight spill must use disk, not RAM");
+      }
+    }
     std::vector<int8_t> check((size_t)s->rows * K), reordered;
     auto full = find_layout(K, std::min(s->rows, N));
     auto tail = N > s->rows && N % s->rows ? find_layout(K, N % s->rows) : full;
@@ -277,16 +390,31 @@ extern "C" sh_compact_store *sh_compact_create(const int8_t *w, int64_t K,
           layout.reset();
       }
       s->layouts.push_back(std::move(layout));
-      s->bytes += packed.capacity();
-      s->chunks.push_back(std::move(packed));
+      if (s->fd >= 0) {
+        s->spill(packed);
+        s->chunks.emplace_back();
+      } else {
+        s->bytes += packed.capacity();
+        s->chunks.push_back(std::move(packed));
+      }
     }
     s->bytes += sizeof(*s) + s->chunks.capacity() * sizeof(s->chunks[0]) +
-                s->layouts.capacity() * sizeof(s->layouts[0]);
+                s->layouts.capacity() * sizeof(s->layouts[0]) +
+                s->disk.capacity() * sizeof(s->disk[0]);
+    if (s->fd >= 0) s->sync_pending();
     return s;
   } catch (...) {
     delete s;
     return nullptr;
   }
+}
+extern "C" sh_compact_store *sh_compact_create(const int8_t *w, int64_t K, int64_t N) {
+  return compact_create(w, K, N, nullptr);
+}
+extern "C" sh_compact_store *sh_compact_create_streamed(const int8_t *w, int64_t K,
+                                                        int64_t N, const char *dir) {
+  if (!dir) return nullptr;
+  return compact_create(w, K, N, dir);
 }
 extern "C" void sh_compact_free(sh_compact_store *s) { delete s; }
 extern "C" size_t sh_compact_bytes(const sh_compact_store *s) {
@@ -302,11 +430,12 @@ extern "C" int sh_compact_read(void *ctx, uint64_t off, uint8_t *out,
   size_t total = n;
   try {
     std::vector<int8_t> block((size_t)s->rows * s->K), plain;
+    std::vector<uint8_t> packed;
     while (n) {
       size_t ci = off / ((size_t)s->rows * s->K), start = ci * s->rows * s->K;
       size_t len =
           (size_t)std::min(s->rows, s->N - int64_t(ci * s->rows)) * s->K;
-      auto &v = s->chunks[ci];
+      const auto &v = s->chunk(ci, packed);
       require(unpack_bits(v.data(), v.size(), block.data(), len),
               "private decode");
       const int8_t *decoded = block.data();
@@ -333,7 +462,7 @@ extern "C" int sh_compact_read(void *ctx, uint64_t off, uint8_t *out,
 // ranges are read, and every active byte is written before use. Threads are
 // joined at backend teardown, releasing these private buffers then.
 struct compact_scratch {
-  std::vector<uint8_t> planes, workspace, crt_planes;
+  std::vector<uint8_t> planes, workspace, crt_planes, packed;
   std::vector<int8_t> block;
   std::vector<int32_t> accum;
   ~compact_scratch() {
@@ -370,7 +499,7 @@ static thread_local compact_scratch scratch;
 extern "C" int sh_compact_refill(void *ctx, const int32_t *r, int b, int32_t *u,
                                  int64_t stride) {
   auto *s = static_cast<sh_compact_store *>(ctx);
-  if (!s || !r || !u || b < 1 || b > 64 || stride < s->N || stride > (1 << 21))
+  if (!s || !r || !u || b < 1 || b > 256 || stride < s->N || stride > (1 << 21))
     return SH_ERR_RANGE;
   auto wipe = [&] {
     for (int i = 0; i < b; i++)
@@ -412,7 +541,7 @@ extern "C" int sh_compact_refill(void *ctx, const int32_t *r, int b, int32_t *u,
     omp_one scope;
     for (size_t ci = 0; ci < s->chunks.size(); ci++) {
       int64_t j = ci * s->rows, nr = std::min(s->rows, s->N - j);
-      auto &v = s->chunks[ci];
+      const auto &v = s->chunk(ci, scratch.packed);
       require(unpack_bits(v.data(), v.size(), block.data(), nr * s->K),
               "private decode");
       auto &layout = s->layouts[ci];
