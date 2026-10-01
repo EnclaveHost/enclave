@@ -223,6 +223,31 @@ a GPU worker. Set `GGML_SRC` and `GGML_LIB` if the local engine is elsewhere.
 python3 shielded/bench/scheduler_alloc_bench.py --baseline-ref 06e9a2500 --repetitions 7
 ```
 
+### Outlier input validation and recovery
+
+The trusted backend distinguishes a rejected activation from a failed integrity
+check. A configured outlier can use a wider local integer range; an ordinary
+channel must still fit the link's stricter bound. Previously an oversized ordinary
+channel in an outlier-configured group reached the link's defensive refusal and
+was counted as a permanent integrity failure, so later valid requests failed too.
+
+Encoding now tries the link bound first using its existing comparisons. A chunk
+needing the wider local range is re-encoded, and its field-bound check follows
+outlier removal, before pad consumption or exchange work. Normal-sized inputs need no added
+scan. Invalid requests fail without retiring the backend; failed integrity checks
+still retire trusted state. The native scheduler fixture checks recovery, the
+integrity counter, and scalar/SIMD equivalence, including valid large outliers.
+
+Seven alternating SIMD fixture runs against `3cfe115ec`, with valid ordinary-sized
+activations and outlier handling enabled, measured unchanged allocation counts
+and graph-time median changes between -0.03% and +0.64%. These are small CPU
+fallback measurements, not production performance. Inputs needing the wider range
+pay for re-encoding and the additional range scan.
+
+```
+python3 shielded/bench/scheduler_alloc_bench.py --baseline-ref 3cfe115ec --scenario outliers --simd --repetitions 7
+```
+
 ### Which calibrator
 
 `shielded-calib` (C, `wasm/ggml-shielded/`) is the one that produces the files in

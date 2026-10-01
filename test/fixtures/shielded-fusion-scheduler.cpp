@@ -156,6 +156,9 @@ int main(int argc, char **argv) {
                 ggml_backend_tensor_set(x, &value, at * sizeof(float), sizeof(float));
                 const bool safe_outlier = scenario == "outliers" && at == 0 && std::fabs(value) == 0x1p32f;
                 assert(ggml_backend_sched_graph_compute(sched, g) == (safe_outlier ? GGML_STATUS_SUCCESS : GGML_STATUS_FAILED));
+                uint64_t integrity_failures = 0;
+                ggml_backend_shielded_stats(nullptr, nullptr, nullptr, &integrity_failures);
+                assert(integrity_failures == 0); // input refusal must not retire the trusted backend
                 fill_input(x, 23);
                 assert(ggml_backend_sched_graph_compute(sched, g) == GGML_STATUS_SUCCESS);
                 assert(hash_tensor(out) == h2 && hash_tensor(residual_out) == r2);
