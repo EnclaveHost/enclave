@@ -2540,6 +2540,7 @@ const placement = createPlacement({
 async function claimPlacement(id, preferred, deployment, force = false, allowFallback = true) {
   const pin = pinnedHost(deployment.configCid);
   if (pin) { preferred = pin; allowFallback = false; }
+  else allowFallback = true; // The ledger remains authoritative if the preference save was interrupted.
   const pool = servingEnclaves();
   if (!fanoutReserve(pool.length)) return { accepted: false, reason: 'Relay busy; placement will retry shortly.' };
   try {
