@@ -92,6 +92,7 @@ type doc struct {
 }
 
 type front struct {
+	secrets      *shieldSecrets
 	spki, appSha []byte
 	rt           *runtimeState // ABI/2 when non-nil, ABI/1 when the image carries no runtime identity
 	// seccompStatement: where init (dominit, root) records the app runtime's seccomp filter once it is installed; read
@@ -126,6 +127,7 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Printf("DOM front: not dumpable; none of its %d threads traced\n", threads)
+	shieldSecretsFD := flag.Int("shield-secrets-fd", 0, "private pipe to the measured secret-aware launcher")
 	port := flag.Uint("port", 443, "vsock port to serve TLS on")
 	listenUnix := flag.String("listen-unix", "", "serve TLS on this unix socket instead of vsock (M3)")
 	reportUnix := flag.String("report-unix", "", "ask the monitor on this unix socket for reports (M3)")
@@ -272,12 +274,23 @@ func main() {
 			die("release: %v", err)
 		}
 	}
+	if *shieldSecretsFD != 0 {
+		if *shieldSecretsFD != 7 || f.monitor == "" || f.rt == nil {
+			die("invalid Shield secret channel")
+		}
+		f.secrets, err = newShieldSecrets(os.NewFile(uintptr(*shieldSecretsFD), "shield-secret-pipe"), "/secret.id")
+		must(err)
+	}
 	tl := tls.NewListener(l, &tls.Config{GetCertificate: f.certs.getCertificate, MinVersion: tls.VersionTLS13,
 		SessionTicketsDisabled: true})
 
 	// "serving" means both halves answer: TLS here, and the app behind it
 	go func() {
-		for deadline := time.Now().Add(120 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		wait := 120 * time.Second
+		if f.secrets != nil {
+			wait = 300 * time.Second
+		}
+		for deadline := time.Now().Add(wait); ; time.Sleep(10 * time.Millisecond) {
 			if c, err := net.DialTimeout("tcp", *upstream, time.Second); err == nil {
 				c.Close()
 				break
@@ -294,6 +307,9 @@ func main() {
 
 func (f *front) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
+	case shieldSecretsPath:
+		f.serveShieldSecrets(w, r)
+		return
 	case attestPath:
 		f.attest(w, r)
 		return

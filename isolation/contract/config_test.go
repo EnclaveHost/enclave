@@ -3,6 +3,7 @@ package contract
 import (
 	"bytes"
 	"encoding/base64"
+	"strings"
 	"testing"
 )
 
@@ -38,5 +39,23 @@ func TestMeasuredAppConfig(t *testing.T) {
 	m.HTTP = 8080
 	if _, e := m.AppConfig(); e == nil {
 		t.Fatal("command config was admitted")
+	}
+}
+
+func TestSecretDeploymentBoundManifest(t *testing.T) {
+	m := Manifest{World: WorldHTTP, ConfigBase64: "e30=", SecretDeployment: "0x" + strings.Repeat("a", 64)}
+	if _, e := m.AppConfig(); e != nil {
+		t.Fatal(e)
+	}
+	for _, id := range []string{"bad", "0x" + strings.Repeat("A", 64)} {
+		m.SecretDeployment = id
+		if _, e := m.AppConfig(); e == nil {
+			t.Fatal("invalid deployment accepted")
+		}
+	}
+	m.SecretDeployment = "0x" + strings.Repeat("a", 64)
+	m.ConfigBase64 = ""
+	if _, e := m.AppConfig(); e == nil {
+		t.Fatal("missing measured config accepted")
 	}
 }

@@ -87,7 +87,7 @@ func render(ss []site) string {
 }
 
 // the packages this binary links from this module that could touch a report or a socket
-var linked = []string{".", "../egress", "../release", "../appconfig", "../vsock", "../domtls"}
+var linked = []string{".", "../egress", "../release", "../appconfig", "../shieldconfig", "../vsock", "../domtls"}
 
 func TestEveryReportPathIsAKnownOne(t *testing.T) {
 	got := sites(t, linked, func(n ast.Node) string {
@@ -117,8 +117,9 @@ func TestEveryReportPathIsAKnownOne(t *testing.T) {
 		"front/main.go front.hostData: f.askMonitor", // all-zero report_data, never served
 		"front/main.go front.hostData: f.report",     // all-zero report_data, never served
 		"front/main.go front.report: configfs-tsm path",
-		"front/main.go main: f.report",                 // wired as the provisioner's report function
-		"front/provision.go provisioner.run: p.report", // the release binding || AppID, never served
+		"front/main.go main: f.report",                                   // wired as the provisioner's report function
+		"front/provision.go provisioner.run: p.report",                   // the release binding || AppID, never served
+		"front/shield_secrets.go front.serveShieldSecrets: f.askMonitor", // deployment and guest-minted seal key, release.Binding domain; never Bind2
 	}, "\n")
 	if g := render(got); g != want {
 		t.Fatalf("the paths to a report changed; review each against the release binding's domain, then update this list.\ngot:\n%s\nwant:\n%s", g, want)
