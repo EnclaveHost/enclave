@@ -81,7 +81,7 @@ test('cancelled first transaction never leaves a stopped deployment', async () =
 });
 test('cancelled requeue retains requested shares and explains how to finish', async () => {
   const r = rig([held, released], { resume: async () => { throw Error('Rejected by wallet'); } });
-  await assert.rejects(resizeAfterStop(r.options), /Rejected by wallet.*new shares are saved.*Resize and restart/);
+  await assert.rejects(resizeAfterStop(r.options), /Rejected by wallet.*new shares are saved.*Save to finish re-queuing/);
   assert.equal(r.events.includes('saved'), true);
 });
 test('retry after cancelled requeue can use already-saved shares unchanged', async () => {

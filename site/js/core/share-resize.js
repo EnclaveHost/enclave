@@ -68,7 +68,7 @@ export async function resizeAfterStop({ expected, target, read, apply, resume, p
     await resume();
     return { resumed: true };
   } catch (e) {
-    if (committed) e.message += " Your new shares are saved. Reopen Shares and choose Resize and restart to finish; no need to enter them again.";
+    if (committed) e.message += " Your new shares are saved. Reopen Shares and choose Save to finish re-queuing; no need to enter them again.";
     throw e;
   }
 }
