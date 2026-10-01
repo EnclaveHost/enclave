@@ -28,7 +28,8 @@ application API. A directory is supported for native qualification and must not
 be tmpfs/ramfs. In the measured guest, `fd:197` names a dedicated public scratch
 block device. No host filesystem is mounted in the guest. The native runtime
 duplicates that descriptor and allocates disjoint bounded extents for matrices
-and card slices; it never trusts old disk content. The descriptor is not a WASI
+and card slices; destroying a store returns its extents, merging adjacent free
+ranges for later model loads. It never trusts old disk content. The descriptor is not a WASI
 preopen. The scratch disk contains no application secrets.
 
 The measured `shield-streamed-weights.enabled` marker selects 256-pad refills,
@@ -120,9 +121,11 @@ qualification. Tests were paused to restore Eyesoff-AI and return RISC Box to
 queued at the owner's request. Neither candidate has been promoted.
 
 Remaining qualifications include sustained refill-heavy decode, multiple
-sessions, and unload/reload. The raw scratch arena currently reserves monotonically
-for a native runtime's lifetime; repeated model reloads can exhaust it and require
-a runtime restart. Production activation requires fixing or bounding that lifecycle.
+sessions, and full-model unload/reload. The current source returns raw-disk
+extents when stores are destroyed (including failed admission), preventing a
+monotonic scratch-space leak across model loads. Sanitizer tests exercise full
+capacity, exhaustion, split/merge reuse over 100 cycles, and store destruction.
+This lifecycle fix also postdates the full-model candidate release above.
 
 Do not infer an eight-session RAM minimum from a one-session probe. Host QEMU
 MemoryCurrent includes the reserved SNP guest pages, not just the model heap.

@@ -4,6 +4,21 @@
 #include <thread>
 int main(int argc, char **argv) {
   assert(argc == 2);
+  // Model destruction and failed admissions return public scratch capacity.
+  public_disk_arena arena; arena.capacity=100;
+  for(int cycle=0;cycle<100;cycle++) {
+    auto a=arena.reserve(30),b=arena.reserve(40),c=arena.reserve(30);
+    assert(a==0 && b==30 && c==70);
+    bool full=false;try {arena.reserve(1);}catch(...){full=true;}assert(full);
+    arena.release(b);
+    auto d=arena.reserve(10),e=arena.reserve(30);assert(d==30 && e==40);
+    arena.release(a);arena.release(c);arena.release(d);arena.release(e);
+    assert(arena.ranges.size()==1 && !arena.ranges[0].used && arena.ranges[0].size==100);
+  }
+  auto owned=std::make_shared<public_disk_arena>();owned->capacity=100;
+  { sh_compact_store store;store.disk_base=owned->reserve(100);store.arena=owned; }
+  assert(owned->reserve(100)==0);owned->release(0);
+
   const int K=256, N=833, stride=N+3;
   uint32_t rng=7;
   auto next=[&]{rng^=rng<<13;rng^=rng>>17;rng^=rng<<5;return rng;};
