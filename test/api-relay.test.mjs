@@ -6,6 +6,7 @@
 // rows (which win by id) with ledger-only rows.
 
 import { test } from "node:test";
+import {toFunctionSelector,keccak256,stringToBytes} from "viem";
 import assert from "node:assert/strict";
 import http from "node:http";
 import net from "node:net";
@@ -67,7 +68,7 @@ async function freePort() {
   const s = net.createServer(); s.listen(0, "127.0.0.1"); await once(s, "listening");
   const p = s.address().port; s.close(); return p;
 }
-function stubRpc(ledger = LEDGER) {
+function stubRpc(ledger = LEDGER, quotes = {}) {
   return http.createServer((req, res) => {
     let body = "";
     req.on("data", (c) => (body += c));
@@ -76,6 +77,14 @@ function stubRpc(ledger = LEDGER) {
       const one = (m) => {
         if (m.method !== "eth_call") return "0x";
         const data = m.params[0].data;
+        if (data.startsWith(toFunctionSelector('get(bytes32)'))) {
+          const d=ledger.find(r=>r.id.toLowerCase()==='0x'+data.slice(10,74));
+          return d ? '0x'+W(32)+tupleOf(d) : '0x';
+        }
+        if (data.startsWith('0x2d4780f5') || data.startsWith('0xda35d683')) {
+          const q=quotes['0x'+data.slice(74,138)];
+          return q ? '0x'+W(data.startsWith('0x2d4780f5')?q.rate:q.claimable?1:0) : '0x';
+        }
         if (data.startsWith("0x5d1b72b6")) return "0x" + W(2);                        // deploymentsSchema() -> rev 2
         if (data.startsWith("0x06661abd")) return "0x" + W(ledger.length);            // count()
         const start = Number(BigInt("0x" + data.slice(10, 74)));
@@ -89,8 +98,8 @@ function stubRpc(ledger = LEDGER) {
     });
   });
 }
-async function startRelay(t, { enclaves, ledger, env = {} }) {
-  const rpc = stubRpc(ledger); await listenOnFreePort(rpc);
+async function startRelay(t, { enclaves, ledger, quotes, env = {} }) {
+  const rpc = stubRpc(ledger, quotes); await listenOnFreePort(rpc);
   // the relay must prove it won the port before /health means anything: every
   // daemon here serves /health, so a stranger holding the port answers 200 just
   // as happily. api-relay logs "[api-relay] :<port>" from inside its listen
@@ -1044,4 +1053,32 @@ test("api-relay: two deployments sharing an app-zone label get no override, not 
   const { body } = await getJson(origin, "/v1/relays");
   assert.equal(body.labels["11111111"], undefined, "the contested label gets no answer from either twin");
   assert.equal(body.labels["77777777"].a, "198.51.100.9", "an uncontested label is unaffected");
+});
+
+
+test("api-relay: Auto uses contract quotes and gives cheaper eligible hosts first refusal", async t=>{
+  const calls=[],quotes={};let cheapAccepts=false;
+  const endpoints=[];
+  for(const rate of [50,1,10]) {
+    const server=http.createServer((req,res)=>{
+      res.setHeader('content-type','application/json');
+      if(req.url==='/availability') return res.end(JSON.stringify({teeCpu:'amd-sev-snp',claimEnabled:true,gpu:false,cpuShareFree:1,nodeVcpus:16,nodeRamGb:64}));
+      if(req.url==='/v1/claim-hint') {
+        calls.push(rate);return res.end(JSON.stringify(rate===1&&!cheapAccepts?{accepted:false,reason:'no free capacity'}:{accepted:true}));
+      }
+      res.end('{}');
+    });
+    await listenOnFreePort(server);t.after(()=>server.close());
+    const endpoint='http://127.0.0.1:'+server.address().port;endpoints.push(endpoint);
+    quotes[keccak256(stringToBytes(endpoint))]={rate,claimable:rate<=20};
+  }
+  const origin=await startRelay(t,{enclaves:endpoints.join(','),quotes});
+  const request=body=>fetch(origin+'/v1/claim-hint',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  let response=await request({id:ID('11'),strategy:'cheapest'});assert.equal(response.status,200);
+  let result=await response.json();assert.equal(result.accepted,true);assert.equal(result.ratePerSec6,'10');
+  assert.deepEqual(calls,[1,10],'over-cap host never receives a hint; expensive eligible host waits for cheaper refusal');
+  cheapAccepts=true;calls.length=0;
+  result=await(await request({id:ID('11'),strategy:'cheapest'})).json();
+  assert.equal(result.ratePerSec6,'1');assert.deepEqual(calls,[1]);
+  assert.equal((await request({id:'invalid',strategy:'cheapest'})).status,400);
 });
