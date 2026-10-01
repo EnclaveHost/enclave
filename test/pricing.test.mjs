@@ -1011,3 +1011,52 @@ test("cardServesApp is the console's copy of gpuRouting, shielded rule included"
     "no card advertised is no card, whatever the block says");
   assert.equal(cardServesApp(null, small), false, "no host known: not on a card");
 });
+
+// Run the Shares/Version panel's actual choice of floor: cardServesApp(null)
+// correctly cannot promise a card, but an unleased or stopped deployment
+// must allow allocations against the app's normal minimum before a launch.
+function panelCpuNeed(hostAvail, { active = true, gpuMilli = 970 } = {}) {
+  const src = fs.readFileSync(new URL("../site/components/deployments/deployments.js", import.meta.url), "utf8");
+  const start = src.indexOf("    const cpuNeedOf =");
+  const end = src.indexOf("    const rows =", start);
+  assert.ok(start > 0 && end > start);
+  return new Function("hostAvail", "hw", "d", "bought", "cpuFloorFor", "cardServesApp",
+    src.slice(start, end) + "\nreturn cpuNeedOf;")(
+      hostAvail, hostAvail ? { row: { availability: hostAvail } } : null,
+      { active }, { gpuMilli }, cpuFloorFor, cardServesApp);
+}
+
+const EYESOFF_SHARE_SPEC = { cardVramGb: 62, cardTflops: 214.7, nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000 };
+const eyesoffShareMins = () => minPctsOf({ vramMb: 51200, gpuGflops: 320000, memMb: 4096, cpuGflops: 10,
+  gpuOptional: true, cpuFallback: { memMb: 38912, cpuGflops: 20 } }, EYESOFF_SHARE_SPEC);
+
+test("unleased deployment keeps the app's normal CPU minimum even when selecting no GPU", () => {
+  const host = leaseHostOf({ ...leased, leaseUntil: 0 }, FLEET, NOW);
+  assert.equal(host, null);
+  const need = panelCpuNeed(host);
+  const r = { mins: eyesoffShareMins() };
+  assert.equal(r.mins.cpuPct, 7);
+  assert.equal(r.mins.cpuPctNoGpu, 60);
+  assert.equal(need(r), 7, "the stored 97% GPU allocation still buys a card");
+  assert.equal(need(r, 100), 7, "typing a new nonzero GPU share keeps the normal minimum");
+  assert.equal(need(r, 0), 7, "CPU-only allocation can be saved before the app runs");
+  assert.equal(panelCpuNeed(null, { gpuMilli: 0 })(r), 7, "a queued CPU-only allocation also uses the normal minimum");
+});
+
+test("a stopped deployment uses the normal minimum even while its old host holds the lease", () => {
+  const r = { mins: eyesoffShareMins() };
+  for (const host of [{ gpu: false }, { gpu: true }, { gpu: true, shielded: {} }]) {
+    const need = panelCpuNeed(host, { active: false });
+    assert.equal(need(r), 7);
+    assert.equal(need(r, 0), 7);
+  }
+});
+
+test("a known lease holder still selects the CPU minimum for its actual GPU routing", () => {
+  const r = { mins: eyesoffShareMins() };
+  assert.equal(panelCpuNeed({ gpu: false })(r), 60);
+  assert.equal(panelCpuNeed({ gpu: true })(r), 60, "undersized local card routes this app to cores");
+  const shielded = panelCpuNeed({ gpu: true, shielded: { vramGb: 62 } });
+  assert.equal(shielded(r), 7, "shielded offload keeps the normal minimum");
+  assert.equal(shielded(r, 0), 60, "zero GPU is CPU-only even on a GPU host");
+});
