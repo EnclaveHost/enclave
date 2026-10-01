@@ -133,6 +133,36 @@ static void probe_report_as_root(void) {
  * the null device and marks it close-on-exec, so no workload inherits it except through the quiet spawn's dup2s.
  * enclave-d1's canary of 4cdd5169 (252602c8): the quiet runtime opened "/dev/null" INSIDE the chroot, got ENOENT and
  * exited 126 on every m3 domain, so domexec ended each domain before it served (enclave-87 chose this design). */
+#define CONFIG_MAX_BYTES 32768
+static char app_config_env[CONFIG_MAX_BYTES + sizeof "ENCLAVE_CONFIG="];
+/* Read only the monitor's immutable copy from the measured bundle. Never print it. */
+static void read_app_config(void) {
+    int fd = open("/app.config", O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0) { if (errno == ENOENT) return; die("open app config"); }
+    struct stat st;
+    if (fstat(fd, &st) || !S_ISREG(st.st_mode) || st.st_uid != 0 || (st.st_mode & 0222)
+        || st.st_size <= 0 || st.st_size > CONFIG_MAX_BYTES) die("app config permissions or size");
+    const size_t prefix = sizeof "ENCLAVE_CONFIG=" - 1;
+    memcpy(app_config_env, "ENCLAVE_CONFIG=", prefix);
+    size_t n = 0;
+    while (n < (size_t)st.st_size) {
+        ssize_t got = read(fd, app_config_env + prefix + n, (size_t)st.st_size - n);
+        if (got < 0 && errno == EINTR) continue;
+        if (got <= 0) die("read app config");
+        n += (size_t)got;
+    }
+    if (memchr(app_config_env + prefix, 0, n)) die("app config contains NUL");
+    app_config_env[prefix + n] = 0;
+    close(fd);
+}
+static void config_argument(char **args) {
+    if (!app_config_env[0]) return;
+    size_t n = 0; while (args[n]) n++;
+    /* The artifact is last; put inherited --env before it, with no value in argv. */
+    char *artifact = args[n - 1];
+    args[n - 1] = "--env"; args[n] = "ENCLAVE_CONFIG";
+    args[n + 1] = artifact; args[n + 2] = NULL;
+}
 #define NULL_FD 3
 /* The seccomp STATEMENT channel, fd SECCOMP_FD: a pipe the MONITOR hands this process (its read end stays with the
  * monitor). Close-on-exec from the start and closed here once the runtime is spawned, so only the runtime's child - this
@@ -213,6 +243,10 @@ static pid_t spawn(char *const argv[], uid_t uid, int quiet, int filter) {
             for (int j=0; fixed[j]; j++) envp[i++]=(char *)fixed[j];
             envp[i++]=shield_workers; envp[i++]=shield_vram; envp[i]=NULL;
         }
+        if (filter && app_config_env[0]) {
+            size_t n = 0; while (envp[n]) n++;
+            envp[n] = app_config_env; envp[n + 1] = NULL;
+        }
         execve(argv[0], argv, envp);
         if (con >= 0) dprintf(con, "DOM%s ERROR exec %s: %s\n", dom_id, argv[0], strerror(errno));
         _exit(127);
@@ -270,7 +304,8 @@ int main(int argc, char **argv) {
      * m2/dominit.c: wasmtime caches compiled modules by default, and an unauthenticated compiled cache is
      * refused by the portable-runtime contract (isolation/contract/RUNTIME.md rule 5). It also matters more
      * here than in M2, because several domains share this guest's filesystem. */
-    char *rt[] = {"/plat/rt/ld-linux-x86-64.so.2", "--library-path", "/plat/rt", "/plat/rt/wasmtime",
+    read_app_config();
+    char *rt[64] = {"/plat/rt/ld-linux-x86-64.so.2", "--library-path", "/plat/rt", "/plat/rt/wasmtime",
                   "serve", "-S", "cli", "-C", "cache=n", "--addr", "127.0.0.1:8080", "/app.wasm", NULL};
     char *front[] = {"/plat/front", "-runtime-identity", "/plat/rt/runtime.json",
                      "-listen-unix", "/run/front.sock", "-report-unix", "/run/monitor.sock",
@@ -283,7 +318,7 @@ int main(int argc, char **argv) {
      * inherit-network reaches only this domain's OWN network namespace, whose one interface is its loopback. */
     int run_port = 0;
     char ports_env[64], upstream[32], data_opts[96];
-    char *run[] = {"/plat/rt/ld-linux-x86-64.so.2", "--library-path", "/plat/rt", "/plat/rt/wasmtime", "run",
+    char *run[64] = {"/plat/rt/ld-linux-x86-64.so.2", "--library-path", "/plat/rt", "/plat/rt/wasmtime", "run",
                    "-S", "cli", "-S", "tcp", "-S", "udp", "-S", "inherit-network", "-S", "allow-ip-name-lookup",
                    "-C", "cache=n", "--dir", "/data::/data", "--env", ports_env, "/app.wasm", NULL};
     char *run_front[] = {"/plat/front", "-runtime-identity", "/plat/rt/runtime.json",
@@ -302,6 +337,7 @@ int main(int argc, char **argv) {
         mkdir("/data", 0700);
         if (mount("tmpfs", "/data", "tmpfs", 0, data_opts) != 0) die("mount /data");
     }
+    config_argument(rt); config_argument(run);
     char *probe_argv[] = {"/plat/domprobe", (char *)dom_id, argc > 4 ? argv[4] : "0", NULL};
     struct sigaction sa_term = {0};
     sa_term.sa_handler = on_term;

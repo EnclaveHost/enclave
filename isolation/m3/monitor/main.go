@@ -84,6 +84,7 @@ const (
 // every backend ends a domain the same way; this file supplies what reclamation DOES here.
 
 type domain struct {
+	AppConfig []byte              `json:"-"` // copied only from the measured bundle
 	Inference *contract.Inference `json:"inference,omitempty"`
 	ID        int                 `json:"id"`
 	Label     string              `json:"label"`
@@ -463,6 +464,14 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 	} else if err != contract.ErrNotBundle {
 		return nil, fmt.Errorf("bundle refused: %w", err)
 	}
+	var appConfig []byte
+	if manifest != nil {
+		var err error
+		appConfig, err = manifest.AppConfig()
+		if err != nil {
+			return nil, err
+		}
+	}
 	pol := contract.EffectivePolicy(manifest, contract.Request{CPU: req.CPU, MemMiB: req.MemMiB})
 	var inference *contract.Inference
 	if manifest != nil {
@@ -499,7 +508,7 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 	if id >= frontUIDOffset {
 		return nil, fmt.Errorf("domain id %d would give its runtime a uid in the fronts' range", id)
 	}
-	d := &domain{Inference: inference, ID: id, Boot: m.boot, Label: req.Label, AppSha: hex.EncodeToString(sum[:]), appHash: sum, Mode: mode, HTTP: httpPort, Name: req.Name,
+	d := &domain{AppConfig: appConfig, Inference: inference, ID: id, Boot: m.boot, Label: req.Label, AppSha: hex.EncodeToString(sum[:]), appHash: sum, Mode: mode, HTTP: httpPort, Name: req.Name,
 		Port: m.basePrt + uint32(id), UID: m.baseUID + id, FrontUID: m.baseUID + frontUIDOffset + id, CPU: pol.CPUPercent, MemMiB: pol.MemMiB,
 		dir: filepath.Join(m.root, strconv.Itoa(id)), cgroup: "/sys/fs/cgroup/dom" + strconv.Itoa(id),
 		Probe: req.Probe, exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
@@ -532,6 +541,9 @@ func (m *monitor) start(d *domain, app []byte) error {
 		return fail(err)
 	}
 	if err := os.WriteFile(filepath.Join(d.dir, "app.sha256"), []byte(d.AppSha), 0o444); err != nil {
+		return fail(err)
+	}
+	if err := writeAppConfig(d.dir, d.AppConfig); err != nil {
 		return fail(err)
 	}
 	// root-owned and read-only, like the AppID: the domain reads the name it may certify but cannot change it
@@ -1597,4 +1609,15 @@ func (d *domain) frontPath(name string) string {
 		return filepath.Join(d.dir, "run", "front", name)
 	}
 	return filepath.Join(d.dir, "run", name)
+}
+
+// The monitor owns the domain root. No host-supplied path or environment selects this file.
+func writeAppConfig(dir string, config []byte) error {
+	if len(config) == 0 {
+		return nil
+	}
+	if len(config) > contract.MaxConfigBytes {
+		return errors.New("app configuration exceeds byte limit")
+	}
+	return os.WriteFile(filepath.Join(dir, "app.config"), config, 0444)
 }
