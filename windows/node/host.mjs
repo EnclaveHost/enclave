@@ -452,6 +452,9 @@ export class Host {
       // must count, or a throw after it lets a second claim go out in the same pass (enclave-bf's NO-GO on 3d37709a).
       let hash;
       try {
+        const fresh = await chain.readDeployment(id);
+        const pinRefusal = chain.placementRefusal(fresh.configCid, this.enclaveId);
+        if (pinRefusal) return { accepted: false, reason: pinRefusal };
         this.#record(id, { status: "claiming", appRef: d.appRef });
         hash = await chain.claimDeployment(id, this.enclaveId);
       } catch (e) {
@@ -973,6 +976,8 @@ export class Host {
     // lease back on chain (heldReason).
     const held = this.heldReason(d);
     if (held) return this.#record(id, { status: "held", reason: held });
+    const pinRefusal = chain.placementRefusal(d.configCid, this.enclaveId);
+    if (pinRefusal) return await this.#giveUp(id, pinRefusal, { retry: true });
     // THE ENVELOPE, parsed ONCE and BEFORE the catalog read and every gate that can give the lease back: #giveUp asks
     // #retireIsolated, which must know whether this deployment is isolated at all (unknown means it asks the manager).
     // And before the isolation branch, because the branch's opt-in gate reads what it records. It used to be parsed
@@ -1575,6 +1580,8 @@ export class Host {
         await this.consider(id).catch((e) => this.log(`re-claim ${id.slice(0, 10)}: ${e.message}`));
         continue;
       }
+      const pinRefusal = chain.placementRefusal(d.configCid, this.enclaveId);
+      if (pinRefusal) { await this.#giveUp(id, pinRefusal, { retry: true }); continue; }
       // HELD (a retired-engine node, a deployment it cannot run): before the renewal, the envelope edit and
       // the resize, each of which can spend or give back the lease on chain. Recorded, and left alone.
       const held = this.heldReason(d);
@@ -1703,7 +1710,7 @@ export class Host {
    * a tenant whose app cannot run here is better served by a row that reads Queued somewhere else
    * than by one that reads "running on nucbox-k11" over a restart loop.
    */
-  async #giveUp(id, why) {
+  async #giveUp(id, why, { retry = false } = {}) {
     // An isolated domain first: handing the lease back while its partition still serves would
     // leave the deployment answering with no lease behind it (defect 15). And if it could NOT be confirmed gone, the
     // lease is not given back at all (enclave-d1's review, finding 4): no block, no release, still tracked, so the tick
@@ -1725,7 +1732,7 @@ export class Host {
     const app = this.apps.get(id);
     if (app) { await app.stop(); this.apps.delete(id); }
     this.#record(id, { status: "failed", reason: why, port: null });
-    this.blocked.set(id, why);
+    if (retry) this.blocked.delete(id); else this.blocked.set(id, why);
     this.tracked.delete(id); this.#saveTracked();
     this.log(`giving up on ${id.slice(0, 10)}: ${why}`);
     try {

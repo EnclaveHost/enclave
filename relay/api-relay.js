@@ -100,7 +100,7 @@ import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDep
 import { handleCerts, initCerts } from "./certs.js";
 import { createShieldMarketplace } from "./shield-marketplace.mjs";
 import { claimCheapest, CLAIM_QUOTE_ABI } from "./cheapest-claim.mjs";
-import { createPlacement } from "./placement.mjs";
+import { createPlacement, pinnedHost } from "./placement.mjs";
 import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson } from "./measurement-predict.mjs";
 import { createTunnelHub } from "./tunnel.js";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
@@ -2047,7 +2047,7 @@ async function gateway(u, req, res) {
       await resolveDeployments();
       const d = await placementRead(placementId);
       const saved = placement.saved(placementId, d.owner);
-      return json(res, 200, await claimPlacement(placementId, saved ? saved.hostId : prefer, d, selection.force === true), req);
+      return json(res, 200, await claimPlacement(placementId, saved ? saved.hostId : prefer, d, selection.force === true, saved?.allowFallback !== false), req);
     }
     if (cheapest && !/^0x[0-9a-f]{64}$/i.test(String(selection.id || "")))
       return json(res, 400, { accepted:false, reason:"A ledger deployment ID is required." }, req);
@@ -2537,13 +2537,15 @@ const placement = createPlacement({
     return key ? String(await vaultAddressFor(key)).toLowerCase() : null;
   },
 });
-async function claimPlacement(id, preferred, deployment, force = false) {
+async function claimPlacement(id, preferred, deployment, force = false, allowFallback = true) {
+  const pin = pinnedHost(deployment.configCid);
+  if (pin) { preferred = pin; allowFallback = false; }
   const pool = servingEnclaves();
   if (!fanoutReserve(pool.length)) return { accepted: false, reason: 'Relay busy; placement will retry shortly.' };
   try {
     const client = await chain(), ledger = DEPLOYMENTS_ADDRESS;
     const owner = String(deployment.owner || '').toLowerCase();
-    return await claimCheapest({ pool, preferred,
+    return await claimCheapest({ pool, preferred, allowFallback,
       quote: async host => {
         const args = [id, host.id];
         const [rate, claimable] = await Promise.all([

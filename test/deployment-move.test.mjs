@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {isolationOptions, withIsolationRequirements} from '../site/js/core/isolation-options.js';
 import {moveLeaseLive, prepareDeploymentMove} from '../site/js/core/deployment-move.js';
-import {placementMessage} from '../site/js/core/placement-options.js';
+import {placementMessage,pinnedHost,withPlacementPin} from '../site/js/core/placement-options.js';
 const A='0x'+'aa'.repeat(32),B='0x'+'bb'.repeat(32),ZERO='0x'+'00'.repeat(32);
 function fixture(overrides={}) {
  let clock=100000, row={owner:'alice',active:true,runner:ZERO,leaseUntil:0,...overrides};
@@ -59,10 +59,11 @@ test('a live lease timeout never resumes or silently queues a second instance',a
 // production requests: the fake ledger changes only after the target hint.
 const source=readFileSync(new URL('../site/components/deployments/deployments.js',import.meta.url),'utf8');
 const method=source.match(/^  async _doMove\([^]*?^  }/m)[0];
-const makePanel=new Function('Enclave','depGet','ctlOf','prepareDeploymentMove','moveLeaseLive','paintLine',
+const buildPanel=new Function('Enclave','depGet','ctlOf','prepareDeploymentMove','moveLeaseLive','paintLine',
  'setTimeout','leaseHostOf','connectWallet','ensureBaseChain','sendTx','waitReceipt','encCall','DEP_SEL','DEPLOYMENTS_ADDRESS',
- 'isolationOptions','withIsolationRequirements','depSchemaRev','placementMessage','personalSign',
+ 'isolationOptions','withIsolationRequirements','depSchemaRev','placementMessage','personalSign','pinnedHost','withPlacementPin',
  `return new (class { ${method} })()`);
+const makePanel=(...args)=>{ while(args.length<20)args.push(undefined); return buildPanel(...args,pinnedHost,withPlacementPin); };
 for (const target of ['nucbox-k11', '']) for (const active of [true, false]) for (const saveRequirements of [false,true]) {
  test(`dashboard Pin ${target || 'Auto'} ${active ? 'queued' : 'ended'} ${saveRequirements ? 'with requirements' : ''} respects resume and target selection`, async()=>{
   let row={owner:'alice',active,runner:ZERO,leaseUntil:0};const hints=[],messages=[],signatures=[];
@@ -108,4 +109,26 @@ for (const alreadySaved of [false,true]) test(`applying the current host ${alrea
  assert.equal(saved.length,alreadySaved?0:1);assert.equal(signed.length,alreadySaved?0:1);
  assert.ok(messages.some(message=>message.includes('running on nucbox-k11')));
  assert.equal(go.disabled,false);assert.equal(row.runner,B);
+});
+
+for(const allowFallback of [false,true]) test(`changing Allow Fallback to ${allowFallback} saves the ledger policy before the preference without restarting the current host`,async()=>{
+ const original={isolation:{cpuTee:false,gpuTee:false},config:{setting:'preserved'},...(!allowFallback?{}:{placement:{hostId:B}})};
+ const row={id:A,owner:'alice',active:true,runner:B,leaseUntil:Date.now()/1000+600,configCid:JSON.stringify(original)};
+ const target={name:'nucbox',row:{id:B}},calls=[];
+ const unexpected=()=>{throw Error('the current host must keep running')};
+ const api={provider:true,getEnclaves:async()=>[target.row],claimHint:unexpected,terminateDeployment:unexpected,
+  savePlacement:async(id,body)=>{
+   calls.push('save');assert.equal(body.allowFallback,allowFallback);
+   assert.equal(pinnedHost(row.configCid),allowFallback?'':B);
+   return {configured:true,hostId:B,allowFallback};
+  }};
+ const panel=makePanel(api,async()=>row,()=> 'wallet',prepareDeploymentMove,moveLeaseLive,()=>{},()=>0,()=>target,
+  unexpected,async()=>{},async(_address,args)=>{calls.push('options');row.configCid=args[1].v;return 'receipt'},async()=>{},(_sel,args)=>args,
+  {setConfig:'options'},'ledger',isolationOptions,withIsolationRequirements,async()=>15,placementMessage,async msg=>{assert.match(msg,new RegExp('Allow fallback: '+allowFallback));return 'signed'});
+ panel._list=[{id:A}];panel._envLearn=()=>{};
+ const box={isConnected:true,querySelector:selector=>selector==='.mv-fallback'?{checked:allowFallback}:{},
+  _placementTargets:[target],_placement:{configured:true,hostId:B,allowFallback:!allowFallback},
+  _isolationChoice:{cpuTee:false,gpuTee:false,original:JSON.stringify(row.configCid)}};
+ await panel._doMove(A,target.name,box,{textContent:'Apply'},target.name);
+ assert.deepEqual(calls,['options','save']);assert.deepEqual(JSON.parse(row.configCid).config,original.config);
 });
