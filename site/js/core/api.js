@@ -264,7 +264,7 @@ export const Enclave = {
      relay send the hint to THAT box only, giving it first crack — the steer
      behind both the deploy target pick and a move. An unknown name falls back
      to the full fan-out, so a hint can never strand a funded deployment. */
-  claimHint(id, enclave){ return this._req("POST", "/claim-hint", { body: enclave ? { id, enclave } : { id } }); },
+  claimHint(id, enclave, options = {}){ return this._req("POST", "/claim-hint", { body: enclave ? { id, enclave } : { id, ...(options.strategy === "cheapest" ? { strategy: "cheapest" } : {}) } }); },
   restartDeployment(id, enclave){ return this._req("POST", "/deployments/" + encodeURIComponent(id) + "/restart", { auth: true, enclave }); },
   logs(id, query, enclave){ return this._req("GET", "/deployments/" + encodeURIComponent(id) + "/logs", { auth: true, query, enclave }); },
   attestation(id, enclave){ return this._req("GET", "/deployments/" + encodeURIComponent(id) + "/attestation", { auth: true, enclave }); },

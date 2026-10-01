@@ -25,11 +25,12 @@ import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, 
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
+import { moveLeaseLive, prepareDeploymentMove } from "../../js/core/deployment-move.js";
 import { resizeAfterStop } from "../../js/core/share-resize.js";
 import { depSnapshot } from "../../js/core/chain.js";
 import { BUCKETS, bucketOf, countBuckets } from "../../js/core/deploy-status.js";
 import { LastGood, listIdentity, failureReason, asOf } from "../../js/core/list-state.js";
-import { shareRates, minPctsOf, cpuFloorFor, cardServesApp, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf, hostChargeWaived, sharesLegalOn, liftSharesForLedger } from "../../js/core/pricing.js";
+import { shareRates, minPctsOf, cpuFloorFor, cardServesApp, adoptServerSpec, leaseHostOf, moveTargetsFor, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf, hostChargeWaived, sharesLegalOn, liftSharesForLedger } from "../../js/core/pricing.js";
 
 // Keep search and the card title on the same resolved app identity.
 function deploymentTitle(d) {
@@ -830,7 +831,7 @@ class Deployments extends EnclaveElement {
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-modbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="The model volumes this app mounts: attested read-only weights the fleet carries, picked by name - a change relaunches the app in place on the new set; the catalog and every other deployment stay untouched">Models</button>' : '') +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-wafbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Per-IP rate limit + request filter, enforced inside the enclave at the app’s front door - add, tune or remove it any time; a running app picks the change up live">Protect</button>' : '') +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-netbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Which relay carries this app’s inbound traffic. The relay splices encrypted bytes on the app’s name and never terminates TLS - picking one nearer your users (or nearer the enclave) shortens the network path, and changes nothing about who can read the traffic">Network</button>' : '') +
-          (onchain && st === "running" && ctl === "wallet" ? '<button class="btn btn-sm enc-movebtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Run this app on a different enclave - the current one hands its lease back (unused lease time is refunded to the balance) and the box you pick claims it. Same URL, version and balance">Move</button>' : '') +
+          '<button class="btn btn-sm enc-movebtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Choose a preferred host for this app, or resume an ended app on a selected host. Same URL, version and balance">Pin</button>' +
           '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '" aria-expanded="false">Verify</button>' +
           (mobileOffer(d, ep) ? '<button class="btn btn-sm enc-mobbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Install this app on a phone - the mobile build verifies the enclave on the device before the app loads">Downloads</button>' : '') +
           // secrets/domains are tabs like every other panel; their toggle
@@ -3070,7 +3071,7 @@ class Deployments extends EnclaveElement {
     }
   }
 
-  /* ---- move a running deployment to another enclave.
+  /* ---- choose placement for a deployment in any state.
 
      A lease can only be handed back by the box holding it
      (EnclaveDeployments.release is runner-only - the owner has no on-chain
@@ -3091,10 +3092,15 @@ class Deployments extends EnclaveElement {
     if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
     btn.setAttribute("aria-expanded", "true");
     box.hidden = false;
-    box.innerHTML = '<div class="ap-attbar">move · ' + esc(id) + '</div>'
+    box.innerHTML = '<div class="ap-attbar">pin · ' + esc(id) + '</div>'
       + '<div class="term enc-move-status" role="status" aria-live="polite"><span class="ln dimln">// reading the ledger + fleet…</span></div>';
     const stEl = () => box.querySelector(".enc-move-status");
     const fail = (msg) => { const s = stEl(); if (s){ s.innerHTML = ""; paintLine(s, "warn", msg); } };
+    if (!/^0x[0-9a-f]{64}$/i.test(id))
+      return fail("This legacy instance has no ledger deployment to pin. Deploy its app version on the host you want.");
+    const controller = ctlOf((this._list || []).find(x => x.id === id));
+    if (controller === "order")
+      return fail("This payment order is still being provisioned. Pin becomes actionable once its deployment is created.");
     let d = null, fleet = null, rev = 1;
     try {
       [d, fleet, rev] = await Promise.all([depGet(id), Enclave.getEnclaves().catch(() => null), depSchemaRev().catch(() => 1)]);
@@ -3103,8 +3109,10 @@ class Deployments extends EnclaveElement {
     } catch(e){ d = null; }
     if (box.hidden || !box.isConnected) return;             // closed while loading
     if (!d) return fail("[x] couldn’t read this deployment from the ledger - try again shortly");
-    if (!fleet || !fleet.length) return fail("[x] couldn’t read the fleet list - try again shortly");
-    const here = leaseHostOf(d, fleet);
+    if (!fleet) return fail("[x] couldn’t read the fleet list - try again shortly");
+    const currentRunner = moveLeaseLive(d) ? d.runner : "";
+    const here = currentRunner ? leaseHostOf(d, fleet) : null;
+    const moveLabel = d.active ? "Pin" : "Resume and pin";
     // The app's own requirements decide where it can go. A catalog deployment
     // carries its version's spec (hardware + model volumes); the deployment's
     // own config overrides the volume list (the row's Models tab edits it).
@@ -3119,29 +3127,32 @@ class Deployments extends EnclaveElement {
       try { const o = JSON.parse(String(d.configCid || "") || "{}"); return o && o.gpu && o.gpu.optional === true; }
       catch { return false; }
     })();
-    const targets = moveTargetsFor({ ...spec, depGpuOptional: depSoftGpu, gpuMilli: Number(d.gpuMilli) || 0 }, fleet, d.runner);
-    if (!targets.length)
-      return fail("[!] nowhere to move this to: " + moveBlockReason(spec, fleet, d.runner)
-                + ". A move re-claims the record, so the destination must pass the same hardware, wasi-nn, model-volume and capacity checks as a fresh deploy.");
+    const targets = moveTargetsFor({ ...spec, depGpuOptional: depSoftGpu, gpuMilli: Number(d.gpuMilli) || 0 }, fleet, currentRunner);
     const selId = "mvSel" + appLabel(id);
-    box.innerHTML = '<div class="ap-attbar">move · ' + esc(id) + '</div>'
+    box.innerHTML = '<div class="ap-attbar">pin · ' + esc(id) + '</div>'
       + '<div class="enc-upg-body">'
-      +   '<label for="' + selId + '">Move' + (here ? " off " + esc(here.name) : "") + ' to</label>'
+      +   '<label for="' + selId + '">Preferred host' + (here ? " (currently " + esc(here.name) + ")" : "") + '</label>'
       +   '<select class="eu-sel" id="' + selId + '">'
-      +     targets.map((t, i) => '<option value="' + esc(t.name) + '"' + (i === 0 ? " selected" : "") + '>'
+      +     '<option value="" selected>Auto — cheapest eligible host within your rate cap</option>'
+      +     targets.map(t => '<option value="' + esc(t.name) + '">'
       +       esc(t.name)
       +       (t.queued ? " · full right now (waits in the queue)" : "")
       +       (t.cpuNn ? " · CPU only" : "")
       +     '</option>').join("")
       +   '</select>'
-      +   '<button class="btn btn-sm mv-go">Move</button>'
+      +   '<button class="btn btn-sm mv-go">' + moveLabel + '</button>'
       + '</div>'
       + '<div class="enc-upg-body mv-upg" hidden></div>'
       + '<div class="term enc-move-status" role="status" aria-live="polite"></div>';
     const sel = box.querySelector(".eu-sel"), go = box.querySelector(".mv-go");
     const s = stEl();
-    paintLine(s, "dimln", "// the app stops here and relaunches there: same URL, version and balance.");
-    paintLine(s, "dimln", "// unused lease time is refunded, then re-bought at the new box’s price.");
+    paintLine(s, "dimln", currentRunner
+      ? "// releases the current host and requests the selected one; same URL, version and balance."
+      : d.active ? "// requests the selected host for this queued app; no current host needs to stop."
+      : "// resumes this app and requests the selected host; confirm the resume when prompted.");
+    paintLine(s, "dimln", "// Auto prefers your own eligible host, then the cheapest available host within the rate cap set in Shares. If none fits, the app stays queued.");
+    paintLine(s, "dimln", "// a named host is a preference, not an exclusive reservation.");
+    if (!targets.length) paintLine(s, "dimln", "// no alternative host currently fits; Auto can wait for eligible capacity.");
     paintLine(s, "dimln", "// HTTPS returns once the new box issues its own certificate for this URL (~1 min).");
     // Moving soft-GPU work ONTO a card: without re-buying the slice the app
     // would run on that box's CPU cores, which is the slow thing on the fast
@@ -3152,6 +3163,7 @@ class Deployments extends EnclaveElement {
     const bought = { gpuMilli: Number(d.gpuMilli) || 0, cpuMilli: Number(d.cpuMilli) || 0 };
     const syncUpg = () => {
       const t = targets.find((x) => x.name === sel.value);
+      go.textContent = t ? moveLabel : d.active ? "Use auto" : "Resume with auto";
       const vv = { ...spec, depGpuOptional: depSoftGpu };
       // the upgrade buys the slice the version declares; a pre-13 ledger still
       // rounds it up to the CPU share, because its setShares would revert
@@ -3159,7 +3171,7 @@ class Deployments extends EnclaveElement {
       const up = up0 ? liftSharesForLedger(up0, rev) : null;
       const down = t && !up ? gpuDowngradeForMove(vv, t, bought.gpuMilli, bought.cpuMilli) : null;
       const act = up || down;
-      this._mvUpgrade = act ? { ...act, target: t, dir: up ? "up" : "down" } : null;
+      box._moveUpgrade = act ? { ...act, target: t, dir: up ? "up" : "down" } : null;
       if (!upgWrap) return;
       upgWrap.hidden = !act;
       if (!act) return;
@@ -3172,11 +3184,11 @@ class Deployments extends EnclaveElement {
         + (up
             ? '<span>buy ' + up.gpuPct + '% GPU on ' + esc(t.name) + ' so it uses the card'
               + ' <span class="dim">(' + up.cpuPct + '% CPU · $' + (next * 3600).toFixed(2) + '/hr, was $' + (cur * 3600).toFixed(2)
-              + '/hr on cores) — one wallet signature before the move</span></span>'
+              + '/hr on cores) — one confirmation before pinning</span></span>'
             : '<span>drop the ' + Math.round(bought.gpuMilli / 10) + '% GPU share — ' + esc(t.name) + ' has no card'
               + ' <span class="dim">(keeps ' + act.cpuPct + '% CPU. The ledger already stops charging for a card this box'
               + ' does not have; dropping it stops the record asking every future claim for GPU hardware)'
-              + ' — one wallet signature before the move</span></span>')
+              + ' — one confirmation before pinning</span></span>')
         + '</label>';
     };
     sel.addEventListener("change", syncUpg);
@@ -3189,73 +3201,81 @@ class Deployments extends EnclaveElement {
      because a steer that lost its race is a normal outcome, not an error. */
   async _doMove(id, target, box, go, fromName) {
     const s = box.querySelector(".enc-move-status");
-    const oldRunner = String((await depGet(id).catch(() => ({}))).runner || "").toLowerCase();
-    go.disabled = true; go.textContent = "moving…";
+    const controller = ctlOf((this._list || []).find(x => x.id === id));
+    const via = controller === "vault";
+    const label = go.textContent;
+    const vault = via ? (await import("../../js/core/vault.js")).vaultOp : null;
+    const walletActive = async active => {
+      if (!Enclave.provider) await connectWallet();
+      await ensureBaseChain();
+      await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS,
+        encCall(DEP_SEL.setActive, [{ t: "bytes32", v: id }, { t: "bool", v: active }])));
+    };
+    go.disabled = true; go.textContent = "pinning…";
     // Re-buy the card BEFORE handing the lease back, so the destination claims
     // the record already sized for its GPU and provisions once. Resizing after
     // the move would land it on cores first and restart it again to add the
     // card — two interruptions for one intent. A resize refused here (rate cap,
     // an older fleet) aborts the move with the app still running where it is.
-    const upg = this._mvUpgrade;
+    const upg = box._moveUpgrade;
     const wantUpg = upg && box.querySelector(".mv-upg-on")?.checked;
     if (wantUpg) {
       try {
         paintLine(s, "info", upg.dir === "down"
           ? `[*] dropping the GPU share for ${upg.target.name} (setShares)…`
           : `[*] buying ${upg.gpuPct}% GPU on ${upg.target.name} (setShares)…`);
-        if (!Enclave.provider) await connectWallet();
-        await ensureBaseChain();
-        const th = await sendTx(DEPLOYMENTS_ADDRESS,
-          encCall(DEP_SEL.setShares, [{ t: "bytes32", v: id }, { t: "uint", v: upg.gpuPct * 10 }, { t: "uint", v: upg.cpuPct * 10 }]));
-        paintLine(s, "dimln", "    ↳ sent " + th + " · waiting for confirmation…");
-        await waitReceipt(th);
+        if (via) await vault("control", { id, action: "resize", gpuMilli: upg.gpuPct * 10, cpuMilli: upg.cpuPct * 10 });
+        else {
+          if (!Enclave.provider) await connectWallet();
+          await ensureBaseChain();
+          const th = await sendTx(DEPLOYMENTS_ADDRESS,
+            encCall(DEP_SEL.setShares, [{ t: "bytes32", v: id }, { t: "uint", v: upg.gpuPct * 10 }, { t: "uint", v: upg.cpuPct * 10 }]));
+          paintLine(s, "dimln", "    ↳ sent " + th + " · waiting for confirmation…");
+          await waitReceipt(th);
+        }
         paintLine(s, "dimln", `    shares are now ${upg.gpuPct}% GPU / ${upg.cpuPct}% CPU`);
       } catch(e){
         paintLine(s, "warn", "[x] the resize did not go through: " + (e.message || e));
-        paintLine(s, "dimln", "    nothing moved - the app keeps running where it is, on the shares it already had");
-        go.disabled = false; go.textContent = "Move";
+        paintLine(s, "dimln", "    the share change did not complete; check Shares before retrying the pin");
+        go.disabled = false; go.textContent = label;
         return;
       }
     }
+    let prepared;
     try {
-      // the release must be signed for the box HOLDING the lease — its session,
-      // not the sign-in box's (see _hostSession)
-      paintLine(s, "info", "[*] asking " + (fromName || "the current enclave") + " to hand the lease back…");
-      // owner-authenticated release on the CURRENT runner. The relay routes
-      // this to the lease holder; the record stays active and funded, so the
-      // fleet may re-claim it immediately - which is the point.
-      const rel = await this._asHost(id, (h) => Enclave.terminateDeployment(id, h, true));   // evacuate: stand down, don't re-take it
-      paintLine(s, "dimln", "    released - unused lease time refunded to the balance"
-        + (rel && rel.standDownSec ? `; ${fromName || "it"} stands down for ${rel.standDownSec}s so the move can land` : ""));
-    } catch(e){
-      paintLine(s, "warn", "[x] the current enclave would not release the lease: " + (e.message || e));
-      paintLine(s, "dimln", "    nothing changed - the app keeps running where it is");
-      go.disabled = false; go.textContent = "Move";
-      return;
-    }
-    const ZERO = "0x" + "0".repeat(64);
-    // The release is a TRANSACTION and the enclave answers before it is mined.
-    // Hinting into a still-live lease makes the destination attempt a claim
-    // that reverts "leased" — and a failed claim puts that box into its own
-    // provisioning backoff, locking out the retry that would have worked. So
-    // wait for the chain to say the lease is actually gone before hinting.
-    paintLine(s, "dimln", "    waiting for the release to land on-chain…");
-    let cleared = false;
-    for (let i = 0; i < 30 && !cleared; i++){
-      if (!box.isConnected) return;
-      await new Promise(r => setTimeout(r, 2000));
-      let d = null; try { d = await depGet(id); } catch(e){}
-      const runner = String((d && d.runner) || "").toLowerCase();
-      if (d && (!runner || runner === ZERO || !(Number(d.leaseUntil) * 1000 > Date.now()))) cleared = true;
-    }
-    if (!cleared){
-      paintLine(s, "warn", "[!] the lease is still live on-chain after 60s - the release may not have been mined");
-      paintLine(s, "dimln", "    nothing is lost: the app keeps running and its balance is intact. Try again shortly.");
-      go.disabled = false; go.textContent = "Move";
+      prepared = await prepareDeploymentMove({
+        read: () => depGet(id), connected: () => box.isConnected,
+        progress: message => paintLine(s, "info", "[*] " + message),
+        resume: () => via ? vault("control", { id, action: "resume" }) : walletActive(true),
+        release: async d => {
+          if (via) {
+            // The vault controls the ledger through a passkey, not a wallet
+            // session at the runner. Suspend, wait for release, then resume.
+            await vault("control", { id, action: "suspend" });
+            return;
+          }
+          const fleet = await Enclave.getEnclaves();
+          const host = leaseHostOf(d, fleet);
+          if (!host?.name) throw Error("The lease holder is offline. Retry when its lease expires.");
+          const name = host.name;
+          if (!Enclave.authedFor(name)) await authenticate({ enclave: name });
+          try { await Enclave.terminateDeployment(id, name, !!target); }
+          catch (e) {
+            if (e.status !== 401 || Enclave.authedFor(name)) throw e;
+            await authenticate({ enclave: name });
+            await Enclave.terminateDeployment(id, name, !!target);
+          }
+        },
+      });
+      this._why?.delete(id);
+    } catch (e) {
+      paintLine(s, "warn", "[x] Pin did not finish: " + (e.message || e));
+      go.disabled = false; go.textContent = label;
       setTimeout(() => this.refresh(), 1200);
       return;
     }
-    let landed = null, lastReason = "";
+    const ZERO = "0x" + "0".repeat(64);
+    let landed = moveLeaseLive(prepared) ? prepared : null, lastReason = "";
     for (let i = 0; i < 60 && !landed; i++){
       if (!box.isConnected) return;
       // Re-hint while we wait: the first hint can beat the release being
@@ -3263,34 +3283,33 @@ class Deployments extends EnclaveElement {
       // funded record with no hint sits until someone's 60s sweep finds it.
       if (i % 4 === 0){
         try {
-          const h = await Enclave.claimHint(id, target);
+          const h = await Enclave.claimHint(id, target, target ? {} : { strategy: "cheapest" });
           if (h && h.accepted === false && h.reason && h.reason !== lastReason){
             lastReason = h.reason;
-            paintLine(s, "warn", "[!] " + target + " declines: " + h.reason);
+            paintLine(s, "warn", "[!] " + (target || "the fleet") + " declines: " + h.reason);
           }
         } catch(e){}
       }
       await new Promise(r => setTimeout(r, 2000));
       let d = null; try { d = await depGet(id); } catch(e){}
       const runner = String((d && d.runner) || "").toLowerCase();
-      if (d && runner && runner !== ZERO && Number(d.leaseUntil) * 1000 > Date.now()
-          && runner !== oldRunner) landed = d;
+      if (d && runner && runner !== ZERO && Number(d.leaseUntil) * 1000 > Date.now()) landed = d;
     }
     if (!landed){
       paintLine(s, "warn", "[!] no enclave has claimed it yet");
-      paintLine(s, "dimln", "    the record is funded and in the open queue - the fleet's sweep picks it up within a minute. Watch the row.");
+      paintLine(s, "dimln", "    the app remains queued. It still needs an eligible host with capacity and funding or free hosting.");
     } else {
       const fleet = await Enclave.getEnclaves().catch(() => null);
       const now = leaseHostOf(landed, fleet);
       const where = (now && now.name) || "another enclave";
-      if (where.toLowerCase() === String(target).toLowerCase())
+      if (!target || where.toLowerCase() === String(target).toLowerCase())
         paintLine(s, "ok", "[✓] running on " + where + " now");
       else {
         paintLine(s, "warn", "[!] claimed by " + where + ", not " + target);
-        paintLine(s, "dimln", "    placement is a steer, not a lock - whichever eligible box claims first wins. Move again to retry.");
+        paintLine(s, "dimln", "    this is a preferred host, not an exclusive lock; another eligible host may claim first. Pin again to retry.");
       }
     }
-    go.disabled = false; go.textContent = "Move";
+    go.disabled = false; go.textContent = label;
     setTimeout(() => this.refresh(), 1200);
   }
 
