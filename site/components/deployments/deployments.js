@@ -706,6 +706,11 @@ class Deployments extends EnclaveElement {
     const dialog = resourceDialog({
       title: deploymentTitle(d) || d.id,
       spec: specOfRef(ref), deployment: d, trigger,
+      loadHost: async () => {
+        if (d.status !== "running" || !d.enclave) return null;
+        const hosts = (await Enclave.getEnclaves()).filter(row => row.name === d.enclave || row.endpoint === d.enclave);
+        return hosts.length === 1 ? hosts[0] : null;
+      },
       onClose: () => { if (this._resourceDialog === dialog) this._resourceDialog = null; },
     });
     this._resourceDialog = dialog;

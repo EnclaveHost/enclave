@@ -1,11 +1,22 @@
 // Display catalog requirements, not hardware capacity multiplied by a share.
 // Shares are allocation metadata and only accompany a running deployment.
+import { enclaveSpecOf, minPctsOf } from "./pricing.js";
+
 const amount = (value) => Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
 const number = (value) => String(Number(value.toFixed(3)));
 const memory = (mb) => mb >= 1024 ? number(mb / 1024) + " GB" : number(mb) + " MB";
 const cpuText = (mb, gf) => memory(mb) + " RAM / " + number(gf) + " GFLOPs CPU";
 const shareOf = (value) => value != null && Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : null;
 export const shareLabel = (share) => share == null ? "—" : number(share * 100) + "%";
+export const supportsCpuFallback = (spec) => !!(spec?.gpuOptional && (amount(spec.vramMb) > 0 || amount(spec.gpuGflops) > 0));
+
+// A fallback percentage belongs to a particular host. Never silently size it
+// against the pricing module's hardware defaults when the host is unknown.
+export function cpuFallbackAllocation(spec, host){
+  const a = host?.availability;
+  if (!supportsCpuFallback(spec) || !a || !(amount(a.nodeRamGb) > 0) || !(amount(a.nodeGflops) > 0)) return null;
+  return { name: host.name || host.endpoint || "this host", share: minPctsOf(spec, enclaveSpecOf(host)).cpuPctNoGpu / 100 };
+}
 
 export function appShareLabel(deployment){
   if (deployment?.status !== "running") return "Resources";
@@ -18,10 +29,10 @@ export function appShareLabel(deployment){
 
 // RAM/CPU and VRAM/GPU each share one allocation pool. The chart uses those
 // shares as its bar scale; unlike resource amounts, percentages are comparable.
-export function appResourceRows(spec, deployment){
+export function appResourceRows(spec, deployment, mode = "current"){
   const r = deployment?.resources || {};
   const gpu = amount(spec?.vramMb) > 0 || amount(spec?.gpuGflops) > 0;
-  const withoutGpu = !!deployment && gpu && spec?.gpuOptional && shareOf(r.gpuShare) === 0;
+  const withoutGpu = gpu && spec?.gpuOptional && (mode === "fallback" || (!!deployment && shareOf(r.gpuShare) === 0));
   const running = deployment?.status === "running";
   const cpuShare = running ? shareOf(r.cpuShare ?? r.share) : null;
   const gpuShare = running ? shareOf(r.gpuShare) : null;
