@@ -28,6 +28,6 @@ export function createObservationLoader({chain,loadReceipts,resolveHost,trust,li
    if(spareAt>time||time-spareAt>limits.maxSpareAgeSec||c.units>limits.maxUnitsPerHost)continue;
    capacities.push(c);
   }
-  return {...observeMarket({...window,nowSec:window.atSec,capacities,...limits}),checkpoint:window.checkpoint};
+  return {...observeMarket({...window,nowSec:window.atSec,capacities,...limits}),checkpoint:window.checkpoint,trustMode:trust.trustMode||"independent"};
  };
 }

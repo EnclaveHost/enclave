@@ -573,6 +573,8 @@ class AdminConsole extends EnclaveElement {
       const pre = {
         EnclavePay: { usdc: USDC_BASE, payout: (S.pay && S.pay.payout) || payoutAddr },
         EnclaveDeployments: { usdc: USDC_BASE, payout: payoutAddr, registry: S.book.entries.registry, ethUsdFeed: S.dep && S.dep.feed },
+        EnclaveAvailability: { ledger_: S.book.entries.deployments, proof_: S.book.entries.proofOfTime },
+        EnclaveVerificationFees: { l: S.book.entries.deployments, p: S.book.entries.proofOfTime },
         EnclaveFeatured: { usdc: USDC_BASE, payout: (S.feat && S.feat.payout) || payoutAddr },
         EnclaveReviews: { book: S.book.addr, ledgerFallback: S.book.entries.deployments || (S.dep && S.dep.addr) },
         // host ratings take ONE ctor arg: the book (no fallback by design)

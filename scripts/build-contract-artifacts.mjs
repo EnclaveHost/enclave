@@ -44,6 +44,7 @@ const DEFS = [
                                                              // viaIR since the rev-10 clock charge: Checkpointed's 6 args
                                                              // overflow legacy codegen's stack (mirror deploy-proof-of-time.mjs)
   { name: "EnclaveAvailability", bookKey: "availability", viaIR: true },
+  { name: "EnclaveVerificationFees", bookKey: "verificationFees", viaIR: true },
   { name: "EnclaveFeatured",     bookKey: "featured" },
   { name: "EnclaveReviews",      bookKey: "reviews" },
   { name: "EnclaveHostReviews",  bookKey: "hostReviews" },   // ratings for the enclaves that RUN apps (seller-side reputation)

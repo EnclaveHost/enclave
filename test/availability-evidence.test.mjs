@@ -25,3 +25,9 @@ test('stale, future, wrong-kind and missing identity receipts fail',async()=>{
  assert.throws(()=>canonical({units:100}),/decimal strings/);
  assert.equal(canonical({b:'2',a:'1'}),canonical({a:'1',b:'2'}));
 });
+test('operator bootstrap is explicit and cannot be relabeled independent',async()=>{
+ const p={...payload,trustMode:'operator-bootstrap'};const e=await envelope(p,[host]);
+ assert.deepEqual(await verifyReceipt(e,{...options,quorum:1,trustMode:'operator-bootstrap'}),p);
+ await assert.rejects(verifyReceipt(e,options),/not independent/);
+ await assert.rejects(verifyReceipt(await envelope(payload,[host]),{...options,quorum:1,trustMode:'operator-bootstrap'}),/labeled/);
+});

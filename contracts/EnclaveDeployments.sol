@@ -146,9 +146,9 @@ pragma solidity ^0.8.20;
 ///     broken prover degrades this ledger to rev-8 held-time metering at
 ///     worst; it can never overpay beyond what a rev-8 ledger already would.
 ///
-/// BUILD SETTING: revision 14 compiles with solc 0.8.35, viaIR and optimizer
-///         runs=1. Negotiated per-job rates and explicit fundFor attribution
-///         fit EIP-170 at 24,483 runtime bytes (93 bytes headroom).
+/// BUILD SETTING: revision 15 compiles with solc 0.8.35, viaIR and optimizer
+///         runs=1. Negotiated rates, fundFor attribution and bound fee routing
+///         fit EIP-170 at 24,267 runtime bytes (309 bytes headroom).
 ///         scripts/deploy-deployments.mjs, scripts/build-contract-artifacts.mjs
 ///         and foundry.toml pin the same settings. Keep them synchronized.
 ///         Substantial future features belong in a companion contract.
@@ -209,6 +209,8 @@ interface IAggregatorV3 {
         uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound
     );
 }
+
+interface IVerificationFeeRouter { function ledger() external view returns(address); function routeFee(bytes32,address,uint256) external; }
 
 contract EnclaveDeployments {
     struct Deployment {
@@ -354,7 +356,12 @@ contract EnclaveDeployments {
     // that never dials CPU above GPU cannot tell 12 from 13 — clients gate on
     // >= 13 only to know that offering the wider dial will not revert here.
     // Rev 14: optional host-authored rates for individual resource allocations.
-    uint256 public constant deploymentsSchema = 14;
+    uint256 public constant deploymentsSchema = 15;
+    address public feeRouter;
+    function setFeeRouter(address router) external {
+        require(msg.sender==owner,"!owner");require(feeRouter==address(0)&&router.code.length>0,"sealed");
+        require(IVerificationFeeRouter(router).ledger()==address(this),"wrong router");feeRouter=router;
+    }
     struct JobRate { address operator; address tenant; uint96 rate6; uint64 expires; uint16 gpuMilli; uint16 cpuMilli; }
     mapping(bytes32 => mapping(bytes32 => JobRate)) private _jobRates;
     event JobRateOffered(bytes32 indexed id, bytes32 indexed enclaveId, uint96 hostRate6, uint64 expires);
@@ -957,7 +964,7 @@ contract EnclaveDeployments {
     function fundFor(bytes32 id, uint256 value, address payer) public {
         Deployment storage d = _requireActive(id);
         require(value > 0, "amount=0");
-        require(usdc.transferFrom(msg.sender, address(this), value), "USDC transfer failed");
+        _receiveUSDC(value);
         _splitFunding(id, payer, d.rate, value);
         d.balance6 += value;
         emit Funded(id, msg.sender, value);
@@ -972,6 +979,13 @@ contract EnclaveDeployments {
     ///      can buy. fee + runner share never exceed the rate (the runner cut
     ///      is a bps slice of rate-minus-fee), so the clamp is belt-and-braces
     ///      for the ceil's +1 at the bps=10000 edge.
+    function _sendUSDC(address to,uint256 amount) private {
+        require(usdc.transfer(to,amount), "USDC transfer failed");
+    }
+    function _receiveUSDC(uint256 amount) private {
+        require(usdc.transferFrom(msg.sender,address(this),amount), "USDC transfer failed");
+    }
+
     function _splitFunding(bytes32 id, address payer, uint256 rate, uint256 value) private {
         (address feeTo, uint256 cut) = _feeShare(id, rate, value);
         uint256 esc = 0;
@@ -984,8 +998,13 @@ contract EnclaveDeployments {
             // only the owner's own money is refundable to the owner (rev 10)
             if (payer == _deployments[id].owner) ownerEscrow6[id] += esc;
         }
-        if (cut > 0) require(usdc.transfer(feeTo, cut), "USDC transfer failed");
-        if (value - cut - esc > 0) require(usdc.transfer(payout, value - cut - esc), "USDC transfer failed");
+        if (cut > 0) _sendUSDC(feeTo, cut);
+        uint256 platformFee = value - cut - esc;
+        if (platformFee > 0) {
+            address router=feeRouter;
+            _sendUSDC(router==address(0)?payout:router,platformFee);
+            if(router!=address(0)) IVerificationFeeRouter(router).routeFee(id,payer,platformFee);
+        }
     }
 
     /// @notice Fund/top-up with native ETH, credited as USDC-equivalent at the live
@@ -1276,7 +1295,7 @@ contract EnclaveDeployments {
         uint256 amt = earned6[msg.sender];
         require(amt > 0, "amount=0");
         earned6[msg.sender] = 0;                             // effects before interaction
-        require(usdc.transfer(to, amt), "USDC transfer failed");
+        _sendUSDC(to, amt);
         emit EarningsWithdrawn(msg.sender, to, amt);
     }
 
@@ -1299,7 +1318,7 @@ contract EnclaveDeployments {
         Deployment storage d = _requireActive(id);
         require(amount6 > 0, "amount=0");
         require(_earn[id].rate6 > 0, "no runner rate");      // a rate-0 record can never credit it back out
-        require(usdc.transferFrom(msg.sender, address(this), amount6), "USDC transfer failed");
+        _receiveUSDC(amount6);
         _earn[d.id].escrow6 += uint96(amount6);              // cast safe: real USDC received
         if (msg.sender == d.owner || (msg.sender == owner && !importsSealed))
             ownerEscrow6[id] += amount6;                     // owner's own backing stays refundable
@@ -1363,7 +1382,7 @@ contract EnclaveDeployments {
         _earn[id].escrow6 -= uint96(amt);                    // cast safe: amt <= escrow6 (uint96)
         d.balance6 = 0;
         d.active = false;
-        require(usdc.transfer(d.owner, amt), "USDC transfer failed");
+        _sendUSDC(d.owner, amt);
         emit ActiveSet(id, false);
         emit Refunded(id, d.owner, amt);
     }
@@ -1386,7 +1405,7 @@ contract EnclaveDeployments {
         uint256 amt = _earn[id].escrow6;
         require(amt > 0, "no escrow");
         _earn[id].escrow6 = 0;
-        require(usdc.transfer(payout, amt), "USDC transfer failed");
+        _sendUSDC(payout, amt);
         emit EscrowSwept(id, amt);
     }
 
@@ -1403,7 +1422,7 @@ contract EnclaveDeployments {
     ///         bond; cancels a pending exit — posting re-commits).
     function postBond(uint256 amount6) external {
         require(amount6 > 0, "amount=0");
-        require(usdc.transferFrom(msg.sender, address(this), amount6), "USDC transfer failed");
+        _receiveUSDC(amount6);
         Bond storage b = _bonds[msg.sender];
         b.amount6 += uint192(amount6);                       // cast safe: real USDC received
         b.exitAt = 0;
@@ -1428,7 +1447,7 @@ contract EnclaveDeployments {
         uint256 amt = b.amount6;
         require(amt > 0, "no bond");
         delete _bonds[msg.sender];                           // effects before interaction
-        require(usdc.transfer(to, amt), "USDC transfer failed");
+        _sendUSDC(to, amt);
         emit BondWithdrawn(msg.sender, to, amt);
     }
 
@@ -1440,7 +1459,7 @@ contract EnclaveDeployments {
         Bond storage b = _bonds[operator];
         require(amount6 > 0 && amount6 <= b.amount6, "range");
         b.amount6 -= uint192(amount6);
-        require(usdc.transfer(payout, amount6), "USDC transfer failed");
+        _sendUSDC(payout, amount6);
         emit BondSlashed(operator, amount6, reason);
     }
 
