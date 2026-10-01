@@ -780,6 +780,7 @@ class Deployments extends EnclaveElement {
       const resumable = onchain && (st === "stopped" || st === "terminated" || st === "expired" || st === "failed");
       // the row's app identity, shared by the cover-art chip and the meta line
       const appLbl = deploymentTitle(d);
+      const shareText = encTier(d);
       const art = artOfRef(d.image && d.image.reference, appLbl || d.id);
       // the card leads with the APP, not the raw id: the bytes32 becomes a
       // compact copy chip (full value in data-copy/title), stated once per card
@@ -803,10 +804,10 @@ class Deployments extends EnclaveElement {
           '<span class="ap-badge ep-relay" data-relayb="' + esc(d.id) + '" hidden></span>' +
           '<button class="enc-id" data-copy="' + esc(d.id) + '" title="' + esc(d.id) + '" aria-label="copy deployment id">' + esc(idShort) + ' ⧉</button>' +
           '<span class="enc-br" aria-hidden="true"></span>' +
-          '<span class="enc-meta"><span class="enc-allocation">' + esc(encTier(d)) + '</span>'
+          (shareText || d.enclave ? '<span class="enc-meta">' + (shareText ? '<span class="enc-allocation">' + esc(shareText) + '</span>' : '')
             // which box serves it (relay stamps `enclave` on live-hosted and
             // lease-held rows alike; absent while queued/stopped - nothing runs it)
-            + (d.enclave ? ' · <span class="dim enc-host" title="the enclave this app runs on">on ' + esc(d.enclave) + '</span>' : '') + '</span>' +
+            + (d.enclave ? (shareText ? ' · ' : '') + '<span class="dim enc-host" title="the enclave this app runs on">on ' + esc(d.enclave) + '</span>' : '') + '</span>' : '') +
           '<span class="enc-spend">' + bud + '</span>' +
           (runwayPct != null ? '<span class="enc-meter' + (runwaySec < RUNWAY_LOW ? ' low' : '') + '" title="' + esc(fmtDur(runwaySec)) + ' of paid runtime left · full bar = 48h" aria-hidden="true"><b style="width:' + runwayPct + '%"></b></span>' : '') +
           // the acts row holds only IMMEDIATE actions; everything that opens a

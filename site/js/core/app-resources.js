@@ -9,7 +9,7 @@ export const shareLabel = (share) => share == null ? "—" : number(share * 100)
 export const supportsCpuFallback = (spec) => !!(spec?.gpuOptional && (amount(spec.vramMb) > 0 || amount(spec.gpuGflops) > 0));
 
 export function appShareLabel(deployment){
-  if (deployment?.status !== "running") return "Resources";
+  if (deployment?.status !== "running") return "";
   const r = deployment.resources || {}, parts = [];
   const cpu = shareOf(r.cpuShare ?? r.share), gpu = shareOf(r.gpuShare);
   if (cpu != null) parts.push(shareLabel(cpu) + " CPU");
