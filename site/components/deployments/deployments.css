@@ -95,9 +95,6 @@ c-deployments{display:contents;}
 .enc-mob-body .em-dl .btn{text-decoration:none;}
 .enc-mob-body .qd-sub{margin:0;font-family:var(--font-mono);font-size:.74rem;line-height:1.6;color:var(--text-dim);max-width:78ch;}
 .enc-meta{font-family:var(--font-mono);font-size:.76rem;color:var(--text);overflow-wrap:anywhere;font-variant-numeric:tabular-nums;} .enc-meta .dim{color:var(--text-muted);}
-.enc-resources{font:inherit;color:var(--jade-2);background:var(--jade-deep);border:1px solid var(--jade-dim);border-radius:6px;padding:4px 8px;min-height:30px;cursor:pointer;}
-.enc-resources:hover{color:var(--text);border-color:var(--jade);}
-.enc-resources:focus-visible{outline:2px solid var(--jade);outline-offset:3px;}
 /* One allocation bar per pool; its memory and compute requirements sit below. */
 .enc-resource-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:20px;}
 .enc-resource-tabs button{font:.78rem var(--font-mono);padding:10px 12px;background:none;border:0;border-bottom:2px solid transparent;color:var(--text-muted);cursor:pointer;}
