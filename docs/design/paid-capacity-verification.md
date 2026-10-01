@@ -2,7 +2,7 @@
 
 Implementation branch: `codex/paid-capacity-audits-20260930`. Workload app:
 `EnclaveHost/enclave-apps`, branch `codex/capacity-work-20260930`, directory
-`capacity-work`. Capacity Work 1.0.0 is published and approved on Base; revision-15 ledger, proof and fee contracts are deployed and bound in staging; migration and verification spending are not activated. The relay supports contract-wallet secret staging.
+`capacity-work`. Capacity Work 1.0.0 is published and approved on Base; revision-15 ledger, proof and fee contracts are live in the production address book after the October 1 rollover. All 69 deployment records and side mappings were verified and imports sealed. Verification spending and bootstrap workers are not activated. The relay supports contract-wallet secret staging.
 
 ## Price follows paid demand and qualified supply
 
@@ -121,16 +121,33 @@ no new verification allowance. Broadcast failures are not automatically retried
 inside the planner. Individual failures do not mark rejected service as proven.
 This host integration is tested in source and not deployed yet.
 
-The deployed staged contracts on Base are:
+The active contracts on Base are:
 
 - Ledger: `0xb36dce7689834d59364ca37ade1896d0e6404830`
 - Proof of time: `0x89feafcb69e328af61561f0f73f8f3b84405f19a`
 - Verification fees: `0x6773fb58e0de3806ec6aa84c3596009145ff52b8`
 
-These are not the live address-book entries. Host rate acceptance, bootstrap
-capacity qualification, scheduler configuration and a real hosted canary remain
-necessary. The old ledger holds real escrow; importing deployment records alone
-cannot migrate that money or preserve leases.
+The address-book switch confirmed in transaction
+`0xcade00a3ef36465171de84b34110cc72332ae03a485c3ca46ad9282532ae0bd1`
+at Base block 52017232. The old ledger
+`0xF9e71385C5cB49844F2457ba6567De0742f8B89a` is retired. Deployment IDs,
+owners, configuration, active flags, balances, publisher fees, runner rates and
+caps were copied and verified. Leases reset so hosts must reclaim their apps.
+The original proven-time requirement was preserved.
+
+Escrow was not transferred: the old contract still holds original owner refunds
+and operator earnings. Governance separately contributed 4.671277 USDC to back
+five active paid records after sealing imports, with an exact allowance consumed
+by the funding transaction. This is an additional platform contribution, not an
+escrow migration or new owner-refundable credit. The six previously running
+self-hosted apps remain free. Stopped historical paid records remain stopped;
+their source escrow rights remain intact, and resumption can require separate
+refund/redeposit or explicitly authorized replacement backing. Copying their
+accounting balance is not evidence that new-ledger escrow exists.
+
+Host rate acceptance, bootstrap capacity qualification, scheduler configuration,
+host checkpoint integration deployment and a real hosted canary remain necessary.
+The production contract switch alone does not activate paid verification jobs.
 
 ## Deployment dependencies
 
