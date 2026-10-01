@@ -23,7 +23,7 @@ import { pad32, encUint, encCall, hexBig, DEP_SEL, APPROVAL, depPrices6, rate6Of
 import { authenticate, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx, personalSign } from "../../js/core/wallet.js";
 import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, specOfRef, STORE, fetchConfigCid, stripMedia, putConfig } from "../../js/core/catalog.js";
 import { appShareLabel } from "../../js/core/app-resources.js";
-import { resourceDialog } from "../../js/core/resource-dialog.js";
+import { shareEditor } from "../../js/core/share-editor.js";
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
@@ -512,7 +512,6 @@ class Deployments extends EnclaveElement {
   }
   disconnectedCallback() {
     super.disconnectedCallback();
-    this._resourceDialog?.close();
     this._stopPoll();
     Object.keys(this._logPolls || {}).forEach(id => this._stopLogPoll(id));
     if (this._onAuth) document.removeEventListener("enclave:auth", this._onAuth);
@@ -699,23 +698,20 @@ class Deployments extends EnclaveElement {
   }
 
   _resources(id, trigger) {
+    trigger.closest('.enc-row')?.querySelector('.enc-sharesbtn')?.click();
+  }
+
+  async _shares(id, btn) {
+    if (btn.dataset.editable === 'true') return this._upgrade(id, btn, 'shares');
     const d = (this._list || []).find(row => row.id === id);
     if (!d) return;
-    this._resourceDialog?.close();
+    const box = btn.closest('.enc-row').querySelector('.enc-shares');
+    if (!box.hidden) { box.hidden = true; box.innerHTML = ''; btn.setAttribute('aria-expanded', 'false'); return; }
     const ref = d.image?.reference || (d.app?.appId != null && d.app?.index != null ? catalogRef(d.app.appId, d.app.index) : "");
-    const dialog = resourceDialog({
-      title: deploymentTitle(d) || d.id,
-      spec: specOfRef(ref), deployment: d, trigger,
-      loadHost: async () => {
-        if (d.status !== "running" || !d.enclave) return null;
-        const hosts = (await Enclave.getEnclaves()).filter(row => row.name === d.enclave || row.endpoint === d.enclave);
-        return hosts.length === 1 ? hosts[0] : null;
-      },
-      onClose: () => { if (this._resourceDialog === dialog) this._resourceDialog = null; },
-    });
-    this._resourceDialog = dialog;
-    this.append(dialog);
-    dialog.showModal();
+    const spec = specOfRef(ref), r = d.resources || {};
+    const editor = shareEditor({ id: 'readonly-' + appLabel(id), spec, mins: minPctsOf(spec), editable: false,
+      allocation: { gpuMilli: Math.round((Number(r.gpuShare) || 0) * 1000), cpuMilli: Math.round((Number(r.cpuShare ?? r.share) || 0) * 1000) } });
+    box.replaceChildren(editor.element); box.hidden = false; btn.setAttribute('aria-expanded', 'true');
   }
 
   _renderRows(list, highlight) {
@@ -812,7 +808,7 @@ class Deployments extends EnclaveElement {
           '<button class="enc-id" data-copy="' + esc(d.id) + '" title="' + esc(d.id) + '" aria-label="copy deployment id">' + esc(idShort) + ' ⧉</button>' +
           '<span class="enc-br" aria-hidden="true"></span>' +
           '<span class="enc-meta"><button type="button" class="enc-resources" data-id="' + esc(d.id)
-            + '" aria-haspopup="dialog" title="View RAM, CPU, VRAM and GPU resource breakdown">' + esc(encTier(d)) + '</button>'
+            + '" title="Open Shares to view requirements and adjust allocations">' + esc(encTier(d)) + '</button>'
             // which box serves it (relay stamps `enclave` on live-hosted and
             // lease-held rows alike; absent while queued/stopped - nothing runs it)
             + (d.enclave ? ' · <span class="dim enc-host" title="the enclave this app runs on">on ' + esc(d.enclave) + '</span>' : '') + '</span>' +
@@ -849,7 +845,7 @@ class Deployments extends EnclaveElement {
           '<button class="btn btn-sm enc-outbtn" data-id="' + esc(d.id) + '" aria-expanded="false">Output</button>' +
           (live && ctl !== "order" ? '<button class="btn btn-sm enc-fundbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="' + (ctl === "vault" ? 'Add runtime from your credit balance - one passkey tap' : 'Add runtime - a gas-free USDC signature credits the deployment’s on-chain balance') + '">Top up</button>' : '') +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-upgbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Switch to another approved version of this app - paid time carries over; the app restarts in place on the new version">Version</button>' : '') +
-          (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-sharesbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Adjust CPU and GPU shares and the hourly rate cap for this app">Shares</button>' : '') +
+          '<button class="btn btn-sm enc-sharesbtn" data-id="' + esc(d.id) + '" data-editable="' + (onchain && (live || resumable) && ctl !== "order") + '" aria-expanded="false" title="View requirements and adjust CPU and GPU allocations">Shares</button>' +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-cfgbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="This deployment’s app config (its ENCLAVE_CONFIG): edit it, save named variations, or reset to the version’s stock config - the catalog default and every other deployment stay untouched">Config</button>' : '') +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-modbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="The model volumes this app mounts: attested read-only weights the fleet carries, picked by name - a change relaunches the app in place on the new set; the catalog and every other deployment stay untouched">Models</button>' : '') +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-wafbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Per-IP rate limit + request filter, enforced inside the enclave at the app’s front door - add, tune or remove it any time; a running app picks the change up live">Protect</button>' : '') +
@@ -899,7 +895,7 @@ class Deployments extends EnclaveElement {
     $$(".enc-outbtn", body).forEach(b => b.addEventListener("click", () => this._output(b.dataset.id, b)));
     $$(".enc-fundbtn", body).forEach(b => b.addEventListener("click", () => this._fund(b.dataset.id, b)));
     $$(".enc-upgbtn", body).forEach(b => b.addEventListener("click", () => this._upgrade(b.dataset.id, b)));
-    $$(".enc-sharesbtn", body).forEach(b => b.addEventListener("click", () => this._upgrade(b.dataset.id, b, "shares")));
+    $$(".enc-sharesbtn", body).forEach(b => b.addEventListener("click", () => this._shares(b.dataset.id, b)));
     $$(".enc-movebtn", body).forEach(b => b.addEventListener("click", () => this._move(b.dataset.id, b)));
     $$(".enc-wafbtn", body).forEach(b => b.addEventListener("click", () => this._waf(b.dataset.id, b)));
     $$(".enc-cfgbtn", body).forEach(b => b.addEventListener("click", () => this._configPanel(b.dataset.id, b)));
@@ -1291,9 +1287,9 @@ class Deployments extends EnclaveElement {
        gate sizes against where the tenant is ACTUALLY running for exactly this
        reason, and a console floor below the runner's would offer a switch that
        gets the deployment EVICTED rather than merely refused.
-       The fallback floor only blocks an active deployment with a live host.
-       Stopped/queued deployments use the app's normal minimum, even at 0% GPU:
-       allocation can be saved before a host admits the next launch.
+       Version changes retain the normal minimum for stopped/queued apps.
+       The Shares editor also enforces the CPU-only floor before the next
+       launch, so its sliders cannot save an under-sized CPU-only allocation.
        `gpuMilli` is a parameter because a running app's dials can change the
        answer while you type: dial the card to 0 and it becomes CPU-only.
        `cardServesApp` is the shared mirror of the runner's gpuRouting, shielded
@@ -1304,8 +1300,10 @@ class Deployments extends EnclaveElement {
        card unusable and demands the coreless floor for a deployment the runner
        serves on that very card at the card-case one. */
     const hostAvail = (hw && hw.row && hw.row.availability) || null;
-    const cpuNeedOf = (r, gpuMilli) => !hw || d.active === false ? r.mins.cpuPct : cpuFloorFor(r.mins,
-      (gpuMilli != null ? gpuMilli : bought.gpuMilli) > 0 && cardServesApp(hostAvail, r.mins) ? 1 : 0);
+    const cpuNeedOf = (r, gpuMilli = bought.gpuMilli) => sharesOnly
+      ? cpuFloorFor(r.mins, gpuMilli > 0 && (!hw || cardServesApp(hostAvail, r.mins)) ? 1 : 0)
+      : !hw || d.active === false ? r.mins.cpuPct : cpuFloorFor(r.mins,
+        gpuMilli > 0 && cardServesApp(hostAvail, r.mins) ? 1 : 0);
     const rows = app.versions
       .map((v, i) => ({ v, i, mins: minPctsOf(specOf(v), hw && hw.spec) }))
       .filter(r => !r.v.yanked && r.v.approval === APPROVAL.approved)
@@ -1325,7 +1323,7 @@ class Deployments extends EnclaveElement {
     const selId = (sharesOnly ? "esShares" : "euSel") + appLabel(id);
     box.innerHTML = '<div class="ap-attbar">' + title + ' · ' + esc(id) + '</div>'
       + (sharesOnly && resizeReason ? '<p class="enc-shares-note" role="status">' + esc(resizeReason) + '</p>' : '')
-      + '<div class="enc-upg-body">'
+      + '<div class="' + (sharesOnly ? 'enc-share-content' : 'enc-upg-body') + '">'
       + (sharesOnly ? '' : '<label for="' + selId + '">Switch ' + esc(app.slug) + ' to</label>'
       +   '<select class="eu-sel" id="' + selId + '">'
       +     rows.map(r => '<option value="' + r.i + '"' + (((r.i === cr.index && !resizable) || !r.fits) ? " disabled" : "") + (pick && r.i === pick.i ? " selected" : (!pick && r.i === cr.index ? " selected" : "")) + '>'
@@ -1336,13 +1334,7 @@ class Deployments extends EnclaveElement {
       +       (r.shareFit && !r.feeFit && r.i !== cr.index ? " · charges $" + (Number(verFees[r.i]) * 3600 / 1e6).toFixed(2) + "/hr publisher fee (above this deployment’s snapshot)" : "")
       +     '</option>').join("")
       +   '</select>')
-      +   (sharesOnly
-         ? '<div class="eu-dials">'
-         +   '<label for="' + selId + 'g">GPU %</label><input' + (resizable ? '' : ' disabled') + ' id="' + selId + 'g" class="eu-gpu" type="number" min="0" max="' + (maxGpu / 10) + '" step="1" value="' + (bought.gpuMilli / 10) + '">'
-         +   '<label for="' + selId + 'c">CPU %</label><input' + (resizable ? '' : ' disabled') + ' id="' + selId + 'c" class="eu-cpu" type="number" min="1" max="100" step="1" value="' + (bought.cpuMilli / 10) + '">'
-         + '</div>'
-         : '')
-      +   '<button class="btn btn-sm btn-primary eu-go" type="button">' + (sharesOnly ? 'Update shares' : 'Change version') + '</button>'
+      +   (sharesOnly ? '' : '<button class="btn btn-sm btn-primary eu-go" type="button">Change version</button>')
       + '</div>'
       + (capEditable
          ? '<div class="enc-upg-body eu-cap-row">'
@@ -1351,10 +1343,18 @@ class Deployments extends EnclaveElement {
          +   '<button class="btn btn-sm eu-cap-go" type="button">Set cap</button>'
          + '</div>'
          : '')
-      + '<div class="term enc-upg-status" role="status" aria-live="polite"></div>';
+      + '<div class="term enc-upg-status" role="status" aria-live="polite"></div>'
+      + (sharesOnly ? '<div class="enc-share-actions"><button class="btn btn-sm eu-cancel" type="button">Cancel</button><button class="btn btn-sm btn-primary eu-go" type="button">Save</button></div>' : '');
     const sel = sharesOnly ? { value: String(cr.index) } : box.querySelector(".eu-sel");
     const go = box.querySelector(".eu-go"), st = box.querySelector(".enc-upg-status");
-    const gIn = box.querySelector(".eu-gpu"), cIn = box.querySelector(".eu-cpu");
+    const editor = sharesOnly && cur ? shareEditor({ id: selId, spec: specOf(cur.v), mins: cur.mins,
+      allocation: bought, maxGpu, rev, cpuMinimum: gpu => cpuNeedOf(cur, gpu), editable: resizable,
+      hostName: hw?.name, onChange: () => upd() }) : null;
+    if (editor) box.querySelector('.enc-share-content').append(editor.element);
+    box.querySelector('.eu-cancel')?.addEventListener('click', () => {
+      if (box.dataset.busy) return;
+      box.hidden = true; box.innerHTML = ''; btn.setAttribute('aria-expanded', 'false'); btn.focus();
+    });
     const paint = (cls, txt) => paintLine(st, cls, txt);
     const intro = () => {
       if (sharesOnly) {
@@ -1363,7 +1363,7 @@ class Deployments extends EnclaveElement {
             ? "Save the allocation and re-queue the stopped app. Its URL and balance stay the same."
             : "Save the new shares and stop in one confirmation, then confirm re-queue after the old lease clears. URL and balance stay the same; in-memory state resets."
           : "The host applies the new allocation and may restart the app. Its URL and balance stay the same; in-memory state may reset.");
-        if (cur) paint("dimln", "Minimum: " + Math.max(1, cpuNeedOf(cur, dials().gpuMilli)) + "% CPU"
+        if (cur) paint("dimln", "Minimum: " + (editor ? editor.cpuMinimum() : Math.max(1, cpuNeedOf(cur, dials().gpuMilli))) + "% CPU"
           + (cur.mins.gpuPct ? " · " + cur.mins.gpuPct + "% GPU" : "") + (hw ? " on " + hw.name : ""));
         if (restartResize && resizable) paint("dimln", "Pricing is an estimate. The new instance must fit an eligible host and your hourly rate cap.");
         return;
@@ -1392,15 +1392,7 @@ class Deployments extends EnclaveElement {
       if (!sharesOnly && others.some(r => r.shareFit && !r.feeFit))
         paint("dimln", "// entries charging a higher publisher fee than this deployment snapshotted at create need a fresh deploy - the fee snapshot is immutable");
     };
-    // target shares off the dials (milli, percent grain), read RAW - typing is
-    // never corrected and never clamped here, because a dial that fixes itself
-    // mid-entry can't be typed THROUGH: with a 6% CPU share, the "1" of an
-    // intended 18% GPU was snapped to 6 before the "8" ever arrived. Everything
-    // out of range is caught by problem() below, on the button.
-    const dials = () => ({
-      gpuMilli: gIn ? Math.round(Number(gIn.value || 0)) * 10 : bought.gpuMilli,
-      cpuMilli: cIn ? Math.round(Number(cIn.value || 0)) * 10 : bought.cpuMilli,
-    });
+    const dials = () => editor ? editor.values() : { ...bought };
     // the rate this size would run at, priced at the box that will serve it:
     // its lease holder's posted price (rev 8), else the fleet/list price - and
     // zero for the host half when that box hosts this owner for free, leaving
@@ -1408,15 +1400,11 @@ class Deployments extends EnclaveElement {
     const rateOf = t => (freeHere ? 0n : rate6Of(hw && hw.price
       ? { gpu: BigInt(Math.round(hw.price.full * 1e6)), cpu: BigInt(Math.round(hw.price.node * 1e6)) }
       : prices, t.gpuMilli, t.cpuMilli)) + snapFee;
-    // EVERY rule the transaction must satisfy, in one place. Returns "" when
-    // the dials are good. Shown as a live hint while you type - a hint only:
-    // it neither rewrites the field nor disables the button. The click runs the
-    // same function and refuses there, which is the one place a half-typed
-    // number can't be mistaken for a final answer.
+    // Sliders enforce resource floors; Save also validates pricing, capacity
+    // and ledger rules, both while editing and immediately before signing.
     const problem = (r, t, resized) => {
-      if (!gIn || !cIn) return "";
-      if (!Number.isFinite(Number(gIn.value)) || !Number.isFinite(Number(cIn.value)))
-        return "// both shares have to be numbers";
+      if (!editor) return "";
+      if (editor.problem()) return editor.problem();
       if (t.gpuMilli < 0 || t.cpuMilli < 0) return "// shares can’t be negative";
       const ver = app.slug + ":" + r.v.version;
       if (t.gpuMilli < r.mins.gpuPct * 10)
@@ -1437,7 +1425,7 @@ class Deployments extends EnclaveElement {
       const newRate = rateOf(t);
       if (cap6 > 0n && newRate > cap6)
         return "// that size costs more than this deployment’s rate cap of $" + (Number(cap6) * 3600 / 1e6).toFixed(2)
-          + "/h - raise the cap below, then resize";
+          + "/h - raise the rate cap, then save";
       if (Number(d.leaseUntil) * 1000 > Date.now()){
         const tail = Math.max(0, Number(d.leaseUntil) - Math.floor(Date.now() / 1000));
         if (BigInt(Number(d.balance6 || 0)) + BigInt(tail) * BigInt(Math.round(Number(d.rate) || 0)) < newRate)
@@ -1450,18 +1438,14 @@ class Deployments extends EnclaveElement {
       const r = rows.find(x => String(x.i) === sel.value);
       st.innerHTML = ""; intro();
       if (!r || !r.fits){ go.disabled = true; return; }
-      if (resizable && gIn && cIn){
-        // Declare floors without changing an allocation just because its tab
-        // opened. Typing a GPU share can change the CPU-only memory floor.
-        gIn.min = r.mins.gpuPct;
-        cIn.min = Math.max(1, cpuNeedOf(r, dials().gpuMilli));
+      if (resizable && editor){
         const t = dials();
         const resized = t.gpuMilli !== bought.gpuMilli || t.cpuMilli !== bought.cpuMilli;
         const verChange = r.i !== cr.index;
-        go.textContent = restartResize ? "Resize and restart" : "Update shares";
+        go.textContent = 'Save';
         go.disabled = !verChange && !resized && !(restartResize && d.active === false);
         const bad = problem(r, t, resized);
-        if (bad){ paint("warn", bad); return; }   // hint only - the click re-checks
+        if (bad){ go.disabled = true; paint("warn", bad); return; }
         if (resized){
           const newRate = rateOf(t), oldRate = Math.round(Number(d.rate) || 0), bal = Number(d.balance6 || 0);
           paint("dimln", "// rate $" + (oldRate * 3600 / 1e6).toFixed(2)
@@ -1475,8 +1459,6 @@ class Deployments extends EnclaveElement {
       }
     };
     if (!sharesOnly) sel.addEventListener("change", upd);
-    if (gIn) gIn.addEventListener("input", upd);
-    if (cIn) cIn.addEventListener("input", upd);
     upd();
     go.addEventListener("click", async () => {
       if (box.dataset.busy) return;
@@ -1486,9 +1468,8 @@ class Deployments extends EnclaveElement {
       const resized = resizable && (t.gpuMilli !== bought.gpuMilli || t.cpuMilli !== bought.cpuMilli);
       const verChange = !sharesOnly && r.i !== cr.index;
       if (!verChange && !resized && !(restartResize && d.active === false)) return;
-      // the one gate: nothing was rejected while it was being typed, so the
-      // dials are checked here, before a signature is ever asked for
-      if (resizable && gIn && cIn){
+      // Recheck the complete draft before asking for a signature.
+      if (resizable && editor){
         const bad = problem(r, t, resized);
         if (bad){ st.innerHTML = ""; intro(); paint("warn", bad); return; }
       }
@@ -3529,7 +3510,6 @@ class Deployments extends EnclaveElement {
      rebuilds the row and strands the reveal in detached DOM (the dropdown
      "closes" under the wallet popup). The poll catches up once it clears. */
   _panelPinned() {
-    if (this._resourceDialog?.open) return true;
     return !!this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-shares:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-net:not([hidden]), .enc-cfg:not([hidden]), .enc-mod:not([hidden]), .enc-mob:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden]), .enc-sec[data-busy], .enc-dom[data-busy]");
   }
   _startPoll() {

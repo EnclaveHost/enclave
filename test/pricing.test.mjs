@@ -1012,18 +1012,17 @@ test("cardServesApp is the console's copy of gpuRouting, shielded rule included"
   assert.equal(cardServesApp(null, small), false, "no host known: not on a card");
 });
 
-// Run the Shares/Version panel's actual choice of floor: cardServesApp(null)
-// correctly cannot promise a card, but an unleased or stopped deployment
-// must allow allocations against the app's normal minimum before a launch.
-function panelCpuNeed(hostAvail, { active = true, gpuMilli = 970 } = {}) {
+// Version changes retain their existing admission rule. Editable Shares must
+// also enforce the CPU-only floor for queued/stopped allocations without GPU.
+function panelCpuNeed(hostAvail, { active = true, gpuMilli = 970, sharesOnly = false } = {}) {
   const src = fs.readFileSync(new URL("../site/components/deployments/deployments.js", import.meta.url), "utf8");
   const start = src.indexOf("    const cpuNeedOf =");
   const end = src.indexOf("    const rows =", start);
   assert.ok(start > 0 && end > start);
-  return new Function("hostAvail", "hw", "d", "bought", "cpuFloorFor", "cardServesApp",
+  return new Function("hostAvail", "hw", "d", "bought", "cpuFloorFor", "cardServesApp", "sharesOnly",
     src.slice(start, end) + "\nreturn cpuNeedOf;")(
       hostAvail, hostAvail ? { row: { availability: hostAvail } } : null,
-      { active }, { gpuMilli }, cpuFloorFor, cardServesApp);
+      { active }, { gpuMilli }, cpuFloorFor, cardServesApp, sharesOnly);
 }
 
 const EYESOFF_SHARE_SPEC = { cardVramGb: 62, cardTflops: 214.7, nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000 };
@@ -1059,4 +1058,15 @@ test("a known lease holder still selects the CPU minimum for its actual GPU rout
   const shielded = panelCpuNeed({ gpu: true, shielded: { vramGb: 62 } });
   assert.equal(shielded(r), 7, "shielded offload keeps the normal minimum");
   assert.equal(shielded(r, 0), 60, "zero GPU is CPU-only even on a GPU host");
+});
+
+test("Shares enforces CPU-only requirements even before a host runs the allocation", () => {
+  const r = { mins: eyesoffShareMins() };
+  for (const active of [true, false]) {
+    const need = panelCpuNeed(null, { active, sharesOnly: true });
+    assert.equal(need(r, 0), 60);
+    assert.equal(need(r, 800), 7);
+  }
+  assert.equal(panelCpuNeed({ gpu: false }, { sharesOnly: true })(r, 800), 60);
+  assert.equal(panelCpuNeed({ gpu: true, shielded: {} }, { sharesOnly: true })(r, 800), 7);
 });
