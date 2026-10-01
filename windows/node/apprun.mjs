@@ -23,7 +23,7 @@ import net from "node:net";
 import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
-import { encodeRequest, decodeResponse } from "./appframe.mjs";
+import { encodeRequest, decodeResponse, parseAppOpenReply } from "./appframe.mjs";
 const execFileAsync = promisify(execFile);
 
 const LOG_LINES = 400;
@@ -210,12 +210,25 @@ export function missingHostInterfaces(file) {
  * which is the honest failure mode - they live in its memory.
  *
  * `hostCmd` is the agent's line protocol to the enclave host (ee-host.c on loopback). Everything
- * this class does is four commands: appabi, appopen, apphandle, appclose.
+ * this class does is appabi, appopen, apphandle, apprun, appstop and appclose. appopen answers with
+ * the ee-host's per-boot EPOCH, and every id-scoped command after it carries that epoch: ee-host
+ * refuses a stale one before any side effect, which is what makes an id from a dead ee-host
+ * generation unable to touch whatever app the next generation gave the same number.
  */
 export class EnclaveApp {
-  constructor({ id, cwasmPath, hostCmd, log = () => {}, memMb = 0, world = 1, env = {}, port = 0 }) {
+  constructor({ id, cwasmPath, hostCmd, log = () => {}, memMb = 0, world = 1, env = {}, port = 0, hostGen = null }) {
     this.id = id; this.cwasmPath = cwasmPath; this.hostCmd = hostCmd; this.log = log;
     this.memMb = memMb;
+    // The ee-host process generation this app was opened against. ee-host mints app ids (slots)
+    // from 1 on every boot, so a numeric slot is unique only WITHIN one ee-host process; after a
+    // restart the same numbers name different apps. `hostGen()` returns the current generation
+    // (agent.mjs bumps it on every ee-host (re)start), and app-scoped commands are not even sent
+    // once this app's generation is stale. That is only a local FILTER: a command already queued
+    // in the agent's funnel before a restart still connects to the new ee-host, so the AUTHORITY is
+    // ee-host's per-boot epoch (`this.epoch`, below), checked at the side-effecting end.
+    this.hostGen = typeof hostGen === "function" ? hostGen : null;
+    this.openedGen = null;
+    this.epoch = "";                         // the ee-host process that minted `slot` (32 hex, a string); "" = none
     // 1 = enclave:app (this box's own world), 2 = wasi:http (served per request through the gate),
     // 4 = wasi:cli (a SERVER: it binds `port` inside the enclave through the brokered sockets and
     // runs until it is stopped, so the node proxies to that port instead of calling the gate).
@@ -233,24 +246,49 @@ export class EnclaveApp {
     this.log(m);
   }
   logs(n = 200) { return this.lines.slice(-n); }
+  /** The ee-host that minted this app's slot has restarted, so the slot now names a different app
+   *  (or nothing): no app-scoped command may be sent under it. */
+  #stale() { return this.hostGen != null && this.openedGen != null && this.hostGen() !== this.openedGen; }
   /** Load the bytecode into the enclave. The enclave copies it in and answers with a slot. */
   async start() {
     this.state = "starting";
     const envBlob = Object.entries(this.env || {}).filter(([k, v]) => k && v != null)
       .map(([k, v]) => `${k}=${v}\0`).join("");
     const envHex = envBlob ? Buffer.from(envBlob + "\0", "utf8").toString("hex") : "";
+    // Sampled BEFORE the open is sent: this is the generation the open was issued against. Sampling
+    // after the await would stamp whatever generation is current when the reply lands, which after a
+    // restart mid-open is a host that never opened this app.
+    const gen = this.hostGen ? this.hostGen() : 0;
     const r = await this.hostCmd(`appopen ${this.world} ${this.cwasmPath}${envHex ? " " + envHex : ""}`);
-    const [slot, us] = String(r).trim().split(/\s+/);
-    this.slot = Number(slot) || 0;
-    this.loadUs = Number(us) || 0;
-    if (!this.slot) { this.state = "failed"; throw new Error("the enclave did not return an app slot"); }
+    const open = parseAppOpenReply(r);
+    this.openedGen = gen;
+    if (!open) {
+      // No valid "<id> <load_us> <epoch>": an ee-host that does not bind its ids to its process
+      // (too old, or it has no epoch) cannot refuse a stale command, so nothing it hands out is
+      // used. The node and ee-host.exe carry this protocol together and are deployed together.
+      this.slot = 0; this.epoch = ""; this.state = "failed";
+      throw new Error("the enclave host returned no valid app id and epoch (ee-host.exe older than this node?)");
+    }
+    this.slot = open.id;
+    this.loadUs = open.loadUs;
+    this.epoch = open.epoch;
+    if (this.#stale()) {
+      // The ee-host restarted while this open was in flight, so the reply may name a slot in a host
+      // that is gone. Release it under ITS OWN epoch - a host other than the one that minted it
+      // refuses that, so this can only ever close the app this very open created - and fail the
+      // start: host.tick reloads the app from its lease against the current ee-host.
+      const [s, e] = [this.slot, this.epoch];
+      this.slot = 0; this.epoch = ""; this.state = "failed";
+      try { await this.hostCmd(`appclose ${e} ${s}`); } catch { /* refused by a newer host, or gone */ }
+      throw new Error("the enclave restarted while this app was being opened");
+    }
     const kind = this.world === 4 ? "wasi:cli" : this.world === 2 ? "wasi:http" : "enclave:app";
     this.#say(`loaded into the enclave as slot ${this.slot} in ${(this.loadUs / 1000).toFixed(1)} ms (${kind})`);
     if (this.world === 4) {
       // Its run() does not return: the enclave enters it on a thread of its own and the app binds
       // its port from in there. Nothing is served until that port answers, so wait for it rather
       // than report a lease as running on an app that never bound.
-      await this.hostCmd(`apprun ${this.slot}`);
+      await this.hostCmd(`apprun ${this.epoch} ${this.slot}`);
       const ok = await this.waitPort(START_TIMEOUT_MS);
       if (!ok) {
         this.state = "failed";
@@ -262,16 +300,23 @@ export class EnclaveApp {
     return this;
   }
   async stop() {
-    if (this.slot) {
+    if (this.slot && this.#stale()) {
+      // The enclave restarted: this slot number now belongs to a DIFFERENT app in the new ee-host.
+      // Sending appstop/appclose under it would stop or free that other tenant, so drop it locally
+      // and send nothing. The new instance is reloaded from the lease by host.tick.
+      this.#say("stop: the enclave restarted; not sending a command for a stale slot");
+    } else if (this.slot) {
       try {
         // A running server is asked to STOP first: appstop bumps the runtime's epoch, the guest
         // traps wherever it is and its own thread unwinds and frees. appclose alone would leave
         // the thread running inside a store that was freed underneath it.
-        if (this.world === 4) { await this.hostCmd(`appstop ${this.slot}`); }
-        else { await this.hostCmd(`appclose ${this.slot}`); }
+        // Both carry the epoch: queued before an ee-host restart, either can still connect to the
+        // new host, which refuses it ("stale epoch") instead of acting on its own app of that id.
+        if (this.world === 4) { await this.hostCmd(`appstop ${this.epoch} ${this.slot}`); }
+        else { await this.hostCmd(`appclose ${this.epoch} ${this.slot}`); }
       } catch (e) { this.#say(`stop: ${e.message}`); }
     }
-    this.slot = 0; this.state = "stopped";
+    this.slot = 0; this.epoch = ""; this.state = "stopped";
   }
   /** Wait for the app to bind its port inside the enclave. */
   waitPort(ms) {
@@ -293,7 +338,7 @@ export class EnclaveApp {
   }
   /** Is it still there? For a server, the port; for a gate-served app, the gate answering at all. */
   async alive() {
-    if (!this.slot) return false;
+    if (!this.slot || this.#stale()) return false;   // a stale-generation app is not this enclave's
     if (this.world === 4) return await this.waitPort(PROBE_MS);
     try { return Number(String(await this.hostCmd("appabi")).split(/\s+/)[0]) >= 1; } catch { return false; }
   }
@@ -304,12 +349,16 @@ export class EnclaveApp {
   async handle({ method = "GET", pathRest = "/", headers = {}, body = Buffer.alloc(0) } = {}) {
     if (!this.slot) return { status: 503, headers: { "content-type": "application/json" },
                              body: Buffer.from(JSON.stringify({ error: "not_loaded", id: this.id })) };
+    if (this.#stale()) return { status: 502, headers: { "content-type": "application/json" },
+                                body: Buffer.from(JSON.stringify({ error: "app_gone", id: this.id,
+                                  reason: "the enclave restarted; this app must be reloaded" })) };
     // A server-shaped app is spoken to over its own socket. The connection is the host's and the
     // bytes cross the broker into the enclave, where the app reads them; nothing goes through the
     // gate, which is why this path carries a whole HTTP request rather than a frame.
     if (this.world === 4) return await this.#viaPort({ method, pathRest, headers, body });
     const frame = encodeRequest({ method, path: pathRest, headers, body });
-    const r = await this.hostCmd(`apphandle ${this.slot} ${frame.toString("hex")}`);
+    // A stale epoch comes back as a thrown "stale epoch", which host.mjs treats like "no such app".
+    const r = await this.hostCmd(`apphandle ${this.epoch} ${this.slot} ${frame.toString("hex")}`);
     const [hex, us] = String(r).trim().split(/\s+/);
     const resp = decodeResponse(Buffer.from(hex, "hex"));
     this.lastUs = Number(us) || 0;
