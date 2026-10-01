@@ -19,6 +19,7 @@
 // >>> The ONLY thing left to implement for your CVM is spawn/stop/measure below.
 
 import express from "express";
+import { planCheckpoints } from "./windows/node/verification-checkpoints.mjs";
 import cors from "cors";
 import http from "node:http";
 import https from "node:https";
@@ -9893,25 +9894,30 @@ async function proveLeases(recs, why) {
   if (!PROOF_READY() || !recs.length) return 0;
   const { batch, covered } = await buildCheckpoints(recs);
   if (!batch.length) return 0;
-  const fn = batch.length === 1 ? "checkpoint" : "checkpointMany";
-  const args = batch.length === 1
-    ? [batch[0].id, batch[0].enclaveId, batch[0].upto, batch[0].anchorBlock, batch[0].anchorHash, batch[0].sig]
-    : [batch];
-  const sent = sendOperatorTx(PROOF_OF_TIME_ADDRESS, PROOF_ABI, fn, args);
-  await sent;
-  const rcpt = await sent.receipt;
-  if (rcpt.status !== "success") throw new Error(`${fn} tx reverted`);
-  // checkpointMany swallows per-item failures on purpose (see the contract):
-  // surface them here so a seller sees WHY a proof was refused instead of a
-  // silently short payout weeks later.
-  const rejects = parseEventLogs({ abi: PROOF_REJECT_ABI, logs: rcpt.logs, eventName: "CheckpointRejected", strict: false });
+  const plans = await planCheckpoints({client: chainClient, ledger: DEPLOYMENTS_ADDRESS,
+    proof: PROOF_OF_TIME_ADDRESS, batch, onWarning: message => console.warn(`[proof] ${message}`)});
   const refused = new Set();
-  for (const r of rejects) {
-    refused.add(String(r.args.id).toLowerCase());
-    console.warn(`[proof] rejected ${r.args.id}: ${r.args.reason}`);
+  for (const plan of plans) {
+    try {
+      const sent = sendOperatorTx(plan.address, PROOF_ABI, plan.functionName, plan.args);
+      await sent;
+      const rcpt = await sent.receipt;
+      if (rcpt.status !== "success") throw new Error(`${plan.functionName} tx reverted`);
+      // Ordinary batching tolerates individual rejections. Fee wrappers are
+      // individual transactions; neither may mark rejected service as proven.
+      const rejects = parseEventLogs({ abi: PROOF_REJECT_ABI, logs: rcpt.logs, eventName: "CheckpointRejected", strict: false });
+      for (const r of rejects) {
+        refused.add(String(r.args.id).toLowerCase());
+        console.warn(`[proof] rejected ${r.args.id}: ${r.args.reason}`);
+      }
+    } catch (e) {
+      for (const id of plan.ids) refused.add(String(id).toLowerCase());
+      console.warn(`[proof] checkpoint submission failed: ${e.shortMessage || e.message}`);
+    }
   }
   const landed = batch.length - refused.size;
-  _proof.proved += landed; _proof.rejected += refused.size; _proof.lastError = null;
+  _proof.proved += landed; _proof.rejected += refused.size;
+  _proof.lastError = refused.size ? `${refused.size} checkpoint(s) rejected or unconfirmed` : null;
   // Stamp ONLY what actually landed. A rejected proof left marked as proven
   // would report a provenUntil to the tenant that is not on-chain, and would
   // make the rotation in proveAllLeases treat this record as done — so the
@@ -9974,8 +9980,9 @@ async function proveFinalPeriod(rec, why) {
     const head = await chainClient.getBlock({ blockTag: "latest" });
     const upto = Math.min(Math.floor(Date.now() / 1000), rec._leaseUntil);
     const cp = await signCheckpoint(rec, upto, Number(head.number) - 1, head.parentHash);
-    const sent = sendOperatorTx(PROOF_OF_TIME_ADDRESS, PROOF_ABI, "checkpoint",
-      [cp.id, cp.enclaveId, cp.upto, cp.anchorBlock, cp.anchorHash, cp.sig]);
+    const [plan] = await planCheckpoints({client: chainClient, ledger: DEPLOYMENTS_ADDRESS,
+      proof: PROOF_OF_TIME_ADDRESS, batch: [cp], onWarning: message => console.warn(`[proof] ${message}`)});
+    const sent = sendOperatorTx(plan.address, PROOF_ABI, plan.functionName, plan.args);
     await sent;
     const rcpt = await sent.receipt;
     if (rcpt.status !== "success") throw new Error("final checkpoint reverted");

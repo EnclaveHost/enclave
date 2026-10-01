@@ -2,7 +2,7 @@
 
 Implementation branch: `codex/paid-capacity-audits-20260930`. Workload app:
 `EnclaveHost/enclave-apps`, branch `codex/capacity-work-20260930`, directory
-`capacity-work`. Capacity Work 1.0.0 is published and approved on Base; contract migration and verification spending are not activated. The relay supports contract-wallet secret staging.
+`capacity-work`. Capacity Work 1.0.0 is published and approved on Base; revision-15 ledger, proof and fee contracts are deployed and bound in staging; migration and verification spending are not activated. The relay supports contract-wallet secret staging.
 
 ## Price follows paid demand and qualified supply
 
@@ -110,6 +110,28 @@ prototype. They are not the production funding route and must not be activated f
 this rollout. Native transaction gas still comes from submitters: fee-funded USDC
 verification payments do not themselves implement host gas sponsorship.
 
+## Host proof routing
+
+`windows/node/verification-checkpoints.mjs` routes opted-in source proofs through
+its ledger-bound fee contract. Both the Linux supervisor and Windows node use it.
+The proof's signed domain and fields do not change. Ordinary deployments retain
+normal proof batching. Missing policies, older ledgers and unavailable fee reads
+fall back to ordinary proof submission, which preserves runner earnings but earns
+no new verification allowance. Broadcast failures are not automatically retried
+inside the planner. Individual failures do not mark rejected service as proven.
+This host integration is tested in source and not deployed yet.
+
+The deployed staged contracts on Base are:
+
+- Ledger: `0xb36dce7689834d59364ca37ade1896d0e6404830`
+- Proof of time: `0x89feafcb69e328af61561f0f73f8f3b84405f19a`
+- Verification fees: `0x6773fb58e0de3806ec6aa84c3596009145ff52b8`
+
+These are not the live address-book entries. Host rate acceptance, bootstrap
+capacity qualification, scheduler configuration and a real hosted canary remain
+necessary. The old ledger holds real escrow; importing deployment records alone
+cannot migrate that money or preserve leases.
+
 ## Deployment dependencies
 
 The reusable coordinator entry point is:
@@ -150,6 +172,8 @@ for a verifier. A live configuration requires:
 - 79 JavaScript tests cover pricing, accounting, real event ABI replay, signature
   domains/quorums, durable recovery, concurrent scheduling, binding failures,
   workload/lease bounds and existing/contract-wallet secret authorization.
+- 22 proof-domain/routing tests cover unchanged signatures, opt-in routing,
+  old-ledger behavior, failed reads and mismatched bindings.
 - 42 admin-console tests cover encoding, migration and generated artifacts.
 - 193 relevant Solidity tests cover the ledger and companion (including 512-run
   funding fuzz coverage), ordinary pricing, self-hosting, publisher fees, fixed
@@ -167,7 +191,7 @@ for a verifier. A live configuration requires:
 Commands:
 
 ```
-node --test test/availability-*.test.mjs
+node --test test/availability-*.test.mjs test/verification-checkpoints.test.mjs test/proof-of-time.test.mjs
 forge test --match-contract 'VerificationFeesTest|JobRatesTest|EnclaveAvailabilityTest|EnclaveDeployments.*'
 node scripts/availability/test-fee-chain.mjs
 node scripts/availability/test-workload.mjs /absolute/path/to/enclave-apps/capacity-work

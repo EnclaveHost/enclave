@@ -6,6 +6,7 @@ import {spawn} from 'node:child_process';import assert from 'node:assert/strict'
 import {createPublicClient,createWalletClient,http,decodeEventLog,keccak256,toHex} from 'viem';
 import {privateKeyToAccount} from 'viem/accounts';import {foundry} from 'viem/chains';
 import {openStore} from '../../availability/store.mjs';import {advanceJob} from '../../availability/scheduler.mjs';
+import {planCheckpoints} from '../../windows/node/verification-checkpoints.mjs';
 import {createFeeChainAdapter} from '../../availability/fee-chain-adapter.mjs';
 const account=privateKeyToAccount('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80');
 const operator=privateKeyToAccount('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d');
@@ -17,7 +18,7 @@ const hostWallet=createWalletClient({chain:foundry,account:operator,transport:ht
 const dir=await fs.mkdtemp(path.join(os.tmpdir(),'capacity-chain-'));let store;
 const artifact=async(file,name)=>JSON.parse(await fs.readFile(new URL(`../../contracts/foundry/out/${file}.sol/${name}.json`,import.meta.url),'utf8'));
 const deploy=async(a,args=[])=>{const hash=await wallet.deployContract({abi:a.abi,bytecode:a.bytecode.object,args});return (await pub.waitForTransactionReceipt({hash})).contractAddress;};
-const send=async(w,address,a,name,args)=>pub.waitForTransactionReceipt({hash:await w.writeContract({address,abi:a.abi,functionName:name,args}),confirmations:2});
+const send=async(w,address,a,name,args)=>{const receipt=await pub.waitForTransactionReceipt({hash:await w.writeContract({address,abi:a.abi,functionName:name,args}),confirmations:2});assert.equal(receipt.status,'success',name+' transaction reverted');return receipt;};
 const read=(address,a,name,args=[])=>pub.readContract({address,abi:a.abi,functionName:name,args});
 try {
  for(let i=0;i<100;i++){try{await pub.getChainId();break;}catch{await new Promise(r=>setTimeout(r,50));}}
@@ -33,10 +34,15 @@ try {
  const source=created.args.id;const now=()=>BigInt(Math.floor(Date.now()/1000));
  await send(wallet,availability,a,'configure',[source,account.address,1000,1000,1_000_000n,100_000n,1000n,now()+3600n,'catalog://capacity-work/0','snp-guest-per-app']);
  await send(wallet,ledger,d,'fund',[source,100_000_000n]);await send(hostWallet,ledger,d,'claim',[source,host]);
- await new Promise(r=>setTimeout(r,2500));const anchor=await pub.getBlock({blockTag:'latest'}),upto=anchor.timestamp;
+ // Advance local chain time explicitly: wall-clock waits depend on mining phase.
+ await pub.request({method:'evm_increaseTime',params:[20]});await pub.request({method:'evm_mine'});
+ const anchor=await pub.getBlock({blockTag:'latest'}),upto=anchor.timestamp;
  const signature=await operator.signTypedData({domain:{name:'EnclaveProofOfTime',version:'1',chainId:31337,verifyingContract:proof},primaryType:'ProofOfTime',types:{ProofOfTime:[{name:'id',type:'bytes32'},{name:'enclaveId',type:'bytes32'},{name:'operator',type:'address'},{name:'upto',type:'uint64'},{name:'anchorBlock',type:'uint64'},{name:'anchorHash',type:'bytes32'}]},message:{id:source,enclaveId:host,operator:operator.address,upto,anchorBlock:anchor.number,anchorHash:anchor.hash}});
- await send(wallet,availability,a,'checkpoint',[source,host,upto,anchor.number,anchor.hash,signature]);
- const policy=await read(availability,a,'policies',[source]);assert.ok(policy[10]>=1000n);assert.equal(await read(token,t,'balanceOf',[policy[2]]),1_000_000n);
+ const [proofPlan]=await planCheckpoints({client:pub,ledger,proof,batch:[{id:source,enclaveId:host,upto,anchorBlock:anchor.number,anchorHash:anchor.hash,sig:signature}],nowSec:now()});
+ assert.equal(proofPlan.address.toLowerCase(),availability.toLowerCase());
+ const checkpointReceipt=await send(wallet,proofPlan.address,p,proofPlan.functionName,proofPlan.args);
+ assert.equal(checkpointReceipt.status,'success','checkpoint transaction must succeed');
+ const policy=await read(availability,a,'policies',[source]);assert.ok(policy[10]>=1000n,'proven paid service must unlock the job budget');assert.equal(await read(token,t,'balanceOf',[policy[2]]),1_000_000n);
  store=await openStore(dir);
  const id='0x'+'ca'.repeat(32),offer={id,hostId:host,operator:operator.address,hardwareId:'test-only',classId:'cpu',rate6:100n,maximumSpend6:1000n,shareMilli:10n,validUntilSec:now()+300n,durationSec:10n};
  await store.create({id,offer,state:'offered',token:'integration-test-only-token'.repeat(2)});

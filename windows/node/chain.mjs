@@ -29,6 +29,7 @@ import { base } from "viem/chains";
 import fs from "node:fs";
 import path from "node:path";
 import { parseWaf } from "./waf.mjs";
+import { planCheckpoints } from "./verification-checkpoints.mjs";
 
 const RPCS = (process.env.BASE_RPCS || "https://base-rpc.publicnode.com,https://base.drpc.org,https://mainnet.base.org")
   .split(",").map((s) => s.trim()).filter(Boolean);
@@ -600,7 +601,10 @@ export async function checkpoint({ id, enclaveId, upto }) {
   const sig = await proofAcct.signTypedData({
     domain: { name: "EnclaveProofOfTime", version: "1", chainId: base.id, verifyingContract: getAddress(addresses.proofOfTime) },
     types: PROOF_TYPES, primaryType: "ProofOfTime", message });
-  return send(addresses.proofOfTime, PROOF_ABI, "checkpoint", [id, enclaveId, BigInt(upto), BigInt(anchorBlock), parent.hash, sig]);
+  const [plan] = await planCheckpoints({client: publicClient(), ledger: addresses.deployments,
+    proof: addresses.proofOfTime, batch: [{...message,sig}],
+    onWarning: message => console.warn(`[proof] ${message}`)});
+  return send(plan.address, PROOF_ABI, plan.functionName, plan.args);
 }
 
 export { REGISTRY_ABI, DEP_ABI, CATALOG_ABI, PROOF_ABI };
