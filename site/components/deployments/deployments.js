@@ -2714,7 +2714,7 @@ class Deployments extends EnclaveElement {
                   scroller, offer);
     }
     if (ctlOf(d) !== "wallet") this._noteLogs(box);
-    else if (Enclave.authed()) this._startLogs(id, box);
+    else if (this._hostAuthed(id)) this._startLogs(id, box);
     else this._lockedLogs(id, box);
   }
   /* vault-owned rows: the enclaves' log read rides the in-enclave WALLET
@@ -2741,7 +2741,7 @@ class Deployments extends EnclaveElement {
     el.innerHTML = '<span class="ln dimln">// app logs are owner-private - one gas-free signature proves this wallet owns this deployment (lasts a week)</span>'
       + '<button class="wp-mini enc-unlock" type="button">unlock logs</button>';
     el.querySelector(".enc-unlock").addEventListener("click", async () => {
-      try { await authenticate(); if (!box.hidden && box.isConnected) this._startLogs(id, box); }
+      try { await this._hostSession(id); if (!box.hidden && box.isConnected) this._startLogs(id, box); }
       catch(e){ showToast(e.message || String(e)); }
     });
   }
@@ -2787,13 +2787,13 @@ class Deployments extends EnclaveElement {
         + '<div class="term"><span class="ln dimln">// in-browser attestation verification for credit-run deployments is coming soon - today the attestation read rides an in-enclave wallet session. The same hardware guarantees protect this deployment; verification just can’t be shown here yet.</span></div>';
       return;
     }
-    if (!Enclave.authed()){
+    if (!this._hostAuthed(id)){
       // the attestation read rides the owner session; unlock it in place
       box.innerHTML = '<div class="ap-attbar">attestation · ' + esc(id) + '</div>'
         + '<div class="term"><span class="ln dimln">// attestation reads ride the owner session - one gas-free signature unlocks them (lasts a week)</span>'
         + '<button class="wp-mini enc-unlock" type="button">unlock &amp; verify</button></div>';
       box.querySelector(".enc-unlock").addEventListener("click", async () => {
-        try { await authenticate(); if (!box.hidden && box.isConnected) this._attest(id, box); }
+        try { await this._hostSession(id); if (!box.hidden && box.isConnected) this._attest(id, box); }
         catch(e){ showToast(e.message || String(e)); }
       });
       return;
@@ -3031,6 +3031,13 @@ class Deployments extends EnclaveElement {
      logs, attestation and Move alike (2026-07-27). One extra signature per box
      you act on is the honest price of that design; it is cached per box and
      survives a reload, so it is asked once. */
+  _hostAuthed(id) {
+    const d = (this._list || []).find(x => x.id === id);
+    const host = String((d && d.enclave) || "").trim();
+    // A generic session says nothing about this host. Unlock must use the
+    // same scope as the read, including when no fleet-default host is serving.
+    return host ? Enclave.authedFor(host) : Enclave.authed();
+  }
   async _hostSession(id) {
     const d = (this._list || []).find(x => x.id === id);
     const host = String((d && d.enclave) || "").trim();
