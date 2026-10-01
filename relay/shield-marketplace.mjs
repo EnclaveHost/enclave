@@ -1,6 +1,7 @@
 // Marketplace authority for a restricted Shield runtime. Capacity admission is
 // connection-bound; routing and certificates additionally require the exact app.
 import fs from 'node:fs';
+import {randomBytes} from 'node:crypto';
 import { createShieldAppVerifier } from './shield-app-verifier.mjs';
 
 const TTL = 300000, REFRESH = 60000;
@@ -13,6 +14,10 @@ export function createShieldMarketplace({ hub, policyFile = '', policy: supplied
       !policy.hosts.length || !policy.ekRoots || !policy.cpu?.runtimeId)) throw new Error('invalid Shield marketplace policy');
   const configured = name => !!policy?.hosts.includes(name);
   const verify = policy ? createShieldAppVerifier({ hub, policy, readCatalog, readConfig, fetchVerified }) : null;
+  const witness = policy?.witness;
+  if (witness && (!/^[0-9a-f]{64}$/.test(witness.appSha256 || '') ||
+      !/^[0-9a-f]{64}$/.test(witness.runtimeId || '') || witness.runtimeId !== policy.cpu.runtimeId))
+    throw Error('invalid pinned Shield readiness witness');
   const states = new Map();
   let refreshing = false;
   const session = row => row?.mode === 'hv-node' && configured(row.name) ? hub.shieldSessionId(row.name) : null;
@@ -59,6 +64,31 @@ export function createShieldMarketplace({ hub, policyFile = '', policy: supplied
       return {ok:false,reason:e.message};
     }
   }
+  async function readiness(host) {
+    if (!witness || policy.marketEnabled !== true) return;
+    const sid = session(host);
+    if (!sid) return;
+    let state = stateFor(host);
+    if (!state) states.set(host.name, state = {session:sid, until:0, apps:new Map(), attempts:new Map()});
+    if (state.witnessAttempt !== undefined && now()-state.witnessAttempt < REFRESH) return;
+    state.witnessAttempt = now();
+    try {
+      const nonce = randomBytes(32);
+      const proof = await hub.fetchJson(`tunnel://${host.name}`, `/v1/shield/readiness?nonce=${nonce.toString('hex')}`);
+      if (!proof || typeof proof.handshakeSpki !== 'string' || proof.handshakeSpki.length > 5500)
+        throw Error('no bounded readiness proof');
+      const verdict = await hub.verifyShieldApp(host.name, {doc:proof.doc,
+        handshakeSpki:Buffer.from(proof.handshakeSpki,'base64'), nonce,
+        expectedAppSha256:witness.appSha256, expectedRuntimeId:witness.runtimeId}, policy);
+      if (!verdict.ok) throw Error(verdict.reason);
+      if (session(host) !== sid) throw Error('Shield attachment changed during readiness verification');
+      stateFor(host).until = now()+TTL;
+      // Capacity only: no app entry, lease, route or certificate is granted.
+      hub.notifyShieldMarket(host.name, sid, stateFor(host).until);
+      if (!state.witnessVerified) log(`[shield-market] ${host.name}: dedicated readiness witness verified`);
+      state.witnessVerified = true;
+    } catch(e) { log(`[shield-market] ${host.name}: readiness witness: ${e.message}`); }
+  }
   return {
     configured, eligible, servesUntil,
     certificate: (host, d, spki) => admit(host, d, spki),
@@ -67,6 +97,7 @@ export function createShieldMarketplace({ hub, policyFile = '', policy: supplied
       refreshing = true;
       try {
         for (const host of hosts.filter(h => session(h))) {
+          await readiness(host);
           const candidates = rows.filter(d => d.active === true && d.isPublic === true &&
             String(d.runner).toLowerCase() === String(host.id).toLowerCase() && Number(d.leaseUntil)*1000 > now()).slice(0, 32);
           for (const d of candidates) {
