@@ -1,5 +1,7 @@
 # Keep the app available when its model exceeds the RAM share
 
+The fixed model-size floors described here are superseded by [dynamic guest memory enforcement](dynamic-model-ram-20261001.md).
+
 This supersedes the all-or-nothing model admission behavior recorded in `ram-share-enforcement-20260930.md`. The owner's requirement is to keep the application available inside its share while declining an oversized model.
 
 ## Behavior
