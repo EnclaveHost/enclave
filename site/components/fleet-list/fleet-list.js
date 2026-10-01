@@ -82,6 +82,18 @@ class FleetList extends EnclaveElement {
       return stat(value(gpu.availableTflops), value(gpu.tflops), '',
         gpu.basis === 'measured' ? 'tflops equiv. available' : 'tflops available', title);
     };
+    const cpuComputeStat = (a, fraction) => {
+      const number = v => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null;
+      const total = number(a.nodeGflops), share = number(fraction);
+      // Use this host's GFLOPS report, never a conversion from vCPUs or
+      // another host's spec. Older hosts report only total GFLOPS + share.
+      const available = number(a.cpuGflopsFree)
+        ?? (total !== null && share !== null ? total * Math.min(1, share) : null);
+      const value = v => v === null ? '—' : fmtNum(v);
+      return stat(value(available), value(total), '', 'gflops available',
+        'Reported CPU compute capacity in GFLOPS (billions of floating-point operations per second). '
+        + 'Available capacity follows unallocated CPU shares, not instantaneous processor activity.');
+    };
     // A FAILED read is not an empty fleet: say it failed (retrying) rather than "no hosts",
     // and under last-good rows say how old they are.
     const failed = this.error ? String(this.error) : "";
@@ -198,7 +210,7 @@ class FleetList extends EnclaveElement {
             + ' GB reserved by apps. Available capacity follows unallocated shares, not instantaneous GPU activity.' : '';
           const s = serverSpec();   // adopted fleet hardware; display fallback for rows that omit their own
           const vramGb = a.cardVramGb || s.cardVramGb, tflops = a.cardTflops || s.cardTflops;
-          const ramGb = a.nodeRamGb || s.nodeRamGb, vcpus = a.nodeVcpus || s.nodeVcpus;
+          const ramGb = a.nodeRamGb || s.nodeRamGb;
           const price = enclavePriceOf(e);   // this box's posted ask; the fleet price where it posts none
           return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
             + '<span class="fleet-head">'
@@ -219,7 +231,7 @@ class FleetList extends EnclaveElement {
                 // which is what actually gates admission) over the folded
                 // fraction — same precedence the VRAM cell above uses
                 stat(fmtNum(a.ramGbFree != null ? a.ramGbFree : cFree * ramGb), fmtNum(ramGb), "GB", "ram available")
-                + stat(fmtNum(cFree * vcpus), fmtNum(vcpus), "", "vcpu available"),
+                + cpuComputeStat(a, cFree),
                 // A "held by models" cell used to sit here, reading
                 // ramNnResidentMb against the node's RAM. It was written for a box
                 // whose preloaded weights make the meter read ~85% used while every
@@ -244,7 +256,7 @@ class FleetList extends EnclaveElement {
         + computeStat(gpu), null) : '';
       const value = v => v === null ? '—' : fmtNum(v);
       const stats = stat(value(cpu.ramFreeGb), value(cpu.ramGb), 'GB', 'ram available')
-        + stat(value(cpu.vcpusFree), value(cpu.vcpus), '', 'vcpu available', 'Unallocated CPU shares on this host, not instantaneous processor activity.');
+        + cpuComputeStat(e.availability || {}, cpu.fraction);
       const capacity = cpu.fraction === null
         ? '<div class="fleet-pool"><span class="fleet-pool-label"><span class="ap-badge info">CPU</span></span><span class="fleet-pool-pct">Availability unknown</span><span class="fleet-stats">' + stats + '</span></div>'
         : pool('<span class="ap-badge info">CPU</span>', Math.floor(cpu.fraction * 100), stats, null);
