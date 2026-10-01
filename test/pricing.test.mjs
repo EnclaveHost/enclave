@@ -413,21 +413,21 @@ test("rankEnclavesFor puts the CHEAPEST box for this app first, not just the big
 
 /* ---- moveTargetsFor: where a LIVE deployment may be re-claimed ------------
    A move is release-then-re-claim, so the destination must pass exactly the
-   gates a fresh deploy passes. These pin the rule that the current host is
-   never offered as a destination, and that a box which would refuse the record
+   gates a fresh deploy passes. The current host remains a destination, while a box which would refuse the record
    is never offered at all — a target the runner declines leaves the app dark
    in the open queue, which is worse than saying "nowhere to go". ---- */
 const ID_A = "0x" + "a".repeat(64), ID_B = "0x" + "b".repeat(64);
 
-test("moveTargetsFor: the box already holding the lease is never a destination", () => {
+test("moveTargetsFor: the box already holding the lease remains selectable", () => {
   const rows = [row("kryptos", GPU_BOX, { id: ID_A }), row("big", CPU_BOX, { id: ID_B })];
-  assert.deepEqual(moveTargetsFor(MC, rows, ID_A).map(t => t.name), ["big"]);
-  assert.deepEqual(moveTargetsFor(MC, rows, ID_B).map(t => t.name), ["kryptos"]);
+  assert.deepEqual(moveTargetsFor(MC, rows, ID_A).map(t => t.name), ["big", "kryptos"]);
+  assert.equal(moveTargetsFor(MC, rows, ID_A).find(t => t.name === "kryptos").current, true);
+  assert.deepEqual(moveTargetsFor(MC, rows, ID_B).map(t => t.name), ["big", "kryptos"]);
 });
 
-test("moveTargetsFor: a GPU app on the only GPU box has nowhere to go", () => {
+test("moveTargetsFor: a GPU app can keep its only eligible host", () => {
   const rows = [row("kryptos", GPU_BOX, { id: ID_A }), row("big", CPU_BOX, { id: ID_B })];
-  assert.deepEqual(moveTargetsFor(IMAGE_GEN, rows, ID_A), []);
+  assert.deepEqual(moveTargetsFor(IMAGE_GEN, rows, ID_A).map(t => t.name), ["kryptos"]);
 });
 
 test("moveTargetsFor: a box missing the model volume is not a destination", () => {
@@ -436,7 +436,7 @@ test("moveTargetsFor: a box missing the model volume is not a destination", () =
   const withVol = row("metal0", { ...CPU_BOX, volumes: [{ name: "fable-fusion-27b-mtp-gguf" }] }, { id: ID_B });
   const without = row("kryptos", GPU_BOX, { id: ID_A });
   const app = { ...MC, volumes: ["fable-fusion-27b-mtp-gguf"] };
-  assert.deepEqual(moveTargetsFor(app, [without, withVol], ID_B).map(t => t.name), []);
+  assert.deepEqual(moveTargetsFor(app, [without, withVol], ID_B).map(t => t.name), ["metal0"]);
   assert.deepEqual(moveTargetsFor(app, [without, withVol], ID_A).map(t => t.name), ["metal0"]);
 });
 
@@ -445,13 +445,13 @@ test("moveTargetsFor: a full-but-fitting box stays offered, flagged queued", () 
   // caller labels it rather than hiding the only sane target
   const full = row("big", { ...CPU_BOX, cpuShareFree: 0 }, { id: ID_B });
   const t = moveTargetsFor(MC, [row("kryptos", GPU_BOX, { id: ID_A }), full], ID_A);
-  assert.deepEqual(t.map(x => x.name), ["big"]);   // the source box is excluded, so this is the only one
-  assert.equal(t[0].queued, true);
+  assert.deepEqual(t.map(x => x.name), ["kryptos", "big"]);
+  assert.equal(t.find(x => x.name === "big").queued, true);
 });
 
 test("moveTargetsFor: a non-serving box is not a destination", () => {
   const dark = row("metal0", CPU_BOX, { id: ID_B, serving: false });
-  assert.deepEqual(moveTargetsFor(MC, [row("kryptos", GPU_BOX, { id: ID_A }), dark], ID_A), []);
+  assert.deepEqual(moveTargetsFor(MC, [row("kryptos", GPU_BOX, { id: ID_A }), dark], ID_A).map(t => t.name), ["kryptos"]);
 });
 
 test("a GPU box serves CPU wasi-nn but is never the automatic choice for it", () => {
@@ -472,7 +472,7 @@ test("a GPU box serves CPU wasi-nn but is never the automatic choice for it", ()
   const dearCpu = row("metal0", { ...CPU_BOX, volumes: [{ name: "m" }], askCpuPricePerSec6: 9999 }, { id: ID_B });
   assert.equal(rankEnclavesFor(cpuOnlyApp, [cheapGpu, dearCpu])[0].name, "metal0");
   // a manual move off the CPU box can still choose the GPU box
-  assert.deepEqual(moveTargetsFor(cpuOnlyApp, [gpuBox, cpuBox], ID_B).map(t => t.name), ["kryptos"]);
+  assert.deepEqual(moveTargetsFor(cpuOnlyApp, [gpuBox, cpuBox], ID_B).map(t => t.name), ["metal0", "kryptos"]);
   // a deployment that DID buy GPU share is not demoted - the card is the point
   const gpuApp = { ...IMAGE_GEN, volumes: ["m"] };
   assert.equal(rankEnclavesFor(gpuApp, [gpuBox, cpuBox])[0].name, "kryptos");
