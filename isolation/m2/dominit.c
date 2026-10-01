@@ -539,7 +539,7 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = "ENCLAVE_GGML_POOLED=1";
             envp[ei++] = shield_vram_env;
             /* Weights and KV live in private guest RAM; VRAM is only the masked-offload reservation.
-             * Leave room for the mask pool and runtime within each measured model profile's floor. */
+             * The guest-local cgroup accounts for their real allocations alongside the runtime. */
             envp[ei++] = shield_ram_env;
             envp[ei++] = "ENCLAVE_NN_SERVE_KIND=RAM";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS=6" : "ENCLAVE_GGML_N_THREADS=2";
