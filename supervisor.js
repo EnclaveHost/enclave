@@ -3197,13 +3197,17 @@ const cardVram = c => c.vramTotal ?? CARD_VRAM_GB;
 const cardFreeVram = c => c.shielded
   ? (c.available ? Math.min(c.vramFree, c.proof?.vramFreeGb || 0) : 0)
   : c.vramFree;
-function allocGpu(vramGb, computeShare, cpuShare) {
+function allocGpu(vramGb, computeShare, cpuShare, { heldReservation = false } = {}) {
+  // A matching running guest already occupies device VRAM. Reconstruct its
+  // local reservation against the share ledger, not the device's remaining
+  // free memory. New claims must satisfy both; unavailable cards still fail.
+  const room = c => heldReservation && c.shielded && c.available ? c.vramFree : cardFreeVram(c);
   if (_shieldedPool) {
     if (!(computeShare > 0) || cpuPool.shareFree < cpuShare - 1e-9) return null;
     const shares = _shieldedPool.cardIds.map(id => ({ cardId: id, computeShare,
       vramGb: computeShare * cardVram(gpuCards[id]),
       _needV: computeShare * cardVram(gpuCards[id]) }));
-    if (shares.some(h => cardFreeVram(gpuCards[h.cardId]) < h._needV - 1e-9 ||
+    if (shares.some(h => room(gpuCards[h.cardId]) < h._needV - 1e-9 ||
         gpuCards[h.cardId].computeFree < computeShare - 1e-9)) return null;
     for (const h of shares) {
       gpuCards[h.cardId].vramFree -= h._needV;
@@ -3218,7 +3222,7 @@ function allocGpu(vramGb, computeShare, cpuShare) {
     : vramGb + ctxOverheadGb();
   if (cpuPool.shareFree < cpuShare - 1e-9) return null;
   const fit = gpuCards
-    .filter(c => cardFreeVram(c) >= need(c) - 1e-9 && c.computeFree >= computeShare - 1e-9)
+    .filter(c => room(c) >= need(c) - 1e-9 && c.computeFree >= computeShare - 1e-9)
     .sort((a, b) => (cardFreeVram(a) - need(a)) - (cardFreeVram(b) - need(b)));
   const card = fit[0];
   if (!card) return null;
@@ -5650,7 +5654,7 @@ if (process.env.SHIELDED_POOL_SELFTEST) {
     let handle, route, error;
     if (action.alloc) {
       const q = normalizeGpuReq(action.alloc.gpu, action.alloc.cpu);
-      handle = allocGpu(q.vramGb, q.computeShare, q.cpuShare);
+      handle = allocGpu(q.vramGb, q.computeShare, q.cpuShare, { heldReservation: action.alloc.heldReservation === true });
       if (handle) { handles.set(action.alloc.name, handle); deployments.set(action.alloc.name, { status: 'running', _gpu: handle }); }
     }
     if (action.launch) {
@@ -10182,6 +10186,10 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   // what makes enclave updates near-seamless for tenants.
   const leaseLive = Number(d.leaseUntil) * 1000 > Date.now();
   const resume = leaseLive && d.runner === _enclaveId;
+  // Browser claim hints can arrive before the first sweep, too. They must not
+  // steal the shares of live leases still being recovered after a restart.
+  if (!resume && ISOLATION_BACKEND && (!_firstClaimSweepAt || _resumeHoldLogged))
+    return "recovering existing leases before accepting new work";
   if (leaseLive && !resume) return "another enclave holds a live lease";
   // The record's own `rate` is the WORST case (its ceiling, until a host prices
   // it), so this is only a cheap pre-filter; rateCapRefusal below decides
@@ -10554,7 +10562,8 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false 
     // it; the reboot wiped local state, not the chain) - no claim tx, just
     // pick the work back up
     console.log(`[claim] ${d.id} resuming our own live lease after a restart`);
-    await adopt(d, g, firewall, slice);
+    if (await adopt(d, g, firewall, slice, { resume: true }) === false)
+      throw new Error("existing lease reservation cannot yet be restored");
     return;
   }
   const open = await openForUs(d.id);
@@ -10588,7 +10597,15 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false 
 // and clients resolving id -> runner -> endpoint from chain state need no
 // mapping. rec.owner is the on-chain owner address — SIWE tokens already carry
 // an address, so owner-only routes (status, delete) work unchanged.
-async function adopt(d, g, firewall, slice) {
+async function adopt(d, g, firewall, slice, { resume = false } = {}) {
+  let heldReservation = false;
+  if (resume && ISOLATION_BACKEND && !slice.cpu) {
+    const held = await isolationHeldGuest(d.id);
+    const health = held ? await vmHealth().catch(() => null) : null;
+    heldReservation = isolationHeldSameRecord(held, g, firewall, health?.catalog?.runtimeId,
+      isolatedInference(d.gpuMilli, neededVolumes(d, g)));
+  }
+  // Check after the await: another sweep/hint may already have adopted it.
   const left = deployments.get(d.id);
   // A concurrent hint/sweep may have completed its prefetch after another
   // adoption already installed the live record. Never replace that launch.
@@ -10600,10 +10617,12 @@ async function adopt(d, g, firewall, slice) {
     }
     deployments.delete(d.id);
   }
-  const gpu = slice.cpu ? allocCpu(slice.cpuShare) : allocGpu(slice.vramGb, slice.computeShare, slice.cpuShare);
+  const gpu = slice.cpu ? allocCpu(slice.cpuShare) : allocGpu(slice.vramGb, slice.computeShare, slice.cpuShare, { heldReservation });
   if (!gpu) {                                                // capacity vanished since the sweep checked
-    releaseLease(d.id, "capacity vanished").catch(() => {}); // hand it back with the lease refunded (never served: no proof)
-    return;
+    // Never surrender a live guest's lease because local recovery is pending.
+    // Returning false keeps the sweep's new-claim hold in force.
+    if (!resume) releaseLease(d.id, "capacity vanished").catch(() => {});
+    return false;
   }
   // the version's declared http:N entry is the app port; the record decides
   // (create()'s appPort field, like its ports field, is not consulted)
