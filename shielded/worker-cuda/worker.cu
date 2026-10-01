@@ -2109,14 +2109,20 @@ struct Conn {
                 VIOLATE("node %zu: x/y must bind an 'activations' buffer", i);
             if (node.xoff % 16 || node.yoff % 4) VIOLATE("node %zu: misaligned x/y offset", i);
 
-            std::vector<int8_t> wfix((size_t)node.N * node.K);
+            const size_t wbytes = (size_t)node.N * node.K;
+            std::vector<int8_t> wfix;       /* only the legacy encoding needs a copy */
+            const int8_t *weights = nullptr;
             if (const JVal *w = nd.get("w")) {
-                Buffer &wb = region_ok((uint64_t)w->i64("bid"), (uint64_t)w->i64("offset"), wfix.size());
+                Buffer &wb = region_ok((uint64_t)w->i64("bid"), (uint64_t)w->i64("offset"), wbytes);
                 if (wb.role != "weights") VIOLATE("node %zu: w must bind a 'weights' buffer", i);
-                memcpy(wfix.data(), wb.host.data() + (uint64_t)w->i64("offset"), wfix.size());
-                for (size_t t = 0; t < wfix.size(); t++)
-                    if (wfix[t] > SH_WEIGHT_BYTE_LIMIT || wfix[t] < -SH_WEIGHT_BYTE_LIMIT)
-                        VIOLATE("node %zu: weight %d exceeds the int8 lane", i, (int)wfix[t]);
+                /* This connection owns the uploaded snapshot. Its single serve
+                 * thread cannot mutate/free it during validation or the synchronous
+                 * cudaMemcpy below; all host weights are released after the loop.
+                 * Borrow it instead of allocating and copying another N*K bytes. */
+                weights = (const int8_t *)wb.host.data() + (uint64_t)w->i64("offset");
+                for (size_t t = 0; t < wbytes; t++)
+                    if (weights[t] > SH_WEIGHT_BYTE_LIMIT || weights[t] < -SH_WEIGHT_BYTE_LIMIT)
+                        VIOLATE("node %zu: weight %d exceeds the int8 lane", i, (int)weights[t]);
             } else {
                 const JVal *wq = nd.get("wq"), *wd = nd.get("wd");
                 if (!wq || !wd) VIOLATE("node %zu: missing weight binding", i);
@@ -2127,6 +2133,7 @@ struct Conn {
                 if ((uint64_t)wd->i64("offset") % 2) VIOLATE("node %zu: misaligned wd offset", i);
                 const int8_t *q = (const int8_t *)qb.host.data() + (uint64_t)wq->i64("offset");
                 const uint16_t *d = (const uint16_t *)(db.host.data() + (uint64_t)wd->i64("offset"));
+                wfix.resize(wbytes);
                 /* THE shared encoding, run here by the same object the TEE links. */
                 for (int64_t k = 0; k < node.K; k++)
                     for (int64_t j = 0; j < node.N; j++) {
@@ -2135,21 +2142,22 @@ struct Conn {
                             VIOLATE("node %zu: fixed weight %lld exceeds the int8 lane", i, (long long)v);
                         wfix[(size_t)j * node.K + k] = (int8_t)v;
                     }
+                weights = wfix.data();
             }
             /* The node's device weights count against the link's cap like any
              * activations buffer. The charge lands in nn before the upload, so
              * a refusal further down this install frees and uncharges it. */
-            charge_device((long long)wfix.size(), fmt("node %zu weights", i).c_str());
-            node.wbytes = wfix.size();
+            charge_device((long long)wbytes, fmt("node %zu weights", i).c_str());
+            node.wbytes = wbytes;
             nn.push_back(std::move(node));
             Node &nw = nn.back();
             {
                 std::lock_guard<std::mutex> lk(g_gpu);
-                if (dmalloc((void **)&nw.w, wfix.size()) != cudaSuccess) {
+                if (dmalloc((void **)&nw.w, wbytes) != cudaSuccess) {
                     nw.w = nullptr;
-                    VIOLATE("node %zu: device allocation of %zu weight bytes failed", i, wfix.size());
+                    VIOLATE("node %zu: device allocation of %zu weight bytes failed", i, wbytes);
                 }
-                ck(cudaMemcpy(nw.w, wfix.data(), wfix.size(), cudaMemcpyHostToDevice), "weight upload");
+                ck(cudaMemcpy(nw.w, weights, wbytes, cudaMemcpyHostToDevice), "weight upload");
             }
         }
         bool any = false;
@@ -2561,6 +2569,13 @@ struct Conn {
                     resp = fmt("internal: %s", e.what()); violation = true; resp_ptr = nullptr;
                 }
             }
+            /* Installation is a one-time transition. resize() retained the
+             * largest weight-upload frame (normally 32 MiB) for the connection's
+             * entire inference lifetime. The install reply owns its bytes; no
+             * handler still borrows buf here. Release it before acknowledging
+             * success, while later control frames can grow anew. FIELD_GEMM
+             * uses separate pinned staging and is unaffected. */
+            if (!violation && cmd == CMD_GRAPH_INSTALL) std::vector<uint8_t>().swap(buf);
             const void *rp = resp_ptr ? resp_ptr : resp.data();
             const size_t rl = resp_ptr ? resp_len : resp.size();
             uint8_t rh[SH_HDR]; rh[0] = violation ? STATUS_VIOLATION : STATUS_OK; wr_u64(rh + 1, rl);
