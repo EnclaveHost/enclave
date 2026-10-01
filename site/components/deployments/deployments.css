@@ -104,6 +104,26 @@ c-deployments{display:contents;}
 .enc-resource-poolhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;}
 .enc-resource-poolhead label{margin:0;font-size:.82rem;font-weight:600;}
 .enc-resource-poolhead output{font-size:.95rem;color:var(--jade-2);}
+.enc-resource-poolhead output{text-align:right;font-size:.86rem;}
+.enc-share-percentage{display:block;margin-top:6px;color:var(--text-muted);font-size:.68rem;}
+.enc-compare-hosts{margin-bottom:16px;max-width:100%;white-space:normal;text-align:left;text-decoration:none;}
+.enc-share-editor h3,.enc-resource-overview h3{font-size:.95rem;margin:0 0 12px;}
+.enc-resource-overview{padding:18px;border-top:1px solid var(--line-soft);}
+.enc-resource-requirements{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:18px 0 24px;}
+.enc-resource-requirements>div{padding:14px;border:1px solid var(--line);border-radius:8px;background:var(--surface);}
+.enc-resource-requirements dt{color:var(--text-muted);font-size:.76rem;}
+.enc-resource-requirements dd{margin:7px 0 0;font-family:var(--font-mono);}
+.enc-resource-fallback{margin-bottom:24px;font-size:.82rem;}
+.enc-resource-fallback summary{cursor:pointer;color:var(--jade-2);}
+.enc-resource-hosts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px;margin:16px 0;}
+.enc-resource-host{padding:16px;border:1px solid var(--line);border-radius:10px;background:var(--surface);}
+.enc-resource-host-head{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+.enc-resource-host p{font:.75rem/1.6 var(--font-mono);margin:6px 0;overflow-wrap:anywhere;}
+.enc-resource-host .enc-resource-host-fit{color:var(--text-muted);font-size:.7rem;margin:12px 0;}
+.enc-resource-host .btn,.enc-resource-open-pin{max-width:100%;white-space:normal;text-align:left;text-decoration:none;}
+.enc-resource-budget label{font-size:.78rem;}
+.enc-resource-budget-input{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;}
+.enc-resource-budget-input input{width:160px;max-width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--text);font-family:var(--font-mono);}
 .enc-resource-gpu .enc-resource-poolhead output{color:var(--iris);}
 .enc-resource-metrics{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin:16px 0 0;}
 .enc-resource-metrics dt{font-size:.68rem;color:var(--text-muted);}
@@ -131,6 +151,7 @@ c-deployments{display:contents;}
 .enc-share-slider:focus-visible::-moz-range-thumb{box-shadow:0 0 0 3px var(--bg-1),0 0 0 5px var(--share-color);}
 .enc-share-slider:disabled{cursor:not-allowed;opacity:.5;}
 .enc-share-bounds{display:flex;justify-content:space-between;gap:12px;color:var(--text-muted);font-size:.68rem;}
+.enc-share-bounds>span:first-child,.enc-share-bounds>span:last-child{white-space:nowrap;}
 .enc-share-floor-text{text-align:center;}
 .enc-share-warning{color:var(--amber);font-size:.78rem;line-height:1.6;margin:14px 0 0;}
 .enc-share-warning:empty{display:none;}

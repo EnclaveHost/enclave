@@ -2,13 +2,18 @@ import { esc } from './util.js';
 import { appResourceRows, shareLabel, supportsCpuFallback } from './app-resources.js';
 import { shareBounds, changeShares } from './share-allocation.js';
 
-export function shareEditor({ id, spec, mins, allocation, maxGpu, rev, cpuMinimum, editable = true, hostName, onChange = () => {} }) {
+export function shareEditor({ id, spec, mins, allocation, maxGpu, rev, cpuMinimum, editable = true, hostName, hardware, onCompareHosts, onChange = () => {} }) {
   const root = document.createElement('div');
   root.className = 'enc-share-editor';
   const options = { mins, maxGpu, rev, cpuMinimum };
   let draft = { ...allocation }, fallback = false;
   const hasFallback = supportsCpuFallback(spec);
   const pct = value => shareLabel(value / 1000);
+  const number = value => String(Number(value.toFixed(2)));
+  const memoryAt = (key, value) => hardware ? number((key === 'cpu' ? hardware.nodeRamGb : hardware.cardVramGb) * value / 1000) + ' GB' : pct(value);
+  const capacityAt = (key, value) => !hardware ? pct(value) : memoryAt(key, value) + (key === 'cpu'
+    ? ' RAM · ' + number(hardware.nodeGflops * value / 1000) + ' GFLOPs CPU'
+    : ' VRAM · ' + number(hardware.cardTflops * value / 1000) + ' TFLOPs GPU');
   const panelId = key => esc(id + '-' + key);
   const pool = (key, mode) => {
     const name = key === 'cpu' ? 'CPU / RAM' : 'GPU / VRAM', inputId = panelId(mode + '-' + key);
@@ -20,9 +25,10 @@ export function shareEditor({ id, spec, mins, allocation, maxGpu, rev, cpuMinimu
       + '<input class="enc-share-slider" id="' + inputId + '" type="range" step="0.1" aria-describedby="' + inputId + '-bounds"></div>'
       + '<div class="enc-share-bounds" id="' + inputId + '-bounds"></div><dl class="enc-resource-metrics"></dl></section>';
   };
-  root.innerHTML = '<p class="enc-resource-note enc-resource-context">'
-    + (editable ? 'Drag to adjust the allocation. ' : 'Allocation changes are unavailable for this deployment. ')
-    + (hostName ? 'Minimums are based on ' + esc(hostName) + '.' : 'Minimums are based on the fleet’s reported hardware.') + '</p>'
+  root.innerHTML = '<h3>Allocation' + (hostName ? ' on ' + esc(hostName) : '') + '</h3><p class="enc-resource-note enc-resource-context">'
+    + (editable ? 'Drag to adjust this host’s allocation. ' : 'Allocation changes are unavailable for this deployment. ')
+    + 'Memory and compute in each pool move together. The marked minimum keeps the app runnable.</p>'
+    + (onCompareHosts ? '<button type="button" class="btn btn-sm enc-compare-hosts">Need more? Compare host capacity ↓</button>' : '')
     + (hasFallback ? '<div class="enc-resource-tabs" role="tablist" aria-label="Resource mode">'
       + '<button type="button" role="tab" id="' + panelId('current-tab') + '" aria-controls="' + panelId('current') + '" aria-selected="true">Allocation</button>'
       + '<button type="button" role="tab" id="' + panelId('fallback-tab') + '" aria-controls="' + panelId('fallback') + '" aria-selected="false" tabindex="-1">CPU fallback</button></div>' : '')
@@ -46,12 +52,13 @@ export function shareEditor({ id, spec, mins, allocation, maxGpu, rev, cpuMinimu
       const key = group.dataset.pool, isFallback = group.dataset.mode === 'fallback';
       const b = shareBounds(draft, options, isFallback), min = b[key + 'Min'], max = b[key + 'Max'];
       const input = group.querySelector('input'), value = draft[key + 'Milli'];
+      if (key === 'gpu' && hardware && !hardware.cardVramGb) { group.hidden = true; continue; }
       // Show the saved draft faithfully even if requirements have risen.
       // The input handler enforces the app floor on every actual edit.
       const low = Math.min(min, max, value), high = Math.max(max, value);
       input.min = low / 10; input.max = high / 10; input.value = value / 10;
       input.disabled = !editable || !spec || min > max;
-      input.setAttribute('aria-valuetext', pct(value) + ' allocated; minimum ' + pct(min));
+      input.setAttribute('aria-valuetext', capacityAt(key, value) + '; ' + pct(value) + ' of ' + hostName + '; minimum ' + capacityAt(key, min));
       // Keep the visible rail on the full capacity scale. The native range
       // occupies only its permitted segment, so its thumb stops exactly at
       // the minimum marker, including while dragging beyond the left edge.
@@ -65,13 +72,13 @@ export function shareEditor({ id, spec, mins, allocation, maxGpu, rev, cpuMinimu
       control.style.setProperty('--slider-span', ((high - low) / scale * 100) + '%');
       control.style.setProperty('--slider-padding', (20 * (1 - (high - low) / scale)) + 'px');
       control.style.setProperty('--minimum-label-shift', minimum < 15 ? '0%' : minimum > 85 ? '-100%' : '-50%');
-      group.querySelector('.enc-share-limit-label').textContent = 'Min ' + pct(min);
-      group.querySelector('output').textContent = pct(value);
-      group.querySelector('.enc-share-bounds').innerHTML = '<span>0%</span><span class="enc-share-floor-text">Minimum ' + pct(min)
-        + (key === 'gpu' && hasFallback ? ' · optional GPU' : ' · hatched area unavailable') + '</span><span>' + pct(scale) + '</span>';
+      group.querySelector('.enc-share-limit-label').textContent = 'Min ' + memoryAt(key, min);
+      group.querySelector('output').innerHTML = esc(capacityAt(key, value)) + '<small class="enc-share-percentage">' + pct(value) + ' of ' + esc(hostName || 'host') + '</small>';
+      group.querySelector('.enc-share-bounds').innerHTML = '<span>' + memoryAt(key, 0) + '</span><span class="enc-share-floor-text">'
+        + (key === 'gpu' && hasFallback ? 'GPU optional' : 'Hatched area below app minimum') + '</span><span>' + memoryAt(key, scale) + '</span>';
       const rows = appResourceRows(spec, { resources: { gpuShare: draft.gpuMilli / 1000 } }, isFallback ? 'fallback' : 'current');
       group.querySelector('dl').innerHTML = rows.slice(key === 'cpu' ? 0 : 2, key === 'cpu' ? 2 : 4)
-        .map(row => '<div><dt>' + row.name + ' required</dt><dd>' + row.required + '</dd></div>').join('');
+        .map(row => '<div><dt>' + row.name + (key === 'gpu' && hasFallback ? ' preferred' : ' required') + '</dt><dd>' + row.required + '</dd></div>').join('');
     }
     root.querySelector('.enc-share-warning').textContent = problem();
   };
@@ -80,6 +87,7 @@ export function shareEditor({ id, spec, mins, allocation, maxGpu, rev, cpuMinimu
     draft = changeShares(draft, group.dataset.pool, Number(input.value) * 10, options, group.dataset.mode === 'fallback');
     render(); onChange();
   }));
+  root.querySelector('.enc-compare-hosts')?.addEventListener('click', onCompareHosts);
   const tabs = [...root.querySelectorAll('[role="tab"]')];
   const selectTab = tab => {
     fallback = tab === tabs[1];

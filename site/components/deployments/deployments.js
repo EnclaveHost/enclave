@@ -24,6 +24,7 @@ import { authenticate, connectWallet, refreshWallet, saveSession, ensureBaseChai
 import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, specOfRef, STORE, fetchConfigCid, stripMedia, putConfig } from "../../js/core/catalog.js";
 import { appShareLabel } from "../../js/core/app-resources.js";
 import { shareEditor } from "../../js/core/share-editor.js";
+import { resourceOverview } from "../../js/core/resource-overview.js";
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
@@ -698,16 +699,82 @@ class Deployments extends EnclaveElement {
   }
 
   async _shares(id, btn) {
-    if (btn.dataset.editable === 'true') return this._upgrade(id, btn, 'shares');
-    const d = (this._list || []).find(row => row.id === id);
-    if (!d) return;
+    const listed = (this._list || []).find(row => row.id === id);
+    if (!listed) return;
+    if (btn.dataset.editable === 'true' && listed.status === 'running') return this._upgrade(id, btn, 'shares');
     const box = btn.closest('.enc-row').querySelector('.enc-shares');
+    if (box.dataset.busy) return;
     if (!box.hidden) { box.hidden = true; box.innerHTML = ''; btn.setAttribute('aria-expanded', 'false'); return; }
-    const ref = d.image?.reference || (d.app?.appId != null && d.app?.index != null ? catalogRef(d.app.appId, d.app.index) : "");
-    const spec = specOfRef(ref), r = d.resources || {};
-    const editor = shareEditor({ id: 'readonly-' + appLabel(id), spec, mins: minPctsOf(spec), editable: false,
-      allocation: { gpuMilli: Math.round((Number(r.gpuShare) || 0) * 1000), cpuMilli: Math.round((Number(r.cpuShare ?? r.share) || 0) * 1000) } });
-    box.replaceChildren(editor.element); box.hidden = false; btn.setAttribute('aria-expanded', 'true');
+    box.hidden = false; btn.setAttribute('aria-expanded', 'true');
+    box.innerHTML = '<p class="enc-shares-note">Reading app requirements and host capacity…</p>';
+    try {
+      const [d, fleet] = await Promise.all([
+        /^0x[0-9a-f]{64}$/i.test(id) ? depGet(id) : Promise.resolve(listed),
+        Enclave.getEnclaves().catch(() => null),
+      ]);
+      const ref = d.appRef || listed.image?.reference || (listed.app?.appId != null && listed.app?.index != null ? catalogRef(listed.app.appId, listed.app.index) : '');
+      const cr = parseCatalogRef(ref);
+      const spec = cr ? specOf(await catGetVersion(cr.appId, cr.index)) : specOfRef(ref);
+      if (box.hidden || !box.isConnected) return;
+      box.replaceChildren(this._resourceOverview(id, btn, { spec, fleet, configCid: d.configCid,
+        unresolvedHost: listed.status === 'running' }));
+      if (btn.dataset.editable === 'true') await this._resourceBudget(id, box);
+    } catch (e) {
+      if (!box.hidden && box.isConnected) box.innerHTML = '<p class="enc-shares-note">Could not load requirements. Close and reopen Resources to retry.</p>';
+    }
+  }
+
+  async _resourceBudget(id, box) {
+    // A price ceiling is meaningful before placement; unlike a host share it
+    // must remain editable while an app is queued or stopped.
+    let rev, cap, fee, availability;
+    try { [rev, cap, fee, availability] = await Promise.all([depSchemaRev(), depCapOf(id), depFeeOf(id), Enclave.getAvailability()]); }
+    catch { return; }
+    if (box.hidden || !box.isConnected || rev < 8) return;
+    const budget = document.createElement('div'); budget.className = 'enc-resource-overview enc-resource-budget';
+    const inputId = 'resourceBudget' + appLabel(id);
+    budget.innerHTML = '<h3>Price limit</h3><p class="enc-resource-note enc-resource-context">The maximum hourly price for the next host. A host above this limit cannot start the app.</p>'
+      + '<label for="' + inputId + '">Rate cap ($/hour)</label><div class="enc-resource-budget-input"><input id="' + inputId + '" type="number" min="0" step="0.01" value="' + (Number(cap) * 3600 / 1e6).toFixed(2) + '">'
+      + '<button class="btn btn-sm" type="button" disabled>Save price limit</button></div><p class="enc-resource-note" role="status"></p>';
+    box.append(budget);
+    const input = budget.querySelector('input'), button = budget.querySelector('button'), status = budget.querySelector('[role="status"]');
+    const value = () => { const n = Number(input.value); return Number.isFinite(n) && n > 0 ? BigInt(Math.round(n * 1e6 / 3600)) : 0n; };
+    if (availability?.rateCap !== true) { input.disabled = true; status.textContent = 'The fleet cannot edit this price limit right now.'; return; }
+    input.addEventListener('input', () => { button.disabled = value() <= fee.feePerSec6 || value() === cap; });
+    button.addEventListener('click', async () => {
+      const next = value(); if (box.dataset.busy || next <= fee.feePerSec6 || next === cap) return;
+      box.dataset.busy = 'true'; button.disabled = input.disabled = true;
+      const via = ctlOf((this._list || []).find(d => d.id === id)) === 'vault';
+      try {
+        if (await depCapOf(id) !== cap) throw Error('The price limit changed elsewhere. Reopen Resources to refresh it.');
+        status.textContent = 'Confirm the price limit in your ' + (via ? 'passkey prompt.' : 'wallet.');
+        if (via) await (await import('../../js/core/vault.js')).vaultOp('control', { id, action: 'maxrate', maxRate6: Number(next) });
+        else {
+          if (!Enclave.provider) await connectWallet();
+          await ensureBaseChain();
+          await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS, encCall(DEP_SEL.setMaxRate, [{ t: 'bytes32', v: id }, { t: 'uint', v: next }])));
+        }
+        cap = next; status.textContent = 'Price limit saved.';
+      } catch (e) { status.textContent = e.message || String(e); }
+      finally { delete box.dataset.busy; input.disabled = false; button.disabled = value() === cap; if (!via) refreshWallet(); }
+    });
+  }
+
+  _resourceOverview(id, btn, options) {
+    return resourceOverview({ ...options, editable: btn.dataset.editable === 'true', onChooseHost: async name => {
+      const row = btn.closest('.enc-row'), pin = row.querySelector('.enc-movebtn');
+      if (!pin) return;
+      const box = row.querySelector('.enc-shares');
+      if (box.dataset.busy) return;
+      box.hidden = true; box.innerHTML = ''; btn.setAttribute('aria-expanded', 'false');
+      const move = row.querySelector('.enc-move');
+      if (move.hidden) await this._move(id, pin);
+      const select = move.querySelector('select');
+      if (name && select && [...select.options].some(option => option.value === name && !option.disabled)) {
+        select.value = name; select.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      pin.focus(); move.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } });
   }
 
   _renderRows(list, highlight) {
@@ -841,7 +908,7 @@ class Deployments extends EnclaveElement {
           '<button class="btn btn-sm enc-outbtn" data-id="' + esc(d.id) + '" aria-expanded="false">Output</button>' +
           (live && ctl !== "order" ? '<button class="btn btn-sm enc-fundbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="' + (ctl === "vault" ? 'Add runtime from your credit balance - one passkey tap' : 'Add runtime - a gas-free USDC signature credits the deployment’s on-chain balance') + '">Top up</button>' : '') +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-upgbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Switch to another approved version of this app - paid time carries over; the app restarts in place on the new version">Version</button>' : '') +
-          '<button class="btn btn-sm enc-sharesbtn" data-id="' + esc(d.id) + '" data-editable="' + (onchain && (live || resumable) && ctl !== "order") + '" aria-expanded="false" title="View requirements and adjust CPU and GPU allocations">Shares</button>' +
+          '<button class="btn btn-sm enc-sharesbtn" data-id="' + esc(d.id) + '" data-editable="' + (onchain && (live || resumable) && ctl !== "order") + '" aria-expanded="false" title="App requirements, host capacity, and running allocation">Resources</button>' +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-cfgbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="This deployment’s app config (its ENCLAVE_CONFIG): edit it, save named variations, or reset to the version’s stock config - the catalog default and every other deployment stay untouched">Config</button>' : '') +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-modbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="The model volumes this app mounts: attested read-only weights the fleet carries, picked by name - a change relaunches the app in place on the new set; the catalog and every other deployment stay untouched">Models</button>' : '') +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-wafbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Per-IP rate limit + request filter, enforced inside the enclave at the app’s front door - add, tune or remove it any time; a running app picks the change up live">Protect</button>' : '') +
@@ -958,7 +1025,7 @@ class Deployments extends EnclaveElement {
       el.classList.toggle("enc-err", !!c.terminal);
       el.innerHTML = c.terminal
         ? "⚠ won’t start by waiting - the fleet refuses this work: " + esc(c.reason)
-          + " (check the app’s minimum resources in Shares)"
+          + " (check the app’s minimum resources in Resources)"
         : '<span class="dim">fleet: ' + esc(c.reason) + " - retrying automatically</span>";
       el.hidden = false;
     });
@@ -1190,7 +1257,7 @@ class Deployments extends EnclaveElement {
      the CURRENT version; opening it must never propose an upgrade/downgrade. */
   async _upgrade(id, btn, panel = "version") {
     const sharesOnly = panel === "shares";
-    const title = sharesOnly ? "shares" : "change version";
+    const title = sharesOnly ? "resources" : "change version";
     const row = btn.closest(".enc-row"), box = row && row.querySelector(sharesOnly ? ".enc-shares" : ".enc-upg"); if (!box) return;
     if (box.dataset.busy) return;
     if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
@@ -1222,7 +1289,7 @@ class Deployments extends EnclaveElement {
     let currentVersion = null;
     if (sharesOnly) {
       try { currentVersion = await catGetVersion(cr.appId, cr.index); }
-      catch (e) { return fail("[x] Could not read this app’s requirements. Close and reopen Shares to retry."); }
+      catch (e) { return fail("[x] Could not read this app’s requirements. Close and reopen Resources to retry."); }
       if (box.hidden || !box.isConnected) return;
     }
     const versions = sharesOnly ? [{ v: currentVersion, i: cr.index }] : app.versions.map((v, i) => ({ v, i }));
@@ -1249,7 +1316,7 @@ class Deployments extends EnclaveElement {
     let resizeReason = rev < 6 ? "This ledger does not support changing shares." : "";
     if (resizable){
       try { [prices, maxGpu] = await Promise.all([depPrices6(), depMaxGpuMilli()]); }
-      catch(e){ resizable = false; resizeReason = "Current prices could not be loaded. Close and reopen Shares to retry."; }
+      catch(e){ resizable = false; resizeReason = "Current prices could not be loaded. Close and reopen Resources to retry."; }
     }
     if (sharesOnly && (currentVersion.yanked || currentVersion.approval !== APPROVAL.approved)) {
       resizable = false; resizeReason = 'This app version is not approved for a new launch. Select an approved version before changing its allocation.';
@@ -1271,6 +1338,12 @@ class Deployments extends EnclaveElement {
     // every newer version behind a resize it doesn't need. Unleased rows keep
     // the aggregate - any box may claim them next, so over-asking is right.
     const hw = leaseHostOf(d, fleet);          // null = size on the aggregate
+    if (sharesOnly && (!hw || d.active === false || ![hw.row.availability.nodeRamGb, hw.row.availability.nodeGflops, ...(hw.row.availability.gpu ? [hw.row.availability.cardVramGb, hw.row.availability.cardTflops] : [])].every(x => Number.isFinite(Number(x)) && Number(x) > 0))) {
+      box.replaceChildren(this._resourceOverview(id, btn, { spec: specOf(currentVersion), fleet,
+        configCid: d.configCid, unresolvedHost: d.active !== false }));
+      if (btn.dataset.editable === 'true') await this._resourceBudget(id, box);
+      return;
+    }
     // FREE SELF-HOSTING (ledger rev 12). The same box decides the PRICE of the
     // change, and it charges this owner nothing when its declared payout wallet
     // is the deployment's owner - _resizeRate goes through the very _hostRate
@@ -1354,8 +1427,12 @@ class Deployments extends EnclaveElement {
     const go = box.querySelector(".eu-go"), st = box.querySelector(".enc-upg-status");
     const editor = sharesOnly && cur ? shareEditor({ id: selId, spec: specOf(cur.v), mins: cur.mins,
       allocation: bought, maxGpu, rev, cpuMinimum: gpu => cpuNeedOf(cur, gpu), editable: resizable,
-      hostName: hw?.name, onChange: () => upd() }) : null;
-    if (editor) box.querySelector('.enc-share-content').append(editor.element);
+      hostName: hw?.name, hardware: { ...hw.spec, ...(hw.row.availability.gpu !== true ? { cardVramGb: 0, cardTflops: 0 } : {}) },
+      onCompareHosts: () => box.querySelector('.enc-resource-overview').scrollIntoView({ block: 'start', behavior: 'smooth' }), onChange: () => upd() }) : null;
+    if (editor) {
+      box.querySelector('.enc-share-content').append(editor.element);
+      box.append(this._resourceOverview(id, btn, { spec: specOf(cur.v), fleet, configCid: d.configCid, currentHost: hw }));
+    }
     box.querySelector('.eu-cancel')?.addEventListener('click', () => {
       if (box.dataset.busy) return;
       box.hidden = true; box.innerHTML = ''; btn.setAttribute('aria-expanded', 'false'); btn.focus();
@@ -1393,7 +1470,7 @@ class Deployments extends EnclaveElement {
         paint("dimln", "// minimum shares are measured on " + hw.name + " (" + hw.spec.nodeRamGb + " GB / " + hw.spec.nodeVcpus + " vCPU node"
           + (bought.gpuMilli ? ", " + hw.spec.cardVramGb + " GB card" : "") + "), the enclave holding this deployment’s lease - it restarts the app in place and checks the new version against its own hardware");
       if (!sharesOnly && others.some(r => !r.shareFit))
-        paint("dimln", "// disabled entries need more than this deployment’s " + (bought.gpuMilli ? (bought.gpuMilli / 10) + "% GPU / " : "") + (bought.cpuMilli / 10) + "% CPU - " + "adjust the allocation in Shares before switching to one of those versions");
+        paint("dimln", "// disabled entries need more than this deployment’s " + (bought.gpuMilli ? (bought.gpuMilli / 10) + "% GPU / " : "") + (bought.cpuMilli / 10) + "% CPU - " + "adjust the allocation in Resources before switching to one of those versions");
       if (!sharesOnly && others.some(r => r.shareFit && !r.feeFit))
         paint("dimln", "// entries charging a higher publisher fee than this deployment snapshotted at create need a fresh deploy - the fee snapshot is immutable");
     };
@@ -1487,6 +1564,11 @@ class Deployments extends EnclaveElement {
       try {
         box.dataset.busy = "true";
         locked.forEach(([el]) => { el.disabled = true; });
+        if (sharesOnly) {
+          const latest = await depGet(id), current = leaseHostOf(latest, fleet);
+          if (latest.active === false || !current || current.row.id !== hw.row.id)
+            throw new Error('The app’s host changed. Reopen Resources to size its current allocation.');
+        }
         if (restartResize && (resized || d.active === false)) {
           if (!via && !Enclave.provider) await connectWallet();
           if (!via) await ensureBaseChain();
@@ -3128,10 +3210,10 @@ class Deployments extends EnclaveElement {
     // carries its version's spec (hardware + model volumes); the deployment's
     // own config overrides the volume list (the row's Models tab edits it).
     const cr = parseCatalogRef(d.appRef);
-    const ver = cr && STORE.byId[cr.appId] && STORE.byId[cr.appId].versions
-      ? STORE.byId[cr.appId].versions[cr.index] : null;
+    const ver = cr ? await catGetVersion(cr.appId, cr.index).catch(() => null) : null;
     if (!ver) return fail("[x] the catalog doesn’t list this deployment’s version - a move re-claims the record, and only a listed version can be re-claimed");
-    const spec = specOf(ver);
+    const baseSpec = specOf(ver);
+    const spec = { ...baseSpec, ...(isolation.envelope.config ? { volumes: isolation.envelope.config.volumes || [] } : {}) };
     // the DEPLOYMENT's own softening (its options envelope), distinct from the
     // publisher's in specOf: an envelope speaks for the owner's dial only
     const depSoftGpu = (() => {
@@ -3161,7 +3243,7 @@ class Deployments extends EnclaveElement {
       + '<select class="eu-sel" id="' + selId + '"></select></div><button class="btn btn-sm btn-primary mv-go">Apply</button></div>'
       + '<label><input type="checkbox" class="mv-fallback"' + (placement?.allowFallback !== false ? ' checked' : '') + '> Allow Fallback</label>'
       + '<p class="enc-pin-help">' + (currentRunner ? 'Changing hosts restarts the app. Keeping this host leaves it running. ' : !d.active ? 'Applying placement resumes the app. ' : '')
-      + 'Auto uses the cheapest eligible hosts. A selected host stays pinned; Allow Fallback lets another eligible host run the app when that host cannot. Without fallback, the app waits. Your rate cap in Shares still applies.</p>'
+      + 'Auto uses the cheapest eligible hosts. A selected host stays pinned; Allow Fallback lets another eligible host run the app when that host cannot. Without fallback, the app waits. Your rate cap in Resources still applies.</p>'
       + '<div class="enc-pin-notice" role="status" aria-live="polite"></div>'
       + '<div class="enc-upg-body mv-upg" hidden></div>'
       + '<div class="term enc-move-status" role="status" aria-live="polite"></div></div>';
@@ -3325,7 +3407,7 @@ class Deployments extends EnclaveElement {
         paintLine(s, "dimln", `    shares are now ${upg.gpuPct}% GPU / ${upg.cpuPct}% CPU`);
       } catch(e){
         paintLine(s, "warn", "[x] the resize did not go through: " + (e.message || e));
-        paintLine(s, "dimln", "    the share change did not complete; check Shares before retrying the pin");
+        paintLine(s, "dimln", "    the share change did not complete; check Resources before retrying the pin");
         go.disabled = false; go.textContent = label;
         return;
       }
