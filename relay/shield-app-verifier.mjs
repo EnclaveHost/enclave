@@ -17,8 +17,12 @@ export async function expectedShieldApp(row, { policy, readCatalog, readConfig, 
   if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope) ||
       Object.keys(envelope).some(k => !['isolation', 'network', 'gpu', 'config', 'configCid', 'waf'].includes(k)))
     throw new Error('unsupported deployment options');
-  if (envelope.isolation?.require !== 'hyperv-partition-per-app' ||
-      Object.keys(envelope.isolation).some(k => k !== 'require')) throw new Error('deployment must require Shield partition isolation');
+  const iso = ("isolation" in envelope ? envelope.isolation : {});
+  if (!iso || typeof iso !== 'object' || Array.isArray(iso) ||
+      Object.keys(iso).some(k => !['require', 'cpuTee', 'gpuTee'].includes(k)) ||
+      (iso.require !== undefined && iso.require !== 'hyperv-partition-per-app') ||
+      ['cpuTee', 'gpuTee'].some(k => iso[k] !== undefined && iso[k] !== false))
+    throw new Error('deployment hardware requirements do not permit Shield partition isolation');
   if (envelope.waf && Object.keys(envelope.waf).length)
     throw new Error('protection rules are not supported');
   for (const [key, allowed] of [['network', ['relay']], ['gpu', ['optional']], ['waf', []]]) {
