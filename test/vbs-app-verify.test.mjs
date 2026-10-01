@@ -69,3 +69,12 @@ test('Shield policy never combines separately admitted runtime and image pairs',
            {measurement:'00'.repeat(32),runtimeId:f.expectedRuntimeId}];
  assert.equal(verifyShieldAppPolicy(f,p).ok,false);
 });
+
+test('configuration bundles require a configuration-capable pinned image',options,()=>{
+ const f={...fixture(),requiresConfigBundleV5:true},p=shieldPolicy(f);
+ assert.equal(verifyShieldAppPolicy(f,p).ok,false);
+ p.images[0].configBundleV5=true;
+ assert.equal(verifyShieldAppPolicy(f,p).ok,true);
+ p.images=[{...p.images[0],measurement:'00'.repeat(32)}, {...p.images[0],configBundleV5:false}];
+ assert.equal(verifyShieldAppPolicy(f,p).ok,false);
+});

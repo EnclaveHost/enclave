@@ -724,9 +724,13 @@ export class Host {
       const cfg = v && v.config ? (typeof v.config === "string" ? JSON.parse(v.config) : v.config) : {};
       volumes = Array.isArray(cfg.volumes) ? cfg.volumes.slice() : [];
     } catch { volumes = null; }
+    let appConfig;
+    try { appConfig = await this.appConfig(d, v, { strictCid: true }); }
+    catch (e) { return { ok: false, input: "appConfig", why: `configuration could not be verified: ${e.message}`, unknown: true }; }
     return isolationPlan({
       deploymentId: id, deployment: d, version: v,
-      appConfig: await this.appConfigResolved(d, v),
+      appConfig,
+      configSourceCid: envOpts.configCid || (envOpts.config !== undefined ? "" : String(v?.configCid || "")),
       hasSecrets: await this.#secretsState(id),
       // {} and [] only when known to be none; an unread envelope is unknown - exactly what ensureApp records as `waf`
       waf: envRead ? (envOpts.waf || {}) : null,
@@ -1341,10 +1345,10 @@ export class Host {
     };
   }
 
-  async appConfig(d, v) {
+  async appConfig(d, v, { strictCid = false } = {}) {
     try {
       const opts = chain.parseEnvelope(d?.configCid, d?.gpuMilli);
-      if (opts.config !== undefined) return JSON.stringify(opts.config);
+      if (opts.config !== undefined && !(strictCid && opts.configCid)) return JSON.stringify(opts.config);
       if (opts.configCid) {
         // Fetched through the CID verifier, not trusted from the gateway: the bytes are re-hashed
         // against the CID the ledger names before they become an app's configuration.
@@ -1359,7 +1363,10 @@ export class Host {
         this.log(`config: ${opts.configCid} applied to ${String(d.id).slice(0, 10)} (${text.length} bytes, CID-verified)`);
         return text;
       }
-    } catch (e) { this.log(`config: ${e.message}; the version's own config stands`); }
+    } catch (e) {
+      if (strictCid) throw e;
+      this.log(`config: ${e.message}; the version's own config stands`);
+    }
     // THE PUBLISHER's split (catalog rev 7): when the version names a config CID, the inline field
     // is only the routing manifest (volumes, mem64, set...) and the fetched bytes are what the
     // guest gets. Handing it the manifest instead would look like a working app with a nonsense

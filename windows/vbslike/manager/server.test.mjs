@@ -29,7 +29,7 @@ test("/health states the backend, refuses everything it cannot honour, and admit
     assert.equal(h.supports[k], false, `supports.${k} must be false`);
   assert.deepEqual(h.catalog.derivations, ["enclave-catalog-bundle/1"],
                    "the GATE list: only what this backend can actually serve");
-  assert.deepEqual(h.catalog.derives, ["enclave-catalog-bundle/1", "enclave-catalog-bundle/2", "enclave-catalog-bundle/3", "enclave-catalog-bundle/4"],
+  assert.deepEqual(h.catalog.derives, ["enclave-catalog-bundle/1", "enclave-catalog-bundle/2", "enclave-catalog-bundle/3", "enclave-catalog-bundle/4", "enclave-catalog-bundle/5"],
                    "what it can COMPUTE is separate information, and /2 is byte-exact here");
   assert.equal(h.runtime.v2SocketServer, false, "deriving /2 is not serving it, and health says which");
   assert.equal(h.catalog.runtimeId, RT);

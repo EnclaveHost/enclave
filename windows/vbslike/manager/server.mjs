@@ -21,7 +21,7 @@ import http from "node:http";
 import { inferenceRefusal } from "./shield-profile.mjs";
 import { runtimeId as runtimeId_ } from "../../../isolation/contract/runtime.mjs";
 import crypto from "node:crypto";
-import { derive, DERIVATION, DERIVATION_V2, DERIVATION_V4, DERIVATIONS } from "./derive.mjs";
+import { derive, appConfigText, MAX_CONFIG_BYTES, DERIVATION, DERIVATION_V2, DERIVATION_V4, DERIVATION_V5, DERIVATIONS } from "./derive.mjs";
 
 /* What this backend can actually SERVE, as opposed to derive. /2 needs a command's own socket
    inside the partition; when that exists, it moves into this list and the gate follows. */
@@ -49,7 +49,7 @@ export function policyFor({ memMb }) {
 /** What a spawn may NOT ask for here, checked again on this side of the wire. */
 export function refuseUnsupported(req = {}, s = SUPPORTS) {
   if ((Number(req.gpuMilli) > 0 || Number(req.gpuShare) > 0) && !s.gpu) return "a GPU share: a per-app partition has no GPU path";
-  if ((req.config || req.appConfigCid) && !s.config) return "app config: it is not delivered into a per-app partition";
+  if ((req.config || req.appConfigCid || req.configCid) && !s.config) return "app config: it is not delivered into a per-app partition";
   if (req.hasSecrets !== false && !s.secrets)
     return req.hasSecrets === true ? "staged secrets: they would cross this host in plaintext"
                                    : "unverified secret state: it must be known to be absent, not assumed";
@@ -67,9 +67,11 @@ export class Manager {
    * @param readyDeadlineMs  how long a domain has to become ready before it is failed.
    */
   constructor({ backend = new HyperVPartitionBackend(), fetchComponent = null, runtimeId = "",
-                runtime = null, shield = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null } = {}) {
+                runtime = null, shield = null, configEnabled = false, fetchConfig = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null } = {}) {
     this.backend = backend;
     this.shield = shield;
+    this.configEnabled = configEnabled === true && typeof fetchConfig === "function";
+    this.fetchConfig = fetchConfig;
     this.fetchComponent = fetchComponent;       // (cid) -> Buffer, CID-verified by the caller's fetcher
     // THE RUNTIME IDENTITY, not just its hash. judge-hv hands `expectRuntime` to the shared
     // checkRuntime as `want.runtime`, which DIFFS IT FIELD BY FIELD against the identity the
@@ -252,7 +254,8 @@ export class Manager {
       managerEpoch: this.epoch,
       inventory: this.inventory,
       backend: this.backend.backend,
-      supports: { ...this.backend.supports, ...(this.shield?.ready ? { gpu: true } : {}) },
+      supports: { ...this.backend.supports, gpu: !!this.shield?.ready, config: this.configEnabled, configCid: this.configEnabled },
+      configMaxBytes: this.configEnabled ? MAX_CONFIG_BYTES : 0,
       inference: this.shield ? { ...this.shield, allocatedGpuMilli: this.gpuAllocated(), freeGpuMilli: this.shield.ready ? Math.max(0, 1000-this.gpuAllocated()) : 0 } : null,
       // DEFECT 4: /health had no boundary at all, so a reader could learn everything about this
       // manager EXCEPT what its isolation actually is. It is carried verbatim from the backend,
@@ -266,7 +269,7 @@ export class Manager {
       // free. Silence in this list is the refusal the gate understands. (enclave-5d, who owns the
       // consumer, asked for exactly this, and they are right.)
       catalog: {
-        derivations: this.shield?.ready ? [...SERVES, DERIVATION_V4] : SERVES,                    // what it can serve: the gate reads this
+        derivations: [...SERVES, ...(this.shield?.ready ? [DERIVATION_V4] : []), ...(this.configEnabled ? [DERIVATION_V5] : [])],                    // what it can serve: the gate reads this
         derives: DERIVATIONS,                   // what it can COMPUTE, byte-exactly: information only
         runtimeId: this.runtimeId || null,
       },
@@ -308,7 +311,18 @@ export class Manager {
     const shieldWhy = inferenceRefusal(d, body, this.shield);
     if (shieldWhy) throw badRequest(shieldWhy);
     if (d.derivation === DERIVATION_V4 && !this.shield?.ready) throw badRequest("Shield profile unavailable");
-    if (d.derivation !== DERIVATION && d.derivation !== DERIVATION_V4) throw badRequest("derivation is not served");
+    if (d.derivation !== DERIVATION && d.derivation !== DERIVATION_V4 && !(d.derivation === DERIVATION_V5 && this.configEnabled))
+      throw badRequest("derivation is not served");
+    // The new config lives only in the measured record; never ignore a second, unmeasured input.
+    if (d.derivation === DERIVATION_V5) {
+      if (body.config || body.configCid || body.appConfigCid) throw badRequest("configuration must be carried in the V5 record only");
+      if (d.configCid) {
+        const bytes = await this.fetchConfig(d.configCid);
+        if (!Buffer.isBuffer(bytes) || bytes.length > (1 << 20)) throw badRequest("configuration fetch exceeds its byte limit");
+        const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+        if (appConfigText(text) !== d.config) throw badRequest("configuration differs from its verified CID");
+      }
+    }
     if (!d.inference && this.runtimeId && d.runtimeId !== this.runtimeId)
       throw badRequest(`the mapping is pinned to runtime ${d.runtimeId}, and this host runs ${this.runtimeId}`);
     const refusal = refuseUnsupported(body, { ...SUPPORTS, gpu: !!this.shield?.ready });
