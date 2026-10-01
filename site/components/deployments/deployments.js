@@ -1266,8 +1266,11 @@ class Deployments extends EnclaveElement {
        gate sizes against where the tenant is ACTUALLY running for exactly this
        reason, and a console floor below the runner's would offer a switch that
        gets the deployment EVICTED rather than merely refused.
-       `gpuMilli` is a parameter because the dials can change the answer while
-       you type: dial the card to 0 and this becomes a coreless placement.
+       The fallback floor only blocks an active deployment with a live host.
+       Stopped/queued deployments use the app's normal minimum, even at 0% GPU:
+       allocation can be saved before a host admits the next launch.
+       `gpuMilli` is a parameter because a running app's dials can change the
+       answer while you type: dial the card to 0 and it becomes CPU-only.
        `cardServesApp` is the shared mirror of the runner's gpuRouting, shielded
        card and all - a card too small for the app routes the work to cores,
        unless it is shielded, where offload is per-matmul and too-big is merely
@@ -1276,7 +1279,7 @@ class Deployments extends EnclaveElement {
        card unusable and demands the coreless floor for a deployment the runner
        serves on that very card at the card-case one. */
     const hostAvail = (hw && hw.row && hw.row.availability) || null;
-    const cpuNeedOf = (r, gpuMilli) => cpuFloorFor(r.mins,
+    const cpuNeedOf = (r, gpuMilli) => !hw || d.active === false ? r.mins.cpuPct : cpuFloorFor(r.mins,
       (gpuMilli != null ? gpuMilli : bought.gpuMilli) > 0 && cardServesApp(hostAvail, r.mins) ? 1 : 0);
     const rows = app.versions
       .map((v, i) => ({ v, i, mins: minPctsOf(specOf(v), hw && hw.spec) }))
