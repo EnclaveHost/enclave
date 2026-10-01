@@ -19,3 +19,11 @@ Release: `d4fab4c8727ce0d07cc850d29236ec2365903789dd8c81fb008210934b22f4c8`. Onl
 - A fixed public MTP inference probe at the owner's 45,440 MiB allocation exhausted its dynamically computed 40,587 MiB group limit. Init restarted the app without the graph, and a new attestation plus `/ping` check passed on the same guest TLS key.
 
 Evidence: `/home/steven/enclave-bench/dynamic-model-ram-20261001`. Larger-allocation inference testing and production activation are recorded below once complete.
+
+## Successful larger-allocation generation
+
+The exact final runtime completed the public 32-token decode probe in a 57,344 MiB (56 GiB) SNP guest: 320 ms prefill and 1,629 ms decode (19.03 tok/s for the 31 subsequent tokens). Both masked GPU workers held the model. Host-accounted VM peak was 56,237,813,760 bytes (52.38 GiB); this includes guest pages already freed and is not a model-size measurement. The dynamically enforced group limit was 51,647 MiB. This establishes a working allocation for this short test, not an exact minimum or eight-session capacity guarantee.
+
+The archived speculative probe first reached an obsolete `rewind` API and returned a structured `rewind_unsupported` error. The production application uses branch/copy speculation instead. The successful result above is ordinary decode; do not report it as a production MTP benchmark. The speculative probe did exercise model/context initialization, and the runtime stayed alive after that ordinary application error.
+
+The 44.4 GiB probe's post-OOM attestation and liveness check passed with the same TLS key. The 56 GiB canary was stopped before production activation, releasing its GPU and RAM resources.
