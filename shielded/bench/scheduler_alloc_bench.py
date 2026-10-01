@@ -21,6 +21,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline-ref", required=True)
     parser.add_argument("--repetitions", type=int, default=7)
+    parser.add_argument("--scenario", choices=("attn", "outliers"), default="attn")
+    parser.add_argument("--simd", action="store_true", help="use the runtime-selected SIMD kernels instead of scalar kernels")
     args = parser.parse_args()
     assert args.repetitions > 0
     repo = Path(__file__).resolve().parents[2]
@@ -52,11 +54,12 @@ def main():
                             "-Wl,--gc-sections", "-L" + str(libs), "-lggml", "-lggml-cpu", "-lggml-base",
                             "-lpthread", "-lm", "-Wl,-rpath," + str(libs), "-o", str(work / name)], check=True)
         calib = work / "attn.calib"
-        calib.write_text("# shielded-calib 1\n" + "".join("site blk.3." + n + ".weight 8 0\n"
+        outliers = "1 0" if args.scenario == "outliers" else "0"
+        calib.write_text("# shielded-calib 1\n" + "".join("site blk.3." + n + ".weight 8 " + outliers + "\n"
                          for n in ("attn_output", "ssm_out", "ffn_gate", "ffn_up")))
         env = {k: v for k, v in os.environ.items() if not k.startswith("SHIELDED_")}
         env.update(SHIELDED_CALIB=str(calib), SHIELDED_HOST="127.0.0.1", SHIELDED_MIN_MACS="0",
-                   SHIELDED_MAX_M="16", SHIELDED_LOCAL_EXACT="1", SHIELDED_NO_SIMD="1",
+                   SHIELDED_MAX_M="16", SHIELDED_LOCAL_EXACT="1", SHIELDED_NO_SIMD="0" if args.simd else "1",
                    SHIELDED_LOCAL_THREADS="1", SHIELDED_REFILL_THREADS="1", OMP_NUM_THREADS="1")
         runs, summary = [], []
         with socket.socket() as hold:
@@ -70,7 +73,7 @@ def main():
                     for trial in range(args.repetitions):
                         order = ("baseline", "improved") if trial % 2 == 0 else ("improved", "baseline")
                         for name in order:
-                            result = subprocess.run([str(work / name), str(m), "attn"], env=env,
+                            result = subprocess.run([str(work / name), str(m), args.scenario], env=env,
                                                     text=True, capture_output=True, check=True, timeout=30)
                             stats, outputs = [json.loads(line) for line in result.stdout.splitlines() if line.startswith("{")]
                             if expected is None:
@@ -84,6 +87,7 @@ def main():
                     summary.append(row)
                     runs.append({"rows": m, "fused": bool(fused), "samples": samples, "outputs": expected})
         print(json.dumps({"baseline_commit": commit, "repetitions": args.repetitions,
+                          "scenario": args.scenario, "simd": args.simd,
                           "scope": "Calling-thread C++ allocations in a tiny real-scheduler graph using exact CPU fallback; no inference speed or retained RAM claim",
                           "compiler_flags": "-O2 -std=c++17", "order": "alternating fresh processes after all builds finish",
                           "summary": summary, "runs": runs}, indent=2))

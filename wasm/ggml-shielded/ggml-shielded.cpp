@@ -1138,7 +1138,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
     e.act_scale = ldexpf(1.0f, (int)af);
     // A public power-of-two bound keeps every local outlier sum inside int64,
     // including its already-unmasked field term. The normal, non-outlier
-    // lanes get the stricter Freivalds bound at the link boundary.
+    // lanes get the stricter Freivalds bound after the outliers are removed.
     uint64_t limit = (uint64_t)SH_FV_X_LIMIT;
     if (nout) {
         const uint64_t safe = ((uint64_t)INT64_MAX - SH_HALF_M) / SH_WEIGHT_BYTE_LIMIT / nout;
@@ -2471,12 +2471,22 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
          * mask; SHIELDED_FIELD_THREADS spreads it (width 1 = one call). */
         struct sh_enc_range {
             const sh_simd *simd; const float *src; float scale, limit; int64_t *dst;
-            std::atomic<int> bad;
-        } er = { simd, (const float *)a->data, e0.act_scale, e0.encode_limit, x_gpu.data(), {0} };
+            std::atomic<int> bad, wide;
+        } er = { simd, (const float *)a->data, e0.act_scale, e0.encode_limit, x_gpu.data(), {0}, {0} };
         sh_par_for((int64_t)m * K, 1024, [](void *ctx, int64_t lo, int64_t hi) {
             auto *e = (sh_enc_range *)ctx;
-            if (!e->simd->encode_checked(e->src + lo, (size_t)(hi - lo), e->scale, e->limit, e->dst + lo))
-                e->bad.store(1, std::memory_order_relaxed);
+            /* Use the encoder's existing comparisons to prove the link's
+             * individual-value bound, avoiding another full scan when every
+             * activation fits that bound. A chunk that needs
+             * the wider local range is re-encoded in full, then checked below
+             * after the local outlier channels have been removed. */
+            if (!e->simd->encode_checked(e->src + lo, (size_t)(hi - lo), e->scale,
+                                        (float)SH_FV_X_LIMIT, e->dst + lo)) {
+                if (e->limit <= (float)SH_FV_X_LIMIT ||
+                    !e->simd->encode_checked(e->src + lo, (size_t)(hi - lo), e->scale, e->limit, e->dst + lo))
+                    e->bad.store(1, std::memory_order_relaxed);
+                else e->wide.store(1, std::memory_order_relaxed);
+            }
         }, &er);
         if (er.bad.load(std::memory_order_relaxed)) {
             fprintf(stderr, "[shielded] %s: nonfinite or unsupported activation range; aborting the graph\n", ggml_get_name(node->src[0]));
@@ -2491,6 +2501,16 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
                     x_tee[(size_t)r * nout + c] = x_gpu[(size_t)r * K + k];
                     x_gpu[(size_t)r * K + k] = 0;
                 }
+            /* Encoding allowed the wider local-outlier range. Reject an
+             * oversized ordinary lane before consuming pads or exchanging.
+             * The link's defensive range refusal is SH_ERR_VERIFY, which
+             * the backend must otherwise treat as a permanent integrity
+             * failure. Invalid caller input must not retire trusted state. */
+            if (er.wide.load(std::memory_order_relaxed) &&
+                !simd->values_within(x_gpu.data(), (size_t)m * K, SH_FV_X_LIMIT)) {
+                fprintf(stderr, "[shielded] %s: unsupported non-outlier activation range; aborting the graph\n", ggml_get_name(node->src[0]));
+                return GGML_STATUS_FAILED;
+            }
         }
         s.t_encode += sh_now_ms() - te0;
 
