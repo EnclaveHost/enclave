@@ -271,9 +271,60 @@ static void lo_up(void) {
 /* Measured, bundle-derived inference profile. Never read a host environment. */
 static int shield_on, shield_large, shield_load_allowed;
 static char shield_ram_env[96];
+static int shield_memory_group;
+#define SHIELD_CGROUP "/sys/fs/cgroup/shield-app"
 #include "shield-memory.h"
 static char shield_model[64], shield_graph[128], shield_models_env[96], shield_preloads_env[96], shield_calib[128];
 static char shield_workers[512], shield_vram_env[80];
+/* The controller is private to this guest and remains root-owned. The
+ * unprivileged application cannot raise its limit or move itself out. */
+static unsigned long long shield_available_ram(void) {
+    FILE *f = fopen("/proc/meminfo", "r");
+    if (!f) return 0;
+    char line[256]; unsigned long long kb = 0;
+    while (fgets(line, sizeof line, f))
+        if (sscanf(line, "MemAvailable: %llu kB", &kb) == 1) break;
+    fclose(f);
+    return kb <= ULLONG_MAX / 1024 ? kb * 1024 : 0;
+}
+static int shield_cgroup_write(const char *file, const char *value) {
+    char path[160]; snprintf(path, sizeof path, SHIELD_CGROUP "/%s", file);
+    return write_sysctl(path, value);
+}
+static int shield_cgroup_setup(unsigned long long budget) {
+    if (!budget) return 0;
+    if (mkdir("/sys/fs/cgroup", 0755) != 0 && errno != EEXIST) return 0;
+    if (mount("cgroup2", "/sys/fs/cgroup", "cgroup2", MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL) != 0) return 0;
+    if (write_sysctl("/sys/fs/cgroup/cgroup.subtree_control", "+memory") != 0 ||
+        mkdir(SHIELD_CGROUP, 0755) != 0) return 0;
+    char limit[32]; snprintf(limit, sizeof limit, "%llu", budget);
+    if (shield_cgroup_write("memory.max", limit) != 0 ||
+        shield_cgroup_write("memory.swap.max", "0") != 0 ||
+        shield_cgroup_write("memory.oom.group", "1") != 0) return 0;
+    return 1;
+}
+static unsigned long long shield_oom_events(void) {
+    FILE *f = fopen(SHIELD_CGROUP "/memory.events", "r");
+    if (!f) return 0;
+    char line[128]; unsigned long long n = 0;
+    while (fgets(line, sizeof line, f))
+        if (sscanf(line, "oom %llu", &n) == 1) break;
+    fclose(f); return n;
+}
+static void shield_disable_model(void) {
+    shield_load_allowed = 0;
+    snprintf(shield_preloads_env, sizeof shield_preloads_env, "ENCLAVE_NN_PRELOADS=");
+    /* No process may still hold the source when this is called. Remove only
+     * the private copy; never change the host-backed device or its digest. */
+    if (shield_large) {
+        const char *dir = "/models/qwen3.8-27b-mtp-q4-vl-gguf/";
+        char p[160];
+        snprintf(p, sizeof p, "%sprivate/model.gguf", dir); unlink(p);
+        snprintf(p, sizeof p, "%smodel.gguf", dir); unlink(p);
+        snprintf(p, sizeof p, "%sQwen3.8-27B-UD-Q4_K_XL.gguf", dir); unlink(p);
+    }
+    printf("DOM Shield model declined: actual load exceeded its guest RAM budget; app available without model\n");
+}
 static void shield_profile(void) {
     FILE *f = fopen("/app.shield", "r");
     if (!f) return;
@@ -296,12 +347,14 @@ static void shield_profile(void) {
     shield_on = 1;
     struct sysinfo si;
     unsigned long long total = sysinfo(&si) == 0 ? (unsigned long long)si.totalram * si.mem_unit : 0;
-    shield_load_allowed = shield_memory_fits(total, shield_large);
-    unsigned long long budget = shield_serve_budget(total, shield_large, shield_load_allowed);
-    snprintf(shield_ram_env, sizeof shield_ram_env, "ENCLAVE_NN_SERVE_BYTES=%llu", budget);
+    unsigned long long budget = shield_memory_budget(total, shield_available_ram());
+    shield_memory_group = shield_cgroup_setup(budget);
+    shield_load_allowed = shield_memory_group;
+    printf("DOM Shield dynamic RAM budget: %llu MiB, controller=%s\n", budget / SHIELD_MIB, shield_memory_group ? "enforced" : "unavailable");
+    snprintf(shield_ram_env, sizeof shield_ram_env, "ENCLAVE_NN_SERVE_BYTES=%llu", budget ? budget : 1);
     if (!shield_load_allowed) {
         snprintf(shield_preloads_env, sizeof shield_preloads_env, "ENCLAVE_NN_PRELOADS=");
-        printf("DOM Shield model not loaded: insufficient guest RAM; app remains available\n");
+        printf("DOM Shield model not loaded: bounded loading unavailable; app remains available\n");
     }
 }
 
@@ -409,6 +462,12 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
     const int quiet = flags & SPAWN_QUIET, drop = flags & SPAWN_DROP;
     pid_t pid = fork();
     if (pid == 0) {
+        /* Charge both the verified tmpfs model copy and the runtime to the
+         * same limit. TLS and init stay outside, so a failed load cannot kill
+         * the attesting front. Join before allocating, dropping uid or exec. */
+        if (shield_memory_group && (drop || strcmp(argv[0], "/shieldmodel") == 0)) {
+            if (shield_cgroup_write("cgroup.procs", "0") != 0) _exit(125);
+        }
         if (fd3 == 3) fcntl(3, F_SETFD, 0);                      /* already fd 3: only drop CLOEXEC */
         else if (fd3 >= 0 && dup2(fd3, 3) < 0) _exit(127);       /* dup2 leaves the new fd 3 without CLOEXEC */
         const int reclaim_sources = shield_on && shield_load_allowed && shield_large && drop &&
@@ -642,16 +701,20 @@ int main(void) {
         if (shield_rings() != 0) { printf("DOM ERROR invalid Shield rings\n"); reboot(RB_POWER_OFF); _exit(1); }
         if (shield_large) {
             char *mv[] = {"/shieldmodel", NULL}; int status=0;
+            unsigned long long oom_before = shield_oom_events();
             pid_t pid=spawn(mv,NULL,-1,0);
             if(pid<0 || waitpid(pid,&status,0)!=pid || !WIFEXITED(status) || WEXITSTATUS(status)!=0) {
-                printf("DOM ERROR model verification failed\n"); reboot(RB_POWER_OFF); _exit(1);
+                if (pid > 0 && shield_oom_events() > oom_before) shield_disable_model();
+                else { printf("DOM ERROR model verification failed\n"); reboot(RB_POWER_OFF); _exit(1); }
             }
         }
-        char *av[] = {"/shieldbroker", NULL};
-        shield_pid = spawn(av, NULL, -1, 0);
-        for (int i = 0; access("/run/enclave-shield/gpu1", F_OK) != 0; i++) {
-            if (i > 1000 || shield_pid < 0) { printf("DOM ERROR Shield broker not ready\n"); fflush(stdout); reboot(RB_POWER_OFF); _exit(1); }
-            usleep(10000);
+        if (shield_load_allowed) {
+            char *av[] = {"/shieldbroker", NULL};
+            shield_pid = spawn(av, NULL, -1, 0);
+            for (int i = 0; access("/run/enclave-shield/gpu1", F_OK) != 0; i++) {
+                if (i > 1000 || shield_pid < 0) { printf("DOM ERROR Shield broker not ready\n"); fflush(stdout); reboot(RB_POWER_OFF); _exit(1); }
+                usleep(10000);
+            }
         }
     }
 
@@ -801,14 +864,15 @@ int main(void) {
         app[k++] = base[i];
     }
     app[k] = NULL;
+    unsigned long long app_oom_before = shield_oom_events();
     pid_t app_pid = spawn_app(app, cfg_env, SPAWN_QUIET | SPAWN_DROP | SPAWN_FILTER);   /* quiet, dropped to APP_UID, filtered */
     if (app_pid == -2) {
         fflush(stdout);
         reboot(RB_POWER_OFF);
     }
-    if (cfg_env) {
+    if (cfg_env && !shield_load_allowed) {
         explicit_bzero(cfg_env, sizeof "ENCLAVE_CONFIG=" + cfg_len);
-        free(cfg_env);
+        free(cfg_env); cfg_env = NULL;
     }
     printf("DOM started app=%d front=%d at_ms=%.0f\n", app_pid, front_pid, now_ms());
 
@@ -816,6 +880,28 @@ int main(void) {
         int st = 0;
         pid_t w = wait(&st);
         if (w < 0 && errno == ECHILD) break;
+        if (w == app_pid && shield_load_allowed && shield_oom_events() > app_oom_before) {
+            /* Retry once WITHOUT an inference graph, not with a larger RAM
+             * share or weaker isolation. All runtime threads are gone. */
+            if (shield_pid > 0) {
+                kill(shield_pid, SIGTERM);
+                for (int i=0; i<100 && waitpid(shield_pid, NULL, WNOHANG)==0; i++) usleep(10000);
+                if (waitpid(shield_pid, NULL, WNOHANG)==0) { kill(shield_pid, SIGKILL); waitpid(shield_pid, NULL, 0); }
+                shield_pid = -1;
+            }
+            shield_disable_model();
+            for (int i = 0; app[i]; i++) {
+                if (strcmp(app[i], "-S") == 0 && app[i+1] == shield_graph) {
+                    for (int j=i; ; j++) { app[j]=app[j+2]; if (!app[j]) break; }
+                    break;
+                }
+            }
+            app_pid = spawn_app(app, cfg_env, SPAWN_QUIET | SPAWN_DROP | SPAWN_FILTER);
+            if (cfg_env) { explicit_bzero(cfg_env, sizeof "ENCLAVE_CONFIG=" + cfg_len); free(cfg_env); cfg_env=NULL; }
+            if (app_pid <= 0) break;
+            printf("DOM app restarted without model after bounded load failure\n");
+            continue;
+        }
         if (w == app_pid || w == front_pid || (shield_on && w == shield_pid)) {
             printf("DOM ERROR %s exited status=%d\n", w == app_pid ? "app" : "front",
                    WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st));
