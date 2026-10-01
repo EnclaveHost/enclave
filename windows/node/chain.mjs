@@ -363,8 +363,13 @@ export function parseEnvelope(raw, gpuMilli) {
     // could ever be isolated on this node (enclave-99, reading the activation path end to end).
     const iso = o.isolation;
     if (!iso || Array.isArray(iso) || typeof iso !== "object") throw new Error('isolation must be a JSON object like {"require":"hyperv-partition-per-app"}');
-    const bad = Object.keys(iso).filter((k) => k !== "require");
+    const bad = Object.keys(iso).filter((k) => !["require", "cpuTee", "gpuTee"].includes(k));
     if (bad.length) throw new Error(`unknown isolation option ${JSON.stringify(bad[0])} (this node knows: require)`);
+    for (const key of ["cpuTee", "gpuTee"]) {
+      if (key in iso && typeof iso[key] !== "boolean") throw new Error(`isolation.${key} must be true or false`);
+    }
+    if (iso.cpuTee === true) opts.cpuTee = true;
+    if (iso.gpuTee === true) opts.gpuTee = true;
     if ("require" in iso) {
       if (typeof iso.require !== "string" || !/^[a-z0-9-]{3,64}$/.test(iso.require))
         throw new Error("isolation.require must be a backend name like \"hyperv-partition-per-app\"");
@@ -484,6 +489,9 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
   // deployment that reached the line - opted in or not - and host.mjs calls claimPolicy outside any
   // try, so consider() rejected and the deployment was recorded neither refused nor queued. That is
   // a claim path broken for every tenant, from a check meant to affect a few (enclave-99).
+  if (opts.cpuTee && isolationBackend !== "snp-guest-per-app") return "it requires a TEE CPU; this host supplies an Enclave Shield partition";
+  // No Windows partition backend currently supplies attested confidential-mode GPU execution.
+  if (opts.gpuTee) return "it requires a TEE GPU; masked GPU offload does not satisfy this requirement";
   if (opts.isolationRequire) {
     if (!isolationBackend)
       return `it requires isolation backend ${opts.isolationRequire}, and this box runs no isolation backend`;
@@ -604,3 +612,10 @@ export async function checkpoint({ id, enclaveId, upto }) {
 }
 
 export { REGISTRY_ABI, DEP_ABI, CATALOG_ABI, PROOF_ABI };
+
+// Absence of a hardware requirement permits either isolated implementation, never the retired engine.
+export function isolationForBackend(opts, backend) {
+  return !!opts && ["snp-guest-per-app", "hyperv-partition-per-app"].includes(backend)
+    && (!opts.isolationRequire || opts.isolationRequire === backend)
+    && (!opts.cpuTee || backend === "snp-guest-per-app") && !opts.gpuTee;
+}
