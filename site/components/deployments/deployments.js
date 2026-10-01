@@ -22,7 +22,8 @@ import { Enclave } from "../../js/core/api.js";
 import { pad32, encUint, encCall, hexBig, DEP_SEL, APPROVAL, depPrices6, rate6Of, depMaxGpuMilli, depGet, depSchemaRev, depFeeOf, depCapOf, depRefundableOf, depCall, catVersionFee, waitReceipt } from "../../js/core/chain.js";
 import { authenticate, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx, personalSign } from "../../js/core/wallet.js";
 import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, specOfRef, STORE, fetchConfigCid, stripMedia, putConfig } from "../../js/core/catalog.js";
-import { appResources } from "../../js/core/app-resources.js";
+import { appShareLabel } from "../../js/core/app-resources.js";
+import { resourceDialog } from "../../js/core/resource-dialog.js";
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
@@ -398,8 +399,7 @@ function cfgPlan(ctx){
   return { verdictOf, clearEnvelope, splitEnvelope };
 }
 function encTier(d){
-  const ref = d.image?.reference || (d.app?.appId != null && d.app?.index != null ? catalogRef(d.app.appId, d.app.index) : "");
-  return appResources(specOfRef(ref), d);
+  return appShareLabel(d);
 }
 // A deployment's DEDICATED IPv6 (per-deployment addressing): declared tcp/udp
 // ports are served at [address]:<logical port> via the relays, and outbound
@@ -512,6 +512,7 @@ class Deployments extends EnclaveElement {
   }
   disconnectedCallback() {
     super.disconnectedCallback();
+    this._resourceDialog?.close();
     this._stopPoll();
     Object.keys(this._logPolls || {}).forEach(id => this._stopLogPoll(id));
     if (this._onAuth) document.removeEventListener("enclave:auth", this._onAuth);
@@ -697,6 +698,21 @@ class Deployments extends EnclaveElement {
     body.before(el);
   }
 
+  _resources(id, trigger) {
+    const d = (this._list || []).find(row => row.id === id);
+    if (!d) return;
+    this._resourceDialog?.close();
+    const ref = d.image?.reference || (d.app?.appId != null && d.app?.index != null ? catalogRef(d.app.appId, d.app.index) : "");
+    const dialog = resourceDialog({
+      title: deploymentTitle(d) || d.id,
+      spec: specOfRef(ref), deployment: d, trigger,
+      onClose: () => { if (this._resourceDialog === dialog) this._resourceDialog = null; },
+    });
+    this._resourceDialog = dialog;
+    this.append(dialog);
+    dialog.showModal();
+  }
+
   _renderRows(list, highlight) {
     const body = this.querySelector(".enc-body");
     list = (list || []).slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
@@ -790,7 +806,8 @@ class Deployments extends EnclaveElement {
           '<span class="ap-badge ep-relay" data-relayb="' + esc(d.id) + '" hidden></span>' +
           '<button class="enc-id" data-copy="' + esc(d.id) + '" title="' + esc(d.id) + '" aria-label="copy deployment id">' + esc(idShort) + ' ⧉</button>' +
           '<span class="enc-br" aria-hidden="true"></span>' +
-          '<span class="enc-meta">' + esc(encTier(d))
+          '<span class="enc-meta"><button type="button" class="enc-resources" data-id="' + esc(d.id)
+            + '" aria-haspopup="dialog" title="View RAM, CPU, VRAM and GPU resource breakdown">' + esc(encTier(d)) + '</button>'
             // which box serves it (relay stamps `enclave` on live-hosted and
             // lease-held rows alike; absent while queued/stopped - nothing runs it)
             + (d.enclave ? ' · <span class="dim enc-host" title="the enclave this app runs on">on ' + esc(d.enclave) + '</span>' : '') + '</span>' +
@@ -862,6 +879,7 @@ class Deployments extends EnclaveElement {
       '</div>';
     }).join("");
     $$(".enc-id", body).forEach(b => b.addEventListener("click", () => copyText(b.dataset.copy)));
+    $$(".enc-resources", body).forEach(b => b.addEventListener("click", () => this._resources(b.dataset.id, b)));
     $$(".enc-ep", body).forEach(b => b.addEventListener("click", () => copyText(b.dataset.ep)));
     // STRICT tabs: opening one panel first closes any open sibling - via the
     // open tab's own click path (capture phase runs before the open handler),
@@ -3506,6 +3524,7 @@ class Deployments extends EnclaveElement {
      rebuilds the row and strands the reveal in detached DOM (the dropdown
      "closes" under the wallet popup). The poll catches up once it clears. */
   _panelPinned() {
+    if (this._resourceDialog?.open) return true;
     return !!this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-shares:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-net:not([hidden]), .enc-cfg:not([hidden]), .enc-mod:not([hidden]), .enc-mob:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden]), .enc-sec[data-busy], .enc-dom[data-busy]");
   }
   _startPoll() {
