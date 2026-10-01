@@ -481,6 +481,13 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             if (model < 0 || backing < 0 || dup2(model, 198) < 0 || dup2(backing, 199) < 0) _exit(125);
             close(model); close(backing);
         }
+        if (shield_on && shield_large && drop && access("/rt/shield-streamed-weights.enabled", R_OK) == 0) {
+            // Dedicated untrusted PUBLIC-weight scratch, never a secret volume.
+            // Pass only to native runtime; it is not a WASI preopen.
+            int cache = open("/dev/vdb", O_RDWR | O_CLOEXEC);
+            if (cache < 0 || dup2(cache, 197) < 0 || fcntl(197, F_SETFD, 0) < 0) _exit(125);
+            if (cache != 197) close(cache);
+        }
         int con = 1;
         if (quiet) {
             con = fcntl(1, F_DUPFD_CLOEXEC, 10);
@@ -549,21 +556,26 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             if (shield_large) envp[ei++] = "ENCLAVE_GGML_FLASH_ATTN=off";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_RS_SEQ=1" : "ENCLAVE_GGML_N_RS_SEQ=0";
             envp[ei++] = shield_large ? "SHIELDED_REFILL_THREADS=16" : "SHIELDED_REFILL_THREADS=2";
-            envp[ei++] = shield_large ? "SHIELDED_POOL_DEPTH=128" : "SHIELDED_POOL_DEPTH=16";
-            envp[ei++] = "SHIELDED_REFILL_BATCH=64";
+            int shield_stream = shield_large && access("/rt/shield-streamed-weights.enabled", R_OK) == 0;
+            envp[ei++] = shield_stream ? "SHIELDED_POOL_DEPTH=512" : shield_large ? "SHIELDED_POOL_DEPTH=128" : "SHIELDED_POOL_DEPTH=16";
+            envp[ei++] = shield_stream ? "SHIELDED_REFILL_BATCH=256" : "SHIELDED_REFILL_BATCH=64";
             /* Candidate capability belongs to the measured runtime, never to
              * host-supplied app configuration. The release must include the
              * matching compact backend and pinned integer-GEMM dependency. */
             int shield_compact = shield_large && access("/rt/shield-compact-weights.enabled", R_OK) == 0;
             if (shield_compact)
                 envp[ei++] = "SHIELDED_COMPACT_WEIGHTS=1";
+            if (shield_stream)
+                envp[ei++] = "SHIELDED_COMPACT_STREAM_DIR=fd:197";
+            if (access("/rt/shield-incremental-source-reclaim.enabled", R_OK) == 0)
+                envp[ei++] = "SHIELDED_SOURCE_RECLAIM_INCREMENTAL=1";
             /* Eight refill workers per card; exact vector CRT is qualified for the 27B profile. */
             if (shield_large) envp[ei++] = "SHIELDED_REFILL_VECTOR_CRT=1";
             if (shield_large) envp[ei++] = "SHIELDED_MASK_CHACHA16=1";
             /* Compact unit 64 is the qualified memory-priority profile.
              * Real MTP chat is slightly slower than raw weights; this tradeoff
              * is accepted for the resident-memory saving. */
-            if (shield_large) envp[ei++] = shield_compact ? "SHIELDED_REFILL_UNIT=64" : "SHIELDED_REFILL_UNIT=32";
+            if (shield_large) envp[ei++] = shield_stream ? "SHIELDED_REFILL_UNIT=256" : shield_compact ? "SHIELDED_REFILL_UNIT=64" : "SHIELDED_REFILL_UNIT=32";
             if (shield_large) envp[ei++] = "SHIELDED_REFILL_COST_PRIORITY=1";
             if (shield_large) {
                 /* This marker is part of the measured runtime, never host input.

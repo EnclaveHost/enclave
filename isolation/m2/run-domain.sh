@@ -70,6 +70,7 @@ start)
   fi
   set --
   pin_shield=0
+  spill_dir=
   if [ -f "$img.shield" ]; then
     model=$(cat "$img.shield")
     case "$model" in qwen2.5-0.5b-q8-gguf|qwen3.8-27b-mtp-q4-vl-gguf) ;; *) echo "invalid Shield model" >&2; exit 2;; esac
@@ -83,9 +84,17 @@ start)
     if [ "$model" = qwen3.8-27b-mtp-q4-vl-gguf ]; then
       [ -f "${SHIELDED_MODEL_FILE:-}" ] || { echo "missing Shield model" >&2; exit 2; }
       set -- "$@" -drive "file=$SHIELDED_MODEL_FILE,format=raw,if=virtio,readonly=on,cache=none"
+      if [ -f "$img.shield-stream" ]; then
+        case "$W" in *,*) echo "commas are forbidden in public scratch paths" >&2; exit 2;; esac
+        spill_dir=$(mktemp -d "$W/shield-public-weights.XXXXXX")
+        chmod 700 "$spill_dir"
+        truncate -s 40G "$spill_dir/weights.raw"
+        chmod 600 "$spill_dir/weights.raw"
+        set -- "$@" -drive "file=$spill_dir/weights.raw,format=raw,if=virtio,cache=none"
+      fi
       # Pause until critical vCPUs are placed on physical cores sharing an L3.
       qmp_dir=$(mktemp -d /tmp/enclave-shield-qmp.XXXXXX)
-      trap 'rm -rf "$qmp_dir"' EXIT
+      trap 'rm -rf "$qmp_dir"; if [ -n "$spill_dir" ]; then rm -rf "$spill_dir"; fi' EXIT
       set -- "$@" -S -qmp "unix:$qmp_dir/qmp,server=on,wait=off"
       pin_shield=1
     fi
@@ -109,6 +118,8 @@ start)
       exit 1
     fi
   fi
+  # QMP was reachable, so QEMU has opened its drives. The EXIT trap unlinks
+  # public scratch; the live descriptor survives, and exit/crash frees blocks.
   echo "HOST mode=$mode vcpus=$vcpus memMiB=$mem cpuQuota=${quota}% unit=$unit cid=$cid t0_ms=$t0"
   ;;
 stop)

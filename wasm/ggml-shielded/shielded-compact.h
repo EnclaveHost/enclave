@@ -9,6 +9,11 @@ typedef struct sh_compact_store sh_compact_store;
  * payload is within 1% of the original format. Reads preserve original order.
  * NULL on unsupported CPU/geometry or allocation/validation failure. */
 sh_compact_store *sh_compact_create(const int8_t *, int64_t K, int64_t N);
+/* Same exact arithmetic with public packed weights on disk. Each read is
+ * SHA-256 authenticated in private memory against admission-time hashes.
+ * No masks/activations/corrections go to disk. Refuses tmpfs/ramfs. */
+sh_compact_store *sh_compact_create_streamed(const int8_t *, int64_t K, int64_t N,
+                                          const char *directory);
 void sh_compact_free(sh_compact_store *);
 /* Store buffers and container metadata, excluding shared JIT plans and workers. */
 size_t sh_compact_bytes(const sh_compact_store *);

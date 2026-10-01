@@ -34,16 +34,21 @@ test('weight authentication binds the private encoded source and prevents fallba
       run('c++',[...flags,'-std=c++17','-I'+join(compactRoot,'usr/include'),
        '-mavx512f','-mavx512bw','-mavx512dq','-mavx512vl','-mavx512vnni',
        '-c',join(gg,'shielded-compact.cpp'),'-o',co]);
-      compactFlags.push('-DSHIELDED_COMPACT','-L'+join(compactRoot,'usr/lib'),'-ldnnl','-lgomp','-Wl,-rpath,'+join(compactRoot,'usr/lib'));
+      compactFlags.push('-DSHIELDED_COMPACT','-L'+join(compactRoot,'usr/lib'),'-ldnnl','-lgomp','-lcrypto','-Wl,-rpath,'+join(compactRoot,'usr/lib'));
     }
     const bin = join(dir, 'test');
     run('c++', [...flags, '-std=c++17', '-I' + join(headers, 'ggml/include'), '-I' + join(headers, 'ggml/src'),
       join(root, 'test/fixtures/shielded-weight-verifier.cpp'), ...objects, ...compactFlags, '-Wl,--gc-sections',
       '-L' + libs, '-lggml', '-lggml-cpu', '-lggml-base', '-lpthread', '-lm', '-Wl,-rpath,' + libs, '-o', bin]);
-    for (const scenario of ['honest', 'tamper', 'shape', 'source', 'source_local_mint', 'source_split_local', 'source_tamper', 'source_readfail', 'source_release_fail', 'source_cpu', 'background_integrity', ...(compactRoot?['source_compact_local','source_compact_split']:[])])
+    for (const scenario of ['honest', 'tamper', 'shape', 'source', 'source_local_mint', 'source_split_local', 'source_tamper', 'source_readfail', 'source_release_fail', 'source_incremental', 'source_incremental_fail', 'source_incremental_prefetch', 'source_cpu', 'background_integrity', ...(compactRoot?['source_compact_local','source_compact_split']:[])])
       assert.match(run(bin, [dir, scenario]), /weight-verifier: private-copy encoding/);
     const refused = spawnSync(bin, [dir, 'source_cpu_tamper'], {env, encoding: 'utf8', timeout: 60_000});
     assert.equal(refused.signal, 'SIGABRT');
     assert.match(refused.stderr, /authenticated weight source read failed/);
+    const split = join(dir, 'split');
+    run('c++', [...flags, '-std=c++17', '-I' + join(headers, 'ggml/include'), '-I' + join(headers, 'ggml/src'),
+      join(root, 'test/fixtures/shielded-incremental-split.cpp'), ...objects, ...compactFlags, '-Wl,--gc-sections',
+      '-L' + libs, '-lggml', '-lggml-cpu', '-lggml-base', '-lpthread', '-lm', '-Wl,-rpath,' + libs, '-o', split]);
+    assert.match(run(split, []), /incremental split: all card slices authenticated/);
   } finally { rmSync(dir, {recursive: true, force: true}); }
 });

@@ -13,7 +13,7 @@ test('production compact provider preserves field arithmetic and fails closed',{
  try{
   execFileSync('cc',[...flags,...simd,'-DSH_SIMD_AVX512','-c',join(root,'wasm/ggml-shielded/shielded-simd.c'),'-o',join(d,'simd.o')]);
   execFileSync('cc',[...flags,'-c',join(root,'wasm/ggml-shielded/shielded-field.c'),'-o',join(d,'field.o')]);
-  execFileSync('c++',[...flags,...simd,'-std=c++17','-pthread','-I'+join(dn,'usr/include'),join(root,'test/fixtures/shielded-compact-runtime.cpp'),join(d,'simd.o'),join(d,'field.o'),'-L'+join(dn,'usr/lib'),'-ldnnl','-lgomp','-Wl,-rpath,'+join(dn,'usr/lib'),'-o',join(d,'test')]);
+  execFileSync('c++',[...flags,...simd,'-std=c++17','-pthread','-I'+join(dn,'usr/include'),join(root,'test/fixtures/shielded-compact-runtime.cpp'),join(d,'simd.o'),join(d,'field.o'),'-L'+join(dn,'usr/lib'),'-ldnnl','-lgomp','-lcrypto','-Wl,-rpath,'+join(dn,'usr/lib'),'-o',join(d,'test')]);
   const r=spawnSync(join(d,'test'),[],{encoding:'utf8',timeout:120000,env:{...process.env,OMP_NUM_THREADS:'1',OMP_DYNAMIC:'FALSE',ASAN_OPTIONS:'detect_leaks=1:abort_on_error=1',UBSAN_OPTIONS:'halt_on_error=1'}});
   if(r.status===77)return t.skip('requires AVX512 VNNI');
   assert.equal(r.status,0,r.stderr||String(r.error));assert.match(r.stdout,/76 exact cases/);

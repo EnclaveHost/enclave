@@ -2,6 +2,12 @@
 
 Research: 2026-09-29. No runtime or production configuration changed.
 
+2026-09-30 implementation follow-up: an
+[integrated streamed compact runtime](shield-streamed-compact-runtime.md) now
+combines exact integer GEMM, authenticated disk tiles, larger refills, and
+incremental source retirement. Its qualification and limitations supersede the
+implementation-status statements in this historical research note.
+
 Follow-up: the offline prototype and real-model matrix tests are complete.
 See [the measured results](../../isolation/m4/evidence/shield-streamed-refill-2026-09-30/README.md).
 It released a 1.184 GiB matrix correctly, but the final batch-256 direct-read

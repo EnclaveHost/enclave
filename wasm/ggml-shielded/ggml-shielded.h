@@ -71,7 +71,8 @@ typedef int (*ggml_shielded_weight_verifier)(void *ctx, const char *name,
 GGML_BACKEND_API int ggml_backend_shielded_set_weight_verifier(
     ggml_shielded_weight_verifier verifier, void *ctx);
 
-/* Optional source retirement after a successful registration batch. Installed
+/* Optional source retirement after a successful registration batch (or after
+ * each tensor, including all card slices, in incremental-reclamation mode). Installed
  * after the verifier and before any graph. Called under the pool lock; it must
  * not reenter the backend. Failure latches source verification closed. */
 typedef int (*ggml_shielded_source_release)(void *ctx);
