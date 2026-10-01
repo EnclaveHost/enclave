@@ -1218,10 +1218,10 @@ class Deployments extends EnclaveElement {
         verFees[i] = (!v.yanked && v.approval === APPROVAL.approved) ? await catVersionFee(cr.appId, i) : 0n;
       }));
     } catch(e){ return fail("[x] couldn’t read the publisher fees involved - try again shortly"); }
-    // When the fleet cannot resize an existing instance, use the ordinary
-    // suspend/release/reclaim lifecycle. Never pretend a changed billing row
-    // has changed the old VM's resources.
-    const restartResize = sharesOnly && avail?.shareResize !== true;
+    // Shares uses the stop/release/reclaim lifecycle on every backend. Save
+    // shares with suspension atomically; never leave a failed resize stopped
+    // with the old allocation or pretend the existing VM resized live.
+    const restartResize = sharesOnly;
     let resizable = sharesOnly && rev >= 6, prices = null, maxGpu = 1000;
     let resizeReason = rev < 6 ? "This ledger does not support changing shares." : "";
     if (resizable){
@@ -1335,8 +1335,8 @@ class Deployments extends EnclaveElement {
       if (sharesOnly) {
         if (resizable) paint("info", restartResize
           ? d.active === false
-            ? "Update the allocation while the app is stopped. Its URL and balance stay the same. Use Resume afterward to start it at the new size."
-            : "The app will stop and restart at the new size. Its URL and balance stay the same; in-memory state resets. Confirm suspension, then the new allocation."
+            ? "Save the allocation and re-queue the stopped app. Its URL and balance stay the same."
+            : "Save the new shares and stop in one confirmation, then confirm re-queue after the old lease clears. URL and balance stay the same; in-memory state resets."
           : "The host applies the new allocation and may restart the app. Its URL and balance stay the same; in-memory state may reset.");
         if (cur) paint("dimln", "Minimum: " + Math.max(1, cpuNeedOf(cur, dials().gpuMilli)) + "% CPU"
           + (cur.mins.gpuPct ? " · " + cur.mins.gpuPct + "% GPU" : "") + (hw ? " on " + hw.name : ""));
@@ -1433,8 +1433,8 @@ class Deployments extends EnclaveElement {
         const t = dials();
         const resized = t.gpuMilli !== bought.gpuMilli || t.cpuMilli !== bought.cpuMilli;
         const verChange = r.i !== cr.index;
-        go.textContent = restartResize && d.active !== false ? "Resize and restart" : "Update shares";
-        go.disabled = !verChange && !resized;
+        go.textContent = restartResize ? "Resize and restart" : "Update shares";
+        go.disabled = !verChange && !resized && !(restartResize && d.active === false);
         const bad = problem(r, t, resized);
         if (bad){ paint("warn", bad); return; }   // hint only - the click re-checks
         if (resized){
@@ -1456,11 +1456,11 @@ class Deployments extends EnclaveElement {
     go.addEventListener("click", async () => {
       if (box.dataset.busy) return;
       const r = rows.find(x => String(x.i) === sel.value);
-      if (!r || !r.fits) return;
+      if (!r || !r.fits || (sharesOnly && !resizable)) return;
       const t = dials();
       const resized = resizable && (t.gpuMilli !== bought.gpuMilli || t.cpuMilli !== bought.cpuMilli);
       const verChange = !sharesOnly && r.i !== cr.index;
-      if (!verChange && !resized) return;
+      if (!verChange && !resized && !(restartResize && d.active === false)) return;
       // the one gate: nothing was rejected while it was being typed, so the
       // dials are checked here, before a signature is ever asked for
       if (resizable && gIn && cIn){
@@ -1476,7 +1476,7 @@ class Deployments extends EnclaveElement {
       try {
         box.dataset.busy = "true";
         locked.forEach(([el]) => { el.disabled = true; });
-        if (resized && restartResize) {
+        if (restartResize && (resized || d.active === false)) {
           if (!via && !Enclave.provider) await connectWallet();
           if (!via) await ensureBaseChain();
           const walletTx = async data => { const hash = await sendTx(DEPLOYMENTS_ADDRESS, data); await waitReceipt(hash); };
@@ -1484,15 +1484,19 @@ class Deployments extends EnclaveElement {
           const sharesCall = encCall(DEP_SEL.setShares, [{ t: "bytes32", v: id }, { t: "uint", v: t.gpuMilli }, { t: "uint", v: t.cpuMilli }]);
           const vault = via ? (await import("../../js/core/vault.js")).vaultOp : null;
           const result = await resizeAfterStop({
-            expected: d, read: () => depSnapshot(id),
-            suspend: () => via ? vault("control", { id, action: "suspend" }) : walletTx(activeCall(false)),
+            expected: d, target: t, read: () => depSnapshot(id),
+            saved: ({ active }) => {
+              // Keep the same panel retryable after cancellation/RPC trouble.
+              // The chain already retains these shares across reloads.
+              Object.assign(bought, t); Object.assign(d, t, { active });
+            },
+            resume: () => via ? vault("control", { id, action: "resume" }) : walletTx(activeCall(true)),
             progress: message => paint("info", message),
-            apply: async ({ resume }) => {
+            apply: async ({ active }) => {
               if (via) {
-                await vault("control", { id, action: "resize", gpuMilli: t.gpuMilli, cpuMilli: t.cpuMilli });
-                if (resume) await vault("control", { id, action: "resume" });
+                await vault("control", { id, action: "resize", gpuMilli: t.gpuMilli, cpuMilli: t.cpuMilli, active });
               } else {
-                await walletTx(resume ? encCall(DEP_SEL.multicall, [{ t: "bytes[]", v: [sharesCall, activeCall(true)] }]) : sharesCall);
+                await walletTx(encCall(DEP_SEL.multicall, [{ t: "bytes[]", v: [sharesCall, activeCall(active)] }]));
               }
             },
           });
@@ -1540,7 +1544,7 @@ class Deployments extends EnclaveElement {
         setTimeout(() => { if (box.isConnected && !box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); } this.refresh(); }, 3500);
       } catch(e){
         const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
-        paint("warn", restartResize && resized ? "[x] " + (e.message || String(e))
+        paint("warn", restartResize ? "[x] " + (e.message || String(e))
           : rejected ? (via ? "[x] cancelled - nothing changed" : "[x] rejected in wallet - nothing changed") : "[x] " + (e.message || String(e)));
         go.disabled = false;
       } finally { delete box.dataset.busy; locked.forEach(([el, disabled]) => { el.disabled = disabled; }); if (saved) go.disabled = true; if (!via) refreshWallet(); }

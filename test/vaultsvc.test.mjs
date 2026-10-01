@@ -107,3 +107,21 @@ test("derToRS round-trips real ECDSA signatures incl. leading-zero trims", () =>
     void msg;
   }
 });
+
+test('resize atomically saves shares with requested active state, matching browser signed intent', async () => {
+  const { expectedControlCall } = await import('../site/js/core/vault.js');
+  const { decodeFunctionData } = await import('viem');
+  const id = '0x' + 'ab'.repeat(32);
+  const multiAbi = [{ type: 'function', name: 'multicall', inputs: [{ type: 'bytes[]' }], outputs: [{ type: 'bytes[]' }] }];
+  const activeAbi = [{ type: 'function', name: 'setActive', inputs: [{ type: 'bytes32' }, { type: 'bool' }], outputs: [] }];
+  for (const active of [false, true]) {
+    const args = { id, action: 'resize', gpuMilli: 800, cpuMilli: 650, active };
+    const data = await buildControlCall(id, 'resize', undefined, args, undefined, undefined, active);
+    assert.equal(data, expectedControlCall(args));
+    const [calls] = decodeFunctionData({ abi: multiAbi, data }).args;
+    assert.equal(calls.length, 2);
+    assert.deepEqual(decodeFunctionData({ abi: activeAbi, data: calls[1] }).args, [id, active]);
+    assert.notEqual(data, expectedControlCall({ ...args, active: !active }));
+  }
+  await assert.rejects(buildControlCall(id, 'resize', undefined, { gpuMilli: 0, cpuMilli: 10 }, undefined, undefined, 'false'), /boolean/);
+});

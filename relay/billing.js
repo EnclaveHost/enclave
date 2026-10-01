@@ -925,6 +925,8 @@ export async function handleBilling(req, res, u, ctx) {
           return err(ctx, res, req, 422, "bad_params", `this ledger (deploymentsSchema ${srev || "unknown"}) needs gpuMilli >= cpuMilli when gpuMilli is set; rev 13 removes the rule.`);
         if (b.ref !== undefined && !(typeof b.ref === "string" && b.ref.length > 0 && b.ref.length <= 100))
           return err(ctx, res, req, 422, "bad_params", "ref must be a catalog ref (max 100 chars).");
+        if (b.active !== undefined && typeof b.active !== "boolean")
+          return err(ctx, res, req, 422, "bad_params", "active must be boolean.");
         shares = { gpuMilli: g, cpuMilli: c };
       }
       let maxRate6 = null;
@@ -937,7 +939,7 @@ export async function handleBilling(req, res, u, ctx) {
           return err(ctx, res, req, 422, "bad_params", "maxrate needs maxRate6: a positive integer, USDC 6dp per second.");
       }
       let callData;
-      try { callData = await buildControlCall(id, action, b.ref, shares, envelope, maxRate6); }
+      try { callData = await buildControlCall(id, action, b.ref, shares, envelope, maxRate6, action === "resize" ? b.active : undefined); }
       catch (e) { return err(ctx, res, req, 502, "encode_failed", e.message); }
       const digest = opDigest("control", info.address, CHAIN_ID, info.nonce, { callData }, deadline);
       return ctx.json(res, 200, { op: "control", vault: info.address, chainId: CHAIN_ID, nonce: info.nonce,

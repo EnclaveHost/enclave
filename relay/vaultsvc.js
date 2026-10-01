@@ -203,7 +203,7 @@ export async function buildCreateCall(depAddress, spec) {
 // envelope - the waf/config namespaces - so vault deployments can gain rate
 // limiting after create, same as wallet ones. "maxrate" (setMaxRate) moves the
 // spend ceiling: which enclaves may run it, and at what price.
-export async function buildControlCall(id, action, ref, shares, envelope, maxRate6) {
+export async function buildControlCall(id, action, ref, shares, envelope, maxRate6, active) {
   const { encodeFunctionData } = viem || (viem = await import("viem"));
   const setAppRefCall = () => encodeFunctionData({ abi: [{ type: "function", name: "setAppRef", stateMutability: "nonpayable",
     inputs: [{ type: "bytes32" }, { type: "string" }], outputs: [] }],
@@ -236,10 +236,13 @@ export async function buildControlCall(id, action, ref, shares, envelope, maxRat
     const sharesCall = encodeFunctionData({ abi: [{ type: "function", name: "setShares", stateMutability: "nonpayable",
       inputs: [{ type: "bytes32" }, { type: "uint16" }, { type: "uint16" }], outputs: [] }],
       functionName: "setShares", args: [id, Number(shares.gpuMilli), Number(shares.cpuMilli)] });
-    if (ref === undefined || ref === null || ref === "") return sharesCall;
+    if (active !== undefined && typeof active !== "boolean") throw new Error("active must be boolean");
+    const calls = ref ? [setAppRefCall(), sharesCall] : [sharesCall];
+    if (active !== undefined) calls.push(await buildControlCall(id, active ? "resume" : "suspend"));
+    if (calls.length === 1) return sharesCall;
     return encodeFunctionData({ abi: [{ type: "function", name: "multicall", stateMutability: "nonpayable",
       inputs: [{ type: "bytes[]" }], outputs: [{ type: "bytes[]" }] }],
-      functionName: "multicall", args: [[setAppRefCall(), sharesCall]] });
+      functionName: "multicall", args: [calls] });
   }
   throw new Error("unknown control action");
 }
