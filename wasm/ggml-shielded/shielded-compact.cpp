@@ -234,6 +234,50 @@ static std::shared_ptr<compact_layout> find_layout(int64_t K, int64_t N) {
     cache[key] = plan;
   return plan;
 }
+// Reusable trusted extents. Destroying a model returns its ranges, so repeated
+// loads cannot leak the scratch capacity. Extents are split/merged under one lock.
+struct public_disk_arena {
+  struct range { uint64_t base, size; bool used; };
+  std::mutex mu;
+  int fd = -1, source = -1;
+  uint64_t next = 0, capacity = 0;
+  std::vector<range> ranges;
+  ~public_disk_arena() { if (fd >= 0) close(fd); }
+  uint64_t reserve(uint64_t size) {
+    require(size > 0, "empty public disk reservation");
+    std::lock_guard<std::mutex> lock(mu);
+    for (size_t i = 0; i < ranges.size(); ++i) {
+      const auto r = ranges[i];
+      if (r.used || r.size < size) continue;
+      if (r.size > size) {
+        // Insert before mutating the old range: allocation failure leaves it free.
+        ranges.insert(ranges.begin() + i + 1, {r.base + size, r.size - size, false});
+      }
+      ranges[i] = {r.base, size, true};
+      return r.base;
+    }
+    require(next <= capacity && size <= capacity - next, "public disk full");
+    const auto base = next;
+    ranges.push_back({base, size, true}); next += size;
+    return base;
+  }
+  void release(uint64_t base) {
+    std::lock_guard<std::mutex> lock(mu);
+    for (size_t i = 0; i < ranges.size(); ++i) {
+      if (ranges[i].base != base || !ranges[i].used) continue;
+      ranges[i].used = false;
+      if (i + 1 < ranges.size() && !ranges[i + 1].used) {
+        ranges[i].size += ranges[i + 1].size;
+        ranges.erase(ranges.begin() + i + 1);
+      }
+      if (i && !ranges[i - 1].used) {
+        ranges[i - 1].size += ranges[i].size;
+        ranges.erase(ranges.begin() + i);
+      }
+      return;
+    }
+  }
+};
 struct sh_compact_store {
   int64_t K, N, rows = 384;
   std::vector<std::vector<uint8_t>> chunks;
@@ -249,7 +293,11 @@ struct sh_compact_store {
   uint64_t disk_bytes = 0;
   uint64_t disk_base = 0;
   uint64_t synced_bytes = 0;
-  ~sh_compact_store() { if (fd >= 0) close(fd); }
+  std::shared_ptr<public_disk_arena> arena;
+  ~sh_compact_store() {
+    if (fd >= 0) close(fd);
+    if (arena) arena->release(disk_base);
+  }
   void spill(const std::vector<uint8_t> &packed) {
     extent e{disk_base + disk_bytes, packed.size(), {}};
     require(SHA256(packed.data(), packed.size(), e.hash.data()), "weight digest");
@@ -301,17 +349,13 @@ struct sh_compact_store {
 // filesystem is mounted inside the guest. Process-private allocation metadata
 // prevents matrices/cards from aliasing, and no prior disk bytes are trusted.
 static void reserve_public_disk(sh_compact_store &s, const char *spec) {
-  struct arena {
-    std::mutex mu;
-    int fd = -1, source = -1;
-    uint64_t next = 0, capacity = 0;
-    ~arena() { if (fd >= 0) close(fd); }
-  };
-  static arena a;
+  static const auto owner = std::make_shared<public_disk_arena>();
+  static std::mutex init_mu;
+  auto &a = *owner;
   char *end = nullptr;
   long source = strtol(spec + 3, &end, 10);
   require(end && !*end && source >= 3 && source <= 1023, "public disk descriptor");
-  std::lock_guard<std::mutex> lock(a.mu);
+  std::lock_guard<std::mutex> lock(init_mu);
   if (a.fd < 0) {
     require((fcntl(source, F_GETFL) & O_ACCMODE) == O_RDWR, "public disk writable");
     struct stat st;
@@ -326,10 +370,10 @@ static void reserve_public_disk(sh_compact_store &s, const char *spec) {
   // Conservative upper bound: independently padded 64-byte frames per tile.
   const uint64_t tiles = (s.N + s.rows - 1) / s.rows;
   const uint64_t bound = (((uint64_t(s.K) * s.N / 64 + tiles) * 66 + 4095) / 4096) * 4096;
-  require(a.next <= a.capacity && bound <= a.capacity - a.next, "public disk full");
   s.fd = fcntl(a.fd, F_DUPFD_CLOEXEC, 3);
   require(s.fd >= 0, "public disk store descriptor");
-  s.disk_base = a.next; a.next += bound;
+  s.disk_base = a.reserve(bound);
+  s.arena = owner;
 }
 static sh_compact_store *compact_create(const int8_t *w, int64_t K,
                                        int64_t N, const char *directory) {
