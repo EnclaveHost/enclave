@@ -2338,14 +2338,15 @@ struct Conn {
             out_in_ring = to_ring;
             if (packed && pm == PACK_KERNEL) ensure_dy32(E * 4);
             XP_MARK(STAGING);
-            std::vector<uint32_t> key(nn + 3); key[0] = packed ? (uint32_t)pm + 1 : 0; key[1] = m;
+            uint32_t key[64 + 3]; // nn is validated in [1,64] before staging
+            key[0] = packed ? (uint32_t)pm + 1 : 0; key[1] = m;
             key[2] = to_ring ? 1u : 0u;
             for (uint32_t i = 0; i < nn; i++) key[i + 3] = rd_u32(p + 8 + 4 * i);
             {   /* background mode judges this turn against the graph's own solo floor */
                 const uint32_t shape[3] = { (uint32_t)K, (uint32_t)(ybytes & 0xffffffffu), (uint32_t)(ybytes >> 32) };
-                turn.cls = yield_class(shape, 3, yield_class(key.data(), key.size()));
+                turn.cls = yield_class(shape, 3, yield_class(key, nn + 3));
             }
-            cudaGraphExec_t graph = graphs.get(key, [&]() {
+            cudaGraphExec_t graph = graphs.get(key, nn + 3, [&]() {
                 const auto started = std::chrono::steady_clock::now();
                 cudaGraphExec_t captured = capture_exchange(planes, xbytes, nds, nn, m, (int)K, packed, pm, out_d);
                 graph_capture_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
