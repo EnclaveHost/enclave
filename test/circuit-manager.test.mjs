@@ -115,3 +115,11 @@ test('a route survives two transient probe failures, is withdrawn on the third, 
  assert.equal(second.closed,true);
  await f.manager.close();
 });
+test('a public provider address already routed for another app is never chosen',async()=>{
+ const f=fixture();f.manager.occupiedElsewhere=new Set(nodes.slice(0,6).map(n=>n.address));
+ await f.manager.configure([{policy,names:['app.example']}]);await f.manager.reconcile();
+ const taken=new Set(nodes.slice(0,6).map(n=>n.address));
+ assert.ok(f.started.length>0);
+ for(const c of f.started)assert.ok(!taken.has(c.providers.public.address),'chose an occupied public provider '+c.providers.public.address);
+ await f.manager.close();
+});
