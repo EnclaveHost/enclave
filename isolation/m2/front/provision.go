@@ -171,6 +171,9 @@ func (p *provisioner) run(ctx context.Context, hostData, spki []byte, rt *runtim
 		return nil, err
 	}
 	var want []netip.AddrPort
+	if a, ok := out.fwd.DNSAddr(); ok {
+		want = append(want, a)
+	}
 	if a, ok := out.fwd.PublicAddr(); ok {
 		want = append(want, a)
 	}
@@ -218,7 +221,14 @@ func (p *provisioner) writeResolver(f *egress.Forwarder) error {
 	if err := os.MkdirAll(p.etc, 0o755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(p.etc, "nsswitch.conf"), []byte("hosts: files\n"), 0o644); err != nil {
+	nss := "hosts: files\n"
+	if f.Policy.PublicWeb {
+		nss = "hosts: files dns\n"
+		if err := os.WriteFile(filepath.Join(p.etc, "resolv.conf"), []byte("nameserver 127.0.0.2\noptions use-vc timeout:5 attempts:1\n"), 0o644); err != nil {
+			return err
+		}
+	}
+	if err := os.WriteFile(filepath.Join(p.etc, "nsswitch.conf"), []byte(nss), 0o644); err != nil {
 		return err
 	}
 	return os.WriteFile(filepath.Join(p.etc, "hosts"), []byte(f.HostsFile()), 0o644)
@@ -328,6 +338,10 @@ func handToInit(w *os.File, config string) error {
 
 // P is emitted only after the authenticated owner policy enabled the public HTTPS listener and its audit passed.
 func handToInitMode(w *os.File, config string, publicHTTPS bool) error {
+	return handToInitNetwork(w, config, publicHTTPS, false)
+}
+
+func handToInitNetwork(w *os.File, config string, publicHTTPS, publicWeb bool) error {
 	defer w.Close()
 	msg := make([]byte, 0, len(config)+1)
 	if config == "" {
@@ -336,6 +350,9 @@ func handToInitMode(w *os.File, config string, publicHTTPS bool) error {
 		tag := byte('C')
 		if publicHTTPS {
 			tag = 'P'
+		}
+		if publicWeb {
+			tag = 'W'
 		}
 		msg = append(msg, tag)
 		msg = append(msg, config...)
