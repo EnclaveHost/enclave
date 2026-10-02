@@ -1753,28 +1753,7 @@ static bool sh_local_islands_enabled() {
  * adjacent sites calibrated. The ordinary matmuls and pad groups are unchanged.
  * This pure matcher can also run while the pool lock is already held. */
 static bool sh_local_island_pattern(const ggml_tensor *op, sh_fusion_pattern &out) {
-    if (!sh_local_islands_enabled() || !op) return false;
-    const ggml_tensor *add = op;
-    if (op->op == GGML_OP_RMS_NORM) add = op->src[0];
-    else if (op->op == GGML_OP_MUL) {
-        const ggml_tensor *norm = op->src[0] && op->src[0]->op == GGML_OP_RMS_NORM ? op->src[0] : op->src[1];
-        if (!norm || norm->op != GGML_OP_RMS_NORM) return false;
-        add = norm->src[0];
-    } else if (op->op != GGML_OP_ADD) return false;
-    if (!add || add->op != GGML_OP_ADD) return false;
-    for (int side = 0; side < 2; side++) {
-        const auto *first = sh_fusion_unwrap(add->src[side]);
-        if (!first || first->op != GGML_OP_MUL_MAT || !first->src[0]) continue;
-        const auto *weight = first->src[0];
-        const std::string name = ggml_get_name(weight), layer = sh_layer_key(name);
-        if (layer.compare(0, 4, "blk.") ||
-            (name != layer + ".attn_output.weight" && name != layer + ".ssm_out.weight")) continue;
-        sh_fusion_spec spec;
-        spec.first_weight = name; spec.norm_weight = layer + ".post_attention_norm.weight";
-        spec.inputs = weight->ne[0]; spec.hidden = weight->ne[1];
-        if (sh_fusion_match(op, spec, out)) return true;
-    }
-    return false;
+    return sh_local_islands_enabled() && sh_fusion_match_local(op, out);
 }
 
 static bool sh_local_island_claimable(const ggml_tensor *op) {
