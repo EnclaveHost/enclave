@@ -91,3 +91,33 @@ It can be removed with `nft delete table inet tuna_proxy` after stopping the pro
 Existing NKN advertisements expire on-chain; a stopped provider cannot accept
 allocations. Do not re-enable the retired Enclave relay services as part of this
 operation.
+
+## Per-app warm fallbacks
+
+Every enrolled fleet app reserves its own TUNA reverse port pair on us-west.
+`sync-fallback.mjs` allocates stable, non-reused pairs in 20000–29999 across both
+host agents and validates the generated HAProxy configuration before changing
+an agent. The `tuna-web` service holds ports 443 and 80. Port 443 uses HAProxy
+TCP mode and forwards the original encrypted TLS stream, selected by SNI, to
+that app's TUNA port. It has no app certificates, no private app keys, and no
+TLS termination. Port 80 forwards to the app's own HTTPS redirect listener.
+
+Each app retains separate public, guard and egress wallets in each circuit.
+The fallback still has to satisfy price, owner exclusions and network/operator
+independence. The primary remains first in signed discovery and guest egress.
+DNS includes the fallback only while no healthy primary is published. A signed
+`directPort` lets native clients reach the same guest without sending SNI.
+
+On Windows, `shield.ingress` points the trusted privacy agent at the literal
+loopback partition manager (`http://127.0.0.1:8091`) and its data plane
+(`127.0.0.1:8092`). The broker is bound to a deployment; its route must match
+that deployment's app, runtime and independently verified TLS key. Ciphertext
+is sent to that partition directly. The shared node ingress continues to require
+its existing hostname gate. No guest image or admission policy was changed.
+
+The fleet's `enclave-tuna-fallback-sync.timer` runs once a minute under the same
+lock as the app reconcilers. Once a new app is enrolled, its fallback pair and
+frontend mapping are provisioned automatically. Existing wallet keys and guest
+secrets are neither read nor copied by this job. A stopped frontend is restarted
+when its listener ports are free. Allocation state is kept under the operator's
+`enclave-prod/tuna-privacy/fallback` directory, with backups before rollout.
