@@ -4,6 +4,13 @@ import fs from 'node:fs';
 import { createShieldAppVerifier } from './shield-app-verifier.mjs';
 
 const TTL = 300000, REFRESH = 60000;
+// Failures that say nothing about the app: the chain read, this verifier being
+// busy, or the node not answering this round. They leave the last verification
+// to expire on its own TTL (never extended); anything else revokes it now. One
+// such blip used to drop a verified app from DNS until a later round passed.
+const TRANSIENT = [/^RPC Request failed/, /^HTTP request failed/, /^The request took too long to respond/, /^Request timed out/, /^fetch failed/,
+  /^Shield verification busy; retry shortly$/, /^no bounded app proof from the live node$/, /^catalog component could not be CID-verified$/];
+export const transientAdmissionError = message => TRANSIENT.some(pattern => pattern.test(String(message || '')));
 const fingerprint = d => JSON.stringify([d.id, d.runner, d.appRef, d.configCid, d.isPublic,
   Number(d.cpuMilli), Number(d.gpuMilli), d.active, String(d.owner || "").toLowerCase()]);
 export function createShieldMarketplace({ hub, policyFile = '', policy: supplied, confirmRow,
@@ -55,7 +62,7 @@ export function createShieldMarketplace({ hub, policyFile = '', policy: supplied
       log(`[shield-market] verified ${host.name}/${d.id.slice(0,10)} runtime app and TLS key (market=${policy.marketEnabled === true})`);
       return proof;
     } catch(e) {
-      stateFor(host)?.apps.delete(candidate.id);
+      if (!transientAdmissionError(e.message)) stateFor(host)?.apps.delete(candidate.id);
       return {ok:false,reason:e.message};
     }
   }
