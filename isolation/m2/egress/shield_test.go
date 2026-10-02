@@ -192,3 +192,23 @@ type resolverFunc func(ctx context.Context, network, host string) ([]netip.Addr,
 func (f resolverFunc) LookupNetIP(ctx context.Context, network, host string) ([]netip.Addr, error) {
 	return f(ctx, network, host)
 }
+
+func TestForShieldPublicHTTPSModeUsesOnlyConfiguredOrigins(t *testing.T) {
+	rel := openedRelease(t, nil, map[string]string{"R2_ENDPOINT": "https://0123abcd.r2.cloudflarestorage.com"})
+	cfg := `{"egress":"public-https","storage":{"endpoint":"$R2_ENDPOINT"},"targets":{"eyesoff":{"url":"https://eyesoff.ai/chat"}},"bad":"https://127.0.0.1/"}`
+	p, err := ForShield(rel, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hosts(p) != "0123abcd.r2.cloudflarestorage.com,eyesoff.ai" || len(p.Refused) != 1 {
+		t.Fatalf("origins %s refused %q", hosts(p), p.Refused)
+	}
+	if p, err = ForShield(rel, `{"egress":"public-https"}`); err != nil || len(p.Origins) != 0 {
+		t.Fatalf("mode alone opens no origins: %v %v", p, err)
+	}
+	for _, mode := range []string{"public-http", "all", "PUBLIC-HTTPS"} {
+		if _, err = ForShield(rel, `{"egress":"`+mode+`"}`); err == nil {
+			t.Fatalf("unknown mode %s accepted", mode)
+		}
+	}
+}
