@@ -14,6 +14,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -22,6 +23,8 @@ import (
 type AppRoute struct {
 	Proxies []string      `json:"proxies"`
 	DNS     []DNSEndpoint `json:"dns"`
+	// scope is the app this route was read for (ReadAppRoute): its DNS cache.
+	scope string
 }
 type DNSEndpoint struct {
 	Address    string `json:"address"`
@@ -98,6 +101,7 @@ func ReadAppRoute(file, deploymentID string) (AppRoute, error) {
 	if !ok {
 		return zero, errors.New("app has no authorized egress route")
 	}
+	r.scope = deploymentID
 	return r, nil
 }
 
@@ -106,76 +110,170 @@ func ReadAppRoute(file, deploymentID string) (AppRoute, error) {
 type appResolver struct {
 	proxy   string
 	servers []DNSEndpoint
+	scope   string // the app the answers belong to; empty disables caching
+}
+
+// Every lookup is a TLS session through the app's guarded circuit (~0.4-1.3 s
+// each), and a connection needs two (A and AAAA). Answers are therefore kept
+// for their own TTL (at most dnsCacheMax), per app: one app's lookups never
+// warm, and so never reveal, another's. A and AAAA are asked in parallel.
+const (
+	dnsCacheMax     = 10 * time.Minute
+	dnsCacheEntries = 4096
+)
+
+type dnsKey struct{ scope, host string }
+type dnsEntry struct {
+	addrs []netip.Addr
+	until time.Time
+}
+
+var (
+	dnsMu    sync.Mutex
+	dnsCache = map[dnsKey]dnsEntry{}
+	dnsNow   = time.Now
+	// dnsQuery asks one DoH server for one record type; tests replace it.
+	dnsQuery = queryDoH
+)
+
+// forget drops a cached answer whose addresses all failed to connect, so the
+// next attempt (the app's other circuit, or its next request) asks again.
+func (r appResolver) forget(host string) {
+	if r.scope == "" {
+		return
+	}
+	dnsMu.Lock()
+	delete(dnsCache, dnsKey{r.scope, strings.ToLower(host)})
+	dnsMu.Unlock()
 }
 
 func (r appResolver) LookupNetIP(ctx context.Context, network, host string) ([]netip.Addr, error) {
 	if network != "ip" {
 		return nil, errors.New("unsupported address family")
 	}
+	key := dnsKey{r.scope, strings.ToLower(host)}
+	if r.scope != "" {
+		dnsMu.Lock()
+		e, ok := dnsCache[key]
+		dnsMu.Unlock()
+		if ok && dnsNow().Before(e.until) {
+			return append([]netip.Addr(nil), e.addrs...), nil
+		}
+	}
+	type answer struct {
+		addrs []netip.Addr
+		ttl   uint32
+		err   error
+	}
+	var answers [2]answer
+	var wg sync.WaitGroup
+	for i, kind := range []int{1, 28} {
+		wg.Add(1)
+		go func(i, kind int) {
+			defer wg.Done()
+			for _, server := range r.servers {
+				addrs, ttl, err := dnsQuery(ctx, r.proxy, server, host, kind)
+				if err == nil {
+					answers[i] = answer{addrs: addrs, ttl: ttl}
+					return
+				}
+			}
+			answers[i] = answer{err: errors.New("guarded DNS unavailable")}
+		}(i, kind)
+	}
+	wg.Wait()
 	var result []netip.Addr
-	for _, kind := range []int{1, 28} {
-		var answer []netip.Addr
-		var accepted bool
-		for _, server := range r.servers {
-			transport := &http.Transport{Proxy: nil, DisableKeepAlives: true, TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, ServerName: server.ServerName},
-				DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-					return dialSOCKS(ctx, r.proxy, server.Address, 8*time.Second)
-				}}
-			client := &http.Client{Transport: transport, Timeout: 8 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("DNS redirect refused") }}
-			u := "https://" + server.ServerName + server.Path + "?name=" + url.QueryEscape(host) + "&type=" + fmt.Sprint(kind)
-			req, e := http.NewRequestWithContext(ctx, "GET", u, nil)
-			if e != nil {
-				return nil, e
-			}
-			req.Header.Set("Accept", "application/dns-json")
-			res, e := client.Do(req)
-			if e != nil {
-				transport.CloseIdleConnections()
-				continue
-			}
-			b, e := io.ReadAll(io.LimitReader(res.Body, 65537))
-			res.Body.Close()
-			transport.CloseIdleConnections()
-			if e != nil || res.StatusCode != 200 || len(b) > 65536 {
-				continue
-			}
-			var doc struct {
-				Status int
-				Answer []struct {
-					Type int
-					Data string
-				}
-			}
-			if json.Unmarshal(b, &doc) != nil || doc.Status != 0 {
-				continue
-			}
-			bad := false
-			for _, a := range doc.Answer {
-				if a.Type == kind {
-					ip, e := netip.ParseAddr(a.Data)
-					if e != nil || (kind == 1 && !ip.Is4()) || (kind == 28 && !ip.Is6()) {
-						bad = true
-						break
-					}
-					answer = append(answer, ip)
-				}
-			}
-			if bad {
-				answer = nil
-				continue
-			}
-			accepted = true
-			break
+	ttl := ^uint32(0)
+	for _, a := range answers {
+		if a.err != nil {
+			return nil, a.err
 		}
-		if !accepted {
-			return nil, errors.New("guarded DNS unavailable")
+		result = append(result, a.addrs...)
+		if len(a.addrs) > 0 && a.ttl < ttl {
+			ttl = a.ttl
 		}
-		result = append(result, answer...)
 	}
 	if len(result) == 0 {
 		return nil, errors.New("DNS returned no addresses")
 	}
+	if r.scope != "" && ttl > 0 {
+		life := time.Duration(ttl) * time.Second
+		if life > dnsCacheMax {
+			life = dnsCacheMax
+		}
+		now := dnsNow()
+		dnsMu.Lock()
+		if len(dnsCache) >= dnsCacheEntries {
+			for k, e := range dnsCache {
+				if !now.Before(e.until) {
+					delete(dnsCache, k)
+				}
+			}
+			if len(dnsCache) >= dnsCacheEntries {
+				dnsCache = map[dnsKey]dnsEntry{}
+			}
+		}
+		dnsCache[key] = dnsEntry{addrs: append([]netip.Addr(nil), result...), until: now.Add(life)}
+		dnsMu.Unlock()
+	}
 	return result, nil
+}
+
+// queryDoH asks one server, through the app's proxy, for one record type. Any
+// transport failure, refusal or malformed answer is an error (the caller tries
+// the next server); the TTL is the smallest among the matching records.
+func queryDoH(ctx context.Context, proxy string, server DNSEndpoint, host string, kind int) ([]netip.Addr, uint32, error) {
+	transport := &http.Transport{Proxy: nil, DisableKeepAlives: true, TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, ServerName: server.ServerName},
+		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+			return dialSOCKS(ctx, proxy, server.Address, 8*time.Second)
+		}}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport, Timeout: 8 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("DNS redirect refused") }}
+	u := "https://" + server.ServerName + server.Path + "?name=" + url.QueryEscape(host) + "&type=" + fmt.Sprint(kind)
+	req, e := http.NewRequestWithContext(ctx, "GET", u, nil)
+	if e != nil {
+		return nil, 0, e
+	}
+	req.Header.Set("Accept", "application/dns-json")
+	res, e := client.Do(req)
+	if e != nil {
+		return nil, 0, e
+	}
+	b, e := io.ReadAll(io.LimitReader(res.Body, 65537))
+	res.Body.Close()
+	if e != nil || res.StatusCode != 200 || len(b) > 65536 {
+		return nil, 0, errors.New("DNS answer refused")
+	}
+	var doc struct {
+		Status int
+		Answer []struct {
+			Type int
+			TTL  uint32
+			Data string
+		}
+	}
+	if json.Unmarshal(b, &doc) != nil || doc.Status != 0 {
+		return nil, 0, errors.New("DNS answer refused")
+	}
+	var addrs []netip.Addr
+	ttl := ^uint32(0)
+	for _, a := range doc.Answer {
+		if a.Type != kind {
+			continue
+		}
+		ip, e := netip.ParseAddr(a.Data)
+		if e != nil || (kind == 1 && !ip.Is4()) || (kind == 28 && !ip.Is6()) {
+			return nil, 0, errors.New("malformed DNS answer")
+		}
+		addrs = append(addrs, ip)
+		if a.TTL < ttl {
+			ttl = a.TTL
+		}
+	}
+	if len(addrs) == 0 {
+		ttl = 0
+	}
+	return addrs, ttl, nil
 }
 
 // A failure after DNS resolution still tries the app's other authorized circuit.
@@ -191,7 +289,7 @@ func (d *Dialer) dialAppRoute(ctx context.Context, route AppRoute, host string, 
 			return nil, refused(ReasonAdmit)
 		}
 		attempt, cancel := context.WithTimeout(ctx, d.timeout())
-		resolver := &Dialer{Resolver: appResolver{proxy: proxy, servers: route.DNS}, Own: d.Own}
+		resolver := &Dialer{Resolver: appResolver{proxy: proxy, servers: route.DNS, scope: route.scope}, Own: d.Own}
 		addresses, err := resolver.publicAddresses(attempt, host, allowIP)
 		if ReasonOf(err) == ReasonNonPublicAnswer || ReasonOf(err) == ReasonName {
 			cancel()
@@ -218,6 +316,7 @@ func (d *Dialer) dialAppRoute(ctx context.Context, route AppRoute, host string, 
 				break
 			}
 		}
+		appResolver{scope: route.scope}.forget(host)
 		cancel()
 		if ctx.Err() != nil {
 			break
@@ -244,7 +343,7 @@ func (d *Dialer) resolveAppRoute(ctx context.Context, route AppRoute, host strin
 			return nil, refused(ReasonAdmit)
 		}
 		attempt, cancel := context.WithTimeout(ctx, d.timeout())
-		resolver := &Dialer{Resolver: appResolver{proxy: proxy, servers: route.DNS}, Own: d.Own}
+		resolver := &Dialer{Resolver: appResolver{proxy: proxy, servers: route.DNS, scope: route.scope}, Own: d.Own}
 		addresses, err := resolver.publicAddresses(attempt, host, false)
 		cancel()
 		if err == nil {
