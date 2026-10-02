@@ -18,6 +18,7 @@
 //
 // An owner who sets a top-level "egress" list in the config states the allowlist explicitly; otherwise every
 // absolute https URL in the resolved config becomes reachable, which the owner-facing page must say.
+// The legacy "public-https" mode also derives only these configured origins; it never opens arbitrary destinations.
 //
 // A NucBox Shield domain (one app in a Hyper-V partition) uses the same rules with two differences, both in ForShield:
 // its config is the domain's MEASURED /app.config resolved with the secrets of its verified Shield release, and there is
@@ -210,7 +211,11 @@ func deriveFrom(resolvedConfig string, pinned []Origin) (*Policy, error) {
 			return nil, errors.New("the resolved config is not JSON")
 		}
 		var candidates []string
-		if obj, ok := doc.(map[string]any); ok && obj["egress"] != nil {
+		// A legacy transport mode is not an explicit origin list. Keep the same
+		// measured-config derivation and ParseOrigin restrictions as an omitted list.
+		obj, _ := doc.(map[string]any)
+		mode, _ := obj["egress"].(string)
+		if obj["egress"] != nil && mode != "public-https" {
 			list, ok := obj["egress"].([]any)
 			if !ok {
 				return nil, errors.New(`"egress" must be a list of https origins`)
