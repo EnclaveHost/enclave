@@ -6,7 +6,6 @@ package egress
 // or terminates TLS. The existing host dialer judges DNS answers and the peer.
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"io"
 	"net"
@@ -105,39 +104,19 @@ func (f *Forwarder) publicConnect(c net.Conn) {
 		return
 	}
 	reply := func(code byte) { c.Write([]byte{5, code, 0, 1, 0, 0, 0, 0, 0, 0}) }
-	var req [4]byte
-	if _, err := io.ReadFull(c, req[:]); err != nil {
-		return
-	}
-	if req != [4]byte{5, 1, 0, 3} {
+	host, port, err := readSOCKSTarget(c, f.Policy.PublicWeb)
+	if err != nil || !f.Policy.PublicHTTPS {
 		reply(2)
 		return
 	}
-	if _, err := io.ReadFull(c, n[:]); err != nil || n[0] == 0 {
-		reply(2)
-		return
+	var up net.Conn
+	if f.Policy.PublicWeb {
+		up, err = dialPublicWeb(f.Upstream, host, port)
+	} else {
+		up, err = DialOrigin(f.Upstream, Origin{Host: host})
 	}
-	host := make([]byte, int(n[0]))
-	if _, err := io.ReadFull(c, host); err != nil {
-		return
-	}
-	if _, err := io.ReadFull(c, h[:]); err != nil {
-		return
-	}
-	if binary.BigEndian.Uint16(h[:]) != 443 {
-		reply(2)
-		return
-	}
-	// ParseOrigin also refuses IP-like spellings and control characters.
-	// Require the whole SOCKS string to be the host (no injected path/userinfo).
-	o, err := ParseOrigin("https://" + string(host))
-	if err != nil || !equalHost(o.Host, string(host)) || !f.Policy.PublicHTTPS {
-		reply(2)
-		return
-	}
-	up, err := DialOrigin(f.Upstream, o)
 	if err != nil {
-		f.logf("public HTTPS: %s", dialClass(err))
+		f.logf("public web: %s", dialClass(err))
 		reply(2)
 		return
 	}

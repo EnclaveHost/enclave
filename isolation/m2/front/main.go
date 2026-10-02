@@ -92,6 +92,7 @@ type doc struct {
 }
 
 type front struct {
+	publicWeb    bool
 	publicHTTPS  bool // set only by successful attested provisioning
 	spki, appSha []byte
 	rt           *runtimeState // ABI/2 when non-nil, ABI/1 when the image carries no runtime identity
@@ -270,6 +271,7 @@ func main() {
 				return "", err
 			}
 			f.publicHTTPS = prov.fwd.Policy.PublicHTTPS
+			f.publicWeb = prov.fwd.Policy.PublicWeb
 			warmupPath = configuredWarmup(prov.config)
 			return prov.config, nil
 		})
@@ -585,7 +587,7 @@ func (f *front) releaseForInit(initPipe *os.File, hd []byte, hdErr error, provis
 		initPipe.Close()
 		return err
 	}
-	return handToInitMode(initPipe, config, f.publicHTTPS)
+	return handToInitNetwork(initPipe, config, f.publicHTTPS, f.publicWeb)
 }
 
 func must(err error) {

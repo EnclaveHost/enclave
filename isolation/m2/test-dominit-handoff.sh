@@ -33,7 +33,7 @@ static void check(const char *name, const char *msg, size_t n, int want_ok, cons
     waitpid(w, NULL, 0);
     int ok = why == NULL;
     int env_ok = want_env ? (env && strcmp(env, want_env) == 0 && len == strlen(want_env) - 15) : env == NULL;
-    if (ok != want_ok || (ok && !env_ok) || public_https_egress != (ok && n > 1 && msg[0] == 'P')) {
+    if (ok != want_ok || (ok && !env_ok) || public_https_egress != (ok && n > 1 && (msg[0] == 'P' || msg[0] == 'W')) || public_web_egress != (ok && n > 1 && msg[0] == 'W')) {
         printf("FAIL %s: why=%s env=%.40s\n", name, why ? why : "(none)", env ? env : "(null)");
         fails++;
     } else {
@@ -47,6 +47,8 @@ int main(void) {
     check("N: no config", "N", 1, 1, NULL);
     check("C: a config", "C{\"a\":\"k\"}", 10, 1, "ENCLAVE_CONFIG={\"a\":\"k\"}");
     check("P: public HTTPS config", "P{}", 3, 1, "ENCLAVE_CONFIG={}");
+    check("W: public web config", "W{}", 3, 1, "ENCLAVE_CONFIG={}");
+    check("W without a config", "W", 1, 0, NULL);
     check("P without a config", "P", 1, 0, NULL);
     check("C after P does not retain public mode", "C{}", 3, 1, "ENCLAVE_CONFIG={}");
     check("C with nothing after it", "C", 1, 0, NULL);

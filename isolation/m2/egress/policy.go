@@ -130,6 +130,7 @@ func ParseOrigin(raw string) (Origin, error) {
 
 // Policy is the guest's allowlist.
 type Policy struct {
+	PublicWeb   bool     // owner opted into DNS plus public HTTP/HTTPS for socket-based browsers
 	PublicHTTPS bool     // owner explicitly opted into arbitrary public DNS origins on 443
 	Origins     []Origin // sorted, unique
 	Refused     []string // the reasons config URLs were NOT allowed, for the guest's own log (no URL text: it may be secret)
@@ -173,17 +174,18 @@ func derive(resolvedConfig string, relay Origin) (*Policy, error) {
 		var candidates []string
 		if obj, ok := doc.(map[string]any); ok && obj["egress"] != nil {
 			list, ok := obj["egress"].([]any)
-			if obj["egress"] == "public-https" {
+			if obj["egress"] == "public-https" || obj["egress"] == "public-web" {
+				p.PublicWeb = obj["egress"] == "public-web"
 				p.PublicHTTPS = true
 				ok = true
 			}
 			if !ok {
-				return nil, errors.New(`"egress" must be a list of https origins or "public-https"`)
+				return nil, errors.New(`"egress" must be a list of https origins or "public-https" or "public-web"`)
 			}
 			for _, e := range list {
 				s, ok := e.(string)
 				if !ok {
-					return nil, errors.New(`"egress" must be a list of https origins or "public-https"`)
+					return nil, errors.New(`"egress" must be a list of https origins or "public-https" or "public-web"`)
 				}
 				candidates = append(candidates, s)
 			}

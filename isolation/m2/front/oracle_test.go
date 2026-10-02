@@ -149,6 +149,7 @@ func TestEveryListenerIsAKnownOne(t *testing.T) {
 	want := strings.Join([]string{
 		"egress/forward.go Forwarder.Start: net.Listen",      // one loopback listener per allowed origin: the tenant's egress
 		"egress/public.go Forwarder.startPublic: net.Listen", // owner-opted public HTTPS; SOCKS CONNECT only, host IP checks unchanged
+		"egress/web.go Forwarder.startDNS: net.Listen",       // reviewed: owner-opted TCP DNS; bounded requests; audited loopback :53; public addresses only
 		"front/main.go main: net.Listen",                     // M3: the unix socket the monitor relays (-listen-unix)
 		"front/main.go main: vsock.Listen",                   // M2: the front's one port
 		"vsock/vsock.go Listen: syscall.Listen",              // the vsock binding itself

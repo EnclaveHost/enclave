@@ -324,6 +324,7 @@ func main() {
 	idPrefix := flag.String("instance-prefix", "gd", "two lowercase letters for this guestd's instance ids and guest units (m2-<prefix>…); a SECOND guestd on a host needs its own, or its boot sweep stops the first one's guests")
 	ticketPort := flag.Uint("ticket-port", release.TicketPort, "vsock host port of the ticket service (-release); a LAB guestd uses its lab image's (19444) so it never holds production's")
 	egressPortFlag := flag.Uint("egress-port", egressPort, "vsock host port of the egress server (-release); a LAB guestd moves it off production's too")
+	egressSOCKS := flag.String("egress-socks", "", "optional loopback TUNA SOCKS entry IP:port for guest outbound traffic; no direct fallback")
 	isoRelease := flag.String("isolation-release", "", "the domain release(s) the -isolation tree was installed from, comma-separated: a 64-hex id, or @<release.json> (its sha256 IS the id). Named to the judge for every guest this tree builds and recorded with it; the judge's table (m2/judge.mjs LEGACY_WX_RELEASES) decides what that release may state. REQUIRED when the tree predates per-release W^X")
 	legacyIsoRelease := flag.String("legacy-isolation-release", "", "the same, for the -legacy-isolation tree (REQUIRED with it when that tree predates per-release W^X)")
 	unrecordedRel := flag.String("unrecorded-releases", "", "the release(s) named when ADOPTING an instance whose record names none (written by a guestd before per-release records): the pre-chain releases this host ran; empty = none named, and such a pre-chain guest is not adopted")
@@ -602,12 +603,17 @@ func main() {
 		go func() {
 			log.Fatal(s.serveTickets(context.Background(), tl, vsockCID, log.New(os.Stderr, "release: ", log.LstdFlags)))
 		}()
+		if *egressSOCKS != "" {
+			if err := egress.ValidateSOCKSProxy(*egressSOCKS); err != nil {
+				log.Fatal(err)
+			}
+		}
 		el, err := vsock.Listen(uint32(*egressPortFlag))
 		if err != nil {
 			log.Fatalf("egress: %v", err)
 		}
 		es := &egress.Server{
-			Dialer: &egress.Dialer{Resolver: net.DefaultResolver, Own: hostAddrs, MaxConcurrent: 32, MaxPerMinute: 600},
+			Dialer: &egress.Dialer{Resolver: net.DefaultResolver, Own: hostAddrs, MaxConcurrent: 32, MaxPerMinute: 600, SOCKSProxy: *egressSOCKS},
 			CIDOf:  vsockCID, Admit: s.admitCID, Log: log.New(os.Stderr, "egress: ", log.LstdFlags),
 		}
 		go func() { log.Fatal(es.Serve(context.Background(), el)) }()
