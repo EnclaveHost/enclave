@@ -17,20 +17,20 @@ export async function resolveNknRoutes({deploymentId,binary,configFile,leaseRead
 export async function requestAttestedRoute({route,proxy,hostname,expected,linux,shield,hostSession,verifySnp,path='/',maxBytes=2097152}){
  if(typeof path!=='string'||!path.startsWith('/')||path.startsWith('//')||/[\r\n\\]/.test(path))throw new Error('app-relative request path required');
  let lastError;
- for(const endpoint of route.routes){
+ for(const endpoint of [...route.routes].sort((a,b)=>Number(!!a.fallback)-Number(!!b.fallback))){
   let agent;
   try{
    if(route.expiresAt<=Date.now())throw new Error('route expired');
    // Before any application request, hardware evidence authenticates the
    // endpoint and its TLS key. CA issuance and SNI are unnecessary here.
-   const proof=await probeGuest({deploymentId:route.deploymentId,hostname,address:endpoint.address,proxy,expected,linux,shield,hostSession,verifySnp,domainIndependent:true});
+   const proof=await probeGuest({deploymentId:route.deploymentId,hostname,address:endpoint.address,port:endpoint.directPort||endpoint.port,proxy,expected,linux,shield,hostSession,verifySnp,domainIndependent:true});
    if(route.expiresAt<=Date.now())throw new Error('route expired during attestation');
    agent=new SocksHttpsAgent(proxy,{tlsOptions:{rejectUnauthorized:false,servername:''},verifyPeer:socket=>{
     const key=socket.getPeerX509Certificate()?.publicKey.export({format:'der',type:'spki'});
     if(!key||createHash('sha256').update(key).digest('hex')!==proof.spkiSha256)throw new Error('attested app TLS key changed');
    }});
    return await new Promise((resolve,reject)=>{
-    const request=https.get({host:endpoint.address,port:endpoint.port,servername:'',path,headers:{host:hostname},agent,timeout:15000},response=>{
+    const request=https.get({host:endpoint.address,port:endpoint.directPort||endpoint.port,servername:'',path,headers:{host:hostname},agent,timeout:15000},response=>{
      const chunks=[];let length=0;response.on('data',b=>{length+=b.length;if(length>maxBytes)response.destroy(new Error('app response too large'));else chunks.push(b);});
      response.once('error',reject);response.once('end',()=>resolve({address:endpoint.address,status:response.statusCode,headers:response.headers,body:Buffer.concat(chunks),proof}));
     });request.once('error',reject);request.once('timeout',()=>request.destroy(new Error('app request timeout')));
