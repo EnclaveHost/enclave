@@ -34,3 +34,10 @@ test('guest proof expires without self-extension and lease changes invalidate it
  gate.observeLease({...lease,appRef:'catalog:a:2',validUntil:clock+90000});assert.equal(gate.allows(id),false);
  await assert.rejects(gate.attest(id,verify),/expectation/);
 });
+
+test('a missing deployment is revoked without withholding another app lease',async()=>{
+ const missing='0x'+'ef'.repeat(32),readers=[client(),client()];
+ for(const c of readers){const original=c.readContract;c.readContract=async args=>args.functionName==='get'&&args.args[0]===missing?{...row,id:'0x'+'00'.repeat(32)}:original(args);}
+ const reader=new LeaseReader({addressBook:book,clients:readers,now});reader.cache.set(missing,{...row,id:missing,validUntil:now()+60000});
+ assert.deepEqual((await reader.refresh([missing,id])).map(x=>x.id),[id]);assert.equal(reader.get(missing),null);assert.ok(reader.get(id));
+});

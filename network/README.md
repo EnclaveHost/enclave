@@ -36,6 +36,16 @@ The production baseline was reproduced byte for byte before applying the patch:
 Use `-adopt-check` with the exact existing launch arguments before switching the
 host manager; guest images and their attestation measurements do not change.
 
+For hosts with the newer `public-web` runtime, use
+`native-guestd-public-web-tuna.patch` instead. It adds per-app routing to the
+current HTTP/HTTPS dialer and browser DNS service; both fail closed without a
+valid app route. The source snapshot before this patch reproduces the production
+`guestd.public-web-922dad14e656` binary exactly (SHA-256
+`922dad14e65691a1bbccd2d1cabaf02c7f49c38de973e7b44dae781d5582c63c`).
+Build with `CGO_ENABLED=0 GOEXPERIMENT=nodwarf5 go build -trimpath -buildvcs=false
+-ldflags='-s -w -buildid='`. The patched manager passed the adoption preflight for
+all four live Linux guests. This patch does not require a guest image change.
+
 ## Build and configure
 
 Run `npm ci`, then `node network/build.mjs /path/to/output` with Go 1.23 or newer.
@@ -183,11 +193,17 @@ TCP failure can try its sibling. Missing/expired maps, private DNS answers and
 cross-app proxy reuse fail closed. Rebuild against the **currently deployed** host
 runtime, preserving its other changes, before using this patch in production.
 
-The Windows WFP helper installs persistent rules for circuit-private executable
-copies. A real Windows canary confirmed that its assigned guard port works while
-other app ports and direct IPv4/IPv6 connections fail, including after the helper
-exits. Windows process isolation, runtime orchestration, independent Shield proof
-collection and per-guest outbound integration remain rollout gates.
+The Windows helper installs persistent WFP rules for private executables and the
+entire AppContainer SID, including unlisted child programs. Its sandbox launcher
+creates the worker suspended, verifies the package identity and low integrity,
+removes every privilege except directory traversal, checks that no capability
+was granted, and resumes it in a kill-on-close job. The private directory is read
+only to that SID, with one writable state directory. The parent environment is
+replaced by a small Windows system-path allowlist. Its loopback exemption is
+limited by the circuit's exact WFP permits. A live NucBox canary passed the guard,
+other-app, IPv4/IPv6, other-app-file and state-directory checks. Full Windows
+runtime orchestration, independent Shield proof collection and per-guest outbound
+integration remain rollout gates.
 
 ### Live validation on 2026-10-02
 
@@ -206,6 +222,16 @@ collection and per-guest outbound integration remain rollout gates.
   sibling to succeed; an unbound guest was refused.
 
 These canaries did not change production DNS or guest egress configuration. The
-remaining rollout includes automatic discovery renewal, full provider inventory
-refresh/selection, standalone control bootstrap, owner-facing controls, current
-Linux runtime rebasing, Windows integration and deployment-wide failure tests.
+remaining rollout includes full provider inventory refresh/selection, standalone
+control bootstrap, owner-facing controls, Windows integration and deployment-wide
+failure tests. Linux runtime rebasing and adoption preflight passed. Discovery
+subscriptions renew before expiry; the signed renewal transaction is persisted
+before broadcast and retried unchanged after ambiguous RPC responses. An exited
+discovery helper withdraws its circuit. Allocation and health checks run
+independently per app, with public ports reserved across concurrent allocations.
+
+Each Linux guard now runs in a read-only container as UID 1000 with no
+capabilities and only its own guard configuration/seed mounted. It uses host
+networking to reach the public NKN/TUNA network, binding its local SOCKS listener
+only to the private bridge gateway. Public/egress workers retain their separate
+firewalled network namespace; they can reach only their assigned guard endpoint.

@@ -24,9 +24,10 @@ import (
 )
 
 type config struct {
-	SeedFile string   `json:"seedFile"`
-	RPC      []string `json:"rpc"`
-	Guard    string   `json:"guardSocks"`
+	SeedFile          string   `json:"seedFile"`
+	RPC               []string `json:"rpc"`
+	Guard             string   `json:"guardSocks"`
+	SubscriptionState string   `json:"subscriptionState"`
 }
 type record struct {
 	DeploymentID string `json:"deploymentId"`
@@ -128,19 +129,32 @@ func main() {
 			}
 		}
 	}()
-	// Register at most once per process. An ambiguous transaction response must
-	// not trigger repeated spending. The existing subscription is checked first.
-	checkCtx, stop := context.WithTimeout(ctx, 15*time.Second)
-	height, e := wallet.GetHeightContext(checkCtx)
+	checkCtx, stop := context.WithTimeout(ctx, 20*time.Second)
+	tx, e := renewSubscription(checkCtx, wallet, c.SubscriptionState, topic, client.Address())
+	stop()
 	fail(e)
-	sub, e := wallet.GetSubscriptionContext(checkCtx, topic, client.Address())
-	fail(e)
-	if sub == nil || sub.ExpiresAt < height+120 {
-		tx, e := wallet.SubscribeContext(checkCtx, "routes", topic, 2400, `{"version":2}`, &nkn.TransactionConfig{Fee: "0.001"})
-		fail(e)
+	if tx != "" {
 		emit(map[string]any{"type": "subscription", "transaction": tx})
 	}
-	stop()
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				attempt, cancel := context.WithTimeout(ctx, 20*time.Second)
+				tx, e := renewSubscription(attempt, wallet, c.SubscriptionState, topic, client.Address())
+				cancel()
+				if e != nil {
+					log.Print("discovery subscription renewal unavailable")
+				} else if tx != "" {
+					emit(map[string]any{"type": "subscription", "transaction": tx})
+				}
+			}
+		}
+	}()
 	emit(map[string]any{"type": "ready", "address": client.Address(), "topic": topic})
 	var current record
 	var encoded []byte

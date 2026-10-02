@@ -49,15 +49,15 @@ export class LeaseReader {
         if(canonical(snapshots[0])!==canonical(snapshots[1]))continue;
         const snapshot=snapshots[0];this.lastBlock=blockNumber;
         const result=snapshot.rows.map((row,index)=>{
-          if(row.id.toLowerCase()!==ids[index])throw new Error('deployment not found');
+          if(row.id.toLowerCase()!==ids[index]){this.cache.delete(ids[index]);this.failures.push('deployment not found: '+ids[index]);return null;}
           const leaseUntil=Number(row.leaseUntil)*1000;
           if(!Number.isSafeInteger(leaseUntil))throw new Error('invalid lease expiry');
           return {...row,id:row.id.toLowerCase(),runner:row.runner.toLowerCase(),leaseUntil,chainId:this.chainId,deployments:snapshot.deployments,
             blockNumber:snapshot.blockNumber,blockHash:snapshot.hash,blockTime:snapshot.timestamp,
             validUntil:Math.min(leaseUntil,snapshot.timestamp+this.maxBlockAgeMs)};
         });
-        for(const row of result)this.cache.set(row.id,row);
-        return result;
+        for(const row of result)if(row)this.cache.set(row.id,row);
+        return result.filter(Boolean);
       }catch(e){this.failures.push(String(e.shortMessage||e.message).slice(0,400)); /* Never extend old timestamps. */}
     }
     throw new Error('no fresh agreeing chain quorum');

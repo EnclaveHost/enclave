@@ -3,7 +3,9 @@ set -eu
 # Created before any untrusted worker starts; capability removal is irreversible.
 GUARD_ADDRESS="$1"
 GUARD_PORT="$2"
+HOST_GATEWAY="${3:-$GUARD_ADDRESS}"
 case "$GUARD_ADDRESS" in *[!0-9.]*|'') exit 64;; esac
+case "$HOST_GATEWAY" in *[!0-9.]*|'') exit 64;; esac
 case "$GUARD_PORT" in *[!0-9]*|'') exit 64;; esac
 iptables -P OUTPUT DROP
 iptables -P INPUT DROP
@@ -21,6 +23,6 @@ iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 iptables -A OUTPUT -p tcp -d "$GUARD_ADDRESS" --dport "$GUARD_PORT" -j ACCEPT
 # Host-only Docker publication provides app-bound outbound SOCKS. App TLS ingress
 # arrives over TUNA's outbound connection; its local broker is a Unix socket.
-iptables -A INPUT -p tcp -s "$GUARD_ADDRESS" --dport 30489 -j ACCEPT
+iptables -A INPUT -p tcp -s "$HOST_GATEWAY" --dport 30489 -j ACCEPT
 exec setpriv --reuid=1000 --regid=1000 --clear-groups --bounding-set=-all --inh-caps=-all --ambient-caps=-all \
   node /opt/enclave-tuna/circuit-worker.mjs /etc/circuit/worker.json
