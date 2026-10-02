@@ -68,7 +68,7 @@ export async function expectedShieldApp(row, { policy, readCatalog, readConfig, 
     record.policy = { cpuPercent: 400, vcpus: 4, memMiB: version.memMb };
     record.inference = { model: profile.model, gpuMilli: gpu };
   } else if (Object.keys(appConfig).length || configCid || secretsRequired) {
-    if (profile.configBundleV5 !== true || record.http) throw new Error('app configuration is not supported by this runtime');
+    if (profile.configBundleV5 !== true || (record.http && profile.configSocketServer !== true)) throw new Error('app configuration is not supported by this runtime');
     record.derivation = secretsRequired ? DERIVATION_V6 : DERIVATION_V5;
     if (secretsRequired) record.secretDeployment = row.id;
     record.config = appConfigText(config);
@@ -76,7 +76,8 @@ export async function expectedShieldApp(row, { policy, readCatalog, readConfig, 
   }
   const component = await fetchVerified(version.cid, 256 << 20);
   if (!component?.ok || !Buffer.isBuffer(component.bytes)) throw new Error('catalog component could not be CID-verified');
-  return { appSha256: derive({ record, component: component.bytes }).appId, runtimeId: profile.runtimeId, requiresConfigBundleV5: [DERIVATION_V5,DERIVATION_V6].includes(record.derivation), requiresSecretsV1: secretsRequired };
+  return { appSha256: derive({ record, component: component.bytes }).appId, runtimeId: profile.runtimeId, requiresConfigBundleV5: [DERIVATION_V5,DERIVATION_V6].includes(record.derivation), requiresSecretsV1: secretsRequired,
+    requiresConfigSocketServer: !!record.http && [DERIVATION_V5,DERIVATION_V6].includes(record.derivation) };
 }
 
 export function createShieldAppVerifier({ hub, policy, readCatalog, readConfig, fetchVerified, hasSecrets = () => false }) {
@@ -93,7 +94,7 @@ export function createShieldAppVerifier({ hub, policy, readCatalog, readConfig, 
       if (!proof || typeof proof.handshakeSpki !== 'string' || proof.handshakeSpki.length > 5500)
         throw new Error('no bounded app proof from the live node');
       return hub.verifyShieldApp(name, { doc: proof.doc, handshakeSpki: Buffer.from(proof.handshakeSpki, 'base64'),
-        nonce, expectedAppSha256: expected.appSha256, expectedRuntimeId: expected.runtimeId, requiresConfigBundleV5: expected.requiresConfigBundleV5, requiresSecretsV1: expected.requiresSecretsV1,
+        nonce, expectedAppSha256: expected.appSha256, expectedRuntimeId: expected.runtimeId, requiresConfigBundleV5: expected.requiresConfigBundleV5, requiresSecretsV1: expected.requiresSecretsV1, requiresConfigSocketServer: expected.requiresConfigSocketServer,
         ...(csrSpkiSha256 !== undefined ? { expectedCsrSpkiSha256: csrSpkiSha256 } : {}) }, policy);
     } catch (e) { return { ok: false, reason: e.message }; }
     finally { active--; }

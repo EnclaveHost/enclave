@@ -163,7 +163,10 @@ export function isolationPlan({ deploymentId, deployment, version, appConfig, ha
   let httpPort;
   try { httpPort = httpPortOf(version.ports); } catch (e) { return refused("version.ports", e.message); }
   if (inf && httpPort) return refused("version.ports", "initial Shield profile serves wasi:http components");
-  if (configRequested && httpPort) return refused("version.ports", "measured configuration currently serves wasi:http components");
+  if (configRequested && httpPort && manager.runtime?.configSocketServer !== true)
+    return refused("version.ports", "this runtime does not support configured command services");
+  if (hasSecrets === true && httpPort && httpPort < 1024)
+    return refused("version.ports", "secret command HTTP port must be unprivileged");
   const derivation = hasSecrets === true ? DERIVATION_V6 : configRequested ? DERIVATION_V5 : inf ? V4 : httpPort ? V2 : V1;
   if (!Array.isArray(derivations)) return unknownInput("manager.catalog.derivations", "what the manager can serve");
   if (!derivations.includes(derivation))

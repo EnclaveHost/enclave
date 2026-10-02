@@ -21,7 +21,8 @@ export function verifyShieldAppPolicy(input, policy = {}) {
     // deployment and its catalog artifact, not from the app's report.
     const candidates = images.filter(p => p.runtimeId === input?.expectedRuntimeId &&
       (!input.requiresConfigBundleV5 || p.configBundleV5 === true) &&
-      (!input.requiresSecretsV1 || p.secretsV1 === true));
+      (!input.requiresSecretsV1 || p.secretsV1 === true) &&
+      (!input.requiresConfigSocketServer || p.configSocketServer === true));
     if (!candidates.length) return no('runtime has no admitted image');
     const v = verifyVbsAppEvidence(input, {
       ekRoots: policy.ekRoots,

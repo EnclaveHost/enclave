@@ -32,7 +32,7 @@ export function createShieldSecretRelease({hub,policyFile='',policy:supplied,con
    if(proof?.purpose!=='enclave-shield-secrets/1'||proof.id!==id||typeof proof.sealKey!=='string'||proof.sealKey.length!==44||typeof proof.handshakeSpki!=='string'||proof.handshakeSpki.length>5500)throw err('no bounded secret-release proof');
    const sealKey=Buffer.from(proof.sealKey,'base64');if(sealKey.length!==32)throw err('invalid guest seal key');
    const verified=await hub.verifyShieldApp(host.name,{doc:proof.doc,handshakeSpki:Buffer.from(proof.handshakeSpki,'base64'),nonce,
-    expectedAppSha256:expected.appSha256,expectedRuntimeId:expected.runtimeId,requiresConfigBundleV5:true,requiresSecretsV1:true,
+    expectedAppSha256:expected.appSha256,expectedRuntimeId:expected.runtimeId,requiresConfigBundleV5:true,requiresSecretsV1:true,requiresConfigSocketServer:expected.requiresConfigSocketServer,
     shieldRelease:{purpose:proof.purpose,id,sealKey}},policy);
    if(!verified?.ok)throw err(`guest release proof refused: ${verified?.reason||'no verdict'}`);
    const current=await confirmRow(id);

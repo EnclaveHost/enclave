@@ -37,7 +37,7 @@ test('changing config changes the measured app, while legacy bundles stay byte-i
  assert.equal(appConfigText('{"_media":{"title":"store"},"title":"app"}'),'{"title":"app"}');
  for(const text of ['null','[]','bad',JSON.stringify({padding:'x'.repeat(MAX_CONFIG_BYTES)})])assert.throws(()=>appConfigText(text));
  assert.throws(()=>derive({record:{...base,config:'{}'},component}),/V5/);
- assert.throws(()=>derive({record:{...record,http:8080},component}),/CPU wasi:http/);
+ assert.notEqual(derive({record:{...record,http:8080},component}).appId,derive({record,component}).appId);
 });
 test('manager gates old images, tampered config, extra unmeasured inputs and staged secrets',async()=>{
  await assert.rejects(manager({configEnabled:false}).spawn(body),/not served/);
@@ -61,4 +61,28 @@ test('explicit inline override takes precedence over a catalog CID, deployment C
  assert.notEqual(got.appSha256,(await expectedShieldApp(row,deps)).appSha256);
  const withRouting={...row,configCid:JSON.stringify({isolation:{require:'hyperv-partition-per-app'},configCid,config:{volumes:[]}})};
  assert.equal((await expectedShieldApp(withRouting,deps)).appSha256,(await expectedShieldApp(row,deps)).appSha256);
+});
+test('configured command services require an explicit runtime capability and preserve identity across the claim, manager and relay',async()=>{
+ const commandVersion={...version,ports:'http:8000'};
+ for(const secrets of [false,true]) {
+  const m=manager({configSocketServer:true,secretsEnabled:secrets});
+  const planArgs={deploymentId:dep,deployment:row,version:commandVersion,appConfig:config,hasSecrets:secrets,waf:{},volumes:[],runtimeId:base.runtimeId,require:'hyperv-partition-per-app',manager:m.health(),appConfigCid:configCid};
+  const old=manager({secretsEnabled:secrets});
+  assert.equal(isolationPlan({...planArgs,manager:old.health()}).ok,false);
+  const plan=isolationPlan(planArgs);assert.equal(plan.ok,true,plan.why);
+  await assert.rejects(old.spawn(plan.spawn),/configured command/);
+  const actual=await m.spawn(plan.spawn);
+  const options={...deps,secretsRequired:secrets,readCatalog:async()=>({app:{active:true},version:commandVersion}),policy:{cpu:{...policy.cpu,secretsV1:secrets,configSocketServer:true}}};
+  const expected=await expectedShieldApp(row,options);
+  assert.equal(actual.appId,expected.appSha256);
+  assert.equal(expected.requiresConfigSocketServer,true);
+  assert.equal(expected.requiresSecretsV1,secrets);
+  await assert.rejects(expectedShieldApp(row,{...options,policy:{cpu:{...options.policy.cpu,configSocketServer:false}}}),/not supported/);
+  const changed={...plan.spawn.derive,http:8001};
+  assert.notEqual(derive({record:changed,component}).appId,actual.appId);
+  if(secrets) {
+   assert.throws(()=>derive({record:{...changed,http:443},component}),/unprivileged/);
+   await assert.rejects(m.spawn({...plan.spawn,name:'0x'+'22'.repeat(32)}),/deployment differs/);
+  }
+ }
 });

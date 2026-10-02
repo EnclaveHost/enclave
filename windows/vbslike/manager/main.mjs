@@ -190,6 +190,7 @@ const manager = new Manager({ judgeReady: judgeRunning, answerCheck: checkAnswer
   // Enable only with the CPU guest image whose monitor delivers V5 config.
   configEnabled: env("ENCLAVE_CONFIG_BUNDLE_V5") === "1",
   secretsEnabled: env("ENCLAVE_SECRETS_V1") === "1",
+  configSocketServer: env("ENCLAVE_CONFIG_SOCKET_SERVER_V1") === "1",
   egress: egress && launcherOptions ? { enabled: true, mode: egress.mode } : null,
   fetchConfig: cidFetcher({ script: fetcherPath, python: env("PYTHON_BIN", "python"),
     gateway: env("IPFS_GATEWAY"), maxBytes: 1 << 20,
