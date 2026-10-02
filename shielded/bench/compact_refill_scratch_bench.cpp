@@ -35,13 +35,16 @@ static double now_us() {
     return std::chrono::duration<double,std::micro>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 static int8_t weight(size_t i, int bits) {
-    return bits==8 ? int((i*17)%239)-119 : int((i*17)%16)-8;
+    // Pattern 9: nearly incompressible, with one four-bit frame per 64 frames.
+    if (bits==9) bits=(i/64)%64==63?4:8;
+    return bits==0 ? -7 : bits==8 ? int((i*17)%239)-119 :
+        int((i*17)%(1u<<bits))-int(1u<<(bits-1));
 }
 int main(int argc, char **argv) {
     assert(argc==5);
     const size_t K=std::strtoul(argv[1],nullptr,10), N=std::strtoul(argv[2],nullptr,10);
     const int b=std::atoi(argv[3]), bits=std::atoi(argv[4]);
-    assert(K>0 && K<=65536 && N>0 && N<=17408 && b>0 && b<=64 && (bits==4 || bits==8));
+    assert(K>0 && K<=65536 && N>0 && N<=17408 && b>0 && b<=64 && bits>=0 && bits<=9);
     std::vector<int8_t> w(K*N);
     for (size_t i=0; i<w.size(); ++i) w[i]=weight(i,bits);
     (void)rss_kib(); // initialize measurement I/O before the snapshots
@@ -49,7 +52,7 @@ int main(int argc, char **argv) {
     double started=now_us(); begin_count();
     auto *s=sh_compact_create(w.data(),K,N); assert(s);
     counting=false; const double create_us=now_us()-started;
-    const size_t create_calls=calls, create_bytes=bytes, create_largest=largest;
+    const size_t create_calls=calls, create_bytes=bytes, create_largest=largest, store_bytes=sh_compact_bytes(s);
     const long create_rss1=rss_kib(), create_peak1=peak_kib();
     std::vector<int8_t>().swap(w);
     std::vector<int32_t> r((size_t)b*K),u((size_t)b*(N+3),INT32_MIN);
@@ -87,12 +90,12 @@ int main(int argc, char **argv) {
     uint64_t hash=UINT64_C(1469598103934665603);
     for (int32_t v:u) { hash^=(uint32_t)v; hash*=UINT64_C(1099511628211); }
     std::printf("{\"K\":%zu,\"N\":%zu,\"batch\":%d,\"bits\":%d,"
-        "\"create_allocations\":%zu,\"create_allocated_bytes\":%zu,\"create_largest_bytes\":%zu,"
+        "\"create_allocations\":%zu,\"create_allocated_bytes\":%zu,\"create_largest_bytes\":%zu,\"store_bytes\":%zu,"
         "\"create_us\":%.3f,\"create_rss_delta_kib\":%ld,\"create_peak_delta_kib\":%ld,"
         "\"refill_allocations\":%zu,\"refill_allocated_bytes\":%zu,\"refill_largest_bytes\":%zu,"
         "\"first_refill_us\":%.3f,\"refill_rss_delta_kib\":%ld,"
         "\"warm_iterations\":%d,\"warm_allocations\":%zu,\"warm_allocated_bytes\":%zu,\"warm_refill_us\":%.3f,\"output_hash\":\"%016llx\"}\n",
-        K,N,b,bits,create_calls,create_bytes,create_largest,create_us,create_rss1-create_rss0,create_peak1-create_peak0,
+        K,N,b,bits,create_calls,create_bytes,create_largest,store_bytes,create_us,create_rss1-create_rss0,create_peak1-create_peak0,
         refill_calls,refill_bytes,refill_largest,first_us,refill_rss1-refill_rss0,
         iterations*inner,calls,bytes,times[iterations/2],(unsigned long long)hash);
     sh_compact_free(s);
