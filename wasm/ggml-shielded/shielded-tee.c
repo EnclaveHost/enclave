@@ -341,7 +341,7 @@ typedef struct {
     int       group;
     int64_t   w_off, x_off, y_off;
     int64_t   u_off;            /* this node's columns within its group's u rows */
-    int64_t  *s, *s_tilde;      /* Freivalds, reference layout: (N,REPS) and (K,REPS) mod P2 */
+    int64_t  *s, *s_tilde;      /* preparation scratch; dealt links release it after conversion */
     int32_t  *s32, *st32;       /* the same values as the request path reads them: [REPS][N], [REPS][K] */
     int32_t  *sM, *stM;         /* dealt-pad check (SHIELDED_PAD_CHECK): s over N and (W.s) mod M over K */
 } sh_node;
@@ -753,10 +753,18 @@ static int fv_prepare(sh_link *l, sh_node *nd) {
         nd->s[i] = 1 + (int64_t)(raw[i] % (uint64_t)(SH_FV_S_RANGE - 1));
     free(raw);
     fv_prepare_parallel(l, nd->w, K, N, nd->s, SH_FV_REPS, nd->s_tilde);
-    /* s < 2^20 and s_tilde < P2 < 2^31: both fit the int32 rows the online
-     * check streams. The int64 forms stay for sh_link_verify's reference path. */
+    /* s < 2^20 and s_tilde < P2 < 2^31: both fit the int32 rows every
+     * verification path reads, including sh_link_verify. The interleaved
+     * preparation arrays are no longer needed once those rows are complete. */
     fv_rows_i32(nd->s, SH_FV_REPS, N, nd->s32);
     fv_rows_i32(nd->s_tilde, SH_FV_REPS, K, nd->st32);
+    /* Dealt links import pads and never run compact refill. Releasing these
+     * temporaries there saves retained memory. Keep the local-mint allocation
+     * layout: freeing them early regressed compact refill in paired benchmarks. */
+    if (l->dealt) {
+        free(nd->s); free(nd->s_tilde);
+        nd->s = nd->s_tilde = NULL;
+    }
     return SH_OK;
 }
 
