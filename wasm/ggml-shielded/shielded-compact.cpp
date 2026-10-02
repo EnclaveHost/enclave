@@ -9,6 +9,7 @@
 #include <omp.h>
 #include <oneapi/dnnl/dnnl.h>
 #include <stdexcept>
+#include <type_traits>
 #include <vector>
 static void require(bool ok, const char *why) {
   if (!ok)
@@ -53,9 +54,11 @@ static std::vector<uint8_t> pack_bits(const int8_t *w, size_t n) {
   out.shrink_to_fit();
   return out;
 }
-template<bool window = false>
-static bool unpack_bits(const uint8_t *src, size_t size, int8_t *w, size_t n,
+template<bool window = false, bool compare = false>
+static bool unpack_bits(const uint8_t *src, size_t size,
+                        std::conditional_t<compare, const int8_t *, int8_t *> w, size_t n,
                         size_t skip = 0, size_t take = 0) {
+  static_assert(!window || !compare, "admission compares the complete chunk");
   if constexpr (window)
     if (skip > n || take > n - skip) return false;
   size_t pos = 0;
@@ -92,7 +95,13 @@ static bool unpack_bits(const uint8_t *src, size_t size, int8_t *w, size_t n,
     }
     size_t len = std::min<size_t>(64, n - i);
     __mmask64 mask = len == 64 ? UINT64_MAX : ((1ULL << len) - 1);
-    if constexpr (window) {
+    if constexpr (compare) {
+      // Admission verifies every decoded byte directly against the source.
+      // The mask excludes padding in the last frame; no decoded tile copy is
+      // needed for the same exact round-trip check.
+      if (_mm512_cmpneq_epi8_mask(v, _mm512_maskz_loadu_epi8(mask, w + i)) & mask)
+        return false;
+    } else if constexpr (window) {
       // Frames outside the window were still checked above, so a malformed
       // later frame fails the read and wipes even an already-written output.
       const size_t first = std::max(i, skip), last = std::min(i + len, skip + take);
@@ -133,12 +142,10 @@ extern "C" sh_compact_store *sh_compact_create(const int8_t *w, int64_t K,
     s = new sh_compact_store;
     s->K = K;
     s->N = N;
-    std::vector<int8_t> check((size_t)s->rows * K);
     for (int64_t j = 0; j < N; j += s->rows) {
       size_t n = (size_t)std::min(s->rows, N - j) * K;
       auto packed = pack_bits(w + j * K, n);
-      require(unpack_bits(packed.data(), packed.size(), check.data(), n) &&
-                  memcmp(check.data(), w + j * K, n) == 0,
+      require(unpack_bits<false, true>(packed.data(), packed.size(), w + j * K, n),
               "lossless admission");
       s->bytes += packed.capacity();
       s->chunks.push_back(std::move(packed));
@@ -241,8 +248,12 @@ extern "C" int sh_compact_refill(void *ctx, const int32_t *r, int b, int32_t *u,
       sh_simd_avx512_pad_planes(r, n, planes.data(), planes.data() + n,
                                 planes.data() + 2 * n);
     auto &block = scratch.block; grow(block, (size_t)s->rows * s->K);
+    // Accumulators only address existing output rows, including partial tiles.
+    const size_t rows = (size_t)std::min(s->rows, s->N);
     auto &accum = scratch.accum;
-    grow(accum, std::max<size_t>(12 * s->rows, 3 * (size_t)b * s->rows));
+    // The native kernel (including its allocation-failure fallback) needs
+    // 12 values per output row; only GEMM uses three complete batch planes.
+    grow(accum, (gemm ? 3 * (size_t)b : 12) * rows);
     omp_one scope;
     for (size_t ci = 0; ci < s->chunks.size(); ci++) {
       int64_t j = ci * s->rows, nr = std::min(s->rows, s->N - j);
