@@ -175,7 +175,7 @@ test("a relay that offers NO v2 (today's challenge: no sigVersions): the node si
   const r = await waitFor(async () => { const x = await rowOf(origin); return x && x.availability ? x : null; });
   assert.ok(r, "the host-only row is listed");
   assert.equal(r.ownerOnly, undefined); assert.equal(r.served, undefined);
-  assert.match(await upgrade(origin, `/t/${NAME}/x/${D_OWN}/https`), /503/, "a host-only row spliced the operator's own deployment");
+  assert.match(await upgrade(origin, `/t/${NAME}/x/${D_OWN}/https`), /410/, "the retired data path must remain closed for a host-only row");
 });
 
 test("the challenge as THIS tree's relay sends it: a relay offering v2 (B) gets the node's v2 signature and its delegation, and serves the operator + the delegated owner; one offering none gets v1, host-only",
@@ -212,7 +212,7 @@ test("the challenge as THIS tree's relay sends it: a relay offering v2 (B) gets 
 // standby while the live tunnel serves (tunnel-handover.mjs; the relay binds it on acceptance, "newest wins"), so the row
 // never leaves /enclaves; a REMOVED owner ends the tunnel FIRST, so the relay stops serving that owner at once, whether
 // the new attach is then accepted or refused - the old set is never kept.
-const REFUSED = /^HTTP\/1\.1 (404|502|503)/;
+const REFUSED = /^HTTP\/1\.1 410 /;
 const { reattachMode } = await import("../windows/node/hvnode-attach.mjs");
 function watchRow(origin) {
   const seen = { samples: 0, absent: 0 }; let on = true;
