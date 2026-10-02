@@ -76,6 +76,7 @@ export async function runPrivacy(configFile){
     const expected=await readJSON(item.expectedFile);
     if(!expected.appRef||typeof expected.configCid!=='string'||!/^0x[0-9a-f]{64}$/.test(item.deploymentId)||!Array.isArray(item.names)||!item.names.length)throw new Error('explicit app expectations and names required');
     validateAppNames(item.deploymentId,item.names);
+    if(item.publishToMirror!==undefined&&typeof item.publishToMirror!=='boolean')throw new Error('publishToMirror must be true or false');
     apps.push({...item,expected,...(item.ownerPolicyFile?{ownerPolicy:await readJSON(item.ownerPolicyFile)}:{})});
   }
   let verifySnp;
@@ -115,7 +116,9 @@ export async function runPrivacy(configFile){
       const circuits=agent.manager.apps.get(id)?.circuits.filter(c=>c.healthy&&!c.closed)||[];
       if(!circuits.length)return;
       const tasks=[];
-      if(cfg.mirror)tasks.push((async()=>{
+      // Publishing to Nan's DNS mirror moves an app off the shared route for good
+      // (the mirror remembers it), so it is opted into per app, never all at once.
+      if(cfg.mirror&&apps.find(a=>a.deploymentId===id)?.publishToMirror===true)tasks.push((async()=>{
         let error;for(const circuit of circuits){try{
           const response=await guardedFetch(circuit.egress,{timeoutMs:5000})(new URL('/v1/network/tuna',cfg.mirror),{method:'POST',headers:{'content-type':'application/json'},
             body:JSON.stringify({publication:{version:2,endpoint:cfg.endpoint,policy:value.policy,bundle:value.bundle,ownerPolicy:apps.find(a=>a.deploymentId===id).ownerPolicy}})});
