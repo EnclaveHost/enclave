@@ -7,13 +7,10 @@ import { pathToFileURL } from 'node:url';
 import { privateKeyToAccount } from 'viem/accounts';
 import WebSocket, { createWebSocketStream } from 'ws';
 import { TunaHost } from './tuna-host.mjs';
+import {localUpstream} from './upstream.mjs';
+export {localUpstream} from './upstream.mjs';
 
 const timeout = () => AbortSignal.timeout(8000);
-export function localUpstream(raw) {
-  const u = new URL(raw);
-  if (u.protocol !== 'http:' || !['127.0.0.1', '[::1]', 'localhost'].includes(u.hostname) || u.username || u.password || u.pathname !== '/' || u.search || u.hash) throw new Error('upstream must be a loopback HTTP origin');
-  return u.origin;
-}
 export function resolveHostname(name, domains, admitted, zone = 'app.enclave.host') {
   const suffix = '.' + zone;
   if (name === zone || name.endsWith(suffix)) {

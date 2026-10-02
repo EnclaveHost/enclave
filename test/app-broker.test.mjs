@@ -28,3 +28,12 @@ test('only an app-bound listener accepts SNI-less TLS; foreign SNI is refused',a
  const strict=await createAppIngress({deploymentId:id,names:['app.example'],authorize:()=>true,forward:socket=>{forwarded++;socket.destroy();}});t.after(()=>strict.close());
  await new Promise(resolve=>{const socket=tls.connect({host:'127.0.0.1',port:strict.port,servername:''});socket.on('error',()=>{});socket.once('close',resolve);});assert.equal(forwarded,2);
 });
+test('Windows loopback broker requires its own secret and cannot select another app',async t=>{
+ const {default:WebSocket}=await import('ws');const id='0x'+'ab'.repeat(32),token='cd'.repeat(32);let forwards=0,allowed=true;
+ const broker=await createAppBroker({tcpPort:0,token,deploymentId:id,authorize:()=>allowed,forward:(stream,app)=>{assert.equal(app,id);forwards++;stream.pipe(stream);}});t.after(()=>broker.close());
+ const connect=key=>new WebSocket('ws://127.0.0.1:'+broker.port+'/app',{headers:{'x-enclave-broker':key,'x-deployment':'0x'+'ef'.repeat(32)}});
+ for(const key of ['', 'ef'.repeat(32), 'z'.repeat(64)]){const ws=connect(key);ws.on('error',()=>{});await new Promise(r=>ws.once('close',r));}
+ assert.equal(forwards,0);const ws=connect(token);ws.on('error',()=>{});t.after(()=>ws.terminate());await new Promise((r,j)=>{ws.once('open',r);ws.once('error',j)});
+ const echoed=new Promise(r=>ws.once('message',r));ws.send('bound app');assert.equal((await echoed).toString(),'bound app');assert.equal(forwards,1);
+ const closed=new Promise(r=>ws.once('close',r));allowed=false;broker.revoke();await closed;
+});

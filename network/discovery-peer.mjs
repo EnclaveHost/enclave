@@ -3,10 +3,10 @@ import {createInterface} from 'node:readline';
 import {EventEmitter} from 'node:events';
 
 export class DiscoveryPeer extends EventEmitter {
-  constructor({binary,configFile,deploymentId,log=()=>{}}){super();Object.assign(this,{binary,configFile,deploymentId,log});this.closed=false;}
+  constructor({binary,configFile,deploymentId,spawnProcess=spawn,log=()=>{}}){super();Object.assign(this,{binary,configFile,deploymentId,spawnProcess,log});this.closed=false;}
   start(){
     if(this.child||this.closed)throw new Error('discovery peer already started');
-    this.child=spawn(this.binary,['--config',this.configFile,'--deployment',this.deploymentId],{stdio:['pipe','pipe','pipe'],windowsHide:true});
+    this.child=this.spawnProcess(this.binary,['--config',this.configFile,'--deployment',this.deploymentId],{stdio:['pipe','pipe','pipe'],windowsHide:true});
     this.child.stderr.on('data',b=>this.log(String(b).slice(0,1000)));
     this.lines=createInterface({input:this.child.stdout});
     return new Promise((resolve,reject)=>{

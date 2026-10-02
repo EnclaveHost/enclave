@@ -6,15 +6,17 @@ import {spawn,execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {AdapterProcess} from './adapter-process.mjs';
 import {providerAllowed,independent} from './circuit-policy.mjs';
+import {windowsControlGuard} from './windows-control-guard.mjs';
 const execute=promisify(execFile);
 async function port(){const server=net.createServer();await new Promise((r,j)=>{server.once('error',j);server.listen(0,'127.0.0.1',r)});const n=server.address().port;await new Promise(r=>server.close(r));return n;}
 
 // These two identities bootstrap public chain/discovery reads only. Guest
 // sockets never use them. Each app's data continues to use its own circuits.
 export class ControlTransport {
- constructor({directory,image,binary,rpc,wallets,inventory,prefer=[],maxPrice='0.0002',log=()=>{}}){
-  if(process.platform!=='linux'||process.getuid()!==1000||!path.isAbsolute(directory)||wallets.length!==2||wallets[0].address===wallets[1].address)throw new Error('two separate Linux control identities required');
-  Object.assign(this,{directory,image,binary,rpc,wallets,inventory,prefer,maxPrice,log});this.slots=[null,null];this.pending=false;this.closed=false;this.cooldown=new Map();this.active=new Set();
+ constructor({directory,image,binary,firewallBinary,rpc,wallets,inventory,prefer=[],maxPrice='0.0002',log=()=>{}}){
+  const supported=process.platform==='linux'&&process.getuid()===1000||process.platform==='win32'&&typeof firewallBinary==='string'&&path.isAbsolute(firewallBinary);
+  if(!supported||!path.isAbsolute(directory)||wallets.length!==2||wallets[0].address===wallets[1].address)throw new Error('two separate control identities and an isolated runtime required');
+  Object.assign(this,{directory,image,binary,firewallBinary,rpc,wallets,inventory,prefer,maxPrice,log});this.slots=[null,null];this.pending=false;this.closed=false;this.cooldown=new Map();this.active=new Set();
  }
  proxies=()=>this.slots.filter(v=>v?.healthy).map(v=>v.proxy);
  async start(){await this.refresh();if(!this.proxies().length)throw new Error('no control bootstrap guard available');this.timer=setInterval(()=>void this.refresh().catch(e=>this.log(e.message)),20000);return this;}
@@ -38,6 +40,13 @@ export class ControlTransport {
   }finally{this.pending=false;}
  }
  async allocate(index,provider){
+  if(process.platform==='win32'){
+   const slot=await windowsControlGuard({...this,wallet:this.wallets[index],provider,onDown:slot=>{
+    this.cooldown.set(provider.identity,Date.now()+60000);if(this.slots[index]===slot)this.slots[index]=null;void slot.close();
+   }});
+   const close=slot.close;slot.close=async()=>{await close();this.active.delete(slot);};this.active.add(slot);
+   if(this.closed){await slot.close();throw new Error('control transport stopped');}return slot;
+  }
   const wallet=this.wallets[index],id=randomBytes(16).toString('hex'),name='enclave-control-'+id,dir=path.join(this.directory,id),listen=await port();
   await fs.mkdir(dir,{recursive:true,mode:0o700});const seed=await fs.readFile(wallet.seedFile,'utf8');if(!/^[a-f0-9]{64}\s*$/i.test(seed))throw new Error('invalid control identity');
   const derived=JSON.parse((await execute(this.binary,['--wallet-address',wallet.seedFile],{timeout:10000})).stdout);if(derived.address!==wallet.address)throw new Error('control wallet mismatch');
