@@ -182,7 +182,9 @@ policy. Ordinary browsers continue to use HTTPS names and CA certificates.
 The optional Nan mirror accepts verified version 2 records and gives DNS both
 current addresses. After an app migrates, a persistent replay floor prevents
 falling back to its old shared host route, including after mirror restart.
-Mirror failure does not revoke native serving authorization. Authoritative DNS
+Publishing to the mirror is opted into per app (`"publishToMirror": true` on the
+app entry, with `mirror` set); an app without it keeps its shared route in DNS,
+so a rollout moves one app at a time. Mirror failure does not revoke native serving authorization. Authoritative DNS
 itself remains a compatibility service; native discovery is the independent path.
 
 `native-guestd-tuna.patch` additionally implements `-egress-app-routes FILE`,
