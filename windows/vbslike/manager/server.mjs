@@ -72,13 +72,14 @@ export class Manager {
    * @param readyDeadlineMs  how long a domain has to become ready before it is failed.
    */
   constructor({ backend = new HyperVPartitionBackend(), fetchComponent = null, runtimeId = "",
-                runtime = null, shield = null, configEnabled = false, secretsEnabled = false, fetchConfig = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null,
+                runtime = null, shield = null, configEnabled = false, secretsEnabled = false, configSocketServer = false, fetchConfig = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null,
                 egress = null } = {}) {
     this.backend = backend;
     this.shield = shield;
     this.configEnabled = configEnabled === true && typeof fetchConfig === "function";
     this.fetchConfig = fetchConfig;
     this.secretsEnabled = secretsEnabled === true && this.configEnabled;
+    this.configSocketServer = configSocketServer === true && this.configEnabled;
     // OUTBOUND HTTPS for secret domains (egress.mjs; main.mjs ENCLAVE_EGRESS_V1=1): the launcher starts a partition's
     // bridge and egress endpoint; this states it on /health and fails a domain whose path exits. Only secret (V6)
     // domains use it, so it is stated only where they are served.
@@ -289,7 +290,7 @@ export class Manager {
         derives: DERIVATIONS,                   // what it can COMPUTE, byte-exactly: information only
         runtimeId: this.runtimeId || null,
       },
-      runtime: { v2SocketServer: false,
+      runtime: { v2SocketServer: false, configSocketServer: this.configSocketServer,
                  note: "enclave-catalog-bundle/2 is derived byte-for-byte here but not served: serving a command on its own socket needs wasi:sockets inside the partition and an in-guest TLS front" },
       policyRule: POLICY_RULE,
       // canStart is the HOST's answer, refreshed by probe(), not "a launcher object exists". A
@@ -332,6 +333,7 @@ export class Manager {
       throw badRequest("derivation is not served");
     // The new config lives only in the measured record; never ignore a second, unmeasured input.
     if (d.derivation === DERIVATION_V5 || d.derivation === DERIVATION_V6) {
+      if (d.http && !this.configSocketServer) throw badRequest("this runtime does not support configured command services");
       if (body.config || body.configCid || body.appConfigCid) throw badRequest("configuration must be carried in the V5 record only");
       if (d.configCid) {
         const bytes = await this.fetchConfig(d.configCid);

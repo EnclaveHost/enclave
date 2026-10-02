@@ -102,7 +102,8 @@ export function derive({ record, component }) {
     config = appConfigText(r.config);
     if (config !== r.config) throw new Error("app configuration is not normalized");
     if (r.configCid && !CID_RE.test(r.configCid)) throw new Error("invalid configuration CID");
-    if (r.http || r.inference || (r.ports || []).length) throw new Error("V5 serves CPU wasi:http configuration only");
+    if (r.inference || (r.ports || []).length) throw new Error("V5 configuration supports CPU HTTP components and single-port commands only");
+    if (v6 && r.http && r.http < 1024) throw new Error("secret command HTTP port must be unprivileged");
   } else if (r.config !== undefined || r.configCid) throw new Error("app configuration requires V5");
   const port = r.http ?? 0;
   if (!Number.isInteger(port) || port < ((v2 || v3) ? 1 : 0) || port > MAX_PORT || (r.derivation === DERIVATION && port !== 0))
