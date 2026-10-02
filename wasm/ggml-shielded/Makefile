@@ -114,7 +114,7 @@ prefix-kv-selftest: prefix-kv-selftest.c prefix-kv.o shielded-pads.o tweetnacl.o
 pads-keygen: pads-keygen.c $(CORE_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
-ggml-shielded.o: ggml-shielded.cpp ggml-shielded.h shielded-latency.h shielded-tee.h shielded-field.h shielded-simd.h shielded-source-bytes.h shielded-source-prefetch.h
+ggml-shielded.o: ggml-shielded.cpp ggml-shielded.h shielded-group-key.h shielded-latency.h shielded-tee.h shielded-field.h shielded-simd.h shielded-source-bytes.h shielded-source-prefetch.h
 	$(CXX) $(CXXFLAGS) $(GGML_INC) -c $< -o $@
 
 ggml-test: ggml-test.cpp ggml-shielded.o $(CORE_OBJ)
@@ -126,13 +126,13 @@ ggml-test: ggml-test.cpp ggml-shielded.o $(CORE_OBJ)
 # live under /dev/shm on a box that has no CVM ring directory. Production
 # builds pass nothing here and keep the single root-owned ring path.
 SHIELDED_EXTRA_DEFS ?=
-ggml-shielded-dl.o: ggml-shielded.cpp ggml-shielded.h shielded-compact.h shielded-latency.h shielded-tee.h shielded-field.h shielded-simd.h shielded-source-bytes.h shielded-source-prefetch.h
+ggml-shielded-dl.o: ggml-shielded.cpp ggml-shielded.h shielded-group-key.h shielded-compact.h shielded-latency.h shielded-tee.h shielded-field.h shielded-simd.h shielded-source-bytes.h shielded-source-prefetch.h
 	$(CXX) $(CXXFLAGS) -DGGML_BACKEND_DL -DGGML_BACKEND_SHARED $(SHIELDED_EXTRA_DEFS) $(COMPACT_DEFS) $(GGML_INC) -c $< -o $@
 
 libggml-shielded.so: ggml-shielded-dl.o $(CORE_OBJ)
 	$(CXX) $(CXXFLAGS) -shared -o $@ $^ -L$(GGML_LIB) -lggml-base $(LDLIBS) -Wl,-rpath,$(GGML_LIB)
 
-ggml-shielded-dealer.o: ggml-shielded.cpp ggml-shielded.h shielded-latency.h shielded-tee.h shielded-field.h shielded-simd.h shielded-source-bytes.h shielded-source-prefetch.h
+ggml-shielded-dealer.o: ggml-shielded.cpp ggml-shielded.h shielded-group-key.h shielded-latency.h shielded-tee.h shielded-field.h shielded-simd.h shielded-source-bytes.h shielded-source-prefetch.h
 	$(CXX) $(CXXFLAGS) -DGGML_BACKEND_DL -DGGML_BACKEND_SHARED -DSHIELDED_DEALER_MODE $(GGML_INC) -c $< -o $@
 libggml-shielded-dealer.so: ggml-shielded-dealer.o $(DEALER_OBJ)
 	$(CXX) $(CXXFLAGS) -shared -o $@ $^ -L$(GGML_LIB) -lggml-base $(LDLIBS) -Wl,-rpath,$(GGML_LIB)
