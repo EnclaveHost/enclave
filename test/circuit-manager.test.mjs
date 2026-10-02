@@ -123,3 +123,28 @@ test('a public provider address already routed for another app is never chosen',
  for(const c of f.started)assert.ok(!taken.has(c.providers.public.address),'chose an occupied public provider '+c.providers.public.address);
  await f.manager.close();
 });
+test('a public provider that keeps failing allocation is cooled down for longer each time, and a success resets it',async()=>{
+ let now=1_000_000;const fail=new Set([nodes[0].identity]);
+ const wallets=Array.from({length:2},(_,slot)=>Object.fromEntries(['guard','public','egress'].map(role=>[role,{address:'d'+slot+role,fundedNkn:'0.1'}])));
+ const admission={allows:()=>true,leases:new Map([[id,{validUntil:Infinity}]]),proofs:new Map([[id,{validUntil:Infinity}]])};
+ const manager=new CircuitManager({admission,inventory:async()=>nodes,wallets:async()=>wallets,probe:async()=>{},publish:async()=>{},now:()=>now,
+  runtime:{start:async args=>{
+   if(fail.has(args.providers.public.identity)){const e=new Error('https provider allocation timeout');throw e;}
+   const c=new EventEmitter();Object.assign(c,{...args,id:'y'.repeat(32),providers:args.providers,address:args.providers.public.address,port:443,closed:false,admit(){},async close(){this.closed=true}});return c;
+  }}});
+ const pub='public:'+nodes[0].identity,until=()=>manager.cooldown.get(pub)-now;
+ // two public candidates: node 3 allocates, node 0 times out; each round retries node 0 for the second route
+ const only=new Set([nodes[0].identity,nodes[3].identity]);
+ manager.inventory=async()=>nodes.map(n=>only.has(n.identity)?n:{...n,services:['socksproxy']});
+ await manager.configure([{policy,names:['app.example']}]);
+ const waits=[];
+ for(let i=0;i<4;i++){await manager.reconcile();waits.push(until());now+=until()+1;}
+ assert.deepEqual(waits,[60000,120000,240000,480000]);
+ // an unattributed timeout leaves the guard's cooldown flat
+ const guardKeys=[...manager.cooldown.keys()].filter(k=>k.startsWith('guard:'));
+ assert.ok(guardKeys.length>0);for(const k of guardKeys)assert.ok(!manager.strikes.has(k));
+ // once the provider allocates, its record is clean again
+ fail.clear();await manager.reconcile();
+ assert.ok(!manager.strikes.has(pub));
+ await manager.close();
+});

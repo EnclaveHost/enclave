@@ -7,7 +7,7 @@ import {transientProofError} from './lease-reader.mjs';
 // its reverse tunnel), so one slow handshake is ordinary. These transport
 // failures withdraw a route only after three in a row; a mismatch or refusal
 // still fails it at once.
-const ROUTE_PROBE_FAILURES=3,ROUTE_RETRY_MS=5000;
+const ROUTE_PROBE_FAILURES=3,ROUTE_RETRY_MS=5000,COOLDOWN_MAX_MS=1800000;
 export function transientRouteError(e) {
   return transientProofError(e)||['TLS handshake timeout','SOCKS connection aborted','SOCKS connection closed','SOCKS closed during handshake','SOCKS connect refused'].includes(e?.message);
 }
@@ -20,7 +20,7 @@ const withCarry=providers=>({...providers,carry:providers.guard});
 const sameProviders=(a,b)=>roles.every(role=>a[role].identity===b[role].identity&&a[role].address===b[role].address&&a[role].beneficiary===b[role].beneficiary&&a[role].asn===b[role].asn);
 export class CircuitManager extends EventEmitter {
   constructor({runtime,admission,inventory,wallets,probe,publish,observe=async()=>{},now=Date.now,log=()=>{}}) {
-    super();Object.assign(this,{runtime,admission,inventory,wallets,probe,publish,observe,now,log});this.apps=new Map();this.cooldown=new Map();this.closed=false;this.busy=false;this.publications=new Map();this.reconcilingApps=new Map();this.reservedPublic=new Set();this.occupiedElsewhere=new Set();this.healthChecks=new Map();
+    super();Object.assign(this,{runtime,admission,inventory,wallets,probe,publish,observe,now,log});this.apps=new Map();this.cooldown=new Map();this.strikes=new Map();this.closed=false;this.busy=false;this.publications=new Map();this.reconcilingApps=new Map();this.reservedPublic=new Set();this.occupiedElsewhere=new Set();this.healthChecks=new Map();
   }
   async configure(apps) {
     const next=new Map(),walletOwners=new Map();
@@ -146,6 +146,7 @@ export class CircuitManager extends EventEmitter {
         await this.probe(app,circuit);
         if(circuit.closed||!this.authorizationUntil(app.id))throw new Error('circuit failed during verification');
         void this.observe(withCarry(providers),{ok:true,latencyMs:this.now()-started}).catch(e=>this.log(e.message));
+        for(const role of roles)this.strikes.delete(role+':'+providers[role].identity);
         circuit.slot=slot;circuit.healthy=true;circuit.checkedAt=this.now();
         circuit.on('down',reason=>{void this.fail(app,circuit,reason).catch(e=>this.log(e.message));});
         app.circuits.push(circuit);await this.publishApp(app);
@@ -156,7 +157,15 @@ export class CircuitManager extends EventEmitter {
           void this.observe(withCarry(providers),{ok:false,role:e.providerRole}).catch(error=>this.log(error.message));
           if(e.providerRole==='public')void this.observe({carry:providers.guard},{ok:false,role:'carry'}).catch(error=>this.log(error.message));
         }
-        for(const role of roles)if(!e.providerRole||role===e.providerRole)this.cooldown.set(role+':'+providers[role].identity,this.now()+60000);
+        // A provider that keeps failing allocation waits longer each time
+        // (60 s doubling to 30 min) so the search moves on to the rest of the
+        // network instead of spending every attempt on the same few nodes. An
+        // unattributed timeout escalates only the public side; a success resets.
+        for(const role of roles)if(!e.providerRole||role===e.providerRole){
+          const key=role+':'+providers[role].identity,escalate=role===(e.providerRole||'public');
+          const n=escalate?(this.strikes.get(key)||0)+1:1;if(escalate)this.strikes.set(key,n);
+          this.cooldown.set(key,this.now()+Math.min(60000*2**(n-1),COOLDOWN_MAX_MS));
+        }
         if(circuit){if(app.circuits.includes(circuit))await this.fail(app,circuit,e.message);else await circuit.close(e.message);}app.error=e.message;this.log(`app ${app.id.slice(0,10)}: ${e.message}`);
       }
     }
