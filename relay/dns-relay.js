@@ -1,63 +1,19 @@
-// Enclave authoritative DNS — serves the platform's two synthesized zones from
-// live state. UNTRUSTED, like the other relays: no keys, no zone files, nothing
-// to reload; every answer is computed from the fleet poll, env, or the
-// challenge store.
+// Authoritative Enclave DNS. Application A/AAAA and raw-port SRV answers come
+// only from unexpired, operator-signed TUNA allocations joined to live leases
+// and host admission on Nan. There is no wildcard or legacy relay fallback.
+// DNS-01 TXT challenges and the box control namespace remain available.
 //
-//   <hex-prefix>.IP_ZONE                  AAAA  the deployment's dedicated IPv6
-//   _minecraft._tcp.<hex-prefix>.IP_ZONE  SRV   first declared tcp port
-//   <anything>.APP_ZONE                   A/AAAA  today's wildcard (from env)
-//   _acme-challenge.<name>.APP_ZONE       TXT   pushed by enclaves (HTTP API)
-//
-// ZONE 1 (ip): per-deployment dedicated-IPv6 hostnames. Addresses come from the
-// same fleet-wide /v1/net-map poll the tcp6/udp relays run (fleet.mjs), so a
-// name resolves exactly when its listener exists — no registration step. A
-// label is a unique hex prefix of the deployment id (8-64 chars; a leading
-// "dep-"/"dep_" is tolerated); unknown or AMBIGUOUS prefixes are NXDOMAIN.
-// v6-only by design: A queries on these names get an empty NOERROR.
-//
-// ZONE 2 (app): the wildcard (A/AAAA straight from env) is the DEFAULT answer,
-// not the only one. A deployment may choose which relay carries its traffic
-// ({"network":{"relay":"us-west"}} in its on-chain options envelope), and that
-// choice is consumed HERE — nothing inside a CVM acts on it. The relay's API
-// resolves the choices into label -> address (RELAY_MAP_URL, /v1/relays) and
-// this server answers <label>.app.enclave.host with that address instead of the
-// zone-wide one. Everything else in the zone, the wildcard included, is
-// unchanged; a label with no choice, or one whose relay has gone, falls back to
-// the wildcard, so a preference can never make an app unreachable.
-// Plus _acme-challenge TXT records the enclaves push over the authenticated
-// HTTP API below, which is what makes DNS-01 issuance for app names possible.
-// Entries expire on their own; the store is memory-only (a restart loses at
-// most an in-flight order, which retries).
-//
-// The wire protocol is implemented by hand (UDP + TCP with the 2-byte length
-// prefix, one question, the six record types we serve, minimal EDNS echo, TC
-// on oversize, names written uncompressed — fine at our sizes). Anything
-// outside the two zones is REFUSED: this is an authoritative server, not a
-// resolver. Malformed packets are dropped silently.
-//
-// Config (env):
-//   IP_ZONE           required   zone 1 apex, e.g. ip.enclave.host
-//   APP_ZONE          required   zone 2 apex, e.g. app.enclave.host
-//   NS_NAME           required   this server's own name (SOA mname + NS target)
-//   APP_A / APP_AAAA  optional   wildcard answers for zone 2 (unset -> NODATA)
-//   DNS_PORT          optional   DNS udp+tcp port (default 53)
-//   DNS_API_PORT      optional   challenge-push HTTP API port (default 8153)
-//   DNS_API_BIND      optional   API bind address (default all)
-//   DNS_TXT_KEY       optional   the DERIVED key the enclave signs TXT pushes
-//                                with: HMAC-SHA256(fleet SECRET,'enclave dns-txt
-//                                v1') as hex (NOT the raw fleet SECRET). HMAC auth
-//                                for the API (unset -> API answers 503). The old
-//                                `SECRET` env is a deprecated fallback.
-//   TXT_TTL_SEC       optional   challenge lifetime cap, seconds (default 600)
-//   REGISTRY_ADDRESS  required*  EnclaveRegistry on Base: on-chain fleet discovery
-//   ENCLAVES          required*  *instead: static comma list of enclave origins
-//   BASE_RPC / REGISTRY_POLL_SEC / STALE_AFTER_SEC   registry mode knobs (fleet.mjs)
-//   NET_POLL_SEC      optional   /v1/net-map poll cadence (default 15)
-//   RELAY_MAP_URL     optional   the API relay's /v1/relays, e.g.
-//                                https://api.enclave.host/v1/relays. UNSET = the
-//                                app zone is the pure wildcard it always was, so
-//                                the feature arrives by configuring this and
-//                                nothing else changes until it is set.
+// IP_ZONE, APP_ZONE and NS_NAME are required. Optional TCP_ZONE preserves its
+// authority and DNS-01 records. BOX_ZONE and BOX_A/BOX_AAAA serve control names.
+// TUNA_MAP_URL defaults to https://api.enclave.host/v1/network/tuna;
+// RELAY_MAP_URL remains a configuration alias during upgrades.
+// NET_POLL_SEC controls refresh (default 15). DNS_PORT defaults to 53,
+// DNS_API_PORT to 8153; DNS_API_BIND restricts the challenge API listener.
+// DNS_TXT_KEY is HMAC-SHA256(fleet SECRET, 'enclave dns-txt v1') as hex, never
+// the raw fleet secret. TXT_TTL_SEC caps challenges (default 600).
+// Fleet discovery (REGISTRY_ADDRESS or ENCLAVES, BASE_RPC) authenticates DNS-01
+// pushes. DNS_RL_CAP/DNS_RL_PER_SEC bound per-source response rates.
+// This is an authoritative server, not a recursive resolver.
 
 import dgram from "node:dgram";
 import net from "node:net";
@@ -176,48 +132,22 @@ function ipv6Bytes(s) {
   return b;
 }
 
-const APP_A = process.env.APP_A ? ipv4Bytes(process.env.APP_A.trim()) : null;
-if (process.env.APP_A && !APP_A) { console.error("fatal: APP_A is not a valid IPv4 address"); process.exit(1); }
-const APP_AAAA = process.env.APP_AAAA ? ipv6Bytes(process.env.APP_AAAA.trim()) : null;
-if (process.env.APP_AAAA && !APP_AAAA) { console.error("fatal: APP_AAAA is not a valid IPv6 address"); process.exit(1); }
-const TCP_A = process.env.TCP_A ? ipv4Bytes(process.env.TCP_A.trim()) : null;
-if (process.env.TCP_A && !TCP_A) { console.error("fatal: TCP_A is not a valid IPv4 address"); process.exit(1); }
-const TCP_AAAA = process.env.TCP_AAAA ? ipv6Bytes(process.env.TCP_AAAA.trim()) : null;
 const BOX_A = process.env.BOX_A ? ipv4Bytes(process.env.BOX_A.trim()) : null;
 const BOX_AAAA = process.env.BOX_AAAA ? ipv6Bytes(process.env.BOX_AAAA.trim()) : null;
-if (process.env.TCP_AAAA && !TCP_AAAA) { console.error("fatal: TCP_AAAA is not a valid IPv6 address"); process.exit(1); }
 
-// ---- fleet state (zone 1's data) -------------------------------------------
+// Unexpired TUNA allocations. Failed refreshes retain the last map only until
+// each record's signed expiry; queries never revive an expired address.
+let deployments = [];
 
-// per-origin rows from each enclave's last GOOD /v1/net-map read; a failed poll
-// keeps the previous answer set (same rule as tcp6-relay: a flaky enclave must
-// not blank its names), an origin that leaves the fleet drops its rows.
-const perOrigin = new Map();   // origin -> [{ hex, address, tcp }]
-let deployments = [];          // flattened fleet view the resolver reads
+const TUNA_MAP_URL = (process.env.TUNA_MAP_URL || process.env.RELAY_MAP_URL || "https://api.enclave.host/v1/network/tuna").trim();
+const TUNA_TTL = 15;
+let appRoutes = new Map();   // label -> { a: Buffer|null, aaaa: Buffer|null, relay: string }
 
-// ---- zone 2's per-deployment relay choices ---------------------------------
-//
-// label -> { a, aaaa } for the deployments that named a relay. Built by the API
-// relay (it holds both halves: the ledger envelopes and each relay's declared
-// address) and read here as one map, because a name is only answerable when
-// BOTH halves agree — a choice whose relay has gone must resolve to the zone
-// default, and deciding that needs both facts at once.
-//
-// LAST-GOOD, like the net-map poll above and for the same reason: a failed read
-// keeps the previous map. Blanking it on one bad fetch would move every
-// deployment that chose a relay back onto the default relay, which is a
-// fleet-wide traffic shift caused by an HTTP hiccup.
-const RELAY_MAP_URL = (process.env.RELAY_MAP_URL || "").trim();
-const RELAY_TTL = 60;   // shorter than the wildcard's 300: a relay change is an
-                        // owner action, and a fallback to the default after a
-                        // relay leaves should not stay cached for five minutes
-let appRelays = new Map();   // label -> { a: Buffer|null, aaaa: Buffer|null, relay: string }
-
-async function pollRelayMap() {
-  if (!RELAY_MAP_URL) return;
-  const j = await fetchJson(RELAY_MAP_URL);
+async function pollTunaMap() {
+  if (!TUNA_MAP_URL) return;
+  const j = await fetchJson(TUNA_MAP_URL);
   if (!j || !j.labels || typeof j.labels !== "object") {
-    console.error(`[dns-relay] relay-map poll failed: ${RELAY_MAP_URL} (keeping ${appRelays.size} label(s))`);
+    console.error(`[dns-relay] TUNA map poll failed: ${TUNA_MAP_URL} (keeping ${appRoutes.size} label(s))`);
     return;
   }
   const next = new Map();
@@ -225,33 +155,18 @@ async function pollRelayMap() {
     if (!/^[0-9a-z]{1,63}$/.test(label) || !v || typeof v !== "object") continue;
     const a    = v.a    ? ipv4Bytes(String(v.a))     : null;
     const aaaa = v.aaaa ? ipv6Bytes(String(v.aaaa))  : null;
-    if (!a && !aaaa) continue;                 // nothing to answer with: leave it on the wildcard
-    next.set(label, { a, aaaa, relay: String(v.relay || "") });
+    if (!a && !aaaa) continue;                 // no current provider address
+    if (!Number.isSafeInteger(v.expiresAt) || v.expiresAt <= Date.now()) continue;
+    next.set(label, { a, aaaa, expiresAt: v.expiresAt, relay: "tuna" });
   }
-  if (next.size !== appRelays.size) console.log(`[dns-relay] relay map: ${next.size} label(s) on a chosen relay`);
-  appRelays = next;
+  if (next.size !== appRoutes.size) console.log(`[dns-relay] TUNA map: ${next.size} allocated label(s)`);
+  deployments = Object.entries(j.deployments || {}).filter(([id, d]) => /^0x[0-9a-f]{64}$/.test(id)
+    && d.address && Number.isSafeInteger(d.expiresAt) && d.expiresAt > Date.now())
+    .map(([id, d]) => ({hex: id.slice(2), address: d.address, expiresAt: d.expiresAt, tcp: (d.tcp || []).map(p => p.publicPort)}));
+  appRoutes = next;
 }
 
-async function poll() {
-  await pollRelayMap();
-  const origins = fleet.origins();
-  const results = await Promise.all(origins.map(async (origin) =>
-    ({ origin, map: await fetchJson(origin + "/v1/net-map") })));
-  for (const { origin, map } of results) {
-    if (!map) { console.error(`[dns-relay] net-map poll failed: ${origin}`); continue; }
-    const rows = [];
-    if (map.enabled) for (const d of map.deployments || []) {
-      if (!d.address || !/^0x[0-9a-fA-F]{64}$/.test(d.id || "")) continue;
-      rows.push({ hex: d.id.slice(2).toLowerCase(), address: d.address,
-                  tcp: (d.tcp || []).map((p) => parseInt(p, 10)).filter((p) => p > 0 && p < 65536) });
-    }
-    perOrigin.set(origin, rows);
-  }
-  for (const origin of [...perOrigin.keys()]) if (!origins.includes(origin)) perOrigin.delete(origin);
-  const byId = new Map();   // ids are unique fleet-wide (on-chain bytes32)
-  for (const rows of perOrigin.values()) for (const r of rows) if (!byId.has(r.hex)) byId.set(r.hex, r);
-  deployments = [...byId.values()];
-}
+async function poll() { await pollTunaMap(); }
 
 // ---- challenge store (zone 2's TXT) ----------------------------------------
 
@@ -343,18 +258,19 @@ function resolveIp(qname, qtype) {
   const wantSrv = sub !== m[1];
   const hex = m[1].replace(/^dep[-_]/, "");
   if (!/^[0-9a-f]{8,64}$/.test(hex)) return NXDOM(IP_ZONE);
-  const hits = deployments.filter((d) => d.hex.startsWith(hex));
+  const hits = deployments.filter((d) => d.expiresAt > Date.now() && d.hex.startsWith(hex));
   if (hits.length !== 1) return NXDOM(IP_ZONE);   // unknown or ambiguous prefix
   const d = hits[0];
-  const v6 = ipv6Bytes(d.address);
+  const v6 = ipv6Bytes(d.address), v4 = ipv4Bytes(d.address);
   if (wantSrv) {
     if ((qtype !== T.SRV && qtype !== T.ANY) || !d.tcp.length) return NODATA(IP_ZONE);
     const target = m[1] + "." + IP_ZONE;
-    return HIT([srvRR(qname, d.tcp[0], target)], v6 ? [rr(target, T.AAAA, 60, v6)] : []);
+    return HIT([srvRR(qname, d.tcp[0], target)], v6 ? [rr(target, T.AAAA, 15, v6)] : v4 ? [rr(target, T.A, 15, v4)] : []);
   }
-  if (qtype === T.AAAA || qtype === T.ANY)
-    return v6 ? HIT([rr(qname, T.AAAA, 60, v6)]) : NODATA(IP_ZONE);
-  return NODATA(IP_ZONE);   // A and everything else: the name exists, but v6-only
+  const an = [];
+  if ((qtype === T.A || qtype === T.ANY) && v4) an.push(rr(qname, T.A, 15, v4));
+  if ((qtype === T.AAAA || qtype === T.ANY) && v6) an.push(rr(qname, T.AAAA, 15, v6));
+  return an.length ? HIT(an) : NODATA(IP_ZONE);
 }
 
 function resolveWildcard(qname, qtype, zone, a4, a6) {
@@ -378,12 +294,13 @@ function resolveWildcard(qname, qtype, zone, a4, a6) {
 // half-undo of the choice, and the hardest kind of routing bug to see.
 function resolveApp(qname, qtype) {
   if (qname === APP_ZONE) return apex(APP_ZONE, qtype);
+  if (qname.startsWith("_acme-challenge.")) return resolveWildcard(qname, qtype, APP_ZONE, null, null);
   const sub = qname.slice(0, -(APP_ZONE.length + 1));
-  const pick = sub.includes(".") ? null : appRelays.get(sub);
-  if (!pick) return resolveWildcard(qname, qtype, APP_ZONE, APP_A, APP_AAAA);
+  const pick = sub.includes(".") ? null : appRoutes.get(sub);
+  if (!pick || pick.expiresAt <= Date.now()) return NODATA(APP_ZONE);
   const an = [];
-  if ((qtype === T.A    || qtype === T.ANY) && pick.a)    an.push(rr(qname, T.A,    RELAY_TTL, pick.a));
-  if ((qtype === T.AAAA || qtype === T.ANY) && pick.aaaa) an.push(rr(qname, T.AAAA, RELAY_TTL, pick.aaaa));
+  if ((qtype === T.A    || qtype === T.ANY) && pick.a)    an.push(rr(qname, T.A,    TUNA_TTL, pick.a));
+  if ((qtype === T.AAAA || qtype === T.ANY) && pick.aaaa) an.push(rr(qname, T.AAAA, TUNA_TTL, pick.aaaa));
   return an.length ? HIT(an) : NODATA(APP_ZONE);
 }
 
@@ -393,7 +310,7 @@ function answer(q) {
   if (q.qname === IP_ZONE  || q.qname.endsWith("." + IP_ZONE))  return resolveIp(q.qname, q.qtype);
   if (q.qname === APP_ZONE || q.qname.endsWith("." + APP_ZONE)) return resolveApp(q.qname, q.qtype);
   if (TCP_ZONE && (q.qname === TCP_ZONE || q.qname.endsWith("." + TCP_ZONE)))
-    return resolveWildcard(q.qname, q.qtype, TCP_ZONE, TCP_A, TCP_AAAA);
+    return resolveWildcard(q.qname, q.qtype, TCP_ZONE, null, null);
   if (BOX_ZONE && (q.qname === BOX_ZONE || q.qname.endsWith("." + BOX_ZONE)))
     return resolveWildcard(q.qname, q.qtype, BOX_ZONE, BOX_A, BOX_AAAA);
   return EMPTY(RC.REFUSED);   // not our zone — we're authoritative, not a resolver
@@ -662,7 +579,7 @@ function apiHandler(req, res) {
     for (const name of [...txtStore.keys()]) txtRecords += txtValues(name).length;
     return json(200, { ok: true, zones: { ip: IP_ZONE, app: APP_ZONE, tcp: TCP_ZONE, box: BOX_ZONE },
                        deployments: deployments.length, txtRecords,
-                       relayLabels: appRelays.size, relayMap: RELAY_MAP_URL || null });
+                       tunaLabels: appRoutes.size, tunaMap: TUNA_MAP_URL || null });
   }
   if (u.pathname !== "/v1/txt" || (req.method !== "POST" && req.method !== "DELETE"))
     return json(404, { error: "not_found", routes: ["GET /health", "POST /v1/txt", "DELETE /v1/txt"] });
@@ -756,6 +673,6 @@ await fleet.startEligibility();
 await poll();
 setInterval(poll, POLL_MS);
 console.log(`[dns-relay] authoritative for ${IP_ZONE} + ${APP_ZONE}${TCP_ZONE ? " + " + TCP_ZONE : ""} (ns ${NS_NAME}, serial ${SERIAL}); ` +
-            `polling /v1/net-map across the fleet every ${POLL_MS / 1000}s` +
-            (RELAY_MAP_URL ? ` + per-deployment relay choices from ${RELAY_MAP_URL}`
-                           : "; app zone is the wildcard only (RELAY_MAP_URL unset)"));
+            `refreshing allocations every ${POLL_MS / 1000}s` +
+            (TUNA_MAP_URL ? ` + TUNA allocations from ${TUNA_MAP_URL}`
+                           : "; TUNA map unavailable"));

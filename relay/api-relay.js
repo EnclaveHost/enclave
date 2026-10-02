@@ -66,7 +66,7 @@
 //                                  transactions (relay/sso.js). Unset = the
 //                                  /v1/sso/* endpoints answer 503. Prefer
 //                                  SSO_SIGNER_KEY_FILE (systemd LoadCredential,
-//                                  see enclave-relay-agent.service) over the
+//                                  via systemd LoadCredential) over the
 //                                  EnvironmentFile for the same reason the
 //                                  operator key does.
 //   FANOUT_MAX_INFLIGHT optional   global cap on concurrent upstream fan-out (256)
@@ -79,8 +79,6 @@
 
 import http from "node:http";
 import https from "node:https";
-import net from "node:net";
-import tls from "node:tls";
 import fs from "node:fs";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 // relay/reverify.mjs is loaded at run time, not imported statically: the deploy copies NAMED files to the box, and a box
@@ -100,6 +98,7 @@ import { handleCerts, initCerts } from "./certs.js";
 import { createShieldMarketplace } from "./shield-marketplace.mjs";
 import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson } from "./measurement-predict.mjs";
 import { createTunnelHub } from "./tunnel.js";
+import { createTunaRoutes } from "./tuna-routes.mjs";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
 import { pvmCpuPolicyFromEnv, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
 import { VBS_DEFAULT_EK_ROOTS } from "./vbs-policy.mjs";
@@ -779,58 +778,14 @@ function ledgerStatus(d) {
     return runnerIsLive(d.runner) ? "running" : "claimed";
   return free || d.balance6 >= d.rate ? "queued" : "unfunded";
 }
-// Dedicated per-deployment IPv6, synthesized from PUBLIC data (mirrors the
-// supervisor's depAddrFor exactly: sha256(id) low 64 host bits into the routed
-// /64, low range reserved for infra). The tokenless dashboard reads ledger
-// rows, so without this no signed-out view ever shows a deployment's address.
-// Only rows the inbound relays actually serve get one here: public + running +
-// declared tcp/udp ports (the tcp6/udp relays' own netMap gate). Egress-only
-// addresses stay the enclave view's call - it alone knows egress is enabled.
-// DEP_ADDR_PREFIX = the relay box's routed /64 (same env as the supervisor).
-const DEP_ADDR_PREFIX = (process.env.DEP_ADDR_PREFIX || "").trim();
-function v6ToBig(s) {
-  const [head, tail] = s.split("::");
-  const hi = head ? head.split(":").filter(Boolean) : [];
-  const lo = tail ? tail.split(":").filter(Boolean) : [];
-  const mid = Array(8 - hi.length - lo.length).fill("0");
-  const groups = s.includes("::") ? [...hi, ...mid, ...lo] : s.split(":");
-  if (groups.length !== 8) throw new Error(`bad IPv6 "${s}"`);
-  return groups.reduce((a, g) => (a << 16n) | BigInt(parseInt(g || "0", 16)), 0n);
-}
-function bigToV6(n) {
-  const g = [];
-  for (let i = 0; i < 8; i++) g[i] = Number((n >> BigInt((7 - i) * 16)) & 0xffffn);
-  let best = { i: -1, len: 0 }, cur = { i: -1, len: 0 };
-  g.forEach((v, i) => {
-    if (v === 0) { if (cur.i < 0) cur = { i, len: 0 }; cur.len++; if (cur.len > best.len) best = { ...cur }; }
-    else cur = { i: -1, len: 0 };
-  });
-  const hex = g.map((v) => v.toString(16));
-  if (best.len > 1) { hex.splice(best.i, best.len, ""); if (best.i === 0) hex.unshift(""); if (best.i + best.len === 8) hex.push(""); }
-  return hex.join(":").replace(/:{3,}/, "::");
-}
-function depAddrFor(id) {
-  if (!DEP_ADDR_PREFIX) return null;
-  const [prefix] = DEP_ADDR_PREFIX.split("/");
-  const net128 = v6ToBig(prefix) & (~0n << 64n);
-  let host = BigInt("0x" + createHash("sha256").update(id).digest("hex").slice(0, 16)) & ((1n << 64n) - 1n);
-  if (host < 0x10000n) host += 0x10000n;
-  return bigToV6(net128 | host);
-}
-// the ledger row's declared ports ("http:8000,tcp:7777,udp:53"): only tcp:/udp:
-// entries live on the dedicated address (http rides the gateway origin)
+// Requested logical ports are public ledger data; assigned IPs and ports
+// are supplied separately by the expiring TUNA allocation map.
 const rowPorts = (d, proto) => String(d.ports || "").split(",")
   .map((s) => s.trim()).filter((s) => s.startsWith(proto + ":"))
   .map((s) => +s.slice(proto.length + 1)).filter((p) => Number.isInteger(p) && p > 0);
-function ledgerNetwork(d, status) {
-  if (status !== "running" || !d.isPublic) return null;
-  const address = depAddrFor(d.id); if (!address) return null;
-  const tcp = rowPorts(d, "tcp"), udp = rowPorts(d, "udp");
-  if (!tcp.length && !udp.length) return null;
-  const net = { address };
-  if (tcp.length) net.tcp = { address, ports: tcp };
-  if (udp.length) net.udp = { address, ports: udp };
-  return net;
+function ledgerNetwork(d) {
+  return { transport: "tuna", dedicatedIP: false,
+    requested: {tcp: rowPorts(d, "tcp"), udp: rowPorts(d, "udp")} };
 }
 // Shape a ledger record like the enclaves' own rows (supervisor view()), so
 // dashboards/CLIs treat both alike. `ledger: true` marks the synthesis - logs
@@ -949,134 +904,11 @@ async function pollAvailability() {
   if (live.some((e) => e.ownerOnly)) await ledgerRows().catch(() => null);
   await shieldMarket.refresh(live, _ledger.rows || []).catch(e => console.warn(`[shield-market] ${e.message}`));
   updatedAt = new Date().toISOString();
-  sweepIneligibleUpgrades();
 }
 
-// ---- the relay roster, and which deployment chose which relay --------------
-//
-// Two questions with one answer, because they have to agree. The console's
-// Network tab asks "which relays can this deployment pick"; DNS asks "what
-// address does <label>.app.enclave.host answer with". Both are computed here
-// from the same two facts — a relay's own /availability block, and the
-// deployment's on-chain options envelope — so every name the picker offers is a
-// name the zone can actually resolve, and a name it can't resolve is never
-// offered.
-//
-// A relay is named by its fleet row: an endpoint's first hostname label, or its
-// tunnel name. Those names must be unambiguous, so two relays answering to the
-// same name are BOTH dropped — the same rule zone 1 already applies to an
-// ambiguous id prefix, and for the same reason: a choice nobody can resolve is
-// worse than no choice at all.
-//
-// Membership here is "declares an address it relays on", NOT the `relay` badge.
-// The badge means a box sells no compute, which is a presentation rule; ANY
-// host may also carry network, and one that does is a legitimate choice — an
-// app placed on the same box as its relay is the shortest inbound path there
-// is. The badge rides along as `relayOnly` for surfaces that want to say which
-// kind of box it is.
-// LIVE ONLY, deliberately, and not a last-good memo. The temptation is to
-// remember a relay's address across a missed poll so a blip doesn't move
-// traffic; the arithmetic says otherwise, because the two errors are not the
-// same size. Forgetting a relay that is actually fine costs one DNS TTL of
-// traffic on the DEFAULT relay — slower, never down. Remembering one that is
-// actually gone points every app that chose it at a black hole for as long as
-// the memory lasts — down, not slower. A latency feature must not be able to
-// cause an outage, so the doubt resolves toward the default every time.
-const RELAY_NAME_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;   // byte-for-byte the supervisor's envelope rule
-const RELAY_SERVICES = ["sni", "tcp", "udp", "egress", "tunnelHub"];
-const fleetName = (e) => String(e.name || endpointName(e.endpoint) || "").toLowerCase();
-function relayRowOf(e) {
-  // A row's relay declaration (availability.relay) is ITS OWN WORD, and relay rows feed /v1/relays and, through it, the
-  // app-zone DNS (dns-relay.js) and every deployment's relay choice. So only a box whose IDENTITY is vetted may make it:
-  // a dialed row passed the dial-time operator allowlist; a tunnel row counts only when it attached on its on-chain
-  // operator key (how us-west attaches) or an allowlisted token, never on a hardware verdict alone. An hv-node attach
-  // proves a host boot state, not what the host runs, so its word must not name a relay, take a relay's name, or knock
-  // a real relay out by colliding with it (enclave-bf's NO-GO on the hv-node flip). An hv-node row never feeds the roster.
-  if (e.tunnel && (String(e.mode || "") === "hv-node" || (e.attach !== "operator" && e.attach !== "token"))) return null;
-  const r = e.availability?.relay;
-  if (!r || typeof r !== "object" || Array.isArray(r)) return null;
-  const name = fleetName(e);
-  if (!RELAY_NAME_RE.test(name)) return null;        // unnameable in an envelope = unpickable
-  // A malformed or missing address leaves the row listed with address:null
-  // rather than dropping it: the box is still a fleet member worth seeing, and
-  // an addressless relay is simply one nothing can be pointed at (relayLabels
-  // requires an address, so no deployment can end up aimed at nowhere).
-  const addr  = String(r.address  || "").trim();
-  const addr6 = String(r.address6 || "").trim();
-  return {
-    name, endpoint: e.endpoint, relayOnly: e.relay === true,
-    address:  net.isIPv4(addr)  ? addr  : null,
-    address6: net.isIPv6(addr6) ? addr6 : null,
-    region: typeof r.region === "string" ? r.region.slice(0, 64) : null,
-    ports:  typeof r.ports  === "string" ? r.ports.slice(0, 64)  : null,
-    v6Prefix: typeof r.v6Prefix === "string" ? r.v6Prefix.slice(0, 64) : null,
-    services: Object.fromEntries(RELAY_SERVICES.map((k) => [k, r[k] === true])),
-  };
-}
-function relayRoster() {
-  const seen = new Map(), dup = new Set();
-  for (const e of live) {
-    const row = relayRowOf(e);                       // any box that declares one, badge or not
-    if (!row) continue;
-    if (seen.has(row.name)) { dup.add(row.name); continue; }
-    seen.set(row.name, row);
-  }
-  for (const n of dup) seen.delete(n);
-  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
-}
-// The subdomain label for a deployment id — the first 8 hex chars, the same
-// rule the site's appLabel and the enclaves' prefix resolution use.
-const appLabelOf = (id) => String(id).slice(2, 10).toLowerCase();
-// The `network.relay` a deployment's envelope names, or null. Deliberately
-// forgiving where the supervisor is strict: this reads a record that is already
-// on-chain, and a malformed one has already been refused by whatever tried to
-// run it — there is nothing left to fail closed about, and throwing here would
-// take the whole zone's answers down with one bad record.
-function relayChoiceOf(configCid) {
-  const s = String(configCid || "").trim();
-  if (!s.startsWith("{")) return null;
-  let o; try { o = JSON.parse(s); } catch { return null; }
-  const n = o && o.network;
-  if (!n || typeof n !== "object" || Array.isArray(n)) return null;
-  const r = String(n.relay || "").trim().toLowerCase();
-  return RELAY_NAME_RE.test(r) ? r : null;
-}
-// label -> the address its chosen relay answers on. A choice that names a relay
-// the fleet no longer has, or one that doesn't splice SNI, is simply ABSENT
-// here: the zone default carries it, which keeps the app reachable instead of
-// pointing its name at a box that cannot serve it. The preference is a
-// preference; reachability wins.
-// RELAY_DEFAULT_LABEL: the relay every deployment WITHOUT an explicit
-// network.relay choice resolves to. Unset preserves today's behavior (the
-// zone wildcard, i.e. whichever box serves DNS) — which is measurably wrong
-// whenever that box is far from the fleet: a request through a far relay
-// pays the relay<->enclave distance per round trip, measured at +280ms/req
-// from nan-relay (Finland) to kryptos against 58ms via the us-west relay
-// beside it. The whole fleet is one region today, so one default label is
-// the honest fix; when enclaves span regions this becomes a per-enclave map
-// keyed by the deployment's holder.
-const RELAY_DEFAULT_LABEL = (process.env.RELAY_DEFAULT_LABEL || "").trim();
-
-function relayLabels(rows, roster) {
-  const by = new Map(roster.filter((r) => r.services.sni && (r.address || r.address6)).map((r) => [r.name, r]));
-  const out = {}, clash = new Set();
-  for (const d of rows) {
-    if (!/^0x[0-9a-f]{64}$/i.test(String(d.id || ""))) continue;
-    const label = appLabelOf(d.id);
-    // Two deployments whose ids share the first 8 hex chars share one app-zone
-    // NAME, so there is no answer that serves both. That name is already
-    // ambiguous with or without this feature; what must not happen is one of
-    // them silently deciding where the other's traffic goes. Neither gets an
-    // override — the zone default carries the name, exactly as it does today.
-    if (label in out || clash.has(label)) { delete out[label]; clash.add(label); continue; }
-    const r = by.get(relayChoiceOf(d.configCid)) || by.get(RELAY_DEFAULT_LABEL);
-    if (!r) { out[label] = null; continue; }         // placeholder: claims the label, answers nothing
-    out[label] = { relay: r.name,
-      ...(r.address ? { a: r.address } : {}), ...(r.address6 ? { aaaa: r.address6 } : {}) };
-  }
-  for (const [k, v] of Object.entries(out)) if (v === null) delete out[k];
-  return out;
-}
+// TUNA providers publish their allocated endpoints through the host's signed
+// control-plane heartbeat. The Base lease still decides whose app each IP serves.
+let tunaRoutes;
 
 // Share-based routing — same rule as enclave-discover.mjs. Deployments buy two
 // shares, so callers route on the shares they intend to buy (the app's specs
@@ -1442,45 +1274,6 @@ function ownerServedDeployments(row) {
   return (_ledger.rows || []).map((d) => ({ id: String(d.id).toLowerCase(), until: servesDeploymentUntil(row, d, now) }))
     .filter((x) => x.until > now).sort((a, b) => (a.id < b.id ? -1 : 1));
 }
-// the one path an owner-only row serves: exactly /x/<0x-id or prefix>/https, lower-case, no query, no encoding
-const OWNER_SPLICE_RE = /^\/x\/(0x[0-9a-f]{8,64})\/https$/;
-// Is this upgrade to an ineligible box the owner-only splice of a deployment it may carry? -> the full deployment id, or null.
-async function ownerOnlySplice(origin, rawPath, search = "") {
-  const row = live.find((x) => x.endpoint === origin);
-  if (!isOwnerOnlyRow(row)) return null;
-  const m = OWNER_SPLICE_RE.exec(String(rawPath || ""));
-  if (!m || search) return null;
-  if (!LEDGER_CONFIGURED || !DEPLOYMENTS_ADDRESS) return null;
-  let l = await ledgerLeaseOf(m[1], false);
-  if (l.none || l.unleased) l = await ledgerLeaseOf(m[1], true);
-  if (l.error || l.ambiguous || l.none || l.unleased || !l.row) return null;
-  return servesDeploymentUntil(row, l.row) ? String(l.row.id).toLowerCase() : null;
-}
-// ...and such a splice lives only while the predicate still holds (a transfer, a lease move, an ended delegation or a changed
-// name owner closes it at the next sweep, as U7's holds do for eligibility; enclave-bf)
-const _heldOwnerSplices = new Map();   // endpoint + "\n" + deployment id -> Set of drop functions
-function holdUpgradeWhileServes(endpoint, dep, socket, drop) {
-  const key = endpoint + "\n" + dep;
-  let set = _heldOwnerSplices.get(key);
-  if (!set) _heldOwnerSplices.set(key, (set = new Set()));
-  set.add(drop);
-  socket.once("close", () => { set.delete(drop); if (!set.size && _heldOwnerSplices.get(key) === set) _heldOwnerSplices.delete(key); });
-}
-function ownerSpliceStillServes(endpoint, dep) {
-  const row = live.find((e) => e.endpoint === endpoint);
-  const d = (_ledger.rows || []).find((x) => String(x.id).toLowerCase() === dep);
-  return servesDeploymentUntil(row, d) > 0;
-}
-function sweepOwnerSplices() {
-  let closed = 0;
-  for (const [key, set] of [..._heldOwnerSplices]) {
-    const i = key.indexOf("\n");
-    if (ownerSpliceStillServes(key.slice(0, i), key.slice(i + 1))) continue;
-    _heldOwnerSplices.delete(key);
-    for (const drop of set) { closed++; try { drop(); } catch {} }
-  }
-  if (closed) console.log(`[api-relay] owner-only: closed ${closed} splice(s) whose deployment this hv-node no longer serves`);
-}
 // A tunnel box addressed EXPLICITLY (/t/<name>/..., or its own e<hex>.<BOX_ZONE> hostname). An ELIGIBLE box: every path,
 // as before. A box the relay does NOT hold eligible: DEFAULT-DENY. Only its own read-only surfaces pass (GET, HEAD or
 // OPTIONS to its availability, health, version, pricing, session keys, net/udp maps, attestation and .well-known), so
@@ -1507,29 +1300,6 @@ function canonicalBoxPath(path) {
   p = p.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
   try { p = new URL("http://x" + (p.startsWith("/") ? p : "/" + p)).pathname; } catch { return null; }
   return p.replace(/\/{2,}/g, "/").toLowerCase();
-}
-// Is this explicitly addressed tunnel box one the relay holds eligible? Not live = not eligible.
-// U7: a WebSocket spliced to a host lives only while the relay holds that host eligible. Each is held under the row's
-// endpoint (a tunnel box's is tunnel://<name>), and every availability poll and re-verification round closes those whose
-// row is gone or no longer eligible (enclave-5d and enclave-d1, round 5: a check only at the upgrade let a host that lost
-// eligibility keep its live sockets). An in-flight plain HTTP response is not cut; the next request is judged afresh.
-const _heldUpgrades = new Map();   // row endpoint -> Set of drop functions
-function holdUpgradeWhileEligible(endpoint, socket, drop) {
-  let set = _heldUpgrades.get(endpoint);
-  if (!set) _heldUpgrades.set(endpoint, (set = new Set()));
-  set.add(drop);
-  socket.once("close", () => { set.delete(drop); if (!set.size && _heldUpgrades.get(endpoint) === set) _heldUpgrades.delete(endpoint); });
-}
-function sweepIneligibleUpgrades() {
-  sweepOwnerSplices();
-  let closed = 0;
-  for (const [endpoint, set] of [..._heldUpgrades]) {
-    const row = live.find((e) => e.endpoint === endpoint);
-    if (row && computeEligible(row)) continue;
-    _heldUpgrades.delete(endpoint);   // each drop runs once; the socket's close then finds nothing
-    for (const drop of set) { closed++; try { drop(); } catch {} }
-  }
-  if (closed) console.log(`[api-relay] U7: closed ${closed} WebSocket(s) to hosts no longer eligible`);
 }
 function tunnelEligible(origin) { const row = live.find((x) => x.endpoint === origin); return !!(row && computeEligible(row)); }
 function tunnelTenantRefusal(origin, path, method = "GET") {
@@ -1921,7 +1691,6 @@ function fleetVolumes() {
 }
 
 const DEP_PATH_RE = /^\/v1\/deployments\/([A-Za-z0-9_-]+)(?:\/|$)/;
-const X_PATH_RE   = /^\/x\/([A-Za-z0-9_-]+)(?:\/|$)/;
 
 async function gateway(u, req, res) {
   const p = u.pathname;
@@ -1933,24 +1702,19 @@ async function gateway(u, req, res) {
   const bare = p.match(/^\/v1\/deployments\/([A-Za-z0-9_-]+)$/);
   if (bare && req.method === "GET") return getDeployment(bare[1], u, req, res);
 
-  // The relay roster + the per-deployment choices made against it. Sits with
-  // the ledger reads ABOVE the fleet-down guard deliberately: this is DNS's
-  // input, and the app zone must not lose its per-deployment answers because
-  // the enclaves blinked. `relays: []` with zero live relays is the honest
-  // answer — every name falls back to the zone default, which is where it was.
-  if (p === "/v1/relays" && req.method === "GET") {
-    const relays = relayRoster();
-    let rows;
-    try { rows = await ledgerRows(); }
-    catch (e) {
-      // 503, NOT 200-with-empty-labels: an empty map is indistinguishable from
-      // "nobody chose a relay", and a consumer that believed it would move every
-      // deployment back to the default relay on one bad RPC read. The error
-      // makes the caller keep its last good map instead.
-      return json(res, 503, { error: "ledger_unavailable", relays, updatedAt,
-        message: "Could not read the deployments ledger just now; the relay roster is current but the per-deployment choices are not." }, req);
-    }
-    return json(res, 200, { updatedAt, relays, labels: relayLabels(rows, relays) }, req);
+  // Signed TUNA allocations are DNS/control metadata. The old roster URL is
+  // retained for clients upgrading through the cutover; it has no legacy relays.
+  if ((p === "/v1/network/tuna" || p === "/v1/relays") && req.method === "GET") {
+    try { return json(res, 200, await tunaRoutes.map(await ledgerRows()), req); }
+    catch { return json(res, 503, { error: "network_map_unavailable" }, req); }
+  }
+  if (p === "/v1/network/tuna" && req.method === "POST") {
+    if (!rlMiss(clientIp(req))) return json(res, 429, {error: "rate_limited"}, req);
+    try {
+      const b = JSON.parse((await readBody(req, 131072)).toString());
+      await tunaRoutes.publish(b.publication, b.signature);
+      return json(res, 200, { ok: true }, req);
+    } catch (e) { return json(res, 400, { error: "tuna_publication_refused", message: e.message }, req); }
   }
 
   if (!live.length) {
@@ -1966,13 +1730,13 @@ async function gateway(u, req, res) {
   }
   if (p === "/availability") return json(res, 200, aggregateAvailability(), req);
 
-  const dep = p.match(DEP_PATH_RE), x = p.match(X_PATH_RE);
-  if (dep || x) {
-    const id = (dep || x)[1];
+  const dep = p.match(DEP_PATH_RE);
+  if (dep) {
+    const id = dep[1];
     // rate-limit only the misses (the fan-out probe); cached routes stay fast (fix 2)
     if (!ownerCached(id) && !rlMiss(clientIp(req)))
       return json(res, 429, { error: "rate_limited", message: "Too many deployment lookups; retry shortly.", updatedAt }, req);
-    const route = await tenantRoute(id, dep ? { auth: req.headers.authorization } : {});
+    const route = await tenantRoute(id, { auth: req.headers.authorization });
     if (!route.endpoint) return json(res, route.status, { error: route.error, message: route.message, updatedAt }, req);
     const owner = route.endpoint;
     // Tenant data path: generous idle window. A model-serving app's first
@@ -2482,6 +2246,14 @@ const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostE
                      return e?.active && !/^0x0{40}$/i.test(op) ? op.toLowerCase() : null;
                    } };
 
+tunaRoutes = createTunaRoutes({
+  operatorOf: endpoint => relayCtx.operatorOfEndpoint(endpoint), endpointId,
+  eligible: d => {
+    const row = live.find(e => String(e.id || "").toLowerCase() === String(d.runner).toLowerCase());
+    return !!row && (isOwnerOnlyRow(row) ? servesDeploymentUntil(row, d) * 1000 : computeEligible(row));
+  },
+});
+
 // Every inbound request runs inside one guard, for two reasons.
 //
 // The request TARGET first. Node hands an absolute-form target (`GET
@@ -2543,29 +2315,9 @@ function handleRequest(req, res) {
     return deploymentExists(id).then((ok) => { res.writeHead(ok ? 200 : 404); res.end(); });
   }
 
-  // App subdomain: <dep-id>.<APP_DOMAIN> is the deployment's OWN origin. Route it
-  // to the OWNING enclave's /x/<id> data path, passing the app's own headers
-  // through (it's a distinct origin, so the gateway doesn't impose CORS).
-  //
-  // A verified CUSTOM domain resolves to the same deployment and takes exactly
-  // this path. The SNI relay is the normal route for those names, so reaching
-  // here means something terminated TLS in front of us (a customer's CDN, or a
-  // Caddy that fronts this relay) — the routing answer must be the same either
-  // way, and an unknown hostname must reach no app at all rather than the
-  // first one that happens to answer.
-  const depHost = depFromHost(routingHost(req))             // x-forwarded-host only when TRUSTED_PROXY (fix 6)
-               || domainDeployment(routingHost(req));
-  if (depHost) {
-    if (!ownerCached(depHost) && !rlMiss(clientIp(req))) return json(res, 429, { error: "rate_limited", message: "Too many lookups; retry shortly." });
-    return tenantRoute(depHost).then((route) => {
-      if (!route.endpoint) return json(res, route.status, { error: route.error, message: route.message });
-      const owner = route.endpoint;
-      const rest = req.url === "/" ? "/" : req.url;           // preserve path+query under /x/<id>
-      // same generous idle window as the /x data path (see gateway()): app
-      // subdomains ARE the data path, and long-silent first bytes are real
-      proxyTo(owner, req, res, { path: "/x/" + depHost + rest, setCors: false, idleMs: 180000 });
-    });
-  }
+  if (depFromHost(routingHost(req)) || domainDeployment(routingHost(req))
+      || /^\/(?:t\/[^/]+\/)?x(?:\/|$)/.test(canonicalBoxPath(u.pathname) || ""))
+    return json(res, 410, {error: "application_transport_moved", message: "Use the application's TUNA hostname."}, req);
 
   // MCP endpoint (mcp.enclave.host, or /mcp on the API host): the coding-agent
   // front door. Checked AFTER the app-subdomain branch so a tenant app's own
@@ -2744,104 +2496,11 @@ function handleRequest(req, res) {
   json(res, 404, { error: "not_found", routes: ["/health", "/enclaves", "/v1/relays", "/route?gpuShare=0.25&cpuShare=0.05", "/v1/* /x/* /availability (fleet-routed to the enclaves)"] }, req);
 }
 
-// WebSocket upgrades. Node hands Upgrade requests to an 'upgrade' listener, not
-// the request handler — without one the relay silently ate the enclaves' WS
-// surfaces (the /x/:id/tcp/:port raw-TCP bridge, any app's own websockets) and
-// bridge clients had to bypass the gateway for the enclave origin. Routing
-// mirrors the request path: an app subdomain maps onto the owner's /x/<id>
-// data path, a gateway /x/<id>/... URL passes through verbatim. The relay
-// forwards the handshake bytes untouched and splices sockets after it — it
-// never speaks WS itself, so anything the enclave upgrades to just works.
-const UPGRADE_IDLE_MS = 180000;                              // match the /x data path's window
-// The supervisor's WS bridges look deployments up by EXACT id (deployments.get),
-// unlike its HTTP /x path which resolves hex prefixes — so a subdomain label
-// (8-hex prefix) must be canonicalized to the full ledger id before proxying.
-// Falls back to the given id when the ledger can't answer or the prefix is
-// ambiguous; full-id URLs then still work exactly as before.
-async function fullDepId(id) {
-  if (!/^0x[0-9a-f]{8,63}$/.test(id)) return id;             // full 64-hex (or non-ledger-shaped): pass through
-  try {
-    const hits = (await ledgerRows()).filter((d) => String(d.id).toLowerCase().startsWith(id));
-    if (hits.length === 1) return String(hits[0].id).toLowerCase();
-  } catch {}
-  return id;
-}
-server.on("upgrade", async (req, socket, head) => {
-  socket.on("error", () => socket.destroy());               // dead client mid-handshake must not throw
-  const refuse = (code, text) => { try { socket.write(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`); } catch {} socket.destroy(); };
-  if (!String(req.url || "").startsWith("/")) return refuse(400, "Bad Request");   // origin-form only (see handleRequest)
-  // fleet tunnel attach: a self-hosted enclave dialing IN (token-authed in the hub)
+// The fleet tunnel carries control requests only. Application streams use TUNA.
+server.on("upgrade", (req, socket, head) => {
+  socket.on("error", () => socket.destroy());
   if ((req.url || "").split("?")[0] === "/v1/fleet-tunnel") return tunnelHub.handleUpgrade(req, socket, head);
-  // tunnel-routed upgrades (Phase D): /t/<name>/<rest> — the SNI relay's wss
-  // dial into a tunnel box's supervisor (its registered endpoint IS this
-  // path), spliced through the hub as a raw stream; the supervisor answers
-  // the handshake itself, so /x/<id>/tls stays TLS-in-CVM end to end.
-  {
-    const u = new URL("http://x" + (req.url || "/"));
-    const tm = u.pathname.match(/^\/t\/([A-Za-z0-9_-]+)(\/.*|)$/);
-    if (tm) {
-      const origin = `tunnel://${tm[1]}`;
-      if (!tunnelHub.origins().some((o) => o.endpoint === origin)) return refuse(404, "Not Found");
-      // no WebSocket reaches an INELIGIBLE box, own surfaces included (none of them is one): its raw upgrade would carry
-      // the caller's headers, credentials included (Codex's review)
-      if (!tunnelEligible(origin) || tunnelTenantRefusal(origin, tm[2] || "/", req.method)) {
-        // (B) an hv-node row's owner-only splice of a deployment it may carry, and nothing else
-        const dep = await ownerOnlySplice(origin, tm[2] || "/", u.search || "");
-        if (!dep) return refuse(503, "Service Unavailable");
-        holdUpgradeWhileServes(origin, dep, socket, () => socket.destroy());
-        return tunnelHub.spliceUpgrade(origin, req, socket, head, tm[2]);
-      }
-      holdUpgradeWhileEligible(origin, socket, () => socket.destroy());
-      return tunnelHub.spliceUpgrade(origin, req, socket, head, (tm[2] || "/") + (u.search || ""));
-    }
-    // …and the same box reached by its own hostname, so a websocket to a box
-    // does not silently fall through to the deployment router below.
-    const bn = boxLabelOfHost(routingHost(req));
-    if (bn) {
-      const origin = `tunnel://${bn}`;
-      if (!tunnelHub.origins().some((o) => o.endpoint === origin)) return refuse(404, "Not Found");
-      if (!tunnelEligible(origin) || tunnelTenantRefusal(origin, u.pathname, req.method)) {
-        const dep = await ownerOnlySplice(origin, u.pathname, u.search || "");
-        if (!dep) return refuse(503, "Service Unavailable");
-        holdUpgradeWhileServes(origin, dep, socket, () => socket.destroy());
-        return tunnelHub.spliceUpgrade(origin, req, socket, head, u.pathname);
-      }
-      holdUpgradeWhileEligible(origin, socket, () => socket.destroy());
-      return tunnelHub.spliceUpgrade(origin, req, socket, head, u.pathname + (u.search || ""));
-    }
-  }
-  try {
-    const depHost = depFromHost(routingHost(req));           // x-forwarded-host only when TRUSTED_PROXY (fix 6)
-    const x = depHost ? null : (req.url || "").match(X_PATH_RE);
-    if (!depHost && !x) return refuse(404, "Not Found");
-    const id = await fullDepId(depHost || x[1]);
-    const route = await tenantRoute(id);
-    if (!route.endpoint) return refuse(route.status, route.status === 503 ? "Service Unavailable" : "Not Found");
-    const owner = route.endpoint;
-    const rest = depHost ? (req.url === "/" ? "/" : req.url) : req.url.slice(3 + (x[1].length));  // after "/x/<id>"
-    const path = "/x/" + id + rest;
-    if (tunnelHub.isTunnel(owner)) {
-      holdUpgradeWhileEligible(owner, socket, () => socket.destroy());
-      return tunnelHub.spliceUpgrade(owner, req, socket, head, path);
-    }
-    const target = new URL(owner.replace(/\/+$/, "") + path);
-    const secure = target.protocol === "https:";
-    const up = (secure ? tls : net).connect({
-      host: target.hostname, port: +target.port || (secure ? 443 : 80),
-      ...(secure ? { servername: target.hostname } : {}),
-    }, () => {
-      let raw = `${req.method} ${target.pathname}${target.search} HTTP/1.1\r\n`;
-      for (let i = 0; i < req.rawHeaders.length; i += 2)     // rawHeaders keeps order, casing, duplicates
-        raw += `${req.rawHeaders[i]}: ${/^host$/i.test(req.rawHeaders[i]) ? target.host : req.rawHeaders[i + 1]}\r\n`;
-      up.write(raw + "\r\n");
-      if (head?.length) up.write(head);
-      socket.pipe(up); up.pipe(socket);
-    });
-    const drop = () => { socket.destroy(); up.destroy(); };
-    up.setTimeout(UPGRADE_IDLE_MS, drop); socket.setTimeout(UPGRADE_IDLE_MS, drop);
-    up.on("error", drop); up.on("close", drop); socket.on("close", drop);
-    holdUpgradeWhileEligible(owner, socket, drop);
-  } catch (e) { refuse(502, "Bad Gateway"); }
+  socket.end("HTTP/1.1 410 Gone\r\nConnection: close\r\n\r\nApplication connections use their TUNA endpoint.");
 });
 
 await pollRegistry();
@@ -2886,7 +2545,7 @@ setInterval(pollAvailability, AVAIL_POLL_SEC * 1000);
 // the re-verification of dialed rows: its own cadence, never inside the availability poll (KDS rate-limits; a slow
 // enclave must not delay the fleet view); rows are re-annotated from the verdicts it writes
 if (RELAY_REVERIFY !== "off") {
-  const reverifyRound = async () => { try { await reverifier.run(live); live = live.map((e) => reverifier.annotate(e)); sweepIneligibleUpgrades(); } catch (e) { console.error("[reverify] round failed:", e.message); } };
+  const reverifyRound = async () => { try { await reverifier.run(live); live = live.map((e) => reverifier.annotate(e)); } catch (e) { console.error("[reverify] round failed:", e.message); } };
   setTimeout(reverifyRound, 20_000).unref?.();
   setInterval(reverifyRound, RELAY_REVERIFY_SEC * 1000).unref?.();
   console.log(`[reverify] ${RELAY_REVERIFY}: dialed rows re-verified every ${RELAY_REVERIFY_SEC}s with the vendored verifier`);

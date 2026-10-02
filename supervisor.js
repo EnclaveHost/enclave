@@ -39,7 +39,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { SignJWT, jwtVerify } from "jose";
 import { Verifier, assembleAttestationBundle } from "@tinfoilsh/verifier";
-// dedicated-IP egress: the outbound half of the per-deployment address (see egress.js)
+// Per-tenant SOCKS credentials and destination policy in front of TUNA.
 import { createEgress } from "./egress.js";
 // contract addresses: LIVE BINDINGS owned by addressbook.js — seeded from the
 // baked env, overridden from the on-chain EnclaveAddressBook when
@@ -1982,32 +1982,16 @@ function parseDepOptions(raw, gpuMilli) {
   if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: waf, config, configCid, gpu, network)`);
   const opts = {};
   if ("network" in o) {
-    // WHICH RELAY carries this deployment's traffic. Unlike every other
-    // namespace here, nothing in this CVM acts on it: the choice is consumed at
-    // the DNS layer, which answers <label>.app.enclave.host with the chosen
-    // relay's address instead of the zone-wide default. It is validated here
-    // anyway, and refused rather than ignored, for the reason the whole
-    // envelope is fail-closed — an owner who typo'd their relay would otherwise
-    // be told nothing and quietly keep the default, which is exactly the class
-    // of silence this field exists to avoid.
-    //
-    // A NAME, not an address: the relay set moves (a box is replaced, an
-    // address changes) and a deployment should follow the relay it chose rather
-    // than pin the machine it happened to be on. Resolution name -> address is
-    // the fleet's job, not this record's.
     const n = o.network;
-    if (!n || Array.isArray(n) || typeof n !== "object")
-      throw new Error("network must be a JSON object like {\"relay\":\"us-west\"}");
-    const badN = Object.keys(n).filter((k) => k !== "relay");
-    if (badN.length) throw new Error(`unknown network option ${JSON.stringify(badN[0])} (this runner knows: relay)`);
-    if ("relay" in n) {
-      const r = n.relay;
-      // "" / null is a deliberate, expressible choice: back to the zone default.
-      if (r === null || r === "") opts.relay = "";
-      else if (typeof r !== "string" || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(r))
-        throw new Error("network.relay must be a relay name: lowercase letters, digits and dashes, up to 63 characters (or \"\" for the fleet default)");
-      else opts.relay = r;
-    }
+    if (!n || Array.isArray(n) || typeof n !== "object") throw new Error("network must be a JSON object");
+    const bad = Object.keys(n).filter(k => k !== "transport" && k !== "relay");
+    if (bad.length) throw new Error(`unknown network option ${JSON.stringify(bad[0])}`);
+    if ("transport" in n && n.transport !== "tuna") throw new Error("network.transport must be tuna");
+    // Existing ledger envelopes can still contain a relay preference. It no
+    // longer selects a route and is not copied into runtime configuration.
+    if ("relay" in n && n.relay !== null && n.relay !== "" &&
+        (typeof n.relay !== "string" || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(n.relay)))
+      throw new Error("invalid retired network.relay metadata");
   }
   if ("gpu" in o) {
     // The card requirement, softened. `optional: true` says the deployment
@@ -3358,7 +3342,7 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
         // predates the field ignores it — which is why the claim path gates on
         // the fleet advertising config_cid before taking such a deployment.
         configCid: configCid || "",
-        // dedicated-IP egress: a per-deployment SOCKS URL the manager forwards
+        // TUNA egress: a per-deployment SOCKS URL the manager forwards
         // verbatim as the guest's ENCLAVE_EGRESS (empty when egress is off). The
         // token in it is minted from the enclave SECRET, so the manager never
         // needs the secret and the value never touches a log line.
@@ -3929,94 +3913,17 @@ function parseFirewall(fw) {
 const fwTcpPorts = (rec) => (rec.firewall || []).filter((x) => x.startsWith("tcp:")).map((x) => +x.slice(4));
 const fwUdpPorts = (rec) => (rec.firewall || []).filter((x) => x.startsWith("udp:")).map((x) => +x.slice(4));
 
-// ---------------------------------------------------------------------------
-// Per-deployment addressing — each deployment gets its OWN IPv6 out of the
-// relay box's routed /64, and the relays route by destination IP. This is the
-// deployment's dedicated address: the udp-relay serves its udp:N ports there,
-// and the tcp6-relay serves its tcp:N ports there (at the LOGICAL port, no SNI,
-// no remapping — clients use the port the app declared). The address is
-// DETERMINISTIC from the deployment id (sha256 → low 64 host bits), so the
-// supervisor and every relay derive the identical value with no shared state.
-// DEP_ADDR_PREFIX (or the legacy UDP_ADDR_PREFIX) is the relay box's routed /64
-// (e.g. "2a01:4f9:c013:9b52::/64", the live fleet's); unset = dedicated addressing off (the
-// /x/:id/(tcp|udp) bridges still work for direct callers, but no address is
-// advertised). See relay/README.md.
-const DEP_ADDR_PREFIX = (process.env.DEP_ADDR_PREFIX || process.env.UDP_ADDR_PREFIX || "").trim();
-function v6ToBig(s) {                                       // parse an IPv6 (incl. "::") to a 128-bit BigInt
-  const [head, tail] = s.split("::");
-  const hi = head ? head.split(":").filter(Boolean) : [];
-  const lo = tail ? tail.split(":").filter(Boolean) : [];
-  const mid = Array(8 - hi.length - lo.length).fill("0");
-  const groups = s.includes("::") ? [...hi, ...mid, ...lo] : s.split(":");
-  if (groups.length !== 8) throw new Error(`bad IPv6 "${s}"`);
-  return groups.reduce((a, g) => (a << 16n) | BigInt(parseInt(g || "0", 16)), 0n);
-}
-function bigToV6(n) {                                       // 128-bit BigInt → compressed IPv6 string
-  const g = [];
-  for (let i = 0; i < 8; i++) g[i] = Number((n >> BigInt((7 - i) * 16)) & 0xffffn);  // g[0] = most significant group
-  let best = { i: -1, len: 0 }, cur = { i: -1, len: 0 };    // longest zero-run for "::"
-  g.forEach((v, i) => {
-    if (v === 0) { if (cur.i < 0) cur = { i, len: 0 }; cur.len++; if (cur.len > best.len) best = { ...cur }; }
-    else cur = { i: -1, len: 0 };
-  });
-  const hex = g.map((v) => v.toString(16));
-  if (best.len > 1) { hex.splice(best.i, best.len, ""); if (best.i === 0) hex.unshift(""); if (best.i + best.len === 8) hex.push(""); }
-  return hex.join(":").replace(/:{3,}/, "::");
-}
-// Deterministic host part: sha256(id) low 64 bits, kept clear of the low range
-// so it never lands on the box's own ::1 / infrastructure addresses.
-function depAddrFor(id) {
-  if (!DEP_ADDR_PREFIX) return null;
-  const [prefix] = DEP_ADDR_PREFIX.split("/");
-  const net128 = v6ToBig(prefix) & (~0n << 64n);            // zero the low 64 (host) bits
-  let host = BigInt("0x" + createHash("sha256").update(id).digest("hex").slice(0, 16)) & ((1n << 64n) - 1n);
-  if (host < 0x10000n) host += 0x10000n;                    // reserve the low range for infra
-  return bigToV6(net128 | host);
-}
-// public deployments exposing udp ports, with their address + logical ports —
-// the udp-relay reads this to know what to bind and where to route.
-const udpMap = () => [...deployments.values()]
-  .filter((r) => r.public && r.status === "running" && fwUdpPorts(r).length)
-  .map((r) => ({ id: r.id, address: depAddrFor(r.id), ports: fwUdpPorts(r) }));
-// public deployments with tcp OR udp ports, each with its dedicated address and
-// per-protocol logical ports — the tcp6-relay (tcp) and udp-relay (udp) poll
-// this to bind [address]:port and route into /x/:id/(tcp|udp)/:port.
+// Public raw-port inventory for the host's TUNA adapter. Addresses and public
+// ports exist only after the provider assigns them; the control API publishes those.
 const netMap = () => [...deployments.values()]
-  .filter((r) => r.public && r.status === "running" && (fwTcpPorts(r).length || fwUdpPorts(r).length))
-  .map((r) => ({ id: r.id, address: depAddrFor(r.id), tcp: fwTcpPorts(r), udp: fwUdpPorts(r) }));
+  .filter(r => r.public && r.status === "running" && (fwTcpPorts(r).length || fwUdpPorts(r).length))
+  .map(r => ({id: r.id, tcp: fwTcpPorts(r), udp: fwUdpPorts(r)}));
+const TUNA_SOCKS_UPSTREAM = (process.env.TUNA_SOCKS_UPSTREAM || "").trim();
+const EGRESS_SOCKS_PORT = Number(process.env.EGRESS_SOCKS_PORT || 1080);
 
-// --- dedicated-IP EGRESS (the outbound half of depAddrFor) ------------------
-// A deployment's OUTBOUND connections leave from its own IPv6, mirroring the
-// inbound tcp6/udp relays. Guests opt in via ENCLAVE_EGRESS (a per-deployment SOCKS
-// URL); the enclave front is here (egress.js), the source-binding dialer is
-// relay/egress-relay.js. Enabled only when dedicated addressing is on AND a
-// shared relay token is configured (EGRESS_RELAY_TOKEN — proves the control/
-// data channels are the real relay, not a random client hitting the shim).
-const EGRESS_RELAY_TOKEN = (process.env.EGRESS_RELAY_TOKEN || "").trim();
-const EGRESS_SOCKS_PORT  = parseInt(process.env.EGRESS_SOCKS_PORT || "1080", 10);
-// The relay name the DEFAULT egress relay attaches as (it owns DEP_ADDR_PREFIX's
-// /64 and source-binds). A deployment with no network.relay choice, or one whose
-// chosen relay isn't attached, egresses through it. Must match that relay's
-// RELAY_NAME. Unset preserves the pre-multi-relay default ("default").
-const EGRESS_DEFAULT_RELAY = (process.env.EGRESS_DEFAULT_RELAY || "").trim();
-// The relay that owns DEP_ADDR_PREFIX's /64 and can source-bind a dedicated IP.
-// Defaults to the default relay (today they're the same box). Set this when the
-// default egress relay is a NEARBY plain relay but dedicated-IP egress should
-// still be reachable on the /64 owner by explicit network.relay choice.
-const EGRESS_DEDICATED_RELAY = (process.env.EGRESS_DEDICATED_RELAY || "").trim();
-// A deployment's chosen relay (network.relay), so its OUTBOUND follows the same
-// relay as its inbound. "" / unset / unparseable => the default relay.
-function egressRelayFor(id) {
-  const r = deployments.get(id);
-  if (!r) return null;
-  try { return parseDepOptions(r._envelope, r.gpuMilli).relay || null; }
-  catch { return null; }
-}
-const egress = (DEP_ADDR_PREFIX && EGRESS_RELAY_TOKEN)
+const egress = TUNA_SOCKS_UPSTREAM
   ? createEgress({
-      secret: SECRET, socksPort: EGRESS_SOCKS_PORT, relayToken: EGRESS_RELAY_TOKEN,
-      sourceAddrFor: depAddrFor, relayFor: egressRelayFor,
-      defaultRelay: EGRESS_DEFAULT_RELAY, dedicatedRelay: EGRESS_DEDICATED_RELAY,
+      secret: SECRET, socksPort: EGRESS_SOCKS_PORT, upstream: TUNA_SOCKS_UPSTREAM,
       // "claimed" is mid-provision on THIS enclave: the app process starts
       // (and may dial out — its very first S3 fetch) fractionally before the
       // provision path flips the record to "running", and the egress token in
@@ -4756,46 +4663,6 @@ app.post("/v1/claim-hint", async (req, res) => {
   } finally { _hintBusy.delete(id); }
 });
 
-// --- relay services: the NETWORK this box carries, beside the compute it sells --
-// Any host may also relay; the two are independent, and a box with no capacity
-// at all is simply one that ONLY relays (which is what the console renders as a
-// "relay" row — the badge is read from having no resources, not from this
-// block). What differs between relays is which of the fleet's network services
-// they actually offer, and that is a per-BOX fact about which daemons run
-// alongside this supervisor and how the machine is wired — a routed /64, a
-// bindable port range, a public address that CGNAT boxes can dial in to. None
-// of it is discoverable from in here, so it is declared, and broadcast on
-// /availability like every other capability the fleet ANDs or routes on.
-// Absent entirely = this box carries nothing for anyone but itself.
-const RELAY_SERVICES = (() => {
-  const on = (k) => /^(1|true|yes|on)$/i.test((process.env[k] || "").trim());
-  const svc = {
-    sni:       on("RELAY_SNI"),        // app-zone 443 passthrough (relay/relay.js) — the data path every app subdomain crosses
-    tcp:       on("RELAY_TCP"),        // per-deployment dedicated-IPv6 raw TCP (relay/tcp6-relay.js)
-    udp:       on("RELAY_UDP"),        // per-deployment dedicated-IPv6 datagrams (relay/udp-relay.js)
-    egress:    on("RELAY_EGRESS"),     // per-deployment outbound source address (relay/egress-relay.js)
-    tunnelHub: on("RELAY_TUNNEL_HUB"), // accepts reverse tunnels — the only way onto the network for a seller behind CGNAT
-  };
-  const region = (process.env.RELAY_REGION || "").trim();
-  const prefix = (process.env.RELAY_V6_PREFIX || "").trim();   // the routed /64 the dedicated-IP features hand out of
-  const ports  = (process.env.RELAY_PORTS || "").trim();       // the public port range this box will bind, as configured
-  // What the app zone answers with for a deployment that CHOOSES this box as
-  // its relay ({"network":{"relay":"…"}}). Without it the box still relays for
-  // the fleet default, but it cannot be picked: there is no address to point a
-  // name at. Declare the v6 half only if the passthrough listener really binds
-  // one — a chosen relay answers only from its own addresses, so an unbacked
-  // AAAA here is a black hole for every v6-preferring client.
-  const addr   = (process.env.RELAY_PUBLIC_ADDRESS  || "").trim();
-  const addr6  = (process.env.RELAY_PUBLIC_ADDRESS6 || "").trim();
-  if (!Object.values(svc).some(Boolean)) return null;          // declares no service = not a relay, say nothing
-  return { ...svc, ...(addr ? { address: addr } : {}), ...(addr6 ? { address6: addr6 } : {}),
-           ...(region ? { region } : {}), ...(prefix ? { v6Prefix: prefix } : {}),
-           ...(ports ? { ports } : {}) };
-})();
-if (RELAY_SERVICES)
-  console.log(`[relay-services] carrying ${Object.entries(RELAY_SERVICES)
-    .filter(([, v]) => v === true).map(([k]) => k).join(", ")}`
-    + (RELAY_SERVICES.region ? ` · ${RELAY_SERVICES.region}` : ""));
 
 // ---- shielded GPU: a card this enclave uses but does NOT trust ---------------
 //
@@ -5084,8 +4951,7 @@ app.get("/availability", async (_req, res) => {
                    cardFreeVram(gpuCards[v.id]) / cardVram(gpuCards[v.id])))) })),
                ...(sh.pricePerSec6 > 0 ? { askShieldedPricePerSec6: sh.pricePerSec6 } : {}) };
     })(),   // a card on the UNTRUSTED host, reached by masked offload; NOT `gpu` — see shieldedCapacity()
-    ...(RELAY_SERVICES ? { relay: RELAY_SERVICES } : {}),   // network this box carries for the fleet; see the block above
-    networkOptions: true,   // this build accepts the envelope's `network` namespace (per-deployment relay choice). SAME FLEET-AND RULE as waf/config/gpuOptional and for the sharpest reason: the envelope is fail-closed, so a deployment carrying {"network":…} that lands on a runner which predates this is REFUSED OUTRIGHT, not degraded. The console must keep the Network tab hidden until every live runner reports true
+    networkOptions: true,   // accepts the TUNA network envelope; fleet capability checks keep older runners from claiming unsupported options
     waf: true,   // this build accepts + enforces the deployment-options envelope (waf); the relay ANDs this across the fleet and the console shows the Protection controls only then
     configOverride: true,   // this build accepts the envelope's `config` namespace (per-deployment app-config override); same fleet-AND rule — the console unlocks the App config box only when every live runner honors it
     configEdit: true,   // this build's audit re-applies an owner's setConfig to LIVE deployments (waf live-swapped, config = restart in place); without it an edit only lands at the next re-claim — same fleet-AND rule
@@ -5507,21 +5373,8 @@ const view = (rec) => {
     provenUntil: new Date(rec._provenUntil * 1000).toISOString(),
     lastProofAt: rec._provenAt ? new Date(rec._provenAt).toISOString() : null,
     verify: "EnclaveDeployments.provenUntil(id) is authoritative; the runner meter never pays past it." };
-  // Dedicated per-deployment IPv6: declared tcp/udp ports are reachable at
-  // [address]:<logical port> (tcp via the tcp6-relay, udp via the udp-relay).
-  // Surface it so the dashboard/clients get a ready-to-use endpoint at the
-  // real port the app declared, e.g. [addr]:5432, [addr]:443, [addr]:53.
-  // With dedicated-IP egress on, the SAME address is also every deployment's
-  // outbound identity - so it's surfaced even with no inbound ports declared
-  // (network.egress marks the outbound half so clients can label it).
-  const tcpPorts = fwTcpPorts(rec), udpPorts = fwUdpPorts(rec);
-  const depAddr = depAddrFor(rec.id);
-  if (depAddr && (tcpPorts.length || udpPorts.length || egress)) {
-    o.network = { ...o.network, address: depAddr };
-    if (egress) o.network.egress = true;
-    if (tcpPorts.length) o.network.tcp = { address: depAddr, ports: tcpPorts };
-    if (udpPorts.length) o.network.udp = { address: depAddr, ports: udpPorts };
-  }
+  o.network = { transport: "tuna", dedicatedIP: false,
+    requested: { tcp: fwTcpPorts(rec), udp: fwUdpPorts(rec) }, egress: !!egress };
   return o;
 };
 
@@ -6886,19 +6739,9 @@ app.post("/v1/internal/tunnel-attach-sig", async (req, res) => {
   } catch (e) { fail(res, 502, "sign_failed", e.shortMessage || e.message); }
 });
 
-// UDP routing map, PUBLIC: the udp-relay (relay/udp-relay.js) polls this to learn
-// which per-deployment IPv6 to bind and which logical ports to route into the
-// /x/:id/udp/:port bridge. Only public+running deployments with udp ports; the
-// addresses are the deterministic ones the relay also derives from the id.
-app.get("/v1/udp-map", (_req, res) =>
-  res.json({ enabled: !!DEP_ADDR_PREFIX, prefix: DEP_ADDR_PREFIX || null, deployments: udpMap() }));
-
-// Dedicated-IP routing map, PUBLIC: the tcp6-relay (and udp-relay) poll this to
-// learn each public+running deployment's dedicated IPv6 and its per-protocol
-// logical ports, then bind [address]:port and route into /x/:id/(tcp|udp)/:port.
-// Same deterministic addresses the relays also derive from the id.
-app.get("/v1/net-map", (_req, res) =>
-  res.json({ enabled: !!DEP_ADDR_PREFIX, prefix: DEP_ADDR_PREFIX || null, deployments: netMap() }));
+// Provider-independent local inventory. The host adapter validates each dial
+// again through /x/:id/(tcp|udp)/:port before reaching a tenant.
+app.get("/v1/net-map", (_req, res) => res.json({transport: "tuna", deployments: netMap()}));
 
 // Tail the worker's stdout/stderr (owner only). ?tail=N (default 200, max 2000).
 app.get("/v1/deployments/:id/logs", authed, async (req, res) => {
@@ -7777,11 +7620,6 @@ function wsUdpBridge(req, socket, head, port) {
 
 server.on("upgrade", async (req, socket, head) => {
   const deny = (line) => { socket.write(`HTTP/1.1 ${line}\r\n\r\n`); socket.destroy(); };
-
-  // dedicated-IP egress: the relay's control channel (/v1/egress-control) and
-  // per-connection data streams (/x/egress/<cid>). Both are relay-token gated
-  // inside handleUpgrade; it returns true once it owns the path.
-  if (egress && egress.handleUpgrade(req, socket, head)) return;
 
   // ---- app HTTPS: /x/:id/https — the browser's TLS, terminated IN-ENCLAVE ----
   // The passthrough relay tunnels the raw TLS bytes of <label>.APP_CERT_DOMAIN
@@ -10155,7 +9993,7 @@ server.listen(PORT, () => console.log(`enclave supervisor on :${PORT} · ${IS_GP
 // warm the CPU-TEE detection (shim loopback) so the first deployment record
 // created after boot already reports the real silicon, not null
 fetchEnclaveRad().then(() => console.log(`[attest] CPU TEE detected: ${vmTech()}`)).catch(() => {});
-if (egress) { egress.start(); console.log(`[egress] dedicated-IP egress on (SOCKS 127.0.0.1:${EGRESS_SOCKS_PORT}); awaiting relay control channel`); }
+if (egress) { egress.start(); console.log(`[egress] TUNA egress on (authenticated SOCKS 127.0.0.1:${EGRESS_SOCKS_PORT})`); }
 
 // advertise this enclave on-chain (opt-in, non-blocking, never fatal)
 // If the origin is pinned (PUBLIC_URL), advertise eagerly at boot; otherwise

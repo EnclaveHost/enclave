@@ -318,41 +318,7 @@ function forward(frame, send) {
   req.end();
 }
 
-// --- raw streams (Phase D): the hub splices a client's WebSocket UPGRADE into
-// a plain TCP connection to the supervisor, which answers the handshake itself
-// — this carries the /x/<id>/tls and /x/<id>/https bridges (TLS terminating in
-// THIS CVM) out through the tunnel. Frames: s+ open · s= ack · sd data · sx
-// close. The only reachable target is the supervisor's own port — the tunnel
-// must never become a generic proxy into the guest (SUP_HOST/SUP_PORT above).
-const MAX_GUEST_STREAMS = 128, GUEST_STREAM_IDLE_MS = 15 * 60_000;
-const streams = new Map();                        // sid -> net.Socket
-function stream(f, send) {
-  if (f.t === 's+') {
-    if (streams.size >= MAX_GUEST_STREAMS) return send({ t: 's=', sid: f.sid, ok: false, err: 'stream cap' });
-    const sock = net.connect({ host: SUP_HOST, port: SUP_PORT });
-    streams.set(f.sid, sock);
-    sock.setTimeout(GUEST_STREAM_IDLE_MS, () => sock.destroy());
-    sock.on('connect', () => send({ t: 's=', sid: f.sid, ok: true }));
-    sock.on('data', (c) => send({ t: 'sd', sid: f.sid, d: c.toString('base64') }));
-    const bye = () => { if (streams.delete(f.sid)) send({ t: 'sx', sid: f.sid }); };
-    sock.on('error', (e) => { if (streams.has(f.sid) && !sock.remotePort) { streams.delete(f.sid); send({ t: 's=', sid: f.sid, ok: false, err: e.code || 'connect failed' }); } });
-    sock.on('close', bye);
-    return;
-  }
-  const sock = streams.get(f.sid);
-  if (!sock) return;
-  if (f.t === 'sd') { try { sock.write(Buffer.from(f.d || '', 'base64')); } catch {} }
-  else if (f.t === 'sx') { streams.delete(f.sid); sock.destroy(); }
-}
 
-// PROVE WHO THIS BOX IS, not just what it runs. A quote proves the IMAGE and the
-// transport key is minted per boot, so on the attest path a name could be taken
-// by any box running the same published release while its real owner was down -
-// and with it the routing for that name's on-chain id. The registry OPERATOR key
-// is the identity that survives a reboot, and it lives in the supervisor, so ask
-// it to sign this attach's challenge. Best effort: a box with no registry key
-// (it does not sell) simply sends nothing, and unregistered names stay
-// first-come, exactly as before.
 function attachSignature(nonce) {
   return new Promise((resolve) => {
     if (!OPSIGN_TOKEN) return resolve('');
@@ -433,7 +399,6 @@ function connectTunnel() {
       lastFrame = Date.now();
       let f; try { f = JSON.parse(data); } catch { return; }
       if (f.t === 'req') forward(f, send);
-      else if (f.t === 's+' || f.t === 'sd' || f.t === 'sx') stream(f, send);
       else if (f.t === 'ping') send({ t: 'pong' });
       else if (f.t === 'challenge') {         // permissionless attach: answer with a fresh quote over the nonce
         // ...and, when this box sells, a signature from the registry operator
@@ -453,7 +418,7 @@ function connectTunnel() {
       }
     });
     ws.on('unexpected-response', (_req, res) => { log(`tunnel handshake rejected: HTTP ${res.statusCode}`); try { ws.terminate(); } catch {} });
-    ws.on('close', () => { clearInterval(liveness); if (alive) log('tunnel closed'); alive = false; for (const s of [...streams.values()]) s.destroy(); streams.clear(); setTimeout(dial, 2000); });
+    ws.on('close', () => { clearInterval(liveness); if (alive) log('tunnel closed'); alive = false; setTimeout(dial, 2000); });
     ws.on('error', (e) => { log(`tunnel error: ${e.code || ''} ${e.message || String(e)}`); try { ws.terminate(); } catch {} });
   };
   dial();

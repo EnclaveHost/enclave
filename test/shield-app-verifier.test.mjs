@@ -11,6 +11,14 @@ const row = {id:'0x'+'11'.repeat(32),appRef:`catalog://${base.catalog.app}/0`,cp
 const version = {cid:base.cid,memMb:128,ports:'',approval:1,yanked:false};
 const deps = {policy,readCatalog:async()=>({app:{active:true},version}),readConfig:async()=>({config:'',configCid:''}),
   fetchVerified:async()=>({ok:true,bytes:component})};
+test('TUNA and historical network metadata preserve the measured app identity',async()=>{
+ const expected=await expectedShieldApp(row,deps);
+ const withNetwork=network=>({...row,configCid:JSON.stringify({...JSON.parse(row.configCid),network})});
+ for(const network of [{transport:'tuna'},{relay:'us-west'},{transport:'tuna',relay:'us-west'}])
+  assert.deepEqual(await expectedShieldApp(withNetwork(network),deps),expected);
+ for(const network of [{transport:'legacy'},{transport:null},{relay:'https://untrusted.example'},{provider:'arbitrary'}])
+  await assert.rejects(expectedShieldApp(withNetwork(network),deps));
+});
 test('relay derives CPU and GPU app identities from catalog bytes and purchased GPU share',async()=>{
  const cpu=await expectedShieldApp(row,deps);
  assert.equal(cpu.appSha256,derive({record:{...base,catalog:{app:base.catalog.app,version:0},runtimeId:policy.cpu.runtimeId,

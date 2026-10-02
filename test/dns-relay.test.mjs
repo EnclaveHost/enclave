@@ -31,8 +31,8 @@ let proc, dnsPort, apiPort;
 // address that relay answers on. "chosen4" took a v4-only relay, "chosen6" a
 // v6-only one; every other label in the zone made no choice at all.
 const RELAY_MAP = { labels: {
-  chosen4: { relay: "us-west", a: "198.51.100.9" },
-  chosen6: { relay: "v6only",  aaaa: "2001:db8:beef::9" },
+  chosen4: { expiresAt: Date.now() + 120000, transport: "tuna", a: "198.51.100.9" },
+  chosen6: { expiresAt: Date.now() + 120000, transport: "tuna", aaaa: "2001:db8:beef::9" },
 } };
 let mapServer, mapPort;
 
@@ -67,7 +67,7 @@ async function boot() {
       // the relay map is fetched in the same poll the daemon runs at boot, but
       // the API is listening before that poll returns - wait for the labels or
       // the zone tests race the first fetch
-      if (j && j.zones && j.zones.app === APP_ZONE && j.relayLabels === 2) return { p, log: () => log };
+      if (j && j.zones && j.zones.app === APP_ZONE && j.tunaLabels === 2) return { p, log: () => log };
     } catch {}
     await new Promise((r) => setTimeout(r, 100));
   }
@@ -240,17 +240,17 @@ test("resolver: an unknown deployment prefix is NXDOMAIN, never a guess", async 
    HERE. The API relay resolves the choices to label -> address and this server
    answers the app's own name with it instead of the zone-wide one. */
 
-test("resolver: a deployment that chose a relay gets that relay's address, not the wildcard", async () => {
+test("resolver: a live TUNA allocation supplies the address; unassigned names have no fallback", async () => {
   const { rcode, records } = parse(await ask("chosen4." + APP_ZONE, 1));
   assert.equal(rcode, 0);
   assert.equal(records.length, 1);
   assert.equal([...records[0].rdata].join("."), "198.51.100.9");
   // …and everything that did NOT choose still answers from the wildcard
   const other = parse(await ask("anything-else." + APP_ZONE, 1));
-  assert.equal([...other.records[0].rdata].join("."), "203.0.113.7");
+  assert.equal(other.records.length, 0, "an unassigned name must not fall back to a retired relay");
 });
 
-test("resolver: a chosen relay answers only from ITS OWN addresses, never the zone's other family", async () => {
+test("resolver: a TUNA allocation answers only its available address families", async () => {
   // The trap this exists to avoid: falling back per family would send every
   // v6-preferring client to the DEFAULT relay while v4 clients used the chosen
   // one — not a fallback, a silent half-undo of the owner's choice, and the
@@ -260,8 +260,7 @@ test("resolver: a chosen relay answers only from ITS OWN addresses, never the zo
   assert.equal(v6.records.length, 0, "…but its relay declares no IPv6, so AAAA is empty - NOT the zone's 2001:db8::7");
   // the zone-wide AAAA is real, which is what makes the assertion above mean something
   const wild = parse(await ask("no-choice-here." + APP_ZONE, 28));
-  assert.equal(wild.records.length, 1);
-  assert.equal(wild.records[0].rdata.length, 16);
+  assert.equal(wild.records.length, 0);
 
   // and the mirror image: a v6-only relay answers AAAA and leaves A empty
   const v6only = parse(await ask("chosen6." + APP_ZONE, 28));
@@ -280,5 +279,5 @@ test("resolver: choosing a relay changes nothing else about the zone", async () 
   assert.equal(parse(await ask(APP_ZONE, 6)).records[0].type, 6);
   // and a deeper name under a chosen label is wildcard territory, as before
   const deep = parse(await ask("sub.chosen4." + APP_ZONE, 1));
-  assert.equal([...deep.records[0].rdata].join("."), "203.0.113.7");
+  assert.equal(deep.records.length, 0);
 });
