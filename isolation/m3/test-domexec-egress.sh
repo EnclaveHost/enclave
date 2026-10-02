@@ -45,7 +45,8 @@ run_one() {  # <domexec binary> <secret: 1|0>
     printf '127.0.0.1 localhost\n' > "$d/root/etc/hosts"; chmod 0644 "$d/root/etc/hosts"
     own_hosts="chown 1001:1001 '$d/root/etc/hosts' &&"
   fi
-  timeout 60 unshare --map-root-user --map-auto -mpfn -- sh -c "chown 1001:1001 '$d/root/run' && chmod 0700 '$d/root/run' && $own_hosts exec chroot '$d/root' /plat/domexec 7 1000:1001 app 64 3<>/dev/null" > "$d/console.txt" 2>&1 || true
+  mode=${3:-app}
+  timeout 60 unshare --map-root-user --map-auto -mpfn -- sh -c "chown 1001:1001 '$d/root/run' && chmod 0700 '$d/root/run' && $own_hosts exec chroot '$d/root' /plat/domexec 7 1000:1001 $mode 64 8000 3<>/dev/null" > "$d/console.txt" 2>&1 || true
 }
 report_ok() {  # <role> -> 0 if its report is clean
   f="$d/root/probe-out/$1.egress"
@@ -68,6 +69,12 @@ run_all() {  # <domexec.c>
     && echo "ok   the front ran as 1001 and the runtime (/plat/secretrun) as 1000" || { echo "FAIL the uids: $(head -1 "$d/root/probe-out/front.egress" 2>/dev/null) / $(head -1 "$d/root/probe-out/runtime.egress" 2>/dev/null)"; rc=1; }
   if grep -q "^DOM7 egress: this namespace's unprivileged port floor is 443" "$d/console.txt"; then echo "ok   domexec stated the floor on the console"
   else echo "FAIL no floor statement on the console: $(tr '\n' ' ' < "$d/console.txt" | cut -c1-200)"; rc=1; fi
+  run_one "$d/domexec" 1 run
+  for role in front runtime; do
+    if report_ok $role; then echo "ok   secret command domain, the $role: $(grep -c '^ok' "$d/root/probe-out/$role.egress") checks"
+    else echo "FAIL secret command domain, the $role: $(show $role)"; rc=1; fi
+  done
+  grep -q 'mode=run http=8000' "$d/console.txt" || { echo "FAIL command mode did not launch"; rc=1; }
   run_one "$d/domexec" 0
   if report_ok front; then echo "ok   a domain without secrets: $(grep '^ok' "$d/root/probe-out/front.egress" | cut -d: -f1 | sed 's/^ok  *//' | tr '\n' ';')"
   else echo "FAIL a domain without secrets, the front: $(show front)"; rc=1; fi

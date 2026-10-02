@@ -87,7 +87,12 @@ static void refused_open(const char *name, const char *path, int flags, int want
 }
 
 int main(int argc, char **argv) {
-    (void)argc;
+    int command = 0, secret_flag = 0, ports_flag = 0;
+    for (int i=1; i<argc; i++) {
+        if (!strcmp(argv[i], "run")) command = 1;
+        if (!strcmp(argv[i], "-shield-secrets-fd") && i+1<argc && !strcmp(argv[i+1], "7")) secret_flag = 1;
+        if (!strcmp(argv[i], "ENCLAVE_PORTS=http:8000=8000")) ports_flag = 1;
+    }
     const int front = strstr(argv[0], "front") != NULL;
     struct stat st;
     const int secret = stat("/secret.id", &st) == 0;
@@ -105,6 +110,7 @@ int main(int argc, char **argv) {
     if (front) {
         int fl = floor_now();
         if (secret) {
+            say(secret_flag, "front receives the authenticated release pipe argument", "%d", secret_flag);
             say(fl == 443, "this secret domain's namespace floor is 443", "%d", fl);
             int a = bind_at("127.64.0.2", 443, 0), b = bind_at("127.64.0.3", 443, 0);
             say(a >= 0, "the front binds 127.64.0.2:443 with no capability", "%s", a >= 0 ? "listening" : strerrorname_np(errno));
@@ -149,6 +155,12 @@ int main(int argc, char **argv) {
         refused_open("the runtime cannot add a file to /etc", "/etc/resolv.conf", O_WRONLY | O_CREAT | O_EXCL, EACCES);
         int s = bind_at("127.64.0.2", 443, 1);
         say(s < 0 && errno == EADDRINUSE, "the runtime cannot take the front's forwarder address, even with SO_REUSEPORT", "%s", s < 0 ? strerrorname_np(errno) : "listening");
+    }
+    if (command) {
+        say(ports_flag, "command receives its measured HTTP port", "%d", ports_flag);
+        int listener = bind_at("127.0.0.1", 8000, 0);
+        say(listener >= 0, "command binds its own HTTP socket under the runtime filter", "%s", listener >= 0 ? "listening" : strerrorname_np(errno));
+        if (listener >= 0) close(listener);
     }
     fprintf(out, "done ok=%d bad=%d\n", n_ok, n_bad);
     fclose(out);
