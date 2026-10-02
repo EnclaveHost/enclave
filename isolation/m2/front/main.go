@@ -278,7 +278,13 @@ func main() {
 		if *shieldSecretsFD != 7 || f.monitor == "" || f.rt == nil {
 			die("invalid Shield secret channel")
 		}
-		f.secrets, err = newShieldSecrets(os.NewFile(uintptr(*shieldSecretsFD), "shield-secret-pipe"), "/secret.id")
+		// The domain's outbound path (shield_egress.go): forwarders on 127.64.0.N:443 (domexec opened 443 to this
+		// netns's unprivileged binds for a secret domain), each carried over vsock to the host's egress endpoint.
+		eg := &shieldEgress{config: "/app.config", configUID: 0, hosts: "/etc/hosts", port: 443,
+			upstream: func() (net.Conn, error) { return vsock.Dial(vsock.CIDHost, EgressPort) },
+			audit:    func(want []netip.AddrPort) error { return auditListeners("/proc/net", want) },
+			logf:     func(format string, a ...any) { fmt.Printf(format+"\n", a...) }}
+		f.secrets, err = newShieldSecrets(os.NewFile(uintptr(*shieldSecretsFD), "shield-secret-pipe"), "/secret.id", eg)
 		must(err)
 	}
 	tl := tls.NewListener(l, &tls.Config{GetCertificate: f.certs.getCertificate, MinVersion: tls.VersionTLS13,

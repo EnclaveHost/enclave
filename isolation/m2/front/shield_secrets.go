@@ -3,12 +3,14 @@ package main
 import (
 	"crypto/ed25519"
 	"enclave.host/isolation/contract"
+	"enclave.host/isolation/m2/egress"
 	"enclave.host/isolation/m2/release"
 	"enclave.host/isolation/m2/shieldconfig"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -21,18 +23,23 @@ const shieldSecretsPath = "/.well-known/enclave-secrets"
 const shieldSecretPurpose = "enclave-shield-secrets/1"
 
 type shieldSecrets struct {
-	mu    sync.Mutex
-	id    [32]byte
-	text  string
-	pipe  io.WriteCloser
-	pins  []ed25519.PublicKey
-	key   *release.SealKey
-	nonce [32]byte
-	until time.Time
-	done  bool
+	mu     sync.Mutex
+	id     [32]byte
+	text   string
+	pipe   io.WriteCloser
+	pins   []ed25519.PublicKey
+	key    *release.SealKey
+	nonce  [32]byte
+	until  time.Time
+	done   bool
+	egress *shieldEgress     // the domain's outbound path, set up from the release before the pipe is written (shield_egress.go)
+	fwd    *egress.Forwarder // its forwarders, held for the domain's life
 }
 
-func newShieldSecrets(pipe io.WriteCloser, file string) (*shieldSecrets, error) {
+func newShieldSecrets(pipe io.WriteCloser, file string, eg *shieldEgress) (*shieldSecrets, error) {
+	if eg == nil {
+		return nil, errors.New("a secret domain needs its egress path: the runtime must never get secrets without its allowlist")
+	}
 	b, e := os.ReadFile(file)
 	if e != nil {
 		return nil, e
@@ -48,7 +55,7 @@ func newShieldSecrets(pipe io.WriteCloser, file string) (*shieldSecrets, error) 
 	if e != nil {
 		return nil, e
 	}
-	return &shieldSecrets{id: id, text: string(b), pipe: pipe, pins: pins}, nil
+	return &shieldSecrets{id: id, text: string(b), pipe: pipe, pins: pins, egress: eg}, nil
 }
 func (f *front) serveShieldSecrets(w http.ResponseWriter, r *http.Request) {
 	s := f.secrets
@@ -170,6 +177,28 @@ func (f *front) serveShieldSecrets(w http.ResponseWriter, r *http.Request) {
 	}
 	s.done = true
 	s.key = nil
+	// EGRESS BEFORE THE RUNTIME (shield_egress.go): the allowlist from the measured config resolved with THESE secrets,
+	// a forwarder per allowed origin listening, /etc/hosts naming only them, and the listener audit clean - all before
+	// one byte reaches the runtime. On any failure the pipe is closed EMPTY: secretrun reads EOF, refuses, and the
+	// domain ends, so the app never runs without the allowlist its owner's config states. The release is spent either
+	// way. The console gets the failing step's name only.
+	if s.egress == nil {
+		e = egressStepError{"setup"}
+	} else {
+		s.fwd, e = s.egress.start(plain)
+	}
+	if e != nil {
+		for i := range payload {
+			payload[i] = 0
+		}
+		plain.Secrets = nil
+		s.pipe.Close()
+		if es, ok := e.(egressStepError); ok {
+			fmt.Printf("DOM egress: %s; the runtime gets nothing and the domain ends\n", es.Error())
+		}
+		http.Error(w, "egress unavailable", 503)
+		return
+	}
 	_, e = s.pipe.Write(payload)
 	s.pipe.Close()
 	for i := range payload {
