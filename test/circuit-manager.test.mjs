@@ -148,3 +148,22 @@ test('a public provider that keeps failing allocation is cooled down for longer 
  assert.ok(!manager.strikes.has(pub));
  await manager.close();
 });
+test('multiple apps keep independent warm fallback tunnels on one provider without sharing ports or identities',async()=>{
+ const f=fixture(),other='0x'+'ef'.repeat(32),until=Date.now()+60000;
+ f.manager.admission.leases.set(other,{validUntil:until});f.manager.admission.proofs.set(other,{validUntil:until});
+ f.manager.wallets=async app=>f.wallets.map(slot=>Object.fromEntries(Object.entries(slot).map(([role,w])=>[role,{...w,address:app+w.address}])));
+ const base={identity:nodes[9].identity,address:nodes[9].address};
+ await f.manager.configure([
+  {policy,names:['one.example'],publicFallback:{...base,httpsPort:20000,httpPort:20001}},
+  {policy:{...policy,deploymentId:other},names:['two.example'],publicFallback:{...base,httpsPort:20002,httpPort:20003}},
+ ]);
+ await f.manager.reconcile();
+ assert.ok(f.manager.status().every(a=>a.ready));
+ const backups=f.started.filter(c=>c.providers.public.fallback);assert.equal(backups.length,2);
+ assert.deepEqual(backups.map(c=>c.providers.public.publicTcp[0]).sort(),[20000,20002]);
+ for(const p of f.publications.filter(p=>p.routes.length===2))assert.equal(p.routes[1].fallback,true);
+ const first=f.manager.apps.get(id),backup=first.circuits.find(c=>c.providers.public.fallback),primary=first.circuits.find(c=>!c.providers.public.fallback);
+ await f.manager.fail(first,primary,'primary disconnected');
+ assert.equal(backup.closed,false);assert.equal(f.publications.at(-1).routes[0].fallback,true);
+ await f.manager.close();
+});

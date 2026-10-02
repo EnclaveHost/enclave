@@ -63,6 +63,17 @@ for(const h of hosts){
   h.changed=0;
   for(const app of h.cfg.apps){const f=byId.get(app.deploymentId);if(!same(app.publicFallback,f)){app.publicFallback=f;h.changed++;}}
 }
+// HAProxy: install a differing configuration only after it validates; reload a running frontend, or start it once
+// :443/:80 are free (a TUNA allocation that still holds them is released when its app moves to its fallback ports).
+const current=await remote('cat /etc/tuna-provider/haproxy.cfg 2>/dev/null || true');
+// Validate before changing either agent, including during dry runs.
+await remote('/usr/sbin/haproxy -c -q -f /dev/stdin',plan.haproxy);
+if(current!==plan.haproxy){
+  log(`haproxy: configuration for ${plan.apps.length} apps differs; installing`);
+  if(!DRY)await remote('set -e; f=/etc/tuna-provider/haproxy.cfg; cat > $f.next; /usr/sbin/haproxy -c -q -f $f.next; '+
+    'if [ -f $f ]; then cp -p $f $f.prev; fi; mv $f.next $f; chmod 0644 $f',plan.haproxy);
+}
+
 if(!same(plan.allocations,allocations)){log(`allocations: ${Object.keys(plan.allocations).length} apps`);if(!DRY)await writeAtomic(allocationsFile,JSON.stringify(plan.allocations,null,2));}
 if(hosts[0].changed){
   log(`linux: ${hosts[0].changed} app(s) given their fallback`);
@@ -76,14 +87,6 @@ if(hosts[1].changed){
     JSON.stringify(windows,null,2));
 }
 
-// HAProxy: install a differing configuration only after it validates; reload a running frontend, or start it once
-// :443/:80 are free (a TUNA allocation that still holds them is released when its app moves to its fallback ports).
-const current=await remote('cat /etc/tuna-provider/haproxy.cfg 2>/dev/null || true');
-if(current!==plan.haproxy){
-  log(`haproxy: configuration for ${plan.apps.length} apps differs; installing`);
-  if(!DRY)await remote('set -e; f=/etc/tuna-provider/haproxy.cfg; cat > $f.next; /usr/sbin/haproxy -c -q -f $f.next; '+
-    'if [ -f $f ]; then cp -p $f $f.prev; fi; mv $f.next $f; chmod 0644 $f',plan.haproxy);
-}
 const state=(await remote('systemctl is-active tuna-web.service || true')).trim();
 if(state==='active'){
   if(current!==plan.haproxy&&!DRY){await remote('systemctl reload tuna-web.service');log('haproxy: reloaded');}
