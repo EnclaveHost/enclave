@@ -84,3 +84,19 @@ test('repairing one circuit does not delay its sibling health checks',async()=>{
  assert.equal(f.started[0].closed,true);assert.equal(f.publications.at(-1).routes.length,0);
  rejectAllocation(new Error('test repair ended'));await pending;await f.manager.close();
 });
+test('a public allocation failure is charged to the guard that carried it, and a success credits it',async()=>{
+ const observed=[];let failNext=true;
+ const wallets=Array.from({length:2},(_,slot)=>Object.fromEntries(['guard','public','egress'].map(role=>[role,{address:'c'+slot+role,fundedNkn:'0.1'}])));
+ const admission={allows:()=>true,leases:new Map([[id,{validUntil:Date.now()+60000}]]),proofs:new Map([[id,{validUntil:Date.now()+60000}]])};
+ const manager=new CircuitManager({admission,inventory:async()=>nodes,wallets:async()=>wallets,probe:async()=>{},publish:async()=>{},
+  observe:async(providers,result)=>{observed.push({roles:Object.keys(providers).filter(r=>!result.role||r===result.role),ok:result.ok,guard:providers.carry?.identity||providers.guard?.identity});},
+  runtime:{start:async args=>{
+   if(failNext){failNext=false;const e=new Error('https provider allocation timeout');e.providerRole='public';throw e;}
+   const c=new EventEmitter();Object.assign(c,{...args,id:'x'.repeat(32),providers:args.providers,address:args.providers.public.address,port:443,closed:false,admit(){},async close(){this.closed=true}});return c;
+  }}});
+ await manager.configure([{policy,names:['app.example']}]);await manager.reconcile();await new Promise(r=>setImmediate(r));
+ const failures=observed.filter(o=>!o.ok),successes=observed.filter(o=>o.ok);
+ assert.deepEqual(failures.map(o=>o.roles.join()).sort(),['carry','public']);
+ assert.ok(successes.length>0&&successes.every(o=>o.roles.includes('carry')&&o.roles.includes('guard')));
+ await manager.close();
+});

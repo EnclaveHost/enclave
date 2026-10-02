@@ -69,3 +69,16 @@ test('an untried provider on a failing network ranks below one on a working netw
   assert.equal(order[2], true);
   assert.equal(order[0], false);
 });
+
+test('a guard is ranked by the allocations it carries, not only its own uptime', () => {
+  const o = (known, successRate) => ({known, successRate});
+  const mk = (n, carry) => ({...node(n), successRate: undefined, latencyMs: 1, outcomes: {guard: o(true, 0.95), public: o(true, 1), egress: o(true, 1), ...(carry ? {carry} : {})}});
+  // Guard 1 is fastest by identity order but has failed to carry allocations.
+  const badCarrier = mk(1, o(true, 0.1)), goodCarrier = mk(2, o(true, 0.9)), untried = mk(3);
+  const others = [4, 5, 6, 7, 8].map(n => mk(n, o(true, 0.9)));
+  const result = selectCircuitProviders(policy, [badCarrier, untried, goodCarrier, ...others]);
+  assert.equal(result.ready, true);
+  const guards = result.circuits.map(c => c.guard.identity);
+  assert.ok(!guards.includes(badCarrier.identity));
+  assert.ok(guards.includes(goodCarrier.identity));
+});

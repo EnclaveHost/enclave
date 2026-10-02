@@ -64,7 +64,11 @@ export function selectCircuitProviders(policy, inventory, {existing = [], locked
       const stable = id => existing.some(c => c[role]?.identity === id && c.healthy) ? 0 : 1;
       // An untried node inherits its network's record for this role (see
       // ProviderInventory.refresh); its own record replaces that once it has one.
-      const rate = n => { const o = n.outcomes?.[role]; return o && o.known === false && o.networkRate !== undefined ? o.networkRate : (o?.successRate ?? n.successRate ?? 0.5); };
+      const ownOrNetwork = (n, r) => { const o = n.outcomes?.[r]; return o && o.known === false && o.networkRate !== undefined ? o.networkRate : (o?.successRate ?? n.successRate ?? 0.5); };
+      // A guard is only as good as the allocations it carries (see 'carry' in
+      // CircuitManager); with no carry record yet its own health stands.
+      const carried = n => { const o = n.outcomes?.carry; return o && (o.known || o.networkRate !== undefined) ? ownOrNetwork(n, 'carry') : 1; };
+      const rate = n => role === 'guard' ? Math.min(ownOrNetwork(n, 'guard'), carried(n)) : ownOrNetwork(n, role);
       return preferred(a.identity) - preferred(b.identity) || stable(a.identity) - stable(b.identity) ||
         rate(b) - rate(a) || (a.outcomes?.[role]?.latencyMs ?? a.latencyMs ?? Infinity) - (b.outcomes?.[role]?.latencyMs ?? b.latencyMs ?? Infinity) || a.identity.localeCompare(b.identity);
     });
