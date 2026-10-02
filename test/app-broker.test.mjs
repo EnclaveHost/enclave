@@ -1,0 +1,19 @@
+import test from 'node:test';import assert from 'node:assert/strict';import net from 'node:net';import tls from 'node:tls';
+import fs from 'node:fs/promises';import os from 'node:os';import path from 'node:path';import {execFileSync} from 'node:child_process';
+import {createAppBroker} from '../network/app-broker.mjs';import {spliceAppBroker} from '../network/broker-client.mjs';import {createAppIngress} from '../network/app-ingress.mjs';
+
+test('a complete guest TLS handshake and bytes traverse app-bound IPC without localhost TCP',async t=>{
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'app-ipc-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));
+ execFileSync('openssl',['req','-x509','-newkey','ec','-pkeyopt','ec_paramgen_curve:P-256','-nodes','-keyout',dir+'/key','-out',dir+'/cert','-days','1','-subj','/CN=app.example'],{stdio:'ignore'});
+ const cert=await fs.readFile(dir+'/cert'),key=await fs.readFile(dir+'/key');
+ const guest=tls.createServer({key,cert},socket=>socket.pipe(socket));await new Promise(r=>guest.listen(0,'127.0.0.1',r));t.after(()=>guest.close());
+ const id='0x'+'ab'.repeat(32);let allowed=true;
+ const broker=await createAppBroker({socketPath:dir+'/app.sock',deploymentId:id,authorize:()=>allowed,forward:(stream,app)=>{
+  assert.equal(app,id);const upstream=net.connect({host:'127.0.0.1',port:guest.address().port});stream.pipe(upstream).pipe(stream);stream.once('close',()=>upstream.destroy());upstream.on('error',()=>stream.destroy());
+ }});t.after(()=>broker.close());
+ const ingress=await createAppIngress({deploymentId:id,names:['app.example'],authorize:()=>allowed,forward:socket=>spliceAppBroker(socket,dir+'/app.sock')});t.after(()=>ingress.close());
+ const client=tls.connect({host:'127.0.0.1',port:ingress.port,servername:'app.example',ca:cert});client.on('error',()=>{});t.after(()=>client.destroy());
+ await new Promise((r,j)=>{client.once('secureConnect',r);client.once('error',j)});
+ const received=new Promise(r=>client.once('data',r));client.write('app-bound TLS');assert.equal((await received).toString(),'app-bound TLS');
+ const closed=new Promise(r=>client.once('close',r));allowed=false;broker.revoke();await closed;assert.equal(client.destroyed,true);
+});
