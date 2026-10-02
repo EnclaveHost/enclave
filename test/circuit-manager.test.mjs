@@ -35,3 +35,15 @@ test('authorization expiry cuts live sockets and reused or overfunded identities
  await assert.rejects(f.manager.configure([{policy,names:['app.example']}]),/identity reused/);
  await f.manager.close();
 });
+
+test('delayed publications cannot restore a route withdrawn while the write was in flight',async()=>{
+ const f=fixture();let unblock,entered;
+ const started=new Promise(r=>{entered=r}),gate=new Promise(r=>{unblock=r});
+ const original=f.manager.publish;let first=true;
+ f.manager.publish=async(id,routes)=>{if(first){first=false;entered();await gate;}await original(id,routes);};
+ await f.manager.configure([{policy,names:['app.example']}]);const reconciling=f.manager.reconcile();await started;
+ const dead=f.started[0],failing=f.manager.fail(f.manager.apps.get(id),dead,'guard failed during publication');
+ unblock();await Promise.all([reconciling,failing]);
+ assert.ok(f.publications.at(-1).routes.every(r=>r.circuit!==dead.id));assert.equal(dead.closed,true);
+ await f.manager.close();
+});

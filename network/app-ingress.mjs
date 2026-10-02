@@ -4,7 +4,7 @@ import net from 'node:net';
 import {clientHelloName} from './tuna-host.mjs';
 
 export async function createAppIngress({deploymentId, host = '127.0.0.1', port = 0,
-  names, authorize, forward, maxConnections = 1024, onError = () => {}}) {
+  names, authorize, forward, maxConnections = 1024, allowNoSni = false, onError = () => {}}) {
   if (!/^0x[0-9a-f]{64}$/.test(deploymentId || '') || !Array.isArray(names) || !names.length || names.length > 64 ||
     names.some(n => typeof n !== 'string' || n.length > 253 || !n.split('.').every(label => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label))))
     throw new Error('app identity and hostnames required');
@@ -21,7 +21,7 @@ export async function createAppIngress({deploymentId, host = '127.0.0.1', port =
       const name = clientHelloName(hello);
       if (name === null) return;
       socket.pause(); socket.removeListener('data', read);
-      if (!name || !allowedNames.has(name.toLowerCase()) || !authorize(deploymentId)) return socket.destroy();
+      if (!(name ? allowedNames.has(name.toLowerCase()) : name === '' && allowNoSni) || !authorize(deploymentId)) return socket.destroy();
       socket.setTimeout(0); socket.unshift(hello);
       Promise.resolve().then(() => forward(socket, deploymentId)).catch(e => {onError(e);socket.destroy();});
     };

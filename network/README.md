@@ -124,3 +124,88 @@ dynamic, and this rollout does not establish a dedicated-IP or uptime guarantee.
 The main unit CI job still has measurement/scheduler and timeout failures;
 targeted transport checks, native egress race tests and guest-manager tests passed
 (the two Node-backed guest-manager tests were rerun after installing dependencies).
+
+## Per-app privacy transport (version 2)
+
+The version 2 agent is being integrated; the production migration above still
+uses version 1. Do not infer a completed privacy rollout from these modules or
+from the canary results below.
+
+`privacy-agent.mjs` manages two circuits for each deployment. Each circuit has
+separate funded guard, public-ingress and egress identities. The public and egress
+processes run behind a guard in a container with an outbound firewall, no Linux
+capabilities and only that app's IPC broker. Guard/public separation and separation
+between sibling circuits require different payment beneficiaries and ASNs. That
+is a diversity heuristic, not proof of independent corporate ownership.
+
+Authorization runs independently of allocation work: two recent, agreeing Base
+RPC snapshots and a fresh guest proof are required. Neither a failed refresh nor
+a stalled allocation extends authorization. On Linux, `GuestdIngress` uses the
+existing authenticated guest-manager protocol and verifies the expected app,
+runtime and launch measurement before opening the app's data socket. The control
+CVM is not in that path. The pairing key stays in the agent, outside workers.
+
+Default policies require two guarded routes and prohibit direct fallback. Custom
+provider allow/prefer/deny lists require a deployment-owner signature. Funds are
+bounded by six distinct role wallets; the agent refuses shared identities and
+manifests exceeding the app's budget. The public-role wallets also fund their NKN
+discovery subscriptions (0.001 NKN per registration). Automatic wallet top-ups are
+not implemented.
+
+An operator delegates an Ed25519 route key to one deployment. Route records and
+IPNS pointers carry durable sequence numbers, short expiries and the policy hash.
+Each circuit serves the signed pointer and CID-addressed block over NKN messaging;
+the NKN subscription topic is `enclave.route.v2.<64-character-deployment-id>`.
+The subscription is a locator, never authorization. Clients verify the pointer,
+block hash, runner delegation, fresh lease and replay floor independently.
+Optional delegated IPNS publication follows the
+[IPFS HTTP routing protocol](https://specs.ipfs.tech/routing/http-routing-v1/).
+A raw-block gateway reader is included; a production IPFS block-storage backend
+and automatic NKN subscription renewal still need integration.
+
+`native-route-client.mjs` resolves the full deployment ID through NKN. It can
+connect without DNS, SNI or a CA-issued application certificate: it authenticates
+fresh hardware evidence first, then pins that attested TLS key **before** sending
+an application request. This requires explicit trusted app/runtime/measurement
+policy. Ordinary browsers continue to use HTTPS names and CA certificates.
+
+The optional Nan mirror accepts verified version 2 records and gives DNS both
+current addresses. After an app migrates, a persistent replay floor prevents
+falling back to its old shared host route, including after mirror restart.
+Mirror failure does not revoke native serving authorization. Authoritative DNS
+itself remains a compatibility service; native discovery is the independent path.
+
+`native-guestd-tuna.patch` additionally implements `-egress-app-routes FILE`,
+mutually exclusive with the earlier shared `-egress-socks` flag. The agent writes
+`egress-routes.json`; guestd binds guest CID to deployment ID itself. DNS and TCP
+both travel through that app's circuits, and either a DNS failure or a subsequent
+TCP failure can try its sibling. Missing/expired maps, private DNS answers and
+cross-app proxy reuse fail closed. Rebuild against the **currently deployed** host
+runtime, preserving its other changes, before using this patch in production.
+
+The Windows WFP helper installs persistent rules for circuit-private executable
+copies. A real Windows canary confirmed that its assigned guard port works while
+other app ports and direct IPv4/IPv6 connections fail, including after the helper
+exits. Windows process isolation, runtime orchestration, independent Shield proof
+collection and per-guest outbound integration remain rollout gates.
+
+### Live validation on 2026-10-02
+
+* Twelve simultaneous public 443 allocations passed TCP echo tests; stopping the
+  guard closed all twelve, with no unexpected outbound IPv4 packets captured.
+* EyesOff served HTTPS through two circuits on four different ASNs, with fresh
+  SNP/AppID/runtime/TLS-key verification. HTTP 80 redirects also passed.
+* The integrated agent published both signed routes through NKN. Killing one
+  guard caused a separate client to resolve only the surviving route.
+* A native client resolved EyesOff via NKN and received `/ping` HTTP 200 without
+  Enclave DNS, Nan or SNI, after fresh attestation through guestd's data socket.
+* A delegated public IPNS router accepted the signed pointer; readback verified
+  its signature and CID.
+* Native Linux egress passed real DNS and HTTPS through an app circuit. A test
+  proxy that forwarded DNS but rejected destination TCP caused the same app's
+  sibling to succeed; an unbound guest was refused.
+
+These canaries did not change production DNS or guest egress configuration. The
+remaining rollout includes automatic discovery renewal, full provider inventory
+refresh/selection, standalone control bootstrap, owner-facing controls, current
+Linux runtime rebasing, Windows integration and deployment-wide failure tests.

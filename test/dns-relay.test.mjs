@@ -31,7 +31,7 @@ let proc, dnsPort, apiPort;
 // address that relay answers on. "chosen4" took a v4-only relay, "chosen6" a
 // v6-only one; every other label in the zone made no choice at all.
 const RELAY_MAP = { labels: {
-  chosen4: { expiresAt: Date.now() + 120000, transport: "tuna", a: "198.51.100.9" },
+  chosen4: { expiresAt: Date.now() + 120000, transport: "tuna", a: "198.51.100.9", addresses: ["198.51.100.9", "198.51.100.10"] },
   chosen6: { expiresAt: Date.now() + 120000, transport: "tuna", aaaa: "2001:db8:beef::9" },
 } };
 let mapServer, mapPort;
@@ -243,8 +243,8 @@ test("resolver: an unknown deployment prefix is NXDOMAIN, never a guess", async 
 test("resolver: a live TUNA allocation supplies the address; unassigned names have no fallback", async () => {
   const { rcode, records } = parse(await ask("chosen4." + APP_ZONE, 1));
   assert.equal(rcode, 0);
-  assert.equal(records.length, 1);
-  assert.equal([...records[0].rdata].join("."), "198.51.100.9");
+  assert.equal(records.length, 2);
+  assert.deepEqual(records.map(r=>[...r.rdata].join('.')), ['198.51.100.9','198.51.100.10']);
   // …and everything that did NOT choose still answers from the wildcard
   const other = parse(await ask("anything-else." + APP_ZONE, 1));
   assert.equal(other.records.length, 0, "an unassigned name must not fall back to a retired relay");

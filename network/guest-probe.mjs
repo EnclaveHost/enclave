@@ -1,7 +1,9 @@
 import https from 'node:https';
 import {randomBytes,createHash} from 'node:crypto';
 import {SocksHttpsAgent} from './socks-connect.mjs';
+import {LocalAppHttpsAgent} from './local-app-transport.mjs';
 import {judge} from '../isolation/m2/judge.mjs';
+import {runtimeId} from '../isolation/contract/runtime.mjs';
 import {verifyShieldAppPolicy} from '../relay/shield-app-policy.mjs';
 
 function get(hostname,address,path,agent,pin){return new Promise((resolve,reject)=>{
@@ -12,9 +14,10 @@ function get(hostname,address,path,agent,pin){return new Promise((resolve,reject
   res.once('error',reject);res.once('end',()=>resolve({status:res.statusCode,spki,bytes:Buffer.concat(chunks)}));
  });req.once('timeout',()=>req.destroy(new Error('guest probe timeout')));req.once('error',reject);
 });}
-export async function probeGuest({deploymentId,hostname,address,proxy,expected,linux,shield,hostSession,verifySnp=judge}){
- if(!proxy)throw new Error('host-side guest probes require a guard');
- const agent=new SocksHttpsAgent(proxy),nonce=randomBytes(32);
+export async function probeGuest({deploymentId,hostname,address,proxy,expected,linux,shield,hostSession,localUpstream,openApp,domainIndependent=false,verifySnp=judge}){
+ if([proxy,localUpstream,openApp].filter(Boolean).length!==1)throw new Error('guest probes require exactly one guarded or local app transport');
+ const agent=(localUpstream||openApp)?new LocalAppHttpsAgent(localUpstream,deploymentId,{openApp}):new SocksHttpsAgent(proxy,domainIndependent?{tlsOptions:{rejectUnauthorized:false,servername:''}}:{}),nonce=randomBytes(32);
+ address=(localUpstream||openApp)?'127.0.0.1':address;
  try{
   const response=await get(hostname,address,'/.well-known/enclave-attestation?nonce='+nonce.toString('hex'),agent);
   if(response.status!==200)throw new Error('guest attestation HTTP '+response.status);
@@ -22,6 +25,7 @@ export async function probeGuest({deploymentId,hostname,address,proxy,expected,l
   if(doc.nonce!==nonce.toString('hex')||doc.transportKey!==response.spki.toString('base64')||doc.appSha256!==expected.appSha256)throw new Error('app, nonce or TLS binding mismatch');
   let verified=false;
   if(doc.format==='sev-snp-guest-domain-v1'&&linux){
+    if(runtimeId(linux.runtime).toString('hex')!==expected.runtimeId)throw new Error('SNP runtime policy does not match expected runtime');
     const verdict=await verifySnp(doc,response.spki,nonce,{...linux,appSha:expected.appSha256,hostData:deploymentId,mode:'trusted'});
     verified=verdict.gateOpen===true&&verdict.verdict==='attested';if(!verified)throw new Error('SNP guest proof refused: '+JSON.stringify(verdict));
   }else if(shield&&hostSession){
