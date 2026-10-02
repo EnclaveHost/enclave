@@ -126,7 +126,10 @@ func TestTheHostSideListRefusesBeforeResolvingOrDialing(t *testing.T) {
 	looked := 0
 	d, dialed := testDialer(fakeResolver{"notes.example": {"93.184.216.34"}, "other.example": {"93.184.216.35"}}, nil)
 	res := d.Resolver.(fakeResolver)
-	d.Resolver = resolverFunc(func(ctx context.Context, n, h string) ([]netip.Addr, error) { looked++; return res.LookupNetIP(ctx, n, h) })
+	d.Resolver = resolverFunc(func(ctx context.Context, n, h string) ([]netip.Addr, error) {
+		looked++
+		return res.LookupNetIP(ctx, n, h)
+	})
 	d.MaxPerMinute = 1
 	d.Allow = (&Policy{Origins: []Origin{{Host: "notes.example"}}}).Allows
 	for i := 0; i < 3; i++ {
