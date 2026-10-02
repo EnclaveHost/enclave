@@ -1,3 +1,4 @@
+import {publicPorts} from './public-fallback.mjs';
 import fs from 'node:fs/promises';import path from 'node:path';import net from 'node:net';
 import {EventEmitter} from 'node:events';import {randomBytes,createHash} from 'node:crypto';
 import {spawn,execFile} from 'node:child_process';import {promisify} from 'node:util';import {createInterface} from 'node:readline';
@@ -72,7 +73,7 @@ export class WindowsCircuitRuntime {
     readyReject=reject;timer=setTimeout(()=>reject(new Error('Windows ingress startup timeout')),15000);worker=launch(dir,'node');worker.stdin.on('error',()=>{});worker.stderr.on('data',b=>this.log(String(b).slice(0,1000)));
     worker.once('error',reject);worker.once('exit',()=>{void circuit.close('Windows ingress exited')});workerLines=createInterface({input:worker.stdout});workerLines.on('line',line=>{try{const event=JSON.parse(line);if(event.type==='ready'&&event.ingress===ingressPort&&event.redirect===redirectPort)resolve();}catch{}});
    });clearTimeout(timer);readyReject=null;
-   const publicRole=makeAdapter('public',{id:'https',tcp:[ingressPort,redirectPort],publicTcp:[443,80],udp:[],randomPorts:false});
+   const publicRole=makeAdapter('public',{id:'https',tcp:[ingressPort,redirectPort],publicTcp:publicPorts(providers.public),udp:[],randomPorts:false});
    const egress=makeAdapter('egress',{id:'egress',tcp:[egressPort],udp:[],forward:true});
    const [allocation]=await Promise.all([publicRole.start(),egress.start()]);
    discovery=new DiscoveryPeer({binary:files.discovery,configFile:path.join(dir,'public.json'),deploymentId,spawnProcess:()=>launch(dir,'discovery'),log:this.log});discovery.on('down',e=>{void circuit.close(e.message)});await discovery.start();
@@ -81,7 +82,7 @@ export class WindowsCircuitRuntime {
     if(circuit.closed||!this.authorize(deploymentId)||sockets.size>=1024){socket.destroy();return;}sockets.add(socket);socket.once('close',()=>sockets.delete(socket));
     const upstream=net.connect({host:'127.0.0.1',port:egressPort});const close=()=>{socket.destroy();upstream.destroy()};socket.on('error',close);upstream.on('error',close);socket.once('close',close);upstream.once('close',close);socket.pipe(upstream).pipe(socket);
    });await new Promise((r,j)=>{egressServer.once('error',j);egressServer.listen(0,'127.0.0.1',r)});
-   Object.assign(circuit,{address:allocation.address,port:443,egress:'127.0.0.1:'+egressServer.address().port,isolation:{platform:'windows',directory:dir,guardDirectory:guardDir,guardAddress}});return circuit;
+   Object.assign(circuit,{address:allocation.address,port:443,...(allocation.tcp[0]!==443?{directPort:allocation.tcp[0]}:{}),egress:'127.0.0.1:'+egressServer.address().port,isolation:{platform:'windows',directory:dir,guardDirectory:guardDir,guardAddress}});return circuit;
   }catch(e){await circuit.close(e.message);throw e;}
  }
 }

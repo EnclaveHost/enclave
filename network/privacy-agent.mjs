@@ -16,6 +16,7 @@ import {DurableState} from './durable-state.mjs';
 import {localAppForwarder} from './local-app-transport.mjs';
 import {probeGuest} from './guest-probe.mjs';
 import {GuestdIngress} from './guestd-ingress.mjs';
+import {ShieldIngress} from './shield-ingress.mjs';
 import {guardedFetch} from './guarded-fetch.mjs';
 import {delegatedIPNS} from './discovery-http.mjs';
 import {ControlTransport} from './control-transport.mjs';
@@ -101,7 +102,9 @@ export async function runPrivacy(configFile){
   }
   const log=message=>console.error('[privacy] '+message);let agent;
   if(windows&&cfg.guestd)throw new Error('Linux guest manager configuration on Windows');
-  const guestd=cfg.guestd?new GuestdIngress({...cfg.guestd,expected:id=>apps.find(a=>a.deploymentId===id)?.expected}):null;
+  if(!windows&&cfg.shield?.ingress)throw new Error('Windows partition ingress configuration on Linux');
+  const guestd=cfg.guestd?new GuestdIngress({...cfg.guestd,expected:id=>apps.find(a=>a.deploymentId===id)?.expected}):
+    cfg.shield?.ingress?new ShieldIngress({...cfg.shield.ingress,expected:id=>apps.find(a=>a.deploymentId===id)?.expected,key:id=>agent?.admission.proofs.get(id)?.spkiSha256}):null;
   const Runtime=windows?WindowsCircuitRuntime:LinuxCircuitRuntime;
   const runtime=new Runtime({...cfg.runtime,directory:path.join(cfg.directory,'circuits'),rpc:cfg.nknRpc,
     authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:guestd?guestd.forward:localAppForwarder(cfg.upstream),log});
@@ -125,7 +128,7 @@ export async function runPrivacy(configFile){
       const cur=apps.find(a=>a.deploymentId===n.deploymentId);
       if(!cur){apps.push(n);added++;continue;}
       if(JSON.stringify(cur.expected)!==JSON.stringify(n.expected)||JSON.stringify(cur.names)!==JSON.stringify(n.names)||cur.publishToMirror!==n.publishToMirror)updated++;
-      for(const k of ['expected','names','publishToMirror','ownerPolicy','expectedFile','walletsFile'])cur[k]=n[k];
+      for(const k of ['expected','names','publishToMirror','ownerPolicy','publicFallback','expectedFile','walletsFile'])cur[k]=n[k];
     }
     log(`config reloaded: ${apps.length} apps (${added} added, ${updated} changed); mirror apps: `+(apps.filter(a=>a.publishToMirror).map(a=>a.deploymentId.slice(0,10)).join(',')||'none'));
   }catch(e){log('config reload refused: '+e.message);}};
@@ -165,7 +168,11 @@ export async function runPrivacy(configFile){
     probe:async(id,expected,circuit)=>serialized(id,async()=>probeGuest({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],expected,
       ...(circuit&&agent?.admission.allows(id)?{pinnedSpkiSha256:agent.admission.proofs.get(id).spkiSha256}:{}),
       ...(windows?{shield,hostSession:await hostProof.get()}:{linux:{...linux,measurement:expected.measurement,release:expected.release},verifySnp}),
-      ...(circuit?{address:circuit.address,proxy:circuit.isolation.guardAddress}:guestd?{openApp:id=>guestd.open(id)}:{localUpstream:cfg.upstream})}))});
+      ...(circuit?{address:circuit.address,proxy:circuit.isolation.guardAddress}:guestd?{openApp:id=>guestd.open(id)}:{localUpstream:cfg.upstream})}).then(async result=>{
+        if(circuit?.directPort)await probeGuest({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],address:circuit.address,port:circuit.directPort,
+          proxy:circuit.isolation.guardAddress,expected,domainIndependent:true,pinnedSpkiSha256:result.spkiSha256});
+        return result;
+      }))});
   // A public provider address holds one HTTPS allocation. Every address already
   // routed for another app (any host, from Nan's public map) is skipped when
   // choosing, so this host does not wait out allocation timeouts against it.
