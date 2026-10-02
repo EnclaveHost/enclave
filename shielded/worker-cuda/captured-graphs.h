@@ -21,7 +21,10 @@
 // and 68 capacity flushes on a run that should have been almost all hits. The
 // column split makes it worse still, because then every card holds every
 // weight slice rather than half of them. Cost of the larger bound is a
-// cudaGraphExec per entry, a few KB of HOST memory each.
+// cudaGraphExec per entry. Measure its retained HOST memory on the target
+// driver: even small two-node graphs can retain tens of KiB per entry.
+// shielded/bench/graph_cache_capacity_bench.py measures the worker RSS tradeoff
+// on controlled row-width traces; these are not model occupancy measurements.
 static constexpr size_t SH_GRAPH_CACHE_DEFAULT = 1024;
 static constexpr size_t SH_GRAPH_CACHE_MAX = 4096;
 

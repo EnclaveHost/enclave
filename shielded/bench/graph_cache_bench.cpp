@@ -29,12 +29,23 @@ static size_t make_key(uint32_t *key, uint32_t group, bool wide) {
 
 int main() {
     constexpr size_t iterations = 2000000;
-    for (const auto spec : {std::pair<size_t, bool>{274, false}, {514, false}, {274, true}}) {
-        Cache cache(1024);
+    for (const auto spec : {std::pair<size_t, bool>{274, false}, {514, false}, {274, true}, {1310, false}}) {
+        Cache cache(spec.first > 1024 ? 2048 : 1024);
+        allocations = allocated_bytes = 0;
+        counting = true;
         for (uint32_t group = 0; group < spec.first; ++group) {
             uint32_t key[67]; const size_t n = make_key(key, group, spec.second);
+#ifdef SH_BORROWED_GRAPH_KEYS
+            cache.get(key, n, [=] { return new Graph{group}; });
+#else
             cache.get(std::vector<uint32_t>(key, key + n), [=] { return new Graph{group}; });
+#endif
         }
+        counting = false;
+        // Requested allocation volume while filling, including fake handles.
+        // With borrowed keys these allocations are all retained; CUDA driver
+        // storage and allocator overhead are outside this host-only probe.
+        const size_t populate_allocations = allocations, populate_bytes = allocated_bytes;
         allocations = allocated_bytes = 0;
         uint64_t checksum = 0;
         counting = true;
@@ -54,8 +65,10 @@ int main() {
         const double ns = std::chrono::duration<double, std::nano>(elapsed).count();
         if (cache.stats.hits != iterations || cache.stats.misses != spec.first) return 1;
         std::printf("{\"keys\":%zu,\"max_nodes\":%d,\"iterations\":%zu,\"ns_per_lookup\":%.3f,"
+                    "\"populate_allocations\":%zu,\"populate_bytes\":%zu,\"fake_handle_bytes\":%zu,"
                     "\"allocations\":%zu,\"allocated_bytes\":%zu,\"checksum\":%llu}\n",
                     spec.first, spec.second ? 64 : 4, iterations, ns / iterations,
+                    populate_allocations, populate_bytes, spec.first * sizeof(Graph),
                     allocations, allocated_bytes, (unsigned long long)checksum);
     }
 }
