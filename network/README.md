@@ -25,6 +25,17 @@ credentials and blocks private destinations, then uses this standard SOCKS upstr
 Existing guest images must be updated/configured before their outbound traffic uses
 that entry. Starting the sidecar alone changes no guest's outbound routing.
 
+For the separately maintained native Linux host runtime, `native-guestd-tuna.patch`
+adds `guestd -egress-socks 127.0.0.1:30489`. Apply it to the full host source tree
+(validated against `e56b5b76f`), run its Go tests and rebuild guestd. It keeps the
+guest CID admission, rate limits and public destination checks, sends the judged
+IP literal through SOCKS, and never falls back to direct outbound connections.
+The production baseline was reproduced byte for byte before applying the patch:
+`guestd.model-ram-61e2d31ce65e`, SHA-256
+`61e2d31ce65eb51bbe03a968fa30c8539a6db7a64396b8062bd19c6b14061503`.
+Use `-adopt-check` with the exact existing launch arguments before switching the
+host manager; guest images and their attestation measurements do not change.
+
 ## Build and configure
 
 Run `npm ci`, then `node network/build.mjs /path/to/output` with Go 1.23 or newer.
@@ -88,3 +99,28 @@ dedicated IPv4, preserved visitor IP, Enclave relay traffic logs or fixed raw po
 
 Deploying an operator's own TUNA provider is a separate operation. It can join the
 same NKN subscription network; it is not an Enclave fleet-tunnel relay.
+
+## Production verification, 2026-10-02
+
+The six running deployments (EyesOff-AI, RISC Box, s3-ipfs-adapter,
+ipns-publisher, jot and api-mcp-adapter) were switched to TUNA. Canonical app
+DNS uses the live allocation map; eyesoff.ai follows its canonical app CNAME.
+Public HTTPS, readiness and HTTP redirects were checked after disabling the old
+data services on nan-relay and us-west. Nan remains the control API and nan-relay
+continues authoritative DNS. Configuring us-west as a TUNA provider is deferred.
+
+The four Linux guests passed fresh SNP signature, nonce, TLS-key, deployment,
+runtime and measurement checks. Windows public probes checked their nonce, TLS
+key, AppID and runtime; Nan separately reverified the authenticated host and app
+evidence. Guest VMs and TLS keys survived the host-manager/control updates.
+Native Linux outbound connections now use the loopback TUNA SOCKS entry.
+
+Paid raw TCP echo and SOCKS HTTPS passed. Raw UDP echo timed out on three public
+providers, so UDP is **not production-validated**. None of these six deployments
+declares raw UDP ports. One initial HTTPS provider disconnected; the adapter
+withdrew its allocation and connected to another. Provider IPs are therefore
+dynamic, and this rollout does not establish a dedicated-IP or uptime guarantee.
+
+The main unit CI job still has measurement/scheduler and timeout failures;
+targeted transport checks, native egress race tests and guest-manager tests passed
+(the two Node-backed guest-manager tests were rerun after installing dependencies).
