@@ -18,6 +18,10 @@
 //
 // An owner who sets a top-level "egress" list in the config states the allowlist explicitly; otherwise every
 // absolute https URL in the resolved config becomes reachable, which the owner-facing page must say.
+//
+// A NucBox Shield domain (one app in a Hyper-V partition) uses the same rules with two differences, both in ForShield:
+// its config is the domain's MEASURED /app.config resolved with the secrets of its verified Shield release, and there is
+// no relay origin. Its host side is cmd/shield-egress, which dials only through a loopback SOCKS entry (socks.go).
 package egress
 
 import (
@@ -153,6 +157,36 @@ func FromRelease(rel *release.Release, relay Origin) (*Policy, error) {
 	return derive(resolved, relay)
 }
 
+// ForShield is the allowlist of a NucBox Shield domain (one app in a Hyper-V partition, isolation/m3) that serves a
+// secret deployment. Its two inputs arrive by two different measured paths, and both are required to be what they say:
+//
+//   - the secrets come from the release the front verified against the pinned relay keys and opened with its own seal
+//     key (m2/front shield_secrets.go): a Release built any other way is refused, exactly as FromRelease refuses one;
+//   - the config is the domain's measured /app.config (the monitor wrote it from the bundle it hashed). A Shield
+//     release carries secrets only, so a release that also carries a config is refused rather than one of the two
+//     silently winning.
+//
+// The config is RESOLVED with the secrets before anything is derived, so an endpoint that is itself a secret
+// ("$R2_ENDPOINT") is judged on its resolved value, which only the guest ever sees. Unlike FromRelease there is NO relay
+// origin: a Shield domain's release reaches it through its front, never through egress, so nothing outside the owner's
+// config is reachable.
+func ForShield(rel *release.Release, measuredConfig string) (*Policy, error) {
+	if rel == nil || !rel.Attested() {
+		return nil, errors.New("egress policy needs a release opened through the attested channel")
+	}
+	if text, err := rel.ConfigText(); err != nil || text != "" {
+		return nil, errors.New("a Shield release carries secrets only: the domain's config is its measured /app.config")
+	}
+	resolved := ""
+	if strings.TrimSpace(measuredConfig) != "" {
+		var err error
+		if resolved, err = appconfig.Resolve(measuredConfig, rel.Secrets); err != nil {
+			return nil, err
+		}
+	}
+	return deriveFrom(resolved, nil)
+}
+
 // derive builds the allowlist from the RESOLVED config and the relay origin the measured image pins. An explicit
 // top-level "egress" list replaces derivation; the relay origin is always present and config can neither remove
 // nor redirect it.
@@ -160,7 +194,15 @@ func derive(resolvedConfig string, relay Origin) (*Policy, error) {
 	if _, err := ParseOrigin(relay.String()); err != nil {
 		return nil, fmt.Errorf("the pinned relay origin: %w", err)
 	}
-	set := map[string]bool{relay.Host: true}
+	return deriveFrom(resolvedConfig, []Origin{relay})
+}
+
+// deriveFrom is derive with the platform's pinned origins stated explicitly (none for a Shield domain).
+func deriveFrom(resolvedConfig string, pinned []Origin) (*Policy, error) {
+	set := map[string]bool{}
+	for _, o := range pinned {
+		set[o.Host] = true
+	}
 	p := &Policy{}
 	if strings.TrimSpace(resolvedConfig) != "" {
 		var doc any
