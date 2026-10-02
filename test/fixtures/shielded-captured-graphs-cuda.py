@@ -16,11 +16,6 @@ import subprocess
 import sys
 import time
 
-binary, gpu, out = sys.argv[1:]
-if not re.fullmatch(r'GPU-[0-9a-f-]{36}', gpu):
-    raise ValueError('explicit GPU UUID required')
-out = Path(out)
-out.mkdir(mode=0o700)
 K, N, GROUPS, MAX_M = 32, 16, 262, 8
 weights = [[[((g*3+j*5+k*7) % 15)-7 for k in range(K)] for j in range(N)] for g in range(GROUPS)]
 weight_bytes = bytes(v & 255 for matrix in weights for row in matrix for v in row)
@@ -89,7 +84,7 @@ class Link:
         self.cells += len(expected)
 
 
-def run(limit, packing):
+def run(limit, packing, *, binary, gpu, out):
     # The bind-and-release chooses a candidate only. Readiness below requires
     # our worker's successful bind; a race/occupied port fails without probing it.
     with socket.socket() as candidate:
@@ -174,8 +169,18 @@ def run(limit, packing):
                     p.wait(timeout=5)
 
 
-results = []
-for packing in ('epilogue', 'kernel', 'cpu'):
-    for limit in (256, 2048):
-        results.append(run(limit, packing))
-(out/'result.json').write_text(json.dumps(results, indent=2)+'\n')
+def main():
+    binary, gpu, out = sys.argv[1:]
+    if not re.fullmatch(r'GPU-[0-9a-f-]{36}', gpu):
+        raise ValueError('explicit GPU UUID required')
+    out = Path(out)
+    out.mkdir(mode=0o700)
+    results = []
+    for packing in ('epilogue', 'kernel', 'cpu'):
+        for limit in (256, 2048):
+            results.append(run(limit, packing, binary=binary, gpu=gpu, out=out))
+    (out/'result.json').write_text(json.dumps(results, indent=2)+'\n')
+
+
+if __name__ == '__main__':
+    main()

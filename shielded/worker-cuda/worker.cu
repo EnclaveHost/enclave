@@ -1780,7 +1780,7 @@ struct Conn {
      * per 0.5B gate|up exchange against issuing the copy and the launch
      * separately. The captured pointers are h_in, d_x and h_out, so the cache
      * is dropped whenever any of them is reallocated. Default capacity is
-     * still 256; SHIELDED_GRAPH_CACHE_ENTRIES (1..4096) permits larger models
+     * SH_GRAPH_CACHE_DEFAULT; SHIELDED_GRAPH_CACHE_ENTRIES (1..4096) permits larger models
      * to retain a complete pass and its row-width variants. Capacity changes
      * are experimental until measured with the actual model and worker. */
     CapturedGraphs<cudaGraphExec_t, DestroyCapturedGraph> graphs{g_graph_cache_entries};
