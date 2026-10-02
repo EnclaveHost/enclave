@@ -22,12 +22,23 @@ The binary is `/opt/tuna-provider/tuna`; the installed SHA-256 is
 `455c6514af0a95ad861b2f4aa6b71d6cd5e2e3b76dbec6b1db9d9bc4720479ef`.
 Dante is Ubuntu's `dante-server` package, version `1.4.4+dfsg-1build1`.
 
-The units and private proxy are installed. **Public provider activation is
-pending selection of a native NKN beneficiary.** No provider funding transaction
-or public subscription has been made. The old Enclave relay services remain
-disabled. The private proxy has passed public HTTPS and negative destination
-tests for loopback, the server's own IPv4/IPv6, metadata, and an unauthorized
-local user.
+Both public services are active and enabled on boot as of 2026-10-02. The old
+Enclave relay services remain disabled. The provider identity is
+`119f60a60d323d4bf689e610cbd97fc7f4eec769b33dd8ed2d736cb891569c46`.
+Revenue is paid to `NKNNBs8F14nnfH4RZvKfM9PB5MVT7w87AgMn`, whose spending key
+is kept off us-west. Its separate operational wallet is
+`NKNJmMyrYdDscEHwBNfmer7EysiHL1N1rN2V`, initially funded with 0.05 NKN
+(plus 0.001 NKN transfer fee).
+The collection wallet received a confirmed 0.012838 NKN payment from the
+synthetic traffic test. This is test funding, not third-party revenue.
+
+Live acceptance passed reverse TCP echo on ports 80 and 443 through an
+independent guard; reverse UDP echo (five of five replies); public HTTPS through
+paid SOCKS; and a SHA-256-verified 40 MiB echo payload (80 MiB of billed traffic).
+SOCKS refused loopback, private networks, metadata, and the server's own
+IPv4/IPv6. An unauthorized local user could not access the proxy.
+RISC Box automatically selected this provider as its second public route; its
+`/ping` returned HTTPS 200 when explicitly routed through `5.78.85.108`.
 
 ## Configuration and activation
 
@@ -35,7 +46,7 @@ Create system accounts `tuna-provider` and `tuna-proxy`. Store the provider's
 encrypted operational wallet and password in `/etc/tuna-provider/identity`,
 readable only by root and `tuna-provider`. Keep a local backup. The operational
 wallet pays subscription fees; its key need not be the beneficiary's spending
-key. The beneficiary can be a separate native NKN wallet kept off this server.
+key. The beneficiary is a separate native NKN wallet kept off this server.
 
 An Ethereum `0x...` address cannot receive native NKN payments. The requested
 eventual Ethereum destination is
