@@ -74,8 +74,16 @@ func main() {
 	for service, response := range inventory {
 		for id, raw := range response.Result.Subscribers {
 			m, e := tuna.ReadMetadata(raw)
-			if e != nil || m.Ip == "" || m.BeneficiaryAddr == "" {
+			if e != nil || m.Ip == "" {
 				continue
+			}
+			if m.BeneficiaryAddr == "" {
+				// The SDK pays the wallet derived from the provider's NKN key
+				// when its advertisement does not override the beneficiary.
+				m.BeneficiaryAddr, e = nkn.ClientAddrToWalletAddr(id)
+				if e != nil {
+					continue
+				}
 			}
 			n := nodes[id]
 			if n == nil {

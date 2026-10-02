@@ -43,18 +43,28 @@ export async function verifyBlock(cidText,bytes) {
  if(!cid.equals(computed))throw new Error('route block CID mismatch');
  return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
 }
-export async function resolveDiscovery({name,readers,readBlock,verifyBundle,memory}) {
- if(!Array.isArray(readers)||!readers.length||readers.length>8)throw new Error('1..8 independent discovery readers required');
- const attempts=await Promise.allSettled(readers.map(async read=>verifyIPNS(name,await read(name))));
+export async function resolveDiscovery({name,readers=[],backupReaders=[],readBlock,verifyBundle,memory}) {
+ if(!Array.isArray(readers)||!Array.isArray(backupReaders)||!readers.length&&!backupReaders.length||readers.length+backupReaders.length>8)throw new Error('1..8 independent discovery readers required');
+ const attempts=await Promise.allSettled([
+  ...readers.map(async read=>({name,...await verifyIPNS(name,await read(name))})),
+  ...backupReaders.map(async read=>{
+   const copy=await read(name);
+   if(!copy||typeof copy.name!=='string'||name&&copy.name!==name||typeof copy.block!=='string'||copy.block.length>44000||typeof copy.ipns!=='string'||copy.ipns.length>14000)throw new Error('invalid discovery copy');
+   const pointer=await verifyIPNS(copy.name,Buffer.from(copy.ipns,'base64'));
+   if(pointer.cid!==copy.cid)throw new Error('discovery pointer CID mismatch');
+   return {name:copy.name,...pointer,bytes:Buffer.from(copy.block,'base64')};
+  })
+ ]);
  const candidates=attempts.filter(a=>a.status==='fulfilled').map(a=>a.value).sort((a,b)=>a.sequence>b.sequence?-1:a.sequence<b.sequence?1:b.expiresAt-a.expiresAt);
- const previous=await memory.get(name);
  for(const candidate of candidates){
-  if(previous&&candidate.sequence<BigInt(previous.sequence))continue;
   try{
-   const bundle=await verifyBlock(candidate.cid,await readBlock(candidate.cid));
-   if(bundle.authorization?.delegation?.ipns!==name)throw new Error('record is for another IPNS name');
+   const previous=await memory.get(candidate.name);
+   if(previous&&candidate.sequence<BigInt(previous.sequence))continue;
+   const bundle=await verifyBlock(candidate.cid,candidate.bytes||await readBlock(candidate.cid));
+   if(bundle.authorization?.delegation?.ipns!==candidate.name)throw new Error('record is for another IPNS name');
    const verified=await verifyBundle(bundle);
-   await memory.update(name,old=>{
+   if(BigInt(bundle.record.sequence)!==candidate.sequence||bundle.record.expiresAt>candidate.expiresAt)throw new Error('route and IPNS sequence or lifetime mismatch');
+   await memory.update(candidate.name,old=>{
     if(old&&(candidate.sequence<BigInt(old.sequence)||(candidate.sequence===BigInt(old.sequence)&&candidate.cid!==old.cid)))throw new Error('IPNS rollback or equivocation');
     return {sequence:String(candidate.sequence),cid:candidate.cid};
    });
@@ -74,7 +84,7 @@ export async function publishDiscovery(encoded,{blockStores,ipnsPublishers,publi
  const publishers=await Promise.allSettled(ipnsPublishers.map(put=>put(encoded.name,encoded.ipns)));
  // An authenticated inline copy on NKN lets a client reconstruct and CID-check
  // the small block even when all configured HTTP gateways are unreachable.
- const backup=await publishBackup({name:encoded.name,cid:encoded.cid,block:encoded.bytes.toString('base64')});
+ const backup=await publishBackup({name:encoded.name,cid:encoded.cid,block:encoded.bytes.toString('base64'),ipns:Buffer.from(encoded.ipns).toString('base64')});
  if(!publishers.some(r=>r.status==='fulfilled'))throw new Error('IPNS announcement failed; signed backup was retained');
  return {cid:encoded.cid,name:encoded.name,stores:stores.filter(r=>r.status==='fulfilled').length,publishers:publishers.filter(r=>r.status==='fulfilled').length,backup};
 }

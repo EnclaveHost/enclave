@@ -14,10 +14,10 @@ async function freePort(host){const s=net.createServer();await new Promise((r,j)
 const writeJSON=(file,value)=>fs.writeFile(file,JSON.stringify(value),{mode:0o600,flag:'wx'});
 
 export class LinuxCircuitRuntime {
-  constructor({directory,binary,image,network,gateway,rpc,authorize,forward,log=()=>{}}) {
+  constructor({directory,binary,image,network,gateway,rpc,authorize,forward,discovery=true,log=()=>{}}) {
     if(process.platform!=='linux'||process.getuid()!==1000)throw new Error('Linux circuit runtime requires the dedicated uid 1000 service account');
     if(!net.isIPv4(gateway)||!/^enclave-[a-z0-9-]+$/.test(network)||!image||!path.isAbsolute(directory)||!path.isAbsolute(binary))throw new Error('explicit runtime paths and network required');
-    Object.assign(this,{directory,binary,image,network,gateway,rpc,authorize,forward,log});
+    Object.assign(this,{directory,binary,image,network,gateway,rpc,authorize,forward,discovery,log});
   }
   async start({deploymentId,names,providers,wallets,maxPrice}) {
     const id=randomBytes(16).toString('hex'),dir=path.join(this.directory,id),privateDir=path.join(dir,'worker');
@@ -33,6 +33,7 @@ export class LinuxCircuitRuntime {
       await execute('docker',['rm','-f',name],{timeout:15000}).catch(()=>{});
       await broker?.close();if(socketDirectory)await fs.rm(socketDirectory,{recursive:true,force:true});circuit.emit('down',reason||'closed');
     };
+    circuit.publishDiscovery=value=>{if(circuit.closed||!child?.stdin.writable)throw new Error('circuit closed');child.stdin.write(JSON.stringify({type:'discovery',value})+'\n');};
     circuit.admit=expiresAt=>{if(!circuit.closed&&child?.stdin.writable)child.stdin.write(JSON.stringify({type:'admission',expiresAt})+'\n');if(expiresAt<=Date.now()){broker?.revoke();for(const socket of egressSockets)socket.destroy();}};
     try{
       const guardPort=await freePort(this.gateway);
@@ -60,7 +61,7 @@ export class LinuxCircuitRuntime {
       await guard.start();
       if(circuit.closed)throw new Error('guard failed');
       await writeJSON(path.join(privateDir,'worker.json'),{deploymentId,names,providers,binary:'/opt/enclave-tuna/enclave-tuna',appSocket:'/run/app/app.sock',
-        publicConfig:'/etc/circuit/public.json',egressConfig:'/etc/circuit/egress.json'});
+        publicConfig:'/etc/circuit/public.json',egressConfig:'/etc/circuit/egress.json',...(this.discovery?{discoveryBinary:'/opt/enclave-tuna/enclave-route-discovery'}:{})});
       const ready=new Promise((resolve,reject)=>{
         readyReject=reject;readyTimer=setTimeout(()=>reject(new Error('guarded worker startup timeout')),180000);
         child=spawn('docker',['run','--rm','-i','--name',name,'--network',this.network,'--read-only','--security-opt','no-new-privileges',

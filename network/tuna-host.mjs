@@ -20,6 +20,7 @@ export function clientHelloName(buf) {
     const sid = buf[p++]; p += sid;
     const cipher = buf.readUInt16BE(p); p += 2 + cipher;
     const comp = buf[p++]; p += comp;
+    if (p === end) return ''; // valid ClientHello with no extensions/SNI
     const extEnd = p + 2 + buf.readUInt16BE(p); p += 2;
     if (extEnd !== end) return false;
     while (p + 4 <= end) {
@@ -34,6 +35,7 @@ export function clientHelloName(buf) {
       }
       p += len;
     }
+    if (p === end) return ''; // valid extensions, with no server_name
   } catch {}
   return false;
 }

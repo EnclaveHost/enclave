@@ -99,6 +99,7 @@ import { createShieldMarketplace } from "./shield-marketplace.mjs";
 import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson } from "./measurement-predict.mjs";
 import { createTunnelHub } from "./tunnel.js";
 import { createTunaRoutes } from "./tuna-routes.mjs";
+import {DurableState} from '../network/durable-state.mjs';
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
 import { pvmCpuPolicyFromEnv, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
 import { VBS_DEFAULT_EK_ROOTS } from "./vbs-policy.mjs";
@@ -2248,6 +2249,13 @@ const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostE
 
 tunaRoutes = createTunaRoutes({
   operatorOf: endpoint => relayCtx.operatorOfEndpoint(endpoint), endpointId,
+  memory: new DurableState(process.env.TUNA_ROUTE_STATE_DIR || '/var/lib/enclave-relay/tuna-route-state'),
+  leaseOf: async id => {
+    const d=(await ledgerRows()).find(d=>String(d.id).toLowerCase()===id);
+    if(!d||_ledger.at+30000<=Date.now())return null;
+    return {...d,id:String(d.id).toLowerCase(),runner:String(d.runner).toLowerCase(),chainId:8453,deployments:DEPLOYMENTS_ADDRESS,
+      leaseUntil:Number(d.leaseUntil)*1000,validUntil:Math.min(Number(d.leaseUntil)*1000,_ledger.at+30000)};
+  },
   eligible: d => {
     const row = live.find(e => String(e.id || "").toLowerCase() === String(d.runner).toLowerCase());
     return !!row && (isOwnerOnlyRow(row) ? servesDeploymentUntil(row, d) * 1000 : computeEligible(row));

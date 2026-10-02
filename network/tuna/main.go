@@ -233,7 +233,7 @@ func runRoute(ctx context.Context, c config, r route, w *nkn.Wallet, client *nkn
 			connected = entry.OnConnect.C
 			allocation = func() event {
 				m := entry.GetMetadata()
-				return event{Type: "ready", ID: r.ID, Address: m.Ip, TCP: entry.GetTCPPorts(), Price: m.Price, Beneficiary: m.BeneficiaryAddr, Provider: entry.GetRemoteNknAddress()}
+				return event{Type: "ready", ID: r.ID, Address: m.Ip, TCP: entry.GetTCPPorts(), Price: m.Price, Beneficiary: paymentBeneficiary(m.BeneficiaryAddr, entry.GetRemoteNknAddress()), Provider: entry.GetRemoteNknAddress()}
 			}
 			go func() { done <- entry.Start(false) }()
 		} else {
@@ -246,7 +246,7 @@ func runRoute(ctx context.Context, c config, r route, w *nkn.Wallet, client *nkn
 			connected = exit.OnConnect.C
 			allocation = func() event {
 				m := exit.GetMetadata()
-				return event{Type: "ready", ID: r.ID, Address: exit.GetReverseIP().String(), TCP: exit.GetReverseTCPPorts(), UDP: exit.GetReverseUDPPorts(), Price: m.Price, Beneficiary: m.BeneficiaryAddr, Provider: exit.GetRemoteNknAddress()}
+				return event{Type: "ready", ID: r.ID, Address: exit.GetReverseIP().String(), TCP: exit.GetReverseTCPPorts(), UDP: exit.GetReverseUDPPorts(), Price: m.Price, Beneficiary: paymentBeneficiary(m.BeneficiaryAddr, exit.GetRemoteNknAddress()), Provider: exit.GetRemoteNknAddress()}
 			}
 			go func() { done <- exit.StartReverse(false) }()
 		}
@@ -417,4 +417,16 @@ func main() {
 			}
 		}
 	}
+}
+
+// Mirror the pinned SDK's actual payment receiver when metadata omits an override.
+func paymentBeneficiary(explicit, provider string) string {
+	if explicit != "" {
+		return explicit
+	}
+	address, err := nkn.ClientAddrToWalletAddr(provider)
+	if err != nil {
+		return ""
+	}
+	return address
 }

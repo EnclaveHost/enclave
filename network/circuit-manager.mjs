@@ -6,7 +6,7 @@ const roles=['guard','public','egress'];
 const sameProviders=(a,b)=>roles.every(role=>a[role].identity===b[role].identity&&a[role].address===b[role].address&&a[role].beneficiary===b[role].beneficiary&&a[role].asn===b[role].asn);
 export class CircuitManager extends EventEmitter {
   constructor({runtime,admission,inventory,wallets,probe,publish,now=Date.now,log=()=>{}}) {
-    super();Object.assign(this,{runtime,admission,inventory,wallets,probe,publish,now,log});this.apps=new Map();this.cooldown=new Map();this.closed=false;this.busy=false;
+    super();Object.assign(this,{runtime,admission,inventory,wallets,probe,publish,now,log});this.apps=new Map();this.cooldown=new Map();this.closed=false;this.busy=false;this.publications=new Map();
   }
   async configure(apps) {
     const next=new Map(),walletOwners=new Map();
@@ -30,12 +30,12 @@ export class CircuitManager extends EventEmitter {
   }
   authorizationUntil(id) {
     if(!this.admission.allows(id))return 0;
-    return Math.min(this.admission.leases.get(id).validUntil,this.admission.proofs.get(id).validUntil);
+    const expiry=Math.min(this.admission.leases.get(id).validUntil,this.admission.proofs.get(id).validUntil);return expiry>this.now()?expiry:0;
   }
   async withdraw(app,reason) {
     const old=app.circuits.splice(0);app.error=reason;
     for(const circuit of old){circuit.healthy=false;circuit.admit(0);}
-    await this.publish(app.id,[]).catch(e=>this.log(`route withdrawal: ${e.message}`));
+    await this.publishApp(app).catch(e=>this.log(`route withdrawal: ${e.message}`));
     await Promise.all(old.map(c=>c.close(reason)));
   }
   async fail(app,circuit,reason) {
@@ -43,13 +43,18 @@ export class CircuitManager extends EventEmitter {
     circuit.healthy=false;app.circuits=app.circuits.filter(c=>c!==circuit);circuit.admit(0);
     // A failure cannot cause an immediate retry of the same set of providers.
     for(const role of roles)this.cooldown.set(circuit.providers[role].identity,this.now()+60000);
-    app.error=reason;
+    app.error=reason;app.lastFailure={at:this.now(),circuit:circuit.id,reason};this.log(`app ${app.id.slice(0,10)} circuit ${circuit.id}: ${reason}`);
     await this.publishApp(app).catch(e=>this.log(`route withdrawal: ${e.message}`));
     await circuit.close(reason);
   }
   async publishApp(app) {
-    const routes=this.authorizationUntil(app.id)>this.now()?app.circuits.filter(c=>c.healthy).map(c=>({circuit:c.id,address:c.address,port:443,transport:'tuna-guarded-tcp'})):[];
-    await this.publish(app.id,routes);this.emit('change',this.status());
+    // Compute the current set when this write runs, not when it was queued.
+    // A delayed successful probe can never republish a failed/withdrawn route.
+    const operation=(this.publications.get(app.id)||Promise.resolve()).catch(()=>{}).then(async()=>{
+      const routes=!this.closed&&this.authorizationUntil(app.id)>this.now()?app.circuits.filter(c=>c.healthy&&!c.closed).map(c=>({circuit:c.id,address:c.address,port:443,transport:'tuna-guarded-tcp'})):[];
+      await this.publish(app.id,routes);this.emit('change',this.status());
+    });
+    this.publications.set(app.id,operation);return operation;
   }
   enforceAdmission() {
     for(const app of this.apps.values()){
@@ -96,7 +101,7 @@ export class CircuitManager extends EventEmitter {
             app.circuits.push(circuit);await this.publishApp(app);
           }catch(e){
             for(const role of roles)this.cooldown.set(providers[role].identity,this.now()+60000);
-            if(circuit)await circuit.close(e.message);app.error=e.message;this.log(`app ${app.id.slice(0,10)}: ${e.message}`);
+            if(circuit){if(app.circuits.includes(circuit))await this.fail(app,circuit,e.message);else await circuit.close(e.message);}app.error=e.message;this.log(`app ${app.id.slice(0,10)}: ${e.message}`);
           }
         }
         app.error=app.circuits.length===2?null:app.error||'second independent circuit unavailable';
@@ -104,6 +109,6 @@ export class CircuitManager extends EventEmitter {
     }finally{this.busy=false;}
   }
   status() {return [...this.apps.values()].map(app=>({deploymentId:app.id,ready:app.circuits.length===2&&app.circuits.every(c=>c.healthy)&&!!this.authorizationUntil(app.id),
-    error:app.error,circuits:app.circuits.map(c=>({id:c.id,address:c.address,port:c.port,healthy:c.healthy,egress:c.egress}))}));}
+    error:app.error,lastFailure:app.lastFailure||null,circuits:app.circuits.map(c=>({id:c.id,address:c.address,port:c.port,healthy:c.healthy,egress:c.egress}))}));}
   async close() {this.closed=true;await Promise.all([...this.apps.values()].map(app=>this.withdraw(app,'manager stopped')));}
 }

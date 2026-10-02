@@ -153,9 +153,10 @@ async function pollTunaMap() {
   const next = new Map();
   for (const [label, v] of Object.entries(j.labels)) {
     if (!/^[0-9a-z]{1,63}$/.test(label) || !v || typeof v !== "object") continue;
-    const a    = v.a    ? ipv4Bytes(String(v.a))     : null;
-    const aaaa = v.aaaa ? ipv6Bytes(String(v.aaaa))  : null;
-    if (!a && !aaaa) continue;                 // no current provider address
+    const addresses=Array.isArray(v.addresses)?v.addresses.slice(0,2):[v.a,v.aaaa].filter(Boolean);
+    const a=addresses.map(value=>ipv4Bytes(String(value))).filter(Boolean);
+    const aaaa=addresses.map(value=>ipv6Bytes(String(value))).filter(Boolean);
+    if (!a.length && !aaaa.length) continue;                 // no current provider address
     if (!Number.isSafeInteger(v.expiresAt) || v.expiresAt <= Date.now()) continue;
     next.set(label, { a, aaaa, expiresAt: v.expiresAt, relay: "tuna" });
   }
@@ -299,8 +300,9 @@ function resolveApp(qname, qtype) {
   const pick = sub.includes(".") ? null : appRoutes.get(sub);
   if (!pick || pick.expiresAt <= Date.now()) return NODATA(APP_ZONE);
   const an = [];
-  if ((qtype === T.A    || qtype === T.ANY) && pick.a)    an.push(rr(qname, T.A,    TUNA_TTL, pick.a));
-  if ((qtype === T.AAAA || qtype === T.ANY) && pick.aaaa) an.push(rr(qname, T.AAAA, TUNA_TTL, pick.aaaa));
+  const ttl=Math.min(TUNA_TTL,Math.max(0,Math.floor((pick.expiresAt-Date.now())/1000)));
+  if (qtype === T.A || qtype === T.ANY) for(const address of pick.a) an.push(rr(qname,T.A,ttl,address));
+  if (qtype === T.AAAA || qtype === T.ANY) for(const address of pick.aaaa) an.push(rr(qname,T.AAAA,ttl,address));
   return an.length ? HIT(an) : NODATA(APP_ZONE);
 }
 

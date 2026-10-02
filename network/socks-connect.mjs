@@ -34,13 +34,13 @@ export async function connectSOCKS(proxy,host,port,{signal=AbortSignal.timeout(1
   }catch(e){socket.destroy();throw e;}finally{signal.removeEventListener('abort',abort);}
 }
 export class SocksHttpsAgent extends https.Agent {
-  constructor(proxy){super({keepAlive:false,maxSockets:16});this.proxy=proxy;}
+  constructor(proxy,{tlsOptions={},verifyPeer}={}){super({keepAlive:false,maxSockets:16});this.proxy=proxy;this.tlsOptions=tlsOptions;this.verifyPeer=verifyPeer;}
   createConnection(options,callback){
     connectSOCKS(this.proxy,options.host,Number(options.port||443)).then(socket=>{
-      const connection=tls.connect({...options,socket});let settled=false;
+      const connection=tls.connect({...options,...this.tlsOptions,socket});let settled=false;
       const done=(error)=>{if(settled)return;settled=true;clearTimeout(timer);if(error){connection.destroy();callback(error);}else callback(null,connection)};
       const timer=setTimeout(()=>done(new Error('TLS handshake timeout')),15000);
-      connection.once('secureConnect',()=>done());connection.once('error',done);
+      connection.once('secureConnect',()=>{try{this.verifyPeer?.(connection);done();}catch(e){done(e);}});connection.once('error',done);
     },callback);
   }
 }

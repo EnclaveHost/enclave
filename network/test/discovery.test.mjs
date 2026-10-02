@@ -20,3 +20,12 @@ test('a blocked reader and corrupt block cannot override a verified record or ro
  assert.equal((await resolveDiscovery(options)).sequence,2);
  await assert.rejects(resolveDiscovery({...options,readers:[async()=>old.ipns]}),/no independently verified/);
 });
+
+test('NKN inline record resolves without gateways and still rejects tampered content',async t=>{
+ const dir=await mkdtemp(path.join(os.tmpdir(),'route-backup-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const seed=randomBytes(32),{name}=await namingKey(seed),bundle={authorization:{delegation:{ipns:name}},record:{sequence:1,expiresAt:Date.now()+60000}};
+ const e=await encodeDiscovery(bundle,seed),copy={name,cid:e.cid,block:e.bytes.toString('base64'),ipns:Buffer.from(e.ipns).toString('base64')};
+ const options={memory:new DurableState(dir),readers:[],backupReaders:[async()=>copy],verifyBundle:async b=>b.record,readBlock:async()=>{throw Error('all gateways blocked');}};
+ assert.equal((await resolveDiscovery(options)).sequence,1);
+ await assert.rejects(resolveDiscovery({...options,backupReaders:[async()=>({...copy,block:Buffer.from('{}').toString('base64')})]}),/no independently verified/);
+});

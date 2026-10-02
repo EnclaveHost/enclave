@@ -17,3 +17,14 @@ test('a complete guest TLS handshake and bytes traverse app-bound IPC without lo
  const received=new Promise(r=>client.once('data',r));client.write('app-bound TLS');assert.equal((await received).toString(),'app-bound TLS');
  const closed=new Promise(r=>client.once('close',r));allowed=false;broker.revoke();await closed;assert.equal(client.destroyed,true);
 });
+
+test('only an app-bound listener accepts SNI-less TLS; foreign SNI is refused',async t=>{
+ const id='0x'+'ab'.repeat(32);let forwarded=0;
+ const ingress=await createAppIngress({deploymentId:id,names:['app.example'],allowNoSni:true,authorize:()=>true,forward:socket=>{forwarded++;socket.destroy();}});t.after(()=>ingress.close());
+ const attempt=servername=>new Promise(resolve=>{const socket=tls.connect({host:'127.0.0.1',port:ingress.port,servername});socket.on('error',()=>{});socket.once('close',resolve);});
+ await attempt('');assert.equal(forwarded,1);
+ await attempt('another-app.example');assert.equal(forwarded,1);
+ await attempt('app.example');assert.equal(forwarded,2);
+ const strict=await createAppIngress({deploymentId:id,names:['app.example'],authorize:()=>true,forward:socket=>{forwarded++;socket.destroy();}});t.after(()=>strict.close());
+ await new Promise(resolve=>{const socket=tls.connect({host:'127.0.0.1',port:strict.port,servername:''});socket.on('error',()=>{});socket.once('close',resolve);});assert.equal(forwarded,2);
+});
