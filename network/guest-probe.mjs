@@ -14,12 +14,21 @@ function get(hostname,address,path,agent,pin){return new Promise((resolve,reject
   res.once('error',reject);res.once('end',()=>resolve({status:res.statusCode,spki,bytes:Buffer.concat(chunks)}));
  });req.once('timeout',()=>req.destroy(new Error('guest probe timeout')));req.once('error',reject);
 });}
+const GUEST_BUSY=/attestation busy; retry|too many concurrent report requests/,GUEST_BUSY_RETRIES=5;
 export async function probeGuest({deploymentId,hostname,address,proxy,expected,linux,shield,hostSession,localUpstream,openApp,domainIndependent=false,verifySnp=judge}){
  if([proxy,localUpstream,openApp].filter(Boolean).length!==1)throw new Error('guest probes require exactly one guarded or local app transport');
  const agent=(localUpstream||openApp)?new LocalAppHttpsAgent(localUpstream,deploymentId,{openApp}):new SocksHttpsAgent(proxy,domainIndependent?{tlsOptions:{rejectUnauthorized:false,servername:''}}:{}),nonce=randomBytes(32);
  address=(localUpstream||openApp)?'127.0.0.1':address;
  try{
-  const response=await get(hostname,address,'/.well-known/enclave-attestation?nonce='+nonce.toString('hex'),agent);
+  // A Shield guest makes one TPM report at a time (~3 s) and answers any other
+  // request meanwhile with HTTP 500 "busy; retry"; Nan and clients ask too, so
+  // that answer is waited out rather than counted against the route.
+  let response;
+  for(let attempt=0;;attempt++){
+    response=await get(hostname,address,'/.well-known/enclave-attestation?nonce='+nonce.toString('hex'),agent);
+    if(response.status!==500||attempt>=GUEST_BUSY_RETRIES||!GUEST_BUSY.test(response.bytes.subarray(0,512).toString('utf8')))break;
+    await new Promise(r=>setTimeout(r,1000+Math.floor(Math.random()*2500)));
+  }
   if(response.status!==200)throw new Error('guest attestation HTTP '+response.status);
   const doc=JSON.parse(response.bytes);
   if(doc.nonce!==nonce.toString('hex')||doc.transportKey!==response.spki.toString('base64')||doc.appSha256!==expected.appSha256)throw new Error('app, nonce or TLS binding mismatch');

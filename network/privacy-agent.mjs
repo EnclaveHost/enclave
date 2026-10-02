@@ -103,6 +103,8 @@ export async function runPrivacy(configFile){
     authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:guestd?guestd.forward:localAppForwarder(cfg.upstream),log});
   const inventory=new ProviderInventory({...cfg.inventory,rpc:cfg.nknRpc,log});
   const control=cfg.control?new ControlTransport({network:cfg.runtime.network,...cfg.control,directory:path.join(cfg.directory,'control'),inventory,rpc:cfg.nknRpc,wallets:await readJSON(cfg.control.walletsFile),log}):null;
+  const queues=new Map();
+  const serialized=(id,fn)=>{const run=(queues.get(id)||Promise.resolve()).then(fn,fn);const tail=run.catch(()=>{});queues.set(id,tail);void tail.then(()=>{if(queues.get(id)===tail)queues.delete(id);});return run;};
   let stopping=false;
   const close=()=>{stopping=true;hostProof?.close();void Promise.all([agent?.close(),control?.close(),runtime.close()]).catch(e=>log(e.message));};
   process.once('SIGTERM',close);process.once('SIGINT',close);
@@ -152,9 +154,11 @@ export async function runPrivacy(configFile){
       for(const origin of cfg.ipnsRouters||[])tasks.push(delegatedIPNS(origin,circuits[0].egress).publish(value.name,value.ipns));
       const results=await Promise.allSettled(tasks);for(const r of results)if(r.status==='rejected')log('optional discovery transport: '+r.reason.message);
     },
-    probe:async(id,expected,circuit)=>probeGuest({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],expected,
+    // One attestation request per app at a time (a Shield guest serves one TPM
+    // report at a time): local proofs and route probes queue behind each other.
+    probe:async(id,expected,circuit)=>serialized(id,async()=>probeGuest({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],expected,
       ...(windows?{shield,hostSession:await hostProof.get()}:{linux:{...linux,measurement:expected.measurement,release:expected.release},verifySnp}),
-      ...(circuit?{address:circuit.address,proxy:circuit.isolation.guardAddress}:guestd?{openApp:id=>guestd.open(id)}:{localUpstream:cfg.upstream})})});
+      ...(circuit?{address:circuit.address,proxy:circuit.isolation.guardAddress}:guestd?{openApp:id=>guestd.open(id)}:{localUpstream:cfg.upstream})}))});
   // A public provider address holds one HTTPS allocation. Every address already
   // routed for another app (any host, from Nan's public map) is skipped when
   // choosing, so this host does not wait out allocation timeouts against it.
