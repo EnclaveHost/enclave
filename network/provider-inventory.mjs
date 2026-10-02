@@ -29,11 +29,23 @@ export class ProviderInventory {
       const [{stdout},metadata,health]=await Promise.all([this.runCommand(this.binary,['--rpc',this.rpc.join(',')],{timeout:35000,maxBuffer:4*1024*1024}),this.asns.read(),this.health.get('provider-health')]);
       const nodes=JSON.parse(stdout);if(!Array.isArray(nodes)||nodes.length>10000)throw new Error('invalid provider inventory');
       void this.asns.refresh(nodes).catch(e=>this.log('ASN refresh: '+e.message));
+      const counted=h=>h&&h.updatedAt+7*86400000>this.now()&&Number.isSafeInteger(h.successes)&&Number.isSafeInteger(h.failures)&&h.successes>=0&&h.failures>=0&&h.successes+h.failures>0;
+      // Failures cluster by network and role (a whole ASN can refuse reverse
+      // allocations). An untried node starts from its network's record for
+      // that role instead of a neutral prior, so selection stops walking a
+      // dead network one node at a time. A node's own record still wins.
+      const networks={};
+      for(const[key,h]of Object.entries(health||{})){
+        const role=key.split(':')[0],asn=metadata[h?.address]?.asn;
+        if(!['guard','public','egress'].includes(role)||!counted(h)||!Number.isSafeInteger(asn))continue;
+        const v=(networks[role+':'+asn]??={successes:0,failures:0});v.successes+=h.successes;v.failures+=h.failures;
+      }
       this.nodes=nodes.map(n=>{
-        const outcomes={};
+        const outcomes={},asn=metadata[n.address]?.asn;
         for(const role of ['guard','public','egress']){
-          const h=health?.[role+':'+n.identity],valid=h&&h.address===n.address&&h.beneficiary===n.beneficiary&&h.updatedAt+7*86400000>this.now()&&Number.isSafeInteger(h.successes)&&Number.isSafeInteger(h.failures)&&h.successes>=0&&h.failures>=0&&h.successes+h.failures>0;
-          outcomes[role]={successRate:valid?h.successes/(h.successes+h.failures):0.5,...(valid&&Number.isFinite(h.latencyMs)?{latencyMs:h.latencyMs}:{})};
+          const h=health?.[role+':'+n.identity],valid=counted(h)&&h.address===n.address&&h.beneficiary===n.beneficiary;
+          const group=Number.isSafeInteger(asn)?networks[role+':'+asn]:undefined,trials=group?group.successes+group.failures:0;
+          outcomes[role]={successRate:valid?h.successes/(h.successes+h.failures):0.5,known:!!valid,...(trials>=3?{networkRate:(group.successes+1)/(trials+2)}:{}),...(valid&&Number.isFinite(h.latencyMs)?{latencyMs:h.latencyMs}:{})};
         }
         return {...n,asn:metadata[n.address]?.asn,verifiedOperator:metadata[n.address]?.verifiedOperator,outcomes};
       });
