@@ -552,6 +552,10 @@ func (m *monitor) start(d *domain, app []byte) error {
 		if err := os.WriteFile(filepath.Join(d.dir, "secret.id"), []byte(d.SecretDeployment), 0444); err != nil {
 			return fail(err)
 		}
+		// the resolver files its egress needs (writeDomainEtc): /etc/hosts is the FRONT's to fill, never the runtime's
+		if err := writeDomainEtc(d.dir, d.FrontUID); err != nil {
+			return fail(err)
+		}
 	}
 	if err := writeAppConfig(d.dir, d.AppConfig); err != nil {
 		return fail(err)
@@ -1622,6 +1626,39 @@ func (d *domain) frontPath(name string) string {
 }
 
 // The monitor owns the domain root. No host-supplied path or environment selects this file.
+// writeDomainEtc gives a SECRET domain the resolver files its outbound HTTPS needs (m2/front shield_egress.go):
+//   - etc/ root's, 0755: no domain uid can add a file to it (a resolv.conf, a second hosts);
+//   - etc/nsswitch.conf root's, 0444, "hosts: files": the only resolver is /etc/hosts (a domain has no DNS, no NIC);
+//   - etc/hosts the FRONT's uid, 0644: once the release is verified the front writes the allowed names there, each on its
+//     own forwarder's loopback address. The runtime (another uid) can read it and cannot change it, so a compromised
+//     runtime cannot point an allowed name anywhere else, and an unlisted name simply does not resolve.
+//
+// Until the front writes it, it names localhost only. A domain without secrets gets no /etc, exactly as before.
+func writeDomainEtc(dir string, frontUID int) error {
+	etc := filepath.Join(dir, "etc")
+	if err := os.Mkdir(etc, 0o755); err != nil {
+		return err
+	}
+	if err := os.Chmod(etc, 0o755); err != nil { // the mode, whatever the umask
+		return err
+	}
+	ns := filepath.Join(etc, "nsswitch.conf")
+	if err := os.WriteFile(ns, []byte("hosts: files\n"), 0o444); err != nil {
+		return err
+	}
+	if err := os.Chmod(ns, 0o444); err != nil {
+		return err
+	}
+	hosts := filepath.Join(etc, "hosts")
+	if err := os.WriteFile(hosts, []byte("127.0.0.1 localhost\n"), 0o644); err != nil {
+		return err
+	}
+	if err := os.Chown(hosts, frontUID, frontUID); err != nil {
+		return err
+	}
+	return os.Chmod(hosts, 0o644)
+}
+
 func writeAppConfig(dir string, config []byte) error {
 	if len(config) == 0 {
 		return nil
