@@ -78,8 +78,10 @@ type Dialer struct {
 	Resolver      Resolver
 	Own           func() []netip.Addr // this host's addresses, read at dial time
 	DialTimeout   time.Duration
-	MaxConcurrent int // per guest
-	MaxPerMinute  int // per guest, dials started
+	MaxConcurrent int                                // per guest
+	MaxPerMinute  int                                // per guest, dials started
+	SOCKSProxy    string                             // optional trusted loopback TUNA entry; failure never falls back to direct
+	RouteFor      func(cid uint32) (AppRoute, error) // when configured, no shared/default route may be used
 	dial          func(ctx context.Context, addr string) (net.Conn, error)
 	mu            sync.Mutex
 	active        map[uint32]int
@@ -162,7 +164,24 @@ func (d *Dialer) Dial(ctx context.Context, cid uint32, host string, port int) (n
 			release()
 		}
 	}()
-	addrs, err := d.Resolver.LookupNetIP(ctx, "ip", host)
+	resolver := d.Resolver
+	proxy := d.SOCKSProxy
+	if d.RouteFor != nil {
+		route, err := d.RouteFor(cid)
+		if err != nil || len(route.Proxies) == 0 || len(route.DNS) == 0 {
+			return nil, nil, refused(ReasonAdmit)
+		}
+		c, e := d.dialAppRoute(ctx, route, host, port)
+		if e != nil {
+			return nil, nil, e
+		}
+		ok = true
+		return c, release, nil
+	}
+	if resolver == nil {
+		return nil, nil, refused(ReasonResolve)
+	}
+	addrs, err := resolver.LookupNetIP(ctx, "ip", host)
 	if err != nil || len(addrs) == 0 {
 		return nil, nil, refused(ReasonResolve)
 	}
@@ -178,6 +197,12 @@ func (d *Dialer) Dial(ctx context.Context, cid uint32, host string, port int) (n
 		}
 	}
 	dial := d.dial
+	proxied := proxy != ""
+	if proxied {
+		dial = func(ctx context.Context, addr string) (net.Conn, error) {
+			return dialSOCKS(ctx, proxy, addr, d.timeout())
+		}
+	}
 	if dial == nil {
 		nd := &net.Dialer{Timeout: d.timeout()}
 		dial = func(ctx context.Context, addr string) (net.Conn, error) { return nd.DialContext(ctx, "tcp", addr) }
@@ -188,10 +213,14 @@ func (d *Dialer) Dial(ctx context.Context, cid uint32, host string, port int) (n
 		if err != nil {
 			continue // the raw error names the address; it is dropped, not logged (DialError)
 		}
-		// and the address the socket actually reached is judged once more
-		if ra, err := netip.ParseAddrPort(c.RemoteAddr().String()); err != nil || RefuseAddr(ra.Addr(), own) != "" {
-			c.Close()
-			return nil, nil, refused(ReasonNonPublicPeer)
+		// Direct sockets expose the destination peer. For SOCKS the peer is the
+		// explicitly configured loopback entry; dialSOCKS sends only the already
+		// judged IP literal, never a hostname that a provider could resolve again.
+		if !proxied {
+			if ra, err := netip.ParseAddrPort(c.RemoteAddr().String()); err != nil || RefuseAddr(ra.Addr(), own) != "" {
+				c.Close()
+				return nil, nil, refused(ReasonNonPublicPeer)
+			}
 		}
 		ok = true
 		return c, release, nil
@@ -236,4 +265,11 @@ func (d *Dialer) take(cid uint32) (func(), error) {
 			d.mu.Unlock()
 		})
 	}, nil
+}
+
+// fixedAnswers prevents a second resolution between policy checks and dialing.
+type fixedAnswers []netip.Addr
+
+func (a fixedAnswers) LookupNetIP(context.Context, string, string) ([]netip.Addr, error) {
+	return []netip.Addr(a), nil
 }
