@@ -110,7 +110,7 @@ export async function runPrivacy(configFile){
   // flag, and any new app. Everything is validated before anything changes; no
   // existing circuit is rebuilt (new names apply to circuits built later).
   // An app dropped from the file is left alone (its lease decides its fate).
-  process.on('SIGHUP',()=>{void (async()=>{try{
+  const reloadApps=async()=>{try{
     const fresh=JSON.parse(await fs.readFile(configFile,'utf8'));
     if(!Array.isArray(fresh.apps)||fresh.apps.length>256)throw new Error('version 2 app configuration required');
     const next=[];for(const item of fresh.apps)next.push(await loadApp(item));
@@ -122,7 +122,12 @@ export async function runPrivacy(configFile){
       for(const k of ['expected','names','publishToMirror','ownerPolicy','expectedFile','walletsFile'])cur[k]=n[k];
     }
     log(`config reloaded: ${apps.length} apps (${added} added, ${updated} changed); mirror apps: `+(apps.filter(a=>a.publishToMirror).map(a=>a.deploymentId.slice(0,10)).join(',')||'none'));
-  }catch(e){log('config reload refused: '+e.message);}})();});
+  }catch(e){log('config reload refused: '+e.message);}};
+  process.on('SIGHUP',()=>void reloadApps());
+  // Windows has no SIGHUP: the config file's modification time is the signal
+  // there (the reconciler rewrites or touches it), and works on Linux too.
+  let configStamp=(await fs.stat(configFile)).mtimeMs;
+  setInterval(()=>void fs.stat(configFile).then(st=>{if(st.mtimeMs!==configStamp){configStamp=st.mtimeMs;return reloadApps();}}).catch(e=>log('config watch: '+e.message)),30000).unref();
   if(control)await control.start();
   if(stopping)throw new Error('privacy agent stopped during bootstrap');
   if(control)inventory.asns.fetchFn=guardedFetch(control.proxies,{timeoutMs:6000,maxBytes:65536});
@@ -156,8 +161,8 @@ export async function runPrivacy(configFile){
   // Used for that choice only, never for authorization.
   if(control){
     const occupiedFetch=guardedFetch(control.proxies,{timeoutMs:8000,maxBytes:1048576});
-    const own=new Set(apps.map(a=>a.deploymentId.slice(2,10)));
     const refreshOccupied=async()=>{try{
+      const own=new Set(apps.map(a=>a.deploymentId.slice(2,10)));
       const res=await occupiedFetch(new URL('/v1/network/tuna',cfg.mirror||'https://api.enclave.host'));
       if(!res.ok)throw new Error('HTTP '+res.status);
       const map=await res.json(),taken=new Set();
