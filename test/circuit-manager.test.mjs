@@ -100,3 +100,18 @@ test('a public allocation failure is charged to the guard that carried it, and a
  assert.ok(successes.length>0&&successes.every(o=>o.roles.includes('carry')&&o.roles.includes('guard')));
  await manager.close();
 });
+test('a route survives two transient probe failures, is withdrawn on the third, and a mismatch fails it at once',async()=>{
+ const f=fixture();let failure=null;f.manager.probe=async()=>{if(failure)throw failure;};
+ await f.manager.configure([{policy,names:['app.example']}]);await f.manager.reconcile();
+ const [first,second]=f.started;assert.equal(f.manager.status()[0].ready,true);
+ const settle=async()=>{for(let i=0;i<10;i++)await new Promise(r=>setImmediate(r));};
+ failure=new Error('TLS handshake timeout');
+ for(const n of [1,2]){first.checkedAt=0;second.checkedAt=Date.now();await f.manager.checkHealth(f.manager.apps.get(id),nodes);await settle();
+  assert.equal(first.closed,false,`still serving after ${n} transient failure(s)`);assert.equal(first.probeFailures,n);}
+ first.checkedAt=0;await f.manager.checkHealth(f.manager.apps.get(id),nodes);await settle();assert.equal(first.closed,true);
+ // A success resets the count; a mismatch does not get retries.
+ second.checkedAt=0;failure=null;await f.manager.checkHealth(f.manager.apps.get(id),nodes);assert.equal(second.probeFailures,0);
+ second.checkedAt=0;failure=new Error('app, nonce or TLS binding mismatch');await f.manager.checkHealth(f.manager.apps.get(id),nodes);await settle();
+ assert.equal(second.closed,true);
+ await f.manager.close();
+});
