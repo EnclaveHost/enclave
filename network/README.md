@@ -171,7 +171,7 @@ block hash, runner delegation, fresh lease and replay floor independently.
 Optional delegated IPNS publication follows the
 [IPFS HTTP routing protocol](https://specs.ipfs.tech/routing/http-routing-v1/).
 A raw-block gateway reader is included; a production IPFS block-storage backend
-and automatic NKN subscription renewal still need integration.
+still needs integration. NKN subscriptions renew automatically using durable signed transactions.
 
 `native-route-client.mjs` resolves the full deployment ID through NKN. It can
 connect without DNS, SNI or a CA-issued application certificate: it authenticates
@@ -222,9 +222,10 @@ integration remain rollout gates.
   sibling to succeed; an unbound guest was refused.
 
 These canaries did not change production DNS or guest egress configuration. The
-remaining rollout includes full provider inventory refresh/selection, standalone
-control bootstrap, owner-facing controls, Windows integration and deployment-wide
-failure tests. Linux runtime rebasing and adoption preflight passed. Discovery
+remaining rollout includes owner-facing controls, Windows integration and
+deployment-wide failure tests. Independent control bootstrap and role-specific
+provider health selection are integrated; the four-app Linux staging run is still
+qualifying both routes for each deployment. Linux runtime rebasing and adoption preflight passed. Discovery
 subscriptions renew before expiry; the signed renewal transaction is persisted
 before broadcast and retried unchanged after ambiguous RPC responses. An exited
 discovery helper withdraws its circuit. Allocation and health checks run
@@ -235,3 +236,22 @@ capabilities and only its own guard configuration/seed mounted. It uses host
 networking to reach the public NKN/TUNA network, binding its local SOCKS listener
 only to the private bridge gateway. Public/egress workers retain their separate
 firewalled network namespace; they can reach only their assigned guard endpoint.
+
+The control plane uses two separate, prepaid TUNA identities. Guarded HTTPS can
+fail over only between these explicit entries and remembers failed paths between
+RPC calls. Chain snapshots are read concurrently; two matching recent snapshots
+can complete without waiting for a stalled third. Provider health is recorded per
+role, so public ingress success does not imply guard success. A pending repair no
+longer postpones health checks on an app's surviving circuit.
+
+ASN metadata refreshes in bounded background batches through the control guards.
+[RIPE RIS](https://stat.ripe.net/docs/data-api/api-endpoints/network-info.html) is
+queried first, with [Team Cymru](https://www.team-cymru.com/ip-asn-mapping) DNS data
+as an independent fallback. Cached mappings expire after seven days; lookup
+failure never renews an old mapping. A fresh cache is required to bootstrap the
+control guard diversity check. This routing metadata remains a heuristic, not
+proof of independent operators.
+
+The Windows helper now removes only the filters and AppContainer profile named
+in its private manifest, after checking that the circuit's processes have stopped.
+Live NucBox cleanup passed; this does not complete Windows transport orchestration.

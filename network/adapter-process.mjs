@@ -14,8 +14,8 @@ export class AdapterProcess extends EventEmitter {
     this.child=child;
     return new Promise((resolve,reject)=>{
       let settled=false,ended=false;
-      const timer=setTimeout(()=>{fail(new Error('provider allocation timeout'));this.close();},timeoutMs);
-      const fail=error=>{if(!settled){settled=true;clearTimeout(timer);reject(error);}this.emit('down',error);};
+      const timer=setTimeout(()=>{fail(new Error(`${this.route.id} provider ${this.provider.address} allocation timeout`));this.close();},timeoutMs);
+      const fail=error=>{error.providerRole||=this.route.id==='https'?'public':this.route.id==='egress'?'egress':'guard';if(!settled){settled=true;clearTimeout(timer);reject(error);}this.emit('down',error);};
       const lines=createInterface({input:child.stdout});
       lines.on('line',line=>{
         if(line.length>16384||this.closed)return;

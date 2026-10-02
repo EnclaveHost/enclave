@@ -42,6 +42,10 @@ func check(e error) {
 }
 func guid() windows.GUID { g, e := windows.GenerateGUID(); check(e); return g }
 func main() {
+	if len(os.Args) == 3 && os.Args[1] == "remove" {
+		removeCircuit(os.Args[2])
+		return
+	}
 	if len(os.Args) == 3 && os.Args[1] == "sandbox" {
 		sandbox(os.Args[2])
 		return

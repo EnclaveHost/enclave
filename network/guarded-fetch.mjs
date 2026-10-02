@@ -1,10 +1,30 @@
 import https from 'node:https';
 import {SocksHttpsAgent} from './socks-connect.mjs';
 
+export function withGuardedFailover(proxy,fetchForProxy){
+    const failedUntil=new Map();let preferred;
+    return async(input,init={})=>{
+      const entries=await proxy();if(!Array.isArray(entries)||!entries.length||entries.length>2||entries.some(p=>typeof p!=='string'||!p))throw new Error('guarded control transport unavailable');
+      const now=Date.now(),ordered=[...entries].sort((a,b)=>Number((failedUntil.get(a)||0)>now)-Number((failedUntil.get(b)||0)>now)||Number(b===preferred)-Number(a===preferred));
+      let error;
+      for(const entry of ordered){
+        if(init.signal?.aborted)throw init.signal.reason;
+        try{
+          const result=await fetchForProxy(entry)(input,init);
+          if(result.status>=500||result.status===429||result.status===403){failedUntil.set(entry,Date.now()+60000);if(entry!==ordered.at(-1))continue;}
+          else{preferred=entry;failedUntil.delete(entry);}
+          return result;
+        }catch(e){failedUntil.set(entry,Date.now()+60000);error=e;}
+      }
+      throw error;
+    };
+}
+
 // Fetch-compatible bounded HTTPS for chain RPC and discovery. Names are resolved
 // by the guard; redirects and implicit direct/host-DNS fallbacks are forbidden.
 export function guardedFetch(proxy,{maxBytes=2097152,timeoutMs=15000}={}){
-  if(typeof proxy!=='string'||!proxy)throw new Error('explicit SOCKS proxy required');
+  if(typeof proxy!=='function'&&(typeof proxy!=='string'||!proxy))throw new Error('explicit SOCKS proxy required');
+  if(typeof proxy==='function')return withGuardedFailover(proxy,entry=>guardedFetch(entry,{maxBytes,timeoutMs}));
   return async(input,init={})=>{
     const url=new URL(typeof input==='string'||input instanceof URL?input:input.url);
     if(url.protocol!=='https:'||url.username||url.password||url.hash)throw new Error('guarded HTTPS URL required');
