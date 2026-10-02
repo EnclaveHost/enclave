@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
             for (auto *w : tensors) {
                 auto &e = s.weights.at(ggml_get_name(w)); assert(e.w.empty() && e.source_verified);
                 int8_t encoded[256]; int fw[8];
-                assert(sh_prepare_rows_threaded(state.values.expected[w->name].bytes.data(), 32, 8, encoded, fw) == 0);
+                assert(sh_prepare_rows_threaded(state.values.expected[w->name].bytes.data(), w->type, 32, 8, encoded, fw) == 0);
                 int64_t x[32], y[8];
                 for (int k = 0; k < 32; k++) x[k] = k % 5 - 2;
                 for (int j = 0; j < 8; j++) { y[j] = 0; for (int k = 0; k < 32; k++) y[j] += x[k] * encoded[j * 32 + k]; }

@@ -1,4 +1,5 @@
 /* Exercise the real seed opener with every source-level allocation disabled. */
+#define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
