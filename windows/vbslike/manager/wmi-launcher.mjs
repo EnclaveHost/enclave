@@ -41,6 +41,10 @@ import path from "node:path";
 import { BOOT_STATEMENTS, bootFormOfStatement } from "../verify/boot-statements.mjs";
 import fs from "node:fs";
 import { runWmiserve, writeBundle, freePort, CERT_NAME } from "./wmiserve-run.mjs";
+import { GCS_KEY, EGRESS_VSOCK_PORT } from "./egress.mjs";
+
+/** The preflight check egress adds (egress.mjs): its hv_sock service is registered, read and never written. */
+export const EGRESS_CHECK = "hv_sock egress service (vsock 9443) registered";
 /** The name a deployment's domain may be certified for (M4): the first 8 hex of its id in the app zone, or null for a
  *  name that is not a deployment id (a lab label): such a domain gets no certificate endpoints at all. */
 export function certNameFor(name) {
@@ -293,7 +297,7 @@ export const CMD = {
    * answer is a fact, not an inference. The firmware opt-in is READ with .NET's RegistryKey getters
    * and nothing else: this script never writes the registry.
    */
-  preflight: ({ hypervModule = null, guestStateMaster = null } = {}) => ps(`
+  preflight: ({ hypervModule = null, guestStateMaster = null, egressService = null } = {}) => ps(`
     $r = [ordered]@{};
     $r.vmms = [bool](Get-Service vmms -ErrorAction SilentlyContinue);
     $r.namespace = [bool](Get-CimClass -Namespace 'root\\virtualization\\v2' -ClassName Msvm_VirtualSystemManagementService -ErrorAction SilentlyContinue);
@@ -312,6 +316,7 @@ export const CMD = {
     ${guestStateMaster ? `$gm = @{path=${q(guestStateMaster)}; present=[bool](Test-Path -LiteralPath ${q(guestStateMaster)}); bytes=$null};
     if ($gm.present) { $gm.bytes = (Get-Item -LiteralPath ${q(guestStateMaster)}).Length };
     $r.guestStateMaster = $gm;` : ""}
+    ${egressService ? `$r.egressService = [bool](Test-Path -LiteralPath ${q(`${GCS_KEY}\\${egressService}`)});` : ""}
     $r | ConvertTo-Json -Compress -Depth 4`),
 
   /** The image, by hash, on the host that will load it. */
@@ -774,7 +779,8 @@ export class WmiHyperVLauncher {
   constructor({ run, imagePath, imageSha256, boot = null, medium = null, mediumSha256 = null,
                 guestStateMaster = null, guestStateMasterSha256 = null, guestStateRunDir = null, guestStateArchiveDir = null,
                 hypervModule = null, hypervModuleSha256 = HYPERV_MODULE_SHA256, hypervUtilitiesSha256 = null,
-                prefix = "enclave-app-", pipeFor = null, serve = null, startTransport = null }) {
+                prefix = "enclave-app-", pipeFor = null, serve = null, startTransport = null,
+                startEgress = null, egressService = null }) {
     if (typeof run !== "function") throw new Error("a PowerShell runner must be injected");
     // THE BOOT FORM IS STATED. Inferring it from whether a medium happens to be set would let a
     // missing variable silently turn a medium boot into a linux-direct one, and the identity with it.
@@ -813,6 +819,13 @@ export class WmiHyperVLauncher {
     // Without it this launcher boots the VM and stops there, exactly as before (no relay, and the domain stays starting).
     this.serve = serve;
     this.startTransport = startTransport;
+    // OUTBOUND HTTPS (egress.mjs), opt-in: (vmId, deploymentId, mapping) -> { exited, stop } | null, run after the VM
+    // starts and before the app is served; null when this mapping gets none. egressService is the hv_sock service GUID
+    // its bridge binds, which preflight READS from the registry (a WMI partition's bind fails 10013 without it).
+    if (egressService !== null && !GUID.test(String(egressService))) throw new Error("egressService must be a service GUID");
+    if (startEgress !== null && typeof startEgress !== "function") throw new Error("startEgress must be a function");
+    this.startEgress = startEgress;
+    this.egressService = egressService ? String(egressService).toLowerCase() : null;
   }
 
   async #ps(script) {
@@ -854,7 +867,7 @@ export class WmiHyperVLauncher {
   /** Every prerequisite, each answered rather than assumed. Never throws: it reports. */
   async preflight() {
     let got;
-    try { got = await this.#ps(CMD.preflight({ hypervModule: this.hypervModule, guestStateMaster: this.guestStateMaster })); }
+    try { got = await this.#ps(CMD.preflight({ hypervModule: this.hypervModule, guestStateMaster: this.guestStateMaster, egressService: this.egressService })); }
     catch (e) { return { ok: false, checks: [{ name: "preflight", ok: false, detail: e.message }] }; }
     const fo = got.firmwareOptIn || {};
     const optInOk = fo.present === true && Number(fo.value) === 1 && fo.kind === "DWord";
@@ -885,6 +898,11 @@ export class WmiHyperVLauncher {
       { name: "boot form", ok: BOOT_FORMS.includes(this.boot),
         detail: this.boot ? `${this.boot}${this.boot === BOOT_UEFI ? ` (medium ${this.medium})` : " (no medium; the IGVM is the identity)"}`
                           : `not stated: ${BOOT_FORMS.join(" or ")}` },
+      // Only when egress is on: without the registration every egress bridge's bind fails with 10013. REPORTED ONLY:
+      // this manager never registers, changes or removes a service.
+      ...(this.egressService ? [{ name: EGRESS_CHECK, ok: got.egressService === true,
+        detail: `${GCS_KEY}\\${this.egressService} (vsock port ${EGRESS_VSOCK_PORT}) is ${got.egressService === true ? "registered" : "NOT registered"}`
+              + ": the egress bridge binds this partition's service there. Reported only; this manager never writes the registry." }] : []),
     ];
     return { ok: checks.every((c) => c.ok), checks };
   }
@@ -952,7 +970,7 @@ export class WmiHyperVLauncher {
     if (!guestStateRun) throw new Error(`no per-run guest-state path can be made for ${name}`);
     const vcpus = Math.max(1, Math.floor(mapping.record.policy.vcpus));
     const memMiB = type1VmMemMiB(mapping.record.policy.memMiB);   // the VM's RAM, not the app's share
-    let created = null, served = null, transport = null;
+    let created = null, served = null, transport = null, egress = null;
     try {
       created = await this.#ps(CMD.defineType1({
         name, memMiB, vcpus, notes, pipe, boot: this.boot,
@@ -992,11 +1010,14 @@ export class WmiHyperVLauncher {
       // THE APP AND ITS RELAY, when this launcher was given wmiserve to run (enclave-5d, wmiserve-run.mjs): the bundle
       // into the guest over hv_sock 9000, the report service for THIS VM, and a loopback TCP relay to the domain.
       if (this.startTransport) transport = await this.startTransport(created.id);
+      // OUTBOUND HTTPS (egress.mjs): the partition's bridge and egress endpoint, now that the VM runs and before its app is
+      // served; the hook decides which mappings get one (main.mjs: secret deployments) and answers null for the rest
+      if (this.startEgress) egress = (await this.startEgress(created.id, identity?.name ?? null, mapping)) || null;
       if (this.serve) served = await this.#serveApp({ mapping, instanceId, vmId: created.id, uefi, created, vcpus, memMiB, certName: certNameFor(identity && identity.name) });
       const guestIdentity = uefi
         ? uefiImageIdentity({ mediumSha256: created.mediumSha256, mediumPath: created.mediumPath ?? this.medium })
         : linuxDirectIdentity({ igvmSha256: created.firmwareSha256, igvmPath: this.imagePath });
-      return { transport, instanceId, name, vmId: created.id, pipe, state: started.state,
+      return { transport, egress, instanceId, name, vmId: created.id, pipe, state: started.state,
                boot: this.boot, isolationType: 1,
                image: uefi ? guestIdentity.guestImageSha256 : guestIdentity.igvmSha256,
                guestIdentity, firmware, boundary: boundaryFor(this.boot), appId: mapping.appId,
@@ -1019,9 +1040,10 @@ export class WmiHyperVLauncher {
                // report's partition.vmId against it, so a report from another partition's launcher never reads as this one
                ...(served ? { tcpPort: served.tcpPort, launcherKey: served.launcherKey, launcherVmId: served.vm, domainId: served.domainId,
                               guestPort: served.guestPort, boot: served.boot, relayNote: served.note, wmiserve: served } : {}),
-               stop: async () => await this.stop({ name, vmId: created.id, wmiserve: served, transport }) };
+               stop: async () => await this.stop({ name, vmId: created.id, wmiserve: served, transport, egress }) };
     } catch (e) {
       if (transport) await transport.stop();
+      if (egress) await egress.stop().catch(() => {});
       if (served) { e.relay = await this.#closeServed(served); }       // before its VM goes
       const vmId = created && GUID.test(String(created.id || "")) ? String(created.id) : null;
       let swept;
@@ -1078,6 +1100,8 @@ export class WmiHyperVLauncher {
   /** Stop, and SAY when it did not: "ok" for a VM that is still running is how one gets orphaned. */
   async stop(handle) {
     if (handle?.transport) await handle.transport.stop();
+    // its egress path has nothing to carry once the domain stops; it ends before the VM goes, and never blocks that
+    if (handle?.egress) await handle.egress.stop().catch(() => {});
     // The relay and report service first (wmiserve closes on a stdin line), then the VM. Its outcome is REPORTED on the
     // result and never blocks the removal: a relay that will not close is killed, and the VM must go either way.
     const relay = handle && handle.wmiserve ? await this.#closeServed(handle.wmiserve) : null;
