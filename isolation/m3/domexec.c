@@ -81,6 +81,27 @@ static void lo_up(void) {
     close(s);
 }
 
+/* A SECRET domain's egress (m2/front shield_egress.go): once the release is verified, the FRONT binds one forwarder per
+ * allowed origin on 127.64.0.N:443 in THIS network namespace, then fills /etc/hosts. 443 is below the kernel's default
+ * unprivileged floor (1024), and the front holds no capability; so this namespace's floor is lowered to exactly 443.
+ * net.ipv4.ip_unprivileged_port_start is PER NETWORK NAMESPACE: no other domain and not the guest's own namespace is
+ * touched. Nothing gains a capability. The runtime that shares the namespace gains nothing it can use against the front:
+ * its tenant code starts only after the forwarders are bound (secretrun waits on the front's pipe), a bound address it
+ * cannot take over (another uid's listener), and anything it binds is reachable only from inside this domain, whose one
+ * interface is lo. Read back; a floor that did not hold ends the domain. Called as root, before any workload starts. */
+static void unprivileged_https_bind(void) {
+    static const char path[] = "/proc/sys/net/ipv4/ip_unprivileged_port_start";
+    int fd = open(path, O_WRONLY | O_CLOEXEC);
+    if (fd < 0) die("open ip_unprivileged_port_start");
+    if (write(fd, "443\n", 4) != 4) die("set ip_unprivileged_port_start");
+    close(fd);
+    char b[16] = {0};
+    fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0 || read(fd, b, sizeof b - 1) <= 0 || strcmp(b, "443\n") != 0) { errno = EPERM; die("ip_unprivileged_port_start did not hold"); }
+    close(fd);
+    printf("DOM%s egress: this namespace's unprivileged port floor is 443 (the front's forwarders, no capability)\n", dom_id);
+}
+
 /* What this domain can reach, printed once the workloads are running (so the process count is the
  * domain's real one). The host harness reads these lines off the console. */
 static void probe(uid_t workload_uid, uid_t front_uid) {
@@ -401,6 +422,7 @@ int main(int argc, char **argv) {
     char *secret_app[66];
     if (stat("/secret.id", &secret_st) == 0) {
         if (shield_on || run_port || !S_ISREG(secret_st.st_mode) || secret_st.st_uid != 0 || (secret_st.st_mode & 0222) || secret_st.st_size != 66) die("secret deployment");
+        unprivileged_https_bind();   /* the front's egress forwarders, before anything is spawned */
         int raw[2]; if (pipe2(raw, O_CLOEXEC) != 0) die("secret pipe");
         // Keep both originals away from the fixed inherited fd before duplicating it.
         secret_pipe[0]=fcntl(raw[0],F_DUPFD_CLOEXEC,20);
