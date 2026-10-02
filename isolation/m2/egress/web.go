@@ -37,6 +37,9 @@ func (d *Dialer) publicAddresses(ctx context.Context, host string, allowIP bool)
 		addresses = []netip.Addr{a}
 	} else {
 		var err error
+		if d.Resolver == nil {
+			return nil, refused(ReasonResolve)
+		}
 		addresses, err = d.Resolver.LookupNetIP(ctx, "ip", host)
 		if err != nil || len(addresses) == 0 {
 			return nil, refused(ReasonResolve)
@@ -60,7 +63,17 @@ func (d *Dialer) ResolvePublic(ctx context.Context, cid uint32, host string) ([]
 		return nil, err
 	}
 	defer release()
-	addresses, err := d.publicAddresses(ctx, host, false)
+	var addresses []netip.Addr
+	if d.RouteFor != nil {
+		var route AppRoute
+		route, err = d.appRoute(cid)
+		if err != nil {
+			return nil, err
+		}
+		addresses, err = d.resolveAppRoute(ctx, route, host)
+	} else {
+		addresses, err = d.publicAddresses(ctx, host, false)
+	}
 	if len(addresses) > 16 {
 		addresses = addresses[:16]
 	}

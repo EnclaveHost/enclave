@@ -193,6 +193,12 @@ func TestEgressAdmitsOnlyLiveDeploymentGuests(t *testing.T) {
 	r.s.vms["gone"] = &vm{ID: "gone", Status: "running", cid: 70012, HostData: hostDataFor(name(2)), release: true, lc: ended}
 	r.s.vms["failed"] = &vm{ID: "failed", Status: "failed", cid: 70013, HostData: hostDataFor(name(3)), release: true, lc: contract.NewLifecycle(contract.Starting)}
 	r.s.mu.Unlock()
+	if got := r.s.deploymentOfCID(70010); got != name(1) {
+		t.Fatalf("wrong deployment binding: %q", got)
+	}
+	if got := r.s.deploymentOfCID(70011); got != "" {
+		t.Fatalf("lab guest bound: %q", got)
+	}
 	for cid, want := range map[uint32]bool{70010: true, 70011: false, 70012: false, 70013: false, 70014: false, 99999: false, 0: false} {
 		if r.s.admitCID(cid) != want {
 			t.Fatalf("CID %d: admit %v", cid, !want)
