@@ -950,8 +950,20 @@ typedef struct {
 } gen_scratch;
 
 static int gen_scratch_init(const sh_link *l, gen_scratch *s, int b) {
-    s->planes = (uint8_t *)malloc((size_t)3 * b * l->Kmax);
-    s->acc    = (int32_t *)malloc((size_t)12 * l->Nmax * sizeof(int32_t));
+    /* Providers own their scratch; only the native branch of generate_products
+     * uses these buffers. Registration is frozen while refill/mint workers run,
+     * so size once for the native nodes instead of the whole link's maxima. */
+    int64_t K = 0, N = 0;
+    for (size_t i = 0; i < l->n_nodes; i++) {
+        const sh_node *nd = &l->nodes[i];
+        if (!nd->w || nd->w_refill) continue;
+        if (nd->K > K) K = nd->K;
+        if (nd->N > N) N = nd->N;
+    }
+    s->planes = NULL; s->acc = NULL;
+    if (!K) return SH_OK;
+    s->planes = (uint8_t *)malloc((size_t)3 * b * K);
+    s->acc    = (int32_t *)malloc((size_t)12 * N * sizeof(int32_t));
     if (s->planes && s->acc) return SH_OK;
     free(s->planes); free(s->acc); s->planes = NULL; s->acc = NULL;   /* half an allocation is not a scratch */
     return SH_ERR_NOMEM;
