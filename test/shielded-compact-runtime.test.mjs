@@ -17,5 +17,6 @@ test('production compact provider preserves field arithmetic and fails closed',{
   const r=spawnSync(join(d,'test'),[],{encoding:'utf8',timeout:120000,env:{...process.env,OMP_NUM_THREADS:'1',OMP_DYNAMIC:'FALSE',ASAN_OPTIONS:'detect_leaks=1:abort_on_error=1',UBSAN_OPTIONS:'halt_on_error=1'}});
   if(r.status===77)return t.skip('requires AVX512 VNNI');
   assert.equal(r.status,0,r.stderr||String(r.error));assert.match(r.stdout,/76 exact cases/);
+  assert.match(r.stdout,/guarded read windows, all bit widths, malformed tails and shared-store readers passed/);
  }finally{rmSync(d,{recursive:true,force:true});}
 });
