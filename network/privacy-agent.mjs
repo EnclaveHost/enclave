@@ -49,8 +49,12 @@ export class PrivacyAgent {
       const configured=[];policies.forEach((r,i)=>{if(r.status==='fulfilled')configured.push(r.value);else{this.admission.revoke(this.apps[i].deploymentId);this.log(`app policy ${this.apps[i].deploymentId.slice(0,10)}: ${r.reason.message}`);}});
       await this.manager.configure(configured);
       this.authorizationRefresh.phase="guest-proof";void this.snapshot().catch(e=>this.log(e.message));
-      const results=await Promise.allSettled(configured.map(app=>this.admission.attest(app.deploymentId,(id,expected)=>this.probe(id,expected,null))));
-      results.forEach((r,i)=>{if(r.status==='rejected'){const kept=this.admission.failed(configured[i].deploymentId,r.reason);this.log(`local guest proof ${configured[i].deploymentId.slice(0,10)}: ${r.reason.message}${kept?' (last proof kept until it expires)':''}`);}});
+      // A proof lasts 60 s and is renewed once 40 s or less remain (three tries
+      // before it lapses), so a guest is asked for a report 2-3 times a minute
+      // (a Shield guest makes one at a time).
+      const due=configured.filter(app=>!(this.admission.allows(app.deploymentId)&&this.admission.proofs.get(app.deploymentId).validUntil-this.now()>40000));
+      const results=await Promise.allSettled(due.map(app=>this.admission.attest(app.deploymentId,(id,expected)=>this.probe(id,expected,null))));
+      results.forEach((r,i)=>{if(r.status==='rejected'){const kept=this.admission.failed(due[i].deploymentId,r.reason);this.log(`local guest proof ${due[i].deploymentId.slice(0,10)}: ${r.reason.message}${kept?' (last proof kept until it expires)':''}`);}});
     }catch(e){this.authorizationRefresh.error=e.message;this.log('chain/app authorization: '+e.message);}finally{this.authorizationRefresh.completedAt=this.now();this.authorizationRefresh.phase='idle';this.refreshing=false;this.manager.enforceAdmission();}
   }
   async snapshot(){await this.egress.write();await this.status.set('status',{version:2,updatedAt:this.now(),authorizationRefresh:this.authorizationRefresh,apps:this.manager.status().map(app=>({...app,leaseUntil:this.admission.leases.get(app.deploymentId)?.validUntil||0,proofUntil:this.admission.proofs.get(app.deploymentId)?.validUntil||0}))});}
@@ -156,7 +160,10 @@ export async function runPrivacy(configFile){
     },
     // One attestation request per app at a time (a Shield guest serves one TPM
     // report at a time): local proofs and route probes queue behind each other.
+    // A route probe pins the TLS key of the app's current local proof (no new
+    // guest report); the local proof itself always asks for a fresh report.
     probe:async(id,expected,circuit)=>serialized(id,async()=>probeGuest({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],expected,
+      ...(circuit&&agent?.admission.allows(id)?{pinnedSpkiSha256:agent.admission.proofs.get(id).spkiSha256}:{}),
       ...(windows?{shield,hostSession:await hostProof.get()}:{linux:{...linux,measurement:expected.measurement,release:expected.release},verifySnp}),
       ...(circuit?{address:circuit.address,proxy:circuit.isolation.guardAddress}:guestd?{openApp:id=>guestd.open(id)}:{localUpstream:cfg.upstream})}))});
   // A public provider address holds one HTTPS allocation. Every address already
