@@ -72,14 +72,15 @@ export async function runPrivacy(configFile){
   const readJSON=async file=>JSON.parse(await fs.readFile(file,'utf8'));
   let key=cfg.operatorKeyFile?(await fs.readFile(cfg.operatorKeyFile,'utf8')).trim():(await readJSON(cfg.operatorConfigFile)).registryKey;
   const account=privateKeyToAccount(key);key=null;
-  const apps=[];
-  for(const item of cfg.apps){
+  const loadApp=async item=>{
     const expected=await readJSON(item.expectedFile);
     if(!expected.appRef||typeof expected.configCid!=='string'||!/^0x[0-9a-f]{64}$/.test(item.deploymentId)||!Array.isArray(item.names)||!item.names.length)throw new Error('explicit app expectations and names required');
     validateAppNames(item.deploymentId,item.names);
     if(item.publishToMirror!==undefined&&typeof item.publishToMirror!=='boolean')throw new Error('publishToMirror must be true or false');
-    apps.push({...item,expected,...(item.ownerPolicyFile?{ownerPolicy:await readJSON(item.ownerPolicyFile)}:{})});
-  }
+    return {...item,expected,...(item.ownerPolicyFile?{ownerPolicy:await readJSON(item.ownerPolicyFile)}:{})};
+  };
+  const apps=[];
+  for(const item of cfg.apps)apps.push(await loadApp(item));
   let verifySnp;
   if(cfg.verifierModule){if(!path.isAbsolute(cfg.verifierModule))throw new Error('local verifier module required');verifySnp=(await import(pathToFileURL(cfg.verifierModule).href)).judge;}
   const windows=process.platform==='win32';let linux,shield,hostProof;
@@ -105,15 +106,22 @@ export async function runPrivacy(configFile){
   let stopping=false;
   const close=()=>{stopping=true;hostProof?.close();void Promise.all([agent?.close(),control?.close(),runtime.close()]).catch(e=>log(e.message));};
   process.once('SIGTERM',close);process.once('SIGINT',close);
-  // SIGHUP re-reads which apps publish to the Nan mirror, and nothing else: a
-  // rollout moves one app at a time without rebuilding every app's circuits.
+  // SIGHUP re-reads the app list: each app's expectation, names and mirror
+  // flag, and any new app. Everything is validated before anything changes; no
+  // existing circuit is rebuilt (new names apply to circuits built later).
+  // An app dropped from the file is left alone (its lease decides its fate).
   process.on('SIGHUP',()=>{void (async()=>{try{
     const fresh=JSON.parse(await fs.readFile(configFile,'utf8'));
-    const next=apps.map(app=>{const f=(fresh.apps||[]).find(a=>a.deploymentId===app.deploymentId);
-      if(f&&f.publishToMirror!==undefined&&typeof f.publishToMirror!=='boolean')throw new Error('publishToMirror must be true or false');
-      return f?.publishToMirror===true;});
-    apps.forEach((app,i)=>{app.publishToMirror=next[i];});
-    log('config reloaded; mirror apps: '+(apps.filter(a=>a.publishToMirror).map(a=>a.deploymentId.slice(0,10)).join(',')||'none'));
+    if(!Array.isArray(fresh.apps)||fresh.apps.length>256)throw new Error('version 2 app configuration required');
+    const next=[];for(const item of fresh.apps)next.push(await loadApp(item));
+    let added=0,updated=0;
+    for(const n of next){
+      const cur=apps.find(a=>a.deploymentId===n.deploymentId);
+      if(!cur){apps.push(n);added++;continue;}
+      if(JSON.stringify(cur.expected)!==JSON.stringify(n.expected)||JSON.stringify(cur.names)!==JSON.stringify(n.names)||cur.publishToMirror!==n.publishToMirror)updated++;
+      for(const k of ['expected','names','publishToMirror','ownerPolicy','expectedFile','walletsFile'])cur[k]=n[k];
+    }
+    log(`config reloaded: ${apps.length} apps (${added} added, ${updated} changed); mirror apps: `+(apps.filter(a=>a.publishToMirror).map(a=>a.deploymentId.slice(0,10)).join(',')||'none'));
   }catch(e){log('config reload refused: '+e.message);}})();});
   if(control)await control.start();
   if(stopping)throw new Error('privacy agent stopped during bootstrap');
