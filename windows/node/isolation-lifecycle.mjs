@@ -48,7 +48,7 @@ const RECOVERED = (name, v) => ({ action: "held", instance: v, ...HELD(`${name} 
  *            readiness deadline (a crash on this backend, which a caller MAY choose to respawn)
  *   held     the outcome is unknown; the lease is NOT freed and the ledger was not told
  */
-export async function reconcile({ client, deployment, ledger = null, deadlineMs = 180_000,
+export async function reconcile({ client, deployment, ledger = null, deadlineMs = deployment?.body?.derive?.derivation === "enclave-catalog-bundle/6" ? 300_000 : 180_000,
                                   pollMs = 2_000, now = Date.now,
                                   sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
   if (!client) throw new Error("a manager client is required");
