@@ -2,6 +2,13 @@
 #include <cassert>
 #include <cstdio>
 #include <thread>
+static thread_local bool deny_refill_allocation;
+static thread_local unsigned denied_refill_allocations;
+extern "C" void *__real_aligned_alloc(size_t, size_t);
+extern "C" void *__wrap_aligned_alloc(size_t alignment, size_t n) {
+  if (deny_refill_allocation) { ++denied_refill_allocations; return nullptr; }
+  return __real_aligned_alloc(alignment,n);
+}
 static void assert_no_wx() {
   FILE *f=fopen("/proc/self/maps","r");assert(f);char line[4096],perm[5];
   while(fgets(line,sizeof line,f))if(sscanf(line,"%*s %4s",perm)==1)
@@ -65,9 +72,83 @@ static unsigned read_window_cases() {
   }
   return cases;
 }
+static void scratch_shapes() {
+  unsigned cases=0;
+  for (int N : {1,16,32,48,383,384,385}) for (int b : {1,4,16,31,32,64}) {
+    // Fresh worker: retained scratch from an earlier wider matrix must not
+    // hide over-allocation in this shape. Thread exit also checks its wipe.
+    std::thread worker([=] {
+      const int K=65, stride=N+3;
+      std::vector<int8_t> w(K*N);
+      for (size_t i=0; i<w.size(); ++i) w[i]=(int)((i*17)%239)-119;
+      auto *s=sh_compact_create(w.data(),K,N); assert(s);
+      std::vector<int32_t> r(b*K),u(b*stride,INT32_MIN),want(b*stride,INT32_MIN);
+      for (size_t i=0; i<r.size(); ++i) r[i]=(i*7919+12345)%SH_M_MOD;
+      for (int row=0; row<b; ++row) for (int j=0; j<N; ++j) {
+        int64_t sum=0;
+        for (int k=0; k<K; ++k) sum+=(int64_t)r[row*K+k]*w[j*K+k];
+        want[row*stride+j]=sh_balanced(sum);
+      }
+      omp_set_num_threads(3);
+      assert(sh_compact_refill(s,r.data(),b,u.data(),stride)==SH_OK);
+      assert(omp_get_max_threads()==3 && u==want);
+      const size_t rows=std::min(N,384);
+      assert(scratch.block.size()==384*K && scratch.block.capacity()==384*K);
+      const size_t accum=(b>=32?3*b:12)*rows;
+      assert(scratch.accum.size()==accum && scratch.accum.capacity()==accum);
+      assert(scratch.planes.size()==(size_t)3*b*K);
+      if (b>4 && b<32) {
+        // The native CRT fallback must remain exact with only 12*rows scratch.
+        std::fill(u.begin(),u.end(),INT32_MIN); denied_refill_allocations=0; deny_refill_allocation=true;
+        const int rc=sh_compact_refill(s,r.data(),b,u.data(),stride);
+        deny_refill_allocation=false;
+        assert(rc==SH_OK && u==want && omp_get_max_threads()==3 && denied_refill_allocations>0);
+      }
+      for (int32_t invalid : {int32_t(-1),int32_t(SH_M_MOD)}) {
+        r[0]=invalid; assert(sh_compact_refill(s,r.data(),b,u.data(),stride)==SH_ERR_VERIFY);
+        for (int row=0; row<b; ++row) {
+          for (int j=0; j<N; ++j) assert(u[row*stride+j]==0);
+          for (int j=N; j<stride; ++j) assert(u[row*stride+j]==INT32_MIN);
+        }
+        assert(omp_get_max_threads()==3);
+      }
+      sh_compact_free(s);
+    });
+    worker.join(); ++cases;
+  }
+  printf("compact-runtime: %u bounded scratch shapes, native OOM fallback and invalid-mask wipes passed\n",cases);
+}
+static void admission_comparisons() {
+  unsigned cases=0;
+  for (size_t n : {size_t(1),size_t(2),size_t(63),size_t(64),size_t(65),size_t(127),size_t(384*65),size_t(385*65)})
+    for (unsigned bits=0; bits<=8; ++bits) {
+      std::vector<int8_t> w(n);
+      for (size_t i=0; i<n; ++i)
+        w[i]=bits==0?-7:bits==8?(int)((i*17)%239)-119:
+             (int)((i*17)%(1u<<bits))-(int)(1u<<(bits-1));
+      auto packed=pack_bits(w.data(),n);
+      assert((unpack_bits<false,true>(packed.data(),packed.size(),w.data(),n)));
+      for (size_t at : {size_t(0),n/2,n-1}) {
+        w[at]^=1;
+        assert((!unpack_bits<false,true>(packed.data(),packed.size(),w.data(),n)));
+        w[at]^=1;
+      }
+      const auto good=packed;
+      packed[0]=254;
+      assert((!unpack_bits<false,true>(packed.data(),packed.size(),w.data(),n)));
+      packed=good; packed.pop_back();
+      assert((!unpack_bits<false,true>(packed.data(),packed.size(),w.data(),n)));
+      packed=good; packed.push_back(0);
+      assert((!unpack_bits<false,true>(packed.data(),packed.size(),w.data(),n)));
+      ++cases;
+    }
+  printf("compact-runtime: %u direct admission comparisons, source mismatches and malformed frames passed\n",cases);
+}
 int main(){
   __builtin_cpu_init();if(!__builtin_cpu_supports("avx512vnni"))return 77;
+  admission_comparisons();
   printf("compact-runtime: %u guarded read windows, all bit widths, malformed tails and shared-store readers passed\n",read_window_cases());
+  scratch_shapes();
   unsigned cases=0;omp_set_num_threads(3);
   for(int K:{1,63,64,65,5120,17408,65536})for(int N:{1,17,385})for(int b:{1,16,32,64}){
     // Bound total fixture runtime while keeping both GEMM and tile-boundary cases.
