@@ -62,8 +62,11 @@ export function selectCircuitProviders(policy, inventory, {existing = [], locked
     .sort((a, b) => {
       const preferred = id => p.providers[role].prefer.includes(id) ? 0 : 1;
       const stable = id => existing.some(c => c[role]?.identity === id && c.healthy) ? 0 : 1;
+      // An untried node inherits its network's record for this role (see
+      // ProviderInventory.refresh); its own record replaces that once it has one.
+      const rate = n => { const o = n.outcomes?.[role]; return o && o.known === false && o.networkRate !== undefined ? o.networkRate : (o?.successRate ?? n.successRate ?? 0.5); };
       return preferred(a.identity) - preferred(b.identity) || stable(a.identity) - stable(b.identity) ||
-        (b.outcomes?.[role]?.successRate ?? b.successRate ?? 0.5) - (a.outcomes?.[role]?.successRate ?? a.successRate ?? 0.5) || (a.outcomes?.[role]?.latencyMs ?? a.latencyMs ?? Infinity) - (b.outcomes?.[role]?.latencyMs ?? b.latencyMs ?? Infinity) || a.identity.localeCompare(b.identity);
+        rate(b) - rate(a) || (a.outcomes?.[role]?.latencyMs ?? a.latencyMs ?? Infinity) - (b.outcomes?.[role]?.latencyMs ?? b.latencyMs ?? Infinity) || a.identity.localeCompare(b.identity);
     });
   const guards = candidates('guard'), publicNodes = candidates('public'), egressNodes = candidates('egress');
   // Bounded backtracking avoids getting stuck on the fastest first guard when

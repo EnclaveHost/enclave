@@ -55,3 +55,17 @@ test('per-app TLS ingress refuses another app and revokes open connections', asy
   const closed=new Promise(r=>client.once('close',r));allowed=false;ingress.revoke();await closed;
   assert.equal(client.destroyed,true);
 });
+
+test('an untried provider on a failing network ranks below one on a working network', () => {
+  const o = (known, successRate, networkRate) => ({known, successRate, ...(networkRate === undefined ? {} : {networkRate})});
+  const withOutcomes = (n, publicOutcome) => ({...node(n), successRate: undefined, latencyMs: 1, outcomes: {guard: o(true, 1), public: publicOutcome, egress: o(true, 1)}});
+  // Same latency everywhere; only the public-role record differs.
+  const inventory = [1, 2, 3, 4].map(n => withOutcomes(n, o(true, 0.6)));
+  const deadNetwork = withOutcomes(5, o(false, 0.5, 0.05)), goodNetwork = withOutcomes(6, o(false, 0.5, 0.9)), unknownNetwork = withOutcomes(7, o(false, 0.5));
+  const result = selectCircuitProviders(policy, [deadNetwork, unknownNetwork, goodNetwork, ...inventory]);
+  assert.equal(result.ready, true);
+  const order = [deadNetwork, unknownNetwork, goodNetwork].map(n => result.circuits.some(c => c.public.identity === n.identity));
+  // The good network's untried node is used ahead of the unknown and dead ones.
+  assert.equal(order[2], true);
+  assert.equal(order[0], false);
+});
