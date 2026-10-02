@@ -167,3 +167,20 @@ test('multiple apps keep independent warm fallback tunnels on one provider witho
  assert.equal(backup.closed,false);assert.equal(f.publications.at(-1).routes[0].fallback,true);
  await f.manager.close();
 });
+
+test('an attested startup command gets egress while its public routes wait for readiness',async()=>{
+ const f=fixture();const proof=f.manager.admission.proofs.get(id);proof.ready=false;
+ let probes=0;f.manager.probe=async()=>{probes++;};
+ await f.manager.configure([{policy,names:['app.example'],startupEgress:true}]);
+ await f.manager.reconcile();
+ assert.equal(f.started.length,2);assert.equal(probes,0);
+ assert.ok(f.started.every(c=>c.egressReady&&!c.healthy&&!c.closed));
+ assert.ok(f.publications.every(p=>p.routes.length===0));
+ assert.equal(f.manager.status()[0].ready,false);
+ await f.manager.checkHealth(f.manager.apps.get(id),nodes);assert.equal(probes,0);
+ proof.ready=true;await f.manager.checkHealth(f.manager.apps.get(id),nodes);
+ assert.equal(probes,2);assert.equal(f.publications.at(-1).routes.length,2);
+ f.setAllowed(false);f.manager.enforceAdmission();await new Promise(r=>setImmediate(r));
+ assert.ok(f.started.every(c=>c.closed));assert.equal(f.publications.at(-1).routes.length,0);
+ await f.manager.close();
+});

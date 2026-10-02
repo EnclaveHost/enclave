@@ -15,9 +15,10 @@ function get(hostname,address,path,agent,pin,port=443){return new Promise((resol
  });req.once('timeout',()=>req.destroy(new Error('guest probe timeout')));req.once('error',reject);
 });}
 const GUEST_BUSY=/attestation busy; retry|too many concurrent report requests/,GUEST_BUSY_RETRIES=5;
-export async function probeGuest({deploymentId,hostname,address,port=443,proxy,expected,linux,shield,hostSession,localUpstream,openApp,domainIndependent=false,verifySnp=judge,pinnedSpkiSha256=null}){
+export async function probeGuest({deploymentId,hostname,address,port=443,proxy,expected,linux,shield,hostSession,localUpstream,openApp,domainIndependent=false,verifySnp=judge,pinnedSpkiSha256=null,startupEgress=false}){
+ if(startupEgress&&(!openApp||proxy||pinnedSpkiSha256||expected.requiresConfigSocketServer!==true||expected.requiresSecretsV1!==true))throw new Error('startup egress requires a local configured secret command proof');
  if([proxy,localUpstream,openApp].filter(Boolean).length!==1)throw new Error('guest probes require exactly one guarded or local app transport');
- const agent=(localUpstream||openApp)?new LocalAppHttpsAgent(localUpstream,deploymentId,{openApp}):new SocksHttpsAgent(proxy,domainIndependent?{tlsOptions:{rejectUnauthorized:false,servername:''}}:{}),nonce=randomBytes(32);
+ const agent=(localUpstream||openApp)?new LocalAppHttpsAgent(localUpstream,deploymentId,{openApp,attestationOnly:startupEgress}):new SocksHttpsAgent(proxy,domainIndependent?{tlsOptions:{rejectUnauthorized:false,servername:''}}:{}),nonce=randomBytes(32);
  address=(localUpstream||openApp)?'127.0.0.1':address;
  try{
   // A route probe for a guest whose current proof bound TLS key K needs no new
@@ -50,11 +51,11 @@ export async function probeGuest({deploymentId,hostname,address,port=443,proxy,e
     const verdict=await verifySnp(doc,response.spki,nonce,{...linux,appSha:expected.appSha256,hostData:deploymentId,mode:'trusted'});
     verified=verdict.gateOpen===true&&verdict.verdict==='attested';if(!verified)throw new Error('SNP guest proof refused: '+JSON.stringify(verdict));
   }else if(shield&&hostSession){
-    const verdict=verifyShieldAppPolicy({doc,handshakeSpki:response.spki,nonce,expectedAppSha256:expected.appSha256,expectedRuntimeId:expected.runtimeId,hostSession},shield);
+    const verdict=verifyShieldAppPolicy({doc,handshakeSpki:response.spki,nonce,expectedAppSha256:expected.appSha256,expectedRuntimeId:expected.runtimeId,hostSession,requiresConfigBundleV5:expected.requiresConfigBundleV5,requiresSecretsV1:expected.requiresSecretsV1,requiresConfigSocketServer:expected.requiresConfigSocketServer},shield);
     verified=verdict.ok===true;if(!verified)throw new Error('Shield guest proof refused: '+verdict.reason);
   }else throw new Error('no independently trusted guest verification policy');
   const ready=await get(hostname,address,'/.well-known/enclave-ready',agent,response.spki,port);
-  if(ready.status!==200)throw new Error('guest readiness HTTP '+ready.status);
-  return {verified,deploymentId,appSha256:expected.appSha256,runtimeId:expected.runtimeId,spkiSha256:createHash('sha256').update(response.spki).digest('hex')};
+  if(ready.status!==200&&!(startupEgress&&ready.status===503))throw new Error('guest readiness HTTP '+ready.status);
+  return {ready:ready.status===200,verified,deploymentId,appSha256:expected.appSha256,runtimeId:expected.runtimeId,spkiSha256:createHash('sha256').update(response.spki).digest('hex')};
  }finally{agent.destroy();}
 }

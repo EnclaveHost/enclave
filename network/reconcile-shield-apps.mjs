@@ -92,7 +92,7 @@ for(const row of mine){
   if(!HEX64.test(vm.appId||'')||!profile?.runtimeId||vm.runtimeId!==profile.runtimeId||(digest&&digest!==vm.componentSha256)||
      (bundle&&profile.configBundleV5!==true)||(secrets&&(profile.secretsV1!==true||String(vm.secretDeployment).toLowerCase()!==id))){
     log(`${id.slice(0,10)}: the manager's record is outside the admitted Shield policy; skipped`);continue;}
-  const expected={appRef,configCid:String(row.configCid),appSha256:vm.appId,runtimeId:vm.runtimeId,requiresConfigBundleV5:bundle,requiresSecretsV1:secrets};
+  const expected={appRef,configCid:String(row.configCid),appSha256:vm.appId,runtimeId:vm.runtimeId,requiresConfigBundleV5:bundle,requiresSecretsV1:secrets,...(bundle&&JSON.parse(snap.expected?.[id]||'{}').requiresConfigSocketServer===true?{requiresConfigSocketServer:true}:{})};
   const existing=cfg.apps.find(a=>a.deploymentId===id);
   if(existing){
     const cur=snap.expected?.[id]??null;
