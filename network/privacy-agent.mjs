@@ -104,6 +104,16 @@ export async function runPrivacy(configFile){
   let stopping=false;
   const close=()=>{stopping=true;hostProof?.close();void Promise.all([agent?.close(),control?.close(),runtime.close()]).catch(e=>log(e.message));};
   process.once('SIGTERM',close);process.once('SIGINT',close);
+  // SIGHUP re-reads which apps publish to the Nan mirror, and nothing else: a
+  // rollout moves one app at a time without rebuilding every app's circuits.
+  process.on('SIGHUP',()=>{void (async()=>{try{
+    const fresh=JSON.parse(await fs.readFile(configFile,'utf8'));
+    const next=apps.map(app=>{const f=(fresh.apps||[]).find(a=>a.deploymentId===app.deploymentId);
+      if(f&&f.publishToMirror!==undefined&&typeof f.publishToMirror!=='boolean')throw new Error('publishToMirror must be true or false');
+      return f?.publishToMirror===true;});
+    apps.forEach((app,i)=>{app.publishToMirror=next[i];});
+    log('config reloaded; mirror apps: '+(apps.filter(a=>a.publishToMirror).map(a=>a.deploymentId.slice(0,10)).join(',')||'none'));
+  }catch(e){log('config reload refused: '+e.message);}})();});
   if(control)await control.start();
   if(stopping)throw new Error('privacy agent stopped during bootstrap');
   if(control)inventory.asns.fetchFn=guardedFetch(control.proxies,{timeoutMs:6000,maxBytes:65536});
