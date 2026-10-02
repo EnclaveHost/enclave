@@ -1,0 +1,35 @@
+import https from 'node:https';
+import {randomBytes,createHash} from 'node:crypto';
+import {SocksHttpsAgent} from './socks-connect.mjs';
+import {judge} from '../isolation/m2/judge.mjs';
+import {verifyShieldAppPolicy} from '../relay/shield-app-policy.mjs';
+
+function get(hostname,address,path,agent,pin){return new Promise((resolve,reject)=>{
+ const req=https.get({host:address,port:443,servername:hostname,headers:{host:hostname},path,agent,timeout:15000},res=>{
+  const spki=res.socket.getPeerX509Certificate()?.publicKey.export({format:'der',type:'spki'});
+  if(!spki||(pin&&!pin.equals(spki))){res.destroy();reject(new Error('guest TLS key changed'));return;}
+  const chunks=[];let size=0;res.on('data',b=>{size+=b.length;if(size>2097152)res.destroy(new Error('guest proof too large'));else chunks.push(b)});
+  res.once('error',reject);res.once('end',()=>resolve({status:res.statusCode,spki,bytes:Buffer.concat(chunks)}));
+ });req.once('timeout',()=>req.destroy(new Error('guest probe timeout')));req.once('error',reject);
+});}
+export async function probeGuest({deploymentId,hostname,address,proxy,expected,linux,shield,hostSession,verifySnp=judge}){
+ if(!proxy)throw new Error('host-side guest probes require a guard');
+ const agent=new SocksHttpsAgent(proxy),nonce=randomBytes(32);
+ try{
+  const response=await get(hostname,address,'/.well-known/enclave-attestation?nonce='+nonce.toString('hex'),agent);
+  if(response.status!==200)throw new Error('guest attestation HTTP '+response.status);
+  const doc=JSON.parse(response.bytes);
+  if(doc.nonce!==nonce.toString('hex')||doc.transportKey!==response.spki.toString('base64')||doc.appSha256!==expected.appSha256)throw new Error('app, nonce or TLS binding mismatch');
+  let verified=false;
+  if(doc.format==='sev-snp-guest-domain-v1'&&linux){
+    const verdict=await verifySnp(doc,response.spki,nonce,{...linux,appSha:expected.appSha256,hostData:deploymentId,mode:'trusted'});
+    verified=verdict.gateOpen===true&&verdict.verdict==='attested';if(!verified)throw new Error('SNP guest proof refused: '+JSON.stringify(verdict));
+  }else if(shield&&hostSession){
+    const verdict=verifyShieldAppPolicy({doc,handshakeSpki:response.spki,nonce,expectedAppSha256:expected.appSha256,expectedRuntimeId:expected.runtimeId,hostSession},shield);
+    verified=verdict.ok===true;if(!verified)throw new Error('Shield guest proof refused: '+verdict.reason);
+  }else throw new Error('no independently trusted guest verification policy');
+  const ready=await get(hostname,address,'/.well-known/enclave-ready',agent,response.spki);
+  if(ready.status!==200)throw new Error('guest readiness HTTP '+ready.status);
+  return {verified,deploymentId,appSha256:expected.appSha256,runtimeId:expected.runtimeId,spkiSha256:createHash('sha256').update(response.spki).digest('hex')};
+ }finally{agent.destroy();}
+}

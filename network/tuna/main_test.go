@@ -46,3 +46,39 @@ func TestAcceptMultipleProtocolsAndWithdrawal(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestGuardPolicyCannotFallBackOrPinAnIPAddress(t *testing.T) {
+	for _, extra := range []string{
+		`"requireGuard":true`,
+		`"guardSocks":"proxy.example:1080"`,
+		`"allowProviders":["198.51.100.1"]`,
+		`"denyProviders":["unverified-name"]`,
+	} {
+		p := filepath.Join(t.TempDir(), "config.json")
+		os.WriteFile(p, []byte(`{"seedFile":"seed","maxPrice":"0.0002","rpc":["https://rpc.example"],`+extra+`}`), 0600)
+		if _, err := readConfig(p); err == nil {
+			t.Fatalf("accepted unsafe policy: %s", extra)
+		}
+	}
+	p := filepath.Join(t.TempDir(), "config.json")
+	os.WriteFile(p, []byte(`{"seedFile":"seed","maxPrice":"0.0002","rpc":["https://rpc.example"],"requireGuard":true,"guardSocks":"127.0.0.1:30489","allowProviders":["0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"]}`), 0600)
+	if _, err := readConfig(p); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestIndependentPublicTCPMapping(t *testing.T) {
+	if err := validateRoutes([]route{{ID: "app:primary", TCP: []uint32{31234}, PublicTCP: []uint32{443}}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range []route{
+		{ID: "app", TCP: []uint32{31234}, PublicTCP: []uint32{443}, Forward: true},
+		{ID: "app", TCP: []uint32{31234}, PublicTCP: []uint32{443}, RandomPorts: true},
+		{ID: "app", TCP: []uint32{31234}, PublicTCP: []uint32{443, 80}},
+		{ID: "app", TCP: []uint32{31234}, PublicTCP: []uint32{0}},
+	} {
+		if validateRoutes([]route{r}) == nil {
+			t.Fatalf("accepted ambiguous mapping: %#v", r)
+		}
+	}
+}

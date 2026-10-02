@@ -12,6 +12,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/url"
 	"os"
 	"os/signal"
@@ -23,15 +24,22 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/EnclaveHost/enclave/network/tuna/guard"
 	nkn "github.com/nknorg/nkn-sdk-go"
 	"github.com/nknorg/tuna"
+	"github.com/nknorg/tuna/filter"
 )
 
 type config struct {
-	SeedFile   string   `json:"seedFile"`
-	RPC        []string `json:"rpc"`
-	MaxPrice   string   `json:"maxPrice"`
-	MinBalance string   `json:"minBalance"`
+	ListenIP       string   `json:"listenIp,omitempty"`
+	SeedFile       string   `json:"seedFile"`
+	RPC            []string `json:"rpc"`
+	MaxPrice       string   `json:"maxPrice"`
+	MinBalance     string   `json:"minBalance"`
+	GuardSOCKS     string   `json:"guardSocks,omitempty"`
+	RequireGuard   bool     `json:"requireGuard,omitempty"`
+	AllowProviders []string `json:"allowProviders,omitempty"`
+	DenyProviders  []string `json:"denyProviders,omitempty"`
 }
 type route struct {
 	ID          string   `json:"id"`
@@ -39,6 +47,7 @@ type route struct {
 	UDP         []uint32 `json:"udp"`
 	RandomPorts bool     `json:"randomPorts"`
 	Forward     bool     `json:"forward"`
+	PublicTCP   []uint32 `json:"publicTcp,omitempty"`
 }
 type event struct {
 	Type        string   `json:"type"`
@@ -48,6 +57,7 @@ type event struct {
 	UDP         []uint32 `json:"udp,omitempty"`
 	Price       string   `json:"price,omitempty"`
 	Beneficiary string   `json:"beneficiary,omitempty"`
+	Provider    string   `json:"provider,omitempty"`
 	Error       string   `json:"error,omitempty"`
 }
 
@@ -86,6 +96,18 @@ func validateRoutes(routes []route) error {
 		if r.Forward && (len(r.TCP) != 1 || len(r.UDP) != 0) {
 			return errors.New("SOCKS forwarding needs one TCP port")
 		}
+		if len(r.PublicTCP) > 0 {
+			if r.Forward || r.RandomPorts || len(r.PublicTCP) != len(r.TCP) {
+				return errors.New("public TCP mapping requires fixed reverse ports matching local ports")
+			}
+			seen := map[uint32]bool{}
+			for _, p := range r.PublicTCP {
+				if p == 0 || p > 65535 || seen[p] {
+					return errors.New("invalid public TCP port")
+				}
+				seen[p] = true
+			}
+		}
 	}
 	return nil
 }
@@ -100,6 +122,31 @@ func readConfig(file string) (config, error) {
 	}
 	if c.SeedFile == "" || c.MaxPrice == "" || len(c.RPC) == 0 {
 		return c, errors.New("seedFile, maxPrice and explicit rpc endpoints are required")
+	}
+	if c.ListenIP == "" {
+		c.ListenIP = "127.0.0.1"
+	}
+	if net.ParseIP(c.ListenIP) == nil {
+		return c, errors.New("listenIp must be an IP literal")
+	}
+	if c.RequireGuard && c.GuardSOCKS == "" {
+		return c, errors.New("privacy mode requires a guard; direct fallback forbidden")
+	}
+	if c.GuardSOCKS != "" {
+		if _, err := guard.New(c.GuardSOCKS); err != nil {
+			return c, err
+		}
+	}
+	providerID := regexp.MustCompile(`^(?:[a-zA-Z0-9_.-]{1,128}\.)?[0-9a-f]{64}$`)
+	for _, ids := range [][]string{c.AllowProviders, c.DenyProviders} {
+		if len(ids) > 256 {
+			return c, errors.New("too many provider identities")
+		}
+		for _, id := range ids {
+			if !providerID.MatchString(id) {
+				return c, errors.New("invalid provider identity")
+			}
+		}
 	}
 	up, down, priceErr := tuna.ParsePrice(c.MaxPrice)
 	if priceErr != nil || up < 0 || down < 0 || strings.Count(c.MaxPrice, ",") > 1 {
@@ -140,16 +187,44 @@ func readWallet(c config) (*nkn.Wallet, error) {
 	if e != nil {
 		return nil, e
 	}
-	return nkn.NewWallet(a, &nkn.WalletConfig{SeedRPCServerAddr: nkn.NewStringArray(c.RPC...)})
+	wc := &nkn.WalletConfig{SeedRPCServerAddr: nkn.NewStringArray(c.RPC...), RPCTimeout: 10000}
+	if c.GuardSOCKS != "" {
+		d, err := guard.New(c.GuardSOCKS)
+		if err != nil {
+			return nil, err
+		}
+		wc.HttpDialContext = d.DialContext
+	}
+	return nkn.NewWallet(a, wc)
 }
 func runRoute(ctx context.Context, c config, r route, w *nkn.Wallet, client *nkn.MultiClient) {
+	if c.GuardSOCKS != "" && len(r.UDP) > 0 {
+		emit(event{Type: "down", ID: r.ID, Error: "guarded UDP is unavailable; direct fallback forbidden"})
+		return
+	}
+	var dial func(context.Context, string, string) (net.Conn, error)
+	if c.GuardSOCKS != "" {
+		d, e := guard.New(c.GuardSOCKS)
+		if e != nil {
+			emit(event{Type: "down", ID: r.ID, Error: e.Error()})
+			return
+		}
+		dial = d.DialContext
+	}
+	providerFilter := filter.NknFilter{}
+	for _, id := range c.AllowProviders {
+		providerFilter.Allow = append(providerFilter.Allow, filter.NknClient{Address: id})
+	}
+	for _, id := range c.DenyProviders {
+		providerFilter.Disallow = append(providerFilter.Disallow, filter.NknClient{Address: id})
+	}
 	for ctx.Err() == nil {
 		var closeRoute func()
 		done := make(chan error, 1)
 		var connected <-chan struct{}
 		var allocation func() event
 		if r.Forward {
-			entry, e := tuna.NewTunaEntry(tuna.Service{Name: "socksproxy", TCP: r.TCP, Encryption: "xsalsa20-poly1305"}, tuna.ServiceInfo{MaxPrice: c.MaxPrice, ListenIP: "127.0.0.1"}, w, client, &tuna.EntryConfiguration{SeedRPCServerAddr: c.RPC, DialTimeout: 5, UDPTimeout: 60, MinBalance: c.MinBalance})
+			entry, e := tuna.NewTunaEntry(tuna.Service{Name: "socksproxy", TCP: r.TCP, Encryption: "xsalsa20-poly1305"}, tuna.ServiceInfo{MaxPrice: c.MaxPrice, ListenIP: c.ListenIP, NknFilter: &providerFilter}, w, client, &tuna.EntryConfiguration{SeedRPCServerAddr: c.RPC, DialTimeout: 5, UDPTimeout: 60, MinBalance: c.MinBalance, TcpDialContext: dial, HttpDialContext: dial, WsDialContext: dial})
 			if e != nil {
 				emit(event{Type: "down", ID: r.ID, Error: e.Error()})
 				return
@@ -158,11 +233,11 @@ func runRoute(ctx context.Context, c config, r route, w *nkn.Wallet, client *nkn
 			connected = entry.OnConnect.C
 			allocation = func() event {
 				m := entry.GetMetadata()
-				return event{Type: "ready", ID: r.ID, Address: m.Ip, TCP: entry.GetTCPPorts(), Price: m.Price, Beneficiary: m.BeneficiaryAddr}
+				return event{Type: "ready", ID: r.ID, Address: m.Ip, TCP: entry.GetTCPPorts(), Price: m.Price, Beneficiary: m.BeneficiaryAddr, Provider: entry.GetRemoteNknAddress()}
 			}
 			go func() { done <- entry.Start(false) }()
 		} else {
-			exit, e := tuna.NewTunaExit([]tuna.Service{{Name: r.ID, TCP: r.TCP, UDP: r.UDP, Encryption: "xsalsa20-poly1305"}}, w, client, &tuna.ExitConfiguration{SeedRPCServerAddr: c.RPC, Reverse: true, ReverseRandomPorts: r.RandomPorts, ReverseMaxPrice: c.MaxPrice, ReverseMinBalance: c.MinBalance, DialTimeout: 5, UDPTimeout: 60, Services: map[string]tuna.ExitServiceInfo{r.ID: {Address: "127.0.0.1"}}})
+			exit, e := tuna.NewTunaExit([]tuna.Service{{Name: r.ID, TCP: r.TCP, UDP: r.UDP, Encryption: "xsalsa20-poly1305"}}, w, client, &tuna.ExitConfiguration{SeedRPCServerAddr: c.RPC, Reverse: true, ReverseRandomPorts: r.RandomPorts, ReverseTCPPorts: r.PublicTCP, ReverseMaxPrice: c.MaxPrice, ReverseMinBalance: c.MinBalance, DialTimeout: 5, UDPTimeout: 60, Services: map[string]tuna.ExitServiceInfo{r.ID: {Address: "127.0.0.1"}}, ReverseNknFilter: providerFilter, TcpDialContext: dial, HttpDialContext: dial, WsDialContext: dial})
 			if e != nil {
 				emit(event{Type: "down", ID: r.ID, Error: e.Error()})
 				return
@@ -171,7 +246,7 @@ func runRoute(ctx context.Context, c config, r route, w *nkn.Wallet, client *nkn
 			connected = exit.OnConnect.C
 			allocation = func() event {
 				m := exit.GetMetadata()
-				return event{Type: "ready", ID: r.ID, Address: exit.GetReverseIP().String(), TCP: exit.GetReverseTCPPorts(), UDP: exit.GetReverseUDPPorts(), Price: m.Price, Beneficiary: m.BeneficiaryAddr}
+				return event{Type: "ready", ID: r.ID, Address: exit.GetReverseIP().String(), TCP: exit.GetReverseTCPPorts(), UDP: exit.GetReverseUDPPorts(), Price: m.Price, Beneficiary: m.BeneficiaryAddr, Provider: exit.GetRemoteNknAddress()}
 			}
 			go func() { done <- exit.StartReverse(false) }()
 		}
@@ -213,7 +288,16 @@ func main() {
 	log.SetOutput(os.Stderr)
 	file := flag.String("config", "", "local TUNA wallet/RPC/price configuration")
 	initFile := flag.String("init-wallet", "", "create a new seed file exclusively, printing only its address")
+	walletAddress := flag.String("wallet-address", "", "read a seed file and print only its native NKN address")
 	flag.Parse()
+	if *walletAddress != "" {
+		w, err := readWallet(config{SeedFile: *walletAddress})
+		if err != nil {
+			log.Fatal(err)
+		}
+		emit(event{Type: "wallet", Address: w.Address()})
+		return
+	}
 	if *initFile != "" {
 		a, e := nkn.NewAccount(nil)
 		if e != nil {
@@ -247,7 +331,16 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	client, e := nkn.NewMultiClient(w.Account(), "", 4, false, &nkn.ClientConfig{SeedRPCServerAddr: nkn.NewStringArray(c.RPC...), RPCTimeout: 5000})
+	cc := &nkn.ClientConfig{SeedRPCServerAddr: nkn.NewStringArray(c.RPC...), RPCTimeout: 10000}
+	if c.GuardSOCKS != "" {
+		d, err := guard.New(c.GuardSOCKS)
+		if err != nil {
+			log.Fatal(err)
+		}
+		cc.HttpDialContext = d.DialContext
+		cc.WsDialContext = d.DialContext
+	}
+	client, e := nkn.NewMultiClient(w.Account(), "", 4, false, cc)
 	if e != nil {
 		log.Fatal(e)
 	}

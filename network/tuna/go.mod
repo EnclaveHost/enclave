@@ -31,3 +31,8 @@ require (
 	golang.org/x/mobile v0.0.0-20230301163155-e0f57694e12c // indirect
 	golang.org/x/sys v0.15.0 // indirect
 )
+
+// Pin the client transport fixes with the application.
+replace github.com/nknorg/tuna => ./upstream
+
+replace github.com/nknorg/nkn-sdk-go => ./nkn-sdk
