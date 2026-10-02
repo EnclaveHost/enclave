@@ -20,7 +20,7 @@ const withCarry=providers=>({...providers,carry:providers.guard});
 const sameProviders=(a,b)=>roles.every(role=>a[role].identity===b[role].identity&&a[role].address===b[role].address&&a[role].beneficiary===b[role].beneficiary&&a[role].asn===b[role].asn);
 export class CircuitManager extends EventEmitter {
   constructor({runtime,admission,inventory,wallets,probe,publish,observe=async()=>{},now=Date.now,log=()=>{}}) {
-    super();Object.assign(this,{runtime,admission,inventory,wallets,probe,publish,observe,now,log});this.apps=new Map();this.cooldown=new Map();this.closed=false;this.busy=false;this.publications=new Map();this.reconcilingApps=new Map();this.reservedPublic=new Set();this.healthChecks=new Map();
+    super();Object.assign(this,{runtime,admission,inventory,wallets,probe,publish,observe,now,log});this.apps=new Map();this.cooldown=new Map();this.closed=false;this.busy=false;this.publications=new Map();this.reconcilingApps=new Map();this.reservedPublic=new Set();this.occupiedElsewhere=new Set();this.healthChecks=new Map();
   }
   async configure(apps) {
     const next=new Map(),walletOwners=new Map();
@@ -128,7 +128,7 @@ export class CircuitManager extends EventEmitter {
   async reconcileApp(app,nodes) {
     if(!this.authorizationUntil(app.id)){app.error='awaiting fresh chain and guest authorization';return;}
     if(app.circuits.length===2){app.error=null;await this.publishApp(app);return;}
-    const choice=selectCircuitProviders(app.policy,nodes,{existing:app.circuits.map(c=>({...c.providers,healthy:c.healthy})),locked:app.circuits.map(c=>c.providers),occupiedPublic:new Set([...this.reservedPublic,...[...this.apps.values()].flatMap(a=>a.circuits.map(c=>c.address))]),cooldown:this.cooldown,now:this.now()});
+    const choice=selectCircuitProviders(app.policy,nodes,{existing:app.circuits.map(c=>({...c.providers,healthy:c.healthy})),locked:app.circuits.map(c=>c.providers),occupiedPublic:new Set([...this.reservedPublic,...this.occupiedElsewhere,...[...this.apps.values()].flatMap(a=>a.circuits.map(c=>c.address))]),cooldown:this.cooldown,now:this.now()});
     if(!choice.ready){app.error=choice.reason;await this.publishApp(app);return;}
     const reserved=choice.circuits.filter(p=>!app.circuits.some(c=>sameProviders(c.providers,p))).map(p=>p.public.address);
     for(const address of reserved)this.reservedPublic.add(address);

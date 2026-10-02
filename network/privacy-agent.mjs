@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import net from 'node:net';
 import {pathToFileURL} from 'node:url';
 import {privateKeyToAccount} from 'viem/accounts';
 import {LeaseReader,AdmissionGate} from './lease-reader.mjs';
@@ -141,6 +142,25 @@ export async function runPrivacy(configFile){
     probe:async(id,expected,circuit)=>probeGuest({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],expected,
       ...(windows?{shield,hostSession:await hostProof.get()}:{linux:{...linux,measurement:expected.measurement,release:expected.release},verifySnp}),
       ...(circuit?{address:circuit.address,proxy:circuit.isolation.guardAddress}:guestd?{openApp:id=>guestd.open(id)}:{localUpstream:cfg.upstream})})});
+  // A public provider address holds one HTTPS allocation. Every address already
+  // routed for another app (any host, from Nan's public map) is skipped when
+  // choosing, so this host does not wait out allocation timeouts against it.
+  // Used for that choice only, never for authorization.
+  if(control){
+    const occupiedFetch=guardedFetch(control.proxies,{timeoutMs:8000,maxBytes:1048576});
+    const own=new Set(apps.map(a=>a.deploymentId.slice(2,10)));
+    const refreshOccupied=async()=>{try{
+      const res=await occupiedFetch(new URL('/v1/network/tuna',cfg.mirror||'https://api.enclave.host'));
+      if(!res.ok)throw new Error('HTTP '+res.status);
+      const map=await res.json(),taken=new Set();
+      for(const [label,l] of Object.entries(map?.labels||{})){
+        if(own.has(label)||!l||typeof l!=='object')continue;
+        for(const a of [...(Array.isArray(l.addresses)?l.addresses:[]),l.a,l.aaaa])if(typeof a==='string'&&net.isIP(a))taken.add(a);
+      }
+      agent.manager.occupiedElsewhere=taken;
+    }catch(e){log('occupied providers: '+e.message);}};
+    await refreshOccupied();setInterval(()=>void refreshOccupied(),30000).unref();
+  }
   try{await agent.start();}catch(e){hostProof?.close();await agent.close();await control?.close();throw e;}
   return agent;
 }
