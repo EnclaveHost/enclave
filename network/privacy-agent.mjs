@@ -6,6 +6,8 @@ import {privateKeyToAccount} from 'viem/accounts';
 import {LeaseReader,AdmissionGate} from './lease-reader.mjs';
 import {CircuitManager} from './circuit-manager.mjs';
 import {LinuxCircuitRuntime} from './linux-circuit-runtime.mjs';
+import {WindowsCircuitRuntime} from './windows-circuit-runtime.mjs';
+import {ShieldHostProof} from './shield-host-proof.mjs';
 import {ProviderInventory} from './provider-inventory.mjs';
 import {RoutePublisher,appPolicy} from './route-publisher.mjs';
 import {EgressMap} from './egress-map.mjs';
@@ -78,19 +80,28 @@ export async function runPrivacy(configFile){
   }
   let verifySnp;
   if(cfg.verifierModule){if(!path.isAbsolute(cfg.verifierModule))throw new Error('local verifier module required');verifySnp=(await import(pathToFileURL(cfg.verifierModule).href)).judge;}
-  const linux={...cfg.linux,runtime:await readJSON(cfg.linux.runtimeFile),minTcb:await readJSON(cfg.linux.minTcbFile),vcek:await fs.readFile(cfg.linux.vcekFile),kds:false};
-  if(cfg.linux.certChainFile){
+  const windows=process.platform==='win32';let linux,shield,hostProof;
+  if(windows){
+    if(!cfg.shield?.policyFile||!cfg.shield?.tpmBinary||!cfg.shield?.tpmSha256)throw new Error('independent Shield platform and TPM pins required');
+    shield=await readJSON(cfg.shield.policyFile);hostProof=new ShieldHostProof({binary:cfg.shield.tpmBinary,sha256:cfg.shield.tpmSha256,policy:shield});
+  }else{
+    if(process.platform!=='linux'||!cfg.linux)throw new Error('supported measured host configuration required');
+    linux={...cfg.linux,runtime:await readJSON(cfg.linux.runtimeFile),minTcb:await readJSON(cfg.linux.minTcbFile),vcek:await fs.readFile(cfg.linux.vcekFile),kds:false};
+  }
+  if(linux&&cfg.linux.certChainFile){
     const seedModule=cfg.linux.snpModule?await import(pathToFileURL(cfg.linux.snpModule).href):await import('../relay/snp-verify.mjs');
     seedModule.seedCertChain(cfg.linux.product,await fs.readFile(cfg.linux.certChainFile,'utf8'));
   }
   const log=message=>console.error('[privacy] '+message);let agent;
+  if(windows&&cfg.guestd)throw new Error('Linux guest manager configuration on Windows');
   const guestd=cfg.guestd?new GuestdIngress({...cfg.guestd,expected:id=>apps.find(a=>a.deploymentId===id)?.expected}):null;
-  const runtime=new LinuxCircuitRuntime({...cfg.runtime,directory:path.join(cfg.directory,'circuits'),rpc:cfg.nknRpc,
+  const Runtime=windows?WindowsCircuitRuntime:LinuxCircuitRuntime;
+  const runtime=new Runtime({...cfg.runtime,directory:path.join(cfg.directory,'circuits'),rpc:cfg.nknRpc,
     authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:guestd?guestd.forward:localAppForwarder(cfg.upstream),log});
   const inventory=new ProviderInventory({...cfg.inventory,rpc:cfg.nknRpc,log});
   const control=cfg.control?new ControlTransport({...cfg.control,directory:path.join(cfg.directory,'control'),inventory,rpc:cfg.nknRpc,wallets:await readJSON(cfg.control.walletsFile),log}):null;
   let stopping=false;
-  const close=()=>{stopping=true;void Promise.all([agent?.close(),control?.close(),runtime.close()]).catch(e=>log(e.message));};
+  const close=()=>{stopping=true;hostProof?.close();void Promise.all([agent?.close(),control?.close(),runtime.close()]).catch(e=>log(e.message));};
   process.once('SIGTERM',close);process.once('SIGINT',close);
   if(control)await control.start();
   if(stopping)throw new Error('privacy agent stopped during bootstrap');
@@ -115,9 +126,9 @@ export async function runPrivacy(configFile){
       const results=await Promise.allSettled(tasks);for(const r of results)if(r.status==='rejected')log('optional discovery transport: '+r.reason.message);
     },
     probe:async(id,expected,circuit)=>probeGuest({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],expected,
-      linux:{...linux,measurement:expected.measurement,release:expected.release},verifySnp,
+      ...(windows?{shield,hostSession:await hostProof.get()}:{linux:{...linux,measurement:expected.measurement,release:expected.release},verifySnp}),
       ...(circuit?{address:circuit.address,proxy:circuit.isolation.guardAddress}:guestd?{openApp:id=>guestd.open(id)}:{localUpstream:cfg.upstream})})});
-  try{await agent.start();}catch(e){await agent.close();await control?.close();throw e;}
+  try{await agent.start();}catch(e){hostProof?.close();await agent.close();await control?.close();throw e;}
   return agent;
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href){

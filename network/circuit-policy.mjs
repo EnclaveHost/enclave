@@ -77,7 +77,13 @@ export function selectCircuitProviders(policy, inventory, {existing = [], locked
       for (const publicNode of publicNodes) {
         if (!independent(guard, publicNode, p.diversity)) continue;
         if (chosen.some(c => Object.values(c).some(n => !independent(n, publicNode, p.diversity)))) continue;
-        for (const egress of egressNodes) {
+        // Public ingress and egress are already permitted to share an edge
+        // provider within a circuit. Prefer that shape before consuming a
+        // third failure domain, which can strand the sibling on unproven edges.
+        // An explicit owner preference still takes precedence.
+        const edgeRank=n=>n.identity===publicNode.identity?0:n.beneficiary===publicNode.beneficiary&&n.asn===publicNode.asn?1:n.asn===publicNode.asn?2:3;
+        const edges=[...egressNodes].sort((a,b)=>(p.providers.egress.prefer.includes(a.identity)?0:1)-(p.providers.egress.prefer.includes(b.identity)?0:1)||edgeRank(a)-edgeRank(b));
+        for (const egress of edges) {
           if (++examined > 100000) return null;
           const circuit = {guard, public: publicNode, egress};
           if (!independent(guard, egress, p.diversity) || chosen.some(c => !independentCircuits(c, circuit, p.diversity))) continue;

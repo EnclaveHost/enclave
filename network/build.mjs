@@ -13,6 +13,7 @@ await build({entryPoints:[path.join(root,'circuit-worker.mjs')], outfile:path.jo
   bundle:true, platform:'node', format:'esm', target:'node22',
   banner:{js:'import {createRequire as bundleRequire} from "node:module"; const require=bundleRequire(import.meta.url);'}});
 await build({entryPoints:[path.join(root,'privacy-agent.mjs')],outfile:path.join(out,'privacy-agent.mjs'),bundle:true,platform:'node',format:'esm',target:'node22',banner:{js:'import {createRequire as bundleRequire} from "node:module"; const require=bundleRequire(import.meta.url);'}});
+await build({entryPoints:[path.join(root,'windows-circuit-worker.mjs')],outfile:path.join(out,'windows-circuit-worker.mjs'),bundle:true,platform:'node',format:'esm',target:'node22',banner:{js:'import {createRequire as bundleRequire} from "node:module"; const require=bundleRequire(import.meta.url);'}});
 for (const file of ['Dockerfile.guarded','guarded-entrypoint.sh'])fs.copyFileSync(path.join(root,file),path.join(out,file));
 for (const [goos, name] of [['linux','enclave-tuna'],['windows','enclave-tuna.exe']])
   execFileSync('go',['build','-trimpath','-o',path.join(out,name),'.'],{

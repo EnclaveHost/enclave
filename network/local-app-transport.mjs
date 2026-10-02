@@ -1,7 +1,7 @@
 import https from 'node:https';
 import tls from 'node:tls';
 import WebSocket, {createWebSocketStream} from 'ws';
-import {localUpstream} from './agent.mjs';
+import {localUpstream} from './upstream.mjs';
 
 // This transport binds a verifier to a single local deployment. It performs no
 // hostname lookup, public dial, SNI routing or caller-supplied deployment choice.

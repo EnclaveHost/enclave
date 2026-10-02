@@ -29,6 +29,19 @@ test('owner exclusions and allowlists override speed and defaults', () => {
   assert.throws(()=>validateCircuitPolicy({...policy,providers:{public:{prefer:[node(2).identity],deny:[node(2).identity]}}}),/forbidden/);
 });
 
+test('edge roles preserve failure domains for the sibling while respecting owner preferences', () => {
+  const inventory=[1,2,3,4,5,6].map(node);
+  for(const n of inventory)n.outcomes={egress:{successRate:n.asn>=105?1:0.8}};
+  const p={...policy,providers:{guard:{allow:[node(1).identity,node(3).identity]},public:{allow:[node(2).identity,node(4).identity]}}};
+  const compact=selectCircuitProviders(p,inventory);
+  assert.equal(compact.ready,true);
+  assert.ok(compact.circuits.every(c=>c.public.identity===c.egress.identity));
+  assert.equal(new Set(compact.circuits.flatMap(c=>Object.values(c).map(n=>n.asn))).size,4);
+  const preferred=selectCircuitProviders({...p,providers:{...p.providers,egress:{prefer:[node(6).identity]}}},inventory);
+  assert.equal(preferred.ready,true);
+  assert.ok(preferred.circuits.some(c=>c.egress.identity===node(6).identity));
+});
+
 test('per-app TLS ingress refuses another app and revokes open connections', async t => {
   let allowed=true, forwarded=0, resolve;
   const arrived=new Promise(r=>resolve=r);

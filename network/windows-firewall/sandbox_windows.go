@@ -67,7 +67,7 @@ func grantCircuit(dir string, sid *windows.SID) {
 	check(windows.SetNamedSecurityInfo(scratch, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION|windows.LABEL_SECURITY_INFORMATION, nil, nil, acl, sacl))
 	runtime.KeepAlive(sd)
 }
-func verifyFirewall(dir, executable string) string {
+func verifyFirewall(dir, executable string) Manifest {
 	b, e := os.ReadFile(filepath.Join(dir, "firewall.json"))
 	check(e)
 	var m Manifest
@@ -103,7 +103,7 @@ func verifyFirewall(dir, executable string) string {
 			panic("circuit firewall missing rule")
 		}
 	}
-	return m.AppContainerSID
+	return m
 }
 func sandbox(file string) {
 	b, e := os.ReadFile(file)
@@ -120,18 +120,26 @@ func sandbox(file string) {
 	if !info.Mode().IsRegular() {
 		panic("regular private executable required")
 	}
-	policySID := verifyFirewall(dir, exe)
+	policy := verifyFirewall(dir, exe)
 	profile := "Enclave.Circuit." + strings.TrimPrefix(filepath.Base(dir), "enclave-circuit-")
 	sid := appProfile(profile)
-	if sid.String() != policySID {
+	if sid.String() != policy.AppContainerSID {
 		panic("AppContainer firewall identity mismatch")
 	}
 	defer windows.FreeSid(sid)
 	grantCircuit(dir, sid)
 	check(exec.Command(filepath.Join(os.Getenv("SystemRoot"), "System32", "CheckNetIsolation.exe"), "LoopbackExempt", "-a", "-p="+sid.String()).Run())
-	// No network or other capability is granted. Loopback has an explicit
-	// exemption and is still constrained by package-wide WFP filters.
+	// App workers have zero capabilities. A separately identified guard has
+	// InternetClient only, still constrained by its package-wide WFP rules.
 	capabilities := securityCapabilities{SID: sid}
+	var internet []windows.SIDAndAttributes
+	if policy.PublicNetwork {
+		capability, e := windows.StringToSid("S-1-15-3-1")
+		check(e)
+		internet = []windows.SIDAndAttributes{{Sid: capability, Attributes: windows.SE_GROUP_ENABLED}}
+		capabilities.Capabilities = &internet[0]
+		capabilities.Count = 1
+	}
 	attrs, e := windows.NewProcThreadAttributeList(2)
 	check(e)
 	defer attrs.Delete()
@@ -198,7 +206,12 @@ func sandbox(file string) {
 	}
 	capabilityInfo := make([]byte, 1024)
 	check(windows.GetTokenInformation(token, 30, &capabilityInfo[0], uint32(len(capabilityInfo)), &length))
-	if (*windows.Tokengroups)(unsafe.Pointer(&capabilityInfo[0])).GroupCount != 0 {
+	groups := (*windows.Tokengroups)(unsafe.Pointer(&capabilityInfo[0]))
+	if policy.PublicNetwork {
+		if groups.GroupCount != 1 || groups.AllGroups()[0].Sid.String() != "S-1-15-3-1" {
+			panic("guard capabilities differ from policy")
+		}
+	} else if groups.GroupCount != 0 {
 		panic("worker retained capabilities")
 	}
 	privs := make([]byte, 4096)
@@ -243,6 +256,7 @@ func sandbox(file string) {
 	var code uint32
 	check(windows.GetExitCodeProcess(pi.Process, &code))
 	runtime.KeepAlive(capabilities)
+	runtime.KeepAlive(internet)
 	runtime.KeepAlive(env16)
 	if code != 0 {
 		panic(fmt.Sprintf("sandboxed worker exited %d", code))
