@@ -257,7 +257,9 @@ func (s *server) serveTickets(ctx context.Context, l net.Listener, cidOf func(ne
 }
 
 // admitCID is the egress server's Admit: only a guest this guestd launched for a deployment, while it lives.
-func (s *server) admitCID(cid uint32) bool {
+func (s *server) admitCID(cid uint32) bool { return s.deploymentOfCID(cid) != "" }
+
+func (s *server) deploymentOfCID(cid uint32) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, v := range s.vms {
@@ -265,10 +267,10 @@ func (s *server) admitCID(cid uint32) bool {
 		// end is requested - a DELETE during startup included - its guest gets no new connection
 		if v.cid == cid && cid != 0 && v.release && v.HostData != "" && releaseLive(v) &&
 			(v.Status == "starting" || v.Status == "running") {
-			return true
+			return "0x" + v.HostData
 		}
 	}
-	return false
+	return ""
 }
 
 // postTicket is POST /vms/<id>/ticket {ticket}: the supervisor's late ticket, once the instance reports awaitingTicket.

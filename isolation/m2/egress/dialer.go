@@ -78,9 +78,10 @@ type Dialer struct {
 	Resolver      Resolver
 	Own           func() []netip.Addr // this host's addresses, read at dial time
 	DialTimeout   time.Duration
-	MaxConcurrent int    // per guest
-	MaxPerMinute  int    // per guest, dials started
-	SOCKSProxy    string // optional trusted loopback TUNA entry; failure never falls back to direct
+	MaxConcurrent int                                // per guest
+	MaxPerMinute  int                                // per guest, dials started
+	SOCKSProxy    string                             // optional trusted loopback TUNA entry; failure never falls back to direct
+	RouteFor      func(cid uint32) (AppRoute, error) // when set, all DNS and TCP use only this guest's routes
 	dial          func(ctx context.Context, addr string) (net.Conn, error)
 	mu            sync.Mutex
 	active        map[uint32]int
@@ -167,6 +168,18 @@ func (d *Dialer) dialPublic(ctx context.Context, cid uint32, host string, port i
 			release()
 		}
 	}()
+	if d.RouteFor != nil {
+		route, err := d.appRoute(cid)
+		if err != nil {
+			return nil, nil, err
+		}
+		c, err := d.dialAppRoute(ctx, route, host, port, allowIP)
+		if err != nil {
+			return nil, nil, err
+		}
+		ok = true
+		return c, release, nil
+	}
 	addrs, err := d.publicAddresses(ctx, host, allowIP)
 	if err != nil {
 		return nil, nil, err
