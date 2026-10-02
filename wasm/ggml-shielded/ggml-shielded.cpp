@@ -1,5 +1,6 @@
 #include "ggml-shielded.h"
 #include "shielded-latency.h"
+#include "shielded-group-key.h"
 #include "shielded-fusion.h"
 #include "shielded-weight-cache.h"
 #include "shielded-encoded-source.h"
@@ -139,36 +140,6 @@ struct sh_calib_site {
     std::vector<int64_t> outliers;
 };
 
-/* q/k/v come from one attn_norm and gate/up from one ffn_norm, so they share an
- * activation -- and therefore share one exponent, one outlier set and, at run
- * time, ONE PAD and ONE EXCHANGE. That is not a bandwidth optimisation: masking
- * the same x three times under three pads would hand the adversary three
- * encryptions of one value for no benefit.
- *
- * qwen35's gated-deltanet layers feed FOUR linears from one norm output:
- * attn_qkv, attn_gate, ssm_alpha and ssm_beta all read the same tensor
- * (shielded-calib reports it from the graph). Without the last three rows the
- * backend exchanged attn_qkv and attn_gate as two groups, i.e. one plaintext
- * under two pads and one exchange per layer more than needed. A name that
- * matches here but whose model has no attn_qkv simply finds no calibration and
- * stays in the enclave. */
-static std::string sh_group_key(const std::string &name) {
-    static const std::pair<const char *, const char *> members[] = {
-        { "attn_k",    "attn_q" },   { "attn_v",    "attn_q" },
-        { "ffn_up",    "ffn_gate" },
-        { "attn_gate", "attn_qkv" }, { "ssm_alpha", "attn_qkv" }, { "ssm_beta", "attn_qkv" },
-        { "ssm_ba",    "attn_qkv" },   /* qwen3next: the same norm output */
-    };
-    for (const auto &m : members) {
-        const size_t p = name.find(m.first);
-        if (p != std::string::npos) {
-            std::string out = name;
-            out.replace(p, strlen(m.first), m.second);
-            return out;
-        }
-    }
-    return name;
-}
 
 struct sh_state {
     std::mutex mu;
@@ -2745,10 +2716,10 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
         const auto *node = graph->nodes[i];
         if (node->op != GGML_OP_MUL_MAT || !node->src[0] || !node->src[0]->data) continue;
         const auto *w = node->src[0];
-        const std::string name = ggml_get_name(w);
+        const char *name = ggml_get_name(w);
         int owner = sh_owner(p, w);
         if (!p.invalid && sh_source_type_ok(w->type) && sh_source_geometry_ok(w->type, w->ne[0]) &&
-            sh_site_for(*p.cards[0], name.c_str()) &&
+            sh_site_for(*p.cards[0], name) &&
             !p.owners.count(sh_group_key(name))) p.pending[name] = *w;
         else if (!p.invalid && owner >= 0 && !p.cards[owner]->weights.count(name) && !p.cards[owner]->refused.count(name))
             p.pending[name] = *w;
