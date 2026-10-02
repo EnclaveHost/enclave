@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
 }
 EOF
 run_all() {  # <dominit.c> -> 0 only if every check passes
-  mkdir -p "$d/b" && cp "$1" "$d/b/dominit.c" && cp "$here/app-seccomp.h" "$here/sha256-min.h" "$d/b/"
+  mkdir -p "$d/b" && cp "$1" "$d/b/dominit.c" && cp "$here/app-seccomp.h" "$here/sha256-min.h" "$here/shield-memory.h" "$d/b/"
   rm -rf "$d/sdir"
   gcc -O2 -Wall -Wno-unused-function -I"$d/b" -DSECCOMP_DIR="\"$d/sdir\"" -DSECCOMP_STATEMENT_MS=500 -o "$d/h" "$d/h.c" 2>"$d/cc.txt" || { echo "FAIL dominit did not build: $(head -3 "$d/cc.txt")"; return 1; }
   rc=0
