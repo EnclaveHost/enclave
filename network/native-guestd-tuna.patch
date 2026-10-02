@@ -635,7 +635,7 @@ index abd6bdf4e..73d1a33cf 100644
 +func (s *server) deploymentOfCID(cid uint32) string {
 @@ -268 +270 @@ func (s *server) admitCID(cid uint32) bool {
 -			return true
-+			return v.HostData
++			return "0x" + v.HostData
 @@ -271 +273 @@ func (s *server) admitCID(cid uint32) bool {
 -	return false
 +	return ""

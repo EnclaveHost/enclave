@@ -6,7 +6,7 @@ const roles=['guard','public','egress'];
 const sameProviders=(a,b)=>roles.every(role=>a[role].identity===b[role].identity&&a[role].address===b[role].address&&a[role].beneficiary===b[role].beneficiary&&a[role].asn===b[role].asn);
 export class CircuitManager extends EventEmitter {
   constructor({runtime,admission,inventory,wallets,probe,publish,now=Date.now,log=()=>{}}) {
-    super();Object.assign(this,{runtime,admission,inventory,wallets,probe,publish,now,log});this.apps=new Map();this.cooldown=new Map();this.closed=false;this.busy=false;this.publications=new Map();
+    super();Object.assign(this,{runtime,admission,inventory,wallets,probe,publish,now,log});this.apps=new Map();this.cooldown=new Map();this.closed=false;this.busy=false;this.publications=new Map();this.reconcilingApps=new Map();this.reservedPublic=new Set();
   }
   async configure(apps) {
     const next=new Map(),walletOwners=new Map();
@@ -65,48 +65,63 @@ export class CircuitManager extends EventEmitter {
   }
   async reconcile() {
     if(this.busy||this.closed)return;this.busy=true;
+    const pending=[];
     try{
       this.enforceAdmission();const nodes=await this.inventory();
       for(const app of this.apps.values()){
-        if(!this.authorizationUntil(app.id)){app.error='awaiting fresh chain and guest authorization';continue;}
-        // Recheck advertised identity, current price, exclusions and failure
-        // domain metadata before keeping an existing allocation.
-        for(const circuit of [...app.circuits]){
-          const current=Object.fromEntries(roles.map(role=>[role,nodes.find(n=>n.identity===circuit.providers[role].identity)]));
-          const eligible=roles.every(role=>current[role]&&providerAllowed(current[role],app.policy.providers[role],app.policy.maxPrice,this.now()));
-          if(!eligible||!sameProviders(current,circuit.providers))await this.fail(app,circuit,'provider no longer satisfies policy');
-        }
-        // End-to-end proof is required for the public route, not just a live
-        // SOCKS connection or an SDK allocation event.
-        for(const circuit of [...app.circuits])if(this.now()-(circuit.checkedAt||0)>20000){
-          try{await this.probe(app,circuit);circuit.checkedAt=this.now();}
-          catch(e){await this.fail(app,circuit,`route verification failed: ${e.message}`);}
-        }
-        if(app.circuits.length===2){app.error=null;await this.publishApp(app);continue;}
-        const choice=selectCircuitProviders(app.policy,nodes,{existing:app.circuits.map(c=>({...c.providers,healthy:c.healthy})),locked:app.circuits.map(c=>c.providers),occupiedPublic:new Set([...this.apps.values()].flatMap(a=>a.circuits.map(c=>c.address))),cooldown:this.cooldown,now:this.now()});
-        if(!choice.ready){app.error=choice.reason;await this.publishApp(app);continue;}
-        for(const providers of choice.circuits){
-          if(app.circuits.some(c=>sameProviders(c.providers,providers)))continue;
-          if(app.circuits.some(c=>!independentCircuits(c.providers,providers,app.policy.diversity)))continue;
-          const slot=[0,1].find(n=>!app.circuits.some(c=>c.slot===n));if(slot===undefined)break;
-          let circuit;
-          try{
-            circuit=await this.runtime.start({deploymentId:app.id,names:app.names,providers,wallets:app.wallets[slot],maxPrice:app.policy.maxPrice});
-            if(this.closed||this.apps.get(app.id)!==app||!this.authorizationUntil(app.id))throw new Error('authorization changed while allocating');
-            circuit.admit(this.authorizationUntil(app.id));
-            await this.probe(app,circuit);
-            if(circuit.closed||!this.authorizationUntil(app.id))throw new Error('circuit failed during verification');
-            circuit.slot=slot;circuit.healthy=true;circuit.checkedAt=this.now();
-            circuit.on('down',reason=>{void this.fail(app,circuit,reason).catch(e=>this.log(e.message));});
-            app.circuits.push(circuit);await this.publishApp(app);
-          }catch(e){
-            for(const role of roles)this.cooldown.set(providers[role].identity,this.now()+60000);
-            if(circuit){if(app.circuits.includes(circuit))await this.fail(app,circuit,e.message);else await circuit.close(e.message);}app.error=e.message;this.log(`app ${app.id.slice(0,10)}: ${e.message}`);
-          }
-        }
-        app.error=app.circuits.length===2?null:app.error||'second independent circuit unavailable';
+        if(this.reconcilingApps.has(app.id))continue;
+        const operation=this.reconcileApp(app,nodes).catch(e=>{app.error=e.message;this.log(`app ${app.id.slice(0,10)}: ${e.message}`);})
+          .finally(()=>this.reconcilingApps.delete(app.id));
+        this.reconcilingApps.set(app.id,operation);pending.push(operation);
       }
     }finally{this.busy=false;}
+    // Each app allocates and probes independently. A stalled provider cannot
+    // prevent another app's health checks, repair, or route withdrawal.
+    await Promise.all(pending);
+  }
+  async reconcileApp(app,nodes) {
+    if(!this.authorizationUntil(app.id)){app.error='awaiting fresh chain and guest authorization';return;}
+    // Recheck advertised identity, current price, exclusions and failure
+    // domain metadata before keeping an existing allocation.
+    for(const circuit of [...app.circuits]){
+      const current=Object.fromEntries(roles.map(role=>[role,nodes.find(n=>n.identity===circuit.providers[role].identity)]));
+      const eligible=roles.every(role=>current[role]&&providerAllowed(current[role],app.policy.providers[role],app.policy.maxPrice,this.now()));
+      if(!eligible||!sameProviders(current,circuit.providers))await this.fail(app,circuit,'provider no longer satisfies policy');
+    }
+    // End-to-end proof is required for the public route, not just a live
+    // SOCKS connection or an SDK allocation event.
+    for(const circuit of [...app.circuits])if(this.now()-(circuit.checkedAt||0)>20000){
+      try{await this.probe(app,circuit);circuit.checkedAt=this.now();}
+      catch(e){await this.fail(app,circuit,`route verification failed: ${e.message}`);}
+    }
+    if(app.circuits.length===2){app.error=null;await this.publishApp(app);return;}
+    const choice=selectCircuitProviders(app.policy,nodes,{existing:app.circuits.map(c=>({...c.providers,healthy:c.healthy})),locked:app.circuits.map(c=>c.providers),occupiedPublic:new Set([...this.reservedPublic,...[...this.apps.values()].flatMap(a=>a.circuits.map(c=>c.address))]),cooldown:this.cooldown,now:this.now()});
+    if(!choice.ready){app.error=choice.reason;await this.publishApp(app);return;}
+    const reserved=choice.circuits.filter(p=>!app.circuits.some(c=>sameProviders(c.providers,p))).map(p=>p.public.address);
+    for(const address of reserved)this.reservedPublic.add(address);
+    try{
+    for(const providers of choice.circuits){
+      if(this.closed||this.apps.get(app.id)!==app||!this.authorizationUntil(app.id))return;
+      if(app.circuits.some(c=>sameProviders(c.providers,providers)))continue;
+      if(app.circuits.some(c=>!independentCircuits(c.providers,providers,app.policy.diversity)))continue;
+      const slot=[0,1].find(n=>!app.circuits.some(c=>c.slot===n));if(slot===undefined)break;
+      let circuit;
+      try{
+        circuit=await this.runtime.start({deploymentId:app.id,names:app.names,providers,wallets:app.wallets[slot],maxPrice:app.policy.maxPrice});
+        if(this.closed||this.apps.get(app.id)!==app||!this.authorizationUntil(app.id))throw new Error('authorization changed while allocating');
+        circuit.admit(this.authorizationUntil(app.id));
+        await this.probe(app,circuit);
+        if(circuit.closed||!this.authorizationUntil(app.id))throw new Error('circuit failed during verification');
+        circuit.slot=slot;circuit.healthy=true;circuit.checkedAt=this.now();
+        circuit.on('down',reason=>{void this.fail(app,circuit,reason).catch(e=>this.log(e.message));});
+        app.circuits.push(circuit);await this.publishApp(app);
+      }catch(e){
+        for(const role of roles)this.cooldown.set(providers[role].identity,this.now()+60000);
+        if(circuit){if(app.circuits.includes(circuit))await this.fail(app,circuit,e.message);else await circuit.close(e.message);}app.error=e.message;this.log(`app ${app.id.slice(0,10)}: ${e.message}`);
+      }
+    }
+    app.error=app.circuits.length===2?null:app.error||'second independent circuit unavailable';
+    }finally{for(const address of reserved)this.reservedPublic.delete(address);}
   }
   status() {return [...this.apps.values()].map(app=>({deploymentId:app.id,ready:app.circuits.length===2&&app.circuits.every(c=>c.healthy)&&!!this.authorizationUntil(app.id),
     error:app.error,lastFailure:app.lastFailure||null,circuits:app.circuits.map(c=>({id:c.id,address:c.address,port:c.port,healthy:c.healthy,egress:c.egress}))}));}

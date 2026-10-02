@@ -13,6 +13,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -22,14 +23,16 @@ type Program struct {
 	Listen  []uint16 `json:"listen"`
 }
 type Config struct {
-	Directory string    `json:"directory"`
-	Programs  []Program `json:"programs"`
+	AppContainer bool      `json:"appContainer"`
+	Directory    string    `json:"directory"`
+	Programs     []Program `json:"programs"`
 }
 type Manifest struct {
-	Sublayer string   `json:"sublayer"`
-	Rules    []string `json:"rules"`
-	Programs []string `json:"programs"`
-	State    string   `json:"state"`
+	AppContainerSID string   `json:"appContainerSid,omitempty"`
+	Sublayer        string   `json:"sublayer"`
+	Rules           []string `json:"rules"`
+	Programs        []string `json:"programs"`
+	State           string   `json:"state"`
 }
 
 func check(e error) {
@@ -39,6 +42,10 @@ func check(e error) {
 }
 func guid() windows.GUID { g, e := windows.GenerateGUID(); check(e); return g }
 func main() {
+	if len(os.Args) == 3 && os.Args[1] == "sandbox" {
+		sandbox(os.Args[2])
+		return
+	}
 	if len(os.Args) != 3 || os.Args[1] != "install" {
 		panic("usage: enclave-circuit-firewall.exe install <config.json>")
 	}
@@ -46,7 +53,7 @@ func main() {
 	check(e)
 	var cfg Config
 	check(json.Unmarshal(b, &cfg))
-	if !filepath.IsAbs(cfg.Directory) || len(cfg.Programs) < 1 || len(cfg.Programs) > 3 {
+	if !filepath.IsAbs(cfg.Directory) || len(cfg.Programs) < 1 || len(cfg.Programs) > 4 {
 		panic("private circuit directory required")
 	}
 	dir := strings.ToLower(filepath.Clean(cfg.Directory))
@@ -89,6 +96,15 @@ func main() {
 	defer session.Close()
 	layer := wf.SublayerID(guid())
 	manifest := Manifest{Sublayer: layer.String(), State: "installing"}
+	var packageSID *windows.SID
+	if cfg.AppContainer {
+		if !regexp.MustCompile(`^enclave-circuit-[a-f0-9]{32}$`).MatchString(filepath.Base(dir)) {
+			panic("exact sandbox directory required")
+		}
+		packageSID = appProfile("Enclave.Circuit." + strings.TrimPrefix(filepath.Base(dir), "enclave-circuit-"))
+		defer windows.FreeSid(packageSID)
+		manifest.AppContainerSID = packageSID.String()
+	}
 	for _, p := range cfg.Programs {
 		manifest.Programs = append(manifest.Programs, p.Path)
 	}
@@ -113,7 +129,13 @@ func main() {
 		id := wf.RuleID(guid())
 		manifest.Rules = append(manifest.Rules, id.String())
 		persist()
-		conditions := []*wf.Match{{Field: wf.FieldALEAppID, Op: wf.MatchTypeEqual, Value: ids[app]}}
+		conditions := []*wf.Match{}
+		if app >= 0 {
+			conditions = append(conditions, &wf.Match{Field: wf.FieldALEAppID, Op: wf.MatchTypeEqual, Value: ids[app]})
+		}
+		if packageSID != nil && (app < 0 || action == wf.ActionPermit) {
+			conditions = append(conditions, &wf.Match{Field: wf.FieldALEPackageID, Op: wf.MatchTypeEqual, Value: packageSID})
+		}
 		conditions = append(conditions, matches...)
 		check(session.AddRule(&wf.Rule{ID: id, Name: "Enclave circuit policy", Layer: l, Sublayer: layer, Weight: weight, Action: action, HardAction: action == wf.ActionBlock, Persistent: true, Conditions: conditions}))
 	}
@@ -125,6 +147,11 @@ func main() {
 	for i := range cfg.Programs {
 		for _, l := range []wf.LayerID{wf.LayerALEAuthConnectV4, wf.LayerALEAuthConnectV6, wf.LayerALEAuthRecvAcceptV4, wf.LayerALEAuthRecvAcceptV6} {
 			add(i, l, wf.ActionBlock, 1)
+		}
+	}
+	if packageSID != nil {
+		for _, l := range []wf.LayerID{wf.LayerALEAuthConnectV4, wf.LayerALEAuthConnectV6, wf.LayerALEAuthRecvAcceptV4, wf.LayerALEAuthRecvAcceptV6} {
+			add(-1, l, wf.ActionBlock, 1)
 		}
 	}
 	for i, p := range cfg.Programs {

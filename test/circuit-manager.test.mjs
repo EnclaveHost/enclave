@@ -47,3 +47,20 @@ test('delayed publications cannot restore a route withdrawn while the write was 
  assert.ok(f.publications.at(-1).routes.every(r=>r.circuit!==dead.id));assert.equal(dead.closed,true);
  await f.manager.close();
 });
+
+test('a stuck app allocation does not block other apps or reserve the same public port',async()=>{
+ const f=fixture(),other='0x'+'cd'.repeat(32),until=Date.now()+60000;
+ f.manager.admission.leases.set(other,{validUntil:until});f.manager.admission.proofs.set(other,{validUntil:until});
+ f.manager.wallets=async app=>f.wallets.map(slot=>Object.fromEntries(Object.entries(slot).map(([role,w])=>[role,{...w,address:app+w.address}])));
+ let unblock,entered;const blocked=new Promise(r=>unblock=r),started=new Promise(r=>entered=r);
+ const original=f.manager.runtime.start,attempts=[];
+ f.manager.runtime.start=async args=>{attempts.push(args);if(args.deploymentId===id){entered();await blocked;}return original(args);};
+ await f.manager.configure([{policy,names:['one.example']},{policy:{...policy,deploymentId:other},names:['two.example']}]);
+ const working=f.manager.reconcile();await started;
+ try{
+  for(let i=0;i<30&&!f.manager.status().find(a=>a.deploymentId===other).ready;i++)await new Promise(r=>setTimeout(r,5));
+  assert.equal(f.manager.status().find(a=>a.deploymentId===other).ready,true);
+  await f.manager.reconcile();assert.equal(attempts.filter(a=>a.deploymentId===id).length,1);
+  assert.ok(attempts.filter(a=>a.deploymentId===other).every(a=>a.providers.public.address!==attempts[0].providers.public.address));
+ }finally{unblock();await working;await f.manager.close();}
+});

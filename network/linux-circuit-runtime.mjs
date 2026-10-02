@@ -20,17 +20,17 @@ export class LinuxCircuitRuntime {
     Object.assign(this,{directory,binary,image,network,gateway,rpc,authorize,forward,discovery,log});
   }
   async start({deploymentId,names,providers,wallets,maxPrice}) {
-    const id=randomBytes(16).toString('hex'),dir=path.join(this.directory,id),privateDir=path.join(dir,'worker');
-    await fs.mkdir(privateDir,{recursive:true,mode:0o700});
+    const id=randomBytes(16).toString('hex'),dir=path.join(this.directory,id),privateDir=path.join(dir,'worker'),guardDir=path.join(dir,'guard');
+    await fs.mkdir(privateDir,{recursive:true,mode:0o700});await fs.mkdir(guardDir,{recursive:true,mode:0o700});
     const circuit=new EventEmitter();Object.assign(circuit,{id,deploymentId,providers,closed:false});
     let guard,child,broker,lines,readyReject,readyTimer,socketDirectory,egressServer;
     const egressSockets=new Set();
-    const name='enclave-circuit-'+id;
+    const name='enclave-circuit-'+id,guardName='enclave-guard-'+id;
     circuit.close=async reason=>{
       if(circuit.closed)return;circuit.closed=true;clearTimeout(readyTimer);readyReject?.(new Error(reason||'circuit closed'));
       broker?.revoke();for(const socket of egressSockets)socket.destroy();egressServer?.close();guard?.close();lines?.close();
       if(child?.stdin.writable)child.stdin.end(JSON.stringify({type:'stop'})+'\n');
-      await execute('docker',['rm','-f',name],{timeout:15000}).catch(()=>{});
+      await Promise.all([name,guardName].map(n=>execute('docker',['rm','-f',n],{timeout:15000}).catch(()=>{})));
       await broker?.close();if(socketDirectory)await fs.rm(socketDirectory,{recursive:true,force:true});circuit.emit('down',reason||'closed');
     };
     circuit.publishDiscovery=value=>{if(circuit.closed||!child?.stdin.writable)throw new Error('circuit closed');child.stdin.write(JSON.stringify({type:'discovery',value})+'\n');};
@@ -38,6 +38,8 @@ export class LinuxCircuitRuntime {
     try{
       const guardPort=await freePort(this.gateway);
       const seen=new Set();
+      const discoveryDir=path.join(this.directory,'discovery',wallets.public.address);
+      await fs.mkdir(discoveryDir,{recursive:true,mode:0o700});
       for(const role of ['guard','public','egress']){
         const wallet=wallets[role];
         if(!wallet||!path.isAbsolute(wallet.seedFile)||!/^NKN[1-9A-HJ-NP-Za-km-z]{25,45}$/.test(wallet.address)||seen.has(wallet.address))throw new Error('distinct funded role wallets required');
@@ -46,20 +48,34 @@ export class LinuxCircuitRuntime {
         if(JSON.parse(derived.stdout).address!==wallet.address)throw new Error('wallet seed does not match its budget manifest');
         const seed=await fs.readFile(wallet.seedFile,'utf8');
         if(!/^[0-9a-f]{64}\s*$/i.test(seed))throw new Error('invalid wallet seed');
-        const roleDir=role==='guard'?dir:privateDir,seedFile=path.join(roleDir,role+'.seed');
+        const roleDir=role==='guard'?guardDir:privateDir,seedFile=path.join(roleDir,role+'.seed');
         await fs.writeFile(seedFile,seed,{mode:0o600,flag:'wx'});
-        await writeJSON(path.join(roleDir,role+'.json'),{seedFile:role==='guard'?seedFile:'/etc/circuit/'+role+'.seed',rpc:this.rpc,maxPrice,minBalance:'0.01',
+        await writeJSON(path.join(roleDir,role+'.json'),{seedFile:'/etc/circuit/'+role+'.seed',rpc:this.rpc,maxPrice,minBalance:'0.01',
           allowProviders:[providers[role].identity],denyProviders:[],requireGuard:role!=='guard',
+          ...(role==='public'?{subscriptionState:'/run/discovery/subscription.json'}:{}),
           ...(role==='guard'?{listenIp:this.gateway}:{guardSocks:`${this.gateway}:${guardPort}`,listenIp:role==='egress'?'0.0.0.0':'127.0.0.1'})});
       }
       socketDirectory=await fs.mkdtemp(path.join(os.tmpdir(),'enclave-broker-'));
       await fs.chmod(socketDirectory,0o700);
       broker=await createAppBroker({socketPath:path.join(socketDirectory,'app.sock'),deploymentId,authorize:this.authorize,forward:this.forward,log:this.log});
-      guard=new AdapterProcess({binary:this.binary,configFile:path.join(dir,'guard.json'),provider:providers.guard,
-        route:{id:'guard',tcp:[guardPort],udp:[],forward:true},log:this.log});
+      guard=new AdapterProcess({binary:'/opt/enclave-tuna/enclave-tuna',configFile:'/etc/circuit/guard.json',provider:providers.guard,
+        route:{id:'guard',tcp:[guardPort],udp:[],forward:true},log:this.log,
+        spawnProcess:(binary,args,options)=>spawn('docker',['run','--rm','-i','--name',guardName,'--network','host',
+          '--read-only','--user','1000:1000','--cap-drop','ALL','--security-opt','no-new-privileges','--pids-limit','128','--memory','256m',
+          '-v',`${guardDir}:/etc/circuit:ro`,
+          '--entrypoint',binary,this.image,...args],options)});
       guard.on('down',e=>{void circuit.close(e.message)});
       await guard.start();
+      const guardStatus=await execute('docker',['exec',guardName,'cat','/proc/1/status'],{timeout:10000});
+      if(!/^Uid:\s+1000\s+1000\s+1000\s+1000$/m.test(guardStatus.stdout)||!/^CapEff:\s+0+$/m.test(guardStatus.stdout)||!/^CapBnd:\s+0+$/m.test(guardStatus.stdout)||!/^NoNewPrivs:\s+1$/m.test(guardStatus.stdout))throw new Error('guard isolation check failed');
       if(circuit.closed)throw new Error('guard failed');
+      // The guard needs public network access but receives only its own seed,
+      // no host filesystem, process namespace, capabilities, or Docker socket.
+      const guardIP=this.gateway;
+      for(const role of ['public','egress']){
+        const file=path.join(privateDir,role+'.json'),config=JSON.parse(await fs.readFile(file,'utf8'));
+        config.guardSocks=`${guardIP}:${guardPort}`;await fs.writeFile(file,JSON.stringify(config),{mode:0o600});
+      }
       await writeJSON(path.join(privateDir,'worker.json'),{deploymentId,names,providers,binary:'/opt/enclave-tuna/enclave-tuna',appSocket:'/run/app/app.sock',
         publicConfig:'/etc/circuit/public.json',egressConfig:'/etc/circuit/egress.json',...(this.discovery?{discoveryBinary:'/opt/enclave-tuna/enclave-route-discovery'}:{})});
       const ready=new Promise((resolve,reject)=>{
@@ -67,8 +83,8 @@ export class LinuxCircuitRuntime {
         child=spawn('docker',['run','--rm','-i','--name',name,'--network',this.network,'--read-only','--security-opt','no-new-privileges',
           '--cap-drop','ALL','--cap-add','NET_ADMIN','--cap-add','SETUID','--cap-add','SETGID','--cap-add','SETPCAP',
           '--pids-limit','256','--memory','512m','--tmpfs','/tmp:rw,noexec,nosuid,size=32m',
-          '-v',`${privateDir}:/etc/circuit:ro`,'-v',`${socketDirectory}:/run/app:ro`,
-          this.image,this.gateway,String(guardPort)],{stdio:['pipe','pipe','pipe']});
+          '-v',`${privateDir}:/etc/circuit:ro`,'-v',`${socketDirectory}:/run/app:ro`,'-v',`${discoveryDir}:/run/discovery:rw`,
+          this.image,guardIP,String(guardPort),this.gateway],{stdio:['pipe','pipe','pipe']});
         child.stdin.on('error',()=>{});child.stderr.on('data',b=>this.log(String(b).slice(0,2000)));
         child.once('error',reject);child.once('exit',(code,signal)=>{void circuit.close(`guarded worker exited (${signal||code})`)});
         lines=createInterface({input:child.stdout});lines.on('line',line=>{
@@ -95,7 +111,7 @@ export class LinuxCircuitRuntime {
       });
       await new Promise((resolve,reject)=>{egressServer.once('error',reject);egressServer.listen(0,'127.0.0.1',resolve);});
       circuit.egress='127.0.0.1:'+egressServer.address().port;
-      circuit.isolation={platform:'linux',container:name,guardAddress:`${this.gateway}:${guardPort}`,capabilities:0,uid:1000};
+      circuit.isolation={platform:'linux',container:name,guardContainer:guardName,guardAddress:`${guardIP}:${guardPort}`,capabilities:0,uid:1000};
       return circuit;
     }catch(e){await circuit.close(e.message);throw e;}
   }

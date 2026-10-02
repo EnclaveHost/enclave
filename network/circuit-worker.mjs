@@ -30,6 +30,7 @@ try{
  const [allocation]=await Promise.all(children.map(child=>child.start()));
  if(cfg.discoveryBinary&&!closed){
   discovery=new DiscoveryPeer({binary:cfg.discoveryBinary,configFile:cfg.publicConfig,deploymentId:cfg.deploymentId,log:s=>process.stderr.write(s+'\n')});
+  discovery.on('down',e=>close(e.message));
   await discovery.start();if(pendingDiscovery)discovery.update(pendingDiscovery);
  }
  if(!closed)emit({type:'ready',address:allocation.address,port:allocation.tcp[0],provider:allocation.provider,egress:true});
