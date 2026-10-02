@@ -37,12 +37,12 @@ export class ProviderInventory {
       const networks={};
       for(const[key,h]of Object.entries(health||{})){
         const role=key.split(':')[0],asn=metadata[h?.address]?.asn;
-        if(!['guard','public','egress'].includes(role)||!counted(h)||!Number.isSafeInteger(asn))continue;
+        if(!['guard','public','egress','carry'].includes(role)||!counted(h)||!Number.isSafeInteger(asn))continue;
         const v=(networks[role+':'+asn]??={successes:0,failures:0});v.successes+=h.successes;v.failures+=h.failures;
       }
       this.nodes=nodes.map(n=>{
         const outcomes={},asn=metadata[n.address]?.asn;
-        for(const role of ['guard','public','egress']){
+        for(const role of ['guard','public','egress','carry']){
           const h=health?.[role+':'+n.identity],valid=counted(h)&&h.address===n.address&&h.beneficiary===n.beneficiary;
           const group=Number.isSafeInteger(asn)?networks[role+':'+asn]:undefined,trials=group?group.successes+group.failures:0;
           outcomes[role]={successRate:valid?h.successes/(h.successes+h.failures):0.5,known:!!valid,...(trials>=3?{networkRate:(group.successes+1)/(trials+2)}:{}),...(valid&&Number.isFinite(h.latencyMs)?{latencyMs:h.latencyMs}:{})};

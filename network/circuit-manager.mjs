@@ -4,6 +4,10 @@ import {recordHash} from './route-record.mjs';
 import {validateAppNames} from './app-ingress.mjs';
 
 const roles=['guard','public','egress'];
+// A guard's own health says it accepted a connection, not that public
+// allocations reached through it succeed. That is recorded separately as
+// 'carry', so a guard that cannot carry is not ranked by its own uptime.
+const withCarry=providers=>({...providers,carry:providers.guard});
 const sameProviders=(a,b)=>roles.every(role=>a[role].identity===b[role].identity&&a[role].address===b[role].address&&a[role].beneficiary===b[role].beneficiary&&a[role].asn===b[role].asn);
 export class CircuitManager extends EventEmitter {
   constructor({runtime,admission,inventory,wallets,probe,publish,observe=async()=>{},now=Date.now,log=()=>{}}) {
@@ -96,7 +100,7 @@ export class CircuitManager extends EventEmitter {
     // End-to-end proof is required for the public route, not just a live
     // SOCKS connection or an SDK allocation event.
     for(const circuit of [...app.circuits])if(this.now()-(circuit.checkedAt||0)>20000){
-      try{const started=this.now();await this.probe(app,circuit);if(!app.circuits.includes(circuit)||circuit.closed)continue;circuit.checkedAt=this.now();void this.observe(circuit.providers,{ok:true,latencyMs:this.now()-started}).catch(e=>this.log(e.message));}
+      try{const started=this.now();await this.probe(app,circuit);if(!app.circuits.includes(circuit)||circuit.closed)continue;circuit.checkedAt=this.now();void this.observe(withCarry(circuit.providers),{ok:true,latencyMs:this.now()-started}).catch(e=>this.log(e.message));}
       catch(e){await this.fail(app,circuit,`route verification failed: ${e.message}`);}
     }
     })().finally(()=>this.healthChecks.delete(app.id));
@@ -122,12 +126,17 @@ export class CircuitManager extends EventEmitter {
         circuit.admit(this.authorizationUntil(app.id));
         await this.probe(app,circuit);
         if(circuit.closed||!this.authorizationUntil(app.id))throw new Error('circuit failed during verification');
-        void this.observe(providers,{ok:true,latencyMs:this.now()-started}).catch(e=>this.log(e.message));
+        void this.observe(withCarry(providers),{ok:true,latencyMs:this.now()-started}).catch(e=>this.log(e.message));
         circuit.slot=slot;circuit.healthy=true;circuit.checkedAt=this.now();
         circuit.on('down',reason=>{void this.fail(app,circuit,reason).catch(e=>this.log(e.message));});
         app.circuits.push(circuit);await this.publishApp(app);
       }catch(e){
-        if(!circuit||!app.circuits.includes(circuit))void this.observe(providers,{ok:false,role:e.providerRole}).catch(error=>this.log(error.message));
+        if(!circuit||!app.circuits.includes(circuit)){
+          // An allocation timeout cannot say whether the guard or the public
+          // node failed; both are charged, and successes clear either side.
+          void this.observe(withCarry(providers),{ok:false,role:e.providerRole}).catch(error=>this.log(error.message));
+          if(e.providerRole==='public')void this.observe({carry:providers.guard},{ok:false,role:'carry'}).catch(error=>this.log(error.message));
+        }
         for(const role of roles)if(!e.providerRole||role===e.providerRole)this.cooldown.set(role+':'+providers[role].identity,this.now()+60000);
         if(circuit){if(app.circuits.includes(circuit))await this.fail(app,circuit,e.message);else await circuit.close(e.message);}app.error=e.message;this.log(`app ${app.id.slice(0,10)}: ${e.message}`);
       }
