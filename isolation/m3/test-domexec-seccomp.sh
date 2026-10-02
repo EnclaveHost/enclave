@@ -64,8 +64,10 @@ k=0
 mut "filter: no AF_VSOCK rule" '/APP_ARG0_EQ(APP_NR_socket, APP_AF_VSOCK, APP_EPERM),/d' header || k=1
 mut "filter: pidfd_getfd allowed" '/APP_RULE(APP_NR_pidfd_getfd, APP_EPERM),/d' header || k=1
 mut "the filter applied to the front" 's/front_pid = spawn(front, front_uid, 0, 0);/front_pid = spawn(front, front_uid, 0, 1);/' || k=1
-mut "the runtime unfiltered (serve)" 's/rt_pid = spawn(rt, uid, 1, 1);/rt_pid = spawn(rt, uid, 1, 0);/' || k=1
-mut "the runtime unfiltered (run)" 's/rt_pid = spawn(run, uid, 1, 1);/rt_pid = spawn(run, uid, 1, 0);/' || k=1
+# the runtime's spawn reads the same in both branches since the secret/Shield launchers (888598143); each mutant is
+# addressed to its own branch
+mut "the runtime unfiltered (serve)" '/^    } else {$/,/mode=serve/s/rt_pid = spawn(secret_pipe\[0\]>=0 ? secret_app : shield_app, uid, 1, 1);/rt_pid = spawn(secret_pipe[0]>=0 ? secret_app : shield_app, uid, 1, 0);/' || k=1
+mut "the runtime unfiltered (run)" '/} else if (run_port) {/,/mode=run/s/rt_pid = spawn(secret_pipe\[0\]>=0 ? secret_app : shield_app, uid, 1, 1);/rt_pid = spawn(secret_pipe[0]>=0 ? secret_app : shield_app, uid, 1, 0);/' || k=1
 mut "no no_new_privs (the filter cannot install)" 's/if (filter \&\& (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0 || app_seccomp_install() != 0)) {/if (filter \&\& app_seccomp_install() != 0) {/' || k=1
 [ $k = 0 ] && echo "domexec seccomp mutants: all killed" || echo "domexec seccomp mutants: FAIL"
 [ $g = 0 ] && [ $k = 0 ]
