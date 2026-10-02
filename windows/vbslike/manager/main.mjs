@@ -168,7 +168,7 @@ if (shieldConfig) {
   if (!launcherOptions) throw new Error("Shield requires an existing CPU launcher");
   const cfg = JSON.parse(fs.readFileSync(shieldConfig,"utf8"));
   shield = { ...profile(cfg.runtime), ready:false, imageSha256:cfg.imageSha256 };
-  const gpuLauncher = new WmiHyperVLauncher({ ...launcherOptions, startEgress:null,
+  const gpuLauncher = new WmiHyperVLauncher({ ...launcherOptions, startEgress:null, egressService:null,   // no secret domain runs on the GPU image
     imagePath:cfg.imagePath, imageSha256:cfg.imageSha256,
     startTransport:vmId => startBridge({ exe:cfg.bridgeExe, sha256:cfg.bridgeSha256, vmId, port:cfg.workerPort || 19595 }) });
   await gpuLauncher.verifyImage();
