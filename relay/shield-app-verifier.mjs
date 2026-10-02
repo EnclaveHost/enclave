@@ -21,15 +21,18 @@ export async function expectedShieldApp(row, { policy, readCatalog, readConfig, 
       Object.keys(envelope.isolation).some(k => k !== 'require')) throw new Error('deployment must require Shield partition isolation');
   if (envelope.configCid || (envelope.waf && Object.keys(envelope.waf).length))
     throw new Error('configuration CID and protection rules are not supported');
-  for (const [key, allowed] of [['network', ['relay']], ['gpu', ['optional']], ['waf', []]]) {
+  for (const [key, allowed] of [['network', ['transport', 'relay']], ['gpu', ['optional']], ['waf', []]]) {
     if (!(key in envelope)) continue;
     const value = envelope[key];
     if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(k => !allowed.includes(k)))
       throw new Error(`unsupported ${key} options`);
   }
+  if (envelope.network?.transport !== undefined && envelope.network.transport !== 'tuna')
+    throw new Error('unsupported network transport');
+  // Historical ledger records retain this field; it no longer selects a route.
   const relay = envelope.network?.relay;
   if (relay != null && relay !== '' && (typeof relay !== 'string' || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(relay)))
-    throw new Error('invalid relay selection');
+    throw new Error('invalid retired network.relay metadata');
   if (envelope.gpu?.optional !== undefined && typeof envelope.gpu.optional !== 'boolean')
     throw new Error('invalid optional GPU flag');
   const gpu = Number(row.gpuMilli), cpu = Number(row.cpuMilli);

@@ -112,8 +112,6 @@ const readCard = async () => {
 // The live tunnel's sender, so the app-zone half can answer stream frames from outside connect()'s
 // closure. Replaced on every redial; a frame sent while the tunnel is down is dropped, which is
 // what the relay's own open timeout already handles.
-let tunnelSend = () => {};
-let tunnelBuffered = () => 0;
 const host = new Host({
   dir: DIR, endpoint: process.env.PUBLIC_URL || `https://api.enclave.host/t/${NAME}`, name: NAME,
   appsEnabled: APPS, ownerWallet: process.env.OWNER_WALLET || '',
@@ -579,10 +577,7 @@ function connect() {
     const ws = s.ws = new WebSocket(RELAY_URL, { headers: { 'x-metal-name': NAME, 'x-metal-attest': '1' }, family: 4,
                                     maxPayload: Math.round((Number(process.env.ENCLAVE_APP_MAX_BODY_MB) || 64) * 1048576 * 1.4) });
     const send = (o) => { try { ws.send(JSON.stringify(o)); } catch {} };
-    // the app-zone half answers on the tunnel that serves: this one from the start, or a standby once it is accepted
-    const serve = () => { tunnelSend = send; tunnelBuffered = () => { try { return ws.bufferedAmount || 0; } catch { return 0; } }; };
     tunnels.opened(s, { standby });
-    if (!standby) serve();
     let last = Date.now(); const live = setInterval(() => { if (Date.now() - last > 90_000) { log('tunnel silent for 90s, redialing'); try { ws.terminate(); } catch {} } }, 15_000);
     ws.on('open', () => { last = Date.now(); log('tunnel open, waiting for the challenge'); });
     ws.on('message', async (data) => {
@@ -624,13 +619,12 @@ function connect() {
         } else if (f.t === 'attest-result') {
           if (f.ok) { const replaced = tunnels.accepted(s);
                       if (replaced) {
-                        // the relay serves THIS tunnel now and has ended the old one: drop the old one's app streams (on
-                        // the old sender, before serve() moves it) and close it; nothing redials
+                        // Refresh the local app connections when the accepted owner context changes,
+                        // then close the replaced control tunnel; nothing redials
                         if (zone) zone.closeAll();
                         try { replaced.ws.terminate(); } catch {}
                         log('re-attach: the standby tunnel serves now; the replaced one is closed, with no gap on the relay');
                       }
-                      if (standby) serve();
                       tier = f.tier || '';   // the relay's verdict (vbs | vbs-dev); never our own claim
                       attachedOwnersVersion = s.attachSent && s.attachSent.version === 2 ? s.attachSent.owners : null;
                       attachedOwners = s.attachSent && s.attachSent.version === 2 ? s.attachSent.served : null;
@@ -644,13 +638,7 @@ function connect() {
           }
         } else if (f.t === 'ping') send({ t: 'pong' });
         else if (f.t === 'req') { const r = await handle(f); send({ t: 'res', id: f.id, status: r.status, headers: r.headers, body: Buffer.from(r.body).toString('base64') }); }
-        // The app's OWN origin arrives as a raw stream with the WebSocket upgrade replayed into
-        // it (relay/tunnel.js spliceUpgrade -> relay/relay.js splice). appzone.mjs answers the
-        // handshake with this deployment's certificate and proxies the plaintext to its port.
-        else if (f.t === 's+' || f.t === 'sd' || f.t === 'sx') {
-          if (!zone) send({ t: 's=', sid: f.sid, ok: false, err: 'this node is not hosting apps (APPS=1)' });
-          else zone.onFrame(f);
-        }
+
       } catch (e) { log(`frame ${f.t} failed: ${e.message}`); if (f.t === 'challenge' || f.t === 'vbs-credential') send({ t: 'attest', rad: { format: LEGACY_ENGINE ? 'windows-vbs-enclave/v1' : HV_NODE_FORMAT, body: '', refused: e.message } }); }
     });
     ws.on('unexpected-response', (_r, res) => { log(`handshake rejected: HTTP ${res.statusCode}`); try { ws.terminate(); } catch {} });
@@ -669,7 +657,7 @@ function connect() {
 // LOCAL_HTTP_PORT: the same surface the tunnel serves, on loopback, for tests without a relay
 function localHttp(port) {
   const http = requireHttp();
-  http.createServer(async (req, res) => {
+  const server = http.createServer(async (req, res) => {
     const chunks = []; for await (const c of req) chunks.push(c);
     const body = Buffer.concat(chunks);
     const p = String(req.url || '').split('?')[0];
@@ -690,7 +678,9 @@ function localHttp(port) {
     if (APPS && p === '/v1/host/state') return json(200, { deployments: host.deployments(), availability: host.availability() });
     const r = await handle({ path: req.url, method: req.method, headers: req.headers, body: body.toString('base64') });
     res.writeHead(r.status, r.headers); res.end(r.body);
-  }).listen(port, '127.0.0.1', () => log(`local http on 127.0.0.1:${port}`));
+  });
+  server.on('upgrade', (req, socket, head) => { if (zone) zone.handleUpgrade(req, socket, head); else socket.destroy(); });
+  server.listen(port, '127.0.0.1', () => log(`local http on 127.0.0.1:${port}`));
 }
 function requireHttp() { return createRequire(import.meta.url)('node:http'); }
 // THE OWNER'S HOSTING CONTROLS (hosting.mjs): the tray app's API, on its own loopback port rather than LOCAL_HTTP_PORT's
@@ -791,11 +781,7 @@ async function startHostingControls() {
     }
     zone = appZone({
       isolationSplicer,
-      send: (o) => tunnelSend(o),
       resolve: (id) => host.appZoneTarget(id),
-      // What the tunnel socket is still holding, so a streaming response applies backpressure
-      // rather than filling this process's memory.
-      pressure: () => tunnelBuffered(),
       // A gate-served app (wasi:http, enclave:app) has no socket: its own hostname is served by
       // terminating TLS here and carrying the request through the gate, the same frame the /x/
       // path uses.

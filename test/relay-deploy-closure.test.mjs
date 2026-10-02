@@ -55,8 +55,8 @@ test("relay/deploy.sh ships every module its entrypoints import, transitively", 
   assert.ok(targets.length >= 2, "expected at least the data-plane relay and api-relay scp lines");
   // the data-plane payload goes out inside the host loop; if that line stops
   // being recognised, this check silently covers only the api relay
-  assert.ok(targets.some((t) => /\$RH/.test(t.host)),
-    "the looped data-plane scp line must still be parsed - it ships to every relay");
+  assert.ok(targets.some((t) => /\$DNS_HOST/.test(t.host)),
+    "the DNS control-plane payload must be included in dependency checks");
 
   // Per host, the box's tree: each scp line lands its files FLAT in its destination directory (scp keeps basenames,
   // not source layout), and a host may have several lines into different directories under one install root
