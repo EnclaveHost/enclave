@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {LeaseReader,AdmissionGate} from '../network/lease-reader.mjs';
+import {LeaseReader,AdmissionGate,transientProofError} from '../network/lease-reader.mjs';
 const id='0x'+'ab'.repeat(32),runner='0x'+'cd'.repeat(32),book='0x'+'01'.repeat(20),contract='0x'+'02'.repeat(20);
 const now=()=>1700000000000;
 const row={id,runner,owner:book,runnerOperator:book,active:true,isPublic:true,leaseUntil:1700003600n,appRef:'catalog:a:1',configCid:''};
@@ -45,4 +45,17 @@ test('a stalled snapshot cannot withhold an already agreeing quorum',async()=>{
  const slow=client();let release;const gate=new Promise(r=>release=r);slow.getBlock=async()=>{await gate;throw Error('late peer failure');};
  const reader=new LeaseReader({addressBook:book,clients:[slow,client(),client()],now});
  try{const result=await Promise.race([reader.refresh([id]),new Promise((_r,j)=>setTimeout(()=>j(Error('quorum stalled')),100))]);assert.equal(result.length,1);}finally{release();}
+});
+test('a transport failure keeps the last guest proof only until it expires; a mismatch revokes it now',async()=>{
+ let clock=now();const expected={appRef:row.appRef,configCid:'',appSha256:'ab'.repeat(32),runtimeId:'cd'.repeat(32)};
+ const gate=new AdmissionGate({runner,expected:()=>expected,now:()=>clock});
+ gate.observeLease({...row,leaseUntil:clock+300000,validUntil:clock+300000});
+ const verify=async()=>({verified:true,deploymentId:id,appSha256:expected.appSha256,runtimeId:expected.runtimeId,spkiSha256:'ef'.repeat(32)});
+ await gate.attest(id,verify);assert.equal(gate.allows(id),true);
+ const reset=Object.assign(new Error('Client network socket disconnected before secure TLS connection was established'),{code:'ECONNRESET'});
+ for(const e of [reset,new Error('guest probe timeout'),new Error('guest attestation HTTP 503')]){assert.equal(transientProofError(e),true);assert.equal(gate.failed(id,e),true);assert.equal(gate.allows(id),true);}
+ clock+=60001;assert.equal(gate.allows(id),false); // never extended by a failed refresh
+ await gate.attest(id,verify);assert.equal(gate.allows(id),true);
+ for(const e of [new Error('app, nonce or TLS binding mismatch'),new Error('guest attestation HTTP 403'),new Error('something unexpected'),undefined])assert.equal(transientProofError(e),false);
+ assert.equal(gate.failed(id,new Error('app, nonce or TLS binding mismatch')),false);assert.equal(gate.allows(id),false);
 });
