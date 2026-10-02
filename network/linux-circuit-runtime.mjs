@@ -39,7 +39,8 @@ export class LinuxCircuitRuntime {
     circuit.publishDiscovery=value=>{if(circuit.closed||!child?.stdin.writable)throw new Error('circuit closed');child.stdin.write(JSON.stringify({type:'discovery',value})+'\n');};
     circuit.admit=expiresAt=>{if(!circuit.closed&&child?.stdin.writable)child.stdin.write(JSON.stringify({type:'admission',expiresAt})+'\n');if(expiresAt<=Date.now()){broker?.revoke();for(const socket of egressSockets)socket.destroy();}};
     try{
-      const guardPort=await freePort(this.gateway);
+      const guardPort=30489;
+      await fs.writeFile(path.join(guardDir,'resolv.conf'),'nameserver 1.1.1.1\nnameserver 8.8.8.8\noptions use-vc attempts:1 timeout:2\n',{mode:0o600,flag:'wx'});
       const seen=new Set();
       const discoveryDir=path.join(this.directory,'discovery',wallets.public.address);
       await fs.mkdir(discoveryDir,{recursive:true,mode:0o700});
@@ -56,7 +57,7 @@ export class LinuxCircuitRuntime {
         await writeJSON(path.join(roleDir,role+'.json'),{seedFile:'/etc/circuit/'+role+'.seed',rpc:this.rpc,maxPrice,minBalance:'0.01',
           allowProviders:[providers[role].identity],denyProviders:[],requireGuard:role!=='guard',
           ...(role==='public'?{subscriptionState:'/run/discovery/subscription.json'}:{}),
-          ...(role==='guard'?{listenIp:this.gateway}:{guardSocks:`${this.gateway}:${guardPort}`,listenIp:role==='egress'?'0.0.0.0':'127.0.0.1'})});
+          ...(role==='guard'?{listenIp:'0.0.0.0'}:{guardSocks:`${this.gateway}:${guardPort}`,listenIp:role==='egress'?'0.0.0.0':'127.0.0.1'})});
       }
       socketDirectory=await fs.mkdtemp(path.join(os.tmpdir(),'enclave-broker-'));
       await fs.chmod(socketDirectory,0o700);
@@ -64,18 +65,19 @@ export class LinuxCircuitRuntime {
       if(circuit.closed||this.closed)throw new Error('runtime stopped');
       guard=new AdapterProcess({binary:'/opt/enclave-tuna/enclave-tuna',configFile:'/etc/circuit/guard.json',provider:providers.guard,
         route:{id:'guard',tcp:[guardPort],udp:[],forward:true},log:this.log,
-        spawnProcess:(binary,args,options)=>spawn('docker',['run','--rm','-i','--name',guardName,'--network','host',
-          '--read-only','--user','1000:1000','--cap-drop','ALL','--security-opt','no-new-privileges','--pids-limit','128','--memory','256m',
-          '-v',`${guardDir}:/etc/circuit:ro`,
-          '--entrypoint',binary,this.image,...args],options)});
+        spawnProcess:(binary,args,options)=>spawn('docker',['run','--rm','-i','--name',guardName,'--network',this.network,
+          '--read-only','--cap-drop','ALL','--cap-add','NET_ADMIN','--cap-add','SETUID','--cap-add','SETGID','--cap-add','SETPCAP',
+          '--security-opt','no-new-privileges','--pids-limit','128','--memory','256m',
+          '-v',`${guardDir}:/etc/circuit:ro`,'-v',`${guardDir}/resolv.conf:/etc/resolv.conf:ro`,
+          '--entrypoint','/opt/enclave-tuna/public-guard-entrypoint.sh',this.image,'/etc/circuit/guard.json'],options)});
       guard.on('down',e=>{circuit.failureRole='guard';void circuit.close(e.message)});
       await guard.start();
       const guardStatus=await execute('docker',['exec',guardName,'cat','/proc/1/status'],{timeout:10000});
       if(!/^Uid:\s+1000\s+1000\s+1000\s+1000$/m.test(guardStatus.stdout)||!/^CapEff:\s+0+$/m.test(guardStatus.stdout)||!/^CapBnd:\s+0+$/m.test(guardStatus.stdout)||!/^NoNewPrivs:\s+1$/m.test(guardStatus.stdout))throw new Error('guard isolation check failed');
       if(circuit.closed)throw new Error('guard failed');
-      // The guard needs public network access but receives only its own seed,
-      // no host filesystem, process namespace, capabilities, or Docker socket.
-      const guardIP=this.gateway;
+      const guardNetwork=await execute('docker',['inspect','--format','{{json .NetworkSettings.Networks}}',guardName],{timeout:10000});
+      const guardIP=JSON.parse(guardNetwork.stdout)[this.network]?.IPAddress;
+      if(!net.isIPv4(guardIP))throw new Error('guard has no private network address');
       for(const role of ['public','egress']){
         const file=path.join(privateDir,role+'.json'),config=JSON.parse(await fs.readFile(file,'utf8'));
         config.guardSocks=`${guardIP}:${guardPort}`;await fs.writeFile(file,JSON.stringify(config),{mode:0o600});
