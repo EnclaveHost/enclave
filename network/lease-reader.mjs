@@ -70,6 +70,13 @@ export class LeaseReader {
   get(id) {const value=this.cache.get(id);return value&&value.validUntil>this.now()?structuredClone(value):null;}
 }
 
+// Only these say nothing about the guest: the transport between this host and
+// it failed. Anything else (a mismatch, a refusal, an unknown error) revokes.
+const transientCodes=new Set(['ECONNRESET','ECONNREFUSED','ETIMEDOUT','EPIPE','EHOSTUNREACH','ENETUNREACH','EAI_AGAIN','ECONNABORTED']);
+export function transientProofError(e) {
+  return !!e&&(transientCodes.has(e.code)||e.message==='guest probe timeout'||/^guest (attestation|readiness) HTTP 5\d\d$/.test(e.message||''));
+}
+
 export class AdmissionGate {
   constructor({runner,expected,now=Date.now}) {
     if(!/^0x[0-9a-f]{64}$/.test(runner||''))throw new Error('runner required');
@@ -95,4 +102,7 @@ export class AdmissionGate {
       proof.validUntil>this.now()&&expected.appRef===lease.appRef&&expected.configCid===lease.configCid&&proof.appSha256===expected.appSha256&&proof.runtimeId===expected.runtimeId);
   }
   revoke(id) {this.proofs.delete(id);}
+  // A transient probe failure leaves the last proof to expire on its own
+  // schedule (never extended); everything else revokes it now.
+  failed(id,error) {const transient=transientProofError(error);if(!transient)this.revoke(id);return transient;}
 }

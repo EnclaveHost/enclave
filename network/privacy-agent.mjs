@@ -49,7 +49,7 @@ export class PrivacyAgent {
       await this.manager.configure(configured);
       this.authorizationRefresh.phase="guest-proof";void this.snapshot().catch(e=>this.log(e.message));
       const results=await Promise.allSettled(configured.map(app=>this.admission.attest(app.deploymentId,(id,expected)=>this.probe(id,expected,null))));
-      results.forEach((r,i)=>{if(r.status==='rejected'){this.admission.revoke(configured[i].deploymentId);this.log(`local guest proof ${configured[i].deploymentId.slice(0,10)}: ${r.reason.message}`);}});
+      results.forEach((r,i)=>{if(r.status==='rejected'){const kept=this.admission.failed(configured[i].deploymentId,r.reason);this.log(`local guest proof ${configured[i].deploymentId.slice(0,10)}: ${r.reason.message}${kept?' (last proof kept until it expires)':''}`);}});
     }catch(e){this.authorizationRefresh.error=e.message;this.log('chain/app authorization: '+e.message);}finally{this.authorizationRefresh.completedAt=this.now();this.authorizationRefresh.phase='idle';this.refreshing=false;this.manager.enforceAdmission();}
   }
   async snapshot(){await this.egress.write();await this.status.set('status',{version:2,updatedAt:this.now(),authorizationRefresh:this.authorizationRefresh,apps:this.manager.status().map(app=>({...app,leaseUntil:this.admission.leases.get(app.deploymentId)?.validUntil||0,proofUntil:this.admission.proofs.get(app.deploymentId)?.validUntil||0}))});}
