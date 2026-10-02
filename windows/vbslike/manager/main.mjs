@@ -17,6 +17,8 @@ import { HyperVPartitionBackend } from "./backend.mjs";
 import { WmiHyperVLauncher, HYPERV_MODULE_SHA256 } from "./wmi-launcher.mjs";
 import { powershellRunner } from "./psrun.mjs";
 import { cidFetcher } from "./fetchcid.mjs";
+import { egressConfigFromEnv, checkPin, startEgress, EGRESS_SERVICE_GUID } from "./egress.mjs";
+import { DERIVATION_V6 } from "./derive.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const env = (k, d = "") => (process.env[k] || d).trim();
@@ -67,6 +69,31 @@ if (wmiserveExe || wmiserveSha || bundleDir) {
   console.log(`[winmgr] serving through wmiserve ${wmiserveExe} (sha256 ${got}); bundles in ${bundleDir}`);
 }
 
+// OUTBOUND HTTPS for secret domains (egress.mjs), OFF unless ENCLAVE_EGRESS_V1=1. Then every setting must be present and
+// both executables must be their pinned bytes, or the manager refuses to start rather than run half of it:
+//   ENCLAVE_EGRESS_EXE / _SHA256                 shield-egress.exe (isolation/m2/cmd/shield-egress)
+//   ENCLAVE_EGRESS_BRIDGE_EXE / _SHA256          shielded-bridge.exe (the Shield GPU path's bridge, unchanged)
+//   ENCLAVE_EGRESS_SOCKS=127.0.0.1:30489         the host's loopback SOCKS entry (TUNA), or instead
+//   ENCLAVE_EGRESS_APP_ROUTES=<routes.json>      the per-app routes file (egress.ReadAppRoute)
+//   ENCLAVE_EGRESS_ALLOW (optional)              comma-separated https origins: a host-side narrowing for every partition
+// The hv_sock service for vsock 9443 must be registered under GuestCommunicationServices: preflight reads it, and
+// canStart is false until it is (this manager never writes the registry).
+let egress = null;
+try { egress = egressConfigFromEnv(process.env); }
+catch (e) { console.error(`[winmgr] REFUSING TO START: ${e.message}`); process.exit(2); }
+if (egress) {
+  try {
+    const a = checkPin(egress.exe, egress.sha256, "the shield-egress executable");
+    const b = checkPin(egress.bridgeExe, egress.bridgeSha256, "the shielded-bridge executable (egress)");
+    console.log(`[winmgr] egress ON (${egress.mode}): shield-egress ${egress.exe} (sha256 ${a}), bridge ${egress.bridgeExe} (sha256 ${b}); `
+      + "secret deployments only");
+  } catch (e) { console.error(`[winmgr] REFUSING TO START: ${e.message}`); process.exit(2); }
+}
+// the launcher's hook: a secret deployment's partition gets its egress path; every other mapping gets none
+const egressHook = egress
+  ? (vmId, deploymentId, mapping) => mapping?.record?.derivation === DERIVATION_V6 ? startEgress({ cfg: egress, vmId, deploymentId }) : null
+  : null;
+
 let launcher = null;
 let launcherOptions = null;
 if (imagePath && imageSha256) {
@@ -84,6 +111,7 @@ if (imagePath && imageSha256) {
       hypervModuleSha256: env("ENCLAVE_HYPERV_MODULE_SHA256", HYPERV_MODULE_SHA256),
       hypervUtilitiesSha256: env("ENCLAVE_HYPERV_UTILITIES_SHA256") || null,
       serve,
+      ...(egress ? { startEgress: egressHook, egressService: EGRESS_SERVICE_GUID } : {}),
     };
     launcher = new WmiHyperVLauncher(launcherOptions);
   } catch (e) {
@@ -140,7 +168,7 @@ if (shieldConfig) {
   if (!launcherOptions) throw new Error("Shield requires an existing CPU launcher");
   const cfg = JSON.parse(fs.readFileSync(shieldConfig,"utf8"));
   shield = { ...profile(cfg.runtime), ready:false, imageSha256:cfg.imageSha256 };
-  const gpuLauncher = new WmiHyperVLauncher({ ...launcherOptions,
+  const gpuLauncher = new WmiHyperVLauncher({ ...launcherOptions, startEgress:null,
     imagePath:cfg.imagePath, imageSha256:cfg.imageSha256,
     startTransport:vmId => startBridge({ exe:cfg.bridgeExe, sha256:cfg.bridgeSha256, vmId, port:cfg.workerPort || 19595 }) });
   await gpuLauncher.verifyImage();
@@ -162,6 +190,7 @@ const manager = new Manager({ judgeReady: judgeRunning, answerCheck: checkAnswer
   // Enable only with the CPU guest image whose monitor delivers V5 config.
   configEnabled: env("ENCLAVE_CONFIG_BUNDLE_V5") === "1",
   secretsEnabled: env("ENCLAVE_SECRETS_V1") === "1",
+  egress: egress && launcherOptions ? { enabled: true, mode: egress.mode } : null,
   fetchConfig: cidFetcher({ script: fetcherPath, python: env("PYTHON_BIN", "python"),
     gateway: env("IPFS_GATEWAY"), maxBytes: 1 << 20,
     timeoutMs: Number(env("ENCLAVE_FETCH_TIMEOUT_MS", "240000")) }),

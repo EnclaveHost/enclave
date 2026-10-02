@@ -50,6 +50,11 @@ export function policyFor({ memMb }) {
 export function refuseUnsupported(req = {}, s = SUPPORTS) {
   if ((Number(req.gpuMilli) > 0 || Number(req.gpuShare) > 0) && !s.gpu) return "a GPU share: a per-app partition has no GPU path";
   if ((req.config || req.appConfigCid || req.configCid) && !s.config) return "app config: it is not delivered into a per-app partition";
+  // Linux's dedicated-IP egress URL (guestd's spawn `egress`). A partition's outbound path is its own in-guest allowlist
+  // through the host's egress endpoint (egress.mjs), never a per-deployment exit the spawn names; refused whatever
+  // supports.egress says. The node always sends "" here (node-bridge.mjs isolationPlan).
+  if (req.egress !== undefined && req.egress !== null && req.egress !== "")
+    return "a dedicated egress route (spawn `egress`): a partition's outbound HTTPS is its in-guest allowlist through this host's egress endpoint, and no spawn may name an exit";
   if (req.hasSecrets !== false && !s.secrets)
     return req.hasSecrets === true ? "staged secrets: they would cross this host in plaintext"
                                    : "unverified secret state: it must be known to be absent, not assumed";
@@ -67,12 +72,17 @@ export class Manager {
    * @param readyDeadlineMs  how long a domain has to become ready before it is failed.
    */
   constructor({ backend = new HyperVPartitionBackend(), fetchComponent = null, runtimeId = "",
-                runtime = null, shield = null, configEnabled = false, secretsEnabled = false, fetchConfig = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null } = {}) {
+                runtime = null, shield = null, configEnabled = false, secretsEnabled = false, fetchConfig = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null,
+                egress = null } = {}) {
     this.backend = backend;
     this.shield = shield;
     this.configEnabled = configEnabled === true && typeof fetchConfig === "function";
     this.fetchConfig = fetchConfig;
     this.secretsEnabled = secretsEnabled === true && this.configEnabled;
+    // OUTBOUND HTTPS for secret domains (egress.mjs; main.mjs ENCLAVE_EGRESS_V1=1): the launcher starts a partition's
+    // bridge and egress endpoint; this states it on /health and fails a domain whose path exits. Only secret (V6)
+    // domains use it, so it is stated only where they are served.
+    this.egress = egress && egress.enabled === true && this.secretsEnabled ? { mode: String(egress.mode || "") } : null;
     this.fetchComponent = fetchComponent;       // (cid) -> Buffer, CID-verified by the caller's fetcher
     // THE RUNTIME IDENTITY, not just its hash. judge-hv hands `expectRuntime` to the shared
     // checkRuntime as `want.runtime`, which DIFFS IT FIELD BY FIELD against the identity the
@@ -255,7 +265,12 @@ export class Manager {
       managerEpoch: this.epoch,
       inventory: this.inventory,
       backend: this.backend.backend,
-      supports: { ...this.backend.supports, gpu: !!this.shield?.ready, config: this.configEnabled, configCid: this.configEnabled, secrets: this.secretsEnabled },
+      supports: { ...this.backend.supports, gpu: !!this.shield?.ready, config: this.configEnabled, configCid: this.configEnabled, secrets: this.secretsEnabled,
+                  // outbound HTTPS from a secret domain to its owner's config's origins (egress.mjs). NOT the spawn's
+                  // `egress` (a dedicated exit, always refused) and not the node's networkOptions (PARTITION_OFFERS.egress)
+                  egress: !!this.egress },
+      egress: this.egress ? { protocol: "egress-v1", vsockPort: 9443, upstream: this.egress.mode, scope: DERIVATION_V6,
+                              allowlist: "derived in the guest from the measured config resolved with its released secrets" } : null,
       configMaxBytes: this.configEnabled ? MAX_CONFIG_BYTES : 0,
       inference: this.shield ? { ...this.shield, allocatedGpuMilli: this.gpuAllocated(), freeGpuMilli: this.shield.ready ? Math.max(0, 1000-this.gpuAllocated()) : 0 } : null,
       // DEFECT 4: /health had no boundary at all, so a reader could learn everything about this
@@ -379,6 +394,16 @@ export class Manager {
         if (this.domains.get(id) === rec && !this.#stopping.has(rec) && rec.status !== "stopped") {
           rec.status="failed"; rec.appReady=false; rec.reason="Shield transport exited";
           this.onReclaim?.(id, rec.reason);
+        }
+      });
+      // ITS EGRESS PATH is a pair of child processes too (egress.mjs): if either ends while the record stands and no stop
+      // is under way, the app's outbound writes cannot work, so the domain fails like a dead transport, and a late
+      // readiness verdict cannot revive it. The VM is left for the node to retire.
+      if (h?.egress?.exited) h.egress.exited.then((x) => {
+        if (this.domains.get(id) === rec && !this.#stopping.has(rec) && rec.status !== "stopped" && rec.status !== "failed") {
+          rec.status = "failed"; rec.appReady = false;
+          rec.reason = `the egress path exited (${x?.who ?? "a child"}): this domain's outbound HTTPS is gone, and its VM is left for the node to retire`;
+          this.#reclaim(id, "the egress path exited");
         }
       });
       // WHAT WAS ESTABLISHED, and no more. The launcher returns only when the VM is Running and the

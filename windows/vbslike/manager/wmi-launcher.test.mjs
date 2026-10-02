@@ -920,3 +920,114 @@ test("M4: start() hands wmiserve the deployment's cert name; without an identity
   await mk(host(), { serve }).start(m4, ID);
   assert.equal("certName" in seen[1], false, "no identity, no name: the domain gets no certificate endpoints");
 });
+
+/* ---- OUTBOUND HTTPS: the partition's egress path (egress.mjs), opt-in ------------------------------------------ */
+import { EGRESS_CHECK } from "./wmi-launcher.mjs";
+import { EGRESS_SERVICE_GUID } from "./egress.mjs";
+
+// a startEgress hook that records how it was called and what happened to the path it returned
+function egressHook(events, { fail = null, none = false } = {}) {
+  const calls = [];
+  const hook = async (vmId, deploymentId, m) => {
+    calls.push({ vmId, deploymentId, mapping: m });
+    events.push("egress:start");
+    if (fail) throw new Error(fail);
+    if (none) return null;
+    return { port: 41234, exited: new Promise(() => {}), stop: async () => { events.push("egress:stop"); } };
+  };
+  return { hook, calls };
+}
+const IDENTITY = { id: "hv" + "1".repeat(32), name: "0x" + "a7".repeat(32), appId: mapping.appId };
+
+test("egress: started after the VM runs and before the app is served, for that VM and deployment; the handle carries it", async () => {
+  const events = [];
+  const h = host();
+  const run = async (s) => { events.push("ps:" + keyOf(s)); return h.run(s); };
+  const { hook, calls } = egressHook(events);
+  const serve = { exe: "vbslike-host.exe", bundleDir: fs.mkdtempSync(path.join(os.tmpdir(), "wmi-egress-")), portFor: async () => 19302,
+                  run: async (a) => { events.push("serve"); return { pid: 1, launcherKey: "k", vm: a.vmId, domainId: 1, boot: null, appSha256: a.appId,
+                                                                     guestPort: 40001, tcpPort: a.tcpPort, note: null, exited: new Promise(() => {}),
+                                                                     stop: async () => { events.push("relay:close"); return { closed: true, how: "closed" }; } }; } };
+  const bundle = Buffer.from("enclave-catalog-bundle/6 egress test bytes");
+  const m6 = { ...mapping, bundle, appId: crypto.createHash("sha256").update(bundle).digest("hex") };
+  const l = mk({ run, seen: h.seen }, { serve, startEgress: hook });
+  const r = await l.start(m6, { ...ID, identity: { ...IDENTITY, appId: m6.appId } });
+  assert.deepEqual(events.slice(0, 6), ["ps:preflight", "ps:imageHash", "ps:define", "ps:startAndRead", "egress:start", "serve"],
+                   "after Start-VM and the guest's first words, and before wmiserve loads the app");
+  assert.deepEqual(calls.map((c) => [c.vmId, c.deploymentId]), [[VM_ID, IDENTITY.name]], "THIS partition, and the deployment it serves");
+  assert.equal(calls[0].mapping, m6, "the hook sees the mapping, to decide which domains get a path");
+  assert.equal(r.egress.port, 41234);
+  await r.stop();
+  const stopAt = events.indexOf("egress:stop");
+  assert.ok(stopAt > 0 && stopAt < events.lastIndexOf("ps:removeById"), `stopped before the VM goes: ${events.join(", ")}`);
+});
+
+test("egress: a hook that answers null gives the domain no path, and the start is otherwise unchanged", async () => {
+  const events = [];
+  const { hook } = egressHook(events, { none: true });
+  const h = host();
+  const r = await mk(h, { startEgress: hook }).start(mapping, ID);
+  assert.equal(r.egress, null);
+  assert.deepEqual(h.keys(), ["preflight", "imageHash", "define", "startAndRead"]);
+  await r.stop();
+});
+
+test("egress: a path that cannot start fails the start, and the VM it was for is removed by its Id", async () => {
+  const events = [];
+  const { hook } = egressHook(events, { fail: "the egress bridge exited (2): Error: Os { code: 10013 }" });
+  const stops = [];
+  const h = host();
+  const l = mk(h, { startEgress: hook, startTransport: async () => ({ stop: async () => { stops.push("transport"); } }) });
+  await assert.rejects(() => l.start(mapping, { ...ID, identity: IDENTITY }), /10013/);
+  assert.ok(h.keys().includes("removeById"), "the VM is removed");
+  assert.deepEqual(stops, ["transport"], "and what started before it is stopped");
+});
+
+test("egress: a later step failing stops the path that did start, before the VM goes", async () => {
+  const events = [];
+  const { hook } = egressHook(events);
+  const h = host();
+  const run = async (s) => { events.push("ps:" + keyOf(s)); return h.run(s); };
+  const serve = { exe: "vbslike-host.exe", bundleDir: fs.mkdtempSync(path.join(os.tmpdir(), "wmi-egress-")), portFor: async () => 19303,
+                  run: async () => { throw new Error("wmiserve refused the bundle"); } };
+  const bundle = Buffer.from("enclave-catalog-bundle/6 egress failure bytes");
+  const m6 = { ...mapping, bundle, appId: crypto.createHash("sha256").update(bundle).digest("hex") };
+  await assert.rejects(() => mk({ run, seen: h.seen }, { serve, startEgress: hook }).start(m6, { ...ID, identity: IDENTITY }), /refused the bundle/);
+  const stopAt = events.indexOf("egress:stop");
+  assert.ok(stopAt > 0 && stopAt < events.lastIndexOf("ps:removeById"), `the path is stopped, then the VM removed: ${events.join(", ")}`);
+});
+
+test("egress: a stop whose path will not stop still removes the VM", async () => {
+  const h = host();
+  const l = mk(h);
+  const r = await l.start(mapping, ID);
+  const out = await l.stop({ ...r, egress: { stop: async () => { throw new Error("would not stop"); } } });
+  assert.equal(out.stopped, true);
+  assert.ok(h.keys().includes("removeById"));
+});
+
+test("egress: preflight READS the hv_sock service registration (vsock 9443), and an unregistered one blocks every start", async () => {
+  const script = CMD.preflight({ egressService: EGRESS_SERVICE_GUID });
+  assert.match(script, /\$r\.egressService = \[bool\]\(Test-Path -LiteralPath 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Virtualization\\GuestCommunicationServices\\000024e3-facb-11e6-bd58-64006a7986d3'\);/);
+  const REGISTRY_WRITE = /Set-ItemProperty|New-ItemProperty|New-Item\b|Remove-Item|\.SetValue\(|\.CreateSubKey|\breg(\.exe)?\s+(add|delete|import)/i;
+  assert.doesNotMatch(script, REGISTRY_WRITE, "read, never written");
+  assert.doesNotMatch(CMD.preflight(), /GuestCommunicationServices/, "and not asked at all without egress");
+
+  const reg = await mk(host({ preflight: { ...PREFLIGHT_OK, egressService: true } }), { egressService: EGRESS_SERVICE_GUID }).preflight();
+  assert.equal(reg.ok, true);
+  assert.match(reg.checks.find((c) => c.name === EGRESS_CHECK).detail, /is registered/);
+  assert.equal((await mk(host()).preflight()).checks.some((c) => c.name === EGRESS_CHECK), false, "no egress, no check");
+
+  const h = host({ preflight: { ...PREFLIGHT_OK, egressService: false } });
+  const l = mk(h, { egressService: EGRESS_SERVICE_GUID });
+  const pre = await l.preflight();
+  assert.equal(pre.ok, false);
+  assert.match(pre.checks.find((c) => c.name === EGRESS_CHECK).detail, /NOT registered.*never writes the registry/);
+  await assert.rejects(() => l.start(mapping, ID), (e) => e.code === "prerequisites_absent" && /hv_sock egress service/.test(e.message));
+  assert.equal(h.keys().includes("define"), false, "nothing was created");
+});
+
+test("egress: the launcher refuses a malformed service id or hook", () => {
+  for (const over of [{ egressService: "9443" }, { egressService: "000024e3-facb-11e6-bd58" }, { startEgress: "yes" }])
+    assert.throws(() => mk(host(), over), /egressService must be a service GUID|startEgress must be a function/);
+});
