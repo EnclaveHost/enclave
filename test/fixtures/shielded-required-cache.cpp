@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
     auto &record = state.expected[ggml_get_name(w)]; record.mapping = nullptr;
     record.bytes.assign((uint8_t *)w->data, (uint8_t *)w->data + ggml_nbytes(w));
     int8_t encoded[256]; int fw[8];
-    assert(sh_prepare_rows_threaded(w->data, 32, 8, encoded, fw) == 0);
+    assert(sh_prepare_rows_threaded(w->data, w->type, 32, 8, encoded, fw) == 0);
     const bool ok = sh_register(s, w);
     if (mode != "on" && mode != "off") {
         assert(!ok && s.weight_cache_failed && s.weights.empty());
