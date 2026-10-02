@@ -1,0 +1,5 @@
+Source: https://github.com/nknorg/tuna
+Revision: 7e0f776a7c3bf30d7d932defd15383bf5143c4b8
+License: Apache-2.0 (see LICENSE)
+Local client changes: guarded reverse connections and independent public/local TCP port mappings; reject guarded UDP; recheck refreshed provider price quotes.
+Public provider protocol remains compatible.

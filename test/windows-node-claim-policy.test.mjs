@@ -196,8 +196,8 @@ test("the version config keys are read exactly as the platform runner reads them
 test("the envelope parser returns what it accepted, so the guest gets what the policy allowed", () => {
   assert.deepEqual(parseEnvelope("", 0), {});
   assert.deepEqual(parseEnvelope(JSON.stringify({ config: { A: 1 }, network: { relay: "" } }), 0),
-                   { relay: "", config: { A: 1 } });
+                   { config: { A: 1 } });
   assert.throws(() => parseEnvelope(JSON.stringify({ gpu: { optional: "yes" } }), 500), /must be true or false/);
-  assert.throws(() => parseEnvelope(JSON.stringify({ network: { relay: "UPPER" } }), 0), /must be a relay name/);
+  assert.throws(() => parseEnvelope(JSON.stringify({ network: { relay: "UPPER" } }), 0), /invalid retired network.relay metadata/);
   assert.throws(() => parseEnvelope(JSON.stringify({ config: "a string" }), 0), /config must be a JSON object/);
 });

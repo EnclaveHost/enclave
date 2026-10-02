@@ -97,27 +97,10 @@ containers:
       # the registry automatically — there is no secret to provision.
       # - PROOF_OF_TIME_ADDRESS: "0x..."               # optional: pin the prover (else from the address book)
       # - PROOF_INTERVAL_SEC: "300"                    # optional: how often we prove we are serving (contract window is 900s)
-      # dedicated per-deployment IPv6 (tcp + udp): the relay box's routed /64
-      # (shared with the GPU flavor — one relay box, one /64; deployment ids are
-      # unique fleet-wide so derived addresses never collide). Empty keeps ports
-      # in-enclave-only. UDP_ADDR_PREFIX is the accepted legacy alias. See
-      # relay/README.md.
-      - DEP_ADDR_PREFIX: "2a01:4f9:c013:9b52::/64"
-      # dedicated-IP EGRESS (the outbound half): with DEP_ADDR_PREFIX set, app
-      # outbound leaves FROM its own IPv6 via ENCLAVE_EGRESS. EGRESS_RELAY_TOKEN is a
-      # shared secret matching the egress-relay box's env — delivered via
-      # `secrets:` below (NOT a plaintext env, which would pin it empty and
-      # shadow the injected secret). Optional EGRESS_SOCKS_PORT (default 1080).
+      # TUNA egress uses a host-side SOCKS entry; configure its reachable origin
+      # only after installing and funding that host adapter (network/README.md).
+      # - TUNA_SOCKS_UPSTREAM: "socks5://HOST_GATEWAY:30489"
       - EGRESS_SOCKS_PORT: "1080"
-      # Egress follows the deployment's relay choice, same as inbound. A
-      # deployment with no network.relay choice egresses through EGRESS_DEFAULT_
-      # RELAY (us-west, ~15ms from the GPU box) instead of tromboning to the /64
-      # owner in Finland; dedicated-IP egress stays available on the /64 owner
-      # (EGRESS_DEDICATED_RELAY=nan) by choosing network.relay:"nan". The relay
-      # names must match each egress-relay box's RELAY_NAME. If us-west egress is
-      # down the enclave falls back to nan, so egress never black-holes.
-      - EGRESS_DEFAULT_RELAY: "us-west"
-      - EGRESS_DEDICATED_RELAY: "nan"
       # manual-billing / pilot controls, same semantics as the GPU flavor.
       - AUTO_PROVISION: ""
       - AUTO_PROVISION_HOURS: "0"
@@ -184,7 +167,6 @@ containers:
       - BASE_RPC                 # dedicated Base RPC URL (key-bearing, e.g. Alchemy/QuickNode). Unset = public-pool fallback. Same creation-binding rule as every new secret name.
       - ADMIN_TOKEN              # operator token for POST /v1/admin/deployments/:id/provision
       - REGISTRY_PRIVATE_KEY     # EnclaveRegistry operator EOA (owns this enclave's entry, pays heartbeat gas on Base)
-      - EGRESS_RELAY_TOKEN       # shared secret with the egress-relay box; same value fleet-wide (like SECRET). Unset = egress off.
       # FALLBACK PATH ONLY (since the platform certificate service, CERTS_API
       # above): with these the supervisor can still mint in-enclave via ZeroSSL
       # when the service answers 503 certs_disabled or is unreachable. Kept

@@ -32,7 +32,7 @@ const NAME = "audit.example.com";
  * A box serving ONE private deployment, with the app zone wired to a loopback "relay": a TCP
  * server that turns bytes into tunnel frames and back, which is what relay/tunnel.js does.
  */
-async function rig({ isPublic = false } = {}) {
+async function rig({ isPublic = false, native = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ee-zonetls-"));
   let hits = 0;
   const backend = http.createServer((_q, res) => { hits++; res.end("PRIVATE FIXTURE"); });
@@ -62,14 +62,8 @@ async function rig({ isPublic = false } = {}) {
     serveHttp: (id, req) => h.proxy(id, req),
     log: () => {},
   });
-  const tunnel = net.createServer((sock) => {
-    const sid = String(++serial);
-    sockets.set(sid, sock);
-    zone.onFrame({ t: "s+", sid });
-    sock.on("data", (b) => zone.onFrame({ t: "sd", sid, d: b.toString("base64") }));
-    sock.on("error", () => {});
-    sock.on("close", () => { zone.onFrame({ t: "sx", sid }); sockets.delete(sid); });
-  });
+  const tunnel = http.createServer((_req, res) => {res.statusCode = 404; res.end();});
+  tunnel.on("upgrade", (req, socket, head) => zone.handleUpgrade(req, socket, head));
   await new Promise((r) => tunnel.listen(0, "127.0.0.1", r));
 
   return {
@@ -147,6 +141,17 @@ test("a PUBLIC deployment through the same path is served to anyone", async () =
     const anon = await request(r.port);
     assert.equal(statusOf(anon), 200);
     assert.ok(anon.includes("PRIVATE FIXTURE"), "a public app answers without any token");
+    assert.equal(r.hits(), 1);
+  } finally { await r.close(); }
+});
+
+test("TUNA loopback ingress preserves TLS and private deployment authorization", async () => {
+  const r = await rig({native: true});
+  try {
+    assert.equal(statusOf(await request(r.port)), 401);
+    assert.equal(statusOf(await request(r.port, "stranger")), 403);
+    assert.equal(r.hits(), 0);
+    assert.equal(statusOf(await request(r.port, "owner")), 200);
     assert.equal(r.hits(), 1);
   } finally { await r.close(); }
 });

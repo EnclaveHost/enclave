@@ -1,0 +1,641 @@
+diff --git a/isolation/m2/egress/app_routes.go b/isolation/m2/egress/app_routes.go
+new file mode 100644
+index 000000000..e38f9d69c
+--- /dev/null
++++ b/isolation/m2/egress/app_routes.go
+@@ -0,0 +1,222 @@
++package egress
++
++import (
++	"context"
++	"crypto/tls"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"io"
++	"net"
++	"net/http"
++	"net/netip"
++	"net/url"
++	"os"
++	"regexp"
++	"strings"
++	"time"
++)
++
++// RouteFor is resolved from the manager's authenticated guest CID, never a
++// deployment identifier supplied in a guest request.
++type AppRoute struct {
++	Proxies []string      `json:"proxies"`
++	DNS     []DNSEndpoint `json:"dns"`
++}
++type DNSEndpoint struct {
++	Address    string `json:"address"`
++	ServerName string `json:"serverName"`
++	Path       string `json:"path"`
++}
++type AppRouteFile struct {
++	Version   int                 `json:"version"`
++	ExpiresAt int64               `json:"expiresAt"`
++	Apps      map[string]AppRoute `json:"apps"`
++}
++
++var appIDPattern = regexp.MustCompile(`^0x[0-9a-f]{64}$`)
++
++func ReadAppRoute(file, deploymentID string) (AppRoute, error) {
++	var zero AppRoute
++	if !appIDPattern.MatchString(deploymentID) {
++		return zero, errors.New("unbound guest")
++	}
++	f, e := os.Open(file)
++	if e != nil {
++		return zero, e
++	}
++	defer f.Close()
++	b, e := io.ReadAll(io.LimitReader(f, 1<<20+1))
++	if e != nil || len(b) > 1<<20 {
++		return zero, errors.New("invalid app routes")
++	}
++	var doc AppRouteFile
++	dec := json.NewDecoder(strings.NewReader(string(b)))
++	dec.DisallowUnknownFields()
++	if e = dec.Decode(&doc); e != nil {
++		return zero, e
++	}
++	var extra any
++	if dec.Decode(&extra) != io.EOF {
++		return zero, errors.New("trailing app route data")
++	}
++	now := time.Now().UnixMilli()
++	if doc.Version != 1 || doc.ExpiresAt <= now || doc.ExpiresAt > now+120000 || len(doc.Apps) > 256 {
++		return zero, errors.New("expired or invalid app routes")
++	}
++	// Reject shared circuit entries, including another app reusing one proxy.
++	seen := map[string]bool{}
++	for id, r := range doc.Apps {
++		if !appIDPattern.MatchString(id) || len(r.Proxies) < 1 || len(r.Proxies) > 2 || len(r.DNS) < 1 || len(r.DNS) > 4 {
++			return zero, errors.New("invalid app route")
++		}
++		for _, p := range r.Proxies {
++			a, e := netip.ParseAddrPort(p)
++			canonical := ""
++			if e == nil {
++				canonical = netip.AddrPortFrom(a.Addr().Unmap(), a.Port()).String()
++			}
++			if ValidateSOCKSProxy(p) != nil || seen[canonical] {
++				return zero, errors.New("invalid or reused app proxy")
++			}
++			seen[canonical] = true
++		}
++		for _, d := range r.DNS {
++			if d.Path != "/dns-query" && d.Path != "/resolve" {
++				return zero, errors.New("unsupported DNS query path")
++			}
++			a, e := netip.ParseAddrPort(d.Address)
++			if e != nil || a.Port() != 443 || RefuseAddr(a.Addr(), nil) != "" {
++				return zero, errors.New("public DNS endpoint required")
++			}
++			if _, e = ParseOrigin("https://" + d.ServerName + "/"); e != nil {
++				return zero, errors.New("invalid DNS TLS identity")
++			}
++		}
++	}
++	r, ok := doc.Apps[deploymentID]
++	if !ok {
++		return zero, errors.New("app has no authorized egress route")
++	}
++	return r, nil
++}
++
++// DNS is HTTPS over the SAME app proxy. The resolver is dialed by pinned IP
++// and verified using its configured TLS name; host DNS is never consulted.
++type appResolver struct {
++	proxy   string
++	servers []DNSEndpoint
++}
++
++func (r appResolver) LookupNetIP(ctx context.Context, network, host string) ([]netip.Addr, error) {
++	if network != "ip" {
++		return nil, errors.New("unsupported address family")
++	}
++	var result []netip.Addr
++	for _, kind := range []int{1, 28} {
++		var answer []netip.Addr
++		var accepted bool
++		for _, server := range r.servers {
++			transport := &http.Transport{Proxy: nil, DisableKeepAlives: true, TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, ServerName: server.ServerName},
++				DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
++					return dialSOCKS(ctx, r.proxy, server.Address, 8*time.Second)
++				}}
++			client := &http.Client{Transport: transport, Timeout: 8 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("DNS redirect refused") }}
++			u := "https://" + server.ServerName + server.Path + "?name=" + url.QueryEscape(host) + "&type=" + fmt.Sprint(kind)
++			req, e := http.NewRequestWithContext(ctx, "GET", u, nil)
++			if e != nil {
++				return nil, e
++			}
++			req.Header.Set("Accept", "application/dns-json")
++			res, e := client.Do(req)
++			if e != nil {
++				transport.CloseIdleConnections()
++				continue
++			}
++			b, e := io.ReadAll(io.LimitReader(res.Body, 65537))
++			res.Body.Close()
++			transport.CloseIdleConnections()
++			if e != nil || res.StatusCode != 200 || len(b) > 65536 {
++				continue
++			}
++			var doc struct {
++				Status int
++				Answer []struct {
++					Type int
++					Data string
++				}
++			}
++			if json.Unmarshal(b, &doc) != nil || doc.Status != 0 {
++				continue
++			}
++			bad := false
++			for _, a := range doc.Answer {
++				if a.Type == kind {
++					ip, e := netip.ParseAddr(a.Data)
++					if e != nil || (kind == 1 && !ip.Is4()) || (kind == 28 && !ip.Is6()) {
++						bad = true
++						break
++					}
++					answer = append(answer, ip)
++				}
++			}
++			if bad {
++				answer = nil
++				continue
++			}
++			accepted = true
++			break
++		}
++		if !accepted {
++			return nil, errors.New("guarded DNS unavailable")
++		}
++		result = append(result, answer...)
++	}
++	if len(result) == 0 {
++		return nil, errors.New("DNS returned no addresses")
++	}
++	return result, nil
++}
++
++// A failure after DNS resolution still tries the app's other authorized circuit.
++// Every attempt is bounded and carries its own DNS through the same proxy.
++func (d *Dialer) dialAppRoute(ctx context.Context, route AppRoute, host string, port int) (net.Conn, error) {
++	var own []netip.Addr
++	if d.Own != nil {
++		own = d.Own()
++	}
++	reason := ReasonResolve
++	for _, proxy := range route.Proxies {
++		if ValidateSOCKSProxy(proxy) != nil {
++			return nil, refused(ReasonAdmit)
++		}
++		attempt, cancel := context.WithTimeout(ctx, d.timeout())
++		addresses, err := (appResolver{proxy: proxy, servers: route.DNS}).LookupNetIP(attempt, "ip", host)
++		if err != nil || len(addresses) == 0 {
++			cancel()
++			continue
++		}
++		for _, address := range addresses {
++			if RefuseAddr(address, own) != "" {
++				cancel()
++				return nil, refused(ReasonNonPublicAnswer)
++			}
++		}
++		reason = ReasonConnect
++		for _, address := range addresses {
++			conn, err := dialSOCKS(attempt, proxy, netip.AddrPortFrom(address.Unmap(), uint16(port)).String(), d.timeout())
++			if err == nil {
++				cancel()
++				return conn, nil
++			}
++			if attempt.Err() != nil {
++				break
++			}
++		}
++		cancel()
++		if ctx.Err() != nil {
++			break
++		}
++	}
++	return nil, &DialError{Reason: reason, refused: reason == ReasonResolve}
++}
+diff --git a/isolation/m2/egress/app_routes_test.go b/isolation/m2/egress/app_routes_test.go
+new file mode 100644
+index 000000000..80dd4cb61
+--- /dev/null
++++ b/isolation/m2/egress/app_routes_test.go
+@@ -0,0 +1,56 @@
++package egress
++
++import (
++	"context"
++	"encoding/json"
++	"net/netip"
++	"os"
++	"path/filepath"
++	"strings"
++	"testing"
++	"time"
++)
++
++func TestAppRoutesAreBoundExpiringAndNeverShared(t *testing.T) {
++	file := filepath.Join(t.TempDir(), "routes.json")
++	id := "0x" + strings.Repeat("1", 64)
++	other := "0x" + strings.Repeat("2", 64)
++	r := AppRoute{Proxies: []string{"127.0.0.1:14567"}, DNS: []DNSEndpoint{{Address: "1.1.1.1:443", ServerName: "cloudflare-dns.com", Path: "/dns-query"}}}
++	doc := AppRouteFile{Version: 1, ExpiresAt: time.Now().Add(time.Minute).UnixMilli(), Apps: map[string]AppRoute{id: r}}
++	write := func() {
++		b, _ := json.Marshal(doc)
++		if e := os.WriteFile(file, b, 0600); e != nil {
++			t.Fatal(e)
++		}
++	}
++	write()
++	if _, e := ReadAppRoute(file, id); e != nil {
++		t.Fatal(e)
++	}
++	if _, e := ReadAppRoute(file, other); e == nil {
++		t.Fatal("another app used a route")
++	}
++	doc.Apps[other] = r
++	write()
++	if _, e := ReadAppRoute(file, id); e == nil {
++		t.Fatal("shared proxy accepted")
++	}
++	delete(doc.Apps, other)
++	doc.ExpiresAt = time.Now().Add(-time.Second).UnixMilli()
++	write()
++	if _, e := ReadAppRoute(file, id); e == nil {
++		t.Fatal("expired route accepted")
++	}
++}
++func TestAppRouteFailureNeverUsesLegacyResolverOrProxy(t *testing.T) {
++	d := Dialer{Resolver: panicResolver{}, SOCKSProxy: "127.0.0.1:30489", RouteFor: func(cid uint32) (AppRoute, error) { return AppRoute{}, os.ErrNotExist }}
++	if _, _, e := d.Dial(context.Background(), 12, "service.example", 443); ReasonOf(e) != ReasonAdmit {
++		t.Fatalf("missing app route: %v", e)
++	}
++}
++
++type panicResolver struct{}
++
++func (panicResolver) LookupNetIP(context.Context, string, string) ([]netip.Addr, error) {
++	panic("app egress attempted host DNS")
++}
+diff --git a/isolation/m2/egress/dialer.go b/isolation/m2/egress/dialer.go
+index 45c35c196..053c84a55 100644
+--- a/isolation/m2/egress/dialer.go
++++ b/isolation/m2/egress/dialer.go
+@@ -81,2 +81,4 @@ type Dialer struct {
+-	MaxConcurrent int // per guest
+-	MaxPerMinute  int // per guest, dials started
++	MaxConcurrent int                                // per guest
++	MaxPerMinute  int                                // per guest, dials started
++	SOCKSProxy    string                             // optional trusted loopback TUNA entry; failure never falls back to direct
++	RouteFor      func(cid uint32) (AppRoute, error) // when configured, no shared/default route may be used
+@@ -165 +167,18 @@ func (d *Dialer) Dial(ctx context.Context, cid uint32, host string, port int) (n
+-	addrs, err := d.Resolver.LookupNetIP(ctx, "ip", host)
++	resolver := d.Resolver
++	proxy := d.SOCKSProxy
++	if d.RouteFor != nil {
++		route, err := d.RouteFor(cid)
++		if err != nil || len(route.Proxies) == 0 || len(route.DNS) == 0 {
++			return nil, nil, refused(ReasonAdmit)
++		}
++		c, e := d.dialAppRoute(ctx, route, host, port)
++		if e != nil {
++			return nil, nil, e
++		}
++		ok = true
++		return c, release, nil
++	}
++	if resolver == nil {
++		return nil, nil, refused(ReasonResolve)
++	}
++	addrs, err := resolver.LookupNetIP(ctx, "ip", host)
+@@ -180,0 +200,6 @@ func (d *Dialer) Dial(ctx context.Context, cid uint32, host string, port int) (n
++	proxied := proxy != ""
++	if proxied {
++		dial = func(ctx context.Context, addr string) (net.Conn, error) {
++			return dialSOCKS(ctx, proxy, addr, d.timeout())
++		}
++	}
+@@ -191,4 +216,8 @@ func (d *Dialer) Dial(ctx context.Context, cid uint32, host string, port int) (n
+-		// and the address the socket actually reached is judged once more
+-		if ra, err := netip.ParseAddrPort(c.RemoteAddr().String()); err != nil || RefuseAddr(ra.Addr(), own) != "" {
+-			c.Close()
+-			return nil, nil, refused(ReasonNonPublicPeer)
++		// Direct sockets expose the destination peer. For SOCKS the peer is the
++		// explicitly configured loopback entry; dialSOCKS sends only the already
++		// judged IP literal, never a hostname that a provider could resolve again.
++		if !proxied {
++			if ra, err := netip.ParseAddrPort(c.RemoteAddr().String()); err != nil || RefuseAddr(ra.Addr(), own) != "" {
++				c.Close()
++				return nil, nil, refused(ReasonNonPublicPeer)
++			}
+@@ -239,0 +269,7 @@ func (d *Dialer) take(cid uint32) (func(), error) {
++
++// fixedAnswers prevents a second resolution between policy checks and dialing.
++type fixedAnswers []netip.Addr
++
++func (a fixedAnswers) LookupNetIP(context.Context, string, string) ([]netip.Addr, error) {
++	return []netip.Addr(a), nil
++}
+diff --git a/isolation/m2/egress/socks.go b/isolation/m2/egress/socks.go
+new file mode 100644
+index 000000000..bf48fbf4b
+--- /dev/null
++++ b/isolation/m2/egress/socks.go
+@@ -0,0 +1,105 @@
++package egress
++
++import (
++	"context"
++	"encoding/binary"
++	"errors"
++	"io"
++	"net"
++	"net/netip"
++	"time"
++)
++
++// ValidateSOCKSProxy permits only an explicit local entry, with no DNS or userinfo.
++func ValidateSOCKSProxy(address string) error {
++	a, err := netip.ParseAddrPort(address)
++	if err != nil || !a.Addr().IsLoopback() || a.Port() == 0 {
++		return errors.New("SOCKS entry must be a loopback IP and nonzero port")
++	}
++	return nil
++}
++
++func dialSOCKS(ctx context.Context, proxy, destination string, timeout time.Duration) (net.Conn, error) {
++	if err := ValidateSOCKSProxy(proxy); err != nil {
++		return nil, err
++	}
++	target, err := netip.ParseAddrPort(destination)
++	if err != nil || target.Port() != 443 || RefuseAddr(target.Addr(), nil) != "" {
++		return nil, errors.New("SOCKS destination must be a judged public IP on port 443")
++	}
++	ctx, cancel := context.WithTimeout(ctx, timeout)
++	defer cancel()
++	c, err := (&net.Dialer{}).DialContext(ctx, "tcp", proxy)
++	if err != nil {
++		return nil, err
++	}
++	success := false
++	defer func() {
++		if !success {
++			c.Close()
++		}
++	}()
++	stop := context.AfterFunc(ctx, func() { c.Close() })
++	defer stop()
++	deadline, _ := ctx.Deadline()
++	if err = c.SetDeadline(deadline); err != nil {
++		return nil, err
++	}
++	if _, err = c.Write([]byte{5, 1, 0}); err != nil {
++		return nil, err
++	}
++	var answer [4]byte
++	if _, err = io.ReadFull(c, answer[:2]); err != nil {
++		return nil, err
++	}
++	if answer[0] != 5 || answer[1] != 0 {
++		return nil, errors.New("SOCKS entry rejected authentication method")
++	}
++	request := []byte{5, 1, 0}
++	ip := target.Addr().Unmap()
++	if ip.Is4() {
++		request = append(request, 1)
++	} else {
++		request = append(request, 4)
++	}
++	request = append(request, ip.AsSlice()...)
++	request = binary.BigEndian.AppendUint16(request, target.Port())
++	if _, err = c.Write(request); err != nil {
++		return nil, err
++	}
++	if _, err = io.ReadFull(c, answer[:]); err != nil {
++		return nil, err
++	}
++	if answer[0] != 5 || answer[1] != 0 || answer[2] != 0 {
++		return nil, errors.New("SOCKS entry refused connection")
++	}
++	size := 0
++	switch answer[3] {
++	case 1:
++		size = 4
++	case 4:
++		size = 16
++	case 3:
++		var n [1]byte
++		if _, err = io.ReadFull(c, n[:]); err != nil {
++			return nil, err
++		}
++		size = int(n[0])
++	default:
++		return nil, errors.New("invalid SOCKS response address")
++	}
++	if _, err = io.CopyN(io.Discard, c, int64(size+2)); err != nil {
++		return nil, err
++	}
++	if !stop() {
++		return nil, ctx.Err()
++	}
++	if err = ctx.Err(); err != nil {
++		return nil, err
++	}
++	if err = c.SetDeadline(time.Time{}); err != nil {
++		return nil, err
++	}
++	success = true
++	return c, nil
++}
+diff --git a/isolation/m2/egress/socks_test.go b/isolation/m2/egress/socks_test.go
+new file mode 100644
+index 000000000..327bd0e8a
+--- /dev/null
++++ b/isolation/m2/egress/socks_test.go
+@@ -0,0 +1,134 @@
++package egress
++
++import (
++	"bytes"
++	"context"
++	"io"
++	"net"
++	"net/netip"
++	"testing"
++	"time"
++)
++
++func TestSOCKSDialsJudgedLiteralAndCarriesBytes(t *testing.T) {
++	for _, ip := range []string{"93.184.216.34", "2606:4700:4700::1111"} {
++		t.Run(ip, func(t *testing.T) {
++			ln, err := net.Listen("tcp", "127.0.0.1:0")
++			if err != nil {
++				t.Fatal(err)
++			}
++			defer ln.Close()
++			request := make(chan []byte, 1)
++			go func() {
++				c, e := ln.Accept()
++				if e != nil {
++					return
++				}
++				defer c.Close()
++				c.SetDeadline(time.Now().Add(2 * time.Second))
++				b := make([]byte, 3)
++				if _, e = io.ReadFull(c, b); e != nil {
++					return
++				}
++				if !bytes.Equal(b, []byte{5, 1, 0}) {
++					return
++				}
++				c.Write([]byte{5, 0})
++				n := 10
++				if netip.MustParseAddr(ip).Is6() {
++					n = 22
++				}
++				b = make([]byte, n)
++				if _, e = io.ReadFull(c, b); e != nil {
++					return
++				}
++				request <- b
++				c.Write([]byte{5, 0, 0, 1, 0, 0, 0, 0, 0, 0})
++				io.Copy(c, c)
++			}()
++			d := &Dialer{Resolver: fakeResolver{"service.example": {ip}}, SOCKSProxy: ln.Addr().String()}
++			c, release, err := d.Dial(context.Background(), 7, "service.example", 443)
++			if err != nil {
++				t.Fatal(err)
++			}
++			defer c.Close()
++			defer release()
++			want := []byte{5, 1, 0, 1}
++			if netip.MustParseAddr(ip).Is6() {
++				want[3] = 4
++			}
++			want = append(want, netip.MustParseAddr(ip).AsSlice()...)
++			want = append(want, 1, 187)
++			if got := <-request; !bytes.Equal(got, want) {
++				t.Fatalf("proxy request %x, want literal %x", got, want)
++			}
++			c.SetDeadline(time.Now().Add(time.Second))
++			c.Write([]byte("guest TLS bytes"))
++			got := make([]byte, 15)
++			if _, err = io.ReadFull(c, got); err != nil {
++				t.Fatal(err)
++			}
++			if string(got) != "guest TLS bytes" {
++				t.Fatal(string(got))
++			}
++		})
++	}
++}
++
++func TestSOCKSDoesNotFallBackAndPreservesDestinationPolicy(t *testing.T) {
++	d, dialed := testDialer(fakeResolver{"service.example": {"93.184.216.34"}, "private.example": {"127.0.0.1"}}, nil)
++	d.SOCKSProxy = "127.0.0.1:1"
++	if _, _, err := d.Dial(context.Background(), 7, "service.example", 443); ReasonOf(err) != ReasonConnect {
++		t.Fatal(err)
++	}
++	if len(*dialed) != 0 {
++		t.Fatal("fell back to direct dial")
++	}
++	if _, _, err := d.Dial(context.Background(), 7, "private.example", 443); ReasonOf(err) != ReasonNonPublicAnswer {
++		t.Fatal(err)
++	}
++	if d.active[7] != 0 {
++		t.Fatal("failed connection leaked a concurrency slot")
++	}
++	for _, address := range []string{"example.org:1234", "10.0.0.1:1234", "127.0.0.1:0", "socks5://127.0.0.1:1234"} {
++		if ValidateSOCKSProxy(address) == nil {
++			t.Fatal(address)
++		}
++	}
++}
++
++func TestSOCKSCancellationInterruptsHandshake(t *testing.T) {
++	ln, err := net.Listen("tcp", "127.0.0.1:0")
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer ln.Close()
++	accepted := make(chan net.Conn, 1)
++	go func() {
++		c, e := ln.Accept()
++		if e == nil {
++			accepted <- c
++		}
++	}()
++	ctx, cancel := context.WithCancel(context.Background())
++	defer cancel()
++	done := make(chan error, 1)
++	go func() {
++		c, e := dialSOCKS(ctx, ln.Addr().String(), "93.184.216.34:443", time.Minute)
++		if c != nil {
++			c.Close()
++		}
++		done <- e
++	}()
++	c := <-accepted
++	defer c.Close()
++	cancel()
++	select {
++	case err := <-done:
++		if err == nil {
++			t.Fatal("cancelled handshake succeeded")
++		}
++	case <-time.After(time.Second):
++		t.Fatal("cancellation did not interrupt handshake")
++	}
++}
+diff --git a/isolation/m4/guestd/main.go b/isolation/m4/guestd/main.go
+index 26b7f9ac8..520d0c9d6 100644
+--- a/isolation/m4/guestd/main.go
++++ b/isolation/m4/guestd/main.go
+@@ -326,0 +327,2 @@ func main() {
++	egressSOCKS := flag.String("egress-socks", "", "optional loopback TUNA SOCKS entry IP:port for guest outbound traffic; no direct fallback")
++	egressRoutes := flag.String("egress-app-routes", "", "expiring per-app TUNA SOCKS map; missing apps are refused, DNS uses their circuit")
+@@ -604,0 +607,5 @@ func main() {
++		if *egressSOCKS != "" {
++			if err := egress.ValidateSOCKSProxy(*egressSOCKS); err != nil {
++				log.Fatal(err)
++			}
++		}
+@@ -610 +617 @@ func main() {
+-			Dialer: &egress.Dialer{Resolver: net.DefaultResolver, Own: hostAddrs, MaxConcurrent: 32, MaxPerMinute: 600},
++			Dialer: &egress.Dialer{Resolver: net.DefaultResolver, Own: hostAddrs, MaxConcurrent: 32, MaxPerMinute: 600, SOCKSProxy: *egressSOCKS},
+@@ -612,0 +620,9 @@ func main() {
++		if *egressRoutes != "" {
++			if *egressSOCKS != "" {
++				log.Fatal("-egress-app-routes and -egress-socks are mutually exclusive")
++			}
++			es.Dialer.Resolver = nil
++			es.Dialer.RouteFor = func(cid uint32) (egress.AppRoute, error) {
++				return egress.ReadAppRoute(*egressRoutes, s.deploymentOfCID(cid))
++			}
++		}
+diff --git a/isolation/m4/guestd/release.go b/isolation/m4/guestd/release.go
+index abd6bdf4e..73d1a33cf 100644
+--- a/isolation/m4/guestd/release.go
++++ b/isolation/m4/guestd/release.go
+@@ -260 +260,3 @@ func (s *server) serveTickets(ctx context.Context, l net.Listener, cidOf func(ne
+-func (s *server) admitCID(cid uint32) bool {
++func (s *server) admitCID(cid uint32) bool { return s.deploymentOfCID(cid) != "" }
++
++func (s *server) deploymentOfCID(cid uint32) string {
+@@ -268 +270 @@ func (s *server) admitCID(cid uint32) bool {
+-			return true
++			return "0x" + v.HostData
+@@ -271 +273 @@ func (s *server) admitCID(cid uint32) bool {
+-	return false
++	return ""

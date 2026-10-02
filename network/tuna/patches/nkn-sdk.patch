@@ -1,0 +1,11 @@
+--- a/client.go
++++ b/client.go
+@@ -121,7 +121,7 @@
+ 	copy(sk[:], account.PrivKey())
+ 	curveSecretKey := ed25519.PrivateKeyToCurve25519PrivateKey(&sk)
+ 
+-	w, err := NewWallet(account, &WalletConfig{SeedRPCServerAddr: config.SeedRPCServerAddr})
++	w, err := NewWallet(account, &WalletConfig{SeedRPCServerAddr: config.SeedRPCServerAddr, RPCTimeout: config.RPCTimeout, HttpDialContext: config.HttpDialContext})
+ 	if err != nil {
+ 		return nil, err
+ 	}

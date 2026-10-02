@@ -178,30 +178,10 @@ containers:
       - MIN_COMPUTE_PCT: "1"
       - VRAM_GRANULARITY_GB: "1"
       - CTX_OVERHEAD_GB: "0.5"
-      # dedicated per-deployment IPv6: the relay box's routed /64. Each public
-      # deployment gets its own IPv6 from this prefix (deterministic from the id);
-      # its tcp:N ports are served there by the tcp6-relay and its udp:N ports by
-      # the udp-relay - at the real port, no SNI, no remapping. Advertised in the
-      # deploy response (network.address/tcp/udp) and /v1/net-map + /v1/udp-map.
-      # Empty = dedicated addressing off (ports stay in-enclave-only via /x).
-      # DEP_ADDR_PREFIX is the current name; UDP_ADDR_PREFIX is the accepted
-      # legacy alias. See relay/README.md.
-      - DEP_ADDR_PREFIX: "2a01:4f9:c013:9b52::/64"       # nan-relay's routed /64 (46.62.128.36); MUST match the relay boxes
-      # dedicated-IP EGRESS (outbound half): app outbound leaves FROM its own
-      # IPv6 via ENCLAVE_EGRESS. EGRESS_RELAY_TOKEN is a shared secret matching the
-      # egress-relay box's env — delivered via `secrets:` below (NOT a plaintext
-      # env, which would pin it empty and shadow the injected secret). Unset =
-      # egress off. See relay/README.md.
+      # TUNA egress uses a host-side SOCKS entry; configure its reachable origin
+      # only after installing and funding that host adapter (network/README.md).
+      # - TUNA_SOCKS_UPSTREAM: "socks5://HOST_GATEWAY:30489"
       - EGRESS_SOCKS_PORT: "1080"
-      # Egress follows the deployment's relay choice, same as inbound. A
-      # deployment with no network.relay choice egresses through EGRESS_DEFAULT_
-      # RELAY (us-west, ~15ms from the GPU box) instead of tromboning to the /64
-      # owner in Finland; dedicated-IP egress stays available on the /64 owner
-      # (EGRESS_DEDICATED_RELAY=nan) by choosing network.relay:"nan". The relay
-      # names must match each egress-relay box's RELAY_NAME. If us-west egress is
-      # down the enclave falls back to nan, so egress never black-holes.
-      - EGRESS_DEFAULT_RELAY: "us-west"
-      - EGRESS_DEDICATED_RELAY: "nan"
       # manual-billing / pilot: boot deployments without an on-chain payment.
       # AUTO_PROVISION="1" provisions EVERY deploy for free (use only for a closed
       # pilot). Leave "" and use the ADMIN_TOKEN-gated provision endpoint instead to
@@ -290,7 +270,6 @@ containers:
       - ADMIN_TOKEN              # operator token for POST /v1/admin/deployments/:id/provision
       - WORKER_TOKEN             # shared bearer with the worker container (SAME Tinfoil secret); the supervisor sends it on worker-manager calls. Unset = not sent.
       - REGISTRY_PRIVATE_KEY     # EnclaveRegistry operator EOA (owns this enclave's entry, pays heartbeat gas on Base)
-      - EGRESS_RELAY_TOKEN       # shared secret with the egress-relay box; same value fleet-wide (like SECRET). Unset = egress off.
       # FALLBACK PATH ONLY (since the platform certificate service, CERTS_API
       # above): with these the supervisor can still mint in-enclave via ZeroSSL
       # when the service answers 503 certs_disabled or is unreachable. Drop

@@ -55,3 +55,19 @@ test('background failures are spaced rather than retried on every availability p
  assert.equal(calls,1);assert.equal(x.market.eligible(x.host),false);
  x.setClock(1060001);await x.market.refresh([x.host],[x.row]);assert.equal(calls,2);
 });
+test('a transient re-verification failure keeps the app served until its TTL; a mismatch revokes it',async()=>{
+ const x=fixture();await x.market.refresh([x.host],[x.row]);
+ assert.ok(x.market.servesUntil(x.host,x.row)>0);
+ // Nan's chain read fails on the next round: the app stays served, not extended.
+ const verifiedUntil=x.market.servesUntil(x.host,x.row);
+ x.setClock(1060001);x.hub.fetchJson=async()=>null;await x.market.refresh([x.host],[x.row]);
+ assert.equal(x.market.servesUntil(x.host,x.row),verifiedUntil);
+ x.setClock(1120002);x.hub.fetchJson=async()=>{throw Object.assign(new Error('RPC Request failed.'),{});};await x.market.refresh([x.host],[x.row]);
+ assert.equal(x.market.servesUntil(x.host,x.row),verifiedUntil);
+ // It still lapses at the TTL with no successful round.
+ x.setClock(1000000+300001);assert.equal(x.market.servesUntil(x.host,x.row),0);
+ // A wrong proof revokes at once.
+ const y=fixture();await y.market.refresh([y.host],[y.row]);assert.ok(y.market.servesUntil(y.host,y.row)>0);
+ y.setClock(1060001);y.hub.verifyShieldApp=()=>({ok:false,reason:'app digest mismatch'});await y.market.refresh([y.host],[y.row]);
+ assert.equal(y.market.servesUntil(y.host,y.row),0);
+});

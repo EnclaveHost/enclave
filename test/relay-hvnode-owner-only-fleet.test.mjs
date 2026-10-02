@@ -128,39 +128,6 @@ function ledgerStub(address, rows) {
   srv.listen(0, "127.0.0.1"); return once(srv, "listening").then(() => ({ url: `http://127.0.0.1:${srv.address().port}`, close: () => srv.close() }));
 }
 
-test("owner-only SNI e2e: relay.js splices <label>.<app zone> to an owner-only host only for a deployment the api relay lists it as carrying", async (t) => {
-  const reached = [];
-  const enc = http.createServer((req, res) => { res.statusCode = 404; res.end(); });
-  const wss = new WebSocketServer({ noServer: true });
-  enc.on("upgrade", (req, sock, head) => {
-    reached.push(req.url);
-    wss.handleUpgrade(req, sock, head, (ws) => { let first = true; ws.on("message", (d) => { if (first) { first = false; return; } ws.send(Buffer.concat([Buffer.from("HV:"), d])); }); });
-  });
-  enc.listen(0, "127.0.0.1"); await once(enc, "listening");
-  const O = `http://127.0.0.1:${enc.address().port}`, RUN = idOf(O);
-  const P1 = "0xa1a1a1a1" + "1".repeat(56), P2 = "0xb2b2b2b2" + "2".repeat(56);    // both leased to O; only P1 listed as served
-  const lease = BigInt(Math.floor(Date.now() / 1000) + 3600), zero = "0x" + "00".repeat(20);
-  const row = (id) => ({ id, owner: zero, appRef: "", ports: "", configCid: "", gpuMilli: 0, cpuMilli: 1, appPort: 0, isPublic: true, active: true, createdAt: 1n,
-                         rate: 1n, balance6: 1n, spent6: 0n, runner: RUN, runnerOperator: zero, leaseUntil: lease });
-  const LEDGER = "0x" + "56".repeat(20);
-  const chain = await ledgerStub(LEDGER, [row(P1), row(P2)]);
-  const api = await enclavesApi(() => [{ endpoint: O, id: RUN, mode: "hv-node", eligible: false, ownerOnly: true,
-                                         servesDeployments: [{ id: P1, until: Math.floor(Date.now() / 1000) + 3600 }] }]);
-  const pub = await new Promise((r) => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => r(p)); }); });
-  const env = { ...process.env, APP_DOMAIN: "app.test", RELAY_PORTS: `${pub}:443`, RELAY_BIND: "127.0.0.1", NET_POLL_SEC: "1", ENCLAVES: O,
-                ELIGIBILITY_API: api.url, ELIGIBILITY_POLL_SEC: "1", DEPLOYMENTS_ADDRESS: LEDGER, BASE_RPC: chain.url, RPC_FALLBACKS: "0" };
-  delete env.REGISTRY_ADDRESS;
-  const p = spawn(process.execPath, [path.join(RELAY_DIR, "relay.js")], { env, stdio: ["ignore", "pipe", "pipe"] });
-  const logs = []; p.stdout.on("data", (d) => logs.push(String(d))); p.stderr.on("data", (d) => logs.push(String(d)));
-  t.after(() => { p.kill(); enc.close(); chain.close(); api.close(); });
-  for (let i = 0; i < 40 && !logs.join("").includes("listening on"); i++) await delay(250);
-  await delay(1500);                                                   // one eligibility poll
-  assert.equal(await sniExchange(pub, "a1a1a1a1.app.test", "ping"), "HV:ping", `the listed deployment is spliced (logs: ${logs.join("").slice(-800)})`);
-  assert.deepEqual(reached, ["/x/0xa1a1a1a1/https"], "on its own https path");
-  assert.notEqual(await sniExchange(pub, "b2b2b2b2.app.test", "ping"), "HV:ping", "a deployment leased to the same host but NOT listed is refused");
-  assert.deepEqual(reached, ["/x/0xa1a1a1a1/https"], "and never reaches the host");
-  assert.match(logs.join(""), /REFUSED: not an eligible host \(U7\) and not an owner-only host of this deployment/);
-});
 
 test('Shield marketplace capacity is eligible but data-plane authority stays per app', async () => {
   const api=await enclavesApi(()=>[{endpoint:HV,id:idOf(HV),mode:'hv-node',eligible:true,ownerOnly:false,

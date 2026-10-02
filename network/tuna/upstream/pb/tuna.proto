@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+option go_package = "./pb";
+
+package pb;
+
+enum EncryptionAlgo {
+  ENCRYPTION_NONE = 0;
+  ENCRYPTION_XSALSA20_POLY1305 = 1;
+  ENCRYPTION_AES_GCM = 2;
+}
+
+message ConnectionMetadata {
+  EncryptionAlgo encryption_algo = 1;
+  bytes public_key = 2;
+  bytes nonce = 3;
+  bool is_measurement = 4;
+  uint32 measurement_bytes_downlink = 5;
+  bool is_ping = 6;
+}
+
+message ServiceMetadata {
+  string ip = 1;
+  uint32 tcp_port = 2;
+  uint32 udp_port = 3;
+  uint32 service_id = 4;
+  repeated uint32 service_tcp = 5;
+  repeated uint32 service_udp = 6;
+  string price = 7;
+  string beneficiary_addr = 8;
+}
+
+message StreamMetadata {
+  uint32 service_id = 1;
+  uint32 port_id = 2;
+  bool is_payment = 3;
+}
