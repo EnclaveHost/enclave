@@ -99,7 +99,7 @@ export async function runPrivacy(configFile){
   const runtime=new Runtime({...cfg.runtime,directory:path.join(cfg.directory,'circuits'),rpc:cfg.nknRpc,
     authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:guestd?guestd.forward:localAppForwarder(cfg.upstream),log});
   const inventory=new ProviderInventory({...cfg.inventory,rpc:cfg.nknRpc,log});
-  const control=cfg.control?new ControlTransport({...cfg.control,directory:path.join(cfg.directory,'control'),inventory,rpc:cfg.nknRpc,wallets:await readJSON(cfg.control.walletsFile),log}):null;
+  const control=cfg.control?new ControlTransport({network:cfg.runtime.network,...cfg.control,directory:path.join(cfg.directory,'control'),inventory,rpc:cfg.nknRpc,wallets:await readJSON(cfg.control.walletsFile),log}):null;
   let stopping=false;
   const close=()=>{stopping=true;hostProof?.close();void Promise.all([agent?.close(),control?.close(),runtime.close()]).catch(e=>log(e.message));};
   process.once('SIGTERM',close);process.once('SIGINT',close);
