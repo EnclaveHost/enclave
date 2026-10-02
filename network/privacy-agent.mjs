@@ -16,6 +16,7 @@ import {DurableState} from './durable-state.mjs';
 import {localAppForwarder} from './local-app-transport.mjs';
 import {probeGuest} from './guest-probe.mjs';
 import {GuestdIngress} from './guestd-ingress.mjs';
+import {ShieldIngress} from './shield-ingress.mjs';
 import {guardedFetch} from './guarded-fetch.mjs';
 import {delegatedIPNS} from './discovery-http.mjs';
 import {ControlTransport} from './control-transport.mjs';
@@ -101,7 +102,9 @@ export async function runPrivacy(configFile){
   }
   const log=message=>console.error('[privacy] '+message);let agent;
   if(windows&&cfg.guestd)throw new Error('Linux guest manager configuration on Windows');
-  const guestd=cfg.guestd?new GuestdIngress({...cfg.guestd,expected:id=>apps.find(a=>a.deploymentId===id)?.expected}):null;
+  if(!windows&&cfg.shield?.ingress)throw new Error('Windows partition ingress configuration on Linux');
+  const guestd=cfg.guestd?new GuestdIngress({...cfg.guestd,expected:id=>apps.find(a=>a.deploymentId===id)?.expected}):
+    cfg.shield?.ingress?new ShieldIngress({...cfg.shield.ingress,expected:id=>apps.find(a=>a.deploymentId===id)?.expected,key:id=>agent?.admission.proofs.get(id)?.spkiSha256}):null;
   const Runtime=windows?WindowsCircuitRuntime:LinuxCircuitRuntime;
   const runtime=new Runtime({...cfg.runtime,directory:path.join(cfg.directory,'circuits'),rpc:cfg.nknRpc,
     authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:guestd?guestd.forward:localAppForwarder(cfg.upstream),log});
