@@ -2,6 +2,15 @@ import {EventEmitter} from 'node:events';
 import {validateCircuitPolicy,selectCircuitProviders,providerAllowed,nknAmount,independentCircuits} from './circuit-policy.mjs';
 import {recordHash} from './route-record.mjs';
 import {validateAppNames} from './app-ingress.mjs';
+import {transientProofError} from './lease-reader.mjs';
+// A route probe crosses the guard twice (out to the public provider, back down
+// its reverse tunnel), so one slow handshake is ordinary. These transport
+// failures withdraw a route only after three in a row; a mismatch or refusal
+// still fails it at once.
+const ROUTE_PROBE_FAILURES=3,ROUTE_RETRY_MS=5000;
+export function transientRouteError(e) {
+  return transientProofError(e)||['TLS handshake timeout','SOCKS connection aborted','SOCKS connection closed','SOCKS closed during handshake','SOCKS connect refused'].includes(e?.message);
+}
 
 const roles=['guard','public','egress'];
 // A guard's own health says it accepted a connection, not that public
@@ -100,8 +109,18 @@ export class CircuitManager extends EventEmitter {
     // End-to-end proof is required for the public route, not just a live
     // SOCKS connection or an SDK allocation event.
     for(const circuit of [...app.circuits])if(this.now()-(circuit.checkedAt||0)>20000){
-      try{const started=this.now();await this.probe(app,circuit);if(!app.circuits.includes(circuit)||circuit.closed)continue;circuit.checkedAt=this.now();void this.observe(withCarry(circuit.providers),{ok:true,latencyMs:this.now()-started}).catch(e=>this.log(e.message));}
-      catch(e){await this.fail(app,circuit,`route verification failed: ${e.message}`);}
+      try{const started=this.now();await this.probe(app,circuit);if(!app.circuits.includes(circuit)||circuit.closed)continue;circuit.checkedAt=this.now();circuit.probeFailures=0;void this.observe(withCarry(circuit.providers),{ok:true,latencyMs:this.now()-started}).catch(e=>this.log(e.message));}
+      catch(e){
+        if(!app.circuits.includes(circuit)||circuit.closed)continue;
+        circuit.probeFailures=(circuit.probeFailures||0)+1;
+        if(transientRouteError(e)&&circuit.probeFailures<ROUTE_PROBE_FAILURES){
+          // Retry soon rather than after the full interval; the route stays published meanwhile.
+          circuit.checkedAt=this.now()-20000+ROUTE_RETRY_MS;
+          this.log(`app ${app.id.slice(0,10)} circuit ${circuit.id}: route probe ${circuit.probeFailures}/${ROUTE_PROBE_FAILURES} failed: ${e.message}`);
+          continue;
+        }
+        await this.fail(app,circuit,`route verification failed: ${e.message}`);
+      }
     }
     })().finally(()=>this.healthChecks.delete(app.id));
     this.healthChecks.set(app.id,operation);return operation;
