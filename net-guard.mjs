@@ -1,15 +1,10 @@
-// net-guard — SSRF destination classifier for dedicated-IP egress (guardrail 2).
-//
-// CANONICAL COPY. Imported by egress.js (enclave-side, checks literal-IP
-// destinations before they leave the CVM) AND by relay/egress-relay.js on the
-// relay box (checks each address DNS resolves to, before dialling). relay/
-// deploy.sh ships this exact file to the relay box, so there is ONE source of
-// truth — do not fork it.
+// SSRF destination classifier. egress.js checks every resolved destination
+// before sending the judged literal address to the TUNA SOCKS entry.
 //
 // Policy: allow only globally-routable unicast. Refuse loopback, link-local,
 // unique-local (ULA), private (RFC1918 / CGNAT), documentation/benchmark, and
 // multicast — the ranges an app could use to pivot into the enclave's or the
-// relay box's own localhost / private-network services. v4-mapped and
+// provider's own localhost / private-network services. v4-mapped and
 // NAT64-mapped IPv6 are unwrapped and judged by their embedded v4 address, so
 // `::ffff:127.0.0.1` can't sneak loopback past the v6 path.
 

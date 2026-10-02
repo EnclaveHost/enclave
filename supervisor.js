@@ -6858,7 +6858,7 @@ async function authUpgrade(req) {
 }
 
 // --- platform-terminated TLS for app TCP ports (/x/:id/tls/:port) -----------
-// The public relay (relay/relay.js, on any untrusted box) forwards a client's
+// The TUNA provider and local host adapter forward a client's
 // raw TLS bytes into this bridge; the session terminates HERE, inside the
 // attested enclave. The key pair is MINTED IN-ENCLAVE at boot — never
 // provisioned as a secret, so no operator, ACME account, or
