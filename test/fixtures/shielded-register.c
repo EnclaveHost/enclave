@@ -31,6 +31,18 @@ static int test_create(pthread_t *t,const pthread_attr_t *a,void *(*fn)(void*),v
     if(inject_thread && rc==0)handles[made++]=*t;
     return rc;
 }
+/* Since 349d5d0d5 shielded-tee.c spawns its worker threads through shielded-parwork.c's sh_thread_create, which calls
+ * pthread_create from its OWN translation unit, where the #define below never reaches: the fault is injected at
+ * sh_thread_create too, with the same counters, so "the second thread creation fails" still means what it did. */
+#include "../../wasm/ggml-shielded/shielded-parwork.h"
+static int sh_create_call;
+static int test_sh_create(pthread_t *t,void *(*fn)(void*),void *arg) {
+    sh_create_call++;
+    if(inject_thread && create_call++==1)return EAGAIN;
+    int rc=sh_thread_create(t,fn,arg);
+    if(inject_thread && rc==0)handles[made++]=*t;
+    return rc;
+}
 static int test_join(pthread_t t,void **result) {
     if(inject_thread) {
         int found=0;for(int i=0;i<made;i++)if(pthread_equal(t,handles[i]))found=1;
@@ -44,6 +56,7 @@ static int test_join(pthread_t t,void **result) {
 #define realloc test_realloc
 #define getrandom test_random
 #define pthread_create test_create
+#define sh_thread_create test_sh_create
 #define pthread_join test_join
 #include "../../wasm/ggml-shielded/shielded-tee.c"
 #undef malloc
@@ -51,6 +64,7 @@ static int test_join(pthread_t t,void **result) {
 #undef realloc
 #undef getrandom
 #undef pthread_create
+#undef sh_thread_create
 #undef pthread_join
 
 static void reference_prepare(const int8_t *w,int64_t k,int64_t n,const int64_t *s,int reps,int64_t *out) {
@@ -70,15 +84,54 @@ enum {K=32,N=4};
 static int8_t weights[K*513];
 static void reset_faults(void) {alloc_call=fail_alloc=rng_fail=rng_zero=rng_intr=0;rng_bytes=0;rng_word=17;}
 
+static void retained_verification_rows(void) {
+    const int widths[]={32,128,5120}, heights[]={1,4,63,64,65,257};
+    const sh_simd *kernels[]={sh_simd_generic(),sh_simd_get()};
+    setenv("SHIELDED_PAD_CHECK","0",1);
+    int cases=0;
+    for(int dealt=0;dealt<2;dealt++)for(size_t ki=0;ki<2;ki++)for(size_t a=0;a<3;a++)for(size_t b=0;b<6;b++) {
+        const int k=widths[a],n=heights[b],m=3;
+        int8_t *w=malloc((size_t)k*n);
+        int64_t *s=malloc((size_t)n*SH_FV_REPS*sizeof *s),*st=malloc((size_t)k*SH_FV_REPS*sizeof *st);
+        int64_t *x=malloc((size_t)m*k*sizeof *x),*y=malloc((size_t)m*n*sizeof *y);
+        assert(w && s && st && x && y);
+        for(int i=0;i<k*n;i++)w[i]=(int8_t)(i%15-7);
+        reset_faults();sh_link *l=new_link(true);l->simd=kernels[ki];l->dealt=dealt;
+        assert(sh_link_add_weight(l,"retained.weight",w,k,n,m,-1)==0);
+        const sh_node *nd=&l->nodes[0];
+        assert((nd->s==NULL)==dealt && (nd->s_tilde==NULL)==dealt);
+        assert(nd->s32 && nd->st32);
+        assert(rng_bytes==(size_t)n*SH_FV_REPS*8);
+        for(int j=0;j<n*SH_FV_REPS;j++)s[j]=1+(17+j)%(SH_FV_S_RANGE-1);
+        reference_prepare(w,k,n,s,SH_FV_REPS,st);
+        for(int r=0;r<SH_FV_REPS;r++) {
+            for(int j=0;j<n;j++)assert(nd->s32[r*n+j]==s[j*SH_FV_REPS+r]);
+            for(int j=0;j<k;j++)assert(nd->st32[r*k+j]==st[j*SH_FV_REPS+r]);
+        }
+        for(int i=0;i<m*k;i++)x[i]=i%5-2;
+        for(int row=0;row<m;row++)for(int j=0;j<n;j++) {
+            int64_t sum=0;for(int col=0;col<k;col++)sum+=x[row*k+col]*w[j*k+col];
+            y[row*n+j]=sum;
+        }
+        assert(sh_link_verify(l,0,x,y,m));
+        y[0]++;assert(!sh_link_verify(l,0,x,y,m));y[0]--;
+        y[m*n-1]--;assert(!sh_link_verify(l,0,x,y,m));y[m*n-1]++;
+        assert(sh_link_verify(l,0,x,y,m));
+        sh_link_close(l);free(w);free(s);free(st);free(x);free(y);cases++;
+    }
+    assert(cases==72);puts("72 retained verification row cases passed");
+}
+
 int main(void) {
+    retained_verification_rows();
     setenv("SHIELDED_PAD_CHECK","1",1);
     for(size_t i=0;i<sizeof weights;i++)weights[i]=(int8_t)(i%15-7);
     /* Every required allocation must reject registration without publishing
      * a partial group or losing its allocated verification arrays. */
-    for(int grouped=0;grouped<2;grouped++) {
+    for(int dealt=0;dealt<2;dealt++)for(int grouped=0;grouped<2;grouped++) {
         int failures=0;
         for(int nth=1;nth<=12;nth++) {
-            reset_faults();sh_link *l=new_link(true);
+            reset_faults();sh_link *l=new_link(true);l->dealt=dealt;
             if(grouped)assert(sh_link_add_weight(l,"first.weight",weights,K,N,8,-1)==0);
             sh_group old={0};if(grouped)old=l->groups[0];
             int64_t wb=l->wbytes,ab=l->abytes;size_t nn=l->n_nodes,ng=l->n_groups;
@@ -96,8 +149,8 @@ int main(void) {
     }
     /* Zero/error entropy must never become predictable or absent checks.
      * EINTR is retried. Pad coefficients come directly from OS random words. */
-    for(int verify=0;verify<=1;verify++)for(int kind=0;kind<3;kind++) {
-        reset_faults();sh_link *l=new_link(verify);
+    for(int dealt=0;dealt<2;dealt++)for(int verify=0;verify<=1;verify++)for(int kind=0;kind<3;kind++) {
+        reset_faults();sh_link *l=new_link(verify);l->dealt=dealt;
         rng_fail=kind==0;rng_zero=kind==1;rng_intr=kind==2;
         int rc=sh_link_add_weight(l,"rng.weight",weights,K,N,8,-1);
         if(kind<2) {assert(rc==SH_ERR_IO);assert(l->n_nodes==0 && l->n_groups==0 && l->wbytes==0 && l->abytes==0);}
@@ -121,6 +174,8 @@ int main(void) {
     fv_prepare_parallel(l,weights,K,256,s,2,got);
     inject_thread=0;assert(made==joined);
     if(sysconf(_SC_NPROCESSORS_ONLN)>1)assert(create_call>1 && made>0);
+    /* the registration spawns through sh_thread_create (349d5d0d5): the fault must be injected at that seam */
+    if(sysconf(_SC_NPROCESSORS_ONLN)>1)assert(sh_create_call>0);
     reference_prepare(weights,K,256,s,2,want);assert(!memcmp(want,got,sizeof want));
     sh_link_close(l);
     /* Invalid shapes/offsets and sharing leave a valid prior group usable. */
