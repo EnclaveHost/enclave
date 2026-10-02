@@ -14,6 +14,17 @@ export function localUpstream(raw) {
   if (u.protocol !== 'http:' || !['127.0.0.1', '[::1]', 'localhost'].includes(u.hostname) || u.username || u.password || u.pathname !== '/' || u.search || u.hash) throw new Error('upstream must be a loopback HTTP origin');
   return u.origin;
 }
+export function resolveHostname(name, domains, admitted, zone = 'app.enclave.host') {
+  const suffix = '.' + zone;
+  if (name === zone || name.endsWith(suffix)) {
+    const label = name.slice(0, -suffix.length);
+    if (!/^[0-9a-f]{8,64}$/.test(label)) return null;
+    const ids = Object.keys(admitted).filter(id => id.startsWith('0x' + label));
+    return ids.length === 1 ? ids[0] : null;
+  }
+  const id = Object.hasOwn(domains, name) ? domains[name] : null;
+  return /^0x[0-9a-f]{64}$/.test(id || '') ? id : null;
+}
 export async function run(configFile) {
   const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
   const upstream = localUpstream(cfg.upstream);
@@ -43,17 +54,10 @@ export async function run(configFile) {
     socket.pipe(stream).pipe(socket);
   };
   const host = new TunaHost({ config: configFile, binary: cfg.binary || 'enclave-tuna',
+    httpPort: 80,
     deployments: () => deployments,
     isAllowed: id => admitted[id]?.endpoint === cfg.endpoint && admitted[id]?.expiresAt > Date.now(),
-    resolveName: name => {
-      if (domains[name]) return domains[name];
-      const suffix = '.' + (cfg.appZone || 'app.enclave.host');
-      if (!name.endsWith(suffix)) return null;
-      const label = name.slice(0, -suffix.length);
-      if (!/^[0-9a-f]{8,64}$/.test(label)) return null;
-      const ids = Object.keys(admitted).filter(id => id.startsWith('0x' + label));
-      return ids.length === 1 ? ids[0] : null;
-    },
+    resolveName: name => resolveHostname(name, domains, admitted, cfg.appZone || 'app.enclave.host'),
     serveHttps: (socket, id) => splice(socket, id, 'https'),
     serveTcp: (socket, id, port) => splice(socket, id, 'tcp', port),
     connectUdp: async (id, port, receive) => {

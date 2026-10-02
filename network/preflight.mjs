@@ -2,6 +2,7 @@
 // Read-only cutover check: all admitted deployments need a live allocation and
 // a valid guest TLS endpoint at that IP. No DNS mutation or certificate bypass.
 import https from 'node:https';
+import http from 'node:http';
 import net from 'node:net';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
@@ -41,11 +42,29 @@ export function probe(id, allocation, zone = 'app.enclave.host') {
   });
 }
 
+export function probeRedirect(id, allocation, zone = 'app.enclave.host') {
+  const hostname = `${id.slice(2, 10)}.${zone}`;
+  return new Promise((resolve, reject) => {
+    const req = http.request({hostname:allocation.https.address, port:80, method:'HEAD', path:'/',
+      headers:{host:hostname}, agent:false, timeout:15000}, res => {
+      res.resume();
+      if (![301,308].includes(res.statusCode) || res.headers.location !== `https://${hostname}/`)
+        reject(new Error(`${id}: HTTP redirect unavailable or wrong destination`));
+      else resolve(res.statusCode);
+    });
+    req.once('timeout', () => req.destroy(new Error(`${id}: HTTP redirect timed out`)));
+    req.once('error', reject); req.end();
+  });
+}
+
 export async function preflight(api, required = []) {
   const response = await fetch(new URL('/v1/network/tuna', api), { signal: AbortSignal.timeout(15000) });
   if (!response.ok) throw new Error(`TUNA map returned HTTP ${response.status}`);
   const entries = checkMap(await response.json(), required), results = [];
-  for (const [id, allocation] of entries) results.push(await probe(id, allocation));
+  for (const [id, allocation] of entries) {
+    const [tls, httpStatus] = await Promise.all([probe(id, allocation), probeRedirect(id, allocation)]);
+    results.push({...tls, httpStatus});
+  }
   const fresh = await fetch(new URL('/v1/network/tuna', api), { signal: AbortSignal.timeout(15000) });
   if (!fresh.ok) throw new Error('TUNA admission refresh failed');
   const current = new Map(checkMap(await fresh.json(), entries.map(([id]) => id)));

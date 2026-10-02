@@ -9,9 +9,10 @@ stay in their application guests.
 
 The adapter runs beside the Metal control CVM or Windows node. It accepts TLS on
 loopback port 443 and routes SNI to the host's existing `/x/:id/https` WebSocket
-handler. On Windows, use the node agent with its loopback upgrade handler enabled;
+handler. Loopback port 80 redirects admitted app names to HTTPS; TUNA allocates
+both public ports on the same provider. On Windows, use the node agent with its loopback upgrade handler enabled;
 `upstream` is normally `http://127.0.0.1:9600`. Metal normally uses port 18080.
-The public provider must allocate port 443. Raw TCP/UDP use separate TUNA reverse
+The public provider must allocate ports 443 and 80. Raw TCP/UDP use separate TUNA reverse
 allocations with random public ports; the published mappings contain both the
 application's logical port and the actual public port. SSH uses such a TCP mapping.
 
@@ -47,7 +48,7 @@ RPC endpoints are explicit, replaceable bootstrap peers; discovery uses NKN's
 subscription registry rather than an Enclave provider directory.
 
 Run `node agent.mjs --config /private/path/config.json`. Keep the process supervised
-and allow it to bind loopback 443 (Linux needs NET_BIND_SERVICE). A container uses
+and allow it to bind loopback 443 and 80 (Linux needs NET_BIND_SERVICE). A container uses
 host networking to reach the local CVM forward, read-only mounts for config and
 keys, and a writable status directory. Include system CA certificates for HTTPS
 RPC endpoints. The seed must remain readable by the container's service identity.

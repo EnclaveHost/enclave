@@ -1,6 +1,7 @@
 // Host-side TUNA lifecycle. Public listeners belong to TUNA providers; these
 // loopback sockets hand traffic to the host's existing tenant security gates.
 import net from 'node:net';
+import http from 'node:http';
 import dgram from 'node:dgram';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
@@ -40,8 +41,8 @@ export function clientHelloName(buf) {
 export class TunaHost {
   constructor({ config = process.env.TUNA_CONFIG || '', binary = process.env.TUNA_BIN || 'enclave-tuna',
     deployments, resolveName, serveHttps, resolvePort, serveTcp, connectUdp, isAllowed = () => true, log = console.error,
-    webPort = 443, socksPort = 30489, maxConnections = 4096, spawnProcess = spawn }) {
-    Object.assign(this, { config, binary, deployments, resolveName, serveHttps, resolvePort, serveTcp, connectUdp, isAllowed, log, webPort, socksPort, maxConnections, spawnProcess });
+    webPort = 443, httpPort = null, socksPort = 30489, maxConnections = 4096, spawnProcess = spawn }) {
+    Object.assign(this, { config, binary, deployments, resolveName, serveHttps, resolvePort, serveTcp, connectUdp, isAllowed, log, webPort, httpPort, socksPort, maxConnections, spawnProcess });
     this.routes = new Map(); this.assignments = new Map(); this.child = null; this.closed = false;
     this.connections = new Set(); this.error = config ? 'starting' : 'TUNA_CONFIG is not configured';
   }
@@ -97,8 +98,31 @@ export class TunaHost {
     });
     await new Promise((resolve, reject) => { this.web.once('error', reject); this.web.listen(this.webPort, '127.0.0.1', resolve); });
     this.webPort = this.web.address().port;
-    // Standard HTTPS requires 443 on both ends of the upstream reverse API.
-    this.routes.set('web', { id: 'web', tcp: [this.webPort], udp: [], randomPorts: false });
+    const webPorts = [this.webPort];
+    if (this.httpPort !== null) {
+      this.http = http.createServer({maxHeaderSize:8192, requestTimeout:10000, headersTimeout:10000}, (req, res) => {
+        const redirect = async () => {
+          const match = /^([a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?)(?::(?:80|443))?$/i.exec(req.headers.host || '');
+          if (!match || !['GET','HEAD'].includes(req.method) || !req.url.startsWith('/') || /[\r\n]/.test(req.url)) {
+            res.writeHead(400, {'connection':'close'}); res.end(); return;
+          }
+          const hostname = match[1].toLowerCase(), id = await this.resolveName(hostname);
+          if (!id || !this.isAllowed(id)) {
+            res.writeHead(421, {'content-type':'text/plain', 'connection':'close'});
+            res.end('This hostname is not served here.\n'); return;
+          }
+          req.socket.tunaDeployment = id;
+          res.writeHead(308, {location:`https://${hostname}${req.url}`, 'connection':'close'}); res.end();
+        };
+        redirect().catch(() => res.destroy());
+      });
+      this.http.on('connection', socket => {this.track(socket); socket.setTimeout(10000, () => socket.destroy());});
+      this.http.on('clientError', (_error, socket) => socket.destroy());
+      await new Promise((resolve, reject) => {this.http.once('error', reject); this.http.listen(this.httpPort, '127.0.0.1', resolve);});
+      this.httpPort = this.http.address().port; webPorts.push(this.httpPort);
+    }
+    // Fixed 443/80 use one provider, so both DNS paths reach this adapter.
+    this.routes.set('web', { id: 'web', tcp: webPorts, udp: [], randomPorts: false });
     this.routes.set('egress', { id: 'egress', tcp: [this.socksPort], udp: [], forward: true });
     this.launch();
     await this.reconcile();
@@ -223,7 +247,7 @@ export class TunaHost {
   close() {
     this.closed = true; clearInterval(this.timer); clearTimeout(this.restart);
     this.child?.stdin.end(); this.child?.kill(); this.child = null;
-    this.assignments.clear(); this.web?.close();
+    this.assignments.clear(); this.web?.close(); this.http?.close();
     for (const r of this.routes.values()) r.close?.(); this.routes.clear();
     for (const socket of this.connections) socket.destroy();
   }
