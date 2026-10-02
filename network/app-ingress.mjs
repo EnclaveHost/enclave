@@ -3,11 +3,15 @@
 import net from 'node:net';
 import {clientHelloName} from './tuna-host.mjs';
 
-export async function createAppIngress({deploymentId, host = '127.0.0.1', port = 0,
-  names, authorize, forward, maxConnections = 1024, allowNoSni = false, onError = () => {}}) {
+export function validateAppNames(deploymentId,names) {
   if (!/^0x[0-9a-f]{64}$/.test(deploymentId || '') || !Array.isArray(names) || !names.length || names.length > 64 ||
     names.some(n => typeof n !== 'string' || n.length > 253 || !n.split('.').every(label => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label))))
     throw new Error('app identity and hostnames required');
+  return names;
+}
+export async function createAppIngress({deploymentId, host = '127.0.0.1', port = 0,
+  names, authorize, forward, maxConnections = 1024, allowNoSni = false, onError = () => {}}) {
+  validateAppNames(deploymentId,names);
   const allowedNames = new Set(names.map(n => n.toLowerCase()));
   const sockets = new Set();
   const server = net.createServer(socket => {

@@ -41,3 +41,8 @@ test('a missing deployment is revoked without withholding another app lease',asy
  const reader=new LeaseReader({addressBook:book,clients:readers,now});reader.cache.set(missing,{...row,id:missing,validUntil:now()+60000});
  assert.deepEqual((await reader.refresh([missing,id])).map(x=>x.id),[id]);assert.equal(reader.get(missing),null);assert.ok(reader.get(id));
 });
+test('a stalled snapshot cannot withhold an already agreeing quorum',async()=>{
+ const slow=client();let release;const gate=new Promise(r=>release=r);slow.getBlock=async()=>{await gate;throw Error('late peer failure');};
+ const reader=new LeaseReader({addressBook:book,clients:[slow,client(),client()],now});
+ try{const result=await Promise.race([reader.refresh([id]),new Promise((_r,j)=>setTimeout(()=>j(Error('quorum stalled')),100))]);assert.equal(result.length,1);}finally{release();}
+});

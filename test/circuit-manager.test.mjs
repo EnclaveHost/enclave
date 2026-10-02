@@ -64,3 +64,23 @@ test('a stuck app allocation does not block other apps or reserve the same publi
   assert.ok(attempts.filter(a=>a.deploymentId===other).every(a=>a.providers.public.address!==attempts[0].providers.public.address));
  }finally{unblock();await working;await f.manager.close();}
 });
+
+test('shutdown cancels allocations that have not become publishable circuits',async()=>{
+ const f=fixture();let started,rejectAllocation;const entered=new Promise(r=>started=r);
+ f.manager.runtime.start=async()=>{started();return new Promise((_r,j)=>rejectAllocation=j);};
+ f.manager.runtime.close=async()=>rejectAllocation(new Error('runtime stopped'));
+ await f.manager.configure([{policy,names:['app.example']}]);const pending=f.manager.reconcile();await entered;
+ await f.manager.close();await pending;assert.ok(f.publications.every(p=>p.routes.length===0));
+});
+test('invalid app names are rejected before any allocation or spending',async()=>{
+ const f=fixture();await assert.rejects(f.manager.configure([{policy,names:['a'.repeat(64)+'.app.example']}]),/hostnames/);assert.equal(f.started.length,0);
+});
+test('repairing one circuit does not delay its sibling health checks',async()=>{
+ const f=fixture();let started,rejectAllocation;const entered=new Promise(r=>started=r);const original=f.manager.runtime.start;
+ let calls=0;f.manager.runtime.start=async args=>{if(calls++===0)return original(args);started();return new Promise((_r,j)=>rejectAllocation=j);};
+ await f.manager.configure([{policy,names:['app.example']}]);const pending=f.manager.reconcile();await entered;
+ f.started[0].checkedAt=0;f.setProbeFails(true);await f.manager.reconcile();
+ for(let i=0;i<10&&!f.started[0].closed;i++)await new Promise(r=>setImmediate(r));
+ assert.equal(f.started[0].closed,true);assert.equal(f.publications.at(-1).routes.length,0);
+ rejectAllocation(new Error('test repair ended'));await pending;await f.manager.close();
+});

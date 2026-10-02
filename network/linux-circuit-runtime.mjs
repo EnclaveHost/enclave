@@ -17,9 +17,11 @@ export class LinuxCircuitRuntime {
   constructor({directory,binary,image,network,gateway,rpc,authorize,forward,discovery=true,log=()=>{}}) {
     if(process.platform!=='linux'||process.getuid()!==1000)throw new Error('Linux circuit runtime requires the dedicated uid 1000 service account');
     if(!net.isIPv4(gateway)||!/^enclave-[a-z0-9-]+$/.test(network)||!image||!path.isAbsolute(directory)||!path.isAbsolute(binary))throw new Error('explicit runtime paths and network required');
-    Object.assign(this,{directory,binary,image,network,gateway,rpc,authorize,forward,discovery,log});
+    Object.assign(this,{directory,binary,image,network,gateway,rpc,authorize,forward,discovery,log});this.active=new Set();this.closed=false;
   }
+  async close(){this.closed=true;await Promise.all([...this.active].map(c=>c.close('runtime stopped')));}
   async start({deploymentId,names,providers,wallets,maxPrice}) {
+    if(this.closed)throw new Error('runtime stopped');
     const id=randomBytes(16).toString('hex'),dir=path.join(this.directory,id),privateDir=path.join(dir,'worker'),guardDir=path.join(dir,'guard');
     await fs.mkdir(privateDir,{recursive:true,mode:0o700});await fs.mkdir(guardDir,{recursive:true,mode:0o700});
     const circuit=new EventEmitter();Object.assign(circuit,{id,deploymentId,providers,closed:false});
@@ -27,12 +29,13 @@ export class LinuxCircuitRuntime {
     const egressSockets=new Set();
     const name='enclave-circuit-'+id,guardName='enclave-guard-'+id;
     circuit.close=async reason=>{
-      if(circuit.closed)return;circuit.closed=true;clearTimeout(readyTimer);readyReject?.(new Error(reason||'circuit closed'));
+      if(circuit.closed)return;circuit.closed=true;this.active.delete(circuit);clearTimeout(readyTimer);readyReject?.(new Error(reason||'circuit closed'));
       broker?.revoke();for(const socket of egressSockets)socket.destroy();egressServer?.close();guard?.close();lines?.close();
       if(child?.stdin.writable)child.stdin.end(JSON.stringify({type:'stop'})+'\n');
       await Promise.all([name,guardName].map(n=>execute('docker',['rm','-f',n],{timeout:15000}).catch(()=>{})));
       await broker?.close();if(socketDirectory)await fs.rm(socketDirectory,{recursive:true,force:true});circuit.emit('down',reason||'closed');
     };
+    this.active.add(circuit);
     circuit.publishDiscovery=value=>{if(circuit.closed||!child?.stdin.writable)throw new Error('circuit closed');child.stdin.write(JSON.stringify({type:'discovery',value})+'\n');};
     circuit.admit=expiresAt=>{if(!circuit.closed&&child?.stdin.writable)child.stdin.write(JSON.stringify({type:'admission',expiresAt})+'\n');if(expiresAt<=Date.now()){broker?.revoke();for(const socket of egressSockets)socket.destroy();}};
     try{
@@ -58,13 +61,14 @@ export class LinuxCircuitRuntime {
       socketDirectory=await fs.mkdtemp(path.join(os.tmpdir(),'enclave-broker-'));
       await fs.chmod(socketDirectory,0o700);
       broker=await createAppBroker({socketPath:path.join(socketDirectory,'app.sock'),deploymentId,authorize:this.authorize,forward:this.forward,log:this.log});
+      if(circuit.closed||this.closed)throw new Error('runtime stopped');
       guard=new AdapterProcess({binary:'/opt/enclave-tuna/enclave-tuna',configFile:'/etc/circuit/guard.json',provider:providers.guard,
         route:{id:'guard',tcp:[guardPort],udp:[],forward:true},log:this.log,
         spawnProcess:(binary,args,options)=>spawn('docker',['run','--rm','-i','--name',guardName,'--network','host',
           '--read-only','--user','1000:1000','--cap-drop','ALL','--security-opt','no-new-privileges','--pids-limit','128','--memory','256m',
           '-v',`${guardDir}:/etc/circuit:ro`,
           '--entrypoint',binary,this.image,...args],options)});
-      guard.on('down',e=>{void circuit.close(e.message)});
+      guard.on('down',e=>{circuit.failureRole='guard';void circuit.close(e.message)});
       await guard.start();
       const guardStatus=await execute('docker',['exec',guardName,'cat','/proc/1/status'],{timeout:10000});
       if(!/^Uid:\s+1000\s+1000\s+1000\s+1000$/m.test(guardStatus.stdout)||!/^CapEff:\s+0+$/m.test(guardStatus.stdout)||!/^CapBnd:\s+0+$/m.test(guardStatus.stdout)||!/^NoNewPrivs:\s+1$/m.test(guardStatus.stdout))throw new Error('guard isolation check failed');
@@ -92,7 +96,7 @@ export class LinuxCircuitRuntime {
           if(event.type==='ready'){
             if(event.provider!==providers.public.identity||event.address!==providers.public.address||event.port!==443||event.egress!==true){reject(new Error('unexpected guarded allocation'));return;}
             circuit.address=event.address;circuit.port=443;resolve();
-          }else if(event.type==='down')reject(new Error(event.reason||'guarded circuit failed'));
+          }else if(event.type==='down'){circuit.failureRole=event.role;reject(Object.assign(new Error(event.reason||'guarded circuit failed'),{providerRole:event.role}));}
         });
       });
       await ready;clearTimeout(readyTimer);readyReject=null;

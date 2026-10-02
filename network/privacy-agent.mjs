@@ -15,6 +15,8 @@ import {probeGuest} from './guest-probe.mjs';
 import {GuestdIngress} from './guestd-ingress.mjs';
 import {guardedFetch} from './guarded-fetch.mjs';
 import {delegatedIPNS} from './discovery-http.mjs';
+import {ControlTransport} from './control-transport.mjs';
+import {validateAppNames} from './app-ingress.mjs';
 
 // Timely admission is independent of slow allocation and publication work. Even
 // a hung RPC, allocator or distributor cannot extend an old authorization.
@@ -23,7 +25,7 @@ export class PrivacyAgent {
     Object.assign(this,{apps,leaseReader,inventory,probe,distribute,directory,now,log,defaults});this.refreshing=false;this.closed=false;this.publishing=false;
     this.admission=new AdmissionGate({runner,expected:id=>this.apps.find(a=>a.deploymentId===id)?.expected,now});
     this.manager=new CircuitManager({runtime,admission:this.admission,inventory:()=>inventory.get(),wallets,now,log,
-      probe:(app,circuit)=>probe(app.deploymentId,app.expected,circuit),publish:(id,routes)=>this.publisher.publish(id,routes)});
+      probe:(app,circuit)=>probe(app.deploymentId,app.expected,circuit),observe:(providers,result)=>inventory.observe?.(providers,result)||Promise.resolve(),publish:(id,routes)=>this.publisher.publish(id,routes)});
     this.publisher=new RoutePublisher({directory:path.join(directory,'routes'),account,lease:id=>leaseReader.get(id),
       policy:id=>this.manager.apps.get(id)?.policy,now,distribute:async(id,value)=>{
         const copies=this.manager.apps.get(id)?.circuits.filter(c=>c.healthy&&!c.closed)||[];
@@ -35,20 +37,22 @@ export class PrivacyAgent {
     this.egress=new EgressMap({directory,manager:this.manager,dns,now});this.status=new DurableState(directory);
   }
   async refreshAuthorization(){
-    if(this.refreshing||this.closed)return;this.refreshing=true;
+    if(this.refreshing||this.closed)return;this.refreshing=true;this.authorizationRefresh={phase:"chain",startedAt:this.now()};void this.snapshot().catch(e=>this.log(e.message));
     try{
       const leases=await this.leaseReader.refresh(this.apps.map(a=>a.deploymentId));
       for(const lease of leases)this.admission.observeLease(lease);
+      this.authorizationRefresh.phase="policy";void this.snapshot().catch(e=>this.log(e.message));
       const policies=await Promise.allSettled(this.apps.map(async app=>({...app,policy:await appPolicy(app,this.leaseReader.get(app.deploymentId),this.defaults)})));
       const configured=[];policies.forEach((r,i)=>{if(r.status==='fulfilled')configured.push(r.value);else{this.admission.revoke(this.apps[i].deploymentId);this.log(`app policy ${this.apps[i].deploymentId.slice(0,10)}: ${r.reason.message}`);}});
       await this.manager.configure(configured);
+      this.authorizationRefresh.phase="guest-proof";void this.snapshot().catch(e=>this.log(e.message));
       const results=await Promise.allSettled(configured.map(app=>this.admission.attest(app.deploymentId,(id,expected)=>this.probe(id,expected,null))));
       results.forEach((r,i)=>{if(r.status==='rejected'){this.admission.revoke(configured[i].deploymentId);this.log(`local guest proof ${configured[i].deploymentId.slice(0,10)}: ${r.reason.message}`);}});
-    }catch(e){this.log('chain/app authorization: '+e.message);}finally{this.refreshing=false;this.manager.enforceAdmission();}
+    }catch(e){this.authorizationRefresh.error=e.message;this.log('chain/app authorization: '+e.message);}finally{this.authorizationRefresh.completedAt=this.now();this.authorizationRefresh.phase='idle';this.refreshing=false;this.manager.enforceAdmission();}
   }
-  async snapshot(){await this.egress.write();await this.status.set('status',{version:2,updatedAt:this.now(),apps:this.manager.status()});}
+  async snapshot(){await this.egress.write();await this.status.set('status',{version:2,updatedAt:this.now(),authorizationRefresh:this.authorizationRefresh,apps:this.manager.status().map(app=>({...app,leaseUntil:this.admission.leases.get(app.deploymentId)?.validUntil||0,proofUntil:this.admission.proofs.get(app.deploymentId)?.validUntil||0}))});}
   async start(){
-    await this.refreshAuthorization();await this.snapshot();
+    await this.refreshAuthorization();if(this.closed)throw new Error('privacy agent stopped during startup');await this.snapshot();
     this.timers=[setInterval(()=>{this.manager.enforceAdmission();void this.snapshot().catch(e=>this.log(e.message));},1000),
       setInterval(()=>void this.refreshAuthorization(),15000),
       setInterval(()=>void this.inventory.refresh().catch(e=>this.log('inventory: '+e.message)),20000),
@@ -65,10 +69,11 @@ export async function runPrivacy(configFile){
   const readJSON=async file=>JSON.parse(await fs.readFile(file,'utf8'));
   let key=cfg.operatorKeyFile?(await fs.readFile(cfg.operatorKeyFile,'utf8')).trim():(await readJSON(cfg.operatorConfigFile)).registryKey;
   const account=privateKeyToAccount(key);key=null;
-  const leaseReader=new LeaseReader(cfg.chain),apps=[];
+  const apps=[];
   for(const item of cfg.apps){
     const expected=await readJSON(item.expectedFile);
     if(!expected.appRef||typeof expected.configCid!=='string'||!/^0x[0-9a-f]{64}$/.test(item.deploymentId)||!Array.isArray(item.names)||!item.names.length)throw new Error('explicit app expectations and names required');
+    validateAppNames(item.deploymentId,item.names);
     apps.push({...item,expected,...(item.ownerPolicyFile?{ownerPolicy:await readJSON(item.ownerPolicyFile)}:{})});
   }
   let verifySnp;
@@ -81,8 +86,17 @@ export async function runPrivacy(configFile){
   const log=message=>console.error('[privacy] '+message);let agent;
   const guestd=cfg.guestd?new GuestdIngress({...cfg.guestd,expected:id=>apps.find(a=>a.deploymentId===id)?.expected}):null;
   const runtime=new LinuxCircuitRuntime({...cfg.runtime,directory:path.join(cfg.directory,'circuits'),rpc:cfg.nknRpc,
-    authorize:id=>!!agent?.admission.allows(id),forward:guestd?guestd.forward:localAppForwarder(cfg.upstream),log});
-  const inventory=new ProviderInventory({...cfg.inventory,rpc:cfg.nknRpc});
+    authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:guestd?guestd.forward:localAppForwarder(cfg.upstream),log});
+  const inventory=new ProviderInventory({...cfg.inventory,rpc:cfg.nknRpc,log});
+  const control=cfg.control?new ControlTransport({...cfg.control,directory:path.join(cfg.directory,'control'),inventory,rpc:cfg.nknRpc,wallets:await readJSON(cfg.control.walletsFile),log}):null;
+  let stopping=false;
+  const close=()=>{stopping=true;void Promise.all([agent?.close(),control?.close(),runtime.close()]).catch(e=>log(e.message));};
+  process.once('SIGTERM',close);process.once('SIGINT',close);
+  if(control)await control.start();
+  if(stopping)throw new Error('privacy agent stopped during bootstrap');
+  if(control)inventory.asns.fetchFn=guardedFetch(control.proxies,{timeoutMs:6000,maxBytes:65536});
+  if(!control&&!cfg.chain.proxy)throw new Error('independent guarded control transport required');
+  const leaseReader=new LeaseReader({...cfg.chain,...(control?{proxy:control.proxies}:{})});
   agent=new PrivacyAgent({apps,runner:cfg.runner,account,leaseReader,inventory,runtime,directory:cfg.directory,dns:cfg.dns,defaults:cfg.defaults,log,
     wallets:async id=>readJSON(apps.find(a=>a.deploymentId===id).walletsFile),
     distribute:async(id,value)=>{
@@ -103,8 +117,8 @@ export async function runPrivacy(configFile){
     probe:async(id,expected,circuit)=>probeGuest({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],expected,
       linux:{...linux,measurement:expected.measurement,release:expected.release},verifySnp,
       ...(circuit?{address:circuit.address,proxy:circuit.isolation.guardAddress}:guestd?{openApp:id=>guestd.open(id)}:{localUpstream:cfg.upstream})})});
-  await agent.start();
-  const close=()=>{void agent.close().catch(e=>log(e.message));};process.once('SIGTERM',close);process.once('SIGINT',close);return agent;
+  try{await agent.start();}catch(e){await agent.close();await control?.close();throw e;}
+  return agent;
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href){
   const i=process.argv.indexOf('--config');runPrivacy(process.argv[i+1]).catch(e=>{console.error(e.message);process.exitCode=1;});

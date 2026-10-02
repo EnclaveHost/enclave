@@ -58,12 +58,12 @@ export function selectCircuitProviders(policy, inventory, {existing = [], locked
   const p = validateCircuitPolicy(policy);
   if (!Array.isArray(inventory) || inventory.length > 10000) throw new Error('invalid provider inventory');
   const candidates = role => inventory.filter(n => Array.isArray(n?.services) && (role !== 'public' || !occupiedPublic.has(n.address)) && n.services.includes(role === 'public' ? 'reverse' : 'socksproxy') &&
-    providerAllowed(n, p.providers[role], p.maxPrice, now) && (cooldown.get(n.identity) || 0) <= now)
+    providerAllowed(n, p.providers[role], p.maxPrice, now) && (cooldown.get(role+':'+n.identity) || cooldown.get(n.identity) || 0) <= now)
     .sort((a, b) => {
       const preferred = id => p.providers[role].prefer.includes(id) ? 0 : 1;
       const stable = id => existing.some(c => c[role]?.identity === id && c.healthy) ? 0 : 1;
       return preferred(a.identity) - preferred(b.identity) || stable(a.identity) - stable(b.identity) ||
-        (b.successRate ?? 0) - (a.successRate ?? 0) || (a.latencyMs ?? Infinity) - (b.latencyMs ?? Infinity) || a.identity.localeCompare(b.identity);
+        (b.outcomes?.[role]?.successRate ?? b.successRate ?? 0.5) - (a.outcomes?.[role]?.successRate ?? a.successRate ?? 0.5) || (a.outcomes?.[role]?.latencyMs ?? a.latencyMs ?? Infinity) - (b.outcomes?.[role]?.latencyMs ?? b.latencyMs ?? Infinity) || a.identity.localeCompare(b.identity);
     });
   const guards = candidates('guard'), publicNodes = candidates('public'), egressNodes = candidates('egress');
   // Bounded backtracking avoids getting stuck on the fastest first guard when
