@@ -30,10 +30,10 @@ export function localAppForwarder(upstream) {
   };
 }
 export class LocalAppHttpsAgent extends https.Agent {
-  constructor(upstream,deploymentId,{openApp}={}){super({keepAlive:false,maxSockets:4});this.upstream=openApp?null:localUpstream(upstream);this.deploymentId=deploymentId;this.openApp=openApp||((id)=>openLocalApp(this.upstream,id));}
+  constructor(upstream,deploymentId,{openApp,attestationOnly=false}={}){super({keepAlive:false,maxSockets:4});this.attestationOnly=attestationOnly;this.upstream=openApp?null:localUpstream(upstream);this.deploymentId=deploymentId;this.openApp=openApp||((id)=>openLocalApp(this.upstream,id));}
   createConnection(options,callback){
     this.openApp(this.deploymentId).then(socket=>{
-      const connection=tls.connect({...options,socket});let settled=false;
+      const connection=tls.connect({...options,socket,...(this.attestationOnly?{rejectUnauthorized:false,servername:''}:{})});let settled=false;
       const done=error=>{if(settled)return;settled=true;clearTimeout(timer);if(error){connection.destroy();callback(error);}else callback(null,connection);};
       const timer=setTimeout(()=>done(new Error('local guest TLS timeout')),15000);
       connection.once('secureConnect',()=>done());connection.once('error',done);

@@ -92,6 +92,7 @@ export class AdmissionGate {
     if(!lease||!expected||lease.runner!==this.runner||lease.validUntil<=this.now()||expected.appRef!==lease.appRef||expected.configCid!==lease.configCid) throw new Error('no matching current app expectation');
     const fingerprint=canonical(lease),startedAt=this.now();
     const verdict=await verifyGuest(id,expected);
+    if(verdict?.ready===false&&!(expected.requiresConfigSocketServer===true&&expected.requiresSecretsV1===true))throw new Error('startup proof requires a configured secret command');
     if(!verdict?.verified||verdict.deploymentId!==id||verdict.appSha256!==expected.appSha256||verdict.runtimeId!==expected.runtimeId||
       !/^[0-9a-f]{64}$/.test(verdict.spkiSha256||'')||canonical(this.leases.get(id))!==fingerprint)throw new Error('fresh bound guest proof required');
     this.proofs.set(id,{...verdict,validUntil:Math.min(startedAt+60000,lease.validUntil)});
