@@ -8,8 +8,66 @@ static void assert_no_wx() {
     assert(!(perm[1]=='w' && perm[2]=='x'));
   assert(!ferror(f));fclose(f);
 }
+static void check_read_window(sh_compact_store *s, const std::vector<int8_t> &w,
+                              size_t off, size_t n) {
+  std::vector<uint8_t> out(n + 2, 0xa5);
+  assert(sh_compact_read(s, off, out.data() + 1, n) == SH_OK);
+  assert(!memcmp(out.data() + 1, w.data() + off, n));
+  assert(out.front() == 0xa5 && out.back() == 0xa5);
+}
+static unsigned read_window_cases() {
+  unsigned cases = 0;
+  const size_t chunk = 384 * 65;
+  for (unsigned bits = 0; bits <= 8; ++bits) {
+    std::vector<int8_t> w(385 * 65);
+    for (size_t i = 0; i < w.size(); ++i)
+      w[i] = bits == 0 ? -7 : bits == 8 ? (int)((i * 17) % 239) - 119 :
+          (int)((i * 17) % (1u << bits)) - (int)(1u << (bits - 1));
+    auto *s = sh_compact_create(w.data(), 65, 385); assert(s);
+    assert(s->chunks[0][0] == (bits == 8 ? 255 : bits));
+    for (size_t off : {size_t(0), size_t(1), size_t(63), size_t(64), size_t(65),
+                       chunk - 1, chunk, chunk + 1, w.size() - 1, w.size()}) {
+      for (size_t n : {size_t(0), size_t(1), size_t(2), size_t(63), size_t(64),
+                       size_t(65), size_t(127), w.size() - off}) {
+        if (n > w.size() - off) continue;
+        check_read_window(s, w, off, n); ++cases;
+      }
+    }
+    uint8_t untouched = 0xa5;
+    assert(sh_compact_read(nullptr, 0, &untouched, 1) == SH_ERR_RANGE);
+    assert(sh_compact_read(s, 0, nullptr, 0) == SH_ERR_RANGE);
+    assert(sh_compact_read(s, UINT64_MAX, &untouched, 0) == SH_ERR_RANGE);
+    assert(sh_compact_read(s, w.size() + 1, &untouched, 0) == SH_ERR_RANGE);
+    assert(sh_compact_read(s, w.size(), &untouched, 1) == SH_ERR_RANGE);
+    assert(untouched == 0xa5);
+    // Reads of one early byte must still reject malformed later frames in
+    // that chunk. The requested output is wiped, with both guards intact.
+    const auto saved = s->chunks[0];
+    for (int fault = 0; fault < 3; ++fault) {
+      if (fault == 0) s->chunks[0][saved.size() - (bits == 8 ? 65 : 2 + bits * 8)] = 254;
+      if (fault == 1) s->chunks[0].pop_back();
+      if (fault == 2) s->chunks[0].push_back(0);
+      uint8_t out[] = {0xa5, 0x5a, 0xa5};
+      assert(sh_compact_read(s, 1, out + 1, 1) == SH_ERR_VERIFY);
+      assert(out[0] == 0xa5 && out[1] == 0 && out[2] == 0xa5);
+      s->chunks[0] = saved;
+    }
+    std::vector<std::thread> readers;
+    for (size_t t = 0; t < 4; ++t) readers.emplace_back([&, t] {
+      for (size_t i = 0; i < 16; ++i) check_read_window(s, w, 63 + t + i, 127);
+    });
+    for (auto &reader : readers) reader.join();
+    s->chunks.back().clear();
+    uint8_t out[] = {0xa5, 0x5a, 0x5a, 0xa5};
+    assert(sh_compact_read(s, chunk - 1, out + 1, 2) == SH_ERR_VERIFY);
+    assert(out[0] == 0xa5 && out[1] == 0 && out[2] == 0 && out[3] == 0xa5);
+    sh_compact_free(s);
+  }
+  return cases;
+}
 int main(){
   __builtin_cpu_init();if(!__builtin_cpu_supports("avx512vnni"))return 77;
+  printf("compact-runtime: %u guarded read windows, all bit widths, malformed tails and shared-store readers passed\n",read_window_cases());
   unsigned cases=0;omp_set_num_threads(3);
   for(int K:{1,63,64,65,5120,17408,65536})for(int N:{1,17,385})for(int b:{1,16,32,64}){
     // Bound total fixture runtime while keeping both GEMM and tile-boundary cases.
