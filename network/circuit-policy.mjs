@@ -1,5 +1,6 @@
 // App-scoped provider policy. Different keys are not proof of different owners.
 import net from 'node:net';
+import {publicReservations} from './public-fallback.mjs';
 import {isBlockedHost} from '../relay/net-guard.mjs';
 
 const providerPattern = /^(?:[a-zA-Z0-9_.-]{1,128}\.)?[0-9a-f]{64}$/;
@@ -54,11 +55,12 @@ export function independent(a, b, level) {
 export function independentCircuits(a, b, level) {
   return Object.values(a).every(x => Object.values(b).every(y => independent(x, y, level)));
 }
+export const providerCooldownKey = (role, provider) => role+':'+provider.identity+(role==='public'&&provider.publicTcp?':'+provider.publicTcp.join(','):'');
 export function selectCircuitProviders(policy, inventory, {existing = [], locked = [], occupiedPublic = new Set(), cooldown = new Map(), now = Date.now()} = {}) {
   const p = validateCircuitPolicy(policy);
   if (!Array.isArray(inventory) || inventory.length > 10000) throw new Error('invalid provider inventory');
-  const candidates = role => inventory.filter(n => Array.isArray(n?.services) && (role !== 'public' || !occupiedPublic.has(n.address)) && n.services.includes(role === 'public' ? 'reverse' : 'socksproxy') &&
-    providerAllowed(n, p.providers[role], p.maxPrice, now) && (cooldown.get(role+':'+n.identity) || cooldown.get(n.identity) || 0) <= now)
+  const candidates = role => inventory.filter(n => Array.isArray(n?.services) && (role !== 'public' || ((!occupiedPublic.has(n.address) || !!n.publicTcp) && !publicReservations(n).some(k=>occupiedPublic.has(k)))) && n.services.includes(role === 'public' ? 'reverse' : 'socksproxy') &&
+    providerAllowed(n, p.providers[role], p.maxPrice, now) && (cooldown.get(providerCooldownKey(role,n)) || cooldown.get(n.identity) || 0) <= now)
     .sort((a, b) => {
       const preferred = id => p.providers[role].prefer.includes(id) ? 0 : 1;
       const stable = id => existing.some(c => c[role]?.identity === id && c.healthy) ? 0 : 1;
@@ -69,7 +71,7 @@ export function selectCircuitProviders(policy, inventory, {existing = [], locked
       // CircuitManager); with no carry record yet its own health stands.
       const carried = n => { const o = n.outcomes?.carry; return o && (o.known || o.networkRate !== undefined) ? ownOrNetwork(n, 'carry') : 1; };
       const rate = n => role === 'guard' ? Math.min(ownOrNetwork(n, 'guard'), carried(n)) : ownOrNetwork(n, role);
-      return preferred(a.identity) - preferred(b.identity) || stable(a.identity) - stable(b.identity) ||
+      return preferred(a.identity) - preferred(b.identity) || (role==='public'?Number(!!a.fallback)-Number(!!b.fallback):0) || stable(a.identity) - stable(b.identity) ||
         rate(b) - rate(a) || (a.outcomes?.[role]?.latencyMs ?? a.latencyMs ?? Infinity) - (b.outcomes?.[role]?.latencyMs ?? b.latencyMs ?? Infinity) || a.identity.localeCompare(b.identity);
     });
   const guards = candidates('guard'), publicNodes = candidates('public'), egressNodes = candidates('egress');
@@ -77,11 +79,12 @@ export function selectCircuitProviders(policy, inventory, {existing = [], locked
   // another initial choice is the only way to satisfy both routes' constraints.
   if (locked.length > p.routes || locked.some((c,i) => locked.slice(0,i).some(other => !independentCircuits(c,other,p.diversity)))) throw new Error('invalid locked circuits');
   let examined = 0, partial = [...locked];
-  const search = chosen => {
-    if (chosen.length === p.routes) return chosen;
+  const search = (chosen, requireFallback) => {
+    if (chosen.length === p.routes) return !requireFallback || chosen.some(c=>c.public.fallback) ? chosen : null;
     for (const guard of guards) {
       if (chosen.some(c => Object.values(c).some(n => !independent(n, guard, p.diversity)))) continue;
-      for (const publicNode of publicNodes) {
+      const availablePublic=requireFallback && chosen.length===p.routes-1 && !chosen.some(c=>c.public.fallback) ? publicNodes.filter(n=>n.fallback) : publicNodes;
+      for (const publicNode of availablePublic) {
         if (!independent(guard, publicNode, p.diversity)) continue;
         if (chosen.some(c => Object.values(c).some(n => !independent(n, publicNode, p.diversity)))) continue;
         // Public ingress and egress are already permitted to share an edge
@@ -96,14 +99,19 @@ export function selectCircuitProviders(policy, inventory, {existing = [], locked
           if (!independent(guard, egress, p.diversity) || chosen.some(c => !independentCircuits(c, circuit, p.diversity))) continue;
           const next = [...chosen, circuit];
           if (next.length > partial.length) partial = next;
-          const result = search(next);
+          const result = search(next, requireFallback);
           if (result) return result;
         }
       }
     }
     return null;
   };
-  const circuits = search([...locked]);
+  // Keep one warm fallback when possible, while all owner constraints and
+  // cross-circuit independence still apply. If it is unavailable, ordinary
+  // independent providers can fill both slots. It is not an owner pin.
+  const wantFallback=publicNodes.some(n=>n.fallback)&&!p.providers.public.prefer.length;
+  let circuits=wantFallback?search([...locked],true):null;
+  if(!circuits){examined=0;circuits=search([...locked],false);}
   return circuits ? {circuits, ready:true, reason:null} : {circuits:partial, ready:false,
     reason: examined > 100000 ? 'provider selection work limit reached' : 'insufficient independently eligible providers'};
 }

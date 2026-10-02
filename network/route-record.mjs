@@ -63,7 +63,9 @@ export async function verifyRoute(bundle, {deploymentId, policy, lease, memory, 
   for (const route of r.routes) {
     if (!route || typeof route.circuit !== 'string' || !/^[0-9a-f]{32}$/.test(route.circuit) || seen.has(route.circuit) ||
         !net.isIP(route.address) || isBlockedHost(route.address) || route.port !== 443 || route.transport !== 'tuna-guarded-tcp' ||
-        Object.keys(route).some(k => !['circuit','address','port','transport'].includes(k))) throw new Error('invalid public route');
+        (route.directPort!==undefined&&(!Number.isInteger(route.directPort)||route.directPort<1024||route.directPort>65535)) ||
+        (route.fallback!==undefined&&route.fallback!==true) ||
+        Object.keys(route).some(k => !['circuit','address','port','transport','directPort','fallback'].includes(k))) throw new Error('invalid public route');
     seen.add(route.circuit);
   }
   const sig = Buffer.from(bundle.signature || '', 'base64');

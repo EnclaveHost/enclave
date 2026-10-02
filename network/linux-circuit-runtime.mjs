@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import {publicPorts} from './public-fallback.mjs';
 import path from 'node:path';
 import os from 'node:os';
 import net from 'node:net';
@@ -96,8 +97,8 @@ export class LinuxCircuitRuntime {
         lines=createInterface({input:child.stdout});lines.on('line',line=>{
           if(line.length>16384)return;let event;try{event=JSON.parse(line)}catch{return;}
           if(event.type==='ready'){
-            if(event.provider!==providers.public.identity||event.address!==providers.public.address||event.port!==443||event.egress!==true){reject(new Error('unexpected guarded allocation'));return;}
-            circuit.address=event.address;circuit.port=443;resolve();
+            if(event.provider!==providers.public.identity||event.address!==providers.public.address||event.port!==publicPorts(providers.public)[0]||event.egress!==true){reject(new Error('unexpected guarded allocation'));return;}
+            circuit.address=event.address;circuit.port=443;if(event.port!==443)circuit.directPort=event.port;resolve();
           }else if(event.type==='down'){circuit.failureRole=event.role;const error=Object.assign(new Error(event.reason||'guarded circuit failed'),{providerRole:event.role});reject(error);
             // After ready the promise is settled; close with the worker's reason so it is not lost to 'worker exited (0)'.
             void circuit.close(error.message);}

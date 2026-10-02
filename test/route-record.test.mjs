@@ -50,3 +50,13 @@ test('withdrawal survives restart, rejects replay and serializes concurrent floo
  assert.equal(results[0].status,'fulfilled');assert.equal(results[1].status,'rejected');
  assert.equal((await options.memory.get(app)).sequence,5);
 });
+test('signed fallback direct ports are bounded and cannot be altered or added after signing',async t=>{
+ const {record,bundle,options}=await fixture(t);
+ const route={...record.routes[0],directPort:20000,fallback:true};
+ const signed=bundle({...record,routes:[route]});
+ assert.equal((await verifyRoute(signed,options)).routes[0].directPort,20000);
+ const forged=structuredClone(signed);forged.record.routes[0].directPort=20002;
+ await assert.rejects(verifyRoute(forged,options),/signature/);
+ // out-of-range or non-integer ports are refused, at signing (canonical JSON) or at verification
+ for(const directPort of [0,443,1023,65536,20000.5,'20000'])await assert.rejects(async()=>verifyRoute(bundle({...record,routes:[{...route,directPort}]}),options),/public route|bounded JSON/);
+});

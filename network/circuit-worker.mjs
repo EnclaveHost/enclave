@@ -2,6 +2,7 @@
 // Runs INSIDE a sealed network namespace. Only the guard's literal IP:port is
 // reachable. The host hands this process a single app's Unix ingress socket.
 import fs from 'node:fs';
+import {publicPorts} from './public-fallback.mjs';
 import {createInterface} from 'node:readline';
 import {spliceAppBroker} from './broker-client.mjs';
 import {AdapterProcess} from './adapter-process.mjs';
@@ -23,7 +24,7 @@ commands.on('line',line=>{try{const m=JSON.parse(line);if(m.type==='admission'&&
 commands.once('close',()=>close('manager disconnected'));process.once('SIGTERM',()=>close('terminated'));process.once('SIGINT',()=>close('interrupted'));
 try{
  const publicProcess=new AdapterProcess({binary:cfg.binary,configFile:cfg.publicConfig,provider:cfg.providers.public,
-  route:{id:'https',tcp:[ingress.port,redirect.port],publicTcp:[443,80],udp:[],randomPorts:false},log:s=>process.stderr.write(s)});
+  route:{id:'https',tcp:[ingress.port,redirect.port],publicTcp:publicPorts(cfg.providers.public),udp:[],randomPorts:false},log:s=>process.stderr.write(s)});
  const egressProcess=new AdapterProcess({binary:cfg.binary,configFile:cfg.egressConfig,provider:cfg.providers.egress,
   route:{id:'egress',tcp:[30489],udp:[],forward:true},log:s=>process.stderr.write(s)});
  children.push(publicProcess,egressProcess);for(const child of children)child.on('down',e=>close(e.message,e.providerRole));

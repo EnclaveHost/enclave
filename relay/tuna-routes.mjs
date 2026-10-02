@@ -82,7 +82,8 @@ export function createTunaRoutes({ operatorOf, endpointId, eligible, now = Date.
           deployments[id]={transport:'tuna-guarded-tcp',endpoint:privacy.endpoint,expiresAt:until,dedicatedIP:false,
             https:{address:routes[0].address,port:443},httpsRoutes:routes,discovery:{ipns:privacy.record.ipns},version:2};
           if(!duplicates.has(label)){
-            const addresses=routes.map(r=>r.address);
+            const primary=routes.filter(r=>!r.fallback);
+            const addresses=(primary.length?primary:routes).map(r=>r.address);
             labels[label]={transport:'tuna-guarded-tcp',relay:'tuna',expiresAt:until,addresses,
               ...(addresses.find(net.isIPv4)?{a:addresses.find(net.isIPv4)}:{}),...(addresses.find(net.isIPv6)?{aaaa:addresses.find(net.isIPv6)}:{})};
           }
