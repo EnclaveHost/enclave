@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstring>
 #include <string>
+#include <string_view>
 #include <vector>
 
 struct sh_fusion_member {
@@ -24,6 +25,16 @@ struct sh_fusion_spec {
     int64_t hidden = 0;
     std::vector<sh_fusion_member> next;
 };
+// Borrowed only for a synchronous prefix match. The result retains tensor
+// pointers, never these views. A suffix permits exact composed-name checks
+// without constructing a temporary string; owned specifications remain above.
+struct sh_fusion_prefix_spec {
+    std::string_view first_weight;
+    std::string_view norm_weight;
+    int64_t inputs = 0;
+    int64_t hidden = 0;
+    std::string_view norm_suffix;
+};
 struct sh_fusion_pattern {
     const ggml_tensor *first = nullptr;
     const ggml_tensor *residual = nullptr;
@@ -33,6 +44,12 @@ struct sh_fusion_pattern {
     const ggml_tensor *next = nullptr;
     float eps = 0;
 };
+
+static inline bool sh_fusion_name_matches(std::string_view name, std::string_view prefix,
+                                          std::string_view suffix) {
+    return name.size() >= prefix.size() && name.substr(0, prefix.size()) == prefix &&
+        name.substr(prefix.size()) == suffix;
+}
 
 static inline bool sh_fusion_matrix(const ggml_tensor *t, ggml_type type, int64_t width, int64_t rows) {
     return t && width > 0 && rows > 0 && t->type == type &&
@@ -53,7 +70,7 @@ static inline const ggml_tensor *sh_fusion_unwrap(const ggml_tensor *t) {
     return t;
 }
 
-static inline bool sh_fusion_match_add(const ggml_tensor *node, const sh_fusion_spec &spec, sh_fusion_pattern &out) {
+static inline bool sh_fusion_match_add(const ggml_tensor *node, const sh_fusion_prefix_spec &spec, sh_fusion_pattern &out) {
     if (!node || node->op != GGML_OP_ADD || !sh_fusion_matrix(node, GGML_TYPE_F32, spec.hidden, node->ne[1])) return false;
     const int64_t m = node->ne[1];
     for (int side = 0; side < 2; side++) {
@@ -77,7 +94,7 @@ static inline bool sh_fusion_match_add(const ggml_tensor *node, const sh_fusion_
  * The prefix forms support scheduler ownership; only a match with next !=
  * nullptr is an executable fusion candidate. A bias, LoRA branch, broadcast
  * residual, noncontiguous view or unrelated norm must retain the normal path. */
-static inline bool sh_fusion_match(const ggml_tensor *node, const sh_fusion_spec &spec, sh_fusion_pattern &out) {
+static inline bool sh_fusion_match_prefix(const ggml_tensor *node, const sh_fusion_prefix_spec &spec, sh_fusion_pattern &out) {
     if (!node) return false;
     if (node->op == GGML_OP_ADD) return sh_fusion_match_add(node, spec, out);
     if (node->op == GGML_OP_RMS_NORM) {
@@ -94,27 +111,68 @@ static inline bool sh_fusion_match(const ggml_tensor *node, const sh_fusion_spec
             const auto *norm = node->src[side], *gamma = node->src[1 - side];
             sh_fusion_pattern p;
             if (!norm || norm->op != GGML_OP_RMS_NORM || !gamma || gamma->op != GGML_OP_NONE ||
-                spec.norm_weight != ggml_get_name(gamma) ||
+                !sh_fusion_name_matches(ggml_get_name(gamma), spec.norm_weight, spec.norm_suffix) ||
                 !sh_fusion_matrix(gamma, GGML_TYPE_F32, spec.hidden, 1) ||
-                !sh_fusion_match(norm, spec, p) ||
+                !sh_fusion_match_prefix(norm, spec, p) ||
                 !sh_fusion_matrix(node, GGML_TYPE_F32, spec.hidden, p.add->ne[1])) continue;
             p.scaled = node; out = p;
             return true;
         }
         return false;
     }
-    if (node->op == GGML_OP_MUL_MAT) {
+    return false;
+}
+
+static inline bool sh_fusion_match_add(const ggml_tensor *node, const sh_fusion_spec &spec, sh_fusion_pattern &out) {
+    const sh_fusion_prefix_spec prefix{spec.first_weight, spec.norm_weight, spec.inputs, spec.hidden, {}};
+    return sh_fusion_match_add(node, prefix, out);
+}
+
+static inline bool sh_fusion_match(const ggml_tensor *node, const sh_fusion_spec &spec, sh_fusion_pattern &out) {
+    if (!node) return false;
+    const sh_fusion_prefix_spec prefix{spec.first_weight, spec.norm_weight, spec.inputs, spec.hidden, {}};
+    if (node->op != GGML_OP_MUL_MAT) return sh_fusion_match_prefix(node, prefix, out);
+    {
         const auto *weight = node->src[0], *scaled = node->src[1];
         if (!weight || !scaled || scaled->op != GGML_OP_MUL) return false;
         for (const auto &member : spec.next) {
             sh_fusion_pattern p;
             if (member.weight != ggml_get_name(weight) ||
                 !sh_fusion_matrix(weight, GGML_TYPE_Q8_0, spec.hidden, member.outputs) ||
-                !sh_fusion_match(scaled, spec, p) ||
+                !sh_fusion_match_prefix(scaled, prefix, p) ||
                 !sh_fusion_matrix(node, GGML_TYPE_F32, member.outputs, p.add->ne[1])) continue;
             p.next = node; out = p;
             return true;
         }
+    }
+    return false;
+}
+
+// Qwen's scheduling-only local island. Compare composed normalization names
+// exactly, without a bounded temporary name buffer or a cache.
+static inline bool sh_fusion_match_local(const ggml_tensor *op, sh_fusion_pattern &out) {
+    if (!op) return false;
+    const ggml_tensor *add = op;
+    if (op->op == GGML_OP_RMS_NORM) add = op->src[0];
+    else if (op->op == GGML_OP_MUL) {
+        const ggml_tensor *norm = op->src[0] && op->src[0]->op == GGML_OP_RMS_NORM ? op->src[0] : op->src[1];
+        if (!norm || norm->op != GGML_OP_RMS_NORM) return false;
+        add = norm->src[0];
+    } else if (op->op != GGML_OP_ADD) return false;
+    if (!add || add->op != GGML_OP_ADD) return false;
+    for (int side = 0; side < 2; side++) {
+        const auto *first = sh_fusion_unwrap(add->src[side]);
+        if (!first || first->op != GGML_OP_MUL_MAT || !first->src[0]) continue;
+        const auto *weight = first->src[0];
+        const std::string_view name = ggml_get_name(weight);
+        if (name.substr(0, 4) != "blk.") continue;
+        const size_t end = name.find('.', 4);
+        if (end == std::string_view::npos) continue;
+        const auto site = name.substr(end);
+        if (site != ".attn_output.weight" && site != ".ssm_out.weight") continue;
+        const sh_fusion_prefix_spec prefix{name, name.substr(0, end), weight->ne[0], weight->ne[1],
+                                           ".post_attention_norm.weight"};
+        if (sh_fusion_match_prefix(op, prefix, out)) return true;
     }
     return false;
 }
