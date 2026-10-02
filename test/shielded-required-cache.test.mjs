@@ -18,7 +18,7 @@ test('required worker cache releases authenticated rows after private checks and
  const dir=mkdtempSync(join(tmpdir(),'shielded-required-cache-'));
  try {
   const objects=[];
-  for(const name of ['shielded-field','shielded-wire','shielded-tee','shielded-pads','shielded-bank',
+  for(const name of ['shielded-field','shielded-wire','shielded-tee','shielded-parwork','shielded-pads','shielded-bank',
      'shielded-http','tweetnacl','poly1305-donna','shielded-simd']) {
    const obj=join(dir,name+'.o');objects.push(obj);
    run('cc',[...flags,'-std=c11','-c',join(gg,name+'.c'),'-o',obj]);
