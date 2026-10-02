@@ -1,0 +1,30 @@
+[Unit]
+Description=Loopback SOCKS service for TUNA authenticated forwarding
+Requires=tuna-proxy-firewall.service
+After=network-online.target tuna-proxy-firewall.service
+BindsTo=tuna-proxy-firewall.service
+
+[Service]
+User=tuna-proxy
+Group=tuna-proxy
+ExecStart=/usr/sbin/danted -f /etc/tuna-provider/danted.conf -p /run/tuna-proxy/danted.pid
+RuntimeDirectory=tuna-proxy
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+CapabilityBoundingSet=
+LimitNOFILE=32768
+TasksMax=128
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target
