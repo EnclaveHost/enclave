@@ -69,3 +69,13 @@ test('Shield policy never combines separately admitted runtime and image pairs',
            {measurement:'00'.repeat(32),runtimeId:f.expectedRuntimeId}];
  assert.equal(verifyShieldAppPolicy(f,p).ok,false);
 });
+test('startup command proof requires the exact image to admit every required feature',options,()=>{
+ const f={...fixture(),requiresConfigBundleV5:true,requiresSecretsV1:true,requiresConfigSocketServer:true},p=shieldPolicy(f);
+ assert.equal(verifyShieldAppPolicy(f,p).ok,false);
+ Object.assign(p.images[0],{configBundleV5:true,secretsV1:true,configSocketServer:true});
+ assert.equal(verifyShieldAppPolicy(f,p).ok,true);
+ for(const feature of ['configBundleV5','secretsV1','configSocketServer']){
+  const images=[{...p.images[0],[feature]:false},{...p.images[0],measurement:'00'.repeat(32)}];
+  assert.equal(verifyShieldAppPolicy(f,{...p,images}).ok,false);
+ }
+});
