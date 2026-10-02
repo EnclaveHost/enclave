@@ -51,8 +51,12 @@ func (m Manifest) AppConfig() ([]byte, error) {
 	if m.ConfigBase64 == "" {
 		return nil, nil
 	}
-	if m.World != WorldHTTP || m.HTTP != 0 || m.Inference != nil || len(m.Ports) != 0 {
-		return nil, errors.New("app configuration requires a CPU wasi:http bundle")
+	validWorld := (m.World == WorldHTTP && m.HTTP == 0) || (m.World == WorldCLI && m.HTTP >= 1 && m.HTTP <= MaxHTTPPort)
+	if !validWorld || m.Inference != nil || len(m.Ports) != 0 {
+		return nil, errors.New("app configuration requires a CPU HTTP component or single-port command bundle")
+	}
+	if m.SecretDeployment != "" && m.World == WorldCLI && m.HTTP < 1024 {
+		return nil, errors.New("secret command HTTP port must be unprivileged")
 	}
 	if len(m.ConfigBase64) > base64.StdEncoding.EncodedLen(MaxConfigBytes) {
 		return nil, errors.New("app configuration exceeds byte limit")

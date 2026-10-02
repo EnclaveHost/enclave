@@ -349,7 +349,7 @@ int main(int argc, char **argv) {
     char *run[64] = {"/plat/rt/ld-linux-x86-64.so.2", "--library-path", "/plat/rt", "/plat/rt/wasmtime", "run",
                    "-S", "cli", "-S", "tcp", "-S", "udp", "-S", "inherit-network", "-S", "allow-ip-name-lookup",
                    "-C", "cache=n", "--dir", "/data::/data", "--env", ports_env, "/app.wasm", NULL};
-    char *run_front[] = {"/plat/front", "-runtime-identity", "/plat/rt/runtime.json",
+    char *run_front[32] = {"/plat/front", "-runtime-identity", "/plat/rt/runtime.json",
                          "-listen-unix", "/run/front.sock", "-report-unix", "/run/monitor.sock",
                          "-upstream", upstream, "-app-sha", "/app.sha256", "-app-mode", "run",
                          "-cert-name-file", "/cert.name", NULL};
@@ -421,7 +421,10 @@ int main(int argc, char **argv) {
     struct stat secret_st;
     char *secret_app[66];
     if (stat("/secret.id", &secret_st) == 0) {
-        if (shield_on || run_port || !S_ISREG(secret_st.st_mode) || secret_st.st_uid != 0 || (secret_st.st_mode & 0222) || secret_st.st_size != 66) die("secret deployment");
+        if (shield_on || !S_ISREG(secret_st.st_mode) || secret_st.st_uid != 0 || (secret_st.st_mode & 0222) || secret_st.st_size != 66) die("secret deployment");
+        /* 443 belongs to the front's authenticated egress listeners. A command app needs
+         * an unprivileged HTTP port distinct from those listeners. */
+        if (run_port && run_port < 1024) die("secret command HTTP port");
         unprivileged_https_bind();   /* the front's egress forwarders, before anything is spawned */
         int raw[2]; if (pipe2(raw, O_CLOEXEC) != 0) die("secret pipe");
         // Keep both originals away from the fixed inherited fd before duplicating it.
@@ -431,7 +434,8 @@ int main(int argc, char **argv) {
         if (secret_pipe[0]<0 || secret_pipe[1]<0) die("secret pipe fds");
         secret_app[0]="/plat/secretrun";
         int i=0;for (;shield_app[i];i++) secret_app[i+1]=shield_app[i];secret_app[i+1]=NULL;
-        int j=0;while(front[j])j++;front[j++]="-shield-secrets-fd";front[j++]="7";front[j]=NULL;
+        char **secret_front = run_port ? run_front : front;
+        int j=0;while(secret_front[j])j++;secret_front[j++]="-shield-secrets-fd";secret_front[j++]="7";secret_front[j]=NULL;
     } else if (errno != ENOENT) die("secret deployment stat");
     pid_t rt_pid, front_pid;
     if (argc > 3 && strcmp(argv[3], "probe") == 0) {

@@ -37,8 +37,14 @@ func TestMeasuredAppConfig(t *testing.T) {
 	m.ConfigBase64 = base64.StdEncoding.EncodeToString(text)
 	m.World = WorldCLI
 	m.HTTP = 8080
-	if _, e := m.AppConfig(); e == nil {
-		t.Fatal("command config was admitted")
+	if cfg, e := m.AppConfig(); e != nil || !bytes.Equal(cfg, text) {
+		t.Fatalf("command config was not preserved: %v", e)
+	}
+	for _, port := range []int{0, -1, MaxHTTPPort + 1} {
+		m.HTTP = port
+		if _, e := m.AppConfig(); e == nil {
+			t.Fatal("invalid command port admitted")
+		}
 	}
 }
 
