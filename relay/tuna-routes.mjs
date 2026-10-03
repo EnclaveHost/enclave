@@ -30,7 +30,7 @@ export function validatePublication(p, now = Date.now()) {
   return p;
 }
 
-export function createTunaRoutes({ operatorOf, endpointId, eligible, now = Date.now, recover = recoverOp, leaseOf, memory }) {
+export function createTunaRoutes({ operatorOf, endpointId, eligible, now = Date.now, recover = recoverOp, leaseOf, memory, providerProbeSigners }) {
   const hosts = new Map(), apps = new Map();
   const prune = () => { for (const [ep, p] of hosts) if (p.expiresAt <= now()) hosts.delete(ep); };
   return {
@@ -48,8 +48,8 @@ export function createTunaRoutes({ operatorOf, endpointId, eligible, now = Date.
         if(publication.ownerPolicy){
           const authorized=validateCircuitPolicy(await verifyOwnerPolicy(publication.ownerPolicy,lease.owner));
           if(recordHash(authorized)!==recordHash(policy))throw new Error('owner policy mismatch');
-        }else if(policy.diversity!=='beneficiary-and-network'||Object.values(policy.providers).some(r=>r.allow.length||r.prefer.length||r.deny.length))throw new Error('custom provider policy requires owner signature');
-        const record=await verifyRoute(bundle,{deploymentId:id,policy,lease,memory,now:now()});
+        }else if(policy.mode==='direct'||policy.diversity!=='beneficiary-and-network'||Object.values(policy.providers).some(r=>r.allow.length||r.prefer.length||r.deny.length))throw new Error('custom provider policy requires owner signature');
+        const record=await verifyRoute(bundle,{deploymentId:id,policy,lease,memory,providerProbeSigners,now:now()});
         apps.set(id,{endpoint,bundle:structuredClone(bundle),record});return;
       }
       validatePublication(publication, now());
@@ -79,12 +79,13 @@ export function createTunaRoutes({ operatorOf, endpointId, eligible, now = Date.
           const current=privacy?.bundle.authorization.delegation.runner===String(d.runner).toLowerCase();
           const routes=current&&until>now()?privacy.record.routes:[];
           if(!routes.length){pending.push({id,reason:'private_routes_unavailable'});continue;}
-          deployments[id]={transport:'tuna-guarded-tcp',endpoint:privacy.endpoint,expiresAt:until,dedicatedIP:false,
+          const transport=routes[0].transport;
+          deployments[id]={transport,endpoint:privacy.endpoint,expiresAt:until,dedicatedIP:false,
             https:{address:routes[0].address,port:443},httpsRoutes:routes,discovery:{ipns:privacy.record.ipns},version:2};
           if(!duplicates.has(label)){
             const primary=routes.filter(r=>!r.fallback);
             const addresses=(primary.length?primary:routes).map(r=>r.address);
-            labels[label]={transport:'tuna-guarded-tcp',relay:'tuna',expiresAt:until,addresses,
+            labels[label]={transport,relay:transport==='direct'?'direct':'tuna',expiresAt:until,addresses,
               ...(addresses.find(net.isIPv4)?{a:addresses.find(net.isIPv4)}:{}),...(addresses.find(net.isIPv6)?{aaaa:addresses.find(net.isIPv6)}:{})};
           }
           continue;
