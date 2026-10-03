@@ -3,7 +3,7 @@
 import {validateDirectPolicy} from './connectivity-policy.mjs';
 export function directPolicyFromLease(lease,now=Date.now()) {
  const c=lease?.connectivity;
- if(!c||Number(c.expires)<=0||c.owner.toLowerCase()!==lease.owner.toLowerCase())return null;
+ if(!c||c.viaTuna||Number(c.expires)<=0||c.owner.toLowerCase()!==lease.owner.toLowerCase())return null;
  return validateDirectPolicy({version:3,deploymentId:lease.id,mode:'direct',directFallback:false,routes:1,
   maxPricePerGiB6:String(c.maxPricePerGiB6),budget6:String(c.budget6),nonce:String(c.nonce),
   connectivity:c.address.toLowerCase(),expiresAt:Number(c.expires)*1000});

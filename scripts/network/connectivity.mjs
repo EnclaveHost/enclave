@@ -7,7 +7,7 @@ import {privateKeyToAccount} from 'viem/accounts';
 import {base} from 'viem/chains';
 const arg=(k,d)=>{const i=process.argv.indexOf(k);return i<0?d:process.argv[i+1];};
 const command=process.argv[2],id=arg('--id'),execute=process.argv.includes('--execute');
-if(!['inspect','host','direct','tuna'].includes(command)||!/^0x[0-9a-f]{64}$/.test(id||''))throw Error('usage: connectivity.mjs inspect|host|direct|tuna --id 0x… [--mode compute|direct|tuna|both] [--price USDC/GiB --budget USDC --days 1] [--execute --key-file PATH]');
+if(!['inspect','host','direct','tuna','revoke'].includes(command)||!/^0x[0-9a-f]{64}$/.test(id||''))throw Error('usage: connectivity.mjs inspect|host|direct|tuna|revoke --id 0x… [--mode compute|direct|tuna|both] [--providers 0xID,0xID] [--price USDC/GiB --budget USDC --days 1] [--execute --key-file PATH]');
 const rpc=arg('--rpc','https://base-rpc.publicnode.com,https://base.drpc.org').split(',');
 if(rpc.length<2||new Set(rpc.map(u=>new URL(u).hostname)).size!==rpc.length||rpc.some(u=>!u.startsWith('https://')))throw Error('independent HTTPS RPCs required');
 const clients=rpc.map(u=>createPublicClient({chain:base,transport:http(u,{timeout:15000})}));
@@ -15,6 +15,10 @@ const book=arg('--book','0xab214342d5A490150A4A977063A2f88E21F80907');
 const abi=parseAbi(['function addr(bytes32) view returns (address)','function ledger() view returns (address)',
  'function hosts(bytes32) view returns (bool,bool,uint64,uint64,bytes32,address,address)',
  'function policies(bytes32) view returns (address,uint64,uint64,uint64,uint128,uint128,uint16)',
+ 'function viaTuna(bytes32) view returns (bool)',
+ 'function tunaProviders(bytes32) view returns (bytes32[])',
+ 'function tunaPolicyDigest(bytes32,bytes32[],uint64,uint64,uint128) view returns (bytes32)',
+ 'function authorizeTuna(bytes32,bytes32[],uint64,uint64,uint128,bytes)',
  'function qualified(bytes32) view returns (bool)',
  'function setHost(bytes32,bool,bool,uint64)',
  'function policyDigest(bytes32,uint64,uint64,uint128) view returns (bytes32)',
@@ -28,18 +32,22 @@ async function read(address,functionName,args=[]){const values=await Promise.all
 const connectivity=await read(book,'addr',[stringToHex('connectivity',{size:32})]),ledger=await read(book,'addr',[stringToHex('deployments',{size:32})]);
 if(/^0x0{40}$/i.test(connectivity))throw Error('connectivity contract is not active in the address book');
 if((await read(connectivity,'ledger')).toLowerCase()!==ledger.toLowerCase())throw Error('connectivity ledger mismatch');
-if(command==='inspect'){console.log(json({blockNumber,connectivity,ledger,host:await read(connectivity,'hosts',[id]),policy:await read(connectivity,'policies',[id]),qualified:await read(connectivity,'qualified',[id])}));process.exit(0);}
+if(command==='inspect'){console.log(json({blockNumber,connectivity,ledger,host:await read(connectivity,'hosts',[id]),policy:await read(connectivity,'policies',[id]),viaTuna:await read(connectivity,'viaTuna',[id]),providers:await read(connectivity,'tunaProviders',[id]),qualified:await read(connectivity,'qualified',[id])}));process.exit(0);}
 const money=(s,bits)=>{if(!/^(0|[1-9]\d{0,20})(\.\d{1,6})?$/.test(s||''))throw Error('explicit nonnegative USDC amount with at most 6 decimals required');const n=parseUnits(s,6);if(n>=1n<<BigInt(bits))throw Error('amount out of range');return n;};
 let functionName,args,digest;
 if(command==='host'){
  const mode=arg('--mode');if(!['compute','direct','tuna','both'].includes(mode))throw Error('host mode required');
  if(mode!=='compute'&&!await read(connectivity,'qualified',[id]))throw Error('host has not passed current independent provider qualification');
  functionName='setHost';args=[id,['direct','both'].includes(mode),['tuna','both'].includes(mode),money(arg('--price','0'),64)];
-}else if(command==='tuna'){functionName='revokeDirect';args=[id];}
+}else if(command==='revoke'){functionName='revokeDirect';args=[id];}
 else {
  const days=Number(arg('--days','1'));if(!Number.isFinite(days)||days<=0||days>30)throw Error('authorization lasts at most 30 days');
  args=[id,BigInt(Math.floor(Date.now()/1000+days*86400)),money(arg('--price'),64),money(arg('--budget'),128)];
- digest=await read(connectivity,'policyDigest',args);functionName='authorizeDirect';
+ if(command==='tuna'){
+  const providers=arg('--providers','').split(',');
+  if(providers.length<1||providers.length>6||providers.some(p=>!/^0x[0-9a-f]{64}$/.test(p)||/^0x0{64}$/.test(p))||new Set(providers).size!==providers.length)throw Error('TUNA requires 1 to 6 distinct authorized provider IDs');
+  args.splice(1,0,providers);digest=await read(connectivity,'tunaPolicyDigest',args);functionName='authorizeTuna';
+ }else{digest=await read(connectivity,'policyDigest',args);functionName='authorizeDirect';}
 }
 let wallet;
 if(execute){const keyFile=arg('--key-file');if(!keyFile)throw Error('--execute requires the chosen owner/operator --key-file');const account=privateKeyToAccount((await fs.readFile(keyFile,'utf8')).trim());wallet=createWalletClient({account,chain:base,transport:http(rpc[0])});}

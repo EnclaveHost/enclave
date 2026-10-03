@@ -194,3 +194,49 @@ During native share activation, update both forward and reverse advertisements
 to the fresh collection beneficiary and verify a newly established paid circuit.
 Existing circuits can retain their old beneficiary until reconnection. Do not
 count their legacy receipts as new-policy revenue.
+
+
+## USDC TUNA settlement (implemented locally, not activated)
+
+`EnclaveConnectivity.authorizeTuna` accepts an owner-signed provider list (one to
+six IDs), expiry, aggregate USDC/GiB cap and a single shared budget. Six allows the
+existing two guarded circuits to use three providers each. `viaTuna` separates
+this policy from direct authorization; switching policy increments the nonce.
+A failed sibling provider cannot prevent settlement to another qualified provider.
+The shared price and budget caps still apply. The same qualification criteria gate
+direct and TUNA service.
+
+`settleTuna` verifies an anchored receipt signed by both the current runner's
+proof key and the provider's proof key, and credits the provider operator's normal
+ledger earnings. The compute operator is not credited for that TUNA traffic.
+The 80/20 split is snapshotted from `runnerBps`; the platform remainder uses the
+existing fee router. Direct self-hosting remains free; a remote TUNA provider is
+paid even when the compute host's payout wallet belongs to the app owner.
+
+`network/tuna-usdc-settlement.mjs` produces and verifies the two signatures.
+`TunaReceiptSigner.observedBytes` must read the provider's independent durable
+meter, never the request's claimed count. It is a transport integration boundary,
+not an implemented meter. The shared gas wallet uses one `transactionDirectory`
+and in-process queue across provider adapters. Each provider uses a separate
+accepted-counter directory. One process owns the gas signer and directories.
+An incomplete counter recovery stops another provider from overwriting its
+pending/confirmed payment journal. No native-NKN collection wallet is used here.
+
+`connectivity.mjs tuna --id APP_ID --providers PROVIDER_ID[,PROVIDER_ID] --price
+USDC_PER_GIB --budget USDC` prepares the new policy. `revoke --id APP_ID` now
+explicitly revokes either policy. These are transaction-plan commands unless
+`--execute` is supplied. Do not activate the USDC policy against the current
+NanoPay-only transport: the agent stops that route instead of silently charging
+NKN or granting unmetered service. The normal site TUNA selection retains its
+legacy-route behavior until the transport is implemented.
+
+Validation for this follow-up: 346 Solidity tests, 49 targeted JavaScript tests,
+agent/browser/vault bundles and generated contract artifacts pass. The ledger's
+deployed runtime is 24,575 bytes (one byte below EIP-170); deploy through the
+pinned compiler and linked-library pipeline. The real local Anvil integration
+uses mock USDC and registry entries but real signatures and transactions. Direct
+usage debits 2 USDC and pays 1.6/0.4; TUNA usage debits a further 1 USDC and pays
+0.8 to the independent provider and 0.2 to the platform, with no extra compute-host
+payment. It rejects unobserved bytes and revocation, and recovers a lost broadcast
+response without duplicating payment. No live TUNA traffic or currency conversion
+was exercised by that test.

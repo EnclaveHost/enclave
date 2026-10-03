@@ -11,6 +11,8 @@ export function defaultPolicy(deploymentId,{maxPrice='0.0002',budgetNkn='1'}={})
 }
 export async function appPolicy(app,lease,defaults) {
   if(!lease||lease.id!==app.deploymentId)throw new Error('policy requires current deployment owner');
+  // Never run the native-NKN payment path under a USDC owner authorization.
+  if(lease.connectivity?.viaTuna&&Number(lease.connectivity.expires)>0)throw Error('USDC TUNA transport is required for this owner authorization');
   const direct=directPolicyFromLease(lease);
   if(direct)return direct;
   if(app.ownerPolicy){

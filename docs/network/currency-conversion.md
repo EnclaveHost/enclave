@@ -79,7 +79,7 @@ payouts from provider-owned wallet inventory. USDC payout keeps a native-NKN
 operating reserve. NKN payout can convert available provider USDC into native NKN.
 Both directions enforce exact integer amounts, price bounds, expiry and limits.
 This worker does not access an application's deployment balance or its escrow.
-It does not implement TUNA's missing USDC bandwidth settlement path.
+The separate USDC TUNA settlement contract and dual-signature receipt adapter are now implemented and tested locally; transport negotiation and production activation remain unfinished. See [bandwidth-revenue.md](bandwidth-revenue.md).
 
 `network/conversion/automatic.mjs` journals the reserved daily limit and order
 identity before side effects. Lost order responses use lookup, never a new order.
@@ -117,3 +117,36 @@ and wallet adapters, plus 11 existing network-control/USDC-settlement tests.
 These tests do not constitute a real swap, an execution adapter audit, or a
 production liquidity check. No customer UI claims that automatic conversion is
 available, and no production configuration or funds were changed.
+
+## Current implementation boundary (2026-10-03 follow-up)
+
+The USDC accounting layer now pays a separately registered TUNA provider from the
+application's existing backed deployment balance. This removes the assumption that
+bandwidth earnings must belong to the compute host. Owner authorization identifies
+up to six providers for two guarded circuits, caps their combined advertised rate
+and total budget, and snapshots the existing compute revenue split. Settlement
+requires both the current runner proof key and the selected provider proof key.
+The provider co-signer refuses byte counts above its independent transport meter.
+
+This is not an operational USDC TUNA transport. The Go client/provider protocol
+still implements NanoPay; it has not acquired USDC mode negotiation, receipt
+exchange or a durable provider byte-counter integration. The existing agent
+explicitly refuses to interpret a USDC TUNA policy as direct service or legacy
+NKN service. The visible TUNA control keeps its previous revocation/legacy-route
+behavior. Browser helpers and the passkey relay can construct a paid TUNA policy,
+but the UI does not offer it as an available live billing mode.
+
+The conversion worker still has no production wallet or executable route adapter.
+An additional read-only check of Gate's documented public
+`GET /api/v4/wallet/currency_chains?currency=NKN` returned only `ETH`, with ERC-20
+contract `0x5Cf04716BA20127F1E2297AdDCf4B5035000c9eb`. It returned no native-NKN
+chain. ChangeNOW's active-currencies endpoint returned no NKN asset. Together
+with SWFT's earlier result, these checks do not provide a route that can execute
+either requested direction with a protected minimum. They do not prove no such
+service exists elsewhere. No deposit/order/approval was issued.
+
+To finish the requested feature, implement and test the transport's USDC
+negotiation and independent metering, provide an executable native-NKN liquidity
+route and its provider-owned wallet adapters, resolve qualification's administrator
+trust dependency, then perform the backed-ledger migration and production rollout.
+The current work has not completed those steps or changed production.
