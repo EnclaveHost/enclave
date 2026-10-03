@@ -1,5 +1,13 @@
 # Bandwidth revenue shares (schema 16, not deployed)
 
+**Deployment hold:** the native collection-wallet splitter below is custodial;
+it is not approved for activation under the user's decentralization requirement.
+Qualification still uses an administrator-managed signer list and needs the same
+trust review. Bidirectional USDC/native-NKN conversion is now requested; see
+[currency-conversion.md](currency-conversion.md) for the verified constraints and
+remaining settlement decision. The tested implementation below is not a claim
+that these newer requirements have been implemented.
+
 A host offers a **gross USDC price per GiB**. Direct bandwidth debits the app's
 existing deployment balance. `EnclaveConnectivity` snapshots the ledger's
 `runnerBps` when the owner authorizes direct service. At the default 8000 bps,
