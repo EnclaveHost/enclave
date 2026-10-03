@@ -8,8 +8,7 @@ const fields=[['id','bytes32'],['owner','address'],['appRef','string'],['ports',
 const bookABI=[{type:'function',name:'addr',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'address'}]}];
 const deploymentABI=[{type:'function',name:'get',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'tuple',components:fields.map(([name,type])=>({name,type}))}]}];
 const schemaABI=[{type:'function',name:'deploymentsSchema',stateMutability:'view',inputs:[],outputs:[{type:'uint256'}]}];
-const hostABI=[{type:'function',name:'get',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'tuple',components:
-  [['endpoint','string'],['repo','string'],['measurement','bytes32'],['operator','address'],['registeredAt','uint64'],['lastSeen','uint64'],['active','bool'],['cpuPricePerSec6','uint64'],['gpuPricePerSec6','uint64'],['proofKey','address'],['payoutWallet','address']].map(([name,type])=>({name,type}))}]}];
+import {hostABI} from './registry-abi.mjs';
 function jsonValue(value) {return JSON.parse(JSON.stringify(value,(_k,v)=>typeof v==='bigint'?v.toString():v));}
 export class LeaseReader {
   constructor({rpc,chainId=8453,addressBook,maxBlockAgeMs=90000,confirmations=2,clients,proxy,includeHostPayout=false,includeConnectivity=false,now=Date.now}) {

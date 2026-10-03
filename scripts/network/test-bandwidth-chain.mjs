@@ -5,6 +5,8 @@ import fs from 'node:fs/promises';import path from 'node:path';import os from 'n
 import {createPublicClient,createWalletClient,http,decodeEventLog,keccak256,toHex} from 'viem';
 import {privateKeyToAccount} from 'viem/accounts';import {foundry} from 'viem/chains';
 import {linkBytecode} from '../../site/js/lib/contract-linker.js';
+import {TunaUSDCSettlement,TunaReceiptSigner} from '../../network/tuna-usdc-settlement.mjs';
+import {readConnectivity} from '../../network/connectivity-chain.mjs';
 import {USDCBandwidthSettlement} from '../../network/usdc-bandwidth.mjs';
 const owner=privateKeyToAccount('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80');
 const host=privateKeyToAccount('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d');
@@ -38,10 +40,11 @@ try{
  let lease;
  const reader={clients:[client,client],get:()=>lease,refresh:async()=>{
   const number=(await client.getBlockNumber({cacheTime:0}))-1n,b=await client.getBlock({blockNumber:number});
-  const row=await read(ledger,d,'get',[id],number),p=await read(connectivity,c,'policies',[id],number),h=await read(connectivity,c,'hosts',[hostId],number);
+  const row=await read(ledger,d,'get',[id],number);
+  const [bound]=await readConnectivity(client,{address:connectivity,deployments:ledger,rows:[row],blockNumber:number});
   lease={...row,leaseUntil:Number(row.leaseUntil)*1000,validUntil:Date.now()+90000,chainId:31337,deployments:ledger,blockNumber:String(number),blockHash:b.hash,runnerProofKey:host.address,
    bandwidthBackingRequired6:String(await read(ledger,d,'bandwidthBackingRequired6',[id],number)),
-   connectivity:{address:connectivity,owner:p[0],nonce:String(p[1]),expires:String(p[2]),maxPricePerGiB6:String(p[3]),budget6:String(p[4]),spent6:String(p[5]),providerBps:p[6],direct:h[0],pricePerGiB6:String(h[2])}};return [lease];}};
+   connectivity:bound.connectivity};return [lease];}};
  await reader.refresh();const before=lease.balance6,platform=await read(token,t,'balanceOf',[payout]);
  const log=[];const adapter=new USDCBandwidthSettlement({directory,leaseReader:reader,proofAccount:host,wallet,client,maxPending6:'1000000',log:s=>log.push(s)});
  const request={deploymentId:id,policyHash:'11'.repeat(32),nonce:'1',pricePerGiB6:'1000000',cumulativeBytes:'1073741824',cumulativeCost6:'1000000'};
@@ -55,5 +58,30 @@ try{
  client.sendRawTransaction=sendRaw;await client.waitForTransactionReceipt({hash:journal.hash,confirmations:2});await adapter.flush();
  assert.equal(await read(ledger,d,'earned6',[host.address]),1600000n,'uncertain broadcast must not duplicate provider earnings');
  await send(wallet,connectivity,c,'revokeDirect',[id]);await reader.refresh();await assert.rejects(adapter.authorizeDebit({...request,cumulativeBytes:'3221225472',cumulativeCost6:'3000000'}),/authorization/);
- console.log(JSON.stringify({passed:true,grossUSDC6:'2000000',providerUSDC6:'1600000',platformUSDC6:'400000',existingBalanceDebited:true,uncertainBroadcastRecovered:true,revocationEnforced:true,hardware:'mock registry only'}));
+ const provider=privateKeyToAccount('0x'+'05'.repeat(32)),providerId=keccak256(toHex('separate TUNA provider'));
+ const providerWallet=createWalletClient({chain:foundry,account:provider,transport});
+ await client.waitForTransactionReceipt({hash:await wallet.sendTransaction({to:provider.address,value:10n**18n})});
+ await send(wallet,registry,r,'configureProvider',[providerId,provider.address,provider.address]);
+ const qb=await client.getBlock(),qh=keccak256(toHex('9.9.9.9'));
+ const qd=await read(connectivity,c,'qualificationDigest',[providerId,qh,qb.timestamp,qb.timestamp+300n,511]);
+ await send(wallet,connectivity,c,'qualify',[providerId,qh,qb.timestamp,qb.timestamp+300n,511,await owner.signMessage({message:{raw:qd}})]);
+ await send(providerWallet,connectivity,c,'setHost',[providerId,false,true,1000000n]);
+ const tunaArgs=[id,[providerId],qb.timestamp+3600n,1000000n,5000000n];
+ const tunaPolicy=await read(connectivity,c,'tunaPolicyDigest',tunaArgs);
+ await send(wallet,connectivity,c,'authorizeTuna',[...tunaArgs,await owner.signMessage({message:{raw:tunaPolicy}})]);
+ await reader.refresh();const tunaBefore=lease.balance6,tunaPlatform=await read(token,t,'balanceOf',[payout]);
+ let observed=1073741824n;
+ const signer=new TunaReceiptSigner({providerId,proofAccount:provider,leaseReader:reader,observedBytes:async()=>observed});
+ const tuna=new TunaUSDCSettlement({providerId,cosign:v=>signer.sign(v),directory:path.join(directory,'tuna'),transactionDirectory:adapter.transactions.directory,leaseReader:reader,proofAccount:host,wallet,client,maxPending6:'0'});
+ const tunaRequest={...request,nonce:String(lease.connectivity.nonce)};
+ await tuna.authorizeDebit(tunaRequest);
+ assert.equal(await read(ledger,d,'earned6',[provider.address]),800000n);
+ assert.equal(await read(ledger,d,'earned6',[host.address]),1600000n,'TUNA must not pay the compute host');
+ assert.equal((await read(ledger,d,'get',[id])).balance6,tunaBefore-1000000n);
+ assert.equal((await read(token,t,'balanceOf',[payout]))-tunaPlatform,200000n);
+ await assert.rejects(tuna.authorizeDebit({...tunaRequest,cumulativeBytes:'2147483648',cumulativeCost6:'2000000'}),/observed traffic/);
+ assert.equal(await read(ledger,d,'earned6',[provider.address]),800000n,'unobserved bytes must not be charged');
+ await send(wallet,connectivity,c,'revokeDirect',[id]);await reader.refresh();
+ await assert.rejects(tuna.authorizeDebit({...tunaRequest,cumulativeBytes:'2147483648',cumulativeCost6:'2000000'}),/authorization/);
+ console.log(JSON.stringify({passed:true,grossUSDC6:'2000000',providerUSDC6:'1600000',platformUSDC6:'400000',tunaGrossUSDC6:'1000000',tunaProviderUSDC6:'800000',tunaPlatformUSDC6:'200000',dualSignaturesVerified:true,unobservedTrafficRejected:true,existingBalanceDebited:true,uncertainBroadcastRecovered:true,revocationEnforced:true,hardware:'mock registry only'}));
 }finally{await fs.rm(directory,{recursive:true,force:true});if(proc.exitCode===null){proc.kill('SIGTERM');await new Promise(r=>proc.once('exit',r));}}

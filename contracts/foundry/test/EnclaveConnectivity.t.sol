@@ -9,11 +9,13 @@ import {MockUSDC} from "./mocks/MockUSDC.sol";
 
 contract ConnectivityRegistry {
     IEnclaveRegistry.Enclave internal host;
+    mapping(bytes32=>IEnclaveRegistry.Enclave) internal specific;
+    function configureProvider(bytes32 id,address operator,address proofKey) external {specific[id].operator=operator;specific[id].proofKey=proofKey;specific[id].active=true;}
     function configure(address operator,address payout,address proofKey) external {
         host.operator=operator;host.payoutWallet=payout;host.proofKey=proofKey;
         host.active=true;host.cpuPricePerSec6=834;
     }
-    function get(bytes32) external view returns(IEnclaveRegistry.Enclave memory){return host;}
+    function get(bytes32 id) external view returns(IEnclaveRegistry.Enclave memory){return specific[id].operator!=address(0)?specific[id]:host;}
 }
 contract EnclaveConnectivityTest is Test {
     uint256 constant T0=1700000000;
@@ -187,4 +189,77 @@ contract EnclaveConnectivityTest is Test {
         _reject(GIB);
         assertTrue(ledger.get(id).active);
     }
+    bytes32 constant PROVIDER=keccak256("independent provider");
+    address providerOperator=address(0x456);
+    uint256 constant PROVIDER_KEY=444;
+    function _tuna() internal {
+        registry.configureProvider(PROVIDER,providerOperator,vm.addr(PROVIDER_KEY));
+        bytes32 addr=keccak256("9.9.9.9");
+        bytes32 q=connectivity.qualificationDigest(PROVIDER,addr,uint64(T0),uint64(T0+300),511);
+        if(!connectivity.qualified(PROVIDER)) connectivity.qualify(PROVIDER,addr,uint64(T0),uint64(T0+300),511,_sig(PROBE,q));
+        vm.prank(providerOperator);connectivity.setHost(PROVIDER,false,true,1e6);
+        bytes32[] memory providers=new bytes32[](1);providers[0]=PROVIDER;
+        uint64 expiry=uint64(T0+3600);
+        bytes32 digest=connectivity.tunaPolicyDigest(id,providers,expiry,1e6,10e6);
+        connectivity.authorizeTuna(id,providers,expiry,1e6,10e6,_sig(OWNER,digest));
+    }
+    function _tunaReceipt(uint128 count) internal view returns(EnclaveConnectivity.TunaReceipt memory){
+        (,uint64 nonce,,,,,)=connectivity.policies(id);
+        return EnclaveConnectivity.TunaReceipt(id,HOST,PROVIDER,nonce,ledger.get(id).leaseUntil,uint64(T0),99,count,1e6);
+    }
+    function _tunaSettle(uint128 count) internal {
+        EnclaveConnectivity.TunaReceipt memory r=_tunaReceipt(count);bytes32 digest=connectivity.tunaReceiptDigest(r);
+        connectivity.settleTuna(r,_sig(METER,digest),_sig(PROVIDER_KEY,digest));
+    }
+    function test_tunaPaysActualProviderFromExistingBalance() public {
+        _tuna();uint256 balance=ledger.get(id).balance6;uint256 platform=usdc.balanceOf(payout);
+        _tunaSettle(GIB);
+        assertEq(ledger.get(id).balance6,balance-1e6);assertEq(ledger.earned6(providerOperator),800000);
+        assertEq(ledger.earned6(operator),0);assertEq(usdc.balanceOf(payout)-platform,200000);
+        assertEq(ledger.bandwidthBackingRequired6(id),0);
+        vm.prank(providerOperator);connectivity.setHost(PROVIDER,false,true,2000000);
+        vm.expectRevert();connectivity.quoteTuna(id,PROVIDER);
+    }
+    function test_tunaRequiresBothSignersAndCannotReplayOrUseDirectAuthorization() public {
+        _tuna();EnclaveConnectivity.TunaReceipt memory r=_tunaReceipt(GIB);bytes32 digest=connectivity.tunaReceiptDigest(r);
+        bytes memory runnerSig=_sig(METER,digest);bytes memory providerSig=_sig(PROVIDER_KEY,digest);
+        vm.expectRevert();connectivity.settleTuna(r,providerSig,providerSig);
+        vm.expectRevert();connectivity.settleTuna(r,runnerSig,runnerSig);
+        connectivity.settleTuna(r,runnerSig,providerSig);
+        vm.expectRevert();connectivity.settleTuna(r,runnerSig,providerSig);
+        vm.expectRevert();connectivity.quote(id);
+        _policy(10e6);vm.expectRevert();connectivity.quoteTuna(id,PROVIDER);
+    }
+    function test_tunaCapsTheWholePathAndRejectsDuplicateProviders() public {
+        _tuna();bytes32[] memory providers=new bytes32[](2);providers[0]=HOST;providers[1]=PROVIDER;
+        uint64 expiry=uint64(T0+3600);bytes memory sig=_sig(OWNER,connectivity.tunaPolicyDigest(id,providers,expiry,1e6,10e6));
+        vm.expectRevert();connectivity.authorizeTuna(id,providers,expiry,1e6,10e6,sig);
+        sig=_sig(OWNER,connectivity.tunaPolicyDigest(id,providers,expiry,2e6,10e6));
+        connectivity.authorizeTuna(id,providers,expiry,2e6,10e6,sig);
+        assertEq(connectivity.quoteTuna(id,PROVIDER),1e6);
+        providers[1]=HOST;sig=_sig(OWNER,connectivity.tunaPolicyDigest(id,providers,expiry,2e6,10e6));
+        vm.expectRevert();connectivity.authorizeTuna(id,providers,expiry,2e6,10e6,sig);
+    }
+    function test_tunaRevocationBudgetAndQualificationStopPayment() public {
+        _tuna();_tunaSettle(GIB);EnclaveConnectivity.TunaReceipt memory r=_tunaReceipt(11*GIB);
+        bytes32 digest=connectivity.tunaReceiptDigest(r);bytes memory a=_sig(METER,digest);bytes memory b=_sig(PROVIDER_KEY,digest);
+        vm.expectRevert();connectivity.settleTuna(r,a,b);
+        vm.prank(tenant);connectivity.revokeDirect(id);vm.expectRevert();connectivity.quoteTuna(id,PROVIDER);
+        _tuna();vm.warp(T0+301);vm.expectRevert();connectivity.quoteTuna(id,PROVIDER);
+    }
+    function test_tunaFragmentationConservesSplitAndSelfHostingDoesNotWaiveRemoteProvider() public {
+        _tuna();registry.configure(operator,tenant,vm.addr(METER));
+        _tunaSettle(1);_tunaSettle(1074);_tunaSettle(GIB/2);_tunaSettle(GIB);
+        assertEq(ledger.earned6(providerOperator),800000);
+    }
+    function test_unavailableSiblingDoesNotBlockQualifiedProvider() public {
+        _tuna();bytes32[] memory providers=new bytes32[](2);providers[0]=HOST;providers[1]=PROVIDER;
+        uint64 expiry=uint64(T0+3600);bytes memory sig=_sig(OWNER,connectivity.tunaPolicyDigest(id,providers,expiry,2e6,10e6));
+        connectivity.authorizeTuna(id,providers,expiry,2e6,10e6,sig);
+        vm.prank(operator);connectivity.setHost(HOST,false,false,1e6);
+        assertEq(connectivity.quoteTuna(id,PROVIDER),1e6);
+        vm.expectRevert();connectivity.quoteTuna(id,HOST);
+        _tunaSettle(GIB);assertEq(ledger.earned6(providerOperator),800000);
+    }
+
 }

@@ -375,9 +375,9 @@ contract EnclaveDeployments {
     /// Spend the app's existing balance, not an extra customer deposit. Older
     /// runtime credits must first be re-backed from previously distributed fees.
     /// A billing bug cannot consume backing reserved for any compute lease.
-    function chargeBandwidth(bytes32 id, uint256 amount6, uint256 provider6) external {
+    function chargeBandwidth(bytes32 id, uint256 amount6, uint256 provider6, address beneficiary) external {
         require(msg.sender == bandwidthRouter);
-        EnclaveLedgerBandwidth.charge(_requireActive(id), _earn[id], earned6, usdc, feeRouter, payout, amount6, provider6);
+        EnclaveLedgerBandwidth.charge(_deployments[id], _earn[id], earned6, usdc, feeRouter, payout, amount6, provider6, beneficiary);
     }
     address public feeRouter;
     function setFeeRouter(address router) external {
@@ -1928,10 +1928,11 @@ library EnclaveLedgerBandwidth {
     }
     function charge(EnclaveDeployments.Deployment storage d, EnclaveDeployments.Earn storage e,
         mapping(address => uint256) storage earned, IERC20Auth usdc, address router, address payout,
-        uint256 amount6, uint256 provider6) external {
+        uint256 amount6, uint256 provider6, address beneficiary) external {
+        require(d.active && beneficiary != address(0));
         require(amount6 > 0 && provider6 <= amount6 && backing(d,e) == 0 && d.leaseUntil > block.timestamp && d.runnerOperator != address(0));
-        d.balance6 -= amount6;d.spent6 += amount6;e.escrow6 -= uint96(amount6);earned[d.runnerOperator] += provider6;
+        d.balance6 -= amount6;d.spent6 += amount6;e.escrow6 -= uint96(amount6);earned[beneficiary] += provider6;
         routePlatform(usdc,router,payout,d.id,d.owner,amount6-provider6);
-        emit BandwidthSplit(d.id,d.runnerOperator,amount6,provider6,amount6-provider6);
+        emit BandwidthSplit(d.id,beneficiary,amount6,provider6,amount6-provider6);
     }
 }

@@ -32,7 +32,7 @@ export function directTerms({policy,host,lease,payoutWallet,now=Date.now()}) {
   if(!host?.direct||host.qualifiedUntil<=now)throw new Error('qualified direct provider required');
   if(!lease?.active||lease.id!==p.deploymentId||lease.validUntil<=now)throw new Error('current deployment lease required');
   const c=lease.connectivity;
-  if(!c||c.address!==p.connectivity||String(c.nonce)!==p.nonce||Number(c.expires)*1000!==p.expiresAt||
+  if(!c||c.viaTuna||c.address!==p.connectivity||String(c.nonce)!==p.nonce||Number(c.expires)*1000!==p.expiresAt||
     p.expiresAt<=now||c.owner.toLowerCase()!==lease.owner.toLowerCase()||!c.direct||
     String(c.maxPricePerGiB6)!==p.maxPricePerGiB6||String(c.budget6)!==p.budget6||
     String(c.pricePerGiB6)!==host.pricePerGiB6||Number(c.qualifiedUntil)*1000<=now||
