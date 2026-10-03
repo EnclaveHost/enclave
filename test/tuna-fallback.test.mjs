@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {selectCircuitProviders,providerCooldownKey} from '../network/circuit-policy.mjs';
 import {fallbackInventory,publicReservations} from '../network/public-fallback.mjs';
-import {provisionFallback} from '../network/provider/fallback-config.mjs';
+import {provisionFallback,fallbackAppsForHosts} from '../network/provider/fallback-config.mjs';
 
 const id='0x'+'ab'.repeat(32),other='0x'+'cd'.repeat(32);
 const node=n=>({identity:n.toString(16).padStart(64,'0'),address:`8.1.1.${n}`,beneficiary:'wallet'+n,asn:100+n,price:'0.0002',services:['reverse','socksproxy'],expiresAt:Date.now()+60000});
@@ -47,4 +47,20 @@ test('provisioning keeps ports stable, isolates apps, rejects aliases shared by 
   assert.doesNotMatch(first.haproxy,/\bssl\b|\bcrt\b|\bciphers\b/);
   assert.throws(()=>provisionFallback({provider,apps:[apps[0],{...apps[1],names:['one.example']}]}),/two apps/);
   assert.throws(()=>provisionFallback({provider,apps,allocations:{[id]:{httpsPort:443,httpPort:80}}}),/fallback/);
+});
+
+test('a migrated deployment reserves one fallback pair across two host configs', () => {
+  const app={deploymentId:id,names:['abababab.app.enclave.host','app.example']};
+  const groups=[[app],[{...app,names:[...app.names].reverse()},{deploymentId:other,names:['cdcdcdcd.app.enclave.host']}]];
+  const apps=fallbackAppsForHosts(groups);
+  const plan=provisionFallback({provider,apps});
+  assert.equal(plan.apps.length,2);
+  assert.equal(Object.keys(plan.allocations).length,2);
+  assert.equal(plan.apps.filter(a=>a.deploymentId===id).length,1);
+  assert.deepEqual(groups[0][0],app);
+});
+test('duplicate rows on one host and conflicting cross-host names still fail closed', () => {
+  const app={deploymentId:id,names:['abababab.app.enclave.host']};
+  assert.throws(()=>fallbackAppsForHosts([[app,app]]),/duplicate/);
+  assert.throws(()=>fallbackAppsForHosts([[app],[{...app,names:[...app.names,'unconfirmed.example']}]]),/conflicting/);
 });
