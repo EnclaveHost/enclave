@@ -356,21 +356,11 @@ a.ed-host:hover{color:var(--jade);}
    the closed padlock in the usual jade */
 .enc-open{margin-left:8px;font-family:var(--font-mono);font-size:.7rem;color:var(--jade);border:1px solid var(--jade-dim);border-radius:6px;padding:.15em .5em;background:none;transition:background-color .15s var(--ease),border-color .15s var(--ease);}
 .enc-open:hover{background:var(--jade-deep);}
-.enc-open[disabled]{color:var(--amber);border-color:var(--amber-dim);cursor:default;}
-.enc-open[disabled]:hover{background:none;}
-/* NO ANSWER from a readiness check. Amber and pulsing, with the open padlock: Steven asked for the
-   orange back, and it reads better than grey - a row that needs attention should look like one.
-   What changed in e9fca58e and does NOT change back is the MEANING. Amber here says "this browser
-   got no answer", not "a certificate is being issued": the tooltip says so, and the control stays a
-   real link because the app may serve every path but its root. Green is still the earned state - a
-   handshake this browser completed and an origin that answered. */
+/* Amber question mark: HTTPS could not be checked. Only a successful browser
+   probe earns the green closed lock. Unknown is neither insecure nor pending issuance. */
 .enc-open.enc-open-unknown{color:var(--amber);border-color:var(--amber-dim);}
 .enc-open.enc-open-unknown:hover{background:var(--amber-deep);color:var(--amber-2);}
-.enc-open.enc-open-unknown .enc-lock{animation:encpulse 1.2s ease-in-out infinite;}
-@media (prefers-reduced-motion:reduce){.enc-open.enc-open-unknown .enc-lock{animation:none;}}
 .enc-lock{vertical-align:-1px;margin-right:2px;}
-.enc-open[disabled] .enc-lock{animation:encpulse 1.2s ease-in-out infinite;}   /* "being issued" reads as activity, not a dead end */
-@media (prefers-reduced-motion:reduce){.enc-open[disabled] .enc-lock{animation:none;}}
 .enc-vbadge{float:right;text-transform:none;letter-spacing:0;font-size:.7rem;}
 .enc-vbadge.ok{color:var(--jade);} .enc-vbadge.bad{color:var(--amber);}
 .ap-attbar{font-family:var(--font-mono);font-size:.66rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;padding:9px 18px;background:var(--bg-1);border-bottom:1px solid var(--line-soft);overflow-wrap:anywhere;}   /* wrap (don't ellipsize) the id: nowrap would clip the floated verify badge */
