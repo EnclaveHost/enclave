@@ -24,7 +24,7 @@ export async function probeGuest({deploymentId,hostname,address,port=443,proxy,e
   // A route probe for a guest whose current proof bound TLS key K needs no new
   // report: a TLS session that completes with K reaches that guest (only it
   // holds K's private key), and its readiness answer says it is serving. A
-  // guest TLS key that is not K falls through to a fresh report below.
+  // changed key is rejected; only a fresh local attestation may replace K.
   if(pinnedSpkiSha256){
     const ready=await get(hostname,address,'/.well-known/enclave-ready',agent,undefined,port);
     const spkiSha256=createHash('sha256').update(ready.spki).digest('hex');
@@ -32,6 +32,7 @@ export async function probeGuest({deploymentId,hostname,address,port=443,proxy,e
       if(ready.status!==200)throw new Error('guest readiness HTTP '+ready.status);
       return {verified:true,deploymentId,appSha256:expected.appSha256,runtimeId:expected.runtimeId,spkiSha256,pinned:true};
     }
+    throw new Error('guest TLS key changed');
   }
   // A Shield guest makes one TPM report at a time (~3 s) and answers any other
   // request meanwhile with HTTP 500 "busy; retry"; Nan and clients ask too, so

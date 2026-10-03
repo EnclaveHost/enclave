@@ -16,6 +16,7 @@ import {EgressMap} from './egress-map.mjs';
 import {DurableState} from './durable-state.mjs';
 import {localAppForwarder} from './local-app-transport.mjs';
 import {probeGuest} from './guest-probe.mjs';
+import {createProbeScheduler} from './probe-scheduler.mjs';
 import {GuestdIngress} from './guestd-ingress.mjs';
 import {ShieldIngress} from './shield-ingress.mjs';
 import {guardedFetch} from './guarded-fetch.mjs';
@@ -112,8 +113,7 @@ export async function runPrivacy(configFile){
     authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:guestd?guestd.forward:localAppForwarder(cfg.upstream),log});
   const inventory=new ProviderInventory({...cfg.inventory,rpc:cfg.nknRpc,log});
   const control=cfg.control?new ControlTransport({network:cfg.runtime.network,...cfg.control,directory:path.join(cfg.directory,'control'),inventory,rpc:cfg.nknRpc,wallets:await readJSON(cfg.control.walletsFile),log}):null;
-  const queues=new Map();
-  const serialized=(id,fn)=>{const run=(queues.get(id)||Promise.resolve()).then(fn,fn);const tail=run.catch(()=>{});queues.set(id,tail);void tail.then(()=>{if(queues.get(id)===tail)queues.delete(id);});return run;};
+  const scheduleProbe=createProbeScheduler();
   let stopping=false;
   const close=()=>{stopping=true;hostProof?.close();void Promise.all([agent?.close(),control?.close(),runtime.close()]).catch(e=>log(e.message));};
   process.once('SIGTERM',close);process.once('SIGINT',close);
@@ -165,18 +165,20 @@ export async function runPrivacy(configFile){
       for(const origin of cfg.ipnsRouters||[])tasks.push(delegatedIPNS(origin,circuits[0].egress).publish(value.name,value.ipns));
       const results=await Promise.allSettled(tasks);for(const r of results)if(r.status==='rejected')log('optional discovery transport: '+r.reason.message);
     },
-    // One attestation request per app at a time (a Shield guest serves one TPM
-    // report at a time): local proofs and route probes queue behind each other.
+    // Only local attestations need serialization: pinned route probes make no
+    // TPM reports and must not delay the 60-second authorization renewal.
     // A route probe pins the TLS key of the app's current local proof (no new
     // guest report); the local proof itself always asks for a fresh report.
-    probe:async(id,expected,circuit)=>serialized(id,async()=>probeGuest({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],expected,
+    probe:async(id,expected,circuit)=>scheduleProbe(id,!!circuit,async()=>{
+      if(circuit&&!agent?.admission.allows(id))throw new Error('no current local guest proof');
+      return probeGuest({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],expected,
       ...(circuit&&agent?.admission.allows(id)?{pinnedSpkiSha256:agent.admission.proofs.get(id).spkiSha256}:{}),
-      ...(windows?{shield,hostSession:await hostProof.get()}:{linux:{...linux,measurement:expected.measurement,release:expected.release},verifySnp}),
+      ...(!circuit&&windows?{shield,hostSession:await hostProof.get()}:!circuit?{linux:{...linux,measurement:expected.measurement,release:expected.release},verifySnp}:{}),
       ...(circuit?{address:circuit.address,proxy:circuit.isolation.guardAddress,domainIndependent:apps.find(a=>a.deploymentId===id)?.startupEgress===true}:apps.find(a=>a.deploymentId===id)?.startupEgress===true?{openApp:starting,startupEgress:true}:guestd?{openApp:id=>guestd.open(id)}:{localUpstream:cfg.upstream})}).then(async result=>{
         if(circuit?.directPort)await probeGuest({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],address:circuit.address,port:circuit.directPort,
           proxy:circuit.isolation.guardAddress,expected,domainIndependent:true,pinnedSpkiSha256:result.spkiSha256});
         return result;
-      }))});
+      });})});
   // A public provider address holds one HTTPS allocation. Every address already
   // routed for another app (any host, from Nan's public map) is skipped when
   // choosing, so this host does not wait out allocation timeouts against it.
