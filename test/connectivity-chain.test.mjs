@@ -10,6 +10,7 @@ function peer({nonce=1n,expires=1700000600n,boundLedger=ledger}={}) {
    if(functionName==='deploymentsSchema')return 16n;
    if(functionName==='get')return {id,runner,owner,runnerOperator:owner,leaseUntil:1700003600n,active:true};
    if(functionName==='ledger')return boundLedger;
+   if(functionName==='bandwidthBackingRequired6')return 0n;
    if(functionName==='policies')return [owner,nonce,expires,1000n,10000n,10n,8000];
    if(functionName==='hosts')return [true,true,1000n,1700000300n,'0x'+'dd'.repeat(32),owner,address];
    if(functionName==='capabilities')return [true,true];

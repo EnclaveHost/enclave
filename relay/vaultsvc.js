@@ -413,3 +413,48 @@ export async function submitOp(op, vaultAddress, args, deadline, assertion) {
     return { txHash: hash, deploymentId };
   });
 }
+
+
+// Connectivity accepts ERC-1271 signatures from the existing passkey vault.
+// It consumes its own policy nonce; this never spends vault credit or calls an
+// arbitrary target. The address book selects the only permitted recipient.
+const NETWORK_ABI = [
+ {type:'function',name:'ledger',stateMutability:'view',inputs:[],outputs:[{type:'address'}]},
+ {type:'function',name:'policies',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:['address','uint64','uint64','uint64','uint128','uint128','uint16'].map(type=>({type}))},
+ {type:'function',name:'policyDigest',stateMutability:'view',inputs:['bytes32','uint64','uint64','uint128'].map(type=>({type})),outputs:[{type:'bytes32'}]},
+ {type:'function',name:'authorizeDirect',stateMutability:'nonpayable',inputs:['bytes32','uint64','uint64','uint128','bytes'].map(type=>({type})),outputs:[]},
+];
+function networkArgs(p){
+ if(!/^0x[0-9a-f]{64}$/i.test(p.id||'')||!['expires','maxPricePerGiB6','budget6'].every(k=>/^(0|[1-9]\d{0,38})$/.test(String(p[k]))))throw Error('invalid bandwidth authorization');
+ const args=[p.id,BigInt(p.expires),BigInt(p.maxPricePerGiB6),BigInt(p.budget6)];
+ if(args[1]>=1n<<64n||args[2]>=1n<<64n||args[3]>=1n<<128n)throw Error('bandwidth authorization out of range');
+ return args;
+}
+async function networkBinding(pub){
+ if(!cfg.addressBook)throw Error('connectivity address book required');
+ const abi=[{type:'function',name:'addr',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'address'}]}];
+ const read=k=>pub.readContract({address:cfg.addressBook,abi,functionName:'addr',args:[viem.stringToHex(k,{size:32})]});
+ const [address,ledger]=await Promise.all([read('connectivity'),read('deployments')]);
+ if(/^0x0{40}$/i.test(address)||(await pub.readContract({address,abi:NETWORK_ABI,functionName:'ledger'})).toLowerCase()!==ledger.toLowerCase())throw Error('connectivity is not active for this ledger');
+ return {address,ledger};
+}
+export async function prepareNetwork(vault,p){
+ const pub=await rpcPool(),binding=await networkBinding(pub),args=networkArgs(p);
+ const policy=await pub.readContract({address:binding.address,abi:NETWORK_ABI,functionName:'policies',args:[p.id]});
+ const raw=await pub.readContract({address:binding.address,abi:NETWORK_ABI,functionName:'policyDigest',args});
+ return {...binding,vault,chainId:cfg.chainId||8453,id:p.id,nonce:String(policy[1]+1n),expires:String(args[1]),maxPricePerGiB6:String(args[2]),budget6:String(args[3]),digest:viem.hashMessage({raw})};
+}
+export async function submitNetwork(vault,p,assertion){
+ const args=networkArgs(p);
+ const sig={authenticatorData:'0x'+Buffer.from(assertion.authenticatorData,'base64url').toString('hex'),clientDataJSON:Buffer.from(assertion.clientDataJSON,'base64url').toString('utf8'),...derToRS(Buffer.from(assertion.signature,'base64url')),x:BigInt(assertion.x),y:BigInt(assertion.y)};
+ const signature=viem.encodeAbiParameters([{type:'tuple',components:SIG_COMPONENTS}],[sig]);
+ return serial(async()=>{
+  const pub=await rpcPool(),{address}=await networkBinding(pub);
+  // Simulation validates the vault signature and current policy before gas is spent.
+  const txArgs=[...args,signature];
+  const gas=await pub.estimateContractGas({account,address,abi:NETWORK_ABI,functionName:'authorizeDirect',args:txArgs});
+  const hash=await wallet.writeContract({address,abi:NETWORK_ABI,functionName:'authorizeDirect',args:txArgs,gas:gas*125n/100n+10000n});
+  const receipt=await pub.waitForTransactionReceipt({hash,timeout:120000});if(receipt.status!=='success')throw Error('network authorization reverted');
+  return {txHash:hash};
+ });
+}

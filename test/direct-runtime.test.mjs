@@ -41,8 +41,10 @@ test('direct SOCKS egress dials the checked IP and accounts app traffic without 
   const egress=await createDirectEgress({authorize:()=>true,meter:{consume:async(d,n)=>{bytes[d]+=n;}},
     resolve:async()=>[{address:'8.8.8.8',family:4}],connect:options=>{dialed.push(options);return net.connect(echo.address().port,'127.0.0.1');}});
   t.after(()=>egress.close());
-  const socket=await connectSOCKS('127.0.0.1:'+egress.port,'echo.example',443);socket.on('error',()=>{});
+  const socket=await connectSOCKS(egress.proxy,'echo.example',443);socket.on('error',()=>{});
   socket.write('hello');const [reply]=await once(socket,'data');assert.equal(reply.toString(),'hello');socket.destroy();
+  await assert.rejects(connectSOCKS('127.0.0.1:'+egress.port,'echo.example',443),/authentication refused/);
+  await assert.rejects(connectSOCKS(egress.proxy.replace(/^[^:]+/,'00'.repeat(16)),'echo.example',443),/authentication refused/);
   assert.equal(dialed[0].host,'8.8.8.8');assert.deepEqual(bytes,{in:5,out:5});
-  await assert.rejects(connectSOCKS('127.0.0.1:'+egress.port,'127.0.0.1',443),/refused/);
+  await assert.rejects(connectSOCKS(egress.proxy,'127.0.0.1',443),/refused/);
 });

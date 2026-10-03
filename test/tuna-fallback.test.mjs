@@ -64,3 +64,12 @@ test('duplicate rows on one host and conflicting cross-host names still fail clo
   assert.throws(()=>fallbackAppsForHosts([[app,app]]),/duplicate/);
   assert.throws(()=>fallbackAppsForHosts([[app],[{...app,names:[...app.names,'unconfirmed.example']}]]),/conflicting/);
 });
+
+test('direct apps and the independent canary share the public frontend with TUNA without TLS termination',()=>{
+ const provider={identity:'a'.repeat(64),address:'8.8.8.8'},id='0x'+'ab'.repeat(32);
+ const directFrontends=[{deploymentId:id,names:['abababab.app.enclave.host'],httpsPort:18443,httpPort:18080},{canary:true,names:['probe-host.enclave.host'],httpsPort:18443,httpPort:18080}];
+ const plan=provisionFallback({provider,apps:[],directFrontends});
+ assert.match(plan.haproxy,/server direct 127\.0\.0\.1:18443/);assert.match(plan.haproxy,/req.ssl_sni -i probe-host.enclave.host/);assert.doesNotMatch(plan.haproxy,/bind .* ssl|crt /);
+ assert.throws(()=>provisionFallback({provider,apps:[{deploymentId:id,names:directFrontends[0].names}],directFrontends}),/conflicts/);
+ assert.throws(()=>provisionFallback({provider,apps:[],directFrontends:[{...directFrontends[0],httpsPort:20000}]}),/unreserved/);
+});

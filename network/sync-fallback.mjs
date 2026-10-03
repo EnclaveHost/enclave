@@ -57,7 +57,8 @@ if(linux.version!==2||windows.version!==2||!Array.isArray(linux.apps)||!Array.is
 
 // One plan across both hosts: ports and hostnames must not collide anywhere on the provider.
 const hosts=[{name:'linux',cfg:linux},{name:'windows',cfg:windows}];
-const plan=provisionFallback({provider,apps:fallbackAppsForHosts(hosts.map(h=>h.cfg.apps)),allocations});
+const directFile=arg('--direct-frontends');const directFrontends=directFile?await readJSON(directFile):[];
+const plan=provisionFallback({provider,directFrontends,apps:fallbackAppsForHosts(hosts.map(h=>h.cfg.apps.filter(a=>a.internetMode!=='direct'))),allocations});
 const byId=new Map(plan.apps.map(a=>[a.deploymentId,a.publicFallback]));
 for(const h of hosts){
   h.changed=0;

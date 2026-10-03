@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Local Anvil integration: real Solidity + signatures + durable JS driver.
 // Test keys and mock USDC only. Does not claim to test hardware attestation.
+import {linkBytecode} from '../../site/js/lib/contract-linker.js';
 import fs from 'node:fs/promises';import path from 'node:path';import os from 'node:os';import net from 'node:net';
 import {spawn} from 'node:child_process';import assert from 'node:assert/strict';
 import {createPublicClient,createWalletClient,http,decodeEventLog,keccak256,toHex} from 'viem';
@@ -17,8 +18,21 @@ const wallet=createWalletClient({chain:foundry,account,transport:http(`http://12
 const hostWallet=createWalletClient({chain:foundry,account:operator,transport:http(`http://127.0.0.1:${port}`)});
 const dir=await fs.mkdtemp(path.join(os.tmpdir(),'capacity-chain-'));let store;
 const artifact=async(file,name)=>JSON.parse(await fs.readFile(new URL(`../../contracts/foundry/out/${file}.sol/${name}.json`,import.meta.url),'utf8'));
-const deploy=async(a,args=[])=>{const hash=await wallet.deployContract({abi:a.abi,bytecode:a.bytecode.object,args});return (await pub.waitForTransactionReceipt({hash})).contractAddress;};
-const send=async(w,address,a,name,args)=>{const receipt=await pub.waitForTransactionReceipt({hash:await w.writeContract({address,abi:a.abi,functionName:name,args}),confirmations:2});assert.equal(receipt.status,'success',name+' transaction reverted');return receipt;};
+const libraries={};
+const deploy=async(a,args=[])=>{
+ for(const [file,names] of Object.entries(a.bytecode.linkReferences||{}))for(const name of Object.keys(names)){
+  const key=file+':'+name;if(!libraries[key])libraries[key]=await deploy(await artifact(file.split('/').pop().replace(/\.sol$/,''),name));
+ }
+ const hash=await wallet.deployContract({abi:a.abi,bytecode:linkBytecode(a.bytecode.object,a.bytecode.linkReferences,libraries),args});
+ return (await pub.waitForTransactionReceipt({hash})).contractAddress;
+};
+const send=async(w,address,a,name,args)=>{
+ // Mining advances the proven interval between estimation and inclusion. Leave
+ // headroom for its state-dependent SSTOREs, like the production fee adapter.
+ const gas=await pub.estimateContractGas({account:w.account,address,abi:a.abi,functionName:name,args});
+ const receipt=await pub.waitForTransactionReceipt({hash:await w.writeContract({address,abi:a.abi,functionName:name,args,gas:gas*125n/100n+10000n}),confirmations:2});
+ assert.equal(receipt.status,'success',name+' transaction reverted');return receipt;
+};
 const read=(address,a,name,args=[])=>pub.readContract({address,abi:a.abi,functionName:name,args});
 try {
  for(let i=0;i<100;i++){try{await pub.getChainId();break;}catch{await new Promise(r=>setTimeout(r,50));}}

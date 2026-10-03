@@ -15,12 +15,16 @@ export class LeaseReader {
   constructor({rpc,chainId=8453,addressBook,maxBlockAgeMs=90000,confirmations=2,clients,proxy,includeHostPayout=false,includeConnectivity=false,now=Date.now}) {
     if (!/^0x[0-9a-fA-F]{40}$/.test(addressBook||'') || !Number.isSafeInteger(chainId) || chainId<=0 ||
         !Number.isSafeInteger(maxBlockAgeMs) || maxBlockAgeMs<1000 || maxBlockAgeMs>120000 || !Number.isSafeInteger(confirmations) || confirmations<1) throw new Error('invalid chain policy');
-    if (!clients && (!Array.isArray(rpc) || rpc.length<2 || new Set(rpc.map(s=>new URL(s).hostname)).size<2 || rpc.some(s=>new URL(s).protocol!=='https:'))) throw new Error('at least two independent HTTPS RPC origins required');
+    if (!clients && (!Array.isArray(rpc) || rpc.length<2 || new Set(rpc.map(s=>new URL(s).hostname)).size!==rpc.length || rpc.some(s=>new URL(s).protocol!=='https:'))) throw new Error('at least two independent HTTPS RPC origins required');
     Object.assign(this,{chainId,addressBook,maxBlockAgeMs,confirmations,includeHostPayout,includeConnectivity,now});
     this.clients=clients||rpc.map(url=>createPublicClient({transport:http(url,{timeout:14000,retryCount:0,...(proxy?{fetchFn:guardedFetch(proxy,{timeoutMs:6000})}:{})})}));
     this.lastBlock=0n;this.cache=new Map();
   }
-  async refresh(ids) {
+  refresh(ids) {
+    const operation=(this.pending||Promise.resolve()).then(()=>this.readSnapshot(ids));
+    this.pending=operation.catch(()=>{});return operation;
+  }
+  async readSnapshot(ids) {
     if(!Array.isArray(ids)||ids.length>256||ids.some(id=>!/^0x[0-9a-f]{64}$/.test(id))) throw new Error('exact deployment ids required');
     this.failures=[];
     const heads=await Promise.allSettled(this.clients.map(async c=>{
@@ -43,7 +47,7 @@ export class LeaseReader {
       const deployments=await c.readContract({address:this.addressBook,abi:bookABI,functionName:'addr',args:[stringToHex('deployments',{size:32})],blockNumber});
       if(!/^0x[0-9a-fA-F]{40}$/.test(deployments)||/^0x0{40}$/i.test(deployments))throw new Error('no deployments contract');
       const schema=await c.readContract({address:deployments,abi:schemaABI,functionName:'deploymentsSchema',blockNumber});
-      if(![15,16].includes(Number(schema))||(this.includeConnectivity&&Number(schema)!==16))throw new Error('unsupported deployments schema');
+      if(![15,16].includes(Number(schema))||(this.includeConnectivity===true&&Number(schema)!==16))throw new Error('unsupported deployments schema');
       let rows=await Promise.all(ids.map(id=>c.readContract({address:deployments,abi:deploymentABI,functionName:'get',args:[id],blockNumber})));
       if(this.includeHostPayout){
         const registry=await c.readContract({address:this.addressBook,abi:bookABI,functionName:'addr',args:[stringToHex('registry',{size:32})],blockNumber});
@@ -51,12 +55,13 @@ export class LeaseReader {
           if(/^0x0{64}$/.test(row.runner))return;
           const host=await c.readContract({address:registry,abi:hostABI,functionName:'get',args:[row.runner],blockNumber});
           if(!host.active||host.operator.toLowerCase()!==row.runnerOperator.toLowerCase())throw new Error('inactive or changed runner');
-          row.runnerPayoutWallet=host.payoutWallet;
+          row.runnerPayoutWallet=host.payoutWallet;row.runnerProofKey=host.proofKey;
         }));
       }
-      if(this.includeConnectivity){
+      if(this.includeConnectivity&&Number(schema)>=16){
         const address=await c.readContract({address:this.addressBook,abi:bookABI,functionName:'addr',args:[stringToHex('connectivity',{size:32})],blockNumber});
         rows=await readConnectivity(c,{address,deployments,rows,blockNumber});
+        await Promise.all(rows.map(async row=>{row.bandwidthBackingRequired6=await c.readContract({address:deployments,abi:[{type:'function',name:'bandwidthBackingRequired6',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'uint256'}]}],functionName:'bandwidthBackingRequired6',args:[row.id],blockNumber});}));
       }
       // Confirm the numbered block was not replaced while eth_call ran.
       if((await c.getBlock({blockNumber})).hash!==block.hash)throw new Error('chain reorganized during read');

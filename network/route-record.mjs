@@ -1,7 +1,8 @@
 // App-scoped route records. Transport keys cannot authorize themselves: a
 // currently leased runner delegates a bounded key, and clients recheck the lease.
 import {createHash, createPublicKey, sign, verify} from 'node:crypto';
-import {recoverMessageAddress} from 'viem';
+import {assertDirectChoice} from './connectivity-control.mjs';
+import {recoverMessageAddress,keccak256,stringToHex} from 'viem';
 import net from 'node:net';
 import {isBlockedHost} from '../relay/net-guard.mjs';
 import {validateCircuitPolicy} from './circuit-policy.mjs';
@@ -70,6 +71,9 @@ export async function verifyRoute(bundle, {deploymentId, policy, lease, memory, 
         Object.keys(route).some(k => !['circuit','address','port','transport','directPort','fallback'].includes(k))) throw new Error('invalid public route');
     seen.add(route.circuit);
     if(p.mode==='direct'){
+      assertDirectChoice(p,lease,now);
+      const c=lease.connectivity;
+      if(!c.direct||Number(c.qualifiedUntil)*1000<=now||c.operator.toLowerCase()!==lease.runnerOperator.toLowerCase()||c.addressHash!==keccak256(stringToHex(route.address))||r.expiresAt>p.expiresAt)throw Error('direct route lacks current on-chain provider authorization');
       const q=await verifyQualification(r.qualification,{hostId:lease.runner,operator:lease.runnerOperator,
         address:route.address,probeSigners:providerProbeSigners,now});
       if(r.expiresAt>q.expiresAt)throw new Error('route outlives provider qualification');

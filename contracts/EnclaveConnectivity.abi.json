@@ -154,6 +154,13 @@
   },
   {
     "inputs": [],
+    "name": "acceptAdministration",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "administrator",
     "outputs": [
       {
@@ -296,6 +303,19 @@
     "outputs": [
       {
         "internalType": "contract EnclaveDeployments",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "pendingAdministrator",
+    "outputs": [
+      {
+        "internalType": "address",
         "name": "",
         "type": "address"
       }
@@ -733,6 +753,19 @@
       }
     ],
     "name": "settle",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "next",
+        "type": "address"
+      }
+    ],
+    "name": "transferAdministration",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

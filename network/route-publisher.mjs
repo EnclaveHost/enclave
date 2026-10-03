@@ -2,6 +2,7 @@ import {createPrivateKey,createPublicKey,randomBytes} from 'node:crypto';
 import {validateCircuitPolicy} from './circuit-policy.mjs';
 import {DurableState} from './durable-state.mjs';
 import {recordHash,signDelegation,signRoute,verifyOwnerPolicy} from './route-record.mjs';
+import {directPolicyFromLease} from './connectivity-control.mjs';
 import {namingKey,encodeDiscovery} from './discovery.mjs';
 
 export function defaultPolicy(deploymentId,{maxPrice='0.0002',budgetNkn='1'}={}) {
@@ -10,6 +11,8 @@ export function defaultPolicy(deploymentId,{maxPrice='0.0002',budgetNkn='1'}={})
 }
 export async function appPolicy(app,lease,defaults) {
   if(!lease||lease.id!==app.deploymentId)throw new Error('policy requires current deployment owner');
+  const direct=directPolicyFromLease(lease);
+  if(direct)return direct;
   if(app.ownerPolicy){
     const policy=await verifyOwnerPolicy(app.ownerPolicy,lease.owner);
     if(policy.deploymentId!==app.deploymentId)throw new Error('policy is for another deployment');
@@ -53,7 +56,7 @@ export class RoutePublisher {
     });
     const qualification=policy.mode==='direct'&&routes.length?await this.qualification?.(id):undefined;
     if(policy.mode==='direct'&&routes.length&&(!qualification||qualification.report.expiresAt<=now))throw new Error('current provider qualification required');
-    const expiresAt=Math.min(now+60000,lease.validUntil,state.authorization.delegation.expiresAt,qualification?.report.expiresAt??Infinity);
+    const expiresAt=Math.min(now+60000,lease.validUntil,state.authorization.delegation.expiresAt,qualification?.report.expiresAt??Infinity,policy.mode==='direct'&&routes.length?policy.expiresAt:Infinity);
     const signed=signRoute(routeKey(Buffer.from(state.seed,'hex')),{version:2,deploymentId:id,delegationHash:recordHash(state.authorization.delegation),
       sequence:state.sequence,issuedAt:now,expiresAt,routes,...(qualification?{qualification}:{})});
     const bundle={...signed,authorization:state.authorization};

@@ -14,6 +14,7 @@
 // funded by the top-up job (target label nb-<id>) before the app is added, its names, publishToMirror: true.
 // The agent re-reads its config when the file's modification time changes, so every change ends with the
 // config written (or touched) on the host.
+import {ownerDirectChoices} from './owner-direct-choices.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {execFile} from 'node:child_process';
@@ -24,7 +25,7 @@ const run=promisify(execFile);
 const arg=(k,d)=>{const i=process.argv.indexOf(k);return i>0?process.argv[i+1]:d;};
 const DRY=process.argv.includes('--dry-run');
 const host=arg('--host'),agentDir=arg('--agent-dir'),topup=arg('--topup'),targetsFile=arg('--targets');
-if(!host||!agentDir||!topup||!targetsFile||!/^[A-Z]:\\[^'"\r\n]+$/.test(agentDir))throw new Error('usage: --host --agent-dir C:\\... --topup --targets [--dry-run]');
+if(!host||!agentDir||!/^[A-Z]:\\[^'"\r\n]+$/.test(agentDir))throw new Error('usage: --host --agent-dir C:\\... --topup --targets [--dry-run]');
 const here=path.dirname(new URL(import.meta.url).pathname);
 const readJSON=async f=>JSON.parse(await fs.readFile(f,'utf8'));
 const writeAtomic=async(f,text,mode=0o600)=>{const t=f+'.tmp-'+process.pid;await fs.writeFile(t,text,{mode});await fs.rename(t,f);};
@@ -60,12 +61,12 @@ const runner=String(cfg.runner).toLowerCase(),remote=f=>agentDir+'\\'+f;
 const loadAbi=async n=>readJSON(path.join(here,'..','contracts',n+'.abi.json'));
 const [bookAbi,depAbi,catAbi]=await Promise.all(['EnclaveAddressBook','EnclaveDeployments','EnclaveAppCatalog'].map(loadAbi));
 async function withChain(fn){let err;for(const url of cfg.chain.rpc){try{return await fn(createPublicClient({transport:http(url,{timeout:15000,retryCount:1})}));}catch(e){err=e;}}throw err;}
-const {rows,catalog}=await withChain(async c=>{
+const {rows,catalog,directIds}=await withChain(async c=>{
   const book=cfg.chain.addressBook;
   const [dep,catalog]=await Promise.all(['deployments','appCatalog'].map(k=>c.readContract({address:book,abi:bookAbi,functionName:'addr',args:[stringToHex(k,{size:32})]})));
   const total=Number(await c.readContract({address:dep,abi:depAbi,functionName:'count'}));
   const rows=[];for(let i=0;i<total;i+=50)rows.push(...await c.readContract({address:dep,abi:depAbi,functionName:'getPage',args:[BigInt(i),50n]}));
-  return {rows,catalog};
+  return {rows,catalog,directIds:await ownerDirectChoices(c,book,rows,runner)};
 });
 const now=Math.floor(Date.now()/1000);
 const mine=rows.filter(r=>String(r.runner).toLowerCase()===runner&&r.active===true&&r.isPublic===true&&Number(r.leaseUntil)>now);
@@ -94,7 +95,9 @@ for(const row of mine){
     log(`${id.slice(0,10)}: the manager's record is outside the admitted Shield policy; skipped`);continue;}
   const expected={appRef,configCid:String(row.configCid),appSha256:vm.appId,runtimeId:vm.runtimeId,requiresConfigBundleV5:bundle,requiresSecretsV1:secrets,...(ports||(bundle&&JSON.parse(snap.expected?.[id]||'{}').requiresConfigSocketServer===true)?{requiresConfigSocketServer:true}:{})};
   const existing=cfg.apps.find(a=>a.deploymentId===id);
+  const wantsDirect=directIds.has(id);
   if(existing){
+    if(existing.internetMode!==(wantsDirect?'direct':'tuna')){existing.internetMode=wantsDirect?'direct':'tuna';configChanged=true;}
     const cur=snap.expected?.[id]??null;
     if(cur===null||JSON.stringify(JSON.parse(cur))!==JSON.stringify(expected)){
       const was=cur?JSON.parse(cur):{};
@@ -102,12 +105,20 @@ for(const row of mine){
       writes[id+'\\expected.json']=JSON.stringify(expected);expectationsChanged=true;
     }
     if(domains){const names=namesFor(id);if(JSON.stringify(names)!==JSON.stringify(existing.names)){log(`${id.slice(0,10)}: names ${existing.names} -> ${names}`);existing.names=names;configChanged=true;}}
-    continue;
+    if(wantsDirect||existing.walletsFile)continue;
   }
   // enrollment
   if(!domains){log(`${id.slice(0,10)}: new, but the domain map is unavailable; enrolling next round`);continue;}
   log(`${id.slice(0,10)}: enrolling (${namesFor(id).join(', ')})`);
   if(DRY)continue;
+  if(wantsDirect){
+    if(!cfg.connectivity?.direct||!cfg.direct)throw Error('direct app enrollment requires the host direct runtime');
+    await ps("New-Item -ItemType Directory -Force -Path (Join-Path $a $in)|Out-Null;$out='ok'",id);
+    writes[id+'\\expected.json']=JSON.stringify(expected);
+    cfg.apps.push({deploymentId:id,names:namesFor(id),expectedFile:remote(id+'\\expected.json'),internetMode:'direct',publishToMirror:true});
+    configChanged=true;continue;
+  }
+  if(!topup||!targetsFile)throw Error('TUNA app enrollment requires --topup and --targets');
   const wallets=JSON.parse(await ps(
     "$d=Join-Path $a $in;New-Item -ItemType Directory -Force -Path $d|Out-Null;$w=@();"+
     "foreach($slot in 0,1){$o=[ordered]@{};foreach($role in 'guard','public','egress'){$s=Join-Path $d \"$slot-$role.seed\";"+
@@ -124,7 +135,8 @@ for(const row of mine){
     continue;
   }
   writes[id+'\\wallets.json']=JSON.stringify(wallets);writes[id+'\\expected.json']=JSON.stringify(expected);
-  cfg.apps.push({deploymentId:id,names:namesFor(id),walletsFile:remote(id+'\\wallets.json'),expectedFile:remote(id+'\\expected.json'),publishToMirror:true});
+  const enrolled={deploymentId:id,names:namesFor(id),walletsFile:remote(id+'\\wallets.json'),expectedFile:remote(id+'\\expected.json'),internetMode:'tuna',publishToMirror:true};
+  if(existing)Object.assign(existing,enrolled);else cfg.apps.push(enrolled);
   configChanged=true;log(`${id.slice(0,10)}: enrolled`);
 }
 if(targetsChanged&&!DRY)await writeAtomic(targetsFile,targets.join('\n')+'\n',0o644);
