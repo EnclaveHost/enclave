@@ -7,8 +7,8 @@ const src = fs.readFileSync(new URL('../site/components/deployments/deployments.
 // Execute the real rendering function without booting the dashboard's wallet imports.
 const start = src.indexOf('function openCtl(');
 const end = src.indexOf('\n}', start) + 2;
-const render = new Function('safeHref', 'esc', 'openStateOf', 'TLS_UNKNOWN', 'LOCK_SHUT',
-  `${src.slice(start, end)}; return openCtl;`)(x => x, x => x, openStateOf, '[question]', '[closed-lock]');
+const render = new Function('safeHref', 'esc', 'openStateOf', 'LOCK_OPEN', 'LOCK_SHUT',
+  `${src.slice(start, end)}; return openCtl;`)(x => x, x => x, openStateOf, '[open-lock]', '[closed-lock]');
 const row = { id: 'test', status: 'running', public: true };
 const origin = 'https://app.example';
 
@@ -41,24 +41,24 @@ test('apps without a health route can still verify through root HEAD', async () 
 });
 
 for (const error of [new TypeError('DNS, TLS, or connection failure'), new DOMException('timed out', 'TimeoutError')]) {
-  test(`${error.name} leaves an enabled link with an unknown indicator`, async () => {
+  test(`${error.name} leaves an enabled link with an original open-lock indicator`, async () => {
     const result = await probeAppTls(origin, { fetchFn: async () => { throw error; } });
     assert.equal(result.state, 'noanswer');
     const html = render(row, origin, { ...result, href: origin });
     assert.match(html, /<a /);
-    assert.match(html, /TLS status unknown/);
-    assert.match(html, /\[question\]/);
+    assert.match(html, /no answer to a readiness check/);
+    assert.match(html, /\[open-lock\]/);
     assert.doesNotMatch(html, /\[closed-lock\]|disabled|waiting for/);
   });
 }
 
 test('an old endpoint success never verifies a new endpoint', () => {
-  assert.match(render(row, 'https://new.example', { state: 'ok', href: origin }), /\[question\]/);
+  assert.match(render(row, 'https://new.example', { state: 'ok', href: origin }), /\[open-lock\]/);
 });
 
 test('unprobed and stopped rows cannot claim a verified connection', () => {
   assert.equal(openStateOf(undefined), 'noanswer');
-  assert.match(render(row, origin, undefined), /\[question\]/);
+  assert.match(render(row, origin, undefined), /\[open-lock\]/);
   assert.equal(render({ ...row, status: 'stopped' }, origin, { state: 'ok', href: origin }), '');
 });
 
