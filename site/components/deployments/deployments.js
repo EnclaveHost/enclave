@@ -76,9 +76,8 @@ function safeHref(u){
   return "";
 }
 
-/* A closed lock requires a successful browser HTTPS probe. An unanswered probe
-   is unknown, shown as a question mark rather than an unlocked connection. */
-const TLS_UNKNOWN = '<svg class="enc-lock" viewBox="0 0 24 24" width="11" height="11" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .5c0 1.5-2.5 1.5-2.5 3"/><path d="M12 16h.01"/></svg>';
+/* The lock closes only after a successful browser HTTPS probe. */
+const LOCK_OPEN = '<svg class="enc-lock" viewBox="0 0 24 24" width="11" height="11" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M9 11V7a3.5 3.5 0 0 1 6.9-.9"/></svg>';
 const LOCK_SHUT = '<svg class="enc-lock" viewBox="0 0 24 24" width="11" height="11" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M9 11V7a3.5 3.5 0 0 1 7 0v4"/></svg>';
 function openCtl(d, ep, tls){
   const href = safeHref(ep);
@@ -104,9 +103,9 @@ function openCtl(d, ep, tls){
   /* The link still opens. The old control disabled itself and blamed the certificate; the honest
      version offers the app and says exactly what is and is not known. */
   return '<a class="enc-open enc-open-unknown" data-tls="' + esc(d.id) + '" href="' + to + '" target="_blank" rel="noopener"'
-    + ' aria-label="Open app (new tab) - TLS status unknown"'
-    + ' title="TLS status unknown: this browser got no answer from the health or root checks. This can be a network, certificate, or app response problem; it does not mean the connection is unencrypted. The link still opens.">'
-    + TLS_UNKNOWN + ' open ↗</a>';
+    + ' aria-label="Open app (new tab) - this browser got no answer from a readiness check"'
+    + ' title="no answer to a readiness check from this browser. That can be an app that does not serve its root path, a network problem, or a certificate that is not ready - this page cannot tell them apart, so it does not guess. The link still opens.">'
+    + LOCK_OPEN + ' open ↗</a>';
 }
 
 // Per-row SECRETS section (wallet-owned on-chain rows): rendered PERMANENTLY
