@@ -11,7 +11,7 @@ export class EgressMap {
     const now=this.now(),apps={};let expiresAt=now+30000;
     for(const app of this.manager.apps.values()){
       const until=this.manager.authorizationUntil(app.id);if(until<=now)continue;
-      const proxies=app.circuits.filter(c=>c.healthy&&!c.closed&&c.egress).sort((a,b)=>Number(!!a.providers?.public?.fallback)-Number(!!b.providers?.public?.fallback)).map(c=>c.egress);
+      const proxies=app.circuits.filter(c=>(c.healthy||(app.startupEgress===true&&c.egressReady))&&!c.closed&&c.egress).sort((a,b)=>Number(!!a.providers?.public?.fallback)-Number(!!b.providers?.public?.fallback)).map(c=>c.egress);
       if(proxies.length){apps[app.id]={proxies,dns:this.dns};expiresAt=Math.min(expiresAt,until);}
     }
     const map={version:1,expiresAt,apps};await this.state.set('egress-routes',map);return map;

@@ -30,7 +30,7 @@ const readJSON=async f=>JSON.parse(await fs.readFile(f,'utf8'));
 const writeAtomic=async(f,text,mode=0o600)=>{const t=f+'.tmp-'+process.pid;await fs.writeFile(t,text,{mode});await fs.rename(t,f);};
 const log=m=>console.log(`[reconcile-shield] ${m}`);
 const MIN_FUNDED=10_000_000n; // 0.01 NKN in base units: the adapters' minimum balance
-const V5='enclave-catalog-bundle/5',V6='enclave-catalog-bundle/6';
+const V5='enclave-catalog-bundle/5',V6='enclave-catalog-bundle/6',V7='enclave-catalog-bundle/7';
 const HEX64=/^[0-9a-f]{64}$/,ID=/^0x[0-9a-f]{64}$/;
 
 // One PowerShell script per call; data travels on stdin and back between @@ markers, never on the command
@@ -88,11 +88,11 @@ for(const row of mine){
     .sort((x,y)=>Number(y.startedAt)-Number(x.startedAt))[0];
   if(!vm){log(`${id.slice(0,10)}: no ready partition runs ${appRef} yet; waiting`);continue;}
   const profile=Number(vm.gpuMilli)>0?policy.gpu:policy.cpu,digest=rawDigest(vm.cid);
-  const secrets=vm.derivation===V6,bundle=secrets||vm.derivation===V5;
+  const ports=vm.derivation===V7,secrets=vm.derivation===V6||ports,bundle=secrets||vm.derivation===V5;
   if(!HEX64.test(vm.appId||'')||!profile?.runtimeId||vm.runtimeId!==profile.runtimeId||(digest&&digest!==vm.componentSha256)||
-     (bundle&&profile.configBundleV5!==true)||(secrets&&(profile.secretsV1!==true||String(vm.secretDeployment).toLowerCase()!==id))){
+     (bundle&&profile.configBundleV5!==true)||(ports&&(profile.protectedPorts!==true||profile.configSocketServer!==true))||(secrets&&(profile.secretsV1!==true||String(vm.secretDeployment).toLowerCase()!==id))){
     log(`${id.slice(0,10)}: the manager's record is outside the admitted Shield policy; skipped`);continue;}
-  const expected={appRef,configCid:String(row.configCid),appSha256:vm.appId,runtimeId:vm.runtimeId,requiresConfigBundleV5:bundle,requiresSecretsV1:secrets};
+  const expected={appRef,configCid:String(row.configCid),appSha256:vm.appId,runtimeId:vm.runtimeId,requiresConfigBundleV5:bundle,requiresSecretsV1:secrets,...(ports||(bundle&&JSON.parse(snap.expected?.[id]||'{}').requiresConfigSocketServer===true)?{requiresConfigSocketServer:true}:{})};
   const existing=cfg.apps.find(a=>a.deploymentId===id);
   if(existing){
     const cur=snap.expected?.[id]??null;

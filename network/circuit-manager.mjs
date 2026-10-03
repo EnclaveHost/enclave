@@ -38,7 +38,7 @@ export class CircuitManager extends EventEmitter {
       }
       if(total>nknAmount(policy.budgetNkn))throw new Error('funded wallets exceed app budget');
       const publicFallback=validatePublicFallback(app.publicFallback);
-      const fingerprint=recordHash({policy,names:app.names,publicFallback});
+      const fingerprint=recordHash({policy,names:app.names,publicFallback,startupEgress:app.startupEgress===true});
       const old=this.apps.get(id);
       next.set(id,old?.fingerprint===fingerprint?old:{...app,publicFallback,policy,id,wallets,fingerprint,circuits:[],error:'starting'});
     }
@@ -114,7 +114,8 @@ export class CircuitManager extends EventEmitter {
     // End-to-end proof is required for the public route, not just a live
     // SOCKS connection or an SDK allocation event.
     for(const circuit of [...app.circuits])if(this.now()-(circuit.checkedAt||0)>20000){
-      try{const started=this.now();await this.probe(app,circuit);if(!app.circuits.includes(circuit)||circuit.closed)continue;circuit.checkedAt=this.now();circuit.probeFailures=0;void this.observe(withCarry(circuit.providers),{ok:true,latencyMs:this.now()-started}).catch(e=>this.log(e.message));}
+      if(circuit.egressReady&&!circuit.healthy&&this.admission.proofs.get(app.id)?.ready===false)continue;
+      try{const started=this.now();await this.probe(app,circuit);if(!app.circuits.includes(circuit)||circuit.closed)continue;circuit.checkedAt=this.now();circuit.probeFailures=0;circuit.healthy=true;await this.publishApp(app);void this.observe(withCarry(circuit.providers),{ok:true,latencyMs:this.now()-started}).catch(e=>this.log(e.message));}
       catch(e){
         if(!app.circuits.includes(circuit)||circuit.closed)continue;
         circuit.probeFailures=(circuit.probeFailures||0)+1;
@@ -158,11 +159,12 @@ export class CircuitManager extends EventEmitter {
         circuit=await this.runtime.start({deploymentId:app.id,names:app.names,providers,wallets:app.wallets[slot],maxPrice:app.policy.maxPrice});
         if(this.closed||this.apps.get(app.id)!==app||!this.authorizationUntil(app.id))throw new Error('authorization changed while allocating');
         circuit.admit(this.authorizationUntil(app.id));
-        await this.probe(app,circuit);
+        const bootstrap=app.startupEgress===true&&this.admission.proofs.get(app.id)?.ready===false;
+        if(!bootstrap)await this.probe(app,circuit);
         if(circuit.closed||!this.authorizationUntil(app.id))throw new Error('circuit failed during verification');
         void this.observe(withCarry(providers),{ok:true,latencyMs:this.now()-started}).catch(e=>this.log(e.message));
         for(const role of roles)this.strikes.delete(providerCooldownKey(role,providers[role]));
-        circuit.slot=slot;circuit.healthy=true;circuit.checkedAt=this.now();
+        circuit.slot=slot;circuit.healthy=!bootstrap;circuit.egressReady=true;circuit.checkedAt=bootstrap?0:this.now();
         circuit.on('down',reason=>{void this.fail(app,circuit,reason).catch(e=>this.log(e.message));});
         app.circuits.push(circuit);await this.publishApp(app);
       }catch(e){
