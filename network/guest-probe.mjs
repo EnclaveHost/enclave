@@ -6,9 +6,10 @@ import {judge} from '../isolation/m2/judge.mjs';
 import {runtimeId} from '../isolation/contract/runtime.mjs';
 import {verifyShieldAppPolicy} from '../relay/shield-app-policy.mjs';
 
+const observedPeerKeys=new WeakMap();
 function get(hostname,address,path,agent,pin,port=443){return new Promise((resolve,reject)=>{
  const req=https.get({host:address,port,servername:hostname,headers:{host:hostname},path,agent,timeout:15000},res=>{
-  const spki=res.socket.getPeerX509Certificate()?.publicKey.export({format:'der',type:'spki'});
+  const spki=observedPeerKeys.get(res.socket)||res.socket.getPeerX509Certificate()?.publicKey.export({format:'der',type:'spki'});
   if(!spki||(pin&&!pin.equals(spki))){res.destroy();reject(new Error('guest TLS key changed'));return;}
   const chunks=[];let size=0;res.on('data',b=>{size+=b.length;if(size>2097152)res.destroy(new Error('guest proof too large'));else chunks.push(b)});
   res.once('error',reject);res.once('end',()=>resolve({status:res.statusCode,spki,bytes:Buffer.concat(chunks)}));
@@ -18,7 +19,16 @@ const GUEST_BUSY=/attestation busy; retry|too many concurrent report requests/,G
 export async function probeGuest({deploymentId,hostname,address,port=443,proxy,expected,linux,shield,hostSession,localUpstream,openApp,domainIndependent=false,verifySnp=judge,pinnedSpkiSha256=null,startupEgress=false}){
  if(startupEgress&&(!openApp||proxy||pinnedSpkiSha256||expected.requiresConfigSocketServer!==true||expected.requiresSecretsV1!==true))throw new Error('startup egress requires a local configured secret command proof');
  if([proxy,localUpstream,openApp].filter(Boolean).length!==1)throw new Error('guest probes require exactly one guarded or local app transport');
- const agent=(localUpstream||openApp)?new LocalAppHttpsAgent(localUpstream,deploymentId,{openApp,attestationOnly:startupEgress}):new SocksHttpsAgent(proxy,domainIndependent?{tlsOptions:{rejectUnauthorized:false,servername:''}}:{}),nonce=randomBytes(32);
+ // The locally attested key authenticates a route even before its WebPKI
+ // certificate is installed. SNI remains present for shared public listeners;
+ // only a dedicated native port uses domainIndependent transport.
+ const routeTls={tlsOptions:{...(domainIndependent||pinnedSpkiSha256?{rejectUnauthorized:false}:{}),...(domainIndependent?{servername:''}:{})},
+   ...(pinnedSpkiSha256?{verifyPeer:connection=>{
+     const key=connection.getPeerX509Certificate()?.publicKey.export({format:'der',type:'spki'});
+     if(!key||createHash('sha256').update(key).digest('hex')!==pinnedSpkiSha256)throw new Error('guest TLS key changed');
+     observedPeerKeys.set(connection,key);
+   }}:{})};
+ const agent=(localUpstream||openApp)?new LocalAppHttpsAgent(localUpstream,deploymentId,{openApp,attestationOnly:startupEgress}):new SocksHttpsAgent(proxy,routeTls),nonce=randomBytes(32);
  address=(localUpstream||openApp)?'127.0.0.1':address;
  try{
   // A route probe for a guest whose current proof bound TLS key K needs no new
