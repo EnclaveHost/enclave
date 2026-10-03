@@ -40,12 +40,23 @@ func check(e error) {
 	}
 }
 
+// Refill to the existing target only after crossing the low-water mark. This
+// permits frequent checks without creating a payment for every tiny debit.
+func refillNeeded(balance, target, lowWatermark common.Fixed64) bool {
+	threshold := target
+	if lowWatermark > 0 && lowWatermark < target {
+		threshold = lowWatermark
+	}
+	return balance < threshold
+}
+
 func main() {
 	seedFile := flag.String("seed", "", "funding wallet seed file (hex)")
 	source := flag.String("source", "", "expected funding wallet address")
 	targetsFile := flag.String("targets", "", "targets file")
 	audit := flag.String("audit", "", "audit JSON written before broadcast (must not exist)")
 	dry := flag.Bool("dry-run", false, "print the plan only")
+	lowWatermark := flag.String("low-watermark", "0", "refill only below this NKN balance (0 means target)")
 	maxTotal := flag.String("max-total", "10", "refuse a plan above this many NKN")
 	flag.Parse()
 	b, e := os.ReadFile(*seedFile)
@@ -65,6 +76,11 @@ func main() {
 	fee, _ := common.StringToFixed64("0.001")
 	limit, e := common.StringToFixed64(*maxTotal)
 	check(e)
+	low, e := common.StringToFixed64(*lowWatermark)
+	check(e)
+	if low < 0 {
+		panic("low-watermark must not be negative")
+	}
 	var plan []record
 	var total common.Fixed64
 	seen := map[string]bool{}
@@ -87,7 +103,7 @@ func main() {
 			check(e)
 			bal, e := nkn.GetBalanceContext(ctx, addr, &nkn.RPCConfig{SeedRPCServerAddr: rpc, RPCTimeout: 12000})
 			check(e)
-			if bal.ToFixed64() >= target {
+			if !refillNeeded(bal.ToFixed64(), target, low) {
 				continue
 			}
 			amt := target - bal.ToFixed64()

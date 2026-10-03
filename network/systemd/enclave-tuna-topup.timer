@@ -1,0 +1,8 @@
+[Unit]
+Description=Check Enclave TUNA transport wallet reserves every five minutes
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+RandomizedDelaySec=20s
+[Install]
+WantedBy=timers.target
