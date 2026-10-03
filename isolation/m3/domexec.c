@@ -334,7 +334,7 @@ int main(int argc, char **argv) {
      * here than in M2, because several domains share this guest's filesystem. */
     read_app_config();
     char *rt[64] = {"/plat/rt/ld-linux-x86-64.so.2", "--library-path", "/plat/rt", "/plat/rt/wasmtime",
-                  "serve", "-S", "cli", "-C", "cache=n", "--addr", "127.0.0.1:8080", "/app.wasm", NULL};
+                  "serve", "-S", "cli", "-W", "threads,shared-everything-threads,component-model-threading,shared-memory,memory64,component-model-memory64", "-C", "cache=n", "--addr", "127.0.0.1:8080", "/app.wasm", NULL};
     char *front[32] = {"/plat/front", "-runtime-identity", "/plat/rt/runtime.json",
                      "-listen-unix", "/run/front.sock", "-report-unix", "/run/monitor.sock",
                      "-upstream", "127.0.0.1:8080", "-app-sha", "/app.sha256", "-app-mode", "serve",
@@ -345,10 +345,14 @@ int main(int argc, char **argv) {
      * inherit-network, ENCLAVE_PORTS=http:N=N, a private 64 MiB scratch /data, lost when the domain ends. Here
      * inherit-network reaches only this domain's OWN network namespace, whose one interface is its loopback. */
     int run_port = 0;
-    char ports_env[64], upstream[32], data_opts[96];
+    char ports_env[2048], memory_env[64], memory_limit[64], upstream[32], data_opts[96];
+    unsigned long app_mib = argc > 4 ? strtoul(argv[4], NULL, 10) : 0;
+    if (app_mib < 64 || app_mib > 1048576) die("invalid app memory");
+    snprintf(memory_env, sizeof memory_env, "ENCLAVE_MEM_MB=%lu", app_mib);
+    snprintf(memory_limit, sizeof memory_limit, "max-memory-size=%llu", (unsigned long long)app_mib << 20);
     char *run[64] = {"/plat/rt/ld-linux-x86-64.so.2", "--library-path", "/plat/rt", "/plat/rt/wasmtime", "run",
                    "-S", "cli", "-S", "tcp", "-S", "udp", "-S", "inherit-network", "-S", "allow-ip-name-lookup",
-                   "-C", "cache=n", "--dir", "/data::/data", "--env", ports_env, "/app.wasm", NULL};
+                   "-C", "cache=n", "-W", "threads,shared-everything-threads,component-model-threading,shared-memory,memory64,component-model-memory64", "-W", memory_limit, "--dir", "/data::/data", "--env", ports_env, "--env", memory_env, "/app.wasm", NULL};
     char *run_front[32] = {"/plat/front", "-runtime-identity", "/plat/rt/runtime.json",
                          "-listen-unix", "/run/front.sock", "-report-unix", "/run/monitor.sock",
                          "-upstream", upstream, "-app-sha", "/app.sha256", "-app-mode", "run",
@@ -360,6 +364,19 @@ int main(int argc, char **argv) {
             return 2;
         }
         snprintf(ports_env, sizeof ports_env, "ENCLAVE_PORTS=http:%d=%d", run_port, run_port);
+        FILE *pf = fopen("/app.ports", "r");
+        if (pf) {
+            char line[32], proto[4]; int pn;
+            while (fgets(line, sizeof line, pf)) {
+                if (sscanf(line, "%3[^:]:%d", proto, &pn) != 2 ||
+                    (strcmp(proto,"tcp") && strcmp(proto,"udp")) || pn < 1 || pn > 49999) die("invalid measured ports");
+                size_t used = strlen(ports_env);
+                int n = snprintf(ports_env+used, sizeof ports_env-used, ",%s:%d=%d", proto,pn,pn);
+                if (n < 0 || (size_t)n >= sizeof ports_env-used) die("too many measured ports");
+            }
+            if (ferror(pf)) die("read measured ports");
+            fclose(pf);
+        } else if (errno != ENOENT) die("open measured ports");
         snprintf(upstream, sizeof upstream, "127.0.0.1:%d", run_port);
         snprintf(data_opts, sizeof data_opts, "size=64m,mode=0700,uid=%u,gid=%u", (unsigned)uid, (unsigned)uid);
         mkdir("/data", 0700);
