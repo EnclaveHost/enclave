@@ -291,6 +291,6 @@ contract EnclaveDeploymentsTransferTest is Test {
     // ---- the schema gate clients sniff --------------------------------------
 
     function test_schemaMarksTheTransferSurface() public view {
-        assertEq(dep.deploymentsSchema(), 15);   // >= 11 is what the transfer surface gates on
+        assertEq(dep.deploymentsSchema(), 16);   // >= 11 is what the transfer surface gates on
     }
 }
