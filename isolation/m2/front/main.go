@@ -92,6 +92,7 @@ type doc struct {
 }
 
 type front struct {
+	tunnels      *portTunnels
 	secrets      *shieldSecrets
 	spki, appSha []byte
 	rt           *runtimeState // ABI/2 when non-nil, ABI/1 when the image carries no runtime identity
@@ -308,10 +309,21 @@ func main() {
 		fp := sha256.Sum256(spki)
 		fmt.Printf("DOM serving %s spki_sha256=%x ready_ms=%.0f\n", where, fp, monoMs())
 	}()
+	_, hp, err := net.SplitHostPort(*upstream)
+	must(err)
+	var portNumber int
+	_, err = fmt.Sscanf(hp, "%d", &portNumber)
+	must(err)
+	f.tunnels, err = loadPortTunnels("/app.ports", portNumber)
+	must(err)
 	must(srv.Serve(tl))
 }
 
 func (f *front) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, tunnelPrefix) {
+		f.tunnels.ServeHTTP(w, r)
+		return
+	}
 	switch r.URL.Path {
 	case shieldSecretsPath:
 		f.serveShieldSecrets(w, r)

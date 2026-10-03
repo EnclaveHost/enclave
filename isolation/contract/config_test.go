@@ -65,3 +65,24 @@ func TestSecretDeploymentBoundManifest(t *testing.T) {
 		t.Fatal("missing measured config accepted")
 	}
 }
+
+func TestSecretCommandProtectedPorts(t *testing.T) {
+	m := Manifest{ABI: ABI, World: WorldCLI, HTTP: 8000, ConfigBase64: "e30=", SecretDeployment: "0x" + strings.Repeat("a", 64), Ports: []string{"tcp:2222", "udp:47998"}}
+	b, err := Build(m, []byte("component"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, _, err := Parse(b)
+	if err != nil || len(parsed.Ports) != 2 {
+		t.Fatalf("ports not preserved: %v", err)
+	}
+	m.Ports[0] = "tcp:2223"
+	other, err := Build(m, []byte("component"))
+	if err != nil || AppID(other) == AppID(b) {
+		t.Fatal("port not bound to app identity")
+	}
+	m.SecretDeployment = ""
+	if _, err := m.AppConfig(); err == nil {
+		t.Fatal("configured ports accepted without deployment identity")
+	}
+}

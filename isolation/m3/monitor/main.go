@@ -86,6 +86,7 @@ const (
 type domain struct {
 	SecretDeployment string              `json:"-"`
 	AppConfig        []byte              `json:"-"` // copied only from the measured bundle
+	Ports            []string            `json:"ports,omitempty"`
 	Inference        *contract.Inference `json:"inference,omitempty"`
 	ID               int                 `json:"id"`
 	Label            string              `json:"label"`
@@ -474,11 +475,16 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 		}
 	}
 	pol := contract.EffectivePolicy(manifest, contract.Request{CPU: req.CPU, MemMiB: req.MemMiB})
+	// Physical RAM is an availability allocation, separate from the immutable
+	// catalog minimum in the hashed bundle. The launcher may raise that limit.
+	if manifest != nil && req.MemMiB != 0 {
+		if req.MemMiB < pol.MemMiB || req.MemMiB > 1048576 {
+			return nil, fmt.Errorf("memory allocation is below the catalog minimum or outside host bounds")
+		}
+		pol.MemMiB = req.MemMiB
+	}
 	var inference *contract.Inference
 	if manifest != nil {
-		if len(manifest.Ports) != 0 {
-			return nil, fmt.Errorf("protected tunnel ports are not supported in this image")
-		}
 		inference = manifest.Inference
 		if inference != nil {
 			if _, err := os.Stat(filepath.Join(m.plat, "shield-nucbox.enabled")); err != nil {
@@ -517,6 +523,9 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 		Port: m.basePrt + uint32(id), UID: m.baseUID + id, FrontUID: m.baseUID + frontUIDOffset + id, CPU: pol.CPUPercent, MemMiB: pol.MemMiB,
 		dir: filepath.Join(m.root, strconv.Itoa(id)), cgroup: "/sys/fs/cgroup/dom" + strconv.Itoa(id),
 		Probe: req.Probe, exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
+	if manifest != nil {
+		d.Ports = append([]string(nil), manifest.Ports...)
+	}
 	if err := m.start(d, artifact); err != nil {
 		return nil, err // start() has already released whatever it managed to take
 	}
@@ -559,6 +568,11 @@ func (m *monitor) start(d *domain, app []byte) error {
 	}
 	if err := writeAppConfig(d.dir, d.AppConfig); err != nil {
 		return fail(err)
+	}
+	if len(d.Ports) != 0 {
+		if err := os.WriteFile(filepath.Join(d.dir, "app.ports"), []byte(strings.Join(d.Ports, "\n")+"\n"), 0444); err != nil {
+			return fail(err)
+		}
 	}
 	// root-owned and read-only, like the AppID: the domain reads the name it may certify but cannot change it
 	if d.Name != "" {

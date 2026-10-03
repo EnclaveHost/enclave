@@ -52,8 +52,11 @@ func (m Manifest) AppConfig() ([]byte, error) {
 		return nil, nil
 	}
 	validWorld := (m.World == WorldHTTP && m.HTTP == 0) || (m.World == WorldCLI && m.HTTP >= 1 && m.HTTP <= MaxHTTPPort)
-	if !validWorld || m.Inference != nil || len(m.Ports) != 0 {
+	if !validWorld || m.Inference != nil || (len(m.Ports) != 0 && m.SecretDeployment == "") {
 		return nil, errors.New("app configuration requires a CPU HTTP component or single-port command bundle")
+	}
+	if err := ValidatePorts(m.Ports, m.World, m.HTTP); err != nil {
+		return nil, err
 	}
 	if m.SecretDeployment != "" && m.World == WorldCLI && m.HTTP < 1024 {
 		return nil, errors.New("secret command HTTP port must be unprivileged")
