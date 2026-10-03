@@ -434,9 +434,9 @@ test("artifacts stay in sync with contracts/*.sol (regenerate check)", () => {
   // the artifact builder first). Here we just assert the module carries every
   // contract with bytecode + one book key each.
   assert.deepEqual(Object.keys(CONTRACTS).sort(), [
-    "EnclaveAddressBook", "EnclaveAppCatalog", "EnclaveCreditVaultFactory",
+    "EnclaveAddressBook", "EnclaveAppCatalog", "EnclaveAvailability", "EnclaveCreditVaultFactory",
     "EnclaveDeployments", "EnclaveFeatured", "EnclaveHostReviews", "EnclavePay",
-    "EnclaveProofOfTime", "EnclaveRegistry", "EnclaveReviews", "PaymentRouter"]);
+    "EnclaveProofOfTime", "EnclaveRegistry", "EnclaveReviews", "EnclaveVerificationFees", "PaymentRouter"]);
   for (const [name, c] of Object.entries(CONTRACTS)) {
     assert.match(c.bytecode, /^0x[0-9a-f]{100,}$/i, name + " bytecode");
     // the console's deploy encoder handles exactly these; anything else needs
@@ -447,7 +447,7 @@ test("artifacts stay in sync with contracts/*.sol (regenerate check)", () => {
   }
   assert.deepEqual(
     Object.values(CONTRACTS).map((c) => c.bookKey).filter(Boolean).sort(),
-    ["appCatalog", "deployments", "enclavePay", "featured", "hostReviews", "paymentRouter", "proofOfTime", "registry", "reviews", "vaultFactory"]);
+    ["appCatalog", "availability", "deployments", "enclavePay", "featured", "hostReviews", "paymentRouter", "proofOfTime", "registry", "reviews", "vaultFactory", "verificationFees"]);
 });
 
 /* ---- migration escrow backing + the proof-of-time bindings (rev 9/10) ----

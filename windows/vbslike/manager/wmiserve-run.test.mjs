@@ -117,3 +117,36 @@ test("the bundle file: named by instance id, hashed after writing, refused (and 
   assert.equal(fs.existsSync(path.join(d, "inst-3.bundle")), false, "a refused bundle is not left behind");
   assert.throws(() => writeBundle({ dir: d, instanceId: "../x", bundle, appId }), /safe instance id/);
 });
+
+/* ---- M4: the name a domain may be certified for ---------------------------------------------------------------- */
+test("M4: --cert-name rides to wmiserve only when given, and the run carries the name the monitor recorded", async () => {
+  const argsFile = path.join(dir, "args-m4.json");
+  const r = await run("ok", { argsFile, certName: "4e62e60d.app.enclave.host" });
+  try {
+    const argv = JSON.parse(fs.readFileSync(argsFile, "utf8"));
+    assert.equal(argv[argv.indexOf("--cert-name") + 1], "4e62e60d.app.enclave.host");
+    assert.equal(r.certName, "4e62e60d.app.enclave.host", "the monitor's recorded name, as wmiserve reported it");
+  } finally { await r.stop(); }
+  const argsFile2 = path.join(dir, "args-m4-none.json");
+  const r2 = await run("ok", { argsFile: argsFile2 });
+  try {
+    assert.equal(JSON.parse(fs.readFileSync(argsFile2, "utf8")).includes("--cert-name"), false, "no name asked, none sent");
+    assert.equal(r2.certName, null);
+  } finally { await r2.stop(); }
+});
+
+test("M4: a malformed name is refused BEFORE anything is spawned", async () => {
+  for (const bad of ["4E62E60D.app.enclave.host", "4e62e60.app.enclave.host", "4e62e60d.app.test", "x", "4e62e60d.app.enclave.host "]) {
+    let spawned = false;
+    await assert.rejects(() => run("ok", { certName: bad, spawn: () => { spawned = true; throw new Error("spawned"); } }),
+                         /--cert-name must be <8 hex>\.app\.enclave\.host/, JSON.stringify(bad));
+    assert.equal(spawned, false, `${JSON.stringify(bad)}: nothing may be spawned`);
+  }
+});
+
+test("M4: a domain the monitor recorded WITHOUT the name, or with another one, is refused", async () => {
+  const e1 = await refusedBy(run("name-dropped", { certName: "4e62e60d.app.enclave.host" }));
+  assert.match(e1.message, /loaded with the name null, not "4e62e60d\.app\.enclave\.host"/);
+  const e2 = await refusedBy(run("name-changed", { certName: "4e62e60d.app.enclave.host" }));
+  assert.match(e2.message, /loaded with the name "00000000\.app\.enclave\.host", not "4e62e60d\.app\.enclave\.host"/);
+});

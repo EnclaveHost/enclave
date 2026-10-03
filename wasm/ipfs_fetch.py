@@ -197,6 +197,24 @@ def verify_car(cid_str, car, max_bytes):
 
 def fetch_verified(cid_str, gateway, max_bytes, timeout=120):
     """Fetch the DAG for cid_str from `gateway` as a CAR and return verified file bytes."""
+    cid_bytes = cid_str_to_bytes(cid_str)
+    _, info, end = _cid_info(cid_bytes, 0)
+    if end != len(cid_bytes):
+        raise ValueError("trailing CID bytes")
+    # A raw CID is already one complete block. Some gateways cannot export it
+    # as a CAR; the raw response has exactly the same hash-verification rule.
+    if info["codec"] == RAW_CODEC:
+        if info["mh_code"] != SHA2_256 or len(info["digest"]) != 32:
+            raise ValueError("raw CID requires sha2-256")
+        req = urllib.request.Request(gateway.rstrip("/") + "/ipfs/" + cid_str,
+                                     headers={"Accept": "application/vnd.ipld.raw"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            data = r.read(max_bytes + 1)
+        if len(data) > max_bytes:
+            raise ValueError("raw block larger than allowed")
+        if hashlib.sha256(data).digest() != info["digest"]:
+            raise ValueError("raw block does not match requested CID")
+        return data
     url = gateway.rstrip("/") + "/ipfs/" + cid_str + "?format=car&dag-scope=all"
     req = urllib.request.Request(url, headers={"Accept": "application/vnd.ipld.car"})
     cap = max_bytes + max_bytes // 2 + (1 << 20)     # CAR framing/CID overhead headroom

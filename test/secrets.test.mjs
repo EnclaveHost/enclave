@@ -411,3 +411,29 @@ test('Shield marketplace eligibility never authorizes plaintext secret release t
     assert.equal(res.code,403); assert.equal(res.body.env,undefined);
   } finally { ctx.hostEligibility = saved; }
 });
+
+test('contract-wallet secret writes bind the ledger owner, payload and replay gate', async (t) => {
+  const {rpcPool}=await import('../relay/store.js');
+  const {hashMessage}=await import('viem');
+  const client=await rpcPool(),contract='0x'+'42'.repeat(20);
+  const payload=JSON.stringify({set:{CAPACITY_WORK_TOKEN:'contract-test-only'}}),expiry=expiryNow();
+  const message=putMessage(ID,expiry,payload),signature='0x1234567890';
+  rows=[leaseRow({owner:contract})];
+  let reads=0;
+  t.mock.method(client,'getCode',async({address})=>address===contract?'0x1234':'0x');
+  t.mock.method(client,'readContract',async q=>{
+    reads++;assert.equal(q.address,contract);
+    return q.args[0]===hashMessage(message)&&q.args[1]===signature?'0x1626ba7e':'0xffffffff';
+  });
+  const body={signatureType:'erc1271',payload,expiry,signature};
+  let res=await call('/v1/secrets/'+ID,{...body,payload:JSON.stringify({set:{CAPACITY_WORK_TOKEN:'tampered'}})});
+  assert.equal(res.code,403);
+  rows=[leaseRow({owner:OTHER.address})];
+  res=await call('/v1/secrets/'+ID,body);assert.equal(res.code,403);
+  rows=[leaseRow({owner:contract})];
+  res=await call('/v1/secrets/'+ID,body);assert.equal(res.code,200,JSON.stringify(res.body));
+  assert.equal(readSecrets(ID).env.CAPACITY_WORK_TOKEN,'contract-test-only');
+  res=await call('/v1/secrets/'+ID,body);assert.equal(res.code,409);
+  res=await call('/v1/secrets/'+ID,{...body,signature:'0x'+'11'.repeat(4097)});assert.equal(res.code,422);
+  assert.equal(reads,3);
+});

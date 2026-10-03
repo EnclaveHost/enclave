@@ -109,6 +109,14 @@ const readCard = async () => {
     card = null;
   }
 };
+// Read-only discovery for the new isolated profile; never starts the legacy engine.
+async function refreshPartitionGpu() {
+  const h = await isolationHealth();
+  host.managerSupports = h?.supports || null;
+  host.managerInference = h?.inference || null;
+  card = h?.supports?.gpu === true && h?.inference?.ready && Date.now()-h.inference.checkedAt < 45000
+    ? h.inference.card : null;
+}
 // The live tunnel's sender, so the app-zone half can answer stream frames from outside connect()'s
 // closure. Replaced on every redial; a frame sent while the tunnel is down is dropped, which is
 // what the relay's own open timeout already handles.
@@ -180,6 +188,7 @@ const host = new Host({
   measurement: process.env.ENCLAVE_MEASUREMENT || '0x0000000000000000000000000000000000000000000000000000000000000000',
   vcpus: Number(process.env.NODE_VCPUS || os.cpus().length),
   ramGb: Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
+  appRamGb: process.env.NODE_APP_RAM_GB === undefined ? undefined : Number(process.env.NODE_APP_RAM_GB),
   // the fleet's convention for a node's compute (metal gsup.mjs): 62.5 GFLOPS a vCPU
   gflops: Math.round(62.5 * Number(process.env.NODE_VCPUS || os.cpus().length)),
   // what stays with the enclave, the shielded worker and the owner of the PC, never sold
@@ -413,9 +422,32 @@ async function measureEngineHold() {
 }
 
 // ---- the public surface over the tunnel ------------------------------------------------------
+let shieldEvidenceReads = 0;
+let shieldWitness = null;
 async function handle(frame) {
   const p = String(frame.path || '').split('?')[0]; const method = frame.method || 'GET';
   const json = (status, o) => ({ status, headers: { 'content-type': 'application/json' }, body: JSON.stringify(o) });
+  if (APPS && p === '/v1/shield/readiness' && method === 'GET') {
+    if (!shieldWitness) return json(503, {error:'witness_not_configured'});
+    if (shieldEvidenceReads >= 2) return json(429, {error:'evidence_busy'});
+    const nonce = new URL(String(frame.path), 'http://localhost').searchParams.get('nonce');
+    if (!/^[0-9a-f]{64}$/.test(nonce || '')) return json(400, {error:'nonce_required'});
+    shieldEvidenceReads++;
+    try { return json(200, await shieldWitness.evidence(nonce)); }
+    catch (e) { return json(503, {error:'witness_unavailable', reason:String(e.message).slice(0,300)}); }
+    finally { shieldEvidenceReads--; }
+  }
+  if (APPS && p === '/v1/shield/evidence' && method === 'GET') {
+    if (shieldEvidenceReads >= 2) return json(429, { error: 'evidence_busy' });
+    const query = new URL(String(frame.path), 'http://localhost').searchParams;
+    const id = query.get('deployment'), nonce = query.get('nonce');
+    if (!/^0x[0-9a-f]{64}$/.test(id || '') || !/^[0-9a-f]{64}$/.test(nonce || ''))
+      return json(400, { error: 'exact_deployment_and_nonce_required' });
+    shieldEvidenceReads++;
+    try { return json(200, await host.shieldEvidence(id, nonce)); }
+    catch (e) { return json(503, { error: 'app_evidence_unavailable', reason: String(e.message).slice(0, 300) }); }
+    finally { shieldEvidenceReads--; }
+  }
   if (p === '/availability') return json(200, { ok: true, role: LEGACY_ENGINE ? 'windows-vbs-node' : 'windows-hv-node', name: NAME,
     // gpu:false stays false, and it is not a statement about whether the card is for sale: on this
     // fleet that flag means the card is INSIDE the measured enclave, and this one is not. It sits
@@ -430,15 +462,9 @@ async function handle(frame) {
     gpu: false, maxShare: host.cpuShareFree(),
     gpuShareFree: APPS ? host.gpuShareFree() : 0, cpuShareFree: host.cpuShareFree(),
     nodeVcpus: Number(process.env.NODE_VCPUS || os.cpus().length),
-    // RAM, and the honest number here is NOT the machine's. An app on this box runs inside the
-    // enclave, so the pool is the ENCLAVE - a fixed, dedicated allocation made when it was created
-    // (ee-main.cpp EnclaveSize), not a slice of the machine's 112 GB and not a fraction of the
-    // share ledger. What is left of it rides beside this as ramGbFree, measured: the enclave's own
-    // size less what the engine holds (asked of the enclave before any app was claimed) and less
-    // what each running app was promised. The machine's own figure is machineRamGb.
-    nodeRamGb: host.appsInTee()
-      ? Number(host.cfg.enclaveGb) || 0
-      : Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
+    // Report the actual admission budget, independently of physical RAM and CPU
+    // shares. For an in-enclave engine this is its fixed enclave allocation.
+    nodeRamGb: host.capacity().ramMbPool / 1024,
     machineRamGb: Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
     nodeGflops: Math.round(62.5 * Number(process.env.NODE_VCPUS || os.cpus().length)),   // the fleet's convention (metal gsup.mjs)
     // teeCpu names a CPU TEE this box's own attestation shows. An isolation-only node has none: its attach is a
@@ -448,9 +474,8 @@ async function handle(frame) {
     // fallback is what this box knows without asking - a worker that is down must not leave the
     // row advertising a card nobody can use.
     // An isolation-only node starts no worker, so it advertises no card at all.
-    shielded: !LEGACY_ENGINE ? null : (card ? { ...card, ...(cardProof ? { proof: cardProof } : {}) } : null) || { worker: 'vulkan', protocol: '1.4.0', vramGiB: Number(WORKER_VRAM_GB), vramGb: Number(WORKER_VRAM_GB),
-                        vramBudgetGb: Number(WORKER_VRAM_GB), vramFreeGb: 0, vramReservedGb: 0,
-                        ...(gpuName ? { device: gpuName } : {}), note: 'the worker has not answered a HELLO yet' },
+    shielded: card && host.sellsCard() ? { ...card, ...(cardProof ? { proof:cardProof } : {}),
+      ...(host.managerInference?.ready ? { model:host.managerInference.model, minimumGpuMilli:host.managerInference.minimumGpuMilli, runtimeId:host.managerInference.runtimeId } : {}) } : null,
     model: MODEL ? path.basename(MODEL) : null, attachedAt, ...(APPS ? host.availability() : {}) });
   // ---- who is asking ---------------------------------------------------------------------
   // The public half of this box's session key. Anyone can verify a token it minted - and confirm
@@ -625,6 +650,7 @@ function connect() {
                         try { replaced.ws.terminate(); } catch {}
                         log('re-attach: the standby tunnel serves now; the replaced one is closed, with no gap on the relay');
                       }
+                      host.shieldMarketUntil = 0;
                       tier = f.tier || '';   // the relay's verdict (vbs | vbs-dev); never our own claim
                       attachedOwnersVersion = s.attachSent && s.attachSent.version === 2 ? s.attachSent.owners : null;
                       attachedOwners = s.attachSent && s.attachSent.version === 2 ? s.attachSent.served : null;
@@ -636,6 +662,9 @@ function connect() {
             log(`attach REJECTED: ${f.reason}${standby ? ' (a standby: the live tunnel still serves)' : ''}`);
             if (standby) { try { ws.terminate(); } catch {} }
           }
+        } else if (f.t === 'shield-market') {
+          // Only the currently accepted relay connection can open this bounded claim window.
+          if (s === tunnels.current) host.shieldMarketUntil = Math.min(Number(f.until) || 0, Date.now() + 300000);
         } else if (f.t === 'ping') send({ t: 'pong' });
         else if (f.t === 'req') { const r = await handle(f); send({ t: 'res', id: f.id, status: r.status, headers: r.headers, body: Buffer.from(r.body).toString('base64') }); }
 
@@ -645,7 +674,7 @@ function connect() {
     ws.on('close', () => {
       clearInterval(live);
       const { lost, redial } = tunnels.closed(s);
-      if (lost) { if (zone) zone.closeAll(); attachedAt = 0; }
+      if (lost) { if (zone) zone.closeAll(); attachedAt = 0; host.shieldMarketUntil = 0; }
       log(lost ? 'tunnel closed' : s.superseded ? 'the replaced tunnel closed' : 'the standby tunnel closed; the live one still serves');
       if (redial) setTimeout(() => dial(), 5000);
     });
@@ -700,7 +729,8 @@ async function startHostingControls() {
 (async () => {
   startHostingControls().catch((e) => log(`hosting controls: OFF (${e.message})`));
   if (LEGACY_ENGINE) { await startWorker(); await startHost(); }
-  else {
+  else { await refreshPartitionGpu(); setInterval(() => refreshPartitionGpu().catch(() => { card=null; host.managerInference=null; host.managerSupports=null; }),15000).unref();
+
     nodeKey = loadOrCreateNodeKey(DIR);
     log(`isolation-only node: the VBS enclave engine is retired; transport key ${createHash('sha256').update(nodeKey.spki).digest('hex').slice(0, 16)}… `
       + '(a host key: it proves only that an admin-level process on this host chose it)');
@@ -745,6 +775,17 @@ async function startHostingControls() {
     log(`session: ES256 key ${sessionKey.kid.slice(0, 12)}… (in the agent's process, not the enclave)`);
     setInterval(() => nonces.sweep(), 60_000).unref?.();
     await host.init();
+    if (process.env.SHIELD_WITNESS_CONFIG && host.cfg.isolationManager && host.cfg.isolationDataAddr) {
+      const {createShieldWitness} = await import('./shield-witness.mjs');
+      shieldWitness = createShieldWitness({config:JSON.parse(fs.readFileSync(process.env.SHIELD_WITNESS_CONFIG,'utf8')),
+        base:host.cfg.isolationManager, dataAddr:host.cfg.isolationDataAddr});
+      let lastWitnessError = '';
+      const tickWitness = () => shieldWitness.ensure().then(() => { lastWitnessError = ''; }).catch(e => {
+        if (e.message !== lastWitnessError) log(`readiness witness: ${e.message}`);
+        lastWitnessError = e.message;
+      });
+      tickWitness(); setInterval(tickWitness, 30000).unref?.();
+    }
     // resolve(id): the app's loopback port and its certificate, or null. Both come from the host,
     // which is the half that holds leases; a deployment this box does not serve resolves to null
     // and the stream is refused with a status rather than a silent close.
@@ -770,8 +811,9 @@ async function startHostingControls() {
         const { createHvCertPass } = await import('./hvcert.mjs');
         const certs = createHvCertPass({
           client: new IsolationManagerClient({ base: host.cfg.isolationManager }), dataAddr: host.cfg.isolationDataAddr,
-          runtimeId: host.cfg.isolationRuntimeId, endpoint: host.cfg.endpoint, sign: (message) => acct.signMessage({ message }),
-          served: (owner) => host.ownerSet().has(owner), log: (m) => log(m) });
+          runtimeId: rec => Number(rec.gpuShare) > 0 ? host.managerInference?.runtimeId : host.cfg.isolationRuntimeId,
+          endpoint: host.cfg.endpoint, sign: (message) => acct.signMessage({ message }),
+          served: (owner) => host.scope() === "market" || host.ownerSet().has(owner), log: (m) => log(m) });
         let running = false;
         const tick = () => { if (running) return; running = true;
           certs.pass(host.records).catch((e) => log(`certificates: pass failed: ${e.message}`)).finally(() => { running = false; }); };

@@ -14,6 +14,8 @@ MAGIC = b"ENCLAVE-BUNDLE/1\n"
 ABI = "enclave-domain-abi/1"
 V1 = "enclave-catalog-bundle/1"
 V2 = "enclave-catalog-bundle/2"   # V1 + ONE declared HTTP port: a wasi:cli command component that listens on it
+V3 = "enclave-catalog-bundle/3"
+V4 = "enclave-catalog-bundle/4"
 MAX_HTTP_PORT = 49999
 PREAMBLE = b"\x00asm\x0d\x00\x01\x00"
 
@@ -25,9 +27,9 @@ def canonical(obj):
 def validate(rec):
     p = rec.get("policy") or {}
     checks = [
-        (rec.get("derivation") in (V1, V2), "derivation"),
-        ((rec.get("derivation") == V1 and "http" not in rec) or
-         (rec.get("derivation") == V2 and isinstance(rec.get("http"), int) and not isinstance(rec.get("http"), bool)
+        (rec.get("derivation") in (V1, V2, V3, V4), "derivation"),
+        ((rec.get("derivation") in (V1,V4) and "http" not in rec) or
+         (rec.get("derivation") in (V2, V3, V4) and isinstance(rec.get("http"), int) and not isinstance(rec.get("http"), bool)
           and 1 <= rec["http"] <= MAX_HTTP_PORT), "http"),
         (re.fullmatch(r"0x[0-9a-f]{64}", str((rec.get("catalog") or {}).get("app", ""))) is not None, "catalog.app"),
         (isinstance((rec.get("catalog") or {}).get("version"), int) and 0 <= rec["catalog"]["version"] < 2**32, "catalog.version"),
@@ -37,6 +39,24 @@ def validate(rec):
         (isinstance(p.get("vcpus"), int) and 1 <= p["vcpus"] <= 16, "policy.vcpus"),
         (re.fullmatch(r"[0-9a-f]{64}", str(rec.get("runtimeId", ""))) is not None, "runtimeId"),
     ]
+    ports = rec.get("ports", [])
+    if rec.get("derivation") == V4:
+        inf=rec.get("inference")
+        if not isinstance(inf,dict) or set(inf)!={"model","gpuMilli"} or inf["model"] not in ("qwen2.5-0.5b-q8-gguf","qwen3.8-27b-mtp-q4-vl-gguf") or type(inf["gpuMilli"]) is not int or not (500 if inf["model"]=="qwen3.8-27b-mtp-q4-vl-gguf" else 65)<=inf["gpuMilli"]<=1000:
+            raise ValueError("invalid inference")
+    elif "inference" in rec:
+        raise ValueError("inference requires V4")
+    if rec.get("derivation") == V3 or (rec.get("derivation")==V4 and ports):
+        if not isinstance(ports, list) or not 1 <= len(ports) <= 32 or any(not isinstance(p, str) for p in ports):
+            raise ValueError("invalid ports")
+        if not rec.get("http") or ports != sorted(set(ports)):
+            raise ValueError("noncanonical ports")
+        for p in ports:
+            m = re.fullmatch(r"(tcp|udp):([1-9][0-9]{0,4})", p)
+            if not m or not 1 <= int(m[2]) <= MAX_HTTP_PORT or (m[1] == "tcp" and int(m[2]) == rec.get("http")):
+                raise ValueError("invalid destination")
+    elif ports:
+        raise ValueError("only V3 names ports")
     for ok, field in checks:
         if not ok:
             raise ValueError("invalid " + field)
@@ -50,15 +70,23 @@ def derive(rec, component):
                 "policy": {"cpuPercent": rec["policy"]["cpuPercent"], "memMiB": rec["policy"]["memMiB"],
                            "vcpus": rec["policy"]["vcpus"]},
                 "world": "wasi:http"}          # label is empty, and an empty label is omitted
-    if rec["derivation"] == V2:                   # a command that serves HTTP on its declared port
+    if rec.get("http") and rec["derivation"] in (V2, V3, V4):                   # a command that serves HTTP on its declared port
         manifest["world"] = "wasi:cli"
         manifest["http"] = rec["http"]
+    if rec["derivation"] in (V3,V4) and rec.get("ports"):
+        manifest["ports"] = rec["ports"]
+    if rec["derivation"] == V4:
+        manifest["inference"] = rec["inference"]
     m = canonical(manifest)
     bundle = MAGIC + struct.pack("<I", len(m)) + m + struct.pack("<I", len(component)) + component
     record = {"derivation": rec["derivation"], "catalog": {"app": rec["catalog"]["app"], "version": rec["catalog"]["version"]},
               "cid": rec["cid"], "policy": manifest["policy"], "runtimeId": rec["runtimeId"]}
-    if rec["derivation"] == V2:
+    if rec.get("http") and rec["derivation"] in (V2, V3, V4):
         record["http"] = rec["http"]
+    if rec["derivation"] in (V3,V4) and rec.get("ports"):
+        record["ports"] = rec["ports"]
+    if rec["derivation"] == V4:
+        record["inference"] = rec["inference"]
     mapping = {"record": record, "recordSha256": hashlib.sha256(canonical(record)).hexdigest(),
                "componentSha256": hashlib.sha256(component).hexdigest(), "componentBytes": len(component),
                "appId": hashlib.sha256(bundle).hexdigest(), "bundleBytes": len(bundle)}
@@ -83,8 +111,27 @@ def vectors():
     ok("another policy: another AppID", {**good, "policy": {"cpuPercent": 200, "memMiB": 1024, "vcpus": 2}})
     ok("v2: a command serving HTTP on its declared port: another world, another AppID", {**good, "derivation": V2, "http": 8000})
     ok("v2: another port: another AppID", {**good, "derivation": V2, "http": 8001})
+    v3 = {**good, "derivation": V3, "http": 8000, "ports": ["tcp:2222", "tcp:47984", "udp:47998"]}
+    ok("v3: measured SSH and GameStream destinations", v3)
+    ok("v3: changed destinations change AppID", {**v3, "ports": ["tcp:2222"]})
+    v4={**good,"derivation":V4,"inference":{"model":"qwen2.5-0.5b-q8-gguf","gpuMilli":100}}
+    ok("v4 measured GPU allocation",v4)
+    ok("v4 changed allocation changes AppID",{**v4,"inference":{**v4["inference"],"gpuMilli":200}})
+    ok("v4 command and protected port",{**v4,"http":8000,"ports":["tcp:2222"]})
     for name, rec, comp_override in [
-        ("unknown derivation version", {**good, "derivation": "enclave-catalog-bundle/3"}, None),
+        ("v4 missing inference",{**good,"derivation":V4},None),
+        ("v4 unsupported model",{**v4,"inference":{"model":"other","gpuMilli":100}},None),
+        ("v4 undersized share",{**v4,"inference":{**v4["inference"],"gpuMilli":64}},None),
+        ("v4 oversized share",{**v4,"inference":{**v4["inference"],"gpuMilli":1001}},None),
+        ("v4 undeclared command port",{**v4,"ports":["tcp:2222"]},None),
+        ("v1 cannot hide inference",{**v4,"derivation":V1},None),
+        ("v3 empty", {**v3, "ports": []}, None),
+        ("v3 duplicate", {**v3, "ports": ["tcp:2222", "tcp:2222"]}, None),
+        ("v3 unsorted", {**v3, "ports": ["udp:2", "tcp:1"]}, None),
+        ("v3 zero prefix", {**v3, "ports": ["tcp:02222"]}, None),
+        ("v3 HTTP collision", {**v3, "ports": ["tcp:8000"]}, None),
+        ("v2 unexpected ports", {**v3, "derivation": V2}, None),
+        ("unknown derivation version", {**good, "derivation": "enclave-catalog-bundle/99"}, None),
         ("v1 naming a port", {**good, "http": 8000}, None),
         ("v2 naming no port", {**good, "derivation": V2}, None),
         ("v2 port out of range", {**good, "derivation": V2, "http": 50000}, None),

@@ -12,7 +12,7 @@ export const PARTITION_OFFERS = Object.freeze({
   configCid: false,      // isolationPlan: a config override CID, or a version keeping its config at a CID, is refused
   waf: false,            // isolationPlan: protection rules need the request's plaintext, which only the partition has
   customDomains: false,  // the splice serves only <label>.<zone> (isolatedTarget expectName); no other hostname reaches it
-  gpu: false,            // isolationPlan: a partition has no GPU path
+  gpu: true,             // gated again by the manager's measured Shield profile
   privateDeployments: false,   // isolationPlan: a private deployment's owner gate needs plaintext
   egress: false,         // the spawn body carries egress "" (isolationPlan): no network options reach a partition
   volumes: false,        // isolationPlan: model volumes are not mounted into a partition
