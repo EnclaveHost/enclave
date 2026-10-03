@@ -24,8 +24,8 @@ function routeKey(seed) {
   return createPrivateKey({key:Buffer.concat([Buffer.from('302e020100300506032b657004220420','hex'),seed]),format:'der',type:'pkcs8'});
 }
 export class RoutePublisher {
-  constructor({directory,account,lease,policy,distribute,now=Date.now}) {
-    Object.assign(this,{account,lease,policy,distribute,now});this.state=new DurableState(directory);this.tails=new Map();
+  constructor({directory,account,lease,policy,qualification,distribute,now=Date.now}) {
+    Object.assign(this,{account,lease,policy,qualification,distribute,now});this.state=new DurableState(directory);this.tails=new Map();
   }
   publish(id,routes) {
     const operation=(this.tails.get(id)||Promise.resolve()).catch(()=>{}).then(()=>this.write(id,routes));
@@ -51,9 +51,11 @@ export class RoutePublisher {
       }
       value.sequence++;if(!Number.isSafeInteger(value.sequence))throw new Error('route sequence exhausted');return value;
     });
-    const expiresAt=Math.min(now+60000,lease.validUntil,state.authorization.delegation.expiresAt);
+    const qualification=policy.mode==='direct'&&routes.length?await this.qualification?.(id):undefined;
+    if(policy.mode==='direct'&&routes.length&&(!qualification||qualification.report.expiresAt<=now))throw new Error('current provider qualification required');
+    const expiresAt=Math.min(now+60000,lease.validUntil,state.authorization.delegation.expiresAt,qualification?.report.expiresAt??Infinity);
     const signed=signRoute(routeKey(Buffer.from(state.seed,'hex')),{version:2,deploymentId:id,delegationHash:recordHash(state.authorization.delegation),
-      sequence:state.sequence,issuedAt:now,expiresAt,routes});
+      sequence:state.sequence,issuedAt:now,expiresAt,routes,...(qualification?{qualification}:{})});
     const bundle={...signed,authorization:state.authorization};
     const encoded=await encodeDiscovery(bundle,Buffer.from(state.seed,'hex'));
     await this.state.set('published-'+id,{bundle,policy,name:encoded.name,cid:encoded.cid,ipns:Buffer.from(encoded.ipns).toString('base64')});

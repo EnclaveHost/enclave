@@ -20,8 +20,8 @@ const roles=['guard','public','egress'];
 const withCarry=providers=>({...providers,carry:providers.guard});
 const sameProviders=(a,b)=>roles.every(role=>a[role].identity===b[role].identity&&a[role].address===b[role].address&&a[role].beneficiary===b[role].beneficiary&&a[role].asn===b[role].asn);
 export class CircuitManager extends EventEmitter {
-  constructor({runtime,admission,inventory,wallets,probe,publish,observe=async()=>{},now=Date.now,log=()=>{}}) {
-    super();Object.assign(this,{runtime,admission,inventory,wallets,probe,publish,observe,now,log});this.apps=new Map();this.cooldown=new Map();this.strikes=new Map();this.closed=false;this.busy=false;this.publications=new Map();this.reconcilingApps=new Map();this.reservedPublic=new Set();this.occupiedElsewhere=new Set();this.healthChecks=new Map();
+  constructor({runtime,directRuntime,admission,inventory,wallets,probe,publish,observe=async()=>{},now=Date.now,log=()=>{}}) {
+    super();Object.assign(this,{runtime,directRuntime,admission,inventory,wallets,probe,publish,observe,now,log});this.apps=new Map();this.cooldown=new Map();this.strikes=new Map();this.closed=false;this.busy=false;this.publications=new Map();this.reconcilingApps=new Map();this.reservedPublic=new Set();this.occupiedElsewhere=new Set();this.healthChecks=new Map();
   }
   async configure(apps) {
     const next=new Map(),walletOwners=new Map();
@@ -29,15 +29,17 @@ export class CircuitManager extends EventEmitter {
       const policy=validateCircuitPolicy(app.policy),id=policy.deploymentId;
       if(next.has(id)||!Array.isArray(app.names)||!app.names.length)throw new Error('duplicate app or missing names');
       validateAppNames(id,app.names);
-      const wallets=await this.wallets(id);let total=0n;
-      if(!Array.isArray(wallets)||wallets.length!==2)throw new Error('two independently funded circuit slots required');
+      const direct=policy.mode==='direct';
+      if(direct&&!this.directRuntime)throw new Error('direct connectivity is not configured');
+      const wallets=direct?[]:await this.wallets(id);let total=0n;
+      if(!Array.isArray(wallets)||(!direct&&wallets.length!==2))throw new Error('two independently funded circuit slots required');
       for(const slot of wallets)for(const role of roles){
         const wallet=slot[role];
         if(!wallet||walletOwners.has(wallet.address))throw new Error('wallet identity reused across apps, roles or circuits');
         walletOwners.set(wallet.address,id);total+=nknAmount(wallet.fundedNkn);
       }
-      if(total>nknAmount(policy.budgetNkn))throw new Error('funded wallets exceed app budget');
-      const publicFallback=validatePublicFallback(app.publicFallback);
+      if(!direct&&total>nknAmount(policy.budgetNkn))throw new Error('funded wallets exceed app budget');
+      const publicFallback=direct?null:validatePublicFallback(app.publicFallback);
       const fingerprint=recordHash({policy,names:app.names,publicFallback,startupEgress:app.startupEgress===true});
       const old=this.apps.get(id);
       next.set(id,old?.fingerprint===fingerprint?old:{...app,publicFallback,policy,id,wallets,fingerprint,circuits:[],error:'starting'});
@@ -57,10 +59,10 @@ export class CircuitManager extends EventEmitter {
   }
   async fail(app,circuit,reason) {
     if(!app.circuits.includes(circuit))return;
-    void this.observe(circuit.providers,{ok:false,role:circuit.failureRole}).catch(e=>this.log(e.message));
+    if(app.policy.mode!=='direct')void this.observe(circuit.providers,{ok:false,role:circuit.failureRole}).catch(e=>this.log(e.message));
     circuit.healthy=false;app.circuits=app.circuits.filter(c=>c!==circuit);circuit.admit(0);
     // A failure cannot cause an immediate retry of the same set of providers.
-    for(const role of roles)if(!circuit.failureRole||role===circuit.failureRole)this.cooldown.set(providerCooldownKey(role,circuit.providers[role]),this.now()+60000);
+    if(app.policy.mode!=='direct')for(const role of roles)if(!circuit.failureRole||role===circuit.failureRole)this.cooldown.set(providerCooldownKey(role,circuit.providers[role]),this.now()+60000);
     app.error=reason;app.lastFailure={at:this.now(),circuit:circuit.id,reason};this.log(`app ${app.id.slice(0,10)} circuit ${circuit.id}: ${reason}`);
     await this.publishApp(app).catch(e=>this.log(`route withdrawal: ${e.message}`));
     await circuit.close(reason);
@@ -70,8 +72,8 @@ export class CircuitManager extends EventEmitter {
     // A delayed successful probe can never republish a failed/withdrawn route.
     const operation=(this.publications.get(app.id)||Promise.resolve()).catch(()=>{}).then(async()=>{
       const routes=!this.closed&&this.authorizationUntil(app.id)>this.now()?app.circuits.filter(c=>c.healthy&&!c.closed)
-        .sort((a,b)=>Number(!!a.providers.public.fallback)-Number(!!b.providers.public.fallback))
-        .map(c=>({circuit:c.id,address:c.address,port:443,transport:'tuna-guarded-tcp',...(c.directPort?{directPort:c.directPort}:{}),...(c.providers.public.fallback?{fallback:true}:{})})):[];
+        .sort((a,b)=>Number(!!a.providers.public?.fallback)-Number(!!b.providers.public?.fallback))
+        .map(c=>({circuit:c.id,address:c.address,port:443,transport:app.policy.mode==='direct'?'direct':'tuna-guarded-tcp',...(c.directPort?{directPort:c.directPort}:{}),...(c.providers.public?.fallback?{fallback:true}:{})})):[];
       await this.publish(app.id,routes);this.emit('change',this.status());
     });
     this.publications.set(app.id,operation);return operation;
@@ -87,7 +89,7 @@ export class CircuitManager extends EventEmitter {
     if(this.busy||this.closed)return;this.busy=true;
     const pending=[];
     try{
-      this.enforceAdmission();const nodes=await this.inventory();
+      this.enforceAdmission();const nodes=[...this.apps.values()].some(a=>a.policy.mode!=='direct')?await this.inventory():[];
       for(const app of this.apps.values()){
         const appNodes=fallbackInventory(nodes,app.publicFallback);
         const checking=this.checkHealth(app,appNodes);
@@ -104,6 +106,15 @@ export class CircuitManager extends EventEmitter {
   checkHealth(app,nodes) {
     if(this.healthChecks.has(app.id))return this.healthChecks.get(app.id);
     const operation=(async()=>{
+    if(app.policy.mode==='direct'){
+      for(const circuit of [...app.circuits]){
+        try{
+          await this.directRuntime.refresh(circuit);circuit.admit(this.authorizationUntil(app.id));
+          if(this.now()-(circuit.checkedAt||0)>20000){await this.probe(app,circuit);circuit.checkedAt=this.now();}
+        }catch(e){await this.fail(app,circuit,e.message);}
+      }
+      return;
+    }
     // Recheck advertised identity, current price, exclusions and failure
     // domain metadata before keeping an existing allocation.
     for(const circuit of [...app.circuits]){
@@ -133,6 +144,20 @@ export class CircuitManager extends EventEmitter {
   }
   async reconcileApp(app,nodes) {
     if(!this.authorizationUntil(app.id)){app.error='awaiting fresh chain and guest authorization';return;}
+    if(app.policy.mode==='direct'){
+      if(app.circuits.length){app.error=null;await this.publishApp(app);return;}
+      let circuit;
+      try{
+        circuit=await this.directRuntime.start({deploymentId:app.id,names:app.names,policy:app.policy});
+        circuit.admit(this.authorizationUntil(app.id));
+        await this.probe(app,circuit);
+        if(this.closed||this.apps.get(app.id)!==app||!this.authorizationUntil(app.id)||circuit.closed)throw new Error('direct authorization changed');
+        circuit.healthy=true;circuit.egressReady=true;circuit.checkedAt=this.now();
+        circuit.on('down',reason=>{void this.fail(app,circuit,reason).catch(e=>this.log(e.message));});
+        app.circuits.push(circuit);app.error=null;await this.publishApp(app);
+      }catch(e){await circuit?.close(e.message);app.error=e.message;await this.publishApp(app);}
+      return;
+    }
     if(app.circuits.length===2&&app.publicFallback&&!app.circuits.some(c=>c.providers.public.fallback)&&!app.policy.providers.public.prefer.length){
       // Restore the reserved fallback after an outage without tearing down both
       // working paths. First prove that a policy-valid replacement can be chosen.
@@ -144,7 +169,7 @@ export class CircuitManager extends EventEmitter {
       }
     }
     if(app.circuits.length===2){app.error=null;await this.publishApp(app);return;}
-    const choice=selectCircuitProviders(app.policy,nodes,{existing:app.circuits.map(c=>({...c.providers,healthy:c.healthy})),locked:app.circuits.map(c=>c.providers),occupiedPublic:new Set([...this.reservedPublic,...this.occupiedElsewhere,...[...this.apps.values()].flatMap(a=>a.circuits.flatMap(c=>publicReservations(c.providers.public)))]),cooldown:this.cooldown,now:this.now()});
+    const choice=selectCircuitProviders(app.policy,nodes,{existing:app.circuits.map(c=>({...c.providers,healthy:c.healthy})),locked:app.circuits.map(c=>c.providers),occupiedPublic:new Set([...this.reservedPublic,...this.occupiedElsewhere,...[...this.apps.values()].filter(a=>a.policy.mode!=='direct').flatMap(a=>a.circuits.flatMap(c=>publicReservations(c.providers.public)))]),cooldown:this.cooldown,now:this.now()});
     if(!choice.ready){app.error=choice.reason;await this.publishApp(app);return;}
     const reserved=choice.circuits.filter(p=>!app.circuits.some(c=>sameProviders(c.providers,p))).flatMap(p=>publicReservations(p.public));
     for(const address of reserved)this.reservedPublic.add(address);
@@ -189,7 +214,7 @@ export class CircuitManager extends EventEmitter {
     app.error=app.circuits.length===2?null:app.error||'second independent circuit unavailable';
     }finally{for(const address of reserved)this.reservedPublic.delete(address);}
   }
-  status() {return [...this.apps.values()].map(app=>({deploymentId:app.id,ready:app.circuits.length===2&&app.circuits.every(c=>c.healthy)&&!!this.authorizationUntil(app.id),
-    error:app.error,lastFailure:app.lastFailure||null,circuits:app.circuits.map(c=>({id:c.id,address:c.address,port:c.port,...(c.directPort?{directPort:c.directPort}:{}),fallback:!!c.providers.public.fallback,healthy:c.healthy,egress:c.egress}))}));}
-  async close() {this.closed=true;const withdrawing=[...this.apps.values()].map(app=>this.withdraw(app,'manager stopped'));await Promise.all([...withdrawing,this.runtime.close?.()]);}
+  status() {return [...this.apps.values()].map(app=>({deploymentId:app.id,transport:app.policy.mode==='direct'?'direct':'tuna',ready:app.circuits.length===app.policy.routes&&app.circuits.every(c=>c.healthy)&&!!this.authorizationUntil(app.id),
+    error:app.error,lastFailure:app.lastFailure||null,circuits:app.circuits.map(c=>({id:c.id,address:c.address,port:c.port,...(c.directPort?{directPort:c.directPort}:{}),fallback:!!c.providers.public?.fallback,healthy:c.healthy,egress:c.egress}))}));}
+  async close() {this.closed=true;const withdrawing=[...this.apps.values()].map(app=>this.withdraw(app,'manager stopped'));await Promise.all([...withdrawing,this.runtime.close?.(),this.directRuntime?.close()]);}
 }

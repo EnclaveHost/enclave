@@ -2,6 +2,8 @@
 import net from 'node:net';
 import {publicReservations} from './public-fallback.mjs';
 import {isBlockedHost} from '../relay/net-guard.mjs';
+import {publicProviderAddress} from './provider-qualification.mjs';
+import {validateDirectPolicy} from './connectivity-policy.mjs';
 
 const providerPattern = /^(?:[a-zA-Z0-9_.-]{1,128}\.)?[0-9a-f]{64}$/;
 const deploymentPattern = /^0x[0-9a-f]{64}$/;
@@ -16,6 +18,7 @@ function identities(value = []) {
   return [...value];
 }
 export function validateCircuitPolicy(p) {
+  if(p?.version===3)return validateDirectPolicy(p);
   if (!p || p.version !== 2 || !deploymentPattern.test(p.deploymentId || '')) throw new Error('invalid deployment policy');
   if (Object.keys(p).some(k => !['version','deploymentId','mode','directFallback','routes','maxPrice','budgetNkn','diversity','providers'].includes(k)) ||
       (p.providers && Object.keys(p.providers).some(k => !['guard','public','egress'].includes(k)))) throw new Error('unknown circuit policy option');
@@ -33,7 +36,7 @@ export function validateCircuitPolicy(p) {
   return {...p, providers};
 }
 export function providerAllowed(provider, rule, maxPrice, now = Date.now()) {
-  if (!providerPattern.test(provider?.identity || '') || !net.isIP(provider?.address) || isBlockedHost(provider.address)) return false;
+  if (!providerPattern.test(provider?.identity || '') || !publicProviderAddress(provider.address)) return false;
   if (!Number.isSafeInteger(provider.expiresAt) || provider.expiresAt <= now) return false;
   if (rule.deny.includes(provider.identity) || (rule.allow.length && !rule.allow.includes(provider.identity))) return false;
   try {

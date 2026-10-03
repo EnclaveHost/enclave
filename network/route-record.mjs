@@ -5,6 +5,7 @@ import {recoverMessageAddress} from 'viem';
 import net from 'node:net';
 import {isBlockedHost} from '../relay/net-guard.mjs';
 import {validateCircuitPolicy} from './circuit-policy.mjs';
+import {verifyQualification} from './provider-qualification.mjs';
 
 export function canonical(value) {
   if (value === null || typeof value === 'boolean' || typeof value === 'string') return JSON.stringify(value);
@@ -45,7 +46,7 @@ export async function signDelegation(account, delegation, now = Date.now()) {
 export function signRoute(privateKey, record) {
   return {record, signature:sign(null, Buffer.from(message('route',record)),privateKey).toString('base64')};
 }
-export async function verifyRoute(bundle, {deploymentId, policy, lease, memory, now = Date.now()}) {
+export async function verifyRoute(bundle, {deploymentId, policy, lease, memory, providerProbeSigners, now = Date.now()}) {
   if (!bundle || Buffer.byteLength(JSON.stringify(bundle)) > 32768) throw new Error('route bundle too large');
   const {delegation:d, signature:delegationSignature} = bundle.authorization || {};
   const key = validateDelegation(d, now);
@@ -58,15 +59,21 @@ export async function verifyRoute(bundle, {deploymentId, policy, lease, memory, 
   if (!r || r.version !== 2 || r.deploymentId !== deploymentId || r.delegationHash !== recordHash(d) ||
       !Number.isSafeInteger(r.sequence) || r.sequence < 1 || !Number.isSafeInteger(r.issuedAt) || r.issuedAt > now + 5000 ||
       !Number.isSafeInteger(r.expiresAt) || r.expiresAt <= now || r.expiresAt > d.expiresAt ||
-      r.expiresAt > lease.leaseUntil || r.expiresAt - r.issuedAt > 300000 || !Array.isArray(r.routes) || r.routes.length > 2) throw new Error('invalid or expired route record');
+      r.expiresAt > lease.leaseUntil || r.expiresAt - r.issuedAt > 300000 || !Array.isArray(r.routes) || r.routes.length > p.routes) throw new Error('invalid or expired route record');
   const seen = new Set();
   for (const route of r.routes) {
     if (!route || typeof route.circuit !== 'string' || !/^[0-9a-f]{32}$/.test(route.circuit) || seen.has(route.circuit) ||
-        !net.isIP(route.address) || isBlockedHost(route.address) || route.port !== 443 || route.transport !== 'tuna-guarded-tcp' ||
+        !net.isIP(route.address) || isBlockedHost(route.address) || route.port !== 443 || route.transport !== (p.mode==='direct'?'direct':'tuna-guarded-tcp') ||
+        (p.mode==='direct'&&(route.directPort!==undefined||route.fallback!==undefined)) ||
         (route.directPort!==undefined&&(!Number.isInteger(route.directPort)||route.directPort<1024||route.directPort>65535)) ||
         (route.fallback!==undefined&&route.fallback!==true) ||
         Object.keys(route).some(k => !['circuit','address','port','transport','directPort','fallback'].includes(k))) throw new Error('invalid public route');
     seen.add(route.circuit);
+    if(p.mode==='direct'){
+      const q=await verifyQualification(r.qualification,{hostId:lease.runner,operator:lease.runnerOperator,
+        address:route.address,probeSigners:providerProbeSigners,now});
+      if(r.expiresAt>q.expiresAt)throw new Error('route outlives provider qualification');
+    }
   }
   const sig = Buffer.from(bundle.signature || '', 'base64');
   if (sig.length !== 64 || !verify(null,Buffer.from(message('route',r)),key,sig)) throw new Error('invalid route signature');

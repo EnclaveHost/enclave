@@ -39,7 +39,7 @@ function blockedV6(n) {
   // v4-mapped addresses stay blocked wholesale (a deliberate, harmless over-block;
   // `::ffff:127.0.0.1` still can't reach loopback). Do NOT re-add a per-embedded-v4
   // check; it would never run. The NAT64 line below is left exactly as-is.
-  if (inV6(n, 0x0064ff9bn << 64n, 96)) return blockedV4(Number(n & 0xffffffffn));
+  if (inV6(n, 0x0064ff9bn << 96n, 96)) return blockedV4(Number(n & 0xffffffffn));
   if (inV6(n, 0x0100n << 112n, 64)) return true;            // 100::/64 discard-only
   if (inV6(n, 0x20010db8n << 96n, 32)) return true;         // 2001:db8::/32 documentation
   if (inV6(n, 0xfc00n << 112n, 7)) return true;             // fc00::/7 unique-local
