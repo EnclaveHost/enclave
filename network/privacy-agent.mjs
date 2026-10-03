@@ -23,6 +23,7 @@ import {guardedFetch} from './guarded-fetch.mjs';
 import {delegatedIPNS} from './discovery-http.mjs';
 import {ControlTransport} from './control-transport.mjs';
 import {validateAppNames} from './app-ingress.mjs';
+import {startAutomaticConversion} from './conversion/runtime.mjs';
 import {createUSDCBandwidthSettlement} from './usdc-bandwidth.mjs';
 import {DirectRuntime} from './direct-runtime.mjs';
 import {hostConnectivity,directTerms,validateHostConnectivity} from './connectivity-policy.mjs';
@@ -129,8 +130,10 @@ export async function runPrivacy(configFile){
   const inventory=needsTuna?new ProviderInventory({...cfg.inventory,rpc:cfg.nknRpc,log}):{get:async()=>[],refresh:async()=>[]};
   const control=cfg.control?new ControlTransport({network:cfg.runtime.network,...cfg.control,directory:path.join(cfg.directory,'control'),inventory,rpc:cfg.nknRpc,wallets:await readJSON(cfg.control.walletsFile),log}):null;
   const scheduleProbe=createProbeScheduler();
+  let currencyManagement;
+  if(cfg.currencyManagement)currencyManagement=await startAutomaticConversion({config:cfg.currencyManagement,directory:path.join(cfg.directory,'currency-management'),log});
   let stopping=false;
-  const close=()=>{stopping=true;hostProof?.close();void Promise.all([agent?.close(),control?.close(),runtime.close()]).catch(e=>log(e.message));};
+  const close=()=>{stopping=true;hostProof?.close();void Promise.all([agent?.close(),control?.close(),currencyManagement?.close(),runtime.close()]).catch(e=>log(e.message));};
   process.once('SIGTERM',close);process.once('SIGINT',close);
   // SIGHUP re-reads the app list: each app's expectation, names and mirror
   // flag, and any new app. Everything is validated before anything changes; no
