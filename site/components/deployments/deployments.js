@@ -19,6 +19,7 @@ import "../volume-picker/volume-picker.js";   // the Models tab's checklist
 import { $$, esc, hlJson, fmtDur, statusCls, copyText, showToast, lsGet, lsSet } from "../../js/core/util.js";
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
+import { openStateOf, probeAppTls } from "../../js/core/app-tls.js";
 import { pad32, encUint, encCall, hexBig, DEP_SEL, APPROVAL, depPrices6, rate6Of, depMaxGpuMilli, depGet, depSchemaRev, depFeeOf, depCapOf, depRefundableOf, depCall, catVersionFee, catGetVersion, waitReceipt } from "../../js/core/chain.js";
 import { authenticate, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx, personalSign } from "../../js/core/wallet.js";
 import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, specOfRef, STORE, fetchConfigCid, stripMedia, putConfig } from "../../js/core/catalog.js";
@@ -75,33 +76,10 @@ function safeHref(u){
   return "";
 }
 
-/* ---- TLS-gated Open control ----
-   An app origin's certificate is minted INSIDE the enclave (ACME dns-01),
-   which takes a moment after the app reaches running - and every enclave
-   release re-mints all of them (CVMs keep no disk). Until issuance the origin
-   serves the self-signed fallback pair, so "open ↗" would land the user on a
-   browser certificate warning. The control therefore starts as a DISABLED
-   button with an amber OPEN padlock and only becomes the live link (closed
-   jade padlock) once a probe from THIS browser completes a real handshake
-   (_probeTls below) - the browser's own trust decision is the ground truth,
-   not any server-side claim. */
-const LOCK_OPEN = '<svg class="enc-lock" viewBox="0 0 24 24" width="11" height="11" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M9 11V7a3.5 3.5 0 0 1 6.9-.9"/></svg>';
+/* A closed lock requires a successful browser HTTPS probe. An unanswered probe
+   is unknown, shown as a question mark rather than an unlocked connection. */
+const TLS_UNKNOWN = '<svg class="enc-lock" viewBox="0 0 24 24" width="11" height="11" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .5c0 1.5-2.5 1.5-2.5 3"/><path d="M12 16h.01"/></svg>';
 const LOCK_SHUT = '<svg class="enc-lock" viewBox="0 0 24 24" width="11" height="11" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M9 11V7a3.5 3.5 0 0 1 7 0v4"/></svg>';
-/* What a probe result is ALLOWED to claim.
-
-   The probe is one `no-cors` HEAD, and a no-cors fetch tells the page two things only: it resolved,
-   or it did not. Every failure looked the same, and every failure was rendered as "waiting for the
-   app's TLS certificate" - a disabled button with an unlocked padlock. For two apps that was simply
-   untrue: ipns-publisher and s3-ipfs-adapter serve valid ZeroSSL certificates that a browser chains
-   and accepts, and they answer no HTTP response on `/` at all, on HEAD or GET. The dashboard was
-   reporting a certificate problem from evidence that cannot distinguish a missing certificate from
-   an app that does not serve its root path, or from a dropped connection.
-
-   Nothing in a deployment record says whether issuance is pending, so the page cannot know it.
-   It therefore does not say it. */
-export function openStateOf(tls){
-  return (tls && tls.state === "ok") ? "ok" : "noanswer";
-}
 function openCtl(d, ep, tls){
   const href = safeHref(ep);
   if (!(d && (d.status || "") === "running" && href)) return "";
@@ -117,7 +95,7 @@ function openCtl(d, ep, tls){
      public CA says nothing about key custody, and on a consumer node the app-zone key lives in the
      host process (that box publishes appTls.keyIn itself) - so a tooltip asserting "issued inside
      the enclave" was telling the reader something the evidence does not support. */
-  if (openStateOf(tls) === "ok") {
+  if (tls?.href === href && openStateOf(tls) === "ok") {
     const why = d.public
       ? 'title="TLS verified by this browser: the certificate chains and the app answered"'
       : 'title="private - opens after a wallet sign-in, which authorizes no transaction"';
@@ -126,9 +104,9 @@ function openCtl(d, ep, tls){
   /* The link still opens. The old control disabled itself and blamed the certificate; the honest
      version offers the app and says exactly what is and is not known. */
   return '<a class="enc-open enc-open-unknown" data-tls="' + esc(d.id) + '" href="' + to + '" target="_blank" rel="noopener"'
-    + ' aria-label="Open app (new tab) - this browser got no answer from a readiness check"'
-    + ' title="no answer to a readiness check from this browser. That can be an app that does not serve its root path, a network problem, or a certificate that is not ready - this page cannot tell them apart, so it does not guess. The link still opens.">'
-    + LOCK_OPEN + ' open ↗</a>';
+    + ' aria-label="Open app (new tab) - TLS status unknown"'
+    + ' title="TLS status unknown: this browser got no answer from the health or root checks. This can be a network, certificate, or app response problem; it does not mean the connection is unencrypted. The link still opens.">'
+    + TLS_UNKNOWN + ' open ↗</a>';
 }
 
 // Per-row SECRETS section (wallet-owned on-chain rows): rendered PERMANENTLY
@@ -1031,16 +1009,6 @@ class Deployments extends EnclaveElement {
     });
   }
 
-  /* ---- Open-control TLS probes: does THIS browser trust the app origin? ----
-     A no-cors HEAD resolves (opaque) iff DNS + TCP + the TLS handshake all
-     succeeded with a certificate this browser trusts - the self-signed
-     fallback rejects, which is exactly the "cert not through yet" state.
-     Redirects follow (no-cors REQUIRES follow - manual throws a TypeError),
-     so an app whose / redirects somewhere broken or insecure stays amber:
-     right call, since that's also what greets whoever clicks open.
-     Throttle: pending rows retry each ~10s poll; a green row re-verifies
-     every 5 min (an enclave release re-mints every cert, so green can regress)
-     and only flips back on an actual failed probe - never while in flight. ---- */
   /* ---- per-row envelope badges: what does the options envelope carry?
      Two of its namespaces are visible on the row itself - `waf` ("protected")
      and `network.relay` ("via <relay>"). The list rows (supervisor live view /
@@ -1110,29 +1078,26 @@ class Deployments extends EnclaveElement {
 
   async _probeTls(rows) {
     this._tls = this._tls || new Map();
-    for (const d of rows) {
-      // private rows are probed too: they now mint an app-zone certificate like
-      // any other, and the probe reads the HANDSHAKE - `no-cors` resolves on a
-      // 401 just as happily as on a 200, so the owner gate never reads as "no
-      // certificate yet".
-      if ((d.status || "") !== "running") { this._tls.delete(d.id); continue; }
+    // Probe rows independently: one unanswered app must not delay every other lock.
+    await Promise.all(rows.map(async d => {
+      if ((d.status || "") !== "running") { this._tls.delete(d.id); return; }
       const href = safeHref(appEndpoint(d));
-      if (!/^https:\/\//i.test(href)) continue;   // only absolute https origins render an Open control
+      if (!/^https:\/\//i.test(href)) return;
       const c = this._tls.get(d.id);
-      if (c && Date.now() - c.at < (c.state === "ok" ? 300_000 : 8_000)) continue;
-      this._tls.set(d.id, { state: c ? c.state : "wait", at: Date.now() });   // stamp before the await: overlapping polls must not double-probe
+      if (c?.href === href && (c.pending || Date.now() - c.at < (c.state === "ok" ? 300_000 : 8_000))) return;
+      const pending = { state: c?.href === href ? c.state : "noanswer", href, pending: true, at: Date.now() };
+      this._tls.set(d.id, pending);
       try {
-        await fetch(href + "/", { method: "HEAD", mode: "no-cors", cache: "no-store",
-                                  signal: AbortSignal.timeout(8000) });
-        this._tls.set(d.id, { state: "ok", at: Date.now() });
+        const result = await probeAppTls(href);
+        // A newer endpoint or stopped row invalidates an older in-flight result.
+        if (this._tls.get(d.id) === pending)
+          this._tls.set(d.id, { ...result, href, at: Date.now() });
       } catch (e) {
-        // A no-cors rejection is one bit: no answer. It does NOT say the certificate is missing -
-        // two of these apps serve valid, browser-verified certificates and answer nothing on `/`.
-        // The error's name is kept for anyone debugging, and claimed as nothing more.
-        this._tls.set(d.id, { state: "noanswer", at: Date.now(), error: (e && e.name) || "error" });
+        if (this._tls.get(d.id) === pending)
+          this._tls.set(d.id, { state: "noanswer", href, at: Date.now(), error: e?.name || "Error" });
       }
-    }
-    this._fillTls();
+      this._fillTls();
+    }));
   }
   /* swap Open controls in place when a probe verdict differs from what's
      rendered - the 10s poll skips repaints while a panel is open, and the
@@ -1143,9 +1108,9 @@ class Deployments extends EnclaveElement {
       const c = this._tls.get(el.dataset.tls);
       // both verdicts render an <a> now, so the tag no longer identifies the state: the
       // unknown one carries enc-open-unknown, and that is what a repaint compares.
-      const ok = !!(c && c.state === "ok");
-      if (ok === !el.classList.contains("enc-open-unknown")) return;
       const d = (this._list || []).find(x => x.id === el.dataset.tls);
+      const ok = !!(d && c?.href === safeHref(appEndpoint(d)) && c.state === "ok");
+      if (ok === !el.classList.contains("enc-open-unknown")) return;
       const html = d ? openCtl(d, appEndpoint(d), c) : "";
       if (html) el.outerHTML = html;
     });
