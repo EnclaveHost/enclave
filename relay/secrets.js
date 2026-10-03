@@ -62,9 +62,10 @@
 // puts them in its owner-readable log — same exposure class as ENCLAVE_CONFIG.
 
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { JsonStore, dataDir, dataFile, makeRateLimiter } from "./store.js";
+import { JsonStore, dataDir, dataFile, makeRateLimiter, rpcPool } from "./store.js";
 // the fleet-route primitives shared with certs.js (one spelling per rule)
 import { endpointOperator, recoverOp, makeReplayCache, rowOf, holdsLease } from "./fleet-auth.js";
+import { verifyContractOwnerSignature } from "./contract-owner-signature.mjs";
 import { handleRelease, releaseStatus } from "./secrets-release.mjs";
 
 // One env key, two derived subkeys: labels keep the fetch-auth MAC and the
@@ -165,6 +166,19 @@ async function ownerGate(ctx, req, res, id, b, message) {
   const signature = String(b.signature || "");
   if (!Number.isFinite(expiry) || expiry < now || expiry > now + SIG_TTL_SEC)
     return bad(ctx, res, req, 422, "bad_expiry", `expiry must be a unix time within the next ${SIG_TTL_SEC / 60} minutes.`), null;
+  if (b.signatureType === "erc1271") {
+    if (!/^0x(?:[0-9a-fA-F]{2}){1,4096}$/.test(signature))
+      return bad(ctx, res, req, 422, "bad_sig", "Invalid contract-wallet signature."), null;
+    let d = await rowOf(ctx, id, { fresh: true });
+    if (!d) return bad(ctx, res, req, 404, "not_found", "Deployment not found."), null;
+    const address = String(d.owner).toLowerCase();
+    if (!rlOwner(address)) return bad(ctx, res, req, 429, "rate_limited", "Retry shortly."), null;
+    let valid = false;
+    try { valid = await verifyContractOwnerSignature({client: await rpcPool(), owner: address, message, signature}); } catch {}
+    if (!valid) return bad(ctx, res, req, 403, "not_owner", "Contract owner rejected the signature."), null;
+    if (!sigFresh(signature, expiry)) return bad(ctx, res, req, 409, "sig_replayed", "Signature already used."), null;
+    return {d, address};
+  }
   if (!/^0x[0-9a-fA-F]{130}$/.test(signature))
     return bad(ctx, res, req, 422, "bad_sig", "signature must be a 65-byte personal_sign hex."), null;
   let address;

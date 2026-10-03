@@ -4,8 +4,7 @@
 // Scope (see chain.mjs claimPolicy for each refusal and its reason): PUBLIC deployments, on CORES,
 // whose options this box actually enforces, that FIT in what it has left to sell. The scope is
 // OWNER-ONLY - the operator's and its delegated owners' deployments (ownerSet) - unless the box meets
-// the isolation contract AND CLAIM_SCOPE=market (scope()); no Windows node meets it today, so none
-// takes a stranger's deployment.
+// the isolation contract AND CLAIM_SCOPE=market (scope()); the relay grants a bounded window only after verifying guest app evidence.
 //
 // It advertises `claimEnabled: true` (it takes work) with `fullService: false` (it sells a subset
 // of the platform's features). The relay keeps a partial box out of the fleet-AND capability flags,
@@ -313,7 +312,7 @@ export class Host {
    */
   /** Does this node sell a card at all? Not with the engine retired (gpu:false): the card was reached only through the
    *  enclave's model, so its desired card price is 0. */
-  sellsCard() { return this.cfg.engineRetired !== true; }
+  sellsCard() { return this.cfg.engineRetired !== true || (this.partitionOffers("gpu") && this.managerInference?.ready === true); }
   cardPrice() {
     if (!this.sellsCard()) return 0;
     const card = this.card();
@@ -715,6 +714,8 @@ export class Host {
     // The WHOLE /health object: the plan checks the manager's backend name and its derivations. null = could not ask.
     let managerHealth = null;
     try { managerHealth = (await client.health()) ?? null; } catch { managerHealth = null; }
+    this.managerInference = managerHealth?.inference || null;
+    if (!managerHealth) this.managerSupports = null;
     // what the manager says it can give a partition (/health supports), for features(): kept when it answered
     if (managerHealth && managerHealth.supports && typeof managerHealth.supports === "object") this.managerSupports = { ...managerHealth.supports };
     // Which model volumes this version needs, from its own config; null (unknown) when the config cannot be read.
@@ -735,6 +736,22 @@ export class Host {
       manager: managerHealth,
       appConfigCid: envRead ? String(envOpts.configCid || "") : null,
     });
+  }
+
+  /** Forward public app evidence over its existing partition route. No verdict
+   * here can grant marketplace admission; the relay authenticates the report. */
+  async shieldEvidence(id, nonce) {
+    if (!/^0x[0-9a-f]{64}$/.test(String(id)) || !/^[0-9a-f]{64}$/.test(String(nonce)))
+      throw new Error('exact deployment id and 32-byte nonce required');
+    const rec = this.records.get(id);
+    if (!rec || rec.status !== 'running' || rec.isPublic !== true || !rec.isolation?.instance || !rec.isolation.appId)
+      throw new Error('no running public partition for this deployment');
+    const { IsolationManagerClient } = await import('./isolation-client.mjs');
+    const { viewTransport } = await import('./hvcert.mjs');
+    const { readGuestAttestation } = await import('../../isolation/m4/guestd/supervisor-guestcert.mjs');
+    return readGuestAttestation({ transport: viewTransport(new IsolationManagerClient({ base: this.cfg.isolationManager })),
+      dataAddr: this.cfg.isolationDataAddr, instanceId: rec.isolation.instance,
+      expectAppId: rec.isolation.appId, name: appHostFor(id, this.cfg.appZone), nonce: Buffer.from(nonce, 'hex') });
   }
 
   // A DEFINITE pre-claim refusal is reused for this long while the ledger's inputs are unchanged; whether secrets are
@@ -1887,13 +1904,13 @@ export class Host {
    * down sells nothing rather than selling from memory.
    */
   gpuShareFree({ exclude = null, capped = true } = {}) {
-    if (!this.cfg.appsEnabled) return 0;
+    if (!this.cfg.appsEnabled || !this.sellsCard()) return 0;
     const card = this.card && this.card();
     if (!card || !(Number(card.vramBudgetGb) > 0)) return 0;
     const sold = this.shareUse({ exclude }).gpu;
     const onCard = Number(card.vramFreeGb) / Number(card.vramBudgetGb);
     // ...and a third, the owner's cap, which can only lower it (1.0 by default, where it never binds).
-    return Math.max(0, Math.min(1, 1 - sold, Number.isFinite(onCard) ? onCard : 0, capped ? this.caps.gpuShare - sold : Infinity));
+    return Math.max(0, Math.min(1, 1 - sold, Number.isFinite(onCard) ? onCard : 0, capped ? this.caps.gpuShare - sold : Infinity, this.partitionsOnly() ? Number(this.managerInference?.freeGpuMilli || 0) / 1000 : Infinity));
   }
   /**
    * capRefusal(id, {cpuShare, gpuShare}) -> why a NEW unit with these shares does not fit under the owner's caps beside
@@ -1929,8 +1946,7 @@ export class Host {
     if (this.cfg.engineRetired === true) {
       const held = this.shareUse().gpuInUse;
       return held > 0 ? { consumer: true, why: `partitions on the isolated backend hold ${Math.round(held * 100)}% of the GPU` }
-        : { consumer: false, why: "no partition on the isolated backend holds a GPU share (it spawns them with gpuShare 0,"
-            + " windows/vbslike/datapath/node-bridge.mjs), so nothing on it uses the GPU yet" };
+        : { consumer: false, why: "no partition currently holds a masked GPU allocation" };
     }
     const card = this.card && this.card();
     return card && Number(card.vramBudgetGb) > 0
@@ -1988,7 +2004,14 @@ export class Host {
     // reported 14 GB of its enclave "used" while four apps between them held half a gigabyte.
     // Cores are sold as a share; this memory is a fixed allocation, and it reports as one.
     const enclaveMb = Math.round((Number(this.cfg.enclaveGb) || 0) * 1024);
-    const hostMb = Math.round((Number(this.cfg.ramGb) || 0) * 1024 * (1 - (this.cfg.reservedShare ?? 0.25)));
+    const physicalMb = Math.round((Number(this.cfg.ramGb) || 0) * 1024);
+    // RAM is an independent hosting budget, not a CPU share. Invalid explicit
+    // budgets admit nothing; absence preserves the older reserved-share policy.
+    const configuredRam = this.cfg.appRamGb;
+    const hostMb = configuredRam === undefined || configuredRam === null
+      ? Math.round(physicalMb * (1 - (this.cfg.reservedShare ?? 0.25)))
+      : (Number.isFinite(configuredRam) && configuredRam >= 0
+        ? Math.min(physicalMb, Math.floor(configuredRam * 1024)) : 0);
     // UNKNOWN is not ZERO. `engineHeldMb` is null until the node has asked the enclave what the
     // model, its KV cache and the pads hold (the host protocol's `mem`), and treating that as "the
     // engine holds nothing" would offer a tenant the WHOLE enclave including the part the engine
@@ -2109,22 +2132,14 @@ export class Host {
     return "this node runs only the isolated backend (the legacy VBS-enclave backend is retired): "
       + `it claims only deployments that require ${this.isolationBackend || "an isolation backend it does not have"}`;
   }
-  /**
-   * Does this box meet the isolation contract it would be SOLD under (site: Develop > Architecture,
-   * "The isolation contract")? Tenant work needs every property, and this box knows which it lacks
-   * today: the app-zone TLS key and the app traffic run through VTL0 (windows/PARITY.md, the
-   * declared gap), and a test-signed enclave is the development tier, not a production trusted
-   * layer. Both are facts about this build, not switches: appTrafficInsideEnclave() is false by
-   * construction until the code that terminates app TLS inside VTL1 exists, and the tier is the
-   * RELAY's verdict from attach (relayTier, set by the agent from attest-result), never this box's
-   * own word. Until both hold, the box is implementation evidence and takes its OWNER's apps only.
-   * The relay applies the same rule from its side (relay/api-relay.js computeEligible), so a build
-   * that lied here would still not be routed work; this gate keeps the box from claiming it off
-   * the ledger on its own.
-   */
+  /** Marketplace claims require a fresh relay decision. The relay checks the
+   * pinned boot/image/runtime and actual guest TLS key. The host's manager
+   * statements and this local flag cannot authorize routing or certificates.
+   * Only the restricted public partition runtime is currently admitted. */
   appTrafficInsideEnclave() { return false; }
   meetsIsolationContract() {
-    return this.appsInTee() && this.appTrafficInsideEnclave() && String(this.relayTier || "") === "vbs";
+    return this.cfg.engineRetired === true && this.isolationBackend === "hyperv-partition-per-app"
+      && this.relayTier === "hv-node" && Number(this.shieldMarketUntil || 0) > Date.now();
   }
   /**
    * Which scope this box claims in. The market is only open when an app runs inside the enclave
@@ -2194,9 +2209,9 @@ export class Host {
       } : this.isolationBackend ? {
         // THE ISOLATED BACKEND (enclave-b4's N5): each deployment in its own Hyper-V partition. It used to fall into the
         // branch below and say isolation "none", capacity 0 and "sells no app hosting" while partitions served.
-        isolation: this.isolationBackend, tier: "T0-hv", hostExcluded: false, inTee: false,
+        isolation: this.isolationBackend, tier: this.meetsIsolationContract() ? "enclave-shield" : "T0-hv", hostExcluded: false, hostOsExcluded: this.meetsIsolationContract(), operatorExcluded: false, inTee: false,
         running: partitions, capacity: cap.slots, scope: this.scope(),
-        note: "each deployment runs in its own Hyper-V partition (T0-hv), which holds its TLS key and ends TLS; the host is NOT excluded from it",
+        note: this.meetsIsolationContract() ? "each app has a measured Shield partition and guest-held TLS key; the relay verifies app evidence; physical operator and hypervisor remain trusted" : "each deployment runs in its own Hyper-V partition; marketplace admission awaits the relay’s app-evidence check",
       } : {
         // No app runtime in this enclave image: the box hosts nothing for a tenant. The VTL0
         // wasmtime path still exists for the box owner's own bring-up, and is not an offer.
@@ -2282,7 +2297,7 @@ export class Host {
     if (this.partitionsOnly()) {
       const config = this.partitionOffers("config"), configCid = this.partitionOffers("configCid");
       return {
-        configOverride: config, gpuOptional: this.partitionOffers("gpu"), cpuFallback: true,
+        configOverride: config, gpuOptional: false, cpuFallback: true,
         networkOptions: this.partitionOffers("egress"), rateCap: true, proofOfTime: true,
         waf: this.partitionOffers("waf"),
         secrets: this.partitionOffers("secrets") && !!this.cfg.secretsSign,
@@ -2292,7 +2307,7 @@ export class Host {
         customDomains: this.partitionOffers("customDomains"),
         devDeploy: this.partitionOffers("privateDeployments") && !!this.cfg.sessionKid,
         mem64: false, set: false, p3: false, coopThreads: false,
-        volumes: [],
+        volumes: this.managerInference?.ready ? [this.managerInference.model] : [],
       };
     }
     return {

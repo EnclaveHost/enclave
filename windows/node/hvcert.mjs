@@ -120,8 +120,9 @@ export function createHvCertPass({ client, dataAddr, runtimeId: pinned, endpoint
     if (s && s.instanceId === iso.instance && s.backoffUntil && t < s.backoffUntil) return;
     if (s && s.instanceId === iso.instance && s.renewAt && t < s.renewAt) return;           // installed and fresh
     try {
+      const selectedPin = typeof pinned === "function" ? pinned(rec) : pinned;
       const got = await _ensure({ transport, dataAddr, instanceId: iso.instance, expectAppId: iso.appId, deploymentId: id, name,
-        judge: (doc, spki, nonce, want) => hvJudge(transport.seen(iso.instance), pinned)(doc, spki, nonce, want),
+        judge: (doc, spki, nonce, want) => hvJudge(transport.seen(iso.instance), selectedPin)(doc, spki, nonce, want),
         judgeOk: ["monitor-signed"], requirePrediction: false, issue, ...(_deps ? { _deps } : {}) });
       st.set(id, { ...got, instanceId: iso.instance });
       log(got.reused

@@ -1,0 +1,157 @@
+{
+  "recordedAt": "2026-09-30T02:04:04.369280+00:00",
+  "host": "nucbox-k11",
+  "policyMarketEnabled": true,
+  "completeSecurityQualification": false,
+  "fleet": {
+    "tier": "enclave-shield",
+    "ownerOnly": false,
+    "eligible": true,
+    "serving": true,
+    "appEvidenceRequired": true
+  },
+  "availability": {
+    "claimScope": "market",
+    "claimEnabled": true,
+    "nodeRamGb": 64,
+    "cpuShareFree": 0.22999999999999998
+  },
+  "verifiedDeployments": [
+    {
+      "id": "0x23ff439acb34a1cb6bdb86f58f8c56cae893998ee0c5fb7cdb65c2f5af2d411b",
+      "until": 1790734027
+    },
+    {
+      "id": "0x2bad651cc9aacab826721d9f8168df17a069e881d17a7186191b07dc40269c96",
+      "until": 1790734033
+    },
+    {
+      "id": "0xf19ec75397dc1a691bbbcdc2bb7fc53778deabc7f633a919d6dca4f28a521246",
+      "until": 1790734023
+    },
+    {
+      "id": "0xfa8d0ea575a59c6c8a6866bf7ef8320e65f685132791fe8be13bdd2a06471956",
+      "until": 1790734030
+    }
+  ],
+  "diagnosticQualification": [
+    {
+      "variant": "production",
+      "vmId": "b98a21c5-f052-46f2-b5b4-1e492bf918dd",
+      "coreBytes": 0,
+      "coreHeader": null,
+      "appReadiness": "failed",
+      "appReadinessReason": "not ready within 30000 ms: read ECONNRESET",
+      "diagnostics": [
+        {
+          "command": "file",
+          "exitCode": 1,
+          "message": "Error: unknown service diag.UnderhillDiag\n"
+        },
+        {
+          "command": "core-dump",
+          "exitCode": 1,
+          "message": "Dumping PID: 1\nError: failed to launch underhill-dump\n\nCaused by:\n    unknown service diag.UnderhillDiag\n"
+        }
+      ]
+    },
+    {
+      "variant": "debug",
+      "vmId": "eeac79ed-5954-4d78-9e3c-56b0fe069e18",
+      "coreBytes": 54906880,
+      "coreHeader": "7f454c46020101000000000000000000",
+      "appReadiness": "failed",
+      "appReadinessReason": "not ready within 30000 ms: read ECONNRESET",
+      "diagnostics": [
+        {
+          "command": "file",
+          "exitCode": 0,
+          "message": "Linux version 6.18.37-microsoft-hcl (builder@nixos) (gcc (GCC) 13.2.0, GNU ld (GNU Binutils) 2.41) #1 SMP PREEMPT_DYNAMIC @1787351897\n"
+        },
+        {
+          "command": "core-dump",
+          "exitCode": 0,
+          "message": "Dumping PID: 1\n   0.000066424s  INFO elfcore::linux::process: Attaching to 1 threads of process 1\n   0.000195184s  INFO elfcore::linux::process: Skipping non-accessible VA range [0"
+        }
+      ]
+    }
+  ],
+  "openQualification": [
+    "raw host-memory access beyond the diagnostic interface",
+    "new non-owner deployment",
+    "hardware reboot"
+  ],
+  "tests": {
+    "distinctPassed": 29
+  },
+  "certificateRenewals": {
+    "allFourPassed": true
+  },
+  "relaysFleetSha256": "aae0102de3d605d848953303d8179c279160662ff5a415e6414e91273d6d2041",
+  "maskedInference": [
+    {
+      "app": "fa8d0ea5",
+      "status": 200,
+      "tokens": 16,
+      "result": {
+        "graph": "qwen2.5-0.5b-q8-gguf",
+        "n_vocab": 151936,
+        "prompt_tokens": 9,
+        "tokens": [
+          358,
+          2776,
+          537,
+          264,
+          10668,
+          11,
+          714,
+          358,
+          646,
+          1492,
+          498,
+          3535,
+          1045,
+          6770,
+          18940,
+          5435
+        ],
+        "load_ms": 0,
+        "prefill_ms": 63,
+        "decode_ms": 253,
+        "tok_per_s": 59.29
+      }
+    },
+    {
+      "app": "2bad651c",
+      "status": 200,
+      "tokens": 16,
+      "result": {
+        "graph": "qwen2.5-0.5b-q8-gguf",
+        "n_vocab": 151936,
+        "prompt_tokens": 9,
+        "tokens": [
+          358,
+          2776,
+          537,
+          264,
+          10668,
+          11,
+          714,
+          358,
+          646,
+          1492,
+          498,
+          3535,
+          1045,
+          6770,
+          18940,
+          5435
+        ],
+        "load_ms": 0,
+        "prefill_ms": 65,
+        "decode_ms": 227,
+        "tok_per_s": 66.08
+      }
+    }
+  ]
+}

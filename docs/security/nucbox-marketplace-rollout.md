@@ -73,3 +73,53 @@ exception; they are not approved for other customers. Rejected/yanked versions
 are always refused. A transfer or delegation expiry revokes that exception.
 Background evidence attempts are spaced by one minute per app, including
 failures, to avoid retry bursts against independent RPC providers.
+
+
+## Restricted marketplace enabled — 2026-09-30 02:02 UTC
+
+At the owner's explicit request, NucBox's existing restricted policy now has
+`marketEnabled: true`. The public API reports `ownerOnly:false`,
+`eligible:true`, `serving:true`, `tier:enclave-shield`, and the node reports
+`claimScope:market` and `claimEnabled:true`. The live host page shows its public
+capacity instead of OWNER-ONLY. This is an operational rollout, not a claim that
+the complete security qualification is finished.
+
+The missing us-west `fleet.mjs` update was deployed. All three relays now use
+SHA-256 `aae0102de3d605d848953303d8179c279160662ff5a415e6414e91273d6d2041`.
+The change preserves per-app evidence expiry when the host becomes marketplace
+eligible: capacity admission alone never authorizes an app connection. The API
+relay restart exercised fresh tunnel attachment and fresh evidence acquisition;
+all four existing apps requalified and all four certificate requests passed.
+No production guest VM was restarted. CPU demos and Eyesoff remained reachable.
+The 64-GiB app pool and separate 12-GiB masked GPU budget are unchanged. Both
+GPU fixtures returned HTTP 200 and 16 tokens with their explicit
+`graph=qwen2.5-0.5b-q8-gguf` query. A bare `/` asks for an absent graph named
+`model` and returns 500; that is not an admission or TLS regression.
+
+Host diagnostic qualification added a working positive control: the debug twin
+of the pinned CPU image returned `/proc/version` and exported a 54,906,880-byte
+ELF core for its paravisor PID 1. The production image refused both operations
+with `unknown service diag.UnderhillDiag` and exported zero core bytes. Both
+variants were separate disposable VMs, removed afterwards. The debug core was
+hashed and deleted on the host; it is not published. The debug image is not in
+the app admission policy. This establishes that the host diagnostic memory-dump
+path is disabled in the production image, not that every possible host memory
+access is excluded. The earlier LiveKD result remains inconclusive.
+
+The disposable app-readiness probes timed out in both diagnostic fixtures;
+they are **not** application-serving passes. Serving and certificate checks use
+the four existing production deployments and their fresh, independently verified
+app evidence instead. A broader raw host-memory access test, an actual new
+non-owner deployment, and a full hardware reboot qualification remain open.
+Do not describe these as completed or turn this rollout into an operator-exclusion
+claim. The physical operator and hypervisor remain trusted. Existing restrictions
+on private deployments, secrets, unsupported configuration and GPU models remain.
+
+Validation: 29 distinct targeted fleet/routing/Shield-verifier tests passed.
+The evidence summary is `nucbox-marketplace-20260930.json` beside this document.
+
+Rollback: restore `/etc/nan-relay/shield-policy.json.before-market-20260930` on
+Nan and restart `enclave-api-relay.service`. This withdraws marketplace admission;
+it does not remove existing app VMs. The us-west routing backup is
+`/opt/nan-relay/fleet.before-market-20260930.mjs` (the new routing checks can remain
+in place while marketplace admission is disabled).

@@ -1,0 +1,225 @@
+From db3c09ed5752703ff7ee6493c7e6761f719f82f9 Mon Sep 17 00:00:00 2001
+From: Steven Batchelor <srbatchelor@ovgl.org>
+Date: Tue, 29 Sep 2026 02:51:23 -0700
+Subject: [PATCH] Bind VBS guest reports only to current-boot successful guest
+ writes
+
+---
+ .../tpm/tpm_device/src/guest_report_input.rs  | 99 +++++++++++++++++++
+ vm/devices/tpm/tpm_device/src/lib.rs          | 38 ++++---
+ 2 files changed, 122 insertions(+), 15 deletions(-)
+ create mode 100644 vm/devices/tpm/tpm_device/src/guest_report_input.rs
+
+diff --git a/vm/devices/tpm/tpm_device/src/guest_report_input.rs b/vm/devices/tpm/tpm_device/src/guest_report_input.rs
+new file mode 100644
+index 0000000..54a7ddc
+--- /dev/null
++++ b/vm/devices/tpm/tpm_device/src/guest_report_input.rs
+@@ -0,0 +1,99 @@
++// Copyright (c) Enclave Host, Inc.
++// Licensed under the MIT License.
++
++/// Volatile input provenance for Enclave Shield's VBS app reports. Never restore
++/// this value from VMGS, TPM NVRAM, or a device save-state supplied by the host.
++#[derive(Default)]
++pub(super) struct GuestReportInput(Option<[u8; 64]>);
++
++impl GuestReportInput {
++    pub(super) fn value(&self) -> [u8; 64] {
++        self.0.unwrap_or([0; 64])
++    }
++
++    pub(super) fn clear(&mut self) {
++        self.0 = None;
++    }
++
++    pub(super) fn commit(&mut self, input: Option<[u8; 64]>, reply: &[u8]) {
++        // A failed TPM authorization or malformed request cannot update a binding.
++        if reply.len() >= 10 && reply[6..10] == [0; 4] {
++            if let Some(input) = input {
++                self.0 = Some(input);
++            }
++        }
++    }
++}
++
++/// Parse only a complete, offset-zero TPM2_NV_Write to the guest input index.
++/// TPM itself validates authorization; the caller commits only after success.
++/// Ignore unused bytes at the end of the shared command page.
++pub(super) fn complete_write(command: &[u8]) -> Option<[u8; 64]> {
++    let u32_at =
++        |n| -> Option<u32> { Some(u32::from_be_bytes(command.get(n..n + 4)?.try_into().ok()?)) };
++    if command.get(..2)? != [0x80, 0x02] || u32_at(6)? != 0x137 || u32_at(14)? != 0x01400002 {
++        return None;
++    }
++    let size = usize::try_from(u32_at(2)?).ok()?;
++    let params = 22usize.checked_add(usize::try_from(u32_at(18)?).ok()?)?;
++    if size > command.len() || params.checked_add(68)? != size {
++        return None;
++    }
++    if command.get(params..params + 2)? != [0, 64] || command.get(size - 2..size)? != [0, 0] {
++        return None;
++    }
++    command.get(params + 2..params + 66)?.try_into().ok()
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn write(value: u8) -> Vec<u8> {
++        let mut b = vec![0; 4096];
++        b[..2].copy_from_slice(&[0x80, 2]);
++        b[2..6].copy_from_slice(&97u32.to_be_bytes());
++        b[6..10].copy_from_slice(&0x137u32.to_be_bytes());
++        b[10..14].copy_from_slice(&0x40000001u32.to_be_bytes());
++        b[14..18].copy_from_slice(&0x01400002u32.to_be_bytes());
++        b[18..22].copy_from_slice(&7u32.to_be_bytes());
++        b[22..26].copy_from_slice(&0x40000009u32.to_be_bytes());
++        b[29..31].copy_from_slice(&64u16.to_be_bytes());
++        b[31..95].fill(value);
++        b
++    }
++
++    #[test]
++    fn only_successful_guest_write_supplies_binding() {
++        let mut state = GuestReportInput::default();
++        assert_eq!(state.value(), [0; 64]);
++        let mut reply = [0; 10];
++        reply[9] = 1;
++        state.commit(complete_write(&write(42)), &reply);
++        assert_eq!(state.value(), [0; 64]);
++        reply[9] = 0;
++        state.commit(complete_write(&write(42)), &reply);
++        assert_eq!(state.value(), [42; 64]);
++        state.commit(complete_write(&write(43)), &reply);
++        assert_eq!(state.value(), [43; 64]);
++        state.clear();
++        assert_eq!(state.value(), [0; 64]);
++    }
++
++    #[test]
++    fn malformed_partial_and_other_index_writes_cannot_import_nv_state() {
++        let good = write(42);
++        for len in 0..97 {
++            assert!(complete_write(&good[..len]).is_none());
++        }
++        assert_eq!(complete_write(&good), Some([42; 64]));
++        for (at, value) in [(1, 1), (5, 96), (9, 0x4e), (17, 1), (30, 63), (96, 1)] {
++            let mut bad = good.clone();
++            bad[at] = value;
++            assert!(complete_write(&bad).is_none(), "mutation at {at}");
++        }
++        let mut overflow = good;
++        overflow[18..22].fill(255);
++        assert!(complete_write(&overflow).is_none());
++    }
++}
+diff --git a/vm/devices/tpm/tpm_device/src/lib.rs b/vm/devices/tpm/tpm_device/src/lib.rs
+index 1eccf0a..99e340b 100644
+--- a/vm/devices/tpm/tpm_device/src/lib.rs
++++ b/vm/devices/tpm/tpm_device/src/lib.rs
+@@ -54,7 +54,6 @@
+ use thiserror::Error;
+ use tpm_protocol::TPM_NV_INDEX_AIK_CERT;
+ use tpm_protocol::TPM_NV_INDEX_ATTESTATION_REPORT;
+-use tpm_protocol::TPM_NV_INDEX_GUEST_ATTESTATION_INPUT;
+ use tpm_protocol::tpm20proto;
+ use tpm_protocol::tpm20proto::CommandCodeEnum;
+ use tpm_protocol::tpm20proto::TPM20_RH_PLATFORM;
+@@ -355,6 +354,9 @@ fn max_nv_index_size(&self) -> u16 {
+ 
+ #[derive(InspectMut)]
+ pub struct Tpm {
++    // Enclave Shield: never sign bindings supplied by host-restored NV state.
++    #[inspect(skip)]
++    guest_report_input: guest_report_input::GuestReportInput,
+     // Static config
+     register_layout: TpmRegisterLayout,
+     refresh_tpm_seeds: bool,
+@@ -587,6 +589,7 @@ pub async fn new(
+             waker: None,
+             ak_cert_renew_time: None,
+             attestation_report_renew_time: None,
++            guest_report_input: Default::default(),
+ 
+             control_area: ControlArea::new(),
+             current_io_command: None,
+@@ -1137,20 +1140,14 @@ fn create_ak_cert_request_or_attestation_report(
+         &mut self,
+         is_attestation_report: bool,
+     ) -> Result<Vec<u8>, TpmError> {
+-        let mut guest_attestation_input = [0u8; ATTESTATION_REPORT_DATA_SIZE];
+-
+-        // Read the guest attestation input from `TPM_NV_INDEX_GUEST_ATTESTATION_INPUT` nv index
+-        // if `is_attestation_report` is true.
+-        if is_attestation_report {
+-            // No need to check the result as long as it's Ok(..) because the output data will
+-            // remain unchanged (all 0's) if the NV index is unallocated or uninitialized.
+-            self.tpm_engine_helper
+-                .read_from_nv_index(
+-                    TPM_NV_INDEX_GUEST_ATTESTATION_INPUT,
+-                    &mut guest_attestation_input,
+-                )
+-                .map_err(TpmErrorKind::ReadFromNvIndex)?;
+-        }
++        // VMGS is host-managed on VBS hosts. Only a complete, successful write
++        // received through guest TPM MMIO in this boot may supply report data.
++        // The private copy is deliberately absent from persistent/saved state.
++        let guest_attestation_input = if is_attestation_report {
++            self.guest_report_input.value()
++        } else {
++            [0u8; ATTESTATION_REPORT_DATA_SIZE]
++        };
+ 
+         let keys = self.keys.as_ref().expect("Tpm keys uninitialized");
+         let request_ak_cert_helper = self
+@@ -1445,6 +1442,8 @@ fn start(&mut self) {}
+     async fn stop(&mut self) {}
+ 
+     async fn reset(&mut self) {
++        self.guest_report_input.clear();
++        self.attestation_report_renew_time = None;
+         self.control_area = ControlArea::new();
+         self.current_io_command = None;
+         self.requested_locality = false;
+@@ -1647,6 +1646,8 @@ fn mmio_write(&mut self, address: u64, data: &[u8]) -> IoResult {
+                         }
+                     }
+ 
++                    let guest_input = guest_report_input::complete_write(&self.command_buffer);
++
+                     if let Err(e) = self.tpm_engine_helper.tpm_engine.execute_command(
+                         &mut self.command_buffer,
+                         &mut self.tpm_engine_helper.reply_buffer,
+@@ -1659,6 +1660,9 @@ fn mmio_write(&mut self, address: u64, data: &[u8]) -> IoResult {
+                         return IoResult::Ok;
+                     }
+ 
++                    self.guest_report_input
++                        .commit(guest_input, &self.tpm_engine_helper.reply_buffer);
++
+                     tracing::trace!(
+                         response_code = ?tpm20proto::protocol::common::ReplyHeader::ref_from_prefix(
+                         &self.tpm_engine_helper.reply_buffer,
+@@ -1781,6 +1785,8 @@ pub enum PpiOperation: u32 {
+     }
+ }
+ 
++mod guest_report_input;
++
+ mod persist_restore {
+     use super::*;
+ 
+@@ -2069,6 +2075,8 @@ fn save(&mut self) -> Result<Self::SavedState, SaveError> {
+         }
+ 
+         fn restore(&mut self, state: Self::SavedState) -> Result<(), RestoreError> {
++            self.guest_report_input.clear();
++            self.attestation_report_renew_time = None;
+             let state::SavedState {
+                 control_area,
+                 current_io_command,
+-- 
+2.55.0
+

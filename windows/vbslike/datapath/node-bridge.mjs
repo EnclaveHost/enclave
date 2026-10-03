@@ -23,6 +23,7 @@ import { createDataPlane } from "./datapath.mjs";
 
 export const BACKEND = "hyperv-partition-per-app";
 export const V1 = "enclave-catalog-bundle/1";
+export const V4 = "enclave-catalog-bundle/4";
 export const V2 = "enclave-catalog-bundle/2";
 export const POLICY_RULE = "enclave-isolation-policy/1";
 
@@ -117,9 +118,15 @@ export function isolationPlan({ deploymentId, deployment, version, appConfig, ha
     return refused("deployment.isPublic", "the deployment is private, and its owner gate needs the request's plaintext, which exists only inside the partition");
   const gpu = Number(deployment.gpuMilli);
   if (deployment.gpuMilli === undefined || deployment.gpuMilli === null || !Number.isFinite(gpu)) return unknownInput("deployment.gpuMilli", "the deployment's GPU share");
-  if (gpu > 0) return refused("deployment.gpuMilli", "the deployment bought a GPU share, and a partition has no GPU path");
+  const inf = gpu > 0 ? manager.inference : null;
+  if (gpu < 0 || !Number.isInteger(gpu)) return refused("deployment.gpuMilli", "invalid GPU share");
+  if (gpu > 0 && (!inf?.ready || manager.supports?.gpu !== true)) return refused("deployment.gpuMilli", "no admitted Shield inference profile is available");
+  if (gpu > 0 && (gpu < inf.minimumGpuMilli || gpu > 1000)) return refused("deployment.gpuMilli", "GPU share is outside the Shield model profile");
   const cpu = Number(deployment.cpuMilli);
   if (!Number.isFinite(cpu) || cpu <= 0) return unknownInput("deployment.cpuMilli", "the deployment's CPU share");
+
+  if (inf && (cpu < 250 || Number(version.memMb) < 8192))
+    return refused("version.memMb", "NucBox Shield needs at least 25% CPU and an app version declaring 8192 MiB");
 
   if (hasSecrets !== true && hasSecrets !== false) return unknownInput("hasSecrets", "whether the deployment has staged secrets");
   if (hasSecrets === true)
@@ -128,7 +135,14 @@ export function isolationPlan({ deploymentId, deployment, version, appConfig, ha
     return refused("hasSecrets", "the deployment has staged secrets, and this tier cannot deliver them into a partition (attested in-partition delivery is not built), so it is not started without them; the refusal does not keep them from this host, which fetched them as the lease holder to find this out");
 
   if (appConfig === undefined) return unknownInput("appConfig", "the config the app would run with");
-  if (appConfigOf(appConfig)) return refused("appConfig", "the app has config beyond _media, which is not delivered into a partition");
+  let deliveredConfig = appConfigOf(appConfig);
+  if (inf && deliveredConfig) {
+    try {
+      const { volumes: configVolumes, ...other } = JSON.parse(deliveredConfig);
+      if (Array.isArray(configVolumes) && configVolumes.length === 1 && configVolumes[0] === inf.model && Object.keys(other).length === 0) deliveredConfig="";
+    } catch {}
+  }
+  if (deliveredConfig) return refused("appConfig", "the app has config beyond _media, which is not delivered into a partition");
   if (appConfigCid === undefined || appConfigCid === null) return unknownInput("appConfigCid", "whether the deployment overrides its config by CID");
   if (appConfigCid) return refused("appConfigCid", "the deployment overrides its config by CID, which is not delivered into a partition");
   if (version.configCid) return refused("version.configCid", "the version keeps its config at a CID, which is not delivered into a partition");
@@ -137,22 +151,27 @@ export function isolationPlan({ deploymentId, deployment, version, appConfig, ha
   if (typeof waf !== "object" || Object.keys(waf).length)
     return refused("waf", "the deployment sets protection rules, which need the request's plaintext, which exists only inside the partition");
   if (volumes === undefined || volumes === null) return unknownInput("volumes", "the model volumes the app needs");
-  if (!Array.isArray(volumes) || volumes.length) return refused("volumes", "the app needs model volumes, which are not mounted into a partition");
+  if (!Array.isArray(volumes)) return unknownInput("volumes", "the model volumes");
+  if (inf ? (volumes.length !== 1 || volumes[0] !== inf.model) : volumes.length)
+    return refused("volumes", "the deployment must select exactly the measured Shield model for GPU inference");
 
   let httpPort;
   try { httpPort = httpPortOf(version.ports); } catch (e) { return refused("version.ports", e.message); }
-  const derivation = httpPort ? V2 : V1;
+  if (inf && httpPort) return refused("version.ports", "initial Shield profile serves wasi:http components");
+  const derivation = inf ? V4 : httpPort ? V2 : V1;
   if (!Array.isArray(derivations)) return unknownInput("manager.catalog.derivations", "what the manager can serve");
   if (!derivations.includes(derivation))
     return refused("manager.catalog.derivations", httpPort
       ? `the version serves HTTP on its own port (http:${httpPort}), and the manager cannot serve ${V2} yet`
       : `the manager does not serve ${V1}`);
+  if (inf) runtimeId = inf.runtimeId;
   if (!HEX(32).test(String(runtimeId || ""))) return unknownInput("runtimeId", "the runtime identity the manager pins");
 
-  const policy = policyFor(version.memMb);
+  const policy = inf ? { cpuPercent: 400, vcpus: 4, memMiB: Math.max(8192, Number(version.memMb)) } : policyFor(version.memMb);
   const derive = derivationOf(version.appId, version.index, version.cid, policy, runtimeId, httpPort);
+  if (inf) { derive.derivation=V4; derive.inference={model:inf.model,gpuMilli:gpu}; }
   return { ok: true, derivation, httpPort, policy,
-           spawn: { image: `ipfs://${version.cid}`, name: deploymentId, cpuShare: cpu / 1000, gpuShare: 0,
+           spawn: { image: `ipfs://${version.cid}`, name: deploymentId, cpuShare: cpu / 1000, gpuShare: gpu / 1000,
                     appPort: httpPort || Number(deployment.appPort) || 8080, ports: [], config: "", configCid: "",
                     egress: "", derive, isPublic: true, hasSecrets: false } };
 }
