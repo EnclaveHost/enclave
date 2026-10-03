@@ -2,6 +2,28 @@ import net from 'node:net';
 import {validateAppNames} from '../app-ingress.mjs';
 import {validatePublicFallback} from '../public-fallback.mjs';
 
+// An app can remain in its former host's config after a lease moves. Reserve
+// one port pair per deployment, while retaining the duplicate checks within a
+// host and rejecting conflicting hostname metadata across hosts. Live lease
+// authorization still decides which agent may establish and publish the route.
+export function fallbackAppsForHosts(groups) {
+  const apps = new Map();
+  for (const group of groups) {
+    const seen = new Set();
+    for (const app of group) {
+      validateAppNames(app.deploymentId, app.names);
+      if (seen.has(app.deploymentId)) throw new Error('duplicate fallback app on one host');
+      seen.add(app.deploymentId);
+      const names = [...new Set(app.names.map(n => n.toLowerCase()))].sort();
+      const previous = apps.get(app.deploymentId);
+      if (previous && JSON.stringify(previous.names) !== JSON.stringify(names))
+        throw new Error('conflicting fallback hostnames across hosts');
+      apps.set(app.deploymentId, { deploymentId: app.deploymentId, names });
+    }
+  }
+  return [...apps.values()];
+}
+
 // Provisioning only: this runs on the fleet operator's machine. HAProxy holds
 // no certificates or private app keys and never terminates TLS. Data transport
 // remains the unmodified, publicly advertised TUNA reverse service.
