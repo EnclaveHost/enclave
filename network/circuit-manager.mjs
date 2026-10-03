@@ -217,6 +217,6 @@ export class CircuitManager extends EventEmitter {
     }finally{for(const address of reserved)this.reservedPublic.delete(address);}
   }
   status() {return [...this.apps.values()].map(app=>({deploymentId:app.id,transport:app.policy.mode==='direct'?'direct':'tuna',ready:app.circuits.length===app.policy.routes&&app.circuits.every(c=>c.healthy)&&!!this.authorizationUntil(app.id),
-    error:app.error,lastFailure:app.lastFailure||null,circuits:app.circuits.map(c=>({id:c.id,address:c.address,port:c.port,...(c.directPort?{directPort:c.directPort}:{}),fallback:!!c.providers.public?.fallback,healthy:c.healthy,egress:c.egress}))}));}
+    error:app.error,lastFailure:app.lastFailure||null,circuits:app.circuits.map(c=>({id:c.id,address:c.address,port:c.port,...(c.directPort?{directPort:c.directPort}:{}),fallback:!!c.providers.public?.fallback,healthy:c.healthy,egress:c.egress?.split('@').pop()}))}));}
   async close() {this.closed=true;const withdrawing=[...this.apps.values()].map(app=>this.withdraw(app,'manager stopped'));await Promise.all([...withdrawing,this.runtime.close?.(),this.directRuntime?.close()]);}
 }

@@ -140,6 +140,7 @@ for (const def of DEFS) {
     sel,
     evt,
     bytecode,
+    runtimeBytes: runtime,
     linkReferences, libraries,
     schemaFn: schema ? schema.fn : null,     // marker getter name (also in sel)
     schemaRev: schema ? schema.rev : null,   // the revision THIS bytecode carries

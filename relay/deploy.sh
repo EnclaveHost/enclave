@@ -52,6 +52,12 @@ echo "== api relay (site box)"
 # indexer, OFAC screen, provisioner) ship alongside; they self-disable without
 # StateDirectory/env, so shipping them is always safe. npm ci below installs
 # their deps (@simplewebauthn/server, jose) from the SHIPPED lockfile.
+# Cross-directory route verification dependencies ship as one module graph.
+ssh nan 'mkdir -p /opt/network /opt/relay'
+scp net-guard.mjs nan:/opt/relay/
+scp ../network/{route-record,circuit-policy,connectivity-policy,connectivity-control,connectivity-chain,provider-qualification,public-fallback,durable-state,lease-reader,guarded-fetch,socks-connect}.mjs nan:/opt/network/
+# The route verifier uses the relay's locked viem dependency.
+ssh nan 'test -e /opt/network/node_modules || ln -s /opt/nan-relay/node_modules /opt/network/node_modules'
 scp api-relay.js tuna-routes.mjs guest-prediction-row.mjs mcp.js auth.js sso.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js secrets-release.mjs measurement-predict.mjs host-delegation.mjs fleet-auth.js certs.js domains.js store.js fleet.mjs net-guard.mjs tunnel.js pvm-cpu-tier.mjs snp-verify.mjs reverify.mjs avf-verify.mjs avf-policy.mjs avf-binding.mjs vbs-verify.mjs vbs-policy.mjs vbs-credential.mjs vbs-tcglog.mjs hvnode-verify.mjs vbs-app-verify.mjs vbs-vm-report.mjs vbs-runtime.mjs shield-app-policy.mjs shield-app-verifier.mjs shield-marketplace.mjs shield-derive.mjs pads.mjs pad-grant.mjs pad-state.mjs pad-shipment-store.mjs pad-ack.mjs boxhost.js package.json package-lock.json nan:/opt/nan-relay/
 # hvnode-verify.mjs is the NucBox node's attach (tunnel mode hv-node), built on the vbs-*.mjs TPM
 # and measured-boot primitives (the VBS-enclave attach itself is retired). api-relay.js reads the

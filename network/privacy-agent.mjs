@@ -23,8 +23,11 @@ import {guardedFetch} from './guarded-fetch.mjs';
 import {delegatedIPNS} from './discovery-http.mjs';
 import {ControlTransport} from './control-transport.mjs';
 import {validateAppNames} from './app-ingress.mjs';
+import {createUSDCBandwidthSettlement} from './usdc-bandwidth.mjs';
 import {DirectRuntime} from './direct-runtime.mjs';
 import {hostConnectivity,directTerms,validateHostConnectivity} from './connectivity-policy.mjs';
+import {createProviderCanary} from './provider-canary.mjs';
+import {directPolicyFromLease} from './connectivity-control.mjs';
 import {TrafficMeter} from './traffic-meter.mjs';
 import {recordHash} from './route-record.mjs';
 
@@ -94,7 +97,11 @@ export async function runPrivacy(configFile){
   const apps=[];
   for(const item of cfg.apps)apps.push(await loadApp(item));
   const directConfigured=cfg.connectivity?validateHostConnectivity(cfg.connectivity).direct:false;
-  const needsTuna=apps.some(a=>a.ownerPolicy?.policy?.mode!=='direct');
+  // Read owner choices before deciding whether native NKN wallets are needed.
+  if(cfg.connectivity){const bootstrap=new LeaseReader({...cfg.chain,includeConnectivity:'auto',includeHostPayout:true});
+    await bootstrap.refresh(apps.map(a=>a.deploymentId));
+    for(const app of apps)app.chainDirect=!!directPolicyFromLease(bootstrap.get(app.deploymentId));}
+  const needsTuna=apps.some(a=>!a.chainDirect&&a.ownerPolicy?.policy?.mode!=='direct');
   if(!needsTuna&&!directConfigured)throw new Error('direct hosting is not enabled');
   let verifySnp;
   if(cfg.verifierModule){if(!path.isAbsolute(cfg.verifierModule))throw new Error('local verifier module required');verifySnp=(await import(pathToFileURL(cfg.verifierModule).href)).judge;}
@@ -133,7 +140,7 @@ export async function runPrivacy(configFile){
     const fresh=JSON.parse(await fs.readFile(configFile,'utf8'));
     if(!Array.isArray(fresh.apps)||fresh.apps.length>256)throw new Error('version 2 app configuration required');
     const next=[];for(const item of fresh.apps)next.push(await loadApp(item));
-    if(!needsTuna&&next.some(a=>a.ownerPolicy?.policy?.mode!=='direct'))throw new Error('adding TUNA apps requires configuring and restarting the TUNA runtime');
+    if(!needsTuna&&next.some(a=>!directPolicyFromLease(leaseReader.get(a.deploymentId))&&a.ownerPolicy?.policy?.mode!=='direct'))throw new Error('adding TUNA apps requires configuring and restarting the TUNA runtime');
     let added=0,updated=0;
     for(const n of next){
       const cur=apps.find(a=>a.deploymentId===n.deploymentId);
@@ -154,23 +161,29 @@ export async function runPrivacy(configFile){
   if(stopping)throw new Error('privacy agent stopped during bootstrap');
   if(control)inventory.asns.fetchFn=guardedFetch(control.proxies,{timeoutMs:6000,maxBytes:65536});
   if(needsTuna&&!control&&!cfg.chain.proxy)throw new Error('independent guarded control transport required');
-  const leaseReader=new LeaseReader({...cfg.chain,includeHostPayout:directConfigured,includeConnectivity:directConfigured,...(control?{proxy:control.proxies}:{})});
-  let directRuntime,qualification;
+  const leaseReader=new LeaseReader({...cfg.chain,includeHostPayout:directConfigured,includeConnectivity:cfg.connectivity?'auto':false,...(control?{proxy:control.proxies}:{})});
+  let directRuntime,qualification,settlement;
   if(directConfigured){
     if(!cfg.direct?.qualificationFile||!Array.isArray(cfg.direct.probeSigners))throw new Error('provider qualification configuration required');
     qualification=()=>readJSON(cfg.direct.qualificationFile);
     // A settlement adapter is mandatory for a nonzero rate. Free self-hosting
     // works without a TUNA wallet, a funded balance, or a payment adapter.
-    const authorizeDebit=cfg.direct.settlementModule?(await import(pathToFileURL(path.resolve(cfg.direct.settlementModule)).href)).authorizeDebit:undefined;
-    directRuntime=new DirectRuntime({...cfg.direct,authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),
+    settlement=cfg.direct.settlement?await createUSDCBandwidthSettlement({config:cfg.direct.settlement,directory:path.join(cfg.directory,'billing'),leaseReader,log}):undefined;
+    const authorizeDebit=settlement?request=>settlement.authorizeDebit(request):undefined;
+    const canary=cfg.direct.probe?await createProviderCanary(cfg.direct.probe,{address:cfg.direct.address,ownAddresses:cfg.direct.ownAddresses}):undefined;
+    directRuntime=new DirectRuntime({...cfg.direct,canary,authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),
       forward:guestd?guestd.forward:localAppForwarder(cfg.upstream),log,
       terms:async(id,policy)=>{
         const host=await hostConnectivity({config:cfg.connectivity,qualification:await qualification(),hostId:cfg.runner,
           operator:account.address,address:cfg.direct.address,probeSigners:cfg.direct.probeSigners});
         const lease=leaseReader.get(id);return directTerms({policy,host,lease,payoutWallet:lease?.runnerPayoutWallet});
       },
-      meter:async(id,policy,terms)=>new TrafficMeter({directory:path.join(cfg.directory,'traffic'),deploymentId:id,policyHash:recordHash(policy),terms,authorizeDebit})});
+      meter:async(id,policy,terms)=>new TrafficMeter({directory:path.join(cfg.directory,'traffic'),deploymentId:id,policyHash:recordHash(policy),terms,authorizeDebit,recoverCounters:settlement?request=>settlement.recoverCounters(request):undefined})});
   }
+  // Qualification must be able to probe the public listeners before any app
+  // has qualified; the canary never admits an app or signs its own report.
+  if(directRuntime?.canary)await directRuntime.listen();
+  if(settlement&&directRuntime){const close=directRuntime.close.bind(directRuntime);directRuntime.close=async()=>{await close();await settlement.close();};}
   agent=new PrivacyAgent({apps,runner:cfg.runner,account,leaseReader,inventory,runtime,directRuntime,qualification,directory:cfg.directory,dns:cfg.dns,defaults:cfg.defaults,log,
     wallets:async id=>readJSON(apps.find(a=>a.deploymentId===id).walletsFile),
     distribute:async(id,value)=>{

@@ -1,0 +1,18 @@
+[Unit]
+Description=Settle confirmed TUNA revenue shares
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=enclave-payout
+Group=enclave-payout
+UMask=0077
+ExecStart=/opt/enclave-bandwidth/split-provider-revenue --config /etc/enclave-bandwidth/share.json --execute
+TimeoutStartSec=60
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/enclave-bandwidth
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX

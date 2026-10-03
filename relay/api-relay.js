@@ -98,6 +98,7 @@ import { handleCerts, initCerts } from "./certs.js";
 import { createShieldMarketplace } from "./shield-marketplace.mjs";
 import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson } from "./measurement-predict.mjs";
 import { createTunnelHub } from "./tunnel.js";
+import { LeaseReader } from "../network/lease-reader.mjs";
 import { createTunaRoutes } from "./tuna-routes.mjs";
 import {DurableState} from '../network/durable-state.mjs';
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
@@ -2247,15 +2248,21 @@ const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostE
                      return e?.active && !/^0x0{40}$/i.test(op) ? op.toLowerCase() : null;
                    } };
 
+const networkLeaseReader=ADDRESS_BOOK?new LeaseReader({addressBook:ADDRESS_BOOK,
+  rpc:(process.env.NETWORK_CHAIN_RPCS||'https://base-rpc.publicnode.com,https://base.drpc.org,https://mainnet.base.org').split(',').map(s=>s.trim()),
+  includeHostPayout:true,includeConnectivity:'auto'}):null;
 tunaRoutes = createTunaRoutes({
   providerProbeSigners: (process.env.PROVIDER_PROBE_SIGNERS || '').split(',').map(s=>s.trim()).filter(Boolean),
   operatorOf: endpoint => relayCtx.operatorOfEndpoint(endpoint), endpointId,
   memory: new DurableState(process.env.TUNA_ROUTE_STATE_DIR || '/var/lib/enclave-relay/tuna-route-state'),
   leaseOf: async id => {
-    const d=(await ledgerRows()).find(d=>String(d.id).toLowerCase()===id);
-    if(!d||_ledger.at+30000<=Date.now())return null;
-    return {...d,id:String(d.id).toLowerCase(),runner:String(d.runner).toLowerCase(),chainId:8453,deployments:DEPLOYMENTS_ADDRESS,
-      leaseUntil:Number(d.leaseUntil)*1000,validUntil:Math.min(Number(d.leaseUntil)*1000,_ledger.at+30000)};
+    if(!networkLeaseReader){const d=(await ledgerRows()).find(d=>String(d.id).toLowerCase()===id);
+      if(!d||_ledger.at+30000<=Date.now())return null;
+      return {...d,id:String(d.id).toLowerCase(),runner:String(d.runner).toLowerCase(),chainId:8453,deployments:DEPLOYMENTS_ADDRESS,
+        leaseUntil:Number(d.leaseUntil)*1000,validUntil:Math.min(Number(d.leaseUntil)*1000,_ledger.at+30000)};}
+    const cached=networkLeaseReader.get(id);
+    if(cached&&cached.blockTime+15000>Date.now())return cached;
+    await networkLeaseReader.refresh([id]);return networkLeaseReader.get(id);
   },
   eligible: d => {
     const row = live.find(e => String(e.id || "").toLowerCase() === String(d.runner).toLowerCase());

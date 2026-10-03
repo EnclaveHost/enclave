@@ -74,6 +74,18 @@ contract EnclaveConnectivityTest is Test {
         bytes memory signature=_sig(METER,connectivity.receiptDigest(r));
         vm.expectRevert();connectivity.settle(r,signature);
     }
+    function test_administrationRequiresAcceptanceByNamedGovernance() public {
+        address gov=address(0x1234);
+        vm.prank(operator);vm.expectRevert();connectivity.transferAdministration(gov);
+        connectivity.transferAdministration(gov);
+        assertEq(connectivity.administrator(),address(this));
+        vm.prank(operator);vm.expectRevert();connectivity.acceptAdministration();
+        vm.prank(gov);connectivity.acceptAdministration();
+        assertEq(connectivity.administrator(),gov);
+        vm.expectRevert();connectivity.setProbeSigner(vm.addr(PROBE),false);
+        vm.prank(gov);connectivity.setProbeSigner(vm.addr(PROBE),false);
+        assertFalse(connectivity.qualified(HOST));
+    }
     function test_bandwidthUsesComputeSplitAndExistingBalance() public {
         uint256 balance=ledger.get(id).balance6;uint256 platform=usdc.balanceOf(payout);
         (,uint256 escrow,)=ledger.earnOf(id);_settle(GIB);
@@ -157,6 +169,17 @@ contract EnclaveConnectivityTest is Test {
         _settle(amount);uint256 gross=(uint256(amount)*1e6+GIB-1)/GIB;
         uint256 provider=gross*bps/10000;
         assertEq(ledger.earned6(operator),provider);assertEq(usdc.balanceOf(payout)-platform,gross-provider);
+    }
+    function test_revokeInvalidatesPreviouslySignedUnusedAuthorization() public {
+        uint64 expires=uint64(T0+3600);
+        bytes memory oldSig=_sig(OWNER,connectivity.policyDigest(id,expires,1e6,10e6));
+        vm.prank(tenant);connectivity.revokeDirect(id);
+        vm.expectRevert();connectivity.authorizeDirect(id,expires,1e6,10e6,oldSig);
+        bytes memory off=_sig(OWNER,connectivity.policyDigest(id,0,0,0));
+        connectivity.authorizeDirect(id,0,0,0,off);
+        (,uint64 nonce,uint64 until,,,,)=connectivity.policies(id);
+        assertEq(nonce,3);assertEq(until,0);
+        vm.expectRevert();connectivity.authorizeDirect(id,0,0,0,off);
     }
     function test_computeOnlyDisablesBothInternetServices() public {
         vm.prank(operator);connectivity.setHost(HOST,false,false,0);

@@ -1,5 +1,6 @@
 // Authenticated, expiring TUNA allocations. This is DNS/control metadata;
 // application bytes never pass through this service.
+import {assertDirectChoice} from '../network/connectivity-control.mjs';
 import net from 'node:net';
 import { isBlockedHost } from './net-guard.mjs';
 import { recoverOp } from './fleet-auth.js';
@@ -45,7 +46,8 @@ export function createTunaRoutes({ operatorOf, endpointId, eligible, now = Date.
         if(policy.deploymentId!==id||!lease||String(await endpointId(endpoint)).toLowerCase()!==lease.runner)throw new Error('route is not from the deployment runner');
         const operator=await operatorOf(endpoint);
         if(!operator||operator.toLowerCase()!==lease.runnerOperator.toLowerCase())throw new Error('inactive route operator');
-        if(publication.ownerPolicy){
+        if(policy.mode==='direct'){if(bundle?.record?.routes?.length)assertDirectChoice(policy,lease,now());}
+        else if(publication.ownerPolicy){
           const authorized=validateCircuitPolicy(await verifyOwnerPolicy(publication.ownerPolicy,lease.owner));
           if(recordHash(authorized)!==recordHash(policy))throw new Error('owner policy mismatch');
         }else if(policy.mode==='direct'||policy.diversity!=='beneficiary-and-network'||Object.values(policy.providers).some(r=>r.allow.length||r.prefer.length||r.deny.length))throw new Error('custom provider policy requires owner signature');

@@ -32,3 +32,9 @@ test('unbacked or expired authorizations admit no paid bytes, free self-hosting 
     free.now=()=>2000;await assert.rejects(free.consume('in',1),/expired/);
   }finally{await fs.rm(directory,{recursive:true,force:true});}
 });
+
+test('a draining route and its replacement cannot overwrite the same policy counters',async()=>{
+ const directory=await fs.mkdtemp(path.join(os.tmpdir(),'meter-replace-'));
+ const options={directory,deploymentId,policyHash,terms:{pricePerGiB6:'1073741824',budget6:'10',expiresAt:2000},now:()=>1000,authorizeDebit:async()=>{await new Promise(r=>setTimeout(r,2));}};
+ try{const a=new TrafficMeter(options),b=new TrafficMeter(options);const results=await Promise.allSettled(Array.from({length:20},(_,i)=>(i%2?a:b).consume('out',1)));assert.equal(results.filter(r=>r.status==='fulfilled').length,10);assert.equal((await a.state.get(a.key)).out,'10');}finally{await fs.rm(directory,{recursive:true,force:true});}
+});

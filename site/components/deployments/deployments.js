@@ -1798,9 +1798,10 @@ class Deployments extends EnclaveElement {
     btn.setAttribute("aria-expanded", "true"); box.hidden = false;
     box.innerHTML = '<div class="ap-attbar">Network</div><div class="term enc-net-status" role="status" aria-live="polite"></div>';
     const status = box.querySelector(".enc-net-status");
+    const controls=import("../../js/core/network-controls.js").then(m=>m.renderNetworkControls(box,id,{viaVault:ctlOf((this._list||[]).find(d=>d.id===id))==='vault'})).catch(e=>paintLine(status,"warn","Route settings unavailable: "+e.message));
     try {
       const map = await Enclave.getTunaNetwork(), route = map.deployments?.[id.toLowerCase()];
-      if (!route || route.expiresAt <= Date.now()) return paintLine(status, "warn", "Waiting for an active connection.");
+      if (!route || route.expiresAt <= Date.now()) {paintLine(status, "warn", "Waiting for an active connection.");await controls;return;}
       paintLine(status, "ok", route.transport === "direct" ? "Direct host connection" : "Via TUNA");
       if (route.https) paintLine(status, "ok", "HTTPS: " + route.https.address + ":" + route.https.port);
       for (const protocol of ["tcp", "udp"]) for (const port of route[protocol] || [])

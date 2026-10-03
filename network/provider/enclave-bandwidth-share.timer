@@ -1,0 +1,8 @@
+[Unit]
+Description=Check finalized TUNA receipts every minute
+[Timer]
+OnBootSec=1min
+OnUnitInactiveSec=1min
+Unit=enclave-bandwidth-share.service
+[Install]
+WantedBy=timers.target

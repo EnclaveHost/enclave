@@ -8,12 +8,13 @@ export function bandwidthCost6(bytes,pricePerGiB6) {
   return (bytes*pricePerGiB6+GiB-1n)/GiB;
 }
 // Counters and cumulative cost survive restart. The settlement authorizer must
-// reserve backed USDC and bind its receipt to this exact deployment and policy.
+// check backed USDC and bind its receipt to this exact deployment and policy.
+// Hosts may explicitly allow bounded pending credit for batched settlement.
 // It may never authorize by trusting an operator-supplied balance or owner.
 export class TrafficMeter {
-  constructor({directory,deploymentId,policyHash,terms,authorizeDebit,now=Date.now}) {
+  constructor({directory,deploymentId,policyHash,terms,authorizeDebit,recoverCounters,now=Date.now}) {
     if(!/^0x[0-9a-f]{64}$/.test(deploymentId)||!/^([0-9a-f]{64})$/.test(policyHash))throw new Error('bound meter identity required');
-    Object.assign(this,{deploymentId,policyHash,terms,authorizeDebit,now});this.state=new DurableState(directory);
+    Object.assign(this,{deploymentId,policyHash,terms,authorizeDebit,recoverCounters,now});this.state=new DurableState(directory);
     this.key='traffic-'+createHash('sha256').update(deploymentId+':'+policyHash).digest('hex');
     if(BigInt(terms.pricePerGiB6)>0n&&typeof authorizeDebit!=='function')throw new Error('backed USDC settlement required');
   }
@@ -21,7 +22,11 @@ export class TrafficMeter {
     if(!['in','out'].includes(direction)||!Number.isSafeInteger(size)||size<0)throw new Error('invalid byte counter');
     return this.state.update(this.key,async prior=>{
       if(this.terms.expiresAt<=this.now())throw new Error('bandwidth authorization expired');
-      const old=prior||{in:'0',out:'0',cost6:'0',units:'0'};
+      let old=prior||{in:'0',out:'0',cost6:'0',units:'0'};
+      // A signed payment can survive a crash before this counter file commits.
+      // Recover its exact admitted counters before accepting another packet.
+      const recovered=await this.recoverCounters?.({deploymentId:this.deploymentId,policyHash:this.policyHash,nonce:this.terms.nonce,pricePerGiB6:this.terms.pricePerGiB6});
+      if(recovered&&BigInt(recovered.in)+BigInt(recovered.out)>BigInt(old.in)+BigInt(old.out))old=recovered;
       if(!['in','out','cost6','units'].every(k=>typeof old[k]==='string'&&/^(0|[1-9]\d*)$/.test(old[k])))throw new Error('damaged bandwidth counters');
       const next={...old,[direction]:(BigInt(old[direction])+BigInt(size)).toString()};
       // A new host rate applies only to new bytes, never to previously served
@@ -30,7 +35,7 @@ export class TrafficMeter {
       const cost=(BigInt(next.units)+GiB-1n)/GiB;
       if(cost>BigInt(this.terms.budget6))throw new Error('bandwidth budget exhausted');
       if(cost>BigInt(old.cost6))await this.authorizeDebit({deploymentId:this.deploymentId,policyHash:this.policyHash,
-        cumulativeBytes:(BigInt(next.in)+BigInt(next.out)).toString(),cumulativeCost6:cost.toString()});
+        cumulativeBytes:(BigInt(next.in)+BigInt(next.out)).toString(),cumulativeCost6:cost.toString(),pricePerGiB6:this.terms.pricePerGiB6,nonce:this.terms.nonce,counters:{...next,cost6:cost.toString()}});
       next.cost6=cost.toString();return next;
     });
   }

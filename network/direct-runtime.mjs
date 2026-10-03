@@ -11,8 +11,8 @@ import {createDirectEgress} from './direct-egress.mjs';
 // already-admitted app; this service has no app certificate or private key.
 export class DirectRuntime {
   constructor({address,bindHost='0.0.0.0',httpsPort=443,httpPort=80,authorize,forward,
-    terms,meter,ownAddresses=[],log=()=>{},now=Date.now}) {
-    Object.assign(this,{address,bindHost,httpsPort,httpPort,authorize,forward,terms,meter,log,now});
+    terms,meter,canary,ownAddresses=[],log=()=>{},now=Date.now}) {
+    Object.assign(this,{address,bindHost,httpsPort,httpPort,authorize,forward,terms,meter,canary,log,now});
     this.ownAddresses=[address,...ownAddresses];this.apps=new Map();this.names=new Map();this.sockets=new Set();this.closed=false;
   }
   allowed(app) {return !this.closed&&!app.closed&&app.until>this.now()&&this.authorize(app.deploymentId);}
@@ -27,6 +27,7 @@ export class DirectRuntime {
           hello=Buffer.concat([hello,chunk]);if(hello.length>65536)return socket.destroy();
           const name=clientHelloName(hello);if(name===null)return;
           socket.pause();socket.removeListener('data',read);
+          if(this.canary&&name===this.canary.hostname){socket.setTimeout(0);socket.unshift(hello);return this.canary.accept(socket);}
           const app=name&&this.names.get(name);
           if(!app||!this.allowed(app))return socket.destroy();
           socket.setTimeout(0);socket.unshift(hello);app.sockets.add(socket);
@@ -38,6 +39,7 @@ export class DirectRuntime {
       });
       this.http=http.createServer({headersTimeout:10000,requestTimeout:10000,maxHeaderSize:8192},(req,res)=>{
         const hostname=String(req.headers.host||'').toLowerCase().replace(/:80$/,'');
+        if(this.canary&&hostname===this.canary.hostname)return this.canary.http(req,res);
         const app=this.names.get(hostname);
         if(!app||!this.allowed(app)){res.writeHead(421,{connection:'close'});res.end();return;}
         if(!['GET','HEAD'].includes(req.method)||!req.url.startsWith('/')||req.url.startsWith('//')||/[\r\n\\]/.test(req.url)){
@@ -55,6 +57,7 @@ export class DirectRuntime {
   async start({deploymentId,names,policy}) {
     if(this.closed||this.apps.has(deploymentId))throw new Error('direct runtime stopped or app already exists');
     validateAppNames(deploymentId,names);
+    if(this.canary&&names.includes(this.canary.hostname))throw Error('reserved provider probe hostname');
     if(names.some(n=>this.names.has(n.toLowerCase())))throw new Error('direct hostname already assigned');
     const terms=await this.terms(deploymentId,policy);
     // A paid route never silently becomes free when settlement is unavailable.
@@ -74,7 +77,7 @@ export class DirectRuntime {
     };
     try{
       app.egressService=await createDirectEgress({authorize:()=>this.allowed(app),meter,ownAddresses:this.ownAddresses});
-      app.egress='127.0.0.1:'+app.egressService.port;
+      app.egress=app.egressService.proxy;
       this.apps.set(deploymentId,app);for(const n of names)this.names.set(n.toLowerCase(),app);
       return app;
     }catch(e){await app.close(e.message);throw e;}
@@ -85,5 +88,5 @@ export class DirectRuntime {
     app.terms=terms;app.meter.terms=terms;
   }
   async close(){this.closed=true;await Promise.all([...this.apps.values()].map(a=>a.close('direct runtime stopped')));
-    for(const s of this.sockets)s.destroy();this.web?.close();this.http?.close();}
+    for(const s of this.sockets)s.destroy();this.web?.close();this.http?.close();await this.canary?.close();}
 }

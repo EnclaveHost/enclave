@@ -5,11 +5,12 @@ import {EnclaveDeployments, IEnclaveRegistry} from "./EnclaveDeployments.sol";
 
 /// Qualification gates direct service and TUNA service identically. It grants
 /// no compute entitlement. Direct payment uses the current app lease, an owner
-/// allowance, and a receipt from the host's attested meter key.
+/// allowance, and a receipt from the host's registered compute proof key.
 contract EnclaveConnectivity {
     EnclaveDeployments public immutable ledger;
     IEnclaveRegistry public immutable registry;
-    address public immutable administrator;
+    address public administrator;
+    address public pendingAdministrator;
     uint16 public constant ALL_CHECKS = 511;
     uint256 private constant GIB = 1 << 30;
     mapping(address => bool) public probeSigner;
@@ -30,6 +31,12 @@ contract EnclaveConnectivity {
         ledger = deployments; registry = deployments.registry(); administrator = msg.sender;
         require(signers.length > 0);
         for (uint256 i; i < signers.length; ++i) {require(signers[i] != address(0));probeSigner[signers[i]] = true;}
+    }
+    function transferAdministration(address next) external {
+        require(msg.sender == administrator && next != address(0));pendingAdministrator = next;
+    }
+    function acceptAdministration() external {
+        require(msg.sender == pendingAdministrator);administrator = msg.sender;pendingAdministrator = address(0);
     }
     function setProbeSigner(address signer, bool active) external {
         require(msg.sender == administrator && signer != address(0));probeSigner[signer] = active;
@@ -68,14 +75,14 @@ contract EnclaveConnectivity {
     }
     function authorizeDirect(bytes32 id, uint64 expires, uint64 maxPricePerGiB6, uint128 budget6, bytes calldata signature) external {
         EnclaveDeployments.Deployment memory d = ledger.get(id);
-        require(d.active && expires > block.timestamp && expires <= block.timestamp + 30 days);
+        require((expires == 0 && maxPricePerGiB6 == 0 && budget6 == 0) || (d.active && expires > block.timestamp && expires <= block.timestamp + 30 days));
         require(_signedBy(d.owner,policyDigest(id,expires,maxPricePerGiB6,budget6),signature));
         uint64 nonce = policies[id].nonce + 1;
         policies[id] = Policy(d.owner,nonce,expires,maxPricePerGiB6,budget6,0,ledger.runnerBps());
         emit DirectAuthorized(id,nonce,expires,maxPricePerGiB6,budget6);
     }
     function revokeDirect(bytes32 id) external {
-        require(ledger.get(id).owner == msg.sender);policies[id].expires = 0;
+        require(ledger.get(id).owner == msg.sender);policies[id].expires = 0;policies[id].nonce += 1;
     }
     function quote(bytes32 id) public view returns (uint64 pricePerGiB6, bool selfHosted) {
         EnclaveDeployments.Deployment memory d = ledger.get(id);

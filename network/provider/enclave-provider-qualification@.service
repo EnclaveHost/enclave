@@ -1,0 +1,16 @@
+[Unit]
+Description=Independently qualify internet provider %i
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+User=enclave-probe
+Group=enclave-probe
+UMask=0077
+ExecStart=/usr/bin/node /opt/enclave-bandwidth/scripts/network/qualification-round.mjs /etc/enclave-bandwidth/probes/%i.json
+TimeoutStartSec=120
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
