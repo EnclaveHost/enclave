@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {startingShieldTransport} from './shield-starting-transport.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import net from 'node:net';
@@ -82,6 +83,7 @@ export async function runPrivacy(configFile){
     if(!expected.appRef||typeof expected.configCid!=='string'||!/^0x[0-9a-f]{64}$/.test(item.deploymentId)||!Array.isArray(item.names)||!item.names.length)throw new Error('explicit app expectations and names required');
     validateAppNames(item.deploymentId,item.names);
     if(item.publishToMirror!==undefined&&typeof item.publishToMirror!=='boolean')throw new Error('publishToMirror must be true or false');
+    if(item.startupEgress===true&&(expected.requiresConfigSocketServer!==true||expected.requiresSecretsV1!==true))throw new Error('startup egress needs a configured secret command');
     return {...item,expected,...(item.ownerPolicyFile?{ownerPolicy:await readJSON(item.ownerPolicyFile)}:{})};
   };
   const apps=[];
@@ -128,7 +130,7 @@ export async function runPrivacy(configFile){
       const cur=apps.find(a=>a.deploymentId===n.deploymentId);
       if(!cur){apps.push(n);added++;continue;}
       if(JSON.stringify(cur.expected)!==JSON.stringify(n.expected)||JSON.stringify(cur.names)!==JSON.stringify(n.names)||cur.publishToMirror!==n.publishToMirror)updated++;
-      for(const k of ['expected','names','publishToMirror','ownerPolicy','publicFallback','expectedFile','walletsFile'])cur[k]=n[k];
+      for(const k of ['expected','names','publishToMirror','ownerPolicy','publicFallback','expectedFile','walletsFile','startupEgress'])cur[k]=n[k];
     }
     log(`config reloaded: ${apps.length} apps (${added} added, ${updated} changed); mirror apps: `+(apps.filter(a=>a.publishToMirror).map(a=>a.deploymentId.slice(0,10)).join(',')||'none'));
   }catch(e){log('config reload refused: '+e.message);}};
@@ -137,6 +139,8 @@ export async function runPrivacy(configFile){
   // there (the reconciler rewrites or touches it), and works on Linux too.
   let configStamp=(await fs.stat(configFile)).mtimeMs;
   setInterval(()=>void fs.stat(configFile).then(st=>{if(st.mtimeMs!==configStamp){configStamp=st.mtimeMs;return reloadApps();}}).catch(e=>log('config watch: '+e.message)),30000).unref();
+  const starting=windows&&cfg.shield?.manager?startingShieldTransport(cfg.shield.manager,id=>apps.find(a=>a.deploymentId===id)?.expected):null;
+  if(apps.some(a=>a.startupEgress)&&!starting)throw new Error('startup egress needs the local Shield manager');
   if(control)await control.start();
   if(stopping)throw new Error('privacy agent stopped during bootstrap');
   if(control)inventory.asns.fetchFn=guardedFetch(control.proxies,{timeoutMs:6000,maxBytes:65536});
@@ -168,7 +172,7 @@ export async function runPrivacy(configFile){
     probe:async(id,expected,circuit)=>serialized(id,async()=>probeGuest({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],expected,
       ...(circuit&&agent?.admission.allows(id)?{pinnedSpkiSha256:agent.admission.proofs.get(id).spkiSha256}:{}),
       ...(windows?{shield,hostSession:await hostProof.get()}:{linux:{...linux,measurement:expected.measurement,release:expected.release},verifySnp}),
-      ...(circuit?{address:circuit.address,proxy:circuit.isolation.guardAddress}:guestd?{openApp:id=>guestd.open(id)}:{localUpstream:cfg.upstream})}).then(async result=>{
+      ...(circuit?{address:circuit.address,proxy:circuit.isolation.guardAddress,domainIndependent:apps.find(a=>a.deploymentId===id)?.startupEgress===true}:apps.find(a=>a.deploymentId===id)?.startupEgress===true?{openApp:starting,startupEgress:true}:guestd?{openApp:id=>guestd.open(id)}:{localUpstream:cfg.upstream})}).then(async result=>{
         if(circuit?.directPort)await probeGuest({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],address:circuit.address,port:circuit.directPort,
           proxy:circuit.isolation.guardAddress,expected,domainIndependent:true,pinnedSpkiSha256:result.spkiSha256});
         return result;
