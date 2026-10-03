@@ -62,8 +62,8 @@ test('a route probe pinned to the proven TLS key needs no new report', {timeout:
     assert.equal(g.requests(),0);assert.equal(g.readyRequests(),1);
   }finally{await g.close();}
 });
-test('a guest whose TLS key is not the pinned one is asked for a fresh report', {timeout:60000}, async()=>{
+test('a changed route key is rejected without issuing a remote attestation', {timeout:60000}, async()=>{
   const g=await guest([{status:500,body:'report: vTPM quote failed'}]);
-  try{await assert.rejects(g.probe({pinnedSpkiSha256:'00'.repeat(32)}),/guest attestation HTTP 500/);assert.equal(g.requests(),1);}
+  try{await assert.rejects(g.probe({pinnedSpkiSha256:'00'.repeat(32)}),/guest TLS key changed/);assert.equal(g.requests(),0);}
   finally{await g.close();fs.rmSync(dir,{recursive:true,force:true});}
 });
