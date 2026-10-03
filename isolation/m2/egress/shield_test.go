@@ -212,3 +212,18 @@ func TestForShieldPublicHTTPSModeUsesOnlyConfiguredOrigins(t *testing.T) {
 		}
 	}
 }
+
+func TestForShieldPublicWebModeResolvesOnlyConfiguredHTTPSOrigins(t *testing.T) {
+	rel := openedRelease(t, nil, map[string]string{"S3_ENDPOINT": "https://0123abcd.r2.cloudflarestorage.com"})
+	p, err := ForShield(rel, `{"egress":"public-web","endpoint":"$S3_ENDPOINT","private":"https://127.0.0.1/","http":"http://example.com/"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hosts(p) != "0123abcd.r2.cloudflarestorage.com" || len(p.Refused) != 1 {
+		t.Fatalf("origins %s refused %q", hosts(p), p.Refused)
+	}
+	p, err = ForShield(rel, `{"egress":"public-web"}`)
+	if err != nil || len(p.Origins) != 0 {
+		t.Fatalf("mode alone opens no origins: %v %v", p, err)
+	}
+}
