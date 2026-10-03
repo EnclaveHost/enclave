@@ -23,17 +23,21 @@ import {guardedFetch} from './guarded-fetch.mjs';
 import {delegatedIPNS} from './discovery-http.mjs';
 import {ControlTransport} from './control-transport.mjs';
 import {validateAppNames} from './app-ingress.mjs';
+import {DirectRuntime} from './direct-runtime.mjs';
+import {hostConnectivity,directTerms,validateHostConnectivity} from './connectivity-policy.mjs';
+import {TrafficMeter} from './traffic-meter.mjs';
+import {recordHash} from './route-record.mjs';
 
 // Timely admission is independent of slow allocation and publication work. Even
 // a hung RPC, allocator or distributor cannot extend an old authorization.
 export class PrivacyAgent {
-  constructor({apps,runner,account,leaseReader,inventory,wallets,runtime,probe,distribute,directory,dns,defaults,now=Date.now,log=()=>{}}){
+  constructor({apps,runner,account,leaseReader,inventory,wallets,runtime,directRuntime,qualification,probe,distribute,directory,dns,defaults,now=Date.now,log=()=>{}}){
     Object.assign(this,{apps,leaseReader,inventory,probe,distribute,directory,now,log,defaults});this.refreshing=false;this.closed=false;this.publishing=false;
     this.admission=new AdmissionGate({runner,expected:id=>this.apps.find(a=>a.deploymentId===id)?.expected,now});
-    this.manager=new CircuitManager({runtime,admission:this.admission,inventory:()=>inventory.get(),wallets,now,log,
+    this.manager=new CircuitManager({runtime,directRuntime,admission:this.admission,inventory:()=>inventory.get(),wallets,now,log,
       probe:(app,circuit)=>probe(app.deploymentId,app.expected,circuit),observe:(providers,result)=>inventory.observe?.(providers,result)||Promise.resolve(),publish:(id,routes)=>this.publisher.publish(id,routes)});
     this.publisher=new RoutePublisher({directory:path.join(directory,'routes'),account,lease:id=>leaseReader.get(id),
-      policy:id=>this.manager.apps.get(id)?.policy,now,distribute:async(id,value)=>{
+      policy:id=>this.manager.apps.get(id)?.policy,qualification,now,distribute:async(id,value)=>{
         const copies=this.manager.apps.get(id)?.circuits.filter(c=>c.healthy&&!c.closed)||[];
         const record=value?{deploymentId:id,expiresAt:value.bundle.record.expiresAt,name:value.name,cid:value.cid,
           block:value.bytes.toString('base64'),ipns:Buffer.from(value.ipns).toString('base64')}:null;
@@ -65,7 +69,7 @@ export class PrivacyAgent {
     await this.refreshAuthorization();if(this.closed)throw new Error('privacy agent stopped during startup');await this.snapshot();
     this.timers=[setInterval(()=>{this.manager.enforceAdmission();void this.snapshot().catch(e=>this.log(e.message));},1000),
       setInterval(()=>void this.refreshAuthorization(),15000),
-      setInterval(()=>void this.inventory.refresh().catch(e=>this.log('inventory: '+e.message)),20000),
+      setInterval(()=>{if([...this.manager.apps.values()].some(a=>a.policy.mode!=='direct'))void this.inventory.refresh().catch(e=>this.log('inventory: '+e.message));},20000),
       setInterval(()=>{if(this.publishing||this.closed)return;this.publishing=true;void Promise.allSettled([...this.manager.apps.values()].map(app=>this.manager.publishApp(app))).finally(()=>{this.publishing=false;});},10000),
       setInterval(()=>void this.manager.reconcile().catch(e=>this.log('circuits: '+e.message)),5000)];
     void this.manager.reconcile().catch(e=>this.log('circuits: '+e.message));return this;
@@ -89,6 +93,9 @@ export async function runPrivacy(configFile){
   };
   const apps=[];
   for(const item of cfg.apps)apps.push(await loadApp(item));
+  const directConfigured=cfg.connectivity?validateHostConnectivity(cfg.connectivity).direct:false;
+  const needsTuna=apps.some(a=>a.ownerPolicy?.policy?.mode!=='direct');
+  if(!needsTuna&&!directConfigured)throw new Error('direct hosting is not enabled');
   let verifySnp;
   if(cfg.verifierModule){if(!path.isAbsolute(cfg.verifierModule))throw new Error('local verifier module required');verifySnp=(await import(pathToFileURL(cfg.verifierModule).href)).judge;}
   const windows=process.platform==='win32';let linux,shield,hostProof;
@@ -109,9 +116,10 @@ export async function runPrivacy(configFile){
   const guestd=cfg.guestd?new GuestdIngress({...cfg.guestd,expected:id=>apps.find(a=>a.deploymentId===id)?.expected}):
     cfg.shield?.ingress?new ShieldIngress({...cfg.shield.ingress,expected:id=>apps.find(a=>a.deploymentId===id)?.expected,key:id=>agent?.admission.proofs.get(id)?.spkiSha256}):null;
   const Runtime=windows?WindowsCircuitRuntime:LinuxCircuitRuntime;
-  const runtime=new Runtime({...cfg.runtime,directory:path.join(cfg.directory,'circuits'),rpc:cfg.nknRpc,
-    authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:guestd?guestd.forward:localAppForwarder(cfg.upstream),log});
-  const inventory=new ProviderInventory({...cfg.inventory,rpc:cfg.nknRpc,log});
+  const runtime=needsTuna?new Runtime({...cfg.runtime,directory:path.join(cfg.directory,'circuits'),rpc:cfg.nknRpc,
+    authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:guestd?guestd.forward:localAppForwarder(cfg.upstream),log}):
+    {async start(){throw new Error('TUNA runtime is not configured');},async close(){}};
+  const inventory=needsTuna?new ProviderInventory({...cfg.inventory,rpc:cfg.nknRpc,log}):{get:async()=>[],refresh:async()=>[]};
   const control=cfg.control?new ControlTransport({network:cfg.runtime.network,...cfg.control,directory:path.join(cfg.directory,'control'),inventory,rpc:cfg.nknRpc,wallets:await readJSON(cfg.control.walletsFile),log}):null;
   const scheduleProbe=createProbeScheduler();
   let stopping=false;
@@ -125,6 +133,7 @@ export async function runPrivacy(configFile){
     const fresh=JSON.parse(await fs.readFile(configFile,'utf8'));
     if(!Array.isArray(fresh.apps)||fresh.apps.length>256)throw new Error('version 2 app configuration required');
     const next=[];for(const item of fresh.apps)next.push(await loadApp(item));
+    if(!needsTuna&&next.some(a=>a.ownerPolicy?.policy?.mode!=='direct'))throw new Error('adding TUNA apps requires configuring and restarting the TUNA runtime');
     let added=0,updated=0;
     for(const n of next){
       const cur=apps.find(a=>a.deploymentId===n.deploymentId);
@@ -144,9 +153,25 @@ export async function runPrivacy(configFile){
   if(control)await control.start();
   if(stopping)throw new Error('privacy agent stopped during bootstrap');
   if(control)inventory.asns.fetchFn=guardedFetch(control.proxies,{timeoutMs:6000,maxBytes:65536});
-  if(!control&&!cfg.chain.proxy)throw new Error('independent guarded control transport required');
-  const leaseReader=new LeaseReader({...cfg.chain,...(control?{proxy:control.proxies}:{})});
-  agent=new PrivacyAgent({apps,runner:cfg.runner,account,leaseReader,inventory,runtime,directory:cfg.directory,dns:cfg.dns,defaults:cfg.defaults,log,
+  if(needsTuna&&!control&&!cfg.chain.proxy)throw new Error('independent guarded control transport required');
+  const leaseReader=new LeaseReader({...cfg.chain,includeHostPayout:directConfigured,includeConnectivity:directConfigured,...(control?{proxy:control.proxies}:{})});
+  let directRuntime,qualification;
+  if(directConfigured){
+    if(!cfg.direct?.qualificationFile||!Array.isArray(cfg.direct.probeSigners))throw new Error('provider qualification configuration required');
+    qualification=()=>readJSON(cfg.direct.qualificationFile);
+    // A settlement adapter is mandatory for a nonzero rate. Free self-hosting
+    // works without a TUNA wallet, a funded balance, or a payment adapter.
+    const authorizeDebit=cfg.direct.settlementModule?(await import(pathToFileURL(path.resolve(cfg.direct.settlementModule)).href)).authorizeDebit:undefined;
+    directRuntime=new DirectRuntime({...cfg.direct,authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),
+      forward:guestd?guestd.forward:localAppForwarder(cfg.upstream),log,
+      terms:async(id,policy)=>{
+        const host=await hostConnectivity({config:cfg.connectivity,qualification:await qualification(),hostId:cfg.runner,
+          operator:account.address,address:cfg.direct.address,probeSigners:cfg.direct.probeSigners});
+        const lease=leaseReader.get(id);return directTerms({policy,host,lease,payoutWallet:lease?.runnerPayoutWallet});
+      },
+      meter:async(id,policy,terms)=>new TrafficMeter({directory:path.join(cfg.directory,'traffic'),deploymentId:id,policyHash:recordHash(policy),terms,authorizeDebit})});
+  }
+  agent=new PrivacyAgent({apps,runner:cfg.runner,account,leaseReader,inventory,runtime,directRuntime,qualification,directory:cfg.directory,dns:cfg.dns,defaults:cfg.defaults,log,
     wallets:async id=>readJSON(apps.find(a=>a.deploymentId===id).walletsFile),
     distribute:async(id,value)=>{
       if(!value)return;
@@ -157,7 +182,8 @@ export async function runPrivacy(configFile){
       // (the mirror remembers it), so it is opted into per app, never all at once.
       if(cfg.mirror&&apps.find(a=>a.deploymentId===id)?.publishToMirror===true)tasks.push((async()=>{
         let error;for(const circuit of circuits){try{
-          const response=await guardedFetch(circuit.egress,{timeoutMs:5000})(new URL('/v1/network/tuna',cfg.mirror),{method:'POST',headers:{'content-type':'application/json'},
+          const publishFetch=circuit.transport==='direct'?fetch:guardedFetch(circuit.egress,{timeoutMs:5000});
+          const response=await publishFetch(new URL('/v1/network/tuna',cfg.mirror),{method:'POST',signal:AbortSignal.timeout(5000),headers:{'content-type':'application/json'},
             body:JSON.stringify({publication:{version:2,endpoint:cfg.endpoint,policy:value.policy,bundle:value.bundle,ownerPolicy:apps.find(a=>a.deploymentId===id).ownerPolicy}})});
           if(!response.ok)throw new Error('DNS mirror HTTP '+response.status);return;
         }catch(e){error=e;}}throw error;
@@ -174,7 +200,7 @@ export async function runPrivacy(configFile){
       return probeGuest({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],expected,
       ...(circuit&&agent?.admission.allows(id)?{pinnedSpkiSha256:agent.admission.proofs.get(id).spkiSha256}:{}),
       ...(!circuit&&windows?{shield,hostSession:await hostProof.get()}:!circuit?{linux:{...linux,measurement:expected.measurement,release:expected.release},verifySnp}:{}),
-      ...(circuit?{address:circuit.address,proxy:circuit.isolation.guardAddress,domainIndependent:!circuit.directPort&&apps.find(a=>a.deploymentId===id)?.startupEgress===true}:apps.find(a=>a.deploymentId===id)?.startupEgress===true?{openApp:starting,startupEgress:true}:guestd?{openApp:id=>guestd.open(id)}:{localUpstream:cfg.upstream})}).then(async result=>{
+      ...(circuit?{address:circuit.address,direct:circuit.transport==='direct',proxy:circuit.transport==='direct'?undefined:circuit.isolation.guardAddress,domainIndependent:circuit.transport!=='direct'&&!circuit.directPort&&apps.find(a=>a.deploymentId===id)?.startupEgress===true}:apps.find(a=>a.deploymentId===id)?.startupEgress===true?{openApp:starting,startupEgress:true}:guestd?{openApp:id=>guestd.open(id)}:{localUpstream:cfg.upstream})}).then(async result=>{
         if(circuit?.directPort)await probeGuest({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],address:circuit.address,port:circuit.directPort,
           proxy:circuit.isolation.guardAddress,expected,domainIndependent:true,pinnedSpkiSha256:result.spkiSha256});
         return result;

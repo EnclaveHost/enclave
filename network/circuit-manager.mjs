@@ -110,7 +110,8 @@ export class CircuitManager extends EventEmitter {
       for(const circuit of [...app.circuits]){
         try{
           await this.directRuntime.refresh(circuit);circuit.admit(this.authorizationUntil(app.id));
-          if(this.now()-(circuit.checkedAt||0)>20000){await this.probe(app,circuit);circuit.checkedAt=this.now();}
+          if(circuit.egressReady&&!circuit.healthy&&this.admission.proofs.get(app.id)?.ready===false)continue;
+          if(this.now()-(circuit.checkedAt||0)>20000){await this.probe(app,circuit);circuit.checkedAt=this.now();circuit.healthy=true;await this.publishApp(app);}
         }catch(e){await this.fail(app,circuit,e.message);}
       }
       return;
@@ -150,9 +151,10 @@ export class CircuitManager extends EventEmitter {
       try{
         circuit=await this.directRuntime.start({deploymentId:app.id,names:app.names,policy:app.policy});
         circuit.admit(this.authorizationUntil(app.id));
-        await this.probe(app,circuit);
+        const bootstrap=app.startupEgress===true&&this.admission.proofs.get(app.id)?.ready===false;
+        if(!bootstrap)await this.probe(app,circuit);
         if(this.closed||this.apps.get(app.id)!==app||!this.authorizationUntil(app.id)||circuit.closed)throw new Error('direct authorization changed');
-        circuit.healthy=true;circuit.egressReady=true;circuit.checkedAt=this.now();
+        circuit.healthy=!bootstrap;circuit.egressReady=true;circuit.checkedAt=bootstrap?0:this.now();
         circuit.on('down',reason=>{void this.fail(app,circuit,reason).catch(e=>this.log(e.message));});
         app.circuits.push(circuit);app.error=null;await this.publishApp(app);
       }catch(e){await circuit?.close(e.message);app.error=e.message;await this.publishApp(app);}

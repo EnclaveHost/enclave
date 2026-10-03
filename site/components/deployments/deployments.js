@@ -1796,16 +1796,17 @@ class Deployments extends EnclaveElement {
     const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-net"); if (!box) return;
     if (!box.hidden) {box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return;}
     btn.setAttribute("aria-expanded", "true"); box.hidden = false;
-    box.innerHTML = '<div class="ap-attbar">TUNA network</div><div class="term enc-net-status" role="status" aria-live="polite"></div>';
+    box.innerHTML = '<div class="ap-attbar">Network</div><div class="term enc-net-status" role="status" aria-live="polite"></div>';
     const status = box.querySelector(".enc-net-status");
     try {
       const map = await Enclave.getTunaNetwork(), route = map.deployments?.[id.toLowerCase()];
-      if (!route || route.expiresAt <= Date.now()) return paintLine(status, "warn", "Waiting for an active TUNA connection.");
+      if (!route || route.expiresAt <= Date.now()) return paintLine(status, "warn", "Waiting for an active connection.");
+      paintLine(status, "ok", route.transport === "direct" ? "Direct host connection" : "Via TUNA");
       if (route.https) paintLine(status, "ok", "HTTPS: " + route.https.address + ":" + route.https.port);
       for (const protocol of ["tcp", "udp"]) for (const port of route[protocol] || [])
         paintLine(status, "dimln", protocol.toUpperCase() + " " + port.port + " → " + route.address + ":" + port.publicPort);
-      paintLine(status, "dimln", "Provider addresses and ports may change on reconnect. Use the app hostname for HTTPS.");
-      paintLine(status, "dimln", "A dedicated IP and the visitor's source IP are not provided.");
+      paintLine(status, "dimln", "Use the app hostname for HTTPS.");
+      if (route.transport !== "direct") paintLine(status, "dimln", "Provider addresses and ports may change on reconnect. A dedicated IP and the visitor's source IP are not provided.");
     } catch (e) {paintLine(status, "warn", "Network status unavailable: " + e.message);}
   }
 
