@@ -21,9 +21,13 @@ export class TrafficMeter {
     if(!['in','out'].includes(direction)||!Number.isSafeInteger(size)||size<0)throw new Error('invalid byte counter');
     return this.state.update(this.key,async prior=>{
       if(this.terms.expiresAt<=this.now())throw new Error('bandwidth authorization expired');
-      const old=prior||{in:'0',out:'0',cost6:'0'};
+      const old=prior||{in:'0',out:'0',cost6:'0',units:'0'};
+      if(!['in','out','cost6','units'].every(k=>typeof old[k]==='string'&&/^(0|[1-9]\d*)$/.test(old[k])))throw new Error('damaged bandwidth counters');
       const next={...old,[direction]:(BigInt(old[direction])+BigInt(size)).toString()};
-      const cost=bandwidthCost6(BigInt(next.in)+BigInt(next.out),BigInt(this.terms.pricePerGiB6));
+      // A new host rate applies only to new bytes, never to previously served
+      // traffic. Keeping the fractional numerator also avoids packet rounding.
+      next.units=(BigInt(old.units)+BigInt(size)*BigInt(this.terms.pricePerGiB6)).toString();
+      const cost=(BigInt(next.units)+GiB-1n)/GiB;
       if(cost>BigInt(this.terms.budget6))throw new Error('bandwidth budget exhausted');
       if(cost>BigInt(old.cost6))await this.authorizeDebit({deploymentId:this.deploymentId,policyHash:this.policyHash,
         cumulativeBytes:(BigInt(next.in)+BigInt(next.out)).toString(),cumulativeCost6:cost.toString()});

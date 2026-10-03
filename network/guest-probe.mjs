@@ -1,6 +1,6 @@
 import https from 'node:https';
 import {randomBytes,createHash} from 'node:crypto';
-import {SocksHttpsAgent} from './socks-connect.mjs';
+import {SocksHttpsAgent,DirectHttpsAgent} from './socks-connect.mjs';
 import {LocalAppHttpsAgent} from './local-app-transport.mjs';
 import {judge} from '../isolation/m2/judge.mjs';
 import {runtimeId} from '../isolation/contract/runtime.mjs';
@@ -16,9 +16,10 @@ function get(hostname,address,path,agent,pin,port=443){return new Promise((resol
  });req.once('timeout',()=>req.destroy(new Error('guest probe timeout')));req.once('error',reject);
 });}
 const GUEST_BUSY=/attestation busy; retry|too many concurrent report requests/,GUEST_BUSY_RETRIES=5;
-export async function probeGuest({deploymentId,hostname,address,port=443,proxy,expected,linux,shield,hostSession,localUpstream,openApp,domainIndependent=false,verifySnp=judge,pinnedSpkiSha256=null,startupEgress=false}){
+export async function probeGuest({deploymentId,hostname,address,port=443,proxy,direct=false,expected,linux,shield,hostSession,localUpstream,openApp,domainIndependent=false,verifySnp=judge,pinnedSpkiSha256=null,startupEgress=false}){
  if(startupEgress&&(!openApp||proxy||pinnedSpkiSha256||expected.requiresConfigSocketServer!==true||expected.requiresSecretsV1!==true))throw new Error('startup egress requires a local configured secret command proof');
- if([proxy,localUpstream,openApp].filter(Boolean).length!==1)throw new Error('guest probes require exactly one guarded or local app transport');
+ if([proxy,localUpstream,openApp,direct].filter(Boolean).length!==1)throw new Error('guest probes require exactly one explicit app transport');
+ if(direct&&(!pinnedSpkiSha256||domainIndependent))throw new Error('direct route probes require an attested key and SNI');
  // The locally attested key authenticates a route even before its WebPKI
  // certificate is installed. SNI remains present for shared public listeners;
  // only a dedicated native port uses domainIndependent transport.
@@ -28,7 +29,7 @@ export async function probeGuest({deploymentId,hostname,address,port=443,proxy,e
      if(!key||createHash('sha256').update(key).digest('hex')!==pinnedSpkiSha256)throw new Error('guest TLS key changed');
      observedPeerKeys.set(connection,key);
    }}:{})};
- const agent=(localUpstream||openApp)?new LocalAppHttpsAgent(localUpstream,deploymentId,{openApp,attestationOnly:startupEgress}):new SocksHttpsAgent(proxy,routeTls),nonce=randomBytes(32);
+ const agent=(localUpstream||openApp)?new LocalAppHttpsAgent(localUpstream,deploymentId,{openApp,attestationOnly:startupEgress}):direct?new DirectHttpsAgent(routeTls):new SocksHttpsAgent(proxy,routeTls),nonce=randomBytes(32);
  address=(localUpstream||openApp)?'127.0.0.1':address;
  try{
   // A route probe for a guest whose current proof bound TLS key K needs no new

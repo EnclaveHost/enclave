@@ -2248,6 +2248,7 @@ const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostE
                    } };
 
 tunaRoutes = createTunaRoutes({
+  providerProbeSigners: (process.env.PROVIDER_PROBE_SIGNERS || '').split(',').map(s=>s.trim()).filter(Boolean),
   operatorOf: endpoint => relayCtx.operatorOfEndpoint(endpoint), endpointId,
   memory: new DurableState(process.env.TUNA_ROUTE_STATE_DIR || '/var/lib/enclave-relay/tuna-route-state'),
   leaseOf: async id => {

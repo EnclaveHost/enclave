@@ -2,18 +2,21 @@
 // the same recent block. Nan is neither a bootstrap nor an admission dependency.
 import {createPublicClient, http, stringToHex} from 'viem';
 import {canonical} from './route-record.mjs';
+import {readConnectivity} from './connectivity-chain.mjs';
 import {guardedFetch} from './guarded-fetch.mjs';
 const fields=[['id','bytes32'],['owner','address'],['appRef','string'],['ports','string'],['configCid','string'],['gpuMilli','uint16'],['cpuMilli','uint16'],['appPort','uint32'],['isPublic','bool'],['active','bool'],['createdAt','uint64'],['rate','uint256'],['balance6','uint256'],['spent6','uint256'],['runner','bytes32'],['runnerOperator','address'],['leaseUntil','uint64']];
 const bookABI=[{type:'function',name:'addr',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'address'}]}];
 const deploymentABI=[{type:'function',name:'get',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'tuple',components:fields.map(([name,type])=>({name,type}))}]}];
 const schemaABI=[{type:'function',name:'deploymentsSchema',stateMutability:'view',inputs:[],outputs:[{type:'uint256'}]}];
+const hostABI=[{type:'function',name:'get',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'tuple',components:
+  [['endpoint','string'],['repo','string'],['measurement','bytes32'],['operator','address'],['registeredAt','uint64'],['lastSeen','uint64'],['active','bool'],['cpuPricePerSec6','uint64'],['gpuPricePerSec6','uint64'],['proofKey','address'],['payoutWallet','address']].map(([name,type])=>({name,type}))}]}];
 function jsonValue(value) {return JSON.parse(JSON.stringify(value,(_k,v)=>typeof v==='bigint'?v.toString():v));}
 export class LeaseReader {
-  constructor({rpc,chainId=8453,addressBook,maxBlockAgeMs=90000,confirmations=2,clients,proxy,now=Date.now}) {
+  constructor({rpc,chainId=8453,addressBook,maxBlockAgeMs=90000,confirmations=2,clients,proxy,includeHostPayout=false,includeConnectivity=false,now=Date.now}) {
     if (!/^0x[0-9a-fA-F]{40}$/.test(addressBook||'') || !Number.isSafeInteger(chainId) || chainId<=0 ||
         !Number.isSafeInteger(maxBlockAgeMs) || maxBlockAgeMs<1000 || maxBlockAgeMs>120000 || !Number.isSafeInteger(confirmations) || confirmations<1) throw new Error('invalid chain policy');
     if (!clients && (!Array.isArray(rpc) || rpc.length<2 || new Set(rpc.map(s=>new URL(s).hostname)).size<2 || rpc.some(s=>new URL(s).protocol!=='https:'))) throw new Error('at least two independent HTTPS RPC origins required');
-    Object.assign(this,{chainId,addressBook,maxBlockAgeMs,confirmations,now});
+    Object.assign(this,{chainId,addressBook,maxBlockAgeMs,confirmations,includeHostPayout,includeConnectivity,now});
     this.clients=clients||rpc.map(url=>createPublicClient({transport:http(url,{timeout:14000,retryCount:0,...(proxy?{fetchFn:guardedFetch(proxy,{timeoutMs:6000})}:{})})}));
     this.lastBlock=0n;this.cache=new Map();
   }
@@ -40,8 +43,21 @@ export class LeaseReader {
       const deployments=await c.readContract({address:this.addressBook,abi:bookABI,functionName:'addr',args:[stringToHex('deployments',{size:32})],blockNumber});
       if(!/^0x[0-9a-fA-F]{40}$/.test(deployments)||/^0x0{40}$/i.test(deployments))throw new Error('no deployments contract');
       const schema=await c.readContract({address:deployments,abi:schemaABI,functionName:'deploymentsSchema',blockNumber});
-      if(Number(schema)!==15)throw new Error('unsupported deployments schema');
-      const rows=await Promise.all(ids.map(id=>c.readContract({address:deployments,abi:deploymentABI,functionName:'get',args:[id],blockNumber})));
+      if(![15,16].includes(Number(schema))||(this.includeConnectivity&&Number(schema)!==16))throw new Error('unsupported deployments schema');
+      let rows=await Promise.all(ids.map(id=>c.readContract({address:deployments,abi:deploymentABI,functionName:'get',args:[id],blockNumber})));
+      if(this.includeHostPayout){
+        const registry=await c.readContract({address:this.addressBook,abi:bookABI,functionName:'addr',args:[stringToHex('registry',{size:32})],blockNumber});
+        await Promise.all(rows.map(async row=>{
+          if(/^0x0{64}$/.test(row.runner))return;
+          const host=await c.readContract({address:registry,abi:hostABI,functionName:'get',args:[row.runner],blockNumber});
+          if(!host.active||host.operator.toLowerCase()!==row.runnerOperator.toLowerCase())throw new Error('inactive or changed runner');
+          row.runnerPayoutWallet=host.payoutWallet;
+        }));
+      }
+      if(this.includeConnectivity){
+        const address=await c.readContract({address:this.addressBook,abi:bookABI,functionName:'addr',args:[stringToHex('connectivity',{size:32})],blockNumber});
+        rows=await readConnectivity(c,{address,deployments,rows,blockNumber});
+      }
       // Confirm the numbered block was not replaced while eth_call ran.
       if((await c.getBlock({blockNumber})).hash!==block.hash)throw new Error('chain reorganized during read');
       return {hash:block.hash,blockNumber:String(blockNumber),timestamp,deployments:deployments.toLowerCase(),rows:jsonValue(rows)};

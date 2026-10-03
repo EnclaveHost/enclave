@@ -44,3 +44,15 @@ export class SocksHttpsAgent extends https.Agent {
     },callback);
   }
 }
+
+// Explicit direct mode retains the same pre-request peer verification used by
+// guarded probes. Merely omitting a SOCKS proxy never enables this transport.
+export class DirectHttpsAgent extends https.Agent {
+  constructor({tlsOptions={},verifyPeer}={}){super({keepAlive:false,maxSockets:16});this.tlsOptions=tlsOptions;this.verifyPeer=verifyPeer;}
+  createConnection(options,callback){
+    const connection=tls.connect({...options,...this.tlsOptions});let settled=false;
+    const done=error=>{if(settled)return;settled=true;clearTimeout(timer);if(error){connection.destroy();callback(error);}else callback(null,connection);};
+    const timer=setTimeout(()=>done(new Error('TLS handshake timeout')),15000);
+    connection.once('secureConnect',()=>{try{this.verifyPeer?.(connection);done();}catch(e){done(e);}});connection.once('error',done);
+  }
+}
