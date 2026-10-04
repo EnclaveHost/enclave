@@ -2093,7 +2093,7 @@ class Deployments extends EnclaveElement {
      refuses the whole envelope, stranding the deployment Queued at its next
      claim); dropping one is always safe. Returns { err } when nothing can be
      edited, else the context cfgPlan() and the panels build on. ---- */
-  async _cfgRead(id) {
+  async _cfgRead(id, { allowReadOnly = false } = {}) {
     let d = null, rev = 1, avail = null;
     try { [rev, d] = await Promise.all([depSchemaRev(), depGet(id)]); await loadCatalog(); } catch(e){ d = null; }
     try { avail = await Enclave.getAvailability(); } catch(e){}
@@ -2116,10 +2116,12 @@ class Deployments extends EnclaveElement {
     } else if (hasOv){
       o0 = (cur.config && typeof cur.config === "object" && !Array.isArray(cur.config)) ? cur.config : {};
     }
+    let editBlocked = null;
     if (rev < 5 && !hasOv)
-      return { err: "[!] the live ledger caps the options field at 100 bytes (CID-sized), so a config override can’t fit - this control activates with the rev-5 ledger upgrade" };
-    if (avail && avail.configOverride !== true && !hasOv)
-      return { err: "[!] the live fleet doesn’t honor per-deployment config overrides yet - setting one now could strand this deployment on its next claim; try again after the fleet updates" };
+      editBlocked = "The current ledger does not support changing this deployment’s models.";
+    else if ((!avail || avail.configOverride !== true) && !hasOv)
+      editBlocked = "Changing models is unavailable because fleet support is missing or could not be verified.";
+    if (editBlocked && !allowReadOnly) return { err: editBlocked };
     // The STOCK config: the catalog version this deployment references. On a
     // rev-7 catalog a large config lives at a CID (the record's inline field is
     // only the routing manifest) - fetch it for display and the diff baseline;
@@ -2143,7 +2145,7 @@ class Deployments extends EnclaveElement {
                   : "it applies at the app’s next relaunch or claim")
       : "it applies when the deployment is next claimed";
     const curBase = { ...cur }; delete curBase.config; delete curBase.configCid;   // the envelope's OTHER namespaces, carried verbatim
-    return { d, rev, avail, raw, cur, curBase, ovCid, hasOv, o0, ovLost, cr, ver, stock, stockC, cap,
+    return { d, rev, avail, raw, cur, curBase, ovCid, hasOv, o0, ovLost, cr, ver, stock, stockC, cap, editBlocked,
              splitOk: !!(avail && avail.configCidOverride === true), applyWord };
   }
   /* one owner setConfig tx (vault rows: the same passkey-signed control op as
@@ -2368,7 +2370,7 @@ class Deployments extends EnclaveElement {
     box.hidden = false;
     const bar = '<div class="ap-attbar">models · ' + esc(id) + '</div>';
     box.innerHTML = bar + '<div class="term enc-mod-status" role="status" aria-live="polite"><span class="ln dimln">// reading the ledger + fleet…</span></div>';
-    const [ctx, fleet] = await Promise.all([this._cfgRead(id), Enclave.getEnclaves().catch(() => null)]);
+    const [ctx, fleet] = await Promise.all([this._cfgRead(id, { allowReadOnly: true }), Enclave.getEnclaves().catch(() => null)]);
     if (box.hidden || !box.isConnected) return;              // closed while loading
     const fail = (msg) => { const x = box.querySelector(".enc-mod-status"); x.innerHTML = ""; paintLine(x, "warn", msg); };
     if (ctx.err) return fail(ctx.err);
@@ -2410,6 +2412,16 @@ class Deployments extends EnclaveElement {
     const selected = new Set(nowVols);
     const lr = (this._list || []).find(x => x.id === id);
     const here = (lr && lr.enclave) || "";       // the box serving it right now (absent while queued/stopped)
+    // Reading a model selection does not require permission to write a new
+    // config. Show the resolved selection even when no host can edit it.
+    if (ctx.editBlocked) {
+      box.innerHTML = bar + '<div class="enc-mod-body"><h3>Selected models</h3>'
+        + (nowVols.length ? '<ul>' + nowVols.map(n => '<li><b>' + esc(n) + '</b> · '
+          + (byName.get(n).missing ? 'not on any live enclave' : 'available on ' + byName.get(n).hosts.map(esc).join(', '))
+          + '</li>').join('') + '</ul>' : '<p>No model volumes selected.</p>')
+        + '<p class="en-intro dim">' + esc(ctx.editBlocked) + ' You can still view the selection here.</p></div>';
+      return;
+    }
     box.innerHTML = bar
       + '<div class="enc-mod-body">'
       +   '<p class="en-intro">The model volumes this app mounts at <b>/models/&lt;name&gt;</b>: attested read-only weights an enclave carries, named by the <b>volumes</b> key of the app’s config. '
