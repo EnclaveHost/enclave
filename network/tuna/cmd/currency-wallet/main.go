@@ -90,8 +90,8 @@ func inspect(tx *transaction.Transaction) (result, error) {
 		return out, e
 	}
 	p, ok := payload.(*pb.TransferAsset)
-	if !ok || p.Amount <= 0 {
-		return out, errors.New("positive native transfer required")
+	if !ok || p.Amount < 0 {
+		return out, errors.New("nonnegative native transfer required")
 	}
 	from, e := common.Uint160ParseFromBytes(p.Sender)
 	if e != nil {

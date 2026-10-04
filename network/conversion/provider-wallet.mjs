@@ -123,7 +123,7 @@ export class ProviderConversionWallet {
    for(const info of b.transactions){
     if(info.txType!=='TRANSFER_ASSET_TYPE')continue;
     const tx=await this.signNative({action:'inspect',info});
-    if(tx.hash===s.signed.hash||tx.to===this.nativeAddress)s.found[tx.hash]={...tx,timestamp:b.timestamp,height:h,blockHash:b.hash};
+    if(tx.amount!=='0'&&(tx.hash===s.signed.hash||tx.to===this.nativeAddress))s.found[tx.hash]={...tx,timestamp:b.timestamp,height:h,blockHash:b.hash};
    }
    if(Object.keys(s.found).length>10000)throw Error('native transfer scan limit reached; operator reconciliation required');
    s.scan={height:h,hash:b.hash};await this.store.set('wallet-current',s);
