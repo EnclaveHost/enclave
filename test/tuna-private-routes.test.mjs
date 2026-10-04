@@ -37,3 +37,22 @@ test('DNS keeps the warm fallback out of normal answers and promotes it when the
  await publish([fallback]);map=await mirror.map([row]);assert.deepEqual(map.labels.abababab.addresses,[fallback.address]);
  await publish([]);assert.equal((await mirror.map([row])).labels.abababab,undefined);
 });
+
+test('USDC TUNA mirror accepts chain-authorized paths and rejects substituted or revoked policies',async t=>{
+ const {keccak256,stringToHex}=await import('viem');const {tunaPolicyFromLease}=await import('../network/tuna-policy.mjs');
+ const directory=await mkdtemp(path.join(os.tmpdir(),'tuna-usdc-mirror-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+ const now=Date.now(),expiry=Math.floor(now/1000)+120,address='8.8.4.4';
+ const provider={id:'0x'+'ef'.repeat(32),qualified:true,active:true,qualifiedUntil:expiry,pricePerGiB6:'1000',addressHash:keccak256(stringToHex(address))};
+ const c={owner:account.address,address:'0x'+'12'.repeat(20),viaTuna:true,nonce:'1',expires:expiry,maxPricePerGiB6:'1000',budget6:'10000',providers:[provider]};
+ const lease={id,runner,runnerOperator:account.address,owner:account.address,chainId:8453,deployments:'0x'+'12'.repeat(20),active:true,isPublic:true,validUntil:now+90000,leaseUntil:now+600000,connectivity:c};
+ const policy=tunaPolicyFromLease(lease),publisher=new RoutePublisher({directory:path.join(directory,'publisher'),account,policy:()=>policy,lease:()=>lease,distribute:async()=>{},now:()=>now});
+ const bundle=await publisher.publish(id,[{circuit:'a'.repeat(32),address,port:443,transport:'tuna-guarded-tcp'}]);
+ const mirror=createTunaRoutes({operatorOf:async()=>account.address,endpointId:async()=>runner,eligible:()=>true,leaseOf:async()=>lease,memory:new DurableState(path.join(directory,'mirror')),now:()=>now});
+ const publication={version:2,endpoint,policy,bundle};await mirror.publish(publication);
+ assert.equal((await mirror.map([{...lease,leaseUntil:lease.leaseUntil/1000}])).deployments[id].https.address,address);
+ lease.connectivity={...c,nonce:'2',expires:0};await assert.rejects(mirror.publish(publication));
+ // A current runner can withdraw its own route after revocation, without
+ // acquiring a new spending authorization merely to stop traffic.
+ await mirror.publish({...publication,bundle:await publisher.publish(id,[])});
+ assert.equal((await mirror.map([{...lease,leaseUntil:lease.leaseUntil/1000}])).deployments[id],undefined);
+});

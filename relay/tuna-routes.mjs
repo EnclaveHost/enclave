@@ -1,5 +1,6 @@
 // Authenticated, expiring TUNA allocations. This is DNS/control metadata;
 // application bytes never pass through this service.
+import {tunaPolicyFromLease} from '../network/tuna-policy.mjs';
 import {assertDirectChoice} from '../network/connectivity-control.mjs';
 import net from 'node:net';
 import { isBlockedHost } from './net-guard.mjs';
@@ -47,7 +48,9 @@ export function createTunaRoutes({ operatorOf, endpointId, eligible, now = Date.
         const operator=await operatorOf(endpoint);
         if(!operator||operator.toLowerCase()!==lease.runnerOperator.toLowerCase())throw new Error('inactive route operator');
         if(policy.mode==='direct'){if(bundle?.record?.routes?.length)assertDirectChoice(policy,lease,now());}
-        else if(publication.ownerPolicy){
+        else if(policy.currency==='USDC'){
+          if(bundle?.record?.routes?.length&&recordHash(tunaPolicyFromLease(lease))!==recordHash(policy))throw Error('route differs from current USDC TUNA authorization');
+        }else if(publication.ownerPolicy){
           const authorized=validateCircuitPolicy(await verifyOwnerPolicy(publication.ownerPolicy,lease.owner));
           if(recordHash(authorized)!==recordHash(policy))throw new Error('owner policy mismatch');
         }else if(policy.mode==='direct'||policy.diversity!=='beneficiary-and-network'||Object.values(policy.providers).some(r=>r.allow.length||r.prefer.length||r.deny.length))throw new Error('custom provider policy requires owner signature');
