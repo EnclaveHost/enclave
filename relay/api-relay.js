@@ -2235,8 +2235,10 @@ const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostE
                    // fail-closed decision.
                    operatorOfEndpoint: async (endpoint) => registryOperator(await endpointId(endpoint)) };
 
+// Two of these must agree on every lease and registry answer. Measured from nan
+// 2026-10-04: mainnet.base.org and most free endpoints refuse a relay's rate.
 const networkLeaseReader=ADDRESS_BOOK?new LeaseReader({addressBook:ADDRESS_BOOK,
-  rpc:(process.env.NETWORK_CHAIN_RPCS||'https://base-rpc.publicnode.com,https://base.drpc.org,https://mainnet.base.org').split(',').map(s=>s.trim()),
+  rpc:(process.env.NETWORK_CHAIN_RPCS||'https://base-rpc.publicnode.com,https://base.gateway.tenderly.co,https://base-public.nodies.app,https://base.drpc.org').split(',').map(s=>s.trim()),
   includeHostPayout:true,includeConnectivity:'auto'}):null;
 // WHO OWNS a registry id, from the same agreeing public RPCs as route leases
 // (relay/chain-sources.mjs), not the single metered BASE_RPC; a failed read

@@ -20,8 +20,9 @@ export function createLeaseSource({reader, freshMs = 15000, maxIds = 256, now = 
 
 // WHO OWNS a registry id: fresh for `freshMs`, then served up to `staleMs`
 // while one shared read renews it. A failed read keeps the old answer only
-// until it ages out, and throws to callers that have no usable answer.
-export function createRegistryOperator({reader, registry, freshMs = 15000, staleMs = 60000, maxEntries = 1024, now = Date.now}) {
+// until it ages out. With no usable answer (a tunnel attaching after a relay
+// restart) the read is retried before it throws to the caller.
+export function createRegistryOperator({reader, registry, freshMs = 15000, staleMs = 60000, retries = 2, retryMs = 1000, maxEntries = 1024, now = Date.now}) {
   const entries = new Map();
   return async function registryOperator(id) {
     const address = registry(); if (!address) return null;
@@ -29,7 +30,13 @@ export function createRegistryOperator({reader, registry, freshMs = 15000, stale
     const usable = hit?.at !== undefined && hit.at + staleMs > t;
     if (usable && hit.at + freshMs > t) return hit.op;
     if (hit?.pending) return usable ? hit.op : hit.pending;
-    const pending = reader.registryEntries(address, [id]).then(([e]) => {
+    const read = async () => {
+      for (let attempt = 0; ; attempt++) {
+        try { return await reader.registryEntries(address, [id]); }
+        catch (e) { if (usable || attempt >= retries) throw e; await new Promise((r) => setTimeout(r, retryMs * (attempt + 1))); }
+      }
+    };
+    const pending = read().then(([e]) => {
       const op = e.active && !/^0x0{40}$/i.test(e.operator) ? e.operator : null;
       entries.set(key, {at: now(), op}); return op;
     }, (err) => {
