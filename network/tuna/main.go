@@ -31,15 +31,16 @@ import (
 )
 
 type config struct {
-	ListenIP       string   `json:"listenIp,omitempty"`
-	SeedFile       string   `json:"seedFile"`
-	RPC            []string `json:"rpc"`
-	MaxPrice       string   `json:"maxPrice"`
-	MinBalance     string   `json:"minBalance"`
-	GuardSOCKS     string   `json:"guardSocks,omitempty"`
-	RequireGuard   bool     `json:"requireGuard,omitempty"`
-	AllowProviders []string `json:"allowProviders,omitempty"`
-	DenyProviders  []string `json:"denyProviders,omitempty"`
+	USDC           *tuna.USDCLocalConfig `json:"usdc,omitempty"`
+	ListenIP       string                `json:"listenIp,omitempty"`
+	SeedFile       string                `json:"seedFile"`
+	RPC            []string              `json:"rpc"`
+	MaxPrice       string                `json:"maxPrice"`
+	MinBalance     string                `json:"minBalance"`
+	GuardSOCKS     string                `json:"guardSocks,omitempty"`
+	RequireGuard   bool                  `json:"requireGuard,omitempty"`
+	AllowProviders []string              `json:"allowProviders,omitempty"`
+	DenyProviders  []string              `json:"denyProviders,omitempty"`
 }
 type route struct {
 	ID          string   `json:"id"`
@@ -50,6 +51,8 @@ type route struct {
 	PublicTCP   []uint32 `json:"publicTcp,omitempty"`
 }
 type event struct {
+	Currency    string   `json:"currency,omitempty"`
+	RegistryID  string   `json:"registryId,omitempty"`
 	Type        string   `json:"type"`
 	ID          string   `json:"id,omitempty"`
 	Address     string   `json:"address,omitempty"`
@@ -224,7 +227,7 @@ func runRoute(ctx context.Context, c config, r route, w *nkn.Wallet, client *nkn
 		var connected <-chan struct{}
 		var allocation func() event
 		if r.Forward {
-			entry, e := tuna.NewTunaEntry(tuna.Service{Name: "socksproxy", TCP: r.TCP, Encryption: "xsalsa20-poly1305"}, tuna.ServiceInfo{MaxPrice: c.MaxPrice, ListenIP: c.ListenIP, NknFilter: &providerFilter}, w, client, &tuna.EntryConfiguration{SeedRPCServerAddr: c.RPC, DialTimeout: 5, UDPTimeout: 60, MinBalance: c.MinBalance, TcpDialContext: dial, HttpDialContext: dial, WsDialContext: dial})
+			entry, e := tuna.NewTunaEntry(tuna.Service{Name: "socksproxy", TCP: r.TCP, Encryption: "xsalsa20-poly1305"}, tuna.ServiceInfo{MaxPrice: c.MaxPrice, ListenIP: c.ListenIP, NknFilter: &providerFilter}, w, client, &tuna.EntryConfiguration{USDCLocal: c.USDC, SeedRPCServerAddr: c.RPC, DialTimeout: 5, UDPTimeout: 60, MinBalance: c.MinBalance, TcpDialContext: dial, HttpDialContext: dial, WsDialContext: dial})
 			if e != nil {
 				emit(event{Type: "down", ID: r.ID, Error: e.Error()})
 				return
@@ -237,7 +240,7 @@ func runRoute(ctx context.Context, c config, r route, w *nkn.Wallet, client *nkn
 			}
 			go func() { done <- entry.Start(false) }()
 		} else {
-			exit, e := tuna.NewTunaExit([]tuna.Service{{Name: r.ID, TCP: r.TCP, UDP: r.UDP, Encryption: "xsalsa20-poly1305"}}, w, client, &tuna.ExitConfiguration{SeedRPCServerAddr: c.RPC, Reverse: true, ReverseRandomPorts: r.RandomPorts, ReverseTCPPorts: r.PublicTCP, ReverseMaxPrice: c.MaxPrice, ReverseMinBalance: c.MinBalance, DialTimeout: 5, UDPTimeout: 60, Services: map[string]tuna.ExitServiceInfo{r.ID: {Address: "127.0.0.1"}}, ReverseNknFilter: providerFilter, TcpDialContext: dial, HttpDialContext: dial, WsDialContext: dial})
+			exit, e := tuna.NewTunaExit([]tuna.Service{{Name: r.ID, TCP: r.TCP, UDP: r.UDP, Encryption: "xsalsa20-poly1305"}}, w, client, &tuna.ExitConfiguration{USDCLocal: c.USDC, SeedRPCServerAddr: c.RPC, Reverse: true, ReverseRandomPorts: r.RandomPorts, ReverseTCPPorts: r.PublicTCP, ReverseMaxPrice: c.MaxPrice, ReverseMinBalance: c.MinBalance, DialTimeout: 5, UDPTimeout: 60, Services: map[string]tuna.ExitServiceInfo{r.ID: {Address: "127.0.0.1"}}, ReverseNknFilter: providerFilter, TcpDialContext: dial, HttpDialContext: dial, WsDialContext: dial})
 			if e != nil {
 				emit(event{Type: "down", ID: r.ID, Error: e.Error()})
 				return
@@ -260,7 +263,13 @@ func runRoute(ctx context.Context, c config, r route, w *nkn.Wallet, client *nkn
 				return
 			case _, ok := <-connected:
 				if ok {
-					emit(allocation())
+					value := allocation()
+					value.Currency = "NKN"
+					if c.USDC != nil {
+						value.Currency = "USDC"
+						value.RegistryID = c.USDC.ProviderID
+					}
+					emit(value)
 				}
 				connected = nil
 			case err := <-done:

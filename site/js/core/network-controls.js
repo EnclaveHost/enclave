@@ -41,6 +41,22 @@ export async function networkSettings(id){
   direct:number(capabilities[0])===1n,rate6:selfHosted?0n:number(provider[2]),selfHosted,backingGap6:number(words(back)[0]),active:d.active};
 }
 function BufferlessKey(s){return [...new TextEncoder().encode(s)].map(n=>n.toString(16).padStart(2,'0')).join('').padEnd(64,'0');}
+export async function networkProviders(current,{read=call,block='latest',now=Date.now()}={}){
+ const count=number(words(await read(REGISTRY_ADDRESS,'0x06661abd',block))[0]);
+ if(count>10000n)throw Error('Provider registry is too large to load.');
+ const providers=[];
+ for(let start=0n;start<count;start+=16n){
+  const batch=Array.from({length:Number(count-start<16n?count-start:16n)},(_,i)=>start+BigInt(i));
+  const rows=await Promise.all(batch.map(async index=>{
+   const id='0x'+words(await read(REGISTRY_ADDRESS,'0x4fe0d5c6'+encUint(index),block))[0];
+   const [rawHost,rawCaps]=await Promise.all([read(current.address,'0x7c33a665'+encBytes32(id),block),read(current.address,'0xc2ead131'+encBytes32(id),block)]);
+   const host=words(rawHost),caps=words(rawCaps);
+   if(number(caps[1])!==1n||number(host[2])===0n||number(host[3])*1000n<=BigInt(now))return null;
+   return {id,rate6:number(host[2]),operator:addr(host[5]),qualifiedUntil:Number(number(host[3]))};
+  }));providers.push(...rows.filter(Boolean));
+ }
+ return providers.sort((a,b)=>a.rate6<b.rate6?-1:a.rate6>b.rate6?1:a.id.localeCompare(b.id));
+}
 export async function saveNetworkSettings(current,{mode,maxPrice,budget,hours,providers=current.providers,viaVault=false}){
  if(!viaVault)await ensureBaseChain();const fresh=await networkSettings(current.id);
  if(!fresh||fresh.address!==current.address||fresh.ledger!==current.ledger||fresh.owner.toLowerCase()!==current.owner.toLowerCase()||(!viaVault&&fresh.owner.toLowerCase()!==Enclave.address?.toLowerCase()))throw Error('Connect the wallet that owns this app.');
@@ -76,14 +92,19 @@ export async function saveNetworkSettings(current,{mode,maxPrice,budget,hours,pr
 export async function renderNetworkControls(box,id,{viaVault=false}={}){
  const current=await networkSettings(id);if(!current)return;
  const section=document.createElement('form');section.className='enc-network-controls';
- section.innerHTML='<label>Internet route <select name="mode"><option value="tuna">TUNA provider</option><option value="direct">Direct host</option></select></label><div data-direct><label>Maximum USDC per GiB <input name="price" type="text" inputmode="decimal" required></label><label>Bandwidth budget (USDC) <input name="budget" type="text" inputmode="decimal" required></label><label>Authorization (hours) <input name="hours" type="number" min="1" max="720" value="24" required></label></div><p data-info></p><button type="submit" class="btn sm">Save internet route</button><p role="status" aria-live="polite"></p>';
- const form=section.elements;form.mode.value=current.expires>0&&!current.viaTuna?'direct':'tuna';form.price.value=showNetworkAmount(current.maxPricePerGiB6||current.rate6);form.budget.value=showNetworkAmount(current.budget6);
+ section.innerHTML='<label>Internet route <select name="mode"><option value="tuna">Existing route — no paid authorization</option><option value="tuna-usdc">TUNA providers — pay from app balance</option><option value="direct">Direct host</option></select></label><fieldset data-providers hidden><legend>Allowed internet providers</legend><p data-provider-status>Loading qualified providers…</p><div data-provider-list></div></fieldset><div data-limits><label>Maximum combined USDC per GiB <input name="price" type="text" inputmode="decimal" required></label><label>Bandwidth budget (USDC) <input name="budget" type="text" inputmode="decimal" required></label><label>Authorization (hours) <input name="hours" type="number" min="1" max="720" value="24" required></label></div><p data-info></p><button type="submit" class="btn sm">Save internet route</button><p role="status" aria-live="polite"></p>';
+ const form=section.elements;form.mode.value=current.expires>0?(current.viaTuna?'tuna-usdc':'direct'):'tuna';form.price.value=showNetworkAmount(current.maxPricePerGiB6||current.rate6);form.budget.value=showNetworkAmount(current.budget6);
  const info=section.querySelector('[data-info]'),status=section.querySelector('[role=status]'),save=section.querySelector('button');
- const update=()=>{section.querySelector('[data-direct]').hidden=form.mode.value!=='direct';info.textContent=form.mode.value==='direct'?(current.selfHosted?'Eligible self-hosting has no bandwidth charge.':`Host rate: ${showNetworkAmount(current.rate6)} USDC/GiB, charged from this app’s balance.`):(current.viaTuna&&current.expires>0?'USDC billing is not available for this route yet. Saving this option cancels that authorization and restores the existing TUNA route.':'Use a TUNA provider. Direct routing will not be used as a fallback.');if(form.mode.value==='direct'&&!current.direct)info.textContent+=' This host has not enabled qualified direct service.';if(form.mode.value==='direct'&&current.expires>0&&current.expires<=Date.now()/1000)info.textContent+=' Your direct authorization expired. Save new limits to renew it.';};
+ const update=()=>{const paid=form.mode.value!=='tuna';section.querySelector('[data-limits]').hidden=!paid;for(const key of ['price','budget','hours'])form[key].disabled=!paid;section.querySelector('[data-providers]').hidden=form.mode.value!=='tuna-usdc';info.textContent=form.mode.value==='direct'?(current.selfHosted?'Eligible self-hosting has no bandwidth charge.':`Host rate: ${showNetworkAmount(current.rate6)} USDC/GiB, charged from this app’s balance.`):form.mode.value==='tuna-usdc'?'Choose up to six providers. The app uses independent routes and pays only for measured traffic from its existing USDC balance.':'Saving this option cancels paid bandwidth authorization and restores the existing route.';if(form.mode.value==='direct'&&!current.direct)info.textContent+=' This host has not enabled qualified direct service.';};
  form.mode.addEventListener('change',update);update();
  if(!viaVault&&Enclave.address?.toLowerCase()!==current.owner.toLowerCase()){save.disabled=true;status.textContent='Connect the app owner’s wallet to change its route.';}
- section.addEventListener('submit',async event=>{event.preventDefault();save.disabled=true;status.textContent='Confirm the route and spending limits in your wallet.';try{await saveNetworkSettings(current,{mode:form.mode.value,maxPrice:form.price.value,budget:form.budget.value,hours:form.hours.value,viaVault});status.textContent='Saved on-chain. The host will apply your route after its next authorization refresh.';}catch(e){status.textContent=e.message;}finally{save.disabled=false;}});
+ section.addEventListener('submit',async event=>{event.preventDefault();save.disabled=true;status.textContent='Confirm the route and spending limits in your wallet.';try{const providers=[...section.querySelectorAll('[name=provider]:checked')].map(input=>input.value);await saveNetworkSettings(current,{mode:form.mode.value,maxPrice:form.price.value,budget:form.budget.value,hours:form.hours.value,providers,viaVault});status.textContent='Saved on-chain. The host will apply your route after its next authorization refresh.';}catch(e){status.textContent=e.message;}finally{save.disabled=!viaVault&&Enclave.address?.toLowerCase()!==current.owner.toLowerCase();}});
  box.append(section);
+ try{
+  const available=await networkProviders(current,{block:await baseRpc('eth_blockNumber',[])}),list=section.querySelector('[data-provider-list]');
+  for(const p of available){const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.name='provider';input.value=p.id;input.checked=current.providers.includes(p.id);label.append(input,document.createTextNode(` ${p.id.slice(0,10)}… — ${showNetworkAmount(p.rate6)} USDC/GiB`));list.append(label);}
+  section.querySelector('[data-provider-status]').textContent=available.length?'Providers are rechecked before authorization and while serving traffic. At least four independent operators and networks are needed for two guarded routes.':'No qualified paid providers are available yet.';
+ }catch(e){section.querySelector('[data-provider-status]').textContent='Could not load qualified providers: '+e.message;}
 }
 
 export function networkPasskeyDigest(raw){

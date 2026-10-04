@@ -9,11 +9,23 @@ import {qualifyProvider,PROVIDER_CHECKS} from '../network/provider-qualification
 import {privateKeyToAccount} from 'viem/accounts';
 import {DurableState} from '../network/durable-state.mjs';
 import {validateCircuitPolicy} from '../network/circuit-policy.mjs';
+import {tunaPolicyFromLease} from '../network/tuna-policy.mjs';
 import {canonical, recordHash, signDelegation, signRoute, signOwnerPolicy, verifyOwnerPolicy, verifyRoute} from '../network/route-record.mjs';
 
 const app='0x'+'ab'.repeat(32), runner='0x'+'cd'.repeat(32);
 const owner=privateKeyToAccount('0x'+'01'.repeat(32)), operator=privateKeyToAccount('0x'+'02'.repeat(32));
 const policy=validateCircuitPolicy({version:2,deploymentId:app,mode:'guarded',directFallback:false,routes:2,maxPrice:'0.0002',budgetNkn:'1',diversity:'beneficiary-and-network'});
+test('USDC routes recheck owner authorization and provider qualification, including signed stale records',async t=>{
+ const expires=Math.floor(Date.now()/1000)+120,provider={id:'0x'+'ef'.repeat(32),qualified:true,active:true,qualifiedUntil:expires,pricePerGiB6:'1000',addressHash:keccak256(stringToHex('8.8.4.4'))};
+ const connectivity={owner:owner.address,address:'0x'+'12'.repeat(20),viaTuna:true,nonce:'1',expires,maxPricePerGiB6:'1000',budget6:'10000',providers:[provider]};
+ const p=tunaPolicyFromLease({id:app,owner:owner.address,connectivity});
+ const {record,bundle,options}=await fixture(t,p),lease={...options.lease,owner:owner.address,connectivity},opts={...options,lease};
+ assert.equal((await verifyRoute(bundle(record),opts)).routes.length,1);
+ for(const change of [{viaTuna:false},{nonce:'2'},{owner:operator.address},{budget6:'1'},{providers:[]},{providers:[{...provider,qualified:false}]},{providers:[{...provider,qualifiedUntil:Math.floor(options.now/1000)+1}]},{providers:[{...provider,pricePerGiB6:'1001'}]}])await assert.rejects(verifyRoute(bundle(record),{...opts,lease:{...lease,connectivity:{...connectivity,...change}}}));
+ for(const extra of [{fallback:true},{directPort:20000}])await assert.rejects(verifyRoute(bundle({...record,routes:[{...record.routes[0],...extra}]}),opts),/authorization/);
+ const revoked={...opts,lease:{...lease,connectivity:{...connectivity,viaTuna:false}}};
+ assert.deepEqual((await verifyRoute(bundle({...record,sequence:2,routes:[]}),revoked)).routes,[]);
+});
 async function fixture(t,selectedPolicy=policy) {
  const dir=await mkdtemp(path.join(os.tmpdir(),'enclave-routes-'));t.after(()=>rm(dir,{recursive:true,force:true}));
  const now=Date.now(), keys=generateKeyPairSync('ed25519');

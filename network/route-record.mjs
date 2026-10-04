@@ -7,6 +7,7 @@ import net from 'node:net';
 import {isBlockedHost} from '../relay/net-guard.mjs';
 import {validateCircuitPolicy} from './circuit-policy.mjs';
 import {verifyQualification} from './provider-qualification.mjs';
+import {tunaPolicyFromLease} from './tuna-policy.mjs';
 
 export function canonical(value) {
   if (value === null || typeof value === 'boolean' || typeof value === 'string') return JSON.stringify(value);
@@ -70,6 +71,14 @@ export async function verifyRoute(bundle, {deploymentId, policy, lease, memory, 
         (route.fallback!==undefined&&route.fallback!==true) ||
         Object.keys(route).some(k => !['circuit','address','port','transport','directPort','fallback'].includes(k))) throw new Error('invalid public route');
     seen.add(route.circuit);
+    if(p.currency==='USDC'&&p.mode==='guarded'){
+      const current=tunaPolicyFromLease(lease);
+      if(recordHash(current)!==recordHash(p)||r.expiresAt>p.expiresAt||p.expiresAt<=now||route.fallback!==undefined||route.directPort!==undefined)throw Error('route lacks current USDC TUNA owner authorization');
+      const providers=lease.connectivity.providers;
+      if(providers.reduce((sum,v)=>sum+BigInt(v.pricePerGiB6),0n)>BigInt(p.maxPricePerGiB6))throw Error('USDC TUNA price exceeds owner authorization');
+      const provider=providers.find(v=>v.qualified&&v.active&&v.addressHash===keccak256(stringToHex(route.address))&&Number(v.qualifiedUntil)*1000>=r.expiresAt);
+      if(!provider)throw Error('USDC TUNA route lacks current provider qualification');
+    }
     if(p.mode==='direct'){
       assertDirectChoice(p,lease,now);
       const c=lease.connectivity;

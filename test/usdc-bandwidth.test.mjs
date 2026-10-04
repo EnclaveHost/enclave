@@ -43,6 +43,16 @@ test('restart discovers durable accepted counters for settlement without requiri
  const y=new USDCBandwidthSettlement({directory:x.directory,leaseReader:x.adapter.leaseReader,proofAccount:proof,maxPending6:'10',now:()=>100000});
  await y.start();assert.equal(y.apps.size,1);clearInterval(y.timer);
 });
+test('shared wallet recovery never imports another meter directory into this meter',async t=>{
+ const x=await fixture(t);await x.adapter.authorizeDebit(x.request);
+ const accepted=await x.adapter.state.get(id.slice(2)+'-1');
+ const y=new USDCBandwidthSettlement({directory:path.join(x.directory,'another'),transactionDirectory:x.adapter.transactions.directory,leaseReader:x.adapter.leaseReader,proofAccount:proof,maxPending6:'10',now:()=>100000});
+ await x.adapter.transactions.set('wallet-current',{state:'confirmed',acceptedDirectory:x.adapter.state.directory,meter:'direct',deploymentId:id,nonce:'1',accepted});
+ await y.start();clearInterval(y.timer);
+ assert.equal(y.apps.size,0);assert.equal(await y.recoverCounters(x.request),undefined);
+ await y.authorizeDebit({...x.request,policyHash:'ee'.repeat(32)});
+ assert.equal((await y.state.get(id.slice(2)+'-1')).policyHash,'ee'.repeat(32));
+});
 
 test('payment journal repairs a crash between accepted payment and local traffic counter commit',async t=>{
  const {TrafficMeter}=await import('../network/traffic-meter.mjs');

@@ -6,6 +6,8 @@ import {createPublicClient,createWalletClient,http,decodeEventLog,keccak256,toHe
 import {privateKeyToAccount} from 'viem/accounts';import {foundry} from 'viem/chains';
 import {linkBytecode} from '../../site/js/lib/contract-linker.js';
 import {TunaUSDCSettlement,TunaReceiptSigner} from '../../network/tuna-usdc-settlement.mjs';
+import {TunaTransportController} from '../../network/tuna-transport-control.mjs';
+import {startTunaControlServer} from '../../network/tuna-control-server.mjs';
 import {readConnectivity} from '../../network/connectivity-chain.mjs';
 import {USDCBandwidthSettlement} from '../../network/usdc-bandwidth.mjs';
 const owner=privateKeyToAccount('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80');
@@ -81,7 +83,25 @@ try{
  assert.equal((await read(token,t,'balanceOf',[payout]))-tunaPlatform,200000n);
  await assert.rejects(tuna.authorizeDebit({...tunaRequest,cumulativeBytes:'2147483648',cumulativeCost6:'2000000'}),/observed traffic/);
  assert.equal(await read(ledger,d,'earned6',[provider.address]),800000n,'unobserved bytes must not be charged');
+
+ let transportProof=null;
+ if(process.argv.includes('--transport')){
+  const controllerRoot=path.join(directory,'transport'),tokenFile=path.join(directory,'control-token');await fs.writeFile(tokenFile,'ab'.repeat(32),{mode:0o600});
+  const rc=new TunaTransportController({role:'runner',hostId,proofAccount:host,leaseReader:reader,directory:path.join(controllerRoot,'runner'),maxPending6:'100000',settlementFactory:async(providerId,cosign)=>new TunaUSDCSettlement({providerId,cosign,directory:path.join(controllerRoot,'billing'),transactionDirectory:adapter.transactions.directory,leaseReader:reader,proofAccount:host,wallet,client,maxPending6:'100000',log:s=>log.push(s)}).start()});
+  const pc=new TunaTransportController({role:'provider',hostId:providerId,proofAccount:provider,leaseReader:reader,directory:path.join(controllerRoot,'provider'),maxPending6:'100000'});
+  const rs=await startTunaControlServer({controller:rc,token:'ab'.repeat(32),intervalMs:1000,log:s=>log.push(s)}),ps=await startTunaControlServer({controller:pc,token:'ab'.repeat(32),intervalMs:1000,log:s=>log.push(s)});
+  const previousProvider=await read(ledger,d,'earned6',[provider.address]),previousBalance=(await read(ledger,d,'get',[id])).balance6,previousPlatform=await read(token,t,'balanceOf',[payout]);
+  try{
+   const config={Runner:{endpoint:'http://127.0.0.1:'+rs.port+'/',tokenFile,deploymentId:id,providerId},Provider:{endpoint:'http://127.0.0.1:'+ps.port+'/',tokenFile}};
+   const result=await new Promise((resolve,reject)=>{const p=spawn('go',['test','github.com/nknorg/tuna','-run','^TestUSDCLocalControllerIntegration$','-count=1','-timeout=45s'],{cwd:new URL('../../network/tuna/',import.meta.url),env:{...process.env,ENCLAVE_USDC_TEST_CONTROLLERS:JSON.stringify(config),ENCLAVE_USDC_TEST_WAIT_MS:'5000'}});let output='';p.stdout.on('data',b=>output+=b);p.stderr.on('data',b=>output+=b);p.on('error',reject);p.on('exit',code=>resolve({code,output}));});
+   assert.equal(result.code,0,result.output+'\n'+log.join('\n'));
+  }finally{await rs.close();await ps.close();}
+  const charge=previousBalance-(await read(ledger,d,'get',[id])).balance6,earned=(await read(ledger,d,'earned6',[provider.address]))-previousProvider,fee=(await read(token,t,'balanceOf',[payout]))-previousPlatform;
+  const payloadBytes=BigInt(Buffer.byteLength('tls-passthrough\0')*128*1024),expected=(payloadBytes*1000000n+(1n<<30n)-1n)/(1n<<30n);
+  assert.equal(charge,expected,log.join('\n'));assert.equal(earned+fee,charge);assert.equal(await read(ledger,d,'earned6',[host.address]),1600000n);
+  transportProof={encryptedPayloadBytes:String(payloadBytes),grossUSDC6:String(charge),providerUSDC6:String(earned),platformUSDC6:String(fee),independentMeters:true,realSignatures:true,realLocalChainSettlement:true};
+ }
  await send(wallet,connectivity,c,'revokeDirect',[id]);await reader.refresh();
  await assert.rejects(tuna.authorizeDebit({...tunaRequest,cumulativeBytes:'2147483648',cumulativeCost6:'2000000'}),/authorization/);
- console.log(JSON.stringify({passed:true,grossUSDC6:'2000000',providerUSDC6:'1600000',platformUSDC6:'400000',tunaGrossUSDC6:'1000000',tunaProviderUSDC6:'800000',tunaPlatformUSDC6:'200000',dualSignaturesVerified:true,unobservedTrafficRejected:true,existingBalanceDebited:true,uncertainBroadcastRecovered:true,revocationEnforced:true,hardware:'mock registry only'}));
+ console.log(JSON.stringify({passed:true,grossUSDC6:'2000000',providerUSDC6:'1600000',platformUSDC6:'400000',tunaGrossUSDC6:'1000000',tunaProviderUSDC6:'800000',tunaPlatformUSDC6:'200000',dualSignaturesVerified:true,unobservedTrafficRejected:true,existingBalanceDebited:true,uncertainBroadcastRecovered:true,revocationEnforced:true,hardware:'mock registry only',...(transportProof?{transport:transportProof}:{})}));
 }finally{await fs.rm(directory,{recursive:true,force:true});if(proc.exitCode===null){proc.kill('SIGTERM');await new Promise(r=>proc.once('exit',r));}}

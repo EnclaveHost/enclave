@@ -1,0 +1,26 @@
+[Unit]
+Description=USDC bandwidth authorization and independent provider receipts
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tuna-provider
+Group=tuna-provider
+UMask=0077
+StateDirectory=enclave-tuna-usdc
+StateDirectoryMode=0700
+RuntimeDirectory=enclave-tuna-usdc
+RuntimeDirectoryMode=0700
+ExecStart=/usr/bin/node /opt/enclave-tuna-usdc/current/tuna-provider-control.mjs /etc/enclave-tuna-usdc/controller.json
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=45
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

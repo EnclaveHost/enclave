@@ -52,6 +52,24 @@ func NewTunaExit(services []Service, wallet *nkn.Wallet, client *nkn.MultiClient
 		return nil, err
 	}
 
+	if config.USDC == nil && config.USDCLocal != nil {
+		config.USDC, err = NewLocalUSDCController(*config.USDCLocal)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if config.USDC != nil {
+		config.SubscriptionPrefix = USDCSubscriptionPrefix
+		config.ReverseSubscriptionPrefix = USDCSubscriptionPrefix
+	}
+
+	if config.USDC != nil {
+		for _, service := range services {
+			if len(service.UDP) > 0 {
+				return nil, errors.New("USDC transport requires TCP streams")
+			}
+		}
+	}
 	var service *Service
 	var serviceInfo *ServiceInfo
 	var subscriptionPrefix string
@@ -123,6 +141,7 @@ func NewTunaExit(services []Service, wallet *nkn.Wallet, client *nkn.MultiClient
 		return nil, err
 	}
 
+	c.USDC = config.USDC
 	te := &TunaExit{
 		Common:      c,
 		OnConnect:   NewOnConnect(1, nil),
@@ -185,7 +204,7 @@ func (te *TunaExit) handleSession(session *smux.Session, connMetadata *pb.Connec
 		return cost, totalBytes
 	}
 
-	if !te.config.Reverse {
+	if !te.config.Reverse && te.paidSession(session) == nil {
 		npc, err = te.Client.NewNanoPayClaimer(te.config.BeneficiaryAddr, int32(claimInterval/time.Millisecond), int32(nanoPayClaimerLinger/time.Millisecond), te.config.MinFlushAmount, onErr)
 		if err != nil {
 			log.Fatalln(err)
@@ -214,9 +233,19 @@ func (te *TunaExit) handleSession(session *smux.Session, connMetadata *pb.Connec
 				}
 
 				if streamMetadata.IsPayment {
+					if te.paidSession(session) != nil {
+						defer session.Close()
+						return te.serveUSDCPayment(session, stream)
+					}
+					if npc == nil {
+						return errors.New("unexpected payment stream")
+					}
 					return handlePaymentStream(stream, npc, &lastPaymentTime, &lastPaymentAmount, &bytesPaid, getTotalCost)
 				}
 
+				if streamMetadata.ServiceId > 255 || streamMetadata.PortId > 255 {
+					return errors.New("invalid stream service or port")
+				}
 				serviceID := byte(streamMetadata.ServiceId)
 				portID := int(streamMetadata.PortId)
 
@@ -247,12 +276,13 @@ func (te *TunaExit) handleSession(session *smux.Session, connMetadata *pb.Connec
 					return err
 				}
 
+				paidStream := te.serviceStream(session, stream)
 				if te.config.Reverse {
-					go te.pipe(conn, stream, &te.reverseBytesEntryToExit)
-					go te.pipe(stream, conn, &te.reverseBytesExitToEntry)
+					go te.pipe(conn, paidStream, &te.reverseBytesEntryToExit)
+					go te.pipe(paidStream, conn, &te.reverseBytesExitToEntry)
 				} else {
-					go te.pipe(conn, stream, &te.Common.reverseBytesEntryToExit[k][serviceID])
-					go te.pipe(stream, conn, &te.Common.reverseBytesExitToEntry[k][serviceID])
+					go te.pipe(conn, paidStream, &te.Common.reverseBytesEntryToExit[k][serviceID])
+					go te.pipe(paidStream, conn, &te.Common.reverseBytesExitToEntry[k][serviceID])
 				}
 
 				return nil
@@ -316,6 +346,7 @@ func (te *TunaExit) listenTCP(port int) error {
 						return fmt.Errorf("create session error: %v", err)
 					}
 
+					te.bindUSDC(session, encryptedConn)
 					te.handleSession(session, connMetadata)
 
 					return nil
@@ -462,16 +493,23 @@ func (te *TunaExit) updateAllMetadata(ip string, tcpPort, udpPort uint32) error 
 			te.config.SubscriptionFee,
 			te.config.SubscriptionReplaceTxPool,
 			te.Client,
-			te.closeChan,
+			te.closeChan, te.config.USDCLocal,
 		)
 	}
 	return nil
 }
 
 func (te *TunaExit) Start() error {
-	ip, err := ipify.GetIp()
-	if err != nil {
-		return fmt.Errorf("couldn't get IP: %v", err)
+	ip := te.config.PublicIP
+	var err error
+	if ip == "" {
+		ip, err = ipify.GetIp()
+		if err != nil {
+			return fmt.Errorf("couldn't get IP: %v", err)
+		}
+	}
+	if net.ParseIP(ip) == nil {
+		return errors.New("invalid provider public IP")
 	}
 
 	err = te.listenTCP(int(te.config.ListenTCP))
@@ -479,11 +517,13 @@ func (te *TunaExit) Start() error {
 		return err
 	}
 
-	err = te.listenUDP(int(te.config.ListenUDP))
-	if err != nil {
-		return err
-	}
+	if te.USDC == nil {
+		err = te.listenUDP(int(te.config.ListenUDP))
+		if err != nil {
+			return err
+		}
 
+	}
 	return te.updateAllMetadata(ip, uint32(te.config.ListenTCP), uint32(te.config.ListenUDP))
 }
 
@@ -588,6 +628,7 @@ func (te *TunaExit) StartReverse(shouldReconnect bool) error {
 			continue
 		}
 
+		te.bindUSDC(session, tcpConn)
 		stream, err := session.OpenStream()
 		if err != nil {
 			log.Println("Couldn't open stream to reverse entry:", err)
@@ -655,6 +696,9 @@ func (te *TunaExit) StartReverse(shouldReconnect bool) error {
 			continue
 		}
 
+		if te.paidSession(session) != nil {
+			te.startUSDCPayment(session, ps)
+		}
 		paymentStream, recipient = ps, te.GetPaymentReceiver()
 
 		te.RLock()
@@ -672,16 +716,18 @@ func (te *TunaExit) StartReverse(shouldReconnect bool) error {
 			te.readUDP()
 		}
 
-		payOnce.Do(func() {
-			go te.startPayment(
-				&te.reverseBytesEntryToExit, &te.reverseBytesExitToEntry,
-				&te.reverseBytesEntryToExitPaid, &te.reverseBytesExitToEntryPaid,
-				te.config.ReverseNanoPayFee,
-				te.config.MinReverseNanoPayFee,
-				te.config.ReverseNanoPayFeeRatio,
-				getPaymentStreamRecipient,
-			)
-		})
+		if te.USDC == nil {
+			payOnce.Do(func() {
+				go te.startPayment(
+					&te.reverseBytesEntryToExit, &te.reverseBytesExitToEntry,
+					&te.reverseBytesEntryToExitPaid, &te.reverseBytesExitToEntryPaid,
+					te.config.ReverseNanoPayFee,
+					te.config.MinReverseNanoPayFee,
+					te.config.ReverseNanoPayFeeRatio,
+					getPaymentStreamRecipient,
+				)
+			})
+		}
 
 		te.handleSession(session, nil)
 

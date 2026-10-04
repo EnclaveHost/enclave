@@ -1,6 +1,7 @@
 import {fallbackInventory,validatePublicFallback,publicReservations} from './public-fallback.mjs';
 import {EventEmitter} from 'node:events';
-import {validateCircuitPolicy,selectCircuitProviders,providerAllowed,nknAmount,independentCircuits,providerCooldownKey} from './circuit-policy.mjs';
+import {validateCircuitPolicy,selectCircuitProviders,providerAllowedForPolicy,nknAmount,independentCircuits,providerCooldownKey} from './circuit-policy.mjs';
+import {tunaInventoryForLease} from './tuna-policy.mjs';
 import {recordHash} from './route-record.mjs';
 import {validateAppNames} from './app-ingress.mjs';
 import {transientProofError} from './lease-reader.mjs';
@@ -18,7 +19,7 @@ const roles=['guard','public','egress'];
 // allocations reached through it succeed. That is recorded separately as
 // 'carry', so a guard that cannot carry is not ranked by its own uptime.
 const withCarry=providers=>({...providers,carry:providers.guard});
-const sameProviders=(a,b)=>roles.every(role=>a[role].identity===b[role].identity&&a[role].address===b[role].address&&a[role].beneficiary===b[role].beneficiary&&a[role].asn===b[role].asn);
+const sameProviders=(a,b)=>roles.every(role=>['identity','address','beneficiary','asn','registryId','currency','pricePerGiB6'].every(k=>a[role][k]===b[role][k]));
 export class CircuitManager extends EventEmitter {
   constructor({runtime,directRuntime,admission,inventory,wallets,probe,publish,observe=async()=>{},now=Date.now,log=()=>{}}) {
     super();Object.assign(this,{runtime,directRuntime,admission,inventory,wallets,probe,publish,observe,now,log});this.apps=new Map();this.cooldown=new Map();this.strikes=new Map();this.closed=false;this.busy=false;this.publications=new Map();this.reconcilingApps=new Map();this.reservedPublic=new Set();this.occupiedElsewhere=new Set();this.healthChecks=new Map();
@@ -38,8 +39,8 @@ export class CircuitManager extends EventEmitter {
         if(!wallet||walletOwners.has(wallet.address))throw new Error('wallet identity reused across apps, roles or circuits');
         walletOwners.set(wallet.address,id);total+=nknAmount(wallet.fundedNkn);
       }
-      if(!direct&&total>nknAmount(policy.budgetNkn))throw new Error('funded wallets exceed app budget');
-      const publicFallback=direct?null:validatePublicFallback(app.publicFallback);
+      if(!direct&&policy.currency!=='USDC'&&total>nknAmount(policy.budgetNkn))throw new Error('funded wallets exceed app budget');
+      const publicFallback=direct||policy.currency==='USDC'?null:validatePublicFallback(app.publicFallback);
       const fingerprint=recordHash({policy,names:app.names,publicFallback,startupEgress:app.startupEgress===true});
       const old=this.apps.get(id);
       next.set(id,old?.fingerprint===fingerprint?old:{...app,publicFallback,policy,id,wallets,fingerprint,circuits:[],error:'starting'});
@@ -91,7 +92,7 @@ export class CircuitManager extends EventEmitter {
     try{
       this.enforceAdmission();const nodes=[...this.apps.values()].some(a=>a.policy.mode!=='direct')?await this.inventory():[];
       for(const app of this.apps.values()){
-        const appNodes=fallbackInventory(nodes,app.publicFallback);
+        const appNodes=app.policy.currency==='USDC'?tunaInventoryForLease(nodes,this.admission.leases.get(app.id),app.policy,this.now()):fallbackInventory(nodes,app.publicFallback);
         const checking=this.checkHealth(app,appNodes);
         if(this.reconcilingApps.has(app.id)){void checking.catch(e=>this.log(e.message));continue;}
         const operation=checking.then(()=>this.reconcileApp(app,appNodes)).catch(e=>{app.error=e.message;this.log(`app ${app.id.slice(0,10)}: ${e.message}`);})
@@ -120,7 +121,7 @@ export class CircuitManager extends EventEmitter {
     // domain metadata before keeping an existing allocation.
     for(const circuit of [...app.circuits]){
       const current=Object.fromEntries(roles.map(role=>[role,nodes.find(n=>n.identity===circuit.providers[role].identity)]));
-      const eligible=roles.every(role=>current[role]&&providerAllowed(current[role],app.policy.providers[role],app.policy.maxPrice,this.now()));
+      const eligible=roles.every(role=>current[role]&&providerAllowedForPolicy(current[role],app.policy,role,this.now()));
       if(!eligible||!sameProviders(current,circuit.providers))await this.fail(app,circuit,'provider no longer satisfies policy');
     }
     // End-to-end proof is required for the public route, not just a live
@@ -183,7 +184,7 @@ export class CircuitManager extends EventEmitter {
       const slot=[0,1].find(n=>!app.circuits.some(c=>c.slot===n));if(slot===undefined)break;
       let circuit;const started=this.now();
       try{
-        circuit=await this.runtime.start({deploymentId:app.id,names:app.names,providers,wallets:app.wallets[slot],maxPrice:app.policy.maxPrice});
+        circuit=await this.runtime.start({deploymentId:app.id,names:app.names,providers,wallets:app.wallets[slot],maxPrice:app.policy.maxPrice,policy:app.policy});
         if(this.closed||this.apps.get(app.id)!==app||!this.authorizationUntil(app.id))throw new Error('authorization changed while allocating');
         circuit.admit(this.authorizationUntil(app.id));
         const bootstrap=app.startupEgress===true&&this.admission.proofs.get(app.id)?.ready===false;

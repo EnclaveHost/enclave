@@ -15,6 +15,7 @@ import (
 )
 
 func main() {
+	includeUSDC := flag.Bool("usdc", false, "include USDC provider subscriptions")
 	rpc := flag.String("rpc", "", "comma-separated native NKN RPCs")
 	saved := flag.String("saved", "", "optional saved RPC responses for offline inspection")
 	flag.Parse()
@@ -43,8 +44,17 @@ func main() {
 				Subscribers map[string]string `json:"subscribers"`
 			} `json:"result"`
 		})
-		for _, service := range []string{"reverse", "socksproxy"} {
-			r, e := nkn.GetSubscribersContext(ctx, "tuna_v1."+service, 0, 1000, true, false, nil, c)
+		services := []string{"reverse", "socksproxy"}
+		if *includeUSDC {
+			services = append(services, "usdc:reverse", "usdc:socksproxy")
+		}
+		for _, service := range services {
+			prefix, name := tuna.DefaultSubscriptionPrefix, service
+			if strings.HasPrefix(service, "usdc:") {
+				prefix = tuna.USDCSubscriptionPrefix
+				name = strings.TrimPrefix(service, "usdc:")
+			}
+			r, e := nkn.GetSubscribersContext(ctx, prefix+name, 0, 1000, true, false, nil, c)
 			if e != nil {
 				fmt.Fprintln(os.Stderr, e)
 				os.Exit(1)
@@ -55,12 +65,15 @@ func main() {
 		}
 	}
 	type node struct {
-		Identity    string   `json:"identity"`
-		Address     string   `json:"address"`
-		Price       string   `json:"price"`
-		Beneficiary string   `json:"beneficiary"`
-		Services    []string `json:"services"`
-		ExpiresAt   int64    `json:"expiresAt"`
+		Currency     string   `json:"currency,omitempty"`
+		RegistryID   string   `json:"registryId,omitempty"`
+		PricePerGiB6 string   `json:"pricePerGiB6,omitempty"`
+		Identity     string   `json:"identity"`
+		Address      string   `json:"address"`
+		Price        string   `json:"price"`
+		Beneficiary  string   `json:"beneficiary"`
+		Services     []string `json:"services"`
+		ExpiresAt    int64    `json:"expiresAt"`
 	}
 	nodes := map[string]*node{}
 	expires := time.Now().Add(60 * time.Second).UnixMilli()
@@ -85,13 +98,24 @@ func main() {
 					continue
 				}
 			}
-			n := nodes[id]
+			currency, key := "NKN", id
+			if strings.HasPrefix(service, "usdc:") {
+				if m.SettlementMode != 1 || len(m.RegistryId) != 66 || m.UsdcPricePerGib6 == 0 {
+					continue
+				}
+				currency = "USDC"
+				key = "usdc:" + id
+			}
+			n := nodes[key]
 			if n == nil {
-				n = &node{Identity: id, Address: m.Ip, Price: m.Price, Beneficiary: m.BeneficiaryAddr, ExpiresAt: expires}
-				nodes[id] = n
+				n = &node{Identity: id, Address: m.Ip, Price: m.Price, Beneficiary: m.BeneficiaryAddr, ExpiresAt: expires, Currency: currency, RegistryID: m.RegistryId, PricePerGiB6: fmt.Sprint(m.UsdcPricePerGib6)}
+				nodes[key] = n
 			}
 			if n.Address == m.Ip && n.Price == m.Price && n.Beneficiary == m.BeneficiaryAddr {
-				n.Services = append(n.Services, service)
+				if n.RegistryID != m.RegistryId || n.PricePerGiB6 != fmt.Sprint(m.UsdcPricePerGib6) {
+					continue
+				}
+				n.Services = append(n.Services, strings.TrimPrefix(service, "usdc:"))
 			}
 		}
 	}
