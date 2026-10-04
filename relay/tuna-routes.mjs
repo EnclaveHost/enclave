@@ -45,7 +45,9 @@ export function createTunaRoutes({ operatorOf, endpointId, eligible, now = Date.
         if(!apps.has(id)&&apps.size>=4096)throw new Error('app publication limit');
         const policy=validateCircuitPolicy(publication.policy),lease=await leaseOf(id);
         if(policy.deploymentId!==id||!lease||String(await endpointId(endpoint)).toLowerCase()!==lease.runner)throw new Error('route is not from the deployment runner');
-        const operator=await operatorOf(endpoint);
+        // A chain-read lease already proved the runner's registry entry active for
+        // this operator (endpoint -> runner checked above); others ask the registry.
+        const operator=lease.runnerRegistered?lease.runnerOperator:await operatorOf(endpoint);
         if(!operator||operator.toLowerCase()!==lease.runnerOperator.toLowerCase())throw new Error('inactive route operator');
         if(policy.mode==='direct'){if(bundle?.record?.routes?.length)assertDirectChoice(policy,lease,now());}
         else if(policy.currency==='USDC'){

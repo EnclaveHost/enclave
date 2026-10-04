@@ -56,3 +56,20 @@ test('USDC TUNA mirror accepts chain-authorized paths and rejects substituted or
  await mirror.publish({...publication,bundle:await publisher.publish(id,[])});
  assert.equal((await mirror.map([{...lease,leaseUntil:lease.leaseUntil/1000}])).deployments[id],undefined);
 });
+test('a chain-read lease that proved the runner registration needs no second operator read',async t=>{
+ const directory=await mkdtemp(path.join(os.tmpdir(),'tuna-registered-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+ const now=Date.now(),policy=defaultPolicy(id),base={id,runner,runnerOperator:account.address,owner:account.address,chainId:8453,deployments:'0x'+'12'.repeat(20),active:true,isPublic:true,validUntil:now+120000,leaseUntil:now+600000};
+ let lease={...base,runnerRegistered:true},asked=0,runnerOf=async()=>runner;
+ const publisher=new RoutePublisher({directory:path.join(directory,'publisher'),account,policy:()=>policy,lease:()=>base,distribute:async()=>{},now:()=>now});
+ const mirror=createTunaRoutes({operatorOf:async()=>{asked++;return null;},endpointId:e=>runnerOf(e),eligible:()=>true,leaseOf:async()=>lease,memory:new DurableState(path.join(directory,'mirror')),now:()=>now});
+ const route=[{circuit:'a'.repeat(32),address:'8.8.4.4',port:443,transport:'tuna-guarded-tcp'}];
+ await mirror.publish({version:2,endpoint,policy,bundle:await publisher.publish(id,route)});
+ assert.equal(asked,0);
+ // The proof is about the lease's runner only: another endpoint is still refused.
+ runnerOf=async()=>'0x'+'ee'.repeat(32);
+ await assert.rejects(mirror.publish({version:2,endpoint,policy,bundle:await publisher.publish(id,route)}),/not from the deployment runner/);
+ // Without the chain proof the registry is asked, and its answer decides.
+ runnerOf=async()=>runner;lease={...base};
+ await assert.rejects(mirror.publish({version:2,endpoint,policy,bundle:await publisher.publish(id,route)}),/inactive route operator/);
+ assert.equal(asked,1);
+});

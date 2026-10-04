@@ -107,7 +107,7 @@ test('an app whose host left the registry is withheld without failing the apps s
  const reader=new LeaseReader({addressBook:book,clients:peers,includeHostPayout:true,now});
  reader.cache.set(moved,{...row,id:moved,validUntil:now()+60000});
  assert.deepEqual((await reader.refresh([moved,id])).map(x=>x.id),[id]);
- assert.equal(reader.get(moved),null);assert.equal(reader.get(id).runnerPayoutWallet,book);
+ assert.equal(reader.get(moved),null);assert.equal(reader.get(id).runnerPayoutWallet,book);assert.equal(reader.get(id).runnerRegistered,true);
  assert.ok(reader.failures.some(f=>f.includes('inactive or changed runner')));
 });
 test('a peer that never answers its head cannot hold the snapshot for its request timeout',async()=>{
@@ -117,4 +117,18 @@ test('a peer that never answers its head cannot hold the snapshot for its reques
  try{assert.equal((await Promise.race([reader.refresh([id]),new Promise((_r,j)=>setTimeout(()=>j(Error('head phase stalled')),500))])).length,1);}
  finally{release?.(1000n);}
  assert.ok(Date.now()-started<500);
+});
+test('registry entries come from agreeing peers and decode only the original entry prefix',async()=>{
+ const registry='0x'+'03'.repeat(20),host='0x'+'cd'.repeat(32),other='0x'+'ce'.repeat(32);
+ const entry=(op,active)=>({endpoint:'https://x',repo:'',measurement:'0x'+'00'.repeat(32),operator:op,registeredAt:1n,lastSeen:1n,active});
+ const peer=(op=book)=>{const c=client();c.readContract=async({address,functionName,args,abi})=>{
+  assert.equal(address,registry);assert.equal(functionName,'get');assert.equal(abi[0].outputs[0].components.length,7);
+  return args[0]===host?entry(op,true):entry('0x'+'00'.repeat(20),false);};return c;};
+ const reader=new LeaseReader({addressBook:book,clients:[peer(),peer()],now});
+ assert.deepEqual((await reader.registryEntries(registry,[host,other])).map(({id,active,operator})=>({id,active,operator})),
+  [{id:host,active:true,operator:book.toLowerCase()},{id:other,active:false,operator:'0x'+'00'.repeat(20)}]);
+ reader.clients=[peer(),peer('0x'+'09'.repeat(20))];
+ await assert.rejects(reader.registryEntries(registry,[host]),/agreeing chain quorum/);
+ await assert.rejects(reader.registryEntries('0xnope',[host]),/exact registry ids/);
+ await assert.rejects(reader.registryEntries(registry,[]),/exact registry ids/);
 });

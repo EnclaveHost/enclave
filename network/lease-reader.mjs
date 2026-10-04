@@ -10,6 +10,8 @@ const bookABI=[{type:'function',name:'addr',stateMutability:'view',inputs:[{type
 const deploymentABI=[{type:'function',name:'get',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'tuple',components:fields.map(([name,type])=>({name,type}))}]}];
 const schemaABI=[{type:'function',name:'deploymentsSchema',stateMutability:'view',inputs:[],outputs:[{type:'uint256'}]}];
 import {hostABI} from './registry-abi.mjs';
+const registryV1ABI=[{type:'function',name:'get',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'tuple',components:
+  [['endpoint','string'],['repo','string'],['measurement','bytes32'],['operator','address'],['registeredAt','uint64'],['lastSeen','uint64'],['active','bool']].map(([name,type])=>({name,type}))}]}];
 function jsonValue(value) {return JSON.parse(JSON.stringify(value,(_k,v)=>typeof v==='bigint'?v.toString():v));}
 export class LeaseReader {
   constructor({rpc,chainId=8453,addressBook,maxBlockAgeMs=90000,confirmations=2,clients,proxy,includeHostPayout=false,includeConnectivity=false,now=Date.now}) {
@@ -45,8 +47,9 @@ export class LeaseReader {
       }
     }
   }
-  async readSnapshot(ids) {
-    if(!Array.isArray(ids)||ids.length>256||ids.some(id=>!/^0x[0-9a-f]{64}$/.test(id))) throw new Error('exact deployment ids required');
+  // One value read from every peer at the same recent block, returned once two
+  // peers agree on it. Every chain answer this class gives comes through here.
+  async agreed(read) {
     this.failures=[];
     // Two heads pick the block. A slower peer gets a short grace to join, not its
     // full request timeout: route publications wait on this snapshot.
@@ -77,6 +80,25 @@ export class LeaseReader {
       const block=await c.getBlock({blockNumber});
       const timestamp=Number(block.timestamp)*1000;
       if(!Number.isSafeInteger(timestamp)||timestamp>this.now()+5000||timestamp+this.maxBlockAgeMs<=this.now()) throw new Error('stale chain block');
+      const value=await read(c,blockNumber);
+      // Confirm the numbered block was not replaced while eth_call ran.
+      if((await c.getBlock({blockNumber})).hash!==block.hash)throw new Error('chain reorganized during read');
+      return {hash:block.hash,blockNumber:String(blockNumber),timestamp,...value};
+    }));
+    // Read every candidate at the same block concurrently. A slow or faulty
+    // third RPC cannot delay two agreeing peers, and a single peer never wins.
+    const snapshot=await new Promise((resolve,reject)=>{
+      const seen=new Map();let pending=reads.length;
+      for(const read of reads)read.then(value=>{
+        const key=canonical(value),prior=seen.get(key);if(prior)resolve(value);else seen.set(key,value);
+      },e=>failures.push(String(e.shortMessage||e.message).slice(0,400))).finally(()=>{if(--pending===0)reject(new Error('no fresh agreeing chain quorum'));});
+    });
+    if(blockNumber>this.lastBlock)this.lastBlock=blockNumber;
+    return snapshot;
+  }
+  async readSnapshot(ids) {
+    if(!Array.isArray(ids)||ids.length>256||ids.some(id=>!/^0x[0-9a-f]{64}$/.test(id))) throw new Error('exact deployment ids required');
+    return this.agreed(async(c,blockNumber)=>{
       const deployments=await c.readContract({address:this.addressBook,abi:bookABI,functionName:'addr',args:[stringToHex('deployments',{size:32})],blockNumber});
       if(!/^0x[0-9a-fA-F]{40}$/.test(deployments)||/^0x0{40}$/i.test(deployments))throw new Error('no deployments contract');
       const schema=await c.readContract({address:deployments,abi:schemaABI,functionName:'deploymentsSchema',blockNumber});
@@ -89,7 +111,8 @@ export class LeaseReader {
           const host=await c.readContract({address:registry,abi:hostABI,functionName:'get',args:[row.runner],blockNumber});
           // Withhold only this app: a snapshot shared by many apps must not fail for one.
           if(!host.active||host.operator.toLowerCase()!==row.runnerOperator.toLowerCase()){row.runnerUnavailable=true;return;}
-          row.runnerPayoutWallet=host.payoutWallet;row.runnerProofKey=host.proofKey;
+          // The runner's registry entry is active and names this lease's operator, at this block.
+          row.runnerRegistered=true;row.runnerPayoutWallet=host.payoutWallet;row.runnerProofKey=host.proofKey;
         }));
       }
       if(this.includeConnectivity&&Number(schema)>=16){
@@ -97,30 +120,32 @@ export class LeaseReader {
         rows=await readConnectivity(c,{address,deployments,rows,blockNumber});
         await Promise.all(rows.map(async row=>{row.bandwidthBackingRequired6=await c.readContract({address:deployments,abi:[{type:'function',name:'bandwidthBackingRequired6',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'uint256'}]}],functionName:'bandwidthBackingRequired6',args:[row.id],blockNumber});}));
       }
-      // Confirm the numbered block was not replaced while eth_call ran.
-      if((await c.getBlock({blockNumber})).hash!==block.hash)throw new Error('chain reorganized during read');
-      return {hash:block.hash,blockNumber:String(blockNumber),timestamp,deployments:deployments.toLowerCase(),rows:jsonValue(rows)};
+      return {deployments:deployments.toLowerCase(),rows:jsonValue(rows)};
+    }).then(snapshot=>{
+      const result=snapshot.rows.map((row,index)=>{
+        if(row.id.toLowerCase()!==ids[index]){this.cache.delete(ids[index]);this.failures.push('deployment not found: '+ids[index]);return null;}
+        if(row.runnerUnavailable){this.cache.delete(ids[index]);this.failures.push('inactive or changed runner: '+ids[index]);return null;}
+        const leaseUntil=Number(row.leaseUntil)*1000;
+        if(!Number.isSafeInteger(leaseUntil))throw new Error('invalid lease expiry');
+        return {...row,id:row.id.toLowerCase(),runner:row.runner.toLowerCase(),leaseUntil,chainId:this.chainId,deployments:snapshot.deployments,
+          blockNumber:snapshot.blockNumber,blockHash:snapshot.hash,blockTime:snapshot.timestamp,
+          validUntil:Math.min(leaseUntil,snapshot.timestamp+this.maxBlockAgeMs)};
+      });
+      for(const row of result)if(row)this.cache.set(row.id,row);
+      return result.filter(Boolean);
+    });
+  }
+
+  // Who holds registry ids, from the same agreeing peers. Only the original
+  // seven-field entry prefix is decoded, so every registry revision reads alike.
+  registryEntries(registry,ids) {
+    if(!/^0x[0-9a-fA-F]{40}$/.test(registry||'')||!Array.isArray(ids)||ids.length<1||ids.length>256||ids.some(id=>!/^0x[0-9a-f]{64}$/.test(id)))return Promise.reject(new Error('exact registry ids required'));
+    const operation=(this.pending||Promise.resolve()).then(()=>this.agreed(async(c,blockNumber)=>{
+      const hosts=await Promise.all(ids.map(id=>c.readContract({address:registry,abi:registryV1ABI,functionName:'get',args:[id],blockNumber})));
+      return {registry:registry.toLowerCase(),hosts:hosts.map(h=>({active:!!h.active,operator:String(h.operator).toLowerCase()}))};
     }));
-    // Read every candidate at the same block concurrently. A slow or faulty
-    // third RPC cannot delay two agreeing peers, and a single peer never wins.
-    const snapshot=await new Promise((resolve,reject)=>{
-      const seen=new Map();let pending=reads.length;
-      for(const read of reads)read.then(value=>{
-        const key=canonical(value),prior=seen.get(key);if(prior)resolve(value);else seen.set(key,value);
-      },e=>failures.push(String(e.shortMessage||e.message).slice(0,400))).finally(()=>{if(--pending===0)reject(new Error('no fresh agreeing chain quorum'));});
-    });
-    this.lastBlock=blockNumber;
-    const result=snapshot.rows.map((row,index)=>{
-      if(row.id.toLowerCase()!==ids[index]){this.cache.delete(ids[index]);this.failures.push('deployment not found: '+ids[index]);return null;}
-      if(row.runnerUnavailable){this.cache.delete(ids[index]);this.failures.push('inactive or changed runner: '+ids[index]);return null;}
-      const leaseUntil=Number(row.leaseUntil)*1000;
-      if(!Number.isSafeInteger(leaseUntil))throw new Error('invalid lease expiry');
-      return {...row,id:row.id.toLowerCase(),runner:row.runner.toLowerCase(),leaseUntil,chainId:this.chainId,deployments:snapshot.deployments,
-        blockNumber:snapshot.blockNumber,blockHash:snapshot.hash,blockTime:snapshot.timestamp,
-        validUntil:Math.min(leaseUntil,snapshot.timestamp+this.maxBlockAgeMs)};
-    });
-    for(const row of result)if(row)this.cache.set(row.id,row);
-    return result.filter(Boolean);
+    this.pending=operation.catch(()=>{});
+    return operation.then(snapshot=>snapshot.hosts.map((host,index)=>({id:ids[index],...host,blockTime:snapshot.timestamp})));
   }
 
   get(id) {const value=this.cache.get(id);return value&&value.validUntil>this.now()?structuredClone(value):null;}

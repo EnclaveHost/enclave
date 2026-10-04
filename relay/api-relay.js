@@ -197,14 +197,10 @@ const TRUSTED_OPERATORS = OPERATORS_UNRESTRICTED ? []
 
 async function tunnelNameOwner(name) {
   if (!REGISTRY_ADDRESS) return null;
-  const c = await chain();
   // A minted box name (boxhost.js) registers under its OWN host, so its id is
   // computable from the name alone — which is the whole reason the derived
   // label doubles as the attach name. Legacy names keep the path form.
-  const id = await endpointId(boxOrigin(name) || `${TUNNEL_ORIGIN}/t/${name}`);
-  const e = await c.readContract({ address: REGISTRY_ADDRESS, abi: GET_ABI, functionName: "get", args: [id] });
-  const op = String(e?.operator || "");
-  return e?.active && !/^0x0{40}$/i.test(op) ? op.toLowerCase() : null;
+  return registryOperator(await endpointId(boxOrigin(name) || `${TUNNEL_ORIGIN}/t/${name}`));
 }
 // Dealt pads: created on first use so the data dir and the hub exist.
 let padsRoutesInstance;
@@ -2237,19 +2233,34 @@ const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostE
                    // as the tunnel's name-ownership gate: an inactive or absent
                    // entry is "nobody", and errors propagate to the caller's own
                    // fail-closed decision.
-                   operatorOfEndpoint: async (endpoint) => {
-                     if (!REGISTRY_ADDRESS) return null;
-                     const c = await chain();
-                     const e = await c.readContract({ address: REGISTRY_ADDRESS, abi: GET_ABI,
-                       functionName: "get", args: [await endpointId(endpoint)] });
-                     const op = String(e?.operator || "");
-                     return e?.active && !/^0x0{40}$/i.test(op) ? op.toLowerCase() : null;
-                   } };
+                   operatorOfEndpoint: async (endpoint) => registryOperator(await endpointId(endpoint)) };
 
 const networkLeaseReader=ADDRESS_BOOK?new LeaseReader({addressBook:ADDRESS_BOOK,
   rpc:(process.env.NETWORK_CHAIN_RPCS||'https://base-rpc.publicnode.com,https://base.drpc.org,https://mainnet.base.org').split(',').map(s=>s.trim()),
   includeHostPayout:true,includeConnectivity:'auto'}):null;
 const routeLeaseIds=new Set();
+// WHO OWNS a registry id. Read from the same agreeing public RPCs as route
+// leases, not the single BASE_RPC, whose metered quota these per-publication
+// reads exhausted. An answer is kept 15 s and concurrent asks share one read;
+// a failed read throws, so each caller keeps its own fail-closed rule.
+const registryOperators=new Map();
+async function registryOperator(id) {
+  if (!REGISTRY_ADDRESS) return null;
+  if (!networkLeaseReader) {
+    const e = await (await chain()).readContract({ address: REGISTRY_ADDRESS, abi: GET_ABI, functionName: "get", args: [id] });
+    const op = String(e?.operator || "");
+    return e?.active && !/^0x0{40}$/i.test(op) ? op.toLowerCase() : null;
+  }
+  const key = REGISTRY_ADDRESS.toLowerCase() + ":" + id, hit = registryOperators.get(key);
+  if (hit && (hit.pending || hit.at + 15000 > Date.now())) return hit.pending || hit.op;
+  const pending = networkLeaseReader.registryEntries(REGISTRY_ADDRESS, [id]).then(([e]) => {
+    const op = e.active && !/^0x0{40}$/i.test(e.operator) ? e.operator : null;
+    registryOperators.set(key, { at: Date.now(), op }); return op;
+  }, (err) => { registryOperators.delete(key); throw err; });
+  registryOperators.set(key, { pending });
+  if (registryOperators.size > 1024) registryOperators.delete(registryOperators.keys().next().value);
+  return pending;
+}
 tunaRoutes = createTunaRoutes({
   providerProbeSigners: (process.env.PROVIDER_PROBE_SIGNERS || '').split(',').map(s=>s.trim()).filter(Boolean),
   operatorOf: endpoint => relayCtx.operatorOfEndpoint(endpoint), endpointId,
