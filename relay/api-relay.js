@@ -2249,6 +2249,7 @@ const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostE
 const networkLeaseReader=ADDRESS_BOOK?new LeaseReader({addressBook:ADDRESS_BOOK,
   rpc:(process.env.NETWORK_CHAIN_RPCS||'https://base-rpc.publicnode.com,https://base.drpc.org,https://mainnet.base.org').split(',').map(s=>s.trim()),
   includeHostPayout:true,includeConnectivity:'auto'}):null;
+const routeLeaseIds=new Set();
 tunaRoutes = createTunaRoutes({
   providerProbeSigners: (process.env.PROVIDER_PROBE_SIGNERS || '').split(',').map(s=>s.trim()).filter(Boolean),
   operatorOf: endpoint => relayCtx.operatorOfEndpoint(endpoint), endpointId,
@@ -2260,7 +2261,13 @@ tunaRoutes = createTunaRoutes({
         leaseUntil:Number(d.leaseUntil)*1000,validUntil:Math.min(Number(d.leaseUntil)*1000,_ledger.at+30000)};}
     const cached=networkLeaseReader.get(id);
     if(cached&&cached.blockTime+15000>Date.now())return cached;
-    await networkLeaseReader.refresh([id]);return networkLeaseReader.get(id);
+    // One snapshot renews every app this relay routes: hosts republish each app
+    // every 10 s, and public RPCs refuse a chain read per publication.
+    routeLeaseIds.add(id);if(routeLeaseIds.size>256)routeLeaseIds.delete(routeLeaseIds.values().next().value);
+    // A failed refresh leaves an agreed snapshot in use only until the reader's
+    // own block-age expiry, never longer.
+    try{await networkLeaseReader.refresh([...routeLeaseIds]);}catch(e){if(!cached)throw e;}
+    const lease=networkLeaseReader.get(id);if(!lease)routeLeaseIds.delete(id);return lease;
   },
   eligible: d => {
     const row = live.find(e => String(e.id || "").toLowerCase() === String(d.runner).toLowerCase());

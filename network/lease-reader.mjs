@@ -1,6 +1,7 @@
 // Serving authorization comes from two independently configured chain RPCs at
 // the same recent block. Nan is neither a bootstrap nor an admission dependency.
 import {createPublicClient, http, stringToHex} from 'viem';
+import {base} from 'viem/chains';
 import {canonical} from './route-record.mjs';
 import {readConnectivity} from './connectivity-chain.mjs';
 import {guardedFetch} from './guarded-fetch.mjs';
@@ -16,30 +17,55 @@ export class LeaseReader {
         !Number.isSafeInteger(maxBlockAgeMs) || maxBlockAgeMs<1000 || maxBlockAgeMs>120000 || !Number.isSafeInteger(confirmations) || confirmations<1) throw new Error('invalid chain policy');
     if (!clients && (!Array.isArray(rpc) || rpc.length<2 || new Set(rpc.map(s=>new URL(s).hostname)).size!==rpc.length || rpc.some(s=>new URL(s).protocol!=='https:'))) throw new Error('at least two independent HTTPS RPC origins required');
     Object.assign(this,{chainId,addressBook,maxBlockAgeMs,confirmations,includeHostPayout,includeConnectivity,now});
-    this.clients=clients||rpc.map(url=>createPublicClient({transport:http(url,{timeout:14000,retryCount:0,...(proxy?{fetchFn:guardedFetch(proxy,{timeoutMs:6000})}:{})})}));
-    this.lastBlock=0n;this.cache=new Map();
+    // Public RPCs meter requests per second. Multicall3 folds a snapshot's
+    // same-block reads into one eth_call each, however many apps it covers.
+    this.clients=clients||rpc.map(url=>createPublicClient({chain:base,batch:{multicall:{wait:0}},
+      transport:http(url,{timeout:14000,retryCount:0,...(proxy?{fetchFn:guardedFetch(proxy,{timeoutMs:6000})}:{})})}));
+    this.lastBlock=0n;this.cache=new Map();this.retryDelayMs=400;
   }
+  // Requests that arrive while a snapshot is queued join it: a burst of
+  // publications costs one chain read, not one per app.
   refresh(ids) {
-    const operation=(this.pending||Promise.resolve()).then(()=>this.readSnapshot(ids));
-    this.pending=operation.catch(()=>{});return operation;
+    if(!Array.isArray(ids)||ids.length>256||ids.some(id=>!/^0x[0-9a-f]{64}$/.test(id))) return Promise.reject(new Error('exact deployment ids required'));
+    if(!this.queued||this.queued.ids.size+ids.length>256){
+      const queued={ids:new Set()};
+      queued.run=(this.pending||Promise.resolve()).then(()=>{if(this.queued===queued)this.queued=null;return this.readSnapshot([...queued.ids]);});
+      this.pending=queued.run.catch(()=>{});this.queued=queued;
+    }
+    for(const id of ids)this.queued.ids.add(id);
+    return this.queued.run.then(rows=>{const byId=new Map(rows.map(row=>[row.id,row]));return ids.map(id=>byId.get(id)).filter(Boolean);});
+  }
+  // Only a rate-limit refusal is retried, briefly; a timeout or a wrong answer is not.
+  async limited(read) {
+    for(let attempt=0;;attempt++){
+      try{return await read();}
+      catch(e){
+        if(attempt>=2||!/rate limit|over rate|too many requests|compute units per second|\b429\b/i.test(String(e?.message)))throw e;
+        await new Promise(r=>setTimeout(r,this.retryDelayMs*(attempt+1)*(1+Math.random())));
+      }
+    }
   }
   async readSnapshot(ids) {
     if(!Array.isArray(ids)||ids.length>256||ids.some(id=>!/^0x[0-9a-f]{64}$/.test(id))) throw new Error('exact deployment ids required');
     this.failures=[];
-    const heads=await Promise.allSettled(this.clients.map(async c=>{
+    const heads=await Promise.allSettled(this.clients.map(c=>this.limited(async()=>{
       const [chainId,number]=await Promise.all([c.getChainId(),c.getBlockNumber({cacheTime:0})]);
       if(chainId!==this.chainId) throw new Error('wrong chain');
       return {client:c,number};
-    }));
+    })));
     const available=heads.filter(v=>v.status==='fulfilled').map(v=>v.value);
     if(available.length<2) throw new Error('chain quorum unavailable');
     // A stale outlier cannot keep fresh peers from forming a quorum. Conversely,
     // no one RPC can advance or renew a cached admission on its own.
     available.sort((a,b)=>a.number>b.number?-1:a.number<b.number?1:0);
-    const blockNumber=available[1].number-BigInt(this.confirmations);
-    if(blockNumber<this.lastBlock||blockNumber<0n)throw new Error('no fresh agreeing chain quorum');
+    // Peers' heads jitter by a block or two between back-to-back snapshots. Never
+    // read below the block already accepted; reread it instead. The block-age
+    // check below still decides whether that block is fresh enough.
+    let blockNumber=available[1].number-BigInt(this.confirmations);
+    if(blockNumber<0n)throw new Error('no fresh agreeing chain quorum');
+    if(blockNumber<this.lastBlock)blockNumber=this.lastBlock;
     const failures=this.failures;
-    const reads=available.map(async({client:c})=>{
+    const reads=available.map(({client:c})=>this.limited(async()=>{
       const block=await c.getBlock({blockNumber});
       const timestamp=Number(block.timestamp)*1000;
       if(!Number.isSafeInteger(timestamp)||timestamp>this.now()+5000||timestamp+this.maxBlockAgeMs<=this.now()) throw new Error('stale chain block');
@@ -53,7 +79,8 @@ export class LeaseReader {
         await Promise.all(rows.map(async row=>{
           if(/^0x0{64}$/.test(row.runner))return;
           const host=await c.readContract({address:registry,abi:hostABI,functionName:'get',args:[row.runner],blockNumber});
-          if(!host.active||host.operator.toLowerCase()!==row.runnerOperator.toLowerCase())throw new Error('inactive or changed runner');
+          // Withhold only this app: a snapshot shared by many apps must not fail for one.
+          if(!host.active||host.operator.toLowerCase()!==row.runnerOperator.toLowerCase()){row.runnerUnavailable=true;return;}
           row.runnerPayoutWallet=host.payoutWallet;row.runnerProofKey=host.proofKey;
         }));
       }
@@ -65,7 +92,7 @@ export class LeaseReader {
       // Confirm the numbered block was not replaced while eth_call ran.
       if((await c.getBlock({blockNumber})).hash!==block.hash)throw new Error('chain reorganized during read');
       return {hash:block.hash,blockNumber:String(blockNumber),timestamp,deployments:deployments.toLowerCase(),rows:jsonValue(rows)};
-    });
+    }));
     // Read every candidate at the same block concurrently. A slow or faulty
     // third RPC cannot delay two agreeing peers, and a single peer never wins.
     const snapshot=await new Promise((resolve,reject)=>{
@@ -77,6 +104,7 @@ export class LeaseReader {
     this.lastBlock=blockNumber;
     const result=snapshot.rows.map((row,index)=>{
       if(row.id.toLowerCase()!==ids[index]){this.cache.delete(ids[index]);this.failures.push('deployment not found: '+ids[index]);return null;}
+      if(row.runnerUnavailable){this.cache.delete(ids[index]);this.failures.push('inactive or changed runner: '+ids[index]);return null;}
       const leaseUntil=Number(row.leaseUntil)*1000;
       if(!Number.isSafeInteger(leaseUntil))throw new Error('invalid lease expiry');
       return {...row,id:row.id.toLowerCase(),runner:row.runner.toLowerCase(),leaseUntil,chainId:this.chainId,deployments:snapshot.deployments,
