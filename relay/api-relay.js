@@ -98,7 +98,7 @@ import { handleCerts, initCerts } from "./certs.js";
 import { createShieldMarketplace } from "./shield-marketplace.mjs";
 import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson } from "./measurement-predict.mjs";
 import { createTunnelHub } from "./tunnel.js";
-import {LeaseReader,createTunaRoutes,DurableState} from "./network-runtime.bundle.mjs";
+import {LeaseReader,createTunaRoutes,DurableState,createLeaseSource,createRegistryOperator} from "./network-runtime.bundle.mjs";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
 import { pvmCpuPolicyFromEnv, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
 import { VBS_DEFAULT_EK_ROOTS } from "./vbs-policy.mjs";
@@ -2238,28 +2238,17 @@ const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostE
 const networkLeaseReader=ADDRESS_BOOK?new LeaseReader({addressBook:ADDRESS_BOOK,
   rpc:(process.env.NETWORK_CHAIN_RPCS||'https://base-rpc.publicnode.com,https://base.drpc.org,https://mainnet.base.org').split(',').map(s=>s.trim()),
   includeHostPayout:true,includeConnectivity:'auto'}):null;
-const routeLeaseIds=new Set();
-// WHO OWNS a registry id. Read from the same agreeing public RPCs as route
-// leases, not the single BASE_RPC, whose metered quota these per-publication
-// reads exhausted. An answer is kept 15 s and concurrent asks share one read;
-// a failed read throws, so each caller keeps its own fail-closed rule.
-const registryOperators=new Map();
+// WHO OWNS a registry id, from the same agreeing public RPCs as route leases
+// (relay/chain-sources.mjs), not the single metered BASE_RPC; a failed read
+// throws, so each caller keeps its own fail-closed rule.
+const agreedRegistryOperator=networkLeaseReader?createRegistryOperator({reader:networkLeaseReader,registry:()=>REGISTRY_ADDRESS}):null;
+const leaseFromChain=networkLeaseReader?createLeaseSource({reader:networkLeaseReader}):null;
 async function registryOperator(id) {
   if (!REGISTRY_ADDRESS) return null;
-  if (!networkLeaseReader) {
-    const e = await (await chain()).readContract({ address: REGISTRY_ADDRESS, abi: GET_ABI, functionName: "get", args: [id] });
-    const op = String(e?.operator || "");
-    return e?.active && !/^0x0{40}$/i.test(op) ? op.toLowerCase() : null;
-  }
-  const key = REGISTRY_ADDRESS.toLowerCase() + ":" + id, hit = registryOperators.get(key);
-  if (hit && (hit.pending || hit.at + 15000 > Date.now())) return hit.pending || hit.op;
-  const pending = networkLeaseReader.registryEntries(REGISTRY_ADDRESS, [id]).then(([e]) => {
-    const op = e.active && !/^0x0{40}$/i.test(e.operator) ? e.operator : null;
-    registryOperators.set(key, { at: Date.now(), op }); return op;
-  }, (err) => { registryOperators.delete(key); throw err; });
-  registryOperators.set(key, { pending });
-  if (registryOperators.size > 1024) registryOperators.delete(registryOperators.keys().next().value);
-  return pending;
+  if (agreedRegistryOperator) return agreedRegistryOperator(id);
+  const e = await (await chain()).readContract({ address: REGISTRY_ADDRESS, abi: GET_ABI, functionName: "get", args: [id] });
+  const op = String(e?.operator || "");
+  return e?.active && !/^0x0{40}$/i.test(op) ? op.toLowerCase() : null;
 }
 tunaRoutes = createTunaRoutes({
   providerProbeSigners: (process.env.PROVIDER_PROBE_SIGNERS || '').split(',').map(s=>s.trim()).filter(Boolean),
@@ -2270,15 +2259,7 @@ tunaRoutes = createTunaRoutes({
       if(!d||_ledger.at+30000<=Date.now())return null;
       return {...d,id:String(d.id).toLowerCase(),runner:String(d.runner).toLowerCase(),chainId:8453,deployments:DEPLOYMENTS_ADDRESS,
         leaseUntil:Number(d.leaseUntil)*1000,validUntil:Math.min(Number(d.leaseUntil)*1000,_ledger.at+30000)};}
-    const cached=networkLeaseReader.get(id);
-    if(cached&&cached.blockTime+15000>Date.now())return cached;
-    // One snapshot renews every app this relay routes: hosts republish each app
-    // every 10 s, and public RPCs refuse a chain read per publication.
-    routeLeaseIds.add(id);if(routeLeaseIds.size>256)routeLeaseIds.delete(routeLeaseIds.values().next().value);
-    // A failed refresh leaves an agreed snapshot in use only until the reader's
-    // own block-age expiry, never longer.
-    try{await networkLeaseReader.refresh([...routeLeaseIds]);}catch(e){if(!cached)throw e;}
-    const lease=networkLeaseReader.get(id);if(!lease)routeLeaseIds.delete(id);return lease;
+    return leaseFromChain(id);
   },
   eligible: d => {
     const row = live.find(e => String(e.id || "").toLowerCase() === String(d.runner).toLowerCase());
