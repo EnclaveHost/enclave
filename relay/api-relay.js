@@ -1714,7 +1714,7 @@ async function gateway(u, req, res) {
       const b = JSON.parse((await readBody(req, 131072)).toString());
       await tunaRoutes.publish(b.publication, b.signature);
       return json(res, 200, { ok: true }, req);
-    } catch (e) { return json(res, 400, { error: "tuna_publication_refused", message: e.message }, req); }
+    } catch (e) { console.warn("[tuna-routes] publication refused: " + String(e.message).slice(0,256)); return json(res, 400, { error: "tuna_publication_refused", message: e.message }, req); }
   }
 
   if (!live.length) {
