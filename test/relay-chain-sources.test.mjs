@@ -45,3 +45,11 @@ test('an operator answer is fresh 15 s, served to 60 s while one read renews it,
  // No registry configured: nobody.
  assert.equal(await createRegistryOperator({reader,registry:()=>''})(id),null);
 });
+
+test('an operator with no usable answer is retried before the caller is told it failed',async()=>{
+ let reads=0,fail=2;const reader={registryEntries:async()=>{reads++;if(fail-->0)throw Error('no fresh agreeing chain quorum');return [{active:true,operator:op}];}};
+ const operatorOf=createRegistryOperator({reader,registry:()=>registry,retryMs:1});
+ assert.equal(await operatorOf(id),op);assert.equal(reads,3);
+ fail=3;const cold=createRegistryOperator({reader,registry:()=>registry,retryMs:1});reads=0;
+ await assert.rejects(cold(id),/agreeing chain quorum/);assert.equal(reads,3);
+});
