@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {mkdtemp,rm} from 'node:fs/promises';import os from 'node:os';import path from 'node:path';
 import {privateKeyToAccount} from 'viem/accounts';
-import {createTunaRoutes} from '../relay/tuna-routes.mjs';
+const {createTunaRoutes}=await import(process.env.ENCLAVE_TEST_RELAY_BUNDLE||'../relay/tuna-routes.mjs');
 import {RoutePublisher,defaultPolicy} from '../network/route-publisher.mjs';
 import {DurableState} from '../network/durable-state.mjs';
 const id='0x'+'ab'.repeat(32),runner='0x'+'cd'.repeat(32),endpoint='https://api.enclave.host/t/metal0';

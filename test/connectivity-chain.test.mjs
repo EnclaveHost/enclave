@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {LeaseReader} from '../network/lease-reader.mjs';
+const {LeaseReader}=await import(process.env.ENCLAVE_TEST_RELAY_BUNDLE||'../network/lease-reader.mjs');
 const address='0x'+'11'.repeat(20),ledger='0x'+'22'.repeat(20),owner='0x'+'33'.repeat(20),id='0x'+'aa'.repeat(32),runner='0x'+'bb'.repeat(32),now=1700000000000;
 const providerId='0x'+'ee'.repeat(32);
 function peer({nonce=1n,expires=1700000600n,boundLedger=ledger,viaTuna=false,providerKey=owner}={}) {
