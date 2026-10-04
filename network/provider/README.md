@@ -149,12 +149,26 @@ least four qualifying operators on separate networks, with USDC transport suppor
 
 Activation requires a schema-16 ledger with backed app balances, its bound
 connectivity contract, an active registered provider, current qualification,
-and a matching advertised rate. The qualification implementation currently uses
-a governance-maintained probe-signer allowlist; it is not permissionless
-qualification. Do not describe a production deployment of it as having removed
-that trust dependency. Owner authorizations, operator diversity, real forward and
-reverse transport, TLS verification, receipt settlement, and revocation must pass
-before switching customer traffic.
+and a matching advertised rate. Anyone can publish a signed report for the same
+nine checks. App owners choose which checker addresses they trust and how many
+matching reports they require. The constructor supplies a fixed default list;
+there is no administrator-controlled allowlist. A host cannot count its own
+operator signature toward the quorum. Distinct keys alone do not prove distinct
+operators; trust in independently operated checkers remains explicit.
+
+`connectivity.mjs trust --id APP --signers ADDRESS,ADDRESS --threshold 2` prepares
+the owner authorization. Wallet and passkey owners can also configure it in the
+app's Network controls. Changing trust invalidates existing spending permissions;
+a new route authorization is required. Host mode publication is permissionless
+for the registry operator, but both direct service and TUNA settlement require
+current app-specific qualification. Read `qualificationFor(hostId,appId)` instead
+of the obsolete qualification fields in `hosts(hostId)`.
+
+Owner authorizations, operator diversity, real forward and reverse transport,
+TLS verification, receipt settlement, and revocation must pass before switching
+customer traffic. `scripts/network/rehearse-bandwidth-rollout.mjs` exercises the
+ledger migration on a disposable local production fork; it cannot broadcast to
+production and uses explicitly labeled checker fixtures.
 
 `maxPending6` is credit the provider is willing to lose on revocation or a failed
 settlement (the example allows 0.01 USDC). It is not additional app funding. The

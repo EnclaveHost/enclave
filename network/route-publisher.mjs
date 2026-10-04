@@ -58,10 +58,11 @@ export class RoutePublisher {
       }
       value.sequence++;if(!Number.isSafeInteger(value.sequence))throw new Error('route sequence exhausted');return value;
     });
-    const qualification=policy.mode==='direct'&&routes.length?await this.qualification?.(id):undefined;
-    if(policy.mode==='direct'&&routes.length&&(!qualification||qualification.report.expiresAt<=now))throw new Error('current provider qualification required');
+    const ownerQualification=policy.mode==='direct'&&routes.length&&lease.connectivity?.appScopedQualification;
+    const qualification=policy.mode==='direct'&&routes.length&&!ownerQualification?await this.qualification?.(id):undefined;
+    if(policy.mode==='direct'&&routes.length&&!ownerQualification&&(!qualification||qualification.report.expiresAt<=now))throw new Error('current provider qualification required');
     const providerExpiry=policy.currency==='USDC'&&routes.length?Math.min(...routes.map(route=>Math.max(0,...(lease.connectivity?.providers||[]).filter(p=>p.qualified&&p.active&&p.addressHash===keccak256(stringToHex(route.address))).map(p=>Number(p.qualifiedUntil)*1000)))):Infinity;
-    const expiresAt=Math.min(now+60000,lease.validUntil,lease.leaseUntil,state.authorization.delegation.expiresAt,qualification?.report.expiresAt??Infinity,providerExpiry,(policy.mode==='direct'||policy.currency==='USDC')&&routes.length?policy.expiresAt:Infinity);
+    const expiresAt=Math.min(now+60000,lease.validUntil,lease.leaseUntil,state.authorization.delegation.expiresAt,ownerQualification?Number(lease.connectivity.qualifiedUntil)*1000:qualification?.report.expiresAt??Infinity,providerExpiry,(policy.mode==='direct'||policy.currency==='USDC')&&routes.length?policy.expiresAt:Infinity);
     if(expiresAt<=now)throw Error('route authorization expired');
     const signed=signRoute(routeKey(Buffer.from(state.seed,'hex')),{version:2,deploymentId:id,delegationHash:recordHash(state.authorization.delegation),
       sequence:state.sequence,issuedAt:now,expiresAt,routes,...(qualification?{qualification}:{})});

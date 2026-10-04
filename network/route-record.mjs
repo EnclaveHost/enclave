@@ -83,7 +83,7 @@ export async function verifyRoute(bundle, {deploymentId, policy, lease, memory, 
       assertDirectChoice(p,lease,now);
       const c=lease.connectivity;
       if(!c.direct||Number(c.qualifiedUntil)*1000<=now||c.operator.toLowerCase()!==lease.runnerOperator.toLowerCase()||c.addressHash!==keccak256(stringToHex(route.address))||r.expiresAt>p.expiresAt)throw Error('direct route lacks current on-chain provider authorization');
-      const q=await verifyQualification(r.qualification,{hostId:lease.runner,operator:lease.runnerOperator,
+      const q=c.appScopedQualification?{expiresAt:Number(c.qualifiedUntil)*1000}:await verifyQualification(r.qualification,{hostId:lease.runner,operator:lease.runnerOperator,
         address:route.address,probeSigners:providerProbeSigners,now});
       if(r.expiresAt>q.expiresAt)throw new Error('route outlives provider qualification');
     }

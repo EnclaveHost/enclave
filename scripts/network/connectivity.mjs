@@ -7,7 +7,7 @@ import {privateKeyToAccount} from 'viem/accounts';
 import {base} from 'viem/chains';
 const arg=(k,d)=>{const i=process.argv.indexOf(k);return i<0?d:process.argv[i+1];};
 const command=process.argv[2],id=arg('--id'),execute=process.argv.includes('--execute');
-if(!['inspect','host','direct','tuna','revoke'].includes(command)||!/^0x[0-9a-f]{64}$/.test(id||''))throw Error('usage: connectivity.mjs inspect|host|direct|tuna|revoke --id 0x… [--mode compute|direct|tuna|both] [--providers 0xID,0xID] [--price USDC/GiB --budget USDC --days 1] [--execute --key-file PATH]');
+if(!['inspect','host','direct','tuna','revoke','trust'].includes(command)||!/^0x[0-9a-f]{64}$/.test(id||''))throw Error('usage: connectivity.mjs inspect|host|direct|tuna|revoke|trust --id 0x… [--mode compute|direct|tuna|both] [--providers 0xID,0xID] [--price USDC/GiB --budget USDC --days 1] [--execute --key-file PATH]');
 const rpc=arg('--rpc','https://base-rpc.publicnode.com,https://base.drpc.org').split(',');
 if(rpc.length<2||new Set(rpc.map(u=>new URL(u).hostname)).size!==rpc.length||rpc.some(u=>!u.startsWith('https://')))throw Error('independent HTTPS RPCs required');
 const clients=rpc.map(u=>createPublicClient({chain:base,transport:http(u,{timeout:15000})}));
@@ -19,6 +19,9 @@ const abi=parseAbi(['function addr(bytes32) view returns (address)','function le
  'function tunaProviders(bytes32) view returns (bytes32[])',
  'function tunaPolicyDigest(bytes32,bytes32[],uint64,uint64,uint128) view returns (bytes32)',
  'function authorizeTuna(bytes32,bytes32[],uint64,uint64,uint128,bytes)',
+ 'function probeTrust(bytes32) view returns (address[],uint8)',
+ 'function probeTrustDigest(bytes32,address[],uint8,uint64) view returns (bytes32)',
+ 'function authorizeProbeTrust(bytes32,address[],uint8,uint64,bytes)',
  'function qualified(bytes32) view returns (bool)',
  'function setHost(bytes32,bool,bool,uint64)',
  'function policyDigest(bytes32,uint64,uint64,uint128) view returns (bytes32)',
@@ -37,8 +40,11 @@ const money=(s,bits)=>{if(!/^(0|[1-9]\d{0,20})(\.\d{1,6})?$/.test(s||''))throw E
 let functionName,args,digest;
 if(command==='host'){
  const mode=arg('--mode');if(!['compute','direct','tuna','both'].includes(mode))throw Error('host mode required');
- if(mode!=='compute'&&!await read(connectivity,'qualified',[id]))throw Error('host has not passed current independent provider qualification');
  functionName='setHost';args=[id,['direct','both'].includes(mode),['tuna','both'].includes(mode),money(arg('--price','0'),64)];
+}else if(command==='trust'){
+ const signers=arg('--signers','').split(','),threshold=Number(arg('--threshold','2'));
+ if(signers.length<1||signers.length>8||signers.some(a=>!/^0x[0-9a-f]{40}$/i.test(a)||/^0x0{40}$/i.test(a))||new Set(signers.map(a=>a.toLowerCase())).size!==signers.length||!Number.isInteger(threshold)||threshold<1||threshold>signers.length)throw Error('trust requires distinct --signers and a valid --threshold');
+ args=[id,signers,threshold,BigInt(Math.floor(Date.now()/1000)+600)];digest=await read(connectivity,'probeTrustDigest',args);functionName='authorizeProbeTrust';
 }else if(command==='revoke'){functionName='revokeDirect';args=[id];}
 else {
  const days=Number(arg('--days','1'));if(!Number.isFinite(days)||days<=0||days>30)throw Error('authorization lasts at most 30 days');

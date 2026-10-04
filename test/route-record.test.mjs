@@ -86,3 +86,12 @@ test('direct records require current on-chain owner and provider authorization e
  for(const change of [{nonce:'2'},{expires:0},{direct:false},{addressHash:'0x'+'00'.repeat(32)}])await assert.rejects(verifyRoute(bundle(r),{...opts,lease:{...lease,connectivity:{...lease.connectivity,...change}}}),/authorization/);
  await assert.rejects(verifyRoute(bundle({...r,expiresAt:p.expiresAt+1}),opts),/authorization/);
 });
+
+test('direct route accepts owner-scoped chain quorum without a global checker list and stops on trust change',async t=>{
+ const p={version:3,deploymentId:app,mode:'direct',routes:1,directFallback:false,nonce:'1',connectivity:'0x'+'12'.repeat(20),expiresAt:(Math.floor(Date.now()/1000)+120)*1000,maxPricePerGiB6:'1000',budget6:'10000'};
+ const {record,bundle,options}=await fixture(t,p);
+ const c={appScopedQualification:true,address:p.connectivity,owner:owner.address,nonce:'1',expires:p.expiresAt/1000,maxPricePerGiB6:p.maxPricePerGiB6,budget6:p.budget6,direct:true,qualifiedUntil:Math.floor(options.now/1000)+90,operator:operator.address,addressHash:keccak256(stringToHex(record.routes[0].address))};
+ const lease={...options.lease,owner:owner.address,connectivity:c},r={...record,routes:[{...record.routes[0],transport:'direct'}]},opts={...options,lease};
+ assert.equal((await verifyRoute(bundle(r),opts)).routes[0].transport,'direct');
+ for(const change of [{nonce:'2',expires:1},{direct:false},{operator:owner.address},{qualifiedUntil:Math.floor(options.now/1000)+1}])await assert.rejects(verifyRoute(bundle(r),{...opts,lease:{...lease,connectivity:{...c,...change}}}));
+});

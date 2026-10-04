@@ -406,12 +406,12 @@ export function encStr(s){
   for (const x of b) h += x.toString(16).padStart(2, "0");
   return { body: encUint(b.length) + h.padEnd(Math.ceil(h.length / 64) * 64, "0"), words: 1 + Math.ceil(b.length / 32) };
 }
-// args: [{t:'str'|'uint'|'bool'|'addr'|'bytes32'|'bytes32[]'|'bytes[]', v}]; head (offsets/inline) then dynamic tails.
+// args: [{t:'str'|'uint'|'bool'|'addr'|'bytes32'|'bytes32[]'|'addr[]'|'bytes[]', v}]; head (offsets/inline) then dynamic tails.
 export function encCall(selector, args){
   let off = args.length * 32; const heads = [], bodies = [];
   for (const a of args){
     if (a.t === "str"){ const e = encStr(a.v); heads.push(encUint(off)); off += e.words * 32; bodies.push(e.body); }
-    else if (a.t === "bytes32[]"){
+    else if (a.t === "bytes32[]" || a.t === "addr[]"){
       const items = a.v.map(x => pad32(String(x).replace(/^0x/, "")));
       heads.push(encUint(off)); off += (1 + items.length) * 32;
       bodies.push(encUint(items.length) + items.join(""));
