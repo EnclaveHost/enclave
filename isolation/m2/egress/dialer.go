@@ -82,10 +82,13 @@ type Dialer struct {
 	MaxPerMinute  int                                // per guest, dials started
 	SOCKSProxy    string                             // optional trusted loopback TUNA entry; failure never falls back to direct
 	RouteFor      func(cid uint32) (AppRoute, error) // when set, all DNS and TCP use only this guest's routes
-	dial          func(ctx context.Context, addr string) (net.Conn, error)
-	mu            sync.Mutex
-	active        map[uint32]int
-	window        map[uint32][]time.Time
+	// BootstrapRouteFor may supply a guarded route for a starting guest's sealed
+	// release exchange. Used only when RouteFor refuses, never for web or DNS requests.
+	BootstrapRouteFor func(cid uint32, host string, port int) (AppRoute, error)
+	dial              func(ctx context.Context, addr string) (net.Conn, error)
+	mu                sync.Mutex
+	active            map[uint32]int
+	window            map[uint32][]time.Time
 }
 
 var ErrRefused = errors.New("egress refused")
@@ -170,6 +173,12 @@ func (d *Dialer) dialPublic(ctx context.Context, cid uint32, host string, port i
 	}()
 	if d.RouteFor != nil {
 		route, err := d.appRoute(cid)
+		if err != nil && !allowIP && d.BootstrapRouteFor != nil {
+			route, err = d.BootstrapRouteFor(cid, host, port)
+			if err != nil {
+				return nil, nil, refused(ReasonAdmit)
+			}
+		}
 		if err != nil {
 			return nil, nil, err
 		}
