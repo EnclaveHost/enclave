@@ -450,3 +450,78 @@ func TestUSDCTLSServiceHandler(t *testing.T) {
 		t.Fatal("provider session leaked")
 	}
 }
+
+func TestUSDCConcurrentProviderHandlers(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { listener.Close() })
+	go func() {
+		for {
+			conn, e := listener.Accept()
+			if e != nil {
+				return
+			}
+			go func() { defer conn.Close(); _, _ = io.Copy(conn, conn) }()
+		}
+	}()
+	server := testUSDCCommon(t, true, &testUSDCController{})
+	provider := &TunaExit{Common: server, config: &ExitConfiguration{DialTimeout: 5, Services: map[string]ExitServiceInfo{"echo": {Address: "127.0.0.1", Price: "0"}}}, services: []Service{{Name: "echo", TCP: []uint32{uint32(listener.Addr().(*net.TCPAddr).Port)}}}}
+	for i := 0; i < 8; i++ {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
+			client := testUSDCCommon(t, false, &testUSDCController{})
+			ca, cb, ea, eb := testUSDCPair(t, client, server)
+			if ea != nil || eb != nil {
+				t.Fatal(ea, eb)
+			}
+			defer ca.Close()
+			defer cb.Close()
+			sc, e := smux.Client(ca, nil)
+			if e != nil {
+				t.Fatal(e)
+			}
+			defer sc.Close()
+			ss, e := smux.Server(cb, nil)
+			if e != nil {
+				t.Fatal(e)
+			}
+			defer ss.Close()
+			client.bindUSDC(sc, ca)
+			server.bindUSDC(ss, cb)
+			done := make(chan struct{})
+			go func() {
+				provider.handleSession(ss, &pb.ConnectionMetadata{PublicKey: client.Wallet.PubKey(), Nonce: bytes.Repeat([]byte{byte(i + 1)}, 32)})
+				close(done)
+			}()
+			raw, e := sc.OpenStream()
+			if e != nil {
+				t.Fatal(e)
+			}
+			_ = raw.SetDeadline(time.Now().Add(5 * time.Second))
+			if e = writeStreamMetadata(raw, &pb.StreamMetadata{ServiceId: 0, PortId: 0}); e != nil {
+				t.Fatal(e)
+			}
+			stream := client.serviceStream(sc, raw)
+			payload := bytes.Repeat([]byte{byte(i)}, 32768)
+			if _, e = stream.Write(payload); e != nil {
+				t.Fatal(e)
+			}
+			got := make([]byte, len(payload))
+			if _, e = io.ReadFull(stream, got); e != nil {
+				t.Fatal(e)
+			}
+			if !bytes.Equal(payload, got) {
+				t.Fatal("concurrent traffic mixed")
+			}
+			_ = sc.Close()
+			_ = ss.Close()
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Fatal("concurrent handler leaked")
+			}
+		})
+	}
+}
