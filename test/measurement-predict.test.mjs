@@ -610,3 +610,42 @@ test("V4 predictor matches the committed Shield scheduler rule", () => {
   assert.equal(P.canonical(P.derivationRecord(ref,v,rid,inference)),P.canonical(theirs));
  }
 });
+
+test("a relay restart's orphaned prediction work is swept once at start; live, finished and cache entries are kept", async () => {
+  const work = fs.mkdtempSync(path.join(TMP, "sweep-"));
+  const mk = (rel, file) => { const p = path.join(work, rel); fs.mkdirSync(file ? path.dirname(p) : p, { recursive: true }); if (file) fs.writeFileSync(p, "x"); return p; };
+  const commit = "ab".repeat(20), cid = "bafkreigh2akiscaildc";
+  const orphanJob = mk("tmp/job-AbC123/release-1/template", false), orphanCid = mk("tmp/cid-Zz9", false);
+  const orphanImage = mk("tmp/tmp.4Brckthquk/image.cpio.gz", true); fs.utimesSync(path.dirname(orphanImage), 0, 0);   // reproducible builds stamp epoch 0
+  const liveJob = mk("tmp/job-Live01/app.bundle", true);
+  const partialToolchain = mk(`toolchain-${commit}.0123456789ab/isolation`, false), toolchain = mk(`toolchain-${commit}/isolation`, false);
+  const partialComponent = mk(`components/${cid}.a1b2c3d4e5f6`, true), component = mk(`components/${cid}`, true);
+  mk("gocache/x/y", true); mk("gopath/pkg", false); mk("home/.local/bin", false);
+  const live = () => new Set([path.join(work, "tmp"), path.join(work, "tmp", "job-Live01")]);
+  const removed = (await P.sweepStaleWork(work, { live })).map((p) => path.relative(work, p)).sort();
+  assert.deepEqual(removed, ["components/" + cid + ".a1b2c3d4e5f6", "tmp/cid-Zz9", "tmp/job-AbC123", "tmp/tmp.4Brckthquk", `toolchain-${commit}.0123456789ab`].sort());
+  for (const gone of [orphanJob, orphanCid, path.dirname(orphanImage), partialToolchain, partialComponent]) assert.equal(fs.existsSync(gone), false, gone);
+  for (const kept of [liveJob, toolchain, component, path.join(work, "gocache/x/y"), path.join(work, "gopath/pkg"), path.join(work, "home/.local/bin")]) assert.equal(fs.existsSync(kept), true, kept);
+  // A process naming a job in its command line protects it (the live scan reads /proc on Linux).
+  if (process.platform === "linux") {
+    const held = mk("tmp/job-Held/app.bundle", true);
+    const child = execFileSync(process.execPath, ["-e", `const {spawn}=require("child_process");const c=spawn(process.execPath,["-e","setTimeout(()=>{},30000)",${JSON.stringify(held)}],{detached:true,stdio:"ignore"});c.unref();console.log(c.pid)`], { encoding: "utf8" }).trim();
+    try {
+      for (let i = 0; i < 50 && !fs.readFileSync(`/proc/${child}/cmdline`, "utf8").includes("job-Held"); i++) execFileSync("sleep", ["0.1"]);
+      assert.equal((await P.sweepStaleWork(work)).some((p) => p.includes("job-Held")), false, "a job a live process names is kept");
+      assert.equal(fs.existsSync(held), true);
+    }
+    finally { try { process.kill(Number(child)); } catch {} }
+  }
+  // Only a predictor told it owns `work` sweeps it.
+  const stale = mk("tmp/job-Later/x", true);
+  await P.makePredictor({ ...P.predictorEnv({}), readCatalog: null, work }).swept;
+  assert.equal(fs.existsSync(stale), true, "a predictor without sweepStale leaves shared work alone");
+  const owner = P.makePredictor({ ...P.predictorEnv({}), readCatalog: null, work, sweepStale: true });
+  // A job started while the sweep runs is never in its list.
+  const fresh = mk("tmp/job-Fresh/x", true);
+  const gone = (await owner.swept).map((p) => path.relative(work, p));
+  assert.ok(gone.includes("tmp/job-Later") && !gone.includes("tmp/job-Fresh"), gone.join(","));
+  assert.equal(fs.existsSync(stale), false, "the owning predictor sweeps at construction");
+  assert.equal(fs.existsSync(fresh), true);
+});

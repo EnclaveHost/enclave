@@ -2141,7 +2141,7 @@ async function confirmRow(id) {
   return rows[0];
 }
 let _predictor = null;
-const predictor = () => _predictor || (_predictor = makePredictor({ ...predictorEnv(), readCatalog: catalogReader(catalogClients, catalogAddress) }));
+const predictor = () => _predictor || (_predictor = makePredictor({ ...predictorEnv(), readCatalog: catalogReader(catalogClients, catalogAddress), sweepStale: true }));
 const shieldMarket = createShieldMarketplace({ hub: tunnelHub,
   policyFile: process.env.RELAY_SHIELD_MARKET_POLICY || "", confirmRow, hasSecrets: hasStagedSecrets,
   isOwnerDeployment: (host, d) => !!servedEntryNow(host, d.owner),
