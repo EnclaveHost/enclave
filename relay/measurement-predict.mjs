@@ -171,6 +171,38 @@ export function runBounded(cmd, args, { env, cwd, timeoutMs, input }) {
 //   sevSnpMeasureSha256  its sevSnpMeasureDigest, checked before the toolchain is used
 //   work                 a private directory (created 0700)
 //   components           (optional) where verified raw-CID components are kept; each is re-verified against its CID on read
+// Work a predictor left when it was killed mid-job (a relay restart: its `finally` never ran and its scripts' own
+// cleanup died with them): every job's directories under `tmp`, a toolchain extraction or a component write stopped before
+// its rename. Each job leaves gigabytes; on 2026-10-04 restarts filled nan's disk with 21 GB of them and a new app version
+// could not be predicted. Swept once, before the sweeping process starts a job; an entry a live process still names (another
+// predictor sharing `work`, e.g. an operator's preflight) is left alone. What to remove is decided at once; the removal
+// (gigabytes) runs in the background, and a job started meanwhile gets a fresh name that is never in the list.
+export function sweepStaleWork(work, { live = liveWorkRefs } = {}) {
+  work = path.resolve(work);
+  const refs = live(work), stale = [];
+  const consider = (p) => { if (!refs.has(p)) stale.push(p); };
+  const list = (d) => { try { return fs.readdirSync(d); } catch { return []; } };
+  for (const name of list(path.join(work, "tmp"))) consider(path.join(work, "tmp", name));
+  for (const name of list(work)) if (/^toolchain-[0-9a-f]{40}\.[0-9a-f]{12}$/.test(name)) consider(path.join(work, name));
+  for (const name of list(path.join(work, "components"))) if (/\.[0-9a-f]{12}$/.test(name)) consider(path.join(work, "components", name));
+  return Promise.all(stale.map((p) => fs.promises.rm(p, { recursive: true, force: true }))).then(() => stale);
+}
+// The `work` entries other processes name in their command lines or working directories (Linux /proc; none elsewhere).
+function liveWorkRefs(work) {
+  const refs = new Set(), root = path.resolve(work) + "/";
+  const note = (s) => { for (let i = s.indexOf(root); i >= 0; i = s.indexOf(root, i + 1)) {
+    const parts = s.slice(i + root.length).split(/[\s/]/);
+    refs.add(root + parts[0]); if (parts[1]) refs.add(root + parts[0] + "/" + parts[1]);
+  } };
+  let pids = [];
+  try { pids = fs.readdirSync("/proc").filter((p) => /^\d+$/.test(p) && p !== String(process.pid)); } catch { return refs; }
+  for (const pid of pids) {
+    try { note(fs.readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0").join(" ")); } catch {}
+    try { note(fs.readlinkSync(`/proc/${pid}/cwd`) + "/"); } catch {}
+  }
+  return refs;
+}
+
 export function makePredictor(o) {
   const { repo, commit, readCatalog, gateway, sevSnpMeasure, sevSnpMeasureSha256 } = o;
   // Newly pinned configs may not yet be reachable through a public gateway.
@@ -178,6 +210,11 @@ export function makePredictor(o) {
   const configGateways = [...new Set([o.configGateway, gateway].filter(Boolean))];
   const digestTool = o.digestTool || ((exe) => sevSnpMeasureDigest(exe, run));
   const work = o.work ? path.resolve(o.work) : "";
+  // Only the predictor that owns `work` sweeps it (the relay passes sweepStale); a preflight sharing it never does.
+  const swept = work && o.sweepStale
+    ? sweepStaleWork(work).then((gone) => { if (gone.length) console.log(`[measurement-predict] removed ${gone.length} work entr${gone.length === 1 ? "y" : "ies"} an interrupted predictor left`); return gone; },
+                                (e) => { console.error(`[measurement-predict] stale work sweep failed: ${e.message}`); return []; })
+    : Promise.resolve([]);
   const run = o.run || runBounded, now = o.now || Date.now;
   const knownAnswers = o.knownAnswers || KNOWN_ANSWERS;
   const concurrency = o.concurrency ?? 1, maxQueue = o.maxQueue ?? 4, timeoutMs = o.timeoutMs ?? 240_000;
@@ -499,7 +536,7 @@ export function makePredictor(o) {
     } finally { fs.rmSync(job, { recursive: true, force: true }); }
   }
 
-  return { expectedFor, selfTest, fetchVerified, problems, sets: { release: admit, cert: certAdmit }, state: () => ({ kat: { ok: kat.ok, at: kat.at, reason: kat.reason }, toolchain: toolchain && toolchain.dir,
+  return { expectedFor, selfTest, fetchVerified, problems, swept, sets: { release: admit, cert: certAdmit }, state: () => ({ kat: { ok: kat.ok, at: kat.at, reason: kat.reason }, toolchain: toolchain && toolchain.dir,
                                                          active, queued: queue.length, cached: cache.size, ...stats }) };
 }
 
