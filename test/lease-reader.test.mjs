@@ -110,3 +110,11 @@ test('an app whose host left the registry is withheld without failing the apps s
  assert.equal(reader.get(moved),null);assert.equal(reader.get(id).runnerPayoutWallet,book);
  assert.ok(reader.failures.some(f=>f.includes('inactive or changed runner')));
 });
+test('a peer that never answers its head cannot hold the snapshot for its request timeout',async()=>{
+ const hung=client();let release;hung.getBlockNumber=()=>new Promise(r=>release=r);
+ const reader=new LeaseReader({addressBook:book,clients:[hung,client(),client()],now});reader.headGraceMs=20;
+ const started=Date.now();
+ try{assert.equal((await Promise.race([reader.refresh([id]),new Promise((_r,j)=>setTimeout(()=>j(Error('head phase stalled')),500))])).length,1);}
+ finally{release?.(1000n);}
+ assert.ok(Date.now()-started<500);
+});
