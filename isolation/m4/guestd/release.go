@@ -273,6 +273,25 @@ func (s *server) deploymentOfCID(cid uint32) string {
 	return ""
 }
 
+// A release guest needs its sealed config before it can expose the attestation
+// endpoint that admits normal app circuits. Permit only the pinned relay over
+// guarded control transport during that interval. TLS and the attested release
+// protocol remain end-to-end in the measured guest; no host receives secrets.
+func (s *server) bootstrapDeploymentOfCID(cid uint32, host string, port int) string {
+	if host != release.RelayHost || port != 443 || cid == 0 {
+		return ""
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, v := range s.vms {
+		if v.cid == cid && v.release && v.HostData != "" && v.ticketTaken &&
+			v.Status == "starting" && v.lc.State() == contract.Starting && !v.lc.EndRequested() {
+			return "0x" + v.HostData
+		}
+	}
+	return ""
+}
+
 // postTicket is POST /vms/<id>/ticket {ticket}: the supervisor's late ticket, once the instance reports awaitingTicket.
 func (s *server) postTicket(w http.ResponseWriter, r *http.Request, id string) {
 	if !s.Release {

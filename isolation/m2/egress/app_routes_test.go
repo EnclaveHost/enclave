@@ -140,3 +140,86 @@ func TestAppWebLiteralUsesItsSecondProxyWithoutDNS(t *testing.T) {
 		}
 	}
 }
+
+func TestBootstrapIsOnlyRawTLSAndNeverDirect(t *testing.T) {
+	calls := 0
+	d := Dialer{Resolver: panicResolver{}, SOCKSProxy: "127.0.0.1:1", RouteFor: func(uint32) (AppRoute, error) { return AppRoute{}, os.ErrNotExist }, BootstrapRouteFor: func(cid uint32, host string, port int) (AppRoute, error) {
+		calls++
+		return AppRoute{}, os.ErrPermission
+	}}
+	if _, _, err := d.Dial(context.Background(), 12, "api.enclave.host", 443); ReasonOf(err) != ReasonAdmit || calls != 1 {
+		t.Fatalf("bootstrap denial: %v calls=%d", err, calls)
+	}
+	for _, port := range []int{80, 443} {
+		d.DialWeb(context.Background(), 12, "api.enclave.host", port)
+	}
+	d.ResolvePublic(context.Background(), 12, "api.enclave.host")
+	d.Dial(context.Background(), 12, "1.1.1.1", 443)
+	d.Dial(context.Background(), 12, "api.enclave.host", 80)
+	if calls != 1 {
+		t.Fatal("web, DNS, IP or non-TLS request used bootstrap")
+	}
+	d.RouteFor = func(uint32) (AppRoute, error) {
+		return AppRoute{Proxies: []string{"127.0.0.1:1"}, DNS: []DNSEndpoint{{Address: "1.1.1.1:443", ServerName: "cloudflare-dns.com", Path: "/dns-query"}}}, nil
+	}
+	d.Dial(context.Background(), 12, "api.enclave.host", 443)
+	if calls != 1 {
+		t.Fatal("existing app route failed over to bootstrap")
+	}
+	if d.active[12] != 0 {
+		t.Fatal("bootstrap failure leaked a slot")
+	}
+}
+
+func TestBootstrapUsesGuardedDNSAndSOCKS(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		c, e := ln.Accept()
+		if e != nil {
+			return
+		}
+		defer c.Close()
+		c.SetDeadline(time.Now().Add(2 * time.Second))
+		b := make([]byte, 3)
+		if _, e = io.ReadFull(c, b); e != nil {
+			return
+		}
+		c.Write([]byte{5, 0})
+		b = make([]byte, 10)
+		if _, e = io.ReadFull(c, b); e != nil {
+			return
+		}
+		c.Write([]byte{5, 0, 0, 1, 0, 0, 0, 0, 0, 0})
+		io.Copy(c, c)
+	}()
+	old := dnsQuery
+	defer func() { dnsQuery = old }()
+	dnsQuery = func(ctx context.Context, proxy string, server DNSEndpoint, host string, kind int) ([]netip.Addr, uint32, error) {
+		if proxy != ln.Addr().String() || host != "api.enclave.host" {
+			return nil, 0, os.ErrPermission
+		}
+		if kind == 28 {
+			return nil, 60, nil
+		}
+		return []netip.Addr{netip.MustParseAddr("93.184.216.34")}, 60, nil
+	}
+	d := Dialer{Resolver: panicResolver{}, RouteFor: func(uint32) (AppRoute, error) { return AppRoute{}, os.ErrNotExist }, BootstrapRouteFor: func(uint32, string, int) (AppRoute, error) {
+		return AppRoute{Proxies: []string{ln.Addr().String()}, DNS: []DNSEndpoint{{Address: "1.1.1.1:443", ServerName: "cloudflare-dns.com", Path: "/dns-query"}}}, nil
+	}}
+	c, done, err := d.Dial(context.Background(), 12, "api.enclave.host", 443)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer done()
+	defer c.Close()
+	c.SetDeadline(time.Now().Add(time.Second))
+	c.Write([]byte("test"))
+	b := make([]byte, 4)
+	if _, err = io.ReadFull(c, b); err != nil || string(b) != "test" {
+		t.Fatalf("guarded stream: %v", err)
+	}
+}

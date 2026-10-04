@@ -510,3 +510,46 @@ func TestATransientAcceptFailureDoesNotEndTheTicketService(t *testing.T) {
 		t.Fatalf("service ended with %v after %d accept notices (want nil and 3)", err, n)
 	}
 }
+
+func TestReleaseBootstrapOnlyStartingTicketedGuestAndPinnedRelay(t *testing.T) {
+	s := &server{vms: map[string]*vm{}}
+	v := &vm{Status: "starting", cid: 140001, HostData: hostDataFor(name(1)), release: true, ticketTaken: true, lc: contract.NewLifecycle(contract.Starting)}
+	s.vms["app"] = v
+	for _, tc := range []struct {
+		host string
+		port int
+		cid  uint32
+		want string
+	}{
+		{release.RelayHost, 443, v.cid, name(1)}, {release.RelayHost, 80, v.cid, ""},
+		{"evil.example", 443, v.cid, ""}, {"1.1.1.1", 443, v.cid, ""},
+		{release.RelayHost + ".evil.example", 443, v.cid, ""}, {release.RelayHost, 443, 0, ""}, {release.RelayHost, 443, 140002, ""},
+	} {
+		if got := s.bootstrapDeploymentOfCID(tc.cid, tc.host, tc.port); got != tc.want {
+			t.Fatalf("unexpected bootstrap binding: %q", got)
+		}
+	}
+	denied := func() {
+		t.Helper()
+		if s.bootstrapDeploymentOfCID(v.cid, release.RelayHost, 443) != "" {
+			t.Fatal("ineligible guest used bootstrap")
+		}
+	}
+	v.ticketTaken = false
+	denied()
+	v.ticketTaken = true
+	v.release = false
+	denied()
+	v.release = true
+	v.HostData = ""
+	denied()
+	v.HostData = hostDataFor(name(1))
+	v.Status = "running"
+	denied()
+	v.Status = "starting"
+	v.lc = contract.NewLifecycle(contract.Running)
+	denied()
+	v.lc = contract.NewLifecycle(contract.Starting)
+	v.lc.RequestEnd("test")
+	denied()
+}

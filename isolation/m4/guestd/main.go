@@ -325,6 +325,7 @@ func main() {
 	ticketPort := flag.Uint("ticket-port", release.TicketPort, "vsock host port of the ticket service (-release); a LAB guestd uses its lab image's (19444) so it never holds production's")
 	egressPortFlag := flag.Uint("egress-port", egressPort, "vsock host port of the egress server (-release); a LAB guestd moves it off production's too")
 	egressRoutes := flag.String("egress-app-routes", "", "expiring per-app TUNA SOCKS map; absent apps fail closed, DNS uses their circuit")
+	bootstrapRoutes := flag.String("release-bootstrap-routes", "", "expiring guarded routes used only by starting ticketed guests to reach the pinned release relay")
 	egressSOCKS := flag.String("egress-socks", "", "optional loopback TUNA SOCKS entry IP:port for guest outbound traffic; no direct fallback")
 	isoRelease := flag.String("isolation-release", "", "the domain release(s) the -isolation tree was installed from, comma-separated: a 64-hex id, or @<release.json> (its sha256 IS the id). Named to the judge for every guest this tree builds and recorded with it; the judge's table (m2/judge.mjs LEGACY_WX_RELEASES) decides what that release may state. REQUIRED when the tree predates per-release W^X")
 	legacyIsoRelease := flag.String("legacy-isolation-release", "", "the same, for the -legacy-isolation tree (REQUIRED with it when that tree predates per-release W^X)")
@@ -338,6 +339,9 @@ func main() {
 	shieldSHM := flag.String("shield-shm-dir", "", "directory with card-0 and card-1 masked transport rings")
 	shieldRelease := flag.String("shield-release", "", "64-hex release ID for the Shield template")
 	flag.Parse()
+	if *bootstrapRoutes != "" && (!*releaseOn || *egressRoutes == "") {
+		log.Fatal("-release-bootstrap-routes requires -release and -egress-app-routes")
+	}
 	if *guestMem < 0 || *guestCPUs < 0 || (*guestMem > 0) != (*guestCPUs > 0) {
 		log.Fatal("-guest-mem-mib and -guest-cpus are set together, both positive (or neither: then every create is refused)")
 	}
@@ -628,6 +632,11 @@ func main() {
 			es.Dialer.Resolver = nil
 			es.Dialer.RouteFor = func(cid uint32) (egress.AppRoute, error) {
 				return egress.ReadAppRoute(*egressRoutes, s.deploymentOfCID(cid))
+			}
+			if *bootstrapRoutes != "" {
+				es.Dialer.BootstrapRouteFor = func(cid uint32, host string, port int) (egress.AppRoute, error) {
+					return egress.ReadAppRoute(*bootstrapRoutes, s.bootstrapDeploymentOfCID(cid, host, port))
+				}
 			}
 		}
 		go func() { log.Fatal(es.Serve(context.Background(), el)) }()
