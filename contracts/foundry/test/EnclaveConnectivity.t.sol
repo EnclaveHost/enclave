@@ -76,17 +76,45 @@ contract EnclaveConnectivityTest is Test {
         bytes memory signature=_sig(METER,connectivity.receiptDigest(r));
         vm.expectRevert();connectivity.settle(r,signature);
     }
-    function test_administrationRequiresAcceptanceByNamedGovernance() public {
-        address gov=address(0x1234);
-        vm.prank(operator);vm.expectRevert();connectivity.transferAdministration(gov);
-        connectivity.transferAdministration(gov);
-        assertEq(connectivity.administrator(),address(this));
-        vm.prank(operator);vm.expectRevert();connectivity.acceptAdministration();
-        vm.prank(gov);connectivity.acceptAdministration();
-        assertEq(connectivity.administrator(),gov);
-        vm.expectRevert();connectivity.setProbeSigner(vm.addr(PROBE),false);
-        vm.prank(gov);connectivity.setProbeSigner(vm.addr(PROBE),false);
-        assertFalse(connectivity.qualified(HOST));
+    function _trust(address[] memory signers,uint8 threshold) internal {
+        uint64 deadline=uint64(T0+600);
+        connectivity.authorizeProbeTrust(id,signers,threshold,deadline,_sig(OWNER,connectivity.probeTrustDigest(id,signers,threshold,deadline)));
+    }
+    function test_ownerCanReplaceBootstrapTrustWithoutAdministrator() public {
+        address[] memory signers=new address[](1);signers[0]=vm.addr(777);
+        _trust(signers,1);assertFalse(connectivity.qualifiedFor(HOST,id));
+        assertTrue(connectivity.qualified(HOST)); // Other owners' bootstrap trust is untouched.
+        bytes32 addr=keccak256("8.8.8.8");bytes32 digest=connectivity.qualificationDigest(HOST,addr,uint64(T0),uint64(T0+300),511);
+        connectivity.qualify(HOST,addr,uint64(T0),uint64(T0+300),511,_sig(777,digest));
+        assertTrue(connectivity.qualifiedFor(HOST,id));
+        _reject(GIB); // Changing trust cancels spending; it does not create new spending rights.
+        _policy(10e6);_settle(GIB);assertEq(ledger.earned6(operator),800000);
+    }
+    function test_untrustedReportsCannotOverwriteAcceptedQualification() public {
+        bytes32 wrong=keccak256("9.9.9.9");bytes32 digest=connectivity.qualificationDigest(HOST,wrong,uint64(T0),uint64(T0+300),511);
+        connectivity.qualify(HOST,wrong,uint64(T0),uint64(T0+300),511,_sig(777,digest));
+        (bool ok,,bytes32 actual,)=connectivity.qualificationFor(HOST,id);
+        assertTrue(ok);assertEq(actual,keccak256("8.8.8.8"));_settle(GIB);
+    }
+    function test_trustRequiresOwnerAndRejectsDuplicatesReplayAndExpiredSignatures() public {
+        address[] memory signers=new address[](1);signers[0]=vm.addr(777);uint64 deadline=uint64(T0+600);
+        bytes32 digest=connectivity.probeTrustDigest(id,signers,1,deadline);
+        bytes memory wrong=_sig(PROBE,digest);vm.expectRevert();connectivity.authorizeProbeTrust(id,signers,1,deadline,wrong);
+        bytes memory signature=_sig(OWNER,digest);connectivity.authorizeProbeTrust(id,signers,1,deadline,signature);
+        vm.expectRevert();connectivity.authorizeProbeTrust(id,signers,1,deadline,signature);
+        signers=new address[](2);signers[0]=vm.addr(PROBE);signers[1]=signers[0];
+        signature=_sig(OWNER,connectivity.probeTrustDigest(id,signers,2,deadline));vm.expectRevert();connectivity.authorizeProbeTrust(id,signers,2,deadline,signature);
+        signers=new address[](1);signers[0]=vm.addr(PROBE);signature=_sig(OWNER,connectivity.probeTrustDigest(id,signers,1,uint64(T0)));
+        vm.expectRevert();connectivity.authorizeProbeTrust(id,signers,1,uint64(T0),signature);
+    }
+    function test_quorumMustAgreeOnAddressAndCurrentRegistryOperator() public {
+        address[] memory signers=new address[](2);signers[0]=vm.addr(PROBE);signers[1]=vm.addr(777);_trust(signers,2);
+        assertFalse(connectivity.qualifiedFor(HOST,id));
+        bytes32 wrong=keccak256("9.9.9.9");bytes32 digest=connectivity.qualificationDigest(HOST,wrong,uint64(T0),uint64(T0+299),511);
+        connectivity.qualify(HOST,wrong,uint64(T0),uint64(T0+299),511,_sig(777,digest));assertFalse(connectivity.qualifiedFor(HOST,id));
+        bytes32 right=keccak256("8.8.8.8");digest=connectivity.qualificationDigest(HOST,right,uint64(T0),uint64(T0+300),511);
+        connectivity.qualify(HOST,right,uint64(T0),uint64(T0+300),511,_sig(777,digest));assertTrue(connectivity.qualifiedFor(HOST,id));
+        registry.configure(address(0x987),operator,vm.addr(METER));assertFalse(connectivity.qualifiedFor(HOST,id));
     }
     function test_bandwidthUsesComputeSplitAndExistingBalance() public {
         uint256 balance=ledger.get(id).balance6;uint256 platform=usdc.balanceOf(payout);
@@ -124,7 +152,8 @@ contract EnclaveConnectivityTest is Test {
     function test_sameQualificationExpiresBothCapabilities() public {
         (bool direct,bool tuna)=connectivity.capabilities(HOST);assertTrue(direct&&tuna);
         vm.warp(T0+301);(direct,tuna)=connectivity.capabilities(HOST);assertFalse(direct||tuna);
-        vm.prank(operator);vm.expectRevert();connectivity.setHost(HOST,true,false,1e6);
+        vm.prank(operator);connectivity.setHost(HOST,true,false,1e6);
+        (direct,tuna)=connectivity.capabilities(HOST);assertFalse(direct||tuna);
     }
     function test_wrongMeterCannotCharge() public {
         EnclaveConnectivity.Receipt memory r=_receipt(GIB);
@@ -137,10 +166,9 @@ contract EnclaveConnectivityTest is Test {
         _reject(GIB);
         _back();_settle(GIB);assertEq(ledger.earned6(operator),800000);
     }
-    function test_revokedProbeStopsBothServicesImmediately() public {
-        connectivity.setProbeSigner(vm.addr(PROBE),false);
-        (bool direct,bool tuna)=connectivity.capabilities(HOST);assertFalse(direct||tuna);
-        _reject(GIB);
+    function test_replacingTrustStopsBothAppCapabilitiesImmediately() public {
+        address[] memory signers=new address[](1);signers[0]=vm.addr(777);_trust(signers,1);
+        (bool direct,bool tuna)=connectivity.capabilitiesFor(HOST,id);assertFalse(direct||tuna);_reject(GIB);
     }
     function test_platformShareUsesExistingVerificationFeeRouting() public {
         EnclaveProofOfTime proof=new EnclaveProofOfTime(address(ledger),address(registry));

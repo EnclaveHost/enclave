@@ -9,11 +9,16 @@ import {EnclaveDeployments, IEnclaveRegistry} from "./EnclaveDeployments.sol";
 contract EnclaveConnectivity {
     EnclaveDeployments public immutable ledger;
     IEnclaveRegistry public immutable registry;
-    address public administrator;
-    address public pendingAdministrator;
     uint16 public constant ALL_CHECKS = 511;
     uint256 private constant GIB = 1 << 30;
-    mapping(address => bool) public probeSigner;
+    // Bootstrap trust is immutable. Anyone can publish an attestation, and an
+    // app owner can replace the bootstrap set without asking a global operator.
+    address[] private _bootstrapSigners;
+    struct Trust { address owner; uint8 threshold; address[] signers; }
+    struct Attestation { address operator; bytes32 addressHash; uint64 expires; }
+    mapping(bytes32 => Trust) private _probeTrust;
+    mapping(bytes32 => mapping(address => Attestation)) public attestations;
+    event ProbeTrustAuthorized(bytes32 indexed id,uint64 nonce,address[] signers,uint8 threshold);
     struct Host { bool direct; bool tuna; uint64 pricePerGiB6; uint64 qualifiedUntil; bytes32 addressHash; address operator; address qualifier; }
     struct Policy { address owner; uint64 nonce; uint64 expires; uint64 maxPricePerGiB6; uint128 budget6; uint128 spent6; uint16 providerBps; }
     struct Receipt { bytes32 id; bytes32 hostId; uint64 policyNonce; uint64 leaseUntil; uint64 issuedAt; uint64 anchor; uint128 cumulativeBytes; uint64 pricePerGiB6; }
@@ -34,18 +39,51 @@ contract EnclaveConnectivity {
     event BandwidthCharged(bytes32 indexed id, bytes32 indexed hostId, uint256 amount6, uint256 cumulativeUnits);
 
     constructor(EnclaveDeployments deployments, address[] memory signers) {
-        ledger = deployments; registry = deployments.registry(); administrator = msg.sender;
-        require(signers.length > 0);
-        for (uint256 i; i < signers.length; ++i) {require(signers[i] != address(0));probeSigner[signers[i]] = true;}
+        ledger = deployments; registry = deployments.registry();
+        require(signers.length > 0 && signers.length <= 8);
+        for (uint256 i; i < signers.length; ++i) {
+            require(signers[i] != address(0));
+            for(uint256 j;j<i;++j)require(signers[i]!=signers[j]);
+        }
+        _bootstrapSigners=signers;
     }
-    function transferAdministration(address next) external {
-        require(msg.sender == administrator && next != address(0));pendingAdministrator = next;
+    function probeTrust(bytes32 id) public view returns(address[] memory signers,uint8 threshold) {
+        Trust storage trust=_probeTrust[id];
+        if(id!=bytes32(0)&&trust.owner==ledger.get(id).owner&&trust.threshold>0)return(trust.signers,trust.threshold);
+        return(_bootstrapSigners,uint8(_bootstrapSigners.length>1?2:1));
     }
-    function acceptAdministration() external {
-        require(msg.sender == pendingAdministrator);administrator = msg.sender;pendingAdministrator = address(0);
+    function probeTrustDigest(bytes32 id,address[] calldata signers,uint8 threshold,uint64 expires) public view returns(bytes32) {
+        return keccak256(abi.encode("EnclaveConnectivity.probe-trust.v1",block.chainid,address(this),address(ledger),id,
+            ledger.get(id).owner,policies[id].nonce+1,signers,threshold,expires));
     }
-    function setProbeSigner(address signer, bool active) external {
-        require(msg.sender == administrator && signer != address(0));probeSigner[signer] = active;
+    function authorizeProbeTrust(bytes32 id,address[] calldata signers,uint8 threshold,uint64 expires,bytes calldata signature) external {
+        address owner=ledger.get(id).owner;
+        require(owner!=address(0)&&signers.length>0&&signers.length<=8&&threshold>0&&threshold<=signers.length);
+        require(expires>block.timestamp&&expires<=block.timestamp+1 days);
+        for(uint256 i;i<signers.length;++i){require(signers[i]!=address(0));for(uint256 j;j<i;++j)require(signers[i]!=signers[j]);}
+        require(_signedBy(owner,probeTrustDigest(id,signers,threshold,expires),signature));
+        _probeTrust[id]=Trust(owner,threshold,signers);
+        // Changing trust invalidates spending authorizations and unused signed
+        // intents. An explicit new spending authorization is required afterward.
+        policies[id].nonce+=1;policies[id].expires=1;
+        emit ProbeTrustAuthorized(id,policies[id].nonce,signers,threshold);
+    }
+    function qualificationFor(bytes32 hostId,bytes32 id) public view returns(bool ok,uint64 expires,bytes32 addressHash,address operator) {
+        IEnclaveRegistry.Enclave memory h=registry.get(hostId);operator=h.operator;
+        if(!h.active)return(false,0,bytes32(0),operator);
+        (address[] memory signers,uint8 threshold)=probeTrust(id);
+        // A quorum must agree on the actual address and current operator. Pick
+        // the longest interval supported by a quorum, not the newest report.
+        for(uint256 i;i<signers.length;++i){
+            Attestation memory candidate=attestations[hostId][signers[i]];
+            if(signers[i]==operator||candidate.operator!=operator||candidate.expires<=block.timestamp||candidate.expires<=expires)continue;
+            uint256 votes;
+            for(uint256 j;j<signers.length;++j){
+                Attestation memory report=attestations[hostId][signers[j]];
+                if(signers[j]!=operator&&report.operator==operator&&report.addressHash==candidate.addressHash&&report.expires>=candidate.expires)++votes;
+            }
+            if(votes>=threshold){ok=true;expires=candidate.expires;addressHash=candidate.addressHash;}
+        }
     }
     function qualificationDigest(bytes32 hostId, bytes32 addressHash, uint64 issuedAt, uint64 expires, uint16 checks) public view returns (bytes32) {
         return keccak256(abi.encode("EnclaveConnectivity.qualification.v1", block.chainid, address(this), hostId,
@@ -56,24 +94,26 @@ contract EnclaveConnectivity {
         require(h.active && addressHash != bytes32(0) && checks == ALL_CHECKS && issuedAt <= block.timestamp &&
             expires > block.timestamp && expires > issuedAt && expires - issuedAt <= 300);
         address signer = _recover(qualificationDigest(hostId,addressHash,issuedAt,expires,checks),signature);
-        require(probeSigner[signer] && signer != h.operator);
-        Host storage state = hosts[hostId];
-        require(expires > state.qualifiedUntil || state.operator != h.operator);
-        state.qualifiedUntil = expires;state.addressHash = addressHash;state.operator = h.operator;state.qualifier = signer;
+        require(signer != h.operator);
+        Attestation storage previous=attestations[hostId][signer];
+        require(expires>previous.expires||previous.operator!=h.operator);
+        attestations[hostId][signer]=Attestation(h.operator,addressHash,expires);
         emit Qualified(hostId,addressHash,expires);
     }
-    function qualified(bytes32 hostId) public view returns (bool) {
-        IEnclaveRegistry.Enclave memory h = registry.get(hostId);
-        return probeSigner[hosts[hostId].qualifier] && h.active && h.operator == hosts[hostId].operator && hosts[hostId].qualifiedUntil > block.timestamp;
+    function qualified(bytes32 hostId) public view returns (bool ok) {
+        (ok,,,)=qualificationFor(hostId,bytes32(0));
     }
+    function qualifiedFor(bytes32 hostId,bytes32 id) public view returns(bool ok){(ok,,,)=qualificationFor(hostId,id);}
     function setHost(bytes32 hostId, bool direct, bool tuna, uint64 pricePerGiB6) external {
         require(registry.get(hostId).operator == msg.sender);
-        if (direct || tuna) require(qualified(hostId));
         Host storage h = hosts[hostId];h.direct = direct;h.tuna = tuna;h.pricePerGiB6 = pricePerGiB6;
         emit HostConfigured(hostId,direct,tuna,pricePerGiB6);
     }
     function capabilities(bytes32 hostId) external view returns (bool direct, bool tuna) {
-        bool q = qualified(hostId);return (q && hosts[hostId].direct,q && hosts[hostId].tuna);
+        return capabilitiesFor(hostId,bytes32(0));
+    }
+    function capabilitiesFor(bytes32 hostId,bytes32 id) public view returns(bool direct,bool tuna) {
+        bool q=qualifiedFor(hostId,id);return(q&&hosts[hostId].direct,q&&hosts[hostId].tuna);
     }
     function policyDigest(bytes32 id, uint64 expires, uint64 maxPricePerGiB6, uint128 budget6) public view returns (bytes32) {
         return keccak256(abi.encode("EnclaveConnectivity.policy.v1",block.chainid,address(this),address(ledger),id,
@@ -94,7 +134,7 @@ contract EnclaveConnectivity {
     function quote(bytes32 id) public view returns (uint64 pricePerGiB6, bool selfHosted) {
         EnclaveDeployments.Deployment memory d = ledger.get(id);
         Policy memory p = policies[id];Host memory h = hosts[d.runner];
-        require(!viaTuna[id] && d.active && d.leaseUntil > block.timestamp && p.owner == d.owner && p.expires > block.timestamp && h.direct && qualified(d.runner));
+        require(!viaTuna[id] && d.active && d.leaseUntil > block.timestamp && p.owner == d.owner && p.expires > block.timestamp && h.direct && qualifiedFor(d.runner,id));
         IEnclaveRegistry.Enclave memory provider = registry.get(d.runner);
         require(provider.operator == d.runnerOperator);
         selfHosted = provider.payoutWallet != address(0) && provider.payoutWallet == d.owner;
@@ -141,7 +181,7 @@ contract EnclaveConnectivity {
         require(_signedBy(d.owner,tunaPolicyDigest(id,providers,expires,maxPricePerGiB6,budget6),signature));
         uint256 total;
         for(uint256 i;i<providers.length;i++){
-            require(providers[i]!=bytes32(0)&&hosts[providers[i]].tuna&&qualified(providers[i]));
+            require(providers[i]!=bytes32(0)&&hosts[providers[i]].tuna&&qualifiedFor(providers[i],id));
             for(uint256 j;j<i;j++)require(providers[j]!=providers[i]);
             total+=hosts[providers[i]].pricePerGiB6;
         }
@@ -159,7 +199,7 @@ contract EnclaveConnectivity {
             bytes32 h=providers[i];
             total+=hosts[h].pricePerGiB6;if(h==providerId)included=true;
         }
-        require(included&&hosts[providerId].tuna&&qualified(providerId)&&total<=p.maxPricePerGiB6);
+        require(included&&hosts[providerId].tuna&&qualifiedFor(providerId,id)&&total<=p.maxPricePerGiB6);
         return hosts[providerId].pricePerGiB6;
     }
     function tunaReceiptDigest(TunaReceipt calldata r) public view returns(bytes32) {

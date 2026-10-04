@@ -120,6 +120,37 @@
       {
         "indexed": true,
         "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "nonce",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "address[]",
+        "name": "signers",
+        "type": "address[]"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "threshold",
+        "type": "uint8"
+      }
+    ],
+    "name": "ProbeTrustAuthorized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
         "name": "hostId",
         "type": "bytes32"
       },
@@ -178,20 +209,34 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "acceptAdministration",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "administrator",
-    "outputs": [
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      },
       {
         "internalType": "address",
         "name": "",
         "type": "address"
+      }
+    ],
+    "name": "attestations",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "operator",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "addressHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint64",
+        "name": "expires",
+        "type": "uint64"
       }
     ],
     "stateMutability": "view",
@@ -226,6 +271,39 @@
       }
     ],
     "name": "authorizeDirect",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address[]",
+        "name": "signers",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint8",
+        "name": "threshold",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint64",
+        "name": "expires",
+        "type": "uint64"
+      },
+      {
+        "internalType": "bytes",
+        "name": "signature",
+        "type": "bytes"
+      }
+    ],
+    "name": "authorizeProbeTrust",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -315,6 +393,35 @@
     "inputs": [
       {
         "internalType": "bytes32",
+        "name": "hostId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      }
+    ],
+    "name": "capabilitiesFor",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "direct",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "tuna",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
       }
@@ -366,19 +473,6 @@
     "outputs": [
       {
         "internalType": "contract EnclaveDeployments",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "pendingAdministrator",
-    "outputs": [
-      {
-        "internalType": "address",
         "name": "",
         "type": "address"
       }
@@ -491,17 +585,56 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
       }
     ],
-    "name": "probeSigner",
+    "name": "probeTrust",
     "outputs": [
       {
-        "internalType": "bool",
+        "internalType": "address[]",
+        "name": "signers",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint8",
+        "name": "threshold",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address[]",
+        "name": "signers",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint8",
+        "name": "threshold",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint64",
+        "name": "expires",
+        "type": "uint64"
+      }
+    ],
+    "name": "probeTrustDigest",
+    "outputs": [
+      {
+        "internalType": "bytes32",
         "name": "",
-        "type": "bool"
+        "type": "bytes32"
       }
     ],
     "stateMutability": "view",
@@ -552,13 +685,76 @@
         "internalType": "bytes32",
         "name": "hostId",
         "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      }
+    ],
+    "name": "qualificationFor",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "ok",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint64",
+        "name": "expires",
+        "type": "uint64"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "addressHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "operator",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "hostId",
+        "type": "bytes32"
       }
     ],
     "name": "qualified",
     "outputs": [
       {
         "internalType": "bool",
-        "name": "",
+        "name": "ok",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "hostId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      }
+    ],
+    "name": "qualifiedFor",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "ok",
         "type": "bool"
       }
     ],
@@ -769,24 +965,6 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "signer",
-        "type": "address"
-      },
-      {
-        "internalType": "bool",
-        "name": "active",
-        "type": "bool"
-      }
-    ],
-    "name": "setProbeSigner",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "components": [
           {
             "internalType": "bytes32",
@@ -910,19 +1088,6 @@
       }
     ],
     "name": "settleTuna",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "next",
-        "type": "address"
-      }
-    ],
-    "name": "transferAdministration",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

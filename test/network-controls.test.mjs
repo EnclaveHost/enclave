@@ -72,10 +72,27 @@ test('provider discovery excludes expired, disabled and free-only entries and re
  const read=async(_to,data)=>{
   if(data==='0x06661abd')return hex([4]);
   if(data.startsWith('0x4fe0d5c6'))return hex([BigInt('0x'+data.slice(10))+1n]);
-  const id=Number(BigInt('0x'+data.slice(10)));
-  if(data.startsWith('0xc2ead131'))return hex([0,id===2?0:1]);
+  const id=Number(BigInt('0x'+data.slice(10,74)));
+  if(!data.startsWith('0x7c33a665'))return hex([id===2?0:1,id===4?99:200,0,123]);
   return hex([0,1,id===3?0:2000, id===4?99:200,0,123]);
  };
- const result=await networkProviders({address:'0x'+'11'.repeat(20)},{read,block:'0x100',now:100000});
+ const result=await networkProviders({address:'0x'+'11'.repeat(20),id:'0x'+'aa'.repeat(32)},{read,block:'0x100',now:100000});
  assert.deepEqual(result.map(p=>[p.id,p.rate6]),[['0x'+word(1),2000n]]);
+});
+
+test('owner checker trust is identical across browser ABI, relay and passkey challenge',async()=>{
+ const {networkProbeTrustDigest,encodeProbeTrustAuthorization}=await import('../site/js/core/network-controls.js');
+ const {encodeFunctionData,parseAbi}=await import('viem');const {networkArgs}=await import('../relay/vaultsvc.js');
+ const current={address:'0x'+'11'.repeat(20),ledger:'0x'+'22'.repeat(20),id:'0x'+'aa'.repeat(32),owner:'0x'+'33'.repeat(20),nonce:3n};
+ const intent={mode:'trust',signers:['0x'+'44'.repeat(20),'0x'+'55'.repeat(20)],threshold:2,expires:'1800000000',maxPricePerGiB6:'0',budget6:'0'};
+ const raw=networkProbeTrustDigest({...current,connectivity:current.address,nonce:4n,...intent});
+ const types=['string','uint256','address','address','bytes32','address','uint64','address[]','uint8','uint64'].map(type=>({type}));
+ assert.equal(raw,keccak256(encodeAbiParameters(types,['EnclaveConnectivity.probe-trust.v1',8453n,current.address,current.ledger,current.id,current.owner,4n,intent.signers,2,1800000000n])));
+ const signature='0x'+'12'.repeat(65),args=[current.id,intent.signers,2,1800000000n];
+ assert.equal(encodeProbeTrustAuthorization(...args,signature),encodeFunctionData({abi:parseAbi(['function authorizeProbeTrust(bytes32,address[],uint8,uint64,bytes)']),functionName:'authorizeProbeTrust',args:[...args,signature]}));
+ assert.deepEqual(networkArgs({id:current.id,...intent}),args);
+ const prep={...current,vault:current.owner,chainId:8453,nonce:'4',...intent,digest:hashMessage({raw})};
+ assert.equal(verifyNetworkPrepare(prep,current,intent),prep.digest);
+ for(const change of [{threshold:1},{signers:intent.signers.slice().reverse()},{budget6:'1'},{mode:'direct'}])assert.throws(()=>verifyNetworkPrepare({...prep,...change},current,intent));
+ for(const change of [{threshold:0},{threshold:3},{signers:[intent.signers[0],intent.signers[0]]},{budget6:'1'},{providers:[]}])assert.throws(()=>networkArgs({id:current.id,...intent,...change}));
 });

@@ -14,6 +14,19 @@ export function networkTunaPolicyDigest({connectivity,ledger,id,owner,nonce,prov
  validateTunaProviders(providers);
  return keccak256Hex(encCall('',[{t:'str',v:'EnclaveConnectivity.tuna-policy.v1'},{t:'uint',v:chainId},{t:'addr',v:connectivity},{t:'addr',v:ledger},{t:'bytes32',v:id},{t:'addr',v:owner},{t:'uint',v:nonce},{t:'bytes32[]',v:providers},{t:'uint',v:expires},{t:'uint',v:maxPricePerGiB6},{t:'uint',v:budget6}]));
 }
+const selector=signature=>keccak256Hex('0x'+[...new TextEncoder().encode(signature)].map(n=>n.toString(16).padStart(2,'0')).join('')).slice(2,10);
+const qualificationCall=(host,id)=>'0x'+selector('qualificationFor(bytes32,bytes32)')+encBytes32(host)+encBytes32(id);
+export function validateProbeTrust(signers,threshold){
+ if(!Array.isArray(signers)||signers.length<1||signers.length>8||signers.some(a=>!/^0x[0-9a-f]{40}$/i.test(a)||/^0x0{40}$/i.test(a))||new Set(signers.map(a=>a.toLowerCase())).size!==signers.length||!Number.isInteger(Number(threshold))||Number(threshold)<1||Number(threshold)>signers.length)throw Error('Choose one to eight distinct checker addresses and a quorum within that count.');
+}
+export function networkProbeTrustDigest({connectivity,ledger,id,owner,nonce,signers,threshold,expires,chainId=8453}){
+ validateProbeTrust(signers,threshold);
+ return keccak256Hex(encCall('',[{t:'str',v:'EnclaveConnectivity.probe-trust.v1'},{t:'uint',v:chainId},{t:'addr',v:connectivity},{t:'addr',v:ledger},{t:'bytes32',v:id},{t:'addr',v:owner},{t:'uint',v:nonce},{t:'addr[]',v:signers},{t:'uint',v:threshold},{t:'uint',v:expires}]));
+}
+export function encodeProbeTrustAuthorization(id,signers,threshold,expires,signature){
+ validateProbeTrust(signers,threshold);const array=encUint(signers.length)+signers.map(a=>encUint(BigInt(a))).join('');
+ return '0x'+selector('authorizeProbeTrust(bytes32,address[],uint8,uint64,bytes)')+encBytes32(id)+encUint(160)+encUint(threshold)+encUint(expires)+encUint(160+array.length/2)+array+encBytesTail(signature);
+}
 export function validateTunaProviders(providers){
  if(!Array.isArray(providers)||providers.length<1||providers.length>6||providers.some(id=>!/^0x[0-9a-f]{64}$/.test(id)||/^0x0{64}$/.test(id))||new Set(providers).size!==providers.length)throw Error('Choose one to six different qualified providers.');
  return providers;
@@ -30,15 +43,16 @@ export async function networkSettings(id){
  const ledger=addr(words(await call(address,'0x56397c35',block))[0]);
  if(ledger.toLowerCase()!==DEPLOYMENTS_ADDRESS.toLowerCase())throw Error('Network contract does not match the current app ledger.');
  const d=await depGet(id,block);
- const [p,h,c,back,host,via,path]=await Promise.all([
-  call(address,'0xddbfd8ef'+encBytes32(id),block),call(address,'0x7c33a665'+encBytes32(d.runner),block),call(address,'0xc2ead131'+encBytes32(d.runner),block),
+ const [p,h,c,back,host,via,path,trust]=await Promise.all([
+  call(address,'0xddbfd8ef'+encBytes32(id),block),call(address,'0x7c33a665'+encBytes32(d.runner),block),call(address,qualificationCall(d.runner,id),block),
   call(ledger,'0x23d9291e'+encBytes32(id),block),call(REGISTRY_ADDRESS,'0x8eaa6ac0'+encBytes32(d.runner),block),
-  call(address,'0x409bd96b'+encBytes32(id),block),call(address,'0xa71dadce'+encBytes32(id),block)]);
+  call(address,'0x409bd96b'+encBytes32(id),block),call(address,'0xa71dadce'+encBytes32(id),block),call(address,'0x'+selector('probeTrust(bytes32)')+encBytes32(id),block)]);
  const policy=words(p),provider=words(h),capabilities=words(c),hostWords=words(host),offset=Number(number(hostWords[0])/32n);
  const pathWords=words(path),providers=pathWords.slice(2,2+Number(number(pathWords[1]))).map(w=>'0x'+w);
+ const trustWords=words(trust),trustOffset=Number(number(trustWords[0])/32n),signers=trustWords.slice(trustOffset+1,trustOffset+1+Number(number(trustWords[trustOffset]))).map(addr),threshold=Number(number(trustWords[1]));
  const selfHosted=addr(hostWords[offset+10]).toLowerCase()===d.owner.toLowerCase();
- return {address,ledger,id,owner:d.owner,viaTuna:number(words(via)[0])===1n,providers,nonce:number(policy[1]),expires:Number(number(policy[2])),maxPricePerGiB6:number(policy[3]),budget6:number(policy[4]),spent6:number(policy[5]),providerBps:Number(number(policy[6])),
-  direct:number(capabilities[0])===1n,rate6:selfHosted?0n:number(provider[2]),selfHosted,backingGap6:number(words(back)[0]),active:d.active};
+ return {address,ledger,id,signers,threshold,owner:d.owner,viaTuna:number(words(via)[0])===1n,providers,nonce:number(policy[1]),expires:Number(number(policy[2])),maxPricePerGiB6:number(policy[3]),budget6:number(policy[4]),spent6:number(policy[5]),providerBps:Number(number(policy[6])),
+  direct:number(capabilities[0])===1n&&number(provider[0])===1n,rate6:selfHosted?0n:number(provider[2]),selfHosted,backingGap6:number(words(back)[0]),active:d.active};
 }
 function BufferlessKey(s){return [...new TextEncoder().encode(s)].map(n=>n.toString(16).padStart(2,'0')).join('').padEnd(64,'0');}
 export async function networkProviders(current,{read=call,block='latest',now=Date.now()}={}){
@@ -49,20 +63,25 @@ export async function networkProviders(current,{read=call,block='latest',now=Dat
   const batch=Array.from({length:Number(count-start<16n?count-start:16n)},(_,i)=>start+BigInt(i));
   const rows=await Promise.all(batch.map(async index=>{
    const id='0x'+words(await read(REGISTRY_ADDRESS,'0x4fe0d5c6'+encUint(index),block))[0];
-   const [rawHost,rawCaps]=await Promise.all([read(current.address,'0x7c33a665'+encBytes32(id),block),read(current.address,'0xc2ead131'+encBytes32(id),block)]);
+   const [rawHost,rawCaps]=await Promise.all([read(current.address,'0x7c33a665'+encBytes32(id),block),read(current.address,qualificationCall(id,current.id),block)]);
    const host=words(rawHost),caps=words(rawCaps);
-   if(number(caps[1])!==1n||number(host[2])===0n||number(host[3])*1000n<=BigInt(now))return null;
-   return {id,rate6:number(host[2]),operator:addr(host[5]),qualifiedUntil:Number(number(host[3]))};
+   if(number(caps[0])!==1n||number(host[1])!==1n||number(host[2])===0n||number(caps[1])*1000n<=BigInt(now))return null;
+   return {id,rate6:number(host[2]),operator:addr(caps[3]),qualifiedUntil:Number(number(caps[1]))};
   }));providers.push(...rows.filter(Boolean));
  }
  return providers.sort((a,b)=>a.rate6<b.rate6?-1:a.rate6>b.rate6?1:a.id.localeCompare(b.id));
 }
-export async function saveNetworkSettings(current,{mode,maxPrice,budget,hours,providers=current.providers,viaVault=false}){
+export async function saveNetworkSettings(current,{mode,maxPrice,budget,hours,providers=current.providers,signers,threshold,viaVault=false}){
  if(!viaVault)await ensureBaseChain();const fresh=await networkSettings(current.id);
  if(!fresh||fresh.address!==current.address||fresh.ledger!==current.ledger||fresh.owner.toLowerCase()!==current.owner.toLowerCase()||(!viaVault&&fresh.owner.toLowerCase()!==Enclave.address?.toLowerCase()))throw Error('Connect the wallet that owns this app.');
  let data;
- if((mode==='tuna'||mode==='revoke')&&viaVault)return savePasskeyNetwork(fresh,{expires:'0',maxPricePerGiB6:'0',budget6:'0'});
- if(mode==='tuna'||mode==='revoke')data='0x427121b3'+encBytes32(current.id);
+ if(mode==='trust'){
+  validateProbeTrust(signers,threshold);const expires=String(Math.floor(Date.now()/1000)+600),intent={mode,signers,threshold:Number(threshold),expires,maxPricePerGiB6:'0',budget6:'0'};
+  if(viaVault)return savePasskeyNetwork(fresh,intent);
+  const digest=networkProbeTrustDigest({...fresh,connectivity:fresh.address,nonce:fresh.nonce+1n,...intent});
+  data=encodeProbeTrustAuthorization(current.id,signers,threshold,expires,await personalSignBytes(digest));
+ }else if((mode==='tuna'||mode==='revoke')&&viaVault)return savePasskeyNetwork(fresh,{expires:'0',maxPricePerGiB6:'0',budget6:'0'});
+ else if(mode==='tuna'||mode==='revoke')data='0x427121b3'+encBytes32(current.id);
  else{
   if(!['direct','tuna-usdc'].includes(mode))throw Error('Invalid internet route.');
   if(!fresh.active)throw Error('The app is not active.');
@@ -76,8 +95,8 @@ export async function saveNetworkSettings(current,{mode,maxPrice,budget,hours,pr
   if(mode==='tuna-usdc'){
    validateTunaProviders(providers);let total=0n;
    for(const provider of providers){
-    const [h,c]=await Promise.all([call(fresh.address,'0x7c33a665'+encBytes32(provider)),call(fresh.address,'0xc2ead131'+encBytes32(provider))]);
-    if(number(words(c)[1])!==1n)throw Error('A selected provider is no longer qualified.');total+=number(words(h)[2]);
+    const [h,c]=await Promise.all([call(fresh.address,'0x7c33a665'+encBytes32(provider)),call(fresh.address,qualificationCall(provider,current.id))]);
+    if(number(words(c)[0])!==1n||number(words(h)[1])!==1n)throw Error('A selected provider is no longer qualified.');total+=number(words(h)[2]);
    }
    if(total>maxPricePerGiB6)throw Error('The combined provider rate exceeds your limit.');
   }
@@ -100,6 +119,10 @@ export async function renderNetworkControls(box,id,{viaVault=false}={}){
  if(!viaVault&&Enclave.address?.toLowerCase()!==current.owner.toLowerCase()){save.disabled=true;status.textContent='Connect the app owner’s wallet to change its route.';}
  section.addEventListener('submit',async event=>{event.preventDefault();save.disabled=true;status.textContent='Confirm the route and spending limits in your wallet.';try{const providers=[...section.querySelectorAll('[name=provider]:checked')].map(input=>input.value);await saveNetworkSettings(current,{mode:form.mode.value,maxPrice:form.price.value,budget:form.budget.value,hours:form.hours.value,providers,viaVault});status.textContent='Saved on-chain. The host will apply your route after its next authorization refresh.';}catch(e){status.textContent=e.message;}finally{save.disabled=!viaVault&&Enclave.address?.toLowerCase()!==current.owner.toLowerCase();}});
  box.append(section);
+ const trustForm=document.createElement('form');trustForm.innerHTML='<details><summary>Connectivity checkers</summary><p>Choose the signed connectivity checks this app trusts. Each checker must verify the same requirements for direct hosts and TUNA providers. Use independently operated checkers. Saving cancels paid routing until you authorize it again.</p><label>Checker addresses, separated by commas <textarea name="signers" required></textarea></label><label>Required matching checks <input name="threshold" type="number" min="1" max="8" required></label><button type="submit" class="btn sm">Save trusted checkers</button><p role="status" aria-live="polite"></p></details>';
+ trustForm.elements.signers.value=current.signers.join(', ');trustForm.elements.threshold.value=current.threshold;
+ const trustSave=trustForm.querySelector('button');trustSave.disabled=!viaVault&&Enclave.address?.toLowerCase()!==current.owner.toLowerCase();
+ trustForm.addEventListener('submit',async event=>{event.preventDefault();trustSave.disabled=true;const status=trustForm.querySelector('[role=status]');status.textContent='Confirm the checker policy in your wallet.';try{await saveNetworkSettings(current,{mode:'trust',signers:trustForm.elements.signers.value.split(',').map(a=>a.trim()),threshold:Number(trustForm.elements.threshold.value),viaVault});section.remove();trustForm.remove();await renderNetworkControls(box,id,{viaVault});}catch(e){status.textContent=e.message;}finally{trustSave.disabled=!viaVault&&Enclave.address?.toLowerCase()!==current.owner.toLowerCase();}});box.append(trustForm);
  try{
   const available=await networkProviders(current,{block:await baseRpc('eth_blockNumber',[])}),list=section.querySelector('[data-provider-list]');
   for(const p of available){const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.name='provider';input.value=p.id;input.checked=current.providers.includes(p.id);label.append(input,document.createTextNode(` ${p.id.slice(0,10)}… — ${showNetworkAmount(p.rate6)} USDC/GiB`));list.append(label);}
@@ -114,7 +137,8 @@ export function networkPasskeyDigest(raw){
 export function verifyNetworkPrepare(prep,current,intent){
  if(prep.chainId!==8453||prep.address?.toLowerCase()!==current.address.toLowerCase()||prep.ledger?.toLowerCase()!==current.ledger.toLowerCase()||prep.vault?.toLowerCase()!==current.owner.toLowerCase()||prep.id!==current.id||String(prep.nonce)!==String(current.nonce+1n)||['expires','maxPricePerGiB6','budget6'].some(k=>String(prep[k])!==String(intent[k])))throw Error('The relay described different network settings. Nothing was signed.');
   if((prep.mode||'direct')!==(intent.mode||'direct')||JSON.stringify(prep.providers||[])!==JSON.stringify(intent.providers||[]))throw Error('The relay described a different provider path. Nothing was signed.');
- const digest=networkPasskeyDigest((intent.mode==='tuna'?networkTunaPolicyDigest:networkPolicyDigest)({...current,connectivity:current.address,nonce:current.nonce+1n,...intent}));
+ if(intent.mode==='trust'&&(JSON.stringify(prep.signers)!==JSON.stringify(intent.signers)||Number(prep.threshold)!==Number(intent.threshold)))throw Error('The relay described different trusted checkers. Nothing was signed.');
+ const digest=networkPasskeyDigest((intent.mode==='trust'?networkProbeTrustDigest:intent.mode==='tuna'?networkTunaPolicyDigest:networkPolicyDigest)({...current,connectivity:current.address,nonce:current.nonce+1n,...intent}));
  if(prep.digest?.toLowerCase()!==digest.toLowerCase())throw Error('The network signing challenge does not match your settings.');
  return digest;
 }

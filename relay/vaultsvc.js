@@ -419,6 +419,8 @@ export async function submitOp(op, vaultAddress, args, deadline, assertion) {
 // It consumes its own policy nonce; this never spends vault credit or calls an
 // arbitrary target. The address book selects the only permitted recipient.
 const NETWORK_ABI = [
+ {type:'function',name:'probeTrustDigest',stateMutability:'view',inputs:['bytes32','address[]','uint8','uint64'].map(type=>({type})),outputs:[{type:'bytes32'}]},
+ {type:'function',name:'authorizeProbeTrust',stateMutability:'nonpayable',inputs:['bytes32','address[]','uint8','uint64','bytes'].map(type=>({type})),outputs:[]},
  {type:'function',name:'tunaPolicyDigest',stateMutability:'view',inputs:['bytes32','bytes32[]','uint64','uint64','uint128'].map(type=>({type})),outputs:[{type:'bytes32'}]},
  {type:'function',name:'authorizeTuna',stateMutability:'nonpayable',inputs:['bytes32','bytes32[]','uint64','uint64','uint128','bytes'].map(type=>({type})),outputs:[]},
  {type:'function',name:'ledger',stateMutability:'view',inputs:[],outputs:[{type:'address'}]},
@@ -427,11 +429,17 @@ const NETWORK_ABI = [
  {type:'function',name:'authorizeDirect',stateMutability:'nonpayable',inputs:['bytes32','uint64','uint64','uint128','bytes'].map(type=>({type})),outputs:[]},
 ];
 export function networkArgs(p){
- if(p.mode!==undefined&&!['direct','tuna','revoke'].includes(p.mode))throw Error('invalid bandwidth mode');
+ if(p.mode!==undefined&&!['direct','tuna','revoke','trust'].includes(p.mode))throw Error('invalid bandwidth mode');
  if(!/^0x[0-9a-f]{64}$/i.test(p.id||'')||!['expires','maxPricePerGiB6','budget6'].every(k=>/^(0|[1-9]\d{0,38})$/.test(String(p[k]))))throw Error('invalid bandwidth authorization');
  const args=[p.id,BigInt(p.expires),BigInt(p.maxPricePerGiB6),BigInt(p.budget6)];
  if(args[1]>=1n<<64n||args[2]>=1n<<64n||args[3]>=1n<<128n)throw Error('bandwidth authorization out of range');
  if(p.mode==='revoke'&&args.slice(1).some(v=>v!==0n))throw Error('revocation must clear all limits');
+ if(p.mode==='trust'){
+  if(args[2]!==0n||args[3]!==0n||p.providers!==undefined)throw Error('trust cannot authorize spending');
+  if(!Array.isArray(p.signers)||p.signers.length<1||p.signers.length>8||p.signers.some(a=>!/^0x[0-9a-f]{40}$/i.test(a)||/^0x0{40}$/i.test(a))||new Set(p.signers.map(a=>a.toLowerCase())).size!==p.signers.length||!Number.isInteger(p.threshold)||p.threshold<1||p.threshold>p.signers.length)throw Error('invalid checker trust');
+  return [p.id,p.signers,p.threshold,args[1]];
+ }
+ if(p.signers!==undefined||p.threshold!==undefined)throw Error('checkers require trust authorization');
  if(p.mode==='tuna'){
   if(!Array.isArray(p.providers)||p.providers.length<1||p.providers.length>6||p.providers.some(id=>!/^0x[0-9a-f]{64}$/.test(id)||/^0x0{64}$/.test(id))||new Set(p.providers).size!==p.providers.length)throw Error('invalid TUNA provider path');
   args.splice(1,0,p.providers);
@@ -449,8 +457,8 @@ async function networkBinding(pub){
 export async function prepareNetwork(vault,p){
  const pub=await rpcPool(),binding=await networkBinding(pub),args=networkArgs(p);
  const policy=await pub.readContract({address:binding.address,abi:NETWORK_ABI,functionName:'policies',args:[p.id]});
- const raw=await pub.readContract({address:binding.address,abi:NETWORK_ABI,functionName:p.mode==='tuna'?'tunaPolicyDigest':'policyDigest',args});
- return {...binding,vault,chainId:cfg.chainId||8453,id:p.id,nonce:String(policy[1]+1n),mode:p.mode||'direct',...(p.mode==='tuna'?{providers:p.providers}:{}),expires:String(p.expires),maxPricePerGiB6:String(p.maxPricePerGiB6),budget6:String(p.budget6),digest:viem.hashMessage({raw})};
+ const raw=await pub.readContract({address:binding.address,abi:NETWORK_ABI,functionName:p.mode==='trust'?'probeTrustDigest':p.mode==='tuna'?'tunaPolicyDigest':'policyDigest',args});
+ return {...binding,vault,chainId:cfg.chainId||8453,id:p.id,nonce:String(policy[1]+1n),mode:p.mode||'direct',...(p.mode==='trust'?{signers:p.signers,threshold:p.threshold}:{}),...(p.mode==='tuna'?{providers:p.providers}:{}),expires:String(p.expires),maxPricePerGiB6:String(p.maxPricePerGiB6),budget6:String(p.budget6),digest:viem.hashMessage({raw})};
 }
 export async function submitNetwork(vault,p,assertion){
  const args=networkArgs(p);
@@ -459,7 +467,7 @@ export async function submitNetwork(vault,p,assertion){
  return serial(async()=>{
   const pub=await rpcPool(),{address}=await networkBinding(pub);
   // Simulation validates the vault signature and current policy before gas is spent.
-  const txArgs=[...args,signature],functionName=p.mode==='tuna'?'authorizeTuna':'authorizeDirect';
+  const txArgs=[...args,signature],functionName=p.mode==='trust'?'authorizeProbeTrust':p.mode==='tuna'?'authorizeTuna':'authorizeDirect';
   const gas=await pub.estimateContractGas({account,address,abi:NETWORK_ABI,functionName,args:txArgs});
   const hash=await wallet.writeContract({address,abi:NETWORK_ABI,functionName,args:txArgs,gas:gas*125n/100n+10000n});
   const receipt=await pub.waitForTransactionReceipt({hash,timeout:120000});if(receipt.status!=='success')throw Error('network authorization reverted');

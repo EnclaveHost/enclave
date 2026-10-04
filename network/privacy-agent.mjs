@@ -181,8 +181,8 @@ export async function runPrivacy(configFile){
     runtime.billing=tunaUSDC;
   }
   if(directConfigured){
-    if(!cfg.direct?.qualificationFile||!Array.isArray(cfg.direct.probeSigners))throw new Error('provider qualification configuration required');
-    qualification=()=>readJSON(cfg.direct.qualificationFile);
+    if(!cfg.direct?.address)throw new Error('direct provider address required');
+    qualification=cfg.direct.qualificationFile?()=>readJSON(cfg.direct.qualificationFile):undefined;
     // A settlement adapter is mandatory for a nonzero rate. Free self-hosting
     // works without a TUNA wallet, a funded balance, or a payment adapter.
     settlement=cfg.direct.settlement?await createUSDCBandwidthSettlement({config:cfg.direct.settlement,directory:path.join(cfg.directory,'billing'),leaseReader,log}):undefined;
@@ -191,9 +191,10 @@ export async function runPrivacy(configFile){
     directRuntime=new DirectRuntime({...cfg.direct,canary,authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),
       forward:guestd?guestd.forward:localAppForwarder(cfg.upstream),log,
       terms:async(id,policy)=>{
-        const host=await hostConnectivity({config:cfg.connectivity,qualification:await qualification(),hostId:cfg.runner,
+        const lease=leaseReader.get(id),c=lease?.connectivity;
+        const host=c?.appScopedQualification?{compute:true,direct:c.direct&&cfg.connectivity.direct,address:cfg.direct.address,pricePerGiB6:cfg.connectivity.pricePerGiB6,qualifiedUntil:Number(c.qualifiedUntil)*1000}:await hostConnectivity({config:cfg.connectivity,qualification:await qualification?.(),hostId:cfg.runner,
           operator:account.address,address:cfg.direct.address,probeSigners:cfg.direct.probeSigners});
-        const lease=leaseReader.get(id);return directTerms({policy,host,lease,payoutWallet:lease?.runnerPayoutWallet});
+        return directTerms({policy,host,lease,payoutWallet:lease?.runnerPayoutWallet});
       },
       meter:async(id,policy,terms)=>new TrafficMeter({directory:path.join(cfg.directory,'traffic'),deploymentId:id,policyHash:recordHash(policy),terms,authorizeDebit,recoverCounters:settlement?request=>settlement.recoverCounters(request):undefined})});
   }
