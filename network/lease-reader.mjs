@@ -49,8 +49,7 @@ export class LeaseReader {
   }
   // One value read from every peer at the same recent block, returned once two
   // peers agree on it. Every chain answer this class gives comes through here.
-  async agreed(read) {
-    this.failures=[];
+  async agreed(read, failures=[]) {
     // Two heads pick the block. A slower peer gets a short grace to join, not its
     // full request timeout: route publications wait on this snapshot.
     const available=await new Promise(resolve=>{
@@ -75,7 +74,6 @@ export class LeaseReader {
     let blockNumber=available[1].number-BigInt(this.confirmations);
     if(blockNumber<0n)throw new Error('no fresh agreeing chain quorum');
     if(blockNumber<this.lastBlock)blockNumber=this.lastBlock;
-    const failures=this.failures;
     const reads=available.map(({client:c})=>this.limited(async()=>{
       const block=await c.getBlock({blockNumber});
       const timestamp=Number(block.timestamp)*1000;
@@ -98,6 +96,7 @@ export class LeaseReader {
   }
   async readSnapshot(ids) {
     if(!Array.isArray(ids)||ids.length>256||ids.some(id=>!/^0x[0-9a-f]{64}$/.test(id))) throw new Error('exact deployment ids required');
+    this.failures=[];
     return this.agreed(async(c,blockNumber)=>{
       const deployments=await c.readContract({address:this.addressBook,abi:bookABI,functionName:'addr',args:[stringToHex('deployments',{size:32})],blockNumber});
       if(!/^0x[0-9a-fA-F]{40}$/.test(deployments)||/^0x0{40}$/i.test(deployments))throw new Error('no deployments contract');
@@ -121,7 +120,7 @@ export class LeaseReader {
         await Promise.all(rows.map(async row=>{row.bandwidthBackingRequired6=await c.readContract({address:deployments,abi:[{type:'function',name:'bandwidthBackingRequired6',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'uint256'}]}],functionName:'bandwidthBackingRequired6',args:[row.id],blockNumber});}));
       }
       return {deployments:deployments.toLowerCase(),rows:jsonValue(rows)};
-    }).then(snapshot=>{
+    },this.failures).then(snapshot=>{
       const result=snapshot.rows.map((row,index)=>{
         if(row.id.toLowerCase()!==ids[index]){this.cache.delete(ids[index]);this.failures.push('deployment not found: '+ids[index]);return null;}
         if(row.runnerUnavailable){this.cache.delete(ids[index]);this.failures.push('inactive or changed runner: '+ids[index]);return null;}
@@ -140,12 +139,11 @@ export class LeaseReader {
   // seven-field entry prefix is decoded, so every registry revision reads alike.
   registryEntries(registry,ids) {
     if(!/^0x[0-9a-fA-F]{40}$/.test(registry||'')||!Array.isArray(ids)||ids.length<1||ids.length>256||ids.some(id=>!/^0x[0-9a-f]{64}$/.test(id)))return Promise.reject(new Error('exact registry ids required'));
-    const operation=(this.pending||Promise.resolve()).then(()=>this.agreed(async(c,blockNumber)=>{
+    // Not queued behind lease snapshots: a registry answer must not hold up a lease renewal.
+    return this.agreed(async(c,blockNumber)=>{
       const hosts=await Promise.all(ids.map(id=>c.readContract({address:registry,abi:registryV1ABI,functionName:'get',args:[id],blockNumber})));
       return {registry:registry.toLowerCase(),hosts:hosts.map(h=>({active:!!h.active,operator:String(h.operator).toLowerCase()}))};
-    }));
-    this.pending=operation.catch(()=>{});
-    return operation.then(snapshot=>snapshot.hosts.map((host,index)=>({id:ids[index],...host,blockTime:snapshot.timestamp})));
+    }).then(snapshot=>snapshot.hosts.map((host,index)=>({id:ids[index],...host,blockTime:snapshot.timestamp})));
   }
 
   get(id) {const value=this.cache.get(id);return value&&value.validUntil>this.now()?structuredClone(value):null;}

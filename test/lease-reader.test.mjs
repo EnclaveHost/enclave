@@ -132,3 +132,16 @@ test('registry entries come from agreeing peers and decode only the original ent
  await assert.rejects(reader.registryEntries('0xnope',[host]),/exact registry ids/);
  await assert.rejects(reader.registryEntries(registry,[]),/exact registry ids/);
 });
+test('a registry read does not wait behind a stalled lease snapshot',async()=>{
+ const registry='0x'+'03'.repeat(20),host='0x'+'cd'.repeat(32);let stall=true,release;
+ const gate=new Promise(r=>release=r);
+ const peer=()=>{const c=client();const read=c.readContract;c.readContract=async args=>{
+  if(args.address===registry)return {endpoint:'',repo:'',measurement:'0x'+'00'.repeat(32),operator:book,registeredAt:1n,lastSeen:1n,active:true};
+  if(stall&&args.functionName==='get')await gate;return read(args);};return c;};
+ const reader=new LeaseReader({addressBook:book,clients:[peer(),peer()],now});
+ const lease=reader.refresh([id]);
+ try{const [entry]=await Promise.race([reader.registryEntries(registry,[host]),new Promise((_r,j)=>setTimeout(()=>j(Error('registry read queued behind the lease snapshot')),300))]);
+  assert.equal(entry.active,true);}
+ finally{stall=false;release();}
+ assert.equal((await lease).length,1);
+});
