@@ -88,6 +88,8 @@ type Service struct {
 }
 
 type Common struct {
+	USDC                           USDCController
+	usdcSessions                   sync.Map
 	Service                        *Service
 	ServiceInfo                    *ServiceInfo
 	Wallet                         *nkn.Wallet
@@ -541,7 +543,11 @@ func (c *Common) wrapConn(conn net.Conn, remotePublicKey []byte, localConnMetada
 		localConnMetadata = &connMetadataCopy
 	}
 
-	err := conn.SetDeadline(time.Now().Add(10 * time.Second))
+	if c.USDC != nil && !localConnMetadata.IsMeasurement {
+		localConnMetadata.SettlementMode = usdcMode
+	}
+
+	err := conn.SetDeadline(time.Now().Add(30 * time.Second))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -611,6 +617,9 @@ func (c *Common) wrapConn(conn net.Conn, remotePublicKey []byte, localConnMetada
 	}
 
 	if encryptionAlgo == pb.EncryptionAlgo_ENCRYPTION_NONE {
+		if localConnMetadata.SettlementMode != 0 || remoteConnMetadata.SettlementMode != 0 {
+			return nil, nil, errors.New("USDC requires encrypted transport")
+		}
 		return conn, remoteConnMetadata, nil
 	}
 
@@ -619,7 +628,11 @@ func (c *Common) wrapConn(conn net.Conn, remotePublicKey []byte, localConnMetada
 		return nil, nil, err
 	}
 
-	return encryptedConn, remoteConnMetadata, nil
+	settledConn, err := c.negotiateUSDC(encryptedConn, remoteConnMetadata, localConnMetadata)
+	if err != nil {
+		return nil, nil, err
+	}
+	return settledConn, remoteConnMetadata, nil
 }
 
 func (c *Common) wrapUDPConn(conn UDPConn, addr *net.UDPAddr, remotePublicKey []byte, connNonce []byte) (*EncryptUDPConn, error) {
@@ -749,7 +762,7 @@ func (c *Common) CreateServerConn(force bool) error {
 				return err
 			}
 
-			if c.minBalance > 0 {
+			if c.USDC == nil && c.minBalance > 0 {
 				entryToExitMaxPrice, exitToEntryMaxPrice, err := ParsePrice(c.ServiceInfo.MaxPrice)
 				if err != nil {
 					return err
@@ -1458,8 +1471,32 @@ func UpdateMetadata(
 	subscriptionReplaceTxPool bool,
 	client *nkn.MultiClient,
 	closeChan chan struct{},
+	settlement ...*USDCLocalConfig,
 ) {
 	metadataRaw := CreateRawMetadata(serviceID, serviceTCP, serviceUDP, ip, tcpPort, udpPort, price, beneficiaryAddr)
+	if len(settlement) > 0 && settlement[0] != nil {
+		cfg := settlement[0]
+		metadata, err := ReadMetadata(string(metadataRaw))
+		if err != nil {
+			return
+		}
+		rate, err := strconv.ParseUint(cfg.PricePerGiB6, 10, 64)
+		if err != nil || rate == 0 || len(cfg.ProviderID) != 66 {
+			log.Println("USDC advertisement requires registry identity and price")
+			return
+		}
+		metadata.SettlementMode = usdcMode
+		metadata.RegistryId = cfg.ProviderID
+		metadata.UsdcPricePerGib6 = rate
+		metadata.Price = "0"
+		metadata.UdpPort = 0
+		encoded, err := proto.Marshal(metadata)
+		if err != nil {
+			return
+		}
+		metadataRaw = []byte(base64.StdEncoding.EncodeToString(encoded))
+	}
+
 	topic := subscriptionPrefix + serviceName
 	identifier := ""
 	subInterval := config.ConsensusDuration

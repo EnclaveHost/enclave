@@ -23,6 +23,8 @@ import {guardedFetch} from './guarded-fetch.mjs';
 import {delegatedIPNS} from './discovery-http.mjs';
 import {ControlTransport} from './control-transport.mjs';
 import {validateAppNames} from './app-ingress.mjs';
+import {startTunaUSDCControl} from './tuna-control-runtime.mjs';
+import {randomBytes} from 'node:crypto';
 import {startAutomaticConversion} from './conversion/runtime.mjs';
 import {createUSDCBandwidthSettlement} from './usdc-bandwidth.mjs';
 import {DirectRuntime} from './direct-runtime.mjs';
@@ -127,13 +129,13 @@ export async function runPrivacy(configFile){
   const runtime=needsTuna?new Runtime({...cfg.runtime,directory:path.join(cfg.directory,'circuits'),rpc:cfg.nknRpc,
     authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:guestd?guestd.forward:localAppForwarder(cfg.upstream),log}):
     {async start(){throw new Error('TUNA runtime is not configured');},async close(){}};
-  const inventory=needsTuna?new ProviderInventory({...cfg.inventory,rpc:cfg.nknRpc,log}):{get:async()=>[],refresh:async()=>[]};
+  const inventory=needsTuna?new ProviderInventory({...cfg.inventory,includeUSDC:!!cfg.tunaUSDC,rpc:cfg.nknRpc,log}):{get:async()=>[],refresh:async()=>[]};
   const control=cfg.control?new ControlTransport({network:cfg.runtime.network,...cfg.control,directory:path.join(cfg.directory,'control'),inventory,rpc:cfg.nknRpc,wallets:await readJSON(cfg.control.walletsFile),log}):null;
   const scheduleProbe=createProbeScheduler();
-  let currencyManagement;
+  let currencyManagement,tunaUSDC;
   if(cfg.currencyManagement)currencyManagement=await startAutomaticConversion({config:cfg.currencyManagement,directory:path.join(cfg.directory,'currency-management'),log});
   let stopping=false;
-  const close=()=>{stopping=true;hostProof?.close();void Promise.all([agent?.close(),control?.close(),currencyManagement?.close(),runtime.close()]).catch(e=>log(e.message));};
+  const close=()=>{stopping=true;hostProof?.close();void Promise.all([agent?.close(),control?.close(),currencyManagement?.close(),runtime.close()]).then(()=>tunaUSDC?.close()).catch(e=>log(e.message));};
   process.once('SIGTERM',close);process.once('SIGINT',close);
   // SIGHUP re-reads the app list: each app's expectation, names and mirror
   // flag, and any new app. Everything is validated before anything changes; no
@@ -164,8 +166,20 @@ export async function runPrivacy(configFile){
   if(stopping)throw new Error('privacy agent stopped during bootstrap');
   if(control)inventory.asns.fetchFn=guardedFetch(control.proxies,{timeoutMs:6000,maxBytes:65536});
   if(needsTuna&&!control&&!cfg.chain.proxy)throw new Error('independent guarded control transport required');
-  const leaseReader=new LeaseReader({...cfg.chain,includeHostPayout:directConfigured,includeConnectivity:cfg.connectivity?'auto':false,...(control?{proxy:control.proxies}:{})});
+  const leaseReader=new LeaseReader({...cfg.chain,includeHostPayout:directConfigured||!!cfg.tunaUSDC,includeConnectivity:cfg.connectivity||cfg.tunaUSDC?'auto':false,...(control?{proxy:control.proxies}:{})});
   let directRuntime,qualification,settlement;
+  if(cfg.tunaUSDC){
+    const tokenFile=cfg.tunaUSDC.tokenFile||path.join(cfg.directory,'tuna-control.token');
+    await fs.writeFile(tokenFile,randomBytes(32).toString('hex'),{mode:0o600,flag:'wx'}).catch(e=>{if(e.code!=='EEXIST')throw e;});
+    const transactionDirectory=cfg.tunaUSDC.transactionDirectory||path.join(cfg.directory,'billing','transactions');
+    if(cfg.direct?.settlement&&await fs.realpath(cfg.direct.settlement.gasKeyFile)!==await fs.realpath(cfg.tunaUSDC.gasKeyFile))throw Error('direct and TUNA settlement require the same dedicated gas wallet');
+    if(cfg.direct?.settlement){
+      if(cfg.direct.settlement.transactionDirectory&&path.resolve(cfg.direct.settlement.transactionDirectory)!==path.resolve(transactionDirectory))throw Error('direct and TUNA settlement require the same transaction journal');
+      cfg.direct.settlement.transactionDirectory=transactionDirectory;
+    }
+    tunaUSDC=await startTunaUSDCControl({config:{...cfg.tunaUSDC,role:'runner',hostId:cfg.runner,tokenFile,transactionDirectory},directory:path.join(cfg.directory,'tuna-usdc'),leaseReader,log});
+    runtime.billing=tunaUSDC;
+  }
   if(directConfigured){
     if(!cfg.direct?.qualificationFile||!Array.isArray(cfg.direct.probeSigners))throw new Error('provider qualification configuration required');
     qualification=()=>readJSON(cfg.direct.qualificationFile);

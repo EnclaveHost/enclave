@@ -3,6 +3,7 @@ import net from 'node:net';
 import {publicReservations} from './public-fallback.mjs';
 import {isBlockedHost} from '../relay/net-guard.mjs';
 import {publicProviderAddress} from './provider-qualification.mjs';
+import {validateTunaPolicy} from './tuna-policy.mjs';
 import {validateDirectPolicy} from './connectivity-policy.mjs';
 
 const providerPattern = /^(?:[a-zA-Z0-9_.-]{1,128}\.)?[0-9a-f]{64}$/;
@@ -19,6 +20,7 @@ function identities(value = []) {
 }
 export function validateCircuitPolicy(p) {
   if(p?.version===3)return validateDirectPolicy(p);
+  if(p?.version===4)return validateTunaPolicy(p);
   if (!p || p.version !== 2 || !deploymentPattern.test(p.deploymentId || '')) throw new Error('invalid deployment policy');
   if (Object.keys(p).some(k => !['version','deploymentId','mode','directFallback','routes','maxPrice','budgetNkn','diversity','providers'].includes(k)) ||
       (p.providers && Object.keys(p.providers).some(k => !['guard','public','egress'].includes(k)))) throw new Error('unknown circuit policy option');
@@ -45,6 +47,12 @@ export function providerAllowed(provider, rule, maxPrice, now = Date.now()) {
   } catch { return false; }
   return true;
 }
+export function providerAllowedForPolicy(provider,policy,role,now=Date.now()) {
+ if(policy.currency!=='USDC')return provider?.currency!=='USDC'&&providerAllowed(provider,policy.providers[role],policy.maxPrice,now);
+ return provider?.currency==='USDC'&&provider.onChainQualified===true&&providerPattern.test(provider.identity||'')&&publicProviderAddress(provider.address)&&
+  Number.isSafeInteger(provider.expiresAt)&&provider.expiresAt>now&&policy.providerIds.includes(provider.registryId)&&
+  /^(0|[1-9][0-9]*)$/.test(provider.pricePerGiB6||'')&&BigInt(provider.pricePerGiB6)<=BigInt(policy.maxPricePerGiB6);
+}
 export function independent(a, b, level) {
   if (!a || !b || a.identity === b.identity || a.address === b.address) return false;
   // Unknown ownership/network metadata does not satisfy a strict diversity gate.
@@ -63,7 +71,7 @@ export function selectCircuitProviders(policy, inventory, {existing = [], locked
   const p = validateCircuitPolicy(policy);
   if (!Array.isArray(inventory) || inventory.length > 10000) throw new Error('invalid provider inventory');
   const candidates = role => inventory.filter(n => Array.isArray(n?.services) && (role !== 'public' || ((!occupiedPublic.has(n.address) || !!n.publicTcp) && !publicReservations(n).some(k=>occupiedPublic.has(k)))) && n.services.includes(role === 'public' ? 'reverse' : 'socksproxy') &&
-    providerAllowed(n, p.providers[role], p.maxPrice, now) && (cooldown.get(providerCooldownKey(role,n)) || cooldown.get(n.identity) || 0) <= now)
+    providerAllowedForPolicy(n,p,role,now) && (cooldown.get(providerCooldownKey(role,n)) || cooldown.get(n.identity) || 0) <= now)
     .sort((a, b) => {
       const preferred = id => p.providers[role].prefer.includes(id) ? 0 : 1;
       const stable = id => existing.some(c => c[role]?.identity === id && c.healthy) ? 0 : 1;

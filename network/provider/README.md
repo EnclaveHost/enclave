@@ -121,3 +121,49 @@ frontend mapping are provisioned automatically. Existing wallet keys and guest
 secrets are neither read nor copied by this job. A stopped frontend is restarted
 when its listener ports are free. Allocation state is kept under the operator's
 `enclave-prod/tuna-privacy/fallback` directory, with backups before rollout.
+
+## USDC transport release (not yet activated)
+
+`network/build.mjs` builds `enclave-usdc-provider` and the bundled
+`tuna-provider-control.mjs`. The new provider negotiates USDC inside the encrypted
+NKN connection and advertises on `enclave_usdc_v1.*` topics. Legacy providers
+cannot negotiate it. Application streams are metered independently at both ends;
+control frames are excluded. The runner submits a receipt signed by both the
+runner and provider. The ledger credits the actual provider operator and the
+platform using the split snapshotted by the owner's authorization.
+
+The example JSON files intentionally contain required placeholders. Install keys
+and configuration under `/etc/enclave-tuna-usdc`, mode 0600 and owned by
+`tuna-provider`. Use a separate native transport seed from the legacy provider.
+The proof key must match the provider's registry entry. Generate a 32-byte random
+hex control token and share it only with these two local services. Never place a
+provider proof key in an app worker, browser, advertisement, or customer config.
+
+The systemd units use separate transport ports and the existing restricted
+loopback SOCKS service. They do not take over HAProxy, public 80/443, legacy TUNA,
+or live app routing. Paid reverse allocations require public ports that are free
+and reachable. Multiple apps sharing an address still need a TLS-passthrough
+frontend with per-app port allocations; a single provider IP does not create
+additional independent routes. The current strict two-route policy requires at
+least four qualifying operators on separate networks, with USDC transport support.
+
+Activation requires a schema-16 ledger with backed app balances, its bound
+connectivity contract, an active registered provider, current qualification,
+and a matching advertised rate. The qualification implementation currently uses
+a governance-maintained probe-signer allowlist; it is not permissionless
+qualification. Do not describe a production deployment of it as having removed
+that trust dependency. Owner authorizations, operator diversity, real forward and
+reverse transport, TLS verification, receipt settlement, and revocation must pass
+before switching customer traffic.
+
+`maxPending6` is credit the provider is willing to lose on revocation or a failed
+settlement (the example allows 0.01 USDC). It is not additional app funding. The
+controller stops accepting traffic beyond it. A crash leaves `controller-lock`
+in the state directory. Reconcile the durable meters and pending wallet journal
+and confirm no controller remains before removing that lock; never automatically
+erase counters to restart service.
+
+These payments avoid native NKN for app data traffic. Provider advertisements
+still require native NKN subscription fees. Automatic bidirectional native-NKN
+conversion remains unavailable until a real executable liquidity route is
+configured; an ERC-20 NKN quote is not a native-NKN conversion route.

@@ -17,6 +17,7 @@ message ConnectionMetadata {
   bool is_measurement = 4;
   uint32 measurement_bytes_downlink = 5;
   bool is_ping = 6;
+  uint32 settlement_mode = 7; // 0 = legacy NanoPay, 1 = authenticated USDC
 }
 
 message ServiceMetadata {
@@ -28,6 +29,9 @@ message ServiceMetadata {
   repeated uint32 service_udp = 6;
   string price = 7;
   string beneficiary_addr = 8;
+  uint32 settlement_mode = 9;
+  string registry_id = 10;
+  uint64 usdc_price_per_gib6 = 11;
 }
 
 message StreamMetadata {

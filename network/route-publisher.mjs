@@ -1,7 +1,9 @@
 import {createPrivateKey,createPublicKey,randomBytes} from 'node:crypto';
+import {keccak256,stringToHex} from 'viem';
 import {validateCircuitPolicy} from './circuit-policy.mjs';
 import {DurableState} from './durable-state.mjs';
 import {recordHash,signDelegation,signRoute,verifyOwnerPolicy} from './route-record.mjs';
+import {tunaPolicyFromLease} from './tuna-policy.mjs';
 import {directPolicyFromLease} from './connectivity-control.mjs';
 import {namingKey,encodeDiscovery} from './discovery.mjs';
 
@@ -12,7 +14,7 @@ export function defaultPolicy(deploymentId,{maxPrice='0.0002',budgetNkn='1'}={})
 export async function appPolicy(app,lease,defaults) {
   if(!lease||lease.id!==app.deploymentId)throw new Error('policy requires current deployment owner');
   // Never run the native-NKN payment path under a USDC owner authorization.
-  if(lease.connectivity?.viaTuna&&Number(lease.connectivity.expires)>0)throw Error('USDC TUNA transport is required for this owner authorization');
+  if(lease.connectivity?.viaTuna&&Number(lease.connectivity.expires)>0)return tunaPolicyFromLease(lease);
   const direct=directPolicyFromLease(lease);
   if(direct)return direct;
   if(app.ownerPolicy){
@@ -58,7 +60,9 @@ export class RoutePublisher {
     });
     const qualification=policy.mode==='direct'&&routes.length?await this.qualification?.(id):undefined;
     if(policy.mode==='direct'&&routes.length&&(!qualification||qualification.report.expiresAt<=now))throw new Error('current provider qualification required');
-    const expiresAt=Math.min(now+60000,lease.validUntil,state.authorization.delegation.expiresAt,qualification?.report.expiresAt??Infinity,policy.mode==='direct'&&routes.length?policy.expiresAt:Infinity);
+    const providerExpiry=policy.currency==='USDC'&&routes.length?Math.min(...routes.map(route=>Math.max(0,...(lease.connectivity?.providers||[]).filter(p=>p.qualified&&p.active&&p.addressHash===keccak256(stringToHex(route.address))).map(p=>Number(p.qualifiedUntil)*1000)))):Infinity;
+    const expiresAt=Math.min(now+60000,lease.validUntil,lease.leaseUntil,state.authorization.delegation.expiresAt,qualification?.report.expiresAt??Infinity,providerExpiry,(policy.mode==='direct'||policy.currency==='USDC')&&routes.length?policy.expiresAt:Infinity);
+    if(expiresAt<=now)throw Error('route authorization expired');
     const signed=signRoute(routeKey(Buffer.from(state.seed,'hex')),{version:2,deploymentId:id,delegationHash:recordHash(state.authorization.delegation),
       sequence:state.sequence,issuedAt:now,expiresAt,routes,...(qualification?{qualification}:{})});
     const bundle={...signed,authorization:state.authorization};

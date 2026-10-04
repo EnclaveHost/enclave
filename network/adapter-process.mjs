@@ -21,7 +21,8 @@ export class AdapterProcess extends EventEmitter {
         if(line.length>16384||this.closed)return;
         let v;try{v=JSON.parse(line);}catch{return;}
         if(v.type==='ready'&&v.id===this.route.id){
-          if(v.provider!==this.provider.identity||v.address!==this.provider.address||v.beneficiary!==this.provider.beneficiary){fail(new Error('allocated provider metadata changed'));this.close();return;}
+          if(this.provider.currency==='USDC'&&(v.currency!=='USDC'||v.registryId!==this.provider.registryId)){fail(new Error('USDC transport authorization was not negotiated'));this.close();return;}
+          if(v.provider!==this.provider.identity||v.address!==this.provider.address||(this.provider.currency!=='USDC'&&v.beneficiary!==this.provider.beneficiary)){fail(new Error('allocated provider metadata changed'));this.close();return;}
           if(!Array.isArray(v.tcp)||!Array.isArray(v.udp||[])||(v.udp||[]).length||v.tcp.length!==this.route.tcp.length||
              (!this.route.forward&&(this.route.publicTcp||this.route.tcp).some((port,i)=>port!==v.tcp[i]))){fail(new Error('unexpected public port allocation'));this.close();return;}
           this.allocation=v;if(!settled){settled=true;clearTimeout(timer);resolve(v);}this.emit('ready',v);

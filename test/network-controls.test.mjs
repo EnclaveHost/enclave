@@ -52,7 +52,10 @@ test('USDC TUNA authorization cannot turn into free direct or native-NKN fallbac
  const {appPolicy}=await import('../network/route-publisher.mjs');
  const lease={id:'0x'+'ab'.repeat(32),owner:'0x'+'11'.repeat(20),connectivity:{viaTuna:true,address:'0x'+'22'.repeat(20),owner:'0x'+'11'.repeat(20),nonce:1,expires:100,maxPricePerGiB6:1,budget6:1}};
  assert.equal(directPolicyFromLease(lease),null);
- await assert.rejects(appPolicy({deploymentId:lease.id},lease,{}),/USDC TUNA transport/);
+ await assert.rejects(appPolicy({deploymentId:lease.id},lease,{}),/USDC TUNA provider path/);
+ lease.connectivity.providers=[{id:'0x'+'bb'.repeat(32)}];
+ const policy=await appPolicy({deploymentId:lease.id},lease,{});
+ assert.equal(policy.currency,'USDC');assert.equal(policy.mode,'guarded');assert.equal(policy.directFallback,false);assert.equal(policy.routes,2);assert.equal(policy.budgetNkn,undefined);
 });
 
 
@@ -61,4 +64,18 @@ test('relay TUNA authorization uses the same provider list and bounds as the bro
  const intent={id:'0x'+'aa'.repeat(32),mode:'tuna',providers:['0x'+'bb'.repeat(32)],expires:'1800000000',maxPricePerGiB6:'1000000',budget6:'2500000'};
  assert.deepEqual(networkArgs(intent),[intent.id,intent.providers,1800000000n,1000000n,2500000n]);
  for(const changes of [{providers:[]},{providers:[intent.providers[0],intent.providers[0]]},{mode:'direct'},{mode:'revoke',providers:undefined},{maxPricePerGiB6:String(1n<<64n)},{budget6:String(1n<<128n)}])assert.throws(()=>networkArgs({...intent,...changes}));
+});
+
+test('provider discovery excludes expired, disabled and free-only entries and returns exact USDC prices',async()=>{
+ const {networkProviders}=await import('../site/js/core/network-controls.js');
+ const word=n=>BigInt(n).toString(16).padStart(64,'0'),hex=values=>'0x'+values.map(word).join('');
+ const read=async(_to,data)=>{
+  if(data==='0x06661abd')return hex([4]);
+  if(data.startsWith('0x4fe0d5c6'))return hex([BigInt('0x'+data.slice(10))+1n]);
+  const id=Number(BigInt('0x'+data.slice(10)));
+  if(data.startsWith('0xc2ead131'))return hex([0,id===2?0:1]);
+  return hex([0,1,id===3?0:2000, id===4?99:200,0,123]);
+ };
+ const result=await networkProviders({address:'0x'+'11'.repeat(20)},{read,block:'0x100',now:100000});
+ assert.deepEqual(result.map(p=>[p.id,p.rate6]),[['0x'+word(1),2000n]]);
 });

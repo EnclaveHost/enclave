@@ -64,7 +64,7 @@ export class USDCBandwidthSettlement {
   const saved=await this.state.get(deploymentId.slice(2)+'-'+nonce);
   const journal=await this.transactions.get('wallet-current');
   const candidates=[saved];
-  if((journal?.meter||'direct')===this.meterNamespace()&&journal?.deploymentId===deploymentId&&String(journal.nonce)===String(nonce)&&['prepared','confirmed'].includes(journal.state))candidates.push(journal.accepted);
+  if((!journal?.acceptedDirectory||path.resolve(journal.acceptedDirectory)===path.resolve(this.state.directory))&&(journal?.meter||'direct')===this.meterNamespace()&&journal?.deploymentId===deploymentId&&String(journal.nonce)===String(nonce)&&['prepared','confirmed'].includes(journal.state))candidates.push(journal.accepted);
   let result;
   for(const s of candidates){
    if(!s)continue;
@@ -99,7 +99,7 @@ export class USDCBandwidthSettlement {
    if(done){await this.transactions.set(key,{...prior,state:done.status==='success'?'confirmed':'reverted'});if(done.status!=='success')throw Error('bandwidth settlement reverted');await this.leaseReader.refresh([...new Set([id,prior.deploymentId])]);}
    else {await this.client.sendRawTransaction({serializedTransaction:prior.raw}).catch(()=>{});throw Error('bandwidth transaction remains pending');}
   }
-  if(prior?.acceptedDirectory&&['prepared','confirmed'].includes(prior.state)&&(prior.meter!==this.meterNamespace()||prior.deploymentId!==id||String(prior.nonce)!==String(s.nonce))){
+  if(prior?.acceptedDirectory&&['prepared','confirmed'].includes(prior.state)&&(path.resolve(prior.acceptedDirectory)!==path.resolve(this.state.directory)||prior.meter!==this.meterNamespace()||prior.deploymentId!==id||String(prior.nonce)!==String(s.nonce))){
    const saved=await new DurableState(prior.acceptedDirectory).get(prior.deploymentId.slice(2)+'-'+prior.nonce);
    if(!saved||BigInt(saved.bytes)<BigInt(prior.accepted.bytes))throw Error('previous meter must recover its accepted counters before sharing this gas wallet');
   }
@@ -127,7 +127,7 @@ export class USDCBandwidthSettlement {
    const key=name.slice(0,-5),s=await this.state.get(key);if(s)this.apps.set(key,{deploymentId:'0x'+m[1],nonce:m[2],pricePerGiB6:s.rate});
   }
   const pending=await this.transactions.get('wallet-current');
-  if(pending&&(pending.meter||'direct')===this.meterNamespace()&&['prepared','confirmed'].includes(pending.state)){const k=pending.deploymentId.slice(2)+'-'+pending.nonce;this.apps.set(k,{deploymentId:pending.deploymentId,nonce:pending.nonce,pricePerGiB6:pending.accepted.rate});
+  if(pending&&(!pending.acceptedDirectory||path.resolve(pending.acceptedDirectory)===path.resolve(this.state.directory))&&(pending.meter||'direct')===this.meterNamespace()&&['prepared','confirmed'].includes(pending.state)){const k=pending.deploymentId.slice(2)+'-'+pending.nonce;this.apps.set(k,{deploymentId:pending.deploymentId,nonce:pending.nonce,pricePerGiB6:pending.accepted.rate});
     await this.state.update(k,old=>!old||BigInt(old.bytes)<BigInt(pending.accepted.bytes)?pending.accepted:old);}
   this.timer=setInterval(()=>void this.flush(),this.intervalMs);this.timer.unref();return this;}
  async close(){clearInterval(this.timer);await this.flush();}
@@ -140,5 +140,5 @@ export async function createUSDCBandwidthSettlement({config,directory,leaseReade
  if(!config.rpc?.startsWith('https://'))throw Error('HTTPS settlement RPC required');
  const client=createPublicClient({chain:base,transport:http(config.rpc,{timeout:15000})});
  const wallet=createWalletClient({account,chain:base,transport:http(config.rpc,{timeout:15000})});
- return new USDCBandwidthSettlement({directory,leaseReader,proofAccount,wallet,client,maxPending6:config.maxPending6,log}).start();
+ return new USDCBandwidthSettlement({directory,transactionDirectory:config.transactionDirectory,leaseReader,proofAccount,wallet,client,maxPending6:config.maxPending6,log}).start();
 }

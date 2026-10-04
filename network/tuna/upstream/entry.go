@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"strconv"
@@ -49,6 +50,20 @@ func NewTunaEntry(service Service, serviceInfo ServiceInfo, wallet *nkn.Wallet, 
 	if err != nil {
 		return nil, err
 	}
+	if config.USDC == nil && config.USDCLocal != nil {
+		config.USDC, err = NewLocalUSDCController(*config.USDCLocal)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if config.USDC != nil {
+		config.SubscriptionPrefix = USDCSubscriptionPrefix
+		config.ReverseSubscriptionPrefix = USDCSubscriptionPrefix
+	}
+
+	if config.USDC != nil && len(service.UDP) > 0 {
+		return nil, errors.New("USDC transport requires TCP streams")
+	}
 	if !config.Reverse {
 		_, err = common.StringToFixed64(config.NanoPayFee)
 		if err != nil {
@@ -90,6 +105,7 @@ func NewTunaEntry(service Service, serviceInfo ServiceInfo, wallet *nkn.Wallet, 
 		return nil, err
 	}
 
+	c.USDC = config.USDC
 	te := &TunaEntry{
 		Common:       c,
 		config:       config,
@@ -168,14 +184,16 @@ func (te *TunaEntry) Start(shouldReconnect bool) error {
 			return ps, te.GetPaymentReceiver(), err
 		}
 
-		go te.startPayment(
-			&te.bytesEntryToExit, &te.bytesExitToEntry,
-			&te.bytesEntryToExitPaid, &te.bytesExitToEntryPaid,
-			te.config.NanoPayFee,
-			te.config.MinNanoPayFee,
-			te.config.NanoPayFeeRatio,
-			getPaymentStreamRecipient,
-		)
+		if te.USDC == nil {
+			go te.startPayment(
+				&te.bytesEntryToExit, &te.bytesExitToEntry,
+				&te.bytesEntryToExitPaid, &te.bytesExitToEntryPaid,
+				te.config.NanoPayFee,
+				te.config.MinNanoPayFee,
+				te.config.NanoPayFeeRatio,
+				getPaymentStreamRecipient,
+			)
+		}
 
 		break
 	}
@@ -195,6 +213,9 @@ func (te *TunaEntry) StartReverse(stream *smux.Stream, connMetadata *pb.Connecti
 	defer te.Close()
 
 	metadata := te.GetMetadata()
+	if te.USDC != nil && len(metadata.ServiceUdp) > 0 {
+		return errors.New("USDC transport requires TCP streams")
+	}
 	listenIP := net.ParseIP(te.ServiceInfo.ListenIP)
 	if listenIP == nil {
 		listenIP = net.ParseIP(defaultServiceListenIP)
@@ -237,12 +258,15 @@ func (te *TunaEntry) StartReverse(stream *smux.Stream, connMetadata *pb.Connecti
 		return err
 	}
 
-	npc, err := te.Client.NewNanoPayClaimer(te.config.ReverseBeneficiaryAddr, int32(claimInterval/time.Millisecond), int32(nanoPayClaimerLinger/time.Millisecond), te.config.ReverseMinFlushAmount, onErr)
-	if err != nil {
-		return err
-	}
+	var npc *nkn.NanoPayClaimer
+	if te.paidSession(session) == nil {
+		npc, err = te.Client.NewNanoPayClaimer(te.config.ReverseBeneficiaryAddr, int32(claimInterval/time.Millisecond), int32(nanoPayClaimerLinger/time.Millisecond), te.config.ReverseMinFlushAmount, onErr)
+		if err != nil {
+			return err
+		}
 
-	defer npc.Close()
+		defer npc.Close()
+	}
 	k := string(append(connMetadata.PublicKey, connMetadata.Nonce...))
 
 	getTotalCost := func() (common.Fixed64, common.Fixed64) {
@@ -263,9 +287,11 @@ func (te *TunaEntry) StartReverse(stream *smux.Stream, connMetadata *pb.Connecti
 		return cost, totalBytes
 	}
 
-	go checkNanoPayClaim(session, npc, onErr, &isClosed)
+	if npc != nil {
+		go checkNanoPayClaim(session, npc, onErr, &isClosed)
 
-	go checkPayment(session, &lastPaymentTime, &lastPaymentAmount, &bytesPaid, &isClosed, getTotalCost)
+		go checkPayment(session, &lastPaymentTime, &lastPaymentAmount, &bytesPaid, &isClosed, getTotalCost)
+	}
 
 	for {
 		if te.IsClosed() {
@@ -286,6 +312,10 @@ func (te *TunaEntry) StartReverse(stream *smux.Stream, connMetadata *pb.Connecti
 				}
 
 				if streamMetadata.IsPayment {
+					if te.paidSession(session) != nil {
+						defer session.Close()
+						return te.serveUSDCPayment(session, stream)
+					}
 					return handlePaymentStream(stream, npc, &lastPaymentTime, &lastPaymentAmount, &bytesPaid, getTotalCost)
 				}
 				return nil
@@ -350,11 +380,15 @@ func (te *TunaEntry) createSession(force bool) (*smux.Session, *smux.Stream, err
 		return nil, nil, err
 	}
 
+	te.bindUSDC(session, conn)
 	paymentStream, err := openPaymentStream(session)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	if te.paidSession(session) != nil {
+		te.startUSDCPayment(session, paymentStream)
+	}
 	return session, paymentStream, nil
 }
 
@@ -394,7 +428,7 @@ func (te *TunaEntry) getPaymentStream() (*smux.Stream, error) {
 	return paymentStream, nil
 }
 
-func (te *TunaEntry) openServiceStream(portID byte) (*smux.Stream, error) {
+func (te *TunaEntry) openServiceStream(portID byte) (io.ReadWriteCloser, error) {
 	session, err := te.getSession()
 	if err != nil {
 		return nil, err
@@ -418,7 +452,7 @@ func (te *TunaEntry) openServiceStream(portID byte) (*smux.Stream, error) {
 		return nil, err
 	}
 
-	return stream, nil
+	return te.serviceStream(session, stream), nil
 }
 
 func (te *TunaEntry) listenTCP(ip net.IP, ports []uint32) ([]uint32, error) {
@@ -592,6 +626,16 @@ func StartReverse(config *EntryConfiguration, wallet *nkn.Wallet) error {
 		return err
 	}
 
+	if config.USDCLocal != nil && config.USDC == nil {
+		config.USDC, err = NewLocalUSDCController(*config.USDCLocal)
+		if err != nil {
+			return err
+		}
+	}
+	if config.USDC != nil {
+		config.ReverseSubscriptionPrefix = USDCSubscriptionPrefix
+	}
+
 	var serviceListenIP string
 	if net.ParseIP(config.ReverseServiceListenIP) == nil {
 		serviceListenIP = defaultReverseServiceListenIP
@@ -599,9 +643,15 @@ func StartReverse(config *EntryConfiguration, wallet *nkn.Wallet) error {
 		serviceListenIP = config.ReverseServiceListenIP
 	}
 
-	ip, err := ipify.GetIp()
-	if err != nil {
-		return fmt.Errorf("couldn't get IP: %v", err)
+	ip := config.PublicIP
+	if ip == "" {
+		ip, err = ipify.GetIp()
+		if err != nil {
+			return fmt.Errorf("couldn't get IP: %v", err)
+		}
+	}
+	if net.ParseIP(ip) == nil {
+		return errors.New("invalid provider public IP")
 	}
 
 	listener, err := net.ListenTCP(tcp4, &net.TCPAddr{Port: int(config.ReverseTCP)})
@@ -609,94 +659,98 @@ func StartReverse(config *EntryConfiguration, wallet *nkn.Wallet) error {
 		return err
 	}
 
-	uConn, err := net.ListenUDP(udp4, &net.UDPAddr{Port: int(config.ReverseUDP)})
-	if err != nil {
-		return err
-	}
-	encConn := NewEncryptUDPConn(uConn)
+	var encConn *EncryptUDPConn
 	var encKeys, udpEntrys, tcpEntrys, tcpReady, udpReady, addrToKey, keyToAddr sync.Map
-	go func() {
-		if encConn.IsClosed() {
-			return
+	if config.USDC == nil && config.USDCLocal == nil {
+		uConn, err := net.ListenUDP(udp4, &net.UDPAddr{Port: int(config.ReverseUDP)})
+		if err != nil {
+			return err
 		}
-		buffer := make([]byte, MaxUDPBufferSize)
-		for {
-			n, from, encrypted, err := encConn.ReadFromUDPEncrypted(buffer)
-			if err != nil {
-				log.Println("Couldn't receive exit's data:", err)
-				continue
+		encConn = NewEncryptUDPConn(uConn)
+		go func() {
+			if encConn.IsClosed() {
+				return
 			}
-			if bytes.Equal(buffer[:PrefixLen], []byte{PrefixLen - 1: 0}) && n > PrefixLen {
-				connMetadata, err := parseUDPConnMetadata(buffer[PrefixLen:n])
+			buffer := make([]byte, MaxUDPBufferSize)
+			for {
+				n, from, encrypted, err := encConn.ReadFromUDPEncrypted(buffer)
 				if err != nil {
-					log.Println("Couldn't read udp metadata from client:", err)
+					log.Println("Couldn't receive exit's data:", err)
 					continue
 				}
-				if connMetadata.IsPing || encrypted {
-					continue
-				}
-				k := string(append(connMetadata.PublicKey, connMetadata.Nonce...))
-				readyChan, _ := tcpReady.LoadOrStore(k, make(chan struct{}))
-				<-readyChan.(chan struct{})
+				if bytes.Equal(buffer[:PrefixLen], []byte{PrefixLen - 1: 0}) && n > PrefixLen {
+					connMetadata, err := parseUDPConnMetadata(buffer[PrefixLen:n])
+					if err != nil {
+						log.Println("Couldn't read udp metadata from client:", err)
+						continue
+					}
+					if connMetadata.IsPing || encrypted {
+						continue
+					}
+					k := string(append(connMetadata.PublicKey, connMetadata.Nonce...))
+					readyChan, _ := tcpReady.LoadOrStore(k, make(chan struct{}))
+					<-readyChan.(chan struct{})
 
-				encryptKey, ok := encKeys.Load(k)
-				if !ok {
-					log.Println("no encrypt key found")
+					encryptKey, ok := encKeys.Load(k)
+					if !ok {
+						log.Println("no encrypt key found")
+						continue
+					}
+					key := encryptKey.(*[encryptKeySize]byte)
+					err = encConn.AddCodec(from, key, connMetadata.EncryptionAlgo, false)
+					if err != nil {
+						log.Println(err)
+						return
+					}
+
+					te, ok := tcpEntrys.Load(k)
+					if !ok {
+						log.Println("no encrypt key found from tcp conn")
+						continue
+					}
+					t := te.(*TunaEntry)
+					t.Common.reverseBytesEntryToExit[k] = make([]uint64, 256)
+					t.Common.reverseBytesExitToEntry[k] = make([]uint64, 256)
+					udpEntrys.Store(from.String(), te)
+					addrToKey.Store(from.String(), k)
+					keyToAddr.Store(k, from.String())
+
+					if c, ok := udpReady.Load(k); ok {
+						closeChan(c.(chan struct{}))
+					}
+
 					continue
 				}
-				key := encryptKey.(*[encryptKeySize]byte)
-				err = encConn.AddCodec(from, key, connMetadata.EncryptionAlgo, false)
+				if !encrypted {
+					log.Println("Unencrypted udp packet received")
+					continue
+				}
+				entry, ok := udpEntrys.Load(from.String())
+				if !ok {
+					log.Println("no entry found for udp data")
+					continue
+				}
+				te := entry.(*TunaEntry)
+				udpReadchan, err := te.GetServerUDPReadChan(false)
 				if err != nil {
-					log.Println(err)
-					return
-				}
-
-				te, ok := tcpEntrys.Load(k)
-				if !ok {
-					log.Println("no encrypt key found from tcp conn")
+					log.Println("Couldn't get udp read chan:", err)
 					continue
 				}
-				t := te.(*TunaEntry)
-				t.Common.reverseBytesEntryToExit[k] = make([]uint64, 256)
-				t.Common.reverseBytesExitToEntry[k] = make([]uint64, 256)
-				udpEntrys.Store(from.String(), te)
-				addrToKey.Store(from.String(), k)
-				keyToAddr.Store(k, from.String())
-
-				if c, ok := udpReady.Load(k); ok {
-					closeChan(c.(chan struct{}))
+				if n > 0 {
+					k, ok := addrToKey.Load(from.String())
+					if !ok {
+						log.Println("no key found for udp data")
+						continue
+					}
+					b := make([]byte, n)
+					copy(b, buffer[:n])
+					udpReadchan <- b
+					atomic.AddUint64(&te.Common.reverseBytesEntryToExit[k.(string)][b[2]], uint64(n))
 				}
+			}
+		}()
 
-				continue
-			}
-			if !encrypted {
-				log.Println("Unencrypted udp packet received")
-				continue
-			}
-			entry, ok := udpEntrys.Load(from.String())
-			if !ok {
-				log.Println("no entry found for udp data")
-				continue
-			}
-			te := entry.(*TunaEntry)
-			udpReadchan, err := te.GetServerUDPReadChan(false)
-			if err != nil {
-				log.Println("Couldn't get udp read chan:", err)
-				continue
-			}
-			if n > 0 {
-				k, ok := addrToKey.Load(from.String())
-				if !ok {
-					log.Println("no key found for udp data")
-					continue
-				}
-				b := make([]byte, n)
-				copy(b, buffer[:n])
-				udpReadchan <- b
-				atomic.AddUint64(&te.Common.reverseBytesEntryToExit[k.(string)][b[2]], uint64(n))
-			}
-		}
-	}()
+	}
 
 	clientConfig := &nkn.ClientConfig{
 		HttpDialContext: config.HttpDialContext,
@@ -776,6 +830,7 @@ func StartReverse(config *EntryConfiguration, wallet *nkn.Wallet) error {
 						return fmt.Errorf("create session error: %v", err)
 					}
 
+					te.bindUSDC(te.session, encryptedConn)
 					stream, err := te.session.AcceptStream()
 					if err != nil {
 						te.Close()
@@ -792,6 +847,9 @@ func StartReverse(config *EntryConfiguration, wallet *nkn.Wallet) error {
 						return fmt.Errorf("couldn't decode service metadata: %v", err)
 					}
 
+					if te.USDC != nil && len(metadata.ServiceUdp) > 0 {
+						return errors.New("USDC transport requires TCP streams")
+					}
 					te.SetMetadata(metadata)
 
 					te.SetServerTCPConn(encryptedConn)
@@ -884,7 +942,7 @@ func StartReverse(config *EntryConfiguration, wallet *nkn.Wallet) error {
 			config.ReverseSubscriptionFee,
 			config.ReverseSubscriptionReplaceTxPool,
 			client,
-			make(chan struct{}),
+			make(chan struct{}), config.USDCLocal,
 		)
 	}
 

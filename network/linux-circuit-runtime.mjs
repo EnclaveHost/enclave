@@ -15,14 +15,16 @@ async function freePort(host){const s=net.createServer();await new Promise((r,j)
 const writeJSON=(file,value)=>fs.writeFile(file,JSON.stringify(value),{mode:0o600,flag:'wx'});
 
 export class LinuxCircuitRuntime {
-  constructor({directory,binary,image,network,gateway,rpc,authorize,forward,discovery=true,log=()=>{}}) {
+  constructor({directory,binary,image,network,gateway,rpc,authorize,forward,discovery=true,billing,log=()=>{}}) {
     if(process.platform!=='linux'||process.getuid()!==1000)throw new Error('Linux circuit runtime requires the dedicated uid 1000 service account');
     if(!net.isIPv4(gateway)||!/^enclave-[a-z0-9-]+$/.test(network)||!image||!path.isAbsolute(directory)||!path.isAbsolute(binary))throw new Error('explicit runtime paths and network required');
-    Object.assign(this,{directory,binary,image,network,gateway,rpc,authorize,forward,discovery,log});this.active=new Set();this.closed=false;
+    Object.assign(this,{directory,binary,image,network,gateway,rpc,authorize,forward,discovery,billing,log});this.active=new Set();this.closed=false;
   }
   async close(){this.closed=true;await Promise.all([...this.active].map(c=>c.close('runtime stopped')));}
-  async start({deploymentId,names,providers,wallets,maxPrice}) {
+  async start({deploymentId,names,providers,wallets,maxPrice,policy}) {
     if(this.closed)throw new Error('runtime stopped');
+    const usdc=policy?.currency==='USDC';if(usdc&&!this.billing)throw new Error('USDC TUNA controller required');
+    const scopes=[];
     const id=randomBytes(16).toString('hex'),dir=path.join(this.directory,id),privateDir=path.join(dir,'worker'),guardDir=path.join(dir,'guard');
     await fs.mkdir(privateDir,{recursive:true,mode:0o700});await fs.mkdir(guardDir,{recursive:true,mode:0o700});
     const circuit=new EventEmitter();Object.assign(circuit,{id,deploymentId,providers,closed:false});
@@ -34,7 +36,7 @@ export class LinuxCircuitRuntime {
       broker?.revoke();for(const socket of egressSockets)socket.destroy();egressServer?.close();guard?.close();lines?.close();
       if(child?.stdin.writable)child.stdin.end(JSON.stringify({type:'stop'})+'\n');
       await Promise.all([name,guardName].map(n=>execute('docker',['rm','-f',n],{timeout:15000}).catch(()=>{})));
-      await broker?.close();if(socketDirectory)await fs.rm(socketDirectory,{recursive:true,force:true});circuit.emit('down',reason||'closed');
+      await broker?.close();await Promise.all(scopes.map(s=>s.close()));if(socketDirectory)await fs.rm(socketDirectory,{recursive:true,force:true});circuit.emit('down',reason||'closed');
     };
     this.active.add(circuit);
     circuit.publishDiscovery=value=>{if(circuit.closed||!child?.stdin.writable)throw new Error('circuit closed');child.stdin.write(JSON.stringify({type:'discovery',value})+'\n');};
@@ -55,7 +57,13 @@ export class LinuxCircuitRuntime {
         if(!/^[0-9a-f]{64}\s*$/i.test(seed))throw new Error('invalid wallet seed');
         const roleDir=role==='guard'?guardDir:privateDir,seedFile=path.join(roleDir,role+'.seed');
         await fs.writeFile(seedFile,seed,{mode:0o600,flag:'wx'});
-        await writeJSON(path.join(roleDir,role+'.json'),{seedFile:'/etc/circuit/'+role+'.seed',rpc:this.rpc,maxPrice,minBalance:'0.01',
+        let usdcConfig;
+        if(usdc){
+          const scope=await this.billing.scope({deploymentId,providerId:providers[role].registryId,socketPath:path.join(roleDir,role+'.sock')});scopes.push(scope);
+          await fs.writeFile(path.join(roleDir,role+'.token'),scope.token,{mode:0o600,flag:'wx'});
+          usdcConfig={socket:'/etc/circuit/'+role+'.sock',tokenFile:'/etc/circuit/'+role+'.token',deploymentId,providerId:providers[role].registryId};
+        }
+        await writeJSON(path.join(roleDir,role+'.json'),{...(usdc?{usdc:usdcConfig}:{}),seedFile:'/etc/circuit/'+role+'.seed',rpc:this.rpc,maxPrice:usdc?'0':maxPrice,minBalance:usdc?'0':'0.01',
           allowProviders:[providers[role].identity],denyProviders:[],requireGuard:role!=='guard',
           ...(role==='public'?{subscriptionState:'/run/discovery/subscription.json'}:{}),
           ...(role==='guard'?{listenIp:'0.0.0.0'}:{guardSocks:`${this.gateway}:${guardPort}`,listenIp:role==='egress'?'0.0.0.0':'127.0.0.1'})});

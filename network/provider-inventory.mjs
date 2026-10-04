@@ -6,7 +6,7 @@ import {promisify} from 'node:util';
 const execute=promisify(execFile);
 
 export class ProviderInventory {
-  constructor({binary,rpc,asnFile,directory=path.dirname(asnFile),runCommand=execute,now=Date.now,asnFetch,log=()=>{}}){Object.assign(this,{binary,rpc,asnFile,runCommand,now});this.nodes=[];this.pending=null;this.health=new DurableState(directory);this.asns=new AsnInventory({file:asnFile,fetchFn:asnFetch,now,log});this.log=log;}
+  constructor({binary,rpc,asnFile,directory=path.dirname(asnFile),runCommand=execute,now=Date.now,asnFetch,includeUSDC=false,log=()=>{}}){Object.assign(this,{binary,rpc,asnFile,runCommand,now,includeUSDC});this.nodes=[];this.pending=null;this.health=new DurableState(directory);this.asns=new AsnInventory({file:asnFile,fetchFn:asnFetch,now,log});this.log=log;}
   async observe(providers,{ok,latencyMs,role}){
     if(typeof ok!=='boolean')throw new Error('provider outcome required');
     await this.health.update('provider-health',old=>{
@@ -26,7 +26,7 @@ export class ProviderInventory {
   async refresh(){
     if(this.pending)return this.pending;
     this.pending=(async()=>{
-      const [{stdout},metadata,health]=await Promise.all([this.runCommand(this.binary,['--rpc',this.rpc.join(',')],{timeout:35000,maxBuffer:4*1024*1024}),this.asns.read(),this.health.get('provider-health')]);
+      const [{stdout},metadata,health]=await Promise.all([this.runCommand(this.binary,['--rpc',this.rpc.join(','),...(this.includeUSDC?['--usdc']:[])],{timeout:35000,maxBuffer:4*1024*1024}),this.asns.read(),this.health.get('provider-health')]);
       const nodes=JSON.parse(stdout);if(!Array.isArray(nodes)||nodes.length>10000)throw new Error('invalid provider inventory');
       void this.asns.refresh(nodes).catch(e=>this.log('ASN refresh: '+e.message));
       const counted=h=>h&&h.updatedAt+7*86400000>this.now()&&Number.isSafeInteger(h.successes)&&Number.isSafeInteger(h.failures)&&h.successes>=0&&h.failures>=0&&h.successes+h.failures>0;

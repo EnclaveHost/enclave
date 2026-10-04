@@ -15,6 +15,7 @@ import (
 
 const (
 	DefaultSubscriptionPrefix = "tuna_v1."
+	USDCSubscriptionPrefix    = "enclave_usdc_v1."
 	DefaultReverseServiceName = "reverse"
 
 	defaultNanoPayDuration                   = 4320 * 30
@@ -39,6 +40,9 @@ const (
 )
 
 type EntryConfiguration struct {
+	PublicIP                         string                                                            `json:"publicIP,omitempty"`
+	USDCLocal                        *USDCLocalConfig                                                  `json:"usdc,omitempty"`
+	USDC                             USDCController                                                    `json:"-"`
 	SeedRPCServerAddr                []string                                                          `json:"seedRPCServerAddr"`
 	Services                         map[string]ServiceInfo                                            `json:"services"`
 	DialTimeout                      int32                                                             `json:"dialTimeout"`
@@ -96,6 +100,9 @@ func DefaultEntryConfig() *EntryConfiguration {
 }
 
 type ExitConfiguration struct {
+	PublicIP                  string                     `json:"publicIP,omitempty"`
+	USDCLocal                 *USDCLocalConfig           `json:"usdc,omitempty"`
+	USDC                      USDCController             `json:"-"`
 	SeedRPCServerAddr         []string                   `json:"seedRPCServerAddr"`
 	BeneficiaryAddr           string                     `json:"beneficiaryAddr"`
 	ListenTCP                 int32                      `json:"listenTCP"`
