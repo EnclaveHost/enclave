@@ -1,9 +1,9 @@
 # USDC and native NKN conversion
 
 Requested 2026-10-03. Status: provider conversion policy, recovery state machine,
-host runtime integration and read-only route discovery are implemented. No
-production execution adapters or verified native-NKN conversion route are
-configured. Conversion is not enabled. The deployment hold remains in effect.
+host runtime integration, provider-owned wallet execution and read-only route
+discovery are implemented. No executable native-NKN conversion route is
+verified or configured. Wallet execution has only been tested locally. Conversion is not enabled. The deployment hold remains in effect.
 
 ## Required behavior
 
@@ -136,7 +136,8 @@ NKN service. The visible TUNA control keeps its previous revocation/legacy-route
 behavior. Browser helpers and the passkey relay can construct a paid TUNA policy,
 but the UI does not offer it as an available live billing mode.
 
-The conversion worker still has no production wallet or executable route adapter.
+The conversion worker now has a provider-owned wallet adapter, tested locally,
+but still has no executable route adapter.
 An additional read-only check of Gate's documented public
 `GET /api/v4/wallet/currency_chains?currency=NKN` returned only `ETH`, with ERC-20
 contract `0x5Cf04716BA20127F1E2297AdDCf4B5035000c9eb`. It returned no native-NKN
@@ -147,6 +148,61 @@ service exists elsewhere. No deposit/order/approval was issued.
 
 To finish the requested feature, implement and test the transport's USDC
 negotiation and independent metering, provide an executable native-NKN liquidity
-route and its provider-owned wallet adapters, resolve qualification's administrator
+route, validate the wallet adapter against its production RPCs, resolve qualification's administrator
 trust dependency, then perform the backed-ledger migration and production rollout.
 The current work has not completed those steps or changed production.
+
+
+## Provider-owned wallet execution (2026-10-04)
+
+`network/conversion/provider-wallet.mjs` implements both funding directions and
+independent receipt verification. `network/build.mjs` bundles it as
+`provider-currency-wallet.mjs` and builds the offline native signer as
+`enclave-currency-wallet` / `enclave-currency-wallet.exe`. The native helper has
+no network or broadcast operation. It checks native address checksums, exact
+integer amounts, Ed25519 transfer signatures and transaction hashes. Native
+amounts and nonces above JavaScript's safe integer limit remain exact.
+
+The wallet adapter's `config` requires:
+
+- `directory`: absolute durable journal directory, bound to both wallet addresses.
+- `usdcKeyFile` and `nknSeedFile`: separate provider-owned key files. The first
+  contains a hex EVM private key; the second a 32-byte hex native-NKN seed.
+  Unix files require owner-only permissions; Windows operators must restrict ACLs.
+- `nativeBinary` and `nativeBinarySha256`: absolute helper path and reviewed hash.
+- `baseRpc`: at least two independent HTTPS RPC hosts for Base chain 8453.
+- `native`: `endpoints` (at least two independent HTTPS hosts), a verified
+  `genesisHash`, and `confirmations` (3–120, default 12).
+- `limits`: integer strings `nknFee8`, `maxGasWei`, `maxEthPriceUsdc6`. The last
+  is an operator's conservative ETH valuation for pre-broadcast fee checks,
+  not a live price oracle.
+
+The adapter holds exclusive lock directories alongside both real key paths until
+shutdown. A crash leaves those locks in place: reconcile the journal and confirm
+no process owns the keys before removing stale locks. Do not share these keys
+with another signer or use copied key files to bypass their locks. Failed startup
+releases acquired locks; closing twice is safe. Preparing a transfer signs and
+persists its exact bytes before returning, without broadcasting. Retries reuse
+those bytes and the nonce. A previous unconfirmed transaction blocks new funding.
+No token approval, arbitrary contract call or application ledger debit is supported.
+
+Base receipts require agreement on the finalized chain and actual USDC transfer
+logs to the configured wallet. Native receipts require quorum block inclusion,
+continuous block hashes after a durable checkpoint, and offline signature checks.
+This native confirmation policy trusts the configured RPC quorum; it is not a
+cross-chain consensus proof or an atomic swap. Native scanning advances at most
+100 blocks per tick and resumes after restart.
+
+Fee checks include Base execution gas plus estimates for L1 data and operator
+fees with headroom. Inclusion-time rollup fees are not hard-capped by EIP-1559;
+this adapter therefore does not establish an absolute all-in fee guarantee.
+Native funding includes its exact network fee when enforcing the minimum payout
+price. A verified executable route and a compatible fee policy are still needed
+before automatic conversion can be activated.
+
+Validation includes real offline native signatures, transaction mutation and
+fee-limit rejection, wallet-lock recovery, independent receipt checks, and a
+local Anvil test that broadcasts USDC funding and verifies a return transfer
+against finalized blocks. The local EVM token and gas oracle are mocks; the
+native RPC in that integration test is simulated. No live swap, production
+wallet, production funds or production configuration was used.

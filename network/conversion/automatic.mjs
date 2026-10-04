@@ -58,14 +58,14 @@ export class AutomaticConversion {
    const transfer={asset:job.quote.inputAsset,from:job.addresses[job.terms.input],to:job.order.depositAddress,amount:job.quote.amountIn};
    // Local wallet adapters must enforce the quote's all-in fee cap and keep
    // these wallets separate from application escrow and shared gas signers.
-   const signed=await this.wallet.prepareTransfer({key:job.id,transfer,allInUsdc6:job.quote.allInUsdc6});
+   const signed=await this.wallet.prepareTransfer({key:job.id,transfer,allInUsdc6:job.quote.allInUsdc6,minimumOut:job.quote.minimumOut,minUsdcPerNkn6:this.policy.minUsdcPerNkn6});
    if(!signed?.raw||!signed.hash)throw Error('funding transaction was not prepared');
-   await this.wallet.validatePrepared({signed,transfer,allInUsdc6:job.quote.allInUsdc6});
+   await this.wallet.validatePrepared({signed,transfer,allInUsdc6:job.quote.allInUsdc6,minimumOut:job.quote.minimumOut,minUsdcPerNkn6:this.policy.minUsdcPerNkn6});
    job.funding={...signed,transfer};job.phase='prepared';await this.save(s);
   }
   if(job.phase==='prepared'){
    // The same signed bytes survive uncertain broadcasts and process restarts.
-   await this.wallet.validatePrepared({signed:job.funding,transfer:job.funding.transfer,allInUsdc6:job.quote.allInUsdc6});
+   await this.wallet.validatePrepared({signed:job.funding,transfer:job.funding.transfer,allInUsdc6:job.quote.allInUsdc6,minimumOut:job.quote.minimumOut,minUsdcPerNkn6:this.policy.minUsdcPerNkn6,checkCurrentFees:false});
    const found=await this.wallet.fundingStatus(job.funding);
    if(found==='reverted'){s.last={id:job.id,state:'failed',reason:'funding_reverted'};s.job=null;await this.save(s);return {state:'failed'};}
    if(found!=='confirmed'){

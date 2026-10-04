@@ -16,7 +16,9 @@ async function adapter(spec,kind){
  return m.create(spec.config||{});
 }
 export async function startAutomaticConversion({config,directory,log=()=>{}}){
- const route=await adapter(config.route,'route'),wallet=await adapter(config.wallet,'wallet');
+ let route,wallet;
+ try{
+ route=await adapter(config.route,'route');wallet=await adapter(config.wallet,'wallet');
  for(const method of ['quote','open','lookup','status'])if(typeof route[method]!=='function')throw Error('incomplete conversion route adapter');
  for(const method of ['addresses','balances','validateAddress','prepareTransfer','validatePrepared','fundingStatus','broadcast','verifyTransfer'])if(typeof wallet[method]!=='function')throw Error('incomplete conversion wallet adapter');
  const actual=await wallet.addresses();
@@ -32,5 +34,6 @@ export async function startAutomaticConversion({config,directory,log=()=>{}}){
  // These wallets and this directory require a single host process. Adapter
  // signers must hold their wallet lock across prepare/reconcile/broadcast.
  const timer=setInterval(()=>void tick(),30000);timer.unref();void tick();
- return {async close(){closed=true;clearInterval(timer);await pending;await wallet.close?.();await route.close?.();}};
+ return {async close(){closed=true;clearInterval(timer);await pending;try{await wallet.close?.();}finally{await route.close?.();}}};
+ }catch(e){try{await wallet?.close?.();}finally{await route?.close?.();}throw e;}
 }
