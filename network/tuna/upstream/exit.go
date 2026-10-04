@@ -175,7 +175,7 @@ func (te *TunaExit) handleSession(session *smux.Session, connMetadata *pb.Connec
 	onErr := nkn.NewOnError(1, nil)
 	lastPaymentTime := time.Now()
 	isClosed := false
-	if connMetadata != nil {
+	if connMetadata != nil && te.paidSession(session) == nil {
 		k = string(append(connMetadata.PublicKey, connMetadata.Nonce...))
 		te.Common.reverseBytesEntryToExit[k] = bytesEntryToExit
 		te.Common.reverseBytesExitToEntry[k] = bytesExitToEntry
@@ -281,8 +281,8 @@ func (te *TunaExit) handleSession(session *smux.Session, connMetadata *pb.Connec
 					go te.pipe(conn, paidStream, &te.reverseBytesEntryToExit)
 					go te.pipe(paidStream, conn, &te.reverseBytesExitToEntry)
 				} else {
-					go te.pipe(conn, paidStream, &te.Common.reverseBytesEntryToExit[k][serviceID])
-					go te.pipe(paidStream, conn, &te.Common.reverseBytesExitToEntry[k][serviceID])
+					go te.pipe(conn, paidStream, &bytesEntryToExit[serviceID])
+					go te.pipe(paidStream, conn, &bytesExitToEntry[serviceID])
 				}
 
 				return nil
