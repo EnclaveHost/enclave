@@ -523,6 +523,9 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = "ENCLAVE_HTTP_POOL=1";
             envp[ei++] = "ENCLAVE_GGML_BACKEND_DIR=/rt/backends";
             envp[ei++] = "GGML_BACKEND_PATH=/rt/backends/libggml-shielded.so";
+            /* The Shield calibration authenticates language weights only. Keep
+             * image pixels and projector operations on the guest CPU. */
+            envp[ei++] = "MTMD_BACKEND_DEVICE=CPU";
             envp[ei++] = "SHIELDED_HOST=unix:/run/enclave-shield/gpu0";
             envp[ei++] = "SHIELDED_PORT=9501";
             envp[ei++] = shield_workers;
