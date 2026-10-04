@@ -21,7 +21,7 @@ export class LeaseReader {
     // same-block reads into one eth_call each, however many apps it covers.
     this.clients=clients||rpc.map(url=>createPublicClient({chain:base,batch:{multicall:{wait:0}},
       transport:http(url,{timeout:14000,retryCount:0,...(proxy?{fetchFn:guardedFetch(proxy,{timeoutMs:6000})}:{})})}));
-    this.lastBlock=0n;this.cache=new Map();this.retryDelayMs=400;
+    this.lastBlock=0n;this.cache=new Map();this.retryDelayMs=400;this.headGraceMs=250;
   }
   // Requests that arrive while a snapshot is queued join it: a burst of
   // publications costs one chain read, not one per app.
@@ -48,12 +48,20 @@ export class LeaseReader {
   async readSnapshot(ids) {
     if(!Array.isArray(ids)||ids.length>256||ids.some(id=>!/^0x[0-9a-f]{64}$/.test(id))) throw new Error('exact deployment ids required');
     this.failures=[];
-    const heads=await Promise.allSettled(this.clients.map(c=>this.limited(async()=>{
-      const [chainId,number]=await Promise.all([c.getChainId(),c.getBlockNumber({cacheTime:0})]);
-      if(chainId!==this.chainId) throw new Error('wrong chain');
-      return {client:c,number};
-    })));
-    const available=heads.filter(v=>v.status==='fulfilled').map(v=>v.value);
+    // Two heads pick the block. A slower peer gets a short grace to join, not its
+    // full request timeout: route publications wait on this snapshot.
+    const available=await new Promise(resolve=>{
+      const heads=[];let settled=0,grace;
+      const done=()=>{clearTimeout(grace);resolve([...heads]);};
+      for(const c of this.clients)this.limited(async()=>{
+        const [chainId,number]=await Promise.all([c.getChainId(),c.getBlockNumber({cacheTime:0})]);
+        if(chainId!==this.chainId) throw new Error('wrong chain');
+        return {client:c,number};
+      }).then(head=>heads.push(head),()=>{}).finally(()=>{
+        if(++settled===this.clients.length)done();
+        else if(heads.length>=2&&!grace)grace=setTimeout(done,this.headGraceMs);
+      });
+    });
     if(available.length<2) throw new Error('chain quorum unavailable');
     // A stale outlier cannot keep fresh peers from forming a quorum. Conversely,
     // no one RPC can advance or renew a cached admission on its own.
