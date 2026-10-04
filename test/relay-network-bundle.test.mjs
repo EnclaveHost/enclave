@@ -1,0 +1,21 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtemp,rm,readFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import {pathToFileURL} from 'node:url';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {createHash} from 'node:crypto';
+const run=promisify(execFile);
+test('standalone production routing bundle passes wire, revocation, DNS and chain-quorum tests',async t=>{
+ const dir=await mkdtemp(path.join(tmpdir(),'enclave-relay-graph-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const bundle=path.join(dir,'network-runtime.mjs');
+ await run(process.execPath,['relay/build-network.mjs',bundle],{timeout:60000});
+ const manifest=JSON.parse(await readFile(bundle+'.manifest.json','utf8'));
+ assert.equal(createHash('sha256').update(await readFile(bundle)).digest('hex'),manifest.sha256);
+ const env={...process.env,ENCLAVE_TEST_RELAY_BUNDLE:pathToFileURL(bundle).href};delete env.NODE_TEST_CONTEXT;
+ const {stdout}=await run(process.execPath,['--test','test/tuna-network.test.mjs','test/tuna-private-routes.test.mjs','test/connectivity-chain.test.mjs'],{timeout:60000,env});
+ assert.match(stdout,/# fail 0/);
+ const m=await import(pathToFileURL(bundle).href);assert.equal(typeof m.DurableState,'function');
+});

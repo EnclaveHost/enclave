@@ -6,7 +6,7 @@ import dgram from 'node:dgram';
 import { EventEmitter, once } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { TunaHost, clientHelloName } from '../network/tuna-host.mjs';
-import { createTunaRoutes, validatePublication, tunaMessage } from '../relay/tuna-routes.mjs';
+const { createTunaRoutes, validatePublication, tunaMessage }=await import(process.env.ENCLAVE_TEST_RELAY_BUNDLE||'../relay/tuna-routes.mjs');
 import { localUpstream } from '../network/agent.mjs';
 import { checkMap } from '../network/preflight.mjs';
 
