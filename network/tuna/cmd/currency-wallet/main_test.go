@@ -61,3 +61,30 @@ func TestOfflineRoundTrip(t *testing.T) {
 		t.Fatal("accepted ERC20 address")
 	}
 }
+
+// NKN consensus allows zero-value transfers. Inspecting an unrelated one must
+// not halt scanning, while preparing a conversion still requires positive value.
+func TestInspectZeroValueTransfer(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "seed")
+	if e := os.WriteFile(file, []byte(strings.Repeat("03", 32)), 0600); e != nil {
+		t.Fatal(e)
+	}
+	w, e := wallet(file)
+	if e != nil {
+		t.Fatal(e)
+	}
+	tx, e := transaction.NewTransferAssetTransaction(w.ProgramHash(), w.ProgramHash(), 0, 0, 0)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = w.SignTransaction(tx); e != nil {
+		t.Fatal(e)
+	}
+	got, e := inspect(tx)
+	if e != nil || got.Amount != "0" {
+		t.Fatal(e, got)
+	}
+	if _, e = run(request{Action: "prepare", Recipient: w.Address(), Amount: "0", Fee: "0", Nonce: "0"}, file); e == nil {
+		t.Fatal("prepared zero conversion")
+	}
+}
