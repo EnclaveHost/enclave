@@ -156,6 +156,7 @@ type vm struct {
 type server struct {
 	ShieldShareMemory bool // measured runtime skips models that do not fit the guest
 	ShieldEnabled     bool
+	ShieldModels      []string
 	ShieldReleases    []string
 	RuntimeSET        bool // a real worker execution probe of the runtime used by this tree
 	RuntimeMem64      bool // a real 64-bit canonical ABI execution probe

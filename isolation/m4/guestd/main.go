@@ -428,8 +428,12 @@ func main() {
 			log.Fatalf("Shield release does not verify: %s", out)
 		}
 		model, e := os.ReadFile(filepath.Join(*shieldTemplate, "rt/shield-model"))
-		if e != nil || strings.TrimSpace(string(model)) != contract.ShieldModel+"\n"+contract.Shield27BModel {
+		if e != nil {
 			log.Fatal("Shield release has no supported model marker")
+		}
+		s.ShieldModels, e = parseShieldModels(string(model))
+		if e != nil {
+			log.Fatal(e)
 		}
 		if !filepath.IsAbs(*shieldModel) || !filepath.IsAbs(*shieldSHM) {
 			log.Fatal("Shield needs absolute model and ring paths")
