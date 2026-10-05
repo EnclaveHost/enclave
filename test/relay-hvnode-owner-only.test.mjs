@@ -35,7 +35,8 @@ const ENDPOINT = `https://api.enclave.host/t/${NAME}`, EP_ID = keccak256(stringT
 const OTHER_EP = keccak256(stringToBytes("https://api.enclave.host/t/elsewhere")).toLowerCase();
 const dep = (n) => "0x" + String(n).repeat(64).slice(0, 64);
 // the ledger (all leased to the box unless said): the operator's own, a delegating owner's, a stranger's, the operator's own
-// leased ELSEWHERE; and E4's: the delegating owner's SNP-required app, his app requiring nothing, the operator's SNP-required
+// leased ELSEWHERE; and E4's: the delegating owner's SNP-required app, their app requiring nothing (served: no requirement
+// means the partition backend), the operator's SNP-required
 const D_OWN = dep("a1"), D_DELEG = dep("b2"), D_STRANGER = dep("c3"), D_ELSEWHERE = dep("d4"), D_SNP = dep("e5"), D_NOREQ = dep("f6"), D_OP_SNP = dep("a7");
 const HV_ENV = JSON.stringify({ isolation: { require: "hyperv-partition-per-app" } }), SNP_ENV = JSON.stringify({ isolation: { require: "snp-guest-per-app" } });
 const DEP_TUPLE = [["id", "bytes32"], ["owner", "address"], ["appRef", "string"], ["ports", "string"], ["configCid", "string"], ["gpuMilli", "uint16"],
@@ -181,8 +182,9 @@ test("owner-only: served now + this row's lease + isolation.require hyperv-parti
   assert.equal(r.mode, "hv-node"); assert.equal(r.eligible, false); assert.equal(r.serving, false); assert.equal(r.ownerOnly, true);
   assert.equal(r.operator, lc(OPERATOR));
   assert.deepEqual(r.served, [{ owner: lc(OPERATOR), expires: null }, { owner: lc(OWNER), expires: exp }], "operator (no expiry) + the ONE valid delegation, with its expiry");
-  assert.deepEqual(r.servesDeployments, [{ id: D_OWN, until: Number(lease) }, { id: D_DELEG, until: Math.min(Number(lease), exp) }],
-    "only served owners' deployments leased to THIS row AND requiring hyperv-partition-per-app (E4)");
+  assert.deepEqual(r.servesDeployments, [{ id: D_OWN, until: Number(lease) }, { id: D_DELEG, until: Math.min(Number(lease), exp) },
+    { id: D_NOREQ, until: Math.min(Number(lease), exp) }],
+    "only served owners' deployments leased to THIS row AND requiring hyperv-partition-per-app or no backend (E4)");
   assert.match(r.ineligible, /serves only deployments that require hyperv-partition-per-app/);
   // (b) never eligible, never placed, never priced, never a TEE
   const all = await (await fetch(origin + "/enclaves")).json();
@@ -196,8 +198,8 @@ test("owner-only: served now + this row's lease + isolation.require hyperv-parti
   const published = await publishTuna(origin);
   assert.equal(published.status, 200, await published.text());
   const map = await tunaMap(origin);
-  assert.deepEqual(Object.keys(map.deployments).sort(), [D_OWN, D_DELEG].sort());
-  for (const d of [D_OWN, D_DELEG]) {
+  assert.deepEqual(Object.keys(map.deployments).sort(), [D_OWN, D_DELEG, D_NOREQ].sort());
+  for (const d of [D_OWN, D_DELEG, D_NOREQ]) {
     assert.deepEqual(map.deployments[d].https, { address: "1.1.1.1", port: 443 });
     assert.equal(map.labels[d.slice(2, 10)].a, "1.1.1.1");
   }
