@@ -946,3 +946,12 @@ test("escrow.js: a refund dry-run reads '0x' as success, and tells a revert from
   r = await simulateRefund(A1, id, A2, rpc(new Error("HTTP 502")));
   assert.deepEqual([r.ok, r.revert, r.reason], [false, false, "HTTP 502"], "a transport failure is not the ledger refusing");
 });
+
+test("the console offers no deploy card for a contract that is live and bound, or not in a rollout", () => {
+  // EnclaveVerificationFees is LIVE: the book's verificationFees entry is the ledger's feeRouter, bound once. A second
+  // instance, and its "point the book" button, would split them. Connectivity and Availability are not live rollouts.
+  for (const name of ["EnclaveVerificationFees", "EnclaveAvailability", "EnclaveConnectivity"])
+    assert.equal(CONTRACTS[name].deployable, false, `${name} must not be deployable from the console`);
+  const src = fs.readFileSync(path.join(REPO, "site/components/admin-console/admin-console.js"), "utf8");
+  assert.match(src, /filter\(name => CONTRACTS\[name\]\.deployable !== false\)/, "the deploy cards still honour `deployable`");
+});

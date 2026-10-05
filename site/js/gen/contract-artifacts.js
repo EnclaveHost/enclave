@@ -473,6 +473,7 @@ export const CONTRACTS = {
   },
   "EnclaveAvailability": {
     "bookKey": "availability",
+    "deployable": false,
     "ctor": [
       {
         "name": "ledger_",
@@ -510,6 +511,7 @@ export const CONTRACTS = {
   },
   "EnclaveVerificationFees": {
     "bookKey": "verificationFees",
+    "deployable": false,
     "ctor": [
       {
         "name": "l",
