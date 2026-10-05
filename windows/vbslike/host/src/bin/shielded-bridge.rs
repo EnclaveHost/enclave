@@ -8,6 +8,10 @@ use std::net::{Ipv4Addr, Shutdown, SocketAddr, TcpStream};
 use std::sync::{Arc, atomic::{AtomicUsize, AtomicBool, Ordering}};
 use std::time::{Duration, Instant};
 
+// Streams one partition may hold open at once; the next is closed at accept. A public-web egress partition (a desktop's
+// browser: several connections per site, and a DNS lookup is a stream too) needs far more than the 8 a GPU worker did.
+const MAX_STREAMS: usize = 64;
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let a: Vec<String> = std::env::args().collect();
     if a.len() != 5 {
@@ -39,7 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("shielded bridge ready vm={} port={} worker=127.0.0.1:{}", a[1], port, worker);
     while !stopped.load(Ordering::SeqCst) && (seconds == 0 || Instant::now() < end) {
         let Some((guest, peer)) = listener.accept_timeout(500)? else { continue };
-        if hvsock::guid_string(&peer) != hvsock::guid_string(&vm) || active.load(Ordering::SeqCst) >= 8 {
+        if hvsock::guid_string(&peer) != hvsock::guid_string(&vm) || active.load(Ordering::SeqCst) >= MAX_STREAMS {
             let _ = guest.shutdown(Shutdown::Both);
             continue;
         }
