@@ -1229,9 +1229,10 @@ function hostEligibility(epId) {
 //      RELAY_HVNODE_OPERATORS; no expiry, re-read every minute by the hub) or an owner whose hosting delegation to it
 //      (relay/host-delegation.mjs) has not expired (enclave-bf E2). payoutWallet never authorizes;
 //   2. THIS row holds D's live lease;
-//   3. D's on-chain envelope REQUIRES this backend: isolation.require === "hyperv-partition-per-app" (enclave-87 E4). The
+//   3. D's on-chain envelope permits this backend: isolation.require is "hyperv-partition-per-app" or absent, with no
+//      cpuTee/gpuTee demand (enclave-87 E4; an absent requirement means the partition backend since the TUNA rollout). The
 //      backend is fixed by the ATTESTED mode (hv-node), never read from the row's own words. A deployment that requires
-//      snp-guest-per-app, requires nothing, or has an unreadable envelope is never served here, whatever delegation exists:
+//      snp-guest-per-app or a TEE, or has an unreadable envelope, is never served here, whatever delegation exists:
 //      a delegated node cannot take an SNP-required app to a host that is not excluded.
 // And on ONE path: the raw splice of the app's own TLS, wss /t/<box>/x/<id>/https, so TLS still ends in the guest and this
 // relay never sees a request's plaintext (enclave-b4). Plain HTTP /x/<id>, the control plane, secrets and the attested
@@ -1247,7 +1248,7 @@ function servedEntryNow(row, owner, nowSec = Math.floor(Date.now() / 1000)) {
   const o = String(owner).toLowerCase();
   return row.served.find((e) => e && e.owner === o && (e.expires === null || Number(e.expires) > nowSec)) || null;
 }
-// 3. the backend D's envelope requires ("" when none or unreadable: never served)
+// 3. the backend D's envelope requires (none = this backend; null when unreadable or a TEE is demanded: never served)
 function isolationRequireOf(d) {
   try {
     const o = JSON.parse(String(d?.configCid || "{}"));

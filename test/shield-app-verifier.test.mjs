@@ -30,9 +30,15 @@ test('relay derives CPU and GPU app identities from catalog bytes and purchased 
  assert.notEqual(a.appSha256,b.appSha256);assert.equal(a.runtimeId,policy.gpu.runtimeId);
 });
 test('unsupported, unapproved and unverified inputs never acquire an expected identity',async()=>{
- for(const r of [{...row,isPublic:false},{...row,configCid:''},{...row,appRef:'host:chosen'},
-  {...row,gpuMilli:500},{...row,configCid:JSON.stringify({isolation:{require:'hyperv-partition-per-app'},waf:{enabled:true}})}])
+ for(const r of [{...row,isPublic:false},{...row,appRef:'host:chosen'},
+  {...row,gpuMilli:500},{...row,configCid:JSON.stringify({isolation:{require:'hyperv-partition-per-app'},waf:{enabled:true}})},
+  {...row,configCid:JSON.stringify({isolation:{require:'snp-guest-per-app'}})},
+  {...row,configCid:JSON.stringify({isolation:{cpuTee:true}})},{...row,configCid:JSON.stringify({isolation:{gpuTee:true}})},
+  {...row,configCid:JSON.stringify({placement:{hostId:'0x'+'00'.repeat(32)}})}])
   await assert.rejects(expectedShieldApp(r,deps));
+ // an envelope with no isolation requirement runs in a partition (the relay's rule since the TUNA rollout)
+ for(const r of [{...row,configCid:''},{...row,configCid:JSON.stringify({isolation:{cpuTee:false,gpuTee:false}})}])
+  assert.match((await expectedShieldApp(r,deps)).appSha256,/^[0-9a-f]{64}$/);
  for(const d of [{...deps,fetchVerified:async()=>({ok:false})},
   {...deps,readCatalog:async()=>({app:{active:true},version:{...version,approval:0}})},
   {...deps,readConfig:async()=>({config:'{}',configCid:'unavailable'})},
