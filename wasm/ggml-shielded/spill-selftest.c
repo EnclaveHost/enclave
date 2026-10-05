@@ -26,6 +26,7 @@ static int failures;
 enum { NG = 3 };
 static const int64_t Ks[NG] = { 64, 5120, 33 };
 static const int64_t Us[NG] = { 100, 7000, 1 };
+static const uint64_t Fs[NG] = { 11, 12, 13 };
 
 static void fill_u(int32_t *u, int64_t n) {
     for (int64_t i = 0; i < n; i++) {
@@ -71,14 +72,13 @@ int main(int argc, char **argv) {
     setenv("SHIELDED_PAD_SPILL_PARTS", "2", 1);
 
     char why[192];
-    sh_spill *a = sh_spill_attach(Ks, Us, NG, 1, NULL, why, sizeof why);
+    sh_spill *a = sh_spill_attach(Ks, Us, Fs, NG, NULL, why, sizeof why);
     CHECK(a != NULL, "attach: %s", why);
     if (!a) return 1;
-    sh_spill *b = sh_spill_attach(Ks, Us, NG, 1, NULL, why, sizeof why);
+    sh_spill *b = sh_spill_attach(Ks, Us, Fs, NG, NULL, why, sizeof why);
     CHECK(b != NULL && sh_spill_part(b) == 1 && sh_spill_part(a) == 0, "second link takes the second partition");
-    sh_spill *c = sh_spill_attach(Ks, Us, NG, 1, NULL, why, sizeof why);
+    sh_spill *c = sh_spill_attach(Ks, Us, Fs, NG, NULL, why, sizeof why);
     CHECK(c == NULL && why[0], "a third link finds no partition (why: %s)", why);
-    CHECK(sh_spill_fits(a, NG, 1) && !sh_spill_fits(a, NG, 2) && !sh_spill_fits(a, NG - 1, 1), "fingerprint and group count decide fits");
 
     const uint32_t slots = sh_spill_slots(a);
     const uint64_t row = sh_spill_row_bytes(a);
@@ -164,7 +164,7 @@ int main(int argc, char **argv) {
         sh_spill_mask(a, 1, m1, 64); sh_spill_mask(a, 2, m2, 64);
         CHECK(memcmp(m1, m2, sizeof m1), "two write ids, one mask");
         sh_spill_detach(b);
-        sh_spill *d = sh_spill_attach(Ks, Us, NG, 1, NULL, why, sizeof why);
+        sh_spill *d = sh_spill_attach(Ks, Us, Fs, NG, NULL, why, sizeof why);
         CHECK(d && sh_spill_part(d) == 1, "a released partition is claimed again");
         /* a fresh attach has fresh keys: the first link's ciphertext means nothing to it */
         int32_t u[100], u2[100], rr[64]; uint64_t w = 3000;
@@ -172,16 +172,49 @@ int main(int argc, char **argv) {
         uint8_t *iod = sh_spill_io_alloc(d);
         CHECK(sh_spill_write(a, 0, 11, 1, &w, u, io) == SH_OK, "write for the cross-key check");
         sh_spill_detach(a); a = NULL;
-        sh_spill *e = sh_spill_attach(Ks, Us, NG, 1, NULL, why, sizeof why);
+        sh_spill *e = sh_spill_attach(Ks, Us, Fs, NG, NULL, why, sizeof why);
         CHECK(e && sh_spill_part(e) == 0, "partition 0 again");
         CHECK(sh_spill_read(e, 0, 11, 1, &w, rr, u2, iod) == SH_ERR_VERIFY, "a new attach cannot open the old attach's pads");
         sh_spill_detach(e); sh_spill_detach(d); free(iod);
     }
     free(io);
 
+    /* RE-REGISTRATION: unchanged groups keep their pads, a changed group gets a
+     * fresh region (its old pads no longer open), and an extension past the
+     * headroom is refused with nothing changed. 16 MiB a partition, 32 KiB a
+     * row, 15% headroom: 445 slots, 2.1 MiB of headroom, 1.8 MiB per small group. */
+    {
+        sh_spill *x = sh_spill_attach(Ks, Us, Fs, NG, NULL, why, sizeof why);
+        CHECK(x != NULL, "attach for re-registration: %s", why);
+        uint8_t *iox = sh_spill_io_alloc(x);
+        static int32_t u0[100], u1[7000], u2[1], g0[100], g1[7000], g2[1], rr[5120];
+        uint64_t w0 = 7000, w1 = 7001, w2 = 7002;
+        fill_u(u0, 100); fill_u(u1, 7000); fill_u(u2, 1);
+        CHECK(sh_spill_write(x, 0, 2, 1, &w0, u0, iox) == SH_OK && sh_spill_write(x, 1, 3, 1, &w1, u1, iox) == SH_OK &&
+              sh_spill_write(x, 2, 4, 1, &w2, u2, iox) == SH_OK, "writes before re-registration");
+        const uint64_t f_changed[NG] = { 11, 12, 99 };
+        uint8_t kept[5] = {0};
+        CHECK(sh_spill_extend(x, Ks, Us, f_changed, NG, kept) == SH_OK && kept[0] && kept[1] && !kept[2],
+              "groups 0 and 1 kept, the changed group 2 not");
+        CHECK(sh_spill_read(x, 2, 4, 1, &w2, rr, g2, iox) == SH_ERR_VERIFY, "the changed group's old pad does not open");
+        for (uint32_t sl = 0; sl < sh_spill_slots(x); sl++) {          /* the new region, end to end */
+            int32_t v[1]; fill_u(v, 1); uint64_t wv = 8000 + sl;
+            if (sh_spill_write(x, 2, sl, 1, &wv, v, iox) != SH_OK) { CHECK(0, "write the changed group's new region"); break; }
+        }
+        CHECK(sh_spill_read(x, 0, 2, 1, &w0, rr, g0, iox) == SH_OK && !memcmp(u0, g0, sizeof u0) &&
+              sh_spill_read(x, 1, 3, 1, &w1, rr, g1, iox) == SH_OK && !memcmp(u1, g1, sizeof u1),
+              "kept pads survive the re-registration and the new region's writes");
+        const int64_t K4[4] = { 64, 5120, 33, 16 }, U4[4] = { 100, 7000, 1, 10 };
+        const uint64_t f4[4] = { 11, 12, 99, 14 };
+        CHECK(sh_spill_extend(x, K4, U4, f4, 4, kept) == SH_ERR_RANGE, "a group past the headroom is refused");
+        CHECK(sh_spill_read(x, 0, 2, 1, &w0, rr, g0, iox) == SH_OK, "a refused extension changes nothing");
+        CHECK(sh_spill_extend(x, Ks, Us, f_changed, NG - 1, kept) == SH_ERR_RANGE, "groups are never removed");
+        free(iox); sh_spill_detach(x);
+    }
+
     /* unusable configurations say why and attach nothing */
     {
-        sh_spill *z = sh_spill_attach(Ks, Us, NG, 1, NULL, why, sizeof why);
+        sh_spill *z = sh_spill_attach(Ks, Us, Fs, NG, NULL, why, sizeof why);
         CHECK(z != NULL, "reattach after detach");
         sh_spill_detach(z);
     }

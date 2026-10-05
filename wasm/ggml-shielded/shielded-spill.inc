@@ -28,10 +28,11 @@
 struct sh_spill {
     int       part;
     size_t    n;
-    uint64_t  fingerprint;
     uint64_t  base, bytes, row_bytes;
+    uint64_t  next;                 /* first byte past the last region: the headroom starts here */
     uint32_t  slots;
     int64_t  *K, *u_len;
+    uint64_t *gfp;                  /* per group: the registration its pads were minted for */
     uint64_t *slot_bytes, *region;
     uint64_t  io_bytes;
     sh_spill_stream_fn stream;
@@ -108,11 +109,25 @@ void sh_spill_detach(sh_spill *s) {
     if (s->part >= 0 && s->part < SPILL_MAX_PARTS) sp_dev.claimed[s->part] = false;
     pthread_mutex_unlock(&sp_dev.mu);
     sp_wipe(s->aead_key, sizeof s->aead_key); sp_wipe(s->mask_key, sizeof s->mask_key);
-    free(s->K); free(s->u_len); free(s->slot_bytes); free(s->region);
+    free(s->K); free(s->u_len); free(s->gfp); free(s->slot_bytes); free(s->region);
     free(s);
 }
 
-sh_spill *sh_spill_attach(const int64_t *K, const int64_t *u_len, size_t n, uint64_t fingerprint,
+/* Per-group arrays sized for n groups (the old contents kept). */
+static bool sp_grow(sh_spill *s, size_t n) {
+    int64_t *K = (int64_t *)realloc(s->K, n * sizeof *K);           if (K) s->K = K;
+    int64_t *U = (int64_t *)realloc(s->u_len, n * sizeof *U);       if (U) s->u_len = U;
+    uint64_t *F = (uint64_t *)realloc(s->gfp, n * sizeof *F);       if (F) s->gfp = F;
+    uint64_t *B = (uint64_t *)realloc(s->slot_bytes, n * sizeof *B); if (B) s->slot_bytes = B;
+    uint64_t *R = (uint64_t *)realloc(s->region, n * sizeof *R);    if (R) s->region = R;
+    return K && U && F && B && R;
+}
+
+static bool sp_shape_ok(int64_t K, int64_t u_len) {
+    return K >= 1 && K <= (INT64_C(1) << 24) && u_len >= 1 && u_len <= (INT64_C(1) << 26);
+}
+
+sh_spill *sh_spill_attach(const int64_t *K, const int64_t *u_len, const uint64_t *gfp, size_t n,
                           sh_spill_stream_fn stream, char *why, size_t why_cap) {
     if (why && why_cap) why[0] = 0;
 #define REFUSE(...) do { if (why && why_cap) snprintf(why, why_cap, __VA_ARGS__); goto fail; } while (0)
@@ -135,23 +150,27 @@ sh_spill *sh_spill_attach(const int64_t *K, const int64_t *u_len, size_t n, uint
     s = (sh_spill *)calloc(1, sizeof *s);
     if (!s) { pthread_mutex_lock(&sp_dev.mu); sp_dev.claimed[part] = false; pthread_mutex_unlock(&sp_dev.mu); REFUSE("out of memory"); }
     s->part = part;
-    if (!n || n > 65536 || !K || !u_len) REFUSE("no groups to lay out");
-    s->n = n; s->fingerprint = fingerprint; s->stream = stream;
-    s->K = (int64_t *)malloc(n * sizeof *s->K);
-    s->u_len = (int64_t *)malloc(n * sizeof *s->u_len);
-    s->slot_bytes = (uint64_t *)malloc(n * sizeof *s->slot_bytes);
-    s->region = (uint64_t *)malloc(n * sizeof *s->region);
-    if (!s->K || !s->u_len || !s->slot_bytes || !s->region) REFUSE("out of memory");
+    if (!n || n > 65536 || !K || !u_len || !gfp) REFUSE("no groups to lay out");
+    s->stream = stream;
+    if (!sp_grow(s, n)) REFUSE("out of memory");
+    s->n = n;
     uint64_t row = 0, widest = 0;
     for (size_t g = 0; g < n; g++) {
-        if (K[g] < 1 || K[g] > (INT64_C(1) << 24) || u_len[g] < 1 || u_len[g] > (INT64_C(1) << 26)) REFUSE("group %zu has an unsupported shape", g);
-        s->K[g] = K[g]; s->u_len[g] = u_len[g];
+        if (!sp_shape_ok(K[g], u_len[g])) REFUSE("group %zu has an unsupported shape", g);
+        s->K[g] = K[g]; s->u_len[g] = u_len[g]; s->gfp[g] = gfp[g];
         s->slot_bytes[g] = sp_round_up(SPILL_TAG + 3 * (uint64_t)u_len[g], align);
         if (s->slot_bytes[g] > widest) widest = s->slot_bytes[g];
         row += s->slot_bytes[g];
     }
     s->row_bytes = row;
-    uint64_t slots = part_bytes / row;
+    /* Headroom for groups registered later (an MTP head discovered by the
+     * first speculative request): they get regions of their own past `next`,
+     * and every group already here keeps its pads (sh_spill_extend). */
+    const char *he = getenv("SHIELDED_PAD_SPILL_HEADROOM_PCT");
+    int headroom = he && *he ? atoi(he) : 15;
+    if (headroom < 0) headroom = 0;
+    if (headroom > 100) headroom = 100;
+    uint64_t slots = part_bytes / (row + row * (uint64_t)headroom / 100);
     if (slots > SPILL_MAX_SLOTS) slots = SPILL_MAX_SLOTS;
     if (slots < 2) REFUSE("%.1f GiB per partition holds fewer than two pads per group (%.1f MiB a row)",
                           part_bytes / 1073741824.0, row / 1048576.0);
@@ -160,6 +179,7 @@ sh_spill *sh_spill_attach(const int64_t *K, const int64_t *u_len, size_t n, uint
     s->bytes = part_bytes;
     uint64_t at = s->base;
     for (size_t g = 0; g < n; g++) { s->region[g] = at; at += (uint64_t)s->slots * s->slot_bytes[g]; }
+    s->next = at;
     s->io_bytes = sp_round_up(widest > SPILL_IO_TARGET ? widest : SPILL_IO_TARGET, 4096);
     if (!sp_random(s->aead_key, sizeof s->aead_key) || !sp_random(s->mask_key, sizeof s->mask_key))
         REFUSE("no entropy for the spill keys");
@@ -170,7 +190,36 @@ fail:
 #undef REFUSE
 }
 
-bool     sh_spill_fits(const sh_spill *s, size_t n, uint64_t fingerprint) { return s && s->n == n && s->fingerprint == fingerprint; }
+int sh_spill_extend(sh_spill *s, const int64_t *K, const int64_t *u_len, const uint64_t *gfp, size_t n, uint8_t *kept) {
+    if (!s || !K || !u_len || !gfp || !kept || n < s->n || n > 65536) return SH_ERR_RANGE;
+    pthread_mutex_lock(&sp_dev.mu);
+    const uint64_t align = sp_dev.align;
+    pthread_mutex_unlock(&sp_dev.mu);
+    /* Plan first, commit after: a refusal changes nothing. */
+    uint64_t need = 0;
+    for (size_t g = 0; g < n; g++) {
+        kept[g] = g < s->n && s->gfp[g] == gfp[g] && s->K[g] == K[g] && s->u_len[g] == u_len[g];
+        if (kept[g]) continue;
+        if (!sp_shape_ok(K[g], u_len[g])) return SH_ERR_RANGE;
+        const uint64_t sb = sp_round_up(SPILL_TAG + 3 * (uint64_t)u_len[g], align);
+        if (sb > s->io_bytes) return SH_ERR_RANGE;
+        need += (uint64_t)s->slots * sb;
+    }
+    if (s->next + need > s->base + s->bytes) return SH_ERR_RANGE;
+    if (!sp_grow(s, n)) return SH_ERR_NOMEM;
+    uint64_t row = 0;
+    for (size_t g = 0; g < n; g++) {
+        if (!kept[g]) {
+            s->K[g] = K[g]; s->u_len[g] = u_len[g]; s->gfp[g] = gfp[g];
+            s->slot_bytes[g] = sp_round_up(SPILL_TAG + 3 * (uint64_t)u_len[g], align);
+            s->region[g] = s->next;                      /* a changed group's old region is simply left behind */
+            s->next += (uint64_t)s->slots * s->slot_bytes[g];
+        }
+        row += s->slot_bytes[g];
+    }
+    s->n = n; s->row_bytes = row;
+    return SH_OK;
+}
 uint32_t sh_spill_slots(const sh_spill *s) { return s ? s->slots : 0; }
 int      sh_spill_part(const sh_spill *s) { return s ? s->part : -1; }
 uint64_t sh_spill_bytes(const sh_spill *s) { return s ? s->bytes : 0; }

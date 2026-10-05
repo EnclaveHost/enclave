@@ -50,16 +50,23 @@ typedef void (*sh_spill_stream_fn)(const uint32_t *key, uint64_t counter, int32_
 #define SH_SPILL_WID_LIMIT (UINT64_C(1) << 40)
 
 /* Claim a partition of the process's spill device for one link and cut it into
- * `n` per-group regions with the same slot count. `fingerprint` names the
- * registration the layout is for (see sh_spill_fits). NULL with why[0] == 0:
- * no device configured, which is not an error. NULL with why set: configured
- * but unusable. */
-sh_spill *sh_spill_attach(const int64_t *K, const int64_t *u_len, size_t n, uint64_t fingerprint,
+ * `n` per-group regions with the same slot count, keeping
+ * SHIELDED_PAD_SPILL_HEADROOM_PCT (15) of the partition for groups registered
+ * later. gfp[g] names group g's registration (its shape and nodes): pads are
+ * kept for a group only while that stays the same. NULL with why[0] == 0: no
+ * device configured, which is not an error. NULL with why set: configured but
+ * unusable. */
+sh_spill *sh_spill_attach(const int64_t *K, const int64_t *u_len, const uint64_t *gfp, size_t n,
                           sh_spill_stream_fn stream, char *why, size_t why_cap);
 /* Release the partition and forget the keys. */
 void      sh_spill_detach(sh_spill *s);
-/* Whether this layout was cut for the same registration. */
-bool      sh_spill_fits(const sh_spill *s, size_t n, uint64_t fingerprint);
+/* A re-registration (groups are only ever appended): every group whose gfp,
+ * K and u_len are unchanged keeps its region and its pads (kept[g] = 1); a
+ * changed or new group gets a fresh region from the headroom (kept[g] = 0, its
+ * slots are empty). SH_ERR_RANGE, with nothing changed, when the headroom
+ * cannot hold them: the caller lays the partition out again. */
+int       sh_spill_extend(sh_spill *s, const int64_t *K, const int64_t *u_len, const uint64_t *gfp,
+                          size_t n, uint8_t *kept);
 uint32_t  sh_spill_slots(const sh_spill *s);          /* per group */
 int       sh_spill_part(const sh_spill *s);
 uint64_t  sh_spill_bytes(const sh_spill *s);          /* the partition's size */
