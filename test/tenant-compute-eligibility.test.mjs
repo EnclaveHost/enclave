@@ -137,11 +137,16 @@ test("the consumer node's market scope and claimEnabled are gated on the isolati
   const src = read("windows/node/host.mjs");
   assert.match(src, /appTrafficInsideEnclave\(\) \{ return false; \}/, "app traffic runs through VTL0 today, and the code says so rather than a config flag");
   const gate = between(src, "meetsIsolationContract() {", "\n  }", "windows/node/host.mjs");
-  assert.match(gate, /this\.appsInTee\(\) && this\.appTrafficInsideEnclave\(\) && String\(this\.relayTier \|\| ""\) === "vbs"/,
-    "every property, and the tier is the RELAY's verdict (relayTier), never the box's own");
+  // the Shield marketplace gate: the legacy engine retired, partition isolation, and BOTH relay
+  // verdicts: the attach tier (relayTier) and a fresh claim window only the relay opens
+  assert.match(gate, /this\.cfg\.engineRetired === true && this\.isolationBackend === "hyperv-partition-per-app"\s*&& this\.relayTier === "hv-node" && Number\(this\.shieldMarketUntil \|\| 0\) > Date\.now\(\)/,
+    "every property, and the tier and the market window are the RELAY's verdicts, never the box's own");
   assert.match(src, /scope\(\) \{ return this\.meetsIsolationContract\(\) && this\.cfg\.claimScope === "market"/, "market scope needs the contract; otherwise owner-only");
   assert.match(src, /claimEnabled: this\.meetsIsolationContract\(\) && ready,/, "claimEnabled needs the contract");
-  assert.match(read("windows/node/agent.mjs"), /host\.relayTier = tier;/, "the agent hands the relay's verdict to the host");
+  const agent = read("windows/node/agent.mjs");
+  assert.match(agent, /host\.relayTier = tier;/, "the agent hands the relay's verdict to the host");
+  assert.match(agent, /if \(s === tunnels\.current\) host\.shieldMarketUntil = Math\.min\(Number\(f\.until\) \|\| 0, Date\.now\(\) \+ 300000\);/,
+    "only the accepted relay tunnel opens the market window, and never for more than five minutes");
 });
 
 test("the pVM CPU tier is the relay's row.tier, never the phone's own word, and never app-compute eligibility", () => {

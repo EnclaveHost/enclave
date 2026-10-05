@@ -21,7 +21,7 @@ if (STRICT && !process.env.ENCLAVE_DOMAIN_CONTRACT) throw new Error("strict inte
 const skip = !contractPath && "the isolation owner's runtime contract is not pinned here (ENCLAVE_DOMAIN_CONTRACT) and not in this tree";
 const catalogDir = contractPath ? path.join(path.dirname(contractPath), "catalog") : null;
 const REF = catalogDir && path.join(catalogDir, "derive_reference.py"), VEC = catalogDir && path.join(catalogDir, "derive_vectors.json");
-const V1 = "enclave-catalog-bundle/1", V2 = "enclave-catalog-bundle/2";
+const V1 = "enclave-catalog-bundle/1", V2 = "enclave-catalog-bundle/2", V3 = "enclave-catalog-bundle/3", V4 = "enclave-catalog-bundle/4";
 const sha256 = (b) => createHash("sha256").update(b).digest("hex");
 const SCRATCH = new URL("../.verifier-integration/", import.meta.url).pathname;   // gitignored, beside the pins (not /tmp)
 
@@ -56,7 +56,7 @@ test("every accepted vector derives to its recorded AppID and bundle; v2 is anot
     assert.equal(sha256(r.bundle), v.bundleSha256, `${v.name}: bundle hash`);
     assert.equal(r.mapping.appId, sha256(r.bundle), `${v.name}: appId is sha256(bundle)`);
     assert.equal(r.mapping.record.derivation, v.record.derivation, v.name);
-    assert.equal(r.mapping.record.http, v.record.derivation === V2 ? v.record.http : undefined, `${v.name}: the mapping's record carries http only under v2`);
+    assert.equal(r.mapping.record.http, [V2, V3, V4].includes(v.record.derivation) ? v.record.http : undefined, `${v.name}: the mapping's record carries http only under v2, v3 and v4`);
   }
   const v1 = base(), v2s = vectors.ok.filter((v) => v.record.derivation === V2);
   assert.ok(v1 && v2s.length >= 2, "the vectors carry the base v1 case and at least two v2 cases");
@@ -97,7 +97,7 @@ test("record shapes a supervisor could send over JSON, beyond the owner's list: 
     ["v2 port 50000", { ...good, derivation: V2, http: 50000 }],
     ["v1 carrying http null", { ...good, http: null }],
     ["v1 carrying http 0", { ...good, http: 0 }],
-    ["derivation /3", { ...good, derivation: "enclave-catalog-bundle/3" }],
+    ["derivation /5 (unknown)", { ...good, derivation: "enclave-catalog-bundle/5" }],
   ];
   for (const [name, rec] of cases) {
     const r = derive(rec, component);
