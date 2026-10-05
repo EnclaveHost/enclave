@@ -8,6 +8,19 @@ a disk the host attaches. A ring refill, or a request whose ring ran short,
 imports them instead of minting them: a read, an AEAD open, and one ChaCha20
 stream for `r`.
 
+## Prompts, not decode
+
+A ring top-up imports from the spill only when that group's last request
+took `SHIELDED_PAD_SPILL_MIN_ROWS` (8) rows or more, which means a prompt chunk.
+A decode step takes one or two rows. For decode, the threads mint as they always
+did, at the same speed: decode is bound by its per-token round trips to the
+cards, not by pads. A request whose ring actually runs dry still imports its
+shortfall on the spot.
+
+Before this rule, decode drew from the spill too, about 12.6 MB per generated
+token. On eyesoff a busy hour emptied the bank (394 GB read), and the next long
+prompt went back to minting.
+
 Code: `shielded-spill.h` and `shielded-spill.inc` (the store), the `spill_*`
 functions in `shielded-tee.c` (policy and slot state), `isolation/m2/dominit.c`
 (hands the disk to the runtime) and `isolation/m2/run-domain.sh` (attaches it),
@@ -44,6 +57,7 @@ before.
 | `SHIELDED_PAD_SPILL_PARTS` | 2 | One partition per link (per card). |
 | `SHIELDED_PAD_SPILL_IDLE_MS` | 2000 | How long the request path must be quiet before minting into the spill. |
 | `SHIELDED_PAD_SPILL_THREADS` | refill threads − 1 | How many threads may mint into the spill at once. The rest stay free for the rings. |
+| `SHIELDED_PAD_SPILL_MIN_ROWS` | 8 | A ring top-up imports only after a take this large (a prompt chunk); decode mints. |
 | `SHIELDED_PAD_SPILL_HEADROOM_PCT` | 15 | Partition space kept free for groups registered later. |
 | host: `SHIELDED_PAD_BANK_DIR`, `SHIELDED_PAD_BANK_GIB` | unset, 192 | Where `run-domain.sh` creates the per-guest sparse bank, and its size. |
 
