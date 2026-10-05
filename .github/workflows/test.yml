@@ -60,6 +60,11 @@ jobs:
           timeout 180 "$RUNNER_TEMP/shielded-test-python/bin/python" -m pip install --disable-pip-version-check --no-input 'torch==2.9.1+cpu' --index-url https://download.pytorch.org/whl/cpu
           "$RUNNER_TEMP/shielded-test-python/bin/python" -c 'import numpy, torch; assert torch.version.cuda is None; print("CPU worker dependencies:", numpy.__version__, torch.__version__)'
           echo "$RUNNER_TEMP/shielded-test-python/bin" >> "$GITHUB_PATH"
+      - name: Build the relay routing bundle
+        # api-relay.js imports relay/network-runtime.bundle.mjs, which is gitignored and
+        # built by relay/deploy.sh at deploy time; without it every test that starts
+        # the relay dies on ERR_MODULE_NOT_FOUND
+        run: node relay/build-network.mjs
       - name: node --test
         # npm test verbatim but with CI headroom on the per-file timeout:
         # cli.test.mjs runs ~14s here vs ~8s locally, and root package.json
@@ -89,8 +94,12 @@ jobs:
           npm ci --no-audit --no-fund
           (cd relay && npm ci --no-audit --no-fund)
           (cd e2e && npm ci --no-audit --no-fund)
+          (cd network && npm ci --ignore-scripts --no-audit --no-fund)
       - name: forge build (MockUSDC artifact for the anvil chain)
         run: forge build
+      - name: Build the relay routing bundle
+        # the harness starts relay/api-relay.js (see the unit job)
+        run: node relay/build-network.mjs
       - name: Install chromium
         run: cd e2e && npx playwright install --with-deps chromium
       - name: Playwright
