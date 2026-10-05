@@ -21,3 +21,6 @@ prefix-kv-mint
 prefix-kv-selftest
 postmortem-selftest
 shielded-soak
+spill-selftest
+spill-link-selftest
+.spill-test-*

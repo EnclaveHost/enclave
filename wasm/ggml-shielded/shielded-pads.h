@@ -68,6 +68,12 @@ typedef struct {
 
 /* The engine's ChaCha20 block (64-bit counter, zero nonce). */
 void sh_chacha20_block(const uint32_t key[8], uint64_t counter, uint32_t out[16]);
+/* The cells' AEAD (RFC 8439 ChaCha20-Poly1305, no associated data) under a
+ * caller's key and nonce, for the pad spill (shielded-spill.c). Layout: the
+ * 16-byte tag, then the n-byte ciphertext. Either call works in place: seal
+ * with msg == out + 16, open with out == box + 16. */
+int sh_aead_seal(const uint8_t key[32], const uint8_t nonce[12], const uint8_t *msg, size_t n, uint8_t *out);
+int sh_aead_open(const uint8_t key[32], const uint8_t nonce[12], const uint8_t *box, size_t n, uint8_t *out);
 /* r for (seed, group, index): ChaCha20 keyed by the seed, block counter
  * (group << 48) | (index << 24) | block, values uniform over [0, M) by the
  * same uint64 draw the engine's own mask bank uses. Both sides call this.

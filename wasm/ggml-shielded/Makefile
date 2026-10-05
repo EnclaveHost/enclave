@@ -41,11 +41,12 @@ GGML_INC := -I$(GGML_SRC)/ggml/include -I$(GGML_SRC)/ggml/src
 CXX      ?= c++
 CXXFLAGS ?= -O2 -std=c++17 -Wall -Wextra -fPIC -fno-math-errno
 
-all: shielded-probe field-selftest prepare-selftest half-selftest refill-selftest dealt-selftest pads-unbox pads-keygen prefix-kv-selftest postmortem-selftest
+all: shielded-probe field-selftest prepare-selftest half-selftest refill-selftest dealt-selftest spill-selftest pads-unbox pads-keygen prefix-kv-selftest postmortem-selftest
 
 shielded-tee.o shielded-tee.dealer.o: shielded-tee.h shielded-mint-balance.h
 shielded-tee.o shielded-tee.dealer.o: shielded-pad-mint-v3.h shielded-pad-mint-v3.inc shielded-pads-v3.h shielded-pad-manifest.h shielded-pad-layout.h
 shielded-tee.o shielded-tee.dealer.o: shielded-parwork.h
+shielded-tee.o shielded-tee.dealer.o: shielded-spill.h shielded-spill.inc
 shielded-parwork.o: shielded-parwork.h
 shielded-pads.o shielded-pads.dealer.o: shielded-pads-v3.inc shielded-pads-v3.h shielded-pad-sparse-table.h shielded-pad-manifest.h shielded-pad-layout.h
 
@@ -106,6 +107,16 @@ shielded-soak: shielded-soak.c $(CORE_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 postmortem-selftest: postmortem-selftest.c $(CORE_OBJ)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+
+# The pad spill's store (shielded-spill.h): round trips, and the host's moves
+# (replay, move, corrupt) refused. Needs a directory that takes O_DIRECT.
+spill-selftest: spill-selftest.c $(CORE_OBJ)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+
+# ...and end to end through a worker: idle fill, a burst wider than the ring,
+# refill, and a wiped disk. SHIELDED_WORKER=host:port ./spill-link-selftest DIR
+spill-link-selftest: spill-link-selftest.c $(CORE_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 prefix-kv-selftest: prefix-kv-selftest.c prefix-kv.o shielded-pads.o tweetnacl.o poly1305-donna.o
@@ -178,7 +189,7 @@ bench-spec: bench-spec.cpp ../llama-shim/enclave_llama.h
 	  -L$(GGML_LIB) -lenclave_llama -lllama -lggml -lggml-base -ldl -Wl,-rpath,$(GGML_LIB)
 
 clean:
-	rm -f $(CORE_OBJ) shielded-compact.o ggml-shielded-dl.o shielded-probe field-selftest prepare-selftest half-selftest refill-selftest dealt-selftest pads-unbox pads-keygen ggml-shielded.o ggml-test shielded-run shielded-calib libggml-shielded.so bench-batch bench-spec
+	rm -f $(CORE_OBJ) shielded-compact.o ggml-shielded-dl.o shielded-probe field-selftest prepare-selftest half-selftest refill-selftest dealt-selftest spill-selftest spill-link-selftest pads-unbox pads-keygen ggml-shielded.o ggml-test shielded-run shielded-calib libggml-shielded.so bench-batch bench-spec
 
 .PHONY: all clean ggml run calib bench
 
