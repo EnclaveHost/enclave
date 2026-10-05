@@ -8,6 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createWalletClient, createPublicClient, http, encodeDeployData, getAddress, parseUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { linkBytecode } from "../site/js/lib/contract-linker.js";
 import { foundry } from "viem/chains";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -48,13 +49,24 @@ export async function setupChain(rpc, siteOrigin) {
   // platform contracts from the committed artifacts module (admin-console
   // deploy bytecode; ctor args are all addresses, encoded by viem here)
   const { CONTRACTS } = await import(path.join(REPO, "site", "js", "gen", "contract-artifacts.js"));
+  // a contract with solc libraries (EnclaveDeployments links EnclaveLedgerBandwidth) ships
+  // its bytecode with placeholders: deploy each library once and link, as the admin console does
+  const libraries = {};
   const art = (n) => CONTRACTS[n];
+  const linked = async (n) => {
+    const a = art(n);
+    for (const [key, lib] of Object.entries(a.libraries || {})) {
+      if (Object.keys(lib.linkReferences || {}).length) throw new Error("nested library " + key + " needs explicit ordering");
+      libraries[key] ||= await deploy([], lib.bytecode);
+    }
+    return linkBytecode(a.bytecode, a.linkReferences, libraries);
+  };
   const registry = await deploy([], art("EnclaveRegistry").bytecode);   // no ctor args (open registration)
   const ZERO = "0x0000000000000000000000000000000000000000";
   const depData = encodeDeployData({
     abi: [{ type: "constructor", stateMutability: "nonpayable", inputs: [
       { type: "address" }, { type: "address" }, { type: "address" }, { type: "address" }] }],
-    bytecode: art("EnclaveDeployments").bytecode,
+    bytecode: await linked("EnclaveDeployments"),
     args: [usdc, TREASURY, registry, ZERO],           // feed 0x0 = ETH funding off
   });
   const depHash = await wallet.sendTransaction({ data: depData });
