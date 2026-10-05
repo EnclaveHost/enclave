@@ -44,8 +44,10 @@ const DEFS = [
   { name: "EnclaveProofOfTime",  bookKey: "proofOfTime", viaIR: true },   // rev-9 proof of time; bound into the ledger once (setProver)
                                                              // viaIR since the rev-10 clock charge: Checkpointed's 6 args
                                                              // overflow legacy codegen's stack (mirror deploy-proof-of-time.mjs)
-  { name: "EnclaveAvailability", bookKey: "availability", viaIR: true },
-  { name: "EnclaveVerificationFees", bookKey: "verificationFees", viaIR: true },
+  // Not deployable from the console. VerificationFees is LIVE: the book's entry is the ledger's feeRouter, which the ledger
+  // binds once, so a second instance pointed at the book would split the two. Availability is not part of a live rollout.
+  { name: "EnclaveAvailability", bookKey: "availability", viaIR: true, deployable: false },
+  { name: "EnclaveVerificationFees", bookKey: "verificationFees", viaIR: true, deployable: false },
   { name: "EnclaveFeatured",     bookKey: "featured" },
   { name: "EnclaveReviews",      bookKey: "reviews" },
   { name: "EnclaveHostReviews",  bookKey: "hostReviews" },   // ratings for the enclaves that RUN apps (seller-side reputation)
