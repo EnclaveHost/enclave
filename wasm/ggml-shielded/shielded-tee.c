@@ -475,7 +475,7 @@ struct sh_link {
     uint64_t   spill_fp;                    /* the registration its layout was cut for */
     uint32_t   spill_slots;                 /* per group */
     uint64_t   spill_wid;                   /* the next write id; never reused */
-    int        spill_minters, spill_mint_max, spill_idle_ms, spill_min_rows;
+    int        spill_minters, spill_mint_max, spill_mint_busy, spill_idle_ms, spill_min_rows;
     double     spill_last_take;             /* now_ms() of the request path's last take */
     double     spill_t0;                    /* attach time, for the "full" line */
     bool       spill_full_said;
@@ -1237,8 +1237,16 @@ static void spill_start(sh_link *l) {
     free(K); free(U); free(fp); free(kept);
     if (!spill_usable(l)) return;
     l->spill_idle_ms = env_int("SHIELDED_PAD_SPILL_IDLE_MS", 2000, 0, 3600000);
-    l->spill_min_rows = env_int("SHIELDED_PAD_SPILL_MIN_ROWS", 8, 1, 1 << 20);
+    /* 1: every ring refill imports when the spill holds pads. Decode with
+     * MTP consumes about as many pads as minting makes (two rows a round), so
+     * a decode that minted its own (8, release 90176a59) ran its rings dry on
+     * long answers and stalled on single-pad imports mid-round. */
+    l->spill_min_rows = env_int("SHIELDED_PAD_SPILL_MIN_ROWS", 1, 1, 1 << 20);
     l->spill_mint_max = env_int("SHIELDED_PAD_SPILL_THREADS", l->n_threads > 1 ? l->n_threads - 1 : 1, 0, 64);
+    /* While requests run, refills import from the spill and leave threads
+     * free: half of them keep minting into it, so a busy stretch drains the
+     * spill far slower than it consumes. */
+    l->spill_mint_busy = env_int("SHIELDED_PAD_SPILL_BUSY_THREADS", l->n_threads / 2, 0, 64);
     l->spill_last_take = now_ms();
 }
 
@@ -1250,11 +1258,15 @@ static bool spill_wants_mint(const sh_link *l, int B) {
     return false;
 }
 
-/* pool_mu held: the group whose spill is emptiest, if the link is idle and a
- * minter is free. Always a whole batch, the refill's own amortisation. */
+/* pool_mu held: the group whose spill is emptiest, if a minter is free: up
+ * to SHIELDED_PAD_SPILL_THREADS of them once the link has been idle
+ * SHIELDED_PAD_SPILL_IDLE_MS, SHIELDED_PAD_SPILL_BUSY_THREADS while it is
+ * not. Only ever when no ring needs a refill (refill_main asks rings first).
+ * Always a whole batch, the refill's own amortisation. */
 static sh_group *pick_spill_group(sh_link *l, int B, int *b) {
-    if (!spill_usable(l) || l->spill_minters >= l->spill_mint_max) return NULL;
-    if (now_ms() - l->spill_last_take < (double)l->spill_idle_ms) return NULL;
+    if (!spill_usable(l)) return NULL;
+    const bool idle = now_ms() - l->spill_last_take >= (double)l->spill_idle_ms;
+    if (l->spill_minters >= (idle ? l->spill_mint_max : l->spill_mint_busy)) return NULL;
     if (l->spill_wid + (uint64_t)B >= SH_SPILL_WID_LIMIT) return NULL;
     const uint32_t unit = (uint32_t)B < l->spill_slots ? (uint32_t)B : l->spill_slots;
     sh_group *best = NULL;
