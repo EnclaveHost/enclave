@@ -358,6 +358,31 @@ static void shield_profile(void) {
     }
 }
 
+/* The pad spill (wasm/ggml-shielded/shielded-spill.h): a host disk the 27B
+ * engine fills with sealed one-time pads while the app is idle, so a long
+ * prompt imports its pads instead of minting them. The host attaches it as the
+ * SECOND virtio disk, after the model's. Only a release carrying the measured
+ * marker uses it, and nothing here trusts it: the engine seals everything it
+ * writes under keys it draws at start and never stores. Init opens it only so
+ * the dropped runtime can reach it, as one descriptor (spawn: fd 197). */
+#define SHIELD_SPILL_FD 197
+static int shield_spill_ok;
+static void shield_spill_probe(void) {
+    if (!shield_large || access("/rt/shield-pad-spill.enabled", R_OK) != 0) return;
+    struct stat model, disk;
+    if (stat("/dev/vdb", &disk) != 0) { printf("DOM Shield pad spill: no disk attached\n"); return; }
+    if (!S_ISBLK(disk.st_mode) || stat("/dev/vda", &model) != 0 || model.st_rdev == disk.st_rdev) {
+        printf("DOM Shield pad spill: /dev/vdb is not a second block device; not used\n");
+        return;
+    }
+    int fd = open("/dev/vdb", O_RDWR | O_CLOEXEC);
+    const off_t bytes = fd >= 0 ? lseek(fd, 0, SEEK_END) : -1;
+    if (fd >= 0) close(fd);
+    if (bytes < (off_t)1 << 30) { printf("DOM Shield pad spill: /dev/vdb unusable (%s)\n", fd < 0 ? strerror(errno) : "under 1 GiB"); return; }
+    shield_spill_ok = 1;
+    printf("DOM Shield pad spill: /dev/vdb, %lld GiB\n", (long long)(bytes >> 30));
+}
+
 static int shield_rings(void) {
     if (mkdir("/dev/enclave-shielded-shm",0755) != 0) return -1;
     for (int card=0; card<2; card++) {
@@ -481,6 +506,14 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             if (model < 0 || backing < 0 || dup2(model, 198) < 0 || dup2(backing, 199) < 0) _exit(125);
             close(model); close(backing);
         }
+        /* The pad spill, opened before the drop like the sources above. A
+         * disk that will not open now just means no spill: the engine mints. */
+        int spill_fd = -1;
+        if (shield_on && shield_load_allowed && shield_large && drop && shield_spill_ok) {
+            int fd = open("/dev/vdb", O_RDWR | O_CLOEXEC);
+            if (fd >= 0 && dup2(fd, SHIELD_SPILL_FD) == SHIELD_SPILL_FD) spill_fd = SHIELD_SPILL_FD;   /* dup2 clears CLOEXEC */
+            if (fd >= 0 && fd != SHIELD_SPILL_FD) close(fd);
+        }
         int con = 1;
         if (quiet) {
             con = fcntl(1, F_DUPFD_CLOEXEC, 10);
@@ -588,6 +621,7 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
                 envp[ei++] = "ENCLAVE_SHIELD_ORIGINAL_SOURCE=fd:199";
                 envp[ei++] = "ENCLAVE_SHIELD_PRIVATE_SOURCE=fd:198";
             }
+            if (spill_fd == SHIELD_SPILL_FD) envp[ei++] = "SHIELDED_PAD_SPILL=fd:197";
             envp[ei++] = "SHIELDED_SPLIT_COLS=1";
             envp[ei++] = "SHIELDED_OVERLAP_VERIFY=1";
             envp[ei++] = "SHIELDED_WEIGHT_BUDGET_FRAC=0.95";
@@ -705,6 +739,7 @@ int main(void) {
         if (idle) { (void)fgets(driver,sizeof driver,idle); fclose(idle); }
         printf("DOM Shield idle driver: %s\n", driver[0] ? driver : "unavailable");
         if (shield_rings() != 0) { printf("DOM ERROR invalid Shield rings\n"); reboot(RB_POWER_OFF); _exit(1); }
+        shield_spill_probe();
         if (shield_large) {
             char *mv[] = {"/shieldmodel", NULL}; int status=0;
             unsigned long long oom_before = shield_oom_events();

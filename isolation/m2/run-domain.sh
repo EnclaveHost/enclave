@@ -83,6 +83,27 @@ start)
     if [ "$model" = qwen3.8-27b-mtp-q4-vl-gguf ]; then
       [ -f "${SHIELDED_MODEL_FILE:-}" ] || { echo "missing Shield model" >&2; exit 2; }
       set -- "$@" -drive "file=$SHIELDED_MODEL_FILE,format=raw,if=virtio,readonly=on,cache=none"
+      # The pad spill (wasm/ggml-shielded/shielded-spill.h): a scratch disk per guest, the SECOND virtio disk (vdb,
+      # pinned to a slot after the model's), that the measured engine fills with one-time pads while the app is idle.
+      # Everything on it is sealed under keys that never leave the guest and die with it, so it is created empty
+      # here and removed at stop; nothing on it outlives the guest. Opt-in by SHIELDED_PAD_BANK_DIR.
+      if [ -n "${SHIELDED_PAD_BANK_DIR:-}" ]; then
+        case "$tag" in ''|*[!0-9A-Za-z_-]*) echo "invalid tag for the pad bank" >&2; exit 2 ;; esac
+        case "$SHIELDED_PAD_BANK_DIR" in *,*) echo "commas are forbidden in QEMU asset paths" >&2; exit 2 ;; esac
+        gib=${SHIELDED_PAD_BANK_GIB:-192}
+        case "$gib" in ''|*[!0-9]*) echo "SHIELDED_PAD_BANK_GIB must be a whole number" >&2; exit 2 ;; esac
+        mkdir -p "$SHIELDED_PAD_BANK_DIR"
+        # A guest that ended without a stop left its bank behind; its keys are gone, so the bytes are noise. Only
+        # banks idle for 10 minutes whose guest unit is gone, so a guest starting beside this one keeps its own.
+        find "$SHIELDED_PAD_BANK_DIR" -maxdepth 1 -name '*.padbank' -mmin +10 2>/dev/null | while read -r old; do
+          t=$(basename "$old" .padbank)
+          systemctl --user list-units --plain --no-legend "m2-$t-*" 2>/dev/null | grep -q . || rm -f "$old"
+        done
+        bank="$SHIELDED_PAD_BANK_DIR/$tag.padbank"
+        rm -f "$bank"
+        truncate -s "${gib}G" "$bank"
+        set -- "$@" -drive "file=$bank,format=raw,if=none,id=padbank,cache=none" -device "virtio-blk-pci,drive=padbank,addr=0x10"
+      fi
       # Pause until critical vCPUs are placed on physical cores sharing an L3.
       qmp_dir=$(mktemp -d /tmp/enclave-shield-qmp.XXXXXX)
       trap 'rm -rf "$qmp_dir"' EXIT
@@ -120,6 +141,10 @@ stop)
     echo "HOST stopped unit=$unit"
   else
     echo "HOST ERROR unit=$unit was not running at stop (the domain ended early)"
+  fi
+  # the guest's pad spill, if it had one: noise without the guest's keys
+  if [ -n "${SHIELDED_PAD_BANK_DIR:-}" ]; then
+    case "$tag" in ''|*[!0-9A-Za-z_-]*) ;; *) rm -f "$SHIELDED_PAD_BANK_DIR/$tag.padbank" ;; esac
   fi
   ;;
 *) echo "usage: run-domain.sh start|stop ..."; exit 2 ;;
