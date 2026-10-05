@@ -24,8 +24,8 @@ func dialSOCKS(ctx context.Context, proxy, destination string, timeout time.Dura
 		return nil, err
 	}
 	target, err := netip.ParseAddrPort(destination)
-	if err != nil || target.Port() != 443 || RefuseAddr(target.Addr(), nil) != "" {
-		return nil, errors.New("SOCKS destination must be a judged public IP on port 443")
+	if err != nil || !validWebPort(int(target.Port())) || RefuseAddr(target.Addr(), nil) != "" {
+		return nil, errors.New("SOCKS destination must be a judged public IP on a web port")
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

@@ -5,6 +5,9 @@ package egress
 //	guest -> host:  "egress-v1 <host> 443\n"      the LISTENER's bound origin, never bytes the tenant sent
 //	host  -> guest: "ok\n" | "refused\n"          then, after ok, raw bytes both ways (the tenant's TLS, end to end)
 //
+// A public-web domain (web.go) also sends "egress-web-v1 <host|ip> <port>\n" (answered the same way) and
+// "egress-dns-v1 <name> 0\n" (answered "ok <addr>...\n" or "refused\n").
+//
 // The tenant never speaks this protocol: it connects to a loopback address that /etc/hosts gave an allowed name,
 // the listener there already knows its one origin, and whatever the tenant writes is payload after the header.
 
@@ -36,6 +39,10 @@ type Forwarder struct {
 	Port     int                      // 443 in a guest; a free port in tests
 	Upstream func() (net.Conn, error) // a new stream to the host's egress server (vsock to the host CID in a guest)
 	Logf     func(string, ...any)     // the guest's own log; never a URL or header, only the origin's index and outcome
+
+	// Policy.PublicWeb's listeners (web.go); empty = PublicSOCKSAddress and PublicDNSAddress (tests override them)
+	PublicListen string
+	DNSListen    string
 
 	mu    sync.Mutex
 	ls    []net.Listener
@@ -75,8 +82,31 @@ func (f *Forwarder) Start(ctx context.Context) error {
 		f.mu.Unlock()
 		go f.serve(ctx, l, i, o)
 	}
+	if f.Policy.PublicWeb {
+		if err := f.startPublicWeb(ctx); err != nil {
+			f.Close()
+			return err
+		}
+	}
 	go func() { <-ctx.Done(); f.Close() }()
 	return nil
+}
+
+func (f *Forwarder) track(l net.Listener) {
+	f.mu.Lock()
+	f.ls = append(f.ls, l)
+	f.mu.Unlock()
+}
+
+// Listeners is every address this forwarder listens on: what the guest's listener audit must find, and nothing else.
+func (f *Forwarder) Listeners() []netip.AddrPort {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]netip.AddrPort, 0, len(f.ls))
+	for _, l := range f.ls {
+		out = append(out, l.Addr().(*net.TCPAddr).AddrPort())
+	}
+	return out
 }
 
 // Addr is where the tenant reaches an origin (what /etc/hosts says), for tests and the guest's self-check.
@@ -260,6 +290,10 @@ func (s *Server) handle(ctx context.Context, g net.Conn) {
 	}
 	g.SetReadDeadline(time.Time{})
 	f := strings.Fields(line)
+	if len(f) == 3 && (f[0] == webProto || f[0] == dnsProto) {
+		s.handleWeb(ctx, cid, g, br, f)
+		return
+	}
 	if len(f) != 3 || f[0] != protoVersion || f[2] != "443" {
 		s.outcome(cid, "refused:"+string(ReasonHeader))
 		io.WriteString(g, "refused\n")

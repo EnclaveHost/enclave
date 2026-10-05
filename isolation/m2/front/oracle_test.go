@@ -149,9 +149,13 @@ func TestEveryListenerIsAKnownOne(t *testing.T) {
 	})
 	want := strings.Join([]string{
 		"egress/forward.go Forwarder.Start: net.Listen", // one loopback listener per allowed origin: the tenant's egress
-		"front/main.go main: net.Listen",                // M3: the unix socket the monitor relays (-listen-unix)
-		"front/main.go main: vsock.Listen",              // M2: the front's one port
-		"vsock/vsock.go Listen: syscall.Listen",         // the vsock binding itself
+		// public-web only (the monitor's marker agrees with the measured config): 127.0.0.2:1080 SOCKS and 127.0.0.2:53
+		// DNS for the tenant, bounded per connection; every target is validated before a byte reaches the host
+		"egress/web.go Forwarder.startPublicWeb: net.Listen", // the SOCKS front
+		"egress/web.go Forwarder.startPublicWeb: net.Listen", // the DNS stub
+		"front/main.go main: net.Listen",                     // M3: the unix socket the monitor relays (-listen-unix)
+		"front/main.go main: vsock.Listen",                   // M2: the front's one port
+		"vsock/vsock.go Listen: syscall.Listen",              // the vsock binding itself
 	}, "\n")
 	if g := render(got); g != want {
 		t.Fatalf("the listeners changed; the tenant reaches the guest's loopback, so review each one, then update this list.\ngot:\n%s\nwant:\n%s", g, want)

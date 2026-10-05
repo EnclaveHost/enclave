@@ -33,6 +33,7 @@ import (
 	"enclave.host/isolation/contract"
 	"enclave.host/isolation/m2/egress"
 	"enclave.host/isolation/m2/release"
+	"enclave.host/isolation/m2/shieldconfig"
 )
 
 type shieldEgress struct {
@@ -43,6 +44,12 @@ type shieldEgress struct {
 	upstream  func() (net.Conn, error)          // a stream to the host's egress endpoint: vsock CID 2, EgressPort
 	audit     func(want []netip.AddrPort) error // auditListeners("/proc/net", ...) in a domain
 	logf      func(string, ...any)              // the front's console: DOM statements only
+
+	// public web (egress web.go): the monitor's marker, which must agree with the mode the measured config states
+	// ("" = never marked), and the listeners' addresses (tests only; "" = the domain's fixed 127.0.0.2 addresses)
+	publicWebMarker string
+	publicListen    string
+	dnsListen       string
 }
 
 // egressStepError names WHICH step failed, and nothing of why: the reason can carry config or secret text.
@@ -59,7 +66,19 @@ func (e *shieldEgress) start(rel *release.Release) (*egress.Forwarder, error) {
 	if err != nil {
 		return nil, egressStepError{"allowlist"}
 	}
-	fwd := &egress.Forwarder{Policy: pol, Port: e.port, Upstream: e.upstream, Logf: domLogf(e.logf)}
+	// The monitor marked the domain public-web (resolv.conf, the DNS port floor, secretrun's ENCLAVE_EGRESS) from the
+	// same measured bytes; a disagreement means the domain was not set up for the mode the config states.
+	marked := false
+	if e.publicWebMarker != "" {
+		if marked, err = shieldconfig.PublicWebMarked(e.publicWebMarker, e.configUID); err != nil {
+			return nil, egressStepError{"public web marker"}
+		}
+	}
+	if marked != pol.PublicWeb {
+		return nil, egressStepError{"public web marker"}
+	}
+	fwd := &egress.Forwarder{Policy: pol, Port: e.port, Upstream: e.upstream, Logf: domLogf(e.logf),
+		PublicListen: e.publicListen, DNSListen: e.dnsListen}
 	// the forwarders live as long as this front, which is as long as the domain
 	if err := fwd.Start(context.Background()); err != nil {
 		return nil, egressStepError{"listen"}
@@ -68,17 +87,15 @@ func (e *shieldEgress) start(rel *release.Release) (*egress.Forwarder, error) {
 		fwd.Close()
 		return nil, egressStepError{"hosts"}
 	}
-	want := make([]netip.AddrPort, 0, len(pol.Origins))
-	for _, o := range pol.Origins {
-		a, _ := fwd.Addr(o.Host)
-		want = append(want, a)
-	}
-	if err := e.audit(want); err != nil {
+	if err := e.audit(fwd.Listeners()); err != nil {
 		fwd.Close()
 		return nil, egressStepError{"listener audit"}
 	}
 	e.say("DOM egress: %d allowed origin(s), %d config URL(s) refused; forwarders listening and /etc/hosts written before the runtime's secrets",
 		len(pol.Origins), len(pol.Refused))
+	if pol.PublicWeb {
+		e.say("DOM egress: public web: SOCKS front and DNS stub listening; any public address over TCP through this deployment's route")
+	}
 	return fwd, nil
 }
 

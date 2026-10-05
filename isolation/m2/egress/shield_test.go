@@ -213,17 +213,24 @@ func TestForShieldPublicHTTPSModeUsesOnlyConfiguredOrigins(t *testing.T) {
 	}
 }
 
-func TestForShieldPublicWebModeResolvesOnlyConfiguredHTTPSOrigins(t *testing.T) {
-	rel := openedRelease(t, nil, map[string]string{"S3_ENDPOINT": "https://0123abcd.r2.cloudflarestorage.com"})
+// public-web keeps its configured origins as forwarders AND opens the public web (web.go); only the MEASURED bytes
+// decide the mode, so a secret that resolves to "public-web" does not.
+func TestForShieldPublicWebModeKeepsConfiguredOriginsAndOpensThePublicWeb(t *testing.T) {
+	rel := openedRelease(t, nil, map[string]string{"S3_ENDPOINT": "https://0123abcd.r2.cloudflarestorage.com", "MODE": "public-web"})
 	p, err := ForShield(rel, `{"egress":"public-web","endpoint":"$S3_ENDPOINT","private":"https://127.0.0.1/","http":"http://example.com/"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if hosts(p) != "0123abcd.r2.cloudflarestorage.com" || len(p.Refused) != 1 {
-		t.Fatalf("origins %s refused %q", hosts(p), p.Refused)
+	if hosts(p) != "0123abcd.r2.cloudflarestorage.com" || len(p.Refused) != 1 || !p.PublicWeb {
+		t.Fatalf("origins %s refused %q public web %v", hosts(p), p.Refused, p.PublicWeb)
 	}
 	p, err = ForShield(rel, `{"egress":"public-web"}`)
-	if err != nil || len(p.Origins) != 0 {
-		t.Fatalf("mode alone opens no origins: %v %v", p, err)
+	if err != nil || len(p.Origins) != 0 || !p.PublicWeb {
+		t.Fatalf("mode alone: %v %v", p, err)
+	}
+	for _, cfg := range []string{`{"egress":"$MODE"}`, `{"egress":"public-https"}`, `{"nested":{"egress":"public-web"}}`, `{}`, ``} {
+		if p, err = ForShield(rel, cfg); err != nil || p.PublicWeb {
+			t.Fatalf("%s: public web %v (%v)", cfg, p != nil && p.PublicWeb, err)
+		}
 	}
 }

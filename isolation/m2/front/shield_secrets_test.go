@@ -331,6 +331,109 @@ func TestShieldEgressFailureWritesNothingToTheRuntime(t *testing.T) {
 	}
 }
 
+// publicWebWorld is newEgressWorld for a domain the monitor marked public-web, its listeners on free loopback ports.
+func publicWebWorld(t *testing.T, config string, marker os.FileMode) *egressWorld {
+	t.Helper()
+	w := newEgressWorld(t, config)
+	w.eg.publicWebMarker = filepath.Join(filepath.Dir(w.eg.config), "egress.public-web")
+	if marker != 0 {
+		if err := os.WriteFile(w.eg.publicWebMarker, []byte("1\n"), marker); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w.eg.publicListen, w.eg.dnsListen = "127.0.0.1:0", "127.0.0.1:0"
+	return w
+}
+
+// A public-web domain: its configured origin's forwarder, the SOCKS front and the DNS stub are all listening and audited
+// before the runtime gets a byte, and a tenant's CONNECT (risc-box's handshake: user/password only) reaches the host as
+// egress-web-v1 naming exactly that target.
+func TestShieldPublicWebIsUpBeforeTheRuntimeGetsItsSecrets(t *testing.T) {
+	f, sink, priv := secretFixture(t)
+	w := publicWebWorld(t, `{"egress":"public-web","endpoint":"$R2_ENDPOINT"}`, 0o444)
+	f.secrets.egress = w.eg
+	var checked bool
+	sink.onWrite = func() {
+		checked = true
+		if len(w.audited) != 3 {
+			t.Errorf("the audit saw %v, want the forwarder, the SOCKS front and the DNS stub", w.audited)
+			return
+		}
+		c, err := net.DialTimeout("tcp", w.audited[1].String(), time.Second)
+		if err != nil {
+			t.Errorf("the SOCKS front was not listening when the runtime got its secrets: %v", err)
+			return
+		}
+		defer c.Close()
+		c.SetDeadline(time.Now().Add(5 * time.Second))
+		c.Write([]byte{5, 1, 2})
+		var b [10]byte
+		if _, err := io.ReadFull(c, b[:2]); err != nil || b[0] != 5 || b[1] != 2 {
+			t.Errorf("greeting answered % x", b[:2])
+			return
+		}
+		c.Write(append([]byte{1, 5}, append([]byte("guest"), append([]byte{10}, "public-web"...)...)...))
+		if _, err := io.ReadFull(c, b[:2]); err != nil || b[0] != 1 || b[1] != 0 {
+			t.Errorf("auth answered % x", b[:2])
+			return
+		}
+		c.Write(append(append([]byte{5, 1, 0, 3, 11}, "example.org"...), 0x1f, 0x90))
+		select {
+		case h := <-w.headers:
+			if h != "egress-web-v1 example.org 8080\n" {
+				t.Errorf("the SOCKS front asked the host for %q", h)
+			}
+		case <-time.After(5 * time.Second):
+			t.Error("the SOCKS front never reached the host's egress endpoint")
+		}
+		if _, err := io.ReadFull(c, b[:]); err != nil || b[1] != 4 { // this world's host refuses everything
+			t.Errorf("a refused CONNECT answered % x (%v)", b, err)
+		}
+	}
+	if code := postSecret(f, validRelease(t, f, priv, map[string]string{"R2_ENDPOINT": "https://acct0123.r2.cloudflarestorage.com"})); code != 200 || !checked {
+		t.Fatalf("status %d, pipe written %v", code, checked)
+	}
+	hosts, _ := os.ReadFile(w.eg.hosts)
+	if !strings.Contains(string(hosts), " acct0123.r2.cloudflarestorage.com\n") {
+		t.Fatalf("a public-web domain lost its configured origin: %q", hosts)
+	}
+	web := 0
+	for _, l := range w.console() {
+		if strings.Contains(l, "example.org") || strings.Contains(l, "acct0123") || !strings.HasPrefix(l, "DOM ") {
+			t.Fatalf("console line %q", l)
+		}
+		if strings.HasPrefix(l, "DOM egress: public web:") {
+			web++
+		}
+	}
+	if web != 1 {
+		t.Fatalf("console %q", w.console())
+	}
+}
+
+// The mode and the monitor's marker must agree, both ways, or the runtime gets nothing.
+func TestShieldPublicWebNeedsTheMonitorsMarker(t *testing.T) {
+	for name, tc := range map[string]struct {
+		config string
+		marker os.FileMode
+	}{
+		"public-web without the marker":   {`{"egress":"public-web"}`, 0},
+		"the marker without public-web":   {`{"egress":"public-https"}`, 0o444},
+		"a secret cannot set the mode":    {`{"egress":"$MODE"}`, 0o444},
+		"a marker the runtime could edit": {`{"egress":"public-web"}`, 0o666},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f, sink, priv := secretFixture(t)
+			w := publicWebWorld(t, tc.config, tc.marker)
+			f.secrets.egress = w.eg
+			sink.onWrite = func() { t.Error("the runtime's pipe was written") }
+			if code := postSecret(f, validRelease(t, f, priv, map[string]string{"MODE": "public-web"})); code != 503 || sink.Len() != 0 {
+				t.Fatalf("status %d, %d bytes to the runtime", code, sink.Len())
+			}
+		})
+	}
+}
+
 // A config with no https URL opens nothing, writes a hosts file naming nothing, and still lets the runtime start.
 func TestShieldEgressWithNothingToReach(t *testing.T) {
 	f, sink, priv := secretFixture(t)

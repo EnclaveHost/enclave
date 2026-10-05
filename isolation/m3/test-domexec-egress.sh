@@ -30,7 +30,7 @@ if ! command -v unshare >/dev/null 2>&1 || ! unshare --map-root-user --map-auto 
 fi
 gcc -static -O2 -o "$d/probe" "$here/egress-probe.c" 2>/dev/null
 
-run_one() {  # <domexec binary> <secret: 1|0>
+run_one() {  # <domexec binary> <secret: 1|0> [mode] [public web marker: 1|0]
   reclaim; mkdir -p "$d/root/plat/rt" "$d/root/run" "$d/root/tmp" "$d/root/proc" "$d/root/probe-out"
   chmod 0755 "$d/root" "$d/root/plat" "$d/root/plat/rt"; chmod 1777 "$d/root/probe-out"
   cp "$1" "$d/root/plat/domexec"
@@ -44,6 +44,13 @@ run_one() {  # <domexec binary> <secret: 1|0>
     printf 'hosts: files\n' > "$d/root/etc/nsswitch.conf"; chmod 0444 "$d/root/etc/nsswitch.conf"
     printf '127.0.0.1 localhost\n' > "$d/root/etc/hosts"; chmod 0644 "$d/root/etc/hosts"
     own_hosts="chown 1001:1001 '$d/root/etc/hosts' &&"
+  fi
+  if [ "${4:-0}" = 1 ]; then   # as monitor.writeDomainEtc and the marker lay out a public-web domain
+    printf '1\n' > "$d/root/egress.public-web"; chmod 0444 "$d/root/egress.public-web"
+    if [ -d "$d/root/etc" ]; then
+      chmod 0644 "$d/root/etc/nsswitch.conf"; printf 'hosts: files dns\n' > "$d/root/etc/nsswitch.conf"; chmod 0444 "$d/root/etc/nsswitch.conf"
+      printf 'nameserver 127.0.0.2\noptions use-vc timeout:10 attempts:2\n' > "$d/root/etc/resolv.conf"; chmod 0444 "$d/root/etc/resolv.conf"
+    fi
   fi
   mode=${3:-app}
   timeout 60 unshare --map-root-user --map-auto -mpfn -- sh -c "chown 1001:1001 '$d/root/run' && chmod 0700 '$d/root/run' && $own_hosts exec chroot '$d/root' /plat/domexec 7 1000:1001 $mode 64 8000 3<>/dev/null" > "$d/console.txt" 2>&1 || true
@@ -65,7 +72,7 @@ run_all() {  # <domexec.c>
     if report_ok $role; then echo "ok   secret domain, the $role from inside: $(grep -c '^ok' "$d/root/probe-out/$role.egress") checks: $(grep '^ok' "$d/root/probe-out/$role.egress" | cut -d: -f1 | sed 's/^ok  *//' | tr '\n' ';' | cut -c1-260)"
     else echo "FAIL secret domain, the $role from inside: $(show $role)"; rc=1; fi
   done
-  grep -q '^uid=1001 secret=1$' "$d/root/probe-out/front.egress" 2>/dev/null && grep -q '^uid=1000 secret=1$' "$d/root/probe-out/runtime.egress" 2>/dev/null \
+  grep -q '^uid=1001 secret=1 web=0$' "$d/root/probe-out/front.egress" 2>/dev/null && grep -q '^uid=1000 secret=1 web=0$' "$d/root/probe-out/runtime.egress" 2>/dev/null \
     && echo "ok   the front ran as 1001 and the runtime (/plat/secretrun) as 1000" || { echo "FAIL the uids: $(head -1 "$d/root/probe-out/front.egress" 2>/dev/null) / $(head -1 "$d/root/probe-out/runtime.egress" 2>/dev/null)"; rc=1; }
   if grep -q "^DOM7 egress: this namespace's unprivileged port floor is 443" "$d/console.txt"; then echo "ok   domexec stated the floor on the console"
   else echo "FAIL no floor statement on the console: $(tr '\n' ' ' < "$d/console.txt" | cut -c1-200)"; rc=1; fi
@@ -75,6 +82,16 @@ run_all() {  # <domexec.c>
     else echo "FAIL secret command domain, the $role: $(show $role)"; rc=1; fi
   done
   grep -q 'mode=run http=8000' "$d/console.txt" || { echo "FAIL command mode did not launch"; rc=1; }
+  run_one "$d/domexec" 1 run 1   # risc-box's shape: a public-web secret command domain
+  for role in front runtime; do
+    if report_ok $role && grep -q 'web=1' "$d/root/probe-out/$role.egress"; then echo "ok   public-web command domain, the $role: $(grep -c '^ok' "$d/root/probe-out/$role.egress") checks"
+    else echo "FAIL public-web command domain, the $role: $(show $role)"; rc=1; fi
+  done
+  if grep -q "^DOM7 egress: this namespace's unprivileged port floor is 53" "$d/console.txt"; then echo "ok   domexec stated the public-web floor"
+  else echo "FAIL no public-web floor statement: $(tr '\n' ' ' < "$d/console.txt" | cut -c1-200)"; rc=1; fi
+  run_one "$d/domexec" 0 app 1   # a marker on a domain without secrets: domexec refuses to start it
+  if grep -q "public web needs a secret domain" "$d/console.txt" && [ ! -s "$d/root/probe-out/front.egress" ]; then echo "ok   a public-web marker without secrets starts nothing"
+  else echo "FAIL a public-web marker without secrets: $(tr '\n' ' ' < "$d/console.txt" | cut -c1-200)"; rc=1; fi
   run_one "$d/domexec" 0
   if report_ok front; then echo "ok   a domain without secrets: $(grep '^ok' "$d/root/probe-out/front.egress" | cut -d: -f1 | sed 's/^ok  *//' | tr '\n' ';')"
   else echo "FAIL a domain without secrets, the front: $(show front)"; rc=1; fi
@@ -104,8 +121,11 @@ mut() {  # <label> <sed expression>
   echo "ok   mutant $1 killed: $(grep -m1 '^FAIL' "$d/mutant.log" | cut -c1-200)"
 }
 k=0
-mut "the floor never lowered" '/unprivileged_https_bind();   \/\* the front/d' || k=1
-mut "the floor lowered for every domain" 's/^    lo_up();$/    lo_up(); unprivileged_https_bind();/' || k=1
+mut "the floor never lowered" '/unprivileged_https_bind(public_web);   \/\* the front/d' || k=1
+mut "the floor lowered for every domain" 's/^    lo_up();$/    lo_up(); unprivileged_https_bind(0);/' || k=1
+mut "public web keeps the 443 floor" 's/const char \*floor = public_web ? "53\\n" : "443\\n";/const char *floor = "443\\n";/' || k=1
+mut "the 53 floor for every secret domain" 's/const char \*floor = public_web ? "53\\n" : "443\\n";/const char *floor = "53\\n";/' || k=1
+mut "public web without secrets" '/public web needs a secret domain/d' || k=1
 mut "a secret domain's runtime unfiltered" 's/rt_pid = spawn(secret_pipe\[0\]>=0 ? secret_app : shield_app, uid, 1, 1);/rt_pid = spawn(secret_pipe[0]>=0 ? secret_app : shield_app, uid, 1, 0);/' || k=1
 [ $k = 0 ] && echo "domexec egress mutants: all killed" || echo "domexec egress mutants: FAIL"
 [ $g = 0 ] && [ $mon = 0 ] && [ $k = 0 ]
