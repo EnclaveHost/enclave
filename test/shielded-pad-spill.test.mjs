@@ -95,3 +95,21 @@ test("pad spill through a worker: idle fill, a burst 20x the ring, refill, decod
   assert.equal(seen.rows, 1180, "every masked row of the 130 exchanges crossed the proxy");
   assert.equal(seen.duplicates, 0, "a masked row appeared twice: a pad served two exchanges");
 });
+
+test("pad spill fills while the link is never idle: busy minting alone banks the pads", (t) => {
+  if (!build()) return t.skip("no toolchain for the C backend");
+  const py = spawnSync("python3", ["-c", "import torch, numpy"], { encoding: "utf8" });
+  if (py.status !== 0) return t.skip("worker.py needs torch + numpy");
+  const port = 20000 + Math.floor(Math.random() * 20000);
+  const worker = spawn("python3", [join(repo, "shielded", "worker.py"), "--host", "127.0.0.1", "--port", String(port), "--vram-gb", "1", "--device", "cpu"], { stdio: ["ignore", "pipe", "pipe"] });
+  t.after(() => { try { worker.kill("SIGKILL"); } catch {} });
+  return listening(worker, "listening on", "worker").then(() => {
+    const r = spawnSync(join(dir, "spill-link-selftest"), [scratch(t)], {
+      encoding: "utf8", timeout: 300_000,
+      env: { ...process.env, SHIELDED_WORKER: `127.0.0.1:${port}`, SHIELDED_PAD_SPILL_IDLE_MS: "600000", SHIELDED_PAD_SPILL_BUSY_THREADS: "1" },
+    });
+    if (/O_DIRECT refused/.test(r.stderr || "")) return t.skip("this filesystem refuses O_DIRECT");
+    assert.equal(r.status, 0, `spill-link-selftest (busy-only minting) failed:\n${r.stderr}`);
+    assert.equal(JSON.parse(r.stdout.trim().split("\n").pop()).spill_link_selftest, true);
+  });
+});

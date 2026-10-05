@@ -70,6 +70,16 @@ static int exchange(sh_link *l, weight **ws, int n) { return exchange_m(l, ws, n
 
 static sh_link_spill stats(sh_link *l) { sh_link_spill s; sh_link_spill_stats((struct sh_link *)l, &s); return s; }
 
+/* Wait until the refill threads have stopped importing (rings topped up). */
+static void settle(sh_link *l) {
+    uint64_t last = UINT64_MAX; int still = 0;
+    for (int i = 0; i < 100 && still < 3; i++) {
+        const uint64_t now = stats(l).imported;
+        still = now == last ? still + 1 : 0; last = now;
+        usleep(100000);
+    }
+}
+
 /* Wait for the idle refill to bank at least `rows` whole rows. */
 static bool wait_rows(sh_link *l, uint64_t rows, double limit_s) {
     const double t0 = now_s();
@@ -98,7 +108,9 @@ int main(int argc, char **argv) {
     setenv("SHIELDED_REFILL_BATCH", "8", 1);
     setenv("SHIELDED_REFILL_UNIT", "8", 1);
     setenv("SHIELDED_REFILL_THREADS", "3", 1);
-    setenv("SHIELDED_PAD_SPILL_IDLE_MS", "150", 1);
+    if (!getenv("SHIELDED_PAD_SPILL_IDLE_MS")) setenv("SHIELDED_PAD_SPILL_IDLE_MS", "150", 1);   /* override: busy-only minting */
+    /* the decode gate (off by default in production) is what phase 3a checks */
+    if (!getenv("SHIELDED_PAD_SPILL_MIN_ROWS")) setenv("SHIELDED_PAD_SPILL_MIN_ROWS", "8", 1);
     setenv("SHIELDED_PAD_SPILL_HEADROOM_PCT", "60", 1);     /* room for a third group of the same size */
 
     weight a1, a2, b, c;
@@ -139,11 +151,14 @@ int main(int argc, char **argv) {
     /* 3. idle again: what the burst took is minted back */
     CHECK(wait_rows(l, full, 120), "the spill refilled after the burst");
     sh_link_spill s3 = stats(l);
-    CHECK(s3.written > s2.written, "refill wrote %llu more pads", (unsigned long long)(s3.written - s2.written));
+    CHECK(s3.written > s1.written, "refill wrote %llu more pads since the fill", (unsigned long long)(s3.written - s1.written));
 
-    /* 3a. decode-shaped steps: one row each. Refills mint (the spill is for
-     * prompts); only a ring that actually runs dry imports on the path. */
+    /* 3a. decode-shaped steps: one row each. With the decode gate on
+     * (SHIELDED_PAD_SPILL_MIN_ROWS 8) refills mint; only a ring that actually
+     * runs dry imports on the path. */
     {
+        settle(l);
+        s3 = stats(l);
         bad = 0;
         const int steps = 30;
         for (int i = 0; i < steps; i++) { bad |= exchange_m(l, ga, 2, 1); bad |= exchange_m(l, gb, 1, 1); }
