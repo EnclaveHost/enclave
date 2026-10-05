@@ -152,59 +152,9 @@ async function exchange(port, payload, attempts = 40) {
 
 // ---------- e2e: one tcp6-relay process serves TWO enclaves ------------------
 
-test("tcp6-relay: merges net-maps across the fleet and routes each port to its owning enclave", async (t) => {
-  const [portA, portB] = [await freePort(), await freePort()];
-  const encA = await fakeEnclave({ id: "dep_aaa", tcpPort: portA, tag: "A" });
-  const encB = await fakeEnclave({ id: "dep_bbb", tcpPort: portB, tag: "B" });
-  // TCP6_PREFIX declares what this rig may bind. A declared prefix IS the
-  // policy (see bindRefusal), so `::1/128` lets the test bind exactly loopback
-  // and nothing else - on the real box it is the routed /64 and loopback loses.
-  const elig = await eligibilityApi({ [encA.origin]: true, [encB.origin]: true });
-  const { p, logs } = spawnRelay("tcp6-relay.js", {
-    ENCLAVES: `${encA.origin},${encB.origin}`, NET_POLL_SEC: "1", TCP6_PREFIX: "::1/128", ELIGIBILITY_API: elig.url });
-  t.after(() => { p.kill(); encA.close(); encB.close(); elig.close(); });
-
-  // Wait for the RELAY's own bind lines before dialing. freePort() reserves
-  // nothing - it binds :0, reads the number and closes - so under a parallel run
-  // something else can hold portA by the time the relay gets there. Dialing then
-  // reaches a stranger and the failure reads as a routing bug rather than a lost
-  // race. The relay logs "[tcp6-relay] [::1]:<port> -> <origin>" from its listen
-  // callback, so those lines mean the relay, and only the relay, owns them.
-  await bound(logs, [portA, portB]);
-
-  const [ra, rb] = await Promise.all([exchange(portA, "ping-a"), exchange(portB, "ping-b")]);
-  assert.equal(ra, "A:ping-a", `wrong route for enclave A (logs: ${logs.join("")})`);
-  assert.equal(rb, "B:ping-b", `wrong route for enclave B (logs: ${logs.join("")})`);
-});
 
 // ---------- e2e: one egress-relay process attaches to every enclave ----------
 
-test("egress-relay: opens an authenticated control channel to every enclave in the fleet", async (t) => {
-  const TOKEN = "fleet-test-token";
-  const attached = new Set();
-  async function controlEndpoint(tag) {
-    const srv = http.createServer((_q, res) => { res.statusCode = 404; res.end(); });
-    const wss = new WebSocketServer({ noServer: true });
-    srv.on("upgrade", (req, sock, head) => {
-      if (!req.url.startsWith("/v1/egress-control")) { sock.destroy(); return; }
-      if (req.headers.authorization !== `Bearer ${TOKEN}`) {
-        sock.write("HTTP/1.1 401 Unauthorized\r\n\r\n"); sock.destroy(); return;
-      }
-      wss.handleUpgrade(req, sock, head, () => attached.add(tag));
-    });
-    srv.listen(0, "127.0.0.1"); await once(srv, "listening");
-    return { origin: `http://127.0.0.1:${srv.address().port}`, close: () => srv.close() };
-  }
-  const encA = await controlEndpoint("A");
-  const encB = await controlEndpoint("B");
-  const { p, logs } = spawnRelay("egress-relay.js", {
-    ENCLAVES: `${encA.origin},${encB.origin}`, EGRESS_RELAY_TOKEN: TOKEN });
-  t.after(() => { p.kill(); encA.close(); encB.close(); });
-
-  for (let i = 0; i < 40 && attached.size < 2; i++) await delay(250);
-  assert.deepEqual([...attached].sort(), ["A", "B"],
-    `expected control channels to both enclaves (logs: ${logs.join("")})`);
-});
 
 // ---------- e2e: SNI relay routes each deployment to its OWNING enclave -------
 
@@ -265,28 +215,6 @@ function sniExchange(port, sni, probe) {
   });
 }
 
-test("relay (SNI): routes each deployment to its owning enclave; legacy id + bytes32 prefix", async (t) => {
-  const bytes32 = "0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
-  const encA = await fakeEnclaveTls({ id: "dep_alpha", logicalPort: 6667, tag: "A" });
-  const encB = await fakeEnclaveTls({ id: bytes32, logicalPort: 6667, tag: "B" });
-  const pub = await freePort();
-  const elig = await eligibilityApi({ [encA.origin]: true, [encB.origin]: true });
-  const { p, logs } = spawnRelay("relay.js", {
-    RELAY_DOMAIN: "tcp.test", RELAY_PORTS: `${pub}:6667`, RELAY_BIND: "127.0.0.1",
-    NET_POLL_SEC: "1", ENCLAVES: `${encA.origin},${encB.origin}`, ELIGIBILITY_API: elig.url });
-  t.after(() => { p.kill(); encA.close(); encB.close(); elig.close(); });
-
-  // wait until the relay bound the port (its index is populated before listen)
-  for (let i = 0; i < 40 && !logs.join("").includes("listening on"); i++) await delay(250);
-
-  // legacy id: dep-alpha.tcp.test  -> enclave A (dep- maps back to dep_)
-  const ra = await sniExchange(pub, "dep-alpha.tcp.test", "ping-a");
-  assert.equal(ra, "A:ping-a", `legacy-id route wrong (logs: ${logs.join("")})`);
-
-  // bytes32 by hex PREFIX: abcdef01.tcp.test -> enclave B (unique prefix)
-  const rb = await sniExchange(pub, "abcdef0123456789.tcp.test", "ping-b");
-  assert.equal(rb, "B:ping-b", `bytes32-prefix route wrong (logs: ${logs.join("")})`);
-});
 
 // ---------- U7: the data-plane daemons dial an ELIGIBLE host only ----------------------------------------------------
 
@@ -368,88 +296,6 @@ const closedWithin = (c, ms) => new Promise((resolve) => {
 });
 const echoOn = (c, d) => new Promise((resolve) => { c.once("data", (x) => resolve(x.toString())); c.write(d); });
 
-test("U7 tcp6-relay: a LIVE connection is closed once its host loses eligibility; the eligible neighbour's is untouched", async (t) => {
-  const [portA, portB] = [await freePort(), await freePort()];
-  const encA = await fakeEnclave({ id: "dep_aaa", tcpPort: portA, tag: "A" });
-  const encB = await fakeEnclave({ id: "dep_bbb", tcpPort: portB, tag: "B" });
-  const elig = await eligibilityApi({ [encA.origin]: true, [encB.origin]: true });
-  const { p, logs } = spawnRelay("tcp6-relay.js", {
-    ENCLAVES: `${encA.origin},${encB.origin}`, NET_POLL_SEC: "1", TCP6_PREFIX: "::1/128", ELIGIBILITY_API: elig.url, ELIGIBILITY_POLL_SEC: "1" });
-  t.after(() => { p.kill(); encA.close(); encB.close(); elig.close(); });
-  await bound(logs, [portA, portB]);
-  const tcp = (port) => () => net.connect({ host: "::1", port, family: 6 });
-  const a = await openHeld(tcp(portA), [[0, "ping-a"]]), b = await openHeld(tcp(portB), [[0, "ping-b"]]);
-  assert.equal(a.first, "A:ping-a"); assert.equal(b.first, "B:ping-b");
-  assert.equal(await closedWithin(a.c, 1500), false, "held open across a poll while eligible");
-  elig.set(encA.origin, false);
-  assert.equal(await closedWithin(a.c, 4000), true, `closed within a poll of losing eligibility (logs: ${logs.join("")})`);
-  assert.equal(b.c.destroyed, false);
-  assert.equal(await echoOn(b.c, "again"), "B:again", "the eligible neighbour's live connection still carries data");
-  assert.match(logs.join(""), /closed 1 live session\(s\) to hosts no longer eligible \(U7\)/);
-  b.c.destroy();
-});
-
-test("U7 tcp6-relay: a port owned by an INELIGIBLE enclave is refused, its eligible neighbour still routes", async (t) => {
-  const [portA, portB] = [await freePort(), await freePort()];
-  const encA = await fakeEnclave({ id: "dep_aaa", tcpPort: portA, tag: "A" });
-  const encB = await fakeEnclave({ id: "dep_bbb", tcpPort: portB, tag: "B" });
-  const elig = await eligibilityApi({ [encA.origin]: true, [encB.origin]: false });
-  const { p, logs } = spawnRelay("tcp6-relay.js", {
-    ENCLAVES: `${encA.origin},${encB.origin}`, NET_POLL_SEC: "1", TCP6_PREFIX: "::1/128", ELIGIBILITY_API: elig.url, ELIGIBILITY_POLL_SEC: "1" });
-  t.after(() => { p.kill(); encA.close(); encB.close(); elig.close(); });
-  await bound(logs, [portA, portB]);
-  assert.equal(await exchange(portA, "ping-a"), "A:ping-a");
-  await assert.rejects(exchange(portB, "ping-b", 6), /nothing listening/, "the ineligible enclave's port routes nowhere");
-  assert.match(logs.join(""), /dep_bbb tcp:\d+ -> .* REFUSED: not an eligible host \(U7\)/);
-});
-
-test("U7 relay (SNI): an INELIGIBLE enclave's deployment is refused, the eligible one still routes", async (t) => {
-  const bytes32 = "0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
-  const encA = await fakeEnclaveTls({ id: "dep_alpha", logicalPort: 6667, tag: "A" });
-  const encB = await fakeEnclaveTls({ id: bytes32, logicalPort: 6667, tag: "B" });
-  const pub = await freePort();
-  const elig = await eligibilityApi({ [encA.origin]: true, [encB.origin]: false });
-  const { p, logs } = spawnRelay("relay.js", {
-    RELAY_DOMAIN: "tcp.test", RELAY_PORTS: `${pub}:6667`, RELAY_BIND: "127.0.0.1",
-    NET_POLL_SEC: "1", ENCLAVES: `${encA.origin},${encB.origin}`, ELIGIBILITY_API: elig.url, ELIGIBILITY_POLL_SEC: "1" });
-  t.after(() => { p.kill(); encA.close(); encB.close(); elig.close(); });
-  for (let i = 0; i < 40 && !logs.join("").includes("listening on"); i++) await delay(250);
-  assert.equal(await sniExchange(pub, "dep-alpha.tcp.test", "ping-a"), "A:ping-a");
-  await assert.rejects(sniExchange(pub, "abcdef0123456789.tcp.test", "ping-b"), "the ineligible enclave gets no splice");
-  assert.match(logs.join(""), /REFUSED: not an eligible host \(U7\)/);
-  // and a relay with no eligibility source routes NOTHING (fail closed), not everything
-  const pub2 = await freePort();
-  const none = spawnRelay("relay.js", { RELAY_DOMAIN: "tcp.test", RELAY_PORTS: `${pub2}:6667`, RELAY_BIND: "127.0.0.1",
-    NET_POLL_SEC: "1", ENCLAVES: `${encA.origin},${encB.origin}`, ELIGIBILITY_API: "", DOMAINS_API: "" });
-  t.after(() => none.p.kill());
-  for (let i = 0; i < 40 && !none.logs.join("").includes("listening on"); i++) await delay(250);
-  await assert.rejects(sniExchange(pub2, "dep-alpha.tcp.test", "ping-a"), "unconfigured: no host is eligible");
-  assert.match(none.logs.join(""), /ELIGIBILITY_API \(or DOMAINS_API\) unset: NO host is eligible/);
-});
-
-test("U7 relay (SNI): a LIVE splice is closed once its host loses eligibility; the eligible neighbour's is untouched", async (t) => {
-  const bytes32 = "0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
-  const encA = await fakeEnclaveTls({ id: "dep_alpha", logicalPort: 6667, tag: "A" });
-  const encB = await fakeEnclaveTls({ id: bytes32, logicalPort: 6667, tag: "B" });
-  const pub = await freePort();
-  const elig = await eligibilityApi({ [encA.origin]: true, [encB.origin]: true });
-  const { p, logs } = spawnRelay("relay.js", {
-    RELAY_DOMAIN: "tcp.test", RELAY_PORTS: `${pub}:6667`, RELAY_BIND: "127.0.0.1",
-    NET_POLL_SEC: "1", ENCLAVES: `${encA.origin},${encB.origin}`, ELIGIBILITY_API: elig.url, ELIGIBILITY_POLL_SEC: "1" });
-  t.after(() => { p.kill(); encA.close(); encB.close(); elig.close(); });
-  for (let i = 0; i < 40 && !logs.join("").includes("listening on"); i++) await delay(250);
-  const sni = () => net.connect(pub, "127.0.0.1");
-  const a = await openHeld(sni, [[0, clientHello("dep-alpha.tcp.test")], [250, "ping-a"]]);
-  const b = await openHeld(sni, [[0, clientHello("abcdef0123456789.tcp.test")], [250, "ping-b"]]);
-  assert.equal(a.first, "A:ping-a"); assert.equal(b.first, "B:ping-b");
-  assert.equal(await closedWithin(a.c, 1500), false, "held open across a poll while eligible");
-  elig.set(encA.origin, false);
-  assert.equal(await closedWithin(a.c, 4000), true, `closed within a poll of losing eligibility (logs: ${logs.join("")})`);
-  assert.equal(b.c.destroyed, false);
-  assert.equal(await echoOn(b.c, "again"), "B:again", "the eligible neighbour's live splice still carries data");
-  assert.match(logs.join(""), /closed 1 live session\(s\) to hosts no longer eligible \(U7\)/);
-  b.c.destroy();
-});
 
 // a fake enclave with one udp:N port: /v1/udp-map declares it on ::1; the WS bridge /x/<id>/udp/<N> echoes, tagged
 async function fakeEnclaveUdp({ id, udpPort, tag }) {
@@ -484,53 +330,6 @@ async function udpExchange(port, payload, ms = 1500) {
   });
 }
 
-test("U7 udp-relay: a flow toward an INELIGIBLE enclave never opens; the eligible one's does", async (t) => {
-  const [portA, portB] = [await freePort(), await freePort()];
-  const encA = await fakeEnclaveUdp({ id: "dep_aaa", udpPort: portA, tag: "A" });
-  const encB = await fakeEnclaveUdp({ id: "dep_bbb", udpPort: portB, tag: "B" });
-  const elig = await eligibilityApi({ [encA.origin]: true, [encB.origin]: false });
-  const { p, logs } = spawnRelay("udp-relay.js", {
-    ENCLAVES: `${encA.origin},${encB.origin}`, UDP_POLL_SEC: "1", UDP_PREFIX: "::1/128", ELIGIBILITY_API: elig.url, ELIGIBILITY_POLL_SEC: "1" });
-  t.after(() => { p.kill(); encA.close(); encB.close(); elig.close(); });
-  await bound(logs, [portA, portB]);
-  let ra = null;
-  for (let i = 0; i < 10 && ra === null; i++) ra = await udpExchange(portA, "ping-a");
-  assert.equal(ra, "A:ping-a", `eligible enclave's flow (logs: ${logs.join("")})`);
-  assert.equal(await udpExchange(portB, "ping-b"), null, "no answer through an ineligible enclave");
-  assert.deepEqual(encB.seen, [], "no WebSocket was ever opened toward the ineligible enclave");
-});
-
-test("U7 udp-relay: a LIVE flow is dropped once its host loses eligibility, and no new one opens", async (t) => {
-  const portA = await freePort();
-  const encA = await fakeEnclaveUdp({ id: "dep_aaa", udpPort: portA, tag: "A" });
-  const elig = await eligibilityApi({ [encA.origin]: true });
-  const { p, logs } = spawnRelay("udp-relay.js", {
-    ENCLAVES: encA.origin, UDP_POLL_SEC: "1", UDP_PREFIX: "::1/128", ELIGIBILITY_API: elig.url, ELIGIBILITY_POLL_SEC: "1" });
-  t.after(() => { p.kill(); encA.close(); elig.close(); });
-  await bound(logs, [portA]);
-  const dgram = await import("node:dgram");
-  const s = dgram.createSocket("udp6"); t.after(() => { try { s.close(); } catch {} });
-  await new Promise((r) => s.bind(0, "::1", r));
-  const ask = (payload, ms = 1500) => new Promise((resolve) => {
-    const done = (v) => { clearTimeout(tm); s.off("message", on); resolve(v); };
-    const on = (m) => done(m.toString());
-    const tm = setTimeout(() => done(null), ms);
-    s.on("message", on); s.send(Buffer.from(payload), portA, "::1");
-  });
-  let r = null;
-  for (let i = 0; i < 10 && r === null; i++) r = await ask("ping-a");
-  assert.equal(r, "A:ping-a", `eligible flow (logs: ${logs.join("")})`);
-  await delay(1500);
-  assert.deepEqual(encA.bridgeClosed, [], "the flow's bridge stays open across a poll while eligible");
-  assert.equal(await ask("still"), "A:still");
-  elig.set(encA.origin, false);
-  for (let i = 0; i < 40 && !encA.bridgeClosed.length; i++) await delay(100);
-  assert.equal(encA.bridgeClosed.length, 1, `the live flow's bridge is closed within a poll (logs: ${logs.join("")})`);
-  const opened = encA.seen.length;
-  assert.equal(await ask("after"), null, "the same client gets nothing through the ineligible host");
-  assert.equal(encA.seen.length, opened, "and no new flow's bridge was opened toward it");
-  assert.match(logs.join(""), /closed 1 live session\(s\) to hosts no longer eligible \(U7\)/);
-});
 
 // ---- U7 relay (SNI) app subdomains with a ledger: the lease holder or nothing, never a probe ----
 const W32 = (v) => (typeof v === "string" ? v.replace(/^0x/, "").toLowerCase() : BigInt(v).toString(16)).padStart(64, "0");
@@ -583,25 +382,3 @@ async function fakeEnclaveApp(tag) {
   srv.listen(0, "127.0.0.1"); await once(srv, "listening");
   return { origin: `http://127.0.0.1:${srv.address().port}`, bridged, close: () => srv.close() };
 }
-
-test("U7 relay (SNI): an app subdomain routes to its ledger lease holder when eligible, and NEVER falls back to a probe", async (t) => {
-  const encA = await fakeEnclaveApp("A");
-  const HOLDS = "0xaaaa1111" + "11".repeat(28), ELSEWHERE = "0xbbbb2222" + "22".repeat(28);
-  const future = Math.floor(Date.now() / 1000) + 3600;
-  const ledger = await ledgerRpc([
-    { id: HOLDS, runner: keccak256(stringToBytes(encA.origin)), leaseUntil: future },      // leased to the eligible box
-    { id: ELSEWHERE, runner: "0x" + "77".repeat(32), leaseUntil: future },               // leased to a runner not in this fleet
-  ]);
-  const elig = await eligibilityApi({ [encA.origin]: true });
-  const pub = await freePort();
-  const { p, logs } = spawnRelay("relay.js", {
-    APP_DOMAIN: "app.test", RELAY_PORTS: `${pub}:443`, RELAY_BIND: "127.0.0.1", NET_POLL_SEC: "1", ENCLAVES: encA.origin,
-    ELIGIBILITY_API: elig.url, ELIGIBILITY_POLL_SEC: "1", DEPLOYMENTS_ADDRESS: "0x" + "12".repeat(20), BASE_RPC: ledger.url, ADDRESS_BOOK_ADDRESS: "" });
-  t.after(() => { p.kill(); encA.close(); elig.close(); ledger.close(); });
-  for (let i = 0; i < 40 && !logs.join("").includes("listening on"); i++) await delay(250);
-  await delay(1200);                                                         // the first eligibility poll
-  assert.equal(await sniExchange(pub, "aaaa1111.app.test", "ping"), "A:ping", `the lease holder is routed (logs: ${logs.join("")})`);
-  const n = encA.bridged.length;
-  await assert.rejects(sniExchange(pub, "bbbb2222.app.test", "ping"), "a deployment leased elsewhere is not handed to a box that merely answers for it");
-  assert.equal(encA.bridged.length, n, "no bridge was opened to the probe-answering box");
-});

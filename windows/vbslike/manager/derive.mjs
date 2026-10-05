@@ -18,7 +18,20 @@ export const DERIVATION = "enclave-catalog-bundle/1";
 export const DERIVATION_V2 = "enclave-catalog-bundle/2";
 export const DERIVATION_V3 = "enclave-catalog-bundle/3";
 export const DERIVATION_V4 = "enclave-catalog-bundle/4";
-export const DERIVATIONS = [DERIVATION, DERIVATION_V2, DERIVATION_V3, DERIVATION_V4];
+export const DERIVATION_V5 = "enclave-catalog-bundle/5";
+export const DERIVATION_V6 = "enclave-catalog-bundle/6";
+export const DERIVATION_V7 = "enclave-catalog-bundle/7"; // V6 plus measured protected TCP/UDP destinations
+export const DERIVATIONS = [DERIVATION, DERIVATION_V2, DERIVATION_V3, DERIVATION_V4, DERIVATION_V5, DERIVATION_V6, DERIVATION_V7];
+// Public configuration is part of the measured bundle. Secrets are never resolved here.
+export const MAX_CONFIG_BYTES = 32 << 10;
+export function appConfigText(value) {
+  const obj = typeof value === "string" ? JSON.parse(value || "{}") : value;
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) throw new Error("app configuration must be a JSON object");
+  const { _media, ...config } = obj;
+  const text = JSON.stringify(config);
+  if (Buffer.byteLength(text) > MAX_CONFIG_BYTES) throw new Error(`app configuration exceeds ${MAX_CONFIG_BYTES} bytes`);
+  return text;
+}
 const MAX_PORT = 49999;
 export const ABI = "enclave-domain-abi/1";
 export const BUNDLE_MAGIC = "ENCLAVE-BUNDLE/1\n";
@@ -44,10 +57,12 @@ export function canonical(v) {
 export function sha256Hex(b) { return crypto.createHash("sha256").update(b).digest("hex"); }
 
 /** Build(Manifest{abi, world, artifact, policy}, component). The label is empty, so it is omitted. */
-export function buildBundle({ world, policy, component, http = 0, inference = null, ports = [] }) {
+export function buildBundle({ world, policy, component, http = 0, inference = null, ports = [], config = null, secretDeployment = "" }) {
   const manifest = {
     abi: ABI,
     artifact: { kind: KIND, sha256: sha256Hex(component) },
+    ...(secretDeployment ? { secretDeployment } : {}),
+    ...(config !== null ? { configBase64: Buffer.from(config, "utf8").toString("base64") } : {}),
     ...(http ? { http } : {}),          // omitted when zero, as the Go tag's omitempty does
     ...(inference ? { inference } : {}),
     ...(ports.length ? { ports } : {}),
@@ -78,11 +93,25 @@ export function derive({ record, component }) {
   const v2 = r.derivation === DERIVATION_V2;
   const v3 = r.derivation === DERIVATION_V3;
   const v4 = r.derivation === DERIVATION_V4;
+  const v7 = r.derivation === DERIVATION_V7;
+  const v6 = r.derivation === DERIVATION_V6 || v7;
+  const v5 = r.derivation === DERIVATION_V5 || v6;
+  const secretDeployment = v6 ? r.secretDeployment : "";
+  if (v6 ? !/^0x[0-9a-f]{64}$/.test(secretDeployment || "") : r.secretDeployment !== undefined) throw new Error("secret delivery requires a V6 deployment identity");
+  let config = null;
+  if (v5) {
+    if (typeof r.config !== "string") throw new Error("V5 requires app configuration");
+    config = appConfigText(r.config);
+    if (config !== r.config) throw new Error("app configuration is not normalized");
+    if (r.configCid && !CID_RE.test(r.configCid)) throw new Error("invalid configuration CID");
+    if (r.inference || (!v7 && (r.ports || []).length)) throw new Error("V5 configuration supports CPU HTTP components and single-port commands only");
+    if (v6 && r.http && r.http < 1024) throw new Error("secret command HTTP port must be unprivileged");
+  } else if (r.config !== undefined || r.configCid) throw new Error("app configuration requires V5");
   const port = r.http ?? 0;
   if (!Number.isInteger(port) || port < ((v2 || v3) ? 1 : 0) || port > MAX_PORT || (r.derivation === DERIVATION && port !== 0))
     throw new Error("invalid HTTP port for derivation");
   const ports = r.ports ?? [];
-  if (!Array.isArray(ports) || ((!v3 && !v4) && ports.length) || (v3 && !ports.length) || ports.length > 32 || (ports.length && !port))
+  if (!Array.isArray(ports) || ((!v3 && !v4 && !v7) && ports.length) || ((v3 || v7) && !ports.length) || ports.length > 32 || (ports.length && !port))
     throw new Error("invalid tunnel ports for derivation");
   let previous = "";
   for (const p of ports) {
@@ -114,8 +143,10 @@ export function derive({ record, component }) {
   if (!component.subarray(0, 8).equals(COMPONENT_PREAMBLE))
     throw new Error("artifact is not a wasm component (a core module is refused)");
 
-  const bundle = buildBundle({ world: port ? "wasi:cli" : "wasi:http", policy: p, component, http: port, inference, ports });
+  const bundle = buildBundle({ world: port ? "wasi:cli" : "wasi:http", policy: p, component, http: port, inference, ports, config, secretDeployment });
   const rec = { catalog: { app: cat.app, version: cat.version }, cid: r.cid,
+                ...(v6 ? { secretDeployment } : {}),
+                ...(v5 ? { config, ...(r.configCid ? { configCid: r.configCid } : {}) } : {}),
                 derivation: r.derivation, ...(port ? { http: port } : {}),
                 ...(inference ? { inference } : {}), ...(ports.length ? { ports } : {}),
                 policy: { cpuPercent: p.cpuPercent, memMiB: p.memMiB, vcpus: p.vcpus },

@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"enclave.host/isolation/contract"
 )
@@ -24,10 +25,14 @@ func main() {
 		fs := flag.NewFlagSet("build", flag.ExitOnError)
 		label := fs.String("label", "", "label")
 		world := fs.String("world", "wasi:http", "world")
+		httpPort := fs.Int("http", 0, "wasi:cli only: the port the app serves HTTP on")
+		ports := fs.String("ports", "", "sorted tcp:N,udp:N tunnel destinations")
 		kind := fs.String("kind", "wasm-component", "artifact kind")
 		cpu := fs.Int("cpu", 100, "cpu percent")
 		mem := fs.Int("mem", 256, "memory MiB")
 		vcpus := fs.Int("vcpus", 1, "vcpus")
+		model := fs.String("inference-model", "", "measured Enclave Shield model")
+		gpuMilli := fs.Int("gpu-milli", 0, "GPU reservation in thousandths")
 		fs.Parse(os.Args[2:])
 		if fs.NArg() != 2 {
 			fmt.Fprintln(os.Stderr, "build needs <artifact> <out>")
@@ -35,8 +40,18 @@ func main() {
 		}
 		art, err := os.ReadFile(fs.Arg(0))
 		die(err)
-		b, err := contract.Build(contract.Manifest{ABI: contract.ABI, Label: *label, World: *world,
-			Artifact: contract.Artifact{Kind: *kind}, Policy: contract.Policy{CPUPercent: *cpu, MemMiB: *mem, Vcpus: *vcpus}}, art)
+		var pp []string
+		if *ports != "" {
+			pp = strings.Split(*ports, ",")
+		}
+		die(contract.ValidatePorts(pp, *world, *httpPort))
+		var inf *contract.Inference
+		if *model != "" || *gpuMilli != 0 {
+			inf = &contract.Inference{Model: *model, GPUMilli: *gpuMilli}
+			die(inf.Validate())
+		}
+		b, err := contract.Build(contract.Manifest{ABI: contract.ABI, Label: *label, World: *world, HTTP: *httpPort, Ports: pp,
+			Inference: inf, Artifact: contract.Artifact{Kind: *kind}, Policy: contract.Policy{CPUPercent: *cpu, MemMiB: *mem, Vcpus: *vcpus}}, art)
 		die(err)
 		die(os.WriteFile(fs.Arg(1), b, 0o644))
 		id := contract.AppID(b)
@@ -46,6 +61,14 @@ func main() {
 		die(err)
 		id := contract.AppID(b)
 		fmt.Println(hex.EncodeToString(id[:]))
+	case "inference":
+		b, err := os.ReadFile(os.Args[2])
+		die(err)
+		m, _, err := contract.Parse(b)
+		die(err)
+		if m.Inference != nil {
+			fmt.Printf("%s %d %d\n", m.Inference.Model, m.Inference.GPUMilli, m.Inference.CardBytes())
+		}
 	case "show":
 		b, err := os.ReadFile(os.Args[2])
 		die(err)
@@ -57,6 +80,27 @@ func main() {
 	// bundle format, the AppID and the ABI are untouched. isolation/m4 uses it to build one measured guest
 	// per app: the bundle's own bytes go into the image (so the AppID's preimage is measured) and the
 	// artifact is what wasmtime runs.
+	// mode: how a domain runs this bundle, from its own manifest: "serve" (the runtime serves a wasi:http component)
+	// or "run <port>" (a wasi:cli command that serves HTTP on <port>). isolation/m4/assemble-app-image.sh writes it
+	// into the measured image for the domain's init.
+	case "mode":
+		b, err := os.ReadFile(os.Args[2])
+		die(err)
+		m, _, err := contract.Parse(b)
+		die(err)
+		if m.World == contract.WorldCLI {
+			fmt.Printf("run %d\n", m.HTTP)
+		} else {
+			fmt.Println("serve")
+		}
+	case "ports":
+		b, err := os.ReadFile(os.Args[2])
+		die(err)
+		m, _, err := contract.Parse(b)
+		die(err)
+		for _, p := range m.Ports {
+			fmt.Println(p)
+		}
 	case "extract":
 		if len(os.Args) < 4 {
 			fmt.Fprintln(os.Stderr, "usage: bundle extract BUNDLE OUT")

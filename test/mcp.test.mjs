@@ -338,17 +338,16 @@ test("mcp protocol: full surface through the relay", async (t) => {
   assert.equal(viaPath.status, 200);
   assert.deepEqual((await viaPath.json()).result, {});
 
-  // -- and an app subdomain's own /mcp path is NOT shadowed by ours: it goes to the tenant router. This stub ledger is
-  // always unreadable (its RPC answers empty data), so the router REFUSES, 503 ledger_unavailable: an on-chain id is
-  // never probed (U7). It is the tenant router's answer, never an MCP one
+  // App subdomains never reach the platform MCP server. Nan retires this data
+  // path with 410; the application's own /mcp is reached through TUNA.
   const appHost = await fetch(origin + "/mcp", {
     method: "POST", headers: { "content-type": "application/json", "x-forwarded-host": "0123abcd.app.enclave.host" },
     body: "{}",
   });
-  assert.equal(appHost.status, 503, "app-subdomain /mcp stays tenant namespace");
+  assert.equal(appHost.status, 410, "app-subdomain /mcp is retired on the control API");
   const appBody = await appHost.json();
   assert.equal(appBody.jsonrpc, undefined, "not answered by the MCP server");
-  assert.equal(appBody.error, "ledger_unavailable", JSON.stringify(appBody));
+  assert.equal(appBody.error, "application_transport_moved", JSON.stringify(appBody));
 });
 
 // The relay's evidence rule reaches the MCP surface too: with only an enclave that presents no hardware evidence, there

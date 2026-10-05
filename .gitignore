@@ -132,3 +132,7 @@ windows/enclave-app-hello/target/
 # pinned cross-branch modules materialised by verifier/integration/resolve.mjs (never tracked here)
 .verifier-integration/
 
+
+# Generated standalone relay routing graph
+/relay/network-runtime.bundle.mjs
+/relay/network-runtime.bundle.mjs.manifest.json

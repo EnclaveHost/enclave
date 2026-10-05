@@ -71,6 +71,7 @@ import readline from "node:readline/promises";
 import rlSync from "node:readline";
 import { stdin as input, stdout as output } from "node:process";
 import solc from "solc";
+import {linkBytecode} from "../site/js/lib/contract-linker.js";
 import {
   createWalletClient, createPublicClient, http, formatEther, isAddress, getAddress,
 } from "viem";
@@ -129,16 +130,13 @@ function compile() {
     language: "Solidity",
     sources: { "EnclaveDeployments.sol": { content: source } },
     settings: {
-      // runs=100, NOT the repo-wide 200: rev 12 (free self-hosting) costs 177
-      // bytes and rev 11 had 78 free, so the size/gas dial buys the room that
-      // deleting a shipped feature would otherwise have to. Behaviour is
-      // identical either way. build-contract-artifacts.mjs and foundry.toml
-      // pin the same number — see the BUILD SETTING note in the contract.
-      optimizer: { enabled: true, runs: 100 },
+      // Rev 14 negotiated rates: runs=1 preserves EIP-170 headroom.
+      // Match build-contract-artifacts.mjs and foundry.toml exactly.
+      optimizer: { enabled: true, runs: 1 },
       // rev 7 (runner payout) outgrew legacy codegen's EIP-170 headroom;
       // viaIR keeps it deployable. build-contract-artifacts.mjs mirrors this.
       viaIR: true,
-      outputSelection: { "*": { "*": ["abi", "evm.bytecode.object"] } },
+      outputSelection: { "*": { "*": ["abi", "evm.bytecode.object", "evm.bytecode.linkReferences", "evm.deployedBytecode.object"] } },
     },
   };
   const out = JSON.parse(solc.compile(JSON.stringify(input)));
@@ -146,7 +144,10 @@ function compile() {
   if (errs.length) die("solc:\n" + errs.map((e) => e.formattedMessage).join("\n"));
   const c = out.contracts["EnclaveDeployments.sol"]["EnclaveDeployments"];
   fs.writeFileSync(ABI_OUT, JSON.stringify(c.abi, null, 2) + "\n");   // keep the checked-in ABI honest
-  return { abi: c.abi, bytecode: "0x" + c.evm.bytecode.object };
+  if (c.evm.deployedBytecode.object.length / 2 > 24576) die("ledger exceeds EIP-170");
+  const lib = out.contracts["EnclaveDeployments.sol"]["EnclaveLedgerBandwidth"];
+  return { abi: c.abi, bytecode: "0x" + c.evm.bytecode.object, linkReferences: c.evm.bytecode.linkReferences,
+    library: {abi: lib.abi, bytecode: "0x" + lib.evm.bytecode.object} };
 }
 
 async function resolvePayout(explicit, isMainnet) {
@@ -312,7 +313,7 @@ async function main() {
   const pk = pk0.startsWith("0x") ? pk0 : "0x" + pk0;
   let account; try { account = privateKeyToAccount(pk); } catch { die("that is not a valid private key"); }
 
-  const { abi, bytecode } = compile();
+  const { abi, bytecode, linkReferences, library } = compile();
   const pub = createPublicClient({ chain: net.chain, transport: http(rpc) });
   const wallet = createWalletClient({ account, chain: net.chain, transport: http(rpc) });
 
@@ -416,9 +417,16 @@ async function main() {
     if (!ok) die("aborted by user.");
   }
 
+  console.log("Deploying immutable payment library...");
+  const libraryHash = await sendWithRetry("deploy payment library", () => wallet.deployContract(library));
+  console.log(`  payment library tx ${libraryHash}`);
+  const libraryReceipt = await readWithRetry("payment library receipt", () => pub.waitForTransactionReceipt({hash: libraryHash}));
+  if (libraryReceipt.status !== "success" || !libraryReceipt.contractAddress) die("payment library deployment failed");
+  const linkedBytecode = linkBytecode(bytecode,linkReferences,{"EnclaveDeployments.sol:EnclaveLedgerBandwidth":libraryReceipt.contractAddress});
+  console.log(`  payment library ${libraryReceipt.contractAddress}`);
   console.log("Deploying...");
   const hash = await sendWithRetry("deploy", () =>
-    wallet.deployContract({ abi, bytecode, args: [usdc, payout, registry, feed] }));
+    wallet.deployContract({ abi, bytecode: linkedBytecode, args: [usdc, payout, registry, feed] }));
   console.log(`  tx ${hash}`);
   const rcpt = await readWithRetry("deploy receipt", () => pub.waitForTransactionReceipt({ hash }));
   if (rcpt.status !== "success" || !rcpt.contractAddress) die(`deploy tx did not succeed (status=${rcpt.status})`);

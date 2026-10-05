@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // build-contract-artifacts.mjs - compile every contracts/*.sol exactly the way
 // its deploy script does (solc, optimizer runs=200 - except the deployments
-// ledger at 100, see its DEFS entry - viaIR for the catalog and the deployments
+// ledger at 1, see its DEFS entry - viaIR for the catalog and the deployments
 // ledger) and emit the results where the browser can use them:
 //
 //   site/js/gen/contract-artifacts.js   ES module: { abi, bytecode, selectors,
@@ -37,14 +37,15 @@ const DEFS = [
   { name: "EnclaveRegistry",     bookKey: "registry" },
   { name: "EnclaveAppCatalog",   bookKey: "appCatalog", viaIR: true },
   { name: "EnclavePay",          bookKey: "enclavePay" },
-  // runs=100 is NOT a typo and NOT a default: the ledger is the one contract
-  // at the EIP-170 wall, and rev 12 (free self-hosting) needed 177 bytes it did
-  // not have. Must equal scripts/deploy-deployments.mjs and foundry.toml, or the
-  // console deploys bytecode nobody can reproduce. See the contract's header.
-  { name: "EnclaveDeployments",  bookKey: "deployments", viaIR: true, runs: 100 },   // rev 7 outgrew legacy codegen's EIP-170 headroom
+  // Rev 14 negotiated rates require runs=1 to remain below EIP-170.
+  // Keep this identical to deploy-deployments.mjs and foundry.toml.
+  { name: "EnclaveDeployments",  bookKey: "deployments", viaIR: true, runs: 1 },   // rev 7 outgrew legacy codegen's EIP-170 headroom
+  { name: "EnclaveConnectivity", bookKey: "connectivity", viaIR: true, runs: 1, deployable: false },
   { name: "EnclaveProofOfTime",  bookKey: "proofOfTime", viaIR: true },   // rev-9 proof of time; bound into the ledger once (setProver)
                                                              // viaIR since the rev-10 clock charge: Checkpointed's 6 args
                                                              // overflow legacy codegen's stack (mirror deploy-proof-of-time.mjs)
+  { name: "EnclaveAvailability", bookKey: "availability", viaIR: true },
+  { name: "EnclaveVerificationFees", bookKey: "verificationFees", viaIR: true },
   { name: "EnclaveFeatured",     bookKey: "featured" },
   { name: "EnclaveReviews",      bookKey: "reviews" },
   { name: "EnclaveHostReviews",  bookKey: "hostReviews" },   // ratings for the enclaves that RUN apps (seller-side reputation)
@@ -68,14 +69,27 @@ function compile(name, viaIR, fileBase, alsoAbi, runs) {
     settings: {
       optimizer: { enabled: true, runs: runs || 200 },
       ...(viaIR ? { viaIR: true } : {}),
-      outputSelection: { "*": { "*": ["abi", "evm.bytecode.object", "evm.deployedBytecode.object"] } },
+      outputSelection: { "*": { "*": ["abi", "evm.bytecode.object", "evm.bytecode.linkReferences", "evm.deployedBytecode.object"] } },
     },
   };
-  const out = JSON.parse(solc.compile(JSON.stringify(input)));
+  const out = JSON.parse(solc.compile(JSON.stringify(input), {import: name => {
+    const resolved = path.resolve(REPO,"contracts",name);
+    if (!resolved.startsWith(path.join(REPO,"contracts") + path.sep)) return {error:"invalid import"};
+    try {return {contents:fs.readFileSync(resolved,"utf8")};} catch {return {error:"missing import: " + name};}
+  }}));
   const errs = (out.errors || []).filter((e) => e.severity === "error");
   if (errs.length) throw new Error(`solc(${file}):\n` + errs.map((e) => e.formattedMessage).join("\n"));
   const c = out.contracts[file][name];
   if (!c || !c.evm.bytecode.object) throw new Error(`no bytecode for ${name}`);
+  const linkReferences = c.evm.bytecode.linkReferences || {};
+  const libraries = {};
+  for (const [fileName, names] of Object.entries(linkReferences)) {
+    for (const libraryName of Object.keys(names)) {
+      const lib = out.contracts[fileName][libraryName];
+      if (lib.evm.deployedBytecode.object.length / 2 > 24576) throw new Error('library exceeds EIP-170');
+      libraries[fileName + ':' + libraryName] = {bytecode: '0x' + lib.evm.bytecode.object, linkReferences: lib.evm.bytecode.linkReferences};
+    }
+  }
   const extraAbis = {};
   for (const also of alsoAbi || []) {
     const e = out.contracts[file][also];
@@ -90,7 +104,7 @@ function compile(name, viaIR, fileBase, alsoAbi, runs) {
   // migration faithfully populates the wrong contract.
   const sm = source.match(/uint256\s+public\s+constant\s+(\w*[Ss]chema\w*)\s*=\s*(\d+)/);
   return { abi: c.abi, bytecode: "0x" + c.evm.bytecode.object,
-           runtime: c.evm.deployedBytecode.object.length / 2, extraAbis,
+           runtime: c.evm.deployedBytecode.object.length / 2, extraAbis, linkReferences, libraries,
            schema: sm ? { fn: sm[1], rev: Number(sm[2]) } : null };
 }
 
@@ -104,7 +118,7 @@ const EIP170 = 24576;
 
 const artifacts = {};
 for (const def of DEFS) {
-  const { abi, bytecode, runtime, extraAbis, schema } = compile(def.name, def.viaIR, def.file, def.alsoAbi, def.runs);
+  const { abi, bytecode, runtime, extraAbis, schema, linkReferences, libraries } = compile(def.name, def.viaIR, def.file, def.alsoAbi, def.runs);
   fs.writeFileSync(path.join(REPO, "contracts", def.name + ".abi.json"),
     JSON.stringify(abi, null, 2) + "\n");
   for (const [also, alsoAbiJson] of Object.entries(extraAbis))
@@ -121,10 +135,13 @@ for (const def of DEFS) {
   const ctorAbi = abi.find((f) => f.type === "constructor");
   artifacts[def.name] = {
     bookKey: def.bookKey,
+    ...(def.deployable === false ? {deployable:false} : {}),
     ctor: (ctorAbi ? ctorAbi.inputs : []).map((i) => ({ name: i.name.replace(/^_/, ""), type: i.type })),
     sel,
     evt,
     bytecode,
+    runtimeBytes: runtime,
+    linkReferences, libraries,
     schemaFn: schema ? schema.fn : null,     // marker getter name (also in sel)
     schemaRev: schema ? schema.rev : null,   // the revision THIS bytecode carries
   };
@@ -139,7 +156,7 @@ for (const def of DEFS) {
 const banner = `/* ============================================================
    GENERATED by scripts/build-contract-artifacts.mjs - DO NOT EDIT.
    Compiled from contracts/*.sol with the same solc settings the
-   deploy scripts use (optimizer runs=200, ledger 100; viaIR for the catalog).
+   deploy scripts use (optimizer runs=200, ledger/connectivity 1; viaIR for the catalog).
    Loaded ONLY by the admin console (a code-split chunk of
    admin.html): bytecode for browser-wallet deploys, viem-derived
    selectors (bare 8-hex) for owner calls, constructor metadata

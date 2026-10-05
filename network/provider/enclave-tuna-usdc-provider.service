@@ -1,0 +1,23 @@
+[Unit]
+Description=TUNA provider paid from app USDC balances
+Requires=enclave-tuna-usdc-control.service tuna-socks.service tuna-proxy-firewall.service
+After=network-online.target enclave-tuna-usdc-control.service tuna-socks.service tuna-proxy-firewall.service
+
+[Service]
+Type=simple
+User=tuna-provider
+Group=tuna-provider
+UMask=0077
+ExecStart=/opt/enclave-tuna-usdc/current/enclave-usdc-provider --config /etc/enclave-tuna-usdc/provider.json
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

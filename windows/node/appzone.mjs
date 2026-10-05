@@ -1,34 +1,12 @@
-// windows/node/appzone.mjs -- answering the app's OWN origin, https://<label>.app.enclave.host.
-//
-// THE PATH, end to end, because every hop matters and only one of them is ours:
-//
-//   browser ──TLS──> relay/relay.js:443        reads the SNI, terminates NOTHING
-//           ──wss──> api.enclave.host/t/<box>/x/<id>/https
-//           ──s+/sd/sx frames over the fleet tunnel──> this file
-//           ── WebSocket unwrap ──> raw TLS bytes ──> terminate here ──> the app's own port
-//
-// The relay is a splice: it reads the ClientHello to know which box to hand the connection to and
-// then copies bytes. So the handshake must be answered by whoever holds the lease, with a
-// certificate for that name (apptls.mjs gets one), or a browser lands on a warning. That warning
-// is what the console's amber padlock means: it only closes when a probe from the browser itself
-// completes a real handshake.
-//
-// Over the tunnel the WebSocket arrives as a RAW BYTE STREAM with the upgrade request replayed
-// into it (relay/tunnel.js spliceUpgrade), so this side has to be the WebSocket server as well:
-// parse the request, answer 101, unwrap the frames, and only then is there TLS to terminate.
-//
-// WHERE TLS TERMINATES: in this process, in VTL0. See apptls.mjs's header for what that costs and
-// why it is published rather than implied (`appTls.keyIn` in /availability). The plaintext is then
-// proxied to the app's loopback port, which is the same brokered socket the /x/ path already uses.
-import { Duplex } from "node:stream";
+// Local application ingress for the TUNA host adapter. The adapter reads SNI
+// and passes the encrypted stream here. Isolated apps keep TLS in their guest;
+// legacy local apps retain their existing tenant authorization gate.
 import net from "node:net";
 import http from "node:http";
 import tls from "node:tls";
 import { WebSocketServer, createWebSocketStream } from "ws";
 
 const MAX_STREAMS = 32;
-const HEAD_LIMIT = 16 * 1024;          // an upgrade request that never ends is not one
-const OPEN_MS = 15_000;
 /**
  * The most request body this box will hold in memory for one app-zone request, when nothing
  * narrower applies.
@@ -44,53 +22,6 @@ const OPEN_MS = 15_000;
  * the ceiling is the operator's (ENCLAVE_APP_MAX_BODY_MB) and this is its default.
  */
 const GATE_BODY_LIMIT = 2 * 1024 * 1024;
-
-/**
- * One tunnel stream as a Duplex, so the WebSocket server can treat it as a socket.
- *
- * `ws` wants a few socket methods that mean nothing here (Nagle, keep-alive, timeouts): they are
- * no-ops rather than missing, because `ws` calls them unconditionally and a missing method is a
- * crash in the middle of a handshake.
- */
-class StreamSocket extends Duplex {
-  constructor(sendFrame, sid, pressure) {
-    super({ highWaterMark: 256 * 1024 });
-    this.sid = sid;
-    this._send = sendFrame;
-    // How much the tunnel's own socket is still holding. Without this there is no backpressure
-    // anywhere in the path: a guest streaming a 400 KB response would queue every frame in the
-    // agent's WebSocket buffer and the only limit would be memory.
-    this._pressure = pressure || (() => 0);
-    this._closed = false;
-  }
-  _read() {}
-  _write(chunk, _enc, cb) {
-    if (this._closed) return cb();
-    this._send({ t: "sd", sid: this.sid, d: Buffer.from(chunk).toString("base64") });
-    // Hand the callback back only once the tunnel has drained enough, which is what makes the
-    // pipe above this one slow down instead of buffering without bound.
-    const wait = () => {
-      if (this._closed || this._pressure() < 4 * 1024 * 1024) return cb();
-      setTimeout(wait, 20);
-    };
-    wait();
-  }
-  _final(cb) { this.closeRemote(); cb(); }
-  _destroy(err, cb) { this.closeRemote(); cb(err); }
-  closeRemote() {
-    if (this._closed) return;
-    this._closed = true;
-    this._send({ t: "sx", sid: this.sid });
-  }
-  feed(buf) { this.push(buf); }
-  remoteEnded() { this._closed = true; this.push(null); }
-  // the socket surface `ws` reaches for
-  setNoDelay() { return this; }
-  setKeepAlive() { return this; }
-  setTimeout() { return this; }
-  get remoteAddress() { return "127.0.0.1"; }
-  get remotePort() { return 0; }
-}
 
 /**
  * The app-zone half of the agent.
@@ -212,7 +143,7 @@ export function appRequestHandler({ serveHttp, log = () => {} }) {
   };
 }
 
-export function appZone({ send, resolve, pressure, serveHttp, maxBodyBytes = 0, log = () => {}, isolationSplicer = null }) {
+export function appZone({ resolve, serveHttp, maxBodyBytes = 0, log = () => {}, isolationSplicer = null }) {
   const streams = new Map();
   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
   // The server for GATE-SERVED apps: node's own HTTP parser, fed sockets by hand. It never
@@ -221,40 +152,12 @@ export function appZone({ send, resolve, pressure, serveHttp, maxBodyBytes = 0, 
   const httpd = http.createServer(appRequestHandler({ serveHttp, log }));
   httpd.on("clientError", (e, sock) => { try { sock.destroy(); } catch {} });
 
-  /** A tunnel stream that is not (yet) a WebSocket: collect the upgrade request, then decide. */
-  function begin(sid) {
-    if (streams.size >= MAX_STREAMS) {
-      send({ t: "s=", sid, ok: false, err: "too many app-zone streams on this box" });
-      return null;
-    }
-    const sock = new StreamSocket(send, sid, pressure);
-    const st = { sid, sock, head: Buffer.alloc(0), upgraded: false,
-                 timer: setTimeout(() => { log(`app-zone stream ${sid}: no upgrade request in ${OPEN_MS / 1000}s`); drop(sid); }, OPEN_MS) };
-    streams.set(sid, st);
-    send({ t: "s=", sid, ok: true });
-    return st;
-  }
-
   function drop(sid) {
     const st = streams.get(sid);
     if (!st) return;
     streams.delete(sid);
     clearTimeout(st.timer);
     try { st.sock.destroy(); } catch {}
-  }
-
-  /** The request line and headers, once they are all here. */
-  function parseHead(buf) {
-    const end = buf.indexOf("\r\n\r\n");
-    if (end < 0) return null;
-    const lines = buf.subarray(0, end).toString("latin1").split("\r\n");
-    const [method, url] = lines[0].split(" ");
-    const headers = {};
-    for (const line of lines.slice(1)) {
-      const i = line.indexOf(":");
-      if (i > 0) headers[line.slice(0, i).trim().toLowerCase()] = line.slice(i + 1).trim();
-    }
-    return { method, url, headers, rest: buf.subarray(end + 4) };
   }
 
   async function onHead(st, head) {
@@ -267,7 +170,7 @@ export function appZone({ send, resolve, pressure, serveHttp, maxBodyBytes = 0, 
     // accepted, and the label is resolved against the leases this box actually holds.
     const m = /^\/x\/(0x[0-9a-fA-F]{8,64})\/(https|tls\/\d+)$/.exec(String(head.url || ""));
     if (!m || m[2] !== "https") {
-      log(`app-zone stream ${st.sid}: refusing ${head.url}`);
+      log(`app-zone stream ${String(st.sid)}: refusing ${head.url}`);
       st.sock.write(`HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n`);
       return drop(st.sid);
     }
@@ -410,20 +313,17 @@ export function appZone({ send, resolve, pressure, serveHttp, maxBodyBytes = 0, 
   }
 
   /** The tunnel frames this module owns: s+ (open), sd (data), sx (close). */
-  function onFrame(f) {
-    if (f.t === "s+") { begin(f.sid); return true; }
-    const st = streams.get(f.sid);
-    if (!st) return f.t === "sd" || f.t === "sx";
-    if (f.t === "sx") { st.sock.remoteEnded(); drop(f.sid); return true; }
-    if (f.t !== "sd") return false;
-    const buf = Buffer.from(f.d || "", "base64");
-    if (st.upgraded) { st.sock.feed(buf); return true; }
-    st.head = Buffer.concat([st.head, buf]);
-    if (st.head.length > HEAD_LIMIT) { log(`app-zone stream ${f.sid}: oversized upgrade request`); drop(f.sid); return true; }
-    const head = parseHead(st.head);
-    if (head) onHead(st, head).catch((e) => { log(`app-zone stream ${f.sid}: ${e.message}`); drop(f.sid); });
+  // TUNA reaches this loopback upgrade directly. The same target, certificate,
+  // private-app and partition-splice checks apply as on the previous transport.
+  function handleUpgrade(req, socket, head) {
+    if (streams.size >= MAX_STREAMS) { socket.destroy(); return true; }
+    const sid = Symbol('local-ingress');
+    const st = { sid, sock: socket, upgraded: false, timer: null };
+    streams.set(sid, st); socket.once('close', () => drop(sid));
+    socket.on('error', () => drop(sid));
+    onHead(st, { method: req.method, url: req.url, headers: req.headers, rest: head })
+      .catch(e => { log(`local app ingress: ${e.message}`); drop(sid); });
     return true;
   }
-
-  return { onFrame, open: () => streams.size, closeAll: () => { for (const sid of [...streams.keys()]) drop(sid); } };
+  return { handleUpgrade, open: () => streams.size, closeAll: () => { for (const sid of [...streams.keys()]) drop(sid); } };
 }

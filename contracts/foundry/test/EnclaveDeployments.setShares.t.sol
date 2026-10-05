@@ -83,7 +83,7 @@ contract EnclaveDeploymentsSetSharesTest is Test {
     // ---- schema marker ----------------------------------------------------
 
     function test_schemaIsThirteen() public view {
-        assertEq(dep.deploymentsSchema(), 13);
+        assertEq(dep.deploymentsSchema(), 16);
     }
 
     // ---- unleased resizes -------------------------------------------------

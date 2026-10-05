@@ -1,0 +1,194 @@
+From a91697c687db206872bfcff9a103f6e8ebd2c9a3 Mon Sep 17 00:00:00 2001
+From: Steven Batchelor <srbatchelor@ovgl.org>
+Date: Sat, 3 Oct 2026 02:41:10 -0700
+Subject: [PATCH] Authenticate per-app direct bandwidth proxies
+
+---
+ isolation/m2/egress/app_routes.go      |  3 +-
+ isolation/m2/egress/socks.go           | 52 +++++++++++++++----
+ isolation/m2/egress/socks_auth_test.go | 69 ++++++++++++++++++++++++++
+ 3 files changed, 114 insertions(+), 10 deletions(-)
+ create mode 100644 isolation/m2/egress/socks_auth_test.go
+
+diff --git a/isolation/m2/egress/app_routes.go b/isolation/m2/egress/app_routes.go
+index 693ccea85..e67b50343 100644
+--- a/isolation/m2/egress/app_routes.go
++++ b/isolation/m2/egress/app_routes.go
+@@ -74,7 +74,8 @@ func ReadAppRoute(file, deploymentID string) (AppRoute, error) {
+ 			return zero, errors.New("invalid app route")
+ 		}
+ 		for _, p := range r.Proxies {
+-			a, e := netip.ParseAddrPort(p)
++			endpoint, _, _, _ := proxyParts(p)
++			a, e := netip.ParseAddrPort(endpoint)
+ 			canonical := ""
+ 			if e == nil {
+ 				canonical = netip.AddrPortFrom(a.Addr().Unmap(), a.Port()).String()
+diff --git a/isolation/m2/egress/socks.go b/isolation/m2/egress/socks.go
+index 8dc277d97..30a51bcac 100644
+--- a/isolation/m2/egress/socks.go
++++ b/isolation/m2/egress/socks.go
+@@ -7,17 +7,32 @@ import (
+ 	"io"
+ 	"net"
+ 	"net/netip"
++	"regexp"
++	"strings"
+ 	"time"
+ )
+ 
+-// ValidateSOCKSProxy permits only an explicit local entry, with no DNS or userinfo.
+-func ValidateSOCKSProxy(address string) error {
+-	a, err := netip.ParseAddrPort(address)
+-	if err != nil || !a.Addr().IsLoopback() || a.Port() == 0 {
+-		return errors.New("SOCKS entry must be a loopback IP and nonzero port")
++// Only loopback entries are allowed. Direct entries carry unguessable,
++// per-app credentials; legacy TUNA entries retain their existing no-auth path.
++var proxyCredentials = regexp.MustCompile(`^[a-f0-9]{32}:[a-f0-9]{32}$`)
++
++func proxyParts(proxy string) (endpoint, username, password string, err error) {
++	endpoint = proxy
++	if credentials, host, ok := strings.Cut(proxy, "@"); ok {
++		if !proxyCredentials.MatchString(credentials) {
++			err = errors.New("invalid app proxy credentials")
++			return
++		}
++		endpoint = host
++		username, password, _ = strings.Cut(credentials, ":")
++	}
++	a, e := netip.ParseAddrPort(endpoint)
++	if e != nil || !a.Addr().IsLoopback() || a.Port() == 0 {
++		err = errors.New("SOCKS entry must be a loopback IP and nonzero port")
+ 	}
+-	return nil
++	return
+ }
++func ValidateSOCKSProxy(address string) error { _, _, _, err := proxyParts(address); return err }
+ 
+ func dialSOCKS(ctx context.Context, proxy, destination string, timeout time.Duration) (net.Conn, error) {
+ 	if err := ValidateSOCKSProxy(proxy); err != nil {
+@@ -29,7 +44,8 @@ func dialSOCKS(ctx context.Context, proxy, destination string, timeout time.Dura
+ 	}
+ 	ctx, cancel := context.WithTimeout(ctx, timeout)
+ 	defer cancel()
+-	c, err := (&net.Dialer{}).DialContext(ctx, "tcp", proxy)
++	endpoint, username, password, _ := proxyParts(proxy)
++	c, err := (&net.Dialer{}).DialContext(ctx, "tcp", endpoint)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -45,16 +61,34 @@ func dialSOCKS(ctx context.Context, proxy, destination string, timeout time.Dura
+ 	if err = c.SetDeadline(deadline); err != nil {
+ 		return nil, err
+ 	}
+-	if _, err = c.Write([]byte{5, 1, 0}); err != nil {
++	method := byte(0)
++	if username != "" {
++		method = 2
++	}
++	if _, err = c.Write([]byte{5, 1, method}); err != nil {
+ 		return nil, err
+ 	}
+ 	var answer [4]byte
+ 	if _, err = io.ReadFull(c, answer[:2]); err != nil {
+ 		return nil, err
+ 	}
+-	if answer[0] != 5 || answer[1] != 0 {
++	if answer[0] != 5 || answer[1] != method {
+ 		return nil, errors.New("SOCKS entry rejected authentication method")
+ 	}
++	if method == 2 {
++		auth := append([]byte{1, 32}, []byte(username)...)
++		auth = append(auth, 32)
++		auth = append(auth, []byte(password)...)
++		if _, err = c.Write(auth); err != nil {
++			return nil, err
++		}
++		if _, err = io.ReadFull(c, answer[:2]); err != nil {
++			return nil, err
++		}
++		if answer[0] != 1 || answer[1] != 0 {
++			return nil, errors.New("SOCKS credentials refused")
++		}
++	}
+ 	request := []byte{5, 1, 0}
+ 	ip := target.Addr().Unmap()
+ 	if ip.Is4() {
+diff --git a/isolation/m2/egress/socks_auth_test.go b/isolation/m2/egress/socks_auth_test.go
+new file mode 100644
+index 000000000..8214e3eec
+--- /dev/null
++++ b/isolation/m2/egress/socks_auth_test.go
+@@ -0,0 +1,69 @@
++package egress
++
++import (
++	"context"
++	"io"
++	"net"
++	"strings"
++	"testing"
++	"time"
++)
++
++func TestPerAppProxyCredentials(t *testing.T) {
++	listener, e := net.Listen("tcp", "127.0.0.1:0")
++	if e != nil {
++		t.Fatal(e)
++	}
++	defer listener.Close()
++	user, pass := strings.Repeat("12", 16), strings.Repeat("34", 16)
++	done := make(chan error, 1)
++	go func() {
++		c, e := listener.Accept()
++		if e != nil {
++			done <- e
++			return
++		}
++		defer c.Close()
++		c.SetDeadline(time.Now().Add(time.Second))
++		hello := make([]byte, 3)
++		if _, e = io.ReadFull(c, hello); e != nil {
++			done <- e
++			return
++		}
++		if string(hello) != string([]byte{5, 1, 2}) {
++			done <- io.ErrUnexpectedEOF
++			return
++		}
++		c.Write([]byte{5, 2})
++		auth := make([]byte, 67)
++		if _, e = io.ReadFull(c, auth); e != nil {
++			done <- e
++			return
++		}
++		if string(auth[2:34]) != user || string(auth[35:]) != pass {
++			done <- io.ErrUnexpectedEOF
++			return
++		}
++		c.Write([]byte{1, 0})
++		request := make([]byte, 10)
++		if _, e = io.ReadFull(c, request); e != nil {
++			done <- e
++			return
++		}
++		c.Write([]byte{5, 0, 0, 1, 127, 0, 0, 1, 0, 0})
++		done <- nil
++	}()
++	c, e := dialSOCKS(context.Background(), user+":"+pass+"@"+listener.Addr().String(), "8.8.8.8:443", time.Second)
++	if e != nil {
++		t.Fatal(e)
++	}
++	c.Close()
++	if e = <-done; e != nil {
++		t.Fatal(e)
++	}
++	for _, bad := range []string{"u:p@127.0.0.1:80", user + ":" + pass + "@8.8.8.8:80", user + ":" + pass + "@127.0.0.1:0"} {
++		if ValidateSOCKSProxy(bad) == nil {
++			t.Fatal("accepted invalid proxy")
++		}
++	}
++}
+-- 
+2.56.0
+

@@ -1,12 +1,8 @@
 // windows/node/apptls.mjs -- the app's OWN hostname, with a real certificate.
 //
-// A deployment is reachable two ways. `https://api.enclave.host/x/<id>/…` is the platform's API
-// path, which the relay terminates. `https://<label>.app.enclave.host/` is the app's own origin,
-// and that one is an SNI PASSTHROUGH: relay/relay.js reads the ClientHello, never terminates it,
-// and splices the raw bytes to the box holding the lease over a WebSocket at /x/<id>/https. So the
-// handshake has to be answered HERE, with a certificate for that name, or a browser lands on a
-// warning - which is exactly what the console's open padlock means: it stays amber until a probe
-// from the browser itself completes a real handshake.
+// Application HTTPS arrives through a TUNA provider and the local host adapter,
+// which routes its SNI to /x/<id>/https without terminating the TLS session.
+// The lease holder answers with the application certificate.
 //
 // This module is the certificate half: a P-256 key, a PKCS#10 request for it, and the relay's
 // issuance route (relay/certs.js), which issues for the platform's own zones to whichever box

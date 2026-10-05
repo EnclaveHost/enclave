@@ -1,0 +1,16 @@
+[
+  {
+    "module": "github.com/nknorg/tuna",
+    "version": "v0.0.0-20240606122630-7e0f776a7c3b",
+    "zipSha256": "02bedfcd7d1a8773d597d5e0f39d6d5c6c640cdd52a7b12e9c0cc95cefca33e3",
+    "directory": "upstream",
+    "patch": "tuna.patch"
+  },
+  {
+    "module": "github.com/nknorg/nkn-sdk-go",
+    "version": "v1.4.8-0.20240427043332-a40386d2b50a",
+    "zipSha256": "cfdb3eb5eb02930dc041d7be1ff21f97831d1c809a2d7d577d6237fa83d6e2d1",
+    "directory": "nkn-sdk",
+    "patch": "nkn-sdk.patch"
+  }
+]

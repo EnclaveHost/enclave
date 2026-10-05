@@ -662,6 +662,10 @@ export async function personalSign(message){
   const hex = "0x" + [...new TextEncoder().encode(message)].map(b => b.toString(16).padStart(2, "0")).join("");
   return await Enclave.provider.request({ method: "personal_sign", params: [hex, Enclave.address] });
 }
+export async function personalSignBytes(hex){
+  if(!/^0x[0-9a-f]{64}$/i.test(hex))throw new Error("Expected a 32-byte signing digest");
+  wcNudge();return Enclave.provider.request({method:"personal_sign",params:[hex,Enclave.address]});
+}
 export async function ensureBaseChain(){
   let cur;
   try { cur = await Enclave.provider.request({ method: "eth_chainId" }); } catch { cur = null; }

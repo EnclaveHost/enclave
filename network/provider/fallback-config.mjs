@@ -1,0 +1,76 @@
+import net from 'node:net';
+import {validateAppNames} from '../app-ingress.mjs';
+import {validatePublicFallback} from '../public-fallback.mjs';
+
+// An app can remain in its former host's config after a lease moves. Reserve
+// one port pair per deployment, while retaining the duplicate checks within a
+// host and rejecting conflicting hostname metadata across hosts. Live lease
+// authorization still decides which agent may establish and publish the route.
+export function fallbackAppsForHosts(groups) {
+  const apps = new Map();
+  for (const group of groups) {
+    const seen = new Set();
+    for (const app of group) {
+      validateAppNames(app.deploymentId, app.names);
+      if (seen.has(app.deploymentId)) throw new Error('duplicate fallback app on one host');
+      seen.add(app.deploymentId);
+      const names = [...new Set(app.names.map(n => n.toLowerCase()))].sort();
+      const previous = apps.get(app.deploymentId);
+      if (previous && JSON.stringify(previous.names) !== JSON.stringify(names))
+        throw new Error('conflicting fallback hostnames across hosts');
+      apps.set(app.deploymentId, { deploymentId: app.deploymentId, names });
+    }
+  }
+  return [...apps.values()];
+}
+
+// Provisioning only: this runs on the fleet operator's machine. HAProxy holds
+// no certificates or private app keys and never terminates TLS. Data transport
+// remains the unmodified, publicly advertised TUNA reverse service.
+export function provisionFallback({provider,apps,allocations={},directFrontends=[]}) {
+  const checked=validatePublicFallback({...provider,httpsPort:20000,httpPort:20001});
+  const saved=structuredClone(allocations),used=new Set(),names=new Map(),seen=new Set();
+  for(const [id,v] of Object.entries(saved)) {
+    if(!/^0x[0-9a-f]{64}$/.test(id)||!v||Object.keys(v).some(k=>!['httpsPort','httpPort'].includes(k)))throw new Error('invalid saved fallback allocation');
+    validatePublicFallback({...provider,...v});
+    for(const p of [v.httpsPort,v.httpPort]){if(p<20000||p>29999||used.has(p))throw new Error('duplicate or out-of-range fallback port');used.add(p);}
+  }
+  const assigned=apps.map(app=>{
+    validateAppNames(app.deploymentId,app.names);
+    if(seen.has(app.deploymentId))throw new Error('duplicate fallback app');seen.add(app.deploymentId);
+    for(const name of app.names){const n=name.toLowerCase();if(names.has(n)&&names.get(n)!==app.deploymentId)throw new Error('fallback hostname belongs to two apps');names.set(n,app.deploymentId);}
+    if(!saved[app.deploymentId]){
+      let port=20000;while(port<30000&&(used.has(port)||used.has(port+1)))port+=2;
+      if(port>=30000)throw new Error('fallback port pool exhausted');
+      saved[app.deploymentId]={httpsPort:port,httpPort:port+1};used.add(port);used.add(port+1);
+    }
+    return {...app,publicFallback:{identity:checked.identity,address:checked.address,...saved[app.deploymentId]}};
+  });
+  if(!Array.isArray(directFrontends)||directFrontends.length>512)throw Error('invalid direct frontend list');
+  const direct=directFrontends.map((entry,index)=>{
+    if(entry.canary===true){if(entry.names?.length!==1||!/^probe-[a-z0-9-]+\.enclave\.host$/.test(entry.names[0]))throw Error('invalid provider probe hostname');}
+    else validateAppNames(entry.deploymentId,entry.names);
+    if(![entry.httpsPort,entry.httpPort].every(p=>Number.isInteger(p)&&p>1024&&p<65536&&!(p>=20000&&p<30000))||entry.httpsPort===entry.httpPort)throw Error('direct frontend needs separate unreserved loopback ports');
+    for(const name of entry.names){const n=name.toLowerCase();if(names.has(n))throw Error('direct hostname conflicts with another route');names.set(n,'direct-'+index);}
+    return {...entry,key:'direct_'+index,names:entry.names.map(n=>n.toLowerCase())};
+  });
+  const config=['# Generated TLS passthrough: no TLS termination or app private keys.',
+    'global','  maxconn 4096','  user haproxy','  group haproxy',
+    'defaults','  mode tcp','  timeout connect 10s','  timeout client 1h','  timeout server 1h',
+    'frontend encrypted_apps','  bind :443','  tcp-request inspect-delay 5s',
+    '  tcp-request content accept if { req.ssl_hello_type 1 }'];
+  for(const app of assigned)config.push(`  use_backend tls_${app.deploymentId.slice(2)} if { req.ssl_sni -i ${app.names.join(' ')} }`);
+  for(const entry of direct)config.push(`  use_backend ${entry.key}_tls if { req.ssl_sni -i ${entry.names.join(' ')} }`);
+  config.push('  default_backend unknown_tls','backend unknown_tls','  tcp-request content reject',
+    'frontend http_apps','  bind :80','  mode http');
+  for(const app of assigned)config.push(`  use_backend http_${app.deploymentId.slice(2)} if { hdr(host),lower,field(1,:) -m str ${app.names.map(n=>n.toLowerCase()).join(' ')} }`);
+  for(const entry of direct)config.push(`  use_backend ${entry.key}_http if { hdr(host),lower,field(1,:) -m str ${entry.names.join(' ')} }`);
+  const address=net.isIPv6(checked.address)?`[${checked.address}]`:checked.address;
+  for(const app of assigned){
+    const id=app.deploymentId.slice(2),f=app.publicFallback;
+    config.push(`backend tls_${id}`,`  server tunnel ${address}:${f.httpsPort}`,
+      `backend http_${id}`,'  mode http',`  server tunnel ${address}:${f.httpPort}`);
+  }
+  for(const entry of direct)config.push(`backend ${entry.key}_tls`,`  server direct 127.0.0.1:${entry.httpsPort}`,`backend ${entry.key}_http`,'  mode http',`  server direct 127.0.0.1:${entry.httpPort}`);
+  return {apps:assigned,allocations:saved,haproxy:config.join('\n')+'\n'};
+}
