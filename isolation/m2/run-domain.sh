@@ -102,7 +102,9 @@ start)
         bank="$SHIELDED_PAD_BANK_DIR/$tag.padbank"
         rm -f "$bank"
         truncate -s "${gib}G" "$bank"
-        set -- "$@" -drive "file=$bank,format=raw,if=none,id=padbank,cache=none" -device "virtio-blk-pci,drive=padbank,addr=0x10"
+        # 4 KiB logical blocks: the engine aligns its slots to them, so no I/O is a partial host block (cache=none)
+        set -- "$@" -drive "file=$bank,format=raw,if=none,id=padbank,cache=none" \
+          -device "virtio-blk-pci,drive=padbank,addr=0x10,logical_block_size=4096,physical_block_size=4096"
       fi
       # Pause until critical vCPUs are placed on physical cores sharing an L3.
       qmp_dir=$(mktemp -d /tmp/enclave-shield-qmp.XXXXXX)
