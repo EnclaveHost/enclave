@@ -6,7 +6,7 @@
 // This is the relay-owned half: the record store, the ownership/routing proof,
 // and the authorization gate that decides which names an enclave may mint a
 // certificate for. The issuance itself lives in supervisor.js (in-enclave
-// ACME), the SNI routing in relay/relay.js, and the customer-facing UI in
+// ACME), the local SNI routing in network/agent.mjs, and the customer-facing UI in
 // site/components/deployments.
 //
 // WHY THREE DNS RECORDS. The customer creates:
@@ -108,7 +108,7 @@ const SECRETS_KEY = (process.env.SECRETS_KEY || "").trim();
 const DISABLED = /^(0|false|off|no)$/i.test((process.env.CUSTOM_DOMAINS ?? "1").trim());
 
 // The zone customer records point AT, and the zones nobody may attach FROM.
-// APP_DOMAIN is the same env api-relay/relay.js read; RESERVED_ZONES exists so
+// APP_DOMAIN is the same zone the control API reads; RESERVED_ZONES exists so
 // a future zone can be fenced off without a code change.
 const APP_DOMAINS = (process.env.APP_DOMAIN || "app.enclave.host").toLowerCase().split(",")
   .map((s) => s.trim().replace(/^\.+|\.+$/g, "")).filter(Boolean);

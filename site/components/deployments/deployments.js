@@ -379,24 +379,6 @@ function cfgPlan(ctx){
 function encTier(d){
   return appShareLabel(d);
 }
-// A deployment's DEDICATED IPv6 (per-deployment addressing): declared tcp/udp
-// ports are served at [address]:<logical port> via the relays, and outbound
-// connections (dedicated-IP egress) leave from the same address. Rendered as
-// its own copyable row when the API surfaces network.address - which it also
-// does for port-less deployments when egress is on (outbound-only address).
-function depIp6Row(d){
-  const net = d.network || {};
-  if (!net.address) return "";
-  const tcp = (net.tcp && net.tcp.ports) || [];
-  const udp = (net.udp && net.udp.ports) || [];
-  const ports = (tcp.length ? " · tcp " + tcp.join(",") : "") + (udp.length ? " · udp " + udp.join(",") : "");
-  const title = (tcp.length || udp.length)
-    ? "dedicated IPv6 - this deployment's own address: tcp/udp ports are served on it at their real port numbers" + (net.egress ? ", and its outbound traffic egresses from it" : "")
-    : "dedicated IPv6 - this deployment's own address: its outbound traffic egresses from it (no inbound tcp/udp ports declared)";
-  return '<button class="enc-ep" data-ep="' + esc(net.address) + '" title="' + esc(title) + '">'
-    + 'ip6 [' + esc(net.address) + ']' + esc(ports) + ((tcp.length || udp.length) ? '' : ' · egress only') + ' ⧉</button>';
-}
-
 class Deployments extends EnclaveElement {
   static templateUrl = new URL("./deployments.html", import.meta.url);
 
@@ -845,7 +827,7 @@ class Deployments extends EnclaveElement {
           '<span class="ap-badge ' + (d.public ? 'ep-public' : 'ep-private') + '" title="' + (d.public ? 'anyone can reach the app endpoint' : 'only your wallet token can reach the app') + '">' + (d.public ? 'public' : 'private') + '</span>' +
           '<span class="ap-badge info ep-waf" data-wafb="' + esc(d.id) + '" hidden>protected</span>' +
           '<span class="ap-badge ep-cfg" data-cfgb="' + esc(d.id) + '" hidden>custom config</span>' +
-          '<span class="ap-badge ep-relay" data-relayb="' + esc(d.id) + '" hidden></span>' +
+          '<span class="ap-badge">TUNA</span>' +
           '<button class="enc-id" data-copy="' + esc(d.id) + '" title="' + esc(d.id) + '" aria-label="copy deployment id">' + esc(idShort) + ' ⧉</button>' +
           '<span class="enc-br" aria-hidden="true"></span>' +
           (shareText || d.enclave ? '<span class="enc-meta">' + (shareText ? '<span class="enc-allocation">' + esc(shareText) + '</span>' : '')
@@ -877,7 +859,6 @@ class Deployments extends EnclaveElement {
         (st === "queued" ? '<div class="enc-why" data-why="' + esc(d.id) + '" role="status" aria-live="polite" hidden></div>' : '') +
         (ep ? '<div class="enc-eprow"><button class="enc-ep" data-ep="' + esc(ep) + '">' + esc(ep) + ' ⧉</button>'
               + openCtl(d, ep, this._tls && this._tls.get(d.id)) + '</div>' : '') +
-        depIp6Row(d) +
         // panel tabs (develop-page idiom): each button toggles its panel below;
         // aria-expanded doubles as the active-tab style hook. Transfer lives
         // here - it opens a panel and does not belong beside Cancel.
@@ -889,7 +870,7 @@ class Deployments extends EnclaveElement {
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-cfgbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="This deployment’s app config (its ENCLAVE_CONFIG): edit it, save named variations, or reset to the version’s stock config - the catalog default and every other deployment stay untouched">Config</button>' : '') +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-modbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="The model volumes this app mounts: attested read-only weights the fleet carries, picked by name - a change relaunches the app in place on the new set; the catalog and every other deployment stay untouched">Models</button>' : '') +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-wafbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Per-IP rate limit + request filter, enforced inside the enclave at the app’s front door - add, tune or remove it any time; a running app picks the change up live">Protect</button>' : '') +
-          (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-netbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Which relay carries this app’s inbound traffic. The relay splices encrypted bytes on the app’s name and never terminates TLS - picking one nearer your users (or nearer the enclave) shortens the network path, and changes nothing about who can read the traffic">Network</button>' : '') +
+          (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-netbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Current TUNA provider addresses and allocated ports. TLS ends in the app guest.">Network</button>' : '') +
           '<button class="btn btn-sm enc-movebtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Choose a preferred host for this app, or resume an ended app on a selected host. Same URL, version and balance">Pin</button>' +
           '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '" aria-expanded="false">Verify</button>' +
           (mobileOffer(d, ep) ? '<button class="btn btn-sm enc-mobbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Install this app on a phone - the mobile build verifies the enclave on the device before the app loads">Downloads</button>' : '') +
@@ -952,7 +933,7 @@ class Deployments extends EnclaveElement {
     this._fillWhy();               // cached decline reasons repaint instantly with the rows
     this._probeWhy(pageRows);      // then refresh them (throttled per row)
     this._probeTls(pageRows);      // TLS-gate the Open controls (throttled per row)
-    this._probeEnv(pageRows);      // "protected" / "via <relay>" badges off the options envelope (cached per row)
+    this._probeEnv(pageRows);      // WAF badges from the cached options envelope
     this._renderPager(pages, shown.length, PER_PAGE);
     // finished runs' strips yield to their rows the moment those render
     [...this._strips.keys()].forEach(r => this._retireStrip(r));
@@ -1009,8 +990,7 @@ class Deployments extends EnclaveElement {
   }
 
   /* ---- per-row envelope badges: what does the options envelope carry?
-     Two of its namespaces are visible on the row itself - `waf` ("protected")
-     and `network.relay` ("via <relay>"). The list rows (supervisor live view /
+     The `waf` namespace supplies the protection badge. The list rows (supervisor live view /
      relay ledger view) don't carry the envelope, so visible on-chain rows get
      ONE cached ledger read each - an envelope only changes via an owner tx, so
      the cache lives until a panel rewrites it (which flips its badge in
@@ -1022,7 +1002,7 @@ class Deployments extends EnclaveElement {
       if (!/^0x[0-9a-f]{64}$/i.test(id || "")) continue;
       const c = this._env.get(id);
       if (c) { this._envPaint(id); continue; }
-      this._env.set(id, { waf: false, summary: "", relay: "" });   // stamp before the await: overlapping polls must not double-read
+      this._env.set(id, { waf: false, summary: "" });   // stamp before the await: overlapping polls must not double-read
       try {
         const dd = await depGet(id);
         this._envLearn(id, dd && dd.configCid);
@@ -1045,11 +1025,9 @@ class Deployments extends EnclaveElement {
       w.maxBodyMb != null ? "max body " + w.maxBodyMb + " MB" : null,
       w.blockScanners ? "scanner paths blocked" : null,
     ].filter(Boolean).join(" \u00b7 ") : "";
-    const n = o && o.network && typeof o.network === "object" && !Array.isArray(o.network) ? o.network : null;
-    const relay = n && typeof n.relay === "string" ? n.relay.trim().toLowerCase() : "";
     // `config` present at all = an override (even {} - explicitly empty is a
     // choice, and the badge is how the owner remembers having made it)
-    this._env.set(id, { waf: !!w, summary, relay, cfg: !!(o && "config" in o) });
+    this._env.set(id, { waf: !!w, summary, cfg: !!(o && "config" in o) });
     this._envPaint(id);
   }
   _envPaint(id) {
@@ -1059,14 +1037,6 @@ class Deployments extends EnclaveElement {
     if (b) {
       b.hidden = !c.waf;
       if (c.waf) b.title = "Protection is on: " + c.summary + " - the Protect button tunes or removes it";
-    }
-    const r = this.querySelector('.ep-relay[data-relayb="' + id + '"]');
-    if (r) {
-      r.hidden = !c.relay;
-      if (c.relay) {
-        r.textContent = "via " + c.relay;
-        r.title = "Inbound traffic for this app is carried by the " + c.relay + " relay - the Network button changes it";
-      }
     }
     const k = this.querySelector('.ep-cfg[data-cfgb="' + id + '"]');
     if (k) {
@@ -1781,297 +1751,28 @@ class Deployments extends EnclaveElement {
     });
   }
 
-  /* ---- the relay's view of this app's traffic -------------------------------
-     A relay is the only place OUTSIDE the enclave that can see anything about
-     a deployment's traffic, and it sees exactly this much: an address, a
-     direction, a time, and how many bytes the connection moved. It peeks SNI
-     without terminating TLS inbound and dials an already-authenticated
-     destination outbound, so there is no request, path or header here - not
-     because we chose not to log one, but because a box holding no key never
-     had one to see.
-
-     So this graph is BANDWIDTH and CONNECTIONS, and says so. Reading it as a
-     request count would undercount by a factor nothing here can know: one
-     connection carries many requests (h2 multiplexes, h1 keeps alive). Bytes
-     are the honest measure, and they distinguish the case that actually
-     matters - eight connections moving nothing is a very different picture
-     from eight moving megabytes, and only the per-connection split tells them
-     apart. ---- */
-  async _traffic(id, host, _preferred) {
-    if (!host) return;
-    const WINDOW_MS = 15 * 60 * 1000, BUCKETS = 30;
-    const fmtB = (n) => n >= 1e9 ? (n / 1e9).toFixed(1) + " GB"
-                      : n >= 1e6 ? (n / 1e6).toFixed(1) + " MB"
-                      : n >= 1e3 ? (n / 1e3).toFixed(0) + " kB" : (n | 0) + " B";
-    const ago = (ms) => { const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
-      return s < 60 ? s + "s ago" : s < 3600 ? Math.round(s / 60) + "m ago" : Math.round(s / 3600) + "h ago"; };
-
-    host.innerHTML = '<div class="ap-attbar">traffic · relay view</div>'
-      + '<div class="en-traffic"><p class="en-intro dim">reading the relay…</p></div>';
-    const body = host.querySelector(".en-traffic");
-
-    // WHICH relay carries this app - the envelope answers only for a
-    // deployment that chose one, and most never do; /v1/relays resolves the
-    // fleet default too, which is the case that matters here.
-    let relay = "";
-    try {
-      const labels = await Enclave.getRelayLabels();
-      const row = labels && labels[appLabel(id)];
-      relay = (row && row.relay) || "";
-    } catch (e) { /* fall through to the no-relay note */ }
-    if (!relay) {
-      body.innerHTML = '<p class="en-intro dim">No relay is reporting for this app yet, '
-        + 'so there is nothing to show. Traffic that never crosses a relay (a direct '
-        + 'enclave origin) is invisible here by construction.</p>';
-      return;
-    }
-
-    let view = "peer";                 // "peer" | "conn"
-    const draw = (rows, note) => {
-      if (host.hidden || !host.isConnected) return;
-      const now = Date.now(), from = now - WINDOW_MS;
-      const live = rows.filter((r) => r.t >= from);
-      const open = live.filter((r) => !r.e).length;
-      const totIn = live.reduce((n, r) => n + (r.u || 0), 0);
-      const totOut = live.reduce((n, r) => n + (r.w || 0), 0);
-
-      // Bandwidth per bucket. A connection's bytes are only known when it
-      // CLOSES, so they land in the bucket it closed in rather than smeared
-      // across its life - honest about what the relay actually reported, and
-      // the reason a long download appears as one spike at the end.
-      const buckets = new Array(BUCKETS).fill(0).map(() => ({ i: 0, o: 0, n: 0 }));
-      const span = WINDOW_MS / BUCKETS;
-      for (const r of live) {
-        const b = buckets[Math.min(BUCKETS - 1, Math.floor((r.t - from) / span))];
-        b.n++;
-        const c = buckets[Math.min(BUCKETS - 1, Math.floor(((r.e || now) - from) / span))];
-        c.i += r.u || 0; c.o += r.w || 0;
-      }
-      const peak = Math.max(1, ...buckets.map((b) => b.i + b.o));
-      const H = 46;
-      const bars = buckets.map((b, k) => {
-        const hi = Math.round((b.i / peak) * H), ho = Math.round((b.o / peak) * H);
-        const x = k * 10;
-        const t = new Date(from + k * span).toLocaleTimeString();
-        return '<g><title>' + esc(t + " · in " + fmtB(b.i) + " · out " + fmtB(b.o)
-                 + (b.n ? " · " + b.n + " new conn" : "")) + '</title>'
-             + '<rect x="' + x + '" y="' + (H - hi - ho) + '" width="8" height="' + ho + '" class="tg-out"/>'
-             + '<rect x="' + x + '" y="' + (H - hi) + '" width="8" height="' + hi + '" class="tg-in"/>'
-             + '</g>';
-      }).join("");
-
-      const dirTag = (d) => d === "out" ? '<span class="tg-d out">out</span>' : '<span class="tg-d in">in</span>';
-
-      // BY PEER is the default, because the per-connection view misleads: a
-      // browser opens several connections to load one page, each with its own
-      // ephemeral SOURCE port, so six rows that are one visitor read as six
-      // visitors. Grouping answers "who is talking to this app", which is the
-      // question people actually bring; the connection detail is one click away
-      // for when the question is "what just happened".
-      const byPeer = new Map();
-      for (const r of live) {
-        const k = r.d + " " + r.a;
-        let g = byPeer.get(k);
-        if (!g) { g = { d: r.d, a: r.a, n: 0, bytes: 0, open: 0, last: 0 }; byPeer.set(k, g); }
-        g.n++; g.bytes += (r.u || 0) + (r.w || 0);
-        if (!r.e) g.open++;
-        g.last = Math.max(g.last, r.e || r.t);
-      }
-      const peers = [...byPeer.values()].sort((x, y) => y.last - x.last).slice(0, 12).map((g) =>
-          '<tr><td>' + esc(ago(g.last)) + '</td><td>' + dirTag(g.d) + '</td>'
-        + '<td class="tg-peer">' + esc(g.a) + '</td>'
-        + '<td class="tg-b">' + fmtB(g.bytes) + '</td>'
-        + '<td class="dim">' + g.n + (g.open ? ' \u00b7 ' + g.open + ' open' : '') + '</td></tr>').join("");
-
-      // newest first: the question here is "what just happened"
-      const recent = live.slice().reverse().slice(0, 12).map((r) => {
-        const dir = dirTag(r.d);
-        const bytes = r.e ? fmtB((r.u || 0) + (r.w || 0)) : '<span class="dim">open</span>';
-        const held = r.e ? Math.max(0, Math.round((r.e - r.t) / 100) / 10) + "s" : "";
-        return '<tr><td>' + esc(ago(r.t)) + '</td><td>' + dir + '</td>'
-             + '<td class="tg-peer">' + esc(r.a) + (r.p ? ':' + (r.p | 0) : '') + '</td>'
-             + '<td class="tg-b">' + bytes + '</td><td class="dim">' + esc(held) + '</td></tr>';
-      }).join("");
-
-      body.innerHTML =
-          '<div class="tg-sum"><b>' + open + '</b> open · <b>' + fmtB(totIn) + '</b> in · <b>'
-        + fmtB(totOut) + '</b> out <span class="dim">· ' + live.length + ' connections in 15 min · via '
-        + esc(relay) + '</span></div>'
-        + (live.length
-            ? '<svg class="tg-chart" viewBox="0 0 ' + (BUCKETS * 10) + ' ' + H + '" preserveAspectRatio="none" role="img" '
-              + 'aria-label="bandwidth by connection over the last 15 minutes">' + bars + '</svg>'
-              + '<div class="tg-tabs" role="group" aria-label="group traffic by">'
-              +   '<button type="button" class="tg-tab" data-view="peer" aria-pressed="' + (view === "peer") + '">by peer</button>'
-              +   '<button type="button" class="tg-tab" data-view="conn" aria-pressed="' + (view === "conn") + '">by connection</button>'
-              + '</div>'
-              + '<table class="tg-tbl"><thead><tr><th>' + (view === "peer" ? "last" : "when") + '</th><th>dir</th><th>peer</th>'
-              +   '<th>bytes</th><th>' + (view === "peer" ? "conns" : "held") + '</th></tr></thead>'
-              + '<tbody>' + (view === "peer" ? peers : recent) + '</tbody></table>'
-            : '<p class="en-intro dim">No connections in the last 15 minutes.</p>')
-        + '<p class="en-intro dim">Connections, not requests - the relay never terminates TLS, and one '
-        + 'connection carries many requests. Bytes are counted at the socket and land in the bucket a '
-        + 'connection <em>closed</em> in. In the per-connection view the number after a peer is its '
-        + '<em>source</em> port, which the client picks fresh each time - one visitor loading a page '
-        + 'opens several. ' + esc(note || '') + '</p>';
-      body.querySelectorAll(".tg-tab").forEach((b) => b.addEventListener("click", () => {
-        view = b.dataset.view; draw(rows, note);        // same rows, redrawn - no refetch
-      }));
-    };
-
-    const poll = async () => {
-      if (host.hidden || !host.isConnected) return;          // panel closed: stop
-      try {
-        const j = await Enclave.getRelayTraffic(relay, id);
-        draw(j.rows || [], j.note || "");
-      } catch (e) {
-        if (!host.isConnected) return;
-        body.innerHTML = '<p class="en-intro dim">The ' + esc(relay) + ' relay is not reporting traffic '
-          + '(it may predate this, or be unreachable right now).</p>';
-        return;                                              // stop polling a relay that cannot answer
-      }
-      setTimeout(poll, 5000);
-    };
-    poll();
+  // TUNA does not expose the retired Enclave per-connection traffic feed.
+  async _traffic(id, host) {
+    if (host) host.innerHTML = '<div class="ap-attbar">traffic</div><p class="en-intro dim">Traffic is carried by TUNA. Per-connection traffic reports are unavailable.</p>';
   }
 
-  /* ---- per-row Network: which relay carries this app's inbound traffic ----
-     A relay splices ENCRYPTED bytes on the app's name; browser TLS terminates
-     inside the enclave and the relay holds no key, so this choice is about
-     PLACEMENT and nothing else - it can shorten the network path and cannot
-     widen who can read the traffic. That is worth saying plainly in the panel,
-     because "pick who carries my traffic" reads like a trust decision and is
-     not one.
-
-     The mechanism is the options envelope's `network` namespace, written by the
-     same owner setConfig tx as Protect (other namespaces PRESERVED verbatim).
-     Nothing in a CVM acts on it: DNS does. The relay's /v1/relays resolves
-     name -> address and the app zone answers <label>.app.enclave.host with it,
-     so the effect arrives at DNS cadence, not at claim time.
-
-     Fails closed on the fleet flag like Protect: the envelope is refused whole
-     by a runner that predates the namespace, so offering the control against a
-     mixed fleet would strand the deployment unclaimable on the next lease. ---- */
   async _network(id, btn) {
     const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-net"); if (!box) return;
-    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
-    btn.setAttribute("aria-expanded", "true");
-    box.hidden = false;
-    const bar = '<div class="ap-attbar">network · ' + esc(id) + '</div>';
-    box.innerHTML = bar + '<div class="term enc-net-status" role="status" aria-live="polite"><span class="ln dimln">// reading the ledger + relay roster…</span></div>';
-    let d = null, rev = 1, avail = null, relays = [];
-    try { [rev, d] = await Promise.all([depSchemaRev(), depGet(id)]); } catch(e){ d = null; }
-    try { avail = await Enclave.getAvailability(); } catch(e){}
-    try { relays = await Enclave.getRelays(); } catch(e){}
-    if (box.hidden || !box.isConnected) return;              // closed while loading
-    const fail = (msg) => { box.querySelector(".enc-net-status").innerHTML = ""; paintLine(box.querySelector(".enc-net-status"), "warn", msg); };
-    if (!d) return fail("[x] couldn’t read this deployment from the ledger - try again shortly");
-    if (avail && avail.networkOptions !== true)
-      return fail("[!] the live fleet doesn’t read the network envelope yet - choosing a relay now could strand this deployment on its next claim; try again after the fleet updates");
-    const raw = String(d.configCid || "").trim();
-    this._envLearn(id, raw);                       // freshest ledger truth: sync the row badge
-    let cur = {};
-    if (raw.startsWith("{")) { try { cur = JSON.parse(raw); } catch(e){} }
-    if (!cur || Array.isArray(cur) || typeof cur !== "object") cur = {};
-    const n0 = (cur.network && typeof cur.network === "object" && !Array.isArray(cur.network)) ? cur.network : null;
-    const cur0 = n0 && typeof n0.relay === "string" ? n0.relay.trim().toLowerCase() : "";
-    // Only a relay that splices SNI can front an app subdomain; one that carries
-    // only dedicated-IP TCP or egress is a real fleet member and a wrong answer
-    // here, so it is not offered.
-    const opts = (Array.isArray(relays) ? relays : []).filter(r => r && r.name && r.services && r.services.sni);
-    // A relay this deployment already NAMES but the roster does not offer has to
-    // appear anyway, selected and labelled: the record says so, and the panel
-    // must not silently redraw it as "fleet default" and turn a reload into an
-    // unintended change. The roster is only what is answering right now, so
-    // this covers both a relay that is briefly down and one that is gone for
-    // good - and DNS is doing the same thing in either case, which is what the
-    // label says.
-    const gone = !!cur0 && !opts.some(r => r.name === cur0);
-    if (gone) opts.push({ name: cur0, missing: true, services: { sni: true } });
-    const fid = "en" + appLabel(id);
-    const optLine = (r) => {
-      const bits = [
-        r.region ? esc(r.region) : null,
-        r.address ? '<span class="dim">' + esc(r.address) + '</span>' : null,
-        r.relayOnly === false ? '<span class="dim">also hosts apps</span>' : null,
-        r.missing ? '<span class="warn">not answering right now - the fleet default is carrying this app meanwhile</span>' : null,
-      ].filter(Boolean);
-      return '<label class="en-opt"><input type="radio" name="' + fid + '" value="' + esc(r.name) + '"'
-        + (r.name === cur0 ? " checked" : "") + '> <b>' + esc(r.name) + '</b>'
-        + (bits.length ? ' <span class="en-sub">' + bits.join(" · ") + '</span>' : '') + '</label>';
-    };
-    box.innerHTML = bar
-      + '<div class="enc-net-body">'
-      +   '<p class="en-intro">Which relay carries inbound traffic for <b>' + esc(appLabel(id)) + '.' + esc(APP_DOMAIN) + '</b>. '
-      +     'The relay splices encrypted bytes on the name and never terminates TLS - your app’s certificate is minted inside the enclave and stays there, '
-      +     'so this changes the path, never who can read it.</p>'
-      +   '<div class="en-list" role="radiogroup" aria-label="relay for this deployment">'
-      +     '<label class="en-opt"><input type="radio" name="' + fid + '" value=""' + (cur0 ? "" : " checked") + '> <b>Fleet default</b>'
-      +       ' <span class="en-sub">whichever relay the app zone points at - the right answer unless you have a reason</span></label>'
-      +     opts.map(optLine).join("")
-      +   '</div>'
-      +   (opts.length ? '' : '<p class="en-intro dim">No relay is publishing an address to choose from yet, so the fleet default is the only option.</p>')
-      +   '<button class="btn btn-sm btn-primary en-go" type="button">Apply</button>'
-      + '</div>'
-      + '<div class="enc-net-traffic"></div>'
-      + '<div class="term enc-net-status" role="status" aria-live="polite"></div>';
-    this._traffic(id, box.querySelector(".enc-net-traffic"), cur0 || (avail && avail.relayDefault) || "");
-    const st = box.querySelector(".enc-net-status"), go = box.querySelector(".en-go");
-    const paint = (cls, txt) => paintLine(st, cls, txt);
-    const chosen = () => (box.querySelector('input[name="' + fid + '"]:checked') || {}).value || "";
-    const envelopeFor = (name) => {
-      const next = { ...cur };
-      if (name) next.network = { ...(n0 || {}), relay: name };
-      else delete next.network;
-      return Object.keys(next).length ? JSON.stringify(next) : "";
-    };
-    const intro = () => {
-      st.innerHTML = "";
-      paint("info", "// the choice rides one owner signature; new connections follow it at DNS cadence - "
-        + "about a minute between relays, up to five when moving off the fleet default. Open connections stay where they are.");
-      if ("waf" in cur) paint("dimln", "// this deployment’s protection settings are preserved untouched");
-      if ("config" in cur) paint("dimln", "// its app-config override is preserved untouched");
-      // custom domains: a CNAME resolves THROUGH the app name and follows this
-      // choice by itself; an apex pinned straight at our edge addresses does not
-      paint("dimln", "// a custom domain CNAME’d at this app follows the choice - an apex pinned to our edge by A/AAAA keeps its own path");
-      if (gone) paint("warn", "[!] this deployment names “" + cur0 + "”, which no relay in the fleet answers to - the app is reachable on the fleet default meanwhile");
-    };
-    const sync = () => { go.disabled = envelopeFor(chosen()) === raw;
-      go.textContent = chosen() ? (chosen() === cur0 ? "Apply" : "Use " + chosen()) : "Use the fleet default"; };
-    $$('input[name="' + fid + '"]', box).forEach(el => el.addEventListener("change", sync));
-    intro(); sync();
-    go.addEventListener("click", async () => {
-      const name = chosen(), envelope = envelopeFor(name);
-      if (envelope === raw) return;
-      const cap = rev >= 5 ? 4096 : 100;
-      if (new TextEncoder().encode(envelope).length > cap)
-        return paint("warn", "[x] the options envelope is over this ledger’s " + cap + "-byte cap - trim the config override first");
-      go.disabled = true;
-      const via = ctlOf((this._list || []).find(x => x.id === id)) === "vault";
-      const doneWord = name ? "inbound now goes through " + name : "inbound is back on the fleet default";
-      try {
-        if (via){
-          paint("info", "[*] confirm with your passkey…");
-          const { vaultOp } = await import("../../js/core/vault.js");
-          await vaultOp("control", { id, action: "options", envelope });
-        } else {
-          if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
-          await ensureBaseChain();
-          paint("info", "[*] confirm the transaction in your wallet…");
-          const th = await sendTx(DEPLOYMENTS_ADDRESS,
-            encCall(DEP_SEL.setConfig, [{ t: "bytes32", v: id }, { t: "str", v: envelope }]));
-          paint("dimln", "  ↳ sent " + th + " · waiting for confirmation…");
-          await waitReceipt(th);
-        }
-        paint("ok", "[✓] " + doneWord + " - DNS picks it up within a minute or so");
-        showToast(doneWord);
-        this._envLearn(id, envelope);          // the row badge reflects the new envelope immediately
-        setTimeout(() => { if (box.isConnected && !box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); } }, 3500);
-      } catch(e){
-        const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
-        paint("warn", rejected ? (via ? "[x] cancelled - nothing changed" : "[x] rejected in wallet - nothing changed") : "[x] " + (e.message || String(e)));
-        go.disabled = false;
-      } finally { if (!via) refreshWallet(); }
-    });
+    if (!box.hidden) {box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return;}
+    btn.setAttribute("aria-expanded", "true"); box.hidden = false;
+    box.innerHTML = '<div class="ap-attbar">Network</div><div class="term enc-net-status" role="status" aria-live="polite"></div>';
+    const status = box.querySelector(".enc-net-status");
+    const controls=import("../../js/core/network-controls.js").then(m=>m.renderNetworkControls(box,id,{viaVault:ctlOf((this._list||[]).find(d=>d.id===id))==='vault'})).catch(e=>paintLine(status,"warn","Route settings unavailable: "+e.message));
+    try {
+      const map = await Enclave.getTunaNetwork(), route = map.deployments?.[id.toLowerCase()];
+      if (!route || route.expiresAt <= Date.now()) {paintLine(status, "warn", "Waiting for an active connection.");await controls;return;}
+      paintLine(status, "ok", route.transport === "direct" ? "Direct host connection" : "Via TUNA");
+      if (route.https) paintLine(status, "ok", "HTTPS: " + route.https.address + ":" + route.https.port);
+      for (const protocol of ["tcp", "udp"]) for (const port of route[protocol] || [])
+        paintLine(status, "dimln", protocol.toUpperCase() + " " + port.port + " → " + route.address + ":" + port.publicPort);
+      paintLine(status, "dimln", "Use the app hostname for HTTPS.");
+      if (route.transport !== "direct") paintLine(status, "dimln", "Provider addresses and ports may change on reconnect. A dedicated IP and the visitor's source IP are not provided.");
+    } catch (e) {paintLine(status, "warn", "Network status unavailable: " + e.message);}
   }
 
   /* ---- the deployment's config, as the ledger + catalog see it ----
@@ -2275,7 +1976,7 @@ class Deployments extends EnclaveElement {
                                                  : "// couldn’t read the version’s stock config right now - an override can still be set, and Reset works regardless (the runner resolves stock itself)"))));
     if (ovCid && !ovLost) paint("dimln", "// its config is pinned off-chain (" + esc(ovCid.slice(0, 12)) + "…) because it doesn’t fit the ledger’s options field; the reference is what’s on-chain");
     if ("waf" in cur) paint("dimln", "// the deployment’s protection settings are preserved untouched");
-    if (cur.network) paint("dimln", "// its relay choice is preserved untouched");
+    if (cur.network) paint("dimln", "// its network options are preserved");
     if (!avail) paint("dimln", "// couldn’t read fleet availability to confirm override support - if a runner predates it, the next claim would refuse this deployment");
     // what the textarea MEANS against the ledger - the one truth Apply acts on
     const verdict = () => {
@@ -2434,7 +2135,7 @@ class Deployments extends EnclaveElement {
     const missing0 = nowVols.filter(n => byName.get(n).missing);
     if (missing0.length) paint("warn", "[!] " + missing0.join(", ") + ": no live enclave carries " + (missing0.length === 1 ? "it" : "these") + " right now - the fleet can’t place this deployment until one does, or until it’s unticked");
     if ("waf" in cur) paint("dimln", "// the deployment’s protection settings are preserved untouched");
-    if (cur.network) paint("dimln", "// its relay choice is preserved untouched");
+    if (cur.network) paint("dimln", "// its network options are preserved");
     // the config that rides out: today's document with the ticks as its
     // `volumes` key - the ones it already names first (in their order), new
     // ticks after in list order; no ticks = no key

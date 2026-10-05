@@ -1,3 +1,4 @@
+import {prepareNetwork,submitNetwork} from './vaultsvc.js';
 // Order service + hybrid billing: USD-quoted orders paid EITHER by card
 // (hosted Stripe Checkout - the customer never touches crypto) OR by USDC on
 // Base from the customer's own wallet through the immutable PaymentRouter
@@ -861,6 +862,12 @@ export async function handleBilling(req, res, u, ctx) {
     const deadline = Math.floor(Date.now() / 1000) + 300;
     const balance6 = BigInt(info.balance6);
 
+    if(b.op === 'network'){
+      const row=(await ctxRef.ledgerRows()).find(r=>String(r.id).toLowerCase()===String(b.id).toLowerCase());
+      if(!row||String(row.owner).toLowerCase()!==info.address.toLowerCase())return err(ctx,res,req,403,'not_owner','This vault does not own the app.');
+      try {return ctx.json(res,200,{op:'network',...await prepareNetwork(info.address,b),credId:key.credId},req);}
+      catch(e){return err(ctx,res,req,422,'network_unavailable',String(e.shortMessage||e.message));}
+    }
     if (b.op === "deploy") {
       const v = await validateDeploySpec(b, ctx, res, req);
       if (!v) return;   // validateDeploySpec answered
@@ -966,13 +973,13 @@ export async function handleBilling(req, res, u, ctx) {
     const a = b.assertion || {};
     if (a.credId !== key.credId)
       return err(ctx, res, req, 422, "wrong_credential", "Vault operations must be signed by the account's vault passkey.");
-    if (!["deploy", "fund", "refund", "control"].includes(b.op))
+    if (!["deploy", "fund", "refund", "control", "network"].includes(b.op))
       return err(ctx, res, req, 422, "bad_op", "Unknown vault op.");
     let vaultAddr;
     try { vaultAddr = await ensureVault(key); }
     catch (e) { return err(ctx, res, req, 502, "vault_error", e.message); }
     try {
-      const out = await submitOp(b.op, vaultAddr, b.args || {}, b.deadline, { ...a, x: key.x, y: key.y });
+      const out = b.op==='network'?await submitNetwork(vaultAddr,b.args||{},{...a,x:key.x,y:key.y}):await submitOp(b.op, vaultAddr, b.args || {}, b.deadline, { ...a, x: key.x, y: key.y });
       return ctx.json(res, 200, { ok: true, ...out }, req);
     } catch (e) {
       // the CONTRACT is the verifier of record: a revert here means bad

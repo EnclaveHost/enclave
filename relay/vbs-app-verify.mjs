@@ -3,6 +3,7 @@
 // Image allowlists must be reviewed for guest-only input provenance. In particular,
 // upstream OpenHCL NV input restored from host-managed VMGS is NOT sufficient to
 // establish app-key custody, even when the resulting report signature is valid.
+import { releaseBinding } from './secrets-release.mjs';
 import { verifyHvNodeEvidence } from './hvnode-verify.mjs';
 import { parseTcgLog, vsmKey } from './vbs-tcglog.mjs';
 import { rsaKeyFromModulus } from './vbs-verify.mjs';
@@ -10,7 +11,7 @@ import { verifyVbsVmReport } from './vbs-vm-report.mjs';
 import { ABI2, bind2, runtimeId, validateRuntimeIdentity } from './vbs-runtime.mjs';
 
 export function verifyVbsAppEvidence({ doc, handshakeSpki, nonce, expectedAppSha256,
-  expectedRuntimeId, hostSession } = {}, policy = {}) {
+  expectedRuntimeId, hostSession, shieldRelease } = {}, policy = {}) {
   const fail = reason => ({ ok: false, reason });
   try {
     if (!Buffer.isBuffer(handshakeSpki) || handshakeSpki.length < 32 || handshakeSpki.length > 4096 ||
@@ -36,9 +37,14 @@ export function verifyVbsAppEvidence({ doc, handshakeSpki, nonce, expectedAppSha
     const events = parseTcgLog(Buffer.from(hostSession.evidence.log, 'base64')).events;
     const key = vsmKey(events, 'IDKS');
     if (!key) return fail('authenticated boot log contains no IDKS');
+    let binding = bind2(handshakeSpki, nonce, rid);
+    if (shieldRelease !== undefined) {
+      if (shieldRelease?.purpose !== 'enclave-shield-secrets/1') return fail('invalid Shield release purpose');
+      binding = releaseBinding({id:shieldRelease.id, transportSpki:handshakeSpki, ticket:nonce, runtimeId:rid, sealKey:shieldRelease.sealKey});
+    }
     const result = verifyVbsVmReport({ envelope: Buffer.from(report.vbsVmReport, 'base64'),
       idksPublicKey: rsaKeyFromModulus(key.modulus, key.exponent),
-      expectedUserData: Buffer.concat([bind2(handshakeSpki, nonce, rid), Buffer.from(expectedAppSha256, 'hex')]),
+      expectedUserData: Buffer.concat([binding, Buffer.from(expectedAppSha256, 'hex')]),
       allowedMeasurements: policy.allowedMeasurements, minimumGuestSvn: policy.minimumGuestSvn ?? 0 });
     if (!result.ok) return result;
     return { ok: true, scope: 'hardware-bound app evidence; admission is a separate policy decision',

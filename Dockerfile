@@ -14,6 +14,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY supervisor.js ./
+COPY windows/node/verification-checkpoints.mjs ./windows/node/
 # the repository's own verifier, one reproducible file (verifier/node/build.mjs; MANIFEST.json names every input): the
 # self-check's second result (SELF_CHECK_VERIFIERS) runs it against this enclave's own document and certificate
 COPY verifier/dist/enclave-verifier-node.mjs ./verifier/dist/

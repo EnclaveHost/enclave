@@ -1,0 +1,11 @@
+{
+  "role": "provider",
+  "hostId": "REQUIRED_REGISTERED_PROVIDER_ID",
+  "directory": "/var/lib/enclave-tuna-usdc",
+  "socketPath": "/run/enclave-tuna-usdc/control.sock",
+  "proofKeyFile": "/etc/enclave-tuna-usdc/proof.key",
+  "tokenFile": "/etc/enclave-tuna-usdc/control.token",
+  "maxPending6": "10000",
+  "addressBook": "0xab214342d5A490150A4A977063A2f88E21F80907",
+  "rpc": ["https://base-rpc.publicnode.com", "https://base.drpc.org"]
+}

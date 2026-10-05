@@ -143,7 +143,7 @@ async function tokenTunnel(origin, name, token, avail) {
   return { ok: open, ws };
 }
 
-test("an hv-node row never feeds the relay roster (enclave-bf's NO-GO on the hv-node flip): its self-declared relay is not in /v1/relays, it cannot take a relay's name, and its volumes stay out of the public aggregate; a relay on a trusted-identity attach (token/operator, us-west's shape) is still listed",
+test("an hv-node row never feeds the relay roster (enclave-bf's NO-GO on the hv-node flip): its self-declared relay is not in /v1/relays, it cannot take a relay's name, and its volumes stay out of the public aggregate; legacy declarations never create TUNA routes",
      { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
   const dir = tmpdir("hvnode-roster-"); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const w = makeVbsWorld(dir);
@@ -174,8 +174,7 @@ test("an hv-node row never feeds the relay roster (enclave-bf's NO-GO on the hv-
   const r = await fetch(origin + "/v1/relays"); assert.equal(r.status, 200);
   const rel = await r.json();
   const names = (rel.relays || []).map((x) => x.name);
-  assert.deepEqual(names, ["us-west"], "the trusted relay is listed, and ONLY it");
-  assert.equal(rel.relays[0].address, "198.51.100.10", "the real relay keeps its address");
+  assert.deepEqual(names, [], "legacy relays cannot publish TUNA allocations");
   assert.ok(!JSON.stringify(rel).includes("203.0.113.66") && !JSON.stringify(rel).includes("203.0.113.67"), "no address the hv-node declared reaches the roster");
   // the public fleet aggregate (/availability: what placement and the deploy console read)
   const agg = await (await fetch(origin + "/availability")).json();
@@ -183,7 +182,7 @@ test("an hv-node row never feeds the relay roster (enclave-bf's NO-GO on the hv-
   assert.ok(!agg.volumes.some((v) => v.name === "not-a-real-model"), "an ineligible row's volumes are not in the public aggregate");
 });
 
-test("a relay on an OPERATOR attach (us-west's production shape: its name registered on chain to a trusted operator, who signs the attach) stays in the roster, with its address (enclave-bf: the surviving mutant)", async (t) => {
+test("an operator attach authenticates the host but its legacy relay declaration does not publish TUNA routes", async (t) => {
   const op = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d");   // the public anvil development key #1
   const REG = "0x" + "34".repeat(20), endpoint = "https://api.enclave.host/t/us-west", id = keccak256(stringToBytes(endpoint)).toLowerCase();
   const origin = await startRelay(t, { TUNNEL_OPERATOR_ATTACH: "1", REGISTRY_ADDRESS: REG, TRUSTED_OPERATORS: op.address.toLowerCase(), RELAY_DEFAULT_LABEL: "us-west" },
@@ -202,9 +201,12 @@ test("a relay on an OPERATOR attach (us-west's production shape: its name regist
   assert.equal(res && res.ok, true, res && res.reason);
   const row = await waitFor(async () => { const j = await (await fetch(origin + "/enclaves")).json(); const r = (j.enclaves || []).find((e) => e.name === "us-west"); return r && r.availability ? r : null; });
   assert.ok(row); assert.equal(row.attach, "operator"); assert.equal(row.mode, "");
-  const rel = await waitFor(async () => { const r = await fetch(origin + "/v1/relays"); if (r.status !== 200) return null; const j = await r.json(); return (j.relays || []).length ? j : null; });
-  assert.ok(rel, "the roster answers");
-  assert.deepEqual(rel.relays.map((x) => [x.name, x.address]), [["us-west", "198.51.100.20"]], "the operator-attached relay is listed with its address");
+  const response = await fetch(origin + "/v1/network/tuna");
+  assert.equal(response.status, 200);
+  const rel = await response.json();
+  assert.deepEqual(rel.relays, []);
+  assert.deepEqual(rel.labels, {});
+  assert.deepEqual(rel.deployments, {}, "a self-declared address is not a signed TUNA allocation");
 });
 
 test("the attach identity a row publishes fails closed: only an explicit token or operator attach is trusted; anything else, unknown or missing included, is 'attestation'", () => {

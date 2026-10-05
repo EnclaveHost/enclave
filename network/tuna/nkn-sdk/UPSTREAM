@@ -1,0 +1,4 @@
+Source: https://github.com/nknorg/nkn-sdk-go
+Revision: a40386d2b50a (v1.4.8-0.20240427043332-a40386d2b50a)
+License: Apache-2.0 (see LICENSE)
+Local change: preserve configured HTTP transport and timeout in the client RPC wallet.

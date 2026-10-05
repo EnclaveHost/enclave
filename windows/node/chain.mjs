@@ -29,6 +29,7 @@ import { base } from "viem/chains";
 import fs from "node:fs";
 import path from "node:path";
 import { parseWaf } from "./waf.mjs";
+import { planCheckpoints } from "./verification-checkpoints.mjs";
 
 const RPCS = (process.env.BASE_RPCS || "https://base-rpc.publicnode.com,https://base.drpc.org,https://mainnet.base.org")
   .split(",").map((s) => s.trim()).filter(Boolean);
@@ -325,7 +326,7 @@ export function nodeFloorOf(v) {
  * silently dropped, because every one of them is something a tenant paid for or relied on.
  *
  * Known here: `config` (the inline app-config override), `gpu` ({"optional":true}) and `network`
- * ({"relay":"<name>"}, consumed at the DNS layer, nothing for a runner to do but not refuse it).
+ * ({"transport":"tuna"}; historical relay preferences are inert metadata).
  * ...and `waf` (per-IP rate limit, concurrency and body caps, method/path/agent filters), which
  * this box now ENFORCES at both its doors - the relay's /x/<id> path and the app's own hostname.
  * NOT known here: nothing. Any other namespace is still refused by name, because the envelope is
@@ -377,16 +378,15 @@ export function parseEnvelope(raw, gpuMilli) {
   }
   if ("network" in o) {
     const n = o.network;
-    if (!n || Array.isArray(n) || typeof n !== "object") throw new Error('network must be a JSON object like {"relay":"us-west"}');
-    const bad = Object.keys(n).filter((k) => k !== "relay");
-    if (bad.length) throw new Error(`unknown network option ${JSON.stringify(bad[0])} (this node knows: relay)`);
-    if ("relay" in n) {
-      const r = n.relay;
-      if (r === null || r === "") opts.relay = "";
-      else if (typeof r !== "string" || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(r))
-        throw new Error('network.relay must be a relay name: lowercase letters, digits and dashes (or "" for the fleet default)');
-      else opts.relay = r;
-    }
+    if (!n || Array.isArray(n) || typeof n !== "object") throw new Error("network must be a JSON object");
+    const bad = Object.keys(n).filter(k => k !== "transport" && k !== "relay");
+    if (bad.length) throw new Error(`unknown network option ${JSON.stringify(bad[0])}`);
+    if ("transport" in n && n.transport !== "tuna") throw new Error("network.transport must be tuna");
+    // Existing ledger envelopes can still contain a relay preference. It no
+    // longer selects a route and is not copied into runtime configuration.
+    if ("relay" in n && n.relay !== null && n.relay !== "" &&
+        (typeof n.relay !== "string" || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(n.relay)))
+      throw new Error("invalid retired network.relay metadata");
   }
   if ("configCid" in o) {
     // The rev-7 split: the deployment's app-config lives at a pinned CID because the envelope
@@ -600,7 +600,10 @@ export async function checkpoint({ id, enclaveId, upto }) {
   const sig = await proofAcct.signTypedData({
     domain: { name: "EnclaveProofOfTime", version: "1", chainId: base.id, verifyingContract: getAddress(addresses.proofOfTime) },
     types: PROOF_TYPES, primaryType: "ProofOfTime", message });
-  return send(addresses.proofOfTime, PROOF_ABI, "checkpoint", [id, enclaveId, BigInt(upto), BigInt(anchorBlock), parent.hash, sig]);
+  const [plan] = await planCheckpoints({client: publicClient(), ledger: addresses.deployments,
+    proof: addresses.proofOfTime, batch: [{...message,sig}],
+    onWarning: message => console.warn(`[proof] ${message}`)});
+  return send(plan.address, PROOF_ABI, plan.functionName, plan.args);
 }
 
 export { REGISTRY_ABI, DEP_ABI, CATALOG_ABI, PROOF_ABI };

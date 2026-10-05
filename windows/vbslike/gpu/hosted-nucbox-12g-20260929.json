@@ -1,0 +1,41 @@
+{
+  "date": "2026-09-29",
+  "gpuPoolBytes": 12884901888,
+  "perHalfPoolAppBytes": 6442450944,
+  "model": "qwen2.5-0.5b-q8-gguf",
+  "imageSha256": "a35d660f08a4df80ab35faa4cab4a4438fbffe9d553df83a8277a5eb30cf8bcd",
+  "vbsMeasurement": "0bd3c1e381ca9174d2b532f2f9914de4306d42acf50ebb9be9f537731de7d80e",
+  "guestSourceCommit": "6e876f0f3",
+  "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+  "ownerOnly": true,
+  "hostExcluded": false,
+  "deterministicBuild": true,
+  "measurementMutationChecks": true,
+  "artifactDirectory": "/home/steven/enclave-bench/nucbox-shield-20260929/hosted-gpu-12g",
+  "rollbackDirectory": "C:\\Users\\claude\\vbs-like\\hvnode\\rollback-shield-12g-20260929",
+  "productionEvidence": {
+    "fa8d0ea5": {
+      "httpsVerified": true,
+      "hardwareBindingVerified": true,
+      "scope": "hardware-bound app evidence; admission is a separate policy decision",
+      "tokensPerRequest": [
+        16,
+        16
+      ]
+    },
+    "2bad651c": {
+      "httpsVerified": true,
+      "hardwareBindingVerified": true,
+      "scope": "hardware-bound app evidence; admission is a separate policy decision",
+      "tokensPerRequest": [
+        16,
+        16
+      ]
+    }
+  },
+  "workerAfterBothAppsLoaded": {
+    "budgetGiB": 12,
+    "reservedGiB": 12,
+    "freeGiB": 0
+  }
+}

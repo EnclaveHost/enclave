@@ -1,0 +1,98 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {encodeAbiParameters,keccak256,hashMessage} from 'viem';
+import {networkAmount6,showNetworkAmount,networkPolicyDigest,networkPasskeyDigest,verifyNetworkPrepare} from '../site/js/core/network-controls.js';
+import {directPolicyFromLease,assertDirectChoice} from '../network/connectivity-control.mjs';
+test('browser bandwidth signature commits to the exact owner, contract, nonce and limits',()=>{
+ const v={connectivity:'0x'+'11'.repeat(20),ledger:'0x'+'22'.repeat(20),id:'0x'+'aa'.repeat(32),owner:'0x'+'33'.repeat(20),nonce:4n,expires:1800000000,maxPricePerGiB6:1000000n,budget6:2500000n};
+ const types=['string','uint256','address','address','bytes32','address','uint64','uint64','uint64','uint128'].map(type=>({type}));
+ assert.equal(networkPolicyDigest(v),keccak256(encodeAbiParameters(types,['EnclaveConnectivity.policy.v1',8453n,v.connectivity,v.ledger,v.id,v.owner,v.nonce,BigInt(v.expires),v.maxPricePerGiB6,v.budget6])));
+ assert.notEqual(networkPolicyDigest(v),networkPolicyDigest({...v,budget6:2500001n}));
+});
+test('bandwidth limits use exact USDC decimals and reject exponent or excess precision',()=>{
+ for(const s of ['0','0.000001','1','1000','2.123456'])assert.equal(showNetworkAmount(networkAmount6(s)),s);
+ for(const s of ['1e6','-1','0.0000001','NaN','Infinity',' 1'])assert.throws(()=>networkAmount6(s));
+});
+test('on-chain owner choice survives file-free enrollment and cannot be fabricated or replayed after revocation',()=>{
+ const lease={id:'0x'+'ab'.repeat(32),owner:'0x'+'11'.repeat(20),connectivity:{address:'0x'+'22'.repeat(20),owner:'0x'+'11'.repeat(20),nonce:1,expires:200,maxPricePerGiB6:0,budget6:0}};
+ const policy=directPolicyFromLease(lease,100000);assert.equal(policy.mode,'direct');assertDirectChoice(policy,lease,100000);
+ assert.throws(()=>assertDirectChoice({...policy,budget6:'1'},lease,100000),/authorization/);
+ lease.connectivity.expires=0;assert.equal(directPolicyFromLease(lease,100000),null);assert.throws(()=>assertDirectChoice(policy,lease,100000),/authorization/);
+});
+
+test('passkey challenge matches ERC-1271 and refuses substituted budgets or destinations',()=>{
+ const current={address:'0x'+'11'.repeat(20),ledger:'0x'+'22'.repeat(20),id:'0x'+'aa'.repeat(32),owner:'0x'+'33'.repeat(20),nonce:3n};
+ const intent={expires:'1800000000',maxPricePerGiB6:'1000000',budget6:'2500000'};
+ const raw=networkPolicyDigest({...current,connectivity:current.address,nonce:4n,...intent});
+ const digest=networkPasskeyDigest(raw);assert.equal(digest,hashMessage({raw}));
+ const prep={...current,vault:current.owner,chainId:8453,nonce:'4',...intent,digest};
+ assert.equal(verifyNetworkPrepare(prep,current,intent),digest);
+ for(const change of [{budget6:'2500001'},{nonce:'5'},{address:current.owner},{digest:'0x'+'00'.repeat(32)}])assert.throws(()=>verifyNetworkPrepare({...prep,...change},current,intent));
+});
+
+test('expired direct authorization remains a blocked direct choice until the owner explicitly revokes it',()=>{
+ const lease={id:'0x'+'ab'.repeat(32),owner:'0x'+'11'.repeat(20),connectivity:{address:'0x'+'22'.repeat(20),owner:'0x'+'11'.repeat(20),nonce:1,expires:100,maxPricePerGiB6:0,budget6:0}};
+ const expired=directPolicyFromLease(lease,200000);assert.equal(expired.mode,'direct');assert.throws(()=>assertDirectChoice(expired,lease,200000),/authorization/);
+});
+
+test('TUNA browser and passkey authorizations bind the complete provider path',async()=>{
+ const {networkTunaPolicyDigest,encodeTunaAuthorization}=await import('../site/js/core/network-controls.js');
+ const {encodeFunctionData,parseAbi}=await import('viem');
+ const current={address:'0x'+'11'.repeat(20),ledger:'0x'+'22'.repeat(20),id:'0x'+'aa'.repeat(32),owner:'0x'+'33'.repeat(20),nonce:3n};
+ const intent={mode:'tuna',providers:['0x'+'bb'.repeat(32),'0x'+'cc'.repeat(32)],expires:'1800000000',maxPricePerGiB6:'1000000',budget6:'2500000'};
+ const raw=networkTunaPolicyDigest({...current,connectivity:current.address,nonce:4n,...intent});
+ const types=['string','uint256','address','address','bytes32','address','uint64','bytes32[]','uint64','uint64','uint128'].map(type=>({type}));
+ assert.equal(raw,keccak256(encodeAbiParameters(types,['EnclaveConnectivity.tuna-policy.v1',8453n,current.address,current.ledger,current.id,current.owner,4n,intent.providers,1800000000n,1000000n,2500000n])));
+ const signature='0x'+'12'.repeat(65);
+ assert.equal(encodeTunaAuthorization(current.id,intent.providers,intent.expires,intent.maxPricePerGiB6,intent.budget6,signature),encodeFunctionData({abi:parseAbi(['function authorizeTuna(bytes32,bytes32[],uint64,uint64,uint128,bytes)']),functionName:'authorizeTuna',args:[current.id,intent.providers,1800000000n,1000000n,2500000n,signature]}));
+ const prep={...current,vault:current.owner,chainId:8453,nonce:'4',...intent,digest:hashMessage({raw})};
+ assert.equal(verifyNetworkPrepare(prep,current,intent),prep.digest);
+ for(const change of [{mode:'direct'},{providers:intent.providers.slice().reverse()},{providers:[intent.providers[0]]}])assert.throws(()=>verifyNetworkPrepare({...prep,...change},current,intent));
+ assert.throws(()=>networkTunaPolicyDigest({...current,connectivity:current.address,nonce:4n,...intent,providers:[intent.providers[0],intent.providers[0]]}));
+});
+test('USDC TUNA authorization cannot turn into free direct or native-NKN fallback',async()=>{
+ const {appPolicy}=await import('../network/route-publisher.mjs');
+ const lease={id:'0x'+'ab'.repeat(32),owner:'0x'+'11'.repeat(20),connectivity:{viaTuna:true,address:'0x'+'22'.repeat(20),owner:'0x'+'11'.repeat(20),nonce:1,expires:100,maxPricePerGiB6:1,budget6:1}};
+ assert.equal(directPolicyFromLease(lease),null);
+ await assert.rejects(appPolicy({deploymentId:lease.id},lease,{}),/USDC TUNA provider path/);
+ lease.connectivity.providers=[{id:'0x'+'bb'.repeat(32)}];
+ const policy=await appPolicy({deploymentId:lease.id},lease,{});
+ assert.equal(policy.currency,'USDC');assert.equal(policy.mode,'guarded');assert.equal(policy.directFallback,false);assert.equal(policy.routes,2);assert.equal(policy.budgetNkn,undefined);
+});
+
+
+test('relay TUNA authorization uses the same provider list and bounds as the browser',async()=>{
+ const {networkArgs}=await import('../relay/vaultsvc.js');
+ const intent={id:'0x'+'aa'.repeat(32),mode:'tuna',providers:['0x'+'bb'.repeat(32)],expires:'1800000000',maxPricePerGiB6:'1000000',budget6:'2500000'};
+ assert.deepEqual(networkArgs(intent),[intent.id,intent.providers,1800000000n,1000000n,2500000n]);
+ for(const changes of [{providers:[]},{providers:[intent.providers[0],intent.providers[0]]},{mode:'direct'},{mode:'revoke',providers:undefined},{maxPricePerGiB6:String(1n<<64n)},{budget6:String(1n<<128n)}])assert.throws(()=>networkArgs({...intent,...changes}));
+});
+
+test('provider discovery excludes expired, disabled and free-only entries and returns exact USDC prices',async()=>{
+ const {networkProviders}=await import('../site/js/core/network-controls.js');
+ const word=n=>BigInt(n).toString(16).padStart(64,'0'),hex=values=>'0x'+values.map(word).join('');
+ const read=async(_to,data)=>{
+  if(data==='0x06661abd')return hex([4]);
+  if(data.startsWith('0x4fe0d5c6'))return hex([BigInt('0x'+data.slice(10))+1n]);
+  const id=Number(BigInt('0x'+data.slice(10,74)));
+  if(!data.startsWith('0x7c33a665'))return hex([id===2?0:1,id===4?99:200,0,123]);
+  return hex([0,1,id===3?0:2000, id===4?99:200,0,123]);
+ };
+ const result=await networkProviders({address:'0x'+'11'.repeat(20),id:'0x'+'aa'.repeat(32)},{read,block:'0x100',now:100000});
+ assert.deepEqual(result.map(p=>[p.id,p.rate6]),[['0x'+word(1),2000n]]);
+});
+
+test('owner checker trust is identical across browser ABI, relay and passkey challenge',async()=>{
+ const {networkProbeTrustDigest,encodeProbeTrustAuthorization}=await import('../site/js/core/network-controls.js');
+ const {encodeFunctionData,parseAbi}=await import('viem');const {networkArgs}=await import('../relay/vaultsvc.js');
+ const current={address:'0x'+'11'.repeat(20),ledger:'0x'+'22'.repeat(20),id:'0x'+'aa'.repeat(32),owner:'0x'+'33'.repeat(20),nonce:3n};
+ const intent={mode:'trust',signers:['0x'+'44'.repeat(20),'0x'+'55'.repeat(20)],threshold:2,expires:'1800000000',maxPricePerGiB6:'0',budget6:'0'};
+ const raw=networkProbeTrustDigest({...current,connectivity:current.address,nonce:4n,...intent});
+ const types=['string','uint256','address','address','bytes32','address','uint64','address[]','uint8','uint64'].map(type=>({type}));
+ assert.equal(raw,keccak256(encodeAbiParameters(types,['EnclaveConnectivity.probe-trust.v1',8453n,current.address,current.ledger,current.id,current.owner,4n,intent.signers,2,1800000000n])));
+ const signature='0x'+'12'.repeat(65),args=[current.id,intent.signers,2,1800000000n];
+ assert.equal(encodeProbeTrustAuthorization(...args,signature),encodeFunctionData({abi:parseAbi(['function authorizeProbeTrust(bytes32,address[],uint8,uint64,bytes)']),functionName:'authorizeProbeTrust',args:[...args,signature]}));
+ assert.deepEqual(networkArgs({id:current.id,...intent}),args);
+ const prep={...current,vault:current.owner,chainId:8453,nonce:'4',...intent,digest:hashMessage({raw})};
+ assert.equal(verifyNetworkPrepare(prep,current,intent),prep.digest);
+ for(const change of [{threshold:1},{signers:intent.signers.slice().reverse()},{budget6:'1'},{mode:'direct'}])assert.throws(()=>verifyNetworkPrepare({...prep,...change},current,intent));
+ for(const change of [{threshold:0},{threshold:3},{signers:[intent.signers[0],intent.signers[0]]},{budget6:'1'},{providers:[]}])assert.throws(()=>networkArgs({id:current.id,...intent,...change}));
+});

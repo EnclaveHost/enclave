@@ -2,7 +2,7 @@
 // The row serves a deployment D only when, AT DECISION TIME: D's LEDGER OWNER is served now (the row's operator: the name's
 // on-chain owner, who signed the v2 attach and is in RELAY_HVNODE_OPERATORS; or an owner whose hosting delegation to it has
 // not expired), THIS row holds D's live lease, and D's envelope requires hyperv-partition-per-app (E4); and only on the raw
-// splice of the app's own TLS (wss /t/<box>/x/<id>/https). Everything else stays refused. RELAY_HVNODE_OPERATORS grants
+// admission published for TUNA. The control API refuses application streams. RELAY_HVNODE_OPERATORS grants
 // nothing but that (not dialing, not operator attach, not the relay roster), and TRUSTED_OPERATORS ("*" included) never
 // implies it.
 import { test } from "node:test";
@@ -150,20 +150,22 @@ function upgrade(origin, p) {
     setTimeout(() => { s.destroy(); resolve(got.split("\r\n")[0] || "(timeout)"); }, 8000);
   });
 }
-// a HELD upgrade: stays open until the relay closes it (`closed` resolves then)
-function holdUpgrade(origin, p) {
-  const u = new URL(origin), s = net.connect(Number(u.port), u.hostname);
-  const closed = new Promise((r) => { s.on("close", () => r(true)); s.on("error", () => r(true)); });
-  s.write(`GET ${p} HTTP/1.1\r\nHost: api.enclave.host\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: ${WS_KEY}\r\nSec-WebSocket-Version: 13\r\n\r\n`);
-  return { closed, isOpen: () => !s.destroyed, end: () => s.destroy() };
-}
 const rowOf = async (origin) => { const j = await (await fetch(origin + "/enclaves")).json(); return (j.enclaves || []).find((e) => e.name === NAME) || null; };
+
+
+async function publishTuna(origin, signer = OPERATOR) {
+  const publication = { version: 1, endpoint: ENDPOINT, expiresAt: Date.now() + 60000,
+    web: { address: "1.1.1.1", port: 443 }, raw: [] };
+  const signature = await signer.signMessage({ message: "enclave-tuna-route:v1\n" + JSON.stringify(publication) });
+  return fetch(origin + "/v1/network/tuna", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ publication, signature }) });
+}
+const tunaMap = async origin => (await fetch(origin + "/v1/network/tuna")).json();
 
 const lc = (a) => a.address.toLowerCase();
 const hvWorld = (t) => { const dir = tmpdir("hv-owner-"); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const w = makeVbsWorld(dir); const roots = path.join(dir, "ek-roots.pem"); fs.writeFileSync(roots, w.ca.bundlePem); return { w, roots }; };
 
-test("owner-only: served now + this row's lease + isolation.require hyperv-partition-per-app -> the app's own TLS splice; every other deployment and path refused; the row stays ineligible, unplaced, unpriced and off the relay roster",
+test("owner-only: served now + this row's lease + isolation.require hyperv-partition-per-app -> a signed TUNA route; every other deployment is absent; the row stays ineligible, unplaced, unpriced and off the relay roster",
      { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
   const { w, roots } = hvWorld(t);
   // the operator is in RELAY_HVNODE_OPERATORS and NOT in TRUSTED_OPERATORS (the default list stays)
@@ -190,29 +192,24 @@ test("owner-only: served now + this row's lease + isolation.require hyperv-parti
   // (a) its relay declaration never reaches the roster (so neither the labels nor DNS)
   const relays = await (await fetch(origin + "/v1/relays")).json();
   assert.ok(!(relays.relays || []).some((x) => x.name === NAME || x.address === "203.0.113.9"), "never a relay");
-  // (c) the ONE path, for a deployment served now
-  for (const d of [D_OWN, D_DELEG]) assert.doesNotMatch(await upgrade(origin, `/t/${NAME}/x/${d}/https`), /503/, d.slice(0, 10));
-  const seen = await waitFor(() => (a.splices.length >= 2 ? a.splices : null));
-  assert.deepEqual([...seen].sort(), [`GET /x/${D_DELEG}/https HTTP/1.1`, `GET /x/${D_OWN}/https HTTP/1.1`].sort(), "the node received exactly those two splices");
-  assert.doesNotMatch(await upgrade(origin, `/t/${NAME}/x/${D_OWN.slice(0, 10)}/https`), /503/, "an 8-hex prefix (what the SNI relay dials)");
-  const before = a.splices.length;
-  for (const [label, p] of [["a stranger's deployment on this row", `/t/${NAME}/x/${D_STRANGER}/https`],
-                            ["the operator's own, leased ELSEWHERE", `/t/${NAME}/x/${D_ELSEWHERE}/https`],
-                            ["E4: the delegating owner's SNP-required app (a VALID delegation)", `/t/${NAME}/x/${D_SNP}/https`],
-                            ["E4: the delegating owner's app requiring nothing", `/t/${NAME}/x/${D_NOREQ}/https`],
-                            ["E4: the operator's own SNP-required app", `/t/${NAME}/x/${D_OP_SNP}/https`],
-                            ["a query-string variant", `/t/${NAME}/x/${D_OWN}/https?x=1`],
-                            ["an encoded variant", `/t/${NAME}/x/${D_OWN}/%68ttps`],
-                            ["a tls port path", `/t/${NAME}/x/${D_OWN}/tls/5432`],
-                            ["the control plane", `/t/${NAME}/v1/deployments/${D_OWN}`]]) {
-    assert.match(await upgrade(origin, p), /503/, label);
+  // TUNA advertisements are joined to this verified owner-only admission, never to self-reported capacity.
+  const published = await publishTuna(origin);
+  assert.equal(published.status, 200, await published.text());
+  const map = await tunaMap(origin);
+  assert.deepEqual(Object.keys(map.deployments).sort(), [D_OWN, D_DELEG].sort());
+  for (const d of [D_OWN, D_DELEG]) {
+    assert.deepEqual(map.deployments[d].https, { address: "1.1.1.1", port: 443 });
+    assert.equal(map.labels[d.slice(2, 10)].a, "1.1.1.1");
   }
-  for (const d of [D_OWN, D_STRANGER, D_SNP]) {
-    assert.equal((await fetch(`${origin}/t/${NAME}/x/${d}/`)).status, 503, `plain HTTP ${d.slice(0, 10)}`);
-    assert.equal((await fetch(`${origin}/t/${NAME}/v1/deployments/${d}/restart`, { method: "POST" })).status, 503, `restart ${d.slice(0, 10)}`);
+  const denied = await publishTuna(origin, STRANGER);
+  assert.equal(denied.status, 400);
+  assert.match(await denied.text(), /registered operator signature required/);
+  for (const d of [D_OWN, D_DELEG, D_STRANGER, D_SNP]) {
+    assert.match(await upgrade(origin, `/t/${NAME}/x/${d}/https`), /410/);
+    assert.equal((await fetch(`${origin}/t/${NAME}/x/${d}/`)).status, 410);
+    assert.equal((await fetch(`${origin}/t/${NAME}/v1/deployments/${d}/restart`, { method: "POST" })).status, 503);
   }
-  assert.equal((await fetch(`${origin}/x/${D_OWN}/`)).status, 503, "the api relay's own /x route stays eligible-only");
-  assert.equal(a.splices.length, before, "no refused path reached the node");
+  assert.equal(a.splices.length, 0, "the control tunnel never carries application streams");
 });
 
 test("owner-only needs a v2 signature by an operator in RELAY_HVNODE_OPERATORS; TRUSTED_OPERATORS (\"*\" included) never implies it, nor does \"*\" in it: HOST-ONLY",
@@ -229,7 +226,7 @@ test("owner-only needs a v2 signature by an operator in RELAY_HVNODE_OPERATORS; 
     assert.equal(a.ok, true, `${label}: ${a.reason}`);
     const r = await waitFor(async () => { const x = await rowOf(origin); return x && x.availability ? x : null; });
     assert.ok(r, label); assert.equal(r.ownerOnly, undefined, label); assert.equal(r.served, undefined, label); assert.equal(r.servesDeployments, undefined, label);
-    assert.match(await upgrade(origin, `/t/${NAME}/x/${D_OWN}/https`), /503/, `${label}: the owner's own is NOT spliced`);
+    assert.match(await upgrade(origin, `/t/${NAME}/x/${D_OWN}/https`), /410/, `${label}: the owner's own is NOT spliced`);
     assert.equal(a.splices.length, 0, label);
   }
 });
@@ -247,43 +244,40 @@ test("RELAY_HVNODE_OPERATORS never implies TRUSTED_OPERATORS: its operator's OPE
   assert.equal(res && res.ok, false); assert.match(String(res && res.reason), /not a trusted operator of this relay/);
 });
 
-test("E2: a delegation that lapses while the tunnel stays attached stops serving AT DECISION TIME (no re-attach, before the minute re-check), and its held splice closes",
+test("E2: a delegation expiring while attached withdraws its TUNA route at decision time, without a re-attach",
      { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
   const { w, roots } = hvWorld(t);
   const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, RELAY_HVNODE_OPERATORS: lc(OPERATOR) });
   const exp = Math.floor(Date.now() / 1000) + 14;
-  const a = await attachHv(origin, w, { delegations: [await delegation({ expires: exp })], keepOpen: true });
+  const a = await attachHv(origin, w, { delegations: [await delegation({ expires: exp })] });
   t.after(() => { try { a.ws.close(); } catch {} });
   assert.equal(a.ok, true, a.reason);
-  assert.ok(await waitFor(async () => { const x = await rowOf(origin); return x && (x.servesDeployments || []).some((d) => d.id === D_DELEG) ? x : null; }), "served before expiry");
-  const held = holdUpgrade(origin, `/t/${NAME}/x/${D_DELEG}/https`), heldOwn = holdUpgrade(origin, `/t/${NAME}/x/${D_OWN}/https`);
-  t.after(() => { held.end(); heldOwn.end(); });
-  await new Promise((r) => setTimeout(r, 1500));
-  assert.equal(held.isOpen(), true, "the delegated owner's splice is up");
-  const wait = exp * 1000 - Date.now() + 1500;
-  assert.ok(wait < 55_000, "the lapse is checked well before the hub's 60 s re-check");
-  await new Promise((r) => setTimeout(r, Math.max(0, wait)));
-  assert.match(await upgrade(origin, `/t/${NAME}/x/${D_DELEG}/https`), /503/, "a new splice is refused at once");
-  const x = await rowOf(origin);
-  assert.ok(!(x.servesDeployments || []).some((d) => d.id === D_DELEG), "the SNI daemons' list drops it");
-  assert.ok((x.servesDeployments || []).some((d) => d.id === D_OWN), "the operator's own is unaffected");
-  assert.equal(await Promise.race([held.closed, new Promise((r) => setTimeout(() => r(false), 5000))]), true, "the held splice was closed by the sweep");
-  assert.equal(heldOwn.isOpen(), true, "the operator's own held splice stays");
+  assert.ok(await waitFor(async () => (await rowOf(origin))?.servesDeployments?.some(d => d.id === D_DELEG)));
+  const published = await publishTuna(origin);
+  assert.equal(published.status, 200, await published.text());
+  let map = await tunaMap(origin);
+  assert.equal(map.deployments[D_DELEG].expiresAt, exp * 1000, "DNS cannot outlive the delegation");
+  assert.ok(map.deployments[D_OWN]);
+  await new Promise(r => setTimeout(r, Math.max(0, exp * 1000 + 100 - Date.now())));
+  map = await tunaMap(origin);
+  assert.equal(map.deployments[D_DELEG], undefined);
+  assert.equal(map.labels[D_DELEG.slice(2, 10)], undefined);
+  assert.ok(map.deployments[D_OWN], "operator's own deployment stays admitted");
 });
 
-test("a TRANSFER closes the held splice and refuses new ones (the ledger owner is no longer served)", { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
+test("a ledger transfer withdraws TUNA routes when the new owner is not served", { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
   const { w, roots } = hvWorld(t);
   const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, RELAY_HVNODE_OPERATORS: lc(OPERATOR) });
-  const a = await attachHv(origin, w, { keepOpen: true });
+  const a = await attachHv(origin, w);
   t.after(() => { try { a.ws.close(); } catch {} ROWS = BASE_ROWS; });
   assert.equal(a.ok, true, a.reason);
-  assert.ok(await waitFor(async () => { const x = await rowOf(origin); return x && (x.servesDeployments || []).some((d) => d.id === D_OWN) ? x : null; }));
-  const held = holdUpgrade(origin, `/t/${NAME}/x/${D_OWN}/https`); t.after(() => held.end());
-  await new Promise((r) => setTimeout(r, 1500));
-  assert.equal(held.isOpen(), true);
-  ROWS = BASE_ROWS.map((d) => (d.id === D_OWN ? { ...d, owner: STRANGER.address } : d));   // D_OWN transferred to a stranger
-  assert.equal(await Promise.race([held.closed, new Promise((r) => setTimeout(() => r(false), 20_000))]), true, "closed within the ledger TTL + a sweep");
-  assert.match(await upgrade(origin, `/t/${NAME}/x/${D_OWN}/https`), /503/);
+  assert.ok(await waitFor(async () => (await rowOf(origin))?.servesDeployments?.some(d => d.id === D_OWN)));
+  const published = await publishTuna(origin);
+  assert.equal(published.status, 200, await published.text());
+  assert.ok((await tunaMap(origin)).deployments[D_OWN]);
+  ROWS = BASE_ROWS.map(d => d.id === D_OWN ? { ...d, owner: STRANGER.address } : d);
+  assert.ok(await waitFor(async () => !(await tunaMap(origin)).deployments[D_OWN], 20000), "withdrawn within the ledger refresh interval");
+  assert.equal((await tunaMap(origin)).labels[D_OWN.slice(2, 10)], undefined);
 });
 
 test("secrets: /v1/secrets/exists is exactly { id, exists } for a served lease holder's deployment and a stranger's alike; /v1/secrets/fetch stays 403 host_ineligible for an hv-node row",
@@ -354,7 +348,7 @@ test("owner grace (87): a FAILED owner read leans on the last successful one for
   registryDown = true; const down = Date.now();
   await new Promise((r) => setTimeout(r, 1500));
   assert.ok((await served()).includes(D_OWN), "within the grace: still serving on the cached owner");
-  assert.doesNotMatch(await upgrade(origin, `/t/${NAME}/x/${D_OWN}/https`), /503/, "and the splice opens");
+  assert.match(await upgrade(origin, `/t/${NAME}/x/${D_OWN}/https`), /410/, "the control API cannot open an application stream");
   await new Promise((r) => setTimeout(r, Math.max(0, exp * 1000 + 1200 - Date.now())));
   const mid = await served();
   assert.ok(mid && mid.includes(D_OWN) && !mid.includes(D_DELEG), "during the grace a delegation still EXPIRES by the clock (only the operator's own left)");
@@ -363,7 +357,7 @@ test("owner grace (87): a FAILED owner read leans on the last successful one for
   assert.ok(await waitFor(async () => ((await served()) === null ? true : null), 6000), "past the grace: owner-only SUSPENDED");
   const row = await rowOf(origin);
   assert.ok(row && row.mode === "hv-node" && row.ownerOnly === undefined && row.servesDeployments === undefined, "still attached, serving nothing");
-  assert.match(await upgrade(origin, `/t/${NAME}/x/${D_OWN}/https`), /503/, "the splice is refused");
+  assert.match(await upgrade(origin, `/t/${NAME}/x/${D_OWN}/https`), /410/, "the splice is refused");
   // it STAYS suspended while the reads keep failing (several failed re-checks, each ~1 s with the RPC client's retries)
   await new Promise((r) => setTimeout(r, 3500));
   assert.equal(await served(), null, "still suspended while the outage lasts");

@@ -235,46 +235,19 @@ test("a bare CID in the field is still retired, even now that the namespace exis
   assert.match(r.err, /deployment-options JSON envelope/);
 });
 
-/* ---- the `network` namespace: which relay carries this deployment --------
-   The odd one out: nothing in the CVM acts on it. The choice is consumed at
-   the DNS layer, which answers <label>.app.enclave.host with the chosen
-   relay's address instead of the zone-wide default. The supervisor validates
-   it anyway and REFUSES rather than ignores, for the reason the whole envelope
-   is fail-closed — an owner who typo'd their relay would otherwise be told
-   nothing and quietly keep the default, which is the exact silence this
-   design exists to avoid.
-
-   It stores a NAME, never an address: relays get replaced and re-addressed,
-   and a deployment should follow the relay it chose rather than pin the
-   machine it happened to be on. */
-test("network.relay takes a relay NAME, and refuses anything that is not one", async () => {
-  const [ok] = await parse(JSON.stringify({ network: { relay: "us-west" } }));
-  assert.deepEqual(ok, { ok: { relay: "us-west" } });
-
-  // "" and null are expressible on purpose: back to the fleet default
-  const [empty] = await parse(JSON.stringify({ network: { relay: "" } }));
-  assert.deepEqual(empty, { ok: { relay: "" } });
-  const [nulled] = await parse(JSON.stringify({ network: { relay: null } }));
-  assert.deepEqual(nulled, { ok: { relay: "" } });
-
-  // an ADDRESS is the tempting mistake, and it pins a machine rather than a role
-  const [addr] = await parse(JSON.stringify({ network: { relay: "5.78.85.108" } }));
-  assert.match(addr.err, /must be a relay name/);
-
-  for (const bad of ["UPPER", "-leading", "has space", "a".repeat(64), "semi;colon"]) {
-    const [r] = await parse(JSON.stringify({ network: { relay: bad } }));
-    assert.ok(r.err, `${JSON.stringify(bad)} must be refused, not accepted`);
+test("TUNA transport and historical relay metadata do not configure Enclave relays", async () => {
+  for (const network of [{transport:"tuna"}, {relay:"us-west"}, {relay:""}, {relay:null}]) {
+    const [result] = await parse(JSON.stringify({network}));
+    assert.deepEqual(result, {ok:{}});
   }
+  for (const network of [{transport:"relay"}, {relay:"5.78.85.108"}, {relay:"UPPER"}, {relay:"-leading"}, {relay:"has space"}, {relay:"a".repeat(64)}, {relay:"semi;colon"}])
+    assert.ok((await parse(JSON.stringify({network})))[0].err);
 });
 
-test("the network namespace is shape-checked like every other option", async () => {
-  const [notObj] = await parse(JSON.stringify({ network: "us-west" }));
-  assert.match(notObj.err, /network must be a JSON object/);
-  const [arr] = await parse(JSON.stringify({ network: ["us-west"] }));
-  assert.match(arr.err, /network must be a JSON object/);
-  const [unknown] = await parse(JSON.stringify({ network: { region: "us-west" } }));
-  assert.match(unknown.err, /unknown network option "region"/);
-  assert.match(unknown.err, /this runner knows: relay/);
+test("the network namespace rejects unknown fields and invalid shapes", async () => {
+  for (const network of ["us-west", ["us-west"], null])
+    assert.match((await parse(JSON.stringify({network})))[0].err, /network must be a JSON object/);
+  assert.match((await parse(JSON.stringify({network:{region:"us-west"}})))[0].err, /unknown network option/);
 });
 
 /* The envelope is fail-closed, so the set of namespaces a runner knows is a

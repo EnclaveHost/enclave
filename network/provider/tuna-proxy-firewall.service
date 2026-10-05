@@ -1,0 +1,11 @@
+[Unit]
+Description=Restrict TUNA SOCKS destinations to public networks
+Before=tuna-socks.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/tuna-provider/proxy.nft
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,12 @@
+{
+  "seedFile": "/var/lib/enclave-tuna/nkn.seed",
+  "rpc": ["http://seed.nkn.org:30003", "http://mainnet-seed-0001.nkn.org:30003", "http://mainnet-seed-0002.nkn.org:30003"],
+  "maxPrice": "0.0002",
+  "minBalance": "0.01",
+  "upstream": "http://127.0.0.1:18080",
+  "api": "https://api.enclave.host",
+  "endpoint": "https://api.enclave.host/t/YOUR_REGISTERED_HOST",
+  "operatorKeyFile": "/var/lib/enclave/operator.key",
+  "binary": "/opt/enclave-tuna/enclave-tuna",
+  "statusFile": "/var/lib/enclave-tuna/status.json"
+}

@@ -2,10 +2,9 @@
 //
 // WHAT THIS IS FOR. An owner can point their own domain at a deployment: they attach it on the
 // dashboard, prove the DNS, and the relay's domain store records it. From then on the app should
-// answer on that name with a certificate a browser trusts. The relay's SNI front door already
-// routes it (relay/relay.js customDomains -> deployment id -> whichever enclave holds the lease,
-// which is this box), so what remains is for the lease holder to LEARN the names, get certificates
-// for them, and answer for them. This file is the learning half.
+// answer on that name with a certificate a browser trusts. The local TUNA adapter
+// maps its SNI to the deployment. The lease holder learns the attached names here
+// so it can obtain and serve the corresponding certificates.
 //
 // AUTHENTICATION, and why this box can do it at all. relay/domains.js handleFetch takes two
 // factors and opens on EITHER: a fleet HMAC over "<id>:<endpoint>:<ts>", or a personal_sign over

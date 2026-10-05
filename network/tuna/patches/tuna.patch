@@ -1,0 +1,139 @@
+--- a/config.go
++++ b/config.go
+@@ -96,21 +96,24 @@
+ }
+ 
+ type ExitConfiguration struct {
+-	SeedRPCServerAddr              []string                                                          `json:"seedRPCServerAddr"`
+-	BeneficiaryAddr                string                                                            `json:"beneficiaryAddr"`
+-	ListenTCP                      int32                                                             `json:"listenTCP"`
+-	ListenUDP                      int32                                                             `json:"listenUDP"`
+-	DialTimeout                    int32                                                             `json:"dialTimeout"`
+-	UDPTimeout                     int32                                                             `json:"udpTimeout"`
+-	SubscriptionPrefix             string                                                            `json:"subscriptionPrefix"`
+-	SubscriptionDuration           int32                                                             `json:"subscriptionDuration"`
+-	SubscriptionFee                string                                                            `json:"subscriptionFee"`
+-	SubscriptionReplaceTxPool      bool                                                              `json:"subscriptionReplaceTxPool"`
+-	ClaimInterval                  int32                                                             `json:"claimInterval"`
+-	MinFlushAmount                 string                                                            `json:"minFlushAmount"`
+-	Services                       map[string]ExitServiceInfo                                        `json:"services"`
+-	Reverse                        bool                                                              `json:"reverse"`
+-	ReverseRandomPorts             bool                                                              `json:"reverseRandomPorts"`
++	SeedRPCServerAddr         []string                   `json:"seedRPCServerAddr"`
++	BeneficiaryAddr           string                     `json:"beneficiaryAddr"`
++	ListenTCP                 int32                      `json:"listenTCP"`
++	ListenUDP                 int32                      `json:"listenUDP"`
++	DialTimeout               int32                      `json:"dialTimeout"`
++	UDPTimeout                int32                      `json:"udpTimeout"`
++	SubscriptionPrefix        string                     `json:"subscriptionPrefix"`
++	SubscriptionDuration      int32                      `json:"subscriptionDuration"`
++	SubscriptionFee           string                     `json:"subscriptionFee"`
++	SubscriptionReplaceTxPool bool                       `json:"subscriptionReplaceTxPool"`
++	ClaimInterval             int32                      `json:"claimInterval"`
++	MinFlushAmount            string                     `json:"minFlushAmount"`
++	Services                  map[string]ExitServiceInfo `json:"services"`
++	Reverse                   bool                       `json:"reverse"`
++	ReverseRandomPorts        bool                       `json:"reverseRandomPorts"`
++	// ReverseTCPPorts separates requested public ports from local service ports.
++	// Empty retains upstream behavior; random allocation cannot be combined with it.
++	ReverseTCPPorts                []uint32                                                          `json:"reverseTCPPorts,omitempty"`
+ 	ReverseMaxPrice                string                                                            `json:"reverseMaxPrice"`
+ 	ReverseNanoPayFee              string                                                            `json:"reverseNanopayfee"`
+ 	MinReverseNanoPayFee           string                                                            `json:"minReverseNanoPayFee"`
+--- a/exit.go
++++ b/exit.go
+@@ -1,6 +1,7 @@
+ package tuna
+ 
+ import (
++	"context"
+ 	"errors"
+ 	"fmt"
+ 	"log"
+@@ -500,6 +501,18 @@
+ 	if err != nil {
+ 		return err
+ 	}
++	if len(te.config.ReverseTCPPorts) > 0 {
++		if te.config.ReverseRandomPorts || len(te.config.ReverseTCPPorts) != len(service.TCP) {
++			return errors.New("reverse public TCP ports must match local service ports and cannot be random")
++		}
++		seen := make(map[uint32]bool)
++		for _, port := range te.config.ReverseTCPPorts {
++			if port == 0 || port > 65535 || seen[port] {
++				return errors.New("invalid reverse public TCP port")
++			}
++			seen[port] = true
++		}
++	}
+ 
+ 	var paymentStream *smux.Stream
+ 	var recipient string
+@@ -545,6 +558,9 @@
+ 		} else {
+ 			tcpPorts = service.TCP
+ 			udpPorts = service.UDP
++			if len(te.config.ReverseTCPPorts) > 0 {
++				tcpPorts = te.config.ReverseTCPPorts
++			}
+ 		}
+ 
+ 		serviceMetadata := CreateRawMetadata(
+@@ -600,11 +616,18 @@
+ 			continue
+ 		}
+ 
+-		reverseIP := tcpConn.RemoteAddr().(*net.TCPAddr).IP
++		// A proxy connection's RemoteAddr names the proxy, not the public provider.
++		// This is the provider address whose NKN key authenticated the connection.
++		reverseIP := net.ParseIP(te.GetMetadata().Ip)
++		if reverseIP == nil {
++			return errors.New("reverse provider has no valid public IP")
++		}
+ 		reverseTCP := reverseMetadata.ServiceTcp
+ 		if len(reverseTCP) > 0 {
+ 			go func() {
+-				conn, err := net.DialTimeout(tcp4, fmt.Sprintf("%s:%d", reverseIP.String(), reverseTCP[0]), defaultReverseTestTimeout)
++				ctx, cancel := context.WithTimeout(context.Background(), defaultReverseTestTimeout)
++				defer cancel()
++				conn, err := te.dialProviderTCP(ctx, net.JoinHostPort(reverseIP.String(), fmt.Sprint(reverseTCP[0])))
+ 				if err == nil {
+ 					time.Sleep(defaultReverseTestTimeout)
+ 					conn.Close()
+--- a/tuna.go
++++ b/tuna.go
+@@ -663,8 +663,20 @@
+ 	return encConn, nil
+ }
+ 
++// dialProviderTCP is also used by reverse reachability probes, so a configured
++// guard is never bypassed by the SDK's own public-port check.
++func (c *Common) dialProviderTCP(ctx context.Context, addr string) (net.Conn, error) {
++	if c.TcpDialContext != nil {
++		return c.TcpDialContext(ctx, tcp4, addr)
++	}
++	return (&net.Dialer{}).DialContext(ctx, tcp4, addr)
++}
++
+ func (c *Common) UpdateServerConn(remotePublicKey []byte) error {
+ 	hasUDP := len(c.Service.UDP) > 0 || (c.ReverseMetadata != nil && len(c.ReverseMetadata.ServiceUdp) > 0)
++	if hasUDP && c.TcpDialContext != nil {
++		return errors.New("UDP with a custom TCP transport is not supported; refusing direct UDP fallback")
++	}
+ 	metadata := c.GetMetadata()
+ 
+ 	Close(c.GetTCPConn())
+@@ -784,6 +796,13 @@
+ 				entryToExitPrice, exitToEntryPrice, err := ParsePrice(metadata.Price)
+ 				if err != nil {
+ 					log.Println(err)
++					continue
++				}
++				// The subscription was refreshed after candidate filtering. Recheck
++				// its current quote before accepting payment terms.
++				maxUp, maxDown, err := ParsePrice(c.ServiceInfo.MaxPrice)
++				if err != nil || entryToExitPrice < 0 || exitToEntryPrice < 0 || entryToExitPrice > maxUp || exitToEntryPrice > maxDown {
++					log.Println("provider quote exceeds configured price policy")
+ 					continue
+ 				}
+ 

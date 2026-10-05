@@ -50,6 +50,7 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq libarchive-tools python3-numpy python3-venv libgoogle-perftools4
           npm ci --no-audit --no-fund
           (cd relay && npm ci --no-audit --no-fund)
+          (cd network && npm ci --ignore-scripts --no-audit --no-fund)
       - name: Install CPU worker test dependency
         # Public-cache tests exercise the real worker's tensor arithmetic and
         # C-client reconnects. Use a CPU wheel in a venv; keep distro numpy and
@@ -63,7 +64,7 @@ jobs:
         # npm test verbatim but with CI headroom on the per-file timeout:
         # cli.test.mjs runs ~14s here vs ~8s locally, and root package.json
         # is release-triggering so the longer timeout cannot live there
-        run: node --test --test-timeout=60000 test/*.test.mjs
+        run: node --test --test-timeout=60000 test/*.test.mjs network/test/*.test.mjs
 
   contracts:
     runs-on: ubuntu-latest
@@ -106,3 +107,22 @@ jobs:
             !e2e/.data/*.pem
           include-hidden-files: true   # .data/ is silently dropped without this
           retention-days: 7
+
+  tuna-sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+          cache-dependency-path: network/tuna/go.sum
+      - name: TUNA adapter and guarded transport
+        working-directory: network/tuna
+        run: go test -race ./...
+      - name: Windows persistent firewall helper
+        working-directory: network/windows-firewall
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: '0'
+        run: go build -trimpath -o /tmp/enclave-circuit-firewall.exe .

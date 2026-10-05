@@ -1,0 +1,15 @@
+{
+  "seedFile": "/etc/enclave-tuna-usdc/transport.seed",
+  "rpc": ["REQUIRED_NATIVE_NKN_HTTPS_RPC_1", "REQUIRED_NATIVE_NKN_HTTPS_RPC_2"],
+  "publicIP": "REQUIRED_PUBLIC_IPV4",
+  "forwardPort": 30110,
+  "reversePort": 30120,
+  "socksPort": 30489,
+  "subscriptionFee": "0.001",
+  "usdc": {
+    "socket": "/run/enclave-tuna-usdc/control.sock",
+    "tokenFile": "/etc/enclave-tuna-usdc/control.token",
+    "providerId": "REQUIRED_REGISTERED_PROVIDER_ID",
+    "pricePerGiB6": "REQUIRED_PROVIDER_USDC6_RATE"
+  }
+}

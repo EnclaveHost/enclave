@@ -1,0 +1,33 @@
+[Unit]
+Description=TUNA paid SOCKS forwarding provider
+Wants=network-online.target
+Requires=tuna-socks.service
+After=network-online.target tuna-socks.service
+StartLimitIntervalSec=0
+
+[Service]
+User=tuna-provider
+Group=tuna-provider
+WorkingDirectory=/var/lib/tuna-provider
+ExecStart=/opt/tuna-provider/tuna --wallet /etc/tuna-provider/identity/wallet.json --password-file /etc/tuna-provider/identity/wallet.pswd --services /etc/tuna-provider/services.json exit --config /etc/tuna-provider/forward.json
+Restart=always
+RestartSec=10
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+ReadWritePaths=/var/lib/tuna-provider
+CapabilityBoundingSet=
+LimitNOFILE=65536
+TasksMax=512
+MemoryMax=640M
+
+[Install]
+WantedBy=multi-user.target
