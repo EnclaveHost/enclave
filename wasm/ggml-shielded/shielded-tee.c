@@ -1144,18 +1144,15 @@ static void spill_fail(sh_link *l, const char *what, int rc) {
     fprintf(stderr, "[shielded] pad spill off: %s failed (rc %d); minting every pad from here\n", what, rc);
 }
 
-/* The registration a spill layout belongs to: every group's shape and nodes. */
-static uint64_t spill_fingerprint(const sh_link *l) {
+/* The registration a group's spilled pads belong to: its shape and nodes. */
+static uint64_t spill_group_fp(const sh_link *l, size_t i) {
     uint64_t h = UINT64_C(1469598103934665603);
 #define SP_MIX(v) do { h ^= (uint64_t)(v); h *= UINT64_C(1099511628211); } while (0)
-    SP_MIX(l->n_groups);
-    for (size_t i = 0; i < l->n_groups; i++) {
-        const sh_group *g = &l->groups[i];
-        SP_MIX(g->K); SP_MIX(g->u_len); SP_MIX(g->n_nodes);
-        for (int j = 0; j < g->n_nodes; j++) {
-            const sh_node *nd = &l->nodes[g->nodes[j]];
-            SP_MIX(g->nodes[j]); SP_MIX(nd->K); SP_MIX(nd->N); SP_MIX(nd->u_off);
-        }
+    const sh_group *g = &l->groups[i];
+    SP_MIX(i); SP_MIX(g->K); SP_MIX(g->u_len); SP_MIX(g->n_nodes);
+    for (int j = 0; j < g->n_nodes; j++) {
+        const sh_node *nd = &l->nodes[g->nodes[j]];
+        SP_MIX(g->nodes[j]); SP_MIX(nd->K); SP_MIX(nd->N); SP_MIX(nd->u_off);
     }
 #undef SP_MIX
     return h;
@@ -1172,43 +1169,72 @@ static void spill_drop(sh_link *l) {
     sh_spill_detach(l->spill); l->spill = NULL; l->spill_slots = 0;
 }
 
-/* start_pools, before the refill threads start. A spill cut for this exact
- * registration is kept across a quiesce; any other is dropped, since its pads
- * belong to shapes that no longer exist. */
+/* start_pools, before the refill threads start. Across a re-registration
+ * (a weight added after start: the MTP head the first speculative request
+ * discovers) every group whose registration is unchanged keeps its spilled
+ * pads; a changed or new group starts empty in a region of its own. Only when
+ * the partition's headroom cannot hold those is the spill laid out again. */
 static void spill_start(sh_link *l) {
     if (l->dealt || l->zero_pads || l->spill_off || !l->n_groups) return;
-    const uint64_t fp = spill_fingerprint(l);
-    if (l->spill && !sh_spill_fits(l->spill, l->n_groups, fp)) spill_drop(l);
-    if (!l->spill) {
-        int64_t *K = (int64_t *)malloc(l->n_groups * sizeof *K), *U = (int64_t *)malloc(l->n_groups * sizeof *U);
-        if (!K || !U) { free(K); free(U); return; }
-        for (size_t i = 0; i < l->n_groups; i++) { K[i] = l->groups[i].K; U[i] = l->groups[i].u_len; }
+    const size_t n = l->n_groups;
+    int64_t *K = (int64_t *)malloc(n * sizeof *K), *U = (int64_t *)malloc(n * sizeof *U);
+    uint64_t *fp = (uint64_t *)malloc(n * sizeof *fp);
+    uint8_t *kept = (uint8_t *)calloc(n, 1);
+    if (!K || !U || !fp || !kept) { free(K); free(U); free(fp); free(kept); return; }
+    for (size_t i = 0; i < n; i++) { K[i] = l->groups[i].K; U[i] = l->groups[i].u_len; fp[i] = spill_group_fp(l, i); }
+    if (l->spill) {
+        if (sh_spill_extend(l->spill, K, U, fp, n, kept) == SH_OK) {
+            size_t same = 0;
+            bool ok = true;
+            for (size_t i = 0; i < n; i++) {
+                sh_group *g = &l->groups[i];
+                if (kept[i] && g->sp_flag && g->sp_wid && !g->sp_writing && !g->sp_held) { same++; continue; }
+                free(g->sp_flag); free(g->sp_wid);
+                g->sp_flag = (uint8_t *)calloc(l->spill_slots, 1);
+                g->sp_wid = (uint64_t *)calloc(l->spill_slots, sizeof *g->sp_wid);
+                g->sp_head = g->sp_count = g->sp_writing = g->sp_held = 0;
+                ok = ok && g->sp_flag && g->sp_wid;
+            }
+            if (!ok) {
+                fprintf(stderr, "[shielded] pad spill off: no memory for %u slots per group\n", l->spill_slots);
+                spill_drop(l); l->spill_off = true;
+            } else if (same < n) {
+                l->spill_full_said = false;
+                fprintf(stderr, "[shielded] pad spill: re-registration kept the pads of %zu of %zu groups\n", same, n);
+            }
+        } else {
+            fprintf(stderr, "[shielded] pad spill: re-registration outgrew the headroom; laying the spill out again\n");
+            spill_drop(l);
+        }
+    }
+    if (!l->spill && !l->spill_off) {
         char why[192];
-        l->spill = sh_spill_attach(K, U, l->n_groups, fp, l->bank.stream, why, sizeof why);
-        free(K); free(U);
+        l->spill = sh_spill_attach(K, U, fp, n, l->bank.stream, why, sizeof why);
         if (!l->spill) {
             if (why[0]) { fprintf(stderr, "[shielded] pad spill off: %s\n", why); l->spill_off = true; }
-            return;
+        } else {
+            l->spill_slots = sh_spill_slots(l->spill);
+            bool ok = (l->spill_io = sh_spill_io_alloc(l->spill)) != NULL;
+            for (size_t i = 0; ok && i < n; i++) {
+                sh_group *g = &l->groups[i];
+                g->sp_flag = (uint8_t *)calloc(l->spill_slots, 1);
+                g->sp_wid = (uint64_t *)calloc(l->spill_slots, sizeof *g->sp_wid);
+                g->sp_head = g->sp_count = g->sp_writing = g->sp_held = 0;
+                ok = g->sp_flag && g->sp_wid;
+            }
+            if (!ok) {
+                fprintf(stderr, "[shielded] pad spill off: no memory for %u slots per group\n", l->spill_slots);
+                spill_drop(l); l->spill_off = true;
+            } else {
+                l->spill_t0 = now_ms(); l->spill_full_said = false;
+                fprintf(stderr, "[shielded] pad spill: partition %d, %.1f GiB, %u pads per group over %zu groups (%.2f MiB a row)\n",
+                        sh_spill_part(l->spill), sh_spill_bytes(l->spill) / 1073741824.0, l->spill_slots, n,
+                        sh_spill_row_bytes(l->spill) / 1048576.0);
+            }
         }
-        l->spill_slots = sh_spill_slots(l->spill);
-        bool ok = (l->spill_io = sh_spill_io_alloc(l->spill)) != NULL;
-        for (size_t i = 0; ok && i < l->n_groups; i++) {
-            sh_group *g = &l->groups[i];
-            g->sp_flag = (uint8_t *)calloc(l->spill_slots, 1);
-            g->sp_wid = (uint64_t *)calloc(l->spill_slots, sizeof *g->sp_wid);
-            g->sp_head = g->sp_count = g->sp_writing = g->sp_held = 0;
-            ok = g->sp_flag && g->sp_wid;
-        }
-        if (!ok) {
-            fprintf(stderr, "[shielded] pad spill off: no memory for %u slots per group\n", l->spill_slots);
-            spill_drop(l); l->spill_off = true;
-            return;
-        }
-        l->spill_t0 = now_ms(); l->spill_full_said = false;
-        fprintf(stderr, "[shielded] pad spill: partition %d, %.1f GiB, %u pads per group over %zu groups (%.2f MiB a row)\n",
-                sh_spill_part(l->spill), sh_spill_bytes(l->spill) / 1073741824.0, l->spill_slots, l->n_groups,
-                sh_spill_row_bytes(l->spill) / 1048576.0);
     }
+    free(K); free(U); free(fp); free(kept);
+    if (!spill_usable(l)) return;
     l->spill_idle_ms = env_int("SHIELDED_PAD_SPILL_IDLE_MS", 2000, 0, 3600000);
     l->spill_mint_max = env_int("SHIELDED_PAD_SPILL_THREADS", l->n_threads > 1 ? l->n_threads - 1 : 1, 0, 64);
     l->spill_last_take = now_ms();

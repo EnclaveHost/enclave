@@ -5,6 +5,8 @@
  *   2. a burst far wider than the ring: every product exact and verified, and
  *      the pads came from the spill (refill imports and request-path imports);
  *   3. idle again: the spill refills what the burst took;
+ *   3b. a weight registered after start (as the MTP head is): the link restarts
+ *      and the groups it did not touch keep their spilled pads;
  *   4. the host wipes the disk: the next imports do not open, the spill turns
  *      itself off, and every product is STILL exact -- minted, as before.
  *
@@ -94,9 +96,10 @@ int main(int argc, char **argv) {
     setenv("SHIELDED_REFILL_UNIT", "8", 1);
     setenv("SHIELDED_REFILL_THREADS", "3", 1);
     setenv("SHIELDED_PAD_SPILL_IDLE_MS", "150", 1);
+    setenv("SHIELDED_PAD_SPILL_HEADROOM_PCT", "60", 1);     /* room for a third group of the same size */
 
-    weight a1, a2, b;
-    make_weight(&a1, 192, 96); make_weight(&a2, 192, 40); make_weight(&b, 64, 300);
+    weight a1, a2, b, c;
+    make_weight(&a1, 192, 96); make_weight(&a2, 192, 40); make_weight(&b, 64, 300); make_weight(&c, 128, 48);
     int err = SH_OK;
     sh_link *l = sh_link_open(host, port, true, &err);
     if (!l) { fprintf(stderr, "open %s:%d failed (%d)\n", host, port, err); unlink(path); return 2; }
@@ -135,6 +138,24 @@ int main(int argc, char **argv) {
     sh_link_spill s3 = stats(l);
     CHECK(s3.written > s2.written, "refill wrote %llu more pads", (unsigned long long)(s3.written - s2.written));
 
+    /* 3b. a weight registered after start: a new group, the link restarts */
+    c.node = sh_link_add_weight(l, "c", c.w, c.K, c.N, M, -1);
+    CHECK(c.node >= 0, "late add_weight: %s", sh_link_last_error(l));
+    CHECK(sh_link_start(l) == SH_OK, "restart after the late weight: %s", sh_link_last_error(l));
+    weight *gc[1] = { &c };
+    sh_link_spill s3b = stats(l);
+    CHECK(s3b.attached && !s3b.off && s3b.slots == s3.slots, "the same spill survives the restart");
+    bad = 0;
+    for (int i = 0; i < burst; i++) { bad |= exchange(l, ga, 2); bad |= exchange(l, gb, 1); }
+    CHECK(!bad, "products after the restart exact and verified");
+    sh_link_spill s3c = stats(l);
+    const uint64_t kept_drawn = (s3c.imported - s3b.imported) + (s3c.onpath - s3b.onpath);
+    CHECK(kept_drawn >= (uint64_t)(burst * M * 2) / 2, "the old groups drew %llu kept pads right after the restart", (unsigned long long)kept_drawn);
+    CHECK(wait_rows(l, full, 120), "the new group's spill filled");
+    bad = 0;
+    for (int i = 0; i < burst; i++) bad |= exchange(l, gc, 1);
+    CHECK(!bad, "the new group's products exact and verified");
+
     /* 4. the host wipes the disk */
     {
         int wfd = open(path, O_WRONLY);
@@ -157,7 +178,7 @@ int main(int argc, char **argv) {
     CHECK(vf == 0, "no verification failure (%llu)", (unsigned long long)vf);
 
     sh_link_close(l);
-    free(a1.w); free(a2.w); free(b.w);
+    free(a1.w); free(a2.w); free(b.w); free(c.w);
     unlink(path);
     printf("{\"spill_link_selftest\":%s,\"failures\":%d,\"slots\":%llu,\"fill_s\":%.2f,\"written\":%llu,"
            "\"imported\":%llu,\"onpath\":%llu,\"pads_used\":%llu,\"ring_missed\":%llu,\"exchanges\":%llu}\n",
