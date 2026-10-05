@@ -13,6 +13,7 @@
 #include "shielded-sha256.h"
 #include "shielded-pad-manifest.h"
 #include "shielded-mint-balance.h"
+#include "shielded-spill.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -28,6 +29,8 @@
 #include <sys/auxv.h>
 #include <asm/hwcap.h>
 #endif
+
+#include "shielded-spill.inc"
 
 #define SH_ALIGN 64
 static int64_t align_up(int64_t x) { return (x + SH_ALIGN - 1) & ~(int64_t)(SH_ALIGN - 1); }
@@ -376,6 +379,15 @@ typedef struct {
     uint64_t pads_used, pads_missed;
     double on_path_ms;          /* request-thread counters; refill threads do not write them */
     uint64_t cursor;            /* dealt pads: the next shipment index this group imports */
+    /* The disk tier (shielded-spill.h): the ring's discipline over this
+     * group's spill slots, under pool_mu. In slot order: [sp_head - sp_held,
+     * sp_head) are being read, [sp_head, +sp_count) are sealed and ready,
+     * [+sp_count, +sp_writing) are being written. Several refill threads finish
+     * out of order, so a write is counted, and a read retired, only in slot
+     * order (sp_flag), as the ring's `ready` does for its writes. */
+    uint32_t  sp_head, sp_count, sp_writing, sp_held;
+    uint8_t  *sp_flag;          /* per slot: SP_WRITTEN / SP_READ, not yet folded */
+    uint64_t *sp_wid;           /* per slot: the write id it was sealed under */
 } sh_group;
 
 struct sh_link {
@@ -454,6 +466,22 @@ struct sh_link {
     sh_pads_reader *pads;
     sh_window_fn win_fn; void *win_ctx;     /* a provider (the pVM's owner-app path) replaces the ledger file */
 
+    /* The disk tier (shielded-spill.h): pads the refill threads mint while the
+     * link is idle, sealed onto a host disk, imported when a ring runs low.
+     * Local-mint links only. NULL when unconfigured or turned off. */
+    sh_spill  *spill;
+    bool       spill_off;                   /* a failure ended it for this link's life */
+    uint64_t   spill_fp;                    /* the registration its layout was cut for */
+    uint32_t   spill_slots;                 /* per group */
+    uint64_t   spill_wid;                   /* the next write id; never reused */
+    int        spill_minters, spill_mint_max, spill_idle_ms;
+    double     spill_last_take;             /* now_ms() of the request path's last take */
+    double     spill_t0;                    /* attach time, for the "full" line */
+    bool       spill_full_said;
+    uint8_t   *spill_io;                    /* the request path's I/O buffer */
+    uint64_t   spill_written, spill_imported, spill_onpath, spill_failed;
+    uint64_t   spill_said, spill_said_onpath;   /* imports already reported */
+
     uint64_t   exchanges, macs, verify_fail, pads_used, pads_missed;
     sh_link_profile profile; /* caller-owned, independent of every other link */
     /* Background importers publish this monotonic latch atomically. Keep it
@@ -472,6 +500,7 @@ static bool sh_integrity_failed(const sh_link *l) {
 }
 
 static int dealt_reserve(sh_link *l, uint64_t *lo, uint64_t *hi);   /* dealt pads: below, after the refill loop */
+static void spill_drop(sh_link *l);                                 /* the disk tier: below, after the refill picker */
 static void dealt_advanced(sh_link *l);
 static void dealt_receipt(sh_link *l);
 const char *sh_link_transport(const sh_link *l) { return l && l->transport[0] ? l->transport : "not connected"; }
@@ -527,6 +556,22 @@ void sh_link_node_pool_stats(const sh_link *l, int node, uint64_t *consumed,
     if (on_path_ms) *on_path_ms = g ? g->on_path_ms : 0;
 }
 int sh_link_refill_threads(const sh_link *l) { return l ? l->n_threads : 0; }
+void sh_link_spill_stats(sh_link *l, sh_link_spill *out) {
+    if (!out) return;
+    memset(out, 0, sizeof *out);
+    if (!l) return;
+    pthread_mutex_lock(&l->pool_mu);
+    out->attached = l->spill != NULL;
+    out->off = l->spill_off;
+    out->slots = l->spill_slots;
+    out->rows = l->spill ? UINT64_MAX : 0;
+    for (size_t i = 0; l->spill && i < l->n_groups; i++)
+        if (l->groups[i].sp_count < out->rows) out->rows = l->groups[i].sp_count;
+    if (out->rows == UINT64_MAX) out->rows = 0;
+    out->written = l->spill_written; out->imported = l->spill_imported;
+    out->onpath = l->spill_onpath; out->failed = l->spill_failed;
+    pthread_mutex_unlock(&l->pool_mu);
+}
 const char *sh_link_refill_priority(const sh_link *l) { return l && l->refill_cost_priority ? "cost" : "deficit"; }
 int sh_link_reply_width(const sh_link *l) { return l && l->pipe ? l->ywidth : 0; }
 
@@ -689,6 +734,7 @@ void sh_link_close(sh_link *l) {
     if (!l) return;
     stop_threads(l);
     if (l->dealt && l->win_url[0]) dealt_receipt(l);      /* the last window's usage, before the counters go */
+    spill_drop(l);
     free_pools(l);
     for (size_t i = 0; i < l->n_nodes; i++) {
         node_free_checks(&l->nodes[i]);
@@ -1068,6 +1114,187 @@ static sh_group *pick_refill_group(sh_link *l, int B, int *deficit) {
     return best;
 }
 
+/* ---------------------------------------------------------------------------
+ * The disk tier (shielded-spill.h). Slot state is in sh_group (sp_*) under
+ * pool_mu; the reads, writes and AEAD run outside it, like a refill.
+ *
+ * Refill threads with no ring to fill mint into the spill once the request
+ * path has been quiet for SHIELDED_PAD_SPILL_IDLE_MS (2 s), at most
+ * SHIELDED_PAD_SPILL_THREADS at a time (all but one), so a request that
+ * arrives finds a thread free for its rings. A ring refill imports from the
+ * spill when it holds pads for that group and mints otherwise; a request that
+ * finds its ring short imports the shortfall itself before minting on the
+ * path. Every pad still serves exactly one exchange.
+ * ------------------------------------------------------------------------ */
+#define SP_WRITTEN 1
+#define SP_READ    2
+#define SP_TAKE_MAX 64              /* pads one take moves (the refill batch is at most 64) */
+
+static bool spill_usable(const sh_link *l) { return l->spill && !l->spill_off; }
+
+static uint32_t spill_free(const sh_link *l, const sh_group *g) {
+    return l->spill_slots - g->sp_count - g->sp_writing - g->sp_held;
+}
+
+/* pool_mu held. In-flight reads and writes finish and retire as usual;
+ * nothing new starts, and every ring is then refilled by minting. */
+static void spill_fail(sh_link *l, const char *what, int rc) {
+    if (l->spill_off) return;
+    l->spill_off = true; l->spill_failed++;
+    fprintf(stderr, "[shielded] pad spill off: %s failed (rc %d); minting every pad from here\n", what, rc);
+}
+
+/* The registration a spill layout belongs to: every group's shape and nodes. */
+static uint64_t spill_fingerprint(const sh_link *l) {
+    uint64_t h = UINT64_C(1469598103934665603);
+#define SP_MIX(v) do { h ^= (uint64_t)(v); h *= UINT64_C(1099511628211); } while (0)
+    SP_MIX(l->n_groups);
+    for (size_t i = 0; i < l->n_groups; i++) {
+        const sh_group *g = &l->groups[i];
+        SP_MIX(g->K); SP_MIX(g->u_len); SP_MIX(g->n_nodes);
+        for (int j = 0; j < g->n_nodes; j++) {
+            const sh_node *nd = &l->nodes[g->nodes[j]];
+            SP_MIX(g->nodes[j]); SP_MIX(nd->K); SP_MIX(nd->N); SP_MIX(nd->u_off);
+        }
+    }
+#undef SP_MIX
+    return h;
+}
+
+/* Refill threads stopped and no request in flight. */
+static void spill_drop(sh_link *l) {
+    for (size_t i = 0; i < l->n_groups; i++) {
+        sh_group *g = &l->groups[i];
+        free(g->sp_flag); free(g->sp_wid); g->sp_flag = NULL; g->sp_wid = NULL;
+        g->sp_head = g->sp_count = g->sp_writing = g->sp_held = 0;
+    }
+    free(l->spill_io); l->spill_io = NULL;
+    sh_spill_detach(l->spill); l->spill = NULL; l->spill_slots = 0;
+}
+
+/* start_pools, before the refill threads start. A spill cut for this exact
+ * registration is kept across a quiesce; any other is dropped, since its pads
+ * belong to shapes that no longer exist. */
+static void spill_start(sh_link *l) {
+    if (l->dealt || l->zero_pads || l->spill_off || !l->n_groups) return;
+    const uint64_t fp = spill_fingerprint(l);
+    if (l->spill && !sh_spill_fits(l->spill, l->n_groups, fp)) spill_drop(l);
+    if (!l->spill) {
+        int64_t *K = (int64_t *)malloc(l->n_groups * sizeof *K), *U = (int64_t *)malloc(l->n_groups * sizeof *U);
+        if (!K || !U) { free(K); free(U); return; }
+        for (size_t i = 0; i < l->n_groups; i++) { K[i] = l->groups[i].K; U[i] = l->groups[i].u_len; }
+        char why[192];
+        l->spill = sh_spill_attach(K, U, l->n_groups, fp, l->bank.stream, why, sizeof why);
+        free(K); free(U);
+        if (!l->spill) {
+            if (why[0]) { fprintf(stderr, "[shielded] pad spill off: %s\n", why); l->spill_off = true; }
+            return;
+        }
+        l->spill_slots = sh_spill_slots(l->spill);
+        bool ok = (l->spill_io = sh_spill_io_alloc(l->spill)) != NULL;
+        for (size_t i = 0; ok && i < l->n_groups; i++) {
+            sh_group *g = &l->groups[i];
+            g->sp_flag = (uint8_t *)calloc(l->spill_slots, 1);
+            g->sp_wid = (uint64_t *)calloc(l->spill_slots, sizeof *g->sp_wid);
+            g->sp_head = g->sp_count = g->sp_writing = g->sp_held = 0;
+            ok = g->sp_flag && g->sp_wid;
+        }
+        if (!ok) {
+            fprintf(stderr, "[shielded] pad spill off: no memory for %u slots per group\n", l->spill_slots);
+            spill_drop(l); l->spill_off = true;
+            return;
+        }
+        l->spill_t0 = now_ms(); l->spill_full_said = false;
+        fprintf(stderr, "[shielded] pad spill: partition %d, %.1f GiB, %u pads per group over %zu groups (%.2f MiB a row)\n",
+                sh_spill_part(l->spill), sh_spill_bytes(l->spill) / 1073741824.0, l->spill_slots, l->n_groups,
+                sh_spill_row_bytes(l->spill) / 1048576.0);
+    }
+    l->spill_idle_ms = env_int("SHIELDED_PAD_SPILL_IDLE_MS", 2000, 0, 3600000);
+    l->spill_mint_max = env_int("SHIELDED_PAD_SPILL_THREADS", l->n_threads > 1 ? l->n_threads - 1 : 1, 0, 64);
+    l->spill_last_take = now_ms();
+}
+
+/* pool_mu held: whether any group's spill has room for a minting batch. */
+static bool spill_wants_mint(const sh_link *l, int B) {
+    if (!spill_usable(l) || l->spill_mint_max <= 0) return false;
+    const uint32_t unit = (uint32_t)B < l->spill_slots ? (uint32_t)B : l->spill_slots;
+    for (size_t i = 0; i < l->n_groups; i++) if (spill_free(l, &l->groups[i]) >= unit) return true;
+    return false;
+}
+
+/* pool_mu held: the group whose spill is emptiest, if the link is idle and a
+ * minter is free. Always a whole batch, the refill's own amortisation. */
+static sh_group *pick_spill_group(sh_link *l, int B, int *b) {
+    if (!spill_usable(l) || l->spill_minters >= l->spill_mint_max) return NULL;
+    if (now_ms() - l->spill_last_take < (double)l->spill_idle_ms) return NULL;
+    if (l->spill_wid + (uint64_t)B >= SH_SPILL_WID_LIMIT) return NULL;
+    const uint32_t unit = (uint32_t)B < l->spill_slots ? (uint32_t)B : l->spill_slots;
+    sh_group *best = NULL;
+    uint64_t best_have = UINT64_MAX;
+    for (size_t i = 0; i < l->n_groups; i++) {
+        sh_group *c = &l->groups[i];
+        if (spill_free(l, c) < unit) continue;
+        const uint64_t have = (uint64_t)c->sp_count + c->sp_writing;
+        if (have < best_have) { best = c; best_have = have; }
+    }
+    if (best) *b = (int)unit;
+    return best;
+}
+
+/* pool_mu held: reserve b slots after the ready run for a write, with fresh
+ * write ids. */
+static uint32_t spill_reserve(sh_link *l, sh_group *g, int b, uint64_t *wid) {
+    const uint32_t cap = l->spill_slots;
+    const uint32_t slot0 = (uint32_t)(((uint64_t)g->sp_head + g->sp_count + g->sp_writing) % cap);
+    for (int i = 0; i < b; i++) {
+        wid[i] = l->spill_wid++;
+        g->sp_wid[(slot0 + (uint32_t)i) % cap] = wid[i];
+    }
+    g->sp_writing += (uint32_t)b;
+    return slot0;
+}
+
+/* pool_mu held: b slots from slot0 are sealed on the disk. Count forward in
+ * slot order over whatever is finished. */
+static void spill_publish(sh_link *l, sh_group *g, uint32_t slot0, int b) {
+    const uint32_t cap = l->spill_slots;
+    for (int i = 0; i < b; i++) g->sp_flag[(slot0 + (uint32_t)i) % cap] |= SP_WRITTEN;
+    uint32_t at = (uint32_t)(((uint64_t)g->sp_head + g->sp_count) % cap);
+    while (g->sp_writing > 0 && (g->sp_flag[at] & SP_WRITTEN)) {
+        g->sp_flag[at] &= (uint8_t)~SP_WRITTEN;
+        at = (at + 1) % cap; g->sp_count++; g->sp_writing--;
+    }
+}
+
+/* pool_mu held: take up to `want` sealed pads off group g's spill, oldest
+ * first. They are consumed HERE (rule 1): whatever the read does, these
+ * slots never come back. -> how many, the first slot and their write ids. */
+static int spill_take(sh_link *l, sh_group *g, int want, uint32_t *slot0, uint64_t *wid) {
+    if (!spill_usable(l) || want <= 0) return 0;
+    if (want > SP_TAKE_MAX) want = SP_TAKE_MAX;
+    const int n = g->sp_count < (uint32_t)want ? (int)g->sp_count : want;
+    if (n <= 0) return 0;
+    const uint32_t cap = l->spill_slots;
+    *slot0 = g->sp_head;
+    for (int i = 0; i < n; i++) wid[i] = g->sp_wid[(g->sp_head + (uint32_t)i) % cap];
+    g->sp_head = (g->sp_head + (uint32_t)n) % cap;
+    g->sp_count -= (uint32_t)n; g->sp_held += (uint32_t)n;
+    return n;
+}
+
+/* pool_mu held: the read of n slots from slot0 is over. The oldest held slot
+ * moves only over retired ones, so a write never lands on a slot still being
+ * read by a slower thread. */
+static void spill_retire(sh_link *l, sh_group *g, uint32_t slot0, int n) {
+    const uint32_t cap = l->spill_slots;
+    for (int i = 0; i < n; i++) g->sp_flag[(slot0 + (uint32_t)i) % cap] |= SP_READ;
+    uint32_t tail = (uint32_t)(((uint64_t)g->sp_head + cap - g->sp_held) % cap);
+    while (g->sp_held > 0 && (g->sp_flag[tail] & SP_READ)) {
+        g->sp_flag[tail] &= (uint8_t)~SP_READ;
+        tail = (tail + 1) % cap; g->sp_held--;
+    }
+}
+
 /* Dealt pads: fill b slots of group gi from the shipments - r derived from
  * the seed, u read and opened. Waits up to pad_wait_ms for a bank that has
  * not prefetched the index yet; past that the bank is behind and the link
@@ -1136,9 +1363,13 @@ static void *refill_main(void *arg) {
     int32_t *r = (int32_t *)malloc((size_t)B * l->Kmax * sizeof(int32_t));
     int32_t *u = (int32_t *)malloc((size_t)B * l->ulen_max * sizeof(int32_t));
     if (!r || !u) { free(r); free(u); free(s.planes); free(s.acc); return NULL; }
+    /* This thread's spill I/O buffer; without one it neither mints into nor
+     * imports from the spill. */
+    uint8_t *io = spill_usable(l) ? sh_spill_io_alloc(l->spill) : NULL;
     for (;;) {
         pthread_mutex_lock(&l->pool_mu);
         sh_group *g = NULL; int deficit = 0;
+        bool to_spill = false;
         for (;;) {
             if (l->stop) { pthread_mutex_unlock(&l->pool_mu); goto done; }
             /* Which group, and whether to bother. Every partial batch still
@@ -1156,9 +1387,69 @@ static void *refill_main(void *arg) {
              * Lowest-first among the low ones in either policy. */
             g = pick_refill_group(l, B, &deficit);
             if (g) break;
-            pthread_cond_wait(&l->need_refill, &l->pool_mu);
+            if (io && (g = pick_spill_group(l, B, &deficit)) != NULL) { to_spill = true; break; }
+            if (io && spill_wants_mint(l, B)) {
+                /* Idleness is a matter of time, which no signal announces:
+                 * look again shortly. */
+                struct timespec dl; clock_gettime(CLOCK_REALTIME, &dl);
+                dl.tv_nsec += 200L * 1000000L;
+                if (dl.tv_nsec >= 1000000000L) { dl.tv_sec++; dl.tv_nsec -= 1000000000L; }
+                pthread_cond_timedwait(&l->need_refill, &l->pool_mu, &dl);
+            } else {
+                pthread_cond_wait(&l->need_refill, &l->pool_mu);
+            }
         }
-        const int b = deficit < B ? deficit : B;
+        if (to_spill) {
+            /* Mint a batch into the spill: generate()'s work with the spill's
+             * masks, then seal and write. */
+            const size_t gi = (size_t)(g - l->groups);
+            const int b = deficit;
+            uint64_t wid[SP_TAKE_MAX];
+            const uint32_t slot0 = spill_reserve(l, g, b, wid);
+            if (l->spill_imported + l->spill_onpath != l->spill_said) {
+                /* The first mint after a busy spell: say what the spell drew. */
+                fprintf(stderr, "[shielded] pad spill: the last requests imported %llu pads (%llu on the request path); minting back\n",
+                        (unsigned long long)(l->spill_imported + l->spill_onpath - l->spill_said),
+                        (unsigned long long)(l->spill_onpath - l->spill_said_onpath));
+                l->spill_said = l->spill_imported + l->spill_onpath;
+                l->spill_said_onpath = l->spill_onpath;
+            }
+            l->spill_minters++;
+            pthread_cond_broadcast(&l->need_refill);         /* another minter may start too */
+            pthread_mutex_unlock(&l->pool_mu);
+            for (int i = 0; i < b; i++) sh_spill_mask(l->spill, wid[i], r + (size_t)i * g->K, g->K);
+            int rc = generate_products(l, g, b, r, s.planes, u, s.acc);
+            const bool minted = rc == SH_OK;
+            if (minted) rc = sh_spill_write(l->spill, gi, slot0, b, wid, u, io);
+            pthread_mutex_lock(&l->pool_mu);
+            l->spill_minters--;
+            if (rc == SH_OK) {
+                spill_publish(l, g, slot0, b);
+                l->spill_written += (uint64_t)b;
+                if (!l->spill_full_said && !spill_wants_mint(l, B)) {
+                    l->spill_full_said = true;
+                    fprintf(stderr, "[shielded] pad spill full: %u pads per group, %llu written in %.0f s\n",
+                            l->spill_slots, (unsigned long long)l->spill_written, (now_ms() - l->spill_t0) / 1000.0);
+                }
+            } else if (minted) {
+                spill_fail(l, "a write", rc);
+            } else {
+                /* The mint itself failed: what the ring path does on a failed
+                 * generate (the latch, if any, is already set). */
+                spill_fail(l, "a mint", rc);
+                if (!l->stop) fprintf(stderr, "[shielded] refill stopped: pad mint failed (group %s, rc %d)\n", l->nodes[g->nodes[0]].name, rc);
+                l->stop = true;
+                pthread_cond_broadcast(&l->pool_filled);
+            }
+            pthread_mutex_unlock(&l->pool_mu);
+            continue;
+        }
+        /* A ring refill imports from the spill when it holds this group's
+         * pads: up to the batch, and only what it holds. */
+        uint64_t sp_wid[SP_TAKE_MAX];
+        uint32_t sp_slot0 = 0;
+        const int sp_n = io ? spill_take(l, g, deficit < B ? deficit : B, &sp_slot0, sp_wid) : 0;
+        const int b = sp_n > 0 ? sp_n : deficit < B ? deficit : B;
         const int first = (g->head + g->count + g->generating) % g->depth;
         uint64_t index0 = 0;
         if (l->dealt) {
@@ -1187,8 +1478,22 @@ static void *refill_main(void *arg) {
         const bool direct = first + b <= g->depth;
         int32_t *r_out = direct ? g->r_store + (size_t)first * g->K     : r;
         int32_t *u_out = direct ? g->u_store + (size_t)first * g->u_len : u;
-        const int rc = l->dealt ? dealt_import(l, g, (uint32_t)(g - l->groups), index0, b, r_out, u_out)
-                                : generate(l, g, b, r_out, u_out, &s);
+        int rc;
+        if (l->dealt) {
+            rc = dealt_import(l, g, (uint32_t)(g - l->groups), index0, b, r_out, u_out);
+        } else if (sp_n > 0) {
+            rc = sh_spill_read(l->spill, (size_t)(g - l->groups), sp_slot0, sp_n, sp_wid, r_out, u_out, io);
+            pthread_mutex_lock(&l->pool_mu);
+            spill_retire(l, g, sp_slot0, sp_n);
+            if (rc == SH_OK) l->spill_imported += (uint64_t)sp_n;
+            else spill_fail(l, "a read", rc);
+            pthread_mutex_unlock(&l->pool_mu);
+            /* The ring slots are still this thread's: whatever did not open is
+             * minted instead. The spill pads taken for it are burned. */
+            if (rc != SH_OK) rc = generate(l, g, b, r_out, u_out, &s);
+        } else {
+            rc = generate(l, g, b, r_out, u_out, &s);
+        }
         if (rc == SH_OK && !direct) {
             for (int i = 0; i < b; i++) {
                 const int slot = (first + i) % g->depth;
@@ -1217,7 +1522,7 @@ static void *refill_main(void *arg) {
         pthread_mutex_unlock(&l->pool_mu);
     }
 done:
-    free(r); free(u); free(s.planes); free(s.acc);
+    free(r); free(u); free(s.planes); free(s.acc); free(io);
     return NULL;
 }
 
@@ -1569,6 +1874,7 @@ static int start_pools(sh_link *l) {
         if (!g->r_store || !g->u_store || !g->ready) return SH_ERR_NOMEM;
     }
     l->n_threads = derive_threads(l);
+    spill_start(l);
     if (l->n_threads > 0) {
         l->threads = (pthread_t *)calloc((size_t)l->n_threads, sizeof(pthread_t));
         if (!l->threads) return SH_ERR_NOMEM;
@@ -1643,6 +1949,7 @@ static void sh_mask_range_fn(void *ctx, int64_t lo, int64_t hi) {
 
 static int take_pads(sh_link *l, sh_group *g, int m, int *slots) {
     pthread_mutex_lock(&l->pool_mu);
+    l->spill_last_take = now_ms();               /* the link is busy: no new spill mints */
     const int before = g->count < m ? g->count : m;
     /* An in-flight full refill can finish sooner than a separate, partial
      * request-thread refill. Only wait when the missing pads are ALREADY
@@ -2310,7 +2617,28 @@ int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
         if ((rc = ensure((void **)&l->acc,     &l->acc_cap,     (size_t)12 * l->Nmax * sizeof(int32_t))) != SH_OK) goto fail;
         gen_scratch s = { l->gplanes, l->acc };
         double tg = now_ms();
-        rc = generate(l, g, miss, l->r, l->u, &s);
+        /* The ring is short: import what the spill holds for this group, then
+         * mint the rest here as before. */
+        int from_spill = 0;
+        if (l->threads_running && l->spill_io) {
+            uint64_t wid[SP_TAKE_MAX];
+            uint32_t slot0 = 0;
+            pthread_mutex_lock(&l->pool_mu);
+            from_spill = spill_take(l, g, miss, &slot0, wid);
+            pthread_mutex_unlock(&l->pool_mu);
+            if (from_spill > 0) {
+                const int src = sh_spill_read(l->spill, (size_t)(g - l->groups), slot0, from_spill, wid, l->r, l->u, l->spill_io);
+                pthread_mutex_lock(&l->pool_mu);
+                spill_retire(l, g, slot0, from_spill);
+                if (src == SH_OK) l->spill_onpath += (uint64_t)from_spill;
+                else spill_fail(l, "a read on the request path", src);
+                pthread_mutex_unlock(&l->pool_mu);
+                if (src != SH_OK) from_spill = 0;      /* burned; mint all of them */
+            }
+        }
+        rc = from_spill < miss
+           ? generate(l, g, miss - from_spill, l->r + (size_t)from_spill * K, l->u + (size_t)from_spill * g->u_len, &s)
+           : SH_OK;
         const double elapsed_ms = now_ms() - tg;
         l->profile.refill_ms += elapsed_ms;
         g->on_path_ms += elapsed_ms;

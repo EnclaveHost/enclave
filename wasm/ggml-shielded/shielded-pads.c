@@ -897,6 +897,12 @@ static int aead_open(const uint8_t key[32], const uint8_t nonce[12], const uint8
     aead_stream(key, nonce, box + 16, n, out);
     return SH_OK;
 }
+int sh_aead_seal(const uint8_t key[32], const uint8_t nonce[12], const uint8_t *msg, size_t n, uint8_t *out) {
+    return aead_seal(key, nonce, msg, n, out);
+}
+int sh_aead_open(const uint8_t key[32], const uint8_t nonce[12], const uint8_t *box, size_t n, uint8_t *out) {
+    return aead_open(key, nonce, box, n, out);
+}
 
 int sh_pads_seed_open(const uint8_t epk[32], const uint8_t nonce[12], const uint8_t *box, size_t box_len,
                       const uint8_t pad_sk[32], const uint8_t pad_pk[32], uint8_t seed_out[32]) {
