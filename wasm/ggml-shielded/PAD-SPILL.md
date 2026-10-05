@@ -85,8 +85,19 @@ between prefill progress ticks, so it does not include prefix-cache hits.
 | 07ff8fae, first request after boot (MTP registers mid-request) | 42.6 | 104 s |
 | 07ff8fae, next request | 39.8 | 70 s |
 
+| 90176a59 (decode mints), next request | 41.5 | 67 s |
+
 The first-token times also include the cached system prefix where one existed,
 so the rate column is the fair comparison.
+
+Decode is the same whether it imports pads or mints them. The probe was a
+400-token reply with a full bank and eyesoff otherwise idle, run three times
+per release:
+
+| | decode tok/s | bank read per reply |
+|---|---|---|
+| 07ff8fae (decode imports from the spill) | 17.8 / 17.9 / 18.0 | 5.9 to 6.8 GB |
+| 90176a59 (decode mints) | 18.0 / 17.9 / 18.1 | 0 |
 
 - A 192 GiB bank, 15% of it headroom, holds about 13k prompt tokens across both
   cards.
