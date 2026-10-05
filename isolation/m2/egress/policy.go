@@ -18,7 +18,9 @@
 //
 // An owner who sets a top-level "egress" list in the config states the allowlist explicitly; otherwise every
 // absolute https URL in the resolved config becomes reachable, which the owner-facing page must say.
-// The legacy "public-https" and "public-web" modes derive only these configured origins; they never open arbitrary destinations.
+// The legacy "public-https" and "public-web" modes derive only these configured origins as forwarders. A NucBox Shield
+// domain whose MEASURED config says "public-web" additionally gets the public internet over TCP (Policy.PublicWeb,
+// web.go): any public address, any port but 0 and 25, through its own route on the host.
 //
 // A NucBox Shield domain (one app in a Hyper-V partition) uses the same rules with two differences, both in ForShield:
 // its config is the domain's MEASURED /app.config resolved with the secrets of its verified Shield release, and there is
@@ -36,6 +38,7 @@ import (
 
 	"enclave.host/isolation/m2/appconfig"
 	"enclave.host/isolation/m2/release"
+	"enclave.host/isolation/m2/shieldconfig"
 )
 
 // Origin is one allowed destination: https, a normalized lowercase DNS name, port 443.
@@ -135,6 +138,9 @@ func ParseOrigin(raw string) (Origin, error) {
 type Policy struct {
 	Origins []Origin // sorted, unique
 	Refused []string // the reasons config URLs were NOT allowed, for the guest's own log (no URL text: it may be secret)
+	// PublicWeb (Shield only, ForShield): the MEASURED config says "egress": "public-web", so the domain also gets
+	// the public internet over TCP through its route (web.go), on top of its configured origins.
+	PublicWeb bool
 }
 
 // FromRelease is the ONLY public way to build a guest's allowlist: from a release the release client OPENED (the
@@ -185,7 +191,12 @@ func ForShield(rel *release.Release, measuredConfig string) (*Policy, error) {
 			return nil, err
 		}
 	}
-	return deriveFrom(resolved, nil)
+	p, err := deriveFrom(resolved, nil)
+	if err != nil {
+		return nil, err
+	}
+	p.PublicWeb = shieldconfig.PublicWebMode(measuredConfig) // the measured bytes, never a resolved secret, decide the mode
+	return p, nil
 }
 
 // derive builds the allowlist from the RESOLVED config and the relay origin the measured image pins. An explicit

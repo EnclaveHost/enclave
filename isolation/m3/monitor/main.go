@@ -57,6 +57,7 @@ import (
 	"time"
 
 	"enclave.host/isolation/contract"
+	"enclave.host/isolation/m2/shieldconfig"
 	"enclave.host/isolation/m2/vsock"
 	"enclave.host/isolation/m3/vtpmclient"
 )
@@ -561,9 +562,17 @@ func (m *monitor) start(d *domain, app []byte) error {
 		if err := os.WriteFile(filepath.Join(d.dir, "secret.id"), []byte(d.SecretDeployment), 0444); err != nil {
 			return fail(err)
 		}
-		// the resolver files its egress needs (writeDomainEtc): /etc/hosts is the FRONT's to fill, never the runtime's
-		if err := writeDomainEtc(d.dir, d.FrontUID); err != nil {
+		// the resolver files its egress needs (writeDomainEtc): /etc/hosts is the FRONT's to fill, never the runtime's.
+		// A public-web domain (its MEASURED config says so) also resolves through the front's DNS stub, and is marked
+		// for domexec (the DNS port floor), secretrun (ENCLAVE_EGRESS) and the front (which checks the mode agrees).
+		publicWeb := shieldconfig.PublicWebMode(string(d.AppConfig))
+		if err := writeDomainEtc(d.dir, d.FrontUID, publicWeb); err != nil {
 			return fail(err)
+		}
+		if publicWeb {
+			if err := os.WriteFile(filepath.Join(d.dir, strings.TrimPrefix(shieldconfig.PublicWebMarker, "/")), []byte("1\n"), 0o444); err != nil {
+				return fail(err)
+			}
 		}
 	}
 	if err := writeAppConfig(d.dir, d.AppConfig); err != nil {
@@ -1647,8 +1656,12 @@ func (d *domain) frontPath(name string) string {
 //     own forwarder's loopback address. The runtime (another uid) can read it and cannot change it, so a compromised
 //     runtime cannot point an allowed name anywhere else, and an unlisted name simply does not resolve.
 //
+// A PUBLIC-WEB domain (m2/egress web.go) differs in two root-owned files: nsswitch.conf says "hosts: files dns", and
+// resolv.conf (0444) names the front's DNS stub over TCP. /etc/hosts still comes first, so the configured names keep
+// their forwarders; any other name is resolved by the host through the deployment's own route.
+//
 // Until the front writes it, it names localhost only. A domain without secrets gets no /etc, exactly as before.
-func writeDomainEtc(dir string, frontUID int) error {
+func writeDomainEtc(dir string, frontUID int, publicWeb bool) error {
 	etc := filepath.Join(dir, "etc")
 	if err := os.Mkdir(etc, 0o755); err != nil {
 		return err
@@ -1656,12 +1669,26 @@ func writeDomainEtc(dir string, frontUID int) error {
 	if err := os.Chmod(etc, 0o755); err != nil { // the mode, whatever the umask
 		return err
 	}
+	nsswitch, resolv := "hosts: files\n", ""
+	if publicWeb {
+		nsswitch = "hosts: files dns\n"
+		resolv = shieldconfig.PublicWebResolv
+	}
 	ns := filepath.Join(etc, "nsswitch.conf")
-	if err := os.WriteFile(ns, []byte("hosts: files\n"), 0o444); err != nil {
+	if err := os.WriteFile(ns, []byte(nsswitch), 0o444); err != nil {
 		return err
 	}
 	if err := os.Chmod(ns, 0o444); err != nil {
 		return err
+	}
+	if resolv != "" {
+		rc := filepath.Join(etc, "resolv.conf")
+		if err := os.WriteFile(rc, []byte(resolv), 0o444); err != nil {
+			return err
+		}
+		if err := os.Chmod(rc, 0o444); err != nil {
+			return err
+		}
 	}
 	hosts := filepath.Join(etc, "hosts")
 	if err := os.WriteFile(hosts, []byte("127.0.0.1 localhost\n"), 0o644); err != nil {

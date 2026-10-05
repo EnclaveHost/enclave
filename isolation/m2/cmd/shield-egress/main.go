@@ -13,9 +13,13 @@
 //     NAT64/6to4/Teredo, documentation ranges and this host's own addresses are refused (egress.RefuseAddr);
 //   - the dial is the judged IP literal through the SOCKS entry (-socks) or the deployment's own route (-app-routes);
 //     there is NO direct path, so an entry that is down is a refused stream, never a fallback;
-//   - per-partition rate and concurrency caps (and shielded-bridge admits at most 8 streams at once);
+//   - per-partition rate and concurrency caps (and shielded-bridge admits at most 64 streams at once);
 //   - -allow, when given, is a host-side narrowing on top of the guest's own allowlist. The guest's list is derived
 //     from secrets this host never sees, so without -allow the host checks shape and address, as m2's guestd does.
+//   - a PUBLIC-WEB partition (its measured config says "egress": "public-web"; egress/web.go) also sends
+//     "egress-web-v1 <host|ip> <port>" and "egress-dns-v1 <name> 0": any public address, any TCP port but 0 and 25,
+//     resolved by DoH and dialed through the same route, with every rule above on every address. With -allow, a
+//     literal is refused and a name must be on the list.
 //
 // It never logs a hostname, an address, a URL or a payload: one line per stream, "guest 1 egress open" or
 // "guest 1 egress refused:<code>" from a closed set (egress.Reason). TLS runs inside the guest end to end; this process
@@ -121,7 +125,8 @@ func parse(args []string, errOut io.Writer) (*config, error) {
 
 // server is the egress-v1 endpoint the flags describe: the m2 Server and Dialer, with this partition's one upstream.
 func (c *config) server(logw io.Writer) *egress.Server {
-	d := &egress.Dialer{Resolver: lookup, Own: hostAddrs, MaxConcurrent: 32, MaxPerMinute: 600, SOCKSProxy: c.socks}
+	// a public-web guest's browser holds many connections and looks up many names (each one a dial in the window)
+	d := &egress.Dialer{Resolver: lookup, Own: hostAddrs, MaxConcurrent: 96, MaxPerMinute: 2400, SOCKSProxy: c.socks}
 	if c.routes != "" {
 		file, dep := c.routes, c.deployment
 		d.RouteFor = func(uint32) (egress.AppRoute, error) { return egress.ReadAppRoute(file, dep) }

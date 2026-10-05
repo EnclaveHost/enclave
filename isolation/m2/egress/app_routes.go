@@ -319,3 +319,29 @@ func (d *Dialer) dialAppRoute(ctx context.Context, route AppRoute, host string, 
 	}
 	return nil, &DialError{Reason: reason, refused: reason == ReasonResolve}
 }
+
+// dialAppRouteAddrs dials addresses the caller already judged (an egress-web-v1 IP literal) through the app's own
+// circuits, trying its other circuit when one fails. No DNS is involved.
+func (d *Dialer) dialAppRouteAddrs(ctx context.Context, route AppRoute, addrs []netip.Addr, port int) (net.Conn, error) {
+	for _, proxy := range route.Proxies {
+		if ValidateSOCKSProxy(proxy) != nil {
+			return nil, refused(ReasonAdmit)
+		}
+		attempt, cancel := context.WithTimeout(ctx, d.timeout())
+		for _, address := range addrs {
+			conn, err := dialSOCKS(attempt, proxy, netip.AddrPortFrom(address.Unmap(), uint16(port)).String(), d.timeout())
+			if err == nil {
+				cancel()
+				return conn, nil
+			}
+			if attempt.Err() != nil {
+				break
+			}
+		}
+		cancel()
+		if ctx.Err() != nil {
+			break
+		}
+	}
+	return nil, &DialError{Reason: ReasonConnect}
+}

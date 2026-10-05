@@ -88,18 +88,23 @@ static void lo_up(void) {
  * touched. Nothing gains a capability. The runtime that shares the namespace gains nothing it can use against the front:
  * its tenant code starts only after the forwarders are bound (secretrun waits on the front's pipe), a bound address it
  * cannot take over (another uid's listener), and anything it binds is reachable only from inside this domain, whose one
- * interface is lo. Read back; a floor that did not hold ends the domain. Called as root, before any workload starts. */
-static void unprivileged_https_bind(void) {
+ * interface is lo. Read back; a floor that did not hold ends the domain. Called as root, before any workload starts.
+ * A PUBLIC-WEB domain (the monitor's root-owned /egress.public-web, from the measured config) also gets the front's DNS
+ * stub on 127.0.0.2:53, which resolv.conf names and which glibc can only reach on port 53: its floor is 53 instead,
+ * with the same reasoning (the stub is bound before the tenant starts, and the namespace's one interface is lo). */
+static void unprivileged_https_bind(int public_web) {
     static const char path[] = "/proc/sys/net/ipv4/ip_unprivileged_port_start";
+    const char *floor = public_web ? "53\n" : "443\n";
     int fd = open(path, O_WRONLY | O_CLOEXEC);
     if (fd < 0) die("open ip_unprivileged_port_start");
-    if (write(fd, "443\n", 4) != 4) die("set ip_unprivileged_port_start");
+    if (write(fd, floor, strlen(floor)) != (ssize_t)strlen(floor)) die("set ip_unprivileged_port_start");
     close(fd);
     char b[16] = {0};
     fd = open(path, O_RDONLY | O_CLOEXEC);
-    if (fd < 0 || read(fd, b, sizeof b - 1) <= 0 || strcmp(b, "443\n") != 0) { errno = EPERM; die("ip_unprivileged_port_start did not hold"); }
+    if (fd < 0 || read(fd, b, sizeof b - 1) <= 0 || strcmp(b, floor) != 0) { errno = EPERM; die("ip_unprivileged_port_start did not hold"); }
     close(fd);
-    printf("DOM%s egress: this namespace's unprivileged port floor is 443 (the front's forwarders, no capability)\n", dom_id);
+    printf("DOM%s egress: this namespace's unprivileged port floor is %s (the front's %s, no capability)\n", dom_id,
+           public_web ? "53" : "443", public_web ? "forwarders, SOCKS front and DNS stub" : "forwarders");
 }
 
 /* What this domain can reach, printed once the workloads are running (so the process count is the
@@ -435,14 +440,20 @@ int main(int argc, char **argv) {
         shield_app[ai++]=v;
     }
     shield_app[ai]=NULL;
-    struct stat secret_st;
+    struct stat secret_st, web_st;
     char *secret_app[66];
+    int public_web = 0;
+    if (lstat("/egress.public-web", &web_st) == 0) {
+        if (!S_ISREG(web_st.st_mode) || web_st.st_uid != 0 || (web_st.st_mode & 0222)) die("public web marker");
+        public_web = 1;
+    } else if (errno != ENOENT) die("public web marker stat");
+    if (public_web && stat("/secret.id", &secret_st) != 0) die("public web needs a secret domain");
     if (stat("/secret.id", &secret_st) == 0) {
         if (shield_on || !S_ISREG(secret_st.st_mode) || secret_st.st_uid != 0 || (secret_st.st_mode & 0222) || secret_st.st_size != 66) die("secret deployment");
         /* 443 belongs to the front's authenticated egress listeners. A command app needs
          * an unprivileged HTTP port distinct from those listeners. */
         if (run_port && run_port < 1024) die("secret command HTTP port");
-        unprivileged_https_bind();   /* the front's egress forwarders, before anything is spawned */
+        unprivileged_https_bind(public_web);   /* the front's egress listeners, before anything is spawned */
         int raw[2]; if (pipe2(raw, O_CLOEXEC) != 0) die("secret pipe");
         // Keep both originals away from the fixed inherited fd before duplicating it.
         secret_pipe[0]=fcntl(raw[0],F_DUPFD_CLOEXEC,20);

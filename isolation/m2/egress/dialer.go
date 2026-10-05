@@ -102,19 +102,20 @@ var ErrRefused = errors.New("egress refused")
 type Reason string
 
 const (
-	ReasonPort            Reason = "port"              // not 443
-	ReasonName            Reason = "name"              // not a plain DNS name: an IP literal, a single label, ...
-	ReasonRate            Reason = "rate"              // the guest is over its dial rate
-	ReasonConcurrency     Reason = "concurrency"       // the guest is at its connection limit
-	ReasonResolve         Reason = "resolve"           // the name did not resolve
-	ReasonNonPublicAnswer Reason = "non-public-answer" // an answer is loopback, private, link-local, this host, ...
-	ReasonNonPublicPeer   Reason = "non-public-peer"   // the socket's actual peer is not public
-	ReasonConnect         Reason = "connect"           // no judged address accepted the connection
-	ReasonNotAllowed      Reason = "not-allowed"       // the host was given a list for this guest (Dialer.Allow), and the name is not on it
-	ReasonAdmit           Reason = "admit"             // (server) the stream is from a guest the host's manager did not launch
-	ReasonEmpty           Reason = "empty"             // (server) the stream closed before any header byte
-	ReasonHeader          Reason = "header"            // (server) a malformed or unfinished egress-v1 header
-	ReasonInternal        Reason = "internal"          // anything else
+	ReasonPort             Reason = "port"               // not 443 (egress-v1), or not a web port (0, 25) for egress-web-v1
+	ReasonName             Reason = "name"               // not a plain DNS name: an IP literal, a single label, ...
+	ReasonRate             Reason = "rate"               // the guest is over its dial rate
+	ReasonConcurrency      Reason = "concurrency"        // the guest is at its connection limit
+	ReasonResolve          Reason = "resolve"            // the name did not resolve
+	ReasonNonPublicAnswer  Reason = "non-public-answer"  // an answer is loopback, private, link-local, this host, ...
+	ReasonNonPublicPeer    Reason = "non-public-peer"    // the socket's actual peer is not public
+	ReasonNonPublicAddress Reason = "non-public-address" // (egress-web-v1) the guest named a non-public IP literal
+	ReasonConnect          Reason = "connect"            // no judged address accepted the connection
+	ReasonNotAllowed       Reason = "not-allowed"        // the host was given a list for this guest (Dialer.Allow), and the name is not on it
+	ReasonAdmit            Reason = "admit"              // (server) the stream is from a guest the host's manager did not launch
+	ReasonEmpty            Reason = "empty"              // (server) the stream closed before any header byte
+	ReasonHeader           Reason = "header"             // (server) a malformed or unfinished egress-v1 header
+	ReasonInternal         Reason = "internal"           // anything else
 )
 
 // DialError is every error Dial returns. It holds a Reason and nothing else, so no caller can log a destination or
@@ -168,32 +169,29 @@ func (d *Dialer) Dial(ctx context.Context, cid uint32, host string, port int) (n
 	if err != nil {
 		return nil, nil, err
 	}
-	ok := false
-	defer func() {
-		if !ok {
-			release()
-		}
-	}()
-	resolver := d.Resolver
-	proxy := d.SOCKSProxy
+	c, err := d.dialName(ctx, cid, host, port)
+	if err != nil {
+		release()
+		return nil, nil, err
+	}
+	return c, release, nil
+}
+
+// dialName resolves a name (through the guest's own route when RouteFor is set) and dials a judged address of it.
+func (d *Dialer) dialName(ctx context.Context, cid uint32, host string, port int) (net.Conn, error) {
 	if d.RouteFor != nil {
 		route, err := d.RouteFor(cid)
 		if err != nil || len(route.Proxies) == 0 || len(route.DNS) == 0 {
-			return nil, nil, refused(ReasonAdmit)
+			return nil, refused(ReasonAdmit)
 		}
-		c, e := d.dialAppRoute(ctx, route, host, port)
-		if e != nil {
-			return nil, nil, e
-		}
-		ok = true
-		return c, release, nil
+		return d.dialAppRoute(ctx, route, host, port)
 	}
-	if resolver == nil {
-		return nil, nil, refused(ReasonResolve)
+	if d.Resolver == nil {
+		return nil, refused(ReasonResolve)
 	}
-	addrs, err := resolver.LookupNetIP(ctx, "ip", host)
+	addrs, err := d.Resolver.LookupNetIP(ctx, "ip", host)
 	if err != nil || len(addrs) == 0 {
-		return nil, nil, refused(ReasonResolve)
+		return nil, refused(ReasonResolve)
 	}
 	var own []netip.Addr
 	if d.Own != nil {
@@ -203,10 +201,28 @@ func (d *Dialer) Dial(ctx context.Context, cid uint32, host string, port int) (n
 	// dialing its public sibling (a rebinding setup mixes the two)
 	for _, a := range addrs {
 		if RefuseAddr(a, own) != "" {
-			return nil, nil, refused(ReasonNonPublicAnswer)
+			return nil, refused(ReasonNonPublicAnswer)
 		}
 	}
+	return d.dialAddrs(ctx, cid, addrs, port)
+}
+
+// dialAddrs dials the first of `addrs` (already judged public by the caller) that accepts: through the guest's route,
+// the SOCKS entry, or directly, in that order of precedence; never a direct dial when a route or entry is configured.
+func (d *Dialer) dialAddrs(ctx context.Context, cid uint32, addrs []netip.Addr, port int) (net.Conn, error) {
+	if d.RouteFor != nil {
+		route, err := d.RouteFor(cid)
+		if err != nil || len(route.Proxies) == 0 {
+			return nil, refused(ReasonAdmit)
+		}
+		return d.dialAppRouteAddrs(ctx, route, addrs, port)
+	}
+	var own []netip.Addr
+	if d.Own != nil {
+		own = d.Own()
+	}
 	dial := d.dial
+	proxy := d.SOCKSProxy
 	proxied := proxy != ""
 	if proxied {
 		dial = func(ctx context.Context, addr string) (net.Conn, error) {
@@ -229,13 +245,12 @@ func (d *Dialer) Dial(ctx context.Context, cid uint32, host string, port int) (n
 		if !proxied {
 			if ra, err := netip.ParseAddrPort(c.RemoteAddr().String()); err != nil || RefuseAddr(ra.Addr(), own) != "" {
 				c.Close()
-				return nil, nil, refused(ReasonNonPublicPeer)
+				return nil, refused(ReasonNonPublicPeer)
 			}
 		}
-		ok = true
-		return c, release, nil
+		return c, nil
 	}
-	return nil, nil, &DialError{Reason: ReasonConnect}
+	return nil, &DialError{Reason: ReasonConnect}
 }
 
 func (d *Dialer) timeout() time.Duration {

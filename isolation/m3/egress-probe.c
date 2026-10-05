@@ -8,6 +8,9 @@
  *                          nsswitch.conf is not writable and /etc takes no new file. Then it writes "bound" on the secret
  *                          pipe (fd 7), as the real front writes the runtime's secrets only after its forwarders listen,
  *                          and holds its listeners while the runtime checks.
+ *   front, public web      (the monitor's /egress.public-web) as a secret domain, but the floor is 53: it also binds
+ *                          127.0.0.2:53 (the DNS stub resolv.conf names) and 127.0.0.2:1080 (the SOCKS front), and
+ *                          resolv.conf is not its to change; the runtime cannot take 127.0.0.2:53 or change resolv.conf.
  *   front, no secrets      the floor is the kernel's 1024 and 127.64.0.2:443 is refused (EACCES): only a secret domain's
  *                          namespace is opened.
  *   runtime                CapEff 0; seccomp mode 2; socket(AF_VSOCK) refused (EPERM); the floor sysctl not writable.
@@ -96,12 +99,15 @@ int main(int argc, char **argv) {
     const int front = strstr(argv[0], "front") != NULL;
     struct stat st;
     const int secret = stat("/secret.id", &st) == 0;
+    const int web = stat("/egress.public-web", &st) == 0;
+    /* a public-web domain HAS a resolv.conf (root's), so "no new file in /etc" is checked on another name */
+    const char *new_etc = web ? "/etc/host.conf" : "/etc/resolv.conf";
     char path[64];
     snprintf(path, sizeof path, "/probe-out/%s.egress", front ? "front" : "runtime");
     out = fopen(path, "w");
     if (!out) return 3;
     setvbuf(out, NULL, _IOLBF, 0);
-    fprintf(out, "uid=%d secret=%d\n", (int)getuid(), secret);
+    fprintf(out, "uid=%d secret=%d web=%d\n", (int)getuid(), secret, web);
 
     long long capeff = status_hex("CapEff", 16);
     say(capeff == 0, "no effective capability", "CapEff %llx", capeff);
@@ -111,8 +117,14 @@ int main(int argc, char **argv) {
         int fl = floor_now();
         if (secret) {
             say(secret_flag, "front receives the authenticated release pipe argument", "%d", secret_flag);
-            say(fl == 443, "this secret domain's namespace floor is 443", "%d", fl);
+            say(fl == (web ? 53 : 443), web ? "this public-web domain's namespace floor is 53" : "this secret domain's namespace floor is 443", "%d", fl);
             int a = bind_at("127.64.0.2", 443, 0), b = bind_at("127.64.0.3", 443, 0);
+            if (web) {
+                int dns = bind_at("127.0.0.2", 53, 0), socks = bind_at("127.0.0.2", 1080, 0);
+                say(dns >= 0, "the front binds the DNS stub 127.0.0.2:53 with no capability", "%s", dns >= 0 ? "listening" : strerrorname_np(errno));
+                say(socks >= 0, "the front binds the SOCKS front 127.0.0.2:1080", "%s", socks >= 0 ? "listening" : strerrorname_np(errno));
+                refused_open("resolv.conf is not the front's to change", "/etc/resolv.conf", O_WRONLY, EACCES);
+            }
             say(a >= 0, "the front binds 127.64.0.2:443 with no capability", "%s", a >= 0 ? "listening" : strerrorname_np(errno));
             say(b >= 0, "the front binds 127.64.0.3:443 with no capability", "%s", b >= 0 ? "listening" : strerrorname_np(errno));
             int h = open("/etc/hosts", O_WRONLY | O_TRUNC | O_NOFOLLOW | O_CLOEXEC);
@@ -120,7 +132,7 @@ int main(int argc, char **argv) {
             say(h >= 0 && write(h, hosts, sizeof hosts - 1) == (ssize_t)(sizeof hosts - 1), "the front rewrites its /etc/hosts", "%s", h >= 0 ? "written" : strerrorname_np(errno));
             if (h >= 0) close(h);
             refused_open("nsswitch.conf is not the front's to change", "/etc/nsswitch.conf", O_WRONLY, EACCES);
-            refused_open("the front cannot add a file to /etc", "/etc/resolv.conf", O_WRONLY | O_CREAT | O_EXCL, EACCES);
+            refused_open("the front cannot add a file to /etc", new_etc, O_WRONLY | O_CREAT | O_EXCL, EACCES);
             fprintf(out, "done ok=%d bad=%d\n", n_ok, n_bad);
             fclose(out);
             /* only now may the runtime run: the real front writes its secrets after the forwarders listen */
@@ -152,9 +164,14 @@ int main(int argc, char **argv) {
         if (h >= 0) close(h);
         refused_open("the runtime cannot change /etc/hosts", "/etc/hosts", O_WRONLY, EACCES);
         refused_open("the runtime cannot change nsswitch.conf", "/etc/nsswitch.conf", O_WRONLY, EACCES);
-        refused_open("the runtime cannot add a file to /etc", "/etc/resolv.conf", O_WRONLY | O_CREAT | O_EXCL, EACCES);
+        refused_open("the runtime cannot add a file to /etc", new_etc, O_WRONLY | O_CREAT | O_EXCL, EACCES);
         int s = bind_at("127.64.0.2", 443, 1);
         say(s < 0 && errno == EADDRINUSE, "the runtime cannot take the front's forwarder address, even with SO_REUSEPORT", "%s", s < 0 ? strerrorname_np(errno) : "listening");
+        if (web) {
+            refused_open("the runtime cannot change resolv.conf", "/etc/resolv.conf", O_WRONLY, EACCES);
+            int d = bind_at("127.0.0.2", 53, 1);
+            say(d < 0 && errno == EADDRINUSE, "the runtime cannot take the front's DNS stub, even with SO_REUSEPORT", "%s", d < 0 ? strerrorname_np(errno) : "listening");
+        }
     }
     if (command) {
         say(ports_flag, "command receives its measured HTTP port", "%d", ports_flag);
