@@ -388,6 +388,7 @@ typedef struct {
     uint32_t  sp_head, sp_count, sp_writing, sp_held;
     uint8_t  *sp_flag;          /* per slot: SP_WRITTEN / SP_READ, not yet folded */
     uint64_t *sp_wid;           /* per slot: the write id it was sealed under */
+    int32_t   sp_last_m;        /* rows the request path last took here (prompt chunk or decode step) */
 } sh_group;
 
 struct sh_link {
@@ -474,7 +475,7 @@ struct sh_link {
     uint64_t   spill_fp;                    /* the registration its layout was cut for */
     uint32_t   spill_slots;                 /* per group */
     uint64_t   spill_wid;                   /* the next write id; never reused */
-    int        spill_minters, spill_mint_max, spill_idle_ms;
+    int        spill_minters, spill_mint_max, spill_idle_ms, spill_min_rows;
     double     spill_last_take;             /* now_ms() of the request path's last take */
     double     spill_t0;                    /* attach time, for the "full" line */
     bool       spill_full_said;
@@ -1236,6 +1237,7 @@ static void spill_start(sh_link *l) {
     free(K); free(U); free(fp); free(kept);
     if (!spill_usable(l)) return;
     l->spill_idle_ms = env_int("SHIELDED_PAD_SPILL_IDLE_MS", 2000, 0, 3600000);
+    l->spill_min_rows = env_int("SHIELDED_PAD_SPILL_MIN_ROWS", 8, 1, 1 << 20);
     l->spill_mint_max = env_int("SHIELDED_PAD_SPILL_THREADS", l->n_threads > 1 ? l->n_threads - 1 : 1, 0, 64);
     l->spill_last_take = now_ms();
 }
@@ -1470,11 +1472,17 @@ static void *refill_main(void *arg) {
             pthread_mutex_unlock(&l->pool_mu);
             continue;
         }
-        /* A ring refill imports from the spill when it holds this group's
-         * pads: up to the batch, and only what it holds. */
+        /* A ring refill imports from the spill only while this group is being
+         * read a prompt at a time (its last take was SHIELDED_PAD_SPILL_MIN_ROWS
+         * rows or more): a prompt drains the rings far faster than minting
+         * refills them, which is what the spill is for. A decode step takes
+         * one or two rows and minting keeps up with that, as it always has,
+         * so decode leaves the spill to the next prompt. A request whose ring
+         * runs dry still imports its shortfall (sh_link_gemm_stride). */
         uint64_t sp_wid[SP_TAKE_MAX];
         uint32_t sp_slot0 = 0;
-        const int sp_n = io ? spill_take(l, g, deficit < B ? deficit : B, &sp_slot0, sp_wid) : 0;
+        const int sp_n = io && g->sp_last_m >= l->spill_min_rows
+                       ? spill_take(l, g, deficit < B ? deficit : B, &sp_slot0, sp_wid) : 0;
         const int b = sp_n > 0 ? sp_n : deficit < B ? deficit : B;
         const int first = (g->head + g->count + g->generating) % g->depth;
         uint64_t index0 = 0;
@@ -1976,6 +1984,7 @@ static void sh_mask_range_fn(void *ctx, int64_t lo, int64_t hi) {
 static int take_pads(sh_link *l, sh_group *g, int m, int *slots) {
     pthread_mutex_lock(&l->pool_mu);
     l->spill_last_take = now_ms();               /* the link is busy: no new spill mints */
+    g->sp_last_m = m;                            /* prompt chunk or decode step: decides what refills import */
     const int before = g->count < m ? g->count : m;
     /* An in-flight full refill can finish sooner than a separate, partial
      * request-thread refill. Only wait when the missing pads are ALREADY

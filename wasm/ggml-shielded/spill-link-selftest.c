@@ -5,6 +5,8 @@
  *   2. a burst far wider than the ring: every product exact and verified, and
  *      the pads came from the spill (refill imports and request-path imports);
  *   3. idle again: the spill refills what the burst took;
+ *   3a. decode-shaped steps (one row) mint as they always did and leave the
+ *      spill alone;
  *   3b. a weight registered after start (as the MTP head is): the link restarts
  *      and the groups it did not touch keep their spilled pads;
  *   4. the host wipes the disk: the next imports do not open, the spill turns
@@ -42,7 +44,7 @@ static void make_weight(weight *w, int64_t K, int64_t N) {
  * SPILL_TEST_CONST_X=1 sends the same x every time (the same row in every row
  * slot, too), so the masked planes on the wire differ only by their pads: the
  * reuse proxy (test/shielded-spill-reuse-proxy.py) then sees any pad twice. */
-static int exchange(sh_link *l, weight **ws, int n) {
+static int exchange_m(sh_link *l, weight **ws, int n, int M) {
     const int64_t K = ws[0]->K;
     const char *cx = getenv("SPILL_TEST_CONST_X");
     const bool const_x = cx && !strcmp(cx, "1");
@@ -64,6 +66,7 @@ static int exchange(sh_link *l, weight **ws, int n) {
     free(x);
     return bad;
 }
+static int exchange(sh_link *l, weight **ws, int n) { return exchange_m(l, ws, n, M); }
 
 static sh_link_spill stats(sh_link *l) { sh_link_spill s; sh_link_spill_stats((struct sh_link *)l, &s); return s; }
 
@@ -137,6 +140,20 @@ int main(int argc, char **argv) {
     CHECK(wait_rows(l, full, 120), "the spill refilled after the burst");
     sh_link_spill s3 = stats(l);
     CHECK(s3.written > s2.written, "refill wrote %llu more pads", (unsigned long long)(s3.written - s2.written));
+
+    /* 3a. decode-shaped steps: one row each. Refills mint (the spill is for
+     * prompts); only a ring that actually runs dry imports on the path. */
+    {
+        bad = 0;
+        const int steps = 30;
+        for (int i = 0; i < steps; i++) { bad |= exchange_m(l, ga, 2, 1); bad |= exchange_m(l, gb, 1, 1); }
+        CHECK(!bad, "decode-shaped products exact and verified");
+        sh_link_spill sd = stats(l);
+        CHECK(sd.imported == s3.imported, "decode steps made refills import %llu pads from the spill", (unsigned long long)(sd.imported - s3.imported));
+        CHECK(sd.onpath - s3.onpath <= (uint64_t)(2 * steps), "on-path imports bounded by the steps (%llu)", (unsigned long long)(sd.onpath - s3.onpath));
+        CHECK(sd.rows + (sd.onpath - s3.onpath) >= s3.rows, "the spill kept its pads through decode (%llu -> %llu rows)", (unsigned long long)s3.rows, (unsigned long long)sd.rows);
+        s3 = sd;
+    }
 
     /* 3b. a weight registered after start: a new group, the link restarts */
     c.node = sh_link_add_weight(l, "c", c.w, c.K, c.N, M, -1);

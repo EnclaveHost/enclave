@@ -64,7 +64,7 @@ test("pad spill: sealed pads come back exactly, and the host's replays, moves an
   assert.equal(out.failures, 0);
 });
 
-test("pad spill through a worker: idle fill, a burst 20x the ring, refill, a late weight, a wiped disk -- every product exact, no pad on the wire twice", async (t) => {
+test("pad spill through a worker: idle fill, a burst 20x the ring, refill, decode steps that leave the spill alone, a late weight, a wiped disk -- every product exact, no pad on the wire twice", async (t) => {
   if (!build()) return t.skip("no toolchain for the C backend");
   const py = spawnSync("python3", ["-c", "import torch, numpy"], { encoding: "utf8" });
   if (py.status !== 0) return t.skip("worker.py needs torch + numpy");
@@ -92,6 +92,6 @@ test("pad spill through a worker: idle fill, a burst 20x the ring, refill, a lat
   proxy.kill("SIGTERM");
   await ended;
   const seen = JSON.parse(plog.trim().split("\n").pop());
-  assert.equal(seen.rows, 1120, "every masked row of the 70 exchanges crossed the proxy");
+  assert.equal(seen.rows, 1180, "every masked row of the 130 exchanges crossed the proxy");
   assert.equal(seen.duplicates, 0, "a masked row appeared twice: a pad served two exchanges");
 });
