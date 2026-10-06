@@ -298,15 +298,21 @@ a parked prefix at the bottom of the shared pool and writes its own tokens above
 other parks attends every parked cell in between, masked. Each ubatch now
 collects the cell runs holding its sequences (64-cell bounds, gaps of at most
 128 cells kept, at most 8 runs), computes KQ per run, joins the runs into one
-softmax row and, after copying the runs' V into one tensor, one KQV product.
-The 64-cell bounds keep every SIMD lane accumulating the same products in the
-same order, so logits are bit-identical to `[0, n_kv)`. The V copy costs about
-as much per cell as attending it, so runs are used only when they skip a
-quarter of `n_kv` (and at least 256 cells). `test/fixtures/kv-runs-check.cpp`
-builds the fragmented layout (borrowed prefix, two other conversations, own
-tail; also two sequences in one batch) and dumps every logit row; runs on/off
-must compare equal byte for byte. On the 0.8B hybrid model a 2-token step with
-20.5k cells in the pool and 2.4k attended went from 24.5 to 18.5 ms.
+softmax row, and sums one KQV product per run. Runs are used when they skip at
+least 256 cells and an eighth of `n_kv`.
+
+Numerics: KQ and the softmax are unchanged (skipped cells were exact zeros);
+only the order of the KQV sum changes. `test/fixtures/kv-runs-check.cpp` builds
+the fragmented layout (borrowed prefix, two other conversations, own tail; also
+two sequences in one batch) and dumps every logit row. One run from cell 0 must
+be bit-identical to runs off (`ENCLAVE_KV_RUNS_FORCE=1 ENCLAVE_KV_RUNS_GAP=1000000`),
+and runs that skip cells must drift no more than a split that skips nothing
+(`ENCLAVE_KV_RUNS_SPLIT=1024`): on the 0.8B both give max |dlogit| ~0.3, mean KL
+~8.5e-4. Joining the runs' V into one tensor first keeps the logits bit-identical,
+but on the 27B shapes the copy costs about as much as the attention it saves
+(7.2k of 16.4k cells, 2 tokens, 16 layers, 6 threads: full 56.7 ms, joined copy
+38.6 ms, per-run sums 25.3 ms), so production uses per-run sums. Eyesoff on the
+27B, fresh guest, tools off: 97 -> 72 ms per verify step with the joined copy.
 
 `test/fixtures/wasi-nn-cache-pressure.rs` tests repeated distinct prompts in a
 512-token pool against uncached full-logit results, plus a pinned borrower
