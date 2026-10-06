@@ -32,7 +32,7 @@ index 510e0c2..ca4e315 100644
 @@ -462,6 +471,14 @@ fn park_slots() -> usize {
      })
  }
- 
+
 +/// mm37 diagnostics: ENCLAVE_GGML_PARK_TRACE=1 says on stderr why each
 +/// session parked or did not, and what each branch matched. Off by default
 +/// (a production guest's runtime is quiet); it names counts, never tokens.
@@ -243,7 +243,7 @@ index 510e0c2..ca4e315 100644
 +        self.sh_copy(src_seq, dst_seq);
          drop(q);
      }
- 
+
 @@ -2074,6 +2218,7 @@ impl GgmlServer {
          let Some(i) = victim else { return false };
          let old = parks.remove(i);
@@ -423,7 +423,7 @@ index 510e0c2..ca4e315 100644
 @@ -2340,6 +2592,20 @@ impl Drop for GgmlExecutionContext {
      }
  }
- 
+
 +impl GgmlExecutionContext {
 +    /// mm37: what to park this sequence under as it ends, if anything: its
 +    /// guest asked ({"park_end": [1]}), it is a chat that generated (not a
