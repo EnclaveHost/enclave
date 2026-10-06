@@ -1,5 +1,5 @@
 diff --git a/src/llama-graph.cpp b/src/llama-graph.cpp
-index 65a2120..cc848b8 100644
+index 65a2120..63a73ab 100644
 --- a/src/llama-graph.cpp
 +++ b/src/llama-graph.cpp
 @@ -28,7 +28,7 @@ static ggml_tensor * build_attn_inp_kq_mask(
@@ -38,7 +38,7 @@ index 65a2120..cc848b8 100644
      res &= inp_rs->s_copy->ne[0] == mctx->get_recr()->get_n_rs();
 
      res &= inp_rs->s_copy_main->ne[0]  == params.ubatch.n_seqs;
-@@ -2595,6 +2599,73 @@ ggml_tensor * llm_graph_context::build_attn_mha(
+@@ -2595,6 +2599,70 @@ ggml_tensor * llm_graph_context::build_attn_mha(
      return cur;
  }
 
@@ -51,8 +51,8 @@ index 65a2120..cc848b8 100644
 +               float   kq_scale,
 +                 int   il) const {
 +    // build_attn_mha's unfused path over the runs' cells only: KQ of each run, joined along the cells into one
-+    // softmax row, then KQV over the joined cells. The cells between runs hold only other sequences (or nothing),
-+    // so every query here masks them to -INF and they add exact zeros to the softmax sum and to KQV.
++    // softmax row, then KQV per run, summed. The cells between runs hold only other sequences (or nothing), so
++    // every query here masks them to -INF and they add exact zeros to the softmax sum and to KQV.
 +    GGML_ASSERT(!cparams.flash_attn && arch != LLM_ARCH_GROK && !hparams.attn_soft_cap);
 +    GGML_ASSERT(runs.size() >= 2 && runs.size() % 2 == 0);
 +
@@ -74,26 +74,23 @@ index 65a2120..cc848b8 100644
 +    ggml_soft_max_add_sinks(kq, sinks);
 +    cb(kq, "kq_soft_max", il);
 +
-+    // V of the runs, joined along the cells into one tensor, so KQV is a single product over the joined cells:
-+    // run bounds are multiples of 64, so every SIMD lane of the dot accumulates the same products in the same
-+    // order as over [0, n_kv) (where the skipped cells add exact zeros) - the result is bit-identical.
-+    ggml_tensor * v_all = nullptr;
++    // KQV per run, summed: each run's V view is read in place (joining the runs' V into one tensor would keep
++    // the [0, n_kv) accumulation order bit for bit, but the copy costs about as much as the attention it saves
++    // on the 27B). Only the order of the KQV sum changes - the same rounding a split with nothing skipped shows.
++    ggml_tensor * kqv = nullptr;
 +    size_t off = 0;
 +    for (size_t r = 0; r < runs.size(); r += 2) {
 +        const uint32_t n = runs[r + 1];
 +
 +        ggml_tensor * v = ggml_permute(ctx0, mctx_cur->get_v_run(ctx0, il, runs[r], n), 0, 2, 1, 3); // [n, d, h_kv]
-+        if (!v_all) {
-+            v_all = ggml_new_tensor_3d(ctx0, v->type, kq->ne[0], v->ne[1], v->ne[2]);
-+        }
-+        ggml_tensor * dst = ggml_view_3d(ctx0, v_all, n, v_all->ne[1], v_all->ne[2],
-+                                         v_all->nb[1], v_all->nb[2], off*v_all->nb[0]);
-+        ggml_build_forward_expand(gf, ggml_cpy(ctx0, v, dst));
++        ggml_tensor * p = ggml_view_4d(ctx0, kq, n, kq->ne[1], kq->ne[2], kq->ne[3],
++                                       kq->nb[1], kq->nb[2], kq->nb[3], off*kq->nb[0]);
++
++        ggml_tensor * part = ggml_mul_mat(ctx0, v, p);
++        kqv = kqv ? ggml_add(ctx0, kqv, part) : part;
 +        off += n;
 +    }
 +    GGML_ASSERT((int64_t) off == kq->ne[0]);
-+
-+    ggml_tensor * kqv = ggml_mul_mat(ctx0, v_all, kq);
 +    cb(kqv, "kqv", il);
 +
 +    ggml_tensor * cur = ggml_permute(ctx0, kqv, 0, 2, 1, 3);
@@ -112,7 +109,7 @@ index 65a2120..cc848b8 100644
  llm_graph_input_attn_no_cache * llm_graph_context::build_attn_inp_no_cache() const {
      auto inp = std::make_unique<llm_graph_input_attn_no_cache>(hparams, cparams);
 
-@@ -2689,6 +2760,7 @@ static std::unique_ptr<llm_graph_input_attn_kv> build_attn_inp_kv_impl(
+@@ -2689,6 +2757,7 @@ static std::unique_ptr<llm_graph_input_attn_kv> build_attn_inp_kv_impl(
 
          inp->self_kq_mask = build_attn_inp_kq_mask(ctx0, mctx_cur, ubatch, cparams);
          inp->self_kq_mask_cnv = inp->self_kq_mask;
@@ -120,7 +117,7 @@ index 65a2120..cc848b8 100644
      }
 
      inp->self_k_rot = mctx_cur->build_input_k_rot(ctx0);
-@@ -2750,10 +2822,16 @@ ggml_tensor * llm_graph_context::build_attn(
+@@ -2750,10 +2819,16 @@ ggml_tensor * llm_graph_context::build_attn(
      ggml_tensor * kq_mask = inp->get_kq_mask();
 
      ggml_tensor * q = q_cur;
@@ -240,7 +237,7 @@ index e918664..be0e2c3 100644
 
  void llama_kv_cache_iswa::clear(bool data) {
 diff --git a/src/llama-kv-cache.cpp b/src/llama-kv-cache.cpp
-index 651078a..4ea4c9f 100644
+index 651078a..90dfe63 100644
 --- a/src/llama-kv-cache.cpp
 +++ b/src/llama-kv-cache.cpp
 @@ -10,6 +10,7 @@
@@ -251,7 +248,7 @@ index 651078a..4ea4c9f 100644
  #include <map>
  #include <stdexcept>
 
-@@ -1384,7 +1385,100 @@ uint32_t llama_kv_cache::get_n_kv(const slot_info & sinfo, const llama_ubatch *
+@@ -1384,7 +1385,101 @@ uint32_t llama_kv_cache::get_n_kv(const slot_info & sinfo, const llama_ubatch *
      return result;
  }
 
@@ -337,10 +334,11 @@ index 651078a..4ea4c9f 100644
 +        for (const auto & x : m) fprintf(stderr, " [%u,%u)", x.first, x.second);
 +        fprintf(stderr, "\n");
 +    }
-+    // the runs path copies the attended V once per layer (joined KV runs, see build_attn_mha_runs), so it pays
-+    // only when it skips a real share of the pool: at least MIN_SAVE cells and a quarter of n_kv (measured
-+    // break-even ~80% attended); otherwise the existing [0, n_kv) view
-+    if (sel + MIN_SAVE > n_kv || (uint64_t) sel*4 > (uint64_t) n_kv*3) {
++    // runs cost the attended cells plus a few small ops per run: worth new graph shapes only when they skip at
++    // least MIN_SAVE cells and an eighth of n_kv; otherwise the existing [0, n_kv) view
++    // ENCLAVE_KV_RUNS_FORCE=1 (qualification only): use the runs whatever they save
++    static const bool force = getenv("ENCLAVE_KV_RUNS_FORCE") != nullptr;
++    if (!force && (sel + MIN_SAVE > n_kv || (uint64_t) sel*8 > (uint64_t) n_kv*7)) {
 +        return;
 +    }
 +    for (const auto & x : m) {
@@ -353,7 +351,7 @@ index 651078a..4ea4c9f 100644
      const int32_t ikv = map_layer_ids.at(il);
 
      auto * k = layers[ikv].k;
-@@ -1401,10 +1495,10 @@ ggml_tensor * llama_kv_cache::get_k(ggml_context * ctx, int32_t il, uint32_t n_k
+@@ -1401,10 +1496,10 @@ ggml_tensor * llama_kv_cache::get_k(ggml_context * ctx, int32_t il, uint32_t n_k
              ggml_row_size(k->type, hparams.n_embd_head_k(il)),
              ggml_row_size(k->type, n_embd_k_gqa),
              ggml_row_size(k->type, n_embd_k_gqa*kv_size),
@@ -366,7 +364,7 @@ index 651078a..4ea4c9f 100644
      const int32_t ikv = map_layer_ids.at(il);
 
      auto * v = layers[ikv].v;
-@@ -1424,7 +1518,7 @@ ggml_tensor * llama_kv_cache::get_v(ggml_context * ctx, int32_t il, uint32_t n_k
+@@ -1424,7 +1519,7 @@ ggml_tensor * llama_kv_cache::get_v(ggml_context * ctx, int32_t il, uint32_t n_k
                  ggml_row_size(v->type, hparams.n_embd_head_v(il)),          // v->nb[1]
                  ggml_row_size(v->type, n_embd_v_gqa),                   // v->nb[2]
                  ggml_row_size(v->type, n_embd_v_gqa*kv_size),           // v->nb[3]
@@ -375,7 +373,7 @@ index 651078a..4ea4c9f 100644
      }
 
      // note: v->nb[1] > v->nb[2]
-@@ -1433,7 +1527,7 @@ ggml_tensor * llama_kv_cache::get_v(ggml_context * ctx, int32_t il, uint32_t n_k
+@@ -1433,7 +1528,7 @@ ggml_tensor * llama_kv_cache::get_v(ggml_context * ctx, int32_t il, uint32_t n_k
              ggml_row_size(v->type, kv_size*hparams.n_embd_head_v(il)),  // v->nb[1]
              ggml_row_size(v->type, kv_size),                        // v->nb[2]
              ggml_row_size(v->type, kv_size*n_embd_v_gqa),           // v->nb[3]
@@ -384,7 +382,7 @@ index 651078a..4ea4c9f 100644
  }
 
  ggml_tensor * llama_kv_cache::get_k_idx(ggml_context * ctx, int32_t il, uint32_t n_kv, const slot_info & sinfo) const {
-@@ -1899,11 +1993,49 @@ static void set_input_kq_mask_impl(const args_set_input_kq_mask & args, T * data
+@@ -1899,11 +1994,49 @@ static void set_input_kq_mask_impl(const args_set_input_kq_mask & args, T * data
      }
  }
 
@@ -435,7 +433,7 @@ index 651078a..4ea4c9f 100644
      const int64_t n_kv     = dst->ne[0];
      const int64_t n_stream = dst->ne[3]; // num streams in the current ubatch
 
-@@ -2842,6 +2974,13 @@ bool llama_kv_cache_context::apply() {
+@@ -2842,6 +2975,13 @@ bool llama_kv_cache_context::apply() {
      kv->apply_ubatch(sinfos[i_cur], ubatches[i_cur]);
      n_kv = kv->get_n_kv(sinfos[i_cur], &ubatches[i_cur]);
 
@@ -449,7 +447,7 @@ index 651078a..4ea4c9f 100644
      return true;
  }
 
-@@ -2859,6 +2998,22 @@ uint32_t llama_kv_cache_context::get_n_kv() const {
+@@ -2859,6 +2999,22 @@ uint32_t llama_kv_cache_context::get_n_kv() const {
      return n_kv;
  }
 
@@ -472,7 +470,7 @@ index 651078a..4ea4c9f 100644
  ggml_type llama_kv_cache_context::type_k() const {
      return kv->type_k();
  }
-@@ -2920,7 +3075,7 @@ void llama_kv_cache_context::set_input_v_idxs(ggml_tensor * dst, const llama_uba
+@@ -2920,7 +3076,7 @@ void llama_kv_cache_context::set_input_v_idxs(ggml_tensor * dst, const llama_uba
  }
 
  void llama_kv_cache_context::set_input_kq_mask(ggml_tensor * dst, const llama_ubatch * ubatch, bool causal_attn) const {
