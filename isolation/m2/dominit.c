@@ -626,7 +626,15 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
                 envp[ei++] = "ENCLAVE_SHIELD_ORIGINAL_SOURCE=fd:199";
                 envp[ei++] = "ENCLAVE_SHIELD_PRIVATE_SOURCE=fd:198";
             }
-            if (spill_fd == SHIELD_SPILL_FD) envp[ei++] = "SHIELDED_PAD_SPILL=fd:197";
+            if (spill_fd == SHIELD_SPILL_FD) {
+                envp[ei++] = "SHIELDED_PAD_SPILL=fd:197";
+                /* The app shows its pad bank: the runtime answers a request
+                 * that asks (x-enclave-performance: 1) with the engine's
+                 * "pads" layout, the bank's counters and nothing else - not
+                 * the profile's timings (wasm/ggml-shielded/ggml-shielded.cpp). */
+                envp[ei++] = "ENCLAVE_SHIELD_PERF_HEADER=1";
+                envp[ei++] = "SHIELDED_PROFILE_LAYOUT=pads";
+            }
             envp[ei++] = "SHIELDED_SPLIT_COLS=1";
             envp[ei++] = "SHIELDED_OVERLAP_VERIFY=1";
             envp[ei++] = "SHIELDED_WEIGHT_BUDGET_FRAC=0.95";
