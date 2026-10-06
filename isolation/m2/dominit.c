@@ -274,6 +274,7 @@ static char shield_ram_env[96];
 static int shield_memory_group;
 #define SHIELD_CGROUP "/sys/fs/cgroup/shield-app"
 #include "shield-memory.h"
+#include "shield-config.h"
 static char shield_model[64], shield_graph[128], shield_models_env[96], shield_preloads_env[96], shield_calib[128];
 static char shield_workers[512], shield_vram_env[80];
 /* The controller is private to this guest and remains root-owned. The
@@ -628,10 +629,18 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             }
             if (spill_fd == SHIELD_SPILL_FD) {
                 envp[ei++] = "SHIELDED_PAD_SPILL=fd:197";
-                /* Mint into the spill only while idle (release 07ff8fae's rule):
-                 * minting beside a request competes with decode's CPU half -
-                 * live, 15 tok/s with half the threads minting, ~20 without. */
-                envp[ei++] = "SHIELDED_PAD_SPILL_BUSY_THREADS=0";
+                /* Minting into the spill beside a request is the deployment's
+                 * choice: "shieldPadBusyMint" in its app config (true = the
+                 * engine's default, half its refill threads; a number = that
+                 * many). Absent or false keeps release 07ff8fae's idle-only rule.
+                 * (The 15 tok/s once blamed on busy minting was mostly attention
+                 * over the 64K pool's parked cells, fixed by KV runs.) */
+                static char busy_env[48];
+                const int busy = shield_busy_mint(extra && strncmp(extra, "ENCLAVE_CONFIG=", 15) == 0 ? extra + 15 : NULL);
+                if (busy != SHIELD_BUSY_DEFAULT) {
+                    snprintf(busy_env, sizeof busy_env, "SHIELDED_PAD_SPILL_BUSY_THREADS=%d", busy < 0 ? 0 : busy);
+                    envp[ei++] = busy_env;
+                }
                 /* The app shows its pad bank: the runtime answers a request
                  * that asks (x-enclave-performance: 1) with the engine's
                  * "pads" layout, the bank's counters and nothing else - not
@@ -893,6 +902,13 @@ int main(void) {
     }
     if (cfg_env) printf("DOM app config: %zu bytes (ENCLAVE_CONFIG)\n", cfg_len);   /* its length, never its content */
     else printf("DOM app config: none\n");
+    if (shield_spill_ok) {
+        /* the same reading spawn() applies to the app's engine (see shieldPadBusyMint there) */
+        const int busy = shield_busy_mint(cfg_env ? cfg_env + sizeof "ENCLAVE_CONFIG=" - 1 : NULL);
+        if (busy == SHIELD_BUSY_DEFAULT) printf("DOM Shield pad spill: minting while requests run too (engine default threads)\n");
+        else if (busy > 0) printf("DOM Shield pad spill: minting while requests run too (%d threads)\n", busy);
+        else printf("DOM Shield pad spill: minting only while idle\n");
+    }
 
     /* the runtime passes ENCLAVE_CONFIG to the guest program from its own environment (--env NAME, no value), so the
      * value is never an argument */
