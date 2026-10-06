@@ -63,7 +63,32 @@ before.
 | `SHIELDED_PAD_SPILL_MIN_ROWS` | 1 | A ring top-up imports only after a take this large. 8 keeps decode on minted pads, which stalls long MTP answers. |
 | `SHIELDED_PAD_SPILL_BUSY_THREADS` | refill threads / 2 | How many threads may mint into the spill while requests run. |
 | `SHIELDED_PAD_SPILL_HEADROOM_PCT` | 15 | Partition space kept free for groups registered later. |
+| `SHIELDED_PROFILE_LAYOUT` | unset | `pads`: the runtime's performance header carries the bank gauge instead of the profile (below). dominit sets it beside the spill. |
 | host: `SHIELDED_PAD_BANK_DIR`, `SHIELDED_PAD_BANK_GIB` | unset, 192 | Where `run-domain.sh` creates the per-guest sparse bank, and its size. |
+
+## The app's gauge
+
+An app can show how full its bank is. dominit sets `ENCLAVE_SHIELD_PERF_HEADER=1`
+and `SHIELDED_PROFILE_LAYOUT=pads` beside the spill, so the measured runtime
+answers any request carrying `x-enclave-performance: 1` with
+`x-enclave-shield-performance`: 24 comma-separated integers.
+
+- 0 is 1. 1 is `1346454594` (`PADB`), which marks this layout.
+- 2 is the layout version (1).
+- 3 is the number of links; 4 is the number with a spill.
+- 5 is the pads the bank has room for; 6 is the pads ready.
+- 7 is the prompt tokens it has room for; 8 is the prompt tokens ready.
+- 9 is pads written; 10 is pads imported by refills; 11 is pads imported on
+  the request path; 12 is failures.
+- 13 is the threads minting into it now.
+- 14 is milliseconds since a request took pads; 15 is the idle threshold.
+- 16 is the bytes one prompt token takes; 17 is the bank's bytes.
+
+It comes from `sh_spill_gauge_read`: running totals each link keeps under
+`pool_mu`, gathered through a registry of open links. It never takes the card
+or pool locks a graph holds, so it answers mid-prompt; the profile layout would
+refuse. It carries counters only, the same ones the host can already infer from
+the disk's I/O, and none of the profile's timings.
 
 The bank is used with `O_DIRECT`, so it never occupies guest page cache. The
 virtio disk presents 4 KiB logical blocks, and the slots align to them.

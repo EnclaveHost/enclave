@@ -13,6 +13,7 @@
 extern "C" {
 #include "shielded-field.h"
 #include "shielded-tee.h"
+#include "shielded-spill.h"
 #include "shielded-overlap.h"
 #include "shielded-parwork.h"
 #include "shielded-wide.h"
@@ -525,6 +526,26 @@ int ggml_backend_shielded_profile_snapshot(uint64_t *out, size_t count) {
     // mask, wire, refill-on-path, unmask-lhs, rhs, check, pads, idle, pad-wait;
     // then pads used, missed, waited. Card times overlap; do not sum as wall time.
     if (!out || count < 24) return -1;
+    // SHIELDED_PROFILE_LAYOUT=pads, which the guest init sets beside the pad
+    // spill: the pad bank and nothing else, for the app's page to show. v[0]
+    // stays 1, the only version the runtime's header passes on; v[1] is
+    // 0x50414442 ("PADB") where v1 has the card count. It comes from the
+    // links' own counters (sh_spill_gauge_read), so a running graph neither
+    // delays nor refuses it.
+    //   2 layout (1), 3 links, 4 links with a spill, 5 pads it has room for,
+    //   6 pads ready, 7 prompt tokens it has room for, 8 prompt tokens ready,
+    //   9 pads written, 10 imported by refills, 11 imported on the request
+    //   path, 12 failures, 13 threads minting into it now, 14 ms since a
+    //   request took pads, 15 the idle threshold in ms, 16 bytes one prompt
+    //   token's pads take, 17 bank bytes.
+    if (const char *layout = getenv("SHIELDED_PROFILE_LAYOUT"); layout && !strcmp(layout, "pads")) {
+        sh_spill_gauge g; sh_spill_gauge_read(&g);
+        const uint64_t v[24] = {1, 0x50414442, 1, g.links, g.attached, g.capacity, g.ready,
+            g.rows_cap, g.rows, g.written, g.imported, g.onpath, g.failed, g.minters,
+            g.quiet_ms, g.idle_ms, g.row_bytes, g.bytes};
+        std::copy(v, v + 24, out);
+        return 1;
+    }
     sh_pool &p = sh_pool_get();
     std::unique_lock<std::mutex> lock(p.mu, std::try_to_lock);
     if (!lock.owns_lock()) return 0;
