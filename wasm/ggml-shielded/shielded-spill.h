@@ -101,6 +101,23 @@ typedef struct {
 struct sh_link;
 void sh_link_spill_stats(struct sh_link *l, sh_link_spill *out);
 
+/* The bank as an app shows it: every open link's spill, summed. Read while a
+ * graph runs, so it takes only a registry lock and each link's pool_mu (as a
+ * refill thread does between batches), never a card or pool lock and never
+ * the group arrays a late registration reallocates. rows is per link the
+ * ready pads over its groups, which the refill keeps level (it always mints
+ * the emptiest group), so it can sit a batch above the fewest in any group. */
+typedef struct {
+    uint32_t links, attached;      /* links open; with a spill in use */
+    uint64_t capacity, ready;      /* pads: room for, sealed and ready */
+    uint64_t rows_cap, rows;       /* prompt tokens: the bank's room, what it holds (fewest across links) */
+    uint64_t written, imported, onpath, failed;
+    uint32_t minters;              /* threads minting into it right now */
+    uint64_t quiet_ms, idle_ms;    /* since the request path last took pads (least across links); the idle threshold */
+    uint64_t row_bytes, bytes;     /* one prompt token's pads, every link; the partitions */
+} sh_spill_gauge;
+void sh_spill_gauge_read(sh_spill_gauge *out);
+
 #ifdef __cplusplus
 }
 #endif

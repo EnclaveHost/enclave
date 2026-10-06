@@ -482,6 +482,11 @@ struct sh_link {
     uint8_t   *spill_io;                    /* the request path's I/O buffer */
     uint64_t   spill_written, spill_imported, spill_onpath, spill_failed;
     uint64_t   spill_said, spill_said_onpath;   /* imports already reported */
+    /* The gauge (sh_spill_gauge_read), under pool_mu. Kept here rather than
+     * read off the groups, which a registration reallocates without pool_mu. */
+    bool       spill_g_on;
+    uint32_t   spill_g_groups;
+    uint64_t   spill_g_ready, spill_g_cap, spill_g_row_bytes, spill_g_bytes;
 
     uint64_t   exchanges, macs, verify_fail, pads_used, pads_missed;
     sh_link_profile profile; /* caller-owned, independent of every other link */
@@ -573,6 +578,53 @@ void sh_link_spill_stats(sh_link *l, sh_link_spill *out) {
     out->onpath = l->spill_onpath; out->failed = l->spill_failed;
     pthread_mutex_unlock(&l->pool_mu);
 }
+
+/* Open links, for sh_spill_gauge_read. Order: gauge_mu, then a pool_mu. */
+#define SH_GAUGE_LINKS 16
+static pthread_mutex_t gauge_mu = PTHREAD_MUTEX_INITIALIZER;
+static sh_link *gauge_links[SH_GAUGE_LINKS];
+static void gauge_add(sh_link *l) {
+    pthread_mutex_lock(&gauge_mu);
+    for (int i = 0; i < SH_GAUGE_LINKS; i++) if (!gauge_links[i]) { gauge_links[i] = l; break; }
+    pthread_mutex_unlock(&gauge_mu);
+}
+static void gauge_remove(sh_link *l) {
+    pthread_mutex_lock(&gauge_mu);
+    for (int i = 0; i < SH_GAUGE_LINKS; i++) if (gauge_links[i] == l) gauge_links[i] = NULL;
+    pthread_mutex_unlock(&gauge_mu);
+}
+void sh_spill_gauge_read(sh_spill_gauge *out) {
+    if (!out) return;
+    memset(out, 0, sizeof *out);
+    const double now = now_ms();
+    bool any = false;
+    pthread_mutex_lock(&gauge_mu);
+    for (int i = 0; i < SH_GAUGE_LINKS; i++) {
+        sh_link *l = gauge_links[i];
+        if (!l) continue;
+        out->links++;
+        pthread_mutex_lock(&l->pool_mu);
+        if (l->spill_g_on && !l->spill_off && l->spill_g_groups) {
+            const uint64_t rows = l->spill_g_ready / l->spill_g_groups;
+            const uint64_t room = l->spill_g_cap / l->spill_g_groups;
+            const double quiet = now - l->spill_last_take;
+            const uint64_t q = quiet > 0 ? (uint64_t)quiet : 0;
+            out->rows = any && out->rows < rows ? out->rows : rows;
+            out->rows_cap = any && out->rows_cap < room ? out->rows_cap : room;
+            out->quiet_ms = any && out->quiet_ms < q ? out->quiet_ms : q;
+            out->idle_ms = (uint64_t)l->spill_idle_ms;
+            out->attached++; any = true;
+            out->capacity += l->spill_g_cap; out->ready += l->spill_g_ready;
+            out->minters += (uint32_t)l->spill_minters;
+            out->row_bytes += l->spill_g_row_bytes; out->bytes += l->spill_g_bytes;
+        }
+        out->written += l->spill_written; out->imported += l->spill_imported;
+        out->onpath += l->spill_onpath; out->failed += l->spill_failed;
+        pthread_mutex_unlock(&l->pool_mu);
+    }
+    pthread_mutex_unlock(&gauge_mu);
+}
+
 const char *sh_link_refill_priority(const sh_link *l) { return l && l->refill_cost_priority ? "cost" : "deficit"; }
 int sh_link_reply_width(const sh_link *l) { return l && l->pipe ? l->ywidth : 0; }
 
@@ -677,6 +729,7 @@ sh_link *sh_link_open(const char *host, int port, bool verify, int *err) {
         l->verify = false;
         fprintf(stderr, "[shielded] SHIELDED_ZERO_PADS: activations go to %s:%d UNMASKED, products checked mod M by the mint (dealer mode)\n", host ? host : "?", port);
     }
+    gauge_add(l);
     if (err) *err = SH_OK;
     return l;
 }
@@ -733,6 +786,7 @@ static void node_free_checks(sh_node *nd) {
 
 void sh_link_close(sh_link *l) {
     if (!l) return;
+    gauge_remove(l);
     stop_threads(l);
     if (l->dealt && l->win_url[0]) dealt_receipt(l);      /* the last window's usage, before the counters go */
     spill_drop(l);
@@ -1141,7 +1195,7 @@ static uint32_t spill_free(const sh_link *l, const sh_group *g) {
  * nothing new starts, and every ring is then refilled by minting. */
 static void spill_fail(sh_link *l, const char *what, int rc) {
     if (l->spill_off) return;
-    l->spill_off = true; l->spill_failed++;
+    l->spill_off = true; l->spill_failed++; l->spill_g_on = false;
     fprintf(stderr, "[shielded] pad spill off: %s failed (rc %d); minting every pad from here\n", what, rc);
 }
 
@@ -1250,6 +1304,23 @@ static void spill_start(sh_link *l) {
     l->spill_last_take = now_ms();
 }
 
+/* After spill_start, refill threads stopped: the gauge's totals, laid out
+ * again from the groups this thread owns, and published under pool_mu for
+ * sh_spill_gauge_read. */
+static void spill_gauge_reset(sh_link *l) {
+    const bool on = spill_usable(l);
+    uint64_t ready = 0;
+    for (size_t i = 0; on && i < l->n_groups; i++) ready += l->groups[i].sp_count;
+    pthread_mutex_lock(&l->pool_mu);
+    l->spill_g_on = on;
+    l->spill_g_groups = on ? (uint32_t)l->n_groups : 0;
+    l->spill_g_ready = ready;
+    l->spill_g_cap = on ? (uint64_t)l->spill_slots * l->n_groups : 0;
+    l->spill_g_row_bytes = on ? sh_spill_row_bytes(l->spill) : 0;
+    l->spill_g_bytes = on ? sh_spill_bytes(l->spill) : 0;
+    pthread_mutex_unlock(&l->pool_mu);
+}
+
 /* pool_mu held: whether any group's spill has room for a minting batch. */
 static bool spill_wants_mint(const sh_link *l, int B) {
     if (!spill_usable(l) || l->spill_mint_max <= 0) return false;
@@ -1302,7 +1373,7 @@ static void spill_publish(sh_link *l, sh_group *g, uint32_t slot0, int b) {
     uint32_t at = (uint32_t)(((uint64_t)g->sp_head + g->sp_count) % cap);
     while (g->sp_writing > 0 && (g->sp_flag[at] & SP_WRITTEN)) {
         g->sp_flag[at] &= (uint8_t)~SP_WRITTEN;
-        at = (at + 1) % cap; g->sp_count++; g->sp_writing--;
+        at = (at + 1) % cap; g->sp_count++; g->sp_writing--; l->spill_g_ready++;
     }
 }
 
@@ -1319,6 +1390,7 @@ static int spill_take(sh_link *l, sh_group *g, int want, uint32_t *slot0, uint64
     for (int i = 0; i < n; i++) wid[i] = g->sp_wid[(g->sp_head + (uint32_t)i) % cap];
     g->sp_head = (g->sp_head + (uint32_t)n) % cap;
     g->sp_count -= (uint32_t)n; g->sp_held += (uint32_t)n;
+    l->spill_g_ready -= (uint64_t)n;
     return n;
 }
 
@@ -1921,6 +1993,7 @@ static int start_pools(sh_link *l) {
     }
     l->n_threads = derive_threads(l);
     spill_start(l);
+    spill_gauge_reset(l);
     if (l->n_threads > 0) {
         l->threads = (pthread_t *)calloc((size_t)l->n_threads, sizeof(pthread_t));
         if (!l->threads) return SH_ERR_NOMEM;
