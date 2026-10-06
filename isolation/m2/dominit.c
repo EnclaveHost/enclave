@@ -628,6 +628,10 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             }
             if (spill_fd == SHIELD_SPILL_FD) {
                 envp[ei++] = "SHIELDED_PAD_SPILL=fd:197";
+                /* Mint into the spill only while idle (release 07ff8fae's rule):
+                 * minting beside a request competes with decode's CPU half -
+                 * live, 15 tok/s with half the threads minting, ~20 without. */
+                envp[ei++] = "SHIELDED_PAD_SPILL_BUSY_THREADS=0";
                 /* The app shows its pad bank: the runtime answers a request
                  * that asks (x-enclave-performance: 1) with the engine's
                  * "pads" layout, the bank's counters and nothing else - not
