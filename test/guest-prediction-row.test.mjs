@@ -70,3 +70,13 @@ test("the predictor's public-version refusal is not bypassed by preparation", as
   };
   assert.equal((await prepareForRow(f.row, next, { forPrivate: true }, f.deps)).code, "version_not_admitted");
 });
+
+test("the release this deployment's guest last ran is passed on to be measured first (ordering only)", async () => {
+  const f = fixture();
+  const asked = [];
+  await expectedForRow(f.row, { set: "release" }, { ...f.deps, preferFor: (id) => { asked.push(id); return ["ab".repeat(32)]; } });
+  assert.deepEqual(asked, ["deployment"]);
+  assert.deepEqual(f.calls[0].options.prefer, ["ab".repeat(32)]);
+  await expectedForRow(f.row, { set: "release" }, { ...f.deps, preferFor: () => [] });
+  assert.equal("prefer" in f.calls[1].options, false, "nothing to prefer: the options are unchanged");
+});

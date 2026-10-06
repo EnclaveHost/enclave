@@ -291,6 +291,29 @@ test("a prediction the relay cannot make YET keeps the ticket (enclave-d1): 503,
   } finally { ctx.expectedGuestFor = real; rows = [leaseRow(A)]; }
 });
 
+test("a PARTIAL prediction (the version's other releases still being measured) keeps the ticket of a guest whose release is not measured yet, releases once it is, and notes that release", async () => {
+  rows = [leaseRow(A)]; ineligible = false; chips = [S.chip.toString("hex")];
+  const keep = predicted, noted = [];
+  const other = { release: "e2".repeat(32), runtimeId: RID.toString("hex"), measurement: "66".repeat(48) };
+  ctx.noteGuestRelease = (id, release) => noted.push([id, release]);
+  try {
+    predicted = { ok: true, partial: true, appId: APP.toString("hex"), images: [other] };
+    const t = await ticketFor(A), g = guest({ id: A, ticket: t.body.ticket });
+    const r = await release(A, t.body.ticket, g);
+    assert.equal(r.code, 503, JSON.stringify(r.body)); assert.equal(r.body.error, "warming"); assert.equal(r.body.sealed, undefined);
+    assert.ok(R._internals.tickets.has(t.body.ticket), "the ticket is kept");
+    assert.deepEqual(noted, []);
+    predicted = { ok: true, partial: true, appId: APP.toString("hex"), images: [other, keep.images[0]] };
+    const again = await release(A, t.body.ticket, g);
+    assert.equal(again.code, 200, JSON.stringify(again.body));
+    assert.equal(R._internals.tickets.has(t.body.ticket), false, "now consumed");
+    assert.deepEqual(noted, [[A, keep.images[0].release]], "the release this guest ran");
+    // a partial answer judges like a full one: a guest whose report is not one of its images is refused as before
+    const t2 = await ticketFor(A), g2 = guest({ id: A, ticket: t2.body.ticket, appId: Buffer.alloc(32, 0x42) });
+    assert.equal((await release(A, t2.body.ticket, g2)).code, 403);
+  } finally { predicted = keep; delete ctx.noteGuestRelease; rows = [leaseRow(A)]; }
+});
+
 test("the confirmed ledger read decides: a disagreement keeps the ticket (503), a confirmed other runner refuses, the confirmed appRef is predicted", async () => {
   rows = [leaseRow(A)]; ineligible = false; chips = [S.chip.toString("hex")];
   try {
@@ -661,8 +684,11 @@ test("GET /v1/expected-guest: the confirmed record's PREDICTED guest over the in
     process.env.SECRETS_ATTESTED_RELEASE = "";   // the release OFF: this still answers
     const r = await call(A, { expectedGuestFor: async (row, o) => { asked.push({ id: row.id, ...o }); return two; }, predictorSets: () => ({ release: [predicted.images[0].release], cert: [] }) });
     assert.equal(r.code, 200, JSON.stringify(r.body));
-    assert.deepEqual(r.body, { id: A, catalogRef: REF, appId: APP.toString("hex"), images: [
+    assert.deepEqual(r.body, { id: A, catalogRef: REF, appId: APP.toString("hex"), complete: true, images: [
       { ...predicted.images[0], releaseAdmitted: true }, { ...legacy, releaseAdmitted: false }] });
+    // the version's other releases still being measured: the images so far, marked incomplete
+    const part = await call(A, { expectedGuestFor: async () => ({ ...two, partial: true, images: [legacy] }), predictorSets: () => ({ release: [], cert: [] }) });
+    assert.equal(part.code, 200); assert.equal(part.body.complete, false); assert.deepEqual(part.body.images, [{ ...legacy, releaseAdmitted: false }]);
     assert.equal(asked[0].set, "cert"); assert.equal(asked[0].forPrivate, false); assert.ok(asked[0].waitMs > 0 && asked[0].waitMs <= 5000);
     // a private deployment, or one without a live lease, is refused and never predicted
     asked.length = 0;
