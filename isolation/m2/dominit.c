@@ -586,7 +586,10 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
              * The guest-local cgroup accounts for their real allocations alongside the runtime. */
             envp[ei++] = shield_ram_env;
             envp[ei++] = "ENCLAVE_NN_SERVE_KIND=RAM";
-            envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS=6" : "ENCLAVE_GGML_N_THREADS=2";
+            /* Decode's CPU half (attention, recurrent layers) runs on 10 pinned workers: with the pad
+             * bank, decode imports pads instead of minting them, so the refill threads no longer need
+             * those cores while a reply runs. Prompt batches keep 6 (they still mint on a bank shortfall). */
+            envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS=10" : "ENCLAVE_GGML_N_THREADS=2";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS_BATCH=6" : "ENCLAVE_GGML_N_THREADS_BATCH=2";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_BATCH=64" : "ENCLAVE_GGML_N_BATCH=16";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_UBATCH=64" : "ENCLAVE_GGML_N_UBATCH=16";
@@ -615,10 +618,10 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
                 if (access("/rt/shield-native-cpu-pool.enabled", F_OK) == 0)
                     envp[ei++] = "ENCLAVE_GGML_SHARED_CPU_POOL=1";
                 envp[ei++] = "LD_PRELOAD=/rt/libshielded-omp-affinity.so";
-                envp[ei++] = "SHIELDED_CPU_COMPUTE=0,2,3,4,5,6";
+                envp[ei++] = "SHIELDED_CPU_COMPUTE=0,2,3,4,5,6,7,8,9,10";
                 envp[ei++] = "SHIELDED_CPU_MAIN=0";
                 envp[ei++] = "SHIELDED_CPU_HELPER=1";
-                envp[ei++] = "SHIELDED_CPU_REST=7-15";
+                envp[ei++] = "SHIELDED_CPU_REST=11-15";
             }
             envp[ei++] = "SHIELDED_MAX_M=64";
             envp[ei++] = "SHIELDED_SHM_STREAM_LOAD=1";
