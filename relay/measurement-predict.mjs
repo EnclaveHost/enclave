@@ -251,7 +251,13 @@ export function makePredictor(o) {
   ].filter(Boolean);
 
   const cache = new Map();          // key -> { at, value } (LRU by insertion order)
-  const inflight = new Map();       // key -> Promise
+  // A version's prediction is one UNIT per (record, release), measured one at a time and cached as each finishes, so a guest
+  // is judged as soon as ITS release is measured, not after every admitted release (eyesoff 1.0.74, 2026-10-06: 33 minutes
+  // down while 14 releases were measured one after another, its own last). Units are shared by every set that names them.
+  const units = new Map();          // unit key -> { at, value } (LRU): { ok, image } or a refusal
+  const unitRuns = new Map();       // unit key -> Promise of its value, while it is being measured
+  const jobs = new Map();           // set key -> { promise, bump, partial }: a version's units being measured
+  const unitMax = o.unitMax ?? cacheMax * 16;
   let active = 0; const queue = [];
   let toolchain = null;             // { dir, env } once extracted
   let kat = { ok: false, at: 0, tried: 0, reason: "the known-answer test has not run", running: null };
@@ -318,59 +324,74 @@ export function makePredictor(o) {
 
   // one reconstruction: the component (fetched ONCE, verified by its CID) -> per record, the bundle -> per release, the
   // measurement. `records` are one catalog version's, one per admitted runtime: [{ record, ids: [release id] }].
+  // the component, fetched (or a held raw-CID copy) into `job`, and one bundle per record:
+  // { ok, appId, bundles: [path per record] } or a refusal
+  async function deriveInto(tc, job, records) {
+    const cid = records[0].record.cid, comp = path.join(job, "component");
+    if (records.some((r) => r.record.cid !== cid)) return { ok: false, code: "prediction_failed", reason: "records of one version name two CIDs" };
+    // a raw-CID component already held is used only if it still hashes to its CID; anything else is fetched and verified
+    const digest = rawCidDigest(cid), kept = digest && path.join(components, cid);
+    const held = digest ? heldComponent(cid, digest, maxComponentBytes) : null;
+    if (held) fs.writeFileSync(comp, held);
+    else {
+      const f = await run("python3", [path.join(tc.dir, "isolation/m4/guestd/fetch-cid.py"), tc.dir, cid, comp, String(maxComponentBytes), gateway],
+        { env: tc.env, cwd: job, timeoutMs });
+      if (f.code !== 0) return { ok: false, code: "component_unavailable", reason: `the component ${cid} did not fetch and verify: ${lastLine(f.err)}` };
+      if (digest) {
+        try {
+          const b = fs.readFileSync(comp);
+          if (sha256hex(b) === digest) {
+            fs.mkdirSync(components, { recursive: true, mode: 0o700 });
+            const tmp = `${kept}.${randomBytes(6).toString("hex")}`; fs.writeFileSync(tmp, b, { mode: 0o600 }); fs.renameSync(tmp, kept);
+          }
+        } catch {}
+      }
+    }
+    const bundles = []; let appId = null;
+    for (const [n, { record }] of records.entries()) {
+      const recFile = path.join(job, `record-${n}.json`), bundle = path.join(job, `app-${n}.bundle`);
+      fs.writeFileSync(recFile, JSON.stringify(record));
+      const d = await run("python3", [path.join(tc.dir, "isolation/contract/catalog/derive_reference.py"), "bundle", recFile, comp, bundle],
+        { env: tc.env, cwd: job, timeoutMs });
+      if (d.code !== 0) return { ok: false, code: "underivable", reason: `the catalog version derives no bundle: ${lastLine(d.err)}` };
+      const got = sha256hex(fs.readFileSync(bundle));
+      let stated = null; try { stated = JSON.parse(d.out).appId; } catch {}
+      if (stated !== got) return { ok: false, code: "prediction_failed", reason: "the derivation's stated AppID is not sha256(bundle)" };
+      if (appId && appId !== got) return { ok: false, code: "prediction_failed", reason: "two runtimes derived two AppIDs" };
+      appId = got;
+      bundles.push(bundle);
+    }
+    return { ok: true, appId, bundles };
+  }
+  // the whole reconstruction at once, for a caller that already holds a slot (the known-answer test)
   async function reconstruct(records) {
     const tc = await prepare();
     const job = fs.mkdtempSync(path.join(work, "tmp", "job-"));
     try {
-      const cid = records[0].record.cid, comp = path.join(job, "component");
-      if (records.some((r) => r.record.cid !== cid)) return { ok: false, code: "prediction_failed", reason: "records of one version name two CIDs" };
-      // a raw-CID component already held is used only if it still hashes to its CID; anything else is fetched and verified
-      const digest = rawCidDigest(cid), kept = digest && path.join(components, cid);
-      const held = digest ? heldComponent(cid, digest, maxComponentBytes) : null;
-      if (held) fs.writeFileSync(comp, held);
-      else {
-        const f = await run("python3", [path.join(tc.dir, "isolation/m4/guestd/fetch-cid.py"), tc.dir, cid, comp, String(maxComponentBytes), gateway],
-          { env: tc.env, cwd: job, timeoutMs });
-        if (f.code !== 0) return { ok: false, code: "component_unavailable", reason: `the component ${cid} did not fetch and verify: ${lastLine(f.err)}` };
-        if (digest) {
-          try {
-            const b = fs.readFileSync(comp);
-            if (sha256hex(b) === digest) {
-              fs.mkdirSync(components, { recursive: true, mode: 0o700 });
-              const tmp = `${kept}.${randomBytes(6).toString("hex")}`; fs.writeFileSync(tmp, b, { mode: 0o600 }); fs.renameSync(tmp, kept);
-            }
-          } catch {}
+      const d = await deriveInto(tc, job, records);
+      if (!d.ok) return d;
+      const images = [];
+      for (const [n, { record, ids }] of records.entries()) {
+        for (const id of ids) {
+          const r = await measureOne(tc, job, record, d.bundles[n], d.appId, id);
+          if (!r.ok) return r;
+          if (r.image) images.push(r.image);
         }
       }
-      const images = []; let appId = null;
-      for (const [n, { record, ids }] of records.entries()) {
-        const recFile = path.join(job, `record-${n}.json`), bundle = path.join(job, `app-${n}.bundle`);
-        fs.writeFileSync(recFile, JSON.stringify(record));
-        const d = await run("python3", [path.join(tc.dir, "isolation/contract/catalog/derive_reference.py"), "bundle", recFile, comp, bundle],
-          { env: tc.env, cwd: job, timeoutMs });
-        if (d.code !== 0) return { ok: false, code: "underivable", reason: `the catalog version derives no bundle: ${lastLine(d.err)}` };
-        const got = sha256hex(fs.readFileSync(bundle));
-        let stated = null; try { stated = JSON.parse(d.out).appId; } catch {}
-        if (stated !== got) return { ok: false, code: "prediction_failed", reason: "the derivation's stated AppID is not sha256(bundle)" };
-        if (appId && appId !== got) return { ok: false, code: "prediction_failed", reason: "two runtimes derived two AppIDs" };
-        appId = got;
-        const r = await measure(tc, job, record, bundle, appId, ids);
-        if (!r.ok) return r;
-        images.push(...r.images);
-      }
       if (!images.length) return { ok: false, code: "version_not_admitted", reason: "no admitted release implements this version’s protected ports" };
-      return { ok: true, appId, images };
+      return { ok: true, appId: d.appId, images };
     } finally { fs.rmSync(job, { recursive: true, force: true }); }
   }
-  async function measure(tc, job, record, bundle, appId, releaseIds) {
-    const images = [];
-    for (const id of releaseIds) {
-      // an owner-writable snapshot of the release in the private job directory: an installed release may be read-only, and
-      // expected-measurement.sh copies it with `cp -a` and removes its copy on exit (a read-only copy fails that and the
-      // run). The manifest pins contents, not modes, and the script verifies the snapshot against the pinned id.
-      const snap = path.join(job, `release-${id.slice(0, 16)}`);
-      try { snapshotRelease(releases.get(id), snap); }
-      catch (e) { return { ok: false, code: "prediction_unavailable", reason: `release ${id.slice(0, 12)} could not be read: ${e.message}` }; }
+  // one release measured with one record's bundle: { ok, image } (image null: the release does not implement the version's
+  // protected ports) or a refusal
+  async function measureOne(tc, job, record, bundle, appId, id) {
+    // an owner-writable snapshot of the release in the private job directory: an installed release may be read-only, and
+    // expected-measurement.sh copies it with `cp -a` and removes its copy on exit (a read-only copy fails that and the
+    // run). The manifest pins contents, not modes, and the script verifies the snapshot against the pinned id.
+    const snap = path.join(job, `release-${id.slice(0, 16)}`);
+    try { snapshotRelease(releases.get(id), snap); }
+    catch (e) { return { ok: false, code: "prediction_unavailable", reason: `release ${id.slice(0, 12)} could not be read: ${e.message}` }; }
+    try {
       const e = await run("sh", [path.join(tc.dir, "isolation/m4/expected-measurement.sh"), "--pin", id, snap, bundle, String(record.policy.vcpus)],
         { env: tc.env, cwd: job, timeoutMs });
       const kv = Object.fromEntries(e.out.split("\n").map((l) => [l.slice(0, l.indexOf(" ")), l.slice(l.indexOf(" ") + 1).trim()]));
@@ -385,11 +406,10 @@ export function makePredictor(o) {
         try { marker = fs.readFileSync(path.join(snap, "template/rt/protected-ports.enabled"), "utf8"); } catch {}
         // This snapshot has just passed the pinned manifest check. A marker
         // added to an old release cannot pass that check under its old ID.
-        if (marker !== "1\n") continue;
+        if (marker !== "1\n") return { ok: true, image: null };
       }
-      images.push({ release: id, runtimeId: kv.runtime_id, measurement: kv.measurement });
-    }
-    return { ok: true, images };
+      return { ok: true, image: { release: id, runtimeId: kv.runtime_id, measurement: kv.measurement } };
+    } finally { fs.rmSync(snap, { recursive: true, force: true }); }
   }
 
   // the known-answer test: every vector whose release is installed must reproduce exactly, and at least one must run.
@@ -421,7 +441,7 @@ export function makePredictor(o) {
         why = `the last passing known-answer test is older than ${Math.round(inconclusiveMaxMs / 3600_000)} h and re-tests are inconclusive: ${inconclusive}`;
       }
       kat = { ok: !why, at: now(), tried: now(), reason: why || `${ran} known answer(s) reproduced exactly`, running: null };
-      if (!kat.ok) { cache.clear(); console.error(`[measurement-predict] DISABLED: ${kat.reason}`); }
+      if (!kat.ok) { cache.clear(); units.clear(); console.error(`[measurement-predict] DISABLED: ${kat.reason}`); }
       return kat;
     })();
     return kat.running;
@@ -439,20 +459,105 @@ export function makePredictor(o) {
     cache.set(key, { at: now(), value });
     while (cache.size > cacheMax) cache.delete(cache.keys().next().value);
   }
+  const unitKey = (record, id) => sha256hex(canonical({ commit, record, release: id }));
+  function unitGet(k) {
+    const e = units.get(k);
+    if (!e) return null;
+    if (!e.value.ok && now() - e.at > negativeTtlMs) { units.delete(k); return null; }
+    units.delete(k); units.set(k, e);
+    return e.value;
+  }
+  function unitPut(k, value) {
+    units.set(k, { at: now(), value });
+    while (units.size > unitMax) units.delete(units.keys().next().value);
+  }
+
+  // Measure a version's units in `order` ([{ n, id }]: records[n] under release id), each in a slot of its own so other
+  // versions' work interleaves. A unit already cached, or being measured by another set's job, is not measured twice.
+  // Resolves to the version's answer, exactly what one reconstruction gives: every image, or the first refusal in listing
+  // order. Meanwhile partial() is the images measured so far, and bump(ids) moves those releases to the front.
+  function startJob(records, order) {
+    const pending = [...order], got = new Map();
+    let appId = null;
+    const job = {
+      bump(ids) {
+        const want = new Set((ids || []).map((x) => String(x).toLowerCase()));
+        const front = pending.filter((u) => want.has(u.id));
+        if (front.length) pending.splice(0, pending.length, ...front, ...pending.filter((u) => !want.has(u.id)));
+      },
+      partial() {
+        if (!appId) return null;
+        const images = [];
+        for (const { record, ids } of records) for (const id of ids) {
+          const k = unitKey(record, id), v = got.get(k) || unitGet(k);
+          if (v && v.ok && v.image) images.push(v.image);
+        }
+        return { appId, images };
+      },
+    };
+    job.promise = (async () => {
+      try { await slot(); } catch { stats.busy++; return { ok: false, code: "busy", reason: "the measurement predictor is busy; retry shortly" }; }
+      let tc = null, dir = null, d;
+      try {
+        tc = await prepare();
+        dir = fs.mkdtempSync(path.join(work, "tmp", "job-"));
+        d = await deriveInto(tc, dir, records);
+      } catch (e) { d = { ok: false, code: "prediction_failed", reason: e.message }; }
+      finally { unslot(); }
+      try {
+        if (!d.ok) return d;
+        appId = d.appId;
+        while (pending.length) {
+          const { n, id } = pending.shift(), k = unitKey(records[n].record, id);
+          let v = unitGet(k);
+          if (!v && unitRuns.has(k)) v = await unitRuns.get(k);
+          if (!v) {
+            const measuring = (async () => {
+              await slot(true);
+              try { return await measureOne(tc, dir, records[n].record, d.bundles[n], d.appId, id); }
+              catch (e) { return { ok: false, code: "prediction_failed", reason: e.message }; }
+              finally { unslot(); }
+            })().then((value) => { unitPut(k, value); return value; }).finally(() => unitRuns.delete(k));
+            unitRuns.set(k, measuring);
+            v = await measuring;
+          }
+          got.set(k, v);
+        }
+        const images = [];
+        for (const { record, ids } of records) for (const id of ids) {
+          const v = got.get(unitKey(record, id));
+          if (!v.ok) return v;
+          if (v.image) images.push(v.image);
+        }
+        if (!images.length) return { ok: false, code: "version_not_admitted", reason: "no admitted release implements this version’s protected ports" };
+        return { ok: true, appId: d.appId, images };
+      } finally { if (dir) fs.rmSync(dir, { recursive: true, force: true }); }
+    })();
+    return job;
+  }
 
   // the expected guest for a deployment's catalog reference: { ok, appId, images: [{ release, runtimeId, measurement }] }
   // or { ok: false, code, reason }. Never throws. `forPrivate`: the deployment is private (a pending version is allowed).
-  // `waitMs`: answer { ok: false, code: "warming" } rather than wait longer; the prediction continues and is cached.
-  async function expectedFor(catalogRef, { forPrivate = false, waitMs, set = "release", inference = null } = {}) {
+  // `waitMs`: rather than wait longer, answer the images measured so far ({ ok: true, partial: true, ... }: every one a full
+  // prediction of its release, the rest still being measured), or { ok: false, code: "warming" } when there are none yet;
+  // the prediction continues and is cached. `prefer`: releases to measure first (the one this deployment's guest last ran);
+  // after them the newest admitted first (each set is listed oldest first, as releases are appended).
+  async function expectedFor(catalogRef, { forPrivate = false, waitMs, set = "release", inference = null, prefer = [] } = {}) {
     const ids = set === "cert" ? certAdmit : set === "release" ? admit : null;
     if (!ids) return { ok: false, code: "predictor_unconfigured", reason: `no admitted set named ${set}` };
-    const p = predict(catalogRef, forPrivate, ids, inference);
+    let job = null;
+    const p = predict(catalogRef, forPrivate, ids, inference, prefer, (j) => { job = j; });
     if (!(waitMs >= 0)) return p;
     let timer;
-    const late = new Promise((resolve) => { timer = setTimeout(() => resolve({ ok: false, code: "warming", reason: "the prediction is still being computed; retry shortly" }), waitMs); });
+    const late = new Promise((resolve) => { timer = setTimeout(() => {
+      const part = job && job.partial();
+      resolve(part && part.images.length
+        ? { ok: true, partial: true, appId: part.appId, images: part.images, catalogRef: String(catalogRef).toLowerCase() }
+        : { ok: false, code: "warming", reason: "the prediction is still being computed; retry shortly" });
+    }, waitMs); });
     try { return await Promise.race([p, late]); } finally { clearTimeout(timer); }
   }
-  async function predict(catalogRef, forPrivate, admitIds, inference = null) {
+  async function predict(catalogRef, forPrivate, admitIds, inference = null, prefer = [], onJob = null) {
     const refuse = (code, reason) => { stats.refusals++; return { ok: false, code, reason }; };
     if (problems.length) return refuse("predictor_unconfigured", `measurement prediction is not configured (missing: ${problems.join(", ")})`);
     const m = CATALOG_REF_RE.exec(String(catalogRef || ""));
@@ -487,21 +592,25 @@ export function makePredictor(o) {
     const key = sha256hex(canonical({ commit, records: records.map((r) => ({ record: r.record, releases: [...r.ids].sort() })) }));
     const hit = cacheGet(key);
     if (hit) { stats.cacheHits++; return hit.ok ? hit : refuse(hit.code, hit.reason); }
-    if (inflight.has(key)) return inflight.get(key);
-    const p = (async () => {
-      try { await slot(); } catch { stats.busy++; return refuse("busy", "the measurement predictor is busy; retry shortly"); }
-      let value;
-      try {
-        const got = await reconstruct(records);
-        value = got.ok ? { ok: true, appId: got.appId, images: got.images, catalogRef: catalogRef.toLowerCase() } : got;
-      } catch (e) { value = { ok: false, code: "prediction_failed", reason: e.message }; }
-      finally { unslot(); }
-      stats.predictions++;
-      cachePut(key, value);
-      return value.ok ? value : refuse(value.code, value.reason);
-    })().finally(() => inflight.delete(key));
-    inflight.set(key, p);
-    return p;
+    let job = jobs.get(key);
+    if (!job) {
+      // the measuring order: `prefer` first, then the newest listed release first
+      const want = (Array.isArray(prefer) ? prefer : []).map((x) => String(x).toLowerCase());
+      const rank = (id) => { const i = want.indexOf(id); return i >= 0 ? i - want.length - admitIds.length : -admitIds.indexOf(id); };
+      const order = records.flatMap(({ ids }, n) => ids.map((id) => ({ n, id }))).sort((a, b) => rank(a.id) - rank(b.id));
+      job = startJob(records, order);
+      const settled = job.promise.then((got) => {
+        const value = got.ok ? { ok: true, appId: got.appId, images: got.images, catalogRef: catalogRef.toLowerCase() } : got;
+        if (value.code !== "busy") stats.predictions++;
+        cachePut(key, value);
+        return value;
+      }, (e) => ({ ok: false, code: "prediction_failed", reason: e.message })).finally(() => jobs.delete(key));
+      job = { ...job, promise: settled };
+      jobs.set(key, job);
+    } else job.bump(prefer);
+    if (onJob) onJob(job);
+    const value = await job.promise;
+    return value.ok ? value : refuse(value.code, value.reason);
   }
 
   // the bytes a CID names, fetched and VERIFIED against it by the platform's own fetcher (guestd's fetch-cid.py ->
@@ -537,7 +646,7 @@ export function makePredictor(o) {
   }
 
   return { expectedFor, selfTest, fetchVerified, problems, swept, sets: { release: admit, cert: certAdmit }, state: () => ({ kat: { ok: kat.ok, at: kat.at, reason: kat.reason }, toolchain: toolchain && toolchain.dir,
-                                                         active, queued: queue.length, cached: cache.size, ...stats }) };
+                                                         active, queued: queue.length, cached: cache.size, units: units.size, jobs: jobs.size, ...stats }) };
 }
 
 // copy a release directory tree (regular files and directories only; anything else is left for the manifest check to refuse)

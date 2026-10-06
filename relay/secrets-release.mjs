@@ -389,6 +389,8 @@ async function predictPublicGuest(u, req, res, ctx, { bad, rate }, preparation) 
   const releaseSet = new Set((typeof ctx.predictorSets === "function" && ctx.predictorSets().release) || []);
   ctx.json(res, 200, { ...(preparation ? { preparationOnly: true, deployedCatalogRef } : {}),
     id, catalogRef: preparedRef || deployedCatalogRef, appId: p.appId,
+    // complete false: the version's other releases are still being measured (each image listed is a full prediction)
+    complete: p.partial !== true,
     images: p.images.map((i) => ({ release: i.release, runtimeId: i.runtimeId, measurement: i.measurement, releaseAdmitted: releaseSet.has(i.release) })) }, req);
 }
 
@@ -470,6 +472,18 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
     if (code !== 503 || tickets.get(tk) !== t) tickets.delete(tk);   // a 503 keeps the ticket for a retry within its TTL
     console.warn(`[secrets-release] ${id}: no prediction (${code === 503 ? "ticket kept" : "ticket burned"}): ${message}`);
     bad(code, error, message); return true;
+  }
+  // A PARTIAL prediction (the version's other releases still being measured) judges only a guest whose release is already
+  // measured; any other waits as for a cold prediction: 503 warming, the ticket kept. Read off the report before it verifies:
+  // it only decides whether to wait, and the predicted images are public (GET /v1/expected-guest).
+  if (expected.partial) {
+    let m = null;
+    try { m = reportFields(Buffer.from(String((b.evidence && b.evidence.report) || ""), "base64")).measurement.toString("hex"); } catch {}
+    if (m && !expected.images.some((i) => i.measurement === m)) {
+      const [code, error, message] = predictionRefusal({ ok: false, code: "warming", reason: `this guest's release is still being measured (${expected.images.length} measured so far); retry shortly` });
+      console.warn(`[secrets-release] ${id}: no prediction yet (ticket kept): ${message}`);
+      bad(code, error, message); return true;
+    }
   }
   // what the guest gets: the ledger envelope's config (inline, or its configCid resolved here) and the deployment's secrets.
   // Resolved BEFORE the ticket is consumed: it depends only on the deployment's record, and an unresolvable CID is the
@@ -592,6 +606,9 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
   catch (e) { bad(422, "bad_seal_key", e.message); return true; }
   const sig = signResponse(cfg.signingKey, { id, ticket, sealKey, sealed });
   console.log(`[secrets-release] ${id}: released to a verified guest on ${t.endpoint} (runtime ${runtimeId.toString("hex").slice(0, 12)}…)`);
+  // the release this deployment's guest runs is measured first for its next version (measurement-predict.mjs `prefer`)
+  const matched = expected.images.find((i) => i.measurement === f.measurement.toString("hex"));
+  if (matched && typeof ctx.noteGuestRelease === "function") ctx.noteGuestRelease(id, matched.release);
   ctx.json(res, 200, { id, sealed: sealed.toString("base64"), sig: sig.toString("base64"), keyId: keyIdOf(ed25519RawPublic(cfg.signingKey)) }, req);
   return true;
 }

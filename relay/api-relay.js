@@ -2196,9 +2196,17 @@ const shieldSecretRelease=createShieldSecretRelease({hub:tunnelHub,policyFile:pr
   fetchVerified:(cid,max)=>predictor().fetchVerified(cid,max),
   hostForEndpoint:id=>live.find(e=>String(e.id).toLowerCase()===String(id).toLowerCase()),
   isOwnerDeployment:(host,d)=>!!servedEntryNow(host,d.owner)});
+// the release each deployment's guest last ran, noted by secrets-release.mjs on every release: measured first for the
+// deployment's next version (measurement-predict.mjs `prefer`). In memory only; after a restart the newest release goes first.
+const guestReleases = new Map();
+const noteGuestRelease = (id, release) => {
+  id = String(id).toLowerCase(); guestReleases.delete(id); guestReleases.set(id, String(release).toLowerCase());
+  if (guestReleases.size > 4096) guestReleases.delete(guestReleases.keys().next().value);
+};
 const predictionRowDeps = {
   confirmRow, readVersionConfig: versionConfigAt,
   predict: (ref, options) => predictor().expectedFor(ref, options),
+  preferFor: (id) => (guestReleases.has(id) ? [guestReleases.get(id)] : []),
 };
 const expectedGuestFor = (row, o) => expectedForRow(row, o, predictionRowDeps);
 const prepareGuestFor = (row, ref, o) => prepareForRow(row, ref, o, predictionRowDeps);
@@ -2264,7 +2272,7 @@ const relayCtx = { shieldSecretRelease, json, cors, clientIp, readBody, ledgerRo
                    // (B) does this endpoint id's live row serve this ledger deployment NOW (hv-node owner-only: served owner,
                    // this row's live lease, isolation.require = hyperv-partition-per-app)? certs.js 6b and secrets.js has-secrets
                    ownerServesDeployment: (epId, d) => servesDeploymentUntil(live.find((x) => x.id && String(x.id).toLowerCase() === String(epId || "").toLowerCase()), d) > 0,
-                   expectedGuestFor, prepareGuestFor, predictorProblems, predictorSets, runtimeIdOf, confirmRow, verifyGuestEvidence, prewarmCollateral, versionConfigFor, resolveConfigCid,
+                   expectedGuestFor, prepareGuestFor, noteGuestRelease, predictorProblems, predictorSets, runtimeIdOf, confirmRow, verifyGuestEvidence, prewarmCollateral, versionConfigFor, resolveConfigCid,
                    deploymentsAddress: () => DEPLOYMENTS_ADDRESS,
                    // billing.js quotes at the fleet's cheapest posted price
                    // (rev-8 ledgers carry none of their own)

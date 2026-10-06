@@ -9,7 +9,7 @@ export function prepareForRow(row, ref, options, deps) {
   return predictRow(row, ref, { ...options, forPrivate: false }, deps);
 }
 
-async function predictRow(row, preparedRef, options, { confirmRow, readVersionConfig, predict }) {
+async function predictRow(row, preparedRef, options, { confirmRow, readVersionConfig, predict, preferFor }) {
   const confirmed = await confirmRow(row.id);
   if (confirmed.appRef !== row.appRef || confirmed.configCid !== row.configCid)
     return { ok: false, code: "deployment_changed", reason: "deployment changed during prediction" };
@@ -38,5 +38,7 @@ async function predictRow(row, preparedRef, options, { confirmRow, readVersionCo
       return { ok: false, code: "unsupported_inference", reason: "unsupported isolated model or GPU allocation" };
     inference = { model: vols[0], gpuMilli };
   }
-  return predict(ref, { ...options, inference });
+  // the release this deployment's guest last ran is measured first (measurement-predict.mjs `prefer`); ordering only
+  const prefer = typeof preferFor === "function" ? preferFor(String(row.id).toLowerCase()) || [] : [];
+  return predict(ref, { ...options, inference, ...(prefer.length ? { prefer } : {}) });
 }

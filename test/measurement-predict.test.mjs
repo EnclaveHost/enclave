@@ -649,3 +649,61 @@ test("a relay restart's orphaned prediction work is swept once at start; live, f
   assert.equal(fs.existsSync(stale), false, "the owning predictor sweeps at construction");
   assert.equal(fs.existsSync(fresh), true);
 });
+
+// ---- per release (2026-10-06): a version's releases measured one at a time, newest first, each kept as it finishes ----
+const until = async (cond, ms = 3000) => { const t0 = Date.now(); while (!cond()) { if (Date.now() - t0 > ms) throw new Error("timed out"); await new Promise((r) => setTimeout(r, 5)); } };
+const measured = (calls) => calls.filter((c) => c.script === "expected-measurement.sh" && c.args[2] !== RK).map((c) => c.args[2]);
+
+test("per release: the newest listed release is measured first; a bounded wait answers those measured so far, marked partial, and the full answer follows", async () => {
+  let open; const gate = new Promise((r) => { open = r; });
+  const { p, tools } = predictor({ tools: { "expected-measurement.sh": async (a) => { if (a[2] === R1) await gate; return null; } } });
+  await p.selfTest();
+  let r;
+  for (let i = 0; i < 200; i++) { r = await p.expectedFor(REF, { waitMs: 10 }); if (r.ok && r.images.length === 2) break; }
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.partial, true);
+  assert.deepEqual(r.images.map((i) => i.release).sort(), [R2, R3].sort(), "every listed image is its release's full prediction");
+  assert.deepEqual(measured(tools.calls), [R3, R2, R1], "admit [R1, R2, R3] is listed oldest first");
+  open();
+  const full = await p.expectedFor(REF);
+  assert.equal(full.ok, true); assert.equal(full.partial, undefined);
+  assert.equal(full.images.length, 3);
+  assert.deepEqual(r.images, full.images.filter((i) => i.release !== R1), "the partial images are the full answer's");
+  assert.deepEqual(await p.expectedFor(REF, { waitMs: 10 }), full, "then cached whole");
+});
+
+test("prefer: the release a deployment's guest last ran goes first; a later ask preferring a pending release moves it forward", async () => {
+  let open; const gate = new Promise((r) => { open = r; });
+  const order = [];
+  const { p } = predictor({ tools: { "expected-measurement.sh": async (a) => { if (a[2] === RK) return null; order.push(a[2]); if (order.length === 1) await gate; return null; } } });
+  await p.selfTest();
+  const first = p.expectedFor(REF, { prefer: [R1] });
+  await until(() => order.length === 1);
+  assert.deepEqual(order, [R1], "preferred, though it is the oldest listed");
+  const again = p.expectedFor(REF, { prefer: [R2] });   // R2 waits behind R3: moved to the front
+  await new Promise((r) => setTimeout(r, 20));
+  open();
+  const [a, b] = await Promise.all([first, again]);
+  assert.equal(a.ok, true); assert.deepEqual(a, b);
+  assert.deepEqual(order, [R1, R2, R3]);
+});
+
+test("a release measured for one set is not measured again for another: the certificate set reuses the release set's", async () => {
+  const { p, tools } = predictor();
+  await p.selfTest();
+  assert.equal((await p.expectedFor(REF)).ok, true);
+  const n = measured(tools.calls).length;
+  const cert = await p.expectedFor(REF, { set: "cert" });
+  assert.equal(cert.ok, true, JSON.stringify(cert));
+  assert.equal(measured(tools.calls).length, n, "R1-R3 were not measured again");
+  assert.equal(tools.calls.filter((c) => c.script === "expected-measurement.sh" && c.args[2] === RK).length, 2, "only RK, which the cert set adds (and the known answer)");
+  assert.equal(cert.images.length, 4);
+});
+
+test("a release that fails does not hold the others back while they are measured; the version's answer is still its refusal", async () => {
+  const { p, tools } = predictor({ tools: { "expected-measurement.sh": async (a) => (a[2] === R3 ? { code: 1, out: "", err: "synthetic failure" } : null) } });
+  await p.selfTest();
+  const r = await p.expectedFor(REF);
+  assert.equal(r.ok, false); assert.equal(r.code, "prediction_failed"); assert.match(r.reason, /synthetic failure/);
+  assert.deepEqual(measured(tools.calls), [R3, R2, R1], "R2 and R1 were measured after R3 failed");
+});
