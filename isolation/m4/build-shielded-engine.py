@@ -15,6 +15,7 @@ p=argparse.ArgumentParser(description=__doc__)
 for k in ['engine-git','runtime','out']: p.add_argument('--'+k,type=Path,required=True)
 p.add_argument('--jobs',type=int,default=6)
 p.add_argument('--active-kv-extent',action='store_true',help='omit attention-cache tail cells owned only by other sessions')
+p.add_argument('--kv-runs',action='store_true',help='attend only the cell runs holding the active sessions (needs --active-kv-extent; bit-identical)')
 p.add_argument('--shared-cpu-pool',action='store_true',help='build opt-in shared native CPU workers instead of OpenMP teams')
 p.add_argument('--grouped-attn',action='store_true',help='combine adjacent attention query heads sharing an F16 K/V head')
 p.add_argument('--small-graph',action='store_true',help='include opt-in single-thread dispatch for bounded CPU islands')
@@ -34,6 +35,9 @@ with archive.open('wb') as f:run(['git','-C',a.engine_git,'archive',PIN],stdout=
 run(['tar','-xf',archive,'-C',src]);archive.unlink()
 patches={}
 if a.active_kv_extent: PATCHES.append('kv-active-extent')
+if a.kv_runs:
+ if not a.active_kv_extent: p.error('--kv-runs applies on top of --active-kv-extent')
+ PATCHES.append('kv-runs')
 if a.cpu_profile or a.shared_cpu_pool: PATCHES.append('cpu-profile')
 if a.small_graph: PATCHES.append('small-graph')
 if a.shared_cpu_pool: PATCHES.append('shared-cpu-pool')

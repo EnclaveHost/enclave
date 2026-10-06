@@ -291,6 +291,23 @@ undiverged sequence are protected. Compute/verification failures are never
 retried by this mechanism. A prompt that cannot fit after reclaim still fails
 rather than overwriting another conversation.
 
+KV runs (`llamacpp-kv-runs.patch`, recipe `--kv-runs`, on by default,
+`ENCLAVE_GGML_KV_RUNS=0` disables). Unfused attention costs time per cell of
+`[0, n_kv)`, and the active-extent patch trims only the top: a chat that borrows
+a parked prefix at the bottom of the shared pool and writes its own tokens above
+other parks attends every parked cell in between, masked. Each ubatch now
+collects the cell runs holding its sequences (64-cell bounds, gaps of at most
+128 cells kept, at most 8 runs), computes KQ per run, joins the runs into one
+softmax row and, after copying the runs' V into one tensor, one KQV product.
+The 64-cell bounds keep every SIMD lane accumulating the same products in the
+same order, so logits are bit-identical to `[0, n_kv)`. The V copy costs about
+as much per cell as attending it, so runs are used only when they skip a
+quarter of `n_kv` (and at least 256 cells). `test/fixtures/kv-runs-check.cpp`
+builds the fragmented layout (borrowed prefix, two other conversations, own
+tail; also two sequences in one batch) and dumps every logit row; runs on/off
+must compare equal byte for byte. On the 0.8B hybrid model a 2-token step with
+20.5k cells in the pool and 2.4k attended went from 24.5 to 18.5 ms.
+
 `test/fixtures/wasi-nn-cache-pressure.rs` tests repeated distinct prompts in a
 512-token pool against uncached full-logit results, plus a pinned borrower
 resuming after other requests cause eviction. Run against attention and hybrid
