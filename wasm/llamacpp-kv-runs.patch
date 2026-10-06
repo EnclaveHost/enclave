@@ -1,0 +1,551 @@
+diff --git a/src/llama-graph.cpp b/src/llama-graph.cpp
+index 65a2120..cc848b8 100644
+--- a/src/llama-graph.cpp
++++ b/src/llama-graph.cpp
+@@ -28,7 +28,7 @@ static ggml_tensor * build_attn_inp_kq_mask(
+         const llama_kv_cache_context * mctx,
+         const llama_ubatch & ubatch,
+         const llama_cparams & cparams) {
+-    const auto n_kv     = mctx->get_n_kv();
++    const auto n_kv     = mctx->get_n_kq(); // n_kv, or the cells of the KV runs
+     const auto n_tokens = ubatch.n_tokens;
+     const auto n_stream = cparams.kv_unified ? 1 : ubatch.n_seqs_unq;
+
+@@ -47,7 +47,7 @@ static bool can_reuse_kq_mask(
+         const llama_kv_cache_context * mctx,
+         const llama_ubatch & ubatch,
+         const llama_cparams & cparams) {
+-    const auto n_kv     = mctx->get_n_kv();
++    const auto n_kv     = mctx->get_n_kq(); // n_kv, or the cells of the KV runs
+     const auto n_tokens = ubatch.n_tokens;
+     const auto n_stream = cparams.kv_unified ? 1 : ubatch.n_seqs_unq;
+
+@@ -539,6 +539,8 @@ bool llm_graph_input_attn_kv::can_reuse(const llm_graph_params & params) {
+
+     res &= can_reuse_kq_mask(self_kq_mask, mctx, params.ubatch, params.cparams);
+
++    res &= runs == mctx->get_runs(); // the K/V views and their offsets are part of the graph
++
+     return res;
+ }
+
+@@ -1039,6 +1041,8 @@ bool llm_graph_input_mem_hybrid::can_reuse(const llm_graph_params & params) {
+
+     res &= can_reuse_kq_mask(inp_attn->self_kq_mask, mctx->get_attn(), params.ubatch, params.cparams);
+
++    res &= inp_attn->runs == mctx->get_attn()->get_runs(); // the K/V views and their offsets are part of the graph
++
+     res &= inp_rs->s_copy->ne[0] == mctx->get_recr()->get_n_rs();
+
+     res &= inp_rs->s_copy_main->ne[0]  == params.ubatch.n_seqs;
+@@ -2595,6 +2599,73 @@ ggml_tensor * llm_graph_context::build_attn_mha(
+     return cur;
+ }
+
++ggml_tensor * llm_graph_context::build_attn_mha_runs(
++         ggml_tensor * q,
++         const llama_kv_cache_context * mctx_cur,
++         const std::vector<uint32_t> & runs,
++         ggml_tensor * kq_mask,
++         ggml_tensor * sinks,
++               float   kq_scale,
++                 int   il) const {
++    // build_attn_mha's unfused path over the runs' cells only: KQ of each run, joined along the cells into one
++    // softmax row, then KQV over the joined cells. The cells between runs hold only other sequences (or nothing),
++    // so every query here masks them to -INF and they add exact zeros to the softmax sum and to KQV.
++    GGML_ASSERT(!cparams.flash_attn && arch != LLM_ARCH_GROK && !hparams.attn_soft_cap);
++    GGML_ASSERT(runs.size() >= 2 && runs.size() % 2 == 0);
++
++    q = ggml_permute(ctx0, q, 0, 2, 1, 3);
++
++    ggml_tensor * kq = nullptr;
++    for (size_t r = 0; r < runs.size(); r += 2) {
++        ggml_tensor * k = ggml_permute(ctx0, mctx_cur->get_k_run(ctx0, il, runs[r], runs[r + 1]), 0, 2, 1, 3);
++        GGML_ASSERT(k->ne[3] == 1);
++
++        ggml_tensor * kq_r = ggml_mul_mat(ctx0, k, q);
++        ggml_mul_mat_set_prec(kq_r, GGML_PREC_F32);
++
++        kq = kq ? ggml_concat(ctx0, kq, kq_r, 0) : kq_r;
++    }
++    cb(kq, "kq", il);
++
++    kq = ggml_soft_max_ext(ctx0, kq, kq_mask, kq_scale, hparams.f_max_alibi_bias);
++    ggml_soft_max_add_sinks(kq, sinks);
++    cb(kq, "kq_soft_max", il);
++
++    // V of the runs, joined along the cells into one tensor, so KQV is a single product over the joined cells:
++    // run bounds are multiples of 64, so every SIMD lane of the dot accumulates the same products in the same
++    // order as over [0, n_kv) (where the skipped cells add exact zeros) - the result is bit-identical.
++    ggml_tensor * v_all = nullptr;
++    size_t off = 0;
++    for (size_t r = 0; r < runs.size(); r += 2) {
++        const uint32_t n = runs[r + 1];
++
++        ggml_tensor * v = ggml_permute(ctx0, mctx_cur->get_v_run(ctx0, il, runs[r], n), 0, 2, 1, 3); // [n, d, h_kv]
++        if (!v_all) {
++            v_all = ggml_new_tensor_3d(ctx0, v->type, kq->ne[0], v->ne[1], v->ne[2]);
++        }
++        ggml_tensor * dst = ggml_view_3d(ctx0, v_all, n, v_all->ne[1], v_all->ne[2],
++                                         v_all->nb[1], v_all->nb[2], off*v_all->nb[0]);
++        ggml_build_forward_expand(gf, ggml_cpy(ctx0, v, dst));
++        off += n;
++    }
++    GGML_ASSERT((int64_t) off == kq->ne[0]);
++
++    ggml_tensor * kqv = ggml_mul_mat(ctx0, v_all, kq);
++    cb(kqv, "kqv", il);
++
++    ggml_tensor * cur = ggml_permute(ctx0, kqv, 0, 2, 1, 3);
++    cur = ggml_cont_2d(ctx0, cur, cur->ne[0]*cur->ne[1], cur->ne[2]*cur->ne[3]);
++
++    if (!cparams.offload_kqv) {
++        // all nodes between the KV store and the attention output are run on the CPU
++        ggml_backend_sched_set_tensor_backend(sched, cur, backend_cpu);
++    }
++
++    ggml_build_forward_expand(gf, cur);
++
++    return cur;
++}
++
+ llm_graph_input_attn_no_cache * llm_graph_context::build_attn_inp_no_cache() const {
+     auto inp = std::make_unique<llm_graph_input_attn_no_cache>(hparams, cparams);
+
+@@ -2689,6 +2760,7 @@ static std::unique_ptr<llm_graph_input_attn_kv> build_attn_inp_kv_impl(
+
+         inp->self_kq_mask = build_attn_inp_kq_mask(ctx0, mctx_cur, ubatch, cparams);
+         inp->self_kq_mask_cnv = inp->self_kq_mask;
++        inp->runs = mctx_cur->get_runs();
+     }
+
+     inp->self_k_rot = mctx_cur->build_input_k_rot(ctx0);
+@@ -2750,10 +2822,16 @@ ggml_tensor * llm_graph_context::build_attn(
+     ggml_tensor * kq_mask = inp->get_kq_mask();
+
+     ggml_tensor * q = q_cur;
+-    ggml_tensor * k = mctx_cur->get_k(ctx0, il);
+-    ggml_tensor * v = mctx_cur->get_v(ctx0, il);
++    ggml_tensor * cur;
++    if (!inp->runs.empty()) {
++        GGML_ASSERT(kq_b == nullptr && v_mla == nullptr);
++        cur = build_attn_mha_runs(q, mctx_cur, inp->runs, kq_mask, sinks, kq_scale, il);
++    } else {
++        ggml_tensor * k = mctx_cur->get_k(ctx0, il);
++        ggml_tensor * v = mctx_cur->get_v(ctx0, il);
+
+-    ggml_tensor * cur = build_attn_mha(q, k, v, kq_b, kq_mask, sinks, v_mla, kq_scale, il);
++        cur = build_attn_mha(q, k, v, kq_b, kq_mask, sinks, v_mla, kq_scale, il);
++    }
+     cb(cur, "kqv_out", il);
+
+     if (inp->self_v_rot) {
+diff --git a/src/llama-graph.h b/src/llama-graph.h
+index 820fd8e..fe88373 100644
+--- a/src/llama-graph.h
++++ b/src/llama-graph.h
+@@ -354,6 +354,9 @@ public:
+     ggml_tensor * self_k_rot = nullptr;
+     ggml_tensor * self_v_rot = nullptr;
+
++    // the KV runs the graph was built for (llama_kv_cache::get_runs); a graph is reused only for the same runs
++    std::vector<uint32_t> runs;
++
+     // note: these have to be copies because in order to be able to reuse a graph, its inputs
+     //       need to carry these parameters with them. otherwise, they can point to freed
+     //       llm_graph_params from a previous batch, causing stack-use-after-return
+@@ -1085,6 +1088,16 @@ struct llm_graph_context {
+                   float   kq_scale,
+                     int   il) const;
+
++    // build_attn_mha over the KV runs of the current ubatch (unfused attention, V transposed, one stream)
++    ggml_tensor * build_attn_mha_runs(
++            ggml_tensor * q,       // [n_embd_head_q, n_head_q, n_tokens]
++            const llama_kv_cache_context * mctx_cur,
++            const std::vector<uint32_t> & runs,
++            ggml_tensor * kq_mask, // [n_kq, n_tokens, 1, 1]
++            ggml_tensor * sinks,
++                  float   kq_scale,
++                    int   il) const;
++
+     llm_graph_input_attn_no_cache * build_attn_inp_no_cache() const;
+
+     ggml_tensor * build_attn(
+diff --git a/src/llama-kv-cache-dsa.cpp b/src/llama-kv-cache-dsa.cpp
+index 241c503..0c3ce31 100644
+--- a/src/llama-kv-cache-dsa.cpp
++++ b/src/llama-kv-cache-dsa.cpp
+@@ -33,6 +33,7 @@ llama_kv_cache_dsa::llama_kv_cache_dsa(
+             model, model.hparams, type_k, type_v,
+             v_trans, offload, unified, kv_size, n_seq_max, n_pad,
+             n_swa, swa_type, nullptr, filter, reuse, nullptr);
++    kv_mla->runs_ok = false; // its graphs attend [0, n_kv) (KV runs: plain/hybrid caches only)
+
+     // we use llama_kv_cache for caching indexer keys
+     // by hand-tweaking some hparams we fool it to create
+@@ -50,6 +51,7 @@ llama_kv_cache_dsa::llama_kv_cache_dsa(
+             model, hparams_lid, type_k, type_v,
+             v_trans, offload, unified, kv_size, n_seq_max, n_pad,
+             n_swa, swa_type, nullptr, filter, reuse, nullptr);
++    kv_lid->runs_ok = false; // its graphs attend [0, n_kv) (KV runs: plain/hybrid caches only)
+ }
+
+ void llama_kv_cache_dsa::clear(bool data) {
+diff --git a/src/llama-kv-cache-dsv4.cpp b/src/llama-kv-cache-dsv4.cpp
+index 069da45..edc2d1c 100644
+--- a/src/llama-kv-cache-dsv4.cpp
++++ b/src/llama-kv-cache-dsv4.cpp
+@@ -1088,6 +1088,7 @@ llama_kv_cache_dsv4::llama_kv_cache_dsv4(
+             model, hparams_csa, type_k, type_v,
+             v_trans, offload, unified_compressed, GGML_PAD(dsv4_comp_size(kv_size, DSV4_CSA_RATIO), 256u), n_seq_max, n_pad,
+             0, LLAMA_SWA_TYPE_NONE, nullptr, filter_csa, nullptr, nullptr);
++    kv_csa->runs_ok = false; // its graphs attend [0, n_kv) (KV runs: plain/hybrid caches only)
+
+     LLAMA_LOG_INFO("%s: creating DSV4 HCA compressed KV cache, size = %u cells\n",
+             __func__, dsv4_comp_size(kv_size, DSV4_HCA_RATIO));
+@@ -1096,6 +1097,7 @@ llama_kv_cache_dsv4::llama_kv_cache_dsv4(
+             model, hparams_hca, type_k, type_v,
+             v_trans, offload, unified_compressed, GGML_PAD(dsv4_comp_size(kv_size, DSV4_HCA_RATIO), 256u), n_seq_max, n_pad,
+             0, LLAMA_SWA_TYPE_NONE, nullptr, filter_hca, nullptr, nullptr);
++    kv_hca->runs_ok = false; // its graphs attend [0, n_kv) (KV runs: plain/hybrid caches only)
+
+     LLAMA_LOG_INFO("%s: creating DSV4 lightning-indexer KV cache, size = %u cells\n",
+             __func__, dsv4_comp_size(kv_size, DSV4_CSA_RATIO));
+@@ -1104,6 +1106,7 @@ llama_kv_cache_dsv4::llama_kv_cache_dsv4(
+             model, hparams_lid, type_k, type_v,
+             v_trans, offload, unified_compressed, GGML_PAD(dsv4_comp_size(kv_size, DSV4_CSA_RATIO), 256u), n_seq_max, n_pad,
+             0, LLAMA_SWA_TYPE_NONE, nullptr, filter_csa, nullptr, nullptr);
++    kv_lid->runs_ok = false; // its graphs attend [0, n_kv) (KV runs: plain/hybrid caches only)
+
+     LLAMA_LOG_INFO("%s: creating DSV4 CSA compressor state\n", __func__);
+
+diff --git a/src/llama-kv-cache-iswa.cpp b/src/llama-kv-cache-iswa.cpp
+index e918664..be0e2c3 100644
+--- a/src/llama-kv-cache-iswa.cpp
++++ b/src/llama-kv-cache-iswa.cpp
+@@ -96,6 +96,7 @@ llama_kv_cache_iswa::llama_kv_cache_iswa(
+             model, hparams, type_k, type_v,
+             v_trans, offload, unified, size_base, n_seq_max, n_pad,
+             0, LLAMA_SWA_TYPE_NONE, mem_other_base, filter_base, reuse, share);
++    kv_base->runs_ok = false; // its graphs attend [0, n_kv) (KV runs: plain/hybrid caches only)
+
+     LLAMA_LOG_INFO("%s: creating     SWA KV cache, size = %u cells\n", __func__, size_swa);
+
+@@ -103,6 +104,7 @@ llama_kv_cache_iswa::llama_kv_cache_iswa(
+             model, hparams, type_k, type_v,
+             v_trans, offload, unified, size_swa, n_seq_max, n_pad,
+             hparams.n_swa, hparams.swa_type, mem_other_swa, filter_swa, reuse, share);
++    kv_swa->runs_ok = false; // its graphs attend [0, n_kv) (KV runs: plain/hybrid caches only)
+ }
+
+ void llama_kv_cache_iswa::clear(bool data) {
+diff --git a/src/llama-kv-cache.cpp b/src/llama-kv-cache.cpp
+index 651078a..4ea4c9f 100644
+--- a/src/llama-kv-cache.cpp
++++ b/src/llama-kv-cache.cpp
+@@ -10,6 +10,7 @@
+ #include <cmath>
+ #include <cstring>
+ #include <limits>
++#include <type_traits>
+ #include <map>
+ #include <stdexcept>
+
+@@ -1384,7 +1385,100 @@ uint32_t llama_kv_cache::get_n_kv(const slot_info & sinfo, const llama_ubatch *
+     return result;
+ }
+
+-ggml_tensor * llama_kv_cache::get_k(ggml_context * ctx, int32_t il, uint32_t n_kv, const slot_info & sinfo) const {
++void llama_kv_cache::get_runs(const slot_info & sinfo, const llama_ubatch * ubatch, uint32_t n_kv, std::vector<uint32_t> & runs) const {
++    runs.clear();
++    static const bool enabled = [] {
++        const char * e = getenv("ENCLAVE_GGML_KV_RUNS");
++        return !(e && !strcmp(e, "0"));
++    }();
++    // the transposed-V (non-flash) attention of a single unified stream, no SWA/ALiBi, K and V both cached
++    if (!enabled || !runs_ok || !ubatch || !v_trans || sinfo.n_stream() != 1 ||
++        swa_type != LLAMA_SWA_TYPE_NONE || hparams.use_alibi || layers.empty() || !layers[0].v) {
++        return;
++    }
++    std::vector<llama_seq_id> active;
++    for (uint32_t i = 0; i < ubatch->n_tokens; ++i) {
++        for (int32_t j = 0; j < ubatch->n_seq_id[i]; ++j) {
++            const auto id = ubatch->seq_id[i][j];
++            if (std::find(active.begin(), active.end(), id) == active.end()) active.push_back(id);
++        }
++    }
++    if (active.empty()) {
++        return;
++    }
++    const auto & cells = v_cells[sinfo.strm[0]];
++    // A: run bounds are multiples of A cells (SIMD/GEMM shapes, fewer graph rebuilds); a gap of at most GAP
++    // cells is attended (masked) rather than split; at most MAX_RUNS runs, the narrowest gaps merged first
++    static const uint32_t GAP = getenv("ENCLAVE_KV_RUNS_GAP") ? (uint32_t) atoi(getenv("ENCLAVE_KV_RUNS_GAP")) : 128;
++    static const uint32_t MIN_SAVE = getenv("ENCLAVE_KV_RUNS_MIN_SAVE") ? (uint32_t) atoi(getenv("ENCLAVE_KV_RUNS_MIN_SAVE")) : 256;
++    const uint32_t A = 64, MAX_RUNS = 8;
++    std::vector<std::pair<uint32_t, uint32_t>> r; // [first, end)
++    const uint32_t lim = std::min<uint32_t>(n_kv, cells.size());
++    for (uint32_t j = 0; j < lim; ++j) {
++        bool relevant = false;
++        for (const auto id : active) {
++            if (cells.seq_has(j, id)) { relevant = true; break; }
++        }
++        if (!relevant) continue;
++        if (!r.empty() && j <= r.back().second + GAP) {
++            r.back().second = j + 1;
++        } else {
++            r.push_back({j, j + 1});
++        }
++    }
++    if (r.empty()) {
++        return;
++    }
++    std::vector<std::pair<uint32_t, uint32_t>> m;
++    for (auto x : r) {
++        x.first  = x.first / A * A;
++        x.second = std::min<uint32_t>(lim, GGML_PAD(x.second, A));
++        if (!m.empty() && x.first <= m.back().second) {
++            m.back().second = std::max(m.back().second, x.second);
++        } else {
++            m.push_back(x);
++        }
++    }
++    while (m.size() > MAX_RUNS) {
++        size_t best = 0;
++        for (size_t i = 1; i + 1 < m.size(); ++i) {
++            if (m[i + 1].first - m[i].second < m[best + 1].first - m[best].second) best = i;
++        }
++        m[best].second = m[best + 1].second;
++        m.erase(m.begin() + best + 1);
++    }
++    // ENCLAVE_KV_RUNS_SPLIT=c (qualification only): also split the run holding cell c there, attending the same cells
++    if (const char * sp = getenv("ENCLAVE_KV_RUNS_SPLIT")) {
++        const uint32_t c = (uint32_t) atoi(sp) / A * A;
++        for (size_t i = 0; i < m.size(); ++i) {
++            if (m[i].first < c && c < m[i].second) {
++                m.insert(m.begin() + i + 1, {c, m[i].second});
++                m[i].second = c;
++                break;
++            }
++        }
++    }
++    uint32_t sel = 0;
++    for (const auto & x : m) sel += x.second - x.first;
++    static const bool debug = getenv("ENCLAVE_KV_RUNS_DEBUG") != nullptr;
++    if (debug) {
++        fprintf(stderr, "[kv-runs] n_kv=%u used=%u attended=%u runs=%zu:", n_kv, cells.get_used(), sel, m.size());
++        for (const auto & x : m) fprintf(stderr, " [%u,%u)", x.first, x.second);
++        fprintf(stderr, "\n");
++    }
++    // the runs path copies the attended V once per layer (joined KV runs, see build_attn_mha_runs), so it pays
++    // only when it skips a real share of the pool: at least MIN_SAVE cells and a quarter of n_kv (measured
++    // break-even ~80% attended); otherwise the existing [0, n_kv) view
++    if (sel + MIN_SAVE > n_kv || (uint64_t) sel*4 > (uint64_t) n_kv*3) {
++        return;
++    }
++    for (const auto & x : m) {
++        runs.push_back(x.first);
++        runs.push_back(x.second - x.first);
++    }
++}
++
++ggml_tensor * llama_kv_cache::get_k(ggml_context * ctx, int32_t il, uint32_t n_kv, const slot_info & sinfo, uint32_t c0) const {
+     const int32_t ikv = map_layer_ids.at(il);
+
+     auto * k = layers[ikv].k;
+@@ -1401,10 +1495,10 @@ ggml_tensor * llama_kv_cache::get_k(ggml_context * ctx, int32_t il, uint32_t n_k
+             ggml_row_size(k->type, hparams.n_embd_head_k(il)),
+             ggml_row_size(k->type, n_embd_k_gqa),
+             ggml_row_size(k->type, n_embd_k_gqa*kv_size),
+-            ggml_row_size(k->type, n_embd_k_gqa*kv_size)*sinfo.s0);
++            ggml_row_size(k->type, n_embd_k_gqa*kv_size)*sinfo.s0 + ggml_row_size(k->type, n_embd_k_gqa)*c0);
+ }
+
+-ggml_tensor * llama_kv_cache::get_v(ggml_context * ctx, int32_t il, uint32_t n_kv, const slot_info & sinfo) const {
++ggml_tensor * llama_kv_cache::get_v(ggml_context * ctx, int32_t il, uint32_t n_kv, const slot_info & sinfo, uint32_t c0) const {
+     const int32_t ikv = map_layer_ids.at(il);
+
+     auto * v = layers[ikv].v;
+@@ -1424,7 +1518,7 @@ ggml_tensor * llama_kv_cache::get_v(ggml_context * ctx, int32_t il, uint32_t n_k
+                 ggml_row_size(v->type, hparams.n_embd_head_v(il)),          // v->nb[1]
+                 ggml_row_size(v->type, n_embd_v_gqa),                   // v->nb[2]
+                 ggml_row_size(v->type, n_embd_v_gqa*kv_size),           // v->nb[3]
+-                ggml_row_size(v->type, n_embd_v_gqa*kv_size)*sinfo.s0);
++                ggml_row_size(v->type, n_embd_v_gqa*kv_size)*sinfo.s0 + ggml_row_size(v->type, n_embd_v_gqa)*c0);
+     }
+
+     // note: v->nb[1] > v->nb[2]
+@@ -1433,7 +1527,7 @@ ggml_tensor * llama_kv_cache::get_v(ggml_context * ctx, int32_t il, uint32_t n_k
+             ggml_row_size(v->type, kv_size*hparams.n_embd_head_v(il)),  // v->nb[1]
+             ggml_row_size(v->type, kv_size),                        // v->nb[2]
+             ggml_row_size(v->type, kv_size*n_embd_v_gqa),           // v->nb[3]
+-            ggml_row_size(v->type, kv_size*n_embd_v_gqa)*sinfo.s0);
++            ggml_row_size(v->type, kv_size*n_embd_v_gqa)*sinfo.s0 + ggml_row_size(v->type, c0));
+ }
+
+ ggml_tensor * llama_kv_cache::get_k_idx(ggml_context * ctx, int32_t il, uint32_t n_kv, const slot_info & sinfo) const {
+@@ -1899,11 +1993,49 @@ static void set_input_kq_mask_impl(const args_set_input_kq_mask & args, T * data
+     }
+ }
+
+-void llama_kv_cache::set_input_kq_mask(ggml_tensor * dst, const llama_ubatch * ubatch, bool causal_attn) const {
++void llama_kv_cache::set_input_kq_mask(ggml_tensor * dst, const llama_ubatch * ubatch, bool causal_attn,
++                                       const std::vector<uint32_t> * runs, uint32_t n_kv_full) const {
+     const uint32_t n_tokens = ubatch->n_tokens;
+
+     GGML_ASSERT(ggml_backend_buffer_is_host(dst->buffer));
+
++    if (runs && !runs->empty()) {
++        // the full [n_kv_full, n_tokens] mask, exactly as without runs, then the runs' columns of each row
++        GGML_ASSERT(dst->ne[3] == 1 && dst->ne[2] == 1 && dst->ne[1] == (int64_t) n_tokens);
++        const args_set_input_kq_mask args = {
++            /*.hparams          =*/ hparams,
++            /*.ubatch           =*/ ubatch,
++            /*.v_cells          =*/ v_cells,
++            /*.seq_to_stream    =*/ seq_to_stream,
++            /*.n_swa            =*/ n_swa,
++            /*.swa_type         =*/ swa_type,
++            /*.n_kv             =*/ n_kv_full,
++            /*.n_stream         =*/ 1,
++            /*.n_tps            =*/ n_tokens,
++        };
++        auto gather = [&](auto * out) {
++            using T = std::remove_pointer_t<decltype(out)>;
++            std::vector<T> full((size_t) n_kv_full*n_tokens);
++            set_input_kq_mask_impl<T>(args, full.data(), causal_attn);
++            const int64_t n_kq = dst->ne[0];
++            for (uint32_t i = 0; i < n_tokens; ++i) {
++                int64_t c = 0;
++                for (size_t r = 0; r + 1 < runs->size(); r += 2) {
++                    const uint32_t c0 = (*runs)[r], n = (*runs)[r + 1];
++                    std::copy(full.data() + (size_t) i*n_kv_full + c0, full.data() + (size_t) i*n_kv_full + c0 + n, out + i*n_kq + c);
++                    c += n;
++                }
++                GGML_ASSERT(c == n_kq);
++            }
++        };
++        if (dst->type == GGML_TYPE_F16) {
++            gather((ggml_fp16_t *) dst->data);
++        } else {
++            gather((float *) dst->data);
++        }
++        return;
++    }
++
+     const int64_t n_kv     = dst->ne[0];
+     const int64_t n_stream = dst->ne[3]; // num streams in the current ubatch
+
+@@ -2842,6 +2974,13 @@ bool llama_kv_cache_context::apply() {
+     kv->apply_ubatch(sinfos[i_cur], ubatches[i_cur]);
+     n_kv = kv->get_n_kv(sinfos[i_cur], &ubatches[i_cur]);
+
++    kv->get_runs(sinfos[i_cur], &ubatches[i_cur], n_kv, runs);
++    n_kq = n_kv;
++    if (!runs.empty()) {
++        n_kq = 0;
++        for (size_t r = 1; r < runs.size(); r += 2) n_kq += runs[r];
++    }
++
+     return true;
+ }
+
+@@ -2859,6 +2998,22 @@ uint32_t llama_kv_cache_context::get_n_kv() const {
+     return n_kv;
+ }
+
++uint32_t llama_kv_cache_context::get_n_kq() const {
++    return runs.empty() ? (uint32_t) n_kv : n_kq;
++}
++
++const std::vector<uint32_t> & llama_kv_cache_context::get_runs() const {
++    return runs;
++}
++
++ggml_tensor * llama_kv_cache_context::get_k_run(ggml_context * ctx, int32_t il, uint32_t c0, uint32_t n) const {
++    return kv->get_k(ctx, il, n, sinfos[i_cur], c0);
++}
++
++ggml_tensor * llama_kv_cache_context::get_v_run(ggml_context * ctx, int32_t il, uint32_t c0, uint32_t n) const {
++    return kv->get_v(ctx, il, n, sinfos[i_cur], c0);
++}
++
+ ggml_type llama_kv_cache_context::type_k() const {
+     return kv->type_k();
+ }
+@@ -2920,7 +3075,7 @@ void llama_kv_cache_context::set_input_v_idxs(ggml_tensor * dst, const llama_uba
+ }
+
+ void llama_kv_cache_context::set_input_kq_mask(ggml_tensor * dst, const llama_ubatch * ubatch, bool causal_attn) const {
+-    kv->set_input_kq_mask(dst, ubatch, causal_attn);
++    kv->set_input_kq_mask(dst, ubatch, causal_attn, runs.empty() ? nullptr : &runs, n_kv);
+ }
+
+ void llama_kv_cache_context::set_input_pos_bucket(ggml_tensor * dst, const llama_ubatch * ubatch) const {
+diff --git a/src/llama-kv-cache.h b/src/llama-kv-cache.h
+index 08afa67..8fab502 100644
+--- a/src/llama-kv-cache.h
++++ b/src/llama-kv-cache.h
+@@ -170,9 +170,17 @@ public:
+
+     uint32_t get_n_kv(const slot_info & sinfo, const llama_ubatch * ubatch = nullptr) const;
+
+-    // get views of the current state of the cache
+-    ggml_tensor * get_k(ggml_context * ctx, int32_t il, uint32_t n_kv, const slot_info & sinfo) const;
+-    ggml_tensor * get_v(ggml_context * ctx, int32_t il, uint32_t n_kv, const slot_info & sinfo) const;
++    // KV runs (ENCLAVE_GGML_KV_RUNS, default on): the cell ranges [0, n_kv) that hold any of the ubatch's
++    // sequences, as flattened (first cell, cell count) pairs. Empty = attend [0, n_kv) as before (other
++    // layouts, or when skipping other sequences' cells would save less than one 256-cell pad).
++    void get_runs(const slot_info & sinfo, const llama_ubatch * ubatch, uint32_t n_kv, std::vector<uint32_t> & runs) const;
++
++    // false for caches owned by a composite memory (iSWA, DSA, DSV4) whose graphs attend [0, n_kv) directly
++    bool runs_ok = true;
++
++    // get views of the current state of the cache, starting at cell c0
++    ggml_tensor * get_k(ggml_context * ctx, int32_t il, uint32_t n_kv, const slot_info & sinfo, uint32_t c0 = 0) const;
++    ggml_tensor * get_v(ggml_context * ctx, int32_t il, uint32_t n_kv, const slot_info & sinfo, uint32_t c0 = 0) const;
+     ggml_tensor * get_k_idx(ggml_context * ctx, int32_t il, uint32_t n_kv, const slot_info & sinfo) const;
+
+     // store k_cur and v_cur in the cache based on the provided head location
+@@ -213,7 +221,9 @@ public:
+
+     void set_input_k_shift(ggml_tensor * dst) const;
+
+-    void set_input_kq_mask   (ggml_tensor * dst, const llama_ubatch * ubatch, bool causal_attn) const;
++    // with runs: dst holds only the runs' columns; n_kv_full is the context's n_kv
++    void set_input_kq_mask   (ggml_tensor * dst, const llama_ubatch * ubatch, bool causal_attn,
++                              const std::vector<uint32_t> * runs = nullptr, uint32_t n_kv_full = 0) const;
+     void set_input_pos_bucket(ggml_tensor * dst, const llama_ubatch * ubatch) const;
+
+     void set_input_k_rot(ggml_tensor * dst) const;
+@@ -372,12 +382,22 @@ public:
+
+     uint32_t get_n_kv() const;
+
++    // columns of the KQ mask: n_kv, or the cells the runs cover
++    uint32_t get_n_kq() const;
++
++    // see llama_kv_cache::get_runs; empty unless this ubatch attends runs
++    const std::vector<uint32_t> & get_runs() const;
++
+     ggml_type type_k() const;
+     ggml_type type_v() const;
+
+     // get views of the current state of the cache
+     ggml_tensor * get_k(ggml_context * ctx, int32_t il) const;
+     ggml_tensor * get_v(ggml_context * ctx, int32_t il) const;
++
++    // views of n cells starting at cell c0 (one run)
++    ggml_tensor * get_k_run(ggml_context * ctx, int32_t il, uint32_t c0, uint32_t n) const;
++    ggml_tensor * get_v_run(ggml_context * ctx, int32_t il, uint32_t c0, uint32_t n) const;
+     ggml_tensor * get_k_idx(ggml_context * ctx, int32_t il) const;
+
+     // store k_cur and v_cur in the cache based on the provided head location
+@@ -441,4 +461,8 @@ private:
+     // a heuristic, to avoid attending the full cache if it is not yet utilized
+     // as the cache gets filled, the benefit from this heuristic disappears
+     int32_t n_kv;
++
++    // KV runs of the current ubatch (flattened first/count pairs) and the cells they cover
++    std::vector<uint32_t> runs;
++    uint32_t n_kq = 0;
+ };
