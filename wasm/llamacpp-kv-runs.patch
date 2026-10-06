@@ -237,7 +237,7 @@ index e918664..be0e2c3 100644
 
  void llama_kv_cache_iswa::clear(bool data) {
 diff --git a/src/llama-kv-cache.cpp b/src/llama-kv-cache.cpp
-index 651078a..90dfe63 100644
+index 651078a..ab0ecc2 100644
 --- a/src/llama-kv-cache.cpp
 +++ b/src/llama-kv-cache.cpp
 @@ -10,6 +10,7 @@
@@ -248,7 +248,60 @@ index 651078a..90dfe63 100644
  #include <map>
  #include <stdexcept>
 
-@@ -1384,7 +1385,101 @@ uint32_t llama_kv_cache::get_n_kv(const slot_info & sinfo, const llama_ubatch *
+@@ -1096,6 +1097,52 @@ llama_kv_cache::slot_info llama_kv_cache::find_slot(const llama_ubatch & ubatch,
+             continue;
+         }
+
++        // KV locality (ENCLAVE_GGML_KV_LOCAL, default on): a ubatch of one sequence grows that sequence in place -
++        // right after its last cell when those cells are free, else at the start of the first free block with
++        // room to keep growing - instead of filling scattered holes between other conversations' parked cells,
++        // which would leave its cells in many runs (attended with the gaps between them, see get_runs).
++        // Positions, masks and contents are unchanged; only which free cells hold the new rows.
++        {
++            static const bool local = [] {
++                const char * e = getenv("ENCLAVE_GGML_KV_LOCAL");
++                return !(e && !strcmp(e, "0"));
++            }();
++            bool one_seq = local && n_stream == 1 && !cont;
++            for (uint32_t i = 0; one_seq && i < ubatch.n_tokens; ++i) {
++                one_seq = ubatch.n_seq_id[i] == 1 && ubatch.seq_id[i][0] == seq_id;
++            }
++            if (one_seq) {
++                const uint32_t size = cells.size();
++                auto free_run = [&](uint32_t from, uint32_t n) {
++                    if (from + n > size) return false;
++                    for (uint32_t j = from; j < from + n; ++j) if (!cells.is_empty(j)) return false;
++                    return true;
++                };
++                int64_t last = -1;
++                for (int64_t j = (int64_t) cells.used_max_p1() - 1; j >= 0; --j) {
++                    if (cells.seq_has((uint32_t) j, seq_id)) { last = j; break; }
++                }
++                int64_t at = -1;
++                if (last >= 0 && free_run((uint32_t) last + 1, n_tokens)) {
++                    at = last + 1;
++                } else {
++                    // the first free block of at least `want` cells (room for an answer to grow), smaller asks after
++                    for (uint32_t want : { std::max<uint32_t>(n_tokens, 2048u), std::max<uint32_t>(n_tokens, 512u) }) {
++                        uint32_t run = 0;
++                        for (uint32_t j = 0; j < size && at < 0; ++j) {
++                            run = cells.is_empty(j) ? run + 1 : 0;
++                            if (run == want) at = (int64_t) j + 1 - want;
++                        }
++                        if (at >= 0) break;
++                    }
++                }
++                if (at >= 0) {
++                    for (uint32_t j = 0; j < n_tokens; ++j) res.idxs[s].push_back((uint32_t) at + j);
++                    continue;
++                }
++            }
++        }
++
+         uint32_t head_cur = v_heads[seq_to_stream[seq_id]];
+
+         // if we have enough unused cells before the current head ->
+@@ -1384,7 +1431,101 @@ uint32_t llama_kv_cache::get_n_kv(const slot_info & sinfo, const llama_ubatch *
      return result;
  }
 
@@ -351,7 +404,7 @@ index 651078a..90dfe63 100644
      const int32_t ikv = map_layer_ids.at(il);
 
      auto * k = layers[ikv].k;
-@@ -1401,10 +1496,10 @@ ggml_tensor * llama_kv_cache::get_k(ggml_context * ctx, int32_t il, uint32_t n_k
+@@ -1401,10 +1542,10 @@ ggml_tensor * llama_kv_cache::get_k(ggml_context * ctx, int32_t il, uint32_t n_k
              ggml_row_size(k->type, hparams.n_embd_head_k(il)),
              ggml_row_size(k->type, n_embd_k_gqa),
              ggml_row_size(k->type, n_embd_k_gqa*kv_size),
@@ -364,7 +417,7 @@ index 651078a..90dfe63 100644
      const int32_t ikv = map_layer_ids.at(il);
 
      auto * v = layers[ikv].v;
-@@ -1424,7 +1519,7 @@ ggml_tensor * llama_kv_cache::get_v(ggml_context * ctx, int32_t il, uint32_t n_k
+@@ -1424,7 +1565,7 @@ ggml_tensor * llama_kv_cache::get_v(ggml_context * ctx, int32_t il, uint32_t n_k
                  ggml_row_size(v->type, hparams.n_embd_head_v(il)),          // v->nb[1]
                  ggml_row_size(v->type, n_embd_v_gqa),                   // v->nb[2]
                  ggml_row_size(v->type, n_embd_v_gqa*kv_size),           // v->nb[3]
@@ -373,7 +426,7 @@ index 651078a..90dfe63 100644
      }
 
      // note: v->nb[1] > v->nb[2]
-@@ -1433,7 +1528,7 @@ ggml_tensor * llama_kv_cache::get_v(ggml_context * ctx, int32_t il, uint32_t n_k
+@@ -1433,7 +1574,7 @@ ggml_tensor * llama_kv_cache::get_v(ggml_context * ctx, int32_t il, uint32_t n_k
              ggml_row_size(v->type, kv_size*hparams.n_embd_head_v(il)),  // v->nb[1]
              ggml_row_size(v->type, kv_size),                        // v->nb[2]
              ggml_row_size(v->type, kv_size*n_embd_v_gqa),           // v->nb[3]
@@ -382,7 +435,7 @@ index 651078a..90dfe63 100644
  }
 
  ggml_tensor * llama_kv_cache::get_k_idx(ggml_context * ctx, int32_t il, uint32_t n_kv, const slot_info & sinfo) const {
-@@ -1899,11 +1994,49 @@ static void set_input_kq_mask_impl(const args_set_input_kq_mask & args, T * data
+@@ -1899,11 +2040,49 @@ static void set_input_kq_mask_impl(const args_set_input_kq_mask & args, T * data
      }
  }
 
@@ -433,7 +486,7 @@ index 651078a..90dfe63 100644
      const int64_t n_kv     = dst->ne[0];
      const int64_t n_stream = dst->ne[3]; // num streams in the current ubatch
 
-@@ -2842,6 +2975,13 @@ bool llama_kv_cache_context::apply() {
+@@ -2842,6 +3021,13 @@ bool llama_kv_cache_context::apply() {
      kv->apply_ubatch(sinfos[i_cur], ubatches[i_cur]);
      n_kv = kv->get_n_kv(sinfos[i_cur], &ubatches[i_cur]);
 
@@ -447,7 +500,7 @@ index 651078a..90dfe63 100644
      return true;
  }
 
-@@ -2859,6 +2999,22 @@ uint32_t llama_kv_cache_context::get_n_kv() const {
+@@ -2859,6 +3045,22 @@ uint32_t llama_kv_cache_context::get_n_kv() const {
      return n_kv;
  }
 
@@ -470,7 +523,7 @@ index 651078a..90dfe63 100644
  ggml_type llama_kv_cache_context::type_k() const {
      return kv->type_k();
  }
-@@ -2920,7 +3076,7 @@ void llama_kv_cache_context::set_input_v_idxs(ggml_tensor * dst, const llama_uba
+@@ -2920,7 +3122,7 @@ void llama_kv_cache_context::set_input_v_idxs(ggml_tensor * dst, const llama_uba
  }
 
  void llama_kv_cache_context::set_input_kq_mask(ggml_tensor * dst, const llama_ubatch * ubatch, bool causal_attn) const {
