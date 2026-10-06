@@ -314,6 +314,23 @@ but on the 27B shapes the copy costs about as much as the attention it saves
 38.6 ms, per-run sums 25.3 ms), so production uses per-run sums. Eyesoff on the
 27B, fresh guest, tools off: 97 -> 72 ms per verify step with the joined copy.
 
+Eyesoff on the 27B (MTP k=1, 64K pool), ms per verify step, 2026-10-06:
+
+| release | tools off | tools on + thinking |
+|---|---|---|
+| c48e71ea (no runs) | 96.5-97.6 | - |
+| 4c719051 (runs, joined V copy) | 72.3-72.9 | 104 (bank nearly empty) |
+| 441c835f (runs, per-run sums) | 69.2-69.9 | 80.1-82.0 |
+| bca1f7bd (+ AVX-512 CPU backend) | 66.9-68.3 | 77.5-78.7, also after parking 6 other chats |
+
+At 61-65% draft acceptance, 78 ms is 20.5-21.2 tok/s. The AVX-512 backend is
+the production CPU source and flags with `GGML_AVX512{,_BF16,_VNNI,_VBMI}`
+(recipe `--cpu-avx512`; the guest exposes those features; logits drift at the
+same order as KV runs). Do not widen the CPU compute workers: release 50107776
+(10 workers on vCPUs 0,2-10, the link/refill threads on 11-15) decoded at 270
+ms per step, like the 09-28 twelve-worker profile - the masked exchange starves
+when it loses its cores, pad bank or not.
+
 `test/fixtures/wasi-nn-cache-pressure.rs` tests repeated distinct prompts in a
 512-token pool against uncached full-logit results, plus a pinned borrower
 resuming after other requests cause eviction. Run against attention and hybrid
