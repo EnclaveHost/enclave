@@ -1,0 +1,647 @@
+mm37 end parks, on top of the LIVE Shield runtime's wasi-nn ggml backend (crates/wasi-nn/src/backend/ggml.rs
+c3cbac2c, the tree recorded in isolation/m4/evidence/eyesoff-ttft-2026-09-29/runtime-build.json: wasmtime f7d3104c).
+Built in that tree's own cargo cache (same command and ELL_LIB_LOCATION, see runtime-build.json) -> wasmtime 2936ad79.
+
+A guest may ask ({"park_end": [1]}, caps[19] = 1) for its sequence to be parked WHOLE when the session ends - prompt
+plus everything generated - so the conversation's next turn, whose prompt replays that answer as its exact ids,
+branches off its end instead of re-reading it. Per-sequence token shadows on the server follow every cache change
+(submit, verify, mtp_round, rewind, copy, branch, fork, eviction); a poisoned or mismatched shadow never parks. A
+session ending inside a fused mtp_round has its unchecked drafts trimmed (within the snapshot depth) first.
+ENCLAVE_GGML_PARK_TRACE=1 explains each decision on stderr (off by default; counts only, never tokens).
+
+diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
+index 510e0c2..ca4e315 100644
+--- a/crates/wasi-nn/src/backend/ggml.rs
++++ b/crates/wasi-nn/src/backend/ggml.rs
+@@ -44,6 +44,15 @@
+ //!   moment it stands (see prefix_claims.rs). Without the opt-in, callers
+ //!   warm concurrently as before. "caps" indices 14..16 = [protocol (1),
+ //!   live claims, standing parks].
++//! mm37 end parks: {"park_end": I32 [1] = 1} asks for this sequence to be
++//!   parked WHOLE when the session ends - its prompt plus every token
++//!   generated - so the conversation's next turn, whose prompt replays that
++//!   answer token for token, branches off its end instead of re-reading it.
++//!   Every cache-changing path keeps the sequence's token shadow (GgmlServer
++//!   shadows); a sequence whose shadow cannot vouch for every cell (an
++//!   image, an error, a verify branch) is removed as before. caps[19] = 1
++//!   when the engine takes the request (16..18 are mm36's protocol, live
++//!   claims and standing parks).
+ //! Speculative-decoding verbs (see each handler in `compute`):
+ //!   "tokens"+"all"=1 -> "logits" [n, n_vocab] (per-position verify rows);
+ //!   "caps" -> [seq_id, recurrent, mtp, vision, n_batch, host_tok,
+@@ -462,6 +471,14 @@ fn park_slots() -> usize {
+     })
+ }
+ 
++/// mm37 diagnostics: ENCLAVE_GGML_PARK_TRACE=1 says on stderr why each
++/// session parked or did not, and what each branch matched. Off by default
++/// (a production guest's runtime is quiet); it names counts, never tokens.
++fn park_trace() -> bool {
++    static V: OnceLock<bool> = OnceLock::new();
++    *V.get_or_init(|| std::env::var("ENCLAVE_GGML_PARK_TRACE").as_deref() == Ok("1"))
++}
++
+ /// Prompts shorter than this are not worth a park slot: the re-prefill they
+ /// save is small, and each park spends a slot, its pool cells, and (on
+ /// hybrids) the session's one-time COW divergence. Pool-pressure hygiene,
+@@ -982,7 +999,10 @@ struct DecodeQueue {
+ struct ParkedPrefix {
+     seq_id: i32,
+     tokens: Vec<i32>,
+-    row: RowOut,
++    /// None for an end park (mm37): taken after generation, it holds no
++    /// output row for its final position, so it only serves a prompt that
++    /// runs past it (never an exact-match reuse)
++    row: Option<RowOut>,
+     at: Instant,
+     pin: Arc<AtomicUsize>,
+     /// mm35: a declared-boundary park (its own slot budget and TTL, see
+@@ -1010,6 +1030,13 @@ struct GgmlServer {
+     /// lifetime and are dropped with it — after a park is evicted AND its
+     /// donor is gone, the id returns to `slots` clean.
+     parked: Mutex<Vec<ParkedPrefix>>,
++    /// mm37: every sequence's exact cache contents, as token ids, kept
++    /// through generation (submit, verify, mtp_round, rewind, copy) so a
++    /// FINISHED chat can be parked whole - prompt plus everything generated
++    /// - and its next turn branch off it instead of re-reading the answer.
++    /// None = poisoned (an image, an error, a position this map did not
++    /// see): a poisoned or missing shadow never parks. A leaf lock.
++    shadows: Mutex<HashMap<i32, Option<Vec<i32>>>>,
+     alias: Mutex<HashMap<i32, i32>>,
+     /// mm36: who is preparing which exact prefix right now (see
+     /// prefix_claims.rs). A LEAF lock: taken alone, or last after
+@@ -1257,6 +1284,7 @@ impl GgmlServer {
+             n_seq_max,
+             total_seqs,
+             parked: Mutex::new(Vec::new()),
++            shadows: Mutex::new(HashMap::new()),
+             alias: Mutex::new(HashMap::new()),
+             claims: Mutex::new(PrefixClaims::new(prefix_claim_stale())),
+             n_vocab: model.n_vocab as usize,
+@@ -1298,7 +1326,64 @@ impl GgmlServer {
+     /// launches. Measured on the fleet (27b hybrid, two chats): ~50-90 ms a
+     /// step against ~16 ms for the replayed single-sequence one, i.e. two
+     /// users were slower together than one user alone.
++    // -- mm37 shadows: every cache-changing path updates its sequence's ---
++    fn sh_set(&self, seq: i32, toks: Option<Vec<i32>>) {
++        self.shadows.lock().unwrap().insert(seq, toks);
++    }
++    /// tokens now at pos0.. of seq (a feed, a verify, a round): contiguous
++    /// with what the shadow holds, or overwriting its tail; a gap poisons
++    fn sh_write(&self, seq: i32, pos0: i32, toks: &[i32]) {
++        let mut m = self.shadows.lock().unwrap();
++        let e = m.entry(seq).or_insert(None);
++        let ok = match e {
++            Some(v) if pos0 >= 0 && (pos0 as usize) <= v.len() => {
++                v.truncate(pos0 as usize);
++                v.extend_from_slice(toks);
++                true
++            }
++            _ => false,
++        };
++        if !ok {
++            *e = None;
++        }
++    }
++    fn sh_truncate(&self, seq: i32, n_keep: i32) {
++        let mut m = self.shadows.lock().unwrap();
++        let e = m.entry(seq).or_insert(None);
++        match e {
++            Some(v) if n_keep >= 0 && (n_keep as usize) <= v.len() => v.truncate(n_keep as usize),
++            _ => *e = None,
++        }
++    }
++    fn sh_copy(&self, src: i32, dst: i32) {
++        let mut m = self.shadows.lock().unwrap();
++        let v = m.get(&src).cloned().flatten();
++        m.insert(dst, v);
++    }
++    fn sh_poison(&self, seq: i32) {
++        self.shadows.lock().unwrap().insert(seq, None);
++    }
++    fn sh_remove(&self, seq: i32) {
++        self.shadows.lock().unwrap().remove(&seq);
++    }
++    fn sh_clear(&self) {
++        self.shadows.lock().unwrap().clear();
++    }
++    fn sh_get(&self, seq: i32) -> Option<Vec<i32>> {
++        self.shadows.lock().unwrap().get(&seq).cloned().flatten()
++    }
++
+     fn submit(&self, seq_id: i32, pos0: i32, tokens: Vec<i32>) -> Result<RowOut, String> {
++        let toks = tokens.clone();
++        let r = self.submit_unshadowed(seq_id, pos0, tokens);
++        match r {
++            Ok(_) => self.sh_write(seq_id, pos0, &toks),
++            Err(_) => self.sh_poison(seq_id),
++        }
++        r
++    }
++
++    fn submit_unshadowed(&self, seq_id: i32, pos0: i32, tokens: Vec<i32>) -> Result<RowOut, String> {
+         if tokens.is_empty() {
+             return Err("empty token batch".into());
+         }
+@@ -1484,6 +1569,22 @@ impl GgmlServer {
+         tokens: &[i32],
+         mtp_for: Option<i32>,
+         last_only: bool,
++    ) -> Result<RowsOut, String> {
++        let r = self.submit_rows_unshadowed(seq_id, pos0, tokens, mtp_for, last_only);
++        match r {
++            Ok(_) => self.sh_write(seq_id, pos0, tokens),
++            Err(_) => self.sh_poison(seq_id),
++        }
++        r
++    }
++
++    fn submit_rows_unshadowed(
++        &self,
++        seq_id: i32,
++        pos0: i32,
++        tokens: &[i32],
++        mtp_for: Option<i32>,
++        last_only: bool,
+     ) -> Result<RowsOut, String> {
+         if tokens.is_empty() {
+             return Err("empty token batch".into());
+@@ -1643,6 +1744,32 @@ impl GgmlServer {
+         obs: Option<(i32, &[i32])>,
+         pending: &[i32],
+         shared_ok: bool,
++    ) -> Result<(Vec<i32>, RowsOut, i64), String> {
++        let r = self.mtp_round_unshadowed(seq_id, id_last, pos0, k, p_min, obs, pending, shared_ok);
++        match &r {
++            // the round decoded the pending tokens and then its drafts
++            Ok((drafts, _, _)) => {
++                let mut toks = pending.to_vec();
++                toks.extend_from_slice(drafts);
++                self.sh_write(seq_id, pos0, &toks);
++            }
++            // a refused round (SHARED_ERR, a bad shape) decoded nothing, but a
++            // failed one may have: unknown either way
++            Err(_) => self.sh_poison(seq_id),
++        }
++        r
++    }
++
++    fn mtp_round_unshadowed(
++        &self,
++        seq_id: i32,
++        id_last: i32,
++        pos0: i32,
++        k: i32,
++        p_min: f32,
++        obs: Option<(i32, &[i32])>,
++        pending: &[i32],
++        shared_ok: bool,
+     ) -> Result<(Vec<i32>, RowsOut, i64), String> {
+         if pending.is_empty() {
+             return Err("mtp_round needs at least one pending token".into());
+@@ -1816,6 +1943,12 @@ impl GgmlServer {
+     /// that want it, flips the causal mask off and back around the image, so
+     /// nothing else may be decoding on this context meanwhile.
+     fn eval_image(&self, seq_id: i32, pos0: i32, bytes: &[u8]) -> Result<i32, String> {
++        // an image's embeddings have no token ids: the shadow cannot vouch
++        self.sh_poison(seq_id);
++        self.eval_image_unshadowed(seq_id, pos0, bytes)
++    }
++
++    fn eval_image_unshadowed(&self, seq_id: i32, pos0: i32, bytes: &[u8]) -> Result<i32, String> {
+         if bytes.is_empty() {
+             return Err("empty image".into());
+         }
+@@ -1877,6 +2010,13 @@ impl GgmlServer {
+     /// lazily); returns (positions consumed, frames used).
+     fn eval_video(&self, seq_id: i32, pos0: i32, bytes: &[u8], fps_milli: i32, max_frames: i32)
+         -> Result<(i32, i32), String>
++    {
++        self.sh_poison(seq_id);
++        self.eval_video_unshadowed(seq_id, pos0, bytes, fps_milli, max_frames)
++    }
++
++    fn eval_video_unshadowed(&self, seq_id: i32, pos0: i32, bytes: &[u8], fps_milli: i32, max_frames: i32)
++        -> Result<(i32, i32), String>
+     {
+         if bytes.is_empty() {
+             return Err("empty video".into());
+@@ -2038,6 +2178,9 @@ impl GgmlServer {
+         }
+         let rc = unsafe { ell_seq_rewind(self.raw, seq_id, n_keep) };
+         drop(q);
++        if rc == 0 {
++            self.sh_truncate(seq_id, n_keep);
++        }
+         if rc != 0 {
+             return Err(
+                 "[rewind_unsupported] this model keeps recurrent state with no per-token \
+@@ -2058,6 +2201,7 @@ impl GgmlServer {
+             q = self.cv.wait(q).unwrap();
+         }
+         unsafe { ell_seq_copy(self.raw, src_seq, dst_seq) };
++        self.sh_copy(src_seq, dst_seq);
+         drop(q);
+     }
+ 
+@@ -2074,6 +2218,7 @@ impl GgmlServer {
+         let Some(i) = victim else { return false };
+         let old = parks.remove(i);
+         unsafe { ell_seq_remove(self.raw, old.seq_id) };
++        self.sh_remove(old.seq_id);
+         self.mtp_reset(old.seq_id);
+         self.alias.lock().unwrap().remove(&old.seq_id);
+         self.slots.lock().unwrap().push(old.seq_id);
+@@ -2203,6 +2348,8 @@ impl BackendGraph for GgmlGraph {
+             // (active + parked) < total_seqs: a free id always exists here.
+             slots.pop().expect("free-list empty below the session cap")
+         };
++        // a free id holds nothing: its shadow starts empty (mm37)
++        server.sh_set(seq_id, Some(Vec::new()));
+         let ctx: Box<dyn BackendExecutionContext> = Box::new(GgmlExecutionContext {
+             server,
+             seq_id,
+@@ -2218,6 +2365,9 @@ impl BackendGraph for GgmlGraph {
+             last_row: None,
+             plan: None,
+             claim_id: CLAIM_IDS.fetch_add(1, Ordering::Relaxed) + 1,
++            park_end: false,
++            branch_target: false,
++            unsettled: None,
+         });
+         Ok(ctx.into())
+     }
+@@ -2262,6 +2412,20 @@ struct GgmlExecutionContext {
+     /// mm36: this context's identity in the server's prefix claims (stable
+     /// across the seq_id swaps a park fork makes)
+     claim_id: u64,
++    /// mm37: the guest asked ({"park_end": [1]}) for this sequence to be
++    /// parked whole when it ends - prompt plus everything generated - so its
++    /// conversation's next turn branches off the end of this one
++    park_end: bool,
++    /// a speculative verify branch (its first act was "copy_from"): its
++    /// contents are drafts, never a conversation - it never parks
++    branch_target: bool,
++    /// the last cache change was a fused speculative round (mtp_round, the
++    /// one verb where the engine knows which tokens are drafts) that no
++    /// rewind, feed or copy has settled yet: Some(n) = the positions before
++    /// its first DRAFT (the round's pending tokens were already accepted). A session that ends here -
++    /// a stop mid-round - holds rejected drafts past n; an end park trims
++    /// them (within the snapshot depth) so it stays a prefix of the answer.
++    unsettled: Option<i32>,
+ }
+ unsafe impl Send for GgmlExecutionContext {}
+ unsafe impl Sync for GgmlExecutionContext {}
+@@ -2270,6 +2434,27 @@ impl Drop for GgmlExecutionContext {
+         // the decode-turn wait below is unbounded when the turn holder is
+         // wedged, and a hung teardown pins an executor thread and its slot
+         let _wd = WatchdogGuard::compute("a session teardown");
++        // mm37: a session that ends mid-round (a stop inside a speculative
++        // round) holds that round's rejected drafts; drop them so an end park
++        // is a prefix of the answer, never past it. Only when it will park,
++        // and only within the snapshot depth (drafts are capped at it).
++        if self.park_end && !self.branch_target {
++            if let Some(keep) = self.unsettled.take() {
++                let tail = self.n_past - keep;
++                let depth = self.server.rewind_depth;
++                let trimmed = tail > 0 && tail <= depth && self.server.rewind(self.seq_id, keep).is_ok();
++                if park_trace() && tail > 0 {
++                    eprintln!("[park] seq {} trims an unsettled round: {} drafts past {}, snapshot depth {} -> {}",
++                              self.seq_id, tail, keep, depth, if trimmed { "trimmed" } else { "cannot: no park" });
++                }
++                if trimmed {
++                    self.n_past = keep;
++                } else if tail > 0 {
++                    // cannot trim: never park drafts
++                    self.park_end = false;
++                }
++            }
++        }
+         // mm36: whatever prefix this context promised to park is off the
+         // table - followers re-plan against the parks and lead from there.
+         // Taken alone, before any other lock (claims is a leaf).
+@@ -2284,7 +2469,23 @@ impl Drop for GgmlExecutionContext {
+         while q.decoding {
+             q = self.server.cv.wait(q).unwrap();
+         }
+-        unsafe { ell_seq_remove(self.server.raw, self.seq_id) };
++        // mm37: a finished chat that asked for it keeps its whole sequence -
++        // prompt plus everything generated - as a turn park (decided below,
++        // under the park lock); anything else is removed as always
++        let end = self.end_park_tokens();
++        if park_trace() {
++            let sh = self.server.shadows.lock().unwrap().get(&self.seq_id).cloned();
++            eprintln!(
++                "[park] seq {} ends: park_end={} branch={} prompt_done={} n_past={} shadow={} unsettled={:?} -> {}",
++                self.seq_id, self.park_end, self.branch_target, self.prompt_done, self.n_past,
++                match &sh { None => "missing".to_string(), Some(None) => "poisoned".to_string(), Some(Some(v)) => v.len().to_string() },
++                self.unsettled, if end.is_some() { "PARK" } else { "remove" }
++            );
++        }
++        if end.is_none() {
++            unsafe { ell_seq_remove(self.server.raw, self.seq_id) };
++            self.server.sh_remove(self.seq_id);
++        }
+         // mm30: it is not stepping any more, so nobody should hold a batch
+         // waiting for it. The TTL would notice eventually; doing it here
+         // means the sequences that remain never miss even one window.
+@@ -2304,8 +2505,57 @@ impl Drop for GgmlExecutionContext {
+             self.server.alias.lock().unwrap().remove(&old);
+         }
+         let mut parked = self.server.parked.lock().unwrap();
++        // ids going back to the free list (this sequence, unless it parks,
++        // and a turn park evicted to make room for it)
++        let mut freed: Vec<i32> = Vec::new();
++        let mut kept = false;
++        if let Some(toks) = end {
++            if let Some(p) = parked.iter_mut().find(|p| p.tokens == toks) {
++                p.at = Instant::now(); // the same conversation already stands
++            } else {
++                // capacity: the oldest un-pinned turn park goes, as in fork_park
++                let room = parked.iter().filter(|p| !p.boundary).count() < park_slots() || {
++                    let oldest = parked
++                        .iter()
++                        .enumerate()
++                        .filter(|(_, p)| !p.boundary && p.pin.load(Ordering::Acquire) == 0)
++                        .min_by_key(|(_, p)| p.at)
++                        .map(|(i, _)| i);
++                    match oldest {
++                        Some(i) => {
++                            let old_park = parked.remove(i);
++                            unsafe { ell_seq_remove(self.server.raw, old_park.seq_id) };
++                            self.server.sh_remove(old_park.seq_id);
++                            self.server.mtp_reset(old_park.seq_id);
++                            self.server.alias.lock().unwrap().remove(&old_park.seq_id);
++                            freed.push(old_park.seq_id);
++                            true
++                        }
++                        None => false,
++                    }
++                };
++                if room {
++                    parked.push(ParkedPrefix {
++                        seq_id: self.seq_id,
++                        tokens: toks,
++                        row: None,
++                        at: Instant::now(),
++                        pin: Arc::new(AtomicUsize::new(0)),
++                        boundary: false,
++                    });
++                    kept = true;
++                }
++            }
++            if !kept {
++                unsafe { ell_seq_remove(self.server.raw, self.seq_id) };
++                self.server.sh_remove(self.seq_id);
++            }
++        }
++        if !kept {
++            freed.push(self.seq_id);
++        }
+         let mut slots = self.server.slots.lock().unwrap();
+-        slots.push(self.seq_id);
++        slots.extend(freed);
+         // IDLE RESET: a unified pool FRAGMENTS under churn — used cells
+         // scatter upward and every decode step's attention then spans the
+         // high-water mark, which decayed live decode ~20 -> ~7 tok/s over a
+@@ -2323,6 +2573,7 @@ impl Drop for GgmlExecutionContext {
+         if slots.len() + parked.len() == self.server.total_seqs as usize {
+             if parked.is_empty() {
+                 unsafe { ell_reset(self.server.raw) };
++                self.server.sh_clear();
+             } else if parked.iter().all(|p| {
+                 p.at.elapsed() > (if p.boundary { prefix_ttl() } else { park_ttl() })
+                     && p.pin.load(Ordering::Acquire) == 0
+@@ -2332,6 +2583,7 @@ impl Drop for GgmlExecutionContext {
+                     slots.push(p.seq_id);
+                 }
+                 unsafe { ell_reset(self.server.raw) };
++                self.server.sh_clear();
+             }
+         }
+         drop(slots);
+@@ -2340,6 +2592,20 @@ impl Drop for GgmlExecutionContext {
+     }
+ }
+ 
++impl GgmlExecutionContext {
++    /// mm37: what to park this sequence under as it ends, if anything: its
++    /// guest asked ({"park_end": [1]}), it is a chat that generated (not a
++    /// verify branch, not a prompt-only warm-up), and its shadow vouches for
++    /// every cell it holds.
++    fn end_park_tokens(&self) -> Option<Vec<i32>> {
++        if !self.park_end || self.branch_target || !self.prompt_done || park_slots() == 0 {
++            return None;
++        }
++        let v = self.server.sh_get(self.seq_id)?;
++        (v.len() == self.n_past as usize && v.len() >= park_min_tokens()).then_some(v)
++    }
++}
++
+ fn tokens_from_tensor(tensor: &Tensor) -> Result<Vec<i32>, BackendError> {
+     match tensor.ty {
+         TensorType::I32 => {}
+@@ -2468,11 +2734,13 @@ impl GgmlExecutionContext {
+         let best = parked
+             .iter_mut()
+             .filter(|p| p.tokens.len() >= park_min_tokens() && p.tokens.len() <= buf.len()
++                        && (p.row.is_some() || p.tokens.len() < buf.len())
+                         && buf[..p.tokens.len()] == p.tokens[..])
+             .max_by_key(|p| p.tokens.len());
+         let action = match best {
+             Some(p) => {
+                 unsafe { ell_seq_copy(self.server.raw, p.seq_id, self.seq_id) };
++                self.server.sh_copy(p.seq_id, self.seq_id);
+                 p.at = Instant::now(); // reuse refreshes LRU age
+                 // this sequence is an un-diverged copy of the park until its
+                 // first decode — pin the park so eviction cannot orphan it
+@@ -2481,7 +2749,7 @@ impl GgmlExecutionContext {
+                     self.park_pin = Some(p.pin.clone());
+                 }
+                 let plen = p.tokens.len();
+-                let row = if plen == buf.len() { Some(p.row.clone()) } else { None };
++                let row = if plen == buf.len() { p.row.clone() } else { None };
+                 self.n_past = plen as i32;
+                 DeferAction::Branch { remainder: buf[plen..].to_vec(), row }
+             }
+@@ -2544,12 +2812,21 @@ impl GgmlExecutionContext {
+             q = self.server.cv.wait(q).unwrap();
+         }
+         let mut parked = self.server.parked.lock().unwrap();
++        let trace_lens: Option<Vec<(usize, bool, usize)>> = park_trace().then(|| parked.iter().map(|p| {
++            let lcp = p.tokens.iter().zip(prompt.iter()).take_while(|(a, b)| a == b).count();
++            (p.tokens.len(), p.boundary, lcp)
++        }).collect());
+         let best = parked
+             .iter_mut()
+             .filter(|p| p.tokens.len() >= park_min_tokens() && p.tokens.len() <= prompt.len()
++                        && (p.row.is_some() || p.tokens.len() < prompt.len())
+                         && prompt[..p.tokens.len()] == p.tokens[..])
+             .max_by_key(|p| p.tokens.len());
+         let covered = best.as_ref().map_or(0, |p| p.tokens.len());
++        if let Some(lens) = &trace_lens {
++            eprintln!("[park] seq {} declares {} tokens: covered {} (parks len/boundary/lcp {:?})",
++                      self.seq_id, prompt.len(), covered, lens);
++        }
+         // the boundaries still worth parking: past what the branch covers
+         marks.retain(|&m| m > covered);
+         // mm36: settle the claims against the parks just read and BEFORE
+@@ -2567,6 +2844,7 @@ impl GgmlExecutionContext {
+         let exact_row = match best {
+             Some(p) => {
+                 unsafe { ell_seq_copy(self.server.raw, p.seq_id, self.seq_id) };
++                self.server.sh_copy(p.seq_id, self.seq_id);
+                 p.at = Instant::now(); // reuse refreshes LRU age
+                 // an un-diverged copy of the park until its first decode -
+                 // pin the park so eviction cannot orphan it
+@@ -2574,7 +2852,7 @@ impl GgmlExecutionContext {
+                     p.pin.fetch_add(1, Ordering::AcqRel);
+                     self.park_pin = Some(p.pin.clone());
+                 }
+-                if p.tokens.len() == prompt.len() { Some(p.row.clone()) } else { None }
++                if p.tokens.len() == prompt.len() { p.row.clone() } else { None }
+             }
+             None => None,
+         };
+@@ -2710,18 +2988,21 @@ impl GgmlExecutionContext {
+         let mut parked = self.server.parked.lock().unwrap();
+         let hit = parked
+             .iter_mut()
+-            .filter(|p| p.tokens.len() <= buf.len() && buf[..p.tokens.len()] == p.tokens[..])
++            .filter(|p| p.tokens.len() <= buf.len()
++                        && (p.row.is_some() || p.tokens.len() < buf.len())
++                        && buf[..p.tokens.len()] == p.tokens[..])
+             .max_by_key(|p| p.tokens.len());
+         let (start, row) = match hit {
+             Some(p) => {
+                 unsafe { ell_seq_copy(self.server.raw, p.seq_id, self.seq_id) };
++                self.server.sh_copy(p.seq_id, self.seq_id);
+                 p.at = Instant::now();
+                 if self.park_pin.is_none() {
+                     p.pin.fetch_add(1, Ordering::AcqRel);
+                     self.park_pin = Some(p.pin.clone());
+                 }
+                 let plen = p.tokens.len();
+-                (plen, if plen == buf.len() { Some(p.row.clone()) } else { None })
++                (plen, if plen == buf.len() { p.row.clone() } else { None })
+             }
+             None => (0, None),
+         };
+@@ -2808,6 +3089,7 @@ impl GgmlExecutionContext {
+             let Some(i) = oldest else { return };
+             let old_park = parked.remove(i);
+             unsafe { ell_seq_remove(self.server.raw, old_park.seq_id) };
++            self.server.sh_remove(old_park.seq_id);
+             // the alias entry (if its donor still lives) dies with the park:
+             // a caps id from before THIS point stops resolving, which is the
+             // documented, deliberately narrow staleness window
+@@ -2824,12 +3106,13 @@ impl GgmlExecutionContext {
+             }
+         };
+         unsafe { ell_seq_copy(self.server.raw, old, fresh) };
++        self.server.sh_copy(old, fresh);
+         let pin = Arc::new(AtomicUsize::new(1));
+         parked.push(ParkedPrefix {
+             seq_id: old,
+             // a boundary park is taken mid-prompt: the shadow carries on
+             tokens: self.fed.clone(),
+-            row,
++            row: Some(row),
+             at: Instant::now(),
+             pin: pin.clone(),
+             boundary,
+@@ -2887,6 +3170,7 @@ impl GgmlExecutionContext {
+     /// mm32: feed prompt tokens through the plain path in engine-sized
+     /// chunks and return the final chunk's row.
+     fn feed_plain(&mut self, toks: &[i32]) -> Result<RowOut, BackendError> {
++        self.unsettled = None;
+         let nb = self.server.n_batch.max(1) as usize;
+         let mut last = None;
+         for chunk in toks.chunks(nb) {
+@@ -2904,6 +3188,7 @@ impl GgmlExecutionContext {
+     /// mm32: the same through the MTP-aware path — the head observes every
+     /// position, exactly as the un-deferred mtp-flagged feed would.
+     fn feed_mtp(&mut self, toks: &[i32]) -> Result<RowOut, BackendError> {
++        self.unsettled = None;
+         let nb = self.server.n_batch.max(1) as usize;
+         let mut last = None;
+         for chunk in toks.chunks(nb) {
+@@ -3205,6 +3490,17 @@ impl GgmlExecutionContext {
+                         return Ok(Some(vec![]));
+                     }
+                 }
++                // mm37 control input {"park_end": I32 [1] = 1}: park this
++                // sequence whole when the session ends (caps[19] says the
++                // engine can). Alone or beside any other input.
++                if let Some(pe) = inputs.iter().find(|nt| nt.name == "park_end") {
++                    if tokens_from_tensor(&pe.tensor)?.first() == Some(&1) {
++                        self.park_end = true;
++                    }
++                    if !inputs.iter().any(|nt| nt.name == "tokens" || nt.name == "0") {
++                        return Ok(Some(vec![]));
++                    }
++                }
+                 if inputs.iter().any(|nt| nt.name == "caps") {
+                     // mm20 sync-instr: cumulative CUDA stream-sync time and
+                     // call count since process start (the per-decode
+@@ -3281,6 +3577,10 @@ impl GgmlExecutionContext {
+                         1,
+                         warming,
+                         parks,
++                        // mm37: end parks - {"park_end": [1]} parks a finished
++                        // sequence whole (prompt + everything generated), so the
++                        // conversation's next turn branches off its end
++                        (park_slots() > 0) as i32,
+                     ];
+                     let mut data = Vec::with_capacity(vals.len() * 4);
+                     for v in vals {
+@@ -3384,6 +3684,9 @@ impl GgmlExecutionContext {
+                     // sequence through the alias map.
+                     self.defer = None;
+                     self.fed = Vec::new();
++                    if !self.prompt_done && self.n_past == 0 {
++                        self.branch_target = true;
++                    }
+                     self.prompt_done = true;
+                     self.mark_diverged();
+                     let v = tokens_from_tensor(&cp.tensor)?;
+@@ -3402,6 +3705,7 @@ impl GgmlExecutionContext {
+                     }
+                     self.server.seq_copy(src, self.seq_id);
+                     self.n_past = src_n_past;
++                    self.unsettled = None;
+                     return Ok(Some(vec![]));
+                 }
+                 // control verb {"rewind": I32 [1]}: drop this sequence's
+@@ -3423,6 +3727,7 @@ impl GgmlExecutionContext {
+                     }
+                     self.server.rewind(self.seq_id, n_keep).map_err(err)?;
+                     self.n_past = n_keep;
++                    self.unsettled = None;
+                     return Ok(Some(vec![]));
+                 }
+                 // control verb {"mtp_round": I32 [3] = [id_last, k, p_min_milli]}
+@@ -3482,6 +3787,11 @@ impl GgmlExecutionContext {
+                         .map_err(err)?;
+                     self.mark_diverged();
+                     let n_rows = pending.len() + drafts.len();
++                    if park_trace() && drafts.len() as i32 > self.server.rewind_depth {
++                        eprintln!("[park] seq {} mtp_round: k {} pending {} drafts {} > depth {}",
++                                  self.seq_id, k, pending.len(), drafts.len(), self.server.rewind_depth);
++                    }
++                    self.unsettled = Some(self.n_past + pending.len() as i32);
+                     self.n_past += n_rows as i32;
+                     let ph = *self.server.last_phases.lock().unwrap();
+                     let ph_t4 = std::time::Instant::now();
+@@ -3651,6 +3961,11 @@ impl GgmlExecutionContext {
+                         .submit_full(self.seq_id, self.n_past, &ids, mtp_for)
+                         .map_err(err)?;
+                     self.mark_diverged();
++                    // an all-rows feed is not always a guess (a forced
++                    // think close feeds confirmed tokens this way): the
++                    // engine cannot tell drafts here, so it trims nothing;
++                    // a guest that verifies this way settles its own rounds
++                    self.unsettled = None;
+                     self.n_past += ids.len() as i32;
+                     // mm9: name where the verify verb's time goes -
+                     // "phase_us" I32 [gate, alloc, decode, harvest, topk].
