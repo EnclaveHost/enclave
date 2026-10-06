@@ -323,7 +323,23 @@ Eyesoff on the 27B (MTP k=1, 64K pool), ms per verify step, 2026-10-06:
 | 441c835f (runs, per-run sums) | 69.2-69.9 | 80.1-82.0 |
 | bca1f7bd (+ AVX-512 CPU backend) | 66.9-68.3 | 77.5-78.7, also after parking 6 other chats |
 
-At 61-65% draft acceptance, 78 ms is 20.5-21.2 tok/s. The AVX-512 backend is
+| b20b2826 (+ KV locality, below) | - | 77.0-79.1 over 10 chats in a row (with pads available) |
+
+At 58-68% draft acceptance, 78 ms is 20.2-21.7 tok/s.
+
+KV locality (same patch, `ENCLAVE_GGML_KV_LOCAL=0` disables): a ubatch of one
+sequence grows that sequence right after its last cell when those cells are
+free, else at the start of the first free block of 2048 (then 512) cells, instead
+of filling the lowest holes. With end parks (eyesoff 1.0.75) finished
+conversations stay parked whole and new rows otherwise scattered between them;
+on c48e71ea-era layout the same chat measured 91 ms per step after a few hours of
+use. Placement never changes logits on its own (runs off: bit-identical).
+
+Two things still slow a turn that the engine does not control: a tools-on prompt
+whose MCP tool lists come back different (a server's listing fails) misses the
+parked prefix and prefills ~4k tokens again (50-120 s), and an empty pad bank
+makes decode mint on the spot (~91 ms per step). eyesoff's guestd runs a 512 GiB
+bank (`SHIELDED_PAD_BANK_GIB=512`) so long answers and such misses do not empty it. The AVX-512 backend is
 the production CPU source and flags with `GGML_AVX512{,_BF16,_VNNI,_VBMI}`
 (recipe `--cpu-avx512`; the guest exposes those features; logits drift at the
 same order as KV runs). Do not widen the CPU compute workers: release 50107776
