@@ -20,7 +20,7 @@ const liveLease = (d, now) => ID.test(String(d.runner)) && !/^0x0{64}$/.test(d.r
   && Number(d.leaseUntil) * 1000 > now;
 
 export function createPlacement({ file, ledgerAddress, read, fleet, accountOwner = async () => null,
-  recover = recoverMessageAddress, now = Date.now }) {
+  recover = recoverMessageAddress, now = Date.now, beneficialOwner = async (o) => o, sessionOwner = async () => null }) {
   const store = file ? new JsonStore(file, { byId: {} }, { durable: true }) : null;
   const replay = new Map(), attempts = new Map();
   const rate = makeRateLimiter({ capacity: 20, refillPerSec: 1 / 3 });
@@ -44,7 +44,7 @@ export function createPlacement({ file, ledgerAddress, read, fleet, accountOwner
       }
       return view(rec && { ...rec, allowFallback: true });
     },
-    async put(id, body, req) {
+    async put(id, body, req, raw) {
       const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
       if (!store) fail(503, 'Placement preferences are unavailable.');
       if (!ID.test(id) || !body || Array.isArray(body)) fail(400, 'Invalid placement request.');
@@ -55,8 +55,12 @@ export function createPlacement({ file, ledgerAddress, read, fleet, accountOwner
         fail(400, 'Select Auto or a registered host.');
       const d = await read(id), owner = String(d.owner).toLowerCase();
       if (!/^0x[0-9a-f]{40}$/.test(owner) || /^0x0{40}$/.test(owner)) fail(404, 'Deployment not found.');
+      // a SessionVault-held record answers to the vault's owner; a session key with api.placement may act for them
+      const actor = String(await beneficialOwner(d.owner)).toLowerCase();
       let signature;
-      if (await accountOwner(req) !== owner) {
+      const viaSession = await sessionOwner(req, raw);
+      if (viaSession && String(viaSession).toLowerCase() !== actor) fail(403, 'This session does not belong to the deployment owner.');
+      if (!viaSession && await accountOwner(req) !== owner) {
         const { expiry, nonce } = body;
         if (!Number.isSafeInteger(expiry) || expiry * 1000 < now() || expiry * 1000 > now() + 600000
             || typeof nonce !== 'string' || !/^[0-9a-f]{32}$/.test(nonce)) fail(400, 'Sign a fresh placement request.');
@@ -64,7 +68,7 @@ export function createPlacement({ file, ledgerAddress, read, fleet, accountOwner
         let signer;
         try { signer = await recover({ message: placementMessage(String(ledgerAddress()).toLowerCase(), id, hostId, expiry, nonce, body.allowFallback), signature }); }
         catch { fail(403, 'The placement signature is invalid.'); }
-        if (String(signer).toLowerCase() !== owner) fail(403, 'Only the deployment owner can change placement.');
+        if (String(signer).toLowerCase() !== actor) fail(403, 'Only the deployment owner can change placement.');
         for (const [sig, until] of replay) if (until < now()) replay.delete(sig);
         if (replay.has(signature)) fail(409, 'This placement signature was already used.');
       }

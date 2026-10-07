@@ -191,7 +191,10 @@ async function ownerGate(ctx, req, res, id, b, message) {
   let d = await rowOf(ctx, id);
   if (!d) d = await rowOf(ctx, id, { fresh: true });          // just-created record: one cache-bypass retry
   if (!d) return bad(ctx, res, req, 404, "not_found", `No deployment ${id} on the ledger.`), null;
-  if (String(d.owner).toLowerCase() !== address)
+  // a SessionVault-held record answers to the vault's OWNER wallet (sessions:
+  // secrets stay owner-only - a session key can never sign this)
+  const owner = String(ctx.beneficialOwner ? await ctx.beneficialOwner(d.owner) : d.owner).toLowerCase();
+  if (owner !== address)
     return bad(ctx, res, req, 403, "not_owner", "The signer does not own this deployment."), null;
   if (!sigFresh(signature, expiry))
     return bad(ctx, res, req, 409, "sig_replayed", "This signature was already used; sign a fresh request."), null;
@@ -359,6 +362,17 @@ export async function handleSecrets(req, res, u, ctx) {
       console.error(`[secrets] ${endpoint} fetch REFUSED for ${id}: the lease holder is not an eligible host (${el ? el.reason : "no eligibility verdict"})`);
       return bad(ctx, res, req, 403, "host_ineligible",
         `This endpoint holds the lease but is not eligible to serve tenant apps${el && el.reason ? ": " + el.reason : ""}.`);
+    }
+    // sessions custody (docs/design/sessions.md §7): a vault-held record releases only when adopted, and a PROD one only
+    // for the exact version/config its owner promoted - never for what a session key last pointed it at
+    if (typeof ctx.custodyRefusal === "function") {
+      let why;
+      try { why = await ctx.custodyRefusal(d); }
+      catch (e) { return bad(ctx, res, req, 503, "custody_unreadable", `Could not read the deployment's custody record (${e.message}); retry shortly.`); }
+      if (why) {
+        console.error(`[secrets] ${endpoint} fetch REFUSED for ${id}: ${why}`);
+        return bad(ctx, res, req, 403, "not_promoted", why);
+      }
     }
     const { rev, env } = readSecrets(id);
     // SUCCESS is logged too, and that is the point of this pair rather than a

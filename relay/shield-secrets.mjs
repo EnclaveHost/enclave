@@ -7,7 +7,7 @@ import {releaseConfig,sealRelease,signResponse,keyIdOf,ed25519RawPublic} from '.
 export const secretRequestMessage=(id,endpoint,ts)=>`enclave-shield-secrets:${id}:${endpoint}:${ts}`;
 const fingerprint=d=>JSON.stringify([d.id,d.owner,d.runner,d.appRef,d.configCid,d.active,d.isPublic,Number(d.cpuMilli),Number(d.gpuMilli)]);
 const err=(message,status=403)=>Object.assign(new Error(message),{status});
-export function createShieldSecretRelease({hub,policyFile='',policy:supplied,confirmRow,readCatalog,readConfig,fetchVerified,hostForEndpoint,isOwnerDeployment=()=>false,signingKey=()=>releaseConfig().signingKey,sleep=ms=>new Promise(r=>setTimeout(r,ms))}) {
+export function createShieldSecretRelease({hub,policyFile='',policy:supplied,confirmRow,readCatalog,readConfig,fetchVerified,hostForEndpoint,isOwnerDeployment=()=>false,custodyRefusal=async()=>null,signingKey=()=>releaseConfig().signingKey,sleep=ms=>new Promise(r=>setTimeout(r,ms))}) {
  const policy=supplied||(policyFile?JSON.parse(fs.readFileSync(policyFile,'utf8')):null),fresh=makeReplayCache();
  let active=0;const inflight=new Set();
  return async function deliver(b,ctx,read){
@@ -26,6 +26,9 @@ export function createShieldSecretRelease({hub,policyFile='',policy:supplied,con
   try{
    const row=await confirmRow(id);
    if(!row?.active||!row.isPublic||Number(row.gpuMilli)!==0||!holdsLease(row,epId))throw err('deployment is not public CPU work leased to this host');
+   // sessions custody (docs/design/sessions.md §7): a vault-held prod record releases only what its owner promoted
+   const custody=await custodyRefusal(row);
+   if(custody)throw err(custody,403);
    const expected=await expectedShieldApp(row,{policy,readCatalog,readConfig,fetchVerified,secretsRequired:true,allowPendingOwner:isOwnerDeployment(host,row)});
    const nonce=randomBytes(32),origin=`tunnel://${host.name}`;
    // Readiness and privacy admission share the node's bounded proof service.

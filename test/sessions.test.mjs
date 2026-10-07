@@ -12,7 +12,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient, http as viemHttp, parseUnits } from "viem";
 import { foundry } from "viem/chains";
 import { haveFoundry, startChain, deployPlatform, KEYS } from "./helpers/sessions-chain.mjs";
-import { createSessionsService } from "../relay/sessions.mjs";
+import { createSessionsService, createCustodyGate } from "../relay/sessions.mjs";
 import { JsonStore } from "../relay/store.js";
 import * as sdk from "../sdk/sessions/dist/node.mjs";
 
@@ -208,6 +208,38 @@ test("owner-only operations are unreachable for a session key, and the relay che
   const forged = await stranger.signTypedData(td);
   await assert.rejects(relay.request("POST", "/owner", { owner: owner.address, vault, op: "terminate",
     args: { sessionId: sid, opNonce, signBefore }, sig: forged }), (e) => e.code === "signature");
+});
+
+test("secret-release custody gate: staging releases, prod only once promoted, unadopted never, wallet rows untouched", { skip }, async () => {
+  const gate = createCustodyGate({ pc: chain.pc, book: P.book, ttlMs: 0 });
+  const { session, vault, relay } = await openFor("browser", { budget: parseUnits("1", 6), label: "gate" });
+  const mk = async (env) => {
+    const c = await session.call("deploy.create", { appRef: P.storeRef, gpuMilli: 0, cpuMilli: 1000, appPort: 8080, ports: "",
+      isPublic: true, configCid: "", maxRate6: 1_000_000n, env, fund6: 0n });
+    return `0x${c.result.slice(2, 66)}`;
+  };
+  const row = (id) => chain.pc.readContract({ address: P.ledger, abi: P.abi.ledger.abi, functionName: "get", args: [id] });
+  const stg = await mk("staging");
+  const prd = await mk("prod");
+  assert.equal(await gate.custodyRefusal(await row(stg)), null);
+  assert.match(await gate.custodyRefusal(await row(prd)), /not been promoted/);
+  await sdk.ownerOperation({ relay, owner: ownerSigner, chainId: 31337, vault,
+    op: { op: "promote", deployment: prd, appRef: P.storeRef, configCid: "", versionLabel: "1.0.0" } });
+  assert.equal(await gate.custodyRefusal(await row(prd)), null, "promoted: releases");
+  // a deployment gifted into the vault is inert until adopted
+  const stranger = chain.wc(KEYS.stranger);
+  const h = await stranger.writeContract({ address: P.ledger, abi: P.abi.ledger.abi, functionName: "create",
+    args: [P.storeRef, 0, 1000, 8080, "", true, "", "0x0000000000000000000000000000000000000000", 0n, 1_000_000n] });
+  const rc = await chain.pc.waitForTransactionReceipt({ hash: h });
+  const gift = rc.logs.find((l) => l.address.toLowerCase() === P.ledger.toLowerCase()).topics[1];
+  await chain.pc.waitForTransactionReceipt({ hash: await stranger.writeContract({ address: P.ledger, abi: P.abi.ledger.abi,
+    functionName: "transferDeployment", args: [gift, vault] }) });
+  assert.match(await gate.custodyRefusal(await row(gift)), /not adopted/);
+  // wallet-held rows and owner resolution
+  const mine = await row(gift);
+  assert.equal(await gate.custodyRefusal({ ...mine, owner: owner.address }), null, "a wallet-held row passes untouched");
+  assert.equal(await gate.beneficialOwner(vault), owner.address);
+  assert.equal(await gate.beneficialOwner(owner.address), owner.address);
 });
 
 test("keeper closes expired sessions and refunds the owner", { skip }, async () => {

@@ -54,8 +54,11 @@ MUTANTS = [
 
 
 def main():
-    work = sys.argv[1] if len(sys.argv) > 1 else tempfile.mkdtemp(prefix="sv-mutants-")
-    if not os.path.exists(os.path.join(work, "foundry.toml")):
+    argv = [a for a in sys.argv[1:] if not a.startswith("--only=")]
+    only = next((a[7:].split(",") for a in sys.argv[1:] if a.startswith("--only=")), None)
+    work = argv[0] if argv else tempfile.mkdtemp(prefix="sv-mutants-")
+    if not os.path.exists(os.path.join(work, "foundry.toml")) or True:
+        shutil.rmtree(os.path.join(work, "contracts"), ignore_errors=True)
         shutil.copytree(os.path.join(ROOT, "contracts"), os.path.join(work, "contracts"),
                         ignore=shutil.ignore_patterns("out", "cache"))
         shutil.copy(os.path.join(ROOT, "foundry.toml"), work)
@@ -64,6 +67,8 @@ def main():
     survived = []
     try:
         for name, old, new in MUTANTS:
+            if only and name not in only:
+                continue
             if original.count(old) != 1:
                 print(f"STALE  {name}: pattern found {original.count(old)}x")
                 survived.append(name + " (stale pattern)")
@@ -73,16 +78,17 @@ def main():
                                cwd=work, capture_output=True, text=True)
             out = r.stdout + r.stderr
             if r.returncode == 0:
-                print(f"SURVIVED  {name}")
+                print(f"SURVIVED  {name}", flush=True)
                 survived.append(name)
             elif "Compiler run failed" in out or "Error (" in out:
                 print(f"NOCOMPILE {name}")
                 survived.append(name + " (did not compile)")
             else:
-                print(f"killed    {name}")
+                print(f"killed    {name}", flush=True)
     finally:
         open(path, "w").write(original)
-    print(f"\n{len(MUTANTS) - len(survived)}/{len(MUTANTS)} mutants killed")
+    n = len([m for m in MUTANTS if not only or m[0] in only])
+    print(f"\n{n - len(survived)}/{n} mutants killed", flush=True)
     if survived:
         print("survivors:", *survived, sep="\n  ")
         sys.exit(1)

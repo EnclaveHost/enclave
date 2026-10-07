@@ -638,7 +638,8 @@ async function ownerGate(ctx, req, res, id, b, message, { replay = true } = {}) 
   let d = await rowOf(ctx, id);
   if (!d) d = await rowOf(ctx, id, { fresh: true });
   if (!d) return bad(ctx, res, req, 404, "not_found", `No deployment ${id} on the ledger.`), null;
-  if (String(d.owner).toLowerCase() !== address)
+  const owner = String(ctx.beneficialOwner ? await ctx.beneficialOwner(d.owner) : d.owner).toLowerCase();
+  if (owner !== address)
     return bad(ctx, res, req, 403, "not_owner", "The signer does not own this deployment."), null;
   if (replay && !sigFresh(signature, expiry))
     return bad(ctx, res, req, 409, "sig_replayed", "This signature was already used; sign a fresh request."), null;

@@ -421,6 +421,13 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
     if (!holdsLease(confirmed, epId)) return { refusal: [403, "not_lease_holder", `${endpoint} does not hold a live lease for ${id} (confirmed read).`] };
     const elig = ctx.hostEligibility(epId);
     if (!elig || !elig.eligible) return { refusal: [403, "host_ineligible", `the lease holder is not an eligible host (U7)${elig && elig.reason ? `: ${elig.reason}` : ""}.`] };
+    // sessions custody (docs/design/sessions.md §7), on the CONFIRMED row
+    if (typeof ctx.custodyRefusal === "function") {
+      let why;
+      try { why = await ctx.custodyRefusal(confirmed); }
+      catch (e) { return { retry: true, refusal: [503, "custody_unreadable", `The custody record could not be read (${e.message}); retry shortly.`] }; }
+      if (why) return { refusal: [403, "not_promoted", why] };
+    }
     return { row: confirmed };
   };
 
