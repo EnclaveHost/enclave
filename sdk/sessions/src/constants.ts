@@ -35,13 +35,13 @@ export type Environment = keyof typeof ENVIRONMENTS;
 /** Plain-language descriptions, for grant review pages and CLI output. */
 export const ACTION_TEXT: Record<ActionName, string> = {
   "deploy.create": "create deployments",
-  "deploy.fund": "add runtime to deployments your vault holds (spends the session budget)",
+  "deploy.fund": "add runtime to your deployments (spends the session budget)",
   "deploy.setAppRef": "change which version a STAGING deployment runs",
   "deploy.setConfig": "change a STAGING deployment's options",
   "deploy.setShares": "resize deployments",
   "deploy.setMaxRate": "change deployments' price ceilings",
   "deploy.setActive": "suspend and resume deployments",
-  "deploy.refund": "cancel deployments (unused runtime returns to your vault)",
+  "deploy.refund": "cancel deployments (unused runtime returns to your vault, or to your wallet for the ones it holds)",
   "app.publish": "publish new versions of the named apps",
   "api.status": "read deployment status",
   "api.logs": "read deployment logs",

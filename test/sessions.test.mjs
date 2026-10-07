@@ -12,7 +12,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient, http as viemHttp, parseUnits } from "viem";
 import { foundry } from "viem/chains";
 import { haveFoundry, startChain, deployPlatform, KEYS } from "./helpers/sessions-chain.mjs";
-import { createSessionsService, createCustodyGate } from "../relay/sessions.mjs";
+import { createSessionsService, createCustodyGate, sessionRowRefusal, codeHasDelegation, delegateSlot } from "../relay/sessions.mjs";
 import { JsonStore } from "../relay/store.js";
 import * as sdk from "../sdk/sessions/dist/node.mjs";
 
@@ -467,6 +467,86 @@ test("session-derived account token: sign-in, short SSO tokens, dies with the se
     await session.terminate();
     assert.equal((await post("/v1/sso/token", { headers: tok, body: { aud } })).status, 401);
   } finally { srv.close(); }
+});
+
+test("records the WALLET holds: a session acts on them only once the owner lets its vault (ledger rev 15d delegation)", { skip }, async () => {
+  const { session, vault } = await openFor("browser", { budget: parseUnits("2", 6), label: "wallet records" });
+  const wallet = chain.wc(KEYS.owner);
+  const ledgerGet = (id) => chain.pc.readContract({ address: P.ledger, abi: P.abi.ledger.abi, functionName: "get", args: [id] });
+  const send = async (data) => {
+    const rc = await chain.pc.waitForTransactionReceipt({ hash: await wallet.sendTransaction({ to: P.ledger, data }) });
+    assert.equal(rc.status, "success");
+    return rc;
+  };
+  const relayView = async () => (await new sdk.RelayClient(relayUrl).request("GET", `/owner/${owner.address}`)).delegation;
+
+  // the owner's wallet creates a record directly on the ledger: the wallet holds it, not the vault
+  const rc = await chain.pc.waitForTransactionReceipt({ hash: await wallet.writeContract({ address: P.ledger, abi: P.abi.ledger.abi,
+    functionName: "create", args: [P.storeRef, 0, 1000, 8080, "", false, "", "0x0000000000000000000000000000000000000000", 0n, 1000n] }) });
+  const id = rc.logs.find((l) => l.address.toLowerCase() === P.ledger.toLowerCase()).topics[1];
+  assert.equal((await ledgerGet(id)).owner, owner.address);
+  assert.equal((await ledgerGet(id)).active, true);
+
+  // not granted yet: the SDK and the relay agree, and the vault's call meets the ledger's owner gate
+  assert.deepEqual(await sdk.delegationStatus(chain.pc, P.ledger, owner.address, vault), { supported: true, granted: false });
+  assert.deepEqual(await relayView(), { ledger: P.ledger, supported: true, granted: false });
+  await assert.rejects(session.call("deploy.setActive", { id, active: false }),
+    (e) => e instanceof sdk.SessionError && e.code === "delegation", "Error(\"!owner\") is a typed 'delegation' refusal");
+  assert.equal((await ledgerGet(id)).active, true);
+
+  // the owner grants it: one wallet transaction to the ledger (DelegateSet), read back from storage
+  const grantRc = await send(sdk.setDelegateCall(vault, true).data);
+  const ev = (await import("viem")).parseEventLogs({ abi: sdk.ledgerDelegateAbi, logs: grantRc.logs, eventName: "DelegateSet" })[0];
+  assert.deepEqual([ev.args.owner, ev.args.delegate, ev.args.allowed], [owner.address, vault, true]);
+  assert.equal(BigInt(await chain.pc.getStorageAt({ address: P.ledger, slot: sdk.delegateSlot(owner.address, vault) })), 1n);
+  assert.equal(delegateSlot(owner.address, vault), sdk.delegateSlot(owner.address, vault), "relay and SDK read the same slot");
+  assert.deepEqual(await sdk.delegationStatus(chain.pc, P.ledger, owner.address, vault), { supported: true, granted: true });
+  assert.deepEqual(await relayView(), { ledger: P.ledger, supported: true, granted: true });
+
+  // now the session suspends, resumes, resizes and lowers the cap - through the relay, no wallet
+  await session.call("deploy.setActive", { id, active: false });
+  assert.equal((await ledgerGet(id)).active, false);
+  await session.call("deploy.setActive", { id, active: true });
+  await session.call("deploy.setShares", { id, gpuMilli: 0, cpuMilli: 500 });
+  assert.equal((await ledgerGet(id)).cpuMilli, 500);
+  await session.call("deploy.setMaxRate", { id, maxRate6: 800n });
+  assert.equal(await chain.pc.readContract({ address: P.ledger, abi: P.abi.ledger.abi, functionName: "capOf", args: [id] }), 800n);
+  // ... but a wallet record is PRODUCTION: never a raised cap, never what it runs
+  await assert.rejects(session.call("deploy.setMaxRate", { id, maxRate6: 900n }), (e) => e.code === "price");
+  await assert.rejects(session.call("deploy.setAppRef", { id, appRef: P.storeRef }), (e) => e.code === "env");
+  await assert.rejects(session.call("deploy.setConfig", { id, configCid: "{}" }), (e) => e.code === "env");
+  assert.equal((await ledgerGet(id)).owner, owner.address, "still the wallet's");
+  // an agent's staging-only session never reaches a wallet record, delegation or not
+  const agent = await openFor("staging-publish", { apps: ["wr-staging"], budget: parseUnits("1", 6), label: "agent" });
+  await assert.rejects(agent.session.call("deploy.setActive", { id, active: false }), (e) => e.code === "env");
+  await agent.session.terminate();
+
+  // off the chain (placement), the relay holds a session to the same rule
+  const held = async (v, i) => (await chain.pc.readContract({ address: v, abi: sdk.sessionVaultAbi, functionName: "held", args: [i] }))[0];
+  const st = await session.status();
+  const me = { vault, owner: owner.address, envs: st.envs };
+  assert.equal(await sessionRowRefusal(me, { id, owner: owner.address }, held), null, "a prod session may act on a wallet row");
+  assert.match(await sessionRowRefusal({ ...me, envs: 1 }, { id, owner: owner.address }, held), /production \(wallet-held\)/);
+  assert.match(await sessionRowRefusal(me, { id, owner: P.publisher }, held), /does not belong/);
+  assert.match(await sessionRowRefusal(me, { id, owner: vault }, held), /outside this session's environments/, "unadopted in the vault");
+
+  // the owner takes it back: refused again
+  await send(sdk.setDelegateCall(vault, false).data);
+  assert.deepEqual(await sdk.delegationStatus(chain.pc, P.ledger, owner.address, vault), { supported: true, granted: false });
+  assert.deepEqual(await relayView(), { ledger: P.ledger, supported: true, granted: false });
+  await assert.rejects(session.call("deploy.setActive", { id, active: false }), (e) => e.code === "delegation");
+  assert.equal((await ledgerGet(id)).active, true);
+  await session.terminate();
+
+  // support is read off the code: main's undeployed rev 16 ledger has no setDelegate, so a client never
+  // reads slot 23 there; neither does a contract without it, nor an address with no code
+  const rev16 = JSON.parse(fs.readFileSync(new URL("../contracts/foundry/out/EnclaveDeployments.sol/EnclaveDeployments.json", import.meta.url)));
+  assert.equal(codeHasDelegation(rev16.deployedBytecode.object), false);
+  assert.equal(sdk.codeHasDelegation(rev16.deployedBytecode.object), false);
+  assert.equal(codeHasDelegation(await chain.pc.getCode({ address: P.ledger })), true);
+  assert.deepEqual(await sdk.delegationStatus(chain.pc, P.catalog, owner.address, vault), { supported: false, granted: false });
+  assert.deepEqual(await sdk.delegationStatus(chain.pc, "0x00000000000000000000000000000000000d0d0d", owner.address, vault),
+    { supported: false, granted: false });
 });
 
 test("keeper closes expired sessions and refunds the owner", { skip }, async () => {

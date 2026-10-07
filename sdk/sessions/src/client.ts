@@ -14,11 +14,12 @@ import { digestOf, grantDigest, sessionIdOf, typedData, type Grant, type Primary
 
 export type SessionErrorCode =
   | "not_live" | "expired" | "not_allowed" | "env" | "app" | "budget" | "period" | "rate" | "fee"
-  | "signature" | "nonce" | "policy" | "relay" | "revert" | "config" | "price";
+  | "signature" | "nonce" | "policy" | "relay" | "revert" | "config" | "price" | "delegation";
 
 /** Every failure the UI or an agent must act on carries a code, never just text:
  *  budget/period -> offer a top-up, expired/not_live -> extend or sign in again,
- *  not_allowed/env/app -> the owner must act. */
+ *  not_allowed/env/app -> the owner must act, delegation -> the owner's wallet has not
+ *  let its vault act on the records the wallet holds (setDelegateCall). */
 export class SessionError extends Error {
   constructor(public code: SessionErrorCode, message: string, public detail?: Record<string, unknown>) {
     super(message);
@@ -42,6 +43,11 @@ export function decodeVaultError(data: Hex | undefined): SessionError {
     try {
       const e = decodeErrorResult({ abi: sessionVaultAbi, data });
       const args = (e.args ?? []) as readonly unknown[];
+      // the LEDGER's owner gate, bubbled through the vault: on a record the owner's wallet holds it means
+      // the wallet has not let this vault act for it (setDelegate) - or took that back
+      if ((e.errorName as string) === "Error" && args[0] === "!owner")
+        return new SessionError("delegation", "the ledger refused: your wallet has not let your session vault manage "
+          + "the deployments it holds (grant it once with setDelegate, from the wallet)", { error: "Error", args });
       return new SessionError(ERROR_CODES[e.errorName] ?? "revert", `${e.errorName}(${args.map(String).join(", ")})`,
         { error: e.errorName, args });
     } catch { /* not ours */ }

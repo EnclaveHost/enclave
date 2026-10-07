@@ -96,7 +96,7 @@ import { handleSso, initSso } from "./sso.js";
 import { handleBilling, initBilling } from "./billing.js";
 import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep, hasStagedSecrets } from "./secrets.js";
 import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDeployment, tlsAskAllowed } from "./domains.js";
-import { initSessions, handleSessions, sessionsService, createCustodyGate } from "./sessions.mjs";
+import { initSessions, handleSessions, sessionsService, createCustodyGate, sessionRowRefusal } from "./sessions.mjs";
 import { handleCerts, initCerts } from "./certs.js";
 import { createShieldMarketplace } from "./shield-marketplace.mjs";
 import { claimCheapest, CLAIM_QUOTE_ABI } from "./cheapest-claim.mjs";
@@ -542,20 +542,19 @@ async function sessionAuth(req, raw, scope) {
   const r = await sessionAuthFull(req, raw, scope);
   return r ? r.owner.toLowerCase() : null;
 }
-// a session acting on ONE deployment (placement): the record must sit inside the session's policy - a vault-held
-// record in one of its environments, a wallet-held one only for a session that covers prod
+// a session acting on ONE deployment (placement): the record must sit inside the session's policy, by the vault's own
+// rule (sessions.mjs sessionRowRefusal) - a vault-held record in one of its environments; a record the owner's WALLET
+// holds is production (SessionVault v2 reaches it through the ledger delegation), so only a session covering prod
 async function sessionOwnerFor(req, raw, scope, row) {
   const r = await sessionAuthFull(req, raw, scope);
   if (!r) return null;
-  const refuse = (m) => { const e = new Error(m); e.status = 403; throw e; };
-  if (String(row.owner).toLowerCase() === String(r.vault).toLowerCase()) {
-    const [env] = await (await chain()).readContract({ address: r.vault, functionName: "held", args: [row.id],
+  const why = await sessionRowRefusal(r, row, async (vault, id) => {
+    const [env] = await (await chain()).readContract({ address: vault, functionName: "held", args: [id],
       abi: [{ type: "function", name: "held", stateMutability: "view", inputs: [{ type: "bytes32" }],
         outputs: [{ type: "uint8" }, { type: "bytes32" }, { type: "bytes32" }] }] });
-    if (!env || (r.envs & Number(env)) === 0) refuse("This deployment is outside this session's environments.");
-  } else if (String(row.owner).toLowerCase() === r.owner.toLowerCase()) {
-    if ((r.envs & 2) === 0) refuse("This session does not cover your production (wallet-held) deployments.");
-  } else refuse("This session does not belong to the deployment owner.");
+    return env;
+  });
+  if (why) { const e = new Error(why); e.status = 403; throw e; }
   return r.owner.toLowerCase();
 }
 

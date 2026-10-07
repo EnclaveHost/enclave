@@ -2010,3 +2010,33 @@ export declare const addressBookAbi: readonly [{
         readonly type: "address";
     }];
 }];
+export declare const ledgerDelegateAbi: readonly [{
+    readonly type: "function";
+    readonly name: "setDelegate";
+    readonly stateMutability: "nonpayable";
+    readonly inputs: readonly [{
+        readonly name: "delegate";
+        readonly type: "address";
+    }, {
+        readonly name: "allowed";
+        readonly type: "bool";
+    }];
+    readonly outputs: readonly [];
+}, {
+    readonly type: "event";
+    readonly name: "DelegateSet";
+    readonly anonymous: false;
+    readonly inputs: readonly [{
+        readonly name: "owner";
+        readonly type: "address";
+        readonly indexed: true;
+    }, {
+        readonly name: "delegate";
+        readonly type: "address";
+        readonly indexed: true;
+    }, {
+        readonly name: "allowed";
+        readonly type: "bool";
+        readonly indexed: false;
+    }];
+}];

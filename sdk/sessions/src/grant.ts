@@ -165,7 +165,8 @@ export function describeGrant(g: Grant, now = Math.floor(Date.now() / 1000)): { 
   if (g.maxRatePerHour > 0n) lines.push(`Deployment prices it sets: at most ${fmtUsd(g.maxRatePerHour)}/hour; production prices can only go down.`);
   lines.push(`Expires: in ${fmtDur(Number(g.expiresAt) - now)}. Unspent budget returns to your wallet when it ends.`);
   lines.push("Never allowed: withdrawing, promoting to production, secrets, opening or changing other sessions.");
-  if (g.environments.includes("prod")) warnings.push("This session can act on PRODUCTION deployments (not change what version they run).");
+  if (g.environments.includes("prod")) warnings.push("This session can act on PRODUCTION deployments (not change what version they run), "
+    + "including the ones your wallet holds once you let your sessions manage them (one wallet transaction, revocable on the Sessions page).");
   if (g.apps.includes("*") && g.actions.includes("deploy.create")) warnings.push("This session can deploy any FREE app from the store (paid apps only if named).");
   if (g.actions.includes("api.account")) warnings.push("This session can sign in to your Enclave account and to apps as you (Sign in with Enclave).");
   if (g.budget > 100n * 1_000_000n) warnings.push(`Large budget: ${fmtUsd(g.budget)}.`);

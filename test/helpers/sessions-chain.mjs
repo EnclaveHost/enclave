@@ -1,7 +1,9 @@
 // A local Base stand-in for the sessions tests: anvil + the REAL platform
-// contracts (ledger, catalog, address book, PaymentRouter) from the Foundry
-// build, a USDC with EIP-3009, and the SessionVault factory deployed by the
-// PRODUCTION deploy script (scripts/deploy-session-vault.mjs, solc-js).
+// contracts (catalog, address book, PaymentRouter) from the Foundry build, the
+// ledger revision production deploys (deploy/ledger/EnclaveDeployments.sol:
+// live rev 15 + owner-approved delegates, compiled by solc-js the way the deploy
+// pipeline does), a USDC with EIP-3009, and the SessionVault factory deployed by
+// the PRODUCTION deploy script (scripts/deploy-session-vault.mjs, solc-js).
 import { spawn, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -11,11 +13,34 @@ import { createHash, generateKeyPairSync, sign as cryptoSign } from "node:crypto
 import { createPublicClient, createWalletClient, http, encodeDeployData, getAddress, parseUnits, toHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
+import solc from "solc";
 import { linkBytecode } from "../../site/js/lib/contract-linker.js";
 import { deploySessionVault } from "../../scripts/deploy-session-vault.mjs";
 
 const REPO = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "../..");
 const OUT = path.join(REPO, "contracts", "foundry", "out");
+const LEDGER_15D = path.join(REPO, "deploy", "ledger", "EnclaveDeployments.sol");
+
+/** The deployable ledger revision (rev 15d) through solc-js with the deploy pipeline's
+ *  settings for the ledger (viaIR, optimizer runs = 1; scripts/build-contract-artifacts.mjs).
+ *  ~5 s; once per process. */
+let _ledger15d = null;
+export function ledger15dArtifact() {
+  if (_ledger15d) return _ledger15d;
+  const out = JSON.parse(solc.compile(JSON.stringify({
+    language: "Solidity",
+    sources: { "EnclaveDeployments.sol": { content: fs.readFileSync(LEDGER_15D, "utf8") } },
+    settings: { optimizer: { enabled: true, runs: 1 }, viaIR: true,
+      outputSelection: { "*": { "*": ["abi", "evm.bytecode.object", "evm.bytecode.linkReferences", "evm.deployedBytecode.object"] } } },
+  })));
+  const errs = (out.errors || []).filter((e) => e.severity === "error");
+  if (errs.length) throw new Error("solc (deploy/ledger/EnclaveDeployments.sol):\n" + errs.map((e) => e.formattedMessage).join("\n"));
+  const c = out.contracts["EnclaveDeployments.sol"].EnclaveDeployments;
+  const size = c.evm.deployedBytecode.object.length / 2;
+  if (size > 24576) throw new Error(`the rev 15d ledger is ${size} bytes, over EIP-170`);
+  _ledger15d = { abi: c.abi, bytecode: "0x" + c.evm.bytecode.object, linkReferences: c.evm.bytecode.linkReferences || {}, size };
+  return _ledger15d;
+}
 
 // anvil's well-known dev keys
 export const KEYS = {
@@ -77,7 +102,10 @@ export async function startChain() {
     } };
 }
 
-export async function deployPlatform(chain, { maxVaultUsd = 1000 } = {}) {
+/** `ledger`: "deploy" (default) = deploy/ledger/EnclaveDeployments.sol, the revision production runs plus
+ *  owner-approved delegates (rev 15d); "contracts" = main's contracts/EnclaveDeployments.sol (undeployed rev 16,
+ *  linked against EnclaveLedgerBandwidth, from the Foundry build). */
+export async function deployPlatform(chain, { maxVaultUsd = 1000, ledger: ledgerRev = "deploy" } = {}) {
   const { pc, wc } = chain;
   const dep = wc(KEYS.deployer);
   const deploy = async (a, args = [], libs = {}) => {
@@ -97,18 +125,20 @@ export async function deployPlatform(chain, { maxVaultUsd = 1000 } = {}) {
     usdc: artifact("SessionMocks.sol", "MockUSDC3009"),
     reg: artifact("SessionMocks.sol", "SessionRegistryStub"),
     book: artifact("EnclaveAddressBook.sol", "EnclaveAddressBook"),
-    bw: artifact("EnclaveDeployments.sol", "EnclaveLedgerBandwidth"),
-    ledger: artifact("EnclaveDeployments.sol", "EnclaveDeployments"),
+    ledger: ledgerRev === "contracts" ? artifact("EnclaveDeployments.sol", "EnclaveDeployments") : ledger15dArtifact(),
     catalog: artifact("EnclaveAppCatalog.sol", "EnclaveAppCatalog"),
     router: artifact("PaymentRouter.sol", "PaymentRouter"),
   };
+  if (ledgerRev !== "deploy" && ledgerRev !== "contracts") throw new Error(`deployPlatform: unknown ledger "${ledgerRev}"`);
   const treasury = privateKeyToAccount(KEYS.stranger).address;
   const usdc = await deploy(A.usdc);
   const reg = await deploy(A.reg);
   const book = await deploy(A.book);
-  const bw = await deploy(A.bw);
   const libs = {};
-  for (const [file, ls] of Object.entries(A.ledger.linkReferences)) for (const n of Object.keys(ls)) libs[`${file}:${n}`] = bw;
+  if (Object.keys(A.ledger.linkReferences || {}).length) {     // rev 16 links its bandwidth library
+    const bw = await deploy(artifact("EnclaveDeployments.sol", "EnclaveLedgerBandwidth"));
+    for (const [file, ls] of Object.entries(A.ledger.linkReferences)) for (const n of Object.keys(ls)) libs[`${file}:${n}`] = bw;
+  }
   const ledger = await deploy(A.ledger, [usdc, treasury, reg, "0x0000000000000000000000000000000000000000"], libs);
   await write(ledger, A.ledger.abi, "setProofRequiredFrom", [0n]);
   const catalog = await deploy(A.catalog);
@@ -129,6 +159,6 @@ export async function deployPlatform(chain, { maxVaultUsd = 1000 } = {}) {
 
   const owner = privateKeyToAccount(KEYS.owner).address;
   await write(usdc, A.usdc.abi, "mint", [owner, parseUnits("5000", 6)]);
-  return { usdc, book, ledger, catalog, router, treasury, factory: res.factory, lib: res.lib,
+  return { usdc, book, ledger, ledgerRev, catalog, router, treasury, factory: res.factory, lib: res.lib,
     deployBlock: res.block, storeAppId, storeRef: `catalog://${storeAppId}/0`, publisher: pub.account.address, abi: A, write };
 }

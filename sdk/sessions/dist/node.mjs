@@ -21,13 +21,13 @@ var ACTIONS = {
 var ENVIRONMENTS = { staging: 1, prod: 2 };
 var ACTION_TEXT = {
   "deploy.create": "create deployments",
-  "deploy.fund": "add runtime to deployments your vault holds (spends the session budget)",
+  "deploy.fund": "add runtime to your deployments (spends the session budget)",
   "deploy.setAppRef": "change which version a STAGING deployment runs",
   "deploy.setConfig": "change a STAGING deployment's options",
   "deploy.setShares": "resize deployments",
   "deploy.setMaxRate": "change deployments' price ceilings",
   "deploy.setActive": "suspend and resume deployments",
-  "deploy.refund": "cancel deployments (unused runtime returns to your vault)",
+  "deploy.refund": "cancel deployments (unused runtime returns to your vault, or to your wallet for the ones it holds)",
   "app.publish": "publish new versions of the named apps",
   "api.status": "read deployment status",
   "api.logs": "read deployment logs",
@@ -499,7 +499,7 @@ function describeGrant(g, now = Math.floor(Date.now() / 1e3)) {
   if (g.maxRatePerHour > 0n) lines.push(`Deployment prices it sets: at most ${fmtUsd(g.maxRatePerHour)}/hour; production prices can only go down.`);
   lines.push(`Expires: in ${fmtDur(Number(g.expiresAt) - now)}. Unspent budget returns to your wallet when it ends.`);
   lines.push("Never allowed: withdrawing, promoting to production, secrets, opening or changing other sessions.");
-  if (g.environments.includes("prod")) warnings.push("This session can act on PRODUCTION deployments (not change what version they run).");
+  if (g.environments.includes("prod")) warnings.push("This session can act on PRODUCTION deployments (not change what version they run), including the ones your wallet holds once you let your sessions manage them (one wallet transaction, revocable on the Sessions page).");
   if (g.apps.includes("*") && g.actions.includes("deploy.create")) warnings.push("This session can deploy any FREE app from the store (paid apps only if named).");
   if (g.actions.includes("api.account")) warnings.push("This session can sign in to your Enclave account and to apps as you (Sign in with Enclave).");
   if (g.budget > 100n * 1000000n) warnings.push(`Large budget: ${fmtUsd(g.budget)}.`);
@@ -3125,6 +3125,46 @@ var addressBookAbi = [
     ]
   }
 ];
+var ledgerDelegateAbi = [
+  {
+    "type": "function",
+    "name": "setDelegate",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      {
+        "name": "delegate",
+        "type": "address"
+      },
+      {
+        "name": "allowed",
+        "type": "bool"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "type": "event",
+    "name": "DelegateSet",
+    "anonymous": false,
+    "inputs": [
+      {
+        "name": "owner",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "delegate",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "allowed",
+        "type": "bool",
+        "indexed": false
+      }
+    ]
+  }
+];
 
 // src/client.ts
 var SessionError = class extends Error {
@@ -3169,6 +3209,8 @@ function decodeVaultError(data) {
     try {
       const e = decodeErrorResult({ abi: sessionVaultAbi, data });
       const args = e.args ?? [];
+      if (e.errorName === "Error" && args[0] === "!owner")
+        return new SessionError("delegation", "the ledger refused: your wallet has not let your session vault manage the deployments it holds (grant it once with setDelegate, from the wallet)", { error: "Error", args });
       return new SessionError(
         ERROR_CODES[e.errorName] ?? "revert",
         `${e.errorName}(${args.map(String).join(", ")})`,
@@ -3542,6 +3584,43 @@ async function requestAttestation(relay, p) {
   return res;
 }
 
+// src/delegate.ts
+import {
+  encodeAbiParameters as encodeAbiParameters3,
+  encodeFunctionData,
+  getAddress,
+  keccak256 as keccak2563,
+  toFunctionSelector
+} from "viem";
+var DELEGATE_SLOT = 23n;
+var SET_DELEGATE_SELECTOR = toFunctionSelector("setDelegate(address,bool)");
+function delegateSlot(owner, delegate) {
+  const inner = keccak2563(encodeAbiParameters3([{ type: "address" }, { type: "uint256" }], [getAddress(owner), DELEGATE_SLOT]));
+  return keccak2563(encodeAbiParameters3([{ type: "address" }, { type: "bytes32" }], [getAddress(delegate), inner]));
+}
+function codeHasDelegation(code) {
+  return !!code && code.toLowerCase().includes("63" + SET_DELEGATE_SELECTOR.slice(2).toLowerCase());
+}
+var supportedCache = /* @__PURE__ */ new Map();
+async function ledgerSupportsDelegation(pc, ledger) {
+  const key = `${pc.chain?.id ?? "?"}:${ledger.toLowerCase()}`;
+  const hit = supportedCache.get(key);
+  if (hit !== void 0) return hit;
+  const code = await pc.getCode({ address: ledger });
+  if (!code || code === "0x") return false;
+  const ok = codeHasDelegation(code);
+  supportedCache.set(key, ok);
+  return ok;
+}
+async function delegationStatus(pc, ledger, owner, vault) {
+  if (!await ledgerSupportsDelegation(pc, ledger)) return { supported: false, granted: false };
+  const word = await pc.getStorageAt({ address: ledger, slot: delegateSlot(owner, vault) });
+  return { supported: true, granted: !!word && BigInt(word) === 1n };
+}
+function setDelegateCall(vault, allowed) {
+  return { data: encodeFunctionData({ abi: ledgerDelegateAbi, functionName: "setDelegate", args: [getAddress(vault), allowed] }) };
+}
+
 // src/index.ts
 async function newSessionKey(store, p) {
   const kp = await generateKeyPair(p.extractable);
@@ -3665,6 +3744,7 @@ export {
   ACTIONS,
   ACTION_TEXT,
   BOOK_KEY_FACTORY,
+  DELEGATE_SLOT,
   DOMAIN_NAME,
   DOMAIN_VERSION,
   ENVIRONMENTS,
@@ -3676,6 +3756,7 @@ export {
   RelayClient,
   SESSION_KEY_DOMAIN,
   SESSION_KEY_MEASUREMENT_MAPPING,
+  SET_DELEGATE_SELECTOR,
   Session,
   SessionError,
   TYPES,
@@ -3689,10 +3770,13 @@ export {
   buildGrant,
   chainClient,
   checkCode,
+  codeHasDelegation,
   completeSession,
   decodeArgs,
   decodeGrantRequest,
   decodeVaultError,
+  delegateSlot,
+  delegationStatus,
   describeGrant,
   de as deserialize,
   digestOf,
@@ -3710,6 +3794,8 @@ export {
   importPrivateKey,
   importSessionString,
   keyHashOf,
+  ledgerDelegateAbi,
+  ledgerSupportsDelegation,
   newSessionKey,
   openSession,
   ownerFromProvider,
@@ -3725,6 +3811,7 @@ export {
   sessionKeyReportData,
   sessionVaultAbi,
   sessionVaultFactoryAbi,
+  setDelegateCall,
   sha256Hex,
   signApiRequest,
   signDeposit,
