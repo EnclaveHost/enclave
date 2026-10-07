@@ -63,7 +63,7 @@ before(async () => {
     hits.push(`${req.method} ${u.pathname}`);
     if (u.pathname === "/availability")
       return json(res, 200, { aggregate: true, devDeploy: true, configOverride: true, configCidOverride: true, configEdit: true,
-        cheapestCpuPricePerSec6: 278, cheapestGpuPricePerSec6: 0 });
+        shareResize: true, cheapestCpuPricePerSec6: 278, cheapestGpuPricePerSec6: 0 });
     if (u.pathname === "/v1/claim-hint" && req.method === "POST") return json(res, 200, { accepted: true });
     if (u.pathname === "/v1/apps/upload-token" && req.method === "POST") {
       const raw = await body(req);
@@ -309,4 +309,142 @@ test("--env: the session as one exported string; status, routing and sign-out wo
   const r7 = await cli(["session", "status"], { env, dir: empty });
   ok(r7, "status after sign-out");
   assert.match(r7.out, /state\s+ended/);
+});
+
+// A JSON-RPC signer in front of anvil, standing in for Frame/Clef behind --signer: anvil holds the owner's dev
+// key unlocked, and this answers the CLI's Base chain id (the CLI signs for Base only) and drops it from the
+// eth_sendTransaction it forwards, so the real wallet path (sendTx -> eth_sendTransaction) runs end to end.
+async function anvilSigner() {
+  const srv = http.createServer(async (req, res) => {
+    const one = async (m) => {
+      if (m.method === "eth_chainId") return { jsonrpc: "2.0", id: m.id, result: "0x2105" };
+      if (m.method === "eth_sendTransaction") m = { ...m, params: [{ ...m.params[0], chainId: undefined }] };
+      const r = await fetch(chain.rpc, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(m) });
+      return r.json();
+    };
+    const raw = JSON.parse((await body(req)).toString());
+    json(res, 200, Array.isArray(raw) ? await Promise.all(raw.map(one)) : await one(raw));
+  });
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  return { url: `http://127.0.0.1:${srv.address().port}`, close: () => srv.close() };
+}
+
+test("records the owner's WALLET holds: refused until `session delegate`, then fund/resize/rate-cap/stop/resume/refund through the session; never upgrade/config", { skip }, async () => {
+  const dir = path.join(tmp, "wallet-sessions");
+  const r1 = await cli(["session", "new", "--preset", "browser", "--budget", "3", "--label", "wallet agent", "--no-wait"], { dir });
+  ok(r1, "session new");
+  const pendingId = /resume-wait (pending-[0-9a-f]+)/.exec(r1.out)?.[1];
+  const { vault } = await ownerSigns(r1.out);
+  ok(await cli(["session", "resume-wait", pendingId], { dir }), "resume-wait");
+  const as = (args, o = {}) => cli(args, { dir, ...o });
+
+  // the owner's wallet creates a record directly on the ledger: the WALLET holds it, not the vault
+  const wallet = chain.wc(KEYS.owner);
+  const rc = await chain.pc.waitForTransactionReceipt({ hash: await wallet.writeContract({ address: P.ledger, abi: P.abi.ledger.abi,
+    functionName: "create", args: [P.storeRef, 0, 1000, 8080, "", false, "", "0x0000000000000000000000000000000000000000", 0n, 1000n] }) });
+  const id = rc.logs.find((l) => l.address.toLowerCase() === P.ledger.toLowerCase()).topics[1];
+  assert.equal((await ledgerGet(id)).owner, owner.address);
+  const capOf = () => chain.pc.readContract({ address: P.ledger, abi: P.abi.ledger.abi, functionName: "capOf", args: [id] });
+  const slot = async () => BigInt(await chain.pc.getStorageAt({ address: P.ledger, slot: sdk.delegateSlot(owner.address, vault) }) || "0x0");
+
+  // not delegated: refused before anything is sent, naming the owner's command
+  const r2 = await as(["stop", id, "--yes"]);
+  assert.notEqual(r2.code, 0);
+  assert.match(r2.err, /refused deploy\.setActive: delegation: .*held by the owner's wallet/);
+  assert.match(r2.err, /next: .*the owner runs `enclave session delegate`/);
+  assert.equal((await ledgerGet(id)).active, true);
+  // --status needs no key: the owner is the active session's
+  const s1 = await as(["session", "delegate", "--status"]);
+  ok(s1, "delegate --status");
+  assert.match(s1.out, new RegExp(`owner\\s+${owner.address}`));
+  assert.match(s1.out, new RegExp(`vault\\s+${vault}`));
+  assert.match(s1.out, new RegExp(`ledger\\s+${P.ledger}`));
+  assert.match(s1.out, /supported\s+yes/);
+  assert.match(s1.out, /granted\s+no/);
+  assert.match(s1.out, /enclave session delegate$/m);
+  // a grant is the owner's wallet transaction: without a wallet there is nothing to sign with
+  const r3 = await as(["session", "delegate", "--yes"]);
+  assert.notEqual(r3.code, 0);
+  assert.match(r3.err, /no wallet key/);
+
+  // the owner grants it with the wallet (here through --signer: the real sendTx path, read back from storage)
+  const signer = await anvilSigner();
+  try {
+    const g = await as(["session", "delegate", "--signer", signer.url, "--from", owner.address, "--yes"]);
+    ok(g, "delegate");
+    assert.match(g.out, new RegExp(`granted: setDelegate\\(${vault}, true\\) tx 0x[0-9a-f]{64}`));
+    assert.doesNotMatch(g.out, /does not read it back/);
+  } finally { signer.close(); }
+  assert.equal(await slot(), 1n);
+  const sj = JSON.parse((await as(["session", "delegate", "--status", "--json"])).out);
+  assert.deepEqual([sj.supported, sj.granted, sj.vault, sj.ledger, sj.source], [true, true, vault, P.ledger, "chain"]);
+  // the relay answers the same question when the chain can't be read
+  const sr = await as(["session", "delegate", "--status", "--owner", owner.address, "--json"], { env: { ENCLAVE_RPC: "http://127.0.0.1:9" } });
+  ok(sr, "delegate --status from the relay");
+  assert.deepEqual([JSON.parse(sr.out).granted, JSON.parse(sr.out).source], [true, "relay"]);
+
+  // now the session acts on it: stop, resume, resize, lower the cap, fund - each one session operation, no wallet
+  const stop = await as(["stop", id, "--yes"]);
+  ok(stop, "stop");
+  assert.match(stop.out, /stopped on-chain/);
+  assert.equal((await ledgerGet(id)).active, false);
+  ok(await as(["resume", id, "--yes"]), "resume");
+  assert.equal((await ledgerGet(id)).active, true);
+  const rz = await as(["resize", id, "--cpu", "0.5", "--yes"]);
+  ok(rz, "resize");
+  assert.equal((await ledgerGet(id)).cpuMilli, 500);
+  // a wallet record is PRODUCTION to a session: the cap only goes down
+  const up = await as(["rate-cap", id, "4", "--yes"]);
+  assert.notEqual(up.code, 0);
+  assert.match(up.err, /a session may only LOWER a production deployment's rate cap .*held by the owner's wallet.*--wallet/);
+  assert.equal(await capOf(), 1000n);
+  ok(await as(["rate-cap", id, "2.88", "--yes"]), "rate-cap down");
+  assert.equal(await capOf(), 800n);
+  // ... and what it runs is the wallet's alone, refused up front whatever the grant says
+  for (const args of [["upgrade", id, "1.0.0", "--yes"], ["config", "set", id, '{"mode":"x"}', "--yes"]]) {
+    const r = await as(args);
+    assert.notEqual(r.code, 0, args.join(" "));
+    assert.match(r.err, /a session can't change what a production app runs .*the owner does it with --wallet/);
+  }
+  assert.equal((await ledgerGet(id)).configCid, "");
+  const bal0 = (await ledgerGet(id)).balance6;
+  const fund = await as(["fund", id, "--usdc", "0.5", "--yes"]);
+  ok(fund, "fund");
+  assert.ok((await ledgerGet(id)).balance6 > bal0, "the funding landed on the wallet's record");
+
+  // refund: the ledger pays the WALLET (never the vault or the session)
+  const refundable = await chain.pc.readContract({ address: P.ledger, abi: P.abi.ledger.abi, functionName: "refundableOf", args: [id] });
+  assert.ok(refundable > 0n);
+  const before = await usdcBal(owner.address), vaultBefore = await usdcBal(vault);
+  const rf = await as(["refund", id, "--yes"]);
+  ok(rf, "refund");
+  assert.ok(rf.out.includes(`refunded ${sdk.fmtUsd(refundable)} to ${owner.address} (the owner's wallet)`), rf.out);
+  assert.equal(await usdcBal(owner.address), before + refundable);
+  assert.ok((await usdcBal(vault)) <= vaultBefore, "nothing of it went to the vault");
+  assert.equal((await ledgerGet(id)).active, false);
+  assert.equal((await ledgerGet(id)).owner, owner.address, "still the wallet's");
+
+  // revoke (here as an unsigned transaction the owner signs elsewhere): refused again, with the same next step
+  const rv = await as(["session", "delegate", "--revoke", "--unsigned", "--from", owner.address, "--json", "--yes"]);
+  ok(rv, "delegate --revoke --unsigned");
+  const tx = JSON.parse(rv.out).unsigned;
+  assert.equal(tx.to, P.ledger);
+  assert.equal(tx.data, sdk.setDelegateCall(vault, false).data);
+  await chain.pc.waitForTransactionReceipt({ hash: await wallet.sendTransaction({ to: tx.to, data: tx.data }) });
+  assert.equal(await slot(), 0n);
+  const r4 = await as(["resume", id, "--yes"]);
+  assert.notEqual(r4.code, 0);
+  assert.match(r4.err, /refused deploy\.setActive: delegation/);
+  assert.match(r4.err, /enclave session delegate/);
+  assert.equal((await ledgerGet(id)).active, false);
+
+  // a staging-only agent never reaches a wallet record, delegation or not
+  const sdir = path.join(tmp, "wallet-staging");
+  const a1 = await cli(["session", "new", "--preset", "staging-publish", "--app", "ws-staging", "--budget", "0", "--no-wait"], { dir: sdir });
+  ok(a1, "staging session new");
+  await ownerSigns(a1.out);
+  ok(await cli(["session", "resume-wait", /resume-wait (pending-[0-9a-f]+)/.exec(a1.out)[1]], { dir: sdir }), "staging resume-wait");
+  const a2 = await cli(["resume", id, "--yes"], { dir: sdir });
+  assert.notEqual(a2.code, 0);
+  assert.match(a2.err, /refused deploy\.setActive: env: .*held by the owner's wallet .* acts only in staging/);
 });

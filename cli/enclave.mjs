@@ -66,6 +66,9 @@ const DEFAULTS = {
   REGISTRY_ADDRESS: "0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC",
   ADDRESS_BOOK_ADDRESS: "0xab214342d5A490150A4A977063A2f88E21F80907",     // EnclaveAddressBook; written by scripts/deploy-address-book.mjs — when set, the CLI resolves the addresses above from it at start ("" = baked only)
   USDC_ADDRESS: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  // SessionVault v2 factory (contracts/deployments/ledger-15d-base.json): `session delegate` asks the book's
+  // "sessionVaultFactory" first and uses this only while the book names none (unset at the 2026-10-07 cutover)
+  SESSION_VAULT_FACTORY_ADDRESS: "0x1F5c887c0cDF491b16AB6c449abAfDF9B2ec9C9C",
   ipfsUpload: env.ENCLAVE_IPFS_UPLOAD || "https://ipfs.enclave.host/add-wasm",
   ipfsJsonUpload: env.ENCLAVE_IPFS_JSON_UPLOAD || "https://ipfs.enclave.host/add-json",
   appDomain: "app.enclave.host",
@@ -1373,7 +1376,8 @@ async function cmdLogs(rest) {
 }
 
 async function cmdFund(rest) {
-  // with a session: deploy.fund, paid out of the session budget (USDC only)
+  // with a session: deploy.fund, paid out of the session budget (USDC only), on a deployment the vault holds or
+  // (delegated) the owner's wallet holds; the escrowed share is credited to whoever holds the record
   const sess = await sessionForCommand();
   const account = sess ? null : loadKey();
   const f = flags(rest, { val: ["--usdc", "--eth"] });
@@ -1388,9 +1392,12 @@ async function cmdFund(rest) {
   // signature and the gas estimate, so say what brings it back instead of sending that (enclave-b4)
   if (!d.active) throw new Error(`${short(id)} is inactive (stopped or cancelled), and the ledger funds only an active record: `
     + `its owner runs \`enclave resume ${short(id)}\` first, then funds it`);
+  const held = sess ? await sessionHolder(sess, d, id, "deploy.fund") : null;
+  if (held === "wallet") await sessionWalletFund(sess, d, id);
   if (f.usdc) {
     const amt = numFlag(f.usdc, "--usdc");
-    if (!(await confirm(`fund ${short(id)} with ${usd6(BigInt(Math.round(amt * 1e6)))} USDC (buys ~${dur(d.rate > 0n ? amt * 1e6 / Number(d.rate) : 0)})${sess ? " out of the session budget" : ""}?`)))
+    if (!(await confirm(`fund ${short(id)} with ${usd6(BigInt(Math.round(amt * 1e6)))} USDC (buys ~${dur(d.rate > 0n ? amt * 1e6 / Number(d.rate) : 0)})${sess ? " out of the session budget" : ""}`
+                      + `${held === "wallet" ? ` (its unspent escrow refunds to the owner's wallet ${await sessionOwner(sess)})` : ""}?`)))
       return say("aborted");
     if (sess) await sessionCall(sess, "deploy.fund", { id, amount6: sessionUsd6(amt, "--usdc") });
     else await fundUsdc(account, id, amt);
@@ -1441,7 +1448,7 @@ async function cmdAttest(rest) {
 
 
 async function cmdStop(rest) {
-  // with a session: deploy.setActive(false) on a deployment the vault holds
+  // with a session: deploy.setActive(false) on a deployment the vault holds, or (delegated) the owner's wallet holds
   const sess = await sessionForCommand();
   const account = sess ? null : loadKey();
   if (!rest[0]) throw new Error("usage: enclave stop <id>");
@@ -1583,13 +1590,18 @@ async function cmdMove(rest) {
 // which is deliberate (a ceiling that can't stop spending isn't one) and
 // confirmed in words before the signature.
 async function cmdRateCap(rest) {
-  const account = loadKey();
+  // with a session: deploy.setMaxRate on a deployment the vault holds or (delegated) the owner's wallet holds;
+  // on a PRODUCTION one (every wallet-held record) a session may only lower the cap
+  const sess = await sessionForCommand();
+  const account = sess ? null : loadKey();
   if (!rest[0]) throw new Error("usage: enclave rate-cap <id> [<usd/hour>]   (no amount = show the current cap)");
-  const id = await resolveId(rest[0], account);
+  if (sess && rest[1] !== undefined) await sessionRequire(sess, "deploy.setMaxRate");
+  const id = await resolveId(rest[0], account ?? sessionAccount(sess));
   if (!isB32(id)) throw new Error("only on-chain deployments (bytes32 ids) carry a rate cap");
   const { rev, abi } = await depAbi();
   if (rev < 8) throw new Error("the live ledger predates rate caps (deploymentsSchema < 8)");
   const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "get", [id]);
+  if (rest[1] !== undefined && (!d || d.owner === "0x0000000000000000000000000000000000000000")) throw new Error(`no deployment ${short(id)} on the ledger`);
   const cap6 = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "capOf", [id]);
   const leased = Number(d.leaseUntil) * 1000 > Date.now();
   if (rest[1] === undefined) {
@@ -1604,13 +1616,23 @@ async function cmdRateCap(rest) {
   const fee6 = rev >= 4 ? (await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "feeOf", [id]))[1] : 0n;
   if (next6 <= fee6)
     throw new Error(`the cap must exceed this app's publisher fee (${usd6(fee6 * 3600n)}/h)`);
+  if (sess) {
+    const held = await sessionHolder(sess, d, id, "deploy.setMaxRate");
+    // the vault's rule: a raised production cap would let a host a stolen key's holder runs claim at that price and earn the escrow
+    if (next6 > cap6 && (held === "wallet" || (await sessionHeldEnv(sess, id)) === sess.S.ENVIRONMENTS.prod))
+      throw new Error(`a session may only LOWER a production deployment's rate cap (${short(id)}: ${usd6(cap6 * 3600n)}/h now`
+        + `${held === "wallet" ? ", held by the owner's wallet" : ""}); raising it is the owner's call: enclave rate-cap ${short(id)} ${rest[1]} --wallet`);
+    if (next6 < 2n * fee6)
+      throw new Error(`a session's cap must be at least twice this app's publisher fee (${usd6(2n * fee6 * 3600n)}/h)`);
+  }
   if (leased && next6 < BigInt(d.rate)) {
     say(`! ${usd6(next6 * 3600n)}/h is BELOW what this deployment pays now (${usd6(BigInt(d.rate) * 3600n)}/h).`);
     say(`  The lease you already paid for runs to ${new Date(Number(d.leaseUntil) * 1000).toLocaleString()}, then the app STOPS:`);
     say(`  no renewal and no re-claim until a cheaper enclave exists or you raise the cap again.`);
   }
-  if (!(await confirm(`set ${short(id)}'s rate cap to ${usd6(next6 * 3600n)}/h?`))) return say("aborted");
-  await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi, functionName: "setMaxRate", args: [id, next6] });
+  if (!(await confirm(`set ${short(id)}'s rate cap to ${usd6(next6 * 3600n)}/h${sess ? ` through session ${short(sess.sid)}` : ""}?`))) return say("aborted");
+  if (sess) await sessionCall(sess, "deploy.setMaxRate", { id, maxRate6: next6 });
+  else await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi, functionName: "setMaxRate", args: [id, next6] });
   say(`cap set to ${usd6(next6 * 3600n)}/h`);
   if (!leased) say("takes effect on the next claim (an enclave dearer than the cap can't take it)");
 }
@@ -1624,15 +1646,21 @@ async function cmdRateCap(rest) {
 // balance is what lands. Refunding mid-lease is allowed and pays what the lease
 // cannot still claim; the reserved tail comes back once the runner releases.
 async function cmdRefund(rest) {
-  const account = loadKey();
+  // with a session: deploy.refund on a deployment the vault holds (paid to the vault: the owner's free balance
+  // there, never the session's budget) or (delegated) the owner's wallet holds (paid to that wallet)
+  const sess = await sessionForCommand();
+  const account = sess ? null : loadKey();
   if (!rest[0]) throw new Error("usage: enclave refund <id>");
-  const id = await resolveId(rest[0], account);
+  if (sess) await sessionRequire(sess, "deploy.refund");
+  const id = await resolveId(rest[0], account ?? sessionAccount(sess));
   if (!isB32(id)) throw new Error("only on-chain deployments (bytes32 ids) can be refunded");
   const { rev, abi } = await depAbi();
   if (rev < 10) throw new Error("the live ledger predates refunds (deploymentsSchema < 10)");
   const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "get", [id]);
   if (!d || d.owner === "0x0000000000000000000000000000000000000000") throw new Error(`no deployment ${short(id)} on the ledger`);
-  if (d.owner.toLowerCase() !== account.address.toLowerCase()) throw new Error(`${short(id)} is owned by ${d.owner}, not this key`);
+  let to = account?.address;
+  if (sess) to = (await sessionHolder(sess, d, id, "deploy.refund")) === "wallet" ? await sessionOwner(sess) : sess.vault;
+  else if (d.owner.toLowerCase() !== account.address.toLowerCase()) throw new Error(`${short(id)} is owned by ${d.owner}, not this key`);
   const amount6 = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "refundableOf", [id]);
   const leased = Number(d.leaseUntil) * 1000 > Date.now();
   const fundable = d.rate > 0n ? Number(d.balance6 / d.rate) : 0;
@@ -1640,7 +1668,9 @@ async function cmdRefund(rest) {
     if (leased) throw new Error(`nothing refundable yet: every dollar this record still holds is reserved for the lease running to ${new Date(Number(d.leaseUntil) * 1000).toLocaleString()}. Retry once it ends.`);
     throw new Error(`nothing to refund on ${short(id)} (it has already spent or refunded everything it held)`);
   }
-  say(`refundable  ${usd6(amount6)}  ->  ${account.address}`);
+  const toWhom = !sess ? to : to === sess.vault ? `${to} (the session's vault: the owner's free balance there, not this session's budget)`
+                                                : `${to} (the owner's wallet)`;
+  say(`refundable  ${usd6(amount6)}  ->  ${toWhom}`);
   say(`balance     ${usd6(d.balance6)} (${dur(fundable)} of runtime at ${usd6(d.rate * 3600n)}/h)`);
   if (d.balance6 > amount6) {
     say(`! ${usd6(d.balance6 - amount6)} of that balance is NOT refundable: the publisher fee and the platform's`);
@@ -1649,6 +1679,14 @@ async function cmdRefund(rest) {
   if (leased)
     say(`! a lease runs to ${new Date(Number(d.leaseUntil) * 1000).toLocaleString()}; its unearned seconds stay reserved for the host and become refundable after it releases (run this again then).`);
   if (!(await confirm(`refund ${usd6(amount6)} and CANCEL ${short(id)}? (the app stops and the record is deactivated)`))) return say("aborted");
+  if (sess) {
+    // the immediate teardown (DELETE) is an owner-login API call a session can't make yet; the runner's ledger pass ends it
+    const rcpt = await sessionTx(sess, "deploy.refund", { id });
+    if (opt.json) return jout({ id, refunded6: String(amount6), refunded: Number(amount6) / 1e6, to, tx: rcpt.transactionHash,
+                                note: "the runner ends the app on its next ledger pass" });
+    say(`refunded ${usd6(amount6)} to ${toWhom}; ${short(id)} is cancelled (tx ${rcpt.transactionHash}); its runner ends the app on its next ledger pass`);
+    return say(`\`enclave resume ${short(id)}\` re-activates it if you change your mind; it runs again once it holds a balance (\`enclave fund ${short(id)} --usdc 5\`)`);
+  }
   await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi, functionName: "refund", args: [id] });
   // the ledger deactivates the record; tear the live instance down immediately
   // rather than waiting for the runner's next ActiveSet sweep
@@ -1730,7 +1768,7 @@ async function cmdTransfer(rest) {
 // doesn't wait for the next sweep. The app relaunches FRESH from its published
 // version - suspend/resume preserves money, not memory.
 async function cmdResume(rest) {
-  // with a session: deploy.setActive(true) on a deployment the vault holds
+  // with a session: deploy.setActive(true) on a deployment the vault holds, or (delegated) the owner's wallet holds
   const sess = await sessionForCommand();
   const account = sess ? null : loadKey();
   if (!rest[0]) throw new Error("usage: enclave resume <id>");
@@ -1739,7 +1777,8 @@ async function cmdResume(rest) {
   if (!isB32(id)) throw new Error("only on-chain deployments (bytes32 ids) can be resumed");
   const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "get", [id]);
   if (!d || d.owner === "0x0000000000000000000000000000000000000000") throw new Error(`no deployment ${short(id)} on the ledger`);
-  if (d.owner.toLowerCase() !== (account ?? sessionAccount(sess)).address.toLowerCase()) throw new Error(`${short(id)} is owned by ${d.owner}, not ${sess ? sessionNotHeld(sess) : "this key"}`);
+  if (sess) await sessionHolder(sess, d, id, "deploy.setActive");
+  else if (d.owner.toLowerCase() !== account.address.toLowerCase()) throw new Error(`${short(id)} is owned by ${d.owner}, not this key`);
   const fundable = d.rate > 0n ? Number(d.balance6 / d.rate) : 0;
   if (!(await confirm(`resume ${short(id)}? (re-queues it; the remaining ${usd6(d.balance6)} buys ${dur(fundable)} at ${usd6(d.rate * 3600n)}/h once it runs)`))) return say("aborted");
   if (d.active) say("already active on the ledger; nudging the fleet");
@@ -1775,7 +1814,8 @@ async function cmdResume(rest) {
 async function cmdUpgrade(rest, { resize = false } = {}) {
   const f = flags(rest, { val: ["--gpu", "--cpu"] });
   rest = f._;
-  // with a session: deploy.setAppRef (upgrade) or deploy.setShares (resize), staging deployments the vault holds
+  // with a session: deploy.setAppRef (upgrade: staging deployments the vault holds) or deploy.setShares (resize:
+  // those, and the production ones the vault or, delegated, the owner's wallet holds)
   const sess = await sessionForCommand();
   const account = sess ? null : loadKey();
   if (!rest[0]) throw new Error(resize
@@ -1787,17 +1827,18 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
   if (rev < 3) throw new Error("the live EnclaveDeployments contract predates version changes (deploymentsSchema < 3); until the ledger upgrade, deploy the new version fresh and stop the old one");
   const wantShares = f.gpu !== undefined || f.cpu !== undefined;
   if (resize && !wantShares) throw new Error("nothing to change: pass --gpu and/or --cpu (fractions of one card/node, e.g. --gpu 0.5)");
-  if (sess) {
-    // one session operation per change: the vault has no multicall for a session
-    if (!resize && wantShares)
-      throw new Error(`a session changes the version and the shares in two operations: enclave upgrade ${rest[0]}${rest[1] !== undefined ? " " + rest[1] : ""}, then enclave resize ${rest[0]} --gpu … --cpu …`);
-    await sessionRequire(sess, resize ? "deploy.setShares" : "deploy.setAppRef");
-  }
+  // one session operation per change: the vault has no multicall for a session
+  if (sess && !resize && wantShares)
+    throw new Error(`a session changes the version and the shares in two operations: enclave upgrade ${rest[0]}${rest[1] !== undefined ? " " + rest[1] : ""}, then enclave resize ${rest[0]} --gpu … --cpu …`);
   if (wantShares && rev < 6)
     throw new Error("the live EnclaveDeployments contract predates share resizes (deploymentsSchema < 6); until the ledger upgrade, deploy at the new dials fresh and stop this one");
   const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "get", [id]);
   if (!d || d.owner === "0x0000000000000000000000000000000000000000") throw new Error(`no deployment ${short(id)} on the ledger`);
-  if (d.owner.toLowerCase() !== (account ?? sessionAccount(sess)).address.toLowerCase()) throw new Error(`${short(id)} is owned by ${d.owner}, not ${sess ? sessionNotHeld(sess) : "this key"}`);
+  if (sess) {
+    // who holds it first: a version change on a record the WALLET holds is refused whatever the grant says
+    await sessionHolder(sess, d, id, resize ? "deploy.setShares" : "deploy.setAppRef");
+    await sessionRequire(sess, resize ? "deploy.setShares" : "deploy.setAppRef");
+  } else if (d.owner.toLowerCase() !== account.address.toLowerCase()) throw new Error(`${short(id)} is owned by ${d.owner}, not this key`);
   const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(d.appRef || "");
   if (!m) throw new Error(`${short(id)} references "${d.appRef}" - only catalog-versioned deployments can switch versions or shares`);
   const appId = m[1], curIdx = Number(m[2]);
@@ -2964,10 +3005,10 @@ async function cmdConfig(rest) {
   if (!["show", "get", "set", "clear"].includes(sub || "")) throw new Error(usage);
   const f = flags(rest, { val: ["--file", "--waf"] });
   if (!f._[0]) throw new Error(usage);
-  // with a session: set/clear are deploy.setConfig on a STAGING deployment the vault holds (show needs no key)
+  // with a session: set/clear are deploy.setConfig on a STAGING deployment the vault holds (show needs no key);
+  // one the owner's WALLET holds is production to a session, so it is refused before anything else
   const sess = await sessionForCommand();
   const account = sess ? null : loadKey();
-  if (sess && sub !== "show" && sub !== "get") await sessionRequire(sess, "deploy.setConfig");
   const id = await resolveId(f._[0], account ?? sessionAccount(sess));
   if (!isB32(id)) throw new Error("only on-chain deployments (bytes32 ids) carry an options envelope");
   const { rev, abi } = await depAbi();
@@ -3002,8 +3043,11 @@ async function cmdConfig(rest) {
     return;
   }
 
-  if (d.owner.toLowerCase() !== (account ?? sessionAccount(sess)).address.toLowerCase())
-    throw new Error(`${short(id)} is owned by ${d.owner}, not ${sess ? sessionNotHeld(sess) : "this key"}`);
+  if (sess) {
+    await sessionHolder(sess, d, id, "deploy.setConfig");
+    await sessionRequire(sess, "deploy.setConfig");
+  } else if (d.owner.toLowerCase() !== account.address.toLowerCase())
+    throw new Error(`${short(id)} is owned by ${d.owner}, not this key`);
   const next = { ...cur };
   if (sub === "set") {
     const cfgArg = f._[1] !== undefined ? f._[1] : (f.file !== undefined ? fs.readFileSync(f.file, "utf8") : undefined);
@@ -3096,10 +3140,14 @@ async function cmdConfig(rest) {
 // for agents that keep secrets in the environment, in ENCLAVE_SESSION.
 //
 // With a session available, publish / deploy / fund / upgrade / resize /
-// config set|clear / stop / resume act THROUGH it. A refusal (budget, policy,
-// expiry) is reported with its code and the next step, and the command stops:
-// it never falls back to the wallet key. --wallet (or --unsigned / --signer,
-// which name a wallet) is the explicit way back to the wallet paths.
+// config set|clear / stop / resume / rate-cap / refund act THROUGH it. A refusal
+// (budget, policy, expiry) is reported with its code and the next step, and the
+// command stops: it never falls back to the wallet key. --wallet (or --unsigned /
+// --signer, which name a wallet) is the explicit way back to the wallet paths.
+// They act on the deployments the session's vault holds and, once the owner has
+// let the vault act for its wallet (`enclave session delegate`), on the ones the
+// owner's WALLET holds - as production: fund, resize, rate-cap (lower only),
+// stop, resume, refund (to the wallet); never upgrade or config (sessionHolder).
 const SESSION_POLL_MS = 3000;
 let _sessionsSdk = null;
 async function sessionsSdk() {
@@ -3118,7 +3166,68 @@ const walletChosen = () => opt.wallet || opt.unsigned || !!opt.signer;
 async function sessionStore() { return new (await sessionsSdk()).FileStore(SESSION_DIR); }
 const explicitRpc = () => !!(opt.rpc || env.ENCLAVE_RPC);
 const sessionAccount = (s) => ({ address: s.vault });
-const sessionNotHeld = (s) => `this session's vault ${s.vault} (a session acts only on deployments its vault holds; use --wallet for your own)`;
+const sessionNotHeld = (s, owner) => `this session's vault ${s.vault}${owner ? ` nor its owner's wallet ${owner}` : ""} `
+  + `(a session acts only on deployments its vault holds${owner ? ", or, once the owner allows it, the ones the owner's wallet holds" : ""}; `
+  + `use --wallet for your own)`;
+
+// The wallet that owns the session's vault: the vault's own word (immutable), else what the record says.
+async function sessionOwner(s) {
+  if (s.ownerWallet) return s.ownerWallet;
+  try { s.ownerWallet = getAddress(await read(s.vault, s.S.sessionVaultAbi, "owner")); }
+  catch (e) { if (!s.owner) throw e; s.ownerWallet = getAddress(s.owner); }
+  return s.ownerWallet;
+}
+// Records the owner's WALLET holds (ledger rev 15d + SessionVault v2): once the owner has let its vault act
+// for it (`enclave session delegate`, one wallet transaction), a session reaches them too, and to a session
+// they are always PRODUCTION: how they run (fund, resize, lower the cap, stop/resume, refund to the wallet),
+// never what they run (setAppRef/setConfig stay the wallet's). Returns "vault" or "wallet", or throws the
+// refusal with its next step BEFORE any prompt; the vault re-checks all of it on-chain.
+const SESSION_PROD_ONLY = { "deploy.setAppRef": "version", "deploy.setConfig": "config" };
+async function sessionHolder(s, d, id, action) {
+  const holder = String(d.owner).toLowerCase();
+  if (holder === s.vault.toLowerCase()) return "vault";
+  const owner = await sessionOwner(s);
+  if (holder !== owner.toLowerCase()) throw new Error(`${short(id)} is owned by ${d.owner}, not ${sessionNotHeld(s, owner)}`);
+  if (SESSION_PROD_ONLY[action])
+    throw new Error(`${short(id)} is held by the owner's wallet ${owner}, so to a session it is a PRODUCTION app: a session can't change `
+      + `what a production app runs (its ${SESSION_PROD_ONLY[action]}); the owner does it with --wallet`);
+  const st = s.state ?? await sessionRequire(s, action);
+  if ((Number(st.envs) & s.S.ENVIRONMENTS.prod) === 0)
+    throw sessionRefusal(s, action, "env", `${short(id)} is held by the owner's wallet ${owner}, which makes it production, and this session acts only in staging`);
+  let dg = null;
+  try { dg = await s.S.delegationStatus(pub(), DEFAULTS.DEPLOYMENTS_ADDRESS, owner, s.vault); }
+  catch (e) { trace(`delegation read: ${String(e?.shortMessage || e?.message || e).split("\n")[0]} (the vault decides)`); }
+  if (dg && !dg.supported)
+    throw new Error(`${short(id)} is held by the owner's wallet ${owner}, and the ledger ${DEFAULTS.DEPLOYMENTS_ADDRESS}`
+      + `${BOOK.why ? ` (a baked address: the address book was not read, ${BOOK.why})` : ""} predates delegation `
+      + `(no setDelegate): no session reaches the deployments a wallet holds there; the owner acts with --wallet`);
+  if (dg && !dg.granted)
+    throw sessionRefusal(s, action, "delegation", `${short(id)} is held by the owner's wallet ${owner}, and the owner has not let this `
+      + `session's vault ${s.vault} act on the deployments the wallet holds`);
+  return "wallet";
+}
+// A session funding a record the WALLET holds: anyone can transfer a record INTO the wallet, so its publisher
+// fee was never vetted by this grant. A paid one needs the catalog's own fee for its version, its app NAMED in
+// the grant ("*" never covers it) and a fee within the grant's hourly ceiling (what the vault enforces).
+async function sessionWalletFund(s, d, id) {
+  const { rev, abi } = await depAbi();
+  const [feeTo, fee6] = rev >= 4 ? await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "feeOf", [id]) : [null, 0n];
+  if (!(fee6 > 0n)) return;
+  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(d.appRef || "");
+  const app = m && (await catalogApps()).find((a) => a.appId.toLowerCase() === m[1].toLowerCase());
+  if (!app || app.publisher.toLowerCase() !== String(feeTo).toLowerCase() || (await versionFee6(app.appId, Number(m[2]))) !== fee6)
+    throw new Error(`${short(id)} (held by the owner's wallet) carries a ${usd6(fee6 * 3600n)}/h publisher fee that is not its catalog `
+      + `version's own: a session never funds it; the owner funds it with --wallet`);
+  const st = s.state ?? await sessionRequire(s, "deploy.fund");
+  if (!st.apps.some((a) => a.toLowerCase() === app.appId.toLowerCase()))
+    throw sessionRefusal(s, "deploy.fund", "app", `"${app.slug}" charges a ${usd6(fee6 * 3600n)}/h publisher fee and this session's grant `
+      + `does not name it ("*" never covers a paid app the wallet holds)`, { slug: app.slug });
+  if (fee6 * 3600n > BigInt(st.maxAppFeeHour6))
+    throw sessionRefusal(s, "deploy.fund", "app", `"${app.slug}" charges a ${usd6(fee6 * 3600n)}/h publisher fee, above this session's `
+      + `${usd6(st.maxAppFeeHour6)}/h ceiling`, { slug: app.slug });
+}
+// the environment a vault-held record is adopted in (1 staging, 2 prod, 0 = unadopted: the vault refuses it)
+const sessionHeldEnv = async (s, id) => Number((await read(s.vault, s.S.sessionVaultAbi, "held", [id]))[0]);
 
 // A stored record by its full id, or a unique prefix of its id or key hash.
 // pending: true = only keys still waiting for a signature, false = only open ones.
@@ -3199,14 +3308,21 @@ function sessionHint(s, action, e, ctx = {}) {
     case "not_live": next = "this session has ended (signed out, or revoked by the owner): open a new session (enclave session new …)"; break;
     case "not_allowed": next = `ask the owner for a session with ${action} (enclave session new prints the link to send them), or have the owner run this with --wallet`; break;
     case "env":
-      next = `ask the owner for a session with ${action} in that environment. A session acts only on deployments its vault holds, in the `
-           + `environments it was granted; what a PRODUCTION deployment runs changes only through the owner (--wallet, or Promote on enclave.host)`;
+      next = `ask the owner for a session with ${action} in that environment. A session acts on deployments its vault holds, in the `
+           + `environments it was granted, and (once the owner allows it) on the ones the owner's wallet holds, which are always production; `
+           + `what a PRODUCTION deployment runs changes only through the owner (--wallet, or Promote on enclave.host)`;
       break;
     case "app": next = `ask the owner for a session that names ${ctx.slug ? `this app (--app ${ctx.slug})` : "this app"}; publishing needs the app named, "*" never covers it`; break;
     case "fee": next = "the relay's fee is above this session's per-operation cap right now; retry shortly"; break;
+    case "price":
+      next = ({ LeaseUnsettled: "a host still holds this deployment's lease: stop it, wait for the host to release it, then retry",
+                FundRateTooLow: "this deployment's current price wouldn't buy runtime from a top-up: wait for its lease to end (or stop and resume it), then retry" })[d.error]
+           || "that price is outside what this session may pay or set (its rate-cap ceiling, or a production cap it may only lower); the owner acts with --wallet";
+      break;
     case "delegation":
-      next = "this deployment is held by the owner's WALLET: sessions reach it only once the owner lets them, one wallet "
-           + "transaction (enclave.host → Sessions → Apps your wallet owns → Grant); until then the owner acts with --wallet";
+      next = "this deployment is held by the owner's WALLET: sessions reach it only once the owner lets them, with one wallet "
+           + "transaction: the owner runs `enclave session delegate` (or enclave.host → Sessions → Apps your wallet owns → Grant); "
+           + "until then the owner acts with --wallet";
       break;
     case "nonce": next = "another operation of this session landed first; retry"; break;
     case "relay": next = "the sessions relay did not complete it; retry, and check enclave session status"; break;
@@ -3340,7 +3456,7 @@ async function stopViaSession(s, id) {
   if (!isB32(id)) throw new Error("only on-chain deployments (bytes32 ids) can be stopped through a session");
   const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "get", [id]);
   if (!d || d.owner === "0x0000000000000000000000000000000000000000") throw new Error(`no deployment ${short(id)} on the ledger`);
-  if (d.owner.toLowerCase() !== s.vault.toLowerCase()) throw new Error(`${short(id)} is owned by ${d.owner}, not ${sessionNotHeld(s)}`);
+  await sessionHolder(s, d, id, "deploy.setActive");
   if (!d.active) return opt.json ? jout({ id, status: "stopped", note: "already inactive on the ledger" }) : say("already inactive on the ledger");
   const rcpt = await sessionTx(s, "deploy.setActive", { id, active: false });
   // the immediate teardown (DELETE) is an owner-login API call a session can't make yet; the runner's ledger pass ends it
@@ -3358,7 +3474,8 @@ const SESSION_USAGE = `usage: enclave session new --preset <preset> [--app <slug
      | enclave session list
      | enclave session use <sid>
      | enclave session terminate [<sid>]
-     | enclave session top-up-link --amount <usd> [<sid>]`;
+     | enclave session top-up-link --amount <usd> [<sid>]
+     | enclave session delegate [--revoke] [--status [--owner 0x…]]   (the OWNER, with the wallet)`;
 
 async function cmdSession(rest) {
   const sub = rest.shift();
@@ -3369,6 +3486,7 @@ async function cmdSession(rest) {
   if (sub === "use") return sessionUse(rest);
   if (sub === "terminate" || sub === "end") return sessionTerminate(rest);
   if (sub === "top-up-link") return sessionTopUpLink(rest);
+  if (sub === "delegate") return sessionDelegate(rest);
   throw new Error(SESSION_USAGE);
 }
 
@@ -3504,7 +3622,7 @@ async function sessionOpened(S, store, rec, hit, f, info) {
   store.setActive(open.id);
   if (opt.json) return jout({ sid: open.id, vault: hit.vault, owner: hit.owner, label: open.label, expiresAt: hit.st.expiresAt,
                               balance6: hit.st.balance6, file: path.join(store.dir, `${open.id}.json`), active: true });
-  say(`stored ${path.join(store.dir, `${open.id}.json`)} (0600) as the ACTIVE session: publish/deploy/fund/upgrade/config/stop/resume act through it`);
+  say(`stored ${path.join(store.dir, `${open.id}.json`)} (0600) as the ACTIVE session: publish/deploy/fund/upgrade/resize/config/stop/resume/rate-cap/refund act through it`);
   say(`see it: enclave session status · sign out (refunds the owner): enclave session terminate`);
 }
 
@@ -3636,6 +3754,133 @@ async function sessionTopUpLink(rest) {
   if (opt.json) return jout({ link, vault: s.vault, sid: s.sid, amount6 });
   say(`Send this to the owner${s.owner ? ` (${s.owner})` : ""}: they open it and sign ONE USDC authorization adding ${usd6(amount6)} to this session.`);
   say(`  ${link}`);
+}
+
+// ---- `enclave session delegate`: the OWNER lets its session vault act for its wallet ------------------
+// One wallet transaction to the ledger (rev 15d): setDelegate(vault, true). From then on the owner's sessions
+// that cover production reach the deployments the WALLET holds - fund, resize, lower the cap, stop/resume,
+// refund (to the wallet); never the version or config, never a transfer - until --revoke takes it back from
+// every session at once. The ledger is the address book's "deployments" (the one the vault resolves on every
+// call), never a baked address; the vault is factory.vaultFor(owner), a CREATE2 address, so the grant may
+// precede the vault itself. Signed like every other wallet transaction here (the key, --signer, --unsigned),
+// never relayed. --status needs no key: it reads the ledger's storage, else asks the sessions relay.
+const BOOK_ENTRY_ABI = [{ type: "function", name: "addr", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "address" }] }];
+async function bookEntry(book, name) {
+  const a = await read(book, BOOK_ENTRY_ABI, "addr", [toHex(name, { size: 32 })]);
+  return /^0x0{40}$/i.test(a) ? null : getAddress(a);
+}
+async function delegationTarget(S, owner) {
+  const book = env.ENCLAVE_ADDRESS_BOOK !== undefined ? env.ENCLAVE_ADDRESS_BOOK : DEFAULTS.ADDRESS_BOOK_ADDRESS;
+  if (!book) throw new Error(`the delegation lives on the ledger the on-chain address book names, and ENCLAVE_ADDRESS_BOOK="" switches the book off`);
+  const ledger = await bookEntry(book, "deployments");
+  if (!ledger) throw new Error(`the address book ${book} names no "deployments" ledger`);
+  const factory = (await bookEntry(book, S.BOOK_KEY_FACTORY)) ?? DEFAULTS.SESSION_VAULT_FACTORY_ADDRESS;
+  let vault;
+  try { vault = getAddress(await S.vaultAddress(pub(), factory, owner)); }
+  catch (e) { throw new Error(`can't read the session vault factory ${factory} (${String(e?.shortMessage || e?.message || e).split("\n")[0]})`); }
+  const code = await pub().getCode({ address: vault });
+  const deployed = !!code && code !== "0x";
+  // a deployed vault answers for its owner itself: anything else is not this wallet's vault
+  if (deployed && getAddress(await read(vault, S.sessionVaultAbi, "owner")) !== owner)
+    throw new Error(`the factory ${factory} names vault ${vault} for ${owner}, but that vault belongs to someone else`);
+  return { book, ledger, factory, vault, deployed };
+}
+
+async function sessionDelegate(rest) {
+  const f = flags(rest, { val: ["--owner"], bool: ["--revoke", "--status"] });
+  if (f._.length) throw new Error(`unexpected argument "${f._[0]}"\n${SESSION_USAGE}`);
+  if (f.revoke && f.status) throw new Error("--status only reads; drop --revoke");
+  if (f.owner !== undefined && !/^0x[0-9a-fA-F]{40}$/.test(f.owner)) throw new Error(`--owner is not a 0x…40-hex address: ${f.owner}`);
+  if (f.owner !== undefined && !f.status)
+    throw new Error("--owner goes with --status: a grant or revoke is the owner's own wallet transaction (its key, --signer or --unsigned with --from)");
+  const S = await sessionsSdk();
+  if (f.status) return sessionDelegateStatus(S, f);
+  const account = loadKey();
+  const owner = getAddress(account.address);
+  const allowed = !f.revoke;
+  const t = await delegationTarget(S, owner);
+  DEFAULTS.DEPLOYMENTS_ADDRESS = t.ledger;   // `session` skips the start-up book read; this names the ledger in -x and --unsigned
+  const st = await S.delegationStatus(pub(), t.ledger, owner, t.vault);
+  if (!st.supported)
+    throw new Error(`the ledger ${t.ledger} (the address book's "deployments") predates delegation: it has no setDelegate, `
+      + `so no session reaches the deployments a wallet holds there`);
+  await warnSessionVault(owner, t.vault);
+  if (st.granted === allowed) {
+    if (opt.json) return jout({ owner, vault: t.vault, ledger: t.ledger, granted: allowed, changed: false });
+    return say(allowed ? `already granted: sessions of vault ${t.vault} act on the deployments ${owner} holds (revoke: enclave session delegate --revoke)`
+                       : `nothing to revoke: vault ${t.vault} does not act for ${owner} on ledger ${t.ledger}`);
+  }
+  if (!opt.json) {
+    say(`owner   ${owner}`);
+    say(`vault   ${t.vault}${t.deployed ? "" : "  (not deployed yet: it is created with the first session you approve)"}`);
+    say(`ledger  ${t.ledger}  (the address book's deployments)`);
+    say(allowed
+      ? "Your sessions that cover production could then fund, resize, lower the rate cap of, stop, resume and refund (to this wallet)\n"
+        + "the deployments this wallet holds, without a wallet prompt each time. They can never change the version or config\n"
+        + "such a deployment runs, raise its rate cap, or move it out of the wallet."
+      : "Every session of that vault loses the deployments this wallet holds at once; the sessions themselves stay live.");
+  }
+  if (!(await confirm(allowed ? `let vault ${t.vault} act on the deployments ${owner} holds? (one wallet transaction: setDelegate(vault, true))`
+                              : `take that back from vault ${t.vault}? (one wallet transaction: setDelegate(vault, false))`)))
+    return say("aborted");
+  const rcpt = await sendTx(account, { address: t.ledger, abi: S.ledgerDelegateAbi, functionName: "setDelegate", args: [t.vault, allowed] });
+  // the sessions relay (and its RPC) must see it before a session relies on it: wait until the chain reads it back
+  let seen = false;
+  for (let i = 0; i < 20 && !seen; i++) {
+    const now = await S.delegationStatus(pub(), t.ledger, owner, t.vault).catch(() => null);
+    seen = !!now && now.granted === allowed;
+    if (!seen) await sleep(1500);
+  }
+  if (opt.json) return jout({ owner, vault: t.vault, ledger: t.ledger, granted: allowed, changed: true,
+                              tx: rcpt.transactionHash, block: rcpt.blockNumber, readBack: seen });
+  say(`${allowed ? "granted" : "revoked"}: setDelegate(${t.vault}, ${allowed}) tx ${rcpt.transactionHash} confirmed in block ${rcpt.blockNumber}`);
+  if (!seen) say("! the RPC does not read it back yet; a session call in the next few seconds may still be refused (retry it)");
+  say(allowed ? "sessions covering production now act on the deployments this wallet holds (see: enclave session delegate --status)"
+              : "sessions act only on the deployments their vault holds again");
+}
+
+// supported/granted for --owner, else this wallet, else the active session's owner
+async function sessionDelegateStatus(S, f) {
+  let owner = f.owner ? getAddress(f.owner) : null;
+  if (!owner) { const k = loadKey({ required: false }); if (k) owner = getAddress(k.address); }
+  if (!owner && sessionConfigured()) owner = await sessionOwner(await loadSession());
+  if (!owner) throw new Error("whose delegation? pass --owner 0x… (or run it with the owner's wallet key, or with a session active)");
+  let r, why = null;
+  try {
+    const t = await delegationTarget(S, owner);
+    r = { owner, vault: t.vault, deployed: t.deployed, ledger: t.ledger, ...(await S.delegationStatus(pub(), t.ledger, owner, t.vault)), source: "chain" };
+  } catch (e) {
+    // the chain read failed: the sessions relay answers the same question (GET /v1/sessions/owner/<addr>)
+    why = String(e?.shortMessage || e?.message || e).split("\n")[0];
+    trace(`delegation read from the chain failed (${why}); asking the sessions relay`);
+    let o;
+    try { o = await new S.RelayClient(API_BASE).request("GET", `/owner/${owner}`); }
+    catch (e2) { throw new Error(`can't read the delegation: the chain read failed (${why}) and so did the sessions relay (${e2.message})`); }
+    r = { owner, vault: getAddress(o.vault), deployed: !!o.deployed, ledger: o.delegation?.ledger ?? null,
+          supported: !!o.delegation?.supported, granted: !!o.delegation?.granted, source: "relay" };
+  }
+  if (opt.json) return jout(r);
+  kv([
+    ["owner", r.owner],
+    ["vault", r.vault + (r.deployed ? "" : "  (not deployed yet: created with the first session the owner approves)")],
+    ["ledger", r.ledger || "(unknown)"],
+    ["supported", r.supported ? "yes" : "no: this ledger predates delegation (no setDelegate)"],
+    ["granted", r.granted ? "yes: sessions covering production act on the deployments this wallet holds" : "no"],
+    ...(r.source === "relay" ? [["source", `the sessions relay (the chain read failed: ${why})`]] : []),
+  ]);
+  if (r.supported && !r.granted) say("grant it (the owner, with the wallet; one transaction): enclave session delegate");
+  if (r.granted) say("take it back (the owner, with the wallet): enclave session delegate --revoke");
+}
+
+// a session opened at another vault (an older factory) is not covered by this grant: say so
+async function warnSessionVault(owner, vault) {
+  if (!sessionConfigured()) return;
+  try {
+    const s = await loadSession();
+    if ((await sessionOwner(s)) === owner && getAddress(s.vault) !== vault)
+      stderr.write(`warning: the active session ${short(s.sid)} lives in vault ${s.vault}, not ${vault} (an older vault factory): `
+        + `this grant does not reach it\n`);
+  } catch (e) { trace(`active session: ${e.message}`); }
 }
 
 // ---- encrypted volumes: wallet key derivation + credentials envelope ----------
@@ -3849,11 +4094,22 @@ sessions (an agent acts under a budget and policy its owner approved once - no w
                              key file is deleted
   session top-up-link --amount <usd>
                              a link for the owner: one signature adds budget
+  session delegate [--revoke] [--status [--owner 0x…]]
+                             the OWNER, with the wallet: one ledger transaction
+                             (setDelegate) lets your session vault act on the
+                             deployments your WALLET holds. Sessions covering prod may
+                             then fund, resize, lower the rate cap of, stop, resume and
+                             refund them (to the wallet) - never upgrade or config them,
+                             never move them. --revoke takes it back from every session
+                             at once; --status shows supported/granted (no key needed)
   With a session active (or ENCLAVE_SESSION set), these act THROUGH it instead of the
   wallet: publish (app.publish; the publisher is the session's vault), deploy (--env
   staging|prod, default staging; --fund comes out of the session budget), fund --usdc,
-  upgrade, resize, config set|clear, stop, resume. A refusal (budget, policy, expiry)
-  prints its code and the next step - it never falls back to the wallet key. Secrets,
+  upgrade, resize, config set|clear, stop, resume, rate-cap, refund. They reach the
+  deployments the session's vault holds and, once the owner ran \`session delegate\`,
+  the ones the owner's wallet holds: production to a session (rate-cap may only
+  lower; upgrade and config are refused). A refusal (budget, policy, expiry) prints
+  its code and the next step - it never falls back to the wallet key. Secrets,
   transfers and production promotion stay with the owner's wallet. --wallet uses the
   wallet key for one command.
 
@@ -4275,7 +4531,7 @@ if (cmd === "version" || cmd === "--version") { say(VERSION); exit(0); }
 if (!COMMANDS[cmd]) die(`unknown command "${cmd}"; run: enclave help`);
 // `key new`/`key import` are purely local and `login`/`logout` touch only the
 // API, so skip the address-book resolve — no reason to make them wait on an RPC.
-// `session …` reads only the sessions relay and the session's own vault.
+// `session …` reads only the sessions relay and the session's own vault (`session delegate` reads the book itself).
 const OFFLINE = cmd === "key" || cmd === "login" || cmd === "logout" || cmd === "session";
 try {
   if (!OFFLINE) await resolveAddressBook();
