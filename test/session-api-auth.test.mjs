@@ -395,7 +395,7 @@ test("supervisor: logs, restart, app-token, list, get, cpu-profile and create, w
   fs.writeFileSync(path.join(dir, "state.json"), JSON.stringify({ savedAt: Date.now(),
     deployments: [rec(R.staging), rec(R.prod), rec(R.wallet), rec(R.stranger), rec(pub, { public: true })] }));
   const { child, port } = await bootDaemon({
-    start: (p) => spawn(process.execPath, [path.join(REPO, "supervisor.js")], { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env,
+    start: (p) => spawn(process.execPath, [process.env.SUPERVISOR_JS || path.join(REPO, "supervisor.js")], { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env,
       PORT: String(p), SECRET: "test-secret", SESSION_KEY_DIR: path.join(dir, "keys"), STATE_FILE: path.join(dir, "state.json"),
       MOCK_SPAWN: "1", BASE_RPC: chain.rpc, DEPLOYMENTS_ADDRESS: P.ledger, SESSIONS_FACTORIES: P.factory,
       SESSION_API_TUNNEL_NAMES: "metal0", PUBLIC_URL: "", ADDRESS_BOOK_ADDRESS: "", REGISTRY_ENABLED: "", CLAIM_ENABLED: "",
