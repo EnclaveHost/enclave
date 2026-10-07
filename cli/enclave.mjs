@@ -44,7 +44,7 @@ import { createPublicClient, createWalletClient, http as viemHttp, fallback,
 import { base } from "viem/chains";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 
-const VERSION = "1.2.0";
+const VERSION = "1.4.0";
 
 // The ONLY enclave source repo this CLI will verify against. Attestation targets
 // are pinned to this constant, never taken from the API response — a malicious
