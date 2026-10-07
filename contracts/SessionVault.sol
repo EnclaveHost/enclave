@@ -66,6 +66,7 @@ interface ISVLedger {
     function fundFor(bytes32 id, uint256 value, address payer) external;
     function capOf(bytes32 id) external view returns (uint256 maxRate6);
     function feeOf(bytes32 id) external view returns (address recipient, uint256 feePerSec6);
+    function earnOf(bytes32 id) external view returns (uint256 runnerRate6, uint256 escrow6, uint64 creditedUntil);
     function setAppRef(bytes32 id, string calldata appRef) external;
     function setConfig(bytes32 id, string calldata configCid) external;
     function setShares(bytes32 id, uint16 gpuMilli, uint16 cpuMilli) external;
@@ -186,6 +187,21 @@ library SessionVaultLib {
         }
         (, uint256 fee) = L.feeOf(id);
         if (rate == 0 || rate < 2 * fee) revert FundRateTooLow(rate, 2 * fee);
+    }
+
+    /// A session's resize. Under an ATTACHED lease (live or lapsed) the ledger credits the
+    /// runner only up to its last proof before re-pricing, and pays the unproven stretch later
+    /// at the NEW runner rate: a resize that raises it would pay a lagging (or zero-rate
+    /// squatting) host for time the tenant was charged less for, or nothing at all. So under
+    /// a lease a session may resize only without raising the runner's rate; upsizing a running
+    /// app is the owner wallet's call (or: stop, let the host release, resize, start).
+    function setShares(ISVBook book, bytes32 id, uint16 gpuMilli, uint16 cpuMilli) external {
+        ISVLedger L = ledger(book);
+        bool attached = L.get(id).runner != bytes32(0);
+        (uint256 before,,) = L.earnOf(id);
+        L.setShares(id, gpuMilli, cpuMilli);
+        (uint256 rr,,) = L.earnOf(id);
+        if (attached && rr > before) revert LeaseUnsettled(id);
     }
 
     /// A session's new cap: within the grant's ceiling, never under twice the fee (the
@@ -1004,7 +1020,7 @@ contract SessionVault {
         if (action == ACT_SET_SHARES) {
             (bytes32 id, uint16 g, uint16 c) = abi.decode(args, (bytes32, uint16, uint16));
             _requireHeldEnv(s, id);
-            L.setShares(id, g, c);
+            SessionVaultLib.setShares(book, id, g, c);
             return "";
         }
         if (action == ACT_SET_MAXRATE) {

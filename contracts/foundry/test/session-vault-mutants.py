@@ -44,6 +44,8 @@ MUTANTS = [
     ("promote: isPublic",        "        if (d.isPublic != isPublic) revert LabelMismatch();\n", ""),
     ("fund: re-base unleased",   "            L.setMaxRate(id, cap);\n            rate = cap;\n", ""),
     ("fund: never under a lease","        if (d.runner == bytes32(0) && d.leaseUntil <= block.timestamp && rate != cap) {", "        if (d.leaseUntil <= block.timestamp && rate != cap) {"),
+    ("setShares: no rate rise",  "        if (attached && rr > before) revert LeaseUnsettled(id);\n", ""),
+    ("setShares: lease test",    "        bool attached = L.get(id).runner != bytes32(0);", "        bool attached = false;"),
     ("setMaxRate: lapsed lease", "        if (d.runner != bytes32(0) && d.leaseUntil <= block.timestamp) revert LeaseUnsettled(id);\n", ""),
     ("fund: cap within grant",   "        if (cap == 0 || cap * 3600 > maxRateHour6) revert RateCapOutOfRange(cap * 3600, maxRateHour6);\n", ""),
     ("fund: fee <= half rate",   "        if (rate == 0 || rate < 2 * fee) revert FundRateTooLow(rate, 2 * fee);\n", "        if (rate == 0) revert FundRateTooLow(rate, 2 * fee);\n"),
