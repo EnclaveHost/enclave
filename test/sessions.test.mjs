@@ -211,6 +211,43 @@ test("API request auth: valid, replayed, tampered, out of scope, signed out", { 
   void relay; void signer;
 });
 
+test("API auth binds vault + sid, claims the replay slot first, and a revokeAll covers unindexed sessions", { skip }, async () => {
+  const { session, vault, sid, relay, signer } = await openFor("staging-publish", { apps: ["bind-a"], budget: 0n });
+  // a SECOND session for the same key (as an attested agent key may have)
+  const grant2 = sdk.buildGrant({ sessionKey: signer.keyHash, label: "same key", preset: "staging-publish",
+    policy: { apps: ["bind-b"], budget: 0n } });
+  const sid2 = (await sdk.openSession({ relay, owner: ownerSigner, chainId: 31337, vault, grant: grant2 })).sid;
+  const url = "https://api.enclave.host/v1/x";
+  const hp = "api.enclave.host/v1/x";
+  const h = await session.apiAuthorization("GET", url);
+  const swapped = h.replace(`sid=${sid}`, `sid=${sid2}`);
+  assert.notEqual(swapped, h);
+  await assert.rejects(svc.verifyApiRequest({ header: swapped, method: "GET", hostPath: hp, scope: "api.status" }),
+    /bad session signature/, "a request signed for one session never verifies under another");
+  // concurrent copies of one signed request: exactly one verifies
+  const h2 = await session.apiAuthorization("GET", url);
+  const res = await Promise.allSettled([1, 2, 3].map(() =>
+    svc.verifyApiRequest({ header: h2, method: "GET", hostPath: hp, scope: "api.status" })));
+  assert.equal(res.filter((r) => r.status === "fulfilled").length, 1);
+  // a revokeAll in flight refuses even a session the index has not seen; once mined, sessions
+  // opened AFTER its block pass
+  await svc.indexOnce();
+  const r0 = svc.store.data.revokedVaults[vault];
+  svc.store.data.revokedVaults[vault] = { at: Math.floor(Date.now() / 1000), block: null };
+  await assert.rejects(svc.verifyApiRequest({ header: await session.apiAuthorization("GET", url), method: "GET", hostPath: hp,
+    scope: "api.status" }), /revoked/);
+  const opened = svc.store.data.sessions[sid].openedBlock;
+  assert.ok(Number.isInteger(opened));
+  svc.store.data.revokedVaults[vault] = { at: Math.floor(Date.now() / 1000), block: opened - 1 };
+  const ok = await svc.verifyApiRequest({ header: await session.apiAuthorization("GET", url), method: "GET", hostPath: hp, scope: "api.status" });
+  assert.equal(ok.sid, sid);
+  svc.store.data.revokedVaults[vault] = { at: Math.floor(Date.now() / 1000), block: opened };
+  await assert.rejects(svc.verifyApiRequest({ header: await session.apiAuthorization("GET", url), method: "GET", hostPath: hp,
+    scope: "api.status" }), /revoked/);
+  if (r0 === undefined) delete svc.store.data.revokedVaults[vault]; else svc.store.data.revokedVaults[vault] = r0;
+  await session.terminate();
+});
+
 test("relay maps vault reverts to typed errors and refuses unknown vaults", { skip }, async () => {
   const { session } = await openFor("staging-publish", { apps: ["e-staging"], budget: parseUnits("1", 6) });
   // bypass the SDK's pre-check: ask the relay directly to spend more than the budget
@@ -295,6 +332,17 @@ test("secret-release custody gate: staging releases, prod only once promoted, un
     return t.readContract(a);
   } : t[k] });
   await assert.rejects(createCustodyGate({ pc: revertish, book: P.book, ttlMs: 0 }).custodyRefusal(await row(stg)), /reverted/);
+  // a lying node reporting NO CODE for the vault: the relay's own VaultCreated index still holds it to
+  // the strict read, and nothing negative is cached (an honest answer next time refuses at once)
+  const noCode = new Proxy(chain.pc, { get: (t, k) => k === "getCode" ? async () => "0x" : t[k] });
+  const indexed = createCustodyGate({ pc: noCode, book: P.book, ttlMs: 60_000, knownVault: (a) => a === vault });
+  assert.match(await indexed.custodyRefusal(await row(prdUnpromoted)), /not been promoted/);
+  let lie = true;
+  const flaky = new Proxy(chain.pc, { get: (t, k) => k === "getCode" ? async (a) => (lie ? "0x" : t.getCode(a)) : t[k] });
+  const cached = createCustodyGate({ pc: flaky, book: P.book, ttlMs: 60_000 });
+  await cached.custodyRefusal(await row(prdUnpromoted));               // one lie (no index here) ...
+  lie = false;
+  assert.match(await cached.custodyRefusal(await row(prdUnpromoted)), /not been promoted/, "... is not remembered");
   // an unreachable chain refuses (the callers fail closed on a throw)
   const dead = createCustodyGate({ pc: { getCode: async () => "0x60", call: async () => { throw new Error("fetch failed"); },
     readContract: async () => { throw new Error("fetch failed"); } }, book: null, ttlMs: 0 });

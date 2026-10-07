@@ -114,4 +114,5 @@ contract HostileLedger {
     function capOf(bytes32) external pure returns (uint256) { return 1000; }
     function feeOf(bytes32) external pure returns (address, uint256) { return (address(0), 0); }
     function setMaxRate(bytes32, uint256) external {}
+    function earnOf(bytes32) external pure returns (uint256, uint256, uint64) { return (800, 0, 0); }
 }

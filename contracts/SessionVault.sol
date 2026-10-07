@@ -186,7 +186,11 @@ library SessionVaultLib {
             rate = cap;
         }
         (, uint256 fee) = L.feeOf(id);
-        if (rate == 0 || rate < 2 * fee) revert FundRateTooLow(rate, 2 * fee);
+        if (rate < 2 * fee) revert FundRateTooLow(rate, 2 * fee);
+        // ... and leaves a runner share to escrow: at rate 0, or a 1-unit job rate that rounds the
+        // runner rate to 0, a funding would go wholly to the platform with nothing refundable
+        (uint256 rr,,) = L.earnOf(id);
+        if (rr == 0) revert FundRateTooLow(rate, 2 * fee);
     }
 
     /// A session's resize. Under an ATTACHED lease (live or lapsed) the ledger credits the

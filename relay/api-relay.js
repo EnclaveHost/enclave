@@ -518,7 +518,8 @@ let _custody = null;
 async function custody() {
   if (!_custody) _custody = createCustodyGate({ pc: await chain(), book: ADDRESS_BOOK || null,
     factory: (process.env.SESSIONS_FACTORY || "").trim() || null,
-    factories: (process.env.SESSIONS_FACTORIES || "").split(",").map((x) => x.trim()).filter(Boolean) });
+    factories: (process.env.SESSIONS_FACTORIES || "").split(",").map((x) => x.trim()).filter(Boolean),
+    knownVault: (a) => Boolean(sessionsService()?.store?.data?.vaults?.[a]) });
   return _custody;
 }
 const beneficialOwner = async (o) => (await custody()).beneficialOwner(o);
