@@ -188,7 +188,8 @@ function friendly(e){
   if (!e || !e.code) return m;
   return ({ not_allowed: "This session isn't allowed to do that.", env: "That's a production change - it needs your wallet (promotion).",
     app: "That app isn't covered by this session.", fee: "The relay's fee is above this session's limit right now; try again shortly.",
-    rate: "Too many actions in a short time; wait a moment.", relay: "The relay couldn't submit that: " + m })[e.code] || m;
+    rate: "Too many actions in a short time; wait a moment.", relay: "The relay couldn't submit that: " + m,
+    price: "This deployment's current price is outside what this session may pay or set - top it up or change it from your wallet." })[e.code] || m;
 }
 
 function signError(e, what){

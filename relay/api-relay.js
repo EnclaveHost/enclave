@@ -2375,7 +2375,10 @@ const placement = createPlacement({
   ledgerAddress: () => DEPLOYMENTS_ADDRESS, read: placementRead, fleet: () => live,
   accountOwner: async req => {
     const session = await verifyAccountSession(req.headers.authorization);
-    const key = session && vaultKeyOf(session.accountId);
+    // a wallet session's account token signs the owner in; it never moves a passkey credit
+    // vault's deployments between hosts (sessions place vault-held records via api.placement)
+    if (!session || session.sid) return null;
+    const key = vaultKeyOf(session.accountId);
     return key ? String(await vaultAddressFor(key)).toLowerCase() : null;
   },
   beneficialOwner,

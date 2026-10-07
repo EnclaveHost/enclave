@@ -2675,6 +2675,17 @@ var sessionVaultAbi = [
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "LeaseUnsettled",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ]
   }
 ];
 var sessionVaultFactoryAbi = [
@@ -3147,7 +3158,11 @@ var ERROR_CODES = {
   NotHeld: "env",
   NotMine: "env",
   NoAttestation: "policy",
-  OverCap: "budget"
+  OverCap: "budget",
+  // the deployment's price is outside what a session may pay or set: the owner's wallet acts
+  RateCapOutOfRange: "price",
+  FundRateTooLow: "price",
+  LeaseUnsettled: "price"
 };
 function decodeVaultError(data) {
   if (data && data.length >= 10) {

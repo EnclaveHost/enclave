@@ -276,6 +276,19 @@ test("secret-release custody gate: staging releases, prod only once promoted, un
   assert.equal(await blind.custodyRefusal(await row(stg)), null);
   // a contract owner with no held() (here the USDC token) passes like a wallet
   assert.equal(await blind.custodyRefusal({ ...mine, owner: P.usdc }), null);
+  // a KNOWN vault must answer: a lagging node's empty result (or any odd error) refuses, never "wallet"
+  const lagging = new Proxy(chain.pc, { get: (t, k) => k === "call" ? async () => ({ data: undefined })
+    : k === "readContract" ? async (a) => {
+      if (a.functionName === "held") throw new Error('The contract function "held" returned no data ("0x").');
+      return t.readContract(a);
+    } : t[k] });
+  const strict = createCustodyGate({ pc: lagging, book: P.book, ttlMs: 0 });
+  await assert.rejects(strict.custodyRefusal(await row(stg)), /returned no data/);
+  const revertish = new Proxy(chain.pc, { get: (t, k) => k === "readContract" ? async (a) => {
+    if (a.functionName === "held") { const e = new Error("execution reverted"); e.name = "ExecutionRevertedError"; throw e; }
+    return t.readContract(a);
+  } : t[k] });
+  await assert.rejects(createCustodyGate({ pc: revertish, book: P.book, ttlMs: 0 }).custodyRefusal(await row(stg)), /reverted/);
   // an unreachable chain refuses (the callers fail closed on a throw)
   const dead = createCustodyGate({ pc: { getCode: async () => "0x60", call: async () => { throw new Error("fetch failed"); },
     readContract: async () => { throw new Error("fetch failed"); } }, book: null, ttlMs: 0 });

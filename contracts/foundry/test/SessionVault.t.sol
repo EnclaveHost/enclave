@@ -966,6 +966,71 @@ contract SessionVaultTest is SessionRig {
             abi.encodeWithSelector(SessionVaultLib.FundRateTooLow.selector, 0, 0));
     }
 
+    // ---- a lease still ATTACHED is never re-based (review 3, F-A): the ledger's setMaxRate
+    // re-snaps the runner rate without crediting that runner's unpaid tail first ----
+
+    function test_fundNeverRebasesALapsedAttachedLease() public {
+        bytes32 sid = _openWithDeposit(_grant(keyHash, 50e6));
+        bytes32 id = abi.decode(_exec(sid, 0, CREATE, _createArgsRate(freeRef, 1, 0, 1000), 0), (bytes32));
+        _cheapClaim(id, false);                                        // a free app at rate 0: claimed with no balance
+        address op = makeAddr("cheap-operator");
+        vm.warp(ledger.get(id).leaseUntil + 1);                        // lapses; nobody settles or releases
+        _execExpectRevert(sid, 1, FUND, abi.encode(id, uint256(2e6)), 0,
+            abi.encodeWithSelector(SessionVaultLib.FundRateTooLow.selector, 0, 0));
+        ledger.settle(id);
+        assertEq(ledger.earned6(op), 0, "the squatter is paid nothing for a lease that burned nothing");
+        assertEq(ledger.get(id).rate, 0, "never re-based under it");
+    }
+
+    function test_fundAtLeaseEndNeverRepricesTheLiveLease() public {
+        bytes32 sid = _openWithDeposit(_grant(keyHash, 50e6));
+        bytes32 id = abi.decode(_exec(sid, 0, CREATE, _createArgsRate(freeRef, 1, 20e6, 1000), 0), (bytes32));
+        address host = makeAddr("host"); bytes32 henc = keccak256("host-enclave");
+        reg.set(henc, host);
+        vm.prank(host); ledger.claim(id, henc);
+        uint256 hostRate = ledger.get(id).rate;
+        assertLt(hostRate, 1000);
+        vm.warp(ledger.get(id).leaseUntil);                            // the lease's last second
+        _exec(sid, 1, FUND, abi.encode(id, uint256(1e6)), 0);
+        assertEq(ledger.get(id).rate, hostRate, "a live lease keeps its price");
+        vm.prank(host); ledger.renew(id);
+        assertEq(ledger.get(id).rate, hostRate, "and renews at the host's own ask");
+    }
+
+    function test_topUpAfterTheBalanceRanOutKeepsTheHostsRate() public {
+        // the everyday case: the app ran its balance down, the host could not renew and
+        // never released; the session tops up at the price the host actually charged
+        bytes32 sid = _openWithDeposit(_grant(keyHash, 50e6));
+        bytes32 id = abi.decode(_exec(sid, 0, CREATE, _createArgsRate(freeRef, 1, 1e6, 1000), 0), (bytes32));
+        address host = makeAddr("host"); bytes32 henc = keccak256("host-enclave");
+        reg.set(henc, host);
+        vm.prank(host); ledger.claim(id, henc);
+        uint256 hostRate = ledger.get(id).rate;
+        (uint256 rr0,,) = ledger.earnOf(id);
+        vm.warp(ledger.get(id).leaseUntil + 1);
+        _exec(sid, 1, FUND, abi.encode(id, uint256(5e6)), 0);
+        assertEq(ledger.get(id).rate, hostRate);
+        (uint256 rr1,,) = ledger.earnOf(id);
+        assertEq(rr1, rr0, "the runner rate the host earned at is untouched");
+        vm.prank(host); ledger.claim(id, henc);                        // back up: re-claimed
+        assertGt(ledger.get(id).leaseUntil, vm.getBlockTimestamp());
+    }
+
+    function test_setMaxRateRefusedWhileALapsedLeaseIsAttached() public {
+        bytes32 sid = _openWithDeposit(_grant(keyHash, 50e6));
+        bytes32 id = abi.decode(_exec(sid, 0, CREATE, _createArgsRate(freeRef, 1, 1e6, 1000), 0), (bytes32));
+        address host = makeAddr("host"); bytes32 henc = keccak256("host-enclave");
+        reg.set(henc, host);
+        vm.prank(host); ledger.claim(id, henc);
+        _exec(sid, 1, SET_MAXRATE, abi.encode(id, uint256(2000)), 0);  // a LIVE lease: only the cap moves
+        vm.warp(ledger.get(id).leaseUntil + 1);
+        _execExpectRevert(sid, 2, SET_MAXRATE, abi.encode(id, uint256(2500)), 0,
+            abi.encodeWithSelector(SessionVaultLib.LeaseUnsettled.selector, id));
+        vm.prank(host); ledger.release(id);                            // settled: free to change again
+        _exec(sid, 2, SET_MAXRATE, abi.encode(id, uint256(2500)), 0);
+        assertEq(ledger.get(id).rate, 2500);
+    }
+
     function test_setMaxRateNeverUnderTwiceTheFee() public {
         SessionVault.Grant memory g = _grant(keyHash, 50e6);
         g.apps = _strs(vm.toString(storeAppId));
