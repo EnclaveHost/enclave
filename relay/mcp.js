@@ -1615,8 +1615,10 @@ const PRESETS = {
   "auth-only": { actions: ["api.status"], apps: [], environments: [], budget: 0n, spendPerPeriod: 0n, periodSeconds: 86400,
     opsPerPeriod: 0, maxFeePerOp: 0n, maxAppFeePerHour: 0n, maxRatePerHour: 0n, expiresIn: 12 * 3600, maxExpiresIn: 7 * 86400 },
 };
-PRESETS.agent = { ...PRESETS.browser, budget: 20n * USD6, spendPerPeriod: 50n * USD6, opsPerPeriod: 500,
-  expiresIn: 7 * 86400, maxExpiresIn: 30 * 86400 };
+// never api.account / api.appAccess: a leaked agent key must not sign in as the owner or open
+// their private apps - neither is bounded by a budget
+PRESETS.agent = { ...PRESETS.browser, actions: PRESETS.browser.actions.filter((a) => a !== "api.account" && a !== "api.appAccess"),
+  budget: 20n * USD6, spendPerPeriod: 50n * USD6, opsPerPeriod: 500, expiresIn: 7 * 86400, maxExpiresIn: 30 * 86400 };
 const SESSION_CALL_TYPES = { SessionCall: [
   { name: "sessionId", type: "bytes32" }, { name: "nonce", type: "uint256" }, { name: "action", type: "uint8" },
   { name: "argsHash", type: "bytes32" }, { name: "fee", type: "uint256" }, { name: "deadline", type: "uint64" }] };
@@ -1874,7 +1876,7 @@ TOOLS.push(
       if (p.budget < 0n || p.budget > 250n * USD6) throw new Error("budgetUsd must be 0..250 (the beta vault cap)");
       const now = Math.floor(Date.now() / 1000);
       const sessionKey = keyHashOf(pk);
-      const grant = { label: String(a.label).slice(0, 80), preset: name === "agent" ? "browser" : name, sessionKey,
+      const grant = { label: String(a.label).slice(0, 80), preset: name, sessionKey,
         actions: p.actions, apps: p.apps, environments: p.environments, budget: p.budget, spendPerPeriod: p.spendPerPeriod,
         periodSeconds: p.periodSeconds, opsPerPeriod: p.opsPerPeriod, maxFeePerOp: p.maxFeePerOp,
         maxAppFeePerHour: p.maxAppFeePerHour, maxRatePerHour: p.maxRatePerHour, expiresAt: BigInt(now + p.expiresIn),
