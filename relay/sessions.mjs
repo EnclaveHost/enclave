@@ -387,8 +387,17 @@ export function createSessionsService(o) {
     return (factory = getAddress(a));
   }
 
+  // Base's public RPCs load-balance nodes whose heads differ by a block or two, so a read right
+  // after a tx this relay mined can land on a node that hasn't seen it (a fresh vault with no
+  // code, a session that "doesn't exist"). What the relay's own receipts and index show is
+  // believed; a negative chain answer about something touched in the last LAG_MS is retried.
+  const LAG_MS = 20_000;
+  const minedAt = new Map();          // address -> when a receipt this relay mined last emitted from it
+  const lagWait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const recentlyMined = (a) => Date.now() - (minedAt.get(getAddress(a)) ?? 0) < LAG_MS;
+
   async function isVault(v) {
-    if (isVaultCache.get(v) === true) return true;
+    if (isVaultCache.get(v) === true || store.data.vaults[v]) return true;
     const ok = await pc.readContract({ address: await getFactory(), abi: sessionVaultFactoryAbi, functionName: "isVault", args: [v] });
     if (ok) isVaultCache.set(v, true);
     return ok;
@@ -401,8 +410,19 @@ export function createSessionsService(o) {
   }
 
   async function sessionOf(vault, sid) {
-    const [s, live, apps] = await pc.readContract({ address: vault, abi: sessionVaultAbi, functionName: "sessionOf", args: [sid] });
-    return { ...s, live, apps };
+    const read = async () => {
+      const [s, live, apps] = await pc.readContract({ address: vault, abi: sessionVaultAbi, functionName: "sessionOf", args: [sid] });
+      return { ...s, live, apps };
+    };
+    // the index saw it open (or the relay just mined it) but this node says it never existed - or
+    // has no code at the vault at all: lag, so ask again before believing it
+    const expected = () => Boolean(store.data.sessions[sid]) || recentlyMined(vault);
+    for (let i = 0; ; i++) {
+      let st = null;
+      try { st = await read(); } catch (e) { if (i >= 6 || !expected()) throw e; }
+      if (st && (Number(st.state) !== 0 || i >= 6 || !expected())) return st;
+      await lagWait(700);
+    }
   }
 
   async function ethUsd6() {
@@ -428,17 +448,24 @@ export function createSessionsService(o) {
    *  simulation (signatures checked) - off-chain revocation goes there, so a
    *  forged sign-out can never cut anyone's API access. */
   async function simulateAndSend({ to, abi, functionName, args, label, afterSimulate }) {
-    try {
-      await pc.simulateContract({ address: to, abi, functionName, args, account });
-    } catch (e) {
-      const data = revertData(e);
-      if (!data) log(`simulation of ${label} failed without revert data: ${e.shortMessage || e.message}`);
-      throw httpError(409, "revert", `the vault refused: ${e.shortMessage || e.message}`.slice(0, 400), { revert: data });
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await pc.simulateContract({ address: to, abi, functionName, args, account });
+        break;
+      } catch (e) {
+        // a target this relay touched seconds ago may be refused by a node that hasn't caught up
+        if (attempt < 5 && recentlyMined(to)) { await lagWait(700); continue; }
+        const data = revertData(e);
+        if (!data) log(`simulation of ${label} failed without revert data: ${e.shortMessage || e.message}`);
+        throw httpError(409, "revert", `the vault refused: ${e.shortMessage || e.message}`.slice(0, 400), { revert: data });
+      }
     }
     afterSimulate?.();
     const { encodeFunctionData } = await import("viem");
     const rc = await queue.send({ to, data: encodeFunctionData({ abi, functionName, args }), label });
     if (rc.status !== "success") throw httpError(409, "revert", `${label} reverted on-chain (${rc.transactionHash})`);
+    for (const l of rc.logs) minedAt.set(getAddress(l.address), Date.now());
+    if (minedAt.size > 5000) for (const [a, t] of minedAt) if (Date.now() - t > LAG_MS) minedAt.delete(a);
     // fold this receipt's vault/factory events into the index right away
     ingestLogs(rc.logs);
     return rc;

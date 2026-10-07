@@ -248,6 +248,56 @@ test("API auth binds vault + sid, claims the replay slot first, and a revokeAll 
   await session.terminate();
 });
 
+test("a lagging RPC node right after the open: the relay believes its own receipts and retries", { skip }, async () => {
+  // what production showed on 2026-10-07: Base's public RPCs balance nodes a block or two apart, and
+  // the sign-out 1.5 s after the open hit one that had no code at the new vault yet
+  let behind = null, lagUntil = 0;
+  const lagging = () => behind !== null && Date.now() < lagUntil;
+  const pc = new Proxy(chain.pc, { get: (t, k) => {
+    if (k === "readContract") return (a) => t.readContract(lagging() ? { ...a, blockNumber: behind } : a);
+    if (k === "simulateContract") return (a) => t.simulateContract(lagging() ? { ...a, blockNumber: behind } : a);
+    if (k === "getCode") return (a) => t.getCode(lagging() ? { ...a, blockNumber: behind } : a);
+    return t[k];
+  } });
+  const relayer = privateKeyToAccount(KEYS.relayer);
+  const st = [new JsonStore(path.join(tmp, "lag-idx.json"), {}), new JsonStore(path.join(tmp, "lag-j.json"), { txs: [] }, { durable: true })];
+  const lagSvc = createSessionsService({
+    pc, wc: createWalletClient({ chain: foundry, account: relayer, transport: viemHttp(chain.rpc) }),
+    account: relayer, chainId: 31337, factory: P.factory, book: P.book, usdc: P.usdc, router: P.router,
+    startBlock: P.deployBlock, ethUsd: 3000, minFee6: 500, now: chain.now,
+    feesPerGas: async () => ({ maxFeePerGas: 7_000_000n, maxPriorityFeePerGas: 1_000_000n }),
+    store: st[0], journal: st[1], log: () => {}, alert: () => {},
+  });
+  const srv = http.createServer((req, res) => lagSvc.handle(req, res, new URL(req.url, "http://relay.test"), null));
+  await new Promise((r) => srv.listen(0, r));
+  try {
+    const url = `http://127.0.0.1:${srv.address().port}`;
+    // a FRESH owner, so the open also creates the vault (no code anywhere before this block)
+    const freshOwner = privateKeyToAccount("0x" + "5a".repeat(32));
+    const signer2 = { address: freshOwner.address, signTypedData: (td) => freshOwner.signTypedData(td) };
+    const store = new sdk.MemoryStore();
+    const { signer, record } = await sdk.newSessionKey(store, { relay: url, chainId: 31337, label: "lag", extractable: true });
+    const grant = sdk.buildGrant({ sessionKey: signer.keyHash, label: "lag", preset: "browser", policy: { budget: 0n } });
+    const relay = new sdk.RelayClient(url);
+    const vault = await sdk.vaultAddress(chain.pc, P.factory, freshOwner.address);
+    behind = await chain.pc.getBlockNumber();
+    const out = await sdk.openSession({ relay, owner: signer2, chainId: 31337, vault, grant });
+    lagUntil = Date.now() + 1500;                         // every read/simulation now sees the pre-open block
+    const rec = await sdk.completeSession(store, record, { vault, owner: freshOwner.address, grant, rpc: chain.rpc });
+    const session = await sdk.sessionFromRecord(rec);
+    const ok = await lagSvc.verifyApiRequest({ header: await session.apiAuthorization("GET", "https://api.enclave.host/v1/x"),
+      method: "GET", hostPath: "api.enclave.host/v1/x", scope: "api.status", fresh: true });
+    assert.equal(ok.sid, out.sid, "sign-in right after the open");
+    lagUntil = Date.now() + 1500;
+    await session.terminate();                            // the smoke test's failing call
+    const [, live] = await chain.pc.readContract({ address: vault, abi: sdk.sessionVaultAbi, functionName: "sessionOf", args: [out.sid] });
+    assert.equal(live, false);
+  } finally {
+    srv.close();
+    for (const x of st) clearInterval(x._timer);
+  }
+});
+
 test("relay maps vault reverts to typed errors and refuses unknown vaults", { skip }, async () => {
   const { session } = await openFor("staging-publish", { apps: ["e-staging"], budget: parseUnits("1", 6) });
   // bypass the SDK's pre-check: ask the relay directly to spend more than the budget
