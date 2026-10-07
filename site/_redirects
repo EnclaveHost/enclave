@@ -19,6 +19,10 @@
 /admin      /admin.html      200
 /terms      /terms.html      200
 /privacy    /privacy.html    200
+# wallet sessions (docs/design/sessions.md §9): the grant page is the target of
+# `enclave session new` links (/grant#<request>), the sessions page of the wallet popover
+/sessions   /sessions.html   200
+/grant      /grant.html      200
 # /apps/publish is a VIEW of the Apps page (a router alias): a hard load
 # serves the nested apps document (a build-time copy carrying <base
 # href="../">) and apps.js picks the view from the pathname. The flat /publish
