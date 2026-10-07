@@ -112,10 +112,18 @@ test("supervisor gates profile reads and writes by authenticated owner", async (
   const start = source.indexOf('for (const method of ["get", "post"]) {');
   const code = source.slice(start, source.indexOf("// Owner restart:", start));
   assert.ok(start > 0);
+  // the owner gate itself (supervisor.js mayAct), run as written: a bearer for another wallet reads 404, a wallet
+  // session the record rule refuses reads 403, and neither reaches the manager
+  const gStart = source.indexOf("async function mayAct(");
+  const gate = source.slice(gStart, source.indexOf("// The records the caller may see", gStart));
+  assert.ok(gStart > 0);
   const routes = {};
   let calls = 0;
   const authed = () => {};
-  const context = { PROVISION_BACKEND: "vm", authed,
+  const context = { PROVISION_BACKEND: "vm",
+    ownerAuth: (scope) => { assert.equal(scope, "api.logs", "a profile is gated like logs"); return authed; },
+    sessionApi: { refusal: async (s, rec) => (s.vault === rec.owner ? null : "not this session's") },
+    sessionFail: (res) => { res.code = 503; },
     app: Object.fromEntries(["get", "post"].map(method => [method, (path, gate, handler) => {
       assert.equal(path, "/v1/deployments/:id/cpu-profile");
       assert.equal(gate, authed); routes[method] = handler;
@@ -128,13 +136,16 @@ test("supervisor gates profile reads and writes by authenticated owner", async (
       return { status: 200, body: { state: "idle" } };
     },
   };
-  vm.runInNewContext(code, context);
+  vm.runInNewContext(gate + code, context);
   for (const method of ["get", "post"]) {
     for (const [id, address] of [["missing", "alice"], ["owned", "bob"]]) {
       const res = {};
       await routes[method]({ params: { id }, address }, res);
       assert.equal(res.code, 404); assert.equal(calls, 0);
     }
+    const res = {};
+    await routes[method]({ params: { id: "owned" }, walletSession: { vault: "mallory" } }, res);
+    assert.equal(res.code, 403); assert.equal(calls, 0);
   }
   for (const method of ["get", "post"]) {
     const res = { set(k, v) { assert.equal(v, "no-store"); },
