@@ -3204,6 +3204,10 @@ function sessionHint(s, action, e, ctx = {}) {
       break;
     case "app": next = `ask the owner for a session that names ${ctx.slug ? `this app (--app ${ctx.slug})` : "this app"}; publishing needs the app named, "*" never covers it`; break;
     case "fee": next = "the relay's fee is above this session's per-operation cap right now; retry shortly"; break;
+    case "delegation":
+      next = "this deployment is held by the owner's WALLET: sessions reach it only once the owner lets them, one wallet "
+           + "transaction (enclave.host → Sessions → Apps your wallet owns → Grant); until then the owner acts with --wallet";
+      break;
     case "nonce": next = "another operation of this session landed first; retry"; break;
     case "relay": next = "the sessions relay did not complete it; retry, and check enclave session status"; break;
   }

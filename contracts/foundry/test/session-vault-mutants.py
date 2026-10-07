@@ -92,6 +92,9 @@ def main():
         shutil.copytree(os.path.join(ROOT, "contracts"), os.path.join(work, "contracts"),
                         ignore=shutil.ignore_patterns("out", "cache"))
         shutil.copy(os.path.join(ROOT, "foundry.toml"), work)
+        # the deployable ledger revision the delegation tests import lives outside contracts/
+        shutil.rmtree(os.path.join(work, "deploy"), ignore_errors=True)
+        shutil.copytree(os.path.join(ROOT, "deploy"), os.path.join(work, "deploy"))
     path = os.path.join(work, SRC)
     original = open(path).read()
     survived = []

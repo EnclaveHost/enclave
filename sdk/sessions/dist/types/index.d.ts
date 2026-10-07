@@ -2,7 +2,8 @@
  *
  *  Key holder (browser tab or agent):   newSessionKey -> buildGrant -> (owner signs) ->
  *                                       Session.call / Session.terminate / Session.apiAuthorization
- *  Owner (wallet):                      openSession, ownerOperation, topUpFromWallet
+ *  Owner (wallet):                      openSession, ownerOperation, topUpFromWallet,
+ *                                       setDelegateCall / delegationStatus (sessions on wallet-held records)
  *
  *  Design: docs/design/sessions.md. */
 export * from "./constants.js";
@@ -14,6 +15,7 @@ export * from "./client.js";
 export * from "./store.js";
 export * from "./abi.js";
 export * from "./attest.js";
+export * from "./delegate.js";
 import type { Address } from "viem";
 import { type SessionSigner } from "./keys.js";
 import { type KeyStore, type StoredSession } from "./store.js";

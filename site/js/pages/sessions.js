@@ -3,9 +3,12 @@
    wallet: this browser, other devices, agents. For each: label,
    policy, budget vs spend, expiry, recent actions, and the owner
    controls (top up, extend, terminate). Plus revoke-all, the
-   vault's free balance (withdraw), and the vault-held deployments
-   (environment, promotion). Every control here is an OWNER
-   operation: a readable typed-data signature, relayed gas-free.
+   vault's free balance (withdraw), the vault-held deployments
+   (environment, promotion), and whether sessions reach the apps the
+   WALLET holds (the ledger delegation to the vault). Every control
+   here is an OWNER operation: a readable typed-data signature,
+   relayed gas-free - except Grant / Revoke on that delegation,
+   which are wallet transactions to the ledger.
    `#topup=<vault>:<sid>:<amount6>` (from `enclave session
    top-up-link`) opens straight into a top-up.
    ============================================================ */
@@ -16,7 +19,8 @@ import "../../components/section-head/section-head.js";
 import { Enclave } from "../core/api.js";
 import { connectWallet } from "../core/wallet.js";
 import { $, esc, lsGet, on, showToast } from "../core/util.js";
-import { sdk, sessionsConfig, ownerOp, fmtUsd, fmtLeft, endSession, relayRoot, versionLabel, vaultOf } from "../core/sessions.js";
+import { sdk, sessionsConfig, ownerOp, fmtUsd, fmtLeft, endSession, relayRoot, versionLabel, vaultOf,
+  walletDelegation, setWalletDelegation } from "../core/sessions.js";
 
 let rendering = false;
 // the ledger's Deployment tuple (stable since schema 2; contracts/EnclaveDeployments.sol)
@@ -49,6 +53,10 @@ async function render(body){
     const states = await Promise.all(info.sessions.map((s) => S.readSession(pc, info.vault, s.sid).catch(() => null)));
     let free = 0n;
     if (info.deployed) { try { free = await pc.readContract({ address: info.vault, abi: S.sessionVaultAbi, functionName: "free" }); } catch(e){} }
+    // read from the chain; the relay's own reading when that fails
+    let deleg;
+    try { deleg = await walletDelegation(Enclave.address); }
+    catch(e){ deleg = info.delegation && !info.delegation.error ? { ...info.delegation, vault: info.vault } : { error: e.message || String(e) }; }
     const mine = lsGet("enclave_wallet_session") || "";
     const now = Math.floor(Date.now() / 1000);
     const rows = info.sessions.map((s, i) => ({ ...s, st: states[i] }))
@@ -60,6 +68,7 @@ async function render(body){
         '<p class="co-note">Free balance is yours, outside every session: refunds from cancelled deployments land here.</p>' +
         '<div class="ss-row">' + (free > 0n ? '<button class="btn" id="ssWithdraw" type="button">Withdraw ' + esc(fmtUsd(free)) + "</button>" : "") +
         (live.length ? '<button class="btn" id="ssRevoke" type="button">Revoke all sessions</button>' : "") + "</div></div>" +
+      walletCard(deleg) +
       (rows.length ? rows.map((r) => card(r, S, now, mine)).join("") : '<div class="ss-card"><p class="co-note">No sessions yet. Sign in to start one, or run <code>enclave session new</code> for an agent.</p></div>') +
       (info.held.length ? heldCard(info.held) : "");
     wire(body, info, S, rows, free);
@@ -98,6 +107,28 @@ function card(r, S, now, mine){
     "</div>";
 }
 
+/** The owner's ledger delegation: whether sessions reach the apps the WALLET holds (always as production). */
+function walletCard(d){
+  const state = !d || d.error ? "unknown" : !d.supported ? "not supported by this ledger" : d.granted ? "granted" : "not granted";
+  const note = !d || d.error
+    ? "Couldn't read the ledger right now" + (d && d.error ? " (" + d.error + ")" : "") + ". Reload to try again."
+    : !d.supported
+      ? "This ledger can't let sessions act on the apps your wallet holds yet: changing them asks your wallet each time."
+      : d.granted
+        ? "Your sessions may suspend, resume, resize, top up, cancel (refunds go to your wallet) and lower the price limit of the apps your wallet holds. " +
+          "They never change the version or options an app runs, raise its price limit, or move it out of your wallet. Revoking is one wallet transaction."
+        : "Your sessions can't act on the apps your wallet holds: every change there asks your wallet. Granting is one wallet transaction and lets them " +
+          "suspend, resume, resize, top up, cancel (refunds go to your wallet) and lower the price limit - never change what an app runs, raise its " +
+          "price limit, or move it. You can revoke it here at any time.";
+  return '<div class="ss-card" id="ssWallet"><h3>Apps your wallet owns<span class="ss-pill' + (state === "granted" ? " live" : "") + '">' + esc(state) + "</span></h3>" +
+    (d && d.ledger ? '<dl class="ss-facts"><dt>ledger</dt><dd>' + esc(d.ledger) + "</dd><dt>delegate</dt><dd>" + esc(d.vault || "-") + " (your vault)</dd></dl>" : "") +
+    '<p class="co-note">' + esc(note) + "</p>" +
+    (d && !d.error && d.supported ? '<div class="ss-row">' + (d.granted
+      ? '<button class="btn" id="ssDelegRevoke" type="button">Revoke</button>'
+      : '<button class="btn btn-primary" id="ssDelegGrant" type="button">Grant</button>') + "</div>" : "") +
+    "</div>";
+}
+
 function heldCard(held){
   return '<div class="ss-card"><h3>Deployments your vault holds</h3>' +
     '<p class="co-note">Sessions may change a STAGING deployment\'s version. A PRODUCTION deployment runs only what you promote, and its secrets are released only for that.</p>' +
@@ -114,6 +145,11 @@ function wire(body, info, S, rows, free){
     if (!confirm("End EVERY session that can act for this wallet, and return all of their budgets? Agents and other devices lose access immediately.")) return;
     run(rv, () => ownerOp({ op: "revokeAll", withdraw: true }), "Every session ended; budgets returned.");
   });
+  // the ledger delegation: a wallet TRANSACTION to the ledger (not a typed-data signature), either way
+  const dg = $("#ssDelegGrant");
+  if (dg) dg.addEventListener("click", () => run(dg, () => setWalletDelegation(true), "Your sessions can now manage the apps your wallet owns."));
+  const dr = $("#ssDelegRevoke");
+  if (dr) dr.addEventListener("click", () => run(dr, () => setWalletDelegation(false), "Revoked: the apps your wallet owns answer to your wallet alone again."));
   body.querySelectorAll(".ss-card[data-sid]").forEach((c) => {
     const sid = c.getAttribute("data-sid");
     const r = rows.find((x) => x.sid === sid);

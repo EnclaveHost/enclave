@@ -137,7 +137,8 @@ const must = [
   ["walletconnect.js", ["EthereumProvider"]],
   ["enclave-verifier.js", ["createShadow", "verifyEvidenceWeb", "releaseExpectationsFromMirror", "createBrowserIndexMemory"]],
   ["sessions.js", ["newSessionKey", "buildGrant", "openSession", "IndexedDbStore", "RelayClient", "sessionFromRecord",
-    "decodeGrantRequest", "describeGrant", "ownerOperation", "topUpFromWallet", "usdcDomain", "chainClient", "readSession"]],
+    "decodeGrantRequest", "describeGrant", "ownerOperation", "topUpFromWallet", "usdcDomain", "chainClient", "readSession",
+    "delegationStatus", "setDelegateCall"]],
 ];
 for (const [file, names] of must) {
   const src = fs.readFileSync(path.join(OUT, file), "utf8");

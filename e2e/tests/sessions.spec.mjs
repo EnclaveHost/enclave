@@ -42,6 +42,10 @@ test("sign in -> indicator -> top up -> /sessions -> sign out refunds and revoke
   await expect(card).toContainText("this browser", { timeout: 20_000 });
   await expect(card).toContainText("live");
   await expect(card).toContainText("$3.00 left");
+  // the ledger delegation card: the rig runs main's rev 16 ledger, which has no setDelegate, so it is read
+  // off the code as unsupported (and no Grant is offered)
+  await expect(page.locator("#ssWallet")).toContainText("not supported by this ledger");
+  await expect(page.locator("#ssDelegGrant")).toHaveCount(0);
   const sid = await page.evaluate(() => localStorage.getItem("enclave_wallet_session"));
   const token = await page.evaluate(() => JSON.parse(localStorage.getItem("enclave_account")).token);
 

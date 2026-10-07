@@ -28,7 +28,7 @@
 //   SESSIONS_ATTEST_MAX_PER_DAY   on-chain attestations per UTC day (200): bounds the relayer's gas
 
 import { createPublicClient, createWalletClient, decodeErrorResult, decodeEventLog, decodeFunctionResult, encodeAbiParameters, encodeFunctionData,
-  fallback, getAddress, http, isAddress, keccak256, parseEventLogs } from "viem";
+  fallback, getAddress, http, isAddress, keccak256, parseEventLogs, toFunctionSelector } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia, foundry } from "viem/chains";
 import { createPublicKey, verify as nodeVerify, createHash } from "node:crypto";
@@ -37,6 +37,45 @@ import { verifyQuote, parseSnpReport, provenSnpChip, seedCertChain } from "./snp
 
 const ZERO = "0x0000000000000000000000000000000000000000";
 const BOOK_FACTORY = "0x" + Buffer.from("sessionVaultFactory").toString("hex").padEnd(64, "0");
+const BOOK_DEPLOYMENTS = "0x" + Buffer.from("deployments").toString("hex").padEnd(64, "0");
+const ENV_PROD = 2;
+
+// ============================================================================
+// Owner-approved ledger delegates (deploy/ledger rev 15d + SessionVault v2)
+// ============================================================================
+//
+// The owner lets its vault act on the records its WALLET holds with one wallet transaction,
+// ledger.setDelegate(vault, true). The ledger keeps the grant in a PRIVATE mapping (EIP-170 left
+// no room for a getter): isDelegate[owner][delegate] at slot 23. deploymentsSchema() did not change,
+// so support is read off the ledger's code (setDelegate's selector pushed as PUSH4), and slot 23 is
+// never read on a ledger without it - there it holds something else. Mirrors sdk/sessions/src/delegate.ts.
+
+export const DELEGATE_SLOT = 23n;
+const SET_DELEGATE_PUSH4 = "63" + toFunctionSelector("setDelegate(address,bool)").slice(2).toLowerCase();
+
+/** keccak256(abi.encode(delegate, keccak256(abi.encode(owner, 23)))): where isDelegate[owner][delegate] lives */
+export function delegateSlot(owner, delegate) {
+  const inner = keccak256(encodeAbiParameters([{ type: "address" }, { type: "uint256" }], [getAddress(owner), DELEGATE_SLOT]));
+  return keccak256(encodeAbiParameters([{ type: "address" }, { type: "bytes32" }], [getAddress(delegate), inner]));
+}
+/** whether runtime code dispatches setDelegate(address,bool) */
+export const codeHasDelegation = (code) => typeof code === "string" && code.toLowerCase().includes(SET_DELEGATE_PUSH4);
+
+/** A verified session (verifyApiRequest's answer) acting on ONE ledger row off the chain (placement): the rule
+ *  the vault applies on it. A record the session's VAULT holds sits in its custody environment (unadopted: none);
+ *  a record the session's OWNER WALLET holds is PRODUCTION (SessionVault v2 reaches it through the owner's ledger
+ *  delegation), so only a session covering prod acts on it; anything else is someone else's. Returns null when the
+ *  session may act, else why not. `heldEnv(vault, id)` reads the vault's custody record (vault-held rows only). */
+export async function sessionRowRefusal(session, row, heldEnv) {
+  const holder = String(row?.owner || "").toLowerCase();
+  if (holder && holder === String(session.vault).toLowerCase()) {
+    const env = Number(await heldEnv(session.vault, row.id));
+    return !env || (session.envs & env) === 0 ? "This deployment is outside this session's environments." : null;
+  }
+  if (holder && holder === String(session.owner).toLowerCase())
+    return (session.envs & ENV_PROD) === 0 ? "This session does not cover your production (wallet-held) deployments." : null;
+  return "This session does not belong to the deployment owner.";
+}
 
 // gas units per action for the fee quote: measured on anvil (osaka, native
 // P-256) through this relay, padded ~15-30%. create 565-749k (with funding),
@@ -385,6 +424,42 @@ export function createSessionsService(o) {
     const a = await pc.readContract({ address: o.book, abi: BOOK_ABI, functionName: "addr", args: [BOOK_FACTORY] });
     if (!a || a === ZERO) throw httpError(503, "sessions_disabled", "the address book has no sessionVaultFactory yet");
     return (factory = getAddress(a));
+  }
+
+  // ---- the owner's ledger delegation to its vault (wallet-held records) --------------------------
+  // The ledger is the book's "deployments" (the one the vault resolves on every call), re-read at most
+  // once a minute; whether it supports delegates is read off its code once (code never changes; "no
+  // code" is never remembered). A missing book or ledger reads as unsupported.
+  let ledgerAt = { at: 0, ledger: null };
+  const delegationSupport = new Map();   // ledger -> bool
+  async function bookLedger() {
+    if (!o.book) return null;
+    if (ledgerAt.ledger && Date.now() - ledgerAt.at < 60_000) return ledgerAt.ledger;
+    const a = await pc.readContract({ address: o.book, abi: BOOK_ABI, functionName: "addr", args: [BOOK_DEPLOYMENTS] });
+    if (!a || a === ZERO) return null;
+    ledgerAt = { at: Date.now(), ledger: getAddress(a) };
+    return ledgerAt.ledger;
+  }
+  /** { ledger, supported, granted }: has `owner` let `vault` act on the records its wallet holds? */
+  async function delegationOf(owner, vault) {
+    let ledger = null;
+    try {
+      ledger = await bookLedger();
+      if (!ledger) return { ledger: null, supported: false, granted: false };
+      let supported = delegationSupport.get(ledger);
+      if (supported === undefined) {
+        const code = await pc.getCode({ address: ledger });
+        if (!code || code === "0x") return { ledger, supported: false, granted: false };
+        supported = codeHasDelegation(code);
+        delegationSupport.set(ledger, supported);
+      }
+      if (!supported) return { ledger, supported: false, granted: false };
+      const word = await pc.getStorageAt({ address: ledger, slot: delegateSlot(owner, vault) });
+      return { ledger, supported: true, granted: Boolean(word && word !== "0x") && BigInt(word) === 1n };
+    } catch (e) {
+      log(`delegation read for ${owner} failed: ${e.shortMessage || e.message}`);
+      return { ledger, supported: false, granted: false, error: "the ledger could not be read" };
+    }
   }
 
   // Base's public RPCs load-balance nodes whose heads differ by a block or two, so a read right
@@ -813,7 +888,9 @@ export function createSessionsService(o) {
         .map(([sid, s]) => ({ sid, ...s, revoked: Boolean(store.data.revoked[sid]), ops: (store.data.ops[sid] ?? []).length }));
       const held = Object.entries(store.data.held).filter(([, h]) => h.vault === vault).map(([id, h]) => ({ id, ...h }));
       const deployed = (await pc.getCode({ address: vault }))?.length > 2;
-      return { owner, vault, deployed, sessions, held };
+      // whether sessions reach the records the WALLET holds (prod only, never their version or config)
+      const delegation = await delegationOf(owner, vault);
+      return { owner, vault, deployed, sessions, held, delegation };
     }
     if (method === "GET" && (mm = /^\/session\/(0x[0-9a-fA-F]{40})\/(0x[0-9a-fA-F]{64})$/.exec(path))) {
       const vault = await requireVault(mm[1]);
@@ -982,7 +1059,7 @@ export function createSessionsService(o) {
   }
 
   return { handle, route, verifyApiRequest, indexOnce, keeperOnce, gasCheck, queue, store,
-    getFactory, isVault, feeFor, account, ingestLogs,
+    getFactory, isVault, feeFor, account, ingestLogs, delegationOf,
     /** the beneficial owner when `owner` is a SessionVault, else `owner` itself */
     async beneficialOwner(owner) {
       const a = getAddress(owner);

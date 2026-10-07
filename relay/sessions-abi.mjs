@@ -2596,3 +2596,44 @@ export const addressBookAbi = [
     ]
   }
 ];
+
+export const ledgerDelegateAbi = [
+  {
+    "type": "function",
+    "name": "setDelegate",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      {
+        "name": "delegate",
+        "type": "address"
+      },
+      {
+        "name": "allowed",
+        "type": "bool"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "type": "event",
+    "name": "DelegateSet",
+    "anonymous": false,
+    "inputs": [
+      {
+        "name": "owner",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "delegate",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "allowed",
+        "type": "bool",
+        "indexed": false
+      }
+    ]
+  }
+];

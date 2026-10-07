@@ -14,8 +14,8 @@
    ============================================================ */
 import { Enclave, EnclaveError } from "./api.js";
 import { APP_CATALOG_RPCS, USDC_BASE } from "./config.js";
-import { $, esc, lsGet, lsSet, showToast, emit } from "./util.js";
-import { decodeLedgerCall } from "./ledger-calls.js";
+import { $, esc, lsGet, lsSet, lsDel, showToast, emit } from "./util.js";
+import { decodeLedgerCall, walletRecordPlan, needsCap } from "./ledger-calls.js";
 
 const ACTIVE = "enclave_wallet_session";      // id (sid) of this browser's active session
 let _sdk = null, _cfg = null, _cur = null;
@@ -179,7 +179,9 @@ export async function sessionCall(action, args){
       lsSet(ACTIVE, ""); _cur = null; emit("enclave:session", { active: false });
       throw new EnclaveError("Your session " + (e.code === "expired" ? "expired" : "ended") + ". Sign in again to continue.", 401);
     }
-    throw new EnclaveError(friendly(e), 0);
+    const err = new EnclaveError(friendly(e), 0);
+    err.sessionCode = err.message === DELEGATION_TEXT ? "delegation" : e && e.code;
+    throw err;
   }
 }
 
@@ -190,9 +192,14 @@ const PRICE_TEXT = {
   RateCapOutOfRange: "That price is outside what this session may pay or set.",
 };
 
+// the ledger's owner gate (Error("!owner")) on a record the WALLET holds: the owner hasn't let its vault act for it
+const DELEGATION_TEXT = "Your sessions can't manage the apps your wallet owns: your wallet hasn't allowed it, or took it back. "
+  + "Allow it on the Sessions page (one wallet transaction), or make this change with your wallet.";
+
 function friendly(e){
   const m = (e && e.message) || String(e);
   if (!e || !e.code) return m;
+  if (e.code === "delegation" || (e.code === "revert" && /!owner\b/.test(m))) return DELEGATION_TEXT;
   if (e.code === "price") return PRICE_TEXT[e.detail && e.detail.error] || PRICE_TEXT.RateCapOutOfRange;
   return ({ not_allowed: "This session isn't allowed to do that.", env: "That's a production change - it needs your wallet (promotion).",
     app: "That app isn't covered by this session.", fee: "The relay's fee is above this session's limit right now; try again shortly.",
@@ -289,9 +296,11 @@ export async function openTopUpModal(suggestUsd = 10, why = ""){
 }
 
 /* ---- the deployments panel: rows the vault holds, and their actions ---------------------------------
-   A wallet-held row keeps its wallet transaction, byte for byte. A row the wallet's SessionVault holds is
-   acted on by this browser's session: the ledger call the panel built is decoded and replayed as the
-   matching session action; a PRODUCTION version/config change becomes the owner's Promote signature. */
+   A row the wallet's SessionVault holds is acted on by this browser's session: the ledger call the panel
+   built is decoded and replayed as the matching session action; a PRODUCTION version/config change becomes
+   the owner's Promote signature. A wallet-held row keeps its wallet transaction, byte for byte - unless the
+   wallet has let its vault act for it on the ledger (below): then suspend/resume, resize, cancel and a lower
+   price limit go through the session too, and everything else stays the wallet's. */
 
 const _vaults = new Map();   // address -> { vault, deployed, held, at }
 export async function vaultOf(address, fresh = false){
@@ -315,20 +324,23 @@ export async function vaultRows(){
   return list.map((d) => ({ ...d, _sessionVault: v.vault }));
 }
 
+const BOOK_ABI = [{ type: "function", name: "addr", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "address" }] }];
+const bookKey = (s) => "0x" + Array.from(new TextEncoder().encode(s), (x) => x.toString(16).padStart(2, "0")).join("").padEnd(64, "0");
+/** An address-book entry ("deployments", "appCatalog"): what the vault resolves on every call. */
+const bookAddr = (pc, book, name) => pc.readContract({ address: book, abi: BOOK_ABI, functionName: "addr", args: [bookKey(name)] });
+
 async function ledgerOwner(id){
   const cfg = await sessionsConfig();
   const S = await sdk();
   const pc = S.chainClient(cfg.chainId, rpcFor(cfg));
-  const key = (s) => "0x" + Array.from(new TextEncoder().encode(s), (x) => x.toString(16).padStart(2, "0")).join("").padEnd(64, "0");
-  const BOOK = [{ type: "function", name: "addr", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "address" }] }];
-  const ledger = await pc.readContract({ address: cfg.book, abi: BOOK, functionName: "addr", args: [key("deployments")] });
-  const catalog = await pc.readContract({ address: cfg.book, abi: BOOK, functionName: "addr", args: [key("appCatalog")] });
+  const ledger = await bookAddr(pc, cfg.book, "deployments");
+  const catalog = await bookAddr(pc, cfg.book, "appCatalog");
   const D = [["id","bytes32"],["owner","address"],["appRef","string"],["ports","string"],["configCid","string"],["gpuMilli","uint16"],["cpuMilli","uint16"],
     ["appPort","uint32"],["isPublic","bool"],["active","bool"],["createdAt","uint64"],["rate","uint256"],["balance6","uint256"],["spent6","uint256"],
     ["runner","bytes32"],["runnerOperator","address"],["leaseUntil","uint64"]].map(([name, type]) => ({ name, type }));
   const row = await pc.readContract({ address: ledger, abi: [{ type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }],
     outputs: [{ type: "tuple", components: D }] }], functionName: "get", args: [id] });
-  return { row, pc, catalog, S };
+  return { row, pc, catalog, ledger, S };
 }
 
 /** The app slug, its publisher and the version label a Promote shows on the owner's device (the vault
@@ -345,12 +357,133 @@ export async function versionLabel(pc, catalog, appRef){
   return { label: v.version, app: a.slug, publisher: a.publisher };
 }
 
-/** Send one ledger call: via the session for a vault-held row, else `walletSend()` (the unchanged wallet tx). */
+/* ---- records the WALLET holds: the owner's ledger delegation to its vault ------------------------------
+   The ledger revision production deploys (rev 15d) lets an owner name delegates: setDelegate(vault, true),
+   one wallet transaction, lets this wallet's vault act on every record the wallet holds - and the vault
+   treats those as PRODUCTION (suspend/resume, resize, fund, lower the cap, cancel to the wallet; never the
+   version or config, never a transfer). A ledger without setDelegate reads as unsupported. */
+
+const DECLINED = "enclave_delegate_declined:";   // + ledger:owner - the owner said no; asked once per browser
+const declinedKey = (ledger, owner) => DECLINED + String(ledger).toLowerCase() + ":" + String(owner).toLowerCase();
+
+/** The book's ledger, this wallet's vault and whether the wallet has let the vault act for it there:
+ *  { ledger, vault, owner, supported, granted }, or null when sessions are off or no wallet is connected. */
+export async function walletDelegation(address = Enclave.address, fresh = false){
+  const cfg = address ? await sessionsConfig() : null;
+  if (!cfg) return null;
+  const S = await sdk();
+  const pc = S.chainClient(cfg.chainId, rpcFor(cfg));
+  const ledger = await bookAddr(pc, cfg.book, "deployments");
+  const v = await vaultOf(address, fresh);
+  const st = await S.delegationStatus(pc, ledger, address, v.vault);
+  return { ...st, ledger, vault: v.vault, owner: address };
+}
+
+/** One WALLET transaction to the ledger: let this wallet's vault act on the records the wallet holds
+ *  (`allowed`), or take that back. Resolves once the chain reads the new state. */
+export async function setWalletDelegation(allowed, { onSent } = {}){
+  if (!Enclave.provider || !Enclave.address) throw new EnclaveError("Connect your wallet first.", 0);
+  const d = await walletDelegation(Enclave.address, true);
+  if (!d || !d.supported) throw new EnclaveError("This ledger can't let sessions manage the apps your wallet owns yet.", 0);
+  const S = await sdk();
+  const { sendTx } = await import("./wallet.js");
+  const { waitReceipt } = await import("./chain.js");
+  let hash;
+  try { hash = await sendTx(d.ledger, S.setDelegateCall(d.vault, Boolean(allowed)).data); }
+  catch(e){ throw signError(e, allowed ? "allow it" : "revoke it"); }
+  if (onSent) onSent(hash);
+  await waitReceipt(hash);
+  // a revoke is also a "no" to the panel's offer; a grant clears an earlier one
+  if (allowed) lsDel(declinedKey(d.ledger, d.owner)); else lsSet(declinedKey(d.ledger, d.owner), "1");
+  // the relay (and its RPC) must see it before a session relies on it: wait until the chain reads it back
+  const cfg = await sessionsConfig();
+  const pc = S.chainClient(cfg.chainId, rpcFor(cfg));
+  for (let i = 0; i < 20; i++){
+    const st = await S.delegationStatus(pc, d.ledger, d.owner, d.vault).catch(() => null);
+    if (st && st.granted === Boolean(allowed)) break;
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  emit("enclave:session", { active: true });
+  return hash;
+}
+
+/** Ask once per browser: let sessions manage the apps this wallet owns? Resolves true once granted on-chain,
+ *  false when the owner says no (remembered), null when no prompt could be shown. */
+export async function askWalletDelegation(d){
+  const { result } = await overlay(
+    '<div class="wp-h">Apps your wallet owns</div>' +
+    '<div class="wp-note"><b>Let your sessions manage the apps your wallet owns?</b> One wallet transaction. ' +
+    'You can revoke it on the Sessions page.</div>' +
+    '<div class="wp-note">Sessions could then suspend, resume, resize, cancel (refunds go to your wallet) and lower the price ' +
+    'limit of those apps without a wallet prompt each time. They can never change the version or options an app runs, ' +
+    'raise its price limit, or move it out of your wallet.</div>' +
+    '<button class="wp-item wp-go" id="dgGo" type="button">Allow (one wallet transaction)</button>' +
+    '<div class="wp-err" id="dgErr" role="alert" hidden></div>' +
+    '<button class="wp-cancel" type="button">Not now - use my wallet for this</button>');
+  const go = $("#dgGo");
+  if (go) go.addEventListener("click", async () => {
+    go.disabled = true; go.textContent = "Check your wallet…";
+    try {
+      await setWalletDelegation(true, { onSent: () => { go.textContent = "Waiting for the transaction…"; } });
+      hostEl()._done(true);
+      showToast("Your sessions can now manage the apps your wallet owns.");
+    }
+    catch(e){ const er = $("#dgErr"); if (er){ er.hidden = false; er.textContent = e.message || String(e); } go.disabled = false; go.textContent = "Allow (one wallet transaction)"; }
+  });
+  const ok = await result;
+  if (ok === false) lsSet(declinedKey(d.ledger, d.owner), "1");
+  return ok;
+}
+
+/** A ledger call on a record the connected wallet holds: through the session when the delegation allows it
+ *  (asking for it once), else the unchanged wallet transaction. Any unreadable state means the wallet. */
+async function walletRecordSend(call, pc, ledger, v, walletSend){
+  const me = String(Enclave.address).toLowerCase();
+  let plan, justGranted = false;
+  try {
+    const S = await sdk();
+    const cap = needsCap(call) ? await pc.readContract({ address: ledger, abi: [{ type: "function", name: "capOf", stateMutability: "view",
+      inputs: [{ type: "bytes32" }], outputs: [{ type: "uint256" }] }], functionName: "capOf", args: [call.id] }) : null;
+    plan = walletRecordPlan(call, cap);
+    if (!plan) return walletSend();
+    // a live session of THIS wallet's vault that covers production, holds every action and can pay a relay fee
+    const c = await currentSession();
+    if (!c || String(c.owner).toLowerCase() !== me || String(c.session.handle.vault).toLowerCase() !== String(v.vault).toLowerCase()) return walletSend();
+    const st = await c.session.status();
+    const has = (a) => ((BigInt(st.actions) >> BigInt(S.ACTIONS[a])) & 1n) === 1n;
+    if (!st.live || (Number(st.envs) & 2) === 0 || !plan.every((p) => has(p.action)) || S.spendable(st) === 0n) return walletSend();
+    const d = await S.delegationStatus(pc, ledger, Enclave.address, v.vault);
+    if (!d.supported) return walletSend();
+    if (!d.granted){
+      if (lsGet(declinedKey(ledger, me))) return walletSend();
+      if ((await askWalletDelegation({ ledger, owner: me, vault: v.vault })) !== true) return walletSend();
+      justGranted = true;
+    }
+  } catch(e){
+    return walletSend();
+  }
+  let last = null;
+  for (let i = 0; i < plan.length; i++){
+    try { last = await sessionCall(plan[i].action, plan[i].args); }
+    catch(e){
+      // a node a block behind a grant made seconds ago may still refuse the first call: once more, a moment later
+      if (i !== 0 || !justGranted || e.sessionCode !== "delegation") throw e;
+      await new Promise((r) => setTimeout(r, 3000));
+      last = await sessionCall(plan[i].action, plan[i].args);
+    }
+  }
+  return last && last.txHash;
+}
+
+/** Send one ledger call: via the session for a vault-held row, or for a row the wallet holds once the wallet has
+ *  let its vault act for it; else `walletSend()` (the unchanged wallet tx). */
 export async function ledgerSend(data, walletSend){
   const call = decodeLedgerCall(data);
   if (!call.id || call.fn === "unknown" || !(await sessionsConfig().catch(() => null))) return walletSend();
-  const { row, pc, catalog } = await ledgerOwner(call.id);
+  const { row, pc, catalog, ledger } = await ledgerOwner(call.id);
   const v = Enclave.address ? await vaultOf(Enclave.address).catch(() => null) : null;
+  if (v && String(row.owner).toLowerCase() === String(Enclave.address).toLowerCase())
+    return walletRecordSend(call, pc, ledger, v, walletSend);
   if (!v || String(row.owner).toLowerCase() !== String(v.vault).toLowerCase()) return walletSend();
   const held = (await vaultOf(Enclave.address, true)).held.find((h) => String(h.id).toLowerCase() === call.id.toLowerCase());
   const env = held ? held.env : 0;
