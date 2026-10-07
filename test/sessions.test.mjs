@@ -290,6 +290,13 @@ test("a lagging RPC node right after the open: the relay believes its own receip
     assert.equal(ok.sid, out.sid, "sign-in right after the open");
     lagUntil = Date.now() + 1500;
     await session.terminate();                            // the smoke test's failing call
+    // straight after: a node still behind the sign-out must not make the relay report it live
+    behind = await chain.pc.getBlockNumber() - 1n;
+    lagUntil = Date.now() + 1500;
+    const r = await relay.request("GET", `/session/${vault}/${out.sid}`);
+    assert.equal(r.state.live, false);
+    assert.equal(Number(r.state.state), 2, "the stale 'live' read was retried");
+    lagUntil = 0;
     const [, live] = await chain.pc.readContract({ address: vault, abi: sdk.sessionVaultAbi, functionName: "sessionOf", args: [out.sid] });
     assert.equal(live, false);
   } finally {
