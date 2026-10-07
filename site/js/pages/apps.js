@@ -679,7 +679,12 @@ function quickDeploy(app, v, idx){
   };
   conn.addEventListener("click", async () => {
     conn.disabled = true;
-    try { if (!Enclave.token) await authenticate(); else await connectWallet(); }
+    // connecting is all a deploy needs. A relay with wallet sessions reads live status through the session
+    // (started from the header's sign-in), so no host sign-in rides along; without sessions, as before
+    try {
+      const sessions = await import("../core/sessions.js").then((S) => S.sessionsAvailable()).catch(() => false);
+      if (!Enclave.token && !sessions) await authenticate(); else await connectWallet();
+    }
     catch(e){ showToast(e.message || String(e)); }
     conn.disabled = false; loadBal();
   });

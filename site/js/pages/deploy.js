@@ -435,10 +435,11 @@ async function watchClaimAndRun(id, dPre, w, prefer){
   w.line("ok", "[✓] claimed by enclave operator " + short(claimed.runnerOperator) + " · lease until " + new Date(claimed.leaseUntil * 1000).toLocaleTimeString());
   const label = appLabel(id);
   w.line("dimln", "    app origin: https://" + label + "." + APP_DOMAIN + "  (first request may take a moment: the enclave fetches + verifies your wasm from IPFS)");
-  if (!Enclave.authed()){
+  if (!Enclave.authed() && !Enclave.sessionMayServe()){
     // tokenless flows read the LEDGER (create/fund/claim all show), but the
-    // runner's live status stream is an owner-session read - the app itself
-    // is already booting and reachable at the origin above
+    // runner's live status stream is an owner read (the wallet session, or a
+    // host sign-in) - the app itself is already booting and reachable at the
+    // origin above
     w.line("dimln", "    claimed and funded - the app boots now. Open the app origin above" +
       (!Enclave.address && Enclave.accountAuthed()
         ? "; the row below tracks its status."

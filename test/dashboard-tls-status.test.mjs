@@ -69,7 +69,7 @@ test('HTTP endpoints are never probed or marked TLS verified', async () => {
 test('private app links still go through wallet authorization', () => {
   const html = render({ ...row, public: false }, origin, { state: 'ok', href: origin });
   assert.match(html, /href="authorize\?d=test"/);
-  assert.match(html, /sign in with your wallet/);
+  assert.match(html, /opens through your session or a wallet sign-in/);
 });
 
 const probeStart = src.indexOf('  async _probeTls(rows) {');

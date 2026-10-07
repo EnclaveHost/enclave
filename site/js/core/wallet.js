@@ -15,8 +15,10 @@
    through the order checkout (hosted Stripe page, zero crypto
    exposure) and crypto payments come from the user's wallet.
    Account-level sign-in (passkeys + SIWE against the relay) lives
-   in account.js; this module keeps the ENCLAVE session (the
-   in-CVM SIWE token that gates deployment-private reads).
+   in account.js; the wallet SESSION (sessions.js) signs the owner
+   calls hosts serve. This module keeps the per-host ENCLAVE token
+   (the in-CVM SIWE token), now only the fallback for a host that
+   hasn't learned sessions yet, or a wallet with no session.
    ============================================================ */
 import { BASE_CHAIN, BASE_CHAIN_HEX, USDC_BASE, WALLETCONNECT_PROJECT_ID } from "./config.js";
 import { Enclave, EnclaveError } from "./api.js";
@@ -441,6 +443,23 @@ export async function authenticate(opts){
   return sess;
 }
 
+/* Run an owner call against the box hosting a deployment (`enclave`, its fleet name; "" = the sticky box).
+   The wallet session signs it when it can (api.js _sessionReq), so nothing is asked. A 401 means no session
+   or cached per-host token could make the call: no session at all, a host that hasn't learned sessions yet
+   (api.js remembers it for this page load), or a stale token the box rejected (api.js drops it). Only THEN
+   does the wallet sign in to that host - the per-host SIWE, one signature per box, cached - and the call
+   runs once more. `prompt: false` never asks the wallet: the 401 goes back to the caller, for panels that
+   offer their own unlock button instead of a wallet prompt nobody clicked for. */
+export async function asHostOwner(enclave, call, { prompt = true } = {}){
+  const host = String(enclave || "").trim();
+  try { return await call(host); }
+  catch(e){
+    if (!e || e.status !== 401 || !prompt) throw e;
+    await authenticate(host ? { enclave: host } : undefined);
+    return await call(host);
+  }
+}
+
 export function disconnectWallet(){
   // sign-out ends the browser's session too: its key signs the terminate (no wallet
   // prompt), the unspent budget returns to the owner, API access ends in the same flow
@@ -630,9 +649,8 @@ export async function renderWalletPop(){
     '<div class="wp-row"><span class="wp-k">Wallet</span><button class="wp-addr" id="wpCopy">' + esc(short(Enclave.address)) + ' ⧉</button></div>' +
     '<div class="wp-row"><span class="wp-k">Network</span><span class="wp-v">' + (Enclave.chainId === BASE_CHAIN ? "Base" : ("chain " + (Enclave.chainId || "–"))) + (offBase ? ' <button class="wp-mini" id="wpSwitch">switch to Base</button>' : "") + '</span></div>' +
     '<div class="wp-row"><span class="wp-k">Session</span><span class="wp-v" id="wpSess">…</span></div>' +
-    '<div class="wp-row"><span class="wp-k">Host login</span><span class="wp-v">' + (Enclave.authed() ? '<span class="ok">signed in</span>' : '<button class="wp-mini" id="wpAuth">sign in</button>') + '</span></div>' +
     '<div class="wp-bal"><div class="bl"><span>USDC balance</span><span id="wpBalUsdc">…</span></div></div>' +
-    '<div class="wp-bal" id="wpBal">' + (Enclave.authed() ? "loading deployments…" : "sign in to load deployments") + '</div>' +
+    '<div class="wp-bal" id="wpBal">loading deployments…</div>' +
     '<div class="wp-fund">' +
       '<button class="wp-mini" id="wpDep">Deposit</button>' +
     '</div>' +
@@ -646,18 +664,34 @@ export async function renderWalletPop(){
     (b) => { const u = $("#wpBalUsdc"); if (u) u.textContent = b.toFixed(2) + " USDC"; },
     ()  => { const u = $("#wpBalUsdc"); if (u) u.textContent = "unavailable"; });
   const s = $("#wpSwitch"); if (s) s.addEventListener("click", () => Enclave.provider && ensureBaseChainOnConnect(Enclave.provider).then(renderWalletPop));
-  const a = $("#wpAuth"); if (a) a.addEventListener("click", async () => { try { await authenticate(); renderWalletPop(); } catch(e){ showToast(e.message); } });
   renderSessionRow();
-  if (Enclave.authed()){
-    try {
-      const acc = await Enclave.getAccount();
-      const dp = acc.deployments || {};
-      const rows = '<div class="bl"><span>running</span><span>' + esc(String(dp.running != null ? dp.running : 0)) + '</span></div>'
-                 + '<div class="bl"><span>awaiting payment</span><span>' + esc(String(dp.awaitingPayment != null ? dp.awaitingPayment : 0)) + '</span></div>'
-                 + '<div class="bl"><span>time funded</span><span>' + esc(fmtDur(dp.totalTimeRemainingSec || 0)) + '</span></div>';
-      const el = $("#wpBal"); if (el) el.innerHTML = '<div class="bl-h">Deployments</div>' + rows;
-    } catch(e){ const el = $("#wpBal"); if (el) el.textContent = e.message; }
-  }
+  try {
+    const dp = await deploymentCounts();
+    const rows = '<div class="bl"><span>running</span><span>' + esc(String(dp.running)) + '</span></div>'
+               + '<div class="bl"><span>awaiting payment</span><span>' + esc(String(dp.awaitingPayment)) + '</span></div>'
+               + '<div class="bl"><span>time funded</span><span>' + esc(fmtDur(dp.totalTimeRemainingSec)) + '</span></div>';
+    const el = $("#wpBal"); if (el) el.innerHTML = '<div class="bl-h">Deployments</div>' + rows;
+  } catch(e){ const el = $("#wpBal"); if (el) el.textContent = "Couldn’t load deployments: " + (e.message || e); }
+}
+
+/* The popover's deployment counts, fleet-wide: the same list the dashboard reads (the wallet session's live
+   view when there is one, else the public ledger rows for this wallet) plus the rows its session vault holds.
+   No sign-in of its own - it used to ask one box for its local summary behind a per-host login. */
+async function deploymentCounts(){
+  const res = await Enclave.listDeployments();
+  const list = Array.isArray(res) ? res : ((res && (res.deployments || res.items || res.data)) || []);
+  try {
+    const seen = new Set(list.map((d) => String(d.id).toLowerCase()));
+    for (const d of await (await import("./sessions.js")).vaultRows())
+      if (d.id && !seen.has(String(d.id).toLowerCase())) list.push(d);
+  } catch(e){ /* sessions off or unreachable: the wallet's rows still count */ }
+  const st = (d) => String((d && d.status) || "").toLowerCase();
+  return {
+    running: list.filter((d) => st(d) === "running").length,
+    awaitingPayment: list.filter((d) => st(d) === "awaiting_payment" || st(d) === "unfunded").length,
+    totalTimeRemainingSec: list.filter((d) => !/^(stopped|terminated|expired|failed|error)$/.test(st(d)))
+      .reduce((s, d) => s + (Number(d.timeRemainingSec) > 0 ? Number(d.timeRemainingSec) : 0), 0),
+  };
 }
 
 /* the popover's session row: live budget + top up / sessions / end, or "start" */
