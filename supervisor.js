@@ -49,7 +49,7 @@ import { initAddressBook, REGISTRY_ADDRESS, DEPLOYMENTS_ADDRESS, APP_CATALOG_ADD
          FORWARDER_ADDRESS, PROOF_OF_TIME_ADDRESS } from "./addressbook.js";
 // Wallet sessions (SessionVault) as owner credentials, verified on chain: shared with the Windows node.
 import { createSessionApiAuth, isSessionHeader, hasScope, apiBases, envList, DEFAULT_API_HOSTS, DEFAULT_FACTORIES }
-  from "./windows/node/session-api-auth.mjs";
+  from "./session-api-auth.mjs";
 
 // Process-wide crash guards. This is Express 4: a rejected async route (or any
 // stray background rejection) would otherwise take the whole process down —
