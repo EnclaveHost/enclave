@@ -15,6 +15,8 @@ Its spending is capped twice: by the session's budget, which you escrow when you
 
 ## 1. The agent asks for a session
 
+Sessions need the Enclave CLI cli-v1.3.0 or later. To install or update it, run `curl -fsSL https://get.enclave.host | sh`.
+
 In the agent's terminal (or ask Claude Code to run it):
 
 ```
