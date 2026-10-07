@@ -1,0 +1,226 @@
+// Sessions end to end on a local chain: the SDK (sdk/sessions, built) drives the
+// REAL relayer (relay/sessions.mjs) over HTTP, which submits to the REAL
+// SessionVault deployed by scripts/deploy-session-vault.mjs, against the REAL
+// ledger, catalog and PaymentRouter. Skips when Foundry (anvil/forge) is absent.
+import { test, before, after } from "node:test";
+import assert from "node:assert/strict";
+import http from "node:http";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { privateKeyToAccount } from "viem/accounts";
+import { createWalletClient, http as viemHttp, parseUnits } from "viem";
+import { foundry } from "viem/chains";
+import { haveFoundry, startChain, deployPlatform, KEYS } from "./helpers/sessions-chain.mjs";
+import { createSessionsService } from "../relay/sessions.mjs";
+import { JsonStore } from "../relay/store.js";
+import * as sdk from "../sdk/sessions/dist/node.mjs";
+
+const skip = !haveFoundry() || !fs.existsSync(new URL("../sdk/sessions/dist/node.mjs", import.meta.url))
+  ? "needs Foundry (anvil + forge) and a built SDK (cd sdk/sessions && npm run build)" : false;
+
+let chain, P, svc, server, relayUrl, tmp, stores = [];
+const owner = privateKeyToAccount(KEYS.owner);
+const ownerSigner = { address: owner.address, signTypedData: (td) => owner.signTypedData(td) };
+
+before(async () => {
+  if (skip) return;
+  chain = await startChain();
+  P = await deployPlatform(chain);
+  tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sessions-relay-"));
+  const relayer = privateKeyToAccount(KEYS.relayer);
+  svc = createSessionsService({
+    pc: chain.pc, wc: createWalletClient({ chain: foundry, account: relayer, transport: viemHttp(chain.rpc) }),
+    account: relayer, chainId: 31337, factory: P.factory, book: P.book, usdc: P.usdc, router: P.router,
+    startBlock: P.deployBlock, ethUsd: 3000, minFee6: 500, now: chain.now,
+    // Base today: ~0.005 gwei base + 0.001 gwei tip (anvil suggests a 1 gwei tip, 1000x Base)
+    feesPerGas: async () => ({ maxFeePerGas: 7_000_000n, maxPriorityFeePerGas: 1_000_000n }),
+    store: (stores[0] = new JsonStore(path.join(tmp, "idx.json"), {})),
+    journal: (stores[1] = new JsonStore(path.join(tmp, "j.json"), { txs: [] }, { durable: true })),
+    log: (...a) => { if (process.env.SESSIONS_TEST_LOG) console.log("[relay]", ...a); }, alert: (k, d) => { alerts.push([k, d]); },
+  });
+  server = http.createServer((req, res) => {
+    const u = new URL(req.url, "http://relay.test");
+    if (u.pathname.startsWith("/v1/sessions")) return svc.handle(req, res, u, null);
+    res.writeHead(404).end();
+  });
+  await new Promise((r) => server.listen(0, r));
+  relayUrl = `http://127.0.0.1:${server.address().port}`;
+});
+
+after(() => {
+  if (process.env.SESSIONS_TEST_LOG && stores[1])
+    for (const t of stores[1].data.txs) console.log("gas", t.label.replace(/ 0x[0-9a-f]+/, ""), t.gasUsed);
+  for (const st of stores) clearInterval(st._timer);
+  server?.close(); chain?.stop();
+  if (tmp) fs.rmSync(tmp, { recursive: true, force: true });
+});
+const alerts = [];
+
+const usdcBal = async (a) => chain.pc.readContract({ address: P.usdc, abi: P.abi.usdc.abi, functionName: "balanceOf", args: [a] });
+
+async function openFor(preset, { apps, budget = 0n, expiresIn, label = "test" } = {}) {
+  const store = new sdk.MemoryStore();
+  const { signer, record } = await sdk.newSessionKey(store, { relay: relayUrl, chainId: 31337, label, extractable: true });
+  const grant = sdk.buildGrant({ sessionKey: signer.keyHash, label, preset,
+    policy: { ...(apps ? { apps } : {}), budget, ...(expiresIn ? { expiresIn } : {}) } });
+  const relay = new sdk.RelayClient(relayUrl);
+  const vault = await sdk.vaultAddress(chain.pc, P.factory, owner.address);
+  const usdc = budget > 0n ? await sdk.usdcDomain(chain.pc, P.usdc, 31337) : undefined;
+  const out = await sdk.openSession({ relay, owner: ownerSigner, chainId: 31337, vault, grant, usdc });
+  const rec = await sdk.completeSession(store, record, { vault, owner: owner.address, grant, rpc: chain.rpc });
+  const session = await sdk.sessionFromRecord(rec);
+  return { session, grant, vault, sid: out.sid, store, relay, signer };
+}
+
+test("agent staging-publish flow: publish, deploy to staging, re-point, sign out with refund", { skip }, async () => {
+  const before = await usdcBal(owner.address);
+  const { session, vault, sid } = await openFor("staging-publish", { apps: ["mine-staging"], budget: parseUnits("10", 6), label: "Claude Code" });
+  assert.equal(await usdcBal(vault), parseUnits("10", 6));
+  const st = await session.status();
+  assert.equal(st.live, true);
+  assert.equal(st.envs, 1);
+
+  const pub = await session.call("app.publish", { slug: "mine-staging", name: "Mine (staging)", description: "",
+    version: "0.1.0", cid: "bafymine1", res: [0, 0, 256, 10], ports: "", config: "{}", configCid: "" });
+  assert.match(pub.txHash, /^0x[0-9a-f]{64}$/);
+  const appId = await chain.pc.readContract({ address: P.catalog, abi: P.abi.catalog.abi, functionName: "appIdOf", args: [vault, "mine-staging"] });
+  const ref0 = `catalog://${appId}/0`;
+
+  const created = await session.call("deploy.create", { appRef: ref0, gpuMilli: 0, cpuMilli: 1000, appPort: 8080, ports: "",
+    isPublic: false, configCid: "", maxRate6: 1_000_000n, env: "staging", fund6: parseUnits("2", 6) });
+  const id = `0x${created.result.slice(2, 66)}`;
+  const d = await chain.pc.readContract({ address: P.ledger, abi: P.abi.ledger.abi, functionName: "get", args: [id] });
+  assert.equal(d.owner, vault);
+  assert.equal(d.appRef, ref0);
+
+  await session.call("app.publish", { slug: "mine-staging", name: "Mine (staging)", description: "", version: "0.1.1",
+    cid: "bafymine2", res: [0, 0, 256, 10], ports: "", config: "{}", configCid: "" });
+  await session.call("deploy.setAppRef", { id, appRef: `catalog://${appId}/1` });
+  const d2 = await chain.pc.readContract({ address: P.ledger, abi: P.abi.ledger.abi, functionName: "get", args: [id] });
+  assert.equal(d2.appRef, `catalog://${appId}/1`);
+
+  // outside the preset: the session can't touch the store app, prod, or pay orders
+  await assert.rejects(session.call("order.pay", { amount6: 1n, orderRef: "0x" + "00".repeat(32) }), (e) => e.code === "not_allowed");
+  await assert.rejects(session.call("deploy.create", { appRef: P.storeRef, gpuMilli: 0, cpuMilli: 1000, appPort: 8080, ports: "",
+    isPublic: false, configCid: "", maxRate6: 1_000_000n, env: "staging", fund6: 0n }), (e) => e.code === "app");
+
+  const spent = (await session.status()).spent6;
+  const res = await session.terminate();
+  assert.equal(res.refund6, parseUnits("10", 6) - spent);
+  assert.equal(await usdcBal(owner.address), before - spent);
+  assert.equal((await session.status()).live, false);
+  // the index saw all of it
+  await svc.indexOnce();
+  const byKey = await new sdk.RelayClient(relayUrl).request("GET", `/by-key/${session.signer.keyHash}`);
+  assert.equal(byKey.sessions[0].sid, sid);
+  assert.equal(byKey.sessions[0].ended, true);
+});
+
+test("browser flow: zero-budget sign-in, wallet top-up, spend, promote, revoke-all", { skip }, async () => {
+  const { session, vault, sid, relay } = await openFor("browser", { label: "this browser", expiresIn: 3600 });
+  assert.equal((await session.status()).balance6, 0n);
+  // spending with no budget fails up front with a code the UI turns into "Top up"
+  await assert.rejects(session.call("order.pay", { amount6: parseUnits("1", 6), orderRef: "0x" + "11".repeat(32) }),
+    (e) => e.code === "budget");
+  const usdc = await sdk.usdcDomain(chain.pc, P.usdc, 31337);
+  await sdk.topUpFromWallet({ relay, owner: ownerSigner, chainId: 31337, vault, sessionId: sid, amount: parseUnits("5", 6), usdc });
+  assert.equal((await session.status()).balance6, parseUnits("5", 6));
+  const t0 = await usdcBal(P.treasury);
+  const paid = await session.call("order.pay", { amount6: parseUnits("1", 6), orderRef: "0x" + "11".repeat(32) });
+  assert.equal(await usdcBal(P.treasury), t0 + parseUnits("1", 6) + paid.fee, "order and relay fee both reach the treasury");
+
+  // a prod deployment created by the session, then promoted by the owner
+  const c = await session.call("deploy.create", { appRef: P.storeRef, gpuMilli: 0, cpuMilli: 1000, appPort: 8080, ports: "",
+    isPublic: true, configCid: "", maxRate6: 1_000_000n, env: "prod", fund6: 0n });
+  const id = `0x${c.result.slice(2, 66)}`;
+  let held = await chain.pc.readContract({ address: vault, abi: sdk.sessionVaultAbi, functionName: "held", args: [id] });
+  assert.equal(held[0], 2);
+  assert.equal(held[1], "0x" + "00".repeat(32), "unpromoted until the owner says so");
+  // the session cannot re-point prod
+  await assert.rejects(session.call("deploy.setAppRef", { id, appRef: P.storeRef }), (e) => e.code === "env");
+  await sdk.ownerOperation({ relay, owner: ownerSigner, chainId: 31337, vault,
+    op: { op: "promote", deployment: id, appRef: P.storeRef, configCid: "", versionLabel: "1.0.0" } });
+  held = await chain.pc.readContract({ address: vault, abi: sdk.sessionVaultAbi, functionName: "held", args: [id] });
+  assert.notEqual(held[1], "0x" + "00".repeat(32));
+
+  const before = await usdcBal(owner.address);
+  const left = (await session.status()).balance6;
+  await sdk.ownerOperation({ relay, owner: ownerSigner, chainId: 31337, vault, op: { op: "revokeAll", withdraw: true } });
+  assert.equal((await session.status()).live, false);
+  assert.ok(await usdcBal(owner.address) >= before + left);
+  await assert.rejects(session.call("deploy.setActive", { id, active: false }), (e) => e.code === "not_live");
+});
+
+test("API request auth: valid, replayed, tampered, out of scope, signed out", { skip }, async () => {
+  const { session, vault, sid, relay, signer } = await openFor("staging-publish", { apps: ["api-staging"], budget: 0n });
+  const url = "https://api.enclave.host/v1/deployments/0xabc/logs?tail=10";
+  const hdr = await session.apiAuthorization("GET", url);
+  const ok = await svc.verifyApiRequest({ header: hdr, method: "GET", hostPath: "api.enclave.host/v1/deployments/0xabc/logs?tail=10", scope: "api.logs" });
+  assert.equal(ok.owner, owner.address);
+  assert.equal(ok.vault, vault);
+  await assert.rejects(svc.verifyApiRequest({ header: hdr, method: "GET", hostPath: "api.enclave.host/v1/deployments/0xabc/logs?tail=10", scope: "api.logs" }),
+    /replayed/);
+  const h2 = await session.apiAuthorization("POST", "https://api.enclave.host/v1/upload", '{"a":1}');
+  await assert.rejects(svc.verifyApiRequest({ header: h2, method: "POST", hostPath: "api.enclave.host/v1/upload", body: Buffer.from('{"a":2}'), scope: "api.upload" }),
+    /bad session signature/);
+  const h3 = await session.apiAuthorization("GET", "https://api.enclave.host/v1/x");
+  await assert.rejects(svc.verifyApiRequest({ header: h3, method: "GET", hostPath: "api.enclave.host/v1/x", scope: "api.appAccess" }),
+    /lacks api.appAccess/);
+  // another key presenting this session id
+  const other = await sdk.signerFromKeyPair(await sdk.generateKeyPair(false));
+  const h4 = await sdk.signApiRequest(other, vault, sid, "GET", "https://api.enclave.host/v1/x");
+  await assert.rejects(svc.verifyApiRequest({ header: h4, method: "GET", hostPath: "api.enclave.host/v1/x", scope: "api.status" }),
+    /does not belong/);
+  // sign-out revokes API access in the same flow
+  await session.terminate();
+  const h5 = await session.apiAuthorization("GET", "https://api.enclave.host/v1/x");
+  await assert.rejects(svc.verifyApiRequest({ header: h5, method: "GET", hostPath: "api.enclave.host/v1/x", scope: "api.status" }),
+    /signed out/);
+  void relay; void signer;
+});
+
+test("relay maps vault reverts to typed errors and refuses unknown vaults", { skip }, async () => {
+  const { session } = await openFor("staging-publish", { apps: ["e-staging"], budget: parseUnits("1", 6) });
+  // bypass the SDK's pre-check: ask the relay directly to spend more than the budget
+  const q = await session.relay.request("POST", "/quote", { vault: session.handle.vault, sid: session.handle.sid, action: 1, args: "0x" });
+  const args = sdk.encodeArgs("deploy.fund", { id: "0x" + "12".repeat(32), amount6: parseUnits("50", 6) });
+  const digest = sdk.digestOf(31337, session.handle.vault, "SessionCall", { sessionId: session.handle.sid, nonce: q.nonce, action: 1,
+    argsHash: (await import("viem")).keccak256(args), fee: q.fee, deadline: q.deadline });
+  const { r, s } = await session.signer.signDigest(digest);
+  await assert.rejects(session.relay.request("POST", "/execute", { vault: session.handle.vault, sid: session.handle.sid, nonce: q.nonce,
+    action: 1, args, fee: q.fee, deadline: q.deadline, x: session.signer.x, y: session.signer.y, r, s }),
+  (e) => e instanceof sdk.SessionError && e.code === "budget");
+  await assert.rejects(session.relay.request("POST", "/quote", { vault: P.ledger, sid: session.handle.sid, action: 1, args: "0x" }),
+    (e) => e.code === "not_a_vault");
+});
+
+test("owner-only operations are unreachable for a session key, and the relay checks vault ownership", { skip }, async () => {
+  const { vault, sid, relay } = await openFor("staging-publish", { apps: ["o-staging"], budget: 0n });
+  const stranger = privateKeyToAccount(KEYS.stranger);
+  const strangerSigner = { address: stranger.address, signTypedData: (td) => stranger.signTypedData(td) };
+  await assert.rejects(sdk.ownerOperation({ relay, owner: strangerSigner, chainId: 31337, vault, op: { op: "withdraw", amount: 1n } }),
+    (e) => e.code === "not_owner");
+  // a signature from the wrong wallet presented as the owner's is refused by the vault itself
+  const opNonce = "0x" + "77".repeat(32);
+  const signBefore = BigInt(Math.floor(Date.now() / 1000) + 600);
+  const td = sdk.typedData(31337, vault, "Terminate", { sessionId: sid, opNonce, signBefore });
+  const forged = await stranger.signTypedData(td);
+  await assert.rejects(relay.request("POST", "/owner", { owner: owner.address, vault, op: "terminate",
+    args: { sessionId: sid, opNonce, signBefore }, sig: forged }), (e) => e.code === "signature");
+});
+
+test("keeper closes expired sessions and refunds the owner", { skip }, async () => {
+  const { session, vault, sid } = await openFor("staging-publish", { apps: ["k-staging"], budget: parseUnits("3", 6), expiresIn: 600 });
+  await svc.indexOnce();
+  const before = await usdcBal(owner.address);
+  await chain.warp(700);
+  assert.equal((await session.status()).live, false);
+  await svc.keeperOnce();
+  const after = await usdcBal(owner.address);
+  if (process.env.SESSIONS_TEST_LOG) console.log("keeper refund", before, after, after - before);
+  assert.ok(after >= before + parseUnits("3", 6) - 100_000n, "refund landed, minus at most the close fee ($0.10 cap)");
+  assert.ok(after > before, "something was refunded");
+  const st = await sdk.readSession(chain.pc, vault, sid);
+  assert.equal(st.state, 2);
+});

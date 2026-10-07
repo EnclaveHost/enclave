@@ -28,6 +28,12 @@ via_ir = true
 paths = "contracts/EnclaveDeployments.sol"
 optimizer_runs = 1
 
+# SessionVault: deployed once and cloned per owner; its size is the binding
+# constraint, not per-call gas (the P-256 precompile dominates a session op).
+[[profile.default.compilation_restrictions]]
+paths = "contracts/SessionVault.sol"
+optimizer_runs = 1
+
 [fuzz]
 runs = 512
 
