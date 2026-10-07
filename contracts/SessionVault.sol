@@ -174,10 +174,10 @@ library SessionVaultLib {
     /// runner first, so its unpaid tail would be paid at the new rate out of the owner's
     /// escrow (a zero-rate squatter's whole business). Its own rate must pass as it is;
     /// if it doesn't, the owner's wallet funds it, never a session.
-    function prepareFund(ISVBook book, bytes32 id, uint256 maxRateHour6) external {
+    function prepareFund(ISVBook book, bytes32 id, uint256 maxRateHour6, address wallet) external {
         ISVLedger L = ledger(book);
         ISVLedger.Deployment memory d = L.get(id);
-        if (d.owner != address(this)) revert NotMine(id);
+        if (d.owner != address(this) && d.owner != wallet) revert NotMine(id);
         uint256 cap = L.capOf(id);
         if (cap == 0 || cap * 3600 > maxRateHour6) revert RateCapOutOfRange(cap * 3600, maxRateHour6);
         uint256 rate = d.rate;
@@ -225,6 +225,21 @@ library SessionVaultLib {
         if (r * 3600 > maxRateHour6) revert RateCapOutOfRange(r * 3600, maxRateHour6);
         (, uint256 fee) = L.feeOf(id);
         if (r < 2 * fee) revert RateCapOutOfRange(r, 2 * fee);
+    }
+
+    /// The publisher fee of a record the owner's WALLET holds, its catalog app, and whether the fee is
+    /// GENUINE: the catalog's own fee for that version, paid to that app's publisher - exactly what
+    /// create() derives. The ledger snapshots whatever create() is handed, so a record anyone gifted
+    /// to the wallet can carry any fee to any recipient on any appRef (fee 0: nothing to check).
+    function feeAndApp(ISVBook book, bytes32 id) external view returns (uint256 fee, bytes32 appId, bool genuine) {
+        ISVLedger L = ledger(book);
+        address to;
+        (to, fee) = L.feeOf(id);
+        if (fee == 0) return (0, bytes32(0), true);
+        uint256 idx;
+        (appId, idx) = parseRef(L.get(id).appRef);
+        ISVCatalog cat = catalog(book);
+        genuine = cat.versionFee(appId, idx) == fee && cat.getApp(appId).publisher == to;
     }
 
     function appIdOf(ISVBook book, string memory slug) external view returns (bytes32) {
@@ -998,18 +1013,31 @@ contract SessionVault {
         ISVLedger L = _ledger();
         if (action == ACT_FUND) {
             (bytes32 id, ) = abi.decode(args, (bytes32, uint256));
-            // only records THIS vault holds: a deployment anyone could transfer to the
-            // owner's wallet carries a fee and a rate cap the session never vetted
-            if (SessionVaultLib.ownerOf(book, id) != address(this)) revert NotMine(id);
+            // records this vault holds, or the owner's WALLET holds (reached through the
+            // ledger delegation the owner granted this vault)...
+            address holder = SessionVaultLib.ownerOf(book, id);
+            if (holder != address(this) && holder != owner) revert NotMine(id);
             _requireHeldEnv(s, id);
+            if (holder == owner) {
+                // ...but anyone can transferDeployment a record INTO the wallet: its publisher
+                // fee was never vetted by this grant, so a paid one needs its app named, at a
+                // fee within the grant's ceiling (exactly what create() asks of a new record)
+                (uint256 fee, bytes32 appId, bool genuine) = SessionVaultLib.feeAndApp(book, id);
+                if (fee > 0) {
+                    if (!genuine || !_appListed(sid, appId)) revert AppNotAllowed(appId);
+                    if (fee * 3600 > s.maxAppFeeHour6) revert AppFeeTooHigh(fee * 3600, s.maxAppFeeHour6);
+                }
+            }
             // ... at a cap the grant allows and a rate that buys runtime
-            SessionVaultLib.prepareFund(book, id, s.maxRateHour6);
-            _fund(L, id, amount, address(this));
+            SessionVaultLib.prepareFund(book, id, s.maxRateHour6, owner);
+            // credited to the HOLDER, so the escrowed share refunds to whoever holds the record
+            _fund(L, id, amount, holder);
             return "";
         }
         if (action == ACT_SET_APPREF) {
             (bytes32 id, string memory ref) = abi.decode(args, (bytes32, string));
-            if (_requireHeldEnv(s, id) != ENV_STAGING) revert WrongEnvironment(id, held[id].env);
+            uint8 env = _requireHeldEnv(s, id);
+            if (env != ENV_STAGING) revert WrongEnvironment(id, env);
             (bytes32 appId, ) = SessionVaultLib.parseRef(ref);
             _requireApp(sid, s, appId);
             L.setAppRef(id, ref);
@@ -1017,7 +1045,8 @@ contract SessionVault {
         }
         if (action == ACT_SET_CONFIG) {
             (bytes32 id, string memory cfg) = abi.decode(args, (bytes32, string));
-            if (_requireHeldEnv(s, id) != ENV_STAGING) revert WrongEnvironment(id, held[id].env);
+            uint8 cenv = _requireHeldEnv(s, id);
+            if (cenv != ENV_STAGING) revert WrongEnvironment(id, cenv);
             L.setConfig(id, cfg);
             return "";
         }
@@ -1039,8 +1068,8 @@ contract SessionVault {
             L.setActive(id, a);
             return "";
         }
-        // ACT_REFUND: the ledger pays d.owner = this vault; the proceeds are FREE
-        // balance (the owner's), never the session's
+        // ACT_REFUND: the ledger pays d.owner - this vault (the proceeds are FREE balance,
+        // the owner's, never the session's) or, for a record the wallet holds, the wallet
         (bytes32 rid) = abi.decode(args, (bytes32));
         _requireHeldEnv(s, rid);
         L.refund(rid);
@@ -1067,9 +1096,17 @@ contract SessionVault {
         return SessionVaultLib.publish(book, p);
     }
 
+    /// The environment a session acts in on `id`. A record this vault holds: its custody record
+    /// (unadopted = inert). A record the OWNER's WALLET holds, reached through the ledger delegation
+    /// the owner granted this vault (ledger rev 15d setDelegate): always PRODUCTION - a session never
+    /// changes what such a record runs (setAppRef/setConfig stay the wallet's), only how it runs,
+    /// what it may cost and what it is paid; and without the delegation the ledger refuses anyway.
     function _requireHeldEnv(Session storage s, bytes32 id) private view returns (uint8 env) {
         env = held[id].env;
-        if (env == 0) revert NotHeld(id);
+        if (env == 0) {
+            if (SessionVaultLib.ownerOf(book, id) != owner) revert NotHeld(id);
+            env = ENV_PROD;
+        }
         if (s.envs & env == 0) revert EnvNotAllowed(env);
     }
 

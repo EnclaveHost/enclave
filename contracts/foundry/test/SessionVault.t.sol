@@ -512,8 +512,8 @@ contract SessionVaultTest is SessionRig {
         assertEq(vault.free(), refundable, "refund lands as the owner's free balance");
     }
 
-    function test_fundRefusesWalletHeldDeploymentsEvenGiftedOnes() public {
-        // the owner's own wallet deployment: sessions fund only what the VAULT holds
+    function test_fundsTheWalletsOwnRecordButNeverAForgedFee() public {
+        // the owner's own wallet deployment: a session funds it (and the escrow refunds to the wallet)
         vm.prank(owner);
         bytes32 mine = ledger.create(freeRef, 0, 1000, 8080, "", false, "", address(0), 0, 1000);
         // an attacker's deployment GIFTED to the owner's wallet (one-step transfer), carrying a
@@ -522,9 +522,13 @@ contract SessionVaultTest is SessionRig {
         vm.prank(attacker);
         bytes32 gift = ledger.create(freeRef, 0, 1000, 8080, "", false, "", attacker, 1389, 1390);
         vm.prank(attacker); ledger.transferDeployment(gift, owner);
-        bytes32 sid = _openWithDeposit(_grant(keyHash, 50e6));
-        _execExpectRevert(sid, 0, FUND, _fund(mine, 5e6), 0, abi.encodeWithSelector(SessionVault.NotMine.selector, mine));
-        _execExpectRevert(sid, 0, FUND, _fund(gift, 5e6), 0, abi.encodeWithSelector(SessionVault.NotMine.selector, gift));
+        SessionVault.Grant memory g = _grant(keyHash, 50e6);
+        g.apps = _strs("*", vm.toString(freeAppId));      // even with the app NAMED: the fee is not the catalog's
+        bytes32 sid = _openWithDeposit(g);
+        _exec(sid, 0, FUND, _fund(mine, 5e6), 0);
+        assertEq(ledger.get(mine).balance6, 5e6);
+        assertGt(ledger.refundableOf(mine), 0, "credited to the wallet that holds it");
+        _execExpectRevert(sid, 1, FUND, _fund(gift, 5e6), 0, abi.encodeWithSelector(SessionVault.AppNotAllowed.selector, freeAppId));
         assertEq(usdc.balanceOf(attacker), 0);
     }
 
@@ -542,8 +546,9 @@ contract SessionVaultTest is SessionRig {
         vm.prank(stranger); ledger.transferDeployment(gift, address(vault));
         _execExpectRevert(sid, 0, FUND, abi.encode(theirs, uint256(1e6)), 0,
             abi.encodeWithSelector(SessionVault.NotMine.selector, theirs));
+        // the wallet's own record is PRODUCTION to a session: a staging-only grant never reaches it
         _execExpectRevert(sid, 0, FUND, abi.encode(mineWallet, uint256(1e6)), 0,
-            abi.encodeWithSelector(SessionVault.NotMine.selector, mineWallet));
+            abi.encodeWithSelector(SessionVault.EnvNotAllowed.selector, uint8(2)));
         _execExpectRevert(sid, 0, FUND, abi.encode(gift, uint256(1e6)), 0,
             abi.encodeWithSelector(SessionVault.NotHeld.selector, gift));
     }
