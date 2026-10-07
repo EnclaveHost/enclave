@@ -1667,6 +1667,14 @@ export declare const sessionVaultAbi: readonly [{
         readonly type: "uint256";
         readonly internalType: "uint256";
     }];
+}, {
+    readonly type: "error";
+    readonly name: "LeaseUnsettled";
+    readonly inputs: readonly [{
+        readonly name: "id";
+        readonly type: "bytes32";
+        readonly internalType: "bytes32";
+    }];
 }];
 export declare const sessionVaultFactoryAbi: readonly [{
     readonly type: "constructor";

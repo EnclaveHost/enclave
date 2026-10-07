@@ -1035,18 +1035,27 @@ export function createCustodyGate({ pc, book, factory: fixedFactory = null, fact
     /** the address whose wallet signature counts as the owner's for this record */
     async beneficialOwner(owner) { return (await vaultOwnerOf(owner)) ?? getAddress(owner); },
     /** null = no objection; a string = why this deployment's secrets must not be released.
-     *  Wallet-held rows pass untouched. ANY contract owner that answers held(id) is gated by
-     *  its answer, not just the vaults of the factories this relay knows: a vault from a
-     *  factory rotated out of the book must never fall back to "plain wallet", and an
-     *  impostor answering held() only ever makes its OWN records stricter. Errors propagate:
-     *  the callers refuse (fail closed) on an unreadable chain. */
+     *  Wallet-held rows pass untouched. A vault of a factory this relay knows (the book's,
+     *  SESSIONS_FACTORY, SESSIONS_FACTORIES) MUST answer held(); any other contract owner
+     *  that answers it is gated by its answer too, so a vault from a factory rotated out of
+     *  the book never falls back to "plain wallet" (an impostor answering held() only ever
+     *  makes its OWN records stricter). List every factory ever run in SESSIONS_FACTORIES:
+     *  only a known vault is held to the strict read. Errors propagate: the callers refuse
+     *  (fail closed) on an unreadable chain. */
     async custodyRefusal(row) {
       if (!row?.owner) return null;
       const a = getAddress(row.owner);
-      if (!(await vaultOwnerOf(a)) && !(await hasCode(a))) return null;
-      const h = await heldOf(a, row.id);
-      if (!h) return null;
-      const [env, promoted] = h;
+      let env, promoted;
+      if (await vaultOwnerOf(a)) {
+        // a KNOWN vault answers held() or the release is refused: an empty answer from a
+        // lagging node, a gas-cap error, anything at all, throws (fail closed)
+        [env, promoted] = await pc.readContract({ address: a, abi: sessionVaultAbi, functionName: "held", args: [row.id] });
+      } else {
+        if (!(await hasCode(a))) return null;
+        const h = await heldOf(a, row.id);
+        if (!h) return null;
+        [env, promoted] = h;
+      }
       if (Number(env) === 0) return "this deployment sits in a session vault its owner has not adopted";
       if (Number(env) === 2) {
         const now = keccak256(encodeAbiParameters([{ type: "string" }, { type: "string" }],

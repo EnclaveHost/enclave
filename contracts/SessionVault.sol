@@ -142,6 +142,7 @@ library SessionVaultLib {
     error AppNotAllowed(bytes32 appId);
     error RateCapOutOfRange(uint256 rate, uint256 limit);
     error FundRateTooLow(uint256 rate, uint256 feeTimesTwo);
+    error LeaseUnsettled(bytes32 id);
 
     function ledger(ISVBook book) internal view returns (ISVLedger) {
         address a = book.addr(BOOK_DEPLOYMENTS);
@@ -164,10 +165,14 @@ library SessionVaultLib {
     /// job-rate claim leaves that rate behind after release - at rate == fee a funding
     /// pays the publisher everything, at rate 0 the platform, with nothing escrowed for
     /// a runner and nothing refundable. So: only records this vault owns, whose cap
-    /// fits the grant's ceiling (an imported cap-0 record never); an unleased record is
-    /// re-based on its cap first (the ledger's own unleased rule); and the rate the
-    /// funding splits at must leave the fee at most half of it. A live lease priced
-    /// under that is funded by the owner's wallet, never by a session.
+    /// fits the grant's ceiling (an imported cap-0 record never), and the rate the
+    /// funding splits at must leave the fee at most half of it. A record with NO lease
+    /// attached is re-based on its cap first (the ledger's own unleased rule). One with
+    /// a lease attached - live, or expired but never released or re-claimed - is never
+    /// re-based: the ledger's setMaxRate re-snaps the runner rate WITHOUT crediting that
+    /// runner first, so its unpaid tail would be paid at the new rate out of the owner's
+    /// escrow (a zero-rate squatter's whole business). Its own rate must pass as it is;
+    /// if it doesn't, the owner's wallet funds it, never a session.
     function prepareFund(ISVBook book, bytes32 id, uint256 maxRateHour6) external {
         ISVLedger L = ledger(book);
         ISVLedger.Deployment memory d = L.get(id);
@@ -175,7 +180,10 @@ library SessionVaultLib {
         uint256 cap = L.capOf(id);
         if (cap == 0 || cap * 3600 > maxRateHour6) revert RateCapOutOfRange(cap * 3600, maxRateHour6);
         uint256 rate = d.rate;
-        if (d.leaseUntil <= block.timestamp && rate != cap) { L.setMaxRate(id, cap); rate = cap; }
+        if (d.runner == bytes32(0) && d.leaseUntil <= block.timestamp && rate != cap) {
+            L.setMaxRate(id, cap);
+            rate = cap;
+        }
         (, uint256 fee) = L.feeOf(id);
         if (rate == 0 || rate < 2 * fee) revert FundRateTooLow(rate, 2 * fee);
     }
@@ -184,8 +192,12 @@ library SessionVaultLib {
     /// unleased rate IS the cap, so a lower one would tip every funding to the
     /// publisher), and on a production record only ever lowered (a raised cap is what
     /// lets a host the attacker runs claim at that price and earn the record's escrow).
+    /// Never while a lease is attached but over: the ledger would re-snap the runner
+    /// rate before crediting that runner's unpaid tail (see prepareFund).
     function checkMaxRate(ISVBook book, bytes32 id, uint256 r, bool prod, uint256 maxRateHour6) external view {
         ISVLedger L = ledger(book);
+        ISVLedger.Deployment memory d = L.get(id);
+        if (d.runner != bytes32(0) && d.leaseUntil <= block.timestamp) revert LeaseUnsettled(id);
         if (prod) {
             uint256 cap = L.capOf(id);
             if (r > cap) revert RateCapOutOfRange(r, cap);

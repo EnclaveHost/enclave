@@ -3,7 +3,7 @@ import { type ActionArgs } from "./args.js";
 import { type ActionName, type OnChainAction } from "./constants.js";
 import { type SessionSigner } from "./keys.js";
 import { type Grant } from "./typed.js";
-export type SessionErrorCode = "not_live" | "expired" | "not_allowed" | "env" | "app" | "budget" | "period" | "rate" | "fee" | "signature" | "nonce" | "policy" | "relay" | "revert" | "config";
+export type SessionErrorCode = "not_live" | "expired" | "not_allowed" | "env" | "app" | "budget" | "period" | "rate" | "fee" | "signature" | "nonce" | "policy" | "relay" | "revert" | "config" | "price";
 /** Every failure the UI or an agent must act on carries a code, never just text:
  *  budget/period -> offer a top-up, expired/not_live -> extend or sign in again,
  *  not_allowed/env/app -> the owner must act. */

@@ -14,7 +14,7 @@ import { digestOf, grantDigest, sessionIdOf, typedData, type Grant, type Primary
 
 export type SessionErrorCode =
   | "not_live" | "expired" | "not_allowed" | "env" | "app" | "budget" | "period" | "rate" | "fee"
-  | "signature" | "nonce" | "policy" | "relay" | "revert" | "config";
+  | "signature" | "nonce" | "policy" | "relay" | "revert" | "config" | "price";
 
 /** Every failure the UI or an agent must act on carries a code, never just text:
  *  budget/period -> offer a top-up, expired/not_live -> extend or sign in again,
@@ -32,6 +32,8 @@ const ERROR_CODES: Record<string, SessionErrorCode> = {
   RateLimit: "rate", FeeTooHigh: "fee", BadSignature: "signature", BadNonce: "nonce", NonceUsed: "nonce",
   BadPolicy: "policy", UnknownAction: "policy", UnknownEnvironment: "policy", AppFeeTooHigh: "app",
   NotHeld: "env", NotMine: "env", NoAttestation: "policy", OverCap: "budget",
+  // the deployment's price is outside what a session may pay or set: the owner's wallet acts
+  RateCapOutOfRange: "price", FundRateTooLow: "price", LeaseUnsettled: "price",
 };
 
 /** Turn vault revert data into a SessionError (unknown data -> code "revert"). */
