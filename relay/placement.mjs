@@ -58,7 +58,7 @@ export function createPlacement({ file, ledgerAddress, read, fleet, accountOwner
       // a SessionVault-held record answers to the vault's owner; a session key with api.placement may act for them
       const actor = String(await beneficialOwner(d.owner)).toLowerCase();
       let signature;
-      const viaSession = await sessionOwner(req, raw);
+      const viaSession = await sessionOwner(req, raw, id);
       if (viaSession && String(viaSession).toLowerCase() !== actor) fail(403, 'This session does not belong to the deployment owner.');
       if (!viaSession && await accountOwner(req) !== owner) {
         const { expiry, nonce } = body;

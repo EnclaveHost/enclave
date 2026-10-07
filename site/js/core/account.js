@@ -31,7 +31,7 @@ export function passkeySupported(){
 }
 
 /* ---- session lifecycle ---- */
-function adoptAccountSession(sess){
+export function adoptAccountSession(sess){
   Enclave.accountToken = sess.token;
   Enclave.accountTokenBase = Enclave.base;      // bound to the endpoint that minted it
   Enclave.accountId = sess.accountId;
@@ -59,6 +59,19 @@ export function restoreAccountSession(){
   Enclave.accountMethod = s.method || null;
   emit("enclave:account", { authed: true, method: Enclave.accountMethod });
   refreshWallet();
+}
+/* a session-derived account token dies with its session; on load, re-derive it
+   when this browser still holds a live session (no wallet prompt) */
+export async function restoreSessionAccount(){
+  try {
+    const S = await import("./sessions.js");
+    const c = await S.currentSession();
+    if (!c) return;
+    const live = await c.session.status().then((s) => s.live, () => true);
+    if (!live){ await S.endSession({ quiet: true }); return; }
+    if (!Enclave.accountToken) await S.accountFromSession();
+    emit("enclave:session", { active: true });
+  } catch(e){ /* best effort: the popover offers to start a new session */ }
 }
 export function signOutAccount(){
   Enclave.clearAccountSession();
@@ -102,6 +115,15 @@ function ceremonyError(e, verb){
    a wallet user typically ends up with both, each doing its own job. */
 export async function signInWalletAccount(){
   if (!Enclave.provider) await connectWallet();
+  // Sessions (docs/design/sessions.md §9): the session grant IS the sign-in - one
+  // wallet signature, after which actions need no prompt and the relay account
+  // token is derived from the session. SIWE stays only for relays without sessions.
+  const S = await import("./sessions.js");
+  if (await S.sessionsAvailable()){
+    const ok = await S.openSessionModal();
+    if (!ok) throw Object.assign(new EnclaveError("Sign-in cancelled.", 0), { cancelled: true });
+    return Enclave.accountToken ? { token: Enclave.accountToken, accountId: Enclave.accountId, method: Enclave.accountMethod } : null;
+  }
   const ch = await Enclave.accountSiweNonce(Enclave.address);
   const message = assertSiweLogin((ch && ch.message) ? ch.message : buildSiwe(ch), Enclave.address);
   let signature;

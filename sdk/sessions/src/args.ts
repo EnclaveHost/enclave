@@ -38,7 +38,6 @@ export type ActionArgs = {
   "deploy.setActive": { id: Hex; active: boolean };
   "deploy.refund": { id: Hex };
   "app.publish": PublishArgs;
-  "order.pay": { amount6: bigint; orderRef: Hex };
 };
 
 const CREATE = [{
@@ -76,7 +75,6 @@ export function encodeArgs<A extends OnChainAction>(action: A, a: ActionArgs[A])
     case "deploy.setActive": return encodeAbiParameters([B32, { type: "bool" }], [v.id, v.active]);
     case "deploy.refund": return encodeAbiParameters([B32], [v.id]);
     case "app.publish": return encodeAbiParameters(PUBLISH, [a as PublishArgs]);
-    case "order.pay": return encodeAbiParameters([{ type: "uint256" }, B32], [v.amount6, v.orderRef]);
   }
   throw new Error(`unknown action ${String(action)}`);
 }
@@ -85,7 +83,6 @@ export function encodeArgs<A extends OnChainAction>(action: A, a: ActionArgs[A])
 export function amountOf<A extends OnChainAction>(action: A, a: ActionArgs[A]): bigint {
   if (action === "deploy.create") return (a as CreateArgs).fund6;
   if (action === "deploy.fund") return (a as ActionArgs["deploy.fund"]).amount6;
-  if (action === "order.pay") return (a as ActionArgs["order.pay"]).amount6;
   return 0n;
 }
 
@@ -108,7 +105,6 @@ export function decodeArgs(action: OnChainAction, data: Hex): Record<string, unk
     case "deploy.setActive": { const [id, active] = decodeAbiParameters([B32, { type: "bool" }], data); return { id, active }; }
     case "deploy.refund": { const [id] = decodeAbiParameters([B32], data); return { id }; }
     case "app.publish": { const [p] = decodeAbiParameters(PUBLISH, data); return { ...p }; }
-    case "order.pay": { const [amount6, orderRef] = decodeAbiParameters([{ type: "uint256" }, B32], data); return { amount6, orderRef }; }
   }
 }
 

@@ -90,7 +90,7 @@ catch (e) { console.error(`[reverify] relay/reverify.mjs is not on this box (${e
 import { readCappedText, MAX_BODY_BYTES, installProcessGuards } from "./fleet.mjs";
 import { isBlockedHost } from "./net-guard.mjs";
 import { isMcpHost, handleMcp } from "./mcp.js";
-import { handleAccount, initAccounts, verifyAccountSession, vaultKeyOf } from "./auth.js";
+import { handleAccount, initAccounts, verifyAccountSession, vaultKeyOf, setSessionHooks } from "./auth.js";
 import { vaultAddressFor } from "./vaultsvc.js";
 import { handleSso, initSso } from "./sso.js";
 import { handleBilling, initBilling } from "./billing.js";
@@ -517,22 +517,44 @@ async function chain() {
 let _custody = null;
 async function custody() {
   if (!_custody) _custody = createCustodyGate({ pc: await chain(), book: ADDRESS_BOOK || null,
-    factory: (process.env.SESSIONS_FACTORY || "").trim() || null });
+    factory: (process.env.SESSIONS_FACTORY || "").trim() || null,
+    factories: (process.env.SESSIONS_FACTORIES || "").split(",").map((x) => x.trim()).filter(Boolean) });
   return _custody;
 }
 const beneficialOwner = async (o) => (await custody()).beneficialOwner(o);
 const custodyRefusal = async (row) => (await custody()).custodyRefusal(row);
-// `Authorization: EnclaveSession v1 ...` on a relay route: the session's owner, or null when the request carries no
-// session header (callers fall back to their wallet-signature path). A bad session header THROWS (401/403).
-async function sessionAuth(req, raw, scope) {
+// `Authorization: EnclaveSession v1 ...` on a relay route: the verified session ({ owner, vault, sid, envs, ... }), or
+// null when the request carries no session header (callers fall back to their wallet-signature path). A bad session
+// header THROWS (401/403). The signed host is the Host header ONLY - Caddy preserves it, and a client-supplied
+// X-Forwarded-Host must never choose what the signature is checked against.
+async function sessionAuthFull(req, raw, scope) {
   const h = req.headers.authorization || "";
   if (!h.startsWith("EnclaveSession ")) return null;
   const svc = sessionsService();
   if (!svc) { const e = new Error("Sessions are not enabled on this relay."); e.status = 503; throw e; }
-  const host = String(req.headers["x-forwarded-host"] || req.headers.host || "").split(",")[0].trim();
+  const host = String(req.headers.host || "").trim();
   const u = new URL(req.url, "http://relay");
-  const r = await svc.verifyApiRequest({ header: h, method: req.method, hostPath: host + u.pathname + u.search,
+  return svc.verifyApiRequest({ header: h, method: req.method, hostPath: host + u.pathname + u.search,
     body: raw, scope, fresh: req.method !== "GET" });
+}
+async function sessionAuth(req, raw, scope) {
+  const r = await sessionAuthFull(req, raw, scope);
+  return r ? r.owner.toLowerCase() : null;
+}
+// a session acting on ONE deployment (placement): the record must sit inside the session's policy - a vault-held
+// record in one of its environments, a wallet-held one only for a session that covers prod
+async function sessionOwnerFor(req, raw, scope, row) {
+  const r = await sessionAuthFull(req, raw, scope);
+  if (!r) return null;
+  const refuse = (m) => { const e = new Error(m); e.status = 403; throw e; };
+  if (String(row.owner).toLowerCase() === String(r.vault).toLowerCase()) {
+    const [env] = await (await chain()).readContract({ address: r.vault, functionName: "held", args: [row.id],
+      abi: [{ type: "function", name: "held", stateMutability: "view", inputs: [{ type: "bytes32" }],
+        outputs: [{ type: "uint8" }, { type: "bytes32" }, { type: "bytes32" }] }] });
+    if (!env || (r.envs & Number(env)) === 0) refuse("This deployment is outside this session's environments.");
+  } else if (String(row.owner).toLowerCase() === r.owner.toLowerCase()) {
+    if ((r.envs & 2) === 0) refuse("This session does not cover your production (wallet-held) deployments.");
+  } else refuse("This session does not belong to the deployment owner.");
   return r.owner.toLowerCase();
 }
 
@@ -2317,6 +2339,7 @@ const runtimeIdOf = (r) => Buffer.from(runtimeIdOfJson(JSON.stringify(r)), "hex"
 const relayCtx = { shieldSecretRelease, json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility, leaseHolderChipIds,
                    // sessions: the owner wallet behind a SessionVault-held record, and the custody release gate
                    beneficialOwner, custodyRefusal, sessionAuth, screenAddress: (a) => screenAddressSafe(a),
+                   isSessionVault: async (a) => !!(await (await custody()).vaultOwnerOf(a)),
                    verifyAppCertificate: (epId, d, spki) => shieldMarket.certificate(live.find(e => String(e.id).toLowerCase() === String(epId).toLowerCase()), d, spki),
                    // (B) does this endpoint id's live row serve this ledger deployment NOW (hv-node owner-only: served owner,
                    // this row's live lease, isolation.require = hyperv-partition-per-app)? certs.js 6b and secrets.js has-secrets
@@ -2356,7 +2379,10 @@ const placement = createPlacement({
     return key ? String(await vaultAddressFor(key)).toLowerCase() : null;
   },
   beneficialOwner,
-  sessionOwner: (req, raw) => sessionAuth(req, raw, "api.placement"),
+  sessionOwner: async (req, raw, id) => {
+    if (!String(req.headers.authorization || "").startsWith("EnclaveSession ")) return null;
+    return sessionOwnerFor(req, raw, "api.placement", await placementRead(id));
+  },
 });
 async function claimPlacement(id, preferred, deployment, force = false, allowFallback = true) {
   const pin = pinnedHost(deployment.configCid);
@@ -2738,6 +2764,21 @@ if (process.env.SECRETS_RELEASE_PREDICT_COMMIT && !predictorProblems().length) {
 startSecretsSweep(relayCtx);   // hourly off-ledger purge (no-op while disabled)
 await initDomains();           // custom domains: same data dir, CUSTOM_DOMAINS=0 opts out
 await initSessions({ dataDir: dataDir(), JsonStore, alert: sessionsAlert });   // SESSIONS_RELAYER_KEY unset => disabled with one log line
+if (sessionsService()) setSessionHooks({   // account tokens derived from (and revoked with) a wallet session
+  // a relay ACCOUNT token is the owner's whole account (sign-in, SSO into apps, billing): only sessions
+  // granted api.account (the browser preset) may derive one - never an agent's staging key
+  verify: async (req, raw) => {
+    const host = String(req.headers.host || "").trim();
+    const u = new URL(req.url, "http://relay");
+    return sessionsService().verifyApiRequest({ header: req.headers.authorization || "", method: req.method,
+      hostPath: host + u.pathname + u.search, body: raw, scope: "api.account", fresh: true });
+  },
+  state: async (vault, sid) => {
+    const r = await sessionsService().route("GET", `/session/${vault}/${sid}`, {});
+    return { ...r.state, live: Boolean(r.state.live) && !r.revoked };
+  },
+  isRevoked: (sid) => Boolean(sessionsService()?.store?.data?.revoked?.[String(sid).toLowerCase()]),
+});
 startDomainSweep(relayCtx);    // DNS re-check + demotion sweep (no-op while disabled)
 await initCerts();             // platform certs: CERTS_KEY + DNS_API + DNS_TXT_KEY + APP_ZONE + the data dir
 setInterval(pollRegistry, REGISTRY_POLL_SEC * 1000);

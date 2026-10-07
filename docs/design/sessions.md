@@ -1,6 +1,6 @@
 # Sessions for enclave.host: design spec
 
-Status: **draft for Steven's review** (step 2 of the task). Nothing here is built yet.
+Status: **implemented** (sessions/spec branch). Decisions D1-D8 were taken as recommended below, and §15 records where the build deviates from this text.
 Branch: `sessions/spec`, cut from main 405133117.
 Live chain state below was read on 2026-10-06.
 
@@ -673,12 +673,13 @@ The pending action resumes after the owner signs.
 ## 10. Attested session keys (phase g; **STOP for your review**)
 
 - **The policy field.** `measurement ≠ 0` in a grant means the key must have been generated inside an enclave running that measurement. This is a policy field, not a different kind of session.
-- **Key generation.** The guest makes the key and puts `sha256("enclave-session-key-v1" ‖ chainId ‖ vault ‖ x ‖ y)` in its attestation `report_data`.
+- **Key generation.** The guest makes the key and puts `sha256("enclave-session-key-v1" ‖ chainId ‖ x ‖ y)` in its attestation `report_data`. The vault is not part of it: the key exists before any vault is chosen, and a binding is keyed by the key alone.
 - **Verification off-chain.** The relay verifies the quote with the verifiers it already has (`snp-verify`, `vbs-verify`, `hvnode-verify`, `avf-verify`), then writes `(keyHash → measurement, attestedAt)` to a new small contract, `EnclaveKeyAttestations` (book key `keyAttestations`). Only attestor addresses that governance names can write; the binding can be revoked, for example after a TCB advisory.
 - **Enforcement in the vault.**
   - At `open`, it requires the key's recorded measurement to equal `grant.measurement`.
   - On every operation it checks the binding hasn't been revoked, a cheap external view.
 - **Re-approval.** A changed image means a new measurement and a new key, so the owner signs a new grant.
+- **Removing an attestor revokes everything it recorded.** Governance's `setAttestor(key, false)` makes every binding that attestor wrote read as revoked. A stolen attestor key is therefore cut off in one transaction. Re-adding the same address brings its bindings back, so a compromised attestor address must never be re-added.
 - **What this trusts.** The attestor (the relay operator) is trusted to verify quotes honestly. A later step could verify on-chain, or use a quorum of attestors. This is exactly the attestation surface you asked to review by hand.
 
 ---
@@ -744,3 +745,39 @@ Nothing merges to main while the deploy base is stale (any push to main currentl
 2. **Should `deploy.refund` be in the browser preset for prod?** It stops a running prod deployment, which is a denial-of-service lever if the key leaks. Proposed: in for staging, opt-in for prod.
 3. **Domains and placement.** Placement is proposed as a session scope; domains as owner-only. Agree?
 4. **Should `order.pay` exist in v1?** The site has no PaymentRouter order flow wired up today, so it could wait until one exists.
+
+## 15. As built (deltas from the text above)
+
+**Code map**
+
+| Area | Files |
+|---|---|
+| Contracts | `contracts/SessionVault.sol` (SessionVault, SessionVaultLib (linked), SessionVaultFactory); `contracts/EnclaveKeyAttestations.sol` |
+| Tests | `contracts/foundry/test/SessionVault*.t.sol` (unit, fuzz, handler invariants); `contracts/foundry/test/session-vault-mutants.py` (37 mutants, all killed) |
+| Relay | `relay/sessions.mjs` (relayer, keeper, index, API verifier, custody gate), wired in `relay/api-relay.js`; `relay/auth.js` (`/v1/account/session-login`); custody gate in `relay/secrets.js`, `secrets-release.mjs`, `shield-secrets.mjs`; beneficial owner in `relay/domains.js`, `placement.mjs` |
+| SDK | `sdk/sessions/` (TypeScript; `dist/node.mjs`, `dist/browser.mjs` -> `site/vendor/sessions.js`) |
+| CLI | `cli/enclave.mjs` `enclave session …` |
+| Site | `site/js/core/sessions.js`, `ledger-calls.js`; `/grant`, `/sessions`; wallet popover + button indicator; deployments panel routing |
+| Deploy | `scripts/deploy-session-vault.mjs`, `scripts/deploy-key-attestations.mjs` |
+| Tests (node / e2e) | `test/sessions.test.mjs`, `test/cli-session.test.mjs`, `test/sessions-attest.test.mjs`, `test/site-ledger-calls.test.mjs`, `e2e/tests/sessions.spec.mjs` |
+| Guide | `docs/guides/claude-code-staging-session.md` |
+
+**Deltas**
+
+- **No ERC-1271 on the vault** (changes §2.2). USDC honours 1271 for `permit` and EIP-3009. If the vault vouched for owner signatures, a phished owner signature over a USDC permit naming the VAULT as owner would drain escrow around the session accounting. Off-chain owner checks resolve `vault.owner()` instead; that is the relay custody gate's `beneficialOwner`.
+- **`ownerCall`** is direct-only (never signable) and may target any contract except USDC and the vault itself, not just the book's ledger and catalog. The owner then keeps full control of held resources even if the book is repointed or broken. A post-call check refuses any state where `balanceOf < locked6`.
+- **D1:** only the readable path exists: a funded open is the grant plus a USDC authorization whose nonce is the grant digest. There is no "quick" single-signature open. A top-up is one signature: a USDC authorization whose nonce is the TopUp digest.
+- **`create()` publisher fee:** the vault never takes `feeRecipient` or `feePerSec6` from the caller. It reads them from the catalog (`versionFee`, plus the app `publisher` when the fee is non-zero), capped by the grant's `maxAppFeePerHour`.
+- **Browser preset** omits `app.publish`: a browser user's apps are wallet-published, and `app.publish` only ever reaches vault-held apps. Fee ceilings were calibrated against measured gas, so a session op costs 0.16M–0.68M gas, about $0.004–0.015 at Base fees on 2026-10-06.
+
+| Preset | Max fee per op | Daily spend |
+|---|---|---|
+| browser | $0.25 | $100 |
+| staging-publish | $0.10 | $5 |
+
+- **Account token from a session** (§6): `POST /v1/account/session-login`, signed by the session key with an `EnclaveSession` header. It mints an ordinary relay account token carrying `sid` and `vault`, which expires no later than the session. Every use re-checks liveness on-chain (5 s cache), so sign-out, expiry, terminate and revokeAll all end it. Wallet sign-in in the site uses this: one wallet signature, no SIWE.
+- **Host login unchanged (D6):** the supervisor and the Windows node still take SIWE for logs, restart and private-app access ("Host login" in the wallet popover). The supervisor is a release surface; session login there ships with the next release.
+- **Off-chain revocation happens after the vault accepts:** the relay revokes a session's API access only after the vault has accepted the terminate or revoke signature in simulation, then submits. A forged sign-out request can't cut anyone off.
+- **Deployments panel:** every owner-gated ledger call the panel builds goes through `ledgerSend`. A row held by the wallet's vault is decoded and replayed as the matching session action; on prod, version and config changes become one owner Promote signature. Wallet-held rows send the same wallet transaction as before.
+- **Beta cap (D5):** `MAX_VAULT_USD` defaults to $250 per vault in the deploy script. No deposit may lift a vault's balance above it; ledger refunds can.
+

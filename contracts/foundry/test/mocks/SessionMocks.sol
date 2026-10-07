@@ -80,7 +80,12 @@ contract HostileLedger {
     address public vault;
     bytes public reenter;
     bool public underPull;
+    bytes32 public fixedId;
     constructor(address t) { token = t; }
+    function setFixedId(bytes32 v) external { fixedId = v; }
+    /// "creates" by returning an id of its choosing - e.g. an existing custody record
+    function create(string calldata, uint16, uint16, uint32, string calldata, bool, string calldata, address, uint256,
+        uint256) external view returns (bytes32) { return fixedId; }
     function arm(address v, bytes calldata data) external { vault = v; reenter = data; }
     function setUnderPull(bool v) external { underPull = v; }
     function fundFor(bytes32, uint256 value, address) external {

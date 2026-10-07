@@ -120,6 +120,15 @@ await build({
   console.log(`[vendor] enclave-verifier.js: ${bytes.length} bytes, sha256 ${sha.slice(0, 16)}… == verifier/web/dist/MANIFEST.json ✓`);
 }
 
+// site/vendor/sessions.js <- sdk/sessions/dist/browser.mjs: the sessions SDK (docs/design/sessions.md), built by
+// `cd sdk/sessions && npm run build` from its own lockfile. Copied, never rebuilt here; site/js/core/sessions.js loads it on
+// first use (sign-in, /grant, /sessions), so no page pays for it before then.
+{
+  const src = path.join(ROOT, "sdk", "sessions", "dist", "browser.mjs");
+  fs.copyFileSync(src, path.join(OUT, "sessions.js"));
+  console.log(`[vendor] sessions.js <- sdk/sessions/dist/browser.mjs (${fs.statSync(src).size} bytes)`);
+}
+
 // Fail loud if an upgrade ever drops an export the callers destructure, so a
 // broken bundle can never ship silently to the verify/auth paths.
 const must = [
@@ -127,6 +136,8 @@ const must = [
   ["webauthn.js", ["startRegistration", "startAuthentication"]],
   ["walletconnect.js", ["EthereumProvider"]],
   ["enclave-verifier.js", ["createShadow", "verifyEvidenceWeb", "releaseExpectationsFromMirror", "createBrowserIndexMemory"]],
+  ["sessions.js", ["newSessionKey", "buildGrant", "openSession", "IndexedDbStore", "RelayClient", "sessionFromRecord",
+    "decodeGrantRequest", "describeGrant", "ownerOperation", "topUpFromWallet", "usdcDomain", "chainClient", "readSession"]],
 ];
 for (const [file, names] of must) {
   const src = fs.readFileSync(path.join(OUT, file), "utf8");

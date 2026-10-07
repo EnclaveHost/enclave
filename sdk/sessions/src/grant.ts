@@ -15,6 +15,8 @@ export interface Policy {
   opsPerPeriod: number;
   maxFeePerOp: bigint;
   maxAppFeePerHour: bigint;
+  /** ceiling on any deployment rate cap the session sets (USDC 6dp per hour) */
+  maxRatePerHour: bigint;
   /** seconds from signing */
   expiresIn: number;
   measurement?: Hex;
@@ -31,8 +33,8 @@ export const PRESETS: Record<string, Policy & { maxExpiresIn: number; descriptio
     // publishing stays a wallet action in the browser: a browser user's apps are
     // wallet-published, and app.publish only ever reaches apps the VAULT holds
     actions: ["deploy.create", "deploy.fund", "deploy.setAppRef", "deploy.setConfig", "deploy.setShares",
-      "deploy.setMaxRate", "deploy.setActive", "deploy.refund", "order.pay",
-      "api.status", "api.logs", "api.restart", "api.upload", "api.appAccess", "api.placement"],
+      "deploy.setMaxRate", "deploy.setActive", "deploy.refund",
+      "api.status", "api.logs", "api.restart", "api.upload", "api.appAccess", "api.placement", "api.account"],
     apps: ["*"],
     environments: ["staging", "prod"],
     budget: 0n,
@@ -40,7 +42,8 @@ export const PRESETS: Record<string, Policy & { maxExpiresIn: number; descriptio
     periodSeconds: DAY,
     opsPerPeriod: 0,
     maxFeePerOp: USD / 4n,         // $0.25 ceiling; Base fees are ~1-2 cents per op
-    maxAppFeePerHour: USD,         // $1/h publisher fee ceiling for new deployments
+    maxAppFeePerHour: USD,         // $1/h publisher fee ceiling for new deployments (named apps only)
+    maxRatePerHour: 10n * USD,     // $10/h ceiling on any deployment rate cap (a full GPU node is ~$6/h)
     expiresIn: 12 * HOUR,
     maxExpiresIn: 30 * DAY,
   },
@@ -57,6 +60,7 @@ export const PRESETS: Record<string, Policy & { maxExpiresIn: number; descriptio
     opsPerPeriod: 120,
     maxFeePerOp: USD / 10n,        // $0.10 ceiling; the daily cap bounds the total
     maxAppFeePerHour: 0n,
+    maxRatePerHour: 5n * USD,      // a whole CPU node is ~$3/h; staging rarely needs a GPU
     expiresIn: 7 * DAY,
     maxExpiresIn: 28 * DAY,
   },
@@ -72,6 +76,7 @@ export const PRESETS: Record<string, Policy & { maxExpiresIn: number; descriptio
     opsPerPeriod: 0,
     maxFeePerOp: 0n,
     maxAppFeePerHour: 0n,
+    maxRatePerHour: 0n,
     expiresIn: 12 * HOUR,
     maxExpiresIn: 7 * DAY,
   },
@@ -117,6 +122,7 @@ export function buildGrant(input: BuildGrantInput): Grant {
     opsPerPeriod: p.opsPerPeriod,
     maxFeePerOp: p.maxFeePerOp,
     maxAppFeePerHour: p.maxAppFeePerHour,
+    maxRatePerHour: p.maxRatePerHour ?? 0n,
     expiresAt: BigInt(now + p.expiresIn),
     measurement: p.measurement ?? ZERO_HASH,
     grantNonce: randomHex32(),
@@ -156,10 +162,12 @@ export function describeGrant(g: Grant, now = Math.floor(Date.now() / 1000)): { 
   if (g.environments.length) lines.push(`Environments: ${g.environments.join(" and ")}.`);
   lines.push(`Budget: ${fmtUsd(g.budget)} escrowed; at most ${fmtUsd(g.spendPerPeriod)} per ${fmtDur(g.periodSeconds)}` +
     `${g.opsPerPeriod ? `, ${g.opsPerPeriod} operations per ${fmtDur(g.periodSeconds)}` : ""}; relay fee at most ${fmtUsd(g.maxFeePerOp)} per operation.`);
+  if (g.maxRatePerHour > 0n) lines.push(`Deployment prices it sets: at most ${fmtUsd(g.maxRatePerHour)}/hour; production prices can only go down.`);
   lines.push(`Expires: in ${fmtDur(Number(g.expiresAt) - now)}. Unspent budget returns to your wallet when it ends.`);
   lines.push("Never allowed: withdrawing, promoting to production, secrets, opening or changing other sessions.");
   if (g.environments.includes("prod")) warnings.push("This session can act on PRODUCTION deployments (not change what version they run).");
-  if (g.apps.includes("*") && g.actions.includes("deploy.create")) warnings.push("This session can deploy ANY app from the store.");
+  if (g.apps.includes("*") && g.actions.includes("deploy.create")) warnings.push("This session can deploy any FREE app from the store (paid apps only if named).");
+  if (g.actions.includes("api.account")) warnings.push("This session can sign in to your Enclave account and to apps as you (Sign in with Enclave).");
   if (g.budget > 100n * 1_000_000n) warnings.push(`Large budget: ${fmtUsd(g.budget)}.`);
   if (Number(g.expiresAt) - now > 14 * DAY) warnings.push(`Long-lived: ${fmtDur(Number(g.expiresAt) - now)}.`);
   if (g.measurement !== ZERO_HASH) lines.push(`Key must live inside an enclave with measurement ${g.measurement.slice(0, 18)}…`);

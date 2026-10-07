@@ -64,6 +64,7 @@ interface ISVLedger {
         bool isPublic, string calldata configCid, address feeRecipient, uint256 feePerSec6, uint256 maxRate6)
         external returns (bytes32 id);
     function fundFor(bytes32 id, uint256 value, address payer) external;
+    function capOf(bytes32 id) external view returns (uint256 maxRate6);
     function setAppRef(bytes32 id, string calldata appRef) external;
     function setConfig(bytes32 id, string calldata configCid) external;
     function setShares(bytes32 id, uint16 gpuMilli, uint16 cpuMilli) external;
@@ -137,6 +138,8 @@ library SessionVaultLib {
     error NotMine(bytes32 id);
     error UnknownAction();
     error UnknownEnvironment();
+    error AppNotAllowed(bytes32 appId);
+    error RateCapOutOfRange(uint256 rate, uint256 limit);
 
     function ledger(ISVBook book) internal view returns (ISVLedger) {
         address a = book.addr(BOOK_DEPLOYMENTS);
@@ -154,14 +157,8 @@ library SessionVaultLib {
         return ledger(book).get(id).owner;
     }
 
-    /// The (appRef, configCid) of a deployment THIS vault owns, hashed the way
-    /// a promotion records it.
-    function currentRef(ISVBook book, bytes32 id)
-        external view returns (bytes32 h, string memory appRef, string memory configCid)
-    {
-        ISVLedger.Deployment memory d = ledger(book).get(id);
-        if (d.owner != address(this)) revert NotMine(id);
-        return (keccak256(abi.encode(d.appRef, d.configCid)), d.appRef, d.configCid);
+    function capOf(ISVBook book, bytes32 id) external view returns (uint256) {
+        return ledger(book).capOf(id);
     }
 
     function appIdOf(ISVBook book, string memory slug) external view returns (bytes32) {
@@ -169,15 +166,21 @@ library SessionVaultLib {
     }
 
     /// The ledger snapshots whatever fee create() is handed and checks it
-    /// against nothing: derive it from the catalog, never from the caller.
-    function create(ISVBook book, CreateArgs memory c, bytes32 appId, uint256 idx, uint256 maxAppFeeHour6)
+    /// against nothing: derive it from the catalog, never from the caller. A
+    /// PAID app must be named in the grant ("*" never covers one: a hostile
+    /// publisher's fee is the one way a session's budget could reach a third
+    /// party at funding time), its fee must fit the grant's hourly ceiling, and
+    /// the deployment's rate cap must leave the fee at most half of every funding.
+    function create(ISVBook book, CreateArgs memory c, bytes32 appId, uint256 idx, uint256 maxAppFeeHour6, bool listed)
         external returns (bytes32)
     {
         ISVCatalog cat = catalog(book);
         uint256 feeSec = cat.versionFee(appId, idx);
         address feeTo;
         if (feeSec > 0) {
+            if (!listed) revert AppNotAllowed(appId);
             if (feeSec * 3600 > maxAppFeeHour6) revert AppFeeTooHigh(feeSec * 3600, maxAppFeeHour6);
+            if (c.maxRate6 < 2 * feeSec) revert RateCapOutOfRange(c.maxRate6, 2 * feeSec);
             feeTo = cat.getApp(appId).publisher;
         }
         return ledger(book).create(c.appRef, c.gpuMilli, c.cpuMilli, c.appPort, c.ports, c.isPublic, c.configCid,
@@ -194,13 +197,15 @@ library SessionVaultLib {
     }
 
     /// Point a deployment this vault owns at (appRef, configCid), after checking
-    /// the version label the owner saw against the catalog's.
-    function promote(ISVBook book, bytes32 id, string memory appRef, string memory configCid, string memory label)
-        external returns (bytes32)
+    /// the app slug AND version label the owner saw against the catalog's.
+    function promote(ISVBook book, bytes32 id, string memory app, string memory appRef, string memory configCid,
+        string memory label) external returns (bytes32)
     {
         (bytes32 appId, uint256 idx) = parseRef(appRef);
-        ISVCatalog.Version memory v = catalog(book).getVersion(appId, idx);
+        ISVCatalog cat = catalog(book);
+        ISVCatalog.Version memory v = cat.getVersion(appId, idx);
         if (keccak256(bytes(v.version)) != keccak256(bytes(label))) revert LabelMismatch();
+        if (keccak256(bytes(cat.getApp(appId).slug)) != keccak256(bytes(app))) revert LabelMismatch();
         ISVLedger L = ledger(book);
         ISVLedger.Deployment memory d = L.get(id);
         if (d.owner != address(this)) revert NotMine(id);
@@ -220,7 +225,6 @@ library SessionVaultLib {
         if (h == keccak256("deploy.setActive")) return 1 << 6;
         if (h == keccak256("deploy.refund")) return 1 << 7;
         if (h == keccak256("app.publish")) return 1 << 8;
-        if (h == keccak256("order.pay")) return 1 << 9;
         // off-chain API scopes, enforced by the relay and the hosts from this mask
         if (h == keccak256("api.status")) return 1 << 128;
         if (h == keccak256("api.logs")) return 1 << 129;
@@ -228,6 +232,7 @@ library SessionVaultLib {
         if (h == keccak256("api.upload")) return 1 << 131;
         if (h == keccak256("api.appAccess")) return 1 << 132;
         if (h == keccak256("api.placement")) return 1 << 133;
+        if (h == keccak256("api.account")) return 1 << 134;      // a relay account token (sign-in, SSO)
         revert UnknownAction();
     }
 
@@ -238,16 +243,18 @@ library SessionVaultLib {
         revert UnknownEnvironment();
     }
 
-    /// "catalog://0x<64 hex>/<decimal index>" -> (appId, index). Strict: exactly
-    /// 64 hex digits, 1-10 decimal digits, nothing after.
+    /// "catalog://0x<64 hex>/<decimal index>" -> (appId, index). Strict AND
+    /// canonical, so one version has exactly one spelling: lower-case "0x" and
+    /// hex, 1-10 decimal digits with no leading zero, nothing after.
     function parseRef(string memory ref) public pure returns (bytes32 appId, uint256 idx) {
         bytes memory b = bytes(ref);
         if (b.length < 78 || b.length > 87) revert BadRef();
-        bytes memory pre = "catalog://";
-        for (uint256 i = 0; i < 10; i++) if (b[i] != pre[i]) revert BadRef();
+        bytes memory pre = "catalog://0x";
+        for (uint256 i = 0; i < 12; i++) if (b[i] != pre[i]) revert BadRef();
+        for (uint256 i = 12; i < 76; i++) if (uint8(b[i]) >= 65 && uint8(b[i]) <= 70) revert BadRef();
         bool ok;
         (appId, ok) = parseHex32(b, 10);
-        if (!ok || b[76] != "/") revert BadRef();
+        if (!ok || b[76] != "/" || (b.length > 78 && b[77] == "0")) revert BadRef();
         for (uint256 i = 77; i < b.length; i++) {
             uint8 c = uint8(b[i]);
             if (c < 48 || c > 57) revert BadRef();
@@ -295,8 +302,9 @@ contract SessionVault {
     uint8 public constant ACT_SET_ACTIVE = 6;  // deploy.setActive
     uint8 public constant ACT_REFUND = 7;      // deploy.refund
     uint8 public constant ACT_PUBLISH = 8;     // app.publish
-    uint8 public constant ACT_PAY = 9;         // order.pay
-    uint8 private constant ACT_LAST = 9;
+    uint8 private constant ACT_LAST = 8;       // (9 was order.pay: dropped before launch - an orderRef binds no payer)
+    uint256 private constant CLOSE_FEE_MAX6 = 20_000;   // what close() may charge for the keeper's gas: $0.02
+    bytes4 private constant SEL_TRANSFER = bytes4(keccak256("transferDeployment(bytes32,address)"));
 
     uint8 public constant ENV_STAGING = 1;
     uint8 public constant ENV_PROD = 2;
@@ -317,8 +325,8 @@ contract SessionVault {
     bytes32 public constant GRANT_TYPEHASH = keccak256(
         "SessionGrant(string label,string preset,bytes32 sessionKey,string[] actions,string[] apps,"
         "string[] environments,uint256 budget,uint256 spendPerPeriod,uint32 periodSeconds,uint32 opsPerPeriod,"
-        "uint256 maxFeePerOp,uint256 maxAppFeePerHour,uint64 expiresAt,bytes32 measurement,bytes32 grantNonce,"
-        "uint64 signBefore)");
+        "uint256 maxFeePerOp,uint256 maxAppFeePerHour,uint256 maxRatePerHour,uint64 expiresAt,bytes32 measurement,"
+        "bytes32 grantNonce,uint64 signBefore)");
     bytes32 public constant CALL_TYPEHASH = keccak256(
         "SessionCall(bytes32 sessionId,uint256 nonce,uint8 action,bytes32 argsHash,uint256 fee,uint64 deadline)");
     bytes32 public constant END_TYPEHASH = keccak256("SessionEnd(bytes32 sessionId,uint64 deadline)");
@@ -331,7 +339,8 @@ contract SessionVault {
     bytes32 public constant REVOKE_TYPEHASH = keccak256("RevokeAll(bool withdraw,bytes32 opNonce,uint64 signBefore)");
     bytes32 public constant WITHDRAW_TYPEHASH = keccak256("Withdraw(uint256 amount,bytes32 opNonce,uint64 signBefore)");
     bytes32 public constant PROMOTE_TYPEHASH = keccak256(
-        "Promote(bytes32 deployment,string appRef,string configCid,string versionLabel,bytes32 opNonce,uint64 signBefore)");
+        "Promote(bytes32 deployment,string app,string appRef,string configCid,string versionLabel,bytes32 opNonce,"
+        "uint64 signBefore)");
     bytes32 public constant ADOPT_TYPEHASH =
         keccak256("Adopt(bytes32 deployment,string environment,bytes32 opNonce,uint64 signBefore)");
     bytes32 public constant SETENV_TYPEHASH =
@@ -353,6 +362,7 @@ contract SessionVault {
         uint32   opsPerPeriod;     // on-chain ops per period; 0 = unlimited
         uint256  maxFeePerOp;      // USDC 6dp ceiling on a single op's relay fee
         uint256  maxAppFeePerHour; // USDC 6dp ceiling on a created deployment's publisher fee
+        uint256  maxRatePerHour;   // USDC 6dp ceiling on any rate cap the session sets (create, setMaxRate)
         uint64   expiresAt;
         bytes32  measurement;      // 0 = no TEE requirement (attested keys)
         bytes32  grantNonce;
@@ -373,6 +383,7 @@ contract SessionVault {
         uint128 perPeriod6;
         uint128 maxFee6;
         uint128 maxAppFeeHour6;
+        uint128 maxRateHour6;
         uint64  periodStart;
         uint32  period;
         uint32  opsPerPeriod;
@@ -448,6 +459,7 @@ contract SessionVault {
     error NoAttestation();
     error TransferFailed();
     error NoContract(bytes32 key);
+    error RateCapOutOfRange(uint256 rate, uint256 limit);
 
     modifier nonReentrant() {
         if (_lock == 2) revert Reentrant();
@@ -510,7 +522,8 @@ contract SessionVault {
         if (g.expiresAt <= block.timestamp) revert BadPolicy(3);
         if (g.periodSeconds == 0) revert BadPolicy(4);
         if (g.budget > type(uint128).max || g.spendPerPeriod > type(uint128).max
-            || g.maxFeePerOp > type(uint128).max || g.maxAppFeePerHour > type(uint128).max) revert BadPolicy(5);
+            || g.maxFeePerOp > type(uint128).max || g.maxAppFeePerHour > type(uint128).max
+            || g.maxRatePerHour > type(uint128).max) revert BadPolicy(5);
         if (g.apps.length > MAX_APPS) revert BadPolicy(6);
         sid = keccak256(abi.encode(address(this), g.sessionKey, g.grantNonce));
         Session storage s = _s[sid];
@@ -544,6 +557,7 @@ contract SessionVault {
         s.perPeriod6 = uint128(g.spendPerPeriod);
         s.maxFee6 = uint128(g.maxFeePerOp);
         s.maxAppFeeHour6 = uint128(g.maxAppFeePerHour);
+        s.maxRateHour6 = uint128(g.maxRatePerHour);
         s.periodStart = uint64(block.timestamp);
         s.period = g.periodSeconds;
         s.opsPerPeriod = g.opsPerPeriod;
@@ -610,7 +624,9 @@ contract SessionVault {
             return;
         }
         if (block.timestamp <= s.expiresAt) revert NotExpired();
-        uint256 fee = s.balance6 < s.maxFee6 ? s.balance6 : s.maxFee6;
+        // the keeper's real cost (~90k gas), never the session's whole fee ceiling
+        uint256 fee = s.maxFee6 < CLOSE_FEE_MAX6 ? s.maxFee6 : CLOSE_FEE_MAX6;
+        if (fee > s.balance6) fee = s.balance6;
         _end(sid, s, 3, fee);
     }
 
@@ -653,7 +669,8 @@ contract SessionVault {
     function terminate(bytes32 sid, bytes32 opNonce, uint64 signBefore, bytes calldata sig) external nonReentrant {
         _ownerAuth(keccak256(abi.encode(TERMINATE_TYPEHASH, sid, opNonce, signBefore)), opNonce, signBefore, sig);
         Session storage s = _s[sid];
-        if (!_live(s)) revert NotLive();
+        // expired is fine: the owner may always end it themselves, with no keeper fee
+        if (s.state != LIVE || s.epoch != epoch) revert NotLive();
         _end(sid, s, 1, 0);
     }
 
@@ -683,14 +700,16 @@ contract SessionVault {
     /// Production promotion: point a held deployment at (appRef, configCid) and
     /// record that the OWNER sanctioned exactly that pair. versionLabel must equal
     /// the catalog's label for the ref, so the device shows a verified "1.0.79".
-    function promote(bytes32 id, string calldata appRef, string calldata configCid, string calldata versionLabel,
-        bytes32 opNonce, uint64 signBefore, bytes calldata sig) external nonReentrant
+    function promote(bytes32 id, string calldata app, string calldata appRef, string calldata configCid,
+        string calldata versionLabel, bytes32 opNonce, uint64 signBefore, bytes calldata sig) external nonReentrant
     {
-        _ownerAuth(keccak256(abi.encode(PROMOTE_TYPEHASH, id, keccak256(bytes(appRef)), keccak256(bytes(configCid)),
-            keccak256(bytes(versionLabel)), opNonce, signBefore)), opNonce, signBefore, sig);
+        _ownerAuth(keccak256(abi.encode(PROMOTE_TYPEHASH, id, keccak256(bytes(app)), keccak256(bytes(appRef)),
+            keccak256(bytes(configCid)), keccak256(bytes(versionLabel)), opNonce, signBefore)), opNonce, signBefore, sig);
         Held storage h = held[id];
-        if (h.env == 0) revert NotHeld(id);
-        h.promoted = SessionVaultLib.promote(book, id, appRef, configCid, versionLabel);
+        // the ONLY way into production: what runs is exactly what the owner reviewed (an
+        // unadopted record the vault owns is adopted by it, as prod)
+        h.promoted = SessionVaultLib.promote(book, id, app, appRef, configCid, versionLabel);
+        if (h.env != ENV_PROD) { h.env = ENV_PROD; emit HeldSet(id, ENV_PROD, h.createdBy); }
         emit Promoted(id, h.promoted, appRef, configCid);
     }
 
@@ -748,6 +767,8 @@ contract SessionVault {
         (ok, ret) = target.call(data);
         if (!ok) assembly { revert(add(ret, 32), mload(ret)) }
         if (usdc.balanceOf(address(this)) < locked6) revert Insolvent();
+        // a deployment handed away here must come back UNADOPTED if it ever returns
+        if (data.length >= 36 && bytes4(data[:4]) == SEL_TRANSFER) delete held[bytes32(data[4:36])];
     }
 
     // =========================================================================
@@ -815,12 +836,15 @@ contract SessionVault {
         emit SessionEnded(sid, reason, refund, fee);
     }
 
+    /// Environment changes never promote: a record entering prod (adopt or move)
+    /// starts UNPROMOTED - no prod secrets - until the owner's Promote names the
+    /// exact version and config it may run. Otherwise whatever a staging session
+    /// pointed it at the moment before would be what got promoted.
     function _setEnv(bytes32 id, Held storage h, uint8 env) private {
         if (env != ENV_STAGING && env != ENV_PROD) revert UnknownEnvironment();
-        (bytes32 cur, string memory appRef, string memory configCid) = SessionVaultLib.currentRef(book, id);
+        if (SessionVaultLib.ownerOf(book, id) != address(this)) revert NotMine(id);
         h.env = env;
-        h.promoted = env == ENV_PROD ? cur : bytes32(0);
-        if (env == ENV_PROD) emit Promoted(id, cur, appRef, configCid);
+        h.promoted = bytes32(0);
     }
 
     function _ownerAuth(bytes32 structHash, bytes32 opNonce, uint64 signBefore, bytes calldata sig) private {
@@ -885,7 +909,6 @@ contract SessionVault {
     function _amountOf(uint8 action, bytes calldata args) private pure returns (uint256) {
         if (action == ACT_CREATE) return abi.decode(args, (CreateArgs)).fund6;
         if (action == ACT_FUND) { (, uint256 v) = abi.decode(args, (bytes32, uint256)); return v; }
-        if (action == ACT_PAY) { (uint256 v, ) = abi.decode(args, (uint256, bytes32)); return v; }
         return 0;
     }
 
@@ -897,18 +920,14 @@ contract SessionVault {
             (bytes32 appId, uint256 index) = _publish(sid, abi.decode(args, (PublishArgs)));
             return abi.encode(appId, index);
         }
-        if (action == ACT_PAY) {
-            (, bytes32 orderRef) = abi.decode(args, (uint256, bytes32));
-            _payRouter(amount, orderRef);
-            return "";
-        }
         ISVLedger L = _ledger();
         if (action == ACT_FUND) {
             (bytes32 id, ) = abi.decode(args, (bytes32, uint256));
-            address o = SessionVaultLib.ownerOf(book, id);
-            if (o == address(this)) _requireHeldEnv(s, id);
-            else if (o != owner || s.envs & ENV_PROD == 0) revert NotMine(id);  // the owner's wallet deployments count as prod
-            _fund(L, id, amount, o);
+            // only records THIS vault holds: a deployment anyone could transfer to the
+            // owner's wallet carries a fee and a rate cap the session never vetted
+            if (SessionVaultLib.ownerOf(book, id) != address(this)) revert NotMine(id);
+            _requireHeldEnv(s, id);
+            _fund(L, id, amount, address(this));
             return "";
         }
         if (action == ACT_SET_APPREF) {
@@ -933,7 +952,13 @@ contract SessionVault {
         }
         if (action == ACT_SET_MAXRATE) {
             (bytes32 id, uint256 r) = abi.decode(args, (bytes32, uint256));
-            _requireHeldEnv(s, id);
+            // bounded by the grant; on prod only ever LOWERED (a raised cap is what lets a
+            // host the attacker runs claim at that price and earn the record's escrow)
+            if (_requireHeldEnv(s, id) == ENV_PROD) {
+                uint256 cap = SessionVaultLib.capOf(book, id);
+                if (r > cap) revert RateCapOutOfRange(r, cap);
+            }
+            if (r * 3600 > s.maxRateHour6) revert RateCapOutOfRange(r * 3600, s.maxRateHour6);
             L.setMaxRate(id, r);
             return "";
         }
@@ -956,7 +981,9 @@ contract SessionVault {
         if (s.envs & c.env == 0) revert EnvNotAllowed(c.env);
         (bytes32 appId, uint256 idx) = SessionVaultLib.parseRef(c.appRef);
         _requireApp(sid, s, appId);
-        id = SessionVaultLib.create(book, c, appId, idx, s.maxAppFeeHour6);
+        if (c.maxRate6 * 3600 > s.maxRateHour6) revert RateCapOutOfRange(c.maxRate6 * 3600, s.maxRateHour6);
+        id = SessionVaultLib.create(book, c, appId, idx, s.maxAppFeeHour6, _appListed(sid, appId));
+        if (held[id].env != 0) revert Exists();          // a hostile ledger can't overwrite a custody record
         held[id] = Held({ env: c.env, promoted: bytes32(0), createdBy: sid });
         emit HeldSet(id, c.env, sid);
         if (c.fund6 > 0) _fund(_ledger(), id, c.fund6, address(this));
@@ -1018,8 +1045,8 @@ contract SessionVault {
             GRANT_TYPEHASH, keccak256(bytes(g.label)), keccak256(bytes(g.preset)), g.sessionKey,
             _hashStrings(g.actions), _hashStrings(g.apps), _hashStrings(g.environments), g.budget);
         bytes memory tail = abi.encode(
-            g.spendPerPeriod, g.periodSeconds, g.opsPerPeriod, g.maxFeePerOp, g.maxAppFeePerHour, g.expiresAt,
-            g.measurement, g.grantNonce, g.signBefore);
+            g.spendPerPeriod, g.periodSeconds, g.opsPerPeriod, g.maxFeePerOp, g.maxAppFeePerHour, g.maxRatePerHour,
+            g.expiresAt, g.measurement, g.grantNonce, g.signBefore);
         return keccak256(bytes.concat(head, tail));
     }
 

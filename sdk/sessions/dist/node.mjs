@@ -9,18 +9,19 @@ var ACTIONS = {
   "deploy.setActive": 6,
   "deploy.refund": 7,
   "app.publish": 8,
-  "order.pay": 9,
+  // 9 was order.pay: dropped before launch (an orderRef binds no payer)
   "api.status": 128,
   "api.logs": 129,
   "api.restart": 130,
   "api.upload": 131,
   "api.appAccess": 132,
-  "api.placement": 133
+  "api.placement": 133,
+  "api.account": 134
 };
 var ENVIRONMENTS = { staging: 1, prod: 2 };
 var ACTION_TEXT = {
   "deploy.create": "create deployments",
-  "deploy.fund": "add runtime to your deployments (spends the session budget)",
+  "deploy.fund": "add runtime to deployments your vault holds (spends the session budget)",
   "deploy.setAppRef": "change which version a STAGING deployment runs",
   "deploy.setConfig": "change a STAGING deployment's options",
   "deploy.setShares": "resize deployments",
@@ -28,13 +29,13 @@ var ACTION_TEXT = {
   "deploy.setActive": "suspend and resume deployments",
   "deploy.refund": "cancel deployments (unused runtime returns to your vault)",
   "app.publish": "publish new versions of the named apps",
-  "order.pay": "pay platform orders (spends the session budget)",
   "api.status": "read deployment status",
   "api.logs": "read deployment logs",
   "api.restart": "restart deployments",
   "api.upload": "upload app bundles and configs",
   "api.appAccess": "open private apps in the browser",
-  "api.placement": "choose which host serves a deployment"
+  "api.placement": "choose which host serves a deployment",
+  "api.account": "sign in to your Enclave account and apps (Sign in with Enclave) as you"
 };
 var NETWORKS = {
   base: {
@@ -74,6 +75,7 @@ var TYPES = {
     { name: "opsPerPeriod", type: "uint32" },
     { name: "maxFeePerOp", type: "uint256" },
     { name: "maxAppFeePerHour", type: "uint256" },
+    { name: "maxRatePerHour", type: "uint256" },
     { name: "expiresAt", type: "uint64" },
     { name: "measurement", type: "bytes32" },
     { name: "grantNonce", type: "bytes32" },
@@ -120,6 +122,7 @@ var TYPES = {
   ],
   Promote: [
     { name: "deployment", type: "bytes32" },
+    { name: "app", type: "string" },
     { name: "appRef", type: "string" },
     { name: "configCid", type: "string" },
     { name: "versionLabel", type: "string" },
@@ -234,15 +237,12 @@ function encodeArgs(action, a) {
       return encodeAbiParameters2([B32], [v.id]);
     case "app.publish":
       return encodeAbiParameters2(PUBLISH, [a]);
-    case "order.pay":
-      return encodeAbiParameters2([{ type: "uint256" }, B32], [v.amount6, v.orderRef]);
   }
   throw new Error(`unknown action ${String(action)}`);
 }
 function amountOf(action, a) {
   if (action === "deploy.create") return a.fund6;
   if (action === "deploy.fund") return a.amount6;
-  if (action === "order.pay") return a.amount6;
   return 0n;
 }
 function decodeArgs(action, data) {
@@ -283,10 +283,6 @@ function decodeArgs(action, data) {
     case "app.publish": {
       const [p] = decodeAbiParameters(PUBLISH, data);
       return { ...p };
-    }
-    case "order.pay": {
-      const [amount6, orderRef] = decodeAbiParameters([{ type: "uint256" }, B32], data);
-      return { amount6, orderRef };
     }
   }
 }
@@ -367,13 +363,13 @@ var PRESETS = {
       "deploy.setMaxRate",
       "deploy.setActive",
       "deploy.refund",
-      "order.pay",
       "api.status",
       "api.logs",
       "api.restart",
       "api.upload",
       "api.appAccess",
-      "api.placement"
+      "api.placement",
+      "api.account"
     ],
     apps: ["*"],
     environments: ["staging", "prod"],
@@ -385,7 +381,9 @@ var PRESETS = {
     maxFeePerOp: USD / 4n,
     // $0.25 ceiling; Base fees are ~1-2 cents per op
     maxAppFeePerHour: USD,
-    // $1/h publisher fee ceiling for new deployments
+    // $1/h publisher fee ceiling for new deployments (named apps only)
+    maxRatePerHour: 10n * USD,
+    // $10/h ceiling on any deployment rate cap (a full GPU node is ~$6/h)
     expiresIn: 12 * HOUR,
     maxExpiresIn: 30 * DAY
   },
@@ -413,6 +411,8 @@ var PRESETS = {
     maxFeePerOp: USD / 10n,
     // $0.10 ceiling; the daily cap bounds the total
     maxAppFeePerHour: 0n,
+    maxRatePerHour: 5n * USD,
+    // a whole CPU node is ~$3/h; staging rarely needs a GPU
     expiresIn: 7 * DAY,
     maxExpiresIn: 28 * DAY
   },
@@ -428,6 +428,7 @@ var PRESETS = {
     opsPerPeriod: 0,
     maxFeePerOp: 0n,
     maxAppFeePerHour: 0n,
+    maxRatePerHour: 0n,
     expiresIn: 12 * HOUR,
     maxExpiresIn: 7 * DAY
   }
@@ -458,6 +459,7 @@ function buildGrant(input) {
     opsPerPeriod: p.opsPerPeriod,
     maxFeePerOp: p.maxFeePerOp,
     maxAppFeePerHour: p.maxAppFeePerHour,
+    maxRatePerHour: p.maxRatePerHour ?? 0n,
     expiresAt: BigInt(now + p.expiresIn),
     measurement: p.measurement ?? ZERO_HASH,
     grantNonce: randomHex32(),
@@ -492,10 +494,12 @@ function describeGrant(g, now = Math.floor(Date.now() / 1e3)) {
   else if (apps.length) lines.push(`Apps: only ${apps.join(", ")}.`);
   if (g.environments.length) lines.push(`Environments: ${g.environments.join(" and ")}.`);
   lines.push(`Budget: ${fmtUsd(g.budget)} escrowed; at most ${fmtUsd(g.spendPerPeriod)} per ${fmtDur(g.periodSeconds)}${g.opsPerPeriod ? `, ${g.opsPerPeriod} operations per ${fmtDur(g.periodSeconds)}` : ""}; relay fee at most ${fmtUsd(g.maxFeePerOp)} per operation.`);
+  if (g.maxRatePerHour > 0n) lines.push(`Deployment prices it sets: at most ${fmtUsd(g.maxRatePerHour)}/hour; production prices can only go down.`);
   lines.push(`Expires: in ${fmtDur(Number(g.expiresAt) - now)}. Unspent budget returns to your wallet when it ends.`);
   lines.push("Never allowed: withdrawing, promoting to production, secrets, opening or changing other sessions.");
   if (g.environments.includes("prod")) warnings.push("This session can act on PRODUCTION deployments (not change what version they run).");
-  if (g.apps.includes("*") && g.actions.includes("deploy.create")) warnings.push("This session can deploy ANY app from the store.");
+  if (g.apps.includes("*") && g.actions.includes("deploy.create")) warnings.push("This session can deploy any FREE app from the store (paid apps only if named).");
+  if (g.actions.includes("api.account")) warnings.push("This session can sign in to your Enclave account and to apps as you (Sign in with Enclave).");
   if (g.budget > 100n * 1000000n) warnings.push(`Large budget: ${fmtUsd(g.budget)}.`);
   if (Number(g.expiresAt) - now > 14 * DAY) warnings.push(`Long-lived: ${fmtDur(Number(g.expiresAt) - now)}.`);
   if (g.measurement !== ZERO_HASH) lines.push(`Key must live inside an enclave with measurement ${g.measurement.slice(0, 18)}\u2026`);
@@ -573,19 +577,6 @@ var sessionVaultAbi = [
   {
     "type": "function",
     "name": "ACT_FUND",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint8",
-        "internalType": "uint8"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "ACT_PAY",
     "inputs": [],
     "outputs": [
       {
@@ -1147,6 +1138,11 @@ var sessionVaultAbi = [
             "internalType": "uint256"
           },
           {
+            "name": "maxRatePerHour",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
             "name": "expiresAt",
             "type": "uint64",
             "internalType": "uint64"
@@ -1348,6 +1344,11 @@ var sessionVaultAbi = [
             "internalType": "uint256"
           },
           {
+            "name": "maxRatePerHour",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
             "name": "expiresAt",
             "type": "uint64",
             "internalType": "uint64"
@@ -1450,6 +1451,11 @@ var sessionVaultAbi = [
           },
           {
             "name": "maxAppFeePerHour",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxRatePerHour",
             "type": "uint256",
             "internalType": "uint256"
           },
@@ -1569,6 +1575,11 @@ var sessionVaultAbi = [
         "name": "id",
         "type": "bytes32",
         "internalType": "bytes32"
+      },
+      {
+        "name": "app",
+        "type": "string",
+        "internalType": "string"
       },
       {
         "name": "appRef",
@@ -1804,6 +1815,11 @@ var sessionVaultAbi = [
           },
           {
             "name": "maxAppFeeHour6",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "maxRateHour6",
             "type": "uint128",
             "internalType": "uint128"
           },
@@ -2577,6 +2593,22 @@ var sessionVaultAbi = [
   },
   {
     "type": "error",
+    "name": "RateCapOutOfRange",
+    "inputs": [
+      {
+        "name": "rate",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "limit",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "RateLimit",
     "inputs": []
   },
@@ -2775,6 +2807,11 @@ var sessionVaultFactoryAbi = [
             "internalType": "uint256"
           },
           {
+            "name": "maxRatePerHour",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
             "name": "expiresAt",
             "type": "uint64",
             "internalType": "uint64"
@@ -2887,6 +2924,11 @@ var sessionVaultFactoryAbi = [
           },
           {
             "name": "maxAppFeePerHour",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxRatePerHour",
             "type": "uint256",
             "internalType": "uint256"
           },
@@ -3423,6 +3465,38 @@ async function sessionFromRecord(rec, opts = {}) {
   return new Session(rec.handle, signer, opts);
 }
 
+// src/attest.ts
+import { bytesToHex as bytesToHex3, concat, numberToBytes, sha256 as sha2562, stringToBytes } from "viem";
+var SESSION_KEY_DOMAIN = "enclave-session-key-v1";
+var SESSION_KEY_MEASUREMENT_MAPPING = "sha256(SEV-SNP MEASUREMENT, the 48 raw bytes)";
+var TWO_256 = 1n << 256n;
+function u256(v, name) {
+  const b = BigInt(v);
+  if (b < 0n || b >= TWO_256) throw new Error(`${name} out of range`);
+  return numberToBytes(b, { size: 32 });
+}
+function sessionKeyReportData(chainId, x, y) {
+  return sha2562(concat([stringToBytes(SESSION_KEY_DOMAIN), u256(chainId, "chainId"), u256(x, "x"), u256(y, "y")]), "bytes");
+}
+function snpMeasurementToBytes32(measurement) {
+  const b = typeof measurement === "string" ? measurement.replace(/^0x/, "") : bytesToHex3(measurement).slice(2);
+  if (!/^[0-9a-fA-F]{96}$/.test(b)) throw new Error("an SEV-SNP measurement is 48 bytes");
+  return sha2562(`0x${b}`);
+}
+var hexOf = (v) => typeof v === "string" ? v : bytesToHex3(v);
+async function requestAttestation(relay, p) {
+  const evidence = {
+    type: p.evidence.type,
+    report: hexOf(p.evidence.report),
+    ...p.evidence.vcek !== void 0 ? { vcek: p.evidence.vcek } : {},
+    ...p.evidence.auxblob !== void 0 ? { auxblob: hexOf(p.evidence.auxblob) } : {}
+  };
+  const res = await relay.request("POST", "/attest", { x: p.x, y: p.y, evidence });
+  if (String(res.keyHash).toLowerCase() !== keyHashOf(p.x, p.y).toLowerCase())
+    throw new SessionError("relay", "the relay answered for a different key", { keyHash: res.keyHash });
+  return res;
+}
+
 // src/index.ts
 async function newSessionKey(store, p) {
   const kp = await generateKeyPair(p.extractable);
@@ -3555,6 +3629,8 @@ export {
   NETWORKS,
   PRESETS,
   RelayClient,
+  SESSION_KEY_DOMAIN,
+  SESSION_KEY_MEASUREMENT_MAPPING,
   Session,
   SessionError,
   TYPES,
@@ -3596,10 +3672,12 @@ export {
   pendingId,
   publicKeyXY,
   readSession,
+  requestAttestation,
   resolveFactory,
   ser as serialize,
   sessionFromRecord,
   sessionIdOf,
+  sessionKeyReportData,
   sessionVaultAbi,
   sessionVaultFactoryAbi,
   sha256Hex,
@@ -3607,6 +3685,7 @@ export {
   signDeposit,
   signerFromKeyPair,
   signerFromKeys,
+  snpMeasurementToBytes32,
   spendable,
   topUpFromWallet,
   typedData,

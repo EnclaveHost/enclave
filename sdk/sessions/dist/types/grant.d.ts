@@ -13,6 +13,8 @@ export interface Policy {
     opsPerPeriod: number;
     maxFeePerOp: bigint;
     maxAppFeePerHour: bigint;
+    /** ceiling on any deployment rate cap the session sets (USDC 6dp per hour) */
+    maxRatePerHour: bigint;
     /** seconds from signing */
     expiresIn: number;
     measurement?: Hex;

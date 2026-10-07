@@ -29,6 +29,8 @@
 //       ENCLAVE_API_BASE  gateway or a specific enclave origin (--base)
 //       ENCLAVE_RPC       Base JSON-RPC url, or several comma-separated (--rpc)
 //       ENCLAVE_VISIBLE_WAIT  seconds deploy waits for a new record to reach every reader (default 60)
+//       ENCLAVE_SESSION   an exported session (enclave session new --env): the session-aware commands act through it
+//       ENCLAVE_SESSION_DIR  where session keys live (default ~/.config/enclave/sessions)
 import fs from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
@@ -334,6 +336,8 @@ const APPROVAL_WORD = ["pending", "approved", "rejected"];
 // Parsed once, up front; command args are whatever remains.
 const opt = { json: false, trace: false, base: null, rpc: null, yes: false,
               unsigned: false, signer: null, from: null,
+              // --wallet: act with the wallet key even when a session is active (see "sessions" below)
+              wallet: false,
               // `enclave attest`: which verifier judges (docs/security/independent-verifier-plan.md, section 9 stage 3).
               //   tinfoil (default): @tinfoilsh/verifier, exactly as before.
               //   both:              both run; both verdicts print; the EXIT CODE follows Tinfoil's until the cutover.
@@ -359,6 +363,7 @@ const args = [];
     else if (a[i] === "--unsigned") opt.unsigned = true;
     else if (a[i] === "--signer") opt.signer = a[++i];
     else if (a[i] === "--from") opt.from = a[++i];
+    else if (a[i] === "--wallet") opt.wallet = true;
     else if (a[i] === "--verifier") opt.verifier = a[++i];
     else if (a[i] === "--min-tcb") opt.minTcb = a[++i];                 // JSON TCB floor per product line; without it the Enclave verdict is at best "limited"
     else if (a[i] === "--release-bundle") opt.releaseBundle = a[++i];   // offline release provenance: attestation bundle file(s), comma-separated,
@@ -376,6 +381,8 @@ const API_BASE = (opt.base || env.ENCLAVE_API_BASE || DEFAULTS.apiBase).replace(
 const RPCS = (opt.rpc || env.ENCLAVE_RPC)
   ? String(opt.rpc || env.ENCLAVE_RPC).split(",").map((s) => s.trim()).filter(Boolean) : DEFAULTS.rpcs;
 const CONF_DIR = path.join(env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), "enclave");
+// session keys (`enclave session …`): one 0600 file each, beside the wallet key
+const SESSION_DIR = path.resolve(env.ENCLAVE_SESSION_DIR || path.join(CONF_DIR, "sessions"));
 
 const say = (...s) => console.log(...s);
 const die = (msg, code = 1) => { stderr.write("error: " + msg + "\n"); exit(code); };
@@ -1366,10 +1373,14 @@ async function cmdLogs(rest) {
 }
 
 async function cmdFund(rest) {
-  const account = loadKey();
+  // with a session: deploy.fund, paid out of the session budget (USDC only)
+  const sess = await sessionForCommand();
+  const account = sess ? null : loadKey();
   const f = flags(rest, { val: ["--usdc", "--eth"] });
   if (!f._[0] || (!f.usdc && !f.eth)) throw new Error("usage: enclave fund <id> --usdc 5 | --eth 0.002");
-  const id = await resolveId(f._[0], account);
+  if (sess && f.eth) throw new Error("a session funds in USDC out of its budget: use --usdc <usd> (or --wallet to fund with ETH from your wallet)");
+  if (sess) await sessionRequire(sess, "deploy.fund");
+  const id = await resolveId(f._[0], account ?? sessionAccount(sess));
   if (!isB32(id)) throw new Error("only on-chain deployments (bytes32 ids) are fundable by transaction");
   const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "get", [id]);
   if (d.owner === "0x0000000000000000000000000000000000000000") throw new Error(`no deployment ${short(id)} on the ledger`);
@@ -1379,9 +1390,10 @@ async function cmdFund(rest) {
     + `its owner runs \`enclave resume ${short(id)}\` first, then funds it`);
   if (f.usdc) {
     const amt = numFlag(f.usdc, "--usdc");
-    if (!(await confirm(`fund ${short(id)} with ${usd6(BigInt(Math.round(amt * 1e6)))} USDC (buys ~${dur(d.rate > 0n ? amt * 1e6 / Number(d.rate) : 0)})?`)))
+    if (!(await confirm(`fund ${short(id)} with ${usd6(BigInt(Math.round(amt * 1e6)))} USDC (buys ~${dur(d.rate > 0n ? amt * 1e6 / Number(d.rate) : 0)})${sess ? " out of the session budget" : ""}?`)))
       return say("aborted");
-    await fundUsdc(account, id, amt);
+    if (sess) await sessionCall(sess, "deploy.fund", { id, amount6: sessionUsd6(amt, "--usdc") });
+    else await fundUsdc(account, id, amt);
   } else {
     const amt = numFlag(f.eth, "--eth");
     if (!(await confirm(`fund ${short(id)} with ${amt} ETH (credited at the Chainlink ETH/USD rate)?`))) return say("aborted");
@@ -1429,10 +1441,14 @@ async function cmdAttest(rest) {
 
 
 async function cmdStop(rest) {
-  const account = loadKey();
+  // with a session: deploy.setActive(false) on a deployment the vault holds
+  const sess = await sessionForCommand();
+  const account = sess ? null : loadKey();
   if (!rest[0]) throw new Error("usage: enclave stop <id>");
-  const id = await resolveId(rest[0], account);
+  if (sess) await sessionRequire(sess, "deploy.setActive");
+  const id = await resolveId(rest[0], account ?? sessionAccount(sess));
   if (!(await confirm(`stop ${short(id)}? (suspends the app and takes it off the queue; the remaining balance stays on the deployment - \`enclave resume\` re-queues it)`))) return say("aborted");
+  if (sess) return stopViaSession(sess, id);
   let sent = null;   // the setActive(false) THIS run confirmed: { tx, block }
   if (isB32(id)) {
     // take the work item off the queue first so no enclave re-claims it…
@@ -1714,16 +1730,20 @@ async function cmdTransfer(rest) {
 // doesn't wait for the next sweep. The app relaunches FRESH from its published
 // version - suspend/resume preserves money, not memory.
 async function cmdResume(rest) {
-  const account = loadKey();
+  // with a session: deploy.setActive(true) on a deployment the vault holds
+  const sess = await sessionForCommand();
+  const account = sess ? null : loadKey();
   if (!rest[0]) throw new Error("usage: enclave resume <id>");
-  const id = await resolveId(rest[0], account);
+  if (sess) await sessionRequire(sess, "deploy.setActive");
+  const id = await resolveId(rest[0], account ?? sessionAccount(sess));
   if (!isB32(id)) throw new Error("only on-chain deployments (bytes32 ids) can be resumed");
   const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "get", [id]);
   if (!d || d.owner === "0x0000000000000000000000000000000000000000") throw new Error(`no deployment ${short(id)} on the ledger`);
-  if (d.owner.toLowerCase() !== account.address.toLowerCase()) throw new Error(`${short(id)} is owned by ${d.owner}, not this key`);
+  if (d.owner.toLowerCase() !== (account ?? sessionAccount(sess)).address.toLowerCase()) throw new Error(`${short(id)} is owned by ${d.owner}, not ${sess ? sessionNotHeld(sess) : "this key"}`);
   const fundable = d.rate > 0n ? Number(d.balance6 / d.rate) : 0;
   if (!(await confirm(`resume ${short(id)}? (re-queues it; the remaining ${usd6(d.balance6)} buys ${dur(fundable)} at ${usd6(d.rate * 3600n)}/h once it runs)`))) return say("aborted");
   if (d.active) say("already active on the ledger; nudging the fleet");
+  else if (sess) await sessionCall(sess, "deploy.setActive", { id, active: true });
   else await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi: (await depAbi()).abi,
     functionName: "setActive", args: [id, true] });
   // force: resume is the one hint that may override the ex-runner's
@@ -1755,21 +1775,29 @@ async function cmdResume(rest) {
 async function cmdUpgrade(rest, { resize = false } = {}) {
   const f = flags(rest, { val: ["--gpu", "--cpu"] });
   rest = f._;
-  const account = loadKey();
+  // with a session: deploy.setAppRef (upgrade) or deploy.setShares (resize), staging deployments the vault holds
+  const sess = await sessionForCommand();
+  const account = sess ? null : loadKey();
   if (!rest[0]) throw new Error(resize
     ? "usage: enclave resize <id> [--gpu 0..1] [--cpu 0..1]  (fractions of one card/node; the rate is recalculated at current prices)"
     : "usage: enclave upgrade <id> [<version>] [--gpu 0..1] [--cpu 0..1]  (default: the app's latest approved version)");
-  const id = await resolveId(rest[0], account);
+  const id = await resolveId(rest[0], account ?? sessionAccount(sess));
   if (!isB32(id)) throw new Error("only on-chain deployments (bytes32 ids) can change versions or shares");
   const { rev, abi } = await depAbi();
   if (rev < 3) throw new Error("the live EnclaveDeployments contract predates version changes (deploymentsSchema < 3); until the ledger upgrade, deploy the new version fresh and stop the old one");
   const wantShares = f.gpu !== undefined || f.cpu !== undefined;
   if (resize && !wantShares) throw new Error("nothing to change: pass --gpu and/or --cpu (fractions of one card/node, e.g. --gpu 0.5)");
+  if (sess) {
+    // one session operation per change: the vault has no multicall for a session
+    if (!resize && wantShares)
+      throw new Error(`a session changes the version and the shares in two operations: enclave upgrade ${rest[0]}${rest[1] !== undefined ? " " + rest[1] : ""}, then enclave resize ${rest[0]} --gpu … --cpu …`);
+    await sessionRequire(sess, resize ? "deploy.setShares" : "deploy.setAppRef");
+  }
   if (wantShares && rev < 6)
     throw new Error("the live EnclaveDeployments contract predates share resizes (deploymentsSchema < 6); until the ledger upgrade, deploy at the new dials fresh and stop this one");
   const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "get", [id]);
   if (!d || d.owner === "0x0000000000000000000000000000000000000000") throw new Error(`no deployment ${short(id)} on the ledger`);
-  if (d.owner.toLowerCase() !== account.address.toLowerCase()) throw new Error(`${short(id)} is owned by ${d.owner}, not this key`);
+  if (d.owner.toLowerCase() !== (account ?? sessionAccount(sess)).address.toLowerCase()) throw new Error(`${short(id)} is owned by ${d.owner}, not ${sess ? sessionNotHeld(sess) : "this key"}`);
   const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(d.appRef || "");
   if (!m) throw new Error(`${short(id)} references "${d.appRef}" - only catalog-versioned deployments can switch versions or shares`);
   const appId = m[1], curIdx = Number(m[2]);
@@ -1907,7 +1935,12 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
   if (!(await confirm(`${doing}? (paid time carries over`
                     + `${leased ? "; the runner restarts the app in place within ~a minute" : ""})`))) return say("aborted");
   const appRef = `catalog://${app.appId}/${vi}`;
-  if (vi !== curIdx && resized) {
+  if (sess) {
+    if (resize && !resized) return say(`${short(id)} already has those shares; nothing to do`);
+    if (!resize) sessionRequireApp(sess, app.appId, "deploy.setAppRef", app.slug);
+    if (resized) await sessionCall(sess, "deploy.setShares", { id, gpuMilli, cpuMilli });
+    else await sessionCall(sess, "deploy.setAppRef", { id, appRef });
+  } else if (vi !== curIdx && resized) {
     // one signature: the contract's self-delegatecall batcher applies both
     await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi, functionName: "multicall",
       args: [[encodeFunctionData({ abi, functionName: "setAppRef", args: [id, appRef] }),
@@ -1935,14 +1968,18 @@ const isoTakesConfig = (hosts, key) => hosts.some((h) => h && h.availability && 
 const isoHostNames = (hosts) => hosts.map((h) => h.name || h.id).join(", ");
 
 async function cmdDeploy(rest) {
-  const account = loadKey();
+  // with a session: deploy.create through the vault, which holds the record (--env staging|prod)
+  const sess = await sessionForCommand();
+  const account = sess ? null : loadKey();
   const f = flags(rest, {
     val: ["--gpu", "--cpu", "--fund", "--fund-eth", "--port", "--ports", "--config-cid", "--waf", "--config",
-          "--secrets", "--secrets-file", "--max-rate", "--isolation"],
+          "--secrets", "--secrets-file", "--max-rate", "--isolation", ...(sess ? ["--env"] : [])],
     bool: ["--private", "--public", "--no-wait", "--gpu-optional"],
   });
   if (!f._[0]) throw new Error("usage: enclave deploy <app> [--gpu 0..1] [--cpu 0..1] --fund <usd> [flags]");
-  const { ref, ver, app, pending } = await resolveAppRef(f._[0], { allowPending: !!f.private });
+  if (sess) await sessionDeployPreflight(sess, f);
+  const { ref, ver, app, pending } = await resolveAppRef(sess ? sessionAppInput(sess, f._[0]) : f._[0], { allowPending: !!f.private });
+  if (sess) sessionRequireApp(sess, app.appId, "deploy.create", app.slug);
   if (pending) {
     // dev-mode deploy (pending version, --private): fail closed unless EVERY
     // live runner admits it - otherwise the create sits Queued forever
@@ -2112,7 +2149,7 @@ async function cmdDeploy(rest) {
     }
     const manifest = {};
     if (envParts.config.volumes !== undefined) manifest.volumes = envParts.config.volumes;
-    const cid = await pinJson(account, Buffer.from(body, "utf8"));
+    const cid = await pinJson(sess ?? account, Buffer.from(body, "utf8"));
     say(`config pinned at ${cid}; its volume list stays in the routing manifest`);
     envParts.configCid = cid;
     if (Object.keys(manifest).length) envParts.config = manifest; else delete envParts.config;
@@ -2195,6 +2232,7 @@ async function cmdDeploy(rest) {
   const fundEth = f["fund-eth"] !== undefined ? numFlag(f["fund-eth"], "--fund-eth") : 0;
   if (!fundUsd && !fundEth)
     throw new Error(`nothing to fund it with: add --fund <usd> (rate is ${usd6(rate * 3600n)}/h; runners skip unfunded work)`);
+  if (sess) return deployViaSession(sess, { f, ref, gpuMilli, cpuMilli, appPort, portsCsv, isPublic, envelope, maxRate6, fundUsd, rate });
   const eth = await pub().getBalance({ address: account.address });
   if (eth === 0n) throw new Error(`${account.address} has no Base ETH for transaction gas; bridge a little first`);
   const buys = fundUsd ? dur(fundUsd * 1e6 / Number(rate)) : `(ETH at the live rate)`;
@@ -2428,11 +2466,14 @@ function componentContract(bytes) {
 // trade the signature at the API for a one-time token bound to those exact
 // bytes, then upload carrying it. The token also spends against a per-wallet
 // daily byte budget, which is what actually bounds the pin surface.
+// `account` may be a session (sessionForCommand): its key signs the token request
+// itself (Authorization: EnclaveSession, scope api.upload) and the token is the
+// session OWNER's, so the pin spends the owner's daily byte budget.
 async function pinBytes(account, bytes, url, contentType, label) {
   const hash = crypto.createHash("sha256").update(bytes).digest("hex");
   const expiry = Math.floor(Date.now() / 1000) + 300;
-  const signature = await account.signMessage({ message: `enclave-upload:${hash}:${expiry}` });
-  const tok = await api("POST", "/v1/apps/upload-token", { body: { hash, expiry, signature } });
+  const tok = account?.kind === "session" ? await sessionUploadToken(account, hash, expiry)
+                                          : await walletUploadToken(account, hash, expiry);
   if (!tok || !tok.token) throw new Error("upload authorization failed");
   trace(`curl -sX POST ${url} -H 'content-type: ${contentType}' -H 'x-upload-token: …' --data-binary @${label}`);
   const up = await fetch(url, { method: "POST", body: bytes, headers: { "content-type": contentType,
@@ -2442,6 +2483,10 @@ async function pinBytes(account, bytes, url, contentType, label) {
   const cid = JSON.parse(body).cid;
   if (!cid) throw new Error("IPFS upload returned no CID");
   return cid;
+}
+async function walletUploadToken(account, hash, expiry) {
+  const signature = await account.signMessage({ message: `enclave-upload:${hash}:${expiry}` });
+  return api("POST", "/v1/apps/upload-token", { body: { hash, expiry, signature } });
 }
 
 // An app config, for a version that keeps it at a CID rather than inline. The
@@ -2453,7 +2498,9 @@ const pinJson = (account, buf) =>
 
 async function cmdPublish(rest) {
   catalogWriteAllowed();   // before anything is pinned: the version would go to a catalog this CLI cannot vouch for
-  const account = loadKey();
+  // with a session: the publisher is the session's VAULT (app.publish, named apps only)
+  const sess = await sessionForCommand();
+  const account = sess ? null : loadKey();
   const f = flags(rest, { val: ["--slug", "--name", "--desc", "--version", "--mem", "--cpu-gflops",
                                 "--vram", "--gpu-gflops", "--ports", "--config", "--fee",
                                 "--nogpu-mem", "--nogpu-cpu-gflops"],
@@ -2461,6 +2508,12 @@ async function cmdPublish(rest) {
   const file = f._[0];
   if (!file || !f.slug) throw new Error("usage: enclave publish <app.wasm> --slug <slug> [--name --desc --version --mem MB --cpu-gflops N --vram MB --gpu-gflops N --nogpu-mem MB --nogpu-cpu-gflops N --ports CSV --config JSON --fee $/hr]");
   if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(f.slug)) throw new Error("slug: lowercase letters, digits, hyphens (max 40)");
+  if (sess) {
+    await sessionRequire(sess, "app.publish", "api.upload");
+    sessionRequireApp(sess, await read(DEFAULTS.APP_CATALOG_ADDRESS, CATALOG_ABI, "appIdOf", [sess.vault, f.slug]),
+                      "app.publish", f.slug);
+  }
+  const publisher = sess ? sess.vault : account.address;
   // --config = the app's default/template ENCLAVE_CONFIG (deploy consoles pre-fill from it)
   // --gpu-optional rides IN that config as `gpuOptional: true`: the publisher
   // declaring that --vram/--gpu-gflops describe what this app WOULD use, not
@@ -2543,7 +2596,7 @@ async function cmdPublish(rest) {
 
   // version defaults to the next integer for your app (labels are free-form, matched exactly on deploy)
   let version = f.version;
-  const appId = await read(DEFAULTS.APP_CATALOG_ADDRESS, CATALOG_ABI, "appIdOf", [account.address, f.slug]);
+  const appId = await read(DEFAULTS.APP_CATALOG_ADDRESS, CATALOG_ABI, "appIdOf", [publisher, f.slug]);
   const existing = Number(await read(DEFAULTS.APP_CATALOG_ADDRESS, CATALOG_ABI, "numVersions", [appId]).catch(() => 0n));
   if (!version) version = String(existing + 1);
 
@@ -2556,6 +2609,8 @@ async function cmdPublish(rest) {
   const feeUsdHr = numFlag(f.fee, "--fee") ?? 0;
   if (feeUsdHr < 0) throw new Error("--fee can't be negative");
   const feePerSec6 = BigInt(Math.round(feeUsdHr * 1e6 / 3600));
+  if (sess && feePerSec6 > 0n)
+    throw new Error("a session publishes free versions only (the vault refuses a publisher fee in v1); drop --fee, or publish with --wallet");
   if (feePerSec6 > 0n) {
     if ((await catRev()) < 5)
       throw new Error("--fee needs the rev-5 catalog (this one predates publisher fees) - publish free, or wait for the catalog upgrade");
@@ -2570,7 +2625,7 @@ async function cmdPublish(rest) {
   // 1. pin to IPFS. The gateway requires a WALLET-AUTHORIZED token (closes the
   //    open-pin storage DoS): sign enclave-upload:<sha256>:<expiry>, trade it at
   //    the API for a one-time token, then upload the bytes carrying it.
-  const cid = await pinBytes(account, bytes, DEFAULTS.ipfsUpload, "application/wasm", file);
+  const cid = await pinBytes(sess ?? account, bytes, DEFAULTS.ipfsUpload, "application/wasm", file);
   say(`pinned ipfs://${cid}`);
 
   // 2. cut the catalog version (publisher = your address; appId = keccak(publisher, slug))
@@ -2636,7 +2691,7 @@ async function cmdPublish(rest) {
     if (Buffer.byteLength(onchain) > CONFIG_INLINE_MAX) throw new Error(
       `the on-chain routing manifest (${ROUTING_KEYS.join(", ")}) is ${Buffer.byteLength(onchain)} bytes, `
       + `over the ${CONFIG_INLINE_MAX}-byte record limit - shorten \`volumes\` or \`_media\``);
-    configCid = await pinJson(account, cfgBuf);
+    configCid = await pinJson(sess ?? account, cfgBuf);
     say(`pinned config ipfs://${configCid} (${cfgBytes} bytes)`);
     f.config = onchain;
   }
@@ -2644,7 +2699,11 @@ async function cmdPublish(rest) {
   if (rev >= 3) args.push(f.config || "");   // rev 3+ take the 8-arg form (rev 3 stores it app-level; we always pass "")
   if (configCid) args.push(configCid);       // rev 7 publishVersionCfg: the config's CID sits between config and fee
   if (rev >= 5) args.push(feePerSec6);       // rev 5+ take the 9-arg form (the version's publisher fee; 0 = free)
-  const rcpt = await sendTx(account, { address: DEFAULTS.APP_CATALOG_ADDRESS, abi: CATALOG_ABI,
+  // a session's vault builds the catalog call itself (publishVersion, or publishVersionCfg with a configCid; fee 0)
+  const rcpt = sess
+    ? await sessionTx(sess, "app.publish", { slug: f.slug, name: f.name || f.slug, description: f.desc || "", version, cid,
+                                             res, ports: f.ports || "", config: f.config || "", configCid })
+    : await sendTx(account, { address: DEFAULTS.APP_CATALOG_ADDRESS, abi: CATALOG_ABI,
     functionName: configCid ? "publishVersionCfg" : "publishVersion", args });
   // rev 9: the catalog owner's own publishes are approved ON PUBLISH (the
   // publish signature is the approval signature). The receipt says which way
@@ -2905,8 +2964,11 @@ async function cmdConfig(rest) {
   if (!["show", "get", "set", "clear"].includes(sub || "")) throw new Error(usage);
   const f = flags(rest, { val: ["--file", "--waf"] });
   if (!f._[0]) throw new Error(usage);
-  const account = loadKey();
-  const id = await resolveId(f._[0], account);
+  // with a session: set/clear are deploy.setConfig on a STAGING deployment the vault holds (show needs no key)
+  const sess = await sessionForCommand();
+  const account = sess ? null : loadKey();
+  if (sess && sub !== "show" && sub !== "get") await sessionRequire(sess, "deploy.setConfig");
+  const id = await resolveId(f._[0], account ?? sessionAccount(sess));
   if (!isB32(id)) throw new Error("only on-chain deployments (bytes32 ids) carry an options envelope");
   const { rev, abi } = await depAbi();
   const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "get", [id]);
@@ -2940,8 +3002,8 @@ async function cmdConfig(rest) {
     return;
   }
 
-  if (d.owner.toLowerCase() !== account.address.toLowerCase())
-    throw new Error(`${short(id)} is owned by ${d.owner}, not this key`);
+  if (d.owner.toLowerCase() !== (account ?? sessionAccount(sess)).address.toLowerCase())
+    throw new Error(`${short(id)} is owned by ${d.owner}, not ${sess ? sessionNotHeld(sess) : "this key"}`);
   const next = { ...cur };
   if (sub === "set") {
     const cfgArg = f._[1] !== undefined ? f._[1] : (f.file !== undefined ? fs.readFileSync(f.file, "utf8") : undefined);
@@ -2989,7 +3051,7 @@ async function cmdConfig(rest) {
     const manifest = {};
     if (next.config.volumes !== undefined) manifest.volumes = next.config.volumes;
     say(`config is ${Buffer.byteLength(body)} bytes - too big for the envelope; pinning it and keeping the reference on-chain`);
-    const cid = await pinJson(account, Buffer.from(body, "utf8"));
+    const cid = await pinJson(sess ?? account, Buffer.from(body, "utf8"));
     say(`  pinned ${cid}`);
     next.configCid = cid;
     if (Object.keys(manifest).length) next.config = manifest; else delete next.config;
@@ -3019,9 +3081,557 @@ async function cmdConfig(rest) {
                 : "the live fleet predates in-place envelope edits - it applies at the app's next relaunch or claim")
     : "it applies when the deployment is next claimed";
   if (!(await confirm(`rewrite the options envelope of ${short(id)}? (${envelope ? Buffer.byteLength(envelope) + " bytes" : "empty"}; ${when})`))) return say("aborted");
-  await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi, functionName: "setConfig", args: [id, envelope] });
+  if (sess) await sessionCall(sess, "deploy.setConfig", { id, configCid: envelope });
+  else await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi, functionName: "setConfig", args: [id, envelope] });
   if (opt.json) return jout({ id, envelope, applies: leased ? (liveEdit ? "in_place" : "next_relaunch") : "next_claim" });
   say(`envelope updated - ${when}; watch: enclave status ${short(id)}`);
+}
+
+// ---- sessions: act through an owner-approved session key (docs/design/sessions.md §8.2) ----
+// A session is a P-256 key that the owner's wallet approved ONCE, under a policy
+// the owner's SessionVault enforces on-chain: which actions, which apps, which
+// environments, how much money, until when. The key signs every operation and
+// the sessions relayer submits it, reimbursed out of the session budget by a fee
+// the key itself signed. The key lives in SESSION_DIR (one 0600 file each) or,
+// for agents that keep secrets in the environment, in ENCLAVE_SESSION.
+//
+// With a session available, publish / deploy / fund / upgrade / resize /
+// config set|clear / stop / resume act THROUGH it. A refusal (budget, policy,
+// expiry) is reported with its code and the next step, and the command stops:
+// it never falls back to the wallet key. --wallet (or --unsigned / --signer,
+// which name a wallet) is the explicit way back to the wallet paths.
+const SESSION_POLL_MS = 3000;
+let _sessionsSdk = null;
+async function sessionsSdk() {
+  if (_sessionsSdk) return _sessionsSdk;
+  try { _sessionsSdk = await import("../sdk/sessions/dist/node.mjs"); }
+  catch (e) { throw new Error(`this build of the CLI can't load the sessions SDK (${e.message}); install from a full checkout (cli/install.sh), or pass --wallet`); }
+  return _sessionsSdk;
+}
+const sessionEnvString = () => (env.ENCLAVE_SESSION || "").trim();
+// cheap, SDK-free: is there a session this command should act through?
+function sessionConfigured() {
+  if (sessionEnvString()) return true;
+  try { return fs.readFileSync(path.join(SESSION_DIR, "active"), "utf8").trim() !== ""; } catch { return false; }
+}
+const walletChosen = () => opt.wallet || opt.unsigned || !!opt.signer;
+async function sessionStore() { return new (await sessionsSdk()).FileStore(SESSION_DIR); }
+const explicitRpc = () => !!(opt.rpc || env.ENCLAVE_RPC);
+const sessionAccount = (s) => ({ address: s.vault });
+const sessionNotHeld = (s) => `this session's vault ${s.vault} (a session acts only on deployments its vault holds; use --wallet for your own)`;
+
+// A stored record by its full id, or a unique prefix of its id or key hash.
+// pending: true = only keys still waiting for a signature, false = only open ones.
+async function findSessionRecord(store, q, { pending } = {}) {
+  const all = (await store.list()).filter((r) => pending === undefined || !r.handle === pending);
+  const lc = String(q).toLowerCase();
+  let hits = all.filter((r) => r.id.toLowerCase() === lc);
+  if (!hits.length && lc.length >= 6)
+    hits = all.filter((r) => r.id.toLowerCase().startsWith(lc)
+                          || (lc.startsWith("0x") && lc.length >= 10 && String(r.keyHash).toLowerCase().startsWith(lc)));
+  if (hits.length === 1) return store.load(hits[0].id);    // load() re-checks the 0600 mode
+  const kind = pending === true ? "pending " : pending === false ? "open " : "";
+  throw new Error(hits.length ? `"${q}" matches ${hits.length} sessions; give more of the id (enclave session list)`
+                              : `no ${kind}session "${q}" in ${store.dir} (enclave session list)`);
+}
+
+// The session to act through: ENCLAVE_SESSION first (an explicit choice), else
+// the named or active key in SESSION_DIR. -> { kind: "session", S, rec, session, … }
+async function loadSession(idArg) {
+  const S = await sessionsSdk();
+  let rec = null, from = "file", store = null;
+  const fromEnv = sessionEnvString();
+  if (fromEnv) {
+    const r = S.importSessionString(fromEnv);
+    if (!idArg || r.id.toLowerCase().startsWith(String(idArg).toLowerCase())) { rec = r; from = "env"; }
+  }
+  if (!rec) {
+    store = await sessionStore();
+    const id = idArg ?? store.activeId();
+    if (!id) throw new Error("no active session: open one (enclave session new), pick a stored one (enclave session use <sid>), or set ENCLAVE_SESSION");
+    try { rec = await findSessionRecord(store, id); }
+    catch (e) {
+      if (idArg) throw e;
+      throw new Error(`the active session ${short(id)} has no key file in ${store.dir}: pick another (enclave session use <sid>), `
+        + `or pass --wallet to use your wallet key (${e.message})`);
+    }
+  }
+  if (!rec.handle) throw new Error(`session ${rec.id} is still waiting for the owner's signature: enclave session resume-wait ${rec.id}`);
+  // the chain is read where the user points the CLI (--rpc/ENCLAVE_RPC), else where the session was opened
+  const rpc = explicitRpc() ? RPCS[0] : rec.handle.rpc;
+  const session = await S.sessionFromRecord({ ...rec, handle: { ...rec.handle, rpc } });
+  return { kind: "session", S, rec, from, store, session, sid: rec.handle.sid, vault: rec.handle.vault,
+           owner: rec.handle.owner, label: rec.label, chainId: rec.chainId };
+}
+
+// For the session-aware commands: the session to act through, or null for the wallet path.
+async function sessionForCommand() {
+  if (walletChosen() || !sessionConfigured()) return null;
+  const s = await loadSession();
+  // the ledger and catalog reads go through this CLI's RPCs: they must be on the session's chain
+  if (s.chainId !== DEFAULTS.chainId && !explicitRpc())
+    throw new Error(`the active session lives on chain ${s.chainId}, but this CLI reads Base (${DEFAULTS.chainId}); point it at that chain `
+      + `with --rpc/ENCLAVE_RPC (and ENCLAVE_ADDRESS_BOOK), or pass --wallet to use your wallet key`);
+  stderr.write(`session: acting through ${short(s.sid)}${s.label ? ` "${s.label}"` : ""} (vault ${s.vault}); --wallet uses your wallet key instead\n`);
+  return s;
+}
+
+// The refusal, its code, and what to do next. Never a silent wallet fallback.
+function sessionHint(s, action, e, ctx = {}) {
+  const S = s.S, d = e.detail || {};
+  let next, message = e.message;
+  switch (e.code) {
+    case "budget": {
+      const gap = typeof d.need === "bigint" && typeof d.have === "bigint" && d.need > d.have ? d.need - d.have : 1_000_000n;
+      if (typeof d.need === "bigint" && typeof d.have === "bigint")
+        message = `this needs ${S.fmtUsd(d.need)} (amount + relay fee) and the session has ${S.fmtUsd(d.have)} left`;
+      next = `the owner can add budget: enclave session top-up-link --amount ${Math.max(1, Math.ceil(Number(gap) / 1e6))} (prints the link to send them)`;
+      break;
+    }
+    case "period":
+      if (typeof d.need === "bigint" && typeof d.left === "bigint")
+        message = `this needs ${S.fmtUsd(d.need)} and ${S.fmtUsd(d.left)} of this period's limit is left`;
+      next = `this period's spending limit is used up${typeof d.left === "bigint" ? ` (${S.fmtUsd(d.left)} left)` : ""}: wait for the next period `
+           + `(enclave session status shows when it resets), or ask the owner for a session with a higher limit`;
+      break;
+    case "rate": next = "this session used its operations for this period: wait for the next one (enclave session status shows when)"; break;
+    case "expired": next = "this session has expired: open a new session (enclave session new --preset <preset> --app <slug>)"; break;
+    case "not_live": next = "this session has ended (signed out, or revoked by the owner): open a new session (enclave session new …)"; break;
+    case "not_allowed": next = `ask the owner for a session with ${action} (enclave session new prints the link to send them), or have the owner run this with --wallet`; break;
+    case "env":
+      next = `ask the owner for a session with ${action} in that environment. A session acts only on deployments its vault holds, in the `
+           + `environments it was granted; what a PRODUCTION deployment runs changes only through the owner (--wallet, or Promote on enclave.host)`;
+      break;
+    case "app": next = `ask the owner for a session that names ${ctx.slug ? `this app (--app ${ctx.slug})` : "this app"}; publishing needs the app named, "*" never covers it`; break;
+    case "fee": next = "the relay's fee is above this session's per-operation cap right now; retry shortly"; break;
+    case "nonce": next = "another operation of this session landed first; retry"; break;
+    case "relay": next = "the sessions relay did not complete it; retry, and check enclave session status"; break;
+  }
+  return `session ${short(s.sid)} refused ${action}: ${e.code}: ${message}` + (next ? `\nnext: ${next}` : "");
+}
+const sessionRefusal = (s, action, code, message, ctx) => new Error(sessionHint(s, action, new s.S.SessionError(code, message), ctx));
+
+// Fail BEFORE any preflight or prompt when the session can't do this at all
+// (the vault re-checks everything; this only makes the refusal early and clear).
+async function sessionRequire(s, ...actions) {
+  const st = await s.session.status();
+  s.state = st;
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  if (!st.live) {
+    const expired = Number(st.state) === 1 && st.expiresAt < now;
+    throw sessionRefusal(s, actions[0], expired ? "expired" : "not_live", expired ? "this session has expired" : "this session has ended");
+  }
+  for (const a of actions)
+    if (((st.actions >> BigInt(s.S.ACTIONS[a])) & 1n) === 0n) throw sessionRefusal(s, a, "not_allowed", `this session may not ${a}`);
+  return st;
+}
+// on-chain app ids the session names (a slug is the VAULT's app of that slug); "*" covers all but publishing
+function sessionRequireApp(s, appId, action, slug) {
+  const st = s.state;
+  if (!st) return;
+  if (action !== "app.publish" && st.anyApp) return;
+  if (st.apps.some((a) => a.toLowerCase() === String(appId).toLowerCase())) return;
+  throw sessionRefusal(s, action, "app", `${slug ? `"${slug}" (${short(appId)})` : short(appId)} is not one of this session's apps`, { slug });
+}
+// a bare slug the session names means the VAULT's app of that slug (several publishers can share a slug)
+function sessionAppInput(s, input) {
+  const m = /^([a-z0-9][a-z0-9-]*)(:.+)?$/.exec(input);
+  const named = (s.rec.grant?.apps || []).filter((a) => a !== "*");
+  return m && named.includes(m[1]) ? `${s.vault}/${input}` : input;
+}
+
+async function sessionCall(s, action, args) {
+  trace(`session ${short(s.sid)} ${action} ${fmtArg(args)}`);
+  let out;
+  try { out = await s.session.call(action, args); }
+  catch (e) { if (e instanceof s.S.SessionError) throw new Error(sessionHint(s, action, e)); throw e; }
+  trace(`session op mined ${out.txHash} (relay fee ${s.S.fmtUsd(out.fee)})`);
+  return out;
+}
+// the receipt of a session operation, for callers that read its logs/block like a sendTx receipt
+async function sessionTx(s, action, args) {
+  const out = await sessionCall(s, action, args);
+  const rcpt = await pub().getTransactionReceipt({ hash: out.txHash });
+  return Object.assign(rcpt, { sessionResult: out.result, sessionFee: out.fee });
+}
+// USD -> USDC 6dp, in whole cents like fundUsdc (sub-cent amounts are refused, not rounded away)
+function sessionUsd6(usd, flag) {
+  const cents = usd * 100;
+  if (usd > 0 && usd < 0.01) throw new Error(`${flag}: the minimum is $0.01 (got $${usd}); amounts are whole cents`);
+  if (Math.abs(cents - Math.round(cents)) > 1e-9) throw new Error(`${flag}: $${usd} isn't a whole number of cents`);
+  return BigInt(Math.round(cents)) * 10000n;
+}
+
+// The token request is signed by the session key over the exact body bytes sent.
+async function sessionUploadToken(s, hash, expiry) {
+  const p = "/v1/apps/upload-token";
+  const body = JSON.stringify({ hash, expiry });
+  const authorization = await s.session.apiAuthorization("POST", API_BASE + p, body);
+  trace(`curl -sX POST '${API_BASE}${p}' -H 'authorization: EnclaveSession …' -d '${body}'`);
+  const r = await fetch(API_BASE + p, { method: "POST", headers: { "content-type": "application/json", authorization }, body });
+  const raw = await r.text();
+  let j = {}; try { j = JSON.parse(raw); } catch {}
+  if (!r.ok) {
+    if (j.error === "not_allowed") throw sessionRefusal(s, "api.upload", "not_allowed", j.message || "this session lacks api.upload");
+    if (j.error === "session_ended") throw sessionRefusal(s, "api.upload", "not_live", j.message || "this session has ended");
+    throw new Error(`POST ${p} -> ${r.status}: ${j.message || j.error || raw.slice(0, 300)}`);
+  }
+  return j;
+}
+
+async function sessionDeployPreflight(s, f) {
+  if (f["fund-eth"] !== undefined) throw new Error("a session funds in USDC out of its budget: use --fund <usd> (or --wallet to fund with ETH)");
+  if (f.secrets !== undefined || f["secrets-file"] !== undefined)
+    throw new Error("secrets are the owner's alone (a session can neither set nor read them): deploy without --secrets, "
+      + "then the owner runs `enclave secrets set <id> KEY=VALUE --wallet`");
+  const envName = f.env ?? "staging";
+  if (!(envName in s.S.ENVIRONMENTS)) throw new Error(`--env takes ${Object.keys(s.S.ENVIRONMENTS).join(" or ")}, got "${envName}"`);
+  f.env = envName;
+  const st = await sessionRequire(s, "deploy.create");
+  if ((st.envs & s.S.ENVIRONMENTS[envName]) === 0)
+    throw sessionRefusal(s, "deploy.create", "env", `this session may not create ${envName} deployments`);
+}
+
+// create + fund in ONE session operation (the vault funds from the session budget)
+async function deployViaSession(s, { f, ref, gpuMilli, cpuMilli, appPort, portsCsv, isPublic, envelope, maxRate6, fundUsd, rate }) {
+  const fund6 = sessionUsd6(fundUsd, "--fund");
+  const left = s.state ? s.S.fmtUsd(s.state.balance6) : "?";
+  if (!(await confirm(`deploy ${f._[0]} to ${f.env} through session ${short(s.sid)}: gpu ${gpuMilli / 10}% cpu ${cpuMilli / 10}% at `
+                    + `${usd6(rate * 3600n)}/h, fund ${usd6(fund6)} out of the session budget (${left} left) ≈ ${dur(Number(fund6) / Number(rate))}?`)))
+    return say("aborted");
+  const out = await sessionCall(s, "deploy.create", { appRef: ref, gpuMilli, cpuMilli, appPort, ports: portsCsv, isPublic,
+    configCid: envelope, maxRate6, env: f.env, fund6 });
+  const id = "0x" + out.result.slice(2, 66);
+  say(`created ${id} (${f.env}, held by vault ${s.vault}; tx ${out.txHash})`);
+  say(`funded ${usd6(fund6)} out of the session budget (relay fee ${s.S.fmtUsd(out.fee)})`);
+  try {
+    const h = await api("POST", "/v1/claim-hint", { body: { id } });
+    if (h.accepted === false && h.reason) say(`claim-hint declined: ${h.reason} (the sweep may still claim it)`);
+  } catch {}
+  if (f["no-wait"]) return say(opt.json ? JSON.stringify({ id, url: appUrl(id) }) : `not waiting; check: enclave status ${id}`);
+  say("waiting for an enclave to claim…");
+  let claimed = null;
+  for (let i = 0; i < 90 && !claimed; i++) {
+    await sleep(2000);
+    const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "get", [id]).catch(() => null);
+    if (d && !/^0x0+$/.test(d.runner) && Number(d.leaseUntil) * 1000 > Date.now()) claimed = d;
+  }
+  if (!claimed) throw new Error(`no enclave claimed it yet (still queued; funded work is retried every sweep); watch: enclave status ${id}`);
+  say(`claimed by ${short(claimed.runner)} (operator ${claimed.runnerOperator})`);
+  // the tokenless record read: owner-only reads need the owner's login, which a session does not mint yet
+  const done = { running: 1, failed: 1, terminated: 1, expired: 1 };
+  let rec = null;
+  for (let i = 0; i < 180; i++) {
+    rec = await api("GET", `/v1/deployments/${id}`, { ok404: true }).catch(() => null);
+    if (rec && done[rec.status]) break;
+    await sleep(2500);
+  }
+  if (!rec || rec.status !== "running") throw new Error(`deployment is "${rec?.status || "unknown"}"; logs: enclave logs ${id} --wallet (owner)`);
+  if (opt.json) return jout({ id, status: rec.status, url: appUrl(id) });
+  say(`running at ${appUrl(id)}`);
+  say(`verify before sending data: enclave attest ${id}`);
+}
+
+async function stopViaSession(s, id) {
+  if (!isB32(id)) throw new Error("only on-chain deployments (bytes32 ids) can be stopped through a session");
+  const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "get", [id]);
+  if (!d || d.owner === "0x0000000000000000000000000000000000000000") throw new Error(`no deployment ${short(id)} on the ledger`);
+  if (d.owner.toLowerCase() !== s.vault.toLowerCase()) throw new Error(`${short(id)} is owned by ${d.owner}, not ${sessionNotHeld(s)}`);
+  if (!d.active) return opt.json ? jout({ id, status: "stopped", note: "already inactive on the ledger" }) : say("already inactive on the ledger");
+  const rcpt = await sessionTx(s, "deploy.setActive", { id, active: false });
+  // the immediate teardown (DELETE) is an owner-login API call a session can't make yet; the runner's ledger pass ends it
+  if (opt.json) return jout({ id, status: "stopped", setActive: { tx: rcpt.transactionHash, block: rcpt.blockNumber },
+                              note: "the runner ends the app on its next ledger pass" });
+  say(`stopped on-chain: setActive(false) tx ${rcpt.transactionHash} confirmed in block ${rcpt.blockNumber} - the deployment is off the queue; `
+    + `its runner ends the app on its next ledger pass`);
+}
+
+// ---- `enclave session …` -----------------------------------------------------------
+const SESSION_USAGE = `usage: enclave session new --preset <preset> [--app <slug>[,<slug>…]] [--budget <usd>] [--days <n>] [--label <text>]
+                           [--owner 0x…] [--env] [--no-wait] [--wait-minutes 30]
+     | enclave session resume-wait <id> [--env] [--wait-minutes 30]
+     | enclave session status [<sid>]
+     | enclave session list
+     | enclave session use <sid>
+     | enclave session terminate [<sid>]
+     | enclave session top-up-link --amount <usd> [<sid>]`;
+
+async function cmdSession(rest) {
+  const sub = rest.shift();
+  if (sub === "new") return sessionNew(rest);
+  if (sub === "resume-wait") return sessionResumeWait(rest);
+  if (sub === "status") return sessionStatus(rest);
+  if (sub === "list" || sub === "ls") return sessionList(rest);
+  if (sub === "use") return sessionUse(rest);
+  if (sub === "terminate" || sub === "end") return sessionTerminate(rest);
+  if (sub === "top-up-link") return sessionTopUpLink(rest);
+  throw new Error(SESSION_USAGE);
+}
+
+async function sessionNew(rest) {
+  const f = flags(rest, { val: ["--preset", "--app", "--budget", "--days", "--label", "--owner", "--wait-minutes"],
+                          bool: ["--env", "--no-wait"] });
+  if (f._.length) throw new Error(`unexpected argument "${f._[0]}"\n${SESSION_USAGE}`);
+  const S = await sessionsSdk();
+  if (!f.preset) throw new Error(`name a preset: --preset ${Object.keys(S.PRESETS).join(" | ")}`);
+  if (!S.PRESETS[f.preset]) throw new Error(`unknown preset "${f.preset}" (${Object.keys(S.PRESETS).join(", ")})`);
+  if (f.owner !== undefined && !/^0x[0-9a-fA-F]{40}$/.test(f.owner)) throw new Error(`--owner is not a 0x…40-hex address: ${f.owner}`);
+  const policy = {};
+  if (f.app !== undefined) policy.apps = String(f.app).split(",").map((a) => a.trim()).filter(Boolean);
+  if (f.budget !== undefined) policy.budget = BigInt(Math.round(numFlag(f.budget, "--budget") * 1e6));
+  if (f.days !== undefined) {
+    const days = numFlag(f.days, "--days");
+    if (!(days > 0)) throw new Error("--days must be above 0");
+    policy.expiresIn = Math.round(days * 86400);
+  }
+  const label = f.label ?? "enclave CLI";
+  // the owner's page and the relay must agree on the chain: ask the relay which one it serves
+  const cfg = await new S.RelayClient(API_BASE).config();
+  const site = String(cfg.site || "https://enclave.host").replace(/\/+$/, "");
+  // validate the policy BEFORE a key exists, so a bad flag leaves nothing behind
+  S.buildGrant({ preset: f.preset, label, sessionKey: S.ZERO_HASH, policy });
+  const store = await sessionStore();
+  const { signer, record } = await S.newSessionKey(store, { relay: API_BASE, chainId: cfg.chainId, label, extractable: true });
+  const grant = S.buildGrant({ preset: f.preset, label, sessionKey: signer.keyHash, policy });
+  const pending = { ...record, grant, ...(f.owner ? { wantOwner: getAddress(f.owner) } : {}), ...(cfg.rpc ? { rpc: cfg.rpc } : {}) };
+  await store.save(pending);
+  const link = S.grantLink(site, { v: 1, chainId: cfg.chainId, relay: API_BASE, x: record.x, y: record.y, grant,
+                                   ...(f.owner ? { owner: getAddress(f.owner) } : {}) });
+  const code = S.checkCode(signer.keyHash);
+  // --env/--json: stdout carries only the machine output, so the human text goes to stderr
+  const info = (f.env || opt.json) ? (t) => stderr.write(t + "\n") : say;
+  const { lines, warnings } = S.describeGrant(grant);
+  info(`session request "${label}" (preset ${f.preset}, chain ${cfg.chainId})`);
+  for (const l of lines) info(`  ${l}`);
+  for (const w of warnings) info(`  ! ${w}`);
+  info("");
+  info(`check code: ${code}`);
+  info("");
+  info(`The OWNER opens this link and signs with their wallet${f.owner ? ` (${getAddress(f.owner)} only)` : ""}:`);
+  info(`  ${link}`);
+  info("");
+  info(`Before signing, the owner checks that the page shows check code ${code}, and on a hardware wallet that the`);
+  info(`first 8 hex characters of "sessionKey" read ${signer.keyHash.slice(2, 10)} (0x${signer.keyHash.slice(2, 10)}…).`);
+  if (opt.json && f["no-wait"]) jout({ pending: pending.id, keyHash: signer.keyHash, checkCode: code, link, summary: lines, warnings });
+  if (f["no-wait"]) {
+    info(`not waiting. Once the owner has signed: enclave session resume-wait ${pending.id}${f.env ? " --env" : ""}`);
+    return;
+  }
+  return sessionWait(S, store, pending, f);
+}
+
+async function sessionResumeWait(rest) {
+  const f = flags(rest, { val: ["--wait-minutes", "--owner"], bool: ["--env"] });
+  if (!f._[0]) throw new Error("usage: enclave session resume-wait <id> [--env]   (the pending id `enclave session new` printed; see enclave session list)");
+  if (f.owner !== undefined && !/^0x[0-9a-fA-F]{40}$/.test(f.owner)) throw new Error(`--owner is not a 0x…40-hex address: ${f.owner}`);
+  const S = await sessionsSdk();
+  const store = await sessionStore();
+  const rec = await findSessionRecord(store, f._[0], { pending: true });
+  if (!rec.grant) throw new Error(`${rec.id} carries no grant (not made by \`enclave session new\`); start again with enclave session new`);
+  if (f.owner) rec.wantOwner = getAddress(f.owner);
+  return sessionWait(S, store, rec, f);
+}
+
+// Poll the relay's index for a session opened with THIS key, then verify it on-chain before storing it.
+async function sessionWait(S, store, rec, f) {
+  const info = (f.env || opt.json) ? (t) => stderr.write(t + "\n") : say;
+  const minutes = f["wait-minutes"] !== undefined ? numFlag(f["wait-minutes"], "--wait-minutes") : 30;
+  const deadline = Date.now() + minutes * 60_000;
+  const relay = new S.RelayClient(rec.relay);
+  const rpc = explicitRpc() ? RPCS[0] : rec.rpc;
+  const pc = S.chainClient(rec.chainId, rpc);
+  const ignored = new Set();
+  let lastErr = null;
+  info(`waiting for the owner's signature (checking every ${SESSION_POLL_MS / 1000}s for up to ${minutes} min; ctrl-c is safe: `
+     + `enclave session resume-wait ${rec.id}${f.env ? " --env" : ""})`);
+  for (;;) {
+    const found = [];
+    try {
+      const { sessions = [] } = await relay.request("GET", `/by-key/${rec.keyHash}`);
+      for (const c of sessions) {
+        if (c.ended || ignored.has(c.sid)) continue;
+        // the grant THIS key asked for, opened at that vault (sid commits to vault, key and grant nonce)
+        if (String(c.sid).toLowerCase() !== S.sessionIdOf(c.vault, rec.grant.sessionKey, rec.grant.grantNonce).toLowerCase()) continue;
+        const st = await S.readSession(pc, c.vault, c.sid);
+        if (String(st.keyHash).toLowerCase() !== rec.keyHash.toLowerCase() || !st.live) continue;
+        // the owner as the vault itself says, never the relay's word
+        const owner = getAddress(await pc.readContract({ address: c.vault, abi: S.sessionVaultAbi, functionName: "owner" }));
+        if (rec.wantOwner && owner !== getAddress(rec.wantOwner)) {
+          ignored.add(c.sid);
+          info(`! ignoring a session for this key opened by ${owner}, not ${rec.wantOwner}`);
+          continue;
+        }
+        found.push({ sid: c.sid, vault: getAddress(c.vault), owner, st });
+      }
+      lastErr = null;
+    } catch (e) {
+      // a relay or RPC hiccup is not an answer: keep polling, say why only if it never clears
+      lastErr = String(e?.shortMessage || e?.message || e).split("\n")[0];
+      trace(`by-key poll: ${lastErr}`);
+      found.length = 0;
+    }
+    if (found.length > 1)
+      throw new Error(`this key was approved by several wallets (${found.map((x) => x.owner).join(", ")}); `
+        + `pick yours: enclave session resume-wait ${rec.id} --owner 0x…`);
+    if (found.length === 1) return sessionOpened(S, store, rec, found[0], f, info);
+    if (Date.now() >= deadline)
+      throw new Error(`no session opened with this key within ${minutes} min${lastErr ? ` (last poll failed: ${lastErr})` : ""}. `
+        + `Once the owner has signed: enclave session resume-wait ${rec.id}${f.env ? " --env" : ""}`);
+    await sleep(SESSION_POLL_MS);
+  }
+}
+
+async function sessionOpened(S, store, rec, hit, f, info) {
+  const { wantOwner: _w, rpc, ...plain } = rec;
+  const open = await S.completeSession(store, plain, { vault: hit.vault, owner: hit.owner, grant: rec.grant,
+    ...(rpc || explicitRpc() ? { rpc: rpc || RPCS[0] } : {}) });
+  const left = Number(hit.st.expiresAt) - Math.floor(Date.now() / 1000);
+  info(`session open: ${open.id}`);
+  info(`  owner   ${hit.owner}`);
+  info(`  vault   ${hit.vault}`);
+  info(`  budget  ${S.fmtUsd(hit.st.balance6)}, expires in ${dur(left)}`);
+  if (f.env) {
+    const exported = S.exportSessionString(open);
+    await store.remove(open.id);
+    info("the key is NOT stored on disk: keep the line below as a secret (it is the session key)");
+    say(`export ENCLAVE_SESSION=${exported}`);
+    return;
+  }
+  store.setActive(open.id);
+  if (opt.json) return jout({ sid: open.id, vault: hit.vault, owner: hit.owner, label: open.label, expiresAt: hit.st.expiresAt,
+                              balance6: hit.st.balance6, file: path.join(store.dir, `${open.id}.json`), active: true });
+  say(`stored ${path.join(store.dir, `${open.id}.json`)} (0600) as the ACTIVE session: publish/deploy/fund/upgrade/config/stop/resume act through it`);
+  say(`see it: enclave session status · sign out (refunds the owner): enclave session terminate`);
+}
+
+const SESSION_STATE = ["none", "live", "ended"];
+function sessionActions(S, mask) {
+  return Object.entries(S.ACTIONS).filter(([, bit]) => ((BigInt(mask) >> BigInt(bit)) & 1n) === 1n).map(([n]) => n);
+}
+
+async function sessionStatus(rest) {
+  const f = flags(rest, {});
+  const s = await loadSession(f._[0]);
+  const S = s.S;
+  const st = await s.session.status();
+  const now = Math.floor(Date.now() / 1000);
+  const expiresIn = Number(st.expiresAt) - now;
+  const state = st.live ? "live"
+    : Number(st.state) === 1 && expiresIn < 0 ? "expired"
+    : Number(st.state) === 1 ? "revoked" : SESSION_STATE[Number(st.state)] || String(st.state);
+  const periodEnds = Number(st.periodStart) + Number(st.period);
+  const fresh = now >= periodEnds;
+  const periodSpent = fresh ? 0n : st.periodSpent6, periodOps = fresh ? 0 : Number(st.periodOps);
+  const actions = sessionActions(S, st.actions);
+  const envs = Object.entries(S.ENVIRONMENTS).filter(([, b]) => (Number(st.envs) & b) !== 0).map(([n]) => n);
+  const apps = st.anyApp ? ["*", ...((s.rec.grant?.apps || []).filter((a) => a !== "*"))]
+    : (s.rec.grant?.apps?.length ? s.rec.grant.apps : st.apps.map((a) => short(a)));
+  const active = s.from === "env" ? "ENCLAVE_SESSION" : (s.store?.activeId() === s.rec.id ? "active" : "stored");
+  if (opt.json) return jout({ sid: s.sid, state, live: st.live, source: active, owner: s.owner, vault: s.vault, label: s.label,
+    balance6: st.balance6, spent6: st.spent6, periodSpent6: periodSpent, perPeriod6: st.perPeriod6, periodEndsAt: fresh ? null : periodEnds,
+    periodOps, opsPerPeriod: st.opsPerPeriod, maxFee6: st.maxFee6, expiresAt: st.expiresAt, actions, environments: envs, apps });
+  const until = new Date(Number(st.expiresAt) * 1000).toISOString().replace(/\.\d+Z$/, "Z");
+  kv([
+    ["session", `${s.sid}  (${active})`],
+    ["state", state],
+    ["label", s.label || "(none)"],
+    ["owner", s.owner || "(unknown)"],
+    ["vault", s.vault],
+    ["balance", `${S.fmtUsd(st.balance6)} left, ${S.fmtUsd(st.spent6)} spent`],
+    ["this period", `${S.fmtUsd(periodSpent)} of ${S.fmtUsd(st.perPeriod6)}`
+      + (Number(st.opsPerPeriod) ? `, ${periodOps} of ${st.opsPerPeriod} operations` : `, ${periodOps} operations`)
+      + (fresh ? ` (a fresh ${dur(Number(st.period))} period starts with the next operation)` : ` (resets in ${dur(periodEnds - now)})`)],
+    ["relay fee cap", `${S.fmtUsd(st.maxFee6)} per operation`],
+    ["expires", expiresIn >= 0 ? `in ${dur(expiresIn)} (${until})` : `${dur(-expiresIn)} ago (${until})`],
+    ["actions", actions.join(", ") || "(none)"],
+    ["environments", envs.join(", ") || "(none)"],
+    ["apps", apps.join(", ") || "(none)"],
+  ]);
+  if (!st.live) say(state === "expired" ? "this session has expired: open a new one (enclave session new …)"
+                                        : "this session has ended: open a new one (enclave session new …)");
+}
+
+async function sessionList(rest) {
+  flags(rest, {});
+  const S = await sessionsSdk();
+  const rows = [];
+  const fromEnv = sessionEnvString();
+  if (fromEnv) {
+    try { const r = S.importSessionString(fromEnv); rows.push({ ...r, _where: "ENCLAVE_SESSION" }); }
+    catch (e) { rows.push({ id: "(ENCLAVE_SESSION)", label: `unreadable: ${e.message}`, _where: "ENCLAVE_SESSION" }); }
+  }
+  const store = await sessionStore();
+  const active = store.activeId();
+  for (const r of await store.list()) rows.push({ ...r, _where: r.id === active ? "active" : "" });
+  const now = Math.floor(Date.now() / 1000);
+  if (opt.json) return jout(rows.map((r) => ({ id: r.id, state: r.handle ? "open" : "pending", label: r.label, vault: r.handle?.vault ?? null,
+    owner: r.handle?.owner ?? null, expiresAt: r.grant?.expiresAt ?? null, where: r._where || "stored" })));
+  table(rows, [
+    { h: "", f: (r) => r._where === "active" ? "*" : r._where === "ENCLAVE_SESSION" ? "env" : "" },
+    { h: "id", f: (r) => r.handle ? short(r.id) : r.id },
+    { h: "state", f: (r) => !r.handle ? "pending (enclave session resume-wait)" : r.grant && Number(r.grant.expiresAt) < now ? "expired" : "open" },
+    { h: "label", k: "label" },
+    { h: "owner", f: (r) => r.handle?.owner || "" },
+    { h: "expires", f: (r) => r.grant ? (Number(r.grant.expiresAt) >= now ? `in ${dur(Number(r.grant.expiresAt) - now)}` : `${dur(now - Number(r.grant.expiresAt))} ago`) : "" },
+  ]);
+  if (rows.length) say(`(* = active; live state and balance: enclave session status <id>)`);
+}
+
+async function sessionUse(rest) {
+  const f = flags(rest, {});
+  if (!f._[0]) throw new Error("usage: enclave session use <sid>   (see enclave session list)");
+  const store = await sessionStore();
+  const rec = await findSessionRecord(store, f._[0], { pending: false });
+  store.setActive(rec.id);
+  if (sessionEnvString()) stderr.write("note: ENCLAVE_SESSION is set and takes precedence over the active stored session\n");
+  say(`active session: ${rec.id}${rec.label ? ` "${rec.label}"` : ""} (vault ${rec.handle.vault})`);
+}
+
+async function sessionTerminate(rest) {
+  const f = flags(rest, {});
+  const s = await loadSession(f._[0]);
+  const S = s.S;
+  const st = await s.session.status();
+  const forget = async () => {
+    if (s.from !== "file") return "unset ENCLAVE_SESSION: the key it holds is now useless";
+    await s.store.remove(s.rec.id);
+    if (s.store.activeId() === s.rec.id) s.store.setActive(null);
+    return `deleted the key ${path.join(s.store.dir, `${s.rec.id}.json`)}`;
+  };
+  if (!st.live) {
+    const open = Number(st.state) === 1, expired = open && Number(st.expiresAt) < Math.floor(Date.now() / 1000);
+    const note = expired ? `it expired${st.balance6 > 0n ? `; the relay's keeper closes it and refunds the owner its ${S.fmtUsd(st.balance6)}` : ""}`
+               : open ? "the owner revoked it (its budget is already back in the owner's vault)"
+               : "it has already ended";
+    const gone = await forget();
+    if (opt.json) return jout({ sid: s.sid, ended: true, refund6: 0n, note });
+    say(`session ${short(s.sid)}: ${note}; ${gone}`);
+    return;
+  }
+  if (!(await confirm(`sign out session ${short(s.sid)}${s.label ? ` "${s.label}"` : ""}? Its remaining ${S.fmtUsd(st.balance6)} `
+                    + `returns to the owner ${s.owner || ""} and the key stops working for good`)))
+    return say("aborted");
+  let out;
+  try { out = await s.session.terminate(); }
+  catch (e) { if (e instanceof S.SessionError) throw new Error(sessionHint(s, "terminate", e)); throw e; }
+  const gone = await forget();
+  if (opt.json) return jout({ sid: s.sid, ended: true, refund6: out.refund6, txHash: out.txHash });
+  say(`signed out: refund ${S.fmtUsd(out.refund6)} to ${s.owner || "the owner"} (tx ${out.txHash})`);
+  say(gone);
+}
+
+async function sessionTopUpLink(rest) {
+  const f = flags(rest, { val: ["--amount"] });
+  if (f.amount === undefined) throw new Error("usage: enclave session top-up-link --amount <usd> [<sid>]");
+  const amount6 = sessionUsd6(numFlag(f.amount, "--amount"), "--amount");
+  if (amount6 === 0n) throw new Error("--amount must be above 0");
+  const s = await loadSession(f._[0]);
+  let site = "https://enclave.host";
+  try { site = String((await s.session.relay.config()).site || site).replace(/\/+$/, ""); } catch {}
+  const link = `${site}/sessions#topup=${s.vault}:${s.sid}:${amount6}`;
+  if (opt.json) return jout({ link, vault: s.vault, sid: s.sid, amount6 });
+  say(`Send this to the owner${s.owner ? ` (${s.owner})` : ""}: they open it and sign ONE USDC authorization adding ${usd6(amount6)} to this session.`);
+  say(`  ${link}`);
 }
 
 // ---- encrypted volumes: wallet key derivation + credentials envelope ----------
@@ -3214,6 +3824,35 @@ catalog
                              per version and covered by approval, like ports)
   apps [query]               browse/search the on-chain catalog
 
+sessions (an agent acts under a budget and policy its owner approved once - no wallet key here)
+  session new --preset staging-publish --app <slug>[,<slug>…] [--budget <usd>] [--days N]
+              [--label TEXT] [--owner 0x…] [--env] [--no-wait] [--wait-minutes 30]
+                             make a session key and print, in plain words, what it may
+                             do, a check code and a link. The OWNER opens the link and
+                             signs once with their wallet (on a hardware wallet the first
+                             8 hex characters of "sessionKey" match the check code). Waits
+                             for that signature, then stores the key (0600, in
+                             ${SESSION_DIR}) as the active session;
+                             --env prints \`export ENCLAVE_SESSION=…\` instead (no file)
+                             presets: staging-publish (named apps, staging only, $5/day),
+                             auth-only (status reads, no money), browser
+  session resume-wait <id> [--env]
+                             keep waiting for the owner's signature (after --no-wait/ctrl-c)
+  session status [<sid>]     live/ended, owner, vault, balance and spend, this period's
+                             spend vs its limit, operations, expiry, actions, environments
+  session list | use <sid>   the stored sessions; pick the active one
+  session terminate [<sid>]  sign out: the unspent budget returns to the owner and the
+                             key file is deleted
+  session top-up-link --amount <usd>
+                             a link for the owner: one signature adds budget
+  With a session active (or ENCLAVE_SESSION set), these act THROUGH it instead of the
+  wallet: publish (app.publish; the publisher is the session's vault), deploy (--env
+  staging|prod, default staging; --fund comes out of the session budget), fund --usdc,
+  upgrade, resize, config set|clear, stop, resume. A refusal (budget, policy, expiry)
+  prints its code and the next step - it never falls back to the wallet key. Secrets,
+  transfers and production promotion stay with the owner's wallet. --wallet uses the
+  wallet key for one command.
+
 encrypted volumes (rclone-crypt over S3; push data with scripts/enclave-encvol.sh)
   encvol message <keyId>     print the canonical message a wallet signs for a volume key
   encvol derive     --key-id K | --sig 0x…   volume password/salt, signed by the CLI
@@ -3277,7 +3916,8 @@ Signing without a key on this machine (hardware wallets, Safes, air-gapped):
 
 Global: --json machine output · -x print every REST call + transaction ·
 --base/--rpc (ENCLAVE_API_BASE/ENCLAVE_RPC) target an enclave or your own RPC ·
-ENCLAVE_KEY overrides the key file. Auth is SIWE (wallet) or an Enclave account
+ENCLAVE_KEY overrides the key file · --wallet acts with the wallet key even when a
+session is active (ENCLAVE_SESSION / ENCLAVE_SESSION_DIR). Auth is SIWE (wallet) or an Enclave account
 session (enclave login); keys never leave this machine. Account sessions read
 account-provisioned/credit deployments (ls, whoami, account) but can't sign
 transactions - deploying and funding by credit stays on enclave.host for now.`;
@@ -3578,7 +4218,7 @@ const COMMANDS = {
   secrets: cmdSecrets, config: cmdConfig,
   publish: cmdPublish, apps: cmdApps,
   pricing: cmdPricing, availability: cmdAvailability, gpu: cmdGpu, account: cmdAccount,
-  encvol: cmdEncvol, host: cmdHost,
+  encvol: cmdEncvol, host: cmdHost, session: cmdSession,
 };
 
 // Resolve the platform's contract addresses from the on-chain address book
@@ -3631,7 +4271,8 @@ if (cmd === "version" || cmd === "--version") { say(VERSION); exit(0); }
 if (!COMMANDS[cmd]) die(`unknown command "${cmd}"; run: enclave help`);
 // `key new`/`key import` are purely local and `login`/`logout` touch only the
 // API, so skip the address-book resolve — no reason to make them wait on an RPC.
-const OFFLINE = cmd === "key" || cmd === "login" || cmd === "logout";
+// `session …` reads only the sessions relay and the session's own vault.
+const OFFLINE = cmd === "key" || cmd === "login" || cmd === "logout" || cmd === "session";
 try {
   if (!OFFLINE) await resolveAddressBook();
   await COMMANDS[cmd](args);

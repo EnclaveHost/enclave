@@ -29,6 +29,7 @@
 //   POST /v1/account/device/approve              {code, approve} (Bearer)
 //   POST /v1/account/device/claim                {code, secret} -> poll; session when approved
 //   GET  /v1/account/me                          profile (never key bytes)
+//   POST /v1/account/session-login               (EnclaveSession-signed) -> account token bound to that session
 //   DELETE /v1/account/passkey/:credId           (Bearer; 409 on last method)
 //
 // Config (env): AUTH_DATA_DIR (or systemd $STATE_DIRECTORY; unset = disabled),
@@ -117,9 +118,33 @@ export async function initAccounts() {
 }
 
 // --- sessions -------------------------------------------------------------------
-async function mintAccountSession(accountId, amr) {
-  const expiresAt = new Date(Date.now() + SESSION_TTL * 1000);
-  const token = await new jose.SignJWT({ amr })
+// Wallet sessions (relay/sessions.mjs, docs/design/sessions.md §6): the
+// session KEY signs a session-login request and gets an ordinary account token
+// that carries the session id. Every use re-checks the session is still live
+// on-chain (cached <= 5 s), so the token dies with the session: sign-out,
+// expiry, an owner terminate or revokeAll all end it.
+let sessionHooks = null;        // { verify(req, raw) -> {vault, sid, owner}, state(vault, sid) -> {live, expiresAt} }
+export function setSessionHooks(h) { sessionHooks = h; }
+const liveCache = new Map();    // `${vault}:${sid}` -> { at, live }
+async function sessionStillLive(vault, sid) {
+  if (!sessionHooks) return false;
+  // revoked off-chain (sign-out, owner terminate/revokeAll through the relay, or an ended
+  // session the index saw): refused NOW, never served from the cache below
+  if (sessionHooks.isRevoked?.(sid)) return false;
+  const k = `${vault}:${sid}`;
+  const c = liveCache.get(k);
+  if (c && Date.now() - c.at < 5000) return c.live;
+  let live = false;
+  try { live = !!(await sessionHooks.state(vault, sid)).live; } catch { live = false; }   // unreadable = not live
+  liveCache.set(k, { at: Date.now(), live });
+  if (liveCache.size > 20000) liveCache.clear();
+  return live;
+}
+
+async function mintAccountSession(accountId, amr, bound = null) {
+  const ttlEnd = Date.now() + SESSION_TTL * 1000;
+  const expiresAt = new Date(bound?.expiresAt ? Math.min(ttlEnd, bound.expiresAt * 1000) : ttlEnd);
+  const token = await new jose.SignJWT(bound ? { amr, sid: bound.sid, vault: bound.vault } : { amr })
     .setProtectedHeader({ alg: "ES256", kid: KID })
     .setIssuer(KID).setSubject(accountId).setIssuedAt()
     .setExpirationTime((expiresAt.getTime() / 1000) | 0)
@@ -140,7 +165,9 @@ export async function verifyAccountSession(authHeader) {
     const { payload } = await jose.jwtVerify(token, PUB, { algorithms: ["ES256"], issuer: KID });
     const acct = accounts.data.accounts[payload.sub];
     if (!acct) return null;
-    return { accountId: payload.sub, amr: payload.amr || "unknown" };
+    // a session-derived token lives exactly as long as its session
+    if (payload.sid && !(await sessionStillLive(payload.vault, payload.sid))) return null;
+    return { accountId: payload.sub, amr: payload.amr || "unknown", sid: payload.sid || null };
   } catch { return null; }
 }
 
@@ -222,6 +249,10 @@ async function bodyJson(req, ctx, max = 65536) {
   try { return JSON.parse(raw.toString() || "{}"); } catch { return null; }
 }
 const err = (ctx, res, req, code, error, message) => ctx.json(res, code, { error, message }, req);
+// account CHANGES (credentials, linked wallets, device approvals) need a full sign-in: a session-derived
+// token must not be able to outlive its session by planting a passkey, a wallet or a device of its own
+const sessionTokenRefused = (ctx, res, req) => err(ctx, res, req, 403, "session_token",
+  "Account changes need a full wallet or passkey sign-in, not a session.");
 
 // --- SIWE (viem/siwe; the message mirrors the supervisor's shape so the
 //     site's buildSiwe fallback resolves to the same values) ---------------------
@@ -288,6 +319,7 @@ export async function handleAccount(req, res, u, ctx) {
   if (p === "/v1/account/passkey/register/options" && req.method === "POST") {
     if (!rlMint(ip)) return err(ctx, res, req, 429, "rate_limited", "Too many attempts; retry shortly.");
     const sess = await verifyAccountSession(req.headers.authorization);   // optional: add-credential
+    if (sess?.sid) return sessionTokenRefused(ctx, res, req);
     const acct = sess && accounts.data.accounts[sess.accountId];
     const userHandle = acct ? acct.userHandle : b64u(randomBytes(16));
     const options = await webauthn.generateRegistrationOptions({
@@ -407,9 +439,32 @@ export async function handleAccount(req, res, u, ctx) {
     return ctx.json(res, 200, { ...(await mintAccountSession(acct.id, "siwe")), address }, req);
   }
 
+  if (p === "/v1/account/session-login" && req.method === "POST") {
+    if (!rlVerify(ip)) return err(ctx, res, req, 429, "rate_limited", "Too many attempts; retry shortly.");
+    if (!sessionHooks) return err(ctx, res, req, 503, "sessions_disabled", "Sessions are not enabled on this relay.");
+    const raw = await ctx.readBody(req, 4096);
+    let who, st;
+    try {
+      who = await sessionHooks.verify(req, raw);
+      st = await sessionHooks.state(who.vault, who.sid);
+    } catch (e) { return err(ctx, res, req, e.status || 401, e.code || "unauthorized", e.message); }
+    if (!st?.live) return err(ctx, res, req, 401, "session_ended", "This session has ended or expired.");
+    const key = String(who.owner).toLowerCase();
+    let acct = accounts.data.accounts[accounts.data.byWallet[key]];
+    if (!acct) {                                          // find-or-create by the session OWNER's wallet
+      acct = newAccount(b64u(randomBytes(16)));
+      acct.wallets.push(key);
+      accounts.data.byWallet[key] = acct.id;
+      accounts.saveSoon();
+    }
+    const sess = await mintAccountSession(acct.id, "session", { sid: who.sid, vault: who.vault, expiresAt: Number(st.expiresAt) });
+    return ctx.json(res, 200, { ...sess, address: who.owner, sid: who.sid, vault: who.vault }, req);
+  }
+
   if (p === "/v1/account/link/siwe" && req.method === "POST") {
     const sess = await verifyAccountSession(req.headers.authorization);
     if (!sess) return err(ctx, res, req, 401, "unauthorized", "Sign in first.");
+    if (sess.sid) return sessionTokenRefused(ctx, res, req);
     if (!rlVerify(ip)) return err(ctx, res, req, 429, "rate_limited", "Too many attempts; retry shortly.");
     const b = await bodyJson(req, ctx); if (!b) return err(ctx, res, req, 400, "bad_json", "Body must be JSON.");
     let address;
@@ -456,6 +511,7 @@ export async function handleAccount(req, res, u, ctx) {
   if (p === "/v1/account/device/approve" && req.method === "POST") {
     const sess = await verifyAccountSession(req.headers.authorization);
     if (!sess) return err(ctx, res, req, 401, "unauthorized", "Sign in first.");
+    if (sess.sid) return sessionTokenRefused(ctx, res, req);
     if (!rlVerify(ip)) return err(ctx, res, req, 429, "rate_limited", "Too many attempts; retry shortly.");
     const b = await bodyJson(req, ctx); if (!b) return err(ctx, res, req, 400, "bad_json", "Body must be JSON.");
     const r = deviceReqs.get(String(b.code || "").toUpperCase());
@@ -497,6 +553,7 @@ export async function handleAccount(req, res, u, ctx) {
   if (del && req.method === "DELETE") {
     const sess = await verifyAccountSession(req.headers.authorization);
     if (!sess) return err(ctx, res, req, 401, "unauthorized", "Sign in first.");
+    if (sess.sid) return sessionTokenRefused(ctx, res, req);
     const a = accounts.data.accounts[sess.accountId];
     const idx = a.passkeys.findIndex((c) => c.credId === del[1]);
     if (idx < 0) return err(ctx, res, req, 404, "not_found", "No such passkey on this account.");

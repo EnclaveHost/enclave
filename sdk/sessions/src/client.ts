@@ -347,7 +347,7 @@ export type OwnerOp =
   | { op: "terminate"; sessionId: Hex }
   | { op: "revokeAll"; withdraw: boolean }
   | { op: "withdraw"; amount: bigint }
-  | { op: "promote"; deployment: Hex; appRef: string; configCid: string; versionLabel: string }
+  | { op: "promote"; deployment: Hex; app: string; appRef: string; configCid: string; versionLabel: string }
   | { op: "adopt"; deployment: Hex; environment: string }
   | { op: "setEnvironment"; deployment: Hex; environment: string }
   | { op: "release"; deployment: Hex; to: Address };

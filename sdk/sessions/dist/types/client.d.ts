@@ -173,6 +173,7 @@ export type OwnerOp = {
 } | {
     op: "promote";
     deployment: Hex;
+    app: string;
     appRef: string;
     configCid: string;
     versionLabel: string;

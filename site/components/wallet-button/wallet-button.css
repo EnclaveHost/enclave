@@ -61,3 +61,8 @@ c-wallet-button{display:contents;}
   .nav-inner #walletBtn{width:100%;justify-content:center;}
   .nav-inner .wallet-pop{left:50%;right:auto;transform:translateX(-50%);}
 }
+/* session indicator on the wallet button + session modals (js/core/sessions.js) */
+#walletBtn .wsess{color:var(--text-muted);font-size:.85em;}
+.wp-card .ac-in{display:block;width:100%;box-sizing:border-box;margin:4px 0 10px;background:var(--well);border:1px solid var(--line-strong);border-radius:8px;color:var(--text);padding:.45em .6em;font-family:var(--font-mono);font-size:.85rem;}
+.wp-card .ac-in:focus{border-color:var(--jade);outline:none;}
+.wp-card label.wp-note{display:block;margin-top:8px;}

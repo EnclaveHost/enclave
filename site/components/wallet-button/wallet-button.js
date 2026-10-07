@@ -71,6 +71,8 @@ class WalletButton extends EnclaveElement {
     refreshWallet();
     restoreSession();          // silently restore a prior wallet + sign-in across refreshes
     restoreAccountSession();   // and the relay account session (separate trust domain)
+    // a live wallet session re-derives its account token (no prompt); a dead one is tidied away
+    import("../../js/core/account.js").then((m) => m.restoreSessionAccount()).catch(() => {});
   }
 }
 register("c-wallet-button", WalletButton);
