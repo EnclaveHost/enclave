@@ -110,5 +110,8 @@ contract HostileLedger {
         uint256 rate; uint256 balance6; uint256 spent6;
         bytes32 runner; address runnerOperator; uint64 leaseUntil;
     }
-    function get(bytes32) external view returns (Deployment memory d) { d.owner = vault; }
+    function get(bytes32) external view returns (Deployment memory d) { d.owner = vault; d.rate = 1000; }
+    function capOf(bytes32) external pure returns (uint256) { return 1000; }
+    function feeOf(bytes32) external pure returns (address, uint256) { return (address(0), 0); }
+    function setMaxRate(bytes32, uint256) external {}
 }

@@ -67,9 +67,11 @@ export const TYPES = {
   Promote: [
     { name: "deployment", type: "bytes32" },
     { name: "app", type: "string" },
+    { name: "publisher", type: "address" },
     { name: "appRef", type: "string" },
     { name: "configCid", type: "string" },
     { name: "versionLabel", type: "string" },
+    { name: "isPublic", type: "bool" },
     { name: "opNonce", type: "bytes32" },
     { name: "signBefore", type: "uint64" },
   ],

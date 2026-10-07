@@ -813,6 +813,10 @@ export declare const sessionVaultAbi: readonly [{
         readonly type: "string";
         readonly internalType: "string";
     }, {
+        readonly name: "publisher";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
         readonly name: "appRef";
         readonly type: "string";
         readonly internalType: "string";
@@ -824,6 +828,10 @@ export declare const sessionVaultAbi: readonly [{
         readonly name: "versionLabel";
         readonly type: "string";
         readonly internalType: "string";
+    }, {
+        readonly name: "isPublic";
+        readonly type: "bool";
+        readonly internalType: "bool";
     }, {
         readonly name: "opNonce";
         readonly type: "bytes32";
@@ -1646,6 +1654,18 @@ export declare const sessionVaultAbi: readonly [{
         readonly name: "env";
         readonly type: "uint8";
         readonly internalType: "uint8";
+    }];
+}, {
+    readonly type: "error";
+    readonly name: "FundRateTooLow";
+    readonly inputs: readonly [{
+        readonly name: "rate";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "feeTimesTwo";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
     }];
 }];
 export declare const sessionVaultFactoryAbi: readonly [{

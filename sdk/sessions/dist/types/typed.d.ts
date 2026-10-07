@@ -145,6 +145,9 @@ export declare const TYPES: {
         readonly name: "app";
         readonly type: "string";
     }, {
+        readonly name: "publisher";
+        readonly type: "address";
+    }, {
         readonly name: "appRef";
         readonly type: "string";
     }, {
@@ -153,6 +156,9 @@ export declare const TYPES: {
     }, {
         readonly name: "versionLabel";
         readonly type: "string";
+    }, {
+        readonly name: "isPublic";
+        readonly type: "bool";
     }, {
         readonly name: "opNonce";
         readonly type: "bytes32";

@@ -16,7 +16,7 @@ import "../../components/section-head/section-head.js";
 import { Enclave } from "../core/api.js";
 import { connectWallet } from "../core/wallet.js";
 import { $, esc, lsGet, on, showToast } from "../core/util.js";
-import { sdk, sessionsConfig, ownerOp, fmtUsd, fmtLeft, endSession, relayRoot, versionLabel } from "../core/sessions.js";
+import { sdk, sessionsConfig, ownerOp, fmtUsd, fmtLeft, endSession, relayRoot, versionLabel, vaultOf } from "../core/sessions.js";
 
 let rendering = false;
 // the ledger's Deployment tuple (stable since schema 2; contracts/EnclaveDeployments.sol)
@@ -154,9 +154,16 @@ function wire(body, info, S, rows, free){
       const catalog = await pc.readContract({ address: cfg.book, abi: [{ type: "function", name: "addr", stateMutability: "view",
         inputs: [{ type: "bytes32" }], outputs: [{ type: "address" }] }], functionName: "addr",
         args: ["0x" + Array.from(new TextEncoder().encode("appCatalog"), (x) => x.toString(16).padStart(2, "0")).join("").padEnd(64, "0")] });
-      const { label, app } = await versionLabel(pc, catalog, d.appRef);
-      if (!confirm("Promote " + app + " " + label + " to production? Its secrets will be released to exactly this version and config.")) throw new Error("cancelled");
-      return ownerOp({ op: "promote", deployment: id, app, appRef: d.appRef, configCid: d.configCid, versionLabel: label });
+      const { label, app, publisher } = await versionLabel(pc, catalog, d.appRef);
+      // what a session last set is what this shows: name the publisher and the exposure, never just a slug
+      const me = String(Enclave.address || "").toLowerCase(), pub = String(publisher).toLowerCase();
+      const v = await vaultOf(Enclave.address).catch(() => null);
+      const who = pub === me ? "you" : v && pub === String(v.vault).toLowerCase() ? "your vault" : publisher + " (NOT you)";
+      if (!confirm("Promote " + app + " " + label + " to production?\n\nPublished by: " + who +
+        "\nConfig: " + (d.configCid || "(none)") + "\nAccess: " + (d.isPublic ? "PUBLIC - anyone can open it" : "private") +
+        "\n\nIts production secrets will be released to exactly this version and config.")) throw new Error("cancelled");
+      return ownerOp({ op: "promote", deployment: id, app, publisher, appRef: d.appRef, configCid: d.configCid, versionLabel: label,
+        isPublic: Boolean(d.isPublic) });
     }, "Promoted.");
   }));
 }

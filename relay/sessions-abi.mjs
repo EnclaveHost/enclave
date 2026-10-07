@@ -1052,6 +1052,11 @@ export const sessionVaultAbi = [
         "internalType": "string"
       },
       {
+        "name": "publisher",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
         "name": "appRef",
         "type": "string",
         "internalType": "string"
@@ -1065,6 +1070,11 @@ export const sessionVaultAbi = [
         "name": "versionLabel",
         "type": "string",
         "internalType": "string"
+      },
+      {
+        "name": "isPublic",
+        "type": "bool",
+        "internalType": "bool"
       },
       {
         "name": "opNonce",
@@ -2115,6 +2125,22 @@ export const sessionVaultAbi = [
         "name": "env",
         "type": "uint8",
         "internalType": "uint8"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "FundRateTooLow",
+    "inputs": [
+      {
+        "name": "rate",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "feeTimesTwo",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ]
   }

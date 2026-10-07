@@ -174,14 +174,19 @@ export type OwnerOp = {
     op: "promote";
     deployment: Hex;
     app: string;
+    publisher: Address;
     appRef: string;
     configCid: string;
     versionLabel: string;
+    isPublic: boolean;
 } | {
     op: "adopt";
     deployment: Hex;
     environment: string;
-} | {
+}
+/** Moving prod -> staging clears the promotion: the record's existing production secrets become
+ *  releasable to whatever a staging session points it at. Say so before asking for the signature. */
+ | {
     op: "setEnvironment";
     deployment: Hex;
     environment: string;

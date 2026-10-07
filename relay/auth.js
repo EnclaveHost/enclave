@@ -167,7 +167,7 @@ export async function verifyAccountSession(authHeader) {
     if (!acct) return null;
     // a session-derived token lives exactly as long as its session
     if (payload.sid && !(await sessionStillLive(payload.vault, payload.sid))) return null;
-    return { accountId: payload.sub, amr: payload.amr || "unknown", sid: payload.sid || null };
+    return { accountId: payload.sub, amr: payload.amr || "unknown", sid: payload.sid || null, exp: payload.exp };
   } catch { return null; }
 }
 

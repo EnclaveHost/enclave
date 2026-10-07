@@ -65,6 +65,7 @@ interface ISVLedger {
         external returns (bytes32 id);
     function fundFor(bytes32 id, uint256 value, address payer) external;
     function capOf(bytes32 id) external view returns (uint256 maxRate6);
+    function feeOf(bytes32 id) external view returns (address recipient, uint256 feePerSec6);
     function setAppRef(bytes32 id, string calldata appRef) external;
     function setConfig(bytes32 id, string calldata configCid) external;
     function setShares(bytes32 id, uint16 gpuMilli, uint16 cpuMilli) external;
@@ -140,6 +141,7 @@ library SessionVaultLib {
     error UnknownEnvironment();
     error AppNotAllowed(bytes32 appId);
     error RateCapOutOfRange(uint256 rate, uint256 limit);
+    error FundRateTooLow(uint256 rate, uint256 feeTimesTwo);
 
     function ledger(ISVBook book) internal view returns (ISVLedger) {
         address a = book.addr(BOOK_DEPLOYMENTS);
@@ -157,8 +159,40 @@ library SessionVaultLib {
         return ledger(book).get(id).owner;
     }
 
-    function capOf(ISVBook book, bytes32 id) external view returns (uint256) {
-        return ledger(book).capOf(id);
+    /// A session funding must BUY RUNTIME at a price the grant allows. The ledger
+    /// splits every funding by the record's CURRENT rate, and a host's cheap (or zero)
+    /// job-rate claim leaves that rate behind after release - at rate == fee a funding
+    /// pays the publisher everything, at rate 0 the platform, with nothing escrowed for
+    /// a runner and nothing refundable. So: only records this vault owns, whose cap
+    /// fits the grant's ceiling (an imported cap-0 record never); an unleased record is
+    /// re-based on its cap first (the ledger's own unleased rule); and the rate the
+    /// funding splits at must leave the fee at most half of it. A live lease priced
+    /// under that is funded by the owner's wallet, never by a session.
+    function prepareFund(ISVBook book, bytes32 id, uint256 maxRateHour6) external {
+        ISVLedger L = ledger(book);
+        ISVLedger.Deployment memory d = L.get(id);
+        if (d.owner != address(this)) revert NotMine(id);
+        uint256 cap = L.capOf(id);
+        if (cap == 0 || cap * 3600 > maxRateHour6) revert RateCapOutOfRange(cap * 3600, maxRateHour6);
+        uint256 rate = d.rate;
+        if (d.leaseUntil <= block.timestamp && rate != cap) { L.setMaxRate(id, cap); rate = cap; }
+        (, uint256 fee) = L.feeOf(id);
+        if (rate == 0 || rate < 2 * fee) revert FundRateTooLow(rate, 2 * fee);
+    }
+
+    /// A session's new cap: within the grant's ceiling, never under twice the fee (the
+    /// unleased rate IS the cap, so a lower one would tip every funding to the
+    /// publisher), and on a production record only ever lowered (a raised cap is what
+    /// lets a host the attacker runs claim at that price and earn the record's escrow).
+    function checkMaxRate(ISVBook book, bytes32 id, uint256 r, bool prod, uint256 maxRateHour6) external view {
+        ISVLedger L = ledger(book);
+        if (prod) {
+            uint256 cap = L.capOf(id);
+            if (r > cap) revert RateCapOutOfRange(r, cap);
+        }
+        if (r * 3600 > maxRateHour6) revert RateCapOutOfRange(r * 3600, maxRateHour6);
+        (, uint256 fee) = L.feeOf(id);
+        if (r < 2 * fee) revert RateCapOutOfRange(r, 2 * fee);
     }
 
     function appIdOf(ISVBook book, string memory slug) external view returns (bytes32) {
@@ -196,19 +230,23 @@ library SessionVaultLib {
             p.configCid, 0);
     }
 
-    /// Point a deployment this vault owns at (appRef, configCid), after checking
-    /// the app slug AND version label the owner saw against the catalog's.
-    function promote(ISVBook book, bytes32 id, string memory app, string memory appRef, string memory configCid,
-        string memory label) external returns (bytes32)
+    /// Point a deployment this vault owns at (appRef, configCid), after checking what
+    /// the owner saw against the chain: the app slug, its PUBLISHER (slugs are unique
+    /// only per publisher, so anyone can copy a name and a version label), the version
+    /// label, and whether the record is public (fixed at create - a session chose it).
+    function promote(ISVBook book, bytes32 id, string memory app, address publisher, string memory appRef,
+        string memory configCid, string memory label, bool isPublic) external returns (bytes32)
     {
         (bytes32 appId, uint256 idx) = parseRef(appRef);
         ISVCatalog cat = catalog(book);
         ISVCatalog.Version memory v = cat.getVersion(appId, idx);
         if (keccak256(bytes(v.version)) != keccak256(bytes(label))) revert LabelMismatch();
-        if (keccak256(bytes(cat.getApp(appId).slug)) != keccak256(bytes(app))) revert LabelMismatch();
+        ISVCatalog.App memory a = cat.getApp(appId);
+        if (keccak256(bytes(a.slug)) != keccak256(bytes(app)) || a.publisher != publisher) revert LabelMismatch();
         ISVLedger L = ledger(book);
         ISVLedger.Deployment memory d = L.get(id);
         if (d.owner != address(this)) revert NotMine(id);
+        if (d.isPublic != isPublic) revert LabelMismatch();
         if (keccak256(bytes(d.appRef)) != keccak256(bytes(appRef))) L.setAppRef(id, appRef);
         if (keccak256(bytes(d.configCid)) != keccak256(bytes(configCid))) L.setConfig(id, configCid);
         return keccak256(abi.encode(appRef, configCid));
@@ -305,6 +343,7 @@ contract SessionVault {
     uint8 private constant ACT_LAST = 8;       // (9 was order.pay: dropped before launch - an orderRef binds no payer)
     uint256 private constant CLOSE_FEE_MAX6 = 20_000;   // what close() may charge for the keeper's gas: $0.02
     bytes4 private constant SEL_TRANSFER = bytes4(keccak256("transferDeployment(bytes32,address)"));
+    bytes4 private constant SEL_MULTICALL = bytes4(keccak256("multicall(bytes[])"));
 
     uint8 public constant ENV_STAGING = 1;
     uint8 public constant ENV_PROD = 2;
@@ -339,8 +378,8 @@ contract SessionVault {
     bytes32 public constant REVOKE_TYPEHASH = keccak256("RevokeAll(bool withdraw,bytes32 opNonce,uint64 signBefore)");
     bytes32 public constant WITHDRAW_TYPEHASH = keccak256("Withdraw(uint256 amount,bytes32 opNonce,uint64 signBefore)");
     bytes32 public constant PROMOTE_TYPEHASH = keccak256(
-        "Promote(bytes32 deployment,string app,string appRef,string configCid,string versionLabel,bytes32 opNonce,"
-        "uint64 signBefore)");
+        "Promote(bytes32 deployment,string app,address publisher,string appRef,string configCid,string versionLabel,"
+        "bool isPublic,bytes32 opNonce,uint64 signBefore)");
     bytes32 public constant ADOPT_TYPEHASH =
         keccak256("Adopt(bytes32 deployment,string environment,bytes32 opNonce,uint64 signBefore)");
     bytes32 public constant SETENV_TYPEHASH =
@@ -700,15 +739,17 @@ contract SessionVault {
     /// Production promotion: point a held deployment at (appRef, configCid) and
     /// record that the OWNER sanctioned exactly that pair. versionLabel must equal
     /// the catalog's label for the ref, so the device shows a verified "1.0.79".
-    function promote(bytes32 id, string calldata app, string calldata appRef, string calldata configCid,
-        string calldata versionLabel, bytes32 opNonce, uint64 signBefore, bytes calldata sig) external nonReentrant
+    function promote(bytes32 id, string calldata app, address publisher, string calldata appRef,
+        string calldata configCid, string calldata versionLabel, bool isPublic, bytes32 opNonce, uint64 signBefore,
+        bytes calldata sig) external nonReentrant
     {
-        _ownerAuth(keccak256(abi.encode(PROMOTE_TYPEHASH, id, keccak256(bytes(app)), keccak256(bytes(appRef)),
-            keccak256(bytes(configCid)), keccak256(bytes(versionLabel)), opNonce, signBefore)), opNonce, signBefore, sig);
+        _ownerAuth(keccak256(abi.encode(PROMOTE_TYPEHASH, id, keccak256(bytes(app)), publisher, keccak256(bytes(appRef)),
+            keccak256(bytes(configCid)), keccak256(bytes(versionLabel)), isPublic, opNonce, signBefore)),
+            opNonce, signBefore, sig);
         Held storage h = held[id];
         // the ONLY way into production: what runs is exactly what the owner reviewed (an
         // unadopted record the vault owns is adopted by it, as prod)
-        h.promoted = SessionVaultLib.promote(book, id, app, appRef, configCid, versionLabel);
+        h.promoted = SessionVaultLib.promote(book, id, app, publisher, appRef, configCid, versionLabel, isPublic);
         if (h.env != ENV_PROD) { h.env = ENV_PROD; emit HeldSet(id, ENV_PROD, h.createdBy); }
         emit Promoted(id, h.promoted, appRef, configCid);
     }
@@ -763,9 +804,11 @@ contract SessionVault {
     function ownerCall(address target, bytes calldata data) external nonReentrant returns (bytes memory ret) {
         if (msg.sender != owner) revert NotOwner();
         if (target == address(usdc) || target == address(this) || target.code.length == 0) revert BadTarget();
+        // a batch could carry a transferDeployment the custody cleanup below can't see: one call at a time
+        if (data.length >= 4 && bytes4(data[:4]) == SEL_MULTICALL) revert BadTarget();
         bool ok;
         (ok, ret) = target.call(data);
-        if (!ok) assembly { revert(add(ret, 32), mload(ret)) }
+        if (!ok) assembly ("memory-safe") { revert(add(ret, 32), mload(ret)) }
         if (usdc.balanceOf(address(this)) < locked6) revert Insolvent();
         // a deployment handed away here must come back UNADOPTED if it ever returns
         if (data.length >= 36 && bytes4(data[:4]) == SEL_TRANSFER) delete held[bytes32(data[4:36])];
@@ -927,6 +970,8 @@ contract SessionVault {
             // owner's wallet carries a fee and a rate cap the session never vetted
             if (SessionVaultLib.ownerOf(book, id) != address(this)) revert NotMine(id);
             _requireHeldEnv(s, id);
+            // ... at a cap the grant allows and a rate that buys runtime
+            SessionVaultLib.prepareFund(book, id, s.maxRateHour6);
             _fund(L, id, amount, address(this));
             return "";
         }
@@ -952,13 +997,7 @@ contract SessionVault {
         }
         if (action == ACT_SET_MAXRATE) {
             (bytes32 id, uint256 r) = abi.decode(args, (bytes32, uint256));
-            // bounded by the grant; on prod only ever LOWERED (a raised cap is what lets a
-            // host the attacker runs claim at that price and earn the record's escrow)
-            if (_requireHeldEnv(s, id) == ENV_PROD) {
-                uint256 cap = SessionVaultLib.capOf(book, id);
-                if (r > cap) revert RateCapOutOfRange(r, cap);
-            }
-            if (r * 3600 > s.maxRateHour6) revert RateCapOutOfRange(r * 3600, s.maxRateHour6);
+            SessionVaultLib.checkMaxRate(book, id, r, _requireHeldEnv(s, id) == ENV_PROD, s.maxRateHour6);
             L.setMaxRate(id, r);
             return "";
         }
@@ -1083,7 +1122,7 @@ contract SessionVaultFactory {
         if (vault.code.length != 0) return vault;
         bytes memory code = _cloneCode();
         bytes32 salt = bytes32(uint256(uint160(owner)));
-        assembly { vault := create2(0, add(code, 0x20), mload(code), salt) }
+        assembly ("memory-safe") { vault := create2(0, add(code, 0x20), mload(code), salt) }
         require(vault != address(0), "create2");
         isVault[vault] = true;
         SessionVault(vault).initialize(owner);

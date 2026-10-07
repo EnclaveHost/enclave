@@ -143,8 +143,14 @@ test("browser flow: zero-budget sign-in, wallet top-up, spend, promote, revoke-a
   assert.equal(held[1], "0x" + "00".repeat(32), "unpromoted until the owner says so");
   // the session cannot re-point prod
   await assert.rejects(session.call("deploy.setAppRef", { id, appRef: P.storeRef }), (e) => e.code === "env");
-  await sdk.ownerOperation({ relay, owner: ownerSigner, chainId: 31337, vault,
-    op: { op: "promote", deployment: id, app: "store", appRef: P.storeRef, configCid: "", versionLabel: "1.0.0" } });
+  // a copied slug + label under another publisher, or the wrong exposure, is refused on chain
+  const promo = { op: "promote", deployment: id, app: "store", publisher: P.publisher, appRef: P.storeRef, configCid: "",
+    versionLabel: "1.0.0", isPublic: true };
+  await assert.rejects(sdk.ownerOperation({ relay, owner: ownerSigner, chainId: 31337, vault, op: { ...promo, publisher: owner.address } }),
+    /LabelMismatch|mismatch/i);
+  await assert.rejects(sdk.ownerOperation({ relay, owner: ownerSigner, chainId: 31337, vault, op: { ...promo, isPublic: false } }),
+    /LabelMismatch|mismatch/i);
+  await sdk.ownerOperation({ relay, owner: ownerSigner, chainId: 31337, vault, op: promo });
   held = await chain.pc.readContract({ address: vault, abi: sdk.sessionVaultAbi, functionName: "held", args: [id] });
   assert.notEqual(held[1], "0x" + "00".repeat(32));
 
@@ -154,6 +160,21 @@ test("browser flow: zero-budget sign-in, wallet top-up, spend, promote, revoke-a
   assert.equal((await session.status()).live, false);
   assert.ok(await usdcBal(owner.address) >= before + left);
   await assert.rejects(session.call("deploy.setActive", { id, active: false }), (e) => e.code === "not_live");
+});
+
+test("the SDK's typed-data shapes hash to the vault's typehashes", { skip }, async () => {
+  const { vault } = await openFor("auth-only", { label: "pin" });
+  const { keccak256, toBytes } = await import("viem");
+  const NAMES = { SessionGrant: "GRANT", SessionCall: "CALL", SessionEnd: "END", TopUp: "TOPUP", Extend: "EXTEND",
+    Terminate: "TERMINATE", RevokeAll: "REVOKE", Withdraw: "WITHDRAW", Promote: "PROMOTE", Adopt: "ADOPT",
+    SetEnvironment: "SETENV", Release: "RELEASE" };
+  assert.deepEqual(Object.keys(NAMES).sort(), Object.keys(sdk.TYPES).sort(), "every SDK type is pinned");
+  for (const [t, c] of Object.entries(NAMES)) {
+    const enc = `${t}(${sdk.TYPES[t].map((f) => `${f.type} ${f.name}`).join(",")})`;
+    const onChain = await chain.pc.readContract({ address: vault, abi: [{ type: "function", name: `${c}_TYPEHASH`,
+      stateMutability: "view", inputs: [], outputs: [{ type: "bytes32" }] }], functionName: `${c}_TYPEHASH` });
+    assert.equal(keccak256(toBytes(enc)), onChain, t);
+  }
 });
 
 test("API request auth: valid, replayed, tampered, out of scope, signed out", { skip }, async () => {
@@ -228,8 +249,10 @@ test("secret-release custody gate: staging releases, prod only once promoted, un
   assert.equal(await gate.custodyRefusal(await row(stg)), null);
   assert.match(await gate.custodyRefusal(await row(prd)), /not been promoted/);
   await sdk.ownerOperation({ relay, owner: ownerSigner, chainId: 31337, vault,
-    op: { op: "promote", deployment: prd, app: "store", appRef: P.storeRef, configCid: "", versionLabel: "1.0.0" } });
+    op: { op: "promote", deployment: prd, app: "store", publisher: P.publisher, appRef: P.storeRef, configCid: "",
+      versionLabel: "1.0.0", isPublic: true } });
   assert.equal(await gate.custodyRefusal(await row(prd)), null, "promoted: releases");
+  const prdUnpromoted = await mk("prod");
   // a deployment gifted into the vault is inert until adopted
   const stranger = chain.wc(KEYS.stranger);
   const h = await stranger.writeContract({ address: P.ledger, abi: P.abi.ledger.abi, functionName: "create",
@@ -244,6 +267,82 @@ test("secret-release custody gate: staging releases, prod only once promoted, un
   assert.equal(await gate.custodyRefusal({ ...mine, owner: owner.address }), null, "a wallet-held row passes untouched");
   assert.equal(await gate.beneficialOwner(vault), owner.address);
   assert.equal(await gate.beneficialOwner(owner.address), owner.address);
+  // a relay that no longer knows the vault's factory (rotated out of the book, history unset)
+  // still gates it: held() answers, so an unpromoted prod record stays refused
+  const blind = createCustodyGate({ pc: chain.pc, book: null, ttlMs: 0 });
+  assert.equal(await blind.vaultOwnerOf(vault), null);
+  assert.match(await blind.custodyRefusal(await row(prdUnpromoted)), /not been promoted/);
+  assert.match(await blind.custodyRefusal(await row(gift)), /not adopted/);
+  assert.equal(await blind.custodyRefusal(await row(stg)), null);
+  // a contract owner with no held() (here the USDC token) passes like a wallet
+  assert.equal(await blind.custodyRefusal({ ...mine, owner: P.usdc }), null);
+  // an unreachable chain refuses (the callers fail closed on a throw)
+  const dead = createCustodyGate({ pc: { getCode: async () => "0x60", call: async () => { throw new Error("fetch failed"); },
+    readContract: async () => { throw new Error("fetch failed"); } }, book: null, ttlMs: 0 });
+  await assert.rejects(dead.custodyRefusal({ ...mine, owner: vault }), /fetch failed/);
+});
+
+test("session-derived account token: sign-in, short SSO tokens, dies with the session", { skip }, async () => {
+  // the relay's account + SSO modules in-process, wired to the sessions service exactly as api-relay.js does
+  process.env.AUTH_DATA_DIR = fs.mkdtempSync(path.join(tmp, "auth-"));
+  process.env.SSO_SIGNER_KEY = "0x" + "42".repeat(32);
+  const auth = await import("../relay/auth.js");
+  const sso = await import("../relay/sso.js");
+  assert.equal((await auth.initAccounts()).enabled, true);
+  assert.equal((await sso.initSso()).enabled, true);
+  auth.setSessionHooks({
+    verify: (req, raw) => svc.verifyApiRequest({ header: req.headers.authorization || "", method: req.method,
+      hostPath: req.headers.host + new URL(req.url, "http://relay").pathname, body: raw, scope: "api.account", fresh: true }),
+    state: async (vault, sid) => {
+      const r = await svc.route("GET", `/session/${vault}/${sid}`, {});
+      return { ...r.state, live: Boolean(r.state.live) && !r.revoked };
+    },
+    isRevoked: (sid) => Boolean(svc.store?.data?.revoked?.[String(sid).toLowerCase()]),
+  });
+  const ctx = {
+    json: (res, code, body) => { res.writeHead(code, { "content-type": "application/json" }); res.end(JSON.stringify(body)); },
+    cors: () => ({}), clientIp: () => "127.0.0.1",
+    readBody: async (req) => { const b = []; for await (const c of req) b.push(c); return Buffer.concat(b); },
+  };
+  const srv = http.createServer((req, res) => {
+    const u = new URL(req.url, "http://relay");
+    if (u.pathname.startsWith("/v1/sso")) return sso.handleSso(req, res, u, ctx);
+    return auth.handleAccount(req, res, u, ctx);
+  });
+  await new Promise((r) => srv.listen(0, r));
+  const base = `http://127.0.0.1:${srv.address().port}`;
+  try {
+    const post = async (p, { headers = {}, body } = {}) => {
+      const r = await fetch(base + p, { method: "POST", headers: { ...headers, ...(body ? { "content-type": "application/json" } : {}) },
+        body: body ? JSON.stringify(body) : undefined });
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    };
+    // an agent's staging key has no api.account: no account token
+    const agent = await openFor("staging-publish", { apps: ["acct-agent"], budget: 0n });
+    const refused = await post("/v1/account/session-login",
+      { headers: { Authorization: await agent.session.apiAuthorization("POST", base + "/v1/account/session-login", "") } });
+    assert.equal(refused.status, 403);
+    assert.match(refused.body.message, /lacks api.account/);
+
+    const { session, sid, vault } = await openFor("browser", { budget: 0n });
+    const login = await post("/v1/account/session-login",
+      { headers: { Authorization: await session.apiAuthorization("POST", base + "/v1/account/session-login", "") } });
+    assert.equal(login.status, 200, JSON.stringify(login.body));
+    assert.equal(login.body.sid, sid);
+    assert.equal(login.body.vault, vault);
+    const tok = { Authorization: "Bearer " + login.body.token };
+    const aud = "0x" + "ab".repeat(32);
+    // an est1 can't be recalled once an app holds it: a session-derived one is capped at 10 minutes
+    const est = await post("/v1/sso/token", { headers: tok, body: { aud, ttl: 604800 } });
+    assert.equal(est.status, 200, JSON.stringify(est.body));
+    assert.equal(est.body.exp - est.body.iat, 600);
+    // a session token can't widen the account it stands for
+    const link = await post("/v1/account/link/siwe", { headers: tok, body: {} });
+    assert.equal(link.status, 403);
+    // sign-out: the account token is dead at once, and so is minting
+    await session.terminate();
+    assert.equal((await post("/v1/sso/token", { headers: tok, body: { aud } })).status, 401);
+  } finally { srv.close(); }
 });
 
 test("keeper closes expired sessions and refunds the owner", { skip }, async () => {

@@ -27,7 +27,7 @@
 //   SESSIONS_ATTEST_MEASUREMENTS  "*" (any image) or a comma list of 48-byte SNP measurements (96 hex)
 //   SESSIONS_ATTEST_MAX_PER_DAY   on-chain attestations per UTC day (200): bounds the relayer's gas
 
-import { createPublicClient, createWalletClient, decodeErrorResult, decodeEventLog, encodeAbiParameters, encodeFunctionData,
+import { createPublicClient, createWalletClient, decodeErrorResult, decodeEventLog, decodeFunctionResult, encodeAbiParameters, encodeFunctionData,
   fallback, getAddress, http, isAddress, keccak256, parseEventLogs } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia, foundry } from "viem/chains";
@@ -718,7 +718,11 @@ export function createSessionsService(o) {
           fn = "revokeAll"; args = [Boolean(a.withdraw), on(), sb(), sig];
           break;
         case "withdraw": fn = "withdraw"; args = [big(a.amount, "amount"), on(), sb(), sig]; break;
-        case "promote": fn = "promote"; args = [hex32(a.deployment, "deployment"), String(a.app), String(a.appRef), String(a.configCid), String(a.versionLabel), on(), sb(), sig]; break;
+        case "promote":
+          if (typeof a.isPublic !== "boolean") throw httpError(400, "bad_request", "isPublic must be a boolean");
+          fn = "promote"; args = [hex32(a.deployment, "deployment"), String(a.app), addr(a.publisher, "publisher"), String(a.appRef),
+            String(a.configCid), String(a.versionLabel), a.isPublic, on(), sb(), sig];
+          break;
         case "adopt": fn = "adopt"; args = [hex32(a.deployment, "deployment"), String(a.environment), on(), sb(), sig]; break;
         case "setEnvironment": fn = "setEnvironment"; args = [hex32(a.deployment, "deployment"), String(a.environment), on(), sb(), sig]; break;
         case "release": fn = "release"; args = [hex32(a.deployment, "deployment"), addr(a.to, "to"), on(), sb(), sig]; break;
@@ -999,17 +1003,50 @@ export function createCustodyGate({ pc, book, factory: fixedFactory = null, fact
     return owner;
   }
 
+  const codeAt = new Map();          // address -> { at, has }
+  async function hasCode(a) {
+    const c = codeAt.get(a);
+    if (c && Date.now() - c.at < ttlMs) return c.has;
+    const code = await pc.getCode({ address: a });
+    const has = Boolean(code && code.length > 2);
+    codeAt.set(a, { at: Date.now(), has });
+    if (codeAt.size > 50000) codeAt.clear();
+    return has;
+  }
+
+  /** held(id) of ANY contract owner: [env, promoted], or null when the contract has no such
+   *  function (it reverts or answers nothing). Anything else - an unreachable RPC - throws. */
+  async function heldOf(a, id) {
+    let out;
+    try {
+      out = await pc.call({ to: a, data: encodeFunctionData({ abi: sessionVaultAbi, functionName: "held", args: [id] }) });
+    } catch (e) {
+      for (let x = e, i = 0; x && i < 12; x = x.cause, i++)
+        if (x.name === "ExecutionRevertedError" || /revert/i.test(String(x.details ?? x.shortMessage ?? ""))) return null;
+      throw e;
+    }
+    if (!out?.data || out.data.length < 2 + 64 * 3) return null;
+    const [env, promoted] = decodeFunctionResult({ abi: sessionVaultAbi, functionName: "held", data: out.data });
+    return [env, promoted];
+  }
+
   return {
     getFactory, vaultOwnerOf,
     /** the address whose wallet signature counts as the owner's for this record */
     async beneficialOwner(owner) { return (await vaultOwnerOf(owner)) ?? getAddress(owner); },
     /** null = no objection; a string = why this deployment's secrets must not be released.
-     *  Wallet-held (and other contract-held) rows pass untouched. Errors propagate:
+     *  Wallet-held rows pass untouched. ANY contract owner that answers held(id) is gated by
+     *  its answer, not just the vaults of the factories this relay knows: a vault from a
+     *  factory rotated out of the book must never fall back to "plain wallet", and an
+     *  impostor answering held() only ever makes its OWN records stricter. Errors propagate:
      *  the callers refuse (fail closed) on an unreadable chain. */
     async custodyRefusal(row) {
-      if (!row?.owner || !(await vaultOwnerOf(row.owner))) return null;
-      const [env, promoted] = await pc.readContract({ address: getAddress(row.owner), abi: sessionVaultAbi,
-        functionName: "held", args: [row.id] });
+      if (!row?.owner) return null;
+      const a = getAddress(row.owner);
+      if (!(await vaultOwnerOf(a)) && !(await hasCode(a))) return null;
+      const h = await heldOf(a, row.id);
+      if (!h) return null;
+      const [env, promoted] = h;
       if (Number(env) === 0) return "this deployment sits in a session vault its owner has not adopted";
       if (Number(env) === 2) {
         const now = keccak256(encodeAbiParameters([{ type: "string" }, { type: "string" }],
