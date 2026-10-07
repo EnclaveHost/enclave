@@ -47,6 +47,9 @@ import { createEgress } from "./egress.js";
 // RUNNING enclave without a new release.
 import { initAddressBook, REGISTRY_ADDRESS, DEPLOYMENTS_ADDRESS, APP_CATALOG_ADDRESS,
          FORWARDER_ADDRESS, PROOF_OF_TIME_ADDRESS } from "./addressbook.js";
+// Wallet sessions (SessionVault) as owner credentials, verified on chain: shared with the Windows node.
+import { createSessionApiAuth, isSessionHeader, hasScope, apiBases, envList, DEFAULT_API_HOSTS, DEFAULT_FACTORIES }
+  from "./windows/node/session-api-auth.mjs";
 
 // Process-wide crash guards. This is Express 4: a rejected async route (or any
 // stray background rejection) would otherwise take the whole process down —
@@ -178,7 +181,7 @@ async function verifySessionToken(token) {
     // reachable by any app bug that can make the browser issue a same-origin
     // request. Refusing every token that names an audience keeps the blast
     // radius of a leaked app cookie at "that one app", instead of handing over
-    // deployment listing, logs, secrets and every other `authed` route.
+    // deployment listing, logs, secrets and every other `ownerAuth` route.
     if (payload.aud !== undefined) return null;
     return getAddress(payload.sub);
   }
@@ -3352,6 +3355,30 @@ async function initMps() {
 // per-tick call budget is kept low by deriving post-tx state from receipts.
 const chainClient = createPublicClient({ chain: base, transport: rpcTransport() });
 
+// ---- wallet sessions as owner credentials (windows/node/session-api-auth.mjs) ----------------------------------------
+// `Authorization: EnclaveSession v1 …` is accepted wherever the SIWE session token is (ownerAuth below), so the site and
+// the CLI need no per-host sign-in. Nothing the relay says is believed: the signature, the vault's factory, the session's
+// key, liveness and scope, and the record rule (vault-held: the session's environments; wallet-held: production + the
+// owner's ledger delegation) are all read here, from the chain.
+//
+// What a client signed: host + path + query of the URL it called. The relay forwards /v1/deployments/<id>/... to this box
+// with the path untouched (and /t/<name>/... with /t/<name> stripped), so a request verifies for any base in
+// apiBases(): each API front door (SESSION_API_HOSTS, default api.enclave.host) as is and with /t/<tunnel name>, and this
+// box's own public URLs (PUBLIC_URL, the attested certificate SAN). Never the Host header.
+// SESSION_API_TUNNEL_NAMES adds tunnel names beyond the one PUBLIC_URL's /t/<name> path already names.
+// Vault factories: the address book's sessionVaultFactory plus SESSIONS_FACTORIES (default v2 + v1).
+const SESSION_API_HOSTS = envList(process.env.SESSION_API_HOSTS);
+const sessionApi = createSessionApiAuth({
+  pc: chainClient,
+  book: () => (process.env.ADDRESS_BOOK_ADDRESS || "").trim() || null,
+  ledger: () => DEPLOYMENTS_ADDRESS || null,
+  factories: envList(process.env.SESSIONS_FACTORIES).length ? envList(process.env.SESSIONS_FACTORIES) : DEFAULT_FACTORIES,
+  bases: () => apiBases({ hosts: SESSION_API_HOSTS.length ? SESSION_API_HOSTS : DEFAULT_API_HOSTS,
+    tunnelNames: envList(process.env.SESSION_API_TUNNEL_NAMES),
+    publicUrls: [PUBLIC_URL, _certSan ? `https://${_certSan}` : null] }),
+  log: (m) => console.warn(`[session-auth] ${m}`),
+});
+
 // ----------------------------------------------------------------------------
 // state (in-process; this service is the single enclave instance)
 // ----------------------------------------------------------------------------
@@ -5254,12 +5281,62 @@ app.use("/x/:id", async (req, res) => {
   req.pipe(up);
 });
 
-app.use(express.json({ limit: "256kb" }));
+// rawBody: the exact bytes, for the one check that needs them (a wallet session signs sha256 of the raw body). Only a
+// JSON body is ever parsed, so only a JSON body is ever kept; any other body stays unread, hashes as empty here, and a
+// signature over its bytes fails closed. Nothing else reads rawBody.
+app.use(express.json({ limit: "256kb", verify: (req, _res, buf) => { req.rawBody = buf; } }));
 
-async function authed(req, res, next) {
-  const addr = await addrFromAuth(req);
-  if (!addr) return fail(res, 401, "unauthorized", "Missing or invalid session.");
-  req.address = addr; next();
+// Owner authentication for a control-plane route. Two credentials:
+//   Bearer <token>          this box's SIWE session (/v1/auth/login), unchanged: req.address = the wallet, and a record is
+//                           the caller's when rec.owner === req.address;
+//   EnclaveSession v1 ...   a wallet session, verified on chain (sessionApi): req.walletSession, with `scope` (the API
+//                           scope the route needs) checked here and each RECORD judged by mayAct().
+// A header in the EnclaveSession scheme is judged as one: malformed, stale, replayed or unverifiable is a 401, never a
+// fall-through to the bearer path or to anonymous. `refuseSessions` (a message) refuses sessions on the route outright.
+function ownerAuth(scope, { refuseSessions = null } = {}) {
+  return async function ownerAuthMw(req, res, next) {
+    const h = req.headers.authorization;
+    if (isSessionHeader(h)) {
+      if (refuseSessions) return fail(res, 403, "session_not_supported", refuseSessions);
+      try {
+        req.walletSession = await sessionApi.verify({ header: h, method: req.method, path: req.originalUrl,
+          body: req.rawBody, scope, fresh: req.method !== "GET" });
+      } catch (e) { return sessionFail(res, e); }
+      return next();
+    }
+    const addr = await addrFromAuth(req);
+    if (!addr) return fail(res, 401, "unauthorized", "Missing or invalid session.");
+    req.address = addr; next();
+  };
+}
+function sessionFail(res, e) {
+  if (e && Number.isInteger(e.status)) return fail(res, e.status, e.code || "unauthorized", e.message);
+  console.warn(`[session-auth] ${e && (e.stack || e.message || e)}`);
+  return fail(res, 503, "session_check_failed", "This host could not check the wallet session; try again.");
+}
+// May the authenticated caller act on `rec`? Sends the refusal and returns false when not. A bearer keeps its rule and
+// its 404 (another wallet's deployment reads as absent). A wallet session gets a 403 with the reason: whether a record is
+// the session's turns on its environments and on the owner's ledger delegation, which its owner can change.
+async function mayAct(req, res, rec) {
+  if (!rec) { fail(res, 404, "not_found", "No such deployment."); return false; }
+  if (!req.walletSession) {
+    if (rec.owner !== req.address) { fail(res, 404, "not_found", "No such deployment."); return false; }
+    return true;
+  }
+  let why;
+  try { why = await sessionApi.refusal(req.walletSession, rec, { fresh: req.method !== "GET" }); }
+  catch (e) { sessionFail(res, e); return false; }
+  if (why) { fail(res, 403, "not_allowed", why); return false; }
+  return true;
+}
+// The records the caller may see (listing, /v1/account): a bearer's own; for a wallet session, those its vault holds in
+// one of its environments and, with production and the delegation, those the owner's wallet holds. Throws when the chain
+// cannot answer (the caller answers 503).
+async function callerRecords(req) {
+  const all = [...deployments.values()];
+  if (!req.walletSession) return all.filter((d) => d.owner === req.address);
+  const s = req.walletSession, v = s.vault.toLowerCase(), w = s.owner.toLowerCase();
+  return sessionApi.visible(s, all.filter((d) => [v, w].includes(String(d.owner || "").toLowerCase())));
 }
 
 // ============================================================================
@@ -6121,10 +6198,13 @@ function paymentInstructions(rec) {
   };
 }
 
-app.get("/v1/account", authed, (req, res) => {
-  const mine = [...deployments.values()].filter(d => d.owner === req.address);
+app.get("/v1/account", ownerAuth("api.status"), async (req, res) => {
+  let mine;
+  try { mine = await callerRecords(req); } catch (e) { return sessionFail(res, e); }
+  const s = req.walletSession;
   res.json({
-    address: req.address, chainId: CHAIN_ID,
+    address: s ? s.owner : req.address, chainId: CHAIN_ID,
+    ...(s ? { session: { vault: s.vault, sid: s.sid } } : {}),
     payment: { forwarder: FORWARDER_ADDRESS || null, usdc: USDC_ADDRESS, asset: "USDC", assets: ["USDC", "ETH"] },
     deployments: {
       running: mine.filter(d => d.status === "running").length,
@@ -6555,7 +6635,11 @@ async function feeGate(id, g) {
   return null;
 }
 
-app.post("/v1/deployments", authed, async (req, res) => {
+// A wallet session never creates here: this legacy path reserves capacity for an off-chain record owned by the caller,
+// and a session creates on-chain (its deploy.create, through the sessions relay) or not at all.
+app.post("/v1/deployments", ownerAuth(null, { refuseSessions: "A wallet session cannot create deployments on this "
+    + "endpoint: create them on-chain (the session's deploy.create, through the sessions relay). This legacy route takes "
+    + "this host's sign-in only." }), async (req, res) => {
   const b = req.body || {};
   // RETIRED on the wasm backend (Steven, 2026-07-05): this path held the spec
   // and the funded clock in enclave-local state, which died with the CVM on
@@ -7238,12 +7322,15 @@ function startBillingTicker() {
   if (t.unref) t.unref();
 }
 
-app.get("/v1/deployments", authed, (req, res) =>
-  res.json({ data: [...deployments.values()].filter(d => d.owner === req.address).map(view), cursor: null }));
+app.get("/v1/deployments", ownerAuth("api.status"), async (req, res) => {
+  let mine;
+  try { mine = await callerRecords(req); } catch (e) { return sessionFail(res, e); }
+  res.json({ data: mine.map(view), cursor: null });
+});
 
-app.get("/v1/deployments/:id", authed, (req, res) => {
+app.get("/v1/deployments/:id", ownerAuth("api.status"), async (req, res) => {
   const rec = deployments.get(req.params.id);
-  if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
+  if (!(await mayAct(req, res, rec))) return;
   res.json(view(rec));
 });
 
@@ -7255,11 +7342,15 @@ app.get("/v1/deployments/:id", authed, (req, res) => {
 // deployment and verifySessionToken refuses any token that names an audience,
 // so it opens no control-plane route even on the enclave that minted it. That
 // is the whole point — it is handed to a page on a TENANT origin.
-app.post("/v1/deployments/:id/app-token", authed, async (req, res) => {
+//
+// A wallet session (api.appAccess) gets the SAME token, for the record's own owner: its subject is rec.owner (the vault
+// for a vault-held record, the wallet for a wallet-held one), which is what redemption (/__enclave/session) and the data
+// path (addrForApp) compare it against. Still one deployment, still the short TTL, still never a control-plane session.
+app.post("/v1/deployments/:id/app-token", ownerAuth("api.appAccess"), async (req, res) => {
   const rec = depByIdOrPrefix(req.params.id);
-  if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
+  if (!(await mayAct(req, res, rec))) return;
   if (rec.public) return fail(res, 400, "not_private", "This deployment is public — open it directly.");
-  const token = await mintAppToken(req.address, rec.id);
+  const token = await mintAppToken(req.walletSession ? rec.owner : req.address, rec.id);
   res.json({ token, tokenType: "Cookie", deployment: rec.id,
              expiresAt: new Date(Date.now() + APP_TTL_SEC * 1000).toISOString() });
 });
@@ -7353,9 +7444,12 @@ app.post("/v1/admin/gpu/bounce-mps", async (req, res) => {
   }
 });
 
-app.delete("/v1/deployments/:id", authed, async (req, res) => {
+// A wallet session needs api.restart here: on an on-chain record this stops the instance and hands the lease back (the
+// teardown after the owner's on-chain stop, or a move with ?evacuate=1), which is a restart's disruption, never a money
+// move - the record, its balance and the decision to end it stay on the ledger.
+app.delete("/v1/deployments/:id", ownerAuth("api.restart"), async (req, res) => {
   const rec = deployments.get(req.params.id);
-  if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
+  if (!(await mayAct(req, res, rec))) return;
   if (rec._payTimer) { clearTimeout(rec._payTimer); rec._payTimer = null; }
   // An unpaid reservation never ran: cancel = REMOVE it, so the deploy page
   // doesn't show a ghost (nothing ran, nothing paid — no history worth keeping).
@@ -7411,9 +7505,11 @@ app.delete("/v1/deployments/:id", authed, async (req, res) => {
 // ledger - the contract, not this box, meters its runtime, so EnclavePay
 // instructions here would take the user's money without crediting balance6.
 // Legacy pre-on-chain records still get the forwarder instructions.
-app.post("/v1/deployments/:id/topup", authed, (req, res) => {
+// Read-only for a wallet session (api.status): it answers funding INSTRUCTIONS and moves nothing; the funding itself is
+// the payer's own signed transfer to the ledger (or the session's deploy.fund through the sessions relay).
+app.post("/v1/deployments/:id/topup", ownerAuth("api.status"), async (req, res) => {
   const rec = deployments.get(req.params.id);
-  if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
+  if (!(await mayAct(req, res, rec))) return;
   if (!["running", "awaiting_payment"].includes(rec.status))
     return fail(res, 409, "not_toppable", `Deployment is ${rec.status}.`);
   if (rec._onchain) return res.json({
@@ -7460,7 +7556,18 @@ app.get("/v1/deployments/:id/attestation", async (req, res) => {
   // worked. Unique match only, 8+ hex, same rule the app subdomains use.
   const rec = depByIdOrPrefix(req.params.id);
   if (!rec) return fail(res, 404, "not_found", "No such deployment.");
-  const isOwner = (await addrFromAuth(req)) === rec.owner;
+  // A wallet session counts as the owner when it has api.status and may act on this record. A session CREDENTIAL that
+  // does not verify is a 401 (never silently anonymous); a valid one that lacks the scope or the record just gets the
+  // public document, like a bearer for another wallet.
+  let isOwner = false;
+  if (isSessionHeader(req.headers.authorization)) {
+    let s;
+    try { s = await sessionApi.verify({ header: req.headers.authorization, method: req.method, path: req.originalUrl,
+      body: req.rawBody, scope: null }); }
+    catch (e) { return sessionFail(res, e); }
+    isOwner = hasScope(s.actions, "api.status")
+      && (await sessionApi.refusal(s, rec).catch(() => "the chain could not be read")) === null;
+  } else isOwner = (await addrFromAuth(req)) === rec.owner;
   let nonce = null;
   if (isOwner) { nonce = attestNonce(req, res); if (nonce == null) return; }
   // A non-owner ?nonce is NOT an error - it's just not honored (fresh NVML
@@ -7608,9 +7715,9 @@ app.get("/v1/net-map", (_req, res) =>
   res.json({ enabled: !!DEP_ADDR_PREFIX, prefix: DEP_ADDR_PREFIX || null, deployments: netMap() }));
 
 // Tail the worker's stdout/stderr (owner only). ?tail=N (default 200, max 2000).
-app.get("/v1/deployments/:id/logs", authed, async (req, res) => {
+app.get("/v1/deployments/:id/logs", ownerAuth("api.logs"), async (req, res) => {
   const rec = deployments.get(req.params.id);
-  if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
+  if (!(await mayAct(req, res, rec))) return;
   if (/^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) return res.type("text/plain").send("[mock] no real worker; logs unavailable\n");
   const tail = String(Math.min(2000, Math.max(1, parseInt(req.query.tail, 10) || 200)));
   // vm backend: the wasm-manager keeps each tenant's stdout+stderr - the
@@ -7634,9 +7741,10 @@ app.get("/v1/deployments/:id/logs", authed, async (req, res) => {
 // Native CPU profiles contain process mappings. Apply the same strict owner
 // boundary as logs, including for public apps; never proxy arbitrary paths.
 for (const method of ["get", "post"]) {
-  app[method]("/v1/deployments/:id/cpu-profile", authed, async (req, res) => {
+  // a wallet session needs api.logs: a profile is diagnostic output of the same kind and sensitivity
+  app[method]("/v1/deployments/:id/cpu-profile", ownerAuth("api.logs"), async (req, res) => {
     const rec = deployments.get(req.params.id);
-    if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
+    if (!(await mayAct(req, res, rec))) return;
     if (PROVISION_BACKEND !== "vm")
       return fail(res, 501, "profile_unavailable", "CPU profiling requires a wasm deployment.");
     if (!rec._vmId) return fail(res, 409, "no_instance", "No app instance provisioned here.");
@@ -7657,9 +7765,9 @@ for (const method of ["get", "post"]) {
 // (the wasi-nn graph registry seals at process start; seen live 2026-07-18,
 // qwen3.5-9b). Same core as the death-relaunch path; _restarting keeps the
 // audit tick's claimed-branch from double-provisioning mid-restart.
-app.post("/v1/deployments/:id/restart", authed, async (req, res) => {
+app.post("/v1/deployments/:id/restart", ownerAuth("api.restart"), async (req, res) => {
   const rec = deployments.get(req.params.id);
-  if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
+  if (!(await mayAct(req, res, rec))) return;
   if (PROVISION_BACKEND !== "vm")
     return fail(res, 501, "restart_unavailable", "Restart is only available for wasm (vm) deployments.");
   if (rec._restarting) return fail(res, 409, "restart_in_progress", "A restart is already in progress.");
