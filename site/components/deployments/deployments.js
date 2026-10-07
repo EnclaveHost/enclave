@@ -21,7 +21,7 @@ import { APP_DOMAIN, DEPLOYMENTS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { openStateOf, probeAppTls } from "../../js/core/app-tls.js";
 import { pad32, encUint, encCall, hexBig, DEP_SEL, APPROVAL, depPrices6, rate6Of, depMaxGpuMilli, depGet, depSchemaRev, depFeeOf, depCapOf, depRefundableOf, depCall, catVersionFee, catGetVersion, waitReceipt } from "../../js/core/chain.js";
-import { authenticate, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx as walletSendTx, personalSign } from "../../js/core/wallet.js";
+import { authenticate, asHostOwner, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx as walletSendTx, personalSign } from "../../js/core/wallet.js";
 // Every ledger call this panel sends goes through here. A row the wallet's SessionVault holds is acted on by this
 // browser's session (no wallet prompt; a prod version/config change becomes the owner's Promote signature); every
 // other row - and every other contract - sends the same wallet transaction as before (js/core/sessions.js ledgerSend).
@@ -103,8 +103,8 @@ function openCtl(d, ep, tls){
   if (tls?.href === href && openStateOf(tls) === "ok") {
     const why = d.public
       ? 'title="TLS verified by this browser: the certificate chains and the app answered"'
-      : 'title="private - opens after a wallet sign-in, which authorizes no transaction"';
-    return '<a class="enc-open" data-tls="' + esc(d.id) + '" href="' + to + '" target="_blank" rel="noopener" aria-label="Open app (new tab)' + (d.public ? " - TLS verified by this browser" : " - sign in with your wallet") + '" ' + why + '>' + LOCK_SHUT + ' open ↗</a>';
+      : 'title="private - opens through your session, or after a wallet sign-in, which authorizes no transaction"';
+    return '<a class="enc-open" data-tls="' + esc(d.id) + '" href="' + to + '" target="_blank" rel="noopener" aria-label="Open app (new tab)' + (d.public ? " - TLS verified by this browser" : " - opens through your session or a wallet sign-in") + '" ' + why + '>' + LOCK_SHUT + ' open ↗</a>';
   }
   /* The link still opens. The old control disabled itself and blamed the certificate; the honest
      version offers the app and says exactly what is and is not known. */
@@ -453,6 +453,9 @@ class Deployments extends EnclaveElement {
     // passkey/card sign-in and sign-out edges: the same rule as the wallet edge
     this._onAcct = () => { if (Enclave.accountAuthed() !== this._paintedAcct) this.refresh(); };
     document.addEventListener("enclave:account", this._onAcct);
+    // a wallet session starting or ending changes what the list shows (the hosts' live view rides it): same rule
+    this._onSess = () => { if (Enclave.sessionMayServe() !== this._paintedSess && !this._panelPinned()) this.refresh(); };
+    document.addEventListener("enclave:session", this._onSess);
     this._onLog = (e) => this._onRunlog(e.detail || {});
     document.addEventListener("enclave:runlog", this._onLog);
     // deploys in flight (soft-nav away and back): rejoin every live run.
@@ -483,9 +486,10 @@ class Deployments extends EnclaveElement {
     if (this._onAuth) document.removeEventListener("enclave:auth", this._onAuth);
     if (this._onWallet) document.removeEventListener("enclave:wallet", this._onWallet);
     if (this._onAcct) document.removeEventListener("enclave:account", this._onAcct);
+    if (this._onSess) document.removeEventListener("enclave:session", this._onSess);
     if (this._onLog) document.removeEventListener("enclave:runlog", this._onLog);
     if (this._onCat) document.removeEventListener("enclave:catalog", this._onCat);
-    this._wired = false; this._onAuth = null; this._onWallet = null; this._onAcct = null; this._onLog = null; this._onCat = null;
+    this._wired = false; this._onAuth = null; this._onWallet = null; this._onAcct = null; this._onSess = null; this._onLog = null; this._onCat = null;
   }
 
   /* ---- live-deploy strips: one per run streaming with no row to live in ---- */
@@ -544,6 +548,7 @@ class Deployments extends EnclaveElement {
     if (!body) return;
     this._paintedFor = Enclave.address;             // what this paint reflects (see _onWallet)
     this._paintedAcct = Enclave.accountAuthed();    // …and the account edge (_onAcct)
+    this._paintedSess = Enclave.sessionMayServe();  // …and the wallet-session edge (_onSess)
     const hideBar = () => { const tb = this.querySelector(".enc-toolbar"); if (tb) tb.hidden = true; };
     if (!Enclave.address && !this._paintedAcct){
       this._stopPoll(); hideBar(); this._sessionNote();
@@ -653,7 +658,7 @@ class Deployments extends EnclaveElement {
      missing signal, and it offers the fix. ---- */
   _sessionNote() {
     let el = this.querySelector(".enc-sessnote");
-    if (!(this._sessDropped && Enclave.address && !Enclave.token)){ if (el) el.remove(); return; }
+    if (!(this._sessDropped && Enclave.address && !Enclave.token && !Enclave.sessionMayServe())){ if (el) el.remove(); return; }
     if (el) return;
     const body = this.querySelector(".enc-body"); if (!body) return;
     el = document.createElement("div");
@@ -2520,14 +2525,18 @@ class Deployments extends EnclaveElement {
     }, 5000);
   }
   /* logs are the one genuinely PRIVATE read on this panel (an app's stdout
-     routinely carries secrets), so this is where the lazy SIWE lives: prove
-     key ownership once - a gas-free signature - right where it's needed */
+     routinely carries secrets). The wallet session reads them with no prompt;
+     this unlock is the fallback for no session, or a host that hasn't learned
+     sessions yet: prove key ownership to THAT box once - a gas-free
+     signature - right where it's needed, and only on a click */
   _lockedLogs(id, box) {
     const el = box.querySelector(".enc-out-logs"); if (!el) return;
-    el.innerHTML = '<span class="ln dimln">// app logs are owner-private - one gas-free signature proves this wallet owns this deployment (lasts a week)</span>'
+    el.innerHTML = '<span class="ln dimln">// ' + (this._sessionTried(id)
+        ? "this deployment's host doesn't take your session yet - one gas-free signature proves this wallet owns it there (lasts a week)"
+        : "app logs are owner-private - one gas-free signature proves this wallet owns this deployment (lasts a week)") + '</span>'
       + '<button class="wp-mini enc-unlock" type="button">unlock logs</button>';
     el.querySelector(".enc-unlock").addEventListener("click", async () => {
-      try { await this._hostSession(id); if (!box.hidden && box.isConnected) this._startLogs(id, box); }
+      try { await this._hostSignIn(id); if (!box.hidden && box.isConnected) this._startLogs(id, box); }
       catch(e){ showToast(e.message || String(e)); }
     });
   }
@@ -2538,7 +2547,8 @@ class Deployments extends EnclaveElement {
     const el = box.querySelector(".enc-out-logs"), scroller = box.querySelector(".enc-out-term");
     if (!el) return;
     try {
-      const text = await this._asHost(id, (h) => Enclave.logs(id, { tail: 200 }, h));
+      // never a wallet prompt from a poll: no session or token the host takes = the unlock button
+      const text = await this._asHost(id, (h) => Enclave.logs(id, { tail: 200 }, h), { prompt: false });
       if (box.hidden || !el.isConnected) return;
       const lines = String(text == null ? "" : text).split("\n");
       while (lines.length && lines[lines.length - 1] === "") lines.pop();
@@ -2555,6 +2565,7 @@ class Deployments extends EnclaveElement {
       }
       scroller.scrollTop = follow ? scroller.scrollHeight : keep;
     } catch (e) {
+      if (e && e.status === 401) { this._stopLogPoll(id); if (el.isConnected && !box.hidden) this._lockedLogs(id, box); return; }
       if (el.isConnected && !box.hidden)
         el.innerHTML = '<span class="ln warn">// logs unavailable: ' + esc(e.message || String(e)) + '</span>';
     }
@@ -2573,18 +2584,20 @@ class Deployments extends EnclaveElement {
         + '<div class="term"><span class="ln dimln">// in-browser attestation verification for credit-run deployments is coming soon - today the attestation read rides an in-enclave wallet session. The same hardware guarantees protect this deployment; verification just can’t be shown here yet.</span></div>';
       return;
     }
-    if (!this._hostAuthed(id)){
-      // the attestation read rides the owner session; unlock it in place
-      box.innerHTML = '<div class="ap-attbar">attestation · ' + esc(id) + '</div>'
-        + '<div class="term"><span class="ln dimln">// attestation reads ride the owner session - one gas-free signature unlocks them (lasts a week)</span>'
-        + '<button class="wp-mini enc-unlock" type="button">unlock &amp; verify</button></div>';
-      box.querySelector(".enc-unlock").addEventListener("click", async () => {
-        try { await this._hostSession(id); if (!box.hidden && box.isConnected) this._attest(id, box); }
-        catch(e){ showToast(e.message || String(e)); }
-      });
-      return;
-    }
+    if (!this._hostAuthed(id)) return this._lockedAttest(id, box);
     this._attest(id, box);
+  }
+  /* the attestation read rides the owner's session (or the host's own sign-in); unlock it in place */
+  _lockedAttest(id, box) {
+    box.innerHTML = '<div class="ap-attbar">attestation · ' + esc(id) + '</div>'
+      + '<div class="term"><span class="ln dimln">// ' + (this._sessionTried(id)
+          ? "this deployment's host doesn't take your session yet - one gas-free signature unlocks its attestation reads (lasts a week)"
+          : "attestation reads ride the owner session - one gas-free signature unlocks them (lasts a week)") + '</span>'
+      + '<button class="wp-mini enc-unlock" type="button">unlock &amp; verify</button></div>';
+    box.querySelector(".enc-unlock").addEventListener("click", async () => {
+      try { await this._hostSignIn(id); if (!box.hidden && box.isConnected) this._attest(id, box); }
+      catch(e){ showToast(e.message || String(e)); }
+    });
   }
   async _attest(id, box) {
     box.innerHTML = '<div class="ap-attbar">attestation · ' + esc(id)
@@ -2592,7 +2605,7 @@ class Deployments extends EnclaveElement {
       + '<pre class="ap-attpre">fetching…</pre>';
     const badge = box.querySelector(".enc-vbadge");
     try {
-      const att = await this._asHost(id, (h) => Enclave.attestation(id, h));
+      const att = await this._asHost(id, (h) => Enclave.attestation(id, h), { prompt: false });
       const pre = box.querySelector(".ap-attpre"); if (pre) pre.innerHTML = hlJson(att);
       const vspec = vspecOf(att);
       if (!vspec){ if (badge) badge.textContent = ""; return; }
@@ -2609,7 +2622,10 @@ class Deployments extends EnclaveElement {
         }
       } catch(e){ if (badge && !box.hidden){ badge.className = "enc-vbadge bad"; badge.textContent = "✗ could not verify: " + (e.message || e); } }
     }
-    catch(e){ const pre = box.querySelector(".ap-attpre"); if (pre) pre.textContent = e.message; if (badge) badge.textContent = ""; }
+    catch(e){
+      if (e && e.status === 401) { if (!box.hidden && box.isConnected) this._lockedAttest(id, box); return; }
+      const pre = box.querySelector(".ap-attpre"); if (pre) pre.textContent = e.message; if (badge) badge.textContent = "";
+    }
   }
 
   async _kill(id, btn) {
@@ -2808,48 +2824,49 @@ class Deployments extends EnclaveElement {
     });
   }
 
-  /* Which box HOSTS this deployment, and a session that box will honor.
+  /* Which box HOSTS this deployment, and whether an owner call there can run
+     without asking the wallet.
 
-     Sessions are per-enclave: every enclave signs with its own in-enclave key
-     and verifies only its own kid, so the session minted at sign-in (the
-     relay's sticky box) is rejected by every other enclave — a deployment
-     hosted anywhere else answered "Missing or invalid session" on Restart,
-     logs, attestation and Move alike (2026-07-27). One extra signature per box
-     you act on is the honest price of that design; it is cached per box and
-     survives a reload, so it is asked once. */
-  _hostAuthed(id) {
+     The wallet session covers every box: each host verifies it against the
+     chain itself, so logs, attestation, Restart, Move and private apps need no
+     sign-in of their own. The per-host SIWE token is the fallback for a box
+     that hasn't learned sessions yet (or no session at all): every enclave
+     signs those with its own in-enclave key and verifies only its own kid, so
+     the token minted at the relay's sticky box is rejected everywhere else - a
+     deployment hosted anywhere else answered "Missing or invalid session" on
+     Restart, logs, attestation and Move alike (2026-07-27). One signature per
+     such box, cached per box across reloads, asked once. */
+  _hostOf(id) {
     const d = (this._list || []).find(x => x.id === id);
-    const host = String((d && d.enclave) || "").trim();
-    // A generic session says nothing about this host. Unlock must use the
-    // same scope as the read, including when no fleet-default host is serving.
-    return host ? Enclave.authedFor(host) : Enclave.authed();
+    return String((d && d.enclave) || "").trim();
   }
-  async _hostSession(id) {
-    const d = (this._list || []).find(x => x.id === id);
-    const host = String((d && d.enclave) || "").trim();
-    if (!host){ if (!Enclave.authed()) await authenticate(); return ""; }
-    if (!Enclave.authedFor(host)) await authenticate({ enclave: host });
+  _hostAuthed(id) {
+    const host = this._hostOf(id);
+    // A generic token says nothing about this host. Unlock must use the
+    // same scope as the read, including when no fleet-default host is serving.
+    return (host ? Enclave.authedFor(host) : Enclave.authed()) || Enclave.sessionMayServe(host);
+  }
+  /* a session exists in this browser, and this host answered it with 401: the copy says so */
+  _sessionTried(id) {
+    return !!Enclave.address && Enclave._siweHosts.has(Enclave._hostKey(this._hostOf(id)));
+  }
+  /* the explicit fallback, behind an unlock click: the per-host sign-in for this deployment's box */
+  async _hostSignIn(id) {
+    const host = this._hostOf(id);
+    await authenticate(host ? { enclave: host } : undefined);
     return host;
   }
 
-  /* Run an owner-authenticated call against the box HOSTING this deployment,
-     re-signing once if that box rejects the session.
-
-     A cached session can be one this enclave will never honour — minted on
-     another box before the sign-in pin existed, or when the pin fell back.
-     _req drops it on the 401, so a single retry re-mints against the right
-     enclave and succeeds. Without the retry the user just sees "Missing or
-     invalid session" forever, because nothing ever evicts the bad token. */
-  async _asHost(id, call) {
-    const host = await this._hostSession(id);
-    try { return await call(host); }
-    catch (e) {
-      if (e && e.status === 401 && host && !Enclave.authedFor(host)) {
-        await authenticate({ enclave: host });      // _req already dropped the stale one
-        return await call(host);
-      }
-      throw e;
-    }
+  /* Run an owner call against the box HOSTING this deployment: the wallet
+     session when that box takes it; otherwise (and only then) the per-host
+     sign-in, once (wallet.js asHostOwner). A cached per-host token the box no
+     longer honours - minted elsewhere before the sign-in pin existed, or when
+     the pin fell back - is dropped by _req on its 401, so the same retry
+     re-mints against the right enclave instead of "Missing or invalid session"
+     forever. `prompt: false` (polls, panels opened without a click on an
+     unlock) hands the 401 back instead of asking the wallet. */
+  async _asHost(id, call, opts) {
+    return asHostOwner(this._hostOf(id), call, opts);
   }
 
   /* ---- choose placement for a deployment in any state.
@@ -3118,14 +3135,8 @@ class Deployments extends EnclaveElement {
           const fleet = await Enclave.getEnclaves();
           const host = leaseHostOf(d, fleet);
           if (!host?.name) throw Error("The lease holder is offline. Retry when its lease expires.");
-          const name = host.name;
-          if (!Enclave.authedFor(name)) await authenticate({ enclave: name });
-          try { await Enclave.terminateDeployment(id, name, !!target); }
-          catch (e) {
-            if (e.status !== 401 || Enclave.authedFor(name)) throw e;
-            await authenticate({ enclave: name });
-            await Enclave.terminateDeployment(id, name, !!target);
-          }
+          // the session where that box takes it, else its own sign-in (once)
+          await asHostOwner(host.name, (h) => Enclave.terminateDeployment(id, h, !!target));
         },
       });
       this._why?.delete(id);
@@ -3184,8 +3195,7 @@ class Deployments extends EnclaveElement {
   async _restart(id, btn) {
     if (btn){ btn.disabled = true; btn.textContent = "restarting…"; }
     try {
-      // owner-private action: rides the session token, lazy-SIWE like logs
-      if (!Enclave.authed()) await authenticate();
+      // owner-private action: rides the wallet session; the host's own sign-in only where it needs one
       await this._asHost(id, (h) => Enclave.restartDeployment(id, h));
       showToast("restarted " + id.slice(0, 10) + "… - relaunching in place, back within a minute");
       setTimeout(() => this.refresh(), 1200);

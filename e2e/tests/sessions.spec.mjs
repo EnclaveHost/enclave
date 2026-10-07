@@ -28,8 +28,17 @@ test("sign in -> indicator -> top up -> /sessions -> sign out refunds and revoke
   await expect(page.locator("#wbSess")).toContainText("$0.00", { timeout: 15_000 });
   await expect(page.locator("#wbSess")).toContainText(/\d+m|1h/);
 
-  // top up from the popover: one USDC authorization signature, relayed gas-free
+  // the popover: no per-host "Host login" any more - its deployment counts load through the session, which
+  // signs the list read (EnclaveSession v1) and the relay verifies it (api.status) - no wallet prompt
+  const listRead = page.waitForRequest((r) => /\/v1\/deployments\?owner=/i.test(r.url())
+    && /^EnclaveSession v1 /.test(r.headers()["authorization"] || ""), { timeout: 20_000 });
   await page.click("#walletBtn");
+  const signedList = await listRead;
+  expect((await signedList.response()).status()).toBe(200);
+  await expect(page.locator("#wpBal")).toContainText("Deployments", { timeout: 15_000 });
+  await expect(page.locator("#walletPop")).not.toContainText("Host login");
+
+  // top up from the popover: one USDC authorization signature, relayed gas-free
   await expect(page.locator("#wpSess")).toContainText("left", { timeout: 15_000 });
   await page.click("#wpSessTop");
   await page.fill("#tuAmt", "3");

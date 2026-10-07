@@ -12,6 +12,9 @@ export class EnclaveError extends Error {
   constructor(message, status, body){ super(message); this.name = "EnclaveError"; this.status = status; this.body = body; }
 }
 
+/* localStorage key holding the id of this browser's active WALLET SESSION (sessions.js owns its lifecycle) */
+export const WALLET_SESSION_KEY = "enclave_wallet_session";
+
 export const Enclave = {
   /* The endpoint every call goes to. It persists in localStorage because the
      Deploy page exposes the field (point the site at your own relay, or at
@@ -83,15 +86,110 @@ export const Enclave = {
     lsSet("enclave_account", "");
     emit("enclave:account", { authed: false });
   },
-  async _req(method, path, opts){
-    opts = opts || {};
+  /* The browser's WALLET SESSION (sessions.js) signs the owner calls a HOST serves: live status, logs,
+     attestation, restart, teardown and private-app tokens. Each host verifies it against the chain itself
+     (signature, live session, scope bit, vault factory, and that the record is the vault's or - delegated -
+     the wallet's), so one session covers every box and no per-host sign-in is asked. The signature binds the
+     method, the host + path + query of the exact URL, the exact body bytes and the time; it is made only for
+     `base` (sessions.js refuses any other URL, and any relay but the one the session was opened against).
+     A host that predates sessions answers 401 to it. Only then does that host get its per-host SIWE token
+     (`enclaveTokens`, signed when a call actually needs it - wallet.js asHostOwner), once, and it is
+     remembered here for the rest of the page load so later calls go straight there. A 401 under a session that
+     turns out to be over (ended, expired) is not the host's doing and marks nothing. A 403 - the host read the
+     session and refused it for this record (an app the wallet holds and hasn't delegated, a scope it lacks) -
+     falls back the same way, for that route only. */
+  sessionHooks: null,          // { hostAuthorization, sessionStillLive } from sessions.js, loaded on first use (tests inject)
+  _ownerSession: null,         // the last status sessions.js read: { sid, owner, live, expiresAt } (the sync view below)
+  _siweHosts: new Set(),       // hosts (lower-cased name, "*" = the sticky box) that answered 401 to a live session
+  _sessionRefused: new Set(),  // "METHOD url-without-query" a host refused (403) under the session
+  /* Might the wallet session serve an owner call on `enclave` (a fleet name; "" = fleet-wide)? Synchronous and
+     optimistic: a session exists in this browser, nothing read says it is over or another wallet's, and that
+     host hasn't asked for its own sign-in. Panels use it to try silently before offering an unlock button. */
+  sessionMayServe(enclave){
+    const sid = lsGet(WALLET_SESSION_KEY);
+    if (!sid || !this.address) return false;
+    const s = this._ownerSession;
+    if (s && s.sid === sid && (!s.live || s.owner !== String(this.address).toLowerCase()
+        || Number(s.expiresAt) * 1000 <= Date.now())) return false;
+    return !this._siweHosts.has(this._hostKey(enclave));
+  },
+  _hostKey(enclave){ return String(enclave || "").trim().toLowerCase() || "*"; },
+  _url(path, query){
     let url = this.base + path;
-    if (opts.query){
-      const qs = Object.entries(opts.query)
+    if (query){
+      const qs = Object.entries(query)
         .filter(([, v]) => v !== undefined && v !== null && v !== "")
         .map(([k, v]) => encodeURIComponent(k) + "=" + encodeURIComponent(v)).join("&");
       if (qs) url += "?" + qs;
     }
+    return url;
+  },
+  async _hooks(){
+    if (!this.sessionHooks){
+      const S = await import("./sessions.js");
+      this.sessionHooks = { hostAuthorization: S.hostAuthorization, sessionStillLive: S.sessionStillLive };
+    }
+    return this.sessionHooks;
+  },
+  /* One owner call signed by the wallet session: { data } when the session served it, null when it could not
+     (no live session of the connected wallet, a scope it lacks, a host that asked for its own sign-in) and the
+     caller should go on as it would without one. Any other failure throws, exactly like _req. */
+  async _sessionReq(method, path, opts){
+    opts = opts || {};
+    if (!this.address || !opts.scope) return null;
+    // no session in this browser: never load the sessions client just to find that out
+    if (!this.sessionHooks && !lsGet(WALLET_SESSION_KEY)) return null;
+    const host = this._hostKey(opts.enclave);
+    if (this._siweHosts.has(host)) return null;
+    const url = this._url(path, opts.query);
+    const route = method + " " + url.split("?")[0];
+    if (this._sessionRefused.has(route)) return null;
+    // the exact bytes sent are the bytes signed
+    const body = opts.body !== undefined ? JSON.stringify(opts.body) : undefined;
+    let auth = null;
+    try { auth = await (await this._hooks()).hostAuthorization(method, url, body, opts.scope); } catch(e){ auth = null; }
+    if (!auth || !/^EnclaveSession /.test(auth)) return null;
+    const headers = { "Accept": "application/json", "Authorization": auth };
+    if (body !== undefined) headers["Content-Type"] = "application/json";
+    const { res, data } = await this._fetch(method, url, headers, body);
+    if (res.ok) return { data };
+    if (res.status === 401){
+      // an old host, or a session that just ended: the chain tells them apart (an unreadable chain counts as
+      // live - falling back is safe either way, and marking keeps every later call from paying this twice)
+      let live = true;
+      try { live = await (await this._hooks()).sessionStillLive(); } catch(e){}
+      if (live) this._siweHosts.add(host);
+      return null;
+    }
+    if (res.status === 403){ this._sessionRefused.add(route); return null; }
+    throw this._httpError(res, data);
+  },
+  async _fetch(method, url, headers, body){
+    let res;
+    try {
+      res = await fetch(url, { method, headers, mode: "cors", body });
+    } catch(e){
+      throw new EnclaveError("Could not reach " + url + ". Check the endpoint is live and returns CORS headers.", 0);
+    }
+    const text = await res.text();
+    let data = null;
+    if (text){ try { data = JSON.parse(text); } catch(e){ data = text; } }
+    return { res, data };
+  },
+  _httpError(res, data){
+    const msg = (data && data.message) ? data.message
+      : (typeof data === "string" && data) ? data
+      : ("HTTP " + res.status + " " + res.statusText);
+    return new EnclaveError(msg, res.status, data);
+  },
+  async _req(method, path, opts){
+    opts = opts || {};
+    // a call a host serves to its owner (`scope` names the session scope it needs): the wallet session first
+    if (opts.auth && opts.scope){
+      const viaSession = await this._sessionReq(method, path, opts);
+      if (viaSession) return viaSession.data;
+    }
+    const url = this._url(path, opts.query);
     const headers = { "Accept": "application/json" };
     const hasBody = opts.body !== undefined;
     if (hasBody) headers["Content-Type"] = "application/json";
@@ -110,7 +208,7 @@ export const Enclave = {
       const tok = opts.enclave ? this.sessionFor(opts.enclave)
                 : this._forWallet(this.token) ? { token: this.token, base: this.tokenBase } : null;
       if (!tok || !tok.token) throw new EnclaveError(opts.enclave
-        ? `Not signed in to ${opts.enclave}. Sessions are per-enclave — sign in again to act on a deployment hosted there.`
+        ? `Not signed in to ${opts.enclave}. This host needs its own sign-in (one signature) to act on a deployment it runs.`
         : "Not signed in. Connect your wallet first.", 401);
       if (!this._sendable(tok.base)) throw wrongBase("session");
       headers["Authorization"] = "Bearer " + tok.token;
@@ -122,15 +220,7 @@ export const Enclave = {
     }
     if (opts.accountAuthOptional && this.accountToken && this._sendable(this.accountTokenBase))
       headers["Authorization"] = "Bearer " + this.accountToken;
-    let res;
-    try {
-      res = await fetch(url, { method, headers, mode: "cors", body: hasBody ? JSON.stringify(opts.body) : undefined });
-    } catch(e){
-      throw new EnclaveError("Could not reach " + url + ". Check the endpoint is live and returns CORS headers.", 0);
-    }
-    const text = await res.text();
-    let data = null;
-    if (text){ try { data = JSON.parse(text); } catch(e){ data = text; } }
+    const { res, data } = await this._fetch(method, url, headers, hasBody ? JSON.stringify(opts.body) : undefined);
     if (!res.ok){
       // an account token the relay no longer honors is dead weight - drop the
       // stored session so the UI flips back to signed-out instead of erroring
@@ -141,10 +231,7 @@ export const Enclave = {
       // means every retry fails identically until localStorage is cleared by
       // hand. Drop it so the next attempt re-mints against the right enclave.
       if (res.status === 401 && opts.enclave) this.setSessionFor(opts.enclave, null);
-      const msg = (data && data.message) ? data.message
-        : (typeof data === "string" && data) ? data
-        : ("HTTP " + res.status + " " + res.statusText);
-      throw new EnclaveError(msg, res.status, data);
+      throw this._httpError(res, data);
     }
     return data;
   },
@@ -193,20 +280,34 @@ export const Enclave = {
       return r.json();
     });
   },
-  /* Deployments. List/get are PUBLIC ledger reads: a session token gives the
-     enclaves' live view (status/network), but a connected wallet alone is
-     enough - the relay scopes by ?owner= (on-chain records are public data;
-     SIWE stays for what's actually private: logs, attestation, private apps). */
+  /* Deployments. List/get are PUBLIC ledger reads: the wallet session (or a
+     per-host token) gives the enclaves' live view (status/network), but a
+     connected wallet alone is enough - the relay scopes by ?owner= (on-chain
+     records are public data; logs, attestation and private apps stay owner-only). */
   createDeployment(body){ return this._req("POST", "/deployments", { auth: true, body }); },
-  listDeployments(query){
+  async listDeployments(query){
+    // the wallet session: the relay verifies it (api.status) for the ledger merge and the hosts it fans out to
+    // answer their live rows to it. ?owner= rides along (signed like the rest of the URL) so a relay that
+    // predates sessions still scopes the ledger. Refused or unusable: the paths below, unchanged.
+    if (this.address){
+      const r = await this._sessionReq("GET", "/deployments", { query: { ...(query || {}), owner: this.address }, scope: "api.status" });
+      if (r) return r.data;
+    }
     // a sticky session minted for another account would scope the fan-out AND
     // the ledger merge to THAT wallet - fall back to the public ?owner= read
     if (this.token && this._forWallet(this.token)) return this._req("GET", "/deployments", { auth: true, query });
     if (!this.address) throw new EnclaveError("Connect your wallet first.", 401);
     return this._req("GET", "/deployments", { query: { ...(query || {}), owner: this.address } });
   },
-  getDeployment(id){
+  async getDeployment(id){
     const path = "/deployments/" + encodeURIComponent(id);
+    // the host's live view through the session; the relay answers the ledger view when the host can't. No
+    // ?owner= here: a record the session's VAULT holds is not the wallet's, and an owner-scoped fallback would
+    // call it someone else's (unscoped is fine - ledger records are public)
+    if (this.address){
+      const r = await this._sessionReq("GET", path, { scope: "api.status" });
+      if (r) return r.data;
+    }
     if (this.token && this._forWallet(this.token)) return this._req("GET", path, { auth: true });
     return this._req("GET", path, { query: this.address ? { owner: this.address } : {} });
   },
@@ -217,12 +318,12 @@ export const Enclave = {
      control-plane route, which is what makes it safe to hand to a page on the
      tenant's own origin. `enclave` names the box hosting it - sessions are
      per-box, and only the host can mint for its own deployments. */
-  appToken(id, enclave){ return this._req("POST", "/deployments/" + encodeURIComponent(id) + "/app-token", { auth: true, enclave }); },
+  appToken(id, enclave){ return this._req("POST", "/deployments/" + encodeURIComponent(id) + "/app-token", { auth: true, enclave, scope: "api.appAccess" }); },
   /* `evacuate` = the owner is MOVING off this box: the enclave hands the lease
      back AND stands down from re-claiming it for a short window. Without it the
      source re-claims its own release within seconds (it still has the app
      staged) and the move never happens. */
-  terminateDeployment(id, enclave, evacuate){ return this._req("DELETE", "/deployments/" + encodeURIComponent(id), { auth: true, enclave, query: evacuate ? { evacuate: 1 } : undefined }); },
+  terminateDeployment(id, enclave, evacuate){ return this._req("DELETE", "/deployments/" + encodeURIComponent(id), { auth: true, enclave, scope: "api.restart", query: evacuate ? { evacuate: 1 } : undefined }); },
   /* Nudge the fleet to claim funded work. `enclave` (a box NAME) makes the
      relay send the hint to THAT box only, giving it first crack — the steer
      behind both the deploy target pick and a move. An unknown name falls back
@@ -230,9 +331,9 @@ export const Enclave = {
   claimHint(id, enclave, options = {}){ return this._req("POST", "/claim-hint", { body: { id, ...(enclave ? { enclave } : {}), ...(['cheapest', 'preferred'].includes(options.strategy) ? { strategy: options.strategy } : {}) } }); },
   getPlacement(id){ return this._req('GET', '/placement/' + encodeURIComponent(id)); },
   savePlacement(id, body, viaAccount = false){ return this._req('POST', '/placement/' + encodeURIComponent(id), { body, accountAuth: viaAccount }); },
-  restartDeployment(id, enclave){ return this._req("POST", "/deployments/" + encodeURIComponent(id) + "/restart", { auth: true, enclave }); },
-  logs(id, query, enclave){ return this._req("GET", "/deployments/" + encodeURIComponent(id) + "/logs", { auth: true, query, enclave }); },
-  attestation(id, enclave){ return this._req("GET", "/deployments/" + encodeURIComponent(id) + "/attestation", { auth: true, enclave }); },
+  restartDeployment(id, enclave){ return this._req("POST", "/deployments/" + encodeURIComponent(id) + "/restart", { auth: true, enclave, scope: "api.restart" }); },
+  logs(id, query, enclave){ return this._req("GET", "/deployments/" + encodeURIComponent(id) + "/logs", { auth: true, query, enclave, scope: "api.logs" }); },
+  attestation(id, enclave){ return this._req("GET", "/deployments/" + encodeURIComponent(id) + "/attestation", { auth: true, enclave, scope: "api.status" }); },
   /* System (public) */
   health(){ return this._req("GET", "/health"); },
   version(){ return this._req("GET", "/version"); },

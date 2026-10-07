@@ -12,18 +12,21 @@
    Everything here goes through the shared SDK (sdk/sessions,
    vendored as /vendor/sessions.js, loaded on first use).
    ============================================================ */
-import { Enclave, EnclaveError } from "./api.js";
+import { Enclave, EnclaveError, WALLET_SESSION_KEY } from "./api.js";
 import { APP_CATALOG_RPCS, USDC_BASE } from "./config.js";
 import { $, esc, lsGet, lsSet, lsDel, showToast, emit } from "./util.js";
 import { decodeLedgerCall, walletRecordPlan, needsCap } from "./ledger-calls.js";
 
-const ACTIVE = "enclave_wallet_session";      // id (sid) of this browser's active session
+const ACTIVE = WALLET_SESSION_KEY;            // id (sid) of this browser's active session
 let _sdk = null, _cfg = null, _cur = null;
+let _st = null;                               // { sid, at, st }: the last status read (statusOf)
 
 export async function sdk(){
   if (!_sdk) _sdk = import("/vendor/sessions.js").catch((e) => { _sdk = null; throw new EnclaveError("Could not load the sessions client: " + (e.message || e), 0); });
   return _sdk;
 }
+/** Tests only (test/site-session-auth.test.mjs): stand in for the vendored SDK, which Node cannot import. */
+export function _useSdkForTests(mod){ _sdk = Promise.resolve(mod); _cur = null; _st = null; }
 
 /** relay sessions config (chain, factory, relayer); null when this relay has sessions off */
 export async function sessionsConfig(){
@@ -62,9 +65,59 @@ export async function sessionStatus(){
   const c = await currentSession();
   if (!c) return null;
   try {
-    const st = await c.session.status();
+    const st = await statusOf(c, true);
     return { ...st, owner: c.owner, vault: c.session.handle.vault, sid: c.session.handle.sid, label: c.record.label };
   } catch(e){ return { error: e.message, owner: c.owner }; }
+}
+
+const lower = (a) => String(a || "").toLowerCase();
+const nowSec = () => Math.floor(Date.now() / 1000);
+/* The session's on-chain status, cached briefly: owner calls (a log poll every 5 s) must not each cost a chain
+   read. Every read also refreshes api.js's synchronous view (Enclave.sessionMayServe). */
+async function statusOf(c, fresh = false){
+  if (!fresh && _st && _st.sid === c.record.id && Date.now() - _st.at < 30_000) return _st.st;
+  const st = await c.session.status();
+  _st = { sid: c.record.id, at: Date.now(), st };
+  Enclave._ownerSession = { sid: c.record.id, owner: lower(c.owner), live: Boolean(st.live), expiresAt: Number(st.expiresAt) };
+  return st;
+}
+/* this browser's session is over (ended elsewhere, expired): forget it and say so */
+function dropActive(){
+  lsSet(ACTIVE, ""); _cur = null; _st = null; Enclave._ownerSession = null;
+  emit("enclave:session", { active: false });
+}
+
+/** The Authorization header for one owner call a HOST serves (api.js _sessionReq): `EnclaveSession v1 …` over
+ *  the exact method, URL and body, or null when this browser's session can't make it - none, another wallet's,
+ *  over, missing `scope`, or a URL that isn't the configured API endpoint (`Enclave.base`) of the relay the
+ *  session was opened against. Never prompts. */
+export async function hostAuthorization(method, url, body, scope){
+  if (!Enclave.address || !lsGet(ACTIVE)) return null;
+  const base = String(Enclave.base || "").replace(/\/+$/, "");
+  if (!base || !String(url).startsWith(base + "/")) return null;
+  const c = await currentSession().catch(() => null);
+  if (!c || lower(c.owner) !== lower(Enclave.address)) return null;
+  const opened = String(c.record.relay || (c.session.handle && c.session.handle.relay) || "").replace(/\/+$/, "");
+  if (opened && opened !== relayRoot().replace(/\/+$/, "")) return null;
+  const st = await statusOf(c).catch(() => null);
+  if (!st || !st.live || Number(st.expiresAt) <= nowSec()) return null;
+  if (scope){
+    const bit = (await sdk()).ACTIONS[scope];
+    if (bit == null || ((BigInt(st.actions) >> BigInt(bit)) & 1n) !== 1n) return null;
+  }
+  return c.session.apiAuthorization(method, url, body === undefined ? "" : body);
+}
+
+/** After a host answered 401 to a session-signed call: is the session still live on the chain? (true = the host
+ *  hasn't learned sessions yet.) A session that is over is forgotten here. Unreadable = assume live. */
+export async function sessionStillLive(){
+  const c = await currentSession().catch(() => null);
+  if (!c) return false;
+  let st;
+  try { st = await statusOf(c, true); } catch(e){ return true; }
+  if (st.live && Number(st.expiresAt) > nowSec()) return true;
+  dropActive();
+  return false;
 }
 
 function browserLabel(){
@@ -99,7 +152,7 @@ export async function startSession({ budgetUsd = 0, hours = 12 } = {}){
   }
   const rec = await S.completeSession(st, record, { vault: info.vault, owner: Enclave.address, grant, rpc: rpcFor(cfg) });
   lsSet(ACTIVE, rec.id);
-  _cur = null;
+  _cur = null; _st = null; Enclave._ownerSession = null;
   await accountFromSession().catch(() => {});      // relay account token, derived from the session
   emit("enclave:session", { active: true });
   return currentSession();
@@ -122,7 +175,7 @@ export async function accountFromSession(){
 export async function endSession({ quiet = false } = {}){
   const c = await currentSession().catch(() => null);
   lsSet(ACTIVE, "");
-  _cur = null;
+  _cur = null; _st = null; Enclave._ownerSession = null;
   if (!c) return null;
   let out = null;
   try { out = await c.session.terminate(); }
@@ -176,7 +229,7 @@ export async function sessionCall(action, args){
       const ok = await promptTopUp(need, e.code === "period");
       if (ok) return sessionCall(action, args);
     } else if (e && (e.code === "expired" || e.code === "not_live")) {
-      lsSet(ACTIVE, ""); _cur = null; emit("enclave:session", { active: false });
+      dropActive();
       throw new EnclaveError("Your session " + (e.code === "expired" ? "expired" : "ended") + ". Sign in again to continue.", 401);
     }
     const err = new EnclaveError(friendly(e), 0);

@@ -75,6 +75,18 @@ function walletReady(ms){
   });
 }
 
+/* The connected wallet's app: it holds the record, or its session vault does (the
+   session opens those; the host checks the session's vault against the record). */
+async function ownedHere(owner){
+  const o = String(owner || "").toLowerCase(), me = String(Enclave.address || "").toLowerCase();
+  if (!o || !me) return false;
+  if (o === me) return true;
+  try {
+    const v = await (await import("../core/sessions.js")).vaultOf(Enclave.address);
+    return !!(v && v.vault && String(v.vault).toLowerCase() === o);
+  } catch(e){ return false; }
+}
+
 function fatal(body, msg){
   body.innerHTML = card('<p class="co-note">' + esc(msg) + '</p>' +
     '<a class="btn" href="dashboard">Go to your dashboard</a>');
@@ -123,27 +135,26 @@ async function mount(){
       location.replace(origin + wantedPath(origin));
       return;
     }
-    if (String(dep.owner || "").toLowerCase() !== String(Enclave.address || "").toLowerCase())
+    if (!(await ownedHere(dep.owner)))
       return fatal(body, "This app is private and belongs to another wallet. Switch wallets and try again.");
 
     const host = String(dep.enclave || "").trim();
     if (!host) return fatal(body, "This app is not running right now, so there is nothing to open yet.");
 
-    if (!Enclave.authedFor(host))
-      await go("Sign in", "Sign the sign-in message to open this app. It authorizes no transaction.");
-
-    body.innerHTML = card('<p class="co-note">Signing you in…</p>');
-    // One signature per box, cached and reused; _asHost's retry shape - a
-    // cached session the box no longer honours 401s, so re-sign once.
-    const mint = async () => {
-      if (!Enclave.authedFor(host)) await authenticate({ enclave: host });
-      return Enclave.appToken(id, host);
-    };
+    // The wallet session first (api.js signs the mint with it - the host checks
+    // it against the chain), or a sign-in this box already gave us: no prompt.
+    body.innerHTML = card('<p class="co-note">Opening the app…</p>');
     let out;
-    try { out = await mint(); }
+    try { out = await Enclave.appToken(id, host); }
     catch(e){
-      if (e && e.status === 401){ await authenticate({ enclave: host }); out = await Enclave.appToken(id, host); }
-      else throw e;
+      if (!e || e.status !== 401) throw e;
+      // Neither works here: no session, a host that hasn't learned sessions
+      // yet, or a cached sign-in it no longer honours (api.js dropped it). One
+      // signature to THIS box, asked for with a click, then the mint once more.
+      await go("Sign in", "Sign the sign-in message to open this app. It authorizes no transaction.");
+      body.innerHTML = card('<p class="co-note">Signing you in…</p>');
+      await authenticate({ enclave: host });
+      out = await Enclave.appToken(id, host);
     }
     if (!out || !out.token) return fatal(body, "The enclave did not return a token. Try again.");
 

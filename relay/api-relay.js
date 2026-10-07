@@ -524,6 +524,7 @@ async function custody() {
 }
 const beneficialOwner = async (o) => (await custody()).beneficialOwner(o);
 const custodyRefusal = async (row) => (await custody()).custodyRefusal(row);
+const isSessionAuth = (auth) => /^EnclaveSession /.test(String(auth || ""));
 // `Authorization: EnclaveSession v1 ...` on a relay route: the verified session ({ owner, vault, sid, envs, ... }), or
 // null when the request carries no session header (callers fall back to their wallet-signature path). A bad session
 // header THROWS (401/403). The signed host is the Host header ONLY - Caddy preserves it, and a client-supplied
@@ -1250,7 +1251,9 @@ async function tenantRoute(id, { auth = null } = {}) {
   const pool = live.filter((e) => !e.relay && computeEligible(e) && e.mode !== "hv-node");
   if (!pool.length) return deny(503, "no_eligible_host", "No eligible host is serving tenant apps right now.");
   let ep = null;
-  if (auth && fanoutReserve(pool.length)) {
+  // A wallet session's header is SINGLE-USE per host (nonce) and signed for one URL: probing every host with it
+  // would spend it on the box that owns the id before the real request got there, and hand it to all the others.
+  if (auth && !isSessionAuth(auth) && fanoutReserve(pool.length)) {
     try {
       const found = await Promise.all(pool.map(async (e) => {
         const r = await probe(`${e.endpoint}/v1/deployments/${encodeURIComponent(h)}`, { headers: { Authorization: auth, Accept: "application/json" } });
@@ -1983,9 +1986,26 @@ const ownerScope = (u, req) =>
 // status/network - only for token holders; enclaves verify), then merge
 // in the LEDGER's rows for the wallet - every on-chain deployment appears
 // whether or not an enclave hosts it right now.
+//
+// A WALLET SESSION (Authorization: EnclaveSession v1 ..., scope api.status) is
+// verified HERE against the chain, so it names its owner outright (a Bearer
+// token's sub is only decoded): the ledger merge is the owner's rows plus the
+// rows its session vault holds. The header itself travels to the fan-out
+// UNCHANGED - the hosts verify it for their own rows - and a host that answers
+// it 401 (one that predates sessions) is just a host without a live view; it
+// never turns the verified owner's list into a 401. A relay with sessions off
+// cannot verify: the header still fans out, the ledger is scoped by ?owner=.
 async function listDeployments(u, req, res) {
   const auth = req.headers.authorization;
-  const addr = ownerScope(u, req);
+  let session = null;
+  if (isSessionAuth(auth)) {
+    try { session = await sessionAuthFull(req, null, "api.status"); }
+    catch (e) {
+      if (e.status !== 503) return json(res, e.status || 401, { error: e.code || "unauthorized", message: e.message }, req);
+    }
+  }
+  const addr = session ? session.owner.toLowerCase() : ownerScope(u, req);
+  const holders = new Set([addr, session && String(session.vault).toLowerCase()].filter(Boolean));
   // no token = no enclave view (they'd all 401); the ledger alone answers
   // U7 (enclave-d1's review): the caller's SESSION rides this fan-out, so it goes to ELIGIBLE hosts only. An ineligible
   // live row (a token tunnel, a relay, an hv-node) never receives a session minted by a box that could be replayed there.
@@ -1994,8 +2014,10 @@ async function listDeployments(u, req, res) {
   const answered = rs.filter(Boolean);
   const oks = answered.filter((x) => x.r.status === 200);
   // the fleet REFUSING a presented token is real (expired/garbage session):
-  // surface it rather than mask it with public ledger rows
-  if (auth && answered.length && !oks.length && answered.every((x) => x.r.status === 401))
+  // surface it rather than mask it with public ledger rows. Not a session: the
+  // relay judged that one itself, and a 401 from every host only says none of
+  // them takes sessions yet
+  if (auth && !isSessionAuth(auth) && answered.length && !oks.length && answered.every((x) => x.r.status === 401))
     return sendForwarded(res, answered[0].r, req);
   if (!addr && !oks.length)
     return json(res, 401, { error: "unauthorized", message: "Pass ?owner=0x… (or a session token) to say whose deployments to list." }, req);
@@ -2078,7 +2100,7 @@ async function listDeployments(u, req, res) {
   if (addr) {
     try {
       for (const d of await ledgerRows()) {
-        if (d.owner.toLowerCase() !== addr || seen.has(d.id.toLowerCase())) continue;
+        if (!holders.has(d.owner.toLowerCase()) || seen.has(d.id.toLowerCase())) continue;
         const view = ledgerView(d);
         // ledgerStatus says "running" for lease-live + runner-alive — but a
         // runner that answered this owner's list WITHOUT the id is not serving
