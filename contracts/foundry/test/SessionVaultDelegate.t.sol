@@ -11,7 +11,8 @@ import { EnclaveDeployments as LedgerR15D } from "../../../deploy/ledger/Enclave
 contract SessionVaultDelegateTest is SessionRig {
     uint8 constant CREATE = 0; uint8 constant FUND = 1; uint8 constant SET_APPREF = 2; uint8 constant SET_CONFIG = 3;
     uint8 constant SET_SHARES = 4; uint8 constant SET_MAXRATE = 5; uint8 constant SET_ACTIVE = 6; uint8 constant REFUND = 7;
-    uint256 constant DELEGATE_SLOT = 23;              // isDelegate's storage slot (recorded with the deployment)
+    uint256 constant DELEGATE_SLOT = 23;
+    uint256 constant SK3 = 0x5E57;              // isDelegate's storage slot (recorded with the deployment)
     LedgerR15D led;
 
     function setUp() public override {
@@ -136,6 +137,20 @@ contract SessionVaultDelegateTest is SessionRig {
         bytes32 sid2 = _openWithDeposit(g);
         _execAs(SK2, sid2, 0, FUND, abi.encode(id, uint256(1e6)), 0);
         assertEq(led.get(id).balance6, 1e6, "named: funded, the fee at most half (prepareFund)");
+        // named, genuine, but above THIS grant's publisher-fee ceiling ($0.36/h > $0.30/h)
+        (uint256 x3, uint256 y3) = vm.publicKeyP256(SK3);
+        SessionVault.Grant memory g3 = _grant(keccak256(abi.encode(x3, y3)), 10e6);
+        g3.apps = _strs(vm.toString(storeAppId));
+        g3.maxAppFeePerHour = 300_000;
+        g3.grantNonce = keccak256("ceiling");
+        bytes32 sid3 = _openWithDeposit(g3);
+        uint64 deadline = uint64(vm.getBlockTimestamp() + 120);
+        bytes memory fargs = abi.encode(id, uint256(1e6));
+        bytes32 dg = _callDigest(sid3, 0, FUND, fargs, 0, deadline);
+        (bytes32 r, bytes32 s2) = vm.signP256(SK3, sha256(abi.encodePacked(dg)));
+        vm.prank(relayer);
+        vm.expectRevert(abi.encodeWithSelector(SessionVault.AppFeeTooHigh.selector, uint256(360_000), uint256(300_000)));
+        vault.execute(sid3, 0, FUND, fargs, 0, deadline, x3, y3, r, s2);
     }
 
     function test_anUnadoptedVaultRecordStaysInert() public {
