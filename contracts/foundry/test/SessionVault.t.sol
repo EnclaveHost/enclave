@@ -1031,6 +1031,42 @@ contract SessionVaultTest is SessionRig {
         assertEq(ledger.get(id).rate, 2500);
     }
 
+    function test_fundRefusesAPaidLeaseUnderTwiceTheFee() public {
+        // a host asking half the fee: the runner share is real, but the publisher would take 2/3
+        SessionVault.Grant memory g = _grant(keyHash, 50e6);
+        g.apps = _strs(vm.toString(storeAppId));
+        bytes32 sid = _openWithDeposit(g);
+        bytes32 id = abi.decode(_exec(sid, 0, CREATE, _createArgsRate(storeRef, 1, 1e6, 1000), 0), (bytes32));
+        address op = makeAddr("half-operator"); bytes32 enc = keccak256("half-enclave");
+        reg.set(enc, op);
+        vm.startPrank(op);
+        ledger.offerJobRate(id, enc, 50, uint64(vm.getBlockTimestamp() + 1 days));
+        ledger.claim(id, enc);
+        vm.stopPrank();
+        (uint256 rr,,) = ledger.earnOf(id);
+        assertEq(ledger.get(id).rate, 150);
+        assertGt(rr, 0);
+        _execExpectRevert(sid, 1, FUND, abi.encode(id, uint256(10e6)), 0,
+            abi.encodeWithSelector(SessionVaultLib.FundRateTooLow.selector, 150, 200));
+    }
+
+    function test_fundRefusesARateThatEscrowsNothing() public {
+        // a 1-unit job rate rounds the runner rate to 0: a top-up would go wholly to the platform
+        bytes32 sid = _openWithDeposit(_grant(keyHash, 50e6));
+        bytes32 id = abi.decode(_exec(sid, 0, CREATE, _createArgsRate(freeRef, 1, 10e6, 1000), 0), (bytes32));
+        address op = makeAddr("tiny-operator"); bytes32 enc = keccak256("tiny-enclave");
+        reg.set(enc, op);
+        vm.startPrank(op);
+        ledger.offerJobRate(id, enc, 1, uint64(vm.getBlockTimestamp() + 1 days));
+        ledger.claim(id, enc);
+        vm.stopPrank();
+        (uint256 rr,,) = ledger.earnOf(id);
+        assertEq(ledger.get(id).rate, 1);
+        assertEq(rr, 0);
+        _execExpectRevert(sid, 1, FUND, abi.encode(id, uint256(10e6)), 0,
+            abi.encodeWithSelector(SessionVaultLib.FundRateTooLow.selector, 1, 0));
+    }
+
     function test_setMaxRateNeverUnderTwiceTheFee() public {
         SessionVault.Grant memory g = _grant(keyHash, 50e6);
         g.apps = _strs(vm.toString(storeAppId));
@@ -1103,6 +1139,12 @@ contract SessionVaultTest is SessionRig {
         this.parse(string.concat("catalog://", string(big), "/0"));           // 0X
         vm.expectRevert(SessionVaultLib.BadRef.selector);
         this.parse(string.concat("catalog://", hexId, "/07"));               // leading zero
+        vm.expectRevert(SessionVaultLib.BadRef.selector);
+        this.parse(string.concat("catalog://", hexId, "/1a"));               // not a digit: would alias "/59"
+        vm.expectRevert(SessionVaultLib.BadRef.selector);
+        this.parse(string.concat("catalog://", hexId, "/1:"));               // just above '9'
+        vm.expectRevert(SessionVaultLib.BadRef.selector);
+        this.parse(string.concat("catalog://", hexId, "/1/"));               // just below '0'
         (bytes32 a, uint256 i2) = this.parse(string.concat("catalog://", hexId, "/0"));
         assertEq(a, freeAppId); assertEq(i2, 0);
     }

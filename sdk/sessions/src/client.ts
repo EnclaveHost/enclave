@@ -247,16 +247,19 @@ export async function signApiRequest(signer: SessionSigner, vault: Address, sid:
   const nb = new Uint8Array(12);
   globalThis.crypto.getRandomValues(nb);
   const n = base64url(nb);
-  const msg = apiMessage(method, u.host + u.pathname + u.search, body, ts, n);
+  const msg = apiMessage(method, u.host + u.pathname + u.search, body, ts, n, vault, sid);
   const sig = await signer.signBytes(new TextEncoder().encode(msg));
   const enc = (v: bigint) => base64url(hexBytes(v));
   return `EnclaveSession v1 vault=${vault},sid=${sid},ts=${ts},n=${n},x=${enc(signer.x)},y=${enc(signer.y)},sig=${base64url(sig)}`;
 }
 
-/** The exact bytes an API request signature covers (shared with the relay's verifier). */
-export function apiMessage(method: string, hostPath: string, body: string | Uint8Array | undefined, ts: number, n: string): string {
+/** The exact bytes an API request signature covers (shared with the relay's verifier). The vault
+ *  and session id are signed too: one key may serve several sessions (an attested agent key), and a
+ *  request signed for one must never verify under another. */
+export function apiMessage(method: string, hostPath: string, body: string | Uint8Array | undefined, ts: number, n: string,
+  vault: string, sid: string): string {
   const bodyHash = sha256Hex(body ?? new Uint8Array()).slice(2);
-  return `enclave-api-v1\n${method.toUpperCase()}\n${hostPath}\n${bodyHash}\n${ts}\n${n}`;
+  return `enclave-api-v1\n${method.toUpperCase()}\n${hostPath}\n${bodyHash}\n${ts}\n${n}\n${vault.toLowerCase()}\n${sid.toLowerCase()}`;
 }
 
 function hexBytes(v: bigint): Uint8Array {

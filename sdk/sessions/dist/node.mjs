@@ -3353,19 +3353,21 @@ async function signApiRequest(signer, vault, sid, method, url, body) {
   const nb = new Uint8Array(12);
   globalThis.crypto.getRandomValues(nb);
   const n = b64u(nb);
-  const msg = apiMessage(method, u.host + u.pathname + u.search, body, ts, n);
+  const msg = apiMessage(method, u.host + u.pathname + u.search, body, ts, n, vault, sid);
   const sig = await signer.signBytes(new TextEncoder().encode(msg));
   const enc = (v) => b64u(hexBytes(v));
   return `EnclaveSession v1 vault=${vault},sid=${sid},ts=${ts},n=${n},x=${enc(signer.x)},y=${enc(signer.y)},sig=${b64u(sig)}`;
 }
-function apiMessage(method, hostPath, body, ts, n) {
+function apiMessage(method, hostPath, body, ts, n, vault, sid) {
   const bodyHash = sha256Hex(body ?? new Uint8Array()).slice(2);
   return `enclave-api-v1
 ${method.toUpperCase()}
 ${hostPath}
 ${bodyHash}
 ${ts}
-${n}`;
+${n}
+${vault.toLowerCase()}
+${sid.toLowerCase()}`;
 }
 function hexBytes(v) {
   const h = v.toString(16).padStart(64, "0");

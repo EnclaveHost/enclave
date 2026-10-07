@@ -101,8 +101,10 @@ export declare class Session {
     apiAuthorization(method: string, url: string, body?: string | Uint8Array): Promise<string>;
 }
 export declare function signApiRequest(signer: SessionSigner, vault: Address, sid: Hex, method: string, url: string, body?: string | Uint8Array): Promise<string>;
-/** The exact bytes an API request signature covers (shared with the relay's verifier). */
-export declare function apiMessage(method: string, hostPath: string, body: string | Uint8Array | undefined, ts: number, n: string): string;
+/** The exact bytes an API request signature covers (shared with the relay's verifier). The vault
+ *  and session id are signed too: one key may serve several sessions (an attested agent key), and a
+ *  request signed for one must never verify under another. */
+export declare function apiMessage(method: string, hostPath: string, body: string | Uint8Array | undefined, ts: number, n: string, vault: string, sid: string): string;
 /** Anything that can produce an EIP-712 signature for the owner: a viem
  *  WalletClient account, or an EIP-1193 provider (MetaMask, WalletConnect). */
 export interface OwnerSigner {

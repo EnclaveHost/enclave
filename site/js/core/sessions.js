@@ -183,13 +183,20 @@ export async function sessionCall(action, args){
   }
 }
 
+// the vault's price refusals, by error: each says what actually unblocks it
+const PRICE_TEXT = {
+  LeaseUnsettled: "A host still holds this deployment's lease. Stop it, wait for the host to release it, then resize or re-price it.",
+  FundRateTooLow: "This deployment's current lease is priced so a top-up wouldn't buy runtime. Wait for the lease to end (or stop and restart the app), then top up.",
+  RateCapOutOfRange: "That price is outside what this session may pay or set.",
+};
+
 function friendly(e){
   const m = (e && e.message) || String(e);
   if (!e || !e.code) return m;
+  if (e.code === "price") return PRICE_TEXT[e.detail && e.detail.error] || PRICE_TEXT.RateCapOutOfRange;
   return ({ not_allowed: "This session isn't allowed to do that.", env: "That's a production change - it needs your wallet (promotion).",
     app: "That app isn't covered by this session.", fee: "The relay's fee is above this session's limit right now; try again shortly.",
-    rate: "Too many actions in a short time; wait a moment.", relay: "The relay couldn't submit that: " + m,
-    price: "This deployment's current price is outside what this session may pay or set - top it up or change it from your wallet." })[e.code] || m;
+    rate: "Too many actions in a short time; wait a moment.", relay: "The relay couldn't submit that: " + m })[e.code] || m;
 }
 
 function signError(e, what){

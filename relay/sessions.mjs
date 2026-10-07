@@ -364,7 +364,7 @@ export function createSessionsService(o) {
   store.data.ops ??= {};            // sid -> [op]
   store.data.held ??= {};           // deployment id -> { vault, env, promoted }
   store.data.revoked ??= {};        // sid -> unix (off-chain revocation, before or without the chain)
-  store.data.revokedVaults ??= {};  // vault -> unix (revokeAll in flight)
+  store.data.revokedVaults ??= {};  // vault -> { at, block } of a revokeAll this relay submitted (block null: in flight)
   const maxTipWei = BigInt(o.maxTipWei ?? 10_000_000n);
   const queue = new TxQueue({ pc, wc, account, journal, log, alert, maxTipWei });
   const marginBps = BigInt(o.feeMarginBps ?? 2000);
@@ -480,7 +480,7 @@ export function createSessionsService(o) {
             store.data.sessions[A.sid] = { ...(store.data.sessions[A.sid] ?? {}), vault, keyHash: A.keyHash,
               expiresAt: Math.max(Number(A.expiresAt), store.data.sessions[A.sid]?.expiresAt ?? 0),
               actions: A.actions.toString(), envs: Number(A.envs), budget6: A.budget6.toString(), label: A.label,
-              openedBlock: blk, tx: l.transactionHash };
+              openedBlock: blk ?? store.data.sessions[A.sid]?.openedBlock ?? null, tx: l.transactionHash };
             break;
           case "SessionOp": {
             const list = (store.data.ops[A.sid] ??= []);
@@ -589,11 +589,30 @@ export function createSessionsService(o) {
     if (!/^[A-Za-z0-9_-]{8,64}$/.test(f.n || "")) throw httpError(401, "unauthorized", "bad request nonce");
     const rkey = `${sid}:${f.n}`;
     if (replay.has(rkey)) throw httpError(401, "unauthorized", "replayed request");
+    // claimed BEFORE any await: concurrent copies of one signed request must not all verify
+    replay.set(rkey, now() + 120);
+    try {
+      return await verifyClaimed(f, vault, sid, ts, { method, hostPath, body, scope, fresh });
+    } catch (e) { replay.delete(rkey); throw e; }
+  }
+
+  /** A revokeAll this relay submitted also covers sessions its index hadn't seen yet: while the
+   *  revoke is in flight (<= 10 min) every session of the vault is refused, and once it is mined a
+   *  session passes only if the index saw it OPEN after that block. */
+  function revokedBeforeOpen(vault, sid) {
+    const r = store.data.revokedVaults[vault];
+    if (!r || typeof r !== "object") return false;
+    if (r.block == null) return now() - r.at < 600;
+    const ob = store.data.sessions[sid]?.openedBlock;
+    return ob == null || ob <= r.block;
+  }
+
+  async function verifyClaimed(f, vault, sid, ts, { method, hostPath, body, scope, fresh }) {
     if (store.data.revoked[sid]) throw httpError(401, "session_ended", "this session has been signed out");
     const xb = Buffer.from(f.x || "", "base64url"), yb = Buffer.from(f.y || "", "base64url");
     if (xb.length !== 32 || yb.length !== 32) throw httpError(401, "unauthorized", "bad session public key");
     const bodyHash = createHash("sha256").update(body ?? Buffer.alloc(0)).digest("hex");
-    const msg = `enclave-api-v1\n${method.toUpperCase()}\n${hostPath}\n${bodyHash}\n${ts}\n${f.n}`;
+    const msg = `enclave-api-v1\n${method.toUpperCase()}\n${hostPath}\n${bodyHash}\n${ts}\n${f.n}\n${vault.toLowerCase()}\n${sid.toLowerCase()}`;
     const key = createPublicKey({ key: { kty: "EC", crv: "P-256", x: xb.toString("base64url"), y: yb.toString("base64url") }, format: "jwk" });
     const ok = nodeVerify("sha256", Buffer.from(msg), { key, dsaEncoding: "ieee-p1363" }, Buffer.from(f.sig || "", "base64url"));
     if (!ok) throw httpError(401, "unauthorized", "bad session signature");
@@ -609,9 +628,9 @@ export function createSessionsService(o) {
       [BigInt("0x" + xb.toString("hex")), BigInt("0x" + yb.toString("hex"))]));
     if (c.st.keyHash.toLowerCase() !== keyHash.toLowerCase()) throw httpError(401, "unauthorized", "key does not belong to this session");
     if (!c.st.live) throw httpError(401, "session_ended", "this session has ended or expired");
+    if (revokedBeforeOpen(vault, sid)) throw httpError(401, "session_ended", "every session of this vault was revoked");
     if (scope && !(scope in SCOPES)) throw httpError(500, "relay", `unknown API scope ${scope}`);
     if (scope && ((c.st.actions >> SCOPES[scope]) & 1n) === 0n) throw httpError(403, "not_allowed", `this session lacks ${scope}`);
-    replay.set(rkey, now() + 120);
     if (replay.size > 50_000) for (const [k, exp] of replay) if (exp < now()) replay.delete(k);
     const owner = store.data.vaults[vault] ?? await pc.readContract({ address: vault, abi: sessionVaultAbi, functionName: "owner" });
     return { vault, sid, owner: getAddress(owner), actions: c.st.actions, envs: Number(c.st.envs),
@@ -712,7 +731,7 @@ export function createSessionsService(o) {
         }
         case "revokeAll":
           afterSimulate = () => {
-            store.data.revokedVaults[vault] = now();
+            store.data.revokedVaults[vault] = { at: now(), block: null };
             for (const [sid, s] of Object.entries(store.data.sessions)) if (s.vault === vault && !s.ended) store.data.revoked[sid] = now();
             store.flush?.();
           };
@@ -732,6 +751,11 @@ export function createSessionsService(o) {
       const revokeFirst = afterSimulate;
       const rc = await simulateAndSend({ to: vault, abi: sessionVaultAbi, functionName: fn, args, label: `${fn} ${vault.slice(0, 8)}`,
         afterSimulate: () => { rateOwner(owner, body.op, true); revokeFirst?.(); } });
+      if (fn === "revokeAll") {      // from here a session of this vault must have OPENED after this block
+        store.data.revokedVaults[vault] = { at: now(), block: Number(rc.blockNumber) };
+        for (const k of liveCache.keys()) if (k.startsWith(`${vault}:`)) liveCache.delete(k);
+        store.flush?.();
+      }
       return { txHash: rc.transactionHash, block: Number(rc.blockNumber) };
     }
     if (method === "POST" && path === "/end") {
@@ -766,7 +790,7 @@ export function createSessionsService(o) {
       const sid = mm[2].toLowerCase();
       const st = await sessionOf(vault, sid);
       return { vault, sid, state: st, index: store.data.sessions[sid] ?? null, ops: store.data.ops[sid] ?? [],
-        revoked: Boolean(store.data.revoked[sid]) };
+        revoked: Boolean(store.data.revoked[sid]) || revokedBeforeOpen(getAddress(mm[1]), sid) };
     }
     throw httpError(404, "not_found", "no such sessions endpoint");
   }
@@ -965,7 +989,8 @@ function readAll(req) {
 // relay that cannot submit sessions still refuses an unpromoted prod release.
 // ============================================================================
 
-export function createCustodyGate({ pc, book, factory: fixedFactory = null, factories: history = [], ttlMs = 60_000 }) {
+export function createCustodyGate({ pc, book, factory: fixedFactory = null, factories: history = [], ttlMs = 60_000,
+  knownVault = null }) {
   let factory = fixedFactory ? getAddress(fixedFactory) : null;
   // a vault of ANY factory we ever ran stays recognised: a v1 vault's unpromoted prod record must not
   // start releasing secrets because a v2 factory replaced v1 in the book
@@ -985,11 +1010,11 @@ export function createCustodyGate({ pc, book, factory: fixedFactory = null, fact
   }
 
   /** the vault's owner when `addr` is a SessionVault of the book's factory, else null */
-  async function vaultOwnerOf(a) {
+  async function vaultOwnerOf(a, { fresh = false } = {}) {
     const x = getAddress(a);
     if (vaultOwner.has(x)) return vaultOwner.get(x);
     const seen = notVault.get(x);
-    if (seen && Date.now() - seen < ttlMs) return null;
+    if (!fresh && seen && Date.now() - seen < ttlMs) return null;
     const current = await getFactory();
     const all = [...new Set([current, fixedFactory && getAddress(fixedFactory), ...older].filter(Boolean))];
     if (!all.length) { notVault.set(x, Date.now()); return null; }
@@ -1005,9 +1030,9 @@ export function createCustodyGate({ pc, book, factory: fixedFactory = null, fact
   }
 
   const codeAt = new Map();          // address -> { at, has }
-  async function hasCode(a) {
+  async function hasCode(a, { fresh = false } = {}) {
     const c = codeAt.get(a);
-    if (c && Date.now() - c.at < ttlMs) return c.has;
+    if (!fresh && c && Date.now() - c.at < ttlMs) return c.has;
     const code = await pc.getCode({ address: a });
     const has = Boolean(code && code.length > 2);
     codeAt.set(a, { at: Date.now(), has });
@@ -1047,12 +1072,15 @@ export function createCustodyGate({ pc, book, factory: fixedFactory = null, fact
       if (!row?.owner) return null;
       const a = getAddress(row.owner);
       let env, promoted;
-      if (await vaultOwnerOf(a)) {
+      // a vault this relay INDEXED (VaultCreated) or a known factory confirms is held to the strict
+      // read; nothing negative is cached on this path, so one empty getCode from a lagging or lying
+      // node can't open a window (and an indexed vault never depends on getCode at all)
+      if ((knownVault && knownVault(a)) || (await vaultOwnerOf(a, { fresh: true }))) {
         // a KNOWN vault answers held() or the release is refused: an empty answer from a
         // lagging node, a gas-cap error, anything at all, throws (fail closed)
         [env, promoted] = await pc.readContract({ address: a, abi: sessionVaultAbi, functionName: "held", args: [row.id] });
       } else {
-        if (!(await hasCode(a))) return null;
+        if (!(await hasCode(a, { fresh: true }))) return null;
         const h = await heldOf(a, row.id);
         if (!h) return null;
         [env, promoted] = h;
