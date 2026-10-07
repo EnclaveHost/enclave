@@ -130,5 +130,5 @@ export async function deployPlatform(chain, { maxVaultUsd = 1000 } = {}) {
   const owner = privateKeyToAccount(KEYS.owner).address;
   await write(usdc, A.usdc.abi, "mint", [owner, parseUnits("5000", 6)]);
   return { usdc, book, ledger, catalog, router, treasury, factory: res.factory, lib: res.lib,
-    deployBlock: res.block, storeAppId, storeRef: `catalog://${storeAppId}/0`, abi: A, write };
+    deployBlock: res.block, storeAppId, storeRef: `catalog://${storeAppId}/0`, publisher: pub.account.address, abi: A, write };
 }

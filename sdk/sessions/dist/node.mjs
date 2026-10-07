@@ -123,9 +123,11 @@ var TYPES = {
   Promote: [
     { name: "deployment", type: "bytes32" },
     { name: "app", type: "string" },
+    { name: "publisher", type: "address" },
     { name: "appRef", type: "string" },
     { name: "configCid", type: "string" },
     { name: "versionLabel", type: "string" },
+    { name: "isPublic", type: "bool" },
     { name: "opNonce", type: "bytes32" },
     { name: "signBefore", type: "uint64" }
   ],
@@ -1582,6 +1584,11 @@ var sessionVaultAbi = [
         "internalType": "string"
       },
       {
+        "name": "publisher",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
         "name": "appRef",
         "type": "string",
         "internalType": "string"
@@ -1595,6 +1602,11 @@ var sessionVaultAbi = [
         "name": "versionLabel",
         "type": "string",
         "internalType": "string"
+      },
+      {
+        "name": "isPublic",
+        "type": "bool",
+        "internalType": "bool"
       },
       {
         "name": "opNonce",
@@ -2645,6 +2657,22 @@ var sessionVaultAbi = [
         "name": "env",
         "type": "uint8",
         "internalType": "uint8"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "FundRateTooLow",
+    "inputs": [
+      {
+        "name": "rate",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "feeTimesTwo",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ]
   }

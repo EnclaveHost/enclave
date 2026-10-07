@@ -347,8 +347,11 @@ export type OwnerOp =
   | { op: "terminate"; sessionId: Hex }
   | { op: "revokeAll"; withdraw: boolean }
   | { op: "withdraw"; amount: bigint }
-  | { op: "promote"; deployment: Hex; app: string; appRef: string; configCid: string; versionLabel: string }
+  | { op: "promote"; deployment: Hex; app: string; publisher: Address; appRef: string; configCid: string;
+      versionLabel: string; isPublic: boolean }
   | { op: "adopt"; deployment: Hex; environment: string }
+  /** Moving prod -> staging clears the promotion: the record's existing production secrets become
+   *  releasable to whatever a staging session points it at. Say so before asking for the signature. */
   | { op: "setEnvironment"; deployment: Hex; environment: string }
   | { op: "release"; deployment: Hex; to: Address };
 

@@ -323,7 +323,8 @@ async function ledgerOwner(id){
   return { row, pc, catalog, S };
 }
 
-/** The app slug + version label a Promote shows on the owner's device (the vault re-checks both). */
+/** The app slug, its publisher and the version label a Promote shows on the owner's device (the vault
+ *  re-checks all three: slugs are unique only per publisher, so the publisher is what names the code). */
 export async function versionLabel(pc, catalog, appRef){
   const m = /^catalog:\/\/(0x[0-9a-f]{64})\/(0|[1-9]\d*)$/.exec(appRef || "");
   if (!m) throw new EnclaveError("A production version must be a catalog record.", 0);
@@ -333,7 +334,7 @@ export async function versionLabel(pc, catalog, appRef){
   const a = await pc.readContract({ address: catalog, abi: [{ type: "function", name: "getApp", stateMutability: "view",
     inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: [{ name: "appId", type: "bytes32" }, { name: "publisher", type: "address" },
       { name: "slug", type: "string" }] }] }], functionName: "getApp", args: [m[1]] });
-  return { label: v.version, app: a.slug };
+  return { label: v.version, app: a.slug, publisher: a.publisher };
 }
 
 /** Send one ledger call: via the session for a vault-held row, else `walletSend()` (the unchanged wallet tx). */
@@ -352,8 +353,9 @@ export async function ledgerSend(data, walletSend){
   let last = null;
   if (env === 2 && (ref || cfgc)){
     const appRef = ref ? ref.appRef : row.appRef, configCid = cfgc ? cfgc.configCid : row.configCid;
-    const { label, app } = await versionLabel(pc, catalog, appRef);
-    last = await ownerOp({ op: "promote", deployment: call.id, app, appRef, configCid, versionLabel: label });
+    const { label, app, publisher } = await versionLabel(pc, catalog, appRef);
+    last = await ownerOp({ op: "promote", deployment: call.id, app, publisher, appRef, configCid, versionLabel: label,
+      isPublic: Boolean(row.isPublic) });
   }
   for (const c of calls){
     if (env === 2 && (c.fn === "setAppRef" || c.fn === "setConfig")) continue;

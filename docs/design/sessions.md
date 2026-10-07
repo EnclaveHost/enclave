@@ -342,7 +342,8 @@ Extend(bytes32 sessionId, uint64 expiresAt, bytes32 opNonce, uint64 signBefore)
 Terminate(bytes32 sessionId, bytes32 opNonce, uint64 signBefore)       // owner OR session key
 RevokeAll(bool withdraw, bytes32 opNonce, uint64 signBefore)
 Withdraw(uint256 amount, bytes32 opNonce, uint64 signBefore)
-Promote(bytes32 deployment, string appRef, string configCid, string versionLabel, bytes32 opNonce, uint64 signBefore)
+Promote(bytes32 deployment, string app, address publisher, string appRef, string configCid, string versionLabel,
+        bool isPublic, bytes32 opNonce, uint64 signBefore)                // as built, §15
 Adopt(bytes32 deployment, string environment, bytes32 opNonce, uint64 signBefore)
 SetEnvironment(bytes32 deployment, string environment, bytes32 opNonce, uint64 signBefore)
 Release(bytes32 deployment, address to, bytes32 opNonce, uint64 signBefore)
@@ -753,7 +754,7 @@ Nothing merges to main while the deploy base is stale (any push to main currentl
 | Area | Files |
 |---|---|
 | Contracts | `contracts/SessionVault.sol` (SessionVault, SessionVaultLib (linked), SessionVaultFactory); `contracts/EnclaveKeyAttestations.sol` |
-| Tests | `contracts/foundry/test/SessionVault*.t.sol` (unit, fuzz, handler invariants); `contracts/foundry/test/session-vault-mutants.py` (37 mutants, all killed) |
+| Tests | `contracts/foundry/test/SessionVault*.t.sol` (unit, fuzz, handler invariants); `contracts/foundry/test/session-vault-mutants.py` (57 mutants) |
 | Relay | `relay/sessions.mjs` (relayer, keeper, index, API verifier, custody gate), wired in `relay/api-relay.js`; `relay/auth.js` (`/v1/account/session-login`); custody gate in `relay/secrets.js`, `secrets-release.mjs`, `shield-secrets.mjs`; beneficial owner in `relay/domains.js`, `placement.mjs` |
 | SDK | `sdk/sessions/` (TypeScript; `dist/node.mjs`, `dist/browser.mjs` -> `site/vendor/sessions.js`) |
 | CLI | `cli/enclave.mjs` `enclave session …` |
@@ -780,4 +781,15 @@ Nothing merges to main while the deploy base is stale (any push to main currentl
 - **Off-chain revocation happens after the vault accepts:** the relay revokes a session's API access only after the vault has accepted the terminate or revoke signature in simulation, then submits. A forged sign-out request can't cut anyone off.
 - **Deployments panel:** every owner-gated ledger call the panel builds goes through `ledgerSend`. A row held by the wallet's vault is decoded and replayed as the matching session action; on prod, version and config changes become one owner Promote signature. Wallet-held rows send the same wallet transaction as before.
 - **Beta cap (D5):** `MAX_VAULT_USD` defaults to $250 per vault in the deploy script. No deposit may lift a vault's balance above it; ledger refunds can.
+- **Funding buys runtime at a price the grant allows** (second review, F1/F3). The ledger splits every funding by the record's *current* rate, not by the cap the vault checked at create. A host's zero job-rate claim followed by `release` leaves the rate at the fee (or at 0 for a free app); a funding then pays the publisher (or the platform) everything, escrows nothing for a runner, and refunds nothing. So `deploy.fund` now:
+  - refuses a record whose cap is 0 or above the grant's `maxRatePerHour`;
+  - re-bases an unleased record on its cap first (`setMaxRate(id, cap)`, the ledger's own unleased rule);
+  - refuses (`FundRateTooLow`) when the rate the funding would split at is 0 or under twice the fee. A live lease priced like that is funded from the owner's wallet, never by a session.
 
+  `deploy.setMaxRate` also refuses a cap under twice the fee. The ledger keeps the underlying behaviour (a job rate of 0 is allowed, and `release` leaves the lease's rate behind); that needs a ledger change and is out of scope here.
+- **`ownerCall` refuses `multicall(bytes[])`** on any target (second review, F2): a batch could carry a `transferDeployment` that the custody cleanup can't see. The owner makes one call at a time.
+- **Promote binds the publisher and the exposure** (second review, F6). Slugs are unique only per publisher, so anyone can publish a copy of an app's slug and version label. Promote now signs the app's `publisher` address and the record's `isPublic`, and the vault checks both against the catalog and the ledger. A session chooses `isPublic` at create, and the ledger can't change it afterwards. The `/sessions` promote prompt names the publisher ("you", "your vault", or the address marked NOT you), the config CID and public or private access. Ports and shares are not bound: they are routing, while the promoted code and config are what secrets are released to.
+- **Custody gate needs no factory list** (second review, F4). The gate applies to any contract owner that answers `held(id)`, not just vaults of factories the relay knows. A vault from a factory rotated out of the book still has its unadopted and unpromoted records refused. An impostor contract answering `held()` only makes its own records stricter. A contract with no `held()` (it reverts or returns nothing) passes like a wallet. Any other read failure throws, and the release paths refuse. `SESSIONS_FACTORIES` is now used only for `beneficialOwner`.
+- **SSO tokens from a session are short** (second review, F5). An `est1` token can't be recalled once an app holds it. One minted with a session-derived account token lasts at most 10 minutes and never beyond that token's expiry.
+- **Known limitation, ledger migration** (second review, F7). `held` is keyed by deployment id alone. If the book ever points at a new ledger that does not import the vault's records, the new ledger re-issues `keccak(vault, n)` ids, and session `create` reverts `Exists` until the nonce passes them. The vault keeps refusing rather than overwriting a custody record. The owner recovers by creating through `ownerCall` (which advances the ledger nonce), then releasing or re-adopting those records. A migration that imports records (the ledger's `importDeployments` path) is unaffected.
+- **Demoting prod to staging re-opens its secrets to session-chosen code.** `setEnvironment(id, "staging")` clears `promoted`. Secrets are stored per deployment, not per environment, so the record's existing production secrets become releasable to whatever a staging session points it at. Only the owner can do this, and it is deliberate; owner UIs must say so before signing.

@@ -45,6 +45,10 @@ import { makeRateLimiter } from "./store.js";
 import { accountsEnabled, verifyAccountSession } from "./auth.js";
 
 const TTL_DEFAULT = 86400, TTL_MIN = 300, TTL_MAX = 604800;
+// a wallet session's account token dies with the session (auth.js), but an est1 an
+// app already holds can't be recalled: a session-derived one is short and never
+// outlives the session's own token
+const TTL_SESSION_MAX = 600;
 
 let enabled = false;
 let signer = null;            // viem local account (lazy import, auth.js pattern)
@@ -121,6 +125,8 @@ export async function handleSso(req, res, u, ctx) {
     if (!Number.isFinite(ttl)) ttl = TTL_DEFAULT;
     ttl = Math.max(TTL_MIN, Math.min(TTL_MAX, ttl));
     const iat = Math.floor(Date.now() / 1000);
+    if (sess.sid) ttl = Math.min(ttl, TTL_SESSION_MAX, Number(sess.exp) - iat);
+    if (!(ttl > 0)) return err(ctx, res, req, 401, "unauthorized", "Sign in first.");
     // the session IS the identity: whoever this account proved itself to be
     // (passkey or wallet), that is who the app is told showed up
     const token = await mintEst1({ sub: sess.accountId, aud, iat, exp: iat + ttl });
