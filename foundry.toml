@@ -28,6 +28,12 @@ via_ir = true
 paths = "contracts/EnclaveDeployments.sol"
 optimizer_runs = 1
 
+# The deployable ledger revision (live rev 15 + owner-approved delegates), outside src: only the
+# tests that import it compile it, at the same runs=1 the deploy pipeline uses.
+[[profile.default.compilation_restrictions]]
+paths = "deploy/ledger/EnclaveDeployments.sol"
+optimizer_runs = 1
+
 # SessionVault: deployed once and cloned per owner; its size is the binding
 # constraint, not per-call gas (the P-256 precompile dominates a session op).
 [[profile.default.compilation_restrictions]]
