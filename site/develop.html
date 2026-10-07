@@ -120,6 +120,10 @@
             <li><a href="#docs-limits"><span class="n">17</span>Limits &amp; sandbox</a></li>
             <li><a href="#docs-troubleshoot"><span class="n">18</span>Troubleshooting</a></li>
           </ul>
+          <div class="grp">Agents</div>
+          <ul>
+            <li><a href="#docs-sessions"><span class="n">19</span>Wallet sessions</a></li>
+          </ul>
         </nav>
       </aside>
 
@@ -879,6 +883,53 @@ curl -H "Authorization: Bearer $LOGIN_TOKEN" \
           </ol>
         </article>
 
+        <!-- 19 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-sessions">
+          <h3><span class="n">19</span>Wallet sessions: let an agent act without your key</h3>
+          <p>Every on-chain change above is a wallet transaction. A <b>session</b> lets an agent, a script or a browser tab make those changes without holding your wallet key. It is a P-256 key, a policy and an optional USDC budget, approved <b>once</b> by your wallet. The key signs each action, the platform's relayer submits it to your <b>session vault</b> (one <code>SessionVault</code> contract per wallet, on Base), and the vault checks the policy on-chain before it calls the ledger or the catalog. There is no wallet prompt per action and no ETH: the relayer is reimbursed a small USDC fee per operation out of the session's budget, at a price the key itself signed. The vault has no admin, so you can always end a session or withdraw straight from your wallet.</p>
+
+          <h4>What a policy allows</h4>
+          <div class="tbl"><table class="params">
+            <thead><tr><th scope="col">field</th><th scope="col">meaning</th></tr></thead>
+            <tbody>
+              <tr><th scope="row" class="pname">actions</th><td>On-chain: <code>deploy.create</code>, <code>deploy.fund</code>, <code>deploy.setAppRef</code> and <code>deploy.setConfig</code> (staging only), <code>deploy.setShares</code>, <code>deploy.setMaxRate</code>, <code>deploy.setActive</code>, <code>deploy.refund</code>, <code>app.publish</code>. API scopes the relay enforces from the same grant: <code>api.status</code>, <code>api.logs</code>, <code>api.restart</code>, <code>api.upload</code>, <code>api.appAccess</code>, <code>api.placement</code>, <code>api.account</code>.</td></tr>
+              <tr><th scope="row" class="pname">environments</th><td><code>staging</code> and/or <code>prod</code>. A deployment your vault holds is one or the other; every deployment your <b>wallet</b> holds counts as <code>prod</code>. A session never changes what a production deployment runs.</td></tr>
+              <tr><th scope="row" class="pname">apps</th><td>Up to 8: a slug of your vault's own apps, <code>0x&lt;appId&gt;</code> for any app, or <code>*</code> for any free app. Paid apps and publishing always need the app named.</td></tr>
+              <tr><th scope="row" class="pname">budget &amp; limits</th><td>USDC escrowed now; spend and operations per period; the relay fee cap per operation; the publisher-fee ceiling; the ceiling on any price cap it sets.</td></tr>
+              <tr><th scope="row" class="pname">expiry</th><td>After it nothing passes, and the unspent budget returns to your wallet.</td></tr>
+            </tbody>
+          </table></div>
+          <p>Presets: <code>browser</code> (sign-in on enclave.host: every deployment action, any free app, staging and prod, $0 budget, 12 h), <code>staging-publish</code> (agents: publish and run named apps on staging only, $10 escrowed, $5/day, 7 days) and <code>auth-only</code> (status reads, no money).</p>
+
+          <h4>Open one from a terminal</h4>
+          <c-code fn="agent terminal · enclave session"><pre><code>enclave session new --preset staging-publish --app myapp-staging --budget 10 --days 7 --label "Claude Code"
+# prints what it allows, a check code (3F9A-0C1E) and https://enclave.host/grant#…
+# you open the link, compare the check code, and sign: once, or twice with a budget
+# (the grant, then the USDC it escrows). The relayer submits; you need no ETH.
+
+enclave publish …                 # now acts through the session, no wallet prompt
+enclave session status            # budget, spend, time left
+enclave session terminate         # sign out: the unspent budget returns to you</code></pre></c-code>
+          <p>Add <code>--env</code> to print <code>export ENCLAVE_SESSION=…</code> instead of storing a key file, for agents that keep secrets in their environment. Treat that value as a key. The full walkthrough is <a href="https://github.com/EnclaveHost/enclave/blob/main/docs/guides/claude-code-staging-session.md" target="_blank" rel="noopener">Give Claude Code a staging session</a>.</p>
+
+          <h4>The apps your wallet owns</h4>
+          <p>A session can also manage the deployments your wallet holds, where they are. You allow it once, for your vault, with one wallet transaction to the deployments ledger: <a href="sessions">Sessions</a> → <b>Apps your wallet owns</b> → <b>Grant</b>, or <code>enclave session delegate</code> run with your wallet key. After that, every session whose grant covers <code>prod</code> may, within its own actions:</p>
+          <ul>
+            <li>suspend and resume, resize, and lower the price cap;</li>
+            <li>add runtime out of its budget, credited to your wallet (a paid app only if the grant names it and its fee is under the grant's ceiling);</li>
+            <li>cancel, with the refund paid to your wallet.</li>
+          </ul>
+          <p>It can never change the version or config a wallet-held app runs, raise its price cap, move it out of your wallet, or touch its secrets. <b>Revoke</b> on the same card, or <code>enclave session delegate --revoke</code>, cuts every session off your wallet's apps in one transaction. Staging-only sessions, such as the <code>staging-publish</code> preset, never reach them.</p>
+          <div class="doc-note warn">
+            <span class="nt">A production session reaches all of them</span>
+            <p>The grant's app list narrows only which paid apps a session may fund. A session holding <code>prod</code> and <code>deploy.setActive</code> can stop <i>any</i> app your wallet owns. Give production to agents sparingly: only the actions they need, a small budget, a short expiry.</p>
+          </div>
+
+          <h4>Always your wallet's</h4>
+          <p>Topping up, extending or withdrawing from the vault; promoting a version to production; opening, changing or ending other sessions; secrets and custom domains; moving a deployment; anything touching the treasury. Ending a session, by sign-out, expiry or revocation, never stops what is already running: deployments keep their own balance on the ledger.</p>
+          <p>Contracts on Base: session vault factory <code>0x1F5c887c0cDF491b16AB6c449abAfDF9B2ec9C9C</code>, deployments ledger <code>0x606C7910acDeC5DE534FD6d16Bf71AEb0C43eAe9</code>. The relay API is in the <a href="#api-sessions">API reference</a>; the agent tools are on the <a href="#mcp-sessions">MCP tab</a>.</p>
+        </article>
+
       </div>
     </div>
   </div>
@@ -933,6 +984,11 @@ enclave whoami                     # address, USDC balance, running deployments<
               <tr><th scope="row" class="pname">enclave pricing · availability · gpu</th><td>rates + live ETH quote · fleet headroom · GPU probe state</td><td><code>GET /pricing</code> · <code>/availability</code> · <code>/gpu</code></td></tr>
               <tr><th scope="row" class="pname">enclave account</th><td>address, payment forwarder, totals; signed in with an account: profile, credit balance, account deployments</td><td><code>GET /account</code> · <code>GET /account/me</code> · <code>GET /billing/vault</code></td></tr>
               <tr><th scope="row" class="pname">enclave login · logout</th><td>sign in with your Enclave account (passkey): approve a link from your phone or any signed-in browser; the session reads your account's deployments and credit, and never signs transactions</td><td><code>POST /account/device/start</code> · <code>/claim</code></td></tr>
+              <tr><th scope="row" class="pname">enclave session new --preset staging-publish --app S [--budget 10] [--days 7] [--env]</th><td>make a session key and print what it may do, a check code and a grant link; the owner opens the link and signs once with their wallet; the key is stored 0600 (or printed as <code>ENCLAVE_SESSION</code> with <code>--env</code>) and becomes the active session (<a href="#cli-sessions">below</a>)</td><td><code>/grant#…</code> · <code>POST /sessions/open</code></td></tr>
+              <tr><th scope="row" class="pname">enclave session status · list · use &lt;sid&gt;</th><td>live or ended, budget and spend, this period's limit, expiry, actions and environments; the stored sessions; pick the active one</td><td><code>SessionVault.sessionOf</code> (a chain read)</td></tr>
+              <tr><th scope="row" class="pname">enclave session terminate</th><td>sign out: the unspent budget returns to the owner's wallet and the key file is deleted; running deployments are not touched</td><td><code>POST /sessions/end</code></td></tr>
+              <tr><th scope="row" class="pname">enclave session top-up-link --amount 5</th><td>a link for the owner: one wallet signature adds budget</td><td><code>/sessions#topup=…</code> · <code>POST /sessions/owner</code> (<code>topUpWithAuthorization</code>)</td></tr>
+              <tr><th scope="row" class="pname">enclave session delegate [--revoke] [--status [--owner 0x…]]</th><td>run by the owner with the wallet key: let every session of your vault act on the apps your wallet owns, as production (one wallet transaction); <code>--revoke</code> takes it back for all of them at once; <code>--status</code> reads it and needs no key</td><td><code>EnclaveDeployments.setDelegate(vault, bool)</code> · <code>GET /sessions/owner/{address}</code></td></tr>
             </tbody>
           </table></div>
           <p>Global flags: <code>--json</code> for machine-readable output, <code>-x</code> to print every REST call and transaction before it is sent (the curl-equivalent escape hatch), <code>--base</code> / <code>ENCLAVE_API_BASE</code> to target an enclave directly instead of the gateway, <code>--rpc</code> for your own Base RPC.</p>
@@ -944,6 +1000,15 @@ enclave attest 0x3f2a9c1b                # verify before you send data (any uniq
 curl https://3f2a9c1b.app.enclave.host/      # → hello from Enclave
 enclave logs 0x3f2a9c1b -f               # watch it serve</code></pre></c-code>
           <p>Everything the site does, nothing it hides: any command run with <code>-x</code> shows the exact API traffic, ready to replay with <code>curl</code>.</p>
+
+          <h4 id="cli-sessions">Act through a session (agents, no wallet key)</h4>
+          <p>With a session active, or <code>ENCLAVE_SESSION</code> set, these commands act <b>through it</b> instead of the wallet key: <code>publish</code> (the publisher is your session vault), <code>deploy</code> (<code>--env staging|prod</code>, default staging; <code>--fund</code> comes out of the session budget), <code>fund --usdc</code>, <code>upgrade</code>, <code>resize</code>, <code>config set|clear</code>, <code>stop</code>, <code>resume</code>, <code>rate-cap</code> and <code>refund</code>. They work on deployments your vault holds and, once the owner has run <code>enclave session delegate</code>, on the apps the owner's wallet holds, which a session treats as production: stop, resume, resize, fund, refund (to the wallet) and a lower <code>rate-cap</code>, never <code>upgrade</code> or <code>config</code>. A refusal (budget, policy, environment, expiry, missing delegation) prints its code and the next step, and the command stops: it never falls back to the wallet key. <code>--wallet</code> uses the wallet key for one command.</p>
+          <c-code fn="terminal · a session's day"><pre><code>enclave session new --preset staging-publish --app myapp-staging --budget 10 --days 7 --label "Claude Code"
+enclave publish target/wasm32-wasip2/release/app.wasm --slug myapp-staging --version 0.4.1
+enclave deploy myapp-staging:0.4.1 --env staging --fund 2
+enclave session status
+enclave session terminate                 # unspent budget back to the owner</code></pre></c-code>
+          <p>Secrets, transfers, promotion to production and the vault's own money (top-up, extend, withdraw) stay with the owner's wallet. See <a href="#docs-sessions">chapter 19</a> for the policy model.</p>
         </article>
     </div>
   </div>
@@ -969,7 +1034,7 @@ enclave logs 0x3f2a9c1b -f               # watch it serve</code></pre></c-code>
           <p>Once connected, the <code>guide</code> tool (topic <code>getting-started</code>) walks the agent through everything below on its own.</p>
 
           <h4>No keys, by design</h4>
-          <p>No tool accepts a private key, signs anything, or submits a transaction. Reads are direct; every state change comes back as an <b>unsigned Base transaction</b> <code>{chainId, to, data, value}</code>, validated against live chain state first (catalog approval, share minimums, the GPU cap, publisher fee snapshots), for the agent to sign with your own wallet. Sign-in and uploads take locally produced signatures. Session tokens for owner-scoped reads ride per-call parameters or the Authorization header; transactions never need a session.</p>
+          <p>No tool accepts a private key, signs anything, or submits a wallet transaction. Reads are direct; every state change comes back as an <b>unsigned Base transaction</b> <code>{chainId, to, data, value}</code>, validated against live chain state first (catalog approval, share minimums, the GPU cap, publisher fee snapshots), for the agent to sign with your own wallet. Sign-in and uploads take locally produced signatures. Session tokens for owner-scoped reads ride per-call parameters or the Authorization header; transactions never need a session. An agent with no wallet can instead act through a <a href="#mcp-sessions">wallet session</a>: the builders then return calls for the agent's own session key to sign, and <code>session_execute</code> hands the signed calls to the sessions relayer.</p>
 
           <h4>Tool reference</h4>
           <div class="tbl"><table class="params cmds">
@@ -994,6 +1059,33 @@ enclave logs 0x3f2a9c1b -f               # watch it serve</code></pre></c-code>
           <h4>A typical deploy, agent-side</h4>
           <p><code>list_apps</code> → <code>plan_deploy</code> → sign and send the create transaction → read the new id from the receipt's <code>Created</code> event → <code>build_fund</code> → sign and send → <code>claim_hint</code> → poll <code>get_deployment</code> until <code>running</code>. The app serves at its own origin, <code>https://&lt;first-8-hex-of-id&gt;.app.enclave.host</code>.</p>
           <p>The <a href="#docs-cli">CLI</a> and MCP are equivalent surfaces: anything an agent plans over MCP can also be run with <code>enclave</code> one-liners, and both talk to the same <a href="#api">API</a> and contracts underneath.</p>
+
+          <h4 id="mcp-sessions">Sessions: act without a wallet</h4>
+          <p>An agent that holds no wallet works through a <a href="#docs-sessions">wallet session</a>. It keeps a P-256 key of its own, its owner approves a policy for that key once, and the agent signs each action with it. The server still holds no keys and signs nothing; the sessions relayer submits, paid out of the session's budget.</p>
+          <div class="tbl"><table class="params cmds">
+            <thead><tr><th scope="col">tool</th><th scope="col">does</th></tr></thead>
+            <tbody>
+              <tr><th scope="row" class="pname">session_request</th><td><code>{publicKey: {x, y}, label, preset, budgetUsd, spendPerDayUsd, expiresInHours, apps, environments, owner}</code> → <code>{link, checkCode, keyHash, policy, vault, sid}</code>: the grant link the owner opens and signs with their wallet (with <code>owner</code> set, only that wallet may sign, and <code>vault</code> and <code>sid</code> are known in advance). Nothing is on-chain until they sign.</td></tr>
+              <tr><th scope="row" class="pname">session_status</th><td><code>{owner}</code> → the owner's vault, its sessions (live or not, actions, environments, budget, spend, expiry), held deployments and <code>delegation</code>; or <code>{publicKey}</code> → the sessions opened for that key</td></tr>
+              <tr><th scope="row" class="pname">plan_deploy · build_fund · build_stop · build_resume · build_resize · build_set_max_rate · build_refund · build_upgrade · build_set_config · build_publish</th><td>with <code>session: {vault, sid}</code>: instead of unsigned wallet transactions, return <code>calls</code>, each <code>{action, actionName, describe, nonce, fee, deadline, args, digest, digestSha256}</code>, for the session key to sign. The builder refuses up front what the session can't do (an action outside the grant, a production record for a staging session, a missing delegation).</td></tr>
+              <tr><th scope="row" class="pname">session_execute</th><td><code>{vault, sid, publicKey, calls}</code>, each call with its <code>signature</code> added → <code>{executed}</code>: the calls go through the sessions relayer in order, and it stops at the first failure</td></tr>
+              <tr><th scope="row" class="pname">session_end</th><td>sign out, in two calls: <code>{vault, sid}</code> returns a digest; sign it, then call again with <code>publicKey</code>, <code>deadline</code> and <code>signature</code>. The unspent budget goes back to the owner; running apps are untouched</td></tr>
+              <tr><th scope="row" class="pname">build_delegate</th><td><code>{owner, grant}</code> → the owner's unsigned wallet transaction (<code>setDelegate</code> on the deployments ledger) that lets their sessions act on the apps their wallet owns, as production; <code>grant: false</code> revokes it for every session at once</td></tr>
+            </tbody>
+          </table></div>
+          <p>The flow: generate a P-256 key and keep the private half in the agent's secret store → <code>session_request</code> → the owner opens the link, checks the code and approves → <code>session_status</code> until the session is live → a builder with <code>session</code> → sign each <code>digest</code> → <code>session_execute</code>. The signature is ECDSA P-256 over SHA-256 of the 32 digest bytes, which is exactly what WebCrypto computes:</p>
+          <c-code fn="agent · sign the calls"><pre><code>// call.digest is the EIP-712 digest of SessionCall(sessionId, nonce, action, argsHash, fee, deadline),
+// domain {name: "Enclave Sessions", version: "1", chainId: 8453, verifyingContract: vault}
+for (const call of calls) {
+  const digest = Uint8Array.from(call.digest.slice(2).match(/../g), (h) =&gt; parseInt(h, 16));
+  const sig = new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, privateKey, digest));
+  call.signature = "0x" + [...sig].map((b) =&gt; b.toString(16).padStart(2, "0")).join("");   // r ‖ s, 64 bytes
+}
+// then: session_execute { vault, sid, publicKey: {x, y}, calls }</code></pre></c-code>
+          <div class="doc-note warn">
+            <span class="nt">Pick the preset deliberately</span>
+            <p><code>session_request</code> defaults to the <code>agent</code> preset: the browser policy's deployment actions (every deployment action, any free app, staging and production; never signing in as the owner or opening their private apps) with a $20 budget for 7 days. Once the owner has delegated, such a session can stop, resize or cancel <i>every</i> app their wallet owns. For an agent that only publishes and tests, pass <code>preset: "staging-publish"</code>: it is staging only and never reaches the wallet's apps. A session never changes what a production deployment runs, and never touches secrets.</p>
+          </div>
         </article>
     </div>
   </div>
@@ -1005,7 +1097,7 @@ enclave logs 0x3f2a9c1b -f               # watch it serve</code></pre></c-code>
     <div class="api-head">
       <article class="doc">
         <h3>The Enclave API</h3>
-        <p>Everything the service does, fully scoped. Authenticate with an Ethereum signature, pay USDC or ETH per deployment, and orchestrate confidential compute over plain HTTPS. Prefer a terminal? The <a href="#docs-cli">enclave CLI</a> wraps every operation below.</p>
+        <p>Everything the service does, fully scoped. Authenticate with an Ethereum signature, pay USDC or ETH per deployment, and orchestrate confidential compute over plain HTTPS. Prefer a terminal? The <a href="#docs-cli">enclave CLI</a> wraps every operation below. Wallet sessions have their own signed surface, documented <a href="#api-sessions">after the reference</a>.</p>
       </article>
       <div class="api-meta">
         <span class="chip">OpenAPI <b>3.1</b></span>
@@ -1016,6 +1108,62 @@ enclave logs 0x3f2a9c1b -f               # watch it serve</code></pre></c-code>
     </div>
 
     <c-api-reference></c-api-reference>
+
+    <div class="docs-main" style="max-width:920px;margin-top:48px;">
+      <article class="doc" id="api-sessions">
+        <h3>Sessions API</h3>
+        <p>Wallet sessions (<a href="#docs-sessions">guide chapter 19</a>) are served under <code>https://api.enclave.host/v1/sessions</code>. The relay holds no keys and is trusted for liveness only: every write carries a signature the session vault checks on-chain, either the session key's (P-256) or the owner wallet's (EIP-712), and every submission is simulated first, so a call the vault would refuse is never sent. JSON in and out. Bigints come back as <code>"123n"</code> strings; requests accept those, decimal strings or integers. Errors are <code>{error, code}</code>.</p>
+        <div class="tbl"><table class="params cmds">
+          <thead><tr><th scope="col">route</th><th scope="col">body → answer</th></tr></thead>
+          <tbody>
+            <tr><th scope="row" class="pname">GET /config</th><td>→ <code>{chainId, factory, book, usdc, router, relayer, site, rpc, keyAttestations}</code>: the chain and vault factory this relay serves</td></tr>
+            <tr><th scope="row" class="pname">POST /quote</th><td><code>{vault, sid, action}</code> → <code>{fee, deadline, nonce}</code>: the relay fee for one action (USDC, 6 decimals), a deadline 120 s out, and the session's next nonce</td></tr>
+            <tr><th scope="row" class="pname">POST /execute</th><td><code>{vault, sid, nonce, action, args, fee, deadline, x, y, r, s}</code> → <code>{txHash, result, block}</code>. <code>args</code> is the action's ABI-encoded arguments; <code>x, y</code> the session public key; <code>r, s</code> its signature over the <code>SessionCall</code> digest (below)</td></tr>
+            <tr><th scope="row" class="pname">POST /open</th><td><code>{owner, grant, ownerSig, deposit?}</code> → <code>{txHash, vault, sid, block}</code>: opens a session the owner signed. A grant with a budget needs <code>deposit: {validAfter, validBefore, sig}</code>, the owner's USDC <code>ReceiveWithAuthorization</code> whose nonce is the grant digest</td></tr>
+            <tr><th scope="row" class="pname">POST /owner</th><td><code>{owner, vault, op, args, sig}</code> → <code>{txHash, block}</code>: an owner operation, EIP-712-signed by the owner wallet and relayed gas-free (rate-limited per owner). <code>op</code>: <code>topUp</code>, <code>topUpWithAuthorization</code>, <code>extend</code>, <code>terminate</code>, <code>revokeAll</code>, <code>withdraw</code>, <code>promote</code>, <code>adopt</code>, <code>setEnvironment</code>, <code>release</code></td></tr>
+            <tr><th scope="row" class="pname">POST /end</th><td><code>{vault, sid, deadline, x, y, r, s}</code> → <code>{txHash, refund6}</code>: the session key signs itself out (<code>SessionEnd(sessionId, deadline)</code>); its API access ends first, and the unspent budget returns to the owner</td></tr>
+            <tr><th scope="row" class="pname">GET /by-key/{keyHash}</th><td>→ <code>{sessions}</code>: the sessions opened for a key, <code>keyHash = keccak256(abi.encode(x, y))</code></td></tr>
+            <tr><th scope="row" class="pname">GET /owner/{address}</th><td>→ <code>{owner, vault, deployed, sessions, held, delegation: {ledger, supported, granted}}</code>: the owner's vault, its sessions and held deployments, and whether the owner has let the vault act on the apps their wallet owns</td></tr>
+            <tr><th scope="row" class="pname">GET /session/{vault}/{sid}</th><td>→ <code>{vault, sid, state, index, ops, revoked}</code>: on-chain state (live, balance, spend, limits, expiry, actions) and the relay's action log</td></tr>
+            <tr><th scope="row" class="pname">POST /attest</th><td>binds a session key to an enclave measurement (attested keys); answers <code>503 attest_disabled</code> while that is off</td></tr>
+          </tbody>
+        </table></div>
+
+        <h4>Actions and their arguments</h4>
+        <p><code>action</code> is the number; <code>args</code> is <code>abi.encode</code> of the arguments (for <code>deploy.create</code> and <code>app.publish</code>, of one tuple). The SDK in <code>sdk/sessions</code> builds all of them.</p>
+        <div class="tbl"><table class="params">
+          <thead><tr><th scope="col">#</th><th scope="col">action</th><th scope="col">args</th></tr></thead>
+          <tbody>
+            <tr><th scope="row" class="pname">0</th><td><code>deploy.create</code></td><td><code>(string appRef, uint16 gpuMilli, uint16 cpuMilli, uint32 appPort, string ports, bool isPublic, string configCid, uint256 maxRate6, uint8 env, uint256 fund6)</code>; <code>env</code> 1 = staging, 2 = prod; the publisher fee is read from the catalog, never passed</td></tr>
+            <tr><th scope="row" class="pname">1</th><td><code>deploy.fund</code></td><td><code>(bytes32 id, uint256 amount6)</code></td></tr>
+            <tr><th scope="row" class="pname">2</th><td><code>deploy.setAppRef</code></td><td><code>(bytes32 id, string appRef)</code>, staging only</td></tr>
+            <tr><th scope="row" class="pname">3</th><td><code>deploy.setConfig</code></td><td><code>(bytes32 id, string config)</code>, staging only</td></tr>
+            <tr><th scope="row" class="pname">4</th><td><code>deploy.setShares</code></td><td><code>(bytes32 id, uint16 gpuMilli, uint16 cpuMilli)</code></td></tr>
+            <tr><th scope="row" class="pname">5</th><td><code>deploy.setMaxRate</code></td><td><code>(bytes32 id, uint256 maxRate6)</code>, USDC per second; production caps only go down</td></tr>
+            <tr><th scope="row" class="pname">6</th><td><code>deploy.setActive</code></td><td><code>(bytes32 id, bool active)</code></td></tr>
+            <tr><th scope="row" class="pname">7</th><td><code>deploy.refund</code></td><td><code>(bytes32 id)</code>; the refund goes to whoever holds the deployment (your vault or your wallet)</td></tr>
+            <tr><th scope="row" class="pname">8</th><td><code>app.publish</code></td><td><code>(string slug, string name, string description, string version, string cid, uint32[4] res, string ports, string config, string configCid)</code>; to your vault's apps the grant names, free versions only</td></tr>
+          </tbody>
+        </table></div>
+        <c-code fn="the session key's signature"><pre><code>SessionCall(bytes32 sessionId, uint256 nonce, uint8 action, bytes32 argsHash, uint256 fee, uint64 deadline)
+  domain   = {name: "Enclave Sessions", version: "1", chainId: 8453, verifyingContract: vault}
+  argsHash = keccak256(args)
+  r, s     = ECDSA P-256 over SHA-256(the 32-byte EIP-712 digest)   // the vault verifies it with the P-256 precompile</code></pre></c-code>
+        <p>A deployment your wallet holds counts as production to a session: only sessions that cover <code>prod</code> act on it, and <code>deploy.setAppRef</code> and <code>deploy.setConfig</code> never pass. Suspend, resume, resize, cap and refund also need the owner's one-time <code>setDelegate(vault, true)</code> on the deployments ledger (<code>0x606C7910acDeC5DE534FD6d16Bf71AEb0C43eAe9</code>); without it the ledger reverts <code>"!owner"</code>. Funding a paid one needs its app named in the grant as <code>0x&lt;appId&gt;</code>.</p>
+
+        <h4>Session-signed requests to other routes</h4>
+        <p>A few relay routes also accept the session key in place of a wallet signature, each gated by an API scope in the grant: <code>POST /v1/account/session-login</code> (<code>api.account</code>: an account token that ends with the session), <code>POST /v1/apps/upload-token</code> (<code>api.upload</code>) and <code>/v1/placement/{id}</code> (<code>api.placement</code>). No bearer token is issued; each request is signed on its own:</p>
+        <c-code fn="Authorization: EnclaveSession"><pre><code>Authorization: EnclaveSession v1 vault=&lt;addr&gt;,sid=&lt;0x…&gt;,ts=&lt;unix&gt;,n=&lt;nonce&gt;,x=&lt;b64url&gt;,y=&lt;b64url&gt;,sig=&lt;b64url&gt;
+
+sig = ECDSA P-256 over SHA-256 of the UTF-8 string
+  "enclave-api-v1\n" + METHOD + "\n" + host + path + query + "\n" + hex(sha256(body)) + "\n"
+  + ts + "\n" + n + "\n" + lowercase(vault) + "\n" + lowercase(sid)
+
+// ts within 60 s of the relay's clock; n is 8-64 base64url characters, single use;
+// sig is the raw r ‖ s (64 bytes), base64url</code></pre></c-code>
+        <p>The relay checks the signature, that the key belongs to the session, that the session is live on-chain (mutations read it fresh, reads may use a cache of at most 5 s), and that the grant holds the route's scope. Secrets and custom domains never accept a session: they stay owner-wallet signatures.</p>
+      </article>
+    </div>
   </div>
 </section>
 <section id="architecture" data-view="develop" aria-label="Architecture" hidden>
