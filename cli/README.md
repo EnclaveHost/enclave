@@ -82,9 +82,59 @@ NTFS the file is only as private as your user profile.
 - **No hidden traffic**: any command run with `-x` prints every REST call and
   transaction before it is sent, ready to replay with `curl`.
 
+## Sessions (agents, no wallet key)
+
+A session is a key the owner's wallet approved once, under a policy the owner's
+SessionVault enforces on-chain (actions, apps, environments, budget, expiry).
+`enclave session new --preset …` prints the approval link; `status`, `list`,
+`use`, `terminate` and `top-up-link` manage it.
+
+With a session active (or `ENCLAVE_SESSION` set), these commands act **through
+it** instead of the wallet: `publish`, `deploy`, `fund --usdc`, `upgrade`,
+`resize`, `config set|clear`, `stop`, `resume`, `rate-cap`, `refund`. A refusal
+prints its code and the next step and never falls back to the wallet key;
+`--wallet` uses the wallet for one command.
+
+They reach the deployments the session's **vault** holds and, once the owner
+allows it, the ones the owner's **wallet** holds. To a session a wallet-held
+deployment is always production:
+
+| Command | Wallet-held deployment, through a session |
+|---|---|
+| `stop`, `resume` | yes |
+| `resize` | yes (under a live lease it may not raise the host's rate) |
+| `fund --usdc` | yes; the refundable escrow is credited to the wallet. A paid app must be named in the grant (`--app`), at the catalog's own fee, within the grant's fee ceiling |
+| `rate-cap` | lower only; raising it is `--wallet` |
+| `refund` | yes; the ledger pays the wallet |
+| `upgrade`, `config set\|clear` | never: "a session can't change what a production app runs" (`--wallet`) |
+| `transfer` | never |
+
+Only a grant that covers `prod` reaches them; a staging-only agent is refused.
+
+```
+enclave session delegate             # the OWNER, with the wallet: one ledger transaction,
+                                     # setDelegate(vault, true)
+enclave session delegate --status    # supported / granted; no key needed
+                                     # (--owner 0x… to ask about another wallet)
+enclave session delegate --revoke    # setDelegate(vault, false): every session of the
+                                     # vault loses the wallet's deployments at once
+```
+
+`session delegate` is signed like any wallet transaction here (the key file,
+`ENCLAVE_KEY`, `--signer`, or `--unsigned --from`) and is never relayed. The
+ledger is the one the on-chain address book names as `deployments`, never a
+baked address. The vault is `vaultFor(owner)` at the book's
+`sessionVaultFactory`, or the v2 factory pinned in `DEFAULTS` while the book
+names none. `--status` reads the ledger's storage and falls back to the
+sessions relay (`GET /v1/sessions/owner/<addr>`) when the chain can't be read.
+Until the owner delegates, a session acting on a wallet-held deployment is
+refused with `delegation` and told to run `enclave session delegate`.
+
 Contract addresses are pinned in `enclave.mjs` (`DEFAULTS`) and kept in
 lockstep with the enclave configs by `scripts/sync-contract-addresses.sh`.
 
 Tests: `node --test test/cli.test.mjs` from the repo root: an offline double
 of the platform (stub API with real SIWE verification + stub Base RPC that
-decodes the CLI's actually-signed transactions).
+decodes the CLI's actually-signed transactions). `node --test
+test/cli-session.test.mjs` runs the session commands and `session delegate`
+against the real sessions relay, SessionVault and ledger on anvil (needs Foundry).
