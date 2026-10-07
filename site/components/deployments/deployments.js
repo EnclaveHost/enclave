@@ -21,12 +21,13 @@ import { APP_DOMAIN, DEPLOYMENTS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { openStateOf, probeAppTls } from "../../js/core/app-tls.js";
 import { pad32, encUint, encCall, hexBig, DEP_SEL, APPROVAL, depPrices6, rate6Of, depMaxGpuMilli, depGet, depSchemaRev, depFeeOf, depCapOf, depRefundableOf, depCall, catVersionFee, catGetVersion, waitReceipt } from "../../js/core/chain.js";
-import { authenticate, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx, personalSign } from "../../js/core/wallet.js";
-// every owner-gated ledger call goes through here: a row the wallet's SessionVault holds is acted on by this browser's
-// session (no wallet prompt; prod version/config = the owner's Promote signature); every other row sends the same wallet
-// tx as before (js/core/sessions.js ledgerSend)
-const ledgerTx = (data, value, gas) => import("../../js/core/sessions.js")
-  .then((S) => S.ledgerSend(data, () => sendTx(DEPLOYMENTS_ADDRESS, data, value, gas)));
+import { authenticate, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx as walletSendTx, personalSign } from "../../js/core/wallet.js";
+// Every ledger call this panel sends goes through here. A row the wallet's SessionVault holds is acted on by this
+// browser's session (no wallet prompt; a prod version/config change becomes the owner's Promote signature); every
+// other row - and every other contract - sends the same wallet transaction as before (js/core/sessions.js ledgerSend).
+const sendTx = (to, data, value, gas) => String(to).toLowerCase() === String(DEPLOYMENTS_ADDRESS).toLowerCase()
+  ? import("../../js/core/sessions.js").then((S) => S.ledgerSend(data, () => walletSendTx(to, data, value, gas)))
+  : walletSendTx(to, data, value, gas);
 import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, specOfRef, STORE, fetchConfigCid, stripMedia, putConfig } from "../../js/core/catalog.js";
 import { appShareLabel } from "../../js/core/app-resources.js";
 import { shareEditor } from "../../js/core/share-editor.js";
@@ -722,7 +723,7 @@ class Deployments extends EnclaveElement {
         else {
           if (!Enclave.provider) await connectWallet();
           await ensureBaseChain();
-          await waitReceipt(await ledgerTx(encCall(DEP_SEL.setMaxRate, [{ t: 'bytes32', v: id }, { t: 'uint', v: next }])));
+          await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS, encCall(DEP_SEL.setMaxRate, [{ t: 'bytes32', v: id }, { t: 'uint', v: next }])));
         }
         cap = next; status.textContent = 'Price limit saved.';
       } catch (e) { status.textContent = e.message || String(e); }
@@ -1517,7 +1518,7 @@ class Deployments extends EnclaveElement {
         if (restartResize && (resized || d.active === false)) {
           if (!via && !Enclave.provider) await connectWallet();
           if (!via) await ensureBaseChain();
-          const walletTx = async data => { const hash = await ledgerTx(data); await waitReceipt(hash); };
+          const walletTx = async data => { const hash = await sendTx(DEPLOYMENTS_ADDRESS, data); await waitReceipt(hash); };
           const activeCall = active => encCall(DEP_SEL.setActive, [{ t: "bytes32", v: id }, { t: "bool", v: active }]);
           const sharesCall = encCall(DEP_SEL.setShares, [{ t: "bytes32", v: id }, { t: "uint", v: t.gpuMilli }, { t: "uint", v: t.cpuMilli }]);
           const vault = via ? (await import("../../js/core/vault.js")).vaultOp : null;
@@ -1566,7 +1567,7 @@ class Deployments extends EnclaveElement {
           const calls = [];
           if (verChange) calls.push(encCall(DEP_SEL.setAppRef, [{ t: "bytes32", v: id }, { t: "str", v: catalogRef(cr.appId, r.i) }]));
           if (resized) calls.push(encCall(DEP_SEL.setShares, [{ t: "bytes32", v: id }, { t: "uint", v: t.gpuMilli }, { t: "uint", v: t.cpuMilli }]));
-          const th = await ledgerTx(
+          const th = await sendTx(DEPLOYMENTS_ADDRESS,
             calls.length > 1 ? encCall(DEP_SEL.multicall, [{ t: "bytes[]", v: calls }]) : calls[0]);
           paint("dimln", "  ↳ sent " + th + " · waiting for confirmation…");
           await waitReceipt(th);
@@ -1620,7 +1621,7 @@ class Deployments extends EnclaveElement {
             if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
             await ensureBaseChain();
             paint("info", "[*] confirm the transaction in your wallet…");
-            const th = await ledgerTx(
+            const th = await sendTx(DEPLOYMENTS_ADDRESS,
               encCall(DEP_SEL.setMaxRate, [{ t: "bytes32", v: id }, { t: "uint", v: next6 }]));
             paint("dimln", "  ↳ sent " + th + " · waiting for confirmation…");
             await waitReceipt(th);
@@ -1745,7 +1746,7 @@ class Deployments extends EnclaveElement {
           if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
           await ensureBaseChain();
           paint("info", "[*] confirm the transaction in your wallet…");
-          const th = await ledgerTx(
+          const th = await sendTx(DEPLOYMENTS_ADDRESS,
             encCall(DEP_SEL.setConfig, [{ t: "bytes32", v: id }, { t: "str", v: envelope }]));
           paint("dimln", "  ↳ sent " + th + " · waiting for confirmation…");
           await waitReceipt(th);
@@ -1877,7 +1878,7 @@ class Deployments extends EnclaveElement {
         if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
         await ensureBaseChain();
         paint("info", "[*] confirm the transaction in your wallet…");
-        const th = await ledgerTx(
+        const th = await sendTx(DEPLOYMENTS_ADDRESS,
           encCall(DEP_SEL.setConfig, [{ t: "bytes32", v: id }, { t: "str", v: envelope }]));
         paint("dimln", "  ↳ sent " + th + " · waiting for confirmation…");
         await waitReceipt(th);
@@ -2636,7 +2637,7 @@ class Deployments extends EnclaveElement {
       if (onchain){
         showToast("confirm setActive(false) in your wallet - this suspends the app and takes it off the queue");
         await ensureBaseChain();
-        const th = await ledgerTx("0x" + DEP_SEL.setActive + pad32(id.replace(/^0x/, "")) + encUint(0));
+        const th = await sendTx(DEPLOYMENTS_ADDRESS, "0x" + DEP_SEL.setActive + pad32(id.replace(/^0x/, "")) + encUint(0));
         await waitReceipt(th);
       }
       const r = await this._asHost(id, (h) => Enclave.terminateDeployment(id, h)).catch(e => {
@@ -2701,7 +2702,7 @@ class Deployments extends EnclaveElement {
       } else {
         showToast("confirm the refund in your wallet - " + usd(amount6) + " comes back and the deployment ends");
         await ensureBaseChain();
-        await waitReceipt(await ledgerTx("0x" + DEP_SEL.refund + pad32(id.replace(/^0x/, ""))));
+        await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS, "0x" + DEP_SEL.refund + pad32(id.replace(/^0x/, ""))));
       }
       // the ledger already deactivated it; tear the instance down now rather
       // than waiting for the runner's next owner-stop sweep
@@ -2789,11 +2790,11 @@ class Deployments extends EnclaveElement {
         await ensureBaseChain();
         if (chain){
           paint("info", "[*] 1/2 confirm the refund in your wallet - " + usd(amount6) + " comes back to you…");
-          await waitReceipt(await ledgerTx("0x" + DEP_SEL.refund + b32));
+          await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS, "0x" + DEP_SEL.refund + b32));
           paint("ok", "[✓] refunded " + usd(amount6) + " to your wallet");
         }
         paint("info", "[*] " + (chain ? "2/2 " : "") + "confirm the transfer in your wallet…");
-        await waitReceipt(await ledgerTx("0x" + DEP_SEL.transferDeployment + b32 + pad32(to)));
+        await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS, "0x" + DEP_SEL.transferDeployment + b32 + pad32(to)));
         paint("ok", "[✓] transferred to " + to);
         showToast("transferred " + id.slice(0, 10) + "… - it now belongs to " + to.slice(0, 10) + "… and will leave this list");
         setTimeout(() => this.refresh(), 1200);
@@ -3009,7 +3010,7 @@ class Deployments extends EnclaveElement {
     const walletActive = async active => {
       if (!Enclave.provider) await connectWallet();
       await ensureBaseChain();
-      await waitReceipt(await ledgerTx(
+      await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS,
         encCall(DEP_SEL.setActive, [{ t: "bytes32", v: id }, { t: "bool", v: active }])));
     };
     go.disabled = true; go.textContent = "Applying…";
@@ -3039,7 +3040,7 @@ class Deployments extends EnclaveElement {
           else {
             if (!Enclave.provider) await connectWallet();
             await ensureBaseChain();
-            await waitReceipt(await ledgerTx(
+            await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS,
               encCall(DEP_SEL.setConfig, [{ t: "bytes32", v: id }, { t: "str", v: envelope }])));
           }
           this._envLearn(id, envelope);
@@ -3087,7 +3088,7 @@ class Deployments extends EnclaveElement {
         else {
           if (!Enclave.provider) await connectWallet();
           await ensureBaseChain();
-          const th = await ledgerTx(
+          const th = await sendTx(DEPLOYMENTS_ADDRESS,
             encCall(DEP_SEL.setShares, [{ t: "bytes32", v: id }, { t: "uint", v: upg.gpuPct * 10 }, { t: "uint", v: upg.cpuPct * 10 }]));
           paintLine(s, "dimln", "    ↳ sent " + th + " · waiting for confirmation…");
           await waitReceipt(th);
@@ -3219,7 +3220,7 @@ class Deployments extends EnclaveElement {
         } else {
           showToast("confirm setActive(true) in your wallet - this re-queues the app; billing resumes once it runs");
           await ensureBaseChain();
-          const th = await ledgerTx("0x" + DEP_SEL.setActive + pad32(id.replace(/^0x/, "")) + encUint(1));
+          const th = await sendTx(DEPLOYMENTS_ADDRESS, "0x" + DEP_SEL.setActive + pad32(id.replace(/^0x/, "")) + encUint(1));
           await waitReceipt(th);
         }
       }

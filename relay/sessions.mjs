@@ -83,13 +83,26 @@ export function revertData(e) {
   return undefined;
 }
 
+/** EIP-1559 fees from the block's base fee and a CAPPED tip: an RPC that suggests an
+ *  absurd priority fee (anvil says 1 gwei; Base runs ~0.001) must not inflate what the
+ *  relayer pays, nor the USDC fee a session is quoted. */
+export async function cappedFees(pc, maxTipWei = 10_000_000n) {
+  const blk = await pc.getBlock();
+  const base = blk.baseFeePerGas ?? 0n;
+  let tip = 1_000_000n;
+  try { tip = await pc.estimateMaxPriorityFeePerGas(); } catch { /* keep the default */ }
+  if (tip > maxTipWei) tip = maxTipWei;
+  return { maxFeePerGas: base * 2n + tip, maxPriorityFeePerGas: tip };
+}
+
 // ============================================================================
 // Transaction queue: one key, one serial lane, journaled before every await
 // ============================================================================
 
 export class TxQueue {
-  constructor({ pc, wc, account, journal, log = console.log, alert = () => {}, receiptTimeoutMs = 25_000, maxAttempts = 5 }) {
-    Object.assign(this, { pc, wc, account, journal, log, alert, receiptTimeoutMs, maxAttempts });
+  constructor({ pc, wc, account, journal, log = console.log, alert = () => {}, receiptTimeoutMs = 25_000, maxAttempts = 5,
+    maxTipWei = 10_000_000n }) {
+    Object.assign(this, { pc, wc, account, journal, log, alert, receiptTimeoutMs, maxAttempts, maxTipWei });
     this.chain = Promise.resolve();
     this.nonce = null;
     if (!journal.data.txs) journal.data.txs = [];
@@ -110,7 +123,7 @@ export class TxQueue {
 
   async _send({ to, data, label }) {
     const gas = (await this.pc.estimateGas({ account: this.account, to, data })) * 125n / 100n + 20_000n;
-    let fees = await this.pc.estimateFeesPerGas();
+    let fees = await cappedFees(this.pc, this.maxTipWei);
     const nonce = await this._nextNonce();
     const rec = { label, to, nonce, hashes: [], status: "sending", at: Date.now() };
     this.journal.data.txs.push(rec);
@@ -351,7 +364,8 @@ export function createSessionsService(o) {
   store.data.held ??= {};           // deployment id -> { vault, env, promoted }
   store.data.revoked ??= {};        // sid -> unix (off-chain revocation, before or without the chain)
   store.data.revokedVaults ??= {};  // vault -> unix (revokeAll in flight)
-  const queue = new TxQueue({ pc, wc, account, journal, log, alert });
+  const maxTipWei = BigInt(o.maxTipWei ?? 10_000_000n);
+  const queue = new TxQueue({ pc, wc, account, journal, log, alert, maxTipWei });
   const marginBps = BigInt(o.feeMarginBps ?? 2000);
   const minFee6 = BigInt(o.minFee6 ?? 500);
   const ownerOpsPerDay = o.ownerOpsPerDay ?? 60;
@@ -402,7 +416,7 @@ export function createSessionsService(o) {
 
   /** USDC (6dp) to reimburse `gas` units at today's fee level, with margin. */
   async function feeFor(gas) {
-    const fees = o.feesPerGas ? await o.feesPerGas() : await pc.estimateFeesPerGas();
+    const fees = o.feesPerGas ? await o.feesPerGas() : await cappedFees(pc, maxTipWei);
     const wei = gas * fees.maxFeePerGas;
     const usd6 = (wei * (await ethUsd6()) + 10n ** 18n - 1n) / 10n ** 18n;
     const withMargin = usd6 * (10_000n + marginBps) / 10_000n;
@@ -1045,6 +1059,7 @@ export async function initSessions({ dataDir, JsonStore, alert, log } = {}) {
     ethUsd: process.env.SESSIONS_ETH_USD ? Number(process.env.SESSIONS_ETH_USD) : undefined,
     ethUsdFeed: process.env.SESSIONS_ETH_USD_FEED || net.ethUsdFeed,
     minEthWei: process.env.SESSIONS_MIN_ETH_WEI ? BigInt(process.env.SESSIONS_MIN_ETH_WEI) : undefined,
+    maxTipWei: process.env.SESSIONS_MAX_TIP_WEI ? BigInt(process.env.SESSIONS_MAX_TIP_WEI) : undefined,
     ownerOpsPerDay: process.env.SESSIONS_OWNER_OPS_PER_DAY ? Number(process.env.SESSIONS_OWNER_OPS_PER_DAY) : undefined,
     site: process.env.SESSIONS_SITE || "https://enclave.host",
     publicRpc: process.env.SESSIONS_PUBLIC_RPC || null,
