@@ -39,8 +39,9 @@ const ZERO = "0x0000000000000000000000000000000000000000";
 const BOOK_FACTORY = "0x" + Buffer.from("sessionVaultFactory").toString("hex").padEnd(64, "0");
 
 // gas units per action for the fee quote: measured on anvil (osaka, native
-// P-256) through this relay, padded ~20-30%. create 547-684k, publish 350-571k
-// (the first publish also creates the app), setAppRef 183k, pay 163k.
+// P-256) through this relay, padded ~15-30%. create 565-749k (with funding),
+// publish 350-571k (the first publish also creates the app), fund 240k (cap +
+// fee + lease checks, re-base), setShares 204k, setAppRef 183k.
 const GAS = { 0: 850_000n, 1: 300_000n, 2: 240_000n, 3: 280_000n, 4: 300_000n, 5: 220_000n, 6: 220_000n,
   7: 300_000n, 8: 750_000n };   // (9 was order.pay: dropped before launch)
 const CLOSE_GAS = 200_000n;

@@ -133,6 +133,12 @@ test("browser flow: zero-budget sign-in, wallet top-up, spend, promote, revoke-a
   const row0 = await chain.pc.readContract({ address: P.ledger, abi: P.abi.ledger.abi, functionName: "get", args: [sid0] });
   assert.equal(row0.balance6, parseUnits("1", 6), "the funding reached the deployment");
   assert.ok(await usdcBal(P.treasury) >= t0 + made.fee, "the relay fee reached the treasury");
+  // a top-up and a resize of the (unleased) record, through the relay
+  await session.call("deploy.fund", { id: sid0, amount6: parseUnits("0.5", 6) });
+  await session.call("deploy.setShares", { id: sid0, gpuMilli: 0, cpuMilli: 500 });
+  const row1 = await chain.pc.readContract({ address: P.ledger, abi: P.abi.ledger.abi, functionName: "get", args: [sid0] });
+  assert.equal(row1.balance6, parseUnits("1.5", 6));
+  assert.equal(row1.cpuMilli, 500);
 
   // a prod deployment created by the session, then promoted by the owner
   const c = await session.call("deploy.create", { appRef: P.storeRef, gpuMilli: 0, cpuMilli: 1000, appPort: 8080, ports: "",
