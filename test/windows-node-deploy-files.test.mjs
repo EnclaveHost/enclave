@@ -16,7 +16,8 @@ test("the real tree's closure is complete and carries every module the hv node r
   assert.deepEqual(problems, []);
   for (const f of ["windows/node/agent.mjs", "windows/node/host.mjs", "windows/node/hvnode-evidence.mjs", "windows/node/isolation-client.mjs",
                    "windows/node/isolation-lifecycle.mjs", "windows/node/host-delegation.mjs", "windows/node/hvcert.mjs", "windows/node/hvnode-attach.mjs", "isolation/m4/guestd/supervisor-guestcert.mjs", "windows/vbslike/datapath/node-bridge.mjs",
-                   "windows/vbslike/datapath/datapath.mjs", "isolation/m4/guestd/supervisor-splice.mjs", "windows/node/package.json"])
+                   "windows/vbslike/datapath/datapath.mjs", "isolation/m4/guestd/supervisor-splice.mjs", "windows/node/package.json",
+                   "windows/node/session-api-auth.mjs"])
     assert.ok(files.includes(f), `${f} is not shipped`);
   assert.ok(!files.some((f) => /\.test\.mjs$|\/evidence\//.test(f)), "a test or evidence file would be shipped");
   // the CLI agrees, and exits 0
