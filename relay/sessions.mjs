@@ -415,12 +415,15 @@ export function createSessionsService(o) {
       return { ...s, live, apps };
     };
     // the index saw it open (or the relay just mined it) but this node says it never existed - or
-    // has no code at the vault at all: lag, so ask again before believing it
-    const expected = () => Boolean(store.data.sessions[sid]) || recentlyMined(vault);
+    // has no code at the vault at all; or the index saw it END but this node still says live: lag,
+    // so ask again before believing it
+    const idx = () => store.data.sessions[sid];
+    const expected = () => Boolean(idx()) || recentlyMined(vault);
+    const stale = (st) => (Number(st.state) === 0 && expected()) || (idx()?.ended === true && Number(st.state) === 1);
     for (let i = 0; ; i++) {
       let st = null;
       try { st = await read(); } catch (e) { if (i >= 6 || !expected()) throw e; }
-      if (st && (Number(st.state) !== 0 || i >= 6 || !expected())) return st;
+      if (st && (i >= 6 || !stale(st))) return st;
       await lagWait(700);
     }
   }
@@ -816,8 +819,10 @@ export function createSessionsService(o) {
       const vault = await requireVault(mm[1]);
       const sid = mm[2].toLowerCase();
       const st = await sessionOf(vault, sid);
-      return { vault, sid, state: st, index: store.data.sessions[sid] ?? null, ops: store.data.ops[sid] ?? [],
-        revoked: Boolean(store.data.revoked[sid]) || revokedBeforeOpen(getAddress(mm[1]), sid) };
+      const revoked = Boolean(store.data.revoked[sid]) || revokedBeforeOpen(getAddress(mm[1]), sid);
+      // what the relay signed out or saw end outranks a node that hasn't caught up (never more live than that)
+      return { vault, sid, state: { ...st, live: st.live && !revoked && !store.data.sessions[sid]?.ended },
+        index: store.data.sessions[sid] ?? null, ops: store.data.ops[sid] ?? [], revoked };
     }
     throw httpError(404, "not_found", "no such sessions endpoint");
   }
