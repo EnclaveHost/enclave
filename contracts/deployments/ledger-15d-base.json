@@ -1,0 +1,44 @@
+{
+  "network": "base",
+  "chainId": 8453,
+  "commit": "9ca5377c5",
+  "deployedAt": "2026-10-07",
+  "source": "deploy/ledger/EnclaveDeployments.sol (live rev 15 + setDelegate/DelegateSet; schema 15; solc 0.8.35 viaIR runs=1, 24554 B runtime)",
+  "deployer": "0xB076dcB3086a6dD306757475CACE7Af075582290",
+  "contracts": {
+    "EnclaveDeployments": {
+      "address": "0x606C7910acDeC5DE534FD6d16Bf71AEb0C43eAe9",
+      "tx": "0x96ca807feea8274b212b2c1eb13b73c302e3ca5a0d1f9854f0cf9be5f949a79b",
+      "isDelegateSlot": 23,
+      "migratedFrom": "0xb36DCE7689834D59364ca37Ade1896D0E6404830",
+      "records": "70/70 imported and verified; imports sealed 0x6363f66709e112410e5fc186d1da699d85035bb5c24d7a250c10fe0eeb767df8"
+    },
+    "EnclaveProofOfTime": {
+      "address": "0x3301605ac208e6d8A9711E5B3835f91Ca4Fdd946",
+      "tx": "0x4c431da00f5afa6c5195af25855a429998e74d70b434a7a043eced8e8e9d22c4"
+    },
+    "EnclaveVerificationFees": {
+      "address": "0x7898E8D219aA235E3b9d9132c7BE9E7BA7f12417",
+      "tx": "0x39b0c436f787ade64c84703a327631163c4aac6e7bfa87937b9af874d3baeb80"
+    }
+  },
+  "sessionVaultV2": {
+    "SessionVaultLib": {
+      "address": "0x5510aE9fED97577d75C69545384af7d8bAD05027",
+      "block": 52286274
+    },
+    "SessionVaultFactory": {
+      "address": "0x1F5c887c0cDF491b16AB6c449abAfDF9B2ec9C9C",
+      "block": 52286277,
+      "args": {
+        "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "book": "0xab214342d5A490150A4A977063A2f88E21F80907",
+        "router": "0xf17157b42ebbd65E33dD592878A8f1769C69d56A",
+        "keyAttestations": "0xB49241eFE5AF6078BE6aa84850ae45eed34dF61b",
+        "maxVault6": "250000000"
+      }
+    }
+  },
+  "owner": "governance 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61 (accepted 2026-10-07 08:39Z for ledger and prover)",
+  "addressBook": "setMany(deployments, proofOfTime, verificationFees) by governance 2026-10-07 08:40:16Z, tx 0xe19595d93551aaff17e0222465003b0abf5062b006fb75f3e572ae41e7368a1b; old ledger 0xb36DCE76 retired 08:38Z; escrow 4.667235 USDC funded (tx 0x292daf06a8f20281f06a858d3e0ca749100693f025379f154ed13ab2f40db07e)"
+}
