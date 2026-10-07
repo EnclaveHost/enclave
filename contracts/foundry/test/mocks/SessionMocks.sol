@@ -79,9 +79,16 @@ contract HostileLedger {
     address public token;
     address public vault;
     bytes public reenter;
+    bool public underPull;
     constructor(address t) { token = t; }
     function arm(address v, bytes calldata data) external { vault = v; reenter = data; }
+    function setUnderPull(bool v) external { underPull = v; }
     function fundFor(bytes32, uint256 value, address) external {
+        if (underPull) {   // take one unit LESS than approved, leaving an allowance behind
+            (bool okU, ) = token.call(abi.encodeWithSignature("transferFrom(address,address,uint256)", vault, address(this), value - 1));
+            require(okU, "pull");
+            return;
+        }
         if (reenter.length > 0) {
             (bool ok, ) = vault.call(reenter);
             require(!ok, "re-entry succeeded");

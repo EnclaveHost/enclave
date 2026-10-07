@@ -887,6 +887,41 @@ contract SessionVaultTest is SessionRig {
         assertEq(usdc.balanceOf(address(vault)), 0);
     }
 
+    function test_ledgerThatLeavesAnAllowanceIsRefused() public {
+        bytes32 sid = _openWithDeposit(_grant(keyHash, 20e6));
+        bytes32 id = abi.decode(_exec(sid, 0, CREATE, _createArgs(freeRef, 1, 0), 0), (bytes32));
+        HostileLedger h = new HostileLedger(address(usdc));
+        h.arm(address(vault), "");
+        h.setUnderPull(true);
+        book.set("deployments", address(h));
+        _execExpectRevert(sid, 1, FUND, abi.encode(id, uint256(5e6)), 0,
+            abi.encodeWithSelector(SessionVault.AllowanceLeft.selector));
+        assertEq(usdc.allowance(address(vault), address(h)), 0);
+    }
+
+    function test_heldDeploymentsOutsideTheSessionsEnvironmentsAreRefused() public {
+        // a broad session creates one deployment in each environment...
+        bytes32 broad = _openWithDeposit(_grant(keyHash, 20e6));
+        bytes32 prd = abi.decode(_exec(broad, 0, CREATE, _createArgs(freeRef, 2, 0), 0), (bytes32));
+        bytes32 stg = abi.decode(_exec(broad, 1, CREATE, _createArgs(freeRef, 1, 0), 0), (bytes32));
+        // ...a staging-only session may touch the staging one, never the prod one
+        SessionVault.Grant memory g = _grant(keyHash, 10e6);
+        g.grantNonce = keccak256("staging-only");
+        g.environments = _strs("staging");
+        bytes32 narrow = _openWithDeposit(g);
+        _execExpectRevert(narrow, 0, SET_ACTIVE, abi.encode(prd, false), 0,
+            abi.encodeWithSelector(SessionVault.EnvNotAllowed.selector, uint8(2)));
+        _execExpectRevert(narrow, 0, SET_SHARES, abi.encode(prd, uint16(0), uint16(500)), 0,
+            abi.encodeWithSelector(SessionVault.EnvNotAllowed.selector, uint8(2)));
+        _execExpectRevert(narrow, 0, REFUND, abi.encode(prd), 0,
+            abi.encodeWithSelector(SessionVault.EnvNotAllowed.selector, uint8(2)));
+        _execExpectRevert(narrow, 0, FUND, abi.encode(prd, uint256(1e6)), 0,
+            abi.encodeWithSelector(SessionVault.EnvNotAllowed.selector, uint8(2)));
+        _exec(narrow, 0, SET_ACTIVE, abi.encode(stg, false), 0);
+        assertFalse(ledger.get(stg).active);
+        assertTrue(ledger.get(prd).active);
+    }
+
     // ======================= attested keys =======================
 
     function test_measurementBoundGrant() public {

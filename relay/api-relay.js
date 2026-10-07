@@ -96,6 +96,7 @@ import { handleSso, initSso } from "./sso.js";
 import { handleBilling, initBilling } from "./billing.js";
 import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep, hasStagedSecrets } from "./secrets.js";
 import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDeployment, tlsAskAllowed } from "./domains.js";
+import { initSessions, handleSessions, sessionsService, createCustodyGate } from "./sessions.mjs";
 import { handleCerts, initCerts } from "./certs.js";
 import { createShieldMarketplace } from "./shield-marketplace.mjs";
 import { claimCheapest, CLAIM_QUOTE_ABI } from "./cheapest-claim.mjs";
@@ -107,7 +108,8 @@ import { avfPolicyFromEnv } from "./avf-policy.mjs";
 import { pvmCpuPolicyFromEnv, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
 import { VBS_DEFAULT_EK_ROOTS } from "./vbs-policy.mjs";
 import { createPadsLedger, createPrefixStore, createShipmentStore, padsRouter } from "./pads.mjs";
-import { dataDir } from "./store.js";
+import { dataDir, JsonStore } from "./store.js";
+import { screenAddress } from "./ofac.js";
 import { expectedGuest, prepareGuestUpdate, prewarmReleasePredictions } from "./secrets-release.mjs";
 import { expectedForRow, prepareForRow } from "./guest-prediction-row.mjs";
 import { boxOrigin, boxLabelOfHost } from "./boxhost.js";
@@ -412,6 +414,16 @@ const rlHint = makeRateLimiter({ capacity: 20, refillPerSec: 2 });    // /v1/cla
 // Signed-upload authorization (/v1/apps/upload-token): per-wallet token-mint cap.
 // Generous burst, ~30/hr steady — the gateway enforces the real BYTE budget.
 const rlUpload = makeRateLimiter({ capacity: 30, refillPerSec: 30 / 3600 });
+const rlSessions = makeRateLimiter({ capacity: 120, refillPerSec: 2 });   // per client IP (and r/w): /v1/sessions/*
+// OFAC screen for sessions deposits: "hit" refuses; the list loads with billing (stale before that is not a refusal -
+// the deposit is the owner's own money into their own vault, and they can always submit it on-chain themselves)
+const screenAddressSafe = (a) => { try { return screenAddress(a); } catch { return { result: "stale" }; } };
+const SESSIONS_ALERT_URL = (process.env.ALERT_WEBHOOK_URL || "").trim();
+function sessionsAlert(kind, detail) {
+  console.error(`[sessions] ALERT ${kind}: ${JSON.stringify(detail)}`);
+  if (SESSIONS_ALERT_URL) fetch(SESSIONS_ALERT_URL, { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ kind, ...detail, at: new Date().toISOString() }) }).catch(() => {});
+}
 // Dedicated secret shared ONLY with the wasm add-gateway on this box (NOT the
 // fleet SECRET). Empty = signed uploads unavailable (503). See ipfs-add-gateway.py.
 const UPLOAD_KEY = process.env.UPLOAD_KEY || "";
@@ -498,6 +510,32 @@ async function chain() {
   }
   return _client;
 }
+// Sessions custody (relay/sessions.mjs): who really owns a SessionVault-held
+// deployment, and whether its secrets may be released. Independent of the
+// sessions relayer being configured - a relay that cannot SUBMIT sessions still
+// refuses an unpromoted prod release.
+let _custody = null;
+async function custody() {
+  if (!_custody) _custody = createCustodyGate({ pc: await chain(), book: ADDRESS_BOOK || null,
+    factory: (process.env.SESSIONS_FACTORY || "").trim() || null });
+  return _custody;
+}
+const beneficialOwner = async (o) => (await custody()).beneficialOwner(o);
+const custodyRefusal = async (row) => (await custody()).custodyRefusal(row);
+// `Authorization: EnclaveSession v1 ...` on a relay route: the session's owner, or null when the request carries no
+// session header (callers fall back to their wallet-signature path). A bad session header THROWS (401/403).
+async function sessionAuth(req, raw, scope) {
+  const h = req.headers.authorization || "";
+  if (!h.startsWith("EnclaveSession ")) return null;
+  const svc = sessionsService();
+  if (!svc) { const e = new Error("Sessions are not enabled on this relay."); e.status = 503; throw e; }
+  const host = String(req.headers["x-forwarded-host"] || req.headers.host || "").split(",")[0].trim();
+  const u = new URL(req.url, "http://relay");
+  const r = await svc.verifyApiRequest({ header: h, method: req.method, hostPath: host + u.pathname + u.search,
+    body: raw, scope, fresh: req.method !== "GET" });
+  return r.owner.toLowerCase();
+}
+
 // "registry" as ascii-right-padded bytes32 (the EnclaveAddressBook key)
 const BOOK_ABI = [{ type: "function", name: "addr", stateMutability: "view",
   inputs: [{ type: "bytes32" }], outputs: [{ type: "address" }] }];
@@ -1768,6 +1806,15 @@ async function gateway(u, req, res) {
     const now = Math.floor(Date.now() / 1000);
     if (!/^[0-9a-f]{64}$/.test(hash)) return json(res, 422, { error: "bad_hash", message: "hash must be the 32-byte sha256 hex of the upload." }, req);
     if (!Number.isFinite(expiry) || expiry < now || expiry > now + 600) return json(res, 422, { error: "bad_expiry", message: "expiry must be a unix time within the next 10 minutes." }, req);
+    // a session key with api.upload authorizes the pin for its OWNER (the request itself is session-signed)
+    let viaSession;
+    try { viaSession = await sessionAuth(req, raw, "api.upload"); }
+    catch (e) { return json(res, e.status || 401, { error: e.code || "unauthorized", message: e.message }, req); }
+    if (viaSession) {
+      if (!rlUpload(viaSession)) return json(res, 429, { error: "rate_limited", message: "Too many upload authorizations for this owner; retry later." }, req);
+      const token = createHmac("sha256", UPLOAD_KEY).update(`${viaSession}:${hash}:${expiry}`).digest("hex");
+      return json(res, 200, { token, address: viaSession, expiry }, req);
+    }
     if (!/^0x[0-9a-fA-F]{130}$/.test(signature)) return json(res, 422, { error: "bad_sig", message: "signature must be a 65-byte personal_sign hex." }, req);
     let address;
     try {
@@ -2195,7 +2242,7 @@ const shieldSecretRelease=createShieldSecretRelease({hub:tunnelHub,policyFile:pr
   readCatalog:catalogReader(catalogClients,catalogAddress),readConfig:versionConfigReader(catalogClients,catalogAddress),
   fetchVerified:(cid,max)=>predictor().fetchVerified(cid,max),
   hostForEndpoint:id=>live.find(e=>String(e.id).toLowerCase()===String(id).toLowerCase()),
-  isOwnerDeployment:(host,d)=>!!servedEntryNow(host,d.owner)});
+  isOwnerDeployment:(host,d)=>!!servedEntryNow(host,d.owner),custodyRefusal});
 // the release each deployment's guest last ran, noted by secrets-release.mjs on every release: measured first for the
 // deployment's next version (measurement-predict.mjs `prefer`). In memory only; after a restart the newest release goes first.
 const guestReleases = new Map();
@@ -2268,6 +2315,8 @@ async function prewarmCollateral(doc) {
 // is admitted only when it equals an admitted domain release's own
 const runtimeIdOf = (r) => Buffer.from(runtimeIdOfJson(JSON.stringify(r)), "hex");
 const relayCtx = { shieldSecretRelease, json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility, leaseHolderChipIds,
+                   // sessions: the owner wallet behind a SessionVault-held record, and the custody release gate
+                   beneficialOwner, custodyRefusal, sessionAuth, screenAddress: (a) => screenAddressSafe(a),
                    verifyAppCertificate: (epId, d, spki) => shieldMarket.certificate(live.find(e => String(e.id).toLowerCase() === String(epId).toLowerCase()), d, spki),
                    // (B) does this endpoint id's live row serve this ledger deployment NOW (hv-node owner-only: served owner,
                    // this row's live lease, isolation.require = hyperv-partition-per-app)? certs.js 6b and secrets.js has-secrets
@@ -2306,6 +2355,8 @@ const placement = createPlacement({
     const key = session && vaultKeyOf(session.accountId);
     return key ? String(await vaultAddressFor(key)).toLowerCase() : null;
   },
+  beneficialOwner,
+  sessionOwner: (req, raw) => sessionAuth(req, raw, "api.placement"),
 });
 async function claimPlacement(id, preferred, deployment, force = false, allowFallback = true) {
   const pin = pinnedHost(deployment.configCid);
@@ -2547,6 +2598,11 @@ function handleRequest(req, res) {
   if (u.pathname === "/v1/billing" || u.pathname.startsWith("/v1/billing/"))
     return handleBilling(req, res, u, relayCtx).catch((e) =>
       json(res, 500, { error: "billing_error", message: e.message }, req));
+  // Sessions (relay/sessions.mjs): relayer, keeper and index for SessionVaults.
+  // Relay-owned like billing - answers with zero live enclaves.
+  if (u.pathname === "/v1/sessions" || u.pathname.startsWith("/v1/sessions/"))
+    return Promise.resolve(handleSessions(req, res, u, { ...relayCtx, rate: (k) => rlSessions(k) })).catch((e) =>
+      json(res, 500, { error: "sessions_error", message: e.message }, req));
   // Per-deployment secrets (secrets.js): relay-OWNED state like accounts/
   // billing — never proxied, answers with zero live enclaves (owners stage
   // secrets between create and the first claim; the fleet being down must not
@@ -2567,8 +2623,9 @@ function handleRequest(req, res) {
       if (!rlHint(clientIp(req))) return json(res, 429, { message: 'Too many placement requests; retry shortly.' }, req);
       if (req.method === 'GET') return json(res, 200, await placement.get(id), req);
       if (req.method === 'POST') {
-        const body = JSON.parse((await readBody(req, 4096)).toString());
-        return json(res, 200, await placement.put(id, body, req), req);
+        const raw = await readBody(req, 4096);
+        const body = JSON.parse(raw.toString());
+        return json(res, 200, await placement.put(id, body, req, raw), req);
       }
       return json(res, 405, { message: 'GET or POST only.' }, req);
     } catch (e) { return json(res, e.status || 503, { message: e.message }, req); }
@@ -2680,6 +2737,7 @@ if (process.env.SECRETS_RELEASE_PREDICT_COMMIT && !predictorProblems().length) {
 }
 startSecretsSweep(relayCtx);   // hourly off-ledger purge (no-op while disabled)
 await initDomains();           // custom domains: same data dir, CUSTOM_DOMAINS=0 opts out
+await initSessions({ dataDir: dataDir(), JsonStore, alert: sessionsAlert });   // SESSIONS_RELAYER_KEY unset => disabled with one log line
 startDomainSweep(relayCtx);    // DNS re-check + demotion sweep (no-op while disabled)
 await initCerts();             // platform certs: CERTS_KEY + DNS_API + DNS_TXT_KEY + APP_ZONE + the data dir
 setInterval(pollRegistry, REGISTRY_POLL_SEC * 1000);

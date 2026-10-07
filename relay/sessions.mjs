@@ -644,6 +644,69 @@ function readAll(req) {
   });
 }
 
+
+// ============================================================================
+// Custody gate: who really owns a vault-held deployment, and may its secrets
+// flow? Independent of the relayer (works with no SESSIONS_RELAYER_KEY), so a
+// relay that cannot submit sessions still refuses an unpromoted prod release.
+// ============================================================================
+
+export function createCustodyGate({ pc, book, factory: fixedFactory = null, ttlMs = 60_000 }) {
+  let factory = fixedFactory ? getAddress(fixedFactory) : null;
+  let factoryAt = 0;
+  const vaultOwner = new Map();      // vault -> owner (immutable once read)
+  const notVault = new Map();        // address -> checkedAt
+
+  async function getFactory() {
+    if (fixedFactory) return factory;
+    if (factory && Date.now() - factoryAt < 10 * ttlMs) return factory;
+    if (!book) return null;
+    const a = await pc.readContract({ address: book, abi: BOOK_ABI, functionName: "addr", args: [BOOK_FACTORY] });
+    factory = a && a !== ZERO ? getAddress(a) : null;
+    factoryAt = Date.now();
+    return factory;
+  }
+
+  /** the vault's owner when `addr` is a SessionVault of the book's factory, else null */
+  async function vaultOwnerOf(a) {
+    const x = getAddress(a);
+    if (vaultOwner.has(x)) return vaultOwner.get(x);
+    const seen = notVault.get(x);
+    if (seen && Date.now() - seen < ttlMs) return null;
+    const f = await getFactory();
+    if (!f) { notVault.set(x, Date.now()); return null; }
+    const code = await pc.getCode({ address: x });
+    if (!code || code.length <= 2) { notVault.set(x, Date.now()); return null; }
+    const is = await pc.readContract({ address: f, abi: sessionVaultFactoryAbi, functionName: "isVault", args: [x] });
+    if (!is) { notVault.set(x, Date.now()); return null; }
+    const owner = getAddress(await pc.readContract({ address: x, abi: sessionVaultAbi, functionName: "owner" }));
+    vaultOwner.set(x, owner);
+    return owner;
+  }
+
+  return {
+    getFactory, vaultOwnerOf,
+    /** the address whose wallet signature counts as the owner's for this record */
+    async beneficialOwner(owner) { return (await vaultOwnerOf(owner)) ?? getAddress(owner); },
+    /** null = no objection; a string = why this deployment's secrets must not be released.
+     *  Wallet-held (and other contract-held) rows pass untouched. Errors propagate:
+     *  the callers refuse (fail closed) on an unreadable chain. */
+    async custodyRefusal(row) {
+      if (!row?.owner || !(await vaultOwnerOf(row.owner))) return null;
+      const [env, promoted] = await pc.readContract({ address: getAddress(row.owner), abi: sessionVaultAbi,
+        functionName: "held", args: [row.id] });
+      if (Number(env) === 0) return "this deployment sits in a session vault its owner has not adopted";
+      if (Number(env) === 2) {
+        const now = keccak256(encodeAbiParameters([{ type: "string" }, { type: "string" }],
+          [String(row.appRef ?? ""), String(row.configCid ?? "")]));
+        if (String(promoted).toLowerCase() !== now.toLowerCase())
+          return "production deployment: its current version/config has not been promoted by the owner";
+      }
+      return null;
+    },
+  };
+}
+
 // ============================================================================
 // Wiring into api-relay.js (env-configured singleton)
 // ============================================================================
