@@ -17,6 +17,12 @@
 //                          wallet, plus signature-flow helpers (SIWE login,
 //                          upload tokens) where the client signs a message
 //                          locally and trades the signature here
+//   * wallet sessions   -> with session:{vault, sid} the same builders return
+//                          session CALLS (validated, quoted, EIP-712 digested)
+//                          for the client to sign with ITS P-256 session key;
+//                          session_execute forwards the signed calls to the
+//                          relay's public /v1/sessions/execute - the request any
+//                          client can make. No session key ever reaches this box.
 //   * secrets           -> session tokens ride per-call `token` params or the
 //                          Authorization header; they are enclave-verified
 //                          upstream, never minted or trusted here (same
@@ -42,7 +48,8 @@
 // humans. tools/call errors are in-band (isError), not JSON-RPC errors.
 
 import { createHash, randomBytes } from "node:crypto";
-import { createPublicClient, http as viemHttp, fallback, encodeFunctionData, getAddress } from "viem";
+import { createPublicClient, http as viemHttp, fallback, encodeFunctionData, decodeFunctionData, encodeAbiParameters,
+  getAddress, hashTypedData, keccak256 } from "viem";
 import { base } from "viem/chains";
 
 const PORT = parseInt(process.env.API_RELAY_PORT || "8100", 10);
@@ -776,6 +783,14 @@ Funding is prepaid and burns per second while leased.
 - config option at create: a JSON object replacing the version's config as THAT deployment's ENCLAVE_CONFIG (volumes key included) - the catalog default is untouched and other deployments are unaffected. Two gates, both required: availability "configOverride": true (every live runner honors it; without it the claim is refused) and deploymentsSchema() >= 5 (earlier ledgers cap create()'s options field at 100 bytes and revert on a real override).
 - Outbound: deployments can get dedicated-IP egress (per-deployment IPv6) on supported fleets.`,
 
+  sessions: `Wallet sessions: act without a wallet prompt per transaction.
+1. The client (agent, app, CLI) generates a P-256 key pair and KEEPS the private key (WebCrypto, node:crypto, a TEE).
+2. session_request { publicKey: {x, y}, label, preset: "agent", budgetUsd, owner } returns a link. The owner opens it at enclave.host, checks the code, and approves ONCE with the wallet (plus the USDC deposit for the budget).
+3. session_status { publicKey } (or { owner }) shows the session id (sid) and vault once it is open.
+4. Call any builder (plan_deploy, build_fund, build_stop, build_resume, build_resize, build_set_max_rate, build_refund, build_upgrade, build_set_config, build_publish) with session: { vault, sid }. Instead of wallet transactions it returns calls[], each with a digest.
+5. Sign each digest: ECDSA P-256 with SHA-256 over the 32 digest bytes (WebCrypto sign({name: "ECDSA", hash: "SHA-256"}, key, bytes) -> 64 bytes r||s).
+6. session_execute { vault, sid, publicKey, calls: [{...call, signature}] }. The relay pays the gas; fees and fundings come out of the session budget.
+Reach: deployments the session's vault holds (created through a session), and - after the owner's one-time build_delegate (or enclave.host -> Sessions -> Grant) - the apps the WALLET owns, which a session treats as PRODUCTION: stop/resume, resize, fund, lower the cap, refund; never change what they run, never transfer. Owner-only, always the wallet: vault top-up/withdraw, promotion to production, other sessions, secrets, transfers. Ending a session never stops running apps.`,
   fees: `Publisher fees: a catalog version may carry feePerSec6 (set via build_publish's feeUsdPerHour, capped by the platform's maxFeePerSec6). Deploying such a version snapshots {publisher, fee} immutably into the deployment record; every funding pays the publisher pro-rata, straight to their wallet, no platform custody. get_app shows each version's fee. An upgrade (build_upgrade) can only move to a version whose fee fits the deployment's original snapshot; otherwise deploy fresh.`,
 
   cli: `The enclave CLI wraps every flow here with local key management:
@@ -801,7 +816,7 @@ const P = {
 const TOOLS = [
   {
     name: "guide",
-    description: "How-to guides for the Enclave platform (confidential compute for wasm apps, paid in USDC on Base). Topics: getting-started, deploy, publish, funding, attestation, volumes, networking, fees, cli. Start with getting-started.",
+    description: "How-to guides for the Enclave platform (confidential compute for wasm apps, paid in USDC on Base). Topics: getting-started, deploy, publish, funding, sessions, attestation, volumes, networking, fees, cli. Start with getting-started.",
     inputSchema: S({ topic: { type: "string", enum: Object.keys(GUIDES), description: "Which guide to read" } }, ["topic"]),
     handler: async ({ topic }) => GUIDES[topic] || `Unknown topic. Topics: ${Object.keys(GUIDES).join(", ")}`,
   },
@@ -1565,10 +1580,400 @@ const TOOLS = [
   },
 ];
 
+// ---- wallet sessions (P-256 session keys; docs/design/sessions.md) -------------
+// A session is a P-256 key + a policy + an optional USDC budget, approved ONCE by
+// the owner's wallet at enclave.host/grant. It acts through the owner's SessionVault:
+// on the records the vault holds, and - once the owner has delegated the vault on the
+// ledger (rev 15d setDelegate) - on the records the WALLET holds, which a session
+// always treats as production (stop/resume, resize, fund, lower the cap, refund;
+// never what they run). The CLIENT holds the key and signs; this server only
+// prepares calls (validated, quoted, digested) and forwards signed ones to the
+// relay's public /v1/sessions/execute - the same request any client can make.
+const SESSION_ACTIONS = { "deploy.create": 0, "deploy.fund": 1, "deploy.setAppRef": 2, "deploy.setConfig": 3,
+  "deploy.setShares": 4, "deploy.setMaxRate": 5, "deploy.setActive": 6, "deploy.refund": 7, "app.publish": 8,
+  "api.status": 128, "api.logs": 129, "api.restart": 130, "api.upload": 131, "api.appAccess": 132,
+  "api.placement": 133, "api.account": 134 };
+const ACTION_NAME = Object.fromEntries(Object.entries(SESSION_ACTIONS).map(([k, v]) => [v, k]));
+const ENVS = { staging: 1, prod: 2 };
+const USD6 = 1_000_000n;
+const num = (v) => BigInt(String(v ?? 0).replace(/n$/, ""));     // the relay writes bigints as "123n"
+// grant templates - the same presets the SDK/CLI/site use (sdk/sessions/src/grant.ts),
+// plus "agent", the browser preset's full reach with a budget and a week (an AI agent the
+// owner hands money to: it spends only the budget, every op is rate-limited and capped)
+const PRESETS = {
+  browser: { actions: ["deploy.create", "deploy.fund", "deploy.setAppRef", "deploy.setConfig", "deploy.setShares",
+      "deploy.setMaxRate", "deploy.setActive", "deploy.refund", "api.status", "api.logs", "api.restart", "api.upload",
+      "api.appAccess", "api.placement", "api.account"],
+    apps: ["*"], environments: ["staging", "prod"], budget: 0n, spendPerPeriod: 100n * USD6, periodSeconds: 86400,
+    opsPerPeriod: 0, maxFeePerOp: USD6 / 4n, maxAppFeePerHour: USD6, maxRatePerHour: 10n * USD6,
+    expiresIn: 12 * 3600, maxExpiresIn: 30 * 86400 },
+  "staging-publish": { actions: ["app.publish", "deploy.create", "deploy.fund", "deploy.setAppRef", "deploy.setConfig",
+      "deploy.setActive", "api.status", "api.logs", "api.restart", "api.upload"],
+    apps: [], environments: ["staging"], budget: 10n * USD6, spendPerPeriod: 5n * USD6, periodSeconds: 86400,
+    opsPerPeriod: 120, maxFeePerOp: USD6 / 10n, maxAppFeePerHour: 0n, maxRatePerHour: 5n * USD6,
+    expiresIn: 7 * 86400, maxExpiresIn: 28 * 86400 },
+  "auth-only": { actions: ["api.status"], apps: [], environments: [], budget: 0n, spendPerPeriod: 0n, periodSeconds: 86400,
+    opsPerPeriod: 0, maxFeePerOp: 0n, maxAppFeePerHour: 0n, maxRatePerHour: 0n, expiresIn: 12 * 3600, maxExpiresIn: 7 * 86400 },
+};
+PRESETS.agent = { ...PRESETS.browser, budget: 20n * USD6, spendPerPeriod: 50n * USD6, opsPerPeriod: 500,
+  expiresIn: 7 * 86400, maxExpiresIn: 30 * 86400 };
+const SESSION_CALL_TYPES = { SessionCall: [
+  { name: "sessionId", type: "bytes32" }, { name: "nonce", type: "uint256" }, { name: "action", type: "uint8" },
+  { name: "argsHash", type: "bytes32" }, { name: "fee", type: "uint256" }, { name: "deadline", type: "uint64" }] };
+const VAULT_ABI = [{ type: "function", name: "owner", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] }];
+const FACTORY_ABI = [{ type: "function", name: "vaultFor", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "address" }] }];
+const LEDGER_DELEGATE_ABI = [{ type: "function", name: "setDelegate", stateMutability: "nonpayable",
+  inputs: [{ type: "address" }, { type: "bool" }], outputs: [] }];
+const B32 = { type: "bytes32" };
+const CREATE_TUPLE = [{ type: "tuple", components: [
+  { name: "appRef", type: "string" }, { name: "gpuMilli", type: "uint16" }, { name: "cpuMilli", type: "uint16" },
+  { name: "appPort", type: "uint32" }, { name: "ports", type: "string" }, { name: "isPublic", type: "bool" },
+  { name: "configCid", type: "string" }, { name: "maxRate6", type: "uint256" }, { name: "env", type: "uint8" },
+  { name: "fund6", type: "uint256" }] }];
+const PUBLISH_TUPLE = [{ type: "tuple", components: [
+  { name: "slug", type: "string" }, { name: "name", type: "string" }, { name: "description", type: "string" },
+  { name: "version", type: "string" }, { name: "cid", type: "string" }, { name: "res", type: "uint32[4]" },
+  { name: "ports", type: "string" }, { name: "config", type: "string" }, { name: "configCid", type: "string" }] }];
+
+const sessionsConfig = (() => { let c = null, at = 0;
+  return async () => { if (!c || Date.now() - at > 600_000) { c = await self("GET", "/v1/sessions/config"); at = Date.now(); } return c; }; })();
+
+// a P-256 coordinate / scalar as 0x + 64 hex: accepts 0x-hex, bare hex, decimal or base64url (32 bytes)
+function word32(v, name) {
+  const s = String(v ?? "").trim();
+  let n;
+  if (/^0x[0-9a-fA-F]{1,64}$/.test(s)) n = BigInt(s);
+  else if (/^[0-9a-fA-F]{64}$/.test(s)) n = BigInt("0x" + s);
+  else if (/^\d{1,78}$/.test(s)) n = BigInt(s);
+  else if (/^[A-Za-z0-9_-]{43}=?$/.test(s)) n = BigInt("0x" + Buffer.from(s, "base64url").toString("hex"));
+  else throw new Error(`${name} must be a 32-byte value (0x-hex, decimal or base64url)`);
+  if (n <= 0n || n >= 1n << 256n) throw new Error(`${name} is out of range`);
+  return "0x" + n.toString(16).padStart(64, "0");
+}
+// {x, y} | {publicKey: "04…"} uncompressed point | a JWK {kty:"EC", crv:"P-256", x, y}
+export function sessionPublicKey(pk) {
+  if (typeof pk === "string") {
+    const h = pk.replace(/^0x/, "");
+    if (!/^04[0-9a-fA-F]{128}$/.test(h)) throw new Error("publicKey: pass {x, y} or the 65-byte uncompressed point 04…");
+    return { x: "0x" + h.slice(2, 66), y: "0x" + h.slice(66) };
+  }
+  if (!pk || typeof pk !== "object") throw new Error("publicKey: pass {x, y}");
+  return { x: word32(pk.x, "publicKey.x"), y: word32(pk.y, "publicKey.y") };
+}
+// {r, s} | a 64-byte raw r||s (WebCrypto's ECDSA output) as hex or base64url | DER (0x30…)
+export function sessionSignature(sig) {
+  if (sig && typeof sig === "object") return { r: word32(sig.r, "signature.r"), s: word32(sig.s, "signature.s") };
+  const s = String(sig ?? "").trim();
+  let b;
+  if (/^(0x)?[0-9a-fA-F]+$/.test(s)) b = Buffer.from(s.replace(/^0x/, ""), "hex");
+  else if (/^[A-Za-z0-9_-]+=*$/.test(s)) b = Buffer.from(s, "base64url");
+  else throw new Error("signature: pass {r, s}, 64 raw bytes (hex/base64url) or DER");
+  if (b.length === 64) return { r: "0x" + b.subarray(0, 32).toString("hex"), s: "0x" + b.subarray(32).toString("hex") };
+  if (b[0] === 0x30) {           // DER: 30 len 02 lr r 02 ls s
+    let i = 2; const int = () => { if (b[i] !== 0x02) throw new Error("signature: bad DER"); const n = b[i + 1]; const v = b.subarray(i + 2, i + 2 + n); i += 2 + n; return v; };
+    const r = int(), s2 = int();
+    const w = (x) => "0x" + BigInt("0x" + (x.toString("hex") || "0")).toString(16).padStart(64, "0");
+    return { r: w(r), s: w(s2) };
+  }
+  throw new Error(`signature: expected 64 bytes (r||s) or DER, got ${b.length} bytes`);
+}
+const keyHashOf = ({ x, y }) => keccak256(encodeAbiParameters([{ type: "uint256" }, { type: "uint256" }], [BigInt(x), BigInt(y)]));
+export function sessionCallDigest({ vault, sid, nonce, action, args, fee, deadline }) {
+  return hashTypedData({ domain: { name: "Enclave Sessions", version: "1", chainId: CHAIN_ID, verifyingContract: getAddress(vault) },
+    types: SESSION_CALL_TYPES, primaryType: "SessionCall",
+    message: { sessionId: sid, nonce: BigInt(nonce), action: Number(action), argsHash: keccak256(args), fee: BigInt(fee), deadline: BigInt(deadline) } });
+}
+async function vaultOwnerOf(vault) { return getAddress(await read(getAddress(vault), VAULT_ABI, "owner")); }
+async function sessionState(vault, sid) {
+  const v = await self("GET", `/v1/sessions/session/${getAddress(vault)}/${sid}`);
+  return v.state || {};
+}
+function decodeSessionState(st) {
+  const mask = num(st.actions);
+  const actions = Object.entries(SESSION_ACTIONS).filter(([, b]) => ((mask >> BigInt(b)) & 1n) === 1n).map(([n]) => n);
+  const envs = Object.entries(ENVS).filter(([, b]) => (Number(st.envs ?? 0) & b) !== 0).map(([n]) => n);
+  return { actions, environments: envs };
+}
+
+// Translate the unsigned wallet transactions a builder returned into session steps
+// {action, args, id?, describe}. Anything a session can never do is refused here, with why.
+export function stepsFromTxs(txs, { deployments, appCatalog, rev, catRevision, env, fund6 }) {
+  const steps = [];
+  const depAbi = depsAbiFor(rev);
+  const one = (data, describe) => {
+    const { functionName: fn, args } = decodeFunctionData({ abi: depAbi, data });
+    const d = (action, encoded, id) => steps.push({ action, args: encoded, id, describe: describe || `${fn}(${id ? id.slice(0, 10) + "…" : ""})` });
+    switch (fn) {
+      case "multicall": for (const c of args[0]) one(c, null); return;
+      case "setActive": return d(6, encodeAbiParameters([B32, { type: "bool" }], [args[0], args[1]]), args[0]);
+      case "setShares": return d(4, encodeAbiParameters([B32, { type: "uint16" }, { type: "uint16" }], [args[0], args[1], args[2]]), args[0]);
+      case "setMaxRate": return d(5, encodeAbiParameters([B32, { type: "uint256" }], [args[0], args[1]]), args[0]);
+      case "refund": return d(7, encodeAbiParameters([B32], [args[0]]), args[0]);
+      case "setAppRef": return d(2, encodeAbiParameters([B32, { type: "string" }], [args[0], args[1]]), args[0]);
+      case "setConfig": return d(3, encodeAbiParameters([B32, { type: "string" }], [args[0], args[1]]), args[0]);
+      case "fund": return d(1, encodeAbiParameters([B32, { type: "uint256" }], [args[0], args[1]]), args[0]);
+      case "fundEth": throw new Error("a session funds in USDC from its budget: pass usd, not eth");
+      case "transferDeployment": throw new Error("transfers are the owner's alone: a session can never hand a deployment away (sign build_transfer's transactions with the wallet)");
+      case "create": {
+        // rev >= 8 create(appRef, gpu, cpu, appPort, ports, isPublic, envelope, feeRecipient, feePerSec6, maxRate6):
+        // the vault re-derives the publisher fee from the catalog itself
+        if (rev < 8) throw new Error("the live ledger predates session deploys");
+        const [appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, envelope] = args;
+        const maxRate6 = args[args.length - 1];
+        return d(0, encodeAbiParameters(CREATE_TUPLE, [{ appRef, gpuMilli, cpuMilli, appPort, ports, isPublic,
+          configCid: envelope, maxRate6, env, fund6 }]), null);
+      }
+      default: throw new Error(`${fn} has no session action`);
+    }
+  };
+  for (const t of txs) {
+    const to = String(t.to).toLowerCase();
+    if (to === USDC_ADDRESS.toLowerCase()) continue;      // approve: the vault pays from the session budget
+    if (to === String(deployments).toLowerCase()) { one(t.data, t.function); continue; }
+    if (to === String(appCatalog).toLowerCase()) {
+      const { functionName: fn, args } = decodeFunctionData({ abi: catAbiFor(catRevision), data: t.data });
+      if (fn !== "publishVersion" && fn !== "publishVersionCfg") throw new Error(`${fn} has no session action`);
+      const hasCfg = fn === "publishVersionCfg";
+      const [slug, name, description, version, cid, res, ports] = args;
+      const config = catRevision >= 3 ? args[7] : "";
+      const configCid = hasCfg ? args[8] : "";
+      const fee = catRevision >= 5 ? BigInt(args[args.length - 1]) : 0n;
+      if (fee > 0n) throw new Error("a session publishes without a publisher fee (fees are paid to a WALLET publisher): drop feeUsdPerHour, or sign with the wallet");
+      steps.push({ action: 8, args: encodeAbiParameters(PUBLISH_TUPLE, [{ slug, name, description, version, cid,
+        res: res.map(Number), ports, config, configCid }]), id: null, describe: t.function });
+      continue;
+    }
+    throw new Error(`${t.function || t.to} is a wallet transaction a session can't make`);
+  }
+  return steps;
+}
+
+// Validate each step against what the session may reach, then quote and digest it.
+async function prepareSessionCalls(session, steps) {
+  if (!steps.length) throw new Error("nothing for the session to do");
+  const vault = getAddress(String(session.vault || "").trim());
+  const sid = String(session.sid || "").toLowerCase();
+  if (!isB32(sid)) throw new Error("session.sid must be the bytes32 session id");
+  const st = await sessionState(vault, sid);
+  if (!st.live) throw new Error("this session is not live (ended, revoked or expired): open a new one with session_request");
+  const mask = num(st.actions);
+  const walletOwner = await vaultOwnerOf(vault);
+  let delegation = null;
+  for (const s of steps) {
+    if (((mask >> BigInt(s.action)) & 1n) === 0n)
+      throw new Error(`this session's grant does not include ${ACTION_NAME[s.action]}: ask the owner for a session that does (session_request)`);
+    if (!s.id) continue;
+    const d = await depGet(s.id);
+    const holder = getAddress(d.owner);
+    if (holder === vault) continue;                       // the vault's own record: its custody env decides, on-chain
+    if (holder !== walletOwner)
+      throw new Error(`${s.id.slice(0, 10)}… belongs to ${holder}; this session acts for ${walletOwner} (its vault ${vault})`);
+    if (s.action === 2 || s.action === 3)
+      throw new Error(`${s.id.slice(0, 10)}… is held by the owner's wallet, which a session treats as PRODUCTION: it can stop/resume, resize, fund, lower the cap and refund it, but never change what it runs - the owner signs that with the wallet`);
+    if ((Number(st.envs ?? 0) & ENVS.prod) === 0)
+      throw new Error(`${s.id.slice(0, 10)}… is held by the owner's wallet (production) and this session is staging-only`);
+    delegation ??= (await self("GET", `/v1/sessions/owner/${walletOwner}`)).delegation || {};
+    if (!delegation.supported) throw new Error("the live ledger does not support delegation: the owner signs this with the wallet");
+    if (!delegation.granted)
+      throw new Error(`the owner hasn't let sessions act on the apps the wallet holds yet: one wallet transaction - build_delegate { owner: "${walletOwner}" }, or enclave.host -> Sessions -> Apps your wallet owns -> Grant`);
+  }
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);   // the relay accepts up to 15 min out
+  const calls = [];
+  let nonce = null;
+  for (const s of steps) {
+    const q = await self("POST", "/v1/sessions/quote", { body: { vault, sid, action: s.action } });
+    nonce = nonce === null ? num(q.nonce) : nonce + 1n;
+    const fee = num(q.fee) * 5n / 4n;                  // 25% headroom over the quote; charged to the budget
+    const digest = sessionCallDigest({ vault, sid, nonce, action: s.action, args: s.args, fee, deadline });
+    calls.push({ action: s.action, actionName: ACTION_NAME[s.action], describe: s.describe, nonce: nonce.toString(),
+      fee: fee.toString(), deadline: deadline.toString(), args: s.args, digest,
+      digestSha256: "0x" + createHash("sha256").update(Buffer.from(digest.slice(2), "hex")).digest("hex") });
+  }
+  return { via: "session", vault, sid, owner: walletOwner, calls,
+    sign: "For each call: ECDSA P-256 over SHA-256 of the 32 digest bytes (WebCrypto: sign({name:'ECDSA', hash:'SHA-256'}, sessionKey, digestBytes) -> 64 bytes r||s), i.e. a P-256 signature of digestSha256. Sign within 10 minutes (deadline).",
+    next: "session_execute { vault, sid, publicKey: {x, y}, calls: [ {…each call, signature} ] } - executed in order; the relay pays gas, the fee comes out of the session budget" };
+}
+
+const SESSION_CAPABLE = new Set(["plan_deploy", "build_fund", "build_stop", "build_resume", "build_upgrade", "build_resize",
+  "build_set_max_rate", "build_refund", "build_set_config", "build_publish"]);
+const SESSION_PARAM = { type: "object", additionalProperties: false, required: ["vault", "sid"],
+  description: "Act through a wallet session instead of returning wallet transactions: {vault, sid} of a live session (session_status lists them). The result is `calls` to sign with the session's P-256 key and send with session_execute - no wallet prompt. environment (plan_deploy only): staging|prod, default prod when the grant allows it.",
+  properties: { vault: { type: "string" }, sid: { type: "string" }, environment: { type: "string", enum: ["staging", "prod"] } } };
+for (const t of TOOLS) if (SESSION_CAPABLE.has(t.name)) {
+  t.inputSchema.properties.session = SESSION_PARAM;
+  t.description += " With session:{vault, sid} it returns session calls to sign with the session key (then session_execute) instead of wallet transactions.";
+  const run = t.handler;
+  t.handler = async (a, ctx) => {
+    if (!a.session) return run(a, ctx);
+    const { session, ...rest } = a;
+    const st = await sessionState(session.vault, String(session.sid || "").toLowerCase()).catch(() => ({}));
+    const env = session.environment ? ENVS[session.environment] : ((Number(st.envs ?? 0) & ENVS.prod) ? ENVS.prod : ENVS.staging);
+    // a session funds a new deployment in the same call as the create (fund6 comes out of the budget)
+    const fund6 = t.name === "plan_deploy" && rest.fundUsd ? BigInt(Math.round(Number(rest.fundUsd) * 100)) * 10000n : 0n;
+    // the build_fund handler wants exactly one of usd/eth; a session pays USDC
+    const out = await run(rest, ctx);
+    const { deployments, appCatalog } = await addresses();
+    const steps = stepsFromTxs(out.transactions || [], { deployments, appCatalog, rev: await depRev(),
+      catRevision: await catRev(), env, fund6 });
+    const { transactions, next, ...info } = out;
+    if (!steps.length) return { ...info, via: "session", calls: [], note: "nothing to sign: the builder had no transaction to make" };
+    return { ...info, ...(await prepareSessionCalls(session, steps)) };
+  };
+}
+
+TOOLS.push(
+  {
+    name: "session_status",
+    description: "A wallet's sessions: its SessionVault, every session (live or not; label, expiry, budget, the actions and environments it may use) and whether the owner has delegated the vault on the ledger (then sessions also act on the apps the WALLET holds, as production). Pass owner (wallet), or publicKey to find the sessions a key belongs to.",
+    inputSchema: S({ owner: { type: "string", description: "Owner wallet address" },
+      publicKey: { type: "object", description: "{x, y} of a session key (find its sessions)", additionalProperties: true } }),
+    handler: async ({ owner, publicKey }) => {
+      if (publicKey) {
+        const kh = keyHashOf(sessionPublicKey(publicKey));
+        const r = await self("GET", `/v1/sessions/by-key/${kh}`);
+        return { keyHash: kh, sessions: r.sessions || [] };
+      }
+      if (!isAddr(owner)) throw new Error("pass owner (0x… wallet) or publicKey");
+      const r = await self("GET", `/v1/sessions/owner/${getAddress(owner)}`);
+      const sessions = [];
+      for (const s of r.sessions || []) {
+        let live = null, decoded = {};
+        try { const st = await sessionState(r.vault, s.sid); live = Boolean(st.live); decoded = decodeSessionState(st);
+          Object.assign(decoded, { balance: `$${(Number(num(st.balance6)) / 1e6).toFixed(2)}`, spent: `$${(Number(num(st.spent6)) / 1e6).toFixed(2)}`,
+            expiresAt: new Date(Number(num(st.expiresAt)) * 1000).toISOString() }); } catch {}
+        sessions.push({ sid: s.sid, label: s.label, live, ...decoded, revoked: s.revoked });
+      }
+      return { owner: r.owner, vault: r.vault, vaultDeployed: r.deployed, delegation: r.delegation, sessions, held: r.held };
+    },
+  },
+  {
+    name: "session_request",
+    description: "Start a wallet session for a P-256 key the CLIENT generated and keeps (never send the private key anywhere): returns a link the owner opens at enclave.host to review and approve it with ONE wallet signature (plus a USDC deposit when budgetUsd > 0). Once approved, session_status { publicKey } shows the session id; the session then acts without wallet prompts, within its policy: preset \"agent\" (default: everything a browser session can do, with a USDC budget, 7 days), \"browser\", \"staging-publish\" (staging only, named apps) or \"auth-only\". To reach the apps the wallet already owns the owner also delegates once (build_delegate).",
+    inputSchema: S({
+      publicKey: { type: "object", description: "{x, y}: the session key's public point (hex/decimal/base64url coordinates)", additionalProperties: true },
+      label: { type: "string", description: "Shown to the owner, e.g. \"eyesoff chat: deploy my blog\"" },
+      preset: { type: "string", enum: Object.keys(PRESETS) },
+      budgetUsd: { type: "number", description: "USDC the owner deposits for this session to spend (default: the preset's)" },
+      spendPerDayUsd: { type: "number", description: "Daily spend ceiling (default: the preset's)" },
+      expiresInHours: { type: "number", description: "Lifetime (default: the preset's; capped per preset)" },
+      apps: { type: "array", items: { type: "string" }, description: "App ids/slugs the session may deploy (default: the preset's; [\"*\"] = any free app; paid apps must be named)" },
+      environments: { type: "array", items: { type: "string", enum: ["staging", "prod"] } },
+      owner: { type: "string", description: "Only this wallet may approve (recommended)" },
+    }, ["publicKey", "label"]),
+    handler: async (a) => {
+      const pk = sessionPublicKey(a.publicKey);
+      const name = a.preset || "agent";
+      const p = { ...PRESETS[name] };
+      if (!p.actions) throw new Error(`unknown preset ${name}`);
+      if (a.budgetUsd !== undefined) p.budget = BigInt(Math.round(Number(a.budgetUsd) * 100)) * 10000n;
+      if (a.spendPerDayUsd !== undefined) p.spendPerPeriod = BigInt(Math.round(Number(a.spendPerDayUsd) * 100)) * 10000n;
+      if (a.expiresInHours !== undefined) p.expiresIn = Math.round(Number(a.expiresInHours) * 3600);
+      if (!(p.expiresIn > 0) || p.expiresIn > p.maxExpiresIn) throw new Error(`"${name}" sessions last at most ${p.maxExpiresIn / 86400} days`);
+      if (a.apps) p.apps = a.apps.map(String);
+      if (a.environments) p.environments = a.environments.map(String);
+      if (p.budget < 0n || p.budget > 250n * USD6) throw new Error("budgetUsd must be 0..250 (the beta vault cap)");
+      const now = Math.floor(Date.now() / 1000);
+      const sessionKey = keyHashOf(pk);
+      const grant = { label: String(a.label).slice(0, 80), preset: name === "agent" ? "browser" : name, sessionKey,
+        actions: p.actions, apps: p.apps, environments: p.environments, budget: p.budget, spendPerPeriod: p.spendPerPeriod,
+        periodSeconds: p.periodSeconds, opsPerPeriod: p.opsPerPeriod, maxFeePerOp: p.maxFeePerOp,
+        maxAppFeePerHour: p.maxAppFeePerHour, maxRatePerHour: p.maxRatePerHour, expiresAt: BigInt(now + p.expiresIn),
+        measurement: "0x" + "0".repeat(64), grantNonce: "0x" + randomBytes(32).toString("hex"), signBefore: BigInt(now + 86400) };
+      const cfg = await sessionsConfig();
+      const req = { v: 1, chainId: CHAIN_ID, relay: API_BASE, x: pk.x, y: pk.y, grant,
+        ...(isAddr(a.owner) ? { owner: getAddress(a.owner) } : {}) };
+      const ser = JSON.stringify(req, (_k, v) => (typeof v === "bigint" ? `${v}n` : v));
+      const link = `${(cfg.site || "https://enclave.host").replace(/\/$/, "")}/grant#${Buffer.from(ser).toString("base64url")}`;
+      let sid = null, vault = null;
+      if (isAddr(a.owner)) {
+        vault = await read(cfg.factory, FACTORY_ABI, "vaultFor", [getAddress(a.owner)]);
+        sid = keccak256(encodeAbiParameters([{ type: "address" }, B32, B32], [vault, sessionKey, grant.grantNonce]));
+      }
+      return { link, keyHash: sessionKey, checkCode: sessionKey.slice(2, 10).toUpperCase(), vault, sid,
+        policy: { preset: name, actions: p.actions, apps: p.apps, environments: p.environments,
+          budget: `$${(Number(p.budget) / 1e6).toFixed(2)}`, spendPerDay: `$${(Number(p.spendPerPeriod) / 1e6).toFixed(2)}`,
+          expiresAt: new Date((now + p.expiresIn) * 1000).toISOString() },
+        next: `the owner opens the link (the page shows check code ${sessionKey.slice(2, 10).toUpperCase()} - it must match), signs once${p.budget > 0n ? " and approves the deposit" : ""}; then session_status { publicKey } (or { owner }) shows the live session id` };
+    },
+  },
+  {
+    name: "session_execute",
+    description: "Send session calls (from any builder called with session:{vault, sid}) that the client signed with its session key. Executed in order through the relay, which pays the gas; each call's fee and any funding come out of the session budget. Stops at the first failure and says which call failed and why.",
+    inputSchema: S({ vault: { type: "string" }, sid: { type: "string" },
+      publicKey: { type: "object", description: "{x, y} of the session key", additionalProperties: true },
+      calls: { type: "array", items: { type: "object", additionalProperties: true },
+        description: "The prepared calls, each with its signature: {r, s} or 64 bytes r||s (hex/base64url) or DER" } },
+      ["vault", "sid", "publicKey", "calls"]),
+    handler: async (a) => {
+      const vault = getAddress(String(a.vault));
+      const sid = String(a.sid).toLowerCase();
+      if (!isB32(sid)) throw new Error("sid must be bytes32");
+      const pk = sessionPublicKey(a.publicKey);
+      const done = [];
+      for (const [i, c] of a.calls.entries()) {
+        const sig = sessionSignature(c.signature);
+        try {
+          const r = await self("POST", "/v1/sessions/execute", { body: { vault, sid, action: Number(c.action),
+            args: c.args, fee: String(c.fee), deadline: String(c.deadline), nonce: String(c.nonce),
+            x: BigInt(pk.x).toString(), y: BigInt(pk.y).toString(), r: sig.r, s: sig.s } });
+          done.push({ call: i, action: ACTION_NAME[c.action] ?? c.action, txHash: r.txHash, block: r.block, result: r.result });
+        } catch (e) {
+          throw new Error(`call ${i} (${ACTION_NAME[c.action] ?? c.action}) failed: ${e.message}${done.length ? ` - ${done.length} earlier call(s) went through: ${done.map((d) => d.txHash).join(", ")}` : ""}`);
+        }
+      }
+      const created = done.find((d) => d.action === "deploy.create");
+      return { executed: done, ...(created ? { createdId: "0x" + String(created.result).replace(/^0x/, "").slice(0, 64),
+        next: "claim_hint { id: createdId }, then get_deployment until running" } : {}) };
+    },
+  },
+  {
+    name: "session_end",
+    description: "Sign a session out (the session key ends itself; the unspent budget goes back to the owner's vault; running apps are untouched). Two steps: call with {vault, sid} for the digest, sign it like a session call, then call again with publicKey, deadline and signature.",
+    inputSchema: S({ vault: { type: "string" }, sid: { type: "string" },
+      publicKey: { type: "object", additionalProperties: true }, deadline: { type: "string" },
+      signature: { description: "{r, s}, 64 bytes r||s (hex/base64url) or DER" } }, ["vault", "sid"]),
+    handler: async (a) => {
+      const vault = getAddress(String(a.vault));
+      const sid = String(a.sid).toLowerCase();
+      if (!isB32(sid)) throw new Error("sid must be bytes32");
+      if (!a.signature) {
+        const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
+        const digest = hashTypedData({ domain: { name: "Enclave Sessions", version: "1", chainId: CHAIN_ID, verifyingContract: vault },
+          types: { SessionEnd: [{ name: "sessionId", type: "bytes32" }, { name: "deadline", type: "uint64" }] },
+          primaryType: "SessionEnd", message: { sessionId: sid, deadline } });
+        return { vault, sid, deadline: deadline.toString(), digest,
+          next: "sign the digest (ECDSA P-256, SHA-256 over the 32 bytes) and call session_end again with publicKey, deadline and signature" };
+      }
+      const pk = sessionPublicKey(a.publicKey);
+      const sig = sessionSignature(a.signature);
+      const r = await self("POST", "/v1/sessions/end", { body: { vault, sid, deadline: String(a.deadline),
+        x: BigInt(pk.x).toString(), y: BigInt(pk.y).toString(), r: sig.r, s: sig.s } });
+      return { ended: true, txHash: r.txHash, refunded: `$${(Number(num(r.refund6)) / 1e6).toFixed(2)} to the owner's vault` };
+    },
+  },
+  {
+    name: "build_delegate",
+    description: "Unsigned wallet transaction that lets the owner's sessions act on the apps the WALLET owns (ledger setDelegate(vault, true)), or takes that away (grant:false: every session loses them at once). One-time, owner-only. A session treats wallet-owned apps as production: stop/resume, resize, fund, lower the cap, refund - never what they run, never a transfer.",
+    inputSchema: S({ owner: { type: "string", description: "The owner wallet" }, grant: { type: "boolean", description: "true to grant (default), false to revoke" } }, ["owner"]),
+    handler: async ({ owner, grant }) => {
+      if (!isAddr(owner)) throw new Error("owner must be a 0x… wallet address");
+      const o = getAddress(owner);
+      const cfg = await sessionsConfig();
+      const r = await self("GET", `/v1/sessions/owner/${o}`);
+      if (!r.delegation?.supported) throw new Error("the live ledger does not support delegation");
+      const allow = grant !== false;
+      return { owner: o, vault: r.vault, ledger: r.delegation.ledger, currently: r.delegation.granted ? "granted" : "not granted",
+        transactions: [tx(r.delegation.ledger, encodeFunctionData({ abi: LEDGER_DELEGATE_ABI, functionName: "setDelegate", args: [r.vault, allow] }), 0n,
+          `EnclaveDeployments.setDelegate(your session vault ${r.vault.slice(0, 10)}…, ${allow})`)],
+        next: `sign+send with ${o}${cfg ? "" : ""}; session_status { owner } then shows delegation.granted = ${allow}` };
+    },
+  },
+);
+
 // ---- MCP protocol (Streamable HTTP, stateless JSON mode) ----------------------
 const PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
 const SERVER_INFO = { name: "enclave", title: "Enclave (enclave.host)", version: "1.0.0" };
-const INSTRUCTIONS = `Enclave runs apps inside hardware TEE enclaves, paid per second in USDC on Base. This server exposes the FULL platform surface for coding agents. Trust model: no tool ever sees a private key. Reads are direct; every state change returns UNSIGNED Base (chainId ${CHAIN_ID}) transactions to sign with the user's own wallet, and signature flows (sign-in, uploads) take locally produced signatures. Start with the guide tool (topic "getting-started"). Typical deploy: list_apps -> plan_deploy -> sign+send create -> build_fund -> sign+send -> claim_hint -> get_deployment until running.`;
+const INSTRUCTIONS = `Enclave runs apps inside hardware TEE enclaves, paid per second in USDC on Base. This server exposes the FULL platform surface for coding agents. Trust model: no tool ever sees a private key. Reads are direct; every state change returns UNSIGNED Base (chainId ${CHAIN_ID}) transactions to sign with the user's own wallet - or, with session:{vault, sid}, session calls the client signs with its own P-256 session key and sends with session_execute (no wallet prompt; guide topic "sessions") - and signature flows (sign-in, uploads) take locally produced signatures. Start with the guide tool (topic "getting-started"). Typical deploy: list_apps -> plan_deploy -> sign+send create -> build_fund -> sign+send -> claim_hint -> get_deployment until running.`;
 
 const MCP_CORS = {
   "Access-Control-Allow-Origin": "*",
