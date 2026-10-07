@@ -20,7 +20,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
-import { createPublicClient, createWalletClient, http, encodeFunctionData, encodeDeployData, getAddress,
+import { createPublicClient, createWalletClient, http, fallback, encodeFunctionData, encodeDeployData, getAddress,
   toFunctionSelector, stringToHex, decodeFunctionResult } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
@@ -50,7 +50,10 @@ const MIG = await import(path.join(REPO, "site/components/admin-console/migrate.
 const { CONTRACTS } = await import(path.join(REPO, "site/js/gen/contract-artifacts.js"));
 const kind = MIG.MIG_KINDS.deployments;
 
-const pub = createPublicClient({ chain: base, transport: http(RPC, { retryCount: 6 }) });
+// mainnet: rotate over public RPCs (each rate-limits a burst of reads); a fork: just the fork
+const pub = createPublicClient({ chain: base, transport: RPC === "https://mainnet.base.org"
+  ? fallback(["https://mainnet.base.org", "https://base.drpc.org", "https://base-rpc.publicnode.com"].map((u) => http(u, { retryCount: 4, retryDelay: 1500 })))
+  : http(RPC, { retryCount: 6 }) });
 const state = fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, "utf8")) : {};
 const save = () => fs.writeFileSync(STATE, JSON.stringify(state, null, 2) + "\n");
 
@@ -110,6 +113,7 @@ async function migrator() {
     const rc = await pub.waitForTransactionReceipt({ hash, timeout: 240_000 });
     if (rc.status !== "success") die(`${label} reverted: ${hash}`);
     say(`  ✓ ${label} (${(Number(rc.gasUsed) / 1e6).toFixed(2)}M gas) ${hash}`);
+    if (RPC === "https://mainnet.base.org") await new Promise((r) => setTimeout(r, 8000));   // public RPC nodes lag the receipt
     return rc;
   };
   return { account, send };
@@ -118,8 +122,14 @@ async function migrator() {
 async function readParams(address, abi) {
   const out = {};
   for (const n of ["maxGpuMilli", "maxFeePerSec6", "runnerBps", "leaseSec", "proofRequiredFrom", "claimBond6", "bondExitDelay",
-    "ethUsdFeed", "payout", "registry", "usdc", "prover", "feeRouter", "owner", "pendingOwner", "retired", "importsSealed"])
-    out[n] = await pub.readContract({ address, abi, functionName: n }).catch(() => undefined);
+    "ethUsdFeed", "payout", "registry", "usdc", "prover", "feeRouter", "owner", "pendingOwner", "retired", "importsSealed"]) {
+    let err;
+    for (let i = 0; i < 4 && out[n] === undefined; i++) {
+      try { out[n] = await pub.readContract({ address, abi, functionName: n }); }
+      catch (e) { err = e; await new Promise((r) => setTimeout(r, 1500 * (i + 1))); }
+    }
+    if (out[n] === undefined) die(`could not read ${n} from ${address}: ${err?.shortMessage || err?.message}`);
+  }
   return out;
 }
 
@@ -166,7 +176,12 @@ if (CMD === "prepare") {
       args: [live.usdc, live.payout, live.registry, live.ethUsdFeed] }) });
     state.ledger = getAddress(rc.contractAddress); save();
   }
-  const code = await pub.getCode({ address: state.ledger });
+  let code;
+  for (let i = 0; i < 20 && !(code && code.length > 2); i++) {
+    code = await pub.getCode({ address: state.ledger }).catch(() => undefined);
+    if (!(code && code.length > 2)) await new Promise((r) => setTimeout(r, 3000));
+  }
+  if (!(code && code.length > 2)) die(`no code at ${state.ledger} yet`);
   checkEngineSelectors(code.toLowerCase());
   if (!code.toLowerCase().includes("63" + toFunctionSelector("setDelegate(address,bool)").slice(2))) die("the target has no setDelegate");
   // 2. every owner parameter the live ledger carries

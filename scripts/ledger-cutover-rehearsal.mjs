@@ -150,10 +150,14 @@ try {
 
   const store = new sdk.MemoryStore();
   const { signer, record } = await sdk.newSessionKey(store, { relay: relayUrl, chainId: 8453, label: "cutover", extractable: true });
-  const grant = sdk.buildGrant({ sessionKey: signer.keyHash, label: "cutover browser", preset: "browser", policy: { budget: 0n } });
+  // a $1 budget: every relayed action pays its relay fee from the session (a $0 session can only sign in)
+  await rpc("anvil_impersonateAccount", [PROV]); await rpc("anvil_setBalance", [PROV, toHex(10n ** 17n)]);
+  await pc.waitForTransactionReceipt({ hash: await createWalletClient({ chain, account: PROV, transport: vhttp(RPC) })
+    .writeContract({ address: usdc, abi: A.erc20, functionName: "transfer", args: [owner.address, parseUnits("2", 6)] }) });
+  const grant = sdk.buildGrant({ sessionKey: signer.keyHash, label: "cutover browser", preset: "browser", policy: { budget: parseUnits("1", 6) } });
   const vault = await sdk.vaultAddress(pc, out.sessionVaultFactory, owner.address);
   await sdk.openSession({ relay: new sdk.RelayClient(relayUrl), owner: { address: owner.address, signTypedData: (td) => owner.signTypedData(td) },
-    chainId: 8453, vault, grant });
+    chainId: 8453, vault, grant, usdc: await sdk.usdcDomain(pc, usdc, 8453) });
   const session = await sdk.sessionFromRecord(await sdk.completeSession(store, record, { vault, owner: owner.address, grant, rpc: RPC }));
   const row = () => pc.readContract({ address: st.ledger, abi: GET, functionName: "get", args: [id] });
   const fails = async (p) => { try { await p; return false; } catch { return true; } };
