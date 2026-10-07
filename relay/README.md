@@ -28,6 +28,7 @@ controls forwarded-header trust and `CORS_ORIGINS` lists authorized browser orig
 | `POST /v1/network/tuna` | Registered operator's signed allocation publication |
 | `GET /v1/relays` | Compatibility alias for the TUNA map; `relays` is empty |
 | `/v1/auth/*` | Enclave-issued authentication, pinned to the serving host |
+| `/v1/sessions/*` | Wallet sessions: relayer, keeper and index for SessionVaults (`sessions.mjs`, its own hot key `SESSIONS_RELAYER_KEY`; [design](../docs/design/sessions.md), §15-16) |
 | `/health` | Control API and fleet freshness |
 | `/mcp` | Platform tools for coding agents |
 
@@ -132,6 +133,14 @@ branch runs first, so a tenant app's own `/mcp` path is never shadowed.
   user's wallet. Signature flows (SIWE, upload tokens) take locally produced
   signatures. Session tokens ride per-call `token` params or the Authorization
   header and stay enclave-verified upstream.
+- **Wallet sessions** (`docs/design/sessions.md`): `session_request` returns the
+  grant link for an agent's P-256 key, `session_status` reads an owner's vault,
+  sessions and delegation, `build_delegate` returns the owner's unsigned
+  `setDelegate` transaction, and `session_end` signs a session out. Given
+  `session: {vault, sid}`, the builders return `calls`, each with a digest for
+  the agent's key to sign (P-256 over SHA-256 of the digest), instead of wallet
+  transactions, and `session_execute` sends the signed calls through the
+  sessions relayer. Still no keys on the server.
 - Read tools self-loop through this relay's own gateway (loopback), so they
   return exactly what external clients see; catalog/ledger reads use
   `BASE_RPC` behind the same address-book repointing as everything else.

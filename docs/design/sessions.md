@@ -1,8 +1,8 @@
 # Sessions for enclave.host: design spec
 
-Status: **implemented** (sessions/spec branch). Decisions D1-D8 were taken as recommended below, and §15 records where the build deviates from this text.
+Status: **implemented** (sessions/spec branch). Decisions D1-D8 were taken as recommended below, and §15 records where the build deviates from this text. §16 adds delegated access to the deployments the owner's wallet holds (ledger rev 15d + vault v2, live on Base since 2026-10-07); it supersedes D2's "sessions can't control wallet-owned deployments".
 Branch: `sessions/spec`, cut from main 405133117.
-Live chain state below was read on 2026-10-06.
+Live chain state in §1 was read on 2026-10-06. The ledger has moved since (§16.4).
 
 A session is a P-256 delegate key, plus a policy, plus an optional escrowed USDC budget.
 The owner's wallet approves it once. Sign-in opens a session and sign-out terminates it.
@@ -21,7 +21,7 @@ Each item has a recommendation. Section numbers point to the detail.
 | # | Decision | Recommendation |
 |---|---|---|
 | D1 | **Signatures needed to open a session that has money.** One readable EIP-712 grant cannot also move USDC: USDC only moves on its own signature (EIP-2612 permit or EIP-3009). So "readable on the Trezor" and "one signature" conflict whenever there is a deposit. See §3.7. | Use **two signatures** (readable grant + USDC authorization, submitted in one transaction) when opening a funded session from a link. Browser sign-in defaults to a **zero budget** (one signature). Top-ups are **one signature** each. An optional "quick" mode does it in one signature, but the device shows only the amount, not the policy. Recommend it for browser sign-in only, or not at all. |
-| D2 | **Custody.** The ledger authorizes by `msg.sender == d.owner` and is 309 bytes under the EIP-170 limit (24,267 bytes live). Trusting a forwarder there means a size refactor plus a full ledger migration. Sessions can therefore only manage deployments the owner's vault holds. Moving an existing deployment in requires `refund()` first (which stops it) whenever it holds refundable escrow. See §2.2. | Accept. New deployments created by a session are born inside the vault. Existing wallet-owned deployments stay wallet-managed: sessions can top them up but not control them. Moving one in is an explicit owner action. |
+| D2 | **Custody.** The ledger authorizes by `msg.sender == d.owner` and is 309 bytes under the EIP-170 limit (24,267 bytes live). Trusting a forwarder there means a size refactor plus a full ledger migration. Sessions can therefore only manage deployments the owner's vault holds. Moving an existing deployment in requires `refund()` first (which stops it) whenever it holds refundable escrow. See §2.2. | Accept. New deployments created by a session are born inside the vault. Existing wallet-owned deployments stay wallet-managed: sessions can top them up but not control them. Moving one in is an explicit owner action. **Superseded 2026-10-07 (§16):** the ledger was migrated after all (rev 15d, owner-approved delegates), so once the owner grants their vault, sessions covering production can suspend, resume, resize, fund, lower the cap of and refund wallet-held deployments in place. Version, config and transfer stay the wallet's. |
 | D3 | **How staging relates to apps.** Pick a pattern. See §2.3. | Use a **separate staging app** (e.g. `eyesoff-staging`) held by the vault. Agents publish there. Promotion = the owner republishes the tested CID/config under the prod app and points the prod deployment at it. Staging and prod then have different AppIDs, so different measurements. No catalog change is needed. |
 | D4 | **Where relayer fees go.** | **Through PaymentRouter to the treasury**, tagged with a fee ref. The vault's outflows are then exactly {ledger, PaymentRouter, owner}, and the relay's hot wallet never holds USDC. The relayer's ETH keeps being topped up from the treasury as today. |
 | D5 | **Upgrade policy.** | **Immutable** EIP-1167 clones: no proxy, no admin, no pause. New versions are new factories with owner opt-in migration. Add a per-vault balance cap in the implementation for the beta (e.g. $1,000), lifted by a later factory. See §3.11. |
@@ -39,7 +39,7 @@ Live addresses come from the address book `0xab214342…0907`. Governance is the
 
 | Contract | Live | Facts that shape this design |
 |---|---|---|
-| EnclaveDeployments (ledger) | `0xb36D…4830`, schema 15, 24,267 bytes | Every owner action uses `_requireOwned` (`msg.sender == d.owner`): `setAppRef`, `setConfig`, `setShares`, `setActive`, `setMaxRate`, `refund`, `transferDeployment`. `create` makes the caller the owner. Funding is open to anyone: `fund`, `fundFor(id, value, payer)` (where `payer` only sets refund attribution) and `fundWithAuthorization` (EIP-3009, the nonce must start with the id). No forwarder, no EIP-712. `transferDeployment` is one step and reverts `"refund first"` while the owner has refundable escrow. `create` stores the caller's `feeRecipient`/`feePerSec6` **without checking them against the catalog**. `multicall` delegatecalls to itself and is non-payable. Main's source is schema 16, at 24,575 bytes (one byte of headroom), and not deployed. |
+| EnclaveDeployments (ledger) | `0xb36D…4830`, schema 15, 24,267 bytes | Every owner action uses `_requireOwned` (`msg.sender == d.owner`): `setAppRef`, `setConfig`, `setShares`, `setActive`, `setMaxRate`, `refund`, `transferDeployment`. `create` makes the caller the owner. Funding is open to anyone: `fund`, `fundFor(id, value, payer)` (where `payer` only sets refund attribution) and `fundWithAuthorization` (EIP-3009, the nonce must start with the id). No forwarder, no EIP-712. `transferDeployment` is one step and reverts `"refund first"` while the owner has refundable escrow. `create` stores the caller's `feeRecipient`/`feePerSec6` **without checking them against the catalog**. `multicall` delegatecalls to itself and is non-payable. Main's source is schema 16, at 24,575 bytes (one byte of headroom), and not deployed. **Retired 2026-10-07**: replaced by rev 15d at `0x606C…eAe9` (rev 15 plus `setDelegate`; `_requireOwned` also passes an approved delegate, `transferDeployment` does not), §16. |
 | EnclaveAppCatalog | `0x1841…26e3`, schema 9, 22,733 bytes | `appId = keccak(publisher, slug)`. Only `a.publisher == msg.sender` can publish, yank, delist or edit. Only governance can call `transferApp`. Versions are append-only and immutable, and a deployment pins `catalog://<appId>/<index>`. Versions start **Pending** unless governance published them (rev 9). Pending versions still run on **private** deployments (`forPrivate`). The catalog moves no money. |
 | PaymentRouter | `0xf171…d56A` | Immutable and holds nothing. `pay(amount, orderRef)` pulls from `msg.sender` to the treasury and emits `PaymentReceived`. `payWithPermit` permits `msg.sender`, so it can't be relayed. **Compute funding does not go through it**: deployments are funded on the ledger, which splits each payment into runner escrow, publisher cut and payout/feeRouter. On the site, `pay.js` has no callers. |
 | EnclaveCreditVault + factory | `0xa891…4E91` | Prior art for this design. It is a per-customer EIP-1167 clone, every operation is P-256 WebAuthn-signed and checked through the `0x100` precompile, and the relay submits. Ledger calls are limited to an allowlist of selectors; it is closed-loop, with no withdraw and no owner. It **owns the deployments it creates**, which is the custody pattern this design reuses. It approves the book-resolved ledger for `max`, which this design deliberately does not repeat. |
@@ -131,7 +131,8 @@ owner wallet ── signs grant (EIP-712, once) ──┐
 session key ── signs intents ──► relayer ──► SessionVault (per owner, clone)
  (P-256: IndexedDB             (submits,        │ policy check · budget · rate · expiry
   or agent file/env)            pays ETH)       │ builds the call itself (no generic execute)
-                                               ├──► EnclaveDeployments   (create/fund/control, vault-held only)
+                                               ├──► EnclaveDeployments   (create/fund/control vault-held;
+                                               │                          wallet-held as prod via delegation, §16)
                                                ├──► EnclaveAppCatalog    (publish to vault-held apps)
                                                ├──► PaymentRouter        (orders + relayer fee → treasury)
                                                └──► owner                (refunds, withdrawals)
@@ -163,8 +164,8 @@ The vault is `d.owner` of the deployments sessions manage, and `publisher` of th
 
 - **Created by a session:** the vault calls `create`, so it owns the deployment from the start. Same for `publishVersion` on a new slug.
 - **Existing wallet-owned deployment:**
-  - Sessions can **fund** it with `fundFor(id, value, payer = d.owner)`, so refundable escrow stays attributed to the owner's wallet.
-  - Control (resize, suspend, version) stays a wallet transaction until the owner moves the deployment in.
+  - Sessions can **fund** it with `fundFor(id, value, payer = d.owner)`, so refundable escrow stays attributed to the owner's wallet. (Vault v1 as built refused this; vault v2 allows it for grants covering `prod`, §16.)
+  - Control (resize, suspend, version) stays a wallet transaction until the owner moves the deployment in. **Changed 2026-10-07 (§16):** once the owner grants their vault on the ledger (`setDelegate`), sessions covering `prod` suspend, resume, resize, lower the cap and refund it where it is. The version and config stay wallet transactions, and so does any transfer.
   - Moving it in takes `transferDeployment(id, vault)` from the wallet, then an owner `Adopt`. A deployment holding refundable escrow must be `refund()`ed first, which stops it; the ledger refuses the transfer otherwise. A Ledger `multicall` can move many deployments in one wallet transaction.
 - **Existing wallet-published app:** stays wallet-managed. Sessions publish to a vault-held staging app (D3). A governance `transferApp` can move an app into the vault if you want pattern P2 (§2.3).
 - **Unsolicited transfers:** anyone can transfer a deployment to a vault (a gift, or an attack). The vault treats an unknown held id as **unadopted**: no session may touch it until the owner `Adopt`s it.
@@ -191,7 +192,7 @@ Environment is a property of a **vault-held deployment**: `staging` or `prod`. T
 | Owner only | change env, release | **setAppRef/setConfig = promotion**; change env; release |
 | Secret release (§7) | that deployment's own (staging) secrets | only when `held[id].promoted == keccak(appRef, configCid)` at the confirmed row |
 
-**Promotion** is an owner operation (`Promote`, §3.6). It sets the prod deployment's `appRef`/`configCid` through the vault and records `promoted = keccak(appRef, configCid)`. It also verifies a version label against the catalog, so the Trezor screen shows `"eyesoff 1.0.79"` and not just an index. A session can never write `promoted`. Wallet-held deployments need no new rule: sessions can't change them at all.
+**Promotion** is an owner operation (`Promote`, §3.6). It sets the prod deployment's `appRef`/`configCid` through the vault and records `promoted = keccak(appRef, configCid)`. It also verifies a version label against the catalog, so the Trezor screen shows `"eyesoff 1.0.79"` and not just an index. A session can never write `promoted`. Wallet-held deployments need no new rule: a session never changes what they run. Through the ledger delegation (§16) it reaches them as `prod`, so `setAppRef`/`setConfig` stay the wallet's.
 
 App patterns for staging (D3):
 
@@ -277,10 +278,10 @@ The vault **builds every call itself** from typed arguments. It never forwards c
 | bit | action | target | built call | extra checks |
 |---|---|---|---|---|
 | 0 | `deploy.create` | ledger | `create(appRef, gpu, cpu, port, ports, isPublic, cfg, feeTo, feeSec, maxRate)`, then an optional `fundFor` | Parse `appRef` as `catalog://<appId>/<idx>` (the same parser as `EnclaveReviews._refAppId`), with the appId in the policy. `feeSec` must equal `catalog.versionFee(appId, idx)`, and `feeTo` must equal the app's `publisher` whenever `feeSec > 0` (the ledger checks neither). Also `feeSec*3600 ≤ maxAppFeeHour`. The environment must be in the policy. Records `held[id] = {env, promoted: 0, createdBy: sid}`. |
-| 1 | `deploy.fund` | ledger | `fundFor(id, v, payer)` | `d.owner ∈ {vault, owner}`. `payer = d.owner`, so refund attribution follows the owner (wallet or vault). |
+| 1 | `deploy.fund` | ledger | `fundFor(id, v, payer)` | `d.owner ∈ {vault, owner}`. `payer = d.owner`, so refund attribution follows the owner (wallet or vault). As built: v1 vault-held only; v2 adds wallet-held records as `prod`, a paid one only when its app is named (§16). |
 | 2 | `deploy.setAppRef` | ledger | `setAppRef(id, ref)` | Held **staging** only; appId in policy. |
 | 3 | `deploy.setConfig` | ledger | `setConfig(id, cfg)` | Held **staging** only. |
-| 4 | `deploy.setShares` | ledger | `setShares(id, g, c)` | Held, with its environment in the policy. |
+| 4 | `deploy.setShares` | ledger | `setShares(id, g, c)` | Held, with its environment in the policy. v2: also wallet-held records, as `prod`, once the owner delegates (§16); the same applies to bits 5-7. |
 | 5 | `deploy.setMaxRate` | ledger | `setMaxRate(id, r)` | Same. |
 | 6 | `deploy.setActive` | ledger | `setActive(id, b)` | Same. |
 | 7 | `deploy.refund` | ledger | `refund(id)` | Same. Proceeds land in the **free balance** (owner's), never the session's. |
@@ -445,7 +446,7 @@ Why immutable rather than an upgradeable proxy: anyone holding an upgrade key ca
 
 ## 4. Platform contract integration (phase b)
 
-1. **Ledger: no change.** Custody (§2.2) covers control, and `fundFor` covers funding wallet-held deployments. Schema 16 is still unmerged and is one byte under the limit, so revisit forwarder support only if the ledger is ever split or refactored.
+1. **Ledger: no change.** Custody (§2.2) covers control, and `fundFor` covers funding wallet-held deployments. Schema 16 is still unmerged and is one byte under the limit, so revisit forwarder support only if the ledger is ever split or refactored. **Changed 2026-10-07:** the live rev 15 gained owner-approved delegates and was migrated as rev 15d (§16). Rev 16 on main does not have them yet.
 2. **Catalog: no change for v1** with pattern P1 (§2.3). Optional rev 10 adds per-app delegates (P3).
 3. **Address book:**
    - Add `sessionVaultFactory`.
@@ -565,7 +566,7 @@ This applies to:
 - path B (sealed SNP);
 - path C (Shield).
 
-Wallet-held deployments are unchanged, since sessions can't affect them.
+Wallet-held deployments are unchanged. Sessions reach them only through the delegation of §16, which never changes what they run, so the wallet alone decides the code their secrets go to.
 
 Every secret is still set only by the owner's wallet. A session can neither set nor read one, nor make a prod deployment run code the owner hasn't promoted. Instances already running keep their secrets, because the check runs at release and nothing depends on a live session (§1.4). Tests must also show that terminating or expiring a session changes no release decision.
 
@@ -606,9 +607,10 @@ enclave session new --preset staging-publish --app eyesoff-staging --budget 10 -
   → prints the grant link and a 4-word check phrase (derived from the key hash; the grant page shows the same phrase)
   → waits for SessionOpened, then stores the key (FileStorage, or --env to print ENCLAVE_SESSION)
 enclave session status | list | terminate [--sid] | top-up-link --amount 5
+enclave session delegate [--revoke] [--status [--owner 0x…]]   (§16: the owner's one wallet transaction to the ledger)
 ```
 
-Session-aware commands (`publish`, `deploy`, `fund`, `upgrade`, `config`, `stop`/`resume`, `logs`, `restart`) use the active session, if there is one, instead of the key file. A command outside the session's policy fails with the policy reason and a hint (`ask the owner for a session with deploy.setAppRef`). It never falls back to the wallet key.
+Session-aware commands (`publish`, `deploy`, `fund`, `upgrade`, `config`, `stop`/`resume`, `logs`, `restart`) use the active session, if there is one, instead of the key file. Since §16 they also act on deployments the owner's wallet holds, as production, once the owner has delegated. A command outside the session's policy fails with the policy reason and a hint (`ask the owner for a session with deploy.setAppRef`). It never falls back to the wallet key.
 
 ### 8.3 ERC-7715 alignment
 
@@ -636,7 +638,7 @@ This session replaces SIWE for wallet users. Existing SIWE tokens keep working u
 ### 9.2 Indicator and actions
 
 - **Header indicator:** balance, spent, time left, **Top up** and **Sign out**.
-- **Call sites:** every `sendTx` call site in §1.2 becomes `session.call` for vault-held resources. Owner-only actions still prompt the wallet, but as gasless typed data, not ETH transactions: Promote, secrets, environment changes, Release, Withdraw, Adopt, yank or delist. Wallet-held deployments keep their wallet transactions, with a **Manage with sessions** move-in flow that explains the refund-first constraint.
+- **Call sites:** every `sendTx` call site in §1.2 becomes `session.call` for vault-held resources. Owner-only actions still prompt the wallet, but as gasless typed data, not ETH transactions: Promote, secrets, environment changes, Release, Withdraw, Adopt, yank or delist. Wallet-held deployments keep their wallet transactions, with a **Manage with sessions** move-in flow that explains the refund-first constraint. (As built, §16: no move-in. Once the owner grants the delegation, suspend, resume, resize, cancel and a lowered cap on a wallet-held row go through the session; version and config changes still ask the wallet.)
 - **Sign-out:**
   1. The session key signs `Terminate`.
   2. The relayer revokes API access, then submits.
@@ -690,8 +692,8 @@ The pending action resumes after the owner signs.
 
 | Threat | Bound or mitigation |
 |---|---|
-| **Leaked session key** (assumed) | Only actions in the policy, on the policy's apps and environments. Spend ≤ budget, per period ≤ limit, ≤ N operations per period, fee ≤ cap, until `expiresAt`. It **cannot**: withdraw, promote prod, read or set secrets, open/extend/top-up sessions, move custody, or send money anywhere except the owner's deployments, PaymentRouter and the catalog-bound publisher fee. Unused ledger balance it spends refunds to the owner's vault. The owner sees every operation on `/sessions` and kills it with `Terminate` or `RevokeAll`. |
-| **Prompt injection of an agent** | It acts within policy, so presets are narrow: staging only, named apps, $5/day, a week. Promotion needs the owner's device signature showing a *catalog-verified* version label. Agent sessions get no secrets and no prod access. Staging secrets should hold non-production values (the `/sessions` and secrets UIs say so). An injected agent can produce a grant link asking for a broad policy; the grant page flags breadth, and the device shows the real policy (D1 readable mode). Key exfiltration by an injected agent is the leaked-key row. |
+| **Leaked session key** (assumed) | Only actions in the policy, on the policy's apps and environments. Spend ≤ budget, per period ≤ limit, ≤ N operations per period, fee ≤ cap, until `expiresAt`. It **cannot**: withdraw, promote prod, read or set secrets, open/extend/top-up sessions, move custody, or send money anywhere except the owner's deployments, PaymentRouter and the catalog-bound publisher fee. Unused ledger balance it spends refunds to the owner's vault. The owner sees every operation on `/sessions` and kills it with `Terminate` or `RevokeAll`. **With §16 delegation and a `prod` grant**, the key can also suspend, downsize, cancel (refund to the wallet) and lower the cap of *any* app the wallet holds (the grant's `apps` list narrows only funding of paid apps), which is a denial-of-service lever on production. Revoking the delegation (one wallet transaction) removes it for every session at once. |
+| **Prompt injection of an agent** | It acts within policy, so presets are narrow: staging only, named apps, $5/day, a week. Promotion needs the owner's device signature showing a *catalog-verified* version label. Agent sessions get no secrets and no prod access (the `staging-publish` preset's grant has no `prod`, so the §16 delegation never reaches it; the MCP server's broader `agent` preset does have `prod`, §16.5). Staging secrets should hold non-production values (the `/sessions` and secrets UIs say so). An injected agent can produce a grant link asking for a broad policy; the grant page flags breadth, and the device shows the real policy (D1 readable mode). Key exfiltration by an injected agent is the leaked-key row. |
 | **Relayer compromise** | It can't forge or redirect funds (everything is signed and destinations are fixed). It can censor or delay: the SDK submits directly, and the owner can always act on-chain. A stolen hot key loses the relayer's ETH only; vaults are untouched. It can quote inflated fees: they're capped by policy and checked by the SDK. The relay can never vouch for a session to the supervisor, which verifies on-chain itself. A compromised relay can forge auth on relay-served routes it already controls, as today. |
 | **Keeper failure** | Funds are not at risk (§5.2). Expiry is enforced on-chain and off-chain without the keeper. |
 | **Compromised site / XSS** | A non-extractable key can still be *used* by script in the page, within policy. Readable on-device grants stop silent policy swaps. CSP, and no third-party script on the sign-in and grant pages. |
@@ -744,7 +746,7 @@ Nothing merges to main while the deploy base is stale (any push to main currentl
 ## 14. Open questions (beyond D1–D8)
 
 1. **Default browser sign-in duration.** 12 h proposed. Should `/sessions` let the owner set a maximum for each preset?
-2. **Should `deploy.refund` be in the browser preset for prod?** It stops a running prod deployment, which is a denial-of-service lever if the key leaks. Proposed: in for staging, opt-in for prod.
+2. **Should `deploy.refund` be in the browser preset for prod?** It stops a running prod deployment, which is a denial-of-service lever if the key leaks. Proposed: in for staging, opt-in for prod. (As built, the browser preset includes it for both, and with the §16 delegation it reaches wallet-held apps too.)
 3. **Domains and placement.** Placement is proposed as a session scope; domains as owner-only. Agree?
 4. **Should `order.pay` exist in v1?** The site has no PaymentRouter order flow wired up today, so it could wait until one exists.
 
@@ -754,13 +756,14 @@ Nothing merges to main while the deploy base is stale (any push to main currentl
 
 | Area | Files |
 |---|---|
-| Contracts | `contracts/SessionVault.sol` (SessionVault, SessionVaultLib (linked), SessionVaultFactory); `contracts/EnclaveKeyAttestations.sol` |
-| Tests | `contracts/foundry/test/SessionVault*.t.sol` (unit, fuzz, handler invariants); `contracts/foundry/test/session-vault-mutants.py` (57 mutants) |
+| Contracts | `contracts/SessionVault.sol` (SessionVault, SessionVaultLib (linked), SessionVaultFactory); `contracts/EnclaveKeyAttestations.sol`; `deploy/ledger/EnclaveDeployments.sol` (ledger rev 15d, §16) |
+| Tests | `contracts/foundry/test/SessionVault*.t.sol` (unit, fuzz, handler invariants; `SessionVaultDelegate.t.sol` runs on the rev 15d ledger); `contracts/foundry/test/session-vault-mutants.py` (67 mutants) |
 | Relay | `relay/sessions.mjs` (relayer, keeper, index, API verifier, custody gate), wired in `relay/api-relay.js`; `relay/auth.js` (`/v1/account/session-login`); custody gate in `relay/secrets.js`, `secrets-release.mjs`, `shield-secrets.mjs`; beneficial owner in `relay/domains.js`, `placement.mjs` |
-| SDK | `sdk/sessions/` (TypeScript; `dist/node.mjs`, `dist/browser.mjs` -> `site/vendor/sessions.js`) |
+| SDK | `sdk/sessions/` (TypeScript; `dist/node.mjs`, `dist/browser.mjs` -> `site/vendor/sessions.js`); delegation in `src/delegate.ts` |
 | CLI | `cli/enclave.mjs` `enclave session …` |
 | Site | `site/js/core/sessions.js`, `ledger-calls.js`; `/grant`, `/sessions`; wallet popover + button indicator; deployments panel routing |
-| Deploy | `scripts/deploy-session-vault.mjs`, `scripts/deploy-key-attestations.mjs` |
+| Deploy | `scripts/deploy-session-vault.mjs`, `scripts/deploy-key-attestations.mjs`; ledger cutover `scripts/migrate-ledger-delegates.mjs`, `scripts/ledger-cutover-rehearsal.mjs` |
+| Records | `contracts/deployments/sessions-base.json` (v1), `contracts/deployments/ledger-15d-base.json` (ledger 15d + vault v2) |
 | Tests (node / e2e) | `test/sessions.test.mjs`, `test/cli-session.test.mjs`, `test/sessions-attest.test.mjs`, `test/site-ledger-calls.test.mjs`, `e2e/tests/sessions.spec.mjs` |
 | Guide | `docs/guides/claude-code-staging-session.md` |
 
@@ -777,6 +780,7 @@ Nothing merges to main while the deploy base is stale (any push to main currentl
 | browser | $0.25 | $100 |
 | staging-publish | $0.10 | $5 |
 
+- **Relay endpoints** (§5.1) as built, under `https://api.enclave.host/v1/sessions`: `GET /config`, `POST /quote`, `POST /execute` (was `/intent`), `POST /open`, `POST /owner` (was `/owner-op`; `op` is one of `topUp`, `topUpWithAuthorization`, `extend`, `terminate`, `revokeAll`, `withdraw`, `promote`, `adopt`, `setEnvironment`, `release`), `POST /end` (was `/terminate`; the session key's own sign-out), `GET /by-key/<keyHash>`, `GET /owner/<address>` (was `?owner=`; it also reports `delegation`, §16), `GET /session/<vault>/<sid>`, `POST /attest` (phase g). Responses carry bigints as `"123n"` strings; requests accept those, decimal strings, or safe integers.
 - **Account token from a session** (§6): `POST /v1/account/session-login`, signed by the session key with an `EnclaveSession` header. It mints an ordinary relay account token carrying `sid` and `vault`, which expires no later than the session. Every use re-checks liveness on-chain (5 s cache), so sign-out, expiry, terminate and revokeAll all end it. Wallet sign-in in the site uses this: one wallet signature, no SIWE.
 - **Host login unchanged (D6):** the supervisor and the Windows node still take SIWE for logs, restart and private-app access ("Host login" in the wallet popover). The supervisor is a release surface; session login there ships with the next release.
 - **Off-chain revocation happens after the vault accepts:** the relay revokes a session's API access only after the vault has accepted the terminate or revoke signature in simulation, then submits. A forged sign-out request can't cut anyone off.
@@ -809,4 +813,76 @@ Nothing merges to main while the deploy base is stale (any push to main currentl
   - **A relay-submitted `revokeAll` also covers sessions the index hasn't seen yet.** While the revoke is in flight, for at most 10 minutes, every session of that vault is refused. Once it mines, a session passes only if the index saw it open after that block. The session status route reports the same.
   - **The custody gate is optional inside each release module:** a missing hook means no gate. The relay hand-deploy therefore greps the staged files for the hook on all three paths and for `api-relay.js` passing it, and refuses to install otherwise.
   - **Known gaps.** Path A's plaintext fetch carries only the deployment id, so around a Promote on the same id, a host with a stale ledger view could launch the old staging code with secrets just set for prod. Paths B and C bind the measurement to the confirmed row. Secrets stay with a record across `adopt "staging"` as well as prod→staging. Adopting a record as staging hands its stored secrets to whatever code a session points it at.
-- **In production (2026-10-07):** contracts on Base mainnet, recorded in `contracts/deployments/sessions-base.json`: factory `0x00bB59c40768aA56E292b4E789f9f3B5826E3a8d` (block 52280280), library `0xa55729550e6508fA3D59CF5744941Db30790FBab`, key attestations `0xB49241eFE5AF6078BE6aa84850ae45eed34dF61b`. Every constructor argument and the library link were read back from the chain. The relay on nan serves `/v1/sessions` with `SESSIONS_FACTORY` set; the address book's `sessionVaultFactory` entry is not set yet (a governance transaction). The site's `/sessions` and `/grant` pages and CLI release cli-v1.3.0 are live. `scripts/sessions-prod-smoke.mjs` passed 15/15 against `api.enclave.host`. The attestation route (phase g) is off, since `SESSIONS_KEY_ATTESTATIONS` is unset.
+- **In production (2026-10-07, v1; superseded for new sessions the same day by vault v2, §16.4):** contracts on Base mainnet, recorded in `contracts/deployments/sessions-base.json`: factory `0x00bB59c40768aA56E292b4E789f9f3B5826E3a8d` (block 52280280), library `0xa55729550e6508fA3D59CF5744941Db30790FBab`, key attestations `0xB49241eFE5AF6078BE6aa84850ae45eed34dF61b`. Every constructor argument and the library link were read back from the chain. The relay on nan serves `/v1/sessions` with `SESSIONS_FACTORY` set; the address book's `sessionVaultFactory` entry is not set yet (a governance transaction). The site's `/sessions` and `/grant` pages and CLI release cli-v1.3.0 are live. `scripts/sessions-prod-smoke.mjs` passed 15/15 against `api.enclave.host`. The attestation route (phase g) is off, since `SESSIONS_KEY_ATTESTATIONS` is unset.
+
+## 16. Delegated access to wallet-held deployments (ledger rev 15d, vault v2)
+
+Live on Base since 2026-10-07. A session can now act on the deployments the owner's **wallet** holds, without moving them into the vault. The owner grants this once, per vault, with one wallet transaction to the ledger, and can take it back the same way. This supersedes D2's "sessions can top wallet-owned deployments up but not control them" and replaces the move-in flow (§2.2, §9.2) as the way to manage existing deployments from a session.
+
+### 16.1 Ledger: owner-approved delegates
+
+`deploy/ledger/EnclaveDeployments.sol` is the live rev 15 source (byte-identical to `0xb36D…4830` apart from metadata) plus one feature:
+
+```
+event DelegateSet(address indexed owner, address indexed delegate, bool allowed);
+function setDelegate(address delegate, bool allowed) external;   // msg.sender is the owner
+```
+
+- `isDelegate[owner][delegate]` lets `delegate` pass `_requireOwned` on **every** deployment `owner` holds: `setAppRef`, `setConfig`, `setShares`, `setMaxRate`, `setActive`, and `refund` (which still pays `d.owner`).
+- It never covers `transferDeployment`: that checks `d.owner == msg.sender` itself. A delegate can't move a record.
+- The owner grants and revokes alone. The ledger stores a bool, with no expiry and no per-record scope; the policy lives in the vault.
+- **Reading a grant.** The mapping is private (EIP-170: 24,554 bytes with it, 22 to spare), so there is no getter. Read the storage word `keccak256(abi.encode(delegate, keccak256(abi.encode(owner, 23))))` (slot 23, recorded in `ledger-15d-base.json` as `isDelegateSlot`), or index `DelegateSet`.
+- **Detecting support.** `deploymentsSchema()` still answers 15. Clients detect rev 15d from the runtime code: it contains `0x63 ‖ selector("setDelegate(address,bool)")` (the selector pushed as PUSH4). `relay/sessions.mjs` and `sdk/sessions/src/delegate.ts` both do this, and never read slot 23 on a ledger without it, where it holds something else.
+- Main's `contracts/EnclaveDeployments.sol` (rev 16, undeployed) has no delegates. It must gain them before it is ever deployed, or every grant is lost at that migration.
+
+### 16.2 Vault v2: wallet-held records are production
+
+The core change from v1 is in `_requireHeldEnv`: a record with no custody record in this vault, whose `d.owner` is the vault's owner, is treated as held in environment **`prod`**. The rest follows from the existing rules, plus extra checks on funding (below).
+
+| Session action | On a wallet-held record |
+|---|---|
+| `deploy.setActive` | Suspend and resume. Needs the ledger grant. |
+| `deploy.setShares` | Resize. Needs the grant. Under an attached lease it may not raise the runner rate (§15). |
+| `deploy.setMaxRate` | Lower or keep the cap only (`r ≤ capOf`, the `prod` rule), never under twice the fee, within the grant's `maxRatePerHour`. Refused while a lapsed lease is attached. Needs the grant. |
+| `deploy.refund` | Cancel. The ledger pays `d.owner`, the wallet, never the vault or the session. Needs the grant. |
+| `deploy.fund` | `fundFor(id, amount, payer = wallet)`: the refundable escrow is credited to the wallet. The record's cap must fit the grant's `maxRatePerHour`, and the funding-rate rules of §15 apply. A **paid** record (publisher fee > 0) also needs its app named in the grant as `0x<appId>` (`"*"` never covers it, and a bare slug names the vault's own app), a genuine fee (the catalog's `versionFee` for that version, paid to that app's publisher), and `fee × 3600 ≤ maxAppFeePerHour`. `fundFor` is open, so funding needs the ledger grant only when `prepareFund` must re-base an unleased record (that is a `setMaxRate`). |
+| `deploy.setAppRef`, `deploy.setConfig` | Never: `WrongEnvironment(id, 2)`. What a wallet-held deployment runs changes only by a wallet transaction. |
+| transfer | Never. The vault has no session path to `transferDeployment`, and the ledger refuses a delegate anyway. |
+
+- **Only grants that cover `prod` reach wallet-held records.** A staging-only grant (the `staging-publish` agent preset) gets `EnvNotAllowed(2)`.
+- **`apps` does not narrow control.** As for vault-held records, the grant's app list is checked on `create`, `setAppRef`, `publish` and (new) funding a paid wallet-held record. It is not checked on `setActive`, `setShares`, `setMaxRate` or `refund`. A `prod` session holding `deploy.setActive` can therefore suspend any app the wallet holds.
+- **Why a paid record must be named.** Anyone can `create` a record with any fee and recipient and `transferDeployment` it into the wallet; the ledger snapshots whatever `create` was handed. Funding such a gift from a session would send budget to a stranger. Requiring the genuine catalog fee, a named app and the fee ceiling is exactly what `create` already asks of a new record.
+- **Without the grant** the ledger answers `"!owner"`, which the SDK maps to error code `delegation`. The CLI and the site then say what the owner has to do.
+- **Unchanged.** Vault-held records keep their custody rules (§2.3, §7). A record moved *into* the vault is unadopted and stays inert even with the delegation in place: `held[id]` is checked first. Secret release is untouched: a wallet-held record has no `held()` entry and passes the custody gate like any wallet record, and since no session can change what it runs, the wallet alone decides which code its secrets go to.
+
+### 16.3 Granting, checking and revoking
+
+The delegate is the owner's vault at the **v2** factory, `factory.vaultFor(owner)`. It is a CREATE2 address, so the grant can precede the vault's deployment.
+
+| Where | Grant | Status | Revoke |
+|---|---|---|---|
+| Site | enclave.host → **Sessions** → "Apps your wallet owns" → **Grant**. The deployments panel also offers it once when a change to a wallet-held row could go through the session; a decline is remembered per browser. | the card's pill: granted / not granted / not supported by this ledger | **Revoke** on the same card |
+| CLI | `enclave session delegate` (the wallet key, `--signer`, or `--unsigned --from 0x…`) | `enclave session delegate --status [--owner 0x…]` (no key needed) | `enclave session delegate --revoke` |
+| MCP | `build_delegate {owner, grant}` returns the unsigned wallet transaction (`grant` defaults to true) | `session_status {owner}` → `delegation` | `build_delegate` with `grant: false` |
+| Relay | — (a wallet transaction, never relayed) | `GET /v1/sessions/owner/<address>` → `delegation: {ledger, supported, granted}` | — |
+| Contract | `ledger.setDelegate(vault, true)` | storage read (§16.1) or `DelegateSet` | `ledger.setDelegate(vault, false)` |
+
+- Grant and revoke are wallet **transactions** to the ledger (ETH gas), not typed-data signatures. The relay can't submit them, which is deliberate: no relayed signature can widen a vault's reach.
+- **Revoking** cuts every session of that vault off the wallet's apps in one transaction. The sessions themselves stay live, with their budgets and any vault-held records.
+- **`RevokeAll`** on the vault ends every session but leaves the ledger grant in place, so the next session the owner opens with `prod` reaches the wallet's apps again. To cut everything, do both.
+- Ending a session, by sign-out, expiry, `Terminate` or `RevokeAll`, never touches running instances: it changes what the next session operation may do, not what is deployed.
+
+### 16.4 The migration on 2026-10-07
+
+- **Ledger.** Rev 15d deployed at `0x606C7910acDeC5DE534FD6d16Bf71AEb0C43eAe9` with the live constructor arguments. Every live owner parameter was copied, and a fresh `EnclaveProofOfTime` (`0x3301605ac208e6d8A9711E5B3835f91Ca4Fdd946`) and `EnclaveVerificationFees` (`0x7898E8D219aA235E3b9d9132c7BE9E7BA7f12417`) were bound to it. All 70 records were imported through the admin console's migration engine and verified field by field, then imports were sealed.
+- **Cutover.** Governance retired `0xb36DCE7689834D59364ca37Ade1896D0E6404830` at 08:38Z, accepted ownership of the new ledger and prover at 08:39Z, and repointed the book (`setMany(deployments, proofOfTime, verificationFees)`) at 08:40:16Z. Record: `contracts/deployments/ledger-15d-base.json`. Tooling: `scripts/migrate-ledger-delegates.mjs prepare|cutover|status`, rehearsed end to end on a Base fork by `scripts/ledger-cutover-rehearsal.mjs`.
+- **Vaults followed by themselves.** Vaults resolve the ledger through the book on every session call, so v1 and v2 vaults moved with the book, with no redeploy. Records were imported with their ids, so every `held[id]` stayed valid (the F7 limitation of §15 did not arise).
+- **Vault v2.** Factory `0x1F5c887c0cDF491b16AB6c449abAfDF9B2ec9C9C` (block 52286277), library `0x5510aE9fED97577d75C69545384af7d8bAD05027` (block 52286274), with the same constructor arguments as v1 (USDC, book, PaymentRouter, key attestations, $250 cap). The relay's `SESSIONS_FACTORY` points at it, so `/config`, `/open` and `/owner/<address>` use v2 vault addresses. v1 stays listed in `SESSIONS_FACTORIES` so the custody gate keeps reading its records. The book's `sessionVaultFactory` key is still unset (a governance transaction).
+- **v1 vaults are retired for new sessions.** Factory `0x00bB59c40768aA56E292b4E789f9f3B5826E3a8d` opens nothing new. A v1 vault keeps working for its owner on-chain (owner paths never read the book), but its sessions never reach wallet-held records, and the owner's v2 vault is a different address, so a delegation granted to one does nothing for the other. To bring a v1 vault's record under v2 sessions, `Release(id, owner)` it to the wallet (`refund` first if it holds refundable escrow); v2 sessions then reach it as `prod` through the delegation. A release straight into the v2 vault reverts `BadTarget` until the book names the v2 factory.
+
+### 16.5 What it changes in the threat model (§11)
+
+- **Leaked key of a `prod` session, with the delegation granted.** Within the session's actions it can suspend, downsize, cancel and lower the cap of any app the wallet holds, and spend its budget funding them (paid apps only if named). That is a denial-of-service lever on production. A lowered cap may also leave a deployment unserved if no host will run it at that price. It still can't change what any production deployment runs, move a record, read or set secrets, or send money anywhere but the owner's deployments and the catalog-bound publisher fee. Refunds go to the wallet.
+- **Mitigations.** Give `prod` only to sessions that need it, with only the actions they need, a small budget and a short expiry. The grant page and the CLI warn on `prod`. One wallet transaction (Revoke) cuts every session off the wallet's apps; `Terminate` or `RevokeAll` ends the sessions themselves. Every operation is listed on `/sessions` with its transaction.
+- **Agents on `staging-publish` are unaffected.** It has no `prod`, so the delegation never reaches it. That is the CLI's agent preset. The MCP server's `session_request` defaults to a preset it calls `agent`: the browser policy without `api.account` and `api.appAccess` (every deployment action, `*` apps, staging and prod; a leaked agent key can't sign in as the owner or open their private apps) with a $20 budget for 7 days, which the delegation does reach.
+- **Several sessions, one grant.** The delegation is per vault, not per session, so it covers every present and future session of that vault that holds `prod`. A session's own grant is what narrows it.

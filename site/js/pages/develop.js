@@ -1,5 +1,5 @@
 /* ============================================================
-   Develop page - sub-tabs (Guide | CLI | API reference) and the
+   Develop page - sub-tabs (Guide | CLI | MCP | API reference) and the
    guide's chapter scroll-spy. The reference itself is
    <c-api-reference>; code blocks in the guide/CLI are
    <c-code> components (which own their copy buttons).
@@ -102,11 +102,14 @@ document.addEventListener("click", (e) => {
 });
 
 // a deep link into the reference (#op-… / #grp-…) only resolves once
-// <c-api-reference> has rendered the operations
+// <c-api-reference> has rendered the operations; anything else in the API pane
+// that sits below the reference (#api-sessions) moves when it renders, so it
+// is scrolled to again
 document.addEventListener("enclave:api-rendered", () => {
   if (!document.getElementById("devTabs")) return;
   const id0 = (location.hash || "").slice(1);
-  if (id0 && (id0.startsWith("op-") || id0.startsWith("grp-"))) run(() => gotoAnchor(id0));
+  if (id0 && (id0.startsWith("op-") || id0.startsWith("grp-") || (id0 !== DEV_PANES.api && devTabOf(id0) === "api")))
+    run(() => gotoAnchor(id0));
 });
 
 /* called by the router every time this page's <main> is swapped in */
