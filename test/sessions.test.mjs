@@ -88,7 +88,7 @@ test("agent staging-publish flow: publish, deploy to staging, re-point, sign out
   const ref0 = `catalog://${appId}/0`;
 
   const created = await session.call("deploy.create", { appRef: ref0, gpuMilli: 0, cpuMilli: 1000, appPort: 8080, ports: "",
-    isPublic: false, configCid: "", maxRate6: 1_000_000n, env: "staging", fund6: parseUnits("2", 6) });
+    isPublic: false, configCid: "", maxRate6: 1000n, env: "staging", fund6: parseUnits("2", 6) });
   const id = `0x${created.result.slice(2, 66)}`;
   const d = await chain.pc.readContract({ address: P.ledger, abi: P.abi.ledger.abi, functionName: "get", args: [id] });
   assert.equal(d.owner, vault);
@@ -101,9 +101,9 @@ test("agent staging-publish flow: publish, deploy to staging, re-point, sign out
   assert.equal(d2.appRef, `catalog://${appId}/1`);
 
   // outside the preset: the session can't touch the store app, prod, or pay orders
-  await assert.rejects(session.call("order.pay", { amount6: 1n, orderRef: "0x" + "00".repeat(32) }), (e) => e.code === "not_allowed");
+  await assert.rejects(session.call("deploy.setShares", { id, gpuMilli: 0, cpuMilli: 500 }), (e) => e.code === "not_allowed");
   await assert.rejects(session.call("deploy.create", { appRef: P.storeRef, gpuMilli: 0, cpuMilli: 1000, appPort: 8080, ports: "",
-    isPublic: false, configCid: "", maxRate6: 1_000_000n, env: "staging", fund6: 0n }), (e) => e.code === "app");
+    isPublic: false, configCid: "", maxRate6: 1000n, env: "staging", fund6: 0n }), (e) => e.code === "app");
 
   const spent = (await session.status()).spent6;
   const res = await session.terminate();
@@ -121,18 +121,22 @@ test("browser flow: zero-budget sign-in, wallet top-up, spend, promote, revoke-a
   const { session, vault, sid, relay } = await openFor("browser", { label: "this browser", expiresIn: 3600 });
   assert.equal((await session.status()).balance6, 0n);
   // spending with no budget fails up front with a code the UI turns into "Top up"
-  await assert.rejects(session.call("order.pay", { amount6: parseUnits("1", 6), orderRef: "0x" + "11".repeat(32) }),
-    (e) => e.code === "budget");
+  const mkArgs = (fund6, env = "staging") => ({ appRef: P.storeRef, gpuMilli: 0, cpuMilli: 1000, appPort: 8080, ports: "",
+    isPublic: false, configCid: "", maxRate6: 1000n, env, fund6 });
+  await assert.rejects(session.call("deploy.create", mkArgs(parseUnits("1", 6))), (e) => e.code === "budget");
   const usdc = await sdk.usdcDomain(chain.pc, P.usdc, 31337);
   await sdk.topUpFromWallet({ relay, owner: ownerSigner, chainId: 31337, vault, sessionId: sid, amount: parseUnits("5", 6), usdc });
   assert.equal((await session.status()).balance6, parseUnits("5", 6));
   const t0 = await usdcBal(P.treasury);
-  const paid = await session.call("order.pay", { amount6: parseUnits("1", 6), orderRef: "0x" + "11".repeat(32) });
-  assert.equal(await usdcBal(P.treasury), t0 + parseUnits("1", 6) + paid.fee, "order and relay fee both reach the treasury");
+  const made = await session.call("deploy.create", mkArgs(parseUnits("1", 6)));
+  const sid0 = `0x${made.result.slice(2, 66)}`;
+  const row0 = await chain.pc.readContract({ address: P.ledger, abi: P.abi.ledger.abi, functionName: "get", args: [sid0] });
+  assert.equal(row0.balance6, parseUnits("1", 6), "the funding reached the deployment");
+  assert.ok(await usdcBal(P.treasury) >= t0 + made.fee, "the relay fee reached the treasury");
 
   // a prod deployment created by the session, then promoted by the owner
   const c = await session.call("deploy.create", { appRef: P.storeRef, gpuMilli: 0, cpuMilli: 1000, appPort: 8080, ports: "",
-    isPublic: true, configCid: "", maxRate6: 1_000_000n, env: "prod", fund6: 0n });
+    isPublic: true, configCid: "", maxRate6: 1000n, env: "prod", fund6: 0n });
   const id = `0x${c.result.slice(2, 66)}`;
   let held = await chain.pc.readContract({ address: vault, abi: sdk.sessionVaultAbi, functionName: "held", args: [id] });
   assert.equal(held[0], 2);
@@ -140,7 +144,7 @@ test("browser flow: zero-budget sign-in, wallet top-up, spend, promote, revoke-a
   // the session cannot re-point prod
   await assert.rejects(session.call("deploy.setAppRef", { id, appRef: P.storeRef }), (e) => e.code === "env");
   await sdk.ownerOperation({ relay, owner: ownerSigner, chainId: 31337, vault,
-    op: { op: "promote", deployment: id, appRef: P.storeRef, configCid: "", versionLabel: "1.0.0" } });
+    op: { op: "promote", deployment: id, app: "store", appRef: P.storeRef, configCid: "", versionLabel: "1.0.0" } });
   held = await chain.pc.readContract({ address: vault, abi: sdk.sessionVaultAbi, functionName: "held", args: [id] });
   assert.notEqual(held[1], "0x" + "00".repeat(32));
 
@@ -215,7 +219,7 @@ test("secret-release custody gate: staging releases, prod only once promoted, un
   const { session, vault, relay } = await openFor("browser", { budget: parseUnits("1", 6), label: "gate" });
   const mk = async (env) => {
     const c = await session.call("deploy.create", { appRef: P.storeRef, gpuMilli: 0, cpuMilli: 1000, appPort: 8080, ports: "",
-      isPublic: true, configCid: "", maxRate6: 1_000_000n, env, fund6: 0n });
+      isPublic: true, configCid: "", maxRate6: 1000n, env, fund6: 0n });
     return `0x${c.result.slice(2, 66)}`;
   };
   const row = (id) => chain.pc.readContract({ address: P.ledger, abi: P.abi.ledger.abi, functionName: "get", args: [id] });
@@ -224,7 +228,7 @@ test("secret-release custody gate: staging releases, prod only once promoted, un
   assert.equal(await gate.custodyRefusal(await row(stg)), null);
   assert.match(await gate.custodyRefusal(await row(prd)), /not been promoted/);
   await sdk.ownerOperation({ relay, owner: ownerSigner, chainId: 31337, vault,
-    op: { op: "promote", deployment: prd, appRef: P.storeRef, configCid: "", versionLabel: "1.0.0" } });
+    op: { op: "promote", deployment: prd, app: "store", appRef: P.storeRef, configCid: "", versionLabel: "1.0.0" } });
   assert.equal(await gate.custodyRefusal(await row(prd)), null, "promoted: releases");
   // a deployment gifted into the vault is inert until adopted
   const stranger = chain.wc(KEYS.stranger);

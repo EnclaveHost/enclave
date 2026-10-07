@@ -164,6 +164,11 @@ async function boot(pids) {
       BILLING_ADMIN_TOKEN: "e2e-admin",
       OFAC_SDN_URLS: "http://127.0.0.1:1/x",
       FEATURED_VIEWS_FILE: path.join(dataDir, "feat.json"),
+      // sessions relayer + keeper on the same anvil (relay/sessions.mjs)
+      SESSIONS_RELAYER_KEY: KEYS.sessions, SESSIONS_NETWORK: "local", SESSIONS_CHAIN_ID: "8453",
+      SESSIONS_RPC: RPC, SESSIONS_PUBLIC_RPC: RPC, SESSIONS_FACTORY: chain.sessionFactory,
+      SESSIONS_BOOK: chain.book, SESSIONS_USDC: chain.usdc, SESSIONS_ROUTER: chain.router,
+      SESSIONS_START_BLOCK: "0", SESSIONS_ETH_USD: "3000", SESSIONS_SITE: SITE,
     },
     // log to a FILE, never inherit: an inherited pipe outlives the runner and
     // holds any surrounding shell pipeline open forever

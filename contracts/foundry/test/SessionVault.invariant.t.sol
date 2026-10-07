@@ -54,14 +54,14 @@ contract SessionVaultHandler is Test {
 
     function _grant(uint256 budget) internal returns (SessionVault.Grant memory g) {
         string[] memory acts = new string[](4);
-        acts[0] = "deploy.create"; acts[1] = "deploy.fund"; acts[2] = "deploy.refund"; acts[3] = "order.pay";
+        acts[0] = "deploy.create"; acts[1] = "deploy.fund"; acts[2] = "deploy.refund"; acts[3] = "deploy.setActive";
         string[] memory apps = new string[](1); apps[0] = "*";
         string[] memory envs = new string[](1); envs[0] = "staging";
         g.label = "inv"; g.preset = "inv";
         g.sessionKey = keccak256(abi.encode(kx, ky));
         g.actions = acts; g.apps = apps; g.environments = envs;
         g.budget = budget; g.spendPerPeriod = 40e6; g.periodSeconds = 1 days; g.opsPerPeriod = 0;
-        g.maxFeePerOp = 100_000; g.maxAppFeePerHour = 0;
+        g.maxFeePerOp = 100_000; g.maxAppFeePerHour = 0; g.maxRatePerHour = 10e6;
         g.expiresAt = uint64(nowTs + 3 days);
         g.grantNonce = bytes32(++nonceCounter);
         g.signBefore = uint64(nowTs + 1 hours);
@@ -133,7 +133,9 @@ contract SessionVaultHandler is Test {
         fee = bound(fee, 0, room / 4 < 100_000 ? room / 4 : 100_000);
         // mostly within budget; 1 in 8 deliberately over, to keep the refusals exercised
         amt = amt % 8 == 0 ? room - fee + 1 : bound(amt, 1, room - fee == 0 ? 1 : room - fee);
-        (bool ok, ) = _exec(sid, 9, abi.encode(amt, bytes32("o")), fee);
+        if (deps.length == 0) return;
+        // spend = fund one of the vault-held deployments (order.pay is not an action)
+        (bool ok, ) = _exec(sid, 1, abi.encode(deps[amt % deps.length], amt), fee);
         if (ok) okPay++;
     }
 
@@ -142,7 +144,7 @@ contract SessionVaultHandler is Test {
         (bytes32 sid, uint256 room) = _spendable(i);
         if (sid == bytes32(0)) sid = _pick(i);
         bytes memory args = abi.encode(CreateArgs({ appRef: appRef, gpuMilli: 0, cpuMilli: 1000, appPort: 8080,
-            ports: "", isPublic: false, configCid: "", maxRate6: 1e6, env: 1, fund6: bound(amt, 0, room) }));
+            ports: "", isPublic: false, configCid: "", maxRate6: 1000, env: 1, fund6: bound(amt, 0, room) }));
         (bool ok, bytes memory ret) = _exec(sid, 0, args, 0);
         if (ok) { deps.push(abi.decode(ret, (bytes32))); okCreate++; }
     }
@@ -265,8 +267,8 @@ contract SessionVaultInvariantTest is Test {
 
     function test_handlerSmoke() public {
         h.openDeposit(30e6);
-        h.pay(0, 5e6 + 1, 1000);
         h.createFund(0, 3e6);
+        h.pay(0, 5e6 + 1, 1000);
         h.refundDeployment(0, 0);
         h.gift(2e6);
         h.topUpFree(0, 1e6);

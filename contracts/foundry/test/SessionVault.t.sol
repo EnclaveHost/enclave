@@ -28,8 +28,8 @@ abstract contract SessionRig is Test {
     bytes32 constant GRANT_TYPEHASH = keccak256(
         "SessionGrant(string label,string preset,bytes32 sessionKey,string[] actions,string[] apps,"
         "string[] environments,uint256 budget,uint256 spendPerPeriod,uint32 periodSeconds,uint32 opsPerPeriod,"
-        "uint256 maxFeePerOp,uint256 maxAppFeePerHour,uint64 expiresAt,bytes32 measurement,bytes32 grantNonce,"
-        "uint64 signBefore)");
+        "uint256 maxFeePerOp,uint256 maxAppFeePerHour,uint256 maxRatePerHour,uint64 expiresAt,bytes32 measurement,"
+        "bytes32 grantNonce,uint64 signBefore)");
     bytes32 constant CALL_TYPEHASH = keccak256(
         "SessionCall(bytes32 sessionId,uint256 nonce,uint8 action,bytes32 argsHash,uint256 fee,uint64 deadline)");
     bytes32 constant RECEIVE_TYPEHASH = keccak256(
@@ -118,7 +118,7 @@ abstract contract SessionRig is Test {
         bytes memory a = abi.encode(GRANT_TYPEHASH, keccak256(bytes(g.label)), keccak256(bytes(g.preset)), g.sessionKey,
             _hs(g.actions), _hs(g.apps), _hs(g.environments), g.budget);
         bytes memory b = abi.encode(g.spendPerPeriod, g.periodSeconds, g.opsPerPeriod, g.maxFeePerOp,
-            g.maxAppFeePerHour, g.expiresAt, g.measurement, g.grantNonce, g.signBefore);
+            g.maxAppFeePerHour, g.maxRatePerHour, g.expiresAt, g.measurement, g.grantNonce, g.signBefore);
         return keccak256(bytes.concat(a, b));
     }
 
@@ -135,10 +135,10 @@ abstract contract SessionRig is Test {
     }
 
     function _allActions() internal pure returns (string[] memory o) {
-        o = new string[](10);
+        o = new string[](9);
         o[0] = "deploy.create"; o[1] = "deploy.fund"; o[2] = "deploy.setAppRef"; o[3] = "deploy.setConfig";
         o[4] = "deploy.setShares"; o[5] = "deploy.setMaxRate"; o[6] = "deploy.setActive"; o[7] = "deploy.refund";
-        o[8] = "app.publish"; o[9] = "order.pay";
+        o[8] = "app.publish";
     }
 
     function _grant(bytes32 key, uint256 budget) internal view returns (SessionVault.Grant memory g) {
@@ -154,6 +154,7 @@ abstract contract SessionRig is Test {
         g.opsPerPeriod = 0;
         g.maxFeePerOp = 50_000;              // $0.05
         g.maxAppFeePerHour = 1e6;            // $1/h
+        g.maxRatePerHour = 10e6;             // $10/h: any rate cap the session sets
         g.expiresAt = uint64(vm.getBlockTimestamp() + 7 days);
         g.grantNonce = keccak256(abi.encode("grant", key, budget, vm.getBlockTimestamp()));
         g.signBefore = uint64(vm.getBlockTimestamp() + 10 minutes);
@@ -222,7 +223,7 @@ abstract contract SessionRig is Test {
 
     function _createArgs(string memory ref, uint8 env, uint256 fund6) internal pure returns (bytes memory) {
         return abi.encode(CreateArgs({ appRef: ref, gpuMilli: 0, cpuMilli: 1000, appPort: 8080, ports: "",
-            isPublic: false, configCid: "", maxRate6: 1e6, env: env, fund6: fund6 }));
+            isPublic: false, configCid: "", maxRate6: 1000, env: env, fund6: fund6 }));   // $3.60/h
     }
 
     function _ref(bytes32 appId, uint256 idx) internal pure returns (string memory) {
@@ -238,7 +239,22 @@ abstract contract SessionRig is Test {
 contract SessionVaultTest is SessionRig {
     uint8 constant CREATE = 0; uint8 constant FUND = 1; uint8 constant SET_APPREF = 2; uint8 constant SET_CONFIG = 3;
     uint8 constant SET_SHARES = 4; uint8 constant SET_MAXRATE = 5; uint8 constant SET_ACTIVE = 6;
-    uint8 constant REFUND = 7; uint8 constant PUBLISH = 8; uint8 constant PAY = 9;
+    uint8 constant REFUND = 7; uint8 constant PUBLISH = 8;
+
+    uint256 private _targets;
+    /// a staging deployment the vault holds, made by a SEPARATE session (so the
+    /// session under test keeps its own nonces and limits): what spend tests fund
+    function _target() internal returns (bytes32 id) {
+        SessionVault.Grant memory g = _grant(keyHash, 0);
+        g.grantNonce = keccak256(abi.encode("target", _targets++));
+        bytes32 tsid = _open(g);
+        id = abi.decode(_exec(tsid, 0, CREATE, _createArgs(freeRef, 1, 0), 0), (bytes32));
+    }
+    function _fund(bytes32 id, uint256 amt) internal pure returns (bytes memory) { return abi.encode(id, amt); }
+    function _createArgsRate(string memory ref, uint8 env, uint256 fund6, uint256 rate) internal pure returns (bytes memory) {
+        return abi.encode(CreateArgs({ appRef: ref, gpuMilli: 0, cpuMilli: 1000, appPort: 8080, ports: "",
+            isPublic: false, configCid: "", maxRate6: rate, env: env, fund6: fund6 }));
+    }
 
     // ======================= opening =======================
 
@@ -260,7 +276,7 @@ contract SessionVaultTest is SessionRig {
         assertTrue(s.anyApp);
         assertEq(apps.length, 1);
         assertEq(apps[0], catalog.appIdOf(address(vault), "mine"));
-        assertEq(s.actions, (1 << 10) - 1);
+        assertEq(s.actions, (1 << 9) - 1);
     }
 
     function test_openRejectsWrongSignerExpiryAndReplay() public {
@@ -387,7 +403,9 @@ contract SessionVaultTest is SessionRig {
     // ======================= session calls =======================
 
     function test_createStagingDeploymentHeldByVaultWithCatalogFee() public {
-        bytes32 sid = _openWithDeposit(_grant(keyHash, 50e6));
+        SessionVault.Grant memory g = _grant(keyHash, 50e6);
+        g.apps = _strs(vm.toString(storeAppId), "mine");   // a PAID app must be named; "*" never covers one
+        bytes32 sid = _openWithDeposit(g);
         bytes memory ret = _exec(sid, 0, CREATE, _createArgs(storeRef, 1, 10e6), 1000);
         bytes32 id = abi.decode(ret, (bytes32));
         EnclaveDeployments.Deployment memory d = ledger.get(id);
@@ -410,18 +428,40 @@ contract SessionVaultTest is SessionRig {
     }
 
     function test_createRefusesExpensiveAppAndUnlistedApp() public {
+        // no wildcard: only the named apps
         SessionVault.Grant memory g = _grant(keyHash, 10e6);
-        g.maxAppFeePerHour = 100 * 3600 - 1;     // one unit under the store app's fee
-        g.apps = _strs("mine");                   // no wildcard
+        g.apps = _strs("mine");
         bytes32 sid = _openWithDeposit(g);
         _execExpectRevert(sid, 0, CREATE, _createArgs(freeRef, 1, 0), 0,
             abi.encodeWithSelector(SessionVault.AppNotAllowed.selector, freeAppId));
+        // a wildcard NEVER covers a paid app: a hostile publisher's fee is how a budget would leave at funding time
         SessionVault.Grant memory g2 = _grant(keyHash, 10e6);
         g2.grantNonce = keccak256("g2");
-        g2.maxAppFeePerHour = 100 * 3600 - 1;
+        g2.apps = _strs("*");
         bytes32 sid2 = _openWithDeposit(g2);
         _execExpectRevert(sid2, 0, CREATE, _createArgs(storeRef, 1, 0), 0,
+            abi.encodeWithSelector(SessionVaultLib.AppNotAllowed.selector, storeAppId));
+        _exec(sid2, 0, CREATE, _createArgs(freeRef, 1, 0), 0);           // a free app is fine under "*"
+        // named, but its fee is over the grant's hourly ceiling
+        SessionVault.Grant memory g3 = _grant(keyHash, 10e6);
+        g3.grantNonce = keccak256("g3");
+        g3.apps = _strs(vm.toString(storeAppId));
+        g3.maxAppFeePerHour = 100 * 3600 - 1;
+        bytes32 sid3 = _openWithDeposit(g3);
+        _execExpectRevert(sid3, 0, CREATE, _createArgs(storeRef, 1, 0), 0,
             abi.encodeWithSelector(SessionVaultLib.AppFeeTooHigh.selector, 100 * 3600, 100 * 3600 - 1));
+        // named and affordable, but a rate cap that would hand the publisher most of every funding
+        SessionVault.Grant memory g4 = _grant(keyHash, 10e6);
+        g4.grantNonce = keccak256("g4");
+        g4.apps = _strs(vm.toString(storeAppId));
+        bytes32 sid4 = _openWithDeposit(g4);
+        _execExpectRevert(sid4, 0, CREATE, _createArgsRate(storeRef, 1, 1e6, 199), 0,
+            abi.encodeWithSelector(SessionVaultLib.RateCapOutOfRange.selector, 199, 200));
+        // and any rate cap above the grant's own ceiling
+        _execExpectRevert(sid4, 0, CREATE, _createArgsRate(freeRef, 1, 0, 2778), 0,
+            abi.encodeWithSelector(SessionVault.AppNotAllowed.selector, freeAppId));
+        _execExpectRevert(sid2, 1, CREATE, _createArgsRate(freeRef, 1, 0, 2778), 0,
+            abi.encodeWithSelector(SessionVault.RateCapOutOfRange.selector, 2778 * 3600, 10e6));
     }
 
     function test_createRefusesEnvironmentOutsidePolicyAndBadRefs() public {
@@ -454,7 +494,7 @@ contract SessionVaultTest is SessionRig {
             abi.encodeWithSelector(SessionVault.WrongEnvironment.selector, prd, uint8(2)));
         // but the non-promotion controls work on prod
         _exec(sid, 4, SET_SHARES, abi.encode(prd, uint16(0), uint16(500)), 0);
-        _exec(sid, 5, SET_MAXRATE, abi.encode(prd, uint256(2e6)), 0);
+        _exec(sid, 5, SET_MAXRATE, abi.encode(prd, uint256(500)), 0);      // prod: lowering is fine
         _exec(sid, 6, SET_ACTIVE, abi.encode(prd, false), 0);
         assertFalse(ledger.get(prd).active);
         (, bytes32 promoted,) = vault.held(prd);
@@ -472,16 +512,20 @@ contract SessionVaultTest is SessionRig {
         assertEq(vault.free(), refundable, "refund lands as the owner's free balance");
     }
 
-    function test_fundOwnerWalletDeploymentKeepsRefundWithTheWallet() public {
+    function test_fundRefusesWalletHeldDeploymentsEvenGiftedOnes() public {
+        // the owner's own wallet deployment: sessions fund only what the VAULT holds
         vm.prank(owner);
-        bytes32 id = ledger.create(freeRef, 0, 1000, 8080, "", false, "", address(0), 0, 1e6);
+        bytes32 mine = ledger.create(freeRef, 0, 1000, 8080, "", false, "", address(0), 0, 1000);
+        // an attacker's deployment GIFTED to the owner's wallet (one-step transfer), carrying a
+        // fee to the attacker and a rate cap barely above it: funding it would drain the budget
+        address attacker = makeAddr("attacker");
+        vm.prank(attacker);
+        bytes32 gift = ledger.create(freeRef, 0, 1000, 8080, "", false, "", attacker, 1389, 1390);
+        vm.prank(attacker); ledger.transferDeployment(gift, owner);
         bytes32 sid = _openWithDeposit(_grant(keyHash, 50e6));
-        _exec(sid, 0, FUND, abi.encode(id, uint256(5e6)), 0);
-        assertEq(ledger.get(id).balance6, 5e6);
-        assertGt(ledger.ownerEscrow6(id), 0, "escrow attributed to the owner's wallet");
-        uint256 before = usdc.balanceOf(owner);
-        vm.prank(owner); ledger.refund(id);
-        assertGt(usdc.balanceOf(owner), before);
+        _execExpectRevert(sid, 0, FUND, _fund(mine, 5e6), 0, abi.encodeWithSelector(SessionVault.NotMine.selector, mine));
+        _execExpectRevert(sid, 0, FUND, _fund(gift, 5e6), 0, abi.encodeWithSelector(SessionVault.NotMine.selector, gift));
+        assertEq(usdc.balanceOf(attacker), 0);
     }
 
     function test_fundRefusesStrangersAndUnadoptedAndProdWhenStagingOnly() public {
@@ -529,44 +573,53 @@ contract SessionVaultTest is SessionRig {
             catalog.appIdOf(address(vault), "other")));
     }
 
-    function test_orderPayGoesToTreasuryThroughRouter() public {
-        bytes32 sid = _openWithDeposit(_grant(keyHash, 50e6));
-        _exec(sid, 0, PAY, abi.encode(uint256(7e6), bytes32("order-1")), 0);
-        assertEq(usdc.balanceOf(treasury), 7e6);
+    function test_orderPayIsNotAnAction() public {
+        // order.pay was dropped before launch: an orderRef binds no payer, so a leaked key
+        // could pay an attacker's order. A grant naming it cannot even open.
+        factory.createVault(owner);
+        SessionVault.Grant memory g = _grant(keyHash, 0);
+        g.actions = _strs("order.pay");
+        vm.prank(owner);
+        vm.expectRevert(SessionVaultLib.UnknownAction.selector);
+        vault.open(g, "");
+        // and action index 9 is refused even for a session with every bit
+        bytes32 sid = _openWithDeposit(_grant(keyHash, 1e6));
+        _execExpectRevert(sid, 0, 9, abi.encode(uint256(1), bytes32("o")), 0,
+            abi.encodeWithSelector(SessionVault.NotAllowed.selector, uint8(9)));
     }
 
     // ======================= limits =======================
 
     function test_budgetPeriodRateAndFeeLimits() public {
+        bytes32 t = _target();
         SessionVault.Grant memory g = _grant(keyHash, 30e6);
         g.spendPerPeriod = 10e6;
         g.opsPerPeriod = 3;
         g.maxFeePerOp = 1000;
         bytes32 sid = _openWithDeposit(g);
-        bytes memory pay6 = abi.encode(uint256(6e6), bytes32("o"));
-        bytes memory pay5 = abi.encode(uint256(5e6), bytes32("o"));
-        _execExpectRevert(sid, 0, PAY, pay6, 1001, abi.encodeWithSelector(SessionVault.FeeTooHigh.selector, 1001, 1000));
-        _exec(sid, 0, PAY, pay6, 1000);
-        _execExpectRevert(sid, 1, PAY, pay5, 0,
+        _execExpectRevert(sid, 0, FUND, _fund(t, 6e6), 1001, abi.encodeWithSelector(SessionVault.FeeTooHigh.selector, 1001, 1000));
+        _exec(sid, 0, FUND, _fund(t, 6e6), 1000);
+        _execExpectRevert(sid, 1, FUND, _fund(t, 5e6), 0,
             abi.encodeWithSelector(SessionVault.PeriodLimit.selector, 5e6, 10e6 - 6e6 - 1000));
-        _exec(sid, 1, PAY, abi.encode(uint256(1e6), bytes32("o")), 0);
-        _exec(sid, 2, PAY, abi.encode(uint256(1), bytes32("o")), 0);
-        _execExpectRevert(sid, 3, PAY, abi.encode(uint256(1), bytes32("o")), 0,
-            abi.encodeWithSelector(SessionVault.RateLimit.selector));
+        _exec(sid, 1, FUND, _fund(t, 1e6), 0);
+        _exec(sid, 2, FUND, _fund(t, 1), 0);
+        _execExpectRevert(sid, 3, FUND, _fund(t, 1), 0, abi.encodeWithSelector(SessionVault.RateLimit.selector));
         vm.warp(vm.getBlockTimestamp() + 1 days);        // next period
-        _exec(sid, 3, PAY, abi.encode(uint256(9e6), bytes32("o")), 0);
+        _exec(sid, 3, FUND, _fund(t, 9e6), 0);
         // remaining budget 30 - 6.001 - 1 - 0.000001 - 9 = 13.998999
         vm.warp(vm.getBlockTimestamp() + 1 days);
-        _execExpectRevert(sid, 4, PAY, abi.encode(uint256(14e6), bytes32("o")), 0,
+        _execExpectRevert(sid, 4, FUND, _fund(t, 14e6), 0,
             abi.encodeWithSelector(SessionVault.BudgetExceeded.selector, 14e6, 30e6 - 6e6 - 1000 - 1e6 - 1 - 9e6));
+        assertEq(ledger.get(t).balance6, 6e6 + 1e6 + 1 + 9e6, "every unit spent landed on the vault-held deployment");
     }
 
     function test_actionsOutsidePolicyRefused() public {
         SessionVault.Grant memory g = _grant(keyHash, 10e6);
         g.actions = _strs("api.logs", "deploy.fund");
         bytes32 sid = _openWithDeposit(g);
-        _execExpectRevert(sid, 0, PAY, abi.encode(uint256(1), bytes32("o")), 0,
-            abi.encodeWithSelector(SessionVault.NotAllowed.selector, uint8(9)));
+        _execExpectRevert(sid, 0, SET_ACTIVE, abi.encode(bytes32(0), true), 0,
+            abi.encodeWithSelector(SessionVault.NotAllowed.selector, uint8(6)));
+        _execExpectRevert(sid, 0, 9, "", 0, abi.encodeWithSelector(SessionVault.NotAllowed.selector, uint8(9)));
         _execExpectRevert(sid, 0, 10, "", 0, abi.encodeWithSelector(SessionVault.NotAllowed.selector, uint8(10)));
         _execExpectRevert(sid, 0, 200, "", 0, abi.encodeWithSelector(SessionVault.NotAllowed.selector, uint8(200)));
     }
@@ -574,49 +627,52 @@ contract SessionVaultTest is SessionRig {
     // ======================= signatures & nonces =======================
 
     function test_nonceLanesAndReplay() public {
+        bytes32 t = _target();
         bytes32 sid = _openWithDeposit(_grant(keyHash, 10e6));
-        bytes memory a = abi.encode(uint256(1), bytes32("o"));
-        _exec(sid, 0, PAY, a, 0);
-        _execExpectRevert(sid, 0, PAY, a, 0, abi.encodeWithSelector(SessionVault.BadNonce.selector));
-        _execExpectRevert(sid, 2, PAY, a, 0, abi.encodeWithSelector(SessionVault.BadNonce.selector));
+        bytes memory a = _fund(t, 1);
+        _exec(sid, 0, FUND, a, 0);
+        _execExpectRevert(sid, 0, FUND, a, 0, abi.encodeWithSelector(SessionVault.BadNonce.selector));
+        _execExpectRevert(sid, 2, FUND, a, 0, abi.encodeWithSelector(SessionVault.BadNonce.selector));
         uint256 lane7 = uint256(7) << 64;
-        _exec(sid, lane7, PAY, a, 0);              // an independent lane starts at 0
-        _exec(sid, 1, PAY, a, 0);
-        _exec(sid, lane7 + 1, PAY, a, 0);
+        _exec(sid, lane7, FUND, a, 0);              // an independent lane starts at 0
+        _exec(sid, 1, FUND, a, 0);
+        _exec(sid, lane7 + 1, FUND, a, 0);
         assertEq(vault.seqOf(sid, 7), 2);
         assertEq(vault.seqOf(sid, 0), 2);
     }
 
     function test_badSessionSignaturesRefused() public {
+        bytes32 t = _target();
         bytes32 sid = _openWithDeposit(_grant(keyHash, 10e6));
-        bytes memory a = abi.encode(uint256(1), bytes32("o"));
+        bytes memory a = _fund(t, 1);
         uint64 deadline = uint64(vm.getBlockTimestamp() + 120);
-        bytes32 d = _callDigest(sid, 0, PAY, a, 0, deadline);
+        bytes32 d = _callDigest(sid, 0, FUND, a, 0, deadline);
         (bytes32 r, bytes32 s) = vm.signP256(SK, sha256(abi.encodePacked(d)));
         // another key's signature, presented with its own (unregistered) public key
         (bytes32 r2, bytes32 s2) = vm.signP256(SK2, sha256(abi.encodePacked(d)));
         (uint256 x2, uint256 y2) = vm.publicKeyP256(SK2);
         vm.expectRevert(SessionVault.BadSignature.selector);
-        vault.execute(sid, 0, PAY, a, 0, deadline, x2, y2, r2, s2);
+        vault.execute(sid, 0, FUND, a, 0, deadline, x2, y2, r2, s2);
         // the right key's signature over different args
         vm.expectRevert(SessionVault.BadSignature.selector);
-        vault.execute(sid, 0, PAY, abi.encode(uint256(2), bytes32("o")), 0, deadline, kx, ky, r, s);
+        vault.execute(sid, 0, FUND, _fund(t, 2), 0, deadline, kx, ky, r, s);
         // a different fee than signed
         vm.expectRevert(SessionVault.BadSignature.selector);
-        vault.execute(sid, 0, PAY, a, 1, deadline, kx, ky, r, s);
+        vault.execute(sid, 0, FUND, a, 1, deadline, kx, ky, r, s);
         // signing the raw digest (not sha256 of it) is not what the vault verifies
         (bytes32 r3, bytes32 s3) = vm.signP256(SK, d);
         vm.expectRevert(SessionVault.BadSignature.selector);
-        vault.execute(sid, 0, PAY, a, 0, deadline, kx, ky, r3, s3);
+        vault.execute(sid, 0, FUND, a, 0, deadline, kx, ky, r3, s3);
         // expired deadline
         vm.warp(deadline + 1);
         vm.expectRevert(SessionVault.Expired.selector);
-        vault.execute(sid, 0, PAY, a, 0, deadline, kx, ky, r, s);
+        vault.execute(sid, 0, FUND, a, 0, deadline, kx, ky, r, s);
         vm.warp(T0);
-        vault.execute(sid, 0, PAY, a, 0, deadline, kx, ky, r, s);
+        vault.execute(sid, 0, FUND, a, 0, deadline, kx, ky, r, s);
     }
 
     function test_signatureNotReplayableAcrossVaults() public {
+        bytes32 t = _target();
         bytes32 sid = _openWithDeposit(_grant(keyHash, 10e6));
         // a second owner's vault with a session on the SAME key and grant nonce
         uint256 pk2 = 0xB0B;
@@ -624,20 +680,21 @@ contract SessionVaultTest is SessionRig {
         SessionVault v2 = SessionVault(factory.createVault(owner2));
         SessionVault.Grant memory g = _grant(keyHash, 0);
         vm.prank(owner2); bytes32 sid2 = v2.open(g, "");
-        bytes memory a = abi.encode(uint256(1), bytes32("o"));
+        bytes memory a = _fund(t, 1);
         uint64 deadline = uint64(vm.getBlockTimestamp() + 120);
-        bytes32 d = _callDigest(sid, 0, PAY, a, 0, deadline);
+        bytes32 d = _callDigest(sid, 0, FUND, a, 0, deadline);
         (bytes32 r, bytes32 s) = vm.signP256(SK, sha256(abi.encodePacked(d)));
         vm.expectRevert(SessionVault.BadSignature.selector);
-        v2.execute(sid2, 0, PAY, a, 0, deadline, kx, ky, r, s);
+        v2.execute(sid2, 0, FUND, a, 0, deadline, kx, ky, r, s);
         assertTrue(sid != sid2);
     }
 
     // ======================= ending =======================
 
     function test_ownerTerminateRefundsWalletImmediately() public {
+        bytes32 t = _target();
         bytes32 sid = _openWithDeposit(_grant(keyHash, 20e6));
-        _exec(sid, 0, PAY, abi.encode(uint256(3e6), bytes32("o")), 0);
+        _exec(sid, 0, FUND, _fund(t, 3e6), 0);
         uint256 before = usdc.balanceOf(owner);
         bytes32 n = keccak256("t1");
         uint64 sb = uint64(vm.getBlockTimestamp() + 600);
@@ -647,8 +704,7 @@ contract SessionVaultTest is SessionRig {
         assertEq(usdc.balanceOf(owner), before + 17e6);
         assertFalse(vault.isLive(sid));
         assertEq(vault.locked6(), 0);
-        _execExpectRevert(sid, 1, PAY, abi.encode(uint256(1), bytes32("o")), 0,
-            abi.encodeWithSelector(SessionVault.NotLive.selector));
+        _execExpectRevert(sid, 1, FUND, _fund(t, 1), 0, abi.encodeWithSelector(SessionVault.NotLive.selector));
         vm.prank(relayer);
         vm.expectRevert(SessionVault.NonceUsed.selector);
         vault.terminate(sid, n, sb, sig);
@@ -667,6 +723,7 @@ contract SessionVaultTest is SessionRig {
     }
 
     function test_closeAfterExpiryByAnyone() public {
+        bytes32 t = _target();
         SessionVault.Grant memory g = _grant(keyHash, 20e6);
         g.maxFeePerOp = 2000;
         bytes32 sid = _openWithDeposit(g);
@@ -674,8 +731,7 @@ contract SessionVaultTest is SessionRig {
         vault.close(sid);
         vm.warp(g.expiresAt + 1);
         assertFalse(vault.isLive(sid));
-        _execExpectRevert(sid, 0, PAY, abi.encode(uint256(1), bytes32("o")), 0,
-            abi.encodeWithSelector(SessionVault.NotLive.selector));
+        _execExpectRevert(sid, 0, FUND, _fund(t, 1), 0, abi.encodeWithSelector(SessionVault.NotLive.selector));
         uint256 before = usdc.balanceOf(owner);
         vm.prank(makeAddr("keeper"));
         vault.close(sid);
@@ -685,7 +741,28 @@ contract SessionVaultTest is SessionRig {
         vault.close(sid);
     }
 
+    function test_closeFeeIsTheKeepersCostNotTheWholeCap() public {
+        SessionVault.Grant memory g = _grant(keyHash, 20e6);
+        g.maxFeePerOp = 250_000;                       // a generous per-op ceiling...
+        bytes32 sid = _openWithDeposit(g);
+        vm.warp(g.expiresAt + 1);
+        vault.close(sid);
+        assertEq(usdc.balanceOf(treasury), 20_000, "...but closing costs at most $0.02");
+    }
+
+    function test_ownerTerminatesAnExpiredSessionWithoutAFee() public {
+        SessionVault.Grant memory g = _grant(keyHash, 20e6);
+        bytes32 sid = _openWithDeposit(g);
+        vm.warp(g.expiresAt + 1);
+        uint256 before = usdc.balanceOf(owner);
+        vm.prank(owner);
+        vault.terminate(sid, bytes32(0), 0, "");
+        assertEq(usdc.balanceOf(owner), before + 20e6);
+        assertEq(usdc.balanceOf(treasury), 0);
+    }
+
     function test_revokeAllKillsEverySessionInOneCall() public {
+        bytes32 t = _target();
         bytes32 a = _openWithDeposit(_grant(keyHash, 20e6));
         (uint256 x2, uint256 y2) = vm.publicKeyP256(SK2);
         bytes32 b = _openWithDeposit(_grant(keccak256(abi.encode(x2, y2)), 30e6));
@@ -704,8 +781,7 @@ contract SessionVaultTest is SessionRig {
         (SessionVault.Session memory s,,) = vault.sessionOf(a);
         assertEq(s.balance6, 0, "effective balance of a revoked session is 0");
         vault.close(a);                         // tidies without paying anything
-        _execExpectRevert(b, 0, PAY, abi.encode(uint256(1), bytes32("o")), 0,
-            abi.encodeWithSelector(SessionVault.NotLive.selector));
+        _execExpectRevert(b, 0, FUND, _fund(t, 1), 0, abi.encodeWithSelector(SessionVault.NotLive.selector));
     }
 
     function test_withdrawOnlyFreeBalanceOnlyToOwner() public {
@@ -758,6 +834,12 @@ contract SessionVaultTest is SessionRig {
 
     // ======================= custody =======================
 
+    function _promoteSig(bytes32 id, string memory app, string memory ref, string memory cfg, string memory label,
+        bytes32 n, uint64 sb) internal view returns (bytes memory) {
+        return _ownerSig(keccak256(abi.encode(vault.PROMOTE_TYPEHASH(), id, keccak256(bytes(app)), keccak256(bytes(ref)),
+            keccak256(bytes(cfg)), keccak256(bytes(label)), n, sb)));
+    }
+
     function test_promoteSetsVersionAndRecordsPromotion() public {
         bytes32 sid = _openWithDeposit(_grant(keyHash, 10e6));
         bytes32 prd = abi.decode(_exec(sid, 0, CREATE, _createArgs(freeRef, 2, 0), 0), (bytes32));
@@ -767,19 +849,94 @@ contract SessionVaultTest is SessionRig {
         string memory next = _ref(freeAppId, 1);
         bytes32 n = keccak256("p");
         uint64 sb = uint64(vm.getBlockTimestamp() + 600);
-        bytes32 ph = keccak256(abi.encode(vault.PROMOTE_TYPEHASH(), prd, keccak256(bytes(next)), keccak256(bytes("{}")),
-            keccak256(bytes("2.0.9")), n, sb));
+        // the device shows app AND version: both must match the catalog
+        bytes memory badLabel = _promoteSig(prd, "freeapp", next, "{}", "2.0.9", n, sb);
+        bytes memory badApp = _promoteSig(prd, "store", next, "{}", "2.1.0", n, sb);
+        bytes memory good = _promoteSig(prd, "freeapp", next, "{}", "2.1.0", n, sb);
         vm.expectRevert(SessionVaultLib.LabelMismatch.selector);
-        vault.promote(prd, next, "{}", "2.0.9", n, sb, _ownerSig(ph));
-        ph = keccak256(abi.encode(vault.PROMOTE_TYPEHASH(), prd, keccak256(bytes(next)), keccak256(bytes("{}")),
-            keccak256(bytes("2.1.0")), n, sb));
+        vault.promote(prd, "freeapp", next, "{}", "2.0.9", n, sb, badLabel);
+        vm.expectRevert(SessionVaultLib.LabelMismatch.selector);
+        vault.promote(prd, "store", next, "{}", "2.1.0", n, sb, badApp);
         vm.prank(relayer);
-        vault.promote(prd, next, "{}", "2.1.0", n, sb, _ownerSig(ph));
+        vault.promote(prd, "freeapp", next, "{}", "2.1.0", n, sb, good);
         EnclaveDeployments.Deployment memory d = ledger.get(prd);
         assertEq(d.appRef, next);
         assertEq(d.configCid, "{}");
-        (, bytes32 promoted,) = vault.held(prd);
+        (uint8 env, bytes32 promoted,) = vault.held(prd);
+        assertEq(env, 2);
         assertEq(promoted, keccak256(abi.encode(next, "{}")));
+    }
+
+    function test_environmentChangesNeverPromote() public {
+        // a staging deployment moved to prod is UNPROMOTED: what a staging session last
+        // pointed it at is not what the owner reviewed
+        bytes32 sid = _openWithDeposit(_grant(keyHash, 10e6));
+        bytes32 stg = abi.decode(_exec(sid, 0, CREATE, _createArgs(freeRef, 1, 0), 0), (bytes32));
+        _exec(sid, 1, SET_APPREF, abi.encode(stg, storeRef), 0);       // the "race": re-pointed just before
+        vm.prank(owner); vault.setEnvironment(stg, "prod", bytes32(0), 0, "");
+        (uint8 env, bytes32 promoted,) = vault.held(stg);
+        assertEq(env, 2);
+        assertEq(promoted, bytes32(0), "moving into prod promotes nothing");
+        // Promote names what runs; it also takes an unadopted record the vault owns straight to prod
+        vm.prank(owner);
+        bytes32 w = ledger.create(freeRef, 0, 1000, 8080, "", false, "", address(0), 0, 1000);
+        vm.prank(owner); ledger.transferDeployment(w, address(vault));
+        vm.prank(owner); vault.promote(w, "freeapp", freeRef, "", "2.0.0", bytes32(0), 0, "");
+        (env, promoted,) = vault.held(w);
+        assertEq(env, 2);
+        assertEq(promoted, keccak256(abi.encode(freeRef, "")));
+    }
+
+    function test_rateCapBoundedByTheGrantAndOnlyLoweredOnProd() public {
+        bytes32 sid = _openWithDeposit(_grant(keyHash, 10e6));
+        bytes32 stg = abi.decode(_exec(sid, 0, CREATE, _createArgs(freeRef, 1, 0), 0), (bytes32));
+        bytes32 prd = abi.decode(_exec(sid, 1, CREATE, _createArgs(freeRef, 2, 0), 0), (bytes32));
+        // staging: up to the grant's $10/h ceiling, not beyond
+        _exec(sid, 2, SET_MAXRATE, abi.encode(stg, uint256(2777)), 0);
+        _execExpectRevert(sid, 3, SET_MAXRATE, abi.encode(stg, uint256(2778)), 0,
+            abi.encodeWithSelector(SessionVault.RateCapOutOfRange.selector, 2778 * 3600, 10e6));
+        // prod: only ever lowered (a raised cap lets a host the attacker runs earn the escrow)
+        _execExpectRevert(sid, 3, SET_MAXRATE, abi.encode(prd, uint256(1001)), 0,
+            abi.encodeWithSelector(SessionVault.RateCapOutOfRange.selector, 1001, 1000));
+        _exec(sid, 3, SET_MAXRATE, abi.encode(prd, uint256(500)), 0);
+        assertEq(ledger.capOf(prd), 500);
+    }
+
+    function test_ownerCallTransferClearsCustody() public {
+        bytes32 sid = _openWithDeposit(_grant(keyHash, 10e6));
+        bytes32 id = abi.decode(_exec(sid, 0, CREATE, _createArgs(freeRef, 2, 0), 0), (bytes32));
+        vm.prank(owner);
+        vault.ownerCall(address(ledger), abi.encodeWithSignature("transferDeployment(bytes32,address)", id, owner));
+        (uint8 env,,) = vault.held(id);
+        assertEq(env, 0, "handed away: if it ever comes back it is unadopted");
+        vm.prank(owner); ledger.transferDeployment(id, address(vault));
+        _execExpectRevert(sid, 1, SET_ACTIVE, abi.encode(id, false), 0, abi.encodeWithSelector(SessionVault.NotHeld.selector, id));
+    }
+
+    function test_hostileLedgerCannotOverwriteCustody() public {
+        bytes32 sid = _openWithDeposit(_grant(keyHash, 10e6));
+        bytes32 prd = abi.decode(_exec(sid, 0, CREATE, _createArgs(freeRef, 2, 0), 0), (bytes32));
+        HostileLedger h = new HostileLedger(address(usdc));
+        h.setFixedId(prd);                             // its create() "returns" an existing prod record
+        book.set("deployments", address(h));
+        _execExpectRevert(sid, 1, CREATE, _createArgs(freeRef, 1, 0), 0, abi.encodeWithSelector(SessionVault.Exists.selector));
+        (uint8 env,,) = vault.held(prd);
+        assertEq(env, 2);
+    }
+
+    function test_parseRefRejectsNonCanonicalSpellings() public {
+        string memory hexId = vm.toString(freeAppId);
+        bytes memory up = bytes(vm.toString(freeAppId));                    // fresh copies: bytes() of a string aliases it
+        for (uint256 i = 2; i < up.length; i++) if (up[i] >= "a" && up[i] <= "f") up[i] = bytes1(uint8(up[i]) - 32);
+        vm.expectRevert(SessionVaultLib.BadRef.selector);
+        this.parse(string.concat("catalog://", string(up), "/0"));            // upper-case hex
+        bytes memory big = bytes(vm.toString(freeAppId)); big[1] = "X";
+        vm.expectRevert(SessionVaultLib.BadRef.selector);
+        this.parse(string.concat("catalog://", string(big), "/0"));           // 0X
+        vm.expectRevert(SessionVaultLib.BadRef.selector);
+        this.parse(string.concat("catalog://", hexId, "/07"));               // leading zero
+        (bytes32 a, uint256 i2) = this.parse(string.concat("catalog://", hexId, "/0"));
+        assertEq(a, freeAppId); assertEq(i2, 0);
     }
 
     function test_adoptReleaseAndEnvironment() public {
@@ -793,7 +950,7 @@ contract SessionVaultTest is SessionRig {
         bytes32 h;
         (env, h,) = vault.held(id);
         assertEq(env, 2);
-        assertEq(h, keccak256(abi.encode(freeRef, "")), "adopting as prod promotes the current state");
+        assertEq(h, bytes32(0), "adopting as prod promotes NOTHING - Promote names what may run");
         vm.prank(owner); vault.setEnvironment(id, "staging", bytes32(0), 0, "");
         (env, h,) = vault.held(id);
         assertEq(env, 1);
@@ -942,20 +1099,18 @@ contract SessionVaultTest is SessionRig {
         ka.set(keyHash, keccak256("image-1"));
         vm.prank(owner);
         bytes32 sid = v.open(g, "");
-        usdc.mint(address(v), 1e6);
-        vm.prank(owner); v.topUp(sid, 1e6, bytes32(0), 0, "");
-        bytes memory a = abi.encode(uint256(1), bytes32("o"));
+        bytes memory a = _createArgs(freeRef, 1, 0);
         uint64 deadline = uint64(vm.getBlockTimestamp() + 120);
         bytes32 d = keccak256(abi.encodePacked("\x19\x01", _domain(address(v)),
-            keccak256(abi.encode(CALL_TYPEHASH, sid, uint256(0), uint8(9), keccak256(a), uint256(0), deadline))));
+            keccak256(abi.encode(CALL_TYPEHASH, sid, uint256(0), uint8(0), keccak256(a), uint256(0), deadline))));
         (bytes32 r, bytes32 s) = vm.signP256(SK, sha256(abi.encodePacked(d)));
-        v.execute(sid, 0, 9, a, 0, deadline, kx, ky, r, s);
+        v.execute(sid, 0, 0, a, 0, deadline, kx, ky, r, s);
         ka.revoke(keyHash);
         d = keccak256(abi.encodePacked("\x19\x01", _domain(address(v)),
-            keccak256(abi.encode(CALL_TYPEHASH, sid, uint256(1), uint8(9), keccak256(a), uint256(0), deadline))));
+            keccak256(abi.encode(CALL_TYPEHASH, sid, uint256(1), uint8(0), keccak256(a), uint256(0), deadline))));
         (r, s) = vm.signP256(SK, sha256(abi.encodePacked(d)));
         vm.expectRevert(SessionVault.NoAttestation.selector);
-        v.execute(sid, 1, 9, a, 0, deadline, kx, ky, r, s);
+        v.execute(sid, 1, 0, a, 0, deadline, kx, ky, r, s);
     }
 
     // ======================= parser fuzz =======================
@@ -984,17 +1139,18 @@ contract SessionVaultTest is SessionRig {
     function testFuzz_spendNeverExceedsBudgetOrPeriod(uint64[8] memory amounts, uint32 per) public {
         uint256 budget = 50e6;
         per = uint32(bound(per, 1e6, 60e6));
+        bytes32 t = _target();
         SessionVault.Grant memory g = _grant(keyHash, budget);
         g.spendPerPeriod = per;
         bytes32 sid = _openWithDeposit(g);
         uint256 spent; uint256 inPeriod;
         for (uint256 i = 0; i < 8; i++) {
             uint256 amt = bound(amounts[i], 1, 30e6);
-            bytes memory a = abi.encode(amt, bytes32("o"));
+            bytes memory a = _fund(t, amt);
             uint64 deadline = uint64(vm.getBlockTimestamp() + 120);
-            bytes32 d = _callDigest(sid, vault.seqOf(sid, 0), PAY, a, 0, deadline);
+            bytes32 d = _callDigest(sid, vault.seqOf(sid, 0), FUND, a, 0, deadline);
             (bytes32 r, bytes32 s) = vm.signP256(SK, sha256(abi.encodePacked(d)));
-            try vault.execute(sid, vault.seqOf(sid, 0), PAY, a, 0, deadline, kx, ky, r, s) {
+            try vault.execute(sid, vault.seqOf(sid, 0), FUND, a, 0, deadline, kx, ky, r, s) {
                 spent += amt; inPeriod += amt;
             } catch {}
             assertLe(spent, budget);
@@ -1003,7 +1159,7 @@ contract SessionVaultTest is SessionRig {
         }
         (SessionVault.Session memory s2,,) = vault.sessionOf(sid);
         assertEq(s2.spent6, spent);
-        assertEq(usdc.balanceOf(treasury), spent);
+        assertEq(ledger.get(t).balance6, spent);
         assertEq(vault.locked6(), budget - spent);
     }
 }

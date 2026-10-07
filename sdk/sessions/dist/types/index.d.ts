@@ -13,6 +13,7 @@ export * from "./grant.js";
 export * from "./client.js";
 export * from "./store.js";
 export * from "./abi.js";
+export * from "./attest.js";
 import type { Address } from "viem";
 import { type SessionSigner } from "./keys.js";
 import { type KeyStore, type StoredSession } from "./store.js";

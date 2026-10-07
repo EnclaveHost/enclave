@@ -19,6 +19,7 @@ export const TYPES = {
     { name: "opsPerPeriod", type: "uint32" },
     { name: "maxFeePerOp", type: "uint256" },
     { name: "maxAppFeePerHour", type: "uint256" },
+    { name: "maxRatePerHour", type: "uint256" },
     { name: "expiresAt", type: "uint64" },
     { name: "measurement", type: "bytes32" },
     { name: "grantNonce", type: "bytes32" },
@@ -65,6 +66,7 @@ export const TYPES = {
   ],
   Promote: [
     { name: "deployment", type: "bytes32" },
+    { name: "app", type: "string" },
     { name: "appRef", type: "string" },
     { name: "configCid", type: "string" },
     { name: "versionLabel", type: "string" },
@@ -106,6 +108,7 @@ export interface Grant {
   opsPerPeriod: number;
   maxFeePerOp: bigint;
   maxAppFeePerHour: bigint;
+  maxRatePerHour: bigint;
   expiresAt: bigint;
   measurement: Hex;
   grantNonce: Hex;

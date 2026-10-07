@@ -59,19 +59,6 @@ export const sessionVaultAbi = [
   },
   {
     "type": "function",
-    "name": "ACT_PAY",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint8",
-        "internalType": "uint8"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "ACT_PUBLISH",
     "inputs": [],
     "outputs": [
@@ -621,6 +608,11 @@ export const sessionVaultAbi = [
             "internalType": "uint256"
           },
           {
+            "name": "maxRatePerHour",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
             "name": "expiresAt",
             "type": "uint64",
             "internalType": "uint64"
@@ -822,6 +814,11 @@ export const sessionVaultAbi = [
             "internalType": "uint256"
           },
           {
+            "name": "maxRatePerHour",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
             "name": "expiresAt",
             "type": "uint64",
             "internalType": "uint64"
@@ -924,6 +921,11 @@ export const sessionVaultAbi = [
           },
           {
             "name": "maxAppFeePerHour",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxRatePerHour",
             "type": "uint256",
             "internalType": "uint256"
           },
@@ -1043,6 +1045,11 @@ export const sessionVaultAbi = [
         "name": "id",
         "type": "bytes32",
         "internalType": "bytes32"
+      },
+      {
+        "name": "app",
+        "type": "string",
+        "internalType": "string"
       },
       {
         "name": "appRef",
@@ -1278,6 +1285,11 @@ export const sessionVaultAbi = [
           },
           {
             "name": "maxAppFeeHour6",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "maxRateHour6",
             "type": "uint128",
             "internalType": "uint128"
           },
@@ -2051,6 +2063,22 @@ export const sessionVaultAbi = [
   },
   {
     "type": "error",
+    "name": "RateCapOutOfRange",
+    "inputs": [
+      {
+        "name": "rate",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "limit",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "RateLimit",
     "inputs": []
   },
@@ -2250,6 +2278,11 @@ export const sessionVaultFactoryAbi = [
             "internalType": "uint256"
           },
           {
+            "name": "maxRatePerHour",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
             "name": "expiresAt",
             "type": "uint64",
             "internalType": "uint64"
@@ -2362,6 +2395,11 @@ export const sessionVaultFactoryAbi = [
           },
           {
             "name": "maxAppFeePerHour",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxRatePerHour",
             "type": "uint256",
             "internalType": "uint256"
           },

@@ -44,16 +44,6 @@ export declare const sessionVaultAbi: readonly [{
     readonly stateMutability: "view";
 }, {
     readonly type: "function";
-    readonly name: "ACT_PAY";
-    readonly inputs: readonly [];
-    readonly outputs: readonly [{
-        readonly name: "";
-        readonly type: "uint8";
-        readonly internalType: "uint8";
-    }];
-    readonly stateMutability: "view";
-}, {
-    readonly type: "function";
     readonly name: "ACT_PUBLISH";
     readonly inputs: readonly [];
     readonly outputs: readonly [{
@@ -480,6 +470,10 @@ export declare const sessionVaultAbi: readonly [{
             readonly type: "uint256";
             readonly internalType: "uint256";
         }, {
+            readonly name: "maxRatePerHour";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
             readonly name: "expiresAt";
             readonly type: "uint64";
             readonly internalType: "uint64";
@@ -635,6 +629,10 @@ export declare const sessionVaultAbi: readonly [{
             readonly type: "uint256";
             readonly internalType: "uint256";
         }, {
+            readonly name: "maxRatePerHour";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
             readonly name: "expiresAt";
             readonly type: "uint64";
             readonly internalType: "uint64";
@@ -715,6 +713,10 @@ export declare const sessionVaultAbi: readonly [{
             readonly internalType: "uint256";
         }, {
             readonly name: "maxAppFeePerHour";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
+            readonly name: "maxRatePerHour";
             readonly type: "uint256";
             readonly internalType: "uint256";
         }, {
@@ -806,6 +808,10 @@ export declare const sessionVaultAbi: readonly [{
         readonly name: "id";
         readonly type: "bytes32";
         readonly internalType: "bytes32";
+    }, {
+        readonly name: "app";
+        readonly type: "string";
+        readonly internalType: "string";
     }, {
         readonly name: "appRef";
         readonly type: "string";
@@ -989,6 +995,10 @@ export declare const sessionVaultAbi: readonly [{
             readonly internalType: "uint128";
         }, {
             readonly name: "maxAppFeeHour6";
+            readonly type: "uint128";
+            readonly internalType: "uint128";
+        }, {
+            readonly name: "maxRateHour6";
             readonly type: "uint128";
             readonly internalType: "uint128";
         }, {
@@ -1595,6 +1605,18 @@ export declare const sessionVaultAbi: readonly [{
     }];
 }, {
     readonly type: "error";
+    readonly name: "RateCapOutOfRange";
+    readonly inputs: readonly [{
+        readonly name: "rate";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "limit";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+}, {
+    readonly type: "error";
     readonly name: "RateLimit";
     readonly inputs: readonly [];
 }, {
@@ -1748,6 +1770,10 @@ export declare const sessionVaultFactoryAbi: readonly [{
             readonly type: "uint256";
             readonly internalType: "uint256";
         }, {
+            readonly name: "maxRatePerHour";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
             readonly name: "expiresAt";
             readonly type: "uint64";
             readonly internalType: "uint64";
@@ -1836,6 +1862,10 @@ export declare const sessionVaultFactoryAbi: readonly [{
             readonly internalType: "uint256";
         }, {
             readonly name: "maxAppFeePerHour";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
+            readonly name: "maxRatePerHour";
             readonly type: "uint256";
             readonly internalType: "uint256";
         }, {

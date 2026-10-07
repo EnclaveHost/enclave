@@ -41,6 +41,9 @@ export declare const TYPES: {
         readonly name: "maxAppFeePerHour";
         readonly type: "uint256";
     }, {
+        readonly name: "maxRatePerHour";
+        readonly type: "uint256";
+    }, {
         readonly name: "expiresAt";
         readonly type: "uint64";
     }, {
@@ -139,6 +142,9 @@ export declare const TYPES: {
         readonly name: "deployment";
         readonly type: "bytes32";
     }, {
+        readonly name: "app";
+        readonly type: "string";
+    }, {
         readonly name: "appRef";
         readonly type: "string";
     }, {
@@ -208,6 +214,7 @@ export interface Grant {
     opsPerPeriod: number;
     maxFeePerOp: bigint;
     maxAppFeePerHour: bigint;
+    maxRatePerHour: bigint;
     expiresAt: bigint;
     measurement: Hex;
     grantNonce: Hex;
@@ -274,6 +281,9 @@ export declare function grantTypedData(chainId: number, vault: Address, g: Grant
             readonly type: "uint256";
         }, {
             readonly name: "maxAppFeePerHour";
+            readonly type: "uint256";
+        }, {
+            readonly name: "maxRatePerHour";
             readonly type: "uint256";
         }, {
             readonly name: "expiresAt";

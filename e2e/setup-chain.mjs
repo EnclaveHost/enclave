@@ -18,13 +18,14 @@ export const KEYS = {
   deployer:    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",   // account 0 - also the e2e payer wallet
   provisioner: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",   // account 1 - the relay's company wallet
   sanctioned:  "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",   // account 2 - seeded into the OFAC fixture
+  sessions:    "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6",   // account 3 - the sessions relayer key
 };
 export const TREASURY = "0x00000000000000000000000000000000000e2e01";   // pure sink: balances are asserted, nothing sends from it
 
-const forgeArtifact = (name) => {
-  const p = path.join(REPO, "contracts", "foundry", "out", name + ".sol", name + ".json");
+const forgeArtifact = (name, file = name) => {
+  const p = path.join(REPO, "contracts", "foundry", "out", file + ".sol", name + ".json");
   const j = JSON.parse(fs.readFileSync(p, "utf8"));
-  return { abi: j.abi, bytecode: j.bytecode.object };
+  return { abi: j.abi, bytecode: j.bytecode.object, linkReferences: j.bytecode.linkReferences };
 };
 
 // siteOrigin: the origin the harness serves the site from. The vault factory
@@ -42,8 +43,10 @@ export async function setupChain(rpc, siteOrigin) {
     return getAddress(rcpt.contractAddress);
   };
 
-  // MockUSDC from the Foundry build (run `forge build` first - CI does)
-  const usdcArt = forgeArtifact("MockUSDC");
+  // MockUSDC from the Foundry build (run `forge build` first - CI does) - the
+  // EIP-3009 flavour, a strict superset: session deposits and top-ups are one
+  // USDC ReceiveWithAuthorization signature, as on Base
+  const usdcArt = forgeArtifact("MockUSDC3009", "SessionMocks");
   const usdc = await deploy(usdcArt.abi, usdcArt.bytecode);
 
   // platform contracts from the committed artifacts module (admin-console
@@ -103,6 +106,9 @@ export async function setupChain(rpc, siteOrigin) {
   };
   await setKey("deployments", deployments);
   await setKey("registry", registry);
+  // the app catalog: sessions resolve the apps a grant names (slugs under the vault) through it
+  const catalog = await deploy([], art("EnclaveAppCatalog").bytecode);
+  await setKey("appCatalog", catalog);
   if (!siteOrigin) throw new Error("setupChain needs the site origin to pin into the vault factory");
   // Constructor shape comes from the ARTIFACT, and the values are matched BY
   // NAME: a hand-written inputs list silently shifts every argument when the
@@ -133,7 +139,21 @@ export async function setupChain(rpc, siteOrigin) {
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "anvil_setCode",
       params: ["0x0000000000000000000000000000000000000100", p256] }) });
 
-  return { usdc, router, registry, deployments, book, vaultFactory, treasury: TREASURY,
+  // sessions (docs/design/sessions.md): SessionVaultLib, then the factory linked
+  // against it (the vault implementation it deploys carries the library calls),
+  // pointed at by the book's "sessionVaultFactory" key like production
+  const svLib = forgeArtifact("SessionVaultLib", "SessionVault");
+  const svFac = forgeArtifact("SessionVaultFactory", "SessionVault");
+  const svLibAddr = await deploy([], svLib.bytecode);
+  const svLibs = {};
+  for (const [file, ls] of Object.entries(svFac.linkReferences || {})) for (const n of Object.keys(ls)) svLibs[file + ":" + n] = svLibAddr;
+  const svData = encodeDeployData({ abi: svFac.abi, bytecode: linkBytecode(svFac.bytecode, svFac.linkReferences, svLibs),
+    args: [usdc, book, router, ZERO, parseUnits("1000", 6)] });
+  const svHash = await wallet.sendTransaction({ data: svData });
+  const sessionFactory = getAddress((await pub.waitForTransactionReceipt({ hash: svHash })).contractAddress);
+  await setKey("sessionVaultFactory", sessionFactory);
+
+  return { usdc, router, registry, deployments, book, catalog, vaultFactory, sessionFactory, treasury: TREASURY,
            payer: account.address, provisioner: privateKeyToAccount(KEYS.provisioner).address,
            sanctioned: privateKeyToAccount(KEYS.sanctioned).address };
 }

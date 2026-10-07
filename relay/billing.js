@@ -212,6 +212,13 @@ export function evaluatePayment(amount6, total6) {
 async function handleConfirmedPayment({ orderRef, payer, amount, txHash, logIndex, block }) {
   const ref = String(orderRef).toLowerCase();
   const orderId = orders.data.byRef[ref];
+  // a SessionVault pays the router only its relay/close fees (sessions have no order action):
+  // platform income with no order behind it by design - logged, never a review
+  if (!orderId && ctxRef?.isSessionVault) {
+    let isVault = false;
+    try { isVault = await ctxRef.isSessionVault(payer); } catch { /* unreadable: fall through to review */ }
+    if (isVault) { console.log(`[billing] session fee ${amount} from vault ${payer} (tx ${txHash})`); return; }
+  }
   if (!orderId) {
     // funds are already at the treasury (the contract is dumb by design);
     // the review queue is the only ledger of unattributed payments

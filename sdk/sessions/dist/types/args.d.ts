@@ -56,10 +56,6 @@ export type ActionArgs = {
         id: Hex;
     };
     "app.publish": PublishArgs;
-    "order.pay": {
-        amount6: bigint;
-        orderRef: Hex;
-    };
 };
 export declare function encodeArgs<A extends OnChainAction>(action: A, a: ActionArgs[A]): Hex;
 /** What an action spends from the session budget (before the relay fee). */

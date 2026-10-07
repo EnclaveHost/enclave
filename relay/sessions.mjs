@@ -19,13 +19,21 @@
 //   SESSIONS_BOOK, SESSIONS_START_BLOCK, SESSIONS_FEE_MARGIN_BPS (2000), SESSIONS_MIN_FEE6 (500),
 //   SESSIONS_ETH_USD (fallback price, 3000), SESSIONS_ETH_USD_FEED, SESSIONS_MIN_ETH_WEI,
 //   SESSIONS_OWNER_OPS_PER_DAY (60), SESSIONS_SITE (origin used in links).
+// Attested session keys (POST /v1/sessions/attest, phase g; off unless SESSIONS_KEY_ATTESTATIONS is set, and
+// then answering 503 attest_disabled until every policy piece is set too; see "Attested session keys" below):
+//   SESSIONS_KEY_ATTESTATIONS     EnclaveKeyAttestations address (the relayer key must be one of its attestors)
+//   SESSIONS_ATTEST_MIN_TCB       JSON minimum-TCB policy per product line (relay/snp-verify.mjs checkMinTcb)
+//   SESSIONS_ATTEST_VMPL          the VMPL a key's report must state (0-3)
+//   SESSIONS_ATTEST_MEASUREMENTS  "*" (any image) or a comma list of 48-byte SNP measurements (96 hex)
+//   SESSIONS_ATTEST_MAX_PER_DAY   on-chain attestations per UTC day (200): bounds the relayer's gas
 
-import { createPublicClient, createWalletClient, decodeEventLog, encodeAbiParameters, fallback, getAddress, http,
-  isAddress, keccak256, parseEventLogs, BaseError, ContractFunctionRevertedError } from "viem";
+import { createPublicClient, createWalletClient, decodeErrorResult, decodeEventLog, encodeAbiParameters, encodeFunctionData,
+  fallback, getAddress, http, isAddress, keccak256, parseEventLogs } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia, foundry } from "viem/chains";
 import { createPublicKey, verify as nodeVerify, createHash } from "node:crypto";
 import { sessionVaultAbi, sessionVaultFactoryAbi } from "./sessions-abi.mjs";
+import { verifyQuote, parseSnpReport, provenSnpChip, seedCertChain } from "./snp-verify.mjs";
 
 const ZERO = "0x0000000000000000000000000000000000000000";
 const BOOK_FACTORY = "0x" + Buffer.from("sessionVaultFactory").toString("hex").padEnd(64, "0");
@@ -34,7 +42,7 @@ const BOOK_FACTORY = "0x" + Buffer.from("sessionVaultFactory").toString("hex").p
 // P-256) through this relay, padded ~20-30%. create 547-684k, publish 350-571k
 // (the first publish also creates the app), setAppRef 183k, pay 163k.
 const GAS = { 0: 850_000n, 1: 300_000n, 2: 240_000n, 3: 280_000n, 4: 300_000n, 5: 220_000n, 6: 220_000n,
-  7: 300_000n, 8: 750_000n, 9: 220_000n };
+  7: 300_000n, 8: 750_000n };   // (9 was order.pay: dropped before launch)
 const CLOSE_GAS = 200_000n;
 
 const ser = (o) => JSON.stringify(o, (_k, v) => (typeof v === "bigint" ? `${v}n` : v));
@@ -64,15 +72,15 @@ function httpError(status, code, message, extra) {
   return e;
 }
 
-/** Pull revert data out of a viem error (simulation or send). */
+/** Pull revert data out of a viem error (simulation or send). Duck-typed down the
+ *  cause chain, not instanceof: the client that threw may come from another copy of
+ *  viem than this module's (a test harness, a bundle). */
 export function revertData(e) {
-  if (e instanceof BaseError) {
-    const r = e.walk((x) => x instanceof ContractFunctionRevertedError);
-    if (r?.raw) return r.raw;
-    const d = e.walk((x) => typeof x?.data === "string" && x.data.startsWith("0x"));
-    if (d?.data) return d.data;
+  for (let x = e, i = 0; x && i < 12; x = x.cause, i++) {
+    if (typeof x.raw === "string" && /^0x[0-9a-fA-F]{8}/.test(x.raw)) return x.raw;
+    if (typeof x.data === "string" && /^0x[0-9a-fA-F]{8}/.test(x.data)) return x.data;
   }
-  return typeof e?.data === "string" ? e.data : undefined;
+  return undefined;
 }
 
 // ============================================================================
@@ -159,6 +167,160 @@ export class TxQueue {
 }
 
 // ============================================================================
+// Attested session keys (docs/design/sessions.md §10, phase g)
+// ============================================================================
+//
+// A grant with measurement != 0 may only be used by a key GENERATED INSIDE an
+// enclave running that image. The enclave proves it with its SEV-SNP report:
+//
+//   report_data[0:32] = sha256("enclave-session-key-v1" ‖ chainId ‖ x ‖ y)
+//                       (ASCII domain, then three 32-byte big-endian integers)
+//
+// The relay verifies the report with relay/snp-verify.mjs (AMD signature over
+// the report, VCEK -> ASK -> pinned ARK, VCEK matches the report's chip and
+// TCB, the caller's minimum TCB, the pinned VMPL, DEBUG and MIGRATE_MA off),
+// re-checks the fields it depends on itself, and records
+//
+//   EnclaveKeyAttestations.attest(keyHash, measurement)
+//     keyHash     = keccak256(abi.encode(uint256 x, uint256 y))   (the vault's)
+//     measurement = sha256(MEASUREMENT)                            (MAPPING below)
+//
+// MEASUREMENT MAPPING: an SNP launch measurement is 48 bytes (SHA-384) and the
+// vault's grant field is bytes32, so the bytes32 is sha256 of the 48 raw bytes.
+// An owner who wants "keys made in image M" puts snpMeasurementToBytes32(M) in
+// the grant. The response states the mapping and both values.
+//
+// The relay is the TRUSTED party here (sessions.md §10): the contract cannot
+// check a report, so everything below fails closed. A report is never trusted
+// for anything but a refusal until the verifier has checked its signature.
+// No freshness challenge: a key is attested once, re-presenting the same report
+// re-attests the same (key, measurement), which is a no-op on chain.
+
+export const SESSION_KEY_DOMAIN = "enclave-session-key-v1";
+export const SESSION_KEY_MEASUREMENT_MAPPING = "sha256(SEV-SNP MEASUREMENT, the 48 raw bytes)";
+const SNP_REPORT_BYTES = 0x4a0;              // ATTESTATION_REPORT, SEV-SNP ABI
+const SNP_VCEK_GUID = "63da758de6644564adc5f4b93be8accd";
+const TWO_256 = 1n << 256n;
+
+const u256be = (v, name) => {
+  const b = typeof v === "bigint" ? v : BigInt(v);
+  if (b < 0n || b >= TWO_256) throw new Error(`${name} out of range`);
+  return Buffer.from(b.toString(16).padStart(64, "0"), "hex");
+};
+
+/** report_data[0:32] a session key's SNP report must carry:
+ *  sha256("enclave-session-key-v1" ‖ uint256 chainId ‖ uint256 x ‖ uint256 y), all big-endian. */
+export function sessionKeyReportData(chainId, x, y) {
+  return createHash("sha256").update(sessionKeyPreimage(chainId, x, y)).digest();
+}
+function sessionKeyPreimage(chainId, x, y) {
+  return Buffer.concat([Buffer.from(SESSION_KEY_DOMAIN, "ascii"), u256be(chainId, "chainId"), u256be(x, "x"), u256be(y, "y")]);
+}
+
+/** The bytes32 a grant names for an SNP image: sha256 of its 48-byte launch measurement. */
+export function snpMeasurementToBytes32(m) {
+  const b = Buffer.isBuffer(m) ? m : Buffer.from(String(m).replace(/^0x/, ""), "hex");
+  if (b.length !== 48) throw new Error("an SEV-SNP measurement is 48 bytes");
+  return "0x" + createHash("sha256").update(b).digest("hex");
+}
+
+/** keccak256(abi.encode(uint256 x, uint256 y)): SessionVault's keyHash. */
+export function sessionKeyHash(x, y) {
+  return keccak256(encodeAbiParameters([{ type: "uint256" }, { type: "uint256" }], [BigInt(x), BigInt(y)]));
+}
+
+// The report fields the attestation depends on, read from the raw bytes. Run twice: BEFORE verification only
+// to refuse early (no KDS fetch for a report that cannot pass), and AFTER it as belt and braces over the verdict.
+// Returns null, or [status, code, message].
+export function snpKeyReportRefusal(report, { binding, vmpl, measurements }) {
+  let p;
+  try { p = parseSnpReport(report); } catch (e) { return [422, "bad_report", `unparseable report: ${e.message}`]; }
+  const signingKey = (report.readUInt32LE(0x48) >> 2) & 0x7;
+  if (p.version < 2) return [422, "bad_report", `report version ${p.version} < 2`];
+  if (p.policy & (1n << 19n)) return [403, "policy_refused", "the guest policy allows DEBUG (the host can read guest memory, the key included)"];
+  if (p.policy & (1n << 18n)) return [403, "policy_refused", "the guest policy allows MIGRATE_MA"];
+  if (signingKey !== 0) return [403, "not_vcek_signed", "the report is not signed by the chip's VCEK"];
+  if (p.vmpl !== vmpl) return [403, "vmpl_mismatch", `the report states VMPL ${p.vmpl}, not the pinned ${vmpl}`];
+  if (!p.reportData.subarray(0, 32).equals(binding))
+    return [422, "report_data_mismatch", "report_data[0:32] is not sha256(\"enclave-session-key-v1\" ‖ chainId ‖ x ‖ y) for this key on this chain"];
+  if (measurements !== "*" && !measurements.has(p.measurement.toString("hex")))
+    return [403, "measurement_not_allowed", "this relay does not attest keys for this image's measurement"];
+  return null;
+}
+
+/** A VCEK (PEM, or DER as hex) as the certificate table verifyQuote reads (the guest's auxblob layout):
+ *  one {GUID, offset, length} entry, a zero terminator, then the DER. The VCEK is untrusted either way:
+ *  the verifier chains it to the pinned AMD root and matches it to the report's chip and TCB. */
+export function vcekAuxblob(vcek) {
+  const s = String(vcek).trim();
+  const der = s.includes("-----BEGIN") ? Buffer.from(s.replace(/-----[^-]+-----|\s/g, ""), "base64")
+    : Buffer.from(s.replace(/^0x/, ""), "hex");
+  if (der.length < 64 || der[0] !== 0x30) throw new Error("vcek is not a DER certificate (PEM or hex)");
+  const hdr = Buffer.alloc(48);
+  Buffer.from(SNP_VCEK_GUID, "hex").copy(hdr, 0);
+  hdr.writeUInt32LE(48, 16);
+  hdr.writeUInt32LE(der.length, 20);
+  return Buffer.concat([hdr, der]);
+}
+
+/** The default verifier: relay/snp-verify.mjs verifyQuote. Its freshness check is report_data[0:32] ==
+ *  sha256(transportKeySpki ‖ challenge); the session-key binding's preimage is split there (the domain as
+ *  the first part, chainId ‖ x ‖ y as the second), so the verifier checks exactly sessionKeyReportData().
+ *  `allowedMeasurements` "*" admits the report's own measurement: the image is the GRANT's policy, and the
+ *  relay records whichever image the hardware proves (an allowlist, when set, narrows what it will pay to write). */
+export async function verifySnpKeyReport(report, { preimage, auxblob, minTcb, vmpl, measurements, kds = true }) {
+  const domain = Buffer.from(SESSION_KEY_DOMAIN, "ascii");
+  if (!preimage.subarray(0, domain.length).equals(domain)) throw new Error("not a session-key preimage");
+  const allowed = measurements === "*" ? [parseSnpReport(report).measurement.toString("hex")] : [...measurements];
+  return verifyQuote(report, { transportKeySpki: domain, challenge: preimage.subarray(domain.length),
+    allowedMeasurements: allowed, auxblob, requireVcek: true, minTcb, kds, expectedVmpl: vmpl });
+}
+
+export const keyAttestationsAbi = [
+  { type: "function", name: "attest", stateMutability: "nonpayable",
+    inputs: [{ name: "keyHash", type: "bytes32" }, { name: "measurement", type: "bytes32" }], outputs: [] },
+  { type: "function", name: "bindingOf", stateMutability: "view", inputs: [{ name: "keyHash", type: "bytes32" }],
+    outputs: [{ name: "measurement", type: "bytes32" }, { name: "revoked", type: "bool" }] },
+  { type: "function", name: "getBinding", stateMutability: "view", inputs: [{ name: "keyHash", type: "bytes32" }],
+    outputs: [{ name: "", type: "tuple", internalType: "struct EnclaveKeyAttestations.Binding", components: [
+      { name: "measurement", type: "bytes32", internalType: "bytes32" }, { name: "attestedAt", type: "uint64", internalType: "uint64" },
+      { name: "attestor", type: "address", internalType: "address" }, { name: "revoked", type: "bool", internalType: "bool" }] }] },
+  { type: "function", name: "isAttestor", stateMutability: "view", inputs: [{ name: "", type: "address" }], outputs: [{ name: "", type: "bool" }] },
+  { type: "event", name: "KeyAttested", anonymous: false, inputs: [{ name: "keyHash", type: "bytes32", indexed: true },
+    { name: "measurement", type: "bytes32", indexed: true }, { name: "attestor", type: "address", indexed: true }] },
+  { type: "error", name: "NotAttestor", inputs: [] },
+  { type: "error", name: "ZeroKey", inputs: [] },
+  { type: "error", name: "ZeroMeasurement", inputs: [] },
+  { type: "error", name: "MeasurementConflict", inputs: [{ name: "keyHash", type: "bytes32" }, { name: "recorded", type: "bytes32" }] },
+  { type: "error", name: "KeyIsRevoked", inputs: [{ name: "keyHash", type: "bytes32" }] },
+];
+
+// The attestor config, checked once; anything missing keeps the route at 503 attest_disabled.
+function attestorSetup(a) {
+  if (!a) return { why: "attested session keys are not enabled on this relay" };
+  const missing = [];
+  if (!isAddress(a.address || "")) missing.push("the EnclaveKeyAttestations address");
+  if (!a.minTcb || typeof a.minTcb !== "object" || Array.isArray(a.minTcb) || !Object.keys(a.minTcb).length)
+    missing.push("a minimum-TCB policy");
+  if (!Number.isInteger(a.vmpl) || a.vmpl < 0 || a.vmpl > 3) missing.push("the pinned VMPL (0-3)");
+  let measurements = null;
+  if (a.measurements === "*") measurements = "*";
+  else if (Array.isArray(a.measurements) && a.measurements.length
+           && a.measurements.every((m) => /^[0-9a-f]{96}$/.test(String(m).toLowerCase().replace(/^0x/, ""))))
+    measurements = new Set(a.measurements.map((m) => String(m).toLowerCase().replace(/^0x/, "")));
+  else missing.push("the measurement policy (\"*\" or a list of 48-byte SNP measurements)");
+  if (a.verifySnp !== undefined && typeof a.verifySnp !== "function") missing.push("a callable verifier");
+  if (a.queue !== undefined && (typeof a.queue?.send !== "function" || !isAddress(a.queue?.account?.address || "")))
+    missing.push("a queue with an account");
+  if (a.maxPerDay !== undefined && !(Number.isInteger(a.maxPerDay) && a.maxPerDay >= 0)) missing.push("a whole-number daily cap");
+  if (missing.length) return { why: `attested session keys are not fully configured (missing: ${missing.join(", ")})` };
+  // a held copy of AMD's chain (a file of KDS's cert_chain) is pinned like a fetched one: a wrong root throws here
+  for (const [product, pem] of Object.entries(a.certChains || {})) seedCertChain(product, pem);
+  return { address: getAddress(a.address), minTcb: a.minTcb, vmpl: a.vmpl, measurements, kds: a.kds !== false,
+    verify: a.verifySnp ?? verifySnpKeyReport, queue: a.queue ?? null, maxPerDay: a.maxPerDay ?? 200 };
+}
+
+// ============================================================================
 // The service
 // ============================================================================
 
@@ -198,6 +360,9 @@ export function createSessionsService(o) {
   const liveCache = new Map();      // `${vault}:${sid}` -> { at, state }
   const ownerOpsCount = new Map();  // owner -> { day, n }
   const replay = new Map();         // api nonce -> expiry
+  const att = attestorSetup(o.attestor);
+  const attestDay = { day: -1, n: 0 };
+  if (o.attestor) log(att.address ? `attest: on, EnclaveKeyAttestations ${att.address}` : `attest: off (${att.why})`);
 
   async function getFactory() {
     if (factory) return factory;
@@ -252,6 +417,7 @@ export function createSessionsService(o) {
       await pc.simulateContract({ address: to, abi, functionName, args, account });
     } catch (e) {
       const data = revertData(e);
+      if (!data) log(`simulation of ${label} failed without revert data: ${e.shortMessage || e.message}`);
       throw httpError(409, "revert", `the vault refused: ${e.shortMessage || e.message}`.slice(0, 400), { revert: data });
     }
     afterSimulate?.();
@@ -263,11 +429,17 @@ export function createSessionsService(o) {
     return rc;
   }
 
-  function rateOwner(owner) {
+  /** Relayed (gas-free) owner operations per owner per day. Checked BEFORE simulation but
+   *  only COUNTED after the vault accepted the signature (a stranger can't burn an owner's
+   *  quota with junk), and never applied to terminate / revokeAll: an owner without ETH must
+   *  always be able to stop a leaked key. */
+  function rateOwner(owner, op, commit = false) {
+    if (op === "terminate" || op === "revokeAll") return;
     const day = Math.floor(now() / 86400);
-    const c = ownerOpsCount.get(owner);
-    if (!c || c.day !== day) { ownerOpsCount.set(owner, { day, n: 1 }); return; }
-    if (++c.n > ownerOpsPerDay) throw httpError(429, "rate", "too many owner operations today; submit directly to your vault");
+    let c = ownerOpsCount.get(owner);
+    if (!c || c.day !== day) { c = { day, n: 0 }; ownerOpsCount.set(owner, c); }
+    if (c.n >= ownerOpsPerDay) throw httpError(429, "rate", "too many owner operations today; submit directly to your vault");
+    if (commit) c.n++;
   }
 
   // ---- index -----------------------------------------------------------------
@@ -304,6 +476,7 @@ export function createSessionsService(o) {
             break;
           }
           case "SessionEnded": {
+            store.data.revoked[A.sid] ??= now();            // API access ends with it (owner-direct ends too)
             const s = store.data.sessions[A.sid];
             if (s) Object.assign(s, { ended: true, reason: Number(A.reason), refund6: A.refund6.toString(), endTx: l.transactionHash });
             break;
@@ -317,9 +490,11 @@ export function createSessionsService(o) {
           case "RevokedAll":
             // only sessions that existed at that block: a re-scan replays an old
             // RevokedAll after newer sessions are already in the index
-            for (const s of Object.values(store.data.sessions))
-              if (s.vault === vault && !s.ended && (blk == null || s.openedBlock == null || s.openedBlock <= blk))
+            for (const [sid, s] of Object.entries(store.data.sessions))
+              if (s.vault === vault && !s.ended && (blk == null || s.openedBlock == null || s.openedBlock <= blk)) {
                 Object.assign(s, { ended: true, reason: 4 });
+                store.data.revoked[sid] ??= now();
+              }
             break;
           case "HeldSet": store.data.held[A.id] = { vault, env: Number(A.env), createdBy: A.createdBy, promoted: store.data.held[A.id]?.promoted ?? null }; break;
           case "Promoted": (store.data.held[A.id] ??= { vault }).promoted = A.promoted; break;
@@ -382,7 +557,8 @@ export function createSessionsService(o) {
 
   // ---- API request verification (used by other relay routes) -------------------
 
-  const SCOPES = { "api.status": 128n, "api.logs": 129n, "api.restart": 130n, "api.upload": 131n, "api.appAccess": 132n, "api.placement": 133n };
+  const SCOPES = { "api.status": 128n, "api.logs": 129n, "api.restart": 130n, "api.upload": 131n, "api.appAccess": 132n,
+    "api.placement": 133n, "api.account": 134n };
 
   /** Verify `Authorization: EnclaveSession v1 ...` for one request. Returns
    *  { vault, sid, owner, actions } or throws (401/403). `fresh` forces an
@@ -418,11 +594,13 @@ export function createSessionsService(o) {
       [BigInt("0x" + xb.toString("hex")), BigInt("0x" + yb.toString("hex"))]));
     if (c.st.keyHash.toLowerCase() !== keyHash.toLowerCase()) throw httpError(401, "unauthorized", "key does not belong to this session");
     if (!c.st.live) throw httpError(401, "session_ended", "this session has ended or expired");
+    if (scope && !(scope in SCOPES)) throw httpError(500, "relay", `unknown API scope ${scope}`);
     if (scope && ((c.st.actions >> SCOPES[scope]) & 1n) === 0n) throw httpError(403, "not_allowed", `this session lacks ${scope}`);
     replay.set(rkey, now() + 120);
     if (replay.size > 50_000) for (const [k, exp] of replay) if (exp < now()) replay.delete(k);
     const owner = store.data.vaults[vault] ?? await pc.readContract({ address: vault, abi: sessionVaultAbi, functionName: "owner" });
-    return { vault, sid, owner: getAddress(owner), actions: c.st.actions, live: true };
+    return { vault, sid, owner: getAddress(owner), actions: c.st.actions, envs: Number(c.st.envs),
+      anyApp: Boolean(c.st.anyApp), apps: c.st.apps || [], live: true };
   }
 
   // ---- HTTP --------------------------------------------------------------------
@@ -430,8 +608,9 @@ export function createSessionsService(o) {
   async function route(method, path, body, ctx) {
     if (method === "GET" && path === "/config") {
       return { chainId, factory: await getFactory(), book: o.book ?? null, usdc: o.usdc ?? null, router: o.router ?? null,
-        relayer: account.address, site: o.site ?? null, rpc: o.publicRpc ?? null };
+        relayer: account.address, site: o.site ?? null, rpc: o.publicRpc ?? null, keyAttestations: att.address ?? null };
     }
+    if (method === "POST" && path === "/attest") return attestKey(body);
     if (method === "POST" && path === "/quote") {
       const vault = await requireVault(body.vault);
       const sid = hex32(body.sid, "sid");
@@ -466,7 +645,7 @@ export function createSessionsService(o) {
       const owner = addr(body.owner, "owner");
       const scr = ctx?.screenAddress?.(owner);
       if (scr?.result === "hit") throw httpError(451, "refused", "this address cannot be served");
-      rateOwner(owner);
+      rateOwner(owner, "open");
       const g = parseGrant(body.grant);
       const f = await getFactory();
       const vault = await pc.readContract({ address: f, abi: sessionVaultFactoryAbi, functionName: "vaultFor", args: [owner] });
@@ -477,10 +656,10 @@ export function createSessionsService(o) {
         if (!d) throw httpError(400, "bad_request", "a funded grant needs the USDC deposit authorization");
         rc = await simulateAndSend({ to: f, abi: sessionVaultFactoryAbi, functionName: "openWithDepositFor",
           args: [owner, g, sig, big(d.validAfter, "validAfter"), big(d.validBefore, "validBefore"), hexAny(d.sig, "deposit.sig", 2048)],
-          label: `open+deposit ${owner.slice(0, 8)}` });
+          label: `open+deposit ${owner.slice(0, 8)}`, afterSimulate: () => rateOwner(owner, "open", true) });
       } else {
         rc = await simulateAndSend({ to: f, abi: sessionVaultFactoryAbi, functionName: "openFor", args: [owner, g, sig],
-          label: `open ${owner.slice(0, 8)}` });
+          label: `open ${owner.slice(0, 8)}`, afterSimulate: () => rateOwner(owner, "open", true) });
       }
       store.data.vaults[getAddress(vault)] ??= owner;
       const ev = parseEventLogs({ abi: sessionVaultAbi, logs: rc.logs, eventName: "SessionOpened" })[0];
@@ -493,7 +672,7 @@ export function createSessionsService(o) {
       const vault = await requireVault(body.vault);
       const real = await pc.readContract({ address: vault, abi: sessionVaultAbi, functionName: "owner" });
       if (getAddress(real) !== owner) throw httpError(403, "not_owner", "that vault belongs to someone else");
-      rateOwner(owner);
+      rateOwner(owner, body.op);
       const a = body.args ?? {};
       const sig = body.op === "topUpWithAuthorization" ? undefined : hexAny(body.sig, "sig", 2048);
       const on = () => hex32(a.opNonce, "opNonce");
@@ -525,14 +704,15 @@ export function createSessionsService(o) {
           fn = "revokeAll"; args = [Boolean(a.withdraw), on(), sb(), sig];
           break;
         case "withdraw": fn = "withdraw"; args = [big(a.amount, "amount"), on(), sb(), sig]; break;
-        case "promote": fn = "promote"; args = [hex32(a.deployment, "deployment"), String(a.appRef), String(a.configCid), String(a.versionLabel), on(), sb(), sig]; break;
+        case "promote": fn = "promote"; args = [hex32(a.deployment, "deployment"), String(a.app), String(a.appRef), String(a.configCid), String(a.versionLabel), on(), sb(), sig]; break;
         case "adopt": fn = "adopt"; args = [hex32(a.deployment, "deployment"), String(a.environment), on(), sb(), sig]; break;
         case "setEnvironment": fn = "setEnvironment"; args = [hex32(a.deployment, "deployment"), String(a.environment), on(), sb(), sig]; break;
         case "release": fn = "release"; args = [hex32(a.deployment, "deployment"), addr(a.to, "to"), on(), sb(), sig]; break;
         default: throw httpError(400, "bad_request", "unknown owner operation");
       }
+      const revokeFirst = afterSimulate;
       const rc = await simulateAndSend({ to: vault, abi: sessionVaultAbi, functionName: fn, args, label: `${fn} ${vault.slice(0, 8)}`,
-        afterSimulate });
+        afterSimulate: () => { rateOwner(owner, body.op, true); revokeFirst?.(); } });
       return { txHash: rc.transactionHash, block: Number(rc.blockNumber) };
     }
     if (method === "POST" && path === "/end") {
@@ -572,6 +752,120 @@ export function createSessionsService(o) {
     throw httpError(404, "not_found", "no such sessions endpoint");
   }
 
+  // ---- attested session keys (phase g; see "Attested session keys" above) ---------
+
+  const coord = (v, name) => {
+    let b;
+    if (typeof v === "string" && /^0x[0-9a-fA-F]{1,64}$/.test(v)) b = BigInt(v);
+    else b = big(v, name);
+    if (b <= 0n || b >= TWO_256) throw httpError(400, "bad_request", `${name} must be a 256-bit coordinate`);
+    return b;
+  };
+  const hexBuf = (v, name, maxBytes) => {
+    if (typeof v !== "string") throw httpError(400, "bad_request", `${name} must be hex`);
+    const h = v.replace(/^0x/, "");
+    if (!/^([0-9a-fA-F]{2})*$/.test(h) || h.length > 2 * maxBytes) throw httpError(400, "bad_request", `${name} must be hex, at most ${maxBytes} bytes`);
+    return Buffer.from(h, "hex");
+  };
+  const refuse = (keyHash, status, code, message) => {
+    log(`attest refused ${keyHash ? keyHash.slice(0, 10) : "?"}: ${code}: ${message}`);
+    return httpError(status, code, message);
+  };
+  // the stored record and whether it is live (recorded, not revoked, its attestor still named)
+  async function bindingRecord(keyHash) {
+    const b = await pc.readContract({ address: att.address, abi: keyAttestationsAbi, functionName: "getBinding", args: [keyHash] });
+    const recorded = BigInt(b.measurement) !== 0n;
+    const named = recorded && await pc.readContract({ address: att.address, abi: keyAttestationsAbi, functionName: "isAttestor", args: [b.attestor] });
+    return { measurement: b.measurement.toLowerCase(), revoked: b.revoked, live: recorded && !b.revoked && named };
+  }
+
+  /** POST /attest {x, y, evidence: {type: "sev-snp", report: hex, vcek?: PEM|hex DER, auxblob?: hex}}
+   *  -> {keyHash, measurement, snpMeasurement, mapping, contract, attestor, tcb, txHash, already} */
+  async function attestKey(body) {
+    if (!att.address) throw httpError(503, "attest_disabled", att.why);
+    const q = att.queue ?? queue;
+    const signer = q === queue ? account : att.queue.account;
+    // the key: a point on P-256
+    const x = coord(body?.x, "x"), y = coord(body?.y, "y");
+    const b64 = (n) => Buffer.from(n.toString(16).padStart(64, "0"), "hex").toString("base64url");
+    try { createPublicKey({ key: { kty: "EC", crv: "P-256", x: b64(x), y: b64(y) }, format: "jwk" }); }
+    catch { throw httpError(422, "bad_key", "(x, y) is not a P-256 public key"); }
+    const keyHash = sessionKeyHash(x, y);
+    // the evidence
+    const ev = body?.evidence;
+    if (!ev || typeof ev !== "object") throw httpError(400, "bad_request", "evidence missing");
+    if (ev.type !== "sev-snp") throw refuse(keyHash, 422, "unsupported_evidence", "only {type: \"sev-snp\"} evidence is accepted");
+    const report = hexBuf(ev.report, "evidence.report", 4 * SNP_REPORT_BYTES);
+    if (report.length !== SNP_REPORT_BYTES) throw refuse(keyHash, 422, "bad_report", `an SEV-SNP report is ${SNP_REPORT_BYTES} bytes, not ${report.length}`);
+    if (ev.vcek != null && ev.auxblob != null) throw httpError(400, "bad_request", "give evidence.vcek or evidence.auxblob, not both");
+    let auxblob = null;
+    if (ev.vcek != null) {
+      if (typeof ev.vcek !== "string" || ev.vcek.length > 16384) throw httpError(400, "bad_request", "evidence.vcek must be a PEM or hex DER certificate");
+      try { auxblob = vcekAuxblob(ev.vcek); } catch (e) { throw refuse(keyHash, 422, "bad_vcek", e.message); }
+    } else if (ev.auxblob != null) auxblob = hexBuf(ev.auxblob, "evidence.auxblob", 16384);
+    const preimage = sessionKeyPreimage(chainId, x, y);
+    const binding = createHash("sha256").update(preimage).digest();
+    const policy = { binding, vmpl: att.vmpl, measurements: att.measurements };
+
+    // 1. refusals readable off the raw report (it is trusted for nothing else yet): no KDS fetch for a report that cannot pass
+    let why = snpKeyReportRefusal(report, policy);
+    if (why) throw refuse(keyHash, ...why);
+    // 2. the chain: this relay must be an attestor, and a revoked key is refused before any verification
+    const named = await pc.readContract({ address: att.address, abi: keyAttestationsAbi, functionName: "isAttestor", args: [signer.address] });
+    if (!named) throw refuse(keyHash, 503, "attestor_not_authorized", `${signer.address} is not an attestor of ${att.address}`);
+    if ((await bindingRecord(keyHash)).revoked)
+      throw refuse(keyHash, 409, "key_revoked", "this key's attestation was revoked, permanently: generate a new key");
+    // 3. the hardware: AMD signature and chain to the pinned root, VCEK = this chip at this TCB, minimum TCB, VMPL,
+    //    guest policy, report_data. Any error is a refusal.
+    let v;
+    try { v = await att.verify(report, { preimage, binding, auxblob, minTcb: att.minTcb, vmpl: att.vmpl, measurements: att.measurements, kds: att.kds }); }
+    catch (e) { v = { ok: false, reasons: [`verifier error: ${e.message}`] }; }
+    if (!v || v.ok !== true) throw refuse(keyHash, 403, "evidence_refused", (v && Array.isArray(v.reasons) && v.reasons.at(-1)) || "the report did not verify");
+    // belt and braces over the verdict and the now-verified report: never more permissive than either
+    const p = parseSnpReport(report);
+    const snpMeasurement = p.measurement.toString("hex");
+    if (v.vcekVerified !== true || !provenSnpChip(report, v))
+      throw refuse(keyHash, 403, "evidence_refused", "the report's signature was not verified against its own chip's VCEK");
+    if (!v.tcb || v.tcb.checked !== true) throw refuse(keyHash, 403, "evidence_refused", "the report's TCB was not judged against the minimum-TCB policy");
+    if (v.vmpl !== att.vmpl) throw refuse(keyHash, 403, "evidence_refused", `the verifier saw VMPL ${v.vmpl}, not the pinned ${att.vmpl}`);
+    if (String(v.measurement || "").toLowerCase() !== snpMeasurement)
+      throw refuse(keyHash, 403, "evidence_refused", "the verifier's measurement is not the report's");
+    why = snpKeyReportRefusal(report, policy);
+    if (why) throw refuse(keyHash, ...why);
+    const measurement = snpMeasurementToBytes32(p.measurement);
+
+    // 4. record it (re-read: the verification can take seconds)
+    const rec = await bindingRecord(keyHash);
+    if (rec.revoked) throw refuse(keyHash, 409, "key_revoked", "this key's attestation was revoked, permanently: generate a new key");
+    if (rec.live && rec.measurement !== measurement)
+      throw refuse(keyHash, 409, "measurement_conflict", `this key is already attested under another image (${rec.measurement}); a key belongs to one image`);
+    const out = { keyHash, measurement, snpMeasurement, mapping: SESSION_KEY_MEASUREMENT_MAPPING, contract: att.address,
+      attestor: signer.address, tcb: v.tcb };
+    if (rec.live) return { ...out, txHash: null, already: true };
+    const day = Math.floor(now() / 86400);
+    if (attestDay.day !== day) { attestDay.day = day; attestDay.n = 0; }
+    if (attestDay.n >= att.maxPerDay) throw refuse(keyHash, 429, "attest_rate", "this relay's attestations for today are used up; retry tomorrow");
+    attestDay.n++;
+    try {
+      await pc.simulateContract({ address: att.address, abi: keyAttestationsAbi, functionName: "attest", args: [keyHash, measurement], account: signer });
+    } catch (e) {
+      const data = revertData(e);
+      let name = null;
+      try { name = data ? decodeErrorResult({ abi: keyAttestationsAbi, data }).errorName : null; } catch { /* not ours */ }
+      if (name === "NotAttestor") throw refuse(keyHash, 503, "attestor_not_authorized", `${signer.address} is not an attestor of ${att.address}`);
+      if (name === "KeyIsRevoked") throw refuse(keyHash, 409, "key_revoked", "this key's attestation was revoked, permanently: generate a new key");
+      if (name === "MeasurementConflict") throw refuse(keyHash, 409, "measurement_conflict", "this key is already attested under another image");
+      throw refuse(keyHash, 409, "revert", `EnclaveKeyAttestations refused: ${e.shortMessage || e.message}`.slice(0, 400));
+    }
+    const rc = await q.send({ to: att.address, data: encodeFunctionData({ abi: keyAttestationsAbi, functionName: "attest", args: [keyHash, measurement] }),
+      label: `attest ${keyHash.slice(0, 10)}` });
+    if (rc.status !== "success") throw refuse(keyHash, 409, "revert", `attest reverted on-chain (${rc.transactionHash})`);
+    const [m, revoked] = await pc.readContract({ address: att.address, abi: keyAttestationsAbi, functionName: "bindingOf", args: [keyHash] });
+    if (m.toLowerCase() !== measurement || revoked) throw httpError(500, "relay", `attested in ${rc.transactionHash}, but the binding does not read back`);
+    log(`attested key ${keyHash.slice(0, 10)} under ${measurement.slice(0, 10)} (SNP ${snpMeasurement.slice(0, 16)}…) in ${rc.transactionHash}`);
+    return { ...out, txHash: rc.transactionHash, block: Number(rc.blockNumber), already: false };
+  }
+
   function parseGrant(g) {
     if (!g || typeof g !== "object") throw httpError(400, "bad_request", "grant missing");
     const strs = (v, n) => { if (!Array.isArray(v) || v.some((s) => typeof s !== "string" || s.length > 200) || v.length > 32) throw httpError(400, "bad_request", `${n} must be a string list`); return v; };
@@ -583,6 +877,7 @@ export function createSessionsService(o) {
       budget: big(g.budget, "budget"), spendPerPeriod: big(g.spendPerPeriod, "spendPerPeriod"),
       periodSeconds: u32(g.periodSeconds, "periodSeconds"), opsPerPeriod: u32(g.opsPerPeriod, "opsPerPeriod"),
       maxFeePerOp: big(g.maxFeePerOp, "maxFeePerOp"), maxAppFeePerHour: big(g.maxAppFeePerHour, "maxAppFeePerHour"),
+      maxRatePerHour: big(g.maxRatePerHour ?? 0, "maxRatePerHour"),
       expiresAt: big(g.expiresAt, "expiresAt"), measurement: hex32(g.measurement, "measurement"),
       grantNonce: hex32(g.grantNonce, "grantNonce"), signBefore: big(g.signBefore, "signBefore"),
     };
@@ -651,8 +946,11 @@ function readAll(req) {
 // relay that cannot submit sessions still refuses an unpromoted prod release.
 // ============================================================================
 
-export function createCustodyGate({ pc, book, factory: fixedFactory = null, ttlMs = 60_000 }) {
+export function createCustodyGate({ pc, book, factory: fixedFactory = null, factories: history = [], ttlMs = 60_000 }) {
   let factory = fixedFactory ? getAddress(fixedFactory) : null;
+  // a vault of ANY factory we ever ran stays recognised: a v1 vault's unpromoted prod record must not
+  // start releasing secrets because a v2 factory replaced v1 in the book
+  const older = history.filter((a) => a && isAddress(a)).map((a) => getAddress(a));
   let factoryAt = 0;
   const vaultOwner = new Map();      // vault -> owner (immutable once read)
   const notVault = new Map();        // address -> checkedAt
@@ -673,11 +971,14 @@ export function createCustodyGate({ pc, book, factory: fixedFactory = null, ttlM
     if (vaultOwner.has(x)) return vaultOwner.get(x);
     const seen = notVault.get(x);
     if (seen && Date.now() - seen < ttlMs) return null;
-    const f = await getFactory();
-    if (!f) { notVault.set(x, Date.now()); return null; }
+    const current = await getFactory();
+    const all = [...new Set([current, fixedFactory && getAddress(fixedFactory), ...older].filter(Boolean))];
+    if (!all.length) { notVault.set(x, Date.now()); return null; }
     const code = await pc.getCode({ address: x });
     if (!code || code.length <= 2) { notVault.set(x, Date.now()); return null; }
-    const is = await pc.readContract({ address: f, abi: sessionVaultFactoryAbi, functionName: "isVault", args: [x] });
+    let is = false;
+    for (const f of all)
+      if (await pc.readContract({ address: f, abi: sessionVaultFactoryAbi, functionName: "isVault", args: [x] })) { is = true; break; }
     if (!is) { notVault.set(x, Date.now()); return null; }
     const owner = getAddress(await pc.readContract({ address: x, abi: sessionVaultAbi, functionName: "owner" }));
     vaultOwner.set(x, owner);
@@ -726,12 +1027,15 @@ export async function initSessions({ dataDir, JsonStore, alert, log } = {}) {
   if (!net) { _why = `unknown SESSIONS_NETWORK ${netName}`; console.error(`[sessions] ${_why}`); return null; }
   const rpcs = (process.env.SESSIONS_RPC || "").split(",").map((s) => s.trim()).filter(Boolean);
   const transport = fallback((rpcs.length ? rpcs : net.rpc).map((u) => http(u, { retryCount: 2, retryDelay: 400 })));
-  const pc = createPublicClient({ chain: net.chain, transport });
+  // a local chain may carry another id (the e2e rig runs anvil as 8453); real networks keep theirs
+  const chain = netName === "local" && process.env.SESSIONS_CHAIN_ID
+    ? { ...net.chain, id: Number(process.env.SESSIONS_CHAIN_ID) } : net.chain;
+  const pc = createPublicClient({ chain, transport });
   const account = privateKeyToAccount(key);
-  const wc = createWalletClient({ chain: net.chain, account, transport });
+  const wc = createWalletClient({ chain, account, transport });
   const path = (n) => `${dataDir}/${n}`;
   const svc = createSessionsService({
-    pc, wc, account, chainId: net.chain.id,
+    pc, wc, account, chainId: chain.id,
     factory: process.env.SESSIONS_FACTORY || null,
     book: process.env.SESSIONS_BOOK || net.book || null,
     usdc: process.env.SESSIONS_USDC || null,
@@ -746,6 +1050,7 @@ export async function initSessions({ dataDir, JsonStore, alert, log } = {}) {
     publicRpc: process.env.SESSIONS_PUBLIC_RPC || null,
     store: new JsonStore(path("sessions-index.json"), {}, { durable: false }),
     journal: new JsonStore(path("sessions-relayer.json"), { txs: [] }, { durable: true }),
+    attestor: attestorEnv(),
     alert, log,
   });
   try {
@@ -771,6 +1076,21 @@ export async function initSessions({ dataDir, JsonStore, alert, log } = {}) {
 }
 
 export function sessionsService() { return _svc; }
+
+// SESSIONS_KEY_ATTESTATIONS and its policy (header). Unset: no attestor (503 attest_disabled). Set: every policy
+// piece is passed as read, and a missing or malformed one keeps the route at 503 naming it (attestorSetup).
+function attestorEnv() {
+  const address = (process.env.SESSIONS_KEY_ATTESTATIONS || "").trim();
+  if (!address) return null;
+  let minTcb = null;
+  try { minTcb = JSON.parse(process.env.SESSIONS_ATTEST_MIN_TCB || ""); } catch { /* missing or not JSON: none */ }
+  const vmpl = String(process.env.SESSIONS_ATTEST_VMPL ?? "").trim();
+  const ms = String(process.env.SESSIONS_ATTEST_MEASUREMENTS || "").trim();
+  const cap = String(process.env.SESSIONS_ATTEST_MAX_PER_DAY || "").trim();
+  return { address, minTcb, vmpl: /^[0-3]$/.test(vmpl) ? Number(vmpl) : null,
+    measurements: ms === "*" ? "*" : ms ? ms.split(",").map((m) => m.trim()).filter(Boolean) : null,
+    ...(cap ? { maxPerDay: /^\d+$/.test(cap) ? Number(cap) : NaN } : {}) };
+}
 
 export function handleSessions(req, res, u, ctx) {
   if (!_svc) return ctx.json(res, 503, { error: _why, code: "sessions_disabled" }, req);

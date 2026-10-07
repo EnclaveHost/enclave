@@ -442,6 +442,9 @@ export async function authenticate(opts){
 }
 
 export function disconnectWallet(){
+  // sign-out ends the browser's session too: its key signs the terminate (no wallet
+  // prompt), the unspent budget returns to the owner, API access ends in the same flow
+  import("./sessions.js").then((S) => S.endSession()).catch(() => {});
   const wasWc = !!(Enclave.provider && Enclave.provider._enclaveWc) || Enclave.walletRdns === WC_RDNS;
   // end the relay session too, or "Sign out" leaves the pairing live in the
   // wallet and the next sign-in silently reuses it
@@ -557,8 +560,9 @@ export function refreshWallet(){
   if (btn){
     if (Enclave.address){
       btn.classList.add("connected");
-      btn.innerHTML = '<span class="wdot"></span>' + esc(short(Enclave.address));
+      btn.innerHTML = '<span class="wdot"></span>' + esc(short(Enclave.address)) + '<span class="wsess" id="wbSess"></span>';
       if (!btn.hasAttribute("aria-expanded")) btn.setAttribute("aria-expanded", "false");
+      sessionBadge();
     } else if (Enclave.accountAuthed()){
       // account-only (passkey user, no wallet connected): still signed in
       btn.classList.add("connected");
@@ -572,6 +576,23 @@ export function refreshWallet(){
   }
   emit("enclave:wallet", { address: Enclave.address, authed: Enclave.authed() });
 }
+
+/* the persistent session indicator on the wallet button: balance · time left */
+let _badgeTimer = 0;
+async function sessionBadge(){
+  clearTimeout(_badgeTimer);
+  try {
+    const S = await import("./sessions.js");
+    const st = await S.sessionStatus();
+    const el = $("#wbSess");
+    if (!el) return;
+    if (!st || st.error || !st.live || (st.owner && Enclave.address && st.owner.toLowerCase() !== Enclave.address.toLowerCase())){ el.textContent = ""; return; }
+    el.textContent = " · " + S.fmtUsd(st.balance6) + " · " + S.fmtLeft(Number(st.expiresAt) - Math.floor(Date.now() / 1000));
+    el.title = "Session: " + S.fmtUsd(st.balance6) + " left, " + S.fmtUsd(st.spent6) + " spent";
+    _badgeTimer = setTimeout(sessionBadge, 60_000);
+  } catch(e){}
+}
+if (typeof document !== "undefined") document.addEventListener("enclave:session", () => sessionBadge());
 
 export function toggleWalletPop(){
   const pop = $("#walletPop"); if (!pop) return;
@@ -608,7 +629,8 @@ export async function renderWalletPop(){
   pop.innerHTML =
     '<div class="wp-row"><span class="wp-k">Wallet</span><button class="wp-addr" id="wpCopy">' + esc(short(Enclave.address)) + ' ⧉</button></div>' +
     '<div class="wp-row"><span class="wp-k">Network</span><span class="wp-v">' + (Enclave.chainId === BASE_CHAIN ? "Base" : ("chain " + (Enclave.chainId || "–"))) + (offBase ? ' <button class="wp-mini" id="wpSwitch">switch to Base</button>' : "") + '</span></div>' +
-    '<div class="wp-row"><span class="wp-k">Session</span><span class="wp-v">' + (Enclave.authed() ? '<span class="ok">signed in</span>' : '<button class="wp-mini" id="wpAuth">sign in</button>') + '</span></div>' +
+    '<div class="wp-row"><span class="wp-k">Session</span><span class="wp-v" id="wpSess">…</span></div>' +
+    '<div class="wp-row"><span class="wp-k">Host login</span><span class="wp-v">' + (Enclave.authed() ? '<span class="ok">signed in</span>' : '<button class="wp-mini" id="wpAuth">sign in</button>') + '</span></div>' +
     '<div class="wp-bal"><div class="bl"><span>USDC balance</span><span id="wpBalUsdc">…</span></div></div>' +
     '<div class="wp-bal" id="wpBal">' + (Enclave.authed() ? "loading deployments…" : "sign in to load deployments") + '</div>' +
     '<div class="wp-fund">' +
@@ -625,6 +647,7 @@ export async function renderWalletPop(){
     ()  => { const u = $("#wpBalUsdc"); if (u) u.textContent = "unavailable"; });
   const s = $("#wpSwitch"); if (s) s.addEventListener("click", () => Enclave.provider && ensureBaseChainOnConnect(Enclave.provider).then(renderWalletPop));
   const a = $("#wpAuth"); if (a) a.addEventListener("click", async () => { try { await authenticate(); renderWalletPop(); } catch(e){ showToast(e.message); } });
+  renderSessionRow();
   if (Enclave.authed()){
     try {
       const acc = await Enclave.getAccount();
@@ -635,6 +658,26 @@ export async function renderWalletPop(){
       const el = $("#wpBal"); if (el) el.innerHTML = '<div class="bl-h">Deployments</div>' + rows;
     } catch(e){ const el = $("#wpBal"); if (el) el.textContent = e.message; }
   }
+}
+
+/* the popover's session row: live budget + top up / sessions / end, or "start" */
+async function renderSessionRow(){
+  const el = $("#wpSess"); if (!el) return;
+  let S;
+  try { S = await import("./sessions.js"); } catch(e){ el.textContent = "unavailable"; return; }
+  if (!(await S.sessionsAvailable())){ el.textContent = "not on this endpoint"; return; }
+  const st = await S.sessionStatus();
+  const mine = st && !st.error && st.live && st.owner && Enclave.address && st.owner.toLowerCase() === Enclave.address.toLowerCase();
+  if (!mine){
+    el.innerHTML = '<button class="wp-mini" id="wpSessStart">start</button> <a class="wp-mini" href="sessions">all</a>';
+    const b = $("#wpSessStart"); if (b) b.addEventListener("click", async () => { if (await S.openSessionModal()) renderWalletPop(); });
+    return;
+  }
+  const left = Number(st.expiresAt) - Math.floor(Date.now() / 1000);
+  el.innerHTML = '<span class="ok">' + esc(S.fmtUsd(st.balance6)) + '</span> left · ' + esc(S.fmtUsd(st.spent6)) + ' spent · ' + esc(S.fmtLeft(left)) +
+    ' <button class="wp-mini" id="wpSessTop">top up</button> <a class="wp-mini" href="sessions">sessions</a> <button class="wp-mini" id="wpSessEnd">end</button>';
+  const t = $("#wpSessTop"); if (t) t.addEventListener("click", async () => { if (await S.openTopUpModal()) renderWalletPop(); });
+  const e = $("#wpSessEnd"); if (e) e.addEventListener("click", async () => { await S.endSession(); renderWalletPop(); });
 }
 
 /* ---- on-chain tx helpers used by both the deploy console and the store ---- */

@@ -12,16 +12,16 @@ export declare const ACTIONS: {
     readonly "deploy.setActive": 6;
     readonly "deploy.refund": 7;
     readonly "app.publish": 8;
-    readonly "order.pay": 9;
     readonly "api.status": 128;
     readonly "api.logs": 129;
     readonly "api.restart": 130;
     readonly "api.upload": 131;
     readonly "api.appAccess": 132;
     readonly "api.placement": 133;
+    readonly "api.account": 134;
 };
 export type ActionName = keyof typeof ACTIONS;
-export type OnChainAction = "deploy.create" | "deploy.fund" | "deploy.setAppRef" | "deploy.setConfig" | "deploy.setShares" | "deploy.setMaxRate" | "deploy.setActive" | "deploy.refund" | "app.publish" | "order.pay";
+export type OnChainAction = "deploy.create" | "deploy.fund" | "deploy.setAppRef" | "deploy.setConfig" | "deploy.setShares" | "deploy.setMaxRate" | "deploy.setActive" | "deploy.refund" | "app.publish";
 export type ApiScope = Exclude<ActionName, OnChainAction>;
 export declare const ENVIRONMENTS: {
     readonly staging: 1;
