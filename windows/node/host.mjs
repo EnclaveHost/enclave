@@ -28,6 +28,9 @@ import { fetchSecrets, secretsExist } from "./secrets.mjs";
 // enclave-e3's shared module, vendored BYTE FOR BYTE from relay/host-delegation.mjs (test/windows-node-host-delegation.test.mjs
 // pins it and replays the relay's vectors), so the relay and this node judge a delegation the same way
 import { verifyDelegation, MAX_DELEGATIONS } from "./host-delegation.mjs";
+// A WALLET SESSION as the owner's credential (shared with supervisor.js): restartRequest and a private deployment's proxy
+// accept it beside this box's own SIWE session; cfg.sessionApi is the verifier (createSessionApiAuth), null = refused.
+import { isSessionHeader } from "./session-api-auth.mjs";
 
 /** The delegations this box carries: NODE_DIR/delegations/*.json, each { message, signature }, read fresh, in name order. */
 function readDelegationFiles(dir) {
@@ -513,19 +516,45 @@ export class Host {
    * owner's deployment again and again, and every forced relaunch of a partition mints a new domain key, ends its
    * sessions and asks the CA for a new certificate: a cheap availability and CA-rate attack (enclave-5d's review of
    * N1). The caller must hold this box's session (session.mjs, minted by its own SIWE login) for the deployment's
-   * OWNER - the Linux runner's rule (supervisor.js: authed, then 404 unless rec.owner is the caller). No verifier
+   * OWNER - the Linux runner's rule (supervisor.js: ownerAuth, then 404 unless rec.owner is the caller). No verifier
    * fails closed. `read` is the ledger read (chain.readDeployment), a parameter so the whole route can be tested.
+   *
+   * Or a WALLET SESSION (`Authorization: EnclaveSession v1 ...`, the Linux runner's rule too): verified on chain by
+   * cfg.sessionApi with scope api.restart against `request` ({ method, path: the target as received, body: raw bytes }),
+   * then the record rule - vault-held in the session's environments, or wallet-held with production + the owner's ledger
+   * delegation - judged on the ledger's own owner. A session that may not act gets 403 with the reason.
    */
-  async restartRequest(id, headers, { read = (x) => chain.readDeployment(x) } = {}) {
+  async restartRequest(id, headers, { read = (x) => chain.readDeployment(x), request = null } = {}) {
     const j = (status, body) => ({ status, body });
     id = String(id || "").toLowerCase();
     if (!/^0x[0-9a-f]{64}$/.test(id)) return j(422, { error: "bad_id", message: "id must be the bytes32 deployment id" });
-    const who = typeof this.cfg.sessionVerify === "function" ? this.cfg.sessionVerify(headers || {}, id) : null;
-    if (!who) return j(401, { error: "unauthorized", message: "Missing or invalid token: a restart needs the owner's session on this box." });
+    const auth = (headers || {}).authorization;
+    let who = null, session = null;
+    if (isSessionHeader(auth)) {
+      const api = this.cfg.sessionApi;
+      if (!api) return j(401, { error: "unauthorized", message: "This box does not accept wallet sessions." });
+      if (!request || typeof request.path !== "string")
+        return j(401, { error: "unauthorized", message: "This request's target is unknown, so its session signature cannot be checked." });
+      try {
+        session = await api.verify({ header: auth, method: request.method || "POST", path: request.path, body: request.body,
+          scope: "api.restart", fresh: true });
+      } catch (e) {
+        return j(Number.isInteger(e.status) ? e.status : 503, { error: e.code || "session_check_failed", message: e.message });
+      }
+    } else {
+      who = typeof this.cfg.sessionVerify === "function" ? this.cfg.sessionVerify(headers || {}, id) : null;
+      if (!who) return j(401, { error: "unauthorized", message: "Missing or invalid token: a restart needs the owner's session on this box." });
+    }
     let d;
     try { d = await read(id); } catch (e) { return j(502, { error: "chain", message: e.shortMessage || e.message }); }
+    if (!d || /^0x0{40}$/i.test(String(d.owner || "0x" + "0".repeat(40)))) return j(404, { error: "not_found", id });
+    if (session) {
+      let why;
+      try { why = await this.cfg.sessionApi.refusal(session, { id, owner: d.owner }, { fresh: true }); }
+      catch (e) { return j(Number.isInteger(e.status) ? e.status : 503, { error: e.code || "session_check_failed", message: e.message }); }
+      if (why) return j(403, { error: "not_allowed", id, message: why });
     // not the owner: the same answer as a deployment that does not exist, as on Linux
-    if (!d || String(d.owner || "").toLowerCase() !== String(who).toLowerCase()) return j(404, { error: "not_found", id });
+    } else if (String(d.owner || "").toLowerCase() !== String(who).toLowerCase()) return j(404, { error: "not_found", id });
     await this.refreshOwners();
     const r = await this.restart(id, d);
     return r.refused ? j(409, { error: "refused", id, reason: r.reason }) : j(200, r);
@@ -2732,8 +2761,14 @@ export class Host {
     } finally { this.appCertInflight.delete(id); }
   }
 
-  /** Carry an /x/:id/... request to that deployment's app: into the enclave, or to a local port. */
-  async proxy(id, { method, pathRest, headers, body, ip = null }) {
+  /**
+   * Carry an /x/:id/... request to that deployment's app: into the enclave, or to a local port.
+   *
+   * `target` is the request target AS THIS BOX RECEIVED IT (the relay frame's /x/<id>/... path; the app zone's own
+   * request line, which is `pathRest` there and the default): a wallet session signs host + that target, so it is what a
+   * session on a private deployment is checked against, with this deployment's own hostnames as extra bases.
+   */
+  async proxy(id, { method, pathRest, headers, body, ip = null, target = null }) {
     const key = String(id).toLowerCase();
     // THE DEPLOYMENT'S OWN PROTECTION RULES, before the app is consulted. Both of this box's doors
     // funnel through here - the relay's /x/<id> path and the app's own hostname - so the rules
@@ -2746,7 +2781,31 @@ export class Host {
     // AFTER the protection rules and before anything else, mirroring the platform runner: a flood
     // on a private deployment must not be able to grind token verification either.
     const priv = this.privateOwner(key);
-    const denyPrivate = () => {
+    let fwd = headers;
+    const deny = (status, error, message) => ({ status, headers: { "content-type": "application/json" },
+                                                body: JSON.stringify({ error, message }) });
+    const denyPrivate = async () => {
+      // A WALLET SESSION (api.appAccess) for this deployment's owner: verified on chain (session-api-auth.mjs), then the
+      // record rule (vault-held: its environments; wallet-held: production + the owner's ledger delegation). A header in
+      // that scheme is judged as one - malformed or unverifiable is a 401, never a fall-through. Once it has served its
+      // purpose it is dropped from what the app sees (a used signature, but the owner's credential all the same).
+      const auth = (headers || {}).authorization;
+      if (isSessionHeader(auth)) {
+        const api = this.cfg.sessionApi;
+        if (!api) return deny(401, "unauthorized", "This box does not accept wallet sessions.");
+        let s, why;
+        try {
+          s = await api.verify({ header: auth, method: method || "GET", path: target || pathRest || "/", body,
+            scope: "api.appAccess", bases: this.hostsFor(key) });
+          why = await api.refusal(s, { id: key, owner: priv });
+        } catch (e) {
+          return deny(Number.isInteger(e.status) ? e.status : 503, e.code || "session_check_failed", e.message);
+        }
+        if (why) return deny(403, "forbidden", why);
+        fwd = { ...headers };
+        delete fwd.authorization;
+        return null;
+      }
       if (!this.cfg.sessionVerify) {
         // FAIL CLOSED. A box that cannot prove who is asking must not serve a deployment whose
         // whole contract is that only one wallet may reach it. This should be unreachable - the
@@ -2777,12 +2836,12 @@ export class Host {
       // An allowed request holds a concurrency slot until it is answered. try/finally rather than
       // a callback: every return below this point has to give the slot back, including the throws.
       try {
-        if (priv) { const no = denyPrivate(); if (no) return no; }
-        return await this.#proxyApp(key, { method, pathRest, headers, body });
+        if (priv) { const no = await denyPrivate(); if (no) return no; }
+        return await this.#proxyApp(key, { method, pathRest, headers: fwd, body });
       } finally { v.release(); }
     }
-    if (priv) { const no = denyPrivate(); if (no) return no; }
-    return await this.#proxyApp(key, { method, pathRest, headers, body });
+    if (priv) { const no = await denyPrivate(); if (no) return no; }
+    return await this.#proxyApp(key, { method, pathRest, headers: fwd, body });
   }
 
   async #proxyApp(id, { method, pathRest, headers, body }) {

@@ -40,6 +40,8 @@ import { HV_NODE_FORMAT, buildHvNodeFrame, loadOrCreateNodeKey } from './hvnode-
 import { mintToken, startHostingAdmin, tokenFileDefault } from './hosting.mjs';
 import { finishHvAttach, reattachMode, relayTakesV2, shouldReattach } from './hvnode-attach.mjs';
 import { tunnelHandover } from './tunnel-handover.mjs';
+import { addressBook, addresses as chainAddresses, publicClient } from './chain.mjs';
+import { createSessionApiAuth, apiBases, envList, DEFAULT_API_HOSTS, DEFAULT_FACTORIES } from './session-api-auth.mjs';
 const WAF_TRACE = /^(1|true|yes)$/i.test(String(process.env.WAF_TRACE || ''));
 // SIWE, byte-compatible with the platform's own routes so the console signs what this box issues
 // and posts it back unchanged. The session it mints is for THIS box only (session.mjs).
@@ -67,6 +69,19 @@ const TPMATTEST_EXE = process.env.TPMATTEST_EXE || path.join(DIR, 'tpmattest.exe
 // forever (relay/tunnel.js selfRoutedUrl, api-relay.js runnerIsLive).
 const PUBLIC_URL = process.env.PUBLIC_URL || `https://api.enclave.host/t/${NAME}`;
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), '[node]', ...a);
+// WALLET SESSIONS as the owner's credential (session-api-auth.mjs, shared with supervisor.js): a restart and a private
+// deployment's requests accept `Authorization: EnclaveSession v1 ...` beside this box's own SIWE session, verified on
+// Base - the vault's factory, the session's key, liveness and scope, and the record rule - never on the relay's word.
+// What a client signs is host + path + query of the URL it called: the relay forwards with the path untouched, or with
+// /t/<name> stripped, so the bases are each API front door (SESSION_API_HOSTS, default api.enclave.host) as is and with
+// /t/<NAME>, and PUBLIC_URL; an app's own hostnames are added for its data path (host.proxy).
+const sessionApi = createSessionApiAuth({
+  pc: publicClient(), book: addressBook, ledger: () => chainAddresses.deployments || null,
+  factories: envList(process.env.SESSIONS_FACTORIES).length ? envList(process.env.SESSIONS_FACTORIES) : DEFAULT_FACTORIES,
+  bases: () => apiBases({ hosts: envList(process.env.SESSION_API_HOSTS).length ? envList(process.env.SESSION_API_HOSTS) : DEFAULT_API_HOSTS,
+    tunnelNames: [NAME, ...envList(process.env.SESSION_API_TUNNEL_NAMES)], publicUrls: [PUBLIC_URL] }),
+  log: (m) => log(`session auth: ${m}`),
+});
 // Hosting apps (APPS=1): this box holds a lease on the ledger and runs that deployment's app under
 // wasmtime, in VTL0. With APPS off it reports no claimEnabled at all and the relay keeps it out of
 // the serving set, which is the honest reading: a box hosting nothing sells nothing.
@@ -142,6 +157,8 @@ const host = new Host({
   // How the box proves who is asking, handed to the Host so the check can live at the funnel while
   // the key stays here. Null until the key is minted, and host.proxy fails CLOSED on null.
   sessionVerify: (headers, id) => addressFor(sessionKey, headers, id),
+  // ...and a wallet session, verified on chain (above): host.restartRequest and host.proxy use it
+  sessionApi,
   claimScope: (process.env.CLAIM_SCOPE || 'owner-only').toLowerCase(),
   // CLAIM_LEGACY=1: take deployments created BEFORE this box was listed, which otherwise wait for
   // their owner to pick this enclave. Only an operator with the standing to consent for those
@@ -533,7 +550,9 @@ async function handle(frame) {
     // host.restartRequest: the OWNER's session on this box (401 without one, 404 for anyone else), then this box's live
     // lease and the owner rule (409). This route used to run ANY ledger deployment here, for anyone (enclave-b4's N1;
     // the caller check is enclave-5d's review of it).
-    const r = await host.restartRequest(p.split('/')[3], frame.headers);
+    // the target and raw body as received: a wallet session signed them
+    const r = await host.restartRequest(p.split('/')[3], frame.headers, { request: { method, path: String(frame.path || ''),
+      body: frame.body ? Buffer.from(frame.body, 'base64') : null } });
     return json(r.status, r.body);
   }
   // The platform's own "come and claim this" nudge (the relay sends it after funding, the console
@@ -572,7 +591,7 @@ async function handle(frame) {
       + ` (x-forwarded-for: ${frame.headers?.['x-forwarded-for'] ?? 'absent'})`);
     const r = await host.proxy(id, { method, pathRest: rest + (String(frame.path || '').includes('?') ? '?' + String(frame.path).split('?')[1] : ''),
                                      headers: frame.headers, body: frame.body ? Buffer.from(frame.body, 'base64') : null,
-                                     ip });
+                                     ip, target: String(frame.path || '') });
     return { status: r.status, headers: r.headers, body: Buffer.isBuffer(r.body) ? r.body.toString('utf8') : r.body };
   }
   if (!LEGACY_ENGINE && (p === '/v1/session/keys' || p === '/v1/session')) return json(503, { error: 'unavailable', reason: NO_ENGINE });
