@@ -7242,6 +7242,8 @@ function resumeRec(rec) {
 // Launches through launchSpec like every other path: this one used to build its
 // own argument object, which is how it came to relaunch tenants without their
 // secrets or hostnames.
+// how long a version switch may hold back the respawn of the version it is replacing (see the billing loop)
+const SWITCH_STOP_WAIT_MS = 10 * 60_000;
 async function respawnTenant(rec) {
   if (rec._respawning || Date.now() < (rec._respawnAt || 0)) return false;
   rec._respawning = true;
@@ -7274,7 +7276,20 @@ function startBillingTicker() {
       // normal reaper (the deployment then goes back on the open queue).
       if (rec._onchain) {
         if (rec.paused) { rec.paused = false; rec.pauseReason = null; }   // restart recovery: pause is meaningless
-        if (healthy && !(await instanceAlive(rec))) await respawnTenant(rec);
+        // A version switch whose stop came back unconfirmed (guestd's 202: startup owns the guest
+        // and ends it when it finishes) is waiting for exactly this instance to vanish. Respawning
+        // the OLD version here hands the next switch pass another starting guest to 202, forever
+        // (eyesoff 1.0.84, 2026-10-08: seven minutes down). Leave it gone: the next pass sees a
+        // confirmed stop and launches the new version. Ten minutes on, a switch that never
+        // completes falls back to respawning what this record still runs.
+        if (healthy && !(await instanceAlive(rec))) {
+          if (rec._switchStopping && now - rec._switchStopping < SWITCH_STOP_WAIT_MS) {
+            if (!rec._switchHeldLogged) {
+              console.log(`[bill] ${rec.id} instance gone during a version switch - not respawning the old version`);
+              rec._switchHeldLogged = true;
+            }
+          } else await respawnTenant(rec);
+        }
         const elapsed = Math.min(Math.max(0, now - (rec._lastTickAt || now)), 2 * BILL_TICK_SEC * 1000);
         rec._lastTickAt = now;
         rec.consumedMs = (rec.consumedMs || 0) + elapsed;
@@ -9558,8 +9573,11 @@ async function switchTenantVersion(rec, d) {
   // still-live instance doubles up on the slice (the old process keeps its
   // VRAM/RAM while routing follows the new record) - the old version keeps
   // serving and the next audit pass retries
-  if (!(await stopContainer(rec)))
+  if (!(await stopContainer(rec))) {
+    rec._switchStopping ||= Date.now();           // the billing loop must not respawn the old version meanwhile
     return refuse("the old instance could not be verifiably stopped; it keeps serving until teardown succeeds", true);
+  }
+  delete rec._switchStopping; delete rec._switchHeldLogged;
   if (resize) {
     // swap the held slice for one at the row's new size. Synchronous release +
     // realloc (no await between): the freed capacity of the OLD slice counts
