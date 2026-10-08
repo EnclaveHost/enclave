@@ -35,7 +35,7 @@ test("pvm-cpu: a verified secure pvm-cpu build with a signed, fresh v2 report na
   const res = attempt();
   assert.equal(res.eligible, true, res.reasons.join(" | "));
   assert.equal(res.tier, "pvm-cpu");
-  assert.deepEqual(res.capability, { tier: "pvm-cpu", runtime: RUNTIME, vm: { threads: 6, memMib: 2048 }, device: "Pixel 10 Pro XL", checkedAt: 1 });
+  assert.deepEqual(res.capability, { tier: "pvm-cpu", runtime: RUNTIME, vm: { threads: 6, memMib: 2048 }, device: "Pixel 10 Pro XL", gflops: null, checkedAt: 1 });
   assert.ok(!("model" in res.capability) && !("selftest" in res.capability), "no model and no inference self-test anywhere in the verdict");
 });
 
@@ -150,4 +150,15 @@ test("a pVM CPU row's pool is the relay-verified VM size, wholly unallocated, wi
   assert.equal(pvmCpuAvailability(row, phoneSaid).nodeGflops, undefined, "no native-core GFLOPS convention for an interpreted runtime");
   for (const r of [{ ...row, tier: undefined }, { tier: "pvm-cpu" }, { ...row, pvmCpu: { vm: { threads: 0, memMib: 1994 } } }, { ...row, pvmCpu: { vm: { threads: 8, memMib: "2G" } } }, null])
     assert.equal(pvmCpuAvailability(r, phoneSaid), phoneSaid, "no admitted report: the row keeps what the box sent");
+});
+
+test("a report may carry the VM's measured GFLOPS: carried to the pool when well-formed, refused when not", () => {
+  const res = attempt({ rep: { gflops: 12.3456 } });
+  assert.equal(res.eligible, true, res.reasons.join(" | "));
+  assert.equal(res.capability.gflops, 12.35, "two decimals");
+  for (const bad of [0, -1, "12", 1e7, null, { v: 1 }]) refusedFor(attempt({ rep: { gflops: bad } }), /gflops must be a positive number/);
+  refusedFor(attempt({ rep: { gflops: 3, extra: 1 } }), /report fields must be exactly/);
+  const row = { tier: "pvm-cpu", pvmCpu: { runtime: RUNTIME, vm: { threads: 8, memMib: 1994 }, gflops: 12.35 } };
+  const a = pvmCpuAvailability(row, { ok: true });
+  assert.equal(a.nodeGflops, 12.35); assert.equal(a.cpuGflopsFree, 12.35, "all of it unallocated");
 });

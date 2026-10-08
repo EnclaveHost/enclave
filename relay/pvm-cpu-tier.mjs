@@ -68,15 +68,17 @@ export function avfAttestWithPvmCpu(avf, pvmCpu) {
 }
 
 // A pVM CPU row's capacity pool, from what the RELAY verified rather than from the phone's host app: the VM's vCPUs and memory
-// as its signed capability report states them (the hub put them on the row as pvmCpu.vm). The tier takes no deployments, so
-// nothing is allocated: every share is unallocated. GFLOPS stay unreported. The fleet's 62.5-per-vCPU convention describes
-// native execution, and this tier's apps run on an interpreter (Pulley), so that number would overstate it. A row without an
+// as its signed capability report states them (the hub put them on the row as pvmCpu.vm), and its GFLOPS as the VM measured
+// them under the runtime apps get (pvmCpu.gflops; never the fleet's 62.5-per-vCPU native convention, which would overstate
+// an interpreter). The tier takes no deployments, so nothing is allocated: every share is unallocated. A row without an
 // admitted report keeps its availability as the box sent it.
 export function pvmCpuAvailability(row, availability) {
   const vm = row && row.tier === PVM_CPU_TIER ? row.pvmCpu?.vm : null;
   if (!vm || !Number.isInteger(vm.threads) || vm.threads < 1 || !Number.isInteger(vm.memMib) || vm.memMib < 1) return availability;
   const ramGb = Math.round(vm.memMib / 102.4) / 10;
-  return { ...(availability || {}), gpu: false, nodeVcpus: vm.threads, nodeRamGb: ramGb, ramGbFree: ramGb, cpuShareFree: 1,
+  const g = row.pvmCpu.gflops;
+  const gflops = typeof g === "number" && Number.isFinite(g) && g > 0 ? { nodeGflops: g, cpuGflopsFree: g } : {};
+  return { ...(availability || {}), gpu: false, nodeVcpus: vm.threads, nodeRamGb: ramGb, ramGbFree: ramGb, cpuShareFree: 1, ...gflops,
            capacitySource: "pvm-capability-report" };
 }
 
@@ -99,7 +101,10 @@ export function pvmCpuPolicy({ codeHashes, authorityHashes, runtimeIds, minMemMi
 // The report is strict JSON with exactly these fields; anything else is refused rather than ignored.
 //   { v: 2, tier: "pvm-cpu", nonce: <64 hex>, mode: "protected"|"dev", runtime: <64 hex RuntimeID>,
 //     vm: { threads: <int>, mem_mib: <int> }, vm_ms: <int>, attach_vm_ms: <int>, device: <string> }
+// and, from builds that measure it, gflops: <number> -- the VM's compute as the runtime apps get it (pvm-rt bench: an exactly
+// counted f32 multiply-add workload on every vCPU at once, work / wall time). Optional, so older builds still parse.
 const REPORT_KEYS = ["attach_vm_ms", "device", "mode", "nonce", "runtime", "tier", "v", "vm", "vm_ms"];
+const REPORT_KEYS_MEASURED = [...REPORT_KEYS, "gflops"].sort();
 export function parseCapabilityReport(reportBytes) {
   if (!Buffer.isBuffer(reportBytes) || !reportBytes.length || reportBytes.length > PVM_CPU_REPORT_MAX_BYTES) throw new Error("report must be 1..4096 bytes");
   let r; try { r = JSON.parse(reportBytes.toString("utf8")); } catch { throw new Error("report is not JSON"); }
@@ -107,7 +112,10 @@ export function parseCapabilityReport(reportBytes) {
   if (r.v === 1) throw new Error("a version-1 report is the retired model tier (a model digest and an inference self-test): the pVM CPU tier carries no model");
   if (r.v !== PVM_CPU_REPORT_VERSION) throw new Error(`report version must be ${PVM_CPU_REPORT_VERSION}`);
   const keys = Object.keys(r).sort();
-  if (keys.join() !== REPORT_KEYS.join()) throw new Error(`report fields must be exactly ${REPORT_KEYS.join(",")} (got ${keys.join(",")})`);
+  if (keys.join() !== REPORT_KEYS.join() && keys.join() !== REPORT_KEYS_MEASURED.join())
+    throw new Error(`report fields must be exactly ${REPORT_KEYS.join(",")} (and optionally gflops) (got ${keys.join(",")})`);
+  if ("gflops" in r && !(typeof r.gflops === "number" && Number.isFinite(r.gflops) && r.gflops > 0 && r.gflops <= 1e6))
+    throw new Error("gflops must be a positive number (at most 1e6)");
   const int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
   const obj = (o, ks) => o && typeof o === "object" && !Array.isArray(o) && Object.keys(o).sort().join() === [...ks].sort().join();
   if (typeof r.tier !== "string" || typeof r.mode !== "string" || typeof r.device !== "string" || r.device.length > 128) throw new Error("tier/mode/device must be strings");
@@ -148,5 +156,6 @@ export function admitPvmCpu({ attach, reportBytes, signature, nonce } = {}, poli
   if (!policy.runtimeIds.has(r.runtime)) reasons.push(`runtime ${r.runtime.slice(0, 16)}… is not a CPU-only Wasm runtime this tier admits`);
   if (r.vm.mem_mib < policy.minMemMib) reasons.push(`VM memory ${r.vm.mem_mib} MiB is below the tier's ${policy.minMemMib} MiB`);
   if (r.vm.threads < policy.minThreads) reasons.push(`VM threads ${r.vm.threads} are below the tier's ${policy.minThreads}`);
-  return out({ tier: PVM_CPU_TIER, runtime: r.runtime, vm: { threads: r.vm.threads, memMib: r.vm.mem_mib }, device: r.device, checkedAt: now });
+  return out({ tier: PVM_CPU_TIER, runtime: r.runtime, vm: { threads: r.vm.threads, memMib: r.vm.mem_mib }, device: r.device,
+               gflops: "gflops" in r ? Math.round(r.gflops * 100) / 100 : null, checkedAt: now });
 }

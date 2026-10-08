@@ -390,7 +390,8 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
           // the public row names the CPU-only runtime the VM attested, the device label, and the VM's size as its signed
           // report states it (display only: nothing prices or places on it)
           t.pvmCpu = { runtime: verdict.capability.runtime, device: verdict.capability.device || "", checkedAt: verdict.capability.checkedAt,
-                       vm: { threads: verdict.capability.vm.threads, memMib: verdict.capability.vm.memMib } };
+                       vm: { threads: verdict.capability.vm.threads, memMib: verdict.capability.vm.memMib },
+                       ...(verdict.capability.gflops != null ? { gflops: verdict.capability.gflops } : {}) };
           console.log(`[tunnel] ${name} pvm-cpu ADMITTED (CPU-only runtime ${t.pvmCpu.runtime.slice(0, 16)}…, ${verdict.capability.vm.threads} threads, ${verdict.capability.vm.memMib} MiB)`);
           try { onChange("caps", name); } catch {}
         } else {
