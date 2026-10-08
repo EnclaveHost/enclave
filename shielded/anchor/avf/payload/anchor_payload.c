@@ -33,6 +33,9 @@
 #include "output_mask_speed.h"
 #include "chacha4_check.h"
 #include "anchor_pins.h"
+#ifdef ANCHOR_TIER_PVM_CPU
+#define APF_TAG "PUBLIC"   /* the app component arrives as a public file; this build has no LOCAL (model) lane */
+#endif
 #include "anchor_public_file.h"
 #include "exbench.h"
 #include "anchor_model_cache.h"   /* the model stage's retained-model decision (cache=only): pure, host-fixtured */
@@ -118,10 +121,11 @@ static int parse_0x(const char *t, uint8_t *out, size_t len) {
 }
 #endif
 #ifdef ANCHOR_TIER_PVM_CPU
-/* pVM CPU capability report (PVM-CPU.md, relay/pvm-cpu-tier.mjs): the nonce it answers and the VM clock at the attestation.
- * kind 2 = the relay's nonce from this pVM's own v2 binding (admissible); 1 = the owner's bare challenge (evidence only). */
+/* pVM CPU capability report (PVM-CPU.md, relay/pvm-cpu-tier.mjs, version 2): the nonce it answers and the VM clock at the
+ * attestation. kind 2 = the relay's nonce from this pVM's own v2 binding (admissible); 1 = the owner's bare challenge
+ * (evidence only). The tier runs CPU-only Wasm components and carries NO model: the report states the build mode, the Wasm
+ * runtime's identity (RuntimeID) and this VM's resources, nothing measured from an engine. */
 static uint8_t g_caps_nonce[32]; static int g_caps_nonce_kind = 0; static uint64_t g_caps_attach_ms = 0;
-static int g_caps_threads = 0, g_caps_ctx = 0; static uint64_t g_caps_model_bytes = 0;
 static uint64_t boot_ms(void) { struct timespec ts; clock_gettime(CLOCK_BOOTTIME, &ts); return (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u; }
 #endif
 static uint8_t g_ppk[32];   /* the pad key, defined with its secret half below; attest() checks the app's BOUND against it */
@@ -131,9 +135,11 @@ void randombytes(unsigned char *p, unsigned long long n) {
 static const uint8_t ED25519_SPKI_PREFIX[12] = { 0x30,0x2a,0x30,0x05,0x06,0x03,0x2b,0x65,0x70,0x03,0x21,0x00 };
 #define WORKER_PORT 7778
 #ifdef ANCHOR_TIER_PVM_CPU
-#define ANCHOR_TIER_NAME "pvm-cpu"   /* PVM-CPU.md: CPU-only, mode local only; the build's codeHash is what the relay admits */
+#define ANCHOR_TIER_NAME "pvm-cpu"   /* PVM-CPU.md: CPU-only Wasm components (APP), no model; the build's codeHash is what the relay admits */
+#define ANCHOR_NO_MODEL "none"       /* the PINS line's model field: this build has no model to pin */
 #else
 #define ANCHOR_TIER_NAME "research"  /* the combined build: local, split engine, TPU lane (closed, TPU.md); never admitted as pvm-cpu */
+#define ANCHOR_NO_MODEL "unpinned"
 #endif
 #define MODEL_PORT  7779
 #define PADS_PORT   7780     /* owner -> guest: dealt-pad shipments into the bank dir (PADS <name> <bytes>\n, bytes) */
@@ -1114,9 +1120,9 @@ typedef int (*engine_local_set_tpu_fn)(const char *, int, int, int);
  * after re-hashing it against the digest the owner announced (identity, not authentication: see that header). */
 static void apf_out(const char *line) { OUT("%s", line); }
 static int receive_public_file(int ls, uint64_t bytes, const char *name, char *path, size_t pathcap) {
-    const char *es = AVmPayload_getEncryptedStoragePath(); if (!es) { OUT("LOCAL: no encrypted store for a public file"); return -1; }
+    const char *es = AVmPayload_getEncryptedStoragePath(); if (!es) { OUT(APF_TAG ": no encrypted store for a public file"); return -1; }
     snprintf(path, pathcap, "%s/%s", es, name);
-    int c = vs_accept(ls, 120000); if (c < 0) { OUT("LOCAL %s: no stream from the owner", name); return -1; }
+    int c = vs_accept(ls, 120000); if (c < 0) { OUT(APF_TAG " %s: no stream from the owner", name); return -1; }
     const int r = apf_receive(c, bytes, path, name, apf_out); close(c);
     return r < 0 ? -1 : 0;
 }
@@ -1195,35 +1201,6 @@ static void tpu_link_bench(int want) {
     close(ls);
 }
 
-#ifdef ANCHOR_TIER_PVM_CPU
-#define PVM_CPU_CAPS_DOMAIN "enclave-pvm-cpu-caps-v1\n"
-/* The engine's self-test result becomes the tier's capability report: strict JSON in exactly the relay parser's field set,
- * signed by the attested transport key over DOMAIN || report, emitted as "CAPS <report hex> <signature hex>". */
-static void caps_sink(const char *id, int tokens, double pf, double dc, const uint8_t digest[32]) {
-    if (!g_caps_nonce_kind) { OUT("CAPS not emitted: no attestation in this session"); return; }
-    unsigned long long mem_kb = 0; { FILE *f = fopen("/proc/meminfo", "r"); char l[160];
-        if (f) { while (fgets(l, sizeof l, f)) if (sscanf(l, "MemTotal: %llu kB", &mem_kb) == 1) break; fclose(f); } }
-    char nh[65], mh[65], oh[65]; sh_pads_bin2hex(g_caps_nonce, 32, nh); sh_pads_bin2hex(g_model_digest, 32, mh); sh_pads_bin2hex(digest, 32, oh);
-    char rep[1400];
-    const int rn = snprintf(rep, sizeof rep,
-        "{\"v\":1,\"tier\":\"pvm-cpu\",\"nonce\":\"%s\",\"mode\":\"%s\",\"model\":{\"sha256\":\"%s\",\"bytes\":%llu,\"ctx\":%d},"
-        "\"vm\":{\"threads\":%d,\"mem_mib\":%llu},\"selftest\":{\"id\":\"%s\",\"tokens\":%d,\"prefill_tok_s\":%.2f,\"decode_tok_s\":%.2f,\"output_sha256\":\"%s\"},"
-        "\"vm_ms\":%llu,\"attach_vm_ms\":%llu,\"device\":\"\"}",
-        nh, g_pins.mode == ANCHOR_MODE_PROTECTED ? "protected" : "dev", mh, (unsigned long long)g_caps_model_bytes, g_caps_ctx,
-        g_caps_threads, mem_kb / 1024, id, tokens, pf, dc, oh, (unsigned long long)boot_ms(), (unsigned long long)g_caps_attach_ms);
-    if (rn <= 0 || rn >= (int)sizeof rep) { OUT("CAPS not emitted: report too long"); return; }
-    const size_t dl = strlen(PVM_CPU_CAPS_DOMAIN), n = dl + (size_t)rn;
-    unsigned char *m = malloc(n), *sm = malloc(n + 64); unsigned long long smlen = 0;
-    if (!m || !sm) { free(m); free(sm); OUT("CAPS not emitted: out of memory"); return; }
-    memcpy(m, PVM_CPU_CAPS_DOMAIN, dl); memcpy(m + dl, rep, (size_t)rn);
-    crypto_sign(sm, &smlen, m, n, g_tsk);
-    char sh[129]; sh_pads_bin2hex(sm, 64, sh); free(m); free(sm);
-    char *rh = malloc((size_t)rn * 2 + 1); if (!rh) { OUT("CAPS not emitted: out of memory"); return; }
-    sh_pads_bin2hex((const uint8_t *)rep, (size_t)rn, rh);
-    OUT("CAPS %s %s", rh, sh); free(rh);
-    OUT("CAPS summary: nonce=%s (%s) selftest %d tokens decode %.2f tok/s output %.16s...", nh, g_caps_nonce_kind == 2 ? "relay-bound" : "owner challenge only", tokens, dc, oh);
-}
-#endif
 #ifdef ANCHOR_TIER_PVM_CPU
 /* APP (PVM-CPU.md, "The app runtime"; runtime/pvm-rt): the portable component arrives on APP_PORT, is read into this VM's
  * memory, and pvm-rt verifies those exact bytes against the APP line's sha256 BEFORE compiling them to Pulley here. Output
@@ -1628,45 +1605,44 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
     hclose(srv);
     return 0;
 }
+#define PVM_CPU_CAPS_DOMAIN "enclave-pvm-cpu-caps-v1\n"
+/* The tier's capability report, version 2 (relay/pvm-cpu-tier.mjs): strict JSON in exactly the relay parser's field set,
+ * signed by the attested transport key over DOMAIN || report, emitted as "CAPS <report hex> <signature hex>". It names the
+ * Wasm runtime this APK carries (RuntimeID = SHA-256 of pvm-rt's identity as printed), the build mode and this VM's
+ * resources. No model, no engine and no self-test of either exist in this tier. */
+static void caps_v2_emit(void) {
+    if (!g_caps_nonce_kind) { OUT("CAPS not emitted: no attestation in this session"); return; }
+    char lib[700], identity[512]; snprintf(lib, sizeof lib, "%s/lib/arm64-v8a/libpvm_rt.so", AVmPayload_getApkContentsPath());
+    void *h = dlopen(lib, RTLD_NOW); pvmrt_identity_fn idf = h ? (pvmrt_identity_fn)dlsym(h, "pvmrt_identity") : NULL;
+    if (!idf || idf(identity, sizeof identity) != 0) { OUT("CAPS not emitted: the runtime's identity is unavailable (%s)", h ? "pvmrt_identity" : dlerror()); return; }
+    uint8_t rid[32]; sha256((const uint8_t *)identity, strlen(identity), rid);
+    unsigned long long mem_kb = 0; { FILE *f = fopen("/proc/meminfo", "r"); char l[160];
+        if (f) { while (fgets(l, sizeof l, f)) if (sscanf(l, "MemTotal: %llu kB", &mem_kb) == 1) break; fclose(f); } }
+    const long threads = sysconf(_SC_NPROCESSORS_ONLN);
+    char nh[65], rh_id[65]; sh_pads_bin2hex(g_caps_nonce, 32, nh); sh_pads_bin2hex(rid, 32, rh_id);
+    char rep[700];
+    const int rn = snprintf(rep, sizeof rep,
+        "{\"v\":2,\"tier\":\"pvm-cpu\",\"nonce\":\"%s\",\"mode\":\"%s\",\"runtime\":\"%s\",\"vm\":{\"threads\":%ld,\"mem_mib\":%llu},"
+        "\"vm_ms\":%llu,\"attach_vm_ms\":%llu,\"device\":\"\"}",
+        nh, g_pins.mode == ANCHOR_MODE_PROTECTED ? "protected" : "dev", rh_id, threads > 0 ? threads : 1, mem_kb / 1024,
+        (unsigned long long)boot_ms(), (unsigned long long)g_caps_attach_ms);
+    if (rn <= 0 || rn >= (int)sizeof rep) { OUT("CAPS not emitted: report too long"); return; }
+    const size_t dl = strlen(PVM_CPU_CAPS_DOMAIN), n = dl + (size_t)rn;
+    unsigned char *m = malloc(n), *sm = malloc(n + 64); unsigned long long smlen = 0;
+    if (!m || !sm) { free(m); free(sm); OUT("CAPS not emitted: out of memory"); return; }
+    memcpy(m, PVM_CPU_CAPS_DOMAIN, dl); memcpy(m + dl, rep, (size_t)rn);
+    crypto_sign(sm, &smlen, m, n, g_tsk);
+    char sh[129]; sh_pads_bin2hex(sm, 64, sh); free(m); free(sm);
+    char *rh = malloc((size_t)rn * 2 + 1); if (!rh) { OUT("CAPS not emitted: out of memory"); return; }
+    sh_pads_bin2hex((const uint8_t *)rep, (size_t)rn, rh);
+    OUT("CAPS %s %s", rh, sh); free(rh);
+    OUT("CAPS summary: v2 nonce=%s (%s) runtime=%.16s... threads=%ld mem_mib=%llu (CPU-only, no model)", nh, g_caps_nonce_kind == 2 ? "relay-bound" : "owner challenge only",
+        rh_id, threads > 0 ? threads : 1, mem_kb / 1024);
+}
 static int run_app(const anchor_app_plan *plan) {
     app_ready a; int r = app_receive(plan, &a);
     if (!r && (r = app_attest_abi2(a.identity, plan->sha256)) != 0) free(a.bytes);
     return r ? r : plan->http ? app_serve(&a, NULL) : app_exec(&a, NULL);
-}
-/* APP over LOCAL (milestone 3): the component first (small, and refused before any model work if it does not arrive), then
- * the staged model loaded and self-tested by the CPU engine exactly as for a conversation; the engine then hands its model
- * to app_nn_host instead of serving the chat port. The capability report (CAPS, with the self-test digest) is emitted
- * before the app runs, so one capture holds both digests: the engine's own path and the app's path through wasi:nn. */
-static int app_nn_host(const pvmrt_nn_ops *ops, void *arg) { app_ready *a = (app_ready *)arg; return a->plan->http ? app_serve(a, ops) : app_exec(a, ops); }
-static int run_app_nn(const anchor_local_plan *lp, const anchor_app_plan *ap) {
-    app_ready a; int r = app_receive(ap, &a); if (r) return r;
-    if ((r = app_attest_abi2(a.identity, ap->sha256)) != 0) { free(a.bytes); return r; }
-    const char *apk = AVmPayload_getApkContentsPath();
-    char lib_dir[512]; snprintf(lib_dir, sizeof lib_dir, "%s/lib/arm64-v8a", apk);
-    if (model_stage(lp->model_bytes) != 0) { free(a.bytes); return 4; }   /* hashed + judged after the last write, before any parse */
-    if (g_model_state != 1 || !g_staged_table || !g_staged_table->t) { free(a.bytes); OUT("APP refused: no staged model table"); return 4; }
-    static const char *libs[] = { "libc++_shared.so", "libggml-base.so", "libggml.so", "libllama.so", "libllama-common.so", "liblocalengine.so" };
-    void *h = NULL;
-    for (unsigned i = 0; i < sizeof libs / sizeof *libs; i++) {
-        char path[600]; snprintf(path, sizeof path, "%s/%s", lib_dir, libs[i]);
-        if (!(h = dlopen(path, RTLD_NOW | RTLD_GLOBAL))) { free(a.bytes); OUT("APP refused: dlopen %s: %s", libs[i], dlerror()); return 4; }
-    }
-    engine_local_main_fn em = (engine_local_main_fn)dlsym(h, "engine_local_main");
-    void (*setw)(int (*)(const char *, size_t)) = (void (*)(int (*)(const char *, size_t)))dlsym(h, "engine_local_set_ctl_writer");
-    void (*sett)(const anchor_gguf_table *, const anchor_hash_ops *) = (void (*)(const anchor_gguf_table *, const anchor_hash_ops *))dlsym(h, "engine_local_set_model_table");
-    void (*setst)(void (*)(const char *, int, double, double, const uint8_t *)) = (void (*)(void (*)(const char *, int, double, double, const uint8_t *)))dlsym(h, "engine_local_set_selftest");
-    void (*setnn)(pvmrt_nn_host_fn, void *) = (void (*)(pvmrt_nn_host_fn, void *))dlsym(h, "engine_local_set_nn_host");
-    if (!em || !setw || !sett || !setst || !setnn) { free(a.bytes); OUT("APP refused: liblocalengine.so lacks the engine, its self-test or its app-runtime hook"); return 4; }
-    setw(anchor_ctl_write); sett(g_staged_table, &g_hash_ops);
-    g_caps_threads = lp->threads; g_caps_ctx = lp->ctx; g_caps_model_bytes = lp->model_bytes; setst(caps_sink);   /* the tier's self-test is not optional */
-    setnn(app_nn_host, &a);
-    if (AVmPayload_getEncryptedStoragePath()) setenv("ANCHOR_ENCRYPTED_STORE", AVmPayload_getEncryptedStoragePath(), 1);
-    if (lp->dthreads > 0) { char dv[16]; snprintf(dv, sizeof dv, "%d", lp->dthreads); setenv("ANCHOR_DECODE_THREADS", dv, 1); }
-    if (lp->poll >= 0) { char pv[16]; snprintf(pv, sizeof pv, "%d", lp->poll); setenv("ANCHOR_POOL_POLL", pv, 1); }
-    OUT("APP over the model: %" PRIu64 " bytes, %d threads, ctx %d, graph %s", lp->model_bytes, lp->threads, lp->ctx, ap->graph);
-    r = em(-1, g_model_fd, lib_dir, lp->threads, lp->ctx);
-    if (a.bytes) { free(a.bytes); OUT("APP refused: the engine ended before the app ran (engine exit %d)", r); return 4; }
-    return r == 0 ? 0 : 4;
 }
 #endif
 static void run_local(const anchor_local_plan *plan, int ls_wk) {
@@ -1704,14 +1680,6 @@ static void run_local(const anchor_local_plan *plan, int ls_wk) {
     void (*sett)(const anchor_gguf_table *, const anchor_hash_ops *) = (void (*)(const anchor_gguf_table *, const anchor_hash_ops *))dlsym(h, "engine_local_set_model_table");
     if (!em || !setw || !sett) { OUT("LOCAL refused: liblocalengine.so lacks engine_local_main / its setters"); close(ls_chat); return; }
     setw(anchor_ctl_write); sett(g_staged_table, &g_hash_ops);
-#ifdef ANCHOR_TIER_PVM_CPU
-    {   /* the tier's capability self-test is not optional: an engine that cannot run it does not serve this tier */
-        void (*setst)(void (*)(const char *, int, double, double, const uint8_t *)) =
-            (void (*)(void (*)(const char *, int, double, double, const uint8_t *)))dlsym(h, "engine_local_set_selftest");
-        if (!setst) { OUT("LOCAL refused: this engine cannot run the pVM CPU capability self-test"); close(ls_chat); return; }
-        g_caps_threads = plan->threads; g_caps_ctx = plan->ctx; g_caps_model_bytes = plan->model_bytes; setst(caps_sink);
-    }
-#endif
     if (draft[0]) {
         int (*setd)(const char *, int) = (int (*)(const char *, int))dlsym(h, "engine_local_set_draft");
         if (!setd || setd(draft, plan->draft_max) != 0) { OUT("LOCAL refused: this engine cannot take a drafter"); if (worker_fd >= 0) close(worker_fd); close(ls_chat); return; }
@@ -1946,7 +1914,13 @@ int AVmPayload_main(void) {
      * with EPIPE rather than kill the payload (the default SIGPIPE action would end the VM mid-run). */
     signal(SIGPIPE, SIG_IGN);
     setvbuf(stdout, NULL, _IONBF, 0);
+#ifdef ANCHOR_TIER_PVM_CPU
+    /* CPU-only (PVM-CPU.md): the control port only. No worker, model or pads listener exists in this build; the pad KEY below
+     * stays, because the v2 attach transcript covers it. */
+    int ls_ctl = vs_bind(CTRL_PORT), ls_wk = -1, ls_model = -1, ls_pads = -1;
+#else
     int ls_ctl = vs_bind(CTRL_PORT), ls_wk = vs_bind(WORKER_PORT), ls_model = vs_bind(MODEL_PORT), ls_pads = vs_bind(PADS_PORT);
+#endif
     g_ls_model = ls_model;
     crypto_sign_keypair(g_tpk, g_tsk);
     crypto_box_keypair(g_ppk, g_psk);                 /* the pad key: the platform's seed is boxed to it */
@@ -1974,7 +1948,7 @@ int AVmPayload_main(void) {
             if (g_pins.has_ledger) { memcpy(g_ledger_pk, g_pins.ledger_pk, 32); g_ledger_pinned = 1; g_have_ledger = 1; }
             if (g_pins.has_prefix) { sh_pads_bin2hex(g_pins.prefix_pk, 32, g_prefix_pk_hex); }
             OUT("PINS mode=%s ledger=%s model=%s prefix=%s sha256=%s tier=%s", g_pins.mode == ANCHOR_MODE_PROTECTED ? "protected" : "dev",
-                g_pins.has_ledger ? "pinned" : "app", g_pins.has_model ? "pinned" : "unpinned", g_pins.has_prefix ? "pinned" : "app", anchor_sha256_backend(),
+                g_pins.has_ledger ? "pinned" : "app", g_pins.has_model ? "pinned" : ANCHOR_NO_MODEL, g_pins.has_prefix ? "pinned" : "app", anchor_sha256_backend(),
                 ANCHOR_TIER_NAME);
         } else OUT("PINS INVALID: %s - pads, prefix and the engine are refused", g_pins.err);
         storage_probe();
@@ -2014,6 +1988,10 @@ int AVmPayload_main(void) {
              * refused at RUN, so no line can make this build stage state the tier does not use */
             else if (!strncmp(l, "PAD", 3) || !strncmp(l, "PREFIXPK ", 9) || !strncmp(l, "WORKER ", 7) || !strncmp(l, "SHAPE ", 6)) {
                 tier_bad = 1; OUT("TIER pvm-cpu refused: %.12s is split-engine machinery", l); }
+            /* the model and the engine that runs it are not part of this tier: refused as they arrive, so no line can make this
+             * build receive, stage or open a model */
+            else if (!strncmp(l, "MODEL", 5) || !strncmp(l, "LOCAL", 5)) {
+                tier_bad = 1; OUT("TIER pvm-cpu refused: %.12s is model machinery: this build runs CPU-only Wasm components and carries no model", l); }
             else if (!strncmp(l, "APP ", 4)) {   /* the portable component (anchor_app.h): strict, once; malformed or repeated refuses at RUN */
                 if (app || !anchor_app_parse(l, &app_plan)) { app_bad = 1; OUT("APP refused: %s", app ? "repeated" : "malformed (APP bytes=N sha256=<64 hex>[ args=<hex>])"); }
                 app = 1; }
@@ -2214,19 +2192,16 @@ int AVmPayload_main(void) {
         }
     }
 #ifdef ANCHOR_TIER_PVM_CPU
-    /* The pVM CPU build (PVM-CPU.md) runs ONE thing: the whole model on this VM's own vCPUs (mode local). Every other mode,
-     * the TPU tail, the link benchmark and the worker bridge are refused here, before any of them is judged; nothing is
-     * resolved by precedence. The build ships none of their libraries either, so this is the readable form of a refusal the
-     * loader would also make. */
-    {   const char *why = tier_bad ? "a split-engine control line was sent"
+    /* The pVM CPU build (PVM-CPU.md) runs ONE thing: a CPU-only Wasm component (APP), interpreted by pvm-rt on this VM's own
+     * vCPUs. It carries no model and no engine: a model graph, the local engine, every other mode, the TPU tail, the link
+     * benchmark and the worker bridge are refused here, before any of them is judged; nothing is resolved by precedence.
+     * The build ships none of their libraries either, so this is the readable form of a refusal the loader would also make. */
+    {   const char *why = tier_bad ? "a split-engine or model control line was sent"
                         : app_bad ? "the APP line was malformed or repeated"
-                        : (app && local && !app_plan.graph[0]) ? "APP with LOCAL needs the APP line's graph= (the name the app loads the model by)"
-                        : (app && !local && app_plan.graph[0]) ? "the APP line names a graph but no LOCAL line brings the model"
-                        : (app && local && local_plan.draft_bytes) ? "APP over the model takes no drafter"
-                        : (!local && !app) ? "only a LOCAL or an APP run is served by this build"
-                        : (maskbench || echo || prepare || engine || bridgebench || n_shapes || bridge) ? "a conflicting mode command was sent"
-                        : (local && local_plan.tpu_bundle_bytes) ? "the LOCAL line carries the TPU tail"
-                        : (local && local_plan.links) ? "the LOCAL line asks for benchmark links" : NULL;
+                        : !app ? "only an APP run is served by this build (a CPU-only Wasm component; no model)"
+                        : app_plan.graph[0] ? "the APP line names a model graph: this build runs CPU-only components and carries no model"
+                        : (local || maskbench || echo || prepare || engine || bridgebench || n_shapes || bridge) ? "a conflicting mode command was sent"
+                        : NULL;
         if (why) {
             OUT("TIER pvm-cpu refused: %s", why); OUT("END");
             if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_pads >= 0) close(ls_pads); if (ls_ctl >= 0) close(ls_ctl);
@@ -2234,7 +2209,8 @@ int AVmPayload_main(void) {
         }
     }
     if (app) {
-        const int arc = local ? run_app_nn(&local_plan, &app_plan) : run_app(&app_plan);
+        caps_v2_emit();   /* the tier's capability report, once per run, after the relay has accepted this attach */
+        const int arc = run_app(&app_plan);
         OUT("END");
         if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_pads >= 0) close(ls_pads); if (ls_ctl >= 0) close(ls_ctl);
         ctl_close(); sleep(1); return arc;

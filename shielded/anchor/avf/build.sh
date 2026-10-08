@@ -7,7 +7,8 @@
 #   ./build.sh probe                # the complete trusted half + shielded-probe, static, for the phone
 #   ./build.sh engine               # libggml-shielded.so + ggml-test + shielded-run for the phone (see build-ggml-arm64.sh)
 #   ./build.sh engine-pvm           # the VM-side engine: libengine.so, liblocalengine.so, libggml-tpu.so
-#   ANCHOR_TIER=pvm-cpu ./build.sh anchor   # the pVM CPU product build (PVM-CPU.md): out/anchor-pvm-cpu.apk, CPU engine only
+#   ANCHOR_TIER=pvm-cpu ./build.sh anchor   # the pVM CPU product build (PVM-CPU.md): out/anchor-pvm-cpu.apk, the payload and the
+#                                           # Wasm runtime only: CPU-only components, NO model and no engine
 #
 # The VM-side libraries are built ONLY by engine-pvm; `anchor` packages what it finds and now REFUSES if a
 # source is newer than its library. A run that touches the TPU worker needs both, in order, and the worker
@@ -168,21 +169,16 @@ case "$NAME" in
                 CFLAGS+=(-ffp-contract=off -I"$HERE/../harness" -DAN_REFILL=sh_simd_neon_refill)
                 GA="${GGML_ARM64:-$HERE/out/ggml-arm64-work/prefix}"; GR="${GGML_ARM64_REPACK:-$HERE/out/ggml-arm64-repack-work/prefix}"
                 if [ "$TIER" = pvm-cpu ]; then
-                  # pVM CPU (PVM-CPU.md): the payload + the CPU engine, NOTHING else -- no split engine (libengine.so,
-                  # libggml-shielded.so, model.calib), no TPU backend (libggml-tpu.so), no TPU worker or Tensor dispatch
-                  # library. The payload is compiled with ANCHOR_TIER_PVM_CPU and refuses every mode but LOCAL.
-                  [ -f "$OUT/engine-pvm/liblocalengine.so" ] && [ -f "$OUT/engine-pvm/libllama-common.so" ] && [ -f "$GR/lib/libggml-cpu.so" ] || {
-                    echo "pvm-cpu: needs build.sh engine-pvm and GGML_CPU_REPACK=ON ./build-ggml-arm64.sh $HERE/out/ggml-arm64-repack-work" >&2; exit 2; }
-                  [ "$HERE/payload/engine_local.cpp" -nt "$OUT/engine-pvm/liblocalengine.so" ] && { echo "STALE: payload/engine_local.cpp is newer than liblocalengine.so. Run ./build.sh engine-pvm first." >&2; exit 2; }
-                  cp "$GR/lib/libggml-cpu.so" "$OUT/engine-pvm/libggml-cpu-repack.so"
-                  EXTRA_LIBS=("$GA/lib/libc++_shared.so" "$GA/lib/libggml-base.so" "$GA/lib/libggml.so" "$GA/lib/libllama.so" "$OUT/engine-pvm/libllama-common.so"
-                              "$OUT/engine-pvm/liblocalengine.so" "$OUT/engine-pvm/libggml-cpu-repack.so")
+                  # pVM CPU (PVM-CPU.md): the payload + the portable Wasm runtime, NOTHING else. CPU-only components, so no
+                  # model and no engine (no llama/ggml, no liblocalengine), no split engine (libengine.so, libggml-shielded.so,
+                  # model.calib), no TPU backend (libggml-tpu.so), no TPU worker or Tensor dispatch library. The payload is
+                  # compiled with ANCHOR_TIER_PVM_CPU and refuses every mode but APP, and any model line.
                   # the portable app runtime (runtime/pvm-rt, wasmtime -> Pulley; PVM-CPU.md "The app runtime"): the APP line runs a component with it
                   PVM_RT="${PVM_RT_LIB:-$HERE/out/pvm-rt-target/aarch64-linux-android/release/libpvm_rt.so}"
                   [ -f "$PVM_RT" ] || { echo "pvm-cpu: build runtime/pvm-rt for aarch64-linux-android first (libpvm_rt.so)" >&2; exit 2; }
-                  EXTRA_LIBS+=("$PVM_RT")
+                  EXTRA_LIBS=("$PVM_RT")
                   CFLAGS+=(-DANCHOR_TIER_PVM_CPU)
-                  echo "pvm-cpu: bundling the CPU engine only (${#EXTRA_LIBS[@]} libraries); no split engine, no TPU backend or worker"
+                  echo "pvm-cpu: bundling the Wasm runtime only (${#EXTRA_LIBS[@]} library); no model, no engine, no split engine, no TPU backend or worker"
                 # the engine rides along when it has been built (build.sh engine-pvm): six libraries + the calibration
                 elif [ -f "$OUT/engine-pvm/libengine.so" ]; then
                   EXTRA_LIBS=("$GA/lib/libc++_shared.so" "$GA/lib/libggml-base.so" "$GA/lib/libggml.so" "$GA/lib/libggml-cpu.so" "$GA/lib/libllama.so" "$OUT/engine-pvm/libggml-shielded.so" "$OUT/engine-pvm/libengine.so")
@@ -235,7 +231,8 @@ for x in "${RT_ASSETS[@]:-}"; do [ -n "$x" ] || continue; src="${x%%:*}"; dst="$
 MODE="${ANCHOR_MODE:-dev}"; case "$MODE" in dev|protected) ;; *) echo "ANCHOR_MODE must be dev or protected" >&2; exit 2;; esac
 printf '%s\n' "$MODE" > "$STAGE/assets/anchor.mode"
 printf '%s\n' "$TIER" > "$STAGE/assets/tier"   # measured with the APK (codeHash): the app shows the tier from it; the relay admits by codeHash
-if [ "$TIER" = pvm-cpu ]; then for v in ANCHOR_LEDGER_PK ANCHOR_PREFIX_PK ANCHOR_SOURCE_CATALOG_SHA256 ANCHOR_ENCODED_CATALOG_SHA256 ANCHOR_CONVERTER_SHA256 ANCHOR_SOURCE_CATALOG ANCHOR_ENCODED_CATALOG ANCHOR_MASKBENCH_PADS; do
+if [ "$TIER" = pvm-cpu ]; then [ -z "${ANCHOR_MODEL_SHA256:-}" ] || { echo "pvm-cpu: ANCHOR_MODEL_SHA256 is set, but this tier carries no model (the payload would refuse the pin)" >&2; exit 2; }
+  for v in ANCHOR_LEDGER_PK ANCHOR_PREFIX_PK ANCHOR_SOURCE_CATALOG_SHA256 ANCHOR_ENCODED_CATALOG_SHA256 ANCHOR_CONVERTER_SHA256 ANCHOR_SOURCE_CATALOG ANCHOR_ENCODED_CATALOG ANCHOR_MASKBENCH_PADS; do
   [ -z "${!v:-}" ] || { echo "pvm-cpu: $v is split-engine machinery and is not packaged in this tier (the payload would refuse it)" >&2; exit 2; }; done; fi
 # An unset variable REMOVES the staged pin: the stage directory persists between builds, and a dev build
 # after a protected one must not inherit the other's pins (nor a protected build another model's).
@@ -262,7 +259,7 @@ for pair in source-catalog.sha256:model.agcat encoded-catalog.sha256:model.ewcat
     if [ -f "$STAGE/assets/$p" ] && [ "$(sha256sum "$STAGE/assets/$a" | cut -c1-64)" != "$(cat "$STAGE/assets/$p")" ]; then echo "assets/$p is not the digest of the staged assets/$a" >&2; exit 2; fi
 done
 if [ -f "$STAGE/assets/encoded-catalog.sha256" ] && { [ ! -f "$STAGE/assets/source-catalog.sha256" ] || [ ! -f "$STAGE/assets/converter.sha256" ]; }; then echo "an encoded catalog needs the source-catalog and converter pins" >&2; exit 2; fi
-if [ "$MODE" = protected ] && [ "$TIER" = pvm-cpu ]; then [ -f "$STAGE/assets/model.sha256" ] || { echo "protected pvm-cpu build needs assets/model.sha256 (set ANCHOR_MODEL_SHA256)" >&2; exit 2; }
+if [ "$TIER" = pvm-cpu ]; then [ ! -e "$STAGE/assets/model.sha256" ] || { echo "pvm-cpu: assets/model.sha256 is staged, but this tier carries no model" >&2; exit 2; }
 elif [ "$MODE" = protected ]; then for f in ledger.pk model.sha256 prefix.pk; do [ -f "$STAGE/assets/$f" ] || { echo "protected build needs assets/$f (set ANCHOR_LEDGER_PK / ANCHOR_MODEL_SHA256 / ANCHOR_PREFIX_PK)" >&2; exit 2; }; done; fi
 echo "payload: $(stat -c %s "$STAGE/lib/arm64-v8a/lib$NAME.so") bytes"
 "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -d "$STAGE/lib/arm64-v8a/lib$NAME.so" | grep -E 'NEEDED' | sed 's/^/  /'
@@ -278,7 +275,7 @@ echo "dex: $(stat -c %s "$STAGE/dex/classes.dex") bytes"
 # --- 4. the APK: manifest via aapt2, dex + native lib stored uncompressed ----
 cd "$STAGE"
 MANIFEST="$HERE/AndroidManifest.xml"
-if [ "$TIER" = pvm-cpu ]; then   # no TPU runtime declaration, its own label; same package, so the provisioned model is kept
+if [ "$TIER" = pvm-cpu ]; then   # no TPU runtime declaration, its own label
   MANIFEST="$STAGE/AndroidManifest.xml"
   sed -e '/Shielded-TPU decode: the app-side worker/d' -e '/uses-native-library android:name="libedgetpu_litert.so"/d' \
       -e 's/android:label="Enclave Anchor (AVF)"/android:label="Enclave pVM CPU"/' "$HERE/AndroidManifest.xml" > "$MANIFEST"

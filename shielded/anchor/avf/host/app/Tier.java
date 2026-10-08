@@ -7,11 +7,12 @@ import android.graphics.drawable.GradientDrawable;
 import android.widget.TextView;
 
 /* The build's product tier (PVM-CPU.md), from assets/tier -- an APK asset, so it is covered by the codeHash the pVM attests.
- *   "pvm-cpu"   the pVM CPU product build: the whole model on the protected VM's own vCPUs, mode local ONLY, no TPU
- *               backend, worker or dispatch library in the APK (build.sh ANCHOR_TIER=pvm-cpu).
+ *   "pvm-cpu"   the pVM CPU product build: CPU-only Wasm components (mode app ONLY) on the protected VM's own vCPUs. No
+ *               model, no engine, no TPU backend, worker or dispatch library in the APK (build.sh ANCHOR_TIER=pvm-cpu); the
+ *               VM refuses any model line and its runtime links no wasi:nn.
  *   "research"  the combined build (mode local, the split engine, the closed Shielded-TPU lane). Never a product tier.
  * An APK without the asset predates tiers and is "research". The label is the tier's identity on this screen, not a claim of
- * verification: the relay admits a phone as pVM CPU from its verified evidence (codeHash, isVmSecure, model pin), never from
+ * verification: the relay admits a phone as pVM CPU from its verified evidence (codeHash, isVmSecure, runtime id), never from
  * this label or the device name. */
 final class Tier {
     static final String PVM_CPU = "pvm-cpu", RESEARCH = "research";
@@ -28,11 +29,13 @@ final class Tier {
         } catch (java.io.IOException e) { return RESEARCH; }
     }
 
-    /* Why this launch must not run in this build, or null. A pVM CPU build serves ONE thing: the whole model on the VM's vCPUs. */
+    /* Why this launch must not run in this build, or null. A pVM CPU build serves ONE thing: CPU-only Wasm components. */
     static String refusal(String tier, String mode, Intent i) {
         if (tier.startsWith("invalid:")) return "assets/tier holds an unknown tier '" + tier.substring(8) + "'";
         if (!PVM_CPU.equals(tier)) return null;
-        if (!"local".equals(mode) && !"app".equals(mode)) return "a pVM CPU build runs mode local or app only (asked for mode " + mode + ")";
+        if (!"app".equals(mode)) return "a pVM CPU build runs mode app only: CPU-only Wasm components (asked for mode " + mode + ")";
+        for (String k : new String[] { "model", "model_auth", "model_cache", "app_graph", "prompt", "ask", "draft", "draft_max", "ctx", "max_new", "temp_milli", "decode_threads", "pool_poll", "verify_threads" })
+            if (i.hasExtra(k)) return "a pVM CPU build carries no model (" + k + " was given): it runs CPU-only Wasm components";
         for (String k : new String[] { "tpu_graphs", "tpu_bundle", "tpu_bank", "tpu_refill", "tpu_layers", "tpu_links", "tpu_spin", "tpu_worker_spin", "tpu_prio", "corr_threads" })
             if (i.hasExtra(k)) return "a pVM CPU build has no TPU path (" + k + " was given)";
         for (String k : new String[] { "pads", "prefix", "prefix_name", "artifacts", "artifacts_url" })   // "relay" is allowed: the attach is how the tier is admitted
@@ -44,7 +47,7 @@ final class Tier {
     static TextView badge(Context c, String tier) {
         TextView b = new TextView(c);
         final boolean pvm = PVM_CPU.equals(tier);
-        b.setText(pvm ? "pVM CPU  ·  CPU-only inference inside the protected VM" : "research build  ·  not a product tier");
+        b.setText(pvm ? "pVM CPU  ·  CPU-only Wasm apps inside the protected VM" : "research build  ·  not a product tier");
         b.setTextSize(13); b.setTypeface(Typeface.DEFAULT_BOLD); b.setPadding(28, 18, 28, 18);
         b.setTextColor(pvm ? ORANGE_DEEP : 0xFFFFFFFF);
         GradientDrawable bg = new GradientDrawable(); bg.setColor(pvm ? ORANGE : GREY); bg.setCornerRadius(18f);
