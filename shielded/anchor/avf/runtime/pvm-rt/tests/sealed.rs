@@ -1,14 +1,12 @@
 // The browser channel's VM side (src/sealed.rs, httpd.rs serve_sealed_fd), on the host: the page's bytes (the
 // cross-language vector written by web/pvm-sealed.js) open here and the response seals to exactly what the page expects;
 // a request opens only under an admitted nonce, once, within the window and the budget, and only for this app, runtime and
-// key; and a sealed request through a socketpair reaches the real component (enclave-apps' ggml-probe) and comes back
-// sealed, with no plaintext on the wire.
+// key; and a sealed request through a socketpair reaches the real component (the CPU-only tier's conformance app,
+// cpu-probe: no wasi:nn, no model) and comes back sealed, with no plaintext on the wire.
 use hpke::kem::X25519HkdfSha256;
 use hpke::{aead::AesGcm128, kdf::HkdfSha256, Deserializable, OpModeS, Serializable};
 use pvm_rt::httpd::HttpServer;
-use pvm_rt::nn::NnEngine;
 use pvm_rt::sealed::{SealedKey, HDR, LABEL, MAX_PER_NONCE, WINDOW};
-use pvm_rt::NnModel;
 use std::io::{Read, Write};
 use std::os::fd::IntoRawFd;
 use std::os::unix::net::UnixStream;
@@ -149,33 +147,10 @@ fn admission_window_budget_replay_and_context() {
     assert!(k.open_at(&b, t0).unwrap_err().contains("budget"));
 }
 
-struct Mock;
-impl NnEngine for Mock {
-    fn n_vocab(&self) -> usize {
-        152_000
-    }
-    fn n_ctx(&self) -> usize {
-        4096
-    }
-    fn tokenize(&self, t: &[u8]) -> Result<Vec<i32>, String> {
-        Ok(t.iter().map(|b| *b as i32).collect())
-    }
-    fn piece(&self, id: i32) -> Result<Vec<u8>, String> {
-        Ok(id.to_string().into_bytes())
-    }
-    fn reset(&self) -> Result<(), String> {
-        Ok(())
-    }
-    fn decode(&self, _ids: &[i32], logits: &mut [f32]) -> Result<(), String> {
-        logits.iter_mut().for_each(|l| *l = 0.0);
-        logits[7] = 1.0;
-        Ok(())
-    }
-}
 
 #[test]
 fn a_sealed_request_reaches_the_component_and_comes_back_sealed() {
-    let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../conformance/bundles/ggml-probe.wasm");
+    let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../conformance/bundles/cpu-probe.wasm");
     let bytes = std::fs::read(p).unwrap();
     use sha2::Digest;
     let d: [u8; 32] = sha2::Sha256::digest(&bytes).into();
@@ -183,7 +158,6 @@ fn a_sealed_request_reaches_the_component_and_comes_back_sealed() {
     let notes = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
     let n2 = notes.clone();
     let mut s = HttpServer::open(&bytes, &d, 256 << 20, Duration::from_secs(30),
-        Some(NnModel { name: "mock-1".into(), engine: Arc::new(Mock) }),
         Some(Box::new(move |b: &[u8]| n2.lock().unwrap().push(String::from_utf8_lossy(b).into_owned()))))
     .unwrap();
     let pk = s.enable_sealed(&d, &rid);
@@ -202,14 +176,14 @@ fn a_sealed_request_reaches_the_component_and_comes_back_sealed() {
         assert!(t.join().unwrap());
         answer
     };
-    let req = b"GET /?graph=mock-1&steps=3 HTTP/1.1\r\nhost: pvm-app\r\nconnection: close\r\n\r\n";
+    let req = b"GET /?steps=3&work=1000 HTTP/1.1\r\nhost: pvm-app\r\nconnection: close\r\n\r\n";
     let (body, enc, secret) = seal_to(&pk, &d, &rid, &nonce, req);
-    assert!(!body.windows(5).any(|w| w == b"graph"), "no plaintext on the wire");
+    assert!(!body.windows(5).any(|w| w == b"steps"), "no plaintext on the wire");
     let answer = one(&body);
-    assert!(!answer.windows(6).any(|w| w == b"tokens"), "no plaintext on the way back");
+    assert!(!answer.windows(7).any(|w| w == b"\"probe\""), "no plaintext on the way back");
     let resp = String::from_utf8(open_answer(&enc, &secret, &answer).unwrap()).unwrap();
     assert!(resp.starts_with("HTTP/1.1 200"), "{resp}");
-    assert!(resp.contains("\"tokens\""), "{resp}");
+    assert!(resp.contains("\"probe\":\"cpu\"") && resp.contains("\"done\":true"), "{resp}");
     assert_eq!(s.requests(), 1);
     // the same bytes again: refused before the component runs
     let again = one(&body);
@@ -221,7 +195,7 @@ fn a_sealed_request_reaches_the_component_and_comes_back_sealed() {
     assert_eq!(s.requests(), 1);
     let n = notes.lock().unwrap().join("\n");
     assert!(n.contains("SEALED served") && n.contains("SEALED refused: replayed"), "{n}");
-    assert!(!n.contains("graph=mock"), "no plaintext in the notes: {n}");
+    assert!(!n.contains("steps=3"), "no plaintext in the notes: {n}");
 }
 
 // ---- streamed responses (SEALED-STREAMING.md) ----
@@ -348,31 +322,6 @@ fn read_stream(enc: &[u8; 32], secret: &[u8; 16], nonce: &[u8; 32], s: &[u8]) ->
 }
 
 /// A model engine whose every decode takes `ms` and is counted (to see a cancelled stream stop decoding).
-struct Slow(std::sync::atomic::AtomicUsize, u64);
-impl NnEngine for Slow {
-    fn n_vocab(&self) -> usize {
-        152_000
-    }
-    fn n_ctx(&self) -> usize {
-        4096
-    }
-    fn tokenize(&self, t: &[u8]) -> Result<Vec<i32>, String> {
-        Ok(t.iter().map(|b| *b as i32).collect())
-    }
-    fn piece(&self, id: i32) -> Result<Vec<u8>, String> {
-        Ok(id.to_string().into_bytes())
-    }
-    fn reset(&self) -> Result<(), String> {
-        Ok(())
-    }
-    fn decode(&self, _ids: &[i32], logits: &mut [f32]) -> Result<(), String> {
-        self.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        std::thread::sleep(Duration::from_millis(self.1));
-        logits.iter_mut().for_each(|l| *l = 0.0);
-        logits[7] = 1.0;
-        Ok(())
-    }
-}
 
 /// A page's chunked request in Rust (tests): (body, enc, secret) under the chunked info and export label.
 fn seal_chunked(pk: &[u8; 32], app: &[u8; 32], rid: &[u8; 32], nonce: &[u8; 32], req: &[u8]) -> (Vec<u8>, [u8; 32], [u8; 16]) {
@@ -395,17 +344,15 @@ fn seal_chunked(pk: &[u8; 32], app: &[u8; 32], rid: &[u8; 32], nonce: &[u8; 32],
 }
 
 #[test]
-fn a_streamed_request_reaches_the_component_streams_back_sealed_and_a_cancel_stops_the_decode() {
-    let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../conformance/bundles/stream-probe.wasm");
+fn a_streamed_request_reaches_the_component_streams_back_sealed_and_a_cancel_stops_the_work() {
+    let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../conformance/bundles/cpu-probe.wasm");
     let bytes = std::fs::read(p).unwrap();
     use sha2::Digest;
     let d: [u8; 32] = sha2::Sha256::digest(&bytes).into();
     let rid = [5u8; 32];
-    let engine = Arc::new(Slow(std::sync::atomic::AtomicUsize::new(0), 20));
     let notes = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
     let n2 = notes.clone();
-    let mut s = HttpServer::open(&bytes, &d, 256 << 20, Duration::from_secs(60),
-        Some(NnModel { name: "mock-1".into(), engine: engine.clone() }),
+    let mut s = HttpServer::open(&bytes, &d, 256 << 20, Duration::from_secs(600),
         Some(Box::new(move |b: &[u8]| n2.lock().unwrap().push(String::from_utf8_lossy(b).into_owned()))))
     .unwrap();
     let pk = s.enable_sealed(&d, &rid);
@@ -421,34 +368,81 @@ fn a_streamed_request_reaches_the_component_streams_back_sealed_and_a_cancel_sto
         client.write_all(body).unwrap();
         (client, t)
     };
-    // whole: 5 tokens, every line arrives, FIN
-    let (body, enc, secret) = seal_chunked(&pk, &d, &rid, &nonce, b"GET /?graph=mock-1&steps=5 HTTP/1.1\r\nhost: pvm-app\r\nconnection: close\r\n\r\n");
+    // whole: 5 steps, every line arrives, FIN
+    let (body, enc, secret) = seal_chunked(&pk, &d, &rid, &nonce, b"GET /?steps=5&work=1000 HTTP/1.1\r\nhost: pvm-app\r\nconnection: close\r\n\r\n");
     let (mut c, t) = connect(&body);
     let mut all = Vec::new();
     c.read_to_end(&mut all).unwrap();
     assert!(t.join().unwrap());
-    assert!(!all.windows(6).any(|w| w == b"\"token"), "no plaintext on the wire");
+    assert!(!all.windows(5).any(|w| w == b"\"v\":\""), "no plaintext on the wire");
     let (pt, how) = read_stream(&enc, &secret, &nonce, &all).unwrap();
     assert_eq!(how, "fin");
     let text = String::from_utf8(pt).unwrap();
     assert!(text.starts_with("HTTP/1.1 200"), "{text}");
-    assert_eq!(text.matches("\"token\":").count(), 5, "{text}");
+    assert_eq!(text.matches("\"i\":").count(), 5, "{text}");
     assert!(text.contains("\"done\":true"), "{text}");
     // truncation: the same stream cut before its FIN does not read as complete
     assert!(read_stream(&enc, &secret, &nonce, &all[..all.len() - 3]).unwrap_err().contains("truncated"));
-    // cancel: 256 tokens asked, the page reads the header and a few chunks and goes; the decode stops
-    let before = engine.0.load(std::sync::atomic::Ordering::Relaxed);
-    let (body, _, _) = seal_chunked(&pk, &d, &rid, &nonce, b"GET /?graph=mock-1&steps=256 HTTP/1.1\r\nhost: pvm-app\r\nconnection: close\r\n\r\n");
+    // calibration: what one heavy step costs here, so the cancel below cannot pass by being fast anyway
+    let heavy = |steps: usize| format!("GET /?steps={steps}&work=1000000 HTTP/1.1\r\nhost: pvm-app\r\nconnection: close\r\n\r\n");
+    let (body, _, _) = seal_chunked(&pk, &d, &rid, &nonce, heavy(1).as_bytes());
+    let t1 = std::time::Instant::now();
     let (mut c, t) = connect(&body);
-    let mut first = [0u8; 600];
+    let mut sink = Vec::new();
+    c.read_to_end(&mut sink).unwrap();
+    assert!(t.join().unwrap());
+    let per_step = t1.elapsed();
+    let full = per_step * 256;
+    assert!(full > Duration::from_secs(6), "the calibration is too fast to prove a cancel ({per_step:?} a step): raise `work`");
+    // cancel: 256 heavy steps asked, the page reads the stream's head and the app's first line (sent before any step) and
+    // goes, mid-computation: the instance stops within a tick, not at the app's next write
+    let (body, _, _) = seal_chunked(&pk, &d, &rid, &nonce, heavy(256).as_bytes());
+    let (mut c, t) = connect(&body);
+    let mut first = [0u8; 200];
     c.read_exact(&mut first).unwrap();
     drop(c);
     let t0 = std::time::Instant::now();
     assert!(t.join().unwrap());
-    let decoded = engine.0.load(std::sync::atomic::Ordering::Relaxed) - before;
-    assert!(decoded < 64, "a cancelled stream stops decoding (decoded {decoded} of 256)");
-    assert!(t0.elapsed() < Duration::from_secs(3), "and ends promptly");
+    assert!(t0.elapsed() < Duration::from_secs(3), "a cancelled stream stops the work promptly ({:?}; the whole run would take ~{full:?})", t0.elapsed());
     let n = notes.lock().unwrap().join("\n");
     assert!(n.contains(" fin after ") && n.contains(" cancelled after "), "{n}");
-    assert!(!n.contains("graph=mock"), "no plaintext in the notes: {n}");
+    assert!(!n.contains("steps=256"), "no plaintext in the notes: {n}");
+}
+
+#[test]
+fn a_stream_whose_app_runs_out_of_time_mid_response_aborts_and_never_fins() {
+    // cpu-probe sends its head and first line before the work: with a 300 ms deadline, 256 heavy steps trap AFTER the
+    // response began. wasmtime ends such a body as if finished; the server must not, or the page would get a FIN.
+    let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../conformance/bundles/cpu-probe.wasm");
+    let bytes = std::fs::read(p).unwrap();
+    use sha2::Digest;
+    let d: [u8; 32] = sha2::Sha256::digest(&bytes).into();
+    let rid = [5u8; 32];
+    let notes = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let n2 = notes.clone();
+    let mut s = HttpServer::open(&bytes, &d, 256 << 20, Duration::from_millis(300),
+        Some(Box::new(move |b: &[u8]| n2.lock().unwrap().push(String::from_utf8_lossy(b).into_owned()))))
+    .unwrap();
+    let pk = s.enable_sealed(&d, &rid);
+    let s = Arc::new(s);
+    let nonce = [7u8; 32];
+    s.sealed_admit_nonce(&nonce);
+    let (body, enc, secret) = seal_chunked(&pk, &d, &rid, &nonce,
+        b"GET /?steps=256&work=1000000 HTTP/1.1\r\nhost: pvm-app\r\nconnection: close\r\n\r\n");
+    let (mut client, srv_end) = UnixStream::pair().unwrap();
+    let s2 = s.clone();
+    let fd = srv_end.into_raw_fd();
+    let t = std::thread::spawn(move || unsafe { s2.serve_sealed_fd(fd) }.is_ok());
+    client.write_all(&(body.len() as u32).to_be_bytes()).unwrap();
+    client.write_all(&body).unwrap();
+    let mut all = Vec::new();
+    client.read_to_end(&mut all).unwrap();
+    assert!(t.join().unwrap());
+    let (pt, how) = read_stream(&enc, &secret, &nonce, &all).unwrap();
+    let text = String::from_utf8(pt).unwrap();
+    let n = notes.lock().unwrap().join("\n");
+    assert!(text.starts_with("HTTP/1.1 200") && text.contains("{\"probe\":\"cpu\""), "the response had begun: {text:?} {how} {n}");
+    assert!(!text.contains("\"done\":true"), "{text}");
+    assert!(how.starts_with("abort"), "an app that failed mid-response is ABORTed, never FINed: {how}");
+    assert!(n.contains("request 1 failed after its response began") && n.contains(" abort after "), "{n}");
 }

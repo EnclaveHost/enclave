@@ -3,8 +3,6 @@
 // pinning another key refuses before sending a byte; plaintext HTTP gets no HTTP; one flipped byte in transit gets no
 // answer. The carrier (here a socketpair or a relay thread, in the VM the phone's Android app) only ever sees ciphertext.
 use pvm_rt::httpd::{HttpServer, ED25519_SPKI_PREFIX};
-use pvm_rt::nn::NnEngine;
-use pvm_rt::NnModel;
 use std::io::{Read, Write};
 use std::os::fd::IntoRawFd;
 use std::os::unix::net::UnixStream;
@@ -18,35 +16,11 @@ use tokio_rustls::rustls::client::danger::{
 use tokio_rustls::rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use tokio_rustls::rustls::{DigitallySignedStruct, SignatureScheme};
 
-struct Mock;
-impl NnEngine for Mock {
-    fn n_vocab(&self) -> usize {
-        152_000
-    }
-    fn n_ctx(&self) -> usize {
-        4096
-    }
-    fn tokenize(&self, t: &[u8]) -> Result<Vec<i32>, String> {
-        Ok(t.iter().map(|b| *b as i32).collect())
-    }
-    fn piece(&self, id: i32) -> Result<Vec<u8>, String> {
-        Ok(id.to_string().into_bytes())
-    }
-    fn reset(&self) -> Result<(), String> {
-        Ok(())
-    }
-    fn decode(&self, _ids: &[i32], logits: &mut [f32]) -> Result<(), String> {
-        logits.iter_mut().for_each(|l| *l = 0.0);
-        logits[7] = 1.0;
-        Ok(())
-    }
-}
-
 const SEED: [u8; 32] = [7u8; 32];
 
 fn server() -> (Arc<HttpServer>, Vec<u8>) {
     let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../conformance/bundles/ggml-probe.wasm");
+        .join("../conformance/bundles/cpu-probe.wasm"); // the CPU-only conformance app (no wasi:nn)
     let b = std::fs::read(p).unwrap();
     use sha2::Digest;
     let d: [u8; 32] = sha2::Sha256::digest(&b).into();
@@ -55,10 +29,6 @@ fn server() -> (Arc<HttpServer>, Vec<u8>) {
         &d,
         256 << 20,
         Duration::from_secs(30),
-        Some(NnModel {
-            name: "mock-1".into(),
-            engine: Arc::new(Mock),
-        }),
         None,
     )
     .unwrap()
@@ -245,7 +215,8 @@ fn one_flipped_byte_in_transit_gets_no_answer() {
     let (client, relay_a) = UnixStream::pair().unwrap();
     let (relay_b, srv_end) = UnixStream::pair().unwrap();
     let t = serve(&s, srv_end);
-    // the carrier: forwards both ways, flipping the last byte of the client's first encrypted record (type 0x17)
+    // the carrier: forwards both ways, flipping the last byte of the client's first encrypted record (type 0x17); it reads
+    // TLS records, not socket reads, so the flip cannot be missed when the client's records arrive coalesced
     let flipped = Arc::new(Mutex::new(false));
     let (mut a_rd, mut a_wr, mut b_rd, mut b_wr) = (
         relay_a.try_clone().unwrap(),
@@ -256,20 +227,29 @@ fn one_flipped_byte_in_transit_gets_no_answer() {
     let f = flipped.clone();
     let up = std::thread::spawn(move || {
         let mut buf = [0u8; 65536];
-        while let Ok(n) = a_rd.read(&mut buf) {
+        let mut pending = Vec::new();
+        'relay: while let Ok(n) = a_rd.read(&mut buf) {
             if n == 0 {
                 break;
             }
-            let mut chunk = buf[..n].to_vec();
-            let mut done = f.lock().unwrap();
-            if !*done && chunk[0] == 0x17 {
-                let last = chunk.len() - 1;
-                chunk[last] ^= 0x01;
-                *done = true;
-            }
-            drop(done);
-            if b_wr.write_all(&chunk).is_err() {
-                break;
+            pending.extend_from_slice(&buf[..n]);
+            // each complete record: type, version (2), length (2), then the record
+            while pending.len() >= 5 {
+                let len = u16::from_be_bytes([pending[3], pending[4]]) as usize;
+                if pending.len() < 5 + len {
+                    break;
+                }
+                let mut rec: Vec<u8> = pending.drain(..5 + len).collect();
+                let mut done = f.lock().unwrap();
+                if !*done && rec[0] == 0x17 {
+                    let last = rec.len() - 1;
+                    rec[last] ^= 0x01;
+                    *done = true;
+                }
+                drop(done);
+                if b_wr.write_all(&rec).is_err() {
+                    break 'relay;
+                }
             }
         }
         let _ = b_wr.shutdown(std::net::Shutdown::Write);

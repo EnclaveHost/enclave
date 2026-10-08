@@ -4,11 +4,11 @@
 //! The component is verified and compiled ONCE (the same rules as `run_app`: W^X, digest before compile, no deserialise),
 //! then pre-instantiated. The payload accepts each connection on its vsock port and hands the connected stream to
 //! `serve_fd`, which speaks HTTP/1.1 on it (hyper) until the peer closes; every request gets a fresh instance in a fresh
-//! Store -- its own memory limit, its own epoch deadline -- dropped when the request ends. With a model, every request's
-//! wasi:nn sees the same one graph (nn.rs), so the engine's single sequence is never shared between requests.
+//! Store -- its own memory limit, its own epoch deadline -- dropped when the request ends. CPU-only: wasi:nn and every
+//! accelerator interface are never linked, so a component that imports one is refused at open.
 //!
 //! What a component cannot do here: open an outgoing connection (the VM has no network, and `send_request` refuses:
-//! there is no TLS client in this build), reach a model other than the one registered, or keep state across requests
+//! there is no TLS client in this build), reach a model or an accelerator (none is linked), or keep state across requests
 //! (a request's instance is dropped with its Store).
 //!
 //! With `with_tls`, every connection is TLS 1.3 terminating HERE, in the VM: the server key is the VM's Ed25519 transport
@@ -16,15 +16,20 @@
 //! self-signed certificate made in this process. A client pins that key from verified evidence and ignores names and
 //! dates; whatever carries the bytes (the phone's Android app, the relay) sees only ciphertext.
 
-use crate::{engine_config, nn, sealed, verify_and_compile, NnModel};
+use crate::{engine_config, sealed, verify_and_compile};
 use hyper::server::conn::http1;
+use http_body_util::BodyExt;
+use hyper::body::{Body, Bytes, Frame, SizeHint};
+use std::future::Future;
 use std::os::fd::{FromRawFd, RawFd};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 use tokio_rustls::rustls;
 use wasmtime::component::{Linker, ResourceTable};
-use wasmtime::{Engine, Result, Store, StoreLimits, StoreLimitsBuilder};
+use wasmtime::{Engine, Result, Store, StoreLimits, StoreLimitsBuilder, UpdateDeadline};
 use wasmtime_wasi::p2::pipe::MemoryOutputPipe;
 use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 use wasmtime_wasi_http::io::TokioIo;
@@ -32,7 +37,6 @@ use wasmtime_wasi_http::p2::bindings::http::types::{ErrorCode, Scheme};
 use wasmtime_wasi_http::p2::bindings::ProxyPre;
 use wasmtime_wasi_http::p2::body::HyperOutgoingBody;
 use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpCtxView, WasiHttpHooks, WasiHttpView};
-use wasmtime_wasi_nn::wit::{WasiNnCtx, WasiNnView};
 
 /// The epoch tick: a request's deadline is counted in these.
 const TICK: Duration = Duration::from_millis(10);
@@ -73,7 +77,6 @@ struct HttpState {
     hooks: NoOutgoing,
     table: ResourceTable,
     limits: StoreLimits,
-    nn: WasiNnCtx,
 }
 impl WasiView for HttpState {
     fn ctx(&mut self) -> WasiCtxView<'_> {
@@ -97,14 +100,13 @@ impl WasiHttpView for HttpState {
 pub struct HttpServer {
     pre: ProxyPre<HttpState>,
     rt: tokio::runtime::Runtime,
-    graph: Option<(String, wasmtime_wasi_nn::Graph)>,
     mem_limit: usize,
-    deadline_ticks: u64,
+    deadline: Duration,
     stop: Arc<AtomicBool>,
     ticker: Option<std::thread::JoinHandle<()>>,
     requests: AtomicU64,
     /// the guest's stderr after each request, and the server's own notes (stream 2)
-    log: Option<Box<dyn Fn(&[u8]) + Send + Sync>>,
+    log: Option<Log>,
     pub compile_ms: u128,
     tls: Option<Arc<rustls::ServerConfig>>,
     /// the DER SubjectPublicKeyInfo the TLS certificate carries (the transport key's), when TLS is on
@@ -162,23 +164,15 @@ const TLS_HANDSHAKE: Duration = Duration::from_secs(20);
 
 impl HttpServer {
     /// Verify (W^X, digest), compile once, pre-instantiate. A component whose imports this server does not provide --
-    /// wasi:nn without a model, anything beyond wasi:cli/io/clocks/random/http -- is refused here, before any request.
+    /// wasi:nn or any accelerator interface (CPU-only), anything beyond wasi:cli/io/clocks/random/http -- is refused here,
+    /// before any request.
     pub fn open(
         bundle: &[u8],
         expected_sha256: &[u8; 32],
         mem_limit: usize,
         request_deadline: Duration,
-        model: Option<NnModel>,
         log: Option<Box<dyn Fn(&[u8]) + Send + Sync>>,
     ) -> Result<HttpServer> {
-        if let Some(m) = &model {
-            if !nn::valid_graph_name(&m.name) {
-                wasmtime::bail!(
-                    "graph name {:?} is not 1..64 of [a-z0-9._-]: refusing",
-                    m.name
-                );
-            }
-        }
         let engine = Engine::new(&engine_config()?)?; // async host calls need no setting of their own in wasmtime 49
         let t0 = Instant::now();
         let component = verify_and_compile(&engine, bundle, expected_sha256)?;
@@ -186,15 +180,6 @@ impl HttpServer {
         let mut linker = Linker::<HttpState>::new(&engine);
         wasmtime_wasi::p2::add_to_linker_async(&mut linker)?;
         wasmtime_wasi_http::p2::add_only_http_to_linker_async(&mut linker)?;
-        let graph = match model {
-            Some(m) => {
-                wasmtime_wasi_nn::wit::add_to_linker(&mut linker, |s: &mut HttpState| {
-                    WasiNnView::new(&mut s.table, &mut s.nn)
-                })?;
-                Some((m.name, nn::graph(m.engine)))
-            }
-            None => None,
-        };
         let pre = ProxyPre::new(linker.instantiate_pre(&component)?)?;
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_io()
@@ -210,17 +195,15 @@ impl HttpServer {
                 }
             })
         };
-        let deadline_ticks = (request_deadline.as_millis() / TICK.as_millis()).max(1) as u64;
         Ok(HttpServer {
             pre,
             rt,
-            graph,
             mem_limit,
-            deadline_ticks,
+            deadline: request_deadline.max(TICK),
             stop,
             ticker: Some(ticker),
             requests: AtomicU64::new(0),
-            log,
+            log: log.map(Log::from),
             compile_ms,
             tls: None,
             tls_spki: None,
@@ -308,7 +291,7 @@ impl HttpServer {
     /// (so a slow page slows the pipe, hyper, and the guest's blocking writes). FIN only when the app's response completed;
     /// ABORT (authenticated) when it did not, or a cap was reached; a failed write (the page cancelled) ends it at once --
     /// the pipe closes, hyper's write fails, the guest's next write fails and the handler returns.
-    async fn serve_stream(&self, mut stream: tokio::net::UnixStream, opened: sealed::Opened, in_len: usize) -> Result<()> {
+    async fn serve_stream(&self, stream: tokio::net::UnixStream, opened: sealed::Opened, in_len: usize) -> Result<()> {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         let (head, mut sealer) = sealed::ChunkSealer::start(&opened, None).map_err(|e| wasmtime::format_err!("sealing the stream: {e}"))?;
         let (server_end, mut client_end) = tokio::io::duplex(64 << 10);
@@ -319,12 +302,29 @@ impl HttpServer {
         let pump = tokio::task::spawn(async move {
             client_end.write_all(&request).await?;
             client_end.shutdown().await?;
+            // the page sends nothing after its request: its EOF (a close) is the cancel, seen while the app computes and
+            // no chunk is due -- a failed write alone would see it only at the app's next output
+            let (page_rd, mut stream) = stream.into_split();
+            let mut gone = std::pin::pin!(page_gone(page_rd));
             if stream.write_all(&head).await.is_err() {
                 return Ok::<_, std::io::Error>(("cancelled", 0u64, 0u64));
             }
             let mut buf = vec![0u8; sealed::CHUNK_PLAINTEXT];
             loop {
-                let n = client_end.read(&mut buf).await?;
+                let next = {
+                    let mut read = std::pin::pin!(client_end.read(&mut buf));
+                    std::future::poll_fn(|cx| {
+                        if gone.as_mut().poll(cx).is_ready() {
+                            return Poll::Ready(None);
+                        }
+                        read.as_mut().poll(cx).map(Some)
+                    })
+                    .await
+                };
+                let Some(n) = next else {
+                    return Ok(("cancelled", sealer.chunks(), sealer.bytes)); // client_end drops here
+                };
+                let n = n?;
                 if n == 0 {
                     let (chunks, bytes) = (sealer.chunks() + 1, sealer.bytes);
                     let completed = done_rx.await.unwrap_or(false);
@@ -352,14 +352,33 @@ impl HttpServer {
                 }
             }
         });
-        let served = http1::Builder::new()
+        let inflight = Arc::new(Inflight::default());
+        let serve = http1::Builder::new()
             .keep_alive(false)
             .half_close(true)
-            .serve_connection(TokioIo::new(server_end), hyper::service::service_fn(|req| self.handle(req)))
-            .await;
-        let _ = done_tx.send(served.is_ok());
-        let (how, chunks, bytes) = pump
+            .serve_connection(TokioIo::new(server_end), hyper::service::service_fn(|req| self.handle(req, inflight.clone())));
+        let mut pump = pump;
+        let first = {
+            let mut serve = std::pin::pin!(serve);
+            // the pump ends first only when the page went away or a cap was reached: the connection is dropped here,
+            // unfinished, which cancels its request (Checked / CancelOnDrop) -- the app stops within a tick
+            std::future::poll_fn(|cx| {
+                if let Poll::Ready(p) = Pin::new(&mut pump).poll(cx) {
+                    return Poll::Ready(Err(p));
+                }
+                serve.as_mut().poll(cx).map(Ok)
+            })
             .await
+        };
+        let pumped = match first {
+            Ok(served) => {
+                let _ = done_tx.send(served.is_ok());
+                pump.await
+            }
+            Err(pumped) => pumped,
+        };
+        inflight.drained().await;
+        let (how, chunks, bytes) = pumped
             .map_err(|e| wasmtime::format_err!("sealed stream: {e}"))?
             .map_err(|e| wasmtime::format_err!("sealed stream: {e}"))?;
         self.note(&format!(
@@ -371,12 +390,13 @@ impl HttpServer {
 
     /// One HTTP/1.1 request's bytes through the server's own service (hyper over an in-memory pipe): the response's bytes.
     async fn serve_bytes(&self, request: &[u8]) -> Result<Vec<u8>> {
+        let inflight = Arc::new(Inflight::default());
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         let (server_end, mut client_end) = tokio::io::duplex(1 << 16);
         let serve = http1::Builder::new()
             .keep_alive(false)
             .half_close(true)
-            .serve_connection(TokioIo::new(server_end), hyper::service::service_fn(|req| self.handle(req)));
+            .serve_connection(TokioIo::new(server_end), hyper::service::service_fn(|req| self.handle(req, inflight.clone())));
         let request = request.to_vec();
         // the pipe's far end runs beside the server (a task on this runtime; it progresses while `serve` awaits)
         let io = tokio::task::spawn(async move {
@@ -387,6 +407,7 @@ impl HttpServer {
             Ok::<_, std::io::Error>(out) // client_end drops here: a response past the cap ends the connection
         });
         let served = serve.await;
+        inflight.drained().await;
         let out = io
             .await
             .map_err(|e| wasmtime::format_err!("sealed request: {e}"))?
@@ -419,13 +440,14 @@ impl HttpServer {
         std_stream.set_nonblocking(true)?;
         self.rt.block_on(async {
             let stream = tokio::net::UnixStream::from_std(std_stream)?;
+            let inflight = Arc::new(Inflight::default());
             let served = match &self.tls {
                 None => {
                     http1::Builder::new()
                         .keep_alive(true)
                         .serve_connection(
                             TokioIo::new(stream),
-                            hyper::service::service_fn(|req| self.handle(req)),
+                            hyper::service::service_fn(|req| self.handle(req, inflight.clone())),
                         )
                         .await
                 }
@@ -442,11 +464,13 @@ impl HttpServer {
                         .keep_alive(true)
                         .serve_connection(
                             TokioIo::new(tls),
-                            hyper::service::service_fn(|req| self.handle(req)),
+                            hyper::service::service_fn(|req| self.handle(req, inflight.clone())),
                         )
                         .await
                 }
             };
+            // a request the connection ended under (the client went away mid-response) is cancelled: wait for it to stop
+            inflight.drained().await;
             served.map_err(|e| wasmtime::format_err!("the connection ended with an error: {e}"))
         })
     }
@@ -454,15 +478,12 @@ impl HttpServer {
     async fn handle(
         &self,
         req: hyper::Request<hyper::body::Incoming>,
+        inflight: Arc<Inflight>,
     ) -> Result<hyper::Response<HyperOutgoingBody>> {
         let n = self.requests.fetch_add(1, Ordering::Relaxed) + 1;
         let err = MemoryOutputPipe::new(1 << 16);
         let mut wasi = WasiCtx::builder();
         wasi.stderr(err.clone());
-        let nn = match &self.graph {
-            Some((name, g)) => nn::context_with(name, g.clone()),
-            None => nn::context_none(),
-        };
         let mut store = Store::new(
             self.pre.engine(),
             HttpState {
@@ -477,11 +498,28 @@ impl HttpServer {
                     .memories(16)
                     .trap_on_grow_failure(true)
                     .build(),
-                nn,
             },
         );
         store.limiter(|s| &mut s.limits);
-        store.set_epoch_deadline(self.deadline_ticks);
+        // Every tick the instance yields to the executor (so a CPU-bound app's streamed lines go out while it computes, and
+        // a cancel is seen), then stops if the request is past its deadline or its client went away (`cancel`, set when the
+        // response is dropped unfinished or the request is abandoned before one): a cancel stops CPU work within a tick,
+        // not at the app's next write.
+        let cancel = Arc::new(AtomicBool::new(false));
+        let (stop, deadline, started) = (cancel.clone(), self.deadline, Instant::now());
+        store.set_epoch_deadline(1);
+        store.epoch_deadline_callback(move |_| {
+            if stop.load(Ordering::Acquire) {
+                wasmtime::bail!("cancelled: the client went away");
+            }
+            if started.elapsed() >= deadline {
+                return Ok(UpdateDeadline::Interrupt);
+            }
+            // tokio's yield defers the wake: the connection's own future runs before this instance does again (wasmtime's
+            // plain Yield re-queues at once, and a current-thread runtime then polls the connection only every ~61 polls)
+            Ok(UpdateDeadline::YieldCustom(1, Box::pin(tokio::task::yield_now())))
+        });
+        let mut abandoned = CancelOnDrop(Some(cancel));
         let (sender, receiver) = tokio::sync::oneshot::channel();
         let wreq = store
             .data_mut()
@@ -490,18 +528,40 @@ impl HttpServer {
         let out = store.data_mut().http().new_response_outparam(sender)?;
         let pre = self.pre.clone();
         // the handler runs beside the response, so a streamed body can continue after the headers; the Store (the
-        // instance, its memory, its wasi:nn context) is dropped when the handler returns
+        // instance, its memory) is dropped when the handler returns
+        let failure = Arc::new(Mutex::new(None::<String>));
+        let failed = failure.clone();
+        let deadline = self.deadline;
+        inflight.live.fetch_add(1, Ordering::AcqRel);
         let task = tokio::task::spawn(async move {
-            let proxy = pre.instantiate_async(&mut store).await?;
-            let r = proxy
-                .wasi_http_incoming_handler()
-                .call_handle(&mut store, wreq, out)
-                .await;
+            let _live = Live(inflight);
+            let call = async {
+                let proxy = pre.instantiate_async(&mut store).await?;
+                proxy
+                    .wasi_http_incoming_handler()
+                    .call_handle(&mut store, wreq, out)
+                    .await
+            };
+            // the wall-clock backstop: an app waiting in a host call (a timer, a stalled stream) reaches no epoch check
+            let r: Result<()> = match tokio::time::timeout(deadline + 2 * TICK, call).await {
+                Ok(r) => r,
+                Err(_) => Err(wasmtime::format_err!("the request's deadline passed while the app waited")),
+            };
+            // recorded BEFORE the Store drops: dropping it ends a response body already under way, and that body's end
+            // must already know the app failed (Checked)
+            if let Err(e) = &r {
+                *failed.lock().unwrap() = Some(format!("{e:#}"));
+            }
             drop(store);
             r
         });
         let res = match receiver.await {
-            Ok(Ok(resp)) => Ok(resp),
+            Ok(Ok(resp)) => {
+                let cancel = abandoned.0.take().expect("armed until here");
+                Ok(resp.map(|inner| {
+                    Checked { inner, failure, log: self.log.clone(), n, cancel, ended: false }.boxed_unsync()
+                }))
+            }
             Ok(Err(e)) => Err(e.into()),
             Err(_) => {
                 let e = match task.await {
@@ -523,6 +583,112 @@ impl HttpServer {
             self.note(&format!("request {n} failed: {e:#}"));
         }
         res
+    }
+}
+
+type Log = Arc<dyn Fn(&[u8]) + Send + Sync>;
+
+/// A response body that cannot end cleanly when its app failed. wasmtime ends an outgoing body as if it were finished when
+/// the Store is dropped mid-response (a trap: the deadline, the memory limit, a panic), so a truncated answer would read as
+/// complete -- and a sealed stream would FIN it. The handler records its failure before its Store drops; at the body's end
+/// that record turns the end into an error, so hyper aborts the response (no last chunk) and a sealed stream ABORTs. A body
+/// the app finished before failing is complete, and ends cleanly.
+struct Checked {
+    inner: HyperOutgoingBody,
+    failure: Arc<Mutex<Option<String>>>,
+    log: Option<Log>,
+    n: u64,
+    /// set when this body is dropped before its end: the client went away, so the instance stops at its next tick
+    cancel: Arc<AtomicBool>,
+    ended: bool,
+}
+
+impl Drop for Checked {
+    fn drop(&mut self) {
+        if !self.ended {
+            self.cancel.store(true, Ordering::Release);
+        }
+    }
+}
+
+/// Resolves when the page's side of a sealed stream is gone: EOF or an error. After its request the page sends nothing
+/// (SEALED-STREAMING.md: there is no in-band cancel, a cancel is a close); anything it sends anyway is read and dropped.
+async fn page_gone(mut rd: tokio::net::unix::OwnedReadHalf) {
+    use tokio::io::AsyncReadExt;
+    let mut scratch = [0u8; 256];
+    while let Ok(n) = rd.read(&mut scratch).await {
+        if n == 0 {
+            return;
+        }
+    }
+}
+
+/// A connection's requests still running: a connection is not done until they are (Live), so a cancelled request's
+/// instance is driven to its next tick, sees the cancel and stops, instead of waiting suspended in the runtime.
+#[derive(Default)]
+struct Inflight {
+    live: AtomicUsize,
+    idle: tokio::sync::Notify,
+}
+
+impl Inflight {
+    async fn drained(&self) {
+        while self.live.load(Ordering::Acquire) > 0 {
+            self.idle.notified().await;
+        }
+    }
+}
+
+/// One running request of a connection; dropped when its task ends, however it ends.
+struct Live(Arc<Inflight>);
+
+impl Drop for Live {
+    fn drop(&mut self) {
+        if self.0.live.fetch_sub(1, Ordering::AcqRel) == 1 {
+            self.0.idle.notify_one();
+        }
+    }
+}
+
+/// A request abandoned before its response (the connection went away while the app computed): its instance stops too.
+struct CancelOnDrop(Option<Arc<AtomicBool>>);
+
+impl Drop for CancelOnDrop {
+    fn drop(&mut self) {
+        if let Some(c) = &self.0 {
+            c.store(true, Ordering::Release);
+        }
+    }
+}
+
+impl Body for Checked {
+    type Data = Bytes;
+    type Error = <HyperOutgoingBody as Body>::Error;
+    fn poll_frame(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<std::result::Result<Frame<Bytes>, Self::Error>>> {
+        let this = &mut *self;
+        match Pin::new(&mut this.inner).poll_frame(cx) {
+            Poll::Ready(None) => {
+                this.ended = true;
+                match this.failure.lock().unwrap().take() {
+                    None => Poll::Ready(None),
+                    Some(e) => {
+                        if let Some(l) = &this.log {
+                            l(format!("request {} failed after its response began: {e}", this.n).as_bytes());
+                        }
+                        Poll::Ready(Some(Err(wasmtime_wasi_http::Error::InternalError(Some(
+                            "the app failed before its response completed".into(),
+                        )))))
+                    }
+                }
+            }
+            other => other,
+        }
+    }
+    fn is_end_stream(&self) -> bool {
+        self.inner.is_end_stream()
+    }
+    fn size_hint(&self) -> SizeHint {
+        self.inner.size_hint()
     }
 }
 

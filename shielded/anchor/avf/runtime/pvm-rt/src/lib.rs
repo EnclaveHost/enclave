@@ -10,16 +10,16 @@
 //!   - limits and cleanup: a per-run memory limit (StoreLimits), an epoch deadline, and the Store dropped at the end;
 //!   - identity: `identity()` is the runtime identity the isolation contract binds into attestation (RuntimeIdentity:
 //!     wasmtime, this exact version, execution interpreter, targetIsa pulley64, hostIsa aarch64 on the phone);
-//!   - models: wasi:nn is linked only when the payload hands over its verified in-VM engine (`nn`), and then serves exactly
-//!     that one graph by name; a component can neither load its own weights nor reach another model.
+//!   - CPU-only: the pVM CPU tier runs CPU-only workloads and carries no model. wasi:nn and every accelerator interface
+//!     are never linked, so a component that imports one does not instantiate. The C entry points keep two reserved
+//!     pointer slots where a model was once passed (nn_name, nn_ops); both must be null, and anything else is refused.
 
 pub mod httpd;
-pub mod nn;
 pub mod proof;
 pub mod sealed;
 
 use sha2::{Digest, Sha256};
-use std::ffi::{c_char, c_int, CStr};
+use std::ffi::{c_char, c_int, c_void, CStr};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -28,7 +28,6 @@ use wasmtime::{Config, Engine, Result, Store, StoreLimits, StoreLimitsBuilder};
 use wasmtime_wasi::p2::bindings::sync::Command;
 use wasmtime_wasi::p2::pipe::MemoryOutputPipe;
 use wasmtime_wasi::{I32Exit, WasiCtx, WasiCtxView, WasiView};
-use wasmtime_wasi_nn::wit::{WasiNnCtx, WasiNnView};
 
 pub const RUNTIME_NAME: &str = "wasmtime";
 pub const RUNTIME_VERSION: &str = "49.0.0"; // Cargo.toml pins wasmtime =49.0.0; a test keeps the two equal
@@ -65,7 +64,6 @@ struct State {
     ctx: WasiCtx,
     table: ResourceTable,
     limits: StoreLimits,
-    nn: WasiNnCtx,
 }
 impl WasiView for State {
     fn ctx(&mut self) -> WasiCtxView<'_> {
@@ -136,13 +134,8 @@ pub struct RunOutput {
     pub run_ms: u128,
 }
 
-/// The model a run may use through wasi:nn: the name the component loads it by, and the verified engine behind it.
-pub struct NnModel {
-    pub name: String,
-    pub engine: Arc<dyn nn::NnEngine>,
-}
-
-/// Verify, compile inside this process to Pulley, run a wasi:cli component once, tear it down. No wasi:nn.
+/// Verify, compile inside this process to Pulley, run a wasi:cli component once, tear it down. CPU-only: no wasi:nn and
+/// no accelerator interface is linked, so a component that imports one does not instantiate.
 pub fn run_cli(
     bundle: &[u8],
     expected_sha256: &[u8; 32],
@@ -150,42 +143,23 @@ pub fn run_cli(
     mem_limit: usize,
     deadline: Duration,
 ) -> Result<RunOutput> {
-    run_app(bundle, expected_sha256, args, mem_limit, deadline, None)
+    run_app(bundle, expected_sha256, args, mem_limit, deadline)
 }
 
-/// `run_cli` with an optional model: when `model` is given, wasi:nn is linked and serves that one graph (nn.rs); without
-/// it a component that imports wasi:nn does not instantiate.
+/// The same run as `run_cli` (the C entry point `pvmrt_run_app` keeps its name and its reserved model slots).
 pub fn run_app(
     bundle: &[u8],
     expected_sha256: &[u8; 32],
     args: &[String],
     mem_limit: usize,
     deadline: Duration,
-    model: Option<NnModel>,
 ) -> Result<RunOutput> {
-    if let Some(m) = &model {
-        if !nn::valid_graph_name(&m.name) {
-            wasmtime::bail!(
-                "graph name {:?} is not 1..64 of [a-z0-9._-]: refusing",
-                m.name
-            );
-        }
-    }
     let engine = engine()?;
     let t0 = Instant::now();
     let component = verify_and_compile(&engine, bundle, expected_sha256)?;
     let compile_ms = t0.elapsed().as_millis();
     let mut linker = Linker::<State>::new(&engine);
     wasmtime_wasi::p2::add_to_linker_sync(&mut linker)?;
-    let nn_ctx = match model {
-        Some(m) => {
-            wasmtime_wasi_nn::wit::add_to_linker(&mut linker, |s: &mut State| {
-                WasiNnView::new(&mut s.table, &mut s.nn)
-            })?;
-            nn::context(&m.name, m.engine)
-        }
-        None => nn::context_none(),
-    };
     let out = MemoryOutputPipe::new(1 << 20);
     let err = MemoryOutputPipe::new(1 << 16);
     let mut b = WasiCtx::builder();
@@ -205,7 +179,6 @@ pub fn run_app(
             ctx: b.build(),
             table: ResourceTable::new(),
             limits,
-            nn: nn_ctx,
         },
     );
     store.limiter(|s| &mut s.limits);
@@ -331,9 +304,8 @@ fn collect_args(
 }
 
 /// The checks every entry point makes, in order, before any pointer is dereferenced: bundle (non-null, 1..=MAX_BUNDLE_BYTES),
-/// digest, memory limit, deadline, and the model (both of nn_name/nn_ops or neither; a valid graph name; a complete ops
-/// table). What cannot be checked is the caller's contract: `bundle` holds `len` readable bytes, `sha256` 32, `nn_name` is
-/// NUL-terminated, `nn_ops` stays valid for as long as the run (or the HTTP server) uses it.
+/// digest, memory limit, deadline, and the two reserved model slots (nn_name, nn_ops), which must both be null: this runtime
+/// carries no model. What cannot be checked is the caller's contract: `bundle` holds `len` readable bytes, `sha256` 32.
 fn checked_inputs<'a>(
     bundle: *const u8,
     len: usize,
@@ -341,8 +313,8 @@ fn checked_inputs<'a>(
     mem_limit: u64,
     deadline_ms: u64,
     nn_name: *const c_char,
-    nn_ops: *const nn::NnOps,
-) -> std::result::Result<(&'a [u8], [u8; 32], Option<NnModel>), String> {
+    nn_ops: *const c_void,
+) -> std::result::Result<(&'a [u8], [u8; 32]), String> {
     if bundle.is_null() || len == 0 {
         return Err("no bundle".into());
     }
@@ -358,36 +330,20 @@ fn checked_inputs<'a>(
     if deadline_ms == 0 {
         return Err("deadline_ms must be > 0".into());
     }
-    let model = match (nn_name.is_null(), nn_ops.is_null()) {
-        (true, true) => None,
-        (false, false) => {
-            // SAFETY: nn_name is non-null and NUL-terminated by the caller's contract.
-            let name = unsafe { CStr::from_ptr(nn_name) }
-                .to_string_lossy()
-                .into_owned();
-            if !nn::valid_graph_name(&name) {
-                return Err(format!("graph name {name:?} is not 1..64 of [a-z0-9._-]"));
-            }
-            // SAFETY: nn_ops is non-null and valid for the run by the caller's contract.
-            let e = unsafe { nn::CEngine::from_ops(nn_ops) }?;
-            Some(NnModel {
-                name,
-                engine: Arc::new(e),
-            })
-        }
-        _ => return Err("nn_name and nn_ops come together: exactly one of them is null".into()),
-    };
+    if !nn_name.is_null() || !nn_ops.is_null() {
+        return Err("this runtime carries no model (the pVM CPU tier is CPU-only): the reserved nn_name/nn_ops slots must be null".into());
+    }
     // SAFETY: bundle is non-null and len is in 1..=MAX_BUNDLE_BYTES; the caller provides len readable bytes.
     let bytes = unsafe { std::slice::from_raw_parts(bundle, len) };
     let mut want = [0u8; 32];
     // SAFETY: sha256 is non-null and points to 32 bytes by the caller's contract.
     unsafe { std::ptr::copy_nonoverlapping(sha256, want.as_mut_ptr(), 32) };
-    Ok((bytes, want, model))
+    Ok((bytes, want))
 }
 
 /// Run a wasi:cli component. Returns 0 when it ran (its exit code in `*exit_code`, its output through `emit`), -1 when the
 /// call was refused or the run failed (the reason in `err`). Nothing is compiled unless every argument is valid and the
-/// bundle's digest matches. No wasi:nn: `pvmrt_run_app` with a model for that.
+/// bundle's digest matches. CPU-only: no wasi:nn.
 #[no_mangle]
 pub extern "C" fn pvmrt_run_cli(
     bundle: *const u8,
@@ -423,9 +379,8 @@ pub extern "C" fn pvmrt_run_cli(
     )
 }
 
-/// `pvmrt_run_cli` plus the model: `nn_name` (NUL-terminated, 1..64 of [a-z0-9._-]) is the name the component loads the
-/// graph by, `nn_ops` the payload's verified engine (nn.rs NnOps; it must stay valid until this call returns). Both null =
-/// no wasi:nn; exactly one null is refused.
+/// `pvmrt_run_cli` with the two reserved model slots in the signature (`nn_name`, `nn_ops`): this runtime carries no model,
+/// so both must be null and anything else is refused before any compile.
 #[no_mangle]
 pub extern "C" fn pvmrt_run_app(
     bundle: *const u8,
@@ -436,7 +391,7 @@ pub extern "C" fn pvmrt_run_app(
     mem_limit: u64,
     deadline_ms: u64,
     nn_name: *const c_char,
-    nn_ops: *const nn::NnOps,
+    nn_ops: *const c_void,
     emit: EmitFn,
     exit_code: *mut c_int,
     compile_ms: *mut u64,
@@ -455,7 +410,7 @@ pub extern "C" fn pvmrt_run_app(
         Ok(a) => a,
         Err(e) => return refuse(&e),
     };
-    let (bytes, want, model) =
+    let (bytes, want) =
         match checked_inputs(bundle, len, sha256, mem_limit, deadline_ms, nn_name, nn_ops) {
             Ok(x) => x,
             Err(e) => return refuse(&e),
@@ -466,7 +421,6 @@ pub extern "C" fn pvmrt_run_app(
         &args,
         mem_limit as usize,
         Duration::from_millis(deadline_ms),
-        model,
     ) {
         Ok(o) => {
             emit(1, o.stdout.as_ptr(), o.stdout.len());
@@ -492,8 +446,8 @@ pub extern "C" fn pvmrt_run_app(
 // ---- wasi:http (httpd.rs): a component served on connections the payload accepts ----
 
 /// Verify, compile and pre-instantiate a `wasi:http/proxy` component (httpd.rs). Returns the server, or null when refused
-/// (the reason in `err`). `emit` receives the server's notes and each request's stderr (stream 2). `nn_name`/`nn_ops` as in
-/// `pvmrt_run_app`; the ops must stay valid until `pvmrt_http_close`. `deadline_ms` bounds each request.
+/// (the reason in `err`). `emit` receives the server's notes and each request's stderr (stream 2). `nn_name`/`nn_ops` are
+/// the reserved model slots, as in `pvmrt_run_app`: both must be null. `deadline_ms` bounds each request.
 #[no_mangle]
 pub extern "C" fn pvmrt_http_open(
     bundle: *const u8,
@@ -502,7 +456,7 @@ pub extern "C" fn pvmrt_http_open(
     mem_limit: u64,
     deadline_ms: u64,
     nn_name: *const c_char,
-    nn_ops: *const nn::NnOps,
+    nn_ops: *const c_void,
     emit: EmitFn,
     compile_ms: *mut u64,
     err: *mut c_char,
@@ -534,7 +488,7 @@ pub extern "C" fn pvmrt_https_open(
     mem_limit: u64,
     deadline_ms: u64,
     nn_name: *const c_char,
-    nn_ops: *const nn::NnOps,
+    nn_ops: *const c_void,
     tls_seed: *const u8,
     emit: EmitFn,
     compile_ms: *mut u64,
@@ -574,7 +528,7 @@ fn http_open(
     mem_limit: u64,
     deadline_ms: u64,
     nn_name: *const c_char,
-    nn_ops: *const nn::NnOps,
+    nn_ops: *const c_void,
     tls_seed: Option<&[u8; 32]>,
     emit: EmitFn,
     compile_ms: *mut u64,
@@ -588,7 +542,7 @@ fn http_open(
     let Some(emit) = emit else {
         return refuse("no emit callback: the server's notes would be lost; refusing");
     };
-    let (bytes, want, model) =
+    let (bytes, want) =
         match checked_inputs(bundle, len, sha256, mem_limit, deadline_ms, nn_name, nn_ops) {
             Ok(x) => x,
             Err(e) => return refuse(&e),
@@ -600,7 +554,6 @@ fn http_open(
         &want,
         mem_limit as usize,
         Duration::from_millis(deadline_ms),
-        model,
         Some(log),
     )
     .and_then(|s| match tls_seed {
