@@ -4,15 +4,30 @@
 c-fleet-list{display:contents;}
 
 .fleet-list{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--well);display:block;}
-/* The row is a grid whose first column is sized by its widest pool badge
+/* A row is ONE line until opened: a button carrying the box's name and, per
+   pool, its badge and % available. The name gives way (ellipsis) before the
+   chips do, so the line never wraps in the 300px aside. */
+.fleet-row{border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);}
+.fleet-row:last-child{border-bottom:0;}
+.fleet-sum{display:flex;align-items:center;gap:10px;width:100%;min-height:38px;padding:8px 14px;background:none;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer;transition:background .15s var(--ease);}
+.fleet-sum:hover{background:var(--surface);}
+.fleet-sum:focus-visible{outline:2px solid var(--jade);outline-offset:-2px;}
+.fleet-sum::before{content:"▸";flex:none;width:.8em;color:var(--text-dim);}
+.fleet-sum[aria-expanded="true"]::before{content:"▾";color:var(--jade);}
+.fleet-sum .fleet-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.fleet-chips{display:flex;align-items:center;gap:10px;flex:none;}
+.fleet-chip{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
+.fleet-chip b{font-weight:500;color:var(--text);font-variant-numeric:tabular-nums;}
+.fleet-chips .ap-badge{font-size:.6rem;padding:.1em .45em;}
+/* The opened row is a grid whose first column is sized by its widest pool badge
    ("TEE CPU", "GPU", or the rare amber "NO TEE CPU"), and each pool lays its
    [label | meter | pct] line on that same grid via subgrid, so the two pools'
    meters start on one edge whatever their pills say. A fixed label column
    either wastes the width of the widest pill on every row or lets it overflow
    into the meter. */
-.fleet-row{display:grid;grid-template-columns:max-content minmax(48px,1fr) auto;column-gap:10px;row-gap:10px;padding:12px 14px;border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);}
-.fleet-row>*{grid-column:1/-1;}
-.fleet-row:last-child{border-bottom:0;}
+.fleet-detail{display:grid;grid-template-columns:max-content minmax(48px,1fr) auto;column-gap:10px;row-gap:10px;padding:4px 14px 12px;}
+.fleet-detail[hidden]{display:none;}
+.fleet-detail>*{grid-column:1/-1;}
 .fleet-head{display:flex;align-items:center;gap:12px;}
 .fleet-name{color:var(--text);font-size:.76rem;overflow-wrap:anywhere;}
 
@@ -56,6 +71,12 @@ c-fleet-list{display:contents;}
 .fleet-foot .contract-link{min-height:24px;line-height:1;}
 .fleet-foot .fleet-refresh{line-height:1;}
 .fleet-foot:empty{display:none;}
+/* pager: five boxes a page, on the left of the foot row */
+.fleet-pager{display:inline-flex;align-items:center;gap:6px;margin-right:auto;font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);}
+.fleet-pg{min-width:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center;background:none;border:1px solid var(--line);border-radius:6px;color:var(--text-muted);font:inherit;font-size:.8rem;line-height:1;cursor:pointer;transition:color .15s var(--ease),border-color .15s var(--ease);}
+.fleet-pg:hover:not(:disabled){color:var(--jade);border-color:var(--jade-dim);}
+.fleet-pg:disabled{opacity:.4;cursor:default;}
+.fleet-pg-n{font-variant-numeric:tabular-nums;}
 .fleet-refresh{font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);background:none;border:0;padding:0;min-width:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:color .15s var(--ease);}
 .fleet-refresh:hover{color:var(--jade);}
 .fleet-refresh:disabled{opacity:.45;cursor:wait;}
@@ -69,7 +90,7 @@ c-fleet-list{display:contents;}
 
 /* host ratings: stars ride the name line, dim and small so capacity stays the
    headline; "unrated" is a statement of fact, not a call to action */
-.fleet-rating{display:inline-flex;align-items:center;gap:6px;margin-left:10px;font-size:.68rem;color:var(--text-dim);}
+.fleet-rating{display:inline-flex;align-items:center;gap:6px;font-size:.68rem;color:var(--text-dim);}
 .fleet-rating .stars{font-size:.72rem;}
 .fleet-unrated{font-family:var(--font-mono);letter-spacing:.04em;}
 
