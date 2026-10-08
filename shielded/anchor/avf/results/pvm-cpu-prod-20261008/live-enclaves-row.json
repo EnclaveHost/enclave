@@ -1,0 +1,41 @@
+{
+ "fetched": "https://api.enclave.host/enclaves",
+ "updatedAt": "2026-10-08T11:02:41.863Z",
+ "row": [
+  {
+   "endpoint": "tunnel://pixel10-pvm-cpu",
+   "id": "0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658",
+   "name": "pixel10-pvm-cpu",
+   "repo": "EnclaveHost/enclave",
+   "lastSeen": 1791457316,
+   "tunnel": true,
+   "mode": "avf",
+   "publicUrl": "https://api.enclave.host/t/pixel10-pvm-cpu",
+   "attach": "attestation",
+   "measurement": "d2538636a5f3a67f6d50e565dba2235090c958c0bb5e7c5237791345e3a46f55",
+   "tier": "pvm-cpu",
+   "pvmCpu": {
+    "runtime": "d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba",
+    "device": "",
+    "checkedAt": 1791457316171
+   },
+   "availability": {
+    "ok": true,
+    "role": "phone-anchor",
+    "name": "pixel10-pvm-cpu",
+    "phone": "Pixel 10 Pro XL",
+    "gpu": false
+   },
+   "relay": false,
+   "checkedAt": "2026-10-08T11:02:51.852Z",
+   "serving": false,
+   "eligible": false,
+   "ineligible": "pVM CPU tier: CPU-only Wasm workloads on its owner's phone, not in the app serving set",
+   "lane": "pvm-cpu"
+  }
+ ],
+ "others": [
+  "metal0",
+  "nucbox-k11"
+ ]
+}
