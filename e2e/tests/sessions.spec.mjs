@@ -29,18 +29,20 @@ test("sign in -> indicator -> /sessions -> top up -> sign out refunds and revoke
   await expect(page.locator("#wbSess")).toContainText("$0.00", { timeout: 15_000 });
   await expect(page.locator("#wbSess")).toContainText(/\d+m|1h/);
 
-  // the popover: no per-host "Host login" any more - its deployment counts load through the session, which
-  // signs the list read (EnclaveSession v1) and the relay verifies it (api.status) - no wallet prompt
+  // the dashboard's deployment list loads through the session, which signs the list read (EnclaveSession v1)
+  // and the relay verifies it (api.status) - no wallet prompt, no per-host "Host login"
   const listRead = page.waitForRequest((r) => /\/v1\/deployments\?owner=/i.test(r.url())
     && /^EnclaveSession v1 /.test(r.headers()["authorization"] || ""), { timeout: 20_000 });
-  await page.click("#walletBtn");
+  await page.goto("/dashboard.html");
   const signedList = await listRead;
   expect((await signedList.response()).status()).toBe(200);
-  await expect(page.locator("#wpBal")).toContainText("Deployments", { timeout: 15_000 });
-  await expect(page.locator("#walletPop")).not.toContainText("Host login");
 
-  // the session row is status only; Sessions sits beside Deposit, and Sign out is the only way to end it here
+  // the popover: no deployment counts and no "Host login"; the session row is status only, Sessions sits beside
+  // Deposit, and Sign out is the only way to end it here
+  await page.click("#walletBtn");
   await expect(page.locator("#wpSess")).toContainText("left", { timeout: 15_000 });
+  await expect(page.locator("#walletPop")).not.toContainText("Host login");
+  await expect(page.locator("#walletPop")).not.toContainText("Deployments");
   await expect(page.locator(".wp-fund")).toHaveText(/Deposit\s*Sessions/);
   await expect(page.locator("#wpSessTop, #wpSessEnd")).toHaveCount(0);
 

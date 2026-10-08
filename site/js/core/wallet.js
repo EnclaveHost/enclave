@@ -27,7 +27,7 @@ import { baseRpc } from "./chain.js";
 // per-tx gas limit 15.0M, nothing over 16M). Asking for more is accepted by
 // some RPCs and then never mined.
 const MAX_TX_GAS = 15_000_000n;
-import { $, $$, esc, short, lsGet, lsSet, fmtDur, copyText, showToast, emit } from "./util.js";
+import { $, $$, esc, short, lsGet, lsSet, copyText, showToast, emit } from "./util.js";
 import { qrSvg } from "../lib/qr.js";
 import { runlog } from "./runlog.js";
 
@@ -652,7 +652,6 @@ export async function renderWalletPop(){
     '<div class="wp-row"><span class="wp-k">Network</span><span class="wp-v">' + (Enclave.chainId === BASE_CHAIN ? "Base" : ("chain " + (Enclave.chainId || "–"))) + (offBase ? ' <button class="wp-mini" id="wpSwitch">switch to Base</button>' : "") + '</span></div>' +
     '<div class="wp-row"><span class="wp-k">Session</span><span class="wp-v" id="wpSess">…</span></div>' +
     '<div class="wp-bal"><div class="bl"><span>USDC balance</span><span id="wpBalUsdc">…</span></div></div>' +
-    '<div class="wp-bal" id="wpBal">loading deployments…</div>' +
     '<div class="wp-fund">' +
       '<button class="wp-mini" id="wpDep">Deposit</button>' +
       '<a class="wp-mini" id="wpSessions" href="sessions">Sessions</a>' +
@@ -669,33 +668,6 @@ export async function renderWalletPop(){
     ()  => { const u = $("#wpBalUsdc"); if (u) u.textContent = "unavailable"; });
   const s = $("#wpSwitch"); if (s) s.addEventListener("click", () => Enclave.provider && ensureBaseChainOnConnect(Enclave.provider).then(renderWalletPop));
   renderSessionRow();
-  try {
-    const dp = await deploymentCounts();
-    const rows = '<div class="bl"><span>running</span><span>' + esc(String(dp.running)) + '</span></div>'
-               + '<div class="bl"><span>awaiting payment</span><span>' + esc(String(dp.awaitingPayment)) + '</span></div>'
-               + '<div class="bl"><span>time funded</span><span>' + esc(fmtDur(dp.totalTimeRemainingSec)) + '</span></div>';
-    const el = $("#wpBal"); if (el) el.innerHTML = '<div class="bl-h">Deployments</div>' + rows;
-  } catch(e){ const el = $("#wpBal"); if (el) el.textContent = "Couldn’t load deployments: " + (e.message || e); }
-}
-
-/* The popover's deployment counts, fleet-wide: the same list the dashboard reads (the wallet session's live
-   view when there is one, else the public ledger rows for this wallet) plus the rows its session vault holds.
-   No sign-in of its own - it used to ask one box for its local summary behind a per-host login. */
-async function deploymentCounts(){
-  const res = await Enclave.listDeployments();
-  const list = Array.isArray(res) ? res : ((res && (res.deployments || res.items || res.data)) || []);
-  try {
-    const seen = new Set(list.map((d) => String(d.id).toLowerCase()));
-    for (const d of await (await import("./sessions.js")).vaultRows())
-      if (d.id && !seen.has(String(d.id).toLowerCase())) list.push(d);
-  } catch(e){ /* sessions off or unreachable: the wallet's rows still count */ }
-  const st = (d) => String((d && d.status) || "").toLowerCase();
-  return {
-    running: list.filter((d) => st(d) === "running").length,
-    awaitingPayment: list.filter((d) => st(d) === "awaiting_payment" || st(d) === "unfunded").length,
-    totalTimeRemainingSec: list.filter((d) => !/^(stopped|terminated|expired|failed|error)$/.test(st(d)))
-      .reduce((s, d) => s + (Number(d.timeRemainingSec) > 0 ? Number(d.timeRemainingSec) : 0), 0),
-  };
 }
 
 /* the popover's session row: live budget and time left, or "start". Top up and the full list live on
