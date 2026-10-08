@@ -42,7 +42,7 @@
     <div class="visual-banner">
       <c-cinematic-scene scene="host" image="assets/host-cinematic.webp" video="assets/host-cinematic.mp4"></c-cinematic-scene>
     <c-section-head eyebrow="Host an enclave" heading="Your hardware belongs on this list.">
-      <p>Enclave is a market for compute where the buyer can check what they are getting. A machine is listed at the protection level it proves, with its price beside it. Either way the ledger pays your wallet for every lease you serve, and nobody holds your earnings on your behalf.</p>
+      <p>A market for compute where buyers check what they get. Your machine is listed at the protection level it proves, at the price you set, and the ledger pays you for every lease it serves. Nobody holds your earnings on your behalf.</p>
     </c-section-head>
     </div>
 
@@ -59,11 +59,11 @@
 
       <h2>What can be listed</h2>
       <ul class="hostdoc-list">
-        <li><b>A confidential server</b>: a CPU with a hardware TEE, virtualisation available to the OS, optionally a GPU in confidential-computing mode. Tenants' memory is encrypted against your operating system and their TLS terminates inside the VM; the listing shows a jade <i>tee cpu</i> badge and the box sells the full service. The rest of this page describes it.</li>
-        <li><b>An Enclave Shield host</b>: hardware-enforced CPU isolation keeps the host OS out, even without a confidential-computing processor. GPUs outside the confidential boundary use masked, verified offload. Hosts must pass the same acceptance tests before taking tenant work.</li>
-        <li><b>Any GPU outside a confidential boundary</b>, including a card beside a confidential processor: Shield's GPU offload component applies to it regardless of the CPU or the operating system. A card operating in a supported confidential-computing mode sits inside the boundary instead. Admission reads the card's own verified protection mode, not the host, and a card outside the boundary is neither advertised nor routed until its Shield evidence verifies.</li>
+        <li><b>A confidential server</b>: a CPU with a hardware TEE, optionally a GPU in confidential-computing mode. Tenants' memory is encrypted against your operating system and their TLS terminates inside the VM. It is listed with a jade <i>tee cpu</i> badge and sells the full service; the rest of this page describes it.</li>
+        <li><b>An Enclave Shield host</b>: hardware-enforced CPU isolation keeps the host OS out, even without a confidential-computing processor. It must pass the same acceptance tests before taking tenant work.</li>
+        <li><b>Any other GPU</b>, including a card beside a confidential processor: it serves through Shield's masked offload, whatever the CPU or operating system. A card in a supported confidential-computing mode runs inside the boundary instead. Admission reads proof of the card's own mode, and a card is neither advertised nor routed until Shield's checks pass.</li>
       </ul>
-      <p>A machine that has not passed marketplace admission cannot accept general tenant work. Owner-authorized hosting is listed separately when it has active deployments; that listing does not grant marketplace admission. Eligibility is derived from verified evidence at attach, never from what a machine says about itself or what operating system it runs. Admission of a new confidential box goes through a published allowlist of measurements; the permissionless attach path switches on when that allowlist is curated. <a href="develop#contract">What each level guarantees, exactly →</a></p>
+      <p>Eligibility comes from proof checked at attach, never from what a machine says about itself or which operating system it runs. A machine takes general tenant work only after marketplace admission, which for a new confidential box means a published allowlist of measurements. Owner-authorized hosting is listed separately when it has active deployments and does not grant admission. <a href="develop#contract">What each level guarantees, exactly →</a></p>
 
       <h2>What a confidential server needs</h2>
       <ul class="hostdoc-list">
@@ -90,7 +90,7 @@ enclave host install   <span class="c"># run it under systemd instead, enabled a
       </div>
 
       <h2>Getting paid</h2>
-      <p>Once the box has gas, it registers itself and starts claiming funded deployments from the queue. The ledger escrows the runner share of what each deployment pays and credits it to your operator key for the time you actually hold the lease, and it sweeps to whatever wallet you named when the balance clears the payout threshold. Nobody holds your earnings on your behalf.</p>
+      <p>Once the box has gas, it registers itself and claims funded deployments from the queue. The ledger escrows the runner share of each payment, credits your operator key for the time you actually hold the lease, and sweeps the balance to the wallet you named once it clears the payout threshold.</p>
       <pre class="hostdoc-code"><code>enclave host fund --eth 0.002   <span class="c"># gas the box, one signed transfer</span>
 enclave host status             <span class="c"># gas left, serving or not, earnings accrued</span></code></pre>
       <p>You set your own price. A box can name what it charges per hour for a full node and, if it has one, a full card. It then refuses work paying less than that, and the number is published alongside its capacity so buyers can see it.</p>
@@ -99,7 +99,7 @@ enclave host status             <span class="c"># gas left, serving or not, earn
       <h2>What tenants get, and what you can see</h2>
       <p>Apps that land on a confidential server run inside the confidential VM, and the memory of that VM is encrypted by the processor against your operating system and every process on it, root included. You host the work without being able to read it. Their TLS terminates inside the enclave too, so traffic passes through your machine as ciphertext.</p>
       <p>That cuts both ways, and it is the point: buyers do not have to trust you, so they do not have to know who you are. What they check is the attestation your box produces, against the measurement of a published release.</p>
-      <p>One limit is stated to buyers rather than hidden from them: the processor defends memory against software, not against someone with physical access and lab equipment on the memory bus, and a seller does have physical access to their own machine. Buyers who need to exclude that adversary see who runs each host and choose accordingly. <a href="develop#contract">The limit, in the architecture notes →</a></p>
+      <p>One limit is told to buyers, not hidden: the processor defends memory against software, not against physical attacks with lab equipment, and you have physical access to your own machine. Buyers who need to rule that out see who runs each host and choose accordingly. <a href="develop#contract">The limit, in the architecture notes →</a></p>
 
       <h2>Read the details</h2>
       <p>The full protocol, the trust argument and the operator notes live with the code:</p>

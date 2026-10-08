@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark" />
 <meta name="theme-color" content="#070A0F" />
 <title>Enclave · Compute That Cannot See Your Data</title>
-<meta name="description" content="Compute that cannot see your data. Package an app once and run it on independent hosts: on confidential hardware the host is locked out and proves it in your browser; every other host states its protection level. Pay per second from a wallet, whether you are a person or an agent." />
+<meta name="description" content="Compute that cannot see your data. Package an app once, run it on hosts that prove their protection in your browser, and pay per second." />
 <link rel="canonical" href="https://enclave.host/" />
 <meta name="robots" content="index,follow,max-image-preview:large" />
 <meta property="og:site_name" content="Enclave" />
@@ -14,7 +14,7 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://enclave.host/" />
 <meta property="og:title" content="Enclave · Compute That Cannot See Your Data" />
-<meta property="og:description" content="Portable apps, explicit protection levels, verifiable execution, independent infrastructure. Deploy a WebAssembly app from your browser or an agent, pay per second, and verify the host before you send a byte." />
+<meta property="og:description" content="Deploy a WebAssembly app from your browser or an agent, check the host before you send a byte, and pay per second." />
 <meta property="og:image" content="https://enclave.host/assets/og.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
@@ -121,7 +121,7 @@
     <div class="hero-copy">
       <span class="eyebrow">Verifiable compute · API v1</span>
       <h1>Compute that<br><span class="hl">cannot see</span><br>your data.</h1>
-      <p class="lede">Your apps. Your data. <b>Your boundary.</b><br>Run one portable app across independent hosts. Verify its protection before you connect. Pay only for the compute you use.</p>
+      <p class="lede">Your apps. Your data. <b>Your boundary.</b></p>
       <p class="hero-detail">Hardware isolation keeps the ordinary host OS out. Confidential hardware also protects against the machine’s operator.</p>
       <div class="hero-cta">
         <a href="apps" class="btn btn-primary">Deploy an app <span class="arr" aria-hidden="true">→</span></a>
@@ -142,33 +142,33 @@
 <!-- ===================== WHAT YOU GET ===================== -->
 <section id="why" data-view="overview" aria-label="What you get">
   <div class="wrap">
-    <c-section-head eyebrow="What you get" heading="Portable apps. One isolation contract. Verifiable execution. Independent infrastructure.">
-      <p>One app bundle across independent hosts. <b>Enclave Shield</b> combines CPU isolation with protected GPU compute; confidential hardware adds protection from the machine’s operator. <a href="develop#architecture">The architecture, in full ↗</a></p>
+    <c-section-head eyebrow="What you get" heading="One build. Every backend. Nothing taken on faith.">
+      <p><a href="develop#architecture">The architecture, in full ↗</a></p>
     </c-section-head>
     <div class="cards">
       <div class="card jade">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></div>
         <span class="tag">one bundle</span>
         <h3>Portable</h3>
-        <p>Build a WebAssembly component once. The architecture is one portable app bundle and one versioned domain contract, the same on every backend, so the host's operating system is an implementation detail and never a rewrite. One build runs on every backend.</p>
+        <p>Build a WebAssembly component once and it runs on every backend. The host's operating system is an implementation detail, never a rewrite.</p>
       </div>
       <div class="card iris">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/><path d="M8 12h8M12 8v8"/></svg></div>
         <span class="tag">CPU + GPU protection</span>
         <h3>Enclave Shield</h3>
-        <p>Our proprietary CPU isolation keeps the host OS out. Masked, verified offload protects data on GPUs outside the confidential boundary. Across operating systems. <a href="#protection">The contract →</a></p>
+        <p>Our proprietary CPU isolation keeps the host OS out of your app. Masked offload protects your data on GPUs outside the confidential boundary. <a href="#protection">How Shield works →</a></p>
       </div>
       <div class="card jade">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg></div>
         <span class="tag">proof, not promises</span>
         <h3>Verifiable</h3>
-        <p>The chain from the silicon to the exact app bytes is checkable in your browser before you connect: hardware report, measured runtime, public release, content hash. The same check runs from the CLI and from an agent's tool call. <a href="#attest">Run it now →</a></p>
+        <p>Check the chain from the silicon to your app's exact bytes before you connect, in your browser, from the CLI, or in an agent's tool call. <a href="#attest">Run it now →</a></p>
       </div>
       <div class="card amber">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.9l7.6-3.8M8.2 13.1l7.6 3.8"/></svg></div>
         <span class="tag">no gatekeeper</span>
         <h3>Independent</h3>
-        <p>The catalog, the deployment ledger and payment live in public contracts; app bundles are content-addressed; the source is public; hosts are independent machines paid on chain. The platform is designed to outlive any one company or domain, and the page behind this card says which parts run on ours. <a href="develop#independent">What still runs on our servers →</a></p>
+        <p>Catalog, ledger and payments run on public contracts. Apps are content-addressed, the source is open, and hosts are run by their owners. Designed to outlive any one company, ours included. <a href="develop#independent">What still runs on our servers, listed honestly →</a></p>
       </div>
     </div>
   </div>
@@ -177,28 +177,28 @@
 <section id="who" data-view="overview" class="section-wash" aria-label="Who it is for">
   <div class="wrap">
     <c-section-head eyebrow="Who it is for" heading="Anything holding a key is a customer.">
-      <p>Four ways in, one identity: a key you hold. No accounts, no approvals, and no step that assumes a human is at the keyboard.</p>
+      <p>Four ways in, one identity. No accounts, no approvals.</p>
     </c-section-head>
     <div class="cards">
       <div class="card jade">
         <span class="tag">deployers</span>
         <h3>Use an app</h3>
-        <p>Pick an app from the store, fund it, use it: a private chat with a model, an image generator, a game server, a tool you would not hand your data to anywhere else. The protection level is on the listing and the receipt is on chain. <a href="apps">Browse the store →</a></p>
+        <p>Pick an app, fund it, use it: a private model chat, an image generator, a game server, any tool you would not trust with your data anywhere else. <a href="apps">Browse the store →</a></p>
       </div>
       <div class="card iris">
         <span class="tag">publishers</span>
         <h3>Publish an app</h3>
-        <p>Ship a WebAssembly component to the on-chain catalog, set an hourly fee if you like, and get paid straight to your wallet every time someone funds it. Publishing takes a minute from the browser or the CLI. <a href="develop">The developer guide →</a></p>
+        <p>Ship a WebAssembly component to the catalog in a minute, set an hourly fee if you like, and get paid every time someone funds it. <a href="develop">The developer guide →</a></p>
       </div>
       <div class="card jade">
         <span class="tag">hosts</span>
         <h3>Sell your hardware</h3>
-        <p>Register a machine you own, claim funded work, and be paid on chain for every lease you serve. A host proves the isolation contract with verified evidence when it attaches; confidential hardware proves it with the processor's own report. <a href="host">Host an enclave →</a></p>
+        <p>Register a machine you own and get paid for every lease it serves. Your machine proves its protection when it attaches, so buyers never have to take your word for it. <a href="host">Host an enclave →</a></p>
       </div>
       <div class="card amber">
         <span class="tag">agents</span>
         <h3>Drive it with a key</h3>
-        <p>Everything a person can do here, an agent can do with a key: browse, deploy, fund, verify, all over REST and MCP. Transactions come back unsigned for the agent's own wallet, and no flow requires a human. <a href="develop#mcp">The MCP server →</a></p>
+        <p>Everything a person can do here, an agent can do over REST and MCP: browse, deploy, fund, verify. No step assumes a human. <a href="develop#mcp">The MCP server →</a></p>
       </div>
     </div>
   </div>
@@ -207,7 +207,7 @@
 <section id="how" data-view="overview" aria-label="How it works">
   <div class="wrap">
     <c-section-head eyebrow="Lifecycle" heading="Five calls, start to finish.">
-      <p>The path from zero to a verified endpoint. Click a step to see exactly what crosses the wire.</p>
+      <p>From zero to a live endpoint you have checked. Click a step to see what crosses the wire.</p>
     </c-section-head>
     <c-flow></c-flow>
   </div>
@@ -221,29 +221,29 @@
         <span class="eyebrow">The isolation contract</span>
         <h2 id="protection-title">One contract.<br>Two paths to isolation.</h2>
       </div>
-      <p>Every app gets its own hardware-enforced boundary. Enclave Shield keeps the host operating system out. Confidential hardware adds protection from the machine’s operator.</p>
+      <p>Both paths give every app its own hardware domain. They differ in who is kept out.</p>
     </div>
 
     <div class="protection-paths">
       <article class="protection-path protection-shield">
         <div class="protection-label"><span class="protection-dot"></span>Enclave Shield</div>
         <h3>Your app, isolated<br>from the host OS.</h3>
-        <p class="protection-description">Hardware-enforced app isolation across operating systems, including CPUs without confidential-computing support.</p>
+        <p class="protection-description">Works on any operating system, including CPUs without confidential-computing support.</p>
         <ul class="protection-features">
-          <li>Each app runs in its own hardware domain.</li>
-          <li>A measured trusted layer enforces the boundary.</li>
+          <li>A measured trusted layer enforces each app’s domain.</li>
           <li>App identity, keys, and traffic stay bound together.</li>
+          <li>No software-only fallback.</li>
         </ul>
         <p class="protection-boundary"><span>Protects against</span>The host operating system.<small>Does not add protection from the machine’s owner.</small></p>
       </article>
       <article class="protection-path protection-confidential">
         <div class="protection-label"><span class="protection-dot"></span>Confidential hardware</div>
         <h3>The same isolation.<br>A deeper boundary.</h3>
-        <p class="protection-description">The same per-app contract, with processor-backed protection for memory against the machine’s operator.</p>
+        <p class="protection-description">Adds processor-backed memory protection against the machine’s operator.</p>
         <ul class="protection-features">
           <li>Encrypted, integrity-protected memory.</li>
-          <li>Processor-signed evidence you verify before connecting.</li>
-          <li>TLS terminates inside the protected boundary.</li>
+          <li>A processor-signed report you check before connecting.</li>
+          <li>TLS terminates inside the enclave.</li>
         </ul>
         <p class="protection-boundary"><span>Protects against</span>The host OS and operator software.<small>Physical attacks with lab equipment are outside this claim.</small></p>
       </article>
@@ -251,33 +251,33 @@
 
     <div class="protection-gpu">
       <div class="protection-gpu-intro">
-        <span class="eyebrow">Enclave Shield · GPU protection</span>
+        <span class="eyebrow">GPU protection</span>
         <h3>GPU power.<br>Protected data.</h3>
-        <p>The GPU’s verified mode determines its protection, independently of the CPU.</p>
+        <p>Each card is protected according to its own proven mode, whatever the CPU.</p>
       </div>
       <div class="protection-gpu-modes">
         <div class="protection-gpu-mode">
           <span class="protection-mode-icon" aria-hidden="true">↳</span>
-          <div><h4>Confidential GPU</h4><p>A GPU in a supported confidential-computing mode runs inside the verified boundary.</p></div>
+          <div><h4>Confidential GPU</h4><p>In a supported confidential-computing mode, the card runs inside the enclave.</p></div>
         </div>
         <div class="protection-gpu-mode">
           <span class="protection-mode-icon" aria-hidden="true">↳</span>
-          <div><h4>Other GPUs · Enclave Shield</h4><p>Masked inputs. Verified results. No plaintext protected state. Access requires verified Shield evidence.</p></div>
+          <div><h4>Other GPUs · Enclave Shield</h4><p>Masked inputs. Checked results. No plaintext protected state. No work is routed to the card until Shield’s checks pass.</p></div>
         </div>
       </div>
     </div>
 
     <div class="protection-assurance">
-      <p>One standard on every OS. Hardware-enforced isolation, verified evidence, and no software-only fallback.</p>
-      <a href="develop#contract">Explore the isolation contract <span aria-hidden="true">↗</span></a>
+      <p>One standard on every operating system.</p>
+      <a href="develop#contract">The full contract <span aria-hidden="true">↗</span></a>
     </div>
     <details class="protection-details">
       <summary>Security boundaries &amp; verification requirements<span aria-hidden="true">+</span></summary>
       <div class="protection-details-body">
-        <h4>Enclave Shield</h4><p>Enclave Shield is the protection technology for machines without confidential-computing hardware. Its host isolation component is hardware-enforced per-app CPU isolation: every app runs in its own domain, kept out of the machine's ordinary operating system by a smaller, measured trusted layer that the hardware's virtualization enforces, and the same guarantee holds on every operating system, because the operating system is an implementation backend and never the boundary. The app's identity is measured, its attestation names exactly that identity, its keys and traffic are bound to it, verification fails closed, and a domain that ends leaves nothing behind. There is no software-only fallback. What Shield does not add is the separate guarantee a confidential processor gives, that the machine's owner cannot inspect the data. A host is listed on Shield only after it passes the common acceptance tests.</p>
-        <h4>Confidential hardware</h4><p>On a confidential processor the same contract gains memory that is encrypted and integrity-protected against the whole machine, operator included, and a report signed by the processor and chained to the silicon vendor that you verify before connecting; TLS terminates inside. Each app keeps its own hardware domain here too; the processor adds the boundary around the whole machine.</p>
-        <h4>GPU admission</h4><p>Shield's second component is <b>masked, verified GPU offload for any GPU that does not support, or is not operating in, confidential-computing mode</b>. The card sees only masked inputs, returns results that are verified before use, and never receives plaintext protected state. It applies wherever a GPU sits outside the confidential boundary, even when the app runs inside a confidential processor; a GPU operating in a supported confidential-computing mode sits inside the boundary and does not need it. In Enclave's architecture this is the only supported way to expose such a card: admission reads explicit, verified evidence of the card's protection mode, never the CPU, the host, or the absence of a field, and a card outside the boundary is neither advertised nor routed until its Shield evidence verifies. On a machine without confidential-computing hardware both components together are Enclave Shield protection.</p>
-        <h4>Scope and limitations</h4><p>Nothing here is described as unable to see your data unless hardware enforces it and a verified report says so. A confidential processor defends memory against <b>software</b>, not against someone with physical access and lab equipment on the memory bus, and a self-hosted seller does have physical access to their own machine. A machine that meets part of the isolation contract, a test-signed trusted layer, a key or traffic path that runs through the host, a report signed by software the host controls, is not a level for sale and is not listed. Exactly which hosts are attached, and what each has proven, is the live fleet panel and the dated evidence note on the architecture page, never this paragraph. There is no lower level: ordinary virtualization with the host operating system in charge is a lab baseline, never something we build, list, route work to, or sell. <a href="develop#contract">The contract, property by property →</a></p>
+        <h4>Enclave Shield</h4><p>Shield protects machines without confidential-computing hardware. Each app runs in its own domain, kept apart from the host OS by a smaller, measured trusted layer that the hardware's virtualization enforces. The app's identity is measured and its keys and traffic are bound to it. Checks fail closed, and a finished domain leaves nothing behind. Shield does not stop the machine's owner from inspecting data; only a confidential processor adds that. A Shield host is listed only after it passes the common acceptance tests.</p>
+        <h4>Confidential hardware</h4><p>Each app keeps its own domain, and the processor adds a boundary around the whole machine: memory is encrypted and integrity-protected against everything outside it, operator included. Before connecting, you check a report signed by the processor and chained to the silicon vendor.</p>
+        <h4>GPU admission</h4><p>A GPU in a supported confidential-computing mode runs inside the boundary. Any other GPU, even one beside a confidential processor, is used only through <b>Shield's masked offload</b>: the card sees masked inputs, its results are checked before use, and it never receives plaintext protected state. Admission reads proof of the card's own mode, never the CPU, the host, or a missing field. Until that proof checks out, the card is neither advertised nor routed.</p>
+        <h4>Scope and limitations</h4><p>Nothing here is called unable to see your data unless hardware enforces it and a signed report says so. A confidential processor defends memory against <b>software</b>, not against physical attacks with lab equipment, and a self-hosted seller has physical access to their own machine. A machine that meets only part of the contract is not listed, and ordinary virtualization with the host OS in charge is never built, listed, or sold. Which hosts are attached, and what each has proven, is on the live fleet panel and in the dated evidence note on the architecture page. <a href="develop#contract">The contract, property by property →</a></p>
       </div>
     </details>
   </div>
@@ -286,7 +286,7 @@
 <section id="attest" data-view="overview" aria-label="Attestation">
   <div class="wrap">
     <c-section-head eyebrow="Root of trust" heading="The proof, not the promise.">
-      <p>"Verifiable" is a chain of measurements that ends in your browser. Walk each link to see what gets checked and why the operator cannot fake it, then run the check yourself against a live host.</p>
+      <p>A chain of measurements that ends in your browser. Walk each link, then run the check yourself against a live host.</p>
     </c-section-head>
     <c-attest-chain></c-attest-chain>
     <div class="verification-stage"><c-enclave-panel></c-enclave-panel><c-live-verify></c-live-verify></div>
@@ -300,7 +300,7 @@
       <div class="pricing-intro">
         <span class="eyebrow">Pricing</span>
         <h2>Your workload.<br><span>Your choice of host.</span></h2>
-        <p>Independent hosts set their own rates. Find the hardware and protection your app needs, choose your resources, and see the price before you pay.</p>
+        <p>Hosts set their own rates. Pick the hardware and protection your app needs and see the price before you pay.</p>
         <div class="pricing-actions">
           <a class="btn btn-primary" href="apps">Find an app <span class="arr" aria-hidden="true">→</span></a>
           <a class="pricing-text-link" href="develop#fleet">Explore hosts <span aria-hidden="true">↗</span></a>
@@ -335,10 +335,10 @@
     <details class="pricing-billing">
       <summary>How billing works <span aria-hidden="true">+</span></summary>
       <div class="pricing-billing-copy">
-        <p><b>Rates come from the host.</b> Your compute rate reflects your CPU and GPU shares at that host’s posted rates, plus any app publisher fee. Available hardware and capacity vary by host; the deployment flow shows your rate before funding.</p>
-        <p><b>Payments buy runtime.</b> Prepaid time is metered by the second. Payments are final and unused time cannot be withdrawn; it stays on the deployment’s public record so you can stop and resume later. Fund in small top-ups.</p>
-        <p><b>Resources follow your app.</b> App requirements set minimum allocations. GPU resources require an available GPU host. Resource shares are software-enforced allocations; they do not themselves create hardware isolation. <a href="develop#contract">Understand the protection boundary →</a></p>
-        <p><b>The quote includes billing precision.</b> Per-second rates are rounded up to whole millionths of a dollar. Any publisher fee is shown before payment and paid to the app’s publisher.</p>
+        <p><b>Rates come from the host.</b> Your rate is your CPU and GPU shares at that host’s posted rates, plus any publisher fee, which goes to the app’s publisher. You see it before you fund.</p>
+        <p><b>Payments buy runtime.</b> Prepaid time is metered by the second. Payments are final and unused time cannot be withdrawn, but it stays on the deployment’s public record so you can stop and resume later. Fund in small top-ups.</p>
+        <p><b>Resources follow your app.</b> Each app sets minimum allocations, and GPU work needs an available GPU host. Shares are software-enforced allocations; they do not by themselves create hardware isolation. <a href="develop#contract">What does →</a></p>
+        <p><b>Rates round up.</b> Per-second rates are rounded up to whole millionths of a dollar.</p>
         <a class="pricing-text-link" id="priceAddrLink" target="_blank" rel="noopener" aria-label="View the EnclaveDeployments contract on Basescan">View the billing contract <span aria-hidden="true">↗</span></a>
       </div>
     </details>
@@ -348,14 +348,14 @@
 <section id="about" data-view="overview" style="border-top:1px solid var(--line-soft);" aria-label="About the company">
   <div class="wrap">
     <c-section-head eyebrow="The company" heading="Who's behind this.">
-      <p>Enclave is designed so you never have to take the operator's word for anything, but you should still know whose word you are not taking. Enclave is built and operated today by <b>Enclave Host,&nbsp;Inc.</b></p>
+      <p>Enclave is designed so you never have to take the operator's word for anything. You should still know whose word you are not taking: <b>Enclave Host,&nbsp;Inc.</b></p>
     </c-section-head>
 
     <div class="cards about-cards">
       <div class="card jade">
         <span class="tag">the operator</span>
         <h3>Enclave Host, Inc.</h3>
-        <p>The company behind Enclave. Payments to it settle in the open on a public record, its enclaves prove what they are running before you send them a byte, and the design keeps a running deployment's dependence on the company as small as possible: public contracts, content-addressed bundles, published measurements, independent hosts. <a href="develop#independent">What still runs on our servers, listed honestly →</a></p>
+        <p>The company that builds and operates Enclave. Payments to it settle on a public record, and its enclaves prove what they run before you send them a byte.</p>
         <div class="about-links">
           <a class="btn btn-ghost" href="https://github.com/EnclaveHost/enclave" target="_blank" rel="noopener">Source on GitHub <span class="arr" aria-hidden="true">↗</span></a>
           <a class="btn btn-ghost" href="mailto:support@enclave.host">support@enclave.host</a>
@@ -370,7 +370,7 @@
             <span class="f-role">Founder &amp; CEO</span>
           </div>
         </div>
-        <p>Steven is a certified application architect focused on serverless architecture, with an extensive consulting background serving large enterprise clients and a passion for decentralized systems. He designs and builds Enclave hands-on: the attested enclave stack, the settlement contracts, the isolation research, and the site you are reading. Based in Arizona.</p>
+        <p>Steven is a certified application architect focused on serverless architecture, with an enterprise consulting background and a passion for decentralized systems. He builds Enclave hands-on, from the attested enclave stack and settlement contracts to the site you are reading. Based in Arizona.</p>
         <div class="about-links">
           <a class="btn btn-ghost" href="https://www.linkedin.com/in/steven-batchelor-50791627/" target="_blank" rel="noopener">LinkedIn <span class="arr" aria-hidden="true">↗</span></a>
         </div>
