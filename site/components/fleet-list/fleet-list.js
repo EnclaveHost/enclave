@@ -85,7 +85,7 @@ class FleetList extends EnclaveElement {
       return stat(value(gpu.availableTflops), value(gpu.tflops), '',
         gpu.basis === 'measured' ? 'tflops equiv. available' : 'tflops available', title);
     };
-    const cpuComputeStat = (a, fraction) => {
+    const cpuComputeStat = (a, fraction, title) => {
       const number = v => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null;
       const total = number(a.nodeGflops), share = number(fraction);
       // Use this host's GFLOPS report, never a conversion from vCPUs or
@@ -93,7 +93,7 @@ class FleetList extends EnclaveElement {
       const available = number(a.cpuGflopsFree)
         ?? (total !== null && share !== null ? total * Math.min(1, share) : null);
       const value = v => v === null ? '—' : fmtNum(v);
-      return stat(value(available), value(total), '', 'gflops available',
+      return stat(value(available), value(total), '', 'gflops available', title ||
         'Reported CPU compute capacity in GFLOPS (billions of floating-point operations per second). '
         + 'Available capacity follows unallocated CPU shares, not instantaneous processor activity.');
     };
@@ -279,7 +279,9 @@ class FleetList extends EnclaveElement {
       const ramFree = typeof a.ramGbFree === 'number' ? a.ramGbFree : (ramGb !== null && cFree !== null ? cFree * ramGb : null);
       const value = v => v === null ? '—' : fmtNum(v);
       const badge = '<span class="ap-badge warn" title="The relay verified this phone\u2019s protected-VM attestation chain when it attached and admitted its capability report: a CPU-only Wasm runtime, no model, no accelerator. Its size is the VM\u2019s own, from that signed report.">pvm cpu</span>';
-      const stats = stat(value(ramFree), value(ramGb), 'GB', 'ram available') + cpuComputeStat(a, cFree);
+      const stats = stat(value(ramFree), value(ramGb), 'GB', 'ram available') + cpuComputeStat(a, cFree,
+        'GFLOPS measured inside the protected VM under the same runtime its apps get (an exactly counted f32 multiply-add '
+        + 'workload on every vCPU at once), reported in its signed capability report. Not a native-core estimate.');
       const name = e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "host";
       return '<div class="fleet-row fleet-pvm-row" title="' + esc(e.endpoint || "") + '">'
         + '<span class="fleet-head"><span class="fleet-name">' + esc(name) + '</span>' + this._ratingHtml(e) + '</span>'
