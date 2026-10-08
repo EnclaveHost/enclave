@@ -299,7 +299,7 @@ export async function createProofAgent({ config, publicClient, account, stateDir
     const [d, provenUntil, reg, rec, windowSec] = await Promise.all([read(addrs.deployments, LEDGER_ABI, "get", [D]), read(addrs.deployments, LEDGER_ABI, "provenUntil", [D]),
       read(addrs.registry, REGISTRY_ABI, "get", [E]), read(addrs.proofOfTime, POT_ABI, "recordOf", [D]), read(addrs.proofOfTime, POT_ABI, "proofWindowSec")]);
     return { head, headTs: BigInt(head.timestamp), runner: lc(d.runner), runnerOperator: lc(d.runnerOperator), active: d.active, leaseUntil: BigInt(d.leaseUntil),
-             rate: BigInt(d.rate), balance6: BigInt(d.balance6),
+             rate: BigInt(d.rate), balance6: BigInt(d.balance6), gpuMilli: Number(d.gpuMilli),
              provenUntil: BigInt(provenUntil), regProofKey: lc(reg.proofKey), regOperator: lc(reg.operator), regActive: reg.active,
              regExists: lc(reg.operator) !== ZERO, regLastSeen: BigInt(reg.lastSeen), regRepo: reg.repo, regMeasurement: reg.measurement, regCpuPrice6: BigInt(reg.cpuPricePerSec6),
              regEndpointId: reg.endpoint ? keccak256(stringToBytes(reg.endpoint)) : null, lastProofAt: BigInt(rec[0]), windowSec: BigInt(windowSec) };

@@ -71,6 +71,8 @@ lifecycle transaction, settled before anything else:
    - Open, and `claim` configured: `claim`, after a simulation (which refuses an unfunded, capped or already-taken
      deployment with the ledger's own reason) and the attested statement naming THIS deployment. Open means unleased, or our own lease lapsed, which is re-claimed in place.
    - A bond the owner did not authorize: `bond-required`, and no claim.
+   - A deployment asking for any GPU share (`gpuMilli > 0`): `not-cpu-only`, and no claim. The pVM tier takes CPU-only
+     workloads (Steven, 10-08); its entry offers no GPU price either.
    - Another runner's live lease: nothing.
 3. **The heartbeat**, if the entry is active and `now - lastSeen >= heartbeatSec` (default 900, as supervisor.js).
 4. **Earnings:** `withdrawEarnings(payout.to)` once `earned6` reaches the owner's `payout.minWithdraw6`. The event must
@@ -328,6 +330,7 @@ stop-with-release after a final proof. They share one journal with the checkpoin
   - another operator's endpoint, a missing or deactivated entry (not revived, no heartbeat), and an old key replaced by
     the attested one;
   - an unauthorized bond, and a claim race lost at simulation (nothing sent);
+  - a deployment asking for a GPU share is never claimed (nothing sent; mutation R17);
   - a lease whose app stopped serving left to lapse, then re-claimed;
   - a mined call without its event, recorded as a failure;
   - interruptions: a claim, a renew and a release each journaled but never delivered, each delivered ONCE after a

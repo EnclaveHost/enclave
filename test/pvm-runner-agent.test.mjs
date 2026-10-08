@@ -34,13 +34,13 @@ function startCarrier(vm) {
   return new Promise((r) => srv.listen(0, "127.0.0.1", () => r({ url: `http://127.0.0.1:${srv.address().port}/evidence`, state, close: () => srv.close() })));
 }
 
-async function setup() {
+async function setup({ gpuMilli = 0 } = {}) {
   const V = await import("viem"), { privateKeyToAccount, generatePrivateKey } = await import("viem/accounts");
   const dir = tmpdir("pvm-runner-"), ca = makeCa(dir);
   const operatorKeyHex = generatePrivateKey(), operator = privateKeyToAccount(operatorKeyHex);   // a fresh test key per setup
   const chain = await startLeaseChain({ operatorAccount: operator, addressBook: true });
   const enclaveId = V.keccak256(V.stringToBytes(ENDPOINT));
-  const D = await chain.createFunded(), pins = chain.pins(D, enclaveId);
+  const D = await chain.createFunded({ gpuMilli }), pins = chain.pins(D, enclaveId);
   const vm = await startFakeVm({ dir, ca, code: CODE, appId: APP, instance: newInstance(), proofSeed: Buffer.from(sha(`runner seed ${D}`), "hex"), proofPins: pins, checkpointEveryMs: 10 });
   const carrier = await startCarrier(vm);
   const proof = { format: AGENT_CONFIG_FORMAT, chainId: String(chain.chainId), addressBook: chain.addresses.addressBook.toLowerCase(), deployment: D, endpoint: ENDPOINT,
@@ -324,6 +324,22 @@ test("the claim: an unauthorized bond, another runner's live lease, and a claim 
     assert.equal(c.lifecycle, null, JSON.stringify(c));
     assert.equal(c.proof.kind, "not-our-lease");
     assert.equal(await S.count("ledger", "Claimed"), 1, "only the other runner's claim");
+  } finally { if (r) r.close(); S.stop(); }
+});
+
+test("a pVM runner never claims a deployment that asks for a GPU share: CPU-only workloads only",
+     { skip, timeout: 180000 }, async () => {
+  const S = await setup({ gpuMilli: 1000 });
+  let r;
+  try {
+    r = await S.runnerOf(); await r.start();
+    assert.match((await r.tick()).lifecycle.op, /^register/);
+    const n0 = await S.nonceOf();
+    const a = await r.tick();
+    assert.equal(a.lifecycle.kind, "not-cpu-only", JSON.stringify(a));
+    assert.match(a.lifecycle.reason, /asks gpuMilli 1000: a pVM runner takes CPU-only workloads/);
+    assert.equal(await S.nonceOf(), n0, "nothing is sent");
+    assert.equal(await S.count("ledger", "Claimed"), 0);
   } finally { if (r) r.close(); S.stop(); }
 });
 

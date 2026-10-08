@@ -114,6 +114,8 @@ export async function createRunnerAgent({ config, publicClient, account, stateDi
         else return agent.sendCall({ op: "renew", contract: "deployments", functionName: "renew", args: [D], event: "Renewed", eventId: D });
       }
     } else if (s.active && L.claim && s.headTs > s.leaseUntil) {   // open: never leased, released, or a lapsed lease (ours re-claimed in place)
+      // a pVM runner takes CPU-only workloads (PVM-CPU.md): a deployment asking for ANY GPU share is never claimed here
+      if (s.gpuMilli !== 0) return { kind: "not-cpu-only", stop: true, reason: `the deployment asks gpuMilli ${s.gpuMilli}: a pVM runner takes CPU-only workloads (gpuMilli 0); not claiming` };
       const bond = BigInt(await agent.readLedger("claimBond6", []));
       if (bond > 0n) {
         const [have, exitAt] = await agent.readLedger("bondOf", [me]);
