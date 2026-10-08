@@ -204,6 +204,6 @@ test("the fleet list renders pVM hosts with the same availability pool as other 
   assert.match(block, /fleet-pvm-row/);
   assert.match(block, /Not taking deployments yet/);
   assert.match(block, /pool\(badge, Math\.floor\(cFree \* 100\), stats, null\)/, "the same pool (meter, % available, cells) as every CPU row, with no price");
-  assert.match(block, /cpuComputeStat\(a, cFree\)/, "and the same gflops cell");
+  assert.match(block, /cpuComputeStat\(a, cFree,/, "and the same gflops cell (with its own source note)");
   assert.doesNotMatch(block, /perHr|enclavePriceOf/, "no rental price on a host that takes no deployments");
 });
