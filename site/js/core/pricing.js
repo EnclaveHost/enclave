@@ -473,6 +473,24 @@ export function ownerHostVisibleTo(row, address, nowSec){
     && Number.isFinite(Number(s.expires)) && Number(s.expires) > now);
 }
 
+// The pVM CPU tier (shielded/anchor/avf/PVM-CPU.md): a phone whose protected VM the relay attested and whose CPU-only
+// capability report it admitted - the row's lane, stamped by the relay from its own verdict, never the box's word. Display-only
+// status inventory: it never enters marketplace eligibility, pricing or placement (a pVM is not in the app serving set yet).
+export function pvmHostVisible(row, nowSec){
+  if (!row || row.relay === true || row.tunnel !== true || row.mode !== "avf" || row.lane !== "pvm-cpu" || row.tier !== "pvm-cpu") return false;
+  if (row.availability?.ok === false) return false;
+  const now = Number.isFinite(nowSec) ? nowSec : Math.floor(Date.now() / 1000);
+  const seen = Number(row.lastSeen);
+  return Number.isFinite(seen) && seen > 0 && now - seen <= HOST_STALE_AFTER_SEC;
+}
+// The VM's size as its signed capability report states it (the relay verified the signature); unknown stays null.
+export function pvmHostVm(row){
+  const vm = row?.pvmCpu?.vm || {};
+  const n = v => Number.isInteger(v) && v > 0 ? v : null;
+  const memMib = n(vm.memMib);
+  return { threads: n(vm.threads), memGb: memMib === null ? null : Math.round(memMib / 102.4) / 10 };
+}
+
 // Capacity shown for owner-only hosts uses only that host's reported pool.
 // Missing values remain unknown; never substitute the marketplace's server spec.
 export function ownerHostCpuCapacity(row){
