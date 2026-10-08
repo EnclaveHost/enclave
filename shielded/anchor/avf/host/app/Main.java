@@ -129,7 +129,7 @@ public class Main extends Activity {
         String appGraph = "";                // --es app_graph <name>: the component runs over the staged model (LOCAL line + APP graph=), wasi:nn
         String appHttp = "";                 // --es app_http "/ping|/?q=1": a wasi:http app (APP serve=http); these GETs are sent to it, then STOP
         int appTls = 0;                      // --ei app_tls 1: LAB serving prototype: APP serve=https (TLS in the VM), reached only through the relay
-        int appServeS = 240;                 // --ei app_serve_s N: LAB: STOP the served app after N seconds
+        int appServeS = 240;                 // --ei app_serve_s N: LAB: STOP the served app after N seconds; 0 = serve until stopped (a host in production)
         String appAnnounced = "";            // the APP line's digest (the app's identity), for the ABI/2 evidence frame
         String attachSigner = null;          // --es attach_signer <http(s) URL>: the owner's attach co-signer (RUNNER-AGENT.md "Attach")
         String proofPins = "";               // --es proof_pins "<chainId> <proofOfTime> <registry> <deployment> <enclaveId> <operator>": the lease
@@ -238,7 +238,8 @@ public class Main extends Activity {
                 else if (!p.appGraph.isEmpty() && !new java.io.File(p.model).isFile()) p.configError = "app_graph runs the app over the model, and model " + p.model + " is not a file";
                 else if (!p.appHttp.isEmpty() && !p.appArgs.isEmpty()) p.configError = "app_http serves the component over HTTP: it takes no app_args";
                 else if (p.appTls != 0 && (p.appTls != 1 || !p.appHttp.isEmpty() || !p.appArgs.isEmpty() || p.relay == null)) p.configError = "app_tls 1 (lab) serves the component over TLS through the relay: it needs --es relay and takes no app_http or app_args";
-                else if (p.appServeS < 10 || p.appServeS > 3600) p.configError = "app_serve_s must be 10..3600";
+                else if (p.appServeS != 0 && (p.appServeS < 10 || p.appServeS > 3600)) p.configError = "app_serve_s must be 0 (serve until stopped) or 10..3600";
+                else if (p.appServeS == 0 && (!p.appArgs.isEmpty() || !p.appHttp.isEmpty())) p.configError = "app_serve_s 0 serves the component until stopped: it takes no app_args or app_http test hook";
                 else if (!p.appHttp.isEmpty() && !p.appHttp.matches("(/[\\x21-\\x7e]{0,1023})(\\|/[\\x21-\\x7e]{0,1023}){0,7}")) p.configError = "app_http is 1..8 paths separated by |, each starting with / and holding no spaces or control bytes";
             }
             if (p.restarts < -1 || p.restarts > 5) p.configError = "restarts must be 0..5";
@@ -600,7 +601,7 @@ public class Main extends Activity {
                     relay.instanceKey = m.group(1); relay.instanceSig = m.group(2); }
             }
             // 4. present it; a bound tunnel keeps serving the hub in its own thread
-            if (plan.relay != null && spki != null && plan.mode.equals("app") && plan.appTls == 1) keeper = new RelayKeeper(vm, plan, spki, padKey, out);
+            if (plan.relay != null && spki != null && plan.mode.equals("app") && (plan.appTls == 1 || plan.appServeS == 0)) keeper = new RelayKeeper(vm, plan, spki, padKey, out);
             if (relay != null) {
                 JSONObject res = relay.present(certs, sig);
                 if (res != null && res.optBoolean("ok")) { final RelayAttach rr = relay; if (keeper != null) keeper.adopt(rr); new Thread(() -> rr.serve(android.os.Build.MODEL), "relay-serve").start(); }
@@ -713,7 +714,7 @@ public class Main extends Activity {
                 }
                 if (!plan.proofPins.isEmpty()) { cmd.append("PROOFPINS ").append(plan.proofPins).append('\n'); say("APP proof pins handed to the VM (it signs checkpoints for these only)"); }
                 cmd.append("APP bytes=").append(abytes).append(" sha256=").append(asha).append(aargs).append(plan.appGraph.isEmpty() ? "" : " graph=" + plan.appGraph)
-                   .append(plan.appTls == 1 ? " serve=https" : plan.appHttp.isEmpty() ? "" : " serve=http").append('\n');
+                   .append(plan.appTls == 1 ? " serve=https" : plan.appHttp.isEmpty() && plan.appServeS != 0 ? "" : " serve=http").append('\n');
                 new Thread(() -> streamPublicFile(vm, APP_PORT, plan.app, "app bundle"), "vsock-app").start();
                 say("APP plan: " + plan.app + " (" + abytes + " bytes, sha256 " + asha + (plan.appSha.isEmpty() ? "" : ", ANNOUNCED BY THE TEST HOOK, not the file's") + "), args " + (plan.appArgs.isEmpty() ? "none" : plan.appArgs));
             }
@@ -766,10 +767,16 @@ public class Main extends Activity {
                     relay.vmConnect = (port) -> connect(vm, port, 50);   // RelayAttach.portOf: the TLS app port or the evidence endpoint
                     final OutputStream o = out; final int secs = plan.appServeS;
                     say("APP https: relay streams are forwarded to the VM as ciphertext; the lab run STOPs in " + secs + " s");
-                    new Thread(() -> { try { Thread.sleep(secs * 1000L); } catch (InterruptedException ignored) { }
+                    if (secs > 0) new Thread(() -> { try { Thread.sleep(secs * 1000L); } catch (InterruptedException ignored) { }
                         try { synchronized (o) { o.write("STOP\n".getBytes()); o.flush(); } say("APP https: STOP sent (lab time limit)"); } catch (Exception e) { say("APP https: STOP not sent: " + e); } }, "app-tls-stop").start();
                 }
-                if (line.startsWith("APP serving https") && keeper != null) keeper.arm();   // REATTACH is taken only while the app serves
+                if ((line.startsWith("APP serving https") || (line.startsWith("APP serving http ") && plan.appServeS == 0)) && keeper != null) keeper.arm();   // REATTACH is taken only while the app serves
+                if (line.startsWith("APP serving ") && plan.appServeS == 0) {
+                    // serving until stopped: the VM ends a server that hears nothing for an hour, so the owner says ALIVE every 30 min
+                    final OutputStream o = out; say("APP serving until stopped (app_serve_s 0): keepalive every 30 min");
+                    new Thread(() -> { while (!sEnded) { try { Thread.sleep(30 * 60 * 1000L); } catch (InterruptedException e) { return; }
+                        if (sEnded) return; try { synchronized (o) { o.write("ALIVE\n".getBytes()); o.flush(); } } catch (Exception e) { say("APP keepalive not sent: " + e); return; } } }, "app-keepalive").start();
+                }
                 if (line.equals("END")) { sawEnd = true; break; }
             }
             say("CONTROL closed after " + n + " lines");

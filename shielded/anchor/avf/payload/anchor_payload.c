@@ -372,8 +372,10 @@ static void attest(const char *hex, const char *bound_hex) {
 #ifdef ANCHOR_TIER_PVM_CPU
 /* REATTACH <nonce> while the app serves (RUNNER-AGENT.md "Reconnect in place"): the relay's NEW connection nonce is the only
  * input; anchor_reattach.h builds this VM's own transcript from its boot keys (rate-bounded), and a NEW certificate over it
- * follows, framed "REATTACH begin" .. "REATTACH end". The tier's caps state (the attach time, the caps nonce) is not touched. */
+ * follows, framed "REATTACH begin" .. "REATTACH end". The tier's capability report is bound to the NEW nonce and sent inside the
+ * frame ("REATTACH CAPS ..."): the hub admits the tier per attach, so a tunnel re-attached in place keeps it only this way. */
 static anchor_reattach_ctx g_reattach;   /* armed at boot, once the transport, pad and instance keys exist */
+static void caps_v2_emit(const char *tag);
 static void reattach(const char *arg, size_t len) {
     uint8_t B[SH_AVF_PAD_BINDING_LEN], isig[64], ch[32]; int has_isig = 0;
     OUT("REATTACH begin");
@@ -383,6 +385,9 @@ static void reattach(const char *arg, size_t len) {
     if (has_isig) instance_attach_out(isig);
     sha256(B, sizeof B, ch);
     attest_certify(ch, B, sizeof B, 1);
+    memcpy(g_caps_nonce, B + sizeof B - 32, 32); g_caps_nonce_kind = 2;   /* the relay's new nonce closes the transcript */
+    g_caps_attach_ms = boot_ms();
+    caps_v2_emit("REATTACH CAPS");
     OUT("REATTACH end");
 }
 #endif
@@ -1579,9 +1584,10 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
         const int r = poll(pf, ls_sealed >= 0 ? 3 : 2, 3600 * 1000);
         if (r < 0 && errno == EINTR) continue;
         if (r <= 0) { OUT("APP http: an hour without a connection or a word from the owner; stopping"); break; }
-        if (pf[1].revents) {   /* STOP, or REATTACH <the relay's new nonce> (anchor_reattach.h): the only two lines taken while serving */
+        if (pf[1].revents) {   /* STOP, ALIVE, or REATTACH <the relay's new nonce> (anchor_reattach.h): the lines taken while serving */
             char l[80]; int over = 0; const int ln = read_ctl_line(g_ctl, l, sizeof l, &over);
             if (ln < 0 || (!over && !strcmp(l, "STOP"))) { OUT("APP http: stopped by the owner"); break; }
+            if (!over && !strcmp(l, "ALIVE")) continue;   /* the owner's keepalive for a server meant to run until stopped: resets the hour */
 #ifdef ANCHOR_TIER_PVM_CPU
             if (ln >= 9 && !memcmp(l, ANCHOR_REATTACH_CMD, 9)) { reattach(l + 9, over ? (size_t)-1 : (size_t)ln - 9); continue; }
 #endif
@@ -1610,7 +1616,7 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
  * signed by the attested transport key over DOMAIN || report, emitted as "CAPS <report hex> <signature hex>". It names the
  * Wasm runtime this APK carries (RuntimeID = SHA-256 of pvm-rt's identity as printed), the build mode and this VM's
  * resources. No model, no engine and no self-test of either exist in this tier. */
-static void caps_v2_emit(void) {
+static void caps_v2_emit(const char *tag) {
     if (!g_caps_nonce_kind) { OUT("CAPS not emitted: no attestation in this session"); return; }
     char lib[700], identity[512]; snprintf(lib, sizeof lib, "%s/lib/arm64-v8a/libpvm_rt.so", AVmPayload_getApkContentsPath());
     void *h = dlopen(lib, RTLD_NOW); pvmrt_identity_fn idf = h ? (pvmrt_identity_fn)dlsym(h, "pvmrt_identity") : NULL;
@@ -1635,7 +1641,7 @@ static void caps_v2_emit(void) {
     char sh[129]; sh_pads_bin2hex(sm, 64, sh); free(m); free(sm);
     char *rh = malloc((size_t)rn * 2 + 1); if (!rh) { OUT("CAPS not emitted: out of memory"); return; }
     sh_pads_bin2hex((const uint8_t *)rep, (size_t)rn, rh);
-    OUT("CAPS %s %s", rh, sh); free(rh);
+    OUT("%s %s %s", tag, rh, sh); free(rh);
     OUT("CAPS summary: v2 nonce=%s (%s) runtime=%.16s... threads=%ld mem_mib=%llu (CPU-only, no model)", nh, g_caps_nonce_kind == 2 ? "relay-bound" : "owner challenge only",
         rh_id, threads > 0 ? threads : 1, mem_kb / 1024);
 }
@@ -2209,7 +2215,7 @@ int AVmPayload_main(void) {
         }
     }
     if (app) {
-        caps_v2_emit();   /* the tier's capability report, once per run, after the relay has accepted this attach */
+        caps_v2_emit("CAPS");   /* the tier's capability report, once per run, after the relay has accepted this attach */
         const int arc = run_app(&app_plan);
         OUT("END");
         if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_pads >= 0) close(ls_pads); if (ls_ctl >= 0) close(ls_ctl);
