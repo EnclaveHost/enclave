@@ -188,6 +188,8 @@ case "$NAME" in
                   PVM_RT="${PVM_RT_LIB:-$HERE/out/pvm-rt-target/aarch64-linux-android/release/libpvm_rt.so}"
                   [ -f "$PVM_RT" ] || { echo "pvm-cpu: build runtime/pvm-rt for aarch64-linux-android first (libpvm_rt.so)" >&2; exit 2; }
                   EXTRA_LIBS=("$PVM_RT")
+                  # the tier's compute measurement (PVM-CPU.md "Capacity"): flops-probe and its pin, measured with the APK
+                  RT_ASSETS=("$HERE/runtime/conformance/bundles/flops-probe.wasm:flops-probe.wasm")
                   CFLAGS+=(-DANCHOR_TIER_PVM_CPU)
                   echo "pvm-cpu: bundling the Wasm runtime only (${#EXTRA_LIBS[@]} library); no model, no engine, no split engine, no TPU backend or worker"
                 # the engine rides along when it has been built (build.sh engine-pvm): six libraries + the calibration

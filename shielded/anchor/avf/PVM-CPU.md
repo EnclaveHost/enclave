@@ -76,6 +76,21 @@ and read by no rule.
 Proven on a real phone (test/avf-real-pixel10.test.mjs): the version-2 report of 2026-10-08 is admitted. It is refused for
 another runtime, another signature, another nonce or a memory floor above the VM's.
 
+## Capacity (GFLOPS, measured)
+
+The tier's GFLOPS are measured inside the VM, under the runtime its apps get. They are never estimated from cores; the
+fleet's 62.5-per-vCPU convention describes native execution, and these apps run on the Pulley interpreter.
+- **Benchmark.** `runtime/conformance/flops-probe` performs an exactly counted number of f32x4 multiply-adds (steps × 128
+  flops). It is an APK asset, pinned beside it by `assets/flops-probe.sha256`.
+- **Run.** pvm-rt's `bench` (`pvmrt_bench`) compiles it once and runs one instance per vCPU, all released at once from a
+  barrier.
+  - The payload (`measure_gflops`) rescales the work until a run lasts at least a second.
+  - Every instance must print the same work.
+  - GFLOPS = instances × flops / wall time.
+- **Reporting.** The figure goes into the signed capability report as `gflops`, once per boot. The relay carries it to the
+  row's pool (nodeGflops, all unallocated), and the site's live-enclaves panel shows it beside RAM.
+- **Measured.** Pixel 10 Pro XL, 8 vCPUs, 2048 MiB VM: 1.43-1.65 GFLOPS (results/pvm-cpu-prod-20261008, prod-2).
+
 ## Devices
 
 | device | status |
