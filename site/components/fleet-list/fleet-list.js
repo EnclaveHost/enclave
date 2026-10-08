@@ -157,8 +157,8 @@ class FleetList extends EnclaveElement {
           // "NO TEE CPU" when the box reports a non-TEE document (a metal dev
           // box), plain "CPU" when it has not said.
           // THE PHONE TIER reads amber "pvm cpu": the relay verified the protected VM's chain, and the
-          // tier is under construction - CPU-only inference inside the pVM, admission by proven
-          // capability - so the badge is its identity and the tooltip is future tense. Never the jade
+          // tier is under construction - CPU-only Wasm workloads inside the pVM (no model, no accelerator),
+          // admission by proven capability - so the badge is its identity and the tooltip is future tense. Never the jade
           // "tee cpu" of the server contract, which this is not.
           // Shield marketplace admission is a relay verdict, separate from a CPU TEE.
           const shieldCpu = e.tunnel === true && e.mode === "hv-node" && e.tier === "enclave-shield"
@@ -166,8 +166,7 @@ class FleetList extends EnclaveElement {
           const teeCpuBadge = shieldCpu
             ? '<span class="ap-badge info" title="Enclave Shield: the relay verifies each app’s measured partition and guest-held TLS key. The physical operator and hypervisor remain trusted.">cpu</span>'
             : tc.real && tc.phone
-            ? '<span class="ap-badge warn" title="' + esc(tc.note) + '. The relay verified this phone\u2019s protected-VM attestation chain when it attached and admitted its capability report'
-              + (e.pvmCpu && e.pvmCpu.model ? ' (model ' + esc(e.pvmCpu.model) + ')' : '') + '. The tier is being built for Pixel 10 and Pixel 11 and is not available for deployments yet.">pvm cpu</span>'
+            ? '<span class="ap-badge warn" title="' + esc(tc.note) + '. The relay verified this phone\u2019s protected-VM attestation chain when it attached and admitted its capability report (a CPU-only Wasm runtime: no model, no accelerator). The tier runs CPU-only workloads; it is being built for Pixel 10 and Pixel 11 and is not available for deployments yet.">pvm cpu</span>'
             : tc.real && tc.phoneUntiered
             ? '<span class="ap-badge" title="' + esc(tc.note) + '.">pvm</span>'
             : tc.real && tc.consumer

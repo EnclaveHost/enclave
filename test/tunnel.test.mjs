@@ -704,7 +704,8 @@ test("tunnel: a minimum-TCB policy it cannot evaluate, or cannot parse, refuses 
 });
 
 // ---------- pVM CPU tier: one signed capability report per AVF attach --------
-// The tier is the HUB's verdict (relay/pvm-cpu-tier.mjs admitPvmCpu): a phone whose
+// The tier runs CPU-only Wasm workloads and carries no model (relay/pvm-cpu-tier.mjs).
+// It is the HUB's verdict (admitPvmCpu): a phone whose
 // protected-VM chain verified sends ONE {t:"caps"} frame, signed by the attested
 // transport key over this attach's nonce; the hub sets tier "pvm-cpu" only when
 // the verifier says eligible. A bad signature refuses (capsRefused, no tier), a
@@ -715,9 +716,8 @@ test("pvm-cpu: a signed capability report over the attach nonce sets the hub's t
   const dir = tmpdir("pvm-tunnel-");
   const ca = makeCa(dir);
   const env = { METAL_AVF_CODE_HASHES: CODE.toString("hex"), METAL_AVF_AUTHORITY_HASHES: AUTH.toString("hex") };
-  const MODEL = "5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48", SELF = "d".repeat(64);
-  const policy = pvmCpuPolicy({ codeHashes: [CODE.toString("hex")], authorityHashes: [AUTH.toString("hex")],
-    models: [{ sha256: MODEL, name: "gemma-4-e2b-q4_0", bytes: 3360161216, selftestSha256: SELF, minDecodeTokS: 10, minMemMib: 6144 }] });
+  const RUNTIME = "d3370878" + "e".repeat(56);
+  const policy = pvmCpuPolicy({ codeHashes: [CODE.toString("hex")], authorityHashes: [AUTH.toString("hex")], runtimeIds: [RUNTIME], minMemMib: 1024 });
   const avf = { ...avfPolicyFromEnv(env), rootPins: [ca.rootPin] };
   const h = await hubServer({ attest: { avf, pvmCpu: policy } });
   const hNoPolicy = await hubServer({ attest: { avf } });
@@ -735,10 +735,13 @@ test("pvm-cpu: a signed capability report over the attach nonce sets the hub's t
     assert.equal(res?.ok, true, res?.reason);
     return { ws: r.ws, frames: r.frames, nonce };
   };
-  const report = (nonce, over = {}) => Buffer.from(JSON.stringify({ v: 1, tier: "pvm-cpu", nonce: nonce.toString("hex"), mode: "protected",
-    model: { sha256: MODEL, bytes: 3360161216, ctx: 4096 }, vm: { threads: 6, mem_mib: 7168 },
-    selftest: { id: "pvm-cpu-selftest-v1", tokens: 64, prefill_tok_s: 108.2, decode_tok_s: 13.9, output_sha256: SELF },
-    vm_ms: 200000, attach_vm_ms: 120000, device: "Pixel 10 Pro XL", ...over }));
+  const report = (nonce, over = {}) => Buffer.from(JSON.stringify({ v: 2, tier: "pvm-cpu", nonce: nonce.toString("hex"), mode: "protected",
+    runtime: RUNTIME, vm: { threads: 6, mem_mib: 2048 }, vm_ms: 200000, attach_vm_ms: 120000, device: "Pixel 10 Pro XL", ...over }));
+  // the retired model tier's report (v1: a model digest and an inference self-test), otherwise in order
+  const reportV1 = (nonce) => Buffer.from(JSON.stringify({ v: 1, tier: "pvm-cpu", nonce: nonce.toString("hex"), mode: "protected",
+    model: { sha256: "5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48", bytes: 3360161216, ctx: 4096 }, vm: { threads: 6, mem_mib: 7168 },
+    selftest: { id: "pvm-cpu-selftest-v1", tokens: 64, prefill_tok_s: 108.2, decode_tok_s: 13.9, output_sha256: "d".repeat(64) },
+    vm_ms: 200000, attach_vm_ms: 120000, device: "Pixel 10 Pro XL" }));
   const caps = (ws, bytes, key) => ws.send(JSON.stringify({ t: "caps", report: bytes.toString("base64"),
     sig: edSign(null, Buffer.concat([Buffer.from(PVM_CPU_CAPS_DOMAIN), bytes]), key.privateKey).toString("hex") }));
   const capsResult = async (frames) => { for (let i = 0; i < 40; i++) { const f = frames.find((x) => x.t === "caps-result"); if (f) return f; await settle(); } return null; };
@@ -752,8 +755,9 @@ test("pvm-cpu: a signed capability report over the attach nonce sets the hub's t
     const r1 = await capsResult(a.frames);
     assert.equal(r1?.ok, true, (r1?.reasons || []).join(" | "));
     assert.equal(row(h, "pixel-a").tier, "pvm-cpu", "the hub set the tier");
-    assert.equal(row(h, "pixel-a").pvmCpu.model, "gemma-4-e2b-q4_0", "the row carries the model name");
-    assert.equal(row(h, "pixel-a").pvmCpu.decodeTokS, undefined, "and no measured rate");
+    assert.equal(row(h, "pixel-a").pvmCpu.runtime, RUNTIME, "the row names the CPU-only runtime the VM attested");
+    assert.equal(row(h, "pixel-a").pvmCpu.model, undefined, "and no model: the tier carries none");
+    assert.equal(row(h, "pixel-a").pvmCpu.vm, undefined, "and not the VM's resources");
     // a second frame, even a worse one, changes nothing: one report per attach
     caps(a.ws, report(a.nonce, { mode: "dev" }), k1);
     await settle(); await settle();
@@ -782,6 +786,15 @@ test("pvm-cpu: a signed capability report over the attach nonce sets the hub's t
     assert.equal(r3?.ok, false); assert.ok(r3.reasons.some((x) => /not this attach's nonce/.test(x)), r3.reasons.join(" | "));
     assert.equal(row(h, "pixel-c").tier, undefined);
     c.ws.close();
+
+    // the retired model tier's v1 report, well signed over the right nonce: refused by name
+    const k5 = generateKeyPairSync("ed25519");
+    const e = await attach(h, "pixel-e", k5);
+    caps(e.ws, reportV1(e.nonce), k5);
+    const r5 = await capsResult(e.frames);
+    assert.equal(r5?.ok, false); assert.ok(r5.reasons.some((x) => /version-1 report is the retired model tier/.test(x)), r5.reasons.join(" | "));
+    assert.equal(row(h, "pixel-e").tier, undefined); assert.equal(row(h, "pixel-e").capsRefused, true);
+    e.ws.close();
 
     // a hub with no pvm-cpu policy refuses every report, however good
     const k4 = generateKeyPairSync("ed25519");
@@ -816,10 +829,8 @@ test("pvm-cpu: a v2 attach on a pvm-cpu code hash routes with no pad eligibility
   const ca = makeCa(dir);
   const PADCODE = createHash("sha256").update("dealt-pads anchor build").digest();
   const PVMCODE = createHash("sha256").update("pvm-cpu protected build").digest();
-  const MODEL = "5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48", SELF = "d".repeat(64);
   const env = { METAL_AVF_CODE_HASHES: CODE.toString("hex"), METAL_AVF_PAD_CODE_HASHES: PADCODE.toString("hex"), METAL_AVF_AUTHORITY_HASHES: AUTH.toString("hex") };
-  const policy = pvmCpuPolicy({ codeHashes: [PVMCODE.toString("hex")], authorityHashes: [AUTH.toString("hex")],
-    models: [{ sha256: MODEL, name: "gemma-4-e2b-q4_0", bytes: 3360161216, selftestSha256: SELF, minDecodeTokS: 10, minMemMib: 6144 }] });
+  const policy = pvmCpuPolicy({ codeHashes: [PVMCODE.toString("hex")], authorityHashes: [AUTH.toString("hex")], runtimeIds: ["d3370878" + "e".repeat(56)] });
   const h = await hubServer({ attest: { avf: { ...avfPolicyFromEnv(env), rootPins: [ca.rootPin] }, pvmCpu: policy } });
   const ledger = createPadsLedger({ dir, hub: h.hub, log: () => {} });
   const attachV2 = async (name, key, code) => {
@@ -848,10 +859,8 @@ test("pvm-cpu: a v2 attach on a pvm-cpu code hash routes with no pad eligibility
     assert.equal(ledger.pvm("pixel-pvm").padKey, "", "the pads ledger sees no key to seal a seed to");
     assert.deepEqual(ledger.consumers().map((c) => c.name), [], "and never lists it as a pad consumer");
     // the same phone can still be admitted to the tier on its capability report
-    const report = Buffer.from(JSON.stringify({ v: 1, tier: "pvm-cpu", nonce: pvm.nonce.toString("hex"), mode: "protected",
-      model: { sha256: MODEL, bytes: 3360161216, ctx: 4096 }, vm: { threads: 6, mem_mib: 7168 },
-      selftest: { id: "pvm-cpu-selftest-v1", tokens: 64, prefill_tok_s: 108.2, decode_tok_s: 13.9, output_sha256: SELF },
-      vm_ms: 200000, attach_vm_ms: 120000, device: "Pixel 10 Pro XL" }));
+    const report = Buffer.from(JSON.stringify({ v: 2, tier: "pvm-cpu", nonce: pvm.nonce.toString("hex"), mode: "protected",
+      runtime: "d3370878" + "e".repeat(56), vm: { threads: 6, mem_mib: 2048 }, vm_ms: 200000, attach_vm_ms: 120000, device: "Pixel 10 Pro XL" }));
     pvm.ws.send(JSON.stringify({ t: "caps", report: report.toString("base64"),
       sig: edSign(null, Buffer.concat([Buffer.from(PVM_CPU_CAPS_DOMAIN), report]), kp.privateKey).toString("hex") }));
     for (let i = 0; i < 40 && !pvm.frames.some((x) => x.t === "caps-result"); i++) await settle();

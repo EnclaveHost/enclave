@@ -72,7 +72,8 @@ export { selfRoutedUrl };
 // attest: { allowedMeasurements: [hex], requireVcek, minTcb,   — permissionless sellers:
 //           avf: { codeHashes: [hex], padCodeHashes: [hex], authorityHashes: [hex] },
 //           pvmCpu: pvmCpuPolicy (relay/pvm-cpu-tier.mjs) - admits an AVF phone to the
-//                   pVM CPU tier on ONE signed capability report per attach ({t:"caps"}) }
+//                   pVM CPU tier (CPU-only Wasm workloads, no model) on ONE signed capability
+//                   report per attach ({t:"caps"}) }
 //   attach is granted to ANY enclave that proves, with a fresh SEV-SNP quote over
 //   a relay-chosen challenge, that it runs a published Metal release (measurement
 //   on the allowlist). No token, no per-seller identity. See metal/PROTOCOL.md.
@@ -384,9 +385,10 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                                       signature: String(f.sig || ""), nonce: t.pvm.nonce }, t.pvm.policy, { now: Date.now() });
         if (verdict.eligible) {
           t.tier = PVM_CPU_TIER;
-          t.pvmCpu = { model: verdict.capability.model ? verdict.capability.model.name : null, ctx: verdict.capability.model ? verdict.capability.model.ctx : null,
-                       device: verdict.capability.device || "", checkedAt: verdict.capability.checkedAt };
-          console.log(`[tunnel] ${name} pvm-cpu ADMITTED (${t.pvmCpu.model || "model?"})`);
+          // the public row names the CPU-only runtime the VM attested and the device label; the VM's resources stay
+          // in the verdict (the relay's log), never on the row
+          t.pvmCpu = { runtime: verdict.capability.runtime, device: verdict.capability.device || "", checkedAt: verdict.capability.checkedAt };
+          console.log(`[tunnel] ${name} pvm-cpu ADMITTED (CPU-only runtime ${t.pvmCpu.runtime.slice(0, 16)}…, ${verdict.capability.vm.threads} threads, ${verdict.capability.vm.memMib} MiB)`);
           try { onChange("caps", name); } catch {}
         } else {
           t.capsRefused = true;

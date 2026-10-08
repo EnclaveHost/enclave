@@ -169,9 +169,11 @@ const reverifier = createReverifier
 // empty by default. The verifier pins Google's roots itself.
 const AVF_ATTEST = avfPolicyFromEnv(process.env);
 // The pVM CPU tier's admission policy (PVM_CPU_CODE_HASHES / PVM_CPU_AUTHORITY_HASHES /
-// PVM_CPU_MODELS): only meaningful beside AVF attach, and null means every capability
-// report is refused, which is the fail-closed default.
-const PVM_CPU_POLICY = AVF_ATTEST ? pvmCpuPolicyFromEnv(process.env) : null;
+// PVM_CPU_RUNTIME_IDS, optional PVM_CPU_MIN_MEM_MIB / PVM_CPU_MIN_THREADS): CPU-only Wasm
+// workloads, no model. Only meaningful beside AVF attach, and null means every capability
+// report is refused, which is the fail-closed default. A leftover PVM_CPU_MODELS (the
+// retired model tier) also means null, and the reason is logged.
+const PVM_CPU_POLICY = AVF_ATTEST ? pvmCpuPolicyFromEnv(process.env, { onRefuse: (why) => console.warn(`[api-relay] ${why}`) }) : null;
 // The NucBox node on the custom type-1 path (relay/hvnode-verify.mjs, mode "hv-node"): a
 // host-attested boot state (TPM EK chain, credential round trip, quote, measured-boot log with
 // Secure Boot on and test signing off), never a TEE and never tenant capacity. OFF unless
@@ -1488,11 +1490,11 @@ function computeEligible(e) {
   // a dialed row: its own word, and (RELAY_REVERIFY=enforce) this relay's re-verification of it; shadow/off leave the word
   return reverifier.eligible(e, CONFIDENTIAL_CPU.has(String(e.availability?.teeCpu || "")));
 }
-// The pVM CPU tier is its own INFERENCE lane, not app hosting: a phone the hub tiered
-// "pvm-cpu" (one admitted capability report, relay/pvm-cpu-tier.mjs) serves the platform's
-// engine on its owner's device. It is never in servingEnclaves (computeEligible stays
-// false for mode "avf"), and the tier comes from the hub's row, never from the box.
-function inferenceLaneOf(e) {
+// The pVM CPU tier is its own lane: a phone the hub tiered "pvm-cpu" (one admitted
+// capability report, relay/pvm-cpu-tier.mjs) runs CPU-ONLY Wasm workloads in its protected
+// VM, with no model and no accelerator. It is never in servingEnclaves (computeEligible
+// stays false for mode "avf"), and the tier comes from the hub's row, never from the box.
+function pvmCpuLaneOf(e) {
   return e && e.tunnel && String(e.mode || "") === "avf" && e.tier === PVM_CPU_TIER ? PVM_CPU_TIER : null;
 }
 // Why a row is NOT eligible, for the fleet panel to say in words (null when it is).
@@ -1504,7 +1506,7 @@ function ineligibleReason(e) {
     if (m === "hv-node") return "host-attested boot state (TPM quote: Secure Boot on, test signing off); no isolation evidence, the host is not excluded"
       + (isOwnerOnlyRow(e) ? `; it serves only deployments that require ${HVNODE_BACKEND}, of its own operator and of owners who delegated to it` : "");
     if (m === "vbs") return "verified enclave report, but the app-zone key and traffic run through the host: the isolation contract is not met";
-    if (m === "avf") return inferenceLaneOf(e) ? "pVM CPU tier: an inference lane on its owner's phone, not app deployments"
+    if (m === "avf") return pvmCpuLaneOf(e) ? "pVM CPU tier: CPU-only Wasm workloads on its owner's phone, not in the app serving set"
                          : e.capsRefused ? "verified protected-VM chain; its pVM CPU capability report was refused"
                          : "verified protected-VM chain; no pVM CPU capability report admitted yet";
     return "attached on a token, no hardware quote verified";
@@ -2587,7 +2589,7 @@ function handleRequest(req, res) {
                                     // ONLY these to it (fleet.mjs servesDeployment), never re-deriving the rule from row fields
                                     ...(e.ownerOnly ? { servesDeployments: ownerServedDeployments(e) } : {}),
                                     ...(shieldMarket.eligible(e) ? { ownerOnly: false, tier: "enclave-shield", appEvidenceRequired: true, protection: "host-os-isolation", operatorExcluded: false } : {}),
-                                    ...(inferenceLaneOf(e) ? { lane: inferenceLaneOf(e) } : {}) }));
+                                    ...(pvmCpuLaneOf(e) ? { lane: pvmCpuLaneOf(e) } : {}) }));
     const agg = {
       enclaves: live.length, serving: serving.length,
       totalGpuShareFree: Math.round(serving.reduce((s, e) => s + gpuFreeOf(e.availability), 0) * 1000) / 1000,
