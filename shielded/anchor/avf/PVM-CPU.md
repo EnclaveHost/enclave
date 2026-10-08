@@ -94,6 +94,17 @@ supported. These gate whether the app tries; the relay's contract decides admiss
   (f0167b59). The relay fleet tunnel carries control only. The lab's raw relay splice (review/pvm-carrier-candidate) is
   not used: main removed the splice it needed.
 - **Workloads:** ledger deployments with `gpuMilli == 0` only; the runner refuses anything else.
+- **The host in production (2026-10-08):**
+  - The release build is `host.enclave.pvmcpu`. It is signed with the release key `~/.config/enclave/pvm-cpu/release.jks`
+    (password file beside it; never in git) through `ANCHOR_RELEASE_KEYSTORE` / `ANCHOR_RELEASE_PASS_FILE`, and installs
+    beside the lab app.
+  - nan's relay pins it: `PVM_CPU_CODE_HASHES`, `PVM_CPU_AUTHORITY_HASHES` (the release key's authority) and
+    `PVM_CPU_RUNTIME_IDS` in /etc/nan-relay/api-relay.env.
+  - `cpu/prod-host.sh <release apk>` serves a component until stopped from the foreground service, attached to
+    `wss://api.enclave.host/v1/fleet-tunnel`. A lost tunnel re-attaches in place with a fresh capability report, and the
+    owner's keepalive keeps the VM's one-hour idle stop away.
+  - The host is listed on `https://api.enclave.host/enclaves` with `lane: "pvm-cpu"`. Every rebuild changes the code hash,
+    so the env pin moves with each release.
 - **Owner decisions still open:**
   - the production APK signing key, which sets the authority hash the relay pins;
   - `PVM_CPU_*` on nan;
