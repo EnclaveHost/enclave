@@ -1,7 +1,9 @@
 /* ============================================================
    <c-fleet-list> - per-enclave capacity rows (the relay's
    /enclaves table). Assign `.rows` (already sorted upstream) and
-   it renders each box's two capacity pools. Copy says "available",
+   it renders each box as ONE line (name, each pool's badge and %
+   available) that expands to its full pools, five boxes a page.
+   Copy says "available",
    never "free": on a page that sells compute, "60 GB free" reads as
    a price, not as headroom.
    ============================================================ */
@@ -16,6 +18,8 @@ import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js"
 import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedHostCapacity, teeCpuOf, computeEligibleOf, appHostVisible, ownerHostedDeploymentCount, ownerHostCpuCapacity, ownerHostVisibleTo, pvmHostVisible, pvmHostVm } from "../../js/core/pricing.js";
 import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
+
+const PAGE = 5;   // hosts per page
 
 class FleetList extends EnclaveElement {
   // error: why the latest read failed (null = it did not); staleAt: when the
@@ -103,13 +107,12 @@ class FleetList extends EnclaveElement {
     const staleNote = failed && (rows.length || ownerRows.length || pvmRows.length)
       ? '<div class="fleet-stale" role="status">Showing hosts as of ' + esc(asOf(this.staleAt)) + ': the latest read failed (' + esc(failed) + '). Retrying.</div>'
       : "";
-    list.innerHTML = (!rows.length && !ownerRows.length && !pvmRows.length
-      ? (failed
-        ? '<div class="fleet-empty fleet-error" role="alert">Couldn’t load the app hosts: ' + esc(failed) + '. This is a failed read, not an empty fleet. Retrying.</div>'
-        // Honest and short. It is said the same way whether the fleet is empty or every attached
-        // box is excluded, because from a buyer's side those are the same fact: nothing to deploy on.
-        : '<div class="fleet-empty">No app hosts available right now</div>')
-      : staleNote + rows.map(e => {
+    // Each row kind below builds an ITEM: { key, name, title, cls, chips, detail }. `chips` is the collapsed
+    // line (each pool's badge and its % available, null = unknown); `detail` is the full row it expands to.
+    const chip = (badge, pct) => '<span class="fleet-chip">' + badge + '<b>' + (pct == null ? '—' : pct + '%') + '</b></span>';
+    const nameOf = (e, dflt) => e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || dflt;
+    const head = (e) => { const r = this._ratingHtml(e); return r ? '<span class="fleet-head">' + r + '</span>' : ''; };
+    const marketItems = rows.map(e => {
           const a = e.availability || {};
           const gpu = a.gpu === true;
           const gFree = a.gpuShareFree != null ? a.gpuShareFree : (gpu ? a.maxShare || 0 : 0);
@@ -118,7 +121,7 @@ class FleetList extends EnclaveElement {
           // the relay names each row (tunnel enclaves: their tunnel name, e.g.
           // "metal0"); the endpoint-derived fallback covers older relays — and
           // strips ANY scheme, so a tunnel:// row never renders as a pseudo-URL
-          const name = e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "enclave";
+          const name = nameOf(e, "enclave");
           // THE CONSUMER PILL, needed by two row kinds below, so it is built once here.
           // It reads "cpu" in iris, the same rule the card next door follows: the shielded GPU
           // pool reads "gpu" in iris rather than jade "tee gpu", and this pool reads "cpu" rather
@@ -214,11 +217,9 @@ class FleetList extends EnclaveElement {
           const vramGb = a.cardVramGb || s.cardVramGb, tflops = a.cardTflops || s.cardTflops;
           const ramGb = a.nodeRamGb || s.nodeRamGb;
           const price = enclavePriceOf(e);   // this box's posted ask; the fleet price where it posts none
-          return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
-            + '<span class="fleet-head">'
-            + '<span class="fleet-name">' + esc(name) + '</span>'
-            + this._ratingHtml(e)
-            + '</span>'
+          return { key: "m:" + (e.id || e.endpoint || name), name, title: e.endpoint || "", cls: "",
+            chips: (shPool ? chip(cardBadge, shPct) : "") + (inTee ? chip(cardBadge, gPct) : "") + chip(teeCpuBadge, cPct),
+            detail: head(e)
             + (shPool ? pool(cardBadge, shPct,
                 stat(fmtNum(shPool.leasableGb), fmtNum(shPool.total), "GB", "vram available", shVramTitle)
                 + computeStat(shPool), price.shielded) : "")
@@ -243,10 +244,9 @@ class FleetList extends EnclaveElement {
                 // CPU pool saying so. The field still crosses the wire, so bring the
                 // cell back if a box ever carries enough resident weight to need it.
                 price.node)
-            + '<div class="fleet-rateform" data-form="' + esc(e.id || "") + '" hidden></div>'
-            + '</div>';
-        }).join(""));
-    list.innerHTML += ownerRows.map(({ row: e, count }) => {
+            + '<div class="fleet-rateform" data-form="' + esc(e.id || "") + '" hidden></div>' };
+        });
+    const ownerItems = ownerRows.map(({ row: e, count }) => {
       const cpu = ownerHostCpuCapacity(e);
       const gpu = shieldedHostCapacity(e);
       const gpuCapacity = gpu ? pool(
@@ -259,17 +259,19 @@ class FleetList extends EnclaveElement {
       const value = v => v === null ? '—' : fmtNum(v);
       const stats = stat(value(cpu.ramFreeGb), value(cpu.ramGb), 'GB', 'ram available')
         + cpuComputeStat(e.availability || {}, cpu.fraction);
-      const capacity = cpu.fraction === null
+      const cpuPct = cpu.fraction === null ? null : Math.floor(cpu.fraction * 100);
+      const capacity = cpuPct === null
         ? '<div class="fleet-pool"><span class="fleet-pool-label"><span class="ap-badge info">CPU</span></span><span class="fleet-pool-pct">Availability unknown</span><span class="fleet-stats">' + stats + '</span></div>'
-        : pool('<span class="ap-badge info">CPU</span>', Math.floor(cpu.fraction * 100), stats, null);
-      const name = e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "host";
-      return '<div class="fleet-row fleet-owner-row">'
-        + '<span class="fleet-head"><span class="fleet-name">' + esc(name) + '</span><span class="ap-badge info">Owner-only</span></span>'
-        + gpuCapacity + capacity
-        + '<span class="fleet-owner-status">' + count + ' active deployment' + (count === 1 ? '' : 's') + '</span>'
-        + '<span class="fleet-owner-note">Hosting for authorized owners. Unavailable for general deployments.</span></div>';
-    }).join("");
-    list.innerHTML += pvmRows.map(e => {
+        : pool('<span class="ap-badge info">CPU</span>', cpuPct, stats, null);
+      const name = nameOf(e, "host");
+      return { key: "o:" + (e.id || e.endpoint || name), name, title: e.endpoint || "", cls: "fleet-owner-row",
+        chips: '<span class="ap-badge info">Owner-only</span>'
+          + (gpu ? chip('<span class="ap-badge info">GPU</span>', Math.floor(gpu.frac * 100)) : '') + chip('<span class="ap-badge info">CPU</span>', cpuPct),
+        detail: gpuCapacity + capacity
+          + '<span class="fleet-owner-status">' + count + ' active deployment' + (count === 1 ? '' : 's') + '</span>'
+          + '<span class="fleet-owner-note">Hosting for authorized owners. Unavailable for general deployments.</span>' };
+    });
+    const pvmItems = pvmRows.map(e => {
       // the SAME pool as every other CPU row (badge, meter, % available, ram + gflops cells), from the relay's verified
       // VM size (relay/pvm-cpu-tier.mjs pvmCpuAvailability); no price: the tier takes no deployments yet
       const a = e.availability || {};
@@ -282,16 +284,48 @@ class FleetList extends EnclaveElement {
       const stats = stat(value(ramFree), value(ramGb), 'GB', 'ram available') + cpuComputeStat(a, cFree,
         'GFLOPS measured inside the protected VM under the same runtime its apps get (an exactly counted f32 multiply-add '
         + 'workload on every vCPU at once), reported in its signed capability report. Not a native-core estimate.');
-      const name = e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "host";
-      return '<div class="fleet-row fleet-pvm-row" title="' + esc(e.endpoint || "") + '">'
-        + '<span class="fleet-head"><span class="fleet-name">' + esc(name) + '</span>' + this._ratingHtml(e) + '</span>'
+      const name = nameOf(e, "host");
+      return { key: "p:" + (e.id || e.endpoint || name), name, title: e.endpoint || "", cls: "fleet-pvm-row",
+        chips: chip(badge, cFree === null ? null : Math.floor(cFree * 100)),
+        detail: head(e)
         + (cFree === null
           ? '<div class="fleet-pool"><span class="fleet-pool-label">' + badge + '</span><span class="fleet-pool-pct">Availability unknown</span><span class="fleet-stats">' + stats + '</span></div>'
           : pool(badge, Math.floor(cFree * 100), stats, null))
         + '<span class="fleet-owner-note">A protected VM on its owner\u2019s phone, running CPU-only apps. Not taking deployments yet.</span>'
-        + '<div class="fleet-rateform" data-form="' + esc(e.id || "") + '" hidden></div>'
-        + '</div>';
-    }).join("");
+        + '<div class="fleet-rateform" data-form="' + esc(e.id || "") + '" hidden></div>' };
+    });
+    // One page of collapsed rows. Which rows are open, and the page, survive the host's 20 s repaint (keyed by
+    // host, clamped when the fleet shrinks).
+    const items = marketItems.concat(ownerItems, pvmItems);
+    const pages = Math.max(1, Math.ceil(items.length / PAGE));
+    this._page = Math.min(Math.max(0, this._page || 0), pages - 1);
+    const first = this._page * PAGE;
+    const opened = (this._open ||= new Set());
+    const uid = (this._uid ||= "fl" + Math.random().toString(36).slice(2, 8));
+    list.innerHTML = !items.length
+      ? (failed
+        ? '<div class="fleet-empty fleet-error" role="alert">Couldn’t load the app hosts: ' + esc(failed) + '. This is a failed read, not an empty fleet. Retrying.</div>'
+        // Honest and short. It is said the same way whether the fleet is empty or every attached
+        // box is excluded, because from a buyer's side those are the same fact: nothing to deploy on.
+        : '<div class="fleet-empty">No app hosts available right now</div>')
+      : staleNote + items.slice(first, first + PAGE).map((r, i) => {
+          const open = opened.has(r.key), id = uid + "-" + (first + i);
+          return '<div class="fleet-row' + (r.cls ? ' ' + r.cls : '') + '" data-key="' + esc(r.key) + '"' + (r.title ? ' title="' + esc(r.title) + '"' : '') + '>'
+            + '<button class="fleet-sum" type="button" aria-expanded="' + open + '" aria-controls="' + id + '">'
+            + '<span class="fleet-name">' + esc(r.name) + '</span><span class="fleet-chips">' + r.chips + '</span></button>'
+            + '<div class="fleet-detail" id="' + id + '"' + (open ? '' : ' hidden') + '>' + r.detail + '</div>'
+            + '</div>';
+        }).join("");
+    for (const b of list.querySelectorAll(".fleet-sum")) b.addEventListener("click", () => {
+      const row = b.closest(".fleet-row"), d = row.querySelector(".fleet-detail");
+      const open = b.getAttribute("aria-expanded") !== "true";
+      b.setAttribute("aria-expanded", String(open));
+      d.hidden = !open;
+      if (open) { opened.add(row.dataset.key); return; }
+      opened.delete(row.dataset.key);
+      const form = d.querySelector(".fleet-rateform:not([hidden])");   // a rating form closes with its row
+      if (form) this._closeRate(form, d.querySelector(".fleet-rate"));
+    });
     this._wireRate();
     // footer row: a manual refresh (dispatches `refresh`; the HOST owns the
     // fetch and re-assigns .rows, which re-renders and re-arms the button) +
@@ -300,7 +334,14 @@ class FleetList extends EnclaveElement {
     this._loadRatings(rows.concat(pvmRows));      // stars per box, one eth_call for the panel
     const foot = this.querySelector(".fleet-foot");
     if (foot) {
-      foot.innerHTML = '<button class="fleet-refresh" type="button" title="re-fetch the live fleet view">↻ refresh</button>'
+      foot.innerHTML = (pages > 1
+          ? '<span class="fleet-pager" role="group" aria-label="Host pages">'
+            + '<button class="fleet-pg" type="button" data-step="-1" aria-label="Previous hosts"' + (this._page === 0 ? ' disabled' : '') + '>‹</button>'
+            + '<span class="fleet-pg-n">' + (first + 1) + '–' + Math.min(first + PAGE, items.length) + ' of ' + items.length + '</span>'
+            + '<button class="fleet-pg" type="button" data-step="1" aria-label="Next hosts"' + (this._page === pages - 1 ? ' disabled' : '') + '>›</button>'
+            + '</span>'
+          : '')
+        + '<button class="fleet-refresh" type="button" title="re-fetch the live fleet view">↻ refresh</button>'
         + (/^0x[0-9a-fA-F]{40}$/.test(REGISTRY_ADDRESS || "")
           ? '<a class="contract-link" href="' + catExplorer() + '/address/' + REGISTRY_ADDRESS + '" target="_blank" rel="noopener" title="EnclaveRegistry · ' + REGISTRY_ADDRESS + '">'
             + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
@@ -313,6 +354,18 @@ class FleetList extends EnclaveElement {
         this.dispatch("refresh");
         setTimeout(() => { btn.disabled = false; }, 4000);   // safety net if no host listener re-assigns .rows
       });
+      for (const p of foot.querySelectorAll(".fleet-pg")) p.addEventListener("click", () => {
+        this._page += Number(p.dataset.step);
+        this._pgFocus = p.dataset.step;
+        this._rateOpen = false; this._renderDeferred = false;   // a page turn drops an open rating form, as a wallet switch does
+        super.requestRender();
+      });
+      // the repaint replaced the button that was clicked: keep keyboard focus on the pager
+      if (this._pgFocus) {
+        const p = foot.querySelector('.fleet-pg[data-step="' + this._pgFocus + '"]:not(:disabled)') || foot.querySelector(".fleet-pg:not(:disabled)");
+        this._pgFocus = null;
+        if (p) p.focus();
+      }
     }
   }
 

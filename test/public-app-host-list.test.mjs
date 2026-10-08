@@ -199,7 +199,7 @@ test("a pVM host's size is its signed report's, and unknown stays unknown", () =
 test("the fleet list renders pVM hosts with the same availability pool as other CPU rows, without a price (pinned in source)", () => {
   const src = fs.readFileSync(path.join(ROOT, "site/components/fleet-list/fleet-list.js"), "utf8");
   assert.match(src, /const pvmRows = \(this\.rows \|\| \[\]\)\.filter\(e => pvmHostVisible\(e\)\);/);
-  const block = src.slice(src.indexOf("list.innerHTML += pvmRows.map"), src.indexOf("this._wireRate();"));
+  const block = src.slice(src.indexOf("const pvmItems = pvmRows.map"), src.indexOf("this._wireRate();"));
   assert.ok(block.length > 0);
   assert.match(block, /fleet-pvm-row/);
   assert.match(block, /Not taking deployments yet/);
