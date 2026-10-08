@@ -1,140 +1,110 @@
 # pVM CPU: the phone tier
 
-**pVM CPU** is the platform's inference engine running **entirely on the CPU inside an Android protected VM** (AVF/pKVM) on
-the owner's phone. The model, the prompt, the context and the output never leave the VM; the Android host cannot read the
-VM's memory. There is no TPU, NPU or GPU in the product path: the masked-TPU lane was closed at 2.4-2.6 tok/s against the
-15 tok/s required before TPU acceleration is exposed (TPU.md, Status), and nothing of it is carried by this tier.
+**pVM CPU** runs **CPU-only workloads**, portable WebAssembly components, inside an **Android protected VM**
+(AVF/pKVM) on the owner's phone. The component, its requests and its answers never leave the VM in the clear; the Android
+host cannot read the VM's memory. **There is no model, no accelerator and no model requirement** (Steven, 2026-10-08:
+"pVMs are only supposed to accept CPU only workloads"). The tier was first built as an LLM-on-CPU lane (Gemma 4 E2B under
+llama.cpp, then the same model behind wasi:nn). That lane is retired; its lab history is kept below, marked as such.
 
 Its visual identity is **orange**: the design system's amber (`--amber #FF914D`, site/css/src/tokens.css), always paired with
 its name ("pVM CPU" / "pvm cpu"), never colour alone. On the phone the app shows the label from the build's measured
-`assets/tier`; on the site the listing badge is rendered from the relay's verified verdict (site handoff, below). Neither
-label is evidence: admission is.
+`assets/tier`; on the site the listing badge is rendered from the relay's verified verdict. Neither label is evidence:
+admission is.
 
 ## What this tier is not
 
-- **Not the OS-neutral app isolation contract** (isolation/contract, isolation/DESIGN.md T0-T2). That contract hosts tenant
-  app bundles in per-app domains on servers; pVM CPU hosts the platform's own inference engine for the phone's owner. It
-  claims nothing about that contract, admits nothing for tenant app deployments (relay `computeEligible` keeps `avf` out of
-  app compute), and its evidence type is its own.
-- **Not a TPU tier.** No TPU/NPU library is in the build (below); the VM refuses the TPU fields.
-- **Not "confidential GPU" or "TEE CPU" in the server sense.** The boundary is pKVM's: the Android host is excluded from the
-  VM's memory; the hypervisor, Google's DICE/RKP chain and the phone's hardware are trusted.
+- **Not a model host.** The runtime links no wasi:nn and no accelerator interface, so a component importing one is
+  refused at open. The VM refuses every model line. The build refuses a model pin. The relay refuses a report that
+  names a model.
+- **Not a GPU or TPU tier.** No GPU, TPU or NPU library is in the build. A pVM runner never claims a deployment that asks
+  for a GPU share (`gpuMilli > 0`; runner/runner-agent.mjs).
+- **Not "TEE CPU" in the server sense.** The boundary is pKVM's: the Android host is excluded from the VM's memory; the
+  hypervisor, Google's DICE/RKP chain and the phone's hardware are trusted.
 
 ## The build (what runs, what does not)
 
-`ANCHOR_TIER=pvm-cpu ./build.sh anchor` produces `out/anchor-pvm-cpu.apk`, a separate APK with its own codeHash:
+`ANCHOR_TIER=pvm-cpu ANCHOR_MODE=protected ./build.sh anchor` produces `out/anchor-pvm-cpu.apk`, a separate APK with its own
+codeHash (15.5 MB):
 
 | in the build | not in the build |
 |---|---|
-| the payload `libanchor.so`, compiled with `ANCHOR_TIER_PVM_CPU` | the split engine (`libengine.so`, `libggml-shielded.so`, `model.calib`) |
-| the CPU engine: `liblocalengine.so`, `libllama.so`, `libllama-common.so`, `libggml.so`, `libggml-base.so`, `libggml-cpu-repack.so`, `libc++_shared.so` | the TPU backend `libggml-tpu.so`, the TPU worker `libanchortpu.so`, the Tensor dispatch library, the manifest's `libedgetpu_litert` declaration |
-| `assets/tier` = `pvm-cpu`, `assets/anchor.mode`, and in a protected build `assets/model.sha256` | the app-side echo/bridge diagnostics; the pad-ledger, shared-prefix and catalog pins |
+| the payload `libanchor.so`, compiled with `ANCHOR_TIER_PVM_CPU` | any engine (`liblocalengine.so`, `libllama*.so`, `libggml*.so`, `libengine.so`), `libc++_shared.so`, `model.calib` |
+| the portable runtime `libpvm_rt.so` (wasmtime 49 -> Pulley, no JIT; needs only libc/libm/libdl) | the TPU backend, worker and dispatch library |
+| `assets/tier` = `pvm-cpu`, `assets/anchor.mode` | every pin: model digest, pad ledger, shared prefix, catalogs |
 
-Inside the VM the tier is enforced, not just packaged: the payload serves **one** mode, `LOCAL` (the whole model on the VM's
-own vCPUs). Any other mode, the LOCAL line's TPU tail or benchmark links, and any pad/prefix/worker/shape control line are
-refused before anything runs (`TIER pvm-cpu refused: ...`). The app refuses the same launches first (host/app/Tier.java).
-A protected pvm-cpu build needs the **model pin only**; carrying a split-engine pin is an error (anchor_pins.c).
+Inside the VM the tier is enforced, not just packaged:
+- the payload serves **one** mode, `APP`, a verified component, and binds only its control port;
+- a `MODEL` or `LOCAL` line, an APP graph, and any pad/prefix/worker/shape line are refused before anything runs;
+- the host app refuses the same launches first (host/app/Tier.java: mode app only, and no model extra);
+- a pvm-cpu build carries no pin at all, and a model pin is refused by name (payload/anchor_pins.c;
+  cpu/test/pins-pvm-cpu-test.c).
 
-**Masking.** The pads, masks, digit split, kernel verification and repair existed to protect activations sent to an
-untrusted accelerator. In this tier no activation leaves the VM, so none of it is in the product path; the payload binary
-still contains the (unreachable, refused) split-engine code until the payload is split, noted under Gaps. What stays is what
-serves a real boundary: the attestation and its key binding, the model pin and the per-tensor verified loader, the encrypted
-store, the fail-closed evidence checks.
+The payload source still contains the research build's model and split-engine code. It is unreachable in this build
+(refused lines, unbound ports), and splitting it out of the source is a cleanup, noted under What remains.
+
+**Defaults (host/app/Main.java):**
+- a 2048 MiB VM. MEASURED: 1024 MiB aborted at the first request (results/pvm-cpu-only-20261008);
+- an encrypted store of max(256 MiB, component + 64 MiB);
+- vCPUs matching the host's topology.
+Each request runs in a fresh instance with a 256 MiB memory cap and a 60 s wall-clock deadline.
 
 ## Capability and eligibility contract
 
-A phone is admitted as a pVM CPU host by the relay from **evidence**, never from its model name (relay/pvm-cpu-tier.mjs,
-`admitPvmCpu`). All of the following must hold:
+A phone is admitted as a pVM CPU host by the relay from **evidence** (relay/pvm-cpu-tier.mjs, `admitPvmCpu`). All of the
+following must hold:
 
 1. **Attested VM.** The AVF attestation chain verifies to a pinned Google attestation root (relay/avf-verify.mjs), the
    challenge is this attach's, and `isVmSecure` is true (protected VM, no debuggable or unverified DICE link).
-2. **The pvm-cpu build.** The APK component's `codeHash` is an admitted pvm-cpu build (`PVM_CPU_CODE_HASHES`, from pins.py)
-   and its `authorityHash` a pinned signing authority. The research build is a different codeHash and is never this tier.
-3. **Bound capability report.** Produced inside the VM after the model loaded, signed by the VM's attested transport key
-   (the Ed25519 key the `android-avf-pvm/v2` transcript binds) over `enclave-pvm-cpu-caps-v1\n || report`, and naming this
-   attach's nonce. Strict schema: tier, build mode, model digest/size/ctx, VM threads and memory, a fixed self-test's
-   prefill and decode rates and output digest, the VM clock at attach and at report, and the device name.
-4. **Protected build.** `mode` is `protected`: the model digest is pinned in the measured APK, so the VM refuses any
-   other model before READY.
-5. **A served model, run correctly.** The model digest is on the tier's list (`PVM_CPU_MODELS`) and the self-test's output
-   digest equals that model's reference digest: the parity check, computed natively from the same engine and model.
-6. **Measured capability.** The self-test decode rate meets the model's floor and the VM's memory its minimum; the report
-   is no older than the window (default 15 minutes) and not older than the attach.
+2. **The pvm-cpu build.** The APK component's `codeHash` is an admitted pvm-cpu build (`PVM_CPU_CODE_HASHES`) and its
+   `authorityHash` a pinned signing authority. The research build is a different codeHash and is never this tier.
+3. **Bound capability report, version 2.** It is produced inside the VM at the start of the APP run and signed by the VM's
+   attested transport key (the Ed25519 key the `android-avf-pvm/v2` transcript binds) over
+   `enclave-pvm-cpu-caps-v1\n || report`. It names this attach's nonce.
+   - Its strict schema: `{v:2, tier, nonce, mode, runtime, vm{threads, mem_mib}, vm_ms, attach_vm_ms, device}`.
+   - `runtime` is the RuntimeID: the SHA-256 of pvm-rt's identity string as printed, e.g. `d3370878…` for wasmtime 49 /
+     pulley64 / no cache / W^X enforced.
+4. **Protected build.** `mode` is `protected`.
+5. **A CPU-only runtime.** `runtime` is on `PVM_CPU_RUNTIME_IDS`; the APK's codeHash pins the runtime's bytes, and the
+   runtime links no wasi:nn.
+6. **Freshness and floors.** The report is no older than the window (default 15 minutes) and not older than the attach.
+   Optional floors: `PVM_CPU_MIN_MEM_MIB`, `PVM_CPU_MIN_THREADS`.
 
-The device name in the report is shown in listings and read by no rule. A phone that passes is admitted as `pvm-cpu`, with
-its measured capability attached for routing; a phone that fails is not admitted, with reasons.
+Refused **by name** and failing closed: a version-1 report (the retired model tier's), a `models` policy, and a set
+`PVM_CPU_MODELS` (the relay then runs no pVM CPU policy at all until it is removed). The device name is shown in listings
+and read by no rule.
+
+Proven on a real phone (test/avf-real-pixel10.test.mjs): the version-2 report of 2026-10-08 is admitted. It is refused for
+another runtime, another signature, another nonce or a memory floor above the VM's.
 
 ## Devices
 
 | device | status |
 |---|---|
-| **Pixel 10 Pro XL** (mustang, Tensor G5, 16 GB, Android 17 CP2A.260805.005) | **validated 2026-09-23** (below): the protected pvm-cpu build runs; its AVF chain verifies to a pinned Google root with isVmSecure; its signed capability report is admitted by the relay's rules; self-test parity with native execution; the baseline under Model and settings |
+| **Pixel 10 Pro XL** (mustang, Tensor G5, 16 GB, Android 17) | **CPU-only build validated 2026-10-08** (results/pvm-cpu-only-20261008): protected build, AVF chain to a pinned Google root with isVmSecure, a v2 report admitted by the relay's rules, cpu-probe served with exact values |
 | **Pixel 10 / 10 Pro** | same SoC and AVF stack; expected to qualify, **not separately run** |
-| **Pixel 11** | **not validated.** Structured for: nothing in the build, the VM or the admission rules names a device; a Pixel 11 is admitted exactly when its evidence passes the contract above. No runtime claim, and no availability claim, until an actual Pixel 11 is run and its results recorded here. |
+| **Pixel 11** | **not validated.** Nothing in the build, the VM or the admission rules names a device; a Pixel 11 is admitted exactly when its evidence passes the contract above |
 
 Eligibility on the phone itself (`Main.gate()`): vendor API level >= 202404, protected-VM capability, remote attestation
 supported. These gate whether the app tries; the relay's contract decides admission.
 
-## Model and settings
+## Production path (2026-10-08)
 
-**Model: Gemma 4 E2B, Q4_0** (3,360,161,216 bytes, sha256 `5bf274a5…89fc48`), llama.cpp `ddd4ec14` with the repacking CPU
-module, 6 threads (the Tensor G5's six big cores), ctx 4096, greedy, no drafter (the MTP drafter measured slower on the CPU:
-LOCAL.md). The 27B is not a phone model: its weights alone exceed the VM's 7 GiB. Smaller models and other quantisations are
-the first optimisation lever (below), not assumed.
+- **Traffic: TUNA on the phone.** The phone's host app runs the TUNA SDK (Go, cross-built for android/arm64 inside the
+  APK) and routes clients to the VM's evidence (7787) and sealed (7788) ports, as every other host does since 10-01
+  (f0167b59). The relay fleet tunnel carries control only. The lab's raw relay splice (review/pvm-carrier-candidate) is
+  not used: main removed the splice it needed.
+- **Workloads:** ledger deployments with `gpuMilli == 0` only; the runner refuses anything else.
+- **Owner decisions still open:**
+  - the production APK signing key, which sets the authority hash the relay pins;
+  - `PVM_CPU_*` on nan;
+  - the runner's on-chain registration (operator wallet, any spend);
+  - the client release keys;
+  - the first app to admit.
 
-### Measured baseline, Pixel 10 Pro XL, 2026-09-23 (before any optimisation)
-
-results/cpu-baseline-20260923 (cpu/bench-baseline.sh; every run through the fail-closed driver with GRAPHS=none; the live
-thermal trace across all of it; SUMMARY.md has every turn). The build measured is the research APK smp2 in mode local, dev
-(model hashed, unpinned); the CPU engine is the same code the pvm-cpu build ships.
-
-| | measured |
-|---|---|
-| cold start, launch -> first token (model cached in the encrypted store) | **88.3-90.5 s** (load 56.4-58.4 s of it; the rest VM boot and the stage re-hash) |
-| short turn (28-token prompt, 59 tokens out), 3 cold runs | decode **13.12 / 13.99 / 14.09 tok/s**, time to first token **249-283 ms**, prefill 102-117 tok/s |
-| sustained: 4 x 512 tokens back to back in one VM, 3 runs | per turn **12.4-12.6 -> 7.4-10.5 -> 6.6-6.8 -> 5.8-6.6 tok/s**; **7.55 / 7.62 / 8.44 tok/s** over the 2,048 tokens; time to first token 290 -> 990 ms |
-| CPU | 5.7-6.0 cores busy (all six threads); 406-488 core-ms per token cool, 771-991 hot |
-| thermals | short turns: status 0, BIG peaks 80-96 C, caps unthrottled. Sustained: status 1 after ~1.5 min, big-core caps down to 1.785 / 2.208 GHz (58 % of max), skin 41.2 C; the cool gate then waited 28-29 checks (~5 min) before the next run |
-| memory | VM 7,168 MiB effective (8,192 requested; the instance keeps its creation size); phone MemAvailable 1.14-1.55 GiB while it runs |
-| crash (crosvm killed mid-turn) | fail-closed: the app saw the stream reset, closed the capture `failed:no-end`, the run was refused, never scored. **No automatic restart.** Manual relaunch -> first token 89.5 s, model reused from the encrypted store (re-hashed). The driver itself waited on the dead run (fixed: lane-run2 now stops on an app-failed capture) |
-| parity, quality | self-test parity: measured on the pvm-cpu build (next). Quality on this engine and model: 22/24 automatic, 24/24 with the review rows read (results/qc7, earlier build) |
-
-Reading: one answer of a few hundred tokens on a cool phone runs at 12-14 tok/s; the phone cannot hold that. After about a
-minute and a half of continuous decode the big cores are capped at 58 % and the same work costs twice the CPU time.
-
-### Product acceptance target
-
-Measured on a Pixel 10 through the fail-closed driver, protected pvm-cpu build, every figure from COMPLETE windows:
-
-| # | criterion | target | baseline |
-|---|---|---|---|
-| 1 | interactive turn (<= 512-token prompt, <= 256 tokens out, thermal status <= 1) | decode median >= 12 tok/s, p10 >= 10; time to first token p90 <= 1.0 s (warm engine) | 13.1-14.1; 249-305 ms (**meets**, cool phone) |
-| 2 | sustained 2,048 tokens back to back | >= 10 tok/s over the run and >= 8 in every 512-token window, thermal status <= 1 | 7.6-8.4, worst window 5.8, status 1 (**fails**) |
-| 3 | cold start, launch -> first token, model cached | <= 60 s; a kept-alive engine answers at target 1 | 88-91 s (**fails**) |
-| 4 | memory | VM <= 7 GiB, phone MemAvailable >= 1 GiB throughout | 7 GiB, 1.14 GiB (**meets**, no margin) |
-| 5 | crash recovery | an interrupted turn is reported failed, never as an answer; the engine is serving again within 90 s with no user action | fail-closed yes; auto-restart **yes** since p5 (results/pvm-cpu-p5 rs-01: PASS), but serving again after 123 s (**fails** the 90 s, on the cold start) |
-| 6 | parity | every boot's self-test digest equals the model's native reference | **meets** (pc-01: identical to native) |
-| 7 | quality | >= 22/24 on the 24-prompt contract set (lane-score.py), default profile | 22/24 (earlier build) |
-| 8 | trust | protected build (model pinned), chain verified to Google's roots, capability report admitted by the relay's rules | **meets offline** (pc-01); a live relay attach not yet run |
-| 9 | stability | 50 consecutive mixed turns with no engine error | **met once** (results/pvm-cpu-stability-50: 50/50 through the installed client 0.4.1, fresh evidence every turn, one VM boot; stream-probe turns of 8-128 tokens, not the chat workload) |
-
-Targets 2, 3 and 5 are where the work is. The levers, in order: keep one engine alive across conversations (3, and the
-cold start disappears for every turn after the first); restart a dead VM automatically (5); for sustained throughput, fewer
-threads and a lower operating point that the phone can hold, and a smaller quantisation of the same model, each measured for
-quality against target 7 (2).
-
-Measured since (2026-09-23, evening):
-- **Threads do not move target 2** (results/pvm-cpu-threads1, 8 runs): sustained decode is 7.33-7.65 tok/s with 6 threads,
-  with a separate 4- or 5-thread decode pool, and with 4 threads for everything; the phone reaches 86 C on the big cores and
-  halves their clocks whatever the setting. What changes is CPU: a 4-thread decode pool holds the rate for ~32 % less CPU
-  (537 vs 790 core-ms per token) and keeps 6-thread prefill and TTFT, so it is now the CPU lane's default (Main.java;
-  results/pvm-cpu-d4default: 14.08 tok/s at 286 core-ms per token on a short turn, against 419 with one pool). Target 2 needs
-  a lower operating point or a smaller quantisation, not a thread count.
-- **Where the cold start goes** (results/pvm-cpu-p5 pt-01): the model crosses the encrypted store's decryption twice, stage
-  18.3 s and load 59.5 s (36.8 s of it the second read). Staging into private memory and building the tensors from there,
-  after the whole-file verdict, removes the second read: the lever for targets 3 and 5.
-- **The supervised restart works** (rs-01): a killed VM is run again, attests again, re-verifies the model and serves the
-  next turn; the interrupted turn is reported, never answered. Its 123 s is the cold start.
+> **History.** The sections from here to "What remains" record the lab work of 2026-09-23..26 on the retired model lane:
+> wasi:nn, the llama.cpp engine, token rates, ggml-probe/stream-probe. They are kept for the record. The
+> runtime, sealed channel, ABI/2 evidence and client sections still describe live machinery. Wherever they say "model",
+> "tokens" or "decode", the CPU-only tier now serves a component's own output (cpu-probe in the tests).
 
 ## The app runtime: the same portable component, compiled inside the pVM (direction 2026-09-23)
 
@@ -619,31 +589,13 @@ deny service (never deliver lines), which a verifier sees as missing evidence, n
 
 ### What remains, in order
 
-1. ~~A live relay attach~~ done (results/pvm-cpu-live-attach). Next on the admission path: the relay verifies an app's
-   ABI/2 evidence itself (`verifyPvmAppAbi2` on a `{t:"abi2"}` frame over the attached tunnel, with its own nonce), and
-   the relay fix (relay/tunnel.js attestOn) reaches main -- the owner's merge (a push to main restarts the workers).
-2. **The serving path: a LAB prototype works end to end** (results/pvm-cpu-tls-serving; section below). What it does not
-   yet cover, exactly:
-   - production: on main, api-relay.js neither sets `attest.pvmApp` nor routes client traffic to `spliceRaw` (the lab
-     hub's raw TCP port stands in). On this branch both are wired behind `PVM_SERVING`, OFF by default and set nowhere
-     (RELAY-SERVING.md "Wired behind a switch": `/x/<id>/pvm/{evidence,sealed}` on the on-chain runner's pVM tunnel, the
-     app policy from `PVM_APP_*`; the deployment-instance limit unchanged). Enabling it, the runner registration, relay
-     deployment, the main merge and release-key custody are the owner's, each its own review. Since client 0.5.0 a
-     deployment can be BOUND to VM instances by the signed policy (INSTANCE-BINDING.md, evidence v3, agreed with the
-     verifier session), which closes the "another genuine instance" limit for bound deployments. The exact runner-
-     registration steps that remain are listed in RELAY-SERVING.md "Runner registration";
-   - ~~clients trust the relay's verification~~ done for native clients (results/pvm-cpu-client-verified: the client
-     verifies fresh evidence over its own nonce with its own pins, then pins the key itself);
-   - ~~browsers~~ a LAB verified channel for pages, answers streamed, and an installed client (CLI + extension)
-     delivered reproducibly under install-time anchors and signed policy (sections above); left open: the first
-     install's out-of-band channel, production keys and Sigstore provenance, the extension store, and a platform
-     certificate path if the owner wants browser-native TLS on the platform's word;
-   - one connection at a time in the VM (the payload accepts and serves serially); one app and one ABI/2 nonce per attach;
-   - no client identity: the app sees an anonymous TLS client (app-level authorisation is the app's own, inside TLS).
-3. A release signing key and a non-debuggable manifest (the owner's decision; admission pins the authority).
-4. Cold start and recovery (targets 3, 5): keep the stage's page cache so the load's second read comes from memory
-   (results/pvm-cpu-single-read: the anonymous-memory attempt refused itself on a tied weight and slowed the stage), then
-   one engine across conversations.
-5. `topk` for wasi:nn (the app path's 10.7 vs 14.0 tok/s); sustained decode needs a lower operating point or a smaller
-   quantisation (thermal), not threads.
-6. The payload binary still carries the split-engine code (unreachable in the pvm-cpu build); the 512 MiB VM abort (M1).
+1. **TUNA on the phone** (the production carrier): the Android TUNA adapter, route publication and the phone's NKN wallet.
+2. **Owner decisions** (Production path, above): the release signing key, `PVM_CPU_*` on nan, the on-chain registration,
+   the client release keys, the first app.
+3. **Port the lab drivers** in cpu/ and runtime/conformance to CPU-only apps. Most still assume a model; the new
+   cpu/app-cpu-run.sh + check-app-cpu.py are the template.
+4. **Split the research build's model and split-engine code out of the payload source** (unreachable in pvm-cpu today).
+5. **One connection at a time** in the VM: the payload serves serially.
+
+The earlier list (2026-09-26) is superseded by the CPU-only decision; its serving, client and evidence items are done or
+listed above.
