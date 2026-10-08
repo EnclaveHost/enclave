@@ -54,6 +54,13 @@ echo "== api relay (site box)"
 # their deps (@simplewebauthn/server, jose) from the SHIPPED lockfile.
 # Build the entire import graph; a hand-maintained file list can miss modules
 # while still passing scp, leaving the API unable to start after a restart.
+# The bundle is built HERE, so this checkout needs the packages of both
+# lockfiles (the graph uses the root's and relay/'s). CI's runner checks out
+# with no node_modules at all: the first CI relay deploy after fe2067efc
+# (10-08, 0af0ea4ce) died on a missing esbuild before touching the API. The
+# installs use the same pinned lockfiles, with scripts off.
+[ -d ../node_modules/esbuild ] || (cd .. && npm ci --no-audit --no-fund --ignore-scripts)
+[ -d node_modules/viem ] || npm ci --no-audit --no-fund --ignore-scripts
 node build-network.mjs
 scp network-runtime.bundle.mjs network-runtime.bundle.mjs.manifest.json nan:/opt/nan-relay/
 ssh nan 'node /opt/nan-relay/network-runtime.bundle.mjs'
