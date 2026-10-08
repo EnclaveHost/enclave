@@ -1,0 +1,8 @@
+{"t":"2026-10-08T10:17:39.635Z","listening":"ws://127.0.0.1:18443/v1/fleet-tunnel"}
+{"t":"2026-10-08T10:17:53.092Z","hub":"[tunnel] pvmlab1 attached via attestation(avf) (1 enclave)"}
+{"t":"2026-10-08T10:17:53.092Z","change":"attach","name":"pvmlab1","row":{"endpoint":"tunnel://pvmlab1","id":"tunnel:pvmlab1","name":"pvmlab1","repo":"EnclaveHost/enclave","lastSeen":1791454673,"tunnel":true,"mode":"avf","publicUrl":"","attach":"attestation","measurement":"b2ae0229c5141f302a3f335f6eba6a1a15f7349d6431fdf91d46fe6c4feec063"}}
+[tunnel] pvmlab1 claimed publicUrl https://127.0.0.1:18443/t/pvmlab1 — IGNORED (not this tunnel's own https://<relay>/t/pvmlab1 route); its on-chain runner id stays unstamped
+{"t":"2026-10-08T10:18:13.267Z","hub":"[tunnel] pvmlab1 pvm-cpu ADMITTED (CPU-only runtime d3370878afa9d5ee…, 8 threads, 1994 MiB)"}
+{"t":"2026-10-08T10:18:13.267Z","change":"caps","name":"pvmlab1","row":{"endpoint":"tunnel://pvmlab1","id":"tunnel:pvmlab1","name":"pvmlab1","repo":"EnclaveHost/enclave","lastSeen":1791454693,"tunnel":true,"mode":"avf","publicUrl":"","attach":"attestation","measurement":"b2ae0229c5141f302a3f335f6eba6a1a15f7349d6431fdf91d46fe6c4feec063","tier":"pvm-cpu","pvmCpu":{"runtime":"d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba","device":"","checkedAt":1791454693265}}}
+{"t":"2026-10-08T10:18:15.526Z","hub":"[tunnel] pvmlab1 detached"}
+{"t":"2026-10-08T10:18:15.526Z","change":"detach","name":"pvmlab1","row":null}
