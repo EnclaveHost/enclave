@@ -6,7 +6,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync, sign as edSign, randomBytes } from "node:crypto";
-import { admitPvmCpu, pvmCpuPolicy, pvmCpuPolicyFromEnv, parseCapabilityReport, PVM_CPU_CAPS_DOMAIN, PVM_CPU_REPORT_VERSION } from "../relay/pvm-cpu-tier.mjs";
+import { admitPvmCpu, pvmCpuPolicy, pvmCpuPolicyFromEnv, avfAttestWithPvmCpu, parseCapabilityReport, PVM_CPU_CAPS_DOMAIN, PVM_CPU_REPORT_VERSION } from "../relay/pvm-cpu-tier.mjs";
 
 const CODE = "a".repeat(64), RESEARCH_CODE = "b".repeat(64), AUTH = "c".repeat(128);
 const RUNTIME = "d3370878" + "e".repeat(56), OTHER_RUNTIME = "f".repeat(64);
@@ -127,4 +127,16 @@ test("pvm-cpu: no policy means no admission; the env policy parses, and refuses 
   // PVM_CPU_AUTHORITY_HASHES wins over the METAL fallback
   const q = pvmCpuPolicyFromEnv({ PVM_CPU_CODE_HASHES: CODE, PVM_CPU_AUTHORITY_HASHES: "ab", METAL_AVF_AUTHORITY_HASHES: AUTH, PVM_CPU_RUNTIME_IDS: RUNTIME });
   assert.ok(q.authorityHashes.has("ab") && !q.authorityHashes.has(AUTH));
+});
+
+test("the hub's AVF policy: the tier needs no legacy or pad pins beside it; with both, authorities are the union and the builds untouched", () => {
+  assert.equal(avfAttestWithPvmCpu(null, null), null);
+  const legacy = { codeHashes: ["aa".repeat(32)], padCodeHashes: ["bb".repeat(32)], authorityHashes: ["cc".repeat(48)] };
+  assert.equal(avfAttestWithPvmCpu(legacy, null), legacy, "no tier: the legacy policy as it was");
+  const p = pvmCpuPolicy({ codeHashes: [CODE], authorityHashes: [AUTH], runtimeIds: [RUNTIME] });
+  assert.deepEqual(avfAttestWithPvmCpu(null, p), { codeHashes: [], padCodeHashes: [], authorityHashes: [AUTH] },
+                   "the tier alone: no v1 or pad build is admitted, only the tier's authority");
+  const both = avfAttestWithPvmCpu(legacy, p);
+  assert.deepEqual(both.codeHashes, legacy.codeHashes); assert.deepEqual(both.padCodeHashes, legacy.padCodeHashes, "pad eligibility unchanged");
+  assert.deepEqual(both.authorityHashes, ["cc".repeat(48), AUTH]);
 });

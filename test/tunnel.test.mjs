@@ -19,7 +19,7 @@ import { createHash, generateKeyPairSync } from "node:crypto";
 import { WebSocket } from "ws";
 import { createTunnelHub } from "../relay/tunnel.js";
 import { verifyQuote } from "../relay/snp-verify.mjs";
-import { pvmCpuPolicy, PVM_CPU_CAPS_DOMAIN } from "../relay/pvm-cpu-tier.mjs";
+import { pvmCpuPolicy, avfAttestWithPvmCpu, PVM_CPU_CAPS_DOMAIN } from "../relay/pvm-cpu-tier.mjs";
 import { createPadsLedger } from "../relay/pads.mjs";
 import { sign as edSign } from "node:crypto";
 import { AVF_PAD_FORMAT, avfPadBinding } from "../relay/avf-binding.mjs";
@@ -888,5 +888,50 @@ test("pvm-cpu: a v2 attach on a pvm-cpu code hash routes with no pad eligibility
     assert.equal(h.hub.origins().some((o) => o.name === "pixel-x"), false);
 
     pvm.ws.close(); pad.ws.close();
+  } finally { await h.close(); }
+});
+
+test("pvm-cpu: a relay configured with ONLY the tier's policy (no SNP measurements, no v1 or pad AVF pins) challenges and admits the phone",
+     { skip: !haveOpenssl && "openssl not installed" }, async () => {
+  const dir = tmpdir("pvm-only-");
+  const ca = makeCa(dir);
+  const PVMCODE = createHash("sha256").update("pvm-cpu protected build").digest();
+  const RUNTIME = "d3370878" + "e".repeat(56);
+  const policy = pvmCpuPolicy({ codeHashes: [PVMCODE.toString("hex")], authorityHashes: [AUTH.toString("hex")], runtimeIds: [RUNTIME] });
+  // what api-relay builds from PVM_CPU_* alone
+  const h = await hubServer({ attest: { allowedMeasurements: [], avf: { ...avfAttestWithPvmCpu(null, policy), rootPins: [ca.rootPin] }, pvmCpu: policy } });
+  try {
+    const r = await dial(h.url, { "x-metal-name": "pixel-only", "x-metal-attest": "1" });
+    assert.equal(r.state, "open", "the hub takes an attest upgrade (before: 401, attestation was off without a v1 AVF pin)");
+    await settle();
+    const nonce = Buffer.from(r.frames.find((f) => f.t === "challenge").nonce, "base64");
+    const kp = generateKeyPairSync("ed25519");
+    const transport = kp.publicKey.export({ type: "spki", format: "der" });
+    const padKey = generateKeyPairSync("x25519").publicKey.export({ type: "spki", format: "der" }).subarray(-32).toString("hex");
+    const bound = avfPadBinding(transport, padKey, nonce);
+    const leaf = issueLeaf(dir, { ext: extension({ challenge: createHash("sha256").update(bound).digest(), code: PVMCODE }) });
+    const ev = { chain: [leaf.leaf, ca.inter, ca.root].map((d) => d.toString("base64")), signature: leaf.sign(bound).toString("base64") };
+    r.ws.send(JSON.stringify({ t: "attest", rad: { format: AVF_PAD_FORMAT, body: Buffer.from(JSON.stringify(ev)).toString("base64"), transportKey: transport.toString("base64"), padKey } }));
+    const res = await waitResult(r.frames);
+    assert.equal(res?.ok, true, res?.reason);
+    assert.equal(h.hub.info("pixel-only").padKey, "", "no pad key: the tier never receives pads");
+    const report = Buffer.from(JSON.stringify({ v: 2, tier: "pvm-cpu", nonce: nonce.toString("hex"), mode: "protected",
+      runtime: RUNTIME, vm: { threads: 8, mem_mib: 1994 }, vm_ms: 200000, attach_vm_ms: 120000, device: "" }));
+    r.ws.send(JSON.stringify({ t: "caps", report: report.toString("base64"),
+      sig: edSign(null, Buffer.concat([Buffer.from(PVM_CPU_CAPS_DOMAIN), report]), kp.privateKey).toString("hex") }));
+    for (let i = 0; i < 40 && !r.frames.some((x) => x.t === "caps-result"); i++) await settle();
+    assert.equal(r.frames.find((x) => x.t === "caps-result")?.ok, true);
+    assert.equal(h.hub.origins().find((o) => o.name === "pixel-only").tier, "pvm-cpu");
+    // a v1 attach finds no v1 build to match: refused, not admitted by the tier's pins
+    const v1 = await dial(h.url, { "x-metal-name": "pixel-v1", "x-metal-attest": "1" });
+    await settle();
+    const n1 = Buffer.from(v1.frames.find((f) => f.t === "challenge").nonce, "base64");
+    const b1 = Buffer.concat([transport, n1]);
+    const l1 = issueLeaf(dir, { ext: extension({ challenge: createHash("sha256").update(b1).digest(), code: PVMCODE }) });
+    v1.ws.send(JSON.stringify({ t: "attest", rad: { format: "android-avf-pvm/v1", body: Buffer.from(JSON.stringify({ chain: [l1.leaf, ca.inter, ca.root].map((d) => d.toString("base64")), signature: l1.sign(b1).toString("base64") })).toString("base64"), transportKey: transport.toString("base64") } }));
+    const res1 = await waitResult(v1.frames);
+    assert.equal(res1?.ok, false);
+    assert.match(res1?.reason || "", /AVF attach is not enabled/);
+    r.ws.close();
   } finally { await h.close(); }
 });

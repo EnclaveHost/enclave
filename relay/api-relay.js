@@ -105,7 +105,7 @@ import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtim
 import { createTunnelHub } from "./tunnel.js";
 import {LeaseReader,createTunaRoutes,DurableState,createLeaseSource,createRegistryOperator} from "./network-runtime.bundle.mjs";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
-import { pvmCpuPolicyFromEnv, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
+import { pvmCpuPolicyFromEnv, avfAttestWithPvmCpu, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
 import { VBS_DEFAULT_EK_ROOTS } from "./vbs-policy.mjs";
 import { createPadsLedger, createPrefixStore, createShipmentStore, padsRouter } from "./pads.mjs";
 import { dataDir, JsonStore } from "./store.js";
@@ -173,7 +173,9 @@ const AVF_ATTEST = avfPolicyFromEnv(process.env);
 // workloads, no model. Only meaningful beside AVF attach, and null means every capability
 // report is refused, which is the fail-closed default. A leftover PVM_CPU_MODELS (the
 // retired model tier) also means null, and the reason is logged.
-const PVM_CPU_POLICY = AVF_ATTEST ? pvmCpuPolicyFromEnv(process.env, { onRefuse: (why) => console.warn(`[api-relay] ${why}`) }) : null;
+const PVM_CPU_POLICY = pvmCpuPolicyFromEnv(process.env, { onRefuse: (why) => console.warn(`[api-relay] ${why}`) });
+// the hub's AVF policy: the tier's own builds and authorities need no legacy or pad pins beside them (avfAttestWithPvmCpu)
+const AVF_HUB_ATTEST = avfAttestWithPvmCpu(AVF_ATTEST, PVM_CPU_POLICY);
 // The NucBox node on the custom type-1 path (relay/hvnode-verify.mjs, mode "hv-node"): a
 // host-attested boot state (TPM EK chain, credential round trip, quote, measured-boot log with
 // Secure Boot on and test signing off), never a TEE and never tenant capacity. OFF unless
@@ -235,8 +237,8 @@ function msEnv(key, dflt, min) {
 }
 const tunnelHub = createTunnelHub({
   allow: [...DEFAULT_METAL_ALLOW, ...ENV_METAL_ALLOW],
-  attest: METAL_ALLOWED_MEASUREMENTS.length || AVF_ATTEST || HVNODE_ATTEST
-    ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK, ...(METAL_MIN_TCB !== undefined ? { minTcb: METAL_MIN_TCB } : {}), ...(AVF_ATTEST ? { avf: AVF_ATTEST } : {}), ...(PVM_CPU_POLICY ? { pvmCpu: PVM_CPU_POLICY } : {}), ...(HVNODE_ATTEST ? { hvNode: HVNODE_ATTEST } : {}) }
+  attest: METAL_ALLOWED_MEASUREMENTS.length || AVF_HUB_ATTEST || HVNODE_ATTEST
+    ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK, ...(METAL_MIN_TCB !== undefined ? { minTcb: METAL_MIN_TCB } : {}), ...(AVF_HUB_ATTEST ? { avf: AVF_HUB_ATTEST } : {}), ...(PVM_CPU_POLICY ? { pvmCpu: PVM_CPU_POLICY } : {}), ...(HVNODE_ATTEST ? { hvNode: HVNODE_ATTEST } : {}) }
     : null,
   operatorFor: tunnelNameOwner,
   // TUNNEL_OPERATOR_ATTACH=1 — let a box prove its tunnel name with the operator
