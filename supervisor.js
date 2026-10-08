@@ -2859,7 +2859,9 @@ const gpuShareOf = (vramGb, gpuTflops = 0) => (vramGb > 0 || gpuTflops > 0)
   ? pctCeil(Math.max(vramGb / CARD_VRAM_GB, gpuTflops / CARD_TFLOPS)) / 100 : 0;
 const cpuShareOf = (memMb, cpuGflops = 0) => {
   const n = nodeSpec();
-  return pctCeil(Math.max(memMb / (n.ramGb * 1024), cpuGflops / n.gflops)) / 100;
+  // catalog cpuGflops floors are in the fleet convention's units (62.5 a vCPU), so they divide by the NOMINAL figure
+  // (gflopsFloor), never the measured one this box publishes (gsup: fw_cfg gflopsPerVcpu)
+  return pctCeil(Math.max(memMb / (n.ramGb * 1024), cpuGflops / (n.gflopsFloor || n.gflops))) / 100;
 };
 
 // ---- the per-app guest pool (ISOLATION_BACKEND; TASK 4c, isolation/m4/guestd/pool.go) --------------------------
@@ -2917,9 +2919,9 @@ function adoptGuestPool(p) {
 // else and before any budget is heard.
 function nodeSpec() {
   const b = ISOLATION_BACKEND && ((_guestPool && _guestPool.budget) || _guestPoolBudgetSeen);
-  if (!b) return { vcpus: NODE_VCPUS, ramGb: NODE_RAM_GB, gflops: NODE_GFLOPS, pool: false };
+  if (!b) return { vcpus: NODE_VCPUS, ramGb: NODE_RAM_GB, gflops: NODE_GFLOPS, gflopsFloor: Math.round(NODE_VCPUS * 1000 / 16), pool: false };
   const cores = b.cpuPct / 100;
-  return { vcpus: cores, ramGb: b.memMiB / 1024, gflops: cores * (NODE_GFLOPS / NODE_VCPUS), pool: true };
+  return { vcpus: cores, ramGb: b.memMiB / 1024, gflops: cores * (NODE_GFLOPS / NODE_VCPUS), gflopsFloor: Math.round(cores * 1000 / 16), pool: true };
 }
 // What a version's guest reserves, computed exactly as guestd admits it: its unit's ceilings.
 function guestReservationFor(policy, perGuest) {
