@@ -574,11 +574,15 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
              * beside a conversation: the parked prefix was evicted, every turn
              * re-read it, and a web-search step (8.5K tokens) did not fit. */
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_CTX=65536" : "ENCLAVE_GGML_N_CTX=512";
-            /* Tool-enabled apps retain a tokenizer session while generating. One slot deadlocks them. */
-            envp[ei++] = "ENCLAVE_GGML_MAX_SESSIONS=8";
+            /* Tool-enabled apps retain a tokenizer session while generating. One slot deadlocks them.
+             * A speculative (MTP) chat holds THREE: its tokenizer, its sequence and the draft-verify
+             * scratch branch, so 8 slots served two chats at once and a third waited for a slot.
+             * The 27B guest takes 16 (five chats; each slower, the aggregate higher): sessions share
+             * the one pooled KV window, so a slot costs a sequence id, not another window. */
+            envp[ei++] = shield_large ? "ENCLAVE_GGML_MAX_SESSIONS=16" : "ENCLAVE_GGML_MAX_SESSIONS=8";
             /* Keep prompt forks in private guest RAM across HTTP requests.
              * Separate shared system/tool prefixes from per-conversation turns.
-             * Active + turn + shared-prefix slots must fit N_BATCH (8+6+8=22 <= 64). */
+             * Active + turn + shared-prefix slots must fit N_BATCH (16+6+8=30 <= 64). */
             envp[ei++] = shield_large ? "ENCLAVE_GGML_PARK_SLOTS=6" : "ENCLAVE_GGML_PARK_SLOTS=0";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_PREFIX_SLOTS=8" : "ENCLAVE_GGML_PREFIX_SLOTS=0";
             envp[ei++] = "ENCLAVE_GGML_POOLED=1";
