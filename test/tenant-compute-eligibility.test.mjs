@@ -164,7 +164,7 @@ test("the pVM CPU tier is the relay's row.tier, never the phone's own word, and 
   assert.equal(t.phone, false);
   // pinned in source: the relay's lane is mode avf + hub tier, and computeEligible does not read the tier
   const src = read("relay/api-relay.js");
-  const lane = between(src, "function inferenceLaneOf(e)", "\n}\n", "relay/api-relay.js");
+  const lane = between(src, "function pvmCpuLaneOf(e)", "\n}\n", "relay/api-relay.js");
   assert.match(lane, /String\(e\.mode \|\| ""\) === "avf" && e\.tier === PVM_CPU_TIER/);
   const hub = read("relay/tunnel.js");
   const capsHandler = between(hub, 'if (f.t === "caps") {', "return;\n      }", "relay/tunnel.js");
