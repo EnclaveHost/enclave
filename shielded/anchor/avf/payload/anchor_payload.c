@@ -1611,6 +1611,62 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
     hclose(srv);
     return 0;
 }
+/* The tier's compute measurement (PVM-CPU.md "Capacity"). flops-probe, the APK's own asset pinned beside it
+ * (assets/flops-probe.sha256), is run by pvm-rt's bench on every vCPU at once under the runtime apps get (Pulley), rescaled
+ * until a run lasts at least a second. Every instance must print the same, exactly counted work
+ * (steps x 128 f32 operations). GFLOPS = instances x flops / wall time. It runs once per boot; a failure leaves the figure
+ * out of the report (unmeasured, never guessed). */
+typedef int (*pvmrt_bench_fn)(const uint8_t *, size_t, const uint8_t *, const char *const *, int, int, uint64_t, uint64_t,
+                              void (*)(int, const uint8_t *, size_t), uint64_t *, uint64_t *, char *, size_t);
+static double g_caps_gflops = 0; static int g_bench_done = 0;
+static char g_bench_out[64][160]; static int g_bench_n = 0;
+static void bench_collect(int stream, const uint8_t *p, size_t n) {
+    if (stream != 1 || g_bench_n >= 64) return;
+    const size_t m = n < sizeof g_bench_out[0] - 1 ? n : sizeof g_bench_out[0] - 1;
+    memcpy(g_bench_out[g_bench_n], p, m); g_bench_out[g_bench_n][m] = 0; g_bench_n++;
+}
+static void measure_gflops(void) {
+    if (g_bench_done) return;
+    g_bench_done = 1;
+    const char *apk = AVmPayload_getApkContentsPath(); char wasm[700], pinp[700], lib[700], ph[80] = "";
+    snprintf(wasm, sizeof wasm, "%s/assets/flops-probe.wasm", apk); snprintf(pinp, sizeof pinp, "%s/assets/flops-probe.sha256", apk);
+    snprintf(lib, sizeof lib, "%s/lib/arm64-v8a/libpvm_rt.so", apk);
+    uint8_t pin[32]; FILE *f = fopen(pinp, "r");
+    const int pinned = f && fgets(ph, sizeof ph, f) && strlen(ph) >= 64 && unhex(ph, pin, 32) == 32;
+    if (f) fclose(f);
+    if (!pinned) { OUT("BENCH not run: this APK carries no pinned flops-probe"); return; }
+    f = fopen(wasm, "rb"); long n = -1; uint8_t *bytes = NULL;
+    if (f && fseek(f, 0, SEEK_END) == 0 && (n = ftell(f)) > 0 && n <= (1L << 20) && fseek(f, 0, SEEK_SET) == 0 && (bytes = malloc((size_t)n)) && fread(bytes, 1, (size_t)n, f) == (size_t)n) { }
+    else { free(bytes); bytes = NULL; }
+    if (f) fclose(f);
+    if (!bytes) { OUT("BENCH not run: flops-probe is unreadable"); return; }
+    void *h = dlopen(lib, RTLD_NOW); pvmrt_bench_fn b = h ? (pvmrt_bench_fn)dlsym(h, "pvmrt_bench") : NULL;
+    if (!b) { free(bytes); OUT("BENCH not run: the runtime has no pvmrt_bench"); return; }
+    const long np = sysconf(_SC_NPROCESSORS_ONLN); const int inst = np < 1 ? 1 : np > 64 ? 64 : (int)np;
+    char err[256] = ""; uint64_t wall = 0, cms = 0;
+    /* every run is at full concurrency; a run shorter than a second is dominated by start-up costs, so the work is rescaled
+     * to about 1.5 s and run again (at most 6 runs); only a run of 1 s or more is reported */
+    unsigned long long steps = 20000ull; int rc = -1, runs = 0;
+    for (; runs < 6; runs++) {
+        char st[24]; snprintf(st, sizeof st, "%llu", steps);
+        const char *argv[] = { "simd", st, "7" };
+        g_bench_n = 0; wall = 0;
+        rc = b(bytes, (size_t)n, pin, argv, 3, inst, 64ull << 20, 60000, bench_collect, &wall, &cms, err, sizeof err);
+        if (rc != 0 || g_bench_n != inst || !wall || wall >= 1000) break;
+        unsigned long long next = steps * 1500ull / wall;
+        if (next < steps * 2) next = steps * 2;
+        if (next > (1ull << 34)) break;
+        steps = next;
+    }
+    free(bytes);
+    if (rc != 0 || g_bench_n != inst || wall < 1000) { OUT("BENCH failed: %s (%d of %d answers, wall %llu ms after %d runs)", err, g_bench_n, inst, (unsigned long long)wall, runs + 1); return; }
+    unsigned long long fl = 0;
+    if (sscanf(g_bench_out[0], "flops=%llu", &fl) != 1 || fl != steps * 128ull) { OUT("BENCH refused: the work is not steps x 128 (%s)", g_bench_out[0]); return; }
+    for (int i = 1; i < inst; i++) if (strcmp(g_bench_out[i], g_bench_out[0]) != 0) { OUT("BENCH refused: instance %d answered differently", i); return; }
+    g_caps_gflops = (double)fl * inst / (double)wall / 1e6;
+    OUT("BENCH gflops=%.2f instances=%d steps=%llu wall_ms=%llu runs=%d compile_ms=%llu (f32x4 multiply-add, pvm-rt Pulley; every instance identical)",
+        g_caps_gflops, inst, steps, (unsigned long long)wall, runs + 1, (unsigned long long)cms);
+}
 #define PVM_CPU_CAPS_DOMAIN "enclave-pvm-cpu-caps-v1\n"
 /* The tier's capability report, version 2 (relay/pvm-cpu-tier.mjs): strict JSON in exactly the relay parser's field set,
  * signed by the attested transport key over DOMAIN || report, emitted as "CAPS <report hex> <signature hex>". It names the
@@ -1626,12 +1682,13 @@ static void caps_v2_emit(const char *tag) {
         if (f) { while (fgets(l, sizeof l, f)) if (sscanf(l, "MemTotal: %llu kB", &mem_kb) == 1) break; fclose(f); } }
     const long threads = sysconf(_SC_NPROCESSORS_ONLN);
     char nh[65], rh_id[65]; sh_pads_bin2hex(g_caps_nonce, 32, nh); sh_pads_bin2hex(rid, 32, rh_id);
-    char rep[700];
+    char rep[700], gf[40] = "";
+    if (g_caps_gflops > 0) snprintf(gf, sizeof gf, ",\"gflops\":%.2f", g_caps_gflops);   /* measured (measure_gflops), never guessed */
     const int rn = snprintf(rep, sizeof rep,
         "{\"v\":2,\"tier\":\"pvm-cpu\",\"nonce\":\"%s\",\"mode\":\"%s\",\"runtime\":\"%s\",\"vm\":{\"threads\":%ld,\"mem_mib\":%llu},"
-        "\"vm_ms\":%llu,\"attach_vm_ms\":%llu,\"device\":\"\"}",
+        "\"vm_ms\":%llu,\"attach_vm_ms\":%llu%s,\"device\":\"\"}",
         nh, g_pins.mode == ANCHOR_MODE_PROTECTED ? "protected" : "dev", rh_id, threads > 0 ? threads : 1, mem_kb / 1024,
-        (unsigned long long)boot_ms(), (unsigned long long)g_caps_attach_ms);
+        (unsigned long long)boot_ms(), (unsigned long long)g_caps_attach_ms, gf);
     if (rn <= 0 || rn >= (int)sizeof rep) { OUT("CAPS not emitted: report too long"); return; }
     const size_t dl = strlen(PVM_CPU_CAPS_DOMAIN), n = dl + (size_t)rn;
     unsigned char *m = malloc(n), *sm = malloc(n + 64); unsigned long long smlen = 0;
@@ -2215,6 +2272,7 @@ int AVmPayload_main(void) {
         }
     }
     if (app) {
+        measure_gflops();       /* the VM's compute, measured under the app runtime, for the report (once per boot) */
         caps_v2_emit("CAPS");   /* the tier's capability report, once per run, after the relay has accepted this attach */
         const int arc = run_app(&app_plan);
         OUT("END");

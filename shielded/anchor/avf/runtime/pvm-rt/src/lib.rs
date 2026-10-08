@@ -221,6 +221,103 @@ pub fn run_app(
     })
 }
 
+/// The most instances one `bench` runs at once.
+pub const MAX_BENCH_INSTANCES: usize = 64;
+
+pub struct BenchOutput {
+    /// each instance's stdout, in instance order
+    pub stdout: Vec<Vec<u8>>,
+    pub exit_codes: Vec<i32>,
+    pub compile_ms: u128,
+    /// from the moment every instance was released together to the moment the last one finished
+    pub wall_ms: u128,
+}
+
+/// The tier's compute measurement (PVM-CPU.md, "Capacity"). It verifies and compiles a wasi:cli component ONCE, exactly as
+/// `run_app` does, and instantiates it `instances` times, one thread each. All of them are released at once from a barrier
+/// (instantiation is outside the timed part) and run to the end. It returns each one's output and the wall time of the
+/// concurrent runs, so a caller's work / wall time is what this VM's cores do in parallel under the runtime apps get. One
+/// deadline for the whole run stops every instance.
+pub fn bench(
+    bundle: &[u8],
+    expected_sha256: &[u8; 32],
+    args: &[String],
+    instances: usize,
+    mem_limit: usize,
+    deadline: Duration,
+) -> Result<BenchOutput> {
+    if instances == 0 || instances > MAX_BENCH_INSTANCES {
+        wasmtime::bail!("instances must be 1..={MAX_BENCH_INSTANCES}");
+    }
+    let engine = engine()?;
+    let t0 = Instant::now();
+    let component = verify_and_compile(&engine, bundle, expected_sha256)?;
+    let compile_ms = t0.elapsed().as_millis();
+    let mut linker = Linker::<State>::new(&engine);
+    wasmtime_wasi::p2::add_to_linker_sync(&mut linker)?;
+    let mut argv = vec!["app".to_string()];
+    argv.extend_from_slice(args);
+    let barrier = std::sync::Barrier::new(instances + 1);
+    let done = Arc::new(AtomicBool::new(false));
+    let watchdog = {
+        let (e, d) = (engine.clone(), done.clone());
+        std::thread::spawn(move || {
+            let t = Instant::now();
+            while !d.load(Ordering::Acquire) {
+                if t.elapsed() >= deadline {
+                    e.increment_epoch();
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        })
+    };
+    let (results, wall_ms) = std::thread::scope(|sc| {
+        let handles: Vec<_> = (0..instances)
+            .map(|_| {
+                let (engine, component, linker, argv, barrier) = (&engine, &component, &linker, &argv, &barrier);
+                sc.spawn(move || -> Result<(i32, Vec<u8>)> {
+                    let out = MemoryOutputPipe::new(1 << 16);
+                    let mut b = WasiCtx::builder();
+                    b.args(argv).stdout(out.clone());
+                    let limits = StoreLimitsBuilder::new().memory_size(mem_limit).instances(64).tables(64).memories(16)
+                        .trap_on_grow_failure(true).build();
+                    let mut store = Store::new(engine, State { ctx: b.build(), table: ResourceTable::new(), limits });
+                    store.limiter(|s| &mut s.limits);
+                    store.set_epoch_deadline(1);
+                    let cmd = Command::instantiate(&mut store, component, linker);
+                    barrier.wait(); // every thread reaches the barrier, even one whose instantiation failed
+                    let result = cmd.and_then(|cmd| cmd.wasi_cli_run().call_run(&mut store));
+                    drop(store);
+                    let code = match result {
+                        Ok(Ok(())) => 0,
+                        Ok(Err(())) => 1,
+                        Err(e) => match e.downcast_ref::<I32Exit>() {
+                            Some(x) => x.0,
+                            None => return Err(e),
+                        },
+                    };
+                    Ok((code, out.contents().to_vec()))
+                })
+            })
+            .collect();
+        barrier.wait();
+        let t1 = Instant::now();
+        let results: Vec<_> = handles.into_iter().map(|h| h.join().unwrap_or_else(|_| Err(wasmtime::format_err!("a bench thread panicked")))).collect();
+        (results, t1.elapsed().as_millis())
+    });
+    done.store(true, Ordering::Release);
+    let _ = watchdog.join();
+    let mut stdout = Vec::with_capacity(instances);
+    let mut exit_codes = Vec::with_capacity(instances);
+    for r in results {
+        let (code, out) = r?;
+        exit_codes.push(code);
+        stdout.push(out);
+    }
+    Ok(BenchOutput { stdout, exit_codes, compile_ms, wall_ms })
+}
+
 fn hex(b: &[u8]) -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
 }
@@ -438,6 +535,67 @@ pub extern "C" fn pvmrt_run_app(
                 }
             }
             0
+        }
+        Err(e) => refuse(&format!("{e:#}")),
+    }
+}
+
+/// The tier's compute measurement (`bench`): `instances` (1..=MAX_BENCH_INSTANCES) concurrent runs of one verified wasi:cli
+/// component, released together. `emit(1, ..)` receives each instance's stdout, one call per instance in instance order;
+/// `*wall_ms` the concurrent runs' wall time. Returns 0 when every instance exited 0, -1 when the call was refused, the run
+/// failed, or an instance exited otherwise (the reason in `err`). The same checks as `pvmrt_run_app`, before anything runs.
+#[no_mangle]
+pub extern "C" fn pvmrt_bench(
+    bundle: *const u8,
+    len: usize,
+    sha256: *const u8,
+    argv: *const *const c_char,
+    argc: c_int,
+    instances: c_int,
+    mem_limit: u64,
+    deadline_ms: u64,
+    emit: EmitFn,
+    wall_ms: *mut u64,
+    compile_ms: *mut u64,
+    err: *mut c_char,
+    errcap: usize,
+) -> c_int {
+    let refuse = |why: &str| {
+        put(err, errcap, why);
+        -1
+    };
+    let Some(emit) = emit else {
+        return refuse("no emit callback: the output would be lost; refusing");
+    };
+    if instances < 1 || instances as usize > MAX_BENCH_INSTANCES {
+        return refuse(&format!("instances must be 1..={MAX_BENCH_INSTANCES}"));
+    }
+    let args = match collect_args(argv, argc) {
+        Ok(a) => a,
+        Err(e) => return refuse(&e),
+    };
+    let (bytes, want) = match checked_inputs(bundle, len, sha256, mem_limit, deadline_ms, std::ptr::null(), std::ptr::null()) {
+        Ok(x) => x,
+        Err(e) => return refuse(&e),
+    };
+    match bench(bytes, &want, &args, instances as usize, mem_limit as usize, Duration::from_millis(deadline_ms)) {
+        Ok(o) => {
+            for out in &o.stdout {
+                emit(1, out.as_ptr(), out.len());
+            }
+            // SAFETY: each out-pointer is written only when non-null.
+            unsafe {
+                if !wall_ms.is_null() {
+                    *wall_ms = o.wall_ms as u64;
+                }
+                if !compile_ms.is_null() {
+                    *compile_ms = o.compile_ms as u64;
+                }
+            }
+            match o.exit_codes.iter().position(|&c| c != 0) {
+                None => 0,
+                Some(i) => refuse(&format!("instance {i} exited {}", o.exit_codes[i])),
+            }
         }
         Err(e) => refuse(&format!("{e:#}")),
     }
