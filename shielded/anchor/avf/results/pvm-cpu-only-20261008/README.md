@@ -9,6 +9,8 @@ anywhere, run on the lab Pixel 10 Pro XL. The APK is signed with the lab key (ke
 | `2048mib-pass.log` | fresh instance `pvmcpu2`, `--ei mem 2048` | PASS (`2048mib-check.txt`) |
 | `defaults-pass.log` | fresh instance `pvmcpu3`, the new defaults (2048 MiB, 256 MiB store) | PASS (`defaults-check.txt`) |
 | `host-refusals.txt` | `--es mode local`; `--es app_graph` | both refused by the host before any VM ran: "runs mode app only", "carries no model" |
+| `live-attach-401-before-fix.log` | the phone dialling main's tunnel hub configured with only the pVM CPU policy (`live-attach-hub.mjs`, relay modules from branch pvm/cpu-only before its attestOn fix) | `401 Unauthorized`: on main the hub switched AVF attestation on only for a v1 AVF code-hash pin |
+| `live-attach-admitted.log`, `live-attach-hub.jsonl` | the same, after the fix (`avfOn` counts the tier's own builds; api-relay's `avfAttestWithPvmCpu`) | the attestation was ACCEPTED (codeHash b2ae0229…); the VM's v2 report was relay-bound; the hub logged `pvm-cpu ADMITTED (CPU-only runtime d3370878…, 8 threads, 1994 MiB)` |
 
 The checker (runtime/conformance/check-app-cpu.py) holds these:
 - the protected pvm-cpu payload, with `model=none` on its PINS line;
