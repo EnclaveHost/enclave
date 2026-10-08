@@ -20,6 +20,7 @@ echo "shipped $(printf '%s\n' $files | wc -l) files from the agent's import grap
 DEST="$ROOT/vbs/node"
 # the CID verifier is the platform's own (wasm/ipfs_fetch.py), copied rather than forked
 scp -q "$REPO"/wasm/ipfs_fetch.py "$BOX:$DEST/ipfs_fetch.py"
+scp -q "$HERE"/flops-probe.wasm "$BOX:$DEST/flops-probe.wasm"   # compute-measure.mjs reads it beside itself (not an import)
 # the platform's own shielded probe, so the box can prove its card rather than assert it
 ssh "$BOX" 'New-Item -ItemType Directory -Force -Path C:\Users\claude\vbs\probe | Out-Null'
 scp -q "$REPO"/metal/guest/shielded.mjs "$REPO"/metal/guest/shielded-probe.mjs "$BOX:$ROOT/vbs/probe/"
