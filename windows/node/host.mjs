@@ -2074,7 +2074,9 @@ export class Host {
              // Has the engine's own hold been measured? A caller that sees false knows ramMbFree
              // is a refusal, not a capacity.
              ramMeasured: !this.appsInTee() || measured !== null,
-             cpuGflops: Number(this.cfg.gflops) || 0,
+             // what catalog cpuGflops floors are checked against: the nominal 62.5-a-vCPU figure they were written in
+             // (agent.mjs gflopsFloorBasis), not the measured nodeGflops this box publishes
+             cpuGflops: Number(this.cfg.gflopsFloorBasis ?? this.cfg.gflops) || 0,
              // The card, in the same shape: what a GPU-dialled deployment is checked against.
              gpuShareFree: gpuFree, cardGb: card ? Number(card.vramBudgetGb) || 0 : 0,
              ...(cpuCap ? { cpuCap } : {}), ...(gpuCap ? { gpuCap } : {}) };

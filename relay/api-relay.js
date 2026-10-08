@@ -1578,7 +1578,11 @@ function aggregateAvailability() {
     // every publisher. `gpus` above stays the whole serving set, because the free-capacity
     // numbers beside it describe what is actually buyable right now.
     specCardVramGb: minOf(offeredGpus, "cardVramGb"), specCardTflops: minOf(offeredGpus, "cardTflops"),
-    specNodeVcpus: minOf(offered, "nodeVcpus"), specNodeRamGb: minOf(offered, "nodeRamGb"), specNodeGflops: minOf(offered, "nodeGflops"),
+    // the GFLOPS spec is SIZING, so it is the nominal 62.5-a-vCPU figure catalog cpuGflops floors are written in, not the
+    // measured nodeGflops a box publishes (hosts measure since 2026-10-08); a box that reports no vCPUs keeps its number
+    specNodeVcpus: minOf(offered, "nodeVcpus"), specNodeRamGb: minOf(offered, "nodeRamGb"),
+    specNodeGflops: minOf(offered.map((e) => (Number(e.availability?.nodeVcpus) > 0
+      ? { availability: { nodeGflops: Math.round(Number(e.availability.nodeVcpus) * 1000 / 16) } } : e)), "nodeGflops"),
     // WHY the cpu pool is small, carried up from the enclave whose numbers we
     // just quoted. The aggregate reported the folded cpuShareFree and dropped
     // every term behind it, so a box reading 65% free with one resident model

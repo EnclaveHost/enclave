@@ -160,7 +160,9 @@ export function minPctsOf(v, spec, opts){
   const volGb = Math.max(0, Number(opts && opts.volGb) || 0);
   const vramMb = Number(v && v.vramMb || 0), gpuGf = Number(v && v.gpuGflops || 0);
   const memMb = Number(v && v.memMb || 0), cpuGf = Number(v && v.cpuGflops || 0);
-  const cpuOf = (mb, gf) => pctCeil(Math.max(mb / (s.nodeRamGb * 1024), (gf != null ? gf : cpuGf) / s.nodeGflops));
+  // catalog cpuGflops floors are in the fleet convention's units (62.5 a vCPU), so they divide by the box's NOMINAL
+  // figure (nodeGflopsFloor, enclaveSpecOf), never the measured nodeGflops it publishes
+  const cpuOf = (mb, gf) => pctCeil(Math.max(mb / (s.nodeRamGb * 1024), (gf != null ? gf : cpuGf) / (s.nodeGflopsFloor || s.nodeGflops)));
   const cpu = (memMb > 0 || cpuGf > 0) ? cpuOf(memMb) : 1;
   // The same app WITHOUT a card, where its publisher sized that case. On a
   // card the weights are resident in the tenant's VRAM slice and the node
@@ -599,6 +601,10 @@ export function enclaveSpecOf(row){
     const v = Number(a[k]);
     if (Number.isFinite(v) && v > 0) s[k] = v;
   }
+  // nodeGflops is MEASURED now (hosts run flops-probe at start), but catalog cpuGflops floors were written in the fleet
+  // convention's units, 62.5 a vCPU (risc-box's 250 = 4 vCPUs). Sizing against a box uses that nominal figure.
+  const vc = Number(a.nodeVcpus);
+  if (Number.isFinite(vc) && vc > 0) s.nodeGflopsFloor = Math.round(vc * 1000 / 16);
   return s;
 }
 
@@ -681,7 +687,7 @@ export function rankEnclavesFor(v, rows){
     // claim hint to a box that declines, and the deploy would sit in the open
     // queue waiting for whichever box does carry them.
     const fits = (!needsGpu || (gpu && vramMb / 1024 <= spec.cardVramGb && gpuGf / 1000 <= spec.cardTflops))
-              && memMb <= spec.nodeRamGb * 1024 && cpuGf <= spec.nodeGflops
+              && memMb <= spec.nodeRamGb * 1024 && cpuGf <= (spec.nodeGflopsFloor || spec.nodeGflops)
               && hasVolumes(a, wantVols);
     const mins = minPctsOf(v, spec, { volGb: volGbOf(a, wantVols) });
     // Whether this box would serve the model on CORES rather than its card —
