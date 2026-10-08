@@ -17,9 +17,9 @@ import "../../components/footer/footer.js";
 import "../../components/toast/toast.js";
 import "../../components/section-head/section-head.js";
 import { Enclave } from "../core/api.js";
-import { connectWallet } from "../core/wallet.js";
+import { connectWallet, disconnectWallet } from "../core/wallet.js";
 import { $, esc, lsGet, on, showToast } from "../core/util.js";
-import { sdk, sessionsConfig, ownerOp, fmtUsd, fmtLeft, endSession, relayRoot, versionLabel, vaultOf,
+import { sdk, sessionsConfig, ownerOp, fmtUsd, fmtLeft, relayRoot, versionLabel, vaultOf,
   walletDelegation, setWalletDelegation } from "../core/sessions.js";
 
 let rendering = false;
@@ -155,7 +155,10 @@ function wire(body, info, S, rows, free){
     const r = rows.find((x) => x.sid === sid);
     const mineNow = lsGet("enclave_wallet_session") === sid;
     const t = c.querySelector(".ss-term");
-    if (t) t.addEventListener("click", () => run(t, () => mineNow ? endSession() : ownerOp({ op: "terminate", sessionId: sid }), "Session ended; its budget returned."));
+    // this browser's own session: its button is Sign out and does exactly that (ending the session is part of it;
+    // the session key signs, no wallet prompt, and the sign-out toast names the refund)
+    if (t && mineNow) t.addEventListener("click", async () => { t.disabled = true; await disconnectWallet(); mount(); });
+    else if (t) t.addEventListener("click", () => run(t, () => ownerOp({ op: "terminate", sessionId: sid }), "Session ended; its budget returned."));
     const e = c.querySelector(".ss-extend");
     if (e) e.addEventListener("click", () => run(e, () => ownerOp({ op: "extend", sessionId: sid,
       expiresAt: BigInt(Math.max(Number(r.st.expiresAt), Math.floor(Date.now() / 1000)) + 7 * 86400) }), "Extended by 7 days."));
