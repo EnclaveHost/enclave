@@ -226,6 +226,11 @@ public class Main extends Activity {
             if (p.attachSigner != null && !p.attachSigner.matches("https?://[^\\s]+/attach-sign")) p.configError = "attach_signer must be the owner's http(s) co-signer URL ending /attach-sign";
             if (!p.proofPins.matches("[0-9a-fx ]*")) p.configError = "proof_pins must be the six pins, lowercase, space-separated";
             if (p.mode.equals("app") && p.configError.isEmpty()) {
+                // the component is received into the VM's encrypted store (payload receive_public_file): app mode always has one
+                if (i.getIntExtra("storage", 0) == 0 && p.storageMib == 0) p.storageMib = Math.max(256, (new java.io.File(p.app).length() >> 20) + 64);
+                // MEASURED (results/pvm-cpu-only-20261008, Pixel 10 Pro XL): a 1024 MiB VM aborted (SIGABRT) at its first request
+                // -- the runtime and a request's instance (up to 256 MiB) do not fit beside Microdroid -- and 2048 MiB served
+                if (i.getIntExtra("mem", 0) == 0 && p.appGraph.isEmpty()) p.memMib = 2048;
                 if (p.app.isEmpty() || !new java.io.File(p.app).isFile()) p.configError = "mode app needs --es app <component file>";
                 else if (!p.appSha.isEmpty() && !p.appSha.matches("[0-9a-f]{64}")) p.configError = "app_sha256 must be 64 lowercase hex";
                 else if (p.appArgs.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 8192) p.configError = "app_args must be at most 8192 bytes";

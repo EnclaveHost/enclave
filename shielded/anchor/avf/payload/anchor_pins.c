@@ -78,16 +78,14 @@ int anchor_pins_load(const char *dir, anchor_pins *p) {
         p->mode = ANCHOR_MODE_INVALID; return 0;
     }
 #ifdef ANCHOR_TIER_PVM_CPU
-    /* pVM CPU tier (PVM-CPU.md): the model runs on this VM's own vCPUs and no activation leaves it, so the pad ledger key,
-     * the shared-prefix key and the catalogs protect nothing here. A protected build needs the MODEL pin only, and any other
-     * pin in this build is an error: machinery the tier does not run is not carried "just in case". */
-    if (p->has_ledger || p->has_prefix || p->has_source_catalog || p->has_encoded_catalog || p->has_converter) {
-        snprintf(p->err, sizeof p->err, "pvm-cpu build carries a split-engine pin:%s%s%s%s%s", p->has_ledger ? " ledger" : "", p->has_prefix ? " prefix" : "",
-                 p->has_source_catalog ? " source-catalog" : "", p->has_encoded_catalog ? " encoded-catalog" : "", p->has_converter ? " converter" : "");
+    /* pVM CPU tier (PVM-CPU.md): CPU-only Wasm components, NO model. The pad ledger key, the shared-prefix key, the catalogs
+     * and the model digest protect nothing here, so a protected build carries no pin at all, and any pin in this build is an
+     * error: machinery the tier does not run is not carried "just in case". */
+    if (p->has_ledger || p->has_prefix || p->has_source_catalog || p->has_encoded_catalog || p->has_converter || p->has_model) {
+        snprintf(p->err, sizeof p->err, "pvm-cpu build carries a pin it does not use:%s%s%s%s%s%s", p->has_ledger ? " ledger" : "", p->has_prefix ? " prefix" : "",
+                 p->has_source_catalog ? " source-catalog" : "", p->has_encoded_catalog ? " encoded-catalog" : "", p->has_converter ? " converter" : "",
+                 p->has_model ? " model (this tier carries no model)" : "");
         p->mode = ANCHOR_MODE_INVALID; return 0;
-    }
-    if (p->mode == ANCHOR_MODE_PROTECTED && !p->has_model) {
-        snprintf(p->err, sizeof p->err, "protected pvm-cpu build without the model pin"); p->mode = ANCHOR_MODE_INVALID; return 0;
     }
     return 1;
 #endif

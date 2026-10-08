@@ -1,0 +1,3 @@
+15d0a203f0c1f78609e154a9e6b106c831cb4c0b7016b6efcd857ff730981112  out/anchor-pvm-cpu.apk
+b3afd5df10fde0bccdd6c01c895e9f6837a63ae3624846926b019964f4d86658  out/pvm-rt-target/aarch64-linux-android/release/libpvm_rt.so
+3577d2168a65f9d4e28d4cb4c955ed7937102a1f1701f123f5f3f6a85b423195  runtime/conformance/bundles/cpu-probe.wasm

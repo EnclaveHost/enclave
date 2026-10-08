@@ -1,0 +1,15 @@
+ok   the protected pvm-cpu payload ran it, model=none
+ok   runtime identity {"cache":"none","cpuFeatures":"baseline","execution":"interpreter","hostIsa":"aarch64","name":"wasmtime","targetIsa":"pulley64","version":"49.0.0","wx":"enforced"}
+ok   no model line anywhere in the run
+ok   capability report v2, tier pvm-cpu, protected, no model: ['attach_vm_ms', 'device', 'mode', 'nonce', 'runtime', 'tier', 'v', 'vm', 'vm_ms']
+ok   the report names this runtime (RuntimeID d3370878afa9d5ee...)
+     VM: 8 threads, 1994 MiB; signature e6e11b7461e6323d... (verified against the attested key by the relay, test/avf-real-pixel10)
+ok   serving bundles/cpu-probe.wasm (3577d2168a65f9d4...), compiled in 739 ms
+ok   1 /ping: 200 {"ok":true}
+ok   2 /?steps=8&work=1000: 200, the 8 predicted values (30 ms)
+ok   3 the same request again: the same values (a fresh instance)
+ok   4 unknown route: the app's own 404
+ok   5 /?steps=4&work=200000: 200, the predicted values in 269 ms (23791821 byte-rounds/s under Pulley)
+ok   stopped by the owner after 5 requests
+ok   capture complete
+PASS the pVM CPU tier on the device (CPU-only, no model)
