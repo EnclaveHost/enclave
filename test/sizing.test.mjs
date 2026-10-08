@@ -31,7 +31,7 @@ import { fileURLToPath } from "node:url";
 const pexec = promisify(execFile);
 const SUPERVISOR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "supervisor.js");
 
-async function size(c) {
+async function size(c, envOver = {}) {
   // timeout is load-bearing: a selftest child that fails to exit (any path
   // that reaches the supervisor's normal listeners) would otherwise outlive
   // the test run as an orphan - one burned a core on a dev box for 8 hours
@@ -41,7 +41,7 @@ async function size(c) {
     env: { ...process.env, SECRET: "test-secret", SIZING_SELFTEST: JSON.stringify(c),
            POOL_SELFTEST: "", SWEEP_SELFTEST: "", REACH_SELFTEST: "", ACME_SELFTEST: "",
            ADDRESS_BOOK_ADDRESS: "", REGISTRY_ENABLED: "", CLAIM_ENABLED: "",
-           ACME_EAB_KID: "", ACME_EAB_HMAC: "", APP_CERT_DOMAIN: "", DNS_API: "" } });
+           ACME_EAB_KID: "", ACME_EAB_HMAC: "", APP_CERT_DOMAIN: "", DNS_API: "", ...envOver } });
   const lines = stdout.trim().split("\n").filter(Boolean);
   return JSON.parse(lines[lines.length - 1]);
 }
@@ -262,4 +262,16 @@ test("the GPU floor is untouched: this key sizes the node and nothing else", asy
   assert.equal(r.gpuShare, 0.36, "the card ask is the app's declared axes, as before");
   assert.equal(r.gpuFloor, 0, "still soft - the publisher said cores are acceptable");
   assert.equal(r.needGpu, 0);
+});
+
+// A host's nodeGflops is MEASURED now (metal0 2026-10-08: gsup's fw_cfg gflopsPerVcpu; 22.5 a vCPU where the convention
+// said 62.5), but catalog cpuGflops floors were written in the convention's units: risc-box 0.6.62's 250 is 4 vCPUs,
+// 25% of a 16-vCPU node. Floors divide by the nominal figure, so a measured 404 must not turn 25% into 62%.
+test("a measured nodeGflops below the convention leaves catalog floors in their own units (nominal 62.5 a vCPU)", async () => {
+  const env = { NODE_VCPUS: "16", NODE_RAM_GB: "64" };
+  const conv = await size({ isGpu: false, min: { memMb: 512, cpuGflops: 250 }, cpuMilli: 250 }, { ...env, NODE_GFLOPS: "1000" });
+  const meas = await size({ isGpu: false, min: { memMb: 512, cpuGflops: 250 }, cpuMilli: 250 }, { ...env, NODE_GFLOPS: "404" });
+  assert.equal(conv.cpuShare, 0.25);
+  assert.equal(meas.cpuShare, 0.25, "the same 25% whatever the box measured");
+  assert.equal(meas.below, false, "and the 25% record is servable");
 });
