@@ -189,9 +189,11 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
   const allowByName = new Map(allow.filter((a) => a && a.name && a.tokenSha256).map((a) => [a.name, a.tokenSha256.toLowerCase()]));
   // the NucBox node's attach (mode hv-node): only with the pinned TPM EK roots. A legacy `vbs` policy enables nothing.
   const hvOn = !!(attest && attest.hvNode && attest.hvNode.ekRoots);
-  const attestOn = !!(attest && ((attest.allowedMeasurements && attest.allowedMeasurements.length)
-                               || (attest.avf && attest.avf.codeHashes && attest.avf.codeHashes.length)
-                               || hvOn));
+  // AVF attach: v1 builds, pad builds, or the pVM CPU tier's own builds (its v2 attach needs no other pin)
+  const avfOn = !!(attest && attest.avf && ((attest.avf.codeHashes && attest.avf.codeHashes.length)
+                                            || (attest.avf.padCodeHashes && attest.avf.padCodeHashes.length)
+                                            || (attest.pvmCpu && attest.pvmCpu.codeHashes && attest.pvmCpu.codeHashes.size)));
+  const attestOn = !!(attest && ((attest.allowedMeasurements && attest.allowedMeasurements.length) || avfOn || hvOn));
   const wss = new WebSocketServer({ noServer: true });
   const tunnels = new Map();                                  // name -> { ws, pending, lastSeen, mode, publicUrl, keyFp }
 

@@ -57,6 +57,16 @@ export function pvmCpuPolicyFromEnv(env, { onRefuse = () => {} } = {}) {
   } catch (e) { onRefuse(`pVM CPU policy: ${e.message}`); return null; }
 }
 
+// The hub's AVF attach policy with the pVM CPU tier beside it. The tier attaches with the v2 transcript on ITS code hashes, so it
+// needs no legacy (v1) or pad build pins: with the tier's policy alone this is an AVF policy with no v1/pad builds and the
+// tier's authorities; with both, the authorities are the union (admitPvmCpu still holds a pVM CPU attach to the tier's own
+// code hashes and authorities, and pad eligibility stays with padCodeHashes alone). Neither -> null.
+export function avfAttestWithPvmCpu(avf, pvmCpu) {
+  if (!pvmCpu) return avf || null;
+  const base = avf || { codeHashes: [], padCodeHashes: [], authorityHashes: [] };
+  return { ...base, authorityHashes: [...new Set([...(base.authorityHashes || []), ...pvmCpu.authorityHashes])] };
+}
+
 export function pvmCpuPolicy({ codeHashes, authorityHashes, runtimeIds, minMemMib = 0, minThreads = 1, maxReportAgeMs = 15 * 60 * 1000, models } = {}) {
   if (models !== undefined) throw new Error("the pVM CPU tier carries no model: a policy with `models` is the retired model tier");
   // codeHash and authorityHash are the AVF extension's octet strings, as hex (a v4 Merkle root; a certificate's
