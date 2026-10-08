@@ -103,8 +103,8 @@ export async function startLeaseChain({ port = 18545 + Math.floor(Math.random() 
     },
     setProofKey: (enclaveId, proofKey, from = operator) => send(from, registry, "EnclaveRegistry", "setProofKey", [enclaveId, proofKey]),
     registeredProofKey: async (enclaveId) => (await read(registry, "EnclaveRegistry", "get", [enclaveId])).proofKey.toLowerCase(),
-    async createFunded() {
-      const r = await send(tenant, ledger, "EnclaveDeployments", "create", ["catalog://pvm-lab/0", 0, 100, 8080, "", true, "", "0x0000000000000000000000000000000000000000", 0n, 1_000_000n]);
+    async createFunded({ gpuMilli = 0 } = {}) {   // gpuMilli > 0: a deployment asking for a GPU share (a pVM runner never claims one)
+      const r = await send(tenant, ledger, "EnclaveDeployments", "create", ["catalog://pvm-lab/0", gpuMilli, 100, 8080, "", true, "", "0x0000000000000000000000000000000000000000", 0n, 1_000_000n]);
       const ev = V.parseEventLogs({ abi: C.EnclaveDeployments.abi, logs: r.logs }).find((l) => l.args && l.args.id);
       await send(tenant, ledger, "EnclaveDeployments", "fund", [ev.args.id, 100_000_000n]);
       return ev.args.id;
