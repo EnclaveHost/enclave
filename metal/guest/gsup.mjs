@@ -21,7 +21,8 @@ const log = (...a) => { try { fs.writeSync(1, `[gsup] ${a.join(' ')}\n`); } catc
 const readJson = (p, d) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return d; } };
 
 // The node's ADVERTISED capacity is this VM's size: vCPUs from the scheduler,
-// GFLOPS scaling with them (~62.5/vCPU, matching the flavor's 1000 for 16).
+// GFLOPS scaling with them -- at the per-vCPU rate the HOST MEASURED where the apps run (fw_cfg gflopsPerVcpu, below),
+// else the fleet's ~62.5/vCPU convention (the flavor's 1000 for 16).
 // RAM follows the FLEET convention: advertise the NOMINAL size the host gives
 // the VM (fw_cfg nodeRamGb, from config memMiB) exactly as the Tinfoil flavors
 // advertise their baked constants — on both, the wasm manager's RAM-headroom
@@ -31,7 +32,6 @@ const readJson = (p, d) => { try { return JSON.parse(fs.readFileSync(p, 'utf8'))
 // have; with no nominal, fall back to the measured size as before.
 const NODE_VCPUS = os.cpus().length;
 const totalGb = os.totalmem() / (1024 ** 3);
-const NODE_GFLOPS = Math.max(1, Math.round((1000 / 16) * NODE_VCPUS));
 
 // --- config: mode from the MEASURED cmdline; deployment config from fw_cfg ----
 // (out-of-band, NOT measured — so the launch measurement is stable per image).
@@ -47,6 +47,13 @@ const nominalRamGb = Math.round(Number(fw.nodeRamGb) || 0);
 const NODE_RAM_GB  = nominalRamGb > 0
   ? Math.min(nominalRamGb, Math.ceil(totalGb) + 3)
   : Math.max(1, Math.floor(totalGb - 1.5));            // measured: reserve ~1.5 GB for the base system
+// GFLOPS: MEASURED. The host runs flops-probe -- an exactly counted f32x4 multiply-add workload -- under the guests'
+// wasmtime, one copy per pool vCPU at once, and passes the per-vCPU rate (metal/measure-gflops.mjs -> config
+// gflopsPerVcpu -> fw_cfg). Like nodeRamGb it is the host's word (fw_cfg is not measured), so it is bounded. Without it,
+// the fleet's 62.5-per-vCPU convention stands. The supervisor scales it to the guest pool (nodeSpec: cores x per vCPU).
+const FW_GFLOPS_PER_VCPU = Number(fw.gflopsPerVcpu);
+const GFLOPS_MEASURED = Number.isFinite(FW_GFLOPS_PER_VCPU) && FW_GFLOPS_PER_VCPU > 0 && FW_GFLOPS_PER_VCPU <= 1000;
+const NODE_GFLOPS = Math.max(1, Math.round((GFLOPS_MEASURED ? FW_GFLOPS_PER_VCPU : 1000 / 16) * NODE_VCPUS));
 const MODE         = fw.mode || cmdMode || 'snp';      // snp | tdx | dev
 const NAME         = fw.name || 'metal0';
 const PUBLIC_URL   = fw.publicUrl || '';               // e.g. https://api.enclave.host/t/metal0
