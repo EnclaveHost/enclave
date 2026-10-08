@@ -40,7 +40,7 @@ test("sign in -> indicator -> /sessions -> top up -> sign out refunds and revoke
   // the popover: no deployment counts and no "Host login"; the session row is status only, Sessions sits beside
   // Deposit, and Sign out is the only way to end it here
   await page.click("#walletBtn");
-  await expect(page.locator("#wpSess")).toContainText("left", { timeout: 15_000 });
+  await expect(page.locator("#wpSess")).toHaveText(/^\$0\.00 · (\d+m|1h)/, { timeout: 15_000 });
   await expect(page.locator("#walletPop")).not.toContainText("Host login");
   await expect(page.locator("#walletPop")).not.toContainText("Deployments");
   await expect(page.locator(".wp-fund")).toHaveText(/Deposit\s*Sessions/);
