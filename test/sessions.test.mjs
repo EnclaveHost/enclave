@@ -456,10 +456,15 @@ test("session-derived account token: sign-in, short SSO tokens, dies with the se
     assert.equal(login.body.vault, vault);
     const tok = { Authorization: "Bearer " + login.body.token };
     const aud = "0x" + "ab".repeat(32);
-    // an est1 can't be recalled once an app holds it: a session-derived one is capped at 10 minutes
+    // an est1 can't be recalled once an app holds it: a session-derived one lives as long as the
+    // session (browser preset: 12 h), never longer, and not just 10 minutes (that signed apps out)
     const est = await post("/v1/sso/token", { headers: tok, body: { aud, ttl: 604800 } });
     assert.equal(est.status, 200, JSON.stringify(est.body));
-    assert.equal(est.body.exp - est.body.iat, 600);
+    const sessExp = Number((await session.status()).expiresAt);
+    assert.ok(est.body.exp <= sessExp, `the token outlives the session (${est.body.exp} > ${sessExp})`);
+    assert.ok(est.body.exp - est.body.iat > 12 * 3600 - 300, `too short: ${est.body.exp - est.body.iat}s`);
+    const shortAsked = await post("/v1/sso/token", { headers: tok, body: { aud, ttl: 900 } });
+    assert.equal(shortAsked.body.exp - shortAsked.body.iat, 900, "an app asking for less gets what it asked");
     // a session token can't widen the account it stands for
     const link = await post("/v1/account/link/siwe", { headers: tok, body: {} });
     assert.equal(link.status, 403);
