@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { measureGflops } from './compute-measure.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 function arg(name, dflt) { const i = process.argv.indexOf('--' + name); return i > 0 ? process.argv[i + 1] : dflt; }
@@ -173,6 +174,18 @@ const cmdline = [
   `metal.mode=${MODE}`,
   ...(ISO ? [`metal.isolation=${ISO.backend}`] : []),
 ].join(' ');
+// The node's GFLOPS, MEASURED where its apps run, before the control VM starts: flops-probe (an exactly counted f32x4
+// multiply-add workload) under the guests' wasmtime, one copy per guest-pool vCPU (config gflopsCopies; default this
+// host's CPUs) at once, the work grown until a run lasts a second (compute-measure.mjs). Its per-vCPU rate rides fw_cfg
+// to gsup (gflopsPerVcpu), which publishes it in place of the 62.5-per-vCPU convention. On failure gsup keeps that.
+let GFLOPS_PER_VCPU = null;
+if (cfg.measureGflops !== false) {
+  try {
+    const m = await measureGflops({ wasmtime: cfg.wasmtimeBin || '/usr/bin/wasmtime', instances: Number(cfg.gflopsCopies) || os.cpus().length });
+    GFLOPS_PER_VCPU = m.perInstance;
+    console.log(`[metal] compute measured: ${m.gflops} GFLOPS for ${m.instances} copies, ${m.perInstance} per vCPU (${m.wallMs} ms, ${m.runs} runs; ${m.method})`);
+  } catch (e) { console.error(`[metal] compute NOT measured (${e.message}): the guest keeps the 62.5-per-vCPU convention`); }
+}
 const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', relayUrl: cfg.relayUrl || '', tunnelToken: cfg.tunnelToken || '',
   // seller earning (metal/PROTOCOL.md Phase C): the operator EOA key that
   // registers/claims/earns on-chain (needs a little Base ETH for gas), and the
@@ -190,6 +203,8 @@ const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', rel
   // total + a small boot haircut so a config typo (or a dishonest seller)
   // can't advertise RAM the VM doesn't have.
   nodeRamGb: Math.round(Number(MEM) / 1024),
+  // the measured per-vCPU GFLOPS (above); absent when unmeasured, and gsup then keeps the convention
+  ...(GFLOPS_PER_VCPU ? { gflopsPerVcpu: GFLOPS_PER_VCPU } : {}),
   // what this operator CHARGES, in USD per hour for a FULL node / FULL card
   // (see gsup: converted to the ledger's per-second 6dp basis). The GPU ask is
   // only meaningful on a GPU enclave; gsup drops it otherwise.
