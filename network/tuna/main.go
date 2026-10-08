@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/EnclaveHost/enclave/network/tuna/guard"
+	"github.com/EnclaveHost/enclave/network/tuna/internal/earlystdio"
 	nkn "github.com/nknorg/nkn-sdk-go"
 	"github.com/nknorg/tuna"
 	"github.com/nknorg/tuna/filter"
@@ -69,7 +70,7 @@ var outputMu sync.Mutex
 func emit(e event) {
 	outputMu.Lock()
 	defer outputMu.Unlock()
-	_ = json.NewEncoder(os.Stdout).Encode(e)
+	_ = json.NewEncoder(earlystdio.Stdout).Encode(e)
 }
 
 var idPattern = regexp.MustCompile(`^[a-zA-Z0-9:_-]{1,100}$`)
