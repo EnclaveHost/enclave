@@ -53,6 +53,17 @@ if [ ! -f "$KS" ]; then
     -keyalg RSA -keysize 2048 -validity 3650 -dname "CN=Enclave Anchor Spike, O=Enclave Host" >/dev/null 2>&1
   echo "generated spike signing key $KS"
 fi
+# A RELEASE build signs with the owner's key instead, whose authorityHash the relay pins (PVM_CPU_AUTHORITY_HASHES):
+# ANCHOR_RELEASE_KEYSTORE=<jks> ANCHOR_RELEASE_PASS_FILE=<file holding its password> [ANCHOR_RELEASE_ALIAS=release]. Both stay
+# outside the repository. The output is <name>-release.apk, so a lab build never overwrites it.
+SIGN_KS="$KS"; SIGN_PASS="pass:anchor123"; SIGN_ALIAS=anchor; REL=""
+if [ -n "${ANCHOR_RELEASE_KEYSTORE:-}" ]; then
+  [ -f "$ANCHOR_RELEASE_KEYSTORE" ] && [ -f "${ANCHOR_RELEASE_PASS_FILE:-}" ] || { echo "ANCHOR_RELEASE_KEYSTORE needs an existing keystore and ANCHOR_RELEASE_PASS_FILE" >&2; exit 2; }
+  SIGN_KS="$ANCHOR_RELEASE_KEYSTORE"; SIGN_PASS="file:$ANCHOR_RELEASE_PASS_FILE"; SIGN_ALIAS="${ANCHOR_RELEASE_ALIAS:-release}"; REL="-release"
+fi
+# ...and installs as its OWN app (another key cannot update the lab app, and uninstalling that would delete its data and VM
+# instances): the release application id, ANCHOR_RELEASE_PACKAGE (default host.enclave.pvmcpu). The classes keep their package.
+RELEASE_PKG="${ANCHOR_RELEASE_PACKAGE:-host.enclave.pvmcpu}"
 
 for t in "$CLANG" "$BT/aapt2" "$BT/apksigner" "$BT/zipalign" "$SDK/platforms/android-$API/android.jar"; do
   [ -e "$t" ] || { echo "missing: $t" >&2; exit 2; }
@@ -281,7 +292,7 @@ if [ "$TIER" = pvm-cpu ]; then   # no TPU runtime declaration, its own label
       -e 's/android:label="Enclave Anchor (AVF)"/android:label="Enclave pVM CPU"/' "$HERE/AndroidManifest.xml" > "$MANIFEST"
   ! grep -q 'libedgetpu\|Anchor (AVF)' "$MANIFEST" || { echo "pvm-cpu: the manifest still names the TPU runtime or the research label" >&2; exit 2; }
 fi
-"$BT/aapt2" link -o unaligned.apk --manifest "$MANIFEST" \
+"$BT/aapt2" link -o unaligned.apk --manifest "$MANIFEST" ${REL:+--rename-manifest-package "$RELEASE_PKG"} \
    -I "$SDK/platforms/android-$API/android.jar" --min-sdk-version 34 --target-sdk-version $API
 # extractNativeLibs=false demands STORED (-0) entries, page-aligned by zipalign -p
 python3 - "$NAME" <<'PYZ'
@@ -296,9 +307,9 @@ with zipfile.ZipFile("unaligned.apk", "a", compression=zipfile.ZIP_STORED) as z:
         z.write(a, a, compress_type=zipfile.ZIP_STORED)
 PYZ
 "$BT/zipalign" -p -f 4 unaligned.apk aligned.apk
-"$BT/apksigner" sign --ks "$HERE/keys/anchor.jks" --ks-pass pass:anchor123 --ks-key-alias anchor \
+"$BT/apksigner" sign --ks "$SIGN_KS" --ks-pass "$SIGN_PASS" --ks-key-alias "$SIGN_ALIAS" \
    --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled true --v4-signing-enabled true \
-   --out "$OUT/$NAME$SUFFIX.apk" aligned.apk
+   --out "$OUT/$NAME$SUFFIX$REL.apk" aligned.apk
 # the v4 signature's Merkle root IS the pVM's codeHash for this apk (pins.py); vm run-app takes the file as its idsig
-"$BT/apksigner" verify --print-certs "$OUT/$NAME$SUFFIX.apk" | grep -E 'SHA-256|Verified' | sed 's/^/  /'
-echo "APK: $OUT/$NAME$SUFFIX.apk ($(stat -c %s "$OUT/$NAME$SUFFIX.apk") bytes, tier $TIER)"
+"$BT/apksigner" verify --print-certs "$OUT/$NAME$SUFFIX$REL.apk" | grep -E 'SHA-256|Verified' | sed 's/^/  /'
+echo "APK: $OUT/$NAME$SUFFIX$REL.apk ($(stat -c %s "$OUT/$NAME$SUFFIX$REL.apk") bytes, tier $TIER${REL:+, RELEASE key})"

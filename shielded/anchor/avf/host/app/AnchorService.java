@@ -32,6 +32,8 @@ public class AnchorService extends Service {
             .setSmallIcon(android.R.drawable.stat_notify_sync).setOngoing(true).build();
         startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
         final Main.Plan plan = Main.Plan.from(intent);
+        final String tierWhy = Tier.refusal(Tier.of(this), plan.mode, intent);   /* the same tier refusal as the activity, named first */
+        if (tierWhy != null) plan.configError = "tier " + Tier.of(this) + ": " + tierWhy;
         if (!plan.configError.isEmpty()) { Main.say("HOST FAIL: " + plan.configError); stopSelf(); return START_NOT_STICKY; }   /* an inconsistent plan never runs a VM */
         if (!Main.captureOpen(this, intent)) { Main.say("CAPTURE FAIL: launch refused"); stopSelf(); return START_NOT_STICKY; }   /* a requested capture that cannot open refuses the VM launch */
         Main.say("SERVICE foreground, starting VM");

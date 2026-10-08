@@ -9,8 +9,9 @@
  * At most one RelayAttach serves at any time: the old one is closed before a new one is dialled, and only the current one's
  * loss is acted on. Backoff 2 s, doubling to 60 s, reset once a tunnel has stayed up for 60 s. Armed only once the app
  * serves (before that the VM's control channel is still taking its plan), stopped when the VM's session ends. It holds no key
- * and judges nothing: every refusal is the hub's or the co-signer's, logged as said. The pVM CPU tier is NOT re-admitted on a
- * tunnel attached in place (the relay needs a self-test after the attach; the engine runs it once): routing only.
+ * and judges nothing: every refusal is the hub's or the co-signer's, logged as said. The pVM CPU tier is re-admitted on a tunnel
+ * attached in place: the VM's answer carries a capability report bound to the new nonce ("REATTACH CAPS"), sent once the hub
+ * has accepted the attach (the hub judges a report per attach).
  */
 package host.enclave.anchor.avf;
 
@@ -98,7 +99,7 @@ final class RelayKeeper {
         catch (Exception e) { Main.say("RELAY re-attach " + n + ": dial failed: " + e); r.close(); return false; }
         // the VM's answer to the relay's new nonce: collected between "REATTACH begin" and "REATTACH end"
         final TreeMap<Integer, TreeMap<Integer, String>> certs = new TreeMap<>(); final TreeMap<Integer, String> sig = new TreeMap<>();
-        String refused = null; boolean end = false;
+        String refused = null, capsHex = null, capsSig = null; boolean end = false;
         inbox.clear(); reattaching = true;
         try {
             synchronized (ctl) { ctl.write(("REATTACH " + RelayAttach.hex(r.nonce) + "\n").getBytes(StandardCharsets.US_ASCII)); ctl.flush(); }
@@ -114,6 +115,7 @@ final class RelayKeeper {
                     certs.computeIfAbsent(Integer.parseInt(m.group(1)), (k) -> new TreeMap<>()).put(Integer.parseInt(m.group(2)), m.group(3));
                 else if ((m = java.util.regex.Pattern.compile("^SIG\\[(\\d+)\\] ([0-9a-f]+)$").matcher(line)).matches()) sig.put(Integer.parseInt(m.group(1)), m.group(2));
                 else if ((m = java.util.regex.Pattern.compile("^INSTANCEATTACH key=(302a300506032b6570032100[0-9a-f]{64}) sig=([0-9a-f]{128})$").matcher(line)).matches()) { r.instanceKey = m.group(1); r.instanceSig = m.group(2); }
+                else if ((m = java.util.regex.Pattern.compile("^REATTACH CAPS ([0-9a-f]+) ([0-9a-f]{128})$").matcher(line)).matches()) { capsHex = m.group(1); capsSig = m.group(2); }
             }
         } catch (Exception e) { refused = "the control channel: " + e; }
         finally { reattaching = false; }
@@ -127,6 +129,7 @@ final class RelayKeeper {
         cur.set(r); upSince = System.currentTimeMillis(); attached++;
         new Thread(() -> r.serve(android.os.Build.MODEL), "relay-serve").start();
         Main.say("RELAY re-attach " + n + ": ACCEPTED in place (the same VM, transport key and instance)");
+        if (capsHex != null) r.sendCaps(capsHex, capsSig);   // the tier, for THIS attach (its report names the new nonce)
         // ABI/2 for the hub's fresh nonce: the VM's own v3 evidence from its evidence endpoint (1 answer per 2 s: 3 tries, 2.5 s apart)
         try {
             final String an = r.abi2Nonce.get(20, TimeUnit.SECONDS);
