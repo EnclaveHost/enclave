@@ -305,3 +305,28 @@ fn a_valid_call_through_the_boundary_runs_the_component() {
         "pvm-rt conformance v1\nargs 2\nprimes 10000 sum 496165411 fnv1a 6829bbb248bc4034\n"
     );
 }
+
+#[test]
+fn a_model_in_the_reserved_slots_is_refused_before_any_compile() {
+    // The pVM CPU tier carries no model: pvmrt_run_app / pvmrt_http_open keep the nn_name/nn_ops slots in their signatures
+    // (the C ABI is unchanged), and anything but null there is refused -- here with an otherwise valid call.
+    let (b, want) = bundle();
+    let name = c"mock-1";
+    let ops = 1usize as *const std::ffi::c_void; // never read: the slot is refused before any dereference
+    for (n, o) in [(name.as_ptr(), null()), (null(), ops), (name.as_ptr(), ops)] {
+        let mut err = [0 as c_char; 512];
+        let mut code: c_int = -99;
+        let rc = pvm_rt::pvmrt_run_app(b.as_ptr(), b.len(), want.as_ptr(), null(), 0, 64 << 20, 1000, n, o,
+            Some(collect_refused), &mut code, null_mut(), null_mut(), err.as_mut_ptr(), err.len());
+        let e = unsafe { CStr::from_ptr(err.as_ptr()) }.to_string_lossy().into_owned();
+        assert_eq!((rc, code), (-1, -99), "{e}");
+        assert!(e.contains("carries no model"), "{e}");
+        let mut err = [0 as c_char; 512];
+        let srv = pvm_rt::pvmrt_http_open(b.as_ptr(), b.len(), want.as_ptr(), 64 << 20, 1000, n, o,
+            Some(collect_refused), null_mut(), err.as_mut_ptr(), err.len());
+        let e = unsafe { CStr::from_ptr(err.as_ptr()) }.to_string_lossy().into_owned();
+        assert!(srv.is_null(), "{e}");
+        assert!(e.contains("carries no model"), "{e}");
+    }
+    assert!(REFUSED_OUT.lock().unwrap().is_empty(), "a refused call emits nothing");
+}

@@ -1,0 +1,9 @@
+// cpu-probe (PVM-CPU.md, the CPU-only tier's conformance app): stream-probe's streaming shape with NO wasi:nn -- each
+// line's value is computed on the CPU inside the component (an FNV-1a chain), so the pVM CPU tier's sealed streaming,
+// cancel and TLS paths are exercised by a workload that needs no model.
+// WIT deps vendored verbatim from stream-probe (wasmtime v45: wasi@0.2.6) so guest and host always agree.
+package enclave:cpu-probe;
+
+world cpu-probe {
+  export wasi:http/incoming-handler@0.2.6;
+}
