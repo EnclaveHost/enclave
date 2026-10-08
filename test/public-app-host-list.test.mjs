@@ -196,12 +196,14 @@ test("a pVM host's size is its signed report's, and unknown stays unknown", () =
   assert.deepEqual(pvmHostVm({ ...pvmRow, pvmCpu: { ...pvmRow.pvmCpu, vm: { threads: -1, memMib: "lots" } } }), { threads: null, memGb: null });
 });
 
-test("the fleet list renders pVM hosts as status rows, without a price (pinned in source)", () => {
+test("the fleet list renders pVM hosts with the same availability pool as other CPU rows, without a price (pinned in source)", () => {
   const src = fs.readFileSync(path.join(ROOT, "site/components/fleet-list/fleet-list.js"), "utf8");
   assert.match(src, /const pvmRows = \(this\.rows \|\| \[\]\)\.filter\(e => pvmHostVisible\(e\)\);/);
   const block = src.slice(src.indexOf("list.innerHTML += pvmRows.map"), src.indexOf("this._wireRate();"));
   assert.ok(block.length > 0);
   assert.match(block, /fleet-pvm-row/);
   assert.match(block, /Not taking deployments yet/);
-  assert.doesNotMatch(block, /perHr|enclavePriceOf|price/, "no rental price on a host that takes no deployments");
+  assert.match(block, /pool\(badge, Math\.floor\(cFree \* 100\), stats, null\)/, "the same pool (meter, % available, cells) as every CPU row, with no price");
+  assert.match(block, /cpuComputeStat\(a, cFree\)/, "and the same gflops cell");
+  assert.doesNotMatch(block, /perHr|enclavePriceOf/, "no rental price on a host that takes no deployments");
 });

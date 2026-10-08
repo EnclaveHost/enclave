@@ -105,7 +105,7 @@ import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtim
 import { createTunnelHub } from "./tunnel.js";
 import {LeaseReader,createTunaRoutes,DurableState,createLeaseSource,createRegistryOperator} from "./network-runtime.bundle.mjs";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
-import { pvmCpuPolicyFromEnv, avfAttestWithPvmCpu, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
+import { pvmCpuPolicyFromEnv, avfAttestWithPvmCpu, pvmCpuAvailability, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
 import { VBS_DEFAULT_EK_ROOTS } from "./vbs-policy.mjs";
 import { createPadsLedger, createPrefixStore, createShipmentStore, padsRouter } from "./pads.mjs";
 import { dataDir, JsonStore } from "./store.js";
@@ -956,8 +956,10 @@ async function pollAvailability() {
       const idx = i++;
       if (idx >= src.length) return;
       const e = src[idx];
-      const a = e.tunnel ? await tunnelHub.fetchJson(e.endpoint, "/availability").catch(() => null)
-                         : await fetchJson(`${e.endpoint}/availability`);
+      let a = e.tunnel ? await tunnelHub.fetchJson(e.endpoint, "/availability").catch(() => null)
+                       : await fetchJson(`${e.endpoint}/availability`);
+      // a pVM CPU row's pool is the relay-verified VM size (pvmCpuAvailability), never the phone host's own word
+      if (a && e.tunnel) a = pvmCpuAvailability(e, a);
       rows[idx] = a ? reverifier.annotate({ ...e, availability: a, relay: hasNoResources(a),
                                             checkedAt: new Date().toISOString() }) : null;
     }

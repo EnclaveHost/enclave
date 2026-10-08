@@ -270,24 +270,32 @@ class FleetList extends EnclaveElement {
         + '<span class="fleet-owner-note">Hosting for authorized owners. Unavailable for general deployments.</span></div>';
     }).join("");
     list.innerHTML += pvmRows.map(e => {
+      // the SAME pool as every other CPU row (badge, meter, % available, ram + gflops cells), from the relay's verified
+      // VM size (relay/pvm-cpu-tier.mjs pvmCpuAvailability); no price: the tier takes no deployments yet
+      const a = e.availability || {};
       const vm = pvmHostVm(e);
+      const cFree = typeof a.cpuShareFree === 'number' ? a.cpuShareFree : null;
+      const ramGb = typeof a.nodeRamGb === 'number' ? a.nodeRamGb : vm.memGb;
+      const ramFree = typeof a.ramGbFree === 'number' ? a.ramGbFree : (ramGb !== null && cFree !== null ? cFree * ramGb : null);
+      const value = v => v === null ? '—' : fmtNum(v);
+      const badge = '<span class="ap-badge warn" title="The relay verified this phone\u2019s protected-VM attestation chain when it attached and admitted its capability report: a CPU-only Wasm runtime, no model, no accelerator. Its size is the VM\u2019s own, from that signed report.">pvm cpu</span>';
+      const stats = stat(value(ramFree), value(ramGb), 'GB', 'ram available') + cpuComputeStat(a, cFree);
       const name = e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "host";
-      const cell = (v, label, title) => '<span class="fleet-stat" title="' + esc(title) + '"><b>' + (v === null ? '—' : esc(String(v))) + '</b><small>' + label + '</small></span>';
-      const vmTitle = 'The protected VM\u2019s size, as its capability report states it; the relay verified the report\u2019s signature against the VM\u2019s attested key.';
-      return '<div class="fleet-row fleet-owner-row fleet-pvm-row">'
-        + '<span class="fleet-head"><span class="fleet-name">' + esc(name) + '</span></span>'
-        + '<div class="fleet-pool"><span class="fleet-pool-label">'
-        + '<span class="ap-badge warn" title="The relay verified this phone\u2019s protected-VM attestation chain when it attached and admitted its capability report: a CPU-only Wasm runtime, no model, no accelerator.">pvm cpu</span>'
-        + '</span><span class="fleet-pool-pct">attested</span>'
-        + '<span class="fleet-stats">' + cell(vm.threads, 'vcpus', vmTitle) + cell(vm.memGb, 'GB ram', vmTitle) + '</span></div>'
-        + '<span class="fleet-owner-note">A protected VM on its owner\u2019s phone, running CPU-only apps. Not taking deployments yet.</span></div>';
+      return '<div class="fleet-row fleet-pvm-row" title="' + esc(e.endpoint || "") + '">'
+        + '<span class="fleet-head"><span class="fleet-name">' + esc(name) + '</span>' + this._ratingHtml(e) + '</span>'
+        + (cFree === null
+          ? '<div class="fleet-pool"><span class="fleet-pool-label">' + badge + '</span><span class="fleet-pool-pct">Availability unknown</span><span class="fleet-stats">' + stats + '</span></div>'
+          : pool(badge, Math.floor(cFree * 100), stats, null))
+        + '<span class="fleet-owner-note">A protected VM on its owner\u2019s phone, running CPU-only apps. Not taking deployments yet.</span>'
+        + '<div class="fleet-rateform" data-form="' + esc(e.id || "") + '" hidden></div>'
+        + '</div>';
     }).join("");
     this._wireRate();
     // footer row: a manual refresh (dispatches `refresh`; the HOST owns the
     // fetch and re-assigns .rows, which re-renders and re-arms the button) +
     // the on-chain registry this table mirrors, linked once the address book
     // has resolved (enclaves register there)
-    this._loadRatings(rows);      // stars per box, one eth_call for the panel
+    this._loadRatings(rows.concat(pvmRows));      // stars per box, one eth_call for the panel
     const foot = this.querySelector(".fleet-foot");
     if (foot) {
       foot.innerHTML = '<button class="fleet-refresh" type="button" title="re-fetch the live fleet view">↻ refresh</button>'
