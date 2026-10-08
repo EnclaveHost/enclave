@@ -224,7 +224,9 @@ test("only a partial box serving: the aggregate reports ITS capabilities and ITS
   // its hardware is the only hardware, so it does set the minima now
   assert.equal(a.specNodeVcpus, 16);
   assert.equal(a.specNodeRamGb, 112);
-  assert.equal(a.specNodeGflops, 180);
+  // GFLOPS sizing is NOMINAL: catalog cpuGflops floors are written in the fleet convention's units (62.5 a vCPU), and a
+  // host's published nodeGflops is now MEASURED (2026-10-08). So the spec is 16 vCPUs x 62.5, not the box's own 180.
+  assert.equal(a.specNodeGflops, 1000);
 
   const { body: list } = await getJson(origin, "/enclaves");
   assert.equal(list.aggregate.serving, 1, "and it is serving — the fallback is not a fleet-down state");

@@ -221,6 +221,9 @@ const host = new Host({
   appRamGb: process.env.NODE_APP_RAM_GB === undefined ? undefined : Number(process.env.NODE_APP_RAM_GB),
   // this node's compute, measured at start (COMPUTE above); the 62.5-per-vCPU convention only when that failed
   gflops: COMPUTE.gflops,
+  // ...but catalog cpuGflops FLOORS were written in the convention's units (62.5 a vCPU: risc-box's 250 is 4 vCPUs), so
+  // floors are checked against the nominal figure, never the measured one: a unit mismatch made versions unplaceable
+  gflopsFloorBasis: Math.round(62.5 * NODE_VCPUS_N),
   // what stays with the enclave, the shielded worker and the owner of the PC, never sold
   reservedShare: Number(process.env.RESERVED_SHARE || 0.25),
   // The most one request body or one response this box holds in memory for an app.
