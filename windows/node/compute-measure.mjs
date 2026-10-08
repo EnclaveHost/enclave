@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 export const PROBE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'flops-probe.wasm');
 export const PROBE_SHA256 = '20deffce2d6f5d747ded48899e58d81bb290775cc59c2e7ad5e7be8341c71c36';
 export const FLOPS_PER_STEP = 128;
-export const METHOD = 'flops-probe: f32x4 multiply-add, every vCPU at once, under the apps’ wasmtime';
+export const METHOD = 'flops-probe: f32x4 multiply-add, every vCPU at once, under the same wasmtime as the apps';
 
 function proc(bin, args, timeoutMs) {
   return new Promise((resolve, reject) => {
