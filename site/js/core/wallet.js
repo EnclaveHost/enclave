@@ -670,7 +670,7 @@ export async function renderWalletPop(){
   renderSessionRow();
 }
 
-/* the popover's session row: live budget and time left, or "start". Top up and the full list live on
+/* the popover's session row: the budget left and the time left, or "start". Top up and the full list live on
    Sessions (beside Deposit); ending this browser's session is Sign out. */
 async function renderSessionRow(){
   const el = $("#wpSess"); if (!el) return;
@@ -685,7 +685,7 @@ async function renderSessionRow(){
     return;
   }
   const left = Number(st.expiresAt) - Math.floor(Date.now() / 1000);
-  el.innerHTML = '<span class="ok">' + esc(S.fmtUsd(st.balance6)) + '</span> left · ' + esc(S.fmtUsd(st.spent6)) + ' spent · ' + esc(S.fmtLeft(left));
+  el.innerHTML = '<span class="ok">' + esc(S.fmtUsd(st.balance6)) + '</span> · ' + esc(S.fmtLeft(left));
 }
 
 /* ---- on-chain tx helpers used by both the deploy console and the store ---- */
