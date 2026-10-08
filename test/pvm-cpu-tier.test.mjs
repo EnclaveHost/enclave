@@ -6,7 +6,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync, sign as edSign, randomBytes } from "node:crypto";
-import { admitPvmCpu, pvmCpuPolicy, pvmCpuPolicyFromEnv, avfAttestWithPvmCpu, parseCapabilityReport, PVM_CPU_CAPS_DOMAIN, PVM_CPU_REPORT_VERSION } from "../relay/pvm-cpu-tier.mjs";
+import { admitPvmCpu, pvmCpuPolicy, pvmCpuPolicyFromEnv, avfAttestWithPvmCpu, pvmCpuAvailability, parseCapabilityReport, PVM_CPU_CAPS_DOMAIN, PVM_CPU_REPORT_VERSION } from "../relay/pvm-cpu-tier.mjs";
 
 const CODE = "a".repeat(64), RESEARCH_CODE = "b".repeat(64), AUTH = "c".repeat(128);
 const RUNTIME = "d3370878" + "e".repeat(56), OTHER_RUNTIME = "f".repeat(64);
@@ -139,4 +139,15 @@ test("the hub's AVF policy: the tier needs no legacy or pad pins beside it; with
   const both = avfAttestWithPvmCpu(legacy, p);
   assert.deepEqual(both.codeHashes, legacy.codeHashes); assert.deepEqual(both.padCodeHashes, legacy.padCodeHashes, "pad eligibility unchanged");
   assert.deepEqual(both.authorityHashes, ["cc".repeat(48), AUTH]);
+});
+
+test("a pVM CPU row's pool is the relay-verified VM size, wholly unallocated, with GFLOPS unreported", () => {
+  const phoneSaid = { ok: true, role: "phone-anchor", gpu: false, nodeVcpus: 64, nodeRamGb: 512, cpuShareFree: 0.01 };
+  const row = { tier: "pvm-cpu", pvmCpu: { runtime: RUNTIME, vm: { threads: 8, memMib: 1994 } } };
+  assert.deepEqual(pvmCpuAvailability(row, phoneSaid),
+    { ok: true, role: "phone-anchor", gpu: false, nodeVcpus: 8, nodeRamGb: 1.9, ramGbFree: 1.9, cpuShareFree: 1, capacitySource: "pvm-capability-report" },
+    "the VM's signed figures replace the phone host's own word");
+  assert.equal(pvmCpuAvailability(row, phoneSaid).nodeGflops, undefined, "no native-core GFLOPS convention for an interpreted runtime");
+  for (const r of [{ ...row, tier: undefined }, { tier: "pvm-cpu" }, { ...row, pvmCpu: { vm: { threads: 0, memMib: 1994 } } }, { ...row, pvmCpu: { vm: { threads: 8, memMib: "2G" } } }, null])
+    assert.equal(pvmCpuAvailability(r, phoneSaid), phoneSaid, "no admitted report: the row keeps what the box sent");
 });

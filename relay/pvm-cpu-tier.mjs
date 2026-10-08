@@ -67,6 +67,19 @@ export function avfAttestWithPvmCpu(avf, pvmCpu) {
   return { ...base, authorityHashes: [...new Set([...(base.authorityHashes || []), ...pvmCpu.authorityHashes])] };
 }
 
+// A pVM CPU row's capacity pool, from what the RELAY verified rather than from the phone's host app: the VM's vCPUs and memory
+// as its signed capability report states them (the hub put them on the row as pvmCpu.vm). The tier takes no deployments, so
+// nothing is allocated: every share is unallocated. GFLOPS stay unreported. The fleet's 62.5-per-vCPU convention describes
+// native execution, and this tier's apps run on an interpreter (Pulley), so that number would overstate it. A row without an
+// admitted report keeps its availability as the box sent it.
+export function pvmCpuAvailability(row, availability) {
+  const vm = row && row.tier === PVM_CPU_TIER ? row.pvmCpu?.vm : null;
+  if (!vm || !Number.isInteger(vm.threads) || vm.threads < 1 || !Number.isInteger(vm.memMib) || vm.memMib < 1) return availability;
+  const ramGb = Math.round(vm.memMib / 102.4) / 10;
+  return { ...(availability || {}), gpu: false, nodeVcpus: vm.threads, nodeRamGb: ramGb, ramGbFree: ramGb, cpuShareFree: 1,
+           capacitySource: "pvm-capability-report" };
+}
+
 export function pvmCpuPolicy({ codeHashes, authorityHashes, runtimeIds, minMemMib = 0, minThreads = 1, maxReportAgeMs = 15 * 60 * 1000, models } = {}) {
   if (models !== undefined) throw new Error("the pVM CPU tier carries no model: a policy with `models` is the retired model tier");
   // codeHash and authorityHash are the AVF extension's octet strings, as hex (a v4 Merkle root; a certificate's
