@@ -1,8 +1,9 @@
 // Sessions in the browser end to end (docs/design/sessions.md §9): sign in opens
-// a session with one signature, the header shows its budget and time, a wallet
-// top-up is one more signature, /sessions lists it as "this browser", and
+// a session with one signature, the header shows its budget and time, /sessions
+// lists it as "this browser", a wallet top-up there is one more signature, and
 // signing out ends it on-chain (budget back to the wallet) and revokes the
-// session-derived account token in the same flow.
+// session-derived account token in the same flow. The popover has no separate
+// "end" (Sign out is that) and no top up (Sessions, beside Deposit, has it).
 import { test, expect } from "@playwright/test";
 import { seedStorage, injectWallet, stack } from "../fixtures/session.mjs";
 
@@ -22,7 +23,7 @@ async function signIn(page, context, address){
   await expect.poll(() => page.evaluate(() => localStorage.getItem("enclave_wallet_session")), { timeout: 30_000 }).toMatch(/^0x[0-9a-f]{64}$/);
 }
 
-test("sign in -> indicator -> top up -> /sessions -> sign out refunds and revokes", async ({ page, context }) => {
+test("sign in -> indicator -> /sessions -> top up -> sign out refunds and revokes", async ({ page, context }) => {
   await signIn(page, context, stack.payer);
   // the persistent indicator: budget and time left on the wallet button
   await expect(page.locator("#wbSess")).toContainText("$0.00", { timeout: 15_000 });
@@ -38,19 +39,21 @@ test("sign in -> indicator -> top up -> /sessions -> sign out refunds and revoke
   await expect(page.locator("#wpBal")).toContainText("Deployments", { timeout: 15_000 });
   await expect(page.locator("#walletPop")).not.toContainText("Host login");
 
-  // top up from the popover: one USDC authorization signature, relayed gas-free
+  // the session row is status only; Sessions sits beside Deposit, and Sign out is the only way to end it here
   await expect(page.locator("#wpSess")).toContainText("left", { timeout: 15_000 });
-  await page.click("#wpSessTop");
-  await page.fill("#tuAmt", "3");
-  await page.click("#tuGo");
-  await expect(page.locator("#wbSess")).toContainText("$3.00", { timeout: 30_000 });
+  await expect(page.locator(".wp-fund")).toHaveText(/Deposit\s*Sessions/);
+  await expect(page.locator("#wpSessTop, #wpSessEnd")).toHaveCount(0);
 
-  // /sessions: this browser's session, live, with its budget
+  // /sessions: this browser's session, live; top up there is one USDC authorization signature, relayed gas-free
   await page.goto("/sessions.html");
   const card = page.locator(".ss-card[data-sid]").first();
   await expect(card).toContainText("this browser", { timeout: 20_000 });
   await expect(card).toContainText("live");
-  await expect(card).toContainText("$3.00 left");
+  await card.locator(".ss-topup").click();
+  await page.fill("#tuAmt", "3");
+  await page.click("#tuGo");
+  await expect(card).toContainText("$3.00 left", { timeout: 30_000 });
+  await expect(page.locator("#wbSess")).toContainText("$3.00", { timeout: 30_000 });
   // the ledger delegation card: the rig runs main's rev 16 ledger, which has no setDelegate, so it is read
   // off the code as unsupported (and no Grant is offered)
   await expect(page.locator("#ssWallet")).toContainText("not supported by this ledger");

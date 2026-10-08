@@ -461,9 +461,10 @@ export async function asHostOwner(enclave, call, { prompt = true } = {}){
 }
 
 export function disconnectWallet(){
-  // sign-out ends the browser's session too: its key signs the terminate (no wallet
-  // prompt), the unspent budget returns to the owner, API access ends in the same flow
-  import("./sessions.js").then((S) => S.endSession()).catch(() => {});
+  // sign-out IS ending the browser's session (there is no separate "end"): its key signs the
+  // terminate (no wallet prompt), the unspent budget returns to the owner, API access ends in
+  // the same flow. Returned so a caller can wait for the refund before it re-renders.
+  const ended = import("./sessions.js").then((S) => S.endSession()).catch(() => {});
   const wasWc = !!(Enclave.provider && Enclave.provider._enclaveWc) || Enclave.walletRdns === WC_RDNS;
   // end the relay session too, or "Sign out" leaves the pairing live in the
   // wallet and the next sign-in silently reuses it
@@ -490,6 +491,7 @@ export function disconnectWallet(){
   const pop = $("#walletPop"); if (pop){ pop.hidden = true; pop.innerHTML = ""; popExpanded(false); }
   refreshWallet();
   emit("enclave:auth", { authed: false });
+  return ended;
 }
 
 /* ---- session persistence: survive a page refresh (localStorage bearer token) ---- */
@@ -653,6 +655,7 @@ export async function renderWalletPop(){
     '<div class="wp-bal" id="wpBal">loading deployments…</div>' +
     '<div class="wp-fund">' +
       '<button class="wp-mini" id="wpDep">Deposit</button>' +
+      '<a class="wp-mini" id="wpSessions" href="sessions">Sessions</a>' +
     '</div>' +
     '<button class="wp-disc" id="wpDisc">Sign out</button>';
   pop.hidden = false;
@@ -660,6 +663,7 @@ export async function renderWalletPop(){
   const c = $("#wpCopy"); if (c) c.addEventListener("click", () => copyText(Enclave.address));
   const d = $("#wpDisc"); if (d) d.addEventListener("click", disconnectWallet);
   const dep = $("#wpDep"); if (dep) dep.addEventListener("click", () => { pop.hidden = true; popExpanded(false); openDepositModal(); });
+  const ss = $("#wpSessions"); if (ss) ss.addEventListener("click", () => { pop.hidden = true; popExpanded(false); });   // boot.js navigates
   usdcBalanceOf(Enclave.address).then(
     (b) => { const u = $("#wpBalUsdc"); if (u) u.textContent = b.toFixed(2) + " USDC"; },
     ()  => { const u = $("#wpBalUsdc"); if (u) u.textContent = "unavailable"; });
@@ -694,7 +698,8 @@ async function deploymentCounts(){
   };
 }
 
-/* the popover's session row: live budget + top up / sessions / end, or "start" */
+/* the popover's session row: live budget and time left, or "start". Top up and the full list live on
+   Sessions (beside Deposit); ending this browser's session is Sign out. */
 async function renderSessionRow(){
   const el = $("#wpSess"); if (!el) return;
   let S;
@@ -703,15 +708,12 @@ async function renderSessionRow(){
   const st = await S.sessionStatus();
   const mine = st && !st.error && st.live && st.owner && Enclave.address && st.owner.toLowerCase() === Enclave.address.toLowerCase();
   if (!mine){
-    el.innerHTML = '<button class="wp-mini" id="wpSessStart">start</button> <a class="wp-mini" href="sessions">all</a>';
+    el.innerHTML = '<button class="wp-mini" id="wpSessStart">start</button>';
     const b = $("#wpSessStart"); if (b) b.addEventListener("click", async () => { if (await S.openSessionModal()) renderWalletPop(); });
     return;
   }
   const left = Number(st.expiresAt) - Math.floor(Date.now() / 1000);
-  el.innerHTML = '<span class="ok">' + esc(S.fmtUsd(st.balance6)) + '</span> left · ' + esc(S.fmtUsd(st.spent6)) + ' spent · ' + esc(S.fmtLeft(left)) +
-    ' <button class="wp-mini" id="wpSessTop">top up</button> <a class="wp-mini" href="sessions">sessions</a> <button class="wp-mini" id="wpSessEnd">end</button>';
-  const t = $("#wpSessTop"); if (t) t.addEventListener("click", async () => { if (await S.openTopUpModal()) renderWalletPop(); });
-  const e = $("#wpSessEnd"); if (e) e.addEventListener("click", async () => { await S.endSession(); renderWalletPop(); });
+  el.innerHTML = '<span class="ok">' + esc(S.fmtUsd(st.balance6)) + '</span> left · ' + esc(S.fmtUsd(st.spent6)) + ' spent · ' + esc(S.fmtLeft(left));
 }
 
 /* ---- on-chain tx helpers used by both the deploy console and the store ---- */
