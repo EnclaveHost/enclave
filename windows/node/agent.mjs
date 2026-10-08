@@ -42,6 +42,7 @@ import { finishHvAttach, reattachMode, relayTakesV2, shouldReattach } from './hv
 import { tunnelHandover } from './tunnel-handover.mjs';
 import { addressBook, addresses as chainAddresses, publicClient } from './chain.mjs';
 import { createSessionApiAuth, apiBases, envList, DEFAULT_API_HOSTS, DEFAULT_FACTORIES } from './session-api-auth.mjs';
+import { measureGflops } from './compute-measure.mjs';
 const WAF_TRACE = /^(1|true|yes)$/i.test(String(process.env.WAF_TRACE || ''));
 // SIWE, byte-compatible with the platform's own routes so the console signs what this box issues
 // and posts it back unchanged. The session it mints is for THIS box only (session.mjs).
@@ -135,6 +136,18 @@ async function refreshPartitionGpu() {
 // The live tunnel's sender, so the app-zone half can answer stream frames from outside connect()'s
 // closure. Replaced on every redial; a frame sent while the tunnel is down is dropped, which is
 // what the relay's own open timeout already handles.
+// This node's compute, MEASURED (compute-measure.mjs) before anything is claimed or published: the same runtime its apps
+// get, every vCPU at once. If the measurement cannot run, the fleet's 62.5-per-vCPU convention stands, and /availability
+// says which one it is (computeMeasure.source).
+const NODE_VCPUS_N = Number(process.env.NODE_VCPUS || os.cpus().length);
+let COMPUTE = { source: 'convention', gflops: Math.round(62.5 * NODE_VCPUS_N) };
+try {
+  const m = await measureGflops({ wasmtime: process.env.WASMTIME_BIN || path.join(DIR, 'wasmtime.exe'), instances: NODE_VCPUS_N });
+  COMPUTE = { source: 'measured', ...m, at: new Date().toISOString() };
+  log(`compute measured: ${m.gflops} GFLOPS (${m.instances} copies at ${m.perInstance} each, ${m.wallMs} ms, ${m.runs} runs; ${m.method})`);
+} catch (e) {
+  log(`compute NOT measured (${e.message}): publishing the 62.5-per-vCPU convention, ${COMPUTE.gflops} GFLOPS`);
+}
 const host = new Host({
   dir: DIR, endpoint: process.env.PUBLIC_URL || `https://api.enclave.host/t/${NAME}`, name: NAME,
   appsEnabled: APPS, ownerWallet: process.env.OWNER_WALLET || '',
@@ -206,8 +219,8 @@ const host = new Host({
   vcpus: Number(process.env.NODE_VCPUS || os.cpus().length),
   ramGb: Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
   appRamGb: process.env.NODE_APP_RAM_GB === undefined ? undefined : Number(process.env.NODE_APP_RAM_GB),
-  // the fleet's convention for a node's compute (metal gsup.mjs): 62.5 GFLOPS a vCPU
-  gflops: Math.round(62.5 * Number(process.env.NODE_VCPUS || os.cpus().length)),
+  // this node's compute, measured at start (COMPUTE above); the 62.5-per-vCPU convention only when that failed
+  gflops: COMPUTE.gflops,
   // what stays with the enclave, the shielded worker and the owner of the PC, never sold
   reservedShare: Number(process.env.RESERVED_SHARE || 0.25),
   // The most one request body or one response this box holds in memory for an app.
@@ -483,7 +496,10 @@ async function handle(frame) {
     // shares. For an in-enclave engine this is its fixed enclave allocation.
     nodeRamGb: host.capacity().ramMbPool / 1024,
     machineRamGb: Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
-    nodeGflops: Math.round(62.5 * Number(process.env.NODE_VCPUS || os.cpus().length)),   // the fleet's convention (metal gsup.mjs)
+    nodeGflops: COMPUTE.gflops,   // measured at start (compute-measure.mjs), or the 62.5-per-vCPU convention when that failed
+    computeMeasure: COMPUTE.source === 'measured'
+      ? { source: 'measured', gflops: COMPUTE.gflops, perVcpu: COMPUTE.perInstance, copies: COMPUTE.instances, wallMs: COMPUTE.wallMs, at: COMPUTE.at, method: COMPUTE.method }
+      : { source: 'convention', gflops: COMPUTE.gflops },
     // teeCpu names a CPU TEE this box's own attestation shows. An isolation-only node has none: its attach is a
     // host-attested boot state (windows-hv-node/v1), so it says null rather than the retired engine's name.
     teeCpu: LEGACY_ENGINE ? 'windows-vbs-enclave' : null, tier: tier || null,
