@@ -844,7 +844,6 @@ class Deployments extends EnclaveElement {
           '<span class="ap-badge ' + (d.public ? 'ep-public' : 'ep-private') + '" title="' + (d.public ? 'anyone can reach the app endpoint' : 'only your wallet token can reach the app') + '">' + (d.public ? 'public' : 'private') + '</span>' +
           '<span class="ap-badge info ep-waf" data-wafb="' + esc(d.id) + '" hidden>protected</span>' +
           '<span class="ap-badge ep-cfg" data-cfgb="' + esc(d.id) + '" hidden>custom config</span>' +
-          '<span class="ap-badge">TUNA</span>' +
           '<button class="enc-id" data-copy="' + esc(d.id) + '" title="' + esc(d.id) + '" aria-label="copy deployment id">' + esc(idShort) + ' ⧉</button>' +
           '<span class="enc-br" aria-hidden="true"></span>' +
           (shareText || d.enclave ? '<span class="enc-meta">' + (shareText ? '<span class="enc-allocation">' + esc(shareText) + '</span>' : '')
