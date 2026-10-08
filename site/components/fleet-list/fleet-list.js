@@ -13,7 +13,7 @@ import { hrevConfigured, hrevTallies, hrevMine, encCall, HREV_SEL, waitReceipt, 
 import { HOST_REVIEWS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
-import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedHostCapacity, teeCpuOf, computeEligibleOf, appHostVisible, ownerHostedDeploymentCount, ownerHostCpuCapacity, ownerHostVisibleTo } from "../../js/core/pricing.js";
+import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedHostCapacity, teeCpuOf, computeEligibleOf, appHostVisible, ownerHostedDeploymentCount, ownerHostCpuCapacity, ownerHostVisibleTo, pvmHostVisible, pvmHostVm } from "../../js/core/pricing.js";
 import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
 
@@ -46,6 +46,9 @@ class FleetList extends EnclaveElement {
     const rows = (this.rows || []).filter((e) => appHostVisible(e));
     const ownerRows = (this.rows || []).filter(e => ownerHostVisibleTo(e, Enclave.address))
       .map(e => ({ row: e, count: ownerHostedDeploymentCount(e) }));
+    // pVM CPU hosts: attested and admitted by the relay, shown as status rows (no price, no availability meter) until
+    // the tier takes deployments
+    const pvmRows = (this.rows || []).filter(e => pvmHostVisible(e));
     const meter = (pct) => '<i class="fleet-meter" aria-hidden="true"><b style="width:' + Math.max(0, Math.min(100, pct)) + '%"></b></i>';
     // one stat cell: bright available amount, then the "≈"/"/ total" context and
     // the label in dim ink so the number is what the eye lands on
@@ -97,10 +100,10 @@ class FleetList extends EnclaveElement {
     // A FAILED read is not an empty fleet: say it failed (retrying) rather than "no hosts",
     // and under last-good rows say how old they are.
     const failed = this.error ? String(this.error) : "";
-    const staleNote = failed && (rows.length || ownerRows.length)
+    const staleNote = failed && (rows.length || ownerRows.length || pvmRows.length)
       ? '<div class="fleet-stale" role="status">Showing hosts as of ' + esc(asOf(this.staleAt)) + ': the latest read failed (' + esc(failed) + '). Retrying.</div>'
       : "";
-    list.innerHTML = (!rows.length && !ownerRows.length
+    list.innerHTML = (!rows.length && !ownerRows.length && !pvmRows.length
       ? (failed
         ? '<div class="fleet-empty fleet-error" role="alert">Couldn’t load the app hosts: ' + esc(failed) + '. This is a failed read, not an empty fleet. Retrying.</div>'
         // Honest and short. It is said the same way whether the fleet is empty or every attached
@@ -265,6 +268,19 @@ class FleetList extends EnclaveElement {
         + gpuCapacity + capacity
         + '<span class="fleet-owner-status">' + count + ' active deployment' + (count === 1 ? '' : 's') + '</span>'
         + '<span class="fleet-owner-note">Hosting for authorized owners. Unavailable for general deployments.</span></div>';
+    }).join("");
+    list.innerHTML += pvmRows.map(e => {
+      const vm = pvmHostVm(e);
+      const name = e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "host";
+      const cell = (v, label, title) => '<span class="fleet-stat" title="' + esc(title) + '"><b>' + (v === null ? '—' : esc(String(v))) + '</b><small>' + label + '</small></span>';
+      const vmTitle = 'The protected VM\u2019s size, as its capability report states it; the relay verified the report\u2019s signature against the VM\u2019s attested key.';
+      return '<div class="fleet-row fleet-owner-row fleet-pvm-row">'
+        + '<span class="fleet-head"><span class="fleet-name">' + esc(name) + '</span></span>'
+        + '<div class="fleet-pool"><span class="fleet-pool-label">'
+        + '<span class="ap-badge warn" title="The relay verified this phone\u2019s protected-VM attestation chain when it attached and admitted its capability report: a CPU-only Wasm runtime, no model, no accelerator.">pvm cpu</span>'
+        + '</span><span class="fleet-pool-pct">attested</span>'
+        + '<span class="fleet-stats">' + cell(vm.threads, 'vcpus', vmTitle) + cell(vm.memGb, 'GB ram', vmTitle) + '</span></div>'
+        + '<span class="fleet-owner-note">A protected VM on its owner\u2019s phone, running CPU-only apps. Not taking deployments yet.</span></div>';
     }).join("");
     this._wireRate();
     // footer row: a manual refresh (dispatches `refresh`; the HOST owns the

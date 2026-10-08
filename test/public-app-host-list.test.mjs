@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { appHostVisible, ownerHostedDeploymentCount, ownerHostCpuCapacity, ownerHostVisibleTo, HOST_STALE_AFTER_SEC } from "../site/js/core/pricing.js";
+import { appHostVisible, ownerHostedDeploymentCount, ownerHostCpuCapacity, ownerHostVisibleTo, pvmHostVisible, pvmHostVm, HOST_STALE_AFTER_SEC } from "../site/js/core/pricing.js";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const NOW = 1790266080;
@@ -173,4 +173,35 @@ test("owner-only rows appear only for the operator or a currently delegated wall
     "self-reported owners do not replace the relay's delegation list");
   assert.equal(appHostVisible({ ...row, serving: true, eligible: true }, NOW), false,
     "owner-only hosts cannot leak into the public branch");
+});
+
+// THE EXACT LIVE pVM ROW, copied from https://api.enclave.host/enclaves on 2026-10-08 (the relay then put no VM size on the
+// row; the size test below adds the field the relay now sends).
+const pvmRow = {"endpoint": "tunnel://pixel10-pvm-cpu", "id": "0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658", "name": "pixel10-pvm-cpu", "repo": "EnclaveHost/enclave", "lastSeen": 1791468660, "tunnel": true, "mode": "avf", "publicUrl": "https://api.enclave.host/t/pixel10-pvm-cpu", "attach": "attestation", "measurement": "d2538636a5f3a67f6d50e565dba2235090c958c0bb5e7c5237791345e3a46f55", "tier": "pvm-cpu", "pvmCpu": {"runtime": "d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba", "device": "", "checkedAt": 1791457316171}, "availability": {"ok": true, "role": "phone-anchor", "name": "pixel10-pvm-cpu", "phone": "Pixel 10 Pro XL", "gpu": false}, "relay": false, "serving": false, "eligible": false, "ineligible": "pVM CPU tier: CPU-only Wasm workloads on its owner's phone, not in the app serving set", "lane": "pvm-cpu"};
+
+test("an attested, admitted pVM host is a status row: shown, never a marketplace host", () => {
+  const now = pvmRow.lastSeen + 60;
+  assert.equal(appHostVisible(pvmRow, now), false, "not serving, not eligible: never in the sales list");
+  assert.equal(pvmHostVisible(pvmRow, now), true, "but shown as what it is");
+  assert.equal(pvmHostVisible(pvmRow, pvmRow.lastSeen + HOST_STALE_AFTER_SEC + 1), false, "a stale phone drops out");
+  // only the relay's own stamps make it one: the lane and the tier from the relay's verdict, an attested AVF tunnel
+  for (const over of [{ lane: undefined }, { tier: "vbs-dev" }, { mode: "snp" }, { tunnel: false }, { relay: true },
+                      { availability: { ...pvmRow.availability, ok: false } }])
+    assert.equal(pvmHostVisible({ ...pvmRow, ...over }, now), false, JSON.stringify(over));
+});
+
+test("a pVM host's size is its signed report's, and unknown stays unknown", () => {
+  assert.deepEqual(pvmHostVm(pvmRow), { threads: null, memGb: null }, "the row as first captured carries no size");
+  assert.deepEqual(pvmHostVm({ ...pvmRow, pvmCpu: { ...pvmRow.pvmCpu, vm: { threads: 8, memMib: 1994 } } }), { threads: 8, memGb: 1.9 });
+  assert.deepEqual(pvmHostVm({ ...pvmRow, pvmCpu: { ...pvmRow.pvmCpu, vm: { threads: -1, memMib: "lots" } } }), { threads: null, memGb: null });
+});
+
+test("the fleet list renders pVM hosts as status rows, without a price (pinned in source)", () => {
+  const src = fs.readFileSync(path.join(ROOT, "site/components/fleet-list/fleet-list.js"), "utf8");
+  assert.match(src, /const pvmRows = \(this\.rows \|\| \[\]\)\.filter\(e => pvmHostVisible\(e\)\);/);
+  const block = src.slice(src.indexOf("list.innerHTML += pvmRows.map"), src.indexOf("this._wireRate();"));
+  assert.ok(block.length > 0);
+  assert.match(block, /fleet-pvm-row/);
+  assert.match(block, /Not taking deployments yet/);
+  assert.doesNotMatch(block, /perHr|enclavePriceOf|price/, "no rental price on a host that takes no deployments");
 });

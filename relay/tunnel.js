@@ -387,9 +387,10 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                                       signature: String(f.sig || ""), nonce: t.pvm.nonce }, t.pvm.policy, { now: Date.now() });
         if (verdict.eligible) {
           t.tier = PVM_CPU_TIER;
-          // the public row names the CPU-only runtime the VM attested and the device label; the VM's resources stay
-          // in the verdict (the relay's log), never on the row
-          t.pvmCpu = { runtime: verdict.capability.runtime, device: verdict.capability.device || "", checkedAt: verdict.capability.checkedAt };
+          // the public row names the CPU-only runtime the VM attested, the device label, and the VM's size as its signed
+          // report states it (display only: nothing prices or places on it)
+          t.pvmCpu = { runtime: verdict.capability.runtime, device: verdict.capability.device || "", checkedAt: verdict.capability.checkedAt,
+                       vm: { threads: verdict.capability.vm.threads, memMib: verdict.capability.vm.memMib } };
           console.log(`[tunnel] ${name} pvm-cpu ADMITTED (CPU-only runtime ${t.pvmCpu.runtime.slice(0, 16)}…, ${verdict.capability.vm.threads} threads, ${verdict.capability.vm.memMib} MiB)`);
           try { onChange("caps", name); } catch {}
         } else {

@@ -757,7 +757,7 @@ test("pvm-cpu: a signed capability report over the attach nonce sets the hub's t
     assert.equal(row(h, "pixel-a").tier, "pvm-cpu", "the hub set the tier");
     assert.equal(row(h, "pixel-a").pvmCpu.runtime, RUNTIME, "the row names the CPU-only runtime the VM attested");
     assert.equal(row(h, "pixel-a").pvmCpu.model, undefined, "and no model: the tier carries none");
-    assert.equal(row(h, "pixel-a").pvmCpu.vm, undefined, "and not the VM's resources");
+    assert.deepEqual(row(h, "pixel-a").pvmCpu.vm, { threads: 6, memMib: 2048 }, "and the VM's size as its signed report states it");
     // a second frame, even a worse one, changes nothing: one report per attach
     caps(a.ws, report(a.nonce, { mode: "dev" }), k1);
     await settle(); await settle();
