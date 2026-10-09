@@ -3,8 +3,9 @@
 //   HOST_AGENT_RPC=<the chain's RPC URL; it may embed a provider key>  OPERATOR_KEY_FILE=<0x + 64 hex, mode 0600>
 //   node shielded/anchor/avf/runner/host-agent-cli.mjs --config <host.json> --state <dir> [--once]
 // It serves, on loopback only: the host surface the relay reaches through the phone's tunnel (config device.agentPort, over
-// `adb reverse`) and the attach co-signer (device.attachPort), which signs the relay's attach challenge for the owner's own VM
-// instance only (attach-cosigner.mjs). One JSON line per event on stdout. SIGINT/SIGTERM stop after the current round, leaving
+// `adb reverse`), the attach co-signer (device.attachPort), which signs the relay's attach challenge for the owner's own host
+// VM instance only (attach-cosigner.mjs), the apps' router for the TUNA privacy agent (slots.routerPort) and, with `egress`,
+// the apps' way out. One JSON line per event on stdout. SIGINT/SIGTERM stop after the current round, leaving
 // any lease to run on (a restart picks it up from the state dir); nothing is released by a signal.
 import fs from "node:fs";
 import path from "node:path";
@@ -41,7 +42,7 @@ const log = (o) => console.log(JSON.stringify({ t: new Date().toISOString(), ...
 const d = cfg.device;
 const device = createPvmDevice({ adb: d.adb, serial: d.serial, vmName: d.vmName, relay: `${cfg.relayOrigin.replace(/^https:/, "wss:")}/v1/fleet-tunnel`,
   name: cfg.name, agentPort: d.agentPort, attachPort: d.attachPort, egressPort: cfg.egress ? cfg.egress.port : 0,
-  bridgeApp: d.bridgeApp || 17786, bridgeEvidence: d.bridgeEvidence || 17787, log });
+  bridgeApp: d.bridgeApp || 17786, bridgeEvidence: d.bridgeEvidence || 17787, slots: cfg.slots.count, log });
 fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
 const cosigner = createAttachCosigner({ account, name: cfg.name, relay: cfg.relayOrigin, codeHashes: cfg.evidence.allowedCodeHashes,
   authorityHashes: cfg.evidence.allowedAuthorityHashes, rootPins: cfg.evidence.rootPins, instanceIds: cfg.evidence.instanceIds,

@@ -46,11 +46,13 @@ int main(void) {
     OK("APP bytes=5 sha256=%s serve=https-p256 sock=8000", H); assert(p.http == 3 && p.sock == 8000 && p.mem_mib == 0);
     OK("APP bytes=5 sha256=%s serve=https-p256 sock=65535 mem=1024", H); assert(p.sock == 65535 && p.mem_mib == 1024);
     OK("APP bytes=5 sha256=%s serve=https-p256 sock=1 mem=16", H); assert(p.sock == 1 && p.mem_mib == 16);
+    /* mem= alone: a wasi:http handler's per-request memory, sized to its share (a slot VM) */
+    OK("APP bytes=5 sha256=%s serve=https-p256 mem=384", H); assert(p.sock == 0 && p.mem_mib == 384);
     BAD("APP bytes=5 sha256=%s serve=https sock=8000", H); BAD("APP bytes=5 sha256=%s serve=http sock=8000", H); BAD("APP bytes=5 sha256=%s sock=8000", H);
     BAD("APP bytes=5 sha256=%s serve=https-p256 sock=0", H); BAD("APP bytes=5 sha256=%s serve=https-p256 sock=08000", H);
     BAD("APP bytes=5 sha256=%s serve=https-p256 sock=65536", H); BAD("APP bytes=5 sha256=%s serve=https-p256 sock=", H);
     BAD("APP bytes=5 sha256=%s serve=https-p256 sock=8000 mem=15", H); BAD("APP bytes=5 sha256=%s serve=https-p256 sock=8000 mem=1025", H);
-    BAD("APP bytes=5 sha256=%s serve=https-p256 sock=8000 mem=0256", H); BAD("APP bytes=5 sha256=%s serve=https-p256 mem=256", H);
+    BAD("APP bytes=5 sha256=%s serve=https-p256 sock=8000 mem=0256", H); BAD("APP bytes=5 sha256=%s serve=https mem=256", H); BAD("APP bytes=5 sha256=%s serve=https-p256 mem=256 sock=8000", H);
     BAD("APP bytes=5 sha256=%s serve=https-p256 sock=8000 ", H); BAD("APP bytes=5 sha256=%s serve=https-p256x", H);
     printf("{\"status\":\"PASS\",\"executed_checks\":%d}\n", n);
     return 0;

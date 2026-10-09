@@ -1995,7 +1995,7 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
                 g_app_sealed_len ? "sealed by the relay (opened in pvm-rt)" : "none");
     /* a socket-server app (sock=): ONE instance listening on the VM's loopback, fronted by the same TLS and evidence paths */
     void *srv = plan->sock ? hsock(a->bytes, plan->bytes, plan->sha256, (uint64_t)(plan->mem_mib ? plan->mem_mib : 256) << 20, plan->sock, appdata_dir(), seed, &o, app_emit, &cms, err, sizeof err)
-              : ca ? hsp256(a->bytes, plan->bytes, plan->sha256, 256ull << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, seed, &o, app_emit, &cms, err, sizeof err)
+              : ca ? hsp256(a->bytes, plan->bytes, plan->sha256, (uint64_t)(plan->mem_mib ? plan->mem_mib : 256) << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, seed, &o, app_emit, &cms, err, sizeof err)
               : tls ? hsopen(a->bytes, plan->bytes, plan->sha256, 256ull << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, seed, app_emit, &cms, err, sizeof err)
                     : hopen(a->bytes, plan->bytes, plan->sha256, 256ull << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, app_emit, &cms, err, sizeof err);
     memset(seed, 0, sizeof seed);

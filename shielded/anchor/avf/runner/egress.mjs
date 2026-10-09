@@ -92,7 +92,8 @@ export async function resolveVia(proxy, servers, name, { request = https.request
 }
 
 /**
- * The server. `current()` answers { token, deployment } for the VM now serving (null when idle: nothing goes out).
+ * The server. `current()` answers the launches now serving, { token, deployment } or a list of them (one per slot VM; null
+ * or [] when none: nothing goes out); a connection is the app whose launch token it presents.
  * `connect`/`resolve` are injectable for tests (defaults: SOCKS through the app's proxies, DoH through them).
  */
 export function createEgressServer({ current, routesFile, log = () => {}, now = Date.now, connect = connectSOCKS, resolve = resolveVia, limits = EGRESS_LIMITS }) {
@@ -117,9 +118,9 @@ export function createEgressServer({ current, routesFile, log = () => {}, now = 
       sock.off("data", onData); sock.pause();
       const line = buf.subarray(0, nl).toString("latin1").replace(/\r$/, ""), rest = buf.subarray(nl + 1);
       const [tag, token, op, a, b, ...extra] = line.split(" ");
-      const cur = current();
-      if (tag !== "EGRESS" || !cur || !cur.token || typeof token !== "string" || token.length !== cur.token.length
-          || !crypto.timingSafeEqual(Buffer.from(token), Buffer.from(cur.token))) return refuse("not this launch's egress");
+      const all = [current()].flat().filter((c) => c && typeof c.token === "string" && c.token);
+      const cur = typeof token === "string" && all.find((c) => token.length === c.token.length && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(c.token)));
+      if (tag !== "EGRESS" || !cur) return refuse("not this launch's egress");
       if (extra.length) return refuse("malformed");
       const D = cur.deployment;
       let route;
