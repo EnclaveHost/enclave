@@ -79,6 +79,9 @@ export function createPvmDevice({ adb, serial, pkg = RELEASE_PACKAGE, vmName, re
   async function alive(label) {
     const pid = (await sh(`pidof ${pkg}`).catch(() => "")).trim();
     if (!/^[0-9]+/.test(pid)) return false;
+    // the running session is the newest capture: an older label's file may still say "serving" (a killed VM writes no end)
+    const newest = (await sh(`run-as ${pkg} ls -t files/capture`).catch(() => "")).split("\n")[0].trim();
+    if (newest !== `${label}.log`) return false;
     const text = await capture(label);
     return text.includes("APP serving https-p256") && !/CONTROL closed|CONTROL error|APP served |HOST FAIL/.test(text);
   }
