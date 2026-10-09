@@ -23,7 +23,7 @@ import { createHash, createPublicKey, randomBytes, verify as edVerify } from "no
 import { endpointOperator, recoverOp, makeReplayCache, holdsLease } from "./fleet-auth.js";
 import { releaseConfig, sealRelease, signResponse, keyIdOf, ed25519RawPublic } from "./secrets-release.mjs";
 import { verifyPvmAppEvidence } from "./pvm-app-attest.mjs";
-import { pvmOptionsRefusal } from "./pvm-market.mjs";
+import { pvmOptionsRefusal, checkHostVm } from "./pvm-market.mjs";
 
 export const pvmSecretsMessage = (id, endpoint, ts) => `enclave-pvm-secrets:${id}:${endpoint}:${ts}`;
 export const SEAL_KEY_DOMAIN = Buffer.from("enclave-pvm-seal-key-v1\n");
@@ -86,8 +86,8 @@ export function createPvmSecretRelease({ hub, market, pins, hostForEndpoint, con
       const v = verifyPvmAppEvidence(doc.evidence, { nonce, appId, requireTls: true, allowedRuntimeIds: [...pins.runtimeIds],
         allowedCodeHashes: [...pins.codeHashes], allowedAuthorityHashes: [...pins.authorityHashes], ...(rootPins ? { rootPins } : {}) });
       if (!v.ok) throw err(`the VM's evidence is refused: ${v.reasons.at(-1)}`);
-      if (createHash("sha256").update(Buffer.from(v.transportSpki, "hex")).digest("hex") !== keyFp || hub.info(row.name)?.keyFp !== keyFp)
-        throw err("the evidence is not from the VM attached as this host");
+      try { await checkHostVm({ hub, row, v, nonce, id, keyFp, proofKeyOf: market.proofKeyOf }); }
+      catch (e) { throw err(e.message); }
       const sealKey = checkSealStatement(doc.seal, { nonce, id, appId, transportSpki: v.transportSpki });
       const current = await confirmRow(id);
       if (!current || !holdsLease(current, epId) || current.configCid !== d.configCid || current.appRef !== d.appRef) throw err("the deployment changed during release", 409);

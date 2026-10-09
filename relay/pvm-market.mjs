@@ -16,6 +16,7 @@
 // deployment served (routes, TUNA) for TTL, and a certificate issued only for exactly that TLS key. A failure that says
 // nothing about the app (busy, unreachable, the gateway) leaves the last verdict to expire on its own; any other revokes it.
 import { randomBytes, createHash } from "node:crypto";
+import { recoverAddress } from "viem";
 import { verifyPvmAppEvidence } from "./pvm-app-attest.mjs";
 import { CATALOG_REF_RE, versionRefusal } from "./measurement-predict.mjs";
 
@@ -54,8 +55,45 @@ export function pvmOptionsRefusal(d, { gpuOptional = false } = {}) {
   return null;
 }
 
+// ---- the host's sibling VMs (shielded/anchor/avf/PVM-CPU.md "Slots by share") ----
+// A pVM host runs one protected VM per app; only one of them (the host VM) attaches the tunnel. An app's evidence from
+// ANOTHER VM is the host's when that VM proves it holds the host's registered proof key: the sibling statement, over the
+// relay's same nonce, binds the VM's attested transport key, its instance and the deployment, and recovers to
+// registry.get(host).proofKey. The key only ever lives in VMs of the pinned build (it is handed between them after each
+// verifies the other's Android attestation, pvm-rt keygrant.rs), so holding it is being the host's sibling.
+export const SIBLING_FORMAT = "enclave-pvm-sibling/v1";
+export const siblingDigest = ({ nonce, transportSpki, instanceId, deployment }) => createHash("sha256").update(Buffer.concat([
+  Buffer.from("enclave-pvm-sibling-v1\n"), Buffer.from(nonce, "hex"), createHash("sha256").update(Buffer.from(transportSpki, "hex")).digest(),
+  Buffer.from(instanceId, "hex"), Buffer.from(String(deployment).slice(2), "hex")])).digest();
+/** The sibling statement checked against the verified evidence and the host's registered proof key; throws the reason. */
+export async function checkSibling(s, { nonce, deployment, transportSpki, instanceId, proofKey }) {
+  if (!s || typeof s !== "object" || Object.keys(s).sort().join() !== "deployment,format,instanceId,nonce,proofKey,sig,transportSpki")
+    throw new Error("the sibling statement is malformed");
+  if (s.format !== SIBLING_FORMAT || s.nonce !== nonce || s.deployment !== deployment || s.transportSpki !== transportSpki || s.instanceId !== instanceId)
+    throw new Error("the sibling statement is not for this nonce, deployment and VM");
+  if (!/^0x[0-9a-f]{40}$/i.test(String(proofKey || "")) || /^0x0{40}$/.test(String(proofKey))) throw new Error("the host has no registered proof key");
+  if (!/^[0-9a-f]{130}$/.test(String(s.sig))) throw new Error("the sibling signature is malformed");
+  let who;
+  try { who = await recoverAddress({ hash: "0x" + siblingDigest({ nonce, transportSpki, instanceId, deployment }).toString("hex"), signature: "0x" + s.sig }); }
+  catch { throw new Error("the sibling signature does not recover"); }
+  if (who.toLowerCase() !== String(proofKey).toLowerCase()) throw new Error("the VM does not hold this host's registered proof key");
+}
+/**
+ * Is the VM that gave verified evidence `v` (over `nonce`, for deployment `id`) this host's? The tunnel's own VM, or a
+ * sibling that proves the host's proof key. Throws the reason otherwise.
+ */
+export async function checkHostVm({ hub, row, v, nonce, id, keyFp, proofKeyOf }) {
+  if (createHash("sha256").update(Buffer.from(v.transportSpki, "hex")).digest("hex") === keyFp && hub.info(row.name)?.keyFp === keyFp) return "tunnel";
+  if (typeof proofKeyOf !== "function") throw new Error("the evidence is not from the VM attached as this host");
+  const s = await hub.fetchJson(`tunnel://${row.name}`, `/v1/pvm/sibling?deployment=${id}&nonce=${nonce}`);
+  if (!s || s.error) throw new Error(`the evidence is not from the VM attached as this host, and no sibling statement came${s && s.error ? `: ${String(s.error).slice(0, 120)}` : ""}`);
+  await checkSibling(s, { nonce, deployment: id, transportSpki: v.transportSpki, instanceId: v.instanceId, proofKey: await proofKeyOf(row.id) });
+  if (hub.info(row.name)?.keyFp !== keyFp) throw new Error("the host re-attached during verification");
+  return "sibling";
+}
+
 // rootPins: the attestation roots (default: Google's, relay/avf-verify.mjs); tests pass their own CA's.
-export function createPvmMarket({ hub, enabled = false, pins = null, confirmRow, readCatalog, fetchVerified,
+export function createPvmMarket({ hub, enabled = false, pins = null, confirmRow, readCatalog, fetchVerified, proofKeyOf = null,
                                   rootPins = undefined, now = Date.now, log = console.warn } = {}) {
   const on = enabled === true && !!pins;
   if (enabled === true && !pins) log("[pvm-market] PVM_MARKET is set but the pVM CPU pins are not: the market stays off");
@@ -117,15 +155,15 @@ export function createPvmMarket({ hub, enabled = false, pins = null, confirmRow,
       const v = verifyPvmAppEvidence(doc, { nonce, appId, requireTls: true, allowedRuntimeIds: [...pins.runtimeIds],
         allowedCodeHashes: [...pins.codeHashes], allowedAuthorityHashes: [...pins.authorityHashes], ...(rootPins ? { rootPins } : {}) });
       if (!v.ok) throw new Error(v.reasons.at(-1));
-      // the evidence's transport key must be the one THIS tunnel attached with: another VM's genuine evidence is not this host's
-      if (createHash("sha256").update(Buffer.from(v.transportSpki, "hex")).digest("hex") !== keyFp || info(row)?.keyFp !== keyFp)
-        throw new Error("the evidence is not from the VM attached as this host");
+      // the VM must be this host's: the one THIS tunnel attached with, or a sibling holding the host's proof key -- another
+      // host's genuine evidence is not this host's
+      const via = await checkHostVm({ hub, row, v, nonce, id: String(d.id).toLowerCase(), keyFp, proofKeyOf });
       if (csrSpkiSha256 !== undefined && csrSpkiSha256 !== v.tlsSpkiSha256) throw new Error("the certificate key differs from the VM's evidenced TLS key");
       const current = await confirmRow(String(d.id).toLowerCase());
       if (fingerprint(current) !== fingerprint(d)) throw new Error("the deployment changed during verification");
       const until = now() + TTL_MS;
       apps.set(k, { until, checked: now(), fingerprint: fingerprint(d), keyFp, tlsSpkiSha256: v.tlsSpkiSha256, gpuOptional });
-      log(`[pvm-market] verified ${row.name}/${String(d.id).slice(0, 10)}: app ${appId.slice(0, 12)}, TLS key ${v.tlsSpkiSha256.slice(0, 12)}, instance ${String(v.instanceId).slice(0, 12)}`);
+      log(`[pvm-market] verified ${row.name}/${String(d.id).slice(0, 10)}: app ${appId.slice(0, 12)}, TLS key ${v.tlsSpkiSha256.slice(0, 12)}, instance ${String(v.instanceId).slice(0, 12)}${via === "sibling" ? " (a sibling VM holding the host's proof key)" : ""}`);
       return { ok: true, spkiSha256: v.tlsSpkiSha256, until };
     } catch (e) {
       if (!pvmTransient(e.message)) apps.delete(k);
@@ -156,5 +194,5 @@ export function createPvmMarket({ hub, enabled = false, pins = null, confirmRow,
     const t = Math.floor(now() / 1000);
     return rows.map((d) => ({ id: String(d.id).toLowerCase(), until: servesUntil(row, d) })).filter((x) => x.until > t);
   }
-  return { enabled: on, eligible, servesUntil, served, refresh, certificate: (row, d, spki) => admit(row, d, spki), expectedApp };
+  return { enabled: on, eligible, servesUntil, served, refresh, certificate: (row, d, spki) => admit(row, d, spki), expectedApp, proofKeyOf };
 }
