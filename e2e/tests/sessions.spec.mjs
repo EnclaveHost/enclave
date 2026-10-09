@@ -38,14 +38,14 @@ test("sign in -> indicator -> /sessions -> top up -> sign out refunds and revoke
   expect((await signedList.response()).status()).toBe(200);
 
   // the popover: no deployment counts, no "Host login" and no Deposit button (the Balance opens it); a section
-  // break, then the session row and All Sessions beside Sign out, the only way to end it here
+  // break, then the session row with All and Sign out (the only way to end it here) at its right
   await page.click("#walletBtn");
   await expect(page.locator("#wpSess")).toHaveText(/^\$0\.00 · (\d+m|1h)/, { timeout: 15_000 });
   await expect(page.locator("#wpBalUsdc")).toHaveText(/USDC|unavailable/, { timeout: 15_000 });
   await expect(page.locator("#walletPop")).not.toContainText("Host login");
   await expect(page.locator("#walletPop")).not.toContainText("Deployments");
   await expect(page.locator("#wpDep")).toHaveCount(0);
-  await expect(page.locator("#walletPop .wp-fund")).toHaveText(/^All Sessions\s*Sign out$/);
+  await expect(page.locator(".wp-row-sess .wp-sess-r")).toHaveText(/^\$0\.00 · .*All\s*Sign out$/);
 
   // the session's budget is its top-up: one USDC authorization signature, relayed gas-free
   await page.click("#wpSessBal");

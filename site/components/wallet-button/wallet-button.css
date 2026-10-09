@@ -13,7 +13,7 @@ c-wallet-button{display:contents;}
    would swallow the free space and jam the links against the brand - let
    the bar's space-between spread brand | links | wallet evenly instead */
 @media (max-width:880px){.nav-inner .wallet-mount{margin-left:0;}}
-.wallet-pop{position:absolute;top:calc(100% + 10px);left:0;z-index:60;width:300px;background:#0b1119;border:1px solid var(--line);border-radius:12px;box-shadow:0 30px 60px -28px rgba(0,0,0,.9);padding:14px;font-family:var(--font-mono);}
+.wallet-pop{position:absolute;top:calc(100% + 10px);left:0;z-index:60;width:340px;background:#0b1119;border:1px solid var(--line);border-radius:12px;box-shadow:0 30px 60px -28px rgba(0,0,0,.9);padding:14px;font-family:var(--font-mono);}
 .nav-inner .wallet-pop{left:auto;right:0;}  /* drop down aligned to the header's right edge */
 .wp-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line-soft);font-size:.78rem;}
 .wp-k{color:var(--text-muted);}
@@ -53,7 +53,12 @@ c-wallet-button{display:contents;}
 .wp-sep{border:0;height:1px;margin:0 0 4px;background:var(--text);}
 .wp-row:has(+ .wp-sep){border-bottom:0;}   /* the white rule IS that row's separator, not a second line under it */
 /* Sign out sharing a row (the wallet popover: All Sessions | Sign out): compact, last at the row's right end */
-.wp-fund .wp-disc{width:auto;margin:0;padding:.15em .8em;min-height:24px;border-radius:6px;font-size:.7rem;line-height:1;}
+.wp-fund .wp-disc,.wp-sess-r .wp-disc{width:auto;margin:0;padding:.15em .8em;min-height:24px;border-radius:6px;font-size:.7rem;line-height:1;}
+/* Session | budget · time  All  Sign out: one line at 340px; on a narrow phone the button pair wraps under, still right-aligned */
+.wp-row-sess{align-items:flex-start;} .wp-row-sess .wp-k{flex:none;padding-top:3px;}
+.wp-sess-r{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:6px 8px;min-width:0;}
+.wp-sess-btns{display:flex;align-items:center;gap:8px;}
+.wp-row-sess:last-child{border-bottom:0;padding-bottom:0;}
 /* the Deposit QR: white quiet zone so phone cameras lock on against the dark card */
 /* symmetric room around the code block - the old 10/2 let whatever followed
    (address, pairing hint) crowd it. Shared by the deposit, phone sign-in and
@@ -69,7 +74,7 @@ c-wallet-button{display:contents;}
 .wp-or{display:flex;align-items:center;gap:10px;margin:2px 0 10px;color:var(--text-dim);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;}
 .wp-or::before,.wp-or::after{content:"";flex:1;height:1px;background:var(--line-soft);}
 .wp-hint{font-size:.66rem;line-height:1.5;color:var(--text-dim);margin:-4px 2px 10px;}
-@media(max-width:760px){.wallet-pop{left:0;right:auto;width:min(300px,84vw);}}
+@media(max-width:760px){.wallet-pop{left:0;right:auto;width:min(340px,84vw);}}
 /* mobile header: the account button spans the bar (see header.css for the
    centered brand row); the popover centers under it */
 @media(max-width:640px){
