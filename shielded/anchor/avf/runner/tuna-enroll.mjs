@@ -15,6 +15,14 @@ import { execFile } from "node:child_process";
 const argv = process.argv.slice(2);
 const arg = (k) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : null; };
 const DRY = argv.includes("--dry-run");
+// the privacy agent re-reads its app list (each app's expectation, names and any new app) only on SIGHUP: --reload-unit
+// names its systemd --user unit, signalled after every change here. Without it a config edit (a new configCid in the
+// expectation) left the route withdrawn ("no matching current app expectation") until a restart: measured 2026-10-09.
+const RELOAD_UNIT = arg("--reload-unit");
+const reload = async (why) => {
+  if (!RELOAD_UNIT || DRY) return;
+  await new Promise((r) => execFile("systemctl", ["--user", "kill", "-s", "HUP", RELOAD_UNIT], (e) => { log(e ? `reload ${RELOAD_UNIT}: ${e.message}` : `${RELOAD_UNIT} told to re-read its apps (${why})`); r(); }));
+};
 const hostStateFile = arg("--host-state"), configFile = arg("--config"), appsDir = arg("--apps-dir"), tunaBinary = arg("--tuna-binary"),
       topup = arg("--topup"), targetsFile = arg("--targets"), runtimeId = arg("--runtime-id") || "d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba";
 if (!hostStateFile || !configFile || !appsDir || !tunaBinary || !topup || !targetsFile) {
@@ -39,6 +47,7 @@ if (existing) {
   if (JSON.stringify(have) === JSON.stringify(expected)) { log(`${label}: enrolled`); process.exit(0); }
   log(`${label}: the expectation changed (${String(have.appSha256).slice(0, 8)} -> ${expected.appSha256.slice(0, 8)})`);
   if (!DRY) await writeAtomic(existing.expectedFile, JSON.stringify(expected, null, 2));
+  await reload("an expectation changed");
   process.exit(0);
 }
 log(`${label}: enrolling ${names.join(", ")}`);
@@ -84,4 +93,5 @@ if (bal.some((b) => b === null || b < NKN_MIN)) {
 }
 cfg.apps.push({ deploymentId: id, names, expectedFile: path.join(dir, "expected.json"), walletsFile: path.join(dir, "wallets.json"), publishToMirror: true });
 await writeAtomic(configFile, JSON.stringify(cfg, null, 1));
-log(`${label}: enrolled (the privacy agent re-reads its config)`);
+log(`${label}: enrolled`);
+await reload("a new app");
