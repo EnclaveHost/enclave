@@ -30,6 +30,10 @@ public final class RelayAttach {
      * only with the registry operator's signature, which the owner's co-signer gives only for the owner's own INSTANCE -- the
      * payload's INSTANCEATTACH proof over this very transcript. This app forwards bytes; it holds no key and signs nothing. */
     String attachSigner = null;               // --es attach_signer http://127.0.0.1:<port>/attach-sign (the owner's; loopback in the lab)
+    /* the owner's HOST AGENT (PVM-CPU.md "Serving buyers"): the relay's host requests -- /availability, /v1/claim-hint, the per-app
+     * evidence the relay verifies -- are answered by it (adb reverse, loopback). This app forwards the bytes and keeps none;
+     * /v1/health stays here, and /availability falls back to this app's own answer (taking no work) when the agent is down. */
+    String hostAgent = null;                  // --es host_agent http://127.0.0.1:<port>
     String instanceKey = null, instanceSig = null;   // from the VM: INSTANCEATTACH key=<SPKI hex> sig=<hex>
     /* LAB serving prototype (PVM-CPU.md): the relay's fresh nonce for the app's ABI/2 evidence, hex, from abi2-challenge */
     final java.util.concurrent.CompletableFuture<String> abi2Nonce = new java.util.concurrent.CompletableFuture<>();
@@ -164,6 +168,7 @@ public final class RelayAttach {
                 if ("sx".equals(t)) { closePipe(o.optLong("sid", -1), "closed by the relay"); continue; }
                 if (!"req".equals(t)) continue;
                 String path = o.optString("path").split("\\?")[0]; int status; JSONObject body;
+                if (hostAgent != null && !path.equals("/v1/health")) { final JSONObject req = o; new Thread(() -> forward(req), "relay-host-req").start(); continue; }
                 if (path.equals("/availability")) { status = 200; body = new JSONObject().put("ok", true).put("role", "phone-anchor").put("name", name).put("phone", phone).put("gpu", false); }   // no teeCpu/tier self-claim: the relay tiers this row from its verified verdict (PVM-CPU.md)
                 else if (path.equals("/v1/health")) { status = 200; body = new JSONObject().put("ok", true).put("role", "phone-anchor").put("name", name); }
                 else { status = 404; body = new JSONObject().put("error", "not_found"); }
@@ -174,6 +179,49 @@ public final class RelayAttach {
             Main.say("RELAY tunnel closed");
         } catch (Exception e) { for (Long sid : pipes.keySet()) closePipe(sid, "tunnel lost"); Main.say("RELAY serve error " + e); }
         finally { close(); final Runnable r = onClosed; onClosed = null; if (r != null) r.run(); }
+    }
+
+    static final java.util.Set<String> FORWARD_METHODS = java.util.Set.of("GET", "POST", "PUT", "DELETE", "HEAD");
+    static final java.util.Set<String> FORWARD_HEADERS = java.util.Set.of("content-type", "authorization", "accept");
+    /** One relay request answered by the owner's host agent: method, path, a few headers and the body there; status,
+     *  content-type and at most 1 MiB of body back. The agent unreachable: /availability is this app's own answer (no work
+     *  taken), anything else a 502. */
+    private void forward(JSONObject o) {
+        int status = 502; String ctype = "application/json"; byte[] out = null;
+        final String path = o.optString("path"), method = o.optString("method", "GET").toUpperCase(java.util.Locale.ROOT);
+        try {
+            if (!path.startsWith("/") || path.length() > 4096 || path.contains("\r") || path.contains("\n")) throw new Exception("bad path");
+            if (!FORWARD_METHODS.contains(method)) throw new Exception("method " + method + " is not forwarded");
+            final java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(hostAgent + path).openConnection();
+            c.setConnectTimeout(3000); c.setReadTimeout(25000); c.setInstanceFollowRedirects(false); c.setRequestMethod(method);
+            final JSONObject h = o.optJSONObject("headers");
+            if (h != null) for (java.util.Iterator<String> it = h.keys(); it.hasNext(); ) { final String k = it.next();
+                if (FORWARD_HEADERS.contains(k.toLowerCase(java.util.Locale.ROOT))) c.setRequestProperty(k, h.optString(k)); }
+            final String b64body = o.optString("body", "");
+            if (!b64body.isEmpty() && !"null".equals(b64body)) {
+                final byte[] b = Base64.getDecoder().decode(b64body);
+                if (b.length > (1 << 20)) throw new Exception("request body over 1 MiB");
+                c.setDoOutput(true); try (java.io.OutputStream w = c.getOutputStream()) { w.write(b); }
+            }
+            status = c.getResponseCode();
+            if (c.getContentType() != null) ctype = c.getContentType();
+            final java.io.InputStream in = status >= 400 ? c.getErrorStream() : c.getInputStream();
+            final java.io.ByteArrayOutputStream got = new java.io.ByteArrayOutputStream();
+            if (in != null) { final byte[] b = new byte[16384]; int n; while ((n = in.read(b)) > 0) { if (got.size() + n > (1 << 20)) throw new Exception("response over 1 MiB"); got.write(b, 0, n); } in.close(); }
+            out = got.toByteArray();
+        } catch (Exception e) {
+            status = 502; ctype = "application/json";
+            try {
+                out = (path.split("\\?")[0].equals("/availability")
+                    ? new JSONObject().put("ok", true).put("role", "phone-anchor").put("name", name).put("gpu", false).put("claimEnabled", false).put("hostAgent", "unreachable")
+                    : new JSONObject().put("error", "host_agent_unreachable").put("message", "The phone's host agent did not answer.")).toString().getBytes("UTF-8");
+                if (path.split("\\?")[0].equals("/availability")) status = 200;
+            } catch (Exception ignored) { out = new byte[0]; }
+            Main.say("RELAY " + method + " " + path.split("\\?")[0] + " not answered by the host agent: " + e);
+        }
+        try { sendFrame(new JSONObject().put("t", "res").put("id", o.opt("id")).put("status", status)
+                  .put("headers", new JSONObject().put("content-type", ctype)).put("body", b64(out))); }
+        catch (Exception e) { Main.say("RELAY response not sent: " + e); }
     }
 
     /** The pVM's capability report (PVM-CPU.md): report hex -> base64 as the relay parses it, signature as hex. The app only
