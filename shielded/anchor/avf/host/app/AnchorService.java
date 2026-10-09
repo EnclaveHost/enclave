@@ -30,7 +30,7 @@ public class AnchorService extends Service {
         Notification n = new Notification.Builder(this, "anchor")
             .setContentTitle("Enclave anchor VM").setContentText("protected VM running")
             .setSmallIcon(android.R.drawable.stat_notify_sync).setOngoing(true).build();
-        startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        startForeground(1 + Main.slotIndex(), n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);   /* a slot's own notification */
         final Main.Plan plan = Main.Plan.from(intent);
         final String tierWhy = Tier.refusal(Tier.of(this), plan.mode, intent);   /* the same tier refusal as the activity, named first */
         if (tierWhy != null) plan.configError = "tier " + Tier.of(this) + ": " + tierWhy;

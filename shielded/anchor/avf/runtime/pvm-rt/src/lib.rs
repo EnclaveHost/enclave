@@ -14,8 +14,10 @@
 //!     are never linked, so a component that imports one does not instantiate. The C entry points keep two reserved
 //!     pointer slots where a model was once passed (nn_name, nn_ops); both must be null, and anything else is refused.
 
+pub mod avf;
 pub mod egress;
 pub mod httpd;
+pub mod keygrant;
 pub mod loopnet;
 pub mod proof;
 pub mod sealed;
@@ -90,6 +92,12 @@ pub fn engine_config() -> Result<Config> {
     c.wasm_component_model(true);
     c.signals_based_traps(false); // every bounds check explicit: no reliance on guard-page faults
     c.memory_reservation(0); // the VBS enclave's settings, which also run Pulley without executable memory
+    // ...and so linear memories live in malloc'd storage (wasmtime MallocMemory), which reserves minimum + this much on
+    // creation. The 64-bit default is 2 GiB PER MEMORY: survivable in a 2 GiB VM (lazily committed), fatal below it -- a
+    // 512-1024 MiB VM aborted on its first request and on the 8-instance GFLOPS bench (measured 2026-10-09). 1 MiB (the
+    // 32-bit default): a memory grows by reallocation instead, so a VM sized to its app's share holds that app.
+    c.memory_reservation_for_growth(1 << 20);
+    c.gc_heap_reservation_for_growth(1 << 20); // the same for GC heaps (the engine has the GC proposals on)
     c.memory_guard_size(0);
     c.memory_init_cow(false);
     c.epoch_interruption(true); // the run deadline

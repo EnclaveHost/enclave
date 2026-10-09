@@ -38,5 +38,18 @@
         <service android:name=".AnchorService" android:exported="true" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="hosts the Enclave Shield anchor in a protected VM" />
         </service>
+        <!-- slots: the same service in its own process each, one protected VM per app at once (PVM-CPU.md "Slots by share") -->
+        <service android:name=".AnchorServiceSlot1" android:process=":slot1" android:exported="true" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="hosts one app's protected VM (slot 1)" />
+        </service>
+        <service android:name=".AnchorServiceSlot2" android:process=":slot2" android:exported="true" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="hosts one app's protected VM (slot 2)" />
+        </service>
+        <service android:name=".AnchorServiceSlot3" android:process=":slot3" android:exported="true" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="hosts one app's protected VM (slot 3)" />
+        </service>
+        <service android:name=".AnchorServiceSlot4" android:process=":slot4" android:exported="true" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="hosts one app's protected VM (slot 4)" />
+        </service>
     </application>
 </manifest>
