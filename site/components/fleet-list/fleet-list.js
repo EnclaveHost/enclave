@@ -5,7 +5,8 @@
    GPU", one line a pool) that expands to its full pools, five boxes a
    page. The units in those lines are the sort controls: GB or tflops on
    a GPU line sorts every host by its price per GB of VRAM or per TFLOPS,
-   GB or gflops on a CPU line by RAM or CPU compute; again reverses.
+   GB or gflops on a CPU line by RAM or CPU compute, the rating (★98%)
+   by rating; again reverses.
    Copy says "available",
    never "free": on a page that sells compute, "60 GB free" reads as
    a price, not as headroom.
@@ -29,6 +30,7 @@ const SORTS = {
   "gpu-compute": { unit: "tflops", what: "TFLOPS of GPU compute" },
   "cpu-gb":      { unit: "GB",     what: "GB of RAM" },
   "cpu-compute": { unit: "gflops", what: "GFLOPS of CPU compute" },
+  "rating":      { dir: -1 },   // best first; its button is the rating itself
 };
 
 class FleetList extends EnclaveElement {
@@ -245,7 +247,7 @@ class FleetList extends EnclaveElement {
           const vramGb = a.cardVramGb || s.cardVramGb, tflops = a.cardTflops || s.cardTflops;
           const ramGb = a.nodeRamGb || s.nodeRamGb;
           const price = enclavePriceOf(e);   // this box's posted ask; the fleet price where it posts none
-          return { key: "m:" + (e.id || e.endpoint || name), name, title: e.endpoint || "", cls: "", fb: this._fbHtml(e),
+          return { key: "m:" + (e.id || e.endpoint || name), name, title: e.endpoint || "", cls: "", fb: this._fbHtml(e, sortBy),
             chips: (shPool ? chip(cardBadge, shPool.leasableGb, shPool.availableTflops, "gpu", availPrice(price.shielded, shPool.frac)) : "")
               + (inTee ? chip(cardBadge, a.vramFreeGb != null ? a.vramFreeGb : gFree * vramGb, gFree * tflops, "gpu", availPrice(price.full, gFree)) : "")
               + chip(teeCpuBadge, a.ramGbFree != null ? a.ramGbFree : cFree * ramGb, cpuGflopsAvail(a, cFree), "cpu", availPrice(price.node, cFree)),
@@ -254,6 +256,7 @@ class FleetList extends EnclaveElement {
               "gpu-compute": shPool ? unitPrice(price.shielded, shPool.tflops) : inTee ? unitPrice(price.full, tflops) : null,
               "cpu-gb": unitPrice(price.node, ramGb),
               "cpu-compute": unitPrice(price.node, a.nodeGflops),
+              rating: this._ratingSort(e),
             },
             detail: head(e)
             + (shPool ? pool(cardBadge, shPct,
@@ -322,7 +325,8 @@ class FleetList extends EnclaveElement {
         'GFLOPS measured inside the protected VM under the same runtime its apps get (an exactly counted f32 multiply-add '
         + 'workload on every vCPU at once), reported in its signed capability report. Not a native-core estimate.');
       const name = nameOf(e, "host");
-      return { key: "p:" + (e.id || e.endpoint || name), name, title: e.endpoint || "", cls: "fleet-pvm-row", fb: this._fbHtml(e),
+      return { key: "p:" + (e.id || e.endpoint || name), name, title: e.endpoint || "", cls: "fleet-pvm-row", fb: this._fbHtml(e, sortBy),
+        sortv: { rating: this._ratingSort(e) },
         chips: chip(badge, ramFree, cpuGflopsAvail(a, cFree), 'cpu'),
         detail: head(e)
         + (cFree === null
@@ -344,7 +348,8 @@ class FleetList extends EnclaveElement {
       }).map(([r]) => r);
     }
     const sortBar = sortBy && items.length
-      ? '<div class="fleet-sortbar" role="status">Sorted: ' + (sortBy.dir < 0 ? 'priciest' : 'cheapest') + ' per ' + SORTS[sortBy.key].what
+      ? '<div class="fleet-sortbar" role="status">Sorted: ' + (sortBy.key === "rating" ? (sortBy.dir < 0 ? 'best' : 'worst') + ' rated'
+        : (sortBy.dir < 0 ? 'priciest' : 'cheapest') + ' per ' + SORTS[sortBy.key].what)
         + ' first<button class="fleet-sort-x" type="button" aria-label="Clear the sort" title="Clear the sort">×</button></div>'
       : '';
     const pages = Math.max(1, Math.ceil(items.length / PAGE));
@@ -363,7 +368,8 @@ class FleetList extends EnclaveElement {
           // anywhere on the line but a unit opens the host, as the whole line did when it was one button.
           return '<div class="fleet-row' + (r.cls ? ' ' + r.cls : '') + '" data-key="' + esc(r.key) + '"' + (r.title ? ' title="' + esc(r.title) + '"' : '') + '>'
             + '<div class="fleet-sum' + (open ? ' is-open' : '') + '">'
-            + '<button class="fleet-tog" type="button" aria-expanded="' + open + '" aria-controls="' + id + '"><span class="fleet-name">' + esc(r.name) + '</span>' + (r.fb ? ' ' + r.fb : '') + '</button>'
+            + '<span class="fleet-who"><button class="fleet-tog" type="button" aria-expanded="' + open + '" aria-controls="' + id + '"><span class="fleet-name">' + esc(r.name) + '</span></button>'
+            + (r.fb || '') + '</span>'
             + '<span class="fleet-chips">' + r.chips + '</span></div>'
             + '<div class="fleet-detail" id="' + id + '"' + (open ? '' : ' hidden') + '>' + r.detail + '</div>'
             + '</div>';
@@ -377,7 +383,7 @@ class FleetList extends EnclaveElement {
       if (form) this._closeRate(form, d.querySelector(".fleet-rate"));
     };
     for (const sum of list.querySelectorAll(".fleet-sum")) sum.addEventListener("click", (ev) => {
-      if (ev.target.closest(".fleet-unit")) return;
+      if (ev.target.closest("[data-sort]")) return;
       const open = !sum.classList.contains("is-open");
       if (open) for (const o of list.querySelectorAll(".fleet-sum.is-open")) setOpen(o, false);
       setOpen(sum, open);
@@ -389,15 +395,15 @@ class FleetList extends EnclaveElement {
       this._rateOpen = false; this._renderDeferred = false;
       super.requestRender();
     };
-    for (const u of list.querySelectorAll(".fleet-unit")) u.addEventListener("click", () => {
+    for (const u of list.querySelectorAll("[data-sort]")) u.addEventListener("click", () => {
       const key = u.dataset.sort;
-      resort({ key, dir: sortBy && sortBy.key === key ? -sortBy.dir : 1 }, key);
+      resort({ key, dir: sortBy && sortBy.key === key ? -sortBy.dir : (SORTS[key].dir || 1) }, key);
     });
     const sx = list.querySelector(".fleet-sort-x");
     if (sx) sx.addEventListener("click", () => resort(null, "clear"));
     // the repaint replaced the button that was clicked: keep keyboard focus on what it became
     if (this._sortFocus) {
-      const f = this._sortFocus === "clear" ? list.querySelector(".fleet-tog") : list.querySelector('.fleet-unit[data-sort="' + this._sortFocus + '"]');
+      const f = this._sortFocus === "clear" ? list.querySelector(".fleet-tog") : list.querySelector('[data-sort="' + this._sortFocus + '"]');
       this._sortFocus = null;
       if (f) f.focus();
     }
@@ -583,18 +589,31 @@ class FleetList extends EnclaveElement {
      whose colour climbs with how many wallets rated it (the count itself is in the tooltip). Every rating a 3:
      "★–". Unrated, or its reviews (the % needs each one; the tally is only count + sum) not read yet: nothing -
      the opened row still says "unrated". Nothing either while the contract isn't in the address book. */
-  _fbHtml(e){
-    if (!hrevConfigured() || !this._tallies) return "";
+  _feedback(e){
+    if (!hrevConfigured() || !this._tallies) return null;
     const id = String(e.id || "").toLowerCase();
     const t = this._tallies[id], n = t ? Number(t.count) : 0;
     const f = n && this._fb && this._fb[id];
-    if (!f) return "";
-    const pct = f.pos + f.neg ? Math.round(1000 * f.pos / (f.pos + f.neg)) / 10 : null;
+    if (!f) return null;
+    return { n, f, avg: Number(t.sum) / n, pct: f.pos + f.neg ? Math.round(1000 * f.pos / (f.pos + f.neg)) / 10 : null };
+  }
+  /* The rating is also its sort button: click it to put the best-rated hosts first, again for the worst. */
+  _fbHtml(e, sortBy){
+    const r = this._feedback(e);
+    if (!r) return "";
+    const { n, f, avg, pct } = r;
     const tier = n >= 1000 ? 5 : n >= 500 ? 4 : n >= 100 ? 3 : n >= 50 ? 2 : n >= 10 ? 1 : 0;
     const title = n + " rating" + (n === 1 ? "" : "s") + " from wallets whose apps this enclave ran, averaging "
-      + (Number(t.sum) / n).toFixed(1) + " of 5; " + f.pos + " positive (4-5 stars), " + f.neg + " negative (1-2 stars)";
-    return '<span class="fleet-fb" title="' + esc(title) + '"><span class="fleet-fb-star t' + tier + '" aria-hidden="true">★</span>'
-      + (pct === null ? '–' : pct + '%') + '</span>';
+      + avg.toFixed(1) + " of 5; " + f.pos + " positive (4-5 stars), " + f.neg + " negative (1-2 stars). Click to sort hosts by rating.";
+    const on = sortBy && sortBy.key === "rating" ? (sortBy.dir < 0 ? " on desc" : " on") : "";
+    return '<button class="fleet-fb' + on + '" type="button" data-sort="rating" title="' + esc(title) + '">'
+      + '<span class="fleet-fb-star t' + tier + '" aria-hidden="true">★</span>' + (pct === null ? '–' : pct + '%') + '</button>';
+  }
+  /* rating order: % positive, then more ratings first among equals; an all-neutral or unrated host has none
+     (sorted last, like a host without a price) */
+  _ratingSort(e){
+    const r = this._feedback(e);
+    return r && r.pct !== null ? r.pct + Math.min(r.n, 1e6) / 1e8 : null;
   }
 
   /* Positive / negative counts for the summary's %: every visible review of each rated box, re-read only when
