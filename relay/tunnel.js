@@ -337,6 +337,8 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                 // the v2 attach message (this transport key, this EK) and is a trusted operator of this relay; the owners it
                 // may serve (the operator + each VALID delegation's owner); and the raw delegations, re-verified as they age.
                 operator: meta.operator || "", served: meta.served || [], delegations: meta.delegations || [],
+                // mode "avf": the registry operator that signed this attach (relay/pvm-market.mjs counts it a market host)
+                pvmOperator: meta.pvmOperator || "",
                 // attached on a CACHED owner whose last successful read is already older than the grace (a long RPC outage):
                 // the box attaches, but owner-only starts SUSPENDED until a read succeeds (enclave-5d)
                 ownerSuspended: !!meta.operator && Date.now() - (ownerReadAt.get(name) || 0) > ownerGraceMs,
@@ -630,7 +632,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             // registered id follows.
             const owner = await ownerOf(name);
             const keyFp = spki ? createHash("sha256").update(spki).digest("hex") : "";
-            let operator = "", served = { served: [], refused: [] }, delegations = [];
+            let operator = "", pvmOperator = "", served = { served: [], refused: [] }, delegations = [];
             if (owner) {
               const signer = await signerOf(attachMessage(name, nonce), f.operatorSig);
               // hv-node: the v2 message binds the operator's consent to THIS transport key on THIS TPM (enclave-bf)
@@ -655,6 +657,10 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                 for (const r of served.refused) console.error(`[tunnel] ${name} hosting delegation #${r.index} NOT honoured: ${r.reason}`);
               } else if (isHv) {
                 console.log(`[tunnel] ${name} hv-node attached HOST-ONLY (serves nothing): ${signer2 === owner ? `operator ${owner} is not in RELAY_HVNODE_OPERATORS` : "no v2 operator signature (enclave-tunnel-attach/2)"}`);
+              } else if (isAvf && signer === owner) {
+                // a pVM host's name is registered and its owner signed THIS attach (the co-signer signs only for its own VM
+                // instance): the market may count it as that operator's host (relay/pvm-market.mjs); nothing else changes
+                pvmOperator = owner;
               }
             }
             const prev = tunnels.get(name);
@@ -674,6 +680,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                              snpChip, hvAppSession,
                              hvNode: isHv ? { boot: res.boot, omissions: res.omissions, hostStatement: res.hostStatement, verifiedAt: new Date().toISOString() } : null,
                              ...(operator ? { operator, served: served.served, delegations } : {}),
+                             ...(pvmOperator ? { pvmOperator } : {}),
                              spki: spki ? spki.toString("base64") : "", padKey,
                              // the pVM CPU admission inputs, pinned at attach (policy included: a hub
                              // without one refuses every report, by the verifier's own first rule)
@@ -711,7 +718,8 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     isTunnel: (origin) => NAME_RE.test(String(origin || "")),
     // One attached tunnel's identity, for modules that authenticate a tunnel's
     // own requests (relay/pads.mjs): null when nothing by that name is attached.
-    info: (name) => { const t = tunnels.get(name); return t ? { name, mode: t.mode, tier: t.tier || "", keyFp: t.keyFp, spki: t.spki, padKey: t.padKey, ...(t.hvNode ? { hvNode: t.hvNode } : {}) } : null; },
+    info: (name) => { const t = tunnels.get(name); return t ? { name, mode: t.mode, tier: t.tier || "", keyFp: t.keyFp, spki: t.spki, padKey: t.padKey, ...(t.hvNode ? { hvNode: t.hvNode } : {}),
+                                                                ...(t.mode === "avf" && t.pvmOperator ? { operator: t.pvmOperator } : {}) } : null; },
     // Verification uses only this live attachment's authenticated boot. A
     // caller-provided hostSession is overwritten, and detach/reconnect cannot
     // reuse the previous connection's context. This grants no host eligibility.
@@ -750,6 +758,8 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       // admitted capability report; measured rates stay in the relay log, never on the public row
       ...(t.pvmCpu ? { pvmCpu: t.pvmCpu } : {}),
       ...(t.capsRefused && !t.pvmCpu ? { capsRefused: true } : {}),
+      // a pVM host whose registered operator signed its attach (public: the registry says the same)
+      ...(t.mode === "avf" && t.pvmOperator ? { operator: t.pvmOperator } : {}),
       // A CONSUMER NODE's attested public keys, published because a client needs them to
       // talk to it at all: the session is sealed to the enclave's X25519 key (padKey) and
       // signed by its Ed25519 transport key, both minted inside VTL1 per boot and both

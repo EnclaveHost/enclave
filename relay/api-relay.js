@@ -99,6 +99,7 @@ import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDep
 import { initSessions, handleSessions, sessionsService, createCustodyGate, sessionRowRefusal } from "./sessions.mjs";
 import { handleCerts, initCerts } from "./certs.js";
 import { createShieldMarketplace } from "./shield-marketplace.mjs";
+import { createPvmMarket } from "./pvm-market.mjs";
 import { claimCheapest, CLAIM_QUOTE_ABI } from "./cheapest-claim.mjs";
 import { createPlacement, pinnedHost } from "./placement.mjs";
 import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson } from "./measurement-predict.mjs";
@@ -968,8 +969,10 @@ async function pollAvailability() {
   live = rows.filter(Boolean);
   // (B) an owner-only row's served deployments are read from the ledger: keep it loaded while such a row is live (the
   // common poll pays nothing; a failed read leaves the last rows, and none at first, which serves nothing: fail closed)
-  if (live.some((e) => e.ownerOnly)) await ledgerRows().catch(() => null);
+  if (live.some((e) => e.ownerOnly || pvmMarket.eligible(e))) await ledgerRows().catch(() => null);
   await shieldMarket.refresh(live, _ledger.rows || []).catch(e => console.warn(`[shield-market] ${e.message}`));
+  // the pVM market re-verifies each served app's evidence (a fresh AVF certificate per app, paced: relay/pvm-market.mjs)
+  pvmMarket.refresh(live, _ledger.rows || []).catch(e => console.warn(`[pvm-market] ${e.message}`));
   updatedAt = new Date().toISOString();
 }
 
@@ -1287,7 +1290,7 @@ function hostEligibility(epId) {
   const row = live.find((x) => x.id && x.id.toLowerCase() === id);
   if (!row) return { eligible: false, reason: "the host is not attached to this relay right now" };
   const verdict = computeEligible(row) ? { eligible: true, reason: null } : { eligible: false, reason: ineligibleReason(row) };
-  return row.mode === "hv-node" && shieldMarket.configured(row.name)
+  return (row.mode === "hv-node" && shieldMarket.configured(row.name)) || (row.mode === "avf" && pvmMarket.eligible(row))
     ? { ...verdict, appEvidenceRequired: true, plaintextSecrets: false } : verdict;
 }
 // ---- (B) OWNER-ONLY serving on an hv-node row (enclave-87, 2026-09-26) -------------------------------------------------
@@ -1490,14 +1493,16 @@ const TENANT_COMPUTE_MODES = new Set(["snp"]);
 const CONFIDENTIAL_CPU = new Set(["amd-sev-snp", "intel-tdx"]);
 function computeEligible(e) {
   if (!e || e.relay) return false;
-  if (e.tunnel) return TENANT_COMPUTE_MODES.has(String(e.mode || "")) || shieldMarket.eligible(e);
+  if (e.tunnel) return TENANT_COMPUTE_MODES.has(String(e.mode || "")) || shieldMarket.eligible(e) || pvmMarket.eligible(e);
   // a dialed row: its own word, and (RELAY_REVERIFY=enforce) this relay's re-verification of it; shadow/off leave the word
   return reverifier.eligible(e, CONFIDENTIAL_CPU.has(String(e.availability?.teeCpu || "")));
 }
 // The pVM CPU tier is its own lane: a phone the hub tiered "pvm-cpu" (one admitted
 // capability report, relay/pvm-cpu-tier.mjs) runs CPU-ONLY Wasm workloads in its protected
-// VM, with no model and no accelerator. It is never in servingEnclaves (computeEligible
-// stays false for mode "avf"), and the tier comes from the hub's row, never from the box.
+// VM, with no model and no accelerator. The tier comes from the hub's row, never from the box.
+// It takes buyers' apps (servingEnclaves) only through the pVM market (relay/pvm-market.mjs):
+// PVM_MARKET on, its name registered and its attach signed by that operator, and each app
+// served only on fresh v4 evidence the relay verified itself.
 function pvmCpuLaneOf(e) {
   return e && e.tunnel && String(e.mode || "") === "avf" && e.tier === PVM_CPU_TIER ? PVM_CPU_TIER : null;
 }
@@ -1510,7 +1515,8 @@ function ineligibleReason(e) {
     if (m === "hv-node") return "host-attested boot state (TPM quote: Secure Boot on, test signing off); no isolation evidence, the host is not excluded"
       + (isOwnerOnlyRow(e) ? `; it serves only deployments that require ${HVNODE_BACKEND}, of its own operator and of owners who delegated to it` : "");
     if (m === "vbs") return "verified enclave report, but the app-zone key and traffic run through the host: the isolation contract is not met";
-    if (m === "avf") return pvmCpuLaneOf(e) ? "pVM CPU tier: CPU-only Wasm workloads on its owner's phone, not in the app serving set"
+    if (m === "avf") return pvmCpuLaneOf(e) ? (!pvmMarket.enabled ? "pVM CPU tier: CPU-only Wasm workloads on its owner's phone; this relay's pVM market is off"
+                                              : "pVM CPU tier: CPU-only Wasm workloads on its owner's phone; its name is not registered on chain, or its attach was not signed by that operator")
                          : e.capsRefused ? "verified protected-VM chain; its pVM CPU capability report was refused"
                          : "verified protected-VM chain; no pVM CPU capability report admitted yet";
     return "attached on a token, no hardware quote verified";
@@ -2292,6 +2298,11 @@ const shieldMarket = createShieldMarketplace({ hub: tunnelHub,
   readConfig: versionConfigReader(catalogClients, catalogAddress),
   fetchVerified: (cid, max) => predictor().fetchVerified(cid, max),
 });
+// PVM_MARKET=1 lets admitted, registered pVM CPU hosts take buyers' CPU-only apps (relay/pvm-market.mjs), under the tier's
+// own pins (PVM_CPU_CODE_HASHES / _AUTHORITY_HASHES / _RUNTIME_IDS): without them the market stays off.
+const pvmMarket = createPvmMarket({ hub: tunnelHub, enabled: process.env.PVM_MARKET === "1", pins: PVM_CPU_POLICY, confirmRow,
+  readCatalog: catalogReader(catalogClients, catalogAddress), fetchVerified: (cid, max) => predictor().fetchVerified(cid, max),
+  hasSecrets: hasStagedSecrets });
 const shieldSecretRelease=createShieldSecretRelease({hub:tunnelHub,policyFile:process.env.RELAY_SHIELD_MARKET_POLICY||"",confirmRow,
   readCatalog:catalogReader(catalogClients,catalogAddress),readConfig:versionConfigReader(catalogClients,catalogAddress),
   fetchVerified:(cid,max)=>predictor().fetchVerified(cid,max),
@@ -2372,7 +2383,8 @@ const relayCtx = { shieldSecretRelease, json, cors, clientIp, readBody, ledgerRo
                    // sessions: the owner wallet behind a SessionVault-held record, and the custody release gate
                    beneficialOwner, custodyRefusal, sessionAuth, screenAddress: (a) => screenAddressSafe(a),
                    isSessionVault: async (a) => !!(await (await custody()).vaultOwnerOf(a)),
-                   verifyAppCertificate: (epId, d, spki) => shieldMarket.certificate(live.find(e => String(e.id).toLowerCase() === String(epId).toLowerCase()), d, spki),
+                   verifyAppCertificate: (epId, d, spki) => { const row = live.find(e => String(e.id).toLowerCase() === String(epId).toLowerCase());
+                     return row && row.mode === "avf" ? pvmMarket.certificate(row, d, spki) : shieldMarket.certificate(row, d, spki); },
                    // (B) does this endpoint id's live row serve this ledger deployment NOW (hv-node owner-only: served owner,
                    // this row's live lease, isolation.require = hyperv-partition-per-app)? certs.js 6b and secrets.js has-secrets
                    ownerServesDeployment: (epId, d) => servesDeploymentUntil(live.find((x) => x.id && String(x.id).toLowerCase() === String(epId || "").toLowerCase()), d) > 0,
@@ -2488,6 +2500,8 @@ tunaRoutes = createTunaRoutes({
   },
   eligible: d => {
     const row = live.find(e => String(e.id || "").toLowerCase() === String(d.runner).toLowerCase());
+    // a pVM host's app is routed only while its own evidence holds (relay/pvm-market.mjs servesUntil)
+    if (row && row.mode === "avf") return pvmMarket.servesUntil(row, d) > 0;
     return !!row && (isOwnerOnlyRow(row) ? servesDeploymentUntil(row, d) * 1000 : computeEligible(row));
   },
 });
@@ -2597,6 +2611,7 @@ function handleRequest(req, res) {
                                     // ONLY these to it (fleet.mjs servesDeployment), never re-deriving the rule from row fields
                                     ...(e.ownerOnly ? { servesDeployments: ownerServedDeployments(e) } : {}),
                                     ...(shieldMarket.eligible(e) ? { ownerOnly: false, tier: "enclave-shield", appEvidenceRequired: true, protection: "host-os-isolation", operatorExcluded: false } : {}),
+                                    ...(pvmMarket.eligible(e) ? { appEvidenceRequired: true, protection: "pkvm-protected-vm", servesDeployments: pvmMarket.served(e, _ledger.rows || []) } : {}),
                                     ...(pvmCpuLaneOf(e) ? { lane: pvmCpuLaneOf(e) } : {}) }));
     const agg = {
       enclaves: live.length, serving: serving.length,
