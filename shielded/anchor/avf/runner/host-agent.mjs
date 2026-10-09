@@ -267,7 +267,8 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     try { comp = await fetchComponent(v.cid); }
     catch (e) { state.refused[D] = { at: now(), why: e.message }; save(); note({ ev: "not-taken", deployment: D, why: e.message }); return null; }
     if (runner) { const s = await runner.stop({ release: false }); if (s.kind === "in-flight") { note({ ev: "deferred", why: "a transaction is in flight" }); return null; } runner.close(); runner = null; runnerFor = null; }
-    state.current = { id: D, appRef: d.appRef, cid: v.cid, sha: comp.sha, file: comp.file, label: `app-${D.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`, phase: "preparing", at: now() };
+    state.current = { id: D, appRef: d.appRef, configCid: String(d.configCid || ""), cid: v.cid, sha: comp.sha, file: comp.file,
+                      label: `app-${D.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`, phase: "preparing", at: now() };
     save();
     try {
       await launchVm({ D, file: comp.file, sha: comp.sha, label: state.current.label });
@@ -338,7 +339,8 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
         if (!up && runner) { note({ ev: "vm-gone", label }); }
         if (state.current) {
           if (!up) {
-            state.current.label = `app-${state.current.id.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`; save();
+            // a relaunched VM holds no certificate (the chain lives in its memory only): install it again
+            state.current.label = `app-${state.current.id.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`; delete state.current.cert; save();
             await launchVm({ D: state.current.id, file: state.current.file, sha: state.current.sha, label: state.current.label });
           } else await device.readToken();
           await useRunner(state.current.id, state.current.sha);
@@ -361,7 +363,8 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
           if (s.kind === "in-flight") return { kind: "in-flight" };
           runner.close(); runner = null; runnerFor = null;
           await goIdle("the lease is over");
-        } else if (!state.current.cert && now() - lastCert >= 60_000) {
+        } else if ((!state.current.cert || (state.current.cert.notAfter && Date.parse(state.current.cert.notAfter) - now() < 30 * 86400_000))
+                   && now() - lastCert >= 60_000) {
           lastCert = now();
           try { await ensureCertificate(); } catch (e) { note({ ev: "cert-failed", error: e.message }); }
         }
@@ -422,10 +425,34 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
           return json(res, 200, await claimHint(body));
         }
         if (req.method === "GET" && p === "/v1/pvm/evidence") { const [s, b] = await evidence(u.searchParams); return json(res, s, b); }
+        if (req.method === "GET" && p === "/v1/deployments") return json(res, 200, { deployments: state.current ? [record()] : [] });
+        const m = /^\/v1\/deployments\/(0x[0-9a-f]{64})(\/logs)?$/.exec(p.toLowerCase());
+        if (req.method === "GET" && m) {
+          if (!state.current || state.current.id !== m[1]) return json(res, 404, { error: "not_found", id: m[1] });
+          return m[2] ? json(res, 200, { id: m[1], lines: await lifecycleLog(200) }) : json(res, 200, record());
+        }
         return json(res, 404, { error: "not_found" });
       } catch (e) { note({ ev: "http-error", error: e.message }); return json(res, 500, { error: "internal" }); }
     };
   }
+  // the served deployment as this host has it
+  function record() {
+    const c = state.current;
+    return { id: c.id, appRef: c.appRef, status: c.phase === "serving" ? "running" : "starting", enclave: cfg.name, runtime: "pvm-rt (Pulley)",
+             appSha256: c.sha, componentCid: c.cid, since: new Date(c.at).toISOString(), ...(c.claimedAt ? { claimedAt: new Date(c.claimedAt).toISOString() } : {}),
+             tls: c.cert ? { name: c.cert.name, notAfter: c.cert.notAfter, spkiSha256: c.cert.spkiHash } : null, isolation: ISOLATION_BACKEND };
+  }
+  // the VM's lifecycle lines for the served app: serving, connections and request counts, evidence answers, the certificate,
+  // checkpoints. Never a request's stderr or any byte of traffic (the app's own output is not this host's to publish).
+  async function lifecycleLog(n) {
+    if (!state.current) return [];
+    const text = await device.capture(state.current.label);
+    return text.split("\n").map((l) => l.replace(/^VSOCK /, ""))
+      .filter((l) => /^(APP (serving|refused|http|served|tls key|evidence endpoint|sealed requests)|APP connection closed|TLS (CSR|chain)|CHECKPOINT|EVIDENCE answered|PROOF key|PROOFPINS|RELAY attest|RELAY caps|RELAY tunnel)/.test(l)
+                     && !/stderr/.test(l))
+      .slice(-n);
+  }
+
   async function serve(port) {
     const srv = http.createServer(handler());
     await new Promise((r, j) => { srv.once("error", j); srv.listen(port, "127.0.0.1", r); });
