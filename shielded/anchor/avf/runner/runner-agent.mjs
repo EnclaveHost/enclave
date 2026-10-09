@@ -95,6 +95,10 @@ export async function createRunnerAgent({ config, publicClient, account, stateDi
     if (!s.regExists) return L.register ? register("new") : { kind: "registry-missing", stop: true, reason: "no registry entry, and the config does not register (the owner's repo, measurement and price)" };
     if (s.regOperator !== me) return { kind: "endpoint-taken", stop: true, reason: `the entry for ${cfg.endpoint} belongs to ${s.regOperator}: never touched` };
     if (!s.regActive) return L.register ? register("re-activate") : { kind: "registry-inactive", stop: true, reason: "the entry is inactive and the config does not register: not revived (a heartbeat would re-activate it)" };
+    // the owner moved to another build or price: register re-states the whole entry (the measurement is still EXACTLY the
+    // build a fresh statement attests: register() refuses anything else)
+    if (L.register && (String(s.regMeasurement).toLowerCase() !== L.register.measurement || s.regCpuPrice6 !== BigInt(L.register.cpuPricePerSec6)))
+      return register(String(s.regMeasurement).toLowerCase() !== L.register.measurement ? "re-state: another build" : "re-state: another price");
     if (s.regProofKey !== key) {
       if (!L.syncProofKey) return { kind: "proof-key-mismatch", stop: true, reason: `the entry publishes ${s.regProofKey}, the VM attests ${key}` };
       const k = await freshKey();

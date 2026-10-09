@@ -208,7 +208,8 @@ test("setProofKey carries the FRESH statement's key: the registry publishes K0, 
   try {
     vm2 = await startFakeVm({ dir: S.dir, ca: S.ca, code: CODE, appId: APP, instance: newInstance(), proofSeed: Buffer.from(sha("re-provisioned K2"), "hex"), proofPins: S.pins, checkpointEveryMs: 10 });
     const K0 = "0x" + "78".repeat(20);
-    await S.chain.register({ endpoint: ENDPOINT, proofKey: K0 });           // the owner set another key earlier
+    // the owner set another key earlier (the same build and price as the config: only the key differs)
+    await S.chain.register({ endpoint: ENDPOINT, proofKey: K0, measurement: LAB_REGISTER.measurement, cpuPrice6: BigInt(LAB_REGISTER.cpuPricePerSec6) });
     const cfg = S.config(); cfg.proof.evidence.instanceIds = [S.vm.instanceId, vm2.instanceId];
     r = await S.runnerOf({ cfg });
     assert.equal((await r.start()).attested.proofKey, S.vm.proofKey);       // the agent holds K1
@@ -477,4 +478,29 @@ test("the CLI runs the lifecycle agent from a runner config: one real tick regis
     assert.equal(bad.status, 2); assert.match(bad.stderr, /--release needs a runner config/);
     for (const o of [once.out, once.err, rel.out, rel.err]) assert.ok(!o.includes(S.operatorKeyHex.slice(2)), "the key never appears in the output");
   } finally { S.stop(); }
+});
+
+test("the owner's new price is re-stated on chain by register (the attested build), once; a changed build the VM does not attest registers nothing",
+     { skip, timeout: 120000 }, async () => {
+  const S = await setup();
+  let r;
+  try {
+    r = await S.runnerOf({ cfg: S.config({ register: LAB_REGISTER }) });
+    await r.start();
+    assert.match((await r.tick()).lifecycle.op, /^register/);
+    r.close(); r = null;
+    // the owner raises the price: the next tick re-states the entry once, with the attested key and build
+    r = await S.runnerOf({ cfg: S.config({ register: { ...LAB_REGISTER, cpuPricePerSec6: "900" } }) });
+    await r.start();
+    const t = await r.tick();
+    assert.equal(t.lifecycle.op, "register (re-state: another price)", JSON.stringify(t.lifecycle));
+    assert.equal(t.lifecycle.kind, "landed");
+    const e = await S.chain.publicClient.readContract({ address: S.chain.addresses.registry, abi: (await import("../shielded/anchor/avf/runner/proof-agent.mjs")).REGISTRY_ABI, functionName: "get", args: [S.enclaveId] });
+    assert.equal(e.cpuPricePerSec6, 900n);
+    assert.equal(e.proofKey.toLowerCase(), S.vm.proofKey);
+    assert.equal((await r.tick()).lifecycle, null, "re-stated once: the entry now says what the config says");
+    r.close(); r = null;
+    // a build the config pins but the VM does not attest: the config check refuses it before anything is sent
+    assert.throws(() => checkRunnerConfig(S.config({ register: { ...LAB_REGISTER, measurement: "0x" + "12".repeat(32) } })), /measurement must be one of the evidence's allowedCodeHashes/);
+  } finally { if (r) r.close(); S.stop(); }
 });
