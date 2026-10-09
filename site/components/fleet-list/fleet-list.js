@@ -294,13 +294,12 @@ class FleetList extends EnclaveElement {
         + '<span class="fleet-owner-note">A protected VM on its owner\u2019s phone, running CPU-only apps. Not taking deployments yet.</span>'
         + '<div class="fleet-rateform" data-form="' + esc(e.id || "") + '" hidden></div>' };
     });
-    // One page of collapsed rows. Which rows are open, and the page, survive the host's 20 s repaint (keyed by
-    // host, clamped when the fleet shrinks).
+    // One page of collapsed rows, at most ONE open. The open row and the page survive the host's 20 s repaint
+    // (keyed by host, clamped when the fleet shrinks).
     const items = marketItems.concat(ownerItems, pvmItems);
     const pages = Math.max(1, Math.ceil(items.length / PAGE));
     this._page = Math.min(Math.max(0, this._page || 0), pages - 1);
     const first = this._page * PAGE;
-    const opened = (this._open ||= new Set());
     const uid = (this._uid ||= "fl" + Math.random().toString(36).slice(2, 8));
     list.innerHTML = !items.length
       ? (failed
@@ -309,22 +308,25 @@ class FleetList extends EnclaveElement {
         // box is excluded, because from a buyer's side those are the same fact: nothing to deploy on.
         : '<div class="fleet-empty">No app hosts available right now</div>')
       : staleNote + items.slice(first, first + PAGE).map((r, i) => {
-          const open = opened.has(r.key), id = uid + "-" + (first + i);
+          const open = this._openKey === r.key, id = uid + "-" + (first + i);
           return '<div class="fleet-row' + (r.cls ? ' ' + r.cls : '') + '" data-key="' + esc(r.key) + '"' + (r.title ? ' title="' + esc(r.title) + '"' : '') + '>'
             + '<button class="fleet-sum" type="button" aria-expanded="' + open + '" aria-controls="' + id + '">'
             + '<span class="fleet-name">' + esc(r.name) + '</span><span class="fleet-chips">' + r.chips + '</span></button>'
             + '<div class="fleet-detail" id="' + id + '"' + (open ? '' : ' hidden') + '>' + r.detail + '</div>'
             + '</div>';
         }).join("");
-    for (const b of list.querySelectorAll(".fleet-sum")) b.addEventListener("click", () => {
-      const row = b.closest(".fleet-row"), d = row.querySelector(".fleet-detail");
-      const open = b.getAttribute("aria-expanded") !== "true";
+    const setOpen = (b, open) => {
+      const d = b.closest(".fleet-row").querySelector(".fleet-detail");
       b.setAttribute("aria-expanded", String(open));
       d.hidden = !open;
-      if (open) { opened.add(row.dataset.key); return; }
-      opened.delete(row.dataset.key);
-      const form = d.querySelector(".fleet-rateform:not([hidden])");   // a rating form closes with its row
+      const form = !open && d.querySelector(".fleet-rateform:not([hidden])");   // a rating form closes with its row
       if (form) this._closeRate(form, d.querySelector(".fleet-rate"));
+    };
+    for (const b of list.querySelectorAll(".fleet-sum")) b.addEventListener("click", () => {
+      const open = b.getAttribute("aria-expanded") !== "true";
+      if (open) for (const o of list.querySelectorAll('.fleet-sum[aria-expanded="true"]')) setOpen(o, false);
+      setOpen(b, open);
+      this._openKey = open ? b.closest(".fleet-row").dataset.key : null;
     });
     this._wireRate();
     // footer row: a manual refresh (dispatches `refresh`; the HOST owns the
