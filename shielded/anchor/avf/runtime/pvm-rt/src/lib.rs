@@ -15,6 +15,7 @@
 //!     pointer slots where a model was once passed (nn_name, nn_ops); both must be null, and anything else is refused.
 
 pub mod httpd;
+pub mod loopnet;
 pub mod proof;
 pub mod sealed;
 
@@ -729,6 +730,68 @@ pub extern "C" fn pvmrt_https_open_p256(
     );
     seed.iter_mut().for_each(|b| *b = 0);
     r
+}
+
+/// A socket-server app for the marketplace host (httpd.rs `open_socket_app` + `with_tls_p256`): a wasi:cli/run component that
+/// binds `port` (ENCLAVE_PORTS http:<port>=<port>) on the VM's loopback, started and fronted by TLS 1.3 under the P-256 key
+/// derived from `tls_seed`; every request but the evidence paths is proxied to it. `data_dir` (NUL-terminated, or null) is
+/// preopened as the app's /data. Returns once the app listens, or null with the reason in `err`. The rest of the https
+/// surface (serve_fd, tls_spki, csr, set_chain, set_attest, requests, close) is the same as for a wasi:http app.
+#[no_mangle]
+pub extern "C" fn pvmrt_https_open_p256_socket(
+    bundle: *const u8,
+    len: usize,
+    sha256: *const u8,
+    mem_limit: u64,
+    port: u32,
+    data_dir: *const c_char,
+    tls_seed: *const u8,
+    emit: EmitFn,
+    compile_ms: *mut u64,
+    err: *mut c_char,
+    errcap: usize,
+) -> *mut httpd::HttpServer {
+    let refuse = |why: &str| {
+        put(err, errcap, why);
+        std::ptr::null_mut()
+    };
+    let Some(emit) = emit else { return refuse("no emit callback: the server's notes would be lost; refusing") };
+    if tls_seed.is_null() {
+        return refuse("no TLS key seed: refusing to serve https");
+    }
+    if port == 0 || port > 65535 {
+        return refuse("the app's http port must be 1..65535");
+    }
+    let (bytes, want) = match checked_inputs(bundle, len, sha256, mem_limit, 1, std::ptr::null(), std::ptr::null()) {
+        Ok(x) => x,
+        Err(e) => return refuse(&e),
+    };
+    let dir = if data_dir.is_null() {
+        None
+    } else {
+        // SAFETY: data_dir is a NUL-terminated string by the caller's contract.
+        match unsafe { CStr::from_ptr(data_dir) }.to_str() {
+            Ok(d) if !d.is_empty() => Some(std::path::PathBuf::from(d)),
+            _ => return refuse("data_dir is not a UTF-8 path"),
+        }
+    };
+    let mut seed = [0u8; 32];
+    // SAFETY: tls_seed is non-null and points to 32 bytes by the caller's contract.
+    unsafe { std::ptr::copy_nonoverlapping(tls_seed, seed.as_mut_ptr(), 32) };
+    let log: Box<dyn Fn(&[u8]) + Send + Sync> = Box::new(move |b: &[u8]| emit(2, b.as_ptr(), b.len()));
+    let opened = httpd::HttpServer::open_socket_app(bytes, &want, mem_limit as usize, port as u16, dir.as_deref(), Some(log))
+        .and_then(|s| s.with_tls_p256(&seed));
+    seed.iter_mut().for_each(|b| *b = 0);
+    match opened {
+        Ok(s) => {
+            if !compile_ms.is_null() {
+                // SAFETY: written only when non-null.
+                unsafe { *compile_ms = s.compile_ms as u64 };
+            }
+            Box::into_raw(Box::new(s))
+        }
+        Err(e) => refuse(&format!("{e:#}")),
+    }
 }
 
 /// The DER SPKI of the server's TLS key into `out`: its length, or -1 (no TLS, a null argument, or `cap` too small).

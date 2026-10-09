@@ -38,7 +38,9 @@ test("a pVM takes a public, CPU-only, unconfigured wasi:http app that fits, and 
     [row(), version({ approval: 2 }), /not approved/],
     [row(), version({ vramMb: 4096 }), /needs a GPU/],
     [row(), version({ memMb: 2048 }), /beyond this VM's 512 MB/],
-    [row(), version({ ports: "http:8080,tcp:5432" }), /wasi:http only/],
+    [row(), version({ ports: "http:8080,tcp:5432" }), /HTTP on one port only/],
+    [row(), version({ ports: "http:8000,http:9000" }), /HTTP on one port only/],
+    [row(), version({ ports: "udp:4000" }), /HTTP on one port only/],
     [row(), version({ config: '{"threads":true}' }), /threads/],
     [row(), version({ config: '{"volumes":["qwen"]}' }), /model volume/],
     [row(), version({ config: '{"apiKey":"x"}' }), /app configuration/],
@@ -46,6 +48,7 @@ test("a pVM takes a public, CPU-only, unconfigured wasi:http app that fits, and 
   ]) assert.match(String(why(d, v)), re, JSON.stringify(d).slice(0, 80) + " " + JSON.stringify(v).slice(0, 60));
   assert.equal(why(row(), version({ vramMb: 4096, config: '{"gpuOptional":true}' })), null, "a GPU-optional app runs on the CPU");
   assert.equal(why(row(), version({ config: '{"_media":{"thumbnail":"bafy"}}' })), null, "display metadata is not app configuration");
+  assert.equal(why(row(), version({ ports: "http:8000" })), null, "a socket server on one http port (the catalog's port-serving apps)");
 });
 
 test("the config is strict: public values only, the owner's price, exactly one build", () => {

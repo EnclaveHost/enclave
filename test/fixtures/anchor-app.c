@@ -41,6 +41,17 @@ int main(void) {
     OK("APP bytes=5 sha256=%s serve=https", H); assert(p.http == 2);
     OK("APP bytes=5 sha256=%s graph=m serve=https", H); assert(p.http == 2 && !strcmp(p.graph, "m"));
     BAD("APP bytes=5 sha256=%s args=6100 serve=https", H); BAD("APP bytes=5 sha256=%s serve=httpss", H); BAD("APP bytes=5 sha256=%s serve=https ", H);
+    /* serve=https-p256: the marketplace host's CA-trustable key; sock=<port>[ mem=<MiB>]: a socket-server app, only there */
+    OK("APP bytes=5 sha256=%s serve=https-p256", H); assert(p.http == 3 && p.sock == 0 && p.mem_mib == 0);
+    OK("APP bytes=5 sha256=%s serve=https-p256 sock=8000", H); assert(p.http == 3 && p.sock == 8000 && p.mem_mib == 0);
+    OK("APP bytes=5 sha256=%s serve=https-p256 sock=65535 mem=1024", H); assert(p.sock == 65535 && p.mem_mib == 1024);
+    OK("APP bytes=5 sha256=%s serve=https-p256 sock=1 mem=16", H); assert(p.sock == 1 && p.mem_mib == 16);
+    BAD("APP bytes=5 sha256=%s serve=https sock=8000", H); BAD("APP bytes=5 sha256=%s serve=http sock=8000", H); BAD("APP bytes=5 sha256=%s sock=8000", H);
+    BAD("APP bytes=5 sha256=%s serve=https-p256 sock=0", H); BAD("APP bytes=5 sha256=%s serve=https-p256 sock=08000", H);
+    BAD("APP bytes=5 sha256=%s serve=https-p256 sock=65536", H); BAD("APP bytes=5 sha256=%s serve=https-p256 sock=", H);
+    BAD("APP bytes=5 sha256=%s serve=https-p256 sock=8000 mem=15", H); BAD("APP bytes=5 sha256=%s serve=https-p256 sock=8000 mem=1025", H);
+    BAD("APP bytes=5 sha256=%s serve=https-p256 sock=8000 mem=0256", H); BAD("APP bytes=5 sha256=%s serve=https-p256 mem=256", H);
+    BAD("APP bytes=5 sha256=%s serve=https-p256 sock=8000 ", H); BAD("APP bytes=5 sha256=%s serve=https-p256x", H);
     printf("{\"status\":\"PASS\",\"executed_checks\":%d}\n", n);
     return 0;
 }

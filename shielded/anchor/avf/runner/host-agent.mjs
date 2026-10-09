@@ -123,7 +123,9 @@ export function pvmClaimRefusal(d, version, { enclaveId, maxMemMb, nowSec }) {
   }
   if (Number(version.memMb) > maxMemMb) return `its catalog version needs ${version.memMb} MB, beyond this VM's ${maxMemMb} MB per app`;
   const listed = String(version.ports || "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
-  if (listed.some((p) => !p.startsWith("http"))) return `its catalog version declares ports ${version.ports}: this host serves wasi:http only`;
+  // a wasi:http handler (no ports), or a socket server on ONE http port; raw tcp/udp ports need a network this VM has not
+  if (listed.some((p) => !/^http:[1-9][0-9]{0,4}$/.test(p)) || listed.length > 1 || listed.some((p) => Number(p.slice(5)) > 65535))
+    return `its catalog version declares ports ${version.ports}: this host serves HTTP on one port only`;
   let cfg = {}; try { cfg = JSON.parse(String(version.config || "{}") || "{}"); } catch { return "its catalog version's config is not JSON"; }
   const want = [];
   if (cfg.set === true) want.push("shared-everything threads");
@@ -193,10 +195,10 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   }
 
   // ---- the VM ----
-  async function launchVm({ D, file, sha, label }) {
+  async function launchVm({ D, file, sha, label, sock = 0, memMib = 0 }) {
     await device.ensurePorts();
     await device.stageApp(file, sha);
-    await device.launch({ proofPins: proofPins(D), label, attachSigner: `http://127.0.0.1:${cfg.device.attachPort}/attach-sign` });
+    await device.launch({ proofPins: proofPins(D), label, attachSigner: `http://127.0.0.1:${cfg.device.attachPort}/attach-sign`, sock, memMib });
     const s = await device.waitServing(label);
     await device.readToken();
     note({ ev: "vm-serving", deployment: D, app: sha.slice(0, 16), line: s.line.slice(0, 160) });
@@ -217,7 +219,8 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     return { ...v, configCid };
   }
   const execFileP = (cmd, args, opts) => new Promise((res, rej) => execFile(cmd, args, opts, (e, so, se) => e ? rej(new Error(`${(se || e.message).toString().trim().slice(0, 300)}`)) : res(so.toString())));
-  async function fetchComponent(cid) {
+  /** The component, CID-verified, and how it serves: a wasi:http handler, or a wasi:cli/run socket server on `httpPort`. */
+  async function fetchComponent(cid, httpPort = 0) {
     if (!/^[A-Za-z0-9]{10,100}$/.test(cid)) throw new Error(`not a CID: ${cid}`);
     fs.mkdirSync(cfg.ipfs.cacheDir, { recursive: true });
     const out = path.join(cfg.ipfs.cacheDir, `${cid}.wasm`);
@@ -231,9 +234,11 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     }
     const bytes = fs.readFileSync(out);
     if (bytes.subarray(0, 4).toString("binary") !== "\0asm" || bytes.readUInt16LE(6) !== 1) throw new Error("the artifact is not a WebAssembly component");
-    if (!bytes.includes(Buffer.from("wasi:http/incoming-handler"))) throw new Error("the component does not export wasi:http/incoming-handler: this host serves wasi:http apps only");
     if (bytes.includes(Buffer.from("wasi:nn"))) throw new Error("the component imports wasi:nn: the pVM CPU tier carries no model");
-    return { file: out, sha: crypto.createHash("sha256").update(bytes).digest("hex") };
+    const sha = crypto.createHash("sha256").update(bytes).digest("hex");
+    if (bytes.includes(Buffer.from("wasi:http/incoming-handler"))) return { file: out, sha, sock: 0 };
+    if (httpPort && bytes.includes(Buffer.from("wasi:cli/run")) && bytes.includes(Buffer.from("wasi:sockets/tcp"))) return { file: out, sha, sock: httpPort };
+    throw new Error(`the component is neither a wasi:http handler nor a socket server on a declared http port${httpPort ? "" : " (its version declares none)"}`);
   }
 
   // ---- choosing work ----
@@ -270,15 +275,17 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   async function take(d) {
     const D = lc(d.id), v = await versionOf(d.appRef);
     note({ ev: "taking", deployment: D, appRef: d.appRef, cid: v.cid, memMb: Number(v.memMb) });
+    const httpPort = Number((String(v.ports || "").match(/http:(\d+)/) || [])[1] || 0);
     let comp;
-    try { comp = await fetchComponent(v.cid); }
+    try { comp = await fetchComponent(v.cid, httpPort); }
     catch (e) { state.refused[D] = { at: now(), why: e.message }; save(); note({ ev: "not-taken", deployment: D, why: e.message }); return null; }
     if (runner) { const s = await runner.stop({ release: false }); if (s.kind === "in-flight") { note({ ev: "deferred", why: "a transaction is in flight" }); return null; } runner.close(); runner = null; runnerFor = null; }
     state.current = { id: D, appRef: d.appRef, configCid: String(d.configCid || ""), cid: v.cid, sha: comp.sha, file: comp.file,
+                      sock: comp.sock, memMib: comp.sock ? Math.min(1024, Math.max(64, Number(v.memMb) || 256)) : 0,
                       label: `app-${D.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`, phase: "preparing", at: now() };
     save();
     try {
-      await launchVm({ D, file: comp.file, sha: comp.sha, label: state.current.label });
+      await launchVm({ D, file: comp.file, sha: comp.sha, label: state.current.label, sock: comp.sock, memMib: state.current.memMib });
       const r = await useRunner(D, comp.sha);
       const t = await r.tick();   // the claim (or the reason it was refused), then a first proof
       const L = await r.agent.lease();
@@ -348,7 +355,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
           if (!up) {
             // a relaunched VM holds no certificate (the chain lives in its memory only): install it again
             state.current.label = `app-${state.current.id.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`; delete state.current.cert; save();
-            await launchVm({ D: state.current.id, file: state.current.file, sha: state.current.sha, label: state.current.label });
+            await launchVm({ D: state.current.id, file: state.current.file, sha: state.current.sha, label: state.current.label, sock: state.current.sock || 0, memMib: state.current.memMib || 0 });
           } else await device.readToken();
           await useRunner(state.current.id, state.current.sha);
         } else if (!up) await goIdle(runner ? "the VM ended" : "start");
@@ -480,7 +487,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     try {
       const c = state.current;
       c.label = `app-${c.id.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`; delete c.cert; save();
-      await launchVm({ D: c.id, file: c.file, sha: c.sha, label: c.label });
+      await launchVm({ D: c.id, file: c.file, sha: c.sha, label: c.label, sock: c.sock || 0, memMib: c.memMib || 0 });
       lastCert = 0;
       note({ ev: "restarted", deployment: c.id });
       return [200, { id: c.id, restarted: true, label: c.label }];

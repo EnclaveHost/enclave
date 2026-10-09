@@ -59,6 +59,7 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/stat.h>
+#include <ftw.h>
 #include <linux/userfaultfd.h>
 #include <linux/fsverity.h>
 #include <sys/syscall.h>
@@ -1630,6 +1631,18 @@ typedef void *(*pvmrt_https_open_fn)(const uint8_t *, size_t, const uint8_t *, u
 typedef int (*pvmrt_http_sealed_enable_fn)(void *, const uint8_t *, const uint8_t *, uint8_t *);
 typedef int (*pvmrt_http_serve_sealed_fd_fn)(void *, int, char *, size_t);
 typedef ssize_t (*pvmrt_attest_cb)(void *, const uint8_t *, uint8_t *, size_t);
+typedef void *(*pvmrt_https_open_socket_fn)(const uint8_t *, size_t, const uint8_t *, uint64_t, uint32_t, const char *, const uint8_t *,
+                                            void (*)(int, const uint8_t *, size_t), uint64_t *, char *, size_t);
+/* A socket app's /data: a fresh directory in the VM's encrypted store for each boot (scratch, as on the other hosts), the
+ * previous boots' removed first. Returns the path, or NULL when none could be made (the app then runs without /data). */
+static int appdata_rm(const char *path, const struct stat *st, int flag, struct FTW *ftw) { (void)st; (void)flag; (void)ftw; return remove(path); }
+static const char *appdata_dir(void) {
+    static char dir[96];
+    nftw("/mnt/encryptedstore/appdata", appdata_rm, 16, FTW_DEPTH | FTW_PHYS);
+    if (mkdir("/mnt/encryptedstore/appdata", 0700) != 0 && errno != EEXIST) return NULL;
+    snprintf(dir, sizeof dir, "/mnt/encryptedstore/appdata/%llu", (unsigned long long)boot_ms());
+    return mkdir(dir, 0700) == 0 ? dir : NULL;
+}
 typedef int (*pvmrt_https_set_attest_fn)(const void *, pvmrt_attest_cb, void *);
 typedef int (*pvmrt_https_tls_spki_fn)(const void *, uint8_t *, size_t);
 #define SEALED_PORT 7788   /* LAB, the browser channel: one HPKE-sealed HTTP request per connection (pvm-rt sealed.rs) */
@@ -1679,6 +1692,7 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
     const anchor_app_plan *plan = a->plan;
     pvmrt_http_open_fn hopen = (pvmrt_http_open_fn)dlsym(a->rt, "pvmrt_http_open");
     pvmrt_https_open_fn hsopen = (pvmrt_https_open_fn)dlsym(a->rt, plan->http == 3 ? "pvmrt_https_open_p256" : "pvmrt_https_open");
+    pvmrt_https_open_socket_fn hsock = (pvmrt_https_open_socket_fn)dlsym(a->rt, "pvmrt_https_open_p256_socket");
     const int tls = plan->http >= 2, ca = plan->http == 3;
     pvmrt_http_serve_fd_fn hserve = (pvmrt_http_serve_fd_fn)dlsym(a->rt, "pvmrt_http_serve_fd");
     pvmrt_http_requests_fn hreqs = (pvmrt_http_requests_fn)dlsym(a->rt, "pvmrt_http_requests");
@@ -1687,7 +1701,7 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
     pvmrt_https_set_attest_fn hattest = (pvmrt_https_set_attest_fn)dlsym(a->rt, "pvmrt_https_set_attest");
     pvmrt_https_csr_fn hcsr = (pvmrt_https_csr_fn)dlsym(a->rt, "pvmrt_https_csr");
     pvmrt_https_set_chain_fn hchain = (pvmrt_https_set_chain_fn)dlsym(a->rt, "pvmrt_https_set_chain");
-    if (!hopen || !hserve || !hreqs || !hclose || (tls && !hsopen) || (ca && (!hspki || !hattest || !hcsr || !hchain))) {
+    if (!hopen || !hserve || !hreqs || !hclose || (tls && !hsopen) || (ca && (!hspki || !hattest || !hcsr || !hchain)) || (plan->sock && !hsock)) {
         free(a->bytes); a->bytes = NULL; OUT("APP refused: this runtime cannot serve wasi:http%s", ca ? " over TLS with a CA-trusted key" : tls ? " over TLS" : ""); return 4; }
     uint64_t cms = 0; char err[1024] = "";
     /* https: TLS 1.3 terminates in this process, so whatever carries the bytes (the phone's Android app, the host, a TUNA
@@ -1703,7 +1717,9 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
         if (g_pp.set) memcpy(ident + sizeof dom - 1 + 32, g_pp.deployment, 32); else memset(ident + sizeof dom - 1 + 32, 0, 32);
         AVmPayload_getVmInstanceSecret(ident, sizeof ident, seed, sizeof seed);
     } else memcpy(seed, g_tsk, 32);
-    void *srv = tls ? hsopen(a->bytes, plan->bytes, plan->sha256, 256ull << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, seed, app_emit, &cms, err, sizeof err)
+    /* a socket-server app (sock=): ONE instance listening on the VM's loopback, fronted by the same TLS and evidence paths */
+    void *srv = plan->sock ? hsock(a->bytes, plan->bytes, plan->sha256, (uint64_t)(plan->mem_mib ? plan->mem_mib : 256) << 20, plan->sock, appdata_dir(), seed, app_emit, &cms, err, sizeof err)
+              : tls ? hsopen(a->bytes, plan->bytes, plan->sha256, 256ull << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, seed, app_emit, &cms, err, sizeof err)
                     : hopen(a->bytes, plan->bytes, plan->sha256, 256ull << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, app_emit, &cms, err, sizeof err);
     memset(seed, 0, sizeof seed);
     free(a->bytes); a->bytes = NULL;
@@ -1751,7 +1767,8 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
         else { if (ev.ls >= 0) close(ev.ls); OUT("APP evidence endpoint NOT available (a client cannot verify this VM itself)"); }
     }
     ev.serving = 1;   /* checkpoints only while this loop runs (cleared before the evidence server stops) */
-    OUT("APP serving %s on vsock %d: %s compile_ms=%llu%s%s", ca ? "https-p256 (TLS 1.3, a CA-trustable key)" : tls ? "https (TLS 1.3, the attested transport key)" : "http", APP_HTTP_PORT, hh, (unsigned long long)cms, ops ? " graph=" : "", ops ? plan->graph : "");
+    OUT("APP serving %s on vsock %d: %s compile_ms=%llu%s%s%s", ca ? "https-p256 (TLS 1.3, a CA-trustable key)" : tls ? "https (TLS 1.3, the attested transport key)" : "http", APP_HTTP_PORT, hh, (unsigned long long)cms, ops ? " graph=" : "", ops ? plan->graph : "",
+        plan->sock ? " (a socket app on the VM's loopback port, one instance)" : "");
     uint64_t refused = 0;
     for (;;) {
         struct pollfd pf[3] = { { .fd = ls, .events = POLLIN }, { .fd = g_ctl, .events = POLLIN }, { .fd = ls_sealed, .events = POLLIN } };

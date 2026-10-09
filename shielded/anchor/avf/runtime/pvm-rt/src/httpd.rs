@@ -109,7 +109,10 @@ impl WasiHttpView for HttpState {
 
 /// One verified, compiled, pre-instantiated HTTP component, and what every request of it gets.
 pub struct HttpServer {
-    pre: ProxyPre<HttpState>,
+    /// a wasi:http app (`open`): instantiated per request; None for a socket app
+    pre: Option<ProxyPre<HttpState>>,
+    /// a socket-server app (`open_socket_app`): one long-lived instance listening on loopback in the VM, fronted here
+    socket: Option<SocketApp>,
     rt: tokio::runtime::Runtime,
     mem_limit: usize,
     deadline: Duration,
@@ -282,7 +285,7 @@ impl HttpServer {
         let mut linker = Linker::<HttpState>::new(&engine);
         wasmtime_wasi::p2::add_to_linker_async(&mut linker)?;
         wasmtime_wasi_http::p2::add_only_http_to_linker_async(&mut linker)?;
-        let pre = ProxyPre::new(linker.instantiate_pre(&component)?)?;
+        let pre = Some(ProxyPre::new(linker.instantiate_pre(&component)?)?);
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_io()
             .enable_time()
@@ -299,6 +302,7 @@ impl HttpServer {
         };
         Ok(HttpServer {
             pre,
+            socket: None,
             rt,
             mem_limit,
             deadline: request_deadline.max(TICK),
@@ -725,12 +729,15 @@ impl HttpServer {
         if let Some(r) = self.well_known(&req).await {
             return Ok(r);
         }
+        if let Some(app) = &self.socket {
+            return self.proxy(app.net.clone(), req, inflight).await;
+        }
         let n = self.requests.fetch_add(1, Ordering::Relaxed) + 1;
         let err = MemoryOutputPipe::new(1 << 16);
         let mut wasi = WasiCtx::builder();
         wasi.stderr(err.clone());
         let mut store = Store::new(
-            self.pre.engine(),
+            self.pre.as_ref().expect("a wasi:http server has its pre-instance").engine(),
             HttpState {
                 wasi: wasi.build(),
                 http: WasiHttpCtx::new(),
@@ -771,7 +778,7 @@ impl HttpServer {
             .http()
             .new_incoming_request(Scheme::Http, req)?;
         let out = store.data_mut().http().new_response_outparam(sender)?;
-        let pre = self.pre.clone();
+        let pre = self.pre.clone().expect("a wasi:http server has its pre-instance");
         // the handler runs beside the response, so a streamed body can continue after the headers; the Store (the
         // instance, its memory) is dropped when the handler returns
         let failure = Arc::new(Mutex::new(None::<String>));
@@ -898,6 +905,204 @@ impl Inflight {
     async fn drained(&self) {
         while self.live.load(Ordering::Acquire) > 0 {
             self.idle.notified().await;
+        }
+    }
+}
+
+/// A socket-server app (PVM-CPU.md "Serving buyers"): the shape of the catalog's port-serving apps -- a wasi:cli/run
+/// component that binds the port ENCLAVE_PORTS names ("http:<port>=<port>": in the VM the logical and actual port are the
+/// same) and serves HTTP itself. One instance runs for the app's whole life (its memory is its state), on its own thread.
+/// Its network is loopnet.rs's, in process (Microdroid gives the payload no inet sockets): it may bind and listen on THAT
+/// port only and accept the front's connections; no outbound connect, no UDP, no name lookup; a /data scratch directory
+/// when the payload gives one; its stdout and stderr are discarded once it listens (the app's output is not the host's).
+pub struct SocketApp {
+    pub port: u16,
+    net: Arc<crate::loopnet::LoopNet>,
+    stop: Arc<AtomicBool>,
+    thread: Option<std::thread::JoinHandle<()>>,
+    exited: Arc<Mutex<Option<String>>>,
+}
+
+struct SockState {
+    ctx: WasiCtx,
+    table: ResourceTable,
+    limits: StoreLimits,
+    net: Arc<crate::loopnet::LoopNet>,
+}
+impl WasiView for SockState {
+    fn ctx(&mut self) -> WasiCtxView<'_> {
+        WasiCtxView { ctx: &mut self.ctx, table: &mut self.table }
+    }
+}
+
+/// How long a socket app has to start listening.
+pub const SOCKET_READY: Duration = Duration::from_secs(60);
+
+impl HttpServer {
+    /// Verify (W^X, digest), compile, and start a socket-server app listening on 127.0.0.1:`port` inside this process's
+    /// network (the VM's loopback); returns once it accepts connections, or the reason it did not (it exited, or
+    /// SOCKET_READY passed). Every connection `serve_fd` takes is then TLS (with `with_tls_p256`) whose requests -- but
+    /// the evidence paths -- are proxied to it.
+    pub fn open_socket_app(
+        bundle: &[u8],
+        expected_sha256: &[u8; 32],
+        mem_limit: usize,
+        port: u16,
+        data_dir: Option<&std::path::Path>,
+        log: Option<Box<dyn Fn(&[u8]) + Send + Sync>>,
+    ) -> Result<HttpServer> {
+        if port == 0 {
+            wasmtime::bail!("a socket app needs its declared http port");
+        }
+        let engine = Engine::new(&engine_config()?)?;
+        let t0 = Instant::now();
+        let component = verify_and_compile(&engine, bundle, expected_sha256)?;
+        let compile_ms = t0.elapsed().as_millis();
+        let stop = Arc::new(AtomicBool::new(false));
+        let exited = Arc::new(Mutex::new(None::<String>));
+        // its stderr is kept (8 KiB) only to say why an app did not start; once it listens, nothing of its output is read
+        let early_err = MemoryOutputPipe::new(8 << 10);
+        let mut b = WasiCtx::builder();
+        b.args(&["app"])
+            .env("ENCLAVE_PORTS", format!("http:{port}={port}"))
+            .env("ENCLAVE_MEM_MB", (mem_limit >> 20).max(1).to_string())
+            .stdout(wasmtime_wasi::p2::pipe::SinkOutputStream)
+            .stderr(early_err.clone())
+            // TCP is loopnet.rs's (in process: the app's own port, connections from the front only); UDP and name
+            // lookup are wasmtime's and stay off; nothing reaches the host's network
+            .allow_tcp(false)
+            .allow_udp(false)
+            .allow_ip_name_lookup(false);
+        if let Some(dir) = data_dir {
+            b.preopened_dir(dir, "/data", wasmtime_wasi::FsPerms::ReadWrite)?;
+        }
+        let ctx = b.build();
+        let net = crate::loopnet::LoopNet::new(port);
+        let (e, st, ex, n) = (engine.clone(), stop.clone(), exited.clone(), net.clone());
+        let thread = std::thread::spawn(move || {
+            let r = (|| -> Result<()> {
+                let rt = tokio::runtime::Builder::new_current_thread().enable_io().enable_time().build()?;
+                rt.block_on(async move {
+                    let mut linker = Linker::<SockState>::new(&e);
+                    wasmtime_wasi::p2::add_to_linker_async(&mut linker)?;
+                    linker.allow_shadowing(true);
+                    use wasmtime_wasi::p2::bindings::sockets::{tcp, tcp_create_socket};
+                    use crate::loopnet::{LoopNetData, LoopNetView};
+                    tcp::add_to_linker::<SockState, LoopNetData>(&mut linker, |s| LoopNetView { table: &mut s.table, net: &s.net })?;
+                    tcp_create_socket::add_to_linker::<SockState, LoopNetData>(&mut linker, |s| LoopNetView { table: &mut s.table, net: &s.net })?;
+                    let limits = StoreLimitsBuilder::new()
+                        .memory_size(mem_limit)
+                        .instances(64)
+                        .tables(64)
+                        .memories(16)
+                        .trap_on_grow_failure(true)
+                        .build();
+                    let mut store = Store::new(&e, SockState { ctx, table: ResourceTable::new(), limits, net: n });
+                    store.limiter(|s| &mut s.limits);
+                    store.set_epoch_deadline(1);
+                    let stopping = st.clone();
+                    store.epoch_deadline_callback(move |_| {
+                        if stopping.load(Ordering::Acquire) {
+                            wasmtime::bail!("stopped by the host");
+                        }
+                        Ok(UpdateDeadline::YieldCustom(1, Box::pin(tokio::task::yield_now())))
+                    });
+                    let cmd = wasmtime_wasi::p2::bindings::Command::instantiate_async(&mut store, &component, &linker).await?;
+                    match cmd.wasi_cli_run().call_run(&mut store).await? {
+                        Ok(()) => wasmtime::bail!("the app returned from run"),
+                        Err(()) => wasmtime::bail!("the app exited with an error"),
+                    }
+                })
+            })();
+            *ex.lock().unwrap_or_else(|p| p.into_inner()) = Some(match r {
+                Ok(()) => "the app ended".into(),
+                Err(e) => format!("{e:#}"),
+            });
+        });
+        let ticker = {
+            let (e, s) = (engine.clone(), stop.clone());
+            std::thread::spawn(move || {
+                while !s.load(Ordering::Acquire) {
+                    std::thread::sleep(TICK);
+                    e.increment_epoch();
+                }
+            })
+        };
+        let rt = tokio::runtime::Builder::new_current_thread().enable_io().enable_time().build()?;
+        let mut srv = HttpServer {
+            pre: None,
+            socket: Some(SocketApp { port, net: net.clone(), stop: stop.clone(), thread: Some(thread), exited: exited.clone() }),
+            rt,
+            mem_limit,
+            deadline: Duration::from_secs(600),
+            stop,
+            ticker: Some(ticker),
+            requests: AtomicU64::new(0),
+            log: log.map(Log::from),
+            compile_ms,
+            tls: None,
+            tls_spki: None,
+            tls_p256: None,
+            attest: std::sync::OnceLock::new(),
+            idle_close: IDLE_CLOSE,
+            sealed: None,
+        };
+        // ready when it accepts a connection on its port; an app that exits first says why
+        let until = Instant::now() + SOCKET_READY;
+        loop {
+            if let Some(why) = exited.lock().unwrap_or_else(|p| p.into_inner()).clone() {
+                srv.socket.as_mut().map(|a| a.thread.take().map(|t| t.join()));
+                let said = String::from_utf8_lossy(&early_err.contents()).trim().chars().take(600).collect::<String>();
+                wasmtime::bail!("the app did not start: {}{}", why.lines().last().unwrap_or(""), if said.is_empty() { String::new() } else { format!(" (its stderr: {said})") });
+            }
+            if net.listening() {
+                break;
+            }
+            if Instant::now() >= until {
+                wasmtime::bail!("the app did not listen on port {port} within {} s", SOCKET_READY.as_secs());
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        srv.note(&format!("socket app listening on its port {port} (in process; compile_ms={compile_ms})"));
+        Ok(srv)
+    }
+
+    /// Why the socket app stopped, if it did.
+    pub fn socket_exited(&self) -> Option<String> {
+        self.socket.as_ref().and_then(|a| a.exited.lock().unwrap_or_else(|p| p.into_inner()).clone())
+    }
+
+    /// One request to the socket app: a fresh loopback connection, the request as received (its body streamed), the
+    /// response as the app wrote it. Counted like any request; a failure is the app's 502.
+    async fn proxy(
+        &self,
+        net: Arc<crate::loopnet::LoopNet>,
+        req: hyper::Request<hyper::body::Incoming>,
+        inflight: Arc<Inflight>,
+    ) -> Result<hyper::Response<HyperOutgoingBody>> {
+        let n = self.requests.fetch_add(1, Ordering::Relaxed) + 1;
+        inflight.live.fetch_add(1, Ordering::AcqRel);
+        let live = Live(inflight);
+        let sent = async {
+            let stream = net.connect()?;
+            let (mut sender, conn) = hyper::client::conn::http1::handshake(TokioIo::new(stream)).await?;
+            tokio::task::spawn(async move {
+                let _live = live;
+                let _ = conn.await;
+            });
+            Ok::<_, wasmtime::Error>(sender.send_request(req).await?)
+        };
+        match sent.await {
+            Ok(resp) => Ok(resp.map(|b| b.map_err(wasmtime_wasi_http::Error::from).boxed_unsync())),
+            Err(e) => {
+                self.note(&format!("request {n} to the socket app failed: {e:#}"));
+                let body: HyperOutgoingBody = http_body_util::Full::new(Bytes::from_static(b"{\"error\":\"the app did not answer\"}"))
+                    .map_err(|never: std::convert::Infallible| -> wasmtime_wasi_http::Error { match never {} })
+                    .boxed_unsync();
+                let mut r = hyper::Response::new(body);
+                *r.status_mut() = hyper::StatusCode::BAD_GATEWAY;
+                Ok(r)
+            }
         }
     }
 }
@@ -1042,6 +1247,14 @@ const _: fn() = || {
 impl Drop for HttpServer {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Release);
+        if let Some(app) = &mut self.socket {
+            // an app waiting in accept (a host call) sees no epoch check until something arrives: one loopback connection
+            // wakes it, its next wasm instruction meets the stop, and its thread ends; it is not joined (a wedged app must
+            // not hang the payload's teardown)
+            app.stop.store(true, Ordering::Release);
+            drop(app.net.connect());   // an app waiting in accept wakes, meets the stop at its next instruction, and ends
+            drop(app.thread.take());
+        }
         if let Some(t) = self.ticker.take() {
             let _ = t.join();
         }
