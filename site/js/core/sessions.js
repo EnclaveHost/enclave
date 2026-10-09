@@ -277,7 +277,7 @@ async function overlay(html){
   const { fundModal } = await import("./wallet.js");
   let settle;
   const result = new Promise((r) => { settle = r; });
-  const m = fundModal('<div class="wp-card">' + html + "</div>");
+  const m = fundModal(html);   // fundModal draws the card; a second .wp-card here nested a box in a box
   if (!m){ settle(null); return { result }; }
   const { host, close } = m;
   let settled = false;
