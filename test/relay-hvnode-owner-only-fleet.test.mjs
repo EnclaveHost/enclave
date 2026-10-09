@@ -154,3 +154,19 @@ test('Shield marketplace capacity is eligible but data-plane authority stays per
     assert.equal(await fleet.servesDeployment(HV,D3),false);
   } finally {fleet.stopEligibility();api.close();}
 });
+
+test("a pVM market host (mode avf, appEvidenceRequired): dns-01 and the data plane only for the deployments the api relay verified for it", async () => {
+  const PVM = "https://api.enclave.host/t/pixel10-pvm-cpu";
+  const api = await enclavesApi(() => [
+    { endpoint: PVM, id: idOf(PVM), mode: "avf", tier: "pvm-cpu", eligible: true, appEvidenceRequired: true, servesDeployments: [{ id: D1, until: Math.floor(Date.now() / 1000) + 60 }] },
+    // an avf row without app evidence (not in the market) carries nothing, whatever it lists
+    { endpoint: "https://api.enclave.host/t/other-phone", id: idOf("https://api.enclave.host/t/other-phone"), mode: "avf", eligible: false, servesDeployments: [{ id: D2, until: Math.floor(Date.now() / 1000) + 60 }] }]);
+  const fleet = createFleet(fleetConfig({ ENCLAVES: PVM, ELIGIBILITY_API: api.url }));
+  await fleet.start(); await fleet.startEligibility();
+  try {
+    assert.equal(fleet.eligibleId(idOf(PVM)), false, "capacity alone grants no data-plane authority");
+    assert.equal(fleet.servesDeploymentId(idOf(PVM), D1), true, "its verified deployment");
+    assert.equal(fleet.servesDeploymentId(idOf(PVM), D3), false, "nothing else");
+    assert.equal(fleet.servesDeploymentId(idOf("https://api.enclave.host/t/other-phone"), D2), false, "an avf row without app evidence carries nothing");
+  } finally { fleet.stopEligibility(); api.close(); }
+});
