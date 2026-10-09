@@ -5,8 +5,8 @@
    GPU", one line a pool) that expands to its full pools, five boxes a
    page. The units in those lines are the sort controls: GB or tflops on
    a GPU line sorts every host by its price per GB of VRAM or per TFLOPS,
-   GB or gflops on a CPU line by RAM or CPU compute, the rating (★98%)
-   by rating; again reverses. The Sort by bar above the hosts offers
+   GB or gflops on a CPU line by RAM or CPU compute, the rating (stars,
+   average, count) by rating; again reverses. The Sort by bar above the hosts offers
    every order as a dropdown, with the direction beside it.
    Copy says "available",
    never "free": on a page that sells compute, "60 GB free" reads as
@@ -16,7 +16,7 @@ import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { esc, fmtNum, short, showToast } from "../../js/core/util.js";
 import { asOf } from "../../js/core/list-state.js";
 import { starsHtml } from "../../js/core/reviews.js";
-import { hrevConfigured, hrevTallies, hrevGetReviews, hrevMine, encCall, HREV_SEL, waitReceipt, REVIEW_MAX_BODY } from "../../js/core/chain.js";
+import { hrevConfigured, hrevTallies, hrevMine, encCall, HREV_SEL, waitReceipt, REVIEW_MAX_BODY } from "../../js/core/chain.js";
 import { HOST_REVIEWS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
@@ -29,7 +29,7 @@ const PAGE = 5;   // hosts per page
 // `opt` is the dropdown's name for it, `unit` what the line's button reads, `dir` the first direction (1 = low first),
 // `asc` / `desc` what each direction is called.
 const SORTS = {
-  "rating":      { opt: "Rating", dir: -1, asc: "worst first", desc: "best first" },   // its button is the rating itself
+  "rating":      { opt: "Rating", dir: -1, asc: "worst first", desc: "best first" },   // its button is the rating itself (the average)
   "gpu-gb":      { opt: "$ per GB VRAM",    unit: "GB",     what: "GB of VRAM" },
   "gpu-compute": { opt: "$ per GPU TFLOPS", unit: "tflops", what: "TFLOPS of GPU compute" },
   "cpu-gb":      { opt: "$ per GB RAM",     unit: "GB",     what: "GB of RAM" },
@@ -83,9 +83,13 @@ class FleetList extends EnclaveElement {
     const perHr = (v) => "$" + (v * 3600).toFixed(2).replace(/\.00$/, "");
     // what everything this pool has available costs, for the collapsed line: the whole card/node rate times the
     // available share (a $3/hr card with a third available reads $1/hr). No posted rate, no price.
-    const availPrice = (rate, frac) => rate == null ? '' :
-      '<span class="fleet-chip-price" title="' + perHr(rate) + '/hr for the whole pool, times the share available now">'
-      + perHr(rate * Math.max(0, Math.min(1, Number(frac) || 0))) + '<i>/hr</i></span> for ';
+    // (under a cent but not nothing reads "<$0.01", never a "$0" that says it's free)
+    const availPrice = (rate, frac) => {
+      if (rate == null) return '';
+      const v = rate * Math.max(0, Math.min(1, Number(frac) || 0));
+      return '<span class="fleet-chip-price" title="' + perHr(rate) + '/hr for the whole pool, times the share available now">'
+        + (v > 0 && v * 3600 < 0.005 ? '&lt;$0.01' : perHr(v)) + '<i>/hr</i></span> for ';
+    };
     // one pool = a [label | meter | pct] header line, the price under the
     // label, stat cells underneath. The label is the pool's badge (see the
     // row builder): the pill names the pool, so nothing else has to.
@@ -582,67 +586,34 @@ class FleetList extends EnclaveElement {
     } finally { this._busy = false; if (sync) sync(); }
   }
 
-  /* Stars for a box, from EnclaveHostReviews. Absent contract (not deployed /
-     not in the address book yet) renders NOTHING rather than a fake 0 - an
-     unrated fleet and an unreadable one are different claims. */
+  /* The opened row's rating control: the "rate" button (the rating itself is on the summary, see _fbHtml).
+     Absent contract (not deployed / not in the address book yet) renders nothing. */
   _ratingHtml(e){
-    const t = this._tallies && this._tallies[String(e.id || "").toLowerCase()];
     if (!hrevConfigured()) return "";
-    const rate = '<button class="fleet-rate btn btn-sm" type="button" data-rate="' + esc(e.name || "") + '" data-encid="' + esc(e.id || "") + '" aria-expanded="false" '
+    return '<button class="fleet-rate btn btn-sm" type="button" data-rate="' + esc(e.name || "") + '" data-encid="' + esc(e.id || "") + '" aria-expanded="false" '
       + 'title="Rate this enclave - open to wallets whose app it is running">rate</button>';
-    if (!t || !t.count)
-      return '<span class="fleet-rating fleet-unrated" title="No wallet has rated this enclave yet">unrated</span>' + rate;
-    const avg = t.sum / t.count;
-    return '<span class="fleet-rating" title="' + t.count + ' rating' + (t.count === 1 ? "" : "s") + ' from wallets whose apps this enclave ran">'
-      + starsHtml(avg) + '<small>' + avg.toFixed(1) + ' (' + t.count + ')</small></span>' + rate;
   }
 
-  /* The summary's rating, eBay-style and short: "★98%" - the share of the box's ratings that are positive (4-5
-     stars) out of positive + negative (1-2; a 3 is neutral and counted in neither, as eBay does), beside a star
-     whose colour climbs with how many wallets rated it (the count itself is in the tooltip). Every rating a 3:
-     "★–". Unrated, or its reviews (the % needs each one; the tally is only count + sum) not read yet: nothing -
-     the opened row still says "unrated". Nothing either while the contract isn't in the address book. */
-  _feedback(e){
-    if (!hrevConfigured() || !this._tallies) return null;
-    const id = String(e.id || "").toLowerCase();
-    const t = this._tallies[id], n = t ? Number(t.count) : 0;
-    const f = n && this._fb && this._fb[id];
-    if (!f) return null;
-    return { n, f, avg: Number(t.sum) / n, pct: f.pos + f.neg ? Math.round(1000 * f.pos / (f.pos + f.neg)) / 10 : null };
-  }
-  /* The rating is also its sort button: click it to put the best-rated hosts first, again for the worst. */
+  /* The summary's rating, on the line under the name: the stars, the average and how many rated it
+     ("★★★★☆ 4.6 (12)"), or "unrated". It is also the rating sort button: best first, again for the worst.
+     Nothing while the tallies are unread, or when the contract isn't in the address book - an unrated fleet
+     and an unreadable one are different claims. */
   _fbHtml(e, sortBy){
-    const r = this._feedback(e);
-    if (!r) return "";
-    const { n, f, avg, pct } = r;
-    const tier = n >= 1000 ? 5 : n >= 500 ? 4 : n >= 100 ? 3 : n >= 50 ? 2 : n >= 10 ? 1 : 0;
-    const title = n + " rating" + (n === 1 ? "" : "s") + " from wallets whose apps this enclave ran, averaging "
-      + avg.toFixed(1) + " of 5; " + f.pos + " positive (4-5 stars), " + f.neg + " negative (1-2 stars). Click to sort hosts by rating.";
+    if (!hrevConfigured() || !this._tallies) return "";
+    const t = this._tallies[String(e.id || "").toLowerCase()], n = t ? Number(t.count) : 0;
     const on = sortBy && sortBy.key === "rating" ? (sortBy.dir < 0 ? " on desc" : " on") : "";
-    return '<button class="fleet-fb' + on + '" type="button" data-sort="rating" title="' + esc(title) + '">'
-      + '<span class="fleet-fb-star t' + tier + '" aria-hidden="true">★</span>' + (pct === null ? '–' : pct + '%') + '</button>';
+    if (!n) return '<button class="fleet-fb fleet-unrated' + on + '" type="button" data-sort="rating" '
+      + 'title="No wallet has rated this enclave yet. Click to sort hosts by rating.">unrated</button>';
+    const avg = Number(t.sum) / n;
+    return '<button class="fleet-fb' + on + '" type="button" data-sort="rating" title="' + n + ' rating' + (n === 1 ? "" : "s")
+      + ' from wallets whose apps this enclave ran. Click to sort hosts by rating.">'
+      + starsHtml(avg) + '<small>' + avg.toFixed(1) + ' (' + n + ')</small></button>';
   }
-  /* rating order: % positive, then more ratings first among equals; an all-neutral or unrated host has none
-     (sorted last, like a host without a price) */
+  /* rating order: the average, then more ratings first among equals; an unrated host has none (sorted last,
+     like a host without a price) */
   _ratingSort(e){
-    const r = this._feedback(e);
-    return r && r.pct !== null ? r.pct + Math.min(r.n, 1e6) / 1e8 : null;
-  }
-
-  /* Positive / negative counts for the summary's %: every visible review of each rated box, re-read only when
-     its tally (count + sum) changes. */
-  async _loadFeedback(rowsT){
-    const fb = (this._fb ||= {});
-    const todo = rowsT.filter((r) => Number(r.count) > 0 && (fb[String(r.enclaveId).toLowerCase()] || {}).key !== r.count + ":" + r.sum);
-    if (!todo.length) return;
-    await Promise.all(todo.map(async (r) => {
-      try {
-        const vis = (await hrevGetReviews(r.enclaveId)).filter((x) => !x.hidden);
-        fb[String(r.enclaveId).toLowerCase()] = { key: r.count + ":" + r.sum,
-          pos: vis.filter((x) => Number(x.stars) >= 4).length, neg: vis.filter((x) => Number(x.stars) <= 2).length };
-      } catch { /* the % is decoration: without it the line still says (n★) */ }
-    }));
-    this.requestRender();
+    const t = this._tallies && this._tallies[String(e.id || "").toLowerCase()], n = t ? Number(t.count) : 0;
+    return n ? Number(t.sum) / n + Math.min(n, 1e6) / 1e8 : null;
   }
 
   /* One talliesOf call covers every visible box. Cached per paint; a fleet
@@ -657,7 +628,6 @@ class FleetList extends EnclaveElement {
       const rowsT = await hrevTallies(ids);
       this._tallies = Object.fromEntries(rowsT.map((r) => [String(r.enclaveId).toLowerCase(), r]));
       this.requestRender();    // repaint with the stars in place
-      this._loadFeedback(rowsT);
     } catch { /* ratings are decoration: a chain hiccup must not blank the panel */ }
   }
 }
