@@ -41,22 +41,29 @@ test("sign in -> indicator -> /sessions -> top up -> sign out refunds and revoke
   // break, then the session row (status only) and All Sessions beside Sign out, the only way to end it here
   await page.click("#walletBtn");
   await expect(page.locator("#wpSess")).toHaveText(/^\$0\.00 · (\d+m|1h)/, { timeout: 15_000 });
+  await expect(page.locator("#wpBalUsdc")).toHaveText(/USDC|unavailable/, { timeout: 15_000 });
   await expect(page.locator("#walletPop")).not.toContainText("Host login");
   await expect(page.locator("#walletPop")).not.toContainText("Deployments");
   await expect(page.locator("#walletPop .wp-fund").nth(0)).toHaveText("Deposit");
   await expect(page.locator("#walletPop .wp-fund").nth(1)).toHaveText(/^All Sessions\s*Sign out$/);
+
+  // the session's budget is its top-up: one USDC authorization signature, relayed gas-free
+  await page.click("#wpSessBal");
+  await page.fill("#tuAmt", "3");
+  await page.click("#tuGo");
+  await expect(page.locator("#wbSess")).toContainText("$3.00", { timeout: 30_000 });
+  // and the wallet's balance is its deposit
+  await expect(page.locator("#walletPop")).toBeVisible();
+  await page.click("#wpBalUsdc");
+  await expect(page.locator("#walletPick .wp-h")).toHaveText("Deposit");
   await expect(page.locator("#wpSessTop, #wpSessEnd")).toHaveCount(0);
 
-  // /sessions: this browser's session, live; top up there is one USDC authorization signature, relayed gas-free
+  // /sessions: this browser's session, live, with its budget
   await page.goto("/sessions.html");
   const card = page.locator(".ss-card[data-sid]").first();
   await expect(card).toContainText("this browser", { timeout: 20_000 });
   await expect(card).toContainText("live");
-  await card.locator(".ss-topup").click();
-  await page.fill("#tuAmt", "3");
-  await page.click("#tuGo");
-  await expect(card).toContainText("$3.00 left", { timeout: 30_000 });
-  await expect(page.locator("#wbSess")).toContainText("$3.00", { timeout: 30_000 });
+  await expect(card).toContainText("$3.00 left");
   // the ledger delegation card: the rig runs main's rev 16 ledger, which has no setDelegate, so it is read
   // off the code as unsupported (and no Grant is offered)
   await expect(page.locator("#ssWallet")).toContainText("not supported by this ledger");
