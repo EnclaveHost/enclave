@@ -3813,7 +3813,8 @@ async function getMeasurements(rec, { origin = PUBLIC_URL, nonce, freshGpu = tru
   }
   // GPU evidence only when this deployment actually holds a card slice (a
   // CPU-only app placed on a GPU enclave holds none — no card fields for it).
-  if (IS_GPU && rec?._gpu && !rec._gpu.cpu) {
+  if (IS_GPU && rec?._gpu && !rec._gpu.cpu && _shieldedAdopted) out.gpu = shieldedGpuAttestation(rec);
+  else if (IS_GPU && rec?._gpu && !rec._gpu.cpu) {
     const n = nonce || randomBytes(32).toString("hex");
     try {
       const ev = freshGpu ? await fetchGpuEvidence(n) : await cachedGpuEvidence();
@@ -4771,6 +4772,20 @@ app.post("/v1/claim-hint", async (req, res) => {
 // tenants mid-lease over a probe that may simply be restarting.
 // (`_shieldedAdopted` is declared with the card pool above, because the pool
 // math reads it and the POOL_SELFTEST seam runs before this point.)
+// What this enclave's GPU path IS, for the attestation records. A shielded card is on the UNTRUSTED host, outside this CVM and
+// its launch measurement, reached by masked offload: it has no hardware report, and naming it NVIDIA confidential computing
+// would be false. Only a card inside the CVM's trust boundary is "nvidia-cc".
+const gpuTechnology = () => (!IS_GPU ? null : _shieldedAdopted ? "enclave-shield-masked" : "nvidia-cc");
+const SHIELD_GPU_NOTE = "No GPU report exists for this path, by design: the card is on the operator's untrusted host, outside this "
+  + "CVM and its launch measurement, and is reached by Enclave Shield masked offload. It only ever sees masked activations, "
+  + "never the conversation. The masking runs inside this CVM, so the CPU quote is what vouches for it.";
+// rec: the deployment (its own card, or every shielded card when the pool serves it); none: the enclave as a whole.
+function shieldedGpuAttestation(rec = null) {
+  const own = rec && !_shieldedPool && Number.isInteger(rec.resources?.cardId) ? gpuCards[rec.resources.cardId] : null;
+  const cards = (own?.shielded ? [own] : gpuCards.filter((c) => c.shielded && c.proof))
+    .map((c) => ({ index: c.id, uuid: c.uuid || null, name: c.proof?.card ?? null, vramGb: c.vramTotal ?? null }));
+  return { technology: "enclave-shield-masked", gpus: cards, ...(rec ? { gpuShare: rec.resources.gpuShare } : {}), verify: SHIELD_GPU_NOTE };
+}
 function adoptShieldedCards(values) {
   if (!values.length) return;
   _shieldedAdopted = true;
@@ -4957,9 +4972,18 @@ if (process.env.SHIELDED_POOL_SELFTEST) {
       try { route = shieldedLaunchSpec(h.cardId, h.computeShare, h.vramGb, h.cards); }
       catch (e) { error = e.message; }
     }
+    // the attestation records a buyer reads: this deployment's GPU block (getMeasurements, no origin, so nothing is fetched),
+    // the enclave-level one, and the deployment record's pointer
+    let attest;
+    if (action.attest) {
+      const h = handles.get(action.attest);
+      const rec = { _gpu: h, resources: { gpuShare: h.computeShare, cardId: h.cardId } };
+      attest = { deployment: (await getMeasurements(rec, { origin: null, freshGpu: false })).gpu,
+                 enclave: _shieldedAdopted ? shieldedGpuAttestation() : null, gpuTechnology: gpuTechnology() };
+    }
     if (action.release) { releaseGpu(handles.get(action.release)); handles.delete(action.release); deployments.delete(action.release); }
     if (action.reconcile) reconcilePools();
-    results.push({ handle, route, error, free: maxFreeGpuShare(), cpu: maxFreeCpu(),
+    results.push({ handle, route, error, attest, free: maxFreeGpuShare(), cpu: maxFreeCpu(),
       capacity: shieldedCapacity(), pricePerSec6: SELL_GPU_PRICE6, sizingUnits: GPU_COUNT,
       cards: gpuCards.map(c => ({ id: c.id, total: cardVram(c), free: c.vramFree, available: c.available })) });
   }
@@ -5945,7 +5969,7 @@ app.post("/v1/deployments", ownerAuth(null, { refuseSessions: "A wallet session 
       ? { gpuShare: 0, cpuShare: slice.cpuShare }
       : { gpuShare: slice.gpuShare, cpuShare: slice.cpuShare, cardId: gpu.cardId },
     network: { port: appPort, protocol: "https", endpoint: `${originOf(req)}/x/${id}` },
-    attestation: { available: true, vmTechnology: vmTech(), gpuTechnology: IS_GPU ? "nvidia-cc" : null, href: `/v1/deployments/${id}/attestation` },
+    attestation: { available: true, vmTechnology: vmTech(), gpuTechnology: gpuTechnology(), href: `/v1/deployments/${id}/attestation` },
     region: "tinfoil", createdAt: new Date().toISOString(), startedAt: null,
     // fair-billing clock: a funded BALANCE (null = unlimited pilot) drained only
     // on healthy ticks - see startBillingTicker. paused surfaces a frozen clock.
@@ -6794,6 +6818,10 @@ app.get("/v1/attestation", async (req, res) => {
     : null;
   if (!IS_GPU)                                 // CPU-only enclave: no card, no NVML evidence to fetch
     return res.json({ generatedAt: new Date().toISOString(), ...out, guideUrl: "https://enclave.host/#attest" });
+  if (_shieldedAdopted) {                       // a shielded card: nothing to fetch from NVML, and it is not confidential computing
+    out.gpu = shieldedGpuAttestation();
+    return res.json({ generatedAt: new Date().toISOString(), ...out, guideUrl: "https://enclave.host/#attest" });
+  }
   try {
     const ev = await cachedGpuEvidence();
     out.gpu = { technology: "nvidia-cc", ccMode: ev.ccMode ?? null, nonce: ev.nonce,
@@ -9617,7 +9645,7 @@ async function adopt(d, g, firewall, slice) {
       : { gpuShare: slice.gpuShare, cpuShare: slice.cpuShare, cardId: gpu.cardId },
     _shares: { gpuMilli: Number(d.gpuMilli), cpuMilli: Number(d.cpuMilli) },
     network: { port: appPort, protocol: "https", endpoint: `${_advertisedEndpoint}/x/${d.id}` },
-    attestation: { available: true, vmTechnology: vmTech(), gpuTechnology: IS_GPU ? "nvidia-cc" : null, href: `/v1/deployments/${d.id}/attestation` },
+    attestation: { available: true, vmTechnology: vmTech(), gpuTechnology: gpuTechnology(), href: `/v1/deployments/${d.id}/attestation` },
     region: "tinfoil", createdAt: new Date(Number(d.createdAt) * 1000).toISOString(), startedAt: null,
     // the local clock only mirrors the CURRENT lease; the chain holds the rest
     remainingMs: Number(d.leaseUntil) * 1000 - Date.now(), consumedMs: 0,
