@@ -654,8 +654,8 @@ export async function renderWalletPop(){
     '<div class="wp-row"><span class="wp-k">Session</span><span class="wp-v" id="wpSess">…</span></div>' +
     '<div class="wp-fund">' +
       '<a class="wp-mini" id="wpSessions" href="sessions">All Sessions</a>' +
-    '</div>' +
-    '<button class="wp-disc" id="wpDisc">Sign out</button>';
+      '<button class="wp-disc" id="wpDisc">Sign out</button>' +
+    '</div>';
   pop.hidden = false;
   popExpanded(true);
   const c = $("#wpCopy"); if (c) c.addEventListener("click", () => copyText(Enclave.address));
