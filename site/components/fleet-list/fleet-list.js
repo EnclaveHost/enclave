@@ -84,8 +84,8 @@ class FleetList extends EnclaveElement {
     // what everything this pool has available costs, for the collapsed line: the whole card/node rate times the
     // available share (a $3/hr card with a third available reads $1/hr). No posted rate, no price.
     const availPrice = (rate, frac) => rate == null ? '' :
-      '<span class="fleet-chip-price" title="Per hour: ' + perHr(rate) + '/hr for the whole pool, times the share available now">'
-      + perHr(rate * Math.max(0, Math.min(1, Number(frac) || 0))) + '</span> for ';
+      '<span class="fleet-chip-price" title="' + perHr(rate) + '/hr for the whole pool, times the share available now">'
+      + perHr(rate * Math.max(0, Math.min(1, Number(frac) || 0))) + '<i>/hr</i></span> for ';
     // one pool = a [label | meter | pct] header line, the price under the
     // label, stat cells underneath. The label is the pool's badge (see the
     // row builder): the pill names the pool, so nothing else has to.
@@ -130,7 +130,7 @@ class FleetList extends EnclaveElement {
       ? '<div class="fleet-stale" role="status">Showing hosts as of ' + esc(asOf(this.staleAt)) + ': the latest read failed (' + esc(failed) + '). Retrying.</div>'
       : "";
     // Each row kind below builds an ITEM: { key, name, title, cls, chips, detail }. `chips` is the collapsed
-    // line, one per pool: "$0.10 for 12 GB / 33 tflops of GPU" (the price of what it has available, that memory
+    // line, one per pool: "$0.10/hr for 12 GB / 33 tflops of GPU" (the hourly price of what it has available, that memory
     // and compute, its badge; no posted rate -> "12 GB / 33 tflops of GPU", unknown -> "—"); `detail` is the full
     // row it expands to.
     const sumNum = v => { const n = number(v); return n === null ? '—' : n >= 10 ? String(Math.round(n)) : n >= 1 ? fmtNum(n) : String(Math.round(n * 100) / 100); };
