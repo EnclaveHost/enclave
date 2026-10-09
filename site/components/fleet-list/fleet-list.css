@@ -13,7 +13,7 @@ c-fleet-list{display:contents;}
 .fleet-tog{display:flex;align-items:center;gap:10px;flex:1 1 auto;min-width:0;min-height:24px;padding:0;background:none;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer;}
 .fleet-tog:focus-visible{outline:2px solid var(--jade);outline-offset:2px;border-radius:4px;}
 .fleet-tog .fleet-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-/* the rating right after the name, eBay-style: "(12★) 98%"; the star's colour climbs with the count */
+/* the rating right after the name, eBay-style: "★98%"; the star's colour climbs with how many rated it */
 .fleet-fb{flex:none;margin-left:-4px;font-size:.66rem;color:var(--text-dim);white-space:nowrap;font-variant-numeric:tabular-nums;}
 .fleet-fb-star{color:var(--amber-2);}   /* the rating stars' gold up to 49 ratings (eBay's first star is yellow too) */
 .fleet-fb-star.t2{color:var(--iris);} .fleet-fb-star.t3{color:var(--jade);}
