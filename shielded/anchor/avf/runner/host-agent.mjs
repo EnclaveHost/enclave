@@ -329,18 +329,20 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     try {
       if (!addrs) await resolve();
       await device.ensurePorts().catch((e) => note({ ev: "ports", error: e.message }));
-      // after a restart: carry on with what the state says is running; a VM that is not serving it is launched again
-      if (!runner) {
+      // after a restart, and on every round: carry on with what the state says is running; a VM that no longer serves it
+      // (the app's process gone, its session ended) is launched again with the same app and pins
+      const label = state.current ? state.current.label : state.idle && state.idle.label;
+      const up = label ? await device.alive(label) : false;
+      if (!runner || !up) {
+        if (!up && runner) { note({ ev: "vm-gone", label }); }
         if (state.current) {
-          const text = await device.capture(state.current.label);
-          if (!text.includes("APP serving https-p256") || /CONTROL closed|APP served /.test(text)) { await launchVm({ D: state.current.id, file: state.current.file, sha: state.current.sha, label: state.current.label = `app-${state.current.id.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}` }); save(); }
-          else await device.readToken();
+          if (!up) {
+            state.current.label = `app-${state.current.id.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`; save();
+            await launchVm({ D: state.current.id, file: state.current.file, sha: state.current.sha, label: state.current.label });
+          } else await device.readToken();
           await useRunner(state.current.id, state.current.sha);
-        } else {
-          const text = state.idle ? await device.capture(state.idle.label) : "";
-          if (!text.includes("APP serving https-p256") || /CONTROL closed|APP served /.test(text)) await goIdle("start");
-          else { await device.readToken(); await useRunner(ZERO32, idleSha); }
-        }
+        } else if (!up) await goIdle(runner ? "the VM ended" : "start");
+        else { await device.readToken(); await useRunner(ZERO32, idleSha); }
       }
       const reg = await read(addrs.registry, REGISTRY_ABI, "get", [E]).catch(() => null);
       registered = reg && lc(reg.operator) === me && reg.active ? reg : null;

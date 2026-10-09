@@ -72,6 +72,13 @@ export function createPvmDevice({ adb, serial, pkg = RELEASE_PACKAGE, vmName, re
     log({ ev: "device-launch", label, idle: proofPins === null });
   }
   const stop = () => sh(`am force-stop ${pkg}`);
+  /** The VM of this launch still serves: the app's process runs and its capture says serving, with no end since. */
+  async function alive(label) {
+    const pid = (await sh(`pidof ${pkg}`).catch(() => "")).trim();
+    if (!/^[0-9]+/.test(pid)) return false;
+    const text = await capture(label);
+    return text.includes("APP serving https-p256") && !/CONTROL closed|CONTROL error|APP served |HOST FAIL/.test(text);
+  }
   const capture = (label) => sh(`run-as ${pkg} cat files/capture/${label}.log`).catch(() => "");
 
   /** Wait until the capture says the app serves (resolves the line) or the run failed (rejects with the line). */
@@ -120,7 +127,7 @@ export function createPvmDevice({ adb, serial, pkg = RELEASE_PACKAGE, vmName, re
     catch (e) { return { status: 502, text: async () => JSON.stringify({ error: e.message }) }; }
   };
 
-  return { ensurePorts, installedApkSha, stageApp, launch, stop, capture, waitServing, readToken, exchange, carrierFetch, sh,
+  return { ensurePorts, installedApkSha, stageApp, launch, stop, capture, alive, waitServing, readToken, exchange, carrierFetch, sh,
            appPort: bridgeApp, evidencePort: bridgeEvidence, serial, name, vmName };
 }
 
