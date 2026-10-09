@@ -621,6 +621,9 @@ export function toggleWalletPop(){
   renderWalletPop();
 }
 
+// the little green up-arrow on a value you can raise (Balance -> Deposit, the session's budget -> Top up, its time -> Extend)
+const UP = '<svg class="wp-up" viewBox="0 0 10 12" aria-hidden="true"><path d="M5 11V1.5M1.5 5 5 1.5 8.5 5"/></svg>';
+
 export async function renderWalletPop(){
   const pop = $("#walletPop"); if (!pop) return;
   if (!Enclave.address){
@@ -650,7 +653,7 @@ export async function renderWalletPop(){
   pop.innerHTML =
     '<div class="wp-row wp-row-addr"><span class="wp-k">Wallet</span><button class="wp-addr" id="wpCopy" title="Copy address"><span class="wp-addr-txt">' + esc(Enclave.address) + '</span><span aria-hidden="true">⧉</span></button></div>' +
     '<div class="wp-row"><span class="wp-k">Network</span><span class="wp-v">' + (Enclave.chainId === BASE_CHAIN ? "Base" : ("chain " + (Enclave.chainId || "–"))) + (offBase ? ' <button class="wp-mini" id="wpSwitch">switch to Base</button>' : "") + '</span></div>' +
-    '<div class="wp-row"><span class="wp-k">Balance</span><button class="wp-v wp-link" id="wpBalUsdc" type="button" title="Deposit">…</button></div>' +
+    '<div class="wp-row"><span class="wp-k">Balance</span><button class="wp-v wp-link" id="wpBal" type="button" title="Deposit"><span id="wpBalUsdc">…</span>' + UP + '</button></div>' +
     '<hr class="wp-sep">' +   // the wallet above, this browser's session below
     // the session row ends the popover: its budget and time, then All (every session) and Sign out, right-aligned
     '<div class="wp-row wp-row-sess"><span class="wp-k">Session</span><span class="wp-sess-r"><span class="wp-v" id="wpSess">…</span>' +
@@ -661,7 +664,7 @@ export async function renderWalletPop(){
   const c = $("#wpCopy"); if (c) c.addEventListener("click", () => copyText(Enclave.address));
   const d = $("#wpDisc"); if (d) d.addEventListener("click", disconnectWallet);
   // the balance is the way in to Deposit
-  const bal = $("#wpBalUsdc"); if (bal) bal.addEventListener("click", () => { pop.hidden = true; popExpanded(false); openDepositModal(); });
+  const bal = $("#wpBal"); if (bal) bal.addEventListener("click", () => { pop.hidden = true; popExpanded(false); openDepositModal(); });
   const ss = $("#wpSessions"); if (ss) ss.addEventListener("click", () => { pop.hidden = true; popExpanded(false); });   // boot.js navigates
   usdcBalanceOf(Enclave.address).then(
     (b) => { const u = $("#wpBalUsdc"); if (u) u.textContent = b.toFixed(2) + " USDC"; },
@@ -685,8 +688,8 @@ async function renderSessionRow(){
     return;
   }
   const left = Number(st.expiresAt) - Math.floor(Date.now() / 1000);
-  el.innerHTML = '<button class="wp-link ok" id="wpSessBal" type="button" title="Top up this session">' + esc(S.fmtUsd(st.balance6)) + '</button> · '
-    + '<button class="wp-link" id="wpSessLeft" type="button" title="Extend this session">' + esc(S.fmtLeft(left)) + '</button>';
+  el.innerHTML = '<button class="wp-link ok" id="wpSessBal" type="button" title="Top up this session">' + esc(S.fmtUsd(st.balance6)) + UP + '</button> · '
+    + '<button class="wp-link" id="wpSessLeft" type="button" title="Extend this session">' + esc(S.fmtLeft(left)) + UP + '</button>';
   const t = $("#wpSessBal"); if (t) t.addEventListener("click", async () => { if (await S.openTopUpModal()) renderWalletPop(); });
   const x = $("#wpSessLeft"); if (x) x.addEventListener("click", async () => { if (await S.openExtendModal(st.sid, st.expiresAt)) renderWalletPop(); });
 }

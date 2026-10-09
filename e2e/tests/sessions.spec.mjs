@@ -54,7 +54,7 @@ test("sign in -> indicator -> /sessions -> top up -> sign out refunds and revoke
   await expect(page.locator("#wbSess")).toContainText("$3.00", { timeout: 30_000 });
   // and the wallet's balance is its deposit
   await expect(page.locator("#walletPop")).toBeVisible();
-  await page.click("#wpBalUsdc");
+  await page.click("#wpBal");
   await expect(page.locator("#walletPick .wp-h")).toHaveText("Deposit");
   await page.click("#walletPick .wp-cancel");
   // and the session's time left is its Extend
