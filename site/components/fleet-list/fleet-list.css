@@ -15,8 +15,8 @@ c-fleet-list{display:contents;}
 .fleet-tog .fleet-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 /* the rating right after the name, eBay-style: "(12★) 98%"; the star's colour climbs with the count */
 .fleet-fb{flex:none;margin-left:-4px;font-size:.66rem;color:var(--text-dim);white-space:nowrap;font-variant-numeric:tabular-nums;}
-.fleet-fb-star{color:var(--line-strong);}
-.fleet-fb-star.t1{color:var(--amber-2);} .fleet-fb-star.t2{color:var(--iris);} .fleet-fb-star.t3{color:var(--jade);}
+.fleet-fb-star{color:var(--amber-2);}   /* the rating stars' gold up to 49 ratings (eBay's first star is yellow too) */
+.fleet-fb-star.t2{color:var(--iris);} .fleet-fb-star.t3{color:var(--jade);}
 .fleet-fb-star.t4{color:#b48cff;} .fleet-fb-star.t5{color:var(--danger-2);}
 /* a line's units (GB, tflops, gflops) sort the hosts by price per that unit: dotted like the site's other
    value-links, jade with an arrow on every row while it is the sort */
