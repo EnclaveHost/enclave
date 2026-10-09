@@ -42,12 +42,12 @@ c-wallet-button{display:contents;}
 .wp-input:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
 .wp-go{justify-content:center;color:var(--jade);border-color:var(--jade-dim);}
 .wp-err{font-size:.72rem;color:var(--danger-2);margin:-2px 0 8px;}
-.wp-fund{display:flex;align-items:center;gap:8px;margin:10px 0;}
+.wp-fund{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:10px 0;}
 .wp-fund:last-child{margin-bottom:0;}
 /* a section break inside the popover (wallet | session): the rows' 1px hairline, in text ink instead of line ink */
 .wp-sep{border:0;height:1px;margin:12px 0 4px;background:var(--text);}
-/* Sign out sharing a row (the wallet popover: All Sessions | Sign out): compact, at the row's right end */
-.wp-fund .wp-disc{width:auto;margin:0 0 0 auto;padding:.15em .8em;min-height:24px;border-radius:6px;font-size:.7rem;line-height:1;}
+/* Sign out sharing a row (the wallet popover: All Sessions | Sign out): compact, last at the row's right end */
+.wp-fund .wp-disc{width:auto;margin:0;padding:.15em .8em;min-height:24px;border-radius:6px;font-size:.7rem;line-height:1;}
 /* the Deposit QR: white quiet zone so phone cameras lock on against the dark card */
 /* symmetric room around the code block - the old 10/2 let whatever followed
    (address, pairing hint) crowd it. Shared by the deposit, phone sign-in and
