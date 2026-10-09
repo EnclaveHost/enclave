@@ -15,16 +15,17 @@ c-fleet-list{display:contents;}
 .fleet-tog{display:flex;align-items:center;max-width:100%;min-height:20px;padding:0;background:none;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer;}
 .fleet-tog:focus-visible{outline:2px solid var(--jade);outline-offset:2px;border-radius:4px;}
 .fleet-tog .fleet-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-/* the rating, eBay-style: "★98%", the star's colour climbing with how many rated it; it is also the rating sort
-   button, so its figure is dotted like the units, jade with an arrow while it is the sort */
-.fleet-fb{flex:none;padding:0;background:none;border:0;font:inherit;font-size:.66rem;color:var(--text-dim);white-space:nowrap;font-variant-numeric:tabular-nums;cursor:pointer;
-  text-decoration:underline dotted;text-decoration-color:var(--line-strong);text-underline-offset:3px;}
-.fleet-fb:hover,.fleet-fb:focus-visible{color:var(--jade);text-decoration-color:currentColor;outline:none;}
-.fleet-fb.on{color:var(--jade);text-decoration-style:solid;text-decoration-color:currentColor;}
-.fleet-fb.on::after{content:"↑";margin-left:1px;} .fleet-fb.on.desc::after{content:"↓";}
-.fleet-fb-star{color:var(--amber-2);}   /* the rating stars' gold up to 49 ratings (eBay's first star is yellow too) */
-.fleet-fb-star.t2{color:var(--iris);} .fleet-fb-star.t3{color:var(--jade);}
-.fleet-fb-star.t4{color:#b48cff;} .fleet-fb-star.t5{color:var(--danger-2);}
+/* the rating under the name: the gold stars, then "4.6 (12)" dim and small so capacity stays the headline, or
+   "unrated" (a statement of fact, not a call to action). It is also the rating sort button: its figures are
+   dotted like the units, jade with an arrow while it is the sort */
+.fleet-fb{display:inline-flex;align-items:center;gap:6px;flex:none;padding:0;background:none;border:0;font:inherit;font-size:.66rem;
+  color:var(--text-dim);white-space:nowrap;font-variant-numeric:tabular-nums;cursor:pointer;}
+.fleet-fb .stars{font-size:.72rem;}
+.fleet-fb small,.fleet-fb.fleet-unrated{font-size:inherit;text-decoration:underline dotted;text-decoration-color:var(--line-strong);text-underline-offset:3px;}
+.fleet-fb:hover small,.fleet-fb:focus-visible small,.fleet-fb.fleet-unrated:hover,.fleet-fb.fleet-unrated:focus-visible{color:var(--jade);text-decoration-color:currentColor;}
+.fleet-fb:focus-visible{outline:none;}
+.fleet-fb.on small,.fleet-fb.on.fleet-unrated{color:var(--jade);text-decoration-style:solid;text-decoration-color:currentColor;}
+.fleet-fb.on::after{content:"↑";margin-left:-4px;color:var(--jade);} .fleet-fb.on.desc::after{content:"↓";}
 /* a line's units (GB, tflops, gflops) sort the hosts by price per that unit: dotted like the site's other
    value-links, jade with an arrow on every row while it is the sort */
 .fleet-unit{padding:0;background:none;border:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;text-decoration-color:var(--line-strong);text-underline-offset:3px;}
@@ -118,16 +119,12 @@ c-fleet-list{display:contents;}
 .stars-off{color:var(--line-strong);}
 .stars-on{position:absolute;inset:0 auto 0 0;overflow:hidden;color:var(--amber-2);}
 
-/* host ratings: stars ride the name line, dim and small so capacity stays the
-   headline; "unrated" is a statement of fact, not a call to action */
-.fleet-rating{display:inline-flex;align-items:center;gap:6px;font-size:.68rem;color:var(--text-dim);}
-.fleet-rating .stars{font-size:.72rem;}
 .fleet-unrated{font-family:var(--font-mono);letter-spacing:.04em;}
 
 /* the rate control + inline form: the SAME star picker the app store uses
    (.revs-pick-star / .revs-write are re-declared here because components are
    style-scoped), so rating a host looks and behaves like rating an app */
-.fleet-rate{margin-left:8px;padding:1px 8px;font-size:.62rem;letter-spacing:.04em;}
+.fleet-rate{margin-left:0;padding:1px 8px;font-size:.62rem;letter-spacing:.04em;}
 .fleet-rateform{grid-column:1/-1;margin-top:8px;}
 .fleet-gate{margin:0;font-size:.72rem;color:var(--text-muted);}
 .revs-write{display:flex;flex-direction:column;gap:8px;}
