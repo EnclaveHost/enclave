@@ -183,6 +183,20 @@ export const APP_KEY_DOMAIN_V3 = "enclave-pvm-app-key-v2\n";
 export function appKeyMessageV3(nonce, appId, instanceId, appKey) {
   return Buffer.concat([Buffer.from(APP_KEY_DOMAIN_V3), hex32(nonce, "nonce"), hex32(appId, "appId"), hex32(instanceId, "instanceId"), hex32(appKey, "appKey")]);
 }
+// v4 (the marketplace host, PVM-CPU.md "Serving buyers"): v3 plus the TLS key a browser trusts. tlsSpki is the DER SPKI (hex)
+// of a P-256 key the VM derived from its instance secret for this app; tlsKeySig is the attested transport key's Ed25519
+// signature over TLS_KEY_DOMAIN || nonce || AppID || InstanceID || SHA-256(tlsSpki); appSha256 (= app) and transportKey
+// (= base64 of tlsSpki) restate them in the names a route probe reads (network/guest-probe.mjs). The same document answers
+// the evidence endpoint and the app's own TLS port (GET /.well-known/enclave-attestation), so a client pins tlsSpki for the
+// very connection it was served on.
+export const PVM_APP_EVIDENCE_FORMAT_V4 = "enclave-pvm-app-evidence/v4";
+export const TLS_KEY_DOMAIN = "enclave-pvm-tls-key-v1\n";   // gitleaks:allow -- a public domain-separation string (PVM-CPU.md), not a key
+const P256_SPKI_RE = /^3059301306072a8648ce3d020106082a8648ce3d03010703420004[0-9a-f]{128}$/;
+export function tlsKeyMessage(nonce, appId, instanceId, tlsSpki) {
+  const spki = Buffer.isBuffer(tlsSpki) ? tlsSpki : Buffer.from(String(tlsSpki), "hex");
+  return Buffer.concat([Buffer.from(TLS_KEY_DOMAIN), hex32(nonce, "nonce"), hex32(appId, "appId"), hex32(instanceId, "instanceId"),
+                        createHash("sha256").update(spki).digest()]);
+}
 
 /**
  * A CLIENT's verification of a pVM app's evidence envelope (LAB, PVM-CPU.md "client-verified channel"): the VM answered
@@ -200,7 +214,8 @@ export function appKeyMessageV3(nonce, appId, instanceId, appKey) {
  * The browser's copy, on WebCrypto alone: shielded/anchor/avf/web/pvm-verify.js (test/pvm-web-verify.test.mjs: parity).
  */
 export function verifyPvmAppEvidence(envelope, expect = {}) {
-  const base = { transportSpki: null, runtimeId: null, measurement: null, freshness: "client-nonce", appId: null, appKey: null, sealedWindowSeconds: null, sealedMaxRequests: null, instanceId: null, instanceKey: null };
+  const base = { transportSpki: null, runtimeId: null, measurement: null, freshness: "client-nonce", appId: null, appKey: null, sealedWindowSeconds: null, sealedMaxRequests: null, instanceId: null, instanceKey: null,
+                 tlsSpki: null, tlsSpkiSha256: null };
   const no = (m, reasons = []) => ({ ok: false, reasons: [...reasons, m], ...base });
   const e = envelope;
   // a closed shape per version: exactly these fields, each at its exact form (an unknown field is refused, never ignored)
@@ -210,14 +225,18 @@ export function verifyPvmAppEvidence(envelope, expect = {}) {
     if (!Array.isArray(expect.instanceIds) || !expect.instanceIds.length || !expect.instanceIds.every((h) => typeof h === "string" && /^[0-9a-f]{64}$/.test(h)))
       return no("the caller's instanceIds are not a non-empty list of 64 lowercase hex: refusing (fail closed)");
     bound = new Set(expect.instanceIds);
-    if (e.format !== PVM_APP_EVIDENCE_FORMAT_V3)
+    if (e.format !== PVM_APP_EVIDENCE_FORMAT_V3 && e.format !== PVM_APP_EVIDENCE_FORMAT_V4)
       return no(`${JSON.stringify(e.format)} is an unbound evidence format for a deployment bound to instances: refused as a downgrade (v3 required)`);
   }
-  const v3 = e.format === PVM_APP_EVIDENCE_FORMAT_V3, v2 = e.format === PVM_APP_EVIDENCE_FORMAT_V2 || v3;
-  const KEYS = v3 ? ["app", "appKey", "appKeySig", "chain", "format", "identity", "instanceKey", "instanceSig", "nonce", "selftest", "spki"]
+  // a caller that serves buyers over TLS (the relay's marketplace, a route probe) needs the TLS key: v4 only, refused by name
+  if (expect.requireTls === true && e.format !== PVM_APP_EVIDENCE_FORMAT_V4)
+    return no(`${JSON.stringify(e.format)} binds no TLS key: refused (v4 required)`);
+  const v4 = e.format === PVM_APP_EVIDENCE_FORMAT_V4, v3 = e.format === PVM_APP_EVIDENCE_FORMAT_V3 || v4, v2 = e.format === PVM_APP_EVIDENCE_FORMAT_V2 || v3;
+  const KEYS = v4 ? ["app", "appKey", "appKeySig", "appSha256", "chain", "format", "identity", "instanceKey", "instanceSig", "nonce", "selftest", "spki", "tlsKeySig", "tlsSpki", "transportKey"]
+             : v3 ? ["app", "appKey", "appKeySig", "chain", "format", "identity", "instanceKey", "instanceSig", "nonce", "selftest", "spki"]
              : v2 ? ["app", "appKey", "appKeySig", "chain", "format", "identity", "nonce", "selftest", "spki"] : ["app", "chain", "format", "identity", "nonce", "selftest", "spki"];
   if (Object.keys(e).sort().join() !== KEYS.join()) return no(`the evidence fields must be exactly ${KEYS.join(",")} (got ${Object.keys(e).sort().join(",")})`);
-  if (!v2 && e.format !== PVM_APP_EVIDENCE_FORMAT) return no(`the evidence format is not ${PVM_APP_EVIDENCE_FORMAT}, ${PVM_APP_EVIDENCE_FORMAT_V2} or ${PVM_APP_EVIDENCE_FORMAT_V3}`);
+  if (!v2 && e.format !== PVM_APP_EVIDENCE_FORMAT) return no(`the evidence format is not ${PVM_APP_EVIDENCE_FORMAT}, ${PVM_APP_EVIDENCE_FORMAT_V2}, ${PVM_APP_EVIDENCE_FORMAT_V3} or ${PVM_APP_EVIDENCE_FORMAT_V4}`);
   for (const k of ["allowedRuntimeIds", "allowedCodeHashes", "allowedAuthorityHashes"])
     if (!Array.isArray(expect[k]) || !expect[k].length) return no(`no ${k}: refusing (fail closed)`);
   if (expect.rootPins !== undefined && (!Array.isArray(expect.rootPins) || !expect.rootPins.length)) return no("an empty rootPins: refusing (fail closed)");
@@ -235,6 +254,13 @@ export function verifyPvmAppEvidence(envelope, expect = {}) {
   if (v3 && (typeof e.instanceKey !== "string" || !/^302a300506032b6570032100[0-9a-f]{64}$/.test(e.instanceKey))) return no("the evidence's instance key is not a 44-byte Ed25519 SPKI");
   if (v3 && e.instanceKey === e.spki) return no("the evidence's instance key is its transport key: an instance key is its own, never the boot's");
   if (v3 && (typeof e.instanceSig !== "string" || !/^[0-9a-f]{128}$/.test(e.instanceSig))) return no("the evidence instanceSig is not 128 lowercase hex (an Ed25519 signature)");
+  if (v4) {
+    if (typeof e.tlsSpki !== "string" || !P256_SPKI_RE.test(e.tlsSpki)) return no("the evidence tlsSpki is not a 91-byte P-256 SPKI (uncompressed point), lowercase hex");
+    try { createPublicKey({ key: Buffer.from(e.tlsSpki, "hex"), format: "der", type: "spki" }); } catch { return no("the evidence tlsSpki is not a point on P-256"); }
+    if (typeof e.tlsKeySig !== "string" || !/^[0-9a-f]{128}$/.test(e.tlsKeySig)) return no("the evidence tlsKeySig is not 128 lowercase hex (an Ed25519 signature)");
+    if (e.appSha256 !== e.app) return no("the evidence's appSha256 is not its app");
+    if (e.transportKey !== Buffer.from(e.tlsSpki, "hex").toString("base64")) return no("the evidence's transportKey is not base64 of its tlsSpki");
+  }
   if (!Array.isArray(e.chain) || e.chain.length < 2 || e.chain.length > 8) return no("the evidence chain is not 2..8 certificates");
   const chain = [];
   for (const c of e.chain) {
@@ -261,12 +287,22 @@ export function verifyPvmAppEvidence(envelope, expect = {}) {
     appKey = e.appKey;
     reasons.push(`the app key ${appKey.slice(0, 16)}… is signed by the attested transport key for this nonce and app${v3 ? " and instance" : ""}`);
   }
+  // v4: the attested transport key vouches for the TLS key, under THIS nonce, app and instance
+  let tlsSpki = null, tlsSpkiSha256 = null;
+  if (v4) {
+    let ok = false;
+    try { ok = cryptoVerify(null, tlsKeyMessage(nonce, appId, v.instanceId, e.tlsSpki), createPublicKey({ key: spki, format: "der", type: "spki" }), Buffer.from(e.tlsKeySig, "hex")); }
+    catch { ok = false; }
+    if (!ok) return no("the TLS key is not signed by the attested transport key for this nonce, app and instance", reasons);
+    tlsSpki = e.tlsSpki; tlsSpkiSha256 = createHash("sha256").update(Buffer.from(e.tlsSpki, "hex")).digest("hex");
+    reasons.push(`the TLS key (P-256, SPKI sha256 ${tlsSpkiSha256.slice(0, 16)}…) is signed by the attested transport key for this nonce, app and instance`);
+  }
   // a bound deployment: the attested instance must be one the signed policy lists for it
   if (bound && !bound.has(v.instanceId))
     return no(`instance ${v.instanceId.slice(0, 16)}… is a genuine instance of this app, but not one bound to the selected deployment: refused`, reasons);
   return { ok: true, reasons, transportSpki: e.spki, runtimeId: v.runtimeId, measurement: v.measurement, freshness: "client-nonce", appId: appId.toString("hex"),
            appKey, sealedWindowSeconds: v2 ? SEALED_WINDOW_SECONDS : null, sealedMaxRequests: v2 ? SEALED_MAX_REQUESTS : null,
-           instanceId: v.instanceId, instanceKey: v3 ? e.instanceKey : null };
+           instanceId: v.instanceId, instanceKey: v3 ? e.instanceKey : null, tlsSpki, tlsSpkiSha256 };
 }
 
 /** The app attestation's pieces from a captured pVM log (ABI2_LINK<i>[k], ABI2 runtime, ABI2 selftest, ABI2 binding, and v3's
