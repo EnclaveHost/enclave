@@ -23,6 +23,8 @@ import crypto from "node:crypto";
 import { execFile } from "node:child_process";
 import { parseAbi, keccak256, stringToBytes, hexToString } from "viem";
 import { createRunnerAgent } from "./runner-agent.mjs";
+// a WALLET SESSION as the owner's credential, verified on chain exactly as the other hosts do (shared with supervisor.js)
+import { createSessionApiAuth, apiBases, isSessionHeader, DEFAULT_FACTORIES, DEFAULT_API_HOSTS } from "../../../../windows/node/session-api-auth.mjs";
 
 export const HOST_CONFIG_FORMAT = "enclave-pvm-host-agent/v1";
 export const ZERO32 = "0x" + "00".repeat(32);
@@ -153,6 +155,10 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   const lc = (a) => String(a).toLowerCase();
   const idleSha = crypto.createHash("sha256").update(fs.readFileSync(cfg.idleApp)).digest("hex");
   let addrs = null, runner = null, runnerFor = null, busy = false, lastSweep = 0, lastRunnerTick = 0, lastCert = 0, registered = null, lastReattach = 0;
+  const standDown = new Map();   // deployment -> until (ms): the owner moved it away; not re-claimed meanwhile
+  const sessions = createSessionApiAuth({ pc: publicClient, book: () => cfg.addressBook, ledger: () => (addrs ? addrs.deployments : null),
+    factories: DEFAULT_FACTORIES, bases: () => apiBases({ hosts: DEFAULT_API_HOSTS, tunnelNames: [cfg.name], publicUrls: [cfg.endpoint] }),
+    log: (m) => note({ ev: "session-auth", m }) });
   const hints = new Set();
 
   async function resolve() {
@@ -250,6 +256,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     if (!cfg.claim.enabled || state.current || !registered) return null;
     for (const { d } of (await candidates()).slice(0, 16)) {
       const id = lc(d.id), old = state.refused[id];
+      if (standDown.has(id) && standDown.get(id) > now()) continue;
       if (old && now() - old.at < 10 * 60_000 && !hints.has(id)) continue;
       const why = await refusalFor(d);
       if (why) { state.refused[id] = { at: now(), why }; save(); note({ ev: "not-taken", deployment: id, why }); continue; }
@@ -427,6 +434,24 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
         }
         if (req.method === "GET" && p === "/v1/pvm/evidence") { const [s, b] = await evidence(u.searchParams); return json(res, s, b); }
         if (req.method === "GET" && p === "/v1/deployments") return json(res, 200, { deployments: state.current ? [record()] : [] });
+        const act = /^\/v1\/deployments\/(0x[0-9a-f]{64})(\/restart|\/attestation)?$/.exec(p.toLowerCase());
+        if (act && (req.method === "POST" || req.method === "DELETE" || act[2] === "/attestation")) {
+          const id = act[1];
+          if (!state.current || state.current.id !== id) return json(res, 404, { error: "not_found", id });
+          if (act[2] === "/attestation" && req.method === "GET") {
+            // the VM's own v4 evidence for a fresh nonce: public (the app's origin answers it too); verify with
+            // relay/pvm-app-attest.mjs verifyPvmAppEvidence against Google's roots and the pinned build and runtime
+            const nonce = crypto.randomBytes(32).toString("hex"), [st, doc] = await evidence(new URLSearchParams({ deployment: id, nonce }));
+            return json(res, st, st === 200 ? { format: "enclave-pvm-app-evidence", host: cfg.name, deploymentId: id, nonce, evidence: doc,
+              verify: "relay/pvm-app-attest.mjs verifyPvmAppEvidence(evidence, { nonce, appId: evidence.app, requireTls: true, pins })" } : doc);
+          }
+          let raw = Buffer.alloc(0); for await (const c of req) { raw = Buffer.concat([raw, c]); if (raw.length > 65536) return json(res, 413, { error: "too_large" }); }
+          const no = await ownerRefusal(req, raw, id, "api.restart");
+          if (no) return json(res, no[0], no[1]);
+          if (req.method === "POST" && act[2] === "/restart") { const [st, b] = await restartServed(); return json(res, st, b); }
+          if (req.method === "DELETE" && !act[2]) { const [st, b] = await releaseServed(u.searchParams.get("evacuate") === "1"); return json(res, st, b); }
+          return json(res, 405, { error: "method_not_allowed" });
+        }
         const m = /^\/v1\/deployments\/(0x[0-9a-f]{64})(\/logs)?$/.exec(p.toLowerCase());
         if (req.method === "GET" && m) {
           if (!state.current || state.current.id !== m[1]) return json(res, 404, { error: "not_found", id: m[1] });
@@ -436,6 +461,48 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
       } catch (e) { note({ ev: "http-error", error: e.message }); return json(res, 500, { error: "internal" }); }
     };
   }
+  /** The owner's wallet session for `scope` on deployment `id` (null = allowed), or [status, body] refusing. */
+  async function ownerRefusal(req, raw, id, scope) {
+    const header = req.headers.authorization;
+    if (!isSessionHeader(header)) return [401, { error: "unauthorized", message: "This host takes the owner's wallet session (EnclaveSession)." }];
+    try {
+      if (!addrs) await resolve();
+      const session = await sessions.verify({ header, method: req.method, path: req.url, body: raw, scope, fresh: true });
+      const d = await read(addrs.deployments, DEP_ABI, "get", [id]);
+      const why = await sessions.refusal(session, { id, owner: d.owner }, { fresh: true });
+      return why ? [403, { error: "not_allowed", id, message: why }] : null;
+    } catch (e) { return [Number.isInteger(e.status) ? e.status : 503, { error: e.code || "session_check_failed", message: e.message }]; }
+  }
+  /** Restart: the same app and pins in a fresh VM (its certificate installed again). */
+  async function restartServed() {
+    if (busy) return [409, { error: "busy", message: "This host is mid-round; retry in a moment." }];
+    busy = true;
+    try {
+      const c = state.current;
+      c.label = `app-${c.id.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`; delete c.cert; save();
+      await launchVm({ D: c.id, file: c.file, sha: c.sha, label: c.label });
+      lastCert = 0;
+      note({ ev: "restarted", deployment: c.id });
+      return [200, { id: c.id, restarted: true, label: c.label }];
+    } catch (e) { return [500, { error: "restart_failed", message: e.message }]; }
+    finally { busy = false; }
+  }
+  /** Release (the owner suspended or moved it): a final proof, release, idle; `evacuate` keeps it from being re-claimed for 10 min. */
+  async function releaseServed(evacuate) {
+    if (busy) return [409, { error: "busy", message: "This host is mid-round; retry in a moment." }];
+    busy = true;
+    try {
+      const c = state.current;
+      if (evacuate) standDown.set(c.id, now() + 10 * 60_000);
+      const s = runner ? await runner.stop({ release: true }) : { kind: "stopped" };
+      if (s.kind === "in-flight") return [409, { error: "in_flight", message: "A transaction is in flight; retry shortly." }];
+      if (runner) { runner.close(); runner = null; runnerFor = null; }
+      await goIdle(evacuate ? "the owner moved it" : "the owner released it");
+      return [200, { id: c.id, released: s.kind === "released", kind: s.kind }];
+    } catch (e) { return [500, { error: "release_failed", message: e.message }]; }
+    finally { busy = false; }
+  }
+
   // the served deployment as this host has it
   function record() {
     const c = state.current;
