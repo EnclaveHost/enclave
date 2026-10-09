@@ -10,7 +10,7 @@
 /* both tracks must be able to shrink below their content: the fleet rows are
    mono runs whose min-content would otherwise hold the aside open past the
    viewport (minmax min of 300px only when the row itself has the room) */
-.dash-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(min(300px,100%),400px);gap:28px;align-items:start;}
+.dash-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(min(360px,100%),480px);gap:28px;align-items:start;}   /* live enclaves: 360-480px (was 300-400) */
 .dash-fleet{margin-top:6px;}
 .dash-fleet-h{display:flex;align-items:center;gap:10px;font-family:var(--font-mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);margin:0 0 10px;font-weight:400;}
 .dash-fleet-h::after{content:"";flex:1;height:1px;background:var(--line-soft);}   /* the block-lbl hairline: instrument chrome, and it visually ties the aside to the list below */
