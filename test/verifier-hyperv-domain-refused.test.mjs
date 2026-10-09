@@ -1,9 +1,9 @@
-// test/verifier-hyperv-domain-refused.test.mjs: a NucBox partition's attestation document ("hyperv-partition-domain/v1",
-// tier T0-hv: a launcher in the root partition signs; the host is NOT excluded; no SEV-SNP, VMPL or TEE) must never be
-// "verified" by this verifier. It is judged elsewhere (windows/vbslike/verify/judge-hv.mjs, verdict at best
-// monitor-signed) and this harness says so: status unsupported, admissionSafe false, never a verified claim. Recorded
-// 2026-09-24 while the NucBox VBS-like tier was being brought up, so that no shadow or admission path here can be
-// handed such a document and call it attested.
+// test/verifier-hyperv-domain-refused.test.mjs: a NucBox partition's LAUNCHER-ONLY attestation document ("hyperv-partition-domain/v1",
+// tier T0-hv: a launcher in the root partition signs; no guest VBS report; the host is NOT excluded) must never be "verified" by
+// this verifier. Only its launcher signature can be judged (windows/vbslike/verify/judge-hv.mjs, verdict at best monitor-signed),
+// and this harness says so: status unsupported, admissionSafe false, never a verified claim. Recorded 2026-09-24 while the NucBox
+// VBS-like tier was being brought up. A document that ALSO carries the guest's VBS report is judged by verifier/hyperv.mjs
+// (test/verifier-hyperv-shield.test.mjs).
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
@@ -18,7 +18,7 @@ const doc = (nonce) => ({ tier: "T0-hv", format: "hyperv-partition-domain/v1", a
   report: Buffer.from(JSON.stringify({ doc: { format: "hyperv-partition-domain/v1", tier: "T0-hv", platform: { hostExcluded: false }, launcher: { key: randomBytes(32).toString("base64") },
     domain: { label: "dep-1", appSha256: APP }, reportData: "00".repeat(64), boundary: "tier=T0-hv host_excluded=no" }, sig: randomBytes(64).toString("base64") })).toString("base64") });
 
-test("a Hyper-V partition document is never verified here: unsupported, admissionSafe false, and the reason names the judge that does judge it", async () => {
+test("a launcher-only Hyper-V partition document is never verified here: unsupported, admissionSafe false, and the reason names the judge that does judge it", async () => {
   const nonce = randomBytes(32);
   const v = await verifyEvidence(doc(nonce), { policy: {}, context: { transportKeySpki: randomBytes(91), nonce, expectedAppId: Buffer.from(APP, "hex"), now: "2026-09-24T22:00:00Z" } });
   assert.notEqual(v.status, "verified"); assert.equal(v.admissionSafe, false);

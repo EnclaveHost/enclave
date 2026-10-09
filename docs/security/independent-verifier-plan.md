@@ -61,7 +61,7 @@ mutations of every input independently, and uses Tinfoil's verifier as one diffe
 | Isolation judge (M2..M4) | `isolation/m2/judge.mjs` | none | KDS or `--no-kds` | none: `--measurement` on the command line | same pins | the lab |
 | Android pVM attach | `relay/avf-verify.mjs`, branch `relay/pvm-app-attest.mjs` | none | none at verify time | APK code hash + signer hash policy from env | Google attestation roots pinned (2 fingerprints) | the phone owner |
 | Windows VBS attach | `relay/vbs-verify.mjs` | none | none at verify time | enclave identity policy from env | AMD fTPM EK root pinned | the node owner |
-| Windows partition (T0-hv) | `windows/vbslike/verify/judge-hv.mjs` | none | none | launcher key | none (no hardware root; `hostExcluded=false` by contract) | the node owner |
+| Windows partition (T0-hv) | launcher-only: `windows/vbslike/verify/judge-hv.mjs`; with the guest VBS report (since 2026-09-29): `relay/shield-app-policy.mjs` -> `relay/vbs-app-verify.mjs`, also called by `verifier/hyperv.mjs` | none | none | launcher-only: launcher key; VBS report: image/runtime pairs and EK/PCR0 platform pairs in the Shield app policy | launcher-only: none (no hardware root); VBS report: AMD fTPM EK root pinned, the boot's VSM IDKS key from the quoted log; `hostExcluded=false` either way | the node owner |
 | GPU (NVIDIA CC) | `supervisor.js getMeasurements` publishes the NVML report and a pointer to NRAS/nvtrust | none | n/a | n/a | not verified first-party anywhere | n/a |
 | Intel TDX | `supervisor.js parseTdxQuote` | parse only | n/a | n/a | not verified anywhere | n/a |
 
@@ -130,7 +130,7 @@ runs our own image (metal, M4b).
 | `https://tinfoil.sh/predicate/sev-snp-guest/v2` | SNP, hosted | sha256(TLS SPKI) | HPKE public key | none in the report; the certificate's `hatt` SAN binds the document to the served certificate, whose validity window is the clock | none (Tinfoil lib only) |
 | `sev-snp-guest-metal-v1` | SNP, metal | sha256(SPKI) or sha256(SPKI || nonce) on attach | zero | relay nonce per attach | `relay/snp-verify.mjs`, `metal/verify.mjs` |
 | `sev-snp-guest-domain-v1` | SNP, isolation | ABI/1 sha256(SPKI || nonce); ABI/2 `Bind2` = sha256("enclave-bind-v2\n" || SPKI || nonce || RuntimeID) | AppID from the monitor | verifier nonce | `isolation/m2/judge.mjs` (+ `expectedBinding`, branch only) |
-| `hyperv-partition-domain/v1` | none (T0-hv) | same as domain | AppID | verifier nonce | `windows/vbslike/verify/judge-hv.mjs` (launcher signature, no hardware) |
+| `hyperv-partition-domain/v1` | Hyper-V partition (T0-hv, host not excluded) | same as domain; with `vbsVmReport`, the paravisor's VBS report carries `Bind2 || AppID` as its 64 bytes of guest input | AppID | verifier nonce, plus the caller's own host TPM session (nonce + minted credential) | launcher-only: `windows/vbslike/verify/judge-hv.mjs` (launcher signature, no hardware); with `vbsVmReport`: `relay/shield-app-policy.mjs`, called by `verifier/hyperv.mjs` |
 | `android-avf-pvm/v1`, pad v2, ABI/2 app | AVF | sha256(transcript) as the AVF challenge; ABI/2: `Bind2 || AppID` (64 bytes) | n/a | relay nonce | `relay/avf-verify.mjs`, `relay/pvm-app-attest.mjs` (branch) |
 | `windows-vbs-enclave/v1` | VBS enclave + TPM | `EnclaveData` = sha256(bound transcript) | n/a | relay nonce + TPM quote nonce | `relay/vbs-verify.mjs` |
 | `tdx-guest-metal-v1` | TDX | as metal | zero | as metal | **none** (parse only) |
