@@ -25,6 +25,10 @@ import { parseAbi, keccak256, stringToBytes, hexToString } from "viem";
 import { createRunnerAgent } from "./runner-agent.mjs";
 // a WALLET SESSION as the owner's credential, verified on chain exactly as the other hosts do (shared with supervisor.js)
 import { createSessionApiAuth, apiBases, isSessionHeader, DEFAULT_FACTORIES, DEFAULT_API_HOSTS } from "../../../../windows/node/session-api-auth.mjs";
+// the deployment's protection rules and secrets, by the CPU host's own modules (the platform's rules, mirrored there)
+import { parseWaf } from "../../../../windows/node/waf.mjs";
+import { fetchSecrets, secretsExist } from "../../../../windows/node/secrets.mjs";
+import { createEgressServer } from "./egress.mjs";
 
 export const HOST_CONFIG_FORMAT = "enclave-pvm-host-agent/v1";
 export const ZERO32 = "0x" + "00".repeat(32);
@@ -50,7 +54,7 @@ const BOOK_ABI = parseAbi(["function all() view returns (bytes32[], address[])"]
 export function checkHostConfig(c) {
   const bad = (m) => { throw new Error(`host-agent config: ${m}`); };
   if (!c || typeof c !== "object" || Array.isArray(c)) bad("not an object");
-  const KEYS = ["addressBook", "chainId", "claim", "device", "evidence", "format", "idleApp", "ipfs", "maxFeePerGasWei", "name", "operator", "payout", "register", "relayOrigin"];
+  const KEYS = ["addressBook", "chainId", "claim", "device", "egress", "evidence", "format", "idleApp", "ipfs", "maxFeePerGasWei", "name", "operator", "payout", "register", "relayOrigin"];
   for (const k of Object.keys(c)) if (!KEYS.includes(k)) bad(`unknown key ${JSON.stringify(k)}`);
   if (c.format !== HOST_CONFIG_FORMAT) bad(`format must be ${HOST_CONFIG_FORMAT}`);
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(c.name || "")) bad("name must be the tunnel name");
@@ -74,71 +78,148 @@ export function checkHostConfig(c) {
   if (!Number.isInteger(cl.maxMemMb) || cl.maxMemMb < 16 || cl.maxMemMb > 1024) bad("claim.maxMemMb must be 16..1024");
   if (!Number.isInteger(cl.sweepGraceSec) || cl.sweepGraceSec < 0) bad("claim.sweepGraceSec must be a non-negative integer");
   if (typeof cl.enabled !== "boolean") bad("claim.enabled must be true or false");
+  if (c.egress !== undefined) {
+    const g = c.egress;
+    if (!g || Object.keys(g).sort().join() !== "port,routesFile" || !Number.isInteger(g.port) || g.port < 1024 || g.port > 65535 || typeof g.routesFile !== "string" || !path.isAbsolute(g.routesFile))
+      bad("egress must be exactly { port (1024..65535, the phone reaches it over adb reverse), routesFile (the privacy agent's egress-routes.json, absolute) }");
+  }
   const i = c.ipfs || {};
   if (typeof i.fetchScript !== "string" || !Array.isArray(i.gateways) || !i.gateways.length || typeof i.cacheDir !== "string") bad("ipfs must be { python, fetchScript, gateways, cacheDir }");
   return { ...c, endpoint: `${c.relayOrigin}/t/${c.name}`, enclaveId: keccak256(stringToBytes(`${c.relayOrigin}/t/${c.name}`)) };
+}
+
+/**
+ * The deployment-options envelope as this host applies it (the CPU host's parseEnvelope, windows/node/chain.mjs, plus the
+ * pVM's own `placement` and isolation flags): { config?, configCid?, waf?, gpuOptional?, placement?, isolation? }, or throws
+ * the reason. FAIL-CLOSED: a namespace this host does not apply refuses the deployment, never silently drops.
+ */
+export function parseOptions(raw, gpuMilli) {
+  const s = String(raw || "").trim();
+  if (!s) return {};
+  if (!s.startsWith("{")) throw new Error("its options field is a bare CID: a configuration this host cannot apply");
+  let env; try { env = JSON.parse(s); } catch { throw new Error("its options envelope is not JSON"); }
+  if (!env || typeof env !== "object" || Array.isArray(env)) throw new Error("its options envelope is not an object");
+  const known = ["config", "configCid", "gpu", "isolation", "network", "placement", "waf"];
+  const unknown = Object.keys(env).filter((k) => !known.includes(k));
+  if (unknown.length) throw new Error(`its options carry ${unknown.join(", ")}, which this host does not apply`);
+  const o = {};
+  if (env.isolation !== undefined) {
+    const iso = env.isolation;
+    if (!iso || typeof iso !== "object" || Array.isArray(iso) || Object.keys(iso).some((k) => !["require", "cpuTee", "gpuTee"].includes(k))) throw new Error("its isolation options are malformed");
+    if (iso.cpuTee === true || iso.gpuTee === true) throw new Error("it requires a confidential-computing CPU or GPU, which this host does not claim");
+    if (iso.require !== undefined && iso.require !== ISOLATION_BACKEND) throw new Error(`it requires isolation backend ${JSON.stringify(iso.require)}, not ${ISOLATION_BACKEND}`);
+  }
+  if (env.network !== undefined) {
+    const n = env.network;
+    if (!n || typeof n !== "object" || Array.isArray(n) || Object.keys(n).some((k) => !["transport", "relay"].includes(k)) || (n.transport !== undefined && n.transport !== "tuna"))
+      throw new Error("its network options ask for a transport other than TUNA");
+    if ("relay" in n && n.relay !== null && n.relay !== "" && (typeof n.relay !== "string" || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(n.relay))) throw new Error("its network options carry an invalid relay");
+  }
+  if (env.gpu !== undefined) {
+    const g = env.gpu;
+    if (!g || typeof g !== "object" || Array.isArray(g) || Object.keys(g).some((k) => k !== "optional") || typeof g.optional !== "boolean") throw new Error("its gpu options are not { optional: true|false }");
+    if (g.optional && gpuMilli != null && Number(gpuMilli) <= 0) throw new Error("gpu.optional applies only to a deployment that bought GPU share");
+    o.gpuOptional = g.optional;
+  }
+  if (env.placement !== undefined) {
+    const p = env.placement;
+    if (!p || typeof p !== "object" || !B32.test(String(p.hostId || "").toLowerCase())) throw new Error("its placement pin is malformed");
+    o.placement = { hostId: String(p.hostId).toLowerCase(), allowFallback: p.allowFallback !== false };
+  }
+  if (env.waf !== undefined) {
+    try { o.waf = parseWaf(env.waf); } catch (e) { throw new Error(`its protection rules are invalid: ${e.message}`); }
+  }
+  if (env.configCid !== undefined) {
+    if (typeof env.configCid !== "string" || !/^[A-Za-z0-9]{10,100}$/.test(env.configCid)) throw new Error("its configCid is not a bare IPFS CID");
+    o.configCid = env.configCid;
+  }
+  if (env.config !== undefined) {
+    if (!env.config || typeof env.config !== "object" || Array.isArray(env.config)) throw new Error("its config override is not a JSON object");
+    o.config = env.config;
+  }
+  return o;
+}
+
+/** A version config's `cpuFallback` ({memMb, cpuGflops}): the floor of a coreless placement (the CPU host's reading). */
+export function cpuFallbackOf(cfgText) {
+  let f; try { f = JSON.parse(String(cfgText || "{}") || "{}").cpuFallback; } catch { return null; }
+  if (!f || typeof f !== "object" || Array.isArray(f)) return null;
+  const num = (x, max) => { const n = Number(x); return Number.isFinite(n) && n >= 0 && n <= max ? n : 0; };
+  const memMb = num(f.memMb, 1048576), cpuGflops = num(f.cpuGflops, 10000000);
+  return memMb || cpuGflops ? { memMb, cpuGflops } : null;
 }
 
 /** Why the pVM does NOT take this deployment, or null. Pure: the row, its catalog version and this host's facts. */
 export function pvmClaimRefusal(d, version, { enclaveId, maxMemMb, nowSec }) {
   if (!d || !d.active) return "the deployment is not active";
   if (!d.isPublic) return "it is private: this host serves public deployments (its route is public; no owner session check here)";
-  if (Number(d.gpuMilli) !== 0) return `it asks gpuMilli ${d.gpuMilli}: the pVM CPU tier takes CPU-only workloads`;
   const lease = Number(d.leaseUntil);
   if (lease >= nowSec && String(d.runner).toLowerCase() !== String(enclaveId).toLowerCase()) return "another host holds its lease";
-  let env = {};
-  const raw = String(d.configCid || "").trim();
-  if (raw) {
-    if (!raw.startsWith("{")) return "its options field is a bare CID: a configuration this host cannot apply";
-    try { env = JSON.parse(raw); } catch { return "its options envelope is not JSON"; }
-    if (!env || typeof env !== "object" || Array.isArray(env)) return "its options envelope is not an object";
-  }
-  const known = ["isolation", "network", "placement", "gpu"];
-  const unknown = Object.keys(env).filter((k) => !known.includes(k));
-  if (unknown.length) return `its options carry ${unknown.join(", ")}, which this host does not apply (configuration, secrets and protection rules are not supported in the pVM yet)`;
-  if (env.isolation !== undefined) {
-    const iso = env.isolation;
-    if (!iso || typeof iso !== "object" || Array.isArray(iso) || Object.keys(iso).some((k) => !["require", "cpuTee", "gpuTee"].includes(k))) return "its isolation options are malformed";
-    if (iso.cpuTee === true || iso.gpuTee === true) return "it requires a confidential-computing CPU or GPU, which this host does not claim";
-    if (iso.require !== undefined && iso.require !== ISOLATION_BACKEND) return `it requires isolation backend ${JSON.stringify(iso.require)}, not ${ISOLATION_BACKEND}`;
-  }
-  if (env.network !== undefined) {
-    const n = env.network;
-    if (!n || typeof n !== "object" || Object.keys(n).some((k) => !["transport", "relay"].includes(k)) || (n.transport !== undefined && n.transport !== "tuna"))
-      return "its network options ask for a transport other than TUNA";
-  }
-  if (env.gpu !== undefined && (typeof env.gpu !== "object" || env.gpu.optional !== true)) return "its gpu options are not { optional: true }";
-  if (env.placement !== undefined) {
-    const p = env.placement;
-    if (!p || typeof p !== "object" || !B32.test(String(p.hostId || "").toLowerCase())) return "its placement pin is malformed";
-    if (String(p.hostId).toLowerCase() !== String(enclaveId).toLowerCase() && p.allowFallback === false) return "it is pinned to another host";
-  }
+  let opts;
+  try { opts = parseOptions(d.configCid, d.gpuMilli); } catch (e) { return e.message; }
+  if (opts.placement && opts.placement.hostId !== String(enclaveId).toLowerCase() && !opts.placement.allowFallback) return "it is pinned to another host";
   if (!version) return "its catalog version could not be read";
   if (version.yanked) return "its catalog version is yanked";
   // the relay serves a public deployment only on an approved version (measurement-predict.mjs versionRefusal)
   if (Number(version.approval) !== 1) return "its catalog version is not approved by the catalog owner";
-  if (Number(version.vramMb) > 0 || Number(version.gpuGflops) > 0) {
-    let cfg = {}; try { cfg = JSON.parse(String(version.config || "{}") || "{}"); } catch {}
-    if (cfg.gpuOptional !== true) return "its catalog version needs a GPU";
-  }
-  if (Number(version.memMb) > maxMemMb) return `its catalog version needs ${version.memMb} MB, beyond this VM's ${maxMemMb} MB per app`;
+  let vcfg = {}; try { vcfg = JSON.parse(String(version.config || "{}") || "{}"); } catch { return "its catalog version's config is not JSON"; }
+  // a GPU share runs here only when the owner or the publisher said the card is optional: on cores, CPU-only (no model)
+  const soft = opts.gpuOptional === true || vcfg.gpuOptional === true;
+  if (Number(d.gpuMilli) !== 0 && !soft) return `it asks gpuMilli ${d.gpuMilli}: the pVM CPU tier takes CPU-only workloads (a GPU share runs here only with {"gpu":{"optional":true}})`;
+  if ((Number(version.vramMb) > 0 || Number(version.gpuGflops) > 0) && !soft) return "its catalog version needs a GPU";
+  // the node floor of a coreless placement: the on-chain size, raised by the publisher's cpuFallback
+  const fb = cpuFallbackOf(version.config);
+  const memFloor = Math.max(Number(version.memMb) || 0, fb ? fb.memMb : 0);
+  if (memFloor > maxMemMb) return `its catalog version needs ${memFloor} MB${fb && fb.memMb > Number(version.memMb) ? " (its cpuFallback)" : ""}, beyond this VM's ${maxMemMb} MB per app`;
   const listed = String(version.ports || "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
   // a wasi:http handler (no ports), or a socket server on ONE http port; raw tcp/udp ports need a network this VM has not
   if (listed.some((p) => !/^http:[1-9][0-9]{0,4}$/.test(p)) || listed.length > 1 || listed.some((p) => Number(p.slice(5)) > 65535))
     return `its catalog version declares ports ${version.ports}: this host serves HTTP on one port only`;
-  let cfg = {}; try { cfg = JSON.parse(String(version.config || "{}") || "{}"); } catch { return "its catalog version's config is not JSON"; }
+  // the routing keys the version declares (the CPU host's unmetNeeds): what this runtime cannot do. A 64-bit memory it can
+  // (wasmtime's default feature set, bounds-checked in Pulley); everything else in the config is the app's own, handed to
+  // it as ENCLAVE_CONFIG
   const want = [];
-  if (cfg.set === true) want.push("shared-everything threads");
-  if (cfg.threads === true) want.push("threads");
-  if (cfg.mem64 === true) want.push("a 64-bit memory");
-  if (String(cfg.wasi || "0.2") === "0.3") want.push("wasi 0.3");
-  if (Array.isArray(cfg.volumes) && cfg.volumes.length) want.push("a model volume");
-  if (version.configCid) want.push("a configuration document");
-  // _media is the catalog's display metadata (a thumbnail), never handed to the app (the relay strips it too)
-  const appCfg = Object.keys(cfg).filter((k) => !["gpuOptional", "cpuFallback", "wasi", "set", "threads", "mem64", "volumes", "_media"].includes(k));
-  if (appCfg.length) want.push(`app configuration (${appCfg.slice(0, 4).join(", ")})`);
-  if (want.length) return `its catalog version needs ${want.join(", ")}, which the pVM runtime does not offer`;
+  if (vcfg.set === true) want.push("shared-everything threads (set:true)");
+  if (vcfg.threads === true) want.push("cooperative threads (threads:true)");
+  if (String(vcfg.wasi || "0.2") === "0.3") want.push("wasi 0.3");
+  if (Array.isArray(vcfg.volumes) && vcfg.volumes.length) want.push(`the model volume${vcfg.volumes.length > 1 ? "s" : ""} ${vcfg.volumes.join(", ")}`);
+  if (want.length) return `its catalog version needs ${want.join(" and ")}, which the pVM runtime does not offer`;
   return null;
+}
+
+/**
+ * `$NAME` / `${NAME}` in the config's STRING values, resolved from the deployment's secrets: the platform runner's rule
+ * (wasm_manager.py _subst_secrets, mirrored by windows/node/host.mjs), down to `$$` for a literal `$`. Only names that are
+ * secrets substitute; a config that is not JSON passes through untouched.
+ */
+export function substituteSecrets(text, secrets) {
+  if (!text || !secrets || !Object.keys(secrets).length || !text.includes("$")) return text;
+  const RE = /\$(\$)|\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g;
+  const rep = (m, dollar, braced, bare) => { if (dollar) return "$"; const v = secrets[braced || bare]; return v === undefined ? m : String(v); };
+  const walk = (x) => typeof x === "string" ? x.replace(RE, rep) : Array.isArray(x) ? x.map(walk)
+    : x && typeof x === "object" ? Object.fromEntries(Object.entries(x).map(([k, v]) => [k, walk(v)])) : x;
+  let parsed; try { parsed = JSON.parse(text); } catch { return text; }
+  return JSON.stringify(walk(parsed));
+}
+
+/** The app's environment as the VM takes it: "K=V\0..." (the runtime checks it again: pvm-rt parse_env). */
+export function envBlock(vars) {
+  const parts = [];
+  for (const [k, v] of Object.entries(vars)) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(k) || k === "ENCLAVE_PORTS" || k === "ENCLAVE_MEM_MB") throw new Error(`${k} cannot be set in the app's environment`);
+    if (String(v).includes("\0")) throw new Error(`${k} holds a NUL`);
+    parts.push(`${k}=${v}\0`);
+  }
+  return Buffer.from(parts.join(""), "utf8");
+}
+
+/** The launch's options file for the phone (host/app Main.appOptions): ENV / WAF lines, hex; EGRESS <port> <token>. */
+export function optionsFile({ env = null, waf = null, egress = null }) {
+  const lines = [];
+  if (env && env.length) lines.push(`ENV ${env.toString("hex")}`);
+  if (waf) lines.push(`WAF ${Buffer.from(JSON.stringify(waf)).toString("hex")}`);
+  if (egress) lines.push(`EGRESS ${egress.port} ${egress.token}`);
+  return lines.length ? lines.join("\n") + "\n" : null;
 }
 
 const json = (res, status, body) => { const b = Buffer.from(JSON.stringify(body)); res.writeHead(status, { "content-type": "application/json", "content-length": b.length, "cache-control": "no-store" }); res.end(b); };
@@ -174,19 +255,20 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   const proofPins = (D) => `${cfg.chainId} ${addrs.proofOfTime} ${addrs.registry} ${D} ${E} ${me}`;
 
   // ---- the runner for the VM as it is now: deployment D (claim on) or ZERO (idle: register, heartbeat, withdraw) ----
-  function runnerConfig(D, appSha) {
+  function runnerConfig(D, appSha, { gpuOptional = false } = {}) {
     return { format: "enclave-pvm-runner-agent/v1",
       proof: { format: "enclave-pvm-proof-agent/v1", chainId: cfg.chainId, addressBook: cfg.addressBook, deployment: D, endpoint: cfg.endpoint,
                operator: me, carrier: `http://127.0.0.1:${device.evidencePort}/`, maxFeePerGasWei: cfg.maxFeePerGasWei,
                evidence: { appId: appSha, allowedCodeHashes: cfg.evidence.allowedCodeHashes, allowedAuthorityHashes: cfg.evidence.allowedAuthorityHashes,
                            allowedRuntimeIds: cfg.evidence.allowedRuntimeIds, rootPins: cfg.evidence.rootPins, instanceIds: cfg.evidence.instanceIds } },
       lifecycle: { register: { repo: cfg.register.repo, measurement: "0x" + cfg.evidence.allowedCodeHashes[0], cpuPricePerSec6: cfg.register.cpuPricePerSec6 },
-                   claim: D !== ZERO32, ...(cfg.payout ? { payout: cfg.payout } : {}) } };
+                   claim: D !== ZERO32, ...(gpuOptional ? { gpuOptional: true } : {}), ...(cfg.payout ? { payout: cfg.payout } : {}) } };
   }
   async function useRunner(D, appSha) {
     if (runner && runnerFor === `${D}:${appSha}`) return runner;
+    const gpuOptional = !!(state.current && state.current.id === D && state.current.gpuOptional);
     if (runner) { const s = await runner.stop({ release: false }); if (s.kind === "in-flight") throw new Error("the previous runner still has a transaction in flight"); runner.close(); runner = null; runnerFor = null; }
-    runner = await createRunnerAgent({ config: runnerConfig(D, appSha), publicClient, account, stateDir: path.join(stateDir, "runners", D === ZERO32 ? "idle" : D.slice(2, 18)),
+    runner = await createRunnerAgent({ config: runnerConfig(D, appSha, { gpuOptional }), publicClient, account, stateDir: path.join(stateDir, "runners", D === ZERO32 ? "idle" : D.slice(2, 18)),
                                        fetchImpl: device.carrierFetch, now, sleep, log: (o) => log({ t: new Date(now()).toISOString(), layer: "runner", d: D.slice(0, 10), ...o }) });
     runnerFor = `${D}:${appSha}`;
     const st = await runner.start();
@@ -195,10 +277,11 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   }
 
   // ---- the VM ----
-  async function launchVm({ D, file, sha, label, sock = 0, memMib = 0 }) {
+  async function launchVm({ D, file, sha, label, sock = 0, memMib = 0, opts = null }) {
     await device.ensurePorts();
     await device.stageApp(file, sha);
-    await device.launch({ proofPins: proofPins(D), label, attachSigner: `http://127.0.0.1:${cfg.device.attachPort}/attach-sign`, sock, memMib });
+    await device.stageOptions(opts);
+    await device.launch({ proofPins: proofPins(D), label, attachSigner: `http://127.0.0.1:${cfg.device.attachPort}/attach-sign`, sock, memMib, opts: !!opts });
     const s = await device.waitServing(label);
     await device.readToken();
     note({ ev: "vm-serving", deployment: D, app: sha.slice(0, 16), line: s.line.slice(0, 160) });
@@ -241,6 +324,67 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     throw new Error(`the component is neither a wasi:http handler nor a socket server on a declared http port${httpPort ? "" : " (its version declares none)"}`);
   }
 
+  // ---- the deployment's options: its config (CID-verified when it lives at a CID), its secrets, its rules, its way out ----
+  async function fetchConfigCid(cid) {
+    if (!/^[A-Za-z0-9]{10,100}$/.test(cid)) throw new Error(`not a CID: ${cid}`);
+    fs.mkdirSync(cfg.ipfs.cacheDir, { recursive: true });
+    const out = path.join(cfg.ipfs.cacheDir, `cfg-${cid}.json`);
+    if (!fs.existsSync(out)) {
+      let last = null;
+      for (const gw of cfg.ipfs.gateways) {
+        try { await execFileP(cfg.ipfs.python || "python3", [cfg.ipfs.fetchScript, cid, out + ".part", String(1 << 20), gw], { timeout: 120000, maxBuffer: 4 << 20 }); fs.renameSync(out + ".part", out); last = null; break; }
+        catch (e) { last = e; try { fs.unlinkSync(out + ".part"); } catch {} }
+      }
+      if (last) throw new Error(`the config ${cid} could not be CID-verified from any gateway: ${last.message}`);
+    }
+    const text = fs.readFileSync(out, "utf8");
+    JSON.parse(text);   // it must BE JSON before an app sees it
+    return text;
+  }
+  /** The app's config text, as the CPU host resolves it (windows/node/host.mjs appConfig): the envelope's override, inline or
+   *  at a CID; else the version's own config document (a rev-7 version's CID, which must be fetched: its inline field is then
+   *  only the routing manifest); else the version's inline config. */
+  async function appConfig(d, v) {
+    const o = parseOptions(d.configCid, d.gpuMilli);
+    if (o.config !== undefined) return JSON.stringify(o.config);
+    if (o.configCid) return fetchConfigCid(o.configCid);
+    if (v && v.configCid) return fetchConfigCid(v.configCid);
+    return String((v && v.config) || "");
+  }
+  /** This deployment's staged secrets ({NAME: value}), fetched as the lease holder with the operator's signature, or null
+   *  when the relay would not say (the reason logged: names and counts only, never a value). */
+  async function secretsFor(D) {
+    try {
+      const r = await fetchSecrets({ id: D, endpoint: cfg.endpoint, base: cfg.relayOrigin, sign: (message) => account.signMessage({ message }),
+                                     log: (m) => note({ ev: "secrets", deployment: D, m }) });
+      return r.env || {};
+    } catch (e) { note({ ev: "secrets-failed", deployment: D, error: e.message }); return null; }
+  }
+  /** The options file for a launch of D (with its secrets when given) and the launch's egress token. */
+  async function launchOptions(D, d, v, secrets) {
+    const o = parseOptions(d.configCid, d.gpuMilli);
+    const text = substituteSecrets(await appConfig(d, v), secrets || {});
+    const vars = { ...(secrets || {}) };
+    if (text) vars.ENCLAVE_CONFIG = text;
+    vars.ENCLAVE_HOSTS = `${D.slice(2, 10)}.app.enclave.host`;
+    const token = cfg.egress ? crypto.randomBytes(16).toString("hex") : null;
+    const file = optionsFile({ env: envBlock(vars), waf: o.waf || null, egress: token ? { port: cfg.egress.port, token } : null });
+    note({ ev: "options", deployment: D, configBytes: text.length, secrets: Object.keys(secrets || {}).length, waf: !!o.waf, egress: !!token });
+    return { file, token };
+  }
+  /** Launch D's VM with its options as they are now (its row, version and -- when held -- secrets). */
+  async function launchFor(c, { withSecrets }) {
+    const d = await read(addrs.deployments, DEP_ABI, "get", [c.id]);
+    const v = await versionOf(c.appRef);
+    const secrets = withSecrets ? await secretsFor(c.id) : null;
+    const { file, token } = await launchOptions(c.id, d, v, secrets);
+    c.egressToken = token; c.configCid = String(d.configCid || ""); c.gpuMilli = Number(d.gpuMilli); c.cpuMilli = Number(d.cpuMilli);
+    if (secrets) c.secretsAt = now();
+    save();
+    await launchVm({ D: c.id, file: c.file, sha: c.sha, label: c.label, sock: c.sock || 0, memMib: c.memMib || 0, opts: file });
+    return { secrets: secrets ? Object.keys(secrets).length : null };
+  }
+
   // ---- choosing work ----
   async function refusalFor(d) {
     const v = await versionOf(d.appRef).catch(() => null);
@@ -251,7 +395,10 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     const rows = [];
     for (let s = 0; s < n; s += 100) rows.push(...await read(addrs.deployments, DEP_ABI, "getPage", [BigInt(s), BigInt(Math.min(100, n - s))]));
     const t = Math.floor(now() / 1000);
-    return rows.filter((d) => d.active && d.isPublic && Number(d.gpuMilli) === 0 && Number(d.leaseUntil) < t)
+    // CPU-only deployments, and GPU-dialled ones whose owner said the card is optional (a publisher's gpuOptional is judged
+    // when one is hinted or pinned here: refusalFor reads the version)
+    const softGpu = (d) => { try { return parseOptions(d.configCid, d.gpuMilli).gpuOptional === true; } catch { return false; } };
+    return rows.filter((d) => d.active && d.isPublic && (Number(d.gpuMilli) === 0 || softGpu(d)) && Number(d.leaseUntil) < t)
       .map((d) => { let pinned = false; try { const o = JSON.parse(String(d.configCid || "{}") || "{}"); pinned = lc(o?.placement?.hostId || "") === lc(E); } catch {} return { d, pinned }; })
       // the sweep takes what the fleet left: a deployment open for sweepGraceSec, unless hinted to this host or pinned to it
       .filter(({ d, pinned }) => pinned || hints.has(lc(d.id)) || t - Number(d.createdAt) >= cfg.claim.sweepGraceSec)
@@ -280,18 +427,29 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     try { comp = await fetchComponent(v.cid, httpPort); }
     catch (e) { state.refused[D] = { at: now(), why: e.message }; save(); note({ ev: "not-taken", deployment: D, why: e.message }); return null; }
     if (runner) { const s = await runner.stop({ release: false }); if (s.kind === "in-flight") { note({ ev: "deferred", why: "a transaction is in flight" }); return null; } runner.close(); runner = null; runnerFor = null; }
+    let soft = false; try { soft = parseOptions(d.configCid, d.gpuMilli).gpuOptional === true || JSON.parse(String(v.config || "{}") || "{}").gpuOptional === true; } catch {}
+    const fb = cpuFallbackOf(v.config);
     state.current = { id: D, appRef: d.appRef, configCid: String(d.configCid || ""), cid: v.cid, sha: comp.sha, file: comp.file,
-                      sock: comp.sock, memMib: comp.sock ? Math.min(1024, Math.max(64, Number(v.memMb) || 256)) : 0,
+                      sock: comp.sock, memMib: comp.sock ? Math.min(1024, Math.max(64, Number(v.memMb) || 256, fb ? fb.memMb : 0)) : 0,
+                      gpuOptional: Number(d.gpuMilli) > 0 && soft,
                       label: `app-${D.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`, phase: "preparing", at: now() };
     save();
     try {
-      await launchVm({ D, file: comp.file, sha: comp.sha, label: state.current.label, sock: comp.sock, memMib: state.current.memMib });
+      // the relay hands secrets to the LEASE HOLDER only, and the claim needs this VM attesting this app: so the first launch
+      // has none, and once the claim lands the VM is relaunched with them -- only when the relay says there are any
+      const hasSecrets = await secretsExist({ id: D, base: cfg.relayOrigin }).catch((e) => { note({ ev: "secrets-unknown", deployment: D, error: e.message }); return null; });
+      await launchFor(state.current, { withSecrets: false });
       const r = await useRunner(D, comp.sha);
       const t = await r.tick();   // the claim (or the reason it was refused), then a first proof
       const L = await r.agent.lease();
       if (L.runner === lc(E) && L.runnerOperator === me && L.leaseUntil >= L.headTs) {
         state.current.phase = "serving"; state.current.claimedAt = now(); save();
         note({ ev: "claimed", deployment: D, leaseUntil: String(L.leaseUntil), tick: t.kind });
+        if (hasSecrets !== false) {
+          state.current.label = `app-${D.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`; save();
+          const got = await launchFor(state.current, { withSecrets: true });
+          note({ ev: "secrets-applied", deployment: D, count: got.secrets });
+        }
         lastRunnerTick = now(); lastCert = 0;
         return D;
       }
@@ -355,7 +513,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
           if (!up) {
             // a relaunched VM holds no certificate (the chain lives in its memory only): install it again
             state.current.label = `app-${state.current.id.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`; delete state.current.cert; save();
-            await launchVm({ D: state.current.id, file: state.current.file, sha: state.current.sha, label: state.current.label, sock: state.current.sock || 0, memMib: state.current.memMib || 0 });
+            await launchFor(state.current, { withSecrets: state.current.phase === "serving" });
           } else await device.readToken();
           await useRunner(state.current.id, state.current.sha);
         } else if (!up) await goIdle(runner ? "the VM ended" : "start");
@@ -378,6 +536,8 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
           if (s.kind === "in-flight") return { kind: "in-flight" };
           runner.close(); runner = null; runnerFor = null;
           await goIdle("the lease is over");
+        } else if (await optionsChanged()) {
+          // handled (relaunched on the new options, or released when they are no longer this host's to apply)
         } else if ((!state.current.cert || (state.current.cert.notAfter && Date.parse(state.current.cert.notAfter) - now() < 30 * 86400_000))
                    && now() - lastCert >= 60_000) {
           lastCert = now();
@@ -396,6 +556,38 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     } finally { busy = false; }
   }
 
+  /**
+   * configEdit / shareResize on the LIVE lease: the owner's setConfig or setShares, seen on the ledger row. New options are
+   * judged as at claim; still this host's to run, the app is relaunched on them (same lease, same VM instance and key; its
+   * certificate installed again); no longer this host's (a namespace it does not apply, a GPU share without
+   * gpu.optional), the lease is released with the reason. A share change alone is admission and billing here (one app, one
+   * VM): nothing is relaunched for it.
+   */
+  async function optionsChanged() {
+    const c = state.current;
+    const d = await read(addrs.deployments, DEP_ABI, "get", [c.id]).catch(() => null);
+    if (!d) return false;
+    const cfgChanged = String(d.configCid || "") !== String(c.configCid || "");
+    const shareChanged = c.cpuMilli !== undefined && (Number(d.cpuMilli) !== c.cpuMilli || Number(d.gpuMilli) !== c.gpuMilli);
+    if (!cfgChanged && !shareChanged) return false;
+    const v = await versionOf(c.appRef).catch(() => null);
+    const why = pvmClaimRefusal({ ...d, leaseUntil: 0n }, v, { enclaveId: E, maxMemMb: cfg.claim.maxMemMb, nowSec: Math.floor(now() / 1000) });
+    note({ ev: cfgChanged ? "config-edited" : "shares-resized", deployment: c.id, cpuMilli: Number(d.cpuMilli), gpuMilli: Number(d.gpuMilli), refused: why });
+    if (why) {
+      const s = await runner.stop({ release: true });
+      if (s.kind === "in-flight") return true;
+      runner.close(); runner = null; runnerFor = null;
+      state.refused[c.id] = { at: now(), why }; save();
+      await goIdle(`its new options are not this host's to apply: ${why}`);
+      return true;
+    }
+    if (!cfgChanged) { c.cpuMilli = Number(d.cpuMilli); c.gpuMilli = Number(d.gpuMilli); save(); return true; }
+    c.label = `app-${c.id.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`; delete c.cert; save();
+    await launchFor(c, { withSecrets: true });
+    lastCert = 0;
+    return true;
+  }
+
   // ---- the host surface (reached through the phone's tunnel: untrusted requests) ----
   function availability() {
     const cur = state.current, ok = !!registered && cfg.claim.enabled;
@@ -404,7 +596,11 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
       askCpuPricePerSec6: Number(cfg.register.cpuPricePerSec6), askGpuPricePerSec6: 0,
       slots: 1, nodeSlotsFree: cur ? 0 : 1, cpuShareFree: cur ? 0 : 1, maxAppMemMb: cfg.claim.maxMemMb,
       isolation: ISOLATION_BACKEND, appTls: "in-vm", appEvidence: "enclave-pvm-app-evidence/v4", claimScope: "market",
-      networkOptions: { transport: ["tuna"] }, secrets: false, configOverride: false, waf: false, customDomains: false,
+      // the platform's capability flags (the relay AND-folds them across the fleet): each true only for what this host does
+      networkOptions: true, networkTransports: ["tuna"], secrets: true, secretsInConfig: true, configOverride: true, configCidOverride: true,
+      configEdit: true, shareResize: true, waf: true, wafScope: "per-deployment: the app's hostname reaches the VM as TLS through TUNA, with no client address",
+      gpuOptional: true, cpuFallback: true, rateCap: true, proofOfTime: true, mem64: true, set: false, p3: false, coopThreads: false,
+      egress: cfg.egress ? "tuna-per-app" : false, customDomains: false, devDeploy: false,
       apps: cur ? [{ id: cur.id, phase: cur.phase, appSha256: cur.sha, since: new Date(cur.at).toISOString(), cert: cur.cert ? cur.cert.name : null }] : [] };
   }
   async function claimHint(body) {
@@ -487,7 +683,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     try {
       const c = state.current;
       c.label = `app-${c.id.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`; delete c.cert; save();
-      await launchVm({ D: c.id, file: c.file, sha: c.sha, label: c.label, sock: c.sock || 0, memMib: c.memMib || 0 });
+      await launchFor(c, { withSecrets: true });   // a restart applies the owner's current secrets and config
       lastCert = 0;
       note({ ev: "restarted", deployment: c.id });
       return [200, { id: c.id, restarted: true, label: c.label }];
@@ -531,6 +727,14 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   async function serve(port) {
     const srv = http.createServer(handler());
     await new Promise((r, j) => { srv.once("error", j); srv.listen(port, "127.0.0.1", r); });
+    if (cfg.egress) {
+      // the app's way out (egress.mjs): only for the deployment now served, with this launch's token
+      const eg = createEgressServer({ routesFile: cfg.egress.routesFile, log: (o) => note(o),
+        current: () => (state.current && state.current.egressToken ? { token: state.current.egressToken, deployment: state.current.id } : null) });
+      await new Promise((r, j) => { eg.once("error", j); eg.listen(cfg.egress.port, "127.0.0.1", r); });
+      srv.on("close", () => eg.close());
+      note({ ev: "egress-surface", listen: `127.0.0.1:${cfg.egress.port}` });
+    }
     return srv;
   }
   async function stop({ release = false } = {}) {

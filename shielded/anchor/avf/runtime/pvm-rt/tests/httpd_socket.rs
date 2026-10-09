@@ -26,7 +26,7 @@ fn free_port() -> u16 {
 }
 fn open(port: u16) -> Arc<HttpServer> {
     let (b, d) = bundle("sock-probe.wasm");
-    Arc::new(HttpServer::open_socket_app(&b, &d, 128 << 20, port, None, Some(Box::new(|l: &[u8]| eprintln!("LOG {}", String::from_utf8_lossy(l))))).unwrap())
+    Arc::new(HttpServer::open_socket_app(&b, &d, 128 << 20, port, None, Default::default(), Some(Box::new(|l: &[u8]| eprintln!("LOG {}", String::from_utf8_lossy(l))))).unwrap())
 }
 fn serve(s: &Arc<HttpServer>) -> (UnixStream, std::thread::JoinHandle<bool>) {
     let (client, srv_end) = UnixStream::pair().unwrap();
@@ -83,7 +83,7 @@ fn a_socket_app_cannot_dial_out() {
 fn the_evidence_paths_are_the_hooks_and_tls_fronts_the_app() {
     let s = {
         let (b, d) = bundle("sock-probe.wasm");
-        Arc::new(HttpServer::open_socket_app(&b, &d, 128 << 20, free_port(), None, None).unwrap().with_tls_p256(&[5u8; 32]).unwrap())
+        Arc::new(HttpServer::open_socket_app(&b, &d, 128 << 20, free_port(), None, Default::default(), None).unwrap().with_tls_p256(&[5u8; 32]).unwrap())
     };
     assert!(s.set_attest(Arc::new(|n: [u8; 32]| Ok(format!("{{\"n\":\"{:02x}\"}}", n[0]).into_bytes()))));
     // plaintext to a TLS front gets no HTTP
@@ -110,7 +110,7 @@ fn the_evidence_paths_are_the_hooks_and_tls_fronts_the_app() {
 #[test]
 fn a_component_that_is_not_a_command_does_not_start() {
     let (b, d) = bundle("cpu-probe.wasm"); // a wasi:http component: no wasi:cli/run
-    let e = HttpServer::open_socket_app(&b, &d, 64 << 20, free_port(), None, None).err().expect("refused");
+    let e = HttpServer::open_socket_app(&b, &d, 64 << 20, free_port(), None, Default::default(), None).err().expect("refused");
     assert!(format!("{e:#}").contains("the app did not start"), "{e:#}");
 }
 

@@ -1,0 +1,10 @@
+// egress-probe (PVM-CPU.md "Egress"): a wasi:http app that reaches OUT -- the outgoing handler -- and reads its own
+// environment, so the pVM's egress (the host opens the stream, the VM makes the TLS) and the deployment's environment
+// (ENCLAVE_CONFIG, ENCLAVE_HOSTS, the owner's secrets) are exercised by a real component.
+// WIT deps vendored verbatim from cpu-probe (wasi@0.2.6).
+package enclave:egress-probe;
+
+world egress-probe {
+  import wasi:http/outgoing-handler@0.2.6;
+  export wasi:http/incoming-handler@0.2.6;
+}

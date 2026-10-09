@@ -133,6 +133,9 @@ public class Main extends Activity {
         String hostAgent = null;             // --es host_agent http://127.0.0.1:<port>: the owner's host agent; the relay's host requests go to it
         int bridgeApp = 17786, bridgeEvidence = 17787;   // --ei bridge_app / bridge_evidence: the loopback ports of the VM's TLS app port and evidence endpoint (app_tls 2)
         int appSock = 0, appMem = 0;         // --ei app_sock <port> [--ei app_mem <MiB>]: app_tls 2 with a socket-server app (APP ... sock= mem=)
+        boolean appOpts = false;             // --ez app_opts true: app_tls 2 with the deployment's options, staged by the host agent in this app's
+                                             // private files dir (app-opts; read once and deleted): its environment, protection rules and egress
+        int egressPort = 0; String egressToken = "";   // from app-opts: the host agent's egress port (adb reverse) and this launch's token
         int appServeS = 240;                 // --ei app_serve_s N: LAB: STOP the served app after N seconds; 0 = serve until stopped (a host in production)
         String appAnnounced = "";            // the APP line's digest (the app's identity), for the ABI/2 evidence frame
         String attachSigner = null;          // --es attach_signer <http(s) URL>: the owner's attach co-signer (RUNNER-AGENT.md "Attach")
@@ -230,6 +233,7 @@ public class Main extends Activity {
             if (i.getStringExtra("host_agent") != null) p.hostAgent = i.getStringExtra("host_agent").trim();
             p.bridgeApp = i.getIntExtra("bridge_app", p.bridgeApp); p.bridgeEvidence = i.getIntExtra("bridge_evidence", p.bridgeEvidence);
             p.appSock = i.getIntExtra("app_sock", 0); p.appMem = i.getIntExtra("app_mem", 0);
+            p.appOpts = i.getBooleanExtra("app_opts", false);
             if (p.appSock < 0 || p.appSock > 65535 || (p.appMem != 0 && (p.appMem < 16 || p.appMem > 1024)) || (p.appMem != 0 && p.appSock == 0)) p.configError = "app_sock must be 1..65535 and app_mem 16..1024 (with app_sock)";
             if (p.hostAgent != null && !p.hostAgent.matches("http://(127\\.0\\.0\\.1|localhost):\\d{1,5}")) p.configError = "host_agent must be the owner's loopback agent, http://127.0.0.1:<port>";
             if (p.bridgeApp < 1024 || p.bridgeApp > 65535 || p.bridgeEvidence < 1024 || p.bridgeEvidence > 65535 || p.bridgeApp == p.bridgeEvidence) p.configError = "bridge_app and bridge_evidence must be two different ports 1024..65535";
@@ -249,6 +253,7 @@ public class Main extends Activity {
                 else if (!p.appHttp.isEmpty() && !p.appArgs.isEmpty()) p.configError = "app_http serves the component over HTTP: it takes no app_args";
                 else if (p.appTls == 2 && (!p.appHttp.isEmpty() || !p.appArgs.isEmpty() || p.relay == null || p.appServeS != 0)) p.configError = "app_tls 2 (the marketplace host) serves the component until stopped with a CA-trustable key: it needs --es relay and app_serve_s 0, and takes no app_http or app_args";
                 else if (p.appSock != 0 && p.appTls != 2) p.configError = "app_sock (a socket-server app) is served only by the marketplace host (app_tls 2)";
+                else if (p.appOpts && p.appTls != 2) p.configError = "app_opts (a deployment's environment, rules and egress) is for the marketplace host (app_tls 2)";
                 else if (p.appTls != 0 && p.appTls != 2 && (p.appTls != 1 || !p.appHttp.isEmpty() || !p.appArgs.isEmpty() || p.relay == null)) p.configError = "app_tls 1 (lab) serves the component over TLS through the relay: it needs --es relay and takes no app_http or app_args";
                 else if (p.appServeS != 0 && (p.appServeS < 10 || p.appServeS > 3600)) p.configError = "app_serve_s must be 0 (serve until stopped) or 10..3600";
                 else if (p.appServeS == 0 && (!p.appArgs.isEmpty() || !p.appHttp.isEmpty())) p.configError = "app_serve_s 0 serves the component until stopped: it takes no app_args or app_http test hook";
@@ -725,6 +730,7 @@ public class Main extends Activity {
                     catch (Exception e) { say("RELAY issued no ABI/2 nonce within 20 s: the app's evidence will not verify there (" + e + ")"); }
                 }
                 if (!plan.proofPins.isEmpty()) { cmd.append("PROOFPINS ").append(plan.proofPins).append('\n'); say("APP proof pins handed to the VM (it signs checkpoints for these only)"); }
+                if (plan.appOpts) appOptions(plan, cmd);
                 cmd.append("APP bytes=").append(abytes).append(" sha256=").append(asha).append(aargs).append(plan.appGraph.isEmpty() ? "" : " graph=" + plan.appGraph)
                    .append(plan.appTls == 2 ? " serve=https-p256" : plan.appTls == 1 ? " serve=https" : plan.appHttp.isEmpty() && plan.appServeS != 0 ? "" : " serve=http")
                    .append(plan.appSock != 0 ? " sock=" + plan.appSock + (plan.appMem != 0 ? " mem=" + plan.appMem : "") : "").append('\n');
@@ -791,6 +797,7 @@ public class Main extends Activity {
                     if (ba.start()) bridges.add(ba);
                     if (token != null) { final LocalBridge be = new LocalBridge(vm, plan.bridgeEvidence, EVIDENCE_PORT, token, "evidence"); if (be.start()) bridges.add(be); }
                     else say("BRIDGE evidence NOT started: no token could be written");
+                    if (plan.egressPort != 0) { final EgressPool ep = new EgressPool(vm, EGRESS_PORT, plan.egressPort, plan.egressToken); egress.add(ep); ep.start(); }
                 }
                 if ((line.startsWith("APP serving https") || (line.startsWith("APP serving http ") && plan.appServeS == 0)) && keeper != null) keeper.arm();   // REATTACH is taken only while the app serves
                 if (line.startsWith("APP serving ") && plan.appServeS == 0) {
@@ -814,6 +821,7 @@ public class Main extends Activity {
             burnersOn = false;   /* a finished leg leaves the app idle: the burners exist only while the VM decodes */
             if (keeper != null) keeper.stop();   // before the channel closes: no re-attach outlives the VM's session
             for (LocalBridge b : bridges) b.close(); bridges.clear();
+            for (EgressPool e : egress) e.close(); egress.clear();
             try { pfd.close(); } catch (Exception ignored) { }
             if (relay != null) relay.close();
             if (localThread != null) { try { localThread.join(10000); } catch (InterruptedException ignored) { } }
@@ -834,6 +842,35 @@ public class Main extends Activity {
     static final int APP_HTTP_PORT = 7786;  // HTTP/1.1 to a served wasi:http app (APP ... serve=http)
     static final int EVIDENCE_PORT = 7787;  // the VM's evidence endpoint while an app serves over TLS (payload anchor_payload.c)
     static final java.util.List<LocalBridge> bridges = new java.util.concurrent.CopyOnWriteArrayList<>();
+    static final java.util.List<EgressPool> egress = new java.util.concurrent.CopyOnWriteArrayList<>();
+    static final int EGRESS_PORT = 7788;    // the VM's egress port: this app keeps idle streams open to it (EgressPool.java)
+
+    /**
+     * The deployment's options (app_opts), staged by the owner's host agent as <files>/app-opts and deleted once read, so its
+     * secrets do not outlive this launch on the phone. Lines: "ENV <hex of K=V\0...>", "WAF <hex of the rules' JSON>",
+     * "EGRESS <agent port> <token>". The environment and the rules go to the VM as APPENV / APPWAF lines (hex, in chunks the
+     * control line takes) and are checked there; EGRESS enables the VM's egress port (APPEGRESS) and this app's pool.
+     */
+    static void appOptions(Plan plan, StringBuilder cmd) {
+        final java.io.File f = new java.io.File(appCtx.getFilesDir(), "app-opts");
+        String text = null;
+        try { text = new String(java.nio.file.Files.readAllBytes(f.toPath()), java.nio.charset.StandardCharsets.US_ASCII); }
+        catch (Exception e) { say("APP options NOT read (" + e + "): the app starts without its environment, rules or egress"); }
+        finally { if (f.exists() && !f.delete()) say("APP options file could not be deleted"); }
+        if (text == null) return;
+        int envBytes = 0, wafBytes = 0;
+        for (String l : text.split("\n")) {
+            final String[] t = l.trim().split(" ");
+            if (t.length == 2 && (t[0].equals("ENV") || t[0].equals("WAF")) && t[1].matches("([0-9a-f]{2})+")) {
+                for (int o = 0; o < t[1].length(); o += 2000) cmd.append(t[0].equals("ENV") ? "APPENV " : "APPWAF ").append(t[1], o, Math.min(t[1].length(), o + 2000)).append('\n');
+                if (t[0].equals("ENV")) envBytes += t[1].length() / 2; else wafBytes += t[1].length() / 2;
+            } else if (t.length == 3 && t[0].equals("EGRESS") && t[1].matches("[0-9]{4,5}") && t[2].matches("[0-9a-f]{32,64}")) {
+                plan.egressPort = Integer.parseInt(t[1]); plan.egressToken = t[2];
+                cmd.append("APPEGRESS\n");
+            } else if (!l.trim().isEmpty()) say("APP options: a malformed line ignored");
+        }
+        say("APP options: environment " + envBytes + " bytes, protection rules " + (wafBytes > 0 ? wafBytes + " bytes" : "none") + ", egress " + (plan.egressPort != 0 ? "through the host agent" : "none"));
+    }
     /* The test hook behind --es app_http: each path as its own GET on its own connection (Connection: close), the whole raw
      * response into the capture as APPHTTP <i> ms=<wall> <hex>, then STOP on the control channel. The product path puts the
      * relay tunnel where this loop is. */

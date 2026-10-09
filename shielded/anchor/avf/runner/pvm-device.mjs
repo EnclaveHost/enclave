@@ -4,7 +4,9 @@
 //   - the VM's launch: the release app (host.enclave.pvmcpu) started as a foreground service with one app and, for a lease,
 //     that lease's proof pins; stopped with force-stop (the VM ends with the app's process);
 //   - the evidence exchange: one line (and optional bytes) to the VM's evidence endpoint behind the bridge's AUTH token,
-//     one answer back. The bytes are untrusted: every consumer verifies what it gets (proof-agent.mjs, the relay).
+//     one answer back. The bytes are untrusted: every consumer verifies what it gets (proof-agent.mjs, the relay);
+//   - the deployment's options for a launch (its environment, rules, egress port and token): written into the app's PRIVATE
+//     files (run-as, umask 077; never /data/local/tmp), read once by the app at launch and deleted there (Main.appOptions).
 // Nothing here holds a key. The token is read from the app's external files dir, which other apps on the phone cannot read.
 import { execFile } from "node:child_process";
 import net from "node:net";
@@ -14,7 +16,7 @@ import fs from "node:fs";
 export const RELEASE_PACKAGE = "host.enclave.pvmcpu";
 const SERVICE = "host.enclave.anchor.avf.AnchorService";
 
-export function createPvmDevice({ adb, serial, pkg = RELEASE_PACKAGE, vmName, relay, name, agentPort, attachPort,
+export function createPvmDevice({ adb, serial, pkg = RELEASE_PACKAGE, vmName, relay, name, agentPort, attachPort, egressPort = 0,
                                   bridgeApp = 17786, bridgeEvidence = 17787, log = () => {} }) {
   if (!adb || !serial) throw new Error("pvm-device: adb and the phone's serial are required");
   if (!/^[a-z0-9-]{1,32}$/.test(vmName || "")) throw new Error("pvm-device: vmName must be 1..32 of [a-z0-9-]");
@@ -35,7 +37,7 @@ export function createPvmDevice({ adb, serial, pkg = RELEASE_PACKAGE, vmName, re
     const fw = await run(["forward", "--list"]), rv = await run(["reverse", "--list"]).catch(() => "");
     const want = [];
     for (const p of [bridgeApp, bridgeEvidence]) if (!fw.includes(`tcp:${p} tcp:${p}`)) want.push(run(["forward", `tcp:${p}`, `tcp:${p}`]));
-    for (const p of [agentPort, attachPort].filter(Boolean)) if (!rv.includes(`tcp:${p} tcp:${p}`)) want.push(run(["reverse", `tcp:${p}`, `tcp:${p}`]));
+    for (const p of [agentPort, attachPort, egressPort].filter(Boolean)) if (!rv.includes(`tcp:${p} tcp:${p}`)) want.push(run(["reverse", `tcp:${p}`, `tcp:${p}`]));
     await Promise.all(want);
     return want.length;
   }
@@ -56,8 +58,18 @@ export function createPvmDevice({ adb, serial, pkg = RELEASE_PACKAGE, vmName, re
     return `/data/user/0/${pkg}/files/app.wasm`;
   }
 
+  /** The launch's options file (text: ENV/WAF/EGRESS lines, Main.appOptions) into the app's private files, checked by hash;
+   *  null removes any left over. */
+  async function stageOptions(text) {
+    if (text === null) { await sh(`run-as ${pkg} rm -f files/app-opts`); return; }
+    if (!/^[A-Z]{3,6} [0-9a-f ]+(\n[A-Z]{3,6} [0-9a-f ]+)*\n?$/.test(text)) throw new Error("stageOptions: not an options file");
+    await run(["exec-in", "run-as", pkg, "sh", "-c", "umask 077; cat > files/app-opts.tmp && mv files/app-opts.tmp files/app-opts"], { input: text });
+    const got = (await sh(`run-as ${pkg} sha256sum files/app-opts`)).slice(0, 64);
+    if (got !== crypto.createHash("sha256").update(text).digest("hex")) throw new Error("the staged options file does not match");
+  }
+
   /** Start the VM serving the staged app until stopped (APP serve=https-p256). proofPins: the six pins, or null (idle). */
-  async function launch({ proofPins = null, label, attachSigner = null, sock = 0, memMib = 0 }) {
+  async function launch({ proofPins = null, label, attachSigner = null, sock = 0, memMib = 0, opts = false }) {
     if (!/^[A-Za-z0-9._-]{1,80}$/.test(label || "")) throw new Error("launch: label must be 1..80 of [A-Za-z0-9._-]");
     if (proofPins !== null && !/^[0-9]+( 0x[0-9a-f]+){5}$/.test(proofPins)) throw new Error("launch: proofPins must be the six canonical pins");
     if (!Number.isInteger(sock) || sock < 0 || sock > 65535 || !Number.isInteger(memMib) || (memMib && (memMib < 16 || memMib > 1024)))
@@ -68,7 +80,8 @@ export function createPvmDevice({ adb, serial, pkg = RELEASE_PACKAGE, vmName, re
                     ...(agentPort ? [`--es host_agent http://127.0.0.1:${agentPort}`] : []),
                     ...(attachSigner ? [`--es attach_signer ${attachSigner}`] : []),
                     ...(proofPins ? [`--es proof_pins '${proofPins}'`] : []),
-                    ...(sock ? [`--ei app_sock ${sock}`, ...(memMib ? [`--ei app_mem ${memMib}`] : [])] : [])];
+                    ...(sock ? [`--ei app_sock ${sock}`, ...(memMib ? [`--ei app_mem ${memMib}`] : [])] : []),
+                    ...(opts ? [`--ez app_opts true`] : [])];
     await sh(`am force-stop ${pkg}`);
     const out = await sh(`am start-foreground-service -n ${pkg}/${SERVICE} ${extras.join(" ")}`);
     if (!/Starting service/.test(out)) throw new Error(`the service did not start: ${out.trim().slice(0, 200)}`);
@@ -133,7 +146,7 @@ export function createPvmDevice({ adb, serial, pkg = RELEASE_PACKAGE, vmName, re
     catch (e) { return { status: 502, text: async () => JSON.stringify({ error: e.message }) }; }
   };
 
-  return { ensurePorts, installedApkSha, stageApp, launch, stop, capture, alive, waitServing, readToken, exchange, carrierFetch, sh,
+  return { ensurePorts, installedApkSha, stageApp, stageOptions, launch, stop, capture, alive, waitServing, readToken, exchange, carrierFetch, sh,
            appPort: bridgeApp, evidencePort: bridgeEvidence, serial, name, vmName };
 }
 
