@@ -578,23 +578,23 @@ class FleetList extends EnclaveElement {
       + starsHtml(avg) + '<small>' + avg.toFixed(1) + ' (' + t.count + ')</small></span>' + rate;
   }
 
-  /* The summary's rating, eBay-style but shorter: "(12★) 98%" - how many wallets rated the box, a star whose
-     colour climbs with that count, and the share of its ratings that are positive (4-5 stars) out of positive
-     + negative (1-2; a 3 is neutral and counted in neither, as eBay does). New box: "(0)". The % needs each
-     review (the tally is only count + sum), so until those are read, or if every rating is a 3, it is left off.
-     Nothing at all while the tallies are unread or the contract isn't in the address book. */
+  /* The summary's rating, eBay-style and short: "★98%" - the share of the box's ratings that are positive (4-5
+     stars) out of positive + negative (1-2; a 3 is neutral and counted in neither, as eBay does), beside a star
+     whose colour climbs with how many wallets rated it (the count itself is in the tooltip). Every rating a 3:
+     "★–". Unrated, or its reviews (the % needs each one; the tally is only count + sum) not read yet: nothing -
+     the opened row still says "unrated". Nothing either while the contract isn't in the address book. */
   _fbHtml(e){
     if (!hrevConfigured() || !this._tallies) return "";
     const id = String(e.id || "").toLowerCase();
     const t = this._tallies[id], n = t ? Number(t.count) : 0;
-    if (!n) return '<span class="fleet-fb" title="No wallet has rated this enclave yet">(0)</span>';
-    const f = this._fb && this._fb[id];
-    const pct = f && f.pos + f.neg ? Math.round(1000 * f.pos / (f.pos + f.neg)) / 10 : null;
+    const f = n && this._fb && this._fb[id];
+    if (!f) return "";
+    const pct = f.pos + f.neg ? Math.round(1000 * f.pos / (f.pos + f.neg)) / 10 : null;
     const tier = n >= 1000 ? 5 : n >= 500 ? 4 : n >= 100 ? 3 : n >= 50 ? 2 : n >= 10 ? 1 : 0;
     const title = n + " rating" + (n === 1 ? "" : "s") + " from wallets whose apps this enclave ran, averaging "
-      + (Number(t.sum) / n).toFixed(1) + " of 5" + (f ? "; " + f.pos + " positive (4-5 stars), " + f.neg + " negative (1-2 stars)" : "");
-    return '<span class="fleet-fb" title="' + esc(title) + '">(' + n + '<span class="fleet-fb-star t' + tier + '" aria-hidden="true">★</span>)'
-      + (pct === null ? '' : ' ' + pct + '%') + '</span>';
+      + (Number(t.sum) / n).toFixed(1) + " of 5; " + f.pos + " positive (4-5 stars), " + f.neg + " negative (1-2 stars)";
+    return '<span class="fleet-fb" title="' + esc(title) + '"><span class="fleet-fb-star t' + tier + '" aria-hidden="true">★</span>'
+      + (pct === null ? '–' : pct + '%') + '</span>';
   }
 
   /* Positive / negative counts for the summary's %: every visible review of each rated box, re-read only when
