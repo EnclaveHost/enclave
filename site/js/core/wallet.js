@@ -652,11 +652,10 @@ export async function renderWalletPop(){
     '<div class="wp-row"><span class="wp-k">Network</span><span class="wp-v">' + (Enclave.chainId === BASE_CHAIN ? "Base" : ("chain " + (Enclave.chainId || "–"))) + (offBase ? ' <button class="wp-mini" id="wpSwitch">switch to Base</button>' : "") + '</span></div>' +
     '<div class="wp-row"><span class="wp-k">Balance</span><button class="wp-v wp-link" id="wpBalUsdc" type="button" title="Deposit">…</button></div>' +
     '<hr class="wp-sep">' +   // the wallet above, this browser's session below
-    '<div class="wp-row"><span class="wp-k">Session</span><span class="wp-v" id="wpSess">…</span></div>' +
-    '<div class="wp-fund">' +
-      '<a class="wp-mini" id="wpSessions" href="sessions">All Sessions</a>' +
-      '<button class="wp-disc" id="wpDisc">Sign out</button>' +
-    '</div>';
+    // the session row ends the popover: its budget and time, then All (every session) and Sign out, right-aligned
+    '<div class="wp-row wp-row-sess"><span class="wp-k">Session</span><span class="wp-sess-r"><span class="wp-v" id="wpSess">…</span>' +
+      '<span class="wp-sess-btns"><a class="wp-mini" id="wpSessions" href="sessions" title="All sessions">All</a>' +
+      '<button class="wp-disc" id="wpDisc">Sign out</button></span></span></div>';
   pop.hidden = false;
   popExpanded(true);
   const c = $("#wpCopy"); if (c) c.addEventListener("click", () => copyText(Enclave.address));
@@ -672,7 +671,7 @@ export async function renderWalletPop(){
 }
 
 /* the popover's session row: the budget left (click it to top up) and the time left (click it to extend), or
-   "start". The full list lives on All Sessions (under this row); ending this browser's session is Sign out. */
+   "start". The full list is All, beside it; ending this browser's session is Sign out, beside that. */
 async function renderSessionRow(){
   const el = $("#wpSess"); if (!el) return;
   let S;
