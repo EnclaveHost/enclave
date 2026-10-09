@@ -2,7 +2,7 @@
    /sessions - every session that can act for the connected
    wallet: this browser, other devices, agents. For each: label,
    policy, budget vs spend, expiry, recent actions, and the owner
-   controls (top up, extend, terminate). Plus revoke-all, the
+   controls (top up, extend by a chosen time, terminate). Plus revoke-all, the
    vault's free balance (withdraw), the vault-held deployments
    (environment, promotion), and whether sessions reach the apps the
    WALLET holds (the ledger delegation to the vault). Every control
@@ -20,7 +20,7 @@ import { Enclave } from "../core/api.js";
 import { connectWallet, disconnectWallet } from "../core/wallet.js";
 import { $, esc, lsGet, on, showToast } from "../core/util.js";
 import { sdk, sessionsConfig, ownerOp, fmtUsd, fmtLeft, relayRoot, versionLabel, vaultOf,
-  walletDelegation, setWalletDelegation } from "../core/sessions.js";
+  walletDelegation, setWalletDelegation, openExtendModal } from "../core/sessions.js";
 
 let rendering = false;
 // the ledger's Deployment tuple (stable since schema 2; contracts/EnclaveDeployments.sol)
@@ -102,7 +102,7 @@ function card(r, S, now, mine){
     (budget > 0n ? '<div class="ss-meter" aria-label="budget used"><span style="width:' + Math.min(100, pct) + '%"></span></div>' : "") +
     '<div class="ss-log" hidden></div>' +
     (state === "live" ? '<div class="ss-row"><button class="btn ss-topup" type="button">Top up</button>' +
-      '<button class="btn ss-extend" type="button">Extend 7 days</button>' +
+      '<button class="btn ss-extend" type="button">Extend</button>' +
       '<button class="btn ss-term" type="button">' + (r.sid === mine ? "Sign out" : "Terminate") + "</button></div>" : "") +
     "</div>";
 }
@@ -160,8 +160,7 @@ function wire(body, info, S, rows, free){
     if (t && mineNow) t.addEventListener("click", async () => { t.disabled = true; await disconnectWallet(); mount(); });
     else if (t) t.addEventListener("click", () => run(t, () => ownerOp({ op: "terminate", sessionId: sid }), "Session ended; its budget returned."));
     const e = c.querySelector(".ss-extend");
-    if (e) e.addEventListener("click", () => run(e, () => ownerOp({ op: "extend", sessionId: sid,
-      expiresAt: BigInt(Math.max(Number(r.st.expiresAt), Math.floor(Date.now() / 1000)) + 7 * 86400) }), "Extended by 7 days."));
+    if (e) e.addEventListener("click", async () => { if (await openExtendModal(sid, r.st.expiresAt)) mount(); });
     const u = c.querySelector(".ss-topup");
     if (u) u.addEventListener("click", () => topUp(sid, 10));
     const l = c.querySelector(".ss-log-btn");

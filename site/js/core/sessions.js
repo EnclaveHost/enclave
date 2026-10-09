@@ -330,6 +330,36 @@ export async function promptTopUp(need6, periodLimited){
     need6 ? "That needs " + fmtUsd(need6) + " and this session doesn't hold enough. " : "");
 }
 
+/** Extend a live session: pick how much time to add (to its current end, or to now if that has passed), then one
+ *  owner signature, relayed gas-free. Resolves true once extended. */
+export async function openExtendModal(sessionId, expiresAt){
+  const opts = [[1, "1 hour"], [12, "12 hours"], [24, "1 day"], [168, "7 days"], [720, "30 days"]];
+  const base = () => Math.max(Number(expiresAt) || 0, nowSec());
+  const { result } = await overlay(
+    '<div class="wp-h">Extend this session</div>' +
+    '<label class="wp-note" for="exHours">Add</label>' +
+    '<select id="exHours" class="ac-in">' + opts.map(([h, l]) => '<option value="' + h + '"' + (h === 168 ? " selected" : "") + ">" + l + "</option>").join("") + "</select>" +
+    '<div class="wp-note" id="exUntil"></div>' +
+    '<div class="wp-note">One signature with your wallet, no gas.</div>' +
+    '<button class="wp-item wp-go" id="exGo" type="button">Extend</button>' +
+    '<div class="wp-err" id="exErr" role="alert" hidden></div>' +
+    '<button class="wp-cancel" type="button">Cancel</button>');
+  const sel = $("#exHours"), until = $("#exUntil"), go = $("#exGo");
+  const show = () => { if (until && sel) until.textContent = "Ends " + new Date((base() + Number(sel.value) * 3600) * 1000)
+    .toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) + "."; };
+  if (sel) sel.addEventListener("change", show);
+  show();
+  if (go) go.addEventListener("click", async () => {
+    go.disabled = true; go.textContent = "Check your wallet…";
+    try {
+      await ownerOp({ op: "extend", sessionId, expiresAt: BigInt(base() + Number(sel.value) * 3600) });
+      hostEl()._done(true);
+      showToast("Extended by " + sel.options[sel.selectedIndex].text + ".");
+    } catch(e){ const er = $("#exErr"); if (er){ er.hidden = false; er.textContent = e.message || String(e); } go.disabled = false; go.textContent = "Extend"; }
+  });
+  return result;
+}
+
 export async function openTopUpModal(suggestUsd = 10, why = ""){
   const { result } = await overlay(
     '<div class="wp-h">Top up this session</div>' +
