@@ -50,7 +50,8 @@ c-wallet-button{display:contents;}
 .wp-fund{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:10px 0;}
 .wp-fund:last-child{margin-bottom:0;}
 /* a section break inside the popover (wallet | session): the rows' 1px hairline, in text ink instead of line ink */
-.wp-sep{border:0;height:1px;margin:12px 0 4px;background:var(--text);}
+.wp-sep{border:0;height:1px;margin:0 0 4px;background:var(--text);}
+.wp-row:has(+ .wp-sep){border-bottom:0;}   /* the white rule IS that row's separator, not a second line under it */
 /* Sign out sharing a row (the wallet popover: All Sessions | Sign out): compact, last at the row's right end */
 .wp-fund .wp-disc{width:auto;margin:0;padding:.15em .8em;min-height:24px;border-radius:6px;font-size:.7rem;line-height:1;}
 /* the Deposit QR: white quiet zone so phone cameras lock on against the dark card */

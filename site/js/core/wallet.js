@@ -651,7 +651,6 @@ export async function renderWalletPop(){
     '<div class="wp-row wp-row-addr"><span class="wp-k">Wallet</span><button class="wp-addr" id="wpCopy" title="Copy address"><span class="wp-addr-txt">' + esc(Enclave.address) + '</span><span aria-hidden="true">⧉</span></button></div>' +
     '<div class="wp-row"><span class="wp-k">Network</span><span class="wp-v">' + (Enclave.chainId === BASE_CHAIN ? "Base" : ("chain " + (Enclave.chainId || "–"))) + (offBase ? ' <button class="wp-mini" id="wpSwitch">switch to Base</button>' : "") + '</span></div>' +
     '<div class="wp-row"><span class="wp-k">Balance</span><button class="wp-v wp-link" id="wpBalUsdc" type="button" title="Deposit">…</button></div>' +
-    '<div class="wp-fund"><button class="wp-mini" id="wpDep">Deposit</button></div>' +
     '<hr class="wp-sep">' +   // the wallet above, this browser's session below
     '<div class="wp-row"><span class="wp-k">Session</span><span class="wp-v" id="wpSess">…</span></div>' +
     '<div class="wp-fund">' +
@@ -662,8 +661,8 @@ export async function renderWalletPop(){
   popExpanded(true);
   const c = $("#wpCopy"); if (c) c.addEventListener("click", () => copyText(Enclave.address));
   const d = $("#wpDisc"); if (d) d.addEventListener("click", disconnectWallet);
-  // the balance itself is a way in to Deposit, like the button under it
-  for (const id of ["#wpDep", "#wpBalUsdc"]){ const el = $(id); if (el) el.addEventListener("click", () => { pop.hidden = true; popExpanded(false); openDepositModal(); }); }
+  // the balance is the way in to Deposit
+  const bal = $("#wpBalUsdc"); if (bal) bal.addEventListener("click", () => { pop.hidden = true; popExpanded(false); openDepositModal(); });
   const ss = $("#wpSessions"); if (ss) ss.addEventListener("click", () => { pop.hidden = true; popExpanded(false); });   // boot.js navigates
   usdcBalanceOf(Enclave.address).then(
     (b) => { const u = $("#wpBalUsdc"); if (u) u.textContent = b.toFixed(2) + " USDC"; },
