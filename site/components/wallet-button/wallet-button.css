@@ -16,7 +16,12 @@ c-wallet-button{display:contents;}
 .wallet-pop{position:absolute;top:calc(100% + 10px);left:0;z-index:60;width:300px;background:#0b1119;border:1px solid var(--line);border-radius:12px;box-shadow:0 30px 60px -28px rgba(0,0,0,.9);padding:14px;font-family:var(--font-mono);}
 .nav-inner .wallet-pop{left:auto;right:0;}  /* drop down aligned to the header's right edge */
 .wp-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line-soft);font-size:.78rem;}
-.wp-k{color:var(--text-muted);} .wp-v{color:var(--text);} .wp-v .ok{color:var(--jade);}
+.wp-k{color:var(--text-muted);}
+/* the full address, two lines of 22 + 20 characters (a soft wrap: selecting it copies one line), copy glyph beside */
+.wp-row-addr{align-items:flex-start;} .wp-row-addr .wp-k{flex:none;padding-top:3px;}
+.wp-row-addr .wp-addr{gap:8px;min-width:0;text-align:left;}
+.wp-addr-txt{max-width:22ch;font-size:.74rem;word-break:break-all;line-height:1.35;}
+.wp-v{color:var(--text);} .wp-v .ok{color:var(--jade);}
 .wp-addr{background:none;border:0;color:var(--jade);cursor:pointer;font-family:inherit;font-size:.8rem;min-height:24px;display:inline-flex;align-items:center;}
 .wp-mini{background:#101a24;border:1px solid var(--line);color:var(--iris);border-radius:6px;padding:.15em .5em;cursor:pointer;font-family:inherit;font-size:.7rem;line-height:1;min-height:24px;min-width:24px;display:inline-flex;align-items:center;justify-content:center;}
 .wp-bal{margin:10px 0;font-size:.76rem;color:var(--text-muted);} .wp-bal .bl-h{color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;font-size:.62rem;margin-bottom:5px;}

@@ -648,7 +648,7 @@ export async function renderWalletPop(){
   }
   const offBase = Enclave.chainId && Enclave.chainId !== BASE_CHAIN;
   pop.innerHTML =
-    '<div class="wp-row"><span class="wp-k">Wallet</span><button class="wp-addr" id="wpCopy">' + esc(short(Enclave.address)) + ' ⧉</button></div>' +
+    '<div class="wp-row wp-row-addr"><span class="wp-k">Wallet</span><button class="wp-addr" id="wpCopy" title="Copy address"><span class="wp-addr-txt">' + esc(Enclave.address) + '</span><span aria-hidden="true">⧉</span></button></div>' +
     '<div class="wp-row"><span class="wp-k">Network</span><span class="wp-v">' + (Enclave.chainId === BASE_CHAIN ? "Base" : ("chain " + (Enclave.chainId || "–"))) + (offBase ? ' <button class="wp-mini" id="wpSwitch">switch to Base</button>' : "") + '</span></div>' +
     '<div class="wp-row"><span class="wp-k">Balance</span><span class="wp-v" id="wpBalUsdc">…</span></div>' +
     '<div class="wp-fund"><button class="wp-mini" id="wpDep">Deposit</button></div>' +
