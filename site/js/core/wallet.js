@@ -652,7 +652,9 @@ export async function renderWalletPop(){
   const offBase = Enclave.chainId && Enclave.chainId !== BASE_CHAIN;
   pop.innerHTML =
     '<div class="wp-row wp-row-addr"><span class="wp-k">Wallet</span><button class="wp-addr" id="wpCopy" title="Copy address"><span class="wp-addr-txt">' + esc(Enclave.address) + '</span><span aria-hidden="true">⧉</span></button></div>' +
-    '<div class="wp-row"><span class="wp-k">Network</span><span class="wp-v">' + (Enclave.chainId === BASE_CHAIN ? "Base" : ("chain " + (Enclave.chainId || "–"))) + (offBase ? ' <button class="wp-mini" id="wpSwitch">switch to Base</button>' : "") + '</span></div>' +
+    '<div class="wp-row"><span class="wp-k">Network</span><span class="wp-v">' + (Enclave.chainId === BASE_CHAIN
+      ? '<a class="wp-link" href="https://basescan.org/address/' + esc(Enclave.address) + '" target="_blank" rel="noopener" title="Your wallet on Basescan">Base</a>'
+      : ("chain " + (Enclave.chainId || "–"))) + (offBase ? ' <button class="wp-mini" id="wpSwitch">switch to Base</button>' : "") + '</span></div>' +
     '<div class="wp-row"><span class="wp-k">Balance</span><button class="wp-v wp-link" id="wpBal" type="button" title="Deposit"><span id="wpBalUsdc">…</span>' + UP + '</button></div>' +
     '<hr class="wp-sep">' +   // the wallet above, this browser's session below
     // the session row ends the popover: its budget and time, then All (every session) and Sign out, right-aligned
