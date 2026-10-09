@@ -94,7 +94,7 @@ final class RelayKeeper {
     private boolean attempt() {
         final int n = ++attempts;
         final RelayAttach r = new RelayAttach(plan.relay, plan.name, spki);
-        r.attachSigner = plan.attachSigner; r.padKey = padKey;
+        r.attachSigner = plan.attachSigner; r.hostAgent = plan.hostAgent; r.padKey = padKey;
         try { r.challenge(); }
         catch (Exception e) { Main.say("RELAY re-attach " + n + ": dial failed: " + e); r.close(); return false; }
         // the VM's answer to the relay's new nonce: collected between "REATTACH begin" and "REATTACH end"

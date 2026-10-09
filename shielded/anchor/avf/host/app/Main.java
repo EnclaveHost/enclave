@@ -128,7 +128,10 @@ public class Main extends Activity {
         String appSha = "";                  // --es app_sha256: TEST HOOK -- announce this digest instead of the file's (the VM must refuse)
         String appGraph = "";                // --es app_graph <name>: the component runs over the staged model (LOCAL line + APP graph=), wasi:nn
         String appHttp = "";                 // --es app_http "/ping|/?q=1": a wasi:http app (APP serve=http); these GETs are sent to it, then STOP
-        int appTls = 0;                      // --ei app_tls 1: LAB serving prototype: APP serve=https (TLS in the VM), reached only through the relay
+        int appTls = 0;                      // --ei app_tls 1: LAB serving prototype: APP serve=https (TLS in the VM), reached only through the relay;
+                                             // 2: the marketplace host: APP serve=https-p256 (a CA-trustable key in the VM), reached through the bridges
+        String hostAgent = null;             // --es host_agent http://127.0.0.1:<port>: the owner's host agent; the relay's host requests go to it
+        int bridgeApp = 17786, bridgeEvidence = 17787;   // --ei bridge_app / bridge_evidence: the loopback ports of the VM's TLS app port and evidence endpoint (app_tls 2)
         int appServeS = 240;                 // --ei app_serve_s N: LAB: STOP the served app after N seconds; 0 = serve until stopped (a host in production)
         String appAnnounced = "";            // the APP line's digest (the app's identity), for the ABI/2 evidence frame
         String attachSigner = null;          // --es attach_signer <http(s) URL>: the owner's attach co-signer (RUNNER-AGENT.md "Attach")
@@ -223,6 +226,10 @@ public class Main extends Activity {
             p.appTls = i.getIntExtra("app_tls", 0); p.appServeS = i.getIntExtra("app_serve_s", p.appServeS);
             if (i.getStringExtra("proof_pins") != null) p.proofPins = i.getStringExtra("proof_pins").trim();
             if (i.getStringExtra("attach_signer") != null) p.attachSigner = i.getStringExtra("attach_signer").trim();
+            if (i.getStringExtra("host_agent") != null) p.hostAgent = i.getStringExtra("host_agent").trim();
+            p.bridgeApp = i.getIntExtra("bridge_app", p.bridgeApp); p.bridgeEvidence = i.getIntExtra("bridge_evidence", p.bridgeEvidence);
+            if (p.hostAgent != null && !p.hostAgent.matches("http://(127\\.0\\.0\\.1|localhost):\\d{1,5}")) p.configError = "host_agent must be the owner's loopback agent, http://127.0.0.1:<port>";
+            if (p.bridgeApp < 1024 || p.bridgeApp > 65535 || p.bridgeEvidence < 1024 || p.bridgeEvidence > 65535 || p.bridgeApp == p.bridgeEvidence) p.configError = "bridge_app and bridge_evidence must be two different ports 1024..65535";
             if (p.attachSigner != null && !p.attachSigner.matches("https?://[^\\s]+/attach-sign")) p.configError = "attach_signer must be the owner's http(s) co-signer URL ending /attach-sign";
             if (!p.proofPins.matches("[0-9a-fx ]*")) p.configError = "proof_pins must be the six pins, lowercase, space-separated";
             if (p.mode.equals("app") && p.configError.isEmpty()) {
@@ -237,7 +244,8 @@ public class Main extends Activity {
                 else if (!p.appGraph.isEmpty() && !p.appGraph.matches("[a-z0-9][a-z0-9._-]{0,63}")) p.configError = "app_graph must be 1..64 of [a-z0-9._-], starting with a letter or digit";
                 else if (!p.appGraph.isEmpty() && !new java.io.File(p.model).isFile()) p.configError = "app_graph runs the app over the model, and model " + p.model + " is not a file";
                 else if (!p.appHttp.isEmpty() && !p.appArgs.isEmpty()) p.configError = "app_http serves the component over HTTP: it takes no app_args";
-                else if (p.appTls != 0 && (p.appTls != 1 || !p.appHttp.isEmpty() || !p.appArgs.isEmpty() || p.relay == null)) p.configError = "app_tls 1 (lab) serves the component over TLS through the relay: it needs --es relay and takes no app_http or app_args";
+                else if (p.appTls == 2 && (!p.appHttp.isEmpty() || !p.appArgs.isEmpty() || p.relay == null || p.appServeS != 0)) p.configError = "app_tls 2 (the marketplace host) serves the component until stopped with a CA-trustable key: it needs --es relay and app_serve_s 0, and takes no app_http or app_args";
+                else if (p.appTls != 0 && p.appTls != 2 && (p.appTls != 1 || !p.appHttp.isEmpty() || !p.appArgs.isEmpty() || p.relay == null)) p.configError = "app_tls 1 (lab) serves the component over TLS through the relay: it needs --es relay and takes no app_http or app_args";
                 else if (p.appServeS != 0 && (p.appServeS < 10 || p.appServeS > 3600)) p.configError = "app_serve_s must be 0 (serve until stopped) or 10..3600";
                 else if (p.appServeS == 0 && (!p.appArgs.isEmpty() || !p.appHttp.isEmpty())) p.configError = "app_serve_s 0 serves the component until stopped: it takes no app_args or app_http test hook";
                 else if (!p.appHttp.isEmpty() && !p.appHttp.matches("(/[\\x21-\\x7e]{0,1023})(\\|/[\\x21-\\x7e]{0,1023}){0,7}")) p.configError = "app_http is 1..8 paths separated by |, each starting with / and holding no spaces or control bytes";
@@ -578,7 +586,7 @@ public class Main extends Activity {
             String chal, boundHex = "";
             if (plan.relay != null && spki != null) {
                 relay = new RelayAttach(plan.relay, plan.name, spki);
-                relay.attachSigner = plan.attachSigner;
+                relay.attachSigner = plan.attachSigner; relay.hostAgent = plan.hostAgent;
                 relay.padKey = padKey;
                 try { chal = relay.challenge(); boundHex = RelayAttach.hex(relay.bound); }
                 catch (Exception e) { say("RELAY dial failed: " + e + " (continuing with a local challenge)"); relay = null; byte[] c = new byte[32]; new SecureRandom().nextBytes(c); chal = RelayAttach.hex(c); }
@@ -714,7 +722,7 @@ public class Main extends Activity {
                 }
                 if (!plan.proofPins.isEmpty()) { cmd.append("PROOFPINS ").append(plan.proofPins).append('\n'); say("APP proof pins handed to the VM (it signs checkpoints for these only)"); }
                 cmd.append("APP bytes=").append(abytes).append(" sha256=").append(asha).append(aargs).append(plan.appGraph.isEmpty() ? "" : " graph=" + plan.appGraph)
-                   .append(plan.appTls == 1 ? " serve=https" : plan.appHttp.isEmpty() && plan.appServeS != 0 ? "" : " serve=http").append('\n');
+                   .append(plan.appTls == 2 ? " serve=https-p256" : plan.appTls == 1 ? " serve=https" : plan.appHttp.isEmpty() && plan.appServeS != 0 ? "" : " serve=http").append('\n');
                 new Thread(() -> streamPublicFile(vm, APP_PORT, plan.app, "app bundle"), "vsock-app").start();
                 say("APP plan: " + plan.app + " (" + abytes + " bytes, sha256 " + asha + (plan.appSha.isEmpty() ? "" : ", ANNOUNCED BY THE TEST HOOK, not the file's") + "), args " + (plan.appArgs.isEmpty() ? "none" : plan.appArgs));
             }
@@ -770,6 +778,15 @@ public class Main extends Activity {
                     if (secs > 0) new Thread(() -> { try { Thread.sleep(secs * 1000L); } catch (InterruptedException ignored) { }
                         try { synchronized (o) { o.write("STOP\n".getBytes()); o.flush(); } say("APP https: STOP sent (lab time limit)"); } catch (Exception e) { say("APP https: STOP not sent: " + e); } }, "app-tls-stop").start();
                 }
+                if (line.startsWith("APP serving https-p256") && plan.appTls == 2 && bridges.isEmpty()) {
+                    // the marketplace host: the owner's host reaches the VM's TLS app port (buyers' ciphertext, through TUNA) and its
+                    // evidence endpoint (AUTH <token> first) on loopback, over adb forward (LocalBridge.java)
+                    final String token = LocalBridge.writeToken(appCtx);
+                    final LocalBridge ba = new LocalBridge(vm, plan.bridgeApp, APP_HTTP_PORT, null, "app-tls");
+                    if (ba.start()) bridges.add(ba);
+                    if (token != null) { final LocalBridge be = new LocalBridge(vm, plan.bridgeEvidence, EVIDENCE_PORT, token, "evidence"); if (be.start()) bridges.add(be); }
+                    else say("BRIDGE evidence NOT started: no token could be written");
+                }
                 if ((line.startsWith("APP serving https") || (line.startsWith("APP serving http ") && plan.appServeS == 0)) && keeper != null) keeper.arm();   // REATTACH is taken only while the app serves
                 if (line.startsWith("APP serving ") && plan.appServeS == 0) {
                     // serving until stopped: the VM ends a server that hears nothing for an hour, so the owner says ALIVE every 30 min
@@ -791,6 +808,7 @@ public class Main extends Activity {
             }
             burnersOn = false;   /* a finished leg leaves the app idle: the burners exist only while the VM decodes */
             if (keeper != null) keeper.stop();   // before the channel closes: no re-attach outlives the VM's session
+            for (LocalBridge b : bridges) b.close(); bridges.clear();
             try { pfd.close(); } catch (Exception ignored) { }
             if (relay != null) relay.close();
             if (localThread != null) { try { localThread.join(10000); } catch (InterruptedException ignored) { } }
@@ -809,6 +827,8 @@ public class Main extends Activity {
     static final int DRAFT_PORT = 7783;
     static final int APP_PORT = 7785;       // the portable component (payload/anchor_app.h)
     static final int APP_HTTP_PORT = 7786;  // HTTP/1.1 to a served wasi:http app (APP ... serve=http)
+    static final int EVIDENCE_PORT = 7787;  // the VM's evidence endpoint while an app serves over TLS (payload anchor_payload.c)
+    static final java.util.List<LocalBridge> bridges = new java.util.concurrent.CopyOnWriteArrayList<>();
     /* The test hook behind --es app_http: each path as its own GET on its own connection (Connection: close), the whole raw
      * response into the capture as APPHTTP <i> ms=<wall> <hex>, then STOP on the control channel. The product path puts the
      * relay tunnel where this loop is. */

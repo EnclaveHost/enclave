@@ -146,7 +146,7 @@ static const uint8_t ED25519_SPKI_PREFIX[12] = { 0x30,0x2a,0x30,0x05,0x06,0x03,0
 #define ECHO_PORT   7780
 #define BUNDLE_PORT 7782     /* owner -> guest: the PUBLIC Shielded-TPU lane bundle (u64 size; 'K' = already stored at that size, 'S' = send) */
 #define APP_PORT    7785     /* owner -> guest: a portable WebAssembly component (the APP line; anchor_public_file.h framing) */
-#define APP_HTTP_PORT 7786   /* owner -> guest: HTTP/1.1 to a served wasi:http app (APP ... serve=http), one connection at a time */
+#define APP_HTTP_PORT 7786   /* owner -> guest: HTTP/1.1 (or TLS) to a served wasi:http app (APP ... serve=...), a thread per connection */
 #define DRAFT_PORT  7783     /* owner -> guest: an optional drafter GGUF for speculative rows (same framing as the bundle port) */
 #define BENCH_PORT  7784     /* owner -> guest: link-scaling benchmark connections ONLY (tpu_link_bench). A SEPARATE
                               * port on purpose: the benchmark links were first opened on WORKER_PORT alongside the
@@ -1363,7 +1363,8 @@ static int app_attest_abi2(const char *identity, const uint8_t app_sha[32]) {
  * nonce with a fresh ABI/2 certificate for this app and this VM's transport key, so a client verifies the VM itself and
  * never takes a key or a verdict from the relay or the phone. One line in, `EVIDENCE <64 lowercase hex>`; one JSON line
  * out (format enclave-pvm-app-evidence/v1: nonce, app, spki, identity, selftest, chain). Bounded: a 5 s read, one request
- * per connection, at most one answer every 2 s and 120 per session. Logs public facts only (the nonce prefix, the count). */
+ * per connection, attestations paced by one bucket (evidence_token: 4, one more per 2 s). Logs public facts only (the nonce
+ * prefix, the count). The marketplace host (serve=https-p256) also takes CSR and CERT here (tls_answer). */
 #define EVIDENCE_PORT 7787
 static const char B64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 static size_t b64_encode(const uint8_t *in, size_t n, char *out) {
@@ -1377,16 +1378,45 @@ static size_t b64_encode(const uint8_t *in, size_t n, char *out) {
 }
 /* v2 (the browser channel, PVM-CPU.md): with an app key, each answer also carries appKey (the X25519 key pvm-rt made in this
  * process for sealed requests) and appKeySig, the transport key's Ed25519 signature over "enclave-pvm-app-key-v1\n" ||
- * nonce || app || appKey; the answered nonce then admits sealed requests (pvm-rt sealed.rs: its window and budget). */
+ * nonce || app || appKey; the answered nonce then admits sealed requests (pvm-rt sealed.rs: its window and budget).
+ * v4 (the marketplace host, PVM-CPU.md "Serving buyers"): v3 plus the TLS key a browser trusts -- tlsSpki (the P-256 key's
+ * DER SPKI, derived in pvm-rt from this instance's secret for this app) and tlsKeySig, the transport key's signature over
+ * "enclave-pvm-tls-key-v1\n" || nonce || app || InstanceID || sha256(tlsSpki) -- with appSha256 and transportKey (base64 of
+ * tlsSpki) restating them in the names a route probe reads. The same document answers the evidence endpoint's EVIDENCE3
+ * and the TLS port's GET /.well-known/enclave-attestation?nonce=..., so a client checks it on the connection whose key it binds. */
 typedef int (*pvmrt_http_sealed_nonce_fn)(const void *, const uint8_t *);
 typedef int (*pvmrt_pot_address_fn)(const uint8_t *, uint8_t *);
 typedef int (*pvmrt_pot_sign_fn)(const uint8_t *, uint64_t, const uint8_t *, const uint8_t *, const uint8_t *, const uint8_t *, uint64_t, uint64_t,
                                  const uint8_t *, uint8_t *, uint8_t *);
+typedef int (*pvmrt_https_csr_fn)(const void *, const char *, uint8_t *, size_t, char *, size_t);
+typedef int (*pvmrt_https_set_chain_fn)(const void *, const uint8_t *, size_t, char *, size_t);
 typedef struct { int ls; volatile int stop; const char *identity; uint8_t app[32]; int answered;
                  int sealed; uint8_t app_key[32]; const void *srv; pvmrt_http_sealed_nonce_fn admit;
                  /* the lease proof key (PROOF-KEY.md): on only with pins, a seed and pvm-rt's signer; serving: the app loop runs */
                  int proof_on; volatile int serving; uint8_t proof_addr[20]; pvmrt_pot_sign_fn pot_sign;
-                 uint64_t last_upto, last_anchor, last_cp_ms; } evidence_srv;
+                 uint64_t last_upto, last_anchor, last_cp_ms;
+                 /* the marketplace TLS key (serve=https-p256): its SPKI, and pvm-rt's request and chain calls */
+                 size_t tls_len; uint8_t tls_spki[128]; pvmrt_https_csr_fn csr; pvmrt_https_set_chain_fn set_chain; uint64_t last_cert_ms; } evidence_srv;
+/* The evidence pace: every fresh attestation for a caller's nonce -- the evidence endpoint's EVIDENCE, EVIDENCE3 and PROOFKEY
+ * and the TLS port's /.well-known/enclave-attestation alike -- takes a token from ONE bucket of 4, refilled one per 2 s. A
+ * caller waits up to 6 s for one; then it is refused with the endpoint's old words, which the proof agent retries. A server
+ * that runs until stopped has no per-session cap (the lab's 120 answers would have ended a host's evidence in hours). */
+static pthread_mutex_t g_ev_mu = PTHREAD_MUTEX_INITIALIZER;
+static double g_ev_tokens = 4; static uint64_t g_ev_at = 0;
+static int evidence_token(void) {
+    for (int waited = 0; waited <= 6000; waited += 100) {
+        pthread_mutex_lock(&g_ev_mu);
+        const uint64_t now = boot_ms();
+        if (g_ev_at) { g_ev_tokens += (double)(now - g_ev_at) / 2000.0; if (g_ev_tokens > 4) g_ev_tokens = 4; }
+        g_ev_at = now;
+        const int ok = g_ev_tokens >= 1; if (ok) g_ev_tokens -= 1;
+        pthread_mutex_unlock(&g_ev_mu);
+        if (ok) return 1;
+        usleep(100000);
+    }
+    return 0;
+}
+#define EV_RATE_REFUSAL "one evidence answer every 2 s"   /* runner/proof-agent.mjs VM_RATE_REFUSAL, verbatim */
 /* CHECKPOINT <upto> <anchorBlock> <anchorHash>: one EnclaveProofOfTime signature under the VM's policy, refusing in this order
  * (the host tests' fake VM is held to the same): the request's form, the pins, the app serving, a strictly increasing upto, a
  * non-decreasing anchor, one per 60 s. The digest is built in pvm-rt from THESE pins and the three values -- no other path
@@ -1417,32 +1447,24 @@ static void checkpoint_answer(evidence_srv *e, int c, const char *line) {
     if (n > 0 && (size_t)n < sizeof js) { write_all(c, js, (size_t)n); OUT("CHECKPOINT signed upto=%llu anchorBlock=%llu digest=%.16s...", (unsigned long long)upto, (unsigned long long)anchor, dg); }
 #undef CP_REFUSE
 }
-static void evidence_answer(evidence_srv *e, int c) {
-    struct timeval tv = { 5, 0 }; setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
-    char line[128]; size_t n = 0;
-    while (n + 1 < sizeof line) { char ch; ssize_t r = read(c, &ch, 1); if (r <= 0) break; if (ch == '\n') break; line[n++] = ch; }
-    line[n] = 0;
-    if (!strncmp(line, "CHECKPOINT", 10)) { checkpoint_answer(e, c, line); return; }
-    /* PROOFKEY <nonce>: the v3 envelope for that nonce, wrapped in the attested proof-key statement (PROOF-KEY.md) */
-    const int pk = strncmp(line, "PROOFKEY ", 9) == 0;
-    if (pk && !e->proof_on) { write_all(c, "{\"error\":\"no proof pins: no proof-key statement\"}\n", strlen("{\"error\":\"no proof pins: no proof-key statement\"}\n")); return; }
-    const int v3 = pk || strncmp(line, "EVIDENCE3 ", 10) == 0;   /* v3: bound to this VM instance (INSTANCE-BINDING.md) */
-    const char *h = line + (pk ? 9 : v3 ? 10 : 9); size_t hl = 0;
-    if (pk || v3 || strncmp(line, "EVIDENCE ", 9) == 0) while (hl < 64 && ((h[hl] >= '0' && h[hl] <= '9') || (h[hl] >= 'a' && h[hl] <= 'f'))) hl++;
-    if (hl != 64 || h[64] != 0) { write_all(c, "{\"error\":\"request is EVIDENCE <64 lowercase hex> or EVIDENCE3 <64 lowercase hex>\"}\n", strlen("{\"error\":\"request is EVIDENCE <64 lowercase hex> or EVIDENCE3 <64 lowercase hex>\"}\n")); return; }
-    if (v3 && (!g_inst || !e->sealed)) { write_all(c, "{\"error\":\"v3 evidence needs this VM's instance key and a sealed app key\"}\n", strlen("{\"error\":\"v3 evidence needs this VM's instance key and a sealed app key\"}\n")); return; }
-    if (e->answered >= 120) { write_all(c, "{\"error\":\"evidence budget spent for this session\"}\n", strlen("{\"error\":\"evidence budget spent for this session\"}\n")); return; }
-    uint8_t nonce[32], rid[32], bind[32]; unhex(h, nonce, 32); abi2_instance inst;
+/* The evidence document for `nonce` (one JSON line, '\n'-terminated, malloc'd), or NULL with *why. v3 also needs this VM's
+ * instance key and the sealed app key; with the marketplace TLS key a v3 answer is v4. Thread-safe: the attestation request is
+ * serialised (request_attestation) and the rest reads state fixed before serving began. */
+static char *evidence_doc(evidence_srv *e, const uint8_t nonce[32], int v3, size_t *len, const char **why) {
+    if (v3 && (!g_inst || !e->sealed)) { *why = "v3 evidence needs this VM's instance key and a sealed app key"; return NULL; }
+    const int v4 = v3 && e->tls_len > 0;
+    uint8_t rid[32], bind[32]; abi2_instance inst;
     AVmAttestationStatus st; AVmAttestationResult *res = abi2_certify(e->identity, nonce, e->app, rid, bind, v3 ? &inst : NULL, &st);
-    if (!res) { OUT("EVIDENCE unavailable: attestation status=%s", AVmAttestationStatus_toString(st)); write_all(c, "{\"error\":\"attestation unavailable\"}\n", strlen("{\"error\":\"attestation unavailable\"}\n")); return; }
+    if (!res) { OUT("EVIDENCE unavailable: attestation status=%s", AVmAttestationStatus_toString(st)); *why = "attestation unavailable"; return NULL; }
     const size_t k = AVmAttestationResult_getCertificateCount(res);
-    /* the answer's size, exactly: 4 KiB for the fields, the escaped identity (<= 2 x its 1024-byte bound) and the tail, plus
-     * each certificate's exact base64 length and its quotes and comma. The old estimate (1 KiB + 4/3 of each certificate,
-     * integer division) left v3's two extra fields without room: snprintf cut the final "]}\n" to "]}" + NUL on some
-     * attestations (seen on the device, 2026-09-24: a v3 answer ending in 0x00, which the client refused as unparseable) */
-    size_t cap = 4096 + 2 * strlen(e->identity); for (size_t i = 0; i < k; i++) cap += (AVmAttestationResult_getCertificateAt(res, i, NULL, 0) + 2) / 3 * 4 + 4;
+    /* the answer's size, exactly: 4 KiB for the fields (v4's TLS fields included), the escaped identity (<= 2 x its 1024-byte
+     * bound) and the tail, plus each certificate's exact base64 length and its quotes and comma. The old estimate (1 KiB + 4/3
+     * of each certificate, integer division) left v3's two extra fields without room: snprintf cut the final "]}\n" to "]}" +
+     * NUL on some attestations (seen on the device, 2026-09-24: a v3 answer ending in 0x00, which the client refused) */
+    size_t cap = 4096 + 2 * strlen(e->identity) + (v4 ? 2 * e->tls_len + 4 * e->tls_len / 3 + 64 : 0);
+    for (size_t i = 0; i < k; i++) cap += (AVmAttestationResult_getCertificateAt(res, i, NULL, 0) + 2) / 3 * 4 + 4;
     char *js = malloc(cap); uint8_t *der = NULL;
-    if (!js) { AVmAttestationResult_free(res); return; }
+    if (!js) { AVmAttestationResult_free(res); *why = "out of memory"; return NULL; }
     char nh[65], ah[65], sh[89]; uint8_t spki[44]; memcpy(spki, ED25519_SPKI_PREFIX, 12); memcpy(spki + 12, g_tpk, 32);
     sh_pads_bin2hex(nonce, 32, nh); sh_pads_bin2hex(e->app, 32, ah); for (int i = 0; i < 44; i++) sprintf(sh + 2 * i, "%02x", spki[i]);
     size_t o;
@@ -1452,7 +1474,22 @@ static void evidence_answer(evidence_srv *e, int c) {
         memcpy(m + sizeof dom - 1 + 64, inst.id, 32); memcpy(m + sizeof dom - 1 + 96, e->app_key, 32);
         { uint8_t sm[64 + sizeof m]; unsigned long long smlen = 0; crypto_sign(sm, &smlen, m, sizeof m, g_tsk); memcpy(sig, sm, 64); }
         sh_pads_bin2hex(e->app_key, 32, kh); sh_pads_bin2hex(sig, 64, sg); sh_pads_bin2hex(inst.spki, 44, ik); sh_pads_bin2hex(inst.sig, 64, is);
-        o = (size_t)snprintf(js, cap, "{\"format\":\"enclave-pvm-app-evidence/v3\",\"nonce\":\"%s\",\"app\":\"%s\",\"spki\":\"%s\",\"instanceKey\":\"%s\",\"instanceSig\":\"%s\",\"appKey\":\"%s\",\"appKeySig\":\"%s\",\"identity\":\"", nh, ah, sh, ik, is, kh, sg);
+        o = (size_t)snprintf(js, cap, "{\"format\":\"enclave-pvm-app-evidence/%s\",\"nonce\":\"%s\",\"app\":\"%s\",\"spki\":\"%s\",\"instanceKey\":\"%s\",\"instanceSig\":\"%s\",\"appKey\":\"%s\",\"appKeySig\":\"%s\",",
+                             v4 ? "v4" : "v3", nh, ah, sh, ik, is, kh, sg);
+        if (v4) {   /* the TLS key a browser trusts, vouched for under THIS nonce, app and instance */
+            static const char tdom[] = "enclave-pvm-tls-key-v1\n"; uint8_t tm[sizeof tdom - 1 + 128], tsig[64], th[32]; char tsg[129];
+            sha256(e->tls_spki, e->tls_len, th);
+            memcpy(tm, tdom, sizeof tdom - 1); memcpy(tm + sizeof tdom - 1, nonce, 32); memcpy(tm + sizeof tdom - 1 + 32, e->app, 32);
+            memcpy(tm + sizeof tdom - 1 + 64, inst.id, 32); memcpy(tm + sizeof tdom - 1 + 96, th, 32);
+            { uint8_t sm[64 + sizeof tm]; unsigned long long smlen = 0; crypto_sign(sm, &smlen, tm, sizeof tm, g_tsk); memcpy(tsig, sm, 64); }
+            sh_pads_bin2hex(tsig, 64, tsg);
+            o += (size_t)snprintf(js + o, cap - o, "\"tlsSpki\":\"");
+            sh_pads_bin2hex(e->tls_spki, e->tls_len, js + o); o += 2 * e->tls_len;
+            o += (size_t)snprintf(js + o, cap - o, "\",\"tlsKeySig\":\"%s\",\"appSha256\":\"%s\",\"transportKey\":\"", tsg, ah);
+            o += b64_encode(e->tls_spki, e->tls_len, js + o);
+            o += (size_t)snprintf(js + o, cap - o, "\",");
+        }
+        o += (size_t)snprintf(js + o, cap - o, "\"identity\":\"");
     } else if (e->sealed) {   /* v2: the app key, vouched for by the attested transport key under THIS nonce and THIS app */
         static const char dom[] = "enclave-pvm-app-key-v1\n"; uint8_t m[sizeof dom - 1 + 96], sig[64]; char kh[65], sg[129];
         memcpy(m, dom, sizeof dom - 1); memcpy(m + sizeof dom - 1, nonce, 32); memcpy(m + sizeof dom - 1 + 32, e->app, 32); memcpy(m + sizeof dom - 1 + 64, e->app_key, 32);
@@ -1472,8 +1509,60 @@ static void evidence_answer(evidence_srv *e, int c) {
     AVmAttestationResult_free(res); free(der);
     if (o >= cap || js[o - 1] != '\n') {   /* fail closed: a cut answer is never sent as evidence */
         OUT("EVIDENCE refused: the answer (%zu bytes) did not fit its buffer (%zu)", o, cap);
-        write_all(c, "{\"error\":\"evidence answer did not fit\"}\n", strlen("{\"error\":\"evidence answer did not fit\"}\n")); free(js); return;
+        free(js); *why = "evidence answer did not fit"; return NULL;
     }
+    *len = o; return js;
+}
+/* CSR <name>: the P-256 key's certificate request for that name (pvm-rt checks the name). CERT <bytes>, then exactly that many
+ * bytes of PEM: the CA's chain for this key, installed for every later handshake (pvm-rt refuses a chain for any other key,
+ * so the installer can choose a name and nothing else). One CERT per 10 s. */
+static void tls_answer(evidence_srv *e, int c, const char *line) {
+#define TLS_REFUSE(msg) do { char m_[700]; const int n_ = snprintf(m_, sizeof m_, "{\"error\":\"%s\"}\n", msg); write_all(c, m_, (size_t)n_); OUT("TLS %.4s refused: %s", line, msg); return; } while (0)
+    if (!e->tls_len || !e->csr || !e->set_chain) TLS_REFUSE("no marketplace TLS key (serve=https-p256)");
+    if (!strncmp(line, "CSR ", 4)) {
+        uint8_t der[4096]; char err[512] = "";
+        const int n = e->csr(e->srv, line + 4, der, sizeof der, err, sizeof err);
+        if (n <= 0) { for (char *q = err; *q; q++) if (*q == '"' || *q == '\\' || (unsigned char)*q < 0x20) *q = '\''; TLS_REFUSE(err); }
+        char *js = malloc(64 + (size_t)n * 2);
+        if (!js) TLS_REFUSE("out of memory");
+        size_t o = (size_t)snprintf(js, 64, "{\"csr\":\""); o += b64_encode(der, (size_t)n, js + o);
+        memcpy(js + o, "\"}\n", 3); o += 3;
+        write_all(c, js, o); free(js);
+        OUT("TLS CSR made for %.100s (%d bytes, the P-256 key)", line + 4, n); return;
+    }
+    uint64_t want = 0;
+    if (strncmp(line, "CERT ", 5) || !parse_u64_dec(line + 5, &want) || !want || want > 32768) TLS_REFUSE("request is CSR <name> or CERT <1..32768>");
+    const uint64_t now = boot_ms();
+    if (e->last_cert_ms && now - e->last_cert_ms < 10000) TLS_REFUSE("at most one CERT every 10 s");
+    e->last_cert_ms = now;
+    uint8_t *pem = malloc(want); size_t got = 0;
+    if (!pem) TLS_REFUSE("out of memory");
+    while (got < want) { const ssize_t r = read(c, pem + got, want - got); if (r <= 0) break; got += (size_t)r; }
+    if (got != want) { free(pem); TLS_REFUSE("the chain's bytes did not all arrive"); }
+    char err[512] = ""; const int k = e->set_chain(e->srv, pem, got, err, sizeof err); free(pem);
+    if (k <= 0) { for (char *q = err; *q; q++) if (*q == '"' || *q == '\\' || (unsigned char)*q < 0x20) *q = '\''; TLS_REFUSE(err); }
+    char js[64]; const int n = snprintf(js, sizeof js, "{\"ok\":true,\"certs\":%d}\n", k); write_all(c, js, (size_t)n);
+    OUT("TLS chain installed (%d certificates): every new handshake presents it", k);
+#undef TLS_REFUSE
+}
+static void evidence_answer(evidence_srv *e, int c) {
+    struct timeval tv = { 5, 0 }; setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+    char line[320]; size_t n = 0;
+    while (n + 1 < sizeof line) { char ch; ssize_t r = read(c, &ch, 1); if (r <= 0) break; if (ch == '\n') break; line[n++] = ch; }
+    line[n] = 0;
+    if (!strncmp(line, "CHECKPOINT", 10)) { checkpoint_answer(e, c, line); return; }
+    if (!strncmp(line, "CSR ", 4) || !strncmp(line, "CERT ", 5)) { tls_answer(e, c, line); return; }
+    /* PROOFKEY <nonce>: the v3 envelope for that nonce, wrapped in the attested proof-key statement (PROOF-KEY.md) */
+    const int pk = strncmp(line, "PROOFKEY ", 9) == 0;
+    if (pk && !e->proof_on) { write_all(c, "{\"error\":\"no proof pins: no proof-key statement\"}\n", strlen("{\"error\":\"no proof pins: no proof-key statement\"}\n")); return; }
+    const int v3 = pk || strncmp(line, "EVIDENCE3 ", 10) == 0;   /* v3: bound to this VM instance (INSTANCE-BINDING.md) */
+    const char *h = line + (pk ? 9 : v3 ? 10 : 9); size_t hl = 0;
+    if (pk || v3 || strncmp(line, "EVIDENCE ", 9) == 0) while (hl < 64 && ((h[hl] >= '0' && h[hl] <= '9') || (h[hl] >= 'a' && h[hl] <= 'f'))) hl++;
+    if (hl != 64 || h[64] != 0) { write_all(c, "{\"error\":\"request is EVIDENCE <64 lowercase hex> or EVIDENCE3 <64 lowercase hex>\"}\n", strlen("{\"error\":\"request is EVIDENCE <64 lowercase hex> or EVIDENCE3 <64 lowercase hex>\"}\n")); return; }
+    if (!evidence_token()) { write_all(c, "{\"error\":\"" EV_RATE_REFUSAL "\"}\n", strlen("{\"error\":\"" EV_RATE_REFUSAL "\"}\n")); return; }
+    uint8_t nonce[32]; unhex(h, nonce, 32);
+    size_t o = 0; const char *why = NULL; char *js = evidence_doc(e, nonce, v3, &o, &why);
+    if (!js) { char m[160]; const int mn = snprintf(m, sizeof m, "{\"error\":\"%s\"}\n", why); write_all(c, m, (size_t)mn); return; }
     if (pk) {   /* the statement: the attested transport key vouches for the proof key, this instance, these pins (271 bytes) */
         static const char dom[] = "enclave-proof-key-v1\n"; uint8_t m[sizeof dom - 1 + 250], isp[44], iid[32], sig[64]; size_t mo = 0;
         instance_spki(isp); sha256(isp, 44, iid);
@@ -1483,8 +1572,8 @@ static void evidence_answer(evidence_srv *e, int c) {
         memcpy(m + mo, g_pp.pot, 20); mo += 20; memcpy(m + mo, g_pp.registry, 20); mo += 20; memcpy(m + mo, g_pp.deployment, 32); mo += 32;
         memcpy(m + mo, g_pp.enclave_id, 32); mo += 32; memcpy(m + mo, g_pp.operator_, 20); mo += 20;
         { uint8_t *sm = malloc(64 + mo); unsigned long long smlen = 0; if (!sm) { free(js); return; } crypto_sign(sm, &smlen, m, mo, g_tsk); memcpy(sig, sm, 64); free(sm); }
-        char ih[65], pa[41], po[41], rg[41], dp[65], en[65], op[41], sg[129];
-        sh_pads_bin2hex(iid, 32, ih); sh_pads_bin2hex(e->proof_addr, 20, pa); sh_pads_bin2hex(g_pp.pot, 20, po); sh_pads_bin2hex(g_pp.registry, 20, rg);
+        char ih[65], pa[41], po[41], rg[41], dp[65], en[65], op[41], sg[129], nh[65];
+        sh_pads_bin2hex(nonce, 32, nh); sh_pads_bin2hex(iid, 32, ih); sh_pads_bin2hex(e->proof_addr, 20, pa); sh_pads_bin2hex(g_pp.pot, 20, po); sh_pads_bin2hex(g_pp.registry, 20, rg);
         sh_pads_bin2hex(g_pp.deployment, 32, dp); sh_pads_bin2hex(g_pp.enclave_id, 32, en); sh_pads_bin2hex(g_pp.operator_, 20, op); sh_pads_bin2hex(sig, 64, sg);
         char *st = malloc(o + 1024);
         if (!st) { free(js); return; }
@@ -1494,30 +1583,42 @@ static void evidence_answer(evidence_srv *e, int c) {
                                ih, pa, (unsigned long long)g_pp.chain_id, po, rg, dp, en, op, sg);
         free(js);
         if (so >= o + 1024 || st[so - 1] != '\n' || mo != 271) { OUT("PROOFKEY refused: the statement did not build (%zu, %zu)", so, mo); write_all(c, "{\"error\":\"proof-key statement did not build\"}\n", strlen("{\"error\":\"proof-key statement did not build\"}\n")); free(st); return; }
-        if (write_all(c, st, so) == 0) { e->answered++; OUT("PROOFKEY answered nonce=%.16s... proofKey=0x%s (answer %d)", nh, pa, e->answered); }
+        if (write_all(c, st, so) == 0) { const int a = __atomic_add_fetch(&e->answered, 1, __ATOMIC_RELAXED); OUT("PROOFKEY answered nonce=%.16s... proofKey=0x%s (answer %d)", nh, pa, a); }
         free(st); return;
     }
     if (write_all(c, js, o) == 0) {
-        e->answered++;
+        const int a = __atomic_add_fetch(&e->answered, 1, __ATOMIC_RELAXED);
         const int admitted = e->sealed && e->admit && e->admit(e->srv, nonce) == 0;
-        OUT("EVIDENCE answered nonce=%.16s... (%s, %zu certificates, answer %d%s)", nh, v3 ? "v3" : e->sealed ? "v2" : "v1", k, e->answered, admitted ? ": sealed requests admitted under it" : "");
+        OUT("EVIDENCE answered nonce=%.16s... (%s, answer %d%s)", h, v3 ? (e->tls_len ? "v4" : "v3") : e->sealed ? "v2" : "v1", a, admitted ? ": sealed requests admitted under it" : "");
     }
     free(js);
 }
 static void *evidence_server(void *arg) {
-    evidence_srv *e = (evidence_srv *)arg; uint64_t last = 0;
+    evidence_srv *e = (evidence_srv *)arg;
     while (!e->stop) {
         struct pollfd pf = { .fd = e->ls, .events = POLLIN };
         if (poll(&pf, 1, 500) <= 0 || !(pf.revents & POLLIN)) continue;
         const int c = accept(e->ls, NULL, NULL); if (c < 0) continue;
-        const uint64_t now = boot_ms();
-        if (last && now - last < 2000) { write_all(c, "{\"error\":\"one evidence answer every 2 s\"}\n", strlen("{\"error\":\"one evidence answer every 2 s\"}\n")); close(c); continue; }
-        last = now; evidence_answer(e, c); close(c);
+        evidence_answer(e, c); close(c);
     }
     return NULL;
 }
+/* The TLS port's /.well-known/enclave-attestation (pvm-rt set_attest): the same v4 document as EVIDENCE3, for the client's nonce
+ * on the connection whose key it binds, under the same pace. Called from any serving thread. */
+static ssize_t well_known_attest(void *ctx, const uint8_t *nonce, uint8_t *out, size_t cap) {
+    evidence_srv *e = (evidence_srv *)ctx;
+    const char *why = NULL;
+    if (!evidence_token()) why = EV_RATE_REFUSAL;
+    size_t o = 0; char *js = why ? NULL : evidence_doc(e, nonce, 1, &o, &why);
+    if (!js || o - 1 > cap) { snprintf((char *)out, cap, "%s", js ? "evidence answer did not fit" : why); free(js); return -1; }
+    memcpy(out, js, o - 1); free(js);   /* without its newline */
+    const int a = __atomic_add_fetch(&e->answered, 1, __ATOMIC_RELAXED);
+    char nh[17]; sh_pads_bin2hex(nonce, 8, nh);
+    OUT("EVIDENCE answered nonce=%s... (v4, on the TLS port, answer %d)", nh, a);
+    return (ssize_t)(o - 1);
+}
 /* A wasi:http app (APP ... serve=http; runtime/pvm-rt httpd.rs): verified, compiled and pre-instantiated once, then served
- * on APP_HTTP_PORT one connection at a time -- a fresh instance per request, 256 MiB and a deadline each -- until the owner
+ * on APP_HTTP_PORT, a thread per connection (at most APP_MAX_CONNS) -- a fresh instance per request, 256 MiB and a deadline each -- until the owner
  * sends STOP on the control channel, the channel closes, or an hour passes with neither a connection nor a word. */
 typedef void *(*pvmrt_http_open_fn)(const uint8_t *, size_t, const uint8_t *, uint64_t, uint64_t, const char *, const pvmrt_nn_ops *,
                                     void (*)(int, const uint8_t *, size_t), uint64_t *, char *, size_t);
@@ -1528,32 +1629,94 @@ typedef void *(*pvmrt_https_open_fn)(const uint8_t *, size_t, const uint8_t *, u
                                      const uint8_t *, void (*)(int, const uint8_t *, size_t), uint64_t *, char *, size_t);
 typedef int (*pvmrt_http_sealed_enable_fn)(void *, const uint8_t *, const uint8_t *, uint8_t *);
 typedef int (*pvmrt_http_serve_sealed_fd_fn)(void *, int, char *, size_t);
+typedef ssize_t (*pvmrt_attest_cb)(void *, const uint8_t *, uint8_t *, size_t);
+typedef int (*pvmrt_https_set_attest_fn)(const void *, pvmrt_attest_cb, void *);
+typedef int (*pvmrt_https_tls_spki_fn)(const void *, uint8_t *, size_t);
 #define SEALED_PORT 7788   /* LAB, the browser channel: one HPKE-sealed HTTP request per connection (pvm-rt sealed.rs) */
+/* Connections are served one thread each (pvm-rt serves each on its own runtime), at most APP_MAX_CONNS at once; one more is
+ * closed at accept. A connection idle for 45 s is closed by pvm-rt, so idle keep-alives do not hold the slots. */
+#define APP_MAX_CONNS 32
+typedef struct { void *srv; int fd; pvmrt_http_serve_fd_fn serve; } app_conn;
+static int g_app_conns = 0, g_app_conn_fds[APP_MAX_CONNS];
+static pthread_mutex_t g_app_conn_mu = PTHREAD_MUTEX_INITIALIZER;
+static void *app_conn_thread(void *arg) {
+    app_conn *j = (app_conn *)arg; char e[512] = "";
+    const int fd = j->fd, rc = j->serve(j->srv, fd, e, sizeof e);   /* pvm-rt owns and closes fd */
+    if (rc) OUT("APP connection closed: %s", e);
+    pthread_mutex_lock(&g_app_conn_mu);
+    for (int i = 0; i < APP_MAX_CONNS; i++) if (g_app_conn_fds[i] == fd) { g_app_conn_fds[i] = -1; break; }
+    g_app_conns--;
+    pthread_mutex_unlock(&g_app_conn_mu);
+    free(j); return NULL;
+}
+static int app_conn_start(void *srv, int fd, pvmrt_http_serve_fd_fn serve) {
+    pthread_mutex_lock(&g_app_conn_mu);
+    if (g_app_conns >= APP_MAX_CONNS) { pthread_mutex_unlock(&g_app_conn_mu); return 0; }
+    app_conn *j = malloc(sizeof *j); pthread_t t; pthread_attr_t at;
+    if (!j) { pthread_mutex_unlock(&g_app_conn_mu); return 0; }
+    j->srv = srv; j->fd = fd; j->serve = serve;
+    pthread_attr_init(&at); pthread_attr_setdetachstate(&at, PTHREAD_CREATE_DETACHED);
+    const int ok = pthread_create(&t, &at, app_conn_thread, j) == 0;
+    pthread_attr_destroy(&at);
+    if (ok) { g_app_conns++; for (int i = 0; i < APP_MAX_CONNS; i++) if (g_app_conn_fds[i] < 0) { g_app_conn_fds[i] = fd; break; } }
+    else free(j);
+    pthread_mutex_unlock(&g_app_conn_mu);
+    return ok;
+}
+/* Stop serving: every open connection is shut down, and the server is freed only once its threads are done (bounded). */
+static int app_conns_drain(void) {
+    pthread_mutex_lock(&g_app_conn_mu);
+    for (int i = 0; i < APP_MAX_CONNS; i++) if (g_app_conn_fds[i] >= 0) shutdown(g_app_conn_fds[i], SHUT_RDWR);
+    pthread_mutex_unlock(&g_app_conn_mu);
+    for (int waited = 0; waited < 30000; waited += 100) {
+        pthread_mutex_lock(&g_app_conn_mu); const int left = g_app_conns; pthread_mutex_unlock(&g_app_conn_mu);
+        if (!left) return 1;
+        usleep(100000);
+    }
+    return 0;
+}
 static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
     const anchor_app_plan *plan = a->plan;
     pvmrt_http_open_fn hopen = (pvmrt_http_open_fn)dlsym(a->rt, "pvmrt_http_open");
-    pvmrt_https_open_fn hsopen = (pvmrt_https_open_fn)dlsym(a->rt, "pvmrt_https_open");
-    const int tls = plan->http == 2;
+    pvmrt_https_open_fn hsopen = (pvmrt_https_open_fn)dlsym(a->rt, plan->http == 3 ? "pvmrt_https_open_p256" : "pvmrt_https_open");
+    const int tls = plan->http >= 2, ca = plan->http == 3;
     pvmrt_http_serve_fd_fn hserve = (pvmrt_http_serve_fd_fn)dlsym(a->rt, "pvmrt_http_serve_fd");
     pvmrt_http_requests_fn hreqs = (pvmrt_http_requests_fn)dlsym(a->rt, "pvmrt_http_requests");
     pvmrt_http_close_fn hclose = (pvmrt_http_close_fn)dlsym(a->rt, "pvmrt_http_close");
-    if (!hopen || !hserve || !hreqs || !hclose || (tls && !hsopen)) { free(a->bytes); a->bytes = NULL; OUT("APP refused: this runtime cannot serve wasi:http%s", tls ? " over TLS" : ""); return 4; }
+    pvmrt_https_tls_spki_fn hspki = (pvmrt_https_tls_spki_fn)dlsym(a->rt, "pvmrt_https_tls_spki");
+    pvmrt_https_set_attest_fn hattest = (pvmrt_https_set_attest_fn)dlsym(a->rt, "pvmrt_https_set_attest");
+    pvmrt_https_csr_fn hcsr = (pvmrt_https_csr_fn)dlsym(a->rt, "pvmrt_https_csr");
+    pvmrt_https_set_chain_fn hchain = (pvmrt_https_set_chain_fn)dlsym(a->rt, "pvmrt_https_set_chain");
+    if (!hopen || !hserve || !hreqs || !hclose || (tls && !hsopen) || (ca && (!hspki || !hattest || !hcsr || !hchain))) {
+        free(a->bytes); a->bytes = NULL; OUT("APP refused: this runtime cannot serve wasi:http%s", ca ? " over TLS with a CA-trusted key" : tls ? " over TLS" : ""); return 4; }
     uint64_t cms = 0; char err[1024] = "";
-    /* https: TLS 1.3 terminates in this process with the VM's Ed25519 transport key -- the key the attach transcript and the
-     * app's ABI/2 evidence bind -- so whatever carries the bytes (the phone's Android app, the relay) holds only ciphertext.
-     * The seed is libsodium's secret key's first half; pvm-rt copies it into its TLS config and zeroes its own copy. */
-    void *srv = tls ? hsopen(a->bytes, plan->bytes, plan->sha256, 256ull << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, g_tsk, app_emit, &cms, err, sizeof err)
+    /* https: TLS 1.3 terminates in this process, so whatever carries the bytes (the phone's Android app, the host, a TUNA
+     * provider) holds only ciphertext. serve=https (the lab): the VM's Ed25519 transport key -- the key the attach transcript
+     * and the app's ABI/2 evidence bind -- self-signed; the seed is libsodium's secret key's first half. serve=https-p256 (the
+     * marketplace): a P-256 key pvm-rt derives from this VM instance's secret for THIS app and THIS deployment, so a public CA
+     * can certify it and the same instance keeps it across reboots; v4 evidence binds it. pvm-rt copies the seed and zeroes
+     * its own copy. */
+    uint8_t seed[32];
+    if (ca) {
+        static const char dom[] = "enclave-pvm-tls-key-v1\n"; uint8_t ident[sizeof dom - 1 + 64];
+        memcpy(ident, dom, sizeof dom - 1); memcpy(ident + sizeof dom - 1, plan->sha256, 32);
+        if (g_pp.set) memcpy(ident + sizeof dom - 1 + 32, g_pp.deployment, 32); else memset(ident + sizeof dom - 1 + 32, 0, 32);
+        AVmPayload_getVmInstanceSecret(ident, sizeof ident, seed, sizeof seed);
+    } else memcpy(seed, g_tsk, 32);
+    void *srv = tls ? hsopen(a->bytes, plan->bytes, plan->sha256, 256ull << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, seed, app_emit, &cms, err, sizeof err)
                     : hopen(a->bytes, plan->bytes, plan->sha256, 256ull << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, app_emit, &cms, err, sizeof err);
+    memset(seed, 0, sizeof seed);
     free(a->bytes); a->bytes = NULL;
     char hh[65]; sh_pads_bin2hex(plan->sha256, 32, hh);
     if (!srv) { OUT("APP refused: %s", err); return 4; }
     memcpy(g_app_sha256, plan->sha256, 32); g_app_have = 1;
     const int ls = vs_bind(APP_HTTP_PORT);
     if (ls < 0) { hclose(srv); OUT("APP refused: cannot listen on the http port"); return 4; }
-    evidence_srv ev = { .ls = -1, .stop = 0, .identity = a->identity, .answered = 0 }; pthread_t evt; int ev_on = 0;
+    for (int i = 0; i < APP_MAX_CONNS; i++) g_app_conn_fds[i] = -1;
+    static evidence_srv ev; memset(&ev, 0, sizeof ev); ev.ls = -1; ev.identity = a->identity; pthread_t evt; int ev_on = 0;
     int ls_sealed = -1;
     pvmrt_http_serve_sealed_fd_fn hsealed_serve = NULL;
-    if (tls) {   /* LAB, the browser channel: an app key made in pvm-rt, signed into v2 evidence, and a sealed-request port */
+    if (tls) {   /* the browser channel: an app key made in pvm-rt, signed into v2+ evidence, and a sealed-request port */
         pvmrt_http_sealed_enable_fn hsealed = (pvmrt_http_sealed_enable_fn)dlsym(a->rt, "pvmrt_http_sealed_enable");
         pvmrt_http_sealed_nonce_fn hadmit = (pvmrt_http_sealed_nonce_fn)dlsym(a->rt, "pvmrt_http_sealed_nonce");
         hsealed_serve = (pvmrt_http_serve_sealed_fd_fn)dlsym(a->rt, "pvmrt_http_serve_sealed_fd");
@@ -1564,6 +1727,16 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
             OUT("APP sealed requests on vsock %d: app key %.16s... (X25519, made in this process; evidence is v2)", SEALED_PORT, kh);
         } else OUT("APP sealed requests NOT available (evidence stays v1: no browser channel)");
     }
+    if (ca) {   /* the marketplace TLS key: its SPKI into v4 evidence; the TLS port answers the evidence paths itself */
+        const int sl = hspki(srv, ev.tls_spki, sizeof ev.tls_spki);
+        if (sl <= 0 || !ev.sealed || !g_inst || hattest(srv, well_known_attest, &ev) != 0) {
+            if (ls_sealed >= 0) close(ls_sealed);
+            close(ls); hclose(srv); OUT("APP refused: the marketplace TLS key could not be bound into evidence"); return 4; }
+        ev.tls_len = (size_t)sl; ev.srv = srv; ev.csr = hcsr; ev.set_chain = hchain;
+        uint8_t th[32]; char thh[65]; sha256(ev.tls_spki, ev.tls_len, th); sh_pads_bin2hex(th, 32, thh);
+        OUT("APP tls key P-256 spki_sha256=%s (derived from this VM instance's secret for this app%s; v4 evidence binds it; self-signed until CERT)",
+            thh, g_pp.set ? " and deployment" : "");
+    }
     if (tls && ev.sealed && g_pp.set && g_proof_seed_set) {   /* the lease proof key (PROOF-KEY.md): pvm-rt's typed signer, these pins */
         pvmrt_pot_address_fn paddr = (pvmrt_pot_address_fn)dlsym(a->rt, "pvmrt_pot_address");
         ev.pot_sign = (pvmrt_pot_sign_fn)dlsym(a->rt, "pvmrt_pot_sign");
@@ -1572,13 +1745,14 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
             OUT("PROOF key=0x%s (secp256k1, seeded from this VM instance's secret; signs EnclaveProofOfTime checkpoints for chain %llu only)", pa, (unsigned long long)g_pp.chain_id);
         } else OUT("PROOF key NOT available: this runtime has no proof signer");
     } else if (tls && g_pp.set) OUT("PROOF key NOT available (needs the sealed channel and the instance secret)");
-    if (tls) {   /* LAB: the client-verified channel's evidence endpoint beside the TLS app port */
+    if (tls) {   /* the client-verified channel's evidence endpoint beside the TLS app port */
         memcpy(ev.app, plan->sha256, 32); ev.ls = vs_bind(EVIDENCE_PORT);
         if (ev.ls >= 0 && pthread_create(&evt, NULL, evidence_server, &ev) == 0) { ev_on = 1; OUT("APP evidence endpoint on vsock %d: a client's nonce gets a fresh ABI/2 certificate for this app and this VM's transport key", EVIDENCE_PORT); }
         else { if (ev.ls >= 0) close(ev.ls); OUT("APP evidence endpoint NOT available (a client cannot verify this VM itself)"); }
     }
     ev.serving = 1;   /* checkpoints only while this loop runs (cleared before the evidence server stops) */
-    OUT("APP serving %s on vsock %d: %s compile_ms=%llu%s%s", tls ? "https (TLS 1.3, the attested transport key)" : "http", APP_HTTP_PORT, hh, (unsigned long long)cms, ops ? " graph=" : "", ops ? plan->graph : "");
+    OUT("APP serving %s on vsock %d: %s compile_ms=%llu%s%s", ca ? "https-p256 (TLS 1.3, a CA-trustable key)" : tls ? "https (TLS 1.3, the attested transport key)" : "http", APP_HTTP_PORT, hh, (unsigned long long)cms, ops ? " graph=" : "", ops ? plan->graph : "");
+    uint64_t refused = 0;
     for (;;) {
         struct pollfd pf[3] = { { .fd = ls, .events = POLLIN }, { .fd = g_ctl, .events = POLLIN }, { .fd = ls_sealed, .events = POLLIN } };
         const int r = poll(pf, ls_sealed >= 0 ? 3 : 2, 3600 * 1000);
@@ -1595,8 +1769,9 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
         }
         if (pf[0].revents & POLLIN) {
             const int c = accept(ls, NULL, NULL); if (c < 0) continue;
-            char e[512] = ""; const int rc = hserve(srv, c, e, sizeof e);
-            OUT("APP http connection closed%s%s (requests so far %llu)", rc ? ": " : "", rc ? e : "", (unsigned long long)hreqs(srv));
+            if (!app_conn_start(srv, c, hserve)) {   /* at the cap: this one is closed now; logged once per 100 */
+                close(c); if (refused++ % 100 == 0) OUT("APP connection refused: %d connections already open (refused %llu so far)", APP_MAX_CONNS, (unsigned long long)refused);
+            }
         }
         if (ls_sealed >= 0 && (pf[2].revents & POLLIN)) {
             const int c = accept(ls_sealed, NULL, NULL); if (c < 0) continue;
@@ -1606,9 +1781,11 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
     }
     ev.serving = 0;
     close(ls); if (ls_sealed >= 0) close(ls_sealed);
+    const int drained = app_conns_drain();
     if (ev_on) { ev.stop = 1; pthread_join(evt, NULL); close(ev.ls); OUT("APP evidence endpoint closed after %d answers", ev.answered); }
     OUT("APP served %s requests=%llu%s%s", hh, (unsigned long long)hreqs(srv), ops ? " graph=" : "", ops ? plan->graph : "");
-    hclose(srv);
+    if (drained) hclose(srv);
+    else OUT("APP server left open: connections still running 30 s after the stop (the VM ends with this session)");
     return 0;
 }
 /* The tier's compute measurement (PVM-CPU.md "Capacity"). flops-probe, the APK's own asset pinned beside it
