@@ -151,7 +151,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   const read = (address, abi, functionName, args = []) => publicClient.readContract({ address, abi, functionName, args });
   const lc = (a) => String(a).toLowerCase();
   const idleSha = crypto.createHash("sha256").update(fs.readFileSync(cfg.idleApp)).digest("hex");
-  let addrs = null, runner = null, runnerFor = null, busy = false, lastSweep = 0, lastRunnerTick = 0, lastCert = 0, registered = null;
+  let addrs = null, runner = null, runnerFor = null, busy = false, lastSweep = 0, lastRunnerTick = 0, lastCert = 0, registered = null, lastReattach = 0;
   const hints = new Set();
 
   async function resolve() {
@@ -288,6 +288,16 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     }
   }
 
+  /** Does the relay's own row for this host name the operator (its attach was signed by the registered owner)? Unknown = yes. */
+  async function attachedAsOperator() {
+    try {
+      const r = await fetchImpl(`${cfg.relayOrigin}/enclaves`, { signal: AbortSignal.timeout(15000) });
+      const rows = (await r.json()).enclaves || [];
+      const row = rows.find((e) => lc(e.id) === lc(E));
+      return !row || lc(row.operator || "") === me;
+    } catch { return true; }
+  }
+
   // ---- the app's certificate: a CSR made in the VM, issued by the relay after it verifies the VM's evidence for that key ----
   const labelOf = (D) => D.slice(2, 10);
   async function ensureCertificate() {
@@ -352,6 +362,11 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
           lastCert = now();
           try { await ensureCertificate(); } catch (e) { note({ ev: "cert-failed", error: e.message }); }
         }
+      } else if (!state.current && registered && now() - lastReattach >= 15 * 60_000 && !(await attachedAsOperator())) {
+        // the hub counts this host as its operator's only from an attach made AFTER the name was registered (the co-signer's
+        // signature over that attach); one made before (first-come) is re-made by restarting the idle VM
+        lastReattach = now();
+        await goIdle("re-attach under the registered name");
       } else if (!state.current && now() - lastSweep >= (hints.size ? 0 : 60_000)) {
         lastSweep = now();
         await sweep();
