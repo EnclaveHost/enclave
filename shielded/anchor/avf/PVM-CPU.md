@@ -122,9 +122,9 @@ and a price, takes claim hints and placement pins, claims, serves the buyer's ap
 |---|---|---|
 | VM (`serve=https-p256`) | the pVM | the deployment's options as `APPENV`/`APPWAF`/`APPEGRESS` control lines (held in memory, checked by `pvm-rt` parse_env and waf.rs); serves the app with TLS 1.3 under a P-256 key derived from the instance secret for THIS app and deployment; v4 evidence binds that key (the attested transport key signs it); answers `/.well-known/enclave-attestation` and `/.well-known/enclave-ready` on the app's own TLS port; `CSR`/`CERT` on the evidence endpoint; one thread per connection |
 | host app (`app_tls 2`) | the phone | the launch's options file (`app_opts`: staged by the agent in the app's private files, read once and deleted); the egress pool; loopback bridges: 17786 to the TLS app port (ciphertext only), 17787 to the evidence endpoint behind `AUTH <token>` (the token is in the app's own external files dir); forwards the relay's host requests to the host agent; attach co-signature from the owner's co-signer |
-| host agent (`runner/host-agent.mjs`) | the owner's machine, beside the phone on USB | the host surface (`/availability`, `/v1/claim-hint`, `/v1/pvm/evidence`, `/v1/deployments[/<id>[/logs]]`); registers at the owner's price and re-states the entry on a new build or price; sweeps the ledger (`pvmClaimRefusal`); fetches the component by CID, restarts the VM with it and the lease's proof pins, claims, renews while proofs land, proves every 5 min, releases when the lease is over (refunding the tail) and goes idle; resolves the app's config and secrets, stages the launch's options and serves its egress; follows config edits and share resizes on the live lease; asks the relay for the app's certificate and installs it (again after a VM relaunch; renewed 30 days before expiry); the attach co-signer for the owner's own instance |
+| host agent (`runner/host-agent.mjs`) | the owner's machine, beside the phone on USB | the host surface (`/availability`, `/v1/claim-hint`, `/v1/pvm/evidence`, `/v1/pvm/sibling`, `/v1/deployments[/<id>[/logs]]`); registers at the owner's price and re-states the entry on a new build or price; sweeps the ledger (`pvmClaimRefusal`, then room in the slots); fetches the component by CID, starts a slot VM sized to it with the lease's proof pins (the host's key handed over when the slot lacks it), claims, renews while proofs land, proves every 5 min, releases when the lease is over (refunding the tail) and frees the slot; resolves the app's config and secrets, stages the launch's options and serves its egress; follows config edits and share resizes on the live lease; asks the relay for the app's certificate and installs it (again after a VM relaunch; renewed 30 days before expiry); the attach co-signer for the owner's own instance |
 | relay (`relay/pvm-market.mjs`, `PVM_MARKET=1`) | nan | the row is a market host only when tiered pvm-cpu, its attach was signed by the registered operator, and its id is the registered endpoint's; each app is served (routes, `servesDeployments`, dns-01) and given a certificate only after fresh v4 evidence over the relay's own nonce, for the component the relay fetched itself by the catalog's CID, from the VM attached as this host, binding exactly that TLS key |
-| TUNA (`network/` `pvm` mode) | the owner's machine | a privacy-agent instance with the phone's runner and operator: guarded circuits in Docker forward admitted streams to the phone's TLS bridge (adb forward); the local proof verifies the VM's evidence on the app's own TLS connection (`probeGuest` pvm branch); `runner/tuna-enroll.mjs` enrolls each served app (wallets, funding, config) |
+| TUNA (`network/` `pvm` mode) | the owner's machine | a privacy-agent instance with the phone's runner and operator: guarded circuits in Docker forward admitted streams to the host agent's SNI router, which picks the slot VM's TLS bridge (adb forward) by the ClientHello's name; the local proof verifies the VM's evidence on the app's own TLS connection (`probeGuest` pvm branch); `runner/tuna-enroll.mjs` enrolls each served app (wallets, funding, config) |
 
 What a buyer can buy here (the CPU hosts' terms, windows/PARITY.md, judged by `pvmClaimRefusal`): a public, approved
 catalog version that is a `wasi:http/incoming-handler` component or a socket server on ONE http port (`ports: http:8000`,
@@ -149,11 +149,52 @@ version's `memMb`, raised by its `cpuFallback`), with an isolation requirement a
   answered as the platform answers. Buckets are per deployment: the app's hostname arrives as TLS through TUNA, with no
   client address the VM could trust.
 - **egress** (below), and **live edits**: `setConfig` relaunches the app on the new options (same lease, same key);
-  `setShares` is admission and billing here (one app, one VM); options this host no longer applies release the lease.
+  `setShares` is admitted against what the other slots hold (and relaunches only when it changes the VM's vCPUs); options
+  this host no longer applies release the lease.
 
 Not offered (refused with the reason): private deployments (no owner-session check in the VM yet), owner-attached
 domains, pending versions (`devDeploy`, private only), raw tcp/udp ports, shared-everything or cooperative threads,
-wasi 0.3, model volumes. The phone has one slot: one app at a time, the whole VM.
+wasi 0.3, model volumes.
+
+### Slots by share (2026-10-09)
+
+The phone serves several apps at once, ONE protected VM per app, each sized to what its app bought -- per-app VM isolation
+kept, nothing shared between apps but the phone.
+
+| VM | process / instance | serves | ports (phone loopback = owner's `adb forward`) |
+|---|---|---|---|
+| host VM | `host.enclave.pvmcpu` / `pvmprod1` | the idle app; the tunnel to the relay; the host's registered proof key | 17786 app, 17787 evidence |
+| slot k (1..4) | `host.enclave.pvmcpu:slotk` (`AnchorServiceSlotK`) / `pvmprod1s<k>` | one deployment | 17786+10k app, 17787+10k evidence |
+
+- **Sizes.** A slot VM is the app's memory (its version's `memMb`, raised by `cpuFallback`; 256 MiB when unstated; the
+  `mem=` limit of its socket server, or of each request's instance of a handler) plus 128 MiB for Microdroid, the payload
+  and the runtime, at least 384 MiB (measured: hello-world serves at 384, a 256 MiB socket app at 512), resized with
+  `VirtualMachine.setConfig` before each launch. A share of at most 1/8 (`cpuMilli <= 125`) gets one vCPU, more as many as
+  the host (AVF offers only those two topologies; the share is admission and billing, not a CPU cap). The slots divide the
+  owner's pool (`slots.poolMemMb`, 3072 MiB on the Pixel 10 Pro XL) and 1000 per mille of CPU share: a deployment is taken
+  only when its VM and its share fit what is free. `/availability` states `slots`, `nodeSlotsFree`, `cpuShareFree`,
+  `poolMemMb`, `poolMemMbFree`; the relay shows the pool as the node's memory (`pvmCpuAvailability`, bounded at 16 GiB)
+  beside the attested host VM's vCPUs and GFLOPS.
+- **One proof key.** The ledger holds one proof key per host, and every slot signs its app's checkpoints with it. A slot
+  that does not hold it is given it by the host VM, verified IN the VM (`pvm-rt` `avf.rs`, `keygrant.rs`): the host VM's
+  single-use nonce (`KEYNONCE`); the slot's one-time X25519 key attested over `sha256(domain || nonce || key)` (`KEYREQ`);
+  the host VM verifies that chain against Google's roots and its OWN code and authority hashes (a protected VM of this very
+  build, `isVmSecure`) and seals the key to it (`KEYGRANT`); the slot opens it, checks the address the agent expects (the
+  registered key) and keeps it in its encrypted store for every later boot (`KEYINSTALL`). The agent carries bytes. A slot's
+  runner never re-keys the entry (`syncProofKey: false`); it pins its slot's instance.
+- **The relay** accepts a slot's app evidence as the host's when the slot proves the registered key: `SIBLING <nonce>`, the
+  slot's attested transport key, instance and deployment signed with the proof key, recovered to `registry.proofKey`
+  (`relay/pvm-market.mjs` `checkHostVm`, also for sealed secrets). Secrets are sealed to the slot's own seal key.
+- **The router.** The TUNA privacy agent has one app port (`pvm.appPort` = `slots.routerPort`, 17780): the host agent's
+  `runner/sni-router.mjs` reads the server name in each ClientHello and copies the ciphertext to the slot serving it.
+- **Transactions.** One operator key: the agent ticks the host runner and the slot runners in turn, and while any has a
+  transaction pending only that one is followed.
+- A slot VM is stopped by killing its own process (`run-as <pkg> kill`): the VM ends with it and the other VMs run on.
+  `am force-stop` would end them all.
+
+In production since 2026-10-09 09:40Z (build `9f38fd61…`): the served deployment `0x77e75476…` moved from the host VM to
+slot 1 (384 MiB): its key handed over in 0.3 s, its runner attesting the host's key, its secret re-sealed by the relay to
+slot 1 after the sibling check.
 
 ### Egress (2026-10-09)
 
