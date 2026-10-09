@@ -359,7 +359,7 @@ class FleetList extends EnclaveElement {
         : '<div class="fleet-empty">No app hosts available right now</div>')
       : staleNote + sortBar + items.slice(first, first + PAGE).map((r, i) => {
           const open = this._openKey === r.key, id = uid + "-" + (first + i);
-          // the summary line: a toggle (name + rating) and the pool lines, whose units are sort buttons. A click
+          // the summary line: a toggle (the name, its rating on the line under it) and the pool lines, whose units are sort buttons. A click
           // anywhere on the line but a unit opens the host, as the whole line did when it was one button.
           return '<div class="fleet-row' + (r.cls ? ' ' + r.cls : '') + '" data-key="' + esc(r.key) + '"' + (r.title ? ' title="' + esc(r.title) + '"' : '') + '>'
             + '<div class="fleet-sum' + (open ? ' is-open' : '') + '">'
