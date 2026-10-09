@@ -44,8 +44,8 @@ c-wallet-button{display:contents;}
 .wp-err{font-size:.72rem;color:var(--danger-2);margin:-2px 0 8px;}
 .wp-fund{display:flex;align-items:center;gap:8px;margin:10px 0;}
 .wp-fund:last-child{margin-bottom:0;}
-/* a section break inside the popover (wallet | session): heavier and lighter than the rows' hairlines */
-.wp-sep{border:0;height:2px;margin:12px 0 4px;background:var(--text);border-radius:1px;}
+/* a section break inside the popover (wallet | session): the rows' 1px hairline, in text ink instead of line ink */
+.wp-sep{border:0;height:1px;margin:12px 0 4px;background:var(--text);}
 /* Sign out sharing a row (the wallet popover: All Sessions | Sign out): compact, at the row's right end */
 .wp-fund .wp-disc{width:auto;margin:0 0 0 auto;padding:.15em .8em;min-height:24px;border-radius:6px;font-size:.7rem;line-height:1;}
 /* the Deposit QR: white quiet zone so phone cameras lock on against the dark card */
