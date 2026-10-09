@@ -132,7 +132,8 @@ public class Main extends Activity {
                                              // 2: the marketplace host: APP serve=https-p256 (a CA-trustable key in the VM), reached through the bridges
         String hostAgent = null;             // --es host_agent http://127.0.0.1:<port>: the owner's host agent; the relay's host requests go to it
         int bridgeApp = 17786, bridgeEvidence = 17787;   // --ei bridge_app / bridge_evidence: the loopback ports of the VM's TLS app port and evidence endpoint (app_tls 2)
-        int appSock = 0, appMem = 0;         // --ei app_sock <port> [--ei app_mem <MiB>]: app_tls 2 with a socket-server app (APP ... sock= mem=)
+        int appSock = 0, appMem = 0;         // --ei app_sock <port>: app_tls 2 with a socket-server app (APP ... sock=); --ei app_mem <MiB>: its memory, or a
+                                             // wasi:http handler's per request (APP ... mem=), sized to its share in a slot VM
         boolean slot = false;                // --ez slot true: a slot VM (AnchorServiceSlotN): serves one app on the owner's bridges, no relay of its own
         boolean resize = false;              // --ez resize true: an existing instance is resized to `mem` (VirtualMachine.setConfig) before it runs
         int cpus = 0;                        // --ei cpus 1: one vCPU (CPU_TOPOLOGY_ONE_CPU); 0: as many as the host (MATCH_HOST)
@@ -239,7 +240,7 @@ public class Main extends Activity {
             p.appOpts = i.getBooleanExtra("app_opts", false);
             p.slot = i.getBooleanExtra("slot", false); p.resize = i.getBooleanExtra("resize", false); p.cpus = i.getIntExtra("cpus", 0);
             if (p.cpus != 0 && p.cpus != 1) p.configError = "cpus must be 1 (one vCPU) or 0 (as many as the host)";
-            if (p.appSock < 0 || p.appSock > 65535 || (p.appMem != 0 && (p.appMem < 16 || p.appMem > 1024)) || (p.appMem != 0 && p.appSock == 0)) p.configError = "app_sock must be 1..65535 and app_mem 16..1024 (with app_sock)";
+            if (p.appSock < 0 || p.appSock > 65535 || (p.appMem != 0 && (p.appMem < 16 || p.appMem > 1024)) || (p.appMem != 0 && p.appTls != 2)) p.configError = "app_sock must be 1..65535 and app_mem 16..1024 (app_tls 2 only)";
             if (p.hostAgent != null && !p.hostAgent.matches("http://(127\\.0\\.0\\.1|localhost):\\d{1,5}")) p.configError = "host_agent must be the owner's loopback agent, http://127.0.0.1:<port>";
             if (p.bridgeApp < 1024 || p.bridgeApp > 65535 || p.bridgeEvidence < 1024 || p.bridgeEvidence > 65535 || p.bridgeApp == p.bridgeEvidence) p.configError = "bridge_app and bridge_evidence must be two different ports 1024..65535";
             if (p.attachSigner != null && !p.attachSigner.matches("https?://[^\\s]+/attach-sign")) p.configError = "attach_signer must be the owner's http(s) co-signer URL ending /attach-sign";
@@ -746,7 +747,7 @@ public class Main extends Activity {
                 if (plan.slot) cmd.append("NOCAPS\n");   // a slot VM attaches to no relay: no capability report, no GFLOPS bench
                 cmd.append("APP bytes=").append(abytes).append(" sha256=").append(asha).append(aargs).append(plan.appGraph.isEmpty() ? "" : " graph=" + plan.appGraph)
                    .append(plan.appTls == 2 ? " serve=https-p256" : plan.appTls == 1 ? " serve=https" : plan.appHttp.isEmpty() && plan.appServeS != 0 ? "" : " serve=http")
-                   .append(plan.appSock != 0 ? " sock=" + plan.appSock + (plan.appMem != 0 ? " mem=" + plan.appMem : "") : "").append('\n');
+                   .append(plan.appSock != 0 ? " sock=" + plan.appSock : "").append(plan.appMem != 0 ? " mem=" + plan.appMem : "").append('\n');
                 new Thread(() -> streamPublicFile(vm, APP_PORT, plan.app, "app bundle"), "vsock-app").start();
                 say("APP plan: " + plan.app + " (" + abytes + " bytes, sha256 " + asha + (plan.appSha.isEmpty() ? "" : ", ANNOUNCED BY THE TEST HOOK, not the file's") + "), args " + (plan.appArgs.isEmpty() ? "none" : plan.appArgs));
             }

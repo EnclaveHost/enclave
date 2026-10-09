@@ -1,5 +1,5 @@
 /* anchor_app.h -- the owner's APP line: run a portable WebAssembly component in this VM (PVM-CPU.md, "The app runtime").
- *   APP bytes=<1..2^30> sha256=<64 lowercase hex>[ args=<even-length lowercase hex, 1..8192 bytes decoded>][ graph=<name>][ serve=http|https|https-p256[ sock=<port>[ mem=<MiB>]]]
+ *   APP bytes=<1..2^30> sha256=<64 lowercase hex>[ args=<even-length lowercase hex, 1..8192 bytes decoded>][ graph=<name>][ serve=http|https|https-p256[ sock=<port>][ mem=<MiB>]]
  * Strict: exactly these keys in this order, canonical decimal, single spaces, nothing after. `graph` (1..64 of [a-z0-9._-],
  * starting with a letter or digit: runtime/pvm-rt nn.rs valid_graph_name) is the name the component loads the VM's verified
  * model by through wasi:nn; it comes with a LOCAL line (the model and its engine) and never without one. `serve=http` says
@@ -53,19 +53,21 @@ static inline int anchor_app_parse(const char *line, anchor_app_plan *plan) {
     if (!strncmp(p, " serve=https-p256", 17)) { if (n) return 0; http = 3; p += 17; }
     else if (!strncmp(p, " serve=https", 12)) { if (n) return 0; http = 2; p += 12; }
     else if (!strncmp(p, " serve=http", 11)) { if (n) return 0; http = 1; p += 11; }
-    /* ` sock=<1..65535>[ mem=<16..1024>]`: the app is a socket server (wasi:cli/run listening on that port inside the VM),
-     * fronted by the https-p256 server; canonical decimal, only after serve=https-p256 */
+    /* ` sock=<1..65535>`: the app is a socket server (wasi:cli/run listening on that port inside the VM), fronted by the
+     * https-p256 server; ` mem=<16..1024>`: the app's memory (a socket server's one instance, or each request's instance of
+     * a wasi:http handler), sized to its share in a slot VM; canonical decimal, only after serve=https-p256 */
     unsigned sock = 0, mem = 0;
     if (!strncmp(p, " sock=", 6)) {
         if (http != 3) return 0;
         p += 6; if (*p == '0') return 0;
         int d = 0; while (*p >= '0' && *p <= '9') { if (++d > 5) return 0; sock = sock * 10 + (unsigned)(*p - '0'); p++; }
         if (!d || sock > 65535) return 0;
-        if (!strncmp(p, " mem=", 5)) {
-            p += 5; if (*p == '0') return 0;
-            d = 0; while (*p >= '0' && *p <= '9') { if (++d > 4) return 0; mem = mem * 10 + (unsigned)(*p - '0'); p++; }
-            if (!d || mem < 16 || mem > 1024) return 0;
-        }
+    }
+    if (!strncmp(p, " mem=", 5)) {
+        if (http != 3) return 0;
+        p += 5; if (*p == '0') return 0;
+        int d = 0; while (*p >= '0' && *p <= '9') { if (++d > 4) return 0; mem = mem * 10 + (unsigned)(*p - '0'); p++; }
+        if (!d || mem < 16 || mem > 1024) return 0;
     }
     if (*p != 0) return 0;
     plan->http = http; plan->sock = sock; plan->mem_mib = mem;

@@ -65,12 +65,25 @@ test("this launch's app reaches a public destination through its own route, by n
   } finally { a.close(); }
 });
 
+test("several slot VMs: each token is its own app's way out, on its own route", async () => {
+  const E = "0x" + "e2".repeat(32), T2 = "ef".repeat(16);
+  const a = await agent({ current: () => [{ token: "12".repeat(16), deployment: E }, { token: TOKEN, deployment: D }, { token: T2, deployment: E }] });
+  try {
+    assert.deepEqual(await ask(a.port, `EGRESS ${TOKEN} CONNECT svc.example 443`, "ping\n"), ["OK", "pong ping\n"]);
+    assert.deepEqual(a.asked.at(-1), "connect 127.0.0.1:41001 93.184.215.14 443", "D's token goes out on D's route");
+    assert.match((await ask(a.port, `EGRESS ${T2} CONNECT svc.example 443`))[0], /no authorized egress route/, "E's token is judged as E (no route here)");
+  } finally { a.close(); }
+});
+
 test("nothing goes out for another launch, an idle VM, or an app without a live route", async () => {
   for (const [opts, line, re] of [
     [{}, `EGRESS ${"cd".repeat(16)} CONNECT svc.example 443`, /not this launch's egress/],
     [{}, `CONNECT svc.example 443`, /not this launch's egress/],
     [{ current: () => null }, `EGRESS ${TOKEN} CONNECT svc.example 443`, /not this launch's egress/],
     [{ current: () => ({ token: TOKEN, deployment: "0x" + "99".repeat(32) }) }, `EGRESS ${TOKEN} CONNECT svc.example 443`, /no authorized egress route/],
+    // several slot VMs: a token is its own launch's only (another app's token is not this one's way out)
+    [{ current: () => [{ token: "cd".repeat(16), deployment: D }, null] }, `EGRESS ${TOKEN} CONNECT svc.example 443`, /not this launch's egress/],
+    [{ current: () => [] }, `EGRESS ${TOKEN} CONNECT svc.example 443`, /not this launch's egress/],
     [{ file: routes({ expiresAt: Date.now() - 1 }) }, `EGRESS ${TOKEN} CONNECT svc.example 443`, /expired/],
     [{ file: "/nonexistent/egress-routes.json" }, `EGRESS ${TOKEN} CONNECT svc.example 443`, /no egress routes yet/],
   ]) {

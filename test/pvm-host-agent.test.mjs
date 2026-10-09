@@ -8,7 +8,10 @@ import os from "node:os";
 import path from "node:path";
 import { createHash, generateKeyPairSync } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { pvmClaimRefusal, checkHostConfig, spkiOfCsr, parseOptions, substituteSecrets, envBlock, optionsFile, ISOLATION_BACKEND, HOST_CONFIG_FORMAT } from "../shielded/anchor/avf/runner/host-agent.mjs";
+import { pvmClaimRefusal, checkHostConfig, spkiOfCsr, parseOptions, substituteSecrets, envBlock, optionsFile, ISOLATION_BACKEND, HOST_CONFIG_FORMAT,
+         slotFor, vmMibFor, appMemFor, siblingDigest } from "../shielded/anchor/avf/runner/host-agent.mjs";
+import { privateKeyToAccount } from "viem/accounts";
+import { recoverAddress } from "viem";
 
 const E = "0x" + "c6".repeat(32), NOW = 1_800_000_000;
 const row = (over = {}) => ({ id: "0x" + "d1".repeat(32), active: true, isPublic: true, gpuMilli: 0, cpuMilli: 250, configCid: "", runner: "0x" + "00".repeat(32), leaseUntil: 0, ...over });
@@ -107,7 +110,7 @@ test("the config is strict: public values only, the owner's price, exactly one b
     register: { repo: "EnclaveHost/enclave", cpuPricePerSec6: "2" }, payout: { to: "0x" + "0b".repeat(20), minWithdraw6: "1000000" },
     evidence: { allowedCodeHashes: ["51".repeat(32)], allowedAuthorityHashes: ["98".repeat(64)], allowedRuntimeIds: ["d3".repeat(32)], rootPins: ["ce".repeat(32)], instanceIds: ["cd".repeat(32)] },
     device: { adb: "/bin/adb", serial: "X", vmName: "pvmprod1", agentPort: 18187, attachPort: 18188 }, idleApp: idle,
-    claim: { enabled: true, maxMemMb: 512, sweepGraceSec: 300 }, ipfs: { python: "python3", fetchScript: "/x/fetch-cid.py", gateways: ["https://ipfs.enclave.host"], cacheDir: dir } };
+    claim: { enabled: true, maxMemMb: 512, sweepGraceSec: 300 }, slots: { count: 4, poolMemMb: 3072, routerPort: 17780 }, ipfs: { python: "python3", fetchScript: "/x/fetch-cid.py", gateways: ["https://ipfs.enclave.host"], cacheDir: dir } };
   const c = checkHostConfig(ok);
   assert.equal(c.endpoint, "https://api.enclave.host/t/pixel10-pvm-cpu");
   assert.match(c.enclaveId, /^0x[0-9a-f]{64}$/);
@@ -122,6 +125,40 @@ test("the config is strict: public values only, the owner's price, exactly one b
   assert.equal(checkHostConfig({ ...ok, egress: { port: 18189, routesFile: "/x/egress-routes.json" } }).egress.port, 18189);
   refuse({ egress: { port: 80, routesFile: "/x" } }, /egress must be exactly/);
   refuse({ egress: { port: 18189, routesFile: "relative.json" } }, /egress must be exactly/);
+  refuse({ slots: undefined }, /slots must be exactly/);
+  refuse({ slots: { ...ok.slots, count: 5 } }, /slots must be exactly/);
+  refuse({ slots: { ...ok.slots, poolMemMb: 256 } }, /slots must be exactly/);
+  refuse({ slots: { ...ok.slots, extra: 1 } }, /slots must be exactly/);
+  refuse({ slots: { ...ok.slots, poolMemMb: 512 } }, /needs a 640 MiB VM, beyond slots.poolMemMb/);
+});
+
+test("slots by share: a VM per app sized to it, taken only while the phone's pool and CPU have room", () => {
+  // the VM: the app plus the VM's own (128), at least 384, in 64 MiB steps; the app: its version's memory, 256 when unstated
+  assert.deepEqual([vmMibFor(64), vmMibFor(256), vmMibFor(300), vmMibFor(1024)], [384, 384, 448, 1152]);
+  assert.deepEqual([appMemFor(version({ memMb: 0 })), appMemFor(version({ memMb: 16 })), appMemFor(version({ memMb: 2048 })),
+                    appMemFor(version({ memMb: 64, config: JSON.stringify({ cpuFallback: { memMb: 512 } }) }))], [256, 64, 1024, 512]);
+  const S = { count: 3, poolMemMb: 1536 };
+  assert.deepEqual(slotFor(S, [], { cpuMilli: 125, appMemMb: 64 }), { slot: 1, vmMib: 384, cpus: 1 }, "1/8 of the phone: one vCPU");
+  assert.deepEqual(slotFor(S, [], { cpuMilli: 250, appMemMb: 256 }), { slot: 1, vmMib: 384, cpus: 0 }, "more: as many vCPUs as the host");
+  const held = [{ slot: 1, vmMib: 384, cpuMilli: 250 }, { slot: 3, vmMib: 640, cpuMilli: 500 }];
+  assert.deepEqual(slotFor(S, held, { cpuMilli: 250, appMemMb: 256 }), { slot: 2, vmMib: 384, cpus: 0 }, "the free slot, with what is left");
+  assert.match(slotFor(S, held, { cpuMilli: 250, appMemMb: 512 }).why, /needs 640 MiB and 512 MiB of the phone's pool is free/);
+  assert.match(slotFor(S, held, { cpuMilli: 300, appMemMb: 64 }).why, /asks cpuMilli 300 and 250 of the phone's CPU share is free/);
+  assert.match(slotFor(S, [...held, { slot: 2, vmMib: 384, cpuMilli: 0 }], { cpuMilli: 1, appMemMb: 64 }).why, /all 3 of its slots are in use/);
+  // a resize is judged without the app's own holding, in its own slot
+  assert.deepEqual(slotFor(S, held, { cpuMilli: 750, appMemMb: 512 }, 3), { slot: 3, vmMib: 640, cpus: 0 });
+  assert.match(slotFor(S, held, { cpuMilli: 800, appMemMb: 512 }, 3).why, /asks cpuMilli 800 and 750/);
+});
+
+test("the sibling statement recovers to the key that signed it, for exactly its nonce, VM and deployment", async () => {
+  const acct = privateKeyToAccount("0x" + "4b".repeat(32));
+  const st = { nonce: "11".repeat(32), transportSpki: "302a300506032b6570032100" + "22".repeat(32), instanceId: "33".repeat(32), deployment: "0x" + "44".repeat(32) };
+  const sig = await acct.sign({ hash: "0x" + siblingDigest(st).toString("hex") });
+  assert.equal(await recoverAddress({ hash: "0x" + siblingDigest(st).toString("hex"), signature: sig }), acct.address);
+  for (const k of Object.keys(st)) {
+    const other = { ...st, [k]: k === "deployment" ? "0x" + "45".repeat(32) : (k === "transportSpki" ? st[k].slice(0, -2) + "23" : "12".repeat(32)) };
+    assert.notEqual(await recoverAddress({ hash: "0x" + siblingDigest(other).toString("hex"), signature: sig }), acct.address, k);
+  }
 });
 
 test("the CSR's key is read from the request itself", () => {
