@@ -102,30 +102,44 @@ fleet's 62.5-per-vCPU convention describes native execution, and these apps run 
 Eligibility on the phone itself (`Main.gate()`): vendor API level >= 202404, protected-VM capability, remote attestation
 supported. These gate whether the app tries; the relay's contract decides admission.
 
-## Production path (2026-10-08)
+## Production path (2026-10-08) and serving buyers (2026-10-09)
 
-- **Traffic: TUNA on the phone.** The phone's host app runs the TUNA SDK (Go, cross-built for android/arm64 inside the
-  APK) and routes clients to the VM's evidence (7787) and sealed (7788) ports, as every other host does since 10-01
-  (f0167b59). The relay fleet tunnel carries control only. The lab's raw relay splice (review/pvm-carrier-candidate) is
-  not used: main removed the splice it needed.
 - **Workloads:** ledger deployments with `gpuMilli == 0` only; the runner refuses anything else.
-- **The host in production (2026-10-08):**
-  - The release build is `host.enclave.pvmcpu`. It is signed with the release key `~/.config/enclave/pvm-cpu/release.jks`
-    (password file beside it; never in git) through `ANCHOR_RELEASE_KEYSTORE` / `ANCHOR_RELEASE_PASS_FILE`, and installs
-    beside the lab app.
-  - nan's relay pins it: `PVM_CPU_CODE_HASHES`, `PVM_CPU_AUTHORITY_HASHES` (the release key's authority) and
-    `PVM_CPU_RUNTIME_IDS` in /etc/nan-relay/api-relay.env.
-  - `cpu/prod-host.sh <release apk>` serves a component until stopped from the foreground service, attached to
-    `wss://api.enclave.host/v1/fleet-tunnel`. A lost tunnel re-attaches in place with a fresh capability report, and the
-    owner's keepalive keeps the VM's one-hour idle stop away.
-  - The host is listed on `https://api.enclave.host/enclaves` with `lane: "pvm-cpu"`. Every rebuild changes the code hash,
-    so the env pin moves with each release.
-- **Owner decisions still open:**
-  - the production APK signing key, which sets the authority hash the relay pins;
-  - `PVM_CPU_*` on nan;
-  - the runner's on-chain registration (operator wallet, any spend);
-  - the client release keys;
-  - the first app to admit.
+- **The release build** is `host.enclave.pvmcpu`, built with `ANCHOR_TIER=pvm-cpu ANCHOR_MODE=protected` and signed with
+  the release key `~/.config/enclave/pvm-cpu/release.jks` (password file beside it; never in git) through
+  `ANCHOR_RELEASE_KEYSTORE` / `ANCHOR_RELEASE_PASS_FILE`. It installs beside the lab app. A dev-mode build is refused by the
+  relay ("build mode dev"). nan pins it: `PVM_CPU_CODE_HASHES`, `PVM_CPU_AUTHORITY_HASHES` (the release key's authority),
+  `PVM_CPU_RUNTIME_IDS`; every rebuild changes the code hash, so the pin moves with each release.
+
+### Serving buyers (the marketplace host)
+
+A phone is bought like any other host: it is registered on chain with the owner's price, listed with an availability pool
+and a price, takes claim hints and placement pins, claims, serves the buyer's app under a public certificate at
+`https://<label>.app.enclave.host` through TUNA, renews, proves its time and is paid.
+
+| piece | where | what it does |
+|---|---|---|
+| VM (`serve=https-p256`) | the pVM | serves the app with TLS 1.3 under a P-256 key derived from the instance secret for THIS app and deployment; v4 evidence binds that key (the attested transport key signs it); answers `/.well-known/enclave-attestation` and `/.well-known/enclave-ready` on the app's own TLS port; `CSR`/`CERT` on the evidence endpoint; one thread per connection |
+| host app (`app_tls 2`) | the phone | loopback bridges: 17786 to the TLS app port (ciphertext only), 17787 to the evidence endpoint behind `AUTH <token>` (the token is in the app's own external files dir); forwards the relay's host requests to the host agent; attach co-signature from the owner's co-signer |
+| host agent (`runner/host-agent.mjs`) | the owner's machine, beside the phone on USB | the host surface (`/availability`, `/v1/claim-hint`, `/v1/pvm/evidence`, `/v1/deployments[/<id>[/logs]]`); registers at the owner's price and re-states the entry on a new build or price; sweeps the ledger (`pvmClaimRefusal`); fetches the component by CID, restarts the VM with it and the lease's proof pins, claims, renews while proofs land, proves every 5 min, releases when the lease is over (refunding the tail) and goes idle; asks the relay for the app's certificate and installs it (again after a VM relaunch; renewed 30 days before expiry); the attach co-signer for the owner's own instance |
+| relay (`relay/pvm-market.mjs`, `PVM_MARKET=1`) | nan | the row is a market host only when tiered pvm-cpu, its attach was signed by the registered operator, and its id is the registered endpoint's; each app is served (routes, `servesDeployments`, dns-01) and given a certificate only after fresh v4 evidence over the relay's own nonce, for the component the relay fetched itself by the catalog's CID, from the VM attached as this host, binding exactly that TLS key |
+| TUNA (`network/` `pvm` mode) | the owner's machine | a privacy-agent instance with the phone's runner and operator: guarded circuits in Docker forward admitted streams to the phone's TLS bridge (adb forward); the local proof verifies the VM's evidence on the app's own TLS connection (`probeGuest` pvm branch); `runner/tuna-enroll.mjs` enrolls each served app (wallets, funding, config) |
+
+What a buyer can buy here: a public, CPU-only, approved catalog version that is a `wasi:http/incoming-handler` component
+(no wasi:nn, no sockets), within the VM's memory, with no configuration, secrets or protection rules, and an isolation
+requirement that is absent or `avf-pvm-per-app`. The phone has one slot: one app at a time, the whole VM. Socket-server
+apps (`ports: http:8000`, wasi:cli/run with wasi:sockets) are not served yet.
+
+What is trusted: TLS ends inside the protected VM under a key only the VM holds; the phone's Android, the owner's machine,
+TUNA providers and the relay carry ciphertext. The relay and the route probe each verify the VM's own evidence (Google's
+attestation roots, the pinned build, runtime and instance) before routing or certifying. The owner holds the operator
+key and the phone; the operator is not excluded from availability (it can stop serving), only from the app's memory and
+its TLS key.
+
+First purchase (results/pvm-cpu-market-e2e-20261009): deployment `0x7f45af3e…` (hello-world 1.0.4, 25% CPU, $0.25 at
+1 µUSDC/s) pinned to `pixel10-pvm-cpu`: claimed and proved on Base, evidence verified by the relay, a ZeroSSL certificate
+for `7f45af3e.app.enclave.host` on the VM's key, a TUNA route, "Hello World!" at the public URL; then stopped by the buyer
+(the phone released and went idle) and resumed (the phone took it back and served it again).
 
 > **History.** The sections from here to "What remains" record the lab work of 2026-09-23..26 on the retired model lane:
 > wasi:nn, the llama.cpp engine, token rates, ggml-probe/stream-probe. They are kept for the record. The
