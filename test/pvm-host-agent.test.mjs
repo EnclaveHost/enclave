@@ -45,6 +45,7 @@ test("a pVM takes a public, CPU-only, unconfigured wasi:http app that fits, and 
     [row(), version({ configCid: "bafyconfig" }), /configuration document/],
   ]) assert.match(String(why(d, v)), re, JSON.stringify(d).slice(0, 80) + " " + JSON.stringify(v).slice(0, 60));
   assert.equal(why(row(), version({ vramMb: 4096, config: '{"gpuOptional":true}' })), null, "a GPU-optional app runs on the CPU");
+  assert.equal(why(row(), version({ config: '{"_media":{"thumbnail":"bafy"}}' })), null, "display metadata is not app configuration");
 });
 
 test("the config is strict: public values only, the owner's price, exactly one build", () => {

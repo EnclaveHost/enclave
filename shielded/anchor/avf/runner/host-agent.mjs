@@ -130,7 +130,8 @@ export function pvmClaimRefusal(d, version, { enclaveId, maxMemMb, nowSec }) {
   if (String(cfg.wasi || "0.2") === "0.3") want.push("wasi 0.3");
   if (Array.isArray(cfg.volumes) && cfg.volumes.length) want.push("a model volume");
   if (version.configCid) want.push("a configuration document");
-  const appCfg = Object.keys(cfg).filter((k) => !["gpuOptional", "cpuFallback", "wasi", "set", "threads", "mem64", "volumes"].includes(k));
+  // _media is the catalog's display metadata (a thumbnail), never handed to the app (the relay strips it too)
+  const appCfg = Object.keys(cfg).filter((k) => !["gpuOptional", "cpuFallback", "wasi", "set", "threads", "mem64", "volumes", "_media"].includes(k));
   if (appCfg.length) want.push(`app configuration (${appCfg.slice(0, 4).join(", ")})`);
   if (want.length) return `its catalog version needs ${want.join(", ")}, which the pVM runtime does not offer`;
   return null;
