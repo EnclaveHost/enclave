@@ -17,10 +17,11 @@ c-wallet-button{display:contents;}
 .nav-inner .wallet-pop{left:auto;right:0;}  /* drop down aligned to the header's right edge */
 .wp-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line-soft);font-size:.78rem;}
 .wp-k{color:var(--text-muted);}
-/* the full address, two lines of 22 + 20 characters (a soft wrap: selecting it copies one line), copy glyph beside */
-.wp-row-addr{align-items:flex-start;} .wp-row-addr .wp-k{flex:none;padding-top:3px;}
-.wp-row-addr .wp-addr{gap:8px;min-width:0;text-align:left;}
-.wp-addr-txt{max-width:22ch;font-size:.74rem;word-break:break-all;line-height:1.35;}
+/* the full address on its own line under "Wallet", right-aligned like the other values: one line across the
+   popover's width (beside the label it would need two); a narrow phone soft-wraps it (selecting it copies one line) */
+.wp-row-addr{flex-direction:column;align-items:stretch;gap:2px;}
+.wp-row-addr .wp-addr{align-self:flex-end;gap:8px;max-width:100%;min-width:0;text-align:right;}
+.wp-addr-txt{min-width:0;font-size:.74rem;word-break:break-all;line-height:1.35;text-wrap:balance;}   /* a phone gets two even lines */
 .wp-v{color:var(--text);} .wp-v .ok{color:var(--jade);}
 /* an amount that is also the way to add to it (Balance -> Deposit, the session's budget -> Top up): a dotted underline */
 .wp-link{background:none;border:0;padding:0;font:inherit;cursor:pointer;min-height:24px;display:inline-flex;align-items:center;
