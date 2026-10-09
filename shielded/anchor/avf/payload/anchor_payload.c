@@ -1213,6 +1213,7 @@ static void tpu_link_bench(int want) {
  * comes back as APPOUT <stream> <hex> lines (1 = stdout, 2 = stderr), in 1 KiB chunks. The sha256 is the app's identity
  * (AppID), kept for the attestation binding (report_data[32:64], milestone 5). */
 static uint8_t g_app_sha256[32]; static int g_app_have = 0;
+static void seal_seed_for(const uint8_t app[32], uint8_t out[32]);   /* this VM's seal key seed (defined with the app options) */
 /* the relay's fresh nonce for the app's ABI/2 evidence (APPNONCE): used instead of the attach nonce when present */
 static uint8_t g_app_nonce[32]; static int g_app_nonce_set = 0;
 typedef int (*pvmrt_identity_fn)(char *, size_t);
@@ -1546,6 +1547,27 @@ static void tls_answer(evidence_srv *e, int c, const char *line) {
     OUT("TLS chain installed (%d certificates): every new handshake presents it", k);
 #undef TLS_REFUSE
 }
+/* SEALKEY <nonce>: this VM's seal key for the served app and deployment, stated by the attested transport key over the
+ * caller's nonce (relay/pvm-secrets.mjs checks it against the v4 evidence for the SAME nonce, then seals the deployment's
+ * secrets to it):  sig = Ed25519(transport) over "enclave-pvm-seal-key-v1\n" || nonce || deployment || app || sealKey */
+static void seal_key_answer(int c, const char *hex) {
+#define SK_REFUSE(msg) do { const char *m_ = "{\"error\":\"" msg "\"}\n"; write_all(c, m_, strlen(m_)); return; } while (0)
+    uint8_t nonce[32];
+    if (strlen(hex) != 64 || !sh_pads_hex2bin(hex, nonce, 32)) SK_REFUSE("request is SEALKEY <64 lowercase hex>");
+    if (!g_app_have || !g_pp.set) SK_REFUSE("no served app with proof pins: no seal key");
+    uint8_t seed[32], pk[32];
+    seal_seed_for(g_app_sha256, seed); crypto_scalarmult_curve25519_base(pk, seed); memset(seed, 0, sizeof seed);
+    static const char dom[] = "enclave-pvm-seal-key-v1\n"; uint8_t m[sizeof dom - 1 + 128];
+    memcpy(m, dom, sizeof dom - 1); memcpy(m + sizeof dom - 1, nonce, 32); memcpy(m + sizeof dom - 1 + 32, g_pp.deployment, 32);
+    memcpy(m + sizeof dom - 1 + 64, g_app_sha256, 32); memcpy(m + sizeof dom - 1 + 96, pk, 32);
+    uint8_t sm[64 + sizeof m], sig[64]; unsigned long long smlen = 0; crypto_sign(sm, &smlen, m, sizeof m, g_tsk); memcpy(sig, sm, 64);
+    char nh[65], dp[65], ah[65], kh[65], sg[129];
+    sh_pads_bin2hex(nonce, 32, nh); sh_pads_bin2hex(g_pp.deployment, 32, dp); sh_pads_bin2hex(g_app_sha256, 32, ah); sh_pads_bin2hex(pk, 32, kh); sh_pads_bin2hex(sig, 64, sg);
+    char js[600]; const int n = snprintf(js, sizeof js, "{\"format\":\"enclave-pvm-seal-key/v1\",\"deployment\":\"0x%s\",\"app\":\"%s\",\"sealKey\":\"%s\",\"nonce\":\"%s\",\"sig\":\"%s\"}\n", dp, ah, kh, nh, sg);
+    write_all(c, js, (size_t)n);
+    OUT("SEALKEY stated for the served app (seal key %.16s..., by the attested transport key)", kh);
+#undef SK_REFUSE
+}
 static void evidence_answer(evidence_srv *e, int c) {
     struct timeval tv = { 5, 0 }; setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
     char line[320]; size_t n = 0;
@@ -1553,6 +1575,7 @@ static void evidence_answer(evidence_srv *e, int c) {
     line[n] = 0;
     if (!strncmp(line, "CHECKPOINT", 10)) { checkpoint_answer(e, c, line); return; }
     if (!strncmp(line, "CSR ", 4) || !strncmp(line, "CERT ", 5)) { tls_answer(e, c, line); return; }
+    if (!strncmp(line, "SEALKEY ", 8)) { seal_key_answer(c, line + 8); return; }
     /* PROOFKEY <nonce>: the v3 envelope for that nonce, wrapped in the attested proof-key statement (PROOF-KEY.md) */
     const int pk = strncmp(line, "PROOFKEY ", 9) == 0;
     if (pk && !e->proof_on) { write_all(c, "{\"error\":\"no proof pins: no proof-key statement\"}\n", strlen("{\"error\":\"no proof pins: no proof-key statement\"}\n")); return; }
@@ -1639,6 +1662,10 @@ typedef struct {
     int (*egress_open)(void *, const char *, uint16_t, char *, size_t);
     int (*egress_resolve)(void *, const char *, char *, size_t);
     void *egress_ctx;
+    const uint8_t *sealed; size_t sealed_len;          /* the relay's sealed release (APPSEALED) */
+    const uint8_t *seal_seed;                           /* 32: this VM's seal key seed for the app and deployment */
+    const uint8_t *deployment;                          /* 32 */
+    const uint8_t *release_keys; size_t release_keys_count;   /* 32 each: the release keys this build pins */
 } pvmrt_app_opts;
 typedef void *(*pvmrt_https_open_p256_fn)(const uint8_t *, size_t, const uint8_t *, uint64_t, uint64_t, const char *, const pvmrt_nn_ops *,
                                           const uint8_t *, const pvmrt_app_opts *, void (*)(int, const uint8_t *, size_t), uint64_t *, char *, size_t);
@@ -1652,6 +1679,21 @@ typedef void *(*pvmrt_https_open_socket_fn)(const uint8_t *, size_t, const uint8
 static uint8_t g_app_env[APP_ENV_MAX]; static size_t g_app_env_len;
 static char g_app_waf[APP_WAF_MAX + 1]; static size_t g_app_waf_len;
 static int g_app_egress;
+/* the relay's sealed release of the deployment's secrets (APPSEALED hex lines: ticket || relay signature || sealed), opened by
+ * pvm-rt with this VM's seal key for the app and deployment (seal_seed) under the release keys this build pins */
+#define APP_SEALED_MAX (48u << 10)
+static uint8_t g_app_sealed[APP_SEALED_MAX]; static size_t g_app_sealed_len;
+/* the relay's release signing key(s) (relay/secrets-release.mjs: SECRETS_RELEASE_SIGNING_KEY_FILE on nan, keyId 06212e5df9c3779a):
+ * a release not signed by one of these is refused, so a host cannot seal values of its own to this VM's public seal key */
+static const char *const PVM_RELEASE_KEYS[] = { "d6c8a95966710fb52f4f753458362869ee26cf84aee08d27900c53a5b3fcc81d" };
+/* This VM's X25519 seal key seed for THIS app and THIS deployment: from the instance's secret, so the same VM derives it again
+ * after a relaunch and opens a release the relay sealed to it before. Zero deployment until PROOFPINS. */
+static void seal_seed_for(const uint8_t app[32], uint8_t out[32]) {
+    static const char dom[] = "enclave-pvm-seal-key-v1\n"; uint8_t ident[sizeof dom - 1 + 64];
+    memcpy(ident, dom, sizeof dom - 1); memcpy(ident + sizeof dom - 1, app, 32);
+    if (g_pp.set) memcpy(ident + sizeof dom - 1 + 32, g_pp.deployment, 32); else memset(ident + sizeof dom - 1 + 32, 0, 32);
+    AVmPayload_getVmInstanceSecret(ident, sizeof ident, out, 32);
+}
 
 /* ---- the app's way out (PVM-CPU.md "Egress") ----
  * This VM has no network, and cannot open a connection to the phone; so the phone's host app keeps idle streams open to
@@ -1816,7 +1858,16 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
         pthread_detach(et);
         o.egress_open = egress_open; o.egress_resolve = egress_resolve;
     }
-    if (ca) OUT("APP options: environment %zu bytes, protection rules %s, egress %s", g_app_env_len, g_app_waf_len ? "set" : "none", g_app_egress ? "through the owner's host (vsock 7790)" : "none");
+    static uint8_t seal_seed[32], rel_keys[sizeof PVM_RELEASE_KEYS / sizeof PVM_RELEASE_KEYS[0]][32];
+    if (g_app_sealed_len) {
+        if (!g_pp.set) { memset(seed, 0, sizeof seed); free(a->bytes); a->bytes = NULL; OUT("APP refused: a sealed release needs the deployment's proof pins"); return 4; }
+        for (size_t i = 0; i < sizeof PVM_RELEASE_KEYS / sizeof PVM_RELEASE_KEYS[0]; i++) (void)sh_pads_hex2bin(PVM_RELEASE_KEYS[i], rel_keys[i], 32);
+        seal_seed_for(plan->sha256, seal_seed);
+        o.sealed = g_app_sealed; o.sealed_len = g_app_sealed_len; o.seal_seed = seal_seed; o.deployment = g_pp.deployment;
+        o.release_keys = &rel_keys[0][0]; o.release_keys_count = sizeof PVM_RELEASE_KEYS / sizeof PVM_RELEASE_KEYS[0];
+    }
+    if (ca) OUT("APP options: environment %zu bytes, protection rules %s, egress %s, secrets %s", g_app_env_len, g_app_waf_len ? "set" : "none", g_app_egress ? "through the owner's host (vsock 7790)" : "none",
+                g_app_sealed_len ? "sealed by the relay (opened in pvm-rt)" : "none");
     /* a socket-server app (sock=): ONE instance listening on the VM's loopback, fronted by the same TLS and evidence paths */
     void *srv = plan->sock ? hsock(a->bytes, plan->bytes, plan->sha256, (uint64_t)(plan->mem_mib ? plan->mem_mib : 256) << 20, plan->sock, appdata_dir(), seed, &o, app_emit, &cms, err, sizeof err)
               : ca ? hsp256(a->bytes, plan->bytes, plan->sha256, 256ull << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, seed, &o, app_emit, &cms, err, sizeof err)
@@ -2356,6 +2407,10 @@ int AVmPayload_main(void) {
                 const size_t cap = env ? APP_ENV_MAX : APP_WAF_MAX;
                 if (!hn || hn % 2 || *len + hn / 2 > cap || !sh_pads_hex2bin(h, buf + *len, hn / 2)) { app_bad = 1; OUT("APP refused: %s malformed or over %zu bytes", env ? "APPENV" : "APPWAF", cap); }
                 else *len += hn / 2; }
+            else if (!strncmp(l, "APPSEALED ", 10)) {   /* the relay's sealed release of the deployment's secrets, hex, in chunks */
+                const char *h = l + 10; const size_t hn = strlen(h);
+                if (!hn || hn % 2 || g_app_sealed_len + hn / 2 > APP_SEALED_MAX || !sh_pads_hex2bin(h, g_app_sealed + g_app_sealed_len, hn / 2)) { app_bad = 1; OUT("APP refused: APPSEALED malformed or over %u bytes", APP_SEALED_MAX); }
+                else g_app_sealed_len += hn / 2; }
             else if (!strcmp(l, "APPEGRESS")) {   /* the app may reach out, through the owner's host (once) */
                 if (g_app_egress) { app_bad = 1; OUT("APP refused: APPEGRESS repeated"); } else g_app_egress = 1; }
             else if (!strncmp(l, "APP ", 4)) {   /* the portable component (anchor_app.h): strict, once; malformed or repeated refuses at RUN */
