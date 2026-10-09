@@ -40,7 +40,7 @@ Two stopped test purchases were resumed by their owner (`setActive`, gas only), 
   board" (0.84 s), `7f45af3e` "Hello World!" (0.96 s, after TUNA's provider allocation).
 - `/enclaves`: `nodeRamGb 3, ramGbFree 1.9, cpuShareFree 0.25, nodeGflops 1.45, cpuGflopsFree 0.36, slots 4,
   nodeSlotsFree 1`, `capacitySource "pvm-capability-report + the owner's slot pool"`.
-- The phone with four VMs (host + three slots): MemAvailable 5.88 GB of 15.9 GB (6.19 GB with the host VM alone);
+- The phone with four VMs (host + three slots): MemAvailable 5.88 GB of 15.9 GB (6.40 GB earlier the same day with only the host VM running);
   crosvm RSS 218 MB (host VM, 2 GiB configured), 167 / 163 / 154 MB (the 384 MiB slots).
 
 ## Rollback
