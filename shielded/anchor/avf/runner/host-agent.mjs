@@ -359,7 +359,8 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
         const L = await runner.agent.lease();
         if (!L.active || L.runner !== lc(E) || L.runnerOperator !== me || L.leaseUntil < L.headTs) {
           note({ ev: "lease-over", deployment: state.current.id, active: L.active, runner: L.runner, leaseUntil: String(L.leaseUntil) });
-          const s = await runner.stop({ release: L.active && L.runner === lc(E) && L.runnerOperator === me });
+          // still ours and live (the owner stopped it, or moved it): a final proof, then release, so the unused tail goes back
+          const s = await runner.stop({ release: L.runner === lc(E) && L.runnerOperator === me && L.leaseUntil >= L.headTs });
           if (s.kind === "in-flight") return { kind: "in-flight" };
           runner.close(); runner = null; runnerFor = null;
           await goIdle("the lease is over");
