@@ -650,7 +650,7 @@ export async function renderWalletPop(){
   pop.innerHTML =
     '<div class="wp-row wp-row-addr"><span class="wp-k">Wallet</span><button class="wp-addr" id="wpCopy" title="Copy address"><span class="wp-addr-txt">' + esc(Enclave.address) + '</span><span aria-hidden="true">⧉</span></button></div>' +
     '<div class="wp-row"><span class="wp-k">Network</span><span class="wp-v">' + (Enclave.chainId === BASE_CHAIN ? "Base" : ("chain " + (Enclave.chainId || "–"))) + (offBase ? ' <button class="wp-mini" id="wpSwitch">switch to Base</button>' : "") + '</span></div>' +
-    '<div class="wp-row"><span class="wp-k">Balance</span><span class="wp-v" id="wpBalUsdc">…</span></div>' +
+    '<div class="wp-row"><span class="wp-k">Balance</span><button class="wp-v wp-link" id="wpBalUsdc" type="button" title="Deposit">…</button></div>' +
     '<div class="wp-fund"><button class="wp-mini" id="wpDep">Deposit</button></div>' +
     '<hr class="wp-sep">' +   // the wallet above, this browser's session below
     '<div class="wp-row"><span class="wp-k">Session</span><span class="wp-v" id="wpSess">…</span></div>' +
@@ -662,7 +662,8 @@ export async function renderWalletPop(){
   popExpanded(true);
   const c = $("#wpCopy"); if (c) c.addEventListener("click", () => copyText(Enclave.address));
   const d = $("#wpDisc"); if (d) d.addEventListener("click", disconnectWallet);
-  const dep = $("#wpDep"); if (dep) dep.addEventListener("click", () => { pop.hidden = true; popExpanded(false); openDepositModal(); });
+  // the balance itself is a way in to Deposit, like the button under it
+  for (const id of ["#wpDep", "#wpBalUsdc"]){ const el = $(id); if (el) el.addEventListener("click", () => { pop.hidden = true; popExpanded(false); openDepositModal(); }); }
   const ss = $("#wpSessions"); if (ss) ss.addEventListener("click", () => { pop.hidden = true; popExpanded(false); });   // boot.js navigates
   usdcBalanceOf(Enclave.address).then(
     (b) => { const u = $("#wpBalUsdc"); if (u) u.textContent = b.toFixed(2) + " USDC"; },
@@ -671,8 +672,8 @@ export async function renderWalletPop(){
   renderSessionRow();
 }
 
-/* the popover's session row: the budget left and the time left, or "start". Top up and the full list live on
-   All Sessions (under this row); ending this browser's session is Sign out. */
+/* the popover's session row: the budget left (click it to top up) and the time left, or "start". The full list
+   lives on All Sessions (under this row); ending this browser's session is Sign out. */
 async function renderSessionRow(){
   const el = $("#wpSess"); if (!el) return;
   let S;
@@ -686,7 +687,8 @@ async function renderSessionRow(){
     return;
   }
   const left = Number(st.expiresAt) - Math.floor(Date.now() / 1000);
-  el.innerHTML = '<span class="ok">' + esc(S.fmtUsd(st.balance6)) + '</span> · ' + esc(S.fmtLeft(left));
+  el.innerHTML = '<button class="wp-link ok" id="wpSessBal" type="button" title="Top up this session">' + esc(S.fmtUsd(st.balance6)) + '</button> · ' + esc(S.fmtLeft(left));
+  const t = $("#wpSessBal"); if (t) t.addEventListener("click", async () => { if (await S.openTopUpModal()) renderWalletPop(); });
 }
 
 /* ---- on-chain tx helpers used by both the deploy console and the store ---- */

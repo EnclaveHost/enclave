@@ -22,6 +22,11 @@ c-wallet-button{display:contents;}
 .wp-row-addr .wp-addr{gap:8px;min-width:0;text-align:left;}
 .wp-addr-txt{max-width:22ch;font-size:.74rem;word-break:break-all;line-height:1.35;}
 .wp-v{color:var(--text);} .wp-v .ok{color:var(--jade);}
+/* an amount that is also the way to add to it (Balance -> Deposit, the session's budget -> Top up): a dotted underline */
+.wp-link{background:none;border:0;padding:0;font:inherit;cursor:pointer;min-height:24px;display:inline-flex;align-items:center;
+  text-decoration:underline dotted;text-decoration-color:var(--line-strong);text-underline-offset:4px;}
+.wp-link:not(.ok){color:var(--text);}
+.wp-link:hover,.wp-link:focus-visible{text-decoration-style:solid;text-decoration-color:currentColor;}
 .wp-addr{background:none;border:0;color:var(--jade);cursor:pointer;font-family:inherit;font-size:.8rem;min-height:24px;display:inline-flex;align-items:center;}
 .wp-mini{background:#101a24;border:1px solid var(--line);color:var(--iris);border-radius:6px;padding:.15em .5em;cursor:pointer;font-family:inherit;font-size:.7rem;line-height:1;min-height:24px;min-width:24px;display:inline-flex;align-items:center;justify-content:center;}
 .wp-bal{margin:10px 0;font-size:.76rem;color:var(--text-muted);} .wp-bal .bl-h{color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;font-size:.62rem;margin-bottom:5px;}
