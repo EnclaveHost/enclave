@@ -63,7 +63,9 @@ export function createPvmDevice({ adb, serial, pkg = RELEASE_PACKAGE, vmName, re
   async function stageOptions(text) {
     if (text === null) { await sh(`run-as ${pkg} rm -f files/app-opts`); return; }
     if (!/^[A-Z]{3,6} [0-9a-f ]+(\n[A-Z]{3,6} [0-9a-f ]+)*\n?$/.test(text)) throw new Error("stageOptions: not an options file");
-    await run(["exec-in", "run-as", pkg, "sh", "-c", "umask 077; cat > files/app-opts.tmp && mv files/app-opts.tmp files/app-opts"], { input: text });
+    // over `adb shell`'s stdin (the shell protocol waits for the remote end; `exec-in` from a child process dropped the
+    // bytes when its stdin closed first: measured), into a 0600 file the app's uid owns, renamed into place
+    await sh(`run-as ${pkg} sh -c 'umask 077; cat > files/app-opts.tmp && mv files/app-opts.tmp files/app-opts'`, { input: text });
     const got = (await sh(`run-as ${pkg} sha256sum files/app-opts`)).slice(0, 64);
     if (got !== crypto.createHash("sha256").update(text).digest("hex")) throw new Error("the staged options file does not match");
   }

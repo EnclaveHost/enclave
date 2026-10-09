@@ -372,17 +372,34 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     note({ ev: "options", deployment: D, configBytes: text.length, secrets: Object.keys(secrets || {}).length, waf: !!o.waf, egress: !!token });
     return { file, token };
   }
-  /** Launch D's VM with its options as they are now (its row, version and -- when held -- secrets). */
-  async function launchFor(c, { withSecrets }) {
+  /**
+   * Launch D's VM with its options as they are now (its row, its version, and `secrets` when the caller holds them).
+   * The relay serves secrets only to the lease holder WHILE this host is eligible -- a VM attached -- so they are fetched
+   * while a VM serves (restart, config edit: before the relaunch) or once a new one does (claim, a VM that died:
+   * `needSecrets`, applied by the next round with one more relaunch, only when the relay says any exist).
+   */
+  async function launchFor(c, { secrets = null } = {}) {
     const d = await read(addrs.deployments, DEP_ABI, "get", [c.id]);
     const v = await versionOf(c.appRef);
-    const secrets = withSecrets ? await secretsFor(c.id) : null;
     const { file, token } = await launchOptions(c.id, d, v, secrets);
     c.egressToken = token; c.configCid = String(d.configCid || ""); c.gpuMilli = Number(d.gpuMilli); c.cpuMilli = Number(d.cpuMilli);
-    if (secrets) c.secretsAt = now();
+    c.needSecrets = !secrets; if (secrets) c.secretsAt = now();
     save();
     await launchVm({ D: c.id, file: c.file, sha: c.sha, label: c.label, sock: c.sock || 0, memMib: c.memMib || 0, opts: file });
     return { secrets: secrets ? Object.keys(secrets).length : null };
+  }
+  /** A served VM launched without its secrets gets them (one relaunch) when the relay says it has any. */
+  async function applySecrets(c) {
+    const exists = await secretsExist({ id: c.id, base: cfg.relayOrigin }).catch((e) => { note({ ev: "secrets-unknown", deployment: c.id, error: e.message }); return null; });
+    if (exists === false) { c.needSecrets = false; save(); return false; }
+    const secrets = await secretsFor(c.id);
+    if (!secrets) return false;                                  // refused or unreachable now: the next round asks again
+    if (!Object.keys(secrets).length) { c.needSecrets = false; save(); return false; }
+    c.label = `app-${c.id.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`; delete c.cert; save();
+    await launchFor(c, { secrets });
+    lastCert = 0;
+    note({ ev: "secrets-applied", deployment: c.id, count: Object.keys(secrets).length });
+    return true;
   }
 
   // ---- choosing work ----
@@ -437,19 +454,14 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     try {
       // the relay hands secrets to the LEASE HOLDER only, and the claim needs this VM attesting this app: so the first launch
       // has none, and once the claim lands the VM is relaunched with them -- only when the relay says there are any
-      const hasSecrets = await secretsExist({ id: D, base: cfg.relayOrigin }).catch((e) => { note({ ev: "secrets-unknown", deployment: D, error: e.message }); return null; });
-      await launchFor(state.current, { withSecrets: false });
+      await launchFor(state.current);
       const r = await useRunner(D, comp.sha);
       const t = await r.tick();   // the claim (or the reason it was refused), then a first proof
       const L = await r.agent.lease();
       if (L.runner === lc(E) && L.runnerOperator === me && L.leaseUntil >= L.headTs) {
         state.current.phase = "serving"; state.current.claimedAt = now(); save();
         note({ ev: "claimed", deployment: D, leaseUntil: String(L.leaseUntil), tick: t.kind });
-        if (hasSecrets !== false) {
-          state.current.label = `app-${D.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`; save();
-          const got = await launchFor(state.current, { withSecrets: true });
-          note({ ev: "secrets-applied", deployment: D, count: got.secrets });
-        }
+        await applySecrets(state.current);
         lastRunnerTick = now(); lastCert = 0;
         return D;
       }
@@ -513,7 +525,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
           if (!up) {
             // a relaunched VM holds no certificate (the chain lives in its memory only): install it again
             state.current.label = `app-${state.current.id.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`; delete state.current.cert; save();
-            await launchFor(state.current, { withSecrets: state.current.phase === "serving" });
+            await launchFor(state.current);   // no secrets yet: the relay serves them once this VM attaches (needSecrets)
           } else await device.readToken();
           await useRunner(state.current.id, state.current.sha);
         } else if (!up) await goIdle(runner ? "the VM ended" : "start");
@@ -536,6 +548,9 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
           if (s.kind === "in-flight") return { kind: "in-flight" };
           runner.close(); runner = null; runnerFor = null;
           await goIdle("the lease is over");
+        } else if (state.current.needSecrets && now() - (state.current.secretsTriedAt || 0) >= 60_000) {
+          state.current.secretsTriedAt = now();
+          await applySecrets(state.current);
         } else if (await optionsChanged()) {
           // handled (relaunched on the new options, or released when they are no longer this host's to apply)
         } else if ((!state.current.cert || (state.current.cert.notAfter && Date.parse(state.current.cert.notAfter) - now() < 30 * 86400_000))
@@ -582,8 +597,9 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
       return true;
     }
     if (!cfgChanged) { c.cpuMilli = Number(d.cpuMilli); c.gpuMilli = Number(d.gpuMilli); save(); return true; }
+    const secrets = await secretsFor(c.id);   // while this VM still serves (eligible); null: the new one gets them later
     c.label = `app-${c.id.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`; delete c.cert; save();
-    await launchFor(c, { withSecrets: true });
+    await launchFor(c, { secrets });
     lastCert = 0;
     return true;
   }
@@ -683,7 +699,8 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     try {
       const c = state.current;
       c.label = `app-${c.id.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`; delete c.cert; save();
-      await launchFor(c, { withSecrets: true });   // a restart applies the owner's current secrets and config
+      // a restart applies the owner's current secrets and config: fetched while this VM still serves (the host eligible)
+      await launchFor(c, { secrets: await secretsFor(c.id) });
       lastCert = 0;
       note({ ev: "restarted", deployment: c.id });
       return [200, { id: c.id, restarted: true, label: c.label }];
