@@ -1660,7 +1660,7 @@ static int g_app_egress;
  * the connection), "OK <ip>,<ip>" (the lookup), or "ERR <reason>". The owner's host agent answers (runner/egress.mjs): this
  * app's own TUNA route, public destinations only. What the app sends after OK is its own (TLS, for https, made by the
  * runtime here). */
-#define EGRESS_PORT 7788
+#define EGRESS_PORT 7790   /* owner -> guest: idle streams the app's outbound connections take (7788 is SEALED_PORT) */
 #define EGRESS_IDLE_MAX 16
 static pthread_mutex_t g_eg_mu = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t g_eg_cv = PTHREAD_COND_INITIALIZER;
@@ -1729,6 +1729,9 @@ static const char *appdata_dir(void) {
 typedef int (*pvmrt_https_set_attest_fn)(const void *, pvmrt_attest_cb, void *);
 typedef int (*pvmrt_https_tls_spki_fn)(const void *, uint8_t *, size_t);
 #define SEALED_PORT 7788   /* LAB, the browser channel: one HPKE-sealed HTTP request per connection (pvm-rt sealed.rs) */
+/* every port the served app's VM listens on is its own (a second bind fails, and the app is refused) */
+_Static_assert(EGRESS_PORT != SEALED_PORT && EGRESS_PORT != EVIDENCE_PORT && EGRESS_PORT != APP_HTTP_PORT && EGRESS_PORT != APP_PORT &&
+               SEALED_PORT != EVIDENCE_PORT && SEALED_PORT != APP_HTTP_PORT, "the app's vsock ports must be distinct");
 /* Connections are served one thread each (pvm-rt serves each on its own runtime), at most APP_MAX_CONNS at once; one more is
  * closed at accept. A connection idle for 45 s is closed by pvm-rt, so idle keep-alives do not hold the slots. */
 #define APP_MAX_CONNS 32
@@ -1813,7 +1816,7 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
         pthread_detach(et);
         o.egress_open = egress_open; o.egress_resolve = egress_resolve;
     }
-    if (ca) OUT("APP options: environment %zu bytes, protection rules %s, egress %s", g_app_env_len, g_app_waf_len ? "set" : "none", g_app_egress ? "through the owner's host (vsock 7788)" : "none");
+    if (ca) OUT("APP options: environment %zu bytes, protection rules %s, egress %s", g_app_env_len, g_app_waf_len ? "set" : "none", g_app_egress ? "through the owner's host (vsock 7790)" : "none");
     /* a socket-server app (sock=): ONE instance listening on the VM's loopback, fronted by the same TLS and evidence paths */
     void *srv = plan->sock ? hsock(a->bytes, plan->bytes, plan->sha256, (uint64_t)(plan->mem_mib ? plan->mem_mib : 256) << 20, plan->sock, appdata_dir(), seed, &o, app_emit, &cms, err, sizeof err)
               : ca ? hsp256(a->bytes, plan->bytes, plan->sha256, 256ull << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, seed, &o, app_emit, &cms, err, sizeof err)

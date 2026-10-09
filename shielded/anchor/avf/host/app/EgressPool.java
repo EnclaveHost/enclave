@@ -3,7 +3,7 @@
  * runtime/pvm-rt/src/egress.rs, the owner's host agent's is runner/egress.mjs).
  *
  * The VM has no network, and nothing in it can open a connection to this app; so this app keeps IDLE streams open to the
- * VM's egress port (vsock 7788). When the app inside needs out, the VM writes one line on an idle stream -- "CONNECT <host>
+ * VM's egress port (vsock 7790). When the app inside needs out, the VM writes one line on an idle stream -- "CONNECT <host>
  * <port>" or "RESOLVE <name>" -- and this app carries it to the owner's host agent (127.0.0.1:<port>, adb reverse) as
  * "EGRESS <token> <line>", hands the agent's answer line back to the VM, and after an "OK" copies bytes both ways until
  * either side closes. The agent decides everything (the app's own TUNA route, the destination policy, the caps); this app

@@ -843,7 +843,7 @@ public class Main extends Activity {
     static final int EVIDENCE_PORT = 7787;  // the VM's evidence endpoint while an app serves over TLS (payload anchor_payload.c)
     static final java.util.List<LocalBridge> bridges = new java.util.concurrent.CopyOnWriteArrayList<>();
     static final java.util.List<EgressPool> egress = new java.util.concurrent.CopyOnWriteArrayList<>();
-    static final int EGRESS_PORT = 7788;    // the VM's egress port: this app keeps idle streams open to it (EgressPool.java)
+    static final int EGRESS_PORT = 7790;    // the VM's egress port (7788 is the sealed port): this app keeps idle streams open to it (EgressPool.java)
 
     /**
      * The deployment's options (app_opts), staged by the owner's host agent as <files>/app-opts and deleted once read, so its
