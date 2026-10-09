@@ -97,8 +97,8 @@ export async function startLeaseChain({ port = 18545 + Math.floor(Math.random() 
     addresses: { registry, ledger, proofOfTime: pot, usdc, ...(book ? { addressBook: book } : {}) },
     pins: (id, enclaveId) => ({ chainId: String(chainId), proofOfTime: pot.toLowerCase(), registry: registry.toLowerCase(), deployment: id, enclaveId,
                                 operator: operatorAddress.toLowerCase() }),
-    async register({ endpoint, proofKey, from = operator }) {
-      await send(from, registry, "EnclaveRegistry", "register", [endpoint, "lab", "0x" + "00".repeat(32), 834n, 0n, proofKey]);
+    async register({ endpoint, proofKey, from = operator, measurement = "0x" + "00".repeat(32), cpuPrice6 = 834n }) {
+      await send(from, registry, "EnclaveRegistry", "register", [endpoint, "lab", measurement, cpuPrice6, 0n, proofKey]);
       return V.keccak256(V.stringToBytes(endpoint));
     },
     setProofKey: (enclaveId, proofKey, from = operator) => send(from, registry, "EnclaveRegistry", "setProofKey", [enclaveId, proofKey]),
