@@ -1,8 +1,11 @@
 /* ============================================================
    <c-fleet-list> - per-enclave capacity rows (the relay's
    /enclaves table). Assign `.rows` (already sorted upstream) and
-   it renders each box as ONE line (name, each pool's badge and %
-   available) that expands to its full pools, five boxes a page.
+   it renders each box as a summary ("$0.10 for 12 GB / 33 tflops of
+   GPU", one line a pool) that expands to its full pools, five boxes a
+   page. The units in those lines are the sort controls: GB or tflops on
+   a GPU line sorts every host by its price per GB of VRAM or per TFLOPS,
+   GB or gflops on a CPU line by RAM or CPU compute; again reverses.
    Copy says "available",
    never "free": on a page that sells compute, "60 GB free" reads as
    a price, not as headroom.
@@ -20,6 +23,13 @@ import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
 
 const PAGE = 5;   // hosts per page
+// the four sort keys: a pool kind and what its price is divided by. `unit` is what the line's button reads.
+const SORTS = {
+  "gpu-gb":      { unit: "GB",     what: "GB of VRAM" },
+  "gpu-compute": { unit: "tflops", what: "TFLOPS of GPU compute" },
+  "cpu-gb":      { unit: "GB",     what: "GB of RAM" },
+  "cpu-compute": { unit: "gflops", what: "GFLOPS of CPU compute" },
+};
 
 class FleetList extends EnclaveElement {
   // error: why the latest read failed (null = it did not); staleAt: when the
@@ -119,8 +129,15 @@ class FleetList extends EnclaveElement {
     // and compute, its badge; no posted rate -> "12 GB / 33 tflops of GPU", unknown -> "—"); `detail` is the full
     // row it expands to.
     const sumNum = v => { const n = number(v); return n === null ? '—' : n >= 10 ? String(Math.round(n)) : n >= 1 ? fmtNum(n) : String(Math.round(n * 100) / 100); };
-    const chip = (badge, gb, compute, unit, price) => '<span class="fleet-chip">' + (price || '')
-      + '<b>' + sumNum(gb) + '</b> GB / <b>' + sumNum(compute) + '</b> ' + unit + ' of ' + badge + '</span>';
+    // a line's units are its sort buttons (`kind` = "gpu" | "cpu"); the active one is marked on every row
+    const sortBy = this._sort && SORTS[this._sort.key] ? this._sort : null;
+    const unitBtn = (key) => '<button class="fleet-unit' + (sortBy && sortBy.key === key ? (sortBy.dir < 0 ? ' on desc' : ' on') : '')
+      + '" type="button" data-sort="' + key + '" title="Sort hosts by price per ' + SORTS[key].what + '">' + SORTS[key].unit + '</button>';
+    const chip = (badge, gb, compute, kind, price) => '<span class="fleet-chip">' + (price || '')
+      + '<b>' + sumNum(gb) + '</b> ' + unitBtn(kind + '-gb') + ' / <b>' + sumNum(compute) + '</b> ' + unitBtn(kind + '-compute') + ' of ' + badge + '</span>';
+    // what a host charges per unit of a pool: the whole pool's hourly rate over the whole pool's size (a share
+    // pays its fraction of both, so this is the same for any share). No rate or no size -> null, sorted last.
+    const unitPrice = (rate, amount) => { const r = number(rate), n = number(amount); return r !== null && n ? r * 3600 / n : null; };
     const nameOf = (e, dflt) => e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || dflt;
     const head = (e) => { const r = this._ratingHtml(e); return r ? '<span class="fleet-head">' + r + '</span>' : ''; };
     const marketItems = rows.map(e => {
@@ -229,9 +246,15 @@ class FleetList extends EnclaveElement {
           const ramGb = a.nodeRamGb || s.nodeRamGb;
           const price = enclavePriceOf(e);   // this box's posted ask; the fleet price where it posts none
           return { key: "m:" + (e.id || e.endpoint || name), name, title: e.endpoint || "", cls: "",
-            chips: (shPool ? chip(cardBadge, shPool.leasableGb, shPool.availableTflops, "tflops", availPrice(price.shielded, shPool.frac)) : "")
-              + (inTee ? chip(cardBadge, a.vramFreeGb != null ? a.vramFreeGb : gFree * vramGb, gFree * tflops, "tflops", availPrice(price.full, gFree)) : "")
-              + chip(teeCpuBadge, a.ramGbFree != null ? a.ramGbFree : cFree * ramGb, cpuGflopsAvail(a, cFree), "gflops", availPrice(price.node, cFree)),
+            chips: (shPool ? chip(cardBadge, shPool.leasableGb, shPool.availableTflops, "gpu", availPrice(price.shielded, shPool.frac)) : "")
+              + (inTee ? chip(cardBadge, a.vramFreeGb != null ? a.vramFreeGb : gFree * vramGb, gFree * tflops, "gpu", availPrice(price.full, gFree)) : "")
+              + chip(teeCpuBadge, a.ramGbFree != null ? a.ramGbFree : cFree * ramGb, cpuGflopsAvail(a, cFree), "cpu", availPrice(price.node, cFree)),
+            sortv: {
+              "gpu-gb": shPool ? unitPrice(price.shielded, shPool.total) : inTee ? unitPrice(price.full, vramGb) : null,
+              "gpu-compute": shPool ? unitPrice(price.shielded, shPool.tflops) : inTee ? unitPrice(price.full, tflops) : null,
+              "cpu-gb": unitPrice(price.node, ramGb),
+              "cpu-compute": unitPrice(price.node, a.nodeGflops),
+            },
             detail: head(e)
             + (shPool ? pool(cardBadge, shPct,
                 stat(fmtNum(shPool.leasableGb), fmtNum(shPool.total), "GB", "vram available", shVramTitle)
@@ -279,8 +302,8 @@ class FleetList extends EnclaveElement {
       const name = nameOf(e, "host");
       return { key: "o:" + (e.id || e.endpoint || name), name, title: e.endpoint || "", cls: "fleet-owner-row",
         chips: '<span class="ap-badge info">Owner-only</span>'
-          + (gpu ? chip('<span class="ap-badge info">GPU</span>', gpu.leasableGb, gpu.availableTflops, 'tflops') : '')
-          + chip('<span class="ap-badge info">CPU</span>', cpu.ramFreeGb, cpuGflopsAvail(e.availability || {}, cpu.fraction), 'gflops'),
+          + (gpu ? chip('<span class="ap-badge info">GPU</span>', gpu.leasableGb, gpu.availableTflops, 'gpu') : '')
+          + chip('<span class="ap-badge info">CPU</span>', cpu.ramFreeGb, cpuGflopsAvail(e.availability || {}, cpu.fraction), 'cpu'),
         detail: gpuCapacity + capacity
           + '<span class="fleet-owner-status">' + count + ' active deployment' + (count === 1 ? '' : 's') + '</span>'
           + '<span class="fleet-owner-note">Hosting for authorized owners. Unavailable for general deployments.</span>' };
@@ -300,7 +323,7 @@ class FleetList extends EnclaveElement {
         + 'workload on every vCPU at once), reported in its signed capability report. Not a native-core estimate.');
       const name = nameOf(e, "host");
       return { key: "p:" + (e.id || e.endpoint || name), name, title: e.endpoint || "", cls: "fleet-pvm-row",
-        chips: chip(badge, ramFree, cpuGflopsAvail(a, cFree), 'gflops'),
+        chips: chip(badge, ramFree, cpuGflopsAvail(a, cFree), 'cpu'),
         detail: head(e)
         + (cFree === null
           ? '<div class="fleet-pool"><span class="fleet-pool-label">' + badge + '</span><span class="fleet-pool-pct">Availability unknown</span><span class="fleet-stats">' + stats + '</span></div>'
@@ -308,9 +331,22 @@ class FleetList extends EnclaveElement {
         + '<span class="fleet-owner-note">A protected VM on its owner\u2019s phone, running CPU-only apps. Not taking deployments yet.</span>'
         + '<div class="fleet-rateform" data-form="' + esc(e.id || "") + '" hidden></div>' };
     });
-    // One page of collapsed rows, at most ONE open. The open row and the page survive the host's 20 s repaint
-    // (keyed by host, clamped when the fleet shrinks).
-    const items = marketItems.concat(ownerItems, pvmItems);
+    // One page of collapsed rows, at most ONE open. The open row, the page and the sort survive the host's 20 s
+    // repaint (keyed by host, clamped when the fleet shrinks). Sorted: by the chosen unit price, hosts with none
+    // (no such pool, no posted rate: owner-only and pVM rows) last, ties in the relay's order.
+    let items = marketItems.concat(ownerItems, pvmItems);
+    if (sortBy) {
+      const v = (r) => (r.sortv && r.sortv[sortBy.key] != null ? r.sortv[sortBy.key] : null);
+      items = items.map((r, i) => [r, i]).sort(([a, i], [b, j]) => {
+        const x = v(a), y = v(b);
+        if (x === null || y === null) return x === null && y === null ? i - j : x === null ? 1 : -1;
+        return (x - y) * sortBy.dir || i - j;
+      }).map(([r]) => r);
+    }
+    const sortBar = sortBy && items.length
+      ? '<div class="fleet-sortbar" role="status">Sorted: ' + (sortBy.dir < 0 ? 'priciest' : 'cheapest') + ' per ' + SORTS[sortBy.key].what
+        + ' first<button class="fleet-sort-x" type="button" aria-label="Clear the sort" title="Clear the sort">×</button></div>'
+      : '';
     const pages = Math.max(1, Math.ceil(items.length / PAGE));
     this._page = Math.min(Math.max(0, this._page || 0), pages - 1);
     const first = this._page * PAGE;
@@ -321,27 +357,50 @@ class FleetList extends EnclaveElement {
         // Honest and short. It is said the same way whether the fleet is empty or every attached
         // box is excluded, because from a buyer's side those are the same fact: nothing to deploy on.
         : '<div class="fleet-empty">No app hosts available right now</div>')
-      : staleNote + items.slice(first, first + PAGE).map((r, i) => {
+      : staleNote + sortBar + items.slice(first, first + PAGE).map((r, i) => {
           const open = this._openKey === r.key, id = uid + "-" + (first + i);
+          // the summary line: a toggle (chevron + name) and the pool lines, whose units are sort buttons. A click
+          // anywhere on the line but a unit opens the host, as the whole line did when it was one button.
           return '<div class="fleet-row' + (r.cls ? ' ' + r.cls : '') + '" data-key="' + esc(r.key) + '"' + (r.title ? ' title="' + esc(r.title) + '"' : '') + '>'
-            + '<button class="fleet-sum" type="button" aria-expanded="' + open + '" aria-controls="' + id + '">'
-            + '<span class="fleet-name">' + esc(r.name) + '</span><span class="fleet-chips">' + r.chips + '</span></button>'
+            + '<div class="fleet-sum' + (open ? ' is-open' : '') + '">'
+            + '<button class="fleet-tog" type="button" aria-expanded="' + open + '" aria-controls="' + id + '"><span class="fleet-name">' + esc(r.name) + '</span></button>'
+            + '<span class="fleet-chips">' + r.chips + '</span></div>'
             + '<div class="fleet-detail" id="' + id + '"' + (open ? '' : ' hidden') + '>' + r.detail + '</div>'
             + '</div>';
         }).join("");
-    const setOpen = (b, open) => {
-      const d = b.closest(".fleet-row").querySelector(".fleet-detail");
-      b.setAttribute("aria-expanded", String(open));
+    const setOpen = (sum, open) => {
+      const d = sum.closest(".fleet-row").querySelector(".fleet-detail");
+      sum.querySelector(".fleet-tog").setAttribute("aria-expanded", String(open));
+      sum.classList.toggle("is-open", open);
       d.hidden = !open;
       const form = !open && d.querySelector(".fleet-rateform:not([hidden])");   // a rating form closes with its row
       if (form) this._closeRate(form, d.querySelector(".fleet-rate"));
     };
-    for (const b of list.querySelectorAll(".fleet-sum")) b.addEventListener("click", () => {
-      const open = b.getAttribute("aria-expanded") !== "true";
-      if (open) for (const o of list.querySelectorAll('.fleet-sum[aria-expanded="true"]')) setOpen(o, false);
-      setOpen(b, open);
-      this._openKey = open ? b.closest(".fleet-row").dataset.key : null;
+    for (const sum of list.querySelectorAll(".fleet-sum")) sum.addEventListener("click", (ev) => {
+      if (ev.target.closest(".fleet-unit")) return;
+      const open = !sum.classList.contains("is-open");
+      if (open) for (const o of list.querySelectorAll(".fleet-sum.is-open")) setOpen(o, false);
+      setOpen(sum, open);
+      this._openKey = open ? sum.closest(".fleet-row").dataset.key : null;
     });
+    // a unit sorts every host by its price per that unit; the same unit again reverses; × clears
+    const resort = (next, focus) => {
+      this._sort = next; this._page = 0; this._sortFocus = focus;
+      this._rateOpen = false; this._renderDeferred = false;
+      super.requestRender();
+    };
+    for (const u of list.querySelectorAll(".fleet-unit")) u.addEventListener("click", () => {
+      const key = u.dataset.sort;
+      resort({ key, dir: sortBy && sortBy.key === key ? -sortBy.dir : 1 }, key);
+    });
+    const sx = list.querySelector(".fleet-sort-x");
+    if (sx) sx.addEventListener("click", () => resort(null, "clear"));
+    // the repaint replaced the button that was clicked: keep keyboard focus on what it became
+    if (this._sortFocus) {
+      const f = this._sortFocus === "clear" ? list.querySelector(".fleet-tog") : list.querySelector('.fleet-unit[data-sort="' + this._sortFocus + '"]');
+      this._sortFocus = null;
+      if (f) f.focus();
+    }
     this._wireRate();
     // footer row: a manual refresh (dispatches `refresh`; the HOST owns the
     // fetch and re-assigns .rows, which re-renders and re-arms the button) +

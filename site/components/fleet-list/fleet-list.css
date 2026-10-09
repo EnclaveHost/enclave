@@ -4,17 +4,26 @@
 c-fleet-list{display:contents;}
 
 .fleet-list{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--well);display:block;}
-/* A row is ONE line until opened: a button carrying the box's name and, per
-   pool, its badge and % available. The name gives way (ellipsis) before the
-   chips do, so the line never wraps in the 300px aside. */
+/* A row is its summary until opened: the toggle (chevron + the box's name) and, per pool, a line saying what its
+   available capacity costs. The whole summary is the click target; its units are the sort buttons. */
 .fleet-row{border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);}
 .fleet-row:last-child{border-bottom:0;}
-.fleet-sum{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;width:100%;min-height:38px;padding:8px 14px;background:none;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer;transition:background .15s var(--ease);}
-.fleet-sum:hover,.fleet-sum[aria-expanded="true"]{background:var(--surface);}   /* the open host keeps the hover look */
-.fleet-sum:focus-visible{outline:2px solid var(--jade);outline-offset:-2px;}
-.fleet-sum::before{content:"▸";flex:none;width:.8em;color:var(--text-dim);}
-.fleet-sum[aria-expanded="true"]::before{content:"▾";color:var(--jade);}
-.fleet-sum .fleet-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.fleet-sum{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;min-height:38px;padding:8px 14px;cursor:pointer;transition:background .15s var(--ease);}
+.fleet-sum:hover,.fleet-sum.is-open{background:var(--surface);}   /* the open host keeps the hover look */
+.fleet-tog{display:flex;align-items:center;gap:10px;flex:1 1 auto;min-width:0;min-height:24px;padding:0;background:none;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer;}
+.fleet-tog:focus-visible{outline:2px solid var(--jade);outline-offset:2px;border-radius:4px;}
+.fleet-tog::before{content:"▸";flex:none;width:.8em;color:var(--text-dim);}
+.fleet-tog[aria-expanded="true"]::before{content:"▾";color:var(--jade);}
+.fleet-tog .fleet-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+/* a line's units (GB, tflops, gflops) sort the hosts by price per that unit: dotted like the site's other
+   value-links, jade with an arrow on every row while it is the sort */
+.fleet-unit{padding:0;background:none;border:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;text-decoration-color:var(--line-strong);text-underline-offset:3px;}
+.fleet-unit:hover,.fleet-unit:focus-visible{color:var(--jade);text-decoration-color:currentColor;outline:none;}
+.fleet-unit.on{color:var(--jade);text-decoration-style:solid;text-decoration-color:currentColor;}
+.fleet-unit.on::after{content:"↑";margin-left:1px;} .fleet-unit.on.desc::after{content:"↓";}
+.fleet-sortbar{display:flex;align-items:center;gap:8px;padding:6px 14px;border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);}
+.fleet-sort-x{margin-left:auto;min-width:24px;min-height:24px;padding:0;background:none;border:0;border-radius:4px;font:inherit;font-size:.9rem;line-height:1;color:var(--text-dim);cursor:pointer;}
+.fleet-sort-x:hover,.fleet-sort-x:focus-visible{color:var(--jade);}
 /* one pool a line, at the right; when the name and the lines don't fit side by side (a narrow panel), the lines
    wrap under the name, still right-aligned, and on a very narrow one a line breaks between its words */
 .fleet-chips{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none;max-width:100%;margin-left:auto;}
