@@ -2301,8 +2301,7 @@ const shieldMarket = createShieldMarketplace({ hub: tunnelHub,
 // PVM_MARKET=1 lets admitted, registered pVM CPU hosts take buyers' CPU-only apps (relay/pvm-market.mjs), under the tier's
 // own pins (PVM_CPU_CODE_HASHES / _AUTHORITY_HASHES / _RUNTIME_IDS): without them the market stays off.
 const pvmMarket = createPvmMarket({ hub: tunnelHub, enabled: process.env.PVM_MARKET === "1", pins: PVM_CPU_POLICY, confirmRow,
-  readCatalog: catalogReader(catalogClients, catalogAddress), fetchVerified: (cid, max) => predictor().fetchVerified(cid, max),
-  hasSecrets: hasStagedSecrets });
+  readCatalog: catalogReader(catalogClients, catalogAddress), fetchVerified: (cid, max) => predictor().fetchVerified(cid, max) });
 const shieldSecretRelease=createShieldSecretRelease({hub:tunnelHub,policyFile:process.env.RELAY_SHIELD_MARKET_POLICY||"",confirmRow,
   readCatalog:catalogReader(catalogClients,catalogAddress),readConfig:versionConfigReader(catalogClients,catalogAddress),
   fetchVerified:(cid,max)=>predictor().fetchVerified(cid,max),

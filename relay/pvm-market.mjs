@@ -6,9 +6,10 @@
 // its name on chain (the hub records `operator` only then), its id is that registered endpoint's, and the operator of this
 // relay switched the market on (PVM_MARKET=1). Nothing the phone or its host says about itself enters.
 //
-// PER APP (servesUntil, certificate): the deployment is public, active, CPU-only, leased to THIS row, its options are ones a
-// pVM serves (no configuration, secrets, protection rules or a confidential-computing demand), and its catalog version is
-// listed and approved. The relay then asks the VM -- through the tunnel, via the host -- for v4 evidence over ITS OWN nonce
+// PER APP (servesUntil, certificate): the deployment is public, active, CPU-only (or its GPU share is optional: it runs on
+// cores), leased to THIS row, its options are ones a pVM serves -- since 2026-10-09 the CPU hosts' (an app-config override
+// inline or at a CID, protection rules, the owner's staged secrets: the host agent applies them, shielded/anchor/avf/
+// PVM-CPU.md), never a confidential-computing demand -- and its catalog version is listed and approved. The relay then asks the VM -- through the tunnel, via the host -- for v4 evidence over ITS OWN nonce
 // (relay/pvm-app-attest.mjs verifyPvmAppEvidence, requireTls): a fresh AVF certificate rooted at Google that binds the pinned
 // build, the pinned runtime, this VM instance, the transport key THIS tunnel attached with, and the app -- the SHA-256 of the
 // component the relay itself fetched by the catalog's CID -- plus the TLS key, signed by that transport key. Only then is the
@@ -27,16 +28,21 @@ const fingerprint = (d) => JSON.stringify([String(d.id).toLowerCase(), String(d.
   Number(d.gpuMilli), !!d.active, String(d.owner || "").toLowerCase()]);
 
 /** Why a pVM does not serve this deployment's OPTIONS, or null (the ledger row only; the catalog and evidence come after). */
-export function pvmOptionsRefusal(d) {
+export function pvmOptionsRefusal(d, { gpuOptional = false } = {}) {
   if (!d || d.active !== true) return "the deployment is not active";
   if (d.isPublic !== true) return "only public deployments are served by a pVM host";
-  if (Number(d.gpuMilli) !== 0) return "a pVM host serves CPU-only deployments (gpuMilli 0)";
   const raw = String(d.configCid || "").trim();
   let env = {};
   if (raw) { try { env = JSON.parse(raw); } catch { return "the options envelope is not JSON"; } }
   if (!env || typeof env !== "object" || Array.isArray(env)) return "the options envelope is not an object";
-  const bad = Object.keys(env).filter((k) => !["isolation", "network", "placement", "gpu"].includes(k));
+  const bad = Object.keys(env).filter((k) => !["isolation", "network", "placement", "gpu", "config", "configCid", "waf"].includes(k));
   if (bad.length) return `options ${bad.join(", ")} are not served by a pVM host`;
+  if (env.config !== undefined && (!env.config || typeof env.config !== "object" || Array.isArray(env.config))) return "the config override is not a JSON object";
+  if (env.configCid !== undefined && (typeof env.configCid !== "string" || !/^[A-Za-z0-9]{10,100}$/.test(env.configCid))) return "the configCid is not a bare CID";
+  if (env.waf !== undefined && (!env.waf || typeof env.waf !== "object" || Array.isArray(env.waf))) return "the protection rules are not a JSON object";
+  // a GPU share runs on a pVM's cores only when its owner (the envelope) or its publisher (the version, `gpuOptional`) said so
+  if (Number(d.gpuMilli) !== 0 && !(env.gpu && env.gpu.optional === true) && gpuOptional !== true)
+    return "a pVM host serves CPU-only deployments (gpuMilli 0, or a GPU share with gpu.optional)";
   const iso = env.isolation;
   if (iso !== undefined && (!iso || typeof iso !== "object" || Array.isArray(iso) || Object.keys(iso).some((k) => !["require", "cpuTee", "gpuTee"].includes(k))
       || iso.cpuTee === true || iso.gpuTee === true || (iso.require !== undefined && iso.require !== PVM_ISOLATION_BACKEND)))
@@ -49,7 +55,7 @@ export function pvmOptionsRefusal(d) {
 }
 
 // rootPins: the attestation roots (default: Google's, relay/avf-verify.mjs); tests pass their own CA's.
-export function createPvmMarket({ hub, enabled = false, pins = null, confirmRow, readCatalog, fetchVerified, hasSecrets = () => false,
+export function createPvmMarket({ hub, enabled = false, pins = null, confirmRow, readCatalog, fetchVerified,
                                   rootPins = undefined, now = Date.now, log = console.warn } = {}) {
   const on = enabled === true && !!pins;
   if (enabled === true && !pins) log("[pvm-market] PVM_MARKET is set but the pVM CPU pins are not: the market stays off");
@@ -67,7 +73,7 @@ export function createPvmMarket({ hub, enabled = false, pins = null, confirmRow,
   function servesUntil(row, d) {
     if (!eligible(row) || !d) return 0;
     const a = apps.get(keyOf(row, d)), t = info(row);
-    if (!a || a.until <= now() || a.fingerprint !== fingerprint(d) || a.keyFp !== t.keyFp || pvmOptionsRefusal(d) || hasSecrets(String(d.id).toLowerCase()))
+    if (!a || a.until <= now() || a.fingerprint !== fingerprint(d) || a.keyFp !== t.keyFp || pvmOptionsRefusal(d, { gpuOptional: a.gpuOptional }))
       return 0;
     if (String(d.runner).toLowerCase() !== String(row.id).toLowerCase() || Number(d.leaseUntil) * 1000 <= now()) return 0;
     return Math.floor(Math.min(a.until, Number(d.leaseUntil) * 1000) / 1000);
@@ -78,6 +84,7 @@ export function createPvmMarket({ hub, enabled = false, pins = null, confirmRow,
     const c = await readCatalog(ref[1].toLowerCase(), Number(ref[2]));
     const refusal = versionRefusal(c && c.app, c && c.version, false);
     if (refusal) throw new Error(refusal);
+    let gpuOptional = false; try { gpuOptional = JSON.parse(String(c.version.config || "{}") || "{}").gpuOptional === true; } catch {}
     const cid = String(c.version.cid);
     if (!components.has(cid)) {
       const got = await fetchVerified(cid, MAX_COMPONENT);
@@ -85,7 +92,7 @@ export function createPvmMarket({ hub, enabled = false, pins = null, confirmRow,
       components.set(cid, createHash("sha256").update(got.bytes).digest("hex"));
       if (components.size > 256) components.delete(components.keys().next().value);
     }
-    return components.get(cid);
+    return { appId: components.get(cid), gpuOptional };
   }
   async function admit(row, candidate, csrSpkiSha256) {
     if (!eligible(row)) return { ok: false, reason: "not an admitted pVM host" };
@@ -95,12 +102,14 @@ export function createPvmMarket({ hub, enabled = false, pins = null, confirmRow,
     attempts.set(k, now());
     try {
       const d = await confirmRow(String(candidate.id).toLowerCase());
-      const opt = pvmOptionsRefusal(d);
+      // the ledger row's own refusals first (a GPU share's publisher-side gpuOptional is read with the version below)
+      const opt = pvmOptionsRefusal(d, { gpuOptional: true });
       if (opt) throw new Error(opt);
-      if (hasSecrets(String(d.id).toLowerCase())) throw new Error("a deployment with sealed secrets is not served by a pVM host");
       if (String(d.runner).toLowerCase() !== String(row.id).toLowerCase() || Number(d.leaseUntil) * 1000 <= now())
         throw new Error("the deployment is not leased to this host");
-      const appId = await expectedApp(d);
+      const { appId, gpuOptional } = await expectedApp(d);
+      const soft = pvmOptionsRefusal(d, { gpuOptional });
+      if (soft) throw new Error(soft);
       const t = info(row), keyFp = t.keyFp;
       const nonce = randomBytes(32).toString("hex");
       const doc = await hub.fetchJson(`tunnel://${row.name}`, `/v1/pvm/evidence?deployment=${String(d.id).toLowerCase()}&nonce=${nonce}`);
@@ -115,7 +124,7 @@ export function createPvmMarket({ hub, enabled = false, pins = null, confirmRow,
       const current = await confirmRow(String(d.id).toLowerCase());
       if (fingerprint(current) !== fingerprint(d)) throw new Error("the deployment changed during verification");
       const until = now() + TTL_MS;
-      apps.set(k, { until, checked: now(), fingerprint: fingerprint(d), keyFp, tlsSpkiSha256: v.tlsSpkiSha256 });
+      apps.set(k, { until, checked: now(), fingerprint: fingerprint(d), keyFp, tlsSpkiSha256: v.tlsSpkiSha256, gpuOptional });
       log(`[pvm-market] verified ${row.name}/${String(d.id).slice(0, 10)}: app ${appId.slice(0, 12)}, TLS key ${v.tlsSpkiSha256.slice(0, 12)}, instance ${String(v.instanceId).slice(0, 12)}`);
       return { ok: true, spkiSha256: v.tlsSpkiSha256, until };
     } catch (e) {

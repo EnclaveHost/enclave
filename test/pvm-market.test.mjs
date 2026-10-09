@@ -6,7 +6,7 @@
 //     operator, a registered (keccak) id -- each condition alone withdraws it;
 //   - per app: served only after evidence for exactly the catalog's component (CID-verified by the relay), from the VM attached
 //     as this host, binding a TLS key -- and a certificate only for that key; a deployment that is private, GPU, unleased,
-//     configured, secret-bearing or unapproved is never served; an app or ledger change, a re-attach and the TTL end it.
+//     confidential-computing, GPU-bound or unapproved is never served; an app or ledger change, a re-attach and the TTL end it.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, sign as edSign } from "node:crypto";
@@ -108,7 +108,8 @@ test("per app: refused for another app, another VM's evidence, a TLS key the tra
 
 test("per app: a deployment a pVM does not serve is never asked for evidence", { skip }, async () => {
   for (const [dep, re] of [[{ isPublic: false }, /only public/], [{ gpuMilli: 250 }, /CPU-only/], [{ runner: "0x" + "99".repeat(32) }, /not leased to this host/],
-    [{ leaseUntil: 1 }, /not leased to this host/], [{ configCid: '{"config":{"a":1}}' }, /options config are not served/],
+    [{ leaseUntil: 1 }, /not leased to this host/], [{ configCid: '{"domains":["x.example"]}' }, /options domains are not served/],
+    [{ configCid: '{"config":["a"]}' }, /config override is not a JSON object/], [{ configCid: '{"configCid":"not a cid"}' }, /not a bare CID/],
     [{ configCid: '{"isolation":{"require":"snp-guest-per-app"}}' }, /isolation requirement/], [{ configCid: '{"isolation":{"cpuTee":true}}' }, /isolation requirement/],
     [{ active: false }, /not active/]]) {
     const s = setup({ dep });
@@ -120,8 +121,20 @@ test("per app: a deployment a pVM does not serve is never asked for evidence", {
   assert.match((await p.m.certificate(p.row, p.ledger.d)).reason, /not approved/);
   const y = setup({ catalog: { yanked: true } });
   assert.match((await y.m.certificate(y.row, y.ledger.d)).reason, /yanked/);
-  // the pure rule, for the host agent's twin
+  // the pure rule, for the host agent's twin: the CPU hosts' options are served (the host agent applies them)
   assert.equal(pvmOptionsRefusal({ active: true, isPublic: true, gpuMilli: 0, configCid: '{"network":{"transport":"tuna"},"isolation":{"require":"avf-pvm-per-app"}}' }), null);
+  assert.equal(pvmOptionsRefusal({ active: true, isPublic: true, gpuMilli: 0, configCid: '{"config":{"a":"$SECRET"},"waf":{"rps":5}}' }), null);
+  assert.equal(pvmOptionsRefusal({ active: true, isPublic: true, gpuMilli: 0, configCid: '{"configCid":"bafkreigdyrztxyzxyzxyzxyz"}' }), null);
+  assert.equal(pvmOptionsRefusal({ active: true, isPublic: true, gpuMilli: 250, configCid: '{"gpu":{"optional":true}}' }), null, "the owner's gpu.optional");
+  assert.equal(pvmOptionsRefusal({ active: true, isPublic: true, gpuMilli: 250, configCid: "" }, { gpuOptional: true }), null, "the publisher's gpuOptional");
+  assert.match(pvmOptionsRefusal({ active: true, isPublic: true, gpuMilli: 250, configCid: "" }), /CPU-only/);
+  // a configured deployment, and one whose publisher made the card optional, are verified and served like any other
+  const c = setup({ dep: { configCid: '{"config":{"endpoint":"$S3"},"waf":{"rps":5}}' } });
+  assert.equal((await c.m.certificate(c.row, c.ledger.d, c.vm.tlsSpkiSha256)).ok, true);
+  assert.ok(c.m.servesUntil(c.row, c.ledger.d) > 0);
+  const g = setup({ dep: { gpuMilli: 250 }, catalog: { config: '{"gpuOptional":true}' } });
+  assert.equal((await g.m.certificate(g.row, g.ledger.d, g.vm.tlsSpkiSha256)).ok, true, "publisher gpuOptional");
+  assert.ok(g.m.servesUntil(g.row, g.ledger.d) > 0);
 });
 
 test("served state ends with a ledger change, a re-attach (another transport key) and the TTL; a transient failure keeps it to its TTL", { skip }, async () => {
