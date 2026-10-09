@@ -243,6 +243,13 @@ static void ctl_close(void) {
     pthread_mutex_unlock(&g_out_mu);
 }
 #define OUT(...) outf(__VA_ARGS__)
+/* This VM's memory at a step (/proc/meminfo, MiB): what sizes a slot VM to its app's share (PVM-CPU.md "Slots by share") */
+static void mem_note(const char *at) {
+    FILE *f = fopen("/proc/meminfo", "r"); char l[128]; long tot = -1, avail = -1;
+    while (f && fgets(l, sizeof l, f)) { long v; if (sscanf(l, "MemTotal: %ld kB", &v) == 1) tot = v; else if (sscanf(l, "MemAvailable: %ld kB", &v) == 1) avail = v; }
+    if (f) fclose(f);
+    if (tot > 0 && avail >= 0) { char m[160]; snprintf(m, sizeof m, "MEM %s: total=%ld MiB available=%ld MiB used=%ld MiB", at, tot >> 10, avail >> 10, (tot - avail) >> 10); OUT("%s", m); }
+}
 
 static void hexline(const char *label, const uint8_t *p, size_t n) {
     const size_t CH = 512;
@@ -1398,7 +1405,13 @@ typedef struct { int ls; volatile int stop; const char *identity; uint8_t app[32
                  int proof_on; volatile int serving; uint8_t proof_addr[20]; pvmrt_pot_sign_fn pot_sign;
                  uint64_t last_upto, last_anchor, last_cp_ms;
                  /* the marketplace TLS key (serve=https-p256): its SPKI, and pvm-rt's request and chain calls */
-                 size_t tls_len; uint8_t tls_spki[128]; pvmrt_https_csr_fn csr; pvmrt_https_set_chain_fn set_chain; uint64_t last_cert_ms; } evidence_srv;
+                 size_t tls_len; uint8_t tls_spki[128]; pvmrt_https_csr_fn csr; pvmrt_https_set_chain_fn set_chain; uint64_t last_cert_ms;
+                 /* the host's proof key among sibling VMs (pvm-rt keygrant.rs; PVM-CPU.md "Slots by share") */
+                 int (*kg_challenge)(const uint8_t *, const uint8_t *, uint8_t *);
+                 ssize_t (*kg_issue)(const uint8_t *, size_t, const uint8_t *, const uint8_t *, const uint8_t *, size_t, const uint8_t *, uint8_t *, size_t, char *, size_t);
+                 int (*kg_open)(const uint8_t *, const uint8_t *, const uint8_t *, size_t, uint8_t *, char *, size_t);
+                 int (*sib_sign)(const uint8_t *, const uint8_t *, const uint8_t *, size_t, const uint8_t *, const uint8_t *, uint8_t *);
+                 int (*pot_address)(const uint8_t *, uint8_t *); } evidence_srv;
 /* The evidence pace: every fresh attestation for a caller's nonce -- the evidence endpoint's EVIDENCE, EVIDENCE3 and PROOFKEY
  * and the TLS port's /.well-known/enclave-attestation alike -- takes a token from ONE bucket of 4, refilled one per 2 s. A
  * caller waits up to 6 s for one; then it is refused with the endpoint's old words, which the proof agent retries. A server
@@ -1568,6 +1581,117 @@ static void seal_key_answer(int c, const char *hex) {
     OUT("SEALKEY stated for the served app (seal key %.16s..., by the attested transport key)", kh);
 #undef SK_REFUSE
 }
+/* ---- the host's proof key among sibling VMs (pvm-rt keygrant.rs) ----
+ * KEYNONCE (donor) -> a single-use nonce; KEYREQ <nonce> (requester) -> a one-time X25519 key and an AVF chain over
+ * sha256(domain || nonce || that key); KEYGRANT <n> + nonce || one-time key || length-prefixed chain (donor) -> the proof
+ * seed sealed to the one-time key, given only when the chain is a SECURE VM of THIS build (checked in pvm-rt against this
+ * VM's own attestation); KEYINSTALL <n> + nonce || expected address || grant (requester) -> opened, checked, kept in this
+ * VM's encrypted store for every later boot. SIBLING <nonce>: this VM's transport key, instance and deployment, signed with
+ * the proof key, for the relay to accept this VM's app evidence as the host's. The host carries every byte. */
+static uint8_t g_kg_nonce[32]; static uint64_t g_kg_nonce_ms; static int g_kg_nonce_set;
+static uint8_t g_kg_eph[32], g_kg_req_nonce[32]; static int g_kg_req_set;
+static uint8_t *g_own_chain; static size_t g_own_chain_len;
+static const char *proof_seed_path(char *buf, size_t cap) {
+    const char *es = AVmPayload_getEncryptedStoragePath(); if (!es) return NULL;
+    snprintf(buf, cap, "%s/proof-seed-v1", es); return buf;
+}
+/* an attestation over ch as length-prefixed DER certificates (u32 LE length, then the bytes); NULL when unavailable */
+static uint8_t *attest_chain(const uint8_t ch[32], size_t *len) {
+    AVmAttestationResult *res = NULL;
+    if (request_attestation(ch, 32, &res) != ATTESTATION_OK || !res) return NULL;
+    const size_t k = AVmAttestationResult_getCertificateCount(res); size_t cap = 0;
+    for (size_t i = 0; i < k; i++) cap += 4 + AVmAttestationResult_getCertificateAt(res, i, NULL, 0);
+    uint8_t *b = malloc(cap ? cap : 1); size_t o = 0;
+    for (size_t i = 0; b && i < k; i++) {
+        const size_t sz = AVmAttestationResult_getCertificateAt(res, i, NULL, 0); const uint32_t n32 = (uint32_t)sz;
+        memcpy(b + o, &n32, 4); o += 4; AVmAttestationResult_getCertificateAt(res, i, b + o, sz); o += sz;
+    }
+    AVmAttestationResult_free(res); *len = o; return b;
+}
+static int read_exact_fd(int c, uint8_t *b, size_t n) { size_t got = 0; while (got < n) { const ssize_t r = read(c, b + got, n - got); if (r <= 0) return -1; got += (size_t)r; } return 0; }
+static void keygrant_answer(evidence_srv *e, int c, const char *line) {
+#define KG_REFUSE(msg) do { char m_[600]; const int n_ = snprintf(m_, sizeof m_, "{\"error\":\"%s\"}\n", msg); write_all(c, m_, (size_t)n_); OUT("KEY %.10s refused: %s", line, msg); return; } while (0)
+    if (!e->kg_challenge || !e->kg_issue || !e->kg_open || !e->sib_sign || !e->pot_address) KG_REFUSE("this runtime has no key handover");
+    if (!strcmp(line, "KEYNONCE")) {
+        if (!g_proof_seed_set) KG_REFUSE("this VM holds no proof key");
+        randombytes(g_kg_nonce, 32); g_kg_nonce_ms = boot_ms(); g_kg_nonce_set = 1;
+        char nh[65], js[100]; sh_pads_bin2hex(g_kg_nonce, 32, nh); const int n = snprintf(js, sizeof js, "{\"nonce\":\"%s\"}\n", nh);
+        write_all(c, js, (size_t)n); return;
+    }
+    if (!strncmp(line, "KEYREQ ", 7)) {
+        uint8_t nonce[32], pub[32], ch[32];
+        if (strlen(line + 7) != 64 || !sh_pads_hex2bin(line + 7, nonce, 32)) KG_REFUSE("request is KEYREQ <64 lowercase hex>");
+        randombytes(g_kg_eph, 32); crypto_scalarmult_base(pub, g_kg_eph); memcpy(g_kg_req_nonce, nonce, 32); g_kg_req_set = 1;
+        if (e->kg_challenge(nonce, pub, ch) != 0) KG_REFUSE("no challenge");
+        size_t cl = 0; uint8_t *chain = attest_chain(ch, &cl);
+        if (!chain) KG_REFUSE("attestation unavailable");
+        char *js = malloc(256 + cl * 2 + 8); if (!js) { free(chain); KG_REFUSE("out of memory"); }
+        char nh[65], ph[65]; sh_pads_bin2hex(nonce, 32, nh); sh_pads_bin2hex(pub, 32, ph);
+        size_t o = (size_t)sprintf(js, "{\"format\":\"enclave-pvm-keyreq/v1\",\"nonce\":\"%s\",\"ephPub\":\"%s\",\"chain\":\"", nh, ph);
+        for (size_t i = 0; i < cl; i++) o += (size_t)sprintf(js + o, "%02x", chain[i]);
+        memcpy(js + o, "\"}\n", 3); o += 3; write_all(c, js, o); free(js); free(chain);
+        OUT("KEYREQ: a one-time key attested for a proof-key request"); return;
+    }
+    uint64_t want = 0;
+    if ((!strncmp(line, "KEYGRANT ", 9) && parse_u64_dec(line + 9, &want)) || (!strncmp(line, "KEYINSTALL ", 11) && parse_u64_dec(line + 11, &want))) {
+        if (!want || want > (64u << 10)) KG_REFUSE("the payload must be 1..65536 bytes");
+        uint8_t *b = malloc(want); if (!b) KG_REFUSE("out of memory");
+        if (read_exact_fd(c, b, want) != 0) { free(b); KG_REFUSE("the payload did not all arrive"); }
+        char err[512] = "";
+        if (line[3] == 'G') {   /* KEYGRANT: nonce || one-time key || chain */
+            if (want < 64 + 8) { free(b); KG_REFUSE("too short"); }
+            if (!g_kg_nonce_set || memcmp(b, g_kg_nonce, 32) != 0 || boot_ms() - g_kg_nonce_ms > 120000) { free(b); KG_REFUSE("not this VM's fresh nonce"); }
+            g_kg_nonce_set = 0;   /* single use, whatever the verdict */
+            if (!g_own_chain) { uint8_t r[32]; randombytes(r, 32); g_own_chain = attest_chain(r, &g_own_chain_len); }
+            if (!g_own_chain) { free(b); KG_REFUSE("this VM's own attestation is unavailable"); }
+            uint8_t grant[128];
+            const ssize_t gl = e->kg_issue(b + 64, want - 64, b, b + 32, g_own_chain, g_own_chain_len, g_proof_seed, grant, sizeof grant, err, sizeof err);
+            free(b);
+            if (gl <= 0) { for (char *q = err; *q; q++) if (*q == '"' || *q == '\\' || (unsigned char)*q < 0x20) *q = '\''; KG_REFUSE(err); }
+            uint8_t a[20]; char gh[257], ah[41]; e->pot_address(g_proof_seed, a); sh_pads_bin2hex(grant, (size_t)gl, gh); sh_pads_bin2hex(a, 20, ah);
+            char js[400]; const int n = snprintf(js, sizeof js, "{\"grant\":\"%s\",\"proofKey\":\"0x%s\"}\n", gh, ah);
+            write_all(c, js, (size_t)n);
+            OUT("KEYGRANT: the proof key 0x%s sealed to a sibling VM of this build (its attestation verified in this VM)", ah); return;
+        }
+        /* KEYINSTALL: nonce || expected address || grant */
+        if (want != 32 + 20 + 92) { free(b); KG_REFUSE("KEYINSTALL is nonce(32) || address(20) || grant(92)"); }
+        if (!g_kg_req_set || memcmp(b, g_kg_req_nonce, 32) != 0) { free(b); KG_REFUSE("no request of this VM for that nonce"); }
+        uint8_t seed[32], a[20];
+        const int r = e->kg_open(g_kg_eph, b, b + 52, 92, seed, err, sizeof err);
+        memset(g_kg_eph, 0, 32); g_kg_req_set = 0;
+        if (r != 0) { free(b); for (char *q = err; *q; q++) if (*q == '"' || *q == '\\' || (unsigned char)*q < 0x20) *q = '\''; KG_REFUSE(err); }
+        e->pot_address(seed, a);
+        if (memcmp(a, b + 32, 20) != 0) { free(b); memset(seed, 0, 32); KG_REFUSE("the granted key is not the address stated"); }
+        free(b);
+        char path[600], tmp[620]; int ok = 0;
+        if (proof_seed_path(path, sizeof path)) {
+            snprintf(tmp, sizeof tmp, "%s.tmp", path); const int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+            if (fd >= 0) { ok = write_all(fd, (const char *)seed, 32) == 0 && fsync(fd) == 0; close(fd); ok = ok && rename(tmp, path) == 0; }
+        }
+        memcpy(g_proof_seed, seed, 32); g_proof_seed_set = 1; memset(seed, 0, 32);
+        memcpy(e->proof_addr, a, 20);
+        char ah[41], js[160]; sh_pads_bin2hex(a, 20, ah);
+        const int n = snprintf(js, sizeof js, "{\"ok\":true,\"proofKey\":\"0x%s\",\"kept\":%s}\n", ah, ok ? "true" : "false");
+        write_all(c, js, (size_t)n);
+        OUT("KEYINSTALL: this VM now signs with the host's proof key 0x%s (%s)", ah, ok ? "kept in its encrypted store for later boots" : "for this boot only: the store refused it");
+        return;
+    }
+    if (!strncmp(line, "SIBLING ", 8)) {
+        uint8_t nonce[32];
+        if (strlen(line + 8) != 64 || !sh_pads_hex2bin(line + 8, nonce, 32)) KG_REFUSE("request is SIBLING <64 lowercase hex>");
+        if (!g_pp.set || !g_proof_seed_set || !g_inst) KG_REFUSE("no proof pins, proof key or instance key");
+        uint8_t spki[44], isp[44], iid[32], sig[65], a[20];
+        memcpy(spki, ED25519_SPKI_PREFIX, 12); memcpy(spki + 12, g_tpk, 32); instance_spki(isp); sha256(isp, 44, iid);
+        if (e->sib_sign(g_proof_seed, nonce, spki, 44, iid, g_pp.deployment, sig) != 0) KG_REFUSE("signing failed");
+        e->pot_address(g_proof_seed, a);
+        char nh[65], dh[65], ih[65], sh[89], gh[131], ah[41], js[800];
+        sh_pads_bin2hex(nonce, 32, nh); sh_pads_bin2hex(g_pp.deployment, 32, dh); sh_pads_bin2hex(iid, 32, ih); sh_pads_bin2hex(spki, 44, sh); sh_pads_bin2hex(sig, 65, gh); sh_pads_bin2hex(a, 20, ah);
+        const int n = snprintf(js, sizeof js, "{\"format\":\"enclave-pvm-sibling/v1\",\"nonce\":\"%s\",\"deployment\":\"0x%s\",\"instanceId\":\"%s\",\"transportSpki\":\"%s\",\"proofKey\":\"0x%s\",\"sig\":\"%s\"}\n", nh, dh, ih, sh, ah, gh);
+        write_all(c, js, (size_t)n); return;
+    }
+    KG_REFUSE("unknown key request");
+#undef KG_REFUSE
+}
 static void evidence_answer(evidence_srv *e, int c) {
     struct timeval tv = { 5, 0 }; setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
     char line[320]; size_t n = 0;
@@ -1576,6 +1700,7 @@ static void evidence_answer(evidence_srv *e, int c) {
     if (!strncmp(line, "CHECKPOINT", 10)) { checkpoint_answer(e, c, line); return; }
     if (!strncmp(line, "CSR ", 4) || !strncmp(line, "CERT ", 5)) { tls_answer(e, c, line); return; }
     if (!strncmp(line, "SEALKEY ", 8)) { seal_key_answer(c, line + 8); return; }
+    if (!strncmp(line, "KEY", 3) || !strncmp(line, "SIBLING ", 8)) { keygrant_answer(e, c, line); return; }
     /* PROOFKEY <nonce>: the v3 envelope for that nonce, wrapped in the attested proof-key statement (PROOF-KEY.md) */
     const int pk = strncmp(line, "PROOFKEY ", 9) == 0;
     if (pk && !e->proof_on) { write_all(c, "{\"error\":\"no proof pins: no proof-key statement\"}\n", strlen("{\"error\":\"no proof pins: no proof-key statement\"}\n")); return; }
@@ -1907,6 +2032,8 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
     }
     if (tls && ev.sealed && g_pp.set && g_proof_seed_set) {   /* the lease proof key (PROOF-KEY.md): pvm-rt's typed signer, these pins */
         pvmrt_pot_address_fn paddr = (pvmrt_pot_address_fn)dlsym(a->rt, "pvmrt_pot_address");
+        ev.pot_address = paddr; ev.kg_challenge = dlsym(a->rt, "pvmrt_keygrant_challenge"); ev.kg_issue = dlsym(a->rt, "pvmrt_keygrant_issue");
+        ev.kg_open = dlsym(a->rt, "pvmrt_keygrant_open"); ev.sib_sign = dlsym(a->rt, "pvmrt_sibling_sign");
         ev.pot_sign = (pvmrt_pot_sign_fn)dlsym(a->rt, "pvmrt_pot_sign");
         if (paddr && ev.pot_sign && paddr(g_proof_seed, ev.proof_addr) == 0) {
             ev.proof_on = 1; char pa[41]; sh_pads_bin2hex(ev.proof_addr, 20, pa);
@@ -1919,6 +2046,7 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
         else { if (ev.ls >= 0) close(ev.ls); OUT("APP evidence endpoint NOT available (a client cannot verify this VM itself)"); }
     }
     ev.serving = 1;   /* checkpoints only while this loop runs (cleared before the evidence server stops) */
+    mem_note("serving");
     OUT("APP serving %s on vsock %d: %s compile_ms=%llu%s%s%s", ca ? "https-p256 (TLS 1.3, a CA-trustable key)" : tls ? "https (TLS 1.3, the attested transport key)" : "http", APP_HTTP_PORT, hh, (unsigned long long)cms, ops ? " graph=" : "", ops ? plan->graph : "",
         plan->sock ? " (a socket app on the VM's loopback port, one instance)" : "");
     uint64_t refused = 0;
@@ -1965,6 +2093,9 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
 typedef int (*pvmrt_bench_fn)(const uint8_t *, size_t, const uint8_t *, const char *const *, int, int, uint64_t, uint64_t,
                               void (*)(int, const uint8_t *, size_t), uint64_t *, uint64_t *, char *, size_t);
 static double g_caps_gflops = 0; static int g_bench_done = 0;
+/* NOCAPS (a slot VM: it attaches to no relay, so it sends no capability report and runs no GFLOPS bench -- the bench's
+ * eight parallel instances are the start-up peak that aborted 768-1024 MiB VMs, measured 2026-10-09) */
+static int g_nocaps = 0;
 static char g_bench_out[64][160]; static int g_bench_n = 0;
 static void bench_collect(int stream, const uint8_t *p, size_t n) {
     if (stream != 1 || g_bench_n >= 64) return;
@@ -2010,6 +2141,7 @@ static void measure_gflops(void) {
     if (sscanf(g_bench_out[0], "flops=%llu", &fl) != 1 || fl != steps * 128ull) { OUT("BENCH refused: the work is not steps x 128 (%s)", g_bench_out[0]); return; }
     for (int i = 1; i < inst; i++) if (strcmp(g_bench_out[i], g_bench_out[0]) != 0) { OUT("BENCH refused: instance %d answered differently", i); return; }
     g_caps_gflops = (double)fl * inst / (double)wall / 1e6;
+    mem_note("after the GFLOPS bench");
     OUT("BENCH gflops=%.2f instances=%d steps=%llu wall_ms=%llu runs=%d compile_ms=%llu (f32x4 multiply-add, pvm-rt Pulley; every instance identical)",
         g_caps_gflops, inst, steps, (unsigned long long)wall, runs + 1, (unsigned long long)cms);
 }
@@ -2340,6 +2472,11 @@ int AVmPayload_main(void) {
         crypto_sign_ed25519_tweet_seed_keypair(g_ipk, g_isk, seed); memset(seed, 0, sizeof seed); g_inst = 1;
         static const char pident[] = "enclave-pvm-proof-key-v1";   /* the lease proof key's seed: pvm-rt derives the key from it */
         AVmPayload_getVmInstanceSecret(pident, sizeof pident - 1, g_proof_seed, sizeof g_proof_seed); g_proof_seed_set = 1;
+        /* a slot VM given the host's proof key by a sibling (KEYINSTALL) keeps signing with it on every later boot */
+        char pp[600]; int fd = proof_seed_path(pp, sizeof pp) ? open(pp, O_RDONLY) : -1;
+        if (fd >= 0) { uint8_t got[33]; const ssize_t r = read(fd, got, sizeof got); close(fd);
+                       if (r == 32) { memcpy(g_proof_seed, got, 32); OUT("PROOF seed: the host's key, installed by a sibling VM (KEYINSTALL), kept in the encrypted store"); }
+                       memset(got, 0, sizeof got); }
     }
     anchor_reattach_arm(&g_reattach, g_tpk, g_ppk, g_isk, g_inst);   /* the keys are final from here: a re-attach refuses if they ever change */
 #endif
@@ -2361,6 +2498,7 @@ int AVmPayload_main(void) {
                 ANCHOR_TIER_NAME);
         } else OUT("PINS INVALID: %s - pads, prefix and the engine are refused", g_pins.err);
         storage_probe();
+        mem_note("boot");
     }
     OUT("ANCHOR start in pVM apk=%s control=%s", AVmPayload_getApkContentsPath(), g_ctl >= 0 ? "owner-connected" : "none");
 #ifdef ANCHOR_TIER_PVM_CPU
@@ -2411,6 +2549,7 @@ int AVmPayload_main(void) {
                 const char *h = l + 10; const size_t hn = strlen(h);
                 if (!hn || hn % 2 || g_app_sealed_len + hn / 2 > APP_SEALED_MAX || !sh_pads_hex2bin(h, g_app_sealed + g_app_sealed_len, hn / 2)) { app_bad = 1; OUT("APP refused: APPSEALED malformed or over %u bytes", APP_SEALED_MAX); }
                 else g_app_sealed_len += hn / 2; }
+            else if (!strcmp(l, "NOCAPS")) g_nocaps = 1;
             else if (!strcmp(l, "APPEGRESS")) {   /* the app may reach out, through the owner's host (once) */
                 if (g_app_egress) { app_bad = 1; OUT("APP refused: APPEGRESS repeated"); } else g_app_egress = 1; }
             else if (!strncmp(l, "APP ", 4)) {   /* the portable component (anchor_app.h): strict, once; malformed or repeated refuses at RUN */
@@ -2630,8 +2769,10 @@ int AVmPayload_main(void) {
         }
     }
     if (app) {
-        measure_gflops();       /* the VM's compute, measured under the app runtime, for the report (once per boot) */
-        caps_v2_emit("CAPS");   /* the tier's capability report, once per run, after the relay has accepted this attach */
+        if (!g_nocaps) {
+            measure_gflops();       /* the VM's compute, measured under the app runtime, for the report (once per boot) */
+            caps_v2_emit("CAPS");   /* the tier's capability report, once per run, after the relay has accepted this attach */
+        } else OUT("CAPS not sent: a slot VM (NOCAPS) attaches to no relay; the host VM reports the tier");
         const int arc = run_app(&app_plan);
         OUT("END");
         if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_pads >= 0) close(ls_pads); if (ls_ctl >= 0) close(ls_ctl);

@@ -133,6 +133,9 @@ public class Main extends Activity {
         String hostAgent = null;             // --es host_agent http://127.0.0.1:<port>: the owner's host agent; the relay's host requests go to it
         int bridgeApp = 17786, bridgeEvidence = 17787;   // --ei bridge_app / bridge_evidence: the loopback ports of the VM's TLS app port and evidence endpoint (app_tls 2)
         int appSock = 0, appMem = 0;         // --ei app_sock <port> [--ei app_mem <MiB>]: app_tls 2 with a socket-server app (APP ... sock= mem=)
+        boolean slot = false;                // --ez slot true: a slot VM (AnchorServiceSlotN): serves one app on the owner's bridges, no relay of its own
+        boolean resize = false;              // --ez resize true: an existing instance is resized to `mem` (VirtualMachine.setConfig) before it runs
+        int cpus = 0;                        // --ei cpus 1: one vCPU (CPU_TOPOLOGY_ONE_CPU); 0: as many as the host (MATCH_HOST)
         boolean appOpts = false;             // --ez app_opts true: app_tls 2 with the deployment's options, staged by the host agent in this app's
                                              // private files dir (app-opts; read once and deleted): its environment, protection rules and egress
         int egressPort = 0; String egressToken = "";   // from app-opts: the host agent's egress port (adb reverse) and this launch's token
@@ -234,6 +237,8 @@ public class Main extends Activity {
             p.bridgeApp = i.getIntExtra("bridge_app", p.bridgeApp); p.bridgeEvidence = i.getIntExtra("bridge_evidence", p.bridgeEvidence);
             p.appSock = i.getIntExtra("app_sock", 0); p.appMem = i.getIntExtra("app_mem", 0);
             p.appOpts = i.getBooleanExtra("app_opts", false);
+            p.slot = i.getBooleanExtra("slot", false); p.resize = i.getBooleanExtra("resize", false); p.cpus = i.getIntExtra("cpus", 0);
+            if (p.cpus != 0 && p.cpus != 1) p.configError = "cpus must be 1 (one vCPU) or 0 (as many as the host)";
             if (p.appSock < 0 || p.appSock > 65535 || (p.appMem != 0 && (p.appMem < 16 || p.appMem > 1024)) || (p.appMem != 0 && p.appSock == 0)) p.configError = "app_sock must be 1..65535 and app_mem 16..1024 (with app_sock)";
             if (p.hostAgent != null && !p.hostAgent.matches("http://(127\\.0\\.0\\.1|localhost):\\d{1,5}")) p.configError = "host_agent must be the owner's loopback agent, http://127.0.0.1:<port>";
             if (p.bridgeApp < 1024 || p.bridgeApp > 65535 || p.bridgeEvidence < 1024 || p.bridgeEvidence > 65535 || p.bridgeApp == p.bridgeEvidence) p.configError = "bridge_app and bridge_evidence must be two different ports 1024..65535";
@@ -251,7 +256,7 @@ public class Main extends Activity {
                 else if (!p.appGraph.isEmpty() && !p.appGraph.matches("[a-z0-9][a-z0-9._-]{0,63}")) p.configError = "app_graph must be 1..64 of [a-z0-9._-], starting with a letter or digit";
                 else if (!p.appGraph.isEmpty() && !new java.io.File(p.model).isFile()) p.configError = "app_graph runs the app over the model, and model " + p.model + " is not a file";
                 else if (!p.appHttp.isEmpty() && !p.appArgs.isEmpty()) p.configError = "app_http serves the component over HTTP: it takes no app_args";
-                else if (p.appTls == 2 && (!p.appHttp.isEmpty() || !p.appArgs.isEmpty() || p.relay == null || p.appServeS != 0)) p.configError = "app_tls 2 (the marketplace host) serves the component until stopped with a CA-trustable key: it needs --es relay and app_serve_s 0, and takes no app_http or app_args";
+                else if (p.appTls == 2 && (!p.appHttp.isEmpty() || !p.appArgs.isEmpty() || (p.relay == null && !p.slot) || p.appServeS != 0)) p.configError = "app_tls 2 (the marketplace host) serves the component until stopped with a CA-trustable key: it needs --es relay and app_serve_s 0, and takes no app_http or app_args";
                 else if (p.appSock != 0 && p.appTls != 2) p.configError = "app_sock (a socket-server app) is served only by the marketplace host (app_tls 2)";
                 else if (p.appOpts && p.appTls != 2) p.configError = "app_opts (a deployment's environment, rules and egress) is for the marketplace host (app_tls 2)";
                 else if (p.appTls != 0 && p.appTls != 2 && (p.appTls != 1 || !p.appHttp.isEmpty() || !p.appArgs.isEmpty() || p.relay == null)) p.configError = "app_tls 1 (lab) serves the component over TLS through the relay: it needs --es relay and takes no app_http or app_args";
@@ -462,7 +467,7 @@ public class Main extends Activity {
             call(b, "setProtectedVm", true);
             call(b, "setDebugLevel", plan.debug);
             call(b, "setMemoryBytes", plan.memMib << 20);
-            call(b, "setCpuTopology", 1);            // CPU_TOPOLOGY_MATCH_HOST
+            call(b, "setCpuTopology", plan.cpus == 1 ? 0 : 1);   // CPU_TOPOLOGY_ONE_CPU for a small share, else MATCH_HOST
             /* mode local: every vCPU is a full-utilization compute thread. Without the boost the host scheduler was measured stacking
              * two busy vCPU threads on one big core while another idled, and ggml's even split then runs at the slower pair's pace
              * (7 tok/s instead of 14, LOCAL.md). Fixed at instance creation: an existing instance keeps what it was created with. */
@@ -486,6 +491,13 @@ public class Main extends Activity {
             catch (Exception e) {
                 say("HOST existing VM '" + plan.vmName + "' is incompatible with this config (" + (e.getCause() != null ? e.getCause().getMessage() : e.getMessage()) + "): NOT deleting it; run with --ei fresh 1 to replace it, or --es vmname <other> for a separate instance");
                 return;
+            }
+            if (plan.resize) {   /* a slot instance is resized to THIS app's share before it runs (it is stopped: a new process) */
+                Object ecfg = tryCall(vm0, "getConfig"); Object emem = ecfg == null ? null : tryCall(ecfg, "getMemoryBytes");
+                if (!(emem instanceof Long) || (Long) emem != (plan.memMib << 20)) {
+                    try { call(vm0, "setConfig", cfg); say("HOST VM instance '" + plan.vmName + "' resized to mem=" + plan.memMib + " MiB (setConfig)"); }
+                    catch (Exception e) { say("HOST VM instance '" + plan.vmName + "' NOT resized (" + (e.getCause() != null ? e.getCause().getMessage() : e.getMessage()) + "): it runs with its stored size"); }
+                }
             }
             final Object vm = vm0;
             {   /* what the instance actually runs with, from its stored config, never from the request */
@@ -731,6 +743,7 @@ public class Main extends Activity {
                 }
                 if (!plan.proofPins.isEmpty()) { cmd.append("PROOFPINS ").append(plan.proofPins).append('\n'); say("APP proof pins handed to the VM (it signs checkpoints for these only)"); }
                 if (plan.appOpts) appOptions(plan, cmd);
+                if (plan.slot) cmd.append("NOCAPS\n");   // a slot VM attaches to no relay: no capability report, no GFLOPS bench
                 cmd.append("APP bytes=").append(abytes).append(" sha256=").append(asha).append(aargs).append(plan.appGraph.isEmpty() ? "" : " graph=" + plan.appGraph)
                    .append(plan.appTls == 2 ? " serve=https-p256" : plan.appTls == 1 ? " serve=https" : plan.appHttp.isEmpty() && plan.appServeS != 0 ? "" : " serve=http")
                    .append(plan.appSock != 0 ? " sock=" + plan.appSock + (plan.appMem != 0 ? " mem=" + plan.appMem : "") : "").append('\n');
@@ -842,6 +855,13 @@ public class Main extends Activity {
     static final int APP_HTTP_PORT = 7786;  // HTTP/1.1 to a served wasi:http app (APP ... serve=http)
     static final int EVIDENCE_PORT = 7787;  // the VM's evidence endpoint while an app serves over TLS (payload anchor_payload.c)
     static final java.util.List<LocalBridge> bridges = new java.util.concurrent.CopyOnWriteArrayList<>();
+    /** This process's slot: "" in the main process, "-slotN" in ":slotN" (AnchorServiceSlotN): the suffix of its files. */
+    static String slotSuffix() {
+        final String p = android.app.Application.getProcessName();
+        final int i = p == null ? -1 : p.lastIndexOf(':');
+        return i < 0 ? "" : "-" + p.substring(i + 1).replaceAll("[^a-z0-9]", "");
+    }
+    static int slotIndex() { final String s = slotSuffix(); return s.startsWith("-slot") ? Integer.parseInt("0" + s.substring(5).replaceAll("[^0-9]", "")) : 0; }
     static final java.util.List<EgressPool> egress = new java.util.concurrent.CopyOnWriteArrayList<>();
     static final int EGRESS_PORT = 7790;    // the VM's egress port (7788 is the sealed port): this app keeps idle streams open to it (EgressPool.java)
 
@@ -852,7 +872,7 @@ public class Main extends Activity {
      * control line takes) and are checked there; EGRESS enables the VM's egress port (APPEGRESS) and this app's pool.
      */
     static void appOptions(Plan plan, StringBuilder cmd) {
-        final java.io.File f = new java.io.File(appCtx.getFilesDir(), "app-opts");
+        final java.io.File f = new java.io.File(appCtx.getFilesDir(), "app-opts" + slotSuffix());
         String text = null;
         try { text = new String(java.nio.file.Files.readAllBytes(f.toPath()), java.nio.charset.StandardCharsets.US_ASCII); }
         catch (Exception e) { say("APP options NOT read (" + e + "): the app starts without its environment, rules or egress"); }

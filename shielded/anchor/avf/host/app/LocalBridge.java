@@ -43,7 +43,8 @@ public final class LocalBridge {
         try {
             final java.io.File dir = ctx.getExternalFilesDir(null);
             if (dir == null) return null;
-            final java.io.File f = new java.io.File(dir, "bridge-token"), tmp = new java.io.File(dir, "bridge-token.tmp");
+            final String name = "bridge-token" + Main.slotSuffix();   /* each slot's own door */
+            final java.io.File f = new java.io.File(dir, name), tmp = new java.io.File(dir, name + ".tmp");
             try (FileOutputStream o = new FileOutputStream(tmp)) { o.write((t + "\n").getBytes("US-ASCII")); o.getFD().sync(); }
             if (!tmp.renameTo(f)) return null;
             Main.say("BRIDGE token written to " + f + " (the owner's host reads it over adb; other apps cannot)");

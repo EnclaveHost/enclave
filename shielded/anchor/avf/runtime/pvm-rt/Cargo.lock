@@ -1567,6 +1567,7 @@ dependencies = [
  "wasmtime-wasi-http",
  "webpki-roots",
  "x25519-dalek",
+ "x509-parser",
 ]
 
 [[package]]
