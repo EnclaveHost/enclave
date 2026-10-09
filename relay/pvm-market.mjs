@@ -156,5 +156,5 @@ export function createPvmMarket({ hub, enabled = false, pins = null, confirmRow,
     const t = Math.floor(now() / 1000);
     return rows.map((d) => ({ id: String(d.id).toLowerCase(), until: servesUntil(row, d) })).filter((x) => x.until > t);
   }
-  return { enabled: on, eligible, servesUntil, served, refresh, certificate: (row, d, spki) => admit(row, d, spki) };
+  return { enabled: on, eligible, servesUntil, served, refresh, certificate: (row, d, spki) => admit(row, d, spki), expectedApp };
 }

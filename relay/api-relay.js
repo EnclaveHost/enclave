@@ -100,6 +100,7 @@ import { initSessions, handleSessions, sessionsService, createCustodyGate, sessi
 import { handleCerts, initCerts } from "./certs.js";
 import { createShieldMarketplace } from "./shield-marketplace.mjs";
 import { createPvmMarket } from "./pvm-market.mjs";
+import { createPvmSecretRelease } from "./pvm-secrets.mjs";
 import { claimCheapest, CLAIM_QUOTE_ABI } from "./cheapest-claim.mjs";
 import { createPlacement, pinnedHost } from "./placement.mjs";
 import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson } from "./measurement-predict.mjs";
@@ -2302,6 +2303,9 @@ const shieldMarket = createShieldMarketplace({ hub: tunnelHub,
 // own pins (PVM_CPU_CODE_HASHES / _AUTHORITY_HASHES / _RUNTIME_IDS): without them the market stays off.
 const pvmMarket = createPvmMarket({ hub: tunnelHub, enabled: process.env.PVM_MARKET === "1", pins: PVM_CPU_POLICY, confirmRow,
   readCatalog: catalogReader(catalogClients, catalogAddress), fetchVerified: (cid, max) => predictor().fetchVerified(cid, max) });
+// a pVM host's secrets: sealed to its VM, signed by the release key, never plaintext to the operator (relay/pvm-secrets.mjs)
+const pvmSecretRelease = createPvmSecretRelease({ hub: tunnelHub, market: pvmMarket, pins: PVM_CPU_POLICY, confirmRow,
+  hostForEndpoint: (id) => live.find((e) => String(e.id).toLowerCase() === String(id).toLowerCase()) });
 const shieldSecretRelease=createShieldSecretRelease({hub:tunnelHub,policyFile:process.env.RELAY_SHIELD_MARKET_POLICY||"",confirmRow,
   readCatalog:catalogReader(catalogClients,catalogAddress),readConfig:versionConfigReader(catalogClients,catalogAddress),
   fetchVerified:(cid,max)=>predictor().fetchVerified(cid,max),
@@ -2378,7 +2382,7 @@ async function prewarmCollateral(doc) {
 // the RuntimeID of the runtime identity a guest states (isolation/contract/runtime.go: sha256 of its canonical JSON); it
 // is admitted only when it equals an admitted domain release's own
 const runtimeIdOf = (r) => Buffer.from(runtimeIdOfJson(JSON.stringify(r)), "hex");
-const relayCtx = { shieldSecretRelease, json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility, leaseHolderChipIds,
+const relayCtx = { shieldSecretRelease, pvmSecretRelease, json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility, leaseHolderChipIds,
                    // sessions: the owner wallet behind a SessionVault-held record, and the custody release gate
                    beneficialOwner, custodyRefusal, sessionAuth, screenAddress: (a) => screenAddressSafe(a),
                    isSessionVault: async (a) => !!(await (await custody()).vaultOwnerOf(a)),

@@ -12,6 +12,9 @@ import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, sign as edSign } from "node:crypto";
 import { tmpdir, makeCa, issueLeaf, extension, haveOpenssl, CODE, AUTH } from "./fixtures/avf-synthetic.mjs";
 import { createPvmMarket, pvmOptionsRefusal } from "../relay/pvm-market.mjs";
+import { createPvmSecretRelease, sealKeyMessage, pvmSecretsMessage } from "../relay/pvm-secrets.mjs";
+import { openRelease, verifyResponse, ed25519RawPublic } from "../relay/secrets-release.mjs";
+import { privateKeyToAccount } from "viem/accounts";
 import { bind3, instanceIdOf, instanceSigMessage, appKeyMessageV3, tlsKeyMessage, PVM_APP_EVIDENCE_FORMAT_V4 } from "../relay/pvm-app-attest.mjs";
 
 const skip = !haveOpenssl && "no openssl";
@@ -40,7 +43,11 @@ function fakeVm(dir, ca, { appId = APP, forge = null } = {}) {
       appSha256: appId, transportKey: tlsSpki.toString("base64"), identity: PIXEL, selftest: "exec_pages=refused:EACCES wx=clean maps=1 scope=self",
       chain: [leaf, ca.inter, ca.root].map((c) => c.toString("base64")) };
   };
-  return { keyFp: sha(spki), tlsSpkiSha256: sha(tls.publicKey.export({ format: "der", type: "spki" })), evidence };
+  // the VM's seal key for (app, deployment) and its statement over a nonce (relay/pvm-secrets.mjs), signed by the transport key
+  const sealKp = generateKeyPairSync("x25519"), sealRaw = sealKp.publicKey.export({ format: "der", type: "spki" }).subarray(12);
+  const seal = (nonceHex, id, { by = t.privateKey, key = sealRaw } = {}) => ({ format: "enclave-pvm-seal-key/v1", deployment: id, app: appId,
+    sealKey: key.toString("hex"), nonce: nonceHex, sig: edSign(null, sealKeyMessage({ nonce: nonceHex, id, app: appId, sealKey: key.toString("hex") }), by).toString("hex") });
+  return { keyFp: sha(spki), tlsSpkiSha256: sha(tls.publicKey.export({ format: "der", type: "spki" })), evidence, seal, sealPrivate: sealKp.privateKey, other: generateKeyPairSync("ed25519") };
 }
 
 function setup({ vmOpts = {}, row: rowOver = {}, info: infoOver = {}, dep = {}, enabled = true, catalog = {} } = {}) {
@@ -58,7 +65,7 @@ function setup({ vmOpts = {}, row: rowOver = {}, info: infoOver = {}, dep = {}, 
     confirmRow: async (id) => (id === D ? { ...ledger.d } : null),
     readCatalog: async () => ({ app: { active: true }, version: { cid: CID, memMb: 128, ports: "", approval: 1, yanked: false, ...catalog } }),
     fetchVerified: async (cid) => { fetched.push(cid); return cid === CID ? { ok: true, bytes: COMPONENT } : { ok: false }; } });
-  return { m, row, hub, ledger, clock, vm, fetched };
+  return { m, row, hub, ledger, clock, vm, fetched, ca };
 }
 
 test("capacity: on only with the market switched on, an admitted pvm-cpu AVF tunnel, its registered operator's attach and a registered id", { skip }, () => {
@@ -159,4 +166,62 @@ test("served state ends with a ledger change, a re-attach (another transport key
   r.clock.t += 5 * 60_000; r.hub.answer = () => r.vm.evidence("22".repeat(32));
   await r.m.refresh([r.row], [r.ledger.d]);
   assert.equal(r.m.servesUntil(r.row, r.ledger.d), 0, "evidence for another nonce revokes the verdict");
+});
+
+// ---- sealed secrets for a pVM (relay/pvm-secrets.mjs): the operator asks, the relay verifies the VM and its seal key, the
+// release is sealed to that key and signed by the relay's release key; nothing is read for anyone else ----
+const OPKEY = "0x" + "11".repeat(32), opAccount = privateKeyToAccount(OPKEY), ENDPOINT = "https://api.enclave.host/t/pixel10-pvm-cpu";
+function releaseSetup({ sealAnswer = null, operator = opAccount.address, dep = {}, lease = true } = {}) {
+  const s = setup({ dep });
+  const relKey = generateKeyPairSync("ed25519").privateKey;
+  const read = [];
+  s.hub.fetchJson = async (origin, path) => {
+    s.hub.asked.push(path);
+    const n = /nonce=([0-9a-f]{64})/.exec(path)[1];
+    return { evidence: s.vm.evidence(n), seal: sealAnswer ? sealAnswer(n, s.vm) : s.vm.seal(n, D) };
+  };
+  const release = createPvmSecretRelease({ hub: s.hub, market: s.m, rootPins: [s.ca.rootPin],
+    pins: { codeHashes: new Set([CODE.toString("hex")]), authorityHashes: new Set([AUTH.toString("hex")]), runtimeIds: new Set([RID]) },
+    hostForEndpoint: (id) => (id === ROW_ID ? s.row : null), confirmRow: async (id) => (id === D ? { ...s.ledger.d, ...(lease ? {} : { runner: "0x" + "99".repeat(32) }) } : null),
+    signingKey: () => relKey });
+  const ctx = { operatorOfEndpoint: async () => operator, endpointIdOf: async () => ROW_ID };
+  const reader = (id) => { read.push(id); return { env: { MCP_ADAPTER_API_KEY: "s3cret", S3_ENDPOINT: "https://s3.example" }, rev: 3 }; };
+  const ask = async (over = {}) => {
+    const ts = Math.floor(Date.now() / 1000);
+    const opSig = await opAccount.signMessage({ message: pvmSecretsMessage(D, ENDPOINT, ts) });
+    return release({ id: D, endpoint: ENDPOINT, ts, opSig, ...over }, ctx, reader);
+  };
+  return { ...s, relKey, read, ask };
+}
+
+test("pVM secrets: released sealed to the VM's attested seal key, signed by the release key, after every check", { skip }, async () => {
+  const r = releaseSetup();
+  const out = await r.ask();
+  assert.equal(out.count, 2);
+  const ticket = Buffer.from(out.nonce, "hex"), sealed = Buffer.from(out.sealed, "base64");
+  assert.ok(verifyResponse({ publicKey: ed25519RawPublic(r.relKey), sig: Buffer.from(out.sig, "base64"), id: D, ticket, sealKey: Buffer.from(out.sealKey, "hex"), sealed }),
+    "the VM checks the relay's signature before it opens");
+  const plain = JSON.parse(openRelease({ id: D, ticket, sealPrivateKey: r.vm.sealPrivate, sealed }).toString());
+  assert.deepEqual(plain.secrets, { MCP_ADAPTER_API_KEY: "s3cret", S3_ENDPOINT: "https://s3.example" });
+  assert.equal(plain.id, D);
+  assert.match(r.hub.asked.at(-1), new RegExp(`^/v1/pvm/secret-evidence\\?deployment=${D}&nonce=${out.nonce}$`), "over the relay's own nonce");
+});
+
+test("pVM secrets: nothing is read for a wrong operator, another lease holder, a seal key the VM's transport key did not sign, or a replay", { skip }, async () => {
+  for (const [name, r, re] of [
+    ["another operator", releaseSetup({ operator: "0x" + "22".repeat(20) }), /operator signature refused/],
+    ["not the lease holder", releaseSetup({ lease: false }), /does not hold the deployment's live lease/],
+    ["a private deployment", releaseSetup({ dep: { isPublic: false } }), /only public/],
+    ["a seal key signed by another key", releaseSetup({ sealAnswer: (n, vm) => vm.seal(n, D, { by: vm.other.privateKey }) }), /not signed by the VM's attested transport key/],
+    ["a statement for another deployment", releaseSetup({ sealAnswer: (n, vm) => vm.seal(n, "0x" + "ee".repeat(32)) }), /not for this deployment/],
+    ["a statement for another nonce", releaseSetup({ sealAnswer: (n, vm) => vm.seal("ab".repeat(32), D) }), /not for this deployment, app and nonce/],
+  ]) {
+    await assert.rejects(r.ask(), re, name);
+    assert.deepEqual(r.read, [], `${name}: no secret was read`);
+  }
+  const r = releaseSetup();
+  const ts = Math.floor(Date.now() / 1000), opSig = await opAccount.signMessage({ message: pvmSecretsMessage(D, ENDPOINT, ts) });
+  await r.ask({ ts, opSig });
+  await assert.rejects(r.ask({ ts, opSig }), /replayed/);
+  await assert.rejects(r.ask({ ts: ts - 600 }), /invalid release request/, "a stale request");
 });

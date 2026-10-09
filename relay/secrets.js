@@ -257,6 +257,14 @@ export async function handleSecrets(req, res, u, ctx) {
     catch (e) { return bad(ctx,res,req,Number.isInteger(e.status)?e.status:503,"shield_release_refused",e.message); }
   }
 
+  // a pVM host's secrets, sealed to its VM (pvm-secrets.mjs): the operator carries ciphertext only
+  if (u.pathname === "/v1/secrets/pvm-release") {
+    if (!rlRelease(ctx.clientIp(req))) return bad(ctx, res, req, 429, "rate_limited", "Too many release requests.");
+    if (typeof ctx.pvmSecretRelease !== "function") return bad(ctx, res, req, 503, "pvm_release_disabled", "pVM release is unavailable.");
+    try { return ctx.json(res, 200, await ctx.pvmSecretRelease(b, ctx, readSecrets), req); }
+    catch (e) { return bad(ctx, res, req, Number.isInteger(e.status) ? e.status : 503, "pvm_release_refused", e.message); }
+  }
+
   // attested release to a per-app SNP guest (secrets-release.mjs; OFF unless SECRETS_ATTESTED_RELEASE and its policy)
   if (await handleRelease(u.pathname, b, req, res, ctx, {
     envOf: (id) => { const rec = recOf(id); return rec ? open(id, rec.blob) : {}; },
