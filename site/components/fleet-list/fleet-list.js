@@ -6,7 +6,8 @@
    page. The units in those lines are the sort controls: GB or tflops on
    a GPU line sorts every host by its price per GB of VRAM or per TFLOPS,
    GB or gflops on a CPU line by RAM or CPU compute, the rating (★98%)
-   by rating; again reverses.
+   by rating; again reverses. The Sort by bar above the hosts offers
+   every order as a dropdown, with the direction beside it.
    Copy says "available",
    never "free": on a page that sells compute, "60 GB free" reads as
    a price, not as headroom.
@@ -24,13 +25,15 @@ import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
 
 const PAGE = 5;   // hosts per page
-// the four sort keys: a pool kind and what its price is divided by. `unit` is what the line's button reads.
+// the sort keys, in the Sort by dropdown's order: the rating, then a pool kind and what its price is divided by.
+// `opt` is the dropdown's name for it, `unit` what the line's button reads, `dir` the first direction (1 = low first),
+// `asc` / `desc` what each direction is called.
 const SORTS = {
-  "gpu-gb":      { unit: "GB",     what: "GB of VRAM" },
-  "gpu-compute": { unit: "tflops", what: "TFLOPS of GPU compute" },
-  "cpu-gb":      { unit: "GB",     what: "GB of RAM" },
-  "cpu-compute": { unit: "gflops", what: "GFLOPS of CPU compute" },
-  "rating":      { dir: -1 },   // best first; its button is the rating itself
+  "rating":      { opt: "Rating", dir: -1, asc: "worst first", desc: "best first" },   // its button is the rating itself
+  "gpu-gb":      { opt: "$ per GB VRAM",    unit: "GB",     what: "GB of VRAM" },
+  "gpu-compute": { opt: "$ per GPU TFLOPS", unit: "tflops", what: "TFLOPS of GPU compute" },
+  "cpu-gb":      { opt: "$ per GB RAM",     unit: "GB",     what: "GB of RAM" },
+  "cpu-compute": { opt: "$ per CPU GFLOPS", unit: "gflops", what: "GFLOPS of CPU compute" },
 };
 
 class FleetList extends EnclaveElement {
@@ -347,15 +350,21 @@ class FleetList extends EnclaveElement {
         return (x - y) * sortBy.dir || i - j;
       }).map(([r]) => r);
     }
-    const sortBar = sortBy && items.length
-      ? '<div class="fleet-sortbar" role="status">Sorted: ' + (sortBy.key === "rating" ? (sortBy.dir < 0 ? 'best' : 'worst') + ' rated'
-        : (sortBy.dir < 0 ? 'priciest' : 'cheapest') + ' per ' + SORTS[sortBy.key].what)
-        + ' first<button class="fleet-sort-x" type="button" aria-label="Clear the sort" title="Clear the sort">×</button></div>'
+    // the Sort by bar, always above the hosts: every order in a dropdown (Default = the relay's), and beside it
+    // the direction, as a button that flips it. The units and ratings in the rows set the same sort.
+    const uid = (this._uid ||= "fl" + Math.random().toString(36).slice(2, 8));
+    const dirWord = (key, dir) => dir < 0 ? (SORTS[key].desc || "priciest first") : (SORTS[key].asc || "cheapest first");
+    const sortBar = items.length
+      ? '<div class="fleet-sortbar"><label for="' + uid + '-sort">Sort by</label>'
+        + '<select class="fleet-sortsel" id="' + uid + '-sort"><option value="">Default</option>'
+        + Object.entries(SORTS).map(([k, s]) => '<option value="' + k + '"' + (sortBy && sortBy.key === k ? ' selected' : '') + '>' + esc(s.opt) + '</option>').join('')
+        + '</select>'
+        + (sortBy ? '<button class="fleet-sortdir" type="button" title="Reverse the order">' + (sortBy.dir < 0 ? '↓ ' : '↑ ') + dirWord(sortBy.key, sortBy.dir) + '</button>' : '')
+        + '</div>'
       : '';
     const pages = Math.max(1, Math.ceil(items.length / PAGE));
     this._page = Math.min(Math.max(0, this._page || 0), pages - 1);
     const first = this._page * PAGE;
-    const uid = (this._uid ||= "fl" + Math.random().toString(36).slice(2, 8));
     list.innerHTML = !items.length
       ? (failed
         ? '<div class="fleet-empty fleet-error" role="alert">Couldn’t load the app hosts: ' + esc(failed) + '. This is a failed read, not an empty fleet. Retrying.</div>'
@@ -399,11 +408,13 @@ class FleetList extends EnclaveElement {
       const key = u.dataset.sort;
       resort({ key, dir: sortBy && sortBy.key === key ? -sortBy.dir : (SORTS[key].dir || 1) }, key);
     });
-    const sx = list.querySelector(".fleet-sort-x");
-    if (sx) sx.addEventListener("click", () => resort(null, "clear"));
-    // the repaint replaced the button that was clicked: keep keyboard focus on what it became
+    const sel = list.querySelector(".fleet-sortsel");
+    if (sel) sel.addEventListener("change", () => resort(sel.value ? { key: sel.value, dir: SORTS[sel.value].dir || 1 } : null, ".fleet-sortsel"));
+    const sd = list.querySelector(".fleet-sortdir");
+    if (sd) sd.addEventListener("click", () => resort({ key: sortBy.key, dir: -sortBy.dir }, ".fleet-sortdir"));
+    // the repaint replaced the control that was used: keep keyboard focus on what it became
     if (this._sortFocus) {
-      const f = this._sortFocus === "clear" ? list.querySelector(".fleet-tog") : list.querySelector('[data-sort="' + this._sortFocus + '"]');
+      const f = this._sortFocus.startsWith(".") ? list.querySelector(this._sortFocus) : list.querySelector('[data-sort="' + this._sortFocus + '"]');
       this._sortFocus = null;
       if (f) f.focus();
     }
