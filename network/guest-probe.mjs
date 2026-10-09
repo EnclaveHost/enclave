@@ -5,6 +5,7 @@ import {LocalAppHttpsAgent} from './local-app-transport.mjs';
 import {judge} from '../isolation/m2/judge.mjs';
 import {runtimeId} from '../isolation/contract/runtime.mjs';
 import {verifyShieldAppPolicy} from '../relay/shield-app-policy.mjs';
+import {verifyPvmAppEvidence} from '../relay/pvm-app-attest.mjs';
 
 const observedPeerKeys=new WeakMap();
 function get(hostname,address,path,agent,pin,port=443){return new Promise((resolve,reject)=>{
@@ -16,7 +17,7 @@ function get(hostname,address,path,agent,pin,port=443){return new Promise((resol
  });req.once('timeout',()=>req.destroy(new Error('guest probe timeout')));req.once('error',reject);
 });}
 const GUEST_BUSY=/attestation busy; retry|too many concurrent report requests/,GUEST_BUSY_RETRIES=5;
-export async function probeGuest({deploymentId,hostname,address,port=443,proxy,direct=false,expected,linux,shield,hostSession,localUpstream,openApp,domainIndependent=false,verifySnp=judge,pinnedSpkiSha256=null,startupEgress=false}){
+export async function probeGuest({deploymentId,hostname,address,port=443,proxy,direct=false,expected,linux,shield,hostSession,pvm,localUpstream,openApp,domainIndependent=false,verifySnp=judge,pinnedSpkiSha256=null,startupEgress=false}){
  if(startupEgress&&(!openApp||proxy||pinnedSpkiSha256||expected.requiresConfigSocketServer!==true||expected.requiresSecretsV1!==true))throw new Error('startup egress requires a local configured secret command proof');
  if([proxy,localUpstream,openApp,direct].filter(Boolean).length!==1)throw new Error('guest probes require exactly one explicit app transport');
  if(direct&&(!pinnedSpkiSha256||domainIndependent))throw new Error('direct route probes require an attested key and SNI');
@@ -65,6 +66,15 @@ export async function probeGuest({deploymentId,hostname,address,port=443,proxy,d
   }else if(shield&&hostSession){
     const verdict=verifyShieldAppPolicy({doc,handshakeSpki:response.spki,nonce,expectedAppSha256:expected.appSha256,expectedRuntimeId:expected.runtimeId,hostSession,requiresConfigBundleV5:expected.requiresConfigBundleV5,requiresSecretsV1:expected.requiresSecretsV1,requiresConfigSocketServer:expected.requiresConfigSocketServer},shield);
     verified=verdict.ok===true;if(!verified)throw new Error('Shield guest proof refused: '+verdict.reason);
+  }else if(pvm&&String(doc.format||'').startsWith('enclave-pvm-app-evidence/')){
+    // a pVM host's app: a fresh AVF certificate over OUR nonce, rooted at Google's attestation roots, for the pinned build and
+    // runtime, binding this app and -- signed by the attested transport key -- the TLS key this very connection presented
+    const verdict=verifyPvmAppEvidence(doc,{nonce,appId:expected.appSha256,requireTls:true,allowedRuntimeIds:pvm.runtimeIds,
+      allowedCodeHashes:pvm.codeHashes,allowedAuthorityHashes:pvm.authorityHashes,...(pvm.rootPins?{rootPins:pvm.rootPins}:{})});
+    if(!verdict.ok)throw new Error('pVM guest proof refused: '+verdict.reasons.at(-1));
+    if(verdict.tlsSpki!==response.spki.toString('hex'))throw new Error('pVM guest proof refused: the evidence binds another TLS key');
+    if(verdict.runtimeId!==expected.runtimeId)throw new Error('pVM guest proof refused: another runtime');
+    verified=true;
   }else throw new Error('no independently trusted guest verification policy');
   const ready=await get(hostname,address,'/.well-known/enclave-ready',agent,response.spki,port);
   if(ready.status!==200&&!(startupEgress&&ready.status===503))throw new Error('guest readiness HTTP '+ready.status);

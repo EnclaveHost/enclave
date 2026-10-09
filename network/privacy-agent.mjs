@@ -15,6 +15,7 @@ import {RoutePublisher,appPolicy} from './route-publisher.mjs';
 import {EgressMap} from './egress-map.mjs';
 import {DurableState} from './durable-state.mjs';
 import {localAppForwarder} from './local-app-transport.mjs';
+import {pvmAppPort,openPvmApp,pvmForwarder} from './pvm-app-transport.mjs';
 import {probeGuest} from './guest-probe.mjs';
 import {createProbeScheduler} from './probe-scheduler.mjs';
 import {GuestdIngress} from './guestd-ingress.mjs';
@@ -108,8 +109,15 @@ export async function runPrivacy(configFile){
   if(!needsTuna&&!directConfigured)throw new Error('direct hosting is not enabled');
   let verifySnp;
   if(cfg.verifierModule){if(!path.isAbsolute(cfg.verifierModule))throw new Error('local verifier module required');verifySnp=(await import(pathToFileURL(cfg.verifierModule).href)).judge;}
-  const windows=process.platform==='win32';let linux,shield,hostProof;
-  if(windows){
+  const windows=process.platform==='win32';let linux,shield,hostProof,pvm;
+  if(cfg.pvm){
+    // a pVM host (a phone's protected VM): the relay's own pins for the tier, and the loopback port of the VM's TLS app port
+    const hex=(xs,re)=>Array.isArray(xs)&&xs.length&&xs.every(x=>re.test(x));
+    if(!hex(cfg.pvm.codeHashes,/^[0-9a-f]{64}$/)||!hex(cfg.pvm.authorityHashes,/^[0-9a-f]{128}$/)||!hex(cfg.pvm.runtimeIds,/^[0-9a-f]{64}$/))
+      throw new Error('pvm needs codeHashes, authorityHashes and runtimeIds (the tier\'s pins)');
+    pvm={appPort:pvmAppPort(cfg.pvm),codeHashes:cfg.pvm.codeHashes,authorityHashes:cfg.pvm.authorityHashes,runtimeIds:cfg.pvm.runtimeIds};
+    if(cfg.guestd||cfg.upstream||cfg.shield||cfg.linux)throw new Error('a pVM host takes no guest manager, upstream, Shield or Linux configuration');
+  }else if(windows){
     if(!cfg.shield?.policyFile||!cfg.shield?.tpmBinary||!cfg.shield?.tpmSha256)throw new Error('independent Shield platform and TPM pins required');
     shield=await readJSON(cfg.shield.policyFile);hostProof=new ShieldHostProof({binary:cfg.shield.tpmBinary,sha256:cfg.shield.tpmSha256,policy:shield});
   }else{
@@ -127,7 +135,7 @@ export async function runPrivacy(configFile){
     cfg.shield?.ingress?new ShieldIngress({...cfg.shield.ingress,expected:id=>apps.find(a=>a.deploymentId===id)?.expected,key:id=>agent?.admission.proofs.get(id)?.spkiSha256}):null;
   const Runtime=windows?WindowsCircuitRuntime:LinuxCircuitRuntime;
   const runtime=needsTuna?new Runtime({...cfg.runtime,directory:path.join(cfg.directory,'circuits'),rpc:cfg.nknRpc,
-    authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:guestd?guestd.forward:localAppForwarder(cfg.upstream),log}):
+    authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:pvm?pvmForwarder(pvm.appPort):guestd?guestd.forward:localAppForwarder(cfg.upstream),log}):
     {async start(){throw new Error('TUNA runtime is not configured');},async close(){}};
   const inventory=needsTuna?new ProviderInventory({...cfg.inventory,includeUSDC:!!cfg.tunaUSDC,rpc:cfg.nknRpc,log}):{get:async()=>[],refresh:async()=>[]};
   const control=cfg.control?new ControlTransport({network:cfg.runtime.network,...cfg.control,directory:path.join(cfg.directory,'control'),inventory,rpc:cfg.nknRpc,wallets:await readJSON(cfg.control.walletsFile),log}):null;
@@ -230,8 +238,8 @@ export async function runPrivacy(configFile){
       if(circuit&&!agent?.admission.allows(id))throw new Error('no current local guest proof');
       return probeGuest({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],expected,
       ...(circuit&&agent?.admission.allows(id)?{pinnedSpkiSha256:agent.admission.proofs.get(id).spkiSha256}:{}),
-      ...(!circuit&&windows?{shield,hostSession:await hostProof.get()}:!circuit?{linux:{...linux,measurement:expected.measurement,release:expected.release},verifySnp}:{}),
-      ...(circuit?{address:circuit.address,direct:circuit.transport==='direct',proxy:circuit.transport==='direct'?undefined:circuit.isolation.guardAddress,domainIndependent:circuit.transport!=='direct'&&!circuit.directPort&&apps.find(a=>a.deploymentId===id)?.startupEgress===true}:apps.find(a=>a.deploymentId===id)?.startupEgress===true?{openApp:starting,startupEgress:true}:guestd?{openApp:id=>guestd.open(id)}:{localUpstream:cfg.upstream})}).then(async result=>{
+      ...(!circuit&&pvm?{pvm}:!circuit&&windows?{shield,hostSession:await hostProof.get()}:!circuit?{linux:{...linux,measurement:expected.measurement,release:expected.release},verifySnp}:{}),
+      ...(circuit?{address:circuit.address,direct:circuit.transport==='direct',proxy:circuit.transport==='direct'?undefined:circuit.isolation.guardAddress,domainIndependent:circuit.transport!=='direct'&&!circuit.directPort&&apps.find(a=>a.deploymentId===id)?.startupEgress===true}:apps.find(a=>a.deploymentId===id)?.startupEgress===true?{openApp:starting,startupEgress:true}:guestd?{openApp:id=>guestd.open(id)}:pvm?{openApp:()=>openPvmApp(pvm.appPort)}:{localUpstream:cfg.upstream})}).then(async result=>{
         if(circuit?.directPort)await probeGuest({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],address:circuit.address,port:circuit.directPort,
           proxy:circuit.isolation.guardAddress,expected,domainIndependent:true,pinnedSpkiSha256:result.spkiSha256});
         return result;
