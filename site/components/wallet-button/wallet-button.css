@@ -18,7 +18,7 @@ c-wallet-button{display:contents;}
 .wp-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line-soft);font-size:.78rem;}
 .wp-k{color:var(--text-muted);} .wp-v{color:var(--text);} .wp-v .ok{color:var(--jade);}
 .wp-addr{background:none;border:0;color:var(--jade);cursor:pointer;font-family:inherit;font-size:.8rem;min-height:24px;display:inline-flex;align-items:center;}
-.wp-mini{background:#101a24;border:1px solid var(--line);color:var(--iris);border-radius:6px;padding:.15em .5em;cursor:pointer;font-family:inherit;font-size:.7rem;min-height:24px;min-width:24px;display:inline-flex;align-items:center;justify-content:center;}
+.wp-mini{background:#101a24;border:1px solid var(--line);color:var(--iris);border-radius:6px;padding:.15em .5em;cursor:pointer;font-family:inherit;font-size:.7rem;line-height:1;min-height:24px;min-width:24px;display:inline-flex;align-items:center;justify-content:center;}
 .wp-bal{margin:10px 0;font-size:.76rem;color:var(--text-muted);} .wp-bal .bl-h{color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;font-size:.62rem;margin-bottom:5px;}
 .wp-bal .bl{display:flex;justify-content:space-between;color:var(--text);padding:2px 0;} .wp-bal .bl.dim{color:var(--text-muted);}
 .wp-disc{width:100%;background:var(--well);border:1px solid var(--danger-deep);color:var(--danger-2);border-radius:8px;padding:.55em;cursor:pointer;font-family:inherit;font-size:.76rem;margin-top:4px;}
@@ -37,7 +37,7 @@ c-wallet-button{display:contents;}
 .wp-input:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
 .wp-go{justify-content:center;color:var(--jade);border-color:var(--jade-dim);}
 .wp-err{font-size:.72rem;color:var(--danger-2);margin:-2px 0 8px;}
-.wp-fund{display:flex;gap:8px;margin:2px 0 10px;}
+.wp-fund{display:flex;gap:8px;margin:10px 0;}
 /* the Deposit QR: white quiet zone so phone cameras lock on against the dark card */
 /* symmetric room around the code block - the old 10/2 let whatever followed
    (address, pairing hint) crowd it. Shared by the deposit, phone sign-in and
