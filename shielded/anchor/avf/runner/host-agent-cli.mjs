@@ -40,7 +40,8 @@ const log = (o) => console.log(JSON.stringify({ t: new Date().toISOString(), ...
 
 const d = cfg.device;
 const device = createPvmDevice({ adb: d.adb, serial: d.serial, vmName: d.vmName, relay: `${cfg.relayOrigin.replace(/^https:/, "wss:")}/v1/fleet-tunnel`,
-  name: cfg.name, agentPort: d.agentPort, attachPort: d.attachPort, bridgeApp: d.bridgeApp || 17786, bridgeEvidence: d.bridgeEvidence || 17787, log });
+  name: cfg.name, agentPort: d.agentPort, attachPort: d.attachPort, egressPort: cfg.egress ? cfg.egress.port : 0,
+  bridgeApp: d.bridgeApp || 17786, bridgeEvidence: d.bridgeEvidence || 17787, log });
 fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
 const cosigner = createAttachCosigner({ account, name: cfg.name, relay: cfg.relayOrigin, codeHashes: cfg.evidence.allowedCodeHashes,
   authorityHashes: cfg.evidence.allowedAuthorityHashes, rootPins: cfg.evidence.rootPins, instanceIds: cfg.evidence.instanceIds,
