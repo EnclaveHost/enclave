@@ -134,11 +134,16 @@ version's `memMb`, raised by its `cpuFallback`), with an isolation requirement a
 - **its configuration**: the version's config (inline, or a rev-7 config document fetched and CID-verified), or the
   deployment's `config` / `configCid` override, as `ENCLAVE_CONFIG`; `ENCLAVE_HOSTS`; `ENCLAVE_PORTS`/`ENCLAVE_MEM_MB`
   for socket apps. A 64-bit memory runs (wasmtime's default features, bounds-checked in Pulley).
-- **its owner's secrets**: fetched by the lease holder with the operator's signature (`windows/node/secrets.mjs`) and
-  handed in as environment variables; `$NAME` in the config's strings resolves from them (the platform runner's rule).
-  The relay serves them only to the lease holder while the host is eligible (a VM attached): the first launch of a new
-  claim, or of a VM that died, has none, and once the VM attaches the agent relaunches it with them -- only when the relay
-  says any exist (`/v1/secrets/exists`). A restart (`POST /v1/deployments/<id>/restart`) applies the current ones.
+- **its owner's secrets, sealed to the VM**: the relay never gives an app-evidence host's operator plaintext secrets. The
+  VM states its X25519 seal key for (app, deployment) -- derived from the instance's secret, so it survives a relaunch --
+  signed by its attested transport key over the relay's nonce (`SEALKEY` on the evidence endpoint); the relay
+  (`relay/pvm-secrets.mjs`, `POST /v1/secrets/pvm-release`, asked by the agent with the operator's signature) verifies the
+  v4 evidence and that statement, seals the secrets to the key and signs the release with its release key (keyId
+  `06212e5df9c3779a`), which this build pins. The agent and the phone carry the ciphertext (`SEALED` / `APPSEALED`); `pvm-rt`
+  (`sealed_release.rs`) checks the relay's signature first, opens the seal, checks the deployment and the names, adds them
+  to the environment and resolves `$NAME` in `ENCLAVE_CONFIG` -- inside the VM. A new claim launches without them and
+  relaunches once they are released (only when `/v1/secrets/exists` says there are any); a relaunch reuses the held
+  release; a restart or a config edit re-releases.
 - **its protection rules** (`waf`): validated by the platform's `parseWaf`, enforced in the VM's front (`pvm-rt` waf.rs:
   methods, path and scanner blocks, user agents, body size with unsized bodies read bounded, rate and concurrency),
   answered as the platform answers. Buckets are per deployment: the app's hostname arrives as TLS through TUNA, with no
