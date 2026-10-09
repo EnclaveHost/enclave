@@ -15,6 +15,17 @@
 //! key -- the key its AVF attestation binds (the v2 attach transcript, and Bind2 in the app's ABI/2 evidence) -- in a
 //! self-signed certificate made in this process. A client pins that key from verified evidence and ignores names and
 //! dates; whatever carries the bytes (the phone's Android app, the relay) sees only ciphertext.
+//!
+//! With `with_tls_p256` (the marketplace host, PVM-CPU.md "Serving buyers"), the server key is a P-256 key DERIVED here
+//! from a seed the payload takes from the VM instance's secret for this app, so a browser can trust it: `csr` makes a
+//! certificate request for the app's name with it, and `set_chain` installs the certificate chain a public CA issued for
+//! it (the relay's certificate service, after verifying evidence that binds this key). Until a chain is installed the
+//! certificate is self-signed. A chain for any other key is refused, so whoever installs one can only choose a name, never
+//! a key. The key never leaves this process; the payload signs its SPKI into the app's evidence with the attested
+//! transport key.
+//!
+//! Connections are served concurrently: each `serve_fd` call runs on its own small runtime, so the payload may call it
+//! from one thread per connection. A connection with no request running and no bytes moving for `IDLE_CLOSE` is closed.
 
 use crate::{engine_config, sealed, verify_and_compile};
 use hyper::server::conn::http1;
@@ -109,8 +120,14 @@ pub struct HttpServer {
     log: Option<Log>,
     pub compile_ms: u128,
     tls: Option<Arc<rustls::ServerConfig>>,
-    /// the DER SubjectPublicKeyInfo the TLS certificate carries (the transport key's), when TLS is on
+    /// the DER SubjectPublicKeyInfo the TLS certificate carries (the transport key's, or the P-256 key's), when TLS is on
     pub tls_spki: Option<Vec<u8>>,
+    /// the P-256 key and its swappable certificate (`with_tls_p256`), for `csr` and `set_chain`
+    tls_p256: Option<(P256Key, Arc<SwapCert>)>,
+    /// the app evidence for a client's nonce (`set_attest`): answers GET /.well-known/enclave-attestation?nonce=<64 hex>
+    attest: std::sync::OnceLock<AttestFn>,
+    /// a connection with no request running and no byte moving for this long is closed
+    idle_close: Duration,
     /// the browser channel's app key (sealed.rs), when enabled
     sealed: Option<sealed::SealedKey>,
 }
@@ -159,8 +176,93 @@ pub const ED25519_SPKI_PREFIX: [u8; 12] = [
     0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00,
 ];
 
+/// P-256 SubjectPublicKeyInfo prefix (RFC 5480, id-ecPublicKey with prime256v1): the 65-byte uncompressed point follows.
+pub const P256_SPKI_PREFIX: [u8; 26] = [
+    0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce,
+    0x3d, 0x03, 0x01, 0x07, 0x03, 0x42, 0x00,
+];
+/// A P-256 PKCS#8 v1 document (RFC 5208 around RFC 5915), the shape ring generates: this head, the 32-byte scalar, then
+/// `P256_PKCS8_MID` and the 65-byte uncompressed public point (138 bytes in all).
+const P256_PKCS8_HEAD: [u8; 36] = [
+    0x30, 0x81, 0x87, 0x02, 0x01, 0x00, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, 0x06, 0x08,
+    0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07, 0x04, 0x6d, 0x30, 0x6b, 0x02, 0x01, 0x01, 0x04, 0x20,
+];
+const P256_PKCS8_MID: [u8; 5] = [0xa1, 0x44, 0x03, 0x42, 0x00];
+/// The domain of the scalar's derivation from the payload's seed.
+const P256_DERIVE_DOMAIN: &[u8] = b"enclave-pvm-tls-p256-v1\n";
+/// A certificate chain to install: at most this many certificates in at most this many PEM bytes.
+pub const MAX_CHAIN_CERTS: usize = 5;
+pub const MAX_CHAIN_PEM: usize = 32 << 10;
+
 /// How long a client has to complete the TLS handshake.
 const TLS_HANDSHAKE: Duration = Duration::from_secs(20);
+/// A connection with no request running and no bytes moving for this long is closed (keep-alive clients reconnect).
+pub const IDLE_CLOSE: Duration = Duration::from_secs(45);
+
+/// The P-256 TLS key: its PKCS#8 document (zeroed on drop) and its SPKI.
+pub struct P256Key {
+    pkcs8: Vec<u8>,
+    pub spki: Vec<u8>,
+}
+impl Drop for P256Key {
+    fn drop(&mut self) {
+        self.pkcs8.iter_mut().for_each(|b| *b = 0);
+    }
+}
+
+/// The P-256 key for `seed`: the scalar is the first SHA-256(domain || seed || counter) in [1, n), counter from 0 (one
+/// value in 2^32 is out of range). The same seed always gives the same key.
+pub fn p256_key(seed: &[u8; 32]) -> Result<P256Key> {
+    use p256::elliptic_curve::sec1::ToEncodedPoint;
+    use sha2::{Digest, Sha256};
+    for ctr in 0u32..8 {
+        let mut d: [u8; 32] = Sha256::new()
+            .chain_update(P256_DERIVE_DOMAIN)
+            .chain_update(seed)
+            .chain_update(ctr.to_be_bytes())
+            .finalize()
+            .into();
+        let sk = p256::SecretKey::from_bytes(&d.into());
+        d.iter_mut().for_each(|b| *b = 0);
+        let Ok(sk) = sk else { continue };
+        let point = sk.public_key().to_encoded_point(false);
+        let point = point.as_bytes();
+        if point.len() != 65 {
+            wasmtime::bail!("a P-256 uncompressed point is 65 bytes, not {}", point.len());
+        }
+        let mut pkcs8 = Vec::with_capacity(138);
+        pkcs8.extend_from_slice(&P256_PKCS8_HEAD);
+        pkcs8.extend_from_slice(&sk.to_bytes());
+        pkcs8.extend_from_slice(&P256_PKCS8_MID);
+        pkcs8.extend_from_slice(point);
+        let mut spki = P256_SPKI_PREFIX.to_vec();
+        spki.extend_from_slice(point);
+        return Ok(P256Key { pkcs8, spki });
+    }
+    wasmtime::bail!("no P-256 scalar from this seed")
+}
+
+/// The server's certificate, replaceable while it serves (`set_chain`): every new handshake takes the current one.
+#[derive(Debug)]
+pub struct SwapCert(std::sync::RwLock<Arc<rustls::sign::CertifiedKey>>);
+impl rustls::server::ResolvesServerCert for SwapCert {
+    fn resolve(&self, _hello: rustls::server::ClientHello<'_>) -> Option<Arc<rustls::sign::CertifiedKey>> {
+        Some(self.0.read().unwrap_or_else(|p| p.into_inner()).clone())
+    }
+}
+
+/// A DNS name a certificate may be requested for: lowercase LDH labels of 1..=63, at least two, 253 bytes at most.
+fn dns_name_ok(name: &str) -> bool {
+    name.len() <= 253
+        && name.split('.').count() >= 2
+        && name.split('.').all(|l| {
+            !l.is_empty()
+                && l.len() <= 63
+                && !l.starts_with('-')
+                && !l.ends_with('-')
+                && l.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        })
+}
 
 impl HttpServer {
     /// Verify (W^X, digest), compile once, pre-instantiate. A component whose imports this server does not provide --
@@ -207,7 +309,70 @@ impl HttpServer {
             compile_ms,
             tls: None,
             tls_spki: None,
+            tls_p256: None,
+            attest: std::sync::OnceLock::new(),
+            idle_close: IDLE_CLOSE,
             sealed: None,
+        })
+    }
+
+    /// Close idle connections after `d` instead of IDLE_CLOSE.
+    pub fn with_idle_close(mut self, d: Duration) -> HttpServer {
+        self.idle_close = d;
+        self
+    }
+
+    /// The app's evidence hook (set once, before serving): `f(nonce)` returns the JSON evidence document the payload makes
+    /// for that client nonce (a fresh AVF certificate binding this app, this VM and the TLS key; PVM-CPU.md "Serving
+    /// buyers"), or the reason it cannot. With it, this server answers two paths itself, on every connection, before the
+    /// app ever sees them -- the app never receives /.well-known/enclave-attestation or /.well-known/enclave-ready:
+    ///   GET /.well-known/enclave-attestation?nonce=<64 lowercase hex>  -> 200 the document, or 503 {"error":...}
+    ///   GET /.well-known/enclave-ready                                  -> 200 {"ok":true} (the app is served)
+    /// so a client verifies the VM on the same TLS connection whose key the document binds. False when already set.
+    pub fn set_attest(&self, f: AttestFn) -> bool {
+        self.attest.set(f).is_ok()
+    }
+
+    /// One of the two evidence paths (`set_attest`), answered without the app; None for every other request.
+    async fn well_known(&self, req: &hyper::Request<hyper::body::Incoming>) -> Option<hyper::Response<HyperOutgoingBody>> {
+        let attest = self.attest.get()?.clone();
+        let path = req.uri().path();
+        if path != "/.well-known/enclave-attestation" && path != "/.well-known/enclave-ready" {
+            return None;
+        }
+        let reply = |status: u16, body: String| {
+            let body: HyperOutgoingBody = http_body_util::Full::new(Bytes::from(body))
+                .map_err(|never: std::convert::Infallible| -> wasmtime_wasi_http::Error { match never {} })
+                .boxed_unsync();
+            let mut r = hyper::Response::new(body);
+            *r.status_mut() = hyper::StatusCode::from_u16(status).unwrap_or(hyper::StatusCode::INTERNAL_SERVER_ERROR);
+            r.headers_mut().insert(hyper::header::CONTENT_TYPE, hyper::header::HeaderValue::from_static("application/json"));
+            r.headers_mut().insert(hyper::header::CACHE_CONTROL, hyper::header::HeaderValue::from_static("no-store"));
+            r
+        };
+        if req.method() != hyper::Method::GET {
+            return Some(reply(405, "{\"error\":\"GET only\"}".into()));
+        }
+        if path == "/.well-known/enclave-ready" {
+            return Some(reply(200, "{\"ok\":true}".into()));
+        }
+        let nonce = req.uri().query().and_then(|q| q.split('&').find_map(|kv| kv.strip_prefix("nonce=")));
+        let Some(nonce) = nonce.filter(|n| n.len() == 64 && n.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))) else {
+            return Some(reply(400, "{\"error\":\"nonce must be 64 lowercase hex\"}".into()));
+        };
+        let mut n = [0u8; 32];
+        for (i, b) in n.iter_mut().enumerate() {
+            *b = u8::from_str_radix(&nonce[2 * i..2 * i + 2], 16).unwrap_or(0);
+        }
+        // the payload's attestation blocks (an AVF request, paced): off this connection's runtime thread
+        let got = tokio::task::spawn_blocking(move || attest(n)).await;
+        Some(match got {
+            Ok(Ok(doc)) => match String::from_utf8(doc) {
+                Ok(d) => reply(200, d),
+                Err(_) => reply(503, "{\"error\":\"the evidence is not UTF-8\"}".into()),
+            },
+            Ok(Err(why)) => reply(503, format!("{{\"error\":{}}}", json_str(&why))),
+            Err(_) => reply(503, "{\"error\":\"the evidence hook failed\"}".into()),
         })
     }
 
@@ -217,6 +382,84 @@ impl HttpServer {
         self.tls = Some(cfg);
         self.tls_spki = Some(spki);
         Ok(self)
+    }
+
+    /// Serve every connection over TLS 1.3 with the P-256 key derived from `seed` (`p256_key`), self-signed until
+    /// `set_chain` installs a CA-issued chain for it (see the module doc).
+    pub fn with_tls_p256(mut self, seed: &[u8; 32]) -> Result<HttpServer> {
+        let key = p256_key(seed)?;
+        let kp = rcgen::KeyPair::try_from(key.pkcs8.as_slice())
+            .map_err(|e| wasmtime::format_err!("the P-256 key: {e}"))?;
+        let cert = rcgen::CertificateParams::new(vec!["pvm-app.invalid".to_string()])
+            .and_then(|p| p.self_signed(&kp))
+            .map_err(|e| wasmtime::format_err!("self-signed certificate: {e}"))?;
+        let signer = rustls::crypto::ring::sign::any_ecdsa_type(&rustls::pki_types::PrivateKeyDer::Pkcs8(
+            key.pkcs8.clone().into(),
+        ))
+        .map_err(|e| wasmtime::format_err!("the P-256 signing key: {e}"))?;
+        let swap = Arc::new(SwapCert(std::sync::RwLock::new(Arc::new(rustls::sign::CertifiedKey::new(
+            vec![cert.der().clone()],
+            signer,
+        )))));
+        let mut cfg = rustls::ServerConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+            .with_protocol_versions(&[&rustls::version::TLS13])
+            .map_err(|e| wasmtime::format_err!("TLS 1.3: {e}"))?
+            .with_no_client_auth()
+            .with_cert_resolver(swap.clone());
+        cfg.alpn_protocols = vec![b"http/1.1".to_vec()];
+        self.tls = Some(Arc::new(cfg));
+        self.tls_spki = Some(key.spki.clone());
+        self.tls_p256 = Some((key, swap));
+        Ok(self)
+    }
+
+    /// A PKCS#10 certificate request (DER) for `name` with the P-256 key: CN = the one SAN = `name`, which is what the
+    /// platform's certificate service requires. Refused without `with_tls_p256` or for a name that is not a DNS name.
+    pub fn csr(&self, name: &str) -> Result<Vec<u8>> {
+        let Some((key, _)) = &self.tls_p256 else { wasmtime::bail!("no P-256 TLS key: this server makes no certificate request") };
+        if !dns_name_ok(name) {
+            wasmtime::bail!("{name:?} is not a lowercase DNS name");
+        }
+        let kp = rcgen::KeyPair::try_from(key.pkcs8.as_slice()).map_err(|e| wasmtime::format_err!("the P-256 key: {e}"))?;
+        let mut params =
+            rcgen::CertificateParams::new(vec![name.to_string()]).map_err(|e| wasmtime::format_err!("the request: {e}"))?;
+        params.distinguished_name = rcgen::DistinguishedName::new();
+        params.distinguished_name.push(rcgen::DnType::CommonName, name);
+        let req = params.serialize_request(&kp).map_err(|e| wasmtime::format_err!("the request: {e}"))?;
+        Ok(req.der().to_vec())
+    }
+
+    /// Install a certificate chain (PEM, leaf first) for the P-256 key: every later handshake presents it. Refused -- and
+    /// the current certificate kept -- unless it is 1..=MAX_CHAIN_CERTS certificates in at most MAX_CHAIN_PEM bytes whose
+    /// leaf carries exactly this server's SPKI. Returns the number of certificates installed.
+    pub fn set_chain(&self, pem: &[u8]) -> Result<usize> {
+        use rustls::pki_types::pem::PemObject;
+        let Some((key, swap)) = &self.tls_p256 else { wasmtime::bail!("no P-256 TLS key: no chain can be installed") };
+        if pem.len() > MAX_CHAIN_PEM {
+            wasmtime::bail!("the chain exceeds {MAX_CHAIN_PEM} bytes");
+        }
+        let mut chain = Vec::new();
+        for c in rustls::pki_types::CertificateDer::pem_slice_iter(pem) {
+            let c = c.map_err(|e| wasmtime::format_err!("the chain is not PEM certificates: {e:?}"))?;
+            if chain.len() == MAX_CHAIN_CERTS {
+                wasmtime::bail!("the chain holds more than {MAX_CHAIN_CERTS} certificates");
+            }
+            chain.push(c.into_owned());
+        }
+        let Some(leaf) = chain.first() else { wasmtime::bail!("the chain holds no certificate") };
+        // the leaf's SubjectPublicKeyInfo is this exact DER (DER is canonical): a chain for another key is refused, so the
+        // installer can choose a name and nothing else
+        if !leaf.as_ref().windows(key.spki.len()).any(|w| w == key.spki.as_slice()) {
+            wasmtime::bail!("the leaf certificate is not for this server's key");
+        }
+        let signer = rustls::crypto::ring::sign::any_ecdsa_type(&rustls::pki_types::PrivateKeyDer::Pkcs8(
+            key.pkcs8.clone().into(),
+        ))
+        .map_err(|e| wasmtime::format_err!("the P-256 signing key: {e}"))?;
+        let n = chain.len();
+        *swap.0.write().unwrap_or_else(|p| p.into_inner()) = Arc::new(rustls::sign::CertifiedKey::new(chain, signer));
+        self.note(&format!("TLS certificate chain installed ({n} certificates)"));
+        Ok(n)
     }
 
     /// Enable the browser channel: a fresh X25519 app key for this app and runtime (sealed.rs). Returns its public half,
@@ -438,18 +681,19 @@ impl HttpServer {
         // a stream socket of any family (vsock in the VM): read/write only, no address parsing
         let std_stream = std::os::unix::net::UnixStream::from_raw_fd(fd);
         std_stream.set_nonblocking(true)?;
-        self.rt.block_on(async {
+        // its own runtime: connections on other threads are served at the same time (the module doc)
+        let rt = tokio::runtime::Builder::new_current_thread().enable_io().enable_time().build()?;
+        rt.block_on(async {
             let stream = tokio::net::UnixStream::from_std(std_stream)?;
             let inflight = Arc::new(Inflight::default());
+            let act = Arc::new(Activity::new());
             let served = match &self.tls {
                 None => {
-                    http1::Builder::new()
-                        .keep_alive(true)
-                        .serve_connection(
-                            TokioIo::new(stream),
-                            hyper::service::service_fn(|req| self.handle(req, inflight.clone())),
-                        )
-                        .await
+                    let conn = http1::Builder::new().keep_alive(true).serve_connection(
+                        TokioIo::new(Watched { inner: stream, act: act.clone() }),
+                        hyper::service::service_fn(|req| self.handle(req, inflight.clone())),
+                    );
+                    until_idle(conn, &inflight, &act, self.idle_close).await
                 }
                 Some(cfg) => {
                     // the handshake is bounded; a peer that sends anything but a TLS 1.3 ClientHello gets no HTTP at all
@@ -460,13 +704,11 @@ impl HttpServer {
                     .await
                     .map_err(|_| wasmtime::format_err!("TLS handshake timed out"))?
                     .map_err(|e| wasmtime::format_err!("TLS handshake failed: {e}"))?;
-                    http1::Builder::new()
-                        .keep_alive(true)
-                        .serve_connection(
-                            TokioIo::new(tls),
-                            hyper::service::service_fn(|req| self.handle(req, inflight.clone())),
-                        )
-                        .await
+                    let conn = http1::Builder::new().keep_alive(true).serve_connection(
+                        TokioIo::new(Watched { inner: tls, act: act.clone() }),
+                        hyper::service::service_fn(|req| self.handle(req, inflight.clone())),
+                    );
+                    until_idle(conn, &inflight, &act, self.idle_close).await
                 }
             };
             // a request the connection ended under (the client went away mid-response) is cancelled: wait for it to stop
@@ -480,6 +722,9 @@ impl HttpServer {
         req: hyper::Request<hyper::body::Incoming>,
         inflight: Arc<Inflight>,
     ) -> Result<hyper::Response<HyperOutgoingBody>> {
+        if let Some(r) = self.well_known(&req).await {
+            return Ok(r);
+        }
         let n = self.requests.fetch_add(1, Ordering::Relaxed) + 1;
         let err = MemoryOutputPipe::new(1 << 16);
         let mut wasi = WasiCtx::builder();
@@ -587,6 +832,24 @@ impl HttpServer {
 }
 
 type Log = Arc<dyn Fn(&[u8]) + Send + Sync>;
+/// The payload's evidence for a client nonce (`set_attest`): the JSON document, or why not.
+pub type AttestFn = Arc<dyn Fn([u8; 32]) -> std::result::Result<Vec<u8>, String> + Send + Sync>;
+
+/// `s` as a JSON string literal.
+fn json_str(s: &str) -> String {
+    let mut o = String::with_capacity(s.len() + 2);
+    o.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => o.push_str("\\\""),
+            '\\' => o.push_str("\\\\"),
+            c if (c as u32) < 0x20 => o.push_str(&format!("\\u{:04x}", c as u32)),
+            c => o.push(c),
+        }
+    }
+    o.push('"');
+    o
+}
 
 /// A response body that cannot end cleanly when its app failed. wasmtime ends an outgoing body as if it were finished when
 /// the Store is dropped mid-response (a trap: the deadline, the memory limit, a panic), so a truncated answer would read as
@@ -637,6 +900,80 @@ impl Inflight {
             self.idle.notified().await;
         }
     }
+}
+
+/// When a connection last moved a byte, in ms since it opened.
+struct Activity {
+    base: Instant,
+    last_ms: AtomicU64,
+}
+impl Activity {
+    fn new() -> Activity {
+        Activity { base: Instant::now(), last_ms: AtomicU64::new(0) }
+    }
+    fn touch(&self) {
+        self.last_ms.store(self.base.elapsed().as_millis() as u64, Ordering::Relaxed);
+    }
+    fn idle(&self) -> Duration {
+        Duration::from_millis((self.base.elapsed().as_millis() as u64).saturating_sub(self.last_ms.load(Ordering::Relaxed)))
+    }
+}
+
+/// A connection's stream, noting every byte it moves (Activity).
+struct Watched<S> {
+    inner: S,
+    act: Arc<Activity>,
+}
+impl<S: tokio::io::AsyncRead + Unpin> tokio::io::AsyncRead for Watched<S> {
+    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut tokio::io::ReadBuf<'_>) -> Poll<std::io::Result<()>> {
+        let before = buf.filled().len();
+        let r = Pin::new(&mut self.inner).poll_read(cx, buf);
+        if matches!(r, Poll::Ready(Ok(()))) && buf.filled().len() > before {
+            self.act.touch();
+        }
+        r
+    }
+}
+impl<S: tokio::io::AsyncWrite + Unpin> tokio::io::AsyncWrite for Watched<S> {
+    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<std::io::Result<usize>> {
+        let r = Pin::new(&mut self.inner).poll_write(cx, buf);
+        if matches!(r, Poll::Ready(Ok(n)) if n > 0) {
+            self.act.touch();
+        }
+        r
+    }
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.inner).poll_flush(cx)
+    }
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.inner).poll_shutdown(cx)
+    }
+}
+
+/// The connection's own end, or -- once no request is running and no byte has moved for `idle_close` -- Ok, dropping the
+/// connection (which closes it). A request still running keeps it open, however long it computes.
+async fn until_idle<F: Future<Output = std::result::Result<(), hyper::Error>>>(
+    conn: F,
+    inflight: &Inflight,
+    act: &Activity,
+    idle_close: Duration,
+) -> std::result::Result<(), hyper::Error> {
+    let mut conn = std::pin::pin!(conn);
+    let every = (idle_close / 4).clamp(Duration::from_millis(10), Duration::from_secs(1));
+    let mut check = Box::pin(tokio::time::sleep(every));
+    std::future::poll_fn(|cx| {
+        if let Poll::Ready(r) = conn.as_mut().poll(cx) {
+            return Poll::Ready(r);
+        }
+        while check.as_mut().poll(cx).is_ready() {
+            if inflight.live.load(Ordering::Acquire) == 0 && act.idle() >= idle_close {
+                return Poll::Ready(Ok(()));
+            }
+            check.as_mut().reset(tokio::time::Instant::now() + every);
+        }
+        Poll::Pending
+    })
+    .await
 }
 
 /// One running request of a connection; dropped when its task ends, however it ends.

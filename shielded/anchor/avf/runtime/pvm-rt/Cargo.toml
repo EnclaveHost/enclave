@@ -36,6 +36,9 @@ ring = "0.17"
 # the lease proof key (PROOF-KEY.md): secp256k1 ECDSA with RFC 6979 nonces, recovery ids and low-s (k256), and keccak256
 # for the EIP-712 digest (sha3) -- pure Rust, no C to cross-build
 k256 = { version = "=0.13.4", default-features = false, features = ["ecdsa", "arithmetic", "std"] }
+# the marketplace TLS key (httpd.rs with_tls_p256): P-256, derived from the VM instance's seed for the app, so a public CA
+# can certify it -- the scalar and its public point only (ring signs; rustls and rcgen take the PKCS#8 built from these)
+p256 = { version = "=0.13.2", default-features = false, features = ["arithmetic", "std"] }
 sha3 = { version = "=0.10.9", default-features = false }
 
 [profile.release]
@@ -43,3 +46,8 @@ opt-level = 3
 lto = "thin"
 panic = "abort"
 strip = "debuginfo"
+
+[dev-dependencies]
+# tests/httpd_p256.rs plays the public CA: it parses the VM's certificate request and signs a chain for it (rcgen's
+# x509-parser and pem features, test builds only)
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring", "pem", "x509-parser"] }

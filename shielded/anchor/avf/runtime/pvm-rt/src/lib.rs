@@ -668,7 +668,7 @@ pub extern "C" fn pvmrt_https_open(
         deadline_ms,
         nn_name,
         nn_ops,
-        Some(&seed),
+        Some((&seed, TlsKind::Ed25519)),
         emit,
         compile_ms,
         err,
@@ -676,6 +676,173 @@ pub extern "C" fn pvmrt_https_open(
     );
     seed.iter_mut().for_each(|b| *b = 0);
     r
+}
+
+/// Which key a TLS server is opened with.
+#[derive(Clone, Copy)]
+enum TlsKind {
+    /// the VM's attested Ed25519 transport key, self-signed (pinned by a client from evidence)
+    Ed25519,
+    /// a P-256 key derived from the seed (httpd.rs `with_tls_p256`), for a CA-issued certificate
+    P256,
+}
+
+/// `pvmrt_https_open` for the marketplace host (httpd.rs `with_tls_p256`): `tls_seed` is a 32-byte seed the payload takes
+/// from the VM instance's secret for this app; the P-256 TLS key is derived from it here. It is copied, not kept; null is
+/// refused. The key's SPKI: `pvmrt_https_tls_spki`; a certificate request: `pvmrt_https_csr`; a CA's chain:
+/// `pvmrt_https_set_chain`.
+#[no_mangle]
+pub extern "C" fn pvmrt_https_open_p256(
+    bundle: *const u8,
+    len: usize,
+    sha256: *const u8,
+    mem_limit: u64,
+    deadline_ms: u64,
+    nn_name: *const c_char,
+    nn_ops: *const c_void,
+    tls_seed: *const u8,
+    emit: EmitFn,
+    compile_ms: *mut u64,
+    err: *mut c_char,
+    errcap: usize,
+) -> *mut httpd::HttpServer {
+    if tls_seed.is_null() {
+        put(err, errcap, "no TLS key seed: refusing to serve https");
+        return std::ptr::null_mut();
+    }
+    let mut seed = [0u8; 32];
+    // SAFETY: tls_seed is non-null and points to 32 bytes by the caller's contract.
+    unsafe { std::ptr::copy_nonoverlapping(tls_seed, seed.as_mut_ptr(), 32) };
+    let r = http_open(
+        bundle,
+        len,
+        sha256,
+        mem_limit,
+        deadline_ms,
+        nn_name,
+        nn_ops,
+        Some((&seed, TlsKind::P256)),
+        emit,
+        compile_ms,
+        err,
+        errcap,
+    );
+    seed.iter_mut().for_each(|b| *b = 0);
+    r
+}
+
+/// The DER SPKI of the server's TLS key into `out`: its length, or -1 (no TLS, a null argument, or `cap` too small).
+#[no_mangle]
+pub extern "C" fn pvmrt_https_tls_spki(srv: *const httpd::HttpServer, out: *mut u8, cap: usize) -> c_int {
+    if srv.is_null() || out.is_null() {
+        return -1;
+    }
+    // SAFETY: srv came from an open call and has not been closed (caller's contract).
+    match unsafe { &(*srv).tls_spki } {
+        Some(spki) if spki.len() <= cap => {
+            // SAFETY: out has cap bytes by the caller's contract.
+            unsafe { std::ptr::copy_nonoverlapping(spki.as_ptr(), out, spki.len()) };
+            spki.len() as c_int
+        }
+        _ => -1,
+    }
+}
+
+/// A PKCS#10 request (DER) for the NUL-terminated DNS `name` with the P-256 key, into `out`: its length, or -1 with the
+/// reason in `err`.
+#[no_mangle]
+pub extern "C" fn pvmrt_https_csr(
+    srv: *const httpd::HttpServer,
+    name: *const c_char,
+    out: *mut u8,
+    cap: usize,
+    err: *mut c_char,
+    errcap: usize,
+) -> c_int {
+    if srv.is_null() || name.is_null() || out.is_null() {
+        put(err, errcap, "a null argument");
+        return -1;
+    }
+    // SAFETY: name is a NUL-terminated string by the caller's contract.
+    let Ok(name) = unsafe { CStr::from_ptr(name) }.to_str() else {
+        put(err, errcap, "the name is not UTF-8");
+        return -1;
+    };
+    // SAFETY: srv came from an open call and has not been closed (caller's contract).
+    match unsafe { (*srv).csr(name) } {
+        Ok(der) if der.len() <= cap => {
+            // SAFETY: out has cap bytes by the caller's contract.
+            unsafe { std::ptr::copy_nonoverlapping(der.as_ptr(), out, der.len()) };
+            der.len() as c_int
+        }
+        Ok(der) => {
+            put(err, errcap, &format!("the request is {} bytes, the buffer {cap}", der.len()));
+            -1
+        }
+        Err(e) => {
+            put(err, errcap, &format!("{e:#}"));
+            -1
+        }
+    }
+}
+
+/// The payload's evidence callback (httpd.rs `set_attest`): writes the JSON document for the 32-byte client `nonce` into
+/// `out` (at most `cap` bytes) and returns its length, or returns a negative number with a NUL-terminated reason in `out`.
+/// It is called from any serving thread, possibly at once: it must be thread-safe (the payload serialises its attestation).
+pub type AttestCb = Option<extern "C" fn(ctx: *mut c_void, nonce: *const u8, out: *mut u8, cap: usize) -> isize>;
+/// The evidence a document may take: the fields, an escaped runtime identity and an AVF chain fit with room to spare.
+pub const ATTEST_DOC_MAX: usize = 64 << 10;
+struct AttestCtx(*mut c_void);
+// SAFETY: the payload's callback contract (AttestCb) makes the context usable from any thread.
+unsafe impl Send for AttestCtx {}
+unsafe impl Sync for AttestCtx {}
+
+/// Set the evidence hook (httpd.rs `set_attest`): from now on the server answers /.well-known/enclave-attestation and
+/// /.well-known/enclave-ready itself. 0 when set; -1 for a null argument or when a hook was already set.
+#[no_mangle]
+pub extern "C" fn pvmrt_https_set_attest(srv: *const httpd::HttpServer, cb: AttestCb, ctx: *mut c_void) -> c_int {
+    let (Some(cb), false) = (cb, srv.is_null()) else { return -1 };
+    let ctx = AttestCtx(ctx);
+    let f: httpd::AttestFn = std::sync::Arc::new(move |nonce: [u8; 32]| {
+        let c = &ctx;
+        let mut out = vec![0u8; ATTEST_DOC_MAX];
+        let n = cb(c.0, nonce.as_ptr(), out.as_mut_ptr(), out.len());
+        if n > 0 && (n as usize) <= out.len() {
+            out.truncate(n as usize);
+            Ok(out)
+        } else {
+            let end = out.iter().position(|&b| b == 0).unwrap_or(0).min(512);
+            Err(if end > 0 { String::from_utf8_lossy(&out[..end]).into_owned() } else { "no evidence".into() })
+        }
+    });
+    // SAFETY: srv came from an open call and has not been closed (caller's contract).
+    if unsafe { (*srv).set_attest(f) } { 0 } else { -1 }
+}
+
+/// Install a PEM certificate chain (leaf first) for the P-256 key (httpd.rs `set_chain`): the number of certificates
+/// installed, or -1 with the reason in `err` (the current certificate is kept).
+#[no_mangle]
+pub extern "C" fn pvmrt_https_set_chain(
+    srv: *const httpd::HttpServer,
+    pem: *const u8,
+    len: usize,
+    err: *mut c_char,
+    errcap: usize,
+) -> c_int {
+    if srv.is_null() || pem.is_null() {
+        put(err, errcap, "a null argument");
+        return -1;
+    }
+    // SAFETY: pem has len bytes by the caller's contract.
+    let pem = unsafe { std::slice::from_raw_parts(pem, len) };
+    // SAFETY: srv came from an open call and has not been closed (caller's contract).
+    match unsafe { (*srv).set_chain(pem) } {
+        Ok(n) => n as c_int,
+        Err(e) => {
+            put(err, errcap, &format!("{e:#}"));
+            -1
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -687,7 +854,7 @@ fn http_open(
     deadline_ms: u64,
     nn_name: *const c_char,
     nn_ops: *const c_void,
-    tls_seed: Option<&[u8; 32]>,
+    tls_seed: Option<(&[u8; 32], TlsKind)>,
     emit: EmitFn,
     compile_ms: *mut u64,
     err: *mut c_char,
@@ -715,7 +882,8 @@ fn http_open(
         Some(log),
     )
     .and_then(|s| match tls_seed {
-        Some(seed) => s.with_tls(seed),
+        Some((seed, TlsKind::Ed25519)) => s.with_tls(seed),
+        Some((seed, TlsKind::P256)) => s.with_tls_p256(seed),
         None => Ok(s),
     });
     match opened {
