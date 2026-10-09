@@ -57,15 +57,18 @@ export function createPvmDevice({ adb, serial, pkg = RELEASE_PACKAGE, vmName, re
   }
 
   /** Start the VM serving the staged app until stopped (APP serve=https-p256). proofPins: the six pins, or null (idle). */
-  async function launch({ proofPins = null, label, attachSigner = null }) {
+  async function launch({ proofPins = null, label, attachSigner = null, sock = 0, memMib = 0 }) {
     if (!/^[A-Za-z0-9._-]{1,80}$/.test(label || "")) throw new Error("launch: label must be 1..80 of [A-Za-z0-9._-]");
     if (proofPins !== null && !/^[0-9]+( 0x[0-9a-f]+){5}$/.test(proofPins)) throw new Error("launch: proofPins must be the six canonical pins");
+    if (!Number.isInteger(sock) || sock < 0 || sock > 65535 || !Number.isInteger(memMib) || (memMib && (memMib < 16 || memMib > 1024)))
+      throw new Error("launch: sock must be a port (0 = a wasi:http app) and memMib 16..1024");
     token = null;
     const extras = [`--es mode app`, `--es vmname ${vmName}`, `--es app /data/user/0/${pkg}/files/app.wasm`, `--ei app_serve_s 0`, `--ei app_tls 2`,
                     `--es relay ${relay}`, `--es name ${name}`, `--es capture ${label}`, `--ei bridge_app ${bridgeApp}`, `--ei bridge_evidence ${bridgeEvidence}`,
                     ...(agentPort ? [`--es host_agent http://127.0.0.1:${agentPort}`] : []),
                     ...(attachSigner ? [`--es attach_signer ${attachSigner}`] : []),
-                    ...(proofPins ? [`--es proof_pins '${proofPins}'`] : [])];
+                    ...(proofPins ? [`--es proof_pins '${proofPins}'`] : []),
+                    ...(sock ? [`--ei app_sock ${sock}`, ...(memMib ? [`--ei app_mem ${memMib}`] : [])] : [])];
     await sh(`am force-stop ${pkg}`);
     const out = await sh(`am start-foreground-service -n ${pkg}/${SERVICE} ${extras.join(" ")}`);
     if (!/Starting service/.test(out)) throw new Error(`the service did not start: ${out.trim().slice(0, 200)}`);

@@ -18,7 +18,8 @@ wasmtime-wasi = { version = "=49.0.0", default-features = false, features = ["p2
 # requests from the VM (http.rs refuses them).
 wasmtime-wasi-http = { version = "=49.0.0", default-features = false, features = ["p2"] }
 tokio = { version = "1", default-features = false, features = ["rt", "net", "time", "sync", "io-util"] }
-hyper = { version = "1", default-features = false, features = ["server", "http1"] }
+# client: the socket-app front (httpd.rs SocketApp) proxies each request to the app's loopback listener inside the VM
+hyper = { version = "1", default-features = false, features = ["server", "client", "http1"] }
 # the response-body wrapper in httpd.rs (Checked); already in the tree through wasmtime-wasi-http
 http-body-util = "0.1"
 http = "1"
