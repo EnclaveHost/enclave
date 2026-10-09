@@ -31,9 +31,15 @@ c-fleet-list{display:contents;}
 .fleet-unit:hover,.fleet-unit:focus-visible{color:var(--jade);text-decoration-color:currentColor;outline:none;}
 .fleet-unit.on{color:var(--jade);text-decoration-style:solid;text-decoration-color:currentColor;}
 .fleet-unit.on::after{content:"↑";margin-left:1px;} .fleet-unit.on.desc::after{content:"↓";}
-.fleet-sortbar{display:flex;align-items:center;gap:8px;padding:6px 14px;border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);}
-.fleet-sort-x{margin-left:auto;min-width:24px;min-height:24px;padding:0;background:none;border:0;border-radius:4px;font:inherit;font-size:.9rem;line-height:1;color:var(--text-dim);cursor:pointer;}
-.fleet-sort-x:hover,.fleet-sort-x:focus-visible{color:var(--jade);}
+/* Sort by: a permanent bar above the hosts - every order in a dropdown, the direction as a button beside it */
+.fleet-sortbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:7px 14px;border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);}
+.fleet-sortsel{min-height:26px;padding:2px 26px 2px 8px;background:var(--surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2393a1b5' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 9px center/9px 6px;
+  border:1px solid var(--line);border-radius:6px;color:var(--text);font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none;}
+.fleet-sortsel:hover{border-color:var(--line-strong);}
+.fleet-sortsel:focus-visible{outline:2px solid var(--jade);outline-offset:1px;}
+.fleet-sortdir{min-height:26px;padding:2px 8px;background:none;border:1px solid var(--line);border-radius:6px;color:var(--jade);font:inherit;cursor:pointer;white-space:nowrap;}
+.fleet-sortdir:hover{border-color:var(--jade-dim);}
+.fleet-sortdir:focus-visible{outline:2px solid var(--jade);outline-offset:1px;}
 /* one pool a line, at the right; when the name and the lines don't fit side by side (a narrow panel), the lines
    wrap under the name, still right-aligned, and on a very narrow one a line breaks between its words */
 .fleet-chips{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none;max-width:100%;margin-left:auto;}
