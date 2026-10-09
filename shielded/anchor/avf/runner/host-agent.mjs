@@ -294,7 +294,8 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     if (c) {
       const appMem = c.memMib || 256;
       state.slots["1"] = { ...c, slot: 1, appMem, vmMib: vmMibFor(appMem), cpus: Number(c.cpuMilli) <= ONE_CPU_MAX_MILLI ? 1 : 0, label: null };
-      delete state.slots["1"].memMib; delete state.slots["1"].cert;
+      // its certificate and sealed release belong to the old VM (a release is sealed to one instance's key): asked for again
+      delete state.slots["1"].memMib; delete state.slots["1"].cert; delete state.slots["1"].sealed; delete state.slots["1"].secretsTriedAt;
     }
     delete state.current; delete state.idle; state.host = null; save();
     note({ ev: "migrated", why: "one VM per app: the served app moves to slot 1", deployment: c ? c.id : null });
