@@ -66,6 +66,11 @@ class FleetList extends EnclaveElement {
     // the WHOLE card / node per hour, the ledger's basis; a share pays its
     // fraction. Trailing ".00" trims like the docs' rates.
     const perHr = (v) => "$" + (v * 3600).toFixed(2).replace(/\.00$/, "");
+    // what everything this pool has available costs: the whole card/node rate times the available share
+    // (a $3/hr card with a third available reads $1/hr). No posted rate, no cell.
+    const availPrice = (rate, frac) => rate == null ? '' :
+      '<span class="fleet-stat" title="' + perHr(rate) + '/hr for the whole pool, times the share available now">'
+      + '<b>' + perHr(rate * Math.max(0, Math.min(1, Number(frac) || 0))) + '<i>/hr</i></b><small>price of available</small></span>';
     // one pool = a [label | meter | pct] header line, the price under the
     // label, stat cells underneath. The label is the pool's badge (see the
     // row builder): the pill names the pool, so nothing else has to.
@@ -222,19 +227,21 @@ class FleetList extends EnclaveElement {
             detail: head(e)
             + (shPool ? pool(cardBadge, shPct,
                 stat(fmtNum(shPool.leasableGb), fmtNum(shPool.total), "GB", "vram available", shVramTitle)
-                + computeStat(shPool), price.shielded) : "")
+                + computeStat(shPool) + availPrice(price.shielded, shPool.frac), price.shielded) : "")
             // ONLY when the card is in the enclave. A shielded card already drew its
             // pool above, from the numbers the probe actually measured; drawing
             // this one too would advertise one piece of silicon twice.
             + (inTee ? pool(cardBadge, gPct,
                 stat(fmtNum(a.vramFreeGb != null ? a.vramFreeGb : gFree * vramGb), fmtNum(vramGb), "GB", "vram available")
-                + stat(Math.round(gFree * tflops), Math.round(tflops), "", "tflops available"), price.full) : "")
+                + stat(Math.round(gFree * tflops), Math.round(tflops), "", "tflops available")
+                + availPrice(price.full, gFree), price.full) : "")
             + pool(teeCpuBadge, cPct,
                 // prefer the enclave's own figure (the RAM-reservation ledger,
                 // which is what actually gates admission) over the folded
                 // fraction — same precedence the VRAM cell above uses
                 stat(fmtNum(a.ramGbFree != null ? a.ramGbFree : cFree * ramGb), fmtNum(ramGb), "GB", "ram available")
-                + cpuComputeStat(a, cFree),
+                + cpuComputeStat(a, cFree)
+                + availPrice(price.node, cFree),
                 // A "held by models" cell used to sit here, reading
                 // ramNnResidentMb against the node's RAM. It was written for a box
                 // whose preloaded weights make the meter read ~85% used while every
