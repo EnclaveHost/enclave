@@ -42,6 +42,7 @@ test("sign in -> indicator -> /sessions -> top up -> sign out refunds and revoke
   await page.click("#walletBtn");
   await expect(page.locator("#wpSess")).toHaveText(/^\$0\.00 · (\d+m|1h)/, { timeout: 15_000 });
   await expect(page.locator("#wpBalUsdc")).toHaveText(/USDC|unavailable/, { timeout: 15_000 });
+  await expect(page.locator(".wp-row", { hasText: "Network" }).locator("a")).toHaveAttribute("href", new RegExp("^https://basescan\\.org/address/" + stack.payer + "$", "i"));
   await expect(page.locator("#walletPop")).not.toContainText("Host login");
   await expect(page.locator("#walletPop")).not.toContainText("Deployments");
   await expect(page.locator("#wpDep")).toHaveCount(0);
