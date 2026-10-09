@@ -3,8 +3,8 @@
 // side of that, on REAL bytes: the boot-64 VBS-enclave evidence from nucbox-k11 (test/fixtures/vbs/boot64-evidence.json, the
 // relay's own vbs-verify fixture) is never "verified", under its own format, under the Hyper-V partition format, under the
 // proposed node attach format, or under any candidate name for the paravisor's VM report, in the Node and the browser builds;
-// and no registered Windows format can be green. The paravisor report has NO format here until real report bytes verify
-// under the same boot's IDKS (docs/security/nucbox-custom-vm-verifier.md).
+// and no registered Windows format can be green. The paravisor's VM report has no format of its own: it rides inside a partition
+// document as `vbsVmReport` (isolation/m3, 2026-09-29) and is judged there by verifier/hyperv.mjs, never on its own.
 //   run: node --test test/verifier-nucbox-legacy-refused.test.mjs
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -39,7 +39,8 @@ test("the real boot-64 legacy VBS-enclave evidence under its own format: the doc
 
 test("the same enclave report presented as a Hyper-V partition document, as the proposed node attach format, and under candidate names for the paravisor's VM report: never verified; the unregistered names are unknown formats", async () => {
   const asPartition = { format: "hyperv-partition-domain/v1", tier: "T0-hv", nonce: FIX.capture.reportData.padEnd(64, "0").slice(0, 64), report: REPORT.toString("base64") };
-  const p = await never(asPartition, "hyperv-partition-domain/v1"); assert.equal(p.n.status, "unsupported"); assert.equal(p.n.technology, TECH.HYPERV);
+  const p = await never(asPartition, "hyperv-partition-domain/v1"); assert.equal(p.n.status, "rejected"); assert.equal(p.n.technology, TECH.HYPERV);
+  assert.match(p.n.reasons.join(" "), /partition report is not JSON/, "a legacy enclave report is not a partition report");
   const node = await never({ format: "windows-hv-node/v1", body: BODY }, "windows-hv-node/v1");
   assert.equal(node.n.status, "unsupported"); assert.equal(node.n.technology, TECH.WINHOST); assert.match(node.n.reasons.join(" "), /host-attested boot state.*no TEE claim.*host is not excluded/);
   for (const name of ["hyperv-vbs-vm/v1", "windows-hv-vm/v1", "openhcl-vbs-vm-report/v1", "enclave-hv-app-evidence/v1", "windows-vbs-vm-report/v1"]) {
