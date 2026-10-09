@@ -117,7 +117,7 @@ function setup() {
   fs.mkdirSync(stateDir);
   // the one-VM agent's state: D0 served by the VM, with its certificate
   fs.writeFileSync(path.join(stateDir, "host-state.json"), JSON.stringify({ current: { id: D0, appRef: `catalog://${APPID}/1`, configCid: "", cid: "bafyapp0000001",
-    sha: "x", file: path.join(cache, "bafyapp0000001.wasm"), sock: 0, memMib: 0, cpuMilli: 250, gpuMilli: 0, label: "app-d0d0d0d0-old", phase: "serving",
+    sha: "x", file: path.join(cache, "bafyapp0000001.wasm"), sock: 0, memMib: 0, cpuMilli: 250, gpuMilli: 0, label: "app-d0d0d0d0-old", phase: "serving", sealed: { blob: "00", count: 1 },
     cert: { name: "d0d0d0d0.app.enclave.host" }, at: T }, idle: { label: "idle-old" }, refused: {} }));   // gitleaks:allow
   return { dir, config, E, now, advance: (ms) => { T += ms; }, rows, publicClient, device, createRunner, made, calls, vms, store, fetchImpl, stateDir };
 }
@@ -134,6 +134,7 @@ test("slots: the served app moves to slot 1, more apps take their own VMs, the h
     // the migrated app's component sha is recorded by the agent (the cache's file)
     const s0 = agent.state();
     assert.equal(s0.slots["1"].id, D0); assert.equal(s0.slots["1"].vmMib, 384); assert.equal(s0.slots["1"].label, null);
+    assert.equal(s0.slots["1"].sealed, undefined, "the old VM's sealed release is not carried: the slot's own is asked for");
     s0.slots["1"].sha = (await import("node:crypto")).createHash("sha256").update(fs.readFileSync(s0.slots["1"].file)).digest("hex");
 
     let r = await agent.tick();
