@@ -15,10 +15,12 @@ c-fleet-list{display:contents;}
 .fleet-sum::before{content:"▸";flex:none;width:.8em;color:var(--text-dim);}
 .fleet-sum[aria-expanded="true"]::before{content:"▾";color:var(--jade);}
 .fleet-sum .fleet-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.fleet-chips{display:flex;align-items:center;gap:10px;flex:none;}
+.fleet-chips{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none;}   /* one pool a line */
 .fleet-chip{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
 .fleet-chip b{font-weight:500;color:var(--text);font-variant-numeric:tabular-nums;}
 .fleet-chips .ap-badge{font-size:.6rem;padding:.1em .45em;}
+/* the price of what the pool has available (rate x available share), leading its line */
+.fleet-chip-price{color:var(--jade);font-variant-numeric:tabular-nums;}
 /* The opened row is a grid whose first column is sized by its widest pool badge
    ("TEE CPU", "GPU", or the rare amber "NO TEE CPU"), and each pool lays its
    [label | meter | pct] line on that same grid via subgrid, so the two pools'
