@@ -14,7 +14,7 @@ import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { esc, fmtNum, short, showToast } from "../../js/core/util.js";
 import { asOf } from "../../js/core/list-state.js";
 import { starsHtml } from "../../js/core/reviews.js";
-import { hrevConfigured, hrevTallies, hrevMine, encCall, HREV_SEL, waitReceipt, REVIEW_MAX_BODY } from "../../js/core/chain.js";
+import { hrevConfigured, hrevTallies, hrevGetReviews, hrevMine, encCall, HREV_SEL, waitReceipt, REVIEW_MAX_BODY } from "../../js/core/chain.js";
 import { HOST_REVIEWS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
@@ -245,7 +245,7 @@ class FleetList extends EnclaveElement {
           const vramGb = a.cardVramGb || s.cardVramGb, tflops = a.cardTflops || s.cardTflops;
           const ramGb = a.nodeRamGb || s.nodeRamGb;
           const price = enclavePriceOf(e);   // this box's posted ask; the fleet price where it posts none
-          return { key: "m:" + (e.id || e.endpoint || name), name, title: e.endpoint || "", cls: "",
+          return { key: "m:" + (e.id || e.endpoint || name), name, title: e.endpoint || "", cls: "", fb: this._fbHtml(e),
             chips: (shPool ? chip(cardBadge, shPool.leasableGb, shPool.availableTflops, "gpu", availPrice(price.shielded, shPool.frac)) : "")
               + (inTee ? chip(cardBadge, a.vramFreeGb != null ? a.vramFreeGb : gFree * vramGb, gFree * tflops, "gpu", availPrice(price.full, gFree)) : "")
               + chip(teeCpuBadge, a.ramGbFree != null ? a.ramGbFree : cFree * ramGb, cpuGflopsAvail(a, cFree), "cpu", availPrice(price.node, cFree)),
@@ -322,7 +322,7 @@ class FleetList extends EnclaveElement {
         'GFLOPS measured inside the protected VM under the same runtime its apps get (an exactly counted f32 multiply-add '
         + 'workload on every vCPU at once), reported in its signed capability report. Not a native-core estimate.');
       const name = nameOf(e, "host");
-      return { key: "p:" + (e.id || e.endpoint || name), name, title: e.endpoint || "", cls: "fleet-pvm-row",
+      return { key: "p:" + (e.id || e.endpoint || name), name, title: e.endpoint || "", cls: "fleet-pvm-row", fb: this._fbHtml(e),
         chips: chip(badge, ramFree, cpuGflopsAvail(a, cFree), 'cpu'),
         detail: head(e)
         + (cFree === null
@@ -359,11 +359,11 @@ class FleetList extends EnclaveElement {
         : '<div class="fleet-empty">No app hosts available right now</div>')
       : staleNote + sortBar + items.slice(first, first + PAGE).map((r, i) => {
           const open = this._openKey === r.key, id = uid + "-" + (first + i);
-          // the summary line: a toggle (chevron + name) and the pool lines, whose units are sort buttons. A click
+          // the summary line: a toggle (name + rating) and the pool lines, whose units are sort buttons. A click
           // anywhere on the line but a unit opens the host, as the whole line did when it was one button.
           return '<div class="fleet-row' + (r.cls ? ' ' + r.cls : '') + '" data-key="' + esc(r.key) + '"' + (r.title ? ' title="' + esc(r.title) + '"' : '') + '>'
             + '<div class="fleet-sum' + (open ? ' is-open' : '') + '">'
-            + '<button class="fleet-tog" type="button" aria-expanded="' + open + '" aria-controls="' + id + '"><span class="fleet-name">' + esc(r.name) + '</span></button>'
+            + '<button class="fleet-tog" type="button" aria-expanded="' + open + '" aria-controls="' + id + '"><span class="fleet-name">' + esc(r.name) + '</span>' + (r.fb ? ' ' + r.fb : '') + '</button>'
             + '<span class="fleet-chips">' + r.chips + '</span></div>'
             + '<div class="fleet-detail" id="' + id + '"' + (open ? '' : ' hidden') + '>' + r.detail + '</div>'
             + '</div>';
@@ -578,6 +578,41 @@ class FleetList extends EnclaveElement {
       + starsHtml(avg) + '<small>' + avg.toFixed(1) + ' (' + t.count + ')</small></span>' + rate;
   }
 
+  /* The summary's rating, eBay-style but shorter: "(12★) 98%" - how many wallets rated the box, a star whose
+     colour climbs with that count, and the share of its ratings that are positive (4-5 stars) out of positive
+     + negative (1-2; a 3 is neutral and counted in neither, as eBay does). New box: "(0)". The % needs each
+     review (the tally is only count + sum), so until those are read, or if every rating is a 3, it is left off.
+     Nothing at all while the tallies are unread or the contract isn't in the address book. */
+  _fbHtml(e){
+    if (!hrevConfigured() || !this._tallies) return "";
+    const id = String(e.id || "").toLowerCase();
+    const t = this._tallies[id], n = t ? Number(t.count) : 0;
+    if (!n) return '<span class="fleet-fb" title="No wallet has rated this enclave yet">(0)</span>';
+    const f = this._fb && this._fb[id];
+    const pct = f && f.pos + f.neg ? Math.round(1000 * f.pos / (f.pos + f.neg)) / 10 : null;
+    const tier = n >= 1000 ? 5 : n >= 500 ? 4 : n >= 100 ? 3 : n >= 50 ? 2 : n >= 10 ? 1 : 0;
+    const title = n + " rating" + (n === 1 ? "" : "s") + " from wallets whose apps this enclave ran, averaging "
+      + (Number(t.sum) / n).toFixed(1) + " of 5" + (f ? "; " + f.pos + " positive (4-5 stars), " + f.neg + " negative (1-2 stars)" : "");
+    return '<span class="fleet-fb" title="' + esc(title) + '">(' + n + '<span class="fleet-fb-star t' + tier + '" aria-hidden="true">★</span>)'
+      + (pct === null ? '' : ' ' + pct + '%') + '</span>';
+  }
+
+  /* Positive / negative counts for the summary's %: every visible review of each rated box, re-read only when
+     its tally (count + sum) changes. */
+  async _loadFeedback(rowsT){
+    const fb = (this._fb ||= {});
+    const todo = rowsT.filter((r) => Number(r.count) > 0 && (fb[String(r.enclaveId).toLowerCase()] || {}).key !== r.count + ":" + r.sum);
+    if (!todo.length) return;
+    await Promise.all(todo.map(async (r) => {
+      try {
+        const vis = (await hrevGetReviews(r.enclaveId)).filter((x) => !x.hidden);
+        fb[String(r.enclaveId).toLowerCase()] = { key: r.count + ":" + r.sum,
+          pos: vis.filter((x) => Number(x.stars) >= 4).length, neg: vis.filter((x) => Number(x.stars) <= 2).length };
+      } catch { /* the % is decoration: without it the line still says (n★) */ }
+    }));
+    this.requestRender();
+  }
+
   /* One talliesOf call covers every visible box. Cached per paint; a fleet
      row set that hasn't changed doesn't re-read the chain. */
   async _loadRatings(rows){
@@ -590,6 +625,7 @@ class FleetList extends EnclaveElement {
       const rowsT = await hrevTallies(ids);
       this._tallies = Object.fromEntries(rowsT.map((r) => [String(r.enclaveId).toLowerCase(), r]));
       this.requestRender();    // repaint with the stars in place
+      this._loadFeedback(rowsT);
     } catch { /* ratings are decoration: a chain hiccup must not blank the panel */ }
   }
 }

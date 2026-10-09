@@ -4,7 +4,7 @@
 c-fleet-list{display:contents;}
 
 .fleet-list{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--well);display:block;}
-/* A row is its summary until opened: the toggle (chevron + the box's name) and, per pool, a line saying what its
+/* A row is its summary until opened: the toggle (the box's name; the open one's bar stays lit) and, per pool, a line saying what its
    available capacity costs. The whole summary is the click target; its units are the sort buttons. */
 .fleet-row{border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);}
 .fleet-row:last-child{border-bottom:0;}
@@ -12,9 +12,12 @@ c-fleet-list{display:contents;}
 .fleet-sum:hover,.fleet-sum.is-open{background:var(--surface);}   /* the open host keeps the hover look */
 .fleet-tog{display:flex;align-items:center;gap:10px;flex:1 1 auto;min-width:0;min-height:24px;padding:0;background:none;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer;}
 .fleet-tog:focus-visible{outline:2px solid var(--jade);outline-offset:2px;border-radius:4px;}
-.fleet-tog::before{content:"▸";flex:none;width:.8em;color:var(--text-dim);}
-.fleet-tog[aria-expanded="true"]::before{content:"▾";color:var(--jade);}
-.fleet-tog .fleet-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.fleet-tog .fleet-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+/* the rating right after the name, eBay-style: "(12★) 98%"; the star's colour climbs with the count */
+.fleet-fb{flex:none;margin-left:-4px;font-size:.66rem;color:var(--text-dim);white-space:nowrap;font-variant-numeric:tabular-nums;}
+.fleet-fb-star{color:var(--line-strong);}
+.fleet-fb-star.t1{color:var(--amber-2);} .fleet-fb-star.t2{color:var(--iris);} .fleet-fb-star.t3{color:var(--jade);}
+.fleet-fb-star.t4{color:#b48cff;} .fleet-fb-star.t5{color:var(--danger-2);}
 /* a line's units (GB, tflops, gflops) sort the hosts by price per that unit: dotted like the site's other
    value-links, jade with an arrow on every row while it is the sort */
 .fleet-unit{padding:0;background:none;border:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;text-decoration-color:var(--line-strong);text-underline-offset:3px;}
