@@ -671,8 +671,8 @@ export async function renderWalletPop(){
   renderSessionRow();
 }
 
-/* the popover's session row: the budget left (click it to top up) and the time left, or "start". The full list
-   lives on All Sessions (under this row); ending this browser's session is Sign out. */
+/* the popover's session row: the budget left (click it to top up) and the time left (click it to extend), or
+   "start". The full list lives on All Sessions (under this row); ending this browser's session is Sign out. */
 async function renderSessionRow(){
   const el = $("#wpSess"); if (!el) return;
   let S;
@@ -686,8 +686,10 @@ async function renderSessionRow(){
     return;
   }
   const left = Number(st.expiresAt) - Math.floor(Date.now() / 1000);
-  el.innerHTML = '<button class="wp-link ok" id="wpSessBal" type="button" title="Top up this session">' + esc(S.fmtUsd(st.balance6)) + '</button> · ' + esc(S.fmtLeft(left));
+  el.innerHTML = '<button class="wp-link ok" id="wpSessBal" type="button" title="Top up this session">' + esc(S.fmtUsd(st.balance6)) + '</button> · '
+    + '<button class="wp-link" id="wpSessLeft" type="button" title="Extend this session">' + esc(S.fmtLeft(left)) + '</button>';
   const t = $("#wpSessBal"); if (t) t.addEventListener("click", async () => { if (await S.openTopUpModal()) renderWalletPop(); });
+  const x = $("#wpSessLeft"); if (x) x.addEventListener("click", async () => { if (await S.openExtendModal(st.sid, st.expiresAt)) renderWalletPop(); });
 }
 
 /* ---- on-chain tx helpers used by both the deploy console and the store ---- */

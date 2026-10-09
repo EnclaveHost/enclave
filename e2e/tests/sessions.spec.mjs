@@ -56,6 +56,11 @@ test("sign in -> indicator -> /sessions -> top up -> sign out refunds and revoke
   await expect(page.locator("#walletPop")).toBeVisible();
   await page.click("#wpBalUsdc");
   await expect(page.locator("#walletPick .wp-h")).toHaveText("Deposit");
+  await page.click("#walletPick .wp-cancel");
+  // and the session's time left is its Extend
+  await page.click("#walletBtn");
+  await page.click("#wpSessLeft");
+  await expect(page.locator("#walletPick .wp-h")).toHaveText("Extend this session");
   await expect(page.locator("#wpSessTop, #wpSessEnd")).toHaveCount(0);
 
   // /sessions: this browser's session, live, with its budget
