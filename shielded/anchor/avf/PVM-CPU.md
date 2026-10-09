@@ -104,7 +104,8 @@ supported. These gate whether the app tries; the relay's contract decides admiss
 
 ## Production path (2026-10-08) and serving buyers (2026-10-09)
 
-- **Workloads:** ledger deployments with `gpuMilli == 0` only; the runner refuses anything else.
+- **Workloads:** CPU-only. Ledger deployments with `gpuMilli == 0`, or a GPU share whose owner (`{"gpu":{"optional":true}}`)
+  or publisher (`gpuOptional`) said the card is optional: it runs on cores, as on the CPU hosts. Nothing with a model.
 - **The release build** is `host.enclave.pvmcpu`, built with `ANCHOR_TIER=pvm-cpu ANCHOR_MODE=protected` and signed with
   the release key `~/.config/enclave/pvm-cpu/release.jks` (password file beside it; never in git) through
   `ANCHOR_RELEASE_KEYSTORE` / `ANCHOR_RELEASE_PASS_FILE`. It installs beside the lab app. A dev-mode build is refused by the
@@ -119,16 +120,49 @@ and a price, takes claim hints and placement pins, claims, serves the buyer's ap
 
 | piece | where | what it does |
 |---|---|---|
-| VM (`serve=https-p256`) | the pVM | serves the app with TLS 1.3 under a P-256 key derived from the instance secret for THIS app and deployment; v4 evidence binds that key (the attested transport key signs it); answers `/.well-known/enclave-attestation` and `/.well-known/enclave-ready` on the app's own TLS port; `CSR`/`CERT` on the evidence endpoint; one thread per connection |
-| host app (`app_tls 2`) | the phone | loopback bridges: 17786 to the TLS app port (ciphertext only), 17787 to the evidence endpoint behind `AUTH <token>` (the token is in the app's own external files dir); forwards the relay's host requests to the host agent; attach co-signature from the owner's co-signer |
-| host agent (`runner/host-agent.mjs`) | the owner's machine, beside the phone on USB | the host surface (`/availability`, `/v1/claim-hint`, `/v1/pvm/evidence`, `/v1/deployments[/<id>[/logs]]`); registers at the owner's price and re-states the entry on a new build or price; sweeps the ledger (`pvmClaimRefusal`); fetches the component by CID, restarts the VM with it and the lease's proof pins, claims, renews while proofs land, proves every 5 min, releases when the lease is over (refunding the tail) and goes idle; asks the relay for the app's certificate and installs it (again after a VM relaunch; renewed 30 days before expiry); the attach co-signer for the owner's own instance |
+| VM (`serve=https-p256`) | the pVM | the deployment's options as `APPENV`/`APPWAF`/`APPEGRESS` control lines (held in memory, checked by `pvm-rt` parse_env and waf.rs); serves the app with TLS 1.3 under a P-256 key derived from the instance secret for THIS app and deployment; v4 evidence binds that key (the attested transport key signs it); answers `/.well-known/enclave-attestation` and `/.well-known/enclave-ready` on the app's own TLS port; `CSR`/`CERT` on the evidence endpoint; one thread per connection |
+| host app (`app_tls 2`) | the phone | the launch's options file (`app_opts`: staged by the agent in the app's private files, read once and deleted); the egress pool; loopback bridges: 17786 to the TLS app port (ciphertext only), 17787 to the evidence endpoint behind `AUTH <token>` (the token is in the app's own external files dir); forwards the relay's host requests to the host agent; attach co-signature from the owner's co-signer |
+| host agent (`runner/host-agent.mjs`) | the owner's machine, beside the phone on USB | the host surface (`/availability`, `/v1/claim-hint`, `/v1/pvm/evidence`, `/v1/deployments[/<id>[/logs]]`); registers at the owner's price and re-states the entry on a new build or price; sweeps the ledger (`pvmClaimRefusal`); fetches the component by CID, restarts the VM with it and the lease's proof pins, claims, renews while proofs land, proves every 5 min, releases when the lease is over (refunding the tail) and goes idle; resolves the app's config and secrets, stages the launch's options and serves its egress; follows config edits and share resizes on the live lease; asks the relay for the app's certificate and installs it (again after a VM relaunch; renewed 30 days before expiry); the attach co-signer for the owner's own instance |
 | relay (`relay/pvm-market.mjs`, `PVM_MARKET=1`) | nan | the row is a market host only when tiered pvm-cpu, its attach was signed by the registered operator, and its id is the registered endpoint's; each app is served (routes, `servesDeployments`, dns-01) and given a certificate only after fresh v4 evidence over the relay's own nonce, for the component the relay fetched itself by the catalog's CID, from the VM attached as this host, binding exactly that TLS key |
 | TUNA (`network/` `pvm` mode) | the owner's machine | a privacy-agent instance with the phone's runner and operator: guarded circuits in Docker forward admitted streams to the phone's TLS bridge (adb forward); the local proof verifies the VM's evidence on the app's own TLS connection (`probeGuest` pvm branch); `runner/tuna-enroll.mjs` enrolls each served app (wallets, funding, config) |
 
-What a buyer can buy here: a public, CPU-only, approved catalog version that is a `wasi:http/incoming-handler` component
-(no wasi:nn, no sockets), within the VM's memory, with no configuration, secrets or protection rules, and an isolation
-requirement that is absent or `avf-pvm-per-app`. The phone has one slot: one app at a time, the whole VM. Socket-server
-apps (`ports: http:8000`, wasi:cli/run with wasi:sockets) are not served yet.
+What a buyer can buy here (the CPU hosts' terms, windows/PARITY.md, judged by `pvmClaimRefusal`): a public, approved
+catalog version that is a `wasi:http/incoming-handler` component or a socket server on ONE http port (`ports: http:8000`,
+wasi:cli/run + wasi:sockets, run as one long-lived instance on the VM's in-process loopback), within the VM's memory (the
+version's `memMb`, raised by its `cpuFallback`), with an isolation requirement absent or `avf-pvm-per-app`. With it come:
+
+- **its configuration**: the version's config (inline, or a rev-7 config document fetched and CID-verified), or the
+  deployment's `config` / `configCid` override, as `ENCLAVE_CONFIG`; `ENCLAVE_HOSTS`; `ENCLAVE_PORTS`/`ENCLAVE_MEM_MB`
+  for socket apps. A 64-bit memory runs (wasmtime's default features, bounds-checked in Pulley).
+- **its owner's secrets**: fetched by the lease holder with the operator's signature (`windows/node/secrets.mjs`) and
+  handed in as environment variables; `$NAME` in the config's strings resolves from them (the platform runner's rule).
+  The relay serves them only to the lease holder while the host is eligible (a VM attached): the first launch of a new
+  claim, or of a VM that died, has none, and once the VM attaches the agent relaunches it with them -- only when the relay
+  says any exist (`/v1/secrets/exists`). A restart (`POST /v1/deployments/<id>/restart`) applies the current ones.
+- **its protection rules** (`waf`): validated by the platform's `parseWaf`, enforced in the VM's front (`pvm-rt` waf.rs:
+  methods, path and scanner blocks, user agents, body size with unsized bodies read bounded, rate and concurrency),
+  answered as the platform answers. Buckets are per deployment: the app's hostname arrives as TLS through TUNA, with no
+  client address the VM could trust.
+- **egress** (below), and **live edits**: `setConfig` relaunches the app on the new options (same lease, same key);
+  `setShares` is admission and billing here (one app, one VM); options this host no longer applies release the lease.
+
+Not offered (refused with the reason): private deployments (no owner-session check in the VM yet), owner-attached
+domains, pending versions (`devDeploy`, private only), raw tcp/udp ports, shared-everything or cooperative threads,
+wasi 0.3, model volumes. The phone has one slot: one app at a time, the whole VM.
+
+### Egress (2026-10-09)
+
+The VM has no network, and nothing in it can open a connection to the phone. So the phone's host app keeps idle vsock
+streams open to the VM's egress port 7790 (`host/app/EgressPool.java`); `pvm-rt` takes one per outbound connection or
+name lookup (`egress.rs`: a wasi:http app's outgoing handler; a socket app's `start-connect` and `ip-name-lookup` in
+`loopnet.rs`), writes `CONNECT <host> <port>` or `RESOLVE <name>`, and gets `OK` (the stream is then the connection),
+`OK <ip>,...`, or `ERR <reason>`. The phone carries each line to the owner's host agent (`runner/egress.mjs`, adb reverse
+18189) with the launch's random token, and the agent answers with the platform's guest-egress rules: the app's OWN TUNA
+circuits (the privacy agent's `egress-routes.json`, expiring; no direct fallback), DNS over HTTPS through the same route
+to pinned resolvers, public destinations only (a name with any private answer is refused whole; the judged literal is
+dialled), no port 25, 96 open and 2400 new connections a minute per app, the sibling circuit on failure. TLS for an https
+request is made in the VM against the public web roots: the phone, the agent and the circuit carry ciphertext, and a host
+answering with its own certificate fails the check in the VM.
 
 What is trusted: TLS ends inside the protected VM under a key only the VM holds; the phone's Android, the owner's machine,
 TUNA providers and the relay carry ciphertext. The relay and the route probe each verify the VM's own evidence (Google's
