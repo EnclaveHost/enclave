@@ -157,6 +157,19 @@ test("a pVM CPU row's pool is the relay-verified VM size; the host may only lowe
     assert.equal(pvmCpuAvailability(r, phoneSaid), phoneSaid, "no admitted report: the row keeps what the box sent");
 });
 
+test("a slot host's pool is the owner's lent VM memory (bounded); free memory and share are what its slots leave", () => {
+  const row = { tier: "pvm-cpu", pvmCpu: { runtime: RUNTIME, vm: { threads: 8, memMib: 2048 }, gflops: 1.5 } };
+  const said = { ok: true, slots: 4, poolMemMb: 3072, poolMemMbFree: 2304, cpuShareFree: 0.75, nodeRamGb: 99 };
+  const a = pvmCpuAvailability(row, said);
+  assert.deepEqual([a.nodeVcpus, a.nodeRamGb, a.ramGbFree, a.cpuShareFree, a.nodeGflops, a.cpuGflopsFree], [8, 3, 2.3, 0.75, 1.5, 1.13]);
+  assert.equal(a.capacitySource, "pvm-capability-report + the owner's slot pool");
+  assert.equal(pvmCpuAvailability(row, { ...said, poolMemMbFree: 99999 }).ramGbFree, 3, "never more free than the pool");
+  for (const bad of [{ poolMemMb: 99999 }, { poolMemMb: 100 }, { slots: 5 }, { slots: 0 }, { poolMemMb: "3072" }]) {
+    const b = pvmCpuAvailability(row, { ...said, ...bad });
+    assert.deepEqual([b.nodeRamGb, b.ramGbFree], [2, 1.5], `${JSON.stringify(bad)}: the attested VM's size, as for a one-VM host`);
+  }
+});
+
 test("a report may carry the VM's measured GFLOPS: carried to the pool when well-formed, refused when not", () => {
   const res = attempt({ rep: { gflops: 12.3456 } });
   assert.equal(res.eligible, true, res.reasons.join(" | "));
