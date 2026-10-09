@@ -1,0 +1,13 @@
+{
+ "label": {
+  "transport": "tuna-guarded-tcp",
+  "relay": "tuna",
+  "expiresAt": 1791515583480,
+  "addresses": [
+   "107.174.142.20",
+   "132.145.173.89"
+  ],
+  "a": "107.174.142.20"
+ },
+ "pending": []
+}
