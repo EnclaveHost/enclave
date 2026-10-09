@@ -216,3 +216,15 @@ test('held reservation cannot restore onto an unavailable card', () => {
     { ...pooled, cards: pooled.cards.map((c,i) => i === 1 ? {...c, exact: false} : c) });
   assert.equal(r[0].handle, null);
 });
+test('a shielded card is attested as Enclave Shield masked offload, never NVIDIA confidential computing', () => {
+  const r = run([{ alloc: { name: 'a', gpu: .5, cpu: .1 } }, { attest: 'a' }],
+    { cards: [{ ...cards[1], id: 0, deviceUuid: 'GPU-shield' }] });
+  const { deployment, enclave, gpuTechnology } = r[1].attest;
+  assert.equal(gpuTechnology, 'enclave-shield-masked');
+  for (const g of [deployment, enclave]) {
+    assert.equal(g.technology, 'enclave-shield-masked'); assert.equal(g.ccMode, undefined); assert.equal(g.report, undefined);
+    assert.deepEqual(g.gpus, [{ index: 0, uuid: 'GPU-shield', name: 'GPU 1', vramGb: 31 }]);
+    assert.match(g.verify, /untrusted host, outside this CVM.*masked offload/);
+  }
+  assert.equal(deployment.gpuShare, .5); assert.doesNotMatch(JSON.stringify(r[1].attest), /nvidia-cc/);
+});
