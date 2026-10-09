@@ -94,13 +94,15 @@ class FleetList extends EnclaveElement {
       return stat(value(gpu.availableTflops), value(gpu.tflops), '',
         gpu.basis === 'measured' ? 'tflops equiv. available' : 'tflops available', title);
     };
-    const cpuComputeStat = (a, fraction, title) => {
-      const number = v => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null;
+    const number = v => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null;
+    // Use this host's GFLOPS report, never a conversion from vCPUs or
+    // another host's spec. Older hosts report only total GFLOPS + share.
+    const cpuGflopsAvail = (a, fraction) => {
       const total = number(a.nodeGflops), share = number(fraction);
-      // Use this host's GFLOPS report, never a conversion from vCPUs or
-      // another host's spec. Older hosts report only total GFLOPS + share.
-      const available = number(a.cpuGflopsFree)
-        ?? (total !== null && share !== null ? total * Math.min(1, share) : null);
+      return number(a.cpuGflopsFree) ?? (total !== null && share !== null ? total * Math.min(1, share) : null);
+    };
+    const cpuComputeStat = (a, fraction, title) => {
+      const total = number(a.nodeGflops), available = cpuGflopsAvail(a, fraction);
       const value = v => v === null ? '—' : fmtNum(v);
       return stat(value(available), value(total), '', 'gflops available', title ||
         'Reported CPU compute capacity in GFLOPS (billions of floating-point operations per second). '
@@ -113,9 +115,12 @@ class FleetList extends EnclaveElement {
       ? '<div class="fleet-stale" role="status">Showing hosts as of ' + esc(asOf(this.staleAt)) + ': the latest read failed (' + esc(failed) + '). Retrying.</div>'
       : "";
     // Each row kind below builds an ITEM: { key, name, title, cls, chips, detail }. `chips` is the collapsed
-    // line, one per pool: "$1.20 for 20% of GPU" (the price of what it has available, its % available, its badge;
-    // no posted rate -> "20% of GPU", null % = unknown); `detail` is the full row it expands to.
-    const chip = (badge, pct, price) => '<span class="fleet-chip">' + (price || '') + '<b>' + (pct == null ? '—' : pct + '%') + '</b> of ' + badge + '</span>';
+    // line, one per pool: "$0.10 for 12 GB / 33 tflops of GPU" (the price of what it has available, that memory
+    // and compute, its badge; no posted rate -> "12 GB / 33 tflops of GPU", unknown -> "—"); `detail` is the full
+    // row it expands to.
+    const sumNum = v => { const n = number(v); return n === null ? '—' : n >= 10 ? String(Math.round(n)) : n >= 1 ? fmtNum(n) : String(Math.round(n * 100) / 100); };
+    const chip = (badge, gb, compute, unit, price) => '<span class="fleet-chip">' + (price || '')
+      + '<b>' + sumNum(gb) + '</b> GB / <b>' + sumNum(compute) + '</b> ' + unit + ' of ' + badge + '</span>';
     const nameOf = (e, dflt) => e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || dflt;
     const head = (e) => { const r = this._ratingHtml(e); return r ? '<span class="fleet-head">' + r + '</span>' : ''; };
     const marketItems = rows.map(e => {
@@ -224,8 +229,9 @@ class FleetList extends EnclaveElement {
           const ramGb = a.nodeRamGb || s.nodeRamGb;
           const price = enclavePriceOf(e);   // this box's posted ask; the fleet price where it posts none
           return { key: "m:" + (e.id || e.endpoint || name), name, title: e.endpoint || "", cls: "",
-            chips: (shPool ? chip(cardBadge, shPct, availPrice(price.shielded, shPool.frac)) : "")
-              + (inTee ? chip(cardBadge, gPct, availPrice(price.full, gFree)) : "") + chip(teeCpuBadge, cPct, availPrice(price.node, cFree)),
+            chips: (shPool ? chip(cardBadge, shPool.leasableGb, shPool.availableTflops, "tflops", availPrice(price.shielded, shPool.frac)) : "")
+              + (inTee ? chip(cardBadge, a.vramFreeGb != null ? a.vramFreeGb : gFree * vramGb, gFree * tflops, "tflops", availPrice(price.full, gFree)) : "")
+              + chip(teeCpuBadge, a.ramGbFree != null ? a.ramGbFree : cFree * ramGb, cpuGflopsAvail(a, cFree), "gflops", availPrice(price.node, cFree)),
             detail: head(e)
             + (shPool ? pool(cardBadge, shPct,
                 stat(fmtNum(shPool.leasableGb), fmtNum(shPool.total), "GB", "vram available", shVramTitle)
@@ -273,7 +279,8 @@ class FleetList extends EnclaveElement {
       const name = nameOf(e, "host");
       return { key: "o:" + (e.id || e.endpoint || name), name, title: e.endpoint || "", cls: "fleet-owner-row",
         chips: '<span class="ap-badge info">Owner-only</span>'
-          + (gpu ? chip('<span class="ap-badge info">GPU</span>', Math.floor(gpu.frac * 100)) : '') + chip('<span class="ap-badge info">CPU</span>', cpuPct),
+          + (gpu ? chip('<span class="ap-badge info">GPU</span>', gpu.leasableGb, gpu.availableTflops, 'tflops') : '')
+          + chip('<span class="ap-badge info">CPU</span>', cpu.ramFreeGb, cpuGflopsAvail(e.availability || {}, cpu.fraction), 'gflops'),
         detail: gpuCapacity + capacity
           + '<span class="fleet-owner-status">' + count + ' active deployment' + (count === 1 ? '' : 's') + '</span>'
           + '<span class="fleet-owner-note">Hosting for authorized owners. Unavailable for general deployments.</span>' };
@@ -293,7 +300,7 @@ class FleetList extends EnclaveElement {
         + 'workload on every vCPU at once), reported in its signed capability report. Not a native-core estimate.');
       const name = nameOf(e, "host");
       return { key: "p:" + (e.id || e.endpoint || name), name, title: e.endpoint || "", cls: "fleet-pvm-row",
-        chips: chip(badge, cFree === null ? null : Math.floor(cFree * 100)),
+        chips: chip(badge, ramFree, cpuGflopsAvail(a, cFree), 'gflops'),
         detail: head(e)
         + (cFree === null
           ? '<div class="fleet-pool"><span class="fleet-pool-label">' + badge + '</span><span class="fleet-pool-pct">Availability unknown</span><span class="fleet-stats">' + stats + '</span></div>'

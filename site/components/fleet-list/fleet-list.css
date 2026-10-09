@@ -9,14 +9,16 @@ c-fleet-list{display:contents;}
    chips do, so the line never wraps in the 300px aside. */
 .fleet-row{border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);}
 .fleet-row:last-child{border-bottom:0;}
-.fleet-sum{display:flex;align-items:center;gap:10px;width:100%;min-height:38px;padding:8px 14px;background:none;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer;transition:background .15s var(--ease);}
+.fleet-sum{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;width:100%;min-height:38px;padding:8px 14px;background:none;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer;transition:background .15s var(--ease);}
 .fleet-sum:hover{background:var(--surface);}
 .fleet-sum:focus-visible{outline:2px solid var(--jade);outline-offset:-2px;}
 .fleet-sum::before{content:"▸";flex:none;width:.8em;color:var(--text-dim);}
 .fleet-sum[aria-expanded="true"]::before{content:"▾";color:var(--jade);}
 .fleet-sum .fleet-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.fleet-chips{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none;}   /* one pool a line */
-.fleet-chip{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
+/* one pool a line, at the right; when the name and the lines don't fit side by side (a narrow panel), the lines
+   wrap under the name, still right-aligned, and on a very narrow one a line breaks between its words */
+.fleet-chips{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none;max-width:100%;margin-left:auto;}
+.fleet-chip{display:inline-flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:2px 5px;white-space:nowrap;}
 .fleet-chip b{font-weight:500;color:var(--text);font-variant-numeric:tabular-nums;}
 .fleet-chips .ap-badge{font-size:.6rem;padding:.1em .45em;}
 /* the price of what the pool has available (rate x available share), leading its line */
