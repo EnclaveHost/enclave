@@ -27,7 +27,7 @@ import { createRunnerAgent } from "./runner-agent.mjs";
 import { createSessionApiAuth, apiBases, isSessionHeader, DEFAULT_FACTORIES, DEFAULT_API_HOSTS } from "../../../../windows/node/session-api-auth.mjs";
 // the deployment's protection rules and secrets, by the CPU host's own modules (the platform's rules, mirrored there)
 import { parseWaf } from "../../../../windows/node/waf.mjs";
-import { fetchSecrets, secretsExist } from "../../../../windows/node/secrets.mjs";
+import { secretsExist } from "../../../../windows/node/secrets.mjs";
 import { createEgressServer } from "./egress.mjs";
 
 export const HOST_CONFIG_FORMAT = "enclave-pvm-host-agent/v1";
@@ -214,10 +214,11 @@ export function envBlock(vars) {
 }
 
 /** The launch's options file for the phone (host/app Main.appOptions): ENV / WAF lines, hex; EGRESS <port> <token>. */
-export function optionsFile({ env = null, waf = null, egress = null }) {
+export function optionsFile({ env = null, waf = null, egress = null, sealed = null }) {
   const lines = [];
   if (env && env.length) lines.push(`ENV ${env.toString("hex")}`);
   if (waf) lines.push(`WAF ${Buffer.from(JSON.stringify(waf)).toString("hex")}`);
+  if (sealed) lines.push(`SEALED ${sealed}`);
   if (egress) lines.push(`EGRESS ${egress.port} ${egress.token}`);
   return lines.length ? lines.join("\n") + "\n" : null;
 }
@@ -351,55 +352,86 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     if (v && v.configCid) return fetchConfigCid(v.configCid);
     return String((v && v.config) || "");
   }
-  /** This deployment's staged secrets ({NAME: value}), fetched as the lease holder with the operator's signature, or null
-   *  when the relay would not say (the reason logged: names and counts only, never a value). */
-  async function secretsFor(D) {
+  /**
+   * This deployment's secrets, sealed to the VM (relay/pvm-secrets.mjs): the relay verifies the VM's evidence and its seal key
+   * over its own nonce, seals the secrets to that key and signs the release; this agent keeps the CIPHERTEXT only (the
+   * operator never sees a value: hostEligibility refuses a pVM host plaintext) and hands it to the VM, which checks the
+   * relay's signature against the key its build pins and opens it. The seal key is the VM instance's for this app and
+   * deployment, so a release opens again after a relaunch. Asked while a VM serves this deployment (the relay asks it for
+   * evidence). Returns { blob (hex: ticket || sig || sealed), count, rev } or null (the reason logged; never a value).
+   */
+  async function sealedRelease(D) {
     try {
-      const r = await fetchSecrets({ id: D, endpoint: cfg.endpoint, base: cfg.relayOrigin, sign: (message) => account.signMessage({ message }),
-                                     log: (m) => note({ ev: "secrets", deployment: D, m }) });
-      return r.env || {};
+      const ts = Math.floor(now() / 1000);
+      const opSig = await account.signMessage({ message: `enclave-pvm-secrets:${D}:${cfg.endpoint}:${ts}` });
+      const r = await fetchImpl(`${cfg.relayOrigin}/v1/secrets/pvm-release`, { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: D, endpoint: cfg.endpoint, ts, opSig }), signal: AbortSignal.timeout(90000) });
+      const b = await r.json().catch(() => ({}));
+      if (r.status !== 200 || !/^[0-9a-f]{64}$/.test(b.nonce || "") || typeof b.sealed !== "string" || typeof b.sig !== "string") {
+        note({ ev: "secrets-failed", deployment: D, status: r.status, error: `${b.error || ""} ${b.message || ""}`.trim().slice(0, 300) });
+        return null;
+      }
+      const sig = Buffer.from(b.sig, "base64"), sealed = Buffer.from(b.sealed, "base64");
+      if (sig.length !== 64 || sealed.length < 60) { note({ ev: "secrets-failed", deployment: D, error: "a malformed release" }); return null; }
+      note({ ev: "secrets-sealed", deployment: D, count: b.count, rev: b.rev, keyId: b.keyId, sealKey: String(b.sealKey || "").slice(0, 16) });
+      return { blob: Buffer.concat([Buffer.from(b.nonce, "hex"), sig, sealed]).toString("hex"), count: Number(b.count) || 0, rev: b.rev };
     } catch (e) { note({ ev: "secrets-failed", deployment: D, error: e.message }); return null; }
   }
-  /** The options file for a launch of D (with its secrets when given) and the launch's egress token. */
-  async function launchOptions(D, d, v, secrets) {
+  /** The options file for a launch of D (its config with $NAME left for the VM to resolve, its rules, its sealed secrets) and
+   *  the launch's egress token. */
+  async function launchOptions(D, d, v, sealed) {
     const o = parseOptions(d.configCid, d.gpuMilli);
-    const text = substituteSecrets(await appConfig(d, v), secrets || {});
-    const vars = { ...(secrets || {}) };
+    const text = await appConfig(d, v);
+    const vars = {};
     if (text) vars.ENCLAVE_CONFIG = text;
     vars.ENCLAVE_HOSTS = `${D.slice(2, 10)}.app.enclave.host`;
     const token = cfg.egress ? crypto.randomBytes(16).toString("hex") : null;
-    const file = optionsFile({ env: envBlock(vars), waf: o.waf || null, egress: token ? { port: cfg.egress.port, token } : null });
-    note({ ev: "options", deployment: D, configBytes: text.length, secrets: Object.keys(secrets || {}).length, waf: !!o.waf, egress: !!token });
+    const file = optionsFile({ env: envBlock(vars), waf: o.waf || null, sealed: sealed ? sealed.blob : null, egress: token ? { port: cfg.egress.port, token } : null });
+    note({ ev: "options", deployment: D, configBytes: text.length, secrets: sealed ? `sealed (${sealed.count})` : 0, waf: !!o.waf, egress: !!token });
     return { file, token };
   }
   /**
-   * Launch D's VM with its options as they are now (its row, its version, and `secrets` when the caller holds them).
-   * The relay serves secrets only to the lease holder WHILE this host is eligible -- a VM attached -- so they are fetched
-   * while a VM serves (restart, config edit: before the relaunch) or once a new one does (claim, a VM that died:
-   * `needSecrets`, applied by the next round with one more relaunch, only when the relay says any exist).
+   * Launch D's VM with its options as they are now: its row, its version, and its sealed secrets when this agent holds a
+   * release for it (`c.sealed`: kept across relaunches, refreshed by a restart or a config edit while a VM serves). A new
+   * claim has none yet: the next round asks the relay once the VM serves (`needSecrets`) and relaunches only when there are
+   * any.
    */
-  async function launchFor(c, { secrets = null } = {}) {
+  async function launchFor(c) {
     const d = await read(addrs.deployments, DEP_ABI, "get", [c.id]);
     const v = await versionOf(c.appRef);
-    const { file, token } = await launchOptions(c.id, d, v, secrets);
+    const { file, token } = await launchOptions(c.id, d, v, c.sealed || null);
     c.egressToken = token; c.configCid = String(d.configCid || ""); c.gpuMilli = Number(d.gpuMilli); c.cpuMilli = Number(d.cpuMilli);
-    c.needSecrets = !secrets; if (secrets) c.secretsAt = now();
+    if (c.sealed === undefined) c.needSecrets = true;
     save();
-    await launchVm({ D: c.id, file: c.file, sha: c.sha, label: c.label, sock: c.sock || 0, memMib: c.memMib || 0, opts: file });
-    return { secrets: secrets ? Object.keys(secrets).length : null };
+    try {
+      await launchVm({ D: c.id, file: c.file, sha: c.sha, label: c.label, sock: c.sock || 0, memMib: c.memMib || 0, opts: file });
+    } catch (e) {
+      // a release the VM will not open (another instance, a rotated release key): drop it, ask the relay again later
+      if (/the deployment's secrets/.test(e.message) && c.sealed) { delete c.sealed; c.needSecrets = true; save(); note({ ev: "secrets-dropped", deployment: c.id, why: e.message.slice(0, 200) }); }
+      throw e;
+    }
   }
-  /** A served VM launched without its secrets gets them (one relaunch) when the relay says it has any. */
+  /** Ask the relay for D's sealed secrets while its VM serves: relaunch with them when there are any. */
   async function applySecrets(c) {
     const exists = await secretsExist({ id: c.id, base: cfg.relayOrigin }).catch((e) => { note({ ev: "secrets-unknown", deployment: c.id, error: e.message }); return null; });
-    if (exists === false) { c.needSecrets = false; save(); return false; }
-    const secrets = await secretsFor(c.id);
-    if (!secrets) return false;                                  // refused or unreachable now: the next round asks again
-    if (!Object.keys(secrets).length) { c.needSecrets = false; save(); return false; }
+    if (exists === false) { c.sealed = null; c.needSecrets = false; save(); return false; }
+    const rel = await sealedRelease(c.id);
+    if (!rel) return false;                                      // refused or unreachable now: the next round asks again
+    c.needSecrets = false;
+    if (!rel.count) { c.sealed = null; save(); return false; }
+    c.sealed = rel;
     c.label = `app-${c.id.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`; delete c.cert; save();
-    await launchFor(c, { secrets });
+    await launchFor(c);
     lastCert = 0;
-    note({ ev: "secrets-applied", deployment: c.id, count: Object.keys(secrets).length });
+    note({ ev: "secrets-applied", deployment: c.id, count: rel.count });
     return true;
+  }
+  /** A fresh release while this VM still serves (a restart, a config edit), else the one held. */
+  async function refreshSecrets(c) {
+    const exists = await secretsExist({ id: c.id, base: cfg.relayOrigin }).catch(() => null);
+    if (exists === false) { c.sealed = null; return; }
+    const rel = await sealedRelease(c.id);
+    if (rel) c.sealed = rel.count ? rel : null;
   }
 
   // ---- choosing work ----
@@ -525,7 +557,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
           if (!up) {
             // a relaunched VM holds no certificate (the chain lives in its memory only): install it again
             state.current.label = `app-${state.current.id.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`; delete state.current.cert; save();
-            await launchFor(state.current);   // no secrets yet: the relay serves them once this VM attaches (needSecrets)
+            await launchFor(state.current);   // with the sealed release it holds (the VM opens it again), or asks once it serves
           } else await device.readToken();
           await useRunner(state.current.id, state.current.sha);
         } else if (!up) await goIdle(runner ? "the VM ended" : "start");
@@ -597,9 +629,9 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
       return true;
     }
     if (!cfgChanged) { c.cpuMilli = Number(d.cpuMilli); c.gpuMilli = Number(d.gpuMilli); save(); return true; }
-    const secrets = await secretsFor(c.id);   // while this VM still serves (eligible); null: the new one gets them later
+    await refreshSecrets(c);   // while this VM still serves (the relay asks it for evidence)
     c.label = `app-${c.id.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`; delete c.cert; save();
-    await launchFor(c, { secrets });
+    await launchFor(c);
     lastCert = 0;
     return true;
   }
@@ -613,7 +645,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
       slots: 1, nodeSlotsFree: cur ? 0 : 1, cpuShareFree: cur ? 0 : 1, maxAppMemMb: cfg.claim.maxMemMb,
       isolation: ISOLATION_BACKEND, appTls: "in-vm", appEvidence: "enclave-pvm-app-evidence/v4", claimScope: "market",
       // the platform's capability flags (the relay AND-folds them across the fleet): each true only for what this host does
-      networkOptions: true, networkTransports: ["tuna"], secrets: true, secretsInConfig: true, configOverride: true, configCidOverride: true,
+      networkOptions: true, networkTransports: ["tuna"], secrets: true, secretsInConfig: true, secretsKeyIn: "vm (sealed by the relay)", configOverride: true, configCidOverride: true,
       configEdit: true, shareResize: true, waf: true, wafScope: "per-deployment: the app's hostname reaches the VM as TLS through TUNA, with no client address",
       gpuOptional: true, cpuFallback: true, rateCap: true, proofOfTime: true, mem64: true, set: false, p3: false, coopThreads: false,
       egress: cfg.egress ? "tuna-per-app" : false, customDomains: false, devDeploy: false,
@@ -640,6 +672,16 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     const a = await device.exchange(`EVIDENCE3 ${nonce}`, null, 30000);
     try { return [200, JSON.parse(a.split("\n")[0])]; } catch { return [502, { error: "the VM gave no evidence" }]; }
   }
+  /** The relay's seal check (relay/pvm-secrets.mjs): the VM's v4 evidence and its seal-key statement, both over the relay's nonce. */
+  async function sealEvidence(q) {
+    const [st, ev] = await evidence(q);
+    if (st !== 200) return [st, ev];
+    const nonce = String(q.get("nonce") || "");
+    const a = await device.exchange(`SEALKEY ${nonce}`, null, 30000);
+    let seal; try { seal = JSON.parse(a.split("\n")[0]); } catch { return [502, { error: "the VM gave no seal statement" }]; }
+    if (seal.error) return [409, { error: seal.error }];
+    return [200, { evidence: ev, seal }];
+  }
   function handler() {
     return async (req, res) => {
       try {
@@ -652,6 +694,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
           return json(res, 200, await claimHint(body));
         }
         if (req.method === "GET" && p === "/v1/pvm/evidence") { const [s, b] = await evidence(u.searchParams); return json(res, s, b); }
+        if (req.method === "GET" && p === "/v1/pvm/secret-evidence") { const [s, b] = await sealEvidence(u.searchParams); return json(res, s, b); }
         if (req.method === "GET" && p === "/v1/deployments") return json(res, 200, { deployments: state.current ? [record()] : [] });
         const act = /^\/v1\/deployments\/(0x[0-9a-f]{64})(\/restart|\/attestation)?$/.exec(p.toLowerCase());
         if (act && (req.method === "POST" || req.method === "DELETE" || act[2] === "/attestation")) {
@@ -699,8 +742,9 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     try {
       const c = state.current;
       c.label = `app-${c.id.slice(2, 10)}-${new Date(now()).toISOString().replace(/[:.]/g, "")}`; delete c.cert; save();
-      // a restart applies the owner's current secrets and config: fetched while this VM still serves (the host eligible)
-      await launchFor(c, { secrets: await secretsFor(c.id) });
+      // a restart applies the owner's current secrets and config: released while this VM still serves
+      await refreshSecrets(c);
+      await launchFor(c);
       lastCert = 0;
       note({ ev: "restarted", deployment: c.id });
       return [200, { id: c.id, restarted: true, label: c.label }];

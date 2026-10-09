@@ -19,6 +19,7 @@ pub mod httpd;
 pub mod loopnet;
 pub mod proof;
 pub mod sealed;
+pub mod sealed_release;
 pub mod waf;
 
 use sha2::{Digest, Sha256};
@@ -692,6 +693,11 @@ pub extern "C" fn pvmrt_https_open(
 ///   egress_open(ctx, host, port, err, errcap)   one outbound stream: its fd (owned by the runtime from then on), or -1
 ///              with the reason in err
 ///   egress_resolve(ctx, name, out, cap)         a name's addresses, comma-separated in out: 0, or -1 with the reason in out
+///   sealed     the relay's sealed release of the deployment's secrets (sealed_release.rs: ticket || sig || sealed), opened
+///              with the seal key from `seal_seed` (32 bytes, the payload's derivation for this app and deployment) for
+///              `deployment` (32 bytes), under one of `release_keys` (32 bytes each, pinned in the build); refused (the app
+///              does not start) when it does not verify or open. Its secrets join the environment and resolve `$NAME` in
+///              ENCLAVE_CONFIG.
 #[repr(C)]
 pub struct PvmrtAppOpts {
     pub env: *const u8,
@@ -700,6 +706,12 @@ pub struct PvmrtAppOpts {
     pub egress_open: Option<extern "C" fn(*mut c_void, *const c_char, u16, *mut c_char, usize) -> c_int>,
     pub egress_resolve: Option<extern "C" fn(*mut c_void, *const c_char, *mut c_char, usize) -> c_int>,
     pub egress_ctx: *mut c_void,
+    pub sealed: *const u8,
+    pub sealed_len: usize,
+    pub seal_seed: *const u8,
+    pub deployment: *const u8,
+    pub release_keys: *const u8,
+    pub release_keys_count: usize,
 }
 
 /// The most variables, and bytes of them, an app is started with (the platform's ENCLAVE_CONFIG rides one of them).
@@ -754,12 +766,39 @@ fn app_options(p: *const PvmrtAppOpts) -> std::result::Result<httpd::AppOptions,
     }
     // SAFETY: a non-null opts points to a PvmrtAppOpts by the caller's contract.
     let o = unsafe { &*p };
-    let env = if o.env.is_null() || o.env_len == 0 {
+    let mut env = if o.env.is_null() || o.env_len == 0 {
         Vec::new()
     } else {
         // SAFETY: env points to env_len bytes by the caller's contract.
         parse_env(unsafe { std::slice::from_raw_parts(o.env, o.env_len) })?
     };
+    if !o.sealed.is_null() && o.sealed_len > 0 {
+        if o.seal_seed.is_null() || o.deployment.is_null() || o.release_keys.is_null() || o.release_keys_count == 0 || o.release_keys_count > 8 {
+            return Err("a sealed release needs this VM's seal seed, the deployment and the pinned release keys".into());
+        }
+        // SAFETY: each points to the lengths the caller's contract states.
+        let (rel, seed, id, keys) = unsafe {
+            (
+                std::slice::from_raw_parts(o.sealed, o.sealed_len),
+                &*(o.seal_seed as *const [u8; 32]),
+                &*(o.deployment as *const [u8; 32]),
+                std::slice::from_raw_parts(o.release_keys as *const [u8; 32], o.release_keys_count),
+            )
+        };
+        let secrets = sealed_release::open(rel, seed, id, keys).map_err(|e| format!("the deployment's secrets: {e}"))?;
+        if let Some(cfg) = env.iter_mut().find(|(k, _)| k == "ENCLAVE_CONFIG") {
+            cfg.1 = sealed_release::substitute(&cfg.1, &secrets);
+        }
+        for (k, v) in secrets {
+            if env.iter().any(|(x, _)| x == &k) {
+                return Err(format!("the secret {k} would replace a variable the host set"));
+            }
+            env.push((k, v));
+        }
+        if env.len() > ENV_MAX_VARS {
+            return Err(format!("the app's environment has more than {ENV_MAX_VARS} variables"));
+        }
+    }
     let waf = if o.waf.is_null() {
         None
     } else {

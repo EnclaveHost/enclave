@@ -848,7 +848,7 @@ public class Main extends Activity {
     /**
      * The deployment's options (app_opts), staged by the owner's host agent as <files>/app-opts and deleted once read, so its
      * secrets do not outlive this launch on the phone. Lines: "ENV <hex of K=V\0...>", "WAF <hex of the rules' JSON>",
-     * "EGRESS <agent port> <token>". The environment and the rules go to the VM as APPENV / APPWAF lines (hex, in chunks the
+     * "SEALED <hex of the relay's sealed release>" (ciphertext: only the VM opens it), "EGRESS <agent port> <token>". The environment and the rules go to the VM as APPENV / APPWAF lines (hex, in chunks the
      * control line takes) and are checked there; EGRESS enables the VM's egress port (APPEGRESS) and this app's pool.
      */
     static void appOptions(Plan plan, StringBuilder cmd) {
@@ -858,18 +858,20 @@ public class Main extends Activity {
         catch (Exception e) { say("APP options NOT read (" + e + "): the app starts without its environment, rules or egress"); }
         finally { if (f.exists() && !f.delete()) say("APP options file could not be deleted"); }
         if (text == null) return;
-        int envBytes = 0, wafBytes = 0;
+        int envBytes = 0, wafBytes = 0, sealedBytes = 0;
         for (String l : text.split("\n")) {
             final String[] t = l.trim().split(" ");
-            if (t.length == 2 && (t[0].equals("ENV") || t[0].equals("WAF")) && t[1].matches("([0-9a-f]{2})+")) {
-                for (int o = 0; o < t[1].length(); o += 2000) cmd.append(t[0].equals("ENV") ? "APPENV " : "APPWAF ").append(t[1], o, Math.min(t[1].length(), o + 2000)).append('\n');
-                if (t[0].equals("ENV")) envBytes += t[1].length() / 2; else wafBytes += t[1].length() / 2;
+            if (t.length == 2 && (t[0].equals("ENV") || t[0].equals("WAF") || t[0].equals("SEALED")) && t[1].matches("([0-9a-f]{2})+")) {
+                final String verb = t[0].equals("ENV") ? "APPENV " : t[0].equals("WAF") ? "APPWAF " : "APPSEALED ";
+                for (int o = 0; o < t[1].length(); o += 2000) cmd.append(verb).append(t[1], o, Math.min(t[1].length(), o + 2000)).append('\n');
+                if (t[0].equals("ENV")) envBytes += t[1].length() / 2; else if (t[0].equals("WAF")) wafBytes += t[1].length() / 2; else sealedBytes += t[1].length() / 2;
             } else if (t.length == 3 && t[0].equals("EGRESS") && t[1].matches("[0-9]{4,5}") && t[2].matches("[0-9a-f]{32,64}")) {
                 plan.egressPort = Integer.parseInt(t[1]); plan.egressToken = t[2];
                 cmd.append("APPEGRESS\n");
             } else if (!l.trim().isEmpty()) say("APP options: a malformed line ignored");
         }
-        say("APP options: environment " + envBytes + " bytes, protection rules " + (wafBytes > 0 ? wafBytes + " bytes" : "none") + ", egress " + (plan.egressPort != 0 ? "through the host agent" : "none"));
+        say("APP options: environment " + envBytes + " bytes, protection rules " + (wafBytes > 0 ? wafBytes + " bytes" : "none") + ", egress " + (plan.egressPort != 0 ? "through the host agent" : "none")
+            + ", secrets " + (sealedBytes > 0 ? "sealed to the VM (" + sealedBytes + " bytes of ciphertext)" : "none"));
     }
     /* The test hook behind --es app_http: each path as its own GET on its own connection (Connection: close), the whole raw
      * response into the capture as APPHTTP <i> ms=<wall> <hex>, then STOP on the control channel. The product path puts the
