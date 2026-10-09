@@ -65,7 +65,7 @@ function setup({ vmOpts = {}, row: rowOver = {}, info: infoOver = {}, dep = {}, 
     confirmRow: async (id) => (id === D ? { ...ledger.d } : null),
     readCatalog: async () => ({ app: { active: true }, version: { cid: CID, memMb: 128, ports: "", approval: 1, yanked: false, ...catalog } }),
     fetchVerified: async (cid) => { fetched.push(cid); return cid === CID ? { ok: true, bytes: COMPONENT } : { ok: false }; } });
-  return { m, row, hub, ledger, clock, vm, fetched, ca };
+  return { m, row, hub, ledger, clock, vm, fetched, ca, dir };
 }
 
 test("capacity: on only with the market switched on, an admitted pvm-cpu AVF tunnel, its registered operator's attach and a registered id", { skip }, () => {
@@ -224,4 +224,45 @@ test("pVM secrets: nothing is read for a wrong operator, another lease holder, a
   await r.ask({ ts, opSig });
   await assert.rejects(r.ask({ ts, opSig }), /replayed/);
   await assert.rejects(r.ask({ ts: ts - 600 }), /invalid release request/, "a stale request");
+});
+
+// ---- sibling VMs (pvm-market.mjs checkHostVm): a host runs one VM per app; evidence from a VM other than the tunnel's is
+// the host's only when that VM proves the host's registered proof key over the relay's same nonce ----
+import { siblingDigest } from "../relay/pvm-market.mjs";
+const PROOF = privateKeyToAccount("0x" + "22".repeat(32)), STRANGER = privateKeyToAccount("0x" + "33".repeat(32));
+function siblingSetup({ signer = PROOF, registered = PROOF.address, tamper = null, noReader = false } = {}) {
+  const s = setup();
+  const other = fakeVm(s.dir, s.ca);   // another VM: its own transport key, same build
+  s.hub.fetchJson = async (origin, path) => {
+    s.hub.asked.push(path);
+    const n = /nonce=([0-9a-f]{64})/.exec(path)[1];
+    if (path.startsWith("/v1/pvm/evidence")) return other.evidence(n);
+    const ev = other.evidence(n);
+    const st = { format: "enclave-pvm-sibling/v1", nonce: tamper === "nonce" ? "ab".repeat(32) : n, deployment: D, instanceId: instanceIdOf(Buffer.from(ev.instanceKey, "hex")).toString("hex"),
+                 transportSpki: ev.spki, proofKey: signer.address.toLowerCase() };
+    const sig = await signer.sign({ hash: "0x" + siblingDigest({ ...st, nonce: n }).toString("hex") });
+    return { ...st, sig: sig.slice(2) };
+  };
+  const m = createPvmMarket({ hub: s.hub, enabled: true, pins: { codeHashes: new Set([CODE.toString("hex")]), authorityHashes: new Set([AUTH.toString("hex")]), runtimeIds: new Set([RID]) },
+    rootPins: [s.ca.rootPin], now: () => s.clock.t, log: () => {}, confirmRow: async (id) => (id === D ? { ...s.ledger.d } : null),
+    readCatalog: async () => ({ app: { active: true }, version: { cid: CID, memMb: 128, ports: "", approval: 1, yanked: false } }),
+    fetchVerified: async (cid) => (cid === CID ? { ok: true, bytes: COMPONENT } : { ok: false }),
+    ...(noReader ? {} : { proofKeyOf: async (id) => (id === ROW_ID ? registered.toLowerCase() : null) }) });
+  return { ...s, m };
+}
+
+test("a sibling VM's evidence is the host's when it proves the host's registered proof key; nothing else is", { skip }, async () => {
+  const ok = siblingSetup();
+  const r = await ok.m.certificate(ok.row, ok.ledger.d);
+  assert.equal(r.ok, true, r.reason);
+  assert.ok(ok.hub.asked.some((p) => p.startsWith("/v1/pvm/sibling")), "the relay asked for the statement over its own nonce");
+  for (const [name, s, re] of [
+    ["a key the registry does not name", siblingSetup({ signer: STRANGER }), /does not hold this host's registered proof key/],
+    ["the registry names another key", siblingSetup({ registered: STRANGER.address }), /does not hold this host's registered proof key/],
+    ["a statement for another nonce", siblingSetup({ tamper: "nonce" }), /not for this nonce/],
+    ["no proof-key reader: only the tunnel's VM", siblingSetup({ noReader: true }), /not from the VM attached as this host/],
+  ]) {
+    const x = await s.m.certificate(s.row, s.ledger.d);
+    assert.equal(x.ok, false, name); assert.match(x.reason, re, name);
+  }
 });

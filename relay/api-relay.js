@@ -2301,7 +2301,14 @@ const shieldMarket = createShieldMarketplace({ hub: tunnelHub,
 });
 // PVM_MARKET=1 lets admitted, registered pVM CPU hosts take buyers' CPU-only apps (relay/pvm-market.mjs), under the tier's
 // own pins (PVM_CPU_CODE_HASHES / _AUTHORITY_HASHES / _RUNTIME_IDS): without them the market stays off.
-const pvmMarket = createPvmMarket({ hub: tunnelHub, enabled: process.env.PVM_MARKET === "1", pins: PVM_CPU_POLICY, confirmRow,
+// a pVM host's registered proof key: a sibling VM proves it to have its evidence taken as the host's (pvm-market.mjs)
+const PROOF_GET_ABI = [{ type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: ENCLAVE_TUPLE_V3 }] }];
+async function registryProofKey(id) {
+  if (!REGISTRY_ADDRESS) return null;
+  const e = await (await chain()).readContract({ address: REGISTRY_ADDRESS, abi: PROOF_GET_ABI, functionName: "get", args: [id] });
+  return e?.active ? String(e.proofKey || "").toLowerCase() : null;
+}
+const pvmMarket = createPvmMarket({ hub: tunnelHub, enabled: process.env.PVM_MARKET === "1", pins: PVM_CPU_POLICY, confirmRow, proofKeyOf: registryProofKey,
   readCatalog: catalogReader(catalogClients, catalogAddress), fetchVerified: (cid, max) => predictor().fetchVerified(cid, max) });
 // a pVM host's secrets: sealed to its VM, signed by the release key, never plaintext to the operator (relay/pvm-secrets.mjs)
 const pvmSecretRelease = createPvmSecretRelease({ hub: tunnelHub, market: pvmMarket, pins: PVM_CPU_POLICY, confirmRow,
