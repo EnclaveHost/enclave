@@ -62,9 +62,9 @@ class FleetList extends EnclaveElement {
     const rows = (this.rows || []).filter((e) => appHostVisible(e));
     const ownerRows = (this.rows || []).filter(e => ownerHostVisibleTo(e, Enclave.address))
       .map(e => ({ row: e, count: ownerHostedDeploymentCount(e) }));
-    // pVM CPU hosts: attested and admitted by the relay, shown as status rows (no price, no availability meter) until
-    // the tier takes deployments
-    const pvmRows = (this.rows || []).filter(e => pvmHostVisible(e));
+    // pVM CPU hosts the relay has not put in the market (not registered, or the market off): a status row with the same
+    // pool and no price. One the relay holds eligible and serving is a marketplace row above, priced like any other.
+    const pvmRows = (this.rows || []).filter(e => pvmHostVisible(e) && !appHostVisible(e));
     const meter = (pct) => '<i class="fleet-meter" aria-hidden="true"><b style="width:' + Math.max(0, Math.min(100, pct)) + '%"></b></i>';
     // one stat cell: bright available amount, then the "≈"/"/ total" context and
     // the label in dim ink so the number is what the eye lands on
@@ -201,6 +201,8 @@ class FleetList extends EnclaveElement {
             && e.eligible === true && e.appEvidenceRequired === true;
           const teeCpuBadge = shieldCpu
             ? '<span class="ap-badge info" title="Enclave Shield: the relay verifies each app’s measured partition and guest-held TLS key. The physical operator and hypervisor remain trusted.">cpu</span>'
+            : tc.real && tc.phone && e.eligible === true && e.appEvidenceRequired === true
+            ? '<span class="ap-badge info" title="' + esc(tc.note) + '. The relay verified this phone\u2019s protected-VM attestation chain when it attached and admitted its capability report (a CPU-only Wasm runtime: no model, no accelerator). It takes CPU-only deployments: before an app is served or given a certificate, the relay verifies a fresh attestation from the VM binding that app\u2019s code and its TLS key, so TLS ends inside the protected VM.">pvm cpu</span>'
             : tc.real && tc.phone
             ? '<span class="ap-badge warn" title="' + esc(tc.note) + '. The relay verified this phone\u2019s protected-VM attestation chain when it attached and admitted its capability report (a CPU-only Wasm runtime: no model, no accelerator). The tier runs CPU-only workloads; it is being built for Pixel 10 and Pixel 11 and is not available for deployments yet.">pvm cpu</span>'
             : tc.real && tc.phoneUntiered

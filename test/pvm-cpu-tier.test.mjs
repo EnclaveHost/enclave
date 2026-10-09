@@ -141,12 +141,17 @@ test("the hub's AVF policy: the tier needs no legacy or pad pins beside it; with
   assert.deepEqual(both.authorityHashes, ["cc".repeat(48), AUTH]);
 });
 
-test("a pVM CPU row's pool is the relay-verified VM size, wholly unallocated, with GFLOPS unreported", () => {
-  const phoneSaid = { ok: true, role: "phone-anchor", gpu: false, nodeVcpus: 64, nodeRamGb: 512, cpuShareFree: 0.01 };
+test("a pVM CPU row's pool is the relay-verified VM size; the host may only lower what is free; GFLOPS unreported", () => {
+  const phoneSaid = { ok: true, role: "phone-anchor", gpu: false, nodeVcpus: 64, nodeRamGb: 512 };
   const row = { tier: "pvm-cpu", pvmCpu: { runtime: RUNTIME, vm: { threads: 8, memMib: 1994 } } };
   assert.deepEqual(pvmCpuAvailability(row, phoneSaid),
     { ok: true, role: "phone-anchor", gpu: false, nodeVcpus: 8, nodeRamGb: 1.9, ramGbFree: 1.9, cpuShareFree: 1, capacitySource: "pvm-capability-report" },
     "the VM's signed figures replace the phone host's own word");
+  // the host agent's one slot taken by a buyer's app: nothing free, the VM's size unchanged
+  assert.deepEqual(pvmCpuAvailability(row, { ...phoneSaid, cpuShareFree: 0 }),
+    { ok: true, role: "phone-anchor", gpu: false, nodeVcpus: 8, nodeRamGb: 1.9, ramGbFree: 0, cpuShareFree: 0, capacitySource: "pvm-capability-report" });
+  assert.equal(pvmCpuAvailability(row, { cpuShareFree: 0.5 }).ramGbFree, 1);
+  for (const bad of [2, -0.1, "0", NaN, null]) assert.equal(pvmCpuAvailability(row, { cpuShareFree: bad }).cpuShareFree, 1, `an unreadable share (${bad}) frees nothing up and takes nothing away`);
   assert.equal(pvmCpuAvailability(row, phoneSaid).nodeGflops, undefined, "no native-core GFLOPS convention for an interpreted runtime");
   for (const r of [{ ...row, tier: undefined }, { tier: "pvm-cpu" }, { ...row, pvmCpu: { vm: { threads: 0, memMib: 1994 } } }, { ...row, pvmCpu: { vm: { threads: 8, memMib: "2G" } } }, null])
     assert.equal(pvmCpuAvailability(r, phoneSaid), phoneSaid, "no admitted report: the row keeps what the box sent");
@@ -161,4 +166,5 @@ test("a report may carry the VM's measured GFLOPS: carried to the pool when well
   const row = { tier: "pvm-cpu", pvmCpu: { runtime: RUNTIME, vm: { threads: 8, memMib: 1994 }, gflops: 12.35 } };
   const a = pvmCpuAvailability(row, { ok: true });
   assert.equal(a.nodeGflops, 12.35); assert.equal(a.cpuGflopsFree, 12.35, "all of it unallocated");
+  assert.equal(pvmCpuAvailability(row, { ok: true, cpuShareFree: 0 }).cpuGflopsFree, 0, "a taken slot frees no compute");
 });

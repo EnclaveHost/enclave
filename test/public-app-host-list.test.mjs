@@ -184,6 +184,10 @@ test("an attested, admitted pVM host is a status row: shown, never a marketplace
   assert.equal(appHostVisible(pvmRow, now), false, "not serving, not eligible: never in the sales list");
   assert.equal(pvmHostVisible(pvmRow, now), true, "but shown as what it is");
   assert.equal(pvmHostVisible(pvmRow, pvmRow.lastSeen + HOST_STALE_AFTER_SEC + 1), false, "a stale phone drops out");
+  // in the market (the relay's verdicts: eligible, serving): a marketplace row like any other host
+  const market = { ...pvmRow, serving: true, eligible: true, appEvidenceRequired: true, ineligible: undefined };
+  assert.equal(appHostVisible(market, now), true, "a pVM host the relay put in the market is a marketplace host");
+  assert.equal(appHostVisible({ ...market, serving: false }, now), false, "not serving: not in the marketplace list");
   // only the relay's own stamps make it one: the lane and the tier from the relay's verdict, an attested AVF tunnel
   for (const over of [{ lane: undefined }, { tier: "vbs-dev" }, { mode: "snp" }, { tunnel: false }, { relay: true },
                       { availability: { ...pvmRow.availability, ok: false } }])
@@ -198,7 +202,10 @@ test("a pVM host's size is its signed report's, and unknown stays unknown", () =
 
 test("the fleet list renders pVM hosts with the same availability pool as other CPU rows, without a price (pinned in source)", () => {
   const src = fs.readFileSync(path.join(ROOT, "site/components/fleet-list/fleet-list.js"), "utf8");
-  assert.match(src, /const pvmRows = \(this\.rows \|\| \[\]\)\.filter\(e => pvmHostVisible\(e\)\);/);
+  // a pVM host the relay put in the market (eligible + serving) is a marketplace row, priced like any other; only one it has
+  // not is the price-less status row
+  assert.match(src, /const pvmRows = \(this\.rows \|\| \[\]\)\.filter\(e => pvmHostVisible\(e\) && !appHostVisible\(e\)\);/);
+  assert.match(src, /tc\.real && tc\.phone && e\.eligible === true && e\.appEvidenceRequired === true/, "the market's pvm cpu badge says it takes deployments");
   const block = src.slice(src.indexOf("const pvmItems = pvmRows.map"), src.indexOf("this._wireRate();"));
   assert.ok(block.length > 0);
   assert.match(block, /fleet-pvm-row/);

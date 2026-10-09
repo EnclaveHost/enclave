@@ -77,8 +77,11 @@ export function pvmCpuAvailability(row, availability) {
   if (!vm || !Number.isInteger(vm.threads) || vm.threads < 1 || !Number.isInteger(vm.memMib) || vm.memMib < 1) return availability;
   const ramGb = Math.round(vm.memMib / 102.4) / 10;
   const g = row.pvmCpu.gflops;
-  const gflops = typeof g === "number" && Number.isFinite(g) && g > 0 ? { nodeGflops: g, cpuGflopsFree: g } : {};
-  return { ...(availability || {}), gpu: false, nodeVcpus: vm.threads, nodeRamGb: ramGb, ramGbFree: ramGb, cpuShareFree: 1, ...gflops,
+  // the host may only LOWER what is free (its one slot taken by a buyer's app): a share in [0, 1], else the whole VM
+  const said = availability && availability.cpuShareFree;
+  const free = typeof said === "number" && Number.isFinite(said) && said >= 0 && said <= 1 ? said : 1;
+  const gflops = typeof g === "number" && Number.isFinite(g) && g > 0 ? { nodeGflops: g, cpuGflopsFree: Math.round(g * free * 100) / 100 } : {};
+  return { ...(availability || {}), gpu: false, nodeVcpus: vm.threads, nodeRamGb: ramGb, ramGbFree: Math.round(ramGb * free * 10) / 10, cpuShareFree: free, ...gflops,
            capacitySource: "pvm-capability-report" };
 }
 
