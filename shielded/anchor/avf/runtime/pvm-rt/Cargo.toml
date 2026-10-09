@@ -23,6 +23,9 @@ hyper = { version = "1", default-features = false, features = ["server", "client
 # the response-body wrapper in httpd.rs (Checked); already in the tree through wasmtime-wasi-http
 http-body-util = "0.1"
 http = "1"
+# the app's outbound https (src/egress.rs): TLS made in the VM against the public web roots, as the platform runner's default
+# request path does (wasmtime-wasi-http default-send-request), over a stream the host opened
+webpki-roots = "1"
 # TLS terminating INSIDE the VM (httpd.rs, the serving prototype): TLS 1.3 only, ring as the one crypto provider (no
 # aws-lc: nothing to cross-build in C beyond ring's own), a self-signed certificate over the VM's attested Ed25519
 # transport key, made in the VM at open

@@ -14,10 +14,12 @@
 //!     are never linked, so a component that imports one does not instantiate. The C entry points keep two reserved
 //!     pointer slots where a model was once passed (nn_name, nn_ops); both must be null, and anything else is refused.
 
+pub mod egress;
 pub mod httpd;
 pub mod loopnet;
 pub mod proof;
 pub mod sealed;
+pub mod waf;
 
 use sha2::{Digest, Sha256};
 use std::ffi::{c_char, c_int, c_void, CStr};
@@ -630,6 +632,7 @@ pub extern "C" fn pvmrt_http_open(
         nn_name,
         nn_ops,
         None,
+        std::ptr::null(),
         emit,
         compile_ms,
         err,
@@ -670,6 +673,7 @@ pub extern "C" fn pvmrt_https_open(
         nn_name,
         nn_ops,
         Some((&seed, TlsKind::Ed25519)),
+        std::ptr::null(),
         emit,
         compile_ms,
         err,
@@ -677,6 +681,130 @@ pub extern "C" fn pvmrt_https_open(
     );
     seed.iter_mut().for_each(|b| *b = 0);
     r
+}
+
+/// The app's options as the payload hands them over (httpd.rs AppOptions), C layout. Every field may be null/0: no
+/// variables, no rules, no egress.
+///   env        "K=V\0K=V\0...": the deployment's environment (ENCLAVE_CONFIG, ENCLAVE_HOSTS, the owner's secrets), checked
+///              here: names [A-Za-z_][A-Za-z0-9_]{0,63}, values UTF-8 without NUL, no duplicate, at most ENV_MAX_VARS and
+///              ENV_MAX_BYTES, and none of the runtime's own (ENCLAVE_PORTS, ENCLAVE_MEM_MB)
+///   waf        the owner's protection rules, normalised JSON (waf.rs), NUL-terminated
+///   egress_open(ctx, host, port, err, errcap)   one outbound stream: its fd (owned by the runtime from then on), or -1
+///              with the reason in err
+///   egress_resolve(ctx, name, out, cap)         a name's addresses, comma-separated in out: 0, or -1 with the reason in out
+#[repr(C)]
+pub struct PvmrtAppOpts {
+    pub env: *const u8,
+    pub env_len: usize,
+    pub waf: *const c_char,
+    pub egress_open: Option<extern "C" fn(*mut c_void, *const c_char, u16, *mut c_char, usize) -> c_int>,
+    pub egress_resolve: Option<extern "C" fn(*mut c_void, *const c_char, *mut c_char, usize) -> c_int>,
+    pub egress_ctx: *mut c_void,
+}
+
+/// The most variables, and bytes of them, an app is started with (the platform's ENCLAVE_CONFIG rides one of them).
+pub const ENV_MAX_VARS: usize = 128;
+pub const ENV_MAX_BYTES: usize = 192 << 10;
+/// The variables the runtime itself sets.
+const ENV_RUNTIME_OWNED: &[&str] = &["ENCLAVE_PORTS", "ENCLAVE_MEM_MB"];
+
+/// The environment block, checked (PvmrtAppOpts.env).
+pub fn parse_env(block: &[u8]) -> std::result::Result<Vec<(String, String)>, String> {
+    if block.len() > ENV_MAX_BYTES {
+        return Err(format!("the app's environment is {} bytes, over {ENV_MAX_BYTES}", block.len()));
+    }
+    let mut out: Vec<(String, String)> = Vec::new();
+    for e in block.split(|b| *b == 0).filter(|e| !e.is_empty()) {
+        let e = std::str::from_utf8(e).map_err(|_| "an environment entry is not UTF-8".to_string())?;
+        let (k, v) = e.split_once('=').ok_or("an environment entry has no '='")?;
+        let ok = !k.is_empty()
+            && k.len() <= 64
+            && k.bytes().next().is_some_and(|b| b.is_ascii_alphabetic() || b == b'_')
+            && k.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_');
+        if !ok {
+            return Err(format!("{k:?} is not an environment variable name"));
+        }
+        if ENV_RUNTIME_OWNED.contains(&k) {
+            return Err(format!("{k} is the runtime's own variable"));
+        }
+        if out.iter().any(|(x, _)| x == k) {
+            return Err(format!("{k} is set twice"));
+        }
+        out.push((k.to_string(), v.to_string()));
+        if out.len() > ENV_MAX_VARS {
+            return Err(format!("the app's environment has more than {ENV_MAX_VARS} variables"));
+        }
+    }
+    Ok(out)
+}
+
+/// The payload's egress callbacks and their context, callable from any thread (the payload's contract).
+struct CEgress {
+    open: extern "C" fn(*mut c_void, *const c_char, u16, *mut c_char, usize) -> c_int,
+    resolve: extern "C" fn(*mut c_void, *const c_char, *mut c_char, usize) -> c_int,
+    ctx: *mut c_void,
+}
+// SAFETY: the payload's egress callbacks are thread-safe and its context lives as long as the app (PvmrtAppOpts).
+unsafe impl Send for CEgress {}
+unsafe impl Sync for CEgress {}
+
+fn app_options(p: *const PvmrtAppOpts) -> std::result::Result<httpd::AppOptions, String> {
+    if p.is_null() {
+        return Ok(httpd::AppOptions::default());
+    }
+    // SAFETY: a non-null opts points to a PvmrtAppOpts by the caller's contract.
+    let o = unsafe { &*p };
+    let env = if o.env.is_null() || o.env_len == 0 {
+        Vec::new()
+    } else {
+        // SAFETY: env points to env_len bytes by the caller's contract.
+        parse_env(unsafe { std::slice::from_raw_parts(o.env, o.env_len) })?
+    };
+    let waf = if o.waf.is_null() {
+        None
+    } else {
+        // SAFETY: waf is NUL-terminated by the caller's contract.
+        let j = unsafe { CStr::from_ptr(o.waf) }.to_str().map_err(|_| "the protection rules are not UTF-8".to_string())?;
+        Some(Arc::new(waf::Waf::parse(j)?))
+    };
+    let egress = match (o.egress_open, o.egress_resolve) {
+        (Some(open), Some(resolve)) => {
+            let c = Arc::new(CEgress { open, resolve, ctx: o.egress_ctx });
+            let c2 = c.clone();
+            let open_fn: Arc<egress::OpenFn> = Arc::new(move |host: &str, port: u16| {
+                let h = std::ffi::CString::new(host).map_err(|_| "a NUL in the host".to_string())?;
+                let mut why = [0 as c_char; 256];
+                let fd = (c.open)(c.ctx, h.as_ptr(), port, why.as_mut_ptr(), why.len());
+                if fd >= 0 {
+                    return Ok(fd);
+                }
+                why[why.len() - 1] = 0;
+                // SAFETY: NUL-terminated just above (and zeroed before the call).
+                Err(unsafe { CStr::from_ptr(why.as_ptr()) }.to_string_lossy().into_owned())
+            });
+            let resolve_fn: Arc<egress::ResolveFn> = Arc::new(move |name: &str| {
+                let n = std::ffi::CString::new(name).map_err(|_| "a NUL in the name".to_string())?;
+                let mut out = vec![0 as c_char; 2048];
+                let r = (c2.resolve)(c2.ctx, n.as_ptr(), out.as_mut_ptr(), out.len());
+                *out.last_mut().expect("non-empty") = 0;
+                // SAFETY: NUL-terminated just above.
+                let text = unsafe { CStr::from_ptr(out.as_ptr()) }.to_string_lossy().into_owned();
+                if r != 0 {
+                    return Err(text);
+                }
+                let ips: Vec<std::net::IpAddr> = text.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+                if ips.is_empty() {
+                    Err("no addresses".into())
+                } else {
+                    Ok(ips)
+                }
+            });
+            Some(egress::Egress::new(open_fn, resolve_fn))
+        }
+        (None, None) => None,
+        _ => return Err("egress needs both its open and its resolve callback".into()),
+    };
+    Ok(httpd::AppOptions { env, egress, waf })
 }
 
 /// Which key a TLS server is opened with.
@@ -691,7 +819,7 @@ enum TlsKind {
 /// `pvmrt_https_open` for the marketplace host (httpd.rs `with_tls_p256`): `tls_seed` is a 32-byte seed the payload takes
 /// from the VM instance's secret for this app; the P-256 TLS key is derived from it here. It is copied, not kept; null is
 /// refused. The key's SPKI: `pvmrt_https_tls_spki`; a certificate request: `pvmrt_https_csr`; a CA's chain:
-/// `pvmrt_https_set_chain`.
+/// `pvmrt_https_set_chain`. `opts` (or null): the app's environment, egress and protection rules (PvmrtAppOpts).
 #[no_mangle]
 pub extern "C" fn pvmrt_https_open_p256(
     bundle: *const u8,
@@ -702,6 +830,7 @@ pub extern "C" fn pvmrt_https_open_p256(
     nn_name: *const c_char,
     nn_ops: *const c_void,
     tls_seed: *const u8,
+    opts: *const PvmrtAppOpts,
     emit: EmitFn,
     compile_ms: *mut u64,
     err: *mut c_char,
@@ -723,6 +852,7 @@ pub extern "C" fn pvmrt_https_open_p256(
         nn_name,
         nn_ops,
         Some((&seed, TlsKind::P256)),
+        opts,
         emit,
         compile_ms,
         err,
@@ -735,8 +865,9 @@ pub extern "C" fn pvmrt_https_open_p256(
 /// A socket-server app for the marketplace host (httpd.rs `open_socket_app` + `with_tls_p256`): a wasi:cli/run component that
 /// binds `port` (ENCLAVE_PORTS http:<port>=<port>) on the VM's loopback, started and fronted by TLS 1.3 under the P-256 key
 /// derived from `tls_seed`; every request but the evidence paths is proxied to it. `data_dir` (NUL-terminated, or null) is
-/// preopened as the app's /data. Returns once the app listens, or null with the reason in `err`. The rest of the https
-/// surface (serve_fd, tls_spki, csr, set_chain, set_attest, requests, close) is the same as for a wasi:http app.
+/// preopened as the app's /data. `opts` (or null): the app's environment, egress and protection rules (PvmrtAppOpts).
+/// Returns once the app listens, or null with the reason in `err`. The rest of the https surface (serve_fd, tls_spki, csr,
+/// set_chain, set_attest, requests, close) is the same as for a wasi:http app.
 #[no_mangle]
 pub extern "C" fn pvmrt_https_open_p256_socket(
     bundle: *const u8,
@@ -746,6 +877,7 @@ pub extern "C" fn pvmrt_https_open_p256_socket(
     port: u32,
     data_dir: *const c_char,
     tls_seed: *const u8,
+    opts: *const PvmrtAppOpts,
     emit: EmitFn,
     compile_ms: *mut u64,
     err: *mut c_char,
@@ -775,11 +907,15 @@ pub extern "C" fn pvmrt_https_open_p256_socket(
             _ => return refuse("data_dir is not a UTF-8 path"),
         }
     };
+    let app_opts = match app_options(opts) {
+        Ok(o) => o,
+        Err(e) => return refuse(&e),
+    };
     let mut seed = [0u8; 32];
     // SAFETY: tls_seed is non-null and points to 32 bytes by the caller's contract.
     unsafe { std::ptr::copy_nonoverlapping(tls_seed, seed.as_mut_ptr(), 32) };
     let log: Box<dyn Fn(&[u8]) + Send + Sync> = Box::new(move |b: &[u8]| emit(2, b.as_ptr(), b.len()));
-    let opened = httpd::HttpServer::open_socket_app(bytes, &want, mem_limit as usize, port as u16, dir.as_deref(), Some(log))
+    let opened = httpd::HttpServer::open_socket_app(bytes, &want, mem_limit as usize, port as u16, dir.as_deref(), app_opts, Some(log))
         .and_then(|s| s.with_tls_p256(&seed));
     seed.iter_mut().for_each(|b| *b = 0);
     match opened {
@@ -918,6 +1054,7 @@ fn http_open(
     nn_name: *const c_char,
     nn_ops: *const c_void,
     tls_seed: Option<(&[u8; 32], TlsKind)>,
+    opts: *const PvmrtAppOpts,
     emit: EmitFn,
     compile_ms: *mut u64,
     err: *mut c_char,
@@ -929,6 +1066,10 @@ fn http_open(
     };
     let Some(emit) = emit else {
         return refuse("no emit callback: the server's notes would be lost; refusing");
+    };
+    let app_opts = match app_options(opts) {
+        Ok(o) => o,
+        Err(e) => return refuse(&e),
     };
     let (bytes, want) =
         match checked_inputs(bundle, len, sha256, mem_limit, deadline_ms, nn_name, nn_ops) {
@@ -948,7 +1089,8 @@ fn http_open(
         Some((seed, TlsKind::Ed25519)) => s.with_tls(seed),
         Some((seed, TlsKind::P256)) => s.with_tls_p256(seed),
         None => Ok(s),
-    });
+    })
+    .and_then(|s| s.with_app_options(app_opts));
     match opened {
         Ok(s) => {
             if !compile_ms.is_null() {

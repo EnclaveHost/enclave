@@ -17,7 +17,7 @@ import { createProofAgent, checkAgentConfig } from "./proof-agent.mjs";
 import { createAttachCosigner, serveAttachCosigner } from "./attach-cosigner.mjs";
 
 export const RUNNER_CONFIG_FORMAT = "enclave-pvm-runner-agent/v1";
-export const LIFECYCLE_DEFAULTS = Object.freeze({ claim: false, syncProofKey: true, renewMarginSec: 600, heartbeatSec: 900, maxClaimBond6: "0", finalProofWaitMs: 70000 });
+export const LIFECYCLE_DEFAULTS = Object.freeze({ claim: false, gpuOptional: false, syncProofKey: true, renewMarginSec: 600, heartbeatSec: 900, maxClaimBond6: "0", finalProofWaitMs: 70000 });
 const ZERO = "0x0000000000000000000000000000000000000000", ZERO32 = "0x" + "00".repeat(32);
 
 /** Strict, like the proof agent's: { format, proof: <an enclave-pvm-proof-agent/v1 config>, lifecycle: { ... } }. */
@@ -53,7 +53,7 @@ export function checkRunnerConfig(c) {
     const pinned = c.proof.evidence.allowedCodeHashes;
     if (!pinned.includes(r.measurement.slice(2))) bad(`lifecycle.register.measurement must be one of the evidence's allowedCodeHashes (the attested build's code hash)${pinned.length === 1 ? `: ${pinned[0]}` : ""}`);
   }
-  for (const k of ["claim", "syncProofKey"]) if (l[k] !== undefined && typeof l[k] !== "boolean") bad(`lifecycle.${k} must be true or false`);
+  for (const k of ["claim", "syncProofKey", "gpuOptional"]) if (l[k] !== undefined && typeof l[k] !== "boolean") bad(`lifecycle.${k} must be true or false`);
   for (const k of ["renewMarginSec", "heartbeatSec", "finalProofWaitMs"]) if (l[k] !== undefined && (!Number.isInteger(l[k]) || l[k] < 60)) bad(`lifecycle.${k} must be an integer >= 60`);
   if (l.maxClaimBond6 !== undefined && !/^(0|[1-9][0-9]{0,30})$/.test(l.maxClaimBond6)) bad("lifecycle.maxClaimBond6 must be a decimal (0: never bond)");
   return { ...c, lifecycle: { ...LIFECYCLE_DEFAULTS, ...l } };
@@ -118,8 +118,10 @@ export async function createRunnerAgent({ config, publicClient, account, stateDi
         else return agent.sendCall({ op: "renew", contract: "deployments", functionName: "renew", args: [D], event: "Renewed", eventId: D });
       }
     } else if (s.active && L.claim && s.headTs > s.leaseUntil) {   // open: never leased, released, or a lapsed lease (ours re-claimed in place)
-      // a pVM runner takes CPU-only workloads (PVM-CPU.md): a deployment asking for ANY GPU share is never claimed here
-      if (s.gpuMilli !== 0) return { kind: "not-cpu-only", stop: true, reason: `the deployment asks gpuMilli ${s.gpuMilli}: a pVM runner takes CPU-only workloads (gpuMilli 0); not claiming` };
+      // a pVM runner takes CPU-only workloads (PVM-CPU.md): a deployment asking for ANY GPU share is never claimed here --
+      // unless its owner or publisher said the card is optional (lifecycle.gpuOptional, the host agent's judgement of the
+      // envelope and the version): then it runs on cores, as on the CPU hosts, and pays for what it gets (no GPU price here)
+      if (s.gpuMilli !== 0 && L.gpuOptional !== true) return { kind: "not-cpu-only", stop: true, reason: `the deployment asks gpuMilli ${s.gpuMilli}: a pVM runner takes CPU-only workloads (gpuMilli 0); not claiming` };
       const bond = BigInt(await agent.readLedger("claimBond6", []));
       if (bond > 0n) {
         const [have, exitAt] = await agent.readLedger("bondOf", [me]);

@@ -5,7 +5,10 @@
 //!   GET /ping            {"ok":true}
 //!   GET /count           {"count":N}   (N counts the requests this instance has served: proof that state persists)
 //!   GET /env             {"ports":"<ENCLAVE_PORTS>","mem":"<ENCLAVE_MEM_MB>"}
-//!   GET /dial?to=<a:p>   {"dial":"refused"|"connected"}   (outbound connects are the host's to allow; the pVM refuses)
+//!   GET /env?name=<N>    {"name":"<N>","value":"<its value>"|null}   (the deployment's config, hostnames, secrets)
+//!   GET /dial?to=<h:p>   {"dial":"refused"|"connected"[,"reply":"<first line>"]}   (h a name or an address; on connect it
+//!                        sends "ping\n" and reads one line back: outbound connects are the host's to allow)
+//!   GET /resolve?name=<n> {"addrs":["<ip>",...]} or {"addrs":null}   (name lookup, the host's to answer)
 //!   GET /bind?port=<p>   {"bind":"ok"|"refused"}          (a port other than its own is the host's to allow; the pVM refuses)
 //!   POST /echo           the request body back
 use std::io::{BufRead, BufReader, Read, Write};
@@ -14,6 +17,20 @@ use std::net::{TcpListener, TcpStream};
 fn port() -> u16 {
     let v = std::env::var("ENCLAVE_PORTS").unwrap_or_default();
     v.split(',').find_map(|e| e.strip_prefix("http:").and_then(|r| r.split('=').nth(1)).and_then(|p| p.parse().ok())).unwrap_or(8000)
+}
+
+fn json(s: &str) -> String {
+    let mut o = String::from("\"");
+    for c in s.chars() {
+        match c {
+            '"' => o.push_str("\\\""),
+            '\\' => o.push_str("\\\\"),
+            c if (c as u32) < 0x20 => o.push_str(&format!("\\u{:04x}", c as u32)),
+            c => o.push(c),
+        }
+    }
+    o.push('"');
+    o
 }
 
 fn respond(mut s: &TcpStream, status: &str, body: &[u8], close: bool) -> std::io::Result<()> {
@@ -49,12 +66,34 @@ fn serve(stream: TcpStream, count: &mut u64) -> std::io::Result<()> {
         let out = match (method.as_str(), path) {
             ("GET", "/ping") => b"{\"ok\":true}".to_vec(),
             ("GET", "/count") => format!("{{\"count\":{count}}}").into_bytes(),
+            ("GET", "/env") if target.contains("name=") => {
+                let name = target.split("name=").nth(1).unwrap_or("");
+                let v = std::env::var(name).ok().map(|v| json(&v)).unwrap_or_else(|| "null".into());
+                format!("{{\"name\":{},\"value\":{v}}}", json(name)).into_bytes()
+            }
             ("GET", "/env") => format!("{{\"ports\":\"{}\",\"mem\":\"{}\"}}", std::env::var("ENCLAVE_PORTS").unwrap_or_default(),
                                        std::env::var("ENCLAVE_MEM_MB").unwrap_or_default()).into_bytes(),
             ("GET", "/dial") => {
+                use std::net::ToSocketAddrs;
                 let to = target.split("to=").nth(1).unwrap_or("1.1.1.1:443");
-                let ok = to.parse::<std::net::SocketAddr>().ok().map(|a| TcpStream::connect(a).is_ok()).unwrap_or(false);
-                format!("{{\"dial\":\"{}\"}}", if ok { "connected" } else { "refused" }).into_bytes()
+                let conn = to.to_socket_addrs().ok().and_then(|mut a| a.next()).and_then(|a| TcpStream::connect(a).ok());
+                match conn {
+                    Some(c) => {
+                        let _ = (&c).write_all(b"ping\n");
+                        let mut reply = String::new();
+                        let _ = BufReader::new(&c).read_line(&mut reply);
+                        format!("{{\"dial\":\"connected\",\"reply\":{}}}", json(reply.trim_end())).into_bytes()
+                    }
+                    None => b"{\"dial\":\"refused\"}".to_vec(),
+                }
+            }
+            ("GET", "/resolve") => {
+                use std::net::ToSocketAddrs;
+                let name = target.split("name=").nth(1).unwrap_or("");
+                match (name, 0u16).to_socket_addrs() {
+                    Ok(a) => format!("{{\"addrs\":[{}]}}", a.map(|x| json(&x.ip().to_string())).collect::<Vec<_>>().join(",")).into_bytes(),
+                    Err(_) => b"{\"addrs\":null}".to_vec(),
+                }
             }
             ("GET", "/bind") => {
                 let p: u16 = target.split("port=").nth(1).and_then(|x| x.parse().ok()).unwrap_or(0);

@@ -44,48 +44,18 @@ use wasmtime::{Engine, Result, Store, StoreLimits, StoreLimitsBuilder, UpdateDea
 use wasmtime_wasi::p2::pipe::MemoryOutputPipe;
 use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 use wasmtime_wasi_http::io::TokioIo;
-use wasmtime_wasi_http::p2::bindings::http::types::{ErrorCode, Scheme};
+use wasmtime_wasi_http::p2::bindings::http::types::Scheme;
 use wasmtime_wasi_http::p2::bindings::ProxyPre;
 use wasmtime_wasi_http::p2::body::HyperOutgoingBody;
-use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpCtxView, WasiHttpHooks, WasiHttpView};
+use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpCtxView, WasiHttpView};
 
 /// The epoch tick: a request's deadline is counted in these.
 const TICK: Duration = Duration::from_millis(10);
 
-/// No outgoing HTTP from inside the VM.
-struct NoOutgoing;
-impl WasiHttpHooks for NoOutgoing {
-    fn send_request(
-        &mut self,
-        _request: http::Request<wasmtime_wasi_http::WasiBody>,
-        _options: Option<wasmtime_wasi_http::RequestOptions>,
-        _fut: Box<
-            dyn std::future::Future<Output = std::result::Result<(), wasmtime_wasi_http::Error>>
-                + Send,
-        >,
-    ) -> Box<
-        dyn std::future::Future<
-                Output = std::result::Result<
-                    (
-                        http::Response<wasmtime_wasi_http::WasiBody>,
-                        Box<
-                            dyn std::future::Future<
-                                    Output = std::result::Result<(), wasmtime_wasi_http::Error>,
-                                > + Send,
-                        >,
-                    ),
-                    wasmtime_wasi_http::Error,
-                >,
-            > + Send,
-    > {
-        Box::new(async { Err(ErrorCode::HttpRequestDenied.into()) })
-    }
-}
-
 struct HttpState {
     wasi: WasiCtx,
     http: WasiHttpCtx,
-    hooks: NoOutgoing,
+    hooks: crate::egress::EgressHooks,
     table: ResourceTable,
     limits: StoreLimits,
 }
@@ -105,6 +75,16 @@ impl WasiHttpView for HttpState {
             hooks: &mut self.hooks,
         }
     }
+}
+
+/// What the deployment gives its app beyond the component (PVM-CPU.md "Serving buyers"): its environment (ENCLAVE_CONFIG,
+/// ENCLAVE_HOSTS, its owner's secrets -- the host agent's, checked by the payload), its way out (egress.rs), and its
+/// owner's protection rules (waf.rs). The default is none of them: no variables, no egress, no rules.
+#[derive(Clone, Default)]
+pub struct AppOptions {
+    pub env: Vec<(String, String)>,
+    pub egress: Option<crate::egress::Egress>,
+    pub waf: Option<Arc<crate::waf::Waf>>,
 }
 
 /// One verified, compiled, pre-instantiated HTTP component, and what every request of it gets.
@@ -133,6 +113,8 @@ pub struct HttpServer {
     idle_close: Duration,
     /// the browser channel's app key (sealed.rs), when enabled
     sealed: Option<sealed::SealedKey>,
+    /// the app's environment, egress and protection rules (AppOptions)
+    opts: AppOptions,
 }
 
 /// Ed25519 PKCS#8 v1 prefix: a 32-byte seed follows (RFC 8410).
@@ -317,7 +299,18 @@ impl HttpServer {
             attest: std::sync::OnceLock::new(),
             idle_close: IDLE_CLOSE,
             sealed: None,
+            opts: AppOptions::default(),
         })
+    }
+
+    /// A wasi:http app's environment, egress and protection rules (every request's instance gets them). A socket app takes
+    /// its own at `open_socket_app` (its one instance starts there); only its rules may be set here.
+    pub fn with_app_options(mut self, o: AppOptions) -> Result<HttpServer> {
+        if self.socket.is_some() && (!o.env.is_empty() || o.egress.is_some()) {
+            wasmtime::bail!("a socket app's environment and egress are fixed when it starts");
+        }
+        self.opts = o;
+        Ok(self)
     }
 
     /// Close idle connections after `d` instead of IDLE_CLOSE.
@@ -729,19 +722,92 @@ impl HttpServer {
         if let Some(r) = self.well_known(&req).await {
             return Ok(r);
         }
+        // the owner's protection rules, before the app sees a byte; a served request holds its concurrency slot until its
+        // response body is done
+        let (req, slot) = match self.admit(req).await {
+            Ok(x) => x,
+            Err(refusal) => return Ok(refusal),
+        };
+        let hold = |r: Result<hyper::Response<HyperOutgoingBody>>| r.map(|resp| match slot {
+            Some(slot) => resp.map(|inner| Holding { inner, _slot: slot }.boxed_unsync()),
+            None => resp,
+        });
         if let Some(app) = &self.socket {
-            return self.proxy(app.net.clone(), req, inflight).await;
+            return hold(self.proxy(app.net.clone(), req, inflight).await);
         }
+        hold(self.serve_wasi_http(req, inflight).await)
+    }
+
+    /// The deployment's rules applied to one request (waf.rs): the request with its body as the app will read it, and the
+    /// slot it holds -- or the refusal, answered as the platform answers it.
+    async fn admit(
+        &self,
+        req: hyper::Request<hyper::body::Incoming>,
+    ) -> std::result::Result<(hyper::Request<wasmtime_wasi_http::WasiBody>, Option<crate::waf::Slot>), hyper::Response<HyperOutgoingBody>> {
+        let Some(w) = self.opts.waf.clone() else { return Ok((req.map(|b| b.map_err(wasmtime_wasi_http::Error::from).boxed_unsync()), None)) };
+        let h = |k: &str| req.headers().get(k).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
+        let declared = req.headers().get(hyper::header::CONTENT_LENGTH).and_then(|v| v.to_str().ok()).and_then(|v| v.trim().parse::<u64>().ok());
+        let pq = req.uri().path_and_query().map(|p| p.as_str()).unwrap_or("/").to_string();
+        let slot = match w.check(req.method().as_str(), &pq, &h("user-agent"), declared) {
+            Ok(s) => s,
+            Err(d) => {
+                self.note(&format!("waf: {} {} refused: {} ({})", req.method(), pq.split('?').next().unwrap_or(""), d.error, d.status));
+                return Err(waf_answer(&d));
+            }
+        };
+        // a declared length is what hyper reads, no more; a body WITHOUT one is read (bounded) here, so one past the limit
+        // never reaches the app -- a declared length was the only check once, and a chunked body slipped past it
+        let (parts, body) = req.into_parts();
+        let body = match (w.body_limit(), declared) {
+            (Some(limit), None) => {
+                let cap = limit.min(BUFFERED_BODY_MAX);
+                let mut got = Vec::new();
+                let mut b = body;
+                while let Some(f) = b.frame().await {
+                    let f = f.map_err(|_| waf_answer(&crate::waf::body_refusal(limit)))?;
+                    if let Ok(d) = f.into_data() {
+                        got.extend_from_slice(&d);
+                        if got.len() as u64 > limit {
+                            self.note(&format!("waf: a {}-byte unsized body passed the {limit}-byte limit: refused", got.len()));
+                            return Err(waf_answer(&crate::waf::body_refusal(limit)));
+                        }
+                        if got.len() as u64 > cap {
+                            // past what the VM buffers: the rest streams, and the limit still ends it
+                            let head = Bytes::from(std::mem::take(&mut got));
+                            let rest = Counted { inner: b, seen: head.len() as u64, limit };
+                            let body = http_body_util::Full::new(head).map_err(|never| match never {}).boxed_unsync();
+                            let chained = Chain { first: Some(body), rest: Some(rest.boxed_unsync()) };
+                            return Ok((hyper::Request::from_parts(parts, chained.boxed_unsync()), Some(slot)));
+                        }
+                    }
+                }
+                // re-sent with its length: the app reads a sized body, as it would have from a client that declared one
+                let mut parts = parts;
+                parts.headers.remove(hyper::header::TRANSFER_ENCODING);
+                parts.headers.insert(hyper::header::CONTENT_LENGTH, hyper::header::HeaderValue::from(got.len()));
+                let body = http_body_util::Full::new(Bytes::from(got)).map_err(|never| match never {}).boxed_unsync();
+                return Ok((hyper::Request::from_parts(parts, body), Some(slot)));
+            }
+            _ => body.map_err(wasmtime_wasi_http::Error::from).boxed_unsync(),
+        };
+        Ok((hyper::Request::from_parts(parts, body), Some(slot)))
+    }
+
+    async fn serve_wasi_http(
+        &self,
+        req: hyper::Request<wasmtime_wasi_http::WasiBody>,
+        inflight: Arc<Inflight>,
+    ) -> Result<hyper::Response<HyperOutgoingBody>> {
         let n = self.requests.fetch_add(1, Ordering::Relaxed) + 1;
         let err = MemoryOutputPipe::new(1 << 16);
         let mut wasi = WasiCtx::builder();
-        wasi.stderr(err.clone());
+        wasi.stderr(err.clone()).envs(&self.opts.env);
         let mut store = Store::new(
             self.pre.as_ref().expect("a wasi:http server has its pre-instance").engine(),
             HttpState {
                 wasi: wasi.build(),
                 http: WasiHttpCtx::new(),
-                hooks: NoOutgoing,
+                hooks: crate::egress::EgressHooks(self.opts.egress.clone()),
                 table: ResourceTable::new(),
                 limits: StoreLimitsBuilder::new()
                     .memory_size(self.mem_limit)
@@ -949,6 +1015,7 @@ impl HttpServer {
         mem_limit: usize,
         port: u16,
         data_dir: Option<&std::path::Path>,
+        opts: AppOptions,
         log: Option<Box<dyn Fn(&[u8]) + Send + Sync>>,
     ) -> Result<HttpServer> {
         if port == 0 {
@@ -964,6 +1031,7 @@ impl HttpServer {
         let early_err = MemoryOutputPipe::new(8 << 10);
         let mut b = WasiCtx::builder();
         b.args(&["app"])
+            .envs(&opts.env)
             .env("ENCLAVE_PORTS", format!("http:{port}={port}"))
             .env("ENCLAVE_MEM_MB", (mem_limit >> 20).max(1).to_string())
             .stdout(wasmtime_wasi::p2::pipe::SinkOutputStream)
@@ -977,7 +1045,7 @@ impl HttpServer {
             b.preopened_dir(dir, "/data", wasmtime_wasi::FsPerms::ReadWrite)?;
         }
         let ctx = b.build();
-        let net = crate::loopnet::LoopNet::new(port);
+        let net = crate::loopnet::LoopNet::with_egress(port, opts.egress.clone());
         let (e, st, ex, n) = (engine.clone(), stop.clone(), exited.clone(), net.clone());
         let thread = std::thread::spawn(move || {
             let r = (|| -> Result<()> {
@@ -986,10 +1054,11 @@ impl HttpServer {
                     let mut linker = Linker::<SockState>::new(&e);
                     wasmtime_wasi::p2::add_to_linker_async(&mut linker)?;
                     linker.allow_shadowing(true);
-                    use wasmtime_wasi::p2::bindings::sockets::{tcp, tcp_create_socket};
+                    use wasmtime_wasi::p2::bindings::sockets::{ip_name_lookup, tcp, tcp_create_socket};
                     use crate::loopnet::{LoopNetData, LoopNetView};
                     tcp::add_to_linker::<SockState, LoopNetData>(&mut linker, |s| LoopNetView { table: &mut s.table, net: &s.net })?;
                     tcp_create_socket::add_to_linker::<SockState, LoopNetData>(&mut linker, |s| LoopNetView { table: &mut s.table, net: &s.net })?;
+                    ip_name_lookup::add_to_linker::<SockState, LoopNetData>(&mut linker, |s| LoopNetView { table: &mut s.table, net: &s.net })?;
                     let limits = StoreLimitsBuilder::new()
                         .memory_size(mem_limit)
                         .instances(64)
@@ -1046,6 +1115,7 @@ impl HttpServer {
             attest: std::sync::OnceLock::new(),
             idle_close: IDLE_CLOSE,
             sealed: None,
+            opts: opts.clone(),
         };
         // ready when it accepts a connection on its port; an app that exits first says why
         let until = Instant::now() + SOCKET_READY;
@@ -1077,7 +1147,7 @@ impl HttpServer {
     async fn proxy(
         &self,
         net: Arc<crate::loopnet::LoopNet>,
-        req: hyper::Request<hyper::body::Incoming>,
+        req: hyper::Request<wasmtime_wasi_http::WasiBody>,
         inflight: Arc<Inflight>,
     ) -> Result<hyper::Response<HyperOutgoingBody>> {
         let n = self.requests.fetch_add(1, Ordering::Relaxed) + 1;
@@ -1257,6 +1327,94 @@ impl Drop for HttpServer {
         }
         if let Some(t) = self.ticker.take() {
             let _ = t.join();
+        }
+    }
+}
+
+/// How much of a body with no declared length the front buffers to judge it against the owner's limit (waf.rs); past this
+/// it streams, counted, and the limit still ends it.
+const BUFFERED_BODY_MAX: u64 = 16 << 20;
+
+/// A protection-rule refusal, as the platform answers it: JSON {error, message}, the status, Retry-After when it says.
+fn waf_answer(d: &crate::waf::Deny) -> hyper::Response<HyperOutgoingBody> {
+    let body: HyperOutgoingBody = http_body_util::Full::new(Bytes::from(d.body()))
+        .map_err(|never: std::convert::Infallible| -> wasmtime_wasi_http::Error { match never {} })
+        .boxed_unsync();
+    let mut r = hyper::Response::new(body);
+    *r.status_mut() = hyper::StatusCode::from_u16(d.status).unwrap_or(hyper::StatusCode::FORBIDDEN);
+    r.headers_mut().insert(hyper::header::CONTENT_TYPE, hyper::header::HeaderValue::from_static("application/json"));
+    if let Some(s) = d.retry_after {
+        r.headers_mut().insert(hyper::header::RETRY_AFTER, hyper::header::HeaderValue::from(s));
+    }
+    if d.status == 413 {
+        r.headers_mut().insert(hyper::header::CONNECTION, hyper::header::HeaderValue::from_static("close"));
+    }
+    r
+}
+
+/// A response body that holds the request's concurrency slot (waf.rs) until it is done or dropped.
+struct Holding {
+    inner: HyperOutgoingBody,
+    _slot: crate::waf::Slot,
+}
+impl Body for Holding {
+    type Data = Bytes;
+    type Error = wasmtime_wasi_http::Error;
+    fn poll_frame(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<std::result::Result<Frame<Bytes>, Self::Error>>> {
+        Pin::new(&mut self.inner).poll_frame(cx)
+    }
+    fn is_end_stream(&self) -> bool {
+        self.inner.is_end_stream()
+    }
+    fn size_hint(&self) -> SizeHint {
+        self.inner.size_hint()
+    }
+}
+
+/// The rest of an unsized request body past what the front buffered: counted, and ended with an error past the limit.
+struct Counted {
+    inner: hyper::body::Incoming,
+    seen: u64,
+    limit: u64,
+}
+impl Body for Counted {
+    type Data = Bytes;
+    type Error = wasmtime_wasi_http::Error;
+    fn poll_frame(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<std::result::Result<Frame<Bytes>, Self::Error>>> {
+        match std::task::ready!(Pin::new(&mut self.inner).poll_frame(cx)) {
+            Some(Ok(f)) => {
+                if let Some(d) = f.data_ref() {
+                    self.seen += d.len() as u64;
+                    if self.seen > self.limit {
+                        return Poll::Ready(Some(Err(wasmtime_wasi_http::Error::HttpRequestBodySize(Some(self.seen)))));
+                    }
+                }
+                Poll::Ready(Some(Ok(f)))
+            }
+            Some(Err(e)) => Poll::Ready(Some(Err(e.into()))),
+            None => Poll::Ready(None),
+        }
+    }
+}
+
+/// Two bodies, one after the other.
+struct Chain {
+    first: Option<wasmtime_wasi_http::WasiBody>,
+    rest: Option<wasmtime_wasi_http::WasiBody>,
+}
+impl Body for Chain {
+    type Data = Bytes;
+    type Error = wasmtime_wasi_http::Error;
+    fn poll_frame(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<std::result::Result<Frame<Bytes>, Self::Error>>> {
+        if let Some(f) = self.first.as_mut() {
+            match std::task::ready!(Pin::new(f).poll_frame(cx)) {
+                Some(r) => return Poll::Ready(Some(r)),
+                None => self.first = None,
+            }
+        }
+        match self.rest.as_mut() {
+            Some(r) => Pin::new(r).poll_frame(cx),
+            None => Poll::Ready(None),
         }
     }
 }

@@ -4,12 +4,18 @@
 //! needs none of the network anyway: its only job is to accept the connections the front makes. So `wasi:sockets/tcp` and
 //! `tcp-create-socket` are this module's, in process, shadowing wasmtime's:
 //!   - a socket may be bound only to its app's own port (any IPv4/IPv6 address: there is only the one listener) and put in
-//!     listen mode; every other bind, every connect, is refused (`access-denied`);
+//!     listen mode; every other bind is refused (`access-denied`);
+//!   - a connect to an outside address is the host's to open (egress.rs: the app's own TUNA route, the host's destination
+//!     policy) when the payload gave an `Egress`, and refused (`access-denied`) when it did not; a connect to a loopback
+//!     address is always refused (there is nothing else in the VM to reach);
+//!   - `ip-name-lookup` asks the host too (through the same route), or answers `permanent-resolver-failure` without one;
 //!   - `accept` yields the connections the front opened with `LoopNet::connect` -- an in-memory duplex per connection,
 //!     handed to the app as its input and output streams;
 //!   - the rest of the socket surface (options, addresses, subscribe, shutdown) answers as a quiet loopback would.
-//! UDP and name lookup stay wasmtime's, both disabled for these apps. Nothing here touches the host's network.
-use std::net::SocketAddr;
+//! UDP stays wasmtime's, disabled for these apps. Nothing here touches the host's network itself.
+use crate::egress::Egress;
+use std::net::{IpAddr, SocketAddr};
+use std::future::Future;
 use std::sync::{Arc, Mutex};
 use tokio::io::DuplexStream;
 use tokio::sync::mpsc;
@@ -24,11 +30,16 @@ use wasmtime_wasi::p2::{DynInputStream, DynOutputStream, DynPollable, Pollable, 
 pub struct LoopNet {
     pub port: u16,
     listener: Mutex<Option<mpsc::UnboundedSender<DuplexStream>>>,
+    /// the app's way out, when the payload gave one
+    egress: Option<Egress>,
 }
 
 impl LoopNet {
     pub fn new(port: u16) -> Arc<LoopNet> {
-        Arc::new(LoopNet { port, listener: Mutex::new(None) })
+        Self::with_egress(port, None)
+    }
+    pub fn with_egress(port: u16, egress: Option<Egress>) -> Arc<LoopNet> {
+        Arc::new(LoopNet { port, listener: Mutex::new(None), egress })
     }
     /// Is the app listening yet?
     pub fn listening(&self) -> bool {
@@ -51,6 +62,8 @@ enum State {
     Bound(SocketAddr),
     ListenStarted(SocketAddr),
     Listening(SocketAddr, mpsc::UnboundedReceiver<DuplexStream>),
+    /// an outbound connect the host is opening (its result, once the pollable has seen it)
+    Connecting(SocketAddr, Option<tokio::task::JoinHandle<std::io::Result<crate::egress::Stream>>>, Option<std::io::Result<crate::egress::Stream>>),
     Connected(SocketAddr),
 }
 
@@ -72,6 +85,11 @@ impl Pollable for LoopSock {
             match rx.recv().await {
                 Some(c) => self.pending = Some(c),
                 None => std::future::pending::<()>().await, // the listener is gone: never ready again
+            }
+        }
+        if let State::Connecting(_, task, done) = &mut self.state {
+            if let Some(t) = task.take() {
+                *done = Some(t.await.unwrap_or_else(|e| Err(std::io::Error::other(e.to_string()))));
             }
         }
     }
@@ -154,14 +172,57 @@ impl tcp::HostTcpSocket for LoopNetView<'_> {
             _ => Err(ErrorCode::NotInProgress.into()),
         }
     }
-    fn start_connect(&mut self, this: Resource<TcpSocket>, network: Resource<Network>, _remote: IpSocketAddress) -> SocketResult<()> {
+    fn start_connect(&mut self, this: Resource<TcpSocket>, network: Resource<Network>, remote: IpSocketAddress) -> SocketResult<()> {
         _ = self.table.get(&network)?;
-        _ = self.sock(&this)?;
-        Err(ErrorCode::AccessDenied.into()) // no outbound connection from the VM
+        let a: SocketAddr = remote.into();
+        let eg = self.net.egress.clone();
+        let s = self.sock(&this)?;
+        if !matches!(s.state, State::Unbound | State::Bound(_)) {
+            return Err(ErrorCode::InvalidState.into());
+        }
+        // the host opens it, through the app's own route; nothing in the VM is reachable, and without egress nothing is
+        let Some(eg) = eg else { return Err(ErrorCode::AccessDenied.into()) };
+        if a.ip().is_loopback() || a.ip().is_unspecified() || a.port() == 0 {
+            return Err(ErrorCode::AccessDenied.into());
+        }
+        let task = tokio::task::spawn(async move { eg.connect(&a.ip().to_string(), a.port()).await });
+        s.state = State::Connecting(a, Some(task), None);
+        Ok(())
     }
     fn finish_connect(&mut self, this: Resource<TcpSocket>) -> SocketResult<(Resource<DynInputStream>, Resource<DynOutputStream>)> {
-        _ = self.sock(&this)?;
-        Err(ErrorCode::NotInProgress.into())
+        let s = self.sock(&this)?;
+        let State::Connecting(a, task, done) = &mut s.state else { return Err(ErrorCode::NotInProgress.into()) };
+        let a = *a;
+        if done.is_none() {
+            // not polled yet: take a finished task's result now, else the app waits on its pollable
+            match task.as_mut().and_then(poll_now) {
+                Some(r) => {
+                    *task = None;
+                    *done = Some(r.unwrap_or_else(|e| Err(std::io::Error::other(e.to_string()))));
+                }
+                None => return Err(ErrorCode::WouldBlock.into()),
+            }
+        }
+        let r = done.take().expect("set above");
+        let stream = match r {
+            Ok(st) => st,
+            Err(e) => {
+                s.state = State::Unbound;
+                return Err(match e.kind() {
+                    std::io::ErrorKind::TimedOut => ErrorCode::Timeout,
+                    std::io::ErrorKind::InvalidInput => ErrorCode::InvalidArgument,
+                    _ => ErrorCode::ConnectionRefused,
+                }
+                .into());
+            }
+        };
+        s.state = State::Connected(a);
+        let (r, w) = tokio::io::split(stream);
+        let input: DynInputStream = Box::new(AsyncReadStream::new(r));
+        let output: DynOutputStream = Box::new(AsyncWriteStream::new(1 << 16, w));
+        let input = self.table.push_child(input, &mine(&this))?;
+        let output = self.table.push_child(output, &mine(&this))?;
+        Ok((input, output))
     }
     async fn start_listen(&mut self, this: Resource<TcpSocket>) -> SocketResult<()> {
         let s = self.sock(&this)?;
@@ -208,15 +269,16 @@ impl tcp::HostTcpSocket for LoopNetView<'_> {
     }
     fn local_address(&mut self, this: Resource<TcpSocket>) -> SocketResult<IpSocketAddress> {
         let port = self.net.port;
-        match self.sock(&this)?.state {
-            State::Bound(a) | State::ListenStarted(a) | State::Listening(a, _) => Ok(a.into()),
+        match &self.sock(&this)?.state {
+            State::Bound(a) | State::ListenStarted(a) | State::Listening(a, _) => Ok((*a).into()),
+            State::Connecting(..) => Ok(SocketAddr::from(([127, 0, 0, 1], 0)).into()),
             State::Connected(_) => Ok(SocketAddr::from(([127, 0, 0, 1], port)).into()),
             _ => Err(ErrorCode::InvalidState.into()),
         }
     }
     fn remote_address(&mut self, this: Resource<TcpSocket>) -> SocketResult<IpSocketAddress> {
-        match self.sock(&this)?.state {
-            State::Connected(a) => Ok(a.into()),
+        match &self.sock(&this)?.state {
+            State::Connected(a) => Ok((*a).into()),
             _ => Err(ErrorCode::InvalidState.into()),
         }
     }
@@ -299,5 +361,84 @@ impl tcp::HostTcpSocket for LoopNetView<'_> {
             *s.net.listener.lock().unwrap_or_else(|p| p.into_inner()) = None;
         }
         Ok(())
+    }
+}
+
+// ---- wasi:sockets/ip-name-lookup: the host's, through the app's own route (egress.rs), or a resolver failure ----
+use wasmtime_wasi::p2::bindings::sockets::ip_name_lookup;
+use wasmtime_wasi::p2::bindings::sockets::network::IpAddress;
+use wasmtime_wasi::p2::bindings::sockets::ip_name_lookup::ResolveAddressStream;
+
+/// A lookup in the app's table (stored in place of wasmtime's ResolveAddressStream).
+pub struct LoopResolve {
+    task: Option<tokio::task::JoinHandle<std::io::Result<Vec<IpAddr>>>>,
+    done: Option<Result<std::vec::IntoIter<IpAddr>, ErrorCode>>,
+}
+#[wasmtime_wasi::async_trait]
+impl Pollable for LoopResolve {
+    async fn ready(&mut self) {
+        if let Some(t) = self.task.take() {
+            self.done = Some(match t.await {
+                Ok(Ok(v)) => Ok(v.into_iter()),
+                Ok(Err(e)) if e.kind() == std::io::ErrorKind::InvalidInput => Err(ErrorCode::InvalidArgument),
+                _ => Err(ErrorCode::NameUnresolvable),
+            });
+        }
+    }
+}
+fn mine_r(r: &Resource<ResolveAddressStream>) -> Resource<LoopResolve> {
+    Resource::new_borrow(r.rep())
+}
+
+impl ip_name_lookup::Host for LoopNetView<'_> {
+    fn resolve_addresses(&mut self, network: Resource<Network>, name: String) -> SocketResult<Resource<ResolveAddressStream>> {
+        _ = self.table.get(&network)?;
+        let entry = match self.net.egress.clone() {
+            Some(eg) => LoopResolve { task: Some(tokio::task::spawn(async move { eg.resolve(&name).await })), done: None },
+            None => LoopResolve { task: None, done: Some(Err(ErrorCode::PermanentResolverFailure)) },
+        };
+        let r = self.table.push(entry)?;
+        Ok(Resource::new_own(r.rep()))
+    }
+}
+impl ip_name_lookup::HostResolveAddressStream for LoopNetView<'_> {
+    fn resolve_next_address(&mut self, this: Resource<ResolveAddressStream>) -> SocketResult<Option<IpAddress>> {
+        let r = self.table.get_mut(&mine_r(&this))?;
+        if r.done.is_none() {
+            match r.task.as_mut().and_then(poll_now) {
+                Some(res) => {
+                    r.task = None;
+                    r.done = Some(match res {
+                        Ok(Ok(v)) => Ok(v.into_iter()),
+                        Ok(Err(e)) if e.kind() == std::io::ErrorKind::InvalidInput => Err(ErrorCode::InvalidArgument),
+                        _ => Err(ErrorCode::NameUnresolvable),
+                    });
+                }
+                None => return Err(ErrorCode::WouldBlock.into()),
+            }
+        }
+        match r.done.as_mut().expect("set above") {
+            Ok(it) => Ok(it.next().map(Into::into)),
+            Err(e) => Err((*e).into()),
+        }
+    }
+    fn subscribe(&mut self, this: Resource<ResolveAddressStream>) -> wasmtime::Result<Resource<DynPollable>> {
+        wasmtime_wasi::p2::subscribe(self.table, mine_r(&this))
+    }
+    async fn drop(&mut self, this: Resource<ResolveAddressStream>) -> Result<(), wasmtime::Error> {
+        let r = self.table.delete(Resource::<LoopResolve>::new_own(this.rep()))?;
+        if let Some(t) = r.task {
+            t.abort();
+        }
+        Ok(())
+    }
+}
+
+/// A task's result if it is ready now, without blocking (None: not yet, the caller's pollable waits for it).
+fn poll_now<T>(t: &mut tokio::task::JoinHandle<T>) -> Option<Result<T, tokio::task::JoinError>> {
+    let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
+    match std::pin::Pin::new(t).poll(&mut cx) {
+        std::task::Poll::Ready(r) => Some(r),
+        std::task::Poll::Pending => None,
     }
 }

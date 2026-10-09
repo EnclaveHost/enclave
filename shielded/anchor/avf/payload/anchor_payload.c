@@ -1631,8 +1631,91 @@ typedef void *(*pvmrt_https_open_fn)(const uint8_t *, size_t, const uint8_t *, u
 typedef int (*pvmrt_http_sealed_enable_fn)(void *, const uint8_t *, const uint8_t *, uint8_t *);
 typedef int (*pvmrt_http_serve_sealed_fd_fn)(void *, int, char *, size_t);
 typedef ssize_t (*pvmrt_attest_cb)(void *, const uint8_t *, uint8_t *, size_t);
+/* The deployment's options for its app (pvm-rt lib.rs PvmrtAppOpts, the same layout): its environment block ("K=V\0..."),
+ * its owner's protection rules (JSON, NUL-terminated) and its way out (egress_open / egress_resolve below). */
+typedef struct {
+    const uint8_t *env; size_t env_len;
+    const char *waf;
+    int (*egress_open)(void *, const char *, uint16_t, char *, size_t);
+    int (*egress_resolve)(void *, const char *, char *, size_t);
+    void *egress_ctx;
+} pvmrt_app_opts;
+typedef void *(*pvmrt_https_open_p256_fn)(const uint8_t *, size_t, const uint8_t *, uint64_t, uint64_t, const char *, const pvmrt_nn_ops *,
+                                          const uint8_t *, const pvmrt_app_opts *, void (*)(int, const uint8_t *, size_t), uint64_t *, char *, size_t);
 typedef void *(*pvmrt_https_open_socket_fn)(const uint8_t *, size_t, const uint8_t *, uint64_t, uint32_t, const char *, const uint8_t *,
-                                            void (*)(int, const uint8_t *, size_t), uint64_t *, char *, size_t);
+                                            const pvmrt_app_opts *, void (*)(int, const uint8_t *, size_t), uint64_t *, char *, size_t);
+
+/* The deployment's options, as the owner's control channel delivered them (APPENV / APPWAF hex lines, APPEGRESS): held in
+ * memory only, for the marketplace host's app (serve=https-p256). Their values are never written out. */
+#define APP_ENV_MAX (192u << 10)
+#define APP_WAF_MAX (32u << 10)
+static uint8_t g_app_env[APP_ENV_MAX]; static size_t g_app_env_len;
+static char g_app_waf[APP_WAF_MAX + 1]; static size_t g_app_waf_len;
+static int g_app_egress;
+
+/* ---- the app's way out (PVM-CPU.md "Egress") ----
+ * This VM has no network, and cannot open a connection to the phone; so the phone's host app keeps idle streams open to
+ * EGRESS_PORT (host/app/EgressPool.java). The runtime takes one per outbound connection or name lookup (pvm-rt egress.rs),
+ * writes one request line -- "CONNECT <host> <port>" or "RESOLVE <name>" -- and reads the answer: "OK" (the stream is then
+ * the connection), "OK <ip>,<ip>" (the lookup), or "ERR <reason>". The owner's host agent answers (runner/egress.mjs): this
+ * app's own TUNA route, public destinations only. What the app sends after OK is its own (TLS, for https, made by the
+ * runtime here). */
+#define EGRESS_PORT 7788
+#define EGRESS_IDLE_MAX 16
+static pthread_mutex_t g_eg_mu = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t g_eg_cv = PTHREAD_COND_INITIALIZER;
+static int g_eg_fds[EGRESS_IDLE_MAX], g_eg_n;
+static void *egress_accept(void *arg) {
+    const int ls = (int)(intptr_t)arg;
+    for (;;) {
+        const int c = vs_accept(ls, 60000);
+        if (c < 0) { usleep(100000); continue; }
+        pthread_mutex_lock(&g_eg_mu);
+        if (g_eg_n < EGRESS_IDLE_MAX) { g_eg_fds[g_eg_n++] = c; pthread_cond_signal(&g_eg_cv); pthread_mutex_unlock(&g_eg_mu); }
+        else { pthread_mutex_unlock(&g_eg_mu); close(c); }
+    }
+    return NULL;
+}
+/* An idle stream from the phone (waiting up to 15 s for one), or -1. */
+static int egress_take(void) {
+    struct timespec until; clock_gettime(CLOCK_REALTIME, &until); until.tv_sec += 15;
+    pthread_mutex_lock(&g_eg_mu);
+    while (g_eg_n == 0) if (pthread_cond_timedwait(&g_eg_cv, &g_eg_mu, &until) == ETIMEDOUT) break;
+    const int fd = g_eg_n > 0 ? g_eg_fds[--g_eg_n] : -1;
+    pthread_mutex_unlock(&g_eg_mu);
+    return fd;
+}
+/* One request line out, one answer line back (60 s): 0 with what followed "OK " in `ans`, or -1 with the reason. */
+static int egress_ask(int fd, const char *req, char *ans, size_t cap) {
+    struct timeval tv = { .tv_sec = 60 }; setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+    char line[2048];
+    if (write_all(fd, req, strlen(req)) != 0) { snprintf(ans, cap, "the egress stream closed"); return -1; }
+    if (read_line(fd, line, sizeof line) < 0) { snprintf(ans, cap, "the host did not answer"); return -1; }
+    struct timeval none = { 0 }; setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &none, sizeof none);
+    if (!strncmp(line, "OK", 2) && (line[2] == 0 || line[2] == ' ')) { snprintf(ans, cap, "%s", line[2] ? line + 3 : ""); return 0; }
+    snprintf(ans, cap, "%s", !strncmp(line, "ERR ", 4) ? line + 4 : "the host's answer is malformed");
+    return -1;
+}
+static int egress_word_ok(const char *w) { return w && *w && strlen(w) <= 255 && !strpbrk(w, " \r\n"); }
+static int egress_open(void *ctx, const char *host, uint16_t port, char *err, size_t errcap) {
+    (void)ctx;
+    if (!egress_word_ok(host) || !port) { snprintf(err, errcap, "not a host and port"); return -1; }
+    const int fd = egress_take();
+    if (fd < 0) { snprintf(err, errcap, "no egress stream from the host"); return -1; }
+    char req[300]; snprintf(req, sizeof req, "CONNECT %s %u\n", host, (unsigned)port);
+    if (egress_ask(fd, req, err, errcap) != 0) { close(fd); return -1; }
+    return fd;
+}
+static int egress_resolve(void *ctx, const char *name, char *out, size_t cap) {
+    (void)ctx;
+    if (!egress_word_ok(name)) { snprintf(out, cap, "not a name"); return -1; }
+    const int fd = egress_take();
+    if (fd < 0) { snprintf(out, cap, "no egress stream from the host"); return -1; }
+    char req[300]; snprintf(req, sizeof req, "RESOLVE %s\n", name);
+    const int r = egress_ask(fd, req, out, cap);
+    close(fd);
+    return r;
+}
 /* A socket app's /data: a fresh directory in the VM's encrypted store for each boot (scratch, as on the other hosts), the
  * previous boots' removed first. Returns the path, or NULL when none could be made (the app then runs without /data). */
 static int appdata_rm(const char *path, const struct stat *st, int flag, struct FTW *ftw) { (void)st; (void)flag; (void)ftw; return remove(path); }
@@ -1691,7 +1774,8 @@ static int app_conns_drain(void) {
 static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
     const anchor_app_plan *plan = a->plan;
     pvmrt_http_open_fn hopen = (pvmrt_http_open_fn)dlsym(a->rt, "pvmrt_http_open");
-    pvmrt_https_open_fn hsopen = (pvmrt_https_open_fn)dlsym(a->rt, plan->http == 3 ? "pvmrt_https_open_p256" : "pvmrt_https_open");
+    pvmrt_https_open_fn hsopen = (pvmrt_https_open_fn)dlsym(a->rt, "pvmrt_https_open");
+    pvmrt_https_open_p256_fn hsp256 = (pvmrt_https_open_p256_fn)dlsym(a->rt, "pvmrt_https_open_p256");
     pvmrt_https_open_socket_fn hsock = (pvmrt_https_open_socket_fn)dlsym(a->rt, "pvmrt_https_open_p256_socket");
     const int tls = plan->http >= 2, ca = plan->http == 3;
     pvmrt_http_serve_fd_fn hserve = (pvmrt_http_serve_fd_fn)dlsym(a->rt, "pvmrt_http_serve_fd");
@@ -1701,7 +1785,7 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
     pvmrt_https_set_attest_fn hattest = (pvmrt_https_set_attest_fn)dlsym(a->rt, "pvmrt_https_set_attest");
     pvmrt_https_csr_fn hcsr = (pvmrt_https_csr_fn)dlsym(a->rt, "pvmrt_https_csr");
     pvmrt_https_set_chain_fn hchain = (pvmrt_https_set_chain_fn)dlsym(a->rt, "pvmrt_https_set_chain");
-    if (!hopen || !hserve || !hreqs || !hclose || (tls && !hsopen) || (ca && (!hspki || !hattest || !hcsr || !hchain)) || (plan->sock && !hsock)) {
+    if (!hopen || !hserve || !hreqs || !hclose || (tls && !ca && !hsopen) || (ca && (!hsp256 || !hspki || !hattest || !hcsr || !hchain)) || (plan->sock && !hsock)) {
         free(a->bytes); a->bytes = NULL; OUT("APP refused: this runtime cannot serve wasi:http%s", ca ? " over TLS with a CA-trusted key" : tls ? " over TLS" : ""); return 4; }
     uint64_t cms = 0; char err[1024] = "";
     /* https: TLS 1.3 terminates in this process, so whatever carries the bytes (the phone's Android app, the host, a TUNA
@@ -1717,8 +1801,22 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
         if (g_pp.set) memcpy(ident + sizeof dom - 1 + 32, g_pp.deployment, 32); else memset(ident + sizeof dom - 1 + 32, 0, 32);
         AVmPayload_getVmInstanceSecret(ident, sizeof ident, seed, sizeof seed);
     } else memcpy(seed, g_tsk, 32);
+    /* the deployment's options (the marketplace host only): its environment, its owner's rules, its way out -- the egress
+     * port is listening before the app starts, since an app may reach out as it starts */
+    pvmrt_app_opts o; memset(&o, 0, sizeof o);
+    if (!ca && (g_app_env_len || g_app_waf_len || g_app_egress)) { memset(seed, 0, sizeof seed); free(a->bytes); a->bytes = NULL; OUT("APP refused: a deployment's environment, rules and egress are for the marketplace host (serve=https-p256)"); return 4; }
+    if (g_app_env_len) { o.env = g_app_env; o.env_len = g_app_env_len; }
+    if (g_app_waf_len) { g_app_waf[g_app_waf_len] = 0; o.waf = g_app_waf; }
+    if (g_app_egress) {
+        const int els = vs_bind(EGRESS_PORT); pthread_t et;
+        if (els < 0 || pthread_create(&et, NULL, egress_accept, (void *)(intptr_t)els) != 0) { if (els >= 0) close(els); memset(seed, 0, sizeof seed); free(a->bytes); a->bytes = NULL; OUT("APP refused: the egress port could not be opened"); return 4; }
+        pthread_detach(et);
+        o.egress_open = egress_open; o.egress_resolve = egress_resolve;
+    }
+    if (ca) OUT("APP options: environment %zu bytes, protection rules %s, egress %s", g_app_env_len, g_app_waf_len ? "set" : "none", g_app_egress ? "through the owner's host (vsock 7788)" : "none");
     /* a socket-server app (sock=): ONE instance listening on the VM's loopback, fronted by the same TLS and evidence paths */
-    void *srv = plan->sock ? hsock(a->bytes, plan->bytes, plan->sha256, (uint64_t)(plan->mem_mib ? plan->mem_mib : 256) << 20, plan->sock, appdata_dir(), seed, app_emit, &cms, err, sizeof err)
+    void *srv = plan->sock ? hsock(a->bytes, plan->bytes, plan->sha256, (uint64_t)(plan->mem_mib ? plan->mem_mib : 256) << 20, plan->sock, appdata_dir(), seed, &o, app_emit, &cms, err, sizeof err)
+              : ca ? hsp256(a->bytes, plan->bytes, plan->sha256, 256ull << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, seed, &o, app_emit, &cms, err, sizeof err)
               : tls ? hsopen(a->bytes, plan->bytes, plan->sha256, 256ull << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, seed, app_emit, &cms, err, sizeof err)
                     : hopen(a->bytes, plan->bytes, plan->sha256, 256ull << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, app_emit, &cms, err, sizeof err);
     memset(seed, 0, sizeof seed);
@@ -2249,6 +2347,14 @@ int AVmPayload_main(void) {
              * build receive, stage or open a model */
             else if (!strncmp(l, "MODEL", 5) || !strncmp(l, "LOCAL", 5)) {
                 tier_bad = 1; OUT("TIER pvm-cpu refused: %.12s is model machinery: this build runs CPU-only Wasm components and carries no model", l); }
+            else if (!strncmp(l, "APPENV ", 7) || !strncmp(l, "APPWAF ", 7)) {   /* the deployment's environment / rules, hex, in chunks */
+                const int env = l[3] == 'E'; const char *h = l + 7; const size_t hn = strlen(h);
+                uint8_t *buf = env ? g_app_env : (uint8_t *)g_app_waf; size_t *len = env ? &g_app_env_len : &g_app_waf_len;
+                const size_t cap = env ? APP_ENV_MAX : APP_WAF_MAX;
+                if (!hn || hn % 2 || *len + hn / 2 > cap || !sh_pads_hex2bin(h, buf + *len, hn / 2)) { app_bad = 1; OUT("APP refused: %s malformed or over %zu bytes", env ? "APPENV" : "APPWAF", cap); }
+                else *len += hn / 2; }
+            else if (!strcmp(l, "APPEGRESS")) {   /* the app may reach out, through the owner's host (once) */
+                if (g_app_egress) { app_bad = 1; OUT("APP refused: APPEGRESS repeated"); } else g_app_egress = 1; }
             else if (!strncmp(l, "APP ", 4)) {   /* the portable component (anchor_app.h): strict, once; malformed or repeated refuses at RUN */
                 if (app || !anchor_app_parse(l, &app_plan)) { app_bad = 1; OUT("APP refused: %s", app ? "repeated" : "malformed (APP bytes=N sha256=<64 hex>[ args=<hex>])"); }
                 app = 1; }
