@@ -650,11 +650,10 @@ export async function renderWalletPop(){
   pop.innerHTML =
     '<div class="wp-row"><span class="wp-k">Wallet</span><button class="wp-addr" id="wpCopy">' + esc(short(Enclave.address)) + ' ⧉</button></div>' +
     '<div class="wp-row"><span class="wp-k">Network</span><span class="wp-v">' + (Enclave.chainId === BASE_CHAIN ? "Base" : ("chain " + (Enclave.chainId || "–"))) + (offBase ? ' <button class="wp-mini" id="wpSwitch">switch to Base</button>' : "") + '</span></div>' +
-    '<div class="wp-row"><span class="wp-k">Balance</span><span class="wp-v" id="wpBalUsdc">…</span></div>' +
+    '<div class="wp-row"><span class="wp-k">Balance</span><span class="wp-v"><span id="wpBalUsdc">…</span> <button class="wp-mini" id="wpDep">Deposit</button></span></div>' +
     '<div class="wp-row"><span class="wp-k">Session</span><span class="wp-v" id="wpSess">…</span></div>' +
     '<div class="wp-fund">' +
-      '<button class="wp-mini" id="wpDep">Deposit</button>' +
-      '<a class="wp-mini" id="wpSessions" href="sessions">Sessions</a>' +
+      '<a class="wp-mini" id="wpSessions" href="sessions">All Sessions</a>' +
     '</div>' +
     '<button class="wp-disc" id="wpDisc">Sign out</button>';
   pop.hidden = false;
@@ -671,7 +670,7 @@ export async function renderWalletPop(){
 }
 
 /* the popover's session row: the budget left and the time left, or "start". Top up and the full list live on
-   Sessions (beside Deposit); ending this browser's session is Sign out. */
+   All Sessions (under this row); ending this browser's session is Sign out. */
 async function renderSessionRow(){
   const el = $("#wpSess"); if (!el) return;
   let S;
