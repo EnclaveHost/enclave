@@ -253,6 +253,22 @@ const EARN_ABI = [
 ];
 export const earnedOf = (operator) => publicClient().readContract({ address: addresses.deployments, abi: EARN_ABI, functionName: "earned6", args: [operator] });
 export const withdrawEarnings = (to) => send(addresses.deployments, EARN_ABI, "withdrawEarnings", [to]);
+// The payout declarations made for one box (EnclaveRegistry's PayoutWalletSet, id indexed) since a block, newest
+// last, and the calldata of the transaction that made one: payout.mjs checks it carries the code this machine issued.
+const PAYOUT_SET_EVENT = { type: "event", name: "PayoutWalletSet", inputs: [
+  { name: "id", type: "bytes32", indexed: true }, { name: "payoutWallet", type: "address", indexed: true }] };
+export const blockNumber = () => publicClient().getBlockNumber();
+export async function payoutDeclarations(id, fromBlock, { step = 500n } = {}) {
+  const latest = await publicClient().getBlockNumber();
+  const out = [];
+  for (let from = BigInt(fromBlock); from <= latest; from += step) {     // public RPCs refuse wide log ranges
+    const to = from + step - 1n > latest ? latest : from + step - 1n;
+    const logs = await publicClient().getLogs({ address: addresses.registry, event: PAYOUT_SET_EVENT, args: { id }, fromBlock: from, toBlock: to });
+    for (const l of logs) out.push({ wallet: l.args.payoutWallet, txHash: l.transactionHash, blockNumber: l.blockNumber });
+  }
+  return out;
+}
+export const txInput = async (hash) => (await publicClient().getTransaction({ hash })).input;
 export const claimCost = (id, enclaveId) => estimate(addresses.deployments, DEP_ABI, "claim", [id, enclaveId]);
 
 /** catalog://<appId>/<versionIndex> -> the version record (artifact CID, sizing, config, approval). */

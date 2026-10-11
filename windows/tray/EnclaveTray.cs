@@ -103,7 +103,7 @@ namespace Enclave.Tray
     /// <summary>GET /v1/local/hosting/earnings (windows/node/payout.mjs): USDC the ledger holds for this box, and where it goes.</summary>
     sealed class EarningsView
     {
-        public bool Readable, Paying;
+        public bool Readable, Paying, Pending;
         public double Earned, PaidOut, MinPayout;            // USDC
         public string EnclaveId = "", Operator = "", Confirmed = "", Declared = "", PayTo = "", Why = "", LastError = "", LastTx = "";
 
@@ -113,6 +113,7 @@ namespace Enclave.Tray
             object v;
             e.Readable = o.TryGetValue("readable", out v) && v is bool && (bool)v;
             e.Paying = o.TryGetValue("paying", out v) && v is bool && (bool)v;
+            e.Pending = o.TryGetValue("pending", out v) && v is Dictionary<string, object>;
             e.Earned = Usdc(HostingView.Str(o, "earned6")); e.PaidOut = Usdc(HostingView.Str(o, "paidOut6")); e.MinPayout = Usdc(HostingView.Str(o, "minPayout6"));
             e.EnclaveId = HostingView.Str(o, "enclaveId"); e.Operator = HostingView.Str(o, "operator"); e.Confirmed = HostingView.Str(o, "confirmed"); e.Declared = HostingView.Str(o, "declared");
             e.PayTo = HostingView.Str(o, "payTo"); e.Why = HostingView.Str(o, "why"); e.LastError = HostingView.Str(o, "lastError");
@@ -154,10 +155,14 @@ namespace Enclave.Tray
         const string Hosting = "/v1/local/hosting";
         public HostingView Get() { return HostingView.From(Send("GET", Hosting, null)); }
         public EarningsView GetEarnings() { return EarningsView.From(Send("GET", Hosting + "/earnings", null)); }
-        /// <summary>Confirm the wallet that declared itself on chain for this box (the node refuses any other).</summary>
-        public EarningsView ConfirmPayoutWallet(string address)
+        /// <summary>Start a payout wallet change from this machine: the page to open, carrying the node's one-time code.</summary>
+        public string BeginPayoutChange()
         {
-            return EarningsView.From(Send("PUT", Hosting + "/payout-wallet", "{\"address\":\"" + address + "\"}"));
+            object url;
+            var o = Send("POST", Hosting + "/payout-wallet/begin", null);
+            if (!o.TryGetValue("url", out url) || !(url is string) || !((string)url).StartsWith("https://enclave.host/payout?", StringComparison.Ordinal))
+                throw new NodeException("the node did not answer with the payout page");
+            return (string)url;
         }
         public void PayoutNow() { Send("POST", Hosting + "/payout", null); }
 
@@ -678,27 +683,11 @@ namespace Enclave.Tray
                 list.ToString().TrimEnd(), "Drop " + units.Count + " and apply", Theme.Danger);
         }
 
-        /// <summary>The owner names the wallet the box pays: in full, with why only their own wallet belongs here.</summary>
-        public static AskDialog ForPayoutWallet(string address)
-        {
-            return new AskDialog("Pay this box's earnings here?", Theme.Jade,
-                "This wallet declared itself on Base as the payout wallet for this box. Confirm it only if it is yours: anyone can "
-                + "declare a wallet for any box, which is why the box asks you as well. From now on this box's USDC earnings are "
-                + "paid to it automatically.",
-                address, "Confirm wallet", Theme.Jade);
-        }
-
         static string Short(string s, int head, int tail)
         {
             if (s == null) return "";
             return s.Length <= head + tail + 1 ? s : s.Substring(0, head) + "\u2026" + (tail > 0 ? s.Substring(s.Length - tail) : "");
         }
-    }
-
-    sealed class WalletEventArgs : EventArgs
-    {
-        public readonly string Address;
-        public WalletEventArgs(string address) { Address = address; }
     }
 
     sealed class PauseEventArgs : EventArgs
@@ -716,10 +705,8 @@ namespace Enclave.Tray
         readonly Label hostingLine = Line(), unsaved = Line();
         readonly ThemeButton apply = new ThemeButton("Apply", true), reset = new ThemeButton("Reset", false);
         readonly Label earnLine = Line(), earnNote = Note();
-        readonly ThemeButton walletButton = new ThemeButton("Payout wallet\u2026", false), confirmButton = new ThemeButton("Confirm wallet", true),
-                             payNow = new ThemeButton("Pay out now", false);
+        readonly ThemeButton walletButton = new ThemeButton("Payout wallet\u2026", false), payNow = new ThemeButton("Pay out now", false);
         public event EventHandler PayoutPageRequested, PayoutNowRequested;
-        public event EventHandler<WalletEventArgs> ConfirmWalletRequested;
         EarningsView earnings;
         public event EventHandler ApplyRequested;
         public event EventHandler<PauseEventArgs> PauseRequested;
@@ -769,17 +756,12 @@ namespace Enclave.Tray
             flow.Controls.Add(earnLine); flow.Controls.Add(earnNote);
             var earnRow = Row(FlowDirection.LeftToRight);
             earnRow.Margin = new Padding(0, Theme.Px(8), 0, 0);
-            walletButton.FitText(); confirmButton.FitText(); payNow.FitText();
-            walletButton.Margin = confirmButton.Margin = payNow.Margin = new Padding(3, 0, Theme.Px(6), 0);
-            earnRow.Controls.Add(walletButton); earnRow.Controls.Add(confirmButton); earnRow.Controls.Add(payNow);
+            walletButton.FitText(); payNow.FitText();
+            walletButton.Margin = payNow.Margin = new Padding(3, 0, Theme.Px(6), 0);
+            earnRow.Controls.Add(walletButton); earnRow.Controls.Add(payNow);
             flow.Controls.Add(earnRow);
             walletButton.Click += delegate { if (PayoutPageRequested != null) PayoutPageRequested(this, EventArgs.Empty); };
             payNow.Click += delegate { if (PayoutNowRequested != null) PayoutNowRequested(this, EventArgs.Empty); };
-            confirmButton.Click += delegate
-            {
-                if (earnings != null && earnings.Declared.Length > 0 && ConfirmWalletRequested != null)
-                    ConfirmWalletRequested(this, new WalletEventArgs(earnings.Declared));
-            };
             ShowEarnings(null, "not asked yet");
             flow.Controls.Add(Rule());
             flow.Controls.Add(status); flow.Controls.Add(error);
@@ -874,12 +856,17 @@ namespace Enclave.Tray
                 earnNote.ForeColor = Theme.Dim;
                 earnNote.Text = e != null ? e.Why : unavailable;
                 walletButton.Enabled = e != null && e.EnclaveId.Length > 0;
-                confirmButton.Visible = false; payNow.Visible = true; payNow.Enabled = false;
+                payNow.Enabled = false;
                 return;
             }
             earnLine.Text = "earned " + EarningsView.Usd(e.Earned) + " not yet paid \u00B7 paid out " + EarningsView.Usd(e.PaidOut);
-            bool waiting = e.Declared.Length > 0 && !string.Equals(e.Declared, e.Confirmed, StringComparison.OrdinalIgnoreCase);
-            if (e.PayTo.Length > 0)
+            if (e.Pending)
+            {
+                earnNote.ForeColor = Theme.Amber;
+                earnNote.Text = "Waiting for your wallet to declare itself on the payout page (the link the tray opened, good for 30 minutes). "
+                              + "The box switches its payouts on its own when it does.";
+            }
+            else if (e.PayTo.Length > 0)
             {
                 earnNote.ForeColor = Theme.Dim;
                 earnNote.Text = "Credited every second to this box's operator key " + EarningsView.Short(e.Operator) + ", then paid to your wallet "
@@ -888,14 +875,13 @@ namespace Enclave.Tray
             }
             else
             {
-                earnNote.ForeColor = waiting || e.Confirmed.Length > 0 ? Theme.Amber : Theme.Dim;
+                earnNote.ForeColor = e.Declared.Length > 0 || e.Confirmed.Length > 0 ? Theme.Amber : Theme.Dim;
                 earnNote.Text = (e.Why.Length > 0 ? Cap(e.Why) + "." : "") + (e.Confirmed.Length == 0 && e.Declared.Length == 0
                               ? " Earnings are credited every second to this box's operator key " + EarningsView.Short(e.Operator)
-                                + " and wait in the ledger until you set your own wallet with Payout wallet." : "");
+                                + " and wait in the ledger until you set your own wallet with Payout wallet." : "")
+                              + (e.Declared.Length > 0 && e.PayTo.Length == 0 ? " Set it with Payout wallet on this machine." : "");
             }
             walletButton.Enabled = e.EnclaveId.Length > 0;
-            // the full address is in the dialog the button opens; the row stays as wide as the panel
-            confirmButton.Visible = waiting; payNow.Visible = !waiting;
             payNow.Enabled = e.PayTo.Length > 0 && e.Earned > 0 && !e.Paying;
         }
         static string Cap(string s) { return s.Length > 0 ? char.ToUpperInvariant(s[0]) + s.Substring(1) : s; }
@@ -965,7 +951,6 @@ namespace Enclave.Tray
         EarningsView lastEarnings;
         bool refreshing, applying, switching, earningsBusy;
         readonly System.Windows.Forms.Timer earningsPoll = new System.Windows.Forms.Timer();
-        const string PayoutPage = "https://enclave.host/payout";
         static readonly string Home = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Enclave", "Tray");
 
         public TrayApp(TrayConfig cfg, string configError)
@@ -1015,7 +1000,6 @@ namespace Enclave.Tray
             p.PauseRequested += (s, e) => SetPaused(e.Paused);
             p.PayoutPageRequested += delegate { OpenPayoutPage(); };
             p.PayoutNowRequested += delegate { PayoutNow(); };
-            p.ConfirmWalletRequested += (s, e) => ConfirmWallet(e.Address);
             if (lastEarnings != null) p.ShowEarnings(lastEarnings, null);
             p.FormClosed += (s, e) => Log("panel closed (" + e.CloseReason + ")");
             if (last != null) p.ShowView(last, true);
@@ -1108,27 +1092,24 @@ namespace Enclave.Tray
             });
         }
 
-        /// <summary>The site's payout page for this box: the owner's wallet declares itself there (WalletConnect or an extension).</summary>
+        /// <summary>
+        /// Change the payout wallet from this machine: the node issues a one-time code and answers with the site's payout
+        /// page carrying it; the owner's wallet declares itself there, and the node adopts it on its own when the declaring
+        /// transaction carries that code. Asked again every minute until it lands.
+        /// </summary>
         void OpenPayoutPage()
         {
-            if (lastEarnings == null || lastEarnings.EnclaveId.Length == 0) return;
-            string url = PayoutPage + "?id=" + Uri.EscapeDataString(lastEarnings.EnclaveId);
-            try { Process.Start(url); Log("opened the payout page for " + lastEarnings.EnclaveId); }
-            catch (Exception e) { Panel.ShowError("Could not open " + url + ": " + e.Message); }
-        }
-
-        /// <summary>Only after the owner has read the full address and pressed Confirm; the node checks it against the chain again.</summary>
-        void ConfirmWallet(string address)
-        {
-            bool yes;
-            using (var ask = AskDialog.ForPayoutWallet(address)) yes = ask.ShowDialog(Panel) == DialogResult.OK;
-            if (!yes) return;
-            OnWorkerE(() => client.ConfirmPayoutWallet(address), (e, err) =>
+            ThreadPool.QueueUserWorkItem(delegate
             {
-                if (err != null) { Log("confirm payout wallet " + address + " FAILED: " + err.Message); Panel.ShowError("Not confirmed: " + err.Message); return; }
-                Log("payout wallet confirmed: " + address);
-                lastEarnings = e; Panel.ShowEarnings(e, null);
-                Panel.ShowNotice("Earnings now go to " + EarningsView.Short(address) + ".");
+                string url = null; Exception err = null;
+                try { url = client.BeginPayoutChange(); } catch (Exception e) { err = e; }
+                ui.Post(delegate
+                {
+                    if (err != null) { Panel.ShowError("Could not start the change: " + err.Message); return; }
+                    try { Process.Start(url); Log("payout wallet change started; opened the payout page"); }
+                    catch (Exception e) { Panel.ShowError("Could not open the payout page: " + e.Message); }
+                    RefreshEarnings();
+                }, null);
             });
         }
 

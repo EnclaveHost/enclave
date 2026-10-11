@@ -345,10 +345,11 @@ test("caps below what runs: 409 with the plan and nothing changed, until every d
   assert.equal((await call(port, { method: "PUT", body: { drop: [X] } })).status, 400, "drop alone sets nothing");
 });
 
-test("earnings routes: GET earnings, PUT payout-wallet {address}, POST payout - behind the token, methods and bodies checked", async () => {
+test("earnings routes: GET earnings, POST payout-wallet/begin, DELETE payout-wallet, POST payout - behind the token, methods checked", async () => {
   const calls = [];
   const payouts = { status: async () => ({ earned6: "5", payTo: null }),
-    confirm: async (a) => { calls.push(["confirm", a]); if (a === "0x" + "e7".repeat(20)) throw Object.assign(new Error("not declared"), { status: 409, code: "not_declared" }); return { confirmed: a }; },
+    begin: async () => { calls.push("begin"); return { url: "https://enclave.host/payout?id=0x1#code=0x2", expiresAt: "t" }; },
+    clear: async () => { calls.push("clear"); return { confirmed: null }; },
     payout: async (o) => { calls.push(["payout", o]); return { paid: false, why: "nothing" }; } };
   const server = http.createServer(hostingAdminHandler({ host: stubHost(), token: TOKEN, payouts }));
   await new Promise((r) => server.listen(0, "127.0.0.1", r)); servers.push(server);
@@ -356,17 +357,16 @@ test("earnings routes: GET earnings, PUT payout-wallet {address}, POST payout - 
   assert.deepEqual((await call(port, { path: P + "earnings" })).json, { earned6: "5", payTo: null });
   assert.equal((await call(port, { path: P + "earnings", token: "wrong" })).status, 401);
   assert.equal((await call(port, { path: P + "earnings", method: "PUT", body: {} })).status, 405);
-  const mine = "0x" + "a1".repeat(20);
-  const ok = await call(port, { path: P + "payout-wallet", method: "PUT", body: { address: mine } });
-  assert.equal(ok.status, 200); assert.equal(ok.json.confirmed, mine);
-  assert.equal((await call(port, { path: P + "payout-wallet", method: "PUT", body: { address: null } })).status, 200);
-  const no = await call(port, { path: P + "payout-wallet", method: "PUT", body: { address: "0x" + "e7".repeat(20) } });
-  assert.equal(no.status, 409); assert.equal(no.json.error, "not_declared");
-  for (const body of [{}, { address: mine, extra: 1 }, [mine], "nope"])
-    assert.equal((await call(port, { path: P + "payout-wallet", method: "PUT", body })).status, 400, JSON.stringify(body));
+  const begun = await call(port, { path: P + "payout-wallet/begin", method: "POST" });
+  assert.equal(begun.status, 200); assert.match(begun.json.url, /#code=/);
+  assert.equal((await call(port, { path: P + "payout-wallet/begin", method: "GET" })).status, 405);
+  assert.equal((await call(port, { path: P + "payout-wallet/begin", method: "POST", token: null })).status, 401, "no token, no code");
+  assert.equal((await call(port, { path: P + "payout-wallet", method: "PUT", body: { address: "0x" + "a1".repeat(20) } })).status, 405,
+    "an address can no longer be set by naming it");
+  assert.equal((await call(port, { path: P + "payout-wallet", method: "DELETE" })).status, 200);
   const pay = await call(port, { path: P + "payout", method: "POST" });
   assert.equal(pay.status, 409); assert.deepEqual(pay.json, { paid: false, why: "nothing", error: "not_paid", message: "nothing" });
-  assert.deepEqual(calls.map((c) => c[0]), ["confirm", "confirm", "confirm", "payout"]); assert.deepEqual(calls[3][1], { now: true });
+  assert.deepEqual(calls, ["begin", "clear", ["payout", { now: true }]]);
   assert.equal((await call(port, { path: P + "other" })).status, 404);
   const bare = await serve(stubHost());
   assert.equal((await call(bare, { path: P + "earnings" })).status, 503, "a node with no payouts says so");

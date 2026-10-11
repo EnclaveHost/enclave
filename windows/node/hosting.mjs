@@ -108,25 +108,24 @@ export function capsUpdate(current, body) {
 
 /**
  * The earnings routes (payout.mjs), behind the same peer and token checks:
- *   GET  /v1/local/hosting/earnings       what the ledger holds for this box, the payout wallet, and what was paid out
- *   PUT  /v1/local/hosting/payout-wallet  {address}: confirm the wallet that declared itself on chain; {address: null} clears
- *   POST /v1/local/hosting/payout         pay out now (any amount), to the confirmed wallet the chain still names
+ *   GET    /v1/local/hosting/earnings              what the ledger holds for this box, the payout wallet, what was paid
+ *   POST   /v1/local/hosting/payout-wallet/begin   start a payout wallet change FROM THIS MACHINE: { url, expiresAt }, the
+ *                                                  page (with this machine's one-time code) the owner's wallet declares on
+ *   DELETE /v1/local/hosting/payout-wallet         pay nobody (earnings stay in the ledger) and void a change in progress
+ *   POST   /v1/local/hosting/payout                pay out now (any amount), to the payout wallet the chain still names
  */
-const PAYOUT_ROUTES = new Set(["earnings", "payout-wallet", "payout"]);
+const PAYOUT_ROUTES = new Map([["earnings", "GET"], ["payout-wallet/begin", "POST"], ["payout-wallet", "DELETE"], ["payout", "POST"]]);
 async function payoutRoute(route, req, json, payouts) {
   if (!payouts) return json(503, { error: "unavailable", message: "earnings are not available on this node (no operator key or ledger)" });
-  const want = { earnings: "GET", "payout-wallet": "PUT", payout: "POST" }[route];
+  const want = PAYOUT_ROUTES.get(route);
   if (req.method !== want) return json(405, { error: "method_not_allowed" }, { allow: want });
-  if (route === "earnings") return json(200, await payouts.status());
-  if (route === "payout") { const r = await payouts.payout({ now: true }); return json(r.paid ? 200 : 409, r.paid ? r : { ...r, error: "not_paid", message: r.why }); }
-  const raw = await readBody(req);
-  if (raw === null) return json(413, { error: "too_large" }, { connection: "close" });
-  let body;
-  try { body = JSON.parse(raw.toString("utf8")); } catch { return json(400, { error: "bad_request", message: "the body is not JSON" }); }
-  if (!body || typeof body !== "object" || Array.isArray(body) || !("address" in body) || Object.keys(body).length !== 1)
-    return json(400, { error: "bad_request", message: "the body must be {\"address\": \"0x...\"} or {\"address\": null}" });
-  try { return json(200, await payouts.confirm(body.address)); }
-  catch (e) { return json(e.status || 502, { error: e.code || (e.status ? "bad_request" : "chain_unreadable"), message: e.shortMessage || e.message }); }
+  try {
+    if (route === "earnings") return json(200, await payouts.status());
+    if (route === "payout-wallet/begin") return json(200, await payouts.begin());
+    if (route === "payout-wallet") return json(200, await payouts.clear());
+    const r = await payouts.payout({ now: true });
+    return json(r.paid ? 200 : 409, r.paid ? r : { ...r, error: "not_paid", message: r.why });
+  } catch (e) { return json(502, { error: "chain_unreadable", message: e.shortMessage || e.message }); }
 }
 
 /** capsRequest(current, body) -> { next, ack }: capsUpdate over the body less `drop`, which must be a list of deployment
