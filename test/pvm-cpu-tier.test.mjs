@@ -164,7 +164,8 @@ test("a slot host's pool is the owner's lent VM memory (bounded); free memory an
   assert.deepEqual([a.nodeVcpus, a.nodeRamGb, a.ramGbFree, a.cpuShareFree, a.nodeGflops, a.cpuGflopsFree], [8, 3, 2.3, 0.75, 1.5, 1.13]);
   assert.equal(a.capacitySource, "pvm-capability-report + the owner's slot pool");
   assert.equal(pvmCpuAvailability(row, { ...said, poolMemMbFree: 99999 }).ramGbFree, 3, "never more free than the pool");
-  for (const bad of [{ poolMemMb: 99999 }, { poolMemMb: 100 }, { slots: 5 }, { slots: 0 }, { poolMemMb: "3072" }]) {
+  assert.equal(pvmCpuAvailability(row, { ...said, slots: 32, poolMemMb: 4096, poolMemMbFree: 3904 }).nodeRamGb, 4, "a host with many small VMs");
+  for (const bad of [{ poolMemMb: 99999 }, { poolMemMb: 100 }, { slots: 65 }, { slots: 0 }, { poolMemMb: "3072" }]) {
     const b = pvmCpuAvailability(row, { ...said, ...bad });
     assert.deepEqual([b.nodeRamGb, b.ramGbFree], [2, 1.5], `${JSON.stringify(bad)}: the attested VM's size, as for a one-VM host`);
   }
