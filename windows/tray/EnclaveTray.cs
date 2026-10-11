@@ -211,7 +211,9 @@ namespace Enclave.Tray
             }
             debounce.Tick += delegate { debounce.Stop(); if (ApplyRequested != null) ApplyRequested(this, EventArgs.Empty); };
             KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) Hide(); };
-            FormClosing += (s, e) => { if (e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; Hide(); } };
+            // Closing only hides: a WM_CLOSE from outside arrives as TaskManagerClosing, not UserClosing, and a closed
+            // panel is a disposed one. Only the end of the session closes it, so logoff and shutdown are never held up.
+            FormClosing += (s, e) => { if (e.CloseReason != CloseReason.WindowsShutDown) { e.Cancel = true; Hide(); } };
             ShowUnreachable("not asked yet");
         }
 
@@ -292,7 +294,9 @@ namespace Enclave.Tray
         readonly TrayConfig cfg;
         readonly NodeClient client;
         readonly NotifyIcon icon = new NotifyIcon();
-        readonly ControlPanel panel = new ControlPanel();
+        readonly SynchronizationContext ui;
+        readonly string configError;
+        ControlPanel panel;
         readonly System.Windows.Forms.Timer poll = new System.Windows.Forms.Timer();
         readonly Icon iconOk = Glyph(Color.FromArgb(0x1F, 0x7A, 0x5C)), iconWarn = Glyph(Color.FromArgb(0xC2, 0x6A, 0x00)),
                       iconDown = Glyph(Color.FromArgb(0x80, 0x86, 0x8F));
@@ -303,8 +307,11 @@ namespace Enclave.Tray
         public TrayApp(TrayConfig cfg, string configError)
         {
             this.cfg = cfg;
+            this.configError = configError;
             client = new NodeClient(cfg);
-            var h = panel.Handle;                   // a window handle to marshal worker results onto
+            panel = NewPanel();
+            // the first control installs it on this thread: worker results come back on it, whatever happens to the panel
+            ui = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
             var menu = new ContextMenuStrip();
             var controls = new ToolStripMenuItem("Hosting controls\u2026", null, delegate { ShowPanel(); });
             controls.Font = new Font(controls.Font, FontStyle.Bold);
@@ -317,19 +324,38 @@ namespace Enclave.Tray
             icon.Icon = iconDown; icon.Text = "Enclave hosting";
             icon.MouseClick += (s, e) => { if (e.Button == MouseButtons.Left) ShowPanel(); };
             icon.Visible = true;
-            panel.ApplyRequested += delegate { Apply(); };
             poll.Interval = 10000; poll.Tick += delegate { Refresh(); }; poll.Start();
             Log("started; node 127.0.0.1:" + cfg.Port + ", token " + cfg.TokenFile + (configError != null ? "; " + configError : ""));
-            if (configError != null) panel.ShowError(configError);
             Refresh();
+        }
+
+        /// <summary>The panel, rebuilt if anything ever closed it (an aborted shutdown does), showing what the node last said.</summary>
+        ControlPanel Panel
+        {
+            get
+            {
+                if (panel.IsDisposed) { Log("the panel had been closed; rebuilt"); panel = NewPanel(); }
+                return panel;
+            }
+        }
+
+        ControlPanel NewPanel()
+        {
+            var p = new ControlPanel();
+            p.ApplyRequested += delegate { Apply(); };
+            p.FormClosed += (s, e) => Log("panel closed (" + e.CloseReason + ")");
+            if (last != null) p.ShowView(last, true);
+            if (configError != null) p.ShowError(configError);
+            return p;
         }
 
         void ShowPanel()
         {
             var area = Screen.FromPoint(Cursor.Position).WorkingArea;
-            if (!panel.Visible) { panel.Show(); }
-            panel.Location = new Point(area.Right - panel.Width - 12, area.Bottom - panel.Height - 12);
-            panel.Activate();
+            var p = Panel;
+            if (!p.Visible) { p.Show(); }
+            p.Location = new Point(area.Right - p.Width - 12, area.Bottom - p.Height - 12);
+            p.Activate();
             Refresh();
         }
 
@@ -345,7 +371,7 @@ namespace Enclave.Tray
             if (last == null) return;
             if (applying) { applyAgain = true; return; }
             applying = true;
-            double cpu = panel.CpuValue, gpu = panel.GpuValue;
+            double cpu = Panel.CpuValue, gpu = Panel.GpuValue;
             OnWorker(() => client.Put(cpu, gpu), (v, err) =>
             {
                 applying = false;
@@ -353,8 +379,8 @@ namespace Enclave.Tray
                 {
                     Log("set CPU " + ControlPanel.Pct(cpu) + ", GPU " + ControlPanel.Pct(gpu) + " FAILED: " + err.Message);
                     applyAgain = false;
-                    if (last != null) panel.ShowView(last, true);          // back to what the node last said
-                    panel.ShowError("Not applied: " + err.Message);
+                    if (last != null) Panel.ShowView(last, true);          // back to what the node last said
+                    Panel.ShowError("Not applied: " + err.Message);
                     Refresh();
                     return;
                 }
@@ -369,12 +395,12 @@ namespace Enclave.Tray
             if (err != null)
             {
                 last = null;
-                panel.ShowUnreachable(err is NodeException ? err.Message : err.GetType().Name + ": " + err.Message);
+                Panel.ShowUnreachable(err is NodeException ? err.Message : err.GetType().Name + ": " + err.Message);
                 icon.Icon = iconDown; icon.Text = Tip("Enclave hosting: node not reachable");
                 return;
             }
             last = v;
-            panel.ShowView(v, snap);
+            Panel.ShowView(v, snap);
             bool over = v.CpuInUse > v.CpuCap + 1e-9 || v.GpuInUse > v.GpuCap + 1e-9 || v.CapsError.Length > 0;
             icon.Icon = over ? iconWarn : iconOk;
             icon.Text = Tip("Enclave: CPU " + ControlPanel.Pct(v.CpuCap) + " offered, " + ControlPanel.Pct(v.CpuInUse) + " used; "
@@ -392,7 +418,7 @@ namespace Enclave.Tray
                 if (!Directory.Exists(dir)) throw new DirectoryNotFoundException("it does not exist");
                 Process.Start("explorer.exe", "\"" + dir + "\"");
             }
-            catch (Exception e) { panel.ShowError("Could not open " + dir + ": " + e.Message); ShowPanel(); }
+            catch (Exception e) { Panel.ShowError("Could not open " + dir + ": " + e.Message); ShowPanel(); }
         }
 
         void Quit()
@@ -411,8 +437,8 @@ namespace Enclave.Tray
             {
                 HostingView r = null; Exception err = null;
                 try { r = work(); } catch (Exception e) { err = e; }
-                try { panel.BeginInvoke((MethodInvoker)delegate { done(r, err); }); }
-                catch (InvalidOperationException) { }     // exiting: the window is gone
+                try { ui.Post(delegate { done(r, err); }, null); }
+                catch (InvalidOperationException) { }     // exiting: the UI thread is gone
             });
         }
 
