@@ -62,13 +62,14 @@ namespace Enclave.Tray
         public double CpuCap, GpuCap, CpuInUse, GpuInUse, CpuFree, GpuFree, Reserved;
         public int Served, WaitingForCap;
         public string Backend = "", GpuWhy = "", CapsError = "", LogsDir = "";
-        public bool GpuConsumer, AppsEnabled;
+        public bool GpuConsumer, AppsEnabled, Paused, CanPause;
 
         public static HostingView From(Dictionary<string, object> o)
         {
             var v = new HostingView();
             var caps = Obj(o, "caps"); var inUse = Obj(o, "inUse"); var free = Obj(o, "free"); var gpu = Obj(o, "gpu");
             v.CpuCap = Num(caps, "cpuShare", 0); v.GpuCap = Num(caps, "gpuShare", 0);
+            v.Paused = Bool(caps, "paused"); v.CanPause = caps != null && caps.ContainsKey("paused");   // an older node has no switch
             v.CpuInUse = Num(inUse, "cpuShare", 0); v.GpuInUse = Num(inUse, "gpuShare", 0);
             v.CpuFree = Num(free, "cpuShare", 0); v.GpuFree = Num(free, "gpuShare", 0);
             v.Reserved = Num(o, "reservedShare", 0);
@@ -111,6 +112,11 @@ namespace Enclave.Tray
         {
             return HostingView.From(Send("PUT", string.Format(CultureInfo.InvariantCulture,
                 "{{\"cpuShare\":{0:0.00},\"gpuShare\":{1:0.00}}}", cpuShare, gpuShare)));
+        }
+
+        public HostingView SetPaused(bool paused)
+        {
+            return HostingView.From(Send("PUT", paused ? "{\"paused\":true}" : "{\"paused\":false}"));
         }
 
         string ReadToken()
@@ -429,17 +435,130 @@ namespace Enclave.Tray
         }
     }
 
-    /// <summary>The panel: two sliders, what they mean right now, and whether the node is there at all.</summary>
+    /// <summary>Hosting on or off: a switch in the theme. A click ASKS (Toggled); only the node's answer moves it.</summary>
+    sealed class HostingSwitch : Control
+    {
+        bool on;
+        public event EventHandler Toggled;
+        public HostingSwitch()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer
+                   | ControlStyles.Selectable | ControlStyles.StandardClick, true);
+            TabStop = true; AccessibleName = "Hosting"; AccessibleRole = AccessibleRole.CheckButton;
+            Size = new Size(Theme.Px(40), Theme.Px(22)); Margin = new Padding(3, Theme.Px(2), Theme.Px(8), 0); Cursor = Cursors.Hand;
+        }
+        public bool On
+        {
+            get { return on; }
+            set { if (on == value) return; on = value; Invalidate(); AccessibilityNotifyClients(AccessibleEvents.StateChange, -1); }
+        }
+        void Ask() { if (Enabled && Toggled != null) Toggled(this, EventArgs.Empty); }
+        protected override void OnClick(EventArgs e) { Focus(); Ask(); base.OnClick(e); }
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Space || e.KeyCode == Keys.Enter) { Ask(); e.Handled = true; }
+            base.OnKeyDown(e);
+        }
+        protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
+        protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
+        protected override void OnEnabledChanged(EventArgs e) { Invalidate(); base.OnEnabledChanged(e); }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.Clear(Theme.Bg);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            float pad = Theme.Px(2), h = Height - 2 * pad, w = Width - 2 * pad;
+            var track = new RectangleF(pad, pad, w, h);
+            using (var path = Theme.Rounded(track, h / 2))
+            {
+                if (Focused) using (var ring = new Pen(Theme.JadeDeep, Theme.Px(3))) g.DrawPath(ring, path);
+                using (var fill = new SolidBrush(on && Enabled ? Theme.Jade : Theme.Surface2)) g.FillPath(fill, path);
+                if (!on || !Enabled) using (var edge = new Pen(Theme.LineStrong)) g.DrawPath(edge, path);
+            }
+            float d = h - Theme.Px(6), x = on ? track.Right - d - Theme.Px(3) : track.X + Theme.Px(3);
+            using (var knob = new SolidBrush(on && Enabled ? Theme.Bg : Theme.Dim)) g.FillEllipse(knob, x, track.Y + Theme.Px(3), d, d);
+        }
+        protected override AccessibleObject CreateAccessibilityInstance() { return new Accessible(this); }
+        sealed class Accessible : ControlAccessibleObject
+        {
+            readonly HostingSwitch owner;
+            public Accessible(HostingSwitch owner) : base(owner) { this.owner = owner; }
+            public override AccessibleStates State { get { return base.State | (owner.on ? AccessibleStates.Checked : AccessibleStates.None); } }
+            public override string DefaultAction { get { return owner.on ? "Pause hosting" : "Resume hosting"; } }
+            public override void DoDefaultAction() { owner.Ask(); }
+        }
+    }
+
+    /// <summary>A button in the theme: Primary is jade on black (Apply); the other is a hairline outline (Reset).</summary>
+    sealed class ThemeButton : Control
+    {
+        readonly bool primary;
+        bool hot;
+        public ThemeButton(string text, bool primary)
+        {
+            this.primary = primary;
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer
+                   | ControlStyles.Selectable | ControlStyles.StandardClick, true);
+            Text = text; TabStop = true; AccessibleName = text; AccessibleRole = AccessibleRole.PushButton;
+            Font = Theme.Mono(9f, primary ? FontStyle.Bold : FontStyle.Regular);
+            Size = new Size(Theme.Px(primary ? 92 : 72), Theme.Px(28)); Margin = new Padding(Theme.Px(8), 0, 0, 0);
+        }
+        protected override void OnTextChanged(EventArgs e) { AccessibleName = Text; Invalidate(); base.OnTextChanged(e); }
+        protected override void OnMouseEnter(EventArgs e) { hot = true; Invalidate(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { hot = false; Invalidate(); base.OnMouseLeave(e); }
+        protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
+        protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
+        protected override void OnEnabledChanged(EventArgs e) { Cursor = Enabled ? Cursors.Hand : Cursors.Default; Invalidate(); base.OnEnabledChanged(e); }
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Space || e.KeyCode == Keys.Enter) { OnClick(EventArgs.Empty); e.Handled = true; }
+            base.OnKeyDown(e);
+        }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.Clear(Theme.Bg);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            var r = new RectangleF(1, 1, Width - 2, Height - 2);
+            Color fill, ink, edge;
+            if (!Enabled) { fill = Theme.Bg; ink = Theme.Dim; edge = Theme.Line; }
+            else if (primary) { fill = hot ? Color.FromArgb(0x5F, 0xF0, 0xC0) : Theme.Jade; ink = Theme.Bg; edge = fill; }
+            else { fill = hot ? Theme.Surface2 : Theme.Bg; ink = Theme.Text; edge = Theme.LineStrong; }
+            using (var path = Theme.Rounded(r, Theme.Px(4)))
+            {
+                using (var b = new SolidBrush(fill)) g.FillPath(b, path);
+                using (var pen = new Pen(Focused && Enabled ? (primary ? Theme.Text : Theme.Jade) : edge)) g.DrawPath(pen, path);
+            }
+            TextRenderer.DrawText(g, Text, Font, Rectangle.Round(r), ink,
+                                  TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
+        }
+    }
+
+    sealed class PauseEventArgs : EventArgs
+    {
+        public readonly bool Paused;
+        public PauseEventArgs(bool paused) { Paused = paused; }
+    }
+
+    /// <summary>The panel: the hosting switch, two sliders and their Apply, what they mean right now, and whether the node is there at all.</summary>
     sealed class ControlPanel : Form
     {
         public readonly ShareSlider Cpu = new ShareSlider("CPU share offered to hosting"), Gpu = new ShareSlider("GPU share offered to hosting");
         readonly Label cpuLine = Line(), gpuLine = Line(), cpuNote = Note(), gpuNote = Note(), status = Line(), error = Note();
+        readonly HostingSwitch hosting = new HostingSwitch();
+        readonly Label hostingLine = Line(), unsaved = Line();
+        readonly ThemeButton apply = new ThemeButton("Apply", true), reset = new ThemeButton("Reset", false);
         public event EventHandler ApplyRequested;
-        readonly System.Windows.Forms.Timer debounce = new System.Windows.Forms.Timer { Interval = 500 };
-        bool dragging, setting;
+        public event EventHandler<PauseEventArgs> PauseRequested;
+        bool dragging, setting, applying, switching;
         HostingView view;
 
-        public bool Busy { get { return dragging || debounce.Enabled; } }
+        /// <summary>The sliders say something the node does not: moved and not applied (or being applied).</summary>
+        public bool Pending
+        {
+            get { return view != null && (Cpu.Value != Step(view.CpuCap) || Gpu.Value != Step(view.GpuCap)); }
+        }
+        static int Step(double share) { return (int)Math.Round(share * ShareSlider.Steps); }
 
         public ControlPanel()
         {
@@ -454,10 +573,24 @@ namespace Enclave.Tray
                                              BackColor = Theme.Bg };
             flow.Controls.Add(new Masthead());
             flow.Controls.Add(Rule());
+            flow.Controls.Add(Title("Hosting"));
+            var switchRow = Row(FlowDirection.LeftToRight);
+            switchRow.Controls.Add(hosting); switchRow.Controls.Add(hostingLine);
+            hostingLine.Margin = new Padding(0, Theme.Px(4), 0, 0); hostingLine.MaximumSize = new Size(Wide - Theme.Px(56), 0);
+            flow.Controls.Add(switchRow);
             flow.Controls.Add(Title("CPU share offered"));
             flow.Controls.Add(Cpu); flow.Controls.Add(cpuLine); flow.Controls.Add(cpuNote);
             flow.Controls.Add(Title("GPU share offered"));
             flow.Controls.Add(Gpu); flow.Controls.Add(gpuLine); flow.Controls.Add(gpuNote);
+            // Apply and Reset, right-aligned, with what is waiting on the left
+            var buttons = new TableLayoutPanel { ColumnCount = 3, RowCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                                                 BackColor = Theme.Bg, Margin = new Padding(3, Theme.Px(14), 3, 0), Width = Wide };
+            buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); buttons.ColumnStyles.Add(new ColumnStyle()); buttons.ColumnStyles.Add(new ColumnStyle());
+            unsaved.ForeColor = Theme.Amber; unsaved.Font = Theme.Mono(8.25f, FontStyle.Regular); unsaved.Anchor = AnchorStyles.Left;
+            unsaved.Margin = new Padding(0); unsaved.MaximumSize = new Size(0, 0);
+            buttons.Controls.Add(unsaved, 0, 0); buttons.Controls.Add(reset, 1, 0); buttons.Controls.Add(apply, 2, 0);
+            buttons.MinimumSize = new Size(Wide, 0);
+            flow.Controls.Add(buttons);
             flow.Controls.Add(Rule());
             flow.Controls.Add(status); flow.Controls.Add(error);
             status.ForeColor = Theme.Muted; status.Font = Theme.Mono(8.25f, FontStyle.Regular);
@@ -467,12 +600,24 @@ namespace Enclave.Tray
             foreach (var t in new[] { Cpu, Gpu })
             {
                 t.MouseDown += delegate { dragging = true; };
-                t.MouseUp += delegate { dragging = false; Schedule(); };
-                // keyboard and wheel moves arrive here with no mouse up; a drag is applied on release only
-                t.ValueChanged += delegate { if (setting) return; Relabel(); if (!dragging) Schedule(); };
+                t.MouseUp += delegate { dragging = false; Relabel(); };
+                // nothing is sent until Apply: a move only relabels and arms the buttons
+                t.ValueChanged += delegate { if (setting) return; Relabel(); };
             }
-            debounce.Tick += delegate { debounce.Stop(); if (ApplyRequested != null) ApplyRequested(this, EventArgs.Empty); };
-            KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) Hide(); };
+            apply.Click += delegate { RequestApply(); };
+            reset.Click += delegate { if (view != null && !applying) ShowView(view, true); };
+            hosting.Toggled += delegate
+            {
+                if (view == null || switching || PauseRequested == null) return;
+                PauseRequested(this, new PauseEventArgs(!view.Paused));
+            };
+            KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Escape) Hide();
+                else if (e.KeyCode == Keys.Enter && (Cpu.Focused || Gpu.Focused)) { RequestApply(); e.Handled = true; }
+            };
+            // Hiding with changes not applied discards them: the panel opens again on what the node says.
+            VisibleChanged += delegate { if (!Visible && view != null && !applying) ShowView(view, true); };
             // Closing only hides: a WM_CLOSE from outside arrives as TaskManagerClosing, not UserClosing, and a closed
             // panel is a disposed one. Only the end of the session closes it, so logoff and shutdown are never held up.
             FormClosing += (s, e) => { if (e.CloseReason != CloseReason.WindowsShutDown) { e.Cancel = true; Hide(); } };
@@ -481,22 +626,32 @@ namespace Enclave.Tray
 
         protected override void OnHandleCreated(EventArgs e) { base.OnHandleCreated(e); Theme.DarkFrame(Handle); }
 
-        void Schedule() { debounce.Stop(); debounce.Start(); }
+        void RequestApply() { if (Pending && !applying && ApplyRequested != null) ApplyRequested(this, EventArgs.Empty); }
+
+        /// <summary>An Apply is in flight: the buttons wait, and the sliders keep what is being applied.</summary>
+        public bool Applying { get { return applying; } set { applying = value; Relabel(); } }
+        /// <summary>A pause or resume is in flight: the switch waits for the node's answer.</summary>
+        public bool Switching { get { return switching; } set { switching = value; Relabel(); } }
 
         public double CpuValue { get { return Cpu.Value / (double)ShareSlider.Steps; } }
         public double GpuValue { get { return Gpu.Value / (double)ShareSlider.Steps; } }
 
-        /// <summary>The node's truth. Sliders are moved to it unless the owner is mid-move.</summary>
+        /// <summary>
+        /// The node's truth. Sliders are moved to it unless the owner is moving them or has moved them and not applied
+        /// (judged against the answer they were last set from, not this one).
+        /// </summary>
         public void ShowView(HostingView v, bool snapSliders)
         {
+            bool keep = !snapSliders && (dragging || Pending);
             view = v;
-            if (snapSliders || !Busy)
+            if (!keep)
             {
                 setting = true;
                 Cpu.Value = (int)Math.Round(v.CpuCap * ShareSlider.Steps); Gpu.Value = (int)Math.Round(v.GpuCap * ShareSlider.Steps);
                 setting = false;
             }
             Cpu.Enabled = Gpu.Enabled = true;
+            hosting.On = !v.Paused;
             string waiting = v.WaitingForCap > 0 ? ", " + v.WaitingForCap + " waiting for room under the cap" : "";
             status.Text = "Node: reachable \u00B7 backend " + (v.Backend.Length > 0 ? v.Backend : "?") + " \u00B7 "
                         + v.Served + (v.Served == 1 ? " deployment" : " deployments") + " served" + waiting
@@ -509,6 +664,7 @@ namespace Enclave.Tray
         {
             view = null;
             Cpu.Enabled = Gpu.Enabled = false;
+            Relabel();
             cpuLine.Text = gpuLine.Text = "offered \u2013 \u00B7 in use \u2013";
             cpuNote.Text = gpuNote.Text = "";
             status.Text = "Node: not reachable. " + why;
@@ -519,8 +675,19 @@ namespace Enclave.Tray
 
         void Relabel()
         {
-            if (view == null) return;
             var v = view;
+            // the switch, and the buttons: armed only by a change the node has not got
+            hosting.Enabled = v != null && v.CanPause && !switching;
+            hostingLine.ForeColor = v != null && v.Paused ? Theme.Amber : Theme.Text;
+            hostingLine.Text = v == null ? "\u2013"
+                : !v.CanPause ? "on (this node has no off switch yet: update the node)"
+                : switching ? (v.Paused ? "resuming\u2026" : "pausing\u2026")
+                : v.Paused ? "paused \u00B7 no new work; " + v.Served + " running keep running"
+                : "on \u00B7 taking new work under the caps below";
+            apply.Enabled = reset.Enabled = Pending && !applying;
+            apply.Text = applying ? "Applying\u2026" : "Apply";
+            unsaved.Text = Pending && !applying ? "not applied" : "";
+            if (v == null) return;
             cpuLine.Text = "offered " + Pct(CpuValue) + " \u00B7 in use " + Pct(v.CpuInUse);
             gpuLine.Text = "offered " + Pct(GpuValue) + " \u00B7 in use " + Pct(v.GpuInUse);
             var cn = new List<string>();
@@ -545,6 +712,11 @@ namespace Enclave.Tray
                                ForeColor = Theme.Muted, Margin = new Padding(3, Theme.Px(12), 3, 0) };
         }
         static Label Line() { return new Label { AutoSize = true, MaximumSize = new Size(Wide, 0), Font = Theme.Mono(9f, FontStyle.Regular), ForeColor = Theme.Text }; }
+        static FlowLayoutPanel Row(FlowDirection direction)
+        {
+            return new FlowLayoutPanel { FlowDirection = direction, WrapContents = false, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                                         BackColor = Theme.Bg, Margin = new Padding(0, Theme.Px(4), 0, 0) };
+        }
         static Label Note() { return new Label { AutoSize = true, MaximumSize = new Size(Wide, 0), Font = Theme.Body, ForeColor = Theme.Dim, Margin = new Padding(3, Theme.Px(2), 3, 0) }; }
         static Control Rule() { return new Panel { Size = new Size(Wide, 1), BackColor = Theme.Line, Margin = new Padding(3, Theme.Px(8), 3, Theme.Px(2)) }; }
     }
@@ -559,8 +731,9 @@ namespace Enclave.Tray
         ControlPanel panel;
         readonly System.Windows.Forms.Timer poll = new System.Windows.Forms.Timer();
         readonly Icon iconOk = Glyph(Theme.Jade), iconWarn = Glyph(Theme.Amber), iconDown = Glyph(Theme.Dim);
+        readonly ToolStripMenuItem pauseItem;
         HostingView last;
-        bool refreshing, applying, applyAgain;
+        bool refreshing, applying, switching;
         static readonly string Home = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Enclave", "Tray");
 
         public TrayApp(TrayConfig cfg, string configError)
@@ -576,6 +749,8 @@ namespace Enclave.Tray
             var controls = new ToolStripMenuItem("Hosting controls\u2026", null, delegate { ShowPanel(); });
             controls.Font = new Font(controls.Font, FontStyle.Bold);
             menu.Items.Add(controls);
+            pauseItem = new ToolStripMenuItem("Pause hosting", null, delegate { if (last != null) SetPaused(!last.Paused); }) { Enabled = false };
+            menu.Items.Add(pauseItem);
             menu.Items.Add(new ToolStripMenuItem("Open logs folder", null, delegate { OpenLogs(); }));
             menu.Items.Add(new ToolStripMenuItem("Refresh", null, delegate { Refresh(); }));
             menu.Items.Add(new ToolStripSeparator());
@@ -603,6 +778,7 @@ namespace Enclave.Tray
         {
             var p = new ControlPanel();
             p.ApplyRequested += delegate { Apply(); };
+            p.PauseRequested += (s, e) => SetPaused(e.Paused);
             p.FormClosed += (s, e) => Log("panel closed (" + e.CloseReason + ")");
             if (last != null) p.ShowView(last, true);
             if (configError != null) p.ShowError(configError);
@@ -621,16 +797,15 @@ namespace Enclave.Tray
 
         void Refresh()
         {
-            if (refreshing || applying) return;
+            if (refreshing || applying || switching) return;
             refreshing = true;
             OnWorker(() => client.Get(), (v, err) => { refreshing = false; Show(v, err, false); });
         }
 
         void Apply()
         {
-            if (last == null) return;
-            if (applying) { applyAgain = true; return; }
-            applying = true;
+            if (last == null || applying) return;
+            applying = true; Panel.Applying = true;
             double cpu = Panel.CpuValue, gpu = Panel.GpuValue;
             OnWorker(() => client.Put(cpu, gpu), (v, err) =>
             {
@@ -638,15 +813,38 @@ namespace Enclave.Tray
                 if (err != null)
                 {
                     Log("set CPU " + ControlPanel.Pct(cpu) + ", GPU " + ControlPanel.Pct(gpu) + " FAILED: " + err.Message);
-                    applyAgain = false;
-                    if (last != null) Panel.ShowView(last, true);          // back to what the node last said
+                    Panel.Applying = false;                                 // the sliders keep the owner's values: Apply again, or Reset
                     Panel.ShowError("Not applied: " + err.Message);
                     Refresh();
                     return;
                 }
                 Log("set CPU " + ControlPanel.Pct(v.CpuCap) + ", GPU " + ControlPanel.Pct(v.GpuCap));
-                if (applyAgain) { applyAgain = false; Show(v, null, false); Apply(); return; }
                 Show(v, null, true);
+                Panel.Applying = false;
+                Panel.ShowError("");
+            });
+        }
+
+        /// <summary>The switch: pause (nothing new is taken; what runs keeps running) or resume. The caps are kept either way.</summary>
+        void SetPaused(bool paused)
+        {
+            if (last == null || switching) return;
+            switching = true; Panel.Switching = true; pauseItem.Enabled = false;
+            OnWorker(() => client.SetPaused(paused), (v, err) =>
+            {
+                switching = false;
+                if (err != null)
+                {
+                    Log((paused ? "pause" : "resume") + " FAILED: " + err.Message);
+                    Panel.Switching = false;
+                    Panel.ShowError("Hosting was not " + (paused ? "paused" : "resumed") + ": " + err.Message);
+                    Refresh();
+                    return;
+                }
+                Log(v.Paused ? "hosting paused" : "hosting resumed");
+                Show(v, null, false);                                       // a move not yet applied stays as it is
+                Panel.Switching = false;
+                Panel.ShowError("");
             });
         }
 
@@ -655,12 +853,21 @@ namespace Enclave.Tray
             if (err != null)
             {
                 last = null;
+                pauseItem.Enabled = false;
                 Panel.ShowUnreachable(err is NodeException ? err.Message : err.GetType().Name + ": " + err.Message);
                 icon.Icon = iconDown; icon.Text = Tip("Enclave hosting: node not reachable");
                 return;
             }
             last = v;
             Panel.ShowView(v, snap);
+            pauseItem.Text = v.Paused ? "Resume hosting" : "Pause hosting";
+            pauseItem.Enabled = v.CanPause && !switching;
+            if (v.Paused)
+            {
+                icon.Icon = iconDown;
+                icon.Text = Tip("Enclave hosting: paused; " + v.Served + " running");
+                return;
+            }
             bool over = v.CpuInUse > v.CpuCap + 1e-9 || v.GpuInUse > v.GpuCap + 1e-9 || v.CapsError.Length > 0;
             icon.Icon = over ? iconWarn : iconOk;
             icon.Text = Tip("Enclave: CPU " + ControlPanel.Pct(v.CpuCap) + " offered, " + ControlPanel.Pct(v.CpuInUse) + " used; "
