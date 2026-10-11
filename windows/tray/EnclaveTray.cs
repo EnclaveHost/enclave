@@ -268,7 +268,20 @@ namespace Enclave.Tray
     {
         public static readonly Color Bg = Rgb(0x070A0F), Surface = Rgb(0x0F1620), Surface2 = Rgb(0x131C28), Line = Rgb(0x1E2937),
                                      LineStrong = Rgb(0x566880), Text = Rgb(0xE7EEF6), Muted = Rgb(0x93A1B5), Dim = Rgb(0x7A8AA0),
-                                     Jade = Rgb(0x2FE6A8), JadeDeep = Rgb(0x0E3A2C), Amber = Rgb(0xFF914D), Danger = Rgb(0xFF6B6B);
+                                     Jade = Rgb(0x2FE6A8), JadeDim = Rgb(0x1C9C74), JadeDeep = Rgb(0x0E3A2C), Amber = Rgb(0xFF914D),
+                                     AmberDim = Rgb(0xB4622F), Danger = Rgb(0xFF6B6B);
+
+        /// <summary>Is the taskbar light (Windows' "system" theme)? The tray glyph has no tile of its own, so it takes the deeper
+        /// shades there; anything unreadable counts as dark, the Windows 11 default.</summary>
+        public static bool LightTaskbar()
+        {
+            try
+            {
+                using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"))
+                    return k != null && k.GetValue("SystemUsesLightTheme") is int && (int)k.GetValue("SystemUsesLightTheme") == 1;
+            }
+            catch { return false; }
+        }
         static Color Rgb(int x) { return Color.FromArgb(0xFF, (x >> 16) & 0xFF, (x >> 8) & 0xFF, x & 0xFF); }
 
         // The site's mono stack, as Windows has it: Cascadia Mono ships with Windows 11, Consolas with everything since Vista.
@@ -319,8 +332,10 @@ namespace Enclave.Tray
             if (tile)
                 using (var path = Rounded(new RectangleF(0, 0, 32, 32), 6))
                 using (var b = new SolidBrush(Bg)) g.FillPath(b, path);
-            g.TranslateTransform(16, 16); g.ScaleTransform(.82f, .82f); g.TranslateTransform(-16, -16);
-            float w = Math.Max(2f, 1.3f / (k * .82f));          // at least ~1.3 device px whatever the size
+            // on its tile the mark is inset as on the site; on its own it fills the icon (the hexagon spans 2..30 of 32)
+            float inset = tile ? .82f : 1f;
+            g.TranslateTransform(16, 16); g.ScaleTransform(inset, inset); g.TranslateTransform(-16, -16);
+            float w = Math.Max(2f, 1.3f / (k * inset));          // at least ~1.3 device px whatever the size
             using (var pen = new Pen(stroke, w) { LineJoin = LineJoin.Round, StartCap = LineCap.Round, EndCap = LineCap.Round })
             {
                 g.DrawPolygon(pen, Hex(16, 2, 28, 9, 23, 30, 4));
@@ -945,7 +960,9 @@ namespace Enclave.Tray
         readonly string configError;
         ControlPanel panel;
         readonly System.Windows.Forms.Timer poll = new System.Windows.Forms.Timer();
-        readonly Icon iconOk = Glyph(Theme.Jade), iconWarn = Glyph(Theme.Amber), iconDown = Glyph(Theme.Dim);
+        static readonly bool lightBar = Theme.LightTaskbar();
+        readonly Icon iconOk = Glyph(lightBar ? Theme.JadeDim : Theme.Jade), iconWarn = Glyph(lightBar ? Theme.AmberDim : Theme.Amber),
+                      iconDown = Glyph(lightBar ? Theme.LineStrong : Theme.Dim);
         readonly ToolStripMenuItem pauseItem;
         HostingView last;
         EarningsView lastEarnings;
@@ -1006,6 +1023,9 @@ namespace Enclave.Tray
             if (configError != null) p.ShowError(configError);
             return p;
         }
+
+        /// <summary>Another launch (a Desktop or Start Menu shortcut) asked this running tray to show itself.</summary>
+        public void ShowFromOutside() { ui.Post(delegate { ShowPanel(); }, null); }
 
         void ShowPanel()
         {
@@ -1236,7 +1256,8 @@ namespace Enclave.Tray
 
         [DllImport("user32.dll")] static extern bool DestroyIcon(IntPtr handle);
 
-        /// <summary>The tray glyph: the site's mark (a key in a box) in the state's colour, drawn at the size the tray shows.</summary>
+        /// <summary>The tray glyph: the site's mark (a key in a box) in the state's colour on a transparent ground, drawn at the
+        /// size the tray shows.</summary>
         static Icon Glyph(Color stroke)
         {
             int n = Math.Max(16, SystemInformation.SmallIconSize.Width);
@@ -1245,7 +1266,7 @@ namespace Enclave.Tray
                 using (var g = Graphics.FromImage(bmp))
                 {
                     g.Clear(Color.Transparent);
-                    Theme.Mark(g, new RectangleF(0, 0, n, n), stroke, true);
+                    Theme.Mark(g, new RectangleF(0, 0, n, n), stroke, false);
                 }
                 IntPtr h = bmp.GetHicon();
                 try { using (var tmp = Icon.FromHandle(h)) return (Icon)tmp.Clone(); }
@@ -1258,22 +1279,65 @@ namespace Enclave.Tray
     {
         [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
 
+        const string ShowSignal = "Local\\EnclaveHostingTray.Show";
+
         [STAThread]
-        static void Main()
+        static int Main(string[] args)
         {
+            // build.cmd: the exe's own icon file, drawn by the same code as the tray glyph
+            if (args.Length == 2 && args[0] == "--write-icon") return IconFile.Write(args[1]) ? 0 : 1;
             bool first;
             using (var one = new Mutex(true, "Local\\EnclaveHostingTray", out first))
+            using (var show = new EventWaitHandle(false, EventResetMode.AutoReset, ShowSignal))
             {
-                if (!first) return;                 // one tray per signed-in user
+                if (!first) { show.Set(); return 0; }  // one tray per signed-in user: a second launch opens its panel
                 try { SetProcessDPIAware(); } catch { }
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
                 string configError;
                 var here = Path.GetDirectoryName(Application.ExecutablePath);
                 var cfg = TrayConfig.Load(Path.Combine(here, "tray-config.json"), out configError);
-                Application.Run(new TrayApp(cfg, configError));
+                var app = new TrayApp(cfg, configError);
+                var wait = ThreadPool.RegisterWaitForSingleObject(show, delegate { app.ShowFromOutside(); }, null, -1, false);
+                Application.Run(app);
+                wait.Unregister(null);
                 GC.KeepAlive(one);
             }
+            return 0;
+        }
+    }
+
+    /// <summary>A multi-size .ico of the mark on a transparent ground (PNG entries, which Windows reads from Vista on).</summary>
+    static class IconFile
+    {
+        public static bool Write(string path)
+        {
+            int[] sizes = { 16, 20, 24, 32, 40, 48, 64, 256 };
+            var pngs = new List<byte[]>();
+            foreach (int n in sizes)
+                using (var bmp = new Bitmap(n, n, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
+                {
+                    using (var g = Graphics.FromImage(bmp)) { g.Clear(Color.Transparent); Theme.Mark(g, new RectangleF(0, 0, n, n), Theme.Jade, false); }
+                    using (var ms = new MemoryStream()) { bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png); pngs.Add(ms.ToArray()); }
+                }
+            try
+            {
+                using (var w = new BinaryWriter(File.Create(path)))
+                {
+                    w.Write((short)0); w.Write((short)1); w.Write((short)sizes.Length);           // ICONDIR: reserved, type 1 (icon), count
+                    int offset = 6 + 16 * sizes.Length;
+                    for (int i = 0; i < sizes.Length; i++)
+                    {
+                        w.Write((byte)(sizes[i] >= 256 ? 0 : sizes[i])); w.Write((byte)(sizes[i] >= 256 ? 0 : sizes[i]));   // 0 means 256
+                        w.Write((byte)0); w.Write((byte)0); w.Write((short)1); w.Write((short)32);
+                        w.Write(pngs[i].Length); w.Write(offset);
+                        offset += pngs[i].Length;
+                    }
+                    foreach (var png in pngs) w.Write(png);
+                }
+                return true;
+            }
+            catch (Exception e) { Console.Error.WriteLine("write-icon: " + e.Message); return false; }
         }
     }
 }

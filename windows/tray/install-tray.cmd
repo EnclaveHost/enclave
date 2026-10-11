@@ -1,6 +1,7 @@
 @echo off
 rem install-tray.cmd -- install the hosting tray app for THE CURRENT USER (no elevation): copy it to
-rem %LOCALAPPDATA%\Enclave\Tray, start it at this user's logon (HKCU Run value EnclaveHostingTray), and start it now.
+rem %LOCALAPPDATA%\Enclave\Tray, start it at this user's logon (HKCU Run value EnclaveHostingTray), put "Enclave Hosting"
+rem on this user's Desktop and Start Menu (opening it while the tray runs shows the panel), and start it now.
 rem A tray-config.json beside this file is copied too. uninstall-tray.cmd reverses all of it.
 setlocal
 set "SRC=%~dp0"
@@ -13,6 +14,8 @@ if not exist "%DEST%" mkdir "%DEST%" || (echo install: could not create %DEST% &
 copy /y "%SRC%EnclaveTray.exe" "%DEST%\EnclaveTray.exe" >nul || (echo install: copy to %DEST% failed & exit /b 1)
 if exist "%SRC%tray-config.json" copy /y "%SRC%tray-config.json" "%DEST%\tray-config.json" >nul
 reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v EnclaveHostingTray /t REG_SZ /d "\"%DEST%\EnclaveTray.exe\"" /f >nul || (echo install: could not register the logon start & exit /b 1)
+rem The shortcuts: the Desktop as Windows knows it (OneDrive may have moved it), and the Start Menu's Programs.
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$w = New-Object -ComObject WScript.Shell; foreach ($d in [Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs')) { $l = $w.CreateShortcut((Join-Path $d 'Enclave Hosting.lnk')); $l.TargetPath = $env:DEST + '\EnclaveTray.exe'; $l.WorkingDirectory = $env:DEST; $l.IconLocation = $env:DEST + '\EnclaveTray.exe,0'; $l.Description = 'Enclave hosting: caps, the on/off switch and USDC earnings'; $l.Save() }" || echo install: the Desktop and Start Menu shortcuts could not be made
 start "" "%DEST%\EnclaveTray.exe"
 echo install: %DEST%\EnclaveTray.exe is running and starts at this user's logon (HKCU Run: EnclaveHostingTray)
 rem The node writes the token into its own private directory and grants THIS account read only when it is named in the
