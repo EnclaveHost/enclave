@@ -196,6 +196,28 @@ In production since 2026-10-09 09:40Z (build `9f38fd61…`): the served deployme
 slot 1 (384 MiB): its key handed over in 0.3 s, its runner attesting the host's key, its secret re-sealed by the relay to
 slot 1 after the sibling check.
 
+### Off the cable (2026-10-10)
+
+Everything between the owner's machine and the phone rides adb: the app's TLS (TUNA -> the agent's router -> `adb forward`
+-> the slot's LocalBridge), the evidence endpoint (proofs, certificates, sealed secrets), the relay's host requests and
+the attach co-signature (`adb reverse` 18187/18188), and egress (`adb reverse` 18189). With the cable out and no other
+adb transport, none of it reaches the phone: the VMs keep running, but nothing gets in or out of them.
+
+So the agent picks the transport every round (`pvm-device.mjs` `selectTransport`): USB while the cable is in -- and then
+it keeps the phone's Wi-Fi address (`state/phone-wifi.json`) and puts the phone's adbd in TCP mode (`device.wifi.port`,
+5555; once per phone boot, which restarts adbd and drops the doors for a few seconds) -- else `adb connect
+<address>:<port>`, and the doors are made on that transport (forwards re-pointed; the reverse doors, which are device-wide,
+cleared at each switch). Neither answers: the round judges no VM (a VM that cannot be asked is not a VM that ended),
+launches and takes nothing, and only the runners' chain work goes on. A launch commits its new label only once it reached
+the phone, so a round cut short never makes a serving VM look gone.
+
+Limits: the owner's machine still runs the agent, TUNA and egress, and must reach the phone's Wi-Fi address; adbd's TCP
+mode ends when the phone reboots (one plug-in restores it); a new DHCP address needs a plug-in to be learned (reserve it on
+the router); adb over TCP is key-authorized but not encrypted -- the apps' traffic inside is TLS end to end, while the
+bridge tokens and the staged options (config, sealed-secret ciphertext) cross the LAN in the clear. Android's wireless
+debugging (TLS, paired on the phone) would close that last point. Measured: the doors over Wi-Fi made in 175 ms, an app
+served (200, 0.97 s) and a proof landed through them.
+
 ### Egress (2026-10-09)
 
 The VM has no network, and nothing in it can open a connection to the phone. So the phone's host app keeps idle vsock
