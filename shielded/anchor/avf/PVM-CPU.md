@@ -217,7 +217,11 @@ memory for apps' VMs (up to the agent's `slots.poolMemMb`). The app saves `files
 owner's adb can write it; not another app, not the relay); the agent reads it every round, strictly, and admits apps and
 reports `/availability` within it (`cpuShareOffered`, `poolMemMb`, `offer`); the relay lists the node's compute as that
 part of the attested GFLOPS. Lowering it never evicts: new apps fit within it, and a running app re-judged (a config edit,
-a resize) keeps at least the room it holds. The GPU is not offered: a protected VM on this phone cannot reach it.
+a resize) keeps at least the room it holds. The GPU is not offered: a protected VM on this phone cannot reach it. Changes
+to the sliders take effect on **Apply** (live only while they differ from what is in effect). The **Hosting** switch turns
+hosting off entirely: the agent releases every app here (a final proof, then release), ends its VM, then ends the host VM,
+and takes nothing until it is on again (`offer.json` `"hosting": false`; turning off with apps running asks first). The
+screen runs in its own process (`:ui`), so ending the host VM never closes it.
 
 The host VM runs in the app's main process, which also hosts that screen: Android brings the process back for the screen
 after an update with no VM in it, so the agent counts a VM as alive only while its own `crosvm_<instance>` runs.
