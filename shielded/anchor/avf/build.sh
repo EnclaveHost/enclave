@@ -224,13 +224,16 @@ case "$NAME" in
   *) echo "unknown payload $NAME" >&2; exit 2 ;;
 esac
 rm -f "$STAGE"/lib/arm64-v8a/*.so
+# 16 KB pages (PAGE16): Android 15+ checks every library in an APK for 16 KB-aligned LOAD segments and warns on opening a
+# debuggable app that has one that is not; a 16 KB-aligned library loads on 4 KB pages too (Microdroid, the VM's kernel)
+PAGE16="-Wl,-z,max-page-size=16384"
 "$CLANG" "${CFLAGS[@]}" -shared -o "$STAGE/lib/arm64-v8a/lib$NAME.so" "${SRCS[@]}" \
-   -L"$STUB" -lvm_payload -llog -lm -ldl -Wl,-soname,lib$NAME.so
+   -L"$STUB" -lvm_payload -llog -lm -ldl -Wl,-soname,lib$NAME.so $PAGE16
 for x in "${EXTRA_LIBS[@]:-}"; do [ -n "$x" ] && cp "$x" "$STAGE/lib/arm64-v8a/"; done
 # App-side echo diagnostic; no libvm_payload dependency and no inference hook.
 if [ "$NAME" = anchor ] && [ "$TIER" != pvm-cpu ]; then
-  "$CLANG" -O2 -fPIC -shared -Wall -Wextra "$HERE/host/native-echo.c" -o "$STAGE/lib/arm64-v8a/libanchor-echo.so"
-  "$CLANG" -O2 -fPIC -shared -Wall -Wextra "$HERE/host/native-bridge.c" -llog -o "$STAGE/lib/arm64-v8a/libanchor-bridge.so"   # opt-in native worker bridge (--ez nativebridge true)
+  "$CLANG" -O2 -fPIC -shared -Wall -Wextra "$HERE/host/native-echo.c" -o "$STAGE/lib/arm64-v8a/libanchor-echo.so" $PAGE16
+  "$CLANG" -O2 -fPIC -shared -Wall -Wextra "$HERE/host/native-bridge.c" -llog -o "$STAGE/lib/arm64-v8a/libanchor-bridge.so" $PAGE16   # opt-in native worker bridge (--ez nativebridge true)
 fi
 # stripped copies: the dynamic symbol table (what dlopen/dlsym need) stays, the rest of libllama's 40 MB goes
 for x in "$STAGE"/lib/arm64-v8a/*.so; do "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-unneeded "$x"; done
@@ -298,7 +301,7 @@ fi
 rm -f res.zip && "$BT/aapt2" compile --dir "$HERE/res" -o res.zip
 "$BT/aapt2" link -o unaligned.apk --manifest "$MANIFEST" ${REL:+--rename-manifest-package "$RELEASE_PKG"} \
    -I "$SDK/platforms/android-$API/android.jar" --min-sdk-version 34 --target-sdk-version $API res.zip
-# extractNativeLibs=false demands STORED (-0) entries, page-aligned by zipalign -p
+# extractNativeLibs=false demands STORED (-0) entries, page-aligned by zipalign: 16 KB pages (-P 16), as the libraries are
 python3 - "$NAME" <<'PYZ'
 import sys, zipfile
 name = sys.argv[1]
@@ -310,7 +313,12 @@ with zipfile.ZipFile("unaligned.apk", "a", compression=zipfile.ZIP_STORED) as z:
     for a in sorted(glob.glob("assets/*")):
         z.write(a, a, compress_type=zipfile.ZIP_STORED)
 PYZ
-"$BT/zipalign" -p -f 4 unaligned.apk aligned.apk
+"$BT/zipalign" -P 16 -f 4 unaligned.apk aligned.apk
+"$BT/zipalign" -c -P 16 4 aligned.apk || { echo "the APK's libraries are not 16 KB page-aligned" >&2; exit 2; }
+for x in "$STAGE"/lib/arm64-v8a/*.so; do   # every LOAD segment 16 KB-aligned, or the phone warns on opening the app
+  "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -lW "$x" | awk '$1=="LOAD" && $NF!="0x4000" && $NF!="0x10000" {bad=1} END {exit bad}' \
+    || { echo "$(basename "$x") has a LOAD segment not aligned to 16 KB (link it with -Wl,-z,max-page-size=16384)" >&2; exit 2; }
+done
 "$BT/apksigner" sign --ks "$SIGN_KS" --ks-pass "$SIGN_PASS" --ks-key-alias "$SIGN_ALIAS" \
    --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled true --v4-signing-enabled true \
    --out "$OUT/$NAME$SUFFIX$REL.apk" aligned.apk
