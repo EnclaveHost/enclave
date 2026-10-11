@@ -73,16 +73,17 @@ export function avfAttestWithPvmCpu(avf, pvmCpu) {
 // an interpreter). The tier takes no deployments, so nothing is allocated: every share is unallocated. A row without an
 // admitted report keeps its availability as the box sent it.
 //
-// A SLOT host (shielded/anchor/avf/PVM-CPU.md "Slots by share": one VM per app, each sized to its app) states `slots` (1..4)
-// and `poolMemMb`, the VM memory its owner lends the slots: no single attested VM holds that pool, so it is the owner's
-// figure, bounded (MAX_SLOT_POOL_MB), and its free part is what the host says is unheld (never above the pool). The vCPUs and
-// GFLOPS stay the attested host VM's (it runs on every core); the share free is the host's, as before.
-export const MAX_SLOT_POOL_MB = 16384;
+// A SLOT host (shielded/anchor/avf/PVM-CPU.md "Slots by share": one VM per app, each sized to its app) states `slots` (its
+// most VMs at once, 1..MAX_SLOTS) and `poolMemMb`, the VM memory its owner lends them: no single attested VM holds that
+// pool, so it is the owner's figure, bounded (MAX_SLOT_POOL_MB), and its free part is what the host says is unheld (never
+// above the pool). The vCPUs and GFLOPS stay the attested host VM's (it runs on every core); the share free is the host's,
+// as before. How many apps fit is the shares': CPU per mille and VM memory, not a count.
+export const MAX_SLOT_POOL_MB = 16384, MAX_SLOTS = 64;
 export function pvmCpuAvailability(row, availability) {
   const vm = row && row.tier === PVM_CPU_TIER ? row.pvmCpu?.vm : null;
   if (!vm || !Number.isInteger(vm.threads) || vm.threads < 1 || !Number.isInteger(vm.memMib) || vm.memMib < 1) return availability;
   const a = availability || {};
-  const pool = Number.isInteger(a.slots) && a.slots >= 1 && a.slots <= 4 && Number.isInteger(a.poolMemMb) && a.poolMemMb >= 384 && a.poolMemMb <= MAX_SLOT_POOL_MB ? a.poolMemMb : null;
+  const pool = Number.isInteger(a.slots) && a.slots >= 1 && a.slots <= MAX_SLOTS && Number.isInteger(a.poolMemMb) && a.poolMemMb >= 192 && a.poolMemMb <= MAX_SLOT_POOL_MB ? a.poolMemMb : null;
   const ramGb = Math.round((pool || vm.memMib) / 102.4) / 10;
   const g = row.pvmCpu.gflops;
   // the host may only LOWER what is free (slots taken by buyers' apps): a share in [0, 1], else the whole VM
