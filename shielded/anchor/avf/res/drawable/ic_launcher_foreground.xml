@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Enclave mark (site/assets/logo.svg), for the launcher: drawn at 2x around the 108dp canvas centre, inside the 66dp safe zone -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <group android:pivotX="16" android:pivotY="16" android:scaleX="2" android:scaleY="2" android:translateX="38" android:translateY="38">
+        <path android:pathData="M16,2 L28,9 L28,23 L16,30 L4,23 L4,9 Z" android:strokeColor="#FF2FE6A8" android:strokeWidth="1.6" />
+        <path android:pathData="M16,7.333 L24,12 L24,20 L16,24.667 L8,20 L8,12 Z" android:strokeColor="#FF2FE6A8" android:strokeWidth="1.2" android:strokeAlpha="0.55" />
+        <path android:pathData="M18.45,12.55 A2.45,2.45 0 1,1 13.55,12.55 A2.45,2.45 0 1,1 18.45,12.55 Z" android:strokeColor="#FF2FE6A8" android:strokeWidth="1.6" />
+        <path android:pathData="M16,15 L16,21.6 L18,21.6 M16,19.4 L17.5,19.4" android:strokeColor="#FF2FE6A8" android:strokeWidth="1.6" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    </group>
+</vector>
