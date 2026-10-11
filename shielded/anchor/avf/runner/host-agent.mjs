@@ -488,6 +488,18 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   async function launchSlot(a) {
     const dev = slotDev(a);
     const d = await read(addrs.deployments, DEP_ABI, "get", [a.id]);
+    // versionSwitch: every (re)launch runs the version the ledger names now, so a slot whose old version never served
+    // still moves (the per-round check below only reaches slots that serve)
+    if (String(d.appRef) !== String(a.appRef)) {
+      const ad = await admission({ ...d, leaseUntil: 0n }, a.slot);
+      note({ ev: "version-switch", deployment: a.id, slot: a.slot, from: a.appRef, to: d.appRef, at: "launch", refused: ad.why || null });
+      if (ad.why) throw new Error(`its new version is not this host's to run: ${ad.why}`);
+      const comp = await fetchComponent(ad.v.cid, httpPortOf(ad.v));
+      Object.assign(a, { appRef: String(d.appRef), cid: ad.v.cid, sha: comp.sha, file: comp.file, sock: comp.sock,
+                         appMem: appMemFor(ad.v), vmMib: ad.fit.vmMib, cpus: ad.fit.cpus });
+      delete a.sealed;
+      save();
+    }
     const v = await versionOf(a.appRef);
     if (!fs.existsSync(a.file)) Object.assign(a, await fetchComponent(a.cid, httpPortOf(v)));   // the cache was cleared: fetched again, CID-verified
     const { file, token } = await launchOptions(a.id, d, v, a.sealed || null);
@@ -783,6 +795,27 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   async function optionsChanged(a, r) {
     const d = await read(addrs.deployments, DEP_ABI, "get", [a.id]).catch(() => null);
     if (!d) return false;
+    // versionSwitch: the owner moved the deployment to another catalog version (enclave upgrade). The same lease and slot
+    // run the new component (CID-verified, admitted as at claim); its sealed release named the old app, so it is asked again
+    // once the new VM serves.
+    if (String(d.appRef) !== String(a.appRef)) {
+      const ad = await admission({ ...d, leaseUntil: 0n }, a.slot);
+      note({ ev: "version-switch", deployment: a.id, slot: a.slot, from: a.appRef, to: d.appRef, refused: ad.why || null });
+      if (ad.why) {
+        const s = await r.stop({ release: true });
+        if (s.kind === "in-flight") return true;
+        state.refused[a.id] = { at: now(), why: ad.why }; save();
+        await freeSlot(a, `its new version is not this host's to run: ${ad.why}`);
+        return true;
+      }
+      const comp = await fetchComponent(ad.v.cid, httpPortOf(ad.v));
+      Object.assign(a, { appRef: String(d.appRef), cid: ad.v.cid, sha: comp.sha, file: comp.file, sock: comp.sock,
+                         appMem: appMemFor(ad.v), vmMib: ad.fit.vmMib, cpus: ad.fit.cpus });
+      delete a.sealed;
+      save();
+      await launchSlot(a);
+      return true;
+    }
     const cfgChanged = String(d.configCid || "") !== String(a.configCid || "");
     const shareChanged = a.cpuMilli !== undefined && (Number(d.cpuMilli) !== a.cpuMilli || Number(d.gpuMilli) !== a.gpuMilli);
     if (!cfgChanged && !shareChanged) return false;
