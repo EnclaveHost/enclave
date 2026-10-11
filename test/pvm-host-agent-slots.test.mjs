@@ -164,12 +164,12 @@ test("slots: the served app moves to slot 1, more apps take their own VMs, the h
     assert.equal(s.instanceId, "03".repeat(32), "slot 2's own VM answered");
     assert.equal((await agent.evidence(new URLSearchParams({ deployment: D1, nonce })))[0], 404, "not served here (yet)");
 
-    // the next round: D1 into slot 3; the pool is then 1152 of 1536 MiB, 750 of 1000 per mille
+    // the next round: D1 (a 64 MiB app: a 192 MiB VM) into slot 3; the pool is then 960 of 1536 MiB, 750 of 1000 per mille
     t.calls.length = 0; t.advance(61_000);
     r = await agent.tick();
-    assert.deepEqual(t.calls, ["stage 3", "launch 3 384 MiB cpus=0 app=64", "KEYNONCE 0", "KEYREQ 3", "KEYGRANT 0", "KEYINSTALL 3"]);
+    assert.deepEqual(t.calls, ["stage 3", "launch 3 192 MiB cpus=0 app=64", "KEYNONCE 0", "KEYREQ 3", "KEYGRANT 0", "KEYINSTALL 3"]);
     let av = agent.availability();
-    assert.deepEqual([av.slots, av.nodeSlotsFree, av.cpuShareFree, av.poolMemMbFree, av.ramGbFree], [3, 0, 0.25, 384, 0.4]);
+    assert.deepEqual([av.slots, av.nodeSlotsFree, av.cpuShareFree, av.poolMemMbFree, av.ramGbFree], [3, 0, 0.25, 576, 0.6]);
     assert.deepEqual(av.apps.map((a) => a.slot), [1, 2, 3]);
 
     // a slot VM that ended is launched again with the key it keeps: no handover

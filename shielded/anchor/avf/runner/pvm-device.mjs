@@ -17,9 +17,9 @@ import fs from "node:fs";
 
 export const RELEASE_PACKAGE = "host.enclave.pvmcpu";
 const SERVICE = "host.enclave.anchor.avf.AnchorService";
-export const MAX_SLOTS = 4;
+export const MAX_SLOTS = 32;   // the slot services the APK declares (build.sh ANCHOR_SLOTS)
 /** A slot's loopback ports (the phone's LocalBridge and this machine's `adb forward`, the same numbers): 17796/17797 for slot 1,
- *  then +10 per slot -- clear of the host VM's 17786/17787 and of each other. */
+ *  then +10 per slot -- clear of the host VM's 17786/17787, of each other, and (to slot 32, 18106/18107) of the agent's 1818x. */
 export const slotPorts = (k) => ({ app: 17786 + 10 * k, evidence: 17787 + 10 * k });
 
 /**
@@ -38,6 +38,8 @@ export function createPvmDevice({ adb, serial, pkg = RELEASE_PACKAGE, vmName, re
     throw new Error("pvm-device: wifi must be { port (adb's TCP port on the phone), file (where the phone's Wi-Fi address is kept) }");
   // the transport this round uses: the USB serial while the cable is in, else the phone's adb over Wi-Fi (<ip>:<port>)
   let target = serial, via = "usb";
+  // the slots whose doors are made (the agent's slots in use; every slot until it says)
+  let inUse = () => Array.from({ length: slots }, (_, i) => i + 1);
   const adbRun = (args, { timeoutMs = 60000, input = null } = {}) => new Promise((resolve, reject) => {
     const p = execFile(adb, args, { timeout: timeoutMs, maxBuffer: 16 << 20 }, (err, stdout, stderr) => {
       if (err) reject(new Error(`adb ${args.slice(args[0] === "-s" ? 2 : 0, args[0] === "-s" ? 4 : 2).join(" ")}: ${(stderr || err.message).toString().trim().slice(0, 300)}`));
@@ -92,7 +94,7 @@ export function createPvmDevice({ adb, serial, pkg = RELEASE_PACKAGE, vmName, re
     const fw = await run(["forward", "--list"]), rv = await run(["reverse", "--list"]).catch(() => "");
     const want = [];
     const fwd = [bridgeApp, bridgeEvidence];
-    for (let k = 1; k <= slots; k++) fwd.push(slotPorts(k).app, slotPorts(k).evidence);
+    for (const k of new Set(inUse())) if (Number.isInteger(k) && k >= 1 && k <= slots) fwd.push(slotPorts(k).app, slotPorts(k).evidence);
     // `forward --list` names every transport's forwards: only this transport's count (another's is re-pointed here)
     for (const p of fwd) if (!fw.split("\n").some((l) => l.trim() === `${target} tcp:${p} tcp:${p}`)) want.push(run(["forward", `tcp:${p}`, `tcp:${p}`]));
     for (const p of [agentPort, attachPort, egressPort].filter(Boolean)) if (!rv.includes(`tcp:${p} tcp:${p}`)) want.push(run(["reverse", `tcp:${p}`, `tcp:${p}`]));
@@ -248,7 +250,8 @@ export function createPvmDevice({ adb, serial, pkg = RELEASE_PACKAGE, vmName, re
     if (!handles.has(k)) handles.set(k, vm(k));
     return handles.get(k);
   };
-  return { ...host, ensurePorts, selectTransport, installedApkSha, sh, serial, name, slots, slot: slotOf, transport: () => ({ via, target }) };
+  return { ...host, ensurePorts, selectTransport, installedApkSha, sh, serial, name, slots, slot: slotOf, transport: () => ({ via, target }),
+           useSlots: (fn) => { inUse = fn; } };
 }
 
 /** sha256 of a file, hex. */

@@ -129,19 +129,20 @@ test("the config is strict: public values only, the owner's price, exactly one b
   refuse({ device: { ...ok.device, wifi: { port: 22 } } }, /device.wifi must be exactly \{ port \}/);
   refuse({ device: { ...ok.device, wifi: { port: 5555, host: "1.2.3.4" } } }, /device.wifi must be exactly \{ port \}/);
   refuse({ slots: undefined }, /slots must be exactly/);
-  refuse({ slots: { ...ok.slots, count: 5 } }, /slots must be exactly/);
-  refuse({ slots: { ...ok.slots, poolMemMb: 256 } }, /slots must be exactly/);
+  refuse({ slots: { ...ok.slots, count: 33 } }, /slots must be exactly/);
+  assert.equal(checkHostConfig({ ...ok, slots: { ...ok.slots, count: 32 } }).slots.count, 32, "as many slots as the APK declares");
+  refuse({ slots: { ...ok.slots, poolMemMb: 128 } }, /slots must be exactly/);
   refuse({ slots: { ...ok.slots, extra: 1 } }, /slots must be exactly/);
   refuse({ slots: { ...ok.slots, poolMemMb: 512 } }, /needs a 640 MiB VM, beyond slots.poolMemMb/);
 });
 
 test("slots by share: a VM per app sized to it, taken only while the phone's pool and CPU have room", () => {
-  // the VM: the app plus the VM's own (128), at least 384, in 64 MiB steps; the app: its version's memory, 256 when unstated
-  assert.deepEqual([vmMibFor(64), vmMibFor(256), vmMibFor(300), vmMibFor(1024)], [384, 384, 448, 1152]);
+  // the VM: the app plus the VM's own (96), at least 192, in 64 MiB steps; the app: its version's memory, 256 when unstated
+  assert.deepEqual([vmMibFor(16), vmMibFor(64), vmMibFor(128), vmMibFor(256), vmMibFor(300), vmMibFor(1024)], [192, 192, 256, 384, 448, 1152]);
   assert.deepEqual([appMemFor(version({ memMb: 0 })), appMemFor(version({ memMb: 16 })), appMemFor(version({ memMb: 2048 })),
                     appMemFor(version({ memMb: 64, config: JSON.stringify({ cpuFallback: { memMb: 512 } }) }))], [256, 64, 1024, 512]);
   const S = { count: 3, poolMemMb: 1536 };
-  assert.deepEqual(slotFor(S, [], { cpuMilli: 125, appMemMb: 64 }), { slot: 1, vmMib: 384, cpus: 1 }, "1/8 of the phone: one vCPU");
+  assert.deepEqual(slotFor(S, [], { cpuMilli: 125, appMemMb: 64 }), { slot: 1, vmMib: 192, cpus: 1 }, "1/8 of the phone: one vCPU");
   assert.deepEqual(slotFor(S, [], { cpuMilli: 250, appMemMb: 256 }), { slot: 1, vmMib: 384, cpus: 0 }, "more: as many vCPUs as the host");
   const held = [{ slot: 1, vmMib: 384, cpuMilli: 250 }, { slot: 3, vmMib: 640, cpuMilli: 500 }];
   assert.deepEqual(slotFor(S, held, { cpuMilli: 250, appMemMb: 256 }), { slot: 2, vmMib: 384, cpus: 0 }, "the free slot, with what is left");

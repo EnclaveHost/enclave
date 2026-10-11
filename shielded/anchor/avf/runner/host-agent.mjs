@@ -95,9 +95,9 @@ export function checkHostConfig(c) {
       bad("egress must be exactly { port (1024..65535, the phone reaches it over adb reverse), routesFile (the privacy agent's egress-routes.json, absolute) }");
   }
   const sl = c.slots;
-  if (!sl || Object.keys(sl).sort().join() !== "count,poolMemMb,routerPort" || !Number.isInteger(sl.count) || sl.count < 1 || sl.count > 4
+  if (!sl || Object.keys(sl).sort().join() !== "count,poolMemMb,routerPort" || !Number.isInteger(sl.count) || sl.count < 1 || sl.count > MAX_SLOTS
       || !Number.isInteger(sl.poolMemMb) || sl.poolMemMb < MIN_VM_MB || sl.poolMemMb > 12288 || !Number.isInteger(sl.routerPort) || sl.routerPort < 1024 || sl.routerPort > 65535)
-    bad(`slots must be exactly { count (1..4 slot VMs), poolMemMb (${MIN_VM_MB}..12288: the VM memory they share), routerPort (the TUNA app port) }`);
+    bad(`slots must be exactly { count (1..${MAX_SLOTS}: the most VMs at once), poolMemMb (${MIN_VM_MB}..12288: the VM memory they share), routerPort (the TUNA app port) }`);
   if (vmMibFor(cl.maxMemMb) > sl.poolMemMb) bad(`claim.maxMemMb ${cl.maxMemMb} needs a ${vmMibFor(cl.maxMemMb)} MiB VM, beyond slots.poolMemMb`);
   const i = c.ipfs || {};
   if (typeof i.fetchScript !== "string" || !Array.isArray(i.gateways) || !i.gateways.length || typeof i.cacheDir !== "string") bad("ipfs must be { python, fetchScript, gateways, cacheDir }");
@@ -105,10 +105,12 @@ export function checkHostConfig(c) {
 }
 
 // ---- the slots' sizes (PVM-CPU.md "Slots by share") ----
-export const VM_OVERHEAD_MB = 128;   // Microdroid, the payload and the runtime: ~100 MiB measured, with room
-export const MIN_VM_MB = 384;        // the smallest VM measured serving (hello-world at 384, a 256 MiB socket app at 512)
+export const VM_OVERHEAD_MB = 96;    // Microdroid, the payload and the runtime: 55-73 MiB used in the guest (measured), with room
+export const MIN_VM_MB = 192;        // measured 2026-10-11: hello-world serves at 160 MiB (55 MiB used), 192 (61) and 256 (73)
+export const MAX_SLOTS = 32;         // the slot services the APK declares (build.sh ANCHOR_SLOTS): a ceiling, not the limit
 export const ONE_CPU_MAX_MILLI = 125;   // a share of at most 1/8 of the phone (8 cores) gets one vCPU; above, as many as the host
-/** A slot VM's memory for an app of appMemMb: the app plus the VM's own, at least MIN_VM_MB, in 64 MiB steps. */
+/** A slot VM's memory for an app of appMemMb: the app plus the VM's own, at least MIN_VM_MB, in 64 MiB steps (a 64 MiB
+ *  app: 192; unstated, 256: 384; 512: 640). */
 export const vmMibFor = (appMemMb) => Math.ceil(Math.max(MIN_VM_MB, appMemMb + VM_OVERHEAD_MB) / 64) * 64;
 /** An app's memory (its socket server's, or each request's instance of a handler): its version's, raised by its cpuFallback;
  *  256 MiB when it states none; 64..1024. */
@@ -318,6 +320,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   const apps = () => Object.entries(state.slots).filter(([, a]) => a).map(([k, a]) => { a.slot = Number(k); return a; }).sort((x, y) => x.slot - y.slot);
   const appOf = (D) => apps().find((a) => a.id === lc(D)) || null;
   const slotDev = (a) => device.slot(a.slot);
+  if (typeof device.useSlots === "function") device.useSlots(() => apps().map((a) => a.slot));   // only these slots' doors
 
   async function resolve() {
     const [keys, values] = await read(cfg.addressBook, BOOK_ABI, "all");
@@ -854,8 +857,10 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     return { ok: true, role: "pvm-host", name: cfg.name, gpu: false, claimEnabled: ok, fullService: false, registered: !!registered,
       enclaveId: E, operator: me, proofKey: registered ? lc(registered.proofKey) : null,
       askCpuPricePerSec6: Number(cfg.register.cpuPricePerSec6), askGpuPricePerSec6: 0,
-      // one VM per app, sized to its share: the slots divide the phone's pool of VM memory and its CPU
-      slots: S.count, nodeSlotsFree: S.count - held.length, cpuShareFree: Math.max(0, Math.round(1000 - cpu)) / 1000,
+      // one VM per app, sized to its share: the apps divide the phone's pool of VM memory and its CPU; how many more fit is
+      // the shares' (the smallest VM, any CPU left), never above the slot services that remain
+      slots: S.count, nodeSlotsFree: cpu >= 1000 ? 0 : Math.max(0, Math.min(S.count - held.length, Math.floor((S.poolMemMb - mem) / MIN_VM_MB))),
+      cpuShareFree: Math.max(0, Math.round(1000 - cpu)) / 1000,
       poolMemMb: S.poolMemMb, poolMemMbFree: Math.max(0, S.poolMemMb - mem), ramGbFree: Math.max(0, Math.round((S.poolMemMb - mem) / 102.4) / 10),
       maxAppMemMb: cfg.claim.maxMemMb, vmOverheadMb: VM_OVERHEAD_MB, minVmMb: MIN_VM_MB,
       isolation: ISOLATION_BACKEND, appTls: "in-vm", appEvidence: "enclave-pvm-app-evidence/v4", claimScope: "market",
