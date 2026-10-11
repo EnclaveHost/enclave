@@ -63,12 +63,14 @@ namespace Enclave.Tray
         public int Served, WaitingForCap;
         public string Backend = "", GpuWhy = "", CapsError = "", LogsDir = "";
         public bool GpuConsumer, AppsEnabled, Paused, CanPause;
+        public int Dropped;                                 // in the answer to an Apply: deployments it dropped
 
         public static HostingView From(Dictionary<string, object> o)
         {
             var v = new HostingView();
             var caps = Obj(o, "caps"); var inUse = Obj(o, "inUse"); var free = Obj(o, "free"); var gpu = Obj(o, "gpu");
             v.CpuCap = Num(caps, "cpuShare", 0); v.GpuCap = Num(caps, "gpuShare", 0);
+            object dropped; v.Dropped = o.TryGetValue("dropped", out dropped) && dropped is object[] ? ((object[])dropped).Length : 0;
             v.Paused = Bool(caps, "paused"); v.CanPause = caps != null && caps.ContainsKey("paused");   // an older node has no switch
             v.CpuInUse = Num(inUse, "cpuShare", 0); v.GpuInUse = Num(inUse, "gpuShare", 0);
             v.CpuFree = Num(free, "cpuShare", 0); v.GpuFree = Num(free, "gpuShare", 0);
@@ -82,13 +84,13 @@ namespace Enclave.Tray
         {
             object v; return d != null && d.TryGetValue(k, out v) ? v as Dictionary<string, object> : null;
         }
-        static double Num(Dictionary<string, object> d, string k, double dflt)
+        internal static double Num(Dictionary<string, object> d, string k, double dflt)
         {
             object v;
             if (d == null || !d.TryGetValue(k, out v) || v == null || v is string || v is bool) return dflt;
             try { return Convert.ToDouble(v, CultureInfo.InvariantCulture); } catch { return dflt; }
         }
-        static string Str(Dictionary<string, object> d, string k)
+        internal static string Str(Dictionary<string, object> d, string k)
         {
             object v; return d != null && d.TryGetValue(k, out v) && v is string ? (string)v : "";
         }
@@ -100,6 +102,20 @@ namespace Enclave.Tray
 
     sealed class NodeException : Exception { public NodeException(string m) : base(m) { } }
 
+    /// <summary>A deployment the node says the new caps leave no room for (its 409 would_drop).</summary>
+    sealed class DropUnit
+    {
+        public string Id = "", AppRef = "";
+        public double CpuShare, GpuShare;
+    }
+
+    /// <summary>The node refused the caps until the owner confirms dropping exactly these.</summary>
+    sealed class WouldDropException : Exception
+    {
+        public readonly List<DropUnit> Units;
+        public WouldDropException(string m, List<DropUnit> units) : base(m) { Units = units; }
+    }
+
     /// <summary>The node's local API. Loopback, no proxy, the token read fresh each call.</summary>
     sealed class NodeClient
     {
@@ -108,10 +124,19 @@ namespace Enclave.Tray
 
         public HostingView Get() { return HostingView.From(Send("GET", null)); }
 
-        public HostingView Put(double cpuShare, double gpuShare)
+        /// <summary>Set both caps. `drop` confirms the node's own list of what they drop (null: confirm nothing, so caps
+        /// that would drop anything come back as a WouldDropException and change nothing).</summary>
+        public HostingView Put(double cpuShare, double gpuShare, IList<string> drop)
         {
+            var ack = new StringBuilder();
+            if (drop != null && drop.Count > 0)
+            {
+                ack.Append(",\"drop\":[");
+                for (int i = 0; i < drop.Count; i++) ack.Append(i > 0 ? "," : "").Append('"').Append(drop[i]).Append('"');
+                ack.Append(']');
+            }
             return HostingView.From(Send("PUT", string.Format(CultureInfo.InvariantCulture,
-                "{{\"cpuShare\":{0:0.00},\"gpuShare\":{1:0.00}}}", cpuShare, gpuShare)));
+                "{{\"cpuShare\":{0:0.00},\"gpuShare\":{1:0.00}{2}}}", cpuShare, gpuShare, ack)));
         }
 
         public HostingView SetPaused(bool paused)
@@ -161,10 +186,26 @@ namespace Enclave.Tray
             {
                 var r = e.Response as HttpWebResponse;
                 if (r == null) throw new NodeException("the node is not answering on 127.0.0.1:" + cfg.Port + " (" + e.Status + ")");
+                int status = (int)r.StatusCode;             // read before the response is disposed: it throws after
                 string text; using (r) text = ReadAll(r);
                 string why = null;
-                try { var o = Parse(text); object m; if (o != null && o.TryGetValue("message", out m) && m is string) why = (string)m; } catch { }
-                throw new NodeException("the node answered HTTP " + (int)r.StatusCode + ": " + (why ?? (text.Length > 200 ? text.Substring(0, 200) : text)));
+                Dictionary<string, object> answer = null;
+                try { answer = Parse(text); object m; if (answer.TryGetValue("message", out m) && m is string) why = (string)m; } catch { }
+                object code, list;
+                if (status == 409 && answer != null && answer.TryGetValue("error", out code) && "would_drop".Equals(code)
+                    && answer.TryGetValue("drop", out list) && list is object[])
+                {
+                    var units = new List<DropUnit>();
+                    foreach (var x in (object[])list)
+                    {
+                        var u = x as Dictionary<string, object>;
+                        if (u == null) continue;
+                        units.Add(new DropUnit { Id = HostingView.Str(u, "id"), AppRef = HostingView.Str(u, "appRef"),
+                                                 CpuShare = HostingView.Num(u, "cpuShare", 0), GpuShare = HostingView.Num(u, "gpuShare", 0) });
+                    }
+                    throw new WouldDropException(why ?? "these caps would drop running work", units);
+                }
+                throw new NodeException("the node answered HTTP " + status + ": " + (why ?? (text.Length > 200 ? text.Substring(0, 200) : text)));
             }
         }
         static string ReadAll(HttpWebResponse r)
@@ -493,10 +534,13 @@ namespace Enclave.Tray
     sealed class ThemeButton : Control
     {
         readonly bool primary;
+        readonly Color accent;
         bool hot;
-        public ThemeButton(string text, bool primary)
+        public ThemeButton(string text, bool primary) : this(text, primary, Theme.Jade) { }
+        /// <summary>A primary button in another colour: Theme.Danger for one that destroys something.</summary>
+        public ThemeButton(string text, bool primary, Color accent)
         {
-            this.primary = primary;
+            this.primary = primary; this.accent = accent;
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer
                    | ControlStyles.Selectable | ControlStyles.StandardClick, true);
             Text = text; TabStop = true; AccessibleName = text; AccessibleRole = AccessibleRole.PushButton;
@@ -504,6 +548,11 @@ namespace Enclave.Tray
             Size = new Size(Theme.Px(primary ? 92 : 72), Theme.Px(28)); Margin = new Padding(Theme.Px(8), 0, 0, 0);
         }
         protected override void OnTextChanged(EventArgs e) { AccessibleName = Text; Invalidate(); base.OnTextChanged(e); }
+        /// <summary>Wide enough for its text, never narrower than it was made.</summary>
+        public void FitText()
+        {
+            Width = Math.Max(Width, TextRenderer.MeasureText(Text, Font).Width + Theme.Px(28));
+        }
         protected override void OnMouseEnter(EventArgs e) { hot = true; Invalidate(); base.OnMouseEnter(e); }
         protected override void OnMouseLeave(EventArgs e) { hot = false; Invalidate(); base.OnMouseLeave(e); }
         protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
@@ -522,7 +571,7 @@ namespace Enclave.Tray
             var r = new RectangleF(1, 1, Width - 2, Height - 2);
             Color fill, ink, edge;
             if (!Enabled) { fill = Theme.Bg; ink = Theme.Dim; edge = Theme.Line; }
-            else if (primary) { fill = hot ? Color.FromArgb(0x5F, 0xF0, 0xC0) : Theme.Jade; ink = Theme.Bg; edge = fill; }
+            else if (primary) { fill = hot ? ControlPaint.Light(accent, .35f) : accent; ink = Theme.Bg; edge = fill; }
             else { fill = hot ? Theme.Surface2 : Theme.Bg; ink = Theme.Text; edge = Theme.LineStrong; }
             using (var path = Theme.Rounded(r, Theme.Px(4)))
             {
@@ -531,6 +580,61 @@ namespace Enclave.Tray
             }
             TextRenderer.DrawText(g, Text, Font, Rectangle.Round(r), ink,
                                   TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
+        }
+    }
+
+    /// <summary>
+    /// The warning before an Apply drops running work: what the node said it would drop, newest first, and what dropping
+    /// means. Cancel is the default; nothing is sent unless the owner presses the red button.
+    /// </summary>
+    sealed class DropDialog : Form
+    {
+        public DropDialog(List<DropUnit> units, double cpu, double gpu)
+        {
+            Text = "Enclave hosting";
+            FormBorderStyle = FormBorderStyle.FixedToolWindow; ShowInTaskbar = false; TopMost = true;
+            StartPosition = FormStartPosition.CenterParent; KeyPreview = true;
+            AutoScaleMode = AutoScaleMode.None; AutoSize = true; AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            BackColor = Theme.Bg; ForeColor = Theme.Text; Font = Theme.Body;
+            int wide = Theme.Px(380);
+            var flow = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true,
+                                             AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(Theme.Px(16)), BackColor = Theme.Bg };
+            flow.Controls.Add(new Label { Text = "Drop running work?", AutoSize = true, Font = Theme.Mono(11f, FontStyle.Bold), ForeColor = Theme.Amber,
+                                          Margin = new Padding(3, 0, 3, Theme.Px(8)) });
+            string n = units.Count == 1 ? "1 deployment" : units.Count + " deployments";
+            flow.Controls.Add(new Label { AutoSize = true, MaximumSize = new Size(wide, 0), ForeColor = Theme.Text,
+                Text = "Applying CPU " + ControlPanel.Pct(cpu) + " \u00B7 GPU " + ControlPanel.Pct(gpu) + " leaves no room for " + n
+                     + " running on this box. " + (units.Count == 1 ? "It is" : "They are") + " stopped now and "
+                     + (units.Count == 1 ? "its lease is" : "their leases are") + " handed back to the network, so another host can take "
+                     + (units.Count == 1 ? "it" : "them") + " (newest first):" });
+            var list = new StringBuilder();
+            foreach (var u in units)
+            {
+                list.Append(Short(u.Id, 10, 0)).Append("  ").Append(Short(u.AppRef, 22, 4)).Append("  ")
+                    .Append(ControlPanel.Pct(u.CpuShare)).Append(" CPU");
+                if (u.GpuShare > 0) list.Append(", ").Append(ControlPanel.Pct(u.GpuShare)).Append(" GPU");
+                list.AppendLine();
+            }
+            flow.Controls.Add(new Label { Text = list.ToString().TrimEnd(), AutoSize = true, MaximumSize = new Size(wide, 0),
+                                          Font = Theme.Mono(8.5f, FontStyle.Regular), ForeColor = Theme.Muted, Margin = new Padding(3, Theme.Px(10), 3, 0) });
+            var cancel = new ThemeButton("Cancel", false);
+            var drop = new ThemeButton("Drop " + units.Count + " and apply", true, Theme.Danger); drop.FitText();
+            cancel.Click += delegate { DialogResult = DialogResult.Cancel; };
+            drop.Click += delegate { DialogResult = DialogResult.OK; };
+            var buttons = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, WrapContents = false, AutoSize = true,
+                                                AutoSizeMode = AutoSizeMode.GrowAndShrink, BackColor = Theme.Bg,
+                                                MinimumSize = new Size(wide, 0), Margin = new Padding(3, Theme.Px(16), 3, 0) };
+            buttons.Controls.Add(drop); buttons.Controls.Add(cancel);
+            flow.Controls.Add(buttons);
+            Controls.Add(flow);
+            KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) DialogResult = DialogResult.Cancel; };
+            Shown += delegate { cancel.Focus(); };
+        }
+        protected override void OnHandleCreated(EventArgs e) { base.OnHandleCreated(e); Theme.DarkFrame(Handle); }
+        static string Short(string s, int head, int tail)
+        {
+            if (s == null) return "";
+            return s.Length <= head + tail + 1 ? s : s.Substring(0, head) + "\u2026" + (tail > 0 ? s.Substring(s.Length - tail) : "");
         }
     }
 
@@ -605,7 +709,7 @@ namespace Enclave.Tray
                 t.ValueChanged += delegate { if (setting) return; Relabel(); };
             }
             apply.Click += delegate { RequestApply(); };
-            reset.Click += delegate { if (view != null && !applying) ShowView(view, true); };
+            reset.Click += delegate { if (view != null && !applying) { ShowView(view, true); ShowError(""); } };
             hosting.Toggled += delegate
             {
                 if (view == null || switching || PauseRequested == null) return;
@@ -656,7 +760,8 @@ namespace Enclave.Tray
             status.Text = "Node: reachable \u00B7 backend " + (v.Backend.Length > 0 ? v.Backend : "?") + " \u00B7 "
                         + v.Served + (v.Served == 1 ? " deployment" : " deployments") + " served" + waiting
                         + (v.AppsEnabled ? "" : " \u00B7 hosting is off on this node (APPS)");
-            error.Text = v.CapsError.Length > 0 ? v.CapsError : "";
+            // a refresh never wipes what the owner was just told; the next Apply, switch or Reset does
+            if (v.CapsError.Length > 0) ShowError(v.CapsError);
             Relabel();
         }
 
@@ -671,7 +776,8 @@ namespace Enclave.Tray
             error.Text = "";
         }
 
-        public void ShowError(string message) { error.Text = message; }
+        public void ShowError(string message) { error.ForeColor = Theme.Danger; error.Text = message; }
+        public void ShowNotice(string message) { error.ForeColor = Theme.Amber; error.Text = message; }
 
         void Relabel()
         {
@@ -691,7 +797,7 @@ namespace Enclave.Tray
             cpuLine.Text = "offered " + Pct(CpuValue) + " \u00B7 in use " + Pct(v.CpuInUse);
             gpuLine.Text = "offered " + Pct(GpuValue) + " \u00B7 in use " + Pct(v.GpuInUse);
             var cn = new List<string>();
-            if (v.CpuInUse > CpuValue + 1e-9) cn.Add("More than this is in use. Nothing running is stopped; new work waits until use drops below it.");
+            if (v.CpuInUse > CpuValue + 1e-9) cn.Add(Pending ? BelowUse : "More than this is in use. Nothing running is stopped; new work waits until use drops below it.");
             else if (v.Reserved > 0 && CpuValue > 1 - v.Reserved + 1e-9) cn.Add("New claims stop at " + Pct(1 - v.Reserved) + ": the node keeps " + Pct(v.Reserved) + " for itself.");
             cpuNote.Text = string.Join(" ", cn.ToArray());
             cpuNote.ForeColor = v.CpuInUse > CpuValue + 1e-9 ? Theme.Amber : Theme.Dim;
@@ -699,10 +805,11 @@ namespace Enclave.Tray
             // The node says why (on the isolated backend: no partition holds a masked GPU allocation); repeat it, don't guess.
             if (!v.GpuConsumer)
                 gpuNote.Text = "Nothing on this node uses the GPU right now" + (v.GpuWhy.Length > 0 ? " (" + v.GpuWhy + ")" : "") + "; this cap applies when something does.";
-            else gpuNote.Text = v.GpuInUse > GpuValue + 1e-9 ? "More than this is in use. Nothing running is stopped; new work waits until use drops below it." : "";
+            else gpuNote.Text = v.GpuInUse > GpuValue + 1e-9 ? (Pending ? BelowUse : "More than this is in use. Nothing running is stopped; new work waits until use drops below it.") : "";
             gpuNote.ForeColor = v.GpuConsumer && v.GpuInUse > GpuValue + 1e-9 ? Theme.Amber : Theme.Dim;
         }
 
+        const string BelowUse = "Below what is in use: Apply asks before it drops running deployments (newest first) until use fits.";
         public static string Pct(double share) { return ((int)Math.Round(share * 100)).ToString(CultureInfo.InvariantCulture) + "%"; }
         static readonly int Wide = Theme.Px(340);
         // DESIGN.md's label voice: small mono capitals in the muted ink; the numbers in mono, the prose in the system face.
@@ -807,8 +914,36 @@ namespace Enclave.Tray
             if (last == null || applying) return;
             applying = true; Panel.Applying = true;
             double cpu = Panel.CpuValue, gpu = Panel.GpuValue;
-            OnWorker(() => client.Put(cpu, gpu), (v, err) =>
+            Send(cpu, gpu, null);
+        }
+
+        /// <summary>
+        /// PUT the caps. The first try confirms nothing, so caps that would drop running work come back as the node's
+        /// list (409 would_drop) having changed nothing; the owner sees that list and only "Drop N and apply" sends it
+        /// back as the confirmation.
+        /// </summary>
+        void Send(double cpu, double gpu, List<string> confirmed)
+        {
+            OnWorker(() => client.Put(cpu, gpu, confirmed), (v, err) =>
             {
+                var would = err as WouldDropException;
+                // asked again if what it would drop changed between the warning and the confirmation
+                if (would != null && would.Units.Count > 0)
+                {
+                    bool yes;
+                    using (var ask = new DropDialog(would.Units, cpu, gpu)) yes = ask.ShowDialog(Panel) == DialogResult.OK;
+                    if (yes)
+                    {
+                        var ids = new List<string>();
+                        foreach (var u in would.Units) ids.Add(u.Id);
+                        Log("owner confirmed dropping " + ids.Count + " deployment(s) for CPU " + ControlPanel.Pct(cpu) + ", GPU " + ControlPanel.Pct(gpu));
+                        Send(cpu, gpu, ids);
+                        return;
+                    }
+                    applying = false; Panel.Applying = false;
+                    Panel.ShowNotice("Not applied: nothing was dropped. Raise the caps, or Reset.");
+                    return;
+                }
                 applying = false;
                 if (err != null)
                 {
@@ -818,10 +953,13 @@ namespace Enclave.Tray
                     Refresh();
                     return;
                 }
-                Log("set CPU " + ControlPanel.Pct(v.CpuCap) + ", GPU " + ControlPanel.Pct(v.GpuCap));
+                Log("set CPU " + ControlPanel.Pct(v.CpuCap) + ", GPU " + ControlPanel.Pct(v.GpuCap) + (v.Dropped > 0 ? "; dropped " + v.Dropped : ""));
                 Show(v, null, true);
                 Panel.Applying = false;
-                Panel.ShowError("");
+                if (v.Dropped > 0)
+                    Panel.ShowNotice("Dropped " + (v.Dropped == 1 ? "1 deployment" : v.Dropped + " deployments")
+                                     + ": " + (v.Dropped == 1 ? "its lease goes" : "their leases go") + " back to the network.");
+                else Panel.ShowError("");
             });
         }
 
