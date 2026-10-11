@@ -50,7 +50,7 @@ final class Status {
     private int appliedCpu = 1000, appliedMem = 4096; private boolean hosting = true, settingsKnown = false, quiet = false;
     private int lastAppCount = 0;
     // earnings and the payout address (Earnings / Payout address sections)
-    private final TextView ready, paid, total, rate, payoutNote, payoutSave, payoutCancel;
+    private final TextView earnings, payoutNote, payoutSave, payoutCancel;
     private final EditText payoutField;
     private String appliedPayout = null;   // the address in effect (saved here, else the agent's), lowercase
     private String payoutSaid = "";        // what the note says when nothing is being edited
@@ -131,9 +131,10 @@ final class Status {
         quiet = true; hostSwitch.setChecked(hosting); quiet = false;
         hostSwitch.setOnCheckedChangeListener((b, on) -> { if (!quiet) toggle(on); });
         labels(); applyState();
-        // Earnings: from the ledger, through the host agent
+        // Earnings: one figure, what is ready to pay out (the ledger's, through the host agent)
         col.addView(section("Earnings"));
-        ready = row(col, "Ready to pay out"); paid = row(col, "Paid out so far"); total = row(col, "Earned in total"); rate = row(col, "Earning now");
+        earnings = text("–", 28, TEXT); earnings.setTypeface(Typeface.DEFAULT_BOLD);
+        col.addView(earnings);
         // Payout address: where earnings are paid, automatically
         col.addView(section("Payout address"));
         payoutField = new EditText(a); payoutField.setSingleLine(true); payoutField.setTypeface(Typeface.MONOSPACE); payoutField.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
@@ -199,9 +200,8 @@ final class Status {
     private static long micro(JSONObject o, String k) { try { return Long.parseLong(o.optString(k, "0")); } catch (Exception e) { return 0; } }
     private static String shortAddr(String a) { return a.length() == 42 ? a.substring(0, 6) + "…" + a.substring(38) : a; }
     private void renderEarnings(JSONObject e) {
-        if (e == null) { for (TextView t : new TextView[] { ready, paid, total, rate }) t.setText("–"); return; }
-        ready.setText(usd(micro(e, "readyToPay6"))); paid.setText(usd(micro(e, "paidOut6"))); total.setText(usd(micro(e, "earnedAllTime6")));
-        rate.setText(usd(micro(e, "ratePerHour6")) + " an hour");
+        if (e == null) { earnings.setText("–"); return; }
+        earnings.setText(usd(micro(e, "readyToPay6")));
         JSONObject p = e.optJSONObject("payout");
         if (appliedPayout == null && p != null && !payoutField.hasFocus()) {   // nothing saved here: the agent's (its config's)
             String to = p.optString("to", "");
@@ -243,13 +243,7 @@ final class Status {
             .setNegativeButton("Cancel", null)
             .show();
     }
-    private TextView row(LinearLayout col, String label) {
-        LinearLayout r = new LinearLayout(a); r.setOrientation(LinearLayout.HORIZONTAL); r.setPadding(0, dp(3), 0, dp(3));
-        r.addView(text(label, 14, MUTED), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        TextView v = text("–", 14, TEXT); v.setTypeface(Typeface.DEFAULT_BOLD); r.addView(v);
-        col.addView(r);
-        return v;
-    }
+
 
     private void render(JSONObject av, String err) {
         String now = new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.ROOT).format(new java.util.Date());
