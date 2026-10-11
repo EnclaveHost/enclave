@@ -28,6 +28,8 @@ import org.json.JSONObject;
 
 final class Status {
     static final String AGENT = "http://127.0.0.1:18187/availability";
+    // the screen speaks of apps only (Steven, 2026-10-11): how an app is kept apart is not this screen's to explain
+    static final String ABOUT = "This phone runs apps for buyers. Each app is sealed off on its own: not even the phone's owner can read its memory or its keys.";
     static final int BG = 0xFF070A0F, CARD = 0xFF10161F, LINE = 0xFF1C2532, GREEN = 0xFF2FE6A8, TEXT = 0xFFE8EDF2, MUTED = 0xFF8A97A6, AMBER = 0xFFFFB454;
 
     /** Opened from the launcher: a release pVM CPU build with no launch plan (the host agent always names a mode). */
@@ -41,7 +43,7 @@ final class Status {
     private final LinearLayout apps;
     private final SeekBar cpuBar, memBar;
     private final Switch hostSwitch;
-    private final TextView apply;
+    private final TextView apply, cancel;
     // what is in effect (saved for the host agent) -- the sliders may differ until Apply
     private int appliedCpu = 1000, appliedMem = 4096; private boolean hosting = true, settingsKnown = false, quiet = false;
     private int lastAppCount = 0;
@@ -77,7 +79,7 @@ final class Status {
         col.addView(row);
         state = text("Looking for the host agent…", 15, MUTED); state.setTypeface(Typeface.DEFAULT_BOLD); state.setPadding(0, dp(10), 0, dp(4));
         col.addView(state);
-        summary = text("This phone runs apps for buyers, each in its own protected VM: the phone's owner cannot read an app's memory or its TLS keys.", 14, MUTED);
+        summary = text(ABOUT, 14, MUTED);
         col.addView(summary);
 
         col.addView(section("Apps on this phone"));
@@ -93,12 +95,21 @@ final class Status {
         cpuBar = new SeekBar(a); cpuBar.setMax(1000 / CPU_STEP - 1); col.addView(cpuBar);
         memLabel = text("Memory", 14, TEXT); memLabel.setPadding(0, dp(10), 0, 0); col.addView(memLabel);
         memBar = new SeekBar(a); col.addView(memBar);
-        TextView gpu = text("GPU  ·  not shared: a protected VM on this phone cannot use its GPU, so apps here run on the CPU.", 14, MUTED);
+        TextView gpu = text("GPU  ·  not shared: apps on this phone can't use its GPU, so they run on the CPU.", 14, MUTED);
         gpu.setPadding(0, dp(10), 0, 0); col.addView(gpu);
         apply = text("Apply", 15, BG); apply.setTypeface(Typeface.DEFAULT_BOLD); apply.setGravity(Gravity.CENTER); apply.setPadding(dp(20), dp(10), dp(20), dp(10));
         apply.setOnClickListener(v -> { if (dirty()) save(barCpu(), barMem(), hosting, "Applied: the host agent takes it within half a minute. Apps already running keep their share."); });
+        // Cancel: the sliders back to what is in effect, nothing saved
+        cancel = text("Cancel", 15, MUTED); cancel.setTypeface(Typeface.DEFAULT_BOLD); cancel.setGravity(Gravity.CENTER); cancel.setPadding(dp(20), dp(10), dp(20), dp(10));
+        cancel.setOnClickListener(v -> { if (dirty()) { cpuBar.setProgress(cpuToBar(appliedCpu)); memBar.setProgress(memToBar(appliedMem)); labels(); applyState();
+                                                        sharingNote.setText("Not changed: still " + appliedCpu / 10 + "% of the CPU and "
+                                                                            + String.format(java.util.Locale.ROOT, "%.2f GB", appliedMem / 1024.0) + "."); } });
+        LinearLayout buttons = new LinearLayout(a); buttons.setOrientation(LinearLayout.HORIZONTAL);
+        buttons.addView(apply);
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT); cp.leftMargin = dp(12);
+        buttons.addView(cancel, cp);
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT); ap.topMargin = dp(14);
-        col.addView(apply, ap);
+        col.addView(buttons, ap);
         sharingNote = text("New apps are taken only within what you share; apps already running keep theirs.", 12, MUTED);
         sharingNote.setPadding(0, dp(8), 0, 0); col.addView(sharingNote);
         SeekBar.OnSeekBarChangeListener l = new SeekBar.OnSeekBarChangeListener() {
@@ -143,7 +154,7 @@ final class Status {
         String now = new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.ROOT).format(new java.util.Date());
         if (av == null) {
             state.setText("● Not connected to the host agent"); state.setTextColor(MUTED);
-            summary.setText("The apps keep running in their VMs, but nothing reaches them until the owner's host agent is connected (USB or Wi-Fi).");
+            summary.setText("The apps keep running, but nothing reaches them until the owner's host agent is connected (USB or Wi-Fi).");
             apps.removeAllViews(); room.setText("–");
             footer.setText("Checked " + now + (err != null ? " (" + err + ")" : ""));
             return;
@@ -160,15 +171,15 @@ final class Status {
             state.setTextColor(serving ? GREEN : AMBER);
         }
         summary.setText(!agentHosting && !hosting ? "This phone hosts nothing: no app runs here and none is taken. Turn hosting on to take apps again."
-                        : "This phone runs apps for buyers, each in its own protected VM: the phone's owner cannot read an app's memory or its TLS keys.");
+                        : ABOUT);
         apps.removeAllViews();
         if (n == 0) apps.addView(text("None right now.", 14, MUTED));
         for (int k = 0; k < n; k++) {
             JSONObject app = list.optJSONObject(k); if (app == null) continue;
             String id = app.optString("id", ""), host = (id.length() >= 10 ? id.substring(2, 10) : id) + ".app.enclave.host";
             int cpu = app.optInt("cpuMilli", 0);
-            String line2 = ("serving".equals(app.optString("phase")) ? "Serving" : "Starting") + "  ·  " + app.optInt("vmMib", 0) + " MB VM  ·  "
-                         + (cpu / 10) + "% of the CPU  ·  slot " + app.optInt("slot", 0);
+            String line2 = ("serving".equals(app.optString("phase")) ? "Serving" : "Starting") + "  ·  " + app.optInt("vmMib", 0) + " MB  ·  "
+                         + (cpu < 10 ? "under 1" : String.valueOf(cpu / 10)) + "% of the CPU";
             apps.addView(card(host, line2, "https://" + host + "/"));
         }
         if (av.has("poolMemMbMax")) setMemMax(av.optInt("poolMemMbMax", memMax));
@@ -196,7 +207,7 @@ final class Status {
     private void setMemMax(int max) { memMax = Math.max(MEM_MIN, max); memBar.setMax(Math.max(1, (memMax - MEM_MIN + MEM_STEP - 1) / MEM_STEP)); }
     private void labels() {
         cpuLabel.setText("CPU  ·  " + barCpu() / 10 + "% of this phone");
-        memLabel.setText("Memory  ·  " + String.format(java.util.Locale.ROOT, "%.2f GB", barMem() / 1024.0) + " for apps' VMs");
+        memLabel.setText("Memory  ·  " + String.format(java.util.Locale.ROOT, "%.2f GB", barMem() / 1024.0) + " for apps");
     }
     private boolean dirty() { return barCpu() != appliedCpu || barMem() != appliedMem; }
     /** Apply is live only when the sliders differ from what is in effect. */
@@ -205,6 +216,10 @@ final class Status {
         apply.setEnabled(on); apply.setClickable(on);
         GradientDrawable bg = new GradientDrawable(); bg.setCornerRadius(dp(10)); bg.setColor(on ? GREEN : LINE);
         apply.setBackground(bg); apply.setTextColor(on ? BG : MUTED);
+        // Cancel: live with Apply, outlined (the quieter choice)
+        cancel.setEnabled(on); cancel.setClickable(on);
+        GradientDrawable cb = new GradientDrawable(); cb.setCornerRadius(dp(10)); cb.setColor(BG); cb.setStroke(dp(1), on ? MUTED : LINE);
+        cancel.setBackground(cb); cancel.setTextColor(on ? TEXT : LINE);
     }
     /** The switch: on saves at once; off with apps here asks first (they are released). */
     private void toggle(boolean on) {
@@ -212,10 +227,10 @@ final class Status {
         if (lastAppCount == 0) { save(appliedCpu, appliedMem, false, "Hosting off: nothing runs here and no app is taken."); return; }
         new android.app.AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert)
             .setTitle("Turn hosting off?")
-            .setMessage((lastAppCount == 1 ? "The app running here will be released: a final proof, then its owner's deployment moves"
-                                           : "The " + lastAppCount + " apps running here will be released: a final proof, then their owners' deployments move")
-                        + " to another host or waits. Nothing runs on this phone until you turn hosting on again.")
-            .setPositiveButton("Turn off", (d, w) -> save(appliedCpu, appliedMem, false, "Hosting off: releasing the apps here, then ending every VM."))
+            .setMessage((lastAppCount == 1 ? "The app running here will be released: it moves to another host or waits for one."
+                                           : "The " + lastAppCount + " apps running here will be released: they move to other hosts or wait for one.")
+                        + " Nothing runs on this phone until you turn hosting on again.")
+            .setPositiveButton("Turn off", (d, w) -> save(appliedCpu, appliedMem, false, "Hosting off: releasing the apps here."))
             .setNegativeButton("Cancel", (d, w) -> { quiet = true; hostSwitch.setChecked(true); quiet = false; })
             .setOnCancelListener(d -> { quiet = true; hostSwitch.setChecked(true); quiet = false; })
             .show();
