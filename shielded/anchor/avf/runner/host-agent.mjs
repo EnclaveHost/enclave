@@ -120,18 +120,19 @@ export function appMemFor(version) {
   return Math.min(1024, Math.max(64, declared || 256));
 }
 /**
- * Room for one more app on the phone: { slot, vmMib, cpus } or { why }. `apps`: the apps the slots hold now ({ slot, vmMib,
- * cpuMilli }); `except`: a slot not counted (its own app, resized). Pure.
+ * Room for one more app on the phone: { slot, vmMib, cpus } or { why }. The capacity is what the owner offers: `poolMemMb`
+ * of VM memory and `cpuMilli` per mille of the phone's CPU (default all of it). `apps`: the apps the slots hold now
+ * ({ slot, vmMib, cpuMilli }); `except`: a slot not counted (its own app, resized). Pure.
  */
-export function slotFor({ count, poolMemMb }, apps, { cpuMilli, appMemMb }, except = 0) {
+export function slotFor({ count, poolMemMb, cpuMilli: cpuOffered = 1000 }, apps, { cpuMilli, appMemMb }, except = 0) {
   const held = apps.filter((a) => a && a.slot !== except);
   const vmMib = vmMibFor(appMemMb), cpus = Number(cpuMilli) <= ONE_CPU_MAX_MILLI ? 1 : 0;
   const free = [];
   for (let k = 1; k <= count; k++) if (k === except || !held.some((a) => a.slot === k)) free.push(k);
   if (!free.length) return { why: `all ${count} of its slots are in use` };
   const mem = held.reduce((t, a) => t + (Number(a.vmMib) || 0), 0), cpu = held.reduce((t, a) => t + (Number(a.cpuMilli) || 0), 0);
-  if (mem + vmMib > poolMemMb) return { why: `its VM needs ${vmMib} MiB and ${Math.max(0, poolMemMb - mem)} MiB of the phone's pool is free` };
-  if (cpu + Number(cpuMilli) > 1000) return { why: `it asks cpuMilli ${cpuMilli} and ${Math.max(0, 1000 - cpu)} of the phone's CPU share is free` };
+  if (mem + vmMib > poolMemMb) return { why: `its VM needs ${vmMib} MiB and ${Math.max(0, poolMemMb - mem)} MiB of the memory offered is free` };
+  if (cpu + Number(cpuMilli) > cpuOffered) return { why: `it asks cpuMilli ${cpuMilli} and ${Math.max(0, cpuOffered - cpu)} of the CPU share offered is free` };
   return { slot: except || free[0], vmMib, cpus };
 }
 
@@ -311,6 +312,9 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   const idleSha = crypto.createHash("sha256").update(fs.readFileSync(cfg.idleApp)).digest("hex");
   let addrs = null, busy = false, lastSweep = 0, registered = null, lastReattach = 0, hostUp = false;
   const runners = new Map();     // "host" | k -> { r, key, lastTick }
+  // what the owner offers to host apps: set on the phone in the Enclave app (Sharing), read each round; the config's pool
+  // (and all the CPU) until it says otherwise, and never above the config's pool
+  let offer = { cpuMilli: 1000, memMb: S.poolMemMb, source: "config" };
   const lastCert = new Map();    // k -> ms
   const standDown = new Map();   // deployment -> until (ms): the owner moved it away; not re-claimed meanwhile
   const sessions = createSessionApiAuth({ pc: publicClient, book: () => cfg.addressBook, ledger: () => (addrs ? addrs.deployments : null),
@@ -614,7 +618,12 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     const v = await versionOf(d.appRef).catch(() => null);
     const why = pvmClaimRefusal(d, v, { enclaveId: E, maxMemMb: cfg.claim.maxMemMb, nowSec: Math.floor(now() / 1000) }) || (v ? null : "no catalog version");
     if (why) return { why };
-    const fit = slotFor(S, apps(), { cpuMilli: Number(d.cpuMilli), appMemMb: appMemFor(v) }, except);
+    // within the owner's offer; a running app re-judged (a config edit, a resize) is never squeezed out by an offer lowered
+    // under what already runs: it keeps at least the room it holds, and only GROWTH beyond the offer is refused
+    const held = apps(), useMem = held.reduce((t, x) => t + (x.vmMib || 0), 0), useCpu = held.reduce((t, x) => t + (x.cpuMilli || 0), 0);
+    const cap = except ? { count: S.count, poolMemMb: Math.max(offer.memMb, useMem), cpuMilli: Math.max(offer.cpuMilli, useCpu) }
+                       : { count: S.count, poolMemMb: offer.memMb, cpuMilli: offer.cpuMilli };
+    const fit = slotFor(cap, held, { cpuMilli: Number(d.cpuMilli), appMemMb: appMemFor(v) }, except);
     return fit.why ? { why: `no room on the phone now: ${fit.why}`, busy: true } : { v, fit };
   }
   async function refusalFor(d) { return (await admission(d)).why || null; }
@@ -727,6 +736,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
       const reachable = await device.ensurePorts().then(() => true, (e) => { note({ ev: "phone-unreachable", error: e.message }); return false; });
       const reg = await read(addrs.registry, REGISTRY_ABI, "get", [E]).catch(() => null);
       registered = reg && lc(reg.operator) === me && reg.active ? reg : null;
+      if (reachable && typeof device.readOffer === "function") applyOffer(await device.readOffer().catch(() => null));
       // the host VM, carried on from what the state says (a VM that no longer serves is launched again)
       if (reachable) try {
         hostUp = state.host ? await device.alive(state.host.label) : false;
@@ -772,6 +782,23 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
       }
       return { kind: reachable ? "ok" : "phone-unreachable", apps: apps().map((a) => a.id), registered: !!registered, hostUp };
     } finally { busy = false; }
+  }
+  /** The owner's Sharing settings from the phone (files/offer.json, written by the Enclave app: only the app's uid or the
+   *  owner's adb can), checked strictly; anything else keeps the config's. Lowering it never stops a running app: it only
+   *  bounds what is taken next. */
+  function applyOffer(text) {
+    let next = { cpuMilli: 1000, memMb: S.poolMemMb, source: "config" };
+    if (text) {
+      try {
+        const o = JSON.parse(text);
+        const c = Number(o.cpuMilli), m = Number(o.memMb);
+        if (o.v !== 1 || !Number.isInteger(c) || c < 10 || c > 1000 || !Number.isInteger(m) || m < MIN_VM_MB) throw new Error("malformed");
+        next = { cpuMilli: c, memMb: Math.min(m, S.poolMemMb), source: "phone", at: typeof o.at === "string" ? o.at.slice(0, 40) : null };
+      } catch (e) { if (offer.source !== "config-bad") note({ ev: "offer-ignored", why: `the phone's Sharing settings are not usable (${e.message})` }); next.source = "config-bad"; }
+    }
+    if (next.cpuMilli !== offer.cpuMilli || next.memMb !== offer.memMb || next.source !== offer.source)
+      note({ ev: "offer", cpuMilli: next.cpuMilli, memMb: next.memMb, source: next.source, was: { cpuMilli: offer.cpuMilli, memMb: offer.memMb } });
+    offer = next;
   }
   async function slotRound(a, r) {
     const L = await r.agent.lease();
@@ -854,14 +881,18 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   function availability() {
     const held = apps(), ok = !!registered && cfg.claim.enabled && hostUp;
     const mem = held.reduce((t, a) => t + a.vmMib, 0), cpu = held.reduce((t, a) => t + (a.cpuMilli || 0), 0);
+    const P = offer.memMb, C = offer.cpuMilli;
     return { ok: true, role: "pvm-host", name: cfg.name, gpu: false, claimEnabled: ok, fullService: false, registered: !!registered,
       enclaveId: E, operator: me, proofKey: registered ? lc(registered.proofKey) : null,
       askCpuPricePerSec6: Number(cfg.register.cpuPricePerSec6), askGpuPricePerSec6: 0,
       // one VM per app, sized to its share: the apps divide the phone's pool of VM memory and its CPU; how many more fit is
       // the shares' (the smallest VM, any CPU left), never above the slot services that remain
-      slots: S.count, nodeSlotsFree: cpu >= 1000 ? 0 : Math.max(0, Math.min(S.count - held.length, Math.floor((S.poolMemMb - mem) / MIN_VM_MB))),
-      cpuShareFree: Math.max(0, Math.round(1000 - cpu)) / 1000,
-      poolMemMb: S.poolMemMb, poolMemMbFree: Math.max(0, S.poolMemMb - mem), ramGbFree: Math.max(0, Math.round((S.poolMemMb - mem) / 102.4) / 10),
+      // all of it within what the owner OFFERS (the Enclave app's Sharing settings, else the config): its CPU per mille and
+      // its VM memory; the phone's GPU is not offered (a protected VM cannot reach it)
+      slots: S.count, nodeSlotsFree: cpu >= C ? 0 : Math.max(0, Math.min(S.count - held.length, Math.floor((P - mem) / MIN_VM_MB))),
+      cpuShareFree: Math.max(0, Math.round(C - cpu)) / 1000, cpuShareOffered: C / 1000, gpuShareOffered: 0,
+      poolMemMb: P, poolMemMbFree: Math.max(0, P - mem), ramGbFree: Math.max(0, Math.round((P - mem) / 102.4) / 10),
+      poolMemMbMax: S.poolMemMb, offer: { cpuMilli: C, memMb: P, source: offer.source, at: offer.at || null },
       maxAppMemMb: cfg.claim.maxMemMb, vmOverheadMb: VM_OVERHEAD_MB, minVmMb: MIN_VM_MB,
       isolation: ISOLATION_BACKEND, appTls: "in-vm", appEvidence: "enclave-pvm-app-evidence/v4", claimScope: "market",
       // the platform's capability flags (the relay AND-folds them across the fleet): each true only for what this host does

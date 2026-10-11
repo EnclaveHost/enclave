@@ -100,8 +100,9 @@ function setup() {
     };
   };
   const handles = [0, 1, 2, 3].map(handle);
+  let offerText = null;   // the Enclave app's Sharing settings (files/offer.json), as the device reads them
   const device = { ...handles[0], ensurePorts: async () => { if (unplugged) throw new Error("the phone is not on USB, and adb over Wi-Fi does not answer"); return 0; },
-                   slots: 3, slot: (k) => handles[k] };
+                   slots: 3, slot: (k) => handles[k], readOffer: async () => offerText };
   // the runners: a lease is claimed by a slot runner's tick; `pending` set by the test
   const made = [];
   const createRunner = async ({ config: rc }) => {
@@ -122,7 +123,7 @@ function setup() {
     sha: "x", file: path.join(cache, "bafyapp0000001.wasm"), sock: 0, memMib: 0, cpuMilli: 250, gpuMilli: 0, label: "app-d0d0d0d0-old", phase: "serving", sealed: { blob: "00", count: 1 },
     cert: { name: "d0d0d0d0.app.enclave.host" }, at: T }, idle: { label: "idle-old" }, refused: {} }));   // gitleaks:allow
   return { dir, config, E, now, advance: (ms) => { T += ms; }, rows, publicClient, device, createRunner, made, calls, vms, store, fetchImpl, stateDir,
-           unplug: (v) => { unplugged = v; }, failOnce };
+           unplug: (v) => { unplugged = v; }, failOnce, setOffer: (o) => { offerText = o === null ? null : typeof o === "string" ? o : JSON.stringify({ v: 1, ...o }); } };
 }
 
 test("slots: the served app moves to slot 1, more apps take their own VMs, the host's key is handed only where it is missing", async () => {
@@ -163,6 +164,29 @@ test("slots: the served app moves to slot 1, more apps take their own VMs, the h
     assert.equal(await recoverAddress({ hash: "0x" + siblingDigest({ nonce, transportSpki: s.transportSpki, instanceId: s.instanceId, deployment: D2 }).toString("hex"), signature: "0x" + s.sig }), hostKey.address);
     assert.equal(s.instanceId, "03".repeat(32), "slot 2's own VM answered");
     assert.equal((await agent.evidence(new URLSearchParams({ deployment: D1, nonce })))[0], 404, "not served here (yet)");
+
+    // the owner shares only half the phone's CPU (the Enclave app's Sharing): D0 and D2 hold 500 per mille, so D1 waits
+    t.setOffer({ cpuMilli: 500, memMb: 1536 }); t.calls.length = 0; t.advance(61_000);
+    await agent.tick();
+    assert.deepEqual(t.calls, [], "nothing taken beyond the offer");
+    let off = agent.availability();
+    assert.deepEqual([off.cpuShareOffered, off.cpuShareFree, off.nodeSlotsFree, off.offer.source], [0.5, 0, 0, "phone"]);
+    // a setting the agent cannot read is ignored (the config's: all of it); D1 held back meanwhile, so no round takes it
+    t.rows.get(D1).active = false;
+    t.setOffer("{not json"); t.advance(1000); await agent.tick();
+    assert.deepEqual([agent.availability().offer.source, agent.availability().cpuShareOffered], ["config-bad", 1]);
+    t.setOffer({ cpuMilli: 1000, memMb: 4096 });   // all the CPU; memory capped at the config's pool (1536)
+    t.advance(1000); await agent.tick();
+    assert.deepEqual([agent.availability().poolMemMb, agent.availability().offer.source], [1536, "phone"], "never above the config's pool");
+    assert.deepEqual(t.calls, []);
+    // the offer lowered under what already runs (100 per mille, 400 MiB): D0's owner edits its config, and D0 is
+    // relaunched on it in its own slot -- re-admitted against what it holds, never released for the lower offer
+    t.setOffer({ cpuMilli: 100, memMb: 400 }); t.rows.get(D0).configCid = JSON.stringify({ config: { greeting: "edited" } });
+    t.calls.length = 0; t.advance(1000); await agent.tick();
+    assert.deepEqual(t.calls, ["stage 1", "launch 1 384 MiB cpus=0 app=256"], "relaunched on its new options");
+    assert.equal(agent.state().slots["1"].id, D0); assert.equal(t.rows.get(D0).runner, t.E, "its lease kept");
+    t.setOffer({ cpuMilli: 1000, memMb: 4096 }); t.advance(1000); await agent.tick();
+    t.rows.get(D1).active = true;
 
     // the next round: D1 (a 64 MiB app: a 192 MiB VM) into slot 3; the pool is then 960 of 1536 MiB, 750 of 1000 per mille
     t.calls.length = 0; t.advance(61_000);
