@@ -34,7 +34,7 @@ public class AnchorService extends Service {
         try { mark = getResources().getIdentifier("ic_stat_enclave", "drawable", getResources().getResourcePackageName(getApplicationInfo().icon)); } catch (Exception ignored) {}
         Notification n = new Notification.Builder(this, "anchor")
             .setContentTitle(product ? "Enclave" : "Enclave anchor VM")
-            .setContentText(!product ? "protected VM running" : slot ? "Serving an app in its own protected VM" : "Hosting apps in protected VMs")
+            .setContentText(!product ? "protected VM running" : slot ? "Serving an app" : "Hosting apps")
             .setSmallIcon(mark != 0 ? mark : android.R.drawable.stat_notify_sync).setOngoing(true)
             // a tap opens the app's status screen (Status.java): what this phone hosts
             .setContentIntent(android.app.PendingIntent.getActivity(this, 0, new Intent(this, Main.class).setAction(Intent.ACTION_MAIN)
