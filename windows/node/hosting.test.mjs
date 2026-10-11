@@ -253,10 +253,11 @@ test("isLoopback: 127/8, ::1 and v4-mapped 127/8 only", () => {
 
 // ---- the API ----------------------------------------------------------------------------------------------------
 const TOKEN = "t".repeat(43);
-function stubHost({ failSave = false } = {}) {
-  const s = { caps: { cpuShare: 1, gpuShare: 1 }, saves: 0 };
+function stubHost({ failSave = false, plan = () => [] } = {}) {
+  const s = { caps: { cpuShare: 1, gpuShare: 1 }, saves: 0, dropped: [] };
   s.hostingCaps = () => ({ ...s.caps });
-  s.setHostingCaps = (next) => { if (failSave) throw new Error("disk full"); s.saves++; s.caps = { ...next }; };
+  s.dropPlan = plan;
+  s.setHostingCaps = (next, { drop = [] } = {}) => { if (failSave) throw new Error("disk full"); s.saves++; s.caps = { ...next }; s.dropped.push(...drop); };
   s.hostingView = () => ({ caps: { ...s.caps }, backend: "hv" });
   return s;
 }
@@ -318,6 +319,30 @@ test("PUT sets and snaps; a bad body is 400 and changes nothing; an oversize bod
   const f = await call(p2, { method: "PUT", body: { cpuShare: 0.1 } });
   assert.equal(f.status, 500); assert.match(f.json.message, /not saved, so nothing changed: disk full/);
   assert.deepEqual(failing.caps, { cpuShare: 1, gpuShare: 1 });
+});
+
+test("caps below what runs: 409 with the plan and nothing changed, until every deployment in it is named in drop", async () => {
+  const X = "0x" + "ab".repeat(32), Y = "0x" + "cd".repeat(32), OTHER = "0x" + "ef".repeat(32);
+  const plan = [{ id: X, appRef: "catalog://0xapp/1", cpuShare: 0.3, gpuShare: 0 }, { id: Y, appRef: "catalog://0xapp/2", cpuShare: 0.1, gpuShare: 0 }];
+  const h = stubHost({ plan: (next) => (next.cpuShare < 0.5 ? plan : []) }); const port = await serve(h);
+  const asked = await call(port, { method: "PUT", body: { cpuShare: 0.2 } });
+  assert.equal(asked.status, 409); assert.equal(asked.json.error, "would_drop"); assert.deepEqual(asked.json.drop, plan);
+  assert.match(asked.json.message, /no room for 2 running deployment\(s\); nothing was changed/);
+  for (const drop of [[X], [OTHER], [Y, OTHER]]) {
+    const partial = await call(port, { method: "PUT", body: { cpuShare: 0.2, drop } });
+    assert.equal(partial.status, 409, JSON.stringify(drop));
+  }
+  assert.equal(h.saves, 0, "nothing saved while unconfirmed"); assert.deepEqual(h.dropped, []);
+  const ok = await call(port, { method: "PUT", body: { cpuShare: 0.2, drop: [Y.toUpperCase().replace("0X", "0x"), X, OTHER] } });
+  assert.equal(ok.status, 200); assert.deepEqual(ok.json.dropped, plan); assert.equal(h.caps.cpuShare, 0.2);
+  assert.deepEqual(h.dropped, [X, Y], "the PLAN is dropped: an extra id in the confirmation drops nothing");
+  const fits = await call(port, { method: "PUT", body: { cpuShare: 0.6, drop: [X] } });
+  assert.equal(fits.status, 200); assert.deepEqual(fits.json.dropped, []); assert.deepEqual(h.dropped, [X, Y], "a confirmation never chooses");
+  for (const drop of ["x", [1], ["0x12"], [X + "0"], {}]) {
+    const bad = await call(port, { method: "PUT", body: { cpuShare: 0.2, drop } });
+    assert.equal(bad.status, 400, JSON.stringify(drop)); assert.match(bad.json.message, /drop must be a list of deployment ids/);
+  }
+  assert.equal((await call(port, { method: "PUT", body: { drop: [X] } })).status, 400, "drop alone sets nothing");
 });
 
 test("a NON-LOOPBACK peer is refused even with the right token (the handler's own check, whatever the bind)", async () => {

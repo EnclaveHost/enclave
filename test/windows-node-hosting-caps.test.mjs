@@ -149,6 +149,29 @@ test("PAUSED: nothing new on either axis, nothing running touched, the caps kept
   assert.ok(logs.some((l) => /hosting RESUMED/.test(l)));
 });
 
+test("dropPlan: what lower caps leave no room for - newest first, only units that free an axis that is over, until it fits", () => {
+  const h = box({ card: () => card });
+  const C = idOf("c"), D = idOf("e");
+  h.records.set(A, { ...running(A, 0.3), claimedAt: 1000 });
+  h.records.set(B, { ...running(B, 0.2), claimedAt: 2000 });
+  h.records.set(C, running(C, 0.1));                                       // adopted after a restart: no claim time
+  h.records.set(D, { id: D, status: "failed", cpuShare: 0.5 });            // occupies nothing
+  assert.deepEqual(h.dropPlan({ cpuShare: 1, gpuShare: 1 }), [], "it fits: nothing");
+  assert.deepEqual(h.dropPlan({ cpuShare: 0.6, gpuShare: 1 }), [], "exactly at use: nothing");
+  assert.deepEqual(h.dropPlan({ cpuShare: 0.35, gpuShare: 1 }).map((u) => u.id), [B, A], "0.6 -> 0.4 -> 0.1: the two newest");
+  assert.deepEqual(h.dropPlan({ cpuShare: 0.55, gpuShare: 1 }).map((u) => u.id), [B]);
+  assert.deepEqual(h.dropPlan({ cpuShare: 0, gpuShare: 1 }).map((u) => u.id), [B, A, C], "everything, newest first");
+  // only the GPU over: units with no card share are skipped, whatever their age
+  const g = box({ card: () => card });
+  g.records.set(A, { ...running(A, 0.1, 0.4), claimedAt: 1000 });
+  g.records.set(B, { ...running(B, 0.2, 0), claimedAt: 3000 });
+  assert.deepEqual(g.dropPlan({ cpuShare: 1, gpuShare: 0.2 }), [{ id: A, appRef: "", cpuShare: 0.1, gpuShare: 0.4 }]);
+  // the Host sets lower caps without a confirmed plan and evicts nothing (the handler is what asks)
+  const before = JSON.stringify([...h.records.values()]);
+  h.setHostingCaps({ cpuShare: 0.1, gpuShare: 1, paused: false });
+  assert.equal(JSON.stringify([...h.records.values()]), before); assert.equal(h.capDrops, undefined);
+});
+
 test("the view says what the GPU is for on each backend, and never implies GPU hosting that is not happening", () => {
   const hv = box({ engineRetired: true });
   assert.equal(hv.hostingView().backend, "hv");
@@ -221,6 +244,25 @@ test("hv: PAUSED holds a NEW partition with the reason and keeps a running one; 
   h.setHostingCaps({ cpuShare: 1, gpuShare: 1, paused: true });
   for (let i = 0; i < 2; i++) assert.equal((await h.ensureApp(DEP, dep(), { version: PLANNED })).status, "running", "adopted while paused, not held");
   assert.equal(fake.running().length, 1);
+});
+
+test("hv: a confirmed drop retires the newest partition and hands its lease back; the older one keeps running", async () => {
+  const fake = new FakeHost(); const { port } = await bootManager(fake);
+  const logs = []; const h = hvBox(port, logs);
+  h.records.set(B, { ...running(B, 0.5), isolation: { instance: "hvB" } });          // older, running
+  assert.equal((await h.ensureApp(DEP, dep(), { version: PLANNED })).status, "running");
+  assert.equal(fake.running().length, 1);
+  const caps = { cpuShare: 0.5, gpuShare: 1, paused: false };
+  const plan = h.dropPlan(caps);
+  assert.deepEqual(plan.map((u) => u.id), [DEP], "0.6 in use over a 0.5 cap: the newest goes");
+  h.setHostingCaps(caps, { drop: plan.map((u) => u.id) });
+  await h.capDrops;
+  assert.equal(fake.running().length, 0, "its partition was retired");
+  assert.ok(["failed", "released"].includes(h.records.get(DEP).status), h.records.get(DEP).status);
+  assert.match(h.records.get(DEP).reason, /lowered its hosting caps to CPU 50%, GPU 100%, below what was in use/);
+  assert.equal(h.records.get(B).status, "running", "the older one was not touched");
+  near(h.shareUse().cpu, 0.5);
+  assert.ok(logs.some((l) => /dropping 1 running deployment\(s\) the owner confirmed, newest first/.test(l)));
 });
 
 test("hv: a CAP-HELD deployment is not spawned above the cap by a FORCED ensure - the owner's restart path (enclave-5d)", async () => {

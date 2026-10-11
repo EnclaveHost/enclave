@@ -1962,11 +1962,40 @@ export class Host {
 
   // ---- the owner's hosting controls (hosting.mjs's local API, the tray app) -----------------------------------------
   hostingCaps() { return { ...this.caps }; }
+  /**
+   * dropPlan(caps) -> the units occupying this box that these caps leave no room for, as [{id, appRef, cpuShare,
+   * gpuShare}], in the order they would go: the NEWEST first (the most recently claimed, then the most recently
+   * recorded), each only if it frees an axis that is over, until use fits under both caps. Empty when it already fits.
+   * Pausing drops nothing (it only stops new work), so the plan is made against the caps alone.
+   */
+  dropPlan(caps) {
+    const at = new Map([...this.records.keys()].map((id, i) => [id, i]));
+    const units = [...this.records.values()].filter((r) => Host.occupies(r))
+      .sort((a, b) => (b.claimedAt || 0) - (a.claimedAt || 0) || at.get(b.id) - at.get(a.id));
+    let { cpu, gpuInUse } = this.shareUse();
+    const plan = [];
+    for (const r of units) {
+      const cpuOver = cpu > caps.cpuShare + 1e-9, gpuOver = gpuInUse > caps.gpuShare + 1e-9;
+      if (!cpuOver && !gpuOver) break;
+      const c = r.cpuShare || 0, g = r.partitionGpuShare ?? (r.gpuShare || 0);
+      if (!((cpuOver && c > 0) || (gpuOver && g > 0))) continue;
+      plan.push({ id: r.id, appRef: r.appRef || "", cpuShare: c, gpuShare: g });
+      cpu -= c; gpuInUse -= g;
+    }
+    return plan;
+  }
+  /** Hand back what the owner confirmed dropping, one at a time (each retires its domain, then releases its lease). */
+  async #dropForCaps(ids, why) {
+    for (const id of ids) {
+      try { await this.#giveUp(id, why); }
+      catch (e) { this.log(`${String(id).slice(0, 10)} could not be dropped for the owner's caps: ${e.message}`); }
+    }
+  }
   /** What the owner offers on an axis: their cap, or nothing while they have hosting paused. */
   #offered(axis) { return this.caps.paused === true ? 0 : this.caps[axis]; }
   servedCount() { return [...this.records.values()].filter((r) => r.status === "running").length; }
   /** Persist, THEN apply: a cap that could not be saved changes nothing, so the tray snaps back to the truth. */
-  setHostingCaps(next) {
+  setHostingCaps(next, { drop = [] } = {}) {
     saveCaps(this.capsFile, next);
     const was = this.caps;
     this.caps = { cpuShare: next.cpuShare, gpuShare: next.gpuShare, paused: next.paused === true }; this.capsError = null;
@@ -1976,7 +2005,14 @@ export class Host {
         ? `hosting PAUSED by the owner of this box: no new work is taken; the ${this.servedCount()} deployment(s) running keep running`
         : "hosting RESUMED by the owner of this box: new work is taken again under the caps");
     this.log(`hosting caps set on this box: CPU ${pct(was.cpuShare)} -> ${pct(this.caps.cpuShare)}, GPU ${pct(was.gpuShare)} -> ${pct(this.caps.gpuShare)}`
-      + (use.cpu > this.caps.cpuShare + 1e-9 ? `; ${pct(use.cpu)} of the CPU is already in use, which keeps running: new work waits until use drops below the cap` : ""));
+      + (drop.length ? `; dropping ${drop.length} running deployment(s) the owner confirmed, newest first`
+        : use.cpu > this.caps.cpuShare + 1e-9 ? `; ${pct(use.cpu)} of the CPU is already in use, which keeps running: new work waits until use drops below the cap` : ""));
+    // Only what the owner confirmed (hosting.mjs's handler checks it against dropPlan); never anything chosen here.
+    if (drop.length) {
+      const why = `the owner of this box lowered its hosting caps to CPU ${pct(this.caps.cpuShare)}, GPU ${pct(this.caps.gpuShare)}, below what`
+        + " was in use; handing the lease back so a box with room can take it";
+      this.capDrops = this.#dropForCaps(drop, why);
+    }
     return this.hostingCaps();
   }
   /** Does anything on the ACTIVE backend use the GPU? The tray says so rather than imply GPU hosting that is not happening. */

@@ -4,8 +4,11 @@
 // Two caps, each a fraction of THIS MACHINE: the most of its CPU, and of its GPU, that the node offers to hosting.
 // They are the owner's, set on the box itself, and they only ever NARROW what the node takes on (host.mjs:
 // cpuShareFree / gpuShareFree, which the claim gate and /availability read, and the isolated backend's spawn gate).
-// Lowering one below what is already in use stops nothing that runs. It stops NEW work until use drops below it.
-// Absent, both are 1.0, which is the node exactly as it was before they existed.
+// Lowering one below what is already in use DROPS running work, but only once the owner has seen exactly what: a PUT
+// that would leave use above a cap is answered 409 with the deployments it would drop (the newest first, until use
+// fits), and only a PUT that names every one of them in `drop` is applied. Those leases are then handed back to the
+// fleet so a box with room takes them. The Host never drops anything on its own: a node that restarts under a lower cap
+// adopts what is there, and it waits for use to fall. Absent, both caps are 1.0, the node as it was before they existed.
 //
 // And a switch, `paused`: the owner turning hosting off without losing where the sliders were. Paused, the node offers
 // nothing new on either axis (as if both caps were 0); what is running keeps running, exactly as when a cap is lowered.
@@ -101,6 +104,17 @@ export function capsUpdate(current, body) {
     next[k] = s;
   }
   return next;
+}
+
+/** capsRequest(current, body) -> { next, ack }: capsUpdate over the body less `drop`, which must be a list of deployment
+ *  ids (0x and 64 hex) the owner confirmed dropping. Throws a 400 like capsUpdate. */
+export function capsRequest(current, body) {
+  const bad = (m) => Object.assign(new Error(m), { status: 400, code: "bad_request" });
+  if (!body || typeof body !== "object" || Array.isArray(body) || !("drop" in body)) return { next: capsUpdate(current, body), ack: new Set() };
+  const { drop, ...rest } = body;
+  if (!Array.isArray(drop) || drop.length > 256 || !drop.every((x) => typeof x === "string" && /^0x[0-9a-fA-F]{64}$/.test(x)))
+    throw bad("drop must be a list of deployment ids (0x and 64 hex digits)");
+  return { next: capsUpdate(current, rest), ack: new Set(drop.map((x) => x.toLowerCase())) };
 }
 
 // ---- the token ------------------------------------------------------------------------------------------------------
@@ -338,8 +352,10 @@ const readBody = (req) => new Promise((resolve) => {
  *
  *   GET /v1/local/hosting   the caps, what is sold, in use and free, deployments served, the backend, and whether
  *                           anything on that backend uses the GPU
- *   PUT /v1/local/hosting   {cpuShare?, gpuShare?, paused?}, each share 0..1, snapped to 0.05; paused true or false;
- *                           answers the GET body after the change
+ *   PUT /v1/local/hosting   {cpuShare?, gpuShare?, paused?, drop?}, each share 0..1, snapped to 0.05; paused true or
+ *                           false; answers the GET body after the change, with `dropped`. Caps that leave running
+ *                           work above them are 409 would_drop with `drop` (what they would drop) and change nothing,
+ *                           until the PUT is repeated with `drop` naming every one of those deployment ids.
  *
  * Order matters: the peer first (a remote caller learns nothing, not even that a token is wanted), then the token
  * (an unauthenticated local caller learns no routes), then the route.
@@ -372,12 +388,20 @@ export function hostingAdminHandler({ host, token, log = () => {} }) {
     let body;
     try { body = JSON.parse(raw.toString("utf8")); }
     catch { return json(400, { error: "bad_request", message: "the body is not JSON" }); }
-    let next;
-    try { next = capsUpdate(host.hostingCaps(), body); }
+    let next, ack;
+    try { ({ next, ack } = capsRequest(host.hostingCaps(), body)); }
     catch (e) { return json(e.status || 400, { error: e.code || "bad_request", message: e.message }); }
-    try { host.setHostingCaps(next); }
+    // What these caps leave no room for. Dropped only when the owner has named every one of them: the ack confirms a
+    // plan, it never chooses one, so an id in it that the plan does not hold drops nothing.
+    const plan = typeof host.dropPlan === "function" ? host.dropPlan(next) : [];
+    const unconfirmed = plan.filter((u) => !ack.has(String(u.id).toLowerCase()));
+    if (unconfirmed.length)
+      return json(409, { error: "would_drop", drop: plan,
+        message: `these caps leave no room for ${plan.length} running deployment(s); nothing was changed. Repeat the PUT with`
+          + ` "drop" naming them to drop them and hand their leases back` });
+    try { host.setHostingCaps(next, { drop: plan.map((u) => u.id) }); }
     catch (e) { return json(500, { error: "not_saved", message: `the caps were not saved, so nothing changed: ${e.message}` }); }
-    return json(200, host.hostingView());
+    return json(200, { ...host.hostingView(), dropped: plan });
   };
 }
 
