@@ -203,6 +203,12 @@ slot 1 after the sibling check.
 
 ### The Enclave app (2026-10-11)
 
+Two pages (decluttered on Steven's word): **main** -- the Hosting switch in the header, one status line, Earnings (what is
+ready to pay out), the apps here by name, a Settings button; **Settings** -- Sharing (CPU and memory sliders; Apply and
+Cancel appear only once one moves) and the payout address (Save and Cancel appear only once it is edited). The screen
+speaks of apps only. The sections below describe what each control does.
+
+
 The release app is **Enclave** on the phone (package `host.enclave.pvmcpu` kept: a new package would mean new VM
 instances, a new proof key and a new registration). Its icon is the site's mark (`site/assets/logo.svg` on the
 `icon.svg` tile) as an adaptive launcher icon with a themed-icon layer (`res/`, compiled and linked by `build.sh`); the
