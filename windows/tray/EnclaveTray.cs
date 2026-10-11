@@ -173,10 +173,266 @@ namespace Enclave.Tray
         }
     }
 
+    /// <summary>The site's look (DESIGN.md, "The Verifier's Console"): near-black tonal surfaces, mono labels, jade marks.</summary>
+    static class Theme
+    {
+        public static readonly Color Bg = Rgb(0x070A0F), Surface = Rgb(0x0F1620), Surface2 = Rgb(0x131C28), Line = Rgb(0x1E2937),
+                                     LineStrong = Rgb(0x566880), Text = Rgb(0xE7EEF6), Muted = Rgb(0x93A1B5), Dim = Rgb(0x7A8AA0),
+                                     Jade = Rgb(0x2FE6A8), JadeDeep = Rgb(0x0E3A2C), Amber = Rgb(0xFF914D), Danger = Rgb(0xFF6B6B);
+        static Color Rgb(int x) { return Color.FromArgb(0xFF, (x >> 16) & 0xFF, (x >> 8) & 0xFF, x & 0xFF); }
+
+        // The site's mono stack, as Windows has it: Cascadia Mono ships with Windows 11, Consolas with everything since Vista.
+        static readonly string MonoFamily = FirstInstalled("Cascadia Mono", "Consolas", "Lucida Console");
+        public static Font Mono(float pt, FontStyle style) { return new Font(MonoFamily, pt, style); }
+        public static readonly Font Body = SystemFonts.MessageBoxFont;
+        static string FirstInstalled(params string[] names)
+        {
+            using (var fonts = new System.Drawing.Text.InstalledFontCollection())
+                foreach (var n in names)
+                    foreach (var f in fonts.Families)
+                        if (string.Equals(f.Name, n, StringComparison.OrdinalIgnoreCase)) return f.Name;
+            return FontFamily.GenericMonospace.Name;
+        }
+
+        // The process is DPI-aware (Program.Main), so fixed sizes are scaled here rather than stretched by Windows.
+        public static readonly float Dpi = ReadDpi();
+        public static int Px(float px) { return (int)Math.Round(px * Dpi); }
+        static float ReadDpi()
+        {
+            try { using (var g = Graphics.FromHwnd(IntPtr.Zero)) return g.DpiX / 96f; } catch { return 1f; }
+        }
+
+        [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+        /// <summary>A dark title bar in the panel's own colours (Windows 11; older builds keep theirs, which is harmless).</summary>
+        public static void DarkFrame(IntPtr hwnd)
+        {
+            Attr(hwnd, 20, 1);                          // DWMWA_USE_IMMERSIVE_DARK_MODE
+            Attr(hwnd, 35, ColorRef(Bg));               // DWMWA_CAPTION_COLOR
+            Attr(hwnd, 36, ColorRef(Muted));            // DWMWA_TEXT_COLOR
+            Attr(hwnd, 34, ColorRef(Line));             // DWMWA_BORDER_COLOR
+        }
+        static void Attr(IntPtr hwnd, int attribute, int value) { try { DwmSetWindowAttribute(hwnd, attribute, ref value, 4); } catch { } }
+        static int ColorRef(Color c) { return c.R | (c.G << 8) | (c.B << 16); }
+
+        /// <summary>
+        /// The site's mark (site/assets/icon.svg): a key in a hexagonal box on a dark tile, drawn in its own 32-unit space.
+        /// Below 32 px the inner hexagon would blur into the outer one, so it is left out and the strokes are thickened to
+        /// stay a whole pixel wide.
+        /// </summary>
+        public static void Mark(Graphics g, RectangleF r, Color stroke, bool tile)
+        {
+            var state = g.Save();
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            float k = r.Width / 32f;
+            g.TranslateTransform(r.X, r.Y); g.ScaleTransform(k, k);
+            if (tile)
+                using (var path = Rounded(new RectangleF(0, 0, 32, 32), 6))
+                using (var b = new SolidBrush(Bg)) g.FillPath(b, path);
+            g.TranslateTransform(16, 16); g.ScaleTransform(.82f, .82f); g.TranslateTransform(-16, -16);
+            float w = Math.Max(2f, 1.3f / (k * .82f));          // at least ~1.3 device px whatever the size
+            using (var pen = new Pen(stroke, w) { LineJoin = LineJoin.Round, StartCap = LineCap.Round, EndCap = LineCap.Round })
+            {
+                g.DrawPolygon(pen, Hex(16, 2, 28, 9, 23, 30, 4));
+                if (r.Width >= 32)
+                    using (var inner = new Pen(Color.FromArgb(140, stroke), w * .7f) { LineJoin = LineJoin.Round })
+                        g.DrawPolygon(inner, Hex(16, 7.333f, 24, 12, 20, 24.667f, 8));
+                g.DrawEllipse(pen, 16 - 2.45f, 12.55f - 2.45f, 4.9f, 4.9f);
+                g.DrawLine(pen, 16, 15, 16, 21.6f);
+                g.DrawLine(pen, 16, 21.6f, 18, 21.6f);
+                g.DrawLine(pen, 16, 19.4f, 17.5f, 19.4f);
+            }
+            g.Restore(state);
+        }
+        static PointF[] Hex(float cx, float top, float right, float upper, float lower, float bottom, float left)
+        {
+            return new[] { new PointF(cx, top), new PointF(right, upper), new PointF(right, lower), new PointF(cx, bottom),
+                           new PointF(left, lower), new PointF(left, upper) };
+        }
+        public static GraphicsPath Rounded(RectangleF b, float radius)
+        {
+            var path = new GraphicsPath(); float d = radius * 2;
+            path.AddArc(b.X, b.Y, d, d, 180, 90); path.AddArc(b.Right - d, b.Y, d, d, 270, 90);
+            path.AddArc(b.Right - d, b.Bottom - d, d, d, 0, 90); path.AddArc(b.X, b.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+    }
+
+    /// <summary>
+    /// The share slider, drawn in the theme (a native TrackBar ignores colours). It keeps TrackBar's contract that the panel
+    /// relies on: MouseDown, then ValueChanged while dragging, then MouseUp; arrows, PageUp/PageDown, Home/End and the wheel.
+    /// </summary>
+    sealed class ShareSlider : Control
+    {
+        public const int Steps = 20;                    // 5% each
+        int value;
+        bool grabbed;
+        public event EventHandler ValueChanged;
+
+        public ShareSlider(string name)
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer
+                   | ControlStyles.ResizeRedraw | ControlStyles.Selectable | ControlStyles.StandardClick, true);
+            TabStop = true; AccessibleName = name; AccessibleRole = AccessibleRole.Slider;
+            Size = new Size(Theme.Px(340), Theme.Px(30)); Margin = new Padding(3, Theme.Px(2), 3, 0);
+        }
+
+        public int Value
+        {
+            get { return value; }
+            set
+            {
+                int v = Math.Max(0, Math.Min(Steps, value));
+                if (v == this.value) return;
+                this.value = v;
+                Invalidate();
+                if (ValueChanged != null) ValueChanged(this, EventArgs.Empty);
+                AccessibilityNotifyClients(AccessibleEvents.ValueChange, -1);
+            }
+        }
+
+        int Inset { get { return Theme.Px(9); } }
+        int XOf(int v) { return Inset + (int)Math.Round((Width - 2 * Inset) * v / (double)Steps); }
+        int ValueAt(int x) { return (int)Math.Round((x - Inset) * Steps / (double)Math.Max(1, Width - 2 * Inset)); }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left || !Enabled) { base.OnMouseDown(e); return; }
+            Focus(); grabbed = true;
+            base.OnMouseDown(e);                        // the panel marks the drag before the value moves
+            Value = ValueAt(e.X);
+        }
+        protected override void OnMouseMove(MouseEventArgs e) { if (grabbed) Value = ValueAt(e.X); base.OnMouseMove(e); }
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            if (grabbed) { grabbed = false; Value = ValueAt(e.X); }
+            base.OnMouseUp(e);
+        }
+        protected override void OnMouseWheel(MouseEventArgs e)
+        {
+            var h = e as HandledMouseEventArgs; if (h != null) h.Handled = true;
+            if (Enabled) Value += Math.Sign(e.Delta);
+            base.OnMouseWheel(e);
+        }
+        protected override bool IsInputKey(Keys k)
+        {
+            switch (k & Keys.KeyCode) { case Keys.Left: case Keys.Right: case Keys.Up: case Keys.Down: return true; }
+            return base.IsInputKey(k);
+        }
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            switch (e.KeyCode)
+            {
+                case Keys.Left: case Keys.Down: Value -= 1; e.Handled = true; break;
+                case Keys.Right: case Keys.Up: Value += 1; e.Handled = true; break;
+                case Keys.PageDown: Value -= 2; e.Handled = true; break;
+                case Keys.PageUp: Value += 2; e.Handled = true; break;
+                case Keys.Home: Value = 0; e.Handled = true; break;
+                case Keys.End: Value = Steps; e.Handled = true; break;
+            }
+            base.OnKeyDown(e);
+        }
+        protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
+        protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
+        protected override void OnEnabledChanged(EventArgs e) { Invalidate(); base.OnEnabledChanged(e); }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.Clear(Theme.Bg);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            int mid = Height / 2 - Theme.Px(2), track = Math.Max(2, Theme.Px(4)), x0 = XOf(0), x1 = XOf(Steps), xv = XOf(value);
+            Color on = Enabled ? Theme.Jade : Theme.Dim;
+            using (var rail = Theme.Rounded(new RectangleF(x0, mid - track / 2f, x1 - x0, track), track / 2f))
+            using (var b = new SolidBrush(Theme.Line)) g.FillPath(b, rail);
+            if (Enabled && xv > x0)
+                using (var fill = Theme.Rounded(new RectangleF(x0, mid - track / 2f, xv - x0, track), track / 2f))
+                using (var b = new SolidBrush(Theme.Jade)) g.FillPath(b, fill);
+            using (var tick = new SolidBrush(Theme.LineStrong))            // 0, 25, 50, 75, 100%
+                for (int v = 0; v <= Steps; v += 5)
+                    g.FillRectangle(tick, XOf(v) - Theme.Px(1) / 2f, mid + track + Theme.Px(4), Math.Max(1, Theme.Px(1)), Theme.Px(4));
+            float r = Theme.Px(7);
+            if (Focused && Enabled)
+                using (var halo = new SolidBrush(Theme.JadeDeep)) g.FillEllipse(halo, xv - r - Theme.Px(4), mid - r - Theme.Px(4), 2 * r + Theme.Px(8), 2 * r + Theme.Px(8));
+            using (var face = new SolidBrush(Theme.Bg)) g.FillEllipse(face, xv - r, mid - r, 2 * r, 2 * r);
+            using (var ring = new Pen(on, Math.Max(2, Theme.Px(2)))) g.DrawEllipse(ring, xv - r, mid - r, 2 * r, 2 * r);
+        }
+
+        protected override AccessibleObject CreateAccessibilityInstance() { return new Accessible(this); }
+        sealed class Accessible : ControlAccessibleObject
+        {
+            readonly ShareSlider owner;
+            public Accessible(ShareSlider owner) : base(owner) { this.owner = owner; }
+            public override string Value { get { return ControlPanel.Pct(owner.value / (double)Steps); } }
+        }
+    }
+
+    /// <summary>The panel's masthead: the mark and the name, as the site's header sets them.</summary>
+    sealed class Masthead : Control
+    {
+        public Masthead()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+            Size = new Size(Theme.Px(340), Theme.Px(30)); Margin = new Padding(3, 0, 3, Theme.Px(4));
+            Font = Theme.Mono(10.5f, FontStyle.Bold);
+        }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.Clear(Theme.Bg);
+            int m = Theme.Px(24);
+            Theme.Mark(g, new RectangleF(0, (Height - m) / 2f, m, m), Theme.Jade, true);
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+            var at = new Point(m + Theme.Px(10), 0);
+            var size = new Size(Width - at.X, Height);
+            const TextFormatFlags f = TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
+            TextRenderer.DrawText(g, "enclave", Font, new Rectangle(at, size), Theme.Text, f);
+            int w = TextRenderer.MeasureText(g, "enclave", Font, size, f).Width;
+            using (var light = Theme.Mono(10.5f, FontStyle.Regular))
+                TextRenderer.DrawText(g, " / hosting", light, new Rectangle(new Point(at.X + w, 0), size), Theme.Muted, f);
+        }
+    }
+
+    /// <summary>The tray menu in the panel's colours, every part painted here so no system highlight shows through.</summary>
+    sealed class DarkMenuRenderer : ToolStripRenderer
+    {
+        protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
+        {
+            using (var b = new SolidBrush(Theme.Surface)) e.Graphics.FillRectangle(b, e.AffectedBounds);
+        }
+        protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
+        {
+            var r = new Rectangle(Point.Empty, e.ToolStrip.Size); r.Width -= 1; r.Height -= 1;
+            using (var pen = new Pen(Theme.Line)) e.Graphics.DrawRectangle(pen, r);
+        }
+        protected override void OnRenderImageMargin(ToolStripRenderEventArgs e)
+        {
+            using (var b = new SolidBrush(Theme.Surface)) e.Graphics.FillRectangle(b, e.AffectedBounds);
+        }
+        protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
+        {
+            var r = new Rectangle(Theme.Px(3), 1, e.Item.Width - Theme.Px(6), e.Item.Height - 2);
+            using (var b = new SolidBrush(e.Item.Selected && e.Item.Enabled ? Theme.Surface2 : Theme.Surface)) e.Graphics.FillRectangle(b, r);
+            if (e.Item.Selected && e.Item.Enabled)
+                using (var jade = new SolidBrush(Theme.Jade)) e.Graphics.FillRectangle(jade, r.X, r.Y + Theme.Px(3), Math.Max(2, Theme.Px(2)), r.Height - Theme.Px(6));
+        }
+        protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+        {
+            e.TextColor = e.Item.Enabled ? Theme.Text : Theme.Dim;
+            base.OnRenderItemText(e);
+        }
+        protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
+        {
+            int y = e.Item.Height / 2;
+            using (var pen = new Pen(Theme.Line)) e.Graphics.DrawLine(pen, Theme.Px(8), y, e.Item.Width - Theme.Px(8), y);
+        }
+    }
+
     /// <summary>The panel: two sliders, what they mean right now, and whether the node is there at all.</summary>
     sealed class ControlPanel : Form
     {
-        public readonly TrackBar Cpu = Slider(), Gpu = Slider();
+        public readonly ShareSlider Cpu = new ShareSlider("CPU share offered to hosting"), Gpu = new ShareSlider("GPU share offered to hosting");
         readonly Label cpuLine = Line(), gpuLine = Line(), cpuNote = Note(), gpuNote = Note(), status = Line(), error = Note();
         public event EventHandler ApplyRequested;
         readonly System.Windows.Forms.Timer debounce = new System.Windows.Forms.Timer { Interval = 500 };
@@ -190,16 +446,22 @@ namespace Enclave.Tray
             Text = "Enclave hosting";
             FormBorderStyle = FormBorderStyle.FixedToolWindow;
             ShowInTaskbar = false; TopMost = true; StartPosition = FormStartPosition.Manual;
-            AutoScaleMode = AutoScaleMode.Font; AutoSize = true; AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            AutoScaleMode = AutoScaleMode.None; AutoSize = true; AutoSizeMode = AutoSizeMode.GrowAndShrink;
             KeyPreview = true;
+            BackColor = Theme.Bg; ForeColor = Theme.Text; Font = Theme.Body;
             var flow = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true,
-                                             AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(10) };
-            flow.Controls.Add(Title("CPU share offered to hosting"));
+                                             AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(Theme.Px(14)),
+                                             BackColor = Theme.Bg };
+            flow.Controls.Add(new Masthead());
+            flow.Controls.Add(Rule());
+            flow.Controls.Add(Title("CPU share offered"));
             flow.Controls.Add(Cpu); flow.Controls.Add(cpuLine); flow.Controls.Add(cpuNote);
-            flow.Controls.Add(Title("GPU share offered to hosting"));
+            flow.Controls.Add(Title("GPU share offered"));
             flow.Controls.Add(Gpu); flow.Controls.Add(gpuLine); flow.Controls.Add(gpuNote);
+            flow.Controls.Add(Rule());
             flow.Controls.Add(status); flow.Controls.Add(error);
-            error.ForeColor = Color.Firebrick;
+            status.ForeColor = Theme.Muted; status.Font = Theme.Mono(8.25f, FontStyle.Regular);
+            error.ForeColor = Theme.Danger;
             Controls.Add(flow);
 
             foreach (var t in new[] { Cpu, Gpu })
@@ -217,10 +479,12 @@ namespace Enclave.Tray
             ShowUnreachable("not asked yet");
         }
 
+        protected override void OnHandleCreated(EventArgs e) { base.OnHandleCreated(e); Theme.DarkFrame(Handle); }
+
         void Schedule() { debounce.Stop(); debounce.Start(); }
 
-        public double CpuValue { get { return Cpu.Value / 20.0; } }
-        public double GpuValue { get { return Gpu.Value / 20.0; } }
+        public double CpuValue { get { return Cpu.Value / (double)ShareSlider.Steps; } }
+        public double GpuValue { get { return Gpu.Value / (double)ShareSlider.Steps; } }
 
         /// <summary>The node's truth. Sliders are moved to it unless the owner is mid-move.</summary>
         public void ShowView(HostingView v, bool snapSliders)
@@ -229,7 +493,7 @@ namespace Enclave.Tray
             if (snapSliders || !Busy)
             {
                 setting = true;
-                Cpu.Value = Clamp((int)Math.Round(v.CpuCap * 20)); Gpu.Value = Clamp((int)Math.Round(v.GpuCap * 20));
+                Cpu.Value = (int)Math.Round(v.CpuCap * ShareSlider.Steps); Gpu.Value = (int)Math.Round(v.GpuCap * ShareSlider.Steps);
                 setting = false;
             }
             Cpu.Enabled = Gpu.Enabled = true;
@@ -263,29 +527,26 @@ namespace Enclave.Tray
             if (v.CpuInUse > CpuValue + 1e-9) cn.Add("More than this is in use. Nothing running is stopped; new work waits until use drops below it.");
             else if (v.Reserved > 0 && CpuValue > 1 - v.Reserved + 1e-9) cn.Add("New claims stop at " + Pct(1 - v.Reserved) + ": the node keeps " + Pct(v.Reserved) + " for itself.");
             cpuNote.Text = string.Join(" ", cn.ToArray());
+            cpuNote.ForeColor = v.CpuInUse > CpuValue + 1e-9 ? Theme.Amber : Theme.Dim;
             // Never imply GPU hosting that is not happening.
             // The node says why (on the isolated backend: no partition holds a masked GPU allocation); repeat it, don't guess.
             if (!v.GpuConsumer)
                 gpuNote.Text = "Nothing on this node uses the GPU right now" + (v.GpuWhy.Length > 0 ? " (" + v.GpuWhy + ")" : "") + "; this cap applies when something does.";
             else gpuNote.Text = v.GpuInUse > GpuValue + 1e-9 ? "More than this is in use. Nothing running is stopped; new work waits until use drops below it." : "";
+            gpuNote.ForeColor = v.GpuConsumer && v.GpuInUse > GpuValue + 1e-9 ? Theme.Amber : Theme.Dim;
         }
 
         public static string Pct(double share) { return ((int)Math.Round(share * 100)).ToString(CultureInfo.InvariantCulture) + "%"; }
-        static int Clamp(int x) { return Math.Max(0, Math.Min(20, x)); }
-        // The process is DPI-aware (Program.Main), so fixed widths are scaled here rather than stretched by Windows.
-        static readonly int Wide = Scaled(340);
-        static int Scaled(int px)
+        static readonly int Wide = Theme.Px(340);
+        // DESIGN.md's label voice: small mono capitals in the muted ink; the numbers in mono, the prose in the system face.
+        static Label Title(string text)
         {
-            try { using (var g = Graphics.FromHwnd(IntPtr.Zero)) return (int)Math.Round(px * g.DpiX / 96f); } catch { return px; }
+            return new Label { Text = text.ToUpperInvariant(), AutoSize = true, Font = Theme.Mono(7.5f, FontStyle.Regular),
+                               ForeColor = Theme.Muted, Margin = new Padding(3, Theme.Px(12), 3, 0) };
         }
-        static TrackBar Slider()
-        {
-            return new TrackBar { Minimum = 0, Maximum = 20, TickFrequency = 1, SmallChange = 1, LargeChange = 2, Width = Wide,
-                                  TickStyle = TickStyle.BottomRight };
-        }
-        static Label Title(string text) { return new Label { Text = text, AutoSize = true, Font = new Font(SystemFonts.MessageBoxFont, FontStyle.Bold), Margin = new Padding(3, 8, 3, 0) }; }
-        static Label Line() { return new Label { AutoSize = true, MaximumSize = new Size(Wide, 0), Font = SystemFonts.MessageBoxFont }; }
-        static Label Note() { return new Label { AutoSize = true, MaximumSize = new Size(Wide, 0), Font = SystemFonts.MessageBoxFont, ForeColor = SystemColors.GrayText }; }
+        static Label Line() { return new Label { AutoSize = true, MaximumSize = new Size(Wide, 0), Font = Theme.Mono(9f, FontStyle.Regular), ForeColor = Theme.Text }; }
+        static Label Note() { return new Label { AutoSize = true, MaximumSize = new Size(Wide, 0), Font = Theme.Body, ForeColor = Theme.Dim, Margin = new Padding(3, Theme.Px(2), 3, 0) }; }
+        static Control Rule() { return new Panel { Size = new Size(Wide, 1), BackColor = Theme.Line, Margin = new Padding(3, Theme.Px(8), 3, Theme.Px(2)) }; }
     }
 
     sealed class TrayApp : ApplicationContext
@@ -297,8 +558,7 @@ namespace Enclave.Tray
         readonly string configError;
         ControlPanel panel;
         readonly System.Windows.Forms.Timer poll = new System.Windows.Forms.Timer();
-        readonly Icon iconOk = Glyph(Color.FromArgb(0x1F, 0x7A, 0x5C)), iconWarn = Glyph(Color.FromArgb(0xC2, 0x6A, 0x00)),
-                      iconDown = Glyph(Color.FromArgb(0x80, 0x86, 0x8F));
+        readonly Icon iconOk = Glyph(Theme.Jade), iconWarn = Glyph(Theme.Amber), iconDown = Glyph(Theme.Dim);
         HostingView last;
         bool refreshing, applying, applyAgain;
         static readonly string Home = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Enclave", "Tray");
@@ -311,7 +571,8 @@ namespace Enclave.Tray
             panel = NewPanel();
             // the first control installs it on this thread: worker results come back on it, whatever happens to the panel
             ui = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
-            var menu = new ContextMenuStrip();
+            var menu = new ContextMenuStrip { Renderer = new DarkMenuRenderer(), ShowImageMargin = false, ForeColor = Theme.Text,
+                                              BackColor = Theme.Surface, Padding = new Padding(0, Theme.Px(4), 0, Theme.Px(4)) };
             var controls = new ToolStripMenuItem("Hosting controls\u2026", null, delegate { ShowPanel(); });
             controls.Font = new Font(controls.Font, FontStyle.Bold);
             menu.Items.Add(controls);
@@ -457,26 +718,16 @@ namespace Enclave.Tray
 
         [DllImport("user32.dll")] static extern bool DestroyIcon(IntPtr handle);
 
-        /// <summary>The tray glyph, drawn rather than shipped: a rounded tile with an E, in the state's colour.</summary>
-        static Icon Glyph(Color fill)
+        /// <summary>The tray glyph: the site's mark (a key in a box) in the state's colour, drawn at the size the tray shows.</summary>
+        static Icon Glyph(Color stroke)
         {
-            using (var bmp = new Bitmap(32, 32))
+            int n = Math.Max(16, SystemInformation.SmallIconSize.Width);
+            using (var bmp = new Bitmap(n, n))
             {
                 using (var g = Graphics.FromImage(bmp))
-                using (var path = new GraphicsPath())
-                using (var brush = new SolidBrush(fill))
-                using (var font = new Font("Segoe UI", 20, FontStyle.Bold, GraphicsUnit.Pixel))
-                using (var fmt = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
                 {
-                    g.SmoothingMode = SmoothingMode.AntiAlias;
-                    g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
                     g.Clear(Color.Transparent);
-                    const int r = 8;
-                    path.AddArc(1, 1, r * 2, r * 2, 180, 90); path.AddArc(31 - r * 2, 1, r * 2, r * 2, 270, 90);
-                    path.AddArc(31 - r * 2, 31 - r * 2, r * 2, r * 2, 0, 90); path.AddArc(1, 31 - r * 2, r * 2, r * 2, 90, 90);
-                    path.CloseFigure();
-                    g.FillPath(brush, path);
-                    g.DrawString("E", font, Brushes.White, new RectangleF(0, 1, 32, 32), fmt);
+                    Theme.Mark(g, new RectangleF(0, 0, n, n), stroke, true);
                 }
                 IntPtr h = bmp.GetHicon();
                 try { using (var tmp = Icon.FromHandle(h)) return (Icon)tmp.Clone(); }
