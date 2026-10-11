@@ -1920,7 +1920,7 @@ export class Host {
     const used = this.shareUse({ exclude }).cpu;
     // The owner's cap (hosting.mjs) can only lower this; at the default 1.0 it never binds and the figure is exactly
     // the one before caps existed.
-    const offered = capped ? this.caps.cpuShare - used : Infinity;
+    const offered = capped ? this.#offered("cpuShare") - used : Infinity;
     return Math.max(0, Math.min(1, 1 - used - (this.cfg.reservedShare ?? 0.25), offered));   // a quarter stays for the enclave, the worker and the owner
   }
   /**
@@ -1939,7 +1939,7 @@ export class Host {
     const sold = this.shareUse({ exclude }).gpu;
     const onCard = Number(card.vramFreeGb) / Number(card.vramBudgetGb);
     // ...and a third, the owner's cap, which can only lower it (1.0 by default, where it never binds).
-    return Math.max(0, Math.min(1, 1 - sold, Number.isFinite(onCard) ? onCard : 0, capped ? this.caps.gpuShare - sold : Infinity, this.partitionsOnly() ? Number(this.managerInference?.freeGpuMilli || 0) / 1000 : Infinity));
+    return Math.max(0, Math.min(1, 1 - sold, Number.isFinite(onCard) ? onCard : 0, capped ? this.#offered("gpuShare") - sold : Infinity, this.partitionsOnly() ? Number(this.managerInference?.freeGpuMilli || 0) / 1000 : Infinity));
   }
   /**
    * capRefusal(id, {cpuShare, gpuShare}) -> why a NEW unit with these shares does not fit under the owner's caps beside
@@ -1949,6 +1949,8 @@ export class Host {
   capRefusal(id, { cpuShare = 0, gpuShare = 0 } = {}) {
     const use = this.shareUse({ exclude: id });
     const pct = (x) => Math.round(x * 100);
+    if (this.caps.paused === true)
+      return "not started: the owner of this box has paused hosting; it starts when hosting is resumed (nothing running was stopped)";
     if (use.cpu + cpuShare > this.caps.cpuShare + 1e-9)
       return `not started: the owner offers ${pct(this.caps.cpuShare)}% of this box's CPU to hosting, ${pct(use.cpu)}% of it is in use`
         + ` by running and starting partitions, and this one needs ${pct(cpuShare)}%; it starts when it fits (nothing running was stopped)`;
@@ -1960,12 +1962,19 @@ export class Host {
 
   // ---- the owner's hosting controls (hosting.mjs's local API, the tray app) -----------------------------------------
   hostingCaps() { return { ...this.caps }; }
+  /** What the owner offers on an axis: their cap, or nothing while they have hosting paused. */
+  #offered(axis) { return this.caps.paused === true ? 0 : this.caps[axis]; }
+  servedCount() { return [...this.records.values()].filter((r) => r.status === "running").length; }
   /** Persist, THEN apply: a cap that could not be saved changes nothing, so the tray snaps back to the truth. */
   setHostingCaps(next) {
     saveCaps(this.capsFile, next);
     const was = this.caps;
-    this.caps = { cpuShare: next.cpuShare, gpuShare: next.gpuShare }; this.capsError = null;
+    this.caps = { cpuShare: next.cpuShare, gpuShare: next.gpuShare, paused: next.paused === true }; this.capsError = null;
     const use = this.shareUse(), pct = (x) => `${Math.round(x * 100)}%`;
+    if (was.paused !== this.caps.paused)
+      this.log(this.caps.paused
+        ? `hosting PAUSED by the owner of this box: no new work is taken; the ${this.servedCount()} deployment(s) running keep running`
+        : "hosting RESUMED by the owner of this box: new work is taken again under the caps");
     this.log(`hosting caps set on this box: CPU ${pct(was.cpuShare)} -> ${pct(this.caps.cpuShare)}, GPU ${pct(was.gpuShare)} -> ${pct(this.caps.gpuShare)}`
       + (use.cpu > this.caps.cpuShare + 1e-9 ? `; ${pct(use.cpu)} of the CPU is already in use, which keeps running: new work waits until use drops below the cap` : ""));
     return this.hostingCaps();
@@ -1994,7 +2003,7 @@ export class Host {
       // What a new claim is measured against: the caps, less what is in use, less the node's reserve.
       free: { cpuShare: r4(cap.cpuShareFree), gpuShare: r4(cap.gpuShareFree ?? 0) },
       reservedShare: this.cfg.reservedShare ?? 0.25,
-      deploymentsServed: recs.filter((r) => r.status === "running").length,
+      deploymentsServed: this.servedCount(),
       waitingForCap: recs.filter((r) => r.capHeld === true && r.status === "held").length,
       backend: this.cfg.engineRetired === true ? "hv" : "legacy",
       gpu: this.gpuConsumer(),
@@ -2067,9 +2076,10 @@ export class Host {
     // THE OWNER'S CAP, named when it is what limits an axis (the capped figure is below the uncapped one), so a refusal
     // says so (chain.mjs claimPolicy) instead of reading as a full box.
     const use = this.shareUse({ exclude });
-    const cpuCap = capped && cpuFree < this.cpuShareFree({ exclude, capped: false }) - 1e-9 ? { offered: this.caps.cpuShare, used: use.cpu } : null;
-    const gpuCap = capped && gpuFree < this.gpuShareFree({ exclude, capped: false }) - 1e-9 ? { offered: this.caps.gpuShare, used: use.gpu } : null;
-    return { slots, slotsFree: Math.max(0, slots - running.length), cpuShareFree: cpuFree,
+    const cpuCap = capped && cpuFree < this.cpuShareFree({ exclude, capped: false }) - 1e-9 ? { offered: this.#offered("cpuShare"), used: use.cpu } : null;
+    const gpuCap = capped && gpuFree < this.gpuShareFree({ exclude, capped: false }) - 1e-9 ? { offered: this.#offered("gpuShare"), used: use.gpu } : null;
+    const paused = capped && this.caps.paused === true ? { paused: true } : {};       // absent unless paused: the old shape
+    return { ...paused, slots, slotsFree: Math.max(0, slots - running.length), cpuShareFree: cpuFree,
              ramMbFree: ramMb, ramMbPool: this.appsInTee() ? enclaveMb : hostMb, ramMbEngine: engineMb,
              // Has the engine's own hold been measured? A caller that sees false knows ramMbFree
              // is a refusal, not a capacity.

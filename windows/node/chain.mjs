@@ -501,6 +501,8 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
     const unmet = unmetNeeds(version, features);
     if (unmet.length) return `it needs ${unmet.join(" and ")}, which this box does not offer`;
   }
+  // The box owner paused hosting (the tray's switch, windows/node/hosting.mjs): nothing new, whatever it asks for.
+  if (capacity && capacity.paused === true) return "the owner of this box has paused hosting: it takes no new work until they resume it";
   const wantsCard = Number(d.gpuMilli) > 0;
   const cardSoft = opts.gpuOptional === true || gpuOptionalOfConfig(version && version.config);
   if (wantsCard && !cardSoft) {

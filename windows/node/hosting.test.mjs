@@ -26,15 +26,15 @@ test("snapShare: numbers from 0 to 1 snap to twentieths; anything else is refuse
 
 test("persistence: caps written are the caps read back, through a rename, with nothing left beside the file", () => {
   const dir = tmp(), file = path.join(dir, "hosting-caps.json");
-  assert.deepEqual(loadCaps(file), { caps: { cpuShare: 1, gpuShare: 1 }, error: null }, "no file: the defaults");
+  assert.deepEqual(loadCaps(file), { caps: { cpuShare: 1, gpuShare: 1, paused: false }, error: null }, "no file: the defaults");
   saveCaps(file, { cpuShare: 0.35, gpuShare: 0 });
-  assert.deepEqual(loadCaps(file), { caps: { cpuShare: 0.35, gpuShare: 0 }, error: null });
+  assert.deepEqual(loadCaps(file), { caps: { cpuShare: 0.35, gpuShare: 0, paused: false }, error: null });
   saveCaps(file, { cpuShare: 1, gpuShare: 0.6 });
-  assert.deepEqual(loadCaps(file).caps, { cpuShare: 1, gpuShare: 0.6 }, "a second write replaces the first");
+  assert.deepEqual(loadCaps(file).caps, { cpuShare: 1, gpuShare: 0.6, paused: false }, "a second write replaces the first");
   assert.deepEqual(fs.readdirSync(dir), ["hosting-caps.json"], "no temporary file is left behind");
   // a field that is absent is its default; a file written by hand off the grid is snapped on the way in
   fs.writeFileSync(file, JSON.stringify({ cpuShare: 0.42 }));
-  assert.deepEqual(loadCaps(file).caps, { cpuShare: 0.4, gpuShare: DEFAULT_CAPS.gpuShare });
+  assert.deepEqual(loadCaps(file).caps, { cpuShare: 0.4, gpuShare: DEFAULT_CAPS.gpuShare, paused: false });
 });
 
 test("a save that cannot land changes nothing and leaves no temporary file", () => {
@@ -48,19 +48,25 @@ test("a save that cannot land changes nothing and leaves no temporary file", () 
 test("an unreadable caps file fails CLOSED: 0 on both axes and the reason, never the whole machine", () => {
   const dir = tmp(), file = path.join(dir, "hosting-caps.json");
   for (const text of ["{not json", "[0.5, 0.5]", "null", JSON.stringify({ cpuShare: "0.5" }), JSON.stringify({ cpuShare: 2 }),
-                      JSON.stringify({ gpuShare: -1 })]) {
+                      JSON.stringify({ gpuShare: -1 }), JSON.stringify({ paused: "yes" }), JSON.stringify({ paused: 1 })]) {
     fs.writeFileSync(file, text);
     const r = loadCaps(file);
-    assert.deepEqual(r.caps, { cpuShare: 0, gpuShare: 0 }, text);
+    assert.deepEqual(r.caps, { cpuShare: 0, gpuShare: 0, paused: false }, text);
     assert.match(r.error, /offering nothing new until they are set again from the tray/, text);
   }
 });
 
 test("capsUpdate: validates, snaps, keeps the axis not named, and refuses unknown fields and empty updates", () => {
   const cur = { cpuShare: 1, gpuShare: 1 };
-  assert.deepEqual(capsUpdate(cur, { cpuShare: 0.33 }), { cpuShare: 0.35, gpuShare: 1 });
-  assert.deepEqual(capsUpdate(cur, { cpuShare: 0, gpuShare: 0.5 }), { cpuShare: 0, gpuShare: 0.5 });
+  assert.deepEqual(capsUpdate(cur, { cpuShare: 0.33 }), { cpuShare: 0.35, gpuShare: 1, paused: false });
+  assert.deepEqual(capsUpdate(cur, { cpuShare: 0, gpuShare: 0.5 }), { cpuShare: 0, gpuShare: 0.5, paused: false });
+  // the switch alone keeps both caps; a cap alone keeps the switch
+  assert.deepEqual(capsUpdate(cur, { paused: true }), { cpuShare: 1, gpuShare: 1, paused: true });
+  assert.deepEqual(capsUpdate({ cpuShare: 0.5, gpuShare: 1, paused: true }, { cpuShare: 0.25 }), { cpuShare: 0.25, gpuShare: 1, paused: true });
+  assert.deepEqual(capsUpdate({ cpuShare: 0.5, gpuShare: 1, paused: true }, { paused: false }), { cpuShare: 0.5, gpuShare: 1, paused: false });
   for (const [body, re] of [[{ cpuShare: 1.5 }, /cpuShare must be a number from 0 to 1/], [{ gpuShare: "1" }, /gpuShare must be/],
+                            [{ paused: "true" }, /paused must be true or false/], [{ paused: 1 }, /paused must be true or false/],
+                            [{ paused: null }, /paused must be true or false/],
                             [{ cpu: 0.5 }, /unknown field "cpu"/], [{}, /nothing to set/], [null, /JSON object/], [[0.5], /JSON object/]]) {
     assert.throws(() => capsUpdate(cur, body), (e) => e.status === 400 && re.test(e.message), JSON.stringify(body));
   }
@@ -294,16 +300,20 @@ test("GET with the token answers the host's view; a missing or wrong token is 40
 test("PUT sets and snaps; a bad body is 400 and changes nothing; an oversize body is 413; a failed save is 500 and changes nothing", async () => {
   const h = stubHost(); const port = await serve(h);
   const r = await call(port, { method: "PUT", body: { cpuShare: 0.33, gpuShare: 0.5 } });
-  assert.equal(r.status, 200); assert.deepEqual(r.json.caps, { cpuShare: 0.35, gpuShare: 0.5 });
+  assert.equal(r.status, 200); assert.deepEqual(r.json.caps, { cpuShare: 0.35, gpuShare: 0.5, paused: false });
   for (const body of [{ cpuShare: 1.2 }, { cpuShare: "0.2" }, { cpu: 0.2 }, {}, "not json", "[1]"]) {
     const bad = await call(port, { method: "PUT", body });
     assert.equal(bad.status, 400, JSON.stringify(body)); assert.equal(bad.json.error, "bad_request");
   }
   const big = await call(port, { method: "PUT", body: JSON.stringify({ cpuShare: 0.5, pad: "x".repeat(5000) }) });
   assert.equal(big.status, 413);
-  assert.deepEqual(h.caps, { cpuShare: 0.35, gpuShare: 0.5 }); assert.equal(h.saves, 1, "only the good PUT saved");
+  assert.deepEqual(h.caps, { cpuShare: 0.35, gpuShare: 0.5, paused: false }); assert.equal(h.saves, 1, "only the good PUT saved");
   const unauth = await call(port, { method: "PUT", token: "wrong", body: { cpuShare: 0 } });
-  assert.equal(unauth.status, 401); assert.deepEqual(h.caps, { cpuShare: 0.35, gpuShare: 0.5 }, "a wrong token sets nothing");
+  assert.equal(unauth.status, 401); assert.deepEqual(h.caps, { cpuShare: 0.35, gpuShare: 0.5, paused: false }, "a wrong token sets nothing");
+  const off = await call(port, { method: "PUT", body: { paused: true } });
+  assert.equal(off.status, 200); assert.deepEqual(off.json.caps, { cpuShare: 0.35, gpuShare: 0.5, paused: true }, "the switch keeps the caps");
+  const bad = await call(port, { method: "PUT", body: { paused: "no" } });
+  assert.equal(bad.status, 400); assert.equal(h.caps.paused, true, "a bad switch changes nothing");
   const failing = stubHost({ failSave: true }); const p2 = await serve(failing);
   const f = await call(p2, { method: "PUT", body: { cpuShare: 0.1 } });
   assert.equal(f.status, 500); assert.match(f.json.message, /not saved, so nothing changed: disk full/);
