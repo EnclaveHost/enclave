@@ -165,6 +165,11 @@ test("a slot host's pool is the owner's lent VM memory (bounded); free memory an
   assert.equal(a.capacitySource, "pvm-capability-report + the owner's slot pool");
   assert.equal(pvmCpuAvailability(row, { ...said, poolMemMbFree: 99999 }).ramGbFree, 3, "never more free than the pool");
   assert.equal(pvmCpuAvailability(row, { ...said, slots: 32, poolMemMb: 4096, poolMemMbFree: 3904 }).nodeRamGb, 4, "a host with many small VMs");
+  // the owner offers half the phone's CPU: the node's compute is half the VM's, and free never exceeds it
+  const half = pvmCpuAvailability(row, { ...said, cpuShareOffered: 0.5, cpuShareFree: 0.4 });
+  assert.deepEqual([half.nodeGflops, half.cpuGflopsFree, half.cpuShareFree], [0.75, 0.6, 0.4]);
+  assert.equal(pvmCpuAvailability(row, { ...said, cpuShareOffered: 0.5, cpuShareFree: 0.9 }).cpuShareFree, 0.5, "free within the offer");
+  for (const bad of [0, -1, 2, "0.5", NaN]) assert.equal(pvmCpuAvailability(row, { ...said, cpuShareOffered: bad }).nodeGflops, 1.5, `${bad}: all of it`);
   for (const bad of [{ poolMemMb: 99999 }, { poolMemMb: 100 }, { slots: 65 }, { slots: 0 }, { poolMemMb: "3072" }]) {
     const b = pvmCpuAvailability(row, { ...said, ...bad });
     assert.deepEqual([b.nodeRamGb, b.ramGbFree], [2, 1.5], `${JSON.stringify(bad)}: the attested VM's size, as for a one-VM host`);
