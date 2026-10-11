@@ -38,6 +38,7 @@ import { initSessionKey, mint as mintSession, addressFor } from './session.mjs';
 import { nonceStore, siweMessage, verifyLogin } from './siwe.mjs';
 import { HV_NODE_FORMAT, buildHvNodeFrame, loadOrCreateNodeKey } from './hvnode-evidence.mjs';
 import { mintToken, startHostingAdmin, tokenFileDefault } from './hosting.mjs';
+import { Payouts, DEFAULT_MIN_PAYOUT6 } from './payout.mjs';
 import { finishHvAttach, reattachMode, relayTakesV2, shouldReattach } from './hvnode-attach.mjs';
 import { tunnelHandover } from './tunnel-handover.mjs';
 import { addressBook, addresses as chainAddresses, publicClient } from './chain.mjs';
@@ -762,7 +763,19 @@ async function startHostingControls() {
   try { token = await mintToken(file, { trayUser: process.env.HOSTING_TRAY_USER || '' }); }
   catch (e) { log(`hosting controls: OFF, no private token file at ${file}: ${e.message}`); return; }
   if (!process.env.HOSTING_TRAY_USER) log(`hosting controls: HOSTING_TRAY_USER is not set, so only SYSTEM and an ELEVATED administrator can read ${file}`);
-  startHostingAdmin({ host, port, token, log: (m) => log('[hosting]', m) });
+  // THE OWNER'S EARNINGS (payout.mjs): read and paid through the same controls. The chain module is the live one: until
+  // the operator key and the address book are loaded, the tray is told the chain cannot be read yet.
+  const chainMod = await import('./chain.mjs');
+  const minUsdc = Number(process.env.HOSTING_PAYOUT_MIN_USDC);
+  const payouts = new Payouts({ file: path.join(DIR, 'payout.json'), enclaveId: host.enclaveId, chain: chainMod,
+    minPayout6: Number.isFinite(minUsdc) && minUsdc > 0 ? BigInt(Math.round(minUsdc * 1e6)) : DEFAULT_MIN_PAYOUT6,
+    log: (m) => log('[payout]', m) });
+  startHostingAdmin({ host, port, token, payouts, log: (m) => log('[hosting]', m) });
+  // paid automatically once an hour from the minimum, to the wallet both the owner and the chain name (or nobody)
+  setInterval(() => {
+    if (!chainMod.operatorAddress() || !chainMod.addresses.deployments || !payouts.state.confirmed) return;
+    payouts.payout().then((r) => { if (r.paid === false && r.why && !/paid out automatically from/.test(r.why)) log('[payout]', `not paid: ${r.why}`); });
+  }, 3_600_000).unref();
 }
 (async () => {
   startHostingControls().catch((e) => log(`hosting controls: OFF (${e.message})`));

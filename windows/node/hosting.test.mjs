@@ -345,6 +345,33 @@ test("caps below what runs: 409 with the plan and nothing changed, until every d
   assert.equal((await call(port, { method: "PUT", body: { drop: [X] } })).status, 400, "drop alone sets nothing");
 });
 
+test("earnings routes: GET earnings, PUT payout-wallet {address}, POST payout - behind the token, methods and bodies checked", async () => {
+  const calls = [];
+  const payouts = { status: async () => ({ earned6: "5", payTo: null }),
+    confirm: async (a) => { calls.push(["confirm", a]); if (a === "0x" + "e7".repeat(20)) throw Object.assign(new Error("not declared"), { status: 409, code: "not_declared" }); return { confirmed: a }; },
+    payout: async (o) => { calls.push(["payout", o]); return { paid: false, why: "nothing" }; } };
+  const server = http.createServer(hostingAdminHandler({ host: stubHost(), token: TOKEN, payouts }));
+  await new Promise((r) => server.listen(0, "127.0.0.1", r)); servers.push(server);
+  const port = server.address().port, P = "/v1/local/hosting/";
+  assert.deepEqual((await call(port, { path: P + "earnings" })).json, { earned6: "5", payTo: null });
+  assert.equal((await call(port, { path: P + "earnings", token: "wrong" })).status, 401);
+  assert.equal((await call(port, { path: P + "earnings", method: "PUT", body: {} })).status, 405);
+  const mine = "0x" + "a1".repeat(20);
+  const ok = await call(port, { path: P + "payout-wallet", method: "PUT", body: { address: mine } });
+  assert.equal(ok.status, 200); assert.equal(ok.json.confirmed, mine);
+  assert.equal((await call(port, { path: P + "payout-wallet", method: "PUT", body: { address: null } })).status, 200);
+  const no = await call(port, { path: P + "payout-wallet", method: "PUT", body: { address: "0x" + "e7".repeat(20) } });
+  assert.equal(no.status, 409); assert.equal(no.json.error, "not_declared");
+  for (const body of [{}, { address: mine, extra: 1 }, [mine], "nope"])
+    assert.equal((await call(port, { path: P + "payout-wallet", method: "PUT", body })).status, 400, JSON.stringify(body));
+  const pay = await call(port, { path: P + "payout", method: "POST" });
+  assert.equal(pay.status, 409); assert.deepEqual(pay.json, { paid: false, why: "nothing", error: "not_paid", message: "nothing" });
+  assert.deepEqual(calls.map((c) => c[0]), ["confirm", "confirm", "confirm", "payout"]); assert.deepEqual(calls[3][1], { now: true });
+  assert.equal((await call(port, { path: P + "other" })).status, 404);
+  const bare = await serve(stubHost());
+  assert.equal((await call(bare, { path: P + "earnings" })).status, 503, "a node with no payouts says so");
+});
+
 test("a NON-LOOPBACK peer is refused even with the right token (the handler's own check, whatever the bind)", async () => {
   const h = stubHost();
   const handler = hostingAdminHandler({ host: h, token: TOKEN });

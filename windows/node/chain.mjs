@@ -245,6 +245,14 @@ export const setPrices = (id, cpuPricePerSec6, gpuPricePerSec6) =>
 export const claimDeployment = (id, enclaveId) => send(addresses.deployments, DEP_ABI, "claim", [id, enclaveId]);
 export const renewDeployment = (id) => send(addresses.deployments, DEP_ABI, "renew", [id]);
 export const releaseDeployment = (id) => send(addresses.deployments, DEP_ABI, "release", [id]);
+// The runner's earnings: what this OPERATOR may withdraw from the live ledger (USDC, 6 dp), and the withdrawal, which
+// pays them to whatever address the caller names (payout.mjs decides which, and when).
+const EARN_ABI = [
+  { type: "function", name: "earned6", stateMutability: "view", inputs: [{ name: "operator", type: "address" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "withdrawEarnings", stateMutability: "nonpayable", inputs: [{ name: "to", type: "address" }], outputs: [] },
+];
+export const earnedOf = (operator) => publicClient().readContract({ address: addresses.deployments, abi: EARN_ABI, functionName: "earned6", args: [operator] });
+export const withdrawEarnings = (to) => send(addresses.deployments, EARN_ABI, "withdrawEarnings", [to]);
 export const claimCost = (id, enclaveId) => estimate(addresses.deployments, DEP_ABI, "claim", [id, enclaveId]);
 
 /** catalog://<appId>/<versionIndex> -> the version record (artifact CID, sizing, config, approval). */
