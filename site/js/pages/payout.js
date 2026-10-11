@@ -1,15 +1,17 @@
 /* ============================================================
-   /payout?id=<enclave id> - a box owner names their own wallet
-   as the box's payout wallet. Opened from the hosting tray
-   (windows/tray), which passes the box's registry id.
+   /payout?id=<enclave id>#code=<one-time code> - a box owner
+   changes the wallet their box pays its earnings to. Opened from
+   the hosting tray (windows/tray), which asks the box's node for
+   the code (windows/node/payout.mjs) and puts it in the fragment,
+   so it never reaches a server.
 
    The wallet declares ITSELF: EnclaveRegistry.setPayoutWallet(id)
-   records msg.sender, so the page can only ever name the wallet
-   that signs. That alone proves nothing about who owns the box
-   (any wallet may declare itself for any box), so the box pays
-   out only after its owner confirms the same address in the tray
-   (windows/node/payout.mjs). This page says so rather than
-   implying the declaration is the whole job.
+   records msg.sender, so the page can only name the wallet that
+   signs. Any wallet may declare itself for any box, so the page
+   appends the box's code after the arguments (the contract ignores
+   trailing calldata); the node adopts the wallet on its own when
+   the declaring transaction carries the code it issued. Without a
+   code the page sends nothing: the box would not adopt it.
    ============================================================ */
 import "../../components/header/header.js";
 import "../../components/footer/footer.js";
@@ -31,8 +33,9 @@ let box = null, busy = false, sent = null;
 function mount(){
   const body = $("#poBody"); if (!body) return;
   const id = new URLSearchParams(location.search).get("id");
+  const code = (/(?:^|[#&])code=(0x[0-9a-f]{64})(?:&|$)/.exec(location.hash) || [])[1] || null;
   if (!isId(id)){ body.innerHTML = card("<p class=\"co-note\">This link names no box. Open it from <b>Payout wallet</b> in the Enclave tray on the box you host on.</p>"); return; }
-  box = { id, name: new URLSearchParams(location.search).get("box") || "", payoutWallet: undefined, endpoint: "" };   // undefined: not read
+  box = { id, code, name: new URLSearchParams(location.search).get("box") || "", payoutWallet: undefined, endpoint: "" };   // undefined: not read
   load().finally(() => render(body));
   on("enclave:addresses", () => render(body));
   document.addEventListener("enclave:wallet", () => render(body));
@@ -59,7 +62,8 @@ async function declare(){
   try {
     if (!Enclave.provider) await connectWallet();
     await ensureBaseChain();
-    const hash = await sendTx(REGISTRY_ADDRESS, SET_PAYOUT + encBytes32(box.id));
+    // setPayoutWallet(id), then the box's one-time code: ignored by the contract, read back by the box
+    const hash = await sendTx(REGISTRY_ADDRESS, SET_PAYOUT + encBytes32(box.id) + encBytes32(box.code));
     showToast("Declared · " + hash.slice(0, 12) + "…");
     await waitReceipt(hash);
     sent = { hash, wallet: Enclave.address };
@@ -76,21 +80,23 @@ function render(body){
     "<dt>declared now</dt><dd>" + (box.payoutWallet === undefined ? "could not be read right now"
       : box.payoutWallet ? "<code>" + esc(box.payoutWallet) + "</code>" + (same(box.payoutWallet, me) ? " (this wallet)" : "") : "nobody") + "</dd></dl>";
   let act;
-  if (sent && same(sent.wallet, me)){
-    act = "<h3>Declared. Now confirm it on the box.</h3>" +
-      "<p>Open the Enclave tray on " + label + ", choose <b>Payout wallet</b>, and press <b>Confirm</b> next to <code>" + esc(me) + "</code>. " +
-      "Until then nothing is paid to it.</p><p class=\"co-note\">Transaction <code>" + esc(sent.hash) + "</code></p>";
+  if (!box.code){
+    act = "<h3>Start from the box</h3><p>Open the Enclave tray on the box and choose <b>Payout wallet…</b>. It opens this page with a one-time code " +
+      "from the box, so the box can tell your change apart from anyone else's. A link without one changes nothing, so this page sends nothing.</p>";
+  } else if (sent && same(sent.wallet, me)){
+    act = "<h3>Done. " + label.charAt(0).toUpperCase() + label.slice(1) + " now pays this wallet.</h3>" +
+      "<p>The box recognises its code in this transaction and switches its payouts to <code>" + esc(me) + "</code> on its own, within a minute. " +
+      "The tray shows it.</p><p class=\"co-note\">Transaction <code>" + esc(sent.hash) + "</code></p>";
   } else if (!me){
     act = "<h3>Connect the wallet you want paid</h3><p>WalletConnect works with mobile wallets and Trezor Suite; a browser extension works too.</p>" +
       "<button class=\"btn btn-primary\" data-act=\"connect\">Connect a wallet</button>";
-  } else if (same(box.payoutWallet, me)){
-    act = "<h3>This wallet is already declared for " + label + "</h3><p>If the tray does not show it as confirmed yet, open <b>Payout wallet</b> there and press <b>Confirm</b>.</p>";
   } else {
     act = "<h3>Declare <code>" + esc(me) + "</code></h3>" +
-      "<p>One transaction on Base from this wallet (a few cents of gas). It names the wallet that signs it, nothing else.</p>" +
-      "<ul class=\"ss-lines\"><li>The box pays its earnings to this wallet only after you also confirm it in the tray on the box.</li>" +
-      "<li>Apps this wallet deploys run on " + label + " without hosting charges.</li>" +
-      "<li>Anyone can declare a wallet for any box; that is why the box asks its owner too. If the tray ever shows a wallet you do not recognise, do not confirm it.</li></ul>" +
+      "<p>One transaction on Base from this wallet (a few cents of gas). It names the wallet that signs it" +
+      (same(box.payoutWallet, me) ? " (already declared, but not with this code)" : "") + ".</p>" +
+      "<ul class=\"ss-lines\"><li>The transaction carries the one-time code from your box, so the box switches its payouts to this wallet on its own. " +
+      "The code works once and for 30 minutes; for another change, start again from the tray.</li>" +
+      "<li>Apps this wallet deploys run on " + label + " without hosting charges.</li></ul>" +
       "<button class=\"btn btn-primary\" data-act=\"declare\"" + (busy ? " disabled" : "") + ">" + (busy ? "Waiting for your wallet…" : "Declare this wallet") + "</button>";
   }
   body.innerHTML = "<div class=\"ss-card\">" + facts + "</div><div class=\"ss-card\">" + act + "</div>";
