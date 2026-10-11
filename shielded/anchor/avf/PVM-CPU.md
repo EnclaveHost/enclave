@@ -164,15 +164,20 @@ kept, nothing shared between apps but the phone.
 | VM | process / instance | serves | ports (phone loopback = owner's `adb forward`) |
 |---|---|---|---|
 | host VM | `host.enclave.pvmcpu` / `pvmprod1` | the idle app; the tunnel to the relay; the host's registered proof key | 17786 app, 17787 evidence |
-| slot k (1..4) | `host.enclave.pvmcpu:slotk` (`AnchorServiceSlotK`) / `pvmprod1s<k>` | one deployment | 17786+10k app, 17787+10k evidence |
+| slot k (1..32) | `host.enclave.pvmcpu:slotk` (`AnchorServiceSlotK`) / `pvmprod1s<k>` | one deployment | 17786+10k app, 17787+10k evidence |
 
 - **Sizes.** A slot VM is the app's memory (its version's `memMb`, raised by `cpuFallback`; 256 MiB when unstated; the
-  `mem=` limit of its socket server, or of each request's instance of a handler) plus 128 MiB for Microdroid, the payload
-  and the runtime, at least 384 MiB (measured: hello-world serves at 384, a 256 MiB socket app at 512), resized with
-  `VirtualMachine.setConfig` before each launch. A share of at most 1/8 (`cpuMilli <= 125`) gets one vCPU, more as many as
-  the host (AVF offers only those two topologies; the share is admission and billing, not a CPU cap). The slots divide the
-  owner's pool (`slots.poolMemMb`, 3072 MiB on the Pixel 10 Pro XL) and 1000 per mille of CPU share: a deployment is taken
-  only when its VM and its share fit what is free. `/availability` states `slots`, `nodeSlotsFree`, `cpuShareFree`,
+  `mem=` limit of its socket server, or of each request's instance of a handler) plus 96 MiB for Microdroid, the payload
+  and the runtime, at least 192 MiB, resized with `VirtualMachine.setConfig` before each launch. Measured 2026-10-11:
+  hello-world serves at 160 MiB (55 MiB used in the guest), 192 (61) and 256 (73); a small VM costs ~130 MB of the
+  phone's memory (10 VMs at once: the host, one app and eight 192 MiB VMs, all answering).
+- **No fixed count.** The APK declares `ANCHOR_SLOTS` slot services (build.sh, default 32: Android needs every process
+  declared); the agent takes an app whenever its VM fits the memory left in `slots.poolMemMb` (4096 on the Pixel 10 Pro
+  XL) and its CPU share fits the per mille left -- with 64 MiB apps that is ~21 at once. `nodeSlotsFree` is how many
+  more smallest VMs fit. A share of at most 1/8 (`cpuMilli <= 125`) gets one vCPU, more as many as
+  the host (AVF offers only those two topologies; the share is admission and billing, not a CPU cap). The apps divide
+  the owner's pool (`slots.poolMemMb`) and 1000 per mille of CPU share: a deployment is taken only when its VM and its
+  share fit what is free. `/availability` states `slots`, `nodeSlotsFree`, `cpuShareFree`,
   `poolMemMb`, `poolMemMbFree`; the relay shows the pool as the node's memory (`pvmCpuAvailability`, bounded at 16 GiB)
   beside the attested host VM's vCPUs and GFLOPS.
 - **One proof key.** The ledger holds one proof key per host, and every slot signs its app's checkpoints with it. A slot
