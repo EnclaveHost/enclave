@@ -212,8 +212,9 @@ final class Status {
         if (lastAppCount == 0) { save(appliedCpu, appliedMem, false, "Hosting off: nothing runs here and no app is taken."); return; }
         new android.app.AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert)
             .setTitle("Turn hosting off?")
-            .setMessage("The " + lastAppCount + (lastAppCount == 1 ? " app" : " apps") + " running here will be released: a final proof, then their "
-                        + "owners' deployments move to another host or wait. Nothing runs on this phone until you turn hosting on again.")
+            .setMessage((lastAppCount == 1 ? "The app running here will be released: a final proof, then its owner's deployment moves"
+                                           : "The " + lastAppCount + " apps running here will be released: a final proof, then their owners' deployments move")
+                        + " to another host or waits. Nothing runs on this phone until you turn hosting on again.")
             .setPositiveButton("Turn off", (d, w) -> save(appliedCpu, appliedMem, false, "Hosting off: releasing the apps here, then ending every VM."))
             .setNegativeButton("Cancel", (d, w) -> { quiet = true; hostSwitch.setChecked(true); quiet = false; })
             .setOnCancelListener(d -> { quiet = true; hostSwitch.setChecked(true); quiet = false; })
