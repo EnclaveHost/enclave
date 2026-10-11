@@ -1076,6 +1076,7 @@ public class Main extends Activity {
      * the cache TAG sent with MODEL - the VM hashes what it holds. */
     static byte[] fileSha256Cached(String path) {
         java.io.File f = new java.io.File(path);
+        if (f.length() < (64L << 20)) return fileSha256(path);   /* an app component hashes in milliseconds: no sidecar file per path */
         java.io.File side = new java.io.File(filesDir, "model-tag-" + Integer.toHexString(path.hashCode()) + ".sha256");
         String key = f.length() + " " + f.lastModified() + " " + path + " ";
         try { if (side.exists() && side.length() <= 4096) { String line = new String(java.nio.file.Files.readAllBytes(side.toPath()), StandardCharsets.UTF_8).trim();   /* bounded: a tag line is ~120 bytes; anything larger is not ours */
