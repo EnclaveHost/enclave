@@ -53,6 +53,7 @@ final class Status {
     private final TextView ready, paid, total, rate, payoutNote, payoutSave, payoutCancel;
     private final EditText payoutField;
     private String appliedPayout = null;   // the address in effect (saved here, else the agent's), lowercase
+    private String payoutSaid = "";        // what the note says when nothing is being edited
     // the owner's offer (files/offer.json, which the host agent reads each round): CPU per mille, VM memory in MiB
     static final int CPU_STEP = 50, MEM_STEP = 256, MEM_MIN = 256;
     private int memMax = 4096;              // the agent's ceiling (its config's pool), learned from /availability
@@ -64,7 +65,7 @@ final class Status {
         this.a = a;
         a.getWindow().setStatusBarColor(BG); a.getWindow().setNavigationBarColor(BG);
         LinearLayout col = new LinearLayout(a); col.setOrientation(LinearLayout.VERTICAL);
-        col.setPadding(dp(22), dp(40), dp(22), dp(28)); col.setBackgroundColor(BG);
+        col.setPadding(dp(22), dp(16), dp(22), dp(28)); col.setBackgroundColor(BG);
 
         LinearLayout head = new LinearLayout(a); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
         ImageView icon = new ImageView(a); icon.setImageDrawable(a.getApplicationInfo().loadIcon(a.getPackageManager()));
@@ -163,6 +164,11 @@ final class Status {
         col.addView(footer);
 
         ScrollView sv = new ScrollView(a); sv.setBackgroundColor(BG); sv.setFillViewport(true); sv.addView(col);
+        // edge to edge (Android 15+): the content stays clear of the status and navigation bars, scrolled or not
+        sv.setClipToPadding(true);
+        sv.setOnApplyWindowInsetsListener((v, in) -> {
+            android.graphics.Insets bars = in.getInsets(android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.ime());
+            v.setPadding(0, bars.top, 0, bars.bottom); return in; });
         a.setContentView(sv);
     }
 
@@ -202,8 +208,9 @@ final class Status {
             if (to.matches("0x[0-9a-f]{40}")) { appliedPayout = to; payoutField.setText(to); }
         }
         long min = p == null ? 1_000_000 : micro(p, "minWithdraw6");
-        if (!dirtyPayout()) payoutNote.setText(p == null ? "No payout address yet: earnings wait on the ledger until you set one."
-                                                         : "Paid automatically to " + shortAddr(p.optString("to")) + " once " + usd(min) + " has built up.");
+        payoutSaid = p == null ? "No payout address yet: earnings wait on the ledger until you set one."
+                               : "Paid automatically to " + shortAddr(p.optString("to")) + " once " + usd(min) + " has built up.";
+        if (!dirtyPayout()) payoutNote.setText(payoutSaid);
     }
     private String typedPayout() { return payoutField.getText().toString().trim().toLowerCase(java.util.Locale.ROOT); }
     private boolean dirtyPayout() { return !typedPayout().equals(appliedPayout == null ? "" : appliedPayout); }
@@ -217,7 +224,7 @@ final class Status {
         payoutCancel.setEnabled(dirty); payoutCancel.setClickable(dirty);
         GradientDrawable cb = new GradientDrawable(); cb.setCornerRadius(dp(10)); cb.setColor(BG); cb.setStroke(dp(1), dirty ? MUTED : LINE);
         payoutCancel.setBackground(cb); payoutCancel.setTextColor(dirty ? TEXT : LINE);
-        if (dirty) payoutNote.setText(validPayout() ? "Save to pay future earnings to this address." : "Not an address yet: 0x followed by 40 characters (0-9, a-f).");
+        payoutNote.setText(!dirty ? payoutSaid : validPayout() ? "Save to pay future earnings to this address." : "Not an address yet: 0x followed by 40 characters (0-9, a-f).");
     }
     /** Payouts cannot be undone: the owner confirms the address first. */
     private void confirmPayout() {
