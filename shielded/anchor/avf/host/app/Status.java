@@ -20,6 +20,8 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
+import android.widget.Switch;
+import android.content.res.ColorStateList;
 import android.widget.TextView;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -38,10 +40,15 @@ final class Status {
     private final TextView state, summary, room, footer, cpuLabel, memLabel, sharingNote;
     private final LinearLayout apps;
     private final SeekBar cpuBar, memBar;
+    private final Switch hostSwitch;
+    private final TextView apply;
+    // what is in effect (saved for the host agent) -- the sliders may differ until Apply
+    private int appliedCpu = 1000, appliedMem = 4096; private boolean hosting = true, settingsKnown = false, quiet = false;
+    private int lastAppCount = 0;
     // the owner's offer (files/offer.json, which the host agent reads each round): CPU per mille, VM memory in MiB
     static final int CPU_STEP = 50, MEM_STEP = 256, MEM_MIN = 256;
     private int memMax = 4096;              // the agent's ceiling (its config's pool), learned from /availability
-    private boolean offerShown = false;     // the sliders take the offer once, then only the owner moves them
+    private boolean offerShown = false;     // the sliders take the agent's offer once (no saved file), then only the owner moves them
 
     static void show(Activity a) { new Status(a).poll(); }
 
@@ -58,7 +65,17 @@ final class Status {
         head.addView(name);
         col.addView(head);
 
-        state = text("Looking for the host agent…", 15, MUTED); state.setTypeface(Typeface.DEFAULT_BOLD); state.setPadding(0, dp(22), 0, dp(4));
+        // the on/off switch: hosting entirely (off releases every app here and ends every VM)
+        LinearLayout row = new LinearLayout(a); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(0, dp(22), 0, 0);
+        TextView hl = text("Hosting", 17, TEXT); hl.setTypeface(Typeface.DEFAULT_BOLD);
+        row.addView(hl, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        hostSwitch = new Switch(a);
+        int[][] st = { { android.R.attr.state_checked }, {} };
+        hostSwitch.setThumbTintList(new ColorStateList(st, new int[] { GREEN, MUTED }));
+        hostSwitch.setTrackTintList(new ColorStateList(st, new int[] { 0x802FE6A8, LINE }));
+        row.addView(hostSwitch);
+        col.addView(row);
+        state = text("Looking for the host agent…", 15, MUTED); state.setTypeface(Typeface.DEFAULT_BOLD); state.setPadding(0, dp(10), 0, dp(4));
         col.addView(state);
         summary = text("This phone runs apps for buyers, each in its own protected VM: the phone's owner cannot read an app's memory or its TLS keys.", 14, MUTED);
         col.addView(summary);
@@ -78,18 +95,26 @@ final class Status {
         memBar = new SeekBar(a); col.addView(memBar);
         TextView gpu = text("GPU  ·  not shared: a protected VM on this phone cannot use its GPU, so apps here run on the CPU.", 14, MUTED);
         gpu.setPadding(0, dp(10), 0, 0); col.addView(gpu);
+        apply = text("Apply", 15, BG); apply.setTypeface(Typeface.DEFAULT_BOLD); apply.setGravity(Gravity.CENTER); apply.setPadding(dp(20), dp(10), dp(20), dp(10));
+        apply.setOnClickListener(v -> { if (dirty()) save(barCpu(), barMem(), hosting, "Applied: the host agent takes it within half a minute. Apps already running keep their share."); });
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT); ap.topMargin = dp(14);
+        col.addView(apply, ap);
         sharingNote = text("New apps are taken only within what you share; apps already running keep theirs.", 12, MUTED);
         sharingNote.setPadding(0, dp(8), 0, 0); col.addView(sharingNote);
         SeekBar.OnSeekBarChangeListener l = new SeekBar.OnSeekBarChangeListener() {
-            @Override public void onProgressChanged(SeekBar b, int p, boolean user) { labels(); }
+            @Override public void onProgressChanged(SeekBar b, int p, boolean user) { labels(); applyState(); }
             @Override public void onStartTrackingTouch(SeekBar b) { }
-            @Override public void onStopTrackingTouch(SeekBar b) { saveOffer(); }
+            @Override public void onStopTrackingTouch(SeekBar b) { }
         };
         cpuBar.setOnSeekBarChangeListener(l); memBar.setOnSeekBarChangeListener(l);
         setMemMax(memMax);
-        int[] saved = readOffer();   // until the agent answers: what this phone last saved, else all of it
-        cpuBar.setProgress(cpuToBar(saved != null ? saved[0] : 1000)); memBar.setProgress(memToBar(saved != null ? saved[1] : memMax));
-        labels();
+        Object[] saved = readOffer();   // until the agent answers: what this phone last saved, else all of it, hosting on
+        if (saved != null) { appliedCpu = (Integer) saved[0]; appliedMem = (Integer) saved[1]; hosting = (Boolean) saved[2]; settingsKnown = true; }
+        else { appliedCpu = 1000; appliedMem = memMax; }
+        cpuBar.setProgress(cpuToBar(appliedCpu)); memBar.setProgress(memToBar(appliedMem));
+        quiet = true; hostSwitch.setChecked(hosting); quiet = false;
+        hostSwitch.setOnCheckedChangeListener((b, on) -> { if (!quiet) toggle(on); });
+        labels(); applyState();
         footer = text("", 12, MUTED); footer.setPadding(0, dp(28), 0, 0);
         col.addView(footer);
 
@@ -123,11 +148,19 @@ final class Status {
             footer.setText("Checked " + now + (err != null ? " (" + err + ")" : ""));
             return;
         }
-        boolean serving = av.optBoolean("registered") && av.optBoolean("claimEnabled");
-        JSONArray list = av.optJSONArray("apps"); int n = list == null ? 0 : list.length();
-        state.setText(serving ? "● Hosting " + n + (n == 1 ? " app" : " apps") : "● Connected, not taking apps");
-        state.setTextColor(serving ? GREEN : AMBER);
-        summary.setText("This phone runs apps for buyers, each in its own protected VM: the phone's owner cannot read an app's memory or its TLS keys.");
+        boolean serving = av.optBoolean("registered") && av.optBoolean("claimEnabled"), agentHosting = av.optBoolean("hosting", true);
+        JSONArray list = av.optJSONArray("apps"); int n = list == null ? 0 : list.length(); lastAppCount = n;
+        if (hosting != agentHosting) {   // saved here, not yet taken by the agent (it reads the setting every half minute)
+            state.setText(hosting ? "● Turning hosting on…" : "● Turning hosting off…" + (n > 0 ? " releasing " + n + (n == 1 ? " app" : " apps") : ""));
+            state.setTextColor(AMBER);
+        } else if (!agentHosting) {
+            state.setText(n > 0 ? "● Hosting off: releasing " + n + (n == 1 ? " app" : " apps") + "…" : "● Hosting off"); state.setTextColor(MUTED);
+        } else {
+            state.setText(serving ? "● Hosting " + n + (n == 1 ? " app" : " apps") : "● Connected, not taking apps yet");
+            state.setTextColor(serving ? GREEN : AMBER);
+        }
+        summary.setText(!agentHosting && !hosting ? "This phone hosts nothing: no app runs here and none is taken. Turn hosting on to take apps again."
+                        : "This phone runs apps for buyers, each in its own protected VM: the phone's owner cannot read an app's memory or its TLS keys.");
         apps.removeAllViews();
         if (n == 0) apps.addView(text("None right now.", 14, MUTED));
         for (int k = 0; k < n; k++) {
@@ -140,9 +173,10 @@ final class Status {
         }
         if (av.has("poolMemMbMax")) setMemMax(av.optInt("poolMemMbMax", memMax));
         JSONObject off = av.optJSONObject("offer");
-        if (off != null && !offerShown && !cpuBar.isPressed() && !memBar.isPressed()) {
+        if (off != null && !offerShown && !settingsKnown && !cpuBar.isPressed() && !memBar.isPressed()) {   // nothing saved here: the agent's
             offerShown = true;
-            cpuBar.setProgress(cpuToBar(off.optInt("cpuMilli", 1000))); memBar.setProgress(memToBar(off.optInt("memMb", memMax))); labels();
+            appliedCpu = off.optInt("cpuMilli", 1000); appliedMem = off.optInt("memMb", memMax);
+            cpuBar.setProgress(cpuToBar(appliedCpu)); memBar.setProgress(memToBar(appliedMem)); labels(); applyState();
         }
         int slotsFree = av.optInt("nodeSlotsFree", 0);
         double cpuFree = av.optDouble("cpuShareFree", 0), gbFree = av.optDouble("ramGbFree", 0);
@@ -164,23 +198,47 @@ final class Status {
         cpuLabel.setText("CPU  ·  " + barCpu() / 10 + "% of this phone");
         memLabel.setText("Memory  ·  " + String.format(java.util.Locale.ROOT, "%.2f GB", barMem() / 1024.0) + " for apps' VMs");
     }
+    private boolean dirty() { return barCpu() != appliedCpu || barMem() != appliedMem; }
+    /** Apply is live only when the sliders differ from what is in effect. */
+    private void applyState() {
+        boolean on = dirty();
+        apply.setEnabled(on); apply.setClickable(on);
+        GradientDrawable bg = new GradientDrawable(); bg.setCornerRadius(dp(10)); bg.setColor(on ? GREEN : LINE);
+        apply.setBackground(bg); apply.setTextColor(on ? BG : MUTED);
+    }
+    /** The switch: on saves at once; off with apps here asks first (they are released). */
+    private void toggle(boolean on) {
+        if (on) { save(appliedCpu, appliedMem, true, "Hosting on: the host agent starts taking apps within half a minute."); return; }
+        if (lastAppCount == 0) { save(appliedCpu, appliedMem, false, "Hosting off: nothing runs here and no app is taken."); return; }
+        new android.app.AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle("Turn hosting off?")
+            .setMessage("The " + lastAppCount + (lastAppCount == 1 ? " app" : " apps") + " running here will be released: a final proof, then their "
+                        + "owners' deployments move to another host or wait. Nothing runs on this phone until you turn hosting on again.")
+            .setPositiveButton("Turn off", (d, w) -> save(appliedCpu, appliedMem, false, "Hosting off: releasing the apps here, then ending every VM."))
+            .setNegativeButton("Cancel", (d, w) -> { quiet = true; hostSwitch.setChecked(true); quiet = false; })
+            .setOnCancelListener(d -> { quiet = true; hostSwitch.setChecked(true); quiet = false; })
+            .show();
+    }
     private java.io.File offerFile() { return new java.io.File(a.getFilesDir(), "offer.json"); }
-    private int[] readOffer() {
+    /** What this phone last saved: { cpuMilli, memMb, hosting }, or null. */
+    private Object[] readOffer() {
         try {
             JSONObject o = new JSONObject(new String(java.nio.file.Files.readAllBytes(offerFile().toPath()), "UTF-8"));
-            return new int[] { o.getInt("cpuMilli"), o.getInt("memMb") };
+            return new Object[] { o.getInt("cpuMilli"), o.getInt("memMb"), o.optBoolean("hosting", true) };
         } catch (Exception e) { return null; }
     }
     /** Saved where only this app (and the owner's adb) can write; the host agent reads it on its next round. */
-    private void saveOffer() {
+    private void save(int cpu, int mem, boolean host, String said) {
         try {
-            JSONObject o = new JSONObject().put("v", 1).put("cpuMilli", barCpu()).put("memMb", barMem())
+            JSONObject o = new JSONObject().put("v", 1).put("hosting", host).put("cpuMilli", cpu).put("memMb", mem)
                 .put("at", new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", java.util.Locale.ROOT).format(new java.util.Date()));
             java.io.File t = new java.io.File(a.getFilesDir(), "offer.json.tmp");
             java.nio.file.Files.write(t.toPath(), (o.toString() + "\n").getBytes("UTF-8"));
             if (!t.renameTo(offerFile())) throw new java.io.IOException("rename");
-            sharingNote.setText("Saved: the host agent applies it within half a minute. Apps already running keep their share.");
-        } catch (Exception e) { sharingNote.setText("Not saved: " + e.getMessage()); }
+            appliedCpu = cpu; appliedMem = mem; hosting = host; settingsKnown = true;
+            sharingNote.setText(said);
+        } catch (Exception e) { sharingNote.setText("Not saved: " + e.getMessage()); quiet = true; hostSwitch.setChecked(hosting); quiet = false; }
+        applyState();
     }
 
     private View card(String title, String detail, String url) {

@@ -233,6 +233,30 @@ test("slots: the served app moves to slot 1, more apps take their own VMs, the h
     await agent.tick();
     assert.deepEqual(t.calls, [], "the VM that never stopped is not relaunched");
 
+    // hosting off (the Enclave app's switch): every app released (a final proof, then release), every slot freed and its VM
+    // ended, then the host VM; nothing is taken, and the agent says so
+    t.setOffer({ hosting: false, cpuMilli: 1000, memMb: 4096 }); t.calls.length = 0; t.advance(301_000);
+    r = await agent.tick();
+    assert.equal(r.kind, "hosting-off");
+    assert.deepEqual(Object.values(agent.state().slots).filter(Boolean), [], "every slot freed");
+    for (const D of [D0, D1, D2]) assert.equal(t.rows.get(D).runner, "0x" + "00".repeat(32), `${D.slice(0, 6)} released`);
+    assert.deepEqual(t.calls.filter((c) => /^stop/.test(c)).sort(), ["stop 0", "stop 1", "stop 2", "stop 3"], "every VM ended, the host VM last");
+    av = agent.availability();
+    assert.deepEqual([av.hosting, av.claimEnabled, av.apps.length], [false, false, 0]);
+    assert.equal((await agent.claimHint({ id: D1 })).accepted, false, "no claim hint taken while off");
+    t.calls.length = 0; t.advance(61_000); await agent.tick();
+    assert.deepEqual(t.calls, [], "off stays off: nothing launched");
+    // on again: the host VM starts, and the sweep takes the open deployments back
+    t.setOffer({ hosting: true, cpuMilli: 1000, memMb: 4096 }); t.advance(61_000);
+    await agent.tick();
+    assert.ok(t.calls.includes("launch 0"), "the host VM started again");
+    assert.ok(Object.values(agent.state().slots).filter(Boolean).length >= 1, "apps taken again");
+    assert.equal(agent.availability().hosting, true);
+    // (back to the three apps for what follows)
+    for (let i = 0; i < 3 && Object.values(agent.state().slots).filter(Boolean).length < 3; i++) { t.advance(61_000); await agent.tick(); }
+    assert.equal(Object.values(agent.state().slots).filter(Boolean).length, 3);
+    t.calls.length = 0;
+
     // D1's owner cancels: its slot is released and freed, and its pool returns
     t.rows.get(D1).active = false; t.calls.length = 0; t.advance(1000);
     await agent.tick();
