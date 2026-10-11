@@ -371,6 +371,8 @@ public class Main extends Activity {
 
     @Override protected void onCreate(Bundle saved) {
         super.onCreate(saved);
+        // the Enclave app opened from the launcher (or its notification): what the phone hosts, never a VM launch (Status.java)
+        if (Status.launcherOpen(this, getIntent())) { Status.show(this); return; }
         TextView t = new TextView(this); t.setTextSize(11); t.setPadding(24, 24, 24, 24); t.setTypeface(android.graphics.Typeface.MONOSPACE);
         final String tier = Tier.of(this);   /* assets/tier, measured with the APK (PVM-CPU.md) */
         android.widget.LinearLayout col = new android.widget.LinearLayout(this); col.setOrientation(android.widget.LinearLayout.VERTICAL); col.setPadding(24, 48, 24, 0);

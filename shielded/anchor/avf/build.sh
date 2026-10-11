@@ -291,11 +291,13 @@ MANIFEST="$HERE/AndroidManifest.xml"
 if [ "$TIER" = pvm-cpu ]; then   # no TPU runtime declaration, its own label
   MANIFEST="$STAGE/AndroidManifest.xml"
   sed -e '/Shielded-TPU decode: the app-side worker/d' -e '/uses-native-library android:name="libedgetpu_litert.so"/d' \
-      -e 's/android:label="Enclave Anchor (AVF)"/android:label="Enclave pVM CPU"/' "$HERE/AndroidManifest.xml" > "$MANIFEST"
+      -e 's/android:label="Enclave Anchor (AVF)"/android:label="Enclave"/' "$HERE/AndroidManifest.xml" > "$MANIFEST"
   ! grep -q 'libedgetpu\|Anchor (AVF)' "$MANIFEST" || { echo "pvm-cpu: the manifest still names the TPU runtime or the research label" >&2; exit 2; }
 fi
+# the app's resources (res/: the Enclave icon, the site's mark), compiled and linked with the manifest
+rm -f res.zip && "$BT/aapt2" compile --dir "$HERE/res" -o res.zip
 "$BT/aapt2" link -o unaligned.apk --manifest "$MANIFEST" ${REL:+--rename-manifest-package "$RELEASE_PKG"} \
-   -I "$SDK/platforms/android-$API/android.jar" --min-sdk-version 34 --target-sdk-version $API
+   -I "$SDK/platforms/android-$API/android.jar" --min-sdk-version 34 --target-sdk-version $API res.zip
 # extractNativeLibs=false demands STORED (-0) entries, page-aligned by zipalign -p
 python3 - "$NAME" <<'PYZ'
 import sys, zipfile
