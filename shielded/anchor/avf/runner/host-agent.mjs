@@ -49,6 +49,13 @@ const DEP_ABI = parseAbi([
   "function getPage(uint256 start, uint256 n) view returns ((bytes32 id, address owner, string appRef, string ports, string configCid, uint16 gpuMilli, uint16 cpuMilli, uint32 appPort, bool isPublic, bool active, uint64 createdAt, uint256 rate, uint256 balance6, uint256 spent6, bytes32 runner, address runnerOperator, uint64 leaseUntil)[])",
   "function get(bytes32 id) view returns ((bytes32 id, address owner, string appRef, string ports, string configCid, uint16 gpuMilli, uint16 cpuMilli, uint32 appPort, bool isPublic, bool active, uint64 createdAt, uint256 rate, uint256 balance6, uint256 spent6, bytes32 runner, address runnerOperator, uint64 leaseUntil))",
   "function claimableBy(bytes32 id, bytes32 enclaveId) view returns (bool)",
+  "function earned6(address operator) view returns (uint256)",
+  "function earnOf(bytes32 id) view returns (uint256 runnerRate6, uint256 escrow6, uint64 creditedUntil)",
+]);
+// the operator's earnings as the ledger records them (EnclaveDeployments): credited per proven second, withdrawn to a payout
+const EARN_EVENTS = parseAbi([
+  "event RunnerCredited(bytes32 indexed id, address indexed operator, uint256 amount6, uint64 secondsCredited)",
+  "event EarningsWithdrawn(address indexed operator, address indexed to, uint256 amount6)",
 ]);
 const CATALOG_ABI = parseAbi([
   "function getVersion(bytes32 appId, uint256 index) view returns ((string cid, string version, uint32 vramMb, uint32 gpuGflops, uint32 memMb, uint32 cpuGflops, uint64 createdAt, bool verified, bool yanked, string ports, uint8 approval, string config))",
@@ -337,7 +344,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   const proofPins = (D) => `${cfg.chainId} ${addrs.proofOfTime} ${addrs.registry} ${D} ${E} ${me}`;
 
   // ---- the runners: the host's (deployment ZERO: register, heartbeat, withdraw) and one per slot (its deployment's lease) ----
-  function runnerConfig(D, appSha, { carrierPort, instanceIds, slot = false, gpuOptional = false }) {
+  function runnerConfig(D, appSha, { carrierPort, instanceIds, slot = false, gpuOptional = false, payout = null }) {
     return { format: "enclave-pvm-runner-agent/v1",
       proof: { format: "enclave-pvm-proof-agent/v1", chainId: cfg.chainId, addressBook: cfg.addressBook, deployment: D, endpoint: cfg.endpoint,
                operator: me, carrier: `http://127.0.0.1:${carrierPort}/`, maxFeePerGasWei: cfg.maxFeePerGasWei,
@@ -347,7 +354,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
       // attest it stops (proof-key-mismatch) instead of moving the host's key to itself
       lifecycle: slot ? { claim: true, syncProofKey: false, ...(gpuOptional ? { gpuOptional: true } : {}) }
                       : { register: { repo: cfg.register.repo, measurement: "0x" + cfg.evidence.allowedCodeHashes[0], cpuPricePerSec6: cfg.register.cpuPricePerSec6 },
-                          claim: false, ...(cfg.payout ? { payout: cfg.payout } : {}) } };
+                          claim: false, ...(payout ? { payout } : {}) } };
   }
   const anyPending = (except) => [...runners].some(([w, e]) => w !== except && e.r.agent.pending);
   async function closeRunner(who) {
@@ -359,7 +366,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     return s;
   }
   async function useRunner(who, D, appSha, dev, opts) {
-    const key = `${D}:${appSha}:${opts.instanceIds.join(",")}`;
+    const key = `${D}:${appSha}:${opts.instanceIds.join(",")}:${opts.payout ? opts.payout.to : ""}`;
     const cur = runners.get(who);
     if (cur && cur.key === key) return cur.r;
     if (cur) { const s = await cur.r.stop({ release: false }); if (s.kind === "in-flight") throw new Error("the previous runner still has a transaction in flight"); cur.r.close(); runners.delete(who); }
@@ -371,7 +378,11 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     note({ ev: "runner-started", who, deployment: D, appSha: appSha.slice(0, 16), proofKey: st.attested && st.attested.proofKey, attestReason: st.attestReason });
     return r;
   }
-  const hostRunner = () => useRunner("host", ZERO32, idleSha, device, { instanceIds: cfg.evidence.instanceIds });
+  // the host runner withdraws the operator's earnings to the owner's payout address: the one set in the Enclave app, else
+  // the config's; neither, and they stay on the ledger (withdrawable later)
+  const payoutNow = () => { const to = offer.payoutTo || (cfg.payout && cfg.payout.to) || null;
+                            return to ? { to, minWithdraw6: (cfg.payout && cfg.payout.minWithdraw6) || "1000000" } : null; };
+  const hostRunner = () => useRunner("host", ZERO32, idleSha, device, { instanceIds: cfg.evidence.instanceIds, payout: payoutNow() });
   const slotRunner = (a) => useRunner(a.slot, a.id, a.sha, slotDev(a), { instanceIds: [a.instanceId], slot: true, gpuOptional: !!a.gpuOptional });
 
   // ---- the host VM: the idle app, the tunnel, the host's proof key ----
@@ -739,6 +750,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
       if (reachable && typeof device.readOffer === "function") applyOffer(await device.readOffer().catch(() => null));
       if (reachable && offer.hosting === false) {
         await drain();
+        await refreshEarnings().catch((e) => note({ ev: "earnings-unread", error: e.shortMessage || e.message }));
         return { kind: "hosting-off", apps: apps().map((a) => a.id), registered: !!registered, hostUp };
       }
       // the host VM, carried on from what the state says (a VM that no longer serves is launched again)
@@ -747,6 +759,9 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
         if (!hostUp) await launchHost(state.host ? "the host VM ended" : "start");
         else if (!runners.has("host")) { await device.readToken(); await hostRunner(); }
       } catch (e) { note({ ev: "host-vm-failed", error: e.message }); }
+      // a payout address changed in the app: the host runner is made again with it (between transactions)
+      if (hostUp && runners.has("host")) await hostRunner().catch((e) => note({ ev: "payout-pending", why: e.message }));
+      await refreshEarnings().catch((e) => note({ ev: "earnings-unread", error: e.shortMessage || e.message }));
       // each slot, likewise: relaunched with the same app, pins and sealed release (its key kept in its own store)
       for (const a of reachable ? apps() : []) {
         try {
@@ -798,11 +813,15 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
         const c = Number(o.cpuMilli), m = Number(o.memMb);
         if (o.v !== 1 || !Number.isInteger(c) || c < 10 || c > 1000 || !Number.isInteger(m) || m < MIN_VM_MB || (o.hosting !== undefined && typeof o.hosting !== "boolean"))
           throw new Error("malformed");
-        next = { hosting: o.hosting !== false, cpuMilli: c, memMb: Math.min(m, S.poolMemMb), source: "phone", at: typeof o.at === "string" ? o.at.slice(0, 40) : null };
+        // the payout address: 0x + 40 hex, never zero; absent, the config's
+        if (o.payoutTo !== undefined && (typeof o.payoutTo !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(o.payoutTo) || /^0x0{40}$/.test(o.payoutTo))) throw new Error("payoutTo is not an address");
+        next = { hosting: o.hosting !== false, cpuMilli: c, memMb: Math.min(m, S.poolMemMb), source: "phone", at: typeof o.at === "string" ? o.at.slice(0, 40) : null,
+                 ...(o.payoutTo ? { payoutTo: o.payoutTo.toLowerCase() } : {}) };
       } catch (e) { if (offer.source !== "config-bad") note({ ev: "offer-ignored", why: `the phone's Sharing settings are not usable (${e.message})` }); next.source = "config-bad"; }
     }
-    if (next.cpuMilli !== offer.cpuMilli || next.memMb !== offer.memMb || next.source !== offer.source || next.hosting !== offer.hosting)
-      note({ ev: "offer", hosting: next.hosting, cpuMilli: next.cpuMilli, memMb: next.memMb, source: next.source, was: { hosting: offer.hosting, cpuMilli: offer.cpuMilli, memMb: offer.memMb } });
+    if (next.cpuMilli !== offer.cpuMilli || next.memMb !== offer.memMb || next.source !== offer.source || next.hosting !== offer.hosting || next.payoutTo !== offer.payoutTo)
+      note({ ev: "offer", hosting: next.hosting, cpuMilli: next.cpuMilli, memMb: next.memMb, payoutTo: next.payoutTo || null, source: next.source,
+             was: { hosting: offer.hosting, cpuMilli: offer.cpuMilli, memMb: offer.memMb, payoutTo: offer.payoutTo || null } });
     offer = next;
   }
   /**
@@ -828,6 +847,45 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
       note({ ev: "hosting-off", why: "every app released; the host VM ended" });
     }
     hostUp = false;
+  }
+  /**
+   * The operator's earnings, from the ledger (public data): what is ready to pay out (earned6), what has been paid out and
+   * credited all-time (its EarningsWithdrawn / RunnerCredited events, scanned forward from the host's registration in
+   * 9000-block windows and kept in the state), and what the apps here earn now (each one's runner rate). Every 60 s.
+   */
+  let lastEarnings = 0;
+  async function refreshEarnings() {
+    if (!addrs || now() - lastEarnings < 60_000 || typeof publicClient.getLogs !== "function") return;
+    lastEarnings = now();
+    const ev = state.earnings || (state.earnings = { scannedTo: 0, credited6: "0", withdrawn6: "0", withdrawals: [] });
+    const head = await publicClient.getBlockNumber();
+    let from = BigInt(ev.scannedTo || 0) + 1n;
+    if (!ev.scannedTo) {   // from the registration (Base: one block every 2 s), with a margin
+      const since = registered && Number(registered.registeredAt) ? Math.max(0, Math.floor(now() / 1000) - Number(registered.registeredAt)) : 7 * 86400;
+      from = head - BigInt(Math.ceil(since / 2) + 5000); if (from < 0n) from = 0n;
+    }
+    for (let i = 0; i < 24 && from <= head; i++) {
+      const to = from + 8999n > head ? head : from + 8999n;
+      const [cr, wd] = await Promise.all(EARN_EVENTS.map((event) => publicClient.getLogs({ address: addrs.deployments, event, args: { operator: account.address }, fromBlock: from, toBlock: to })));
+      for (const l of cr) ev.credited6 = String(BigInt(ev.credited6) + BigInt(l.args.amount6));
+      for (const l of wd) {
+        ev.withdrawn6 = String(BigInt(ev.withdrawn6) + BigInt(l.args.amount6));
+        ev.withdrawals = [...ev.withdrawals, { to: lc(l.args.to), amount6: String(l.args.amount6), tx: l.transactionHash, block: String(l.blockNumber) }].slice(-10);
+      }
+      ev.scannedTo = String(to); from = to + 1n;
+    }
+    ev.ready6 = String(await read(addrs.deployments, DEP_ABI, "earned6", [account.address]));
+    let rate = 0n;
+    for (const a of apps()) { try { rate += BigInt((await read(addrs.deployments, DEP_ABI, "earnOf", [a.id]))[0]); } catch {} }
+    ev.ratePerSec6 = String(rate); ev.at = new Date(now()).toISOString();
+    save();
+  }
+  function earningsView() {
+    const ev = state.earnings || {}, p = payoutNow();
+    return { operator: me, readyToPay6: ev.ready6 || "0", paidOut6: ev.withdrawn6 || "0", earnedAllTime6: ev.credited6 || "0",
+             ratePerHour6: String(BigInt(ev.ratePerSec6 || "0") * 3600n), complete: !!ev.scannedTo && BigInt(ev.scannedTo) > 0n,
+             payout: p ? { to: p.to, minWithdraw6: p.minWithdraw6, source: offer.payoutTo ? "phone" : "config" } : null,
+             withdrawals: ev.withdrawals || [], updatedAt: ev.at || null };
   }
   async function slotRound(a, r) {
     const L = await r.agent.lease();
@@ -977,6 +1035,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
         const u = new URL(req.url, "http://agent"), p = u.pathname;
         if (req.method === "GET" && p === "/availability") return json(res, 200, availability());
         if (req.method === "GET" && p === "/v1/health") return json(res, 200, { ok: true, role: "pvm-host", name: cfg.name });
+        if (req.method === "GET" && p === "/v1/earnings") return json(res, 200, earningsView());
         if (req.method === "POST" && p === "/v1/claim-hint") {
           let raw = ""; for await (const c of req) { raw += c; if (raw.length > 4096) return json(res, 413, { accepted: false, reason: "too large" }); }
           let body = {}; try { body = JSON.parse(raw || "{}"); } catch {}
@@ -1101,7 +1160,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     for (const [who, e] of [...runners]) { out[who] = (await e.r.stop({ release: release && who !== "host" })).kind; e.r.close(); runners.delete(who); }
     return out;
   }
-  return { tick, availability, claimHint, evidence, sibling, handler, serve, stop, ensureCertificate, refusalFor, admission, state: () => state, config: cfg };
+  return { tick, availability, claimHint, evidence, sibling, handler, serve, stop, ensureCertificate, refusalFor, admission, earnings: earningsView, state: () => state, config: cfg };
 }
 
 /** The DER SubjectPublicKeyInfo inside a PKCS#10 request (the second element of its CertificationRequestInfo). */
