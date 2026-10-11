@@ -42,11 +42,13 @@ function setup() {
     runner: "0x" + "00".repeat(32), runnerOperator: A("00"), leaseUntil: 0n, ...over });
   const rows = new Map([[D0, row(D0, { runner: E, runnerOperator: operator.address, leaseUntil: BigInt(sec() + 3600) })], [D1, row(D1)], [D2, row(D2)]]);
   const versions = { 1: { cid: "bafyapp0000001", memMb: 64 }, 2: { cid: "bafyapp0000002", memMb: 256 } };
-  const publicClient = { getBlockNumber: async () => 1_000_000n,
+  let head = 1_000_000n;
+  const publicClient = { getBlockNumber: async () => head,
     // the ledger's events for the operator: two credits and one withdrawal, inside the scanned window
     getLogs: async ({ event, fromBlock, toBlock }) => {
       const inWin = (b) => b >= fromBlock && b <= toBlock;
-      if (event.name === "RunnerCredited") return [[999_100n, 400_000n], [999_900n, 3_100_000n]].filter(([b]) => inWin(b)).map(([b, a]) => ({ args: { amount6: a }, blockNumber: b }));
+      if (event.name !== "EarningsWithdrawn") throw new Error(`unexpected event ${event.name}`);
+      if (fromBlock < head - 10_000n) throw Object.assign(new Error("RPC Request failed."), { details: "Archive requests require a personal token." });
       return [[999_500n, 2_250_000n]].filter(([b]) => inWin(b)).map(([b, a]) => ({ args: { amount6: a, to: "0x" + "0b".repeat(20) }, blockNumber: b, transactionHash: "0x" + "77".repeat(32) }));
     },
     readContract: async ({ address, functionName, args }) => {
@@ -132,7 +134,7 @@ function setup() {
     sha: "x", file: path.join(cache, "bafyapp0000001.wasm"), sock: 0, memMib: 0, cpuMilli: 250, gpuMilli: 0, label: "app-d0d0d0d0-old", phase: "serving", sealed: { blob: "00", count: 1 },
     cert: { name: "d0d0d0d0.app.enclave.host" }, at: T }, idle: { label: "idle-old" }, refused: {} }));   // gitleaks:allow
   return { dir, config, E, now, advance: (ms) => { T += ms; }, rows, publicClient, device, createRunner, made, calls, vms, store, fetchImpl, stateDir,
-           unplug: (v) => { unplugged = v; }, failOnce, setOffer: (o) => { offerText = o === null ? null : typeof o === "string" ? o : JSON.stringify({ v: 1, ...o }); } };
+           unplug: (v) => { unplugged = v; }, failOnce, setHead: (h) => { head = h; }, setOffer: (o) => { offerText = o === null ? null : typeof o === "string" ? o : JSON.stringify({ v: 1, ...o }); } };
 }
 
 test("slots: the served app moves to slot 1, more apps take their own VMs, the host's key is handed only where it is missing", async () => {
@@ -266,11 +268,16 @@ test("slots: the served app moves to slot 1, more apps take their own VMs, the h
     assert.equal(Object.values(agent.state().slots).filter(Boolean).length, 3);
     t.calls.length = 0;
 
-    // earnings, from the ledger: ready $1.25, paid out $2.25 (one withdrawal), $3.50 credited all-time, 3 apps x 2 µUSDC/s
+    // earnings, from the ledger: ready $1.25, paid out $2.25 (one withdrawal since the agent first looked), $3.50 in total
+    // (ready + paid out), 3 apps x 2 µUSDC/s
     t.advance(61_000); await agent.tick();   // (refreshed at most once a minute)
     const ea = agent.earnings();
     assert.deepEqual([ea.readyToPay6, ea.paidOut6, ea.earnedAllTime6, ea.ratePerHour6, ea.withdrawals.length], ["1250000", "2250000", "3500000", String(3 * 2 * 3600), 1]);
     assert.deepEqual(ea.payout, null, "no payout address anywhere yet: earnings stay on the ledger");
+    assert.equal(ea.complete, true);
+    // the agent was down for long: the RPC keeps no logs that old -- the gap is skipped and said, the rest still counted
+    t.setHead(1_100_000n); t.advance(61_000); await agent.tick();
+    assert.deepEqual([agent.earnings().complete, agent.earnings().paidOut6], [false, "2250000"]);
     // the owner sets a payout address in the app: the host runner is made again with it, and the view says so
     t.setOffer({ cpuMilli: 1000, memMb: 4096, payoutTo: "0x" + "AB".repeat(20) }); t.advance(1000); await agent.tick();
     assert.deepEqual(agent.earnings().payout, { to: "0x" + "ab".repeat(20), minWithdraw6: "1000000", source: "phone" });
