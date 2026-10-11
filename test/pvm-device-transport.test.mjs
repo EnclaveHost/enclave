@@ -27,6 +27,10 @@ if (a[0] === "connect") { if (st.tcpPort && st.wifiUp && a[1] === wifiEp) { st.w
 if (!attached.includes(dev)) fail("adb: device '" + dev + "' not found");
 if (a[0] === "shell" && a[1] === "ip -4 addr show wlan0") { console.log("    inet " + st.ip + "/24 brd x scope global wlan0"); process.exit(0); }
 if (a[0] === "shell" && a[1] === "getprop service.adb.tcp.port") { console.log(st.tcpPort || ""); process.exit(0); }
+if (a[0] === "shell" && /^pidof /.test(a[1])) { const n = a[1].slice(6); if ((st.procs || []).includes(n)) console.log("4242"); process.exit(0); }
+if (a[0] === "shell" && a[1] === "ps -A -o NAME") { console.log("NAME"); for (const n of st.procs || []) console.log(n); process.exit(0); }
+if (a[0] === "shell" && /ls -t files\/capture$/.test(a[1])) { for (const f of st.captures || []) console.log(f); process.exit(0); }
+if (a[0] === "shell" && /cat files\/capture\//.test(a[1])) { console.log("VSOCK APP serving https-p256 (TLS 1.3, a CA-trustable key) on vsock 7786"); process.exit(0); }
 if (a[0] === "tcpip") { st.tcpPort = a[1]; st.forwards = st.forwards.filter((x) => x.dev !== dev); st.reverses = st.reverses.filter((x) => x.dev !== dev); save(); console.log("restarting in TCP mode port: " + a[1]); process.exit(0); }
 if (a[0] === "wait-for-device") process.exit(0);
 if (a[0] === "forward" && a[1] === "--list") { for (const x of st.forwards) console.log(x.dev + " " + x.spec + " " + x.spec); process.exit(0); }
@@ -87,6 +91,25 @@ test("on USB the Wi-Fi address is learned and adb put in TCP mode; off the cable
     // neither: unreachable, said as such (the agent then judges no VM)
     p.set({ usb: false, wifiUp: false, wifiConnected: false });
     await assert.rejects(p.device.ensurePorts(), /not on USB, and adb over Wi-Fi at 192\.168\.88\.5:5555 does not answer/);
+  } finally { fs.rmSync(p.dir, { recursive: true, force: true }); }
+});
+
+test("a VM is alive only while its own crosvm runs: the app's process alone (the Enclave screen) is not a VM", async () => {
+  const p = phone();
+  try {
+    await p.device.ensurePorts();
+    const label = "idle-2026-10-11T000000000Z";
+    p.set({ captures: [`${label}.log`, "s1-77e75476-2026-10-11T000000000Z.log", "idle-2026-10-10T000000000Z.complete"],
+            procs: ["host.enclave.pvmcpu", "crosvm_pvmtest"] });
+    assert.equal(await p.device.alive(label), true, "the process, its VM and its serving capture");
+    p.set({ procs: ["host.enclave.pvmcpu"] });
+    assert.equal(await p.device.alive(label), false, "the process without its VM: Android brought the app back for its screen");
+    p.set({ procs: ["host.enclave.pvmcpu", "crosvm_pvmtests1"] });
+    assert.equal(await p.device.alive(label), false, "a slot's VM is not the host's");
+    p.set({ procs: ["host.enclave.pvmcpu:slot1", "crosvm_pvmtests1"] });
+    assert.equal(await p.device.slot(1).alive("s1-77e75476-2026-10-11T000000000Z"), true, "slot 1: its own process and VM");
+    p.set({ procs: ["host.enclave.pvmcpu", "crosvm_pvmtest"], captures: ["idle-2026-10-12T000000000Z.complete", `${label}.log`] });
+    assert.equal(await p.device.alive(label), true, "a newer .complete marker is not a run");
   } finally { fs.rmSync(p.dir, { recursive: true, force: true }); }
 });
 

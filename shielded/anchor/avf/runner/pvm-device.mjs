@@ -177,9 +177,13 @@ export function createPvmDevice({ adb, serial, pkg = RELEASE_PACKAGE, vmName, re
       if (!/Starting service/.test(out)) throw new Error(`the service did not start: ${out.trim().slice(0, 200)}`);
       log({ ev: "device-launch", slot: k, label, idle: proofPins === null, ...(slot ? { vmMib, cpus } : {}) });
     }
-    /** The VM of this launch still serves: its process runs and its capture says serving, with no end since. */
+    /** The VM of this launch still serves: its process runs, its VM (crosvm_<instance>) runs, and its capture says serving,
+     *  with no end since. The process alone is not enough: the host VM's process is also the app's, and Android brings it
+     *  back for the Enclave screen after an update with no VM in it (measured 2026-10-11). */
     async function alive(label) {
       if (!await pidOf()) return false;
+      const names = (await sh("ps -A -o NAME").catch(() => "")).split("\n").map((l) => l.trim());
+      if (!names.includes(`crosvm_${instance}`)) return false;
       // the running session is this VM's newest capture: an older label's file may still say "serving" (a killed VM writes no end)
       // (.log files only: a finished run leaves a `.complete` marker beside its log, which must never read as the newest run)
       const newest = (await sh(`run-as ${pkg} ls -t files/capture`).catch(() => "")).split("\n").map((l) => l.trim()).filter((l) => l.endsWith(".log"))
