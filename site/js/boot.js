@@ -38,6 +38,7 @@ const PAGES = {
   grant:     () => import("./pages/grant.js"),     // approve a session an agent/device asked for (enclave session new)
   sessions:  () => import("./pages/sessions.js"),  // every session that can act for the wallet; owner controls
   payout:    () => import("./pages/payout.js"),    // a box owner declares their payout wallet (opened from the hosting tray)
+  owner:     () => import("./pages/owner.js"),     // accept a two-step ownership hand-over (governance; /owner?contract=)
 };
 // URL aliases: pathnames that render ANOTHER page's document. /apps/publish
 // is the canonical publish-form URL, but it stays a view of the Apps page -
