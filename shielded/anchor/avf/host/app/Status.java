@@ -113,8 +113,9 @@ final class Status {
         }
         int slotsFree = av.optInt("nodeSlotsFree", 0);
         double cpuFree = av.optDouble("cpuShareFree", 0), gbFree = av.optDouble("ramGbFree", 0);
-        room.setText(slotsFree + (slotsFree == 1 ? " app" : " apps") + "  ·  " + Math.round(cpuFree * 100) + "% of the CPU  ·  "
-                     + String.format(java.util.Locale.ROOT, "%.1f GB", gbFree));
+        // how many more apps fit is the shares' (the agent counts the smallest VM against the memory and CPU left)
+        room.setText(Math.round(cpuFree * 100) + "% of the CPU  ·  " + String.format(java.util.Locale.ROOT, "%.1f GB", gbFree)
+                     + (slotsFree > 0 ? "  ·  up to " + slotsFree + " more small " + (slotsFree == 1 ? "app" : "apps") : "  ·  full"));
         long price6 = av.optLong("askCpuPricePerSec6", 0);
         footer.setText(av.optString("name", "") + (price6 > 0 ? "  ·  $" + String.format(java.util.Locale.ROOT, "%.4f", price6 * 3600 / 1e6) + " an hour for the whole phone" : "")
                        + "\nUpdated " + now);

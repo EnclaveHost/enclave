@@ -113,6 +113,18 @@ test("a VM is alive only while its own crosvm runs: the app's process alone (the
   } finally { fs.rmSync(p.dir, { recursive: true, force: true }); }
 });
 
+test("doors only for the slots in use (32 slot services would otherwise mean 64 forwards every round)", async () => {
+  const p = phone();
+  try {
+    p.device.useSlots(() => []);
+    await p.device.ensurePorts();
+    assert.deepEqual(p.get().forwards.map((x) => x.spec).sort(), ["tcp:17786", "tcp:17787"], "the host VM's alone");
+    p.device.useSlots(() => [1, 1, 99]);
+    await p.device.ensurePorts();
+    assert.deepEqual(p.get().forwards.map((x) => x.spec).sort(), ["tcp:17786", "tcp:17787", "tcp:17796", "tcp:17797"], "slot 1's added; an unknown slot ignored");
+  } finally { fs.rmSync(p.dir, { recursive: true, force: true }); }
+});
+
 test("off the cable before any address is known: unreachable, with what to do", async () => {
   const p = phone();
   try {
