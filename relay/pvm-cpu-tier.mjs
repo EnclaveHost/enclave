@@ -86,11 +86,15 @@ export function pvmCpuAvailability(row, availability) {
   const pool = Number.isInteger(a.slots) && a.slots >= 1 && a.slots <= MAX_SLOTS && Number.isInteger(a.poolMemMb) && a.poolMemMb >= 192 && a.poolMemMb <= MAX_SLOT_POOL_MB ? a.poolMemMb : null;
   const ramGb = Math.round((pool || vm.memMib) / 102.4) / 10;
   const g = row.pvmCpu.gflops;
-  // the host may only LOWER what is free (slots taken by buyers' apps): a share in [0, 1], else the whole VM
+  // what the owner offers of the phone's CPU (the Enclave app's Sharing: a share in (0, 1], else all of it): the node's compute
+  // is that part of the attested VM's, and the host may only LOWER what is free within it (slots taken by buyers' apps)
+  const off = a.cpuShareOffered;
+  const offered = typeof off === "number" && Number.isFinite(off) && off > 0 && off <= 1 ? off : 1;
   const said = a.cpuShareFree;
-  const free = typeof said === "number" && Number.isFinite(said) && said >= 0 && said <= 1 ? said : 1;
+  const free = Math.min(offered, typeof said === "number" && Number.isFinite(said) && said >= 0 && said <= 1 ? said : 1);
   const poolFree = pool && Number.isInteger(a.poolMemMbFree) && a.poolMemMbFree >= 0 ? Math.min(pool, a.poolMemMbFree) : null;
-  const gflops = typeof g === "number" && Number.isFinite(g) && g > 0 ? { nodeGflops: g, cpuGflopsFree: Math.round(g * free * 100) / 100 } : {};
+  const gflops = typeof g === "number" && Number.isFinite(g) && g > 0
+    ? { nodeGflops: Math.round(g * offered * 100) / 100, cpuGflopsFree: Math.round(g * free * 100) / 100 } : {};
   return { ...a, gpu: false, nodeVcpus: vm.threads, nodeRamGb: ramGb, ramGbFree: Math.round((poolFree !== null ? poolFree / 1024 : ramGb * free) * 10) / 10, cpuShareFree: free, ...gflops,
            capacitySource: pool ? "pvm-capability-report + the owner's slot pool" : "pvm-capability-report" };
 }
