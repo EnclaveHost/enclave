@@ -46,11 +46,11 @@ test("DEFAULTS: no caps file is 1.0 on both axes, and every figure is exactly th
     const h = box({ card: () => card });
     set.forEach(([c, g], i) => h.records.set(idOf(String(i + 1)), running(idOf(String(i + 1)), c, g)));
     const used = set.reduce((a, [c]) => a + c, 0), sold = set.reduce((a, [, g]) => a + g, 0);
-    assert.deepEqual(h.hostingCaps(), { cpuShare: 1, gpuShare: 1 });
+    assert.deepEqual(h.hostingCaps(), { cpuShare: 1, gpuShare: 1, paused: false });
     assert.equal(h.cpuShareFree(), oldCpu(used), JSON.stringify(set));
     assert.equal(h.gpuShareFree(), oldGpu(sold), JSON.stringify(set));
     const cap = h.capacity();
-    assert.ok(!("cpuCap" in cap) && !("gpuCap" in cap), "the capacity object has its old shape");
+    assert.ok(!("cpuCap" in cap) && !("gpuCap" in cap) && !("paused" in cap), "the capacity object has its old shape");
     if (policy(h, newDep({ cpuMilli: 1000 }))) assert.match(policy(h, newDep({ cpuMilli: 1000 })), /left to sell$/, "the old refusal text");
   }
   const h = box();
@@ -90,7 +90,7 @@ test("LOWERING a cap below what is in use evicts nothing, advertises 0 free, and
   assert.equal(h.cpuShareFree(), 0); assert.equal(h.gpuShareFree(), 0);
   const v = h.hostingView();
   assert.deepEqual({ caps: v.caps, inUse: v.inUse, free: v.free, served: v.deploymentsServed },
-    { caps: { cpuShare: 0.2, gpuShare: 0.1 }, inUse: { cpuShare: 0.5, gpuShare: 0.2 }, free: { cpuShare: 0, gpuShare: 0 }, served: 2 });
+    { caps: { cpuShare: 0.2, gpuShare: 0.1, paused: false }, inUse: { cpuShare: 0.5, gpuShare: 0.2 }, free: { cpuShare: 0, gpuShare: 0 }, served: 2 });
   assert.equal(policy(h, newDep({ cpuMilli: 50 })),
     "it asks for 5% of a node, and the owner offers 20% of this box's CPU to hosting with 50% of that in use");
   // the capacity a hint for a deployment ALREADY here is measured against (host.consider): beside the others, uncapped
@@ -108,15 +108,45 @@ test("persistence through the Host: a restarted node reads the caps the tray set
   const h = box();
   h.setHostingCaps({ cpuShare: 0.45, gpuShare: 0.05 });
   const again = new Host({ dir: h.cfg.dir, endpoint: ENDPOINT, name: "test", appsEnabled: true, log: (m) => logs.push(m) });
-  assert.deepEqual(again.hostingCaps(), { cpuShare: 0.45, gpuShare: 0.05 });
+  assert.deepEqual(again.hostingCaps(), { cpuShare: 0.45, gpuShare: 0.05, paused: false });
   fs.writeFileSync(path.join(h.cfg.dir, "hosting-caps.json"), "{ half a write");
   const broken = new Host({ dir: h.cfg.dir, endpoint: ENDPOINT, name: "test", appsEnabled: true, log: (m) => logs.push(m) });
-  assert.deepEqual(broken.hostingCaps(), { cpuShare: 0, gpuShare: 0 });
+  assert.deepEqual(broken.hostingCaps(), { cpuShare: 0, gpuShare: 0, paused: false });
   assert.equal(broken.cpuShareFree(), 0);
   assert.match(broken.hostingView().capsError, /do not parse/);
   assert.ok(logs.some((l) => /hosting-caps\.json\) do not parse/.test(l)), "the node says why it offers nothing new");
   broken.setHostingCaps({ cpuShare: 1, gpuShare: 1 });
   assert.equal(broken.hostingView().capsError, null, "the tray's next set repairs it");
+});
+
+test("PAUSED: nothing new on either axis, nothing running touched, the caps kept for the resume, and it survives a restart", () => {
+  const logs = [];
+  const h = box({ card: () => card, log: (m) => logs.push(m) });
+  h.records.set(A, running(A, 0.3, 0.2));
+  h.setHostingCaps({ cpuShare: 0.8, gpuShare: 0.6, paused: false });
+  const open = { cpu: h.cpuShareFree(), gpu: h.gpuShareFree() };
+  assert.ok(open.cpu > 0 && open.gpu > 0, "room before the pause");
+  const before = JSON.stringify([...h.records.values()]);
+  h.setHostingCaps({ ...h.hostingCaps(), paused: true });
+  assert.equal(JSON.stringify([...h.records.values()]), before, "no record was touched");
+  assert.equal(h.cpuShareFree(), 0); assert.equal(h.gpuShareFree(), 0);
+  assert.equal(h.capacity().paused, true);
+  assert.equal(policy(h, newDep({ cpuMilli: 50 })), "the owner of this box has paused hosting: it takes no new work until they resume it");
+  assert.equal(policy(h, newDep({ cpuMilli: 50, gpuMilli: 100 })), "the owner of this box has paused hosting: it takes no new work until they resume it");
+  assert.match(h.capRefusal(B, { cpuShare: 0.05 }), /^not started: the owner of this box has paused hosting/);
+  const v = h.hostingView();
+  assert.deepEqual({ caps: v.caps, free: v.free, served: v.deploymentsServed },
+    { caps: { cpuShare: 0.8, gpuShare: 0.6, paused: true }, free: { cpuShare: 0, gpuShare: 0 }, served: 1 });
+  // a deployment already here is measured uncapped, paused or not (host.consider): the pause never takes a lease back
+  assert.ok(h.capacity({ exclude: A, capped: false }).cpuShareFree > 0); assert.equal(h.capacity({ capped: false }).paused, undefined);
+  assert.ok(logs.some((l) => /hosting PAUSED by the owner of this box: no new work is taken; the 1 deployment\(s\) running keep running/.test(l)));
+  const again = new Host({ dir: h.cfg.dir, endpoint: ENDPOINT, name: "test", appsEnabled: true, log: () => {} });
+  assert.deepEqual(again.hostingCaps(), { cpuShare: 0.8, gpuShare: 0.6, paused: true }, "a restarted node is still paused");
+  assert.equal(again.cpuShareFree(), 0);
+  h.setHostingCaps({ ...h.hostingCaps(), paused: false });
+  assert.deepEqual({ cpu: h.cpuShareFree(), gpu: h.gpuShareFree() }, open, "resumed: exactly the room under the caps again");
+  assert.equal(h.capacity().paused, undefined);
+  assert.ok(logs.some((l) => /hosting RESUMED/.test(l)));
 });
 
 test("the view says what the GPU is for on each backend, and never implies GPU hosting that is not happening", () => {
@@ -175,6 +205,22 @@ test("hv: a running partition is never stopped by a lower cap; it is adopted eve
   const r = await h.ensureApp(DEP, dep(), { force: true, version: PLANNED });
   assert.equal(r.status, "running", `a relaunch of work this box runs keeps its place: ${r.reason}`);
   assert.equal(fake.running().length, 1); assert.notEqual(fake.running()[0].vmId, vmBefore, "a fresh VM");
+});
+
+test("hv: PAUSED holds a NEW partition with the reason and keeps a running one; resuming starts the held one", async () => {
+  const fake = new FakeHost(); const { port } = await bootManager(fake);
+  const h = hvBox(port);
+  h.records.set(B, { ...running(B, 0.1), isolation: { instance: "hvB" } });
+  h.setHostingCaps({ cpuShare: 1, gpuShare: 1, paused: true });
+  const held = await h.ensureApp(DEP, dep(), { version: PLANNED });
+  assert.equal(held.status, "held"); assert.equal(held.capHeld, true);
+  assert.equal(held.reason, "isolation: not started: the owner of this box has paused hosting; it starts when hosting is resumed (nothing running was stopped)");
+  assert.equal(fake.running().length, 0, "no VM was started");
+  h.setHostingCaps({ cpuShare: 1, gpuShare: 1, paused: false });
+  assert.equal((await h.ensureApp(DEP, dep(), { version: PLANNED })).status, "running");
+  h.setHostingCaps({ cpuShare: 1, gpuShare: 1, paused: true });
+  for (let i = 0; i < 2; i++) assert.equal((await h.ensureApp(DEP, dep(), { version: PLANNED })).status, "running", "adopted while paused, not held");
+  assert.equal(fake.running().length, 1);
 });
 
 test("hv: a CAP-HELD deployment is not spawned above the cap by a FORCED ensure - the owner's restart path (enclave-5d)", async () => {

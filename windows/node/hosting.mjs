@@ -7,6 +7,9 @@
 // Lowering one below what is already in use stops nothing that runs. It stops NEW work until use drops below it.
 // Absent, both are 1.0, which is the node exactly as it was before they existed.
 //
+// And a switch, `paused`: the owner turning hosting off without losing where the sliders were. Paused, the node offers
+// nothing new on either axis (as if both caps were 0); what is running keeps running, exactly as when a cap is lowered.
+//
 // THE API IS LOCAL ONLY, three ways over: it listens on 127.0.0.1 alone, on its own port, never on the tunnel (the
 // agent's handle() does not know these routes); it refuses a peer that is not loopback even if a later change binds
 // it wider; and it wants a bearer token from a file that only SYSTEM, Administrators, this process's own account and
@@ -21,7 +24,7 @@ import { execFile } from "node:child_process";
 // node enforces and what the tray shows are the same number.
 const STEPS = 20;
 export const CAP_STEP = 1 / STEPS;
-export const DEFAULT_CAPS = Object.freeze({ cpuShare: 1, gpuShare: 1 });
+export const DEFAULT_CAPS = Object.freeze({ cpuShare: 1, gpuShare: 1, paused: false });
 const AXES = ["cpuShare", "gpuShare"];
 
 /** snapShare(v) -> v snapped to CAP_STEP, or null when v is not a number in [0, 1]. A string is not a number here. */
@@ -40,7 +43,7 @@ export function snapShare(v) {
  *   -> { caps: { cpuShare, gpuShare }, error: string | null }
  */
 export function loadCaps(file) {
-  const closed = (why) => ({ caps: { cpuShare: 0, gpuShare: 0 },
+  const closed = (why) => ({ caps: { cpuShare: 0, gpuShare: 0, paused: false },
     error: `the owner's hosting caps (${file}) ${why}: offering nothing new until they are set again from the tray` });
   let text;
   try { text = fs.readFileSync(file, "utf8"); }
@@ -55,13 +58,17 @@ export function loadCaps(file) {
     if (s === null) return closed(`state ${k}=${JSON.stringify(o[k]).slice(0, 32)}, which is not a share from 0 to 1`);
     caps[k] = s;
   }
+  if (o.paused !== undefined && typeof o.paused !== "boolean")
+    return closed(`state paused=${JSON.stringify(o.paused).slice(0, 32)}, which is not true or false`);
+  caps.paused = o.paused === true;
   return { caps, error: null };
 }
 
 /** Write the caps ATOMICALLY: a temporary file beside the target, flushed, then renamed over it. A crash mid-write
  *  leaves the old file or the new one, never half of either (which loadCaps would read as 0). */
 export function saveCaps(file, caps) {
-  const body = JSON.stringify({ cpuShare: caps.cpuShare, gpuShare: caps.gpuShare, updatedAt: new Date().toISOString() }, null, 1) + "\n";
+  const body = JSON.stringify({ cpuShare: caps.cpuShare, gpuShare: caps.gpuShare, paused: caps.paused === true,
+                                updatedAt: new Date().toISOString() }, null, 1) + "\n";
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.${crypto.randomBytes(4).toString("hex")}.tmp`;
   try {
@@ -75,16 +82,18 @@ export function saveCaps(file, caps) {
 }
 
 /**
- * capsUpdate(current, body) -> the caps a PUT asks for, each validated and snapped. Throws an Error with status 400
- * naming the field. At least one cap; no other keys (a typo such as "cpu" must not read as "leave it alone").
+ * capsUpdate(current, body) -> the caps a PUT asks for, each validated and snapped, and `paused` (true or false only).
+ * Throws an Error with status 400 naming the field. At least one of them; no other keys (a typo such as "cpu" must not
+ * read as "leave it alone").
  */
 export function capsUpdate(current, body) {
   const bad = (m) => Object.assign(new Error(m), { status: 400, code: "bad_request" });
   if (!body || typeof body !== "object" || Array.isArray(body)) throw bad("the body must be a JSON object: {\"cpuShare\": 0.5, \"gpuShare\": 0.25}");
-  const extra = Object.keys(body).filter((k) => !AXES.includes(k));
-  if (extra.length) throw bad(`unknown field ${JSON.stringify(extra[0]).slice(0, 40)}: only cpuShare and gpuShare can be set`);
-  if (!AXES.some((k) => k in body)) throw bad("nothing to set: give cpuShare, gpuShare or both");
-  const next = { ...current };
+  const extra = Object.keys(body).filter((k) => !AXES.includes(k) && k !== "paused");
+  if (extra.length) throw bad(`unknown field ${JSON.stringify(extra[0]).slice(0, 40)}: only cpuShare, gpuShare and paused can be set`);
+  if (!AXES.some((k) => k in body) && !("paused" in body)) throw bad("nothing to set: give cpuShare, gpuShare, paused or any of them");
+  if ("paused" in body && typeof body.paused !== "boolean") throw bad("paused must be true or false");
+  const next = { ...current, paused: "paused" in body ? body.paused : current.paused === true };
   for (const k of AXES) {
     if (!(k in body)) continue;
     const s = snapShare(body[k]);
@@ -329,7 +338,8 @@ const readBody = (req) => new Promise((resolve) => {
  *
  *   GET /v1/local/hosting   the caps, what is sold, in use and free, deployments served, the backend, and whether
  *                           anything on that backend uses the GPU
- *   PUT /v1/local/hosting   {cpuShare?, gpuShare?}, each 0..1, snapped to 0.05; answers the GET body after the change
+ *   PUT /v1/local/hosting   {cpuShare?, gpuShare?, paused?}, each share 0..1, snapped to 0.05; paused true or false;
+ *                           answers the GET body after the change
  *
  * Order matters: the peer first (a remote caller learns nothing, not even that a token is wanted), then the token
  * (an unauthenticated local caller learns no routes), then the route.
