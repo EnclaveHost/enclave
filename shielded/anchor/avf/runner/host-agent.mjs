@@ -849,26 +849,30 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     hostUp = false;
   }
   /**
-   * The operator's earnings, from the ledger (public data): what is ready to pay out (earned6), what has been paid out and
-   * credited all-time (its EarningsWithdrawn / RunnerCredited events, scanned forward from the host's registration in
-   * 9000-block windows and kept in the state), and what the apps here earn now (each one's runner rate). Every 60 s.
+   * The operator's earnings, from the ledger (public data), once a minute: what is ready to pay out (earned6), what has been
+   * paid out (its EarningsWithdrawn events, counted forward from when this agent first looked: only the operator key, which
+   * lives here, can withdraw), earned in total (the two together: credits only ever add to earned6, and only a withdrawal
+   * takes from it), and what the apps here earn now (each one's runner rate). Recent blocks only: the free RPCs serve no
+   * archive logs, so a gap longer than they keep (an agent down for many hours) is skipped and said (complete: false).
    */
   let lastEarnings = 0;
   async function refreshEarnings() {
     if (!addrs || now() - lastEarnings < 60_000 || typeof publicClient.getLogs !== "function") return;
     lastEarnings = now();
-    const ev = state.earnings || (state.earnings = { scannedTo: 0, credited6: "0", withdrawn6: "0", withdrawals: [] });
+    const ev = state.earnings || (state.earnings = { scannedTo: "0", withdrawn6: "0", withdrawals: [], since: new Date(now()).toISOString(), gap: false });
     const head = await publicClient.getBlockNumber();
-    let from = BigInt(ev.scannedTo || 0) + 1n;
-    if (!ev.scannedTo) {   // from the registration (Base: one block every 2 s), with a margin
-      const since = registered && Number(registered.registeredAt) ? Math.max(0, Math.floor(now() / 1000) - Number(registered.registeredAt)) : 7 * 86400;
-      from = head - BigInt(Math.ceil(since / 2) + 5000); if (from < 0n) from = 0n;
-    }
-    for (let i = 0; i < 24 && from <= head; i++) {
-      const to = from + 8999n > head ? head : from + 8999n;
-      const [cr, wd] = await Promise.all(EARN_EVENTS.map((event) => publicClient.getLogs({ address: addrs.deployments, event, args: { operator: account.address }, fromBlock: from, toBlock: to })));
-      for (const l of cr) ev.credited6 = String(BigInt(ev.credited6) + BigInt(l.args.amount6));
-      for (const l of wd) {
+    if (!Number(ev.scannedTo)) ev.scannedTo = String(head - 2000n);   // first look: from here on
+    let from = BigInt(ev.scannedTo) + 1n;
+    for (let i = 0; i < 12 && from <= head; i++) {
+      const to = from + 1999n > head ? head : from + 1999n;
+      let logs;
+      try { logs = await publicClient.getLogs({ address: addrs.deployments, event: EARN_EVENTS[1], args: { operator: account.address }, fromBlock: from, toBlock: to }); }
+      catch (e) {
+        if (!/archive|not supported|too old|pruned/i.test(`${e.details || ""} ${e.message || ""}`)) throw e;
+        note({ ev: "earnings-gap", from: String(from), why: "older blocks than the RPC keeps: the paid-out total may miss a withdrawal there" });
+        ev.gap = true; ev.scannedTo = String(head - 2000n); from = head - 1999n; continue;
+      }
+      for (const l of logs) {
         ev.withdrawn6 = String(BigInt(ev.withdrawn6) + BigInt(l.args.amount6));
         ev.withdrawals = [...ev.withdrawals, { to: lc(l.args.to), amount6: String(l.args.amount6), tx: l.transactionHash, block: String(l.blockNumber) }].slice(-10);
       }
@@ -881,9 +885,9 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     save();
   }
   function earningsView() {
-    const ev = state.earnings || {}, p = payoutNow();
-    return { operator: me, readyToPay6: ev.ready6 || "0", paidOut6: ev.withdrawn6 || "0", earnedAllTime6: ev.credited6 || "0",
-             ratePerHour6: String(BigInt(ev.ratePerSec6 || "0") * 3600n), complete: !!ev.scannedTo && BigInt(ev.scannedTo) > 0n,
+    const ev = state.earnings || {}, p = payoutNow(), ready = BigInt(ev.ready6 || "0"), paid = BigInt(ev.withdrawn6 || "0");
+    return { operator: me, readyToPay6: String(ready), paidOut6: String(paid), earnedAllTime6: String(ready + paid),
+             ratePerHour6: String(BigInt(ev.ratePerSec6 || "0") * 3600n), countedSince: ev.since || null, complete: !!ev.at && !ev.gap,
              payout: p ? { to: p.to, minWithdraw6: p.minWithdraw6, source: offer.payoutTo ? "phone" : "config" } : null,
              withdrawals: ev.withdrawals || [], updatedAt: ev.at || null };
   }
