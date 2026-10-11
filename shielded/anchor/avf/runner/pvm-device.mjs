@@ -1,4 +1,5 @@
-// pvm-device.mjs -- the owner's handle on the phone that hosts the pVM (PVM-CPU.md "Serving buyers"), over adb on USB:
+// pvm-device.mjs -- the owner's handle on the phone that hosts the pVM (PVM-CPU.md "Serving buyers"), over adb: on USB while
+// the cable is in, else over the phone's Wi-Fi (adb in TCP mode, its address learned while it was last on USB):
 //   - the loopback doors: `adb reverse` for the phone to reach the host agent and the attach co-signer on this machine, and
 //     `adb forward` for this machine to reach the VM's TLS app port and evidence endpoint through the phone's LocalBridge;
 //   - the VMs' launches: the release app (host.enclave.pvmcpu) started as a foreground service with one app and, for a lease,
@@ -27,28 +28,73 @@ export const slotPorts = (k) => ({ app: 17786 + 10 * k, evidence: 17787 + 10 * k
  * share). The handle returned is the host VM's; `slot(k)` is slot k's, with the same calls.
  */
 export function createPvmDevice({ adb, serial, pkg = RELEASE_PACKAGE, vmName, relay, name, agentPort, attachPort, egressPort = 0,
-                                  bridgeApp = 17786, bridgeEvidence = 17787, slots = 0, log = () => {} }) {
+                                  bridgeApp = 17786, bridgeEvidence = 17787, slots = 0, wifi = null, log = () => {} }) {
   if (!adb || !serial) throw new Error("pvm-device: adb and the phone's serial are required");
   if (!/^[a-z0-9-]{1,29}$/.test(vmName || "")) throw new Error("pvm-device: vmName must be 1..29 of [a-z0-9-] (a slot's instance is <vmName>s<k>)");
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(name || "")) throw new Error("pvm-device: name must be the tunnel name");
   if (!/^wss?:\/\/\S+$/.test(relay || "")) throw new Error("pvm-device: relay must be the relay's ws(s) fleet-tunnel URL");
   if (!Number.isInteger(slots) || slots < 0 || slots > MAX_SLOTS) throw new Error(`pvm-device: slots must be 0..${MAX_SLOTS}`);
-  const run = (args, { timeoutMs = 60000, input = null } = {}) => new Promise((resolve, reject) => {
-    const p = execFile(adb, ["-s", serial, ...args], { timeout: timeoutMs, maxBuffer: 16 << 20 }, (err, stdout, stderr) => {
-      if (err) reject(new Error(`adb ${args.slice(0, 2).join(" ")}: ${(stderr || err.message).toString().trim().slice(0, 300)}`));
+  if (wifi !== null && (!wifi || !Number.isInteger(wifi.port) || wifi.port < 1024 || wifi.port > 65535 || typeof wifi.file !== "string"))
+    throw new Error("pvm-device: wifi must be { port (adb's TCP port on the phone), file (where the phone's Wi-Fi address is kept) }");
+  // the transport this round uses: the USB serial while the cable is in, else the phone's adb over Wi-Fi (<ip>:<port>)
+  let target = serial, via = "usb";
+  const adbRun = (args, { timeoutMs = 60000, input = null } = {}) => new Promise((resolve, reject) => {
+    const p = execFile(adb, args, { timeout: timeoutMs, maxBuffer: 16 << 20 }, (err, stdout, stderr) => {
+      if (err) reject(new Error(`adb ${args.slice(args[0] === "-s" ? 2 : 0, args[0] === "-s" ? 4 : 2).join(" ")}: ${(stderr || err.message).toString().trim().slice(0, 300)}`));
       else resolve(stdout.toString().replace(/\r/g, ""));
     });
     if (input !== null) { p.stdin.end(input); }
   });
+  const run = (args, opts) => adbRun(["-s", target, ...args], opts);
   const sh = (cmd, opts) => run(["shell", cmd], opts);
 
-  /** The doors: idempotent (an existing mapping is left as it is). USB reconnects drop them, so every tick calls this. */
+  // ---- the transport: USB, else Wi-Fi (PVM-CPU.md "Off the cable") ----
+  const readWifi = () => { try { const w = JSON.parse(fs.readFileSync(wifi.file, "utf8")); return /^(\d{1,3}\.){3}\d{1,3}$/.test(w.host || "") ? w.host : null; } catch { return null; } };
+  const attached = async () => new Set((await adbRun(["devices"], { timeoutMs: 15000 })).split("\n").slice(1)
+    .map((l) => l.trim().split(/\s+/)).filter((f) => f[1] === "device").map((f) => f[0]));
+  /**
+   * Pick this round's transport. With the cable in: USB; and with `wifi`, the phone's Wi-Fi address is learned and kept, and
+   * its adbd is put in TCP mode (`adb tcpip`, once per phone boot: it restarts adbd, so the doors are made again). Without
+   * the cable: `adb connect` to the address last learned. Neither: throws (the phone is unreachable this round).
+   */
+  async function selectTransport() {
+    const was = target, have = await attached();
+    if (have.has(serial)) {
+      target = serial; via = "usb";
+      if (wifi) {
+        const ip = ((await sh("ip -4 addr show wlan0").catch(() => "")).match(/inet (\d{1,3}(?:\.\d{1,3}){3})\//) || [])[1];
+        if (ip && ip !== readWifi()) { const t = wifi.file + ".tmp"; fs.writeFileSync(t, JSON.stringify({ host: ip, at: new Date().toISOString() }) + "\n", { mode: 0o600 }); fs.renameSync(t, wifi.file); log({ ev: "device-wifi-address", host: ip }); }
+        const port = (await sh("getprop service.adb.tcp.port").catch(() => "")).trim();
+        if (ip && port !== String(wifi.port)) {
+          log({ ev: "device-adb-tcp", port: wifi.port, why: "the phone listens for adb over Wi-Fi from now until it reboots" });
+          await run(["tcpip", String(wifi.port)], { timeoutMs: 20000 });
+          await adbRun(["-s", serial, "wait-for-device"], { timeoutMs: 30000 });
+        }
+      }
+    } else if (wifi && readWifi()) {
+      const ep = `${readWifi()}:${wifi.port}`;
+      if (!have.has(ep)) await adbRun(["connect", ep], { timeoutMs: 15000 }).catch(() => "");
+      if (!(await attached()).has(ep)) throw new Error(`the phone is not on USB, and adb over Wi-Fi at ${ep} does not answer`);
+      target = ep; via = "wifi";
+    } else throw new Error(`the phone (${serial}) is not on USB${wifi ? ", and its Wi-Fi address is not known yet (plug it in once)" : ""}`);
+    if (target !== was) {
+      log({ ev: "device-transport", via, target: via === "usb" ? serial : target });
+      // the old transport's reverse doors would keep the phone-side ports: freed for the new one
+      await adbRun(["-s", was, "reverse", "--remove-all"], { timeoutMs: 10000 }).catch(() => {});
+    }
+    return via;
+  }
+
+  /** The doors on this round's transport: idempotent (an existing mapping is left as it is). A transport change or a USB
+   *  reconnect drops them, so every tick calls this. Throws when the phone is unreachable. */
   async function ensurePorts() {
+    await selectTransport();
     const fw = await run(["forward", "--list"]), rv = await run(["reverse", "--list"]).catch(() => "");
     const want = [];
     const fwd = [bridgeApp, bridgeEvidence];
     for (let k = 1; k <= slots; k++) fwd.push(slotPorts(k).app, slotPorts(k).evidence);
-    for (const p of fwd) if (!fw.includes(`tcp:${p} tcp:${p}`)) want.push(run(["forward", `tcp:${p}`, `tcp:${p}`]));
+    // `forward --list` names every transport's forwards: only this transport's count (another's is re-pointed here)
+    for (const p of fwd) if (!fw.split("\n").some((l) => l.trim() === `${target} tcp:${p} tcp:${p}`)) want.push(run(["forward", `tcp:${p}`, `tcp:${p}`]));
     for (const p of [agentPort, attachPort, egressPort].filter(Boolean)) if (!rv.includes(`tcp:${p} tcp:${p}`)) want.push(run(["reverse", `tcp:${p}`, `tcp:${p}`]));
     await Promise.all(want);
     return want.length;
@@ -196,7 +242,7 @@ export function createPvmDevice({ adb, serial, pkg = RELEASE_PACKAGE, vmName, re
     if (!handles.has(k)) handles.set(k, vm(k));
     return handles.get(k);
   };
-  return { ...host, ensurePorts, installedApkSha, sh, serial, name, slots, slot: slotOf };
+  return { ...host, ensurePorts, selectTransport, installedApkSha, sh, serial, name, slots, slot: slotOf, transport: () => ({ via, target }) };
 }
 
 /** sha256 of a file, hex. */

@@ -54,7 +54,8 @@ function setup() {
     throw new Error(`unexpected read ${functionName}`);
   } };
   // the phone: VMs by slot (0 = the host VM); each slot instance keeps the host's key once installed (its encrypted store)
-  const vms = new Map(), store = new Map(), calls = [];
+  const vms = new Map(), store = new Map(), calls = [], failOnce = new Set();
+  let unplugged = false;
   const own = (k) => privateKeyToAccount("0x" + (90 + k).toString(16).repeat(32));
   let boots = 0;
   const handle = (k) => {
@@ -83,7 +84,7 @@ function setup() {
     };
     return {
       slot: k, appPort: ports.app, evidencePort: ports.evidence,
-      stageApp: async (file, sha) => { calls.push(`stage ${k}`); (vms.get(`staged${k}`) || vms.set(`staged${k}`, {}).get(`staged${k}`)).sha = sha; },
+      stageApp: async (file, sha) => { if (unplugged || failOnce.delete(`stage ${k}`)) throw new Error("adb: device 'X' not found"); calls.push(`stage ${k}`); (vms.get(`staged${k}`) || vms.set(`staged${k}`, {}).get(`staged${k}`)).sha = sha; },
       stageOptions: async () => {},
       launch: async (o) => {
         calls.push(`launch ${k}${k ? ` ${o.vmMib} MiB cpus=${o.cpus} app=${o.appMem}` : ""}`);
@@ -91,7 +92,7 @@ function setup() {
         vms.set(k, { label: o.label, sha: vms.get(`staged${k}`).sha, D: pins[3], boot: ++boots });
       },
       stop: async () => { calls.push(`stop ${k}`); vms.delete(k); },
-      alive: async (label) => !!vms.get(k) && vms.get(k).label === label,
+      alive: async (label) => !unplugged && !failOnce.delete(`alive ${k}`) && !!vms.get(k) && vms.get(k).label === label,
       waitServing: async () => ({ line: "APP serving https-p256" }),
       readToken: async () => "t", capture: async () => "",
       exchange: async (line, extra = null) => { if (!vms.get(k)) throw new Error("no VM"); if (/^KEY/.test(line)) calls.push(`${line.split(" ")[0]} ${k}`); return (await answer(line, extra)) + "\n"; },
@@ -99,7 +100,8 @@ function setup() {
     };
   };
   const handles = [0, 1, 2, 3].map(handle);
-  const device = { ...handles[0], ensurePorts: async () => 0, slots: 3, slot: (k) => handles[k] };
+  const device = { ...handles[0], ensurePorts: async () => { if (unplugged) throw new Error("the phone is not on USB, and adb over Wi-Fi does not answer"); return 0; },
+                   slots: 3, slot: (k) => handles[k] };
   // the runners: a lease is claimed by a slot runner's tick; `pending` set by the test
   const made = [];
   const createRunner = async ({ config: rc }) => {
@@ -119,7 +121,8 @@ function setup() {
   fs.writeFileSync(path.join(stateDir, "host-state.json"), JSON.stringify({ current: { id: D0, appRef: `catalog://${APPID}/1`, configCid: "", cid: "bafyapp0000001",
     sha: "x", file: path.join(cache, "bafyapp0000001.wasm"), sock: 0, memMib: 0, cpuMilli: 250, gpuMilli: 0, label: "app-d0d0d0d0-old", phase: "serving", sealed: { blob: "00", count: 1 },
     cert: { name: "d0d0d0d0.app.enclave.host" }, at: T }, idle: { label: "idle-old" }, refused: {} }));   // gitleaks:allow
-  return { dir, config, E, now, advance: (ms) => { T += ms; }, rows, publicClient, device, createRunner, made, calls, vms, store, fetchImpl, stateDir };
+  return { dir, config, E, now, advance: (ms) => { T += ms; }, rows, publicClient, device, createRunner, made, calls, vms, store, fetchImpl, stateDir,
+           unplug: (v) => { unplugged = v; }, failOnce };
 }
 
 test("slots: the served app moves to slot 1, more apps take their own VMs, the host's key is handed only where it is missing", async () => {
@@ -183,6 +186,28 @@ test("slots: the served app moves to slot 1, more apps take their own VMs, the h
     const ticked = t.made.filter((x, i) => x.ticks > before[i]).map((x) => x.config.proof.deployment);
     assert.deepEqual(ticked, [D2], "the pending runner alone");
     byD(D2).agent.pending = null;
+
+    // the cable out and no Wi-Fi: the phone cannot be asked. Its VMs run on: nothing is judged gone, relaunched or taken;
+    // the runners' chain work goes on
+    const labels = () => Object.values(agent.state().slots).filter(Boolean).map((a) => a.label);
+    const was = labels(), runnerTicks = t.made.reduce((n, x) => n + x.ticks, 0);
+    t.unplug(true); t.calls.length = 0; t.advance(301_000);
+    r = await agent.tick();
+    assert.equal(r.kind, "phone-unreachable");
+    assert.deepEqual(t.calls, [], "nothing launched while unreachable");
+    assert.deepEqual(labels(), was, "every slot keeps its running VM's label");
+    assert.ok(t.made.reduce((n, x) => n + x.ticks, 0) > runnerTicks, "the runners still ticked");
+    // back: the same VMs, still serving -- nothing relaunched
+    t.unplug(false); t.calls.length = 0; t.advance(30_000);
+    await agent.tick();
+    assert.deepEqual(t.calls, []);
+    // a relaunch cut short before it reached the phone (one adb call failed, then the staging): the running VM keeps its
+    // label, so the next round finds it serving and leaves it be
+    t.failOnce.add("alive 2"); t.failOnce.add("stage 2"); t.calls.length = 0; t.advance(30_000);
+    await agent.tick();
+    assert.deepEqual(labels(), was);
+    await agent.tick();
+    assert.deepEqual(t.calls, [], "the VM that never stopped is not relaunched");
 
     // D1's owner cancels: its slot is released and freed, and its pool returns
     t.rows.get(D1).active = false; t.calls.length = 0; t.advance(1000);

@@ -81,7 +81,9 @@ export function checkHostConfig(c) {
   if (!e || Object.keys(e).sort().join() !== "allowedAuthorityHashes,allowedCodeHashes,allowedRuntimeIds,instanceIds,rootPins") bad("evidence must be exactly { allowedCodeHashes, allowedAuthorityHashes, allowedRuntimeIds, rootPins, instanceIds }");
   if (e.allowedCodeHashes.length !== 1) bad("evidence.allowedCodeHashes must name exactly the build this host runs (it is the registered measurement)");
   const d = c.device;
-  if (!d || typeof d.adb !== "string" || !d.serial || !d.vmName || !Number.isInteger(d.agentPort) || !Number.isInteger(d.attachPort)) bad("device must be { adb, serial, vmName, agentPort, attachPort[, bridgeApp, bridgeEvidence] }");
+  if (!d || typeof d.adb !== "string" || !d.serial || !d.vmName || !Number.isInteger(d.agentPort) || !Number.isInteger(d.attachPort)) bad("device must be { adb, serial, vmName, agentPort, attachPort[, bridgeApp, bridgeEvidence, wifi] }");
+  if (d.wifi !== undefined && (!d.wifi || Object.keys(d.wifi).join() !== "port" || !Number.isInteger(d.wifi.port) || d.wifi.port < 1024 || d.wifi.port > 65535))
+    bad("device.wifi must be exactly { port } (adb over the phone's Wi-Fi when the cable is out)");
   if (typeof c.idleApp !== "string" || !fs.existsSync(c.idleApp)) bad("idleApp must be the idle component's file");
   const cl = c.claim || {};
   if (!Number.isInteger(cl.maxMemMb) || cl.maxMemMb < 16 || cl.maxMemMb > 1024) bad("claim.maxMemMb must be 16..1024");
@@ -368,12 +370,14 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   // ---- the host VM: the idle app, the tunnel, the host's proof key ----
   async function launchHost(why) {
     note({ ev: "host-launch", why });
-    state.host = { label: `idle-${stamp()}`, at: now() }; save();
+    const label = `idle-${stamp()}`;
     await device.ensurePorts();
     await device.stageApp(cfg.idleApp, idleSha);
     await device.stageOptions(null);
-    await device.launch({ proofPins: proofPins(ZERO32), label: state.host.label, attachSigner: `http://127.0.0.1:${cfg.device.attachPort}/attach-sign` });
-    const s = await device.waitServing(state.host.label);
+    await device.launch({ proofPins: proofPins(ZERO32), label, attachSigner: `http://127.0.0.1:${cfg.device.attachPort}/attach-sign` });
+    // the new label only once its launch has begun: a launch that never reached the phone leaves the running VM its own
+    state.host = { label, at: now() }; save();
+    const s = await device.waitServing(label);
     await device.readToken();
     note({ ev: "vm-serving", vm: "host", line: s.line.slice(0, 160) });
     hostUp = true;
@@ -503,15 +507,18 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     const v = await versionOf(a.appRef);
     if (!fs.existsSync(a.file)) Object.assign(a, await fetchComponent(a.cid, httpPortOf(v)));   // the cache was cleared: fetched again, CID-verified
     const { file, token } = await launchOptions(a.id, d, v, a.sealed || null);
-    a.egressToken = token; a.configCid = String(d.configCid || ""); a.gpuMilli = Number(d.gpuMilli); a.cpuMilli = Number(d.cpuMilli);
+    a.configCid = String(d.configCid || ""); a.gpuMilli = Number(d.gpuMilli); a.cpuMilli = Number(d.cpuMilli);
     if (a.sealed === undefined) a.needSecrets = true;
-    a.label = `s${a.slot}-${a.id.slice(2, 10)}-${stamp()}`; delete a.cert; lastCert.set(a.slot, 0);
     save();
+    const label = `s${a.slot}-${a.id.slice(2, 10)}-${stamp()}`;
     try {
       await device.ensurePorts();
       await dev.stageApp(a.file, a.sha);
       await dev.stageOptions(file);
-      await dev.launch({ proofPins: proofPins(a.id), label: a.label, sock: a.sock || 0, appMem: a.appMem, vmMib: a.vmMib, cpus: a.cpus, opts: !!file });
+      await dev.launch({ proofPins: proofPins(a.id), label, sock: a.sock || 0, appMem: a.appMem, vmMib: a.vmMib, cpus: a.cpus, opts: !!file });
+      // the new label, token and (no) certificate only once the launch has begun: a launch that never reached the phone
+      // (the cable pulled mid-round) leaves the running VM its own, so it is not taken for gone and relaunched later
+      a.label = label; a.egressToken = token; delete a.cert; lastCert.set(a.slot, 0); save();
       const s = await dev.waitServing(a.label);
       await dev.readToken();
       note({ ev: "vm-serving", vm: `slot ${a.slot}`, deployment: a.id, app: a.sha.slice(0, 16), vmMib: a.vmMib, cpus: a.cpus || "host", line: s.line.slice(0, 160) });
@@ -712,17 +719,19 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     busy = true;
     try {
       if (!addrs) await resolve();
-      await device.ensurePorts().catch((e) => note({ ev: "ports", error: e.message }));
+      // the phone, on USB or over Wi-Fi: unreachable, its VMs are not judged (they run on; a VM that cannot be asked is not
+      // a VM that ended), nothing is launched or taken, and only the runners' chain work goes on
+      const reachable = await device.ensurePorts().then(() => true, (e) => { note({ ev: "phone-unreachable", error: e.message }); return false; });
       const reg = await read(addrs.registry, REGISTRY_ABI, "get", [E]).catch(() => null);
       registered = reg && lc(reg.operator) === me && reg.active ? reg : null;
       // the host VM, carried on from what the state says (a VM that no longer serves is launched again)
-      try {
+      if (reachable) try {
         hostUp = state.host ? await device.alive(state.host.label) : false;
         if (!hostUp) await launchHost(state.host ? "the host VM ended" : "start");
         else if (!runners.has("host")) { await device.readToken(); await hostRunner(); }
       } catch (e) { note({ ev: "host-vm-failed", error: e.message }); }
       // each slot, likewise: relaunched with the same app, pins and sealed release (its key kept in its own store)
-      for (const a of apps()) {
+      for (const a of reachable ? apps() : []) {
         try {
           const up = a.label ? await slotDev(a).alive(a.label) : false;
           if (!up) { if (a.label) note({ ev: "vm-gone", slot: a.slot, label: a.label }); await launchSlot(a); await slotRunner(a); }
@@ -742,12 +751,14 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
         } catch (err) { note({ ev: "runner-tick-failed", who, error: err.shortMessage || err.message }); }
       }
       // each app's lease, secrets, options and certificate
-      for (const a of apps()) {
+      for (const a of reachable ? apps() : []) {
         const e = runners.get(a.slot);
         if (!e) continue;
         try { await slotRound(a, e.r); } catch (err) { note({ ev: "slot-round-failed", slot: a.slot, deployment: a.id, error: err.message }); }
       }
-      if (registered && hostUp && now() - lastReattach >= 15 * 60_000 && !(await attachedAsOperator())) {
+      if (!reachable) {
+        // nothing more this round
+      } else if (registered && hostUp && now() - lastReattach >= 15 * 60_000 && !(await attachedAsOperator())) {
         // the hub counts this host as its operator's only from an attach made AFTER the name was registered (the co-signer's
         // signature over that attach); one made before (first-come) is re-made by restarting the host VM (the slots run on)
         lastReattach = now();
@@ -756,7 +767,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
         lastSweep = now();
         await sweep();
       }
-      return { kind: "ok", apps: apps().map((a) => a.id), registered: !!registered, hostUp };
+      return { kind: reachable ? "ok" : "phone-unreachable", apps: apps().map((a) => a.id), registered: !!registered, hostUp };
     } finally { busy = false; }
   }
   async function slotRound(a, r) {

@@ -125,6 +125,9 @@ test("the config is strict: public values only, the owner's price, exactly one b
   assert.equal(checkHostConfig({ ...ok, egress: { port: 18189, routesFile: "/x/egress-routes.json" } }).egress.port, 18189);
   refuse({ egress: { port: 80, routesFile: "/x" } }, /egress must be exactly/);
   refuse({ egress: { port: 18189, routesFile: "relative.json" } }, /egress must be exactly/);
+  assert.equal(checkHostConfig({ ...ok, device: { ...ok.device, wifi: { port: 5555 } } }).device.wifi.port, 5555);
+  refuse({ device: { ...ok.device, wifi: { port: 22 } } }, /device.wifi must be exactly \{ port \}/);
+  refuse({ device: { ...ok.device, wifi: { port: 5555, host: "1.2.3.4" } } }, /device.wifi must be exactly \{ port \}/);
   refuse({ slots: undefined }, /slots must be exactly/);
   refuse({ slots: { ...ok.slots, count: 5 } }, /slots must be exactly/);
   refuse({ slots: { ...ok.slots, poolMemMb: 256 } }, /slots must be exactly/);
