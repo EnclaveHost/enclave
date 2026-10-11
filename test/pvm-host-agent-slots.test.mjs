@@ -42,15 +42,24 @@ function setup() {
     runner: "0x" + "00".repeat(32), runnerOperator: A("00"), leaseUntil: 0n, ...over });
   const rows = new Map([[D0, row(D0, { runner: E, runnerOperator: operator.address, leaseUntil: BigInt(sec() + 3600) })], [D1, row(D1)], [D2, row(D2)]]);
   const versions = { 1: { cid: "bafyapp0000001", memMb: 64 }, 2: { cid: "bafyapp0000002", memMb: 256 } };
-  const publicClient = { readContract: async ({ address, functionName, args }) => {
+  const publicClient = { getBlockNumber: async () => 1_000_000n,
+    // the ledger's events for the operator: two credits and one withdrawal, inside the scanned window
+    getLogs: async ({ event, fromBlock, toBlock }) => {
+      const inWin = (b) => b >= fromBlock && b <= toBlock;
+      if (event.name === "RunnerCredited") return [[999_100n, 400_000n], [999_900n, 3_100_000n]].filter(([b]) => inWin(b)).map(([b, a]) => ({ args: { amount6: a }, blockNumber: b }));
+      return [[999_500n, 2_250_000n]].filter(([b]) => inWin(b)).map(([b, a]) => ({ args: { amount6: a, to: "0x" + "0b".repeat(20) }, blockNumber: b, transactionHash: "0x" + "77".repeat(32) }));
+    },
+    readContract: async ({ address, functionName, args }) => {
     if (functionName === "all") return [Object.keys(book).map((k) => stringToHex(k, { size: 32 })), Object.values(book)];
-    if (address === book.registry && functionName === "get") return { operator: operator.address, active: true, proofKey: hostKey.address, measurement: "0x" + "51".repeat(32) };
+    if (address === book.registry && functionName === "get") return { operator: operator.address, active: true, proofKey: hostKey.address, measurement: "0x" + "51".repeat(32), registeredAt: BigInt(sec() - 3600) };
     if (functionName === "count") return BigInt(rows.size);
     if (functionName === "getPage") return [...rows.values()].slice(Number(args[0]), Number(args[0] + args[1]));
     if (address === book.deployments && functionName === "get") return rows.get(args[0]);
     if (functionName === "claimableBy") return true;
     if (functionName === "getVersion") { const v = versions[Number(args[1])]; return { version: "1.0.0", vramMb: 0, gpuGflops: 0, cpuGflops: 0, createdAt: 0n, verified: true, yanked: false, ports: "", approval: 1, config: "", ...v }; }
     if (functionName === "versionConfigCid") return "";
+    if (functionName === "earned6") return 1_250_000n;                       // $1.25 ready to pay out
+    if (functionName === "earnOf") return [2n, 0n, 0n];                       // 2 µUSDC/s per app here
     throw new Error(`unexpected read ${functionName}`);
   } };
   // the phone: VMs by slot (0 = the host VM); each slot instance keeps the host's key once installed (its encrypted store)
@@ -256,6 +265,20 @@ test("slots: the served app moves to slot 1, more apps take their own VMs, the h
     for (let i = 0; i < 3 && Object.values(agent.state().slots).filter(Boolean).length < 3; i++) { t.advance(61_000); await agent.tick(); }
     assert.equal(Object.values(agent.state().slots).filter(Boolean).length, 3);
     t.calls.length = 0;
+
+    // earnings, from the ledger: ready $1.25, paid out $2.25 (one withdrawal), $3.50 credited all-time, 3 apps x 2 µUSDC/s
+    t.advance(61_000); await agent.tick();   // (refreshed at most once a minute)
+    const ea = agent.earnings();
+    assert.deepEqual([ea.readyToPay6, ea.paidOut6, ea.earnedAllTime6, ea.ratePerHour6, ea.withdrawals.length], ["1250000", "2250000", "3500000", String(3 * 2 * 3600), 1]);
+    assert.deepEqual(ea.payout, null, "no payout address anywhere yet: earnings stay on the ledger");
+    // the owner sets a payout address in the app: the host runner is made again with it, and the view says so
+    t.setOffer({ cpuMilli: 1000, memMb: 4096, payoutTo: "0x" + "AB".repeat(20) }); t.advance(1000); await agent.tick();
+    assert.deepEqual(agent.earnings().payout, { to: "0x" + "ab".repeat(20), minWithdraw6: "1000000", source: "phone" });
+    const hostCfg = t.made.filter((x) => x.config.proof.deployment === "0x" + "00".repeat(32) && !x.closed).at(-1).config;
+    assert.deepEqual(hostCfg.lifecycle.payout, { to: "0x" + "ab".repeat(20), minWithdraw6: "1000000" }, "withdrawals go there");
+    t.setOffer({ cpuMilli: 1000, memMb: 4096, payoutTo: "0x" + "00".repeat(20) }); t.advance(1000); await agent.tick();
+    assert.equal(agent.availability().offer.source, "config-bad", "the zero address is refused");
+    t.setOffer({ cpuMilli: 1000, memMb: 4096 }); t.advance(1000); await agent.tick();
 
     // D1's owner cancels: its slot is released and freed, and its pool returns
     t.rows.get(D1).active = false; t.calls.length = 0; t.advance(1000);

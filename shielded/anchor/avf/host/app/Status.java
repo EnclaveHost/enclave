@@ -21,13 +21,15 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.Switch;
+import android.widget.EditText;
+import android.text.InputType;
 import android.content.res.ColorStateList;
 import android.widget.TextView;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 final class Status {
-    static final String AGENT = "http://127.0.0.1:18187/availability";
+    static final String AGENT = "http://127.0.0.1:18187/availability", EARNINGS = "http://127.0.0.1:18187/v1/earnings";
     // the screen speaks of apps only (Steven, 2026-10-11): how an app is kept apart is not this screen's to explain
     static final String ABOUT = "This phone runs apps for buyers. Each app is sealed off on its own: not even the phone's owner can read its memory or its keys.";
     static final int BG = 0xFF070A0F, CARD = 0xFF10161F, LINE = 0xFF1C2532, GREEN = 0xFF2FE6A8, TEXT = 0xFFE8EDF2, MUTED = 0xFF8A97A6, AMBER = 0xFFFFB454;
@@ -47,6 +49,10 @@ final class Status {
     // what is in effect (saved for the host agent) -- the sliders may differ until Apply
     private int appliedCpu = 1000, appliedMem = 4096; private boolean hosting = true, settingsKnown = false, quiet = false;
     private int lastAppCount = 0;
+    // earnings and the payout address (Earnings / Payout address sections)
+    private final TextView ready, paid, total, rate, payoutNote, payoutSave, payoutCancel;
+    private final EditText payoutField;
+    private String appliedPayout = null;   // the address in effect (saved here, else the agent's), lowercase
     // the owner's offer (files/offer.json, which the host agent reads each round): CPU per mille, VM memory in MiB
     static final int CPU_STEP = 50, MEM_STEP = 256, MEM_MIN = 256;
     private int memMax = 4096;              // the agent's ceiling (its config's pool), learned from /availability
@@ -124,6 +130,35 @@ final class Status {
         quiet = true; hostSwitch.setChecked(hosting); quiet = false;
         hostSwitch.setOnCheckedChangeListener((b, on) -> { if (!quiet) toggle(on); });
         labels(); applyState();
+        // Earnings: from the ledger, through the host agent
+        col.addView(section("Earnings"));
+        ready = row(col, "Ready to pay out"); paid = row(col, "Paid out so far"); total = row(col, "Earned in total"); rate = row(col, "Earning now");
+        // Payout address: where earnings are paid, automatically
+        col.addView(section("Payout address"));
+        payoutField = new EditText(a); payoutField.setSingleLine(true); payoutField.setTypeface(Typeface.MONOSPACE); payoutField.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        payoutField.setTextColor(TEXT); payoutField.setHintTextColor(LINE); payoutField.setHint("0x…");
+        payoutField.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+        GradientDrawable fb = new GradientDrawable(); fb.setCornerRadius(dp(10)); fb.setColor(CARD); fb.setStroke(dp(1), LINE);
+        payoutField.setBackground(fb); payoutField.setPadding(dp(12), dp(10), dp(12), dp(10));
+        col.addView(payoutField);
+        payoutSave = text("Save", 15, BG); payoutSave.setTypeface(Typeface.DEFAULT_BOLD); payoutSave.setGravity(Gravity.CENTER); payoutSave.setPadding(dp(20), dp(10), dp(20), dp(10));
+        payoutCancel = text("Cancel", 15, MUTED); payoutCancel.setTypeface(Typeface.DEFAULT_BOLD); payoutCancel.setGravity(Gravity.CENTER); payoutCancel.setPadding(dp(20), dp(10), dp(20), dp(10));
+        payoutSave.setOnClickListener(v -> confirmPayout());
+        payoutCancel.setOnClickListener(v -> { payoutField.setText(appliedPayout == null ? "" : appliedPayout); payoutState(); });
+        LinearLayout pb = new LinearLayout(a); pb.setOrientation(LinearLayout.HORIZONTAL); pb.addView(payoutSave);
+        LinearLayout.LayoutParams pcp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT); pcp.leftMargin = dp(12);
+        pb.addView(payoutCancel, pcp);
+        LinearLayout.LayoutParams pbp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT); pbp.topMargin = dp(12);
+        col.addView(pb, pbp);
+        payoutNote = text("", 12, MUTED); payoutNote.setPadding(0, dp(8), 0, 0); col.addView(payoutNote);
+        payoutField.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence c, int st2, int n, int af) { }
+            @Override public void onTextChanged(CharSequence c, int st2, int b, int n) { }
+            @Override public void afterTextChanged(android.text.Editable e) { payoutState(); }
+        });
+        if (saved != null && saved[3] != null) { appliedPayout = (String) saved[3]; payoutField.setText(appliedPayout); }
+        payoutState();
+
         footer = text("", 12, MUTED); footer.setPadding(0, dp(28), 0, 0);
         col.addView(footer);
 
@@ -135,17 +170,78 @@ final class Status {
     private void poll() {
         if (a.isFinishing() || a.isDestroyed()) return;
         new Thread(() -> {
-            JSONObject av = null; String why = null;
-            try {
-                java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(AGENT).openConnection();
-                c.setConnectTimeout(3000); c.setReadTimeout(5000);
-                try (java.io.InputStream in = c.getInputStream()) { av = new JSONObject(new String(in.readAllBytes(), "UTF-8")); }
-                finally { c.disconnect(); }
-            } catch (Exception e) { why = e.getClass().getSimpleName(); }
-            final JSONObject got = av; final String err = why;
-            ui.post(() -> render(got, err));
+            JSONObject av = null, earn = null; String why = null;
+            try { av = getJson(AGENT); } catch (Exception e) { why = e.getClass().getSimpleName(); }
+            if (av != null) { try { earn = getJson(EARNINGS); } catch (Exception ignored) { } }
+            final JSONObject got = av, gotEarn = earn; final String err = why;
+            ui.post(() -> { render(got, err); renderEarnings(gotEarn); });
         }, "enclave-status").start();
         ui.postDelayed(this::poll, 5000);
+    }
+
+    private static JSONObject getJson(String url) throws Exception {
+        java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+        c.setConnectTimeout(3000); c.setReadTimeout(5000);
+        try (java.io.InputStream in = c.getInputStream()) { return new JSONObject(new String(in.readAllBytes(), "UTF-8")); }
+        finally { c.disconnect(); }
+    }
+
+    // ---- earnings and the payout address ----
+    static String usd(long micro) {   // USDC has 6 decimals; under a cent, four places
+        return micro == 0 ? "$0.00" : micro < 10_000 ? String.format(java.util.Locale.ROOT, "$%.4f", micro / 1e6) : String.format(java.util.Locale.ROOT, "$%.2f", micro / 1e6);
+    }
+    private static long micro(JSONObject o, String k) { try { return Long.parseLong(o.optString(k, "0")); } catch (Exception e) { return 0; } }
+    private static String shortAddr(String a) { return a.length() == 42 ? a.substring(0, 6) + "…" + a.substring(38) : a; }
+    private void renderEarnings(JSONObject e) {
+        if (e == null) { for (TextView t : new TextView[] { ready, paid, total, rate }) t.setText("–"); return; }
+        ready.setText(usd(micro(e, "readyToPay6"))); paid.setText(usd(micro(e, "paidOut6"))); total.setText(usd(micro(e, "earnedAllTime6")));
+        rate.setText(usd(micro(e, "ratePerHour6")) + " an hour");
+        JSONObject p = e.optJSONObject("payout");
+        if (appliedPayout == null && p != null && !payoutField.hasFocus()) {   // nothing saved here: the agent's (its config's)
+            String to = p.optString("to", "");
+            if (to.matches("0x[0-9a-f]{40}")) { appliedPayout = to; payoutField.setText(to); }
+        }
+        long min = p == null ? 1_000_000 : micro(p, "minWithdraw6");
+        if (!dirtyPayout()) payoutNote.setText(p == null ? "No payout address yet: earnings wait on the ledger until you set one."
+                                                         : "Paid automatically to " + shortAddr(p.optString("to")) + " once " + usd(min) + " has built up.");
+    }
+    private String typedPayout() { return payoutField.getText().toString().trim().toLowerCase(java.util.Locale.ROOT); }
+    private boolean dirtyPayout() { return !typedPayout().equals(appliedPayout == null ? "" : appliedPayout); }
+    private boolean validPayout() { return typedPayout().matches("0x[0-9a-f]{40}") && !typedPayout().matches("0x0{40}"); }
+    /** Save and Cancel are live only while the field differs from the address in effect; Save only for an address. */
+    private void payoutState() {
+        boolean dirty = dirtyPayout(), ok = dirty && validPayout();
+        payoutSave.setEnabled(ok); payoutSave.setClickable(ok);
+        GradientDrawable sb = new GradientDrawable(); sb.setCornerRadius(dp(10)); sb.setColor(ok ? GREEN : LINE);
+        payoutSave.setBackground(sb); payoutSave.setTextColor(ok ? BG : MUTED);
+        payoutCancel.setEnabled(dirty); payoutCancel.setClickable(dirty);
+        GradientDrawable cb = new GradientDrawable(); cb.setCornerRadius(dp(10)); cb.setColor(BG); cb.setStroke(dp(1), dirty ? MUTED : LINE);
+        payoutCancel.setBackground(cb); payoutCancel.setTextColor(dirty ? TEXT : LINE);
+        if (dirty) payoutNote.setText(validPayout() ? "Save to pay future earnings to this address." : "Not an address yet: 0x followed by 40 characters (0-9, a-f).");
+    }
+    /** Payouts cannot be undone: the owner confirms the address first. */
+    private void confirmPayout() {
+        if (!dirtyPayout() || !validPayout()) return;
+        final String to = typedPayout();
+        new android.app.AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle("Pay earnings to this address?")
+            .setMessage(to + "\n\nPayouts can't be undone, so make sure this address is yours.")
+            .setPositiveButton("Save", (d, w) -> {
+                String was = appliedPayout; appliedPayout = to;
+                boolean ok = save(appliedCpu, appliedMem, hosting, null);
+                if (!ok) appliedPayout = was;
+                payoutState();
+                payoutNote.setText(ok ? "Saved: earnings are paid to " + shortAddr(to) + " from now on (the host agent takes it within half a minute)."
+                                      : "Not saved: the address is unchanged."); })
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+    private TextView row(LinearLayout col, String label) {
+        LinearLayout r = new LinearLayout(a); r.setOrientation(LinearLayout.HORIZONTAL); r.setPadding(0, dp(3), 0, dp(3));
+        r.addView(text(label, 14, MUTED), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        TextView v = text("–", 14, TEXT); v.setTypeface(Typeface.DEFAULT_BOLD); r.addView(v);
+        col.addView(r);
+        return v;
     }
 
     private void render(JSONObject av, String err) {
@@ -244,22 +340,27 @@ final class Status {
     private Object[] readOffer() {
         try {
             JSONObject o = new JSONObject(new String(java.nio.file.Files.readAllBytes(offerFile().toPath()), "UTF-8"));
-            return new Object[] { o.getInt("cpuMilli"), o.getInt("memMb"), o.optBoolean("hosting", true) };
+            String to = o.optString("payoutTo", "");
+            return new Object[] { o.getInt("cpuMilli"), o.getInt("memMb"), o.optBoolean("hosting", true), to.matches("0x[0-9a-fA-F]{40}") ? to.toLowerCase(java.util.Locale.ROOT) : null };
         } catch (Exception e) { return null; }
     }
     /** Saved where only this app (and the owner's adb) can write; the host agent reads it on its next round. */
-    private void save(int cpu, int mem, boolean host, String said) {
+    private boolean save(int cpu, int mem, boolean host, String said) {
+        boolean ok = false;
         try {
             JSONObject o = new JSONObject().put("v", 1).put("hosting", host).put("cpuMilli", cpu).put("memMb", mem)
                 .put("at", new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", java.util.Locale.ROOT).format(new java.util.Date()));
+            if (appliedPayout != null) o.put("payoutTo", appliedPayout);
             java.io.File t = new java.io.File(a.getFilesDir(), "offer.json.tmp");
             java.nio.file.Files.write(t.toPath(), (o.toString() + "\n").getBytes("UTF-8"));
             if (!t.renameTo(offerFile())) throw new java.io.IOException("rename");
-            appliedCpu = cpu; appliedMem = mem; hosting = host; settingsKnown = true;
-            sharingNote.setText(said);
+            appliedCpu = cpu; appliedMem = mem; hosting = host; settingsKnown = true; ok = true;
+            if (said != null) sharingNote.setText(said);
         } catch (Exception e) { sharingNote.setText("Not saved: " + e.getMessage()); quiet = true; hostSwitch.setChecked(hosting); quiet = false; }
         applyState();
+        return ok;
     }
+
 
     private View card(String title, String detail, String url) {
         LinearLayout c = new LinearLayout(a); c.setOrientation(LinearLayout.VERTICAL); c.setPadding(dp(14), dp(12), dp(14), dp(12));
