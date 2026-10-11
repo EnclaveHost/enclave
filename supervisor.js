@@ -542,7 +542,7 @@ async function registerOnChain(endpoint) {
       // an IDLE box gets no requests, so the heartbeat is its only chance to
       // notice the book repointed the registry - without this it heartbeats
       // forever into a contract the ledger no longer reads
-      if (registryRepointed()) return void registerFromShimCert().catch(() => {});
+      if (registryRepointed()) return void advertise();
       await syncRegisteredPrice(id).catch(() => {});
       await syncRegisteredProofKey(id).catch(() => {});
       await syncDeclaredPayoutWallet(id).catch(() => {});
@@ -696,18 +696,41 @@ async function registerFromShimCert() {
   const name = _certSan || (_certSan = await shimCertHostname());
   if (name) await registerOnChain("https://" + name);
 }
-// Register eagerly from the shim cert, retrying with backoff: early in boot the
-// shim may present a placeholder cert with no public SAN (ACME still running),
-// and a register tx can fail transiently. The lazy per-request path (below) also
-// kicks this, and the loop ends the moment either wins (_registered).
-async function advertiseFromShimCert() {
-  for (let delaySec = 5; REGISTRY_READY && !_registered; delaySec = Math.min(delaySec * 2, 300)) {
-    try {
-      await registerFromShimCert();
-      if (!_registered && !_certSan) console.log("[registry] shim cert has no public SAN yet — retrying");
-    } catch (e) { console.warn(`[registry] shim cert read failed (${e.message}) — retrying`); }
-    if (!_registered) await new Promise((r) => setTimeout(r, delaySec * 1000).unref());
-  }
+// The name this box registers under: its pinned PUBLIC_URL when it has one (a
+// tunnelled host such as metal0 has no shim cert to read), else the shim SAN.
+async function registerSelf() {
+  if (PUBLIC_URL) return registerOnChain(PUBLIC_URL);
+  return registerFromShimCert();
+}
+// Done = a register() went through on the registry the book points at NOW.
+// _registered alone is not enough: an attempt still in flight sets it, and that
+// attempt may yet fail and clear it again.
+function advertised() {
+  return !!_enclaveId && !registryRepointed();
+}
+// Register, retrying with backoff until one attempt goes through. Early in boot
+// the shim may present a placeholder cert with no public SAN (ACME still
+// running), and the host's network or the RPC may not be up yet. A PUBLIC_URL
+// box used to try exactly once: metal0 booted on 2026-10-10 with its USB uplink
+// missing, that one register() failed, and the box stayed off the live list —
+// and claimed nothing, since the claim loop waits on _enclaveId — until it was
+// restarted. One loop at a time; the lazy per-request path (below) also kicks
+// registerSelf, and the loop ends the moment either one gets through.
+let _advertising = false;
+async function advertise() {
+  if (_advertising) return;
+  _advertising = true;
+  try {
+    for (let delaySec = 5; REGISTRY_READY && !advertised(); delaySec = Math.min(delaySec * 2, 300)) {
+      try {
+        await registerSelf();
+        if (!_registered && !PUBLIC_URL && !_certSan) console.log("[registry] shim cert has no public SAN yet — retrying");
+      } catch (e) { console.warn(`[registry] shim cert read failed (${e.message}) — retrying`); }
+      if (advertised()) break;
+      if (!_registered && (PUBLIC_URL || _certSan)) console.warn(`[registry] not registered — retrying in ${delaySec}s`);
+      await new Promise((r) => setTimeout(r, delaySec * 1000).unref());
+    }
+  } finally { _advertising = false; }
 }
 function need(n){ const v = process.env[n]; if(!v){ console.error("FATAL: missing env", n); process.exit(1);} return v; }
 
@@ -3899,10 +3922,11 @@ function fail(res, status, code, message) { return res.status(status).json({ cod
 const originOf = (req) => PUBLIC_URL || (_certSan ? `https://${_certSan}` : `https://${req.headers["x-forwarded-host"] || req.headers.host}`);
 
 // Kick self-registration on any request in case the boot loop is mid-backoff. We
-// register ONLY our attested shim-cert SAN (registerFromShimCert), never the
-// request Host, so a spoofed Host can never make us advertise a bogus origin.
+// register ONLY our pinned PUBLIC_URL or our attested shim-cert SAN
+// (registerSelf), never the request Host, so a spoofed Host can never make us
+// advertise a bogus origin.
 app.use((req, _res, next) => {
-  if (REGISTRY_READY && !_registered) registerFromShimCert().catch(() => {});
+  if (REGISTRY_READY && !_registered) registerSelf().catch(() => {});
   next();
 });
 
@@ -10129,11 +10153,10 @@ fetchEnclaveRad().then(() => console.log(`[attest] CPU TEE detected: ${vmTech()}
 if (egress) { egress.start(); console.log(`[egress] TUNA egress on (authenticated SOCKS 127.0.0.1:${EGRESS_SOCKS_PORT})`); }
 
 // advertise this enclave on-chain (opt-in, non-blocking, never fatal)
-// If the origin is pinned (PUBLIC_URL), advertise eagerly at boot; otherwise
-// discover our public hostname from the shim's loopback TLS cert and register
-// eagerly, with the first-external-request middleware above as the fallback.
-if (PUBLIC_URL) registerOnChain(PUBLIC_URL);
-else if (REGISTRY_READY) advertiseFromShimCert();
+// Register eagerly at boot under the pinned origin (PUBLIC_URL) or, without one,
+// the public hostname in the shim's loopback TLS cert; advertise() retries until
+// it goes through, with the first-external-request middleware above as a kick.
+if (REGISTRY_READY) advertise();
 
 // pay-per-deploy: watch the forwarder for payments + fair-billing ticker (drains
 // funded time only while healthy; freezes through outages; reaps at -grace)
