@@ -19,6 +19,7 @@ import android.view.View;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -34,8 +35,13 @@ final class Status {
 
     private final Activity a;
     private final Handler ui = new Handler(Looper.getMainLooper());
-    private final TextView state, summary, room, footer;
+    private final TextView state, summary, room, footer, cpuLabel, memLabel, sharingNote;
     private final LinearLayout apps;
+    private final SeekBar cpuBar, memBar;
+    // the owner's offer (files/offer.json, which the host agent reads each round): CPU per mille, VM memory in MiB
+    static final int CPU_STEP = 50, MEM_STEP = 256, MEM_MIN = 256;
+    private int memMax = 4096;              // the agent's ceiling (its config's pool), learned from /availability
+    private boolean offerShown = false;     // the sliders take the offer once, then only the owner moves them
 
     static void show(Activity a) { new Status(a).poll(); }
 
@@ -63,6 +69,27 @@ final class Status {
         col.addView(section("Room left"));
         room = text("–", 14, TEXT);
         col.addView(room);
+
+        // Sharing: how much of this phone the owner offers to host apps
+        col.addView(section("Sharing"));
+        cpuLabel = text("CPU", 14, TEXT); col.addView(cpuLabel);
+        cpuBar = new SeekBar(a); cpuBar.setMax(1000 / CPU_STEP - 1); col.addView(cpuBar);
+        memLabel = text("Memory", 14, TEXT); memLabel.setPadding(0, dp(10), 0, 0); col.addView(memLabel);
+        memBar = new SeekBar(a); col.addView(memBar);
+        TextView gpu = text("GPU  ·  not shared: a protected VM on this phone cannot use its GPU, so apps here run on the CPU.", 14, MUTED);
+        gpu.setPadding(0, dp(10), 0, 0); col.addView(gpu);
+        sharingNote = text("New apps are taken only within what you share; apps already running keep theirs.", 12, MUTED);
+        sharingNote.setPadding(0, dp(8), 0, 0); col.addView(sharingNote);
+        SeekBar.OnSeekBarChangeListener l = new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar b, int p, boolean user) { labels(); }
+            @Override public void onStartTrackingTouch(SeekBar b) { }
+            @Override public void onStopTrackingTouch(SeekBar b) { saveOffer(); }
+        };
+        cpuBar.setOnSeekBarChangeListener(l); memBar.setOnSeekBarChangeListener(l);
+        setMemMax(memMax);
+        int[] saved = readOffer();   // until the agent answers: what this phone last saved, else all of it
+        cpuBar.setProgress(cpuToBar(saved != null ? saved[0] : 1000)); memBar.setProgress(memToBar(saved != null ? saved[1] : memMax));
+        labels();
         footer = text("", 12, MUTED); footer.setPadding(0, dp(28), 0, 0);
         col.addView(footer);
 
@@ -111,6 +138,12 @@ final class Status {
                          + (cpu / 10) + "% of the CPU  ·  slot " + app.optInt("slot", 0);
             apps.addView(card(host, line2, "https://" + host + "/"));
         }
+        if (av.has("poolMemMbMax")) setMemMax(av.optInt("poolMemMbMax", memMax));
+        JSONObject off = av.optJSONObject("offer");
+        if (off != null && !offerShown && !cpuBar.isPressed() && !memBar.isPressed()) {
+            offerShown = true;
+            cpuBar.setProgress(cpuToBar(off.optInt("cpuMilli", 1000))); memBar.setProgress(memToBar(off.optInt("memMb", memMax))); labels();
+        }
         int slotsFree = av.optInt("nodeSlotsFree", 0);
         double cpuFree = av.optDouble("cpuShareFree", 0), gbFree = av.optDouble("ramGbFree", 0);
         // how many more apps fit is the shares' (the agent counts the smallest VM against the memory and CPU left)
@@ -119,6 +152,35 @@ final class Status {
         long price6 = av.optLong("askCpuPricePerSec6", 0);
         footer.setText(av.optString("name", "") + (price6 > 0 ? "  ·  $" + String.format(java.util.Locale.ROOT, "%.4f", price6 * 3600 / 1e6) + " an hour for the whole phone" : "")
                        + "\nUpdated " + now);
+    }
+
+    // ---- the offer: the sliders, and the file the host agent reads ----
+    private int cpuToBar(int milli) { return Math.max(0, Math.min(cpuBar.getMax(), Math.round(milli / (float) CPU_STEP) - 1)); }
+    private int barCpu() { return (cpuBar.getProgress() + 1) * CPU_STEP; }
+    private int memToBar(int mb) { return Math.max(0, Math.min(memBar.getMax(), Math.round((mb - MEM_MIN) / (float) MEM_STEP))); }
+    private int barMem() { return Math.min(memMax, MEM_MIN + memBar.getProgress() * MEM_STEP); }
+    private void setMemMax(int max) { memMax = Math.max(MEM_MIN, max); memBar.setMax(Math.max(1, (memMax - MEM_MIN + MEM_STEP - 1) / MEM_STEP)); }
+    private void labels() {
+        cpuLabel.setText("CPU  ·  " + barCpu() / 10 + "% of this phone");
+        memLabel.setText("Memory  ·  " + String.format(java.util.Locale.ROOT, "%.2f GB", barMem() / 1024.0) + " for apps' VMs");
+    }
+    private java.io.File offerFile() { return new java.io.File(a.getFilesDir(), "offer.json"); }
+    private int[] readOffer() {
+        try {
+            JSONObject o = new JSONObject(new String(java.nio.file.Files.readAllBytes(offerFile().toPath()), "UTF-8"));
+            return new int[] { o.getInt("cpuMilli"), o.getInt("memMb") };
+        } catch (Exception e) { return null; }
+    }
+    /** Saved where only this app (and the owner's adb) can write; the host agent reads it on its next round. */
+    private void saveOffer() {
+        try {
+            JSONObject o = new JSONObject().put("v", 1).put("cpuMilli", barCpu()).put("memMb", barMem())
+                .put("at", new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", java.util.Locale.ROOT).format(new java.util.Date()));
+            java.io.File t = new java.io.File(a.getFilesDir(), "offer.json.tmp");
+            java.nio.file.Files.write(t.toPath(), (o.toString() + "\n").getBytes("UTF-8"));
+            if (!t.renameTo(offerFile())) throw new java.io.IOException("rename");
+            sharingNote.setText("Saved: the host agent applies it within half a minute. Apps already running keep their share.");
+        } catch (Exception e) { sharingNote.setText("Not saved: " + e.getMessage()); }
     }
 
     private View card(String title, String detail, String url) {

@@ -146,12 +146,15 @@ test("slots by share: a VM per app sized to it, taken only while the phone's poo
   assert.deepEqual(slotFor(S, [], { cpuMilli: 250, appMemMb: 256 }), { slot: 1, vmMib: 384, cpus: 0 }, "more: as many vCPUs as the host");
   const held = [{ slot: 1, vmMib: 384, cpuMilli: 250 }, { slot: 3, vmMib: 640, cpuMilli: 500 }];
   assert.deepEqual(slotFor(S, held, { cpuMilli: 250, appMemMb: 256 }), { slot: 2, vmMib: 384, cpus: 0 }, "the free slot, with what is left");
-  assert.match(slotFor(S, held, { cpuMilli: 250, appMemMb: 512 }).why, /needs 640 MiB and 512 MiB of the phone's pool is free/);
-  assert.match(slotFor(S, held, { cpuMilli: 300, appMemMb: 64 }).why, /asks cpuMilli 300 and 250 of the phone's CPU share is free/);
+  assert.match(slotFor(S, held, { cpuMilli: 250, appMemMb: 512 }).why, /needs 640 MiB and 512 MiB of the memory offered is free/);
+  assert.match(slotFor(S, held, { cpuMilli: 300, appMemMb: 64 }).why, /asks cpuMilli 300 and 250 of the CPU share offered is free/);
   assert.match(slotFor(S, [...held, { slot: 2, vmMib: 384, cpuMilli: 0 }], { cpuMilli: 1, appMemMb: 64 }).why, /all 3 of its slots are in use/);
   // a resize is judged without the app's own holding, in its own slot
   assert.deepEqual(slotFor(S, held, { cpuMilli: 750, appMemMb: 512 }, 3), { slot: 3, vmMib: 640, cpus: 0 });
   assert.match(slotFor(S, held, { cpuMilli: 800, appMemMb: 512 }, 3).why, /asks cpuMilli 800 and 750/);
+  // the owner's offer bounds it: half the CPU, 1 GB of VM memory
+  assert.match(slotFor({ count: 3, poolMemMb: 1024, cpuMilli: 500 }, [], { cpuMilli: 600, appMemMb: 64 }).why, /asks cpuMilli 600 and 500 of the CPU share offered is free/);
+  assert.match(slotFor({ count: 3, poolMemMb: 1024, cpuMilli: 500 }, held, { cpuMilli: 10, appMemMb: 64 }).why, /needs 192 MiB and 0 MiB of the memory offered is free/);
 });
 
 test("the sibling statement recovers to the key that signed it, for exactly its nonce, VM and deployment", async () => {

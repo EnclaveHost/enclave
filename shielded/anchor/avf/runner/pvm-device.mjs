@@ -250,7 +250,12 @@ export function createPvmDevice({ adb, serial, pkg = RELEASE_PACKAGE, vmName, re
     if (!handles.has(k)) handles.set(k, vm(k));
     return handles.get(k);
   };
-  return { ...host, ensurePorts, selectTransport, installedApkSha, sh, serial, name, slots, slot: slotOf, transport: () => ({ via, target }),
+  /** The owner's Sharing settings as the Enclave app saved them (files/offer.json), or null when it has none. */
+  async function readOffer() {
+    const t = await sh(`run-as ${pkg} sh -c 'cat files/offer.json 2>/dev/null || true'`);
+    return t.trim() ? t.slice(0, 4096) : null;
+  }
+  return { ...host, ensurePorts, selectTransport, installedApkSha, sh, serial, name, slots, slot: slotOf, transport: () => ({ via, target }), readOffer,
            useSlots: (fn) => { inUse = fn; } };
 }
 
