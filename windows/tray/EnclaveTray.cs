@@ -100,6 +100,35 @@ namespace Enclave.Tray
         }
     }
 
+    /// <summary>GET /v1/local/hosting/earnings (windows/node/payout.mjs): USDC the ledger holds for this box, and where it goes.</summary>
+    sealed class EarningsView
+    {
+        public bool Readable, Paying;
+        public double Earned, PaidOut, MinPayout;            // USDC
+        public string EnclaveId = "", Operator = "", Confirmed = "", Declared = "", PayTo = "", Why = "", LastError = "", LastTx = "";
+
+        public static EarningsView From(Dictionary<string, object> o)
+        {
+            var e = new EarningsView();
+            object v;
+            e.Readable = o.TryGetValue("readable", out v) && v is bool && (bool)v;
+            e.Paying = o.TryGetValue("paying", out v) && v is bool && (bool)v;
+            e.Earned = Usdc(HostingView.Str(o, "earned6")); e.PaidOut = Usdc(HostingView.Str(o, "paidOut6")); e.MinPayout = Usdc(HostingView.Str(o, "minPayout6"));
+            e.EnclaveId = HostingView.Str(o, "enclaveId"); e.Operator = HostingView.Str(o, "operator"); e.Confirmed = HostingView.Str(o, "confirmed"); e.Declared = HostingView.Str(o, "declared");
+            e.PayTo = HostingView.Str(o, "payTo"); e.Why = HostingView.Str(o, "why"); e.LastError = HostingView.Str(o, "lastError");
+            if (o.TryGetValue("history", out v) && v is object[] && ((object[])v).Length > 0)
+                e.LastTx = HostingView.Str(((object[])v)[0] as Dictionary<string, object>, "tx");
+            return e;
+        }
+        // the node sends 6-decimal integers as strings, so nothing is lost on the way
+        static double Usdc(string six)
+        {
+            decimal d; return decimal.TryParse(six, NumberStyles.Integer, CultureInfo.InvariantCulture, out d) ? (double)(d / 1000000m) : 0;
+        }
+        public static string Usd(double v) { return "$" + v.ToString("0.00", CultureInfo.InvariantCulture); }
+        public static string Short(string a) { return a.Length > 14 ? a.Substring(0, 8) + "\u2026" + a.Substring(a.Length - 4) : a; }
+    }
+
     sealed class NodeException : Exception { public NodeException(string m) : base(m) { } }
 
     /// <summary>A deployment the node says the new caps leave no room for (its 409 would_drop).</summary>
@@ -122,7 +151,15 @@ namespace Enclave.Tray
         readonly TrayConfig cfg;
         public NodeClient(TrayConfig c) { cfg = c; }
 
-        public HostingView Get() { return HostingView.From(Send("GET", null)); }
+        const string Hosting = "/v1/local/hosting";
+        public HostingView Get() { return HostingView.From(Send("GET", Hosting, null)); }
+        public EarningsView GetEarnings() { return EarningsView.From(Send("GET", Hosting + "/earnings", null)); }
+        /// <summary>Confirm the wallet that declared itself on chain for this box (the node refuses any other).</summary>
+        public EarningsView ConfirmPayoutWallet(string address)
+        {
+            return EarningsView.From(Send("PUT", Hosting + "/payout-wallet", "{\"address\":\"" + address + "\"}"));
+        }
+        public void PayoutNow() { Send("POST", Hosting + "/payout", null); }
 
         /// <summary>Set both caps. `drop` confirms the node's own list of what they drop (null: confirm nothing, so caps
         /// that would drop anything come back as a WouldDropException and change nothing).</summary>
@@ -135,13 +172,13 @@ namespace Enclave.Tray
                 for (int i = 0; i < drop.Count; i++) ack.Append(i > 0 ? "," : "").Append('"').Append(drop[i]).Append('"');
                 ack.Append(']');
             }
-            return HostingView.From(Send("PUT", string.Format(CultureInfo.InvariantCulture,
+            return HostingView.From(Send("PUT", Hosting, string.Format(CultureInfo.InvariantCulture,
                 "{{\"cpuShare\":{0:0.00},\"gpuShare\":{1:0.00}{2}}}", cpuShare, gpuShare, ack)));
         }
 
         public HostingView SetPaused(bool paused)
         {
-            return HostingView.From(Send("PUT", paused ? "{\"paused\":true}" : "{\"paused\":false}"));
+            return HostingView.From(Send("PUT", Hosting, paused ? "{\"paused\":true}" : "{\"paused\":false}"));
         }
 
         string ReadToken()
@@ -162,10 +199,10 @@ namespace Enclave.Tray
             catch (IOException e) { throw new NodeException("the token file " + cfg.TokenFile + " could not be read: " + e.Message); }
         }
 
-        Dictionary<string, object> Send(string method, string body)
+        Dictionary<string, object> Send(string method, string route, string body)
         {
             string token = ReadToken();
-            var req = (HttpWebRequest)WebRequest.Create("http://127.0.0.1:" + cfg.Port.ToString(CultureInfo.InvariantCulture) + "/v1/local/hosting");
+            var req = (HttpWebRequest)WebRequest.Create("http://127.0.0.1:" + cfg.Port.ToString(CultureInfo.InvariantCulture) + route);
             req.Method = method;
             req.Proxy = null;
             req.Timeout = 5000; req.ReadWriteTimeout = 5000;
@@ -180,6 +217,7 @@ namespace Enclave.Tray
                     req.ContentLength = bytes.Length;
                     using (var s = req.GetRequestStream()) s.Write(bytes, 0, bytes.Length);
                 }
+                if (body == null && method != "GET") req.ContentLength = 0;
                 using (var resp = (HttpWebResponse)req.GetResponse()) return Parse(ReadAll(resp));
             }
             catch (WebException e)
@@ -584,12 +622,12 @@ namespace Enclave.Tray
     }
 
     /// <summary>
-    /// The warning before an Apply drops running work: what the node said it would drop, newest first, and what dropping
-    /// means. Cancel is the default; nothing is sent unless the owner presses the red button.
+    /// A question in the theme that matters: what is about to happen, the exact things it happens to, and a red (or jade)
+    /// button that does it. Cancel is the default; nothing happens unless the owner presses the other one.
     /// </summary>
-    sealed class DropDialog : Form
+    sealed class AskDialog : Form
     {
-        public DropDialog(List<DropUnit> units, double cpu, double gpu)
+        public AskDialog(string heading, Color headingInk, string body, string detail, string okText, Color okFill)
         {
             Text = "Enclave hosting";
             FormBorderStyle = FormBorderStyle.FixedToolWindow; ShowInTaskbar = false; TopMost = true;
@@ -599,14 +637,31 @@ namespace Enclave.Tray
             int wide = Theme.Px(380);
             var flow = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true,
                                              AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(Theme.Px(16)), BackColor = Theme.Bg };
-            flow.Controls.Add(new Label { Text = "Drop running work?", AutoSize = true, Font = Theme.Mono(11f, FontStyle.Bold), ForeColor = Theme.Amber,
+            flow.Controls.Add(new Label { Text = heading, AutoSize = true, Font = Theme.Mono(11f, FontStyle.Bold), ForeColor = headingInk,
                                           Margin = new Padding(3, 0, 3, Theme.Px(8)) });
+            flow.Controls.Add(new Label { AutoSize = true, MaximumSize = new Size(wide, 0), ForeColor = Theme.Text, Text = body });
+            if (!string.IsNullOrEmpty(detail))
+                flow.Controls.Add(new Label { Text = detail, AutoSize = true, MaximumSize = new Size(wide, 0),
+                                              Font = Theme.Mono(8.5f, FontStyle.Regular), ForeColor = Theme.Muted, Margin = new Padding(3, Theme.Px(10), 3, 0) });
+            var cancel = new ThemeButton("Cancel", false);
+            var ok = new ThemeButton(okText, true, okFill); ok.FitText();
+            cancel.Click += delegate { DialogResult = DialogResult.Cancel; };
+            ok.Click += delegate { DialogResult = DialogResult.OK; };
+            var buttons = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, WrapContents = false, AutoSize = true,
+                                                AutoSizeMode = AutoSizeMode.GrowAndShrink, BackColor = Theme.Bg,
+                                                MinimumSize = new Size(wide, 0), Margin = new Padding(3, Theme.Px(16), 3, 0) };
+            buttons.Controls.Add(ok); buttons.Controls.Add(cancel);
+            flow.Controls.Add(buttons);
+            Controls.Add(flow);
+            KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) DialogResult = DialogResult.Cancel; };
+            Shown += delegate { cancel.Focus(); };
+        }
+        protected override void OnHandleCreated(EventArgs e) { base.OnHandleCreated(e); Theme.DarkFrame(Handle); }
+
+        /// <summary>The warning before an Apply drops running work: what the node said it would drop, newest first.</summary>
+        public static AskDialog ForDrop(List<DropUnit> units, double cpu, double gpu)
+        {
             string n = units.Count == 1 ? "1 deployment" : units.Count + " deployments";
-            flow.Controls.Add(new Label { AutoSize = true, MaximumSize = new Size(wide, 0), ForeColor = Theme.Text,
-                Text = "Applying CPU " + ControlPanel.Pct(cpu) + " \u00B7 GPU " + ControlPanel.Pct(gpu) + " leaves no room for " + n
-                     + " running on this box. " + (units.Count == 1 ? "It is" : "They are") + " stopped now and "
-                     + (units.Count == 1 ? "its lease is" : "their leases are") + " handed back to the network, so another host can take "
-                     + (units.Count == 1 ? "it" : "them") + " (newest first):" });
             var list = new StringBuilder();
             foreach (var u in units)
             {
@@ -615,27 +670,35 @@ namespace Enclave.Tray
                 if (u.GpuShare > 0) list.Append(", ").Append(ControlPanel.Pct(u.GpuShare)).Append(" GPU");
                 list.AppendLine();
             }
-            flow.Controls.Add(new Label { Text = list.ToString().TrimEnd(), AutoSize = true, MaximumSize = new Size(wide, 0),
-                                          Font = Theme.Mono(8.5f, FontStyle.Regular), ForeColor = Theme.Muted, Margin = new Padding(3, Theme.Px(10), 3, 0) });
-            var cancel = new ThemeButton("Cancel", false);
-            var drop = new ThemeButton("Drop " + units.Count + " and apply", true, Theme.Danger); drop.FitText();
-            cancel.Click += delegate { DialogResult = DialogResult.Cancel; };
-            drop.Click += delegate { DialogResult = DialogResult.OK; };
-            var buttons = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, WrapContents = false, AutoSize = true,
-                                                AutoSizeMode = AutoSizeMode.GrowAndShrink, BackColor = Theme.Bg,
-                                                MinimumSize = new Size(wide, 0), Margin = new Padding(3, Theme.Px(16), 3, 0) };
-            buttons.Controls.Add(drop); buttons.Controls.Add(cancel);
-            flow.Controls.Add(buttons);
-            Controls.Add(flow);
-            KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) DialogResult = DialogResult.Cancel; };
-            Shown += delegate { cancel.Focus(); };
+            return new AskDialog("Drop running work?", Theme.Amber,
+                "Applying CPU " + ControlPanel.Pct(cpu) + " \u00B7 GPU " + ControlPanel.Pct(gpu) + " leaves no room for " + n
+                + " running on this box. " + (units.Count == 1 ? "It is" : "They are") + " stopped now and "
+                + (units.Count == 1 ? "its lease is" : "their leases are") + " handed back to the network, so another host can take "
+                + (units.Count == 1 ? "it" : "them") + " (newest first):",
+                list.ToString().TrimEnd(), "Drop " + units.Count + " and apply", Theme.Danger);
         }
-        protected override void OnHandleCreated(EventArgs e) { base.OnHandleCreated(e); Theme.DarkFrame(Handle); }
+
+        /// <summary>The owner names the wallet the box pays: in full, with why only their own wallet belongs here.</summary>
+        public static AskDialog ForPayoutWallet(string address)
+        {
+            return new AskDialog("Pay this box's earnings here?", Theme.Jade,
+                "This wallet declared itself on Base as the payout wallet for this box. Confirm it only if it is yours: anyone can "
+                + "declare a wallet for any box, which is why the box asks you as well. From now on this box's USDC earnings are "
+                + "paid to it automatically.",
+                address, "Confirm wallet", Theme.Jade);
+        }
+
         static string Short(string s, int head, int tail)
         {
             if (s == null) return "";
             return s.Length <= head + tail + 1 ? s : s.Substring(0, head) + "\u2026" + (tail > 0 ? s.Substring(s.Length - tail) : "");
         }
+    }
+
+    sealed class WalletEventArgs : EventArgs
+    {
+        public readonly string Address;
+        public WalletEventArgs(string address) { Address = address; }
     }
 
     sealed class PauseEventArgs : EventArgs
@@ -652,6 +715,12 @@ namespace Enclave.Tray
         readonly HostingSwitch hosting = new HostingSwitch();
         readonly Label hostingLine = Line(), unsaved = Line();
         readonly ThemeButton apply = new ThemeButton("Apply", true), reset = new ThemeButton("Reset", false);
+        readonly Label earnLine = Line(), earnNote = Note();
+        readonly ThemeButton walletButton = new ThemeButton("Payout wallet\u2026", false), confirmButton = new ThemeButton("Confirm wallet", true),
+                             payNow = new ThemeButton("Pay out now", false);
+        public event EventHandler PayoutPageRequested, PayoutNowRequested;
+        public event EventHandler<WalletEventArgs> ConfirmWalletRequested;
+        EarningsView earnings;
         public event EventHandler ApplyRequested;
         public event EventHandler<PauseEventArgs> PauseRequested;
         bool dragging, setting, applying, switching;
@@ -695,6 +764,23 @@ namespace Enclave.Tray
             buttons.Controls.Add(unsaved, 0, 0); buttons.Controls.Add(reset, 1, 0); buttons.Controls.Add(apply, 2, 0);
             buttons.MinimumSize = new Size(Wide, 0);
             flow.Controls.Add(buttons);
+            flow.Controls.Add(Rule());
+            flow.Controls.Add(Title("Earnings (USDC)"));
+            flow.Controls.Add(earnLine); flow.Controls.Add(earnNote);
+            var earnRow = Row(FlowDirection.LeftToRight);
+            earnRow.Margin = new Padding(0, Theme.Px(8), 0, 0);
+            walletButton.FitText(); confirmButton.FitText(); payNow.FitText();
+            walletButton.Margin = confirmButton.Margin = payNow.Margin = new Padding(3, 0, Theme.Px(6), 0);
+            earnRow.Controls.Add(walletButton); earnRow.Controls.Add(confirmButton); earnRow.Controls.Add(payNow);
+            flow.Controls.Add(earnRow);
+            walletButton.Click += delegate { if (PayoutPageRequested != null) PayoutPageRequested(this, EventArgs.Empty); };
+            payNow.Click += delegate { if (PayoutNowRequested != null) PayoutNowRequested(this, EventArgs.Empty); };
+            confirmButton.Click += delegate
+            {
+                if (earnings != null && earnings.Declared.Length > 0 && ConfirmWalletRequested != null)
+                    ConfirmWalletRequested(this, new WalletEventArgs(earnings.Declared));
+            };
+            ShowEarnings(null, "not asked yet");
             flow.Controls.Add(Rule());
             flow.Controls.Add(status); flow.Controls.Add(error);
             status.ForeColor = Theme.Muted; status.Font = Theme.Mono(8.25f, FontStyle.Regular);
@@ -777,6 +863,42 @@ namespace Enclave.Tray
         }
 
         public void ShowError(string message) { error.ForeColor = Theme.Danger; error.Text = message; }
+
+        /// <summary>What the box has earned and where it goes; null with the reason when the node cannot say.</summary>
+        public void ShowEarnings(EarningsView e, string unavailable)
+        {
+            earnings = e;
+            if (e == null || !e.Readable)
+            {
+                earnLine.Text = "earned \u2013 \u00B7 paid out " + (e != null ? EarningsView.Usd(e.PaidOut) : "\u2013");
+                earnNote.ForeColor = Theme.Dim;
+                earnNote.Text = e != null ? e.Why : unavailable;
+                walletButton.Enabled = e != null && e.EnclaveId.Length > 0;
+                confirmButton.Visible = false; payNow.Visible = true; payNow.Enabled = false;
+                return;
+            }
+            earnLine.Text = "earned " + EarningsView.Usd(e.Earned) + " not yet paid \u00B7 paid out " + EarningsView.Usd(e.PaidOut);
+            bool waiting = e.Declared.Length > 0 && !string.Equals(e.Declared, e.Confirmed, StringComparison.OrdinalIgnoreCase);
+            if (e.PayTo.Length > 0)
+            {
+                earnNote.ForeColor = Theme.Dim;
+                earnNote.Text = "Credited every second to this box's operator key " + EarningsView.Short(e.Operator) + ", then paid to your wallet "
+                              + EarningsView.Short(e.PayTo) + " automatically from " + EarningsView.Usd(e.MinPayout) + "."
+                              + (e.LastError.Length > 0 ? " Last try failed: " + e.LastError : "");
+            }
+            else
+            {
+                earnNote.ForeColor = waiting || e.Confirmed.Length > 0 ? Theme.Amber : Theme.Dim;
+                earnNote.Text = (e.Why.Length > 0 ? Cap(e.Why) + "." : "") + (e.Confirmed.Length == 0 && e.Declared.Length == 0
+                              ? " Earnings are credited every second to this box's operator key " + EarningsView.Short(e.Operator)
+                                + " and wait in the ledger until you set your own wallet with Payout wallet." : "");
+            }
+            walletButton.Enabled = e.EnclaveId.Length > 0;
+            // the full address is in the dialog the button opens; the row stays as wide as the panel
+            confirmButton.Visible = waiting; payNow.Visible = !waiting;
+            payNow.Enabled = e.PayTo.Length > 0 && e.Earned > 0 && !e.Paying;
+        }
+        static string Cap(string s) { return s.Length > 0 ? char.ToUpperInvariant(s[0]) + s.Substring(1) : s; }
         public void ShowNotice(string message) { error.ForeColor = Theme.Amber; error.Text = message; }
 
         void Relabel()
@@ -840,7 +962,10 @@ namespace Enclave.Tray
         readonly Icon iconOk = Glyph(Theme.Jade), iconWarn = Glyph(Theme.Amber), iconDown = Glyph(Theme.Dim);
         readonly ToolStripMenuItem pauseItem;
         HostingView last;
-        bool refreshing, applying, switching;
+        EarningsView lastEarnings;
+        bool refreshing, applying, switching, earningsBusy;
+        readonly System.Windows.Forms.Timer earningsPoll = new System.Windows.Forms.Timer();
+        const string PayoutPage = "https://enclave.host/payout";
         static readonly string Home = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Enclave", "Tray");
 
         public TrayApp(TrayConfig cfg, string configError)
@@ -867,8 +992,10 @@ namespace Enclave.Tray
             icon.MouseClick += (s, e) => { if (e.Button == MouseButtons.Left) ShowPanel(); };
             icon.Visible = true;
             poll.Interval = 10000; poll.Tick += delegate { Refresh(); }; poll.Start();
+            earningsPoll.Interval = 60000; earningsPoll.Tick += delegate { RefreshEarnings(); }; earningsPoll.Start();
             Log("started; node 127.0.0.1:" + cfg.Port + ", token " + cfg.TokenFile + (configError != null ? "; " + configError : ""));
             Refresh();
+            RefreshEarnings();
         }
 
         /// <summary>The panel, rebuilt if anything ever closed it (an aborted shutdown does), showing what the node last said.</summary>
@@ -886,6 +1013,10 @@ namespace Enclave.Tray
             var p = new ControlPanel();
             p.ApplyRequested += delegate { Apply(); };
             p.PauseRequested += (s, e) => SetPaused(e.Paused);
+            p.PayoutPageRequested += delegate { OpenPayoutPage(); };
+            p.PayoutNowRequested += delegate { PayoutNow(); };
+            p.ConfirmWalletRequested += (s, e) => ConfirmWallet(e.Address);
+            if (lastEarnings != null) p.ShowEarnings(lastEarnings, null);
             p.FormClosed += (s, e) => Log("panel closed (" + e.CloseReason + ")");
             if (last != null) p.ShowView(last, true);
             if (configError != null) p.ShowError(configError);
@@ -900,6 +1031,7 @@ namespace Enclave.Tray
             p.Location = new Point(area.Right - p.Width - 12, area.Bottom - p.Height - 12);
             p.Activate();
             Refresh();
+            RefreshEarnings();
         }
 
         void Refresh()
@@ -931,7 +1063,7 @@ namespace Enclave.Tray
                 if (would != null && would.Units.Count > 0)
                 {
                     bool yes;
-                    using (var ask = new DropDialog(would.Units, cpu, gpu)) yes = ask.ShowDialog(Panel) == DialogResult.OK;
+                    using (var ask = AskDialog.ForDrop(would.Units, cpu, gpu)) yes = ask.ShowDialog(Panel) == DialogResult.OK;
                     if (yes)
                     {
                         var ids = new List<string>();
@@ -960,6 +1092,66 @@ namespace Enclave.Tray
                     Panel.ShowNotice("Dropped " + (v.Dropped == 1 ? "1 deployment" : v.Dropped + " deployments")
                                      + ": " + (v.Dropped == 1 ? "its lease goes" : "their leases go") + " back to the network.");
                 else Panel.ShowError("");
+            });
+        }
+
+        // ---- earnings (windows/node/payout.mjs) ------------------------------------------------------------------------
+        void RefreshEarnings()
+        {
+            if (earningsBusy) return;
+            earningsBusy = true;
+            OnWorkerE(() => client.GetEarnings(), (e, err) =>
+            {
+                earningsBusy = false;
+                lastEarnings = err == null ? e : null;
+                Panel.ShowEarnings(lastEarnings, err == null ? null : (err is NodeException ? err.Message : err.GetType().Name + ": " + err.Message));
+            });
+        }
+
+        /// <summary>The site's payout page for this box: the owner's wallet declares itself there (WalletConnect or an extension).</summary>
+        void OpenPayoutPage()
+        {
+            if (lastEarnings == null || lastEarnings.EnclaveId.Length == 0) return;
+            string url = PayoutPage + "?id=" + Uri.EscapeDataString(lastEarnings.EnclaveId);
+            try { Process.Start(url); Log("opened the payout page for " + lastEarnings.EnclaveId); }
+            catch (Exception e) { Panel.ShowError("Could not open " + url + ": " + e.Message); }
+        }
+
+        /// <summary>Only after the owner has read the full address and pressed Confirm; the node checks it against the chain again.</summary>
+        void ConfirmWallet(string address)
+        {
+            bool yes;
+            using (var ask = AskDialog.ForPayoutWallet(address)) yes = ask.ShowDialog(Panel) == DialogResult.OK;
+            if (!yes) return;
+            OnWorkerE(() => client.ConfirmPayoutWallet(address), (e, err) =>
+            {
+                if (err != null) { Log("confirm payout wallet " + address + " FAILED: " + err.Message); Panel.ShowError("Not confirmed: " + err.Message); return; }
+                Log("payout wallet confirmed: " + address);
+                lastEarnings = e; Panel.ShowEarnings(e, null);
+                Panel.ShowNotice("Earnings now go to " + EarningsView.Short(address) + ".");
+            });
+        }
+
+        void PayoutNow()
+        {
+            OnWorkerE(() => { client.PayoutNow(); return client.GetEarnings(); }, (e, err) =>
+            {
+                if (err != null) { Panel.ShowError("Not paid out: " + err.Message); RefreshEarnings(); return; }
+                Log("paid out on request");
+                lastEarnings = e; Panel.ShowEarnings(e, null);
+                Panel.ShowNotice("Paid out" + (e.LastTx.Length > 0 ? " (tx " + EarningsView.Short(e.LastTx) + ")" : "") + ".");
+            });
+        }
+
+        /// <summary>OnWorker for the earnings calls.</summary>
+        void OnWorkerE(Func<EarningsView> work, Action<EarningsView, Exception> done)
+        {
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                EarningsView r = null; Exception err = null;
+                try { r = work(); } catch (Exception e) { err = e; }
+                try { ui.Post(delegate { done(r, err); }, null); }
+                catch (InvalidOperationException) { }
             });
         }
 

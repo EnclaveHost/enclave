@@ -106,6 +106,29 @@ export function capsUpdate(current, body) {
   return next;
 }
 
+/**
+ * The earnings routes (payout.mjs), behind the same peer and token checks:
+ *   GET  /v1/local/hosting/earnings       what the ledger holds for this box, the payout wallet, and what was paid out
+ *   PUT  /v1/local/hosting/payout-wallet  {address}: confirm the wallet that declared itself on chain; {address: null} clears
+ *   POST /v1/local/hosting/payout         pay out now (any amount), to the confirmed wallet the chain still names
+ */
+const PAYOUT_ROUTES = new Set(["earnings", "payout-wallet", "payout"]);
+async function payoutRoute(route, req, json, payouts) {
+  if (!payouts) return json(503, { error: "unavailable", message: "earnings are not available on this node (no operator key or ledger)" });
+  const want = { earnings: "GET", "payout-wallet": "PUT", payout: "POST" }[route];
+  if (req.method !== want) return json(405, { error: "method_not_allowed" }, { allow: want });
+  if (route === "earnings") return json(200, await payouts.status());
+  if (route === "payout") { const r = await payouts.payout({ now: true }); return json(r.paid ? 200 : 409, r.paid ? r : { ...r, error: "not_paid", message: r.why }); }
+  const raw = await readBody(req);
+  if (raw === null) return json(413, { error: "too_large" }, { connection: "close" });
+  let body;
+  try { body = JSON.parse(raw.toString("utf8")); } catch { return json(400, { error: "bad_request", message: "the body is not JSON" }); }
+  if (!body || typeof body !== "object" || Array.isArray(body) || !("address" in body) || Object.keys(body).length !== 1)
+    return json(400, { error: "bad_request", message: "the body must be {\"address\": \"0x...\"} or {\"address\": null}" });
+  try { return json(200, await payouts.confirm(body.address)); }
+  catch (e) { return json(e.status || 502, { error: e.code || (e.status ? "bad_request" : "chain_unreadable"), message: e.shortMessage || e.message }); }
+}
+
 /** capsRequest(current, body) -> { next, ack }: capsUpdate over the body less `drop`, which must be a list of deployment
  *  ids (0x and 64 hex) the owner confirmed dropping. Throws a 400 like capsUpdate. */
 export function capsRequest(current, body) {
@@ -360,7 +383,7 @@ const readBody = (req) => new Promise((resolve) => {
  * Order matters: the peer first (a remote caller learns nothing, not even that a token is wanted), then the token
  * (an unauthenticated local caller learns no routes), then the route.
  */
-export function hostingAdminHandler({ host, token, log = () => {} }) {
+export function hostingAdminHandler({ host, token, log = () => {}, payouts = null }) {
   const want = crypto.createHash("sha256").update(String(token || "")).digest();
   const authorized = (h) => {
     const m = /^Bearer\s+(\S+)\s*$/i.exec(String(h || ""));
@@ -380,6 +403,7 @@ export function hostingAdminHandler({ host, token, log = () => {} }) {
       return json(401, { error: "unauthorized", message: "a bearer token from the node's hosting-admin.token file is required" },
                   { "www-authenticate": "Bearer" });
     const p = String(req.url || "").split("?")[0];
+    if (p.startsWith("/v1/local/hosting/") && PAYOUT_ROUTES.has(p.slice(18))) return payoutRoute(p.slice(18), req, json, payouts);
     if (p !== "/v1/local/hosting") return json(404, { error: "not_found" });
     if (req.method === "GET") return json(200, host.hostingView());
     if (req.method !== "PUT") return json(405, { error: "method_not_allowed" }, { allow: "GET, PUT" });
@@ -406,8 +430,8 @@ export function hostingAdminHandler({ host, token, log = () => {} }) {
 }
 
 /** Listen on 127.0.0.1:port and nowhere else. Returns the server. */
-export function startHostingAdmin({ host, port, token, log = () => {} }) {
-  const server = http.createServer(hostingAdminHandler({ host, token, log }));
+export function startHostingAdmin({ host, port, token, log = () => {}, payouts = null }) {
+  const server = http.createServer(hostingAdminHandler({ host, token, log, payouts }));
   server.on("error", (e) => log(`hosting controls on 127.0.0.1:${port} failed: ${e.message}`));
   server.listen(port, "127.0.0.1", () => log(`hosting controls on 127.0.0.1:${port} (loopback only, bearer token)`));
   return server;
