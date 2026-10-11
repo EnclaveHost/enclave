@@ -196,6 +196,20 @@ In production since 2026-10-09 09:40Z (build `9f38fd61…`): the served deployme
 slot 1 (384 MiB): its key handed over in 0.3 s, its runner attesting the host's key, its secret re-sealed by the relay to
 slot 1 after the sibling check.
 
+### The Enclave app (2026-10-11)
+
+The release app is **Enclave** on the phone (package `host.enclave.pvmcpu` kept: a new package would mean new VM
+instances, a new proof key and a new registration). Its icon is the site's mark (`site/assets/logo.svg` on the
+`icon.svg` tile) as an adaptive launcher icon with a themed-icon layer (`res/`, compiled and linked by `build.sh`); the
+hosting notifications carry the mark and open the app. Opened from the launcher, it shows what the phone hosts
+(`host/app/Status.java`): the host agent's `/availability`, read every 5 s over the phone's loopback (the agent's reverse
+door, USB or Wi-Fi): hosting or not connected, each app (public name, VM size, CPU share, slot; a tap opens it), the
+room left and the price. It never starts or stops a VM. Every library in the APK is 16 KB page-aligned (Android 16 warns
+on opening a debuggable app otherwise; the app stays debuggable because the agent uses `run-as`).
+
+The host VM runs in the app's main process, which also hosts that screen: Android brings the process back for the screen
+after an update with no VM in it, so the agent counts a VM as alive only while its own `crosvm_<instance>` runs.
+
 ### Off the cable (2026-10-10)
 
 Everything between the owner's machine and the phone rides adb: the app's TLS (TUNA -> the agent's router -> `adb forward`
