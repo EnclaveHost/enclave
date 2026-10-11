@@ -101,9 +101,7 @@ final class Status {
         apply.setOnClickListener(v -> { if (dirty()) save(barCpu(), barMem(), hosting, "Applied: the host agent takes it within half a minute. Apps already running keep their share."); });
         // Cancel: the sliders back to what is in effect, nothing saved
         cancel = text("Cancel", 15, MUTED); cancel.setTypeface(Typeface.DEFAULT_BOLD); cancel.setGravity(Gravity.CENTER); cancel.setPadding(dp(20), dp(10), dp(20), dp(10));
-        cancel.setOnClickListener(v -> { if (dirty()) { cpuBar.setProgress(cpuToBar(appliedCpu)); memBar.setProgress(memToBar(appliedMem)); labels(); applyState();
-                                                        sharingNote.setText("Not changed: still " + appliedCpu / 10 + "% of the CPU and "
-                                                                            + String.format(java.util.Locale.ROOT, "%.2f GB", appliedMem / 1024.0) + "."); } });
+        cancel.setOnClickListener(v -> cancelEdits());
         LinearLayout buttons = new LinearLayout(a); buttons.setOrientation(LinearLayout.HORIZONTAL);
         buttons.addView(apply);
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT); cp.leftMargin = dp(12);
@@ -210,6 +208,12 @@ final class Status {
         memLabel.setText("Memory  ·  " + String.format(java.util.Locale.ROOT, "%.2f GB", barMem() / 1024.0) + " for apps");
     }
     private boolean dirty() { return barCpu() != appliedCpu || barMem() != appliedMem; }
+    /** Cancel: the sliders back to what is in effect; nothing saved. */
+    private void cancelEdits() {
+        if (!dirty()) return;
+        cpuBar.setProgress(cpuToBar(appliedCpu)); memBar.setProgress(memToBar(appliedMem)); labels(); applyState();
+        sharingNote.setText("Not changed: still " + appliedCpu / 10 + "% of the CPU and " + String.format(java.util.Locale.ROOT, "%.2f GB", appliedMem / 1024.0) + ".");
+    }
     /** Apply is live only when the sliders differ from what is in effect. */
     private void applyState() {
         boolean on = dirty();
