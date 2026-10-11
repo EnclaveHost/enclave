@@ -264,10 +264,9 @@ namespace Enclave.Tray
             else if (v.Reserved > 0 && CpuValue > 1 - v.Reserved + 1e-9) cn.Add("New claims stop at " + Pct(1 - v.Reserved) + ": the node keeps " + Pct(v.Reserved) + " for itself.");
             cpuNote.Text = string.Join(" ", cn.ToArray());
             // Never imply GPU hosting that is not happening.
+            // The node says why (on the isolated backend: no partition holds a masked GPU allocation); repeat it, don't guess.
             if (!v.GpuConsumer)
-                gpuNote.Text = v.Backend == "hv"
-                    ? "The isolated backend doesn't use the GPU yet; this cap applies when it does."
-                    : "Nothing on this node uses the GPU right now" + (v.GpuWhy.Length > 0 ? " (" + v.GpuWhy + ")" : "") + "; this cap applies when something does.";
+                gpuNote.Text = "Nothing on this node uses the GPU right now" + (v.GpuWhy.Length > 0 ? " (" + v.GpuWhy + ")" : "") + "; this cap applies when something does.";
             else gpuNote.Text = v.GpuInUse > GpuValue + 1e-9 ? "More than this is in use. Nothing running is stopped; new work waits until use drops below it." : "";
         }
 
