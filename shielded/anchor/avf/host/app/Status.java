@@ -2,9 +2,8 @@
  * Status -- what the Enclave app shows when it is opened from the launcher (a release pVM CPU build, no launch extras), read
  * from the owner's host agent over the phone's loopback (127.0.0.1:18187, the agent's `adb reverse` door, on USB or over
  * Wi-Fi: PVM-CPU.md "Off the cable"). Two pages, kept plain (Steven, 2026-10-11: "too cluttered"):
- *   main      the Hosting switch, one status line, Earnings (what is ready to pay out), Sharing -- the CPU and GPU share bars
- *             (the GPU's greyed: hosted apps cannot reach this phone's GPU; Apply and Cancel appear once the CPU moves) --,
- *             the apps here by name, Settings;
+ *   main      the Hosting switch, one status line, Earnings (what is ready to pay out), Sharing -- the CPU share bar (Apply
+ *             and Cancel appear once it moves; no GPU share in the mobile app) --, the apps here by name, Settings;
  *   settings  memory for apps (Apply and Cancel likewise) and the payout address (Save and Cancel likewise, confirmed:
  *             payouts cannot be undone).
  * The screen speaks of apps only. Its settings go to files/offer.json, which only this app (and the owner's adb) can write
@@ -54,8 +53,8 @@ final class Status {
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final ScrollView scroll;
     private final LinearLayout mainPage, settingsPage, apps, cpuButtons, memButtons, payoutButtons;
-    private final TextView state, stateNote, earnings, cpuLabel, gpuLabel, memLabel, payoutNote, payoutSave, payoutCancel;
-    private final SeekBar cpuBar, gpuBar, memBar;
+    private final TextView state, stateNote, earnings, cpuLabel, memLabel, payoutNote, payoutSave, payoutCancel;
+    private final SeekBar cpuBar, memBar;
     private final Switch hostSwitch;
     private final EditText payoutField;
     private boolean inSettings = false;
@@ -88,13 +87,11 @@ final class Status {
         mainPage.addView(section("Earnings"));
         earnings = text("–", 32, TEXT); earnings.setTypeface(Typeface.DEFAULT_BOLD);
         mainPage.addView(earnings);
-        // Sharing: the CPU and GPU share offered to apps (Apply and Cancel appear once the CPU share moves)
+        // Sharing: the CPU share offered to apps (Apply and Cancel appear once it moves). No GPU share: the mobile app has
+        // none (Steven, 2026-10-11)
         mainPage.addView(section("Sharing"));
         cpuLabel = text("CPU", 15, TEXT); mainPage.addView(cpuLabel);
         cpuBar = new SeekBar(a); cpuBar.setMax(1000 / CPU_STEP - 1); mainPage.addView(cpuBar);
-        gpuLabel = text("GPU  ·  not available on this phone", 15, MUTED); gpuLabel.setPadding(0, dp(14), 0, 0); mainPage.addView(gpuLabel);
-        gpuBar = new SeekBar(a); gpuBar.setMax(20); gpuBar.setProgress(0); gpuBar.setEnabled(false); gpuBar.setAlpha(0.35f);   // hosted apps cannot reach this phone's GPU
-        mainPage.addView(gpuBar);
         TextView cpuApply = button("Apply", true); cpuApply.setOnClickListener(v -> { if (barCpu() != appliedCpu && save(barCpu(), appliedMem, hosting)) toast("Applied"); });
         TextView cpuCancel = button("Cancel", false); cpuCancel.setOnClickListener(v -> { cpuBar.setProgress(cpuToBar(appliedCpu)); labels(); applyState(); });
         cpuButtons = pair(cpuApply, cpuCancel); mainPage.addView(cpuButtons);
