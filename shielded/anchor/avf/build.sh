@@ -310,9 +310,13 @@ svc = "".join(f'        <service android:name=".AnchorServiceSlot{k}" android:pr
 open(dst, "w").write(s.replace("        <!-- SLOT SERVICES -->\n", svc))
 PYM
 if [ "$TIER" = pvm-cpu ]; then   # no TPU runtime declaration, its own label
+  # the Enclave screen in its own process (":ui"): the host VM's process is then the host VM alone, so ending it (hosting off)
+  # never closes the screen, and Android never brings that process back for the screen with no VM in it
   sed -i -e '/Shielded-TPU decode: the app-side worker/d' -e '/uses-native-library android:name="libedgetpu_litert.so"/d' \
-      -e 's/android:label="Enclave Anchor (AVF)"/android:label="Enclave"/' "$MANIFEST"
+      -e 's/android:label="Enclave Anchor (AVF)"/android:label="Enclave"/' \
+      -e 's|<activity android:name=".Main" android:exported="true"|<activity android:name=".Main" android:process=":ui" android:exported="true"|' "$MANIFEST"
   ! grep -q 'libedgetpu\|Anchor (AVF)' "$MANIFEST" || { echo "pvm-cpu: the manifest still names the TPU runtime or the research label" >&2; exit 2; }
+  grep -q 'android:name=".Main" android:process=":ui"' "$MANIFEST" || { echo "pvm-cpu: the Enclave screen is not in its own process" >&2; exit 2; }
 fi
 # the app's resources (res/: the Enclave icon, the site's mark), compiled and linked with the manifest
 rm -f res.zip && "$BT/aapt2" compile --dir "$HERE/res" -o res.zip

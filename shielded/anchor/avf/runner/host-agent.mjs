@@ -314,7 +314,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   const runners = new Map();     // "host" | k -> { r, key, lastTick }
   // what the owner offers to host apps: set on the phone in the Enclave app (Sharing), read each round; the config's pool
   // (and all the CPU) until it says otherwise, and never above the config's pool
-  let offer = { cpuMilli: 1000, memMb: S.poolMemMb, source: "config" };
+  let offer = { hosting: true, cpuMilli: 1000, memMb: S.poolMemMb, source: "config" };
   const lastCert = new Map();    // k -> ms
   const standDown = new Map();   // deployment -> until (ms): the owner moved it away; not re-claimed meanwhile
   const sessions = createSessionApiAuth({ pc: publicClient, book: () => cfg.addressBook, ledger: () => (addrs ? addrs.deployments : null),
@@ -737,6 +737,10 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
       const reg = await read(addrs.registry, REGISTRY_ABI, "get", [E]).catch(() => null);
       registered = reg && lc(reg.operator) === me && reg.active ? reg : null;
       if (reachable && typeof device.readOffer === "function") applyOffer(await device.readOffer().catch(() => null));
+      if (reachable && offer.hosting === false) {
+        await drain();
+        return { kind: "hosting-off", apps: apps().map((a) => a.id), registered: !!registered, hostUp };
+      }
       // the host VM, carried on from what the state says (a VM that no longer serves is launched again)
       if (reachable) try {
         hostUp = state.host ? await device.alive(state.host.label) : false;
@@ -787,18 +791,43 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
    *  owner's adb can), checked strictly; anything else keeps the config's. Lowering it never stops a running app: it only
    *  bounds what is taken next. */
   function applyOffer(text) {
-    let next = { cpuMilli: 1000, memMb: S.poolMemMb, source: "config" };
+    let next = { hosting: true, cpuMilli: 1000, memMb: S.poolMemMb, source: "config" };
     if (text) {
       try {
         const o = JSON.parse(text);
         const c = Number(o.cpuMilli), m = Number(o.memMb);
-        if (o.v !== 1 || !Number.isInteger(c) || c < 10 || c > 1000 || !Number.isInteger(m) || m < MIN_VM_MB) throw new Error("malformed");
-        next = { cpuMilli: c, memMb: Math.min(m, S.poolMemMb), source: "phone", at: typeof o.at === "string" ? o.at.slice(0, 40) : null };
+        if (o.v !== 1 || !Number.isInteger(c) || c < 10 || c > 1000 || !Number.isInteger(m) || m < MIN_VM_MB || (o.hosting !== undefined && typeof o.hosting !== "boolean"))
+          throw new Error("malformed");
+        next = { hosting: o.hosting !== false, cpuMilli: c, memMb: Math.min(m, S.poolMemMb), source: "phone", at: typeof o.at === "string" ? o.at.slice(0, 40) : null };
       } catch (e) { if (offer.source !== "config-bad") note({ ev: "offer-ignored", why: `the phone's Sharing settings are not usable (${e.message})` }); next.source = "config-bad"; }
     }
-    if (next.cpuMilli !== offer.cpuMilli || next.memMb !== offer.memMb || next.source !== offer.source)
-      note({ ev: "offer", cpuMilli: next.cpuMilli, memMb: next.memMb, source: next.source, was: { cpuMilli: offer.cpuMilli, memMb: offer.memMb } });
+    if (next.cpuMilli !== offer.cpuMilli || next.memMb !== offer.memMb || next.source !== offer.source || next.hosting !== offer.hosting)
+      note({ ev: "offer", hosting: next.hosting, cpuMilli: next.cpuMilli, memMb: next.memMb, source: next.source, was: { hosting: offer.hosting, cpuMilli: offer.cpuMilli, memMb: offer.memMb } });
     offer = next;
+  }
+  /**
+   * Hosting turned off in the Enclave app: every app here is released (a final proof, then release: the unused tail goes
+   * back, and its owner's deployment can move or wait), its slot freed and its VM ended; then the host VM ends too, so the
+   * phone runs nothing. A transaction in flight leaves that app for the next round. Turned on again, the next round starts
+   * the host VM and the sweep resumes.
+   */
+  async function drain() {
+    for (const a of apps()) {
+      const e = runners.get(a.slot);
+      if (e) {
+        const s = await e.r.stop({ release: true }).catch((err) => ({ kind: "error", reason: err.message }));
+        if (s.kind === "in-flight") { note({ ev: "hosting-off-wait", slot: a.slot, deployment: a.id, why: "a transaction is in flight" }); continue; }
+        note({ ev: "hosting-off-release", slot: a.slot, deployment: a.id, kind: s.kind });
+      }
+      await freeSlot(a, "the owner turned hosting off");
+    }
+    if (apps().length) return;
+    if (runners.has("host")) await closeRunner("host").catch(() => {});
+    if (hostUp || (state.host && await device.alive(state.host.label).catch(() => false))) {
+      await device.stop().catch((e) => note({ ev: "host-stop-failed", error: e.message }));
+      note({ ev: "hosting-off", why: "every app released; the host VM ended" });
+    }
+    hostUp = false;
   }
   async function slotRound(a, r) {
     const L = await r.agent.lease();
@@ -879,7 +908,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
 
   // ---- the host surface (reached through the phone's tunnel: untrusted requests) ----
   function availability() {
-    const held = apps(), ok = !!registered && cfg.claim.enabled && hostUp;
+    const held = apps(), ok = !!registered && cfg.claim.enabled && hostUp && offer.hosting !== false;
     const mem = held.reduce((t, a) => t + a.vmMib, 0), cpu = held.reduce((t, a) => t + (a.cpuMilli || 0), 0);
     const P = offer.memMb, C = offer.cpuMilli;
     return { ok: true, role: "pvm-host", name: cfg.name, gpu: false, claimEnabled: ok, fullService: false, registered: !!registered,
@@ -892,7 +921,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
       slots: S.count, nodeSlotsFree: cpu >= C ? 0 : Math.max(0, Math.min(S.count - held.length, Math.floor((P - mem) / MIN_VM_MB))),
       cpuShareFree: Math.max(0, Math.round(C - cpu)) / 1000, cpuShareOffered: C / 1000, gpuShareOffered: 0,
       poolMemMb: P, poolMemMbFree: Math.max(0, P - mem), ramGbFree: Math.max(0, Math.round((P - mem) / 102.4) / 10),
-      poolMemMbMax: S.poolMemMb, offer: { cpuMilli: C, memMb: P, source: offer.source, at: offer.at || null },
+      poolMemMbMax: S.poolMemMb, hosting: offer.hosting !== false, offer: { hosting: offer.hosting !== false, cpuMilli: C, memMb: P, source: offer.source, at: offer.at || null },
       maxAppMemMb: cfg.claim.maxMemMb, vmOverheadMb: VM_OVERHEAD_MB, minVmMb: MIN_VM_MB,
       isolation: ISOLATION_BACKEND, appTls: "in-vm", appEvidence: "enclave-pvm-app-evidence/v4", claimScope: "market",
       // the platform's capability flags (the relay AND-folds them across the fleet): each true only for what this host does
@@ -905,7 +934,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   async function claimHint(body) {
     const id = lc(body && body.id);
     if (!B32.test(id)) return { accepted: false, reason: "A ledger deployment ID is required." };
-    if (!cfg.claim.enabled || !registered) return { accepted: false, reason: "This host is not taking deployments right now." };
+    if (!cfg.claim.enabled || !registered || offer.hosting === false) return { accepted: false, reason: "This host is not taking deployments right now." };
     if (appOf(id)) return { accepted: true, reason: "Already serving it." };
     if (!addrs) await resolve();
     const d = await read(addrs.deployments, DEP_ABI, "get", [id]);
