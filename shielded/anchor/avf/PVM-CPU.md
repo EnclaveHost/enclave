@@ -212,6 +212,13 @@ door, USB or Wi-Fi): hosting or not connected, each app (public name, VM size, C
 room left and the price. It never starts or stops a VM. Every library in the APK is 16 KB page-aligned (Android 16 warns
 on opening a debuggable app otherwise; the app stays debuggable because the agent uses `run-as`).
 
+**Sharing.** The owner chooses how much of the phone to offer to host apps, in the app: CPU (5-100% of the phone) and
+memory for apps' VMs (up to the agent's `slots.poolMemMb`). The app saves `files/offer.json` (only the app's uid or the
+owner's adb can write it; not another app, not the relay); the agent reads it every round, strictly, and admits apps and
+reports `/availability` within it (`cpuShareOffered`, `poolMemMb`, `offer`); the relay lists the node's compute as that
+part of the attested GFLOPS. Lowering it never evicts: new apps fit within it, and a running app re-judged (a config edit,
+a resize) keeps at least the room it holds. The GPU is not offered: a protected VM on this phone cannot reach it.
+
 The host VM runs in the app's main process, which also hosts that screen: Android brings the process back for the screen
 after an update with no VM in it, so the agent counts a VM as alive only while its own `crosvm_<instance>` runs.
 
