@@ -151,6 +151,8 @@ export function newOperatorKey(keyFile) {
   return privateKeyToAccount(hex).address;
 }
 export const operatorAddress = () => (acct ? acct.address : null);
+/** The operator key as a viem local account (sponsor.mjs signs the sponsored registration and its 7702 authorization). */
+export const operatorAccount = () => acct;
 export const walletClient = () => wal;
 export async function operatorBalance() { return acct ? publicClient().getBalance({ address: acct.address }) : 0n; }
 

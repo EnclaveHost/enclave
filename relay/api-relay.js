@@ -110,6 +110,7 @@ import { avfPolicyFromEnv } from "./avf-policy.mjs";
 import { pvmCpuPolicyFromEnv, avfAttestWithPvmCpu, pvmCpuAvailability, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
 import { VBS_DEFAULT_EK_ROOTS } from "./vbs-policy.mjs";
 import { createPadsLedger, createPrefixStore, createShipmentStore, padsRouter } from "./pads.mjs";
+import { hostSponsor, hostSponsorRouter } from "./host-sponsor.mjs";
 import { dataDir, JsonStore } from "./store.js";
 import { screenAddress } from "./ofac.js";
 import { expectedGuest, prepareGuestUpdate, prewarmReleasePredictions } from "./secrets-release.mjs";
@@ -213,6 +214,29 @@ async function tunnelNameOwner(name) {
   // computable from the name alone — which is the whole reason the derived
   // label doubles as the attach name. Legacy names keep the path form.
   return registryOperator(await endpointId(boxOrigin(name) || `${TUNNEL_ORIGIN}/t/${name}`));
+}
+// A new host's first registration, paid by EnclaveHostPaymaster for a box that proved its hardware here
+// (relay/host-sponsor.mjs). Off unless all three are set; created on first use, once the registry address is known.
+//   HOST_SPONSOR_VERIFIER_KEY  the key whose vouchers the paymaster accepts (its `verifier`)
+//   HOST_SPONSOR_BUNDLER_KEY   sends EntryPoint.handleOps; a small float, repaid by the EntryPoint per operation
+//   HOST_PAYMASTER             the EnclaveHostPaymaster address
+let hostSponsorInstance;
+function hostSponsorRoutes() {
+  if (hostSponsorInstance) return hostSponsorInstance;
+  const vk = (process.env.HOST_SPONSOR_VERIFIER_KEY || "").trim(), bk = (process.env.HOST_SPONSOR_BUNDLER_KEY || "").trim();
+  const pm = (process.env.HOST_PAYMASTER || "").trim();
+  let sponsor = null;
+  if (vk && bk && pm && REGISTRY_ADDRESS) {
+    try {
+      sponsor = hostSponsor({ hub: tunnelHub, endpointOf: (n) => boxOrigin(n) || `${TUNNEL_ORIGIN}/t/${n}`,
+                              ownerOf: async (n) => (await tunnelNameOwner(n)) || "", verifierKey: vk, bundlerKey: bk,
+                              paymaster: pm, registry: REGISTRY_ADDRESS, rpc: BASE_RPC, log: (m) => console.log(m) });
+      console.log(`[sponsor] host registrations sponsored: paymaster ${pm}, verifier ${sponsor.verifier}, bundler ${sponsor.bundler}`);
+    } catch (e) { console.error(`[sponsor] OFF: ${e.message}`); }
+  }
+  const router = hostSponsorRouter({ sponsor, json: (res, status, body) => json(res, status, body, null), readBody });
+  if (sponsor || !(vk && bk && pm)) hostSponsorInstance = router;     // configured but no registry yet: ask again next time
+  return router;
 }
 // Dealt pads: created on first use so the data dir and the hub exist.
 let padsRoutesInstance;
@@ -1872,6 +1896,9 @@ async function gateway(u, req, res) {
   // windows and the shipment store, one router shared with the local hub.
   if (p.startsWith("/v1/pads/")) {
     if (await padsRoutes()(req, res, u)) return;
+  }
+  if (p.startsWith("/v1/hosts/sponsor/")) {
+    if (await hostSponsorRoutes()(req, res, u)) return;
   }
 
   if (p === "/v1/claim-hint" && req.method === "POST") {
