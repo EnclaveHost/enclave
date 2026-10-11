@@ -328,6 +328,8 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                 // dealt pads (relay/pads.mjs): the attested transport SPKI signs
                 // ledger requests, the X25519 pad key receives the pVM's seed
                 spki: meta.spki || "", padKey: meta.padKey || "",
+                // an hv-node attached under a name nobody registered yet: the operator key its v2 signature names
+                claimant: meta.claimant || "",
                 // mode "hv-node": the boot this attach proved (boot counter, the IDKS a same-boot VM report must
                 // verify under, PCRs, EK and AK), its omissions, and the node's own statement (recorded, never read)
                 hvNode: meta.hvNode || null,
@@ -632,7 +634,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             // registered id follows.
             const owner = await ownerOf(name);
             const keyFp = spki ? createHash("sha256").update(spki).digest("hex") : "";
-            let operator = "", pvmOperator = "", served = { served: [], refused: [] }, delegations = [];
+            let operator = "", pvmOperator = "", served = { served: [], refused: [] }, delegations = [], claimant = "";
             if (owner) {
               const signer = await signerOf(attachMessage(name, nonce), f.operatorSig);
               // hv-node: the v2 message binds the operator's consent to THIS transport key on THIS TPM (enclave-bf)
@@ -662,6 +664,14 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                 // instance): the market may count it as that operator's host (relay/pvm-market.mjs); nothing else changes
                 pvmOperator = owner;
               }
+            } else if (isHv && vbs && f.operatorSig) {
+              // NOT REGISTERED YET: a new host. The v2 signature names the operator key that will register this box and
+              // binds it to THIS transport key on THIS TPM, so the sponsorship route (relay/host-sponsor.mjs) can pay
+              // that key's first register() for this hardware. It authorizes nothing else: no serving, no name.
+              const s2 = await signerOf(attachMessageV2(name, nonce.toString("base64"), keyFp,
+                                        createHash("sha256").update(vbs.ekCert).digest("hex")), f.operatorSig);
+              if (settled) return;
+              if (s2) claimant = s2;
             }
             const prev = tunnels.get(name);
             if (prev && (!prev.keyFp || prev.keyFp !== keyFp))
@@ -681,6 +691,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                              hvNode: isHv ? { boot: res.boot, omissions: res.omissions, hostStatement: res.hostStatement, verifiedAt: new Date().toISOString() } : null,
                              ...(operator ? { operator, served: served.served, delegations } : {}),
                              ...(pvmOperator ? { pvmOperator } : {}),
+                             ...(claimant ? { claimant } : {}),
                              spki: spki ? spki.toString("base64") : "", padKey,
                              // the pVM CPU admission inputs, pinned at attach (policy included: a hub
                              // without one refuses every report, by the verifier's own first rule)
@@ -719,7 +730,8 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     // One attached tunnel's identity, for modules that authenticate a tunnel's
     // own requests (relay/pads.mjs): null when nothing by that name is attached.
     info: (name) => { const t = tunnels.get(name); return t ? { name, mode: t.mode, tier: t.tier || "", keyFp: t.keyFp, spki: t.spki, padKey: t.padKey, ...(t.hvNode ? { hvNode: t.hvNode } : {}),
-                                                                ...(t.mode === "avf" && t.pvmOperator ? { operator: t.pvmOperator } : {}) } : null; },
+                                                                ...(t.mode === "avf" && t.pvmOperator ? { operator: t.pvmOperator } : {}),
+                                                                ...(t.mode === "hv-node" && t.claimant ? { claimant: t.claimant } : {}) } : null; },
     // Verification uses only this live attachment's authenticated boot. A
     // caller-provided hostSession is overwritten, and detach/reconnect cannot
     // reuse the previous connection's context. This grants no host eligibility.

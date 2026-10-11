@@ -298,12 +298,28 @@ export class Host {
       this.log(`registry: ${this.cfg.endpoint} belongs to operator ${this.registered.operator}, not this box's key; refusing to re-register`);
       return;
     }
+    const args = { endpoint: this.cfg.endpoint, repo: this.cfg.repo || "EnclaveHost/enclave",
+      measurement: this.cfg.measurement || "0x0000000000000000000000000000000000000000000000000000000000000000",
+      cpuPricePerSec6: this.cfg.cpuPricePerSec6, gpuPricePerSec6: this.cardPrice(), proofKey };
     const wei = await chain.operatorBalance();
+    // A NEW box with no gas: EnclaveHostPaymaster pays its first register() once the relay has seen its hardware
+    // (sponsor.mjs; set by the agent for an attested hv-node). Only the first registration, and only while the key
+    // cannot pay for it itself.
+    if (!this.registered && wei < Host.SELF_REGISTER_WEI && typeof this.sponsorRegister === "function") {
+      if (Date.now() < (this._sponsorRetryAt || 0)) return;
+      try {
+        const r = await this.sponsorRegister(args);
+        this.log(`registry: registered ${this.cfg.endpoint} with the host paymaster paying (no gas needed; tx ${r.tx})`);
+        await this.refreshRegistration();
+      } catch (e) {
+        this._sponsorRetryAt = Date.now() + 600_000;
+        this.log(`registry: ${e.message}; asking again in 10 minutes${wei === 0n ? ", or send the operator key a little Base ETH" : ""}`);
+      }
+      return;
+    }
     if (wei === 0n) { if (!this._gasNagged) { this._gasNagged = true; this.log(`registry: ${chain.operatorAddress()} has no gas; send it a little Base ETH and this box registers itself`); } return; }
     try {
-      const { id, hash } = await chain.registerBox({ endpoint: this.cfg.endpoint, repo: this.cfg.repo || "EnclaveHost/enclave",
-        measurement: this.cfg.measurement || "0x0000000000000000000000000000000000000000000000000000000000000000",
-        cpuPricePerSec6: this.cfg.cpuPricePerSec6, gpuPricePerSec6: this.cardPrice(), proofKey });
+      const { id, hash } = await chain.registerBox(args);
       this.log(`registry: registered ${this.cfg.endpoint} id=${id} price=${this.cfg.cpuPricePerSec6}/sec proofKey=${proofKey} tx=${hash}`);
       await this.refreshRegistration();
     } catch (e) { this.log(`registry: register failed: ${e.shortMessage || e.message}`); }
@@ -1893,6 +1909,8 @@ export class Host {
    * provisioning with no instance id yet (a hold on a manager 503): a VM for it may exist unnamed (d1's acceptance of
    * fb1db848, the residual).
    */
+  /** Below this an operator key does not try to pay its own register() (about 200k gas at Base's usual fees, with room). */
+  static SELF_REGISTER_WEI = 20_000_000_000_000n;        // 0.00002 ETH
   static occupies(r) {
     return r.status === "running" || !!r.isolation || !!r.isolationHeld || !!r.isolationRetireFailed
       || (r.status === "provisioning" && r.isolationRequired === true);

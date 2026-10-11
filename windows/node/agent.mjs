@@ -39,6 +39,7 @@ import { nonceStore, siweMessage, verifyLogin } from './siwe.mjs';
 import { HV_NODE_FORMAT, buildHvNodeFrame, loadOrCreateNodeKey } from './hvnode-evidence.mjs';
 import { mintToken, startHostingAdmin, tokenFileDefault } from './hosting.mjs';
 import { Payouts, DEFAULT_MIN_PAYOUT6 } from './payout.mjs';
+import { sponsoredRegister } from './sponsor.mjs';
 import { finishHvAttach, reattachMode, relayTakesV2, shouldReattach } from './hvnode-attach.mjs';
 import { tunnelHandover } from './tunnel-handover.mjs';
 import { addressBook, addresses as chainAddresses, publicClient } from './chain.mjs';
@@ -783,6 +784,15 @@ async function startHostingControls() {
   else { await refreshPartitionGpu(); setInterval(() => refreshPartitionGpu().catch(() => { card=null; host.managerInference=null; host.managerSupports=null; }),15000).unref();
 
     nodeKey = loadOrCreateNodeKey(DIR);
+    // a NEW box's first registration, paid by the host paymaster once the relay has verified this TPM (sponsor.mjs);
+    // the relay vouches only for the operator key this attach named, so it is asked with the key the relay saw
+    host.sponsorRegister = async (args) => {
+      const chainMod = await import('./chain.mjs');
+      return sponsoredRegister({ relayBase: RELAY_URL.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:').replace(/\/v1\/fleet-tunnel$/, ''),
+                                 name: NAME, transportKey: nodeKey.privateKey, operator: chainMod.operatorAccount(),
+                                 client: chainMod.publicClient(), registry: chainMod.addresses.registry, args,
+                                 log: (m) => log('[sponsor]', m) });
+    };
     log(`isolation-only node: the VBS enclave engine is retired; transport key ${createHash('sha256').update(nodeKey.spki).digest('hex').slice(0, 16)}… `
       + '(a host key: it proves only that an admin-level process on this host chose it)');
   }
