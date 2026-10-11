@@ -223,6 +223,13 @@ hosting off entirely: the agent releases every app here (a final proof, then rel
 and takes nothing until it is on again (`offer.json` `"hosting": false`; turning off with apps running asks first). The
 screen runs in its own process (`:ui`), so ending the host VM never closes it.
 
+**Earnings and payout.** The screen shows what the phone has earned (the agent's `GET /v1/earnings`, public ledger data):
+ready to pay out (`earned6` for the operator), paid out so far (its `EarningsWithdrawn` events, counted from when the
+agent first looked: the free RPCs keep no archive logs, and only the operator key, which lives in the agent, can
+withdraw), earned in total (the two together) and earning now (the apps' runner rates). The owner sets the payout address
+in the app (`offer.json` `payoutTo`, confirmed: payouts can't be undone); the host runner withdraws there once $1.00 has
+built up, else to the config's `payout.to`, else earnings wait on the ledger.
+
 The host VM runs in the app's main process, which also hosts that screen: Android brings the process back for the screen
 after an update with no VM in it, so the agent counts a VM as alive only while its own `crosvm_<instance>` runs.
 
