@@ -92,9 +92,11 @@ for(const row of mine){
   const expected={appRef,configCid:String(row.configCid),appSha256:inst.AppID,runtimeId:inst.RuntimeID,release:inst.Releases?.[0]??inst.Release,measurement:inst.Measurement};
   if(!/^[0-9a-f]{64}$/.test(expected.appSha256||'')||!/^[0-9a-f]{64}$/.test(expected.runtimeId||'')||!/^[0-9a-f]{64}$/.test(expected.release||'')||!/^[0-9a-f]{96}$/.test(expected.measurement||'')){log(`${id.slice(0,10)}: incomplete guest record; skipped`);continue;}
   const existing=cfg.apps.find(a=>a.deploymentId===id);
-  const wantsDirect=directIds.has(id);
+  // on the Enclave network (cfg.enclaveNetwork, docs/design/enclave-network.md) an app needs no wallets and no funding:
+  // the owner's network policy (read by the agent) decides its route, so enrollment is the expectation and the names
+  const network=!!cfg.enclaveNetwork,wantsDirect=!network&&directIds.has(id),mode=network?'enclave-network':wantsDirect?'direct':'tuna';
   if(existing){
-    if(existing.internetMode!==(wantsDirect?'direct':'tuna')){existing.internetMode=wantsDirect?'direct':'tuna';changed=true;}
+    if(existing.internetMode!==mode){existing.internetMode=mode;changed=true;}
     const cur=await readJSON(existing.expectedFile).catch(()=>null);
     if(JSON.stringify(cur)!==JSON.stringify(expected)){
       log(`${id.slice(0,10)}: expectation ${cur?.appRef?.split('/').pop()}->${appRef.split('/').pop()} app ${String(cur?.appSha256).slice(0,8)}->${expected.appSha256.slice(0,8)}`);
@@ -102,13 +104,18 @@ for(const row of mine){
       changed=true;
     }
     if(domains){const names=namesFor(id);if(JSON.stringify(names)!==JSON.stringify(existing.names)){log(`${id.slice(0,10)}: names ${existing.names} -> ${names}`);existing.names=names;changed=true;}}
-    if(wantsDirect||existing.walletsFile)continue;
+    if(network||wantsDirect||existing.walletsFile)continue;
   }
   // enrollment
   if(!domains){log(`${id.slice(0,10)}: new, but the domain map is unavailable; enrolling next round`);continue;}
   const dir=path.join(appsDir,id);log(`${id.slice(0,10)}: enrolling (${namesFor(id).join(', ')})`);
   if(DRY)continue;
   await fs.mkdir(dir,{recursive:true,mode:0o700});
+  if(network){
+    await writeAtomic(path.join(dir,'expected.json'),JSON.stringify(expected,null,2));
+    cfg.apps.push({deploymentId:id,names:namesFor(id),expectedFile:path.join(dir,'expected.json'),internetMode:'enclave-network',publishToMirror:true});
+    changed=true;log(`${id.slice(0,10)}: enrolled on the Enclave network`);continue;
+  }
   if(wantsDirect){
     if(!cfg.connectivity?.direct||!cfg.direct)throw Error('direct app enrollment requires the host direct runtime');
     await writeAtomic(path.join(dir,'expected.json'),JSON.stringify(expected,null,2));
