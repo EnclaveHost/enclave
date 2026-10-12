@@ -170,6 +170,21 @@ export async function runPrivacy(configFile){
   setInterval(()=>void fs.stat(configFile).then(st=>{if(st.mtimeMs!==configStamp){configStamp=st.mtimeMs;return reloadApps();}}).catch(e=>log('config watch: '+e.message)),30000).unref();
   const starting=windows&&cfg.shield?.manager?startingShieldTransport(cfg.shield.manager,id=>apps.find(a=>a.deploymentId===id)?.expected):null;
   if(apps.some(a=>a.startupEgress)&&!starting)throw new Error('startup egress needs the local Shield manager');
+  // A host's FIRST start has no ASN cache, yet a control guard is chosen by its provider's network (circuit-policy
+  // independence) and ASN lookups normally travel through a control guard: a fresh install could never start ("no control
+  // bootstrap guard available"; the first hosts had an asn.json seeded by hand). Only when the cache holds NO network at
+  // all, look up the socks providers' public addresses directly, once (RIPE / Team Cymru, at most 16); every later
+  // lookup goes through the guards as before.
+  if(control&&!Object.keys(await inventory.asns.read()).length){
+    try{
+      const socks=(await inventory.refresh()).filter(n=>n.services?.includes('socksproxy'));
+      inventory.asns.fetchFn=(url)=>fetch(url,{signal:AbortSignal.timeout(6000)});
+      await inventory.asns.refresh(socks);
+      log(`ASN bootstrap: the cache was empty; ${Object.keys(await inventory.asns.read()).length} provider network(s) looked up directly`);
+      await inventory.refresh();
+    }catch(e){log('ASN bootstrap: '+e.message);}
+    finally{inventory.asns.fetchFn=undefined;}
+  }
   if(control)await control.start();
   if(stopping)throw new Error('privacy agent stopped during bootstrap');
   if(control)inventory.asns.fetchFn=guardedFetch(control.proxies,{timeoutMs:6000,maxBytes:65536});
