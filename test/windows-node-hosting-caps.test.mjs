@@ -518,3 +518,23 @@ test("market status: taking new work only while the relay's market window is ope
   assert.equal(taking(), false);
   assert.match(box({ claimScope: "owner-only" }).marketStatus().why, /only its owner's apps/);
 });
+
+// ---- follow the book: a ledger cutover moves `deployments`; the node uses the new one without a restart --------------
+test("followBook: a moved ledger is adopted (logged once, scan holds cleared), an unchanged book changes nothing", async () => {
+  const logs = [];
+  const h = box({ log: (m) => logs.push(m) });
+  const old = chain.addresses.deployments, NEW = "0x" + "16".repeat(20);
+  h.scanHold.set("0xabc", { key: "k", at: Date.now(), ms: 60_000 });
+  assert.deepEqual(await h.followBook({ now: 1, resolve: async () => {} }), []);                  // nothing moved
+  assert.equal(h.scanHold.size, 1);
+  assert.deepEqual(await h.followBook({ now: 2, resolve: async () => {} }), [], "re-read only every BOOK_RECHECK_MS");
+  try {
+    const moved = await h.followBook({ now: 1 + Host.BOOK_RECHECK_MS, resolve: async () => { chain.addresses.deployments = NEW; } });
+    assert.deepEqual(moved, ["deployments"]);
+    assert.equal(h.scanHold.size, 0, "rows held against the old ledger are asked again on the new one");
+    assert.ok(logs.some((l) => l.includes(`deployments moved ${old} -> ${NEW}`)), logs.join(" / "));
+    const failed = await h.followBook({ now: 2 + 2 * Host.BOOK_RECHECK_MS, resolve: async () => { throw new Error("rpc down"); } });
+    assert.deepEqual(failed, []);
+    assert.equal(chain.addresses.deployments, NEW, "a failed re-read keeps the ledger it has");
+  } finally { chain.addresses.deployments = old; }
+});
