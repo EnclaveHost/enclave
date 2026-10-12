@@ -145,7 +145,7 @@ test("the consumer node's market scope and claimEnabled are gated on the isolati
   assert.match(src, /claimEnabled: this\.meetsIsolationContract\(\) && ready,/, "claimEnabled needs the contract");
   const agent = read("windows/node/agent.mjs");
   assert.match(agent, /host\.relayTier = tier;/, "the agent hands the relay's verdict to the host");
-  assert.match(agent, /if \(s === tunnels\.current\) host\.shieldMarketUntil = Math\.min\(Number\(f\.until\) \|\| 0, Date\.now\(\) \+ 300000\);/,
+  assert.match(agent, /if \(s === tunnels\.current\) host\.openShieldMarket\(Math\.min\(Number\(f\.until\) \|\| 0, Date\.now\(\) \+ 300000\)\);/,
     "only the accepted relay tunnel opens the market window, and never for more than five minutes");
 });
 

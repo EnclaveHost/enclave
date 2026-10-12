@@ -515,7 +515,7 @@ export class Host {
     const ours = String(d.runner || "").toLowerCase() === String(this.enclaveId).toLowerCase();
     if (!ours || !(Number(d.leaseUntil) * 1000 > Date.now()))
       return "this box does not hold a live lease on it, so there is nothing here to restart";
-    if (this.scope() === "owner-only" && !this.ownerSet().has(String(d.owner || "").toLowerCase()))
+    if (this.servingScope() === "owner-only" && !this.ownerSet().has(String(d.owner || "").toLowerCase()))
       return `this node is in owner-only scope and restarts only its operator's and its delegated owners' deployments (this one is owned by ${d.owner})`;
     return null;
   }
@@ -2245,7 +2245,7 @@ export class Host {
   }
   /** ownerNotServed(d) -> true when, in owner-only scope, the deployment's ledger owner is not in ownerSet(). */
   ownerNotServed(d) {
-    return this.scope() === "owner-only" && !this.ownerSet().has(String(d?.owner || "").toLowerCase());
+    return this.servingScope() === "owner-only" && !this.ownerSet().has(String(d?.owner || "").toLowerCase());
   }
   /**
    * claimRefusal(d, ...) -> why this box will not CLAIM ledger row `d` on policy, or null: chain.claimPolicy AND the
@@ -2263,6 +2263,7 @@ export class Host {
                                   features: this.features() })
       || this.retiredEngineClaimRefusal(d);
   }
+  static MARKET_GRACE_MS = 15 * 60_000;    // servingScope(): the relay's owner-read grace is the same 15 min
   static SCAN_HOLD_MS = 10 * 60_000;       // a refused row
   static SCAN_QUEUED_HOLD_MS = 2 * 60_000; // a queued one: its input may come back soon (the preclaim's unknown, the ledger's cap)
   static SCAN_CLAIMFAIL_HOLD_MS = 2 * 60_000; // a row whose claim tx failed twice running under the same inputs
@@ -2303,6 +2304,23 @@ export class Host {
    * OWNER's apps only, which is the owner's own machine and the owner's own call.
    */
   scope() { return this.meetsIsolationContract() && this.cfg.claimScope === "market" ? "market" : "owner-only"; }
+  /** The relay's market window (agent.mjs, the shield-market frame): open until `until`, remembered past it for the grace. */
+  openShieldMarket(until) {
+    this.shieldMarketUntil = Number(until) || 0;
+    if (this.shieldMarketUntil > Date.now()) this.shieldMarketSeenUntil = Math.max(Number(this.shieldMarketSeenUntil || 0), this.shieldMarketUntil);
+  }
+  /**
+   * The scope this box SERVES what it already runs in: scope(), or "market" for MARKET_GRACE_MS past the relay's last
+   * market window. A relay restart, a re-attach or a missed refresh lapses the window for a minute or two; without the
+   * grace, every buyer's app here was held (unrenewed, its certificate and route refused) until the next window. NEW
+   * claims still need a live window (scope(): scanLedger), and the relay still routes each app only on its own fresh
+   * evidence (relay/shield-marketplace.mjs servesUntil): the grace keeps nothing reachable the relay has not verified.
+   */
+  servingScope() {
+    if (this.scope() === "market") return "market";
+    return this.cfg.claimScope === "market" && this.cfg.engineRetired === true && this.isolationBackend === "hyperv-partition-per-app"
+      && this.relayTier === "hv-node" && Number(this.shieldMarketSeenUntil || 0) + Host.MARKET_GRACE_MS > Date.now() ? "market" : "owner-only";
+  }
   /**
    * What this box adds to /availability.
    *
@@ -2830,7 +2848,7 @@ export class Host {
     // WHOSE app: in owner-only scope a deployment whose ledger owner this box no longer serves (a delegation removed,
     // expired or invalid) is never spliced, whatever list the relay still holds - the removal takes effect here at once
     // (enclave-bf's belt, enclave-87's revocation ruling on the make-before-break re-attach).
-    if (rec && rec.owner && this.scope() === "owner-only" && !this.ownerSet().has(rec.owner)) return null;
+    if (rec && rec.owner && this.servingScope() === "owner-only" && !this.ownerSet().has(rec.owner)) return null;
     // AN ISOLATED DEPLOYMENT HAS NO `app` HERE, AND MUST NOT NEED ONE.
     //
     // Its process is a partition, not an entry in this.apps, so the checks below - which want a

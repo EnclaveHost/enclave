@@ -415,6 +415,27 @@ test('Shield marketplace claims require the isolated backend and an unexpired re
  assert.equal(h.scope(),'owner-only');
 });
 
+test('a lapsed market window keeps serving what this box runs for MARKET_GRACE_MS; new claims need a live window', () => {
+ const h=box({engineRetired:true,isolationManager:'http://127.0.0.1:8091',claimScope:'market'});
+ h.relayTier='hv-node';
+ assert.equal(h.servingScope(),'owner-only','never opened: no grace');
+ h.openShieldMarket(Date.now()+60000);
+ assert.equal(h.scope(),'market');assert.equal(h.servingScope(),'market');
+ h.openShieldMarket(0);   // the tunnel dropped, or the relay restarted
+ assert.equal(h.scope(),'owner-only','a new claim needs a live window');
+ assert.equal(h.servingScope(),'market','what runs here is still served');
+ assert.equal(h.ownerNotServed(newDep()),false,'a buyer app is not held inside the grace');
+ assert.equal(h.restartRefusal(newDep().id,newDep({runner:h.enclaveId,leaseUntil:BigInt(Math.floor(Date.now()/1000)+600)})),null);
+ h.shieldMarketSeenUntil=Date.now()-Host.MARKET_GRACE_MS-1;
+ assert.equal(h.servingScope(),'owner-only','past the grace: held as before');
+ assert.equal(h.ownerNotServed(newDep()),true);
+ h.shieldMarketSeenUntil=Date.now();
+ for(const [k,v] of [['claimScope','owner-only'],['engineRetired',false]]){
+  const old=h.cfg[k];h.cfg[k]=v;assert.equal(h.servingScope(),'owner-only',k);h.cfg[k]=old;
+ }
+ h.relayTier='';assert.equal(h.servingScope(),'owner-only','no hv-node verdict');
+});
+
 
 test("explicit app RAM budget is independent of CPU reserve, bounded by physical RAM and fail closed", () => {
   const h = box({ ramGb: 112, appRamGb: 64, reservedShare: 0.25 });
