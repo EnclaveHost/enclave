@@ -148,6 +148,31 @@ test('a public provider that keeps failing allocation is cooled down for longer 
  assert.ok(!manager.strikes.has(pub));
  await manager.close();
 });
+test('a public provider whose circuits keep dropping soon after coming up is cooled down for longer each time; a circuit that stays up clears it',async()=>{
+ let now=1_000_000;const started=[];
+ const wallets=Array.from({length:2},(_,slot)=>Object.fromEntries(['guard','public','egress'].map(role=>[role,{address:'r'+slot+role,fundedNkn:'0.1'}])));
+ const admission={allows:()=>true,leases:new Map([[id,{validUntil:Infinity}]]),proofs:new Map([[id,{validUntil:Infinity}]])};
+ const manager=new CircuitManager({admission,inventory:async()=>nodes,wallets:async()=>wallets,probe:async()=>{},publish:async()=>{},now:()=>now,
+  runtime:{start:async args=>{
+   const c=new EventEmitter();Object.assign(c,{...args,id:String(started.length).padStart(32,'0'),providers:args.providers,address:args.providers.public.address,port:443,closed:false,admit(){},async close(){this.closed=true}});started.push(c);return c;
+  }}});
+ // only nodes 0 and 3 offer the public side, so every replacement for a dropped route goes back to one of them
+ const only=new Set([nodes[0].identity,nodes[3].identity]);
+ manager.inventory=async()=>nodes.map(n=>only.has(n.identity)?n:{...n,services:['socksproxy']});
+ await manager.configure([{policy,names:['app.example']}]);await manager.reconcile();
+ const app=manager.apps.get(id),pub='public:'+nodes[0].identity,until=()=>manager.cooldown.get(pub)-now;
+ const drop=async()=>{const c=app.circuits.find(c=>c.providers.public.identity===nodes[0].identity);assert.ok(c,'a route on node 0');await manager.fail(app,c,'provider disconnected');};
+ const waits=[];
+ for(let i=0;i<3;i++){now+=30000;await drop();waits.push(until());now+=until()+1;await manager.reconcile();}
+ assert.deepEqual(waits,[60000,120000,240000]);
+ // an allocation success does not wipe the record: the route came back on node 0 (allocated fine) and drops again
+ now+=30000;await drop();assert.equal(until(),480000);now+=until()+1;await manager.reconcile();
+ // once a route on it stays up past the stable window, the next drop starts over at 60 s
+ now+=600001;await manager.reconcile();now+=1;await drop();assert.equal(until(),60000);
+ // the guard of a dropped circuit is only held back flat
+ for(const [k,v] of manager.cooldown)if(k.startsWith('guard:'))assert.ok(v-now<=60000,k);
+ await manager.close();
+});
 test('multiple apps keep independent warm fallback tunnels on one provider without sharing ports or identities',async()=>{
  const f=fixture(),other='0x'+'ef'.repeat(32),until=Date.now()+60000;
  f.manager.admission.leases.set(other,{validUntil:until});f.manager.admission.proofs.set(other,{validUntil:until});
