@@ -16,6 +16,13 @@ export function createShieldWitness({config, base, dataAddr, client = new Isolat
     if (pending) return pending;
     pending = (async () => {
       let v = await client.findByName(WITNESS_NAME);
+      // A manager restart (every update restarts it) leaves our witness RECOVERED: still running, never serving again, and
+      // listed without its runtime. Ours by name and app, it is replaced at once; reading the absent runtime as a
+      // mismatch kept the box out of the market for good (nucbox-k11-4, 2026-10-12).
+      if (v && v.recovered === true && v.appId === config.appId) {
+        if (now() < retryAt) throw Error('witness recovery cooling down');
+        await client.remove(v.id); v = null;
+      }
       if (v && (v.appId !== config.appId || v.runtimeId !== config.derive.runtimeId))
         throw Error('witness identity mismatch; operator intervention required');
       if (v && (v.recovered === true || !['running','starting'].includes(v.status))) {

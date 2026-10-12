@@ -9,3 +9,8 @@ test('hosting off: stop() removes the witness partition (nothing to remove is fi
  assert.equal(await x.w.stop(),true);assert.deepEqual(x.counts(),{spawns:1,removes:1});
  assert.equal(await x.w.stop(),false,'already gone');assert.deepEqual(x.counts(),{spawns:1,removes:1});
  await x.w.ensure();assert.deepEqual(x.counts(),{spawns:2,removes:1},'on again: no recovery cooldown after an owner stop');});
+test('after a manager restart the witness is RECOVERED, listed without its runtime: replaced at once, not refused as a mismatch',async()=>{const x=setup();await x.w.ensure();
+ x.row.recovered=true;delete x.row.runtimeId;x.row.status='starting';x.time(170000);
+ await x.w.ensure();assert.deepEqual(x.counts(),{spawns:2,removes:1},'removed and spawned again');
+ x.row.recovered=true;x.row.appId='ff'.repeat(32);delete x.row.runtimeId;x.time(400000);
+ await assert.rejects(x.w.ensure(),/identity mismatch/,'a recovered VM of another app under our name is still never removed');});
