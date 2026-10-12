@@ -41,9 +41,29 @@ namespace Enclave.Setup
             try { SetProcessDPIAware(); } catch { }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            string resumeName = null;
-            for (int i = 0; i < args.Length; i++) if (args[i] == "--resume" && i + 1 < args.Length) resumeName = args[i + 1];
-            Application.Run(new SetupForm(resumeName));
+            string resumeName = null; bool uninstall = false;
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i] == "--resume" && i + 1 < args.Length) resumeName = args[i + 1];
+                if (args[i] == "--uninstall") uninstall = true;
+            }
+            // Never run from inside Program Files\Enclave: the uninstall deletes that folder, and an install replaces it (and
+            // stops every process running from it). Windows' Installed apps starts the copy kept there, so it relaunches
+            // itself from a temporary copy - with uninstall-host.ps1 beside it - and that copy does the work.
+            string here = Path.GetDirectoryName(Application.ExecutablePath);
+            string pf = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Enclave");
+            if (string.Equals(here.TrimEnd('\\'), pf, StringComparison.OrdinalIgnoreCase))
+            {
+                string tmp = Path.Combine(Path.GetTempPath(), "Enclave-setup-" + Guid.NewGuid().ToString("N").Substring(0, 8));
+                Directory.CreateDirectory(tmp);
+                string copy = Path.Combine(tmp, "EnclaveSetup.exe");
+                File.Copy(Application.ExecutablePath, copy, true);
+                string script = Path.Combine(pf, "uninstall-host.ps1");
+                if (File.Exists(script)) File.Copy(script, Path.Combine(tmp, "uninstall-host.ps1"), true);
+                Process.Start(new ProcessStartInfo(copy, string.Join(" ", args)) { UseShellExecute = true, WorkingDirectory = tmp });
+                return 0;
+            }
+            Application.Run(new SetupForm(resumeName, uninstall));
             return 0;
         }
     }
@@ -71,6 +91,9 @@ namespace Enclave.Setup
         // the install script's steps, in order, each weighted by roughly how long it takes (the join waits on the network)
         static readonly string[] InstallSteps = { "checks", "hyperv", "name", "prereq", "files", "shield", "keys", "config", "services", "join", "tray", "done" };
         static readonly int[] InstallWeights = { 1, 1, 1, 1, 4, 2, 1, 1, 3, 5, 1, 1 };
+        static readonly string[] UninstallSteps = { "services", "shield", "tray", "files", "data", "done" };
+        static readonly int[] UninstallWeights = { 2, 2, 1, 2, 1, 1 };
+        readonly CheckBox removeData = new CheckBox();
         string phase = "", runningKey, runningMsg;
         DateTime runningSince, startedAt;
         int frame;
@@ -84,17 +107,17 @@ namespace Enclave.Setup
         bool nameOk, busy;
         Action onPrimary;
 
-        public SetupForm(string resumeName)
+        public SetupForm(string resumeName, bool uninstall)
         {
             this.resumeName = resumeName;
-            Text = "Enclave setup";
+            Text = uninstall ? "Remove Enclave" : "Enclave setup";
             FormBorderStyle = FormBorderStyle.FixedSingle; MaximizeBox = false; StartPosition = FormStartPosition.CenterScreen;
             AutoScaleMode = AutoScaleMode.None; AutoSize = true; AutoSizeMode = AutoSizeMode.GrowAndShrink;
             BackColor = Theme.Bg; ForeColor = Theme.Text; Font = Theme.Body;
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
             var flow = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true,
                                              AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(Theme.Px(20)), BackColor = Theme.Bg };
-            var mast = new Masthead("setup"); mast.Width = Wide; flow.Controls.Add(mast);
+            var mast = new Masthead(uninstall ? "uninstall" : "setup"); mast.Width = Wide; flow.Controls.Add(mast);
             flow.Controls.Add(new Panel { Size = new Size(Wide, 1), BackColor = Theme.Line, Margin = new Padding(3, Theme.Px(8), 3, Theme.Px(10)) });
             heading.AutoSize = true; heading.MaximumSize = new Size(Wide, 0); heading.Font = Theme.Mono(13f, FontStyle.Bold); heading.ForeColor = Theme.Text;
             body.AutoSize = true; body.MaximumSize = new Size(Wide, 0); body.ForeColor = Theme.Muted; body.Margin = new Padding(3, Theme.Px(8), 3, Theme.Px(6));
@@ -111,6 +134,11 @@ namespace Enclave.Setup
             nameNote.Margin = new Padding(3, Theme.Px(6), 3, 0);
             nameRow.Controls.Add(nameBox); nameRow.Controls.Add(nameNote); nameRow.Visible = false;
             flow.Controls.Add(nameRow);
+            // the uninstall's one choice
+            removeData.AutoSize = true; removeData.MaximumSize = new Size(Wide, 0); removeData.ForeColor = Theme.Text; removeData.BackColor = Theme.Bg;
+            removeData.FlatStyle = FlatStyle.Flat; removeData.Margin = new Padding(3, Theme.Px(8), 3, 0); removeData.Visible = false;
+            removeData.Text = "Also move this host's data aside (keys, records, logs)";
+            flow.Controls.Add(removeData);
             // the steps
             steps.FlowDirection = FlowDirection.TopDown; steps.AutoSize = true; steps.WrapContents = false; steps.BackColor = Theme.Bg;
             steps.Margin = new Padding(3, Theme.Px(6), 3, 0); steps.MinimumSize = new Size(Wide, 0);
@@ -129,7 +157,7 @@ namespace Enclave.Setup
             nameBox.TextChanged += delegate { nameOk = false; primary.Enabled = false; nameNote.ForeColor = Theme.Dim; nameNote.Text = "checking…"; nameTimer.Stop(); nameTimer.Start(); };
             nameTimer.Tick += delegate { nameTimer.Stop(); CheckName(nameBox.Text.Trim()); };
             tick.Tick += delegate { Animate(); }; tick.Start();
-            if (resumeName != null) { name = resumeName; ResumeAfterRestart(); } else Welcome();
+            if (uninstall) Uninstall(); else if (resumeName != null) { name = resumeName; ResumeAfterRestart(); } else Welcome();
         }
         protected override void OnHandleCreated(EventArgs e) { base.OnHandleCreated(e); Theme.DarkFrame(Handle); }
 
@@ -150,14 +178,17 @@ namespace Enclave.Setup
             double v = rail.Value;
             if (phase == "download") v = .30 * downloadPct;
             else if (phase == "check") { if (state == "ok" && key == "checks") v = Math.Max(v, .34); if (state == "ok" && key == "hyperv") v = Math.Max(v, .38); }
-            else if (phase == "install")
+            else if (phase == "install" || phase == "uninstall")
             {
-                int i = Array.IndexOf(InstallSteps, key);
+                string[] names = phase == "install" ? InstallSteps : UninstallSteps;
+                int[] weights = phase == "install" ? InstallWeights : UninstallWeights;
+                double from = phase == "install" ? .38 : 0, span = 1 - from;
+                int i = Array.IndexOf(names, key);
                 if (i >= 0)
                 {
                     int total = 0, upTo = 0;
-                    for (int j = 0; j < InstallWeights.Length; j++) { total += InstallWeights[j]; if (j < i || (j == i && state == "ok")) upTo += InstallWeights[j]; }
-                    v = Math.Max(v, .38 + .62 * upTo / total);
+                    for (int j = 0; j < weights.Length; j++) { total += weights[j]; if (j < i || (j == i && state == "ok")) upTo += weights[j]; }
+                    v = Math.Max(v, from + span * upTo / total);
                 }
             }
             rail.Value = v;
@@ -265,7 +296,7 @@ namespace Enclave.Setup
         {
             Page("Checking this PC", "", "Next", null);
             phase = "check"; rail.Failed = false;
-            RunScript("-CheckOnly", delegate (int code)
+            RunScript(Path.Combine(bundleDir, "install-host.ps1"), "-CheckOnly", delegate (int code)
             {
                 if (code == 0) ChooseName();
                 else if (code == 3010) NeedsRestart();
@@ -334,7 +365,7 @@ namespace Enclave.Setup
             Page("Installing '" + name + "'", "This takes a few minutes. Keep this PC on.", "Next", null);
             phase = "install"; rail.Failed = false;
             string owner = Environment.UserDomainName + "\\" + Environment.UserName;
-            RunScript("-Name " + name + " -Owner \"" + owner + "\"", delegate (int code)
+            RunScript(Path.Combine(bundleDir, "install-host.ps1"), "-Name " + name + " -Owner \"" + owner + "\" -SetupExe \"" + Application.ExecutablePath + "\"", delegate (int code)
             {
                 if (code == 0) Done();
                 else if (code == 3010) NeedsRestart();
@@ -356,8 +387,45 @@ namespace Enclave.Setup
             secondary.Text = "Close"; secondary.FitText();
         }
 
-        /// <summary>Run install-host.ps1 from the bundle with these arguments, showing its JSON lines as steps.</summary>
-        void RunScript(string args, Action<int> done)
+        // ---- uninstall (Settings > Apps > Installed apps > Enclave > Uninstall) ----------------------------------------------
+        void Uninstall()
+        {
+            Page("Remove Enclave from this PC",
+                 "This stops hosting and removes Enclave's services, Enclave Shield's virtual machines, the tray and the program files. "
+                 + "This host's keys and records stay in C:\\ProgramData\\Enclave unless you tick the box, so you can reinstall it as the "
+                 + "same host. Its operator key holds any earnings not yet paid out: keep it until they are. Hyper-V stays on.", "Remove", delegate
+            {
+                bool all = removeData.Checked; removeData.Visible = false;
+                Page("Removing Enclave", "", "Next", null);
+                phase = "uninstall"; rail.Failed = false;
+                string script = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "uninstall-host.ps1");
+                if (!File.Exists(script)) script = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), @"Enclave\uninstall-host.ps1");
+                RunScript(script, all ? "-RemoveData" : "", delegate (int code)
+                {
+                    if (code == 0)
+                    {
+                        rail.Value = 1; Caption();
+                        Page("Enclave is removed", all ? "This host's data was moved aside, not deleted (see above)."
+                             : "This host's data is kept: run setup again to bring it back as the same host.", "Close", delegate { Close(); });
+                        secondary.Visible = false;
+                    }
+                    else Page("Enclave was not fully removed", "See the step marked above, then try again.", "Try again", Uninstall);
+                });
+            });
+            removeData.Visible = true;
+        }
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            base.OnFormClosed(e);
+            // a temporary copy (see SetupProgram.Main) removes itself once it has exited
+            string here = Path.GetDirectoryName(Application.ExecutablePath);
+            if (Path.GetFileName(here).StartsWith("Enclave-setup-", StringComparison.OrdinalIgnoreCase) &&
+                here.StartsWith(Path.GetTempPath().TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+                try { Process.Start(new ProcessStartInfo("cmd.exe", "/c ping -n 3 127.0.0.1 >nul & rmdir /s /q \"" + here + "\"") { CreateNoWindow = true, UseShellExecute = false }); } catch { }
+        }
+
+        /// <summary>Run an install script with these arguments, showing its JSON lines as steps.</summary>
+        void RunScript(string script, string args, Action<int> done)
         {
             Work(delegate
             {
@@ -365,7 +433,7 @@ namespace Enclave.Setup
                 try
                 {
                     var psi = new ProcessStartInfo("powershell.exe",
-                        "-NoProfile -ExecutionPolicy Bypass -File \"" + Path.Combine(bundleDir, "install-host.ps1") + "\" " + args)
+                        "-NoProfile -ExecutionPolicy Bypass -File \"" + script + "\" " + args)
                     { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
                     using (var p = Process.Start(psi))
                     {

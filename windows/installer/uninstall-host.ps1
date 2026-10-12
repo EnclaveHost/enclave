@@ -3,7 +3,8 @@
 # Stops and removes the \Enclave\ tasks, their processes and every Enclave Shield VM, the tray and the program files.
 # ProgramData\Enclave (this host's keys, its records, its logs) is KEPT unless -RemoveData, which MOVES it to
 # ProgramData\Enclave-removed-<time> rather than deleting it: the operator key may still hold gas or earnings.
-# Hyper-V and its host settings stay: other software may use them.
+# Hyper-V and its host settings stay: other software may use them. Windows' Settings > Apps > Installed apps > Enclave >
+# Uninstall runs this through EnclaveSetup.exe --uninstall (with progress); its QuietUninstallString runs it directly.
 param([switch] $RemoveData)
 $ErrorActionPreference = "Continue"
 $PF = Join-Path $env:ProgramFiles "Enclave"; $PD = Join-Path $env:ProgramData "Enclave"
@@ -29,7 +30,11 @@ if (Test-Path (Join-Path $PF "tray\uninstall-tray.cmd")) { & cmd.exe /c (Join-Pa
 Emit "tray" "ok" "The tray is removed for $env:USERNAME (other accounts: run tray\uninstall-tray.cmd as them)"
 Set-Location $env:SystemRoot
 if (Test-Path $PF) { Remove-Item $PF -Recurse -Force }
-Emit "files" "ok" "The program files are removed"
+Remove-Item "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\EnclaveHost" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" -Name EnclaveSetup -ErrorAction SilentlyContinue
+# setup's downloads and unpacked releases (about 160 MB each)
+$dl = Join-Path $env:ProgramData "Enclave-setup"; if (Test-Path $dl) { Remove-Item $dl -Recurse -Force -ErrorAction SilentlyContinue }
+Emit "files" "ok" "The program files, setup's downloads and the Installed apps entry are removed"
 if ($RemoveData -and (Test-Path $PD)) {
   $to = "$PD-removed-" + (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
   Move-Item $PD $to; Emit "data" "ok" "This host's data (keys included) moved to $to"
