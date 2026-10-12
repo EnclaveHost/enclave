@@ -9,7 +9,8 @@ param(
   [switch] $CheckOnly,                  # the machine checks alone
   [switch] $NoStart,                    # install and start Enclave Shield, but not the node (a test that registers nothing)
   [string] $Relay = "https://api.enclave.host",
-  [string] $SetupExe = ""               # EnclaveSetup.exe: kept in Program Files as the uninstaller Windows' Installed apps runs
+  [string] $SetupExe = "",              # EnclaveSetup.exe: kept in Program Files as the uninstaller Windows' Installed apps runs
+  [switch] $Delta                       # an update over this install: replace only the files whose sha256 changed (update-host.ps1)
 )
 $ErrorActionPreference = "Stop"
 $Bundle = $PSScriptRoot
@@ -104,12 +105,32 @@ Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.Executa
   ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Start-Sleep 2
 $manifest = Get-Content (Join-Path $Bundle "manifest.json") -Raw | ConvertFrom-Json
-if (Test-Path $PF) { Remove-Item $PF -Recurse -Force }
-New-Item -ItemType Directory -Force $PF | Out-Null
-foreach ($d in "runtime", "control", "tuna", "bin", "guest", "tray") { Copy-Item (Join-Path $Bundle $d) (Join-Path $PF $d) -Recurse -Force }
+$installedManifest = Join-Path $PF "manifest.json"
+$inPF = { param($e) $e.path -match '^(runtime|control|tuna|bin|guest|tray)/' }
+if ($Delta -and (Test-Path $installedManifest)) {
+  # AN UPDATE: Program Files already holds the installed release, whose manifest says what each file is. Only the files
+  # whose sha256 changed are copied, files the new release no longer has are removed, and only the copied ones are
+  # re-hashed: a one-file release touches one file, not 14,000.
+  $old = @{}; foreach ($e in (Get-Content $installedManifest -Raw | ConvertFrom-Json).files) { $old[$e.path] = $e.sha256 }
+  $want = @($manifest.files | Where-Object { & $inPF $_ })
+  $changed = @($want | Where-Object { $old[$_.path] -ne $_.sha256 -or -not (Test-Path -LiteralPath (Join-Path $PF ($_.path -replace '/', '\'))) })
+  foreach ($e in $changed) {
+    $dst = Join-Path $PF ($e.path -replace '/', '\'); New-Item -ItemType Directory -Force (Split-Path $dst) | Out-Null
+    Copy-Item -LiteralPath (Join-Path $Bundle ($e.path -replace '/', '\')) $dst -Force
+  }
+  $keep = @{}; foreach ($e in $want) { $keep[$e.path] = 1 }
+  $gone = @($old.Keys | Where-Object { $_ -match '^(runtime|control|tuna|bin|guest|tray)/' -and -not $keep.ContainsKey($_) })
+  foreach ($g in $gone) { Remove-Item -LiteralPath (Join-Path $PF ($g -replace '/', '\')) -Force -ErrorAction SilentlyContinue }
+  $check = $changed
+} else {
+  if (Test-Path $PF) { Remove-Item $PF -Recurse -Force }
+  New-Item -ItemType Directory -Force $PF | Out-Null
+  foreach ($d in "runtime", "control", "tuna", "bin", "guest", "tray") { Copy-Item (Join-Path $Bundle $d) (Join-Path $PF $d) -Recurse -Force }
+  $changed = $null; $gone = @()
+  $check = @($manifest.files | Where-Object { & $inPF $_ })
+}
 Copy-Item (Join-Path $Bundle "manifest.json"), (Join-Path $Bundle "uninstall-host.ps1"), (Join-Path $Bundle "update-host.ps1") $PF -Force
-$bad = @($manifest.files | Where-Object { $_.path -match '^(runtime|control|tuna|bin|guest|tray)/' } |
-         Where-Object { $p = Join-Path $PF ($_.path -replace '/', '\'); -not (Test-Path -LiteralPath $p) -or (Sha $p) -ne $_.sha256 })
+$bad = @($check | Where-Object { $p = Join-Path $PF ($_.path -replace '/', '\'); -not (Test-Path -LiteralPath $p) -or (Sha $p) -ne $_.sha256 })
 if ($bad.Count) { Fail "files" "$($bad.Count) installed file(s) do not match the bundle's manifest (first: $($bad[0].path))." }
 # Settings > Apps > Installed apps: "Enclave", with Uninstall. Written now, not at the end, so a half-finished install can be
 # removed too. EnclaveSetup.exe --uninstall copies itself out of Program Files and runs uninstall-host.ps1 with progress;
@@ -130,7 +151,7 @@ foreach ($d in "", "node", "shield", "shield\vmgs-archive", "shield\bundles", "t
 # the root: owners full, users may only pass through (the node opens hosting\ to the tray user itself); the rest: owners only
 icacls $PD /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-32-545:(RX)" /q | Out-Null
 foreach ($d in "node", "shield", "tuna", "logs") { icacls (Join-Path $PD $d) /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /q | Out-Null }
-Emit "files" "ok" "Enclave $($manifest.version) installed in $PF"
+Emit "files" "ok" ("Enclave $($manifest.version) installed in $PF" + $(if ($null -ne $changed) { " ($($changed.Count) file(s) changed, $($gone.Count) removed)" } else { "" }))
 
 # ---------------------------------------------------------------------------------------------------------------------
 # 6. this box's own: the guest-state master, the keys, the configuration

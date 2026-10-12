@@ -85,7 +85,10 @@ the fallback for a node that is not running. `\Enclave\Update` (SYSTEM) runs `up
 `get.enclave.host/windows/latest.json` names a newer version than Program Files' `manifest.json`, it downloads the zip and
 `EnclaveSetup.exe`, checks both against the published sha256, and runs the new `install-host.ps1` over the host with the same
 name and owner (keys, records, guest state and registration kept; the services restart on the new version). A failed install
-reinstalls the release that was running from its kept bundle. The tray in the owner's profile replaces itself from Program
+reinstalls the release that was running from its kept bundle. Updates are DELTAS: a release publishes every file by its
+sha256 under `windows/files/` and its manifest as `manifest-<version>.json`; the updater hard-links unchanged files from
+the installed release's kept bundle, downloads only the changed ones (falling back to the zip past 400 files or 60 MB), and
+`install-host.ps1 -Delta` replaces only those in Program Files. The tray in the owner's profile replaces itself from Program
 Files at its next start when they differ. Publishing a release (`scripts/publish-windows-host.sh`) is all it takes.
 
 ## Bundle build
