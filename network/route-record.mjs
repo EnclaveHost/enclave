@@ -1,6 +1,8 @@
 // App-scoped route records. Transport keys cannot authorize themselves: a
 // currently leased runner delegates a bounded key, and clients recheck the lease.
 import {createHash, createPublicKey, sign, verify} from 'node:crypto';
+import {canonical} from './canonical.mjs';
+export {canonical};
 import {assertDirectChoice} from './connectivity-control.mjs';
 import {recoverMessageAddress,keccak256,stringToHex} from 'viem';
 import net from 'node:net';
@@ -10,13 +12,6 @@ import {verifyQualification} from './provider-qualification.mjs';
 import {tunaPolicyFromLease} from './tuna-policy.mjs';
 import {validateNetworkPolicy} from './network-policy.mjs';
 
-export function canonical(value) {
-  if (value === null || typeof value === 'boolean' || typeof value === 'string') return JSON.stringify(value);
-  if (typeof value === 'number' && Number.isSafeInteger(value)) return String(value);
-  if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
-  if (value && Object.getPrototypeOf(value) === Object.prototype) return '{' + Object.keys(value).sort().map(k => JSON.stringify(k) + ':' + canonical(value[k])).join(',') + '}';
-  throw new Error('record must contain only bounded JSON values');
-}
 export const recordHash = value => createHash('sha256').update(canonical(value)).digest('hex');
 const message = (kind, value) => `enclave-network:${kind}:v2\n${canonical(value)}`;
 const appPattern = /^0x[0-9a-f]{64}$/;

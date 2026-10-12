@@ -460,10 +460,15 @@ export async function prepareNetwork(vault,p){
  const raw=await pub.readContract({address:binding.address,abi:NETWORK_ABI,functionName:p.mode==='trust'?'probeTrustDigest':p.mode==='tuna'?'tunaPolicyDigest':'policyDigest',args});
  return {...binding,vault,chainId:cfg.chainId||8453,id:p.id,nonce:String(policy[1]+1n),mode:p.mode||'direct',...(p.mode==='trust'?{signers:p.signers,threshold:p.threshold}:{}),...(p.mode==='tuna'?{providers:p.providers}:{}),expires:String(p.expires),maxPricePerGiB6:String(p.maxPricePerGiB6),budget6:String(p.budget6),digest:viem.hashMessage({raw})};
 }
+// A passkey assertion (with the account key's x,y) as the vault's ERC-1271 signature: abi.encode(WebAuthnSig). The vault
+// contract is the verifier: it accepts it only for a registered key whose assertion's challenge is the signed hash.
+export function vaultSignature(assertion){
+ const sig={authenticatorData:'0x'+Buffer.from(assertion.authenticatorData,'base64url').toString('hex'),clientDataJSON:Buffer.from(assertion.clientDataJSON,'base64url').toString('utf8'),...derToRS(Buffer.from(assertion.signature,'base64url')),x:BigInt(assertion.x),y:BigInt(assertion.y)};
+ return viem.encodeAbiParameters([{type:'tuple',components:SIG_COMPONENTS}],[sig]);
+}
 export async function submitNetwork(vault,p,assertion){
  const args=networkArgs(p);
- const sig={authenticatorData:'0x'+Buffer.from(assertion.authenticatorData,'base64url').toString('hex'),clientDataJSON:Buffer.from(assertion.clientDataJSON,'base64url').toString('utf8'),...derToRS(Buffer.from(assertion.signature,'base64url')),x:BigInt(assertion.x),y:BigInt(assertion.y)};
- const signature=viem.encodeAbiParameters([{type:'tuple',components:SIG_COMPONENTS}],[sig]);
+ const signature=vaultSignature(assertion);
  return serial(async()=>{
   const pub=await rpcPool(),{address}=await networkBinding(pub);
   // Simulation validates the vault signature and current policy before gas is spent.
