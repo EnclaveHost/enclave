@@ -4,7 +4,7 @@ rem Desktop and Start Menu shortcuts, delete %LOCALAPPDATA%\Enclave\Tray. The no
 rem node's and stay as they were set.
 setlocal
 set "DEST=%LOCALAPPDATA%\Enclave\Tray"
-taskkill /im EnclaveTray.exe /fi "USERNAME eq %USERNAME%" >nul 2>&1
+taskkill /f /im EnclaveTray.exe /fi "USERNAME eq %USERNAME%" >nul 2>&1
 ping -n 2 127.0.0.1 >nul
 reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v EnclaveHostingTray /f >nul 2>&1
 powershell -NoProfile -ExecutionPolicy Bypass -Command "foreach ($d in [Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs')) { Remove-Item -LiteralPath (Join-Path $d 'Enclave Hosting.lnk') -ErrorAction SilentlyContinue }"
