@@ -659,7 +659,8 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     for (const { d } of (await candidates()).slice(0, 16)) {
       const id = lc(d.id), old = state.refused[id];
       if (standDown.has(id) && standDown.get(id) > now()) continue;
-      if (old && now() - old.at < 10 * 60_000 && !hints.has(id)) continue;
+      // a hint never cuts a failure's back-off short; a new version or config does
+      if (old && now() - old.at < backoffMs(old) && !(old.n && old.key !== rowKey(d)) && (!hints.has(id) || old.n)) continue;
       const ad = await admission(d);
       if (ad.busy) continue;   // it would be taken with room: looked at again when a slot frees
       if (ad.why) { state.refused[id] = { at: now(), why: ad.why }; save(); note({ ev: "not-taken", deployment: id, why: ad.why }); continue; }
@@ -670,12 +671,25 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     }
     return null;
   }
+  /**
+   * A deployment that did not start here (or could not be fetched) is tried again after a back-off that doubles with each
+   * failure -- 10 min, 20, 40 ... up to 6 h -- and a claim hint does not cut it short; a new version or config (the row's
+   * appRef or options) starts it over. Measured 2026-10-12: one app that cannot start here was hinted and retried every
+   * minute, ~90 VM boots in 90 minutes.
+   */
+  const rowKey = (d) => `${d.appRef}|${String(d.configCid || "")}`;
+  function failed(d, why) {
+    const D = lc(d.id), prev = state.refused[D], key = rowKey(d);
+    const n = prev && prev.n && prev.key === key && now() - prev.at < 24 * 3600_000 ? prev.n + 1 : 1;
+    state.refused[D] = { at: now(), why, n, key }; save();
+  }
+  function backoffMs(r) { return r && r.n ? Math.min(6 * 3600_000, 10 * 60_000 * 2 ** (r.n - 1)) : 10 * 60_000; }
   async function take(d, v, fit) {
     const D = lc(d.id);
     note({ ev: "taking", deployment: D, appRef: d.appRef, cid: v.cid, memMb: Number(v.memMb), slot: fit.slot, vmMib: fit.vmMib, cpuMilli: Number(d.cpuMilli) });
     let comp;
     try { comp = await fetchComponent(v.cid, httpPortOf(v)); }
-    catch (e) { state.refused[D] = { at: now(), why: e.message }; save(); note({ ev: "not-taken", deployment: D, why: e.message }); return null; }
+    catch (e) { failed(d, e.message); note({ ev: "not-taken", deployment: D, why: e.message }); return null; }
     let soft = false; try { soft = parseOptions(d.configCid, d.gpuMilli).gpuOptional === true || JSON.parse(String(v.config || "{}") || "{}").gpuOptional === true; } catch {}
     const a = { slot: fit.slot, id: D, appRef: d.appRef, configCid: String(d.configCid || ""), cid: v.cid, sha: comp.sha, file: comp.file, sock: comp.sock,
                 appMem: appMemFor(v), vmMib: fit.vmMib, cpus: fit.cpus, cpuMilli: Number(d.cpuMilli), gpuMilli: Number(d.gpuMilli),
@@ -697,8 +711,8 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
       }
       throw new Error(`not claimed: ${t.lifecycle ? (t.lifecycle.reason || t.lifecycle.kind) : t.kind}`);
     } catch (e) {
-      state.refused[D] = { at: now(), why: e.message }; save();
-      note({ ev: "take-failed", deployment: D, slot: a.slot, why: e.message });
+      failed(d, e.message);
+      note({ ev: "take-failed", deployment: D, slot: a.slot, why: e.message, retryInMin: Math.round(backoffMs(state.refused[D]) / 60_000) });
       await freeSlot(a, `taking ${D.slice(0, 10)} failed`);
       return null;
     }
@@ -1004,9 +1018,12 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     if (appOf(id)) return { accepted: true, reason: "Already serving it." };
     if (!addrs) await resolve();
     const d = await read(addrs.deployments, DEP_ABI, "get", [id]);
+    const old = state.refused[id];
+    if (old && old.n && old.key === rowKey(d) && now() - old.at < backoffMs(old))
+      return { accepted: false, reason: `Not taken by this host: it did not start here (${String(old.why).slice(0, 160)}); tried again in ${Math.ceil((old.at + backoffMs(old) - now()) / 60_000)} min.` };
     const ad = await admission(d);
     if (ad.why) return { accepted: false, reason: ad.busy ? `This host has no room for it now: ${ad.why.replace(/^no room on the phone now: /, "")}.` : `Not taken by this host: ${ad.why}.` };
-    hints.add(id); delete state.refused[id];
+    hints.add(id); if (!(old && old.n && old.key === rowKey(d))) delete state.refused[id];
     setImmediate(() => tick().catch((e) => note({ ev: "tick-error", error: e.message })));
     return { accepted: true, reason: "Claiming: a VM sized to its share starts the app, then claims the lease." };
   }
