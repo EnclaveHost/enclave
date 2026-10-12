@@ -1,0 +1,95 @@
+{
+ "schema": "enclave-shield-app-policy/1",
+ "marketEnabled": true,
+ "hosts": "*",
+ "ekRoots": "# Pinned TPM endorsement-key roots for the relay's Windows-VBS-enclave verifier\n# (relay/vbs-verify.mjs, policy METAL_VBS_EK_ROOTS). Self-signed entries are the\n# trust anchors; the rest are the intermediates a node may omit. PUBLIC certificates,\n# not key material: AMD fTPM chain (CN=AMDTPM root, sha256 67bd2472...d0c6a1,\n# CN=PRG-HPT intermediate), captured from the AIA of a Ryzen fTPM EK certificate\n# (windows/vbs/evidence/amd-ftpm-ek-chain.pem, REPORT.md section 5).\n-----BEGIN CERTIFICATE-----\nMIIEjDCCA3SgAwIBAgIQJk05ojzrXVtJ1hAETuvRITANBgkqhkiG9w0BAQsFADB2\nMRQwEgYDVQQLDAtFbmdpbmVlcmluZzELMAkGA1UEBhMCVVMxEjAQBgNVBAcMCVN1\nbm55dmFsZTELMAkGA1UECAwCQ0ExHzAdBgNVBAoMFkFkdmFuY2VkIE1pY3JvIERl\ndmljZXMxDzANBgNVBAMMBkFNRFRQTTAiGA8yMDE0MTAyMzE0MzQzMloYDzIwMzkx\nMDIzMTQzNDMyWjB2MRQwEgYDVQQLDAtFbmdpbmVlcmluZzELMAkGA1UEBhMCVVMx\nEjAQBgNVBAcMCVN1bm55dmFsZTELMAkGA1UECAwCQ0ExHzAdBgNVBAoMFkFkdmFu\nY2VkIE1pY3JvIERldmljZXMxDzANBgNVBAMMBkFNRFRQTTCCASIwDQYJKoZIhvcN\nAQEBBQADggEPADCCAQoCggEBALLJzgGLuZ0X5UJNG1bbExXC0gDMfaHWeBMt5+vz\nAOhQ+wxAiBO9ERmYGkSCA9Hm/ncl985zK6dU0vpQ/hiUsO8gyaynlOIrfHDC6ha6\nhpuEhMf1+RgWtdbE5i+IutKSeZw6Nk+vToifoqmM4AX2CS6h0GnkkTemwWMp98NR\n+CTczwzb6ih75D32HsB41ABSQCNXUoWDvERJzQgfHnqJY9++Z8pnwAGc4APL+85h\nV/9bVSwsuzJup+853U+OdkwdZnpPSwuS5MJZ8gAcGjdkPC1eDVqSAM04K+ecW1OV\nb4HCKcPv6nG2B5qi+mcwknhNYESkF5bMmyvluKYQrUHzIB0CAwEAAaOCARAwggEM\nMA4GA1UdDwEB/wQEAwIBBjAjBgkrBgEEAYI3FSsEFgQUV4xUX3lpUUISIaSleKzb\nX2gvicgwHQYDVR0OBBYEFFeMVF95aVFCEiGkpXis219oL4nIMA8GA1UdEwEB/wQF\nMAMBAf8wOAYIKwYBBQUHAQEELDAqMCgGCCsGAQUFBzABhhxodHRwOi8vZnRwbS5h\nbWQuY29tL3BraS9vY3NwMCwGA1UdHwQlMCMwIaAfoB2GG2h0dHA6Ly9mdHBtLmFt\nZC5jb20vcGtpL2NybDA9BgNVHSAENjA0MDIGBFUdIAAwKjAoBggrBgEFBQcCARYc\naHR0cHM6Ly9mdHBtLmFtZC5jb20vcGtpL2NwczANBgkqhkiG9w0BAQsFAAOCAQEA\nEYk2axIzYPg4eCyUFk3phQW4lUhIJrmhrZRNQ/vMNd0Ao34SgORF6af8XW2xVnwE\niNMJ4kOSeehJnsuuixB4NXf4XRift1UESoqQLOMzlgQTcAoXIqzPxqG28aApOiAn\nVt7v6YJqcXRf4WfQI8EnOuCydl3a5OhlM2uEoy/GWHqvWoMuh1/j5/L8aWCacwGw\nhz/uL0I64lUSLLoTZFdBIJ9r2RDiEqxsb7MbgtLOqeZFWfVITasTbcno8+rIOmn/\n860bTAfKuQWVIMKyHV/rElwa7A0d75Nl+p6BEMDxAs/bLq10PaGSxao8iGWiCihm\ntgzAbWXJ0VoaLTb3eZw+Rg==\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\nMIIFBDCCA+ygAwIBAgIQC3+DOgDRW+tGuhjM424CRDANBgkqhkiG9w0BAQsFADB2\nMRQwEgYDVQQLDAtFbmdpbmVlcmluZzELMAkGA1UEBhMCVVMxEjAQBgNVBAcMCVN1\nbm55dmFsZTELMAkGA1UECAwCQ0ExHzAdBgNVBAoMFkFkdmFuY2VkIE1pY3JvIERl\ndmljZXMxDzANBgNVBAMMBkFNRFRQTTAiGA8yMDIzMDEwMTA1MDAwMFoYDzIwNDgw\nMTAxMDUwMDAwWjB5MRQwEgYDVQQLDAtFbmdpbmVlcmluZzELMAkGA1UEBhMCVVMx\nFDASBgNVBAcMC1NhbnRhIENsYXJhMQswCQYDVQQIDAJDQTEfMB0GA1UECgwWQWR2\nYW5jZWQgTWljcm8gRGV2aWNlczEQMA4GA1UEAwwHUFJHLUhQVDCCASIwDQYJKoZI\nhvcNAQEBBQADggEPADCCAQoCggEBALr4oxwgDyqCt6BemboPYDR/uxjWZIrebuC8\nVu+Nm36PsDlmVkQycFqmKm6sSb4R8/fgkL/NBozoIucvCcJeh0jpPNzOZZFSwfHr\nz7sCdToJqe1KKVRJdWYDGQ2acOpVSyrsltDZ119H0iCDHuxhtbOMatXU9CEHRiWr\nDBYOPyBtqhvEPGTBicrxUXTWNEattaoc6bMaPwINs3AQ+W+vqg7bmmdzAnCaeO8B\n1cizRo5P196q/Ja4/PiU0om/IKPOHHltTQvx5HCvuhT/qx5o3XWHzZtp9b08Dum3\nR/BR6pkhVpCTmyRGoAgCb91jcLhfaHiv/7j1JDkbHJ1aklSIKocCAwEAAaOCAYUw\nggGBMA4GA1UdDwEB/wQEAwIBBjAjBgkrBgEEAYI3FSsEFgQUbV/Ix0F2UY5tXz8W\nJg0Ej27qd9AwgYIGCCsGAQUFBwEBBHYwdDBIBggrBgEFBQcwAoY8aHR0cDovL2Z0\ncG0uYW1kLmNvbS9wa2kvYWlhLzI2NEQzOUEyM0NFQjVENUI0OUQ2MTAwNDRFRUJE\nMTIxMCgGCCsGAQUFBzABhhxodHRwOi8vZnRwbS5hbWQuY29tL3BraS9vY3NwMCwG\nA1UdHwQlMCMwIaAfoB2GG2h0dHA6Ly9mdHBtLmFtZC5jb20vcGtpL2NybDBDBgNV\nHSAEPDA6MDgGCisGAQQBnHhlFQowKjAoBggrBgEFBQcCARYcaHR0cHM6Ly9mdHBt\nLmFtZC5jb20vcGtpL2NwczAdBgNVHQ4EFgQUbV/Ix0F2UY5tXz8WJg0Ej27qd9Aw\nHwYDVR0jBBgwFoAUV4xUX3lpUUISIaSleKzbX2gvicgwEgYDVR0TAQH/BAgwBgEB\n/wIBADANBgkqhkiG9w0BAQsFAAOCAQEAMQq8z58kbw4eQ2ue2cFcfhxXk/vyrUVC\n0BQETkusBwtkku5MO+5dVFU7vo8MdM2AgZnnLE3SxFMThroGFqL6vMxQVxv97XxX\n3wvK2PCAjX7XIe8BVZuSeka9I6MOgPegd7VGpzFUM+ZeXaqqW+qNucZfIKoStz2T\nEPenqsYHy/S7I9uazweix7Sa9P6fndAgw8AvlaIxtcDR7wK0VvnSSQP376dxYZZ7\nUFOqm7jAKOnH6K9hwk7EyecBnVDD59hi5sDUH2rcfaMxIvZ60w+LEognktDkw2cr\nYYYOpxF2m1V0tRX4DJqHMF179L7jVnoIWV0+W6NcuK066LjPqzC0dQ==\n-----END CERTIFICATE-----\n",
+ "platforms": "attested",
+ "images": [
+  {
+   "measurement": "4b19e8f04a1ba77882176854f14e0a816154711c509cd69cc4b1c8b9f276ca22",
+   "runtimeId": "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8"
+  },
+  {
+   "measurement": "0bd3c1e381ca9174d2b532f2f9914de4306d42acf50ebb9be9f537731de7d80e",
+   "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8"
+  },
+  {
+   "measurement": "88d6ff18ed7d9a20528cf89e35c15405229e0bae1ceaa11b0e9074cc141ca036",
+   "runtimeId": "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8",
+   "configBundleV5": true
+  },
+  {
+   "measurement": "b3c884314679db245198d8d645971fbfcf2ffd29a06c91d8704e944cb9cde254",
+   "runtimeId": "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8",
+   "configBundleV5": true,
+   "secretsV1": true
+  },
+  {
+   "measurement": "8610cf53bde2207d062a4bb29e893a6f47d888188f9db4874374f4d99c047452",
+   "runtimeId": "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8",
+   "configBundleV5": true,
+   "secretsV1": true
+  },
+  {
+   "measurement": "5a107a0261423cb20ad9193da96c923b0975473cfcfb437fc0fe0e501a761c95",
+   "runtimeId": "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8",
+   "configBundleV5": true,
+   "secretsV1": true,
+   "configSocketServer": true
+  },
+  {
+   "measurement": "04f669057be85fcb1874003e383a2c782a5d89c6be30bf78056c1ba5ce7f52a6",
+   "runtimeId": "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8",
+   "configBundleV5": true,
+   "secretsV1": true,
+   "configSocketServer": true
+  },
+  {
+   "measurement": "e978da0b486fbd65bd1d8bea8f038a90ee6a4f412b6658dad0871c1d823b90eb",
+   "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+   "configBundleV5": true,
+   "secretsV1": true,
+   "configSocketServer": true,
+   "protectedPorts": true
+  },
+  {
+   "measurement": "0d546c0c0bbd2ca080dcde003b3d78629ebafa15654164a874fbc03961ad6dc4",
+   "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+   "configBundleV5": true,
+   "secretsV1": true,
+   "configSocketServer": true,
+   "protectedPorts": true
+  },
+  {
+   "measurement": "2bfa3021db923238720aaae14f2dc9b1940725dbc3299c09695b9bd6a0242aa0",
+   "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+   "configBundleV5": true,
+   "secretsV1": true,
+   "configSocketServer": true,
+   "protectedPorts": true
+  },
+  {
+   "measurement": "8414496cd0d2af2a49ec0476f69b901bef04cea5d3b52b2347b81e1ef3f14b23",
+   "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+   "configBundleV5": true,
+   "secretsV1": true,
+   "configSocketServer": true,
+   "protectedPorts": true
+  }
+ ],
+ "cpu": {
+  "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+  "configBundleV5": true,
+  "secretsV1": true,
+  "configSocketServer": true,
+  "protectedPorts": true
+ },
+ "gpu": {
+  "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+  "model": "qwen2.5-0.5b-q8-gguf"
+ },
+ "witness": {
+  "appSha256": "a79db30fdf40b37499c8dbf955728c74541fa140201059158694c841736f5030",
+  "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8"
+ }
+}

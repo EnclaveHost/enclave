@@ -210,7 +210,27 @@ set NODE_APP_RAM_GB=$appRamGb
 set ENCLAVE_EGRESS_APP_ROUTES=$PD\tuna\state\egress-routes.json
 set WASMTIME_BIN=$PF\bin\wasmtime.exe
 set SHIELD_WITNESS_CONFIG=$witnessFile
+set TUNA_AGENT_DIR=$PD\tuna
+set TUNA_BIN_DIR=$PF\tuna
+set TUNA_SHIELD_POLICY=$PF\tuna\admitted-shield-policy.json
 "@ | Set-Content -Encoding ASCII (Join-Path $PD "node-config.cmd")
+
+# the TUNA privacy agent: every app's private route. The node writes its config once the platform has funded the control
+# wallets (control\windows\node\tuna-enroll.mjs); until then this loop waits for it.
+@"
+@echo off
+rem The Enclave TUNA privacy agent. Written by install-host.ps1; re-run setup to change it.
+cd /d "$PD\tuna"
+:loop
+if not exist "$PD\tuna\privacy-config.json" (
+  ping -n 61 127.0.0.1 >nul
+  goto loop
+)
+"$node" "$PF\tuna\privacy-agent.mjs" --config "$PD\tuna\privacy-config.json" >> "$PD\logs\tuna.log" 2>&1
+echo %date% %time% [run] privacy-agent exited %errorlevel%; restarting in 10 s >> "$PD\logs\tuna.log"
+ping -n 11 127.0.0.1 >nul
+goto loop
+"@ | Set-Content -Encoding ASCII (Join-Path $PD "run-tuna.cmd")
 
 function RunLoop($file, $config, $script, $log) {
 @"
@@ -242,6 +262,7 @@ function Task($name, $cmd, $delay) {
 }
 Task "Shield" (Join-Path $PD "run-shield.cmd") "PT30S"
 Task "Node" (Join-Path $PD "run-node.cmd") "PT90S"
+Task "Tuna" (Join-Path $PD "run-tuna.cmd") "PT120S"
 Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Shield"
 $ready = $false
 for ($i = 0; $i -lt 60; $i++) {
@@ -251,11 +272,13 @@ for ($i = 0; $i -lt 60; $i++) {
 if (-not $ready) { Fail "services" "Enclave Shield did not come up (see $PD\logs\shield.log)." }
 if ($NoStart) {
   Disable-ScheduledTask -TaskPath "\Enclave\" -TaskName "Node" | Out-Null
+  Disable-ScheduledTask -TaskPath "\Enclave\" -TaskName "Tuna" | Out-Null
   Emit "services" "ok" "Enclave Shield is running; the node is installed but NOT started (-NoStart): nothing registers"
   Emit "done" "ok" "Installed without joining the network"; exit 0
 }
 Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Node"
-Emit "services" "ok" "Enclave Shield and the node are running, and start with Windows"
+Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Tuna"
+Emit "services" "ok" "Enclave Shield, the node and the private-route agent are running, and start with Windows"
 
 # ---------------------------------------------------------------------------------------------------------------------
 # 8. join the network: hardware attestation, then the sponsored registration (no ETH needed)
