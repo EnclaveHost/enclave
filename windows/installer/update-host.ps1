@@ -15,6 +15,16 @@ $ErrorActionPreference = "Stop"; $ProgressPreference = "SilentlyContinue"
 $PF = Join-Path $env:ProgramFiles "Enclave"; $PD = Join-Path $env:ProgramData "Enclave"; $W = Join-Path $env:ProgramData "Enclave-setup"
 $log = Join-Path $PD "logs\update.log"
 function Log($m) { "$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')) $m" | Add-Content -Encoding UTF8 $log }
+# what the tray shows while an update runs (EnclaveTray.cs UpdateState): beside the tray's token, which its owner can read
+function Progress($state, $from, $to) {
+  try {
+    $f = Join-Path $PD "hosting\update.json"
+    if (Test-Path (Split-Path $f)) {
+      [ordered]@{ state = $state; from = $from; to = $to; at = (Get-Date).ToUniversalTime().ToString("o") } | ConvertTo-Json -Compress |
+        Set-Content -Encoding ASCII $f
+    }
+  } catch { }
+}
 function Sha($p) { (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLower() }
 function Ver($s) { $v = $null; if ([version]::TryParse([string]$s, [ref]$v)) { $v } else { $null } }
 function Fetch($name, $sha) {
@@ -81,6 +91,7 @@ try {
   if (-not $Force -and (Ver $latest.version) -le (Ver $installed)) { exit 0 }
   foreach ($k in "file", "sha256", "setup", "setupSha256") { if (-not $latest.$k) { throw "latest.json has no $k" } }
   Log "update $installed -> $($latest.version) for '$($hostRec.name)'"
+  Progress "downloading" $installed $latest.version
   New-Item -ItemType Directory -Force $W | Out-Null
   $setup = Fetch $latest.setup $latest.setupSha256.ToLower()
   $dir = $null
@@ -95,6 +106,7 @@ try {
     Log "downloaded and checked $($latest.file) (sha256 $($latest.sha256.Substring(0, 12))...)"
   }
   Log "installing $($latest.version)$(if ($delta) { ' (only the changed files)' })"
+  Progress "installing" $installed $latest.version
   $owner = if ($hostRec.owner) { [string]$hostRec.owner } else { "" }
   $code = Install $dir $hostRec.name $owner $setup -Delta:$delta
   if ($code -ne 0) {
@@ -106,9 +118,11 @@ try {
       $back = Install $old $hostRec.name $owner $(if ($oldSetup) { $oldSetup.FullName } else { "" })
       Log "rollback to ${installed}: exit $back"
     } else { Log "install of $($latest.version) FAILED (exit $code), and no bundle of $installed is kept to roll back to" }
+    Progress "failed" $installed $latest.version
     exit 1
   }
   Log "updated to $($latest.version)"
+  Progress "done" $installed $latest.version
   # keep the running release and the one before it (the rollback); older bundles, zips and setups go
   $keep = @(Get-ChildItem $W -Directory | Where-Object { Ver $_.Name } | Sort-Object { Ver $_.Name } -Descending | Select-Object -First 2 | ForEach-Object Name)
   foreach ($d in Get-ChildItem $W -Directory | Where-Object { (Ver $_.Name) -and $keep -notcontains $_.Name }) { Remove-Item $d.FullName -Recurse -Force -ErrorAction SilentlyContinue }
@@ -116,4 +130,4 @@ try {
     Remove-Item $f.FullName -Force -ErrorAction SilentlyContinue
   }
   exit 0
-} catch { Log "update failed: $($_.Exception.Message)"; exit 1 }
+} catch { Log "update failed: $($_.Exception.Message)"; if ($latest) { Progress "failed" $installed $latest.version }; exit 1 }
