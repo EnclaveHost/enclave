@@ -66,7 +66,7 @@ foreach ($k in $Binaries.Keys) {
 function Fetch($spec, $name) {
   $f = Join-Path (Join-Path $Out "dl") (Split-Path $spec.url -Leaf)
   if (-not (Test-Path $f) -or (Sha $f) -ne $spec.sha) {
-    "download: $($spec.url)"; [Net.ServicePointManager]::SecurityProtocol = "Tls12, Tls13"
+    Write-Host "download: $($spec.url)"; [Net.ServicePointManager]::SecurityProtocol = "Tls12, Tls13"   # Write-Host: a function's output IS its return value
     Invoke-WebRequest -UseBasicParsing -Uri $spec.url -OutFile $f
   }
   if ((Sha $f) -ne $spec.sha) { Die "$name hashes $(Sha $f), not the pinned $($spec.sha)" }
@@ -74,6 +74,7 @@ function Fetch($spec, $name) {
 }
 $nz = Fetch $NodeZip "Node.js"
 Expand-Archive -LiteralPath $nz -DestinationPath (Join-Path $work "node-x") -Force
+New-Item -ItemType Directory -Force (Join-Path $B "runtime") | Out-Null
 Move-Item (Join-Path (Join-Path $work "node-x") $NodeZip.dir) (Join-Path $B "runtime\node")
 "runtime: Node.js $($NodeZip.dir)"
 $pz = Fetch $PythonZip "Python"
@@ -109,6 +110,9 @@ $entries = foreach ($f in $files) { [ordered]@{ path = $f.FullName.Substring($B.
 $commit = ((Get-Content $Manifest -TotalCount 0) -join ""); $c8 = [IO.Path]::GetFileNameWithoutExtension($Control) -replace '^control-', '' -replace '\.tar$', ''
 [ordered]@{ product = "Enclave host for Windows"; version = $Version; control = $c8; files = @($entries) } |
   ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 (Join-Path $B "manifest.json")
+# the staged files carry mtime 0 (deterministic tar); a zip cannot hold dates before 1980, so give every file one fixed date
+$stamp = [datetime]::new(2026, 1, 1, 0, 0, 0, [DateTimeKind]::Utc)
+Get-ChildItem $B -Recurse -File | ForEach-Object { $_.LastWriteTimeUtc = $stamp }
 $zip = Join-Path $Out "enclave-host-$Version.zip"
 if (Test-Path $zip) { Remove-Item $zip }
 Compress-Archive -Path (Join-Path $B "*") -DestinationPath $zip -CompressionLevel Optimal
