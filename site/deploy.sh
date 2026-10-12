@@ -149,6 +149,6 @@ ssh nan 'chown -R ipfs:ipfs /opt/nan-site && \
 
 # ---- CLI installers: Caddy serves these from /opt/enclave-get on
 # enclave.host/install.{sh,ps1} and get.enclave.host (curl|sh one-liners) ----
-tar -C ../cli -czf - install.sh install.ps1 | \
-  ssh nan 'mkdir -p /opt/enclave-get && tar -C /opt/enclave-get -xzf - && chmod 0644 /opt/enclave-get/install.*'
+tar -C ../cli -czf - install.sh install.ps1 host.ps1 | \
+  ssh nan 'mkdir -p /opt/enclave-get && tar -C /opt/enclave-get -xzf - && chmod 0644 /opt/enclave-get/install.* /opt/enclave-get/host.ps1'
 echo "[deploy] installers shipped to /opt/enclave-get"
