@@ -15,6 +15,7 @@
 // The agent re-reads its config when the file's modification time changes, so every change ends with the
 // config written (or touched) on the host.
 import {ownerDirectChoices} from './owner-direct-choices.mjs';
+import {shieldExpectation} from './shield-expectation.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {execFile} from 'node:child_process';
@@ -31,8 +32,7 @@ const readJSON=async f=>JSON.parse(await fs.readFile(f,'utf8'));
 const writeAtomic=async(f,text,mode=0o600)=>{const t=f+'.tmp-'+process.pid;await fs.writeFile(t,text,{mode});await fs.rename(t,f);};
 const log=m=>console.log(`[reconcile-shield] ${m}`);
 const MIN_FUNDED=10_000_000n; // 0.01 NKN in base units: the adapters' minimum balance
-const V5='enclave-catalog-bundle/5',V6='enclave-catalog-bundle/6',V7='enclave-catalog-bundle/7';
-const HEX64=/^[0-9a-f]{64}$/,ID=/^0x[0-9a-f]{64}$/;
+
 
 // One PowerShell script per call; data travels on stdin and back between @@ markers, never on the command
 // line (cmd.exe caps it at 8191 characters).
@@ -76,24 +76,16 @@ try{const r=await fetch('https://api.enclave.host/v1/domains/map',{signal:AbortS
 const namesFor=id=>{const n=[id.slice(2,10)+'.app.enclave.host'];for(const [h,d] of Object.entries(domains||{}))if(String(d).toLowerCase()===id&&!n.includes(h))n.push(h);return n;};
 const targets=(await fs.readFile(targetsFile,'utf8').catch(()=>'')).split('\n').filter(Boolean);
 const balanceOf=async a=>{for(const u of cfg.nknRpc){try{const r=await fetch(u,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',method:'getbalancebyaddr',params:{address:a},id:1}),signal:AbortSignal.timeout(10000)});const j=await r.json();if(j.result)return BigInt(Math.round(Number(j.result.amount)*1e8));}catch{}}return null;};
-// a raw-leaf CIDv1 (bafkrei...) is the sha256 of the bytes themselves
-const rawDigest=cid=>{if(!/^bafkrei[a-z2-7]{52}$/.test(cid))return null;let bits=0,v=0;const out=[];for(const ch of cid.slice(1)){v=(v<<5)|'abcdefghijklmnopqrstuvwxyz234567'.indexOf(ch);bits+=5;if(bits>=8){out.push((v>>(bits-8))&255);bits-=8;}}return Buffer.from(out).subarray(4).toString('hex');};
 
 let configChanged=false,expectationsChanged=false,targetsChanged=false;const writes={};
 for(const row of mine){
   const id=String(row.id).toLowerCase(),appRef=String(row.appRef),m=appRef.match(/^catalog:\/\/(0x[0-9a-f]{64})\/(\d+)$/i);
   if(!m){log(`${id.slice(0,10)}: appRef ${appRef} is not a catalog reference; skipped`);continue;}
   const version=await withChain(c=>c.readContract({address:catalog,abi:catAbi,functionName:'getVersion',args:[m[1],BigInt(m[2])]}));
-  const vm=vms.filter(v=>String(v.name).toLowerCase()===id&&v.status==='running'&&v.appReady===true&&!v.launching&&
-      String(v.catalog?.app).toLowerCase()===m[1].toLowerCase()&&Number(v.catalog?.version)===Number(m[2])&&v.cid===String(version.cid))
-    .sort((x,y)=>Number(y.startedAt)-Number(x.startedAt))[0];
-  if(!vm){log(`${id.slice(0,10)}: no ready partition runs ${appRef} yet; waiting`);continue;}
-  const profile=Number(vm.gpuMilli)>0?policy.gpu:policy.cpu,digest=rawDigest(vm.cid);
-  const ports=vm.derivation===V7,secrets=vm.derivation===V6||ports,bundle=secrets||vm.derivation===V5;
-  if(!HEX64.test(vm.appId||'')||!profile?.runtimeId||vm.runtimeId!==profile.runtimeId||(digest&&digest!==vm.componentSha256)||
-     (bundle&&profile.configBundleV5!==true)||(ports&&(profile.protectedPorts!==true||profile.configSocketServer!==true))||(secrets&&(profile.secretsV1!==true||String(vm.secretDeployment).toLowerCase()!==id))){
-    log(`${id.slice(0,10)}: the manager's record is outside the admitted Shield policy; skipped`);continue;}
-  const expected={appRef,configCid:String(row.configCid),appSha256:vm.appId,runtimeId:vm.runtimeId,requiresConfigBundleV5:bundle,requiresSecretsV1:secrets,...(ports||(bundle&&JSON.parse(snap.expected?.[id]||'{}').requiresConfigSocketServer===true)?{requiresConfigSocketServer:true}:{})};
+  const verdict=shieldExpectation({row,version,vms,policy,previous:JSON.parse(snap.expected?.[id]||'null')});
+  if(verdict.wait){log(`${id.slice(0,10)}: ${verdict.wait}; waiting`);continue;}
+  if(verdict.skip){log(`${id.slice(0,10)}: ${verdict.skip}; skipped`);continue;}
+  const {expected}=verdict;
   const existing=cfg.apps.find(a=>a.deploymentId===id);
   const wantsDirect=directIds.has(id);
   if(existing){
