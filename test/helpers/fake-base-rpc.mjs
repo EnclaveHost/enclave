@@ -49,6 +49,7 @@ export async function fakeBaseRpc() {
     const one = (m) => {
       calls.push(m.method);
       if (m.method === "eth_chainId") return { jsonrpc: "2.0", id: m.id, result: "0x2105" };
+      if (m.method === "eth_getBalance") return { jsonrpc: "2.0", id: m.id, result: "0x0" };   // every key holds no gas
       if (chainTx.mine) {
         const ok = (result) => ({ jsonrpc: "2.0", id: m.id, result });
         if (m.method === "eth_call" && String(m.params?.[0]?.to || "").toLowerCase() === DEPLOYMENTS) {

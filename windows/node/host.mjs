@@ -312,8 +312,12 @@ export class Host {
         this.log(`registry: registered ${this.cfg.endpoint} with the host paymaster paying (no gas needed; tx ${r.tx})`);
         await this.refreshRegistration();
       } catch (e) {
-        this._sponsorRetryAt = Date.now() + 600_000;
-        this.log(`registry: ${e.message}; asking again in 10 minutes${wei === 0n ? ", or send the operator key a little Base ETH" : ""}`);
+        // the relay has not seen this box's attach yet (it attaches seconds after start-up): ask again within the minute,
+        // not in 10 - a new host waited 10 minutes to register over a 5-second race (nucbox-k11-2, 2026-10-12)
+        const early = /no attested tunnel|unknown_tunnel|no_claimant|without naming its operator key/.test(e.message);
+        this._sponsorRetryAt = Date.now() + (early ? 30_000 : 600_000);
+        this.log(`registry: ${e.message}; asking again in ${early ? "30 seconds (once this box's attach is accepted)" : "10 minutes"}`
+          + `${!early && wei === 0n ? ", or send the operator key a little Base ETH" : ""}`);
       }
       return;
     }
