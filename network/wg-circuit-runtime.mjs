@@ -27,7 +27,9 @@ export class WgCircuitRuntime {
  }
  // kind 'network': {guard, exit} verified provider records; ingress/egress what the policy authorizes on this circuit.
  // kind 'byo': byo = parsed WireGuard config (network/wg-config.mjs) with endpoint already resolved to {address,port}.
- async start({deploymentId,names,kind='network',guard,exit,byo,ingress=false,egress=false,fallback=false}){
+ // exitRole 'control' + gate: the host's own control circuit (no app; egress only, admitted by `gate`, not by an app's lease)
+ async start({deploymentId,names,kind='network',guard,exit,byo,ingress=false,egress=false,fallback=false,exitRole='exit',gate}){
+  const authorize=gate||this.authorize;
   if(this.closed)throw new Error('runtime stopped');
   if(kind==='network'&&(!guard||!exit||guard.address===exit.address))throw new Error('a guard and a different exit are required');
   if(kind==='byo'&&(!byo||ingress))throw new Error('a BYO tunnel carries egress only');
@@ -72,7 +74,7 @@ export class WgCircuitRuntime {
    const udpPeer=kind==='network'?`${guard.address}:${guard.ports.guard}`:`${byo.endpoint.address}:${byo.endpoint.port}`;
    if(ingress){
     const token=randomBytes(32).toString('hex');
-    broker=await createAppBroker({tcpPort:0,token,deploymentId,authorize:this.authorize,forward:this.forward,log:this.log});
+    broker=await createAppBroker({tcpPort:0,token,deploymentId,authorize,forward:this.forward,log:this.log});
     await json(path.join(dir,'worker.json'),{deploymentId,names,ingressPort:ports.ingress,redirectPort:ports.redirect,broker:{port:broker.port,token}});
    }
    if(this.platform==='windows'){
@@ -98,7 +100,7 @@ export class WgCircuitRuntime {
      control:`${exit.address}:${exit.ports.control}`,controlListen:`127.0.0.1:${ports.control}`,
      guardSocks:{listen:`127.0.0.1:${ports.guardSocks}`,only:[`${exit.address}:443`,`${exit.address}:80`]}});
     outer=await next('outer-ready');
-    exitGrant=await this.grants.request({provider:exit,url:`http://${outer.control}`,role:'exit',deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress});
+    exitGrant=await this.grants.request({provider:exit,url:`http://${outer.control}`,role:exitRole,deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress});
    }
    if(ingress){
     worker=launch(dir,files.node,['--preserve-symlinks','--preserve-symlinks-main',workerModule,path.join(dir,'worker.json')]);
@@ -116,7 +118,7 @@ export class WgCircuitRuntime {
    // the app's egress entry: gated by admission here, then the tunnel's SOCKS
    if(egress){
     egressServer=net.createServer(socket=>{
-     if(circuit.closed||!this.authorize(deploymentId)||sockets.size>=1024){socket.destroy();return;}sockets.add(socket);socket.once('close',()=>sockets.delete(socket));
+     if(circuit.closed||!authorize(deploymentId)||sockets.size>=1024){socket.destroy();return;}sockets.add(socket);socket.once('close',()=>sockets.delete(socket));
      const up=net.connect({host:'127.0.0.1',port:ports.socks});const close=()=>{socket.destroy();up.destroy();};socket.on('error',close);up.on('error',close);socket.once('close',close);up.once('close',close);socket.pipe(up).pipe(socket);
     });await new Promise((r,j)=>{egressServer.once('error',j);egressServer.listen(0,'127.0.0.1',r);});
    }
@@ -124,7 +126,7 @@ export class WgCircuitRuntime {
    if(kind==='network')renewTimer=setInterval(()=>void(async()=>{
     try{
      await this.grants.request({provider:guard,url:`http://${guard.address}:${guard.ports.control}`,role:'guard',deploymentId,wgPublicKey:keys.guard.publicKey});
-     await this.grants.request({provider:exit,url:`http://${outer.control}`,role:'exit',deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress});
+     await this.grants.request({provider:exit,url:`http://${outer.control}`,role:exitRole,deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress});
     }catch(e){this.log(`circuit ${id}: renewal refused: ${e.message}`);circuit.failureRole=e.providerRole;void circuit.close('grant renewal failed: '+e.message);}
    })(),this.renewMs);
    if(circuit.closed||this.closed)throw new Error('circuit stopped during startup');

@@ -140,6 +140,9 @@ if [ -s "$T/runtime.json" ]; then
   sleep 1  # the newest exit peer holds the names now: visitors reach the runtime's circuit
   out=$(nsx "$W" node test/netns/visitor-node.mjs 47.0.0.2 www.example.org)
   case "$out" in *"$FP"*"enclave says: hello"*) pass "runtime ingress: SNI gate + broker splice to the enclave";; *) fail runtime-ingress "$out";; esac
+  CE=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).control)' "$T/runtime.json")
+  r=$(nsx "$H" curl -s -m 10 --socks5-hostname "$CE" http://web.test/)
+  [ "$r" = "remote=46.0.0.2" ] && pass "host control circuit (no app, registry-checked) leaves from its exit" || fail control-circuit "got '$r'"
   sleep 6
   nsx "$H" curl -s -m 10 --socks5-hostname "$RE" http://web.test/ >/dev/null && pass "grants renewed; circuit still serving" || fail runtime-renew "$(tail -3 "$T/runtime.err")"
 else fail runtime "$(cat "$T/runtime.err")"; fi

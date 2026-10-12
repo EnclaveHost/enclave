@@ -10,12 +10,12 @@ const id='0x'+'ab'.repeat(32),other='0x'+'cd'.repeat(32),runner='0x'+'11'.repeat
 const operator=privateKeyToAccount(generatePrivateKey()),stranger=privateKeyToAccount(generatePrivateKey()),owner=privateKeyToAccount(generatePrivateKey());
 const providerKey=privateKeyToAccount(generatePrivateKey()),checker=privateKeyToAccount(generatePrivateKey());
 const wgKey=()=>randomBytes(32).toString('base64');
-function rig({roles=['guard','ingress','egress'],price=0,lease={},published=null}={}){
+function rig({roles=['guard','ingress','egress'],price=0,lease={},published=null,host={active:true,operator:null}}={}){
  let now=1_000_000_000;const kernel={peers:new Map(),synced:null,setPeer:async p=>kernel.peers.set(p.key,{...p}),removePeer:async p=>kernel.peers.delete(p.key),sync:async s=>{kernel.synced=s;}};
  const leases=new Map([[id,{active:true,runner,runnerOperator:operator.address,owner:owner.address,isPublic:true,validUntil:now+60000,leaseUntil:now+3600000,...lease}]]);
  const seen=new Map();
  const p=new WgProvider({config:{providerId:'aa'.repeat(16),roles,pricePerGiB6:price,publicAddress:'134.199.235.187',exitKey:wgKey(),guardKey:wgKey(),ports:{exit:51820,guard:51821,control:51822},checkers:[checker.address]},
-  signer:providerKey,kernel,leases:async x=>leases.get(x)||null,policyMemory:{get:async k=>seen.get(k),set:async(k,v)=>seen.set(k,v)},
+  signer:providerKey,kernel,leases:async x=>leases.get(x)||null,hosts:async x=>x===runner?{...host,operator:(host.operator||operator.address).toLowerCase()}:null,policyMemory:{get:async k=>seen.get(k),set:async(k,v)=>seen.set(k,v)},
   currentPolicy:async()=>published,domains:async x=>x===id?['www.example.org']:[],now:()=>now});
  return {p,kernel,leases,advance:ms=>{now+=ms;},now:()=>now};
 }
@@ -86,3 +86,21 @@ test('a trusted checker gets a short probe peer; the provider operator and stran
  await assert.rejects(r.p.handle(await request(r,{role:'probe',runner:zero,deploymentId:zero},providerKey)),/trusted checker/);
 });
 test('over the transfer budget nothing new is accepted',async()=>{const r=rig();r.p.accepting=false;await assert.rejects(r.p.handle(await request(r)),/not accepting/);});
+
+test('a registered host gets egress-only control peers for its own traffic; nobody else does',async()=>{
+ const zero='0x'+'0'.repeat(64);
+ const r=rig();
+ const c=await r.p.handle(await request(r,{role:'control',deploymentId:zero,ingress:false,egress:true}));
+ assert.equal(c.grant.role,'control');assert.match(c.grant.clientAddress,/^10\.77\./);assert.deepEqual(c.grant.names,[]);
+ assert.ok(r.kernel.synced.egress.includes(c.grant.clientAddress));
+ const g=await r.p.handle(await request(r,{role:'guard',deploymentId:zero,ingress:false,egress:false}));assert.match(g.grant.clientAddress,/^10\.78\./);
+ await assert.rejects(r.p.handle(await request(r,{role:'control',deploymentId:zero,ingress:true,egress:true})),/egress-only/);
+ await assert.rejects(r.p.handle(await request(r,{role:'exit',deploymentId:zero,ingress:false,egress:true})),/only guard and control/);
+ await assert.rejects(r.p.handle(await request(r,{role:'control',deploymentId:zero,ingress:false,egress:true},stranger)),/active registered host/);
+ await assert.rejects(r.p.handle(await request(r,{role:'control',deploymentId:zero,ingress:false,egress:true,runner:'0x'+'99'.repeat(32)})),/active registered host/);
+ const off=rig({host:{active:false}});await assert.rejects(off.p.handle(await request(off,{role:'control',deploymentId:zero,ingress:false,egress:true})),/active registered host/);
+ // at most two per host and role; a host that leaves the registry loses them
+ await r.p.handle(await request(r,{role:'control',deploymentId:zero,ingress:false,egress:true}));await r.p.handle(await request(r,{role:'control',deploymentId:zero,ingress:false,egress:true}));
+ assert.equal([...r.p.peers.values()].filter(p=>p.role==='control').length,2);
+ r.p.hosts=async()=>({active:false});await r.p.sweep();assert.equal([...r.p.peers.values()].filter(p=>p.control).length,0);
+});

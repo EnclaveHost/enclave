@@ -17,7 +17,7 @@ export class WgGrants {
  async request({provider,url,role,deploymentId,wgPublicKey,ingress=false,egress=false}){
   const now=this.now();
   const request={version:1,providerId:provider.providerId,role,deploymentId,runner:this.runner,wgPublicKey,policy:await this.policy(deploymentId),
-   ingress:role==='exit'&&ingress,egress:role==='exit'&&egress,issuedAt:now,nonce:randomBytes(16).toString('hex'),expiresAt:now+10*60000};
+   ingress:role!=='guard'&&ingress,egress:role!=='guard'&&egress,issuedAt:now,nonce:randomBytes(16).toString('hex'),expiresAt:now+10*60000};
   const signature=await this.account.signMessage({message:peerRequestMessage(request)});
   const res=await this.fetch(url.replace(/\/$/,'')+'/v1/peer',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({request,signature}),signal:AbortSignal.timeout(this.timeoutMs)});
   let body;try{body=await res.json();}catch{throw new Error(`${role} provider ${provider.address}: HTTP ${res.status}`);}
@@ -29,6 +29,7 @@ export class WgGrants {
   if(!g||typeof env.signature!=='string')throw new Error('grant missing');
   const signer=(await recoverMessageAddress({message:grantMessage(g),signature:env.signature})).toLowerCase();
   const key=role==='guard'?provider.wgGuardKey:provider.wgExitKey,port=role==='guard'?provider.ports.guard:provider.ports.exit;
+  // role 'exit' (an app's route) or 'control' (the host's own traffic) both land on the provider's exit interface
   if(signer!==provider.operator||g.version!==1||g.providerId!==provider.providerId||g.role!==role||g.deploymentId!==request.deploymentId||
      g.clientPublicKey!==request.wgPublicKey||g.providerPublicKey!==key||g.endpoint!==`${provider.address}:${port}`||
      !/^10\.7[78]\.\d{1,3}\.\d{1,3}$/.test(g.clientAddress||'')||!Array.isArray(g.names)||!(g.expiresAt>this.now()))throw new Error(`${role} grant does not match what was asked`);

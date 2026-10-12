@@ -10,6 +10,7 @@ import {CircuitManager} from './circuit-manager.mjs';
 import {CompositeManager} from './composite-manager.mjs';
 import {EnclaveNetworkManager} from './wg-manager.mjs';
 import {createNetworkHost} from './enclave-network-host.mjs';
+import {WgControlTransport} from './wg-control.mjs';
 import {LinuxCircuitRuntime} from './linux-circuit-runtime.mjs';
 import {WindowsCircuitRuntime} from './windows-circuit-runtime.mjs';
 import {ShieldHostProof} from './shield-host-proof.mjs';
@@ -151,8 +152,8 @@ export async function runPrivacy(configFile){
   const scheduleProbe=createProbeScheduler();
   let currencyManagement,tunaUSDC;
   if(cfg.currencyManagement)currencyManagement=await startAutomaticConversion({config:cfg.currencyManagement,directory:path.join(cfg.directory,'currency-management'),log});
-  let stopping=false;
-  const close=()=>{stopping=true;hostProof?.close();void Promise.all([agent?.close(),control?.close(),currencyManagement?.close(),runtime.close()]).then(()=>tunaUSDC?.close()).catch(e=>log(e.message));};
+  let stopping=false,wgControl=null;
+  const close=()=>{stopping=true;hostProof?.close();void Promise.all([agent?.close(),control?.close(),wgControl?.close(),currencyManagement?.close(),runtime.close()]).then(()=>tunaUSDC?.close()).catch(e=>log(e.message));};
   process.once('SIGTERM',close);process.once('SIGINT',close);
   // SIGHUP re-reads the app list: each app's expectation, names and mirror
   // flag, and any new app. Everything is validated before anything changes; no
@@ -197,8 +198,17 @@ export async function runPrivacy(configFile){
   if(control)await control.start();
   if(stopping)throw new Error('privacy agent stopped during bootstrap');
   if(control)inventory.asns.fetchFn=guardedFetch(control.proxies,{timeoutMs:6000,maxBytes:65536});
-  if(needsTuna&&!control&&!cfg.chain.proxy)throw new Error('independent guarded control transport required');
-  const leaseReader=new LeaseReader({...cfg.chain,includeHostPayout:directConfigured||!!cfg.tunaUSDC,includeConnectivity:cfg.connectivity||cfg.tunaUSDC?'auto':false,...(control?{proxy:control.proxies}:{})});
+  // The Enclave network, before the lease reader: with enclaveNetwork.control the host's own chain reads and relay calls
+  // leave through two guarded Enclave-network circuits instead of TUNA's control guards (docs/design/enclave-network.md).
+  let leaseReaderLate;
+  const directFetch=globalThis.fetch;
+  const networkFetch=async(url,init)=>{if(wgControl){try{await wgControl.proxies();return await guardedFetch(wgControl.proxies,{timeoutMs:15000,maxBytes:4194304})(url,init);}catch(e){if(cfg.enclaveNetwork?.controlRequired)throw e;}}return directFetch(url,init);};
+  const network=cfg.enclaveNetwork?await createNetworkHost({config:cfg.enclaveNetwork,account,runner:cfg.runner,rpc:cfg.chain?.rpc,addressBook:cfg.chain?.addressBook,
+    leaseReader:{registryEntries:(...a)=>leaseReaderLate.registryEntries(...a)},directory:cfg.directory,log,fetch:networkFetch,
+    authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:pvm?pvmForwarder(pvm.appPort):guestd?guestd.forward:localAppForwarder(cfg.upstream)}):null;
+  if(network&&cfg.enclaveNetwork.control===true&&!control){wgControl=new WgControlTransport({runtime:network.runtime,providers:network.providers,log});await wgControl.start();}
+  if(needsTuna&&!control&&!wgControl&&!cfg.chain.proxy)throw new Error('independent guarded control transport required');
+  const leaseReader=new LeaseReader({...cfg.chain,includeHostPayout:directConfigured||!!cfg.tunaUSDC,includeConnectivity:cfg.connectivity||cfg.tunaUSDC?'auto':false,...(control?{proxy:control.proxies}:wgControl?{proxy:wgControl.proxies}:{})});leaseReaderLate=leaseReader;
   let directRuntime,qualification,settlement;
   if(cfg.tunaUSDC){
     const tokenFile=cfg.tunaUSDC.tokenFile||path.join(cfg.directory,'tuna-control.token');
@@ -234,27 +244,27 @@ export async function runPrivacy(configFile){
   // has qualified; the canary never admits an app or signs its own report.
   if(directRuntime?.canary)await directRuntime.listen();
   if(settlement&&directRuntime){const close=directRuntime.close.bind(directRuntime);directRuntime.close=async()=>{await close();await settlement.close();};}
-  const network=cfg.enclaveNetwork?await createNetworkHost({config:cfg.enclaveNetwork,account,runner:cfg.runner,rpc:cfg.chain?.rpc,addressBook:cfg.chain?.addressBook,leaseReader,directory:cfg.directory,log,
-    authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:pvm?pvmForwarder(pvm.appPort):guestd?guestd.forward:localAppForwarder(cfg.upstream)}):null;
   agent=new PrivacyAgent({apps,runner:cfg.runner,account,leaseReader,inventory,runtime,directRuntime,qualification,directory:cfg.directory,dns:cfg.dns,defaults:cfg.defaults,network,log,
     wallets:async id=>readJSON(apps.find(a=>a.deploymentId===id).walletsFile),
     distribute:async(id,value)=>{
       if(!value)return;
       const circuits=agent.manager.apps.get(id)?.circuits.filter(c=>c.healthy&&!c.closed&&c.egress)||[];
-      if(!circuits.length)return;
+      // the paths a publication may leave by: the app's own circuits, else (an app with website-only circuits) the
+      // host's Enclave-network control circuits; never the host's own address
+      const paths=circuits.length?circuits.map(c=>c.transport==='direct'?fetch:guardedFetch(c.egress,{timeoutMs:5000})):wgControl?[guardedFetch(wgControl.proxies,{timeoutMs:8000})]:[];
+      if(!paths.length)return;
       const tasks=[];
       // Publishing to Nan's DNS mirror moves an app off the shared route for good
       // (the mirror remembers it), so it is opted into per app, never all at once.
       if(cfg.mirror&&apps.find(a=>a.deploymentId===id)?.publishToMirror===true)tasks.push((async()=>{
-        let error;for(const circuit of circuits){try{
-          const publishFetch=circuit.transport==='direct'?fetch:guardedFetch(circuit.egress,{timeoutMs:5000});
+        let error;for(const publishFetch of paths){try{
           const response=await publishFetch(new URL('/v1/network/tuna',cfg.mirror),{method:'POST',signal:AbortSignal.timeout(5000),headers:{'content-type':'application/json'},
             body:JSON.stringify({publication:{version:2,endpoint:cfg.endpoint,policy:value.policy,bundle:value.bundle,ownerPolicy:apps.find(a=>a.deploymentId===id).ownerPolicy,
               ...(value.policy?.version===5?{status:agent.manager.status().find(x=>x.deploymentId===id)}:{})}})});
           if(!response.ok)throw new Error('DNS mirror HTTP '+response.status);return;
         }catch(e){error=e;}}throw error;
       })());
-      for(const origin of cfg.ipnsRouters||[])tasks.push(delegatedIPNS(origin,circuits[0].egress).publish(value.name,value.ipns));
+      if(circuits.length)for(const origin of cfg.ipnsRouters||[])tasks.push(delegatedIPNS(origin,circuits[0].egress).publish(value.name,value.ipns));
       const results=await Promise.allSettled(tasks);for(const r of results)if(r.status==='rejected')log('optional discovery transport: '+r.reason.message);
     },
     // Only local attestations need serialization: pinned route probes make no
