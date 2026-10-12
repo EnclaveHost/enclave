@@ -373,9 +373,15 @@ export class Host {
   }
   async heartbeat() {
     if (!this.chainReady || !chain.operatorAddress() || !this.registered) return;
-    try { await chain.heartbeatBox(this.enclaveId); } catch (e) { this.log(`heartbeat failed: ${e.shortMessage || e.message}`); }
+    // A box reached through a relay tunnel (its endpoint is <relay>/t/<name>) is NOT heartbeated on chain: the relay holds
+    // its liveness (the tunnel row's lastSeen), the dialed-discovery staleness filter never applies to a tunnel row, and no
+    // contract reads lastSeen. The transaction was gas burnt every 10 minutes by an idle box, 144 a day, and the one gas
+    // cost a new host had before earning anything (nucbox-k11-2, 2026-10-12).
+    if (!Host.isTunnelEndpoint(this.cfg.endpoint))
+      try { await chain.heartbeatBox(this.enclaveId); } catch (e) { this.log(`heartbeat failed: ${e.shortMessage || e.message}`); }
     await this.warnLowGas();
   }
+  static isTunnelEndpoint(endpoint) { return /^https:\/\/[a-z0-9.-]+\/t\/[a-z0-9][a-z0-9-]*$/i.test(String(endpoint || "")); }
   /**
    * Gas runs the lease. A renewal costs about 60k gas (measured: 0.00000036 ETH on Base), a
    * heartbeat and a claim more, so an empty tank does not fail loudly, it just stops renewing and
