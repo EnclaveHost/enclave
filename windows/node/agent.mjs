@@ -903,7 +903,8 @@ async function startHostingControls() {
           host.setPriceRows((await r.json()).enclaves || []);
         } catch (e) { log(`prices: the network's prices could not be read (${e.message}); the current ones stand`); }
       };
-      setTimeout(readPrices, 60_000).unref?.(); setInterval(readPrices, 3_600_000).unref?.();
+      // soon after start: ensurePriced posts nothing over a registered price until these are known
+      setTimeout(readPrices, 5_000).unref?.(); setInterval(readPrices, 3_600_000).unref?.();
     }
     // An open-market host keeps its own TUNA privacy agent enrolled (tuna-enroll.mjs): wallets made here, funded by the
     // platform on request, the config the \Enclave\Tuna task waits for. Every 5 minutes, once the box is registered.
