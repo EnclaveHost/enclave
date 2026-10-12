@@ -9,7 +9,7 @@ import {transientProofError} from './lease-reader.mjs';
 // its reverse tunnel), so one slow handshake is ordinary. These transport
 // failures withdraw a route only after three in a row; a mismatch or refusal
 // still fails it at once.
-const ROUTE_PROBE_FAILURES=3,ROUTE_RETRY_MS=5000,COOLDOWN_MAX_MS=1800000;
+const ROUTE_PROBE_FAILURES=3,ROUTE_RETRY_MS=5000,COOLDOWN_MAX_MS=1800000,STABLE_MS=600000;
 export function transientRouteError(e) {
   return transientProofError(e)||['TLS handshake timeout','SOCKS connection aborted','SOCKS connection closed','SOCKS closed during handshake','SOCKS connect refused'].includes(e?.message);
 }
@@ -22,7 +22,7 @@ const withCarry=providers=>({...providers,carry:providers.guard});
 const sameProviders=(a,b)=>roles.every(role=>['identity','address','beneficiary','asn','registryId','currency','pricePerGiB6'].every(k=>a[role][k]===b[role][k]));
 export class CircuitManager extends EventEmitter {
   constructor({runtime,directRuntime,admission,inventory,wallets,probe,publish,observe=async()=>{},now=Date.now,log=()=>{}}) {
-    super();Object.assign(this,{runtime,directRuntime,admission,inventory,wallets,probe,publish,observe,now,log});this.apps=new Map();this.cooldown=new Map();this.strikes=new Map();this.closed=false;this.busy=false;this.publications=new Map();this.reconcilingApps=new Map();this.reservedPublic=new Set();this.occupiedElsewhere=new Set();this.healthChecks=new Map();
+    super();Object.assign(this,{runtime,directRuntime,admission,inventory,wallets,probe,publish,observe,now,log});this.apps=new Map();this.cooldown=new Map();this.strikes=new Map();this.drops=new Map();this.closed=false;this.busy=false;this.publications=new Map();this.reconcilingApps=new Map();this.reservedPublic=new Set();this.occupiedElsewhere=new Set();this.healthChecks=new Map();
   }
   async configure(apps) {
     const next=new Map(),walletOwners=new Map();
@@ -62,8 +62,18 @@ export class CircuitManager extends EventEmitter {
     if(!app.circuits.includes(circuit))return;
     if(app.policy.mode!=='direct')void this.observe(circuit.providers,{ok:false,role:circuit.failureRole}).catch(e=>this.log(e.message));
     circuit.healthy=false;app.circuits=app.circuits.filter(c=>c!==circuit);circuit.admit(0);
-    // A failure cannot cause an immediate retry of the same set of providers.
-    if(app.policy.mode!=='direct')for(const role of roles)if(!circuit.failureRole||role===circuit.failureRole)this.cooldown.set(providerCooldownKey(role,circuit.providers[role]),this.now()+60000);
+    // A failure cannot cause an immediate retry of the same set of providers. A provider whose circuits keep dying
+    // within STABLE_MS of coming up waits longer each time (60 s doubling to 30 min, the public side when the failure
+    // names no role): allocating fine and then disconnecting a minute later must not win it the next route again.
+    // These counts are separate from allocation strikes, which a successful allocation clears.
+    if(app.policy.mode!=='direct'){
+      const early=circuit.upAt!==undefined&&this.now()-circuit.upAt<STABLE_MS;
+      for(const role of roles)if(!circuit.failureRole||role===circuit.failureRole){
+        const key=providerCooldownKey(role,circuit.providers[role]),escalate=early&&role===(circuit.failureRole||'public');
+        const n=escalate?(this.drops.get(key)||0)+1:1;if(escalate)this.drops.set(key,n);else if(!early)this.drops.delete(key);
+        this.cooldown.set(key,this.now()+Math.min(60000*2**(n-1),COOLDOWN_MAX_MS));
+      }
+    }
     app.error=reason;app.lastFailure={at:this.now(),circuit:circuit.id,reason};this.log(`app ${app.id.slice(0,10)} circuit ${circuit.id}: ${reason}`);
     await this.publishApp(app).catch(e=>this.log(`route withdrawal: ${e.message}`));
     await circuit.close(reason);
@@ -171,6 +181,7 @@ export class CircuitManager extends EventEmitter {
         await this.publishApp(app);await old.close('restoring configured fallback');break;
       }
     }
+    for(const c of app.circuits)if(c.upAt!==undefined&&this.now()-c.upAt>=STABLE_MS)for(const role of roles)this.drops.delete(providerCooldownKey(role,c.providers[role]));
     if(app.circuits.length===2){app.error=null;await this.publishApp(app);return;}
     const choice=selectCircuitProviders(app.policy,nodes,{existing:app.circuits.map(c=>({...c.providers,healthy:c.healthy})),locked:app.circuits.map(c=>c.providers),occupiedPublic:new Set([...this.reservedPublic,...this.occupiedElsewhere,...[...this.apps.values()].filter(a=>a.policy.mode!=='direct').flatMap(a=>a.circuits.flatMap(c=>publicReservations(c.providers.public)))]),cooldown:this.cooldown,now:this.now()});
     if(!choice.ready){app.error=choice.reason;await this.publishApp(app);return;}
@@ -192,7 +203,7 @@ export class CircuitManager extends EventEmitter {
         if(circuit.closed||!this.authorizationUntil(app.id))throw new Error('circuit failed during verification');
         void this.observe(withCarry(providers),{ok:true,latencyMs:this.now()-started}).catch(e=>this.log(e.message));
         for(const role of roles)this.strikes.delete(providerCooldownKey(role,providers[role]));
-        circuit.slot=slot;circuit.healthy=!bootstrap;circuit.egressReady=true;circuit.checkedAt=bootstrap?0:this.now();
+        circuit.slot=slot;circuit.healthy=!bootstrap;circuit.egressReady=true;circuit.checkedAt=bootstrap?0:this.now();circuit.upAt=this.now();
         circuit.on('down',reason=>{void this.fail(app,circuit,reason).catch(e=>this.log(e.message));});
         app.circuits.push(circuit);await this.publishApp(app);
       }catch(e){
