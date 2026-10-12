@@ -1,0 +1,123 @@
+#!/bin/bash
+# End-to-end test of the Enclave network on real kernel WireGuard + nftables, in unprivileged network namespaces:
+#   host --outer wg--> guard --inner wg (inside outer)--> exit --> "internet"; visitors --> exit:443 --> host's enclave.
+# Usage (no root needed): unshare -r -n -- bash test/netns/wg-e2e.sh <enclave-wg binary>
+# Prints "PASS <name>" / "FAIL <name>: ..." and exits non-zero on any failure.
+set -uo pipefail
+WG_BIN=$1
+D=$(cd "$(dirname "$0")" && pwd)
+T=$(mktemp -d)
+FAILED=0
+pass(){ echo "PASS $1"; }
+fail(){ echo "FAIL $1: $2"; FAILED=1; }
+pids=()
+cleanup(){ for p in "${pids[@]}"; do kill "$p" 2>/dev/null; done; rm -rf "$T"; }
+trap cleanup EXIT
+
+mk(){ unshare -n sleep 3600 </dev/null >/dev/null 2>&1 & pids+=($!); printf -v "$1" %s $!; }
+nsx(){ local p=$1; shift; nsenter -t "$p" -n -- "$@"; }
+link(){ # veth name, ns pid, router ip, ns ip
+  ip link add "$1" type veth peer name eth0 netns "$2"
+  ip addr add "$3/24" dev "$1"; ip link set "$1" up
+  nsx "$2" ip addr add "$4/24" dev eth0; nsx "$2" ip link set eth0 up; nsx "$2" ip link set lo up; nsx "$2" ip route add default via "$3"
+}
+ip link set lo up
+sysctl -q -w net.ipv4.ip_forward=1
+mk G; mk X; mk H; mk W; mk C
+sleep 0.2
+link vG "$G" 46.0.0.1 46.0.0.2
+link vX "$X" 47.0.0.1 47.0.0.2
+link vH "$H" 45.0.0.1 45.0.0.2
+link vW "$W" 44.0.0.254 44.0.0.1
+link vC "$C" 48.0.0.1 48.0.0.2
+# a private address that is really reachable: only the exit's rules may stop it
+nsx "$W" ip addr add 10.9.9.9/32 dev eth0; ip route add 10.9.9.9/32 via 44.0.0.1
+
+key(){ node -e 'import("viem/accounts").then(a=>console.log(a.generatePrivateKey()))'; }
+addr(){ node -e 'import("viem/accounts").then(a=>console.log(a.privateKeyToAccount(process.argv[1]).address))' "$1"; }
+RUNNER_KEY=$(key); CHECKER_KEY=$(key); GKEY=$(key); XKEY=$(key)
+export RUNNER_OPERATOR=$(addr "$RUNNER_KEY")
+CHECKER=$(addr "$CHECKER_KEY")
+cd "$D/../.."   # repo root: node resolves viem from node_modules here
+
+nsx "$W" node test/netns/web-node.mjs & pids+=($!)
+nsx "$G" node test/netns/provider-node.mjs 46.0.0.2 guard "$T/g" "$T/g.json" "$GKEY" '[{"address":"47.0.0.2","ports":{"exit":51820,"control":51822}}]' "$CHECKER" & pids+=($!)
+nsx "$X" node test/netns/provider-node.mjs 47.0.0.2 ingress,egress "$T/x" "$T/x.json" "$XKEY" '[]' "$CHECKER" & pids+=($!)
+for f in g x; do for i in $(seq 50); do [ -s "$T/$f.json" ] && break; sleep 0.2; done; done
+[ -s "$T/x.json" ] && [ -s "$T/g.json" ] && pass "providers started (kernel wg + nftables)" || { fail providers "did not start"; exit 1; }
+
+# the "enclave": a TLS server whose key exists only in the host namespace
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -subj /CN=abababab.app.enclave.host -keyout "$T/k.pem" -out "$T/c.pem" -days 1 2>/dev/null
+FP=$(openssl x509 -in "$T/c.pem" -noout -fingerprint -sha256 | cut -d= -f2)
+nsx "$H" node test/netns/tls-worker.mjs 9443 "$T/k.pem" "$T/c.pem" & pids+=($!)
+sleep 0.5
+nsx "$H" node test/netns/host-node.mjs "$WG_BIN" 46.0.0.2 47.0.0.2 "$RUNNER_KEY" 9443 > "$T/circuit.json" 2>"$T/host.err" & pids+=($!)
+for i in $(seq 100); do [ -s "$T/circuit.json" ] && break; sleep 0.2; done
+[ -s "$T/circuit.json" ] || { fail circuit "$(cat "$T/host.err")"; exit 1; }
+pass "circuit up: guard grant, exit grant through the guard, inner tunnel"
+EGRESS=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).egress)' "$T/circuit.json")
+
+r=$(nsx "$H" curl -s -m 10 --socks5 "$EGRESS" http://44.0.0.1/)
+[ "$r" = "remote=47.0.0.2" ] && pass "egress reaches the internet from the exit's address" || fail egress "got '$r'"
+r=$(nsx "$H" curl -s -m 10 --socks5-hostname "$EGRESS" http://web.test/)
+[ "$r" = "remote=47.0.0.2" ] && pass "names resolve through the tunnel" || fail dns "got '$r'"
+ep=$(nsx "$X" wg show wg-exit endpoints | awk '{print $2}')
+case "$ep" in 46.0.0.2:*) pass "the exit sees the guard ($ep), never the host";; *) fail guard-hop "exit sees '$ep'";; esac
+nsx "$H" curl -s -m 5 --socks5 "$EGRESS" http://10.9.9.9/ >/dev/null && fail client-policy "private destination reached" || pass "host refuses a private destination"
+
+out=$(nsx "$W" node test/netns/visitor-node.mjs 47.0.0.2 abababab.app.enclave.host)
+case "$out" in *"$FP"*"enclave says: hello"*) pass "public HTTPS reaches the enclave; TLS ends there (same certificate)";; *) fail ingress "$out";; esac
+out=$(nsx "$W" node test/netns/visitor-node.mjs 47.0.0.2 www.example.org)
+case "$out" in *"$FP"*) pass "custom domain routes to the same enclave";; *) fail custom-domain "$out";; esac
+out=$(nsx "$W" node test/netns/visitor-node.mjs 47.0.0.2 unknown.example)
+case "$out" in CLOSED|ERROR*) pass "unknown SNI is refused (no open proxy)";; *) fail unknown-sni "$out";; esac
+
+# provider-side enforcement, seen by a raw kernel WireGuard client holding a checker probe peer (no host policy)
+nsx "$C" node test/netns/probe-node.mjs http://47.0.0.2:51822 probe "$CHECKER_KEY" > "$T/probe.json" 2>"$T/probe.err" || fail probe-grant "$(cat "$T/probe.err")"
+wgup(){ # ns, grant file, iface
+  local priv peer ep addr
+  priv=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).priv)' "$2")
+  peer=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).grant.providerPublicKey)' "$2")
+  ep=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).grant.endpoint)' "$2")
+  addr=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).grant.clientAddress)' "$2")
+  echo "$priv" > "$T/$3.key"
+  nsx "$1" ip link add "$3" type wireguard
+  nsx "$1" wg set "$3" private-key "$T/$3.key" fwmark 51820 peer "$peer" endpoint "$ep" allowed-ips 0.0.0.0/0 persistent-keepalive 1
+  nsx "$1" ip addr add "$addr/32" dev "$3"; nsx "$1" ip link set "$3" mtu 1340 up
+  nsx "$1" ip route add default dev "$3" table 100; nsx "$1" ip rule add not fwmark 51820 table 100
+}
+wgup "$C" "$T/probe.json" wgc
+sleep 1
+r=$(nsx "$C" curl -s -m 10 http://44.0.0.1/)
+[ "$r" = "remote=47.0.0.2" ] && pass "probe peer: outbound through the real tunnel" || fail probe-egress "got '$r'"
+refused(){ # ns, url, name: must be refused quickly (RST/ICMP), never time out
+  local s=$(date +%s%N) code; nsx "$1" curl -s -m 8 -o /dev/null "$2"; code=$?
+  local ms=$(( ($(date +%s%N)-s)/1000000 ))
+  if [ $code -eq 7 ] && [ $ms -lt 3000 ]; then pass "$3 refused in ${ms} ms"; else fail "$3" "curl exit $code after ${ms} ms"; fi
+}
+refused "$C" http://10.9.9.9/ "exit: private destination"
+refused "$C" http://47.0.0.2:80/ "exit: its own public address"
+refused "$C" telnet://44.0.0.1:25 "exit: SMTP"
+refused "$C" http://10.77.0.1:51822/ "exit: its own tunnel address"
+refused "$C" http://169.254.169.254/ "exit: cloud metadata"
+nsx "$C" ip rule del not fwmark 51820 table 100; nsx "$C" ip link del wgc
+
+# the guard forwards only to providers: a raw guard peer (runner-signed) may reach the exit's control port, nothing else
+nsx "$C" node test/netns/probe-node.mjs http://46.0.0.2:51822 guard "$RUNNER_KEY" > "$T/guard.json" 2>"$T/guard.err" || fail guard-grant "$(cat "$T/guard.err")"
+wgup "$C" "$T/guard.json" wgg
+sleep 1
+r=$(nsx "$C" curl -s -m 8 -o /dev/null -w '%{http_code}' http://47.0.0.2:51822/v1/info)
+[ "$r" = "200" ] && pass "guard: reaches a provider's control port" || fail guard-control "got '$r'"
+refused "$C" http://44.0.0.1/ "guard: any non-provider destination"
+nsx "$C" ip rule del not fwmark 51820 table 100; nsx "$C" ip link del wgg
+
+# an unregistered key gets no handshake from the exit (WireGuard's silence) while registered peers keep theirs
+priv=$(wg genkey); echo "$priv" > "$T/u.key"
+nsx "$C" ip link add wgu type wireguard
+nsx "$C" wg set wgu private-key "$T/u.key" peer "$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).keys["wg-exit"])' "$T/x.json")" endpoint 47.0.0.2:51820 allowed-ips 10.77.0.1/32 persistent-keepalive 1
+nsx "$C" ip addr add 10.77.250.250/32 dev wgu; nsx "$C" ip link set wgu up
+nsx "$C" ping -c 2 -W 1 10.77.0.1 >/dev/null 2>&1
+hs=$(nsx "$C" wg show wgu latest-handshakes | awk '{print $2}')
+[ "$hs" = "0" ] && pass "unregistered key: no handshake" || fail unauthorized "handshake at $hs"
+
+exit $FAILED
