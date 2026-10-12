@@ -79,7 +79,9 @@ Web, so no SmartScreen prompt while unsigned). The Host page links both.
 
 ## Updates (automatic)
 
-`\Enclave\Update` (SYSTEM; 5 minutes after boot, then hourly) runs `update-host.ps1`: when
+The node checks `get.enclave.host/windows/latest.json` once a minute (`windows/node/update-watch.mjs`) and starts
+`\Enclave\Update` the moment a newer version is live; the task's own triggers (5 minutes after boot, then hourly) are only
+the fallback for a node that is not running. `\Enclave\Update` (SYSTEM) runs `update-host.ps1`: when
 `get.enclave.host/windows/latest.json` names a newer version than Program Files' `manifest.json`, it downloads the zip and
 `EnclaveSetup.exe`, checks both against the published sha256, and runs the new `install-host.ps1` over the host with the same
 name and owner (keys, records, guest state and registration kept; the services restart on the new version). A failed install

@@ -872,6 +872,24 @@ async function startHostingControls() {
       });
       tickWitness(); setInterval(tickWitness, 30000).unref?.();
     }
+    // UPDATES: a new release starts installing within a minute of going live (update-watch.mjs). Only on an installed
+    // host (Program Files\Enclave\manifest.json beside this control tree) on Windows, where \Enclave\Update exists.
+    if (process.platform === 'win32') {
+      let installed = null;
+      try { installed = JSON.parse(fs.readFileSync(path.join(HERE, '..', '..', '..', 'manifest.json'), 'utf8')).version || null; } catch {}
+      if (installed) {
+        const { createUpdateWatch } = await import('./update-watch.mjs');
+        const { execFile } = await import('node:child_process');
+        const downloads = (process.env.ENCLAVE_DOWNLOADS || 'https://get.enclave.host/windows/').replace(/\/?$/, '/');
+        const watch = createUpdateWatch({ installed, log: (m) => log(m),
+          fetchLatest: async () => { const r = await fetch(`${downloads}latest.json`, { cache: 'no-store', signal: AbortSignal.timeout(15000) });
+                                     if (!r.ok) throw new Error(`latest.json: HTTP ${r.status}`); return r.json(); },
+          trigger: () => new Promise((res, rej) => execFile('schtasks.exe', ['/Run', '/TN', '\\Enclave\\Update'], { windowsHide: true, timeout: 30000 },
+            (e, so, se) => (e ? rej(new Error(`schtasks: ${String(se || e.message).trim()}`)) : res()))) });
+        setTimeout(() => watch.check(), 20_000).unref?.(); setInterval(() => watch.check(), 60_000).unref?.();
+        log(`update: running ${installed}; a newer release on ${downloads} is installed as soon as it is live`);
+      }
+    }
     // PRICES: the default is the cheapest per-(GB x FLOPS) unit the other hosts of this tier post (price-guide.mjs), read
     // from the relay's public /enclaves list a minute after start and every hour; the owner's override (the tray) wins.
     {
