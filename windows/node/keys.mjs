@@ -7,9 +7,10 @@
 // machine its owner controls, which is worth saying out loud rather than implying otherwise.
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";   // decodes %20: the installed path is C:\Program Files\Enclave
 import * as chain from "./chain.mjs";
 
-const dir = process.argv[2] || path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const dir = process.argv[2] || path.dirname(fileURLToPath(import.meta.url));
 const opFile = path.join(dir, "operator.key"), pkFile = path.join(dir, "proof.key");
 const madeOp = !fs.existsSync(opFile), madePk = !fs.existsSync(pkFile);
 if (madeOp) chain.newOperatorKey(opFile);
