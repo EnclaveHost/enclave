@@ -339,9 +339,13 @@ elseif ($Owner) {
   # another account (an automatic update runs as SYSTEM): install it in the owner's session if they are signed in; if not,
   # the tray refreshes itself from Program Files at their next sign-in (EnclaveTray's own start-up check)
   try {
+    # the running tray holds its exe open and refuses a polite close; this account (SYSTEM, elevated) can end any copy
+    Get-Process EnclaveTray -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     $a = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c `"$(Join-Path $PF 'tray\install-tray.cmd')`""
     Register-ScheduledTask -TaskName "EnclaveTrayInstall" -Action $a -Principal (New-ScheduledTaskPrincipal -UserId $Owner -LogonType Interactive) -Force | Out-Null
-    Start-ScheduledTask -TaskName "EnclaveTrayInstall"; Start-Sleep 10
+    Start-ScheduledTask -TaskName "EnclaveTrayInstall"
+    $t0 = Get-Date
+    do { Start-Sleep 1 } while ((Get-ScheduledTask -TaskName "EnclaveTrayInstall").State -eq "Running" -and ((Get-Date) - $t0).TotalSeconds -lt 60)
   } catch { Emit "tray" "warn" "The tray was not refreshed for $Owner now ($($_.Exception.Message)); it updates itself at their next sign-in" }
   finally { Unregister-ScheduledTask -TaskName "EnclaveTrayInstall" -Confirm:$false -ErrorAction SilentlyContinue }
 }

@@ -7,8 +7,8 @@ setlocal
 set "SRC=%~dp0"
 set "DEST=%LOCALAPPDATA%\Enclave\Tray"
 if not exist "%SRC%EnclaveTray.exe" (echo install: EnclaveTray.exe is not built here; run build.cmd first & exit /b 2)
-rem An older copy of THIS user's tray holds the exe open; stop it first. ping is the sleep: timeout.exe refuses a redirected stdin.
-taskkill /im EnclaveTray.exe /fi "USERNAME eq %USERNAME%" >nul 2>&1
+rem An older copy of THIS user's tray holds the exe open; stop it first, FORCED: the tray refuses a polite close. ping is the sleep: timeout.exe refuses a redirected stdin.
+taskkill /f /im EnclaveTray.exe /fi "USERNAME eq %USERNAME%" >nul 2>&1
 ping -n 2 127.0.0.1 >nul
 if not exist "%DEST%" mkdir "%DEST%" || (echo install: could not create %DEST% & exit /b 1)
 copy /y "%SRC%EnclaveTray.exe" "%DEST%\EnclaveTray.exe" >nul || (echo install: copy to %DEST% failed & exit /b 1)
