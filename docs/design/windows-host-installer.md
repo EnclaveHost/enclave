@@ -55,15 +55,27 @@ A Windows 11 Pro/Enterprise 24H2+ PC with Hyper-V, Secure Boot and an AMD fTPM, 
 `irm https://get.enclave.host/host.ps1 | iex` downloads and verifies `EnclaveSetup.exe` and runs it (no Mark of the
 Web, so no SmartScreen prompt while unsigned). The Host page links both.
 
-## Platform work for an open market (none of this is per-host by hand any more)
+## Platform work for an open market (built 2026-10-11; nothing per-host by hand)
 
-1. Windows nodes may claim from the ledger: drop the forced owner-only scope on an engine-retired node; market claims
-   gated by the same capacity/isolation rules as today.
-2. Relay: an hv-node that passed hardware attestation is market capacity (today: listed, never serving or eligible), and
-   its operator needs no `RELAY_HVNODE_OPERATORS` entry for its own owner's apps.
-3. TUNA privacy config issued automatically to an attested box (control seeds, NKN wallets, the admitted Shield policy),
-   funded by the platform's top-up job, instead of written over SSH.
-4. Relay `GET /v1/hosts/name/<name>`.
+1. **Serving.** `RELAY_HVNODE_OPERATORS=*`: any name's on-chain owner whose v2 attach signature binds the attach to this
+   TPM serves its own apps (+ its delegators') owner-only. A NEW host attaches before its sponsored registration as a
+   `claimant`; the relay's once-a-minute owner re-check promotes it to operator once the registry names that key
+   (`relay/tunnel.js`). Buyers' apps need per-app evidence as before.
+2. **Market admission.** The Shield policy takes `hosts: "*"` (any attested hv-node with a live session) and
+   `platforms: "attested"` (any EK chained to the pinned AMD roots on a production boot, any firmware) instead of
+   per-box pins (`relay/shield-app-policy.mjs`, shared with the privacy agent's own TPM proof). An hv-node row's TUNA
+   route is per deployment only (its owner-only rule or its own app evidence), never the row's eligibility.
+3. **Readiness witness.** The platform's pinned `shield-readiness-v1` app (`windows/installer/shield-witness.json`,
+   runtime 297b6c2c) ships as `guest\witness.json`; setup sets `SHIELD_WITNESS_CONFIG` and refuses a mismatched runtime.
+4. **Market window grace.** A lapsed 300 s relay window (relay restart, re-attach) keeps serving the buyer apps a box
+   already runs for 15 min (`Host.servingScope`); new claims still need a live window.
+5. **TUNA, automatic.** The node enrolls its own privacy agent (`windows/node/tuna-enroll.mjs`): it makes the control
+   and per-app NKN wallets on the box, asks `POST /v1/hosts/tuna-funding` (signed by the attested transport key; control
+   once per TPM, six wallets per app leased to it; 8 apps/host/day, 60/day), writes `privacy-config.json` once funded;
+   `\Enclave\Tuna` waits for it. The relay records requests in `RELAY_TUNA_FUNDING_FILE`; the platform's machine reads
+   that queue over SSH and pays through the existing top-up job (`network/tuna-funding-sync.mjs`, timer
+   `enclave-tuna-funding-sync`). The paymaster pays only Base gas; NKN comes from the platform's NKN funding wallet.
+6. **Name check.** `GET /v1/hosts/name/<name>` (`relay/host-names.mjs`).
 
 ## Bundle build
 
@@ -75,5 +87,5 @@ next step, and is what SignPath needs.
 
 ## Order
 
-1. bundle builder + bundle v1; 2. `EnclaveSetup.exe` + `host.ps1`; 3. platform items 4, 1, 2, 3;
-4. publish on get.enclave.host + Host page link; 5. Steven's end-to-end run on the reset NucBox.
+1. bundle builder + bundle v1; 2. `EnclaveSetup.exe` + `host.ps1`; 3. the platform items above;
+4. publish on get.enclave.host (2026.10.12, done) + Host page link; 5. Steven's end-to-end run on the reset NucBox.
