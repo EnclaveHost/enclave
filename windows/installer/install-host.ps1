@@ -232,6 +232,8 @@ set ENCLAVE_LIVENESS_MS=15000
 set ENCLAVE_ANSWER_CHECK_MS=30000
 set ENCLAVE_CONFIG_BUNDLE_V5=1
 set ENCLAVE_CONFIG_SOCKET_SERVER_V1=1
+rem sealed secrets; the manager also gates protected ports and app egress on this, so without it all three are off
+set ENCLAVE_SECRETS_V1=1
 set ENCLAVE_EGRESS_V1=1
 set ENCLAVE_EGRESS_EXE=$PF\bin\shield-egress.exe
 set ENCLAVE_EGRESS_EXE_SHA256=$(& $pin 'bin/shield-egress.exe')
@@ -285,6 +287,8 @@ set SHIELD_WITNESS_CONFIG=$witnessFile
 set TUNA_AGENT_DIR=$PD\tuna
 set TUNA_BIN_DIR=$PF\tuna
 set TUNA_SHIELD_POLICY=$PF\tuna\admitted-shield-policy.json
+rem an app whose config asks for startup egress gets its secrets only once its private route is up (missing file: pending)
+set ENCLAVE_STARTUP_EGRESS_CONFIG=$PD\tuna\privacy-config.json
 "@ | Set-Content -Encoding ASCII (Join-Path $PD "node-config.cmd")
 
 # the TUNA privacy agent: every app's private route. The node writes its config once the platform has funded the control
