@@ -2243,8 +2243,27 @@ export class Host {
       backend: this.cfg.engineRetired === true ? "hv" : "legacy",
       gpu: this.gpuConsumer(),
       appsEnabled: !!this.cfg.appsEnabled,
+      market: this.marketStatus(),
       logsDir: this.cfg.dir,
     };
+  }
+  /**
+   * marketStatus() -> { taking, why }: is this box taking NEW work from the network right now, as the network sees it?
+   * The owner's switch is only the first condition: the relay lists a Shield host (and opens its claim window, scope())
+   * only while it is attached, registered, has gas and its readiness witness verifies - which takes a few minutes after
+   * every start or update. The tray shows this, not the switch, as "taking new work".
+   */
+  marketStatus(now = Date.now()) {
+    const no = (why) => ({ taking: false, why });
+    if (this.caps.paused === true) return no("hosting is off");
+    if (!this.cfg.appsEnabled) return no("hosting is disabled on this node (APPS)");
+    if (this.cfg.claimScope !== "market") return no("this node serves only its owner's apps (CLAIM_SCOPE)");
+    if (this.relayAttached !== true) return no("not connected to the network yet");
+    if (!this.registered) return no("not registered on the network yet");
+    if ((this.gasRenewals ?? 1) <= 0) return no("the operator key has no gas left for claims");
+    if (this.scope() !== "market")
+      return no("the network is verifying this PC (a few minutes after every start or update)");
+    return { taking: true, why: "listed on enclave.host" };
   }
 
   /**

@@ -86,6 +86,8 @@ namespace Enclave.Tray
         public int Served, WaitingForCap;
         public string Backend = "", GpuWhy = "", CapsError = "", LogsDir = "";
         public bool GpuConsumer, AppsEnabled, Paused, CanPause;
+        public bool? Taking;                                // the network's view: taking new work now (null: an older node)
+        public string TakingWhy = "";
         public int Dropped;                                 // in the answer to an Apply: deployments it dropped
         public PriceAxis CpuPrice, GpuPrice;                // the node's pricing (null: an older node, or no card to price)
 
@@ -102,6 +104,8 @@ namespace Enclave.Tray
             v.Served = (int)Num(o, "deploymentsServed", 0); v.WaitingForCap = (int)Num(o, "waitingForCap", 0);
             v.Backend = Str(o, "backend"); v.CapsError = Str(o, "capsError"); v.LogsDir = Str(o, "logsDir");
             v.GpuConsumer = Bool(gpu, "consumer"); v.GpuWhy = Str(gpu, "why"); v.AppsEnabled = Bool(o, "appsEnabled");
+            var market = Obj(o, "market");
+            if (market != null) { v.Taking = Bool(market, "taking"); v.TakingWhy = Str(market, "why"); }
             var pricing = Obj(o, "pricing");
             v.CpuPrice = PriceAxis.From(Obj(pricing, "cpu")); v.GpuPrice = PriceAxis.From(Obj(pricing, "gpu"));
             return v;
@@ -1165,11 +1169,16 @@ namespace Enclave.Tray
             var v = view;
             // the switch, and the buttons: armed only by a change the node has not got
             hosting.Enabled = v != null && v.CanPause && !switching;
-            hostingLine.ForeColor = v != null && v.Paused ? Theme.Amber : Theme.Text;
+            // "taking new work" is the NETWORK's word (the node's market status), not the switch: after every start or update
+            // the box is off the market until the relay has verified it again
+            bool waiting = v != null && !v.Paused && v.Taking == false;
+            hostingLine.ForeColor = v != null && (v.Paused || waiting) ? Theme.Amber : Theme.Text;
             hostingLine.Text = v == null ? "\u2013"
                 : !v.CanPause ? "on (this node has no off switch yet: update the node)"
                 : switching ? (v.Paused ? "turning on\u2026" : "turning off\u2026")
                 : v.Paused ? (v.Served > 0 ? "off \u00B7 stopping " + v.Served + " app(s)\u2026" : "off \u00B7 nothing runs; this PC is all yours")
+                : waiting ? "on \u00B7 NOT taking new work yet: " + v.TakingWhy
+                : v.Taking == true ? "on \u00B7 listed on enclave.host, taking new work under the caps below"
                 : "on \u00B7 taking new work under the caps below";
             apply.Enabled = reset.Enabled = Pending && !applying;
             apply.Text = applying ? "Applying\u2026" : "Apply";
@@ -1493,6 +1502,7 @@ namespace Enclave.Tray
                 return;
             }
             bool over = v.CpuInUse > v.CpuCap + 1e-9 || v.GpuInUse > v.GpuCap + 1e-9 || v.CapsError.Length > 0;
+            if (v.Taking == false) { icon.Icon = iconWarn; icon.Text = Tip("Enclave hosting: on, not taking new work yet"); return; }
             icon.Icon = over ? iconWarn : iconOk;
             icon.Text = Tip("Enclave: CPU " + ControlPanel.Pct(v.CpuCap) + " offered, " + ControlPanel.Pct(v.CpuInUse) + " used; "
                             + v.Served + " served");

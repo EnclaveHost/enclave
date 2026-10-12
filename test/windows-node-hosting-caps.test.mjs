@@ -497,3 +497,24 @@ test("the switch through the local API (the tray's call): OFF with apps running 
   const on = await put({ paused: false });
   assert.equal(on.status, 200); assert.equal(h.hostingCaps().paused, false, "turning on needs no confirmation");
 });
+
+// ---- market status: what the tray calls "taking new work" (the network's view, not the switch) --------------------
+test("market status: taking new work only while the relay's market window is open", () => {
+  const h = box({ claimScope: "market", engineRetired: true, isolationManager: "http://127.0.0.1:1" });
+  const why = () => h.marketStatus().why, taking = () => h.marketStatus().taking;
+  assert.equal(taking(), false); assert.match(why(), /not connected/);
+  h.relayAttached = true; h.relayTier = "hv-node";
+  assert.match(why(), /not registered/);
+  h.registered = { cpuPricePerSec6: 12 };
+  assert.match(why(), /verifying this PC/);                          // attached and registered, witness not verified yet
+  h.openShieldMarket(Date.now() + 300_000);
+  assert.deepEqual(h.marketStatus(), { taking: true, why: "listed on enclave.host" });
+  assert.equal(h.hostingView().market.taking, true);
+  h.caps.paused = true;
+  assert.deepEqual(h.marketStatus(), { taking: false, why: "hosting is off" });
+  h.caps.paused = false; h.relayAttached = false;                   // the tunnel dropped
+  assert.match(why(), /not connected/);
+  h.relayAttached = true; h.shieldMarketUntil = Date.now() - 1;       // the window lapsed (e.g. after an update)
+  assert.equal(taking(), false);
+  assert.match(box({ claimScope: "owner-only" }).marketStatus().why, /only its owner's apps/);
+});
