@@ -60,8 +60,7 @@ test("control wallets, then the config, then each leased app - each step only on
   w.fundAll();
   let r = await w.enroll.pass();
   assert.equal(r.ready, true); assert.equal(r.apps, 0, "the app's wallets are not funded yet");
-  const cfg0 = JSON.parse(fs.readFileSync(path.join(w.agentDir, "privacy-config.json"), "utf8"));
-  assert.equal(cfg0.version, 2); assert.equal(cfg0.runner, RUNNER); assert.equal(cfg0.shield.tpmSha256, "aa".repeat(32));
+  assert.equal(fs.existsSync(path.join(w.agentDir, "privacy-config.json")), false, "no config with no app: the agent refuses an empty list");
   const app = Object.values(w.relay.entries()).find((e) => e.purpose === "app");
   assert.equal(app.deploymentId, D); assert.equal(app.addresses.length, 6);
   assert.deepEqual((await w.enroll.pass()).apps, 0, "a second pass asks again (idempotent at the relay) and waits");
@@ -70,6 +69,7 @@ test("control wallets, then the config, then each leased app - each step only on
   r = await w.enroll.pass();
   assert.equal(r.apps, 1);
   const cfg = JSON.parse(fs.readFileSync(path.join(w.agentDir, "privacy-config.json"), "utf8"));
+  assert.equal(cfg.version, 2); assert.equal(cfg.runner, RUNNER); assert.equal(cfg.shield.tpmSha256, "aa".repeat(32));
   assert.deepEqual(cfg.apps[0].names, [D.slice(2, 10) + ".app.enclave.host", "shop.example"]);
   assert.equal(cfg.apps[0].internetMode, "tuna");
   const exp = JSON.parse(fs.readFileSync(cfg.apps[0].expectedFile, "utf8"));
