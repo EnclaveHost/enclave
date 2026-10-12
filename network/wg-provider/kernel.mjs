@@ -82,9 +82,15 @@ export class Kernel {
   await this.applyTable();
   return keys;
  }
+ // nft reads a script from a file (older nft refuses -f - on a pipe); the file lives in the 0700 key directory
+ async nft(script){
+  const file=`${this.keyDir}/.nft-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.nft`;
+  await fs.writeFile(file,script,{mode:0o600});
+  try{await this.cmd('nft',['-f',file]);}finally{await fs.rm(file,{force:true});}
+ }
  async applyTable(){
   let existing='';try{existing=await this.cmd('nft',['list','table','inet','enclave_net']);}catch{}
-  await this.cmd('nft',['-f','-'],(existing?'delete table inet enclave_net\n':'')+ruleset({publicAddress:this.publicAddress,uplink:this.uplink}));
+  await this.nft((existing?'delete table inet enclave_net\n':'')+ruleset({publicAddress:this.publicAddress,uplink:this.uplink}));
  }
  iface(peer){return peer.role==='guard'?'wg-guard':'wg-exit';}
  async setPeer(peer){
@@ -101,7 +107,7 @@ export class Kernel {
    ...(e.length?[`add element inet enclave_net egress4 { ${e.join(', ')} }`]:[]),
    ...(udp.length?[`add element inet enclave_net targets_udp { ${udp.join(', ')} }`]:[]),
    ...(tcp.length?[`add element inet enclave_net targets_tcp { ${tcp.join(', ')} }`]:[])].join('\n')+'\n';
-  await this.cmd('nft',['-f','-'],script);
+  await this.nft(script);
  }
  // Per-peer counters as WireGuard reports them (the provider's own observation; never billing evidence alone).
  async stats(){

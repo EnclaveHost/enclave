@@ -13,7 +13,7 @@ import {WgProvider} from './provider.mjs';
 import {Kernel} from './kernel.mjs';
 import {createRouter} from './router.mjs';
 import {createControl} from './control.mjs';
-import {providerIdFor,signProviderRecord,eligibleProviders} from '../provider-directory.mjs';
+import {providerIdFor,signProviderRecord,verifyProviderRecord} from '../provider-directory.mjs';
 import {verifyOwnerSignature} from '../owner-signature.mjs';
 
 const log=m=>console.log(new Date().toISOString(),m);
@@ -41,8 +41,10 @@ let targetCache={at:0,list:[]};
 const targets=async()=>{
  if(Date.now()-targetCache.at<60000)return targetCache.list;
  try{const d=await relayJSON('/v1/network/providers');
-  const ok=await eligibleProviders(d?.providers||[],{checkers:cfg.checkers||[],hostOperator:async()=>null});
-  targetCache={at:Date.now(),list:ok.filter(p=>p.providerId!==providerId&&p.eligibleRoles.some(r=>r!=='guard')).map(p=>({address:p.address,ports:p.ports}))};
+  // A guard may forward to any provider with a current, operator-signed record that offers an exit role - qualified
+  // or not, so qualification itself can test guard paths. Which exits a host USES is decided by qualification, on the host.
+  const ok=[];for(const e of d?.providers||[]){try{ok.push(await verifyProviderRecord(e.record,{hostOperator:async()=>null}));}catch{}}
+  targetCache={at:Date.now(),list:ok.filter(p=>p.providerId!==providerId&&p.roles.some(r=>r!=='guard')).map(p=>({address:p.address,ports:p.ports}))};
  }catch(e){log('provider directory: '+e.message);}
  return targetCache.list;
 };
