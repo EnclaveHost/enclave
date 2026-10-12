@@ -186,6 +186,11 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
   const trusted = new Set(trustedOperators.map((a) => String(a).toLowerCase()));
   const hvOps = new Set((Array.isArray(hvNodeOperators) ? hvNodeOperators : []).map((a) => String(a).toLowerCase())
     .filter((a) => /^0x[0-9a-f]{40}$/.test(a)));
+  // "*" (the open market, 2026-10-11): ANY name's on-chain owner whose v2 signature binds the attach to this TPM serves its
+  // own apps (+ its delegators') owner-only; strangers' apps still need per-app evidence (shield-marketplace.mjs). It still
+  // grants nothing else.
+  const hvOpsAll = Array.isArray(hvNodeOperators) && hvNodeOperators.some((a) => String(a).trim() === "*");
+  const hvOpAllowed = (a) => /^0x[0-9a-f]{40}$/.test(String(a || "")) && (hvOpsAll || hvOps.has(a));
   const allowByName = new Map(allow.filter((a) => a && a.name && a.tokenSha256).map((a) => [a.name, a.tokenSha256.toLowerCase()]));
   // the NucBox node's attach (mode hv-node): only with the pinned TPM EK roots. A legacy `vbs` policy enables nothing.
   const hvOn = !!(attest && attest.hvNode && attest.hvNode.ekRoots);
@@ -247,7 +252,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
         try { onChange("owner", name); } catch {}
       }
       let served = [];
-      if (owner === t.operator && hvOps.has(owner))
+      if (owner === t.operator && hvOpAllowed(owner))
         served = (await servedList(t.delegations, { operator: t.operator, box: name, chain: ownerOnly && ownerOnly.chainId,
                                                     registry: ownerOnly && typeof ownerOnly.registry === "function" ? ownerOnly.registry() : "" })).served;
       if (tunnels.get(name) !== t) continue;
@@ -650,7 +655,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
               // must be in RELAY_HVNODE_OPERATORS (hvOps; never TRUSTED_OPERATORS, which grants dialing and relay roles);
               // the served owners are it + each valid delegation's owner, with expiries. A v1 signature attaches the node
               // HOST-ONLY (serves nothing), which is how an old node stays safe.
-              if (isHv && signer2 === owner && hvOps.has(owner)) {
+              if (isHv && signer2 === owner && hvOpAllowed(owner)) {
                 operator = owner;
                 delegations = Array.isArray(f.rad.delegations) ? f.rad.delegations.slice(0, MAX_DELEGATIONS) : [];
                 served = await servedList(delegations, { operator, box: name, chain: ownerOnly && ownerOnly.chainId,

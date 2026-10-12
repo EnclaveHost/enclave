@@ -79,3 +79,10 @@ test('startup command proof requires the exact image to admit every required fea
   assert.equal(verifyShieldAppPolicy(f,{...p,images}).ok,false);
  }
 });
+test('open market: platforms "attested" admits any TPM chained to the pinned roots, never a wrong root or a bad boot',options,()=>{
+ const f=fixture(),p={...shieldPolicy(f),platforms:'attested'};
+ const v=verifyShieldAppPolicy(f,p);assert.equal(v.ok,true,v.reason);assert.match(v.scope,/attested VBS platform/);
+ assert.equal(verifyShieldAppPolicy(f,{...p,ekRoots:''}).ok,false);
+ assert.equal(verifyShieldAppPolicy(fixture({boot:{secureBoot:0}}),p).ok,false);
+ for(const platforms of ['any','*',null,undefined,{}])assert.equal(verifyShieldAppPolicy(f,{...p,platforms}).ok,false);
+});

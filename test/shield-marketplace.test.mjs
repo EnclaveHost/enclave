@@ -90,3 +90,15 @@ test('witness failure expires capacity and a reconnect during verification grant
  const y=fixture(witness);y.hub.fetchJson=async()=>{y.setSession('new');return {doc:{},handshakeSpki:Buffer.alloc(44).toString('base64')};};
  await y.market.refresh([y.host],[]);assert.equal(y.market.eligible(y.host),false);assert.equal(y.sent.length,0);
 });
+test('open market: hosts "*" admits any host name with a live session; other non-lists refuse',async()=>{
+ const {shieldHostAdmitted}=await import('../relay/shield-app-policy.mjs');
+ assert.equal(shieldHostAdmitted({hosts:'*'},'any-box'),true);
+ assert.equal(shieldHostAdmitted({hosts:['a']},'b'),false);
+ for(const hosts of ['any',null,undefined,{},[]])assert.equal(shieldHostAdmitted({hosts},'a'),false);
+ assert.equal(shieldHostAdmitted({hosts:'*'},''),false);assert.equal(shieldHostAdmitted(null,'a'),false);
+ const base={schema:'enclave-shield-app-policy/1',marketEnabled:true,ekRoots:'test',cpu:{runtimeId:'ab'.repeat(32)}};
+ for(const hosts of ['any',[],null])assert.throws(()=>createShieldMarketplace({hub:{},policy:{...base,hosts}}),/invalid Shield marketplace policy/);
+ const sent=[],hub={shieldSessionId:()=>'s1',notifyShieldMarket:(...v)=>sent.push(v),fetchJson:async()=>null,verifyShieldApp:()=>({ok:false})};
+ const m=createShieldMarketplace({hub,policy:{...base,hosts:'*'},confirmRow:async()=>null,hasSecrets:()=>false,log:()=>{}});
+ assert.equal(m.configured('stranger-box'),true);assert.equal(m.eligible({name:'stranger-box',mode:'hv-node'}),false);
+});

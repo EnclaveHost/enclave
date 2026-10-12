@@ -283,7 +283,8 @@ const tunnelHub = createTunnelHub({
   // and what an hv-node's hosting delegation must name (relay/host-delegation.mjs): Base, and this relay's registry
   tunnelOrigin: TUNNEL_ORIGIN, ownerOnly: { chainId: 8453, registry: () => REGISTRY_ADDRESS },
   // RELAY_HVNODE_OPERATORS: the ONLY operators whose v2-signed hv-node attach serves owner-only (tunnel.js reads it in the
-  // hv-node attest path and nowhere else); never TRUSTED_OPERATORS, which grants dial discovery and operator attach
+  // hv-node attest path and nowhere else); never TRUSTED_OPERATORS, which grants dial discovery and operator attach.
+  // "*" = the open market: every registered owner's v2-signed, TPM-attested box serves its owner's own apps
   hvNodeOperators: (process.env.RELAY_HVNODE_OPERATORS || "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean),
   // owner-only's re-check cadence and the grace a failed owner read may lean on the last successful one (defaults 60 s / 15 min)
   ownerRecheckMs: msEnv("TUNNEL_OWNER_RECHECK_MS", 60_000, 250),
@@ -2546,6 +2547,10 @@ tunaRoutes = createTunaRoutes({
     const row = live.find(e => String(e.id || "").toLowerCase() === String(d.runner).toLowerCase());
     // a pVM host's app is routed only while its own evidence holds (relay/pvm-market.mjs servesUntil)
     if (row && row.mode === "avf") return pvmMarket.servesUntil(row, d) > 0;
+    // an hv-node (Enclave Shield) row is routed ONLY per deployment: its owner-only rule or its own app evidence
+    // (servesDeploymentUntil -> shieldMarket.servesUntil), never the row's market eligibility as a whole. The value is the
+    // route's expiry in ms (0 = none), as for an owner-only row below.
+    if (row && row.mode === "hv-node") return servesDeploymentUntil(row, d) * 1000;
     return !!row && (isOwnerOnlyRow(row) ? servesDeploymentUntil(row, d) * 1000 : computeEligible(row));
   },
 });
