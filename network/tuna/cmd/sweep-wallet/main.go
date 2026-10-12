@@ -1,7 +1,10 @@
 // sweep-wallet sends a retired privacy wallet's whole NKN balance, less the fee, back to one address (the funding
 // wallet). As topup-privacy-wallets, the signed transaction is written to an audit file BEFORE it is broadcast.
 //
-//	sweep-wallet -seed FILE -to NKN... -audit FILE [-dry-run]
+//	sweep-wallet -seed FILE -to NKN... -audit FILE [-keep NKN] [-dry-run]
+//
+// -keep leaves that much in the wallet: moving NKN between live privacy wallets (one that holds far more than it
+// spends, to the funding wallet) without retiring it.
 package main
 
 import (
@@ -30,8 +33,15 @@ func main() {
 	to := flag.String("to", "", "where its balance goes")
 	audit := flag.String("audit", "", "audit JSON written before broadcast (must not exist)")
 	dry := flag.Bool("dry-run", false, "print the plan only")
+	keepFlag := flag.String("keep", "0", "NKN to leave in the wallet (0: sweep it all)")
 	flag.Parse()
-	b, e := os.ReadFile(*seedFile)
+	keep, e := common.StringToFixed64(*keepFlag)
+	check(e)
+	if keep < 0 {
+		panic("-keep must not be negative")
+	}
+	b, e2 := os.ReadFile(*seedFile)
+	e = e2
 	check(e)
 	seed, e := hex.DecodeString(strings.TrimSpace(string(b)))
 	check(e)
@@ -50,12 +60,12 @@ func main() {
 	bal, e := w.BalanceContext(ctx)
 	check(e)
 	fee, _ := common.StringToFixed64("0.001")
-	amt := bal.ToFixed64() - fee
+	amt := bal.ToFixed64() - fee - keep
 	if amt <= 0 {
 		fmt.Println(w.Address(), "balance", bal.String(), "- nothing to sweep")
 		return
 	}
-	fmt.Println(w.Address(), "balance", bal.String(), "-> sweep", amt.String(), "to", *to)
+	fmt.Println(w.Address(), "balance", bal.String(), "-> sweep", amt.String(), "to", *to, "keeping", keep.String())
 	if *dry {
 		return
 	}
