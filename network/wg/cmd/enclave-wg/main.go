@@ -85,6 +85,16 @@ func main() {
 		fmt.Println("enclave-wg 1")
 		return
 	}
+	// enclave-wg check < input.json: one provider's qualification checks through the real data path
+	if len(os.Args) > 1 && os.Args[1] == "check" {
+		var in wg.CheckInput
+		if err := json.NewDecoder(os.Stdin).Decode(&in); err != nil {
+			fmt.Fprintln(os.Stderr, "check input:", err)
+			os.Exit(2)
+		}
+		enc.Encode(wg.RunCheck(in))
+		return
+	}
 	s := &state{}
 	s.fwd.Count = func(in, out int64) { s.down.Add(in); s.up.Add(out) }
 	go s.watch()

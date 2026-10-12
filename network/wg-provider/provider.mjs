@@ -20,6 +20,7 @@ export function validatePeerRequest(r,now=Date.now()){
     !Number.isSafeInteger(r.issuedAt)||!Number.isSafeInteger(r.expiresAt))throw new Error('invalid peer request');
  if(r.role==='guard'&&(r.egress||r.ingress))throw new Error('a guard carries no app traffic of its own');
  if(r.role==='exit'&&!r.egress&&!r.ingress)throw new Error('an exit peer needs ingress or egress');
+ if(r.role==='probe'&&(r.policy!==null||!/^0x0{64}$/.test(r.runner)||!/^0x0{64}$/.test(r.deploymentId)))throw new Error('a probe peer has no app, runner or policy');
  if(Math.abs(now-r.issuedAt)>REQUEST_MAX_AGE_MS||r.expiresAt<=now||r.expiresAt-r.issuedAt>PEER_TTL_MS+REQUEST_MAX_AGE_MS)throw new Error('stale or overlong peer request');
  if(r.policy!==null&&(typeof r.policy!=='object'||!r.policy.policy||typeof r.policy.signature!=='string'))throw new Error('invalid policy envelope');
  return r;
@@ -104,14 +105,17 @@ export class WgProvider {
   const checkers=(this.config.checkers||[]).map(a=>a.toLowerCase());
   if(!checkers.includes(signer)||signer===String(this.signer.address).toLowerCase())throw new Error('not a trusted checker');
   this.nonces.set(r.nonce,now+2*REQUEST_MAX_AGE_MS);
-  for(const p of [...this.peers.values()])if(p.role==='probe'&&p.checker===signer)await this.remove(p,'replaced');
+  // neither ingress nor egress: a probe of the guard path (a peer on wg-guard)
+  const onGuard=!r.ingress&&!r.egress;
+  if(onGuard&&!this.config.roles.includes('guard'))throw new Error('this provider is not a guard');
+  for(const p of [...this.peers.values()])if(p.role==='probe'&&p.checker===signer&&p.onGuard===onGuard)await this.remove(p,'replaced');
   const names=r.ingress?[`probe-${r.nonce}.${this.config.probeZone||'probe.enclave.host'}`]:[];
-  const peer={key:r.wgPublicKey,role:'probe',deploymentId:r.deploymentId,runner:r.runner,checker:signer,address:this.allocate('exit'),createdAt:now,
+  const peer={key:r.wgPublicKey,role:'probe',onGuard,deploymentId:r.deploymentId,runner:r.runner,checker:signer,address:this.allocate(onGuard?'guard':'exit'),createdAt:now,
    egress:r.egress,ingress:r.ingress,names,expiresAt:Math.min(r.expiresAt,now+5*60000)};
   if(this.peers.has(peer.key))throw new Error('key is held by another peer');
-  this.peers.set(peer.key,peer);await this.kernel.setPeer({...peer,role:'exit'});await this.sync();
-  const grant={version:1,providerId:this.config.providerId,role:'probe',deploymentId:r.deploymentId,clientPublicKey:r.wgPublicKey,providerPublicKey:this.config.exitKey,
-   endpoint:`${this.config.publicAddress}:${this.config.ports.exit}`,clientAddress:peer.address,serverAddress:'10.77.0.1',names,issuedAt:now,expiresAt:peer.expiresAt};
+  this.peers.set(peer.key,peer);await this.kernel.setPeer({...peer,role:onGuard?'guard':'exit'});await this.sync();
+  const grant={version:1,providerId:this.config.providerId,role:'probe',deploymentId:r.deploymentId,clientPublicKey:r.wgPublicKey,providerPublicKey:onGuard?this.config.guardKey:this.config.exitKey,
+   endpoint:`${this.config.publicAddress}:${onGuard?this.config.ports.guard:this.config.ports.exit}`,clientAddress:peer.address,serverAddress:onGuard?'10.78.0.1':'10.77.0.1',names,issuedAt:now,expiresAt:peer.expiresAt};
   return {grant,signature:await this.signer.signMessage({message:grantMessage(grant)})};
  }
  async names(id){
@@ -121,7 +125,7 @@ export class WgProvider {
  }
  async remove(peer,why){
   this.peers.delete(peer.key);this.used.delete(peer.address);
-  await this.kernel.removePeer({...peer,role:peer.role==='guard'?'guard':'exit'}).catch(e=>this.log(`remove ${peer.role} peer: ${e.message}`));
+  await this.kernel.removePeer({...peer,role:peer.role==='guard'||peer.onGuard?'guard':'exit'}).catch(e=>this.log(`remove ${peer.role} peer: ${e.message}`));
   this.log(`${peer.role} peer for ${peer.deploymentId.slice(0,10)} removed (${why})`);
  }
  // Remove what expired or lost its lease; re-sync firewall sets and the SNI table.

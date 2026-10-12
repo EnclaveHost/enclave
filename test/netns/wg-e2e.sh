@@ -40,9 +40,13 @@ export RUNNER_OPERATOR=$(addr "$RUNNER_KEY")
 CHECKER=$(addr "$CHECKER_KEY")
 cd "$D/../.."   # repo root: node resolves viem from node_modules here
 
-nsx "$W" node test/netns/web-node.mjs & pids+=($!)
-nsx "$G" node test/netns/provider-node.mjs 46.0.0.2 guard "$T/g" "$T/g.json" "$GKEY" '[{"address":"47.0.0.2","ports":{"exit":51820,"control":51822}}]' "$CHECKER" & pids+=($!)
-nsx "$X" node test/netns/provider-node.mjs 47.0.0.2 ingress,egress "$T/x" "$T/x.json" "$XKEY" '[]' "$CHECKER" & pids+=($!)
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -subj /CN=test-ca -keyout "$T/ca.key" -out "$T/ca.pem" -days 1 2>/dev/null
+openssl req -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -subj /CN=web.test -keyout "$T/web.key" -out "$T/web.csr" 2>/dev/null
+printf 'subjectAltName=DNS:web.test\n' > "$T/san.ext"
+openssl x509 -req -in "$T/web.csr" -CA "$T/ca.pem" -CAkey "$T/ca.key" -CAcreateserial -out "$T/web.pem" -days 1 -extfile "$T/san.ext" 2>/dev/null
+nsx "$W" node test/netns/web-node.mjs "$T/web.key" "$T/web.pem" & pids+=($!)
+nsx "$G" node test/netns/provider-node.mjs 46.0.0.2 guard,ingress,egress "$T/g" "$T/g.json" "$GKEY" '[{"address":"47.0.0.2","ports":{"exit":51820,"control":51822}}]' "$CHECKER" & pids+=($!)
+nsx "$X" node test/netns/provider-node.mjs 47.0.0.2 guard,ingress,egress "$T/x" "$T/x.json" "$XKEY" '[{"address":"46.0.0.2","ports":{"exit":51820,"control":51822}}]' "$CHECKER" & pids+=($!)
 for f in g x; do for i in $(seq 50); do [ -s "$T/$f.json" ] && break; sleep 0.2; done; done
 [ -s "$T/x.json" ] && [ -s "$T/g.json" ] && pass "providers started (kernel wg + nftables)" || { fail providers "did not start"; exit 1; }
 
@@ -139,5 +143,17 @@ if [ -s "$T/runtime.json" ]; then
   sleep 6
   nsx "$H" curl -s -m 10 --socks5-hostname "$RE" http://web.test/ >/dev/null && pass "grants renewed; circuit still serving" || fail runtime-renew "$(tail -3 "$T/runtime.err")"
 else fail runtime "$(cat "$T/runtime.err")"; fi
+
+# the qualification checker against both providers, through the real data path
+node -e '
+const fs=require("fs"),[g,x,ck]=process.argv.slice(1).map(f=>fs.readFileSync(f,"utf8"));
+const rec=(j,a)=>{j=JSON.parse(j);return {providerId:"aa".repeat(16),operator:j.operator,address:a,wgExitKey:j.keys["wg-exit"],wgGuardKey:j.keys["wg-guard"],ports:{exit:51820,guard:51821,control:51822},roles:["guard","ingress","egress"],region:"test"};};
+console.log(JSON.stringify([rec(g,"46.0.0.2"),rec(x,"47.0.0.2")]));' "$T/g.json" "$T/x.json" > "$T/records.json"
+echo "$CHECKER_KEY" > "$T/checker.key"
+nsx "$C" env SSL_CERT_FILE="$T/ca.pem" node scripts/network/wg-qualify.mjs --key-file "$T/checker.key" --wg "$WG_BIN" --records "$T/records.json" --out "$T/qual.json" --dns 44.0.0.1 --outbound https://web.test/ --payload 4194304 --smtp 44.0.0.1:25 > "$T/checker.log" 2>&1
+for a in 46.0.0.2 47.0.0.2; do
+  v=$(node -e 'const q=JSON.parse(require("fs").readFileSync(process.argv[1])).find(x=>x.qualification.address===process.argv[2]);console.log(q&&Object.values(q.qualification.checks).every(Boolean)?"ok":JSON.stringify(q?{c:q.qualification.checks,d:q.details}:"missing"))' "$T/qual.json" "$a" 2>&1)
+  [ "$v" = ok ] && pass "checker: $a passes all nine checks through WireGuard" || fail "checker-$a" "$v $(tail -3 "$T/checker.log")"
+done
 
 exit $FAILED

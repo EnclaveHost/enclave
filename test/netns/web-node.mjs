@@ -1,6 +1,7 @@
 // netns e2e helper: "the internet": HTTP on :80 that echoes the caller's address, a listener on :25, DNS for web.test.
-import http from 'node:http';import net from 'node:net';import dgram from 'node:dgram';
+import http from 'node:http';import https from 'node:https';import fs from 'node:fs';import net from 'node:net';import dgram from 'node:dgram';
 http.createServer((q,s)=>s.end('remote='+q.socket.remoteAddress)).listen(80,'0.0.0.0');
+if(process.argv[2])https.createServer({key:fs.readFileSync(process.argv[2]),cert:fs.readFileSync(process.argv[3])},(q,s)=>s.end('secure remote='+q.socket.remoteAddress)).listen(443,'0.0.0.0');
 net.createServer(c=>c.end('220 smtp\r\n')).listen(25,'0.0.0.0');
 const d=dgram.createSocket('udp4');d.on('message',(m,r)=>{
  // minimal DNS: answer any A question with 44.0.0.1
