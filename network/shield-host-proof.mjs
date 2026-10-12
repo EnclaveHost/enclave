@@ -6,13 +6,14 @@ import {createHash,randomBytes,generateKeyPairSync} from 'node:crypto';
 import {buildHvNodeFrame} from '../windows/node/hvnode-evidence.mjs';
 import {makeCredential} from '../relay/vbs-credential.mjs';
 import {verifyHvNodeEvidence} from '../relay/hvnode-verify.mjs';
+import {platformsValid,platformAdmitted} from '../relay/shield-app-policy.mjs';
 
 // A private TPM tool instance owns a transient AIK. It neither changes the boot
 // policy nor replaces the production node's attestation session. No Nan input is
 // used to mint the challenge, activate the credential, or verify the response.
 export class ShieldHostProof {
   constructor({binary,sha256,policy,now=Date.now,spawnProcess=spawn}){
-    if(!path.isAbsolute(binary)||!/^[0-9a-f]{64}$/.test(sha256)||!policy?.ekRoots||!Array.isArray(policy.platforms)||!policy.platforms.length)throw new Error('pinned TPM tool and explicit platform policy required');
+    if(!path.isAbsolute(binary)||!/^[0-9a-f]{64}$/.test(sha256)||!policy?.ekRoots||!platformsValid(policy.platforms))throw new Error('pinned TPM tool and explicit platform policy required');
     Object.assign(this,{binary,sha256,policy,now,spawnProcess});this.pending=null;this.current=null;this.closed=false;
   }
   async get(){
@@ -57,7 +58,7 @@ export class ShieldHostProof {
       const frame=await buildHvNodeFrame({nonce,credentialBlob,secret,spki,privateKey:key.privateKey,tpm});
       const session={evidence:JSON.parse(Buffer.from(frame.rad.body,'base64')),nonce,transportKeySpki:spki,expectedCredential,mintedFor:{ekCert,aikName}};
       const verdict=verifyHvNodeEvidence(session,this.policy);
-      if(!verdict.ok||!verdict.admissible||!this.policy.platforms.some(p=>p.ekCertSha256===verdict.boot?.ekCertSha256&&p.pcr0===verdict.boot?.pcr0))throw new Error('fresh TPM/platform proof refused: '+(verdict.reasons||[]).join('; '));
+      if(!verdict.ok||!verdict.admissible||!platformAdmitted(this.policy.platforms,verdict.boot))throw new Error('fresh TPM/platform proof refused: '+(verdict.reasons||[]).join('; '));
       if(this.closed||startedAt+30000<=this.now())throw new Error('host proof expired during collection');
       this.current={session,expiresAt:startedAt+30000};return session;
     }finally{finish(new Error('TPM proof complete'));this.stop=null;}

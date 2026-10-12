@@ -53,7 +53,7 @@ const BASE_ROWS = [row(D_OWN, OPERATOR, EP_ID), row(D_DELEG, OWNER, EP_ID), row(
                    row(D_SNP, OWNER, EP_ID, SNP_ENV), row(D_NOREQ, OWNER, EP_ID, ""), row(D_OP_SNP, OPERATOR, EP_ID, SNP_ENV)];
 let ROWS = BASE_ROWS;
 // the registry's answer for the box's name: its owner, or (registryDown) an RPC error (an outage)
-let registryOwner = null, registryDown = false;   // a test may swap the ledger (a transfer) and restores it
+let registryOwner = null, registryDown = false, registryUnregistered = false;   // a test may swap the ledger (a transfer) and restores it
 
 function chainStub() {
   return http.createServer((req, res) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => {
@@ -66,7 +66,7 @@ function chainStub() {
         if (to === REG && data.startsWith(toFunctionSelector("get(bytes32)")) && registryDown) return { jsonrpc: "2.0", id: m.id, error: { code: -32000, message: "registry RPC down (test)" } };
         if (to === REG && data.startsWith(toFunctionSelector("get(bytes32)"))) {
           const id = ("0x" + data.slice(10, 74)).toLowerCase();
-          result = encodeFunctionResult({ abi: REG_GET, functionName: "get", result: id === EP_ID
+          result = encodeFunctionResult({ abi: REG_GET, functionName: "get", result: id === EP_ID && !registryUnregistered
             ? { endpoint: ENDPOINT, repo: "EnclaveHost/enclave", measurement: "0x" + "00".repeat(32), operator: registryOwner || OPERATOR.address, registeredAt: 1n, lastSeen: 1n, active: true }
             : { endpoint: "", repo: "", measurement: "0x" + "00".repeat(32), operator: "0x" + "00".repeat(20), registeredAt: 0n, lastSeen: 0n, active: false } });
         } else if (to === LEDGER && data.startsWith(toFunctionSelector("deploymentsSchema()"))) result = encodeFunctionResult({ abi: U256("deploymentsSchema"), functionName: "deploymentsSchema", result: 2n });
@@ -413,4 +413,26 @@ test("owner grace env: a malformed TUNNEL_OWNER_GRACE_MS / TUNNEL_OWNER_RECHECK_
   assert.ok(log, "both logged");
   assert.match(log, /TUNNEL_OWNER_GRACE_MS="-5" is not a whole number of milliseconds >= 0: using the default 900000/);
   assert.match(log, /TUNNEL_OWNER_RECHECK_MS="abc" is not a whole number of milliseconds >= 250: using the default 60000/);
+});
+
+test("a NEW host (attached before its sponsored registration, v2-signed by its claimant key) serves owner-only once the registry names that key; registered to anyone else it never does",
+     { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
+  for (const [label, owner, serves] of [["registered to the claimant", null, true], ["registered to another key", STRANGER.address, false]]) {
+    const { w, roots } = hvWorld(t);
+    registryUnregistered = true; registryOwner = owner;
+    t.after(() => { registryUnregistered = false; registryOwner = null; });
+    const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, RELAY_HVNODE_OPERATORS: "*", TUNNEL_OWNER_RECHECK_MS: "300" });
+    const a = await attachHv(origin, w);
+    t.after(() => { try { a.ws.close(); } catch {} });
+    assert.equal(a.ok, true, `${label}: ${a.reason}`);
+    const before = await waitFor(async () => { const x = await rowOf(origin); return x && x.availability ? x : null; });
+    assert.ok(before, label); assert.equal(before.ownerOnly, undefined, `${label}: unregistered, it serves nothing`);
+    registryUnregistered = false;
+    const after = await waitFor(async () => { const x = await rowOf(origin); return x && x.ownerOnly ? x : null; }, serves ? 20000 : 3000);
+    if (serves) { assert.ok(after, `${label}: promoted`); assert.equal(after.operator, lc(OPERATOR)); assert.deepEqual(after.served, [{ owner: lc(OPERATOR), expires: null }]);
+                  assert.match(origin.log(), /registered on chain to the key that signed its attach/); }
+    else assert.equal(after, null, `${label}: never promoted`);
+    registryUnregistered = false; registryOwner = null;
+    try { a.ws.close(); } catch {}
+  }
 });

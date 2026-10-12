@@ -231,6 +231,21 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
   // is logged once, not per re-check.
   async function recheckOwnerOnly() {
     for (const [name, t] of [...tunnels]) {
+      // A NEW HOST registers after it attaches (relay/host-sponsor.mjs): its attach carried a v2 signature by the CLAIMANT,
+      // the key that would register it, over this name, nonce, transport key and TPM - the very message a registered name's
+      // attach is verified on. Once the registry names that key the name's owner, the claimant IS the operator, with no
+      // delegations (they need a fresh attach, which the node makes when its owners change).
+      if (t.mode === "hv-node" && !t.operator && t.claimant) {
+        const r = await ownerRead(name);
+        if (tunnels.get(name) !== t || !r.ok || !r.owner) continue;
+        if (r.owner !== String(t.claimant).toLowerCase() || !hvOpAllowed(r.owner)) { delete t.claimant; continue; }
+        t.served = (await servedList([], { operator: r.owner, box: name })).served;
+        if (tunnels.get(name) !== t) continue;
+        t.operator = r.owner; t.delegations = []; delete t.claimant;
+        console.log(`[tunnel] ${name} registered on chain to the key that signed its attach (${r.owner}): it serves owner-only now`);
+        try { onChange("owner", name); } catch {}
+        continue;
+      }
       if (t.mode !== "hv-node" || !t.operator) continue;
       const r = await ownerRead(name);
       if (tunnels.get(name) !== t) continue;

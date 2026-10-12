@@ -86,3 +86,16 @@ test('open market: platforms "attested" admits any TPM chained to the pinned roo
  assert.equal(verifyShieldAppPolicy(fixture({boot:{secureBoot:0}}),p).ok,false);
  for(const platforms of ['any','*',null,undefined,{}])assert.equal(verifyShieldAppPolicy(f,{...p,platforms}).ok,false);
 });
+test('platformAdmitted (shared with the privacy agent\'s ShieldHostProof): pins or "attested", never anything else',async()=>{
+ const {platformAdmitted}=await import('../relay/shield-app-policy.mjs');
+ const {ShieldHostProof}=await import('../network/shield-host-proof.mjs');
+ const boot={ekCertSha256:'aa'.repeat(32),pcr0:'bb'.repeat(32)};
+ assert.equal(platformAdmitted('attested',boot),true);
+ assert.equal(platformAdmitted([{ekCertSha256:'aa'.repeat(32),pcr0:'bb'.repeat(32)}],boot),true);
+ assert.equal(platformAdmitted([{ekCertSha256:'aa'.repeat(32),pcr0:'cc'.repeat(32)}],boot),false);
+ for(const p of ['*',[],null,{}])assert.equal(platformAdmitted(p,boot),false);
+ assert.equal(platformAdmitted('attested',{}),false);
+ const pin={binary:process.execPath,sha256:'00'.repeat(32)};
+ assert.doesNotThrow(()=>new ShieldHostProof({...pin,policy:{ekRoots:'x',platforms:'attested'}}));
+ for(const platforms of ['*',[],undefined])assert.throws(()=>new ShieldHostProof({...pin,policy:{ekRoots:'x',platforms}}),/explicit platform policy/);
+});
