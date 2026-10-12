@@ -517,6 +517,9 @@ contract EnclaveDeployments {
     ///      make the victim's hostname ambiguous. Reserving the prefix makes
     ///      that impossible instead of merely unlikely: the create loop below
     ///      simply rolls to the next nonce, and the grind has nothing to land on.
+    // isDelegate (rev 16d) is declared HERE, ahead of _prefixTaken, so it keeps 15d's slot 23: the relay, the SDK and
+    // the rehearsal read a grant straight from storage at slot 23 (relay/sessions.mjs DELEGATE_SLOT)
+    mapping(address => mapping(address => bool)) private isDelegate;
     mapping(bytes4 => bool) private _prefixTaken;
 
     event Created(bytes32 indexed id, address indexed owner, string appRef, uint16 gpuMilli, uint16 cpuMilli, uint256 rate);
@@ -551,6 +554,22 @@ contract EnclaveDeployments {
     event MaxFeeSet(uint256 maxFeePerSec6);
     event PayoutChanged(address indexed payout);
     event OwnerChanged(address indexed owner);
+
+    /// @notice Owner-approved delegates (rev 15d, wallet sessions: docs/design/sessions.md §16).
+    ///         `isDelegate[owner][delegate]` lets `delegate` act on EVERY deployment `owner` holds
+    ///         through the owner-gated calls - setMaxRate, setAppRef, setShares, setConfig, setActive
+    ///         and refund (which still pays the owner) - but never transferDeployment: a delegate
+    ///         can't move a record. The intended delegate is the owner's session vault, which
+    ///         enforces each session's policy; the owner grants and revokes it here, alone.
+    ///         No public getter (EIP-170 has no room for one): read a grant from storage -
+    ///         keccak256(abi.encode(delegate, keccak256(abi.encode(owner, DELEGATE_SLOT)))), with
+    ///         DELEGATE_SLOT recorded beside the deployment - or from the DelegateSet events.
+    event DelegateSet(address indexed owner, address indexed delegate, bool allowed);
+    function _delegated(address owner_) private view returns (bool) { return isDelegate[owner_][msg.sender]; }
+    function setDelegate(address delegate, bool allowed) external {
+        isDelegate[msg.sender][delegate] = allowed;
+        emit DelegateSet(msg.sender, delegate, allowed);
+    }
     event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
     event FeedChanged(address indexed feed);
 
@@ -938,6 +957,7 @@ contract EnclaveDeployments {
     ///      never re-derived), so a transferred id never moves or collides.
     function transferDeployment(bytes32 id, address to) external {
         Deployment storage d = _requireOwned(id);
+        require(d.owner == msg.sender, "!owner");   // the OWNER's alone: a delegate never moves a record
         require(to != address(0), "zero addr");
         require(ownerEscrow6[id] == 0 || _earn[id].escrow6 == 0, "refund first");
         d.owner = to;
@@ -1025,14 +1045,9 @@ contract EnclaveDeployments {
     ///      platform can re-back such a deployment with fundEscrow.
     function fundEth(bytes32 id) external payable {
         Deployment storage d = _requireActive(id);
-        require(msg.value > 0, "amount=0");
-        require(address(ethUsdFeed) != address(0), "eth funding disabled");
-        (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) = ethUsdFeed.latestRoundData();
-        require(answer > 0 && block.timestamp - updatedAt <= FEED_MAX_AGE, "stale price");
-        require(answeredInRound >= roundId, "incomplete round");   // reject an answer carried over from an earlier (unfinalized) round
-        // wei(1e18) * price(1e8) -> USDC 6dp: divide by 1e20
-        uint256 credited = (msg.value * uint256(answer)) / 1e20;
-        require(credited > 0, "amount=0");
+        // the price read and its checks (live feed, fresh, finalized round, non-zero credit) are the library's since
+        // rev 16d (EIP-170); the money moves here
+        uint256 credited = EnclaveLedgerBandwidth.ethCredit(ethUsdFeed, msg.value, FEED_MAX_AGE);
         d.balance6 += credited;                                    // effects before interaction (CEI): a contract payout can't reenter mid-credit
         // the publisher's cut splits the WEI (their wallet gets ETH, not USDC).
         // A fee recipient that reverts on plain sends blocks only ETH funding
@@ -1329,16 +1344,9 @@ contract EnclaveDeployments {
     ///      and refund() see zero. Clients can therefore render this number
     ///      directly and refund() will pay it.
     function refundableOf(bytes32 id) public view returns (uint256) {
-        Deployment storage d = _deployments[id];
-        Earn storage e = _earn[id];
-        // seconds a live lease — or a late checkpoint against one that lapsed —
-        // could still prove and be paid for. That money is the seller's.
-        uint256 reserve = d.leaseUntil > e.creditedUntil
-            ? uint256(d.leaseUntil - e.creditedUntil) * e.rate6
-            : 0;
-        uint256 free = e.escrow6 > reserve ? e.escrow6 - reserve : 0;
-        uint256 own = ownerEscrow6[id];
-        return own < free ? own : free;
+        // in the library since rev 16d (EIP-170): seconds a live lease - or a late checkpoint against one that
+        // lapsed - could still prove and be paid for are the seller's; the owner's backing caps the rest
+        return EnclaveLedgerBandwidth.refundable(_deployments[id], _earn[id], ownerEscrow6[id]);
     }
 
     /// @notice Cancel a deployment and take its unused runtime back (rev 10).
@@ -1361,7 +1369,7 @@ contract EnclaveDeployments {
     function refund(bytes32 id) external {
         require(_exists[id], "unknown");
         EnclaveLedgerBandwidth.refund(_deployments[id], _earn[id], earned6, ownerEscrow6,
-            usdc, retired, proofRequired(), provenUntil[id]);
+            usdc, retired || _delegated(_deployments[id].owner), proofRequired(), provenUntil[id]);
     }
 
     /// @notice Recover a DRAINED deployment's residual escrow dust to payout.
@@ -1828,7 +1836,7 @@ contract EnclaveDeployments {
         require(_exists[id], "unknown");
         // deliberately the admin gate's string: a unique one here costs ~46
         // bytes of the EIP-170 headroom this contract does not have
-        require(d.owner == msg.sender, "!owner");
+        require(d.owner == msg.sender || _delegated(d.owner), "!owner");
     }
     function _requireActive(bytes32 id) private view returns (Deployment storage d) {
         d = _deployments[id];
@@ -1890,8 +1898,9 @@ library EnclaveLedgerBandwidth {
     }
     function refund(EnclaveDeployments.Deployment storage d, EnclaveDeployments.Earn storage e,
         mapping(address => uint256) storage earned, mapping(bytes32 => uint256) storage ownerEscrow,
-        IERC20Auth usdc, bool retired, bool proofRequired, uint64 proven) external {
-        require(d.owner == msg.sender || retired, "!owner");
+        IERC20Auth usdc, bool open, bool proofRequired, uint64 proven) external {
+        // open: the ledger is retired (any caller may push money home) or the caller is the owner's delegate (rev 16d)
+        require(d.owner == msg.sender || open, "!owner");
         credit(d,e,earned,proofRequired,proven);
         uint256 reserve = d.leaseUntil > e.creditedUntil ? uint256(d.leaseUntil - e.creditedUntil) * e.rate6 : 0;
         uint256 amount = e.escrow6 > reserve ? e.escrow6 - reserve : 0;
@@ -1902,6 +1911,21 @@ library EnclaveLedgerBandwidth {
         emit ActiveSet(d.id,false);emit Refunded(d.id,d.owner,amount);
     }
 
+    /// @dev fundEth's USDC credit (6dp) for `value` wei at the feed's ETH/USD answer (8dp), as it always checked it.
+    function ethCredit(IAggregatorV3 feed, uint256 value, uint256 maxAge) external view returns (uint256 credited) {
+        require(value > 0, "amount=0");
+        require(address(feed) != address(0), "eth funding disabled");
+        (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) = feed.latestRoundData();
+        require(answer > 0 && block.timestamp - updatedAt <= maxAge, "stale price");
+        require(answeredInRound >= roundId, "incomplete round");   // reject an answer carried over from an earlier (unfinalized) round
+        credited = (value * uint256(answer)) / 1e20;              // wei(1e18) * price(1e8) -> USDC 6dp
+        require(credited > 0, "amount=0");
+    }
+    function refundable(EnclaveDeployments.Deployment storage d, EnclaveDeployments.Earn storage e, uint256 own) external view returns (uint256) {
+        uint256 reserve = d.leaseUntil > e.creditedUntil ? uint256(d.leaseUntil - e.creditedUntil) * e.rate6 : 0;
+        uint256 free = e.escrow6 > reserve ? e.escrow6 - reserve : 0;
+        return own < free ? own : free;
+    }
     function backing(EnclaveDeployments.Deployment storage d, EnclaveDeployments.Earn storage e) public view returns (uint256) {
         uint256 reserve = d.balance6;
         if (d.leaseUntil > e.creditedUntil) reserve += uint256(d.leaseUntil - e.creditedUntil) * e.rate6;
