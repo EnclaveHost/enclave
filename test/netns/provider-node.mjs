@@ -18,6 +18,6 @@ await provider.sync();
 await createRouter({port:443,route:n=>provider.route(n),tls:true});
 await createRouter({port:80,route:n=>provider.route(n),tls:false});
 await createControl({provider,port:51822,info:()=>({keys})});
-await fs.writeFile(out,JSON.stringify({keys,publicAddress}));
+await fs.writeFile(out,JSON.stringify({keys,publicAddress,operator:account.address.toLowerCase()}));
 console.error('[provider] up',publicAddress);
 setInterval(()=>provider.sweep().catch(()=>{}),5000);

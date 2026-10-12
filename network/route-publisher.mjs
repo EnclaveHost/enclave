@@ -2,7 +2,7 @@ import {createPrivateKey,createPublicKey,randomBytes} from 'node:crypto';
 import {keccak256,stringToHex} from 'viem';
 import {validateCircuitPolicy} from './circuit-policy.mjs';
 import {DurableState} from './durable-state.mjs';
-import {recordHash,signDelegation,signRoute,verifyOwnerPolicy} from './route-record.mjs';
+import {recordHash,signDelegation,signRoute,verifyOwnerPolicy,validateRoutePolicy} from './route-record.mjs';
 import {tunaPolicyFromLease} from './tuna-policy.mjs';
 import {directPolicyFromLease} from './connectivity-control.mjs';
 import {namingKey,encodeDiscovery} from './discovery.mjs';
@@ -39,7 +39,7 @@ export class RoutePublisher {
     this.tails.set(id,operation);return operation;
   }
   async write(id,routes) {
-    const lease=this.lease(id),policy=validateCircuitPolicy(this.policy(id)),now=this.now();
+    const lease=this.lease(id),policy=validateRoutePolicy(this.policy(id)),now=this.now();
     if(!lease||lease.validUntil<=now||!lease.active||!lease.isPublic||lease.runnerOperator.toLowerCase()!==this.account.address.toLowerCase()){
       await this.state.set('published-'+id,null);
       await this.distribute(id,null);return null;

@@ -7,6 +7,9 @@ import {pathToFileURL} from 'node:url';
 import {privateKeyToAccount} from 'viem/accounts';
 import {LeaseReader,AdmissionGate} from './lease-reader.mjs';
 import {CircuitManager} from './circuit-manager.mjs';
+import {CompositeManager} from './composite-manager.mjs';
+import {EnclaveNetworkManager} from './wg-manager.mjs';
+import {createNetworkHost} from './enclave-network-host.mjs';
 import {LinuxCircuitRuntime} from './linux-circuit-runtime.mjs';
 import {WindowsCircuitRuntime} from './windows-circuit-runtime.mjs';
 import {ShieldHostProof} from './shield-host-proof.mjs';
@@ -38,11 +41,15 @@ import {recordHash} from './route-record.mjs';
 // Timely admission is independent of slow allocation and publication work. Even
 // a hung RPC, allocator or distributor cannot extend an old authorization.
 export class PrivacyAgent {
-  constructor({apps,runner,account,leaseReader,inventory,wallets,runtime,directRuntime,qualification,probe,distribute,directory,dns,defaults,now=Date.now,log=()=>{}}){
-    Object.assign(this,{apps,leaseReader,inventory,probe,distribute,directory,now,log,defaults});this.refreshing=false;this.closed=false;this.publishing=false;
+  constructor({apps,runner,account,leaseReader,inventory,wallets,runtime,directRuntime,qualification,probe,distribute,directory,dns,defaults,network,now=Date.now,log=()=>{}}){
+    Object.assign(this,{apps,leaseReader,inventory,probe,distribute,directory,now,log,defaults,network});this.refreshing=false;this.closed=false;this.publishing=false;
     this.admission=new AdmissionGate({runner,expected:id=>this.apps.find(a=>a.deploymentId===id)?.expected,now});
-    this.manager=new CircuitManager({runtime,directRuntime,admission:this.admission,inventory:()=>inventory.get(),wallets,now,log,
+    // TUNA (policy v2-v4) and the Enclave network (v5) side by side; an app is in exactly one (docs/design/enclave-network.md)
+    const tuna=new CircuitManager({runtime,directRuntime,admission:this.admission,inventory:()=>inventory.get(),wallets,now,log,
       probe:(app,circuit)=>probe(app.deploymentId,app.expected,circuit),observe:(providers,result)=>inventory.observe?.(providers,result)||Promise.resolve(),publish:(id,routes)=>this.publisher.publish(id,routes)});
+    const enclaveNetwork=network?new EnclaveNetworkManager({runtime:network.runtime,admission:this.admission,providers:network.providers,byoConfig:network.byoConfig,probeEgress:network.probeEgress,now,log,
+      probe:(app,circuit)=>probe(app.deploymentId,app.expected,circuit),publish:(id,routes)=>this.publisher.publish(id,routes)}):null;
+    this.manager=new CompositeManager({tuna,network:enclaveNetwork});
     this.publisher=new RoutePublisher({directory:path.join(directory,'routes'),account,lease:id=>leaseReader.get(id),
       policy:id=>this.manager.apps.get(id)?.policy,qualification,now,distribute:async(id,value)=>{
         const copies=this.manager.apps.get(id)?.circuits.filter(c=>c.healthy&&!c.closed)||[];
@@ -59,7 +66,8 @@ export class PrivacyAgent {
       const leases=await this.leaseReader.refresh(this.apps.map(a=>a.deploymentId));
       for(const lease of leases)this.admission.observeLease(lease);
       this.authorizationRefresh.phase="policy";void this.snapshot().catch(e=>this.log(e.message));
-      const policies=await Promise.allSettled(this.apps.map(async app=>({...app,policy:await appPolicy(app,this.leaseReader.get(app.deploymentId),this.defaults)})));
+      const policies=await Promise.allSettled(this.apps.map(async app=>{const lease=this.leaseReader.get(app.deploymentId);
+        return {...app,isPublic:!!lease?.isPublic,policy:this.network?.onNetwork(app.deploymentId)?await this.network.policyFor(app,lease):await appPolicy(app,lease,this.defaults)};}));
       const configured=[];policies.forEach((r,i)=>{if(r.status==='fulfilled')configured.push(r.value);else{this.admission.revoke(this.apps[i].deploymentId);this.log(`app policy ${this.apps[i].deploymentId.slice(0,10)}: ${r.reason.message}`);}});
       await this.manager.configure(configured);
       this.authorizationRefresh.phase="guest-proof";void this.snapshot().catch(e=>this.log(e.message));
@@ -76,7 +84,7 @@ export class PrivacyAgent {
     await this.refreshAuthorization();if(this.closed)throw new Error('privacy agent stopped during startup');await this.snapshot();
     this.timers=[setInterval(()=>{this.manager.enforceAdmission();void this.snapshot().catch(e=>this.log(e.message));},1000),
       setInterval(()=>void this.refreshAuthorization(),15000),
-      setInterval(()=>{if([...this.manager.apps.values()].some(a=>a.policy.mode!=='direct'))void this.inventory.refresh().catch(e=>this.log('inventory: '+e.message));},20000),
+      setInterval(()=>{if([...this.manager.tuna.apps.values()].some(a=>a.policy.mode!=='direct'))void this.inventory.refresh().catch(e=>this.log('inventory: '+e.message));},20000),
       setInterval(()=>{if(this.publishing||this.closed)return;this.publishing=true;void Promise.allSettled([...this.manager.apps.values()].map(app=>this.manager.publishApp(app))).finally(()=>{this.publishing=false;});},10000),
       setInterval(()=>void this.manager.reconcile().catch(e=>this.log('circuits: '+e.message)),5000)];
     void this.manager.reconcile().catch(e=>this.log('circuits: '+e.message));return this;
@@ -105,8 +113,9 @@ export async function runPrivacy(configFile){
   if(cfg.connectivity){const bootstrap=new LeaseReader({...cfg.chain,includeConnectivity:'auto',includeHostPayout:true});
     await bootstrap.refresh(apps.map(a=>a.deploymentId));
     for(const app of apps)app.chainDirect=!!directPolicyFromLease(bootstrap.get(app.deploymentId));}
-  const needsTuna=apps.some(a=>!a.chainDirect&&a.ownerPolicy?.policy?.mode!=='direct');
-  if(!needsTuna&&!directConfigured)throw new Error('direct hosting is not enabled');
+  const networkApps=cfg.enclaveNetwork?.apps,onNetwork=id=>!!cfg.enclaveNetwork&&(networkApps==='all'||(Array.isArray(networkApps)&&networkApps.includes(id)));
+  const needsTuna=apps.some(a=>!onNetwork(a.deploymentId)&&!a.chainDirect&&a.ownerPolicy?.policy?.mode!=='direct');
+  if(!needsTuna&&!directConfigured&&!cfg.enclaveNetwork)throw new Error('direct hosting is not enabled');
   let verifySnp;
   if(cfg.verifierModule){if(!path.isAbsolute(cfg.verifierModule))throw new Error('local verifier module required');verifySnp=(await import(pathToFileURL(cfg.verifierModule).href)).judge;}
   const windows=process.platform==='win32';let linux,shield,hostProof,pvm;
@@ -225,11 +234,13 @@ export async function runPrivacy(configFile){
   // has qualified; the canary never admits an app or signs its own report.
   if(directRuntime?.canary)await directRuntime.listen();
   if(settlement&&directRuntime){const close=directRuntime.close.bind(directRuntime);directRuntime.close=async()=>{await close();await settlement.close();};}
-  agent=new PrivacyAgent({apps,runner:cfg.runner,account,leaseReader,inventory,runtime,directRuntime,qualification,directory:cfg.directory,dns:cfg.dns,defaults:cfg.defaults,log,
+  const network=cfg.enclaveNetwork?await createNetworkHost({config:cfg.enclaveNetwork,account,runner:cfg.runner,rpc:cfg.chain?.rpc,leaseReader,directory:cfg.directory,log,
+    authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:pvm?pvmForwarder(pvm.appPort):guestd?guestd.forward:localAppForwarder(cfg.upstream)}):null;
+  agent=new PrivacyAgent({apps,runner:cfg.runner,account,leaseReader,inventory,runtime,directRuntime,qualification,directory:cfg.directory,dns:cfg.dns,defaults:cfg.defaults,network,log,
     wallets:async id=>readJSON(apps.find(a=>a.deploymentId===id).walletsFile),
     distribute:async(id,value)=>{
       if(!value)return;
-      const circuits=agent.manager.apps.get(id)?.circuits.filter(c=>c.healthy&&!c.closed)||[];
+      const circuits=agent.manager.apps.get(id)?.circuits.filter(c=>c.healthy&&!c.closed&&c.egress)||[];
       if(!circuits.length)return;
       const tasks=[];
       // Publishing to Nan's DNS mirror moves an app off the shared route for good

@@ -125,4 +125,19 @@ nsx "$C" ping -c 2 -W 1 10.77.0.1 >/dev/null 2>&1
 hs=$(nsx "$C" wg show wgu latest-handshakes | awk '{print $2}')
 [ "$hs" = "0" ] && pass "unregistered key: no handshake" || fail unauthorized "handshake at $hs"
 
+# the host's real runtime (WgCircuitRuntime + ingress worker + broker), a second circuit on the same providers
+nsx "$H" node test/netns/runtime-node.mjs "$WG_BIN" "$T/g.json" "$T/x.json" "$RUNNER_KEY" 9443 > "$T/runtime.json" 2>"$T/runtime.err" & pids+=($!)
+for i in $(seq 100); do [ -s "$T/runtime.json" ] && break; sleep 0.2; done
+if [ -s "$T/runtime.json" ]; then
+  pass "WgCircuitRuntime: circuit up (grants, outer, exit through guard, worker, broker)"
+  RE=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).egress)' "$T/runtime.json")
+  r=$(nsx "$H" curl -s -m 10 --socks5-hostname "$RE" http://web.test/)
+  [ "$r" = "remote=47.0.0.2" ] && pass "runtime egress entry (admission-gated) reaches the internet" || fail runtime-egress "got '$r'"
+  sleep 1  # the newest exit peer holds the names now: visitors reach the runtime's circuit
+  out=$(nsx "$W" node test/netns/visitor-node.mjs 47.0.0.2 www.example.org)
+  case "$out" in *"$FP"*"enclave says: hello"*) pass "runtime ingress: SNI gate + broker splice to the enclave";; *) fail runtime-ingress "$out";; esac
+  sleep 6
+  nsx "$H" curl -s -m 10 --socks5-hostname "$RE" http://web.test/ >/dev/null && pass "grants renewed; circuit still serving" || fail runtime-renew "$(tail -3 "$T/runtime.err")"
+else fail runtime "$(cat "$T/runtime.err")"; fi
+
 exit $FAILED
