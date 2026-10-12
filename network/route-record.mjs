@@ -8,6 +8,7 @@ import {isBlockedHost} from '../relay/net-guard.mjs';
 import {validateCircuitPolicy} from './circuit-policy.mjs';
 import {verifyQualification} from './provider-qualification.mjs';
 import {tunaPolicyFromLease} from './tuna-policy.mjs';
+import {validateNetworkPolicy} from './network-policy.mjs';
 
 export function canonical(value) {
   if (value === null || typeof value === 'boolean' || typeof value === 'string') return JSON.stringify(value);
@@ -48,11 +49,14 @@ export async function signDelegation(account, delegation, now = Date.now()) {
 export function signRoute(privateKey, record) {
   return {record, signature:sign(null, Buffer.from(message('route',record)),privateKey).toString('base64')};
 }
-export async function verifyRoute(bundle, {deploymentId, policy, lease, memory, providerProbeSigners, now = Date.now()}) {
+// Any route policy: v2-v4 (TUNA / on-chain direct) or v5 (the Enclave network, docs/design/enclave-network.md).
+export function validateRoutePolicy(p) {return p?.version===5?validateNetworkPolicy(p):validateCircuitPolicy(p);}
+export async function verifyRoute(bundle, {deploymentId, policy, lease, memory, providerProbeSigners, networkProviders, now = Date.now()}) {
   if (!bundle || Buffer.byteLength(JSON.stringify(bundle)) > 32768) throw new Error('route bundle too large');
   const {delegation:d, signature:delegationSignature} = bundle.authorization || {};
   const key = validateDelegation(d, now);
-  const p = validateCircuitPolicy(policy), r = bundle.record;
+  const p = validateRoutePolicy(policy), r = bundle.record, v5 = p.version === 5;
+  const maxRoutes = v5 ? (p.enclaveNetwork?.routes || 0) : p.routes;
   if (d.deploymentId !== deploymentId || p.deploymentId !== deploymentId || d.policyHash !== recordHash(p)) throw new Error('route policy or app mismatch');
   if (!lease || lease.id !== deploymentId || lease.chainId !== d.chainId || lease.deployments.toLowerCase() !== d.deployments.toLowerCase() ||
       lease.runner !== d.runner || lease.validUntil <= now || !lease.active || !lease.isPublic || lease.leaseUntil <= now) throw new Error('fresh matching lease required');
@@ -61,16 +65,23 @@ export async function verifyRoute(bundle, {deploymentId, policy, lease, memory, 
   if (!r || r.version !== 2 || r.deploymentId !== deploymentId || r.delegationHash !== recordHash(d) ||
       !Number.isSafeInteger(r.sequence) || r.sequence < 1 || !Number.isSafeInteger(r.issuedAt) || r.issuedAt > now + 5000 ||
       !Number.isSafeInteger(r.expiresAt) || r.expiresAt <= now || r.expiresAt > d.expiresAt ||
-      r.expiresAt > lease.leaseUntil || r.expiresAt - r.issuedAt > 300000 || !Array.isArray(r.routes) || r.routes.length > p.routes) throw new Error('invalid or expired route record');
+      r.expiresAt > lease.leaseUntil || r.expiresAt - r.issuedAt > 300000 || !Array.isArray(r.routes) || r.routes.length > maxRoutes) throw new Error('invalid or expired route record');
   const seen = new Set();
   for (const route of r.routes) {
     if (!route || typeof route.circuit !== 'string' || !/^[0-9a-f]{32}$/.test(route.circuit) || seen.has(route.circuit) ||
-        !net.isIP(route.address) || isBlockedHost(route.address) || route.port !== 443 || route.transport !== (p.mode==='direct'?'direct':'tuna-guarded-tcp') ||
+        !net.isIP(route.address) || isBlockedHost(route.address) || route.port !== 443 || route.transport !== (v5?'enclave-network':p.mode==='direct'?'direct':'tuna-guarded-tcp') ||
+        (v5&&(route.directPort!==undefined||route.fallback!==undefined)) ||
         (p.mode==='direct'&&(route.directPort!==undefined||route.fallback!==undefined)) ||
         (route.directPort!==undefined&&(!Number.isInteger(route.directPort)||route.directPort<1024||route.directPort>65535)) ||
         (route.fallback!==undefined&&route.fallback!==true) ||
         Object.keys(route).some(k => !['circuit','address','port','transport','directPort','fallback'].includes(k))) throw new Error('invalid public route');
     seen.add(route.circuit);
+    if(v5){
+      // Public ingress only through a provider that is qualified for ingress right now, under this policy's price limit.
+      const exit=(networkProviders||[]).find(x=>x.address===route.address&&x.eligibleRoles.includes('ingress')&&x.qualifiedUntil>=Math.min(r.expiresAt,now+60000)&&x.pricePerGiB6<=(p.enclaveNetwork?.maxPricePerGiB6??0));
+      if(!exit)throw new Error('route address is not a qualified Enclave-network ingress provider');
+      continue;
+    }
     if(p.currency==='USDC'&&p.mode==='guarded'){
       const current=tunaPolicyFromLease(lease);
       if(recordHash(current)!==recordHash(p)||r.expiresAt>p.expiresAt||p.expiresAt<=now||route.fallback!==undefined||route.directPort!==undefined)throw Error('route lacks current USDC TUNA owner authorization');

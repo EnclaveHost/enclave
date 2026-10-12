@@ -1,0 +1,75 @@
+// A host's connection to the Enclave network (docs/design/enclave-network.md): which apps use it, each app's owner-
+// signed policy, the verified provider directory, BYO WireGuard configs, and the runtime that builds circuits.
+// host config (cfg.enclaveNetwork): {relay, checkers:[...], apps:'all'|[ids], wgBinary, nodeBinary, workerModule,
+//   firewallBinary (Windows), registry (registry address, for community providers)}
+import path from 'node:path';
+import dns from 'node:dns';
+import {randomBytes} from 'node:crypto';
+import {createPublicClient,http} from 'viem';
+import {base} from 'viem/chains';
+import {WgCircuitRuntime} from './wg-circuit-runtime.mjs';
+import {WgGrants} from './wg-grants.mjs';
+import {eligibleProviders} from './provider-directory.mjs';
+import {admitNetworkPolicy,defaultNetworkPolicy,validateNetworkPolicy} from './network-policy.mjs';
+import {parseWireGuardConfig,wireGuardConfigDigest,privateAddress,ipKind} from './wg-config.mjs';
+import {DurableState} from './durable-state.mjs';
+import {canonical} from './route-record.mjs';
+import {guardedFetch} from './guarded-fetch.mjs';
+
+export const byoReleaseMessage=r=>`enclave-network:byo-release:v1\n${canonical(r)}`;
+
+export async function createNetworkHost({config:c,account,runner,rpc,leaseReader,directory,authorize,forward,fetch=globalThis.fetch,now=Date.now,log=()=>{}}){
+ if(!c?.relay||!/^https:\/\//.test(c.relay)&&!/^http:\/\/127\.0\.0\.1/.test(c.relay))throw new Error('Enclave network: relay https URL required');
+ if(!Array.isArray(c.checkers)||!c.checkers.length)throw new Error('Enclave network: trusted checker addresses required');
+ if(c.apps!=='all'&&!Array.isArray(c.apps))throw new Error('Enclave network: apps must be "all" or a list');
+ const onNetwork=id=>c.apps==='all'||c.apps.includes(id);
+ const relay=async(p,init)=>{const r=await fetch(c.relay+p,{...init,signal:AbortSignal.timeout(10000)});if(r.status===404)return null;const b=await r.json().catch(()=>null);if(!r.ok)throw new Error(`relay ${p.split('/').slice(0,4).join('/')}: ${b?.error||r.status}`);return b;};
+ const clients=(rpc||[]).map(url=>createPublicClient({chain:base,transport:http(url,{timeout:10000})}));
+ // ERC-1271 owners (passkey vaults): every configured RPC must say the signature is valid
+ const verify=clients.length?async(owner,message,signature)=>(await Promise.all(clients.map(x=>x.verifyMessage({address:owner,message,signature}).catch(()=>false)))).every(Boolean):undefined;
+ const state=new DurableState(path.join(directory,'enclave-network'));
+ const memory={get:async id=>(await state.get('policy-nonces'))?.[id],set:async(id,n)=>state.update('policy-nonces',async old=>({...(old||{}),[id]:n}))};
+ const policyCache=new Map();
+ // The app's network policy: the owner's newest signed one from the relay, or the default if the owner never set one.
+ // Once a nonce has been seen, "none" is refused (a relay that loses or withholds a policy does not reset an app).
+ async function policyFor(app,lease){
+  if(!lease||lease.id!==app.deploymentId)throw new Error('policy requires the current lease');
+  let env=policyCache.get(app.deploymentId);
+  if(!env||now()-env.at>15000){env={at:now(),value:(await relay('/v1/network/policy/'+app.deploymentId))?.envelope||null};policyCache.set(app.deploymentId,env);}
+  if(env.value)return admitNetworkPolicy(env.value,{owner:lease.owner,deploymentId:app.deploymentId,verify,memory});
+  const seen=await memory.get(app.deploymentId);
+  if(seen!==undefined&&seen>0)throw new Error('the owner\'s network policy is unavailable');
+  return validateNetworkPolicy(defaultNetworkPolicy(app.deploymentId));
+ }
+ let directory_={at:0,list:[]};
+ async function providers(){
+  if(now()-directory_.at<30000)return directory_.list;
+  const d=await relay('/v1/network/providers');
+  const hostOperator=async hostId=>{if(!c.registry)return null;const [h]=await leaseReader.registryEntries(c.registry,[hostId]);return h?.active?h.operator:null;};
+  directory_={at:now(),list:await eligibleProviders(d?.providers||[],{checkers:c.checkers,now:now(),hostOperator,log})};
+  return directory_.list;
+ }
+ // The owner's BYO WireGuard config, released by the relay only to the deployment's current runner, and used only if
+ // it is exactly the version the owner's current policy commits to.
+ async function byoConfig(app){
+  const policy=app.policy;if(policy.mode!=='byo-wireguard')throw new Error('not a BYO app');
+  const request={version:1,deploymentId:app.deploymentId,runner,issuedAt:now(),nonce:randomBytes(16).toString('hex')};
+  const body=await relay(`/v1/network/byo/${app.deploymentId}/release`,{method:'POST',headers:{'content-type':'application/json'},
+   body:JSON.stringify({request,signature:await account.signMessage({message:byoReleaseMessage(request)})})});
+  if(!body?.config||!/^[0-9a-f]{64}$/.test(body.salt||''))throw new Error('no BYO WireGuard config on record');
+  const {config}=parseWireGuardConfig(body.config);
+  if(await wireGuardConfigDigest(body.salt,config)!==policy.byo.configDigest)throw new Error('the stored BYO config is not the one the current policy names');
+  let address=config.endpoint.host;
+  if(!ipKind(address)){const all=await dns.promises.lookup(address,{all:true});const v4=all.find(a=>a.family===4);if(!v4)throw new Error('BYO endpoint has no IPv4 address');address=v4.address;}
+  if(ipKind(address)!==4||privateAddress(address))throw new Error('BYO endpoint must be a public IPv4 address');
+  return {...config,endpoint:{address,port:config.endpoint.port}};
+ }
+ const grants=new WgGrants({account,runner,policy:async id=>{const v=policyCache.get(id)?.value;return v||null;}});
+ const runtime=new WgCircuitRuntime({directory:path.join(directory,'network-circuits'),wgBinary:c.wgBinary,nodeBinary:c.nodeBinary,workerModule:c.workerModule,firewallBinary:c.firewallBinary,grants,authorize,forward,log});
+ // An egress-only circuit's health: one HTTPS request through it.
+ async function probeEgress(app,circuit){
+  const f=guardedFetch(circuit.egress,{timeoutMs:15000,maxBytes:65536});
+  const r=await f(new URL('https://enclave.host/'));if(r.status>=500)throw new Error('egress probe HTTP '+r.status);
+ }
+ return {onNetwork,policyFor,providers,byoConfig,runtime,probeEgress,grants};
+}

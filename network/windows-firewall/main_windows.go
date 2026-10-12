@@ -21,15 +21,18 @@ type Program struct {
 	Path    string   `json:"path"`
 	Connect []string `json:"connect"`
 	Listen  []uint16 `json:"listen"`
+	UDP     []string `json:"udp,omitempty"` // tunnel mode: exact public IPv4 WireGuard peers (ip:port)
 }
 type Config struct {
 	PublicNetwork bool      `json:"publicNetwork"`
+	Tunnel        bool      `json:"tunnel,omitempty"`
 	AppContainer  bool      `json:"appContainer"`
 	Directory     string    `json:"directory"`
 	Programs      []Program `json:"programs"`
 }
 type Manifest struct {
 	PublicNetwork   bool     `json:"publicNetwork,omitempty"`
+	Tunnel          bool     `json:"tunnel,omitempty"`
 	AppContainerSID string   `json:"appContainerSid,omitempty"`
 	Sublayer        string   `json:"sublayer"`
 	Rules           []string `json:"rules"`
@@ -64,6 +67,22 @@ func main() {
 	}
 	if cfg.PublicNetwork && (!cfg.AppContainer || len(cfg.Programs) != 1 || len(cfg.Programs[0].Connect) != 0) {
 		panic("public network mode is reserved for a separate one-program guard")
+	}
+	// Tunnel mode: one WireGuard data-plane program (enclave-wg) that may send UDP to exactly its listed public peers
+	// and use its listed loopback ports, nothing else (docs/design/enclave-network.md).
+	if cfg.Tunnel && (cfg.PublicNetwork || !cfg.AppContainer || len(cfg.Programs) != 1 || len(cfg.Programs[0].UDP) < 1 || len(cfg.Programs[0].UDP) > 2) {
+		panic("tunnel mode is one sandboxed program with 1-2 exact UDP peers")
+	}
+	for _, p := range cfg.Programs {
+		if len(p.UDP) > 0 && !cfg.Tunnel {
+			panic("UDP peers are for tunnel mode only")
+		}
+		for _, u := range p.UDP {
+			a, e := netip.ParseAddrPort(u)
+			if e != nil || !a.Addr().Is4() || a.Port() == 0 || !publicIPv4(a.Addr()) {
+				panic("tunnel peers must be explicit public IPv4 ip:port")
+			}
+		}
 	}
 	dir := strings.ToLower(filepath.Clean(cfg.Directory))
 	if !strings.Contains(dir, `\enclave-circuit-`) {
@@ -104,7 +123,7 @@ func main() {
 	check(e)
 	defer session.Close()
 	layer := wf.SublayerID(guid())
-	manifest := Manifest{Sublayer: layer.String(), State: "installing", PublicNetwork: cfg.PublicNetwork}
+	manifest := Manifest{Sublayer: layer.String(), State: "installing", PublicNetwork: cfg.PublicNetwork, Tunnel: cfg.Tunnel}
 	var packageSID *windows.SID
 	if cfg.AppContainer {
 		if !regexp.MustCompile(`^enclave-circuit-[a-f0-9]{32}$`).MatchString(filepath.Base(dir)) {
@@ -175,6 +194,11 @@ func main() {
 		}
 	}
 	for i, p := range cfg.Programs {
+		for _, u := range p.UDP {
+			a := netip.MustParseAddrPort(u)
+			add(i, wf.LayerALEAuthConnectV4, wf.ActionPermit, 100, match(wf.FieldIPRemoteAddress, a.Addr()), match(wf.FieldIPRemotePort, a.Port()), match(wf.FieldIPProtocol, wf.IPProtoUDP))
+			add(i, wf.LayerALEAuthRecvAcceptV4, wf.ActionPermit, 100, match(wf.FieldIPRemoteAddress, a.Addr()), match(wf.FieldIPRemotePort, a.Port()), match(wf.FieldIPProtocol, wf.IPProtoUDP))
+		}
 		for _, address := range p.Connect {
 			a := netip.MustParseAddrPort(address)
 			add(i, wf.LayerALEAuthConnectV4, wf.ActionPermit, 100, match(wf.FieldIPRemoteAddress, a.Addr()), match(wf.FieldIPRemotePort, a.Port()), match(wf.FieldIPProtocol, wf.IPProtoTCP))
@@ -199,4 +223,21 @@ func main() {
 	manifest.State = "active"
 	persist()
 	fmt.Println(`{"type":"ready","persistent":true}`)
+}
+
+var reserved4 = func() []netip.Prefix {
+	out := []netip.Prefix{}
+	for _, c := range []string{"0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16", "172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24", "192.88.99.0/24", "192.168.0.0/16", "198.18.0.0/15", "198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/4", "240.0.0.0/4"} {
+		out = append(out, netip.MustParsePrefix(c))
+	}
+	return out
+}()
+
+func publicIPv4(a netip.Addr) bool {
+	for _, p := range reserved4 {
+		if p.Contains(a) {
+			return false
+		}
+	}
+	return a.Is4()
 }

@@ -133,7 +133,7 @@ func sandbox(file string) {
 	// InternetClient only, still constrained by its package-wide WFP rules.
 	capabilities := securityCapabilities{SID: sid}
 	var internet []windows.SIDAndAttributes
-	if policy.PublicNetwork {
+	if policy.PublicNetwork || policy.Tunnel {
 		capability, e := windows.StringToSid("S-1-15-3-1")
 		check(e)
 		internet = []windows.SIDAndAttributes{{Sid: capability, Attributes: windows.SE_GROUP_ENABLED}}
@@ -207,7 +207,7 @@ func sandbox(file string) {
 	capabilityInfo := make([]byte, 1024)
 	check(windows.GetTokenInformation(token, 30, &capabilityInfo[0], uint32(len(capabilityInfo)), &length))
 	groups := (*windows.Tokengroups)(unsafe.Pointer(&capabilityInfo[0]))
-	if policy.PublicNetwork {
+	if policy.PublicNetwork || policy.Tunnel {
 		if groups.GroupCount != 1 || groups.AllGroups()[0].Sid.String() != "S-1-15-3-1" {
 			panic("guard capabilities differ from policy")
 		}
