@@ -144,6 +144,10 @@ $slots = [math]::Max(1, [math]::Min(8, [math]::Floor($appRamGb / 4)))
 $runtimeJson = Join-Path $PF "guest\runtime.json"
 $runtimeId = & $node --input-type=module -e "import fs from 'node:fs'; import { runtimeId } from 'file:///$((Join-Path $PF 'control\isolation\contract\runtime.mjs').Replace('\','/'))'; process.stdout.write(Buffer.from(runtimeId(JSON.parse(fs.readFileSync(process.argv[1], 'utf8')))).toString('hex'))" $runtimeJson
 if ($runtimeId -notmatch '^[0-9a-f]{64}$') { Fail "config" "The runtime identity could not be derived: $runtimeId" }
+# the platform's readiness witness must run on this bundle's runtime, or the relay never opens the market to this host
+$witnessFile = Join-Path $PF "guest\witness.json"
+$witness = Get-Content -Raw $witnessFile | ConvertFrom-Json
+if ($witness.derive.runtimeId -ne $runtimeId) { Fail "config" "The bundle's readiness witness is for runtime $($witness.derive.runtimeId), not this bundle's $runtimeId" }
 $pin = { param($rel) ($manifest.files | Where-Object { $_.path -eq $rel }).sha256 }
 if (-not $Owner) { $Owner = (Get-CimInstance Win32_ComputerSystem).UserName }
 if (-not $Owner) { $Owner = "$env:USERDOMAIN\$env:USERNAME" }
@@ -205,6 +209,7 @@ set APP_SLOTS=$slots
 set NODE_APP_RAM_GB=$appRamGb
 set ENCLAVE_EGRESS_APP_ROUTES=$PD\tuna\state\egress-routes.json
 set WASMTIME_BIN=$PF\bin\wasmtime.exe
+set SHIELD_WITNESS_CONFIG=$witnessFile
 "@ | Set-Content -Encoding ASCII (Join-Path $PD "node-config.cmd")
 
 function RunLoop($file, $config, $script, $log) {
