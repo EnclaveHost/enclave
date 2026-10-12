@@ -93,6 +93,10 @@ New-ItemProperty -Path $virt -Name AllowFirmwareLoadFromFile -PropertyType DWord
 $gcs = "$virt\GuestCommunicationServices\00002329-facb-11e6-bd58-64006a7986d3"
 if (-not (Test-Path $gcs)) { New-Item $gcs -Force | Out-Null }
 New-ItemProperty -Path $gcs -Name ElementName -PropertyType String -Value "Enclave Shield report signing (hv_sock port 9001)" -Force | Out-Null
+# a GPU app's partition reaches the card worker through shielded-bridge on hv_sock port 19595 (0x4c8b)
+$gcsGpu = "$virt\GuestCommunicationServices\00004c8b-facb-11e6-bd58-64006a7986d3"
+if (-not (Test-Path $gcsGpu)) { New-Item $gcsGpu -Force | Out-Null }
+New-ItemProperty -Path $gcsGpu -Name ElementName -PropertyType String -Value "Enclave Shield GPU transport (hv_sock port 19595)" -Force | Out-Null
 Emit "prereq" "ok" "Hyper-V is set up for Enclave Shield partitions"
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -191,6 +195,16 @@ $witnessFile = Join-Path $PF "guest\witness.json"
 $witness = Get-Content -Raw $witnessFile | ConvertFrom-Json
 if ($witness.derive.runtimeId -ne $runtimeId) { Fail "config" "The bundle's readiness witness is for runtime $($witness.derive.runtimeId), not this bundle's $runtimeId" }
 $pin = { param($rel) ($manifest.files | Where-Object { $_.path -eq $rel }).sha256 }
+# Enclave Shield's GPU profile (windows/vbslike/SHIELDED-GPU.md): the measured GPU image, the bridge, and the card worker's
+# port. The manager offers a GPU share only while the worker answers with the profile's budget, so a PC whose card the
+# worker cannot drive sells no GPU and nothing else changes.
+$gpuProfile = Join-Path $PD "shield-gpu-profile.json"
+$gpuImage = Join-Path $PF "guest\runtime-shield-gpu.bin"
+if (Test-Path $gpuImage) {
+  "{`"runtime`":$((Get-Content -Raw $runtimeJson).Trim()),`"imagePath`":$($gpuImage | ConvertTo-Json),`"imageSha256`":`"$(& $pin 'guest/runtime-shield-gpu.bin')`"," +
+    "`"bridgeExe`":$((Join-Path $PF 'bin\shielded-bridge.exe') | ConvertTo-Json),`"bridgeSha256`":`"$(& $pin 'bin/shielded-bridge.exe')`",`"workerPort`":19595}" |
+    Set-Content -Encoding ASCII $gpuProfile
+} elseif (Test-Path $gpuProfile) { Remove-Item $gpuProfile -Force }
 if (-not $Owner) { $Owner = (Get-CimInstance Win32_ComputerSystem).UserName }
 if (-not $Owner) { $Owner = "$env:USERDOMAIN\$env:USERNAME" }
 
@@ -228,7 +242,23 @@ set NODE_APP_RAM_GB=$appRamGb
 set ENCLAVE_PROTECTED_PORTS_V1=1
 set ENCLAVE_WASM_SET=1
 set ENCLAVE_WASM_MEMORY64=1
+$(if (Test-Path $gpuProfile) { "set ENCLAVE_SHIELD_PROFILE=$gpuProfile" })
 "@ | Set-Content -Encoding ASCII (Join-Path $PD "shield-config.cmd")
+
+# the card worker: the GPU half of a Shield GPU app, on 127.0.0.1:19595 only, holding at most the profile's 12 GiB; it sees
+# only masked data (the app's partition masks, unmasks and verifies). The yield build backs off while the owner uses the card.
+@"
+@echo off
+rem The Enclave card worker. Written by install-host.ps1; re-run setup to change it.
+set SHIELDED_VK_SHADERS=$PF\bin\shaders
+if not defined SHIELDED_CARD_TFLOPS set SHIELDED_CARD_TFLOPS=8
+cd /d "$PF\bin"
+:loop
+"$PF\bin\shielded-worker.exe" --host 127.0.0.1 --port 19595 --vram-gb 12 >> "$PD\logs\card.log" 2>&1
+echo %date% %time% [run] card worker exited %errorlevel%; restarting in 30 s >> "$PD\logs\card.log"
+ping -n 31 127.0.0.1 >nul
+goto loop
+"@ | Set-Content -Encoding ASCII (Join-Path $PD "run-card.cmd")
 
 @"
 @echo off
@@ -303,6 +333,7 @@ function Task($name, $cmd, $delay) {
   Register-ScheduledTask -TaskPath "\Enclave\" -TaskName $name -Action $a -Trigger $t -Principal $p -Settings $s -Force | Out-Null
 }
 Task "Shield" (Join-Path $PD "run-shield.cmd") "PT30S"
+if (Test-Path (Join-Path $PF "bin\shielded-worker.exe")) { Task "Card" (Join-Path $PD "run-card.cmd") "PT20S" }
 Task "Node" (Join-Path $PD "run-node.cmd") "PT90S"
 Task "Tuna" (Join-Path $PD "run-tuna.cmd") "PT120S"
 # automatic updates (update-host.ps1): 5 minutes after boot, then every hour, as SYSTEM; one run at a time. Left as it is
@@ -315,6 +346,7 @@ if ($env:ENCLAVE_UPDATING -ne "1" -or -not (Get-ScheduledTask -TaskPath "\Enclav
   Register-ScheduledTask -TaskPath "\Enclave\" -TaskName "Update" -Action $ua -Trigger $boot, $hourly -Settings $us `
     -Principal (New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest) -Force | Out-Null
 }
+if (Get-ScheduledTask -TaskPath "\Enclave\" -TaskName "Card" -ErrorAction SilentlyContinue) { Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Card" }
 Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Shield"
 $ready = $false
 for ($i = 0; $i -lt 60; $i++) {
