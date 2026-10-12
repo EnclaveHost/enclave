@@ -1921,7 +1921,21 @@ export class Host {
    * a tenant whose app cannot run here is better served by a row that reads Queued somewhere else
    * than by one that reads "running on nucbox-k11" over a restart loop.
    */
-  async #giveUp(id, why, { retry = false } = {}) {
+  /**
+   * ONE give-up per deployment at a time: callers that arrive while one runs share it. The tick, the reconcile and the
+   * manager's report can all decide to give up on the same domain in the same second, and each used to read "the runner
+   * is still this box" and send its own release: one landed and the rest reverted on chain, gas spent (2026-10-12,
+   * nucbox-k11-4: seven give-ups and ten releases for one partition that died starting).
+   */
+  #givingUp = new Map();
+  #giveUp(id, why, opts = {}) {
+    const busy = this.#givingUp.get(id);
+    if (busy) return busy;
+    const p = this.#giveUpOnce(id, why, opts).finally(() => this.#givingUp.delete(id));
+    this.#givingUp.set(id, p);
+    return p;
+  }
+  async #giveUpOnce(id, why, { retry = false } = {}) {
     this.#respawnAfter.delete(id);
     // An isolated domain first: handing the lease back while its partition still serves would
     // leave the deployment answering with no lease behind it (defect 15). And if it could NOT be confirmed gone, the
