@@ -1,0 +1,89 @@
+// The relay's Enclave-network API (relay/network-api.mjs): directory, qualifications, owner policies, BYO configs.
+import test from 'node:test';import assert from 'node:assert/strict';
+import fs from 'node:fs';import os from 'node:os';import path from 'node:path';import {randomBytes} from 'node:crypto';
+import {privateKeyToAccount,generatePrivateKey} from 'viem/accounts';
+import {createNetworkApi,byoConfigMessage,byoOwnerMessage} from '../relay/network-api.mjs';
+import {JsonStore} from '../relay/store.js';
+import {signProviderRecord,signQualification,providerIdFor,CHECKS} from '../network/provider-directory.mjs';
+import {signNetworkPolicy,byoReleaseMessage} from '../network/network-policy.mjs';
+
+const id='0x'+'ab'.repeat(32),runner='0x'+'11'.repeat(32);
+const owner=privateKeyToAccount(generatePrivateKey()),other=privateKeyToAccount(generatePrivateKey()),runnerOp=privateKeyToAccount(generatePrivateKey());
+const operator=privateKeyToAccount(generatePrivateKey()),checker=privateKeyToAccount(generatePrivateKey());
+const K=()=>randomBytes(32).toString('base64');
+function rig(){
+ const file=path.join(fs.mkdtempSync(path.join(os.tmpdir(),'netapi-')),'network.json');let t=Date.now();
+ const api=createNetworkApi({checkers:[checker.address],file,JsonStore,secretsKey:'aa'.repeat(32),clients:async()=>[],now:()=>t});
+ const rows=[{id,owner:owner.address,runner,runnerOperator:runnerOp.address,leaseUntil:Math.floor(t/1000)+3600,isPublic:true}];
+ const ctx={json:(res,status,body)=>{res.status=status;res.body=body;},readBody:async req=>Buffer.from(JSON.stringify(req.body||{})),ledgerRows:async()=>rows};
+ const call=async(method,p,body)=>{const res={};await api.handle({method,body},res,new URL('http://x'+p),ctx);return res;};
+ return {api,call,rows,advance:ms=>{t+=ms;},now:()=>t};
+}
+async function record(r,over={}){
+ const address='134.199.235.187',rec={version:1,providerId:providerIdFor(operator.address,address),operator:operator.address.toLowerCase(),address,wgExitKey:K(),wgGuardKey:K(),
+  ports:{exit:51820,guard:51821,control:51822},roles:['guard','ingress','egress'],pricePerGiB6:0,region:'sfo3',kind:'enclave',hostId:null,issuedAt:r.now(),expiresAt:r.now()+1800000,...over};
+ return signProviderRecord(operator,rec);
+}
+const qual=(rec,r,signer=checker,checks=Object.fromEntries(CHECKS.map(c=>[c,true])))=>signQualification(signer,{version:1,providerId:rec.providerId,operator:rec.operator,address:rec.address,wgExitKey:rec.wgExitKey,wgGuardKey:rec.wgGuardKey,roles:rec.roles,checks,issuedAt:r.now(),expiresAt:r.now()+600000});
+
+test('providers opt in with a signed record; only trusted checkers qualify them; eligibility follows',async()=>{
+ const r=rig(),env=await record(r);
+ assert.equal((await r.call('POST','/v1/network/providers',env)).status,200);
+ assert.equal((await r.call('POST','/v1/network/providers',env)).status,409,'stale re-publication');
+ const forged={record:{...env.record,pricePerGiB6:5},signature:env.signature};
+ assert.equal((await r.call('POST','/v1/network/providers',forged)).status,400);
+ assert.equal((await r.api.eligible()).length,0,'not qualified yet');
+ assert.equal((await r.call('POST','/v1/network/qualifications',await qual(env.record,r,other))).status,403,'untrusted checker');
+ assert.equal((await r.call('POST','/v1/network/qualifications',await qual(env.record,r))).status,200);
+ const e=await r.api.eligible();assert.equal(e.length,1);assert.deepEqual(e[0].eligibleRoles,['guard','ingress','egress']);
+ // a failed check: stored, but not eligible
+ r.advance(1000);const failed=Object.fromEntries(CHECKS.map(c=>[c,c!=='blocksSmtp']));
+ assert.equal((await r.call('POST','/v1/network/qualifications',await qual(env.record,r,checker,failed))).body.passed,false);
+ assert.equal((await r.api.eligible()).length,0);
+ // new keys: the old qualification no longer applies
+ r.advance(1000);await r.call('POST','/v1/network/qualifications',await qual(env.record,r));
+ r.advance(1000);const rekeyed=await record(r,{issuedAt:r.now()});
+ assert.equal((await r.call('POST','/v1/network/providers',rekeyed)).body.qualified,false);
+ assert.equal((await r.api.eligible()).length,0);
+ // expiry
+ r.advance(11*60000);assert.equal((await r.call('GET','/v1/network/providers')).body.providers.length,1);
+});
+test('owner policies: owner only, increasing nonce, BYO only with its config uploaded',async()=>{
+ const r=rig();
+ assert.equal((await r.call('GET','/v1/network/policy/'+id)).body.policy.mode,'enclave-network','default before any policy');
+ const p1={version:5,deploymentId:id,nonce:1,issuedAt:1,mode:'enclave-network',fallback:'none',enclaveNetwork:{routes:1,guard:true,maxPricePerGiB6:0,budget6:0}};
+ assert.equal((await r.call('POST','/v1/network/policy/'+id,{envelope:await signNetworkPolicy(other,p1)})).status,400);
+ assert.equal((await r.call('POST','/v1/network/policy/'+id,{envelope:await signNetworkPolicy(owner,p1)})).status,200);
+ assert.equal((await r.call('POST','/v1/network/policy/'+id,{envelope:await signNetworkPolicy(owner,p1)})).status,409,'same nonce again');
+ const byo={version:5,deploymentId:id,nonce:2,issuedAt:2,mode:'byo-wireguard',fallback:'none',byo:{configDigest:'cd'.repeat(32),ingress:'none'}};
+ assert.equal((await r.call('POST','/v1/network/policy/'+id,{envelope:await signNetworkPolicy(owner,byo)})).status,409,'config first');
+ assert.equal(r.api.currentPolicy(id).nonce,1);
+});
+const cfg=`[Interface]\nPrivateKey = ${'yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk='}\nAddress = 10.64.0.2/32\nDNS = 10.64.0.1\n[Peer]\nPublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=\nEndpoint = 203.0.114.9:51820\nAllowedIPs = 0.0.0.0/0\n`;
+test('BYO configs: sealed, redacted, owner-only view, released only to the current runner, once per request',async()=>{
+ const r=rig(),salt=randomBytes(32).toString('hex'),expiry=Math.floor(r.now()/1000)+300;
+ const {wireGuardConfigDigest,parseWireGuardConfig}=await import('../network/wg-config.mjs');
+ const digest=await wireGuardConfigDigest(salt,parseWireGuardConfig(cfg).config);
+ const put=async(signer)=>r.call('POST','/v1/network/byo/'+id,{config:cfg,salt,expiry,signature:await signer.signMessage({message:byoConfigMessage({deploymentId:id,configDigest:digest,expiry})})});
+ assert.equal((await put(other)).status,403);
+ const ok=await put(owner);assert.equal(ok.status,200);assert.equal(ok.body.configDigest,digest);
+ assert.ok(!JSON.stringify(ok.body).includes('yAnz5TF'),'no private key in any response');
+ const stored=fs.readFileSync(r.api.store.file,'utf8');assert.ok(!stored.includes('yAnz5TF')&&!stored.includes('10.64.0.1/'),'sealed at rest');
+ assert.equal((await put(owner)).status,409,'a signature is single-use');
+ // now a policy may name it
+ const byo={version:5,deploymentId:id,nonce:2,issuedAt:2,mode:'byo-wireguard',fallback:'none',byo:{configDigest:digest,ingress:'none'}};
+ assert.equal((await r.call('POST','/v1/network/policy/'+id,{envelope:await signNetworkPolicy(owner,byo)})).status,200);
+ const view=await r.call('POST',`/v1/network/byo/${id}/view`,{expiry,signature:await owner.signMessage({message:byoOwnerMessage({deploymentId:id,action:'view',expiry})})});
+ assert.equal(view.body.redacted.endpoint,'203.0.114.9:51820');assert.ok(!JSON.stringify(view.body).includes('yAnz5TF'));
+ const release=async(signer,over={})=>{const request={version:1,deploymentId:id,runner,issuedAt:r.now(),nonce:randomBytes(16).toString('hex'),...over};
+  return r.call('POST',`/v1/network/byo/${id}/release`,{request,signature:await signer.signMessage({message:byoReleaseMessage(request)})});};
+ assert.equal((await release(owner)).status,403,'not even the owner: only the runner host');
+ assert.equal((await release(runnerOp,{runner:'0x'+'22'.repeat(32)})).status,403);
+ const got=await release(runnerOp);assert.equal(got.status,200);assert.equal(got.body.config,cfg);assert.equal(got.body.salt,salt);
+ assert.equal((await release(runnerOp,{issuedAt:r.now()-120000})).status,422,'stale');
+ r.rows[0].leaseUntil=Math.floor(r.now()/1000)-1;assert.equal((await release(runnerOp)).status,403,'lease ended');
+ const del=await r.call('POST',`/v1/network/byo/${id}/delete`,{expiry,signature:await owner.signMessage({message:byoOwnerMessage({deploymentId:id,action:'delete',expiry})})});
+ assert.equal(del.body.deleted,true);
+ const bad=await r.call('POST','/v1/network/byo/'+id,{config:cfg.replace('AllowedIPs','PostUp = rm -rf /\nAllowedIPs'),salt,expiry,signature:'0x'});
+ assert.equal(bad.status,422);assert.ok(bad.body.problems.some(p=>/PostUp/.test(p)));
+});

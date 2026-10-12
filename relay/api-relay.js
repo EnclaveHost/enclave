@@ -105,7 +105,7 @@ import { claimCheapest, CLAIM_QUOTE_ABI } from "./cheapest-claim.mjs";
 import { createPlacement, pinnedHost } from "./placement.mjs";
 import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson } from "./measurement-predict.mjs";
 import { createTunnelHub } from "./tunnel.js";
-import {LeaseReader,createTunaRoutes,DurableState,createLeaseSource,createRegistryOperator} from "./network-runtime.bundle.mjs";
+import {LeaseReader,createTunaRoutes,DurableState,createLeaseSource,createRegistryOperator,createNetworkApi} from "./network-runtime.bundle.mjs";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
 import { pvmCpuPolicyFromEnv, avfAttestWithPvmCpu, pvmCpuAvailability, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
 import { VBS_DEFAULT_EK_ROOTS } from "./vbs-policy.mjs";
@@ -113,7 +113,7 @@ import { createPadsLedger, createPrefixStore, createShipmentStore, padsRouter } 
 import { hostSponsor, hostSponsorRouter } from "./host-sponsor.mjs";
 import { hostNames, hostNamesRouter } from "./host-names.mjs";
 import { tunaFunding, tunaFundingRouter } from "./tuna-funding.mjs";
-import { dataDir, JsonStore } from "./store.js";
+import { dataDir, JsonStore, dataFile, rpcPool } from "./store.js";
 import { screenAddress } from "./ofac.js";
 import { expectedGuest, prepareGuestUpdate, prewarmReleasePredictions } from "./secrets-release.mjs";
 import { expectedForRow, prepareForRow } from "./guest-prediction-row.mjs";
@@ -2542,7 +2542,13 @@ async function registryOperator(id) {
   const op = String(e?.operator || "");
   return e?.active && !/^0x0{40}$/i.test(op) ? op.toLowerCase() : null;
 }
+// The Enclave network (docs/design/enclave-network.md): provider directory, owner network policies, BYO WireGuard
+// configs. RELAY_NETWORK_CHECKERS lists the qualification checkers this relay stores verdicts from.
+const networkApi = createNetworkApi({ checkers: (process.env.RELAY_NETWORK_CHECKERS || "").split(",").map(s => s.trim().toLowerCase()).filter(s => /^0x[0-9a-f]{40}$/.test(s)),
+  addressBook: ADDRESS_BOOK || undefined, JsonStore, file: dataFile(dataDir(), "network.json"), clients: async () => [await rpcPool()], log: m => console.log("[network] " + m) });
+relayCtx.hostOperator = id => registryOperator(id);
 tunaRoutes = createTunaRoutes({
+  network: networkApi,
   providerProbeSigners: (process.env.PROVIDER_PROBE_SIGNERS || '').split(',').map(s=>s.trim()).filter(Boolean),
   operatorOf: endpoint => relayCtx.operatorOfEndpoint(endpoint), endpointId,
   memory: new DurableState(process.env.TUNA_ROUTE_STATE_DIR || '/var/lib/enclave-relay/tuna-route-state'),
@@ -2766,6 +2772,8 @@ function handleRequest(req, res) {
     } catch (e) { return json(res, e.status || 503, { message: e.message }, req); }
     })();
   }
+  if (u.pathname.startsWith("/v1/network/") && u.pathname !== "/v1/network/tuna")
+    return networkApi.handle(req, res, u, relayCtx);
   if (u.pathname === "/v1/secrets" || u.pathname.startsWith("/v1/secrets/"))
     return handleSecrets(req, res, u, relayCtx).catch((e) =>
       json(res, 500, { error: "secrets_error", message: e.message }, req));

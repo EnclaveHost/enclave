@@ -74,3 +74,6 @@ export function networkUse(p){
   enclaveNetwork:v.enclaveNetwork||null,
  };
 }
+
+// A host asking the relay for an app's BYO WireGuard config signs this as the app's runner.
+export const byoReleaseMessage=r=>`enclave-network:byo-release:v1\n${canonical(r)}`;
