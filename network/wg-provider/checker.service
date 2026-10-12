@@ -1,0 +1,17 @@
+# The Enclave-network qualification checker (docs/design/enclave-network.md). Its key is in /etc/enclave-network-checker;
+# its address is the one the relay (RELAY_NETWORK_CHECKERS), hosts and providers trust.
+[Unit]
+Description=Enclave network qualification checker
+After=network-online.target
+Wants=network-online.target
+[Service]
+User=enclave-checker
+ExecStart=/usr/bin/node /opt/enclave-network-checker/current/wg-qualify.mjs --key-file /etc/enclave-network-checker/checker.key --wg /opt/enclave-network-checker/current/enclave-wg --relay https://api.enclave.host --loop 240
+Restart=always
+RestartSec=30
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+[Install]
+WantedBy=multi-user.target

@@ -17,6 +17,7 @@ import {verifyProviderRecord,signQualification,CHECKS,QUALIFICATION_MAX_MS} from
 
 const arg=(n,d)=>{const i=process.argv.indexOf('--'+n);return i>0?process.argv[i+1]:d;};
 const account=privateKeyToAccount((await fs.readFile(arg('key-file'),'utf8')).trim());
+if(process.argv.includes('--print-address')){console.log(account.address.toLowerCase());process.exit(0);}
 const wgBinary=arg('wg'),relay=arg('relay'),log=m=>console.log(new Date().toISOString(),m);
 const zero='0x'+'0'.repeat(64);
 
