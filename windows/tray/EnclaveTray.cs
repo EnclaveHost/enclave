@@ -476,8 +476,12 @@ namespace Enclave.Tray
     /// <summary>The panel's masthead: the mark and the name, as the site's header sets them.</summary>
     sealed class Masthead : Control
     {
-        public Masthead()
+        readonly string section;
+        public Masthead() : this("hosting") { }
+        /// <summary>"enclave / <section>": the tray's panel is "hosting", the installer "setup".</summary>
+        public Masthead(string section)
         {
+            this.section = section;
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
             Size = new Size(Theme.Px(340), Theme.Px(30)); Margin = new Padding(3, 0, 3, Theme.Px(4));
             Font = Theme.Mono(10.5f, FontStyle.Bold);
@@ -495,7 +499,7 @@ namespace Enclave.Tray
             TextRenderer.DrawText(g, "enclave", Font, new Rectangle(at, size), Theme.Text, f);
             int w = TextRenderer.MeasureText(g, "enclave", Font, size, f).Width;
             using (var light = Theme.Mono(10.5f, FontStyle.Regular))
-                TextRenderer.DrawText(g, " / hosting", light, new Rectangle(new Point(at.X + w, 0), size), Theme.Muted, f);
+                TextRenderer.DrawText(g, " / " + section, light, new Rectangle(new Point(at.X + w, 0), size), Theme.Muted, f);
         }
     }
 
