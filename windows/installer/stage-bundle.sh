@@ -44,7 +44,11 @@ done
 (cd "$C/windows/node" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --silent)
 
 # TUNA, from source at the same commit
-W=$(mktemp -d); git archive --format=tar "$NC" network | tar -x -C "$W"
+W=$(mktemp -d); git archive --format=tar "$NC" | tar -x -C "$W"   # the whole tree: network's bundles reach relay/, isolation/, windows/
+# network/build.mjs uses the repo's esbuild (a root devDependency): borrow this checkout's root node_modules
+TOP=$(git rev-parse --show-toplevel)
+[ -d "$TOP/node_modules/esbuild" ] || { echo "run 'npm ci' at the repo root first: network/build.mjs needs its esbuild" >&2; exit 1; }
+ln -s "$(realpath "$TOP/node_modules")" "$W/node_modules"
 (cd "$W/network" && npm ci --ignore-scripts --no-audit --no-fund --silent && node build.mjs "$W/dist" >/dev/null)
 mkdir -p "$T/tuna"
 for f in privacy-agent.mjs windows-circuit-worker.mjs enclave-tuna.exe enclave-route-discovery.exe enclave-provider-inventory.exe enclave-circuit-firewall.exe; do
