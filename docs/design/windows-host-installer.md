@@ -35,7 +35,7 @@ A Windows 11 Pro/Enterprise 24H2+ PC with Hyper-V, Secure Boot and an AMD fTPM, 
 - `C:\ProgramData\Enclave\` — state, ACL SYSTEM + Administrators: `node\` (keys, records, payout, caps, delegations),
   `manager\` (vmgs master + archive, bundles), `tuna\` (circuits, config), `logs\`, `hosting\` (tray token).
 - Services: scheduled tasks `\Enclave\Shield` (the per-app isolation manager, boot +30 s), `\Enclave\Node` (+90 s),
-  `\Enclave\Tuna`, as SYSTEM, restart
+  `\Enclave\Tuna`, `\Enclave\Card` (the GPU worker, +20 s), as SYSTEM, restart
   loops, as the hand rollout did. Tray: per-user, HKCU Run + Desktop/Start Menu shortcuts.
 
 ## Setup flow (`EnclaveSetup.exe`, C# WinForms in the tray's theme, requireAdministrator)
@@ -75,7 +75,14 @@ Web, so no SmartScreen prompt while unsigned). The Host page links both.
    `\Enclave\Tuna` waits for it. The relay records requests in `RELAY_TUNA_FUNDING_FILE`; the platform's machine reads
    that queue over SSH and pays through the existing top-up job (`network/tuna-funding-sync.mjs`, timer
    `enclave-tuna-funding-sync`). The paymaster pays only Base gas; NKN comes from the platform's NKN funding wallet.
-6. **Name check.** `GET /v1/hosts/name/<name>` (`relay/host-names.mjs`).
+6. **GPU share.** Every bundle carries Enclave Shield's GPU half (`windows/vbslike/SHIELDED-GPU.md`): the Vulkan card
+   worker (`bin\shielded-worker.exe`, the yield build, + `bin\shaders\`), the measured GPU image
+   (`guest\runtime-shield-gpu.bin`, 7c41baaf, Qwen2.5-0.5B, same runtime 297b6c2c). Setup registers hv_sock port 19595,
+   writes `shield-gpu-profile.json` (`ENCLAVE_SHIELD_PROFILE`) and runs the worker as `\Enclave\Card` on 127.0.0.1:19595
+   with the profile's 12 GiB budget. The manager probes it every 15 s and offers GPU only while it answers, so the row
+   carries `shielded` + `gpuShareFree` with no hand setup, and a PC whose card the worker cannot drive sells no GPU.
+   Idle, the worker holds ~40 MB RAM and ~2 MB of GPU memory, and it yields to the owner's own use of the card.
+7. **Name check.** `GET /v1/hosts/name/<name>` (`relay/host-names.mjs`).
 
 ## Updates (automatic)
 

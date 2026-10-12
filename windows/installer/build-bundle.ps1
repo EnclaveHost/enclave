@@ -32,6 +32,14 @@ $Binaries = [ordered]@{
   # hyperv.psm1 imports it from its own folder at load: without it no partition starts (every 2026.10.12 bundle lacked it)
   "guest\utilities.psm1"    = @("utilities.psm1",                                           "517766e996ddb021594c0ae2c7a60688d4293e2ee9459f558f2a436e6da30731")
   "guest\runtime.json"      = @("vbs-like\releases\risc-service-20261002\runtime.json",     "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0")
+  # Enclave Shield's GPU half (windows/vbslike/SHIELDED-GPU.md): the Vulkan card worker (the yield build: it backs off to a
+  # duty cycle while the owner uses the card) and the measured guest image a GPU app runs in (Qwen2.5-0.5B, same runtime)
+  "bin\shielded-worker.exe"    = @("vbs\vkw\shielded-worker-yield.exe",                                 "e3bdf862c0b970d3484852b9642774942311b420ffa447baf8d03236c89db417")
+  "guest\runtime-shield-gpu.bin" = @("vbs-like\releases\shield-gpu-20260929\guest\runtime-shield-gpu.bin", "7c41baaf494bebc631e83a548d5bc363ca6dbdda72947acbe739aa306d35398b")
+}
+# folders: bundle path = (source folder, sha256 of its sorted "<sha256>  <name>" lines, one per file, each ending in \n)
+$Folders = [ordered]@{
+  "bin\shaders" = @("vbs\vkw\worker-vulkan\shaders", "5073051686b2d124f76593b983abe4c9e00cd91fd1a5ad7c087d9ebee52ed872")   # the worker's SPIR-V
 }
 $NodeZip   = @{ url = "https://nodejs.org/dist/v24.16.0/node-v24.16.0-win-x64.zip"; sha = "edaca9bd58ec8e92037dac4e877d52f6b8f430b81c18b57e264b4e2fb111cd56"; dir = "node-v24.16.0-win-x64" }
 $PythonZip = @{ url = "https://www.python.org/ftp/python/3.14.5/python-3.14.5-embed-amd64.zip"; sha = "ba6bd811c4eedb19195cf275770ef127e893d63701e24152606e2cb76f6d876a" }
@@ -62,6 +70,17 @@ foreach ($k in $Binaries.Keys) {
   $dst = Join-Path $B $k; New-Item -ItemType Directory -Force (Split-Path $dst) | Out-Null
   Copy-Item -LiteralPath $src $dst
   "binary: $k  $($pin.Substring(0,12))"
+}
+
+foreach ($k in $Folders.Keys) {
+  $src = Join-Path $Sources $Folders[$k][0]; $pin = $Folders[$k][1]
+  if (-not (Test-Path -LiteralPath $src)) { Die "no $src for $k" }
+  $lines = Get-ChildItem -LiteralPath $src -File | Sort-Object Name | ForEach-Object { "$(Sha $_.FullName)  $($_.Name)" }
+  $tree = (([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::ASCII.GetBytes(($lines -join "`n") + "`n"))) | ForEach-Object { $_.ToString("x2") }) -join ""
+  if ($tree -ne $pin) { Die "$src hashes $tree as a folder, not the pinned $pin" }
+  $dst = Join-Path $B $k; New-Item -ItemType Directory -Force $dst | Out-Null
+  Copy-Item -Path (Join-Path $src "*") -Destination $dst
+  "folder: $k  $($lines.Count) files  $($pin.Substring(0,12))"
 }
 
 # every module a bundled .psm1 imports from its own folder must be in the bundle too: a module that fails to load fails
