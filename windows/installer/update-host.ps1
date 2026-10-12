@@ -20,7 +20,7 @@ function Ver($s) { $v = $null; if ([version]::TryParse([string]$s, [ref]$v)) { $
 function Fetch($name, $sha) {
   $f = Join-Path $W $name
   if (-not (Test-Path -LiteralPath $f) -or (Sha $f) -ne $sha) { Invoke-WebRequest -UseBasicParsing -Uri ($Downloads + $name) -OutFile $f -TimeoutSec 3600 }
-  if ((Sha $f) -ne $sha) { Remove-Item -LiteralPath $f -Force; throw "$name hashes differently from the published $sha: not installing it" }
+  if ((Sha $f) -ne $sha) { Remove-Item -LiteralPath $f -Force; throw "${name} hashes differently from the published ${sha}: not installing it" }
   return $f
 }
 function Install($dir, $name, $owner, $setup) {
@@ -58,7 +58,7 @@ try {
       Log "install of $($latest.version) FAILED (exit $code): reinstalling $installed"
       $oldSetup = Get-ChildItem $W -Filter "EnclaveSetup-$installed.exe" | Select-Object -First 1
       $back = Install $old $hostRec.name $owner $(if ($oldSetup) { $oldSetup.FullName } else { "" })
-      Log "rollback to $installed: exit $back"
+      Log "rollback to ${installed}: exit $back"
     } else { Log "install of $($latest.version) FAILED (exit $code), and no bundle of $installed is kept to roll back to" }
     exit 1
   }
