@@ -97,8 +97,8 @@ func (f *Forwards) Ingress(d *Device, port uint16, to string) error {
 
 // Local listens on loopback and relays each connection through the tunnel to one fixed address (the exit's control
 // port, reached through the guard). It never takes a destination from the client.
-func (f *Forwards) Local(d *Device, to netip.AddrPort) (string, error) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+func (f *Forwards) Local(d *Device, to netip.AddrPort, listen string) (string, error) {
+	l, err := net.Listen("tcp", listen)
 	if err != nil {
 		return "", err
 	}

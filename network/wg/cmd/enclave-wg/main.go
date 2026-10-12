@@ -1,9 +1,12 @@
 // enclave-wg is one circuit's data plane (docs/design/enclave-network.md). It is driven by JSON lines on stdin and
 // reports JSON lines on stdout; it holds no policy of its own beyond refusing non-public destinations:
 //
-//	{"type":"outer","peer":{...},"control":"<exit ip>:<port>"}   tunnel to the guard + a loopback forward to the
-//	                                                              exit's control port through it -> outer-ready
-//	{"type":"inner","peer":{...},"egress":{"user","pass"},"ingress":{"443":"127.0.0.1:p","80":"127.0.0.1:q"},
+//	{"type":"outer","peer":{...},"control":"<exit ip>:<port>","controlListen":"127.0.0.1:p",
+//	 "guardSocks":{"listen":"127.0.0.1:q","only":["<exit ip>:443",...]}}
+//	                                                              tunnel to the guard, a loopback forward to the exit's
+//	                                                              control port and a SOCKS limited to exactly the listed
+//	                                                              provider ports, both through it -> outer-ready
+//	{"type":"inner","peer":{...},"egress":{"user","pass","listen"},"ingress":{"443":"127.0.0.1:p","80":"127.0.0.1:q"},
 //	 "own":["<ip>",...]}                                          tunnel to the exit (inside the outer tunnel when
 //	                                                              there is one) + SOCKS egress + ingress -> ready
 //	{"type":"admission","open":false}                             cut every open connection (the runtime gates new ones)
@@ -31,13 +34,22 @@ import (
 )
 
 type msg struct {
-	Type    string                       `json:"type"`
-	Peer    *wg.Peer                     `json:"peer,omitempty"`
-	Control string                       `json:"control,omitempty"`
-	Egress  *struct{ User, Pass string } `json:"egress,omitempty"`
-	Ingress map[string]string            `json:"ingress,omitempty"`
-	Own     []string                     `json:"own,omitempty"`
-	Open    *bool                        `json:"open,omitempty"`
+	Type          string   `json:"type"`
+	Peer          *wg.Peer `json:"peer,omitempty"`
+	Control       string   `json:"control,omitempty"`
+	ControlListen string   `json:"controlListen,omitempty"`
+	GuardSocks    *struct {
+		Listen string   `json:"listen"`
+		Only   []string `json:"only"`
+	} `json:"guardSocks,omitempty"`
+	Egress *struct {
+		User   string `json:"user"`
+		Pass   string `json:"pass"`
+		Listen string `json:"listen"`
+	} `json:"egress,omitempty"`
+	Ingress map[string]string `json:"ingress,omitempty"`
+	Own     []string          `json:"own,omitempty"`
+	Open    *bool             `json:"open,omitempty"`
 }
 
 var (
@@ -60,6 +72,7 @@ type state struct {
 	mu           sync.Mutex
 	outer, inner *wg.Device
 	socks        *wg.Socks
+	guardSocks   *wg.Socks
 	fwd          wg.Forwards
 	ctl          wg.Forwards
 	up, down     atomic.Int64
@@ -128,11 +141,32 @@ func (s *state) outerUp(m msg) {
 	if err := d.WaitHandshake(ctx); err != nil {
 		fail("guard: " + err.Error())
 	}
-	local, err := s.ctl.Local(d, control)
+	local, err := s.ctl.Local(d, control, listenOr(m.ControlListen))
 	if err != nil {
 		fail("control forward: " + err.Error())
 	}
-	emit(map[string]any{"type": "outer-ready", "control": local})
+	ready := map[string]any{"type": "outer-ready", "control": local}
+	if m.GuardSocks != nil {
+		pol := wg.Policy{NoIPv6: true}
+		for _, o := range m.GuardSocks.Only {
+			ap, err := netip.ParseAddrPort(o)
+			if err != nil {
+				fail("guard SOCKS destinations are ip:port")
+			}
+			pol.Only = append(pol.Only, ap)
+		}
+		if len(pol.Only) == 0 || len(pol.Only) > 8 {
+			fail("guard SOCKS needs 1-8 exact destinations")
+		}
+		s.guardSocks = &wg.Socks{Tunnel: d, Policy: pol}
+		l, err := net.Listen("tcp", listenOr(m.GuardSocks.Listen))
+		if err != nil {
+			fail("guard SOCKS listener: " + err.Error())
+		}
+		go s.guardSocks.Serve(l)
+		ready["guardSocks"] = l.Addr().String()
+	}
+	emit(ready)
 }
 
 func (s *state) innerUp(m msg) {
@@ -148,8 +182,6 @@ func (s *state) innerUp(m msg) {
 			fail("outer tunnel has no IPv4 address")
 		}
 		bind = &wg.NetstackBind{Net: s.outer.Net, Local: local, Peer: netip.AddrPortFrom(m.Peer.Endpoint.Addr().Unmap(), m.Peer.Endpoint.Port())}
-		// the exit's control forward is done once the inner tunnel exists
-		s.ctl.Close()
 	}
 	d, err := wg.Up(*m.Peer, bind, func(f string, a ...any) {})
 	if err != nil {
@@ -163,7 +195,7 @@ func (s *state) innerUp(m msg) {
 	}
 	ready := map[string]any{"type": "ready"}
 	if m.Egress != nil {
-		if len(m.Egress.User) < 16 || len(m.Egress.Pass) < 16 {
+		if (m.Egress.User != "" || m.Egress.Pass != "") && (len(m.Egress.User) < 16 || len(m.Egress.Pass) < 16) {
 			fail("egress credentials too short")
 		}
 		pol := wg.Policy{NoIPv6: !m.Peer.HasIPv6(), Own: []netip.Addr{m.Peer.Endpoint.Addr()}}
@@ -177,7 +209,7 @@ func (s *state) innerUp(m msg) {
 		}
 		s.socks = &wg.Socks{User: m.Egress.User, Pass: m.Egress.Pass, Tunnel: d, Policy: pol,
 			Count: func(up, down int64) { s.up.Add(up); s.down.Add(down) }}
-		l, err := net.Listen("tcp", "127.0.0.1:0")
+		l, err := net.Listen("tcp", listenOr(m.Egress.Listen))
 		if err != nil {
 			fail("egress listener: " + err.Error())
 		}
@@ -202,11 +234,26 @@ func (s *state) innerUp(m msg) {
 	emit(ready)
 }
 
+// listenOr returns a loopback listen address (default: any free port); anything else is refused.
+func listenOr(a string) string {
+	if a == "" {
+		return "127.0.0.1:0"
+	}
+	ap, err := netip.ParseAddrPort(a)
+	if err != nil || ap.Addr() != netip.MustParseAddr("127.0.0.1") {
+		fail("listeners are on 127.0.0.1 only")
+	}
+	return a
+}
+
 func (s *state) cut() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.socks != nil {
 		s.socks.CloseAll()
+	}
+	if s.guardSocks != nil {
+		s.guardSocks.CloseAll()
 	}
 	s.fwd.Close()
 	s.ctl.Close()
