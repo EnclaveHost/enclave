@@ -12,6 +12,7 @@ import { encodeFunctionResult, decodeFunctionData, keccak256, toBytes } from "vi
 
 const TX_ABI = [
   { type: "function", name: "claim", stateMutability: "nonpayable", inputs: [{ name: "id", type: "bytes32" }, { name: "enclaveId", type: "bytes32" }], outputs: [] },
+  { type: "function", name: "release", stateMutability: "nonpayable", inputs: [{ name: "id", type: "bytes32" }], outputs: [] },
   { type: "function", name: "claimableBy", stateMutability: "view", inputs: [{ name: "id", type: "bytes32" }, { name: "enclaveId", type: "bytes32" }], outputs: [{ type: "bool" }] }];
 const H32 = (b) => "0x" + b.repeat(32);
 
@@ -41,7 +42,7 @@ export const enclaveIdOf = (endpoint) => keccak256(toBytes(endpoint));
 export async function fakeBaseRpc() {
   const row = { current: null };
   const rows = { current: null, failGet: null };     // the whole ledger for count()/getPage(); null = not served. failGet(id) -> true fails that get()
-  const chainTx = { mine: false, sent: [] };         // mine: claim transactions succeed; sent: every raw transaction, in order
+  const chainTx = { mine: false, sent: [] };         // mine: claim and release transactions succeed; sent: every raw transaction, in order
   const catalog = { current: null };                 // what getVersion answers (a tuple per CATALOG_ABI); set per test
   const calls = [];
   const server = http.createServer(async (req, res) => {
@@ -55,7 +56,7 @@ export async function fakeBaseRpc() {
         if (m.method === "eth_call" && String(m.params?.[0]?.to || "").toLowerCase() === DEPLOYMENTS) {
           try {
             const { functionName } = decodeFunctionData({ abi: TX_ABI, data: m.params[0].data || m.params[0].input });
-            if (functionName === "claim") return ok("0x");
+            if (functionName === "claim" || functionName === "release") return ok("0x");
             if (functionName === "claimableBy") return ok(encodeFunctionResult({ abi: TX_ABI, functionName, result: true }));
           } catch { /* a read: below */ }
         }
