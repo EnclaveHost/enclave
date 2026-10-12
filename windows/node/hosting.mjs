@@ -409,6 +409,17 @@ export function hostingAdminHandler({ host, token, log = () => {}, payouts = nul
                   { "www-authenticate": "Bearer" });
     const p = String(req.url || "").split("?")[0];
     if (p.startsWith("/v1/local/hosting/") && PAYOUT_ROUTES.has(p.slice(18))) return payoutRoute(p.slice(18), req, json, payouts);
+    // the owner's prices (Host.setPriceOverride): PUT { cpuPerHour, gpuPerHour }, each USDC an hour or null for the default
+    if (p === "/v1/local/hosting/price") {
+      if (req.method !== "PUT") return json(405, { error: "method_not_allowed" }, { allow: "PUT" });
+      const raw = await readBody(req);
+      if (raw === null) return json(413, { error: "too_large", message: `at most ${MAX_BODY} bytes` }, { connection: "close" });
+      let body;
+      try { body = JSON.parse(raw.toString("utf8")); } catch { return json(400, { error: "bad_request", message: "the body is not JSON" }); }
+      try { host.setPriceOverride(body); }
+      catch (e) { return json(e.status || 500, { error: e.code || "not_saved", message: e.message }); }
+      return json(200, host.hostingView());
+    }
     if (p !== "/v1/local/hosting") return json(404, { error: "not_found" });
     if (req.method === "GET") return json(200, host.hostingView());
     if (req.method !== "PUT") return json(405, { error: "method_not_allowed" }, { allow: "GET, PUT" });

@@ -46,6 +46,7 @@ import { fetchDomains } from "./domains.mjs";
 import tls from "node:tls";
 import * as waf from "./waf.mjs";
 import { CAP_STEP, loadCaps, saveCaps } from "./hosting.mjs";
+import { priceGuide, defaultPrice, rowTiers, perSec6Of, perHourOf } from "./price-guide.mjs";
 import { PARTITION_OFFERS } from "../vbslike/datapath/partition-offers.mjs";
 
 const HEARTBEAT_MS = 10 * 60_000;
@@ -169,7 +170,22 @@ export class Host {
     const caps = loadCaps(this.capsFile);
     this.caps = caps.caps; this.capsError = caps.error;
     if (caps.error) this.log(caps.error);
+    // THE OWNER'S PRICES (the tray's Pricing): an override per axis in USDC per hour for the whole CPU / card, or null for
+    // the default (price-guide.mjs: the cheapest per-(GB x FLOPS) unit of the other hosts of this tier). The guide is
+    // fetched from the relay (agent.mjs); until it is, the configured price stands.
+    this.pricingFile = path.join(cfg.dir, "pricing.json");
+    this.pricing = Host.loadPricing(this.pricingFile);
+    this.priceGuide = null; this.pricedBy = { cpu: "config", gpu: "config" };
   }
+  static loadPricing(file) {
+    try {
+      const o = JSON.parse(fs.readFileSync(file, "utf8"));
+      const ok = (v) => (Number.isFinite(v) && v > 0 && v <= Host.MAX_PRICE_PER_HOUR ? v : null);
+      return { cpuPerHour: ok(o.cpuPerHour), gpuPerHour: ok(o.gpuPerHour) };
+    } catch { return { cpuPerHour: null, gpuPerHour: null }; }
+  }
+  static MAX_PRICE_PER_HOUR = 1000;      // USDC an hour for a whole machine or card: anything above is a typo
+  static PRICE_DRIFT = 0.10;             // a default that moved less than this keeps the posted price (each change is a transaction)
   #loadState() {
     try { return JSON.parse(fs.readFileSync(this.statePath, "utf8")) || {}; } catch { return {}; }
   }
@@ -356,20 +372,89 @@ export class Host {
    */
   async ensurePriced({ setPrices = (...a) => chain.setPrices(...a), now = Date.now() } = {}) {
     if (!this.chainReady || !this.registered || !chain.operatorAddress()) return;
-    const want = this.cardPrice();
-    if (Number(this.registered.gpuPricePerSec6 || 0) === want) {
+    // both asks: the CPU's (the owner's override, or the default from the network's prices) and the card's
+    const cpu = Number(this.cfg.cpuPricePerSec6) || 0, want = this.cardPrice(), key = `${cpu}/${want}`;
+    if (cpu <= 0) return;
+    if (Number(this.registered.cpuPricePerSec6 || 0) === cpu && Number(this.registered.gpuPricePerSec6 || 0) === want) {
       if (this.priceSent) { this.priceSent = null; this.#saveTracked(); }
       return;
     }
     const sent = this.priceSent;
-    if (sent && Number(sent.want) === want && now - Number(sent.at) < Host.PRICE_SETTLE_MS) return;   // in flight: the read lags it
+    if (sent && String(sent.want) === key && now - Number(sent.at) < Host.PRICE_SETTLE_MS) return;   // in flight: the read lags it
     if ((this.gasRenewals ?? 1) <= 0) return;
     try {
-      const hash = await setPrices(this.enclaveId, Number(this.registered.cpuPricePerSec6) || this.cfg.cpuPricePerSec6, want);
-      this.priceSent = { want, at: now, tx: String(hash) }; this.#saveTracked();
-      this.log(`registry: card price now ${want}/sec (was ${this.registered.gpuPricePerSec6 || 0}) tx=${hash}`);
+      const hash = await setPrices(this.enclaveId, cpu, want);
+      this.priceSent = { want: key, at: now, tx: String(hash) }; this.#saveTracked();
+      this.log(`registry: prices now ${cpu}/sec cpu, ${want}/sec card (were ${this.registered.cpuPricePerSec6 || 0}, ${this.registered.gpuPricePerSec6 || 0}) tx=${hash}`);
       await this.refreshRegistration();
     } catch (e) { this.log(`registry: setPrices failed: ${e.shortMessage || e.message}`); }
+  }
+
+  // ---- prices: the owner's override or the network's default (price-guide.mjs) -----------------------------------------
+  /** This box's priced capacity: the CPU (app memory budget GB x measured GFLOPS) and the card it sells, if any. */
+  pricedCapacity() {
+    const cpu = { gb: Number(this.capacity({ capped: false }).ramMbPool || 0) / 1024, flops: Number(this.cfg.gflops) || 0 };
+    const c = this.sellsCard() ? this.card() : null;
+    const gb = Number(c?.vramBudgetGb || c?.vramGb || 0), tflops = Number(c?.cardTflops || 0);
+    return { cpu, gpu: gb > 0 && tflops > 0 ? { gb, flops: tflops } : null };
+  }
+  /** The relay's /enclaves rows -> the guide this box prices from (itself left out), and the prices re-applied. */
+  setPriceRows(rows) {
+    this.priceGuide = priceGuide(rows, { exclude: this.cfg.name });
+    this.applyPrices();
+  }
+  /** The tiers this box sells in: a Shield PC's CPU is "cpu" and its card "gpu" (no CPU TEE on this host). */
+  priceTiers() { return rowTiers({ mode: "hv-node", availability: { shielded: this.pricedCapacity().gpu ? { vramGb: 1 } : null } }); }
+  /** Set cfg's asks from the override or the default; a default that drifted less than PRICE_DRIFT keeps the posted one. */
+  applyPrices() {
+    const cap = this.pricedCapacity(), tiers = this.priceTiers();
+    for (const [axis, key] of [["cpu", "cpuPricePerSec6"], ["gpu", "gpuPricePerSec6"]]) {
+      const over = this.pricing[`${axis}PerHour`];
+      const def = this.priceGuide && cap[axis] && tiers[axis] ? defaultPrice(this.priceGuide, tiers[axis], cap[axis].gb, cap[axis].flops) : null;
+      const cur = Number(this.cfg[key]) || 0;
+      let next = cur, by = this.pricedBy[axis];
+      if (over) { next = perSec6Of(over); by = "owner"; }
+      else if (def) {
+        const drifted = by !== "default" || !cur || Math.abs(def.perSec6 - cur) / cur >= Host.PRICE_DRIFT;
+        if (drifted) next = def.perSec6;
+        by = "default";
+      }
+      if (next !== cur) this.log(`price: ${axis} ${(by === "owner" ? over : perHourOf(next)).toFixed(4)} USDC/hr (${by === "owner" ? "set by the owner" : def?.from ? `the cheapest ${def.tier} unit is ${def.from}'s` : `the network default for ${def?.tier}`}; was ${perHourOf(cur).toFixed(4)})`);
+      this.cfg[key] = next; this.pricedBy[axis] = by;
+    }
+  }
+  /** GET /v1/local/hosting's `pricing`: each axis's posted price, its default and where it came from, the override. */
+  pricingView() {
+    const cap = this.pricedCapacity(), tiers = this.priceTiers(), out = {};
+    for (const [axis, key] of [["cpu", "cpuPricePerSec6"], ["gpu", "gpuPricePerSec6"]]) {
+      if (!cap[axis]) { out[axis] = null; continue; }
+      const def = this.priceGuide ? defaultPrice(this.priceGuide, tiers[axis], cap[axis].gb, cap[axis].flops) : null;
+      out[axis] = { perHour: perHourOf(this.cfg[key]), tier: tiers[axis], gb: cap[axis].gb, flops: cap[axis].flops,
+                    override: this.pricing[`${axis}PerHour`],
+                    default: def ? { perHour: def.perHour, from: def.from, unitPerHour: def.unit } : null };
+    }
+    return out;
+  }
+  /** The owner's prices (null: the default). Persisted, then applied; the registry follows on the next tick. */
+  setPriceOverride(next) {
+    const bad = (m) => Object.assign(new Error(m), { status: 400, code: "bad_price" });
+    if (!next || typeof next !== "object" || Array.isArray(next)) throw bad("the body is { cpuPerHour, gpuPerHour }");
+    const extra = Object.keys(next).filter((k) => !["cpuPerHour", "gpuPerHour"].includes(k));
+    if (extra.length) throw bad(`unknown field ${JSON.stringify(extra[0]).slice(0, 40)}: only cpuPerHour and gpuPerHour can be set`);
+    const pricing = { ...this.pricing };
+    for (const k of ["cpuPerHour", "gpuPerHour"]) {
+      if (!(k in next)) continue;
+      const v = next[k];
+      if (v === null) { pricing[k] = null; continue; }
+      if (typeof v !== "number" || !Number.isFinite(v) || v <= 0 || v > Host.MAX_PRICE_PER_HOUR)
+        throw bad(`${k} is a price in USDC per hour, above 0 and at most ${Host.MAX_PRICE_PER_HOUR}, or null for the default`);
+      pricing[k] = v;
+    }
+    fs.mkdirSync(path.dirname(this.pricingFile), { recursive: true });
+    fs.writeFileSync(this.pricingFile + ".tmp", JSON.stringify(pricing, null, 1) + "\n"); fs.renameSync(this.pricingFile + ".tmp", this.pricingFile);
+    this.pricing = pricing;
+    this.applyPrices();
+    return this.pricingView();
   }
   async heartbeat() {
     if (!this.chainReady || !chain.operatorAddress() || !this.registered) return;
@@ -2144,6 +2229,7 @@ export class Host {
     const recs = [...this.records.values()];
     return {
       caps: this.hostingCaps(), step: CAP_STEP, capsError: this.capsError,
+      pricing: this.pricingView(),
       // The same accounting the claim gate and the isolated backend's spawn gate use (shareUse).
       sold: { cpuShare: r4(use.cpu), gpuShare: r4(use.gpu) },
       inUse: { cpuShare: r4(use.cpu), gpuShare: r4(use.gpuInUse) },
