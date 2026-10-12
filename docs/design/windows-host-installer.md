@@ -5,13 +5,16 @@ SignPath Foundation (free OSS signing) to follow; the host's name is chosen duri
 
 ## What a Windows host is
 
+Naming: the per-app Hyper-V isolation is **Enclave Shield** in everything a host owner sees (installer, folders, tasks,
+files, docs). `vbslike` survives only as a legacy internal path in the repo (`windows/vbslike`) until its own rename.
+
 A Windows 11 Pro/Enterprise 24H2+ PC with Hyper-V, Secure Boot and an AMD fTPM, running:
 
 | part | what it does | today's source (known-good on nucbox-k11 until its 10-11 reset) |
 |---|---|---|
 | node agent (`windows/node`) | attaches to the relay (TPM attestation), registers, claims, renews, the local hosting API | `releases/risc-service-20261002/control/windows/node` |
-| isolation manager (`windows/vbslike/manager`) | one Hyper-V partition per app | same `control/` tree |
-| `vbslike-host.exe` (Rust) | WMI/hv_sock host side | `risc-service-20261002/vbslike-host.exe` |
+| Enclave Shield manager (repo: `windows/vbslike/manager`) | one Hyper-V partition per app | same `control/` tree |
+| `shield-host.exe` (Rust; built as `vbslike-host.exe` today) | Enclave Shield's WMI/hv_sock host side | `risc-service-20261002/vbslike-host.exe` |
 | guest IGVM (77 MB) | the partition's firmware + kernel | `public-web-20261005/runtime.bin` (sha256 5fbfb947…) |
 | blank guest state `type1.vmgs` (~64 MB) | VBS guest-state master | minted on the box by `New-VM -GuestStateIsolationType VBS`; the installer mints it |
 | `hyperv.psm1` | petri's Hyper-V helpers | `C:\Users\claude\hyperv.psm1` (17ca4352…) |
@@ -27,11 +30,12 @@ A Windows 11 Pro/Enterprise 24H2+ PC with Hyper-V, Secure Boot and an AMD fTPM, 
 ## Install layout
 
 - `C:\Program Files\Enclave\` — read-only program files: `runtime\node\`, `runtime\python\`, `control\` (node + manager +
-  node_modules), `guest\` (IGVM, hyperv.psm1, runtime.json), `bin\` (vbslike-host, tpmattest, egress, bridge),
+  node_modules), `guest\` (IGVM, hyperv.psm1, runtime.json), `bin\` (shield-host, tpmattest, egress, bridge),
   `tuna\` (privacy agent + exes), `tray\`.
 - `C:\ProgramData\Enclave\` — state, ACL SYSTEM + Administrators: `node\` (keys, records, payout, caps, delegations),
   `manager\` (vmgs master + archive, bundles), `tuna\` (circuits, config), `logs\`, `hosting\` (tray token).
-- Services: scheduled tasks `\Enclave\Manager` (boot +30 s), `\Enclave\Node` (+90 s), `\Enclave\Tuna`, as SYSTEM, restart
+- Services: scheduled tasks `\Enclave\Shield` (the per-app isolation manager, boot +30 s), `\Enclave\Node` (+90 s),
+  `\Enclave\Tuna`, as SYSTEM, restart
   loops, as the hand rollout did. Tray: per-user, HKCU Run + Desktop/Start Menu shortcuts.
 
 ## Setup flow (`EnclaveSetup.exe`, C# WinForms in the tray's theme, requireAdministrator)
