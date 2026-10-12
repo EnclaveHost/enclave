@@ -733,10 +733,11 @@ namespace Enclave.Tray
         readonly Label hostingLine = Line(), unsaved = Line();
         readonly ThemeButton apply = new ThemeButton("Apply", true), reset = new ThemeButton("Reset", false);
         readonly Label earnLine = Line(), earnNote = Note();
-        readonly ThemeButton saveWallet = new ThemeButton("Save", true), payNow = new ThemeButton("Pay out now", false);
+        readonly ThemeButton saveWallet = new ThemeButton("Save", true), editWallet = new ThemeButton("Edit", false),
+                             cancelWallet = new ThemeButton("Cancel", false), payNow = new ThemeButton("Pay out now", false);
         readonly TextBox walletBox = new TextBox();
         readonly Label walletHint = Note();
-        bool walletEdited;
+        bool editingWallet;                                  // the field is open: Save/Cancel; closed (a wallet saved): Edit
         public event EventHandler PayoutNowRequested;
         public event EventHandler<WalletEventArgs> PayoutWalletSaveRequested;
         EarningsView earnings;
@@ -787,7 +788,7 @@ namespace Enclave.Tray
             flow.Controls.Add(earnLine); flow.Controls.Add(earnNote);
             // the payout wallet: pasted here, format-checked only (no wallet connects; nothing is signed)
             flow.Controls.Add(Title("Payout wallet"));
-            saveWallet.FitText(); payNow.FitText();
+            saveWallet.FitText(); editWallet.FitText(); cancelWallet.FitText(); payNow.FitText();
             // the whole width: an address is 42 characters and should be read in full before it is saved
             walletBox.Font = Theme.Mono(8.5f, FontStyle.Regular); walletBox.BackColor = Theme.Surface2; walletBox.ForeColor = Theme.Text;
             walletBox.BorderStyle = BorderStyle.FixedSingle; walletBox.MaxLength = 64;
@@ -797,12 +798,19 @@ namespace Enclave.Tray
             flow.Controls.Add(walletHint);
             var earnRow = Row(FlowDirection.LeftToRight);
             earnRow.Margin = new Padding(0, Theme.Px(8), 0, 0);
-            saveWallet.Margin = payNow.Margin = new Padding(3, 0, Theme.Px(6), 0); saveWallet.Enabled = false;
-            earnRow.Controls.Add(saveWallet); earnRow.Controls.Add(payNow);
+            saveWallet.Margin = editWallet.Margin = cancelWallet.Margin = payNow.Margin = new Padding(3, 0, Theme.Px(6), 0);
+            saveWallet.Enabled = false; cancelWallet.Visible = editWallet.Visible = false;
+            earnRow.Controls.Add(saveWallet); earnRow.Controls.Add(editWallet); earnRow.Controls.Add(cancelWallet); earnRow.Controls.Add(payNow);
             flow.Controls.Add(earnRow);
-            walletBox.TextChanged += delegate { walletEdited = true; WalletHint(); };
-            walletBox.KeyDown += (o, k) => { if (k.KeyCode == Keys.Enter && saveWallet.Enabled) { k.SuppressKeyPress = true; SaveWallet(); } };
+            walletBox.TextChanged += delegate { if (editingWallet) WalletHint(); };
+            walletBox.KeyDown += (o, k) =>
+            {
+                if (k.KeyCode == Keys.Enter && editingWallet && saveWallet.Enabled) { k.SuppressKeyPress = true; SaveWallet(); }
+                else if (k.KeyCode == Keys.Escape && editingWallet && cancelWallet.Visible) { k.SuppressKeyPress = true; CancelWallet(); }
+            };
             saveWallet.Click += delegate { if (saveWallet.Enabled) SaveWallet(); };
+            editWallet.Click += delegate { EditWallet(); };
+            cancelWallet.Click += delegate { CancelWallet(); };
             payNow.Click += delegate { if (PayoutNowRequested != null) PayoutNowRequested(this, EventArgs.Empty); };
             ShowEarnings(null, "not asked yet");
             flow.Controls.Add(Rule());
@@ -915,22 +923,51 @@ namespace Enclave.Tray
             payNow.Enabled = e.PayTo.Length > 0 && e.Earned > 0 && !e.Paying;
             ShowWallet(e);
         }
-        /// <summary>The field shows the saved wallet unless the owner is typing in it.</summary>
+        /// <summary>
+        /// The payout wallet field. Saved: read-only (it can still be selected and copied), with Edit. Editing: open, with Save
+        /// (armed only by a valid, changed address) and Cancel (back to the saved address, out of edit mode). No wallet yet:
+        /// open for the first one, with nothing to cancel back to.
+        /// </summary>
         void ShowWallet(EarningsView e)
         {
-            walletBox.Enabled = e != null && e.EnclaveId.Length > 0;
-            if (!walletEdited || !walletBox.Focused) { walletBox.Text = e != null ? e.Wallet : ""; walletEdited = false; }
+            string saved = SavedWallet();
+            if (saved.Length == 0 && WalletReady()) editingWallet = true;
+            if (!editingWallet) walletBox.Text = saved;
+            WalletMode();
+        }
+        string SavedWallet() { return earnings != null ? earnings.Wallet : ""; }
+        bool WalletReady() { return earnings != null && earnings.EnclaveId.Length > 0; }
+        void WalletMode()
+        {
+            bool ready = WalletReady(), open = editingWallet && ready;
+            walletBox.ReadOnly = !open; walletBox.TabStop = open; walletBox.Enabled = ready;
+            walletBox.BackColor = open ? Theme.Surface2 : Theme.Bg; walletBox.ForeColor = open ? Theme.Text : Theme.Muted;
+            saveWallet.Visible = open;
+            cancelWallet.Visible = open && SavedWallet().Length > 0;
+            editWallet.Visible = ready && !open;
             WalletHint();
         }
         void WalletHint()
         {
-            string a = walletBox.Text.Trim(), saved = earnings != null ? earnings.Wallet : "";
+            string a = walletBox.Text.Trim(), saved = SavedWallet();
             bool changed = !string.Equals(a, saved, StringComparison.OrdinalIgnoreCase), ok = EarningsView.IsAddress(a);
-            saveWallet.Enabled = walletBox.Enabled && changed && ok;
-            if (a.Length == 0 && saved.Length == 0) { walletHint.ForeColor = Theme.Dim; walletHint.Text = "your wallet's public address: 0x and 40 characters"; }
-            else if (!changed) { walletHint.ForeColor = Theme.Jade; walletHint.Text = "\u2713 earnings are paid to this wallet"; }
+            saveWallet.Enabled = editingWallet && WalletReady() && changed && ok;
+            if (!editingWallet && saved.Length > 0) { walletHint.ForeColor = Theme.Jade; walletHint.Text = "\u2713 earnings are paid to this wallet"; }
+            else if (a.Length == 0) { walletHint.ForeColor = Theme.Dim; walletHint.Text = "your wallet's public address: 0x and 40 characters"; }
+            else if (!changed) { walletHint.ForeColor = Theme.Dim; walletHint.Text = "this is the saved wallet: paste another to change it, or Cancel"; }
             else if (!ok) { walletHint.ForeColor = Theme.Amber; walletHint.Text = "not a wallet address yet: 0x followed by 40 characters 0-9, a-f (" + Math.Max(0, a.Length - 2) + " of 40)"; }
             else { walletHint.ForeColor = Theme.Text; walletHint.Text = "a valid address: Save to have earnings paid to it"; }
+        }
+        void EditWallet()
+        {
+            if (!WalletReady()) return;
+            editingWallet = true; WalletMode();
+            walletBox.Focus(); walletBox.SelectAll();
+        }
+        void CancelWallet()
+        {
+            editingWallet = false; walletBox.Text = SavedWallet(); WalletMode();
+            if (editWallet.Visible) editWallet.Focus();
         }
         void SaveWallet()
         {
@@ -939,7 +976,8 @@ namespace Enclave.Tray
             saveWallet.Enabled = false;
             PayoutWalletSaveRequested(this, new WalletEventArgs(a));
         }
-        public void WalletSaved() { walletEdited = false; }
+        /// <summary>The node saved it: out of edit mode (ShowEarnings, next, shows the saved address).</summary>
+        public void WalletSaved() { editingWallet = false; }
         static string Cap(string s) { return s.Length > 0 ? char.ToUpperInvariant(s[0]) + s.Substring(1) : s; }
         public void ShowNotice(string message) { error.ForeColor = Theme.Amber; error.Text = message; }
 
