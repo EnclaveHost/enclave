@@ -117,8 +117,7 @@ namespace Enclave.Setup
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
             var flow = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true,
                                              AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(Theme.Px(20)), BackColor = Theme.Bg };
-            var mast = new Masthead(uninstall ? "uninstall" : "setup"); mast.Width = Wide; flow.Controls.Add(mast);
-            flow.Controls.Add(new Panel { Size = new Size(Wide, 1), BackColor = Theme.Line, Margin = new Padding(3, Theme.Px(8), 3, Theme.Px(10)) });
+            // no in-window masthead: the title bar already says Enclave, with its mark
             heading.AutoSize = true; heading.MaximumSize = new Size(Wide, 0); heading.Font = Theme.Mono(13f, FontStyle.Bold); heading.ForeColor = Theme.Text;
             body.AutoSize = true; body.MaximumSize = new Size(Wide, 0); body.ForeColor = Theme.Muted; body.Margin = new Padding(3, Theme.Px(8), 3, Theme.Px(6));
             flow.Controls.Add(heading); flow.Controls.Add(body);

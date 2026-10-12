@@ -794,7 +794,7 @@ async function startHostingControls() {
     minPayout6: Number.isFinite(minUsdc) && minUsdc > 0 ? BigInt(Math.round(minUsdc * 1e6)) : DEFAULT_MIN_PAYOUT6,
     log: (m) => log('[payout]', m) });
   startHostingAdmin({ host, port, token, payouts, log: (m) => log('[hosting]', m) });
-  // paid automatically once an hour from the minimum, to the wallet both the owner and the chain name (or nobody)
+  // paid automatically once an hour from the minimum, to the payout wallet the owner pasted into the tray (or nobody)
   setInterval(() => {
     if (!chainMod.operatorAddress() || !chainMod.addresses.deployments || !payouts.state.confirmed) return;
     payouts.payout().then((r) => { if (r.paid === false && r.why && !/paid out automatically from/.test(r.why)) log('[payout]', `not paid: ${r.why}`); });

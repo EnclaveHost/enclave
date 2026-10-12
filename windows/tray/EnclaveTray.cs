@@ -103,9 +103,9 @@ namespace Enclave.Tray
     /// <summary>GET /v1/local/hosting/earnings (windows/node/payout.mjs): USDC the ledger holds for this box, and where it goes.</summary>
     sealed class EarningsView
     {
-        public bool Readable, Paying, Pending;
+        public bool Readable, Paying;
         public double Earned, PaidOut, MinPayout;            // USDC
-        public string EnclaveId = "", Operator = "", Confirmed = "", Declared = "", PayTo = "", Why = "", LastError = "", LastTx = "";
+        public string EnclaveId = "", Operator = "", Wallet = "", PayTo = "", Why = "", LastError = "", LastTx = "";
 
         public static EarningsView From(Dictionary<string, object> o)
         {
@@ -113,13 +113,17 @@ namespace Enclave.Tray
             object v;
             e.Readable = o.TryGetValue("readable", out v) && v is bool && (bool)v;
             e.Paying = o.TryGetValue("paying", out v) && v is bool && (bool)v;
-            e.Pending = o.TryGetValue("pending", out v) && v is Dictionary<string, object>;
             e.Earned = Usdc(HostingView.Str(o, "earned6")); e.PaidOut = Usdc(HostingView.Str(o, "paidOut6")); e.MinPayout = Usdc(HostingView.Str(o, "minPayout6"));
-            e.EnclaveId = HostingView.Str(o, "enclaveId"); e.Operator = HostingView.Str(o, "operator"); e.Confirmed = HostingView.Str(o, "confirmed"); e.Declared = HostingView.Str(o, "declared");
+            e.EnclaveId = HostingView.Str(o, "enclaveId"); e.Operator = HostingView.Str(o, "operator"); e.Wallet = HostingView.Str(o, "wallet");
             e.PayTo = HostingView.Str(o, "payTo"); e.Why = HostingView.Str(o, "why"); e.LastError = HostingView.Str(o, "lastError");
             if (o.TryGetValue("history", out v) && v is object[] && ((object[])v).Length > 0)
                 e.LastTx = HostingView.Str(((object[])v)[0] as Dictionary<string, object>, "tx");
             return e;
+        }
+        /// <summary>The only check a payout wallet gets: its format. 0x and 40 hexadecimal digits, and not the zero address.</summary>
+        public static bool IsAddress(string a)
+        {
+            return a != null && System.Text.RegularExpressions.Regex.IsMatch(a, "^0x[0-9a-fA-F]{40}$") && a.Substring(2).Trim('0').Length > 0;
         }
         // the node sends 6-decimal integers as strings, so nothing is lost on the way
         static double Usdc(string six)
@@ -155,14 +159,11 @@ namespace Enclave.Tray
         const string Hosting = "/v1/local/hosting";
         public HostingView Get() { return HostingView.From(Send("GET", Hosting, null)); }
         public EarningsView GetEarnings() { return EarningsView.From(Send("GET", Hosting + "/earnings", null)); }
-        /// <summary>Start a payout wallet change from this machine: the page to open, carrying the node's one-time code.</summary>
-        public string BeginPayoutChange()
+        /// <summary>The payout wallet the owner pasted (format-checked here and by the node): the earnings view after it.</summary>
+        public EarningsView SetPayoutWallet(string address)
         {
-            object url;
-            var o = Send("POST", Hosting + "/payout-wallet/begin", null);
-            if (!o.TryGetValue("url", out url) || !(url is string) || !((string)url).StartsWith("https://enclave.host/payout?", StringComparison.Ordinal))
-                throw new NodeException("the node did not answer with the payout page");
-            return (string)url;
+            if (!EarningsView.IsAddress(address)) throw new NodeException("that is not a wallet address (0x followed by 40 hexadecimal characters)");
+            return EarningsView.From(Send("PUT", Hosting + "/payout-wallet", "{\"address\":\"" + address + "\"}"));
         }
         public void PayoutNow() { Send("POST", Hosting + "/payout", null); }
 
@@ -343,8 +344,10 @@ namespace Enclave.Tray
             if (outline) inset = Math.Min(inset, 15.5f / (14f + Math.Max(2f, 1.3f / k) / 2f + edge));
             g.TranslateTransform(16, 16); g.ScaleTransform(inset, inset); g.TranslateTransform(-16, -16);
             float w = Math.Max(2f, 1.3f / (k * inset));          // at least ~1.3 device px whatever the size
-            if (outline) Strokes(g, Color.Black, w, 2f * edge / inset, r.Width >= 32);
-            Strokes(g, stroke, w, 0, r.Width >= 32);
+            // the inner hexagon only on the site's tile: on the icons (outlined: tray, taskbar, shortcuts) it is a smudge at 32 px
+            bool detail = r.Width >= 32 && !outline;
+            if (outline) Strokes(g, Color.Black, w, 2f * edge / inset, detail);
+            Strokes(g, stroke, w, 0, detail);
             g.Restore(state);
         }
         static void Strokes(Graphics g, Color c, float w, float extra, bool detail)
@@ -482,36 +485,6 @@ namespace Enclave.Tray
             readonly ShareSlider owner;
             public Accessible(ShareSlider owner) : base(owner) { this.owner = owner; }
             public override string Value { get { return ControlPanel.Pct(owner.value / (double)Steps); } }
-        }
-    }
-
-    /// <summary>The panel's masthead: the mark and the name, as the site's header sets them.</summary>
-    sealed class Masthead : Control
-    {
-        readonly string section;
-        public Masthead() : this("hosting") { }
-        /// <summary>"enclave / <section>": the tray's panel is "hosting", the installer "setup".</summary>
-        public Masthead(string section)
-        {
-            this.section = section;
-            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
-            Size = new Size(Theme.Px(340), Theme.Px(30)); Margin = new Padding(3, 0, 3, Theme.Px(4));
-            Font = Theme.Mono(10.5f, FontStyle.Bold);
-        }
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            var g = e.Graphics;
-            g.Clear(Theme.Bg);
-            int m = Theme.Px(24);
-            Theme.Mark(g, new RectangleF(0, (Height - m) / 2f, m, m), Theme.Jade, true);
-            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
-            var at = new Point(m + Theme.Px(10), 0);
-            var size = new Size(Width - at.X, Height);
-            const TextFormatFlags f = TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
-            TextRenderer.DrawText(g, "enclave", Font, new Rectangle(at, size), Theme.Text, f);
-            int w = TextRenderer.MeasureText(g, "enclave", Font, size, f).Width;
-            using (var light = Theme.Mono(10.5f, FontStyle.Regular))
-                TextRenderer.DrawText(g, " / " + section, light, new Rectangle(new Point(at.X + w, 0), size), Theme.Muted, f);
         }
     }
 
@@ -721,6 +694,7 @@ namespace Enclave.Tray
         }
     }
 
+    sealed class WalletEventArgs : EventArgs { public readonly string Address; public WalletEventArgs(string a) { Address = a; } }
     sealed class PauseEventArgs : EventArgs
     {
         public readonly bool Paused;
@@ -736,8 +710,12 @@ namespace Enclave.Tray
         readonly Label hostingLine = Line(), unsaved = Line();
         readonly ThemeButton apply = new ThemeButton("Apply", true), reset = new ThemeButton("Reset", false);
         readonly Label earnLine = Line(), earnNote = Note();
-        readonly ThemeButton walletButton = new ThemeButton("Payout wallet\u2026", false), payNow = new ThemeButton("Pay out now", false);
-        public event EventHandler PayoutPageRequested, PayoutNowRequested;
+        readonly ThemeButton saveWallet = new ThemeButton("Save", true), payNow = new ThemeButton("Pay out now", false);
+        readonly TextBox walletBox = new TextBox();
+        readonly Label walletHint = Note();
+        bool walletEdited;
+        public event EventHandler PayoutNowRequested;
+        public event EventHandler<WalletEventArgs> PayoutWalletSaveRequested;
         EarningsView earnings;
         public event EventHandler ApplyRequested;
         public event EventHandler<PauseEventArgs> PauseRequested;
@@ -762,9 +740,8 @@ namespace Enclave.Tray
             var flow = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true,
                                              AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(Theme.Px(14)),
                                              BackColor = Theme.Bg };
-            flow.Controls.Add(new Masthead());
-            flow.Controls.Add(Rule());
-            flow.Controls.Add(Title("Hosting"));
+            // no in-window masthead: the title bar already says Enclave hosting, with its mark
+            var first = Title("Hosting"); first.Margin = new Padding(3, Theme.Px(2), 3, 0); flow.Controls.Add(first);
             var switchRow = Row(FlowDirection.LeftToRight);
             switchRow.Controls.Add(hosting); switchRow.Controls.Add(hostingLine);
             hostingLine.Margin = new Padding(0, Theme.Px(4), 0, 0); hostingLine.MaximumSize = new Size(Wide - Theme.Px(56), 0);
@@ -785,13 +762,24 @@ namespace Enclave.Tray
             flow.Controls.Add(Rule());
             flow.Controls.Add(Title("Earnings (USDC)"));
             flow.Controls.Add(earnLine); flow.Controls.Add(earnNote);
+            // the payout wallet: pasted here, format-checked only (no wallet connects; nothing is signed)
+            flow.Controls.Add(Title("Payout wallet"));
+            saveWallet.FitText(); payNow.FitText();
+            // the whole width: an address is 42 characters and should be read in full before it is saved
+            walletBox.Font = Theme.Mono(8.5f, FontStyle.Regular); walletBox.BackColor = Theme.Surface2; walletBox.ForeColor = Theme.Text;
+            walletBox.BorderStyle = BorderStyle.FixedSingle; walletBox.MaxLength = 64;
+            walletBox.Width = Wide - Theme.Px(6); walletBox.Margin = new Padding(3, Theme.Px(4), 3, 0);
+            flow.Controls.Add(walletBox);
+            walletHint.Font = Theme.Mono(8.25f, FontStyle.Regular);
+            flow.Controls.Add(walletHint);
             var earnRow = Row(FlowDirection.LeftToRight);
             earnRow.Margin = new Padding(0, Theme.Px(8), 0, 0);
-            walletButton.FitText(); payNow.FitText();
-            walletButton.Margin = payNow.Margin = new Padding(3, 0, Theme.Px(6), 0);
-            earnRow.Controls.Add(walletButton); earnRow.Controls.Add(payNow);
+            saveWallet.Margin = payNow.Margin = new Padding(3, 0, Theme.Px(6), 0); saveWallet.Enabled = false;
+            earnRow.Controls.Add(saveWallet); earnRow.Controls.Add(payNow);
             flow.Controls.Add(earnRow);
-            walletButton.Click += delegate { if (PayoutPageRequested != null) PayoutPageRequested(this, EventArgs.Empty); };
+            walletBox.TextChanged += delegate { walletEdited = true; WalletHint(); };
+            walletBox.KeyDown += (o, k) => { if (k.KeyCode == Keys.Enter && saveWallet.Enabled) { k.SuppressKeyPress = true; SaveWallet(); } };
+            saveWallet.Click += delegate { if (saveWallet.Enabled) SaveWallet(); };
             payNow.Click += delegate { if (PayoutNowRequested != null) PayoutNowRequested(this, EventArgs.Empty); };
             ShowEarnings(null, "not asked yet");
             flow.Controls.Add(Rule());
@@ -886,35 +874,49 @@ namespace Enclave.Tray
                 earnLine.Text = "earned \u2013 \u00B7 paid out " + (e != null ? EarningsView.Usd(e.PaidOut) : "\u2013");
                 earnNote.ForeColor = Theme.Dim;
                 earnNote.Text = e != null ? e.Why : unavailable;
-                walletButton.Enabled = e != null && e.EnclaveId.Length > 0;
                 payNow.Enabled = false;
+                ShowWallet(e);
                 return;
             }
             earnLine.Text = "earned " + EarningsView.Usd(e.Earned) + " not yet paid \u00B7 paid out " + EarningsView.Usd(e.PaidOut);
-            if (e.Pending)
-            {
-                earnNote.ForeColor = Theme.Amber;
-                earnNote.Text = "Waiting for your wallet to declare itself on the payout page (the link the tray opened, good for 30 minutes). "
-                              + "The box switches its payouts on its own when it does.";
-            }
-            else if (e.PayTo.Length > 0)
-            {
-                earnNote.ForeColor = Theme.Dim;
+            earnNote.ForeColor = Theme.Dim;
+            if (e.PayTo.Length > 0)
                 earnNote.Text = "Credited every second to this box's operator key " + EarningsView.Short(e.Operator) + ", then paid to your wallet "
                               + EarningsView.Short(e.PayTo) + " automatically from " + EarningsView.Usd(e.MinPayout) + "."
                               + (e.LastError.Length > 0 ? " Last try failed: " + e.LastError : "");
-            }
+            else if (e.Wallet.Length > 0)
+            { earnNote.ForeColor = Theme.Amber; earnNote.Text = Cap(e.Why) + "."; }
             else
-            {
-                earnNote.ForeColor = e.Declared.Length > 0 || e.Confirmed.Length > 0 ? Theme.Amber : Theme.Dim;
-                earnNote.Text = (e.Why.Length > 0 ? Cap(e.Why) + "." : "") + (e.Confirmed.Length == 0 && e.Declared.Length == 0
-                              ? " Earnings are credited every second to this box's operator key " + EarningsView.Short(e.Operator)
-                                + " and wait in the ledger until you set your own wallet with Payout wallet." : "")
-                              + (e.Declared.Length > 0 && e.PayTo.Length == 0 ? " Set it with Payout wallet on this machine." : "");
-            }
-            walletButton.Enabled = e.EnclaveId.Length > 0;
+                earnNote.Text = "Credited every second to this box's operator key " + EarningsView.Short(e.Operator)
+                              + ". Paste your wallet's address below to have them paid to it; until then they wait in the ledger.";
             payNow.Enabled = e.PayTo.Length > 0 && e.Earned > 0 && !e.Paying;
+            ShowWallet(e);
         }
+        /// <summary>The field shows the saved wallet unless the owner is typing in it.</summary>
+        void ShowWallet(EarningsView e)
+        {
+            walletBox.Enabled = e != null && e.EnclaveId.Length > 0;
+            if (!walletEdited || !walletBox.Focused) { walletBox.Text = e != null ? e.Wallet : ""; walletEdited = false; }
+            WalletHint();
+        }
+        void WalletHint()
+        {
+            string a = walletBox.Text.Trim(), saved = earnings != null ? earnings.Wallet : "";
+            bool changed = !string.Equals(a, saved, StringComparison.OrdinalIgnoreCase), ok = EarningsView.IsAddress(a);
+            saveWallet.Enabled = walletBox.Enabled && changed && ok;
+            if (a.Length == 0 && saved.Length == 0) { walletHint.ForeColor = Theme.Dim; walletHint.Text = "your wallet's public address: 0x and 40 characters"; }
+            else if (!changed) { walletHint.ForeColor = Theme.Jade; walletHint.Text = "\u2713 earnings are paid to this wallet"; }
+            else if (!ok) { walletHint.ForeColor = Theme.Amber; walletHint.Text = "not a wallet address yet: 0x followed by 40 characters 0-9, a-f (" + Math.Max(0, a.Length - 2) + " of 40)"; }
+            else { walletHint.ForeColor = Theme.Text; walletHint.Text = "a valid address: Save to have earnings paid to it"; }
+        }
+        void SaveWallet()
+        {
+            string a = walletBox.Text.Trim();
+            if (!EarningsView.IsAddress(a) || PayoutWalletSaveRequested == null) return;
+            saveWallet.Enabled = false;
+            PayoutWalletSaveRequested(this, new WalletEventArgs(a));
+        }
+        public void WalletSaved() { walletEdited = false; }
         static string Cap(string s) { return s.Length > 0 ? char.ToUpperInvariant(s[0]) + s.Substring(1) : s; }
         public void ShowNotice(string message) { error.ForeColor = Theme.Amber; error.Text = message; }
 
@@ -1031,7 +1033,7 @@ namespace Enclave.Tray
             var p = new ControlPanel();
             p.ApplyRequested += delegate { Apply(); };
             p.PauseRequested += (s, e) => SetPaused(e.Paused);
-            p.PayoutPageRequested += delegate { OpenPayoutPage(); };
+            p.PayoutWalletSaveRequested += (o, w) => SavePayoutWallet(w.Address);
             p.PayoutNowRequested += delegate { PayoutNow(); };
             if (lastEarnings != null) p.ShowEarnings(lastEarnings, null);
             p.FormClosed += (s, e) => Log("panel closed (" + e.CloseReason + ")");
@@ -1128,24 +1130,15 @@ namespace Enclave.Tray
             });
         }
 
-        /// <summary>
-        /// Change the payout wallet from this machine: the node issues a one-time code and answers with the site's payout
-        /// page carrying it; the owner's wallet declares itself there, and the node adopts it on its own when the declaring
-        /// transaction carries that code. Asked again every minute until it lands.
-        /// </summary>
-        void OpenPayoutPage()
+        /// <summary>Save the payout wallet the owner pasted: the node checks its format again and pays it from then on.</summary>
+        void SavePayoutWallet(string address)
         {
-            ThreadPool.QueueUserWorkItem(delegate
+            OnWorkerE(() => client.SetPayoutWallet(address), (e, err) =>
             {
-                string url = null; Exception err = null;
-                try { url = client.BeginPayoutChange(); } catch (Exception e) { err = e; }
-                ui.Post(delegate
-                {
-                    if (err != null) { Panel.ShowError("Could not start the change: " + err.Message); return; }
-                    try { Process.Start(url); Log("payout wallet change started; opened the payout page"); }
-                    catch (Exception e) { Panel.ShowError("Could not open the payout page: " + e.Message); }
-                    RefreshEarnings();
-                }, null);
+                if (err != null) { Panel.ShowError("Payout wallet not saved: " + err.Message); RefreshEarnings(); return; }
+                Log("payout wallet set: " + address);
+                Panel.WalletSaved(); lastEarnings = e; Panel.ShowEarnings(e, null);
+                Panel.ShowNotice("Payout wallet saved: earnings go to " + EarningsView.Short(address) + ".");
             });
         }
 
