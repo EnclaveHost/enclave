@@ -876,7 +876,9 @@ async function startHostingControls() {
     // host (Program Files\Enclave\manifest.json beside this control tree) on Windows, where \Enclave\Update exists.
     if (process.platform === 'win32') {
       let installed = null;
-      try { installed = JSON.parse(fs.readFileSync(path.join(HERE, '..', '..', '..', 'manifest.json'), 'utf8')).version || null; } catch {}
+      // written by PowerShell (Set-Content -Encoding UTF8): it starts with a byte-order mark, which JSON.parse refuses
+      try { installed = JSON.parse(fs.readFileSync(path.join(HERE, '..', '..', '..', 'manifest.json'), 'utf8').replace(/^\uFEFF/, '')).version || null; }
+      catch (e) { log(`update: the installed version could not be read (${e.message}); updates come from the hourly task only`); }
       if (installed) {
         const { createUpdateWatch } = await import('./update-watch.mjs');
         const { execFile } = await import('node:child_process');
