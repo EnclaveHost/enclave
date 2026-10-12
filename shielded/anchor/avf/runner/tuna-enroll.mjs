@@ -69,6 +69,12 @@ async function enroll(cur) {
   log(`${label}: enrolling ${names.join(", ")}`);
   if (DRY) return;
   await fs.mkdir(dir, { recursive: true, mode: 0o700 });
+  // on the Enclave network (docs/design/enclave-network.md) an app needs no wallets and no funding
+  if (cfg.enclaveNetwork) {
+    await writeAtomic(path.join(dir, "expected.json"), JSON.stringify(expected, null, 2));
+    cfg.apps.push({ deploymentId: id, names, expectedFile: path.join(dir, "expected.json"), internetMode: "enclave-network", publishToMirror: true });
+    cfgChanged = true; log(`${label}: enrolled on the Enclave network`); reloadWhy = "a new app"; return;
+  }
   const wallets = [];
   for (const slot of [0, 1]) {
     const w = {};
