@@ -15,7 +15,7 @@ const CID = "bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza";
 const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const addrOf = (seed) => "NKN" + [...createHash("sha512").update(seed).digest()].slice(0, 33).map((b) => B58[b % 58]).join("");
 
-function world() {
+function world({ network = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tuna-enroll-")), agentDir = path.join(dir, "agent"), policyFile = path.join(dir, "policy.json");
   fs.mkdirSync(agentDir);
   fs.writeFileSync(policyFile, JSON.stringify({ cpu: { runtimeId: RID }, gpu: {} }));
@@ -38,13 +38,16 @@ function world() {
     else if (!fs.existsSync(seed)) throw Object.assign(new Error("no seed"), { code: 1 });
     return JSON.stringify({ address: addrOf(seed) });
   };
+  let restarts = 0;
   const enroll = createTunaEnroll({ agentDir, binDir: path.join(dir, "bin"), name: "box", endpoint: "https://api.enclave.host/t/box", runner: RUNNER,
     relayBase: "https://api.enclave.host", transportKey: privateKey, fetch: fetchFn, run, balanceOf: async (a) => balances.get(a) ?? 0n, log: (m) => logs.push(m),
+    restartAgent: async () => { restarts++; },
     config: { agentDir, binDir: path.join(dir, "bin"), nodeBinary: "node.exe", operatorKeyFile: "op.key", runner: RUNNER, endpoint: "https://api.enclave.host/t/box",
-              relayBase: "https://api.enclave.host", policyFile, tpmBinary: "tpmattest.exe", tpmSha256: "aa".repeat(32), addressBook: "0x" + "44".repeat(20), chainRpc: ["https://rpc"] },
+              relayBase: "https://api.enclave.host", policyFile, tpmBinary: "tpmattest.exe", tpmSha256: "aa".repeat(32), addressBook: "0x" + "44".repeat(20), chainRpc: ["https://rpc"],
+              ...(network ? { enclaveNetwork: { checkers: ["0x" + "57".repeat(20)] } } : {}) },
     rows: async () => rows, version: async () => ({ cid: CID }), vms: async () => [vm] });
   const fundAll = () => { for (const e of Object.values(relay.entries())) for (const a of e.addresses) balances.set(a, MIN_FUNDED); };
-  return { enroll, relay, agentDir, fundAll, logs, vm };
+  return { enroll, relay, agentDir, fundAll, logs, vm, restarts: () => restarts };
 }
 
 test("the box's funding message is byte-identical to the relay's", () => {
@@ -92,4 +95,30 @@ test("a partition outside the admitted policy is never enrolled or funded", asyn
 test("MIN_FUNDED is 0.01 NKN in the base units balanceOf returns (amount x 1e8): a wallet spent to 0.0898 is still funded", () => {
   assert.equal(MIN_FUNDED, BigInt(Math.round(0.01 * 1e8)));
   assert.ok(BigInt(Math.round(0.08984418 * 1e8)) >= MIN_FUNDED);   // nucbox-k11-4's control wallet, read as unfunded at 0.1
+});
+
+test("on the Enclave network: no wallets or funding at all; apps enroll at once; a TUNA box switches once and restarts its agent", async () => {
+  const w = world({ network: true });
+  const r = await w.enroll.pass();
+  assert.equal(r.ready, true); assert.equal(r.apps, 1);
+  assert.equal(Object.keys(w.relay.entries()).length, 0, "nothing asked of the NKN funding queue");
+  assert.equal(fs.existsSync(path.join(w.agentDir, "control-wallets.json")), false, "no NKN wallets made");
+  const cfg = JSON.parse(fs.readFileSync(path.join(w.agentDir, "privacy-config.json"), "utf8"));
+  assert.equal(cfg.control, undefined); assert.equal(cfg.nknRpc, undefined);
+  assert.deepEqual({ apps: cfg.enclaveNetwork.apps, control: cfg.enclaveNetwork.control, checkers: cfg.enclaveNetwork.checkers }, { apps: "all", control: true, checkers: ["0x" + "57".repeat(20)] });
+  assert.equal(cfg.apps[0].internetMode, "enclave-network"); assert.equal(cfg.apps[0].walletsFile, undefined);
+  assert.deepEqual(cfg.apps[0].names, [D.slice(2, 10) + ".app.enclave.host", "shop.example"]);
+  assert.equal(w.restarts(), 0, "a fresh config needs no restart");
+  // an existing TUNA box: its config switches once (TUNA control dropped, apps re-marked) and the agent restarts
+  const t = world();
+  t.fundAll && (await t.enroll.pass(), t.fundAll(), await t.enroll.pass(), t.fundAll(), await t.enroll.pass());
+  const before = JSON.parse(fs.readFileSync(path.join(t.agentDir, "privacy-config.json"), "utf8"));
+  assert.ok(before.control && before.apps.length === 1, "a working TUNA box first");
+  const n = world({ network: true });
+  fs.writeFileSync(path.join(n.agentDir, "privacy-config.json"), JSON.stringify(before));
+  await n.enroll.pass();
+  const after = JSON.parse(fs.readFileSync(path.join(n.agentDir, "privacy-config.json"), "utf8"));
+  assert.equal(after.control, undefined); assert.equal(after.enclaveNetwork.apps, "all"); assert.equal(after.apps[0].internetMode, "enclave-network");
+  assert.equal(n.restarts(), 1);
+  await n.enroll.pass(); assert.equal(n.restarts(), 1, "switched once, not on every pass");
 });
