@@ -5,7 +5,8 @@
 // reconcile-shield-apps.mjs did over SSH for the first host:
 //   1. the control channel's two wallets: made here (enclave-tuna.exe --init-wallet; the seeds never leave this box),
 //      their funding asked of the relay (relay/tuna-funding.mjs, signed by the attested transport key; the platform pays);
-//   2. once those hold the adapters' minimum, privacy-config.json is written - the \Enclave\Tuna task waits for it;
+//   2. once those hold the adapters' minimum, the apps below are enrolled; privacy-config.json is written with the
+//      first one (the agent refuses an empty list) - the \Enclave\Tuna task waits for it;
 //   3. each public deployment leased to this box, running ready in a partition of its current version: its expectation
 //      (network/shield-expectation.mjs), six wallets, their funding asked, and once they hold the minimum the app is
 //      added to the config. An expectation that changes (an upgrade) is rewritten; the names follow the relay's map.
@@ -106,8 +107,11 @@ export function createTunaEnroll({ agentDir, binDir, name, endpoint, runner, rel
   async function pass() {
     await fs.mkdir(file("state"), { recursive: true });
     if (!(await control())) return { ready: false };
+    // The config is written only once it names an app: the privacy agent refuses an empty app list, and sizes its TUNA
+    // runtime from the apps it starts with (an empty file crash-looped \Enclave\Tuna, nucbox-k11-2 2026-10-12).
     let cfg = await readJSON(file("privacy-config.json"), null), changed = false;
-    if (!cfg) { cfg = baseConfig(config); changed = true; log("privacy-config.json written: the TUNA privacy agent starts"); }
+    const fresh = !cfg;
+    if (fresh) cfg = baseConfig(config);
     const policy = await readJSON(config.policyFile, null);
     if (!policy?.cpu?.runtimeId) throw new Error(`no admitted Shield policy at ${config.policyFile}`);
     const now = Math.floor(Date.now() / 1000), me = String(runner).toLowerCase();
@@ -151,8 +155,11 @@ export function createTunaEnroll({ agentDir, binDir, name, endpoint, runner, rel
       cfg.apps.push({ deploymentId: id, names: namesFor(id), walletsFile, expectedFile, internetMode: "tuna", publishToMirror: true });
       changed = true; log(`${short}: enrolled (${namesFor(id).join(", ")})`);
     }
-    if (changed) await writeAtomic(file("privacy-config.json"), JSON.stringify(cfg, null, 2));
-    return { ready: true, apps: cfg.apps.length, changed };
+    if (changed && cfg.apps.length) {
+      await writeAtomic(file("privacy-config.json"), JSON.stringify(cfg, null, 2));
+      if (fresh) log("privacy-config.json written: the TUNA privacy agent starts");
+    }
+    return { ready: true, apps: cfg.apps.length, changed: changed && cfg.apps.length > 0 };
   }
   return { pass };
 }
