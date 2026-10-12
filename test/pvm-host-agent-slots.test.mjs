@@ -65,7 +65,7 @@ function setup() {
     throw new Error(`unexpected read ${functionName}`);
   } };
   // the phone: VMs by slot (0 = the host VM); each slot instance keeps the host's key once installed (its encrypted store)
-  const vms = new Map(), store = new Map(), calls = [], failOnce = new Set();
+  const vms = new Map(), store = new Map(), calls = [], failOnce = new Set(), failAlways = new Set();
   let unplugged = false;
   const own = (k) => privateKeyToAccount("0x" + (90 + k).toString(16).repeat(32));
   let boots = 0;
@@ -95,7 +95,8 @@ function setup() {
     };
     return {
       slot: k, appPort: ports.app, evidencePort: ports.evidence,
-      stageApp: async (file, sha) => { if (unplugged || failOnce.delete(`stage ${k}`)) throw new Error("adb: device 'X' not found"); calls.push(`stage ${k}`); (vms.get(`staged${k}`) || vms.set(`staged${k}`, {}).get(`staged${k}`)).sha = sha; },
+      stageApp: async (file, sha) => { if (unplugged || failOnce.delete(`stage ${k}`)) throw new Error("adb: device 'X' not found");
+        if (failAlways.has(`stage ${k}`)) throw new Error("the VM did not serve: VSOCK APP refused: the app did not start"); calls.push(`stage ${k}`); (vms.get(`staged${k}`) || vms.set(`staged${k}`, {}).get(`staged${k}`)).sha = sha; },
       stageOptions: async () => {},
       launch: async (o) => {
         calls.push(`launch ${k}${k ? ` ${o.vmMib} MiB cpus=${o.cpus} app=${o.appMem}` : ""}`);
@@ -134,7 +135,7 @@ function setup() {
     sha: "x", file: path.join(cache, "bafyapp0000001.wasm"), sock: 0, memMib: 0, cpuMilli: 250, gpuMilli: 0, label: "app-d0d0d0d0-old", phase: "serving", sealed: { blob: "00", count: 1 },
     cert: { name: "d0d0d0d0.app.enclave.host" }, at: T }, idle: { label: "idle-old" }, refused: {} }));   // gitleaks:allow
   return { dir, config, E, now, advance: (ms) => { T += ms; }, rows, publicClient, device, createRunner, made, calls, vms, store, fetchImpl, stateDir,
-           unplug: (v) => { unplugged = v; }, failOnce, setHead: (h) => { head = h; }, setOffer: (o) => { offerText = o === null ? null : typeof o === "string" ? o : JSON.stringify({ v: 1, ...o }); } };
+           unplug: (v) => { unplugged = v; }, failOnce, failAlways, setHead: (h) => { head = h; }, setOffer: (o) => { offerText = o === null ? null : typeof o === "string" ? o : JSON.stringify({ v: 1, ...o }); } };
 }
 
 test("slots: the served app moves to slot 1, more apps take their own VMs, the host's key is handed only where it is missing", async () => {
@@ -298,5 +299,23 @@ test("slots: the served app moves to slot 1, more apps take their own VMs, the h
     av = agent.availability();
     assert.deepEqual([av.nodeSlotsFree, av.cpuShareFree, av.poolMemMbFree], [1, 0.5, 768]);
     assert.ok(byD(D1) === undefined, "its runner closed");
+
+    // an app that cannot start here: tried, then backed off (10 min, then 20 ...), and a claim hint does not cut it short;
+    // a new version starts it over (measured: one such app was hinted and retried every minute)
+    t.rows.get(D1).active = true; t.failAlways.add("stage 3"); t.calls.length = 0; t.advance(61_000);
+    await agent.tick();
+    assert.equal(t.calls.filter((c) => c === "stage 3" || /^launch 3/.test(c)).length, 0, "the failed staging launched nothing");
+    assert.equal(agent.state().refused[D1].n, 1);
+    const hint = await agent.claimHint({ id: D1 });
+    assert.deepEqual([hint.accepted, /did not start here/.test(hint.reason)], [false, true], hint.reason);
+    for (let i = 0; i < 5; i++) { t.advance(61_000); await agent.tick(); }
+    assert.equal(agent.state().refused[D1].n, 1, "no retry within the back-off, hint or not");
+    t.advance(10 * 60_000); await agent.tick();
+    assert.equal(agent.state().refused[D1].n, 2, "tried again after 10 min");
+    t.advance(11 * 60_000); await agent.tick();
+    assert.equal(agent.state().refused[D1].n, 2, "then 20 min");
+    t.rows.get(D1).appRef = `catalog://${APPID}/2`; t.advance(61_000); await agent.tick();
+    assert.equal(agent.state().refused[D1].n, 1, "a new version starts the count over (and is tried at once)");
+    t.failAlways.delete("stage 3");
   } finally { globalThis.fetch = realFetch; fs.rmSync(t.dir, { recursive: true, force: true }); }
 });
