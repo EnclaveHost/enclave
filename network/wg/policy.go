@@ -32,13 +32,22 @@ var ErrRefused = errors.New("destination refused by policy")
 
 // Policy decides which destinations an app may dial.
 type Policy struct {
-	Own    []netip.Addr // addresses of the providers on this circuit and of this host: never reachable
-	NoIPv6 bool         // the tunnel has no IPv6 route: refuse IPv6 instead of trying it
+	Own    []netip.Addr     // addresses of the providers on this circuit and of this host: never reachable
+	NoIPv6 bool             // the tunnel has no IPv6 route: refuse IPv6 instead of trying it
+	Only   []netip.AddrPort // when set, exactly these destinations and nothing else (the guard path)
 }
 
 // Judge returns nil when port on a is an allowed destination.
 func (p Policy) Judge(a netip.Addr, port int) error {
 	a = a.Unmap()
+	if len(p.Only) > 0 {
+		for _, o := range p.Only {
+			if o.Addr().Unmap() == a && int(o.Port()) == port {
+				return nil
+			}
+		}
+		return ErrRefused
+	}
 	if !a.IsValid() || port < 1 || port > 65535 || port == 25 {
 		return ErrRefused
 	}

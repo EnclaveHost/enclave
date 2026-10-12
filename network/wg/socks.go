@@ -104,9 +104,13 @@ func (s *Socks) handle(c net.Conn) {
 	if _, err := io.ReadFull(c, methods); err != nil {
 		return
 	}
+	want := byte(2)
+	if s.User == "" && s.Pass == "" {
+		want = 0 // an unauthenticated loopback entry, reachable only as the host firewall allows (TUNA's model)
+	}
 	ok := false
 	for _, m := range methods {
-		if m == 2 {
+		if m == want {
 			ok = true
 		}
 	}
@@ -114,8 +118,8 @@ func (s *Socks) handle(c net.Conn) {
 		c.Write([]byte{5, 0xff})
 		return
 	}
-	c.Write([]byte{5, 2})
-	if !s.auth(c) {
+	c.Write([]byte{5, want})
+	if want == 2 && !s.auth(c) {
 		return
 	}
 	var req [4]byte
@@ -163,7 +167,7 @@ func (s *Socks) auth(c net.Conn) bool {
 	if _, err := io.ReadFull(c, pass); err != nil {
 		return false
 	}
-	good := s.User != "" && s.Pass != "" &&
+	good := s.User != "" && s.Pass != "" && len(user) > 0 &&
 		subtle.ConstantTimeCompare(user, []byte(s.User)) == 1 && subtle.ConstantTimeCompare(pass, []byte(s.Pass)) == 1
 	if !good {
 		c.Write([]byte{1, 1})

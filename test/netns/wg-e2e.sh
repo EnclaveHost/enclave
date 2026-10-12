@@ -69,6 +69,11 @@ out=$(nsx "$W" node test/netns/visitor-node.mjs 47.0.0.2 abababab.app.enclave.ho
 case "$out" in *"$FP"*"enclave says: hello"*) pass "public HTTPS reaches the enclave; TLS ends there (same certificate)";; *) fail ingress "$out";; esac
 out=$(nsx "$W" node test/netns/visitor-node.mjs 47.0.0.2 www.example.org)
 case "$out" in *"$FP"*) pass "custom domain routes to the same enclave";; *) fail custom-domain "$out";; esac
+GS=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).guardSocks)' "$T/circuit.json")
+r=$(nsx "$H" curl -s -m 10 -k --http0.9 --socks5 "$GS" --resolve abababab.app.enclave.host:443:47.0.0.2 https://abababab.app.enclave.host/ 2>&1)
+case "$r" in *"enclave says: GET /"*) pass "route probe through the guard: TLS to the enclave via the public address";; *) fail route-probe "$r";; esac
+r=$(nsx "$H" curl -s -m 5 --socks5 "$GS" http://44.0.0.1/ 2>&1; echo " $?")
+case "$r" in *" 97"|*" 7") pass "guard SOCKS refuses anything but the exit's public ports";; *) fail guard-socks "$r";; esac
 out=$(nsx "$W" node test/netns/visitor-node.mjs 47.0.0.2 unknown.example)
 case "$out" in CLOSED|ERROR*) pass "unknown SNI is refused (no open proxy)";; *) fail unknown-sni "$out";; esac
 

@@ -95,7 +95,8 @@ export class Kernel {
  // Replace the dynamic sets in one transaction.
  async sync({egress,targets}){
   const e=egress.filter(a=>ipv4.test(a)),t=targets.filter(x=>ipv4.test(x.address)&&x.address!==this.publicAddress);
-  const udp=t.map(x=>`${x.address} . ${Number(x.ports.exit)}`),tcp=t.map(x=>`${x.address} . ${Number(x.ports.control)}`);
+  // a guard reaches each exit's WireGuard port, its control port, and its public 443/80 (route probes see the guard)
+  const udp=t.map(x=>`${x.address} . ${Number(x.ports.exit)}`),tcp=t.flatMap(x=>[`${x.address} . ${Number(x.ports.control)}`,`${x.address} . 443`,`${x.address} . 80`]);
   const script=['flush set inet enclave_net egress4','flush set inet enclave_net targets_udp','flush set inet enclave_net targets_tcp',
    ...(e.length?[`add element inet enclave_net egress4 { ${e.join(', ')} }`]:[]),
    ...(udp.length?[`add element inet enclave_net targets_udp { ${udp.join(', ')} }`]:[]),

@@ -16,13 +16,13 @@ const gk=x25519(),xk=x25519();
 const g=await ask(`http://${guardAddr}:51822`,'guard',gk.pub);
 const child=spawn(wgBinary,[],{stdio:['pipe','pipe','inherit']});
 const lines=createInterface({input:child.stdout});const next=type=>new Promise((res,rej)=>{const f=l=>{const v=JSON.parse(l);if(v.type===type){lines.off('line',f);res(v);}else if(v.type==='down'){rej(new Error(v.error));}};lines.on('line',f);});
-child.stdin.write(JSON.stringify({type:'outer',peer:{privateKey:gk.priv,publicKey:g.providerPublicKey,endpoint:g.endpoint,addresses:[g.clientAddress],mtu:1420,keepalive:25},control:`${exitAddr}:51822`})+'\n');
+child.stdin.write(JSON.stringify({type:'outer',peer:{privateKey:gk.priv,publicKey:g.providerPublicKey,endpoint:g.endpoint,addresses:[g.clientAddress],mtu:1420,keepalive:25},control:`${exitAddr}:51822`,guardSocks:{listen:'127.0.0.1:0',only:[`${exitAddr}:443`,`${exitAddr}:80`]}})+'\n');
 const outer=await next('outer-ready');
 const x=await ask(`http://${outer.control}`,'exit',xk.pub,{ingress:true,egress:true});
 const user=randomBytes(16).toString('hex'),pass=randomBytes(16).toString('hex');
 child.stdin.write(JSON.stringify({type:'inner',peer:{privateKey:xk.priv,publicKey:x.providerPublicKey,endpoint:x.endpoint,addresses:[x.clientAddress],dns:['44.0.0.1'],mtu:1340,keepalive:25},
  egress:{user,pass},ingress:{'443':`127.0.0.1:${ingressPort}`,'80':`127.0.0.1:${ingressPort}`}})+'\n');
 const ready=await next('ready');
-console.log(JSON.stringify({egress:`${user}:${pass}@${ready.egress}`,guard:g,exit:x}));
+console.log(JSON.stringify({egress:`${user}:${pass}@${ready.egress}`,guardSocks:outer.guardSocks,guard:g,exit:x}));
 lines.on('line',l=>{const v=JSON.parse(l);if(v.type==='down'){console.error('[host] down',v.error);process.exit(1);}});
 setInterval(()=>{},1e9);

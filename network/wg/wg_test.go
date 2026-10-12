@@ -65,7 +65,9 @@ func pair(t *testing.T, providerAddr, hostAddr string, endpoint func(port uint16
 	return prov, host
 }
 
-func loopback(port uint16) netip.AddrPort { return netip.AddrPortFrom(netip.MustParseAddr("127.0.0.1"), port) }
+func loopback(port uint16) netip.AddrPort {
+	return netip.AddrPortFrom(netip.MustParseAddr("127.0.0.1"), port)
+}
 
 // a public-looking address inside the provider's netstack stands in for "the internet"
 const site = "44.0.0.1"
