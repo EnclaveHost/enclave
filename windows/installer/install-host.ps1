@@ -8,7 +8,8 @@ param(
   [string] $Owner = "",                 # the Windows account that gets the tray (default: whoever runs setup)
   [switch] $CheckOnly,                  # the machine checks alone
   [switch] $NoStart,                    # install and start Enclave Shield, but not the node (a test that registers nothing)
-  [string] $Relay = "https://api.enclave.host"
+  [string] $Relay = "https://api.enclave.host",
+  [string] $SetupExe = ""               # EnclaveSetup.exe: kept in Program Files as the uninstaller Windows' Installed apps runs
 )
 $ErrorActionPreference = "Stop"
 $Bundle = $PSScriptRoot
@@ -109,6 +110,21 @@ Copy-Item (Join-Path $Bundle "manifest.json"), (Join-Path $Bundle "uninstall-hos
 $bad = @($manifest.files | Where-Object { $_.path -match '^(runtime|control|tuna|bin|guest|tray)/' } |
          Where-Object { $p = Join-Path $PF ($_.path -replace '/', '\'); -not (Test-Path -LiteralPath $p) -or (Sha $p) -ne $_.sha256 })
 if ($bad.Count) { Fail "files" "$($bad.Count) installed file(s) do not match the bundle's manifest (first: $($bad[0].path))." }
+# Settings > Apps > Installed apps: "Enclave", with Uninstall. Written now, not at the end, so a half-finished install can be
+# removed too. EnclaveSetup.exe --uninstall copies itself out of Program Files and runs uninstall-host.ps1 with progress;
+# without it (a scripted install), the script itself is the uninstaller.
+if ($SetupExe -and (Test-Path -LiteralPath $SetupExe)) { Copy-Item -LiteralPath $SetupExe (Join-Path $PF "EnclaveSetup.exe") -Force }
+$un = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\EnclaveHost"
+$script = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $PF 'uninstall-host.ps1')`""
+New-Item -Path $un -Force | Out-Null
+$kb = [int]((Get-ChildItem $PF -Recurse -File | Measure-Object Length -Sum).Sum / 1KB)
+foreach ($v in @(@("DisplayName", "Enclave", "String"), @("DisplayVersion", "$($manifest.version)", "String"), @("Publisher", "Enclave", "String"),
+                 @("DisplayIcon", "$(Join-Path $PF 'tray\EnclaveTray.exe'),0", "String"), @("InstallLocation", $PF, "String"),
+                 @("URLInfoAbout", "https://enclave.host/host", "String"), @("EstimatedSize", $kb, "DWord"),
+                 @("NoModify", 1, "DWord"), @("NoRepair", 1, "DWord"), @("QuietUninstallString", $script, "String"),
+                 @("UninstallString", $(if (Test-Path (Join-Path $PF "EnclaveSetup.exe")) { "`"$(Join-Path $PF 'EnclaveSetup.exe')`" --uninstall" } else { $script }), "String"))) {
+  New-ItemProperty -Path $un -Name $v[0] -Value $v[1] -PropertyType $v[2] -Force | Out-Null
+}
 foreach ($d in "", "node", "shield", "shield\vmgs-archive", "shield\bundles", "tuna", "tuna\state", "logs") { New-Item -ItemType Directory -Force (Join-Path $PD $d) | Out-Null }
 # the root: owners full, users may only pass through (the node opens hosting\ to the tray user itself); the rest: owners only
 icacls $PD /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-32-545:(RX)" /q | Out-Null
