@@ -94,3 +94,14 @@ test("the tray's call: PUT /v1/local/hosting/price sets and clears the override;
   const cleared = await call("PUT", "/v1/local/hosting/price", { cpuPerHour: null });
   assert.equal(cleared.json.pricing.cpu.override, null);
 });
+
+test("after a restart the default keeps the registry's price when it is within the drift: no transaction for a re-measured box", () => {
+  const h = box();
+  const def = perSec6Of(DEFAULT_UNIT_PER_HOUR.cpu * h.pricedCapacity().cpu.gb * 370);
+  h.registered = { cpuPricePerSec6: BigInt(def + 2), gpuPricePerSec6: 0n };      // what an earlier run posted (a few % off)
+  h.setPriceRows([METAL0]);
+  assert.equal(h.cfg.cpuPricePerSec6, def + 2, "the posted price stands");
+  const far = box(); far.registered = { cpuPricePerSec6: BigInt(def * 2), gpuPricePerSec6: 0n };
+  far.setPriceRows([METAL0]);
+  assert.equal(far.cfg.cpuPricePerSec6, def, "twice the default is out of the drift: the default goes up");
+});
