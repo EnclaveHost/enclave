@@ -322,7 +322,10 @@ namespace Enclave.Tray
         /// Below 32 px the inner hexagon would blur into the outer one, so it is left out and the strokes are thickened to
         /// stay a whole pixel wide.
         /// </summary>
-        public static void Mark(Graphics g, RectangleF r, Color stroke, bool tile)
+        public static void Mark(Graphics g, RectangleF r, Color stroke, bool tile) { Mark(g, r, stroke, tile, false); }
+        /// <summary>The site's mark. outline: a thin black edge around every stroke (~1 device px), so the mark reads on
+        /// any background (light or dark taskbars, the desktop); the mark shrinks a little so the edge is never clipped.</summary>
+        public static void Mark(Graphics g, RectangleF r, Color stroke, bool tile, bool outline)
         {
             var state = g.Save();
             g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -334,20 +337,29 @@ namespace Enclave.Tray
                 using (var b = new SolidBrush(Bg)) g.FillPath(b, path);
             // on its tile the mark is inset as on the site; on its own it fills the icon (the hexagon spans 2..30 of 32)
             float inset = tile ? .82f : 1f;
+            // outlined, the hexagon's outer edge (14 from the centre, plus half a stroke and the outline) stays inside the 16
+            // (the edge: 1 device px each side at tray sizes, 1/4 of a mark unit at large ones - 2 px at 256)
+            float edge = Math.Max(1f / k, .25f);
+            if (outline) inset = Math.Min(inset, 15.5f / (14f + Math.Max(2f, 1.3f / k) / 2f + edge));
             g.TranslateTransform(16, 16); g.ScaleTransform(inset, inset); g.TranslateTransform(-16, -16);
             float w = Math.Max(2f, 1.3f / (k * inset));          // at least ~1.3 device px whatever the size
-            using (var pen = new Pen(stroke, w) { LineJoin = LineJoin.Round, StartCap = LineCap.Round, EndCap = LineCap.Round })
+            if (outline) Strokes(g, Color.Black, w, 2f * edge / inset, r.Width >= 32);
+            Strokes(g, stroke, w, 0, r.Width >= 32);
+            g.Restore(state);
+        }
+        static void Strokes(Graphics g, Color c, float w, float extra, bool detail)
+        {
+            using (var pen = new Pen(c, w + extra) { LineJoin = LineJoin.Round, StartCap = LineCap.Round, EndCap = LineCap.Round })
             {
                 g.DrawPolygon(pen, Hex(16, 2, 28, 9, 23, 30, 4));
-                if (r.Width >= 32)
-                    using (var inner = new Pen(Color.FromArgb(140, stroke), w * .7f) { LineJoin = LineJoin.Round })
+                if (detail)
+                    using (var inner = new Pen(extra > 0 ? c : Color.FromArgb(140, c), w * .7f + extra) { LineJoin = LineJoin.Round })
                         g.DrawPolygon(inner, Hex(16, 7.333f, 24, 12, 20, 24.667f, 8));
                 g.DrawEllipse(pen, 16 - 2.45f, 12.55f - 2.45f, 4.9f, 4.9f);
                 g.DrawLine(pen, 16, 15, 16, 21.6f);
                 g.DrawLine(pen, 16, 21.6f, 18, 21.6f);
                 g.DrawLine(pen, 16, 19.4f, 17.5f, 19.4f);
             }
-            g.Restore(state);
         }
         static PointF[] Hex(float cx, float top, float right, float upper, float lower, float bottom, float left)
         {
@@ -1270,7 +1282,7 @@ namespace Enclave.Tray
                 using (var g = Graphics.FromImage(bmp))
                 {
                     g.Clear(Color.Transparent);
-                    Theme.Mark(g, new RectangleF(0, 0, n, n), stroke, false);
+                    Theme.Mark(g, new RectangleF(0, 0, n, n), stroke, false, true);
                 }
                 IntPtr h = bmp.GetHicon();
                 try { using (var tmp = Icon.FromHandle(h)) return (Icon)tmp.Clone(); }
@@ -1321,7 +1333,7 @@ namespace Enclave.Tray
             foreach (int n in sizes)
                 using (var bmp = new Bitmap(n, n, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
                 {
-                    using (var g = Graphics.FromImage(bmp)) { g.Clear(Color.Transparent); Theme.Mark(g, new RectangleF(0, 0, n, n), Theme.Jade, false); }
+                    using (var g = Graphics.FromImage(bmp)) { g.Clear(Color.Transparent); Theme.Mark(g, new RectangleF(0, 0, n, n), Theme.Jade, false, true); }
                     using (var ms = new MemoryStream()) { bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png); pngs.Add(ms.ToArray()); }
                 }
             try
