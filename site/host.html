@@ -74,6 +74,20 @@
         <li><b>A GPU is optional.</b> CPU-only boxes serve CPU work; a GPU in confidential-computing mode sells GPU shares too.</li>
       </ul>
 
+      <h2 id="windows">On a Windows PC</h2>
+      <p>A Windows 11 PC with an AMD processor can host too. Each app runs in its own Enclave Shield partition, a Hyper-V virtual machine on a PC that has proven to the network, through its TPM, that it booted securely. Setup checks the PC, turns on Hyper-V and asks you to name your host. Joining costs nothing: once the PC proves its hardware, its first registration is paid for you.</p>
+      <p><a class="btn btn-primary" href="https://get.enclave.host/windows/EnclaveSetup.exe">Download Enclave setup for Windows</a></p>
+      <p>Or, in PowerShell:</p>
+      <pre class="hostdoc-code"><code>irm https://get.enclave.host/host.ps1 | iex</code></pre>
+      <div class="doc-note">
+        <span class="nt">Needs</span>
+        <p>Windows 11 Pro, Enterprise or Education (24H2 or later), an AMD processor with its firmware TPM on, Secure Boot on, virtualization on in the firmware, and 16 GB of RAM.</p>
+      </div>
+      <div class="doc-note">
+        <span class="nt">What tenants get</span>
+        <p>Enclave Shield keeps each app apart from the others and from the rest of the PC, and the network checks the PC's TPM evidence before it sends any work. It does not encrypt memory against the PC's owner the way a confidential server does; buyers who need that choose confidential hosts.</p>
+      </div>
+
       <h2 id="setup">Setting it up</h2>
       <p>Everything is one command line tool. Each step below is also a plain script in the repository if you would rather drive it yourself.</p>
       <pre class="hostdoc-code"><code>curl -fsSL https://get.enclave.host | sh
