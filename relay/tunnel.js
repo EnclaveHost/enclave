@@ -751,7 +751,9 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     // own requests (relay/pads.mjs): null when nothing by that name is attached.
     info: (name) => { const t = tunnels.get(name); return t ? { name, mode: t.mode, tier: t.tier || "", keyFp: t.keyFp, spki: t.spki, padKey: t.padKey, ...(t.hvNode ? { hvNode: t.hvNode } : {}),
                                                                 ...(t.mode === "avf" && t.pvmOperator ? { operator: t.pvmOperator } : {}),
-                                                                ...(t.mode === "hv-node" && t.claimant ? { claimant: t.claimant } : {}) } : null; },
+                                                                ...(t.mode === "hv-node" && t.claimant ? { claimant: t.claimant } : {}),
+                                                                // the registered owner that signed this hv-node's attach (owner-only's operator), while it serves
+                                                                ...(t.mode === "hv-node" && t.operator && !t.ownerSuspended ? { hvOperator: t.operator } : {}) } : null; },
     // Verification uses only this live attachment's authenticated boot. A
     // caller-provided hostSession is overwritten, and detach/reconnect cannot
     // reuse the previous connection's context. This grants no host eligibility.
