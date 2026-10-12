@@ -57,6 +57,29 @@ namespace Enclave.Tray
     }
 
     /// <summary>What GET /v1/local/hosting answers, read defensively: a missing field is a default, never a crash.</summary>
+    /// <summary>One axis of the node's pricing (Host.pricingView): the posted price, the default and where it came from, the
+    /// owner's override. Prices are USDC per hour for the whole CPU or card.</summary>
+    sealed class PriceAxis
+    {
+        public double PerHour, Gb, Flops, DefaultPerHour = -1;
+        public double? Override;
+        public string Tier = "", DefaultFrom = "";
+        public static PriceAxis From(Dictionary<string, object> o)
+        {
+            if (o == null) return null;
+            var a = new PriceAxis { PerHour = HostingView.Num(o, "perHour", 0), Gb = HostingView.Num(o, "gb", 0), Flops = HostingView.Num(o, "flops", 0),
+                                    Tier = HostingView.Str(o, "tier") };
+            double ov = HostingView.Num(o, "override", -1); if (ov > 0) a.Override = ov;
+            object d; var def = o.TryGetValue("default", out d) ? d as Dictionary<string, object> : null;
+            if (def != null) { a.DefaultPerHour = HostingView.Num(def, "perHour", -1); a.DefaultFrom = HostingView.Str(def, "from"); }
+            return a;
+        }
+        public static string Usd(double perHour)
+        {
+            return "$" + perHour.ToString(perHour >= 1 ? "0.00" : perHour >= 0.01 ? "0.000" : "0.0000", CultureInfo.InvariantCulture);
+        }
+    }
+
     sealed class HostingView
     {
         public double CpuCap, GpuCap, CpuInUse, GpuInUse, CpuFree, GpuFree, Reserved;
@@ -64,6 +87,7 @@ namespace Enclave.Tray
         public string Backend = "", GpuWhy = "", CapsError = "", LogsDir = "";
         public bool GpuConsumer, AppsEnabled, Paused, CanPause;
         public int Dropped;                                 // in the answer to an Apply: deployments it dropped
+        public PriceAxis CpuPrice, GpuPrice;                // the node's pricing (null: an older node, or no card to price)
 
         public static HostingView From(Dictionary<string, object> o)
         {
@@ -78,6 +102,8 @@ namespace Enclave.Tray
             v.Served = (int)Num(o, "deploymentsServed", 0); v.WaitingForCap = (int)Num(o, "waitingForCap", 0);
             v.Backend = Str(o, "backend"); v.CapsError = Str(o, "capsError"); v.LogsDir = Str(o, "logsDir");
             v.GpuConsumer = Bool(gpu, "consumer"); v.GpuWhy = Str(gpu, "why"); v.AppsEnabled = Bool(o, "appsEnabled");
+            var pricing = Obj(o, "pricing");
+            v.CpuPrice = PriceAxis.From(Obj(pricing, "cpu")); v.GpuPrice = PriceAxis.From(Obj(pricing, "gpu"));
             return v;
         }
         static Dictionary<string, object> Obj(Dictionary<string, object> d, string k)
@@ -166,6 +192,12 @@ namespace Enclave.Tray
             return EarningsView.From(Send("PUT", Hosting + "/payout-wallet", "{\"address\":\"" + address + "\"}"));
         }
         public void PayoutNow() { Send("POST", Hosting + "/payout", null); }
+        /// <summary>The owner's price for "cpu" or "gpu" in USDC an hour, or null for the network's default.</summary>
+        public HostingView SetPrice(string axis, double? perHour)
+        {
+            string v = perHour.HasValue ? perHour.Value.ToString("R", CultureInfo.InvariantCulture) : "null";
+            return HostingView.From(Send("PUT", Hosting + "/price", "{\"" + axis + "PerHour\":" + v + "}"));
+        }
 
         /// <summary>Set both caps. `drop` confirms the node's own list of what they drop (null: confirm nothing, so caps
         /// that would drop anything come back as a WouldDropException and change nothing).</summary>
@@ -717,6 +749,91 @@ namespace Enclave.Tray
         }
     }
 
+    sealed class PriceEventArgs : EventArgs
+    {
+        public readonly string Axis; public readonly double? PerHour;
+        public PriceEventArgs(string axis, double? perHour) { Axis = axis; PerHour = perHour; }
+    }
+    /// <summary>
+    /// One price, CPU or GPU: what this PC asks an hour for the whole of it, and why (the network's default for its size, or
+    /// the owner's own). Edit opens a field (USDC an hour) with Save, Cancel and Use default.
+    /// </summary>
+    sealed class PriceRow : FlowLayoutPanel
+    {
+        readonly string axis, label;
+        readonly Label line = new Label(), note = new Label(), hint = new Label();
+        readonly TextBox box = new TextBox();
+        readonly ThemeButton edit = new ThemeButton("Edit", false), save = new ThemeButton("Save", true), cancel = new ThemeButton("Cancel", false),
+                             useDefault = new ThemeButton("Use default", false);
+        PriceAxis shown; bool editing;
+        public event EventHandler<PriceEventArgs> SaveRequested;
+        public PriceRow(string axis, string label, int wide)
+        {
+            this.axis = axis; this.label = label;
+            FlowDirection = FlowDirection.TopDown; WrapContents = false; AutoSize = true; AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            BackColor = Theme.Bg; Margin = new Padding(0, Theme.Px(4), 0, 0);
+            line.AutoSize = true; line.Font = Theme.Mono(9f, FontStyle.Regular); line.ForeColor = Theme.Text; line.Margin = new Padding(3, Theme.Px(2), 3, 0);
+            note.AutoSize = true; note.MaximumSize = new Size(wide, 0); note.Font = Theme.Body; note.ForeColor = Theme.Dim; note.Margin = new Padding(3, Theme.Px(2), 3, 0);
+            box.Font = Theme.Mono(9f, FontStyle.Regular); box.BackColor = Theme.Surface2; box.ForeColor = Theme.Text; box.BorderStyle = BorderStyle.FixedSingle;
+            box.Width = Theme.Px(120); box.MaxLength = 12; box.Margin = new Padding(3, Theme.Px(4), 3, 0);
+            hint.AutoSize = true; hint.MaximumSize = new Size(wide, 0); hint.Font = Theme.Mono(8.25f, FontStyle.Regular); hint.Margin = new Padding(3, Theme.Px(2), 3, 0);
+            var row = new FlowLayoutPanel { FlowDirection = FlowDirection.LeftToRight, WrapContents = false, AutoSize = true, BackColor = Theme.Bg,
+                                            Margin = new Padding(0, Theme.Px(6), 0, 0) };
+            foreach (var b in new[] { edit, save, cancel, useDefault }) { b.FitText(); b.Margin = new Padding(3, 0, Theme.Px(6), 0); row.Controls.Add(b); }
+            Controls.Add(line); Controls.Add(note); Controls.Add(box); Controls.Add(hint); Controls.Add(row);
+            edit.Click += delegate { if (shown == null) return; editing = true; box.Text = (shown.Override ?? shown.PerHour).ToString("0.####", CultureInfo.InvariantCulture); Mode(); box.Focus(); box.SelectAll(); };
+            cancel.Click += delegate { editing = false; Mode(); };
+            save.Click += delegate { double v; if (save.Enabled && Parse(out v)) Ask(v); };
+            useDefault.Click += delegate { Ask(null); };
+            box.TextChanged += delegate { Hint(); };
+            box.KeyDown += (o, k) =>
+            {
+                double v;
+                if (k.KeyCode == Keys.Enter && save.Enabled && Parse(out v)) { k.SuppressKeyPress = true; Ask(v); }
+                else if (k.KeyCode == Keys.Escape) { k.SuppressKeyPress = true; editing = false; Mode(); }
+            };
+            Mode();
+        }
+        void Ask(double? v) { save.Enabled = useDefault.Enabled = false; if (SaveRequested != null) SaveRequested(this, new PriceEventArgs(axis, v)); }
+        public void Saved() { editing = false; useDefault.Enabled = true; Mode(); }
+        bool Parse(out double v)
+        {
+            string t = box.Text.Trim().TrimStart('$').Trim();
+            return double.TryParse(t, NumberStyles.Float, CultureInfo.InvariantCulture, out v) && v > 0 && v <= 1000;
+        }
+        public void Show(PriceAxis a) { shown = a; if (!editing) Mode(); }
+        void Mode()
+        {
+            var a = shown;
+            bool open = editing && a != null;
+            line.Text = a == null ? label + "  \u2013" : label + "  " + PriceAxis.Usd(a.Override ?? a.PerHour) + " an hour" + (a.Override.HasValue ? "  \u00B7 your price" : "  \u00B7 default");
+            // the registry counts whole micro-USDC a second ($0.0036 an hour): say what is posted when it rounds away from it
+            string posted = a != null && a.Override.HasValue && Math.Abs(a.PerHour - a.Override.Value) > a.Override.Value * 0.002
+                ? " Posted as " + PriceAxis.Usd(a.PerHour) + " an hour: the registry counts whole micro-USDC a second." : "";
+            string size = a == null ? "" : " for this PC's " + a.Gb.ToString("0.#", CultureInfo.InvariantCulture) + " GB \u00D7 "
+                          + a.Flops.ToString("0.#", CultureInfo.InvariantCulture) + (axis == "gpu" ? " TFLOPS" : " GFLOPS");
+            string tierName = a == null ? "" : a.Tier.ToUpperInvariant().Replace("TEE-", "TEE ").Replace("PVM-", "pVM ");
+            string def = a == null || a.DefaultPerHour < 0 ? "reading the network's prices\u2026"
+                       : (a.DefaultFrom.Length > 0 ? "the cheapest " + tierName + " host's rate (" + a.DefaultFrom + ")" : "the network's starting rate (no other " + tierName + " host yet)") + size;
+            note.Text = a == null ? "" : a.Override.HasValue
+                ? "Set by you. The default would be " + (a.DefaultPerHour >= 0 ? PriceAxis.Usd(a.DefaultPerHour) + " an hour: " : "") + def + "." + posted
+                : "Default: " + def + ". A deployment pays the share of it it leases.";
+            box.Visible = hint.Visible = open; save.Visible = cancel.Visible = open;
+            useDefault.Visible = open && a.Override.HasValue;
+            edit.Visible = a != null && !open;
+            Hint();
+        }
+        void Hint()
+        {
+            if (!editing) return;
+            double v; bool ok = Parse(out v);
+            save.Enabled = ok && (shown == null || !shown.Override.HasValue || Math.Abs(v - shown.Override.Value) > 1e-12);
+            hint.ForeColor = ok ? Theme.Text : Theme.Amber;
+            hint.Text = ok ? "USDC an hour for the whole " + label + (shown != null && shown.DefaultPerHour > 0 ? " (default " + PriceAxis.Usd(shown.DefaultPerHour) + ")" : "")
+                           : "a price in USDC an hour, above 0 and at most 1000";
+        }
+    }
+
     sealed class WalletEventArgs : EventArgs { public readonly string Address; public WalletEventArgs(string a) { Address = a; } }
     sealed class PauseEventArgs : EventArgs
     {
@@ -740,6 +857,9 @@ namespace Enclave.Tray
         bool editingWallet;                                  // the field is open: Save/Cancel; closed (a wallet saved): Edit
         public event EventHandler PayoutNowRequested;
         public event EventHandler<WalletEventArgs> PayoutWalletSaveRequested;
+        readonly PriceRow cpuPrice = new PriceRow("cpu", "CPU", Wide), gpuPrice = new PriceRow("gpu", "GPU", Wide);
+        public event EventHandler<PriceEventArgs> PriceSaveRequested;
+        public void PriceSaved(string axis) { (axis == "gpu" ? gpuPrice : cpuPrice).Saved(); }
         EarningsView earnings;
         public event EventHandler ApplyRequested;
         public event EventHandler<PauseEventArgs> PauseRequested;
@@ -783,6 +903,12 @@ namespace Enclave.Tray
             buttons.Controls.Add(unsaved, 0, 0); buttons.Controls.Add(reset, 1, 0); buttons.Controls.Add(apply, 2, 0);
             buttons.MinimumSize = new Size(Wide, 0);
             flow.Controls.Add(buttons);
+            flow.Controls.Add(Rule());
+            // the price this PC asks: its default from the network, or the owner's own
+            flow.Controls.Add(Title("Price"));
+            flow.Controls.Add(cpuPrice); flow.Controls.Add(gpuPrice); gpuPrice.Visible = false;
+            cpuPrice.SaveRequested += (o, e) => { if (PriceSaveRequested != null) PriceSaveRequested(this, e); };
+            gpuPrice.SaveRequested += (o, e) => { if (PriceSaveRequested != null) PriceSaveRequested(this, e); };
             flow.Controls.Add(Rule());
             flow.Controls.Add(Title("Earnings (USDC)"));
             flow.Controls.Add(earnLine); flow.Controls.Add(earnNote);
@@ -864,6 +990,8 @@ namespace Enclave.Tray
         /// </summary>
         public void ShowView(HostingView v, bool snapSliders)
         {
+            cpuPrice.Show(v != null ? v.CpuPrice : null);
+            gpuPrice.Show(v != null ? v.GpuPrice : null); gpuPrice.Visible = v != null && v.GpuPrice != null;
             bool keep = !snapSliders && (dragging || Pending);
             view = v;
             if (!keep)
@@ -1095,6 +1223,7 @@ namespace Enclave.Tray
             p.ApplyRequested += delegate { Apply(); };
             p.PauseRequested += (s, e) => SetPaused(e.Paused, null);
             p.PayoutWalletSaveRequested += (o, w) => SavePayoutWallet(w.Address);
+            p.PriceSaveRequested += (o, e) => SavePrice(e.Axis, e.PerHour);
             p.PayoutNowRequested += delegate { PayoutNow(); };
             if (lastEarnings != null) p.ShowEarnings(lastEarnings, null);
             p.FormClosed += (s, e) => Log("panel closed (" + e.CloseReason + ")");
@@ -1188,6 +1317,20 @@ namespace Enclave.Tray
                 earningsBusy = false;
                 lastEarnings = err == null ? e : null;
                 Panel.ShowEarnings(lastEarnings, err == null ? null : (err is NodeException ? err.Message : err.GetType().Name + ": " + err.Message));
+            });
+        }
+
+        /// <summary>The owner's price (or null: back to the default). The node posts it to the registry on its next tick.</summary>
+        void SavePrice(string axis, double? perHour)
+        {
+            OnWorker(() => client.SetPrice(axis, perHour), (v, err) =>
+            {
+                Panel.PriceSaved(axis);
+                if (err != null) { Panel.ShowError("Price not saved: " + err.Message); Refresh(); return; }
+                Log(axis + " price " + (perHour.HasValue ? "set to " + perHour.Value.ToString(CultureInfo.InvariantCulture) + " USDC/hr" : "back to the default"));
+                Show(v, null, false);
+                Panel.ShowNotice(perHour.HasValue ? "Price saved: new deployments are charged it once the registry has it (a minute or so)."
+                                                  : "Back to the default price.");
             });
         }
 

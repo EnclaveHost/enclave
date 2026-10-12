@@ -872,6 +872,19 @@ async function startHostingControls() {
       });
       tickWitness(); setInterval(tickWitness, 30000).unref?.();
     }
+    // PRICES: the default is the cheapest per-(GB x FLOPS) unit the other hosts of this tier post (price-guide.mjs), read
+    // from the relay's public /enclaves list a minute after start and every hour; the owner's override (the tray) wins.
+    {
+      const relayHttp = RELAY_URL.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:').replace(/\/v1\/fleet-tunnel$/, '');
+      const readPrices = async () => {
+        try {
+          const r = await fetch(`${relayHttp}/enclaves`, { signal: AbortSignal.timeout(20000) });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          host.setPriceRows((await r.json()).enclaves || []);
+        } catch (e) { log(`prices: the network's prices could not be read (${e.message}); the current ones stand`); }
+      };
+      setTimeout(readPrices, 60_000).unref?.(); setInterval(readPrices, 3_600_000).unref?.();
+    }
     // An open-market host keeps its own TUNA privacy agent enrolled (tuna-enroll.mjs): wallets made here, funded by the
     // platform on request, the config the \Enclave\Tuna task waits for. Every 5 minutes, once the box is registered.
     if (process.env.TUNA_AGENT_DIR && process.env.TUNA_BIN_DIR && process.env.TUNA_SHIELD_POLICY && host.cfg.isolationManager && nodeKey) {
