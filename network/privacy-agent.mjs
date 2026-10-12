@@ -234,7 +234,7 @@ export async function runPrivacy(configFile){
   // has qualified; the canary never admits an app or signs its own report.
   if(directRuntime?.canary)await directRuntime.listen();
   if(settlement&&directRuntime){const close=directRuntime.close.bind(directRuntime);directRuntime.close=async()=>{await close();await settlement.close();};}
-  const network=cfg.enclaveNetwork?await createNetworkHost({config:cfg.enclaveNetwork,account,runner:cfg.runner,rpc:cfg.chain?.rpc,leaseReader,directory:cfg.directory,log,
+  const network=cfg.enclaveNetwork?await createNetworkHost({config:cfg.enclaveNetwork,account,runner:cfg.runner,rpc:cfg.chain?.rpc,addressBook:cfg.chain?.addressBook,leaseReader,directory:cfg.directory,log,
     authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:pvm?pvmForwarder(pvm.appPort):guestd?guestd.forward:localAppForwarder(cfg.upstream)}):null;
   agent=new PrivacyAgent({apps,runner:cfg.runner,account,leaseReader,inventory,runtime,directRuntime,qualification,directory:cfg.directory,dns:cfg.dns,defaults:cfg.defaults,network,log,
     wallets:async id=>readJSON(apps.find(a=>a.deploymentId===id).walletsFile),
@@ -249,7 +249,8 @@ export async function runPrivacy(configFile){
         let error;for(const circuit of circuits){try{
           const publishFetch=circuit.transport==='direct'?fetch:guardedFetch(circuit.egress,{timeoutMs:5000});
           const response=await publishFetch(new URL('/v1/network/tuna',cfg.mirror),{method:'POST',signal:AbortSignal.timeout(5000),headers:{'content-type':'application/json'},
-            body:JSON.stringify({publication:{version:2,endpoint:cfg.endpoint,policy:value.policy,bundle:value.bundle,ownerPolicy:apps.find(a=>a.deploymentId===id).ownerPolicy}})});
+            body:JSON.stringify({publication:{version:2,endpoint:cfg.endpoint,policy:value.policy,bundle:value.bundle,ownerPolicy:apps.find(a=>a.deploymentId===id).ownerPolicy,
+              ...(value.policy?.version===5?{status:agent.manager.status().find(x=>x.deploymentId===id)}:{})}})});
           if(!response.ok)throw new Error('DNS mirror HTTP '+response.status);return;
         }catch(e){error=e;}}throw error;
       })());

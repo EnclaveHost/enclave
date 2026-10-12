@@ -14,6 +14,7 @@ import {Kernel} from './kernel.mjs';
 import {createRouter} from './router.mjs';
 import {createControl} from './control.mjs';
 import {providerIdFor,signProviderRecord,eligibleProviders} from '../provider-directory.mjs';
+import {verifyOwnerSignature} from '../owner-signature.mjs';
 
 const log=m=>console.log(new Date().toISOString(),m);
 const cfg=JSON.parse(await fs.readFile(process.argv[2]||'/etc/enclave-network/provider.json','utf8'));
@@ -27,8 +28,8 @@ const kernel=new Kernel({publicAddress:cfg.publicAddress,uplink:cfg.uplink||'eth
 const keys=await kernel.ensure();
 const leases=new LeaseReader({rpc:cfg.rpc,addressBook:cfg.addressBook,includeHostPayout:true});
 const clients=cfg.rpc.map(url=>createPublicClient({chain:base,transport:http(url,{timeout:10000})}));
-// ERC-1271 (passkey vault) owners: every RPC must agree the signature is valid.
-const verifyOwner=async(owner,message,signature)=>{const r=await Promise.all(clients.map(c=>c.verifyMessage({address:owner,message,signature}).catch(()=>false)));return r.every(Boolean);};
+// wallet, passkey vault (ERC-1271) or SessionVault owners: every RPC must agree the signature is valid.
+const verifyOwner=(owner,message,signature)=>verifyOwnerSignature({clients,owner,message,signature,addressBook:cfg.addressBook});
 const policyFile=path.join(stateDir,'policy-nonces.json');
 let nonces={};try{nonces=JSON.parse(await fs.readFile(policyFile,'utf8'));}catch{}
 const policyMemory={get:async id=>nonces[id],set:async(id,n)=>{nonces[id]=n;await fs.writeFile(policyFile+'.tmp',JSON.stringify(nonces),{mode:0o600});await fs.rename(policyFile+'.tmp',policyFile);}};

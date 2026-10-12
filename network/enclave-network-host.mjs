@@ -10,23 +10,23 @@ import {base} from 'viem/chains';
 import {WgCircuitRuntime} from './wg-circuit-runtime.mjs';
 import {WgGrants} from './wg-grants.mjs';
 import {eligibleProviders} from './provider-directory.mjs';
-import {admitNetworkPolicy,defaultNetworkPolicy,validateNetworkPolicy} from './network-policy.mjs';
+import {admitNetworkPolicy,defaultNetworkPolicy,validateNetworkPolicy,byoReleaseMessage} from './network-policy.mjs';
 import {parseWireGuardConfig,wireGuardConfigDigest,privateAddress,ipKind} from './wg-config.mjs';
 import {DurableState} from './durable-state.mjs';
+import {verifyOwnerSignature} from './owner-signature.mjs';
 import {canonical} from './route-record.mjs';
 import {guardedFetch} from './guarded-fetch.mjs';
 
-export const byoReleaseMessage=r=>`enclave-network:byo-release:v1\n${canonical(r)}`;
 
-export async function createNetworkHost({config:c,account,runner,rpc,leaseReader,directory,authorize,forward,fetch=globalThis.fetch,now=Date.now,log=()=>{}}){
+export async function createNetworkHost({config:c,account,runner,rpc,addressBook,leaseReader,directory,authorize,forward,fetch=globalThis.fetch,now=Date.now,log=()=>{}}){
  if(!c?.relay||!/^https:\/\//.test(c.relay)&&!/^http:\/\/127\.0\.0\.1/.test(c.relay))throw new Error('Enclave network: relay https URL required');
  if(!Array.isArray(c.checkers)||!c.checkers.length)throw new Error('Enclave network: trusted checker addresses required');
  if(c.apps!=='all'&&!Array.isArray(c.apps))throw new Error('Enclave network: apps must be "all" or a list');
  const onNetwork=id=>c.apps==='all'||c.apps.includes(id);
  const relay=async(p,init)=>{const r=await fetch(c.relay+p,{...init,signal:AbortSignal.timeout(10000)});if(r.status===404)return null;const b=await r.json().catch(()=>null);if(!r.ok)throw new Error(`relay ${p.split('/').slice(0,4).join('/')}: ${b?.error||r.status}`);return b;};
  const clients=(rpc||[]).map(url=>createPublicClient({chain:base,transport:http(url,{timeout:10000})}));
- // ERC-1271 owners (passkey vaults): every configured RPC must say the signature is valid
- const verify=clients.length?async(owner,message,signature)=>(await Promise.all(clients.map(x=>x.verifyMessage({address:owner,message,signature}).catch(()=>false)))).every(Boolean):undefined;
+ // wallet, passkey vault (ERC-1271) or SessionVault owners; every configured RPC must agree
+ const verify=async(owner,message,signature)=>verifyOwnerSignature({clients,owner,message,signature,addressBook});
  const state=new DurableState(path.join(directory,'enclave-network'));
  const memory={get:async id=>(await state.get('policy-nonces'))?.[id],set:async(id,n)=>state.update('policy-nonces',async old=>({...(old||{}),[id]:n}))};
  const policyCache=new Map();

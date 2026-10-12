@@ -7,6 +7,7 @@ import { isBlockedHost } from './net-guard.mjs';
 import { recoverOp } from './fleet-auth.js';
 import {verifyRoute,verifyOwnerPolicy,recordHash} from '../network/route-record.mjs';
 import {validateCircuitPolicy} from '../network/circuit-policy.mjs';
+import {validateNetworkPolicy} from '../network/network-policy.mjs';
 
 export const tunaMessage = publication => 'enclave-tuna-route:v1\n' + JSON.stringify(publication);
 export function validatePublication(p, now = Date.now()) {
@@ -32,7 +33,7 @@ export function validatePublication(p, now = Date.now()) {
   return p;
 }
 
-export function createTunaRoutes({ operatorOf, endpointId, eligible, now = Date.now, recover = recoverOp, leaseOf, memory, providerProbeSigners }) {
+export function createTunaRoutes({ operatorOf, endpointId, eligible, now = Date.now, recover = recoverOp, leaseOf, memory, providerProbeSigners, network }) {
   const hosts = new Map(), apps = new Map();
   const prune = () => { for (const [ep, p] of hosts) if (p.expiresAt <= now()) hosts.delete(ep); };
   return {
@@ -43,12 +44,21 @@ export function createTunaRoutes({ operatorOf, endpointId, eligible, now = Date.
         const {endpoint,bundle}=publication,id=bundle?.record?.deploymentId;
         const origin=new URL(endpoint);if(origin.protocol!=='https:'||origin.username||origin.password||origin.search||origin.hash||endpoint.endsWith('/'))throw new Error('invalid registered endpoint');
         if(!apps.has(id)&&apps.size>=4096)throw new Error('app publication limit');
-        const policy=validateCircuitPolicy(publication.policy),lease=await leaseOf(id);
+        const v5=publication.policy?.version===5;
+        if(v5&&!network)throw new Error('the Enclave network is not configured on this relay');
+        const policy=v5?validateNetworkPolicy(publication.policy):validateCircuitPolicy(publication.policy),lease=await leaseOf(id);
         if(policy.deploymentId!==id||!lease||String(await endpointId(endpoint)).toLowerCase()!==lease.runner)throw new Error('route is not from the deployment runner');
         // A chain-read lease already proved the runner's registry entry active for
         // this operator (endpoint -> runner checked above); others ask the registry.
         const operator=lease.runnerRegistered?lease.runnerOperator:await operatorOf(endpoint);
         if(!operator||operator.toLowerCase()!==lease.runnerOperator.toLowerCase())throw new Error('inactive route operator');
+        if(v5){
+          // Only the owner's current network policy (or the default, when the owner never set one) may carry routes.
+          if(recordHash(network.currentPolicy(id))!==recordHash(policy))throw new Error('route policy is not the owner\'s current network policy');
+          const record=await verifyRoute(bundle,{deploymentId:id,policy,lease,memory,networkProviders:await network.eligible(),now:now()});
+          if(publication.status)network.noteStatus(id,publication.status);
+          apps.set(id,{endpoint,bundle:structuredClone(bundle),record});return;
+        }
         if(policy.mode==='direct'){if(bundle?.record?.routes?.length)assertDirectChoice(policy,lease,now());}
         else if(policy.currency==='USDC'){
           if(bundle?.record?.routes?.length&&recordHash(tunaPolicyFromLease(lease))!==recordHash(policy))throw Error('route differs from current USDC TUNA authorization');
@@ -92,7 +102,7 @@ export function createTunaRoutes({ operatorOf, endpointId, eligible, now = Date.
           if(!duplicates.has(label)){
             const primary=routes.filter(r=>!r.fallback);
             const addresses=(primary.length?primary:routes).map(r=>r.address);
-            labels[label]={transport,relay:transport==='direct'?'direct':'tuna',expiresAt:until,addresses,
+            labels[label]={transport,relay:transport==='direct'?'direct':transport==='enclave-network'?'enclave':'tuna',expiresAt:until,addresses,
               ...(addresses.find(net.isIPv4)?{a:addresses.find(net.isIPv4)}:{}),...(addresses.find(net.isIPv6)?{aaaa:addresses.find(net.isIPv6)}:{})};
           }
           continue;
