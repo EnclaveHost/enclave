@@ -1758,8 +1758,27 @@ export class Host {
       else this.scanHold.delete(id);
     }
   }
+  // FOLLOW THE BOOK: a ledger cutover (15d -> 16d, 2026-10) moves `deployments` and the prover in the address book. The
+  // node read the book only at start, so every host had to be restarted to follow one; an open-market host has nobody
+  // to do that. Re-read it every BOOK_RECHECK_MS: a moved ledger is used from the next read on - the migration keeps
+  // every id and clears every lease, so the tick finds this box's records unclaimed there and claims them again while
+  // their partitions keep running (nothing here stops an app for the move).
+  static BOOK_RECHECK_MS = 10 * 60_000;
+  async followBook({ now = Date.now(), resolve = () => chain.resolveAddresses() } = {}) {
+    if (now - (this.bookCheckedAt || 0) < Host.BOOK_RECHECK_MS) return [];
+    this.bookCheckedAt = now;
+    const before = { ...chain.addresses };
+    try { await resolve(); } catch (e) { this.log(`address book: re-read failed (${e.shortMessage || e.message}); keeping ${before.deployments}`); return []; }
+    const moved = ["deployments", "proofOfTime", "registry", "appCatalog"].filter((k) => String(before[k] || "").toLowerCase() !== String(chain.addresses[k] || "").toLowerCase());
+    for (const k of moved) this.log(`address book: ${k} moved ${before[k]} -> ${chain.addresses[k]}`
+      + (k === "deployments" ? ": this box's leases are claimed again on the new ledger; running partitions keep running" : ""));
+    if (moved.includes("deployments")) { this.scanHold?.clear?.(); this.priceSent = null; this.#saveTracked(); }
+    if (moved.includes("registry")) await this.refreshRegistration().catch(() => {});
+    return moved;
+  }
   async tick() {
     if (!this.chainReady) return;
+    await this.followBook();
     await this.enforceOff();
     // whose deployments this box serves, re-read before the scan and the sweep ask (a deleted delegation ends here)
     await this.refreshOwners();
