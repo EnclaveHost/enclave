@@ -21,6 +21,8 @@ cp "$TOP/cli/host.ps1" "$T/host.ps1"
 # the release files first, latest.json last: a reader never sees a latest.json naming files that are not there yet
 ssh nan "mkdir -p /opt/enclave-get/windows"
 scp -q "$T/$(basename "$ZIP")" "$T/$SETUP_VERSIONED" "$T/SHA256SUMS-$VERSION" nan:/opt/enclave-get/windows/
+# the stable name the Host page's download button links to (a copy of this version's setup)
+ssh nan "cp /opt/enclave-get/windows/$SETUP_VERSIONED /opt/enclave-get/windows/EnclaveSetup.exe.tmp && mv /opt/enclave-get/windows/EnclaveSetup.exe.tmp /opt/enclave-get/windows/EnclaveSetup.exe"
 scp -q "$T/latest.json" nan:/opt/enclave-get/windows/latest.json.tmp
 scp -q "$T/host.ps1" nan:/opt/enclave-get/host.ps1
 ssh nan "mv /opt/enclave-get/windows/latest.json.tmp /opt/enclave-get/windows/latest.json && chmod 0644 /opt/enclave-get/windows/* /opt/enclave-get/host.ps1"
