@@ -133,3 +133,15 @@ test("after a good start, EITHER child ending settles `exited`, naming which", a
     await e.stop();
   }
 });
+
+test("ENCLAVE_EGRESS_BLOB_SERVICE: a loopback entry for the host's blob cache, passed to shield-egress as -blob-service", () => {
+  const exe = { ENCLAVE_EGRESS_V1: "1", ENCLAVE_EGRESS_EXE: "C:\\enclave\\shield-egress.exe", ENCLAVE_EGRESS_EXE_SHA256: "ab".repeat(32),
+                ENCLAVE_EGRESS_BRIDGE_EXE: "C:\\enclave\\shielded-bridge.exe", ENCLAVE_EGRESS_BRIDGE_EXE_SHA256: "cd".repeat(32),
+                ENCLAVE_EGRESS_APP_ROUTES: "C:\\enclave\\routes.json" };
+  assert.equal(egressConfigFromEnv(exe).blobService, null, "off unless set");
+  assert.equal(egressConfigFromEnv({ ...exe, ENCLAVE_EGRESS_BLOB_SERVICE: "127.0.0.1:9621" }).blobService, "127.0.0.1:9621");
+  for (const bad of ["10.0.0.1:9621", "0.0.0.0:9621", "blobs.local:80", "127.0.0.1"])
+    assert.throws(() => egressConfigFromEnv({ ...exe, ENCLAVE_EGRESS_BLOB_SERVICE: bad }), /ENCLAVE_EGRESS_BLOB_SERVICE must be a loopback/, bad);
+  const src = fs.readFileSync(fileURLToPath(new URL("./egress.mjs", import.meta.url)), "utf8");
+  assert.match(src, /cfg\.blobService \? \["-blob-service", cfg\.blobService\] : \[\]/, "startEgress passes it through");
+});

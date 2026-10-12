@@ -240,6 +240,9 @@ set ENCLAVE_EGRESS_EXE_SHA256=$(& $pin 'bin/shield-egress.exe')
 set ENCLAVE_EGRESS_BRIDGE_EXE=$PF\bin\shielded-bridge.exe
 set ENCLAVE_EGRESS_BRIDGE_EXE_SHA256=$(& $pin 'bin/shielded-bridge.exe')
 set ENCLAVE_EGRESS_APP_ROUTES=$PD\tuna\state\egress-routes.json
+rem public, pinned content an app asks blobs.enclave.internal for comes from the node's host-side cache, not its paid route
+rem (docs/design/shield-blob-cache.md); the bundle's shield-egress must be the -blob-service build (build-bundle.ps1 pins it)
+set ENCLAVE_EGRESS_BLOB_SERVICE=127.0.0.1:9621
 set NODE_APP_RAM_GB=$appRamGb
 set ENCLAVE_PROTECTED_PORTS_V1=1
 set ENCLAVE_WASM_SET=1
@@ -289,6 +292,9 @@ set TUNA_BIN_DIR=$PF\tuna
 set TUNA_SHIELD_POLICY=$PF\tuna\admitted-shield-policy.json
 rem an app whose config asks for startup egress gets its secrets only once its private route is up (missing file: pending)
 set ENCLAVE_STARTUP_EGRESS_CONFIG=$PD\tuna\privacy-config.json
+rem the host-side cache for public, pinned content (blob-cache.mjs): loopback only, 32 GB, least recently used out first
+set BLOB_SERVICE_PORT=9621
+set BLOB_CACHE_DIR=$PD\shield\blobs
 "@ | Set-Content -Encoding ASCII (Join-Path $PD "node-config.cmd")
 
 # the TUNA privacy agent: every app's private route. The node writes its config once the platform has funded the control
