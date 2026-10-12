@@ -66,6 +66,7 @@ func main() {
 
 // config is what the flags say, checked before anything listens.
 type config struct {
+	blob       string // -blob-service: loopback address of the host blob cache ("" = off)
 	listen     netip.AddrPort
 	socks      string
 	routes     string
@@ -81,6 +82,7 @@ func parse(args []string, errOut io.Writer) (*config, error) {
 	routes := fs.String("app-routes", "", "an expiring per-app routes file (egress.ReadAppRoute); exclusive with -socks")
 	deployment := fs.String("deployment", "", "the deployment this partition serves (0x + 64 hex); required with -app-routes")
 	allow := fs.String("allow", "", "optional comma-separated https origins: the host refuses any other name for this partition")
+	blob := fs.String("blob-service", "", "optional loopback IP:port of the host's cache for public, pinned content: "+egress.BlobHost+":80 is dialed there instead of the app's route")
 	if err := fs.Parse(args); err != nil {
 		return nil, err
 	}
@@ -88,6 +90,13 @@ func parse(args []string, errOut io.Writer) (*config, error) {
 		return nil, fmt.Errorf("unexpected arguments %q", fs.Args())
 	}
 	c := &config{socks: *socks, routes: *routes, deployment: *deployment}
+	if *blob != "" {
+		ap, err := netip.ParseAddrPort(*blob)
+		if err != nil || !ap.Addr().IsLoopback() || ap.Port() == 0 {
+			return nil, errors.New("-blob-service must be a loopback IP:port")
+		}
+		c.blob = ap.String()
+	}
 	a, err := netip.ParseAddrPort(*listen)
 	if err != nil || !a.Addr().IsLoopback() {
 		return nil, errors.New("-listen must be a loopback IP:port: the bridge for this partition is the only client")
@@ -126,7 +135,7 @@ func parse(args []string, errOut io.Writer) (*config, error) {
 // server is the egress-v1 endpoint the flags describe: the m2 Server and Dialer, with this partition's one upstream.
 func (c *config) server(logw io.Writer) *egress.Server {
 	// a public-web guest's browser holds many connections and looks up many names (each one a dial in the window)
-	d := &egress.Dialer{Resolver: lookup, Own: hostAddrs, MaxConcurrent: 96, MaxPerMinute: 2400, SOCKSProxy: c.socks}
+	d := &egress.Dialer{Resolver: lookup, Own: hostAddrs, MaxConcurrent: 96, MaxPerMinute: 2400, SOCKSProxy: c.socks, BlobService: c.blob}
 	if c.routes != "" {
 		file, dep := c.routes, c.deployment
 		d.RouteFor = func(uint32) (egress.AppRoute, error) { return egress.ReadAppRoute(file, dep) }

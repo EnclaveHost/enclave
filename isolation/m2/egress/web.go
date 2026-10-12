@@ -430,6 +430,9 @@ func (d *Dialer) DialWeb(ctx context.Context, cid uint32, host string, port int)
 		return nil, nil, refused(ReasonName)
 	}
 	host = strings.ToLower(host)
+	if !isIP && host == BlobHost && port == 80 && d.BlobService != "" {
+		return d.dialBlobService(ctx, cid)
+	}
 	if d.Allow != nil && (isIP || !d.Allow(host)) {
 		return nil, nil, refused(ReasonNotAllowed) // a host given a list allows names on it, never a literal
 	}
@@ -513,4 +516,30 @@ func (d *Dialer) ResolvePublic(ctx context.Context, cid uint32, host string) ([]
 		addresses = addresses[:maxDNSAnswers]
 	}
 	return addresses, nil
+}
+
+// BlobHost is the reserved name a public-web guest asks for public, pinned content by (docs/design/shield-blob-cache.md).
+const BlobHost = "blobs.enclave.internal"
+
+// dialBlobService connects a guest to the host's blob cache on loopback (Dialer.BlobService). The guest verifies the
+// sha256 of every object it reads, so the host can delay or refuse a blob but never substitute one.
+func (d *Dialer) dialBlobService(ctx context.Context, cid uint32) (net.Conn, func(), error) {
+	release, err := d.take(cid)
+	if err != nil {
+		return nil, nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, d.timeout())
+	defer cancel()
+	var c net.Conn
+	if d.dial != nil {
+		c, err = d.dial(ctx, d.BlobService)
+	} else {
+		var nd net.Dialer
+		c, err = nd.DialContext(ctx, "tcp", d.BlobService)
+	}
+	if err != nil {
+		release()
+		return nil, nil, refused(ReasonResolve)
+	}
+	return c, release, nil
 }

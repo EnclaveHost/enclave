@@ -87,11 +87,16 @@ type Dialer struct {
 	// Allow is an OPTIONAL host-side list (shield-egress -allow): when set, a name it does not allow is refused before
 	// anything is resolved or dialed. It never widens anything: the guest's own allowlist, derived from the owner's
 	// resolved config, still decides what the guest asks for, and every rule below still applies to what it allows.
-	Allow  func(host string) bool
-	dial   func(ctx context.Context, addr string) (net.Conn, error)
-	mu     sync.Mutex
-	active map[uint32]int
-	window map[uint32][]time.Time
+	Allow func(host string) bool
+	// BlobService is the loopback address of the host's cache for public, pinned content (windows/node/blob-cache.mjs,
+	// docs/design/shield-blob-cache.md). When set, a public-web guest's by-name request for BlobHost:80 is dialed there
+	// instead of through its route - under the same per-guest caps. "" = off: the name is then refused like any other
+	// that does not resolve. Nothing else changes.
+	BlobService string
+	dial        func(ctx context.Context, addr string) (net.Conn, error)
+	mu          sync.Mutex
+	active      map[uint32]int
+	window      map[uint32][]time.Time
 }
 
 var ErrRefused = errors.New("egress refused")
