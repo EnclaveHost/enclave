@@ -36,3 +36,17 @@ test("not attached yet: asked again within the minute; anything else: in 10 minu
   await h.ensureRegistered();
   assert.ok(wait(h) > 590_000 && wait(h) <= 600_000, String(wait(h)));
 });
+
+test("a box reached through a relay tunnel sends no on-chain heartbeat; a dialed box still does", async () => {
+  assert.equal(Host.isTunnelEndpoint("https://api.enclave.host/t/nucbox-k11-2"), true);
+  for (const e of ["https://box.example.com", "https://api.enclave.host/t/", "https://api.enclave.host/t/a/b", "", null])
+    assert.equal(Host.isTunnelEndpoint(e), false, String(e));
+  const sent = [];
+  for (const endpoint of ["https://api.enclave.host/t/new-box", "https://box.example.com"]) {
+    const h = new Host({ dir, endpoint, name: "b", appsEnabled: true, cpuPricePerSec6: 12, log: (m) => sent.push([endpoint, m]) });
+    h.chainReady = true; h.registered = { active: true };
+    await h.heartbeat();
+  }
+  assert.ok(!sent.some(([e, m]) => e.includes("/t/") && /heartbeat failed/.test(m)), "the tunnel box never tried");
+  assert.ok(sent.some(([e, m]) => !e.includes("/t/") && /heartbeat failed/.test(m)), "the dialed box tried (and, with no gas here, failed)");
+});
