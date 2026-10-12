@@ -415,8 +415,10 @@ export class Host {
       let next = cur, by = this.pricedBy[axis];
       if (over) { next = perSec6Of(over); by = "owner"; }
       else if (def) {
-        const drifted = by !== "default" || !cur || Math.abs(def.perSec6 - cur) / cur >= Host.PRICE_DRIFT;
-        if (drifted) next = def.perSec6;
+        // the drift is measured against what the market already sees: the default this node set, or (first time after a
+        // start, an update, a re-measured GFLOPS) the price on the registry - so a restart sends no price transaction
+        const ref = by === "default" ? cur : Number(this.registered?.[key] || 0);
+        next = !ref || Math.abs(def.perSec6 - ref) / ref >= Host.PRICE_DRIFT ? def.perSec6 : ref;
         by = "default";
       }
       if (next !== cur) this.log(`price: ${axis} ${(by === "owner" ? over : perHourOf(next)).toFixed(4)} USDC/hr (${by === "owner" ? "set by the owner" : def?.from ? `the cheapest ${def.tier} unit is ${def.from}'s` : `the network default for ${def?.tier}`}; was ${perHourOf(cur).toFixed(4)})`);
