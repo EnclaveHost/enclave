@@ -357,3 +357,14 @@ test('external verifier can read fresh public guest evidence through the real ma
   }
   await assert.rejects(Host.prototype.shieldEvidence.call(host,DEP.slice(0,10),nonce.toString('hex')),/exact deployment/);
 });
+
+test("a refusal without a retry hint is asked again after 30 s, doubling to an hour (not 5 min: a fresh partition's first refusals are expected)", async () => {
+  const { CERT_RETRY_BASE_MS } = await import("../windows/node/hvcert.mjs");
+  assert.equal(CERT_RETRY_BASE_MS, 30_000);
+  const f = await front({ csr: OTHER_CSR }), box = await managerFor(f), svc = await certsService();
+  const p = passFor(box, svc);
+  const before = Date.now();
+  await p.pass(records(box.instance));
+  const wait = p.state(DEP).backoffUntil - before;
+  assert.ok(wait >= 29_000 && wait <= 31_000 + 5_000, `first retry in ${wait} ms`);
+});

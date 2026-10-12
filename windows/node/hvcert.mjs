@@ -107,8 +107,13 @@ export function issuer({ endpoint, sign, base, request = requestCert }) {
  * (host.mjs owner hold), the record still reads running, and without it the node would ask the certificate service for
  * a stranger's name. The service refuses that under B anyway; this never asks. No `served` given = nothing is asked. An installed one is left until its
  * renewal point (2/3 of its life); a guest that already serves a valid one for its key is reused, not re-issued (a node
- * restart asks the CA for nothing); a failure backs off (5 min doubling to 1 h, or the service's retry hint).
+ * restart asks the CA for nothing); a failure backs off (30 s doubling to 1 h, or the service's retry hint). A fresh
+ * partition's first refusals are expected and short-lived (its app evidence is not verified yet, a DNS challenge record
+ * is refused once): starting at 5 min left every app without TLS for 5-15 min after each restart (2026-10-12).
  */
+/** The first retry after a refusal without the service's own hint; doubles per failure up to an hour. */
+export const CERT_RETRY_BASE_MS = 30_000;
+
 export function createHvCertPass({ client, dataAddr, runtimeId: pinned, endpoint, sign, base, zone = "app.enclave.host",
                                    served = () => false, log = () => {}, now = Date.now, _ensure = ensureGuestCert, _deps } = {}) {
   const st = new Map();       // id -> { instanceId, key, name, serial, notAfter, renewAt, issuer } | { instanceId, backoffUntil, failures, why }
@@ -132,7 +137,7 @@ export function createHvCertPass({ client, dataAddr, runtimeId: pinned, endpoint
           + `${String(got.issuer).slice(0, 60)}, until ${new Date(got.notAfter).toISOString()}; domain ${got.verdict})`);
     } catch (e) {
       const failures = (s && s.instanceId === iso.instance && s.failures || 0) + 1;
-      const wait = e.retryMs || Math.min(3600_000, 300_000 * 2 ** (failures - 1));
+      const wait = e.retryMs || Math.min(3600_000, CERT_RETRY_BASE_MS * 2 ** (failures - 1));
       st.set(id, { instanceId: iso.instance, backoffUntil: t + wait, failures, why: e.message });
       log(`${id.slice(0, 10)} certificate: none for ${name} (${e.message}); retry in ${Math.round(wait / 1000)}s`);
     }
