@@ -114,8 +114,11 @@ export class LeaseReader {
           row.runnerRegistered=true;row.runnerPayoutWallet=host.payoutWallet;row.runnerProofKey=host.proofKey;
         }));
       }
-      if(this.includeConnectivity&&Number(schema)>=16){
-        const address=await c.readContract({address:this.addressBook,abi:bookABI,functionName:'addr',args:[stringToHex('connectivity',{size:32})],blockNumber});
+      const connectivityAddress=this.includeConnectivity&&Number(schema)>=16?await c.readContract({address:this.addressBook,abi:bookABI,functionName:'addr',args:[stringToHex('connectivity',{size:32})],blockNumber}):null;
+      // 'auto': a book that publishes no connectivity contract (none deployed yet) reads as schema 15 did. Without this the
+      // 16d cutover (2026-10-12 16:04Z) made every RPC throw "connectivity contract required": no quorum, every TUNA route refused.
+      if(connectivityAddress&&!(this.includeConnectivity==='auto'&&/^0x0{40}$/i.test(connectivityAddress))){
+        const address=connectivityAddress;
         rows=await readConnectivity(c,{address,deployments,rows,blockNumber});
         await Promise.all(rows.map(async row=>{row.bandwidthBackingRequired6=await c.readContract({address:deployments,abi:[{type:'function',name:'bandwidthBackingRequired6',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'uint256'}]}],functionName:'bandwidthBackingRequired6',args:[row.id],blockNumber});}));
       }

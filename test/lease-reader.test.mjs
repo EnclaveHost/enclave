@@ -145,3 +145,11 @@ test('a registry read does not wait behind a stalled lease snapshot',async()=>{
  finally{stall=false;release();}
  assert.equal((await lease).length,1);
 });
+test("schema 16 with no connectivity contract in the book reads as 15 under 'auto' (the 16d cutover outage)",async()=>{
+ const zero='0x'+'00'.repeat(20);
+ const c16=()=>{const c=client();c.readContract=async({functionName,args})=>functionName==='addr'?(String(args[0]).startsWith('0x636f6e6e')?zero:contract):functionName==='deploymentsSchema'?16n:row;return c;};
+ const auto=new LeaseReader({addressBook:book,clients:[c16(),c16()],includeConnectivity:'auto',now});
+ assert.equal((await auto.refresh([id]))[0].runner,runner);   // 'connectivity' is 0x636f6e6e... as bytes32
+ const required=new LeaseReader({addressBook:book,clients:[c16(),c16()],includeConnectivity:true,now});
+ await assert.rejects(required.refresh([id]),/agreeing chain quorum/);   // demanded explicitly: still refused without one
+});
