@@ -712,7 +712,7 @@ function connect() {
                         try { replaced.ws.terminate(); } catch {}
                         log('re-attach: the standby tunnel serves now; the replaced one is closed, with no gap on the relay');
                       }
-                      host.shieldMarketUntil = 0;
+                      host.shieldMarketUntil = 0; host.relayAttached = true;
                       tier = f.tier || '';   // the relay's verdict (vbs | vbs-dev); never our own claim
                       attachedOwnersVersion = s.attachSent && s.attachSent.version === 2 ? s.attachSent.owners : null;
                       attachedOwners = s.attachSent && s.attachSent.version === 2 ? s.attachSent.served : null;
@@ -736,7 +736,7 @@ function connect() {
     ws.on('close', () => {
       clearInterval(live);
       const { lost, redial } = tunnels.closed(s);
-      if (lost) { if (zone) zone.closeAll(); attachedAt = 0; host.shieldMarketUntil = 0; }
+      if (lost) { if (zone) zone.closeAll(); attachedAt = 0; host.shieldMarketUntil = 0; host.relayAttached = false; }
       log(lost ? 'tunnel closed' : s.superseded ? 'the replaced tunnel closed' : 'the standby tunnel closed; the live one still serves');
       if (redial) setTimeout(() => dial(), 5000);
     });
