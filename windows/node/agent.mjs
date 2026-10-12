@@ -869,6 +869,34 @@ async function startHostingControls() {
       });
       tickWitness(); setInterval(tickWitness, 30000).unref?.();
     }
+    // An open-market host keeps its own TUNA privacy agent enrolled (tuna-enroll.mjs): wallets made here, funded by the
+    // platform on request, the config the \Enclave\Tuna task waits for. Every 5 minutes, once the box is registered.
+    if (process.env.TUNA_AGENT_DIR && process.env.TUNA_BIN_DIR && process.env.TUNA_SHIELD_POLICY && host.cfg.isolationManager && nodeKey) {
+      const { createTunaEnroll, fileSha256 } = await import('./tuna-enroll.mjs');
+      const chainMod = await import('./chain.mjs');
+      const relayBase = RELAY_URL.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:').replace(/\/v1\/fleet-tunnel$/, '');
+      let enroll = null, enrolling = false, lastEnrollError = '';
+      const tickEnroll = async () => {
+        if (enrolling || !host.registered) return;
+        enrolling = true;
+        try {
+          enroll ||= createTunaEnroll({ agentDir: process.env.TUNA_AGENT_DIR, binDir: process.env.TUNA_BIN_DIR, name: NAME, endpoint: PUBLIC_URL,
+            runner: host.enclaveId, relayBase, transportKey: nodeKey.privateKey,
+            config: { agentDir: process.env.TUNA_AGENT_DIR, binDir: process.env.TUNA_BIN_DIR, nodeBinary: process.execPath,
+                      operatorKeyFile: path.join(DIR, 'operator.key'), runner: host.enclaveId, endpoint: PUBLIC_URL, relayBase,
+                      policyFile: process.env.TUNA_SHIELD_POLICY, tpmBinary: process.env.TPMATTEST_EXE,
+                      tpmSha256: await fileSha256(process.env.TPMATTEST_EXE), addressBook: chainMod.addressBook(), chainRpc: chainMod.rpcUrls(),
+                      manager: host.cfg.isolationManager, dataAddr: host.cfg.isolationDataAddr },
+            rows: () => chainMod.allDeployments(), version: (appRef) => chainMod.resolveAppRef(appRef),
+            vms: async () => { const r = await fetch(`${host.cfg.isolationManager}/vms`, { signal: AbortSignal.timeout(15000) });
+                               if (!r.ok) throw new Error(`the manager answered /vms ${r.status}`); const j = await r.json(); return Array.isArray(j) ? j : j.vms || []; },
+            log: (m) => log('[tuna]', m) });
+          await enroll.pass(); lastEnrollError = '';
+        } catch (e) { if (e.message !== lastEnrollError) log('[tuna]', `enrollment: ${e.message}`); lastEnrollError = e.message; }
+        finally { enrolling = false; }
+      };
+      setTimeout(tickEnroll, 60_000).unref?.(); setInterval(tickEnroll, 300_000).unref?.();
+    }
     // resolve(id): the app's loopback port and its certificate, or null. Both come from the host,
     // which is the half that holds leases; a deployment this box does not serve resolves to null
     // and the stream is refused with a status rather than a silent close.

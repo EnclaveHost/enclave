@@ -34,6 +34,8 @@ import { planCheckpoints } from "./verification-checkpoints.mjs";
 const RPCS = (process.env.BASE_RPCS || "https://base-rpc.publicnode.com,https://base.drpc.org,https://mainnet.base.org")
   .split(",").map((s) => s.trim()).filter(Boolean);
 const BOOK = (process.env.ADDRESS_BOOK_ADDRESS || "0xab214342d5A490150A4A977063A2f88E21F80907").trim();
+/** The Base RPCs this node reads (the TUNA privacy agent's config names the same ones: tuna-enroll.mjs). */
+export const rpcUrls = () => [...RPCS];
 /** The EnclaveAddressBook this node resolves contracts from (session-api-auth.mjs reads sessionVaultFactory there). */
 export const addressBook = () => BOOK;
 
