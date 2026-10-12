@@ -18,7 +18,10 @@ import { createHash, sign as cryptoSign, randomBytes } from "node:crypto";
 import { execFile } from "node:child_process";
 import { shieldExpectation, catalogRef } from "../../network/shield-expectation.mjs";
 
-export const MIN_FUNDED = 10_000_000n;                 // 0.01 NKN in base units: the adapters' minimum (reconcile-apps.mjs)
+// 0.01 NKN in base units (1e-8 NKN): the adapters' minimum. It was 10_000_000n (0.1 NKN, copied from reconcile-apps.mjs under
+// the same "0.01" comment): a control wallet that spent below 0.1 read as unfunded, its once-per-box funding was "already
+// requested", and enrollment stopped for every app after it (nucbox-k11-4, 2026-10-12).
+export const MIN_FUNDED = 1_000_000n;
 const NKN_ADDR = /^NKN[1-9A-HJ-NP-Za-km-z]{33}$/, ID = /^0x[0-9a-f]{64}$/;
 export const NKN_RPC = ["http://seed.nkn.org:30003", "http://mainnet-seed-0001.nkn.org:30003", "http://mainnet-seed-0002.nkn.org:30003"];
 const ROLES = ["guard", "public", "egress"];

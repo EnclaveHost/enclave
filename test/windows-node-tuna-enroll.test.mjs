@@ -88,3 +88,8 @@ test("a partition outside the admitted policy is never enrolled or funded", asyn
   assert.equal(r.apps, 0); assert.equal(Object.values(w.relay.entries()).filter((e) => e.purpose === "app").length, 0);
   assert.ok(w.logs.some((l) => /outside the admitted Shield policy/.test(l)));
 });
+
+test("MIN_FUNDED is 0.01 NKN in the base units balanceOf returns (amount x 1e8): a wallet spent to 0.0898 is still funded", () => {
+  assert.equal(MIN_FUNDED, BigInt(Math.round(0.01 * 1e8)));
+  assert.ok(BigInt(Math.round(0.08984418 * 1e8)) >= MIN_FUNDED);   // nucbox-k11-4's control wallet, read as unfunded at 0.1
+});
