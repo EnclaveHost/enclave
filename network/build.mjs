@@ -16,6 +16,11 @@ await build({entryPoints:[path.join(root,'privacy-agent.mjs')],outfile:path.join
 await build({entryPoints:[path.join(root,'windows-circuit-worker.mjs')],outfile:path.join(out,'windows-circuit-worker.mjs'),bundle:true,platform:'node',format:'esm',target:'node22',banner:{js:'import {createRequire as bundleRequire} from "node:module"; const require=bundleRequire(import.meta.url);'}});
 await build({entryPoints:[path.join(root,'conversion/provider-wallet.mjs')],outfile:path.join(out,'provider-currency-wallet.mjs'),bundle:true,platform:'node',format:'esm',target:'node22',banner:{js:'import {createRequire as bundleRequire} from "node:module"; const require=bundleRequire(import.meta.url);'}});
 await build({entryPoints:[path.join(root,'tuna-provider-control.mjs')],outfile:path.join(out,'tuna-provider-control.mjs'),bundle:true,platform:'node',format:'esm',target:'node22',banner:{js:'import {createRequire as bundleRequire} from "node:module"; const require=bundleRequire(import.meta.url);'}});
+// the Enclave network (docs/design/enclave-network.md): the provider daemon and the checker, one file each
+await build({entryPoints:[path.join(root,'wg-provider/main.mjs')],outfile:path.join(out,'wg-provider.mjs'),bundle:true,platform:'node',format:'esm',target:'node22',banner:{js:'import {createRequire as bundleRequire} from "node:module"; const require=bundleRequire(import.meta.url);'}});
+await build({entryPoints:[path.join(root,'../scripts/network/wg-qualify.mjs')],outfile:path.join(out,'wg-qualify.mjs'),bundle:true,platform:'node',format:'esm',target:'node22',banner:{js:'import {createRequire as bundleRequire} from "node:module"; const require=bundleRequire(import.meta.url);'}});
+for (const goos of ['linux','windows'])
+  execFileSync('go',['build','-trimpath','-o',path.join(out,'enclave-wg'+(goos==='windows'?'.exe':'')),'./cmd/enclave-wg'],{cwd:path.join(root,'wg'),stdio:'inherit',env:{...process.env,GOOS:goos,GOARCH:'amd64',CGO_ENABLED:'0'}});
 for (const file of ['Dockerfile.guarded','guarded-entrypoint.sh','public-guard-entrypoint.sh'])fs.copyFileSync(path.join(root,file),path.join(out,file));
 for (const [goos, name] of [['linux','enclave-tuna'],['windows','enclave-tuna.exe']])
   execFileSync('go',['build','-trimpath','-o',path.join(out,name),'.'],{
