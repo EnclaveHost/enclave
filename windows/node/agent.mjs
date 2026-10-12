@@ -907,6 +907,18 @@ async function startHostingControls() {
     }
     // An open-market host keeps its own TUNA privacy agent enrolled (tuna-enroll.mjs): wallets made here, funded by the
     // platform on request, the config the \Enclave\Tuna task waits for. Every 5 minutes, once the box is registered.
+    // The host-side cache for public, pinned content (blob-cache.mjs, docs/design/shield-blob-cache.md): shield-egress
+    // dials blobs.enclave.internal:80 here instead of the app's paid route. Loopback only; off unless configured.
+    if (process.env.BLOB_SERVICE_PORT) {
+      try {
+        const { startBlobService } = await import('./blob-cache.mjs');
+        const dir = process.env.BLOB_CACHE_DIR || path.join(DIR, '..', 'shield', 'blobs');
+        const maxBytes = Number(process.env.BLOB_CACHE_GB || 32) * 2 ** 30;
+        const svc = startBlobService({ port: Number(process.env.BLOB_SERVICE_PORT), dir, maxBytes, log: (m) => log(m) });
+        svc.on('listening', () => log(`blob cache: serving 127.0.0.1:${process.env.BLOB_SERVICE_PORT} from ${dir} (cap ${maxBytes / 2 ** 30} GB)`));
+        svc.on('error', (e) => log(`blob cache: ${e.message}`));
+      } catch (e) { log(`blob cache: not started (${e.message})`); }
+    }
     if (process.env.TUNA_AGENT_DIR && process.env.TUNA_BIN_DIR && process.env.TUNA_SHIELD_POLICY && host.cfg.isolationManager && nodeKey) {
       const { createTunaEnroll, fileSha256 } = await import('./tuna-enroll.mjs');
       const chainMod = await import('./chain.mjs');

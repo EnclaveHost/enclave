@@ -52,12 +52,16 @@ export function egressConfigFromEnv(env = process.env) {
   const cfg = { exe: v("ENCLAVE_EGRESS_EXE"), sha256: v("ENCLAVE_EGRESS_EXE_SHA256").toLowerCase(),
                 bridgeExe: v("ENCLAVE_EGRESS_BRIDGE_EXE"), bridgeSha256: v("ENCLAVE_EGRESS_BRIDGE_EXE_SHA256").toLowerCase(),
                 socks: v("ENCLAVE_EGRESS_SOCKS") || null, appRoutes: v("ENCLAVE_EGRESS_APP_ROUTES") || null,
-                allow: v("ENCLAVE_EGRESS_ALLOW") || null };
+                allow: v("ENCLAVE_EGRESS_ALLOW") || null,
+                // the host's cache for public, pinned content (docs/design/shield-blob-cache.md); needs a shield-egress
+                // built with -blob-service (isolation/egress-blob-cache)
+                blobService: v("ENCLAVE_EGRESS_BLOB_SERVICE") || null };
   const miss = [!cfg.exe && "ENCLAVE_EGRESS_EXE", !SHA256.test(cfg.sha256) && "ENCLAVE_EGRESS_EXE_SHA256 (64 hex)",
                 !cfg.bridgeExe && "ENCLAVE_EGRESS_BRIDGE_EXE", !SHA256.test(cfg.bridgeSha256) && "ENCLAVE_EGRESS_BRIDGE_EXE_SHA256 (64 hex)"]
     .filter(Boolean);
   if (!!cfg.socks === !!cfg.appRoutes) miss.push("exactly one of ENCLAVE_EGRESS_SOCKS (127.x.y.z:port) or ENCLAVE_EGRESS_APP_ROUTES");
   if (cfg.socks && !loopbackEntry(cfg.socks)) miss.push(`ENCLAVE_EGRESS_SOCKS must be a loopback IPv4 literal and port, not ${JSON.stringify(cfg.socks)}`);
+  if (cfg.blobService && !loopbackEntry(cfg.blobService)) miss.push(`ENCLAVE_EGRESS_BLOB_SERVICE must be a loopback IPv4 literal and port, not ${JSON.stringify(cfg.blobService)}`);
   if (miss.length) throw new Error(`ENCLAVE_EGRESS_V1=1 needs ${miss.join(", ")}`);
   cfg.mode = cfg.socks ? "socks" : "app-routes";
   return cfg;
@@ -114,7 +118,7 @@ export async function startEgress({ cfg, vmId, deploymentId = null, spawn = node
   checkPin(cfg.exe, cfg.sha256, "the shield-egress executable");
   checkPin(cfg.bridgeExe, cfg.bridgeSha256, "the shielded-bridge executable");
   const args = ["-listen", "127.0.0.1:0", ...(cfg.socks ? ["-socks", cfg.socks] : ["-app-routes", cfg.appRoutes, "-deployment", deploymentId]),
-                ...(cfg.allow ? ["-allow", cfg.allow] : [])];
+                ...(cfg.allow ? ["-allow", cfg.allow] : []), ...(cfg.blobService ? ["-blob-service", cfg.blobService] : [])];
   const opts = { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] };
   const server = supervise(spawn(cfg.exe, args, opts), /shield-egress ready listen=127\.0\.0\.1:(\d{1,5})\b/, "shield-egress", readyTimeoutMs);
   let bridge = null;

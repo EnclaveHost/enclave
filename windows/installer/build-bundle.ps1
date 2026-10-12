@@ -23,7 +23,9 @@ function Die($m) { throw "build-bundle: $m" }
 # bundle path = (source under -Sources, sha256). Enclave Shield's host binary ships as shield-host.exe.
 $Binaries = [ordered]@{
   "bin\shield-host.exe"     = @("vbs-like\releases\risc-service-20261002\vbslike-host.exe", "4feb0adffdd412358d3d67437e096ff5001d38d85fbbc79c9ba73f01dd5242a8")
-  "bin\shield-egress.exe"   = @("vbs-like\releases\public-web-20261005\shield-egress.exe",  "a8f384f2aefc65df341519e2e1e2fa56a9d5c900778a9838b2c5ad5d69f48f4b")
+  # public-web egress (c85e0c592, the a8f384f2 build) + -blob-service (isolation/egress-blob-cache 1dad2bb50; go1.27.1
+  # GOOS=windows CGO_ENABLED=0 go build -trimpath ./cmd/shield-egress, from isolation/m2): the host blob cache's route
+  "bin\shield-egress.exe"   = @("vbs-like\releases\blob-cache-20261012\shield-egress.exe",   "9cfb88650a6f56d68954d6768961e3c16452c7c43122111278679d10d708ce29")
   "bin\shielded-bridge.exe" = @("vbs-like\releases\public-web-20261005\shielded-bridge.exe","046442198865f4c70f93fc79f979b760a3514f644862328800db0e26aba3ec79")
   "bin\tpmattest.exe"       = @("vbs-like\hvnode\bin\tpmattest.exe",                       "ebc30d9fa54cf70043900165ce12631224075b3301653eaf8527342d18de6982")
   "bin\wasmtime.exe"        = @("vbs\apps\wasmtime-v49.0.0-x86_64-windows\wasmtime.exe",   "cbe3e2ddc1d449a029b1f581b84688b94fc7e5758cdfe24241609a92b16a5cc2")
