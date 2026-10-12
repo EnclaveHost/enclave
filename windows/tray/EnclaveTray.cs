@@ -1370,6 +1370,35 @@ namespace Enclave.Tray
 
     static class Program
     {
+        /// <summary>
+        /// An automatic update (update-host.ps1) replaces Program Files\Enclave\tray\EnclaveTray.exe, but this user's copy is the
+        /// one that starts at sign-in. When the two differ, this copy steps aside (a running exe can be renamed, not
+        /// overwritten), takes the new one's place and starts it. -> true when the new copy was started and this one should exit.
+        /// </summary>
+        static bool RefreshFromProgramFiles(string[] args)
+        {
+            try
+            {
+                string self = Application.ExecutablePath, old = self + ".old";
+                string pf = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), @"Enclave\tray\EnclaveTray.exe");
+                try { if (File.Exists(old)) File.Delete(old); } catch { }
+                if (!File.Exists(pf) || string.Equals(Path.GetFullPath(self), Path.GetFullPath(pf), StringComparison.OrdinalIgnoreCase)) return false;
+                if (Sha256(self) == Sha256(pf)) return false;
+                File.Move(self, old);
+                try { File.Copy(pf, self); } catch { File.Move(old, self); return false; }
+                var quoted = new StringBuilder();
+                foreach (var a in args) quoted.Append(quoted.Length > 0 ? " " : "").Append('"').Append(a.Replace("\"", "")).Append('"');
+                Process.Start(new ProcessStartInfo(self, quoted.ToString()) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(self) });
+                return true;
+            }
+            catch { return false; }
+        }
+        static string Sha256(string path)
+        {
+            using (var f = File.OpenRead(path)) using (var h = System.Security.Cryptography.SHA256.Create())
+                return BitConverter.ToString(h.ComputeHash(f)).Replace("-", "");
+        }
+
         [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
 
         const string ShowSignal = "Local\\EnclaveHostingTray.Show";
@@ -1379,6 +1408,7 @@ namespace Enclave.Tray
         {
             // build.cmd: the exe's own icon file, drawn by the same code as the tray glyph
             if (args.Length == 2 && args[0] == "--write-icon") return IconFile.Write(args[1]) ? 0 : 1;
+            if (RefreshFromProgramFiles(args)) return 0;
             bool first;
             using (var one = new Mutex(true, "Local\\EnclaveHostingTray", out first))
             using (var show = new EventWaitHandle(false, EventResetMode.AutoReset, ShowSignal))

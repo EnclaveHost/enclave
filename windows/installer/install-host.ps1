@@ -98,7 +98,8 @@ Emit "prereq" "ok" "Hyper-V is set up for Enclave Shield partitions"
 # 5. files: the program in Program Files, state in ProgramData (SYSTEM + Administrators only)
 # ---------------------------------------------------------------------------------------------------------------------
 Emit "files" "run" "Installing Enclave"
-foreach ($t in Get-ScheduledTask -TaskPath "\Enclave\" -ErrorAction SilentlyContinue) { Stop-ScheduledTask -TaskPath "\Enclave\" -TaskName $t.TaskName -ErrorAction SilentlyContinue }
+# every service but \Enclave\Update: an automatic update (update-host.ps1) runs this script from that task
+foreach ($t in Get-ScheduledTask -TaskPath "\Enclave\" -ErrorAction SilentlyContinue | Where-Object { $_.TaskName -ne "Update" }) { Stop-ScheduledTask -TaskPath "\Enclave\" -TaskName $t.TaskName -ErrorAction SilentlyContinue }
 Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($PF, [StringComparison]::OrdinalIgnoreCase) } |
   ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Start-Sleep 2
@@ -106,7 +107,7 @@ $manifest = Get-Content (Join-Path $Bundle "manifest.json") -Raw | ConvertFrom-J
 if (Test-Path $PF) { Remove-Item $PF -Recurse -Force }
 New-Item -ItemType Directory -Force $PF | Out-Null
 foreach ($d in "runtime", "control", "tuna", "bin", "guest", "tray") { Copy-Item (Join-Path $Bundle $d) (Join-Path $PF $d) -Recurse -Force }
-Copy-Item (Join-Path $Bundle "manifest.json"), (Join-Path $Bundle "uninstall-host.ps1") $PF -Force
+Copy-Item (Join-Path $Bundle "manifest.json"), (Join-Path $Bundle "uninstall-host.ps1"), (Join-Path $Bundle "update-host.ps1") $PF -Force
 $bad = @($manifest.files | Where-Object { $_.path -match '^(runtime|control|tuna|bin|guest|tray)/' } |
          Where-Object { $p = Join-Path $PF ($_.path -replace '/', '\'); -not (Test-Path -LiteralPath $p) -or (Sha $p) -ne $_.sha256 })
 if ($bad.Count) { Fail "files" "$($bad.Count) installed file(s) do not match the bundle's manifest (first: $($bad[0].path))." }
@@ -279,6 +280,16 @@ function Task($name, $cmd, $delay) {
 Task "Shield" (Join-Path $PD "run-shield.cmd") "PT30S"
 Task "Node" (Join-Path $PD "run-node.cmd") "PT90S"
 Task "Tuna" (Join-Path $PD "run-tuna.cmd") "PT120S"
+# automatic updates (update-host.ps1): 5 minutes after boot, then every hour, as SYSTEM; one run at a time. Left as it is
+# while an update is the one running this script.
+if ($env:ENCLAVE_UPDATING -ne "1" -or -not (Get-ScheduledTask -TaskPath "\Enclave\" -TaskName "Update" -ErrorAction SilentlyContinue)) {
+  $ua = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$(Join-Path $PF 'update-host.ps1')`""
+  $boot = New-ScheduledTaskTrigger -AtStartup; $boot.Delay = "PT5M"
+  $hourly = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(15) -RepetitionInterval (New-TimeSpan -Hours 1)
+  $us = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Hours 2) -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+  Register-ScheduledTask -TaskPath "\Enclave\" -TaskName "Update" -Action $ua -Trigger $boot, $hourly -Settings $us `
+    -Principal (New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest) -Force | Out-Null
+}
 Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Shield"
 $ready = $false
 for ($i = 0; $i -lt 60; $i++) {
@@ -324,10 +335,15 @@ if ($Owner -ieq $me) {
   $si.UseShellExecute = $true; $si.WindowStyle = "Hidden"
   $p = [Diagnostics.Process]::Start($si); if (-not $p.WaitForExit(120000)) { Emit "tray" "warn" "The tray install is taking long; it carries on by itself" }
 }
-else {
-  $a = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c `"$(Join-Path $PF 'tray\install-tray.cmd')`""
-  Register-ScheduledTask -TaskName "EnclaveTrayInstall" -Action $a -Principal (New-ScheduledTaskPrincipal -UserId $Owner -LogonType Interactive) -Force | Out-Null
-  Start-ScheduledTask -TaskName "EnclaveTrayInstall"; Start-Sleep 10; Unregister-ScheduledTask -TaskName "EnclaveTrayInstall" -Confirm:$false
+elseif ($Owner) {
+  # another account (an automatic update runs as SYSTEM): install it in the owner's session if they are signed in; if not,
+  # the tray refreshes itself from Program Files at their next sign-in (EnclaveTray's own start-up check)
+  try {
+    $a = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c `"$(Join-Path $PF 'tray\install-tray.cmd')`""
+    Register-ScheduledTask -TaskName "EnclaveTrayInstall" -Action $a -Principal (New-ScheduledTaskPrincipal -UserId $Owner -LogonType Interactive) -Force | Out-Null
+    Start-ScheduledTask -TaskName "EnclaveTrayInstall"; Start-Sleep 10
+  } catch { Emit "tray" "warn" "The tray was not refreshed for $Owner now ($($_.Exception.Message)); it updates itself at their next sign-in" }
+  finally { Unregister-ScheduledTask -TaskName "EnclaveTrayInstall" -Confirm:$false -ErrorAction SilentlyContinue }
 }
 Emit "tray" "ok" "Open 'Enclave Hosting' from the tray, the Desktop or the Start Menu to set your payout wallet and caps"
 Emit "done" "ok" "Enclave host '$Name' is set up"
