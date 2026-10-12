@@ -13,8 +13,11 @@ export const shieldHostAdmitted = (policy, name) => !!policy && !!name &&
 // policy.platforms: explicit {ekCertSha256, pcr0} pins, or "attested" (the open market): any TPM whose EK chains to the
 // pinned ekRoots, on a boot that passed the production checks (Secure Boot on, no test signing; hvnode-verify.mjs).
 // "attested" admits any firmware (PCR 0) on such a TPM: it says the app ran isolated on genuine hardware, not on whose.
-const platformsValid = platforms => platforms === 'attested' || (Array.isArray(platforms) && platforms.length > 0 &&
+export const platformsValid = platforms => platforms === 'attested' || (Array.isArray(platforms) && platforms.length > 0 &&
   platforms.every(p => HEX.test(p?.ekCertSha256 || '') && HEX.test(p?.pcr0 || '')));
+// a VERIFIED boot (an admissible hvnode-verify verdict's .boot) on an admitted platform
+export const platformAdmitted = (platforms, boot) => platformsValid(platforms) && HEX.test(boot?.ekCertSha256 || '') &&
+  (platforms === 'attested' || platforms.some(p => p.ekCertSha256 === boot.ekCertSha256 && p.pcr0 === boot.pcr0));
 export function verifyShieldAppPolicy(input, policy = {}) {
   const no = reason => ({ ok: false, reason });
   try {
@@ -38,8 +41,7 @@ export function verifyShieldAppPolicy(input, policy = {}) {
       minimumGuestSvn: policy.minimumGuestSvn ?? 0,
     });
     if (!v.ok) return v;
-    if (platforms === 'attested' ? !HEX.test(v.boot?.ekCertSha256 || '') :
-        !platforms.some(p => p.ekCertSha256 === v.boot.ekCertSha256 && p.pcr0 === v.boot.pcr0))
+    if (!platformAdmitted(platforms, v.boot))
       return no('authenticated TPM/platform pair is not admitted');
     const spkiSha256 = createHash('sha256').update(input.handshakeSpki).digest('hex');
     // For certificate issuance, the actual CSR parser supplies this hash. This
