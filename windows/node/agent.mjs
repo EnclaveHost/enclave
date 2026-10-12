@@ -726,7 +726,7 @@ function connect() {
           }
         } else if (f.t === 'shield-market') {
           // Only the currently accepted relay connection can open this bounded claim window.
-          if (s === tunnels.current) host.shieldMarketUntil = Math.min(Number(f.until) || 0, Date.now() + 300000);
+          if (s === tunnels.current) host.openShieldMarket(Math.min(Number(f.until) || 0, Date.now() + 300000));
         } else if (f.t === 'ping') send({ t: 'pong' });
         else if (f.t === 'req') { const r = await handle(f); send({ t: 'res', id: f.id, status: r.status, headers: r.headers, body: Buffer.from(r.body).toString('base64') }); }
 
@@ -901,7 +901,7 @@ async function startHostingControls() {
           client: new IsolationManagerClient({ base: host.cfg.isolationManager }), dataAddr: host.cfg.isolationDataAddr,
           runtimeId: rec => Number(rec.gpuShare) > 0 ? host.managerInference?.runtimeId : host.cfg.isolationRuntimeId,
           endpoint: host.cfg.endpoint, sign: (message) => acct.signMessage({ message }),
-          served: (owner) => host.scope() === "market" || host.ownerSet().has(owner), log: (m) => log(m) });
+          served: (owner) => host.servingScope() === "market" || host.ownerSet().has(owner), log: (m) => log(m) });
         let running = false;
         const tick = () => { if (running) return; running = true;
           certs.pass(host.records).catch((e) => log(`certificates: pass failed: ${e.message}`)).finally(() => { running = false; }); };
