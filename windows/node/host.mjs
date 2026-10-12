@@ -373,7 +373,14 @@ export class Host {
   async ensurePriced({ setPrices = (...a) => chain.setPrices(...a), now = Date.now() } = {}) {
     if (!this.chainReady || !this.registered || !chain.operatorAddress()) return;
     // both asks: the CPU's (the owner's override, or the default from the network's prices) and the card's
-    const cpu = Number(this.cfg.cpuPricePerSec6) || 0, want = this.cardPrice(), key = `${cpu}/${want}`;
+    // The CPU price: not the configured fallback before the network's prices are known (setPriceRows). Right after a
+    // start cfg holds that fallback, and posting it overwrote the market price on the registry only for the default
+    // read a minute later to post it back - two transactions per restart (2026-10-12). Until then the price already on
+    // the registry stands (an owner's override, and a box with none posted yet, go ahead). The card's price is posted
+    // as before: a worker that stops must take it off at once.
+    const onChainCpu = Number(this.registered.cpuPricePerSec6 || 0);
+    const keepCpu = !this.priceGuide && !this.pricing?.cpuPerHour && onChainCpu > 0;
+    const cpu = keepCpu ? onChainCpu : Number(this.cfg.cpuPricePerSec6) || 0, want = this.cardPrice(), key = `${cpu}/${want}`;
     if (cpu <= 0) return;
     if (Number(this.registered.cpuPricePerSec6 || 0) === cpu && Number(this.registered.gpuPricePerSec6 || 0) === want) {
       if (this.priceSent) { this.priceSent = null; this.#saveTracked(); }

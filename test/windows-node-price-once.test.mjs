@@ -77,3 +77,19 @@ test("legacy engine: the chain already right sends nothing over two starts; a re
   assert.equal(c.calls.length, 1);
   assert.equal(c.calls[0][2], 28);
 });
+
+test("a restart before the network's prices are read keeps the CPU price on the registry (no fallback, no flip-flop)", async () => {
+  // nucbox-k11-4 2026-10-12 17:38: the registry held 51/sec (the market default); the restart posted the configured 12,
+  // and a minute later the default posted 51 again - two transactions every restart.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ee-price-flip-")), c = counter();
+  const h = start(dir, 0, RETIRED);
+  h.registered.cpuPricePerSec6 = 51n;                    // what the market default had put there
+  await h.ensurePriced({ setPrices: c.setPrices });
+  assert.equal(c.calls.length, 0, "the fallback 12 was not posted over 51");
+  // the owner's own override still goes out at once
+  h.pricing = { ...(h.pricing || {}), cpuPerHour: 0.5 };
+  h.applyPrices();
+  await h.ensurePriced({ setPrices: c.setPrices });
+  assert.equal(c.calls.length, 1);
+  assert.notEqual(Number(c.calls[0][1]), 12);
+});
