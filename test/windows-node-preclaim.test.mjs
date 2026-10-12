@@ -85,7 +85,8 @@ test("a DEFINITE refusal (secrets staged) is sticky: asked once, not re-asked wh
   const { h, r } = await node((b) => ({ status: 200, body: { id: b.id, exists: true } }));
   const from = rpc.calls.length;
   const a = await h.consider(DEP);
-  assert.match(a.reason, /before any claim: hasSecrets: the deployment has staged secrets/);
+  // secrets reach a partition only through sealed, deployment-bound release; this manager's image offers none
+  assert.match(a.reason, /before any claim: hasSecrets: this image cannot deliver sealed secrets to the app/);
   const asked = r.paths.length;
   const b = await h.consider(DEP);
   assert.equal(b.reason, a.reason);
@@ -108,20 +109,27 @@ test("a verdict that passes goes on to the claim (the ledger is asked and a clai
   assert.ok(claimSide(from).length > 0 || /claim failed/.test(String(out.reason)), `no claim was attempted: ${JSON.stringify(out)}`);
 });
 
-test("87's backend rule: a SERVED owner's deployment requiring another backend, or none, is never claimed - and never probed", async () => {
-  for (const configCid of [env("snp-guest-per-app"), ""]) {
-    rpc.row.current = row({ configCid });
-    const { h, r } = await node((b) => ({ status: 200, body: { id: b.id, exists: false } }));
-    const from = rpc.calls.length;
-    const out = await h.consider(DEP);
-    r.close();
-    assert.equal(out.accepted, false, configCid);
-    assert.match(out.reason, configCid ? /requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app/
-                                       : /claims only deployments that require hyperv-partition-per-app/);
-    assert.deepEqual(claimSide(from), []);
-    assert.deepEqual(r.paths, [], "the relay was asked about a deployment this box would never claim");
-    // ...and held if it were ever this box's: not restarted, not spawned
-    assert.ok(h.heldReason({ ...row({ configCid }), owner: OPERATOR }), "a non-hv deployment is not held");
-  }
+test("87's backend rule: a SERVED owner's deployment requiring another backend is never claimed - and never probed", async () => {
+  const configCid = env("snp-guest-per-app");
+  rpc.row.current = row({ configCid });
+  const { h, r } = await node((b) => ({ status: 200, body: { id: b.id, exists: false } }));
+  const from = rpc.calls.length;
+  const out = await h.consider(DEP);
+  r.close();
+  assert.equal(out.accepted, false);
+  assert.match(out.reason, /requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app/);
+  assert.deepEqual(claimSide(from), []);
+  assert.deepEqual(r.paths, [], "the relay was asked about a deployment this box would never claim");
+  // ...and held if it were ever this box's: not restarted, not spawned
+  assert.ok(h.heldReason({ ...row({ configCid }), owner: OPERATOR }), "a non-hv deployment is not held");
   assert.ok(enclaveIdOf);
+});
+
+test("a deployment naming NO backend is isolated work here (chain.isolationForBackend): not refused for its backend, and not held", async () => {
+  rpc.row.current = row({ configCid: "" });
+  const { h, r } = await node((b) => ({ status: 200, body: { id: b.id, exists: false } }));
+  const out = await h.consider(DEP);
+  r.close();
+  assert.doesNotMatch(String(out.reason || ""), /requires isolation backend|claims only deployments/);
+  assert.equal(h.heldReason({ ...row({ configCid: "" }), owner: OPERATOR }), null);
 });

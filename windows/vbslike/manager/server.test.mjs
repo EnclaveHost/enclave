@@ -21,6 +21,32 @@ const VMID = "3f1c0f6e-7a2b-4c3d-8e9f-0a1b2c3d4e5f";   // the partition a fake h
 // the body the node client actually sends: guestd's contract, name included
 const spawnBody = (over = {}) => ({ derive: REC, name: DEP, isPublic: true, hasSecrets: false, ...over });
 
+test("purchased RAM reaches the launcher without changing the catalog identity", async () => {
+  for (const share of [.25, .5, .15]) {
+    let launched;
+    const m = mk({ ramPoolMiB: 65536, backend: new HyperVPartitionBackend({ launch: async (mapping, opts) => {
+      launched = { mapping, opts }; return { appReady: true };
+    } }) });
+    const r = await m.spawn(spawnBody({ cpuShare: share }));
+    assert.equal(r.status, "running");
+    assert.equal(launched.opts.appMemoryMiB, Math.floor(65536 * share));
+    assert.deepEqual(launched.mapping.record.policy, REC.policy);
+    assert.equal(r.appId, v.ok[0].mapping.appId);
+    assert.equal(r.memory.appMiB, launched.opts.appMemoryMiB);
+    assert.equal(m.health().memory.poolMiB, 65536);
+  }
+});
+
+test("share sizing refuses invalid purchases and does not overbook concurrent starts", async () => {
+  const m = mk({ ramPoolMiB: 65536, backend: new HyperVPartitionBackend({ launch: async () => ({ appReady: true }) }) });
+  for (const share of [0, -1, 1.01, NaN, Infinity, .0001])
+    await assert.rejects(m.spawn(spawnBody({ cpuShare: share })), /cpuShare|allows/);
+  const results = await Promise.allSettled([m.spawn(spawnBody({ cpuShare: .6 })),
+    m.spawn(spawnBody({ name: "0x" + "ab".repeat(32), cpuShare: .6 }))]);
+  assert.equal(results.filter(r => r.status === "fulfilled").length, 1);
+  assert.match(results.find(r => r.status === "rejected").reason.message, /full purchased allowance/);
+});
+
 test("/health states the backend, refuses everything it cannot honour, and admits it cannot start", () => {
   const h = mk().health();
   assert.equal(h.backend, BACKEND);
@@ -29,7 +55,7 @@ test("/health states the backend, refuses everything it cannot honour, and admit
     assert.equal(h.supports[k], false, `supports.${k} must be false`);
   assert.deepEqual(h.catalog.derivations, ["enclave-catalog-bundle/1"],
                    "the GATE list: only what this backend can actually serve");
-  assert.deepEqual(h.catalog.derives, ["enclave-catalog-bundle/1", "enclave-catalog-bundle/2", "enclave-catalog-bundle/3", "enclave-catalog-bundle/4"],
+  assert.deepEqual(h.catalog.derives, ["enclave-catalog-bundle/1", "enclave-catalog-bundle/2", "enclave-catalog-bundle/3", "enclave-catalog-bundle/4", "enclave-catalog-bundle/5", "enclave-catalog-bundle/6", "enclave-catalog-bundle/7"],
                    "what it can COMPUTE is separate information, and /2 is byte-exact here");
   assert.equal(h.runtime.v2SocketServer, false, "deriving /2 is not serving it, and health says which");
   assert.equal(h.catalog.runtimeId, RT);
@@ -588,4 +614,66 @@ test("answers: a record removed WHILE it was being asked is left alone (no failu
   const r = await m.spawn(spawnBody()); id = r.id; await m.judging.get(id);
   assert.deepEqual(await m.sweepAnswers(), { checked: 1, failed: 0 });
   assert.deepEqual(seen, ["removed"], "only the removal's own reclaim");
+});
+
+/* ---- OUTBOUND HTTPS (egress.mjs): stated on /health, a dead path fails its domain, and a spawn's `egress` is refused ---- */
+
+test("egress: /health states it only when it is on AND secret domains are served; default stays false", () => {
+  assert.equal(mk().health().supports.egress, false);
+  assert.equal(mk().health().egress, null);
+  assert.equal(mk({ egress: { enabled: true, mode: "socks" } }).health().supports.egress, false,
+               "on, but no secret (V6) domain is served here, and only those use it");
+  const m = mk({ egress: { enabled: true, mode: "socks" }, configEnabled: true, secretsEnabled: true, fetchConfig: async () => Buffer.from("{}") });
+  const h = m.health();
+  assert.equal(h.supports.egress, true);
+  assert.equal(h.egress.protocol, "egress-v1"); assert.equal(h.egress.vsockPort, 9443); assert.equal(h.egress.upstream, "socks");
+  assert.equal(h.egress.scope, "enclave-catalog-bundle/6");
+  assert.equal(mk({ egress: { enabled: false }, configEnabled: true, secretsEnabled: true, fetchConfig: async () => Buffer.from("{}") }).health().supports.egress, false);
+  // every other flag the claim gate reads is what it was
+  for (const k of ["gpu", "ports"]) assert.equal(h.supports[k], false, k);
+});
+
+test("egress: a spawn naming a dedicated egress route (Linux's `egress`) is refused, whether or not egress is on", async () => {
+  const on = { egress: { enabled: true, mode: "socks" }, configEnabled: true, secretsEnabled: true, fetchConfig: async () => Buffer.from("{}") };
+  for (const egress of ["https://exit.example:8443", "socks5://10.0.0.1:1080", { url: "x" }, 1]) {
+    assert.match(refuseUnsupported(spawnBody({ egress })), /dedicated egress route/, JSON.stringify(egress));
+    await assert.rejects(() => mk().spawn(spawnBody({ egress })), /dedicated egress route/);
+    await assert.rejects(() => mk(on).spawn(spawnBody({ egress })), /dedicated egress route/);
+  }
+  // the node's own spawn carries egress "" (node-bridge.mjs isolationPlan): that, null and absent are not a request
+  for (const over of [{ egress: "" }, { egress: null }, {}]) assert.equal(refuseUnsupported(spawnBody(over)), null, JSON.stringify(over));
+});
+
+test("egress: its path exiting fails the domain, reclaims its sessions, and a late readiness success cannot revive it", async () => {
+  let exitEgress, finishJudge;
+  const exited = new Promise((r) => { exitEgress = r; }), verdict = new Promise((r) => { finishJudge = r; });
+  const backend = { backend: "hyperv-partition-per-app", supports: {}, canSurvey: false, boundary: null,
+    start: async () => ({ egress: { exited, stop: async () => {} }, tcpPort: 1234, launcherVmId: VMID, appReady: false }), stop: async () => {} };
+  const m = mk({ backend, judgeReady: async () => verdict });
+  const reclaimed = [];
+  m.onReclaim = (id, why) => reclaimed.push([id, why]);
+  const r = await m.spawn(spawnBody());
+  assert.equal(m.get(r.id).status, "starting");
+  exitEgress({ who: "shielded-bridge", code: 1 });
+  await new Promise((res) => setImmediate(res));
+  assert.equal(m.get(r.id).status, "failed");
+  assert.match(m.get(r.id).reason, /egress path exited \(shielded-bridge\)/);
+  assert.deepEqual(reclaimed, [[r.id, "the egress path exited"]]);
+  finishJudge({ status: "running", transportKeySha256: "a".repeat(64) });
+  await m.judging.get(r.id);
+  assert.equal(m.get(r.id).status, "failed", "a late verdict does not resurrect a domain whose egress is gone");
+});
+
+test("egress: a stop's own ending of the path is not a failure", async () => {
+  let exitEgress;
+  const exited = new Promise((r) => { exitEgress = r; });
+  const backend = { backend: "hyperv-partition-per-app", supports: {}, canSurvey: false, boundary: null,
+    start: async () => ({ egress: { exited, stop: async () => {} }, appReady: true }),
+    stop: async () => { exitEgress({ who: "shield-egress", code: 0 }); await new Promise((res) => setImmediate(res)); } };
+  const m = mk({ backend });
+  const reclaimed = [];
+  m.onReclaim = (id, why) => reclaimed.push(why);
+  const r = await m.spawn(spawnBody());
+  assert.deepEqual(await m.remove(r.id), { removed: true, absent: false });
+  assert.deepEqual(reclaimed, ["removed"], "only the removal itself reclaims");
 });

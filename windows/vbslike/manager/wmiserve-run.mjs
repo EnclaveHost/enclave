@@ -67,7 +67,7 @@ export function writeBundle({ dir, instanceId, bundle, appId }) {
  *       partition.vmId repeats): the manager judges each report against it (READINESS.md M1)
  */
 export function runWmiserve({ exe, vmId, bundleFile, appId, tcpPort, igvmSha256 = null, mediumSha256 = null,
-                              isolationType = 1, label = null, vcpus = null, memMiB = null, certName = null,
+                              isolationType = 1, label = null, vcpus = null, memMiB = null, appMemoryMiB = null, certName = null,
                               readyTimeoutMs = 180_000, closeTimeoutMs = 15_000, spawn = nodeSpawn, log = () => {} } = {}) {
   if (!exe) return Promise.reject(new Error("the wmiserve executable is required"));
   if (!/^[0-9a-f-]{36}$/i.test(String(vmId || ""))) return Promise.reject(new Error("wmiserve joins a VM by its GUID"));
@@ -80,7 +80,7 @@ export function runWmiserve({ exe, vmId, bundleFile, appId, tcpPort, igvmSha256 
   const args = ["wmiserve", "--vm", String(vmId), "--bundle", String(bundleFile), ...identity,
                 "--isolation-type", String(isolationType), "--tcp", String(tcpPort), "--hold", "stdin",
                 ...(label ? ["--label", String(label)] : []), ...(vcpus ? ["--vcpus", String(vcpus)] : []),
-                ...(memMiB ? ["--mem", String(memMiB)] : []), ...(certName ? ["--cert-name", String(certName)] : [])];
+                ...(memMiB ? ["--mem", String(memMiB)] : []), ...(appMemoryMiB ? ["--app-mem", String(appMemoryMiB)] : []), ...(certName ? ["--cert-name", String(certName)] : [])];
 
   return new Promise((resolve, reject) => {
     const child = spawn(exe, args, { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });

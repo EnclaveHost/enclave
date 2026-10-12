@@ -127,3 +127,41 @@ test("the pinned wmiserve executable is accepted and said, and the manager runs"
   assert.ok(r.timedOut, `it must keep running; it exited ${r.code}: ${r.err.slice(0, 200)}`);
   assert.match(r.out, new RegExp(`serving through wmiserve .* \\(sha256 ${sha}\\)`));
 });
+
+/* ---- outbound HTTPS (egress.mjs): off by default, all-or-nothing when on, and both executables pinned ------------- */
+async function egressFixture() {
+  const { d, id } = await serveFixture();
+  const exe = path.join(d, "shield-egress.exe"), bridge = path.join(d, "shielded-bridge.exe");
+  await fs.writeFile(exe, "shield-egress bytes"); await fs.writeFile(bridge, "shielded-bridge bytes");
+  const { createHash } = await import("node:crypto");
+  const h = (s) => createHash("sha256").update(s).digest("hex");
+  return { d, env: { ENCLAVE_RUNTIME_IDENTITY: id, ENCLAVE_EGRESS_V1: "1", ENCLAVE_EGRESS_EXE: exe, ENCLAVE_EGRESS_EXE_SHA256: h("shield-egress bytes"),
+                     ENCLAVE_EGRESS_BRIDGE_EXE: bridge, ENCLAVE_EGRESS_BRIDGE_EXE_SHA256: h("shielded-bridge bytes"),
+                     ENCLAVE_EGRESS_SOCKS: "127.0.0.1:30489" } };
+}
+test("egress: ENCLAVE_EGRESS_V1=1 with a setting missing or the SOCKS entry off loopback is refused at startup", async () => {
+  const { d, env } = await egressFixture();
+  const r1 = await run({ ...env, ENCLAVE_EGRESS_BRIDGE_EXE: "", ENCLAVE_EGRESS_SOCKS: "" });
+  const r2 = await run({ ...env, ENCLAVE_EGRESS_SOCKS: "10.0.0.1:1080" });
+  await fs.rm(d, { recursive: true, force: true });
+  assert.equal(r1.code, 2, r1.err);
+  assert.match(r1.err, /REFUSING TO START: ENCLAVE_EGRESS_V1=1 needs ENCLAVE_EGRESS_BRIDGE_EXE, exactly one of ENCLAVE_EGRESS_SOCKS/);
+  assert.equal(r2.code, 2, r2.err);
+  assert.match(r2.err, /must be a loopback IPv4 literal/);
+});
+
+test("egress: an executable that is not its pinned bytes is refused at startup", async () => {
+  const { d, env } = await egressFixture();
+  const r = await run({ ...env, ENCLAVE_EGRESS_BRIDGE_EXE_SHA256: "ab".repeat(32) });
+  await fs.rm(d, { recursive: true, force: true });
+  assert.equal(r.code, 2, r.err);
+  assert.match(r.err, /REFUSING TO START: the shielded-bridge executable \(egress\) at .* hashes [0-9a-f]{64}, not its pin abab/);
+});
+
+test("egress: pinned and complete, the manager runs and says so", async () => {
+  const { d, env } = await egressFixture();
+  const r = await run(env);
+  await fs.rm(d, { recursive: true, force: true });
+  assert.ok(r.timedOut, `it must keep running; it exited ${r.code}: ${r.err.slice(0, 200)}`);
+  assert.match(r.out, /egress ON \(socks\): shield-egress .* \(sha256 [0-9a-f]{64}\), bridge .* \(sha256 [0-9a-f]{64}\); secret deployments only/);
+});

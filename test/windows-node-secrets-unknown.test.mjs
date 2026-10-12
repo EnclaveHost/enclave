@@ -113,8 +113,8 @@ test("N4: a deployment WITH secrets is refused with a reason that does not overs
   const r = await h.ensureApp(DEP, dep(), { version: PLANNED });
   relay.close();
   assert.notEqual(r.status, "running", JSON.stringify(r));
-  assert.match(r.reason, /cannot deliver them into a partition/);
-  assert.match(r.reason, /does not keep them from this host/);
+  // secrets reach a partition only through sealed, deployment-bound release, which this manager's image does not offer
+  assert.match(r.reason, /cannot deliver sealed secrets to the app/);
   assert.doesNotMatch(r.reason, /would cross this host/);
   assert.equal(h.secrets.has(DEP), false, "plaintext is held in the agent");
   assert.ok(relay.paths.every((p) => p === "/v1/secrets/exists"), `the node fetched secrets: ${relay.paths.join(",")}`);
