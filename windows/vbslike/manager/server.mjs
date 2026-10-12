@@ -18,10 +18,11 @@
      absent rather than null-shaped or "pending". Nothing here produces a report.
    ============================================================ */
 import http from "node:http";
+import { appMemoryForShare } from "./memory-share.mjs";
 import { inferenceRefusal } from "./shield-profile.mjs";
 import { runtimeId as runtimeId_ } from "../../../isolation/contract/runtime.mjs";
 import crypto from "node:crypto";
-import { derive, DERIVATION, DERIVATION_V2, DERIVATION_V4, DERIVATIONS } from "./derive.mjs";
+import { derive, appConfigText, MAX_CONFIG_BYTES, DERIVATION, DERIVATION_V2, DERIVATION_V4, DERIVATION_V5, DERIVATION_V6, DERIVATION_V7, DERIVATIONS } from "./derive.mjs";
 
 /* What this backend can actually SERVE, as opposed to derive. /2 needs a command's own socket
    inside the partition; when that exists, it moves into this list and the gate follows. */
@@ -29,7 +30,7 @@ export const SERVES = [DERIVATION];
 // consecutive failed answer checks that fail a running domain (a key change fails it at once)
 export const ANSWER_STRIKES = 3;
 import { HyperVPartitionBackend, BACKEND, SUPPORTS, PREREQUISITES } from "./backend.mjs";
-import { parseNotes } from "./wmi-launcher.mjs";
+import { parseNotes, READINESS_WITNESS_APP_ID } from "./wmi-launcher.mjs";
 
 /* ids: server-minted "hv" + 128 bits (63's P4: 32 bits collide, and a minted id was never checked against the
    records). A caller may still name one, but only in the shape the isolated route validator accepts
@@ -49,7 +50,12 @@ export function policyFor({ memMb }) {
 /** What a spawn may NOT ask for here, checked again on this side of the wire. */
 export function refuseUnsupported(req = {}, s = SUPPORTS) {
   if ((Number(req.gpuMilli) > 0 || Number(req.gpuShare) > 0) && !s.gpu) return "a GPU share: a per-app partition has no GPU path";
-  if ((req.config || req.appConfigCid) && !s.config) return "app config: it is not delivered into a per-app partition";
+  if ((req.config || req.appConfigCid || req.configCid) && !s.config) return "app config: it is not delivered into a per-app partition";
+  // Linux's dedicated-IP egress URL (guestd's spawn `egress`). A partition's outbound path is its own in-guest allowlist
+  // through the host's egress endpoint (egress.mjs), never a per-deployment exit the spawn names; refused whatever
+  // supports.egress says. The node always sends "" here (node-bridge.mjs isolationPlan).
+  if (req.egress !== undefined && req.egress !== null && req.egress !== "")
+    return "a dedicated egress route (spawn `egress`): a partition's outbound HTTPS is its in-guest allowlist through this host's egress endpoint, and no spawn may name an exit";
   if (req.hasSecrets !== false && !s.secrets)
     return req.hasSecrets === true ? "staged secrets: they would cross this host in plaintext"
                                    : "unverified secret state: it must be known to be absent, not assumed";
@@ -67,9 +73,23 @@ export class Manager {
    * @param readyDeadlineMs  how long a domain has to become ready before it is failed.
    */
   constructor({ backend = new HyperVPartitionBackend(), fetchComponent = null, runtimeId = "",
-                runtime = null, shield = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null } = {}) {
+                runtime = null, shield = null, configEnabled = false, secretsEnabled = false, configSocketServer = false, protectedPorts = false, wasmSet = false, memory64 = false, fetchConfig = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null,
+                egress = null, ramPoolMiB = null } = {}) {
+    if (ramPoolMiB !== null && (!Number.isSafeInteger(ramPoolMiB) || ramPoolMiB <= 0))
+      throw new Error("ramPoolMiB must be a positive integer");
+    this.ramPoolMiB = ramPoolMiB;
     this.backend = backend;
     this.shield = shield;
+    this.configEnabled = configEnabled === true && typeof fetchConfig === "function";
+    this.fetchConfig = fetchConfig;
+    this.secretsEnabled = secretsEnabled === true && this.configEnabled;
+    this.configSocketServer = configSocketServer === true && this.configEnabled;
+    this.protectedPorts = protectedPorts === true && this.configSocketServer && this.secretsEnabled;
+    this.wasmSet = wasmSet === true; this.memory64 = memory64 === true;
+    // OUTBOUND HTTPS for secret domains (egress.mjs; main.mjs ENCLAVE_EGRESS_V1=1): the launcher starts a partition's
+    // bridge and egress endpoint; this states it on /health and fails a domain whose path exits. Only secret (V6)
+    // domains use it, so it is stated only where they are served.
+    this.egress = egress && egress.enabled === true && this.secretsEnabled ? { mode: String(egress.mode || "") } : null;
     this.fetchComponent = fetchComponent;       // (cid) -> Buffer, CID-verified by the caller's fetcher
     // THE RUNTIME IDENTITY, not just its hash. judge-hv hands `expectRuntime` to the shared
     // checkRuntime as `want.runtime`, which DIFFS IT FIELD BY FIELD against the identity the
@@ -160,7 +180,7 @@ export class Manager {
                               launcherKey: handle.launcherKey, expectedVmId: handle.launcherVmId, ...statement,
                               // the IDENTITY object, which is what checkRuntime compares; never the hash
                               expectRuntime: rec.inference ? this.shield?.runtime : this.runtime ?? undefined,
-                              deadlineMs: this.readyDeadlineMs });
+                              deadlineMs: [DERIVATION_V6,DERIVATION_V7].includes(rec.derivation) ? Math.max(300_000,this.readyDeadlineMs) : this.readyDeadlineMs });
       if (this.domains.get(rec.id) !== rec) return;         // removed, or replaced, while we were judging (63's P3: identity, not presence)
       // A relay/Shield bridge may exit while the evidence request is pending.
       // A late readiness success must not resurrect that failed transport.
@@ -250,9 +270,16 @@ export class Manager {
   health() {
     return {
       managerEpoch: this.epoch,
+      ...(this.ramPoolMiB !== null ? { memory: { rule: "cpu-share", poolMiB: this.ramPoolMiB } } : {}),
       inventory: this.inventory,
       backend: this.backend.backend,
-      supports: { ...this.backend.supports, ...(this.shield?.ready ? { gpu: true } : {}) },
+      supports: { ...this.backend.supports, gpu: !!this.shield?.ready, config: this.configEnabled, configCid: this.configEnabled, secrets: this.secretsEnabled, ports: this.protectedPorts, set: this.wasmSet, mem64: this.memory64,
+                  // outbound HTTPS from a secret domain to its owner's config's origins (egress.mjs). NOT the spawn's
+                  // `egress` (a dedicated exit, always refused) and not the node's networkOptions (PARTITION_OFFERS.egress)
+                  egress: !!this.egress },
+      egress: this.egress ? { protocol: "egress-v1", vsockPort: 9443, upstream: this.egress.mode, scope: DERIVATION_V6,
+                              allowlist: "derived in the guest from the measured config resolved with its released secrets" } : null,
+      configMaxBytes: this.configEnabled ? MAX_CONFIG_BYTES : 0,
       inference: this.shield ? { ...this.shield, allocatedGpuMilli: this.gpuAllocated(), freeGpuMilli: this.shield.ready ? Math.max(0, 1000-this.gpuAllocated()) : 0 } : null,
       // DEFECT 4: /health had no boundary at all, so a reader could learn everything about this
       // manager EXCEPT what its isolation actually is. It is carried verbatim from the backend,
@@ -266,11 +293,11 @@ export class Manager {
       // free. Silence in this list is the refusal the gate understands. (enclave-5d, who owns the
       // consumer, asked for exactly this, and they are right.)
       catalog: {
-        derivations: this.shield?.ready ? [...SERVES, DERIVATION_V4] : SERVES,                    // what it can serve: the gate reads this
+        derivations: [...SERVES, ...(this.shield?.ready ? [DERIVATION_V4] : []), ...(this.configEnabled ? [DERIVATION_V5] : []), ...(this.secretsEnabled ? [DERIVATION_V6] : []), ...(this.protectedPorts ? [DERIVATION_V7] : [])],                    // what it can serve: the gate reads this
         derives: DERIVATIONS,                   // what it can COMPUTE, byte-exactly: information only
         runtimeId: this.runtimeId || null,
       },
-      runtime: { v2SocketServer: false,
+      runtime: { v2SocketServer: false, configSocketServer: this.configSocketServer,
                  note: "enclave-catalog-bundle/2 is derived byte-for-byte here but not served: serving a command on its own socket needs wasi:sockets inside the partition and an in-guest TLS front" },
       policyRule: POLICY_RULE,
       // canStart is the HOST's answer, refreshed by probe(), not "a launcher object exists". A
@@ -297,6 +324,7 @@ export class Manager {
         + "spawning is refused until they are removed, rather than guessing whether one of them is this deployment");
       e.status = 503; throw e;
     }
+    if (["secrets", "env", "secretValues"].some(k => k in body)) throw badRequest("plaintext secrets are not manager inputs");
     const d = body.derive || {};
     if (!DERIVATIONS.includes(d.derivation)) throw badRequest(`unknown derivation ${JSON.stringify(d.derivation ?? null)}`);
     // Refuse rather than approximate. The identity is right either way - derive() proves that -
@@ -308,15 +336,37 @@ export class Manager {
     const shieldWhy = inferenceRefusal(d, body, this.shield);
     if (shieldWhy) throw badRequest(shieldWhy);
     if (d.derivation === DERIVATION_V4 && !this.shield?.ready) throw badRequest("Shield profile unavailable");
-    if (d.derivation !== DERIVATION && d.derivation !== DERIVATION_V4) throw badRequest("derivation is not served");
+    if (d.derivation !== DERIVATION && d.derivation !== DERIVATION_V4 && !(d.derivation === DERIVATION_V5 && this.configEnabled) && !(d.derivation === DERIVATION_V6 && this.secretsEnabled) && !(d.derivation === DERIVATION_V7 && this.protectedPorts))
+      throw badRequest("derivation is not served");
+    // The new config lives only in the measured record; never ignore a second, unmeasured input.
+    if ([DERIVATION_V5,DERIVATION_V6,DERIVATION_V7].includes(d.derivation)) {
+      if (d.http && !this.configSocketServer) throw badRequest("this runtime does not support configured command services");
+      if (body.config || body.configCid || body.appConfigCid) throw badRequest("configuration must be carried in the V5 record only");
+      if (d.configCid) {
+        const bytes = await this.fetchConfig(d.configCid);
+        if (!Buffer.isBuffer(bytes) || bytes.length > (1 << 20)) throw badRequest("configuration fetch exceeds its byte limit");
+        const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+        if (appConfigText(text) !== d.config) throw badRequest("configuration differs from its verified CID");
+      }
+    }
     if (!d.inference && this.runtimeId && d.runtimeId !== this.runtimeId)
       throw badRequest(`the mapping is pinned to runtime ${d.runtimeId}, and this host runs ${this.runtimeId}`);
-    const refusal = refuseUnsupported(body, { ...SUPPORTS, gpu: !!this.shield?.ready });
+    if ([DERIVATION_V6,DERIVATION_V7].includes(d.derivation) && (body.hasSecrets !== true || body.name !== d.secretDeployment)) throw badRequest("secret deployment differs from spawn identity");
+    const refusal = refuseUnsupported(body, { ...SUPPORTS, gpu: !!this.shield?.ready, secrets: this.secretsEnabled && [DERIVATION_V6,DERIVATION_V7].includes(d.derivation) });
     if (refusal) throw badRequest(`this backend does not honour ${refusal}`);
     if (!this.fetchComponent) throw badRequest("no component fetcher configured");
 
     const component = await this.fetchComponent(d.cid);
     const mapping = derive({ record: d, component });     // throws on anything the rule refuses
+    // Synthetic readiness witnesses have no ledger purchase. Real deployment
+    // names always use the full share of this node's advertised RAM pool.
+    let memory = null;
+    const witness = body.name === "shield-readiness-v1" && mapping.appId === READINESS_WITNESS_APP_ID;
+    if (this.ramPoolMiB !== null && !witness) {
+      if (!/^0x[0-9a-f]{64}$/i.test(String(body.name || ""))) throw badRequest("a deployment ID is required for RAM allocation");
+      try { memory = appMemoryForShare(this.ramPoolMiB, body.cpuShare, mapping.record.policy.memMiB); }
+      catch (e) { throw badRequest(e.message); }
+    }
 
     // DEFECT 6: a second spawn for a live deployment is an ADOPTION, not a silent overwrite. The
     // first version replaced the record and forgot the first handle, orphaning a running partition
@@ -345,8 +395,17 @@ export class Manager {
     // No await between reservation check and insertion: concurrent fetches cannot oversell.
     const gpuMilli = mapping.record.inference?.gpuMilli || 0;
     if (gpuMilli + this.gpuAllocated() > 1000) throw badRequest("Shield GPU allocation is full");
-    const rec = { launching: true, inference: mapping.record.inference || null, gpuMilli, id, name, instanceId, appId: mapping.appId, recordSha256: mapping.recordSha256,
-                  componentSha256: mapping.componentSha256, policy: mapping.record.policy,
+    if (memory) {
+      if ([...this.domains.values()].some(r => r.recovered || r.unattributed)) {
+        const e = new Error("RAM allocation is unknown until recovered partitions are reconciled"); e.status = 503; throw e;
+      }
+      const held = [...this.domains.values()].reduce((n, r) => n + (r.memory?.appMiB ?? r.policy?.memMiB ?? 0), 0);
+      if (held + memory.appMiB > this.ramPoolMiB) {
+        const e = new Error("the RAM pool cannot fit the full purchased allowance"); e.status = 507; throw e;
+      }
+    }
+    const rec = { derivation: mapping.record.derivation, secretDeployment: mapping.record.secretDeployment || null, launching: true, inference: mapping.record.inference || null, gpuMilli, id, name, instanceId, appId: mapping.appId, recordSha256: mapping.recordSha256,
+                  componentSha256: mapping.componentSha256, policy: mapping.record.policy, memory,
                   catalog: mapping.record.catalog, cid: mapping.record.cid,
                   runtimeId: mapping.record.runtimeId, status: "starting", startedAt: null, reason: null,
                   // DEFECT 4: what the data plane needs to route, and what the boundary IS. 5d's
@@ -357,11 +416,21 @@ export class Manager {
                   domainId: null, guestPort: null };
     this.domains.set(id, rec);
     try {
-      const h = await this.backend.start(mapping, { instanceId, identity: { id, name, instanceId, appId: mapping.appId } });
+      const h = await this.backend.start(mapping, { instanceId, ...(memory ? { appMemoryMiB: memory.appMiB } : {}), identity: { id, name, instanceId, appId: mapping.appId } });
       if (h?.transport?.exited) h.transport.exited.then(() => {
         if (this.domains.get(id) === rec && !this.#stopping.has(rec) && rec.status !== "stopped") {
           rec.status="failed"; rec.appReady=false; rec.reason="Shield transport exited";
           this.onReclaim?.(id, rec.reason);
+        }
+      });
+      // ITS EGRESS PATH is a pair of child processes too (egress.mjs): if either ends while the record stands and no stop
+      // is under way, the app's outbound writes cannot work, so the domain fails like a dead transport, and a late
+      // readiness verdict cannot revive it. The VM is left for the node to retire.
+      if (h?.egress?.exited) h.egress.exited.then((x) => {
+        if (this.domains.get(id) === rec && !this.#stopping.has(rec) && rec.status !== "stopped" && rec.status !== "failed") {
+          rec.status = "failed"; rec.appReady = false;
+          rec.reason = `the egress path exited (${x?.who ?? "a child"}): this domain's outbound HTTPS is gone, and its VM is left for the node to retire`;
+          this.#reclaim(id, "the egress path exited");
         }
       });
       // WHAT WAS ESTABLISHED, and no more. The launcher returns only when the VM is Running and the
@@ -372,6 +441,7 @@ export class Manager {
       rec.status = h && h.appReady === true ? "running" : "starting";
       rec.appReady = !!(h && h.appReady === true);
       rec.startedAt = Date.now(); rec.handle = h;
+      if (memory && h?.memory) rec.memory = { ...memory, vmMiB: h.memory.vmMiB };
       // THE RELAY IS A CHILD PROCESS (wmiserve-run.mjs). If it exits while this record stands and no stop is under way,
       // the domain can no longer be reached and must not read as running (d1's review of 299ce3e9). The record fails,
       // its sessions are reclaimed, and the VM is LEFT for the node to retire: only a stop removes a VM.

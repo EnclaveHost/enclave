@@ -30,16 +30,25 @@ const box = (cfg = {}) => {
 // ---- (b) what the isolated backend advertises ------------------------------------------------------------------------
 const FLAGS = ["secrets", "secretsInConfig", "configOverride", "customDomains", "waf", "networkOptions", "gpuOptional",
                "configCid", "configCidOverride", "configEdit", "devDeploy"];
-test("the isolated backend advertises none of what a partition cannot be given - even with a manager that claims all of it", () => {
+// What a partition can be given since the production runtime (sealed secrets, measured config, CID-verified config):
+// offered only when the node's plan AND the manager's /health `supports` both say so.
+const PARTITION_FLAGS = ["secrets", "secretsInConfig", "configOverride", "configCid", "configCidOverride", "configEdit"];
+test("the isolated backend advertises only what a partition can be given, and only what its manager says it supports", () => {
   const h = box({ engineRetired: true, isolationManager: "http://127.0.0.1:1", sessionKid: "k1" });
   h.cfg.secretsSign = async () => "0x";                 // what used to make secrets/customDomains true
-  for (const supports of [null, { gpu: true, secrets: true, egress: true, config: true, ports: true, configCid: true, waf: true, customDomains: true, privateDeployments: true }]) {
-    h.managerSupports = supports;
-    const f = h.features(), a = h.availability();
-    for (const k of FLAGS) {
-      assert.equal(f[k], false, `features().${k} with supports=${JSON.stringify(supports)}`);
-      assert.equal(a[k], false, `availability.${k}`);
-    }
+  // a manager that supports nothing: nothing is offered
+  h.managerSupports = null;
+  for (const k of FLAGS) {
+    assert.equal(h.features()[k], false, `features().${k} with no manager supports`);
+    assert.equal(h.availability()[k], false, `availability.${k}`);
+  }
+  // a manager claiming everything: exactly the partition's capabilities, never what its plan refuses
+  h.managerSupports = { gpu: true, secrets: true, egress: true, config: true, ports: true, configCid: true, waf: true, customDomains: true, privateDeployments: true };
+  const f = h.features(), a = h.availability();
+  for (const k of FLAGS) {
+    const want = PARTITION_FLAGS.includes(k);
+    assert.equal(f[k], want, `features().${k} with a manager claiming everything`);
+    assert.equal(a[k], want, `availability.${k}`);
   }
 });
 
@@ -58,25 +67,35 @@ test("every false in PARTITION_OFFERS is a refusal in isolationPlan (or a consta
                  runtimeId: REC.runtimeId, require: "hyperv-partition-per-app", manager, appConfigCid: "" };
   const ok = isolationPlan(base);
   assert.equal(ok.ok, true, JSON.stringify(ok));
+  // every false offer is refused by the plan, whatever the manager says
   const refused = {
-    secrets: { hasSecrets: true },
-    config: { appConfig: JSON.stringify({ greeting: "hi" }) },
-    configCid: { appConfigCid: "bafyoverride" },
     waf: { waf: { rate: { perMin: 10 } } },
-    gpu: { deployment: { ...base.deployment, gpuMilli: 100 } },
     privateDeployments: { deployment: { ...base.deployment, isPublic: false } },
     volumes: { volumes: ["gemma"] },
   };
   for (const [k, over] of Object.entries(refused)) {
-    assert.equal(PARTITION_OFFERS[k], k === "gpu", k);
+    assert.equal(PARTITION_OFFERS[k], false, k);
     const r = isolationPlan({ ...base, ...over });
     assert.equal(r.ok, false, `${k} was planned: ${JSON.stringify(r).slice(0, 120)}`);
+  }
+  // the offers that are true are still refused by the plan when the MANAGER cannot honour them (this one supports none)
+  const needManager = {
+    secrets: { hasSecrets: true },
+    config: { appConfig: JSON.stringify({ greeting: "hi" }) },
+    configCid: { appConfigCid: "bafyoverride" },
+    gpu: { deployment: { ...base.deployment, gpuMilli: 100 } },
+  };
+  for (const [k, over] of Object.entries(needManager)) {
+    assert.equal(PARTITION_OFFERS[k], true, k);
+    const r = isolationPlan({ ...base, ...over });
+    assert.equal(r.ok, false, `${k} was planned without the manager's support: ${JSON.stringify(r).slice(0, 120)}`);
   }
   assert.equal(PARTITION_OFFERS.egress, false); assert.equal(ok.spawn.egress, "");
   assert.equal(PARTITION_OFFERS.customDomains, false);
   const t = isolatedTarget(DEP, { status: "running", isolation: { instance: "hv1", appId: "1".repeat(64) } }, "app.enclave.host");
   assert.equal(t.isolation.expectName, `${DEP.slice(2, 10)}.app.enclave.host`, "only the platform's own name is spliced");
-  assert.deepEqual(Object.entries(PARTITION_OFFERS).filter(([, v]) => v !== false), [["gpu", true]], "a partition offer turned true without its test");
+  assert.deepEqual(Object.entries(PARTITION_OFFERS).filter(([, v]) => v !== false).map(([k]) => k).sort(),
+                   ["config", "configCid", "gpu", "secrets"], "a partition offer turned true without its test");
 });
 
 test("the claim gate follows the flags: the isolated backend refuses a PRIVATE deployment at claim, by name, not after claiming it", async () => {

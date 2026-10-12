@@ -48,7 +48,7 @@ const RECOVERED = (name, v) => ({ action: "held", instance: v, ...HELD(`${name} 
  *            readiness deadline (a crash on this backend, which a caller MAY choose to respawn)
  *   held     the outcome is unknown; the lease is NOT freed and the ledger was not told
  */
-export async function reconcile({ client, deployment, ledger = null, deadlineMs = 180_000,
+export async function reconcile({ client, deployment, ledger = null, deadlineMs = ["enclave-catalog-bundle/6","enclave-catalog-bundle/7"].includes(deployment?.body?.derive?.derivation) ? 300_000 : 180_000,
                                   pollMs = 2_000, now = Date.now,
                                   sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
   if (!client) throw new Error("a manager client is required");
@@ -91,6 +91,8 @@ export async function reconcile({ client, deployment, ledger = null, deadlineMs 
   }
 
   if (view.recovered) return RECOVERED(name, view);
+  if (view.memory?.rule === "cpu-share" && view.memory.cpuShare !== deployment.body?.cpuShare)
+    return { action: "held", instance: view, ...HELD("the running partition has a different RAM share; resize it before adoption") };
   if (instanceServing(view)) return { action, instance: view, reason: null, leaseFree: false };
 
   // 2. Wait for it to become ready, and stop waiting at the deadline.

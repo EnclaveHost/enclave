@@ -149,7 +149,8 @@ test("giving up when the DELETE fails (H6): no block, no release, still tracked,
 
 test("a deployment KNOWN not to be isolated gives up without asking the manager", async () => {
   const h = box(1);                                                    // port 1: nothing answers there
-  const d = { ...dep(), configCid: "" };
+  // naming no backend is isolated work now (chain.isolationForBackend); a CPU TEE is what a partition can never give
+  const d = { ...dep(), configCid: JSON.stringify({ isolation: { cpuTee: true } }) };
   const r = await h.ensureApp("0x" + "5f".repeat(32), d, { version: YANKED });
   assert.equal(h.blocked.has("0x" + "5f".repeat(32)), true, JSON.stringify(r));
 });

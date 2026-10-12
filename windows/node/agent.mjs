@@ -159,6 +159,10 @@ const host = new Host({
   // (host.mjs, RESPAWN_BUDGET per hour). The budget is counted IN MEMORY, so a node restart resets it: "3 an hour" is 3
   // per hour of this process's life (enclave-d1's note for Steven's decision). Recovered VMs stay held either way.
   isolationRespawn: process.env.ENCLAVE_ISOLATION_RESPAWN === '1',
+  // Selected stateful services retry after a cooldown instead of remaining blocked.
+  // Delay allows an ended process's external storage lease to expire first.
+  isolationRespawnIds: (process.env.ENCLAVE_ISOLATION_RESPAWN_IDS || '').split(',').map(x => x.trim().toLowerCase()).filter(x => /^0x[0-9a-f]{64}$/.test(x)),
+  isolationRespawnDelayMs: Number(process.env.ENCLAVE_ISOLATION_RESPAWN_DELAY_MS || 0),
   cpuPricePerSec6: Number(process.env.CPU_PRICE_PER_SEC6 || 12),
   // What the whole CARD costs per second, USDC 6dp, and what a share of it buys here: the model
   // inside the enclave, whose linear algebra runs on this card by masked offload. The default is
@@ -459,10 +463,28 @@ async function measureEngineHold() {
 // ---- the public surface over the tunnel ------------------------------------------------------
 let shieldEvidenceReads = 0;
 let shieldWitness = null;
+let shieldSecrets = null;
 async function handle(frame) {
   const p = String(frame.path || '').split('?')[0]; const method = frame.method || 'GET';
   const json = (status, o) => ({ status, headers: { 'content-type': 'application/json' }, body: JSON.stringify(o) });
-  if (APPS && p === '/v1/shield/readiness' && method === 'GET') {
+  if (APPS && ['/v1/shield/secret-evidence','/v1/shield/secret-install'].includes(p)) {
+    if (!shieldSecrets) return json(503,{error:'sealed_secrets_disabled'});
+    if (shieldEvidenceReads >= 2) return json(429,{error:'evidence_busy'});
+    shieldEvidenceReads++;
+    try {
+      if (p.endsWith('secret-evidence') && method === 'GET') {
+        const q=new URL(frame.path,'http://localhost').searchParams;
+        return json(200,await shieldSecrets.evidence(q.get('deployment'),q.get('nonce')));
+      }
+      if (p.endsWith('secret-install') && method === 'POST') {
+        if (String(frame.body||'').length>90000) return json(413,{error:'release_too_large'});
+        return json(200,await shieldSecrets.install(JSON.parse(Buffer.from(frame.body||'','base64').toString('utf8'))));
+      }
+      return json(405,{error:'method_refused'});
+    } catch { return json(503,{error:'guest_release_unavailable'}); }
+    finally { shieldEvidenceReads--; }
+  }
+  if (APPS && p === '/v1/shield/readiness'  && method === 'GET') {
     if (!shieldWitness) return json(503, {error:'witness_not_configured'});
     if (shieldEvidenceReads >= 2) return json(429, {error:'evidence_busy'});
     const nonce = new URL(String(frame.path), 'http://localhost').searchParams.get('nonce');
@@ -869,6 +891,11 @@ async function startHostingControls() {
       let acct = null;
       try { acct = loadOperator(path.join(DIR, 'operator.key')); } catch (e) { log(`certificates: no operator key (${e.message})`); }
       if (acct) {
+        const {createShieldSecrets}=await import('./shield-secrets.mjs');
+        shieldSecrets=createShieldSecrets({base:host.cfg.isolationManager,endpoint:host.cfg.endpoint,relayBase:host.cfg.relayBase,
+          sign:message=>acct.signMessage({message}),log:m=>log(m)});
+        const provision=()=>shieldSecrets.pass().catch(()=>{});
+        setInterval(provision,5000).unref?.();setTimeout(provision,3000).unref?.();
         const { createHvCertPass } = await import('./hvcert.mjs');
         const certs = createHvCertPass({
           client: new IsolationManagerClient({ base: host.cfg.isolationManager }), dataAddr: host.cfg.isolationDataAddr,

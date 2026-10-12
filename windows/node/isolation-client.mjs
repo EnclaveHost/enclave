@@ -191,6 +191,7 @@ export class IsolationManagerClient {
       appId: o.appId ?? null,
       runtimeId: o.runtimeId ?? null,
       recordSha256: o.recordSha256 ?? null,
+      memory: o.memory ?? null,
       image: o.image ?? null,
       transportKeySha256: o.transportKeySha256 ?? null,
       // carried through verbatim, never summarised away: the backend's own word about what its

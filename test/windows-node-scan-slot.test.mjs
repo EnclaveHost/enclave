@@ -60,9 +60,10 @@ function scripted(h, script) {
   return asked;
 }
 
-test("d1's TEST2: an owner's older row with no isolation envelope is refused AT THE SCAN, and the newer hyperv row is taken in the FIRST pass", async () => {
+test("d1's TEST2: an owner's older row requiring ANOTHER backend is refused AT THE SCAN, and the newer hyperv row is taken in the FIRST pass", async () => {
   const OLD = id("ca"), NEW = id("95");
-  rpc.rows.current = [row(OLD, { configCid: "", createdAt: 1n }), row(NEW, { createdAt: 2n })];
+  // (a row naming no backend is isolated work since chain.isolationForBackend; one naming another backend is what is refused)
+  rpc.rows.current = [row(OLD, { configCid: JSON.stringify({ isolation: { require: "snp-guest-per-app" } }), createdAt: 1n }), row(NEW, { createdAt: 2n })];
   const h = await nucbox();
   assert.equal(h.partitionsOnly(), true);
   const asked = scripted(h, { [NEW]: "claim" });
@@ -70,7 +71,7 @@ test("d1's TEST2: an owner's older row with no isolation envelope is refused AT 
   assert.deepEqual(asked, [NEW], `consider() was handed ${asked.map((x) => x.slice(0, 10))}`);
   const rec = h.records.get(OLD);
   assert.equal(rec?.status, "refused");
-  assert.match(rec.reason, /runs only the isolated backend .* claims only deployments that require hyperv-partition-per-app/);
+  assert.match(rec.reason, /requires isolation backend snp-guest-per-app|claims only deployments compatible with hyperv-partition-per-app/);
   // ONE predicate: consider() refuses the old row with the very words the scan recorded, and claims nothing
   h.consider = Host.prototype.consider.bind(h);
   const r = await h.consider(OLD);

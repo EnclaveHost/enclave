@@ -360,16 +360,34 @@ export function nodeFloorOf(v) {
  * NOT known here: nothing. Any other namespace is still refused by name, because the envelope is
  * fail-closed and silently ignoring an option an owner paid for is the one unacceptable answer.
  */
+export function pinnedHost(raw = '') {
+  const envelope = JSON.parse(String(raw || '{}'));
+  if (!envelope || Array.isArray(envelope) || typeof envelope !== 'object') throw Error('Invalid deployment options.');
+  if (!('placement' in envelope)) return '';
+  const p = envelope.placement;
+  if (!p || Array.isArray(p) || typeof p !== 'object' || Object.keys(p).some(k => k !== 'hostId')
+      || typeof p.hostId !== 'string' || !/^0x[0-9a-f]{64}$/.test(p.hostId) || /^0x0{64}$/.test(p.hostId))
+    throw Error('Invalid placement pin.');
+  return p.hostId;
+}
+export function placementRefusal(raw, enclaveId) {
+  let pin;
+  try { pin = pinnedHost(raw); } catch { return null; } // malformed live edits retain the old configuration
+  return pin && pin !== String(enclaveId || '').toLowerCase()
+    ? `Pinned to host ${pin}; fallback is disabled.` : null;
+}
+
 export function parseEnvelope(raw, gpuMilli) {
   const s = String(raw || "").trim();
   if (!s) return {};
   if (!s.startsWith("{")) throw new Error("its options field is a bare CID, not a JSON options envelope");
   let o; try { o = JSON.parse(s); } catch (e) { return void 0, (() => { throw new Error("its options envelope is not readable JSON: " + e.message); })(); }
   if (!o || Array.isArray(o) || typeof o !== "object") throw new Error("its options envelope is not a JSON object");
-  const known = ["config", "gpu", "network", "configCid", "waf", "isolation"];
+  const known = ["config", "gpu", "network", "configCid", "waf", "isolation", "placement"];
   const unknown = Object.keys(o).filter((k) => !known.includes(k));
   if (unknown.length) throw new Error(`its options envelope carries ${unknown.join(", ")}, which this node does not enforce (it knows: ${known.join(", ")})`);
   const opts = {};
+  const pin = pinnedHost(raw); if (pin) opts.pinnedHost = pin;
   if ("gpu" in o) {
     const g = o.gpu;
     if (!g || Array.isArray(g) || typeof g !== "object") throw new Error('gpu must be a JSON object like {"optional":true}');
@@ -392,8 +410,13 @@ export function parseEnvelope(raw, gpuMilli) {
     // could ever be isolated on this node (enclave-99, reading the activation path end to end).
     const iso = o.isolation;
     if (!iso || Array.isArray(iso) || typeof iso !== "object") throw new Error('isolation must be a JSON object like {"require":"hyperv-partition-per-app"}');
-    const bad = Object.keys(iso).filter((k) => k !== "require");
+    const bad = Object.keys(iso).filter((k) => !["require", "cpuTee", "gpuTee"].includes(k));
     if (bad.length) throw new Error(`unknown isolation option ${JSON.stringify(bad[0])} (this node knows: require)`);
+    for (const key of ["cpuTee", "gpuTee"]) {
+      if (key in iso && typeof iso[key] !== "boolean") throw new Error(`isolation.${key} must be true or false`);
+    }
+    if (iso.cpuTee === true) opts.cpuTee = true;
+    if (iso.gpuTee === true) opts.gpuTee = true;
     if ("require" in iso) {
       if (typeof iso.require !== "string" || !/^[a-z0-9-]{3,64}$/.test(iso.require))
         throw new Error("isolation.require must be a backend name like \"hyperv-partition-per-app\"");
@@ -477,12 +500,15 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
   if (scope === "owner-only") {
     if (!allow.size) return "this node is in owner-only scope and serves nobody: no operator key and no valid delegation";
     if (!owners) return `this node is in owner-only scope and hosts only its operator's and its delegated owners' deployments (${[...allow].join(", ")}; this one is owned by ${d.owner})`;
-  } else if (!owners && !invited && !legacy && Number(listedAt) > 0 && Number(d.createdAt) < Number(listedAt)) {
+  } else if (!owners && !invited && !legacy && !["snp-guest-per-app", "hyperv-partition-per-app"].includes(isolationBackend)
+      && Number(listedAt) > 0 && Number(d.createdAt) < Number(listedAt)) {
     return "it was created before this box was listed, and this box is a VBS enclave on a consumer PC:"
          + " an app runs inside the enclave, but the enclave protects it against this machine's software,"
          + " not against whoever physically holds the machine. Pick this enclave in the deploy console,"
          + " or redeploy, and it will run here";
   }
+  // Supported per-app backends honor the owner's explicit TEE flags below.
+  // The historical listing-date consent gate applies only to the legacy engine.
   // A PRIVATE deployment is served to its owner alone. This box verifies the session token that
   // proves that (windows/node/session.mjs), so it may take one - but only when it HAS a key to
   // verify with: a box that took a private deployment and then let anybody reach it would be
@@ -503,6 +529,8 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
   // version's gpuOptional.
   let opts;
   try { opts = parseEnvelope(d.configCid, d.gpuMilli); } catch (e) { return e.message; }
+  if (opts.pinnedHost && opts.pinnedHost !== String(enclaveId || '').toLowerCase())
+    return `Pinned to host ${opts.pinnedHost}; fallback is disabled.`;
   // A DEPLOYMENT THAT REQUIRES ISOLATION may only be claimed by a box that actually runs that
   // backend. Taking it and running it in the shared enclave would give the tenant the opposite of
   // what they asked for while looking like success; refusing here leaves it free for a box that can.
@@ -512,6 +540,9 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
   // deployment that reached the line - opted in or not - and host.mjs calls claimPolicy outside any
   // try, so consider() rejected and the deployment was recorded neither refused nor queued. That is
   // a claim path broken for every tenant, from a check meant to affect a few (enclave-99).
+  if (opts.cpuTee && isolationBackend !== "snp-guest-per-app") return "it requires a TEE CPU; this host supplies an Enclave Shield partition";
+  // No Windows partition backend currently supplies attested confidential-mode GPU execution.
+  if (opts.gpuTee) return "it requires a TEE GPU; masked GPU offload does not satisfy this requirement";
   if (opts.isolationRequire) {
     if (!isolationBackend)
       return `it requires isolation backend ${opts.isolationRequire}, and this box runs no isolation backend`;
@@ -637,3 +668,10 @@ export async function checkpoint({ id, enclaveId, upto }) {
 }
 
 export { REGISTRY_ABI, DEP_ABI, CATALOG_ABI, PROOF_ABI };
+
+// Absence of a hardware requirement permits either isolated implementation, never the retired engine.
+export function isolationForBackend(opts, backend) {
+  return !!opts && ["snp-guest-per-app", "hyperv-partition-per-app"].includes(backend)
+    && (!opts.isolationRequire || opts.isolationRequire === backend)
+    && (!opts.cpuTee || backend === "snp-guest-per-app") && !opts.gpuTee;
+}

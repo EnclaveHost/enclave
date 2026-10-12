@@ -111,6 +111,7 @@ import { pvmCpuPolicyFromEnv, avfAttestWithPvmCpu, pvmCpuAvailability, PVM_CPU_T
 import { VBS_DEFAULT_EK_ROOTS } from "./vbs-policy.mjs";
 import { createPadsLedger, createPrefixStore, createShipmentStore, padsRouter } from "./pads.mjs";
 import { hostSponsor, hostSponsorRouter } from "./host-sponsor.mjs";
+import { hostNames, hostNamesRouter } from "./host-names.mjs";
 import { dataDir, JsonStore } from "./store.js";
 import { screenAddress } from "./ofac.js";
 import { expectedGuest, prepareGuestUpdate, prewarmReleasePredictions } from "./secrets-release.mjs";
@@ -220,7 +221,7 @@ async function tunnelNameOwner(name) {
 //   HOST_SPONSOR_VERIFIER_KEY  the key whose vouchers the paymaster accepts (its `verifier`)
 //   HOST_SPONSOR_BUNDLER_KEY   sends EntryPoint.handleOps; a small float, repaid by the EntryPoint per operation
 //   HOST_PAYMASTER             the EnclaveHostPaymaster address
-let hostSponsorInstance;
+let hostSponsorInstance, hostNamesInstance;
 function hostSponsorRoutes() {
   if (hostSponsorInstance) return hostSponsorInstance;
   const vk = (process.env.HOST_SPONSOR_VERIFIER_KEY || "").trim(), bk = (process.env.HOST_SPONSOR_BUNDLER_KEY || "").trim();
@@ -1899,6 +1900,12 @@ async function gateway(u, req, res) {
   }
   if (p.startsWith("/v1/hosts/sponsor/")) {
     if (await hostSponsorRoutes()(req, res, u)) return;
+  }
+  // may a new host take this name? (relay/host-names.mjs; the Windows installer asks while its owner types)
+  if (p.startsWith("/v1/hosts/name/")) {
+    hostNamesInstance ||= hostNamesRouter({ names: hostNames({ hub: tunnelHub, ownerOf: async (n) => (await tunnelNameOwner(n)) || "" }),
+                                            json: (res, status, body) => json(res, status, body, req) });
+    if (await hostNamesInstance(req, res, u)) return;
   }
 
   if (p === "/v1/claim-hint" && req.method === "POST") {

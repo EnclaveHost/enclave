@@ -330,6 +330,11 @@ pub fn run(o: &Opts) -> i32 {
 
     // 2. load, and REFUSE on any hash disagreement
     let mut load = json!({"cmd": "load", "label": label, "size": app.len()});
+    if let Some(raw) = o.get("app-mem") {
+        let n: u64 = match raw.parse() { Ok(n) if n > 0 && n < mem_mib => n,
+            _ => { println!("{}", json!({"step":"load","ok":false,"error":"app-mem must be positive and below VM memory"})); return 1; } };
+        load["mem"] = json!(n);
+    }
     if let Some(n) = &cert_name { load["name"] = json!(n); }
     let ans = match s.guest(&load, Some(&app), Duration::from_secs(60)) {
         Ok(v) => v,

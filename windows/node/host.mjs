@@ -440,7 +440,7 @@ export class Host {
     if (!heldHere && this.isolation) {
       let envOpts = {}, envRead = false;
       try { envOpts = chain.parseEnvelope(d.configCid, d.gpuMilli) || {}; envRead = true; } catch { envRead = false; }
-      if (envRead && envOpts.isolationRequire === this.isolationBackend) {
+      if (envRead && chain.isolationForBackend(envOpts, this.isolationBackend)) {
         const pre = await this.#preclaimVerdict(id, d, v, { envOpts, envRead, force });
         if (pre) return pre;
       }
@@ -470,6 +470,9 @@ export class Host {
       // must count, or a throw after it lets a second claim go out in the same pass (enclave-bf's NO-GO on 3d37709a).
       let hash;
       try {
+        const fresh = await chain.readDeployment(id);
+        const pinRefusal = chain.placementRefusal(fresh.configCid, this.enclaveId);
+        if (pinRefusal) return { accepted: false, reason: pinRefusal };
         this.#record(id, { status: "claiming", appRef: d.appRef });
         hash = await chain.claimDeployment(id, this.enclaveId);
       } catch (e) {
@@ -769,15 +772,19 @@ export class Host {
       const cfg = v && v.config ? (typeof v.config === "string" ? JSON.parse(v.config) : v.config) : {};
       volumes = Array.isArray(cfg.volumes) ? cfg.volumes.slice() : [];
     } catch { volumes = null; }
+    let appConfig;
+    try { appConfig = await this.appConfig(d, v, { strictCid: true }); }
+    catch (e) { return { ok: false, input: "appConfig", why: `configuration could not be verified: ${e.message}`, unknown: true }; }
     return isolationPlan({
       deploymentId: id, deployment: d, version: v,
-      appConfig: await this.appConfigResolved(d, v),
+      appConfig,
+      configSourceCid: envOpts.configCid || (envOpts.config !== undefined ? "" : String(v?.configCid || "")),
       hasSecrets: await this.#secretsState(id),
       // {} and [] only when known to be none; an unread envelope is unknown - exactly what ensureApp records as `waf`
       waf: envRead ? (envOpts.waf || {}) : null,
       volumes,
       runtimeId: this.cfg.isolationRuntimeId,
-      require: envOpts.isolationRequire ?? null,
+      require: envRead && chain.isolationForBackend(envOpts, this.isolationBackend) ? this.isolationBackend : (envOpts.isolationRequire ?? null),
       manager: managerHealth,
       appConfigCid: envRead ? String(envOpts.configCid || "") : null,
     });
@@ -881,6 +888,13 @@ export class Host {
     }
     if (this.records.get(id)?.planHeld) this.#record(id, { planHeld: null, noRenewSaid: null });
 
+    // A lapsed hosting lease or readiness timeout may already have retired the
+    // ended VM. Keep its service cooldown before reconcile can spawn an absent
+    // instance. The host's normal lease policy still stops billing while held.
+    const pendingRestart = this.#respawnAfter.get(id);
+    if (pendingRestart && Date.now() < pendingRestart.until)
+      return this.#record(id, { status: "provisioning", reason: pendingRestart.reason });
+
     const body = IsolationManagerClient.spawnBody(plan.spawn);
     // What this partition holds of the card is what it is spawned with, not what the lease bought: the accounting the
     // owner's GPU cap and the tray read (shareUse).
@@ -921,19 +935,51 @@ export class Host {
     // missed the readiness deadline) makes the node give the lease up: it is released on chain AND blocked on this box,
     // which for an owner-only NucBox deployment is effectively permanent. With the switch ON, the ended domain is instead
     // RETIRED, confirmed gone (so there is never a second VM, and nothing is released), and a fresh one is spawned, at
-    // most RESPAWN_BUDGET times in RESPAWN_WINDOW_MS per deployment, then the old give-up with the reason. A REFUSAL
-    // (the manager answered no) is never respawned. A recovered VM stays HELD either way.
-    if (r.action === "failed" && r.leaseFree && r.ended === true && this.cfg.isolationRespawn === true) {
+    // most RESPAWN_BUDGET times in RESPAWN_WINDOW_MS per deployment. Explicitly selected services cool down and retry;
+    // the global switch retains the old give-up at its budget. A manager REFUSAL is never respawned.
+    const serviceRecovery = this.cfg.isolationRespawnIds?.includes(id) === true;
+    const respawnEnabled = this.cfg.isolationRespawn === true || serviceRecovery;
+    if (r.action === "failed" && r.leaseFree && r.ended === true && respawnEnabled) {
       const spent = this.#respawnsWithin(id);
+      const delay = Number(this.cfg.isolationRespawnDelayMs ?? 0);
+      if (!Number.isSafeInteger(delay) || delay < 0 || delay > 600_000)
+        return this.#record(id, { status: "held", reason: "isolation: invalid respawn delay (expected 0..600000 ms)" });
       if (spent >= RESPAWN_BUDGET) {
+        // Explicit service recovery remains recoverable after a prolonged outage.
+        // Keep the confirmed-ended instance until the budget opens again, so a
+        // routine reconcile cannot spawn around the cooldown. Refusals never enter
+        // this path, and retirement must still succeed before any replacement.
+        if (serviceRecovery) {
+          const until = Math.max(this.#respawns.get(id)[0] + RESPAWN_WINDOW_MS + 1, this.#respawnAfter.get(id)?.until || 0);
+          const reason = `isolation: restart budget exhausted; automatic retry after ${new Date(until).toISOString()}`;
+          this.#respawnAfter.set(id, { instance: r.instance?.id, until, reason });
+          return this.#record(id, { status: "provisioning", reason,
+            ...(r.instance?.id ? { isolationHeld: r.instance.id } : {}) });
+        }
         r = { ...r, reason: `${r.reason}; it was respawned ${spent} time(s) in the last hour, so it is not respawned again` };
       } else {
+        // A stateful service may have fenced itself after an ambiguous storage write.
+        // Wait out its storage lease before starting a replacement; an immediate
+        // restart can fail on that lease and exhaust the crash budget in seconds.
+        if (delay) {
+          let waiting = this.#respawnAfter.get(id);
+          if (!waiting || waiting.instance !== r.instance?.id) {
+            const until = Date.now() + delay;
+            waiting = { instance: r.instance?.id, until,
+              reason: `isolation: the domain ended; automatic restart after ${new Date(until).toISOString()} (waiting for the service's storage lease)` };
+            this.#respawnAfter.set(id, waiting);
+          }
+          if (Date.now() < waiting.until)
+            return this.#record(id, { status: "provisioning", reason: waiting.reason,
+              ...(r.instance?.id ? { isolationHeld: r.instance.id } : {}) });
+        }
         if (r.instance?.id) this.#record(id, { isolationHeld: r.instance.id });
         const gone = await this.#retireIsolated(id, "respawn after the domain ended");
         if (!gone) {
           return this.#record(id, { status: "provisioning", reason: `isolation: ${r.reason}; not respawned: the ended domain `
             + "could not be confirmed gone, so its lease is kept and nothing new is started" });
         }
+        this.#respawnAfter.delete(id);
         this.#respawns.set(id, [...(this.#respawns.get(id) || []), Date.now()]);
         this.log(`${id.slice(0, 10)} isolation respawn ${spent + 1}/${RESPAWN_BUDGET} this hour: ${r.reason}`);
         try { r = await reconcile({ client, deployment: { id, body }, ledger: null }); }
@@ -959,6 +1005,10 @@ export class Host {
     }
     // adopted or spawned, and serving
     const inst = r.instance || {};
+    // If the old domain was already retired, reconcile spawned directly after
+    // the wait. Count that replacement against the same crash budget.
+    if (this.#respawnAfter.has(id)) this.#respawns.set(id, [...(this.#respawns.get(id) || []), Date.now()]);
+    this.#respawnAfter.delete(id);
     // THIS BACKEND'S BOUNDARY, NEVER A STRONGER ONE READ FROM THE MANAGER. The manager is a host process, so the tier and
     // hostExcluded in its view are host statements. hyperv-partition-per-app is T0-hv with the host NOT excluded, and
     // nothing on this node can verify more. A view claiming host exclusion or another tier is a contract violation, from
@@ -1022,6 +1072,7 @@ export class Host {
 
   /** Fetch + verify + run the deployment's app, and keep the record honest about which stage failed. */
   async ensureApp(id, d, { force = false, version = null } = {}) {
+    if (force) this.#respawnAfter.delete(id);
     // A FORCED ensure is what a reboot-recovery hold waits for (#rebootHold): it is tried again from here. That is the
     // operator's forced relaunch AND an owner's own action that re-ensures with force - a resize (#applyShareResize) or a
     // config edit (#applyEnvelopeEdit). Intended (enclave-b4's review, enclave-87): an owner acting on their deployment is
@@ -1035,6 +1086,8 @@ export class Host {
     // lease back on chain (heldReason).
     const held = this.heldReason(d);
     if (held) return this.#record(id, { status: "held", reason: held });
+    const pinRefusal = chain.placementRefusal(d.configCid, this.enclaveId);
+    if (pinRefusal) return await this.#giveUp(id, pinRefusal, { retry: true });
     // THE ENVELOPE, parsed ONCE and BEFORE the catalog read and every gate that can give the lease back: #giveUp asks
     // #retireIsolated, which must know whether this deployment is isolated at all (unknown means it asks the manager).
     // And before the isolation branch, because the branch's opt-in gate reads what it records. It used to be parsed
@@ -1056,7 +1109,7 @@ export class Host {
       // the config changed under a live lease.
       // null when the envelope could not be read: UNKNOWN, which #isolationReconcile already treats as "not read" and
       // #retireIsolated as "may have been isolated" (it asks the manager by name rather than assume nothing is there).
-      isolationRequired: envRead ? (!!envOpts.isolationRequire && envOpts.isolationRequire === this.isolationBackend) : null,
+      isolationRequired: envRead ? (chain.isolationForBackend(envOpts, this.isolationBackend)) : null,
     });
     let v = version;
     if (!v) try { v = await chain.resolveAppRef(d.appRef); } catch (e) { return this.#record(id, { status: "failed", reason: `catalog: ${e.message}` }); }
@@ -1386,10 +1439,10 @@ export class Host {
     };
   }
 
-  async appConfig(d, v) {
+  async appConfig(d, v, { strictCid = false } = {}) {
     try {
       const opts = chain.parseEnvelope(d?.configCid, d?.gpuMilli);
-      if (opts.config !== undefined) return JSON.stringify(opts.config);
+      if (opts.config !== undefined && !(strictCid && opts.configCid)) return JSON.stringify(opts.config);
       if (opts.configCid) {
         // Fetched through the CID verifier, not trusted from the gateway: the bytes are re-hashed
         // against the CID the ledger names before they become an app's configuration.
@@ -1404,7 +1457,10 @@ export class Host {
         this.log(`config: ${opts.configCid} applied to ${String(d.id).slice(0, 10)} (${text.length} bytes, CID-verified)`);
         return text;
       }
-    } catch (e) { this.log(`config: ${e.message}; the version's own config stands`); }
+    } catch (e) {
+      if (strictCid) throw e;
+      this.log(`config: ${e.message}; the version's own config stands`);
+    }
     // THE PUBLISHER's split (catalog rev 7): when the version names a config CID, the inline field
     // is only the routing manifest (volumes, mem64, set...) and the fetched bytes are what the
     // guest gets. Handing it the manifest instead would look like a working app with a nonsense
@@ -1637,6 +1693,8 @@ export class Host {
         await this.consider(id).catch((e) => this.log(`re-claim ${id.slice(0, 10)}: ${e.message}`));
         continue;
       }
+      const pinRefusal = chain.placementRefusal(d.configCid, this.enclaveId);
+      if (pinRefusal) { await this.#giveUp(id, pinRefusal, { retry: true }); continue; }
       // HELD (a retired-engine node, a deployment it cannot run): before the renewal, the envelope edit and
       // the resize, each of which can spend or give back the lease on chain. Recorded, and left alone.
       const held = this.heldReason(d);
@@ -1765,7 +1823,8 @@ export class Host {
    * a tenant whose app cannot run here is better served by a row that reads Queued somewhere else
    * than by one that reads "running on nucbox-k11" over a restart loop.
    */
-  async #giveUp(id, why) {
+  async #giveUp(id, why, { retry = false } = {}) {
+    this.#respawnAfter.delete(id);
     // An isolated domain first: handing the lease back while its partition still serves would
     // leave the deployment answering with no lease behind it (defect 15). And if it could NOT be confirmed gone, the
     // lease is not given back at all (enclave-d1's review, finding 4): no block, no release, still tracked, so the tick
@@ -1787,7 +1846,7 @@ export class Host {
     const app = this.apps.get(id);
     if (app) { await app.stop(); this.apps.delete(id); }
     this.#record(id, { status: "failed", reason: why, port: null });
-    this.blocked.set(id, why);
+    if (retry) this.blocked.delete(id); else this.blocked.set(id, why);
     this.tracked.delete(id); this.#saveTracked();
     this.log(`giving up on ${id.slice(0, 10)}: ${why}`);
     try {
@@ -1813,6 +1872,7 @@ export class Host {
   /** Respawns of an ended isolated domain inside the budget window (cfg.isolationRespawn). In memory: a node restart
    *  starts the count again, which errs toward trying; the budget still bounds each run. */
   #respawns = new Map();
+  #respawnAfter = new Map();
   #respawnsWithin(id) {
     const recent = (this.#respawns.get(id) || []).filter((t) => Date.now() - t < RESPAWN_WINDOW_MS);
     this.#respawns.set(id, recent);
@@ -2162,7 +2222,7 @@ export class Host {
    */
   isolatedForThisBox(d) {
     if (!this.isolationBackend) return false;
-    try { return (chain.parseEnvelope(d?.configCid, d?.gpuMilli) || {}).isolationRequire === this.isolationBackend; }
+    try { return chain.isolationForBackend(chain.parseEnvelope(d?.configCid, d?.gpuMilli), this.isolationBackend); }
     catch { return false; }
   }
   /**
@@ -2225,7 +2285,7 @@ export class Host {
   retiredEngineClaimRefusal(d) {
     if (this.cfg.engineRetired !== true || this.isolatedForThisBox(d)) return null;
     return "this node runs only the isolated backend (the legacy VBS-enclave backend is retired): "
-      + `it claims only deployments that require ${this.isolationBackend || "an isolation backend it does not have"}`;
+      + `it claims only deployments compatible with ${this.isolationBackend || "an isolation backend it does not have"}`;
   }
   /** Marketplace claims require a fresh relay decision. The relay checks the
    * pinned boot/image/runtime and actual guest TLS key. The host's manager
@@ -2401,7 +2461,7 @@ export class Host {
         shareResize: true,
         customDomains: this.partitionOffers("customDomains"),
         devDeploy: this.partitionOffers("privateDeployments") && !!this.cfg.sessionKid,
-        mem64: false, set: false, p3: false, coopThreads: false,
+        mem64: this.managerSupports?.mem64 === true, set: this.managerSupports?.set === true, p3: false, coopThreads: false,
         volumes: this.managerInference?.ready ? [this.managerInference.model] : [],
       };
     }
