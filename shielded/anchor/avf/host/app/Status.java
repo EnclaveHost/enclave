@@ -2,10 +2,9 @@
  * Status -- what the Enclave app shows when it is opened from the launcher (a release pVM CPU build, no launch extras), read
  * from the owner's host agent over the phone's loopback (127.0.0.1:18187, the agent's `adb reverse` door, on USB or over
  * Wi-Fi: PVM-CPU.md "Off the cable"). Two pages, kept plain (Steven, 2026-10-11: "too cluttered"):
- *   main      the Hosting switch, one status line, Earnings (what is ready to pay out), Sharing -- the CPU share bar (Apply
- *             and Cancel appear once it moves; no GPU share in the mobile app) --, the apps here by name, Settings;
- *   settings  memory for apps (Apply and Cancel likewise) and the payout address (Save and Cancel likewise, confirmed:
- *             payouts cannot be undone).
+ *   main      the Hosting switch, one status line, Earnings (what is ready to pay out), Sharing -- the CPU & RAM share bar
+ *             (Apply and Cancel appear once it moves; no GPU share in the mobile app) --, the apps here by name, Settings;
+ *   settings  the payout address (Save and Cancel appear once it is edited, confirmed: payouts cannot be undone).
  * The screen speaks of apps only. Its settings go to files/offer.json, which only this app (and the owner's adb) can write
  * and the host agent reads every half minute; the screen never starts or stops anything itself.
  */
@@ -37,8 +36,8 @@ import org.json.JSONObject;
 final class Status {
     static final String AGENT = "http://127.0.0.1:18187/availability", EARNINGS = "http://127.0.0.1:18187/v1/earnings";
     static final int BG = 0xFF070A0F, CARD = 0xFF10161F, LINE = 0xFF1C2532, GREEN = 0xFF2FE6A8, TEXT = 0xFFE8EDF2, MUTED = 0xFF8A97A6, AMBER = 0xFFFFB454;
-    // the owner's offer (files/offer.json): CPU per mille, memory in MiB
-    static final int CPU_STEP = 50, MEM_STEP = 256, MEM_MIN = 256;
+    // the owner's offer (files/offer.json): ONE share of the phone's CPU and RAM, per mille (the platform's cpuMilli)
+    static final int CPU_STEP = 50;
 
     /** Opened from the launcher: a release pVM CPU build with no launch plan (the host agent always names a mode). */
     static boolean launcherOpen(Activity a, Intent i) {
@@ -52,14 +51,14 @@ final class Status {
     private final Activity a;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final ScrollView scroll;
-    private final LinearLayout mainPage, settingsPage, apps, cpuButtons, memButtons, payoutButtons;
-    private final TextView state, stateNote, earnings, cpuLabel, memLabel, payoutNote, payoutSave, payoutCancel;
-    private final SeekBar cpuBar, memBar;
+    private final LinearLayout mainPage, settingsPage, apps, cpuButtons, payoutButtons;
+    private final TextView state, stateNote, earnings, cpuLabel, payoutNote, payoutSave, payoutCancel;
+    private final SeekBar cpuBar;
     private final Switch hostSwitch;
     private final EditText payoutField;
     private boolean inSettings = false;
     // what is in effect (saved for the host agent); the controls may differ until Apply / Save
-    private int appliedCpu = 1000, appliedMem = 4096, memMax = 4096, lastAppCount = 0;
+    private int appliedCpu = 1000, lastAppCount = 0;
     private boolean hosting = true, settingsKnown = false, offerShown = false, quiet = false;
     private String appliedPayout = null, payoutSaid = "";
 
@@ -87,12 +86,12 @@ final class Status {
         mainPage.addView(section("Earnings"));
         earnings = text("–", 32, TEXT); earnings.setTypeface(Typeface.DEFAULT_BOLD);
         mainPage.addView(earnings);
-        // Sharing: the CPU share offered to apps (Apply and Cancel appear once it moves). No GPU share: the mobile app has
-        // none (Steven, 2026-10-11)
+        // Sharing: ONE share of the phone's CPU and RAM offered to apps, as the platform sells it (Apply and Cancel appear
+        // once it moves). No GPU share and no separate memory setting in the mobile app (Steven, 2026-10-11)
         mainPage.addView(section("Sharing"));
         cpuLabel = text("CPU", 15, TEXT); mainPage.addView(cpuLabel);
         cpuBar = new SeekBar(a); cpuBar.setMax(1000 / CPU_STEP - 1); mainPage.addView(cpuBar);
-        TextView cpuApply = button("Apply", true); cpuApply.setOnClickListener(v -> { if (barCpu() != appliedCpu && save(barCpu(), appliedMem, hosting)) toast("Applied"); });
+        TextView cpuApply = button("Apply", true); cpuApply.setOnClickListener(v -> { if (barCpu() != appliedCpu && save(barCpu(), hosting)) toast("Applied"); });
         TextView cpuCancel = button("Cancel", false); cpuCancel.setOnClickListener(v -> { cpuBar.setProgress(cpuToBar(appliedCpu)); labels(); applyState(); });
         cpuButtons = pair(cpuApply, cpuCancel); mainPage.addView(cpuButtons);
         mainPage.addView(section("Apps"));
@@ -107,12 +106,6 @@ final class Status {
         TextView title = text("‹  Settings", 22, TEXT); title.setTypeface(Typeface.DEFAULT_BOLD); title.setPadding(0, dp(4), 0, dp(4));
         title.setOnClickListener(v -> showMain());
         settingsPage.addView(title);
-        settingsPage.addView(section("Memory for apps"));
-        memLabel = text("Memory", 15, TEXT); settingsPage.addView(memLabel);
-        memBar = new SeekBar(a); settingsPage.addView(memBar);
-        TextView memApply = button("Apply", true); memApply.setOnClickListener(v -> { if (barMem() != appliedMem && save(appliedCpu, barMem(), hosting)) toast("Applied"); });
-        TextView memCancel = button("Cancel", false); memCancel.setOnClickListener(v -> { memBar.setProgress(memToBar(appliedMem)); labels(); applyState(); });
-        memButtons = pair(memApply, memCancel); settingsPage.addView(memButtons);
 
         settingsPage.addView(section("Payout address"));
         payoutField = new EditText(a); payoutField.setSingleLine(true); payoutField.setTypeface(Typeface.MONOSPACE); payoutField.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
@@ -133,12 +126,10 @@ final class Status {
             @Override public void onStartTrackingTouch(SeekBar b) { }
             @Override public void onStopTrackingTouch(SeekBar b) { }
         };
-        cpuBar.setOnSeekBarChangeListener(l); memBar.setOnSeekBarChangeListener(l);
-        setMemMax(memMax);
+        cpuBar.setOnSeekBarChangeListener(l);
         Object[] saved = readOffer();
-        if (saved != null) { appliedCpu = (Integer) saved[0]; appliedMem = (Integer) saved[1]; hosting = (Boolean) saved[2]; appliedPayout = (String) saved[3]; settingsKnown = true; }
-        else appliedMem = memMax;
-        cpuBar.setProgress(cpuToBar(appliedCpu)); memBar.setProgress(memToBar(appliedMem));
+        if (saved != null) { appliedCpu = (Integer) saved[0]; hosting = (Boolean) saved[1]; appliedPayout = (String) saved[2]; settingsKnown = true; }
+        cpuBar.setProgress(cpuToBar(appliedCpu));
         quiet = true; hostSwitch.setChecked(hosting); quiet = false;
         hostSwitch.setOnCheckedChangeListener((b, on) -> { if (!quiet) toggle(on); });
         if (appliedPayout != null) payoutField.setText(appliedPayout);
@@ -205,12 +196,11 @@ final class Status {
             String id = app.optString("id", ""), host = (id.length() >= 10 ? id.substring(2, 10) : id) + ".app.enclave.host";
             apps.addView(card(host, "serving".equals(app.optString("phase")) ? null : "Starting…", "https://" + host + "/"));
         }
-        if (av.has("poolMemMbMax")) setMemMax(av.optInt("poolMemMbMax", memMax));
         JSONObject off = av.optJSONObject("offer");
-        if (off != null && !offerShown && !settingsKnown && !cpuBar.isPressed() && !memBar.isPressed()) {   // nothing saved here: the agent's
+        if (off != null && !offerShown && !settingsKnown && !cpuBar.isPressed()) {   // nothing saved here: the agent's
             offerShown = true;
-            appliedCpu = off.optInt("cpuMilli", 1000); appliedMem = off.optInt("memMb", memMax);
-            cpuBar.setProgress(cpuToBar(appliedCpu)); memBar.setProgress(memToBar(appliedMem)); labels(); applyState();
+            appliedCpu = off.optInt("cpuMilli", 1000);
+            cpuBar.setProgress(cpuToBar(appliedCpu)); labels(); applyState();
         }
     }
     private void setState(String s, int color, String note) {
@@ -236,13 +226,13 @@ final class Status {
 
     /** The switch: on saves at once; off with apps here asks first (they are released). */
     private void toggle(boolean on) {
-        if (on || lastAppCount == 0) { if (!save(appliedCpu, appliedMem, on)) revertSwitch(); return; }
+        if (on || lastAppCount == 0) { if (!save(appliedCpu, on)) revertSwitch(); return; }
         new android.app.AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert)
             .setTitle("Turn hosting off?")
             .setMessage((lastAppCount == 1 ? "The app running here will move to another host or wait for one."
                                            : "The " + lastAppCount + " apps running here will move to other hosts or wait for one.")
                         + " Nothing runs on this phone until you turn hosting on again.")
-            .setPositiveButton("Turn off", (d, w) -> { if (!save(appliedCpu, appliedMem, false)) revertSwitch(); })
+            .setPositiveButton("Turn off", (d, w) -> { if (!save(appliedCpu, false)) revertSwitch(); })
             .setNegativeButton("Cancel", (d, w) -> revertSwitch())
             .setOnCancelListener(d -> revertSwitch())
             .show();
@@ -252,17 +242,12 @@ final class Status {
     // ---- settings: sharing ----
     private int cpuToBar(int milli) { return Math.max(0, Math.min(cpuBar.getMax(), Math.round(milli / (float) CPU_STEP) - 1)); }
     private int barCpu() { return (cpuBar.getProgress() + 1) * CPU_STEP; }
-    private int memToBar(int mb) { return Math.max(0, Math.min(memBar.getMax(), Math.round((mb - MEM_MIN) / (float) MEM_STEP))); }
-    private int barMem() { return Math.min(memMax, MEM_MIN + memBar.getProgress() * MEM_STEP); }
-    private void setMemMax(int max) { memMax = Math.max(MEM_MIN, max); memBar.setMax(Math.max(1, (memMax - MEM_MIN + MEM_STEP - 1) / MEM_STEP)); }
     private void labels() {
-        cpuLabel.setText("CPU  ·  " + barCpu() / 10 + "%");
-        memLabel.setText(String.format(java.util.Locale.ROOT, "%.2f GB", barMem() / 1024.0));
+        cpuLabel.setText("CPU & RAM  ·  " + barCpu() / 10 + "%");
     }
     /** Each slider's Apply and Cancel appear only while it differs from what is in effect. */
     private void applyState() {
         cpuButtons.setVisibility(barCpu() != appliedCpu ? View.VISIBLE : View.GONE);
-        memButtons.setVisibility(barMem() != appliedMem ? View.VISIBLE : View.GONE);
     }
 
     // ---- settings: the payout address ----
@@ -286,7 +271,7 @@ final class Status {
             .setMessage(to + "\n\nPayouts can't be undone, so make sure this address is yours.")
             .setPositiveButton("Save", (d, w) -> {
                 String was = appliedPayout; appliedPayout = to;
-                if (save(appliedCpu, appliedMem, hosting)) toast("Saved"); else appliedPayout = was;
+                if (save(appliedCpu, hosting)) toast("Saved"); else appliedPayout = was;
                 payoutState(); })
             .setNegativeButton("Cancel", null)
             .show();
@@ -294,24 +279,24 @@ final class Status {
 
     // ---- the settings file the host agent reads ----
     private java.io.File offerFile() { return new java.io.File(a.getFilesDir(), "offer.json"); }
-    /** What this phone last saved: { cpuMilli, memMb, hosting, payoutTo|null }, or null. */
+    /** What this phone last saved: { cpuMilli, hosting, payoutTo|null }, or null. */
     private Object[] readOffer() {
         try {
             JSONObject o = new JSONObject(new String(java.nio.file.Files.readAllBytes(offerFile().toPath()), "UTF-8"));
             String to = o.optString("payoutTo", "");
-            return new Object[] { o.getInt("cpuMilli"), o.getInt("memMb"), o.optBoolean("hosting", true), to.matches("0x[0-9a-fA-F]{40}") ? to.toLowerCase(java.util.Locale.ROOT) : null };
+            return new Object[] { o.getInt("cpuMilli"), o.optBoolean("hosting", true), to.matches("0x[0-9a-fA-F]{40}") ? to.toLowerCase(java.util.Locale.ROOT) : null };
         } catch (Exception e) { return null; }
     }
     /** Saved where only this app (and the owner's adb) can write; the host agent reads it on its next round. */
-    private boolean save(int cpu, int mem, boolean host) {
+    private boolean save(int cpu, boolean host) {
         try {
-            JSONObject o = new JSONObject().put("v", 1).put("hosting", host).put("cpuMilli", cpu).put("memMb", mem)
+            JSONObject o = new JSONObject().put("v", 1).put("hosting", host).put("cpuMilli", cpu)
                 .put("at", new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", java.util.Locale.ROOT).format(new java.util.Date()));
             if (appliedPayout != null) o.put("payoutTo", appliedPayout);
             java.io.File t = new java.io.File(a.getFilesDir(), "offer.json.tmp");
             java.nio.file.Files.write(t.toPath(), (o.toString() + "\n").getBytes("UTF-8"));
             if (!t.renameTo(offerFile())) throw new java.io.IOException("rename");
-            appliedCpu = cpu; appliedMem = mem; hosting = host; settingsKnown = true;
+            appliedCpu = cpu; hosting = host; settingsKnown = true;
             applyState();
             return true;
         } catch (Exception e) { toast("Not saved: " + e.getMessage()); return false; }

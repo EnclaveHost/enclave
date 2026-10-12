@@ -319,9 +319,11 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   const idleSha = crypto.createHash("sha256").update(fs.readFileSync(cfg.idleApp)).digest("hex");
   let addrs = null, busy = false, lastSweep = 0, registered = null, lastReattach = 0, hostUp = false;
   const runners = new Map();     // "host" | k -> { r, key, lastTick }
-  // what the owner offers to host apps: set on the phone in the Enclave app (Sharing), read each round; the config's pool
-  // (and all the CPU) until it says otherwise, and never above the config's pool
+  // what the owner offers to host apps: ONE share of the phone's CPU and RAM, set in the Enclave app (Sharing) and read each
+  // round; all of it until it says otherwise
   let offer = { hosting: true, cpuMilli: 1000, memMb: S.poolMemMb, source: "config" };
+  // the memory a share offers: that part of the config's pool, never under the smallest app's room
+  const shareMem = (milli) => Math.max(MIN_VM_MB, Math.floor(S.poolMemMb * milli / 1000));
   const lastCert = new Map();    // k -> ms
   const standDown = new Map();   // deployment -> until (ms): the owner moved it away; not re-claimed meanwhile
   const sessions = createSessionApiAuth({ pc: publicClient, book: () => cfg.addressBook, ledger: () => (addrs ? addrs.deployments : null),
@@ -810,12 +812,14 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     if (text) {
       try {
         const o = JSON.parse(text);
-        const c = Number(o.cpuMilli), m = Number(o.memMb);
-        if (o.v !== 1 || !Number.isInteger(c) || c < 10 || c > 1000 || !Number.isInteger(m) || m < MIN_VM_MB || (o.hosting !== undefined && typeof o.hosting !== "boolean"))
+        const c = Number(o.cpuMilli);
+        if (o.v !== 1 || !Number.isInteger(c) || c < 10 || c > 1000 || (o.hosting !== undefined && typeof o.hosting !== "boolean"))
           throw new Error("malformed");
         // the payout address: 0x + 40 hex, never zero; absent, the config's
         if (o.payoutTo !== undefined && (typeof o.payoutTo !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(o.payoutTo) || /^0x0{40}$/.test(o.payoutTo))) throw new Error("payoutTo is not an address");
-        next = { hosting: o.hosting !== false, cpuMilli: c, memMb: Math.min(m, S.poolMemMb), source: "phone", at: typeof o.at === "string" ? o.at.slice(0, 40) : null,
+        // ONE share, as the platform sells it: that part of the phone's CPU and of its memory for apps together (a
+        // deployment's cpuMilli buys the node's vCPU and RAM alike); a memMb the file may still carry is not read
+        next = { hosting: o.hosting !== false, cpuMilli: c, memMb: shareMem(c), source: "phone", at: typeof o.at === "string" ? o.at.slice(0, 40) : null,
                  ...(o.payoutTo ? { payoutTo: o.payoutTo.toLowerCase() } : {}) };
       } catch (e) { if (offer.source !== "config-bad") note({ ev: "offer-ignored", why: `the phone's Sharing settings are not usable (${e.message})` }); next.source = "config-bad"; }
     }
