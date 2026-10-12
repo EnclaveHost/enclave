@@ -15,14 +15,13 @@
 // logged, put in a route, a provider record or a public response; only its salted digest is public (in the policy).
 import {createCipheriv,createDecipheriv,createHmac,randomBytes,createHash} from 'node:crypto';
 import {verifyProviderRecord,validateQualification,qualificationMessage,eligibleProviders} from '../network/provider-directory.mjs';
-import {verifyNetworkPolicy,validateNetworkPolicy,defaultNetworkPolicy,byoReleaseMessage} from '../network/network-policy.mjs';
+import {verifyNetworkPolicy,validateNetworkPolicy,defaultNetworkPolicy,byoReleaseMessage,byoConfigMessage,byoOwnerMessage} from '../network/network-policy.mjs';
 import {parseWireGuardConfig,redactWireGuardConfig,wireGuardConfigDigest} from '../network/wg-config.mjs';
 import {verifyOwnerSignature} from '../network/owner-signature.mjs';
 import {canonical} from '../network/route-record.mjs';
 import {recoverMessageAddress} from 'viem';
 
-export const byoConfigMessage=v=>`enclave-network:byo-config:v1\n${canonical(v)}`;
-export const byoOwnerMessage=v=>`enclave-network:byo-owner:v1\n${canonical(v)}`;
+export {byoConfigMessage,byoOwnerMessage};
 const ID=/^0x[0-9a-f]{64}$/,SIG_TTL=600;
 
 // JsonStore, file and clients come from the relay (relay/store.js), so this module bundles without relay internals.

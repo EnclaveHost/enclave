@@ -1,4 +1,4 @@
-import {prepareNetwork,submitNetwork} from './vaultsvc.js';
+import {prepareNetwork,submitNetwork,vaultSignature} from './vaultsvc.js';
 // Order service + hybrid billing: USD-quoted orders paid EITHER by card
 // (hosted Stripe Checkout - the customer never touches crypto) OR by USDC on
 // Base from the customer's own wallet through the immutable PaymentRouter
@@ -980,6 +980,14 @@ export async function handleBilling(req, res, u, ctx) {
     const a = b.assertion || {};
     if (a.credId !== key.credId)
       return err(ctx, res, req, 422, "wrong_credential", "Vault operations must be signed by the account's vault passkey.");
+    // "sign": the vault passkey's assertion over a message hash, returned as the vault's ERC-1271 signature for a signed
+    // message (the Enclave network's owner policy and BYO config, docs/design/enclave-network.md). Nothing is sent on
+    // chain; whoever checks the signature asks the vault contract.
+    if (b.op === "sign") {
+      let vaultAddr; try { vaultAddr = await ensureVault(key); } catch (e) { return err(ctx, res, req, 502, "vault_error", e.message); }
+      try { return ctx.json(res, 200, { ok: true, vault: vaultAddr, signature: vaultSignature({ ...a, x: key.x, y: key.y }) }, req); }
+      catch (e) { return err(ctx, res, req, 422, "bad_assertion", String(e.message).slice(0, 200)); }
+    }
     if (!["deploy", "fund", "refund", "control", "network"].includes(b.op))
       return err(ctx, res, req, 422, "bad_op", "Unknown vault op.");
     let vaultAddr;
