@@ -182,9 +182,18 @@ namespace Enclave.Tray
                 "{{\"cpuShare\":{0:0.00},\"gpuShare\":{1:0.00}{2}}}", cpuShare, gpuShare, ack)));
         }
 
-        public HostingView SetPaused(bool paused)
+        /// <summary>The switch. Off with apps running comes back as a WouldDropException (the node's list) and changes nothing,
+        /// until `drop` confirms exactly that list: turning hosting off stops everything on this PC.</summary>
+        public HostingView SetPaused(bool paused, IList<string> drop)
         {
-            return HostingView.From(Send("PUT", Hosting, paused ? "{\"paused\":true}" : "{\"paused\":false}"));
+            var ack = new StringBuilder();
+            if (drop != null && drop.Count > 0)
+            {
+                ack.Append(",\"drop\":[");
+                for (int i = 0; i < drop.Count; i++) ack.Append(i > 0 ? "," : "").Append('"').Append(drop[i]).Append('"');
+                ack.Append(']');
+            }
+            return HostingView.From(Send("PUT", Hosting, "{\"paused\":" + (paused ? "true" : "false") + ack + "}"));
         }
 
         string ReadToken()
@@ -572,7 +581,7 @@ namespace Enclave.Tray
             readonly HostingSwitch owner;
             public Accessible(HostingSwitch owner) : base(owner) { this.owner = owner; }
             public override AccessibleStates State { get { return base.State | (owner.on ? AccessibleStates.Checked : AccessibleStates.None); } }
-            public override string DefaultAction { get { return owner.on ? "Pause hosting" : "Resume hosting"; } }
+            public override string DefaultAction { get { return owner.on ? "Turn hosting off" : "Turn hosting on"; } }
             public override void DoDefaultAction() { owner.Ask(); }
         }
     }
@@ -685,6 +694,20 @@ namespace Enclave.Tray
                 + (units.Count == 1 ? "its lease is" : "their leases are") + " handed back to the network, so another host can take "
                 + (units.Count == 1 ? "it" : "them") + " (newest first):",
                 list.ToString().TrimEnd(), "Drop " + units.Count + " and apply", Theme.Danger);
+        }
+
+        /// <summary>The warning before the switch turns hosting off with apps running: all of them stop.</summary>
+        public static AskDialog ForOff(List<DropUnit> units)
+        {
+            string n = units.Count == 1 ? "1 app" : units.Count + " apps";
+            var list = new StringBuilder();
+            foreach (var u in units) list.Append(Short(u.Id, 10, 0)).Append("  ").Append(Short(u.AppRef, 22, 4)).AppendLine();
+            return new AskDialog("Turn hosting off?", Theme.Amber,
+                n + " running on this PC " + (units.Count == 1 ? "is" : "are") + " stopped now and "
+                + (units.Count == 1 ? "its lease is" : "their leases are") + " handed back to the network, so another host takes "
+                + (units.Count == 1 ? "it" : "them") + " over. Nothing of the apps keeps running: this PC's CPU, GPU and memory are "
+                + "all yours until you turn hosting on again.",
+                list.ToString().TrimEnd(), "Stop " + n + " and turn off", Theme.Danger);
         }
 
         static string Short(string s, int head, int tail)
@@ -928,8 +951,8 @@ namespace Enclave.Tray
             hostingLine.ForeColor = v != null && v.Paused ? Theme.Amber : Theme.Text;
             hostingLine.Text = v == null ? "\u2013"
                 : !v.CanPause ? "on (this node has no off switch yet: update the node)"
-                : switching ? (v.Paused ? "resuming\u2026" : "pausing\u2026")
-                : v.Paused ? "paused \u00B7 no new work; " + v.Served + " running keep running"
+                : switching ? (v.Paused ? "turning on\u2026" : "turning off\u2026")
+                : v.Paused ? (v.Served > 0 ? "off \u00B7 stopping " + v.Served + " app(s)\u2026" : "off \u00B7 nothing runs; this PC is all yours")
                 : "on \u00B7 taking new work under the caps below";
             apply.Enabled = reset.Enabled = Pending && !applying;
             apply.Text = applying ? "Applying\u2026" : "Apply";
@@ -1001,7 +1024,7 @@ namespace Enclave.Tray
             var controls = new ToolStripMenuItem("Hosting controls\u2026", null, delegate { ShowPanel(); });
             controls.Font = new Font(controls.Font, FontStyle.Bold);
             menu.Items.Add(controls);
-            pauseItem = new ToolStripMenuItem("Pause hosting", null, delegate { if (last != null) SetPaused(!last.Paused); }) { Enabled = false };
+            pauseItem = new ToolStripMenuItem("Turn hosting off", null, delegate { if (last != null) SetPaused(!last.Paused, null); }) { Enabled = false };
             menu.Items.Add(pauseItem);
             menu.Items.Add(new ToolStripMenuItem("Open logs folder", null, delegate { OpenLogs(); }));
             menu.Items.Add(new ToolStripMenuItem("Refresh", null, delegate { Refresh(); }));
@@ -1032,7 +1055,7 @@ namespace Enclave.Tray
         {
             var p = new ControlPanel();
             p.ApplyRequested += delegate { Apply(); };
-            p.PauseRequested += (s, e) => SetPaused(e.Paused);
+            p.PauseRequested += (s, e) => SetPaused(e.Paused, null);
             p.PayoutWalletSaveRequested += (o, w) => SavePayoutWallet(w.Address);
             p.PayoutNowRequested += delegate { PayoutNow(); };
             if (lastEarnings != null) p.ShowEarnings(lastEarnings, null);
@@ -1165,23 +1188,46 @@ namespace Enclave.Tray
             });
         }
 
-        /// <summary>The switch: pause (nothing new is taken; what runs keeps running) or resume. The caps are kept either way.</summary>
-        void SetPaused(bool paused)
+        /// <summary>
+        /// The switch. ON takes work under the caps. OFF stops EVERYTHING: the node drops every app running here and hands its
+        /// lease back, so a game gets the whole PC. With apps running the node first answers with their list (409
+        /// would_drop) having changed nothing; the owner sees it, and only "Stop N and turn off" sends it back confirmed.
+        /// The caps are kept either way.
+        /// </summary>
+        void SetPaused(bool paused, List<string> confirmed)
         {
             if (last == null || switching) return;
             switching = true; Panel.Switching = true; pauseItem.Enabled = false;
-            OnWorker(() => client.SetPaused(paused), (v, err) =>
+            OnWorker(() => client.SetPaused(paused, confirmed), (v, err) =>
             {
                 switching = false;
-                if (err != null)
+                var would = err as WouldDropException;
+                if (would != null && would.Units.Count > 0)
                 {
-                    Log((paused ? "pause" : "resume") + " FAILED: " + err.Message);
+                    bool yes;
+                    using (var ask = AskDialog.ForOff(would.Units)) yes = ask.ShowDialog(Panel) == DialogResult.OK;
                     Panel.Switching = false;
-                    Panel.ShowError("Hosting was not " + (paused ? "paused" : "resumed") + ": " + err.Message);
+                    if (yes)
+                    {
+                        var ids = new List<string>();
+                        foreach (var u in would.Units) ids.Add(u.Id);
+                        Log("owner confirmed turning hosting off: stopping " + ids.Count + " deployment(s)");
+                        SetPaused(true, ids);
+                        return;
+                    }
+                    Panel.ShowNotice("Hosting is still on: nothing was stopped.");
                     Refresh();
                     return;
                 }
-                Log(v.Paused ? "hosting paused" : "hosting resumed");
+                if (err != null)
+                {
+                    Log((paused ? "turn off" : "turn on") + " FAILED: " + err.Message);
+                    Panel.Switching = false;
+                    Panel.ShowError("Hosting was not turned " + (paused ? "off" : "on") + ": " + err.Message);
+                    Refresh();
+                    return;
+                }
+                Log(v.Paused ? "hosting turned off" : "hosting turned on");
                 Show(v, null, false);                                       // a move not yet applied stays as it is
                 Panel.Switching = false;
                 Panel.ShowError("");
@@ -1200,12 +1246,12 @@ namespace Enclave.Tray
             }
             last = v;
             Panel.ShowView(v, snap);
-            pauseItem.Text = v.Paused ? "Resume hosting" : "Pause hosting";
+            pauseItem.Text = v.Paused ? "Turn hosting on" : "Turn hosting off";
             pauseItem.Enabled = v.CanPause && !switching;
             if (v.Paused)
             {
                 icon.Icon = iconDown;
-                icon.Text = Tip("Enclave hosting: paused; " + v.Served + " running");
+                icon.Text = Tip(v.Served > 0 ? "Enclave hosting: off; stopping " + v.Served + " app(s)" : "Enclave hosting: off");
                 return;
             }
             bool over = v.CpuInUse > v.CpuCap + 1e-9 || v.GpuInUse > v.GpuCap + 1e-9 || v.CapsError.Length > 0;

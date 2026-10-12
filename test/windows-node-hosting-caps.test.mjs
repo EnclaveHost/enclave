@@ -119,7 +119,7 @@ test("persistence through the Host: a restarted node reads the caps the tray set
   assert.equal(broken.hostingView().capsError, null, "the tray's next set repairs it");
 });
 
-test("PAUSED: nothing new on either axis, nothing running touched, the caps kept for the resume, and it survives a restart", () => {
+test("OFF: nothing new on either axis, every running unit in the drop plan, the caps kept for the resume, and it survives a restart", () => {
   const logs = [];
   const h = box({ card: () => card, log: (m) => logs.push(m) });
   h.records.set(A, running(A, 0.3, 0.2));
@@ -128,25 +128,24 @@ test("PAUSED: nothing new on either axis, nothing running touched, the caps kept
   assert.ok(open.cpu > 0 && open.gpu > 0, "room before the pause");
   const before = JSON.stringify([...h.records.values()]);
   h.setHostingCaps({ ...h.hostingCaps(), paused: true });
-  assert.equal(JSON.stringify([...h.records.values()]), before, "no record was touched");
+  assert.equal(JSON.stringify([...h.records.values()]), before, "nothing is dropped without the owner's confirmation (hosting.mjs asks)");
+  assert.deepEqual(h.dropPlan(h.hostingCaps()).map((u) => u.id), [A], "off leaves room for nothing: every running unit is in the plan");
   assert.equal(h.cpuShareFree(), 0); assert.equal(h.gpuShareFree(), 0);
   assert.equal(h.capacity().paused, true);
   assert.equal(policy(h, newDep({ cpuMilli: 50 })), "the owner of this box has paused hosting: it takes no new work until they resume it");
   assert.equal(policy(h, newDep({ cpuMilli: 50, gpuMilli: 100 })), "the owner of this box has paused hosting: it takes no new work until they resume it");
-  assert.match(h.capRefusal(B, { cpuShare: 0.05 }), /^not started: the owner of this box has paused hosting/);
+  assert.match(h.capRefusal(B, { cpuShare: 0.05 }), /^not started: the owner of this box has turned hosting off/);
   const v = h.hostingView();
   assert.deepEqual({ caps: v.caps, free: v.free, served: v.deploymentsServed },
     { caps: { cpuShare: 0.8, gpuShare: 0.6, paused: true }, free: { cpuShare: 0, gpuShare: 0 }, served: 1 });
-  // a deployment already here is measured uncapped, paused or not (host.consider): the pause never takes a lease back
-  assert.ok(h.capacity({ exclude: A, capped: false }).cpuShareFree > 0); assert.equal(h.capacity({ capped: false }).paused, undefined);
-  assert.ok(logs.some((l) => /hosting PAUSED by the owner of this box: no new work is taken; the 1 deployment\(s\) running keep running/.test(l)));
+  assert.ok(logs.some((l) => /hosting turned OFF by the owner of this box/.test(l)));
   const again = new Host({ dir: h.cfg.dir, endpoint: ENDPOINT, name: "test", appsEnabled: true, log: () => {} });
   assert.deepEqual(again.hostingCaps(), { cpuShare: 0.8, gpuShare: 0.6, paused: true }, "a restarted node is still paused");
   assert.equal(again.cpuShareFree(), 0);
   h.setHostingCaps({ ...h.hostingCaps(), paused: false });
   assert.deepEqual({ cpu: h.cpuShareFree(), gpu: h.gpuShareFree() }, open, "resumed: exactly the room under the caps again");
   assert.equal(h.capacity().paused, undefined);
-  assert.ok(logs.some((l) => /hosting RESUMED/.test(l)));
+  assert.ok(logs.some((l) => /hosting turned ON/.test(l)));
 });
 
 test("dropPlan: what lower caps leave no room for - newest first, only units that free an axis that is over, until it fits", () => {
@@ -230,20 +229,36 @@ test("hv: a running partition is never stopped by a lower cap; it is adopted eve
   assert.equal(fake.running().length, 1); assert.notEqual(fake.running()[0].vmId, vmBefore, "a fresh VM");
 });
 
-test("hv: PAUSED holds a NEW partition with the reason and keeps a running one; resuming starts the held one", async () => {
+test("hv: OFF holds a NEW partition; turning off (confirmed) retires EVERY partition and hands their leases back; enforceOff stops a late one", async () => {
   const fake = new FakeHost(); const { port } = await bootManager(fake);
-  const h = hvBox(port);
+  const logs = []; const h = hvBox(port, logs);
   h.records.set(B, { ...running(B, 0.1), isolation: { instance: "hvB" } });
   h.setHostingCaps({ cpuShare: 1, gpuShare: 1, paused: true });
   const held = await h.ensureApp(DEP, dep(), { version: PLANNED });
   assert.equal(held.status, "held"); assert.equal(held.capHeld, true);
-  assert.equal(held.reason, "isolation: not started: the owner of this box has paused hosting; it starts when hosting is resumed (nothing running was stopped)");
+  assert.equal(held.reason, "isolation: not started: the owner of this box has turned hosting off");
   assert.equal(fake.running().length, 0, "no VM was started");
   h.setHostingCaps({ cpuShare: 1, gpuShare: 1, paused: false });
   assert.equal((await h.ensureApp(DEP, dep(), { version: PLANNED })).status, "running");
-  h.setHostingCaps({ cpuShare: 1, gpuShare: 1, paused: true });
-  for (let i = 0; i < 2; i++) assert.equal((await h.ensureApp(DEP, dep(), { version: PLANNED })).status, "running", "adopted while paused, not held");
   assert.equal(fake.running().length, 1);
+  // off, confirmed: the plan is every unit, newest first, and each partition is retired
+  const off = { cpuShare: 1, gpuShare: 1, paused: true };
+  const plan = h.dropPlan(off);
+  assert.deepEqual(plan.map((u) => u.id), [DEP, B], "everything, the newest first");
+  h.setHostingCaps(off, { drop: plan.map((u) => u.id) });
+  await h.capDrops;
+  assert.equal(fake.running().length, 0, "no partition left: the machine is the owner's again");
+  for (const id of [DEP, B]) {
+    assert.ok(!Host.occupies(h.records.get(id)), `${id.slice(0, 6)} occupies nothing`);
+    assert.match(h.records.get(id).reason || "", /turned hosting off/);
+  }
+  // a unit that turns up while off (a claim landing as the owner switched) is stopped by the next tick's enforceOff
+  h.records.set(C, { ...running(C, 0.1), isolation: { instance: "hvC" } });
+  assert.deepEqual(await h.enforceOff(), [C]);
+  assert.ok(!Host.occupies(h.records.get(C)));
+  assert.deepEqual(await h.enforceOff(), [], "nothing left to stop");
+  h.setHostingCaps({ cpuShare: 1, gpuShare: 1, paused: false });
+  assert.deepEqual(await h.enforceOff(), [], "on: enforceOff does nothing");
 });
 
 test("hv: a confirmed drop retires the newest partition and hands its lease back; the older one keeps running", async () => {
@@ -456,4 +471,29 @@ test("explicit app RAM budget is independent of CPU reserve, bounded by physical
   assert.equal(h.capacity().ramMbPool, 112 * 1024);
   delete h.cfg.appRamGb;
   assert.equal(h.capacity().ramMbPool, 56 * 1024);
+});
+
+test("the switch through the local API (the tray's call): OFF with apps running is a 409 listing ALL of them, changing nothing; confirmed, it turns off and drops them all", async () => {
+  const http = (await import("node:http")).default;
+  const { hostingAdminHandler } = await import("../windows/node/hosting.mjs");
+  const logs = [];
+  const h = box({ card: () => card, log: (m) => logs.push(m) });
+  h.records.set(A, { ...running(A, 0.2), claimedAt: 1 }); h.records.set(B, { ...running(B, 0.1), claimedAt: 2 });
+  const server = http.createServer(hostingAdminHandler({ host: h, token: "t0k" }));
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  after(() => server.close());
+  const put = (body) => fetch(`http://127.0.0.1:${server.address().port}/v1/local/hosting`, { method: "PUT",
+    headers: { authorization: "Bearer t0k", "content-type": "application/json" }, body: JSON.stringify(body) }).then(async (r) => ({ status: r.status, json: await r.json() }));
+  const asked = await put({ paused: true });
+  assert.equal(asked.status, 409); assert.equal(asked.json.error, "would_drop");
+  assert.deepEqual(asked.json.drop.map((u) => u.id), [B, A], "every app, the newest first - not only what a cap is over by");
+  assert.equal(h.hostingCaps().paused, false, "nothing changed without the confirmation");
+  assert.equal((await put({ paused: true, drop: [B] })).status, 409, "a partial confirmation turns nothing off");
+  const ok = await put({ paused: true, drop: [B, A] });
+  assert.equal(ok.status, 200); assert.equal(h.hostingCaps().paused, true);
+  assert.deepEqual(ok.json.dropped.map((u) => u.id), [B, A]);
+  assert.ok(logs.some((l) => /hosting turned OFF by the owner of this box: .* the 2 deployment\(s\) occupying it are stopped and handed back/.test(l)));
+  await h.capDrops.catch(() => {});
+  const on = await put({ paused: false });
+  assert.equal(on.status, 200); assert.equal(h.hostingCaps().paused, false, "turning on needs no confirmation");
 });

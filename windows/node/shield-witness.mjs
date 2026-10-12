@@ -31,7 +31,14 @@ export function createShieldWitness({config, base, dataAddr, client = new Isolat
     })().finally(() => { pending = null; });
     return pending;
   }
-  return {ensure, async evidence(nonce) {
+  // Hosting turned off: the witness partition goes too (a VM is a VM to a gamer's frame rate). ensure() brings it back.
+  async function stop() {
+    const v = await client.findByName(WITNESS_NAME);
+    if (!v) return false;
+    await client.remove(v.id); retryAt = 0;
+    return true;
+  }
+  return {ensure, stop, async evidence(nonce) {
     if (!/^[0-9a-f]{64}$/.test(nonce || '')) throw Error('32-byte nonce required');
     const v = await ensure();
     if (v.status !== 'running' || v.appId !== config.appId || v.runtimeId !== config.derive.runtimeId)
