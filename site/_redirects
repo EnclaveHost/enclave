@@ -24,7 +24,7 @@
 /sessions   /sessions.html   200
 /grant      /grant.html      200
 # the hosting tray's "Payout wallet" link (windows/tray): a box owner declares their own wallet for their box
-/payout     /payout.html     200
+/payout     /host     301
 # /apps/publish is a VIEW of the Apps page (a router alias): a hard load
 # serves the nested apps document (a build-time copy carrying <base
 # href="../">) and apps.js picks the view from the pathname. The flat /publish

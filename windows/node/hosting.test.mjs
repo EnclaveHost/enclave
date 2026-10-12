@@ -345,28 +345,31 @@ test("caps below what runs: 409 with the plan and nothing changed, until every d
   assert.equal((await call(port, { method: "PUT", body: { drop: [X] } })).status, 400, "drop alone sets nothing");
 });
 
-test("earnings routes: GET earnings, POST payout-wallet/begin, DELETE payout-wallet, POST payout - behind the token, methods checked", async () => {
+test("earnings routes: GET earnings, PUT/DELETE payout-wallet, POST payout - behind the token, methods checked", async () => {
   const calls = [];
+  const { Payouts } = await import("./payout.mjs");
   const payouts = { status: async () => ({ earned6: "5", payTo: null }),
-    begin: async () => { calls.push("begin"); return { url: "https://enclave.host/payout?id=0x1#code=0x2", expiresAt: "t" }; },
-    clear: async () => { calls.push("clear"); return { confirmed: null }; },
+    set: async (a) => { calls.push(["set", a]); if (!/^0x[0-9a-fA-F]{40}$/.test(String(a))) throw Object.assign(new Error("not a wallet address"), { status: 400, code: "bad_address" }); return { wallet: a }; },
+    clear: async () => { calls.push("clear"); return { wallet: null }; },
     payout: async (o) => { calls.push(["payout", o]); return { paid: false, why: "nothing" }; } };
+  assert.equal(typeof Payouts.prototype.set, "function", "the stub's surface is the real one's");
   const server = http.createServer(hostingAdminHandler({ host: stubHost(), token: TOKEN, payouts }));
   await new Promise((r) => server.listen(0, "127.0.0.1", r)); servers.push(server);
-  const port = server.address().port, P = "/v1/local/hosting/";
+  const port = server.address().port, P = "/v1/local/hosting/", A = "0x" + "a1".repeat(20);
   assert.deepEqual((await call(port, { path: P + "earnings" })).json, { earned6: "5", payTo: null });
   assert.equal((await call(port, { path: P + "earnings", token: "wrong" })).status, 401);
   assert.equal((await call(port, { path: P + "earnings", method: "PUT", body: {} })).status, 405);
-  const begun = await call(port, { path: P + "payout-wallet/begin", method: "POST" });
-  assert.equal(begun.status, 200); assert.match(begun.json.url, /#code=/);
-  assert.equal((await call(port, { path: P + "payout-wallet/begin", method: "GET" })).status, 405);
-  assert.equal((await call(port, { path: P + "payout-wallet/begin", method: "POST", token: null })).status, 401, "no token, no code");
-  assert.equal((await call(port, { path: P + "payout-wallet", method: "PUT", body: { address: "0x" + "a1".repeat(20) } })).status, 405,
-    "an address can no longer be set by naming it");
+  const set = await call(port, { path: P + "payout-wallet", method: "PUT", body: { address: A } });
+  assert.equal(set.status, 200); assert.equal(set.json.wallet, A);
+  const bad = await call(port, { path: P + "payout-wallet", method: "PUT", body: { address: "nope" } });
+  assert.equal(bad.status, 400); assert.equal(bad.json.error, "bad_address");
+  assert.equal((await call(port, { path: P + "payout-wallet", method: "PUT", body: { address: A }, token: null })).status, 401, "no token, no wallet");
+  assert.equal((await call(port, { path: P + "payout-wallet", method: "POST", body: { address: A } })).status, 405);
+  assert.equal((await call(port, { path: P + "payout-wallet/begin", method: "POST" })).status, 404, "the WalletConnect flow is gone");
   assert.equal((await call(port, { path: P + "payout-wallet", method: "DELETE" })).status, 200);
   const pay = await call(port, { path: P + "payout", method: "POST" });
   assert.equal(pay.status, 409); assert.deepEqual(pay.json, { paid: false, why: "nothing", error: "not_paid", message: "nothing" });
-  assert.deepEqual(calls, ["begin", "clear", ["payout", { now: true }]]);
+  assert.deepEqual(calls, [["set", A], ["set", "nope"], "clear", ["payout", { now: true }]]);
   assert.equal((await call(port, { path: P + "other" })).status, 404);
   const bare = await serve(stubHost());
   assert.equal((await call(bare, { path: P + "earnings" })).status, 503, "a node with no payouts says so");
