@@ -935,7 +935,14 @@ async function startHostingControls() {
                       operatorKeyFile: path.join(DIR, 'operator.key'), runner: host.enclaveId, endpoint: PUBLIC_URL, relayBase,
                       policyFile: process.env.TUNA_SHIELD_POLICY, tpmBinary: process.env.TPMATTEST_EXE,
                       tpmSha256: await fileSha256(process.env.TPMATTEST_EXE), addressBook: chainMod.addressBook(), chainRpc: chainMod.rpcUrls(),
-                      manager: host.cfg.isolationManager, dataAddr: host.cfg.isolationDataAddr },
+                      manager: host.cfg.isolationManager, dataAddr: host.cfg.isolationDataAddr,
+                      // the Enclave network replaces TUNA (docs/design/enclave-network.md): ENCLAVE_NETWORK=1 (the installer's
+                      // default) with the trusted qualification checkers; unset keeps a box on TUNA
+                      ...(process.env.ENCLAVE_NETWORK === '1' ? { enclaveNetwork: { checkers: String(process.env.ENCLAVE_NETWORK_CHECKERS || '').toLowerCase().split(',').map((c) => c.trim()).filter(Boolean) } } : {}) },
+            // a box switching from TUNA restarts its privacy agent once (the \Enclave\Tuna task starts it again in 10 s)
+            restartAgent: async () => { const { execFile } = await import('node:child_process'); await new Promise((res) => execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+              "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'privacy-agent\\.mjs' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"],
+              { timeout: 30000, windowsHide: true }, () => res())); },
             rows: () => chainMod.allDeployments(), version: (appRef) => chainMod.resolveAppRef(appRef),
             vms: async () => { const r = await fetch(`${host.cfg.isolationManager}/vms`, { signal: AbortSignal.timeout(15000) });
                                if (!r.ok) throw new Error(`the manager answered /vms ${r.status}`); const j = await r.json(); return Array.isArray(j) ? j : j.vms || []; },

@@ -295,6 +295,10 @@ set ENCLAVE_STARTUP_EGRESS_CONFIG=$PD\tuna\privacy-config.json
 rem the host-side cache for public, pinned content (blob-cache.mjs): loopback only, 32 GB, least recently used out first
 set BLOB_SERVICE_PORT=9621
 set BLOB_CACHE_DIR=$PD\shield\blobs
+rem the Enclave network replaces TUNA (docs/design/enclave-network.md): every app's route and this box's own control
+rem traffic over WireGuard providers qualified by these checkers; no NKN wallets or funding
+set ENCLAVE_NETWORK=1
+set ENCLAVE_NETWORK_CHECKERS=0x57144c9008cff0b3ed94f6e40964a321fbee848a
 "@ | Set-Content -Encoding ASCII (Join-Path $PD "node-config.cmd")
 
 # the TUNA privacy agent: every app's private route. The node writes its config once the platform has funded the control
