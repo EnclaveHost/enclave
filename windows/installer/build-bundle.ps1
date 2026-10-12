@@ -102,6 +102,11 @@ if (Test-Path (Join-Path $installer "build-setup.cmd")) {
 foreach ($f in "install-host.ps1", "uninstall-host.ps1", "templates") {
   $p = Join-Path $installer $f; if (Test-Path $p) { Copy-Item $p (Join-Path $B $f) -Recurse -Force }
 }
+# the platform's readiness witness (shield-readiness-v1): the pinned app every host runs so the relay can verify its
+# Enclave Shield before any buyer's app is admitted (relay policy `witness`). install-host.ps1 checks its runtime is the bundle's.
+$witness = Get-Content -Raw (Join-Path $installer "shield-witness.json") | ConvertFrom-Json
+Copy-Item (Join-Path $installer "shield-witness.json") (Join-Path $B "guest\witness.json")
+"witness: shield-readiness-v1 app $($witness.appId.Substring(0,12)) runtime $($witness.derive.runtimeId.Substring(0,12))"
 Remove-Item $setup -Recurse -Force
 
 # --- 5. manifest, zip, sums -------------------------------------------------------------------------------------------
