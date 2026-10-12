@@ -863,7 +863,10 @@ async function startHostingControls() {
       shieldWitness = createShieldWitness({config:JSON.parse(fs.readFileSync(process.env.SHIELD_WITNESS_CONFIG,'utf8')),
         base:host.cfg.isolationManager, dataAddr:host.cfg.isolationDataAddr});
       let lastWitnessError = '';
-      const tickWitness = () => shieldWitness.ensure().then(() => { lastWitnessError = ''; }).catch(e => {
+      // hosting off: no witness partition either (it comes back, and the market with it, when hosting is turned on)
+      const tickWitness = () => (host.hostingCaps().paused === true
+        ? shieldWitness.stop().then((gone) => { if (gone) log('readiness witness stopped: hosting is off'); lastWitnessError = ''; })
+        : shieldWitness.ensure().then(() => { lastWitnessError = ''; })).catch(e => {
         if (e.message !== lastWitnessError) log(`readiness witness: ${e.message}`);
         lastWitnessError = e.message;
       });

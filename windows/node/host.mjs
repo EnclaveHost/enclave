@@ -1673,6 +1673,7 @@ export class Host {
   }
   async tick() {
     if (!this.chainReady) return;
+    await this.enforceOff();
     // whose deployments this box serves, re-read before the scan and the sweep ask (a deleted delegation ends here)
     await this.refreshOwners();
     if (!this.registered) await this.refreshRegistration();
@@ -2038,7 +2039,7 @@ export class Host {
     const use = this.shareUse({ exclude: id });
     const pct = (x) => Math.round(x * 100);
     if (this.caps.paused === true)
-      return "not started: the owner of this box has paused hosting; it starts when hosting is resumed (nothing running was stopped)";
+      return "not started: the owner of this box has turned hosting off";
     if (use.cpu + cpuShare > this.caps.cpuShare + 1e-9)
       return `not started: the owner offers ${pct(this.caps.cpuShare)}% of this box's CPU to hosting, ${pct(use.cpu)}% of it is in use`
         + ` by running and starting partitions, and this one needs ${pct(cpuShare)}%; it starts when it fits (nothing running was stopped)`;
@@ -2054,12 +2055,15 @@ export class Host {
    * dropPlan(caps) -> the units occupying this box that these caps leave no room for, as [{id, appRef, cpuShare,
    * gpuShare}], in the order they would go: the NEWEST first (the most recently claimed, then the most recently
    * recorded), each only if it frees an axis that is over, until use fits under both caps. Empty when it already fits.
-   * Pausing drops nothing (it only stops new work), so the plan is made against the caps alone.
+   * Turning hosting OFF (caps.paused) leaves room for nothing: the plan is every unit, so the owner's games get the whole
+   * machine back - CPU, GPU and memory - not just a box that stops taking new work.
    */
   dropPlan(caps) {
-    const at = new Map([...this.records.keys()].map((id, i) => [id, i]));
+    const at = new Map([...this.records.values()].map((r, i) => [r.id, i]));
     const units = [...this.records.values()].filter((r) => Host.occupies(r))
       .sort((a, b) => (b.claimedAt || 0) - (a.claimedAt || 0) || at.get(b.id) - at.get(a.id));
+    const unit = (r) => ({ id: r.id, appRef: r.appRef || "", cpuShare: r.cpuShare || 0, gpuShare: r.partitionGpuShare ?? (r.gpuShare || 0) });
+    if (caps && caps.paused === true) return units.map(unit);
     let { cpu, gpuInUse } = this.shareUse();
     const plan = [];
     for (const r of units) {
@@ -2079,6 +2083,21 @@ export class Host {
       catch (e) { this.log(`${String(id).slice(0, 10)} could not be dropped for the owner's caps: ${e.message}`); }
     }
   }
+  /**
+   * OFF means nothing runs here: anything still occupying the box while hosting is off (a claim that landed as the owner
+   * switched off, a drop that failed) is stopped and handed back. Every tick (host.tick), until hosting is turned on again.
+   * -> the ids it stopped.
+   */
+  async enforceOff() {
+    if (this.caps.paused !== true) return [];
+    const left = this.dropPlan(this.caps).map((u) => u.id).filter((id) => !(this.offDropping || new Set()).has(id));
+    if (!left.length) return [];
+    this.offDropping = new Set([...(this.offDropping || []), ...left]);
+    this.log(`hosting is off: stopping ${left.length} deployment(s) still on this box`);
+    try { await this.#dropForCaps(left, "the owner of this box turned hosting off; handing the lease back so another host can take it"); }
+    finally { for (const id of left) this.offDropping.delete(id); }
+    return left;
+  }
   /** What the owner offers on an axis: their cap, or nothing while they have hosting paused. */
   #offered(axis) { return this.caps.paused === true ? 0 : this.caps[axis]; }
   servedCount() { return [...this.records.values()].filter((r) => r.status === "running").length; }
@@ -2090,16 +2109,20 @@ export class Host {
     const use = this.shareUse(), pct = (x) => `${Math.round(x * 100)}%`;
     if (was.paused !== this.caps.paused)
       this.log(this.caps.paused
-        ? `hosting PAUSED by the owner of this box: no new work is taken; the ${this.servedCount()} deployment(s) running keep running`
-        : "hosting RESUMED by the owner of this box: new work is taken again under the caps");
+        ? `hosting turned OFF by the owner of this box: no new work is taken, and the ${drop.length} deployment(s) occupying it are stopped and handed back`
+        : "hosting turned ON by the owner of this box: new work is taken again under the caps");
     this.log(`hosting caps set on this box: CPU ${pct(was.cpuShare)} -> ${pct(this.caps.cpuShare)}, GPU ${pct(was.gpuShare)} -> ${pct(this.caps.gpuShare)}`
       + (drop.length ? `; dropping ${drop.length} running deployment(s) the owner confirmed, newest first`
         : use.cpu > this.caps.cpuShare + 1e-9 ? `; ${pct(use.cpu)} of the CPU is already in use, which keeps running: new work waits until use drops below the cap` : ""));
     // Only what the owner confirmed (hosting.mjs's handler checks it against dropPlan); never anything chosen here.
     if (drop.length) {
-      const why = `the owner of this box lowered its hosting caps to CPU ${pct(this.caps.cpuShare)}, GPU ${pct(this.caps.gpuShare)}, below what`
-        + " was in use; handing the lease back so a box with room can take it";
-      this.capDrops = this.#dropForCaps(drop, why);
+      const why = this.caps.paused
+        ? "the owner of this box turned hosting off; handing the lease back so another host can take it"
+        : `the owner of this box lowered its hosting caps to CPU ${pct(this.caps.cpuShare)}, GPU ${pct(this.caps.gpuShare)}, below what`
+          + " was in use; handing the lease back so a box with room can take it";
+      // marked in flight, so the tick's own off-enforcement does not stop the same deployment a second time
+      this.offDropping = new Set([...(this.offDropping || []), ...drop]);
+      this.capDrops = this.#dropForCaps(drop, why).finally(() => { for (const id of drop) this.offDropping.delete(id); });
     }
     return this.hostingCaps();
   }
