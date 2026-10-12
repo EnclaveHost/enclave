@@ -99,7 +99,7 @@ if (Test-Path (Join-Path $installer "build-setup.cmd")) {
   if ($LASTEXITCODE) { Die "EnclaveSetup.exe did not build" }
   Copy-Item (Join-Path $installer "EnclaveSetup.exe") (Join-Path $Out "EnclaveSetup.exe") -Force
 }
-foreach ($f in "install-host.ps1", "uninstall-host.ps1", "templates") {
+foreach ($f in "install-host.ps1", "uninstall-host.ps1", "update-host.ps1", "templates") {
   $p = Join-Path $installer $f; if (Test-Path $p) { Copy-Item $p (Join-Path $B $f) -Recurse -Force }
 }
 # the platform's readiness witness (shield-readiness-v1): the pinned app every host runs so the relay can verify its
