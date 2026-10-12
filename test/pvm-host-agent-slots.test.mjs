@@ -177,7 +177,7 @@ test("slots: the served app moves to slot 1, more apps take their own VMs, the h
     assert.equal((await agent.evidence(new URLSearchParams({ deployment: D1, nonce })))[0], 404, "not served here (yet)");
 
     // the owner shares only half the phone's CPU (the Enclave app's Sharing): D0 and D2 hold 500 per mille, so D1 waits
-    t.setOffer({ cpuMilli: 500, memMb: 1536 }); t.calls.length = 0; t.advance(61_000);
+    t.setOffer({ cpuMilli: 500 }); t.calls.length = 0; t.advance(61_000);
     await agent.tick();
     assert.deepEqual(t.calls, [], "nothing taken beyond the offer");
     let off = agent.availability();
@@ -186,17 +186,20 @@ test("slots: the served app moves to slot 1, more apps take their own VMs, the h
     t.rows.get(D1).active = false;
     t.setOffer("{not json"); t.advance(1000); await agent.tick();
     assert.deepEqual([agent.availability().offer.source, agent.availability().cpuShareOffered], ["config-bad", 1]);
-    t.setOffer({ cpuMilli: 1000, memMb: 4096 });   // all the CPU; memory capped at the config's pool (1536)
+    // ONE share of CPU and RAM: the memory offered is that part of the config's pool (a stale memMb in the file is not read)
+    t.setOffer({ cpuMilli: 500, memMb: 4096 }); t.advance(1000); await agent.tick();
+    assert.deepEqual([agent.availability().cpuShareOffered, agent.availability().poolMemMb], [0.5, 768], "half the share: half the pool");
+    t.setOffer({ cpuMilli: 1000 });   // all of it: the config's whole pool (1536)
     t.advance(1000); await agent.tick();
-    assert.deepEqual([agent.availability().poolMemMb, agent.availability().offer.source], [1536, "phone"], "never above the config's pool");
+    assert.deepEqual([agent.availability().poolMemMb, agent.availability().offer.source], [1536, "phone"], "the whole pool");
     assert.deepEqual(t.calls, []);
     // the offer lowered under what already runs (100 per mille, 400 MiB): D0's owner edits its config, and D0 is
     // relaunched on it in its own slot -- re-admitted against what it holds, never released for the lower offer
-    t.setOffer({ cpuMilli: 100, memMb: 400 }); t.rows.get(D0).configCid = JSON.stringify({ config: { greeting: "edited" } });
+    t.setOffer({ cpuMilli: 100 }); t.rows.get(D0).configCid = JSON.stringify({ config: { greeting: "edited" } });
     t.calls.length = 0; t.advance(1000); await agent.tick();
     assert.deepEqual(t.calls, ["stage 1", "launch 1 384 MiB cpus=0 app=256"], "relaunched on its new options");
     assert.equal(agent.state().slots["1"].id, D0); assert.equal(t.rows.get(D0).runner, t.E, "its lease kept");
-    t.setOffer({ cpuMilli: 1000, memMb: 4096 }); t.advance(1000); await agent.tick();
+    t.setOffer({ cpuMilli: 1000 }); t.advance(1000); await agent.tick();
     t.rows.get(D1).active = true;
 
     // the next round: D1 (a 64 MiB app: a 192 MiB VM) into slot 3; the pool is then 960 of 1536 MiB, 750 of 1000 per mille
@@ -246,7 +249,7 @@ test("slots: the served app moves to slot 1, more apps take their own VMs, the h
 
     // hosting off (the Enclave app's switch): every app released (a final proof, then release), every slot freed and its VM
     // ended, then the host VM; nothing is taken, and the agent says so
-    t.setOffer({ hosting: false, cpuMilli: 1000, memMb: 4096 }); t.calls.length = 0; t.advance(301_000);
+    t.setOffer({ hosting: false, cpuMilli: 1000 }); t.calls.length = 0; t.advance(301_000);
     r = await agent.tick();
     assert.equal(r.kind, "hosting-off");
     assert.deepEqual(Object.values(agent.state().slots).filter(Boolean), [], "every slot freed");
@@ -258,7 +261,7 @@ test("slots: the served app moves to slot 1, more apps take their own VMs, the h
     t.calls.length = 0; t.advance(61_000); await agent.tick();
     assert.deepEqual(t.calls, [], "off stays off: nothing launched");
     // on again: the host VM starts, and the sweep takes the open deployments back
-    t.setOffer({ hosting: true, cpuMilli: 1000, memMb: 4096 }); t.advance(61_000);
+    t.setOffer({ hosting: true, cpuMilli: 1000 }); t.advance(61_000);
     await agent.tick();
     assert.ok(t.calls.includes("launch 0"), "the host VM started again");
     assert.ok(Object.values(agent.state().slots).filter(Boolean).length >= 1, "apps taken again");
@@ -279,13 +282,13 @@ test("slots: the served app moves to slot 1, more apps take their own VMs, the h
     t.setHead(1_100_000n); t.advance(61_000); await agent.tick();
     assert.deepEqual([agent.earnings().complete, agent.earnings().paidOut6], [false, "2250000"]);
     // the owner sets a payout address in the app: the host runner is made again with it, and the view says so
-    t.setOffer({ cpuMilli: 1000, memMb: 4096, payoutTo: "0x" + "AB".repeat(20) }); t.advance(1000); await agent.tick();
+    t.setOffer({ cpuMilli: 1000, payoutTo: "0x" + "AB".repeat(20) }); t.advance(1000); await agent.tick();
     assert.deepEqual(agent.earnings().payout, { to: "0x" + "ab".repeat(20), minWithdraw6: "1000000", source: "phone" });
     const hostCfg = t.made.filter((x) => x.config.proof.deployment === "0x" + "00".repeat(32) && !x.closed).at(-1).config;
     assert.deepEqual(hostCfg.lifecycle.payout, { to: "0x" + "ab".repeat(20), minWithdraw6: "1000000" }, "withdrawals go there");
-    t.setOffer({ cpuMilli: 1000, memMb: 4096, payoutTo: "0x" + "00".repeat(20) }); t.advance(1000); await agent.tick();
+    t.setOffer({ cpuMilli: 1000, payoutTo: "0x" + "00".repeat(20) }); t.advance(1000); await agent.tick();
     assert.equal(agent.availability().offer.source, "config-bad", "the zero address is refused");
-    t.setOffer({ cpuMilli: 1000, memMb: 4096 }); t.advance(1000); await agent.tick();
+    t.setOffer({ cpuMilli: 1000 }); t.advance(1000); await agent.tick();
 
     // D1's owner cancels: its slot is released and freed, and its pool returns
     t.rows.get(D1).active = false; t.calls.length = 0; t.advance(1000);
