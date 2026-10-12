@@ -166,11 +166,12 @@ const lc = (a) => a.address.toLowerCase();
 const hvWorld = (t) => { const dir = tmpdir("hv-owner-"); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const w = makeVbsWorld(dir); const roots = path.join(dir, "ek-roots.pem"); fs.writeFileSync(roots, w.ca.bundlePem); return { w, roots }; };
 
-test("owner-only: served now + this row's lease + isolation.require hyperv-partition-per-app -> a signed TUNA route; every other deployment is absent; the row stays ineligible, unplaced, unpriced and off the relay roster",
+for (const [label, ops] of [["listed operator", () => lc(OPERATOR)], ["RELAY_HVNODE_OPERATORS=* (the open market)", () => "*"]])
+test(`owner-only (${label}): served now + this row's lease + isolation.require hyperv-partition-per-app -> a signed TUNA route; every other deployment is absent; the row stays ineligible, unplaced, unpriced and off the relay roster`,
      { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
   const { w, roots } = hvWorld(t);
-  // the operator is in RELAY_HVNODE_OPERATORS and NOT in TRUSTED_OPERATORS (the default list stays)
-  const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, RELAY_HVNODE_OPERATORS: lc(OPERATOR), TUNNEL_OPERATOR_ATTACH: "1" });
+  // the operator is in RELAY_HVNODE_OPERATORS (or it is "*") and NOT in TRUSTED_OPERATORS (the default list stays)
+  const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, RELAY_HVNODE_OPERATORS: ops(), TUNNEL_OPERATOR_ATTACH: "1" });
   const exp = Math.floor(Date.now() / 1000) + 90 * 86400;
   const good = await delegation({ expires: exp }), otherBox = await delegation({ box: "other-box" }), byStranger = await delegation({ signer: STRANGER });
   const a = await attachHv(origin, w, { delegations: [good, otherBox, byStranger] });
@@ -214,12 +215,12 @@ test("owner-only: served now + this row's lease + isolation.require hyperv-parti
   assert.equal(a.splices.length, 0, "the control tunnel never carries application streams");
 });
 
-test("owner-only needs a v2 signature by an operator in RELAY_HVNODE_OPERATORS; TRUSTED_OPERATORS (\"*\" included) never implies it, nor does \"*\" in it: HOST-ONLY",
+test("owner-only needs a v2 signature by an operator in RELAY_HVNODE_OPERATORS (or \"*\" there: the open market); TRUSTED_OPERATORS (\"*\" included) never implies it: HOST-ONLY",
      { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
   for (const [label, env, opts] of [["v1 signature", { RELAY_HVNODE_OPERATORS: lc(OPERATOR) }, { sig: "v1" }],
+                                    ["v1 signature, RELAY_HVNODE_OPERATORS=*", { RELAY_HVNODE_OPERATORS: "*" }, { sig: "v1" }],
                                     ["operator in TRUSTED_OPERATORS only", { TRUSTED_OPERATORS: lc(OPERATOR) }, {}],
                                     ["TRUSTED_OPERATORS=*", { TRUSTED_OPERATORS: "*" }, {}],
-                                    ["RELAY_HVNODE_OPERATORS=*", { RELAY_HVNODE_OPERATORS: "*" }, {}],
                                     ["another operator listed", { RELAY_HVNODE_OPERATORS: lc(STRANGER) }, {}]]) {
     const { w, roots } = hvWorld(t);
     const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, ...env });

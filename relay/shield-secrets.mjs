@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import {randomBytes} from 'node:crypto';
 import {endpointOperator,recoverOp,makeReplayCache,holdsLease} from './fleet-auth.js';
 import {expectedShieldApp} from './shield-app-verifier.mjs';
+import {shieldHostAdmitted} from './shield-app-policy.mjs';
 import {releaseConfig,sealRelease,signResponse,keyIdOf,ed25519RawPublic} from './secrets-release.mjs';
 export const secretRequestMessage=(id,endpoint,ts)=>`enclave-shield-secrets:${id}:${endpoint}:${ts}`;
 const fingerprint=d=>JSON.stringify([d.id,d.owner,d.runner,d.appRef,d.configCid,d.active,d.isPublic,Number(d.cpuMilli),Number(d.gpuMilli)]);
@@ -19,7 +20,7 @@ export function createShieldSecretRelease({hub,policyFile='',policy:supplied,con
   if(!op||!signer||op!==signer)throw err('operator signature refused');
   if(!fresh(b.opSig,ts+120))throw err('release request replayed',409);
   const epId=await ctx.endpointIdOf(endpoint),host=hostForEndpoint(epId);
-  if(!host||host.mode!=='hv-node'||!policy.hosts?.includes(host.name))throw err('no admitted Shield host');
+  if(!host||host.mode!=='hv-node'||!shieldHostAdmitted(policy,host.name))throw err('no admitted Shield host');
   const sid=hub.shieldSessionId(host.name);if(!sid)throw err('no authenticated Shield session');
   if(active>=2||inflight.has(id))throw err('release busy',429);
   active++;inflight.add(id);

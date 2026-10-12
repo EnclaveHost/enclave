@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import {randomBytes} from 'node:crypto';
 import { createShieldAppVerifier } from './shield-app-verifier.mjs';
+import { shieldHostAdmitted } from './shield-app-policy.mjs';
 
 const TTL = 300000, REFRESH = 60000;
 // Failures that say nothing about the app: the chain read, this verifier being
@@ -17,9 +18,10 @@ const fingerprint = d => JSON.stringify([d.id, d.runner, d.appRef, d.configCid, 
 export function createShieldMarketplace({ hub, policyFile = '', policy: supplied, confirmRow,
   hasSecrets, isOwnerDeployment = () => false, readCatalog, readConfig, fetchVerified, now = Date.now, log = console.warn }) {
   const policy = supplied || (policyFile ? JSON.parse(fs.readFileSync(policyFile, 'utf8')) : null);
-  if (policy && (policy.schema !== 'enclave-shield-app-policy/1' || !Array.isArray(policy.hosts) ||
-      !policy.hosts.length || !policy.ekRoots || !policy.cpu?.runtimeId)) throw new Error('invalid Shield marketplace policy');
-  const configured = name => !!policy?.hosts.includes(name);
+  if (policy && (policy.schema !== 'enclave-shield-app-policy/1' ||
+      !(policy.hosts === '*' || (Array.isArray(policy.hosts) && policy.hosts.length)) ||
+      !policy.ekRoots || !policy.cpu?.runtimeId)) throw new Error('invalid Shield marketplace policy');
+  const configured = name => shieldHostAdmitted(policy, name);
   const verify = policy ? createShieldAppVerifier({ hub, policy, readCatalog, readConfig, fetchVerified, hasSecrets }) : null;
   const witness = policy?.witness;
   if (witness && (!/^[0-9a-f]{64}$/.test(witness.appSha256 || '') ||
