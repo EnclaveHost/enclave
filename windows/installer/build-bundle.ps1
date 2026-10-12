@@ -29,6 +29,8 @@ $Binaries = [ordered]@{
   "bin\wasmtime.exe"        = @("vbs\apps\wasmtime-v49.0.0-x86_64-windows\wasmtime.exe",   "cbe3e2ddc1d449a029b1f581b84688b94fc7e5758cdfe24241609a92b16a5cc2")
   "guest\runtime.bin"       = @("vbs-like\releases\public-web-20261005\runtime.bin",        "5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d")
   "guest\hyperv.psm1"       = @("hyperv.psm1",                                              "17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c")
+  # hyperv.psm1 imports it from its own folder at load: without it no partition starts (every 2026.10.12 bundle lacked it)
+  "guest\utilities.psm1"    = @("utilities.psm1",                                           "517766e996ddb021594c0ae2c7a60688d4293e2ee9459f558f2a436e6da30731")
   "guest\runtime.json"      = @("vbs-like\releases\risc-service-20261002\runtime.json",     "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0")
 }
 $NodeZip   = @{ url = "https://nodejs.org/dist/v24.16.0/node-v24.16.0-win-x64.zip"; sha = "edaca9bd58ec8e92037dac4e877d52f6b8f430b81c18b57e264b4e2fb111cd56"; dir = "node-v24.16.0-win-x64" }
@@ -60,6 +62,15 @@ foreach ($k in $Binaries.Keys) {
   $dst = Join-Path $B $k; New-Item -ItemType Directory -Force (Split-Path $dst) | Out-Null
   Copy-Item -LiteralPath $src $dst
   "binary: $k  $($pin.Substring(0,12))"
+}
+
+# every module a bundled .psm1 imports from its own folder must be in the bundle too: a module that fails to load fails
+# every partition launch, which nothing short of starting one would show
+foreach ($m in Get-ChildItem $B -Recurse -Filter *.psm1) {
+  foreach ($hit in Select-String -LiteralPath $m.FullName -Pattern 'Import-Module \(Join-Path -Path \$PSScriptRoot -ChildPath "([^"]+)"\)') {
+    $need = Join-Path $m.DirectoryName $hit.Matches[0].Groups[1].Value
+    if (-not (Test-Path -LiteralPath $need)) { Die "$($m.Name) imports $($hit.Matches[0].Groups[1].Value), which is not in the bundle" }
+  }
 }
 
 # --- 3. runtimes ------------------------------------------------------------------------------------------------------

@@ -147,6 +147,10 @@ if (-not (Test-Path $vmgs)) {
   } finally { Get-VM -Name $tmpName -ErrorAction SilentlyContinue | Remove-VM -Force; Remove-Item $tmpDir -Recurse -Force -ErrorAction SilentlyContinue }
 }
 $vmgsSha = Sha $vmgs
+# the Hyper-V module every partition launch loads, loaded once here: a module that cannot load (a file missing from the
+# bundle) would otherwise only show as every app, and the readiness witness, failing to start
+$probe = @(& powershell.exe -NoProfile -NonInteractive -Command "Import-Module '$(Join-Path $PF 'guest\hyperv.psm1')' -ErrorAction Stop; 'module-ok'" 2>&1)
+if (($probe | Select-Object -Last 1) -ne "module-ok") { Fail "shield" "Enclave Shield's Hyper-V module does not load: $(($probe | Out-String).Trim())" }
 Emit "shield" "ok" "Enclave Shield's guest-state master is ready"
 
 $node = Join-Path $PF "runtime\node\node.exe"
