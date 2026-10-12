@@ -50,7 +50,10 @@ const targets=async()=>{
 };
 const config={providerId,roles:cfg.roles,pricePerGiB6:cfg.pricePerGiB6||0,publicAddress:cfg.publicAddress,exitKey:keys['wg-exit'],guardKey:keys['wg-guard'],
  ports,zone:cfg.zone||'app.enclave.host',probeZone:cfg.probeZone||'probe.enclave.host',checkers:cfg.checkers||[]};
-const provider=new WgProvider({config,signer:account,kernel,log,policyMemory,verifyOwner,domains,targets,
+// a host's own (control) peers: an active registry entry whose operator signed, read with the same two-RPC agreement
+const registryAddress=async()=>{const [c]=clients;return c.readContract({address:cfg.addressBook,abi:[{type:'function',name:'addr',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'address'}]}],functionName:'addr',args:['0x'+Buffer.from('registry').toString('hex').padEnd(64,'0')]});};
+let registry;const hosts=async id=>{registry||=await registryAddress();const [h]=await leases.registryEntries(registry,[id]);return h||null;};
+const provider=new WgProvider({config,signer:account,kernel,log,policyMemory,verifyOwner,domains,targets,hosts,
  leases:async id=>(await leases.readSnapshot([id]))[0]||null,
  currentPolicy:async id=>(await relayJSON('/v1/network/policy/'+id))?.envelope||null});
 const meter=new Map();

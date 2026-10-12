@@ -12,7 +12,7 @@ const keys=await kernel.ensure();
 const lease={active:true,runner:'0x'+'11'.repeat(32),runnerOperator:process.env.RUNNER_OPERATOR,owner:'0x'+'22'.repeat(20),isPublic:true,validUntil:Date.now()+3600e3,leaseUntil:Date.now()+3600e3};
 const seen=new Map();
 const provider=new WgProvider({config:{providerId:'aa'.repeat(16),roles:roles.split(','),pricePerGiB6:0,publicAddress,exitKey:keys['wg-exit'],guardKey:keys['wg-guard'],ports:{exit:51820,guard:51821,control:51822},checkers:checker?[checker]:[]},
- signer:account,kernel,leases:async()=>lease,policyMemory:{get:async k=>seen.get(k),set:async(k,v)=>seen.set(k,v)},domains:async()=>['www.example.org'],
+ signer:account,kernel,leases:async()=>lease,hosts:async id=>id==='0x'+'11'.repeat(32)?{active:true,operator:process.env.RUNNER_OPERATOR.toLowerCase()}:null,policyMemory:{get:async k=>seen.get(k),set:async(k,v)=>seen.set(k,v)},domains:async()=>['www.example.org'],
  targets:async()=>JSON.parse(targetsJson||'[]'),log:m=>console.error('[provider]',m)});
 await provider.sync();
 await createRouter({port:443,route:n=>provider.route(n),tls:true});

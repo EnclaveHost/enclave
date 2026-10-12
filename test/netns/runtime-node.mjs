@@ -16,4 +16,6 @@ const runtime=new WgCircuitRuntime({directory:fs.mkdtempSync(path.join(os.tmpdir
 const c=await runtime.start({deploymentId:id,names:['abababab.app.enclave.host','www.example.org'],kind:'network',guard,exit,ingress:true,egress:true});
 setInterval(()=>c.admit(Date.now()+60000),1000);c.admit(Date.now()+60000);
 c.on('down',r=>{console.error('[runtime] circuit down:',r);process.exit(1);});
-console.log(JSON.stringify({address:c.address,egress:c.egress,guardAddress:c.isolation.guardAddress,tunnel:c.tunnel}));
+// the host's own control circuit (no app: registry-checked, egress only)
+const ctl=await runtime.start({deploymentId:'0x'+'0'.repeat(64),names:[],kind:'network',guard:exit,exit:guard,egress:true,exitRole:'control',gate:()=>true});
+console.log(JSON.stringify({address:c.address,egress:c.egress,guardAddress:c.isolation.guardAddress,tunnel:c.tunnel,control:ctl.egress}));

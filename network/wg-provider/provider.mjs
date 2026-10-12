@@ -15,11 +15,13 @@ export const appLabel=id=>id.slice(2,10);
 export function validatePeerRequest(r,now=Date.now()){
  const k=r&&typeof r==='object'?Object.keys(r).sort().join(','):'';
  if(k!=='deploymentId,egress,expiresAt,ingress,issuedAt,nonce,policy,providerId,role,runner,version,wgPublicKey'||r.version!==1||
-    !app.test(r.deploymentId)||!app.test(r.runner)||!['guard','exit','probe'].includes(r.role)||typeof r.providerId!=='string'||!/^[0-9a-f]{16,64}$/.test(r.providerId)||
+    !app.test(r.deploymentId)||!app.test(r.runner)||!['guard','exit','probe','control'].includes(r.role)||typeof r.providerId!=='string'||!/^[0-9a-f]{16,64}$/.test(r.providerId)||
     !wgKey.test(r.wgPublicKey)||typeof r.egress!=='boolean'||typeof r.ingress!=='boolean'||!hex32.test(r.nonce)||
     !Number.isSafeInteger(r.issuedAt)||!Number.isSafeInteger(r.expiresAt))throw new Error('invalid peer request');
  if(r.role==='guard'&&(r.egress||r.ingress))throw new Error('a guard carries no app traffic of its own');
  if(r.role==='exit'&&!r.egress&&!r.ingress)throw new Error('an exit peer needs ingress or egress');
+ // a host's own traffic (chain reads, relay calls): no app, egress only, any active registered host
+ if(r.role==='control'&&(!/^0x0{64}$/.test(r.deploymentId)||r.policy!==null||r.ingress||!r.egress))throw new Error('a control peer is egress-only and belongs to no app');
  if(r.role==='probe'&&(r.policy!==null||!/^0x0{64}$/.test(r.runner)||!/^0x0{64}$/.test(r.deploymentId)))throw new Error('a probe peer has no app, runner or policy');
  if(Math.abs(now-r.issuedAt)>REQUEST_MAX_AGE_MS||r.expiresAt<=now||r.expiresAt-r.issuedAt>PEER_TTL_MS+REQUEST_MAX_AGE_MS)throw new Error('stale or overlong peer request');
  if(r.policy!==null&&(typeof r.policy!=='object'||!r.policy.policy||typeof r.policy.signature!=='string'))throw new Error('invalid policy envelope');
@@ -28,8 +30,8 @@ export function validatePeerRequest(r,now=Date.now()){
 
 export class WgProvider {
  // config: {providerId, roles:[...], pricePerGiB6, publicAddress, exitKey, guardKey, ports:{exit,guard,control}, zone}
- constructor({config,signer,kernel,leases,verifyOwner,policyMemory,currentPolicy=async()=>null,domains,targets=async()=>[],now=Date.now,log=()=>{}}){
-  Object.assign(this,{config,signer,kernel,leases,verifyOwner,policyMemory,currentPolicy,domains,targets,now,log});
+ constructor({config,signer,kernel,leases,hosts=async()=>null,verifyOwner,policyMemory,currentPolicy=async()=>null,domains,targets=async()=>[],now=Date.now,log=()=>{}}){
+  Object.assign(this,{config,signer,kernel,leases,hosts,verifyOwner,policyMemory,currentPolicy,domains,targets,now,log});
   this.peers=new Map();          // wg public key -> peer
   this.nonces=new Map();         // request nonce -> expiry (replay)
   this.used=new Set();this.next={exit:2,guard:2};
@@ -55,6 +57,7 @@ export class WgProvider {
   if(typeof envelope.signature!=='string'||!/^0x[0-9a-fA-F]{130}$/.test(envelope.signature))throw new Error('runner signature required');
   const signer=(await recoverMessageAddress({message:peerRequestMessage(r),signature:envelope.signature})).toLowerCase();
   if(r.role==='probe')return this.probe(r,signer,now);
+  if(/^0x0{64}$/.test(r.deploymentId))return this.control(r,signer,now);
   // the lease, read with two agreeing RPCs: active, held by this runner, whose registry operator signed
   const lease=await this.leases(r.deploymentId);
   if(!lease||!lease.active||lease.runner!==r.runner||String(lease.runnerOperator).toLowerCase()!==signer||!(lease.validUntil>now)||!(lease.leaseUntil>now))
@@ -99,6 +102,30 @@ export class WgProvider {
   if(!best){const seen=await this.policyMemory.get(id);if(seen!==undefined&&seen>0)throw new Error('the owner\'s network policy is unavailable');return defaultNetworkPolicy(id);}
   return best;
  }
+ // A host's own control traffic (two-RPC registry check: an active host whose operator signed): a guard peer, or an
+ // egress-only exit peer, at most two of each per host. Never an app's route, never ingress.
+ async control(r,signer,now){
+  if(r.role!=='guard'&&r.role!=='control')throw new Error('only guard and control peers carry a host\'s own traffic');
+  if(r.role==='control'&&!this.config.roles.includes('egress'))throw new Error('this provider does not offer egress');
+  const host=await this.hosts(r.runner);
+  if(!host||!host.active||String(host.operator).toLowerCase()!==signer)throw new Error('the request is not from an active registered host');
+  this.nonces.set(r.nonce,now+2*REQUEST_MAX_AGE_MS);
+  let peer=this.peers.get(r.wgPublicKey);
+  if(peer&&(peer.role!==r.role||peer.runner!==r.runner||peer.deploymentId!==r.deploymentId))throw new Error('key is held by another peer');
+  if(!peer){
+   if(this.peers.size>=MAX_PEERS)throw new Error('provider is full');
+   const same=[...this.peers.values()].filter(p=>p.runner===r.runner&&p.role===r.role&&p.deploymentId===r.deploymentId).sort((a,b)=>a.createdAt-b.createdAt);
+   while(same.length>=2)await this.remove(same.shift(),'replaced');
+   peer={key:r.wgPublicKey,role:r.role,deploymentId:r.deploymentId,runner:r.runner,address:this.allocate(r.role==='guard'?'guard':'exit'),createdAt:now,control:true};
+  }
+  Object.assign(peer,{egress:r.role==='control',ingress:false,names:[],expiresAt:Math.min(r.expiresAt,now+PEER_TTL_MS)});
+  this.peers.set(peer.key,peer);await this.kernel.setPeer({...peer,role:r.role==='guard'?'guard':'exit'});await this.sync();
+  const guard=r.role==='guard';
+  const grant={version:1,providerId:this.config.providerId,role:r.role,deploymentId:r.deploymentId,clientPublicKey:r.wgPublicKey,
+   providerPublicKey:guard?this.config.guardKey:this.config.exitKey,endpoint:`${this.config.publicAddress}:${guard?this.config.ports.guard:this.config.ports.exit}`,
+   clientAddress:peer.address,serverAddress:guard?'10.78.0.1':'10.77.0.1',names:[],issuedAt:now,expiresAt:peer.expiresAt};
+  return {grant,signature:await this.signer.signMessage({message:grantMessage(grant)})};
+ }
  // A qualification checker's own peer: exit ingress for one random probe name and/or egress, 5 minutes, through
  // exactly the data path apps use. Only keys in config.checkers (never this provider's operator) may ask.
  async probe(r,signer,now){
@@ -134,6 +161,7 @@ export class WgProvider {
   for(const p of [...this.peers.values()]){
    if(p.expiresAt<=now){await this.remove(p,'expired');continue;}
    if(p.role==='probe')continue;
+   if(p.control){const host=await this.hosts(p.runner).catch(()=>null);if(!host||!host.active)await this.remove(p,'host no longer registered');continue;}
    const lease=await this.leases(p.deploymentId).catch(()=>null);
    if(!lease||!lease.active||lease.runner!==p.runner||!(lease.leaseUntil>now))await this.remove(p,'lease ended');
   }
