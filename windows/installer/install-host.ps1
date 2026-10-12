@@ -300,7 +300,14 @@ else { Emit "join" "warn" "'$Name' is installed but not registered yet; it keeps
 # ---------------------------------------------------------------------------------------------------------------------
 Emit "tray" "run" "Installing the Enclave tray for $Owner"
 $me = "$env:USERDOMAIN\$env:USERNAME"
-if ($Owner -ieq $me) { & cmd.exe /c (Join-Path $PF "tray\install-tray.cmd") | Out-Null }
+# The tray it starts must NOT inherit this script's output: EnclaveSetup reads it through a pipe, and a running tray holding
+# that pipe kept this step "running" until the tray exited (nucbox-k11-2, 2026-10-12). ShellExecute passes no standard
+# handles at all, and WaitForExit waits for cmd alone (Start-Process -Wait would wait for the tray too).
+if ($Owner -ieq $me) {
+  $si = New-Object Diagnostics.ProcessStartInfo "cmd.exe", "/c `"$(Join-Path $PF 'tray\install-tray.cmd')`""
+  $si.UseShellExecute = $true; $si.WindowStyle = "Hidden"
+  $p = [Diagnostics.Process]::Start($si); if (-not $p.WaitForExit(120000)) { Emit "tray" "warn" "The tray install is taking long; it carries on by itself" }
+}
 else {
   $a = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c `"$(Join-Path $PF 'tray\install-tray.cmd')`""
   Register-ScheduledTask -TaskName "EnclaveTrayInstall" -Action $a -Principal (New-ScheduledTaskPrincipal -UserId $Owner -LogonType Interactive) -Force | Out-Null
