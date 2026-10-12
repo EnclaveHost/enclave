@@ -305,6 +305,47 @@ namespace Enclave.Tray
         }
     }
 
+    /// <summary>
+    /// An automatic update in progress, as update-host.ps1 writes it beside the token (%ProgramData%\Enclave\hosting\
+    /// update.json): { state: downloading | installing | done | failed, from, to, at }. An install stops the node for a few
+    /// minutes, so while one runs the tray says so rather than "not reachable". Null when no update is running (or the file
+    /// is older than two hours: an update that died mid-way is not shown forever).
+    /// </summary>
+    sealed class UpdateState
+    {
+        public string State = "", To = "";
+        public static UpdateState Read(string tokenFile)
+        {
+            try
+            {
+                var path = Path.Combine(Path.GetDirectoryName(tokenFile), "update.json");
+                if (!File.Exists(path)) return null;
+                var o = new JavaScriptSerializer().DeserializeObject(File.ReadAllText(path).TrimStart('\uFEFF')) as Dictionary<string, object>;
+                if (o == null) return null;
+                object v;
+                var u = new UpdateState();
+                if (o.TryGetValue("state", out v) && v != null) u.State = v.ToString();
+                if (o.TryGetValue("to", out v) && v != null) u.To = v.ToString();
+                if (u.State != "downloading" && u.State != "installing") return null;
+                DateTime at;
+                if (!o.TryGetValue("at", out v) || v == null
+                    || !DateTime.TryParse(v.ToString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out at)
+                    || DateTime.UtcNow - at > TimeSpan.FromHours(2)) return null;
+                return u;
+            }
+            catch { return null; }
+        }
+        public bool Installing { get { return State == "installing"; } }
+        /// <summary>The panel's line.</summary>
+        public string Say()
+        {
+            return Installing ? "Updating to " + To + ": installing. Hosting stops for a few minutes and resumes on its own."
+                              : "Downloading update " + To + "; hosting carries on until it installs.";
+        }
+        /// <summary>The tray icon's tooltip (63 characters at most).</summary>
+        public string Tip() { return Installing ? "Enclave hosting: updating to " + To : "Enclave hosting: downloading " + To; }
+    }
+
     /// <summary>The site's look (DESIGN.md, "The Verifier's Console"): near-black tonal surfaces, mono labels, jade marks.</summary>
     static class Theme
     {
@@ -1022,6 +1063,16 @@ namespace Enclave.Tray
             error.Text = "";
         }
 
+        /// <summary>The node is stopped by an automatic update: the same idle controls, and what is happening instead of an error.</summary>
+        public void ShowUpdating(UpdateState u)
+        {
+            ShowUnreachable("");
+            status.Text = u.Say();
+        }
+
+        /// <summary>A download in progress while the node still runs: said after the node's own line.</summary>
+        public void NoteUpdate(UpdateState u) { status.Text += "\n" + u.Say(); }
+
         public void ShowError(string message) { error.ForeColor = Theme.Danger; error.Text = message; }
 
         /// <summary>What the box has earned and where it goes; null with the reason when the node cannot say.</summary>
@@ -1316,7 +1367,9 @@ namespace Enclave.Tray
             {
                 earningsBusy = false;
                 lastEarnings = err == null ? e : null;
-                Panel.ShowEarnings(lastEarnings, err == null ? null : (err is NodeException ? err.Message : err.GetType().Name + ": " + err.Message));
+                var up = err == null ? null : UpdateState.Read(cfg.TokenFile);
+                Panel.ShowEarnings(lastEarnings, err == null ? null : up != null ? "back when the update finishes"
+                                                 : (err is NodeException ? err.Message : err.GetType().Name + ": " + err.Message));
             });
         }
 
@@ -1421,12 +1474,16 @@ namespace Enclave.Tray
             {
                 last = null;
                 pauseItem.Enabled = false;
+                var up = UpdateState.Read(cfg.TokenFile);
+                if (up != null) { Panel.ShowUpdating(up); icon.Icon = iconDown; icon.Text = Tip(up.Tip()); return; }
                 Panel.ShowUnreachable(err is NodeException ? err.Message : err.GetType().Name + ": " + err.Message);
                 icon.Icon = iconDown; icon.Text = Tip("Enclave hosting: node not reachable");
                 return;
             }
             last = v;
             Panel.ShowView(v, snap);
+            var downloading = UpdateState.Read(cfg.TokenFile);
+            if (downloading != null) Panel.NoteUpdate(downloading);
             pauseItem.Text = v.Paused ? "Turn hosting on" : "Turn hosting off";
             pauseItem.Enabled = v.CanPause && !switching;
             if (v.Paused)
