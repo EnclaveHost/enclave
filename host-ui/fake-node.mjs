@@ -117,6 +117,7 @@ export function createFakeNode({ kind = "pc", token = null, now = () => Date.now
       if (!e.payTo) return [409, { error: "not_paid", paid: false, message: e.why }];
       if (s.failPayout) return [409, { error: "not_paid", paid: false, message: s.failPayout }];
       if (s.earned6 === 0n) return [409, { error: "not_paid", paid: false, message: "$0.00 earned" }];
+      if (phone) { s.paying = true; return [202, { paid: false, pending: true, message: `Paying out $${(Number(s.earned6) / 1e6).toFixed(2)} to ${e.payTo.slice(0, 8)}\u2026${e.payTo.slice(-4)}: the transaction goes out within a minute.` }]; }
       const tx = "0x" + (s.history.length + 1).toString(16).padStart(64, "f");
       s.history.push({ tx, to: e.payTo, amount6: String(s.earned6), at: new Date(now()).toISOString() });
       s.paidOut6 += s.earned6; s.earned6 = 0n;
