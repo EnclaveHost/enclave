@@ -43,9 +43,13 @@ final class Status {
     static boolean launcherOpen(Activity a, Intent i) {
         return Tier.PVM_CPU.equals(Tier.of(a)) && (i == null || !i.hasExtra("mode"));
     }
+    /** This APK carries the on-phone agent (STANDALONE.md). */
+    static boolean standaloneBuild(Activity a) {
+        try { return java.util.Arrays.asList(a.getAssets().list("agent")).contains("standalone.mjs"); } catch (Exception e) { return false; }
+    }
     private static Status current;
     static void show(Activity a) {
-        if (Setup.needed(a)) { Setup.show(a); return; }   /* STANDALONE.md: a phone that hosts on its own is set up first */
+        if (standaloneBuild(a) && !new java.io.File(a.getFilesDir(), "agent/setup.json").isFile()) { Setup.show(a); return; }   /* STANDALONE.md: a phone that hosts on its own is set up first */
         AgentService.start(a); current = new Status(a); current.poll();   /* a set-up phone hosts on its own; opening the app starts it if a boot did not */
     }   /* STANDALONE.md: a set-up phone hosts on its own; opening the app starts it if a boot did not */
     /** The system back gesture: from Settings to the main page (true), else the activity's own (false). */
