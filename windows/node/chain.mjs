@@ -341,6 +341,18 @@ export function cpuFallbackOfConfig(cfg) {
  * under-size the exact placement the key exists for. This box has no card to sell, so every
  * placement it takes is the coreless case.
  */
+/**
+ * The share of THIS box a deployment takes. A version states what it needs in absolute terms (GFLOPS, MB); a percentage
+ * exists only relative to a box, so it is derived here from this box's capacity, never required of the record: the
+ * share is what the owner dialed, or what the version needs on this box if that is more (whole percents, rounded up).
+ * The ledger still bills the dialed share (the rate is set at claim from the record).
+ */
+export function effectiveCpuShare(d, version, cpuGflops) {
+  const dial = Number(d && d.cpuMilli) / 1000 || 0;
+  const need = version ? nodeFloorOf(version).cpuGflops : 0;
+  if (!(need > 0) || !(Number(cpuGflops) > 0)) return dial;
+  return Math.max(dial, Math.min(1, Math.ceil(need / Number(cpuGflops) * 100 - 1e-9) / 100));
+}
 export function nodeFloorOf(v) {
   const fb = cpuFallbackOfConfig(v && v.config);
   return {
@@ -590,22 +602,22 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
   // Capacity, in the numbers the refusal can be checked against. A lease this box cannot fit is
   // worse than one it declines: the tenant's funding is tied up against an app that thrashes.
   if (capacity) {
-    const want = Number(d.cpuMilli) / 1000;
+    const dial = Number(d.cpuMilli) / 1000, want = effectiveCpuShare(d, version, capacity.cpuGflops);
+    const derived = want > dial + 1e-9 ? ` (its version needs ${nodeFloorOf(version).cpuGflops} GFLOPS, ${Math.round(want * 100)}% of this box)` : "";
     if (capacity.slotsFree != null && capacity.slotsFree <= 0)
       return `this box is running its ${capacity.slots} app slots already`;
     // The box owner's hosting cap (windows/node/hosting.mjs), named when it is what limits: the box is not full, its
     // owner offers less of it.
     if (want > (capacity.cpuShareFree ?? 0) + 1e-9)
       return capacity.cpuCap
-        ? `it asks for ${Math.round(want * 100)}% of a node, and the owner offers ${Math.round(capacity.cpuCap.offered * 100)}%`
+        ? `it takes ${Math.round(want * 100)}% of this box${derived}, and the owner offers ${Math.round(capacity.cpuCap.offered * 100)}%`
           + ` of this box's CPU to hosting with ${Math.round(capacity.cpuCap.used * 100)}% of that in use`
-        : `it asks for ${Math.round(want * 100)}% of a node and this box has ${Math.round((capacity.cpuShareFree ?? 0) * 100)}% left to sell`;
+        : `it takes ${Math.round(want * 100)}% of this box${derived} and this box has ${Math.round((capacity.cpuShareFree ?? 0) * 100)}% left to sell`;
     if (version && capacity.ramMbFree != null) {
       const floor = nodeFloorOf(version);
       if (floor.memMb > capacity.ramMbFree)
         return `the version needs ${floor.memMb} MB of node RAM${floor.fromFallback ? " on cores (the publisher's cpuFallback)" : ""} and this box has ${capacity.ramMbFree} MB left`;
-      if (capacity.cpuGflops != null && floor.cpuGflops > capacity.cpuGflops * want + 1e-9)
-        return `the version needs ${floor.cpuGflops} GFLOPS${floor.fromFallback ? " on cores (the publisher's cpuFallback)" : ""} and ${Math.round(want * 100)}% of this box is ${Math.round(capacity.cpuGflops * want)}`;
+      // compute is not refused here: `want` is already the share the version needs on this box (effectiveCpuShare)
     }
   }
   return null;

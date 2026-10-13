@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { claimPolicy } from "../windows/node/chain.mjs";
+import { claimPolicy, effectiveCpuShare } from "../windows/node/chain.mjs";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OWNER = "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C";
@@ -23,8 +23,19 @@ test("a convention-unit floor fits the nominal figure (the units it was written 
   assert.equal(claimPolicy(riscBox, ctx(1000)), null, "250 GFLOPS at 25% of a 16-vCPU node: exactly what the publisher sized");
 });
 
-test("against the MEASURED figure the same floor was refused: the mismatch this fixes", () => {
-  assert.match(claimPolicy(riscBox, ctx(446.7)), /needs 250 GFLOPS and 25% of this box is 112/);
+test("the requirement is absolute: a box derives the share it gives from its own capacity, never refuses a dialed percentage", () => {
+  // 250 GFLOPS on a 446.7-GFLOPS figure is 56% of that box: taken while 56% is free (the record dials 25%)
+  assert.equal(claimPolicy(riscBox, ctx(446.7)), null);
+  assert.equal(effectiveCpuShare(riscBox, v0662, 446.7), 0.56);
+  // ...and refused only when that much is not free, said in absolute terms
+  const full = { ...ctx(446.7), capacity: { ...box(446.7), cpuShareFree: 0.5 } };
+  assert.match(claimPolicy(riscBox, full), /takes 56% of this box \(its version needs 250 GFLOPS, 56% of this box\) and this box has 50% left/);
+  // depot (2026-10-13): dialed 1%, its version needs 20 GFLOPS, which is 2% of a nominal 1000: taken at 2%
+  const depot = { ...riscBox, cpuMilli: 10 }, v = { ...v0662, cpuGflops: 20, memMb: 512 };
+  assert.equal(claimPolicy(depot, { ...ctx(1000), version: v }), null);
+  assert.equal(effectiveCpuShare(depot, v, 1000), 0.02);
+  // a dial above the need is kept: the owner bought more than the minimum
+  assert.equal(effectiveCpuShare({ cpuMilli: 250 }, v, 1000), 0.25);
 });
 
 test("the node passes the nominal floor basis and capacity() checks floors against it (pinned in source)", () => {
