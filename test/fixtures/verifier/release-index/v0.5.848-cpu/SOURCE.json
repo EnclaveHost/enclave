@@ -1,0 +1,12 @@
+{
+ "release-index.json": {
+  "url": "https://github.com/EnclaveHost/enclave/releases/download/v0.5.848-cpu/release-index.json",
+  "sha256": "7a5c047270362f2aeae16e688cded78aa32b010389a254f7126b7c82729c036c",
+  "fetchedAt": "2026-09-25T03:17Z",
+  "what": "the signed release index attached to release v0.5.848-cpu (schema v2: sequence = the signing run id, attempt); one of the two concurrent flavor publications cut by 7c694c41"
+ },
+ "attestation.json": {
+  "url": "https://api.github.com/repos/EnclaveHost/enclave/attestations/sha256:7a5c047270362f2aeae16e688cded78aa32b010389a254f7126b7c82729c036c",
+  "what": "GitHub's attestation API answer: the Sigstore bundle (keyless, the publish workflow's identity at the release tag, predicate https://enclave.host/predicate/release-index/v1)"
+ }
+}

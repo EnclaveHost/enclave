@@ -1,0 +1,16 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createShieldWitness,WITNESS_NAME} from '../windows/node/shield-witness.mjs';
+const config={appId:'ab'.repeat(32),derive:{runtimeId:'cd'.repeat(32),derivation:'enclave-catalog-bundle/1',cid:'pinned',policy:{vcpus:1,memMiB:256,cpuPercent:100}}};
+function setup(){let row=null,spawns=0,removes=0,clock=100000;const client={findByName:async n=>{assert.equal(n,WITNESS_NAME);return row},spawn:async b=>{spawns++;assert.equal(b.gpuShare,0);assert.equal(b.hasSecrets,false);row={id:'w1',name:b.name,appId:config.appId,runtimeId:config.derive.runtimeId,status:'starting'};return {view:row}},remove:async()=>{removes++;row=null}};const w=createShieldWitness({config,client,now:()=>clock,read:async()=>({ok:true})});return {w,get row(){return row},set row(v){row=v},counts:()=>({spawns,removes}),time:t=>clock=t};}
+test('concurrent checks launch one private control witness; restarting adopts it',async()=>{const x=setup();await Promise.all([x.w.ensure(),x.w.ensure()]);assert.deepEqual(x.counts(),{spawns:1,removes:0});await assert.rejects(x.w.evidence('aa'.repeat(32)),/not running/);x.row.status='running';assert.deepEqual(await x.w.evidence('aa'.repeat(32)),{ok:true});await x.w.ensure();assert.equal(x.counts().spawns,1);});
+test('wrong identity cannot be silently replaced; stopped and recovered witnesses restart with bounded retries',async()=>{const x=setup();await x.w.ensure();x.row.appId='ff'.repeat(32);await assert.rejects(x.w.ensure(),/identity mismatch/);x.row.appId=config.appId;x.row.status='failed';await assert.rejects(x.w.ensure(),/cooling down/);x.time(160001);await x.w.ensure();assert.deepEqual(x.counts(),{spawns:2,removes:1});x.row.recovered=true;x.time(220002);await x.w.ensure();assert.deepEqual(x.counts(),{spawns:3,removes:2});await assert.rejects(x.w.evidence('bad'),/nonce/);});
+test('hosting off: stop() removes the witness partition (nothing to remove is fine), and ensure() brings it straight back',async()=>{const x=setup();await x.w.ensure();assert.deepEqual(x.counts(),{spawns:1,removes:0});
+ assert.equal(await x.w.stop(),true);assert.deepEqual(x.counts(),{spawns:1,removes:1});
+ assert.equal(await x.w.stop(),false,'already gone');assert.deepEqual(x.counts(),{spawns:1,removes:1});
+ await x.w.ensure();assert.deepEqual(x.counts(),{spawns:2,removes:1},'on again: no recovery cooldown after an owner stop');});
+test('after a manager restart the witness is RECOVERED, listed without its runtime: replaced at once, not refused as a mismatch',async()=>{const x=setup();await x.w.ensure();
+ x.row.recovered=true;delete x.row.runtimeId;x.row.status='starting';x.time(170000);
+ await x.w.ensure();assert.deepEqual(x.counts(),{spawns:2,removes:1},'removed and spawned again');
+ x.row.recovered=true;x.row.appId='ff'.repeat(32);delete x.row.runtimeId;x.time(400000);
+ await assert.rejects(x.w.ensure(),/identity mismatch/,'a recovered VM of another app under our name is still never removed');});

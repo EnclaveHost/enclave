@@ -4,15 +4,61 @@
 c-fleet-list{display:contents;}
 
 .fleet-list{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--well);display:block;}
-/* The row is a grid whose first column is sized by its widest pool badge
+/* A row is its summary until opened: the toggle (the box's name; the open one's bar stays lit) and, per pool, a line saying what its
+   available capacity costs. The whole summary is the click target; its units are the sort buttons. */
+.fleet-row{border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);}
+.fleet-row:last-child{border-bottom:0;}
+.fleet-sum{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;min-height:38px;padding:8px 14px;cursor:pointer;transition:background .15s var(--ease);}
+.fleet-sum:hover,.fleet-sum.is-open{background:var(--surface);}   /* the open host keeps the hover look */
+/* the left column: the name (the toggle), and its rating on the line under it (beside the second pool line) */
+.fleet-who{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;flex:1 1 auto;min-width:0;}
+.fleet-tog{display:flex;align-items:center;max-width:100%;min-height:20px;padding:0;background:none;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer;}
+.fleet-tog:focus-visible{outline:2px solid var(--jade);outline-offset:2px;border-radius:4px;}
+.fleet-tog .fleet-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+/* the rating under the name: the gold stars, then "4.6 (12)" dim and small so capacity stays the headline, or
+   "unrated" (a statement of fact, not a call to action). It is also the rating sort button: its figures are
+   dotted like the units, jade with an arrow while it is the sort */
+.fleet-fb{display:inline-flex;align-items:center;gap:6px;flex:none;padding:0;background:none;border:0;font:inherit;font-size:.66rem;
+  color:var(--text-dim);white-space:nowrap;font-variant-numeric:tabular-nums;cursor:pointer;}
+.fleet-fb .stars{font-size:.72rem;}
+.fleet-fb small,.fleet-fb.fleet-unrated{font-size:inherit;text-decoration:underline dotted;text-decoration-color:var(--line-strong);text-underline-offset:3px;}
+.fleet-fb:hover small,.fleet-fb:focus-visible small,.fleet-fb.fleet-unrated:hover,.fleet-fb.fleet-unrated:focus-visible{color:var(--jade);text-decoration-color:currentColor;}
+.fleet-fb:focus-visible{outline:none;}
+.fleet-fb.on small,.fleet-fb.on.fleet-unrated{color:var(--jade);text-decoration-style:solid;text-decoration-color:currentColor;}
+.fleet-fb.on::after{content:"↑";margin-left:-4px;color:var(--jade);} .fleet-fb.on.desc::after{content:"↓";}
+/* a line's units (GB, tflops, gflops) sort the hosts by price per that unit: dotted like the site's other
+   value-links, jade with an arrow on every row while it is the sort */
+.fleet-unit{padding:0;background:none;border:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;text-decoration-color:var(--line-strong);text-underline-offset:3px;}
+.fleet-unit:hover,.fleet-unit:focus-visible{color:var(--jade);text-decoration-color:currentColor;outline:none;}
+.fleet-unit.on{color:var(--jade);text-decoration-style:solid;text-decoration-color:currentColor;}
+.fleet-unit.on::after{content:"↑";margin-left:1px;} .fleet-unit.on.desc::after{content:"↓";}
+/* Sort by: a permanent bar above the hosts - every order in a dropdown, the direction as a button beside it */
+.fleet-sortbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:7px 14px;border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);}
+.fleet-sortsel{min-height:26px;padding:2px 26px 2px 8px;background:var(--surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2393a1b5' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 9px center/9px 6px;
+  border:1px solid var(--line);border-radius:6px;color:var(--text);font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none;}
+.fleet-sortsel:hover{border-color:var(--line-strong);}
+.fleet-sortsel:focus-visible{outline:2px solid var(--jade);outline-offset:1px;}
+.fleet-sortdir{min-height:26px;padding:2px 8px;background:none;border:1px solid var(--line);border-radius:6px;color:var(--jade);font:inherit;cursor:pointer;white-space:nowrap;}
+.fleet-sortdir:hover{border-color:var(--jade-dim);}
+.fleet-sortdir:focus-visible{outline:2px solid var(--jade);outline-offset:1px;}
+/* one pool a line, at the right; when the name and the lines don't fit side by side (a narrow panel), the lines
+   wrap under the name, still right-aligned, and on a very narrow one a line breaks between its words */
+.fleet-chips{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none;max-width:100%;margin-left:auto;}
+.fleet-chip{display:inline-flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:2px 5px;white-space:nowrap;}
+.fleet-chip b{font-weight:500;color:var(--text);font-variant-numeric:tabular-nums;}
+.fleet-chips .ap-badge{font-size:.6rem;padding:.1em .45em;}
+/* the price of what the pool has available (rate x available share), leading its line */
+.fleet-chip-price{color:var(--jade);font-variant-numeric:tabular-nums;}
+.fleet-chip-price i{font-style:normal;color:var(--text-dim);}   /* "/hr", dim as under the details' pool badges */
+/* The opened row is a grid whose first column is sized by its widest pool badge
    ("TEE CPU", "GPU", or the rare amber "NO TEE CPU"), and each pool lays its
    [label | meter | pct] line on that same grid via subgrid, so the two pools'
    meters start on one edge whatever their pills say. A fixed label column
    either wastes the width of the widest pill on every row or lets it overflow
    into the meter. */
-.fleet-row{display:grid;grid-template-columns:max-content minmax(48px,1fr) auto;column-gap:10px;row-gap:10px;padding:12px 14px;border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);}
-.fleet-row>*{grid-column:1/-1;}
-.fleet-row:last-child{border-bottom:0;}
+.fleet-detail{display:grid;grid-template-columns:max-content minmax(48px,1fr) auto;column-gap:10px;row-gap:10px;padding:4px 14px 12px;}
+.fleet-detail[hidden]{display:none;}
+.fleet-detail>*{grid-column:1/-1;}
 .fleet-head{display:flex;align-items:center;gap:12px;}
 .fleet-name{color:var(--text);font-size:.76rem;overflow-wrap:anywhere;}
 
@@ -43,6 +89,10 @@ c-fleet-list{display:contents;}
 .fleet-stat small{font-size:.62rem;letter-spacing:.06em;color:var(--text-dim);}
 .fleet-empty{display:flex;align-items:center;justify-content:center;gap:8px;padding:18px 12px;font-family:var(--font-mono);font-size:.74rem;color:var(--text-dim);}
 .fleet-empty::before{content:"○";font-size:.8em;}
+/* a FAILED read (js/core/fleet-read.js): amber, and never the "no hosts" wording */
+.fleet-error{color:var(--amber);flex-wrap:wrap;text-align:center;}
+.fleet-error::before{content:"⚠";}
+.fleet-stale{padding:8px 12px;font-family:var(--font-mono);font-size:.7rem;line-height:1.5;color:var(--amber);border-bottom:1px solid var(--line);}
 
 /* footer row: refresh + the on-chain registry link, right-aligned OUTSIDE the box */
 /* refresh + contract sit on one baseline: the row centres its children, and
@@ -52,6 +102,12 @@ c-fleet-list{display:contents;}
 .fleet-foot .contract-link{min-height:24px;line-height:1;}
 .fleet-foot .fleet-refresh{line-height:1;}
 .fleet-foot:empty{display:none;}
+/* pager: five boxes a page, on the left of the foot row */
+.fleet-pager{display:inline-flex;align-items:center;gap:6px;margin-right:auto;font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);}
+.fleet-pg{min-width:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center;background:none;border:1px solid var(--line);border-radius:6px;color:var(--text-muted);font:inherit;font-size:.8rem;line-height:1;cursor:pointer;transition:color .15s var(--ease),border-color .15s var(--ease);}
+.fleet-pg:hover:not(:disabled){color:var(--jade);border-color:var(--jade-dim);}
+.fleet-pg:disabled{opacity:.4;cursor:default;}
+.fleet-pg-n{font-variant-numeric:tabular-nums;}
 .fleet-refresh{font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);background:none;border:0;padding:0;min-width:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:color .15s var(--ease);}
 .fleet-refresh:hover{color:var(--jade);}
 .fleet-refresh:disabled{opacity:.45;cursor:wait;}
@@ -63,16 +119,12 @@ c-fleet-list{display:contents;}
 .stars-off{color:var(--line-strong);}
 .stars-on{position:absolute;inset:0 auto 0 0;overflow:hidden;color:var(--amber-2);}
 
-/* host ratings: stars ride the name line, dim and small so capacity stays the
-   headline; "unrated" is a statement of fact, not a call to action */
-.fleet-rating{display:inline-flex;align-items:center;gap:6px;margin-left:10px;font-size:.68rem;color:var(--text-dim);}
-.fleet-rating .stars{font-size:.72rem;}
 .fleet-unrated{font-family:var(--font-mono);letter-spacing:.04em;}
 
 /* the rate control + inline form: the SAME star picker the app store uses
    (.revs-pick-star / .revs-write are re-declared here because components are
    style-scoped), so rating a host looks and behaves like rating an app */
-.fleet-rate{margin-left:8px;padding:1px 8px;font-size:.62rem;letter-spacing:.04em;}
+.fleet-rate{margin-left:0;padding:1px 8px;font-size:.62rem;letter-spacing:.04em;}
 .fleet-rateform{grid-column:1/-1;margin-top:8px;}
 .fleet-gate{margin:0;font-size:.72rem;color:var(--text-muted);}
 .revs-write{display:flex;flex-direction:column;gap:8px;}
@@ -101,3 +153,8 @@ c-fleet-list{display:contents;}
    already uses for capacity you are getting; keeping the TEE card green and the
    outside card blue means the distinction reads before the words do.
    A shielded pool posts its own ask like any other, in the same price slot. */
+
+/* Owner-authorized hosting is live inventory, not rental capacity. */
+.fleet-owner-row .fleet-head{flex-wrap:wrap;}
+.fleet-owner-status{color:var(--text);}
+.fleet-owner-note{font-size:.68rem;line-height:1.6;color:var(--text-dim);}

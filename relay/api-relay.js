@@ -1,3 +1,4 @@
+import {createShieldSecretRelease} from './shield-secrets.mjs';
 // Enclave API relay — discovery + placement front door for the fleet. UNTRUSTED
 // as a router (it can misroute, not impersonate: enclaves are attested on
 // their own origins), but on the /v1 gateway path it IS a TLS terminator and
@@ -66,16 +67,9 @@
 //                                  transactions (relay/sso.js). Unset = the
 //                                  /v1/sso/* endpoints answer 503. Prefer
 //                                  SSO_SIGNER_KEY_FILE (systemd LoadCredential,
-//                                  see enclave-relay-agent.service) over the
+//                                  via systemd LoadCredential) over the
 //                                  EnvironmentFile for the same reason the
 //                                  operator key does.
-//   PVM_SERVING        optional    1/true/on/yes turns ON the pVM deployment carrier
-//                                  (POST /x/<id>/pvm/{evidence,sealed}; relay/pvm-serving.mjs).
-//                                  OFF by default and set nowhere. ON without AVF attach, the
-//                                  pVM CPU policy and the app policy below: those routes 503.
-//   PVM_APP_IDS        optional    with PVM_SERVING: the apps (64-hex, comma) whose ABI/2
-//   PVM_APP_RUNTIME_IDS            evidence this hub admits at attach, over the runtimes listed
-//                                  (tunnel.js attest.pvmApp); sealed streams go only to those.
 //   FANOUT_MAX_INFLIGHT optional   global cap on concurrent upstream fan-out (256)
 //   AVAIL_POLL_SEC     optional    availability poll cadence (default 10)
 //   REGISTRY_POLL_SEC  optional    registry re-read cadence (default 300)
@@ -86,25 +80,42 @@
 
 import http from "node:http";
 import https from "node:https";
-import net from "node:net";
-import tls from "node:tls";
 import fs from "node:fs";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+// relay/reverify.mjs is loaded at run time, not imported statically: the deploy copies NAMED files to the box, and a box
+// that does not have it yet must still start (2026-09-25: the first deploy of this crash-looped on a missing module).
+let createReverifier = null, reverifyModeOf = (raw) => (["off", "shadow", "enforce"].includes(String(raw || "")) ? String(raw) : "shadow");
+try { ({ createReverifier, modeOf: reverifyModeOf } = await import("./reverify.mjs")); }
+catch (e) { console.error(`[reverify] relay/reverify.mjs is not on this box (${e.message}); re-verification is OFF until a deploy ships it`); }
 import { readCappedText, MAX_BODY_BYTES, installProcessGuards } from "./fleet.mjs";
 import { isBlockedHost } from "./net-guard.mjs";
 import { isMcpHost, handleMcp } from "./mcp.js";
-import { handleAccount, initAccounts } from "./auth.js";
+import { handleAccount, initAccounts, verifyAccountSession, vaultKeyOf, setSessionHooks } from "./auth.js";
+import { vaultAddressFor } from "./vaultsvc.js";
 import { handleSso, initSso } from "./sso.js";
 import { handleBilling, initBilling } from "./billing.js";
-import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep } from "./secrets.js";
+import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep, hasStagedSecrets } from "./secrets.js";
 import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDeployment, tlsAskAllowed } from "./domains.js";
+import { initSessions, handleSessions, sessionsService, createCustodyGate, sessionRowRefusal } from "./sessions.mjs";
 import { handleCerts, initCerts } from "./certs.js";
+import { createShieldMarketplace } from "./shield-marketplace.mjs";
+import { createPvmMarket } from "./pvm-market.mjs";
+import { createPvmSecretRelease } from "./pvm-secrets.mjs";
+import { claimCheapest, CLAIM_QUOTE_ABI } from "./cheapest-claim.mjs";
+import { createPlacement, pinnedHost } from "./placement.mjs";
+import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson } from "./measurement-predict.mjs";
 import { createTunnelHub } from "./tunnel.js";
+import {LeaseReader,createTunaRoutes,DurableState,createLeaseSource,createRegistryOperator,createNetworkApi} from "./network-runtime.bundle.mjs";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
-import { pvmCpuPolicyFromEnv, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
-import { vbsPolicyFromEnv } from "./vbs-policy.mjs";
+import { pvmCpuPolicyFromEnv, avfAttestWithPvmCpu, pvmCpuAvailability, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
+import { VBS_DEFAULT_EK_ROOTS } from "./vbs-policy.mjs";
 import { createPadsLedger, createPrefixStore, createShipmentStore, padsRouter } from "./pads.mjs";
-import { dataDir } from "./store.js";
+import { hostSponsor, hostSponsorRouter } from "./host-sponsor.mjs";
+import { hostNames, hostNamesRouter } from "./host-names.mjs";
+import { dataDir, JsonStore, dataFile, rpcPool } from "./store.js";
+import { screenAddress } from "./ofac.js";
+import { expectedGuest, prepareGuestUpdate, prewarmReleasePredictions } from "./secrets-release.mjs";
+import { expectedForRow, prepareForRow } from "./guest-prediction-row.mjs";
 import { boxOrigin, boxLabelOfHost } from "./boxhost.js";
 installProcessGuards("api-relay");
 
@@ -113,15 +124,8 @@ installProcessGuards("api-relay");
 // {name, tokenSha256} (only the hash is public; the token stays off-repo) plus
 // an optional env of raw name:token pairs the relay hashes itself. Attach auth
 // is routing-only; clients still verify each enclave's attestation end-to-end.
-const DEFAULT_METAL_ALLOW = [
-  { name: "metal0", tokenSha256: "3b28c8d9564f47b1f5031e519c8f6e7bbfaca99e41884b2740e7958e83acec81" },
-  // us-west attaches by ON-CHAIN OWNERSHIP instead (TUNNEL_OPERATOR_ATTACH):
-  // it signs the hub's challenge with the operator key that registered its
-  // endpoint, so nothing about it is hardcoded here. Its token entry was
-  // removed deliberately and must not come back — a name on this list is
-  // RESERVED against every other path, so re-adding it would silently disable
-  // the very mechanism it now uses.
-];
+// Attested Metal0 and operator-authenticated us-west must not be reserved by legacy tokens.
+const DEFAULT_METAL_ALLOW = [];
 const ENV_METAL_ALLOW = (process.env.METAL_TUNNEL_TOKENS || "").split(",").map((s) => s.trim()).filter(Boolean)
   .map((pair) => { const i = pair.indexOf(":"); const name = pair.slice(0, i), token = pair.slice(i + 1);
                    return name && token ? { name, tokenSha256: createHash("sha256").update(token).digest("hex") } : null; })
@@ -143,6 +147,24 @@ const METAL_MIN_TCB = (() => {
   if (!raw) return undefined;
   try { return JSON.parse(raw); } catch { console.error("[relay] METAL_MIN_TCB is not JSON: SNP attaches will be refused"); return raw; }
 })();
+// Re-verification of DIALED rows with the repository's own verifier (relay/reverify.mjs, the vendored
+// relay/vendor/enclave-verifier-node.mjs; docs/security/independent-verifier-plan.md section 9 stage 6). Until now a
+// dialed row's confidential-CPU claim was its own word (availability.teeCpu); this checks it against the row's own
+// attestation document, captured over this relay's TLS connection, and the release's verified provenance.
+//   RELAY_REVERIFY=shadow (default): rows carry `reverify` in the fleet view, eligibility is unchanged, non-verified
+//                  rows are logged; =enforce: a dialed row must have re-verified to be eligible; =off: nothing runs
+//                  (the fallback: the previous behaviour, byte for byte). RELAY_REVERIFY_SEC: the cadence (default 900).
+//   The TCB floor is METAL_MIN_TCB, the same floor the attach gate applies; without one a verdict is at best "limited".
+const RELAY_REVERIFY = createReverifier ? reverifyModeOf(process.env.RELAY_REVERIFY) : "off";
+const RELAY_REVERIFY_SEC = parseInt(process.env.RELAY_REVERIFY_SEC || "900", 10);
+//   The signed release index is consulted first and REMEMBERED (RELAY_REVERIFY_CACHE_DIR/index-memory.json): a replayed
+//   or equivocating index is refused and the fallback never accepts below the remembered floor. RELAY_REQUIRE_INDEX=1 is
+//   the strict switch: without a verified, fresh index nothing re-verifies (off by default until the memory has history).
+const RELAY_REVERIFY_CACHE_DIR = process.env.RELAY_REVERIFY_CACHE_DIR || (typeof dataDir() === "string" && dataDir() ? `${dataDir()}/verifier-collateral` : "/tmp/enclave-relay-verifier-collateral");
+const reverifier = createReverifier
+  ? createReverifier({ mode: RELAY_REVERIFY, minTcb: METAL_MIN_TCB && typeof METAL_MIN_TCB === "object" ? METAL_MIN_TCB : undefined,
+      cacheDir: RELAY_REVERIFY_CACHE_DIR, indexMemoryFile: `${RELAY_REVERIFY_CACHE_DIR}/index-memory.json`, requireIndex: process.env.RELAY_REQUIRE_INDEX === "1", log: (m) => console.log(`[reverify] ${m}`) })
+  : { mode: "off", run: async () => new Map(), annotate: (r) => r, eligible: (r, base) => base, ineligibleReason: () => null, verdictOf: () => null, stats: () => ({}) };
 // Phone-anchored hosts (shielded/anchor/PLAN.md): the anchor APK builds admitted
 // (codeHash = the APK's v4 Merkle root) and the APK signing certificate(s) that
 // may sign them (authorityHash = sha512 of the certificate). Routing builds
@@ -151,25 +173,23 @@ const METAL_MIN_TCB = (() => {
 // empty by default. The verifier pins Google's roots itself.
 const AVF_ATTEST = avfPolicyFromEnv(process.env);
 // The pVM CPU tier's admission policy (PVM_CPU_CODE_HASHES / PVM_CPU_AUTHORITY_HASHES /
-// PVM_CPU_MODELS): only meaningful beside AVF attach, and null means every capability
-// report is refused, which is the fail-closed default.
-const PVM_CPU_POLICY = AVF_ATTEST ? pvmCpuPolicyFromEnv(process.env) : null;
-// pVM DEPLOYMENT serving (relay/pvm-serving.mjs; shielded/anchor/avf/RELAY-SERVING.md): PVM_SERVING, OFF unless set to
-// 1/true/on/yes. OFF, nothing here changes anything. ON, POST /x/<id>/pvm/{evidence,sealed} carry a buyer's bytes to the
-// deployment's ON-CHAIN runner when that runner is an attested pVM tunnel (sealed only to an app this hub verified under
-// PVM_APP_IDS / PVM_APP_RUNTIME_IDS); anything missing answers a plain 503. The relay is a carrier: the client verifies the
-// VM itself, and a genuine instance of the expected app is not proof of this deployment's specific instance.
-// OFF, relay/pvm-serving.mjs is not even loaded: the OFF relay carries no new code (a fault in that module cannot touch it).
-const PVM_SERVING = /^(1|true|on|yes)$/i.test(String(process.env.PVM_SERVING || "").trim())
-  ? (await import("./pvm-serving.mjs")).pvmServingFromEnv(process.env, { avfOn: !!AVF_ATTEST, pvmCpuOn: !!PVM_CPU_POLICY })
-  : { enabled: false };
-// Windows consumer nodes running a VBS enclave (windows/vbs/EVIDENCE.md): the
-// enclave builds admitted (sha256(FamilyId||ImageId||AuthorId)), minimum SVN,
-// pinned PCR 0 per firmware, the pinned TPM EK roots, and the lab-only
-// test-signing switch. Empty METAL_VBS_ENCLAVE_MEASUREMENTS = mode vbs off. A
-// malformed value throws here, at startup, rather than admitting or refusing
-// quietly later.
-const VBS_ATTEST = vbsPolicyFromEnv(process.env);
+// PVM_CPU_RUNTIME_IDS, optional PVM_CPU_MIN_MEM_MIB / PVM_CPU_MIN_THREADS): CPU-only Wasm
+// workloads, no model. Only meaningful beside AVF attach, and null means every capability
+// report is refused, which is the fail-closed default. A leftover PVM_CPU_MODELS (the
+// retired model tier) also means null, and the reason is logged.
+const PVM_CPU_POLICY = pvmCpuPolicyFromEnv(process.env, { onRefuse: (why) => console.warn(`[api-relay] ${why}`) });
+// the hub's AVF policy: the tier's own builds and authorities need no legacy or pad pins beside them (avfAttestWithPvmCpu)
+const AVF_HUB_ATTEST = avfAttestWithPvmCpu(AVF_ATTEST, PVM_CPU_POLICY);
+// The NucBox node on the custom type-1 path (relay/hvnode-verify.mjs, mode "hv-node"): a
+// host-attested boot state (TPM EK chain, credential round trip, quote, measured-boot log with
+// Secure Boot on and test signing off), never a TEE and never tenant capacity. OFF unless
+// RELAY_HVNODE_ATTACH is set; the EK roots are the pinned bundle shipped beside vbs-policy.mjs.
+// The Windows VBS-ENCLAVE attach (METAL_VBS_*, mode "vbs") is RETIRED (Steven, 2026-09-25): its
+// format is refused at attest, and any METAL_VBS_* still set is ignored, said once at startup.
+const HVNODE_ATTEST = /^(1|true|yes|on)$/i.test(String(process.env.RELAY_HVNODE_ATTACH || "").trim())
+  ? { ekRoots: fs.readFileSync(process.env.RELAY_HVNODE_EK_ROOTS || VBS_DEFAULT_EK_ROOTS, "utf8") } : null;   // RELAY_HVNODE_EK_ROOTS: tests and labs only
+if (Object.keys(process.env).some((k) => k.startsWith("METAL_VBS_")))
+  console.warn("[relay] METAL_VBS_* is set, but the Windows VBS-enclave attach is retired (2026-09-25): ignored");
 // The origin a CGNAT seller registers itself under: `<origin>/t/<name>` is the
 // URL its on-chain entry carries, and keccak of it is the runner id its leases
 // record. Configurable because a relay can be reached under more than one name;
@@ -191,14 +211,33 @@ const TRUSTED_OPERATORS = OPERATORS_UNRESTRICTED ? []
 
 async function tunnelNameOwner(name) {
   if (!REGISTRY_ADDRESS) return null;
-  const c = await chain();
   // A minted box name (boxhost.js) registers under its OWN host, so its id is
   // computable from the name alone — which is the whole reason the derived
   // label doubles as the attach name. Legacy names keep the path form.
-  const id = await endpointId(boxOrigin(name) || `${TUNNEL_ORIGIN}/t/${name}`);
-  const e = await c.readContract({ address: REGISTRY_ADDRESS, abi: GET_ABI, functionName: "get", args: [id] });
-  const op = String(e?.operator || "");
-  return e?.active && !/^0x0{40}$/i.test(op) ? op.toLowerCase() : null;
+  return registryOperator(await endpointId(boxOrigin(name) || `${TUNNEL_ORIGIN}/t/${name}`));
+}
+// A new host's first registration, paid by EnclaveHostPaymaster for a box that proved its hardware here
+// (relay/host-sponsor.mjs). Off unless all three are set; created on first use, once the registry address is known.
+//   HOST_SPONSOR_VERIFIER_KEY  the key whose vouchers the paymaster accepts (its `verifier`)
+//   HOST_SPONSOR_BUNDLER_KEY   sends EntryPoint.handleOps; a small float, repaid by the EntryPoint per operation
+//   HOST_PAYMASTER             the EnclaveHostPaymaster address
+let hostSponsorInstance, hostNamesInstance;
+function hostSponsorRoutes() {
+  if (hostSponsorInstance) return hostSponsorInstance;
+  const vk = (process.env.HOST_SPONSOR_VERIFIER_KEY || "").trim(), bk = (process.env.HOST_SPONSOR_BUNDLER_KEY || "").trim();
+  const pm = (process.env.HOST_PAYMASTER || "").trim();
+  let sponsor = null;
+  if (vk && bk && pm && REGISTRY_ADDRESS) {
+    try {
+      sponsor = hostSponsor({ hub: tunnelHub, endpointOf: (n) => boxOrigin(n) || `${TUNNEL_ORIGIN}/t/${n}`,
+                              ownerOf: async (n) => (await tunnelNameOwner(n)) || "", verifierKey: vk, bundlerKey: bk,
+                              paymaster: pm, registry: REGISTRY_ADDRESS, rpc: BASE_RPC, log: (m) => console.log(m) });
+      console.log(`[sponsor] host registrations sponsored: paymaster ${pm}, verifier ${sponsor.verifier}, bundler ${sponsor.bundler}`);
+    } catch (e) { console.error(`[sponsor] OFF: ${e.message}`); }
+  }
+  const router = hostSponsorRouter({ sponsor, json: (res, status, body) => json(res, status, body, null), readBody });
+  if (sponsor || !(vk && bk && pm)) hostSponsorInstance = router;     // configured but no registry yet: ask again next time
+  return router;
 }
 // Dealt pads: created on first use so the data dir and the hub exist.
 let padsRoutesInstance;
@@ -214,16 +253,20 @@ function padsRoutes() {
   }
   return padsRoutesInstance;
 }
-const TUNNEL_ATTEST = METAL_ALLOWED_MEASUREMENTS.length || AVF_ATTEST || VBS_ATTEST
-  ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK, ...(METAL_MIN_TCB !== undefined ? { minTcb: METAL_MIN_TCB } : {}), ...(AVF_ATTEST ? { avf: AVF_ATTEST } : {}), ...(PVM_CPU_POLICY ? { pvmCpu: PVM_CPU_POLICY } : {}), ...(PVM_SERVING.attestPvmApp ? { pvmApp: PVM_SERVING.attestPvmApp } : {}), ...(VBS_ATTEST ? { vbs: VBS_ATTEST } : {}) }
-  : null;
-// stated from the object the hub is GIVEN: the line says what the hub will admit, not what the env asked for
-if (PVM_SERVING.enabled) console.log(PVM_SERVING.missing.length
-  ? `[pvm-serving] ON but not configured -- every pVM route answers 503. Missing: ${PVM_SERVING.missing.join("; ")}`
-  : `[pvm-serving] ON: the tunnel hub admits ${TUNNEL_ATTEST?.pvmApp?.appIds.length ?? 0} app(s) x ${TUNNEL_ATTEST?.pvmApp?.runtimeIds.length ?? 0} runtime(s) (any listed app on any listed runtime)`);
+// a milliseconds env knob: unset or empty = the default; a whole number >= min = that value; anything else (NaN, negative, a
+// fraction, below min) is logged LOUDLY and the default used - never a silent substitute (enclave-5d)
+function msEnv(key, dflt, min) {
+  const v = String(process.env[key] ?? "").trim();
+  if (v === "") return dflt;
+  if (/^\d+$/.test(v) && Number(v) >= min) return Number(v);
+  console.error(`[api-relay] ${key}="${v.slice(0, 40)}" is not a whole number of milliseconds >= ${min}: using the default ${dflt}`);
+  return dflt;
+}
 const tunnelHub = createTunnelHub({
   allow: [...DEFAULT_METAL_ALLOW, ...ENV_METAL_ALLOW],
-  attest: TUNNEL_ATTEST,
+  attest: METAL_ALLOWED_MEASUREMENTS.length || AVF_HUB_ATTEST || HVNODE_ATTEST
+    ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK, ...(METAL_MIN_TCB !== undefined ? { minTcb: METAL_MIN_TCB } : {}), ...(AVF_HUB_ATTEST ? { avf: AVF_HUB_ATTEST } : {}), ...(PVM_CPU_POLICY ? { pvmCpu: PVM_CPU_POLICY } : {}), ...(HVNODE_ATTEST ? { hvNode: HVNODE_ATTEST } : {}) }
+    : null,
   operatorFor: tunnelNameOwner,
   // TUNNEL_OPERATOR_ATTACH=1 — let a box prove its tunnel name with the operator
   // key that registered its endpoint on chain, instead of a token whose hash
@@ -236,6 +279,16 @@ const tunnelHub = createTunnelHub({
   // and the owner still has to clear the same operator bar the dial path uses —
   // a tunnel row bypasses that filter, so it is enforced at attach instead
   trustedOperators: TRUSTED_OPERATORS, operatorsUnrestricted: OPERATORS_UNRESTRICTED,
+  // this relay's own public origin: a tunnel's self-routed /t/<name> URL must name it (selfRoutedUrl form 2, enclave-bf);
+  // and what an hv-node's hosting delegation must name (relay/host-delegation.mjs): Base, and this relay's registry
+  tunnelOrigin: TUNNEL_ORIGIN, ownerOnly: { chainId: 8453, registry: () => REGISTRY_ADDRESS },
+  // RELAY_HVNODE_OPERATORS: the ONLY operators whose v2-signed hv-node attach serves owner-only (tunnel.js reads it in the
+  // hv-node attest path and nowhere else); never TRUSTED_OPERATORS, which grants dial discovery and operator attach.
+  // "*" = the open market: every registered owner's v2-signed, TPM-attested box serves its owner's own apps
+  hvNodeOperators: (process.env.RELAY_HVNODE_OPERATORS || "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean),
+  // owner-only's re-check cadence and the grace a failed owner read may lean on the last successful one (defaults 60 s / 15 min)
+  ownerRecheckMs: msEnv("TUNNEL_OWNER_RECHECK_MS", 60_000, 250),
+  ownerGraceMs: msEnv("TUNNEL_OWNER_GRACE_MS", 15 * 60_000, 0),   // 0 = no grace: suspend on the first failed owner read
   // when an enclave attaches/detaches, refresh discovery + availability now so it
   // enters/leaves `live` immediately rather than on the slow (5 min) registry poll
   onChange: () => { pollRegistry().then(pollAvailability).catch(() => {}); },
@@ -387,20 +440,22 @@ function makeRateLimiter({ capacity, refillPerSec }) {
     b.tokens -= 1; return true;
   };
 }
+const rlExpected = makeRateLimiter({ capacity: 60, refillPerSec: 1 });   // per client IP: GET /v1/expected-guest
 const rlMiss = makeRateLimiter({ capacity: 60, refillPerSec: 10 });   // /x + app-subdomain owner misses
 const rlHint = makeRateLimiter({ capacity: 20, refillPerSec: 2 });    // /v1/claim-hint fan-out
-// the pVM carrier (PVM_SERVING; null when OFF): the ledger's runner only, the relay's own client identity and limiters
-const pvmServe = PVM_SERVING.enabled ? PVM_SERVING.handler({
-  // its OWN resolver, never the app router's (pvm-serving.mjs pvmRunnerResolver): the ledger's live runner for a full id, and
-  // only the hub's current AVF-attested tunnel for it; no owner cache, no probe; the tier is not required (RELAY-SERVING.md)
-  resolve: PVM_SERVING.pvmRunnerResolver({ ledgerRows, expire: () => { _ledger.at = 0; }, origins: () => tunnelHub.origins(), endpointId }),
-  hub: tunnelHub, clientOf: (req) => clientIp(req),
-  perClient: makeRateLimiter({ capacity: 30, refillPerSec: 0.5 }), perDeployment: makeRateLimiter({ capacity: 60, refillPerSec: 1 }),
-  emit: (o) => console.log("[pvm-serving] " + JSON.stringify(o)),
-}) : null;
 // Signed-upload authorization (/v1/apps/upload-token): per-wallet token-mint cap.
 // Generous burst, ~30/hr steady — the gateway enforces the real BYTE budget.
 const rlUpload = makeRateLimiter({ capacity: 30, refillPerSec: 30 / 3600 });
+const rlSessions = makeRateLimiter({ capacity: 120, refillPerSec: 2 });   // per client IP (and r/w): /v1/sessions/*
+// OFAC screen for sessions deposits: "hit" refuses; the list loads with billing (stale before that is not a refusal -
+// the deposit is the owner's own money into their own vault, and they can always submit it on-chain themselves)
+const screenAddressSafe = (a) => { try { return screenAddress(a); } catch { return { result: "stale" }; } };
+const SESSIONS_ALERT_URL = (process.env.ALERT_WEBHOOK_URL || "").trim();
+function sessionsAlert(kind, detail) {
+  console.error(`[sessions] ALERT ${kind}: ${JSON.stringify(detail)}`);
+  if (SESSIONS_ALERT_URL) fetch(SESSIONS_ALERT_URL, { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ kind, ...detail, at: new Date().toISOString() }) }).catch(() => {});
+}
 // Dedicated secret shared ONLY with the wasm add-gateway on this box (NOT the
 // fleet SECRET). Empty = signed uploads unavailable (503). See ipfs-add-gateway.py.
 const UPLOAD_KEY = process.env.UPLOAD_KEY || "";
@@ -487,6 +542,55 @@ async function chain() {
   }
   return _client;
 }
+// Sessions custody (relay/sessions.mjs): who really owns a SessionVault-held
+// deployment, and whether its secrets may be released. Independent of the
+// sessions relayer being configured - a relay that cannot SUBMIT sessions still
+// refuses an unpromoted prod release.
+let _custody = null;
+async function custody() {
+  if (!_custody) _custody = createCustodyGate({ pc: await chain(), book: ADDRESS_BOOK || null,
+    factory: (process.env.SESSIONS_FACTORY || "").trim() || null,
+    factories: (process.env.SESSIONS_FACTORIES || "").split(",").map((x) => x.trim()).filter(Boolean),
+    knownVault: (a) => Boolean(sessionsService()?.store?.data?.vaults?.[a]) });
+  return _custody;
+}
+const beneficialOwner = async (o) => (await custody()).beneficialOwner(o);
+const custodyRefusal = async (row) => (await custody()).custodyRefusal(row);
+const isSessionAuth = (auth) => /^EnclaveSession /.test(String(auth || ""));
+// `Authorization: EnclaveSession v1 ...` on a relay route: the verified session ({ owner, vault, sid, envs, ... }), or
+// null when the request carries no session header (callers fall back to their wallet-signature path). A bad session
+// header THROWS (401/403). The signed host is the Host header ONLY - Caddy preserves it, and a client-supplied
+// X-Forwarded-Host must never choose what the signature is checked against.
+async function sessionAuthFull(req, raw, scope) {
+  const h = req.headers.authorization || "";
+  if (!h.startsWith("EnclaveSession ")) return null;
+  const svc = sessionsService();
+  if (!svc) { const e = new Error("Sessions are not enabled on this relay."); e.status = 503; throw e; }
+  const host = String(req.headers.host || "").trim();
+  const u = new URL(req.url, "http://relay");
+  return svc.verifyApiRequest({ header: h, method: req.method, hostPath: host + u.pathname + u.search,
+    body: raw, scope, fresh: req.method !== "GET" });
+}
+async function sessionAuth(req, raw, scope) {
+  const r = await sessionAuthFull(req, raw, scope);
+  return r ? r.owner.toLowerCase() : null;
+}
+// a session acting on ONE deployment (placement): the record must sit inside the session's policy, by the vault's own
+// rule (sessions.mjs sessionRowRefusal) - a vault-held record in one of its environments; a record the owner's WALLET
+// holds is production (SessionVault v2 reaches it through the ledger delegation), so only a session covering prod
+async function sessionOwnerFor(req, raw, scope, row) {
+  const r = await sessionAuthFull(req, raw, scope);
+  if (!r) return null;
+  const why = await sessionRowRefusal(r, row, async (vault, id) => {
+    const [env] = await (await chain()).readContract({ address: vault, functionName: "held", args: [id],
+      abi: [{ type: "function", name: "held", stateMutability: "view", inputs: [{ type: "bytes32" }],
+        outputs: [{ type: "uint8" }, { type: "bytes32" }, { type: "bytes32" }] }] });
+    return env;
+  });
+  if (why) { const e = new Error(why); e.status = 403; throw e; }
+  return r.owner.toLowerCase();
+}
+
 // "registry" as ascii-right-padded bytes32 (the EnclaveAddressBook key)
 const BOOK_ABI = [{ type: "function", name: "addr", stateMutability: "view",
   inputs: [{ type: "bytes32" }], outputs: [{ type: "address" }] }];
@@ -531,7 +635,7 @@ async function readRegistry() {
   // A tunnel box that SELLS registers on-chain under its public relay-routed
   // URL, and every lease it claims records keccak(that URL) as `runner`. Stamp
   // the tunnel row with that id so runner matching — ledgerStatus's "running",
-  // runnerEndpointOf's routing, enclaveNameOf's label — recognizes the box
+  // tenantRoute's routing, enclaveNameOf's label — recognizes the box
   // (the synthetic tunnel:<name> id matched nothing and left hosted rows stuck
   // on "claimed"). Never-registered dev tunnels keep the synthetic id. A
   // discovered twin of the same id is dropped: the tunnel is the working route
@@ -767,58 +871,14 @@ function ledgerStatus(d) {
     return runnerIsLive(d.runner) ? "running" : "claimed";
   return free || d.balance6 >= d.rate ? "queued" : "unfunded";
 }
-// Dedicated per-deployment IPv6, synthesized from PUBLIC data (mirrors the
-// supervisor's depAddrFor exactly: sha256(id) low 64 host bits into the routed
-// /64, low range reserved for infra). The tokenless dashboard reads ledger
-// rows, so without this no signed-out view ever shows a deployment's address.
-// Only rows the inbound relays actually serve get one here: public + running +
-// declared tcp/udp ports (the tcp6/udp relays' own netMap gate). Egress-only
-// addresses stay the enclave view's call - it alone knows egress is enabled.
-// DEP_ADDR_PREFIX = the relay box's routed /64 (same env as the supervisor).
-const DEP_ADDR_PREFIX = (process.env.DEP_ADDR_PREFIX || "").trim();
-function v6ToBig(s) {
-  const [head, tail] = s.split("::");
-  const hi = head ? head.split(":").filter(Boolean) : [];
-  const lo = tail ? tail.split(":").filter(Boolean) : [];
-  const mid = Array(8 - hi.length - lo.length).fill("0");
-  const groups = s.includes("::") ? [...hi, ...mid, ...lo] : s.split(":");
-  if (groups.length !== 8) throw new Error(`bad IPv6 "${s}"`);
-  return groups.reduce((a, g) => (a << 16n) | BigInt(parseInt(g || "0", 16)), 0n);
-}
-function bigToV6(n) {
-  const g = [];
-  for (let i = 0; i < 8; i++) g[i] = Number((n >> BigInt((7 - i) * 16)) & 0xffffn);
-  let best = { i: -1, len: 0 }, cur = { i: -1, len: 0 };
-  g.forEach((v, i) => {
-    if (v === 0) { if (cur.i < 0) cur = { i, len: 0 }; cur.len++; if (cur.len > best.len) best = { ...cur }; }
-    else cur = { i: -1, len: 0 };
-  });
-  const hex = g.map((v) => v.toString(16));
-  if (best.len > 1) { hex.splice(best.i, best.len, ""); if (best.i === 0) hex.unshift(""); if (best.i + best.len === 8) hex.push(""); }
-  return hex.join(":").replace(/:{3,}/, "::");
-}
-function depAddrFor(id) {
-  if (!DEP_ADDR_PREFIX) return null;
-  const [prefix] = DEP_ADDR_PREFIX.split("/");
-  const net128 = v6ToBig(prefix) & (~0n << 64n);
-  let host = BigInt("0x" + createHash("sha256").update(id).digest("hex").slice(0, 16)) & ((1n << 64n) - 1n);
-  if (host < 0x10000n) host += 0x10000n;
-  return bigToV6(net128 | host);
-}
-// the ledger row's declared ports ("http:8000,tcp:7777,udp:53"): only tcp:/udp:
-// entries live on the dedicated address (http rides the gateway origin)
+// Requested logical ports are public ledger data; assigned IPs and ports
+// are supplied separately by the expiring route map (/v1/network/tuna).
 const rowPorts = (d, proto) => String(d.ports || "").split(",")
   .map((s) => s.trim()).filter((s) => s.startsWith(proto + ":"))
   .map((s) => +s.slice(proto.length + 1)).filter((p) => Number.isInteger(p) && p > 0);
-function ledgerNetwork(d, status) {
-  if (status !== "running" || !d.isPublic) return null;
-  const address = depAddrFor(d.id); if (!address) return null;
-  const tcp = rowPorts(d, "tcp"), udp = rowPorts(d, "udp");
-  if (!tcp.length && !udp.length) return null;
-  const net = { address };
-  if (tcp.length) net.tcp = { address, ports: tcp };
-  if (udp.length) net.udp = { address, ports: udp };
-  return net;
+function ledgerNetwork(d) {
+  return { transport: "tuna", dedicatedIP: false,
+    requested: {tcp: rowPorts(d, "tcp"), udp: rowPorts(d, "udp")} };
 }
 // Shape a ledger record like the enclaves' own rows (supervisor view()), so
 // dashboards/CLIs treat both alike. `ledger: true` marks the synthesis - logs
@@ -924,135 +984,28 @@ async function pollAvailability() {
       const idx = i++;
       if (idx >= src.length) return;
       const e = src[idx];
-      const a = e.tunnel ? await tunnelHub.fetchJson(e.endpoint, "/availability").catch(() => null)
-                         : await fetchJson(`${e.endpoint}/availability`);
-      rows[idx] = a ? { ...e, availability: a, relay: hasNoResources(a),
-                        checkedAt: new Date().toISOString() } : null;
+      let a = e.tunnel ? await tunnelHub.fetchJson(e.endpoint, "/availability").catch(() => null)
+                       : await fetchJson(`${e.endpoint}/availability`);
+      // a pVM CPU row's pool is the relay-verified VM size (pvmCpuAvailability), never the phone host's own word
+      if (a && e.tunnel) a = pvmCpuAvailability(e, a);
+      rows[idx] = a ? reverifier.annotate({ ...e, availability: a, relay: hasNoResources(a),
+                                            checkedAt: new Date().toISOString() }) : null;
     }
   };
   await Promise.all(Array.from({ length: Math.min(AVAIL_POLL_CONCURRENCY, src.length || 1) }, worker));
   live = rows.filter(Boolean);
+  // (B) an owner-only row's served deployments are read from the ledger: keep it loaded while such a row is live (the
+  // common poll pays nothing; a failed read leaves the last rows, and none at first, which serves nothing: fail closed)
+  if (live.some((e) => e.ownerOnly || pvmMarket.eligible(e))) await ledgerRows().catch(() => null);
+  await shieldMarket.refresh(live, _ledger.rows || []).catch(e => console.warn(`[shield-market] ${e.message}`));
+  // the pVM market re-verifies each served app's evidence (a fresh AVF certificate per app, paced: relay/pvm-market.mjs)
+  pvmMarket.refresh(live, _ledger.rows || []).catch(e => console.warn(`[pvm-market] ${e.message}`));
   updatedAt = new Date().toISOString();
 }
 
-// ---- the relay roster, and which deployment chose which relay --------------
-//
-// Two questions with one answer, because they have to agree. The console's
-// Network tab asks "which relays can this deployment pick"; DNS asks "what
-// address does <label>.app.enclave.host answer with". Both are computed here
-// from the same two facts — a relay's own /availability block, and the
-// deployment's on-chain options envelope — so every name the picker offers is a
-// name the zone can actually resolve, and a name it can't resolve is never
-// offered.
-//
-// A relay is named by its fleet row: an endpoint's first hostname label, or its
-// tunnel name. Those names must be unambiguous, so two relays answering to the
-// same name are BOTH dropped — the same rule zone 1 already applies to an
-// ambiguous id prefix, and for the same reason: a choice nobody can resolve is
-// worse than no choice at all.
-//
-// Membership here is "declares an address it relays on", NOT the `relay` badge.
-// The badge means a box sells no compute, which is a presentation rule; ANY
-// host may also carry network, and one that does is a legitimate choice — an
-// app placed on the same box as its relay is the shortest inbound path there
-// is. The badge rides along as `relayOnly` for surfaces that want to say which
-// kind of box it is.
-// LIVE ONLY, deliberately, and not a last-good memo. The temptation is to
-// remember a relay's address across a missed poll so a blip doesn't move
-// traffic; the arithmetic says otherwise, because the two errors are not the
-// same size. Forgetting a relay that is actually fine costs one DNS TTL of
-// traffic on the DEFAULT relay — slower, never down. Remembering one that is
-// actually gone points every app that chose it at a black hole for as long as
-// the memory lasts — down, not slower. A latency feature must not be able to
-// cause an outage, so the doubt resolves toward the default every time.
-const RELAY_NAME_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;   // byte-for-byte the supervisor's envelope rule
-const RELAY_SERVICES = ["sni", "tcp", "udp", "egress", "tunnelHub"];
-const fleetName = (e) => String(e.name || endpointName(e.endpoint) || "").toLowerCase();
-function relayRowOf(e) {
-  const r = e.availability?.relay;
-  if (!r || typeof r !== "object" || Array.isArray(r)) return null;
-  const name = fleetName(e);
-  if (!RELAY_NAME_RE.test(name)) return null;        // unnameable in an envelope = unpickable
-  // A malformed or missing address leaves the row listed with address:null
-  // rather than dropping it: the box is still a fleet member worth seeing, and
-  // an addressless relay is simply one nothing can be pointed at (relayLabels
-  // requires an address, so no deployment can end up aimed at nowhere).
-  const addr  = String(r.address  || "").trim();
-  const addr6 = String(r.address6 || "").trim();
-  return {
-    name, endpoint: e.endpoint, relayOnly: e.relay === true,
-    address:  net.isIPv4(addr)  ? addr  : null,
-    address6: net.isIPv6(addr6) ? addr6 : null,
-    region: typeof r.region === "string" ? r.region.slice(0, 64) : null,
-    ports:  typeof r.ports  === "string" ? r.ports.slice(0, 64)  : null,
-    v6Prefix: typeof r.v6Prefix === "string" ? r.v6Prefix.slice(0, 64) : null,
-    services: Object.fromEntries(RELAY_SERVICES.map((k) => [k, r[k] === true])),
-  };
-}
-function relayRoster() {
-  const seen = new Map(), dup = new Set();
-  for (const e of live) {
-    const row = relayRowOf(e);                       // any box that declares one, badge or not
-    if (!row) continue;
-    if (seen.has(row.name)) { dup.add(row.name); continue; }
-    seen.set(row.name, row);
-  }
-  for (const n of dup) seen.delete(n);
-  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
-}
-// The subdomain label for a deployment id — the first 8 hex chars, the same
-// rule the site's appLabel and the enclaves' prefix resolution use.
-const appLabelOf = (id) => String(id).slice(2, 10).toLowerCase();
-// The `network.relay` a deployment's envelope names, or null. Deliberately
-// forgiving where the supervisor is strict: this reads a record that is already
-// on-chain, and a malformed one has already been refused by whatever tried to
-// run it — there is nothing left to fail closed about, and throwing here would
-// take the whole zone's answers down with one bad record.
-function relayChoiceOf(configCid) {
-  const s = String(configCid || "").trim();
-  if (!s.startsWith("{")) return null;
-  let o; try { o = JSON.parse(s); } catch { return null; }
-  const n = o && o.network;
-  if (!n || typeof n !== "object" || Array.isArray(n)) return null;
-  const r = String(n.relay || "").trim().toLowerCase();
-  return RELAY_NAME_RE.test(r) ? r : null;
-}
-// label -> the address its chosen relay answers on. A choice that names a relay
-// the fleet no longer has, or one that doesn't splice SNI, is simply ABSENT
-// here: the zone default carries it, which keeps the app reachable instead of
-// pointing its name at a box that cannot serve it. The preference is a
-// preference; reachability wins.
-// RELAY_DEFAULT_LABEL: the relay every deployment WITHOUT an explicit
-// network.relay choice resolves to. Unset preserves today's behavior (the
-// zone wildcard, i.e. whichever box serves DNS) — which is measurably wrong
-// whenever that box is far from the fleet: a request through a far relay
-// pays the relay<->enclave distance per round trip, measured at +280ms/req
-// from nan-relay (Finland) to kryptos against 58ms via the us-west relay
-// beside it. The whole fleet is one region today, so one default label is
-// the honest fix; when enclaves span regions this becomes a per-enclave map
-// keyed by the deployment's holder.
-const RELAY_DEFAULT_LABEL = (process.env.RELAY_DEFAULT_LABEL || "").trim();
-
-function relayLabels(rows, roster) {
-  const by = new Map(roster.filter((r) => r.services.sni && (r.address || r.address6)).map((r) => [r.name, r]));
-  const out = {}, clash = new Set();
-  for (const d of rows) {
-    if (!/^0x[0-9a-f]{64}$/i.test(String(d.id || ""))) continue;
-    const label = appLabelOf(d.id);
-    // Two deployments whose ids share the first 8 hex chars share one app-zone
-    // NAME, so there is no answer that serves both. That name is already
-    // ambiguous with or without this feature; what must not happen is one of
-    // them silently deciding where the other's traffic goes. Neither gets an
-    // override — the zone default carries the name, exactly as it does today.
-    if (label in out || clash.has(label)) { delete out[label]; clash.add(label); continue; }
-    const r = by.get(relayChoiceOf(d.configCid)) || by.get(RELAY_DEFAULT_LABEL);
-    if (!r) { out[label] = null; continue; }         // placeholder: claims the label, answers nothing
-    out[label] = { relay: r.name,
-      ...(r.address ? { a: r.address } : {}), ...(r.address6 ? { aaaa: r.address6 } : {}) };
-  }
-  for (const [k, v] of Object.entries(out)) if (v === null) delete out[k];
-  return out;
-}
+// Hosts publish each app's signed Enclave-network routes (relay/tuna-routes.mjs; the name and the /v1/network/tuna
+// path are historical). The Base lease still decides whose app each IP serves.
+let tunaRoutes;
 
 // Share-based routing — same rule as enclave-discover.mjs. Deployments buy two
 // shares, so callers route on the shares they intend to buy (the app's specs
@@ -1067,7 +1020,7 @@ const gpuFreeOf = (a) => a.gpuShareFree ?? (a.gpu ? a.maxShare ?? 0 : 0);
 const cpuFreeOf = (a) => a.cpuShareFree ?? (a.gpu ? 0 : a.maxShare ?? 0);
 function pick(want = {}) {
   const { gpuShare = 0, cpuShare = 0 } = want;
-  const pool = servingEnclaves();   // only boxes that CLAIM can be routed to (a tunnel demo box has no dialable endpoint and takes no work)
+  const pool = servingEnclaves().filter(e => !want.legacy || e.mode !== "hv-node");   // only boxes that CLAIM can be routed to (a tunnel demo box has no dialable endpoint and takes no work)
   if (gpuShare > 0) {
     return pool
       .filter((e) => e.availability.gpu && gpuFreeOf(e.availability) >= gpuShare
@@ -1128,8 +1081,13 @@ const json = (res, code, body, req) => {
 // Reverse-proxy `req` to `enclaveOrigin + path`. `setCors`: on the api.enclave.host
 // control-plane paths WE own CORS (swap the enclave's for ours); on an app
 // subdomain the app is its own origin, so pass its headers through untouched.
-function proxyTo(origin, req, res, { path = req.url, setCors = true, idleMs = 30000 } = {}) {
-  if (tunnelHub.isTunnel(origin)) return proxyViaTunnel(origin, req, res, { path, setCors });
+// publicOnly (U7, Codex's review): an INELIGIBLE box's own public surfaces are forwarded WITHOUT the caller's credentials
+// (Authorization, Proxy-Authorization, Cookie) and WITHOUT the box's Set-Cookie, so a public read of its availability or
+// attestation neither hands it a session nor lets it plant a cookie on the relay's origin.
+const CREDENTIAL_HEADERS = ["authorization", "proxy-authorization", "cookie"];
+function proxyTo(origin, req, res, { path = req.url, setCors = true, idleMs = 30000, publicOnly = false } = {}) {
+  if (tunnelHub.isTunnel(origin)) return proxyViaTunnel(origin, req, res, { path, setCors, publicOnly });
+  if (publicOnly) throw new Error("publicOnly forwarding is only defined for tunnel boxes");
   const target = new URL(origin.replace(/\/+$/, "") + path);
   const headers = { ...req.headers, host: target.host };
   delete headers["accept-encoding"];                          // let the enclave send identity; simpler passthrough
@@ -1179,20 +1137,25 @@ function proxyTo(origin, req, res, { path = req.url, setCors = true, idleMs = 30
 // (Phase-1 buffered request/response; the streaming/WS upgrade path over tunnels
 // is a follow-on), forwards method+path+headers over the tunnel, writes the
 // framed response back with our CORS on control-plane paths.
-function proxyViaTunnel(origin, req, res, { path = req.url, setCors = true }) {
+function proxyViaTunnel(origin, req, res, { path = req.url, setCors = true, publicOnly = false }) {
   const chunks = []; let size = 0;
   req.on("data", (c) => { size += c.length; if (size > 8 * 1024 * 1024) req.destroy(); else chunks.push(c); });
   req.on("end", async () => {
     try {
       const headers = { ...req.headers }; delete headers["accept-encoding"];
+      if (publicOnly) for (const h of CREDENTIAL_HEADERS) delete headers[h];
       const r = await tunnelHub.request(origin, { method: req.method, path, headers, body: chunks.length ? Buffer.concat(chunks) : null });
       const out = {};
       for (const [k, v] of Object.entries(r.headers || {})) {
         if (/^connection$|^transfer-encoding$|^content-length$/i.test(k)) continue;
+        if (publicOnly && /^(?:set-cookie2?|content-security-policy(?:-report-only)?|x-content-type-options)$/i.test(k)) continue;
         if (setCors && /^access-control-/i.test(k)) continue;
         out[k] = v;
       }
       if (setCors) Object.assign(out, cors(req));
+      // ...and it serves nothing ACTIVE on the relay's origin: whatever content type it claims, the browser neither sniffs
+      // it nor runs it (enclave-d1's round-3 residual: a hostile box could otherwise serve text/html under api.enclave.host)
+      if (publicOnly) Object.assign(out, { "x-content-type-options": "nosniff", "content-security-policy": "sandbox; default-src 'none'" });
       res.writeHead(r.status || 502, out);
       res.end(r.body);
     } catch (e) {
@@ -1220,7 +1183,7 @@ const proxied = (p) => p.startsWith("/v1/") || p === "/availability" || p === "/
 // clean 503 that says nobody is taking work beats /v1/auth and /v1/pricing 404ing off a box that
 // never implemented them.
 const sticky = () => {
-  const s = servingEnclaves().filter((e) => e.availability?.fullService !== false);
+  const s = servingEnclaves().filter((e) => e.mode !== "hv-node" && e.availability?.fullService !== false);
   return s.filter((e) => e.availability?.gpu === true).sort((a, b) => a.endpoint.localeCompare(b.endpoint))[0]
       || s.slice().sort((a, b) => a.endpoint.localeCompare(b.endpoint))[0] || null;
 };
@@ -1239,16 +1202,19 @@ const sticky = () => {
 // ages out (found 2026-07-28, right after a metal0 -> kryptos -> metal0 move).
 // Reading the ledger first costs nothing a request didn't already pay:
 // ledgerRows() is itself cached (LEDGER_TTL_MS), so this is an in-memory scan,
-// and runnerEndpointOf declines anything the chain can't answer for (unleased,
-// ambiguous prefix, non-ledger dep_ id) — which is exactly when the cache and
-// then the probe should get their turn.
+// and for an on-chain id tenantRoute's ledger answer is FINAL (U7): unleased,
+// ambiguous, unreachable or ineligible REFUSES. Only an id the ledger cannot
+// speak for (a non-ledger dep_ id) gets the cache and the probe, over eligible
+// rows only.
 const OWNER = new Map();                                     // dep id -> { endpoint, at }
 const OWNER_TTL_MS = 5 * 60_000;
 const OWNER_NEG = new Map();                                 // dep id -> at (miss, short-lived; fix 2)
 const OWNER_NEG_TTL_MS = 10_000;
 const ownerCached = (id) => {
   const hit = OWNER.get(id);
-  return (hit && Date.now() - hit.at < OWNER_TTL_MS && live.some((e) => e.endpoint === hit.endpoint))
+  // U7: a cached owner is an answer about WHERE, never permission to route. It is used only while its row is live AND
+  // eligible right now, so a host that loses eligibility stops receiving the cached tenant at once.
+  return (hit && Date.now() - hit.at < OWNER_TTL_MS && live.some((e) => e.endpoint === hit.endpoint && e.mode !== "hv-node" && computeEligible(e)))
     ? hit.endpoint : null;
 };
 const ownerNegRecent = (id) => { const at = OWNER_NEG.get(id); return at != null && Date.now() - at < OWNER_NEG_TTL_MS; };
@@ -1267,75 +1233,196 @@ async function probe(url, init) {
   try { return await fetch(url, { ...init, signal: ctrl.signal }); }
   catch { return null; } finally { clearTimeout(t); }
 }
-// SECURITY (fix 1c / B3): prefer the deployment's ON-CHAIN runner (the enclave
-// that actually claimed the lease) over "first endpoint answering non-404", so
-// a hostile enclave can't hijack another tenant's /x traffic by answering for
-// its id. Returns the runner's endpoint only when it's a known, in-fleet enclave
-// (which is already https-/operator-filtered); null (=> probe fallback) on any
-// uncertainty, so a valid deployment never becomes unroutable.
-async function runnerEndpointOf(id) {
-  const h = String(id).toLowerCase();
-  if (!/^0x[0-9a-f]{8,64}$/.test(h)) return null;           // dep_/non-onchain ids: probe path
-  let rows; try { rows = await ledgerRows(); } catch { return null; }
+// ---- U7: tenant traffic goes ONLY to a host the relay holds ELIGIBLE -------------------------------------------------
+// computeEligible (the evidence rule placement already uses) now also governs ROUTING. The ledger says WHO holds a
+// deployment's lease; it never makes that holder eligible. So for an on-chain id the ledger's live-lease holder is the
+// ONLY candidate: it must be a live row and eligible, or the request is REFUSED with the reason. Unknown, ambiguous,
+// unleased, unreachable or ineligible answers never fall back to the owner cache or the fan-out probe as authorization.
+// Ids the ledger cannot speak for (non-ledger dep_ ids, or a relay run without a ledger) keep the cache and probe, over
+// ELIGIBLE rows only.
+const LEDGER_ID_RE = /^0x[0-9a-f]{8,64}$/;
+// A ledger is CONFIGURED (by address or through the address book) even while the book has not resolved its address yet:
+// a ledger-shaped id then waits for the ledger (503) rather than being probed (enclave-5d's review, F3). Only a relay run
+// with no ledger at all probes, and then over eligible hosts only.
+const LEDGER_CONFIGURED = !!(DEPLOYMENTS_ADDRESS || ADDRESS_BOOK);
+const deny = (status, error, message) => ({ endpoint: null, status, error, message });
+// A miss forces at most ONE fresh ledger read per LEDGER_FRESH_COOLDOWN_MS relay-wide, so random ids (any path, the
+// WebSocket upgrade included, which has no per-client miss limit) cannot turn a miss into a ledger reload each.
+const LEDGER_FRESH_COOLDOWN_MS = 5_000;
+let _ledgerFreshAt = 0;
+async function ledgerLeaseOf(h, fresh) {
+  let stale = false;
+  if (fresh) { if (Date.now() - _ledgerFreshAt >= LEDGER_FRESH_COOLDOWN_MS) { _ledgerFreshAt = Date.now(); _ledger.at = 0; } else stale = true; }
+  let rows; try { rows = await ledgerRows(); } catch (e) { return { error: e }; }
   const hits = rows.filter((d) => String(d.id).toLowerCase().startsWith(h));
-  if (hits.length !== 1) return null;                       // unknown/ambiguous -> fall back
+  if (hits.length > 1) return { ambiguous: true };
+  if (!hits.length) return { none: true, stale };
   const d = hits[0];
-  if (ZERO32.test(String(d.runner)) || Number(d.leaseUntil) * 1000 <= Date.now()) return null;
-  const runner = String(d.runner).toLowerCase();
-  const e = live.find((x) => x.id && x.id.toLowerCase() === runner);
-  return e ? e.endpoint : null;
+  if (ZERO32.test(String(d.runner)) || Number(d.leaseUntil) * 1000 <= Date.now()) return { unleased: true, row: d, stale };
+  return { row: d, runner: String(d.runner).toLowerCase() };
 }
-// SECURITY: an app subdomain is a deployment id PREFIX — canonically the first
-// 8 hex chars, which is 32 bits. Ids are keccak256(creator, nonce), so a
-// collision is not a birthday accident to wave off: an attacker grinds
-// candidate creator addresses OFFLINE until one's next id shares a victim's
-// prefix (seconds of hashing, no gas), then creates that one deployment. Both
-// records then answer to <prefix>.<APP_DOMAIN>. runnerEndpointOf already
-// declines an ambiguous prefix, but declining used to mean "fall back to the
-// fan-out probe", and the probe takes the FIRST enclave that answers — so the
-// ground twin could win the victim's subdomain and be cached as its owner for
-// five minutes. A prefix the LEDGER says names two deployments names neither:
-// refuse it outright rather than let a race pick.
-async function prefixAmbiguous(id) {
+async function tenantRoute(id, { auth = null } = {}) {
   const h = String(id).toLowerCase();
-  if (!/^0x[0-9a-f]{8,63}$/.test(h)) return false;          // full id or non-ledger shape: nothing to confuse
-  let rows; try { rows = await ledgerRows(); } catch { return false; }
-  return rows.filter((d) => String(d.id).toLowerCase().startsWith(h)).length > 1;
-}
-async function xOwnerOf(id) {                                // data-path resolve (no auth needed)
-  const byRunner = await runnerEndpointOf(id);              // fix 1c: on-chain claimer wins
-  if (byRunner) { ownerLearn(id, byRunner); return byRunner; }
-  const hit = ownerCached(id); if (hit) return hit;
-  if (await prefixAmbiguous(id)) return null;
-  if (ownerNegRecent(id)) return null;                      // recent miss: don't re-fan-out (fix 2)
-  if (!fanoutReserve(live.length)) return null;             // global fan-out cap (fix 2)
+  if (LEDGER_ID_RE.test(h) && LEDGER_CONFIGURED) {
+    if (!DEPLOYMENTS_ADDRESS) return deny(503, "ledger_unavailable", `The ledger address is not resolved yet, so ${id} is not routed (no fallback).`);
+    let l = await ledgerLeaseOf(h, false);
+    if (l.none || l.unleased) l = await ledgerLeaseOf(h, true);           // a just-created or just-claimed row: one fresh read
+    if (l.error) return deny(503, "ledger_unavailable", `The ledger could not be read, so ${id} is not routed (no fallback).`);
+    // the fresh read was skipped by the cooldown: a row minutes old could still be on its way, so say "not yet", not "no"
+    if ((l.none || l.unleased) && l.stale) return deny(503, "not_yet_visible", `${id} is not on the ledger this relay last read; retry shortly.`);
+    // An app subdomain is an 8-hex id PREFIX (32 bits of keccak256(creator, nonce)): a twin is ground offline in seconds
+    // and created in one transaction. A prefix the ledger says names two deployments names NEITHER; no race may pick.
+    if (l.ambiguous) return deny(404, "ambiguous", `${id} names more than one deployment on the ledger: it routes nowhere.`);
+    if (l.none) return deny(404, "not_found", `No deployment ${id} on the ledger.`);
+    if (l.unleased) return deny(404, "not_running", `${id} has no live lease: no host runs it.`);
+    const row = live.find((x) => x.id && x.id.toLowerCase() === l.runner);
+    if (!row) return deny(503, "runner_unreachable", `The host holding ${id}'s lease is not attached to this relay right now.`);
+    if (!computeEligible(row)) return deny(503, "host_ineligible", `The host holding ${id}'s lease is not eligible to serve tenant apps: ${ineligibleReason(row)}.`);
+    if (row.mode === "hv-node") return deny(403, "shield_tls_only", "Shield apps are available only through their isolated HTTPS origin.");
+    ownerLearn(h, row.endpoint);
+    return { endpoint: row.endpoint };
+  }
+  // no ledger answer is possible for this id: the cache, then the probe, over ELIGIBLE rows only
+  const hit = ownerCached(h); if (hit) return { endpoint: hit };
+  const pool = live.filter((e) => !e.relay && computeEligible(e) && e.mode !== "hv-node");
+  if (!pool.length) return deny(503, "no_eligible_host", "No eligible host is serving tenant apps right now.");
   let ep = null;
-  try {
-    const found = await Promise.all(live.map(async (e) =>
-      (r => r && r.status !== 404 ? e.endpoint : null)(await probe(`${e.endpoint}/x/${encodeURIComponent(id)}`, { method: "HEAD" }))));
-    ep = found.find(Boolean) || null;
-  } finally { fanoutRelease(live.length); }
-  if (ep) ownerLearn(id, ep); else OWNER_NEG.set(id, Date.now());
-  return ep;
-}
-async function v1OwnerOf(id, auth) {                         // control-plane probe (caller's token)
-  const byRunner = await runnerEndpointOf(id);              // fix 1c: on-chain claimer wins
-  if (byRunner) { ownerLearn(id, byRunner); return byRunner; }
-  const hit = ownerCached(id); if (hit) return hit;
-  if (await prefixAmbiguous(id)) return null;               // a prefix naming two deployments names neither
-  let ep = null;
-  if (fanoutReserve(live.length)) {
+  // A wallet session's header is SINGLE-USE per host (nonce) and signed for one URL: probing every host with it
+  // would spend it on the box that owns the id before the real request got there, and hand it to all the others.
+  if (auth && !isSessionAuth(auth) && fanoutReserve(pool.length)) {
     try {
-      const found = await Promise.all(live.map(async (e) => {
-        const r = await probe(`${e.endpoint}/v1/deployments/${encodeURIComponent(id)}`,
-                              { headers: auth ? { Authorization: auth, Accept: "application/json" } : { Accept: "application/json" } });
+      const found = await Promise.all(pool.map(async (e) => {
+        const r = await probe(`${e.endpoint}/v1/deployments/${encodeURIComponent(h)}`, { headers: { Authorization: auth, Accept: "application/json" } });
         return r && r.status === 200 ? e.endpoint : null;
       }));
       ep = found.find(Boolean) || null;
-    } finally { fanoutRelease(live.length); }
+    } finally { fanoutRelease(pool.length); }
   }
-  if (ep) ownerLearn(id, ep);
-  return ep || xOwnerOf(id);                                 // fall back to the data-path probe (e.g. expired token)
+  if (!ep && !ownerNegRecent(h) && fanoutReserve(pool.length)) {
+    try {
+      const found = await Promise.all(pool.map(async (e) =>
+        (r => r && r.status !== 404 ? e.endpoint : null)(await probe(`${e.endpoint}/x/${encodeURIComponent(h)}`, { method: "HEAD" }))));
+      ep = found.find(Boolean) || null;
+    } finally { fanoutRelease(pool.length); }
+    if (!ep) OWNER_NEG.set(h, Date.now());
+  }
+  if (!ep) return deny(404, "not_found", `No eligible host has ${id}.`);
+  ownerLearn(h, ep);
+  return { endpoint: ep };
+}
+// Is this endpoint id (keccak256 of a registered endpoint) a host the relay holds eligible right now? For the lease-holder
+// authorizations outside the router (relay/certs.js, relay/secrets.js), handed over in relayCtx. Not live = not eligible.
+function hostEligibility(epId) {
+  const id = String(epId || "").toLowerCase();
+  const row = live.find((x) => x.id && x.id.toLowerCase() === id);
+  if (!row) return { eligible: false, reason: "the host is not attached to this relay right now" };
+  const verdict = computeEligible(row) ? { eligible: true, reason: null } : { eligible: false, reason: ineligibleReason(row) };
+  return (row.mode === "hv-node" && shieldMarket.configured(row.name)) || (row.mode === "avf" && pvmMarket.eligible(row))
+    ? { ...verdict, appEvidenceRequired: true, plaintextSecrets: false } : verdict;
+}
+// ---- (B) OWNER-ONLY serving on an hv-node row (enclave-87, 2026-09-26) -------------------------------------------------
+// An hv-node row (the NucBox: a host-attested boot state, never a TEE, never eligible) may carry a deployment D ONLY when ALL
+// hold, checked AT DECISION TIME on every path (the splice upgrade, its sweep, certs, has-secrets, and the /enclaves verdict
+// the SNI daemons consume with each entry's `until`):
+//   1. D's LEDGER OWNER is served NOW: the row's operator (the name's on-chain owner, who signed the v2 attach and is in
+//      RELAY_HVNODE_OPERATORS; no expiry, re-read every minute by the hub) or an owner whose hosting delegation to it
+//      (relay/host-delegation.mjs) has not expired (enclave-bf E2). payoutWallet never authorizes;
+//   2. THIS row holds D's live lease;
+//   3. D's on-chain envelope permits this backend: isolation.require is "hyperv-partition-per-app" or absent, with no
+//      cpuTee/gpuTee demand (enclave-87 E4; an absent requirement means the partition backend since the TUNA rollout). The
+//      backend is fixed by the ATTESTED mode (hv-node), never read from the row's own words. A deployment that requires
+//      snp-guest-per-app or a TEE, or has an unreadable envelope, is never served here, whatever delegation exists:
+//      a delegated node cannot take an SNP-required app to a host that is not excluded.
+// And on ONE path: the raw splice of the app's own TLS, wss /t/<box>/x/<id>/https, so TLS still ends in the guest and this
+// relay never sees a request's plaintext (enclave-b4). Plain HTTP /x/<id>, the control plane, secrets and the attested
+// release stay refused (only the has-secrets BOOLEAN is answered: secrets.js); placement, pricing and eligibility never count
+// it; it never feeds the relay roster (relayRowOf). The owner's levers: change D's isolation.require (setConfig), let the
+// delegation expire (90 d default, 180 d cap), or transfer/cancel D.
+const HVNODE_BACKEND = "hyperv-partition-per-app";
+const isOwnerOnlyRow = (row) => !!(row && row.tunnel && String(row.mode || "") === "hv-node" && row.ownerOnly === true
+  && Array.isArray(row.served) && /^0x[0-9a-f]{64}$/i.test(String(row.id || "")));
+// 1. the entry that serves this owner now (its expiry: null = the operator), or null
+function servedEntryNow(row, owner, nowSec = Math.floor(Date.now() / 1000)) {
+  if (!isOwnerOnlyRow(row) || !owner) return null;
+  const o = String(owner).toLowerCase();
+  return row.served.find((e) => e && e.owner === o && (e.expires === null || Number(e.expires) > nowSec)) || null;
+}
+// 3. the backend D's envelope requires (none = this backend; null when unreadable or a TEE is demanded: never served)
+function isolationRequireOf(d) {
+  try {
+    const o = JSON.parse(String(d?.configCid || "{}"));
+    if (!o || typeof o !== "object" || Array.isArray(o)) return null;
+    const iso = "isolation" in o ? o.isolation : {};
+    if (!iso || typeof iso !== "object" || Array.isArray(iso) ||
+        Object.keys(iso).some(k => !["require", "cpuTee", "gpuTee"].includes(k)) ||
+        ["cpuTee", "gpuTee"].some(k => iso[k] !== undefined && iso[k] !== false)) return null;
+    return iso.require === undefined ? HVNODE_BACKEND : iso.require;
+  } catch { return null; }
+}
+// all three -> the unix second until which D is served by this row (min of the lease end and the delegation's expiry), or 0
+function servesDeploymentUntil(row, d, nowSec = Math.floor(Date.now() / 1000)) {
+  if (!isOwnerOnlyRow(row) || !d) return 0;
+  const lease = Number(d.leaseUntil);
+  if (String(d.runner || "").toLowerCase() !== String(row.id).toLowerCase() || !(lease > nowSec)) return 0;
+  const admittedUntil = shieldMarket.servesUntil(row, d);
+  if (admittedUntil) return Math.min(lease, admittedUntil);
+  // Once admitted to the marketplace, every app must retain its own evidence.
+  if (shieldMarket.eligible(row)) return 0;
+  const e = servedEntryNow(row, d.owner, nowSec);
+  if (!e) return 0;
+  if (isolationRequireOf(d) !== HVNODE_BACKEND) return 0;
+  return e.expires === null ? lease : Math.min(lease, Number(e.expires));
+}
+// the deployments an owner-only row serves right now, from the cached ledger, each with its `until` (the SNI daemons check it
+// at decision time, so a lapse between two /enclaves reads still stops the splice)
+function ownerServedDeployments(row) {
+  if (!isOwnerOnlyRow(row)) return [];
+  const now = Math.floor(Date.now() / 1000);
+  return (_ledger.rows || []).map((d) => ({ id: String(d.id).toLowerCase(), until: servesDeploymentUntil(row, d, now) }))
+    .filter((x) => x.until > now).sort((a, b) => (a.id < b.id ? -1 : 1));
+}
+// A tunnel box addressed EXPLICITLY (/t/<name>/..., or its own e<hex>.<BOX_ZONE> hostname). An ELIGIBLE box: every path,
+// as before. A box the relay does NOT hold eligible: DEFAULT-DENY. Only its own read-only surfaces pass (GET, HEAD or
+// OPTIONS to its availability, health, version, pricing, session keys, net/udp maps, attestation and .well-known), so
+// no tenant path, whatever a box router would call one, reaches it: not the data plane, not a deployment's control
+// plane, not the deployments collection (create or list), and nothing a future router adds (enclave-d1's and
+// enclave-5d's review: the Linux supervisor's Express routes are case-insensitive, so a denylist of tenant paths was
+// bypassable with /X/ and /V1/Deployments).
+// The allowlist is EXACT (no prefixes, so a route added later under one stays default-deny: enclave-d1's round-2 note),
+// and a path passes only when canonicalizing it changes nothing but letter case. The relay forwards the RAW path, and
+// a raw path under a tenant prefix can canonicalize to an own surface: /x/<id>/..%2F..%2Favailability is "/availability"
+// once decoded and resolved, yet Express serves it raw as /x/<id> (enclave-5d's round-2 finding). An own surface never
+// needs percent-encoding, backslashes, repeated slashes or dot segments, so any of those refuses. A trailing slash is
+// tolerated. Canonical = percent-decoded (up to three levels), backslashes as slashes, repeated slashes collapsed, dot
+// segments resolved, lower-cased; a path that will not decode is refused. null = allowed.
+const BOX_OWN_SURFACES = new Set(["/availability", "/health", "/v1/health", "/v1/version", "/v1/pricing", "/v1/session-jwks",
+                                  "/v1/net-map", "/v1/udp-map", "/v1/attestation", "/.well-known/tinfoil-attestation"]);
+function canonicalBoxPath(path) {
+  let p = String(path || "/");
+  for (let i = 0; i < 3; i++) {
+    let d; try { d = decodeURIComponent(p); } catch { return null; }
+    if (d === p) break;
+    p = d;
+  }
+  p = p.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
+  try { p = new URL("http://x" + (p.startsWith("/") ? p : "/" + p)).pathname; } catch { return null; }
+  return p.replace(/\/{2,}/g, "/").toLowerCase();
+}
+function tunnelEligible(origin) { const row = live.find((x) => x.endpoint === origin); return !!(row && computeEligible(row)); }
+function tunnelTenantRefusal(origin, path, method = "GET") {
+  const row = live.find((x) => x.endpoint === origin);
+  if (row && computeEligible(row) && row.mode !== "hv-node") return null;
+  const raw = String(path || "/").toLowerCase(), canon = canonicalBoxPath(path);
+  const unaltered = canon !== null && canon === raw;          // canonicalizing changed nothing but case
+  if (unaltered && /^(?:GET|HEAD|OPTIONS)$/i.test(String(method || ""))
+      && (BOX_OWN_SURFACES.has(canon) || BOX_OWN_SURFACES.has(canon.replace(/\/$/, "")))) return null;
+  return deny(503, "host_ineligible", `This box is not eligible to serve tenant apps${row ? ": " + ineligibleReason(row) : " (not in the live fleet)"}; only its own surfaces (availability, health, attestation) are reachable.`);
+}
+async function xOwnerOf(id) {                                // data-path resolve: the eligible owner, or null
+  return (await tenantRoute(id)).endpoint;
+}
+async function v1OwnerOf(id, auth) {                         // control-plane resolve (the caller's token helps the probe only)
+  return (await tenantRoute(id, { auth })).endpoint;
 }
 
 function readBody(req, max = 262144) {
@@ -1433,14 +1520,17 @@ const TENANT_COMPUTE_MODES = new Set(["snp"]);
 const CONFIDENTIAL_CPU = new Set(["amd-sev-snp", "intel-tdx"]);
 function computeEligible(e) {
   if (!e || e.relay) return false;
-  if (e.tunnel) return TENANT_COMPUTE_MODES.has(String(e.mode || ""));
-  return CONFIDENTIAL_CPU.has(String(e.availability?.teeCpu || ""));
+  if (e.tunnel) return TENANT_COMPUTE_MODES.has(String(e.mode || "")) || shieldMarket.eligible(e) || pvmMarket.eligible(e);
+  // a dialed row: its own word, and (RELAY_REVERIFY=enforce) this relay's re-verification of it; shadow/off leave the word
+  return reverifier.eligible(e, CONFIDENTIAL_CPU.has(String(e.availability?.teeCpu || "")));
 }
-// The pVM CPU tier is its own INFERENCE lane, not app hosting: a phone the hub tiered
-// "pvm-cpu" (one admitted capability report, relay/pvm-cpu-tier.mjs) serves the platform's
-// engine on its owner's device. It is never in servingEnclaves (computeEligible stays
-// false for mode "avf"), and the tier comes from the hub's row, never from the box.
-function inferenceLaneOf(e) {
+// The pVM CPU tier is its own lane: a phone the hub tiered "pvm-cpu" (one admitted
+// capability report, relay/pvm-cpu-tier.mjs) runs CPU-ONLY Wasm workloads in its protected
+// VM, with no model and no accelerator. The tier comes from the hub's row, never from the box.
+// It takes buyers' apps (servingEnclaves) only through the pVM market (relay/pvm-market.mjs):
+// PVM_MARKET on, its name registered and its attach signed by that operator, and each app
+// served only on fresh v4 evidence the relay verified itself.
+function pvmCpuLaneOf(e) {
   return e && e.tunnel && String(e.mode || "") === "avf" && e.tier === PVM_CPU_TIER ? PVM_CPU_TIER : null;
 }
 // Why a row is NOT eligible, for the fleet panel to say in words (null when it is).
@@ -1449,12 +1539,17 @@ function ineligibleReason(e) {
   if (computeEligible(e)) return null;
   if (e.tunnel) {
     const m = String(e.mode || "");
+    if (m === "hv-node") return "host-attested boot state (TPM quote: Secure Boot on, test signing off); no isolation evidence, the host is not excluded"
+      + (isOwnerOnlyRow(e) ? `; it serves only deployments that require ${HVNODE_BACKEND}, of its own operator and of owners who delegated to it` : "");
     if (m === "vbs") return "verified enclave report, but the app-zone key and traffic run through the host: the isolation contract is not met";
-    if (m === "avf") return inferenceLaneOf(e) ? "pVM CPU tier: an inference lane on its owner's phone, not app deployments"
+    if (m === "avf") return pvmCpuLaneOf(e) ? (!pvmMarket.enabled ? "pVM CPU tier: CPU-only Wasm workloads on its owner's phone; this relay's pVM market is off"
+                                              : "pVM CPU tier: CPU-only Wasm workloads on its owner's phone; its name is not registered on chain, or its attach was not signed by that operator")
                          : e.capsRefused ? "verified protected-VM chain; its pVM CPU capability report was refused"
                          : "verified protected-VM chain; no pVM CPU capability report admitted yet";
     return "attached on a token, no hardware quote verified";
   }
+  const rv = reverifier.ineligibleReason(e);
+  if (rv) return rv;
   const t = String(e.availability?.teeCpu || "");
   const gpu = (e.availability?.gpu === true || (e.availability?.shielded && e.availability.shielded.vramGb > 0))
     ? "; its GPU is exposed only through Enclave Shield, whose evidence it has not presented" : "";
@@ -1516,7 +1611,11 @@ function aggregateAvailability() {
     // every publisher. `gpus` above stays the whole serving set, because the free-capacity
     // numbers beside it describe what is actually buyable right now.
     specCardVramGb: minOf(offeredGpus, "cardVramGb"), specCardTflops: minOf(offeredGpus, "cardTflops"),
-    specNodeVcpus: minOf(offered, "nodeVcpus"), specNodeRamGb: minOf(offered, "nodeRamGb"), specNodeGflops: minOf(offered, "nodeGflops"),
+    // the GFLOPS spec is SIZING, so it is the nominal 62.5-a-vCPU figure catalog cpuGflops floors are written in, not the
+    // measured nodeGflops a box publishes (hosts measure since 2026-10-08); a box that reports no vCPUs keeps its number
+    specNodeVcpus: minOf(offered, "nodeVcpus"), specNodeRamGb: minOf(offered, "nodeRamGb"),
+    specNodeGflops: minOf(offered.map((e) => (Number(e.availability?.nodeVcpus) > 0
+      ? { availability: { nodeGflops: Math.round(Number(e.availability.nodeVcpus) * 1000 / 16) } } : e)), "nodeGflops"),
     // WHY the cpu pool is small, carried up from the enclave whose numbers we
     // just quoted. The aggregate reported the folded cpuShareFree and dropped
     // every term behind it, so a box reading 65% free with one resident model
@@ -1687,7 +1786,9 @@ function cheapestAsk(serving, gpus) {
 const MAX_VOLUMES_PER_ENCLAVE = 256;                        // guard a hostile /availability (fix 8)
 function fleetVolumes() {
   const byName = new Map();
-  for (const e of live) {
+  // the public aggregate lists only what a box that could take the work holds (servingEnclaves: eligible, claiming): an
+  // ineligible row's volumes are its own word and name nothing a deployment could be placed on (enclave-bf)
+  for (const e of servingEnclaves()) {
     const vols = e.availability?.volumes;
     for (const v of (Array.isArray(vols) ? vols.slice(0, MAX_VOLUMES_PER_ENCLAVE) : [])) {
       if (!v || !v.name) continue;
@@ -1704,7 +1805,6 @@ function fleetVolumes() {
 }
 
 const DEP_PATH_RE = /^\/v1\/deployments\/([A-Za-z0-9_-]+)(?:\/|$)/;
-const X_PATH_RE   = /^\/x\/([A-Za-z0-9_-]+)(?:\/|$)/;
 
 async function gateway(u, req, res) {
   const p = u.pathname;
@@ -1716,24 +1816,19 @@ async function gateway(u, req, res) {
   const bare = p.match(/^\/v1\/deployments\/([A-Za-z0-9_-]+)$/);
   if (bare && req.method === "GET") return getDeployment(bare[1], u, req, res);
 
-  // The relay roster + the per-deployment choices made against it. Sits with
-  // the ledger reads ABOVE the fleet-down guard deliberately: this is DNS's
-  // input, and the app zone must not lose its per-deployment answers because
-  // the enclaves blinked. `relays: []` with zero live relays is the honest
-  // answer — every name falls back to the zone default, which is where it was.
-  if (p === "/v1/relays" && req.method === "GET") {
-    const relays = relayRoster();
-    let rows;
-    try { rows = await ledgerRows(); }
-    catch (e) {
-      // 503, NOT 200-with-empty-labels: an empty map is indistinguishable from
-      // "nobody chose a relay", and a consumer that believed it would move every
-      // deployment back to the default relay on one bad RPC read. The error
-      // makes the caller keep its last good map instead.
-      return json(res, 503, { error: "ledger_unavailable", relays, updatedAt,
-        message: "Could not read the deployments ledger just now; the relay roster is current but the per-deployment choices are not." }, req);
-    }
-    return json(res, 200, { updatedAt, relays, labels: relayLabels(rows, relays) }, req);
+  // Signed per-app routes are DNS/control metadata. The old roster URL is
+  // retained for clients upgrading through the cutover; it has no legacy relays.
+  if ((p === "/v1/network/tuna" || p === "/v1/relays") && req.method === "GET") {
+    try { return json(res, 200, await tunaRoutes.map(await ledgerRows()), req); }
+    catch { return json(res, 503, { error: "network_map_unavailable" }, req); }
+  }
+  if (p === "/v1/network/tuna" && req.method === "POST") {
+    if (!rlMiss(clientIp(req))) return json(res, 429, {error: "rate_limited"}, req);
+    try {
+      const b = JSON.parse((await readBody(req, 131072)).toString());
+      await tunaRoutes.publish(b.publication);
+      return json(res, 200, { ok: true }, req);
+    } catch (e) { console.warn("[tuna-routes] publication refused: " + String(e.message).slice(0,256)); return json(res, 400, { error: "tuna_publication_refused", message: e.message }, req); }
   }
 
   if (!live.length) {
@@ -1749,14 +1844,15 @@ async function gateway(u, req, res) {
   }
   if (p === "/availability") return json(res, 200, aggregateAvailability(), req);
 
-  const dep = p.match(DEP_PATH_RE), x = p.match(X_PATH_RE);
-  if (dep || x) {
-    const id = (dep || x)[1];
+  const dep = p.match(DEP_PATH_RE);
+  if (dep) {
+    const id = dep[1];
     // rate-limit only the misses (the fan-out probe); cached routes stay fast (fix 2)
     if (!ownerCached(id) && !rlMiss(clientIp(req)))
       return json(res, 429, { error: "rate_limited", message: "Too many deployment lookups; retry shortly.", updatedAt }, req);
-    const owner = dep ? await v1OwnerOf(id, req.headers.authorization) : await xOwnerOf(id);
-    if (!owner) return json(res, 404, { error: "not_found", message: `No live enclave has ${id}.`, updatedAt }, req);
+    const route = await tenantRoute(id, { auth: req.headers.authorization });
+    if (!route.endpoint) return json(res, route.status, { error: route.error, message: route.message, updatedAt }, req);
+    const owner = route.endpoint;
     // Tenant data path: generous idle window. A model-serving app's first
     // request can sit silent for the length of a session init (e.g. wasi-nn
     // loading a 100MB+ model onto the GPU under CC); 30s cut those off and
@@ -1778,6 +1874,15 @@ async function gateway(u, req, res) {
     const now = Math.floor(Date.now() / 1000);
     if (!/^[0-9a-f]{64}$/.test(hash)) return json(res, 422, { error: "bad_hash", message: "hash must be the 32-byte sha256 hex of the upload." }, req);
     if (!Number.isFinite(expiry) || expiry < now || expiry > now + 600) return json(res, 422, { error: "bad_expiry", message: "expiry must be a unix time within the next 10 minutes." }, req);
+    // a session key with api.upload authorizes the pin for its OWNER (the request itself is session-signed)
+    let viaSession;
+    try { viaSession = await sessionAuth(req, raw, "api.upload"); }
+    catch (e) { return json(res, e.status || 401, { error: e.code || "unauthorized", message: e.message }, req); }
+    if (viaSession) {
+      if (!rlUpload(viaSession)) return json(res, 429, { error: "rate_limited", message: "Too many upload authorizations for this owner; retry later." }, req);
+      const token = createHmac("sha256", UPLOAD_KEY).update(`${viaSession}:${hash}:${expiry}`).digest("hex");
+      return json(res, 200, { token, address: viaSession, expiry }, req);
+    }
     if (!/^0x[0-9a-fA-F]{130}$/.test(signature)) return json(res, 422, { error: "bad_sig", message: "signature must be a 65-byte personal_sign hex." }, req);
     let address;
     try {
@@ -1793,6 +1898,15 @@ async function gateway(u, req, res) {
   // windows and the shipment store, one router shared with the local hub.
   if (p.startsWith("/v1/pads/")) {
     if (await padsRoutes()(req, res, u)) return;
+  }
+  if (p.startsWith("/v1/hosts/sponsor/")) {
+    if (await hostSponsorRoutes()(req, res, u)) return;
+  }
+  // may a new host take this name? (relay/host-names.mjs; the Windows installer asks while its owner types)
+  if (p.startsWith("/v1/hosts/name/")) {
+    hostNamesInstance ||= hostNamesRouter({ names: hostNames({ hub: tunnelHub, ownerOf: async (n) => (await tunnelNameOwner(n)) || "" }),
+                                            json: (res, status, body) => json(res, status, body, req) });
+    if (await hostNamesInstance(req, res, u)) return;
   }
 
   if (p === "/v1/claim-hint" && req.method === "POST") {
@@ -1811,17 +1925,25 @@ async function gateway(u, req, res) {
     if (!rlHint(clientIp(req)))
       return json(res, 429, { error: "rate_limited", message: "Too many claim hints; retry shortly." }, req);
     let body; try { body = await readBody(req); } catch (e) { return json(res, 413, { error: "too_large", message: e.message }, req); }
-    let prefer = "";
-    try { prefer = String(JSON.parse(body.toString() || "{}").enclave || "").trim().toLowerCase(); } catch {}
+    let prefer = "", selection = {};
+    try { const parsed = JSON.parse(body.toString() || "{}"); selection = parsed && typeof parsed === "object" ? parsed : {}; prefer = String(selection.enclave || "").trim().toLowerCase(); } catch {}
+    const cheapest = !prefer && selection.strategy === "cheapest";
+    const placementId = String(selection.id || '').toLowerCase();
+    if (/^0x[0-9a-f]{64}$/.test(placementId) && (selection.strategy === 'preferred' || placement.has(placementId))) {
+      await resolveDeployments();
+      const d = await placementRead(placementId);
+      const saved = placement.saved(placementId, d.owner);
+      return json(res, 200, await claimPlacement(placementId, saved ? saved.hostId : prefer, d, selection.force === true, saved?.allowFallback !== false), req);
+    }
+    if (cheapest && !/^0x[0-9a-f]{64}$/i.test(String(selection.id || "")))
+      return json(res, 400, { accepted:false, reason:"A ledger deployment ID is required." }, req);
     const serving = servingEnclaves();
     const match = prefer ? serving.filter((e) =>
       String(e.name || "").toLowerCase() === prefer || String(e.endpoint || "").toLowerCase() === prefer) : [];
     const pool = match.length ? match : serving;
     if (!fanoutReserve(pool.length))
       return json(res, 503, { accepted: false, reason: "Relay busy (fan-out cap); the sweep will still pick the deployment up." }, req);
-    let results;
-    try {
-      results = await Promise.all(pool.map(async (e) => {
+    const hint = async e => {
         try {
           // tunnel-attached enclaves (Phase C sellers) have no dialable
           // endpoint - the hint rides the hub, like every relay->tunnel call
@@ -1835,7 +1957,29 @@ async function gateway(u, req, res) {
               body, signal: AbortSignal.timeout(15_000) });
           return JSON.parse(await readCappedText(r));
         } catch { return null; }
-      }));
+    };
+    let results;
+    try {
+      if (cheapest) {
+        await resolveDeployments();
+        if (!DEPLOYMENTS_ADDRESS) return json(res, 503, {accepted:false,reason:"The ledger is unavailable; no placement was attempted."}, req);
+        const client = await chain();
+        const ledger = DEPLOYMENTS_ADDRESS;
+        const deployment = await client.readContract({address:ledger,abi:DEP_GET_ABI,functionName:"get",args:[selection.id]});
+        const owner = String(deployment.owner || "").toLowerCase();
+        const result = await claimCheapest({pool,hint,quote:async host => {
+          const args=[selection.id,host.id];
+          const [rate,claimable]=await Promise.all([
+            client.readContract({address:ledger,abi:CLAIM_QUOTE_ABI,functionName:"rateFor",args}),
+            client.readContract({address:ledger,abi:CLAIM_QUOTE_ABI,functionName:"claimableBy",args}),
+          ]);
+          const selfHosted = /^0x[0-9a-f]{40}$/.test(owner) && !/^0x0{40}$/.test(owner)
+            && String(host.payoutWallet || "").toLowerCase() === owner;
+          return {rate,claimable,selfHosted};
+        }});
+        return json(res, 200, result, req);
+      }
+      results = await Promise.all(pool.map(hint));
     } finally { fanoutRelease(pool.length); }
     const best = results.find(r => r && r.accepted) || results.find(Boolean)
               || { accepted: false, reason: "No live enclave answered the hint; the sweep will still pick the deployment up." };
@@ -1847,7 +1991,7 @@ async function gateway(u, req, res) {
     let want = {};
     try { const r = JSON.parse(body.toString() || "{}").resources || {};
           want = { gpuShare: Number(r.gpuShare) || 0, cpuShare: Number(r.cpuShare) || 0 }; } catch {}
-    const c = pick(want);
+    const c = pick({ ...want, legacy: true });
     if (!c) return json(res, 409, { error: "no_capacity",
       message: `No live enclave has gpuShare >= ${want.gpuShare} and cpuShare >= ${want.cpuShare} free.`, updatedAt }, req);
     const r = await forward(c.endpoint, req, body).catch((e) => ({ status: 502, contentType: "application/json",
@@ -1869,9 +2013,12 @@ async function gateway(u, req, res) {
   // falls back to sticky rather than failing — a pin is an optimization, and
   // signing in against the wrong box is recoverable while not signing in isn't.
   const pin = String(u.searchParams.get("enclave") || "").trim().toLowerCase();
+  // U7 (enclave-d1's review): a pin names an ELIGIBLE host only (live, not a relay, computeEligible; not necessarily
+  // taking new work, since the box that hosts a signed-in owner's app may be full). A crafted link naming an ineligible
+  // box falls back to sticky like an unknown name, so a platform sign-in never lands on a box that could not host.
   const pinned = pin && p.startsWith("/v1/auth/")
-    ? live.find((e) => String(e.name || "").toLowerCase() === pin
-                    || String(e.endpoint || "").toLowerCase() === pin) : null;
+    ? live.find((e) => !e.relay && computeEligible(e) && e.mode !== "hv-node" && (String(e.name || "").toLowerCase() === pin
+                    || String(e.endpoint || "").toLowerCase() === pin)) : null;
   const c = pinned || sticky();                              // auth, pricing, version, attestation, ...
   // Say so, rather than dereferencing null: with no serving enclave there is nowhere to ask.
   if (!c) return json(res, 503, { error: "no_serving_enclave",
@@ -1891,17 +2038,38 @@ const ownerScope = (u, req) =>
 // status/network - only for token holders; enclaves verify), then merge
 // in the LEDGER's rows for the wallet - every on-chain deployment appears
 // whether or not an enclave hosts it right now.
+//
+// A WALLET SESSION (Authorization: EnclaveSession v1 ..., scope api.status) is
+// verified HERE against the chain, so it names its owner outright (a Bearer
+// token's sub is only decoded): the ledger merge is the owner's rows plus the
+// rows its session vault holds. The header itself travels to the fan-out
+// UNCHANGED - the hosts verify it for their own rows - and a host that answers
+// it 401 (one that predates sessions) is just a host without a live view; it
+// never turns the verified owner's list into a 401. A relay with sessions off
+// cannot verify: the header still fans out, the ledger is scoped by ?owner=.
 async function listDeployments(u, req, res) {
   const auth = req.headers.authorization;
-  const addr = ownerScope(u, req);
+  let session = null;
+  if (isSessionAuth(auth)) {
+    try { session = await sessionAuthFull(req, null, "api.status"); }
+    catch (e) {
+      if (e.status !== 503) return json(res, e.status || 401, { error: e.code || "unauthorized", message: e.message }, req);
+    }
+  }
+  const addr = session ? session.owner.toLowerCase() : ownerScope(u, req);
+  const holders = new Set([addr, session && String(session.vault).toLowerCase()].filter(Boolean));
   // no token = no enclave view (they'd all 401); the ledger alone answers
-  const rs = auth ? await Promise.all(live.map((e) =>
+  // U7 (enclave-d1's review): the caller's SESSION rides this fan-out, so it goes to ELIGIBLE hosts only. An ineligible
+  // live row (a token tunnel, a relay, an hv-node) never receives a session minted by a box that could be replayed there.
+  const rs = auth ? await Promise.all(live.filter((e) => !e.relay && computeEligible(e) && e.mode !== "hv-node").map((e) =>
     forward(e.endpoint, req, null).then((r) => ({ e, r })).catch(() => null))) : [];
   const answered = rs.filter(Boolean);
   const oks = answered.filter((x) => x.r.status === 200);
   // the fleet REFUSING a presented token is real (expired/garbage session):
-  // surface it rather than mask it with public ledger rows
-  if (auth && answered.length && !oks.length && answered.every((x) => x.r.status === 401))
+  // surface it rather than mask it with public ledger rows. Not a session: the
+  // relay judged that one itself, and a 401 from every host only says none of
+  // them takes sessions yet
+  if (auth && !isSessionAuth(auth) && answered.length && !oks.length && answered.every((x) => x.r.status === 401))
     return sendForwarded(res, answered[0].r, req);
   if (!addr && !oks.length)
     return json(res, 401, { error: "unauthorized", message: "Pass ?owner=0x… (or a session token) to say whose deployments to list." }, req);
@@ -1984,7 +2152,7 @@ async function listDeployments(u, req, res) {
   if (addr) {
     try {
       for (const d of await ledgerRows()) {
-        if (d.owner.toLowerCase() !== addr || seen.has(d.id.toLowerCase())) continue;
+        if (!holders.has(d.owner.toLowerCase()) || seen.has(d.id.toLowerCase())) continue;
         const view = ledgerView(d);
         // ledgerStatus says "running" for lease-live + runner-alive — but a
         // runner that answered this owner's list WITHOUT the id is not serving
@@ -2096,7 +2264,176 @@ const deploymentExists = async (id) => !!(await xOwnerOf(id));
 // they reuse the relay's CORS, raw-body reader and cached ledger reader
 // without circular imports. deploymentsAddress is a thunk because the address
 // book live-updates the binding.
-const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView,
+// secrets-release.mjs: the chips the lease holder behind a registered endpoint has PROVED at its SNP tunnel attach. Only a
+// tunnel (the hub saw the report); a dialed row's chip is unknown here, so it gets none and the release fails closed.
+const leaseHolderChipIds = async (endpoint) => {
+  const ep = String(endpoint || "").replace(/\/+$/, "");
+  const o = tunnelHub.origins().find((x) => x.mode === "snp" && x.publicUrl && String(x.publicUrl).replace(/\/+$/, "") === ep);
+  return o ? tunnelHub.snpChipIdsOf(String(o.endpoint).replace(/^tunnel:\/\//, "")) : [];
+};
+// secrets-release.mjs: the guest a deployment must be running, PREDICTED for its catalog version (measurement-predict.mjs):
+// the version read from the address book's appCatalog, never from the lease holder. Built on first use from the
+// SECRETS_RELEASE_PREDICT_* env; what it lacks is reported by the release's own 503.
+// the catalog is read through TWO OR MORE independent RPCs, and they must agree (enclave-d1): one lying provider cannot make
+// the relay predict another app. SECRETS_RELEASE_CATALOG_RPCS: comma-separated https URLs, distinct hosts.
+const CATALOG_RPCS = [...new Set(String(process.env.SECRETS_RELEASE_CATALOG_RPCS || "").split(",").map((u) => u.trim()).filter((u) => /^https:\/\//.test(u)))];
+const catalogRpcHosts = new Set(CATALOG_RPCS.map((u) => { try { return new URL(u).host; } catch { return u; } }));
+const catalogClients = CATALOG_RPCS.map((url) => { let c = null; return { readContract: async (q) => {
+  if (!c) { const { createPublicClient, http: viemHttp } = await import("viem"); const { base } = await import("viem/chains");
+            // one retry (enclave-87, 09-26): a read is bounded at ~12 s per provider (6 s x 2), not viem's default 4 attempts (~25 s)
+            c = createPublicClient({ chain: base, transport: viemHttp(url, { timeout: 6_000, retryCount: 1 }) }); }
+  return c.readContract(q);
+} }; });
+// WHICH catalog: APP_CATALOG_ADDRESS when the operator pins it, else the address book's appCatalog read through the SAME
+// agreeing RPCs (a single lying RPC could otherwise point every reader at a contract of its own)
+const BOOK_KEY_CATALOG = "0x" + Buffer.from("appCatalog", "ascii").toString("hex").padEnd(64, "0");
+let _catalogAddr = { addr: (process.env.APP_CATALOG_ADDRESS || "").trim(), pinned: !!(process.env.APP_CATALOG_ADDRESS || "").trim(), at: 0 };
+async function catalogAddress() {
+  if (!_catalogAddr.pinned && ADDRESS_BOOK && Date.now() - _catalogAddr.at > 600_000) {
+    if (!catalogClients.length) throw new Error("no catalog RPCs configured");
+    const got = await Promise.all(catalogClients.map((c) => c.readContract({ address: ADDRESS_BOOK, abi: BOOK_ABI, functionName: "addr", args: [BOOK_KEY_CATALOG] })));
+    if (got.some((a) => String(a).toLowerCase() !== String(got[0]).toLowerCase())) throw new Error("the catalog RPCs disagree about the address book's appCatalog");
+    if (got[0] && !/^0x0{40}$/i.test(got[0])) _catalogAddr = { addr: got[0], pinned: false, at: Date.now() };
+  }
+  if (!_catalogAddr.addr) throw new Error("no appCatalog address (address book or APP_CATALOG_ADDRESS)");
+  return _catalogAddr.addr;
+}
+// The deployment's ledger record, read by id through the SAME agreeing RPCs: a release decision (the lease holder, the
+// catalog version, privacy, the config envelope) never rests on one provider's answer. Rev-2 ledgers only (the per-app tier).
+const DEP_GET_ABI = [{ type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: DEP_TUPLE }] }];
+// The ledger's address: pinned by DEPLOYMENTS_ADDRESS, else the address book's entry as the agreeing RPCs read it, kept for
+// 10 min (a release's budget is the guest's 25 s attempt: one agreed record read, 6 s per provider, plus the prediction).
+let _confirmedLedger = { addr: "", at: 0 };
+async function confirmedLedger() {
+  const pinned = (process.env.DEPLOYMENTS_ADDRESS || "").trim();
+  if (pinned) return pinned;
+  if (_confirmedLedger.addr && Date.now() - _confirmedLedger.at < 600_000) return _confirmedLedger.addr;
+  const books = await Promise.all(catalogClients.map((c) => c.readContract({ address: ADDRESS_BOOK, abi: BOOK_ABI, functionName: "addr", args: [BOOK_KEY_DEPLOYMENTS] })));
+  if (books.some((a) => String(a).toLowerCase() !== String(books[0]).toLowerCase()) || /^0x0{40}$/i.test(String(books[0])))
+    throw new Error("the RPCs disagree about the deployments ledger");
+  _confirmedLedger = { addr: books[0], at: Date.now() };
+  return books[0];
+}
+async function confirmRow(id) {
+  if (catalogRpcHosts.size < 2) throw new Error("fewer than two independent RPCs are configured");
+  const ledger = await confirmedLedger();
+  const got = await Promise.all(catalogClients.map((c) => c.readContract({ address: ledger, abi: DEP_GET_ABI, functionName: "get", args: [id] })));
+  const pick = (d) => ({ id: String(d.id).toLowerCase(), runner: String(d.runner).toLowerCase(), leaseUntil: String(d.leaseUntil), appRef: d.appRef,
+                         owner: String(d.owner).toLowerCase(), isPublic: !!d.isPublic, configCid: d.configCid, active: !!d.active, cpuMilli: Number(d.cpuMilli), gpuMilli: Number(d.gpuMilli) });
+  const rows = got.map(pick);
+  if (rows.some((r) => JSON.stringify(r) !== JSON.stringify(rows[0]))) throw new Error("the RPCs disagree about the deployment's record");
+  if (rows[0].id !== String(id).toLowerCase()) throw Object.assign(new Error("the ledger holds no such deployment"), { code: "no_deployment" });
+  return rows[0];
+}
+let _predictor = null;
+const predictor = () => _predictor || (_predictor = makePredictor({ ...predictorEnv(), readCatalog: catalogReader(catalogClients, catalogAddress), sweepStale: true }));
+const shieldMarket = createShieldMarketplace({ hub: tunnelHub,
+  policyFile: process.env.RELAY_SHIELD_MARKET_POLICY || "", confirmRow, hasSecrets: hasStagedSecrets,
+  isOwnerDeployment: (host, d) => !!servedEntryNow(host, d.owner),
+  readCatalog: catalogReader(catalogClients, catalogAddress),
+  readConfig: versionConfigReader(catalogClients, catalogAddress),
+  fetchVerified: (cid, max) => predictor().fetchVerified(cid, max),
+});
+// PVM_MARKET=1 lets admitted, registered pVM CPU hosts take buyers' CPU-only apps (relay/pvm-market.mjs), under the tier's
+// own pins (PVM_CPU_CODE_HASHES / _AUTHORITY_HASHES / _RUNTIME_IDS): without them the market stays off.
+// a pVM host's registered proof key: a sibling VM proves it to have its evidence taken as the host's (pvm-market.mjs)
+const PROOF_GET_ABI = [{ type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: ENCLAVE_TUPLE_V3 }] }];
+async function registryProofKey(id) {
+  if (!REGISTRY_ADDRESS) return null;
+  const e = await (await chain()).readContract({ address: REGISTRY_ADDRESS, abi: PROOF_GET_ABI, functionName: "get", args: [id] });
+  return e?.active ? String(e.proofKey || "").toLowerCase() : null;
+}
+const pvmMarket = createPvmMarket({ hub: tunnelHub, enabled: process.env.PVM_MARKET === "1", pins: PVM_CPU_POLICY, confirmRow, proofKeyOf: registryProofKey,
+  readCatalog: catalogReader(catalogClients, catalogAddress), fetchVerified: (cid, max) => predictor().fetchVerified(cid, max) });
+// a pVM host's secrets: sealed to its VM, signed by the release key, never plaintext to the operator (relay/pvm-secrets.mjs)
+const pvmSecretRelease = createPvmSecretRelease({ hub: tunnelHub, market: pvmMarket, pins: PVM_CPU_POLICY, confirmRow,
+  hostForEndpoint: (id) => live.find((e) => String(e.id).toLowerCase() === String(id).toLowerCase()) });
+const shieldSecretRelease=createShieldSecretRelease({hub:tunnelHub,policyFile:process.env.RELAY_SHIELD_MARKET_POLICY||"",confirmRow,
+  readCatalog:catalogReader(catalogClients,catalogAddress),readConfig:versionConfigReader(catalogClients,catalogAddress),
+  fetchVerified:(cid,max)=>predictor().fetchVerified(cid,max),
+  hostForEndpoint:id=>live.find(e=>String(e.id).toLowerCase()===String(id).toLowerCase()),
+  isOwnerDeployment:(host,d)=>!!servedEntryNow(host,d.owner),custodyRefusal});
+// the release each deployment's guest last ran, noted by secrets-release.mjs on every release: measured first for the
+// deployment's next version (measurement-predict.mjs `prefer`). In memory only; after a restart the newest release goes first.
+const guestReleases = new Map();
+const noteGuestRelease = (id, release) => {
+  id = String(id).toLowerCase(); guestReleases.delete(id); guestReleases.set(id, String(release).toLowerCase());
+  if (guestReleases.size > 4096) guestReleases.delete(guestReleases.keys().next().value);
+};
+const predictionRowDeps = {
+  confirmRow, readVersionConfig: versionConfigAt,
+  predict: (ref, options) => predictor().expectedFor(ref, options),
+  preferFor: (id) => (guestReleases.has(id) ? [guestReleases.get(id)] : []),
+};
+const expectedGuestFor = (row, o) => expectedForRow(row, o, predictionRowDeps);
+const prepareGuestFor = (row, ref, o) => prepareForRow(row, ref, o, predictionRowDeps);
+// the catalog VERSION's { config, configCid } for the deployment's CONFIRMED appRef, through the same agreeing RPCs
+const _versionConfig = { read: null };
+async function versionConfigFor(id) {
+  const row = await confirmRow(id);
+  return versionConfigAt(row.appRef);
+}
+async function versionConfigAt(ref) {
+  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(String(ref || ""));
+  if (!m) return null;
+  _versionConfig.read ||= versionConfigReader(catalogClients, catalogAddress);
+  return _versionConfig.read(m[1].toLowerCase(), Number(m[2]));
+}
+// a configCid's content, fetched and verified against the CID by the platform's own fetcher (the predictor's pinned
+// toolchain), returned as TEXT for the release to parse; null when it cannot be had now (the release answers 503 and keeps
+// the ticket). Immutable by construction, so kept per CID (LRU 64).
+const _configByCid = new Map();
+async function resolveConfigCid(cid) {
+  if (_configByCid.has(cid)) return _configByCid.get(cid);
+  const got = await predictor().fetchVerified(cid, 1 << 20);
+  if (!got.ok) { console.warn(`[secrets-release] configCid ${String(cid).slice(0, 16)}…: ${got.reason}`); return null; }
+  const text = got.bytes.toString("utf8");
+  _configByCid.set(cid, text);
+  while (_configByCid.size > 64) _configByCid.delete(_configByCid.keys().next().value);
+  return text;
+}
+const predictorSets = () => predictor().sets;
+const predictorProblems = () => [...predictor().problems,
+  ...(catalogRpcHosts.size < 2 ? ["SECRETS_RELEASE_CATALOG_RPCS (two or more independent Base RPCs)"] : [])];
+// A release document judged by the VENDORED verifier's SNP domain path (verifier/consumer.mjs verifyGuestDomainEvidence:
+// verifier/index.mjs verifyEvidence's SNP branch, bundled because the relay ships relay/** only): the pinned AMD roots, the
+// CRL, the caller's TCB floor and VMPL, report_data = the release binding and the AppID, HOST_DATA = the deployment. AMD
+// collateral comes from KDS through the reverify cache directory (a cached VCEK is re-verified to the pinned ARK on read).
+let _guestVerifier = null;
+async function guestVerifier() {
+  if (!_guestVerifier) {
+    const bundle = await import("./vendor/enclave-verifier-node.mjs");
+    let collateral;
+    try { fs.mkdirSync(RELAY_REVERIFY_CACHE_DIR, { recursive: true }); collateral = bundle.cachedCollateral({ dir: RELAY_REVERIFY_CACHE_DIR, upstream: bundle.httpCollateral({ timeoutMs: 8000 }) }); }
+    catch { collateral = bundle.httpCollateral({ timeoutMs: 8000 }); }
+    _guestVerifier = { verify: bundle.verifyGuestDomainEvidence, prewarm: bundle.prewarmSnpCollateral, collateral };
+  }
+  return _guestVerifier;
+}
+async function verifyGuestEvidence(doc, { allowedMeasurements, minTcb, expectedVmpl, expectedBinding, expectedAppId, expectedHostData }) {
+  const g = await guestVerifier();
+  return g.verify(doc, { policy: { snp: { allowedMeasurements, minTcb, expectedVmpl } },
+    context: { transportKeySpki: Buffer.from(doc.transportKey, "base64"), expectedBinding, expectedAppId, expectedHostData, now: new Date().toISOString() },
+    collateral: g.collateral });
+}
+// the same collateral, fetched BEFORE a release ticket is consumed (secrets-release.mjs): unavailable = 503, ticket kept
+async function prewarmCollateral(doc) {
+  const g = await guestVerifier();
+  return g.prewarm(doc, g.collateral);
+}
+// the RuntimeID of the runtime identity a guest states (isolation/contract/runtime.go: sha256 of its canonical JSON); it
+// is admitted only when it equals an admitted domain release's own
+const runtimeIdOf = (r) => Buffer.from(runtimeIdOfJson(JSON.stringify(r)), "hex");
+const relayCtx = { shieldSecretRelease, pvmSecretRelease, json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility, leaseHolderChipIds,
+                   // sessions: the owner wallet behind a SessionVault-held record, and the custody release gate
+                   beneficialOwner, custodyRefusal, sessionAuth, screenAddress: (a) => screenAddressSafe(a),
+                   isSessionVault: async (a) => !!(await (await custody()).vaultOwnerOf(a)),
+                   verifyAppCertificate: (epId, d, spki) => { const row = live.find(e => String(e.id).toLowerCase() === String(epId).toLowerCase());
+                     return row && row.mode === "avf" ? pvmMarket.certificate(row, d, spki) : shieldMarket.certificate(row, d, spki); },
+                   // (B) does this endpoint id's live row serve this ledger deployment NOW (hv-node owner-only: served owner,
+                   // this row's live lease, isolation.require = hyperv-partition-per-app)? certs.js 6b and secrets.js has-secrets
+                   ownerServesDeployment: (epId, d) => servesDeploymentUntil(live.find((x) => x.id && String(x.id).toLowerCase() === String(epId || "").toLowerCase()), d) > 0,
+                   expectedGuestFor, prepareGuestFor, noteGuestRelease, predictorProblems, predictorSets, runtimeIdOf, confirmRow, verifyGuestEvidence, prewarmCollateral, versionConfigFor, resolveConfigCid,
                    deploymentsAddress: () => DEPLOYMENTS_ADDRESS,
                    // billing.js quotes at the fleet's cheapest posted price
                    // (rev-8 ledgers carry none of their own)
@@ -2114,14 +2451,114 @@ const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView,
                    // as the tunnel's name-ownership gate: an inactive or absent
                    // entry is "nobody", and errors propagate to the caller's own
                    // fail-closed decision.
-                   operatorOfEndpoint: async (endpoint) => {
-                     if (!REGISTRY_ADDRESS) return null;
-                     const c = await chain();
-                     const e = await c.readContract({ address: REGISTRY_ADDRESS, abi: GET_ABI,
-                       functionName: "get", args: [await endpointId(endpoint)] });
-                     const op = String(e?.operator || "");
-                     return e?.active && !/^0x0{40}$/i.test(op) ? op.toLowerCase() : null;
-                   } };
+                   operatorOfEndpoint: async (endpoint) => registryOperator(await endpointId(endpoint)) };
+
+async function placementRead(id) {
+  await resolveDeployments();
+  if (!DEPLOYMENTS_ADDRESS) throw Error('The deployments ledger is unavailable.');
+  return (await chain()).readContract({ address: DEPLOYMENTS_ADDRESS, abi: DEP_GET_ABI, functionName: 'get', args: [id] });
+}
+const placementDir = dataDir();
+const placement = createPlacement({
+  file: placementDir ? `${placementDir}/placement.json` : '',
+  ledgerAddress: () => DEPLOYMENTS_ADDRESS, read: placementRead, fleet: () => live,
+  accountOwner: async req => {
+    const session = await verifyAccountSession(req.headers.authorization);
+    // a wallet session's account token signs the owner in; it never moves a passkey credit
+    // vault's deployments between hosts (sessions place vault-held records via api.placement)
+    if (!session || session.sid) return null;
+    const key = vaultKeyOf(session.accountId);
+    return key ? String(await vaultAddressFor(key)).toLowerCase() : null;
+  },
+  beneficialOwner,
+  sessionOwner: async (req, raw, id) => {
+    if (!String(req.headers.authorization || "").startsWith("EnclaveSession ")) return null;
+    return sessionOwnerFor(req, raw, "api.placement", await placementRead(id));
+  },
+});
+async function claimPlacement(id, preferred, deployment, force = false, allowFallback = true) {
+  const pin = pinnedHost(deployment.configCid);
+  if (pin) { preferred = pin; allowFallback = false; }
+  else allowFallback = true; // The ledger remains authoritative if the preference save was interrupted.
+  const pool = servingEnclaves();
+  if (!fanoutReserve(pool.length)) return { accepted: false, reason: 'Relay busy; placement will retry shortly.' };
+  try {
+    const client = await chain(), ledger = DEPLOYMENTS_ADDRESS;
+    const owner = String(deployment.owner || '').toLowerCase();
+    return await claimCheapest({ pool, preferred, allowFallback,
+      quote: async host => {
+        const args = [id, host.id];
+        const [rate, claimable] = await Promise.all([
+          client.readContract({ address: ledger, abi: CLAIM_QUOTE_ABI, functionName: 'rateFor', args }),
+          client.readContract({ address: ledger, abi: CLAIM_QUOTE_ABI, functionName: 'claimableBy', args }),
+        ]);
+        return { rate, claimable, selfHosted: !/^0x0{40}$/.test(owner) && String(host.payoutWallet || '').toLowerCase() === owner };
+      },
+      hint: async host => {
+        const body = Buffer.from(JSON.stringify({ id, ...(force ? { force: true } : {}) }));
+        if (tunnelHub.isTunnel(host.endpoint)) {
+          const r = await tunnelHub.request(host.endpoint, { method: 'POST', path: '/v1/claim-hint', headers: { 'content-type': 'application/json' }, body });
+          return JSON.parse(r.body.toString('utf8').slice(0, 4096));
+        }
+        const r = await fetch(host.endpoint + '/v1/claim-hint', { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: AbortSignal.timeout(15000) });
+        return JSON.parse(await readCappedText(r));
+      },
+    });
+  } finally { fanoutRelease(pool.length); }
+}
+let placementSweeping = false;
+async function sweepPlacement() {
+  if (placementSweeping || !placement.hasAny()) return;
+  placementSweeping = true;
+  try { await placement.sweep(await ledgerRows(), claimPlacement); }
+  catch (e) { console.warn(`[placement] retrying later: ${e.message}`); }
+  finally { placementSweeping = false; }
+}
+
+// Two of these must agree on every lease and registry answer. Measured from nan
+// 2026-10-04: mainnet.base.org and most free endpoints refuse a relay's rate.
+const networkLeaseReader=ADDRESS_BOOK?new LeaseReader({addressBook:ADDRESS_BOOK,
+  rpc:(process.env.NETWORK_CHAIN_RPCS||'https://base-rpc.publicnode.com,https://base.gateway.tenderly.co,https://base-public.nodies.app,https://base.drpc.org').split(',').map(s=>s.trim()),
+  includeHostPayout:true,includeConnectivity:'auto'}):null;
+// WHO OWNS a registry id, from the same agreeing public RPCs as route leases
+// (relay/chain-sources.mjs), not the single metered BASE_RPC; a failed read
+// throws, so each caller keeps its own fail-closed rule.
+const agreedRegistryOperator=networkLeaseReader?createRegistryOperator({reader:networkLeaseReader,registry:()=>REGISTRY_ADDRESS}):null;
+const leaseFromChain=networkLeaseReader?createLeaseSource({reader:networkLeaseReader}):null;
+async function registryOperator(id) {
+  if (!REGISTRY_ADDRESS) return null;
+  if (agreedRegistryOperator) return agreedRegistryOperator(id);
+  const e = await (await chain()).readContract({ address: REGISTRY_ADDRESS, abi: GET_ABI, functionName: "get", args: [id] });
+  const op = String(e?.operator || "");
+  return e?.active && !/^0x0{40}$/i.test(op) ? op.toLowerCase() : null;
+}
+// The Enclave network (docs/design/enclave-network.md): provider directory, owner network policies, BYO WireGuard
+// configs. RELAY_NETWORK_CHECKERS lists the qualification checkers this relay stores verdicts from.
+const networkApi = createNetworkApi({ checkers: (process.env.RELAY_NETWORK_CHECKERS || "").split(",").map(s => s.trim().toLowerCase()).filter(s => /^0x[0-9a-f]{40}$/.test(s)),
+  addressBook: ADDRESS_BOOK || undefined, JsonStore, file: dataFile(dataDir(), "network.json"), clients: async () => [await rpcPool()], log: m => console.log("[network] " + m) });
+relayCtx.hostOperator = id => registryOperator(id);
+tunaRoutes = createTunaRoutes({
+  network: networkApi,
+  operatorOf: endpoint => relayCtx.operatorOfEndpoint(endpoint), endpointId,
+  memory: new DurableState(process.env.TUNA_ROUTE_STATE_DIR || '/var/lib/enclave-relay/tuna-route-state'),
+  leaseOf: async id => {
+    if(!networkLeaseReader){const d=(await ledgerRows()).find(d=>String(d.id).toLowerCase()===id);
+      if(!d||_ledger.at+30000<=Date.now())return null;
+      return {...d,id:String(d.id).toLowerCase(),runner:String(d.runner).toLowerCase(),chainId:8453,deployments:DEPLOYMENTS_ADDRESS,
+        leaseUntil:Number(d.leaseUntil)*1000,validUntil:Math.min(Number(d.leaseUntil)*1000,_ledger.at+30000)};}
+    return leaseFromChain(id);
+  },
+  eligible: d => {
+    const row = live.find(e => String(e.id || "").toLowerCase() === String(d.runner).toLowerCase());
+    // a pVM host's app is routed only while its own evidence holds (relay/pvm-market.mjs servesUntil)
+    if (row && row.mode === "avf") return pvmMarket.servesUntil(row, d) > 0;
+    // an hv-node (Enclave Shield) row is routed ONLY per deployment: its owner-only rule or its own app evidence
+    // (servesDeploymentUntil -> shieldMarket.servesUntil), never the row's market eligibility as a whole. The value is the
+    // route's expiry in ms (0 = none), as for an owner-only row below.
+    if (row && row.mode === "hv-node") return servesDeploymentUntil(row, d) * 1000;
+    return !!row && (isOwnerOnlyRow(row) ? servesDeploymentUntil(row, d) * 1000 : computeEligible(row));
+  },
+});
 
 // Every inbound request runs inside one guard, for two reasons.
 //
@@ -2170,35 +2607,23 @@ function handleRequest(req, res) {
     // check lives in domains.js and is applied here even though the add
     // endpoint already refused such a name, because this gate is the last thing
     // between a request and a certificate.
-    if (tlsAskAllowed(asked)) { res.writeHead(200); return res.end(); }
+    // ...and, like an app subdomain below, only while its deployment routes to an ELIGIBLE holder (U7; enclave-5d's
+    // review, F2): the edge never mints a certificate for a name the relay would not route.
+    if (tlsAskAllowed(asked)) {
+      const cid = domainDeployment(asked);
+      if (!cid) { res.writeHead(404); return res.end(); }
+      if (!ownerCached(cid) && !rlMiss(clientIp(req))) { res.writeHead(429); return res.end("rate limited"); }
+      return tenantRoute(cid).then((r) => { res.writeHead(r.endpoint ? 200 : 404); res.end(); });
+    }
     const id = depFromHost(asked);
     if (!id) { res.writeHead(400); return res.end("bad domain"); }
     if (!ownerCached(id) && !rlMiss(clientIp(req))) { res.writeHead(429); return res.end("rate limited"); }
     return deploymentExists(id).then((ok) => { res.writeHead(ok ? 200 : 404); res.end(); });
   }
 
-  // App subdomain: <dep-id>.<APP_DOMAIN> is the deployment's OWN origin. Route it
-  // to the OWNING enclave's /x/<id> data path, passing the app's own headers
-  // through (it's a distinct origin, so the gateway doesn't impose CORS).
-  //
-  // A verified CUSTOM domain resolves to the same deployment and takes exactly
-  // this path. The SNI relay is the normal route for those names, so reaching
-  // here means something terminated TLS in front of us (a customer's CDN, or a
-  // Caddy that fronts this relay) — the routing answer must be the same either
-  // way, and an unknown hostname must reach no app at all rather than the
-  // first one that happens to answer.
-  const depHost = depFromHost(routingHost(req))             // x-forwarded-host only when TRUSTED_PROXY (fix 6)
-               || domainDeployment(routingHost(req));
-  if (depHost) {
-    if (!ownerCached(depHost) && !rlMiss(clientIp(req))) return json(res, 429, { error: "rate_limited", message: "Too many lookups; retry shortly." });
-    return xOwnerOf(depHost).then((owner) => {
-      if (!owner) return json(res, 404, { error: "not_found", message: "No live enclave has " + depHost + "." });
-      const rest = req.url === "/" ? "/" : req.url;           // preserve path+query under /x/<id>
-      // same generous idle window as the /x data path (see gateway()): app
-      // subdomains ARE the data path, and long-silent first bytes are real
-      proxyTo(owner, req, res, { path: "/x/" + depHost + rest, setCors: false, idleMs: 180000 });
-    });
-  }
+  if (depFromHost(routingHost(req)) || domainDeployment(routingHost(req))
+      || /^\/(?:t\/[^/]+\/)?x(?:\/|$)/.test(canonicalBoxPath(u.pathname) || ""))
+    return json(res, 410, {error: "application_transport_moved", message: "Use the application's own hostname."}, req);
 
   // MCP endpoint (mcp.enclave.host, or /mcp on the API host): the coding-agent
   // front door. Checked AFTER the app-subdomain branch so a tenant app's own
@@ -2212,6 +2637,13 @@ function handleRequest(req, res) {
 
   if (u.pathname === "/health")
     return json(res, 200, { ok: true, enclaves: live.length, of: registry.length, updatedAt }, req);
+
+  // The same-origin mirror of the signed release index and the release attestations this relay last verified
+  // (relay/reverify.mjs mirror): bytes and signatures for a client to verify itself, never a verdict. Cached briefly.
+  if (u.pathname === "/v1/release-index" && req.method === "GET") {
+    res.setHeader("cache-control", "public, max-age=300");
+    return json(res, 200, reverifier.mirror(), req);
+  }
 
   if (u.pathname === "/enclaves") {
     // rows list EVERY live enclave (presentation + tunnel health); the
@@ -2229,12 +2661,18 @@ function handleRequest(req, res) {
     // teeCpu / tier / claimEnabled strings.
     const rows = live.map((e) => ({ ...e, serving: servingSet.has(e), eligible: computeEligible(e),
                                     ...(computeEligible(e) ? {} : { ineligible: ineligibleReason(e) }),
-                                    ...(inferenceLaneOf(e) ? { lane: inferenceLaneOf(e) } : {}) }));
+                                    // (B) the deployments an owner-only hv-node row carries now: the data-plane daemons splice
+                                    // ONLY these to it (fleet.mjs servesDeployment), never re-deriving the rule from row fields
+                                    ...(e.ownerOnly ? { servesDeployments: ownerServedDeployments(e) } : {}),
+                                    ...(shieldMarket.eligible(e) ? { ownerOnly: false, tier: "enclave-shield", appEvidenceRequired: true, protection: "host-os-isolation", operatorExcluded: false } : {}),
+                                    ...(pvmMarket.eligible(e) ? { appEvidenceRequired: true, protection: "pkvm-protected-vm", servesDeployments: pvmMarket.served(e, _ledger.rows || []) } : {}),
+                                    ...(pvmCpuLaneOf(e) ? { lane: pvmCpuLaneOf(e) } : {}) }));
     const agg = {
       enclaves: live.length, serving: serving.length,
       totalGpuShareFree: Math.round(serving.reduce((s, e) => s + gpuFreeOf(e.availability), 0) * 1000) / 1000,
       totalCpuShareFree: Math.round(serving.reduce((s, e) => s + cpuFreeOf(e.availability), 0) * 1000) / 1000,
       totalVramFreeGb: Math.round(serving.reduce((s, e) => s + (e.availability.vramFreeGb || 0), 0) * 10) / 10,
+      ...(RELAY_REVERIFY !== "off" ? { reverify: { mode: RELAY_REVERIFY, ...reverifier.stats() } } : {}),
     };
     return json(res, 200, { updatedAt, aggregate: agg, enclaves: rows }, req);
   }
@@ -2290,10 +2728,41 @@ function handleRequest(req, res) {
   if (u.pathname === "/v1/billing" || u.pathname.startsWith("/v1/billing/"))
     return handleBilling(req, res, u, relayCtx).catch((e) =>
       json(res, 500, { error: "billing_error", message: e.message }, req));
+  // Sessions (relay/sessions.mjs): relayer, keeper and index for SessionVaults.
+  // Relay-owned like billing - answers with zero live enclaves.
+  if (u.pathname === "/v1/sessions" || u.pathname.startsWith("/v1/sessions/"))
+    return Promise.resolve(handleSessions(req, res, u, { ...relayCtx, rate: (k) => rlSessions(k) })).catch((e) =>
+      json(res, 500, { error: "sessions_error", message: e.message }, req));
   // Per-deployment secrets (secrets.js): relay-OWNED state like accounts/
   // billing — never proxied, answers with zero live enclaves (owners stage
   // secrets between create and the first claim; the fleet being down must not
   // block that).
+  // the guest a deployment must run, PREDICTED by this relay (secrets-release.mjs expectedGuest): the per-app certificate
+  // gate's independent trust root. Public, GET only, and independent of the secrets store and the release switch.
+  if (u.pathname === "/v1/expected-guest" || u.pathname === "/v1/prepare-guest-update") {
+    if (req.method !== "GET") return json(res, 405, { error: "method_not_allowed", message: "GET only." }, req);
+    const handler = u.pathname === "/v1/prepare-guest-update" ? prepareGuestUpdate : expectedGuest;
+    return handler(u, req, res, relayCtx, { bad: (code, error, message) => json(res, code, { error, message }, req),
+      rate: (k) => rlExpected(k) }).catch((e) => json(res, 500, { error: "expected_guest_error", message: e.message }, req));
+  }
+  const placementPath = /^\/v1\/placement\/(0x[0-9a-f]{64})$/i.exec(u.pathname);
+  if (placementPath) {
+    const id = placementPath[1].toLowerCase();
+    return (async () => {
+    try {
+      if (!rlHint(clientIp(req))) return json(res, 429, { message: 'Too many placement requests; retry shortly.' }, req);
+      if (req.method === 'GET') return json(res, 200, await placement.get(id), req);
+      if (req.method === 'POST') {
+        const raw = await readBody(req, 4096);
+        const body = JSON.parse(raw.toString());
+        return json(res, 200, await placement.put(id, body, req, raw), req);
+      }
+      return json(res, 405, { message: 'GET or POST only.' }, req);
+    } catch (e) { return json(res, e.status || 503, { message: e.message }, req); }
+    })();
+  }
+  if (u.pathname.startsWith("/v1/network/") && u.pathname !== "/v1/network/tuna")
+    return networkApi.handle(req, res, u, relayCtx);
   if (u.pathname === "/v1/secrets" || u.pathname.startsWith("/v1/secrets/"))
     return handleSecrets(req, res, u, relayCtx).catch((e) =>
       json(res, 500, { error: "secrets_error", message: e.message }, req));
@@ -2328,7 +2797,9 @@ function handleRequest(req, res) {
     const origin = `tunnel://${boxName}`;
     if (!tunnelHub.origins().some((o) => o.endpoint === origin))
       return json(res, 404, { error: "no_tunnel", message: `No enclave is attached for ${routingHost(req)}.` }, req);
-    return proxyTo(origin, req, res, { path: u.pathname + (u.search || ""), setCors: true });
+    const refused = tunnelTenantRefusal(origin, u.pathname, req.method);
+    if (refused) return json(res, refused.status, { error: refused.error, message: refused.message }, req);
+    return proxyTo(origin, req, res, { path: u.pathname + (u.search || ""), setCors: true, publicOnly: !tunnelEligible(origin) });
   }
 
   // Reach a SPECIFIC tunnel enclave through the relay: /t/<name>/<rest> forwards
@@ -2339,18 +2810,12 @@ function handleRequest(req, res) {
   const tm = u.pathname.match(/^\/t\/([A-Za-z0-9_-]+)(\/.*|)$/);
   if (tm) {
     const origin = `tunnel://${tm[1]}`;
-    // the pVM carrier's BOOTSTRAP route (relay/pvm-serving.mjs): /t/<name>/pvm/evidence, and only for a name attached as a pVM
-    // (AVF) tunnel -- every other tunnel's /t/ path is proxied exactly as before
-    if (pvmServe && tm[2] === "/pvm/evidence" && tunnelHub.origins().some((o) => o.endpoint === origin && o.mode === "avf") && pvmServe(req, res)) return;
     if (!tunnelHub.origins().some((o) => o.endpoint === origin))
       return json(res, 404, { error: "no_tunnel", message: `No tunnel enclave named ${tm[1]} is attached.` }, req);
-    return proxyTo(origin, req, res, { path: (tm[2] || "/") + (u.search || ""), setCors: true });
+    const refused = tunnelTenantRefusal(origin, tm[2] || "/", req.method);
+    if (refused) return json(res, refused.status, { error: refused.error, message: refused.message }, req);
+    return proxyTo(origin, req, res, { path: (tm[2] || "/") + (u.search || ""), setCors: true, publicOnly: !tunnelEligible(origin) });
   }
-
-  // pVM deployment carrier (PVM_SERVING; OFF by default: pvmServe is null and nothing here runs). Here, and only here: a
-  // sub-route of the /x gateway on the API host. App subdomains, custom domains, the MCP host, box hosts and /t/ were all
-  // dispatched above, so an app's own origin never reaches it.
-  if (pvmServe && pvmServe(req, res)) return;
 
   // API gateway: fleet-aware routing (see the header) — placement on create,
   // owner affinity on deployment-scoped calls, fan-out merge on list, fleet
@@ -2362,82 +2827,11 @@ function handleRequest(req, res) {
   json(res, 404, { error: "not_found", routes: ["/health", "/enclaves", "/v1/relays", "/route?gpuShare=0.25&cpuShare=0.05", "/v1/* /x/* /availability (fleet-routed to the enclaves)"] }, req);
 }
 
-// WebSocket upgrades. Node hands Upgrade requests to an 'upgrade' listener, not
-// the request handler — without one the relay silently ate the enclaves' WS
-// surfaces (the /x/:id/tcp/:port raw-TCP bridge, any app's own websockets) and
-// bridge clients had to bypass the gateway for the enclave origin. Routing
-// mirrors the request path: an app subdomain maps onto the owner's /x/<id>
-// data path, a gateway /x/<id>/... URL passes through verbatim. The relay
-// forwards the handshake bytes untouched and splices sockets after it — it
-// never speaks WS itself, so anything the enclave upgrades to just works.
-const UPGRADE_IDLE_MS = 180000;                              // match the /x data path's window
-// The supervisor's WS bridges look deployments up by EXACT id (deployments.get),
-// unlike its HTTP /x path which resolves hex prefixes — so a subdomain label
-// (8-hex prefix) must be canonicalized to the full ledger id before proxying.
-// Falls back to the given id when the ledger can't answer or the prefix is
-// ambiguous; full-id URLs then still work exactly as before.
-async function fullDepId(id) {
-  if (!/^0x[0-9a-f]{8,63}$/.test(id)) return id;             // full 64-hex (or non-ledger-shaped): pass through
-  try {
-    const hits = (await ledgerRows()).filter((d) => String(d.id).toLowerCase().startsWith(id));
-    if (hits.length === 1) return String(hits[0].id).toLowerCase();
-  } catch {}
-  return id;
-}
-server.on("upgrade", async (req, socket, head) => {
-  socket.on("error", () => socket.destroy());               // dead client mid-handshake must not throw
-  const refuse = (code, text) => { try { socket.write(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`); } catch {} socket.destroy(); };
-  if (!String(req.url || "").startsWith("/")) return refuse(400, "Bad Request");   // origin-form only (see handleRequest)
-  // fleet tunnel attach: a self-hosted enclave dialing IN (token-authed in the hub)
+// The fleet tunnel carries control requests only. Application streams use the Enclave network.
+server.on("upgrade", (req, socket, head) => {
+  socket.on("error", () => socket.destroy());
   if ((req.url || "").split("?")[0] === "/v1/fleet-tunnel") return tunnelHub.handleUpgrade(req, socket, head);
-  // tunnel-routed upgrades (Phase D): /t/<name>/<rest> — the SNI relay's wss
-  // dial into a tunnel box's supervisor (its registered endpoint IS this
-  // path), spliced through the hub as a raw stream; the supervisor answers
-  // the handshake itself, so /x/<id>/tls stays TLS-in-CVM end to end.
-  {
-    const u = new URL("http://x" + (req.url || "/"));
-    const tm = u.pathname.match(/^\/t\/([A-Za-z0-9_-]+)(\/.*|)$/);
-    if (tm) {
-      const origin = `tunnel://${tm[1]}`;
-      if (!tunnelHub.origins().some((o) => o.endpoint === origin)) return refuse(404, "Not Found");
-      return tunnelHub.spliceUpgrade(origin, req, socket, head, (tm[2] || "/") + (u.search || ""));
-    }
-    // …and the same box reached by its own hostname, so a websocket to a box
-    // does not silently fall through to the deployment router below.
-    const bn = boxLabelOfHost(routingHost(req));
-    if (bn) {
-      const origin = `tunnel://${bn}`;
-      if (!tunnelHub.origins().some((o) => o.endpoint === origin)) return refuse(404, "Not Found");
-      return tunnelHub.spliceUpgrade(origin, req, socket, head, u.pathname + (u.search || ""));
-    }
-  }
-  try {
-    const depHost = depFromHost(routingHost(req));           // x-forwarded-host only when TRUSTED_PROXY (fix 6)
-    const x = depHost ? null : (req.url || "").match(X_PATH_RE);
-    if (!depHost && !x) return refuse(404, "Not Found");
-    const id = await fullDepId(depHost || x[1]);
-    const owner = await xOwnerOf(id);
-    if (!owner) return refuse(404, "Not Found");
-    const rest = depHost ? (req.url === "/" ? "/" : req.url) : req.url.slice(3 + (x[1].length));  // after "/x/<id>"
-    const path = "/x/" + id + rest;
-    if (tunnelHub.isTunnel(owner)) return tunnelHub.spliceUpgrade(owner, req, socket, head, path);
-    const target = new URL(owner.replace(/\/+$/, "") + path);
-    const secure = target.protocol === "https:";
-    const up = (secure ? tls : net).connect({
-      host: target.hostname, port: +target.port || (secure ? 443 : 80),
-      ...(secure ? { servername: target.hostname } : {}),
-    }, () => {
-      let raw = `${req.method} ${target.pathname}${target.search} HTTP/1.1\r\n`;
-      for (let i = 0; i < req.rawHeaders.length; i += 2)     // rawHeaders keeps order, casing, duplicates
-        raw += `${req.rawHeaders[i]}: ${/^host$/i.test(req.rawHeaders[i]) ? target.host : req.rawHeaders[i + 1]}\r\n`;
-      up.write(raw + "\r\n");
-      if (head?.length) up.write(head);
-      socket.pipe(up); up.pipe(socket);
-    });
-    const drop = () => { socket.destroy(); up.destroy(); };
-    up.setTimeout(UPGRADE_IDLE_MS, drop); socket.setTimeout(UPGRADE_IDLE_MS, drop);
-    up.on("error", drop); up.on("close", drop); socket.on("close", drop);
-  } catch (e) { refuse(502, "Bad Gateway"); }
+  socket.end("HTTP/1.1 410 Gone\r\nConnection: close\r\n\r\nApplication connections use their own hostname.");
 });
 
 await pollRegistry();
@@ -2447,13 +2841,63 @@ await initAccounts();          // no data dir/deps => disabled with one log line
 await initSso();               // SSO_SIGNER_KEY unset => disabled with one log line
 await initBilling(relayCtx);   // needs accounts; degrades the same way
 await initSecrets();           // needs SECRETS_KEY + the same data dir; degrades the same way
+setInterval(sweepPlacement, 10000).unref?.();
+// attested release on: run the predictor's known-answer test now, in the background, so the first release after a restart
+// does not wait for it (a failure is logged and every release refused until a later test passes)
+// whenever the predictor is configured (it also serves /v1/expected-guest with the release OFF)
+// ...and once it passes, every release-listed deployment's predictions are pre-warmed (secrets-release.mjs), then again every
+// RELEASE_PREWARM_SEC (default 600; 0 = off): a cached key costs a catalog read, a new app version is computed before its release
+let _prewarming = false;
+const prewarmReleases = () => {
+  if (_prewarming) return;
+  // only while the predictor's known-answer test passes (enclave-bf): a failing one computes nothing usable, so a tick
+  // re-runs the test instead (selfTest dedupes a run in flight) and pre-warms on the first pass (proactive recovery)
+  if (!(predictor().state().kat || {}).ok) {
+    predictor().selfTest().then((k) => { if (k.ok) { console.log(`[measurement-predict] known-answer test PASS on a pre-warm tick: ${k.reason}`); prewarmReleases(); } }).catch(() => {});
+    return;
+  }
+  _prewarming = true;
+  prewarmReleasePredictions(relayCtx).catch((e) => console.error(`[secrets-release] pre-warm failed: ${e.message}`)).finally(() => { _prewarming = false; });
+};
+const RELEASE_PREWARM_SEC = parseInt(process.env.RELEASE_PREWARM_SEC ?? "600", 10);
+if (process.env.SECRETS_RELEASE_PREDICT_COMMIT && !predictorProblems().length) {
+  predictor().selfTest().then((k) => {
+    console.log(`[measurement-predict] known-answer test at start: ${k.ok ? "PASS" : "FAIL"}: ${k.reason}`);
+    if (k.ok && RELEASE_PREWARM_SEC > 0) prewarmReleases();
+  }).catch(() => {});
+  if (RELEASE_PREWARM_SEC > 0) setInterval(prewarmReleases, Math.max(60, RELEASE_PREWARM_SEC) * 1000).unref?.();
+}
 startSecretsSweep(relayCtx);   // hourly off-ledger purge (no-op while disabled)
 await initDomains();           // custom domains: same data dir, CUSTOM_DOMAINS=0 opts out
+await initSessions({ dataDir: dataDir(), JsonStore, alert: sessionsAlert });   // SESSIONS_RELAYER_KEY unset => disabled with one log line
+if (sessionsService()) setSessionHooks({   // account tokens derived from (and revoked with) a wallet session
+  // a relay ACCOUNT token is the owner's whole account (sign-in, SSO into apps, billing): only sessions
+  // granted api.account (the browser preset) may derive one - never an agent's staging key
+  verify: async (req, raw) => {
+    const host = String(req.headers.host || "").trim();
+    const u = new URL(req.url, "http://relay");
+    return sessionsService().verifyApiRequest({ header: req.headers.authorization || "", method: req.method,
+      hostPath: host + u.pathname + u.search, body: raw, scope: "api.account", fresh: true });
+  },
+  state: async (vault, sid) => {
+    const r = await sessionsService().route("GET", `/session/${vault}/${sid}`, {});
+    return { ...r.state, live: Boolean(r.state.live) && !r.revoked };
+  },
+  isRevoked: (sid) => Boolean(sessionsService()?.store?.data?.revoked?.[String(sid).toLowerCase()]),
+});
 startDomainSweep(relayCtx);    // DNS re-check + demotion sweep (no-op while disabled)
 await initCerts();             // platform certs: CERTS_KEY + DNS_API + DNS_TXT_KEY + APP_ZONE + the data dir
 setInterval(pollRegistry, REGISTRY_POLL_SEC * 1000);
 setInterval(resolveDeployments, REGISTRY_POLL_SEC * 1000);
 setInterval(pollAvailability, AVAIL_POLL_SEC * 1000);
+// the re-verification of dialed rows: its own cadence, never inside the availability poll (KDS rate-limits; a slow
+// enclave must not delay the fleet view); rows are re-annotated from the verdicts it writes
+if (RELAY_REVERIFY !== "off") {
+  const reverifyRound = async () => { try { await reverifier.run(live); live = live.map((e) => reverifier.annotate(e)); } catch (e) { console.error("[reverify] round failed:", e.message); } };
+  setTimeout(reverifyRound, 20_000).unref?.();
+  setInterval(reverifyRound, RELAY_REVERIFY_SEC * 1000).unref?.();
+  console.log(`[reverify] ${RELAY_REVERIFY}: dialed rows re-verified every ${RELAY_REVERIFY_SEC}s with the vendored verifier`);
+}
 
 const BIND = process.env.API_RELAY_BIND || undefined;
 if (!BIND) console.error("[api-relay] NOTE: binding ALL interfaces (no API_RELAY_BIND). If a local Caddy fronts this relay, set API_RELAY_BIND=127.0.0.1 so :" + PORT + " isn't reachable directly.");

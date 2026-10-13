@@ -1,0 +1,21 @@
+/* ============================================================
+   Sessions: the grant-from-link page (grant.html) and the
+   sessions overview (sessions.html). js/pages/grant.js, sessions.js
+   ============================================================ */
+#grant .co-body,#sessions .co-body{margin-top:26px;max-width:760px;}
+.ss-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;margin-bottom:16px;}
+.ss-card h3{margin:0 0 8px;font-size:1rem;color:var(--text);}
+.ss-card .co-note{font-size:.88rem;line-height:1.6;color:var(--text-muted);margin:10px 0 0;}
+.ss-lines{margin:10px 0 0;padding-left:1.1em;color:var(--text);font-size:.9rem;line-height:1.65;}
+.ss-warn{margin:12px 0 0;padding:10px 12px;border:1px solid var(--amber-2);border-radius:8px;color:var(--amber-2);font-size:.86rem;line-height:1.55;}
+.ss-code{display:inline-block;background:var(--well);border:1px solid var(--line-soft);border-radius:8px;padding:.25em .5em;font-family:var(--font-mono);font-size:1.15rem;letter-spacing:.18em;color:var(--text);}
+.ss-facts{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:10px 0 0;font-family:var(--font-mono);font-size:.8rem;}
+.ss-facts dt{color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em;font-size:.66rem;align-self:center;}
+.ss-facts dd{margin:0;color:var(--text);word-break:break-all;}
+.ss-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}
+.ss-meter{height:6px;background:var(--well);border-radius:4px;overflow:hidden;margin-top:8px;}
+.ss-meter > span{display:block;height:100%;background:var(--jade);}
+.ss-pill{display:inline-block;font-family:var(--font-mono);font-size:.68rem;padding:.15em .5em;border-radius:999px;border:1px solid var(--line);color:var(--text-muted);margin-left:6px;vertical-align:middle;}
+.ss-pill.live{border-color:var(--jade);color:var(--jade);}
+.ss-log{margin:10px 0 0;font-family:var(--font-mono);font-size:.74rem;color:var(--text-muted);max-height:180px;overflow:auto;}
+.ss-log div{padding:2px 0;border-bottom:1px solid var(--line-soft);}

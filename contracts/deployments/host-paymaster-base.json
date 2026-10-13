@@ -1,0 +1,16 @@
+{
+ "network": "base",
+ "address": "0x0ad1095201B9819b7238B1661d5c1e0C7f48A1D1",
+ "deployTx": "0xba54d8f960584c760f20eef2cea75fc0455e20e6dc8c0a499867882627a77713",
+ "entryPoint": "0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108",
+ "registry": "0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC",
+ "verifier": "0xbaC58672230DDD4468De4160acA5EeEf169Bb066",
+ "maxCostPerOpWei": "100000000000000",
+ "deployer": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
+ "failedDepositTx": "0x258fb7f202923445b5738a80d1a70d645a4d5ccbdb78ccd44851ddb13f0381dc",
+ "depositTx": "0xb208c5741b0c22c25850df91bbd69dca40c3b62299a5f731f1c1b2641bfbe98c",
+ "depositWei": "500000000000000",
+ "transferTx": "0x35253b1aa428bd7f60726d133a7a474fbef935e75ce1f0c927aa74a3487916d3",
+ "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+ "ownerAcceptedAt": "2026-10-11"
+}

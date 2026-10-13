@@ -1,0 +1,227 @@
+{
+ "host": "0ddbd824.app.enclave.host",
+ "at": "2026-09-24T21:39:52.974Z",
+ "contract": {
+  "path": "/home/steven/Projects/enclave-verifier/.verifier-integration/linux-domain-contract-cf8b22bdd6cd/isolation/contract/runtime.mjs",
+  "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69"
+ },
+ "expectations": {
+  "measurement": "be6b8644384eee12396881e3e4cbca4259ae1a16a1e198d2c48d577ff7b3c6d355971eccebe8353749439adca718da4d",
+  "measurementSource": "command line",
+  "identity": {
+   "name": "wasmtime",
+   "version": "48.0.1",
+   "execution": "jit",
+   "targetIsa": "x86_64",
+   "hostIsa": "x86_64",
+   "cpuFeatures": "host-detected",
+   "wx": "enforced",
+   "cache": "none"
+  },
+  "minTcb": {
+   "Turin": {
+    "fmc": 1,
+    "bootloader": 3,
+    "tee": 2,
+    "snp": 5,
+    "microcode": 117
+   }
+  },
+  "derivation": "enclave-catalog-bundle/2",
+  "http": 8000,
+  "appId": "d2c4dfc0ec475910aa509d1045ae4f2997346c1cd666a167cd5fc959c036aa24",
+  "appIdSource": "command line"
+ },
+ "session": {
+  "protocol": "TLSv1.3",
+  "alpn": false,
+  "servedCertSubject": "CN=0ddbd824.app.enclave.host",
+  "servedCertIssuer": "C=AT\nO=ZeroSSL GmbH\nCN=ZeroSSL ECC DV SSL CA 2",
+  "servedCertSerial": "3636639abf417f4b384a95a6468d5d3f",
+  "servedCertSha256": "252cf4a653bb8d44215edef2dd91bfcdcf64846b3062abc38213926a8e02b7e1",
+  "servedCertValid": [
+   "Sep 24 00:00:00 2026 GMT",
+   "Dec 23 23:59:59 2026 GMT"
+  ],
+  "servedSpkiSha256": "b071a9c9cbd72f3b2ebe1cb0663f965091aa07513021554105df349ed8299bab",
+  "httpStatus": "200",
+  "bodyBytes": 2209
+ },
+ "saved": "test/fixtures/verifier/linux-hookbin-2026-09-24",
+ "document": {
+  "keys": [
+   "abi",
+   "appSha256",
+   "format",
+   "nonce",
+   "report",
+   "runtime",
+   "runtimeSelfTest",
+   "tier",
+   "transportKey"
+  ],
+  "format": "sev-snp-guest-domain-v1",
+  "abi": "enclave-domain-abi/2",
+  "tier": "T1",
+  "nonceEchoed": true,
+  "transportKeyIsServedSpki": true,
+  "runtime": {
+   "name": "wasmtime",
+   "version": "48.0.1",
+   "execution": "jit",
+   "targetIsa": "x86_64",
+   "hostIsa": "x86_64",
+   "cpuFeatures": "host-detected",
+   "wx": "enforced",
+   "cache": "none"
+  },
+  "runtimeSelfTest": "exec_pages=allowed wx=clean maps=3 scope=all-processes",
+  "hasCerts": false
+ },
+ "hostData": {
+  "reported": "0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76",
+  "expected": "0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76"
+ },
+ "verdict": {
+  "technology": "amd-sev-snp",
+  "status": "verified",
+  "admissionSafe": true,
+  "omissions": [],
+  "reasons": [
+   "report version 5, 1184 bytes, VCEK-signed, ECDSA P-384, reserved ranges zero",
+   "product line Turin (from the report's CPUID, confirmed below by the chain)",
+   "guest policy 0x30000: DEBUG off, MIGRATE_MA off, SMT allowed, ABI 0.0",
+   "report is from VMPL0 (full privilege inside the guest)",
+   "AMD chain verified: VCEK -> ASK (SEV-Turin) -> ARK-Turin, ARK pinned by sha256, all three valid at 2026-09-24",
+   "CRL verified (ARK-signed, 0 revoked serial(s), valid 2026-08-19 .. 2026-10-04); ASK serial 030001 not revoked",
+   "PSP signature over bytes 0..0x2a0 verifies with the VCEK (r, s in range)",
+   "VCEK extensions name this chip (fa11afcf54ae9c53...) and the reported TCB (fmc 1, bootloader 3, tee 2, snp 5, microcode 117)",
+   "reported TCB meets the supplied Turin minimum (fmc 1, bootloader 3, tee 2, snp 5, microcode 117); committed TCB meets it too",
+   "launch measurement is one the policy allows (from verified provenance, or the caller's explicit expectation)",
+   "report_data[0:32] equals the ABI/2 (caller-derived Bind2 over key, nonce and runtime identity) binding",
+   "report_data[32:64] names the expected app",
+   "report HOST_DATA equals the expected deployment id (the host's launch-time binding, PSP-signed)"
+  ],
+  "checks": {
+   "report shape": true,
+   "report version": true,
+   "product line": true,
+   "guest policy": true,
+   "vmpl": true,
+   "chain": true,
+   "crl": true,
+   "signature": true,
+   "vcek identity": true,
+   "tcb policy": true,
+   "measurement": true,
+   "binding": true,
+   "app id": true,
+   "host data": true
+  },
+  "claims": {
+   "technology": "amd-sev-snp",
+   "format": "sev-snp-guest-domain-v1",
+   "family": "domain",
+   "reportVersion": 5,
+   "vmpl": 0,
+   "guestSvn": 0,
+   "measurement": "be6b8644384eee12396881e3e4cbca4259ae1a16a1e198d2c48d577ff7b3c6d355971eccebe8353749439adca718da4d",
+   "reportData": "fbc3482ea384938fb7d7e7f9e920da84fb4b60a6c5dab827b292edb5ba6099cad2c4dfc0ec475910aa509d1045ae4f2997346c1cd666a167cd5fc959c036aa24",
+   "hostData": "0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76",
+   "chipId": "fa11afcf54ae9c530000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "reportId": "315f4a71e12397ac03faa95192c9902eafb01265b100fc81323c15906d218e98",
+   "guestPolicy": {
+    "abiMinor": 0,
+    "abiMajor": 0,
+    "smt": true,
+    "migrateMa": false,
+    "debug": false,
+    "singleSocket": false,
+    "cxlAllowed": false,
+    "memAes256Xts": false,
+    "raplDis": false,
+    "ciphertextHidingDram": false,
+    "pageSwapDisabled": false
+   },
+   "platformInfo": {
+    "smtEnabled": true,
+    "tsmeEnabled": false,
+    "eccEnabled": true,
+    "raplDisabled": false,
+    "ciphertextHidingDram": false,
+    "aliasCheckComplete": true,
+    "tioEnabled": false
+   },
+   "firmware": {
+    "current": "1.58 build 3",
+    "committed": "1.58 build 3"
+   },
+   "idKeyDigest": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "authorKeyDigest": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "authorKeyEn": false,
+   "maskChipKey": false,
+   "product": "Turin",
+   "collateral": {
+    "vcek": {
+     "source": "memory",
+     "fetchedAt": null,
+     "cached": false
+    },
+    "chain": {
+     "source": "memory",
+     "fetchedAt": null,
+     "cached": false
+    },
+    "crl": {
+     "source": "memory",
+     "fetchedAt": null,
+     "cached": false
+    }
+   },
+   "vcekSource": "memory",
+   "vcekFingerprint": "7370435c9f70be9fff3991b7a6dfff31d0a5f7f982eb74c89a90af1963a77835",
+   "arkFingerprint": "1f084161a44bb6d93778a904877d4819cafa5d05ef4193b2ded9dd9c73dd3f6a",
+   "crlChecked": true,
+   "crlNextUpdate": "2026-10-04T00:00:00.000Z",
+   "tcb": {
+    "reported": {
+     "fmc": 1,
+     "bootloader": 3,
+     "tee": 2,
+     "snp": 5,
+     "microcode": 117
+    },
+    "current": {
+     "fmc": 1,
+     "bootloader": 3,
+     "tee": 2,
+     "snp": 5,
+     "microcode": 117
+    },
+    "committed": {
+     "fmc": 1,
+     "bootloader": 3,
+     "tee": 2,
+     "snp": 5,
+     "microcode": 117
+    },
+    "launch": {
+     "fmc": 1,
+     "bootloader": 3,
+     "tee": 2,
+     "snp": 5,
+     "microcode": 117
+    }
+   },
+   "transportSpkiSha256": "b071a9c9cbd72f3b2ebe1cb0663f965091aa07513021554105df349ed8299bab",
+   "appId": "d2c4dfc0ec475910aa509d1045ae4f2997346c1cd666a167cd5fc959c036aa24",
+   "abi": "enclave-domain-abi/2",
+   "freshness": "verifier nonce"
+  }
+ },
+ "roots": "pinned: relay/snp-verify.mjs AMD_ARK_SHA256",
+ "binding": {
+  "runtimeId": "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8",
+  "bind2": "fbc3482ea384938fb7d7e7f9e920da84fb4b60a6c5dab827b292edb5ba6099ca"
+ }
+}

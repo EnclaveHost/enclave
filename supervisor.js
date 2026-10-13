@@ -19,6 +19,7 @@
 // >>> The ONLY thing left to implement for your CVM is spawn/stop/measure below.
 
 import express from "express";
+import { planCheckpoints } from "./windows/node/verification-checkpoints.mjs";
 import cors from "cors";
 import http from "node:http";
 import https from "node:https";
@@ -39,7 +40,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { SignJWT, jwtVerify } from "jose";
 import { Verifier, assembleAttestationBundle } from "@tinfoilsh/verifier";
-// dedicated-IP egress: the outbound half of the per-deployment address (see egress.js)
+// Per-tenant SOCKS credentials and destination policy in front of TUNA.
 import { createEgress } from "./egress.js";
 // contract addresses: LIVE BINDINGS owned by addressbook.js — seeded from the
 // baked env, overridden from the on-chain EnclaveAddressBook when
@@ -47,6 +48,9 @@ import { createEgress } from "./egress.js";
 // RUNNING enclave without a new release.
 import { initAddressBook, REGISTRY_ADDRESS, DEPLOYMENTS_ADDRESS, APP_CATALOG_ADDRESS,
          FORWARDER_ADDRESS, PROOF_OF_TIME_ADDRESS } from "./addressbook.js";
+// Wallet sessions (SessionVault) as owner credentials, verified on chain: shared with the Windows node.
+import { createSessionApiAuth, isSessionHeader, hasScope, apiBases, envList, DEFAULT_API_HOSTS, DEFAULT_FACTORIES }
+  from "./windows/node/session-api-auth.mjs";
 
 // Process-wide crash guards. This is Express 4: a rejected async route (or any
 // stray background rejection) would otherwise take the whole process down —
@@ -178,7 +182,7 @@ async function verifySessionToken(token) {
     // reachable by any app bug that can make the browser issue a same-origin
     // request. Refusing every token that names an audience keeps the blast
     // radius of a leaked app cookie at "that one app", instead of handing over
-    // deployment listing, logs, secrets and every other `authed` route.
+    // deployment listing, logs, secrets and every other `ownerAuth` route.
     if (payload.aud !== undefined) return null;
     return getAddress(payload.sub);
   }
@@ -1982,32 +1986,16 @@ function parseDepOptions(raw, gpuMilli) {
   if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: waf, config, configCid, gpu, network)`);
   const opts = {};
   if ("network" in o) {
-    // WHICH RELAY carries this deployment's traffic. Unlike every other
-    // namespace here, nothing in this CVM acts on it: the choice is consumed at
-    // the DNS layer, which answers <label>.app.enclave.host with the chosen
-    // relay's address instead of the zone-wide default. It is validated here
-    // anyway, and refused rather than ignored, for the reason the whole
-    // envelope is fail-closed — an owner who typo'd their relay would otherwise
-    // be told nothing and quietly keep the default, which is exactly the class
-    // of silence this field exists to avoid.
-    //
-    // A NAME, not an address: the relay set moves (a box is replaced, an
-    // address changes) and a deployment should follow the relay it chose rather
-    // than pin the machine it happened to be on. Resolution name -> address is
-    // the fleet's job, not this record's.
     const n = o.network;
-    if (!n || Array.isArray(n) || typeof n !== "object")
-      throw new Error("network must be a JSON object like {\"relay\":\"us-west\"}");
-    const badN = Object.keys(n).filter((k) => k !== "relay");
-    if (badN.length) throw new Error(`unknown network option ${JSON.stringify(badN[0])} (this runner knows: relay)`);
-    if ("relay" in n) {
-      const r = n.relay;
-      // "" / null is a deliberate, expressible choice: back to the zone default.
-      if (r === null || r === "") opts.relay = "";
-      else if (typeof r !== "string" || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(r))
-        throw new Error("network.relay must be a relay name: lowercase letters, digits and dashes, up to 63 characters (or \"\" for the fleet default)");
-      else opts.relay = r;
-    }
+    if (!n || Array.isArray(n) || typeof n !== "object") throw new Error("network must be a JSON object");
+    const bad = Object.keys(n).filter(k => k !== "transport" && k !== "relay");
+    if (bad.length) throw new Error(`unknown network option ${JSON.stringify(bad[0])}`);
+    if ("transport" in n && n.transport !== "tuna") throw new Error("network.transport must be tuna");
+    // Existing ledger envelopes can still contain a relay preference. It no
+    // longer selects a route and is not copied into runtime configuration.
+    if ("relay" in n && n.relay !== null && n.relay !== "" &&
+        (typeof n.relay !== "string" || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(n.relay)))
+      throw new Error("invalid retired network.relay metadata");
   }
   if ("gpu" in o) {
     // The card requirement, softened. `optional: true` says the deployment
@@ -2728,6 +2716,30 @@ async function initMps() {
 // per-tick call budget is kept low by deriving post-tx state from receipts.
 const chainClient = createPublicClient({ chain: base, transport: rpcTransport() });
 
+// ---- wallet sessions as owner credentials (windows/node/session-api-auth.mjs) ----------------------------------------
+// `Authorization: EnclaveSession v1 …` is accepted wherever the SIWE session token is (ownerAuth below), so the site and
+// the CLI need no per-host sign-in. Nothing the relay says is believed: the signature, the vault's factory, the session's
+// key, liveness and scope, and the record rule (vault-held: the session's environments; wallet-held: production + the
+// owner's ledger delegation) are all read here, from the chain.
+//
+// What a client signed: host + path + query of the URL it called. The relay forwards /v1/deployments/<id>/... to this box
+// with the path untouched (and /t/<name>/... with /t/<name> stripped), so a request verifies for any base in
+// apiBases(): each API front door (SESSION_API_HOSTS, default api.enclave.host) as is and with /t/<tunnel name>, and this
+// box's own public URLs (PUBLIC_URL, the attested certificate SAN). Never the Host header.
+// SESSION_API_TUNNEL_NAMES adds tunnel names beyond the one PUBLIC_URL's /t/<name> path already names.
+// Vault factories: the address book's sessionVaultFactory plus SESSIONS_FACTORIES (default v2 + v1).
+const SESSION_API_HOSTS = envList(process.env.SESSION_API_HOSTS);
+const sessionApi = createSessionApiAuth({
+  pc: chainClient,
+  book: () => (process.env.ADDRESS_BOOK_ADDRESS || "").trim() || null,
+  ledger: () => DEPLOYMENTS_ADDRESS || null,
+  factories: envList(process.env.SESSIONS_FACTORIES).length ? envList(process.env.SESSIONS_FACTORIES) : DEFAULT_FACTORIES,
+  bases: () => apiBases({ hosts: SESSION_API_HOSTS.length ? SESSION_API_HOSTS : DEFAULT_API_HOSTS,
+    tunnelNames: envList(process.env.SESSION_API_TUNNEL_NAMES),
+    publicUrls: [PUBLIC_URL, _certSan ? `https://${_certSan}` : null] }),
+  log: (m) => console.warn(`[session-auth] ${m}`),
+});
+
 // ----------------------------------------------------------------------------
 // state (in-process; this service is the single enclave instance)
 // ----------------------------------------------------------------------------
@@ -3358,7 +3370,7 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
         // predates the field ignores it — which is why the claim path gates on
         // the fleet advertising config_cid before taking such a deployment.
         configCid: configCid || "",
-        // dedicated-IP egress: a per-deployment SOCKS URL the manager forwards
+        // TUNA egress: a per-deployment SOCKS URL the manager forwards
         // verbatim as the guest's ENCLAVE_EGRESS (empty when egress is off). The
         // token in it is minted from the enclave SECRET, so the manager never
         // needs the secret and the value never touches a log line.
@@ -3612,6 +3624,28 @@ async function cachedGpuEvidence() {
 // own PUBLIC origin (hairpin) plus Tinfoil's GitHub/KDS proxies; if any of that
 // is unreachable from inside, it degrades to "unavailable", never an error.
 const SELF_CHECK_TTL_MS  = parseInt(process.env.SELF_CHECK_TTL_MS || "300000", 10); // re-check cadence after a pass (non-pass retries after 30s)
+// Which verifiers the self-check runs (docs/security/independent-verifier-plan.md, section 9 stage 2):
+//   both (default): @tinfoilsh/verifier as before AND this repository's own verifier (verifier/dist/enclave-verifier-node.mjs,
+//                   copied into the image by the Dockerfile); `result` and `steps` stay Tinfoil's, the second result is
+//                   published beside them as `enclave`, with `agreement`. A diagnostic beside a diagnostic.
+//   tinfoil:        the fallback: exactly the previous behaviour, nothing else runs.
+//   enclave:        the own verifier decides `result` (the cutover for this consumer, per stage 7); Tinfoil's runs beside it.
+const SELF_CHECK_VERIFIERS = ["both", "tinfoil", "enclave"].includes(process.env.SELF_CHECK_VERIFIERS || "") ? process.env.SELF_CHECK_VERIFIERS : "both";
+// The own verifier's release index: the github-proxy this enclave already reaches (default) or GitHub directly. Either
+// only serves bytes that must verify against the pinned Sigstore root inside the bundle; a proxy can deny, not forge.
+const SELF_CHECK_RELEASE_INDEX = process.env.SELF_CHECK_RELEASE_INDEX === "direct" ? null : { apiBase: "https://github-proxy.tinfoil.sh", downloadBase: "https://github-proxy.tinfoil.sh" };
+// The own verifier's AMD collateral source (VCEK, chain, CRL): Tinfoil's KDS proxy (the host this enclave reaches today) or
+// AMD's KDS directly (SELF_CHECK_KDS=amd); the bytes are verified against the pinned AMD root either way.
+const SELF_CHECK_KDS = process.env.SELF_CHECK_KDS === "amd" ? "https://kdsintf.amd.com" : "https://kds-proxy.tinfoil.sh";
+// A TCB floor per product line, JSON (e.g. {"Genoa":{"bootloader":10,"tee":0,"snp":23,"microcode":84}}); without one the
+// own verdict is at best "limited" (tcb-floor-unjudged), which is reported as such and never as a pass.
+const SELF_CHECK_MIN_TCB = (() => { const raw = process.env.SELF_CHECK_MIN_TCB; if (!raw) return undefined; try { return JSON.parse(raw); } catch { return raw; } })();
+// Where the own verifier remembers the highest signed release index it verified (verifier/index-memory.mjs), so a replayed
+// or equivocating index is refused and the fallback never accepts below the remembered floor. Inside the CVM this lives for
+// the instance's life unless SELF_CHECK_STATE_DIR names a persistent volume; stated in the result as index.freshness.
+// SELF_CHECK_REQUIRE_INDEX=1 is the strict switch: no verified, fresh index means the own leg has no expected measurement.
+const SELF_CHECK_STATE_DIR = process.env.SELF_CHECK_STATE_DIR || "/tmp/enclave-self-check";
+const SELF_CHECK_REQUIRE_INDEX = process.env.SELF_CHECK_REQUIRE_INDEX === "1";
 const SELF_CHECK_WAIT_MS = parseInt(process.env.SELF_CHECK_WAIT_MS || "8000", 10);  // max time one request waits on a fresh run
 const SELF_CHECK_NOTE = "Run by the enclave itself as a diagnostic: it proves this deployment is configured "
                       + "to verify, not that you should trust it. Reproduce it on your side with `cli`, `npm`, "
@@ -3661,9 +3695,43 @@ async function verifyMatchingRelease(host, repo) {
   return latest;   // nothing matched: the latest-comparison doc carries the mismatch detail
 }
 
+// The own verifier's leg: verifier/consumer.mjs selfCheckHosted through the bundle the image carries. The capture goes to
+// the shim over loopback (the trusted in-CVM source fetchEnclaveRad uses, with SNI for the public name so the shim presents
+// the public certificate), the expected measurement comes from release provenance verified against the pinned Sigstore
+// root, the AMD chain and CRL from the collateral source above. Anything missing or failing is a status, never a throw.
+let _ownVerifier = null, _ownIndexMemory = null;
+async function runOwnSelfCheck(origin) {
+  if (!ENCLAVE_REPO) return { verifier: "enclave", status: "unavailable", reasons: ["ENCLAVE_REPO not configured"] };
+  if (!origin)       return { verifier: "enclave", status: "unavailable", reasons: ["public origin not known yet (no external request seen)"] };
+  try { _ownVerifier ||= await import("./verifier/dist/enclave-verifier-node.mjs"); }
+  catch (e) { return { verifier: "enclave", status: "unavailable", reasons: [`the verifier bundle is not in this image: ${e.message}`] }; }
+  const C = _ownVerifier;
+  if (!_ownIndexMemory && typeof C.createIndexMemory === "function") _ownIndexMemory = C.createIndexMemory({ file: `${SELF_CHECK_STATE_DIR}/verifier-index-memory.json`, log: (m) => console.log(`[self-check] ${m}`) });
+  const loopback = ATTESTATION_URL ? { host: new URL(ATTESTATION_URL).hostname, port: Number(new URL(ATTESTATION_URL).port) || (new URL(ATTESTATION_URL).protocol === "https:" ? 443 : 80) } : { host: "127.0.0.1", port: 443 };
+  return C.selfCheckHosted({ publicHost: new URL(origin).hostname, loopback, repo: ENCLAVE_REPO, releaseIndex: SELF_CHECK_RELEASE_INDEX,
+                             collateral: C.httpCollateral({ base: SELF_CHECK_KDS, timeoutMs: 8000 }), minTcb: SELF_CHECK_MIN_TCB, timeoutMs: 15000,
+                             indexMemory: _ownIndexMemory, requireIndex: SELF_CHECK_REQUIRE_INDEX });
+}
+// The two legs agree or not, in words a reader can act on (verifier/consumer.mjs dualAgreement: descriptive, each leg
+// fetched for itself; a refusal never becomes a pass). Without the bundle there is nothing to compare with.
+function selfCheckAgreement(t, e) {
+  if (!_ownVerifier?.dualAgreement || !t || !e) return "not-compared";
+  return _ownVerifier.dualAgreement({ reference: { available: t.result !== "unavailable", pass: t.result === "pass", measurement: t.measurement }, own: e });
+}
 let _selfCheck = null;                  // { data, at }
 let _selfCheckRun = null;               // in-flight run (shared across concurrent requests)
 async function runSelfCheck(origin) {
+  const mode = SELF_CHECK_VERIFIERS;
+  const [t, e] = await Promise.all([
+    mode === "enclave" || mode === "both" || mode === "tinfoil" ? runTinfoilSelfCheck(origin).catch((x) => ({ result: "unavailable", error: x.message })) : null,
+    mode === "tinfoil" ? null : runOwnSelfCheck(origin).catch((x) => ({ verifier: "enclave", status: "unavailable", reasons: [x.message] })),
+  ]);
+  if (mode === "tinfoil") return t;                                                     // the previous behaviour, byte for byte
+  const own = e ? { ...e, result: e.status === "verified" ? "pass" : e.status === "unavailable" ? "unavailable" : "fail" } : null;
+  const primary = mode === "enclave" ? { result: own.result, ...(own.result !== "pass" ? { error: own.reasons?.at(-1) || own.status } : {}), release: own.release ? `release ${own.release}` : null, measurement: own.measurement ?? null } : t;
+  return { ...primary, verifiers: mode, ...(mode === "enclave" ? { tinfoil: t } : {}), enclave: own, agreement: selfCheckAgreement(t, own) };
+}
+async function runTinfoilSelfCheck(origin) {
   if (!ENCLAVE_REPO) return { result: "unavailable", error: "ENCLAVE_REPO not configured" };
   if (!origin)       return { result: "unavailable", error: "public origin not known yet (no external request seen)" };
   let doc, failure = null;
@@ -3873,94 +3941,17 @@ function parseFirewall(fw) {
 const fwTcpPorts = (rec) => (rec.firewall || []).filter((x) => x.startsWith("tcp:")).map((x) => +x.slice(4));
 const fwUdpPorts = (rec) => (rec.firewall || []).filter((x) => x.startsWith("udp:")).map((x) => +x.slice(4));
 
-// ---------------------------------------------------------------------------
-// Per-deployment addressing — each deployment gets its OWN IPv6 out of the
-// relay box's routed /64, and the relays route by destination IP. This is the
-// deployment's dedicated address: the udp-relay serves its udp:N ports there,
-// and the tcp6-relay serves its tcp:N ports there (at the LOGICAL port, no SNI,
-// no remapping — clients use the port the app declared). The address is
-// DETERMINISTIC from the deployment id (sha256 → low 64 host bits), so the
-// supervisor and every relay derive the identical value with no shared state.
-// DEP_ADDR_PREFIX (or the legacy UDP_ADDR_PREFIX) is the relay box's routed /64
-// (e.g. "2a01:4f9:c013:9b52::/64", the live fleet's); unset = dedicated addressing off (the
-// /x/:id/(tcp|udp) bridges still work for direct callers, but no address is
-// advertised). See relay/README.md.
-const DEP_ADDR_PREFIX = (process.env.DEP_ADDR_PREFIX || process.env.UDP_ADDR_PREFIX || "").trim();
-function v6ToBig(s) {                                       // parse an IPv6 (incl. "::") to a 128-bit BigInt
-  const [head, tail] = s.split("::");
-  const hi = head ? head.split(":").filter(Boolean) : [];
-  const lo = tail ? tail.split(":").filter(Boolean) : [];
-  const mid = Array(8 - hi.length - lo.length).fill("0");
-  const groups = s.includes("::") ? [...hi, ...mid, ...lo] : s.split(":");
-  if (groups.length !== 8) throw new Error(`bad IPv6 "${s}"`);
-  return groups.reduce((a, g) => (a << 16n) | BigInt(parseInt(g || "0", 16)), 0n);
-}
-function bigToV6(n) {                                       // 128-bit BigInt → compressed IPv6 string
-  const g = [];
-  for (let i = 0; i < 8; i++) g[i] = Number((n >> BigInt((7 - i) * 16)) & 0xffffn);  // g[0] = most significant group
-  let best = { i: -1, len: 0 }, cur = { i: -1, len: 0 };    // longest zero-run for "::"
-  g.forEach((v, i) => {
-    if (v === 0) { if (cur.i < 0) cur = { i, len: 0 }; cur.len++; if (cur.len > best.len) best = { ...cur }; }
-    else cur = { i: -1, len: 0 };
-  });
-  const hex = g.map((v) => v.toString(16));
-  if (best.len > 1) { hex.splice(best.i, best.len, ""); if (best.i === 0) hex.unshift(""); if (best.i + best.len === 8) hex.push(""); }
-  return hex.join(":").replace(/:{3,}/, "::");
-}
-// Deterministic host part: sha256(id) low 64 bits, kept clear of the low range
-// so it never lands on the box's own ::1 / infrastructure addresses.
-function depAddrFor(id) {
-  if (!DEP_ADDR_PREFIX) return null;
-  const [prefix] = DEP_ADDR_PREFIX.split("/");
-  const net128 = v6ToBig(prefix) & (~0n << 64n);            // zero the low 64 (host) bits
-  let host = BigInt("0x" + createHash("sha256").update(id).digest("hex").slice(0, 16)) & ((1n << 64n) - 1n);
-  if (host < 0x10000n) host += 0x10000n;                    // reserve the low range for infra
-  return bigToV6(net128 | host);
-}
-// public deployments exposing udp ports, with their address + logical ports —
-// the udp-relay reads this to know what to bind and where to route.
-const udpMap = () => [...deployments.values()]
-  .filter((r) => r.public && r.status === "running" && fwUdpPorts(r).length)
-  .map((r) => ({ id: r.id, address: depAddrFor(r.id), ports: fwUdpPorts(r) }));
-// public deployments with tcp OR udp ports, each with its dedicated address and
-// per-protocol logical ports — the tcp6-relay (tcp) and udp-relay (udp) poll
-// this to bind [address]:port and route into /x/:id/(tcp|udp)/:port.
+// Public raw-port inventory for the host's TUNA adapter. Addresses and public
+// ports exist only after the provider assigns them; the control API publishes those.
 const netMap = () => [...deployments.values()]
-  .filter((r) => r.public && r.status === "running" && (fwTcpPorts(r).length || fwUdpPorts(r).length))
-  .map((r) => ({ id: r.id, address: depAddrFor(r.id), tcp: fwTcpPorts(r), udp: fwUdpPorts(r) }));
+  .filter(r => r.public && r.status === "running" && (fwTcpPorts(r).length || fwUdpPorts(r).length))
+  .map(r => ({id: r.id, tcp: fwTcpPorts(r), udp: fwUdpPorts(r)}));
+const TUNA_SOCKS_UPSTREAM = (process.env.TUNA_SOCKS_UPSTREAM || "").trim();
+const EGRESS_SOCKS_PORT = Number(process.env.EGRESS_SOCKS_PORT || 1080);
 
-// --- dedicated-IP EGRESS (the outbound half of depAddrFor) ------------------
-// A deployment's OUTBOUND connections leave from its own IPv6, mirroring the
-// inbound tcp6/udp relays. Guests opt in via ENCLAVE_EGRESS (a per-deployment SOCKS
-// URL); the enclave front is here (egress.js), the source-binding dialer is
-// relay/egress-relay.js. Enabled only when dedicated addressing is on AND a
-// shared relay token is configured (EGRESS_RELAY_TOKEN — proves the control/
-// data channels are the real relay, not a random client hitting the shim).
-const EGRESS_RELAY_TOKEN = (process.env.EGRESS_RELAY_TOKEN || "").trim();
-const EGRESS_SOCKS_PORT  = parseInt(process.env.EGRESS_SOCKS_PORT || "1080", 10);
-// The relay name the DEFAULT egress relay attaches as (it owns DEP_ADDR_PREFIX's
-// /64 and source-binds). A deployment with no network.relay choice, or one whose
-// chosen relay isn't attached, egresses through it. Must match that relay's
-// RELAY_NAME. Unset preserves the pre-multi-relay default ("default").
-const EGRESS_DEFAULT_RELAY = (process.env.EGRESS_DEFAULT_RELAY || "").trim();
-// The relay that owns DEP_ADDR_PREFIX's /64 and can source-bind a dedicated IP.
-// Defaults to the default relay (today they're the same box). Set this when the
-// default egress relay is a NEARBY plain relay but dedicated-IP egress should
-// still be reachable on the /64 owner by explicit network.relay choice.
-const EGRESS_DEDICATED_RELAY = (process.env.EGRESS_DEDICATED_RELAY || "").trim();
-// A deployment's chosen relay (network.relay), so its OUTBOUND follows the same
-// relay as its inbound. "" / unset / unparseable => the default relay.
-function egressRelayFor(id) {
-  const r = deployments.get(id);
-  if (!r) return null;
-  try { return parseDepOptions(r._envelope, r.gpuMilli).relay || null; }
-  catch { return null; }
-}
-const egress = (DEP_ADDR_PREFIX && EGRESS_RELAY_TOKEN)
+const egress = TUNA_SOCKS_UPSTREAM
   ? createEgress({
-      secret: SECRET, socksPort: EGRESS_SOCKS_PORT, relayToken: EGRESS_RELAY_TOKEN,
-      sourceAddrFor: depAddrFor, relayFor: egressRelayFor,
-      defaultRelay: EGRESS_DEFAULT_RELAY, dedicatedRelay: EGRESS_DEDICATED_RELAY,
+      secret: SECRET, socksPort: EGRESS_SOCKS_PORT, upstream: TUNA_SOCKS_UPSTREAM,
       // "claimed" is mid-provision on THIS enclave: the app process starts
       // (and may dial out — its very first S3 fetch) fractionally before the
       // provision path flips the record to "running", and the egress token in
@@ -4528,12 +4519,62 @@ app.use("/x/:id", async (req, res) => {
   req.pipe(up);
 });
 
-app.use(express.json({ limit: "256kb" }));
+// rawBody: the exact bytes, for the one check that needs them (a wallet session signs sha256 of the raw body). Only a
+// JSON body is ever parsed, so only a JSON body is ever kept; any other body stays unread, hashes as empty here, and a
+// signature over its bytes fails closed. Nothing else reads rawBody.
+app.use(express.json({ limit: "256kb", verify: (req, _res, buf) => { req.rawBody = buf; } }));
 
-async function authed(req, res, next) {
-  const addr = await addrFromAuth(req);
-  if (!addr) return fail(res, 401, "unauthorized", "Missing or invalid session.");
-  req.address = addr; next();
+// Owner authentication for a control-plane route. Two credentials:
+//   Bearer <token>          this box's SIWE session (/v1/auth/login), unchanged: req.address = the wallet, and a record is
+//                           the caller's when rec.owner === req.address;
+//   EnclaveSession v1 ...   a wallet session, verified on chain (sessionApi): req.walletSession, with `scope` (the API
+//                           scope the route needs) checked here and each RECORD judged by mayAct().
+// A header in the EnclaveSession scheme is judged as one: malformed, stale, replayed or unverifiable is a 401, never a
+// fall-through to the bearer path or to anonymous. `refuseSessions` (a message) refuses sessions on the route outright.
+function ownerAuth(scope, { refuseSessions = null } = {}) {
+  return async function ownerAuthMw(req, res, next) {
+    const h = req.headers.authorization;
+    if (isSessionHeader(h)) {
+      if (refuseSessions) return fail(res, 403, "session_not_supported", refuseSessions);
+      try {
+        req.walletSession = await sessionApi.verify({ header: h, method: req.method, path: req.originalUrl,
+          body: req.rawBody, scope, fresh: req.method !== "GET" });
+      } catch (e) { return sessionFail(res, e); }
+      return next();
+    }
+    const addr = await addrFromAuth(req);
+    if (!addr) return fail(res, 401, "unauthorized", "Missing or invalid session.");
+    req.address = addr; next();
+  };
+}
+function sessionFail(res, e) {
+  if (e && Number.isInteger(e.status)) return fail(res, e.status, e.code || "unauthorized", e.message);
+  console.warn(`[session-auth] ${e && (e.stack || e.message || e)}`);
+  return fail(res, 503, "session_check_failed", "This host could not check the wallet session; try again.");
+}
+// May the authenticated caller act on `rec`? Sends the refusal and returns false when not. A bearer keeps its rule and
+// its 404 (another wallet's deployment reads as absent). A wallet session gets a 403 with the reason: whether a record is
+// the session's turns on its environments and on the owner's ledger delegation, which its owner can change.
+async function mayAct(req, res, rec) {
+  if (!rec) { fail(res, 404, "not_found", "No such deployment."); return false; }
+  if (!req.walletSession) {
+    if (rec.owner !== req.address) { fail(res, 404, "not_found", "No such deployment."); return false; }
+    return true;
+  }
+  let why;
+  try { why = await sessionApi.refusal(req.walletSession, rec, { fresh: req.method !== "GET" }); }
+  catch (e) { sessionFail(res, e); return false; }
+  if (why) { fail(res, 403, "not_allowed", why); return false; }
+  return true;
+}
+// The records the caller may see (listing, /v1/account): a bearer's own; for a wallet session, those its vault holds in
+// one of its environments and, with production and the delegation, those the owner's wallet holds. Throws when the chain
+// cannot answer (the caller answers 503).
+async function callerRecords(req) {
+  const all = [...deployments.values()];
+  if (!req.walletSession) return all.filter((d) => d.owner === req.address);
+  const s = req.walletSession, v = s.vault.toLowerCase(), w = s.owner.toLowerCase();
+  return sessionApi.visible(s, all.filter((d) => [v, w].includes(String(d.owner || "").toLowerCase())));
 }
 
 // ============================================================================
@@ -4700,46 +4741,6 @@ app.post("/v1/claim-hint", async (req, res) => {
   } finally { _hintBusy.delete(id); }
 });
 
-// --- relay services: the NETWORK this box carries, beside the compute it sells --
-// Any host may also relay; the two are independent, and a box with no capacity
-// at all is simply one that ONLY relays (which is what the console renders as a
-// "relay" row — the badge is read from having no resources, not from this
-// block). What differs between relays is which of the fleet's network services
-// they actually offer, and that is a per-BOX fact about which daemons run
-// alongside this supervisor and how the machine is wired — a routed /64, a
-// bindable port range, a public address that CGNAT boxes can dial in to. None
-// of it is discoverable from in here, so it is declared, and broadcast on
-// /availability like every other capability the fleet ANDs or routes on.
-// Absent entirely = this box carries nothing for anyone but itself.
-const RELAY_SERVICES = (() => {
-  const on = (k) => /^(1|true|yes|on)$/i.test((process.env[k] || "").trim());
-  const svc = {
-    sni:       on("RELAY_SNI"),        // app-zone 443 passthrough (relay/relay.js) — the data path every app subdomain crosses
-    tcp:       on("RELAY_TCP"),        // per-deployment dedicated-IPv6 raw TCP (relay/tcp6-relay.js)
-    udp:       on("RELAY_UDP"),        // per-deployment dedicated-IPv6 datagrams (relay/udp-relay.js)
-    egress:    on("RELAY_EGRESS"),     // per-deployment outbound source address (relay/egress-relay.js)
-    tunnelHub: on("RELAY_TUNNEL_HUB"), // accepts reverse tunnels — the only way onto the network for a seller behind CGNAT
-  };
-  const region = (process.env.RELAY_REGION || "").trim();
-  const prefix = (process.env.RELAY_V6_PREFIX || "").trim();   // the routed /64 the dedicated-IP features hand out of
-  const ports  = (process.env.RELAY_PORTS || "").trim();       // the public port range this box will bind, as configured
-  // What the app zone answers with for a deployment that CHOOSES this box as
-  // its relay ({"network":{"relay":"…"}}). Without it the box still relays for
-  // the fleet default, but it cannot be picked: there is no address to point a
-  // name at. Declare the v6 half only if the passthrough listener really binds
-  // one — a chosen relay answers only from its own addresses, so an unbacked
-  // AAAA here is a black hole for every v6-preferring client.
-  const addr   = (process.env.RELAY_PUBLIC_ADDRESS  || "").trim();
-  const addr6  = (process.env.RELAY_PUBLIC_ADDRESS6 || "").trim();
-  if (!Object.values(svc).some(Boolean)) return null;          // declares no service = not a relay, say nothing
-  return { ...svc, ...(addr ? { address: addr } : {}), ...(addr6 ? { address6: addr6 } : {}),
-           ...(region ? { region } : {}), ...(prefix ? { v6Prefix: prefix } : {}),
-           ...(ports ? { ports } : {}) };
-})();
-if (RELAY_SERVICES)
-  console.log(`[relay-services] carrying ${Object.entries(RELAY_SERVICES)
-    .filter(([, v]) => v === true).map(([k]) => k).join(", ")}`
-    + (RELAY_SERVICES.region ? ` · ${RELAY_SERVICES.region}` : ""));
 
 // ---- shielded GPU: a card this enclave uses but does NOT trust ---------------
 //
@@ -5028,8 +5029,7 @@ app.get("/availability", async (_req, res) => {
                    cardFreeVram(gpuCards[v.id]) / cardVram(gpuCards[v.id])))) })),
                ...(sh.pricePerSec6 > 0 ? { askShieldedPricePerSec6: sh.pricePerSec6 } : {}) };
     })(),   // a card on the UNTRUSTED host, reached by masked offload; NOT `gpu` — see shieldedCapacity()
-    ...(RELAY_SERVICES ? { relay: RELAY_SERVICES } : {}),   // network this box carries for the fleet; see the block above
-    networkOptions: true,   // this build accepts the envelope's `network` namespace (per-deployment relay choice). SAME FLEET-AND RULE as waf/config/gpuOptional and for the sharpest reason: the envelope is fail-closed, so a deployment carrying {"network":…} that lands on a runner which predates this is REFUSED OUTRIGHT, not degraded. The console must keep the Network tab hidden until every live runner reports true
+    networkOptions: true,   // accepts the TUNA network envelope; fleet capability checks keep older runners from claiming unsupported options
     waf: true,   // this build accepts + enforces the deployment-options envelope (waf); the relay ANDs this across the fleet and the console shows the Protection controls only then
     configOverride: true,   // this build accepts the envelope's `config` namespace (per-deployment app-config override); same fleet-AND rule — the console unlocks the App config box only when every live runner honors it
     configEdit: true,   // this build's audit re-applies an owner's setConfig to LIVE deployments (waf live-swapped, config = restart in place); without it an edit only lands at the next re-claim — same fleet-AND rule
@@ -5373,10 +5373,13 @@ function paymentInstructions(rec) {
   };
 }
 
-app.get("/v1/account", authed, (req, res) => {
-  const mine = [...deployments.values()].filter(d => d.owner === req.address);
+app.get("/v1/account", ownerAuth("api.status"), async (req, res) => {
+  let mine;
+  try { mine = await callerRecords(req); } catch (e) { return sessionFail(res, e); }
+  const s = req.walletSession;
   res.json({
-    address: req.address, chainId: CHAIN_ID,
+    address: s ? s.owner : req.address, chainId: CHAIN_ID,
+    ...(s ? { session: { vault: s.vault, sid: s.sid } } : {}),
     payment: { forwarder: FORWARDER_ADDRESS || null, usdc: USDC_ADDRESS, asset: "USDC", assets: ["USDC", "ETH"] },
     deployments: {
       running: mine.filter(d => d.status === "running").length,
@@ -5451,21 +5454,8 @@ const view = (rec) => {
     provenUntil: new Date(rec._provenUntil * 1000).toISOString(),
     lastProofAt: rec._provenAt ? new Date(rec._provenAt).toISOString() : null,
     verify: "EnclaveDeployments.provenUntil(id) is authoritative; the runner meter never pays past it." };
-  // Dedicated per-deployment IPv6: declared tcp/udp ports are reachable at
-  // [address]:<logical port> (tcp via the tcp6-relay, udp via the udp-relay).
-  // Surface it so the dashboard/clients get a ready-to-use endpoint at the
-  // real port the app declared, e.g. [addr]:5432, [addr]:443, [addr]:53.
-  // With dedicated-IP egress on, the SAME address is also every deployment's
-  // outbound identity - so it's surfaced even with no inbound ports declared
-  // (network.egress marks the outbound half so clients can label it).
-  const tcpPorts = fwTcpPorts(rec), udpPorts = fwUdpPorts(rec);
-  const depAddr = depAddrFor(rec.id);
-  if (depAddr && (tcpPorts.length || udpPorts.length || egress)) {
-    o.network = { ...o.network, address: depAddr };
-    if (egress) o.network.egress = true;
-    if (tcpPorts.length) o.network.tcp = { address: depAddr, ports: tcpPorts };
-    if (udpPorts.length) o.network.udp = { address: depAddr, ports: udpPorts };
-  }
+  o.network = { transport: "tuna", dedicatedIP: false,
+    requested: { tcp: fwTcpPorts(rec), udp: fwUdpPorts(rec) }, egress: !!egress };
   return o;
 };
 
@@ -5804,7 +5794,11 @@ async function feeGate(id, g) {
   return null;
 }
 
-app.post("/v1/deployments", authed, async (req, res) => {
+// A wallet session never creates here: this legacy path reserves capacity for an off-chain record owned by the caller,
+// and a session creates on-chain (its deploy.create, through the sessions relay) or not at all.
+app.post("/v1/deployments", ownerAuth(null, { refuseSessions: "A wallet session cannot create deployments on this "
+    + "endpoint: create them on-chain (the session's deploy.create, through the sessions relay). This legacy route takes "
+    + "this host's sign-in only." }), async (req, res) => {
   const b = req.body || {};
   // RETIRED on the wasm backend (Steven, 2026-07-05): this path held the spec
   // and the funded clock in enclave-local state, which died with the CVM on
@@ -6395,6 +6389,8 @@ function resumeRec(rec) {
 // Launches through launchSpec like every other path: this one used to build its
 // own argument object, which is how it came to relaunch tenants without their
 // secrets or hostnames.
+// how long a version switch may hold back the respawn of the version it is replacing (see the billing loop)
+const SWITCH_STOP_WAIT_MS = 10 * 60_000;
 async function respawnTenant(rec) {
   if (rec._respawning || Date.now() < (rec._respawnAt || 0)) return false;
   rec._respawning = true;
@@ -6427,7 +6423,20 @@ function startBillingTicker() {
       // normal reaper (the deployment then goes back on the open queue).
       if (rec._onchain) {
         if (rec.paused) { rec.paused = false; rec.pauseReason = null; }   // restart recovery: pause is meaningless
-        if (healthy && !(await instanceAlive(rec))) await respawnTenant(rec);
+        // A version switch whose stop came back unconfirmed (guestd's 202: startup owns the guest
+        // and ends it when it finishes) is waiting for exactly this instance to vanish. Respawning
+        // the OLD version here hands the next switch pass another starting guest to 202, forever
+        // (eyesoff 1.0.84, 2026-10-08: seven minutes down). Leave it gone: the next pass sees a
+        // confirmed stop and launches the new version. Ten minutes on, a switch that never
+        // completes falls back to respawning what this record still runs.
+        if (healthy && !(await instanceAlive(rec))) {
+          if (rec._switchStopping && now - rec._switchStopping < SWITCH_STOP_WAIT_MS) {
+            if (!rec._switchHeldLogged) {
+              console.log(`[bill] ${rec.id} instance gone during a version switch - not respawning the old version`);
+              rec._switchHeldLogged = true;
+            }
+          } else await respawnTenant(rec);
+        }
         const elapsed = Math.min(Math.max(0, now - (rec._lastTickAt || now)), 2 * BILL_TICK_SEC * 1000);
         rec._lastTickAt = now;
         rec.consumedMs = (rec.consumedMs || 0) + elapsed;
@@ -6475,12 +6484,15 @@ function startBillingTicker() {
   if (t.unref) t.unref();
 }
 
-app.get("/v1/deployments", authed, (req, res) =>
-  res.json({ data: [...deployments.values()].filter(d => d.owner === req.address).map(view), cursor: null }));
+app.get("/v1/deployments", ownerAuth("api.status"), async (req, res) => {
+  let mine;
+  try { mine = await callerRecords(req); } catch (e) { return sessionFail(res, e); }
+  res.json({ data: mine.map(view), cursor: null });
+});
 
-app.get("/v1/deployments/:id", authed, (req, res) => {
+app.get("/v1/deployments/:id", ownerAuth("api.status"), async (req, res) => {
   const rec = deployments.get(req.params.id);
-  if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
+  if (!(await mayAct(req, res, rec))) return;
   res.json(view(rec));
 });
 
@@ -6492,11 +6504,15 @@ app.get("/v1/deployments/:id", authed, (req, res) => {
 // deployment and verifySessionToken refuses any token that names an audience,
 // so it opens no control-plane route even on the enclave that minted it. That
 // is the whole point — it is handed to a page on a TENANT origin.
-app.post("/v1/deployments/:id/app-token", authed, async (req, res) => {
+//
+// A wallet session (api.appAccess) gets the SAME token, for the record's own owner: its subject is rec.owner (the vault
+// for a vault-held record, the wallet for a wallet-held one), which is what redemption (/__enclave/session) and the data
+// path (addrForApp) compare it against. Still one deployment, still the short TTL, still never a control-plane session.
+app.post("/v1/deployments/:id/app-token", ownerAuth("api.appAccess"), async (req, res) => {
   const rec = depByIdOrPrefix(req.params.id);
-  if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
+  if (!(await mayAct(req, res, rec))) return;
   if (rec.public) return fail(res, 400, "not_private", "This deployment is public — open it directly.");
-  const token = await mintAppToken(req.address, rec.id);
+  const token = await mintAppToken(req.walletSession ? rec.owner : req.address, rec.id);
   res.json({ token, tokenType: "Cookie", deployment: rec.id,
              expiresAt: new Date(Date.now() + APP_TTL_SEC * 1000).toISOString() });
 });
@@ -6590,9 +6606,12 @@ app.post("/v1/admin/gpu/bounce-mps", async (req, res) => {
   }
 });
 
-app.delete("/v1/deployments/:id", authed, async (req, res) => {
+// A wallet session needs api.restart here: on an on-chain record this stops the instance and hands the lease back (the
+// teardown after the owner's on-chain stop, or a move with ?evacuate=1), which is a restart's disruption, never a money
+// move - the record, its balance and the decision to end it stay on the ledger.
+app.delete("/v1/deployments/:id", ownerAuth("api.restart"), async (req, res) => {
   const rec = deployments.get(req.params.id);
-  if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
+  if (!(await mayAct(req, res, rec))) return;
   if (rec._payTimer) { clearTimeout(rec._payTimer); rec._payTimer = null; }
   // An unpaid reservation never ran: cancel = REMOVE it, so the deploy page
   // doesn't show a ghost (nothing ran, nothing paid — no history worth keeping).
@@ -6648,9 +6667,11 @@ app.delete("/v1/deployments/:id", authed, async (req, res) => {
 // ledger - the contract, not this box, meters its runtime, so EnclavePay
 // instructions here would take the user's money without crediting balance6.
 // Legacy pre-on-chain records still get the forwarder instructions.
-app.post("/v1/deployments/:id/topup", authed, (req, res) => {
+// Read-only for a wallet session (api.status): it answers funding INSTRUCTIONS and moves nothing; the funding itself is
+// the payer's own signed transfer to the ledger (or the session's deploy.fund through the sessions relay).
+app.post("/v1/deployments/:id/topup", ownerAuth("api.status"), async (req, res) => {
   const rec = deployments.get(req.params.id);
-  if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
+  if (!(await mayAct(req, res, rec))) return;
   if (!["running", "awaiting_payment"].includes(rec.status))
     return fail(res, 409, "not_toppable", `Deployment is ${rec.status}.`);
   if (rec._onchain) return res.json({
@@ -6697,7 +6718,18 @@ app.get("/v1/deployments/:id/attestation", async (req, res) => {
   // worked. Unique match only, 8+ hex, same rule the app subdomains use.
   const rec = depByIdOrPrefix(req.params.id);
   if (!rec) return fail(res, 404, "not_found", "No such deployment.");
-  const isOwner = (await addrFromAuth(req)) === rec.owner;
+  // A wallet session counts as the owner when it has api.status and may act on this record. A session CREDENTIAL that
+  // does not verify is a 401 (never silently anonymous); a valid one that lacks the scope or the record just gets the
+  // public document, like a bearer for another wallet.
+  let isOwner = false;
+  if (isSessionHeader(req.headers.authorization)) {
+    let s;
+    try { s = await sessionApi.verify({ header: req.headers.authorization, method: req.method, path: req.originalUrl,
+      body: req.rawBody, scope: null }); }
+    catch (e) { return sessionFail(res, e); }
+    isOwner = hasScope(s.actions, "api.status")
+      && (await sessionApi.refusal(s, rec).catch(() => "the chain could not be read")) === null;
+  } else isOwner = (await addrFromAuth(req)) === rec.owner;
   let nonce = null;
   if (isOwner) { nonce = attestNonce(req, res); if (nonce == null) return; }
   // A non-owner ?nonce is NOT an error - it's just not honored (fresh NVML
@@ -6830,24 +6862,14 @@ app.post("/v1/internal/tunnel-attach-sig", async (req, res) => {
   } catch (e) { fail(res, 502, "sign_failed", e.shortMessage || e.message); }
 });
 
-// UDP routing map, PUBLIC: the udp-relay (relay/udp-relay.js) polls this to learn
-// which per-deployment IPv6 to bind and which logical ports to route into the
-// /x/:id/udp/:port bridge. Only public+running deployments with udp ports; the
-// addresses are the deterministic ones the relay also derives from the id.
-app.get("/v1/udp-map", (_req, res) =>
-  res.json({ enabled: !!DEP_ADDR_PREFIX, prefix: DEP_ADDR_PREFIX || null, deployments: udpMap() }));
-
-// Dedicated-IP routing map, PUBLIC: the tcp6-relay (and udp-relay) poll this to
-// learn each public+running deployment's dedicated IPv6 and its per-protocol
-// logical ports, then bind [address]:port and route into /x/:id/(tcp|udp)/:port.
-// Same deterministic addresses the relays also derive from the id.
-app.get("/v1/net-map", (_req, res) =>
-  res.json({ enabled: !!DEP_ADDR_PREFIX, prefix: DEP_ADDR_PREFIX || null, deployments: netMap() }));
+// Provider-independent local inventory. The host adapter validates each dial
+// again through /x/:id/(tcp|udp)/:port before reaching a tenant.
+app.get("/v1/net-map", (_req, res) => res.json({transport: "tuna", deployments: netMap()}));
 
 // Tail the worker's stdout/stderr (owner only). ?tail=N (default 200, max 2000).
-app.get("/v1/deployments/:id/logs", authed, async (req, res) => {
+app.get("/v1/deployments/:id/logs", ownerAuth("api.logs"), async (req, res) => {
   const rec = deployments.get(req.params.id);
-  if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
+  if (!(await mayAct(req, res, rec))) return;
   if (/^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) return res.type("text/plain").send("[mock] no real worker; logs unavailable\n");
   const tail = String(Math.min(2000, Math.max(1, parseInt(req.query.tail, 10) || 200)));
   // vm backend: the wasm-manager keeps each tenant's stdout+stderr - the
@@ -6871,9 +6893,10 @@ app.get("/v1/deployments/:id/logs", authed, async (req, res) => {
 // Native CPU profiles contain process mappings. Apply the same strict owner
 // boundary as logs, including for public apps; never proxy arbitrary paths.
 for (const method of ["get", "post"]) {
-  app[method]("/v1/deployments/:id/cpu-profile", authed, async (req, res) => {
+  // a wallet session needs api.logs: a profile is diagnostic output of the same kind and sensitivity
+  app[method]("/v1/deployments/:id/cpu-profile", ownerAuth("api.logs"), async (req, res) => {
     const rec = deployments.get(req.params.id);
-    if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
+    if (!(await mayAct(req, res, rec))) return;
     if (PROVISION_BACKEND !== "vm")
       return fail(res, 501, "profile_unavailable", "CPU profiling requires a wasm deployment.");
     if (!rec._vmId) return fail(res, 409, "no_instance", "No app instance provisioned here.");
@@ -6894,9 +6917,9 @@ for (const method of ["get", "post"]) {
 // (the wasi-nn graph registry seals at process start; seen live 2026-07-18,
 // qwen3.5-9b). Same core as the death-relaunch path; _restarting keeps the
 // audit tick's claimed-branch from double-provisioning mid-restart.
-app.post("/v1/deployments/:id/restart", authed, async (req, res) => {
+app.post("/v1/deployments/:id/restart", ownerAuth("api.restart"), async (req, res) => {
   const rec = deployments.get(req.params.id);
-  if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
+  if (!(await mayAct(req, res, rec))) return;
   if (PROVISION_BACKEND !== "vm")
     return fail(res, 501, "restart_unavailable", "Restart is only available for wasm (vm) deployments.");
   if (rec._restarting) return fail(res, 409, "restart_in_progress", "A restart is already in progress.");
@@ -6959,7 +6982,7 @@ async function authUpgrade(req) {
 }
 
 // --- platform-terminated TLS for app TCP ports (/x/:id/tls/:port) -----------
-// The public relay (relay/relay.js, on any untrusted box) forwards a client's
+// The TUNA provider and local host adapter forward a client's
 // raw TLS bytes into this bridge; the session terminates HERE, inside the
 // attested enclave. The key pair is MINTED IN-ENCLAVE at boot — never
 // provisioned as a secret, so no operator, ACME account, or
@@ -7722,11 +7745,6 @@ function wsUdpBridge(req, socket, head, port) {
 server.on("upgrade", async (req, socket, head) => {
   const deny = (line) => { socket.write(`HTTP/1.1 ${line}\r\n\r\n`); socket.destroy(); };
 
-  // dedicated-IP egress: the relay's control channel (/v1/egress-control) and
-  // per-connection data streams (/x/egress/<cid>). Both are relay-token gated
-  // inside handleUpgrade; it returns true once it owns the path.
-  if (egress && egress.handleUpgrade(req, socket, head)) return;
-
   // ---- app HTTPS: /x/:id/https — the browser's TLS, terminated IN-ENCLAVE ----
   // The passthrough relay tunnels the raw TLS bytes of <label>.APP_CERT_DOMAIN
   // sessions here. Prefix ids resolve like the HTTP path (the subdomain label
@@ -8418,8 +8436,11 @@ async function switchTenantVersion(rec, d) {
   // still-live instance doubles up on the slice (the old process keeps its
   // VRAM/RAM while routing follows the new record) - the old version keeps
   // serving and the next audit pass retries
-  if (!(await stopContainer(rec)))
+  if (!(await stopContainer(rec))) {
+    rec._switchStopping ||= Date.now();           // the billing loop must not respawn the old version meanwhile
     return refuse("the old instance could not be verifiably stopped; it keeps serving until teardown succeeds", true);
+  }
+  delete rec._switchStopping; delete rec._switchHeldLogged;
   if (resize) {
     // swap the held slice for one at the row's new size. Synchronous release +
     // realloc (no await between): the freed capacity of the OLD slice counts
@@ -9837,25 +9858,30 @@ async function proveLeases(recs, why) {
   if (!PROOF_READY() || !recs.length) return 0;
   const { batch, covered } = await buildCheckpoints(recs);
   if (!batch.length) return 0;
-  const fn = batch.length === 1 ? "checkpoint" : "checkpointMany";
-  const args = batch.length === 1
-    ? [batch[0].id, batch[0].enclaveId, batch[0].upto, batch[0].anchorBlock, batch[0].anchorHash, batch[0].sig]
-    : [batch];
-  const sent = sendOperatorTx(PROOF_OF_TIME_ADDRESS, PROOF_ABI, fn, args);
-  await sent;
-  const rcpt = await sent.receipt;
-  if (rcpt.status !== "success") throw new Error(`${fn} tx reverted`);
-  // checkpointMany swallows per-item failures on purpose (see the contract):
-  // surface them here so a seller sees WHY a proof was refused instead of a
-  // silently short payout weeks later.
-  const rejects = parseEventLogs({ abi: PROOF_REJECT_ABI, logs: rcpt.logs, eventName: "CheckpointRejected", strict: false });
+  const plans = await planCheckpoints({client: chainClient, ledger: DEPLOYMENTS_ADDRESS,
+    proof: PROOF_OF_TIME_ADDRESS, batch, onWarning: message => console.warn(`[proof] ${message}`)});
   const refused = new Set();
-  for (const r of rejects) {
-    refused.add(String(r.args.id).toLowerCase());
-    console.warn(`[proof] rejected ${r.args.id}: ${r.args.reason}`);
+  for (const plan of plans) {
+    try {
+      const sent = sendOperatorTx(plan.address, PROOF_ABI, plan.functionName, plan.args);
+      await sent;
+      const rcpt = await sent.receipt;
+      if (rcpt.status !== "success") throw new Error(`${plan.functionName} tx reverted`);
+      // Ordinary batching tolerates individual rejections. Fee wrappers are
+      // individual transactions; neither may mark rejected service as proven.
+      const rejects = parseEventLogs({ abi: PROOF_REJECT_ABI, logs: rcpt.logs, eventName: "CheckpointRejected", strict: false });
+      for (const r of rejects) {
+        refused.add(String(r.args.id).toLowerCase());
+        console.warn(`[proof] rejected ${r.args.id}: ${r.args.reason}`);
+      }
+    } catch (e) {
+      for (const id of plan.ids) refused.add(String(id).toLowerCase());
+      console.warn(`[proof] checkpoint submission failed: ${e.shortMessage || e.message}`);
+    }
   }
   const landed = batch.length - refused.size;
-  _proof.proved += landed; _proof.rejected += refused.size; _proof.lastError = null;
+  _proof.proved += landed; _proof.rejected += refused.size;
+  _proof.lastError = refused.size ? `${refused.size} checkpoint(s) rejected or unconfirmed` : null;
   // Stamp ONLY what actually landed. A rejected proof left marked as proven
   // would report a provenUntil to the tenant that is not on-chain, and would
   // make the rotation in proveAllLeases treat this record as done — so the
@@ -9918,8 +9944,9 @@ async function proveFinalPeriod(rec, why) {
     const head = await chainClient.getBlock({ blockTag: "latest" });
     const upto = Math.min(Math.floor(Date.now() / 1000), rec._leaseUntil);
     const cp = await signCheckpoint(rec, upto, Number(head.number) - 1, head.parentHash);
-    const sent = sendOperatorTx(PROOF_OF_TIME_ADDRESS, PROOF_ABI, "checkpoint",
-      [cp.id, cp.enclaveId, cp.upto, cp.anchorBlock, cp.anchorHash, cp.sig]);
+    const [plan] = await planCheckpoints({client: chainClient, ledger: DEPLOYMENTS_ADDRESS,
+      proof: PROOF_OF_TIME_ADDRESS, batch: [cp], onWarning: message => console.warn(`[proof] ${message}`)});
+    const sent = sendOperatorTx(plan.address, PROOF_ABI, plan.functionName, plan.args);
     await sent;
     const rcpt = await sent.receipt;
     if (rcpt.status !== "success") throw new Error("final checkpoint reverted");
@@ -10099,7 +10126,7 @@ server.listen(PORT, () => console.log(`enclave supervisor on :${PORT} · ${IS_GP
 // warm the CPU-TEE detection (shim loopback) so the first deployment record
 // created after boot already reports the real silicon, not null
 fetchEnclaveRad().then(() => console.log(`[attest] CPU TEE detected: ${vmTech()}`)).catch(() => {});
-if (egress) { egress.start(); console.log(`[egress] dedicated-IP egress on (SOCKS 127.0.0.1:${EGRESS_SOCKS_PORT}); awaiting relay control channel`); }
+if (egress) { egress.start(); console.log(`[egress] TUNA egress on (authenticated SOCKS 127.0.0.1:${EGRESS_SOCKS_PORT})`); }
 
 // advertise this enclave on-chain (opt-in, non-blocking, never fatal)
 // If the origin is pinned (PUBLIC_URL), advertise eagerly at boot; otherwise

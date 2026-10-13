@@ -1,3 +1,4 @@
+import {prepareNetwork,submitNetwork,vaultSignature} from './vaultsvc.js';
 // Order service + hybrid billing: USD-quoted orders paid EITHER by card
 // (hosted Stripe Checkout - the customer never touches crypto) OR by USDC on
 // Base from the customer's own wallet through the immutable PaymentRouter
@@ -211,6 +212,13 @@ export function evaluatePayment(amount6, total6) {
 async function handleConfirmedPayment({ orderRef, payer, amount, txHash, logIndex, block }) {
   const ref = String(orderRef).toLowerCase();
   const orderId = orders.data.byRef[ref];
+  // a SessionVault pays the router only its relay/close fees (sessions have no order action):
+  // platform income with no order behind it by design - logged, never a review
+  if (!orderId && ctxRef?.isSessionVault) {
+    let isVault = false;
+    try { isVault = await ctxRef.isSessionVault(payer); } catch { /* unreadable: fall through to review */ }
+    if (isVault) { console.log(`[billing] session fee ${amount} from vault ${payer} (tx ${txHash})`); return; }
+  }
   if (!orderId) {
     // funds are already at the treasury (the contract is dumb by design);
     // the review queue is the only ledger of unattributed payments
@@ -861,6 +869,12 @@ export async function handleBilling(req, res, u, ctx) {
     const deadline = Math.floor(Date.now() / 1000) + 300;
     const balance6 = BigInt(info.balance6);
 
+    if(b.op === 'network'){
+      const row=(await ctxRef.ledgerRows()).find(r=>String(r.id).toLowerCase()===String(b.id).toLowerCase());
+      if(!row||String(row.owner).toLowerCase()!==info.address.toLowerCase())return err(ctx,res,req,403,'not_owner','This vault does not own the app.');
+      try {return ctx.json(res,200,{op:'network',...await prepareNetwork(info.address,b),credId:key.credId},req);}
+      catch(e){return err(ctx,res,req,422,'network_unavailable',String(e.shortMessage||e.message));}
+    }
     if (b.op === "deploy") {
       const v = await validateDeploySpec(b, ctx, res, req);
       if (!v) return;   // validateDeploySpec answered
@@ -925,6 +939,8 @@ export async function handleBilling(req, res, u, ctx) {
           return err(ctx, res, req, 422, "bad_params", `this ledger (deploymentsSchema ${srev || "unknown"}) needs gpuMilli >= cpuMilli when gpuMilli is set; rev 13 removes the rule.`);
         if (b.ref !== undefined && !(typeof b.ref === "string" && b.ref.length > 0 && b.ref.length <= 100))
           return err(ctx, res, req, 422, "bad_params", "ref must be a catalog ref (max 100 chars).");
+        if (b.active !== undefined && typeof b.active !== "boolean")
+          return err(ctx, res, req, 422, "bad_params", "active must be boolean.");
         shares = { gpuMilli: g, cpuMilli: c };
       }
       let maxRate6 = null;
@@ -937,7 +953,7 @@ export async function handleBilling(req, res, u, ctx) {
           return err(ctx, res, req, 422, "bad_params", "maxrate needs maxRate6: a positive integer, USDC 6dp per second.");
       }
       let callData;
-      try { callData = await buildControlCall(id, action, b.ref, shares, envelope, maxRate6); }
+      try { callData = await buildControlCall(id, action, b.ref, shares, envelope, maxRate6, action === "resize" ? b.active : undefined); }
       catch (e) { return err(ctx, res, req, 502, "encode_failed", e.message); }
       const digest = opDigest("control", info.address, CHAIN_ID, info.nonce, { callData }, deadline);
       return ctx.json(res, 200, { op: "control", vault: info.address, chainId: CHAIN_ID, nonce: info.nonce,
@@ -964,13 +980,21 @@ export async function handleBilling(req, res, u, ctx) {
     const a = b.assertion || {};
     if (a.credId !== key.credId)
       return err(ctx, res, req, 422, "wrong_credential", "Vault operations must be signed by the account's vault passkey.");
-    if (!["deploy", "fund", "refund", "control"].includes(b.op))
+    // "sign": the vault passkey's assertion over a message hash, returned as the vault's ERC-1271 signature for a signed
+    // message (the Enclave network's owner policy and BYO config, docs/design/enclave-network.md). Nothing is sent on
+    // chain; whoever checks the signature asks the vault contract.
+    if (b.op === "sign") {
+      let vaultAddr; try { vaultAddr = await ensureVault(key); } catch (e) { return err(ctx, res, req, 502, "vault_error", e.message); }
+      try { return ctx.json(res, 200, { ok: true, vault: vaultAddr, signature: vaultSignature({ ...a, x: key.x, y: key.y }) }, req); }
+      catch (e) { return err(ctx, res, req, 422, "bad_assertion", String(e.message).slice(0, 200)); }
+    }
+    if (!["deploy", "fund", "refund", "control", "network"].includes(b.op))
       return err(ctx, res, req, 422, "bad_op", "Unknown vault op.");
     let vaultAddr;
     try { vaultAddr = await ensureVault(key); }
     catch (e) { return err(ctx, res, req, 502, "vault_error", e.message); }
     try {
-      const out = await submitOp(b.op, vaultAddr, b.args || {}, b.deadline, { ...a, x: key.x, y: key.y });
+      const out = b.op==='network'?await submitNetwork(vaultAddr,b.args||{},{...a,x:key.x,y:key.y}):await submitOp(b.op, vaultAddr, b.args || {}, b.deadline, { ...a, x: key.x, y: key.y });
       return ctx.json(res, 200, { ok: true, ...out }, req);
     } catch (e) {
       // the CONTRACT is the verifier of record: a revert here means bad

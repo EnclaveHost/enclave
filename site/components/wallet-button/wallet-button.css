@@ -13,12 +13,25 @@ c-wallet-button{display:contents;}
    would swallow the free space and jam the links against the brand - let
    the bar's space-between spread brand | links | wallet evenly instead */
 @media (max-width:880px){.nav-inner .wallet-mount{margin-left:0;}}
-.wallet-pop{position:absolute;top:calc(100% + 10px);left:0;z-index:60;width:300px;background:#0b1119;border:1px solid var(--line);border-radius:12px;box-shadow:0 30px 60px -28px rgba(0,0,0,.9);padding:14px;font-family:var(--font-mono);}
+.wallet-pop{position:absolute;top:calc(100% + 10px);left:0;z-index:60;width:360px;background:#0b1119;border:1px solid var(--line);border-radius:12px;box-shadow:0 30px 60px -28px rgba(0,0,0,.9);padding:14px;font-family:var(--font-mono);}
 .nav-inner .wallet-pop{left:auto;right:0;}  /* drop down aligned to the header's right edge */
 .wp-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line-soft);font-size:.78rem;}
-.wp-k{color:var(--text-muted);} .wp-v{color:var(--text);} .wp-v .ok{color:var(--jade);}
+.wp-k{color:var(--text-muted);}
+/* the full address on its own line under "Wallet", right-aligned like the other values: one line across the
+   popover's width (beside the label it would need two); a narrow phone soft-wraps it (selecting it copies one line) */
+.wp-row-addr{flex-direction:column;align-items:stretch;gap:2px;}
+.wp-row-addr .wp-addr{align-self:flex-end;gap:8px;max-width:100%;min-width:0;text-align:right;}
+.wp-addr-txt{min-width:0;font-size:.74rem;word-break:break-all;line-height:1.35;text-wrap:balance;}   /* a phone gets two even lines */
+.wp-v{color:var(--text);} .wp-v .ok{color:var(--jade);}
+/* an amount that is also the way to add to it (Balance -> Deposit, the session's budget -> Top up): a dotted underline */
+.wp-link{background:none;border:0;padding:0;font:inherit;cursor:pointer;min-height:24px;display:inline-flex;align-items:center;
+  text-decoration:underline dotted;text-decoration-color:var(--line-strong);text-underline-offset:4px;}
+.wp-link:not(.ok){color:var(--text);}
+.wp-link:hover,.wp-link:focus-visible{text-decoration-style:solid;text-decoration-color:currentColor;}
+.wp-up{flex:none;width:.62em;height:.75em;margin-left:3px;fill:none;stroke:var(--jade);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;}
+.wp-link:hover .wp-up,.wp-link:focus-visible .wp-up{stroke:var(--jade-2);}
 .wp-addr{background:none;border:0;color:var(--jade);cursor:pointer;font-family:inherit;font-size:.8rem;min-height:24px;display:inline-flex;align-items:center;}
-.wp-mini{background:#101a24;border:1px solid var(--line);color:var(--iris);border-radius:6px;padding:.15em .5em;cursor:pointer;font-family:inherit;font-size:.7rem;min-height:24px;min-width:24px;display:inline-flex;align-items:center;justify-content:center;}
+.wp-mini{background:#101a24;border:1px solid var(--line);color:var(--iris);border-radius:6px;padding:.15em .5em;cursor:pointer;font-family:inherit;font-size:.7rem;line-height:1;min-height:24px;min-width:24px;display:inline-flex;align-items:center;justify-content:center;}
 .wp-bal{margin:10px 0;font-size:.76rem;color:var(--text-muted);} .wp-bal .bl-h{color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;font-size:.62rem;margin-bottom:5px;}
 .wp-bal .bl{display:flex;justify-content:space-between;color:var(--text);padding:2px 0;} .wp-bal .bl.dim{color:var(--text-muted);}
 .wp-disc{width:100%;background:var(--well);border:1px solid var(--danger-deep);color:var(--danger-2);border-radius:8px;padding:.55em;cursor:pointer;font-family:inherit;font-size:.76rem;margin-top:4px;}
@@ -37,7 +50,18 @@ c-wallet-button{display:contents;}
 .wp-input:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
 .wp-go{justify-content:center;color:var(--jade);border-color:var(--jade-dim);}
 .wp-err{font-size:.72rem;color:var(--danger-2);margin:-2px 0 8px;}
-.wp-fund{display:flex;gap:8px;margin:2px 0 10px;}
+.wp-fund{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:10px 0;}
+.wp-fund:last-child{margin-bottom:0;}
+/* a section break inside the popover (wallet | session): the rows' 1px hairline, in text ink instead of line ink */
+.wp-sep{border:0;height:1px;margin:0 0 4px;background:var(--text);}
+.wp-row:has(+ .wp-sep){border-bottom:0;}   /* the white rule IS that row's separator, not a second line under it */
+/* Sign out sharing a row (the wallet popover: All Sessions | Sign out): compact, last at the row's right end */
+.wp-fund .wp-disc,.wp-sess-r .wp-disc{width:auto;margin:0;padding:.15em .8em;min-height:24px;border-radius:6px;font-size:.7rem;line-height:1;}
+/* Session | budget · time  All  Sign out: one line at 360px (to about "$123.45 · 29d 23h"); on a narrow phone the button pair wraps under, still right-aligned */
+.wp-row-sess{align-items:flex-start;} .wp-row-sess .wp-k{flex:none;padding-top:3px;}
+.wp-sess-r{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:6px 8px;min-width:0;}
+.wp-sess-btns{display:flex;align-items:center;gap:8px;}
+.wp-row-sess:last-child{border-bottom:0;padding-bottom:0;}
 /* the Deposit QR: white quiet zone so phone cameras lock on against the dark card */
 /* symmetric room around the code block - the old 10/2 let whatever followed
    (address, pairing hint) crowd it. Shared by the deposit, phone sign-in and
@@ -53,7 +77,7 @@ c-wallet-button{display:contents;}
 .wp-or{display:flex;align-items:center;gap:10px;margin:2px 0 10px;color:var(--text-dim);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;}
 .wp-or::before,.wp-or::after{content:"";flex:1;height:1px;background:var(--line-soft);}
 .wp-hint{font-size:.66rem;line-height:1.5;color:var(--text-dim);margin:-4px 2px 10px;}
-@media(max-width:760px){.wallet-pop{left:0;right:auto;width:min(300px,84vw);}}
+@media(max-width:760px){.wallet-pop{left:0;right:auto;width:min(360px,84vw);}}
 /* mobile header: the account button spans the bar (see header.css for the
    centered brand row); the popover centers under it */
 @media(max-width:640px){
@@ -61,3 +85,8 @@ c-wallet-button{display:contents;}
   .nav-inner #walletBtn{width:100%;justify-content:center;}
   .nav-inner .wallet-pop{left:50%;right:auto;transform:translateX(-50%);}
 }
+/* session indicator on the wallet button + session modals (js/core/sessions.js) */
+#walletBtn .wsess{color:var(--text-muted);font-size:.85em;}
+.wp-card .ac-in{display:block;width:100%;box-sizing:border-box;margin:4px 0 10px;background:var(--well);border:1px solid var(--line-strong);border-radius:8px;color:var(--text);padding:.45em .6em;font-family:var(--font-mono);font-size:.85rem;}
+.wp-card .ac-in:focus{border-color:var(--jade);outline:none;}
+.wp-card label.wp-note{display:block;margin-top:8px;}

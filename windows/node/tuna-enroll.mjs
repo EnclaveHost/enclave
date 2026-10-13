@@ -1,0 +1,122 @@
+// tuna-enroll.mjs -- an open-market Windows host keeps its own privacy agent enrolled on the Enclave network, with no
+// operator SSH. (The file keeps its historical name: installed hosts and windows/node/agent.mjs load it by this name.)
+//
+// Every app this box serves reaches the internet only through its own Enclave-network circuits (network/privacy-agent.mjs,
+// the \Enclave\Tuna task; docs/design/enclave-network.md). This pass, run by the node agent every few minutes:
+//   1. writes privacy-config.json with the first app (the agent refuses an empty list) - the \Enclave\Tuna task waits
+//      for it; the box's own control traffic uses Enclave-network control circuits;
+//   2. enrolls each public deployment leased to this box, running ready in a partition of its current version: its
+//      expectation (network/shield-expectation.mjs) and its names (the relay's domain map). An expectation that changes
+//      (an upgrade) is rewritten; the names follow the relay's map.
+// The privacy agent re-reads its config when the file changes. Nothing is ever removed: a lease that ends ends its
+// admission at the relay.
+//
+// A box whose config still carries retired TUNA settings (NKN wallets, the TUNA control guards, the TUNA runtime) has
+// them dropped, and is switched once to the current enclaveNetwork section (its agent restarted).
+import fs from "node:fs/promises";
+import path from "node:path";
+import { createHash } from "node:crypto";
+import { shieldExpectation, catalogRef } from "../../network/shield-expectation.mjs";
+
+const ID = /^0x[0-9a-f]{64}$/;
+// settings of the retired TUNA transport a box's config may still hold; the agent ignores them, the next pass drops them
+export const RETIRED_KEYS = ["nknRpc", "inventory", "control", "runtime", "defaults", "tunaUSDC", "currencyManagement"];
+
+/** The privacy agent's config for this box, apps empty (the NucBox's production shape). */
+export function baseConfig({ agentDir, binDir, nodeBinary, operatorKeyFile, runner, endpoint, relayBase, policyFile, tpmBinary, tpmSha256,
+                             addressBook, chainRpc, manager = "http://127.0.0.1:8091", dataAddr = "127.0.0.1:8092", upstream = "http://127.0.0.1:9600",
+                             enclaveNetwork }) {
+  return { version: 2, directory: path.join(agentDir, "state"), operatorKeyFile, runner, endpoint, apps: [],
+    chain: { addressBook, rpc: chainRpc }, upstream,
+    shield: { policyFile, tpmBinary, tpmSha256, ingress: { url: manager, dataAddr }, manager },
+    dns: [{ address: "1.1.1.1:443", serverName: "cloudflare-dns.com", path: "/dns-query" }, { address: "8.8.8.8:443", serverName: "dns.google", path: "/resolve" }],
+    mirror: relayBase, enclaveNetwork: networkConfig({ binDir, nodeBinary, relayBase, ...enclaveNetwork }) };
+}
+
+/** The privacy agent's enclaveNetwork section: every app, the box's own control circuits, the bundled binaries. */
+export function networkConfig({ binDir, nodeBinary, relayBase, checkers, paid }) {
+  const bin = (f) => path.join(binDir, f);
+  if (!Array.isArray(checkers) || !checkers.length || checkers.some((c) => !/^0x[0-9a-f]{40}$/.test(c))) throw new Error("Enclave network: trusted checker addresses required");
+  return { relay: relayBase, checkers, apps: "all", control: true, wgBinary: bin("enclave-wg.exe"), nodeBinary,
+    workerModule: bin("windows-circuit-worker.mjs"), firewallBinary: bin("enclave-circuit-firewall.exe"),
+    // paid providers (used only for apps whose owners authorized them on chain): this box's registry proof key signs
+    // the bandwidth receipts, its operator key pays the settlement gas; up to 0.01 USDC per provider is settled in a batch
+    ...(paid ? { paid: { proofKeyFile: paid.proofKeyFile, gasKeyFile: paid.gasKeyFile, rpc: paid.rpc || "https://base-rpc.publicnode.com", maxPending6: paid.maxPending6 || "10000" } } : {}) };
+}
+
+/**
+ * createTunaEnroll(opts) -> { pass() }. opts: agentDir (ProgramData\Enclave\tuna), binDir (Program Files\Enclave\tuna),
+ * runner, relayBase, config (baseConfig's inputs, with enclaveNetwork: {checkers}), rows() (the ledger),
+ * version(appRef) (its catalog version record), vms() (the manager's /vms list), restartAgent(), and for tests: fetch, log.
+ * name, endpoint and transportKey are accepted (and unused) so older callers keep working.
+ */
+export function createTunaEnroll({ agentDir, binDir, runner, relayBase, config, rows, version, vms,
+                                   fetch: fetchFn = globalThis.fetch, restartAgent = async () => {}, log = () => {} }) {
+  if (!config?.enclaveNetwork) throw new Error("the Enclave network configuration (trusted checkers) is required: TUNA is retired");
+  const file = (f) => path.join(agentDir, f);
+  const readJSON = async (f, d) => { try { return JSON.parse(await fs.readFile(f, "utf8")); } catch (e) { if (e.code === "ENOENT") return d; throw e; } };
+  const writeAtomic = async (f, text) => { const t = `${f}.tmp-${process.pid}`; await fs.writeFile(t, text); await fs.rename(t, f); };
+
+  async function pass() {
+    await fs.mkdir(file("state"), { recursive: true });
+    // The config is written only once it names an app: the privacy agent refuses an empty app list.
+    let cfg = await readJSON(file("privacy-config.json"), null), changed = false;
+    const fresh = !cfg;
+    if (fresh) cfg = baseConfig(config);
+    const want = networkConfig({ binDir, nodeBinary: config.nodeBinary, relayBase, ...config.enclaveNetwork });
+    // a box whose config predates the current enclaveNetwork section (or still runs TUNA): switched once, then restarted
+    let switched = false;
+    if (JSON.stringify(cfg.enclaveNetwork) !== JSON.stringify(want)) {
+      cfg.enclaveNetwork = want; switched = !fresh; changed = true;
+      log(fresh ? "Enclave network: new config" : "Enclave network: this box's network configuration changes");
+    }
+    // retired TUNA settings are dropped (the agent ignores them; nothing restarts for this alone)
+    const retired = RETIRED_KEYS.filter((k) => k in cfg);
+    for (const k of retired) delete cfg[k];
+    for (const a of cfg.apps) {
+      if (a.internetMode !== "enclave-network") { a.internetMode = "enclave-network"; changed = true; }
+      if ("walletsFile" in a) { delete a.walletsFile; changed = true; }
+    }
+    if (retired.length) { changed = true; log(`retired TUNA settings dropped from the config: ${retired.join(", ")}`); }
+    const policy = await readJSON(config.policyFile, null);
+    if (!policy?.cpu?.runtimeId) throw new Error(`no admitted Shield policy at ${config.policyFile}`);
+    const now = Math.floor(Date.now() / 1000), me = String(runner).toLowerCase();
+    const mine = (await rows()).filter((d) => String(d.runner).toLowerCase() === me && d.active === true && d.isPublic === true &&
+      Number(d.leaseUntil) > now && ID.test(String(d.id).toLowerCase()));
+    let domains = null;
+    try { const r = await fetchFn(`${relayBase}/v1/domains/map`, { signal: AbortSignal.timeout(15000) }); if (r.ok) domains = (await r.json()).domains || {}; } catch {}
+    const namesFor = (id) => { const n = [id.slice(2, 10) + ".app.enclave.host"]; for (const [h, d] of Object.entries(domains || {})) if (String(d).toLowerCase() === id && !n.includes(h)) n.push(h); return n; };
+    const list = mine.length ? await vms() : [];
+    for (const row of mine) {
+      const id = String(row.id).toLowerCase(), short = id.slice(0, 10), dir = file(id);
+      if (!catalogRef(row.appRef)) { log(`${short}: not a catalog app; skipped`); continue; }
+      const expectedFile = path.join(dir, "expected.json");
+      const previous = await readJSON(expectedFile, null);
+      const v = shieldExpectation({ row, version: await version(row.appRef), vms: list, policy, previous });
+      if (!v.expected) { log(`${short}: ${v.wait || v.skip}`); continue; }
+      const existing = cfg.apps.find((a) => a.deploymentId === id);
+      await fs.mkdir(dir, { recursive: true });
+      if (JSON.stringify(previous) !== JSON.stringify(v.expected)) {
+        await writeAtomic(expectedFile, JSON.stringify(v.expected)); changed = changed || !!existing;
+        if (existing) log(`${short}: expectation now ${v.expected.appRef.split("/").pop()} app ${v.expected.appSha256.slice(0, 8)}`);
+      }
+      if (existing) {
+        if (domains) { const n = namesFor(id); if (JSON.stringify(n) !== JSON.stringify(existing.names)) { existing.names = n; changed = true; } }
+        continue;
+      }
+      if (!domains) { log(`${short}: new, but the relay's domain map is unavailable; enrolling next pass`); continue; }
+      cfg.apps.push({ deploymentId: id, names: namesFor(id), expectedFile, internetMode: "enclave-network", publishToMirror: true });
+      changed = true; log(`${short}: enrolled on the Enclave network (${namesFor(id).join(", ")})`);
+    }
+    if (changed && cfg.apps.length) {
+      await writeAtomic(file("privacy-config.json"), JSON.stringify(cfg, null, 2));
+      if (fresh) log("privacy-config.json written: the privacy agent starts");
+      if (switched) { log("restarting the privacy agent on its new network configuration"); await restartAgent().catch((e) => log(`agent restart: ${e.message}`)); }
+    }
+    return { ready: true, apps: cfg.apps.length, changed: changed && cfg.apps.length > 0 };
+  }
+  return { pass };
+}
+
+/** sha256 of a file, hex (the TPM tool's pin in the privacy agent's config). */
+export const fileSha256 = async (f) => createHash("sha256").update(await fs.readFile(f)).digest("hex");

@@ -1,3 +1,4 @@
+import {linkBytecode} from '../site/js/lib/contract-linker.js';
 // The admin console (site/admin.html) hand-encodes every governance call and
 // contract-creation transaction with the site's minimal ABI codec — no web3
 // library loads in the browser. These tests pin each encoding the console
@@ -421,7 +422,7 @@ test("every constructor argument the console can answer is prefilled", () => {
   assert.ok(block, "the deploy form's `pre` map is still an object literal");
   const entries = Object.fromEntries([...block[1].matchAll(/^\s*([A-Z]\w+): \{(.*)\},$/gm)].map((m) => [m[1], m[2]]));
   for (const [name, c] of Object.entries(CONTRACTS)) {
-    if (!c.ctor.length) continue;
+    if (!c.ctor.length || c.deployable === false) continue;
     assert.ok(entries[name], `${name} has constructor args but no prefill in the deploy form`);
     for (const a of c.ctor)
       assert.match(entries[name], new RegExp(`\\b${a.name}:`), `${name}'s prefill is missing ${a.name}`);
@@ -434,20 +435,21 @@ test("artifacts stay in sync with contracts/*.sol (regenerate check)", () => {
   // the artifact builder first). Here we just assert the module carries every
   // contract with bytecode + one book key each.
   assert.deepEqual(Object.keys(CONTRACTS).sort(), [
-    "EnclaveAddressBook", "EnclaveAppCatalog", "EnclaveCreditVaultFactory",
+    "EnclaveAddressBook", "EnclaveAppCatalog", "EnclaveAvailability", "EnclaveConnectivity", "EnclaveCreditVaultFactory",
     "EnclaveDeployments", "EnclaveFeatured", "EnclaveHostReviews", "EnclavePay",
-    "EnclaveProofOfTime", "EnclaveRegistry", "EnclaveReviews", "PaymentRouter"]);
+    "EnclaveProofOfTime", "EnclaveRegistry", "EnclaveReviews", "EnclaveVerificationFees", "PaymentRouter"]);
   for (const [name, c] of Object.entries(CONTRACTS)) {
-    assert.match(c.bytecode, /^0x[0-9a-f]{100,}$/i, name + " bytecode");
+    const libraries={};for(const [file,names] of Object.entries(c.linkReferences||{}))for(const lib of Object.keys(names))libraries[file+':'+lib]='0x'+'11'.repeat(20);
+    assert.match(linkBytecode(c.bytecode,c.linkReferences,libraries), /^0x[0-9a-f]{100,}$/i, name + " linked bytecode");
     // the console's deploy encoder handles exactly these; anything else needs
     // a codec branch AND a validation branch before it can be deployed there
-    for (const a of c.ctor)
+    for (const a of c.deployable === false ? [] : c.ctor)
       assert.ok(["address", "string"].includes(a.type),
         `${name} ctor arg ${a.name} is ${a.type}; the console's deploy encoder handles address|string only`);
   }
   assert.deepEqual(
     Object.values(CONTRACTS).map((c) => c.bookKey).filter(Boolean).sort(),
-    ["appCatalog", "deployments", "enclavePay", "featured", "hostReviews", "paymentRouter", "proofOfTime", "registry", "reviews", "vaultFactory"]);
+    ["appCatalog", "availability", "connectivity", "deployments", "enclavePay", "featured", "hostReviews", "paymentRouter", "proofOfTime", "registry", "reviews", "vaultFactory", "verificationFees"]);
 });
 
 /* ---- migration escrow backing + the proof-of-time bindings (rev 9/10) ----
@@ -943,4 +945,13 @@ test("escrow.js: a refund dry-run reads '0x' as success, and tells a revert from
   assert.deepEqual([r.ok, r.revert, r.reason], [false, true, "leased"]);
   r = await simulateRefund(A1, id, A2, rpc(new Error("HTTP 502")));
   assert.deepEqual([r.ok, r.revert, r.reason], [false, false, "HTTP 502"], "a transport failure is not the ledger refusing");
+});
+
+test("the console offers no deploy card for a contract that is live and bound, or not in a rollout", () => {
+  // EnclaveVerificationFees is LIVE: the book's verificationFees entry is the ledger's feeRouter, bound once. A second
+  // instance, and its "point the book" button, would split them. Connectivity and Availability are not live rollouts.
+  for (const name of ["EnclaveVerificationFees", "EnclaveAvailability", "EnclaveConnectivity"])
+    assert.equal(CONTRACTS[name].deployable, false, `${name} must not be deployable from the console`);
+  const src = fs.readFileSync(path.join(REPO, "site/components/admin-console/admin-console.js"), "utf8");
+  assert.match(src, /filter\(name => CONTRACTS\[name\]\.deployable !== false\)/, "the deploy cards still honour `deployable`");
 });

@@ -1,0 +1,27 @@
+@echo off
+rem install-tray.cmd -- install the hosting tray app for THE CURRENT USER (no elevation): copy it to
+rem %LOCALAPPDATA%\Enclave\Tray, start it at this user's logon (HKCU Run value EnclaveHostingTray), put "Enclave Hosting"
+rem on this user's Desktop and Start Menu (opening it while the tray runs shows the panel), and start it now.
+rem A tray-config.json beside this file is copied too. uninstall-tray.cmd reverses all of it.
+setlocal
+set "SRC=%~dp0"
+set "DEST=%LOCALAPPDATA%\Enclave\Tray"
+if not exist "%SRC%EnclaveTray.exe" (echo install: EnclaveTray.exe is not built here; run build.cmd first & exit /b 2)
+rem An older copy of THIS user's tray holds the exe open; stop it first, FORCED: the tray refuses a polite close. ping is the sleep: timeout.exe refuses a redirected stdin.
+taskkill /f /im EnclaveTray.exe /fi "USERNAME eq %USERNAME%" >nul 2>&1
+ping -n 2 127.0.0.1 >nul
+if not exist "%DEST%" mkdir "%DEST%" || (echo install: could not create %DEST% & exit /b 1)
+copy /y "%SRC%EnclaveTray.exe" "%DEST%\EnclaveTray.exe" >nul || (echo install: copy to %DEST% failed & exit /b 1)
+if exist "%SRC%tray-config.json" copy /y "%SRC%tray-config.json" "%DEST%\tray-config.json" >nul
+reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v EnclaveHostingTray /t REG_SZ /d "\"%DEST%\EnclaveTray.exe\"" /f >nul || (echo install: could not register the logon start & exit /b 1)
+rem The shortcuts: the Desktop as Windows knows it (OneDrive may have moved it), and the Start Menu's Programs.
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$w = New-Object -ComObject WScript.Shell; foreach ($d in [Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs')) { $l = $w.CreateShortcut((Join-Path $d 'Enclave Hosting.lnk')); $l.TargetPath = $env:DEST + '\EnclaveTray.exe'; $l.WorkingDirectory = $env:DEST; $l.IconLocation = $env:DEST + '\EnclaveTray.exe,0'; $l.Description = 'Enclave hosting: caps, the on/off switch and USDC earnings'; $l.Save() }" || echo install: the Desktop and Start Menu shortcuts could not be made
+rem started with no inherited handles: a caller reading this script's output through a pipe must see it end
+start "" "%DEST%\EnclaveTray.exe" <nul >nul 2>&1
+echo install: %DEST%\EnclaveTray.exe is running and starts at this user's logon (HKCU Run: EnclaveHostingTray)
+rem The node writes the token into its own private directory and grants THIS account read only when it is named in the
+rem node's HOSTING_TRAY_USER; an account without that grant cannot even see the file. Say so now rather than leave the
+rem tray reporting it (a tray-config.json tokenFile overrides the path).
+set "TOKEN=%ProgramData%\Enclave\hosting\hosting-admin.token"
+type "%TOKEN%" >nul 2>&1 || echo install: this account cannot read %TOKEN%. Either the node is not running with its hosting controls on, or this account is not its HOSTING_TRAY_USER: set HOSTING_TRAY_USER=%USERDOMAIN%\%USERNAME% in the node's config and restart the node.
+exit /b 0

@@ -1,0 +1,8 @@
+[Unit]
+Description=Renew internet-provider qualification %i
+[Timer]
+OnBootSec=30s
+OnUnitInactiveSec=90s
+Unit=enclave-provider-qualification@%i.service
+[Install]
+WantedBy=timers.target

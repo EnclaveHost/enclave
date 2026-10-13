@@ -1,0 +1,1 @@
+{"result":{"label":"cli-narrow-roots","mode":"stream","step":"verify","refused":"attestation: root 6d9db4ce6c5c0b293166d08986e05774a8776ceb525d9e4329520de12ba4bcc0 is not a pinned Google attestation root","sent":false,"verifyMs":852,"policySerial":3,"clientVersion":"0.1.0"}}

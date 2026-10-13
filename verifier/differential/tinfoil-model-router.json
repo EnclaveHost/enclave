@@ -1,0 +1,30 @@
+{
+ "schema": "enclave-differential-control/v1",
+ "what": "A CONTROL for the live differential (verifier/live-differential.mjs --release-policy): Tinfoil's own inference host, verified against Tinfoil's own release provenance, so the verifier's POSITIVE path (release provenance -> expected measurement -> a live AMD report, chain, CRL, TCB and certificate binding all accepted) runs daily on production hardware while no host runs one of this repository's releases. It is evidence about the verifier, not about any Enclave host, and it is never an Enclave release policy.",
+ "host": "inference.tinfoil.sh",
+ "repository": "tinfoilsh/confidential-model-router",
+ "minimumRelease": "v0.0.154",
+ "minTcb": {
+  "Genoa": {
+   "bootloader": 10,
+   "tee": 0,
+   "snp": 23,
+   "microcode": 84
+  }
+ },
+ "identity": "our identity rules unchanged (verifier/provenance.mjs DEFAULT_RELEASE_POLICY): workflow .github/workflows/tinfoil-release-publish.yml at a vX.Y.Z tag, trigger workflow_dispatch, public repository, GitHub OIDC; only the repository and the floor differ, and the floor is recorded as the caller's (floorSource caller, callerBelowBuiltin)",
+ "observed": {
+  "2026-09-24T04:47Z": {
+   "release": "v0.0.154",
+   "snpMeasurement": "18293a9bdfdc43d3...",
+   "evidence": "test/fixtures/verifier/genoa-tinfoil/rad.json + test/fixtures/verifier/tinfoil-router/v0.0.154.*"
+  },
+  "2026-09-25T05:00Z": {
+   "release": "v0.0.155",
+   "snpMeasurement": "b3be62c7199d8e4d...",
+   "evidence": "test/fixtures/verifier/tinfoil-router/v0.0.155.* against the live host"
+  }
+ },
+ "minTcbSource": "the Genoa TCB measured on this host on 2026-09-24 (AMD KDS query blSPL=10 teeSPL=0 snpSPL=23 ucodeSPL=84; site/js/core/verify-shadow.js SHADOW_MIN_TCB); a host of another product line is judged with no floor and reports agree-limited",
+ "note": "If Tinfoil renames its workflow, changes its trigger or ships a release below the floor, the control fails as provenance-failed or agree-refuse: that is a change to update here, not a verifier defect. Raising the floor is an edit to this file."
+}

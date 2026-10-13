@@ -1,0 +1,22 @@
+{
+ "what": "a real-TPM windows-hv-node/v1 frame from nucbox-k11, boot 68 (2026-09-25 06:11:16Z), made by enclave-5d's windows/node/ops/hvnode-capture.mjs (dad939e9) and run by enclave-d1: the full transcript with a throwaway capture key, the nonce and credential generated IN THE SAME PROCESS on the box (a capture, not an independent challenge; the independent session is ../boot68-2026-09-25)",
+ "origin": {
+  "repository": "EnclaveHost/enclave",
+  "branch": "windows/custom-vbs-like-hyperv",
+  "commit": "c54eea70",
+  "path": "windows/vbslike/evidence/hvnode-capture-20260925-061116",
+  "owner": "enclave-d1"
+ },
+ "copiedAt": "2026-09-25T06:18Z",
+ "files": {
+  "README.md": "5799033214f58a62ece3464b0127bb408e95a3c4d959bb3e28e93dbe14dac1ec",
+  "capture-spki.b64": "e40cf9df11debb058cb1e2547cae098c7034798f47950fdd5651885bfe8ce823",
+  "expected-credential.hex": "c16a6eda1f2e96276a7ede70ad36a533b7c25eeedd016c2c5fc4e7deaf892438",
+  "frame.json": "7c5a91fe81d124643a1a26eb7b923c2d849ed8895feba8cb15afa7d195af66ce",
+  "minted-for.json": "021c20257ee8b6d15a01ad10083b3f7e0b07f716e88de7d6c4429543556d7cc0",
+  "nonce.hex": "98071e91962e8faed5490ccf1ed09604b95367efd2bc83b328c4f2ea068df5ef",
+  "verdict.json": "db45d09f3074dd1432b5d11dfaa71d47ac7551e95afdf1bf277fe3571c02d5da"
+ },
+ "notHere": "capture-transport.key (the capture's private key) stayed on the box",
+ "akNote": "the attestation key is a NULL-hierarchy primary: the same name for every run within a boot (000bab98d6b8...), new each boot (enclave-d1)"
+}

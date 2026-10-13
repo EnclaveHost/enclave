@@ -22,6 +22,7 @@ import { execFile } from "node:child_process";
 import net from "node:net";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";   // decodes %20: the installed path is C:\Program Files\Enclave
 import { promisify } from "node:util";
 import { encodeRequest, decodeResponse } from "./appframe.mjs";
 const execFileAsync = promisify(execFile);
@@ -163,7 +164,7 @@ export async function fetchArtifact({ cid, dir, python = "python", gateway = "ht
   // configuration deserve the same check as the bytes that become the app.
   const out = outPath || path.join(dir, `ipfs-${cid}.wasm`);
   if (fs.existsSync(out) && fs.statSync(out).size > 0) return { path: out, cached: true };
-  const script = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "fetch-cid.py");
+  const script = path.join(path.dirname(fileURLToPath(import.meta.url)), "fetch-cid.py");
   log(`fetching ${cid} from ${gateway} (CID-verified)`);
   const { stdout } = await execFileAsync(python, [script, cid, out, String(maxBytes), gateway], { maxBuffer: 4 << 20 });
   log(`artifact ${cid}: ${stdout.trim()}`);

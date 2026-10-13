@@ -19,18 +19,17 @@ import { createHash, generateKeyPairSync } from "node:crypto";
 import { WebSocket } from "ws";
 import { createTunnelHub } from "../relay/tunnel.js";
 import { verifyQuote } from "../relay/snp-verify.mjs";
-import { pvmCpuPolicy, PVM_CPU_CAPS_DOMAIN } from "../relay/pvm-cpu-tier.mjs";
+import { pvmCpuPolicy, avfAttestWithPvmCpu, PVM_CPU_CAPS_DOMAIN } from "../relay/pvm-cpu-tier.mjs";
 import { createPadsLedger } from "../relay/pads.mjs";
 import { sign as edSign } from "node:crypto";
 import { AVF_PAD_FORMAT, avfPadBinding } from "../relay/avf-binding.mjs";
 import { avfPolicyFromEnv } from "../relay/avf-policy.mjs";
 import fs from "node:fs";
 import { haveOpenssl, tmpdir, makeCa, issueLeaf, extension, CODE, AUTH } from "./fixtures/avf-synthetic.mjs";
-import { bind2 } from "../relay/pvm-app-attest.mjs";
-import net from "node:net";
-import { makeVbsWorld, evidenceFor as vbsEvidenceFor, policyFor as vbsPolicyFor, nameOf as tpmName, tpmtPublicOf } from "./fixtures/vbs-synthetic.mjs";
+import { makeVbsWorld, evidenceFor as vbsEvidenceFor, policyFor as vbsPolicyFor, nameOf as tpmName, tpmtPublicOf, buildLog, buildQuote } from "./fixtures/vbs-synthetic.mjs";
 import { VBS_FORMAT } from "../relay/vbs-verify.mjs";
 import { activateCredential } from "../relay/vbs-credential.mjs";
+import { HVNODE_FORMAT, hvNodeBinding } from "../relay/hvnode-verify.mjs";
 
 // ---------- SEV-SNP quote gate ------------------------------------------------
 
@@ -132,7 +131,7 @@ test("tunnel: a hello frame never sets the mode - a token-attached box that says
     const { ws } = await dial(h.url, { "x-metal-name": "metal0", "x-metal-token": TOKEN });
     await settle();
     assert.equal(h.hub.origins()[0].mode, "", "a token attach verified nothing");
-    for (const claimed of ["snp", "avf", "vbs", "tdx"]) {
+    for (const claimed of ["snp", "avf", "vbs", "hv-node", "tdx"]) {
       ws.send(JSON.stringify({ t: "hello", mode: claimed, publicUrl: "https://api.enclave.host/t/metal0" }));
       await settle();
       assert.equal(h.hub.origins()[0].mode, "", `hello mode:${claimed} must not promote a token attach`);
@@ -226,6 +225,25 @@ async function attestAttach(h, name, { signer = null, quoteNonceFrom = (n) => n 
   return { state: "open", ok: !!res?.ok, reason: res?.reason || "(no verdict)" };
 }
 
+test("tunnel: a measurement-only SNP attach PROVES no chip (secrets-release gets none), and no chip id is ever in a row", async () => {
+  const h = await hubServer({ attest: { allowedMeasurements: [MEAS], requireVcek: false } });
+  try {
+    const r = await dial(h.url, { "x-metal-name": "seller9", "x-metal-attest": "1" });
+    assert.equal(r.state, "open");
+    await settle();
+    const nonce = Buffer.from(r.frames.find((f) => f.t === "challenge").nonce, "base64");
+    r.ws.send(JSON.stringify({ t: "attest", rad: radFor(nonce) }));
+    const res = await waitResult(r.frames);
+    assert.equal(res?.ok, true, JSON.stringify(res));
+    const row = h.hub.origins().find((o) => o.endpoint === "tunnel://seller9");
+    assert.equal(row?.mode, "snp");
+    assert.deepEqual(h.hub.snpChipIdsOf("seller9"), [], "requireVcek false: the report's CHIP_ID was never checked against its chip");
+    assert.ok(!JSON.stringify(h.hub.origins()).includes("snpChip"), "chip ids stay internal to the hub");
+    assert.deepEqual(h.hub.snpChipIdsOf("nobody"), []);
+    r.ws.close();
+  } finally { await h.close(); }
+});
+
 // Wait for the hub's verdict rather than sleeping at it: the owner check runs a
 // dynamic `import("viem")`, and the FIRST one in a process is slow enough that a
 // fixed settle() read an empty frame list and called it a refusal.
@@ -313,72 +331,6 @@ test("tunnel: the signature is bound to THIS attach's nonce and name", async () 
         message: `enclave-tunnel-attach:seller7:${Buffer.alloc(32, 9).toString("base64")}` }) } });
     assert.equal(stale.ok, false, "a replayed signature must not attach");
   } finally { await h.close(); }
-});
-
-/* ---- the RELAY agent: how a box that terminates nothing gets listed --------
-   A relay carries traffic and runs no tenants, so it has no TLS surface of its
-   own — that is the point of the SNI splice, and giving it a certificate would
-   put an ACME key on the one box whose security argument is that it holds none.
-   So it dials the same fleet tunnel the CGNAT sellers use and the hub answers
-   for it at /t/<name>.
-
-   Three properties, and the third is the one that matters most: this agent has
-   NO upstream. metal/guest/agent.mjs forwards tunnel requests into a real
-   supervisor and splices raw streams into it; a relay must never become a
-   generic proxy into its own network, least of all one reachable from a public
-   hub. It answers a fixed self-description and refuses everything else. */
-test("relay-agent: attaches, describes itself as resourceless, and proxies nothing", async (t) => {
-  const { spawn } = await import("node:child_process");
-  const path = await import("node:path");
-  const { fileURLToPath } = await import("node:url");
-  const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-
-  const hub = createTunnelHub({ allow: [{ name: "us-west", tokenSha256: TOKEN_SHA }] });
-  const server = http.createServer((_req, res) => res.end("ok"));
-  server.on("upgrade", (req, socket, head) => hub.handleUpgrade(req, socket, head));
-  await new Promise((r) => server.listen(0, "127.0.0.1", r));
-
-  const agent = spawn(process.execPath, [path.join(REPO, "relay", "relay-agent.mjs")], {
-    env: { ...process.env,
-      RELAY_NAME: "us-west", RELAY_TUNNEL_TOKEN: TOKEN,
-      RELAY_HUB: `ws://127.0.0.1:${server.address().port}/v1/fleet-tunnel`,
-      RELAY_PUBLIC_ADDRESS: "5.78.85.108", RELAY_REGION: "us-west",
-      RELAY_SNI: "1", RELAY_TCP: "0", RELAY_PORTS: "1-49999" },
-    stdio: "ignore",
-  });
-  // ORDER MATTERS: the agent holds a live websocket, and server.close() does not
-  // resolve until every connection is gone — closing first hangs the suite.
-  t.after(async () => {
-    try { agent.kill("SIGKILL"); } catch {}
-    await new Promise((r) => setTimeout(r, 50));
-    await new Promise((r) => server.close(r));
-  });
-
-  for (let i = 0; i < 60 && hub.count() === 0; i++) await new Promise((r) => setTimeout(r, 100));
-  assert.equal(hub.count(), 1, "the agent attached with its token");
-
-  const a = await hub.fetchJson("tunnel://us-west", "/availability");
-  // DECLARED zeros are the claim that makes this a relay — api-relay reads them
-  // (never absent fields) as "carries traffic, sells nothing", badges the row,
-  // and keeps it out of the set that sizes the fleet.
-  assert.equal(a.gpu, false);
-  assert.equal(a.nodeVcpus, 0);
-  assert.equal(a.nodeRamGb, 0);
-  assert.equal(a.claimEnabled, false, "it must never be routed work");
-  // and the part the per-deployment picker needs: a name's address and region
-  assert.equal(a.relay.sni, true);
-  assert.equal(a.relay.tcp, false, "it does not run the dedicated-IPv6 relays");
-  assert.equal(a.relay.address, "5.78.85.108");
-  assert.equal(a.relay.region, "us-west");
-
-  const health = await hub.fetchJson("tunnel://us-west", "/v1/health");
-  assert.equal(health.ok, true);
-  assert.equal(health.role, "relay");
-
-  // anything else 404s — fetchJson maps a non-200 to null. There is no
-  // upstream to reach, by construction.
-  assert.equal(await hub.fetchJson("tunnel://us-west", "/v1/deployments"), null,
-    "no tenant surface is exposed");
 });
 
 /* ---- attach by ON-CHAIN OWNERSHIP: the path a relay can actually use ------
@@ -620,102 +572,117 @@ test("avf: a Google-rooted chain over (transportKey || nonce) attaches as mode a
   } finally { await h.close(); await hLegacy.close(); await hStrict.close(); await hSnp.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
-// ---------- VBS (Windows consumer node) attach ------------------------------
-// The same gate, a third root: a Windows PC's VBS enclave (windows/vbs/EVIDENCE.md).
-// One extra round: the hub mints a TPM credential for the (EK, quoting key) the
-// node presents, and only a TPM holding both can hand it back on `attest`. The
-// origin row says mode "vbs" and carries the tier; the pad key is retained,
-// because both enclave keys are inside the signed transcript (the AVF v2 rule).
-test("vbs: a Windows node attaches as mode vbs through the vbs-keys/vbs-credential round; wrong credential, skipped round, stale nonce, swapped keys, test signing, no policy all refuse",
+// ---------- the NucBox node (mode hv-node) and the RETIRED VBS-enclave attach -------------
+// Steven, 2026-09-25: the custom type-1 path is the only NucBox target; the VBS-enclave backend is retired.
+// The node proves a HOST-ATTESTED BOOT STATE (relay/hvnode-verify.mjs): the same vbs-keys/vbs-credential round
+// ties its quote to the TPM whose EK is checked, the quote binds its transport key and statement, the log must
+// show Secure Boot on and test signing off with no dev tier. The row says mode/tier "hv-node", no measurement, no
+// pad key, never tenant capacity. The legacy format is refused by name whatever the relay's policy holds.
+test("hv-node: the NucBox node attaches as mode hv-node through the vbs-keys/vbs-credential round only when the relay's switch is on; the retired VBS-enclave format is refused by name; wrong credential, skipped round, stale nonce, foreign key, swapped statement, test signing and Secure Boot off all refuse",
      { skip: !haveOpenssl && "openssl not installed" }, async () => {
-  const dir = tmpdir("vbs-tunnel-");
+  const dir = tmpdir("hvnode-tunnel-");
   const w = makeVbsWorld(dir);
-  const h = await hubServer({ attest: { vbs: vbsPolicyFor(w) } });
-  const hDev = await hubServer({ attest: { vbs: vbsPolicyFor(w, { allowTestSigning: true }) } });
-  const hSnp = await hubServer({ attest: { allowedMeasurements: [MEAS], requireVcek: false } });
+  const h = await hubServer({ attest: { hvNode: { ekRoots: w.ca.bundlePem } } });
+  // a relay still holding the RETIRED VBS policy, lab test-signing switch included: it enables nothing now
+  const hLegacy = await hubServer({ attest: { vbs: vbsPolicyFor(w, { allowTestSigning: true }), hvNode: { ekRoots: w.ca.bundlePem } } });
+  const hOff = await hubServer({ attest: { allowedMeasurements: [MEAS], requireVcek: false, vbs: vbsPolicyFor(w) } });
   const waitFrame = (frames, pred, ms = 8000) => new Promise((resolve) => {
     const t0 = Date.now();
     const tick = () => { const f = frames.find(pred); if (f) return resolve(f); if (Date.now() - t0 > ms) return resolve(null); setTimeout(tick, 20); };
     tick();
   });
-  // A fake node: dial, take the challenge, present its keys, activate the
-  // credential with the EK's private key (what the TPM does), attest.
-  async function vbsAttach(hub, name, { keys = true, keysOf = (k) => k, credentialOf = (c) => c, stale = false, log = {}, report = {}, quote = {}, mutateRad = (r) => r, world = w } = {}) {
+  const STATEMENT = Buffer.from(JSON.stringify({ stated: true, backend: "custom-type1", tier: "t0-hv", hostExcluded: false, derivations: [] }));
+  // A fake node: dial, take the challenge, present its keys, activate the credential with the EK's private
+  // key (what the TPM does), then attest in the hv-node format, or in the retired one (`legacy`).
+  async function nodeAttach(hub, name, { keys = true, credentialOf = (c) => c, stale = false, log = {}, statement = STATEMENT, statementSent = null, signer = w.transport.privateKey,
+                                         transport = w.transport.spki, legacy = false, mutateRad = (r) => r } = {}) {
     const r = await dial(hub.url, { "x-metal-name": name, "x-metal-attest": "1" });
     if (r.state !== "open") return { state: r.state };
     const chal = await waitFrame(r.frames, (f) => f.t === "challenge");
     const nonce = Buffer.from(chal.nonce, "base64");
     let credential = Buffer.alloc(32, 0);
     if (keys) {
-      r.ws.send(JSON.stringify(keysOf({ t: "vbs-keys", ek: world.ek.cert.toString("base64"), ekChain: [world.ca.inter.toString("base64")],
-                                       aikPub: world.aik.tpmtPublic.toString("base64"), aikName: world.aik.name.toString("base64") })));
+      r.ws.send(JSON.stringify({ t: "vbs-keys", ek: w.ek.cert.toString("base64"), ekChain: [w.ca.inter.toString("base64")], aikPub: w.aik.tpmtPublic.toString("base64"), aikName: w.aik.name.toString("base64") }));
       const cred = await waitFrame(r.frames, (f) => f.t === "vbs-credential" || f.t === "attest-result");
       if (!cred || cred.t !== "vbs-credential") return { state: "open", ok: false, reason: cred?.reason || "(no credential frame)", ws: r.ws, stage: "keys" };
-      try { credential = activateCredential(world.ek.privateKey, world.aik.name, Buffer.from(cred.credentialBlob, "base64"), Buffer.from(cred.secret, "base64")); }
-      catch { credential = Buffer.alloc(32, 0); }                    // a TPM that cannot activate returns nothing useful
+      try { credential = activateCredential(w.ek.privateKey, w.aik.name, Buffer.from(cred.credentialBlob, "base64"), Buffer.from(cred.secret, "base64")); } catch { credential = Buffer.alloc(32, 0); }
     }
-    const ev = vbsEvidenceFor(world, { nonce: stale ? Buffer.alloc(32, 9) : nonce, credential: credentialOf(credential), log, report, quote });
-    r.ws.send(JSON.stringify({ t: "attest", rad: mutateRad({ format: VBS_FORMAT, body: Buffer.from(JSON.stringify(ev.body)).toString("base64"),
-                                                             transportKey: world.transport.spki.toString("base64"), padKey: world.padKey }) }));
+    let rad;
+    if (legacy) {
+      const ev = vbsEvidenceFor(w, { nonce, credential: credentialOf(credential) });
+      rad = { format: VBS_FORMAT, body: Buffer.from(JSON.stringify(ev.body)).toString("base64"), transportKey: w.transport.spki.toString("base64"), padKey: w.padKey };
+    } else {
+      const bound = hvNodeBinding(w.transport.spki, stale ? Buffer.alloc(32, 9) : nonce, statement);
+      const L = buildLog({ idksPub: w.idks.publicKey, ...log });
+      const Q = buildQuote({ aikPriv: w.aik.privateKey, aikName: w.aik.name, pcrs: L.pcrs, pcr0: w.pcr0, extraData: createHash("sha256").update(bound).digest() });
+      const body = { proves: "an admin-level process on this TPM's host, in this measured boot state, chose and holds this transport key; it proves nothing about isolation or host exclusion",
+                     statement: (statementSent || statement).toString("base64"), signature: edSign(null, bound, signer).toString("base64"), log: L.log.toString("base64"),
+                     quote: { attest: Q.attest.toString("base64"), sig: Q.sig.toString("base64"), aikPub: w.aik.tpmtPublic.toString("base64") },
+                     credential: credentialOf(credential).toString("base64"), ek: { cert: w.ek.cert.toString("base64"), chain: [w.ca.inter.toString("base64")] }, pcr0: w.pcr0.toString("hex"), platform: {} };
+      rad = { format: HVNODE_FORMAT, transportKey: transport.toString("base64"), body: Buffer.from(JSON.stringify(body)).toString("base64") };
+    }
+    r.ws.send(JSON.stringify({ t: "attest", rad: mutateRad(rad) }));
     const res = await waitResult(r.frames);
-    return { state: "open", ok: !!res?.ok, reason: res?.reason || "(no verdict)", measurement: res?.measurement, ws: r.ws, stage: "attest" };
+    return { state: "open", ok: !!res?.ok, reason: res?.reason || "(no verdict)", measurement: res?.measurement, tier: res?.tier, hostExcluded: res?.hostExcluded, ws: r.ws, stage: "attest" };
   }
   try {
-    const good = await vbsAttach(h, "win-1");
-    assert.equal(good.ok, true, good.reason);
-    const row = h.hub.origins().find((o) => o.name === "win-1");
-    assert.ok(row, "the PC is a tunnel origin now");
-    assert.equal(row.mode, "vbs", "the badge path reads mode vbs"); assert.equal(row.tier, "vbs");
-    assert.equal(row.measurement, good.measurement);
-    assert.equal(row.measurement, w.identity.imageId.toString("hex") + w.identity.authorId.toString("hex") + "03000000");
-    const info = h.hub.info("win-1");
-    assert.equal(info.padKey, w.padKey, "the pad key is retained: it is inside the signed transcript");
-    assert.equal(info.spki, w.transport.spki.toString("base64")); assert.equal(info.tier, "vbs");
+    const good = await nodeAttach(h, "nucbox-1");
+    assert.equal(good.ok, true, good.reason); assert.equal(good.tier, "hv-node"); assert.equal(good.hostExcluded, false); assert.equal(good.measurement, null);
+    const row = h.hub.origins().find((o) => o.name === "nucbox-1");
+    assert.ok(row, "the node is a tunnel origin now");
+    assert.equal(row.mode, "hv-node"); assert.equal(row.tier, "hv-node"); assert.equal(row.measurement, undefined, "no measurement: a host is not an image");
+    assert.equal(row.attestedKeys, undefined); assert.equal(row.hvNode.hostExcluded, false); assert.equal(row.hvNode.tee, null); assert.deepEqual(row.hvNode.omissions, ["platform-firmware-unpinned"]);
+    assert.match(row.hvNode.idksModulusSha256, /^[0-9a-f]{64}$/, "the boot's IDKS, for a same-boot VM report"); assert.equal(row.hvNode.hostStatement, undefined, "the node's statement stays in the hub");
+    const info = h.hub.info("nucbox-1");
+    assert.equal(info.mode, "hv-node"); assert.equal(info.padKey, "", "a host is never a pad consumer"); assert.equal(info.spki, w.transport.spki.toString("base64"));
+    assert.equal(info.hvAppSession, undefined);
+    assert.equal(row.hvAppSession, undefined);
+    assert.equal(h.hub.verifyShieldApp("missing", {}, {}).ok, false);
+    assert.equal(h.hub.verifyShieldApp("nucbox-1", { hostSession: {} }, {}).ok, false,
+      "an attachment without an authorized operator cannot grant app admission");
+    assert.equal(info.hvNode.hostStatement.json.backend, "custom-type1"); assert.match(info.hvNode.hostStatement.note, /never read for admission/);
     // a genuine reconnect (same transport key) may retake the name
-    const again = await vbsAttach(h, "win-1");
-    assert.equal(again.ok, true, again.reason);
-    again.ws.close(); try { good.ws.close(); } catch {}
+    const again = await nodeAttach(h, "nucbox-1"); assert.equal(again.ok, true, again.reason); again.ws.close(); try { good.ws.close(); } catch {}
 
-    // a relay without vbs policy refuses the keys round outright
-    const off = await vbsAttach(hSnp, "win-off");
-    assert.equal(off.ok, false); assert.match(off.reason, /VBS attach is not enabled/); assert.equal(off.stage, "keys");
+    // the RETIRED VBS-enclave format: refused by name, even on a relay still holding the lab test-signing policy
+    const legacy = await nodeAttach(hLegacy, "win-legacy", { legacy: true });
+    assert.equal(legacy.ok, false); assert.match(legacy.reason, /VBS-enclave backend \(ee-engine\) is retired/);
+    // a relay with only the retired policy: the keys round is refused, the switch is the hv-node one
+    const off = await nodeAttach(hOff, "nucbox-off");
+    assert.equal(off.ok, false); assert.match(off.reason, /hv-node attach is not enabled/); assert.equal(off.stage, "keys");
+    const offLegacy = await nodeAttach(hOff, "win-off", { keys: false, legacy: true });
+    assert.equal(offLegacy.ok, false); assert.match(offLegacy.reason, /retired/);
     // straight to attest, no credential minted
-    const skipped = await vbsAttach(h, "win-nokeys", { keys: false });
+    const skipped = await nodeAttach(h, "nucbox-nokeys", { keys: false });
     assert.equal(skipped.ok, false); assert.match(skipped.reason, /without the vbs-keys round/);
-    // the TPM handed back the wrong credential: the quoting key is not in the EK's TPM
-    const wrongCred = await vbsAttach(h, "win-cred", { credentialOf: () => Buffer.alloc(32, 7) });
+    // the TPM handed back the wrong credential
+    const wrongCred = await nodeAttach(h, "nucbox-cred", { credentialOf: () => Buffer.alloc(32, 7) });
     assert.equal(wrongCred.ok, false); assert.match(wrongCred.reason, /3 credential/);
-    // the keys round named a quoting key other than the one that quoted
-    const otherAik = tpmtPublicOf(generateKeyPairSync("rsa", { modulusLength: 2048 }).publicKey);
-    const swappedAik = await vbsAttach(h, "win-aik", { keysOf: (k) => ({ ...k, aikPub: otherAik.toString("base64"), aikName: tpmName(otherAik).toString("base64") }) });
-    assert.equal(swappedAik.ok, false); assert.match(swappedAik.reason, /minted for/);
-    // an aikName that is not the hash of aikPub is refused before anything is minted
-    const badName = await vbsAttach(h, "win-name", { keysOf: (k) => ({ ...k, aikName: Buffer.alloc(34, 1).toString("base64") }) });
-    assert.equal(badName.ok, false); assert.match(badName.reason, /aikName/); assert.equal(badName.stage, "keys");
-    const noEk = await vbsAttach(h, "win-noek", { keysOf: (k) => ({ ...k, ek: undefined }) });
-    assert.equal(noEk.ok, false); assert.match(noEk.reason, /vbs-keys needs/); assert.equal(noEk.stage, "keys");
-    // the transcript was signed for another challenge
-    const stale = await vbsAttach(h, "win-stale", { stale: true });
-    assert.equal(stale.ok, false); assert.match(stale.reason, /binding|challenge/);
-    // the pad key in the rad is not the one the enclave signed
-    const pad = await vbsAttach(h, "win-pad", { mutateRad: (r) => ({ ...r, padKey: "31".repeat(32) }) });
-    assert.equal(pad.ok, false); assert.match(pad.reason, /binding/);
-    const noTransport = await vbsAttach(h, "win-nokey", { mutateRad: (r) => ({ ...r, transportKey: undefined }) });
+    // the transcript was built for another challenge (replay)
+    const stale = await nodeAttach(h, "nucbox-stale", { stale: true });
+    assert.equal(stale.ok, false); assert.match(stale.reason, /extraData == challenge/);
+    // a foreign transport key in the rad: the quote and the possession signature were for another key
+    const other = generateKeyPairSync("ed25519");
+    const foreign = await nodeAttach(h, "nucbox-foreign", { transport: other.publicKey.export({ type: "spki", format: "der" }) });
+    assert.equal(foreign.ok, false); assert.match(foreign.reason, /extraData == challenge|possession/);
+    const forged = await nodeAttach(h, "nucbox-forged", { signer: other.privateKey });
+    assert.equal(forged.ok, false); assert.match(forged.reason, /8 possession/);
+    // the statement sent is not the one the quote bound
+    const swapped = await nodeAttach(h, "nucbox-stmt", { statementSent: Buffer.from(JSON.stringify({ stated: true, hostExcluded: true })) });
+    assert.equal(swapped.ok, false); assert.match(swapped.reason, /extraData == challenge/);
+    // production boot policy only: test signing and Secure Boot off refuse, on the legacy lab relay too
+    const ts = await nodeAttach(hLegacy, "nucbox-ts", { log: { fields: { TESTSIGNING: 1 } } });
+    assert.equal(ts.ok, false); assert.match(ts.reason, /TESTSIGNING == 0/);
+    const sb = await nodeAttach(h, "nucbox-sb", { log: { secureBoot: 0 } });
+    assert.equal(sb.ok, false); assert.match(sb.reason, /Secure Boot on/);
+    const noTransport = await nodeAttach(h, "nucbox-nokey", { mutateRad: (r) => ({ ...r, transportKey: undefined }) });
     assert.equal(noTransport.ok, false); assert.match(noTransport.reason, /must carry transportKey/);
-    // a test-signed boot: refused here, admitted as tier vbs-dev by the lab relay
-    const ts = await vbsAttach(h, "win-ts", { log: { fields: { TESTSIGNING: 1 } } });
-    assert.equal(ts.ok, false); assert.match(ts.reason, /TESTSIGNING.*ALLOW_TESTSIGNING not set/);
-    const dev = await vbsAttach(hDev, "win-dev", { log: { fields: { TESTSIGNING: 1 } } });
-    assert.equal(dev.ok, true, dev.reason);
-    assert.equal(hDev.hub.origins().find((o) => o.name === "win-dev").tier, "vbs-dev"); assert.equal(hDev.hub.info("win-dev").tier, "vbs-dev");
-    dev.ws.close();
-    // VBS evidence cannot ride the SNP or AVF format
-    const misLabel = await vbsAttach(h, "win-format", { mutateRad: (r) => ({ ...r, format: AVF_PAD_FORMAT }) });
+    // hv-node evidence cannot ride another format
+    const misLabel = await nodeAttach(h, "nucbox-format", { mutateRad: (r) => ({ ...r, format: AVF_PAD_FORMAT }) });
     assert.equal(misLabel.ok, false);
-    // every refusal left no tunnel behind
-    for (const n of ["win-off", "win-nokeys", "win-cred", "win-aik", "win-name", "win-noek", "win-stale", "win-pad", "win-nokey", "win-ts", "win-format"])
-      assert.equal(h.hub.info(n) || hSnp.hub.info(n), null, `${n} did not bind`);
-  } finally { await h.close(); await hDev.close(); await hSnp.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+    for (const n of ["win-legacy", "nucbox-off", "win-off", "nucbox-nokeys", "nucbox-cred", "nucbox-stale", "nucbox-foreign", "nucbox-forged", "nucbox-stmt", "nucbox-ts", "nucbox-sb", "nucbox-nokey", "nucbox-format"])
+      assert.equal(h.hub.info(n) || hLegacy.hub.info(n) || hOff.hub.info(n), null, `${n} did not bind`);
+  } finally { await h.close(); await hLegacy.close(); await hOff.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 // ---------- the operator's minimum-TCB policy reaches the attach gate -----------
@@ -737,7 +704,8 @@ test("tunnel: a minimum-TCB policy it cannot evaluate, or cannot parse, refuses 
 });
 
 // ---------- pVM CPU tier: one signed capability report per AVF attach --------
-// The tier is the HUB's verdict (relay/pvm-cpu-tier.mjs admitPvmCpu): a phone whose
+// The tier runs CPU-only Wasm workloads and carries no model (relay/pvm-cpu-tier.mjs).
+// It is the HUB's verdict (admitPvmCpu): a phone whose
 // protected-VM chain verified sends ONE {t:"caps"} frame, signed by the attested
 // transport key over this attach's nonce; the hub sets tier "pvm-cpu" only when
 // the verifier says eligible. A bad signature refuses (capsRefused, no tier), a
@@ -748,9 +716,8 @@ test("pvm-cpu: a signed capability report over the attach nonce sets the hub's t
   const dir = tmpdir("pvm-tunnel-");
   const ca = makeCa(dir);
   const env = { METAL_AVF_CODE_HASHES: CODE.toString("hex"), METAL_AVF_AUTHORITY_HASHES: AUTH.toString("hex") };
-  const MODEL = "5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48", SELF = "d".repeat(64);
-  const policy = pvmCpuPolicy({ codeHashes: [CODE.toString("hex")], authorityHashes: [AUTH.toString("hex")],
-    models: [{ sha256: MODEL, name: "gemma-4-e2b-q4_0", bytes: 3360161216, selftestSha256: SELF, minDecodeTokS: 10, minMemMib: 6144 }] });
+  const RUNTIME = "d3370878" + "e".repeat(56);
+  const policy = pvmCpuPolicy({ codeHashes: [CODE.toString("hex")], authorityHashes: [AUTH.toString("hex")], runtimeIds: [RUNTIME], minMemMib: 1024 });
   const avf = { ...avfPolicyFromEnv(env), rootPins: [ca.rootPin] };
   const h = await hubServer({ attest: { avf, pvmCpu: policy } });
   const hNoPolicy = await hubServer({ attest: { avf } });
@@ -768,10 +735,13 @@ test("pvm-cpu: a signed capability report over the attach nonce sets the hub's t
     assert.equal(res?.ok, true, res?.reason);
     return { ws: r.ws, frames: r.frames, nonce };
   };
-  const report = (nonce, over = {}) => Buffer.from(JSON.stringify({ v: 1, tier: "pvm-cpu", nonce: nonce.toString("hex"), mode: "protected",
-    model: { sha256: MODEL, bytes: 3360161216, ctx: 4096 }, vm: { threads: 6, mem_mib: 7168 },
-    selftest: { id: "pvm-cpu-selftest-v1", tokens: 64, prefill_tok_s: 108.2, decode_tok_s: 13.9, output_sha256: SELF },
-    vm_ms: 200000, attach_vm_ms: 120000, device: "Pixel 10 Pro XL", ...over }));
+  const report = (nonce, over = {}) => Buffer.from(JSON.stringify({ v: 2, tier: "pvm-cpu", nonce: nonce.toString("hex"), mode: "protected",
+    runtime: RUNTIME, vm: { threads: 6, mem_mib: 2048 }, vm_ms: 200000, attach_vm_ms: 120000, device: "Pixel 10 Pro XL", ...over }));
+  // the retired model tier's report (v1: a model digest and an inference self-test), otherwise in order
+  const reportV1 = (nonce) => Buffer.from(JSON.stringify({ v: 1, tier: "pvm-cpu", nonce: nonce.toString("hex"), mode: "protected",
+    model: { sha256: "5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48", bytes: 3360161216, ctx: 4096 }, vm: { threads: 6, mem_mib: 7168 },
+    selftest: { id: "pvm-cpu-selftest-v1", tokens: 64, prefill_tok_s: 108.2, decode_tok_s: 13.9, output_sha256: "d".repeat(64) },
+    vm_ms: 200000, attach_vm_ms: 120000, device: "Pixel 10 Pro XL" }));
   const caps = (ws, bytes, key) => ws.send(JSON.stringify({ t: "caps", report: bytes.toString("base64"),
     sig: edSign(null, Buffer.concat([Buffer.from(PVM_CPU_CAPS_DOMAIN), bytes]), key.privateKey).toString("hex") }));
   const capsResult = async (frames) => { for (let i = 0; i < 40; i++) { const f = frames.find((x) => x.t === "caps-result"); if (f) return f; await settle(); } return null; };
@@ -785,8 +755,9 @@ test("pvm-cpu: a signed capability report over the attach nonce sets the hub's t
     const r1 = await capsResult(a.frames);
     assert.equal(r1?.ok, true, (r1?.reasons || []).join(" | "));
     assert.equal(row(h, "pixel-a").tier, "pvm-cpu", "the hub set the tier");
-    assert.equal(row(h, "pixel-a").pvmCpu.model, "gemma-4-e2b-q4_0", "the row carries the model name");
-    assert.equal(row(h, "pixel-a").pvmCpu.decodeTokS, undefined, "and no measured rate");
+    assert.equal(row(h, "pixel-a").pvmCpu.runtime, RUNTIME, "the row names the CPU-only runtime the VM attested");
+    assert.equal(row(h, "pixel-a").pvmCpu.model, undefined, "and no model: the tier carries none");
+    assert.deepEqual(row(h, "pixel-a").pvmCpu.vm, { threads: 6, memMib: 2048 }, "and the VM's size as its signed report states it");
     // a second frame, even a worse one, changes nothing: one report per attach
     caps(a.ws, report(a.nonce, { mode: "dev" }), k1);
     await settle(); await settle();
@@ -816,6 +787,15 @@ test("pvm-cpu: a signed capability report over the attach nonce sets the hub's t
     assert.equal(row(h, "pixel-c").tier, undefined);
     c.ws.close();
 
+    // the retired model tier's v1 report, well signed over the right nonce: refused by name
+    const k5 = generateKeyPairSync("ed25519");
+    const e = await attach(h, "pixel-e", k5);
+    caps(e.ws, reportV1(e.nonce), k5);
+    const r5 = await capsResult(e.frames);
+    assert.equal(r5?.ok, false); assert.ok(r5.reasons.some((x) => /version-1 report is the retired model tier/.test(x)), r5.reasons.join(" | "));
+    assert.equal(row(h, "pixel-e").tier, undefined); assert.equal(row(h, "pixel-e").capsRefused, true);
+    e.ws.close();
+
     // a hub with no pvm-cpu policy refuses every report, however good
     const k4 = generateKeyPairSync("ed25519");
     const d = await attach(hNoPolicy, "pixel-d", k4);
@@ -843,156 +823,14 @@ test("pvm-cpu: a signed capability report over the attach nonce sets the hub's t
 // ledger never lists it as a consumer and never issues it a seed - the same rule a
 // v1 attach lives under. A pad build on the same transcript keeps its key, and a
 // build in neither list is refused.
-// LAB serving prototype (PVM-CPU.md): a pVM app's ABI/2 evidence must bind a fresh, single-use nonce THIS hub issued at
-// bind, this attach's transport key, an admitted runtime and an admitted app; only then does the row carry pvmApp (the
-// TLS key to pin) and only then does the hub splice raw streams to it. Replays, reconnects with old evidence, other apps,
-// other keys and other runtimes are refused; a detach takes everything with it.
-test("pvm-app (lab): ABI/2 over the hub's own fresh nonce verifies once; replay, reconnect, substitution refused; raw streams only to a verified app",
-     { skip: !haveOpenssl && "openssl not installed" }, async () => {
-  const dir = tmpdir("pvm-app-");
-  const ca = makeCa(dir);
-  const PVMCODE = createHash("sha256").update("pvm-cpu protected build").digest();
-  const PIXEL = '{"cache":"none","cpuFeatures":"baseline","execution":"interpreter","hostIsa":"aarch64","name":"wasmtime","targetIsa":"pulley64","version":"49.0.0","wx":"enforced"}';
-  const RID = createHash("sha256").update(PIXEL).digest();
-  const APP = createHash("sha256").update("ggml-probe").digest("hex"), OTHER_APP = "e".repeat(64);
-  const TUPLE = "exec_pages=refused:EACCES wx=clean maps=1 scope=self";
-  const policy = pvmCpuPolicy({ codeHashes: [PVMCODE.toString("hex")], authorityHashes: [AUTH.toString("hex")],
-    models: [{ sha256: "5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48", name: "m", selftestSha256: "d".repeat(64), minDecodeTokS: 10 }] });
-  const h = await hubServer({ attest: { avf: { codeHashes: [], padCodeHashes: [], authorityHashes: [AUTH.toString("hex")], rootPins: [ca.rootPin] },
-                                       pvmCpu: policy, pvmApp: { appIds: [APP, OTHER_APP], runtimeIds: [RID.toString("hex")] } } });
-  const attach = async (name, key) => {
-    const r = await dial(h.url, { "x-metal-name": name, "x-metal-attest": "1" });
-    assert.equal(r.state, "open");
-    await settle();
-    const nonce = Buffer.from(r.frames.find((f) => f.t === "challenge").nonce, "base64");
-    const transport = key.publicKey.export({ type: "spki", format: "der" });
-    const padKey = generateKeyPairSync("x25519").publicKey.export({ type: "spki", format: "der" }).subarray(-32).toString("hex");
-    const bound = avfPadBinding(transport, padKey, nonce);
-    const leaf = issueLeaf(dir, { ext: extension({ challenge: createHash("sha256").update(bound).digest(), code: PVMCODE }) });
-    const ev = { chain: [leaf.leaf, ca.inter, ca.root].map((d) => d.toString("base64")), signature: leaf.sign(bound).toString("base64") };
-    r.ws.send(JSON.stringify({ t: "attest", rad: { format: AVF_PAD_FORMAT, body: Buffer.from(JSON.stringify(ev)).toString("base64"), transportKey: transport.toString("base64"), padKey } }));
-    const res = await waitResult(r.frames);
-    assert.equal(res?.ok, true, res?.reason);
-    for (let i = 0; i < 40 && !r.frames.some((x) => x.t === "abi2-challenge"); i++) await settle();
-    const ch = r.frames.find((x) => x.t === "abi2-challenge");
-    assert.ok(ch, "the hub issues its ABI/2 nonce at bind");
-    return { ws: r.ws, frames: r.frames, transport, appNonce: Buffer.from(ch.nonce, "base64") };
-  };
-  // the VM's ABI/2 evidence: a certificate whose challenge is Bind2(spki, nonce, RuntimeID) || AppID
-  const evidence = ({ transport, nonce, app = APP, identity = PIXEL, rid = RID, code = PVMCODE }) => {
-    const challenge = Buffer.concat([bind2(transport, nonce, rid), Buffer.from(app, "hex")]);
-    const leaf = issueLeaf(dir, { ext: extension({ challenge, code }) });
-    return { t: "abi2", chain: [leaf.leaf, ca.inter, ca.root].map((d) => d.toString("base64")), identity, selftest: TUPLE, app };
-  };
-  const result = async (c, n) => { for (let i = 0; i < 60 && c.frames.filter((x) => x.t === "abi2-result").length < n; i++) await settle(); return c.frames.filter((x) => x.t === "abi2-result")[n - 1]; };
-  const row = (name) => h.hub.origins().find((o) => o.name === name);
-  const rawOpens = (c) => c.frames.filter((x) => x.t === "s+" && x.kind === "pvm-app-tls").length;
-  const splice = async (name, kind) => { const [a, b] = await new Promise((res) => { const srv = net.createServer((s) => { res([s, cl]); srv.close(); }); let cl; srv.listen(0, "127.0.0.1", () => { cl = net.connect(srv.address().port, "127.0.0.1"); }); }); return { ok: h.hub.spliceRaw(name, a, kind), client: b }; };
-  try {
-    const kp = generateKeyPairSync("ed25519");
-    const c1 = await attach("pixel-app", kp);
-    // no verified app yet: no raw stream
-    const s0 = await splice("pixel-app");
-    assert.equal(s0.ok, false, "no stream before the app is verified"); s0.client.destroy();
-    const ss0 = await splice("pixel-app", "pvm-app-sealed");
-    assert.equal(ss0.ok, false, "no sealed stream before the app is verified"); ss0.client.destroy();
-    // the evidence endpoint is reachable on any attested attach: a client verifies the VM itself, not through this hub
-    const se = await splice("pixel-app", "pvm-evidence");
-    assert.equal(se.ok, true, "evidence streams need only an attested attach");
-    for (let i = 0; i < 40 && !c1.frames.some((x) => x.t === "s+" && x.kind === "pvm-evidence"); i++) await settle();
-    assert.ok(c1.frames.some((x) => x.t === "s+" && x.kind === "pvm-evidence")); se.client.destroy();
-    const sx = await splice("pixel-app", "something-else");
-    assert.equal(sx.ok, false, "no other kind"); sx.client.destroy();
-    // evidence over ANOTHER transport key (a substituted server key): refused, and the nonce is spent
-    const other = generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "der" });
-    c1.ws.send(JSON.stringify(evidence({ transport: other, nonce: c1.appNonce })));
-    const r1 = await result(c1, 1);
-    assert.equal(r1.ok, false);
-    assert.match(r1.reasons.join(), /attestationChallenge/);
-    // the nonce was single-use: the right evidence now finds none
-    c1.ws.send(JSON.stringify(evidence({ transport: c1.transport, nonce: c1.appNonce })));
-    const r2 = await result(c1, 2);
-    assert.equal(r2.ok, false);
-    assert.match(r2.reasons.join(), /no outstanding ABI\/2 nonce/);
-    assert.equal(row("pixel-app").pvmApp, undefined);
-    // reconnect: a new attach, a NEW nonce; the first attach's evidence does not verify against it
-    const c2 = await attach("pixel-app", kp);
-    assert.notDeepEqual(c2.appNonce, c1.appNonce, "a reconnect gets a fresh nonce");
-    const stale = evidence({ transport: c2.transport, nonce: c1.appNonce });
-    c2.ws.send(JSON.stringify(stale));
-    assert.equal((await result(c2, 1)).ok, false, "evidence over an old nonce is refused");
-    // on a third attach: an unadmitted app, then a restated runtime, each spend that attach's one nonce
-    const c3 = await attach("pixel-app", kp);
-    c3.ws.send(JSON.stringify(evidence({ transport: c3.transport, nonce: c3.appNonce, app: "a".repeat(64) })));
-    assert.match((await result(c3, 1)).reasons.join(), /not one this relay admits/);
-    const c4 = await attach("pixel-app", kp);
-    const restated = PIXEL.replace("49.0.0", "48.0.1");
-    c4.ws.send(JSON.stringify(evidence({ transport: c4.transport, nonce: c4.appNonce, identity: restated, rid: createHash("sha256").update(restated).digest() })));
-    assert.match((await result(c4, 1)).reasons.join(), /not an admitted runtime/);
-    // and a clean attach verifies: the row carries the app, the runtime and the key to pin
-    const c5 = await attach("pixel-app", kp);
-    c5.ws.send(JSON.stringify(evidence({ transport: c5.transport, nonce: c5.appNonce })));
-    const ok = await result(c5, 1);
-    assert.equal(ok.ok, true, ok.reasons.join(" | "));
-    const pa = row("pixel-app").pvmApp;
-    assert.equal(pa.appId, APP);
-    assert.equal(pa.runtimeId, RID.toString("hex"));
-    assert.equal(pa.transportSpki, c5.transport.toString("hex"));
-    // a replay of the verified frame finds no nonce, and changes nothing
-    c5.ws.send(JSON.stringify(evidence({ transport: c5.transport, nonce: c5.appNonce })));
-    assert.equal((await result(c5, 2)).ok, false);
-    assert.equal(row("pixel-app").pvmApp.verifiedAt, pa.verifiedAt);
-    // raw streams now reach the phone as pvm-app-tls opens
-    const s1 = await splice("pixel-app");
-    assert.equal(s1.ok, true);
-    for (let i = 0; i < 40 && !rawOpens(c5); i++) await settle();
-    assert.equal(rawOpens(c5), 1);
-    s1.client.destroy();
-    const ss1 = await splice("pixel-app", "pvm-app-sealed");
-    assert.equal(ss1.ok, true, "a verified app takes sealed streams");
-    for (let i = 0; i < 40 && !c5.frames.some((x) => x.t === "s+" && x.kind === "pvm-app-sealed"); i++) await settle();
-    assert.ok(c5.frames.some((x) => x.t === "s+" && x.kind === "pvm-app-sealed")); ss1.client.destroy();
-    // termination: the phone goes, the row and its app go, no stream opens
-    c5.ws.close();
-    for (let i = 0; i < 40 && row("pixel-app"); i++) await settle();
-    assert.equal(row("pixel-app"), undefined);
-    const s2 = await splice("pixel-app");
-    assert.equal(s2.ok, false); s2.client.destroy();
-    for (const c of [c1, c2, c3, c4]) { try { c.ws.close(); } catch {} }
-  } finally { await h.close(); }
-});
-
-// The attestation gate counts every build list the v2 attach is judged against. A relay configured for the pVM CPU tier
-// alone (no v1 METAL_AVF_CODE_HASHES) or for pad builds alone answered 401 before reading any evidence -- found by the
-// first live attach from a Pixel (shielded/anchor/avf/results/pvm-cpu-live-attach).
-test("pvm-cpu: a relay with no v1 AVF list still opens the attest handshake for pvm-cpu or pad builds; nothing configured stays shut", async () => {
-  const policy = pvmCpuPolicy({ codeHashes: [createHash("sha256").update("pvm-cpu protected build").digest("hex")], authorityHashes: [AUTH.toString("hex")],
-    models: [{ sha256: "5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48", name: "m", selftestSha256: "d".repeat(64), minDecodeTokS: 10 }] });
-  const hPvm = await hubServer({ attest: { avf: { codeHashes: [], padCodeHashes: [], authorityHashes: [AUTH.toString("hex")] }, pvmCpu: policy } });
-  const hPad = await hubServer({ attest: { avf: avfPolicyFromEnv({ METAL_AVF_PAD_CODE_HASHES: "a".repeat(64), METAL_AVF_AUTHORITY_HASHES: AUTH.toString("hex") }) } });
-  const hNone = await hubServer({ attest: { avf: { codeHashes: [], padCodeHashes: [], authorityHashes: [AUTH.toString("hex")] } } });
-  try {
-    for (const [h, who] of [[hPvm, "pvm-cpu only"], [hPad, "pad builds only"]]) {
-      const r = await dial(h.url, { "x-metal-name": "pixel-z", "x-metal-attest": "1" });
-      assert.equal(r.state, "open", who);
-      await settle();
-      assert.ok(r.frames.find((f) => f.t === "challenge"), `${who}: the hub sends its challenge`);
-      r.ws.close();
-    }
-    assert.equal((await dial(hNone.url, { "x-metal-name": "pixel-z", "x-metal-attest": "1" })).state, 401, "no build list: no attest handshake");
-  } finally { await hPvm.close(); await hPad.close(); await hNone.close(); }
-});
-
 test("pvm-cpu: a v2 attach on a pvm-cpu code hash routes with no pad eligibility; a pad build keeps its key; a stranger is refused",
      { skip: !haveOpenssl && "openssl not installed" }, async () => {
   const dir = tmpdir("pvm-v2-");
   const ca = makeCa(dir);
   const PADCODE = createHash("sha256").update("dealt-pads anchor build").digest();
   const PVMCODE = createHash("sha256").update("pvm-cpu protected build").digest();
-  const MODEL = "5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48", SELF = "d".repeat(64);
   const env = { METAL_AVF_CODE_HASHES: CODE.toString("hex"), METAL_AVF_PAD_CODE_HASHES: PADCODE.toString("hex"), METAL_AVF_AUTHORITY_HASHES: AUTH.toString("hex") };
-  const policy = pvmCpuPolicy({ codeHashes: [PVMCODE.toString("hex")], authorityHashes: [AUTH.toString("hex")],
-    models: [{ sha256: MODEL, name: "gemma-4-e2b-q4_0", bytes: 3360161216, selftestSha256: SELF, minDecodeTokS: 10, minMemMib: 6144 }] });
+  const policy = pvmCpuPolicy({ codeHashes: [PVMCODE.toString("hex")], authorityHashes: [AUTH.toString("hex")], runtimeIds: ["d3370878" + "e".repeat(56)] });
   const h = await hubServer({ attest: { avf: { ...avfPolicyFromEnv(env), rootPins: [ca.rootPin] }, pvmCpu: policy } });
   const ledger = createPadsLedger({ dir, hub: h.hub, log: () => {} });
   const attachV2 = async (name, key, code) => {
@@ -1021,10 +859,8 @@ test("pvm-cpu: a v2 attach on a pvm-cpu code hash routes with no pad eligibility
     assert.equal(ledger.pvm("pixel-pvm").padKey, "", "the pads ledger sees no key to seal a seed to");
     assert.deepEqual(ledger.consumers().map((c) => c.name), [], "and never lists it as a pad consumer");
     // the same phone can still be admitted to the tier on its capability report
-    const report = Buffer.from(JSON.stringify({ v: 1, tier: "pvm-cpu", nonce: pvm.nonce.toString("hex"), mode: "protected",
-      model: { sha256: MODEL, bytes: 3360161216, ctx: 4096 }, vm: { threads: 6, mem_mib: 7168 },
-      selftest: { id: "pvm-cpu-selftest-v1", tokens: 64, prefill_tok_s: 108.2, decode_tok_s: 13.9, output_sha256: SELF },
-      vm_ms: 200000, attach_vm_ms: 120000, device: "Pixel 10 Pro XL" }));
+    const report = Buffer.from(JSON.stringify({ v: 2, tier: "pvm-cpu", nonce: pvm.nonce.toString("hex"), mode: "protected",
+      runtime: "d3370878" + "e".repeat(56), vm: { threads: 6, mem_mib: 2048 }, vm_ms: 200000, attach_vm_ms: 120000, device: "Pixel 10 Pro XL" }));
     pvm.ws.send(JSON.stringify({ t: "caps", report: report.toString("base64"),
       sig: edSign(null, Buffer.concat([Buffer.from(PVM_CPU_CAPS_DOMAIN), report]), kp.privateKey).toString("hex") }));
     for (let i = 0; i < 40 && !pvm.frames.some((x) => x.t === "caps-result"); i++) await settle();
@@ -1052,5 +888,50 @@ test("pvm-cpu: a v2 attach on a pvm-cpu code hash routes with no pad eligibility
     assert.equal(h.hub.origins().some((o) => o.name === "pixel-x"), false);
 
     pvm.ws.close(); pad.ws.close();
+  } finally { await h.close(); }
+});
+
+test("pvm-cpu: a relay configured with ONLY the tier's policy (no SNP measurements, no v1 or pad AVF pins) challenges and admits the phone",
+     { skip: !haveOpenssl && "openssl not installed" }, async () => {
+  const dir = tmpdir("pvm-only-");
+  const ca = makeCa(dir);
+  const PVMCODE = createHash("sha256").update("pvm-cpu protected build").digest();
+  const RUNTIME = "d3370878" + "e".repeat(56);
+  const policy = pvmCpuPolicy({ codeHashes: [PVMCODE.toString("hex")], authorityHashes: [AUTH.toString("hex")], runtimeIds: [RUNTIME] });
+  // what api-relay builds from PVM_CPU_* alone
+  const h = await hubServer({ attest: { allowedMeasurements: [], avf: { ...avfAttestWithPvmCpu(null, policy), rootPins: [ca.rootPin] }, pvmCpu: policy } });
+  try {
+    const r = await dial(h.url, { "x-metal-name": "pixel-only", "x-metal-attest": "1" });
+    assert.equal(r.state, "open", "the hub takes an attest upgrade (before: 401, attestation was off without a v1 AVF pin)");
+    await settle();
+    const nonce = Buffer.from(r.frames.find((f) => f.t === "challenge").nonce, "base64");
+    const kp = generateKeyPairSync("ed25519");
+    const transport = kp.publicKey.export({ type: "spki", format: "der" });
+    const padKey = generateKeyPairSync("x25519").publicKey.export({ type: "spki", format: "der" }).subarray(-32).toString("hex");
+    const bound = avfPadBinding(transport, padKey, nonce);
+    const leaf = issueLeaf(dir, { ext: extension({ challenge: createHash("sha256").update(bound).digest(), code: PVMCODE }) });
+    const ev = { chain: [leaf.leaf, ca.inter, ca.root].map((d) => d.toString("base64")), signature: leaf.sign(bound).toString("base64") };
+    r.ws.send(JSON.stringify({ t: "attest", rad: { format: AVF_PAD_FORMAT, body: Buffer.from(JSON.stringify(ev)).toString("base64"), transportKey: transport.toString("base64"), padKey } }));
+    const res = await waitResult(r.frames);
+    assert.equal(res?.ok, true, res?.reason);
+    assert.equal(h.hub.info("pixel-only").padKey, "", "no pad key: the tier never receives pads");
+    const report = Buffer.from(JSON.stringify({ v: 2, tier: "pvm-cpu", nonce: nonce.toString("hex"), mode: "protected",
+      runtime: RUNTIME, vm: { threads: 8, mem_mib: 1994 }, vm_ms: 200000, attach_vm_ms: 120000, device: "" }));
+    r.ws.send(JSON.stringify({ t: "caps", report: report.toString("base64"),
+      sig: edSign(null, Buffer.concat([Buffer.from(PVM_CPU_CAPS_DOMAIN), report]), kp.privateKey).toString("hex") }));
+    for (let i = 0; i < 40 && !r.frames.some((x) => x.t === "caps-result"); i++) await settle();
+    assert.equal(r.frames.find((x) => x.t === "caps-result")?.ok, true);
+    assert.equal(h.hub.origins().find((o) => o.name === "pixel-only").tier, "pvm-cpu");
+    // a v1 attach finds no v1 build to match: refused, not admitted by the tier's pins
+    const v1 = await dial(h.url, { "x-metal-name": "pixel-v1", "x-metal-attest": "1" });
+    await settle();
+    const n1 = Buffer.from(v1.frames.find((f) => f.t === "challenge").nonce, "base64");
+    const b1 = Buffer.concat([transport, n1]);
+    const l1 = issueLeaf(dir, { ext: extension({ challenge: createHash("sha256").update(b1).digest(), code: PVMCODE }) });
+    v1.ws.send(JSON.stringify({ t: "attest", rad: { format: "android-avf-pvm/v1", body: Buffer.from(JSON.stringify({ chain: [l1.leaf, ca.inter, ca.root].map((d) => d.toString("base64")), signature: l1.sign(b1).toString("base64") })).toString("base64"), transportKey: transport.toString("base64") } }));
+    const res1 = await waitResult(v1.frames);
+    assert.equal(res1?.ok, false);
+    assert.match(res1?.reason || "", /AVF attach is not enabled/);
+    r.ws.close();
   } finally { await h.close(); }
 });

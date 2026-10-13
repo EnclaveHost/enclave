@@ -17,6 +17,10 @@
 //   HOST_EXE, ENCLAVE_DLL, HOST_PORT (9596), THREADS (8), CTX (1024)
 //   TPMATTEST_EXE, PUBLIC_URL (the https://<relay>/t/<name> route a registered seller claims)
 //   NODE_OPERATOR_KEY    hex private key of the on-chain operator, to sign the attach challenge when the name is registered
+//   HOSTING_ADMIN_PORT   the owner's local hosting controls (hosting.mjs; the tray app, windows/tray), 127.0.0.1 only,
+//                        default 9610, 0 = off. HOSTING_ADMIN_TOKEN_FILE (default %ProgramData%\Enclave\hosting\hosting-admin.token),
+//                        HOSTING_TRAY_USER (the interactive account the tray runs as, granted read on that file),
+//                        HOSTING_CAPS_FILE (default hosting-caps.json in NODE_DIR)
 import { spawn } from 'node:child_process';
 import net from 'node:net';
 import fs from 'node:fs';
@@ -32,6 +36,15 @@ import { clientIp as wafClientIp } from './waf.mjs';
 import { parseAbiReply } from './appframe.mjs';
 import { initSessionKey, mint as mintSession, addressFor } from './session.mjs';
 import { nonceStore, siweMessage, verifyLogin } from './siwe.mjs';
+import { HV_NODE_FORMAT, buildHvNodeFrame, loadOrCreateNodeKey } from './hvnode-evidence.mjs';
+import { mintToken, startHostingAdmin, tokenFileDefault } from './hosting.mjs';
+import { Payouts, DEFAULT_MIN_PAYOUT6 } from './payout.mjs';
+import { sponsoredRegister } from './sponsor.mjs';
+import { finishHvAttach, reattachMode, relayTakesV2, shouldReattach } from './hvnode-attach.mjs';
+import { tunnelHandover } from './tunnel-handover.mjs';
+import { addressBook, addresses as chainAddresses, publicClient } from './chain.mjs';
+import { createSessionApiAuth, apiBases, envList, DEFAULT_API_HOSTS, DEFAULT_FACTORIES } from './session-api-auth.mjs';
+import { measureGflops } from './compute-measure.mjs';
 const WAF_TRACE = /^(1|true|yes)$/i.test(String(process.env.WAF_TRACE || ''));
 // SIWE, byte-compatible with the platform's own routes so the console signs what this box issues
 // and posts it back unchanged. The session it mints is for THIS box only (session.mjs).
@@ -59,12 +72,42 @@ const TPMATTEST_EXE = process.env.TPMATTEST_EXE || path.join(DIR, 'tpmattest.exe
 // forever (relay/tunnel.js selfRoutedUrl, api-relay.js runnerIsLive).
 const PUBLIC_URL = process.env.PUBLIC_URL || `https://api.enclave.host/t/${NAME}`;
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), '[node]', ...a);
+// WALLET SESSIONS as the owner's credential (session-api-auth.mjs, shared with supervisor.js): a restart and a private
+// deployment's requests accept `Authorization: EnclaveSession v1 ...` beside this box's own SIWE session, verified on
+// Base - the vault's factory, the session's key, liveness and scope, and the record rule - never on the relay's word.
+// What a client signs is host + path + query of the URL it called: the relay forwards with the path untouched, or with
+// /t/<name> stripped, so the bases are each API front door (SESSION_API_HOSTS, default api.enclave.host) as is and with
+// /t/<NAME>, and PUBLIC_URL; an app's own hostnames are added for its data path (host.proxy).
+const sessionApi = createSessionApiAuth({
+  pc: publicClient(), book: addressBook, ledger: () => chainAddresses.deployments || null,
+  factories: envList(process.env.SESSIONS_FACTORIES).length ? envList(process.env.SESSIONS_FACTORIES) : DEFAULT_FACTORIES,
+  bases: () => apiBases({ hosts: envList(process.env.SESSION_API_HOSTS).length ? envList(process.env.SESSION_API_HOSTS) : DEFAULT_API_HOSTS,
+    tunnelNames: [NAME, ...envList(process.env.SESSION_API_TUNNEL_NAMES)], publicUrls: [PUBLIC_URL] }),
+  log: (m) => log(`session auth: ${m}`),
+});
 // Hosting apps (APPS=1): this box holds a lease on the ledger and runs that deployment's app under
 // wasmtime, in VTL0. With APPS off it reports no claimEnabled at all and the relay keeps it out of
 // the serving set, which is the honest reading: a box hosting nothing sells nothing.
-// CLAIM_SCOPE=market (the default) takes any wallet's public deployment this box can honour;
-// CLAIM_SCOPE=owner-only narrows it to the box owner's own. chain.mjs claimPolicy has each rule.
+// CLAIM_SCOPE is owner-only by default (below): only the operator's and its delegated owners' deployments (host.mjs
+// ownerSet). CLAIM_SCOPE=market is honoured only by a box that meets the isolation contract (host.scope), which no
+// Windows node does today. chain.mjs claimPolicy has each rule.
 const APPS = /^(1|true|yes)$/i.test(String(process.env.APPS || ''));
+// THE LEGACY VBS-ENCLAVE ENGINE IS RETIRED (Steven, 2026-09-25): this node hosts only the isolated backend (a Hyper-V
+// type-1 partition per app, windows/vbslike). The engine (ee-host.exe + ee-engine.dll) and its worker start ONLY
+// under the explicit rollback setting ENCLAVE_ENGINE=legacy, and under Secure Boot its test-signed image does not
+// load anyway. Without it there are no enclave keys and no in-enclave apps (the host refuses them: appsInTee is
+// false). Enclave-held sessions and completions answer 503 with the reason. The node attests with
+// windows-hv-node/v1 (hvnode-evidence.mjs), which proves only that an admin-level process on this TPM's host, in
+// this measured boot state, chose and holds its transport key.
+const LEGACY_ENGINE = /^legacy$/i.test(String(process.env.ENCLAVE_ENGINE || ''));
+const NO_ENGINE = 'this node runs only the isolated backend: the VBS enclave engine is retired, so this service is unavailable';
+let nodeKey = null;          // windows-hv-node/v1: the agent's own Ed25519 transport key, a HOST key
+// What the last hv-node attach told the relay (hvnode-attach.mjs): its signature version and the owners it carried, so a
+// change in whom this node serves is followed by a new attach. `reattachNow` dials a STANDBY tunnel that takes over when
+// the relay accepts it, while the live one keeps serving (make-before-break, tunnel-handover.mjs).
+// `attachedOwners`: the owners the accepted attach made the relay serve (Host.servedBy), to tell an added owner from a
+// removed one; `endTunnelNow` ends every tunnel (the live one and any standby) for a removal (hvnode-attach.mjs reattachMode).
+let attachedOwnersVersion = null, attachedOwners = null, lastOwnerRedial = 0, reattachNow = () => {}, endTunnelNow = () => {};
 // The app-zone half: built once APPS is on, because it needs the host to know which deployment
 // runs where and which certificate belongs to it.
 let zone = null;
@@ -84,14 +127,42 @@ const readCard = async () => {
     card = null;
   }
 };
+// Read-only discovery for the new isolated profile; never starts the legacy engine.
+async function refreshPartitionGpu() {
+  const h = await isolationHealth();
+  host.managerSupports = h?.supports || null;
+  host.managerInference = h?.inference || null;
+  card = h?.supports?.gpu === true && h?.inference?.ready && Date.now()-h.inference.checkedAt < 45000
+    ? h.inference.card : null;
+}
 // The live tunnel's sender, so the app-zone half can answer stream frames from outside connect()'s
 // closure. Replaced on every redial; a frame sent while the tunnel is down is dropped, which is
 // what the relay's own open timeout already handles.
-let tunnelSend = () => {};
-let tunnelBuffered = () => 0;
+// This node's compute, MEASURED (compute-measure.mjs) before anything is claimed or published: the same runtime its apps
+// get, every vCPU at once. If the measurement cannot run, the fleet's 62.5-per-vCPU convention stands, and /availability
+// says which one it is (computeMeasure.source).
+const NODE_VCPUS_N = Number(process.env.NODE_VCPUS || os.cpus().length);
+let COMPUTE = { source: 'convention', gflops: Math.round(62.5 * NODE_VCPUS_N) };
+try {
+  const m = await measureGflops({ wasmtime: process.env.WASMTIME_BIN || path.join(DIR, 'wasmtime.exe'), instances: NODE_VCPUS_N });
+  COMPUTE = { source: 'measured', ...m, at: new Date().toISOString() };
+  log(`compute measured: ${m.gflops} GFLOPS (${m.instances} copies at ${m.perInstance} each, ${m.wallMs} ms, ${m.runs} runs; ${m.method})`);
+} catch (e) {
+  log(`compute NOT measured (${e.message}): publishing the 62.5-per-vCPU convention, ${COMPUTE.gflops} GFLOPS`);
+}
 const host = new Host({
   dir: DIR, endpoint: process.env.PUBLIC_URL || `https://api.enclave.host/t/${NAME}`, name: NAME,
   appsEnabled: APPS, ownerWallet: process.env.OWNER_WALLET || '',
+  // No engine: only isolated deployments run, anything else is HELD (host.mjs heldReason), never released.
+  engineRetired: !LEGACY_ENGINE,
+  // Respawn an isolated domain that ENDED instead of giving its lease up: a lease policy, OFF unless set to exactly "1"
+  // (host.mjs, RESPAWN_BUDGET per hour). The budget is counted IN MEMORY, so a node restart resets it: "3 an hour" is 3
+  // per hour of this process's life (enclave-d1's note for Steven's decision). Recovered VMs stay held either way.
+  isolationRespawn: process.env.ENCLAVE_ISOLATION_RESPAWN === '1',
+  // Selected stateful services retry after a cooldown instead of remaining blocked.
+  // Delay allows an ended process's external storage lease to expire first.
+  isolationRespawnIds: (process.env.ENCLAVE_ISOLATION_RESPAWN_IDS || '').split(',').map(x => x.trim().toLowerCase()).filter(x => /^0x[0-9a-f]{64}$/.test(x)),
+  isolationRespawnDelayMs: Number(process.env.ENCLAVE_ISOLATION_RESPAWN_DELAY_MS || 0),
   cpuPricePerSec6: Number(process.env.CPU_PRICE_PER_SEC6 || 12),
   // What the whole CARD costs per second, USDC 6dp, and what a share of it buys here: the model
   // inside the enclave, whose linear algebra runs on this card by masked offload. The default is
@@ -105,6 +176,8 @@ const host = new Host({
   // How the box proves who is asking, handed to the Host so the check can live at the funnel while
   // the key stays here. Null until the key is minted, and host.proxy fails CLOSED on null.
   sessionVerify: (headers, id) => addressFor(sessionKey, headers, id),
+  // ...and a wallet session, verified on chain (above): host.restartRequest and host.proxy use it
+  sessionApi,
   claimScope: (process.env.CLAIM_SCOPE || 'owner-only').toLowerCase(),
   // CLAIM_LEGACY=1: take deployments created BEFORE this box was listed, which otherwise wait for
   // their owner to pick this enclave. Only an operator with the standing to consent for those
@@ -151,8 +224,12 @@ const host = new Host({
   measurement: process.env.ENCLAVE_MEASUREMENT || '0x0000000000000000000000000000000000000000000000000000000000000000',
   vcpus: Number(process.env.NODE_VCPUS || os.cpus().length),
   ramGb: Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
-  // the fleet's convention for a node's compute (metal gsup.mjs): 62.5 GFLOPS a vCPU
-  gflops: Math.round(62.5 * Number(process.env.NODE_VCPUS || os.cpus().length)),
+  appRamGb: process.env.NODE_APP_RAM_GB === undefined ? undefined : Number(process.env.NODE_APP_RAM_GB),
+  // this node's compute, measured at start (COMPUTE above); the 62.5-per-vCPU convention only when that failed
+  gflops: COMPUTE.gflops,
+  // ...but catalog cpuGflops FLOORS were written in the convention's units (62.5 a vCPU: risc-box's 250 is 4 vCPUs), so
+  // floors are checked against the nominal figure, never the measured one: a unit mismatch made versions unplaceable
+  gflopsFloorBasis: Math.round(62.5 * NODE_VCPUS_N),
   // what stays with the enclave, the shielded worker and the owner of the PC, never sold
   reservedShare: Number(process.env.RESERVED_SHARE || 0.25),
   // The most one request body or one response this box holds in memory for an app.
@@ -162,13 +239,15 @@ const host = new Host({
   gateway: process.env.IPFS_GATEWAY || 'https://ipfs.enclave.host',
   portBase: Number(process.env.APP_PORT_BASE || 9700),
   appSlots: Number(process.env.APP_SLOTS || 4),
+  // The owner's hosting caps (hosting.mjs), beside the node's other state unless set.
+  hostingCapsFile: process.env.HOSTING_CAPS_FILE || '',
   // TEMPORARY: see host.mjs. Lets an app that bought a card share run even though its world
   // has no import that reaches the enclave's model.
   allowCardWithoutModel: /^(1|true|on)$/i.test(process.env.ENCLAVE_ALLOW_CARD_WITHOUT_MODEL || ''),
   inferenceUrl: `http://127.0.0.1:${process.env.LOCAL_HTTP_PORT || 9600}/v1/completions`,
   log: (m) => log('[host]', m),
 });
-if (!MODEL) { console.error('MODEL is required (the GGUF the enclave serves)'); process.exit(2); }
+if (LEGACY_ENGINE && !MODEL) { console.error('MODEL is required (the GGUF the legacy enclave serves)'); process.exit(2); }
 
 let gpuName = process.env.GPU_NAME || '', tier = '', attachedAt = 0, spkiFp = '';
 // ---- the three processes -----------------------------------------------------------------
@@ -284,6 +363,8 @@ function startTpm() {
     }
   });
   tpm.on('exit', (c) => { log(`tpm exited (${c})`); tpm = null; tpmReady?.rej(new Error('tpm tool exited')); });
+  // A tool that cannot start (missing, not executable) is "attestation unavailable", not a crash of the agent.
+  tpm.on('error', (e) => { log(`tpm tool did not start: ${e.message}`); tpm = null; tpmReady?.rej(e); });
   return new Promise((res, rej) => { tpmReady = { res, rej }; setTimeout(() => rej(new Error('tpm tool did not report ready')), 30_000); });
 }
 function tpmCmd(cmd) { return new Promise((res, rej) => { if (!tpm) return rej(new Error('tpm tool not running')); tpmWaiters.push({ lines: {}, res, rej }); tpm.stdin.write(cmd + '\n'); }); }
@@ -329,6 +410,22 @@ async function attestFrame(nonceB64, credentialBlobB64, secretB64) {
 // "enclave-tunnel-attach:<name>:<nonce>" recovering to the registry entry's operator, so a box
 // running the same enclave build cannot take a registered seller's name while it is down
 // (relay/tunnel.js). The key is the box's own operator key, the same one that registered it.
+// The isolation manager's health, carried in windows-hv-node/v1 as a host STATEMENT (never raised, never weighed).
+async function isolationHealth() {
+  if (!host.cfg.isolationManager) return null;
+  try {
+    const { IsolationManagerClient } = await import('./isolation-client.mjs');
+    return await new IsolationManagerClient({ base: host.cfg.isolationManager }).health();
+  } catch (e) { log(`isolation manager health unavailable: ${e.message}`); return null; }
+}
+// The operator key's personal_sign, for the hv-node attach (hvnode-attach.mjs picks the text); null without a key.
+async function operatorSigner() {
+  try {
+    const { loadOperator } = await import('./chain.mjs');
+    const acct = loadOperator(path.join(DIR, 'operator.key'));
+    return acct ? (message) => acct.signMessage({ message }) : null;
+  } catch (e) { log(`operator signature unavailable: ${e.message}`); return null; }
+}
 async function operatorSig(nonceB64) {
   try {
     const { loadOperator } = await import('./chain.mjs');
@@ -349,7 +446,8 @@ async function operatorSig(nonceB64) {
  * so this retries on the tick rather than leaving a box that failed one probe permanently idle.
  */
 async function measureEngineHold() {
-  if (!APPS || host.cfg.engineHeldMb !== null) return;
+  // Only the retired engine has a hold to measure; on the isolated path capacity never waits on it (enclave-d1 F1).
+  if (!LEGACY_ENGINE || !APPS || host.cfg.engineHeldMb !== null) return;
   try {
     const [privB] = String(await hostCmd('mem')).trim().split(/\s+/).map(Number);
     if (!(privB > 0)) throw new Error(`the enclave reported ${privB} bytes`);
@@ -363,10 +461,51 @@ async function measureEngineHold() {
 }
 
 // ---- the public surface over the tunnel ------------------------------------------------------
+let shieldEvidenceReads = 0;
+let shieldWitness = null;
+let shieldSecrets = null;
 async function handle(frame) {
   const p = String(frame.path || '').split('?')[0]; const method = frame.method || 'GET';
   const json = (status, o) => ({ status, headers: { 'content-type': 'application/json' }, body: JSON.stringify(o) });
-  if (p === '/availability') return json(200, { ok: true, role: 'windows-vbs-node', name: NAME,
+  if (APPS && ['/v1/shield/secret-evidence','/v1/shield/secret-install'].includes(p)) {
+    if (!shieldSecrets) return json(503,{error:'sealed_secrets_disabled'});
+    if (shieldEvidenceReads >= 2) return json(429,{error:'evidence_busy'});
+    shieldEvidenceReads++;
+    try {
+      if (p.endsWith('secret-evidence') && method === 'GET') {
+        const q=new URL(frame.path,'http://localhost').searchParams;
+        return json(200,await shieldSecrets.evidence(q.get('deployment'),q.get('nonce')));
+      }
+      if (p.endsWith('secret-install') && method === 'POST') {
+        if (String(frame.body||'').length>90000) return json(413,{error:'release_too_large'});
+        return json(200,await shieldSecrets.install(JSON.parse(Buffer.from(frame.body||'','base64').toString('utf8'))));
+      }
+      return json(405,{error:'method_refused'});
+    } catch { return json(503,{error:'guest_release_unavailable'}); }
+    finally { shieldEvidenceReads--; }
+  }
+  if (APPS && p === '/v1/shield/readiness'  && method === 'GET') {
+    if (!shieldWitness) return json(503, {error:'witness_not_configured'});
+    if (shieldEvidenceReads >= 2) return json(429, {error:'evidence_busy'});
+    const nonce = new URL(String(frame.path), 'http://localhost').searchParams.get('nonce');
+    if (!/^[0-9a-f]{64}$/.test(nonce || '')) return json(400, {error:'nonce_required'});
+    shieldEvidenceReads++;
+    try { return json(200, await shieldWitness.evidence(nonce)); }
+    catch (e) { return json(503, {error:'witness_unavailable', reason:String(e.message).slice(0,300)}); }
+    finally { shieldEvidenceReads--; }
+  }
+  if (APPS && p === '/v1/shield/evidence' && method === 'GET') {
+    if (shieldEvidenceReads >= 2) return json(429, { error: 'evidence_busy' });
+    const query = new URL(String(frame.path), 'http://localhost').searchParams;
+    const id = query.get('deployment'), nonce = query.get('nonce');
+    if (!/^0x[0-9a-f]{64}$/.test(id || '') || !/^[0-9a-f]{64}$/.test(nonce || ''))
+      return json(400, { error: 'exact_deployment_and_nonce_required' });
+    shieldEvidenceReads++;
+    try { return json(200, await host.shieldEvidence(id, nonce)); }
+    catch (e) { return json(503, { error: 'app_evidence_unavailable', reason: String(e.message).slice(0, 300) }); }
+    finally { shieldEvidenceReads--; }
+  }
+  if (p === '/availability') return json(200, { ok: true, role: LEGACY_ENGINE ? 'windows-vbs-node' : 'windows-hv-node', name: NAME,
     // gpu:false stays false, and it is not a statement about whether the card is for sale: on this
     // fleet that flag means the card is INSIDE the measured enclave, and this one is not. It sits
     // on the untrusted Windows host and the enclave uses it by masked offload. The card's facts,
@@ -380,25 +519,24 @@ async function handle(frame) {
     gpu: false, maxShare: host.cpuShareFree(),
     gpuShareFree: APPS ? host.gpuShareFree() : 0, cpuShareFree: host.cpuShareFree(),
     nodeVcpus: Number(process.env.NODE_VCPUS || os.cpus().length),
-    // RAM, and the honest number here is NOT the machine's. An app on this box runs inside the
-    // enclave, so the pool is the ENCLAVE - a fixed, dedicated allocation made when it was created
-    // (ee-main.cpp EnclaveSize), not a slice of the machine's 112 GB and not a fraction of the
-    // share ledger. What is left of it rides beside this as ramGbFree, measured: the enclave's own
-    // size less what the engine holds (asked of the enclave before any app was claimed) and less
-    // what each running app was promised. The machine's own figure is machineRamGb.
-    nodeRamGb: host.appsInTee()
-      ? Number(host.cfg.enclaveGb) || 0
-      : Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
+    // Report the actual admission budget, independently of physical RAM and CPU
+    // shares. For an in-enclave engine this is its fixed enclave allocation.
+    nodeRamGb: host.capacity().ramMbPool / 1024,
     machineRamGb: Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
-    nodeGflops: Math.round(62.5 * Number(process.env.NODE_VCPUS || os.cpus().length)),   // the fleet's convention (metal gsup.mjs)
-    teeCpu: 'windows-vbs-enclave', tier: tier || null,
+    nodeGflops: COMPUTE.gflops,   // measured at start (compute-measure.mjs), or the 62.5-per-vCPU convention when that failed
+    computeMeasure: COMPUTE.source === 'measured'
+      ? { source: 'measured', gflops: COMPUTE.gflops, perVcpu: COMPUTE.perInstance, copies: COMPUTE.instances, wallMs: COMPUTE.wallMs, at: COMPUTE.at, method: COMPUTE.method }
+      : { source: 'convention', gflops: COMPUTE.gflops },
+    // teeCpu names a CPU TEE this box's own attestation shows. An isolation-only node has none: its attach is a
+    // host-attested boot state (windows-hv-node/v1), so it says null rather than the retired engine's name.
+    teeCpu: LEGACY_ENGINE ? 'windows-vbs-enclave' : null, tier: tier || null,
     // THE CARD, as the worker itself reports it (shieldedcard.mjs), refreshed on a timer. The
     // fallback is what this box knows without asking - a worker that is down must not leave the
     // row advertising a card nobody can use.
-    shielded: (card ? { ...card, ...(cardProof ? { proof: cardProof } : {}) } : null) || { worker: 'vulkan', protocol: '1.4.0', vramGiB: Number(WORKER_VRAM_GB), vramGb: Number(WORKER_VRAM_GB),
-                        vramBudgetGb: Number(WORKER_VRAM_GB), vramFreeGb: 0, vramReservedGb: 0,
-                        ...(gpuName ? { device: gpuName } : {}), note: 'the worker has not answered a HELLO yet' },
-    model: path.basename(MODEL), attachedAt, ...(APPS ? host.availability() : {}) });
+    // An isolation-only node starts no worker, so it advertises no card at all.
+    shielded: card && host.sellsCard() ? { ...card, ...(cardProof ? { proof:cardProof } : {}),
+      ...(host.managerInference?.ready ? { model:host.managerInference.model, minimumGpuMilli:host.managerInference.minimumGpuMilli, runtimeId:host.managerInference.runtimeId } : {}) } : null,
+    model: MODEL ? path.basename(MODEL) : null, attachedAt, ...(APPS ? host.availability() : {}) });
   // ---- who is asking ---------------------------------------------------------------------
   // The public half of this box's session key. Anyone can verify a token it minted - and confirm
   // the operator did not mint it - holding no secret. On a confidential VM that last part is a
@@ -426,8 +564,10 @@ async function handle(frame) {
     return json(200, { token: mintSession(sessionKey, { subject: r.address, ttlSec: SESSION_TTL }),
                        address: r.address, expiresIn: SESSION_TTL, kid: sessionKey.kid });
   }
-  if (p === '/v1/health') return json(200, { ok: true, role: 'windows-vbs-node', name: NAME, host: !!children.host, worker: !!children.worker, tpm: !!tpm });
+  if (p === '/v1/health') return json(200, { ok: true, role: LEGACY_ENGINE ? 'windows-vbs-node' : 'windows-hv-node', engine: LEGACY_ENGINE ? 'legacy' : 'retired',
+                                             name: NAME, host: !!children.host, worker: !!children.worker, tpm: !!tpm });
   if (p === '/v1/completions' && method === 'POST') {
+    if (!LEGACY_ENGINE) return json(503, { error: 'unavailable', reason: NO_ENGINE });
     let body = {}; try { body = JSON.parse(Buffer.from(frame.body || '', 'base64').toString('utf8')); } catch { return json(400, { error: 'bad json' }); }
     const prompt = String(body.prompt || ''); const n = Math.max(1, Math.min(512, Number(body.max_tokens || 16)));
     if (!prompt) return json(400, { error: 'prompt required' });
@@ -450,10 +590,13 @@ async function handle(frame) {
     return app ? json(200, { id, lines: app.logs(200) }) : json(404, { error: 'not_found', id });
   }
   if (APPS && method === 'POST' && /^\/v1\/deployments\/0x[0-9a-fA-F]{64}\/restart$/.test(p)) {
-    const id = p.split('/')[3].toLowerCase();
-    let d; try { d = await (await import('./chain.mjs')).readDeployment(id); } catch (e) { return json(502, { error: 'chain', message: e.message }); }
-    const r = await host.ensureApp(id, d, { force: true });
-    return json(200, r);
+    // host.restartRequest: the OWNER's session on this box (401 without one, 404 for anyone else), then this box's live
+    // lease and the owner rule (409). This route used to run ANY ledger deployment here, for anyone (enclave-b4's N1;
+    // the caller check is enclave-5d's review of it).
+    // the target and raw body as received: a wallet session signed them
+    const r = await host.restartRequest(p.split('/')[3], frame.headers, { request: { method, path: String(frame.path || ''),
+      body: frame.body ? Buffer.from(frame.body, 'base64') : null } });
+    return json(r.status, r.body);
   }
   // The platform's own "come and claim this" nudge (the relay sends it after funding, the console
   // when a row reads queued). The policy in chain.mjs decides; a refusal names its reason.
@@ -491,9 +634,10 @@ async function handle(frame) {
       + ` (x-forwarded-for: ${frame.headers?.['x-forwarded-for'] ?? 'absent'})`);
     const r = await host.proxy(id, { method, pathRest: rest + (String(frame.path || '').includes('?') ? '?' + String(frame.path).split('?')[1] : ''),
                                      headers: frame.headers, body: frame.body ? Buffer.from(frame.body, 'base64') : null,
-                                     ip });
+                                     ip, target: String(frame.path || '') });
     return { status: r.status, headers: r.headers, body: Buffer.isBuffer(r.body) ? r.body.toString('utf8') : r.body };
   }
+  if (!LEGACY_ENGINE && (p === '/v1/session/keys' || p === '/v1/session')) return json(503, { error: 'unavailable', reason: NO_ENGINE });
   if (p === '/v1/session/keys') { const [signPk, boxPk] = (await hostCmd('keys')).split(' '); return json(200, { transportKey: b64(Buffer.concat([ED25519_SPKI_PREFIX, Buffer.from(signPk, 'hex')])), padKey: boxPk, note: 'verify these against the attested tunnel row, not against this answer' }); }
   if (p === '/v1/session' && method === 'POST') {           // opaque bytes in, opaque bytes out: sealed to the enclave's attested pad key
     const blob = Buffer.from(frame.body || '', 'base64'); if (blob.length < 76) return json(400, { error: 'blob too short' });
@@ -506,48 +650,96 @@ async function handle(frame) {
 
 // ---- the tunnel ----------------------------------------------------------------------------
 function connect() {
-  let ws, pending = null;   // pending: { nonce } between challenge and attest-result
-  const dial = () => {
-    log(`dialing ${RELAY_URL} as ${NAME}`);
+  const tunnels = tunnelHandover();
+  reattachNow = () => { if (tunnels.canReattach()) dial({ standby: true }); };
+  endTunnelNow = () => { for (const t of [tunnels.standby, tunnels.current]) if (t) { try { t.ws.terminate(); } catch {} } };
+  // standby: a make-before-break re-attach (tunnel-handover.mjs). It serves nothing until the relay accepts its attach;
+  // the relay then binds it and ends the live one (relay/tunnel.js bind, "newest wins").
+  const dial = ({ standby = false } = {}) => {
+    const s = { ws: null, pending: null, attachSent: null, superseded: false };   // pending: { nonce } between challenge and attest-result
+    log(`dialing ${RELAY_URL} as ${NAME}${standby ? ' (standby: the live tunnel serves until the relay accepts this attach)' : ''}`);
     // maxPayload: an explicit ceiling on one tunnel frame. `ws` defaults to 100 MB, which is a
     // lot of agent memory to hand a single message, and every frame this tunnel legitimately
     // carries is one request or one response - already bounded by the same knob at the app.
-    ws = new WebSocket(RELAY_URL, { headers: { 'x-metal-name': NAME, 'x-metal-attest': '1' }, family: 4,
+    const ws = s.ws = new WebSocket(RELAY_URL, { headers: { 'x-metal-name': NAME, 'x-metal-attest': '1' }, family: 4,
                                     maxPayload: Math.round((Number(process.env.ENCLAVE_APP_MAX_BODY_MB) || 64) * 1048576 * 1.4) });
     const send = (o) => { try { ws.send(JSON.stringify(o)); } catch {} };
-    tunnelSend = send;
-    tunnelBuffered = () => { try { return ws.bufferedAmount || 0; } catch { return 0; } };
+    tunnels.opened(s, { standby });
     let last = Date.now(); const live = setInterval(() => { if (Date.now() - last > 90_000) { log('tunnel silent for 90s, redialing'); try { ws.terminate(); } catch {} } }, 15_000);
     ws.on('open', () => { last = Date.now(); log('tunnel open, waiting for the challenge'); });
     ws.on('message', async (data) => {
       last = Date.now(); let f; try { f = JSON.parse(data); } catch { return; }
       try {
-        if (f.t === 'challenge') { pending = { nonce: f.nonce }; send(await keysFrame()); log('sent TPM keys'); }
+        if (f.t === 'challenge') {
+          const kf = await keysFrame();
+          // the EK certificate exactly as sent (attach signature v2 binds its sha256) and whether the relay verifies v2
+          s.pending = { nonce: f.nonce, v2: relayTakesV2(f), ekCertDer: Buffer.from(kf.ek, 'base64') };
+          send(kf); log('sent TPM keys');
+        }
         else if (f.t === 'vbs-credential') {
-          if (!pending) return;
-          const { frame, spki } = await attestFrame(pending.nonce, f.credentialBlob, f.secret);
-          spkiFp = createHash('sha256').update(spki).digest('hex');
-          const sig = await operatorSig(pending.nonce); if (sig) frame.operatorSig = sig;
-          send(frame); log('sent evidence (report, quote, credential, log)');
+          if (!s.pending) return;
+          if (LEGACY_ENGINE) {
+            const { frame, spki } = await attestFrame(s.pending.nonce, f.credentialBlob, f.secret);
+            spkiFp = createHash('sha256').update(spki).digest('hex');
+            const sig = await operatorSig(s.pending.nonce); if (sig) frame.operatorSig = sig;
+            send(frame); log('sent evidence (report, quote, credential, log)');
+          } else {
+            // windows-hv-node/v1: the TPM's quote over this node's own key and the relay's nonce. It refuses
+            // (throws) on a boot state the relay would refuse, and never sends an enclave-format frame.
+            const frame = await buildHvNodeFrame({ nonce: Buffer.from(s.pending.nonce, 'base64'),
+              credentialBlob: Buffer.from(f.credentialBlob, 'base64'), secret: Buffer.from(f.secret, 'base64'),
+              spki: nodeKey.spki, privateKey: nodeKey.privateKey, tpm: tpmCmd,
+              managerHealth: await isolationHealth(), platform: await platformInfo() });
+            spkiFp = createHash('sha256').update(nodeKey.spki).digest('hex');
+            // The operator's signature and the owners' delegations (hvnode-attach.mjs, enclave-e3's format): v2, and the
+            // delegations with it, only when the relay's challenge says it verifies v2 - a relay that checks v1 alone
+            // would refuse a v2 signature for this registered name. Delegations re-read now, so the attach is current.
+            if (APPS) await host.refreshOwners().catch((e) => log(`owners: ${e.message}`));
+            const x = await finishHvAttach(frame, { name: NAME, nonceB64: s.pending.nonce, spki: nodeKey.spki, ekCertDer: s.pending.ekCertDer,
+                                                    v2: s.pending.v2, sign: await operatorSigner(), delegations: APPS ? host.attachDelegations() : [] });
+            // the version of the list this frame CARRIES (x.delegations), not of whatever the host holds after the awaits above
+            s.attachSent = { version: x.version, owners: APPS ? host.ownersVersion(undefined, x.delegations) : null,
+                             served: APPS ? host.servedBy(x.delegations) : null };
+            send(frame); log(`sent ${HV_NODE_FORMAT} evidence (quote, credential, log, signed binding), attach signature v${x.version}`
+              + (x.version === 2 ? `, ${x.delegations.length} delegation(s)` : ' (the relay offered no v2: it serves no delegated owner from this attach)'));
+          }
         } else if (f.t === 'attest-result') {
-          if (f.ok) { tier = f.tier || '';   // the relay's verdict (vbs | vbs-dev); never our own claim
+          if (f.ok) { const replaced = tunnels.accepted(s);
+                      if (replaced) {
+                        // Refresh the local app connections when the accepted owner context changes,
+                        // then close the replaced control tunnel; nothing redials
+                        if (zone) zone.closeAll();
+                        try { replaced.ws.terminate(); } catch {}
+                        log('re-attach: the standby tunnel serves now; the replaced one is closed, with no gap on the relay');
+                      }
+                      host.shieldMarketUntil = 0; host.relayAttached = true;
+                      tier = f.tier || '';   // the relay's verdict (vbs | vbs-dev); never our own claim
+                      attachedOwnersVersion = s.attachSent && s.attachSent.version === 2 ? s.attachSent.owners : null;
+                      attachedOwners = s.attachSent && s.attachSent.version === 2 ? s.attachSent.served : null;
                       host.relayTier = tier;   // the host's contract gate reads the relay's verdict, not ours
-                      attachedAt = Date.now(); log(`attach ACCEPTED tier=${tier} measurement=${String(f.measurement || '').slice(0, 16)}`); send({ t: 'hello', name: NAME, mode: 'vbs', publicUrl: PUBLIC_URL, transportKeyFp: spkiFp }); }
-          else log(`attach REJECTED: ${f.reason}`);
+                      // the relay's word on host exclusion, kept as given (hv-node: false); never raised by this node
+                      host.relayHostExcluded = typeof f.hostExcluded === 'boolean' ? f.hostExcluded : null;
+                      attachedAt = Date.now(); log(`attach ACCEPTED tier=${tier} measurement=${String(f.measurement || '').slice(0, 16)}`); send({ t: 'hello', name: NAME, mode: LEGACY_ENGINE ? 'vbs' : 'hv-node', publicUrl: PUBLIC_URL, transportKeyFp: spkiFp }); }
+          else {
+            log(`attach REJECTED: ${f.reason}${standby ? ' (a standby: the live tunnel still serves)' : ''}`);
+            if (standby) { try { ws.terminate(); } catch {} }
+          }
+        } else if (f.t === 'shield-market') {
+          // Only the currently accepted relay connection can open this bounded claim window.
+          if (s === tunnels.current) host.openShieldMarket(Math.min(Number(f.until) || 0, Date.now() + 300000));
         } else if (f.t === 'ping') send({ t: 'pong' });
         else if (f.t === 'req') { const r = await handle(f); send({ t: 'res', id: f.id, status: r.status, headers: r.headers, body: Buffer.from(r.body).toString('base64') }); }
-        // The app's OWN origin arrives as a raw stream with the WebSocket upgrade replayed into
-        // it (relay/tunnel.js spliceUpgrade -> relay/relay.js splice). appzone.mjs answers the
-        // handshake with this deployment's certificate and proxies the plaintext to its port.
-        else if (f.t === 's+' || f.t === 'sd' || f.t === 'sx') {
-          if (!zone) send({ t: 's=', sid: f.sid, ok: false, err: 'this node is not hosting apps (APPS=1)' });
-          else zone.onFrame(f);
-        }
-      } catch (e) { log(`frame ${f.t} failed: ${e.message}`); if (f.t === 'challenge' || f.t === 'vbs-credential') send({ t: 'attest', rad: { format: 'windows-vbs-enclave/v1', body: '' } }); }
+
+      } catch (e) { log(`frame ${f.t} failed: ${e.message}`); if (f.t === 'challenge' || f.t === 'vbs-credential') send({ t: 'attest', rad: { format: LEGACY_ENGINE ? 'windows-vbs-enclave/v1' : HV_NODE_FORMAT, body: '', refused: e.message } }); }
     });
     ws.on('unexpected-response', (_r, res) => { log(`handshake rejected: HTTP ${res.statusCode}`); try { ws.terminate(); } catch {} });
     ws.on('close', () => {
-      if (zone) zone.closeAll(); clearInterval(live); attachedAt = 0; log('tunnel closed'); setTimeout(dial, 5000); });
+      clearInterval(live);
+      const { lost, redial } = tunnels.closed(s);
+      if (lost) { if (zone) zone.closeAll(); attachedAt = 0; host.shieldMarketUntil = 0; host.relayAttached = false; }
+      log(lost ? 'tunnel closed' : s.superseded ? 'the replaced tunnel closed' : 'the standby tunnel closed; the live one still serves');
+      if (redial) setTimeout(() => dial(), 5000);
+    });
     ws.on('error', (e) => { log(`tunnel error: ${e.message}`); try { ws.terminate(); } catch {} });
   };
   dial();
@@ -556,7 +748,7 @@ function connect() {
 // LOCAL_HTTP_PORT: the same surface the tunnel serves, on loopback, for tests without a relay
 function localHttp(port) {
   const http = requireHttp();
-  http.createServer(async (req, res) => {
+  const server = http.createServer(async (req, res) => {
     const chunks = []; for await (const c of req) chunks.push(c);
     const body = Buffer.concat(chunks);
     const p = String(req.url || '').split('?')[0];
@@ -577,15 +769,59 @@ function localHttp(port) {
     if (APPS && p === '/v1/host/state') return json(200, { deployments: host.deployments(), availability: host.availability() });
     const r = await handle({ path: req.url, method: req.method, headers: req.headers, body: body.toString('base64') });
     res.writeHead(r.status, r.headers); res.end(r.body);
-  }).listen(port, '127.0.0.1', () => log(`local http on 127.0.0.1:${port}`));
+  });
+  server.on('upgrade', (req, socket, head) => { if (zone) zone.handleUpgrade(req, socket, head); else socket.destroy(); });
+  server.listen(port, '127.0.0.1', () => log(`local http on 127.0.0.1:${port}`));
 }
 function requireHttp() { return createRequire(import.meta.url)('node:http'); }
+// THE OWNER'S HOSTING CONTROLS (hosting.mjs): the tray app's API, on its own loopback port rather than LOCAL_HTTP_PORT's
+// server, which is optional and unauthenticated and also serves the tunnel's surface. Started first, so the owner can
+// see and set the caps while the rest comes up, and not awaited: the token's directory checks run in PowerShell. A
+// token that cannot be made private turns the controls OFF and nothing else.
+async function startHostingControls() {
+  const port = Number(process.env.HOSTING_ADMIN_PORT ?? 9610);
+  if (!port) { log('hosting controls: off (HOSTING_ADMIN_PORT=0)'); return; }
+  const file = process.env.HOSTING_ADMIN_TOKEN_FILE || tokenFileDefault(DIR);
+  let token;
+  try { token = await mintToken(file, { trayUser: process.env.HOSTING_TRAY_USER || '' }); }
+  catch (e) { log(`hosting controls: OFF, no private token file at ${file}: ${e.message}`); return; }
+  if (!process.env.HOSTING_TRAY_USER) log(`hosting controls: HOSTING_TRAY_USER is not set, so only SYSTEM and an ELEVATED administrator can read ${file}`);
+  // THE OWNER'S EARNINGS (payout.mjs): read and paid through the same controls. The chain module is the live one: until
+  // the operator key and the address book are loaded, the tray is told the chain cannot be read yet.
+  const chainMod = await import('./chain.mjs');
+  const minUsdc = Number(process.env.HOSTING_PAYOUT_MIN_USDC);
+  const payouts = new Payouts({ file: path.join(DIR, 'payout.json'), enclaveId: host.enclaveId, chain: chainMod,
+    minPayout6: Number.isFinite(minUsdc) && minUsdc > 0 ? BigInt(Math.round(minUsdc * 1e6)) : DEFAULT_MIN_PAYOUT6,
+    log: (m) => log('[payout]', m) });
+  startHostingAdmin({ host, port, token, payouts, log: (m) => log('[hosting]', m) });
+  // paid automatically once an hour from the minimum, to the payout wallet the owner pasted into the tray (or nobody)
+  setInterval(() => {
+    if (!chainMod.operatorAddress() || !chainMod.addresses.deployments || !payouts.state.confirmed) return;
+    payouts.payout().then((r) => { if (r.paid === false && r.why && !/paid out automatically from/.test(r.why)) log('[payout]', `not paid: ${r.why}`); });
+  }, 3_600_000).unref();
+}
 (async () => {
-  await startWorker();
-  await startHost();
+  startHostingControls().catch((e) => log(`hosting controls: OFF (${e.message})`));
+  if (LEGACY_ENGINE) { await startWorker(); await startHost(); }
+  else { await refreshPartitionGpu(); setInterval(() => refreshPartitionGpu().catch(() => { card=null; host.managerInference=null; host.managerSupports=null; }),15000).unref();
+
+    nodeKey = loadOrCreateNodeKey(DIR);
+    // a NEW box's first registration, paid by the host paymaster once the relay has verified this TPM (sponsor.mjs);
+    // the relay vouches only for the operator key this attach named, so it is asked with the key the relay saw
+    host.sponsorRegister = async (args) => {
+      const chainMod = await import('./chain.mjs');
+      return sponsoredRegister({ relayBase: RELAY_URL.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:').replace(/\/v1\/fleet-tunnel$/, ''),
+                                 name: NAME, transportKey: nodeKey.privateKey, operator: chainMod.operatorAccount(),
+                                 client: chainMod.publicClient(), registry: chainMod.addresses.registry, args,
+                                 log: (m) => log('[sponsor]', m) });
+    };
+    log(`isolation-only node: the VBS enclave engine is retired; transport key ${createHash('sha256').update(nodeKey.spki).digest('hex').slice(0, 16)}… `
+      + '(a host key: it proves only that an admin-level process on this host chose it)');
+  }
   await startTpm().catch((e) => log(`tpm: ${e.message} (attestation unavailable)`));
   const k = await tpmCmd('keys').catch((e) => { log(`tpm keys failed: ${e.message}`); return null; });
   if (k) log(`TPM ready: AIK name ${k['aik-name'].slice(0, 16)}…, EK cert ${k['ek-cert'].length / 2} bytes (${k['ek-cert-source']})`);
+  if (LEGACY_ENGINE) {
   const hk = await hostCmd('keys'); log(`enclave keys: transport ${hk.slice(0, 16)}…`);
   // Does the loaded enclave image carry an app runtime? The enclave answers, not a config file:
   // this is what decides whether the box hosts a tenant's app INSIDE the enclave, and therefore
@@ -612,6 +848,7 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
         + `${host.capacity().ramMbFree} MB for apps`
       : 'no app runtime in this enclave image: this box sells no app hosting');
   } catch (e) { log(`app runtime check failed: ${e.message}`); }
+  }
   if (APPS) {
     // The session key, before anything can be asked for one. Where it lives is published rather
     // than implied (host.features sessionKeyIn): on a confidential VM the operator never sees the
@@ -621,15 +858,147 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
     log(`session: ES256 key ${sessionKey.kid.slice(0, 12)}… (in the agent's process, not the enclave)`);
     setInterval(() => nonces.sweep(), 60_000).unref?.();
     await host.init();
+    if (process.env.SHIELD_WITNESS_CONFIG && host.cfg.isolationManager && host.cfg.isolationDataAddr) {
+      const {createShieldWitness} = await import('./shield-witness.mjs');
+      shieldWitness = createShieldWitness({config:JSON.parse(fs.readFileSync(process.env.SHIELD_WITNESS_CONFIG,'utf8')),
+        base:host.cfg.isolationManager, dataAddr:host.cfg.isolationDataAddr});
+      let lastWitnessError = '';
+      // hosting off: no witness partition either (it comes back, and the market with it, when hosting is turned on)
+      const tickWitness = () => (host.hostingCaps().paused === true
+        ? shieldWitness.stop().then((gone) => { if (gone) log('readiness witness stopped: hosting is off'); lastWitnessError = ''; })
+        : shieldWitness.ensure().then(() => { lastWitnessError = ''; })).catch(e => {
+        if (e.message !== lastWitnessError) log(`readiness witness: ${e.message}`);
+        lastWitnessError = e.message;
+      });
+      tickWitness(); setInterval(tickWitness, 30000).unref?.();
+    }
+    // UPDATES: a new release starts installing within a minute of going live (update-watch.mjs). Only on an installed
+    // host (Program Files\Enclave\manifest.json beside this control tree) on Windows, where \Enclave\Update exists.
+    if (process.platform === 'win32') {
+      let installed = null;
+      // written by PowerShell (Set-Content -Encoding UTF8): it starts with a byte-order mark, which JSON.parse refuses
+      try { installed = JSON.parse(fs.readFileSync(path.join(HERE, '..', '..', '..', 'manifest.json'), 'utf8').replace(/^\uFEFF/, '')).version || null; }
+      catch (e) { log(`update: the installed version could not be read (${e.message}); updates come from the hourly task only`); }
+      if (installed) {
+        const { createUpdateWatch } = await import('./update-watch.mjs');
+        const { execFile } = await import('node:child_process');
+        const downloads = (process.env.ENCLAVE_DOWNLOADS || 'https://get.enclave.host/windows/').replace(/\/?$/, '/');
+        const watch = createUpdateWatch({ installed, log: (m) => log(m),
+          fetchLatest: async () => { const r = await fetch(`${downloads}latest.json`, { cache: 'no-store', signal: AbortSignal.timeout(15000) });
+                                     if (!r.ok) throw new Error(`latest.json: HTTP ${r.status}`); return r.json(); },
+          trigger: () => new Promise((res, rej) => execFile('schtasks.exe', ['/Run', '/TN', '\\Enclave\\Update'], { windowsHide: true, timeout: 30000 },
+            (e, so, se) => (e ? rej(new Error(`schtasks: ${String(se || e.message).trim()}`)) : res()))) });
+        setTimeout(() => watch.check(), 20_000).unref?.(); setInterval(() => watch.check(), 60_000).unref?.();
+        log(`update: running ${installed}; a newer release on ${downloads} is installed as soon as it is live`);
+      }
+    }
+    // PRICES: the default is the cheapest per-(GB x FLOPS) unit the other hosts of this tier post (price-guide.mjs), read
+    // from the relay's public /enclaves list a minute after start and every hour; the owner's override (the tray) wins.
+    {
+      const relayHttp = RELAY_URL.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:').replace(/\/v1\/fleet-tunnel$/, '');
+      const readPrices = async () => {
+        try {
+          const r = await fetch(`${relayHttp}/enclaves`, { signal: AbortSignal.timeout(20000) });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          host.setPriceRows((await r.json()).enclaves || []);
+        } catch (e) { log(`prices: the network's prices could not be read (${e.message}); the current ones stand`); }
+      };
+      // soon after start: ensurePriced posts nothing over a registered price until these are known
+      setTimeout(readPrices, 5_000).unref?.(); setInterval(readPrices, 3_600_000).unref?.();
+    }
+    // The host-side cache for public, pinned content (blob-cache.mjs, docs/design/shield-blob-cache.md): shield-egress
+    // dials blobs.enclave.internal:80 here instead of the app's paid route. Loopback only; off unless configured.
+    if (process.env.BLOB_SERVICE_PORT) {
+      try {
+        const { startBlobService } = await import('./blob-cache.mjs');
+        const dir = process.env.BLOB_CACHE_DIR || path.join(DIR, '..', 'shield', 'blobs');
+        const maxBytes = Number(process.env.BLOB_CACHE_GB || 32) * 2 ** 30;
+        const svc = startBlobService({ port: Number(process.env.BLOB_SERVICE_PORT), dir, maxBytes, log: (m) => log(m) });
+        svc.on('listening', () => log(`blob cache: serving 127.0.0.1:${process.env.BLOB_SERVICE_PORT} from ${dir} (cap ${maxBytes / 2 ** 30} GB)`));
+        svc.on('error', (e) => log(`blob cache: ${e.message}`));
+      } catch (e) { log(`blob cache: not started (${e.message})`); }
+    }
+    // An open-market host keeps its own privacy agent enrolled on the Enclave network (tuna-enroll.mjs; the TUNA_* names
+    // are the installed hosts' historical ones): the config the \Enclave\Tuna task waits for. Every 5 minutes, once the
+    // box is registered.
+    if (process.env.TUNA_AGENT_DIR && process.env.TUNA_BIN_DIR && process.env.TUNA_SHIELD_POLICY && host.cfg.isolationManager && nodeKey) {
+      const { createTunaEnroll, fileSha256 } = await import('./tuna-enroll.mjs');
+      const chainMod = await import('./chain.mjs');
+      const relayBase = RELAY_URL.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:').replace(/\/v1\/fleet-tunnel$/, '');
+      let enroll = null, enrolling = false, lastEnrollError = '';
+      const tickEnroll = async () => {
+        if (enrolling || !host.registered) return;
+        enrolling = true;
+        try {
+          enroll ||= createTunaEnroll({ agentDir: process.env.TUNA_AGENT_DIR, binDir: process.env.TUNA_BIN_DIR,
+            runner: host.enclaveId, relayBase,
+            config: { agentDir: process.env.TUNA_AGENT_DIR, binDir: process.env.TUNA_BIN_DIR, nodeBinary: process.execPath,
+                      operatorKeyFile: path.join(DIR, 'operator.key'), runner: host.enclaveId, endpoint: PUBLIC_URL, relayBase,
+                      policyFile: process.env.TUNA_SHIELD_POLICY, tpmBinary: process.env.TPMATTEST_EXE,
+                      tpmSha256: await fileSha256(process.env.TPMATTEST_EXE), addressBook: chainMod.addressBook(), chainRpc: chainMod.rpcUrls(),
+                      manager: host.cfg.isolationManager, dataAddr: host.cfg.isolationDataAddr,
+                      // the Enclave network (docs/design/enclave-network.md) with its trusted qualification checkers; TUNA is
+                      // retired, so there is no other transport (no checkers: enrollment refuses, and says so in the log)
+                      enclaveNetwork: { checkers: String(process.env.ENCLAVE_NETWORK_CHECKERS || '').toLowerCase().split(',').map((c) => c.trim()).filter(Boolean),
+                        // the box's registry proof key and operator key, beside each other here (keys.mjs): paid providers settle with them
+                        ...(fs.existsSync(path.join(DIR, 'proof.key')) && fs.existsSync(path.join(DIR, 'operator.key')) ? { paid: { proofKeyFile: path.join(DIR, 'proof.key'), gasKeyFile: path.join(DIR, 'operator.key') } } : {}) } },
+            // a box whose network configuration changes restarts its privacy agent once (the \Enclave\Tuna task starts it again in 10 s)
+            restartAgent: async () => { const { execFile } = await import('node:child_process'); await new Promise((res) => execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+              "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'privacy-agent\\.mjs' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"],
+              { timeout: 30000, windowsHide: true }, () => res())); },
+            rows: () => chainMod.allDeployments(), version: (appRef) => chainMod.resolveAppRef(appRef),
+            vms: async () => { const r = await fetch(`${host.cfg.isolationManager}/vms`, { signal: AbortSignal.timeout(15000) });
+                               if (!r.ok) throw new Error(`the manager answered /vms ${r.status}`); const j = await r.json(); return Array.isArray(j) ? j : j.vms || []; },
+            log: (m) => log('[network]', m) });
+          await enroll.pass(); lastEnrollError = '';
+        } catch (e) { if (e.message !== lastEnrollError) log('[network]', `enrollment: ${e.message}`); lastEnrollError = e.message; }
+        finally { enrolling = false; }
+      };
+      setTimeout(tickEnroll, 60_000).unref?.(); setInterval(tickEnroll, 300_000).unref?.();
+    }
     // resolve(id): the app's loopback port and its certificate, or null. Both come from the host,
     // which is the half that holds leases; a deployment this box does not serve resolves to null
     // and the stream is refused with a status rather than a silent close.
+    // The splicer for ISOLATED deployments, built only when this box is configured for that
+    // backend. Null otherwise, and the app zone then has nothing to splice with and says so
+    // rather than terminating TLS for a partition, which it must never do.
+    let isolationSplicer = null;
+    if (host.cfg.isolationManager && host.cfg.isolationDataAddr) {
+      const { createIsolationSplicer } = await import("../vbslike/datapath/node-bridge.mjs");
+      const { IsolationManagerClient } = await import("./isolation-client.mjs");
+      isolationSplicer = createIsolationSplicer({
+        client: new IsolationManagerClient({ base: host.cfg.isolationManager }),
+        dataAddr: host.cfg.isolationDataAddr,
+        log: (m) => log(m),
+      });
+      // M4: the certificate relay for the partitions this box runs (hvcert.mjs): each one's CSR, issued for its own key
+      // under this box's operator signature, installed back into it. Without an operator key there is nothing to sign
+      // the request with, and each partition keeps serving its self-signed certificate.
+      const { loadOperator } = await import('./chain.mjs');
+      let acct = null;
+      try { acct = loadOperator(path.join(DIR, 'operator.key')); } catch (e) { log(`certificates: no operator key (${e.message})`); }
+      if (acct) {
+        const {createShieldSecrets}=await import('./shield-secrets.mjs');
+        shieldSecrets=createShieldSecrets({base:host.cfg.isolationManager,endpoint:host.cfg.endpoint,relayBase:host.cfg.relayBase,
+          sign:message=>acct.signMessage({message}),log:m=>log(m)});
+        const provision=()=>shieldSecrets.pass().catch(()=>{});
+        setInterval(provision,5000).unref?.();setTimeout(provision,3000).unref?.();
+        const { createHvCertPass } = await import('./hvcert.mjs');
+        const certs = createHvCertPass({
+          client: new IsolationManagerClient({ base: host.cfg.isolationManager }), dataAddr: host.cfg.isolationDataAddr,
+          runtimeId: rec => Number(rec.gpuShare) > 0 ? host.managerInference?.runtimeId : host.cfg.isolationRuntimeId,
+          endpoint: host.cfg.endpoint, sign: (message) => acct.signMessage({ message }),
+          served: (owner) => host.servingScope() === "market" || host.ownerSet().has(owner), log: (m) => log(m) });
+        let running = false;
+        const tick = () => { if (running) return; running = true;
+          certs.pass(host.records).catch((e) => log(`certificates: pass failed: ${e.message}`)).finally(() => { running = false; }); };
+        setInterval(tick, 60_000).unref?.();
+        setTimeout(tick, 15_000).unref?.();
+      } else log('certificates: this box has no operator key, so its partitions keep their self-signed certificates');
+    }
     zone = appZone({
-      send: (o) => tunnelSend(o),
+      isolationSplicer,
       resolve: (id) => host.appZoneTarget(id),
-      // What the tunnel socket is still holding, so a streaming response applies backpressure
-      // rather than filling this process's memory.
-      pressure: () => tunnelBuffered(),
       // A gate-served app (wasi:http, enclave:app) has no socket: its own hostname is served by
       // terminating TLS here and carrying the request through the gate, the same frame the /x/
       // path uses.
@@ -648,5 +1017,20 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
   }
   if (process.env.LOCAL_HTTP_PORT) localHttp(Number(process.env.LOCAL_HTTP_PORT));
   if (process.env.RELAY_URL !== 'none') connect(); else log('RELAY_URL=none: local only');
+  // The relay learns whom this node serves only at attach, so when that changes (a delegation added, removed or expired;
+  // the tick re-reads them) the node attaches again - at most every 2 minutes (hvnode-attach.mjs shouldReattach).
+  if (!LEGACY_ENGINE && APPS) setInterval(() => {
+    if (!shouldReattach({ attached: attachedAt > 0, attachedVersion: attachedOwnersVersion, currentVersion: host.ownersVersion(), lastRedialMs: lastOwnerRedial })) return;
+    lastOwnerRedial = Date.now();
+    // an ADDED owner: a standby takes over with no gap; a REMOVED one: the tunnel ends now, and the relay serves nothing
+    // of it from here, whatever becomes of the new attach (the app zone refuses it too: Host.appZoneTarget)
+    if (reattachMode({ attached: attachedOwners, current: host.servedBy() }) === 'make-before-break') {
+      log('the owners this node serves grew since its attach: attaching again make-before-break, so the relay serves the new set with no gap');
+      reattachNow();
+    } else {
+      log('an owner this node served was REMOVED since its attach: ending the tunnel now so the relay stops serving it at once, then attaching again');
+      endTunnelNow();
+    }
+  }, 30_000).unref?.();
 })().catch((e) => { console.error(e); process.exit(1); });
 process.on('SIGINT', () => { for (const c of Object.values(children)) c?.kill(); tpm?.kill(); process.exit(0); });

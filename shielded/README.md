@@ -128,6 +128,76 @@ make -C ../wasm/ggml-shielded calib GGML_LIB=... LLAMA_INC=... GGML_INC=...   # 
 SHIELDED_CALIB=model.calib ../wasm/ggml-shielded/ggml-test
 ```
 
+### Host memory during worker installation
+
+The CUDA worker validates already encoded public weights in their connection-owned
+upload buffer, then copies directly to the device. Only the legacy q8/half-scale
+path allocates a temporary encoding. After a successful graph install, the worker
+also releases its control-frame receive buffer; previously it retained the largest
+upload chunk throughout inference (normally 32 MiB for weights uploaded from RAM).
+Masked exchanges continue to use their separate pinned staging.
+
+A local synthetic installation benchmark on 2026-10-01 used an RTX 3070, one
+8192×8192 int8 matrix (64 MiB), two 32 MiB upload chunks, and five fresh worker
+processes per version in alternating order. Against commit `9471d0a6c`, median
+process RSS after install fell from 128.8 to 96.7 MiB, peak RSS from 256.2 to
+192.0 MiB, and install round-trip time from 33.3 to 27.4 ms. Both builds used
+clang++ `-O3` for sm_86 and CUDA runtime 12. These are model-loading measurements,
+not end-to-end inference throughput or fleet results; RSS includes the CUDA context
+and allocator effects. The regression also checks exact GPU products, shared and
+offset weight regions, legacy conversion, and refusals after a partial install.
+
+```
+CUDA_VISIBLE_DEVICES=<test-card> python3 shielded/worker-cuda/test_install_memory.py --worker-bin shielded/worker-cuda/shielded-worker
+CUDA_VISIBLE_DEVICES=<test-card> python3 shielded/worker-cuda/test_install_memory.py --worker-bin shielded/worker-cuda/shielded-worker --benchmark
+```
+
+### Graph-cache lookup allocations
+
+The worker builds each exchange's graph key on the stack and borrows it for
+lookup. Cache hits allocate nothing; misses keep their own compact key copy.
+The key still distinguishes packing mode, row count, reply destination and the
+complete ordered node list. Capacity eviction and staging invalidation are unchanged.
+
+On 2026-10-01, seven alternating host-only benchmark runs, pinned to one logical
+CPU and compiled with `c++ -O3`, measured median lookup time of 34.0 → 22.3 ns
+for 274 cached keys and 38.3 → 25.3 ns for 514 keys (1–4 nodes per key).
+The 64-node case measured 122.5 → 98.5 ns. Each two-million-hit sample went from
+two million temporary allocations to zero. These are lookup microbenchmarks;
+they do not establish a change in end-to-end token throughput or retained RAM.
+
+`shielded/bench/graph_cache_bench.cpp` reproduces the lookup/allocation measurement.
+Compile with `-std=c++17 -O3 -I shielded/worker-cuda -DSH_BORROWED_GRAPH_KEYS` for
+the current caller, or omit the define and use the previous cache header for
+the baseline. The sanitizer fixture covers all key lengths through 64 nodes,
+caller storage mutation, allocation-free hits and failure cleanup.
+
+### Packed reply staging
+
+For socket `FIELD_GEMM24` exchanges, GPU packing reserves three host bytes per
+result, rounded up to a four-byte boundary for the pack kernel's final store.
+CPU packing still needs four host bytes per result. The kernel packing mode's
+separate int32 device scratch is unchanged. Buffers retain their high-water size,
+so an earlier, larger 32-bit reply can limit the savings on a mixed connection.
+The shared-memory ring currently accepts only 32-bit exchanges and is unaffected.
+
+On 2026-10-01, five alternating fresh-worker trials per version on a V100
+(sm_70) used K=32, N=65536 and m=32. Against `5cb177af3`, both GPU packing modes
+requested 6 MiB of pinned output staging instead of 8 MiB (25% less); the median
+RSS increase across the first exchange fell by 2 MiB. CPU packing was unchanged.
+This measures one connection's staging, not whole-model RAM or inference speed.
+
+The integration test builds a Linux/CUDA allocation interposer that checks
+64 guard bytes beyond every requested pinned allocation after synchronization.
+It checks exact products in all three packing modes, small and odd widths,
+multiple kernel passes, buffer growth, cache replay, and switches to 32-bit replies.
+Use an idle test GPU; the script starts and stops only its own scratch workers.
+
+```
+CUDA_VISIBLE_DEVICES=<test-card> python3 shielded/worker-cuda/test_reply_staging.py --worker-bin shielded/worker-cuda/shielded-worker
+CUDA_VISIBLE_DEVICES=<test-card> python3 shielded/worker-cuda/test_reply_staging.py --worker-bin shielded/worker-cuda/shielded-worker --benchmark
+```
+
 ### Which calibrator
 
 `shielded-calib` (C, `wasm/ggml-shielded/`) is the one that produces the files in

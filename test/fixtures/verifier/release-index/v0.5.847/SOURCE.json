@@ -1,0 +1,12 @@
+{
+ "release-index.json": {
+  "url": "https://github.com/EnclaveHost/enclave/releases/download/v0.5.847/release-index.json",
+  "sha256": "0d6ffeab4db91eefd06860610c8314c13a67768fc481b45809485ef70c2e3570",
+  "fetchedAt": "2026-09-25T02:33Z",
+  "what": "the FIRST signed release index, built and attested by the release-index job of Publish release v0.5.847 (run 36086615986), attached to that release"
+ },
+ "attestation.json": {
+  "url": "https://api.github.com/repos/EnclaveHost/enclave/attestations/sha256:0d6ffeab4db91eefd06860610c8314c13a67768fc481b45809485ef70c2e3570",
+  "what": "GitHub's attestation API answer: the Sigstore bundle (v0.3, keyless, GitHub OIDC identity of tinfoil-release-publish.yml at refs/tags/v0.5.847, predicate https://enclave.host/predicate/release-index/v1); attestation id 50058862"
+ }
+}

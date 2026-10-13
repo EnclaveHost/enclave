@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import { Test, Vm } from "forge-std/Test.sol";
 import { EnclaveCreditVault, EnclaveCreditVaultFactory, IERC20, IAddressBook } from "../../EnclaveCreditVault.sol";
+import { EnclaveConnectivity } from "../../EnclaveConnectivity.sol";
 import { EnclaveDeployments } from "../../EnclaveDeployments.sol";
 import { MockUSDC } from "./mocks/MockUSDC.sol";
 import { MockBook, MockDeployments } from "./mocks/MockPlatform.sol";
@@ -327,6 +328,37 @@ contract EnclaveCreditVaultTest is Test {
 
     // ---- ERC-1271 ---------------------------------------------------------------
 
+    function test_passkeyAuthorizesAndRevokesDirectBandwidth() public {
+        EnclaveDeployments liveLedger=new EnclaveDeployments(address(usdc),treasury,address(dep),address(0));
+        address[] memory probes=new address[](1);probes[0]=address(0x5678);
+        EnclaveConnectivity network=new EnclaveConnectivity(liveLedger,probes);
+        vm.prank(address(vault));
+        bytes32 id=liveLedger.create("catalog://app/0",0,1000,8080,"",true,"",address(0),0,1000);
+        uint64 expires=uint64(block.timestamp+3600);
+        bytes32 digest=keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32",network.policyDigest(id,expires,1e6,2e6)));
+        EnclaveCreditVault.WebAuthnSig memory assertion=_sig(PK1,digest);
+        network.authorizeDirect(id,expires,1e6,2e6,abi.encode(assertion));
+        (address owner,uint64 nonce,uint64 until,,, ,)=network.policies(id);
+        assertEq(owner,address(vault));assertEq(nonce,1);assertEq(until,expires);
+        bytes32 off=keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32",network.policyDigest(id,0,0,0)));
+        network.authorizeDirect(id,0,0,0,abi.encode(_sig(PK1,off)));
+        (,nonce,until,,,,)=network.policies(id);assertEq(nonce,2);assertEq(until,0);
+        vm.expectRevert();network.authorizeDirect(id,expires,1e6,2e6,abi.encode(assertion));
+    }
+    function test_passkeyChangesCheckerTrustAndCannotReplay() public {
+        EnclaveDeployments liveLedger=new EnclaveDeployments(address(usdc),treasury,address(dep),address(0));
+        address[] memory probes=new address[](1);probes[0]=address(0x5678);
+        EnclaveConnectivity network=new EnclaveConnectivity(liveLedger,probes);
+        vm.prank(address(vault));bytes32 id=liveLedger.create("catalog://app/0",0,1000,8080,"",true,"",address(0),0,1000);
+        probes[0]=address(0x9999);uint64 deadline=uint64(block.timestamp+600);
+        bytes32 digest=keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32",network.probeTrustDigest(id,probes,1,deadline)));
+        bytes memory assertion=abi.encode(_sig(PK1,digest));
+        network.authorizeProbeTrust(id,probes,1,deadline,assertion);
+        (address[] memory trusted,uint8 threshold)=network.probeTrust(id);
+        assertEq(trusted[0],probes[0]);assertEq(threshold,1);
+        (,uint64 nonce,uint64 until,,,,)=network.policies(id);assertEq(nonce,1);assertEq(until,1);
+        vm.expectRevert();network.authorizeProbeTrust(id,probes,1,deadline,assertion);
+    }
     function test_isValidSignature() public view {
         bytes32 h = keccak256("an enclave session challenge");
         EnclaveCreditVault.WebAuthnSig memory w = _sig(PK1, h);

@@ -69,6 +69,12 @@ const APPROVAL_SET_TOPIC = keccak256(toHex("VersionApprovalSet(bytes32,uint256,u
 const ID = "0x" + "ab".repeat(32);                     // the id the stub chain mints
 const CID = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
 const APP_ID = "0x" + "cd".repeat(32);
+// the on-chain address book the address-book tests point the CLI at (ENCLAVE_ADDRESS_BOOK), and the catalog it names
+const BOOK_ADDR = "0x" + "b0".repeat(20);
+const BOOK_CATALOG = "0x" + "c4".repeat(20);
+const BOOK_ABI = [{ type: "function", name: "all", stateMutability: "view", inputs: [],
+                    outputs: [{ type: "bytes32[]" }, { type: "address[]" }] }];
+const name32 = (n) => "0x" + Buffer.from(n).toString("hex").padEnd(64, "0");
 
 const b64u = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const jwt = (addr) => `${b64u({ alg: "HS256" })}.${b64u({ sub: addr, exp: Math.floor(Date.now() / 1000) + 43200 })}.stub`;
@@ -97,10 +103,13 @@ const S = {
   verFee: 0n,                                  // versionFee(appId, *) on the rev-5 catalog (µUSDC/s)
   fleetResize: true,                           // availability.shareResize (fleet-AND; resize tests flip it)
   cap6: 0n,                                    // capOf() (rev-8 ledgers): the deployment's hourly ceiling
+  refundable6: 0n,                             // refundableOf() (rev-10 ledgers)
   fleetRateCap: true,                          // availability.rateCap (fleet-AND for cap edits)
   fleet: null,                                 // GET /enclaves rows (per-box hardware; null = no fleet view)
   money: null,                                 // get(ID) rate/balance6 override ({rate,balance6}); null = the paid default
   envelope: "", pinnedJson: [],
+  book: "ok",                                  // the address book at BOOK_ADDR: "ok" names BOOK_CATALOG, "fail" errors
+  pinnedWasm: 0,                               // /add-wasm uploads the ipfs double accepted
 };
 
 function apiServer() {
@@ -228,7 +237,13 @@ function rpcServer() {
                     config: "" };   // rev-3 Version tuple carries the default config
   const version2 = () => ({ ...version, version: "2", ...S.v2 });   // the upgrade target (S.v2 shapes it per test)
   function call(to, data) {
-    const abi = to === DEPLOYMENTS ? DEP_ABI : to === CATALOG ? CAT_ABI : to === REGISTRY ? REG_ABI
+    if (to === BOOK_ADDR) {
+      if (S.book === "fail") throw new Error("execution reverted (the test's unreadable address book)");
+      decodeFunctionData({ abi: BOOK_ABI, data });
+      return encodeFunctionResult({ abi: BOOK_ABI, functionName: "all", result: [
+        [name32("registry"), name32("deployments"), name32("appCatalog")], [REGISTRY, DEPLOYMENTS, BOOK_CATALOG]] });
+    }
+    const abi = to === DEPLOYMENTS ? DEP_ABI : to === CATALOG || to === BOOK_CATALOG ? CAT_ABI : to === REGISTRY ? REG_ABI
       : [{ type: "function", name: "balanceOf", stateMutability: "view",
            inputs: [{ name: "a", type: "address" }], outputs: [{ type: "uint256" }] }];
     const { functionName, args } = decodeFunctionData({ abi, data });
@@ -248,6 +263,7 @@ function rpcServer() {
       maxFeePerSec6: () => [1389n],          // the publish-time cap (~$5.00/hour)
       feeOf: () => [OWNER, S.verFee],        // rev-4 surface: the deployment's fee snapshot
       capOf: () => [S.cap6],                 // rev-8 surface: the deployment's spend ceiling
+      refundableOf: () => [S.refundable6],   // rev-10 surface: what refund() would pay back now
       getAppsPage: () => [Number(args[0]) === 0 ? [{ appId: APP_ID, publisher: OWNER, slug: "hello-world",
         name: "Hello World", description: "first app", versionCount: S.versionCount, createdAt: 1n, updatedAt: 1n, active: true }] : []],
       getVersionsPage: () => [Number(args[1]) === 0 ? [version, version2()].slice(0, S.versionCount) : []],
@@ -324,6 +340,7 @@ function ipfsServer() {
     if (buf.readUInt32LE(0) !== 0x6d736100 || (buf[6] | (buf[7] << 8)) !== 1) {
       res.writeHead(415); return res.end("not a component");
     }
+    S.pinnedWasm++;
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ cid: CID }));
   });
@@ -553,6 +570,17 @@ test("fund: tops up an existing deployment with USDC", async () => {
   assert.match(r.out, /balance \$2\.00/);                   // stub balance readback
 });
 
+test("fund: an INACTIVE record is refused before any transaction, and resume is named as the way back", async () => {
+  S.txs.length = 0; S.active = false;
+  try {
+    const r = await run(["fund", ID, "--usdc", "5"]);
+    assert.notEqual(r.code, 0, "the command fails");
+    assert.match(r.err + r.out, /is inactive \(stopped or cancelled\), and the ledger funds only an active record/);
+    assert.ok((r.err + r.out).includes("`enclave resume " + ID.slice(0, 10) + "…` first"), r.err + r.out);
+    assert.equal(S.txs.length, 0, "no transaction is sent");
+  } finally { S.active = true; }
+});
+
 test("stop: setActive(false) on-chain, then DELETE", async () => {
   S.txs.length = 0;
   const r = await run(["stop", ID]);
@@ -561,7 +589,66 @@ test("stop: setActive(false) on-chain, then DELETE", async () => {
   assert.deepEqual(sa.args, [ID, false]);
   const del = S.apiCalls.findLast((c) => c.path === `/v1/deployments/${ID}` && c.method === "DELETE");
   assert.ok(del, "DELETE sent");
+  assert.match(r.out, new RegExp(`stopped on-chain: setActive\\(false\\) tx ${sa.hash} confirmed`));
   assert.match(r.out, /terminated/);
+});
+
+// enclave-87 (09-26 05:02Z): `stop` sent setActive 0xded9430d and it landed, but the only line printed was the teardown's
+// login refusal. The on-chain stop is reported when it confirms, and a teardown failing AFTER it is a warning.
+test("stop: the confirmed on-chain stop is reported, and a teardown failing after it is a warning (exit 0)", async () => {
+  S.txs.length = 0; S.active = true;
+  const fresh = fs.mkdtempSync(path.join(os.tmpdir(), "enclave-cli-stop-"));   // no cached token: the DELETE must log in
+  S.evilNonce = "please sign this";                                           // ...and the login is refused
+  try {
+    const r = await run(["stop", ID], { env: { XDG_CONFIG_HOME: fresh } });
+    assert.equal(r.code, 0, r.err);
+    const sa = S.txs.find((t) => t.functionName === "setActive");
+    assert.deepEqual(sa.args, [ID, false]);
+    assert.match(r.out, new RegExp(`stopped on-chain: setActive\\(false\\) tx ${sa.hash} confirmed in block 256`));
+    assert.match(r.err, /^warning: the immediate teardown failed: refusing to sign/m);
+    assert.match(r.err, new RegExp(`^warning: the stop itself succeeded \\(tx ${sa.hash}\\)`, "m"));
+    assert.doesNotMatch(r.err, /^error:/m);
+
+    S.txs.length = 0;
+    const j = await run(["stop", ID, "--json"], { env: { XDG_CONFIG_HOME: fresh } });
+    assert.equal(j.code, 0, j.err);
+    const o = JSON.parse(j.out);
+    assert.equal(o.setActive.tx, S.txs.find((t) => t.functionName === "setActive").hash);
+    assert.equal(o.teardown.ok, false);
+    assert.match(o.teardown.error, /refusing to sign/);
+  } finally { S.evilNonce = null; fs.rmSync(fresh, { recursive: true, force: true }); }
+});
+
+test("stop: with nothing sent on-chain (already inactive), a failing teardown is still the command's error", async () => {
+  S.txs.length = 0; S.active = false;
+  const fresh = fs.mkdtempSync(path.join(os.tmpdir(), "enclave-cli-stop-"));
+  S.evilNonce = "please sign this";
+  try {
+    const r = await run(["stop", ID], { env: { XDG_CONFIG_HOME: fresh } });
+    assert.notEqual(r.code, 0);
+    assert.equal(S.txs.filter((t) => t.functionName === "setActive").length, 0);
+    assert.match(r.err, /^error: .*refusing to sign/m);
+    assert.doesNotMatch(r.out, /stopped on-chain/);
+  } finally { S.evilNonce = null; S.active = true; fs.rmSync(fresh, { recursive: true, force: true }); }
+});
+
+// A refund CANCELS the record, and the ledger funds only an active one (EnclaveDeployments _requireActive: "inactive"),
+// so the old closing hint "`enclave fund <id>` brings it back" named a transaction that reverts (enclave-d1, 09-26 TEST2-MINI:
+// the cancelled 0x958ae6e9 can come back only through setActive(true)). The hint names resume, then a fund.
+test("refund: sends refund(id), says the record is cancelled, and names RESUME (not fund) as the way back", async () => {
+  S.txs.length = 0; S.depRev = 13n; S.refundable6 = 2_000000n;
+  try {
+    const r = await run(["refund", ID]);
+    assert.equal(r.code, 0, r.err);
+    const rf = S.txs.find((t) => t.functionName === "refund");
+    assert.deepEqual(rf && rf.args, [ID]);
+    const s = ID.slice(0, 10) + "…";
+    assert.match(r.out, new RegExp(`${s} is cancelled`));
+    assert.ok(r.out.includes(`\`enclave resume ${s}\` re-activates it`), r.out);
+    assert.doesNotMatch(r.out, /brings it back/);
+    // the fund it mentions comes AFTER the resume, as a balance, never as the way back on its own
+    assert.ok(r.out.indexOf("enclave resume") < r.out.indexOf("enclave fund"), r.out);
+  } finally { S.depRev = 3n; S.refundable6 = 0n; }
 });
 
 test("resume: setActive(true) on-chain + claim-hint nudge", async () => {
@@ -863,6 +950,53 @@ test("publish: reads an owner publish's auto-approval off the receipt (catalog r
   assert.match(r.out, /approved on publish/);
   assert.ok(!/approval is pending/.test(r.out), "must not tell the owner to wait for review");
   S.autoApprove = false;
+});
+
+/* ---- the address book: the live catalog, and a loud, write-refusing fallback -------- */
+const component = () => {
+  const wasm = path.join(confDir, "app.wasm");
+  fs.writeFileSync(wasm, Buffer.from([0x00, 0x61, 0x73, 0x6d, 0x0d, 0x00, 0x01, 0x00]));
+  return wasm;
+};
+
+test("address book read: publish goes to the catalog the BOOK names, not the baked one, and nothing is said", async () => {
+  S.txs.length = 0; S.numVersions = 0n; S.book = "ok";
+  const r = await run(["publish", component(), "--slug", "hello-world"], { env: { ENCLAVE_ADDRESS_BOOK: BOOK_ADDR } });
+  assert.equal(r.code, 0, r.err);
+  const pv = S.txs.find((t) => t.functionName === "publishVersion");
+  assert.equal(pv?.to, BOOK_CATALOG);
+  assert.notEqual(BOOK_CATALOG, CATALOG);
+  assert.ok(!/address book/.test(r.err), r.err);
+});
+
+test("address book UNREAD: said on stderr, and a publish is refused before anything is pinned or sent", async () => {
+  S.txs.length = 0; S.numVersions = 0n; S.book = "fail"; S.pinnedWasm = 0;
+  try {
+    const r = await run(["publish", component(), "--slug", "hello-world"], { env: { ENCLAVE_ADDRESS_BOOK: BOOK_ADDR } });
+    assert.notEqual(r.code, 0);
+    assert.match(r.err, /warning: the on-chain address book 0x(b0){20} was not read/);
+    assert.match(r.err, /refusing to write to the app catalog/);
+    assert.equal(S.pinnedWasm, 0, "nothing pinned");
+    assert.equal(S.txs.length, 0, "nothing sent");
+  } finally { S.book = "ok"; }
+});
+
+test("address book UNREAD: a catalog READ still runs on the baked addresses, and says so", async () => {
+  S.book = "fail";
+  try {
+    const r = await run(["apps"], { env: { ENCLAVE_ADDRESS_BOOK: BOOK_ADDR } });
+    assert.equal(r.code, 0, r.err);
+    assert.match(r.out, /hello-world/);
+    assert.match(r.err, /warning: the on-chain address book .* was not read/);
+  } finally { S.book = "ok"; }
+});
+
+test("ENCLAVE_ADDRESS_BOOK=\"\" is the deliberate opt-out: the baked catalog, a publish allowed, nothing said", async () => {
+  S.txs.length = 0; S.numVersions = 0n;
+  const r = await run(["publish", component(), "--slug", "hello-world"]);   // run() sets ENCLAVE_ADDRESS_BOOK: ""
+  assert.equal(r.code, 0, r.err);
+  assert.equal(S.txs.find((t) => t.functionName === "publishVersion")?.to, CATALOG);
+  assert.ok(!/address book/.test(r.err), r.err);
 });
 
 /* ---- the publisher-fee surface (rev-4 ledger + rev-5 catalog) ------------ */

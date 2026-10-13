@@ -303,15 +303,26 @@ export async function baseRpc(method, params, opts){
 export async function ethCall(data){
   return (await baseRpc("eth_call", [{ to: APP_CATALOG_ADDRESS, data }, "latest"], { emptyRetry: true })) || "0x";
 }
-export async function depCall(data){
-  return (await baseRpc("eth_call", [{ to: DEPLOYMENTS_ADDRESS, data }, "latest"], { emptyRetry: true })) || "0x";
+export async function depCall(data, block = "latest"){
+  return (await baseRpc("eth_call", [{ to: DEPLOYMENTS_ADDRESS, data }, block], { emptyRetry: true })) || "0x";
 }
 // EnclaveDeployments.get(id) -> one Deployment struct (see DEP_SCHEMA). The tuple
 // contains dynamic strings, so the return is offset-prefixed like a dynamic type.
-export async function depGet(id){
+export async function depGet(id, block = "latest"){
   const schema = (await depSchemaRev()) >= 2 ? DEP_SCHEMA : DEP_SCHEMA_V1;
-  const obj = decodeStruct(await depCall("0x" + DEP_SEL.get + pad32(id.replace(/^0x/, ""))), schema);
+  const obj = decodeStruct(await depCall("0x" + DEP_SEL.get + pad32(id.replace(/^0x/, "")), block), schema);
   return obj && Number(obj.createdAt) ? obj : null;           // a never-created id decodes to an all-zero record
+}
+// Lease expiry uses the chain's clock, not the browser's. Pin the deployment
+// read to that same block so RPC rotation cannot mix times and lease states.
+export async function depSnapshot(id){
+  const block = await baseRpc("eth_getBlockByNumber", ["latest", false]);
+  if (!/^0x[0-9a-f]+$/i.test(block?.number || "")
+    || !/^0x[0-9a-f]+$/i.test(block?.timestamp || "")
+    || !Number.isSafeInteger(Number(block.timestamp)) || Number(block.timestamp) <= 0)
+    throw new EnclaveError("Unable to verify the current lease time. Try again.", 0);
+  const d = await depGet(id, block.number);
+  return d ? { ...d, blockNumber: Number(block.number), blockTimestamp: Number(block.timestamp) } : null;
 }
 // The live full-card / full-node per-second prices (6dp USDC), read once and
 // cached: EVERY money estimate must come from these, never from client
@@ -395,12 +406,12 @@ export function encStr(s){
   for (const x of b) h += x.toString(16).padStart(2, "0");
   return { body: encUint(b.length) + h.padEnd(Math.ceil(h.length / 64) * 64, "0"), words: 1 + Math.ceil(b.length / 32) };
 }
-// args: [{t:'str'|'uint'|'bool'|'addr'|'bytes32'|'bytes32[]'|'bytes[]', v}]; head (offsets/inline) then dynamic tails.
+// args: [{t:'str'|'uint'|'bool'|'addr'|'bytes32'|'bytes32[]'|'addr[]'|'bytes[]', v}]; head (offsets/inline) then dynamic tails.
 export function encCall(selector, args){
   let off = args.length * 32; const heads = [], bodies = [];
   for (const a of args){
     if (a.t === "str"){ const e = encStr(a.v); heads.push(encUint(off)); off += e.words * 32; bodies.push(e.body); }
-    else if (a.t === "bytes32[]"){
+    else if (a.t === "bytes32[]" || a.t === "addr[]"){
       const items = a.v.map(x => pad32(String(x).replace(/^0x/, "")));
       heads.push(encUint(off)); off += (1 + items.length) * 32;
       bodies.push(encUint(items.length) + items.join(""));
@@ -550,6 +561,16 @@ export async function catMaxFeePerSec6(){
 }
 export async function catGetAppsPage(start, n){
   return decodeStructArray(await ethCall(encCall(CAT_SEL.getAppsPage, [{t:"uint",v:start},{t:"uint",v:n}])), APP_SCHEMA);
+}
+// A deployment may reference a version newer than the cached app listing.
+// Read that exact record without depending on the listing's versionCount.
+export async function catGetVersion(appId, index){
+  const rev = await catSchemaRev();
+  const versions = decodeStructArray(await ethCall(encCall(CAT_SEL.getVersionsPage,
+    [{ t: "bytes32", v: appId }, { t: "uint", v: index }, { t: "uint", v: 1 }])), rev >= 4 ? VER_SCHEMA : VER_SCHEMA_V2);
+  if (versions.length !== 1) throw new EnclaveError("The deployed app version is unavailable from the catalog.", 0);
+  if (rev < 4) versions[0].config = "";
+  return versions[0];
 }
 export async function catGetVersions(appId, count){
   const rev = await catSchemaRev();
