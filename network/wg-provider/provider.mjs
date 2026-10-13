@@ -47,10 +47,20 @@ export class WgProvider {
    try{await this.kernel.setPeer({...p,role:p.role==='guard'||p.onGuard?'guard':'exit'});}catch(e){this.log('restore peer: '+e.message);}
   }
   if(saved?.next)this.next={...this.next,...saved.next};
+  await this.prune();
   await this.sync();
   return this.peers.size;
  }
- async persist(){if(this.store)await this.store.save({version:1,peers:[...this.peers.values()],next:this.next});}
+ // a failed save is logged, never a refused grant: the kernel already holds the peer
+ // The kernel holds exactly the peers in the table: anything else (left by an older run) is removed.
+ async prune(){
+  if(!this.kernel.listPeers)return;
+  for(const iface of ['wg-exit','wg-guard']){
+   const want=new Set([...this.peers.values()].filter(p=>(p.role==='guard'||p.onGuard?'wg-guard':'wg-exit')===iface).map(p=>p.key));
+   for(const key of await this.kernel.listPeers(iface).catch(()=>[]))if(!want.has(key)){await this.kernel.removePeer({key,role:iface==='wg-guard'?'guard':'exit'}).catch(()=>{});this.log('removed a kernel peer this provider never granted (or no longer holds)');}
+  }
+ }
+ async persist(){if(this.store)await this.store.save({version:1,peers:[...this.peers.values()],next:this.next}).catch(e=>this.log('saving the peer table: '+e.message));}
  allocate(role){
   // 10.77/16 exit, 10.78/16 guard; .0.1 is this side
   const base=role==='exit'?[10,77]:[10,78];
@@ -180,6 +190,7 @@ export class WgProvider {
    const lease=await this.leases(p.deploymentId).catch(()=>null);
    if(!lease||!lease.active||lease.runner!==p.runner||!(lease.leaseUntil>now))await this.remove(p,'lease ended');
   }
+  await this.prune();
   await this.sync();
  }
  async sync(){

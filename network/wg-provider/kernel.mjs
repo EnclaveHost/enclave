@@ -97,6 +97,8 @@ export class Kernel {
   if(!key.test(peer.key)||!ipv4.test(peer.address))throw new Error('invalid peer');
   await this.cmd('wg',['set',this.iface(peer),'peer',peer.key,'allowed-ips',peer.address+'/32']);
  }
+ // the public keys the kernel holds on an interface
+ async listPeers(iface){return (await this.cmd('wg',['show',iface,'peers'])).split('\n').map(x=>x.trim()).filter(Boolean);}
  async removePeer(peer){if(key.test(peer.key))await this.cmd('wg',['set',this.iface(peer),'peer',peer.key,'remove']);}
  // Replace the dynamic sets in one transaction.
  async sync({egress,targets}){
