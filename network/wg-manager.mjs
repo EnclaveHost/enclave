@@ -38,8 +38,9 @@ export function selectNetworkCircuits(providers,{routes,ingress,egress,maxPriceP
 
 export class EnclaveNetworkManager extends EventEmitter {
  // direct: {runtime (DirectRuntime), qualification()} on a host that opted in to direct hosting with a public address
- constructor({runtime,admission,providers,byoConfig,probe,probeEgress,publish,direct=null,now=Date.now,log=()=>{}}){
-  super();Object.assign(this,{runtime,admission,providers,byoConfig,probe,probeEgress,publish,direct,now,log});
+ // paid: {eligible(app, provider), meter(apps) -> [{app, circuit, reason}]} (paid-network.mjs) when priced providers may be used
+ constructor({runtime,admission,providers,byoConfig,probe,probeEgress,publish,direct=null,paid=null,now=Date.now,log=()=>{}}){
+  super();Object.assign(this,{runtime,admission,providers,byoConfig,probe,probeEgress,publish,direct,paid,now,log});
   this.apps=new Map();this.cooldown=new Map();this.drops=new Map();this.closed=false;this.busy=false;this.publications=new Map();this.reconciling=new Map();
  }
  handles(policy){return policy?.version===5;}
@@ -110,6 +111,8 @@ export class EnclaveNetworkManager extends EventEmitter {
    }
   }finally{this.busy=false;}
   await Promise.all(pending);
+  // paid hops: meter and authorize the debit; a refused debit (budget spent, authorization gone) closes the circuit
+  if(this.paid&&!this.closed)for(const {app,circuit,reason} of await this.paid.meter([...this.apps.values()]).catch(e=>{this.log('paid meter: '+e.message);return [];}))await this.fail(app,circuit,reason);
  }
  async reconcileApp(app,providers){
   if(!this.authorizationUntil(app.id)){if(app.circuits.length)await this.withdraw(app,'not authorized');app.error='waiting for lease and guest proof';return;}
@@ -140,7 +143,7 @@ export class EnclaveNetworkManager extends EventEmitter {
   for(const c of [...app.circuits])if(c.kind==='network'){
    const g=byId.get(c.providers.guard.providerId),x=byId.get(c.providers.exit.providerId);
    const same=(a,b)=>a&&a.address===b.address&&a.wgGuardKey===b.wgGuardKey&&a.wgExitKey===b.wgExitKey&&a.qualifiedUntil>this.now();
-   const fits=x&&x.pricePerGiB6<=plan.maxPricePerGiB6&&(!c.ingress||x.eligibleRoles.includes('ingress'))&&(!c.egressReady||x.eligibleRoles.includes('egress'))&&g?.eligibleRoles.includes('guard');
+   const fits=x&&x.pricePerGiB6<=plan.maxPricePerGiB6&&this.paidOK(app,x)&&this.paidOK(app,g)&&(!c.ingress||x.eligibleRoles.includes('ingress'))&&(!c.egressReady||x.eligibleRoles.includes('egress'))&&g?.eligibleRoles.includes('guard');
    const shape=c.fallback?plan.fallback&&!c.ingress:c.ingress===plan.ingress&&(c.egressReady===plan.egress);
    if(!same(g,c.providers.guard)||!same(x,c.providers.exit)||!fits)await this.fail(app,c,'provider no longer qualified for this circuit');
    else if(!shape)await this.fail(app,c,'circuit no longer matches the policy');
@@ -166,7 +169,7 @@ export class EnclaveNetworkManager extends EventEmitter {
    const keep=have().map(c=>({guard:c.providers.guard,exit:c.providers.exit}));
    // prefer providers the app's other circuits do not use; share them only when there are not enough
    const others=new Set(app.circuits.filter(c=>c.kind==='network'&&!!c.fallback!==g.fallback).flatMap(c=>[c.providers.guard.address,c.providers.exit.address]));
-   const pick=list=>selectNetworkCircuits(list,{routes:g.routes,ingress:g.ingress,egress:g.egress,maxPricePerGiB6:want.maxPricePerGiB6,keep,cooldown:this.cooldown,now:this.now()});
+   const pick=list=>selectNetworkCircuits(list.filter(p=>this.paidOK(app,p)),{routes:g.routes,ingress:g.ingress,egress:g.egress,maxPricePerGiB6:want.maxPricePerGiB6,keep,cooldown:this.cooldown,now:this.now()});
    let choice;
    try{try{choice=pick(providers.filter(p=>!others.has(p.address)));if(choice.short&&others.size)throw new Error(choice.short);}catch{choice=pick(providers);}}
    catch(e){const n=keep.length;if(n)degraded=`${n} of ${g.routes} route(s): ${e.message}`;else error=(g.fallback?'fallback: ':'')+e.message;continue;}
@@ -202,6 +205,7 @@ export class EnclaveNetworkManager extends EventEmitter {
   if((this.cooldown.get(p.providerId)||0)>this.now())return;
   const n=(this.drops.get(p.providerId)||0)+1;this.drops.set(p.providerId,n);this.cooldown.set(p.providerId,this.now()+Math.min(60000*2**(n-1),COOLDOWN_MAX_MS));
  }
+ paidOK(app,p){return !p||!(p.pricePerGiB6>0)||(!!this.paid&&this.paid.eligible(app,p));}
  adopt(app,c){c.admit(this.authorizationUntil(app.id));c.on('down',reason=>{void this.fail(app,c,reason).catch(e=>this.log(e.message));});app.circuits.push(c);}
  async checkHealth(app){
   for(const c of [...app.circuits]){
