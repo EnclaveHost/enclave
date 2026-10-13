@@ -22,6 +22,9 @@ test("a pVM takes what the CPU hosts take, and says why it takes nothing else", 
   assert.equal(why(row()), null);
   assert.equal(why(row({ configCid: JSON.stringify({ network: { transport: "tuna" }, isolation: { require: ISOLATION_BACKEND } }) })), null);
   assert.equal(why(row({ configCid: JSON.stringify({ placement: { hostId: E, allowFallback: false } }) })), null, "pinned to this host");
+  // the site's pin is {hostId} alone, which means fallback is disabled (as on every other host)
+  assert.match(String(why(row({ configCid: JSON.stringify({ placement: { hostId: "0x" + "77".repeat(32) } }) }))), /pinned to another host/);
+  assert.equal(why(row({ configCid: JSON.stringify({ placement: { hostId: E } }) })), null, "a plain pin to this host");
   assert.equal(why(row({ runner: E, leaseUntil: NOW + 100 })), null, "its own live lease (a restart picks it up)");
   // the options the CPU hosts apply: an app-config override (inline or at a CID), protection rules
   assert.equal(why(row({ configCid: '{"config":{"key":"v"}}' })), null, "a config override");
