@@ -202,7 +202,10 @@ export async function runPrivacy(configFile){
   // leave through two guarded Enclave-network circuits instead of TUNA's control guards (docs/design/enclave-network.md).
   let leaseReaderLate;
   const directFetch=globalThis.fetch;
-  const networkFetch=async(url,init)=>{if(wgControl){try{await wgControl.proxies();return await guardedFetch(wgControl.proxies,{timeoutMs:15000,maxBytes:4194304})(url,init);}catch(e){if(cfg.enclaveNetwork?.controlRequired)throw e;}}return directFetch(url,init);};
+  // through the control circuits when they are up; otherwise (or if they fail) directly, with a fresh deadline (the
+  // caller's signal may already have expired on the failed attempt)
+  const networkFetch=async(url,init={})=>{if(wgControl){try{await wgControl.proxies();return await guardedFetch(wgControl.proxies,{timeoutMs:15000,maxBytes:4194304})(url,init);}catch(e){if(cfg.enclaveNetwork?.controlRequired)throw e;}}
+    return directFetch(url,{...init,signal:AbortSignal.timeout(15000)});};
   const network=cfg.enclaveNetwork?await createNetworkHost({config:cfg.enclaveNetwork,account,runner:cfg.runner,rpc:cfg.chain?.rpc,addressBook:cfg.chain?.addressBook,
     leaseReader:{registryEntries:(...a)=>leaseReaderLate.registryEntries(...a)},directory:cfg.directory,log,fetch:networkFetch,
     authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:pvm?pvmForwarder(pvm.appPort):guestd?guestd.forward:localAppForwarder(cfg.upstream)}):null;
