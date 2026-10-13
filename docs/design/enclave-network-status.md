@@ -36,17 +36,46 @@ the guard's address.
   replay), `test/windows-node-tuna-enroll.test.mjs` (wallet-free enrollment, one-time switch), `test/site-eip191.test.mjs`,
   `network/wg` Go tests.
 
+## Owner configuration applied by a host in production (2026-10-13)
+
+Test deployment 0x5ece7c2e… (s3-ipfs-adapter, owner = the agent wallet, on the NucBox, since refunded), each step
+signed by the owner with `scripts/network/owner-policy.mjs` through the public relay API and applied by the NucBox's
+production agent without a restart:
+
+| Owner change (nonce) | What the host did | Seen |
+|---|---|---|
+| default -> `routes 1` (1) | rebuilt on one circuit | within ~30 s; DNS one exit; HTTPS 200; host reported nonce 1 |
+| -> BYO WireGuard, ingress on the Enclave network (2) | BYO tunnel for egress + one ingress-only network circuit | test VPN on fra1 saw the handshake; the app's DNS (1.1.1.1) and HTTPS calls left inside the BYO tunnel |
+| BYO server taken down, `fallback none` | dropped the BYO circuit after its egress probes failed (~1.5 min); NO switch to another network; app not ready, reason shown; website circuit kept | VPN up again: BYO back immediately |
+| -> `fallback enclave-network` (3), BYO down | egress through the authorized fallback; status `fallbackActive` | first try closed the website circuit too (~2 min dark): fixed (2ccd5f07a, own egress-only fallback circuit), re-tested: website circuit c3aaed2a unchanged through failover and failback |
+| -> Enclave network, `routes 2` (4); BYO config deleted | BYO tunnel closed (VPN silent since), two network circuits, DNS both exits | owner view of the config afterwards: none |
+
+Also verified on the relay: a non-owner's policy is refused and changes nothing; the stored BYO config only ever comes
+back redacted (no key material); its release to anyone but the current runner is refused (403).
+
+Found and fixed during these tests (all deployed to the NucBox, metal0 and the pVM agent the same night):
+- a config reload on a network-only host refused every app as "TUNA": a newly claimed app was never served until the
+  agent restarted (c498e4c9a);
+- one provider losing its qualification took every app with `routes 2` offline (it built nothing when it could not
+  build two): it now degrades to the circuits the qualified providers allow, reported as `degraded` (828ef2803);
+- one incident at a provider escalated its cooldown once per app (five apps: 1 min -> 16 min): failures during a
+  cooldown no longer escalate it (db35b8781).
+The provider incident itself was mine: the first test VPN on fra1 reused fra1's own wg-exit address 10.77.0.1, its
+/24 route took the return traffic of exit peers in 10.77.0.0/24, both checkers saw fra1 fail "refusals must be
+prompt" and disqualified it (01:18-01:21Z); every app was off its fra1 circuits, and for ~3 min had none. The VPN was
+recreated on 10.250.0.0/30.
+
 ## Not yet proven in production
 
-- **An owner changing mode, applied by a host**: on the production relay (2026-10-13, a test deployment owned by the
-  agent wallet): the owner's signed policy was accepted (nonce 1, then 2), a non-owner's was refused and changed nothing,
-  a BYO config was stored sealed (only a redacted view comes back, no key material in any response) and its release to
-  anyone but the current runner was refused (403). The test app (cron) could not start without its secrets, so no host
-  applied the change in production; the host side (circuits rebuilt on a policy change, BYO egress + network ingress,
-  fallback only when authorized, revocation) is covered by `test/wg-manager.test.mjs` and the netns BYO tests. Every
-  production app runs the default policy (Enclave network, free providers) until its owner changes it.
-- **Direct hosting**: policy, UI and disclosure exist; no host that opted in has a public IP today (the NucBox and metal0
-  are behind CGNAT), so the Network tab says none is available. The Linux `DirectRuntime` is not yet driven by v5 policies.
+- **Direct hosting**: implemented end to end (7e6287724, deployed: relay on main db35b8781, host agents): a host opts
+  in with `enclaveNetwork.direct {address, qualificationFile}`, a trusted checker's signed qualification of exactly that
+  runner, operator and public address; the host serves direct-mode apps through the Linux `DirectRuntime` (SNI to the
+  enclave, TLS ends inside, policy-judged egress), publishes a v5 `direct` route carrying the qualification, and the
+  relay accepts it only from the network's checkers; the route is withdrawn the moment the qualification lapses.
+  Tested in `test/netns/wg-e2e.sh` (direct ingress with the enclave's certificate on the host's IP, egress from the
+  host's address, private destinations refused) and `test/wg-manager.test.mjs`. Not exercised in production: no
+  compute host with a public IPv4 exists today (the NucBox and metal0 are behind CGNAT; the pVM is a phone), so every
+  host answers "direct hosting is not available" and the Network tab shows none. Windows hosts have no direct runtime.
 - **Paid providers / USDC settlement**: price limits and budgets are enforced at grant time; settlement needs the
   connectivity contract published in the address book (governance signature). All current providers are free.
 - **Community providers on Enclave hosts**: the opt-in record and qualification work for any Linux server with a public
