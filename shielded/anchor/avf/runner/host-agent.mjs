@@ -38,6 +38,7 @@ import { parseWaf } from "../../../../windows/node/waf.mjs";
 import { secretsExist } from "../../../../windows/node/secrets.mjs";
 import { createEgressServer } from "./egress.mjs";
 import { createSniRouter } from "./sni-router.mjs";
+import { fetchVerified } from "./ipfs-verify.mjs";
 
 export const HOST_CONFIG_FORMAT = "enclave-pvm-host-agent/v1";
 export const ZERO32 = "0x" + "00".repeat(32);
@@ -115,7 +116,8 @@ export function checkHostConfig(c) {
     bad(`slots must be exactly { count (1..${MAX_SLOTS}: the most VMs at once), poolMemMb (${MIN_VM_MB}..12288: the VM memory they share), routerPort (the TUNA app port) }`);
   if (vmMibFor(cl.maxMemMb) > sl.poolMemMb) bad(`claim.maxMemMb ${cl.maxMemMb} needs a ${vmMibFor(cl.maxMemMb)} MiB VM, beyond slots.poolMemMb`);
   const i = c.ipfs || {};
-  if (typeof i.fetchScript !== "string" || !Array.isArray(i.gateways) || !i.gateways.length || typeof i.cacheDir !== "string") bad("ipfs must be { python, fetchScript, gateways, cacheDir }");
+  if ((i.fetchScript !== undefined && typeof i.fetchScript !== "string") || !Array.isArray(i.gateways) || !i.gateways.length || typeof i.cacheDir !== "string")
+    bad("ipfs must be { gateways, cacheDir[, python, fetchScript] } (no fetchScript: verified in this process, ipfs-verify.mjs)");
   return { ...c, endpoint: `${c.relayOrigin}/t/${c.name}`, enclaveId: keccak256(stringToBytes(`${c.relayOrigin}/t/${c.name}`)) };
 }
 
@@ -422,6 +424,12 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   }
   const httpPortOf = (v) => Number((String(v.ports || "").match(/http:(\d+)/) || [])[1] || 0);
   const execFileP = (cmd, args, opts) => new Promise((res, rej) => execFile(cmd, args, opts, (e, so, se) => e ? rej(new Error(`${(se || e.message).toString().trim().slice(0, 300)}`)) : res(so.toString())));
+  /** cid's bytes into `out`, CID-verified from gateway `gw`: by the Python verifier when the config names one (the owner's
+   *  computer), else in this process (ipfs-verify.mjs: the phone, STANDALONE.md). */
+  async function fetchCidTo(cid, out, maxBytes, gw, timeoutMs) {
+    if (cfg.ipfs.fetchScript) { await execFileP(cfg.ipfs.python || "python3", [cfg.ipfs.fetchScript, cid, out, String(maxBytes), gw], { timeout: timeoutMs, maxBuffer: 4 << 20 }); return; }
+    fs.writeFileSync(out, await fetchVerified(cid, gw, maxBytes, timeoutMs), { mode: 0o600 });
+  }
   /** The component, CID-verified, and how it serves: a wasi:http handler, or a wasi:cli/run socket server on `httpPort`. */
   async function fetchComponent(cid, httpPort = 0) {
     if (!/^[A-Za-z0-9]{10,100}$/.test(cid)) throw new Error(`not a CID: ${cid}`);
@@ -430,7 +438,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     if (!fs.existsSync(out)) {
       let last = null;
       for (const gw of cfg.ipfs.gateways) {
-        try { await execFileP(cfg.ipfs.python || "python3", [cfg.ipfs.fetchScript, cid, out + ".part", String(256 << 20), gw], { timeout: 300000, maxBuffer: 4 << 20 }); fs.renameSync(out + ".part", out); last = null; break; }
+        try { await fetchCidTo(cid, out + ".part", 256 << 20, gw, 300000); fs.renameSync(out + ".part", out); last = null; break; }
         catch (e) { last = e; try { fs.unlinkSync(out + ".part"); } catch {} }
       }
       if (last) throw new Error(`the component ${cid} could not be CID-verified from any gateway: ${last.message}`);
@@ -452,7 +460,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     if (!fs.existsSync(out)) {
       let last = null;
       for (const gw of cfg.ipfs.gateways) {
-        try { await execFileP(cfg.ipfs.python || "python3", [cfg.ipfs.fetchScript, cid, out + ".part", String(1 << 20), gw], { timeout: 120000, maxBuffer: 4 << 20 }); fs.renameSync(out + ".part", out); last = null; break; }
+        try { await fetchCidTo(cid, out + ".part", 1 << 20, gw, 120000); fs.renameSync(out + ".part", out); last = null; break; }
         catch (e) { last = e; try { fs.unlinkSync(out + ".part"); } catch {} }
       }
       if (last) throw new Error(`the config ${cid} could not be CID-verified from any gateway: ${last.message}`);

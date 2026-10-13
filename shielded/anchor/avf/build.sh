@@ -318,6 +318,24 @@ if [ "$TIER" = pvm-cpu ]; then   # no TPU runtime declaration, its own label
   ! grep -q 'libedgetpu\|Anchor (AVF)' "$MANIFEST" || { echo "pvm-cpu: the manifest still names the TPU runtime or the research label" >&2; exit 2; }
   grep -q 'android:name=".Main" android:process=":ui"' "$MANIFEST" || { echo "pvm-cpu: the Enclave screen is not in its own process" >&2; exit 2; }
 fi
+# STANDALONE.md: ANCHOR_STANDALONE=1 builds the phone that hosts on its own -- Node (ANCHOR_NODE, an android-arm64 node) and
+# enclave-wg (ANCHOR_WG, GOOS=android GOARCH=arm64) ship as lib*.so programs (Android runs a shipped program only from the
+# extracted native libraries), the agent's JavaScript (ANCHOR_AGENT_BUNDLE, a dir) as assets/agent/; its VM services are not
+# exported (only its own AgentService starts them), and it is not debuggable (adb could read the operator key), unless
+# ANCHOR_DEBUG=1 for a lab build.
+if [ "${ANCHOR_STANDALONE:-0}" = 1 ]; then
+  [ "$TIER" = pvm-cpu ] || { echo "ANCHOR_STANDALONE=1 is a pvm-cpu build" >&2; exit 2; }
+  for v in ANCHOR_NODE ANCHOR_WG; do [ -f "${!v:-}" ] || { echo "ANCHOR_STANDALONE=1 needs $v (a file)" >&2; exit 2; }; done
+  [ -f "${ANCHOR_AGENT_BUNDLE:-}/standalone.mjs" ] || { echo "ANCHOR_STANDALONE=1 needs ANCHOR_AGENT_BUNDLE, a dir holding standalone.mjs" >&2; exit 2; }
+  cp "$ANCHOR_NODE" "$STAGE/lib/arm64-v8a/libnode.so"; cp "$ANCHOR_WG" "$STAGE/lib/arm64-v8a/libenclavewg.so"
+  rm -rf "$STAGE/assets/agent" && mkdir -p "$STAGE/assets/agent" && cp "$ANCHOR_AGENT_BUNDLE"/* "$STAGE/assets/agent/"
+  sed -i -e 's/android:extractNativeLibs="false"/android:extractNativeLibs="true"/' \
+      -e 's/\(<service android:name="\.AnchorService[A-Za-z0-9]*"[^>]*\)android:exported="true"/\1android:exported="false"/' "$MANIFEST"
+  [ "${ANCHOR_DEBUG:-0}" = 1 ] || sed -i 's/android:debuggable="true"/android:debuggable="false"/' "$MANIFEST"
+  ! grep -q 'android:name=".AnchorService[A-Za-z0-9]*"[^>]*exported="true"' "$MANIFEST" || { echo "standalone: a VM service is still exported" >&2; exit 2; }
+  grep -q 'extractNativeLibs="true"' "$MANIFEST" || { echo "standalone: native libraries are not extracted" >&2; exit 2; }
+  echo "standalone: node $(stat -c %s "$ANCHOR_NODE") B, enclave-wg $(stat -c %s "$ANCHOR_WG") B, agent bundle $(ls "$STAGE/assets/agent" | wc -l) files$( [ "${ANCHOR_DEBUG:-0}" = 1 ] && echo ', DEBUGGABLE (lab)')"
+else rm -f "$STAGE/lib/arm64-v8a/libnode.so" "$STAGE/lib/arm64-v8a/libenclavewg.so"; rm -rf "$STAGE/assets/agent"; fi
 # the app's resources (res/: the Enclave icon, the site's mark), compiled and linked with the manifest
 rm -f res.zip && "$BT/aapt2" compile --dir "$HERE/res" -o res.zip
 "$BT/aapt2" link -o unaligned.apk --manifest "$MANIFEST" ${REL:+--rename-manifest-package "$RELEASE_PKG"} \
@@ -331,8 +349,8 @@ with zipfile.ZipFile("unaligned.apk", "a", compression=zipfile.ZIP_STORED) as z:
     z.write("dex/classes.dex", "classes.dex", compress_type=zipfile.ZIP_STORED)
     for so in sorted(glob.glob("lib/arm64-v8a/*.so")):
         z.write(so, so, compress_type=zipfile.ZIP_STORED)
-    for a in sorted(glob.glob("assets/*")):
-        z.write(a, a, compress_type=zipfile.ZIP_STORED)
+    for a in sorted(glob.glob("assets/**", recursive=True)):
+        if os.path.isfile(a): z.write(a, a, compress_type=zipfile.ZIP_STORED)
 PYZ
 "$BT/zipalign" -P 16 -f 4 unaligned.apk aligned.apk
 "$BT/zipalign" -c -P 16 4 aligned.apk || { echo "the APK's libraries are not 16 KB page-aligned" >&2; exit 2; }
