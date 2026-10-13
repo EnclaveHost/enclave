@@ -1,7 +1,7 @@
 // EnclaveTray.cs -- the box owner's hosting controls, in the notification area of the Windows node (nucbox-k11).
 //
-// The panel opens on a short home page: the hosting switch, one row each for Limits, Price and Earnings & payout (with what
-// each is set to now), and the node's state; each row opens its page, and Back or Esc returns.
+// The panel is short: the hosting switch, then an accordion like the site's live enclaves list - a row each for Limits, Price
+// and Earnings saying what each is set to now, one open at a time with its controls under it (Esc closes it) - and the node's state.
 //
 // Two sliders (Limits): the most of this machine's CPU, and of its GPU, that the node offers to hosting. They set the node's
 // hosting caps through its LOCAL API (windows/node/hosting.mjs: GET/PUT http://127.0.0.1:9610/v1/local/hosting with the
@@ -725,29 +725,42 @@ namespace Enclave.Tray
     }
 
     /// <summary>
-    /// A row on the panel's home page that opens one of its pages: the page's name, what it is set to now (amber when it
-    /// needs the owner), and a chevron. Click, Enter or Space opens it.
+    /// One row of the panel's accordion, drawn as the site's live enclaves list draws a host: the section's name on the left,
+    /// what it is set to now on the right (amber when it needs the owner; under the name when the two don't fit on one line),
+    /// the whole row the click target, and the open row lit. Click, Enter or Space opens or closes it.
     /// </summary>
-    sealed class NavRow : Control
+    sealed class AccordionRow : Control
     {
         string value = "";
-        bool attention, hot;
-        static readonly Font valueFont = Theme.Mono(8.25f, FontStyle.Regular), chevronFont = Theme.Mono(13f, FontStyle.Regular);
-        public NavRow(string title, int wide)
+        bool attention, hot, open;
+        static readonly Font valueFont = Theme.Mono(8.25f, FontStyle.Regular);
+        const TextFormatFlags One = TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
+        public AccordionRow(string title, int wide)
         {
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer
                    | ControlStyles.ResizeRedraw | ControlStyles.Selectable | ControlStyles.StandardClick, true);
             Text = title; TabStop = true; AccessibleName = title; AccessibleRole = AccessibleRole.PushButton;
-            Font = Theme.Body; Cursor = Cursors.Hand;
-            Size = new Size(wide, Theme.Px(46)); Margin = new Padding(3, Theme.Px(6), 3, 0);
+            Font = Theme.Body; Cursor = Cursors.Hand; Margin = new Padding(0);
+            Width = wide; Fit();
         }
-        /// <summary>The second line: what the page is set to now.</summary>
+        /// <summary>The row's right side: what the section is set to now.</summary>
         public void Say(string text, bool needsOwner)
         {
             if (text == value && needsOwner == attention) return;
-            value = text; attention = needsOwner; Invalidate();
+            value = text; attention = needsOwner; Fit(); Invalidate();
             AccessibilityNotifyClients(AccessibleEvents.ValueChange, -1);
         }
+        public bool Open
+        {
+            get { return open; }
+            set { if (open == value) return; open = value; Invalidate(); AccessibilityNotifyClients(AccessibleEvents.StateChange, -1); }
+        }
+        int Pad { get { return Theme.Px(12); } }
+        // one line while the name and the value fit side by side, else the value wraps under the name, still on the right
+        bool Wraps { get { return Pad + Measure(Text, Font) + Theme.Px(16) + Measure(value, valueFont) + Pad > Width; } }
+        static int Measure(string t, Font f) { return t.Length == 0 ? 0 : TextRenderer.MeasureText(t, f, Size.Empty, One).Width; }
+        void Fit() { Height = Theme.Px(Wraps ? 54 : 38); }
+        protected override void OnSizeChanged(EventArgs e) { base.OnSizeChanged(e); int h = Theme.Px(Wraps ? 54 : 38); if (Height != h) Height = h; }
         protected override void OnMouseEnter(EventArgs e) { hot = true; Invalidate(); base.OnMouseEnter(e); }
         protected override void OnMouseLeave(EventArgs e) { hot = false; Invalidate(); base.OnMouseLeave(e); }
         protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
@@ -760,30 +773,32 @@ namespace Enclave.Tray
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
-            g.Clear(Theme.Bg);
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            var r = new RectangleF(.5f, .5f, Width - 1, Height - 1);
-            bool ring = Focused && ShowFocusCues;              // the keyboard's place, not the first row on every open
-            using (var path = Theme.Rounded(r, Theme.Px(5)))
+            g.Clear(hot || open ? Theme.Surface : Theme.Bg);             // the open row keeps the hover look
+            if (Focused && ShowFocusCues)
+                using (var path = Theme.Rounded(new RectangleF(Theme.Px(3), Theme.Px(3), Width - Theme.Px(6) - 1, Height - Theme.Px(6) - 1), Theme.Px(4)))
+                using (var pen = new Pen(Theme.Jade, Math.Max(1, Theme.Px(1.5f)))) { g.SmoothingMode = SmoothingMode.AntiAlias; g.DrawPath(pen, path); }
+            Color ink = attention ? Theme.Amber : Theme.Muted;
+            int w = Width - 2 * Pad;
+            if (!Wraps)
             {
-                using (var b = new SolidBrush(hot || ring ? Theme.Surface2 : Theme.Surface)) g.FillPath(b, path);
-                using (var pen = new Pen(ring ? Theme.Jade : Theme.Line)) g.DrawPath(pen, path);
+                var line = new Rectangle(Pad, 0, w, Height);
+                TextRenderer.DrawText(g, Text, Font, line, Theme.Text, One | TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+                TextRenderer.DrawText(g, value, valueFont, line, ink, One | TextFormatFlags.Right | TextFormatFlags.VerticalCenter);
+                return;
             }
-            int pad = Theme.Px(12), chevron = Theme.Px(18);
-            var text = new Rectangle(pad, Theme.Px(5), Width - pad - chevron - Theme.Px(8), Height / 2 - Theme.Px(3));
-            TextRenderer.DrawText(g, Text, Font, text, Theme.Text, TextFormatFlags.Left | TextFormatFlags.Bottom | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-            var sub = new Rectangle(pad, Height / 2 + Theme.Px(1), text.Width, Height / 2 - Theme.Px(5));
-            TextRenderer.DrawText(g, value, valueFont, sub, attention ? Theme.Amber : Theme.Muted, TextFormatFlags.Left | TextFormatFlags.Top | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-            TextRenderer.DrawText(g, "\u203A", chevronFont, new Rectangle(Width - chevron - Theme.Px(8), 0, chevron, Height),
-                                  hot || ring ? Theme.Jade : Theme.Muted, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
+            TextRenderer.DrawText(g, Text, Font, new Rectangle(Pad, Theme.Px(8), w, Height / 2 - Theme.Px(8)), Theme.Text,
+                                  One | TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+            TextRenderer.DrawText(g, value, valueFont, new Rectangle(Pad, Height / 2, w, Height / 2 - Theme.Px(8)), ink,
+                                  One | TextFormatFlags.Right | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
         }
         protected override AccessibleObject CreateAccessibilityInstance() { return new Accessible(this); }
         sealed class Accessible : ControlAccessibleObject
         {
-            readonly NavRow owner;
-            public Accessible(NavRow owner) : base(owner) { this.owner = owner; }
+            readonly AccordionRow owner;
+            public Accessible(AccordionRow owner) : base(owner) { this.owner = owner; }
             public override string Value { get { return owner.value; } }
-            public override string DefaultAction { get { return "Open"; } }
+            public override AccessibleStates State { get { return base.State | (owner.open ? AccessibleStates.Expanded : AccessibleStates.Collapsed); } }
+            public override string DefaultAction { get { return owner.open ? "Collapse" : "Expand"; } }
             public override void DoDefaultAction() { owner.OnClick(EventArgs.Empty); }
         }
     }
@@ -982,10 +997,10 @@ namespace Enclave.Tray
         public event EventHandler<PauseEventArgs> PauseRequested;
         bool dragging, setting, applying, switching;
         HostingView view;
-        // the pages: one shows at a time, home first
-        readonly FlowLayoutPanel home = Page(), limitsPage = Page(), pricePage = Page(), earningsPage = Page();
-        readonly NavRow navLimits = new NavRow("Limits", Wide), navPrice = new NavRow("Price", Wide), navEarnings = new NavRow("Earnings & payout", Wide);
-        NavRow openedFrom;
+        // the accordion: a row per section with its details under it, at most one open (as the site's live enclaves list)
+        readonly FlowLayoutPanel limitsPage = Page(), pricePage = Page(), earningsPage = Page();
+        readonly AccordionRow navLimits = new AccordionRow("Limits", Inner), navPrice = new AccordionRow("Price", Inner),
+                              navEarnings = new AccordionRow("Earnings", Inner);
         Rectangle dockArea;                                  // the work area the panel sits in the corner of (Corner)
 
         /// <summary>The sliders say something the node does not: moved and not applied (or being applied).</summary>
@@ -1006,25 +1021,36 @@ namespace Enclave.Tray
             var flow = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true,
                                              AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(Theme.Px(14)),
                                              BackColor = Theme.Bg };
-            // Home holds only the switch, a row per page with what it is set to now, and the node's state; the settings
-            // themselves live on their pages (Back, or Esc, returns). No in-window masthead: the title bar says Enclave hosting.
-            var first = Title("Hosting"); first.Margin = new Padding(3, Theme.Px(2), 3, 0); home.Controls.Add(first);
+            // The switch, then the settings as an accordion (closed, each row says what it is set to now; Esc closes the open
+            // one), then the node's state. No in-window masthead: the title bar says Enclave hosting.
+            var first = Title("Hosting"); first.Margin = new Padding(3, Theme.Px(2), 3, 0); flow.Controls.Add(first);
             var switchRow = Row(FlowDirection.LeftToRight);
             switchRow.Controls.Add(hosting); switchRow.Controls.Add(hostingLine);
             hostingLine.Margin = new Padding(0, Theme.Px(4), 0, 0); hostingLine.MaximumSize = new Size(Wide - Theme.Px(56), 0);
-            home.Controls.Add(switchRow);
-            var gap = navLimits.Margin; gap.Top = Theme.Px(12); navLimits.Margin = gap;
-            home.Controls.Add(navLimits); home.Controls.Add(navPrice); home.Controls.Add(navEarnings);
-            navLimits.Click += delegate { Open(limitsPage, navLimits); };
-            navPrice.Click += delegate { Open(pricePage, navPrice); };
-            navEarnings.Click += delegate { Open(earningsPage, navEarnings); };
+            flow.Controls.Add(switchRow);
+            // the box: a hairline around it and between its rows, a section's details under its row
+            var list = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true,
+                                             AutoSizeMode = AutoSizeMode.GrowAndShrink, BackColor = Theme.Bg, Margin = new Padding(0) };
+            var box = new Panel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, BackColor = Theme.Line, Padding = new Padding(1),
+                                  Margin = new Padding(3, Theme.Px(14), 3, 0) };
+            box.Controls.Add(list);
+            var sections = new[] { navLimits, navPrice, navEarnings };
+            var details = new[] { limitsPage, pricePage, earningsPage };
+            for (int i = 0; i < sections.Length; i++)
+            {
+                if (i > 0) list.Controls.Add(new Panel { Size = new Size(Inner, 1), BackColor = Theme.Line, Margin = new Padding(0) });
+                var row = sections[i]; var page = details[i];
+                list.Controls.Add(row); list.Controls.Add(page);
+                row.Click += delegate { Toggle(row, page); };
+            }
+            flow.Controls.Add(box);
             status.Margin = new Padding(3, Theme.Px(12), 3, 0);
-            home.Controls.Add(status);
+            flow.Controls.Add(status);
             status.ForeColor = Theme.Muted; status.Font = Theme.Mono(8.25f, FontStyle.Regular);
 
             // Limits: the two sliders and their Apply
-            Header(limitsPage, "Limits");
-            limitsPage.Controls.Add(Title("CPU share offered"));
+            var cpuTitle = Title("CPU share offered"); cpuTitle.Margin = new Padding(3, Theme.Px(4), 3, 0);
+            limitsPage.Controls.Add(cpuTitle);
             limitsPage.Controls.Add(Cpu); limitsPage.Controls.Add(cpuLine); limitsPage.Controls.Add(cpuNote);
             limitsPage.Controls.Add(Title("GPU share offered"));
             limitsPage.Controls.Add(Gpu); limitsPage.Controls.Add(gpuLine); limitsPage.Controls.Add(gpuNote);
@@ -1039,13 +1065,11 @@ namespace Enclave.Tray
             limitsPage.Controls.Add(buttons);
 
             // Price: what this PC asks, its default from the network, or the owner's own
-            Header(pricePage, "Price");
             pricePage.Controls.Add(cpuPrice); pricePage.Controls.Add(gpuPrice); gpuPrice.Visible = false;
             cpuPrice.SaveRequested += (o, e) => { if (PriceSaveRequested != null) PriceSaveRequested(this, e); };
             gpuPrice.SaveRequested += (o, e) => { if (PriceSaveRequested != null) PriceSaveRequested(this, e); };
 
             // Earnings and the payout wallet: pasted here, format-checked only (no wallet connects; nothing is signed)
-            Header(earningsPage, "Earnings (USDC)");
             earningsPage.Controls.Add(earnLine); earningsPage.Controls.Add(earnNote);
             earningsPage.Controls.Add(Title("Payout wallet"));
             saveWallet.FitText(); editWallet.FitText(); cancelWallet.FitText(); payNow.FitText();
@@ -1074,7 +1098,6 @@ namespace Enclave.Tray
             payNow.Click += delegate { if (PayoutNowRequested != null) PayoutNowRequested(this, EventArgs.Empty); };
             ShowEarnings(null, "not asked yet");
 
-            foreach (var page in new[] { home, limitsPage, pricePage, earningsPage }) flow.Controls.Add(page);
             limitsPage.Visible = pricePage.Visible = earningsPage.Visible = false;
             // what the owner was just told shows on every page
             flow.Controls.Add(error);
@@ -1097,10 +1120,10 @@ namespace Enclave.Tray
             };
             KeyDown += (s, e) =>
             {
-                // Esc in an open field is the field's (it cancels the edit); otherwise back to home, and from home it hides
+                // Esc in an open field is the field's (it cancels the edit); otherwise it closes the open section, then hides
                 var field = ActiveControl as TextBox;
                 if (e.KeyCode == Keys.Escape && field != null && !field.ReadOnly) return;
-                if (e.KeyCode == Keys.Escape) { if (home.Visible) Hide(); else GoHome(); e.Handled = true; }
+                if (e.KeyCode == Keys.Escape) { if (OpenRow() == null) Hide(); else CloseAll(true); e.Handled = true; }
                 else if (e.KeyCode == Keys.Enter && (Cpu.Focused || Gpu.Focused)) { RequestApply(); e.Handled = true; }
             };
             // Hiding with changes not applied discards them: the panel opens again on what the node says.
@@ -1108,9 +1131,9 @@ namespace Enclave.Tray
             {
                 if (Visible) return;
                 if (view != null && !applying) ShowView(view, true);
-                if (!home.Visible) GoHome();                        // it opens on home again
+                CloseAll(false);                                    // it opens closed again
             };
-            // a page taller or shorter than home: the panel stays in its corner, growing up from the taskbar
+            // a section opening or closing: the panel stays in its corner, growing up from the taskbar
             SizeChanged += delegate { if (Visible && !dockArea.IsEmpty) Place(); };
             error.TextChanged += delegate { error.Visible = error.Text.Length > 0; };
             // Closing only hides: a WM_CLOSE from outside arrives as TaskManagerClosing, not UserClosing, and a closed
@@ -1125,36 +1148,28 @@ namespace Enclave.Tray
         public void Corner(Rectangle area) { dockArea = area; Place(); }
         void Place() { Location = new Point(dockArea.Right - Width - 12, dockArea.Bottom - Height - 12); }
 
-        void Open(FlowLayoutPanel page, NavRow from)
+        /// <summary>Open a section (closing any other) or close it.</summary>
+        void Toggle(AccordionRow row, FlowLayoutPanel page)
         {
+            bool open = !row.Open;
             SuspendLayout();
-            home.Visible = false; page.Visible = true;
+            if (open) CloseAll(false);
+            row.Open = open; page.Visible = open;
             ResumeLayout(true);
-            openedFrom = from;
-            page.SelectNextControl(page, true, true, true, false);    // its Back button
+            row.Focus();
         }
-        void GoHome()
+        void CloseAll(bool focusRow)
         {
+            var was = OpenRow();
             SuspendLayout();
-            limitsPage.Visible = pricePage.Visible = earningsPage.Visible = false; home.Visible = true;
+            navLimits.Open = navPrice.Open = navEarnings.Open = false;
+            limitsPage.Visible = pricePage.Visible = earningsPage.Visible = false;
             ResumeLayout(true);
-            if (openedFrom != null && Visible) openedFrom.Focus();
-            openedFrom = null;
+            if (focusRow && was != null && Visible) was.Focus();
         }
-        /// <summary>A page's top: Back, and its name.</summary>
-        void Header(FlowLayoutPanel page, string name)
-        {
-            var row = Row(FlowDirection.LeftToRight); row.Margin = new Padding(0);
-            var back = new ThemeButton("\u2039 Back", false); back.AccessibleName = "Back to hosting"; back.FitText();
-            back.Margin = new Padding(3, 0, Theme.Px(10), 0);
-            back.Click += delegate { GoHome(); };
-            var title = new Label { Text = name.ToUpperInvariant(), AutoSize = true, Font = Theme.Mono(9f, FontStyle.Bold), ForeColor = Theme.Text,
-                                    Margin = new Padding(0, Theme.Px(6), 3, 0) };
-            row.Controls.Add(back); row.Controls.Add(title);
-            page.Controls.Add(row);
-        }
+        AccordionRow OpenRow() { return navLimits.Open ? navLimits : navPrice.Open ? navPrice : navEarnings.Open ? navEarnings : null; }
 
-        /// <summary>The home rows say what each page is set to now; amber where it waits on the owner.</summary>
+        /// <summary>The accordion's rows say what each section is set to now; amber where it waits on the owner.</summary>
         void SayNav()
         {
             var v = view;
@@ -1162,8 +1177,8 @@ namespace Enclave.Tray
             else
             {
                 bool over = v.CpuInUse > CpuValue + 1e-9 || (v.GpuConsumer && v.GpuInUse > GpuValue + 1e-9);
-                navLimits.Say("CPU " + Pct(CpuValue) + " (" + Pct(v.CpuInUse) + " used) \u00B7 GPU " + Pct(GpuValue)
-                              + (Pending ? " \u00B7 not applied" : ""), Pending || over);
+                navLimits.Say("CPU " + Pct(CpuValue) + " \u00B7 GPU " + Pct(GpuValue)
+                              + (Pending ? " \u00B7 not applied" : over ? " \u00B7 more in use" : ""), Pending || over);
             }
             var c = v != null ? v.CpuPrice : null; var g = v != null ? v.GpuPrice : null;
             navPrice.Say(c == null ? "\u2013" : "CPU " + Rate(c) + (g != null ? " \u00B7 GPU " + Rate(g) : ""), false);
@@ -1171,7 +1186,7 @@ namespace Enclave.Tray
             if (e == null || !e.Readable) navEarnings.Say("\u2013", false);
             else if (e.PayTo.Length == 0)
                 navEarnings.Say(EarningsView.Usd(e.Earned) + " earned \u00B7 " + (e.Wallet.Length > 0 ? "payout waiting" : "add a payout wallet"), true);
-            else navEarnings.Say(EarningsView.Usd(e.Earned) + " earned \u00B7 " + EarningsView.Usd(e.PaidOut) + " paid out", false);
+            else navEarnings.Say(EarningsView.Usd(e.Earned) + " earned \u00B7 " + EarningsView.Usd(e.PaidOut) + " paid", false);
         }
         static string Rate(PriceAxis a) { return PriceAxis.Usd(a.Override ?? a.PerHour) + "/h"; }
 
@@ -1363,6 +1378,7 @@ namespace Enclave.Tray
         const string BelowUse = "Below what is in use: Apply asks before it drops running deployments (newest first) until use fits.";
         public static string Pct(double share) { return ((int)Math.Round(share * 100)).ToString(CultureInfo.InvariantCulture) + "%"; }
         static readonly int Wide = Theme.Px(340);
+        static readonly int Inner = Wide + Theme.Px(6) + 2 * Theme.Px(8);   // the accordion's width: a section's controls and its padding
         // DESIGN.md's label voice: small mono capitals in the muted ink; the numbers in mono, the prose in the system face.
         static Label Title(string text)
         {
@@ -1379,7 +1395,8 @@ namespace Enclave.Tray
         static FlowLayoutPanel Page()
         {
             return new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                                         BackColor = Theme.Bg, Margin = new Padding(0), MinimumSize = new Size(Wide + Theme.Px(6), 0) };
+                                         BackColor = Theme.Bg, Margin = new Padding(0), MinimumSize = new Size(Inner, 0),
+                                         Padding = new Padding(Theme.Px(8), Theme.Px(4), Theme.Px(8), Theme.Px(14)) };
         }
     }
 
