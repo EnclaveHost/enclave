@@ -138,7 +138,7 @@ foreach ($f in "install-host.ps1", "uninstall-host.ps1", "update-host.ps1", "tem
 # Enclave Shield before any buyer's app is admitted (relay policy `witness`). install-host.ps1 checks its runtime is the bundle's.
 $witness = Get-Content -Raw (Join-Path $installer "shield-witness.json") | ConvertFrom-Json
 Copy-Item (Join-Path $installer "shield-witness.json") (Join-Path $B "guest\witness.json")
-# the Shield policy the host's TUNA privacy agent admits its apps under (the relay's open-market policy: any attested TPM)
+# the Shield policy the host's privacy agent admits its apps under (the relay's open-market policy: any attested TPM)
 Copy-Item (Join-Path $installer "admitted-shield-policy.json") (Join-Path $B "tuna\admitted-shield-policy.json")
 "witness: shield-readiness-v1 app $($witness.appId.Substring(0,12)) runtime $($witness.derive.runtimeId.Substring(0,12))"
 Remove-Item $setup -Recurse -Force
