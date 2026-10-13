@@ -88,7 +88,15 @@ export function checkHostConfig(c) {
   if (!e || Object.keys(e).sort().join() !== "allowedAuthorityHashes,allowedCodeHashes,allowedRuntimeIds,instanceIds,rootPins") bad("evidence must be exactly { allowedCodeHashes, allowedAuthorityHashes, allowedRuntimeIds, rootPins, instanceIds }");
   if (e.allowedCodeHashes.length !== 1) bad("evidence.allowedCodeHashes must name exactly the build this host runs (it is the registered measurement)");
   const d = c.device;
-  if (!d || typeof d.adb !== "string" || !d.serial || !d.vmName || !Number.isInteger(d.agentPort) || !Number.isInteger(d.attachPort)) bad("device must be { adb, serial, vmName, agentPort, attachPort[, bridgeApp, bridgeEvidence, wifi] }");
+  if (!d || !d.vmName || !Number.isInteger(d.agentPort) || !Number.isInteger(d.attachPort)) bad("device must be { adb, serial, vmName, agentPort, attachPort[, bridgeApp, bridgeEvidence, wifi] } or { local, vmName, agentPort, attachPort[, bridgeApp, bridgeEvidence] }");
+  if (d.local !== undefined) {
+    // the agent runs ON the phone (STANDALONE.md, pvm-device-local.mjs): the app's files, its APK, its control endpoint
+    const l = d.local;
+    if (d.adb !== undefined || d.serial !== undefined || d.wifi !== undefined) bad("device.local runs on the phone: no adb, serial or wifi beside it");
+    if (!l || Object.keys(l).sort().join() !== "apk,controlPort,files" || typeof l.files !== "string" || !path.isAbsolute(l.files)
+        || typeof l.apk !== "string" || !path.isAbsolute(l.apk) || !Number.isInteger(l.controlPort) || l.controlPort < 1024 || l.controlPort > 65535)
+      bad("device.local must be exactly { files (the app's files dir), apk (the installed APK), controlPort (AgentService's launch control) }");
+  } else if (typeof d.adb !== "string" || !d.serial) bad("device must name adb and the phone's serial (or be device.local, on the phone)");
   if (d.wifi !== undefined && (!d.wifi || Object.keys(d.wifi).join() !== "port" || !Number.isInteger(d.wifi.port) || d.wifi.port < 1024 || d.wifi.port > 65535))
     bad("device.wifi must be exactly { port } (adb over the phone's Wi-Fi when the cable is out)");
   if (typeof c.idleApp !== "string" || !fs.existsSync(c.idleApp)) bad("idleApp must be the idle component's file");

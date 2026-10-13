@@ -12,6 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHostAgent, checkHostConfig } from "./host-agent.mjs";
 import { createPvmDevice } from "./pvm-device.mjs";
+import { createLocalPvmDevice } from "./pvm-device-local.mjs";
 import { createAttachCosigner, serveAttachCosigner } from "./attach-cosigner.mjs";
 
 const argv = process.argv.slice(2);
@@ -43,10 +44,14 @@ const publicClient = V.createPublicClient({ chain, transport: rpcs.length > 1 ? 
 const log = (o) => console.log(JSON.stringify({ t: new Date().toISOString(), ...o }));
 
 const d = cfg.device;
-const device = createPvmDevice({ adb: d.adb, serial: d.serial, vmName: d.vmName, relay: `${cfg.relayOrigin.replace(/^https:/, "wss:")}/v1/fleet-tunnel`,
+const common = { vmName: d.vmName, relay: `${cfg.relayOrigin.replace(/^https:/, "wss:")}/v1/fleet-tunnel`,
   name: cfg.name, agentPort: d.agentPort, attachPort: d.attachPort, egressPort: cfg.egress ? cfg.egress.port : 0,
-  bridgeApp: d.bridgeApp || 17786, bridgeEvidence: d.bridgeEvidence || 17787, slots: cfg.slots.count,
-  wifi: d.wifi ? { port: d.wifi.port, file: path.join(stateDir, "phone-wifi.json") } : null, log });
+  bridgeApp: d.bridgeApp || 17786, bridgeEvidence: d.bridgeEvidence || 17787, slots: cfg.slots.count, log };
+// on the phone itself (STANDALONE.md) the app's files and processes are this process's; beside it, adb reaches them
+const device = d.local
+  ? createLocalPvmDevice({ ...common, files: d.local.files, apk: d.local.apk,
+      control: { port: d.local.controlPort, tokenFile: path.join(d.local.files, "agent", "control-token") } })
+  : createPvmDevice({ ...common, adb: d.adb, serial: d.serial, wifi: d.wifi ? { port: d.wifi.port, file: path.join(stateDir, "phone-wifi.json") } : null });
 fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
 const cosigner = createAttachCosigner({ account, name: cfg.name, relay: cfg.relayOrigin, codeHashes: cfg.evidence.allowedCodeHashes,
   authorityHashes: cfg.evidence.allowedAuthorityHashes, rootPins: cfg.evidence.rootPins, instanceIds: cfg.evidence.instanceIds,

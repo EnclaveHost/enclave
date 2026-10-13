@@ -128,6 +128,15 @@ test("the config is strict: public values only, the owner's price, exactly one b
   assert.equal(checkHostConfig({ ...ok, device: { ...ok.device, wifi: { port: 5555 } } }).device.wifi.port, 5555);
   refuse({ device: { ...ok.device, wifi: { port: 22 } } }, /device.wifi must be exactly \{ port \}/);
   refuse({ device: { ...ok.device, wifi: { port: 5555, host: "1.2.3.4" } } }, /device.wifi must be exactly \{ port \}/);
+  // on the phone itself (STANDALONE.md): the app's files, its APK and its launch control; never adb beside it
+  const local = { local: { files: "/data/user/0/host.enclave.pvmcpu/files", apk: "/data/app/x/base.apk", controlPort: 18190 }, vmName: "pvmprod1", agentPort: 18187, attachPort: 18188 };
+  assert.equal(checkHostConfig({ ...ok, device: local }).device.local.controlPort, 18190);
+  refuse({ device: { ...local, adb: "/bin/adb" } }, /no adb, serial or wifi/);
+  refuse({ device: { ...local, wifi: { port: 5555 } } }, /no adb, serial or wifi/);
+  refuse({ device: { ...local, local: { ...local.local, files: "files" } } }, /device.local must be exactly/);
+  refuse({ device: { ...local, local: { ...local.local, controlPort: 80 } } }, /device.local must be exactly/);
+  refuse({ device: { ...local, local: { ...local.local, extra: 1 } } }, /device.local must be exactly/);
+  refuse({ device: { vmName: "pvmprod1", agentPort: 18187, attachPort: 18188 } }, /must name adb/);
   refuse({ slots: undefined }, /slots must be exactly/);
   refuse({ slots: { ...ok.slots, count: 33 } }, /slots must be exactly/);
   assert.equal(checkHostConfig({ ...ok, slots: { ...ok.slots, count: 32 } }).slots.count, 32, "as many slots as the APK declares");
