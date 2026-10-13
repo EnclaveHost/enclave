@@ -43,14 +43,27 @@
       <c-cinematic-scene scene="host" image="assets/host-cinematic.webp" video="assets/host-cinematic.mp4"></c-cinematic-scene>
     <c-section-head eyebrow="Host an enclave" heading="Your hardware belongs on this list.">
       <p>A market for compute where buyers check what they get. Your machine is listed at the protection level it proves, at the price you set, and the ledger pays you for every lease it serves. Nobody holds your earnings on your behalf.</p>
+      <div class="hero-cta host-hero-cta">
+        <a class="btn btn-primary" href="https://get.enclave.host/windows/EnclaveSetup.exe">Download for Windows <span class="arr" aria-hidden="true">↓</span></a>
+        <a class="btn btn-ghost" href="#setup">Linux server setup</a>
+      </div>
+      <p class="host-hero-note">For a Windows 11 PC with an AMD processor. <a href="#windows">What it needs →</a></p>
     </c-section-head>
     </div>
 
     <div class="hostdoc">
 
-      <div class="hostdoc-cta">
-        <a class="btn btn-primary" href="#setup">Register your hardware <span class="arr" aria-hidden="true">→</span></a>
-        <a class="btn btn-ghost" href="https://github.com/EnclaveHost/enclave/blob/main/metal/PROTOCOL.md" target="_blank" rel="noopener">Read the protocol</a>
+      <h2 id="windows">On a Windows PC</h2>
+      <p>Each app runs in its own Enclave Shield partition, a Hyper-V virtual machine on a PC that has proven to the network, through its TPM, that it booted securely. Setup checks the PC, turns on Hyper-V and asks you to name your host. Joining costs nothing: once the PC proves its hardware, its first registration is paid for you.</p>
+      <p>Setup can also be run from PowerShell:</p>
+      <pre class="hostdoc-code"><code>irm https://get.enclave.host/host.ps1 | iex</code></pre>
+      <div class="doc-note">
+        <span class="nt">Needs</span>
+        <p>Windows 11 Pro, Enterprise or Education (24H2 or later), an AMD processor with its firmware TPM on, Secure Boot on, virtualization on in the firmware, and 16 GB of RAM.</p>
+      </div>
+      <div class="doc-note">
+        <span class="nt">What tenants get</span>
+        <p>Enclave Shield keeps each app apart from the others and from the rest of the PC, and the network checks the PC's TPM evidence before it sends any work. It does not encrypt memory against the PC's owner the way a confidential server does; buyers who need that choose confidential hosts.</p>
       </div>
 
       <h2>The fleet you would be joining</h2>
@@ -73,20 +86,6 @@
         <li><b>No public IP.</b> The enclave dials out and holds the connection, so a home machine behind carrier NAT works.</li>
         <li><b>A GPU is optional.</b> CPU-only boxes serve CPU work; a GPU in confidential-computing mode sells GPU shares too.</li>
       </ul>
-
-      <h2 id="windows">On a Windows PC</h2>
-      <p>A Windows 11 PC with an AMD processor can host too. Each app runs in its own Enclave Shield partition, a Hyper-V virtual machine on a PC that has proven to the network, through its TPM, that it booted securely. Setup checks the PC, turns on Hyper-V and asks you to name your host. Joining costs nothing: once the PC proves its hardware, its first registration is paid for you.</p>
-      <p><a class="btn btn-primary" href="https://get.enclave.host/windows/EnclaveSetup.exe">Download Enclave setup for Windows</a></p>
-      <p>Or, in PowerShell:</p>
-      <pre class="hostdoc-code"><code>irm https://get.enclave.host/host.ps1 | iex</code></pre>
-      <div class="doc-note">
-        <span class="nt">Needs</span>
-        <p>Windows 11 Pro, Enterprise or Education (24H2 or later), an AMD processor with its firmware TPM on, Secure Boot on, virtualization on in the firmware, and 16 GB of RAM.</p>
-      </div>
-      <div class="doc-note">
-        <span class="nt">What tenants get</span>
-        <p>Enclave Shield keeps each app apart from the others and from the rest of the PC, and the network checks the PC's TPM evidence before it sends any work. It does not encrypt memory against the PC's owner the way a confidential server does; buyers who need that choose confidential hosts.</p>
-      </div>
 
       <h2 id="setup">Setting it up</h2>
       <p>Everything is one command line tool. Each step below is also a plain script in the repository if you would rather drive it yourself.</p>
