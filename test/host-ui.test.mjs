@@ -233,6 +233,14 @@ test("as a phone: one CPU & RAM share and no GPU anywhere, the panel's own title
     await p.page.click("#rowPrice");
     assert.equal(await p.page.isVisible('.price[data-axis="gpu"]'), false);
     assert.equal(await p.text("#valPrice"), "CPU $0.011/h");
+    // a phone's payout goes out with its next transaction: said as pending
+    await p.page.click("#rowEarnings");
+    await p.page.fill("#wallet", "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61");
+    await p.page.click("#saveWallet");
+    await p.page.waitForFunction(() => /^Payout wallet saved/.test(document.getElementById("error").textContent));
+    await p.page.click("#payNow");
+    await p.page.waitForFunction(() => /^Paying out \$1\.23 to 0x0b2d00\u2026eE61: the transaction goes out within a minute\.$/.test(document.getElementById("error").textContent));
+    assert.equal(await p.page.isDisabled("#payNow"), true, "not twice while it is paying");
     await p.page.click("#rowApps");
     assert.equal(await p.text("#valApps"), "2 serving");
     assert.equal(await p.page.locator("#apps a").first().innerText(), "a69dcbba.app.enclave.host");

@@ -28,7 +28,7 @@ The panel uses only these routes. `windows/node/hosting.mjs` is the reference; t
 | `PUT /v1/local/hosting/price` | `{cpuPerHour?, gpuPerHour?}`, USDC an hour, `null` for the default; answers the hosting view |
 | `GET /v1/local/hosting/earnings` | `{readable, enclaveId, operator, wallet, payTo, why, earned6, paidOut6, minPayout6, paying, lastError, history: [{tx, to, amount6, at}]}` (6-decimal integers as strings) |
 | `PUT /v1/local/hosting/payout-wallet` | `{address}`: format-checked (0x and 40 hex, not zero); answers the earnings |
-| `POST /v1/local/hosting/payout` | pay out now, any amount; 409 `not_paid` with `message` when it can't |
+| `POST /v1/local/hosting/payout` | pay out now, any amount: `{paid, tx}`, or `{pending: true, message}` when it goes out with the host's next transaction; 409 `not_paid` with `message` when it can't |
 
 The hosting view: `caps {cpuShare, gpuShare, paused}`, `inUse`, `free` (each `{cpuShare, gpuShare}`), `reservedShare`,
 `deploymentsServed`, `waitingForCap`, `backend`, `capsError`, `gpu {consumer, why}`, `appsEnabled`, `market {taking, why}`,

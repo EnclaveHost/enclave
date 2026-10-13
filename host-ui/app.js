@@ -215,6 +215,12 @@
     el.payNow.disabled = true;
     call("POST", "/payout").then(function (r) {
       if (!r.ok) { showError("Not paid out: " + r.message); refreshEarnings(); return; }
+      // a host that sends it with its next transaction (the phone: one transaction in flight at a time) says so
+      if (r.body && r.body.pending) {
+        showNotice(typeof r.body.message === "string" ? r.body.message : "Paying out: the transaction goes out within a minute.");
+        refreshEarnings(); setTimeout(refreshEarnings, 30000);
+        return;
+      }
       return call("GET", "/earnings").then(function (g) {
         if (g.ok) { showEarnings(T.earningsView(g.body), null); showNotice("Paid out" + (earnings.lastTx ? " (tx " + T.short(earnings.lastTx) + ")" : "") + "."); }
         else showNotice("Paid out.");
