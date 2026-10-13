@@ -90,7 +90,7 @@ public class AgentService extends Service {
         long backoff = 5000;
         while (!stopping) {
             final long t0 = System.currentTimeMillis();
-            try { installBundle(dir); runNode(dir); }
+            try { installBundle(this); runNode(dir); }
             catch (Exception e) { Log.e(TAG, "agent: " + e); }
             if (stopping) break;
             if (System.currentTimeMillis() - t0 > 10 * 60_000L) backoff = 5000;   /* it ran a while: a fresh failure, not a loop */
@@ -112,15 +112,17 @@ public class AgentService extends Service {
     }
 
     /** The agent's JavaScript from the APK's assets, copied when the installed APK is not the one it was copied from. */
-    private void installBundle(File dir) throws Exception {
-        final String stamp = getPackageManager().getPackageInfo(getPackageName(), 0).lastUpdateTime + " " + new File(getApplicationInfo().sourceDir).length();
+    static synchronized void installBundle(Context ctx) throws Exception {
+        final File dir = new File(ctx.getFilesDir(), "agent");
+        if (!dir.isDirectory() && !dir.mkdirs()) throw new Exception("no agent dir");
+        final String stamp = ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0).lastUpdateTime + " " + new File(ctx.getApplicationInfo().sourceDir).length();
         final File bundle = new File(dir, "bundle"), mark = new File(bundle, ".installed");
         if (mark.isFile() && stamp.equals(new String(java.nio.file.Files.readAllBytes(mark.toPath()), StandardCharsets.UTF_8).trim())) return;
         final File fresh = new File(dir, "bundle.new");
         deleteTree(fresh);
         if (!fresh.mkdirs()) throw new Exception("cannot make " + fresh);
-        for (String name : getAssets().list("agent")) {
-            try (InputStream in = getAssets().open("agent/" + name); OutputStream out = new FileOutputStream(new File(fresh, name))) {
+        for (String name : ctx.getAssets().list("agent")) {
+            try (InputStream in = ctx.getAssets().open("agent/" + name); OutputStream out = new FileOutputStream(new File(fresh, name))) {
                 final byte[] buf = new byte[1 << 16]; int r; while ((r = in.read(buf)) > 0) out.write(buf, 0, r);
             }
         }
@@ -130,14 +132,20 @@ public class AgentService extends Service {
         Log.i(TAG, "agent bundle installed (" + stamp + ")");
     }
 
+    /** Node's environment: its C++ runtime is libc++_shared.so beside it in the APK's native libraries. */
+    static void nodeEnv(Context ctx, ProcessBuilder pb) {
+        pb.environment().put("LD_LIBRARY_PATH", ctx.getApplicationInfo().nativeLibraryDir);
+        pb.environment().put("HOME", new File(ctx.getFilesDir(), "agent").getPath());
+        pb.environment().put("TMPDIR", ctx.getCacheDir().getPath());
+    }
+
     private void runNode(File dir) throws Exception {
         final String lib = getApplicationInfo().nativeLibraryDir;
         final ProcessBuilder pb = new ProcessBuilder(lib + "/libnode.so", "--max-old-space-size=384",
             new File(dir, "bundle/standalone.mjs").getPath(), "--files", getFilesDir().getPath(), "--apk", getApplicationInfo().sourceDir,
             "--lib", lib, "--control-port", String.valueOf(CONTROL_PORT));
         pb.directory(dir).redirectErrorStream(true);
-        pb.environment().put("HOME", dir.getPath());
-        pb.environment().put("TMPDIR", getCacheDir().getPath());
+        nodeEnv(this, pb);
         node = pb.start();
         final File log = new File(dir, "agent.log");
         try (InputStream in = node.getInputStream()) {

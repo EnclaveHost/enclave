@@ -325,9 +325,11 @@ fi
 # ANCHOR_DEBUG=1 for a lab build.
 if [ "${ANCHOR_STANDALONE:-0}" = 1 ]; then
   [ "$TIER" = pvm-cpu ] || { echo "ANCHOR_STANDALONE=1 is a pvm-cpu build" >&2; exit 2; }
-  for v in ANCHOR_NODE ANCHOR_WG; do [ -f "${!v:-}" ] || { echo "ANCHOR_STANDALONE=1 needs $v (a file)" >&2; exit 2; }; done
+  # Node's C++ runtime ships beside it (AgentService sets LD_LIBRARY_PATH to the native libraries)
+  ANCHOR_LIBCXX="${ANCHOR_LIBCXX:-$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so}"
+  for v in ANCHOR_NODE ANCHOR_WG ANCHOR_LIBCXX; do [ -f "${!v:-}" ] || { echo "ANCHOR_STANDALONE=1 needs $v (a file)" >&2; exit 2; }; done
   [ -f "${ANCHOR_AGENT_BUNDLE:-}/standalone.mjs" ] || { echo "ANCHOR_STANDALONE=1 needs ANCHOR_AGENT_BUNDLE, a dir holding standalone.mjs" >&2; exit 2; }
-  cp "$ANCHOR_NODE" "$STAGE/lib/arm64-v8a/libnode.so"; cp "$ANCHOR_WG" "$STAGE/lib/arm64-v8a/libenclavewg.so"
+  cp "$ANCHOR_NODE" "$STAGE/lib/arm64-v8a/libnode.so"; cp "$ANCHOR_WG" "$STAGE/lib/arm64-v8a/libenclavewg.so"; cp "$ANCHOR_LIBCXX" "$STAGE/lib/arm64-v8a/libc++_shared.so"
   rm -rf "$STAGE/assets/agent" && mkdir -p "$STAGE/assets/agent" && cp "$ANCHOR_AGENT_BUNDLE"/* "$STAGE/assets/agent/"
   sed -i -e 's/android:extractNativeLibs="false"/android:extractNativeLibs="true"/' \
       -e 's/\(<service android:name="\.AnchorService[A-Za-z0-9]*"[^>]*\)android:exported="true"/\1android:exported="false"/' "$MANIFEST"
@@ -335,7 +337,9 @@ if [ "${ANCHOR_STANDALONE:-0}" = 1 ]; then
   ! grep -q 'android:name=".AnchorService[A-Za-z0-9]*"[^>]*exported="true"' "$MANIFEST" || { echo "standalone: a VM service is still exported" >&2; exit 2; }
   grep -q 'extractNativeLibs="true"' "$MANIFEST" || { echo "standalone: native libraries are not extracted" >&2; exit 2; }
   echo "standalone: node $(stat -c %s "$ANCHOR_NODE") B, enclave-wg $(stat -c %s "$ANCHOR_WG") B, agent bundle $(ls "$STAGE/assets/agent" | wc -l) files$( [ "${ANCHOR_DEBUG:-0}" = 1 ] && echo ', DEBUGGABLE (lab)')"
-else rm -f "$STAGE/lib/arm64-v8a/libnode.so" "$STAGE/lib/arm64-v8a/libenclavewg.so"; rm -rf "$STAGE/assets/agent"; fi
+else rm -f "$STAGE/lib/arm64-v8a/libnode.so" "$STAGE/lib/arm64-v8a/libenclavewg.so"; rm -rf "$STAGE/assets/agent"
+  [ "$TIER" != pvm-cpu ] || rm -f "$STAGE/lib/arm64-v8a/libc++_shared.so"   # the research tier's VM payload ships its own
+fi
 # the app's resources (res/: the Enclave icon, the site's mark), compiled and linked with the manifest
 rm -f res.zip && "$BT/aapt2" compile --dir "$HERE/res" -o res.zip
 "$BT/aapt2" link -o unaligned.apk --manifest "$MANIFEST" ${REL:+--rename-manifest-package "$RELEASE_PKG"} \
