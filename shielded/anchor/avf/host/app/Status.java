@@ -44,7 +44,7 @@ final class Status {
         return Tier.PVM_CPU.equals(Tier.of(a)) && (i == null || !i.hasExtra("mode"));
     }
     private static Status current;
-    static void show(Activity a) { current = new Status(a); current.poll(); }
+    static void show(Activity a) { AgentService.start(a); current = new Status(a); current.poll(); }   /* STANDALONE.md: a set-up phone hosts on its own; opening the app starts it if a boot did not */
     /** The system back gesture: from Settings to the main page (true), else the activity's own (false). */
     static boolean back() { Status s = current; if (s == null || !s.inSettings) return false; s.showMain(); return true; }
 
