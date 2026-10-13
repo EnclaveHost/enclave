@@ -153,3 +153,20 @@ test("schema 16 with no connectivity contract in the book reads as 15 under 'aut
  const required=new LeaseReader({addressBook:book,clients:[c16(),c16()],includeConnectivity:true,now});
  await assert.rejects(required.refresh([id]),/agreeing chain quorum/);   // demanded explicitly: still refused without one
 });
+
+test('a refresh with NO agreeing answer holds a running lease up to the grace after its last agreeing read, never past its end',async()=>{
+ let clock=now();
+ const reader=new LeaseReader({addressBook:book,clients:[client(),client()],now:()=>clock});
+ const [lease]=await reader.refresh([id]);
+ assert.equal(lease.validUntil,1699999995000+90000);
+ clock=lease.validUntil+1000;                                   // the read window passed: nothing is current
+ assert.equal(reader.get(id),null);
+ assert.deepEqual(reader.hold(10*60_000),[id]);
+ assert.equal(reader.get(id).validUntil,1699999995000+600000,'held to ten minutes after the last agreeing read');
+ clock=1699999995000+600000;assert.equal(reader.get(id),null,'and no longer');
+ assert.deepEqual(reader.hold(10*60_000),[],'a second hold does not extend it again');
+ const short=new LeaseReader({addressBook:book,clients:[client({value:{...row,leaseUntil:1700000060n}}),client({value:{...row,leaseUntil:1700000060n}})],now});
+ await short.refresh([id]);short.now=()=>1700000050000;short.hold(10*60_000);
+ assert.equal(short.get(id).validUntil,1700000060000,'never past the lease itself');
+ short.now=()=>1700000061000;assert.deepEqual(short.hold(10*60_000),[],'an ended lease is not held');
+});
