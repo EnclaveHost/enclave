@@ -13,6 +13,7 @@
 //   operator.key    the operator key, made here on first run (0600). It pays its own gas (STANDALONE.md "Gas").
 //   instance.json   the host VM's instance, learned on its first attach (attach-cosigner learnInstance). Learning it ends
 //                   this process; AgentService starts it again with the instance pinned, before anything is registered.
+//   status.json     for the app's screen: the operator's address and gas balance, the name (every minute).
 //   codehash.json   this APK's codeHash (apk-code-hash.mjs), cached by the APK's size and mtime.
 //   host.json, network.json   the two configs, written from the above and the bundle's build.json on every start.
 //   state/ net/ apps/ components/   the host agent's state, the network's, each enrolled app's expectation, the CID cache.
@@ -197,10 +198,17 @@ async function main() {
   writeNet();
 
   for (const s of ["SIGINT", "SIGTERM"]) process.on(s, () => { log({ ev: "signal", signal: s }); stopping = true; });
+  // what the app's screen shows beside the agent's own surface: the operator, its gas, this phone's name (files/agent/status.json)
+  const status = async () => {
+    let balanceWei = null;
+    try { balanceWei = String(await publicClient.getBalance({ address: account.address })); } catch {}
+    writePrivate(path.join(a, "status.json"), JSON.stringify({ operator: account.address, balanceWei, name: cfg.name, endpoint: cfg.endpoint,
+      instance: instanceIds[0] || null, at: new Date().toISOString() }));
+  };
   let lastEnroll = 0;
   while (!stopping && !learned) {
     try { await agent.tick(); } catch (e) { log({ ev: "tick-error", error: e.shortMessage || e.message }); }
-    if (Date.now() - lastEnroll > 60_000) { enroll(); lastEnroll = Date.now(); }
+    if (Date.now() - lastEnroll > 60_000) { enroll(); await status().catch((e) => log({ ev: "status-error", error: e.message })); lastEnroll = Date.now(); }
     for (let i = 0; i < 30 && !stopping && !learned; i++) await new Promise((r) => setTimeout(r, 1000));
   }
   if (learned) { log({ ev: "restart", why: "the host VM's instance is pinned now" }); await new Promise((r) => setTimeout(r, 2000)); }

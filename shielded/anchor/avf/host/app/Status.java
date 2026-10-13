@@ -44,7 +44,10 @@ final class Status {
         return Tier.PVM_CPU.equals(Tier.of(a)) && (i == null || !i.hasExtra("mode"));
     }
     private static Status current;
-    static void show(Activity a) { AgentService.start(a); current = new Status(a); current.poll(); }   /* STANDALONE.md: a set-up phone hosts on its own; opening the app starts it if a boot did not */
+    static void show(Activity a) {
+        if (Setup.needed(a)) { Setup.show(a); return; }   /* STANDALONE.md: a phone that hosts on its own is set up first */
+        AgentService.start(a); current = new Status(a); current.poll();   /* a set-up phone hosts on its own; opening the app starts it if a boot did not */
+    }   /* STANDALONE.md: a set-up phone hosts on its own; opening the app starts it if a boot did not */
     /** The system back gesture: from Settings to the main page (true), else the activity's own (false). */
     static boolean back() { Status s = current; if (s == null || !s.inSettings) return false; s.showMain(); return true; }
 
@@ -52,7 +55,7 @@ final class Status {
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final ScrollView scroll;
     private final LinearLayout mainPage, settingsPage, apps, cpuButtons, payoutButtons;
-    private final TextView state, stateNote, earnings, cpuLabel, payoutNote, payoutSave, payoutCancel;
+    private final TextView state, stateNote, earnings, cpuLabel, payoutNote, payoutSave, payoutCancel, gasTitle, gasNote, gasAddr;
     private final SeekBar cpuBar;
     private final Switch hostSwitch;
     private final EditText payoutField;
@@ -83,6 +86,13 @@ final class Status {
         mainPage.addView(state);
         stateNote = text("", 13, MUTED); stateNote.setVisibility(View.GONE); stateNote.setPadding(0, dp(4), 0, 0);
         mainPage.addView(stateNote);
+        // STANDALONE.md "Gas": a phone that hosts on its own pays its own network fees; shown only while it runs low
+        gasTitle = section("Network fees"); gasTitle.setVisibility(View.GONE); mainPage.addView(gasTitle);
+        gasNote = text("", 14, AMBER); gasNote.setVisibility(View.GONE); mainPage.addView(gasNote);
+        gasAddr = text("", 13, TEXT); gasAddr.setTypeface(Typeface.MONOSPACE); gasAddr.setVisibility(View.GONE); gasAddr.setPadding(0, dp(8), 0, 0);
+        gasAddr.setOnClickListener(v -> { android.content.ClipboardManager cm = a.getSystemService(android.content.ClipboardManager.class);
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("address", gasAddr.getText())); toast("Copied"); });
+        mainPage.addView(gasAddr);
         mainPage.addView(section("Earnings"));
         earnings = text("–", 32, TEXT); earnings.setTypeface(Typeface.DEFAULT_BOLD);
         mainPage.addView(earnings);
@@ -165,7 +175,8 @@ final class Status {
             try { av = getJson(AGENT); } catch (Exception ignored) { }
             if (av != null) { try { earn = getJson(EARNINGS); } catch (Exception ignored) { } }
             final JSONObject gotAv = av, gotEarn = earn;
-            ui.post(() -> { render(gotAv); renderEarnings(gotEarn); });
+            final JSONObject own = standalone() ? readStatus() : null;
+            ui.post(() -> { render(gotAv); renderEarnings(gotEarn); renderGas(own); });
         }, "enclave-status").start();
         ui.postDelayed(this::poll, 5000);
     }
@@ -179,7 +190,8 @@ final class Status {
     // ---- main page ----
     private void render(JSONObject av) {
         if (av == null) {
-            setState("● Not connected", MUTED, "Apps here keep running, but can't be reached until this phone reconnects to its host computer.");
+            if (standalone()) setState("● Starting…", AMBER, "Enclave's hosting service on this phone is starting.");
+            else setState("● Not connected", MUTED, "Apps here keep running, but can't be reached until this phone reconnects to its host computer.");
             return;
         }
         boolean serving = av.optBoolean("registered") && av.optBoolean("claimEnabled"), agentHosting = av.optBoolean("hosting", true);
@@ -218,6 +230,22 @@ final class Status {
         payoutSaid = p == null ? "No payout address yet: earnings wait until you set one."
                                : "Paid automatically once " + usd(p == null ? 1_000_000 : micro(p, "minWithdraw6")) + " has built up.";
         payoutState();
+    }
+    /** This build carries the agent (STANDALONE.md): the phone hosts on its own. */
+    private boolean standalone() { return new java.io.File(a.getFilesDir(), "agent/setup.json").isFile(); }
+    private JSONObject readStatus() {
+        try { return new JSONObject(new String(java.nio.file.Files.readAllBytes(new java.io.File(a.getFilesDir(), "agent/status.json").toPath()), "UTF-8")); }
+        catch (Exception e) { return null; }
+    }
+    /** Below 0.0002 ETH (a few days of fees): ask for more, with the address to send it to (tap to copy). */
+    private void renderGas(JSONObject st) {
+        boolean low = false; String addr = "";
+        if (st != null && st.optString("operator").matches("0x[0-9a-fA-F]{40}")) {
+            addr = st.optString("operator");
+            try { low = new java.math.BigInteger(st.optString("balanceWei", "0")).compareTo(new java.math.BigInteger("200000000000000")) < 0; } catch (Exception e) { low = false; }
+        }
+        gasTitle.setVisibility(low ? View.VISIBLE : View.GONE); gasNote.setVisibility(low ? View.VISIBLE : View.GONE); gasAddr.setVisibility(low ? View.VISIBLE : View.GONE);
+        if (low) { gasNote.setText("This phone pays its own Base network fees, a few cents a day. Send about $2 of ETH on Base to its address:"); gasAddr.setText(addr); }
     }
     static String usd(long micro) {   // USDC has 6 decimals; under a cent, four places
         return micro == 0 ? "$0.00" : micro < 10_000 ? String.format(java.util.Locale.ROOT, "$%.4f", micro / 1e6) : String.format(java.util.Locale.ROOT, "$%.2f", micro / 1e6);

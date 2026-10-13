@@ -47,6 +47,8 @@
         <service android:name=".AgentService" android:process=":agent" android:exported="false" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="runs the phone's hosting agent: registration, leases, proofs, app networking" />
         </service>
+        <!-- STANDALONE.md: the pairing code typed into Enclave's setup notification -->
+        <receiver android:name=".SelfPair" android:exported="false" />
         <receiver android:name=".BootReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
