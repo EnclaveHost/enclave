@@ -1,32 +1,9 @@
+// Signs and distributes an app's route record (network/route-record.mjs) under the owner's v5 Enclave-network policy.
 import {createPrivateKey,createPublicKey,randomBytes} from 'node:crypto';
-import {keccak256,stringToHex} from 'viem';
-import {validateCircuitPolicy} from './circuit-policy.mjs';
 import {DurableState} from './durable-state.mjs';
-import {recordHash,signDelegation,signRoute,verifyOwnerPolicy,validateRoutePolicy} from './route-record.mjs';
-import {tunaPolicyFromLease} from './tuna-policy.mjs';
-import {directPolicyFromLease} from './connectivity-control.mjs';
+import {recordHash,signDelegation,signRoute,validateRoutePolicy} from './route-record.mjs';
 import {namingKey,encodeDiscovery} from './discovery.mjs';
 
-export function defaultPolicy(deploymentId,{maxPrice='0.0002',budgetNkn='1'}={}) {
-  return validateCircuitPolicy({version:2,deploymentId,mode:'guarded',directFallback:false,
-    routes:2,maxPrice,budgetNkn,diversity:'beneficiary-and-network'});
-}
-export async function appPolicy(app,lease,defaults) {
-  if(!lease||lease.id!==app.deploymentId)throw new Error('policy requires current deployment owner');
-  // Never run the native-NKN payment path under a USDC owner authorization.
-  if(lease.connectivity?.viaTuna&&Number(lease.connectivity.expires)>0)return tunaPolicyFromLease(lease);
-  const direct=directPolicyFromLease(lease);
-  if(direct)return direct;
-  if(app.ownerPolicy){
-    const policy=await verifyOwnerPolicy(app.ownerPolicy,lease.owner);
-    if(policy.deploymentId!==app.deploymentId)throw new Error('policy is for another deployment');
-    return validateCircuitPolicy(policy);
-  }
-  // No owner signature is invented for the protocol default. Any provider pin,
-  // preference, exclusion or stricter ownership rule requires an owner envelope.
-  if(app.policy)throw new Error('custom network policy requires owner signature');
-  return defaultPolicy(app.deploymentId,defaults);
-}
 function routeKey(seed) {
   return createPrivateKey({key:Buffer.concat([Buffer.from('302e020100300506032b657004220420','hex'),seed]),format:'der',type:'pkcs8'});
 }
@@ -58,13 +35,11 @@ export class RoutePublisher {
       }
       value.sequence++;if(!Number.isSafeInteger(value.sequence))throw new Error('route sequence exhausted');return value;
     });
-    const ownerQualification=policy.mode==='direct'&&routes.length&&lease.connectivity?.appScopedQualification;
-    const qualification=policy.mode==='direct'&&routes.length&&!ownerQualification?await this.qualification?.(id):undefined;
-    if(policy.mode==='direct'&&routes.length&&!ownerQualification&&(!qualification||qualification.report.expiresAt<=now))throw new Error('current provider qualification required');
-    const providerExpiry=policy.currency==='USDC'&&routes.length?Math.min(...routes.map(route=>Math.max(0,...(lease.connectivity?.providers||[]).filter(p=>p.qualified&&p.active&&p.addressHash===keccak256(stringToHex(route.address))).map(p=>Number(p.qualifiedUntil)*1000)))):Infinity;
-    // a v5 (Enclave network) policy carries no expiry of its own: the route lives at most a minute and is re-signed
-    const policyExpiry=policy.version!==5&&(policy.mode==='direct'||policy.currency==='USDC')&&routes.length?policy.expiresAt:Infinity;
-    const expiresAt=Math.min(now+60000,lease.validUntil,lease.leaseUntil,state.authorization.delegation.expiresAt,ownerQualification?Number(lease.connectivity.qualifiedUntil)*1000:qualification?.report.expiresAt??Infinity,providerExpiry,policyExpiry);
+    // a direct route carries the host's current direct-hosting qualification, and lives no longer than it
+    const qualification=policy.mode==='direct'&&routes.length?await this.qualification?.(id):undefined;
+    if(policy.mode==='direct'&&routes.length&&(!qualification||qualification.report.expiresAt<=now))throw new Error('current provider qualification required');
+    // a v5 policy carries no expiry of its own: the route lives at most a minute and is re-signed
+    const expiresAt=Math.min(now+60000,lease.validUntil,lease.leaseUntil,state.authorization.delegation.expiresAt,qualification?.report.expiresAt??Infinity);
     if(expiresAt<=now)throw Error('route authorization expired');
     const signed=signRoute(routeKey(Buffer.from(state.seed,'hex')),{version:2,deploymentId:id,delegationHash:recordHash(state.authorization.delegation),
       sequence:state.sequence,issuedAt:now,expiresAt,routes,...(qualification?{qualification}:{})});
