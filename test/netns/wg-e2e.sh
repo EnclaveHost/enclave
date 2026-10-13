@@ -23,13 +23,14 @@ link(){ # veth name, ns pid, router ip, ns ip
 }
 ip link set lo up
 sysctl -q -w net.ipv4.ip_forward=1
-mk G; mk X; mk H; mk W; mk C
+mk G; mk X; mk H; mk W; mk C; mk V
 sleep 0.2
 link vG "$G" 46.0.0.1 46.0.0.2
 link vX "$X" 47.0.0.1 47.0.0.2
 link vH "$H" 45.0.0.1 45.0.0.2
 link vW "$W" 44.0.0.254 44.0.0.1
 link vC "$C" 48.0.0.1 48.0.0.2
+link vV "$V" 49.0.0.1 49.0.0.2
 # a private address that is really reachable: only the exit's rules may stop it
 nsx "$W" ip addr add 10.9.9.9/32 dev eth0; ip route add 10.9.9.9/32 via 44.0.0.1
 
@@ -158,5 +159,37 @@ for a in 46.0.0.2 47.0.0.2; do
   v=$(node -e 'const q=JSON.parse(require("fs").readFileSync(process.argv[1])).find(x=>x.qualification.address===process.argv[2]);console.log(q&&Object.values(q.qualification.checks).every(Boolean)?"ok":JSON.stringify(q?{c:q.qualification.checks,d:q.details}:"missing"))' "$T/qual.json" "$a" 2>&1)
   [ "$v" = ok ] && pass "checker: $a passes all nine checks through WireGuard" || fail "checker-$a" "$v $(tail -3 "$T/checker.log")"
 done
+
+# bring your own WireGuard: V is the owner's VPN (a plain kernel WireGuard server with NAT; not a provider)
+VK=$(wg genkey); HK=$(wg genkey); echo "$VK" > "$T/v.key"
+VP=$(echo "$VK" | wg pubkey); HP=$(echo "$HK" | wg pubkey)
+nsx "$V" ip link add wgv type wireguard
+nsx "$V" wg set wgv listen-port 51900 private-key "$T/v.key" peer "$HP" allowed-ips 10.66.0.2/32
+nsx "$V" ip addr add 10.66.0.1/24 dev wgv; nsx "$V" ip link set wgv up
+nsx "$V" sysctl -q -w net.ipv4.ip_forward=1
+printf 'table ip nat {\n chain p {\n  type nat hook postrouting priority srcnat;\n  oifname "eth0" masquerade\n }\n}\n' > "$T/v.nft"; nsx "$V" nft -f "$T/v.nft" || fail byo-fixture "the VPN's NAT did not load"
+cat > "$T/byo.conf" <<CONF
+# the owner's VPN, as their vendor gave it
+[Interface]
+PrivateKey = $HK
+Address = 10.66.0.2/32
+DNS = 44.0.0.1
+
+[Peer]
+PublicKey = $VP
+Endpoint = 49.0.0.2:51900
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 5
+CONF
+nsx "$H" node test/netns/byo-node.mjs "$WG_BIN" "$T/byo.conf" > "$T/byo.json" 2>"$T/byo.err" & BYOPID=$!; pids+=($BYOPID)
+for i in $(seq 60); do [ -s "$T/byo.json" ] && break; sleep 0.2; done
+if [ -s "$T/byo.json" ]; then
+  BE=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).egress)' "$T/byo.json")
+  r=$(nsx "$H" curl -s -m 10 --socks5-hostname "$BE" http://web.test/)
+  [ "$r" = "remote=49.0.0.2" ] && pass "BYO WireGuard: egress leaves from the owner's VPN, names through its tunnel" || fail byo-egress "got '$r' | $(tail -3 "$T/byo.err" | tr '\\n' ' ')"
+  nsx "$H" curl -s -m 5 --socks5 "$BE" "http://[2606:4700::1111]/" >/dev/null 2>&1 && fail byo-ipv6 "IPv6 left the host" || pass "BYO without an IPv6 tunnel address: IPv6 refused, never leaked"
+  nsx "$V" ip link del wgv
+  s=$(date +%s); nsx "$H" curl -s -m 8 --socks5-hostname "$BE" http://web.test/ >/dev/null && fail byo-killswitch "traffic went somewhere with the VPN gone" || pass "BYO VPN gone: nothing leaves (no fallback to the host's network)"
+else fail byo "$(cat "$T/byo.err")"; fi
 
 exit $FAILED
