@@ -106,6 +106,13 @@ that is updated; c92678519 was deployed to nan with the same steps by hand (04:1
   The fix belongs in the app: resume a short window from its received offset (enclave-88, with Steven's catalog publish).
   Also understood: for a few minutes after every partition restart, egress is refused ("refused:admit") until the node
   adopts the partition and its guest proof refreshes; the agent now says when an app leaves and rejoins the egress map.
+- **An outage lapsed every app's egress**: the authorization round treated a failed chain read or policy fetch as an
+  answer. When nucbox-k11-4's control circuits went down for about a minute (15:21Z), three apps' egress went OFF with
+  their leases running. Now (d45fe2ef2) a refresh with no agreeing answer holds each running lease up to 10 min after its
+  last agreeing read (the providers' rule) and goes on to the guest proofs; an unreachable relay keeps the last owner
+  policy for up to 10 min. Live on metal0's agent 22:11Z (release-wg-949a47f89); on the NucBox with Windows .32.
+- **A partition that ended by itself was replaced without a word**: the node now says when a domain it recorded as
+  serving is gone from the manager before it starts the new one (949a47f89, Windows .32).
 - **Egress-map writes failed on Windows**: Windows refuses a rename over `egress-routes.json` while ANY reader holds
   it, FILE_SHARE_DELETE or not (checked on the NucBox), and shield-egress reads it on every outbound connection: 91
   failures before, still 11 in 15 min after .27's retries (618c7d156). The egress map now overwrites the file in place
