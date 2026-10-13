@@ -26,7 +26,9 @@ $Binaries = [ordered]@{
   # public-web egress (c85e0c592, the a8f384f2 build) + -blob-service (isolation/egress-blob-cache 1dad2bb50; go1.27.1
   # GOOS=windows CGO_ENABLED=0 go build -trimpath ./cmd/shield-egress, from isolation/m2): the host blob cache's route
   "bin\shield-egress.exe"   = @("vbs-like\releases\blob-cache-20261012\shield-egress.exe",   "9cfb88650a6f56d68954d6768961e3c16452c7c43122111278679d10d708ce29")
-  "bin\shielded-bridge.exe" = @("vbs-like\releases\public-web-20261005\shielded-bridge.exe","046442198865f4c70f93fc79f979b760a3514f644862328800db0e26aba3ec79")
+  # egress-bridge-20261013: cargo build --release --locked --bin shielded-bridge of windows/vbslike/host at main 1b3f56590
+  # (persistent streams: no write timeout - a guest that paused reading had its download cut after 60 s)
+  "bin\shielded-bridge.exe" = @("vbs-like\releases\egress-bridge-20261013\shielded-bridge.exe","ebd842bf1990a33c6949b7f5fefcdb97673c19a7d75f3ef8b85d72bc9641189f")
   "bin\tpmattest.exe"       = @("vbs-like\hvnode\bin\tpmattest.exe",                       "ebc30d9fa54cf70043900165ce12631224075b3301653eaf8527342d18de6982")
   "bin\wasmtime.exe"        = @("vbs\apps\wasmtime-v49.0.0-x86_64-windows\wasmtime.exe",   "cbe3e2ddc1d449a029b1f581b84688b94fc7e5758cdfe24241609a92b16a5cc2")
   "guest\runtime.bin"       = @("vbs-like\releases\public-web-20261005\runtime.bin",        "5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d")
