@@ -340,6 +340,15 @@ if [ "${ANCHOR_STANDALONE:-0}" = 1 ]; then
 else rm -f "$STAGE/lib/arm64-v8a/libnode.so" "$STAGE/lib/arm64-v8a/libenclavewg.so"; rm -rf "$STAGE/assets/agent"
   [ "$TIER" != pvm-cpu ] || rm -f "$STAGE/lib/arm64-v8a/libc++_shared.so"   # the research tier's VM payload ships its own
 fi
+# the Enclave app's screen (host/app/Status.java): the hosting panel, host-ui -- the repository's host-ui/, the Windows tray's
+# panel too -- every file its index.html loads, as assets/host-ui/
+rm -rf "$STAGE/assets/host-ui"
+if [ "$TIER" = pvm-cpu ]; then
+  UI="$HERE/../../../host-ui"; mkdir -p "$STAGE/assets/host-ui"
+  for f in index.html $(grep -o '\(src\|href\)="[a-z-]*\.\(js\|css\)"' "$UI/index.html" | sed 's/.*="\(.*\)"/\1/'); do
+    cp "$UI/$f" "$STAGE/assets/host-ui/$f" || { echo "host-ui: $f is missing" >&2; exit 2; }; done
+  echo "host-ui: $(ls "$STAGE/assets/host-ui" | tr '\n' ' ')"
+fi
 # the app's resources (res/: the Enclave icon, the site's mark), compiled and linked with the manifest
 rm -f res.zip && "$BT/aapt2" compile --dir "$HERE/res" -o res.zip
 "$BT/aapt2" link -o unaligned.apk --manifest "$MANIFEST" ${REL:+--rename-manifest-package "$RELEASE_PKG"} \

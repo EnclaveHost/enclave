@@ -347,3 +347,96 @@ test("a held lease is judged again once per agent start: admitted while it fits,
     assert.equal(b.state().refused[D0] !== undefined, true);
   } finally { globalThis.fetch = realFetch; }
 });
+
+// The Enclave app's screen is the hosting panel (host-ui, the Windows tray's too): the agent answers the Windows node's local
+// hosting API on its own port with its own token, and the panel's rules hold on the phone -- a share below what runs, or
+// hosting off with apps here, asks first (409 would_drop, newest first) and changes nothing until confirmed; the price, the
+// payout wallet and "Pay out now" go where the agent already sends them (the host runner).
+test("the hosting panel's API on the phone: the PC's contract, its drop questions, the price, the payout wallet and Pay out now", async () => {
+  const t = setup(), logs = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: false, status: 503, text: async () => "test", json: async () => ({}) });
+  t.device.writeOffer = async (text) => t.setOffer(text);
+  const asked = [];
+  const createRunner = async (o) => { const r = await t.createRunner(o); r.requestPayout = () => asked.push(o.config.proof.deployment); return r; };
+  let srv;
+  try {
+    const agent = await createHostAgent({ config: t.config, publicClient: t.publicClient, account: operator, stateDir: t.stateDir, device: t.device, fetchImpl: t.fetchImpl,
+      now: t.now, sleep: async () => {}, log: (o) => logs.push(o), createRunner,
+      verifyEvidence: (doc, x) => ({ ok: doc.nonce === x.nonce && doc.app === x.appId, reasons: [], instanceId: doc.instanceId, transportSpki: doc.transportSpki }) });
+    agent.state().slots["1"].sha = (await import("node:crypto")).createHash("sha256").update(fs.readFileSync(agent.state().slots["1"].file)).digest("hex");
+    t.advance(1000); await agent.tick(); t.advance(61_000); await agent.tick();   // D2 taken a second after D0's record, D1 a minute later
+    assert.deepEqual(Object.values(agent.state().slots).filter(Boolean).map((a) => a.id).sort(), [D0, D1, D2].sort(), "three apps, 250 per mille each");
+
+    const tokenFile = path.join(t.dir, "hosting-admin.token");
+    srv = await agent.serveLocal(0, tokenFile);
+    const token = fs.readFileSync(tokenFile, "utf8").trim();
+    assert.equal(fs.statSync(tokenFile).mode & 0o777, 0o600, "the token is the app's alone");
+    const base = `http://127.0.0.1:${srv.address().port}/v1/local/hosting`;
+    const call = async (method, p = "", body, tok = token) => {
+      const r = await realFetch(base + p, { method, headers: { authorization: `Bearer ${tok}`, ...(body ? { "content-type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
+      return [r.status, await r.json()];
+    };
+    assert.equal((await call("GET", "", null, "nope"))[0], 401, "no token, no answer");
+
+    let [st, v] = await call("GET");
+    assert.equal(st, 200);
+    assert.deepEqual(v.caps, { cpuShare: 1, gpuShare: 0, paused: false });
+    assert.deepEqual([v.axes, v.cpuLabel, v.device.noun, v.backend, v.reservedShare], [["cpu"], "CPU & RAM", "phone", "pvm", 0]);
+    assert.deepEqual([v.inUse.cpuShare, v.free.cpuShare, v.deploymentsServed], [0.75, 0.25, 3]);
+    assert.deepEqual(v.market, { taking: true, why: "listed on enclave.host" });
+    assert.deepEqual(v.apps.map((a) => a.host), ["d1d1d1d1.app.enclave.host", "d2d2d2d2.app.enclave.host", "d0d0d0d0.app.enclave.host"], "newest first");   // gitleaks:allow
+    assert.equal(v.pricing.gpu, null);
+    assert.deepEqual([v.pricing.cpu.override, v.pricing.cpu.tier, v.pricing.cpu.perHour], [0.0072, "pvm-cpu", 0.0072], "the price posted before the panel stays, as the owner's");
+
+    // a share below what runs: what it would stop, newest first, until what stays fits; nothing changes until confirmed
+    [st, v] = await call("PUT", "", { cpuShare: 0.3 });
+    assert.equal(st, 409); assert.equal(v.error, "would_drop");
+    assert.deepEqual(v.drop.map((u) => [u.id, u.cpuShare, u.gpuShare]), [[D1, 0.25, 0], [D2, 0.25, 0]]);
+    assert.equal((await call("GET"))[1].caps.cpuShare, 1, "nothing changed");
+    assert.equal((await call("PUT", "", { cpuShare: 0.3, drop: [D1] }))[0], 409, "a confirmation must name every one");
+    assert.equal((await call("PUT", "", { gpuShare: 0.5 }))[0], 400, "a phone offers no GPU");
+    [st, v] = await call("PUT", "", { cpuShare: 0.3, drop: [D1, D2] });
+    assert.equal(st, 200);
+    assert.deepEqual([v.caps.cpuShare, v.dropped.length], [0.3, 2]);
+    assert.equal(JSON.parse(t.device.readOffer ? await t.device.readOffer() : "{}").cpuMilli, 300, "written where the agent reads it every round");
+    t.advance(1000); await agent.tick();
+    assert.deepEqual(Object.values(agent.state().slots).filter(Boolean).map((a) => a.id), [D0], "the two newest released");
+    assert.equal(t.rows.get(D2).leaseUntil, 0n, "its lease handed back");
+
+    // the price: the owner's, then the default (the market's, else the config's while the guide is unknown)
+    [st, v] = await call("PUT", "/price", { cpuPerHour: 0.01 });
+    assert.deepEqual([st, v.pricing.cpu.override, v.pricing.cpu.perHour], [200, 0.01, 0.0108]);
+    assert.equal((await call("PUT", "/price", { cpuPerHour: 0 }))[0], 400);
+    assert.equal((await call("PUT", "/price", { gpuPerHour: 1 }))[0], 400);
+    t.advance(1000); await agent.tick();
+    const hostCfg = t.made.filter((x) => x.config.proof.deployment === "0x" + "00".repeat(32)).at(-1).config;
+    assert.equal(hostCfg.lifecycle.register.cpuPricePerSec6, "3", "the host runner re-states the entry at the owner's price");
+
+    // the payout wallet, and Pay out now (any amount, with the host runner's next transaction)
+    [st, v] = await call("GET", "/earnings");
+    assert.deepEqual([st, v.readable, v.earned6, v.paidOut6, v.operator], [200, true, "1250000", "2250000", me]);
+    assert.equal((await call("PUT", "/payout-wallet", { address: "0x12" }))[0], 400);
+    [st, v] = await call("PUT", "/payout-wallet", { address: "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61" });
+    assert.deepEqual([st, v.wallet, v.payTo], [200, "0x0b2d009c0c9af05b12100d77f3c815fea822ee61", "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"]);
+    assert.equal(agent.earnings().payout.to, "0x0b2d009c0c9af05b12100d77f3c815fea822ee61", "the host runner pays it");
+    t.advance(1000); await agent.tick();
+    [st, v] = await call("POST", "/payout");
+    assert.deepEqual([st, v.pending], [202, true]);
+    assert.match(v.message, /^Paying out \$1\.25 to 0x0b2d00…ee61: the transaction goes out within a minute\.$/);
+    assert.deepEqual(asked, ["0x" + "00".repeat(32)], "asked of the host runner");
+    assert.equal((await call("GET", "/earnings"))[1].paying, true);
+    [st, v] = await call("DELETE", "/payout-wallet");
+    assert.deepEqual([st, v.wallet, v.payTo, v.why], [200, null, null, "no payout wallet is set"], "pay nobody: even the config's address is not used");
+
+    // hosting off with an app here: asked first, then everything released by the round
+    [st, v] = await call("PUT", "", { paused: true });
+    assert.deepEqual([st, v.drop.map((u) => u.id)], [409, [D0]]);
+    [st, v] = await call("PUT", "", { paused: true, drop: [D0] });
+    assert.deepEqual([st, v.caps.paused, v.market.taking], [200, true, false]);
+    t.advance(1000); await agent.tick();
+    assert.deepEqual(Object.values(agent.state().slots).filter(Boolean), [], "hosting off: nothing runs");
+    [st, v] = await call("PUT", "", { paused: false });
+    assert.deepEqual([st, v.caps.paused, v.caps.cpuShare], [200, false, 0.3], "on again, the share kept");
+  } finally { globalThis.fetch = realFetch; if (srv) srv.close(); fs.rmSync(t.dir, { recursive: true, force: true }); }
+});
