@@ -47,7 +47,7 @@ ADAPTER_DEP="0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33"
 # reads are raw eth_call with hardcoded selectors (no node_modules on this box).
 export ADAPTER_DEP
 LIST=$(python3 <<'PY'
-import json, os, sys, urllib.request
+import json, os, re, subprocess, sys, urllib.request
 
 RPCS = ["https://mainnet.base.org", "https://base.drpc.org", "https://base-rpc.publicnode.com"]
 BOOK = "0xab214342d5A490150A4A977063A2f88E21F80907"
@@ -155,7 +155,8 @@ for i in range(n(ethcall(CATALOG, S_APPCOUNT), 0)):
         st = arr + 1 + n(h, arr + 1 + k) // 32
         vers.append({"cid": rd_str(h, st + n(h, st + 0) // 32),
                      "version": rd_str(h, st + n(h, st + 1) // 32),
-                     "yanked": bool(n(h, st + 8)), "approval": n(h, st + 10)})
+                     "yanked": bool(n(h, st + 8)), "approval": n(h, st + 10),
+                     "config": rd_str(h, st + n(h, st + 11) // 32)})
     h = ethcall(CATALOG, S_CFGCIDS + b32(app_id))
     arr = n(h, 0) // 32
     cfgs = [rd_str(h, arr + 1 + n(h, arr + 1 + k) // 32) for k in range(n(h, arr))]
@@ -178,6 +179,31 @@ if adapter_ref and adapter_ref.startswith("catalog://"):
 else:
     print("[pin-catalog] WARN could not read the adapter's appRef from the ledger", file=sys.stderr)
 
+def media_of(v):
+    """The `_media` image CIDs of a version: from its inline config, else from the config document at its configCid
+    (read from local kubo only: a config this job pinned on an earlier run)."""
+    texts = [v.get("config") or ""]
+    if v.get("configCid"):
+        try:
+            r = subprocess.run(["ipfs", "--api=/ip4/127.0.0.1/tcp/5001", "cat", "--timeout=15s", v["configCid"]],
+                               capture_output=True, timeout=30)
+            if r.returncode == 0 and len(r.stdout) < (1 << 20):
+                texts.append(r.stdout.decode("utf-8", "replace"))
+        except Exception:
+            pass
+    out = []
+    for t in texts:
+        try:
+            m = json.loads(t).get("_media") if t.strip().startswith("{") else None
+        except Exception:
+            m = None
+        if isinstance(m, dict):
+            for k in ("thumbnail", "banner"):
+                c = m.get(k)
+                if isinstance(c, str) and re.fullmatch(r"(Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{20,100})", c) and c not in out:
+                    out.append(c)
+    return out
+
 delisted = 0
 for app_id, vers in catalog.items():
     for k, v in enumerate(vers):
@@ -188,6 +214,10 @@ for app_id, vers in catalog.items():
             continue
         want(v["cid"], "%s:%s (wasm)" % (app_id[:10], v["version"]))
         want(v["configCid"], "%s:%s (config)" % (app_id[:10], v["version"]))
+        # the store's tile and banner images: CIDs under the version config's reserved `_media` key (site catalog.js
+        # mediaOf). Nothing else pinned them, so kubo's GC took them and the Apps store lost five tiles (2026-10-13).
+        for cid in media_of(v):
+            want(cid, "%s:%s (media)" % (app_id[:10], v["version"]))
 for cid, label in envelopes:
     want(cid, label)
 

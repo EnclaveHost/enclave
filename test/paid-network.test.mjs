@@ -7,7 +7,7 @@ import {privateKeyToAccount,generatePrivateKey} from 'viem/accounts';import {rec
 import {paidGate,PeerMeter,createReceiptCosigner,receiptToJSON,receiptFromJSON} from '../network/wg-provider/paid.mjs';
 import {WgProvider,peerRequestMessage} from '../network/wg-provider/provider.mjs';
 import {paidEligible,PaidNetwork} from '../network/paid-network.mjs';
-import {TunaUSDCSettlement,tunaReceiptDigest} from '../network/tuna-usdc-settlement.mjs';
+import {ProviderUSDCSettlement,providerReceiptDigest} from '../network/provider-settlement.mjs';
 import {EnclaveNetworkManager} from '../network/wg-manager.mjs';
 import {signNetworkPolicy} from '../network/network-policy.mjs';
 
@@ -69,13 +69,13 @@ test('host and provider sign one receipt for the provider-observed traffic; the 
  const client={readContract:async()=>0n,getBlock:async()=>({hash})},reader={clients:[client,client],get:()=>lease(),refresh:async()=>[lease()]};
  const cosignHTTP=createReceiptCosigner({hostId,proofAccount:providerProof,leaseReader:reader,meter:{observed:()=>observed},sample:async()=>{},now:()=>NOW});
  // the host's settlement asks the provider over JSON, exactly as createPaidNetwork does
- const host=new TunaUSDCSettlement({providerId:hostId,directory:dir,leaseReader:reader,proofAccount:hostProof,maxPending6:'10',now:()=>NOW,
+ const host=new ProviderUSDCSettlement({providerId:hostId,directory:dir,leaseReader:reader,proofAccount:hostProof,maxPending6:'10',now:()=>NOW,
   cosign:async b=>(await cosignHTTP(JSON.parse(JSON.stringify({receipt:receiptToJSON(b.receipt),runnerSignature:b.runnerSignature,anchorHash:b.anchorHash})))).signature});
  const req={deploymentId:id,policyHash:'p',cumulativeBytes:'4000',cumulativeCost6:'1',pricePerGiB6:'1000',nonce:'3'};
  await host.authorizeDebit(req);
  const s=await host.state.get(id.slice(2)+'-3');
  const out=await host.signedReceipt({id,s,lease:lease(),c:lease().connectivity,head:{hash}});
- const digest=tunaReceiptDigest({chainId:8453,connectivity:contract,ledger,receipt:out.receipt,anchorHash:hash});
+ const digest=providerReceiptDigest({chainId:8453,connectivity:contract,ledger,receipt:out.receipt,anchorHash:hash});
  assert.equal(await recoverMessageAddress({message:{raw:digest},signature:out.args[1]}),hostProof.address);
  assert.equal(await recoverMessageAddress({message:{raw:digest},signature:out.args[2]}),providerProof.address);
  observed=3999n;await assert.rejects(host.signedReceipt({id,s,lease:lease(),c:lease().connectivity,head:{hash}}),/exceeds provider-observed/);

@@ -5,14 +5,14 @@
 //   - paidEligible: a priced provider is usable for an app only while that on-chain authorization names it at exactly
 //     its price and the budget is not spent; free providers always are;
 //   - PaidNetwork.meter: the app bytes through each paid hop, accumulated durably per (app, provider, on-chain policy
-//     nonce), are authorized with the existing settlement (TunaUSDCSettlement.authorizeDebit), which settles receipts
+//     nonce), are authorized with the existing settlement (ProviderUSDCSettlement.authorizeDebit), which settles receipts
 //     co-signed by the provider (settleTuna charges the app's USDC balance); a circuit whose debit is refused (budget
 //     spent, authorization revoked or changed) is reported so the manager closes it - no unpaid traffic continues.
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import {keccak256,encodeAbiParameters,createPublicClient,createWalletClient,http,fallback} from 'viem';
 import {privateKeyToAccount} from 'viem/accounts';
-import {tunaContext,TunaUSDCSettlement} from './tuna-usdc-settlement.mjs';
+import {providerContext,ProviderUSDCSettlement} from './provider-settlement.mjs';
 import {receiptToJSON} from './wg-provider/paid.mjs';
 import {DurableState} from './durable-state.mjs';
 
@@ -22,7 +22,7 @@ export function paidEligible(lease,p,now=Date.now()){
  if(!(p.pricePerGiB6>0))return true;
  if(p.kind!=='community'||!/^0x[0-9a-f]{64}$/.test(p.hostId||''))return false;
  try{
-  const {c}=tunaContext(lease,p.hostId,String(lease?.connectivity?.nonce??''),String(p.pricePerGiB6),now);
+  const {c}=providerContext(lease,p.hostId,String(lease?.connectivity?.nonce??''),String(p.pricePerGiB6),now);
   return BigInt(c.spent6)<BigInt(c.budget6);
  }catch{return false;}
 }
@@ -93,7 +93,7 @@ export async function createPaidNetwork({config,directory,leaseReader,providers,
   return b.signature;
  };
  const settlementFor=hostId=>{
-  if(!settlements.has(hostId))settlements.set(hostId,new TunaUSDCSettlement({providerId:hostId,cosign:cosign(hostId),directory:path.join(directory,hostId.slice(2,18)),
+  if(!settlements.has(hostId))settlements.set(hostId,new ProviderUSDCSettlement({providerId:hostId,cosign:cosign(hostId),directory:path.join(directory,hostId.slice(2,18)),
    transactionDirectory:path.join(directory,'transactions'),leaseReader,proofAccount,wallet,client,maxPending6:config.maxPending6,log}).start());
   return settlements.get(hostId);
  };

@@ -5,18 +5,18 @@
 //     names it at its current price and the budget is not spent (paidGate);
 //   - it meters each paid peer itself, from the kernel's per-peer WireGuard counters, durably and per on-chain policy
 //     nonce (PeerMeter);
-//   - it co-signs the host's cumulative receipt only up to what it observed (TunaReceiptSigner, unchanged), and the
+//   - it co-signs the host's cumulative receipt only up to what it observed (ProviderReceiptSigner, unchanged), and the
 //     host submits settleTuna, which charges the app's existing USDC balance (ledger.chargeBandwidth).
 // A free provider (price 0) uses none of this.
 import fs from 'node:fs/promises';
-import {tunaContext,TunaReceiptSigner} from '../tuna-usdc-settlement.mjs';
+import {providerContext,ProviderReceiptSigner} from '../provider-settlement.mjs';
 
 // -> the on-chain policy nonce the peer is admitted under; throws unless the owner's current authorization names this
 // provider (hostId) at exactly its price, within the aggregate cap, with budget left.
 export function paidGate({lease,hostId,pricePerGiB6,now=Date.now()}){
  if(!/^0x[0-9a-f]{64}$/.test(hostId||''))throw new Error('a paid provider must be a registry host');
  const nonce=String(lease?.connectivity?.nonce??'');
- const {c}=tunaContext(lease,hostId,nonce,String(pricePerGiB6),now);
+ const {c}=providerContext(lease,hostId,nonce,String(pricePerGiB6),now);
  if(BigInt(c.spent6)>=BigInt(c.budget6))throw new Error('the owner\'s bandwidth budget for this app is spent');
  return nonce;
 }
@@ -61,7 +61,7 @@ export function receiptFromJSON(r){
 
 // The co-signing side of the control API: POST /v1/receipt {receipt, runnerSignature, anchorHash} -> {signature}.
 export function createReceiptCosigner({hostId,proofAccount,leaseReader,meter,sample,now=Date.now}){
- const signer=new TunaReceiptSigner({providerId:hostId,proofAccount,leaseReader,now,
+ const signer=new ProviderReceiptSigner({providerId:hostId,proofAccount,leaseReader,now,
   observedBytes:async k=>{await sample();return meter.observed(k);}});
  return async body=>{
   if(!body||typeof body.runnerSignature!=='string'||!/^0x[0-9a-fA-F]{130}$/.test(body.runnerSignature)||!/^0x[0-9a-f]{64}$/.test(body.anchorHash||''))throw new Error('receipt, runner signature and anchor hash required');

@@ -1,10 +1,10 @@
-// relay/tuna-routes.mjs: the relay accepts only signed per-app routes under the owner's current v5 (Enclave network)
+// relay/network-routes.mjs: the relay accepts only signed per-app routes under the owner's current v5 (Enclave network)
 // policy; every TUNA-era publication (v1 host allocations, route policies v2/v3/v4) is refused. The map it serves feeds
 // the DNS relay and the relay's deploy preflight (network/preflight.mjs).
 import test from 'node:test';import assert from 'node:assert/strict';
 import {mkdtemp,rm} from 'node:fs/promises';import os from 'node:os';import path from 'node:path';
 import {privateKeyToAccount} from 'viem/accounts';
-const {createTunaRoutes}=await import(process.env.ENCLAVE_TEST_RELAY_BUNDLE||'../relay/tuna-routes.mjs');
+const {createNetworkRoutes}=await import(process.env.ENCLAVE_TEST_RELAY_BUNDLE||'../relay/network-routes.mjs');
 import {RoutePublisher} from '../network/route-publisher.mjs';
 import {DurableState} from '../network/durable-state.mjs';
 import {defaultNetworkPolicy,validateNetworkPolicy} from '../network/network-policy.mjs';
@@ -23,7 +23,7 @@ async function world(t,{lease:over={},policy=validateNetworkPolicy(defaultNetwor
  const network={currentPolicy:()=>current,eligible:async()=>w.providers,checkers:[],noteStatus:(i,s)=>w.statuses.push([i,s])};
  w.publisher=new RoutePublisher({directory:path.join(directory,'publisher'),account,policy:()=>policy,lease:()=>w.lease,distribute:async()=>{},now:()=>w.now});
  w.options={operatorOf,endpointId,eligible:()=>true,leaseOf:async()=>w.lease,memory:new DurableState(path.join(directory,'mirror')),now:()=>w.now,...(withNetwork?{network}:{})};
- w.mirror=createTunaRoutes(w.options);
+ w.mirror=createNetworkRoutes(w.options);
  w.routes=(addresses=exits)=>addresses.map((address,i)=>({circuit:String(i+1).repeat(32),address,port:443,transport:'enclave-network'}));
  w.publication=async(routes=w.routes())=>({version:2,endpoint,policy,bundle:await w.publisher.publish(id,routes)});
  w.row=()=>({...w.lease,leaseUntil:w.lease.leaseUntil/1000});
@@ -87,7 +87,7 @@ test('a withdrawal leaves the app pending, never on a shared route',async t=>{
  let map=await w.mirror.map([w.row()]);
  assert.equal(map.labels.abababab,undefined);assert.deepEqual(map.pending,[{id,reason:'private_routes_unavailable'}]);
  // a relay restart still remembers the app published (the route memory), so it stays pending rather than unpublished
- map=await createTunaRoutes(w.options).map([w.row()]);
+ map=await createNetworkRoutes(w.options).map([w.row()]);
  assert.deepEqual(map.pending,[{id,reason:'private_routes_unavailable'}]);
 });
 
