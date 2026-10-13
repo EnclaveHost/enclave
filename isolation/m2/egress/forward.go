@@ -313,7 +313,9 @@ func (s *Server) handle(ctx context.Context, g net.Conn) {
 	if _, err := io.WriteString(g, "ok\n"); err != nil {
 		return
 	}
-	splice(g, br, up, up) // br holds anything the guest sent after its header
+	if code := splice(g, br, up, up); code != "" { // br holds anything the guest sent after its header
+		s.outcome(cid, "ended:"+strings.NewReplacer("a-", "guest-", "b-", "upstream-").Replace(code))
+	}
 }
 
 // outcome is the server's ONLY log line. Its arguments are the CID and a code from a fixed set; there is no format
@@ -341,12 +343,37 @@ func readLine(br *bufio.Reader, max int) (string, error) {
 
 // splice copies both ways until either side ends. Each side has its own reader (ar reads a, br reads b), so bytes
 // a bufio.Reader already buffered from one side are delivered to the OTHER side, never echoed back.
-func splice(a net.Conn, ar io.Reader, b net.Conn, br io.Reader) {
-	done := make(chan struct{}, 2)
-	go func() { io.Copy(b, ar); closeWrite(b); done <- struct{}{} }()
-	go func() { io.Copy(a, br); closeWrite(a); done <- struct{}{} }()
-	<-done
-	<-done
+//
+// It returns how the stream ended, as a code from a fixed set ("" when both directions ended cleanly): which side
+// failed and whether reading or writing - "a-read", "b-write", ... - never an error's text.
+func splice(a net.Conn, ar io.Reader, b net.Conn, br io.Reader) string {
+	codes := make(chan string, 2)
+	go func() { codes <- copyCode(b, ar, "a-read", "b-write"); closeWrite(b) }()
+	go func() { codes <- copyCode(a, br, "b-read", "a-write"); closeWrite(a) }()
+	first, second := <-codes, <-codes
+	if first == "" {
+		return second
+	}
+	return first
+}
+
+// copyCode copies until EOF and names a failure by side: readFail when src failed, writeFail when dst did.
+func copyCode(dst io.Writer, src io.Reader, readFail, writeFail string) string {
+	buf := make([]byte, 32*1024)
+	for {
+		n, rerr := src.Read(buf)
+		if n > 0 {
+			if _, werr := dst.Write(buf[:n]); werr != nil {
+				return writeFail
+			}
+		}
+		if rerr == io.EOF {
+			return ""
+		}
+		if rerr != nil {
+			return readFail
+		}
+	}
 }
 
 func closeWrite(c net.Conn) {
