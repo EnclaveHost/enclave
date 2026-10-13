@@ -102,6 +102,11 @@ test('two checkers: a pass from either keeps a provider; a checker that reached 
  assert.equal((await call('GET','/v1/network/providers')).body.providers[0].qualifications.length,2,'both verdicts are served');
  r.advance(1000);await call('POST','/v1/network/qualifications',await qual(env.record,r,second,smtpOpen));
  assert.equal((await api2.eligible()).length,0,'a checker that reached it saw SMTP open: revoked despite the other pass');
+ // a throughput failure seen by one checker (the 4 MiB payload timed out over its uplink) is not a revocation
+ r.advance(1000);await call('POST','/v1/network/qualifications',await qual(env.record,r,second,{...all,payloadIntegrity:false}));
+ assert.equal((await api2.eligible()).length,1,'one checker\'s payload timeout does not revoke a provider the other passed');
+ r.advance(1000);await call('POST','/v1/network/qualifications',await qual(env.record,r,checker,{...all,outboundHttps:false}));
+ assert.equal((await api2.eligible()).length,0,'with no current passing verdict at all it is not eligible');
  r.advance(1000);await call('POST','/v1/network/qualifications',await qual(env.record,r,second,all));
  assert.equal((await api2.eligible()).length,1,'fixed and rechecked: eligible again');
  r.advance(11*60000);assert.equal((await api2.eligible()).length,0,'every verdict expired: not eligible (fail closed)');
