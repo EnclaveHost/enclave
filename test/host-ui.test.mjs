@@ -81,6 +81,17 @@ test("every host app ships every file the panel loads: the Windows tray's build 
   assert.deepEqual(/for %%f in \(([^)]*index\.html[^)]*)\) do copy/.exec(cmd)[1].split(/\s+/).sort(), loads);
 });
 
+test("the Windows installer compiles the tray's theme alone, never the tray's WebView2 shell (the .33 bundle build broke on that)", () => {
+  const win = path.join(UI, "..", "windows");
+  const setup = fs.readFileSync(path.join(win, "installer", "build-setup.cmd"), "utf8"), tray = fs.readFileSync(path.join(win, "tray", "build.cmd"), "utf8");
+  const sources = (cmd) => cmd.split("\n").filter((l) => /csc/i.test(l) && /\.cs\b/.test(l)).map((l) => (l.match(/[\w\\.]+\.cs\b/g) || []).map((f) => f.split("\\").pop()));
+  for (const list of sources(setup)) { assert.ok(list.includes("TrayTheme.cs"), list.join(" ")); assert.ok(!list.includes("EnclaveTray.cs"), list.join(" ")); }
+  for (const list of sources(tray)) assert.deepEqual(list.sort(), ["EnclaveTray.cs", "TrayTheme.cs"]);
+  const theme = fs.readFileSync(path.join(win, "tray", "TrayTheme.cs"), "utf8");
+  assert.ok(!/WebView2/.test(theme.replace(/^\s*\/\/.*$/gm, "")), "the theme file references nothing of WebView2");
+  for (const t of ["static class Theme", "sealed class ThemeButton"]) assert.ok(theme.includes(t), t);
+});
+
 // ---- the panel in Chromium --------------------------------------------------------------------------------------------
 let chromium = null;
 try { ({ chromium } = await import("playwright")); } catch { }
