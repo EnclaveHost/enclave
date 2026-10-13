@@ -38,12 +38,18 @@ const sha = (b) => createHash("sha256").update(b).digest("hex");
 const REQ_KEYS = ["instanceKey", "instanceSig", "name", "nonce", "rad", "relay"];
 
 export function createAttachCosigner({ account, name, relay, codeHashes, authorityHashes, rootPins, instanceIds, journalFile,
-                                        rate = { max: 6, ms: 60000 }, now = Date.now }) {
+                                        learnInstance = null, rate = { max: 6, ms: 60000 }, now = Date.now }) {
   const bad = (m) => { throw new Error(`attach-cosigner: ${m}`); };
   if (!account || typeof account.signMessage !== "function") bad("an operator account that can personal_sign is required");
   if (!NAME.test(name || "")) bad("name must be a tunnel name ([A-Za-z0-9_-]{1,64})");
   if (!/^https?:\/\/[^\s/]+$/.test(relay || "")) bad("relay must be the relay's origin (scheme://host[:port])");
-  for (const [k, v] of Object.entries({ codeHashes, instanceIds })) if (!Array.isArray(v) || !v.length || !v.every((h) => HEX64.test(h))) bad(`${k} must be a non-empty list of 64 lowercase hex`);
+  // learnInstance (STANDALONE.md: the co-signer runs ON the phone, reached on its loopback): with no instance pinned yet, the
+  // first request that passes every other check -- evidence of THIS build under the owner's pins, the instance key's own
+  // signature over this transcript -- pins its instance (learnInstance persists it); from then on, exactly as below
+  if (learnInstance !== null && typeof learnInstance !== "function") bad("learnInstance must be a function that persists the instance id");
+  const learning = () => learnInstance !== null && instanceIds.length === 0;
+  for (const [k, v] of Object.entries({ codeHashes, instanceIds })) if (!Array.isArray(v) || !(v.length || (k === "instanceIds" && learnInstance)) || !v.every((h) => HEX64.test(h))) bad(`${k} must be a non-empty list of 64 lowercase hex`);
+  instanceIds = [...instanceIds];
   if (!Array.isArray(authorityHashes) || !authorityHashes.length || !authorityHashes.every((h) => HEX128.test(h))) bad("authorityHashes must be a non-empty list of 128 lowercase hex");
   if (!journalFile) bad("a journal file is required (every signature is recorded, and no nonce is ever signed twice)");
   fs.mkdirSync(path.dirname(journalFile), { recursive: true, mode: 0o700 });
@@ -76,11 +82,16 @@ export function createAttachCosigner({ account, name, relay, codeHashes, authori
     if (!v.ok) return no(`the rad: ${v.reasons.at(-1)}`);
     if (typeof req.instanceKey !== "string" || !new RegExp(`^${ED25519_SPKI_PREFIX}[0-9a-f]{64}$`).test(req.instanceKey)) return no("the instance key must be an Ed25519 SPKI in lowercase hex");
     const instanceId = sha(Buffer.from(req.instanceKey, "hex"));
-    if (!instanceIds.includes(instanceId)) return no(`instance ${instanceId.slice(0, 16)}… is not one of the owner's`);
+    if (!instanceIds.includes(instanceId) && !learning()) return no(`instance ${instanceId.slice(0, 16)}… is not one of the owner's`);
     if (!HEX128.test(req.instanceSig || "")) return no("the instance signature must be 128 lowercase hex");
     let iok = false;
     try { iok = cryptoVerify(null, Buffer.concat([Buffer.from(ATTACH_INSTANCE_DOMAIN), B]), createPublicKey({ key: Buffer.from(req.instanceKey, "hex"), format: "der", type: "spki" }), Buffer.from(req.instanceSig, "hex")); } catch { iok = false; }
     if (!iok) return no("the instance signature does not verify over THIS transcript (this boot's transport key and this nonce)");
+    if (!instanceIds.includes(instanceId)) {   // learning: synchronous, so a concurrent second instance finds this one pinned
+      if (!learning()) return no(`instance ${instanceId.slice(0, 16)}… is not one of the owner's`);
+      try { learnInstance(instanceId); } catch (e) { return no(`the instance could not be pinned: ${e.message}`); }
+      instanceIds.push(instanceId);
+    }
     const message = attachMessage(name, nonce);
     // RESERVE the nonce before the first await: every check above is synchronous, so two concurrent requests for one nonce
     // cannot both get here (enclave-99's review of e47314d9). A signing failure keeps it reserved: fail closed -- that
