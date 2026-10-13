@@ -11,7 +11,8 @@
 //           id the app made at install. Unauthenticated (a phone has no identity here), so bounded and rate-limited.
 //
 // The FIRST code a machine reports is its code; a different later one is kept beside it (laterCodes) and never replaces
-// it. GET /v1/admin/referrals (x-admin-token) is the report: every entry, and how many machines each code brought.
+// it. GET /v1/admin/referrals (x-admin-token) is the report: every entry, and how many machines each code brought;
+// DELETE /v1/admin/referrals?key=<host:name|device:id> (same token) removes one entry, to correct a mistake.
 import { timingSafeEqual } from "node:crypto";
 import { JsonStore, makeRateLimiter } from "./store.js";
 
@@ -114,8 +115,17 @@ export function createReferrals({ file = null, store = null, adminToken = "", no
       return true;
     }
     if (p === "/v1/admin/referrals") {
-      if (req.method !== "GET") { json(res, 405, { error: "method_not_allowed" }); return true; }
+      if (req.method !== "GET" && req.method !== "DELETE") { json(res, 405, { error: "method_not_allowed" }); return true; }
       if (!adminOk(req.headers["x-admin-token"])) { json(res, adminToken ? 401 : 503, { error: adminToken ? "unauthorized" : "not_configured" }); return true; }
+      if (req.method === "DELETE") {
+        const key = url.searchParams.get("key") || "";
+        if (!Object.hasOwn(db.data.entries, key)) { json(res, 404, { error: "not_found" }); return true; }
+        const removed = db.data.entries[key];
+        delete db.data.entries[key];
+        db.saveSoon();
+        json(res, 200, { ok: true, removed: { key, ...removed } });
+        return true;
+      }
       json(res, 200, report());
       return true;
     }

@@ -84,3 +84,15 @@ test("a Linux host's operator key may report its machine's code: only the name's
   assert.equal(e.key, "host:metal0"); assert.equal(e.via, "operator-signature"); assert.equal(e.operator, op.address.toLowerCase());
   assert.equal((await call(r, "POST", "/v1/referrals/host", { body: { name: "metal0", code: "x" } })).status, 400);
 });
+
+test("an admin may remove one entry (a correction); nobody else may", async () => {
+  const r = createReferrals({ adminToken: ADMIN });
+  r.recordHost("nucbox-k11-4", "e2e-test");
+  assert.equal((await call(r, "DELETE", "/v1/admin/referrals?key=host:nucbox-k11-4")).status, 401);
+  assert.equal((await call(r, "DELETE", "/v1/admin/referrals?key=host:other", { headers: { "x-admin-token": ADMIN } })).status, 404);
+  assert.equal((await call(r, "DELETE", "/v1/admin/referrals?key=__proto__", { headers: { "x-admin-token": ADMIN } })).status, 404);
+  const del = await call(r, "DELETE", "/v1/admin/referrals?key=host:nucbox-k11-4", { headers: { "x-admin-token": ADMIN } });
+  assert.equal(del.status, 200); assert.equal(del.body.removed.code, "e2e-test");
+  assert.deepEqual(r.report().entries, []);
+  assert.equal(r.recordHost("nucbox-k11-4", "steven"), "recorded", "a removed machine takes its next code as its first");
+});
