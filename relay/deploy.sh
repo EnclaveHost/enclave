@@ -20,9 +20,16 @@ node ../network/preflight.mjs "$@"
 # DNS remains a control-plane service. Enclave-network providers and host agents have
 # separate deployments; this script never starts retired Enclave data relays.
 DNS_HOST="${DNS_HOST:-nan-relay}"
-scp dns-relay.js fleet.mjs net-guard.mjs fleet-auth.js boxhost.js package.json package-lock.json "$DNS_HOST":/opt/nan-relay/
-scp systemd/enclave-dns.service "$DNS_HOST":/etc/systemd/system/
-ssh "$DNS_HOST" 'cd /opt/nan-relay && npm ci --omit=dev --no-audit --no-fund && systemctl daemon-reload && systemctl restart enclave-dns && systemctl is-active enclave-dns'
+# The DNS host must answer before anything is copied there. Since 2026-10-12 the authoritative DNS runs on nan from
+# /opt/enclave-dns (a separate install) and the old nan-relay box (RELAY_SSH_HOST) no longer answers, which failed every
+# relay deploy at its first scp. An unreachable DNS host is skipped loudly; the api relay below still deploys.
+if ssh -o ConnectTimeout=15 -o BatchMode=yes "$DNS_HOST" true 2>/dev/null; then
+  scp dns-relay.js fleet.mjs net-guard.mjs fleet-auth.js boxhost.js package.json package-lock.json "$DNS_HOST":/opt/nan-relay/
+  scp systemd/enclave-dns.service "$DNS_HOST":/etc/systemd/system/
+  ssh "$DNS_HOST" 'cd /opt/nan-relay && npm ci --omit=dev --no-audit --no-fund && systemctl daemon-reload && systemctl restart enclave-dns && systemctl is-active enclave-dns'
+else
+  echo "::warning::DNS host $DNS_HOST does not answer ssh: the DNS service was NOT deployed (the api relay still is)"
+fi
 
 # --- secret-bearing env files: check, never touch ---------------------------
 # /etc/nan-relay/*.env hold real secrets — PROVISIONER_PRIVATE_KEY is a funded
@@ -33,7 +40,7 @@ ssh "$DNS_HOST" 'cd /opt/nan-relay && npm ci --omit=dev --no-audit --no-fund && 
 # Reported, not modified: this script promises not to touch host env state, and
 # a loud line the operator acts on beats a silent chmod they never see.
 check_env_perms() {
-  ssh "$1" 'for f in /etc/nan-relay/*.env; do [ -e "$f" ] || continue;
+  ssh -o ConnectTimeout=15 "$1" 'for f in /etc/nan-relay/*.env; do [ -e "$f" ] || continue;
     m=$(stat -c %a "$f"); o=$(stat -c %U "$f");
     case "$m" in *[1-7]|*[1-7]?) echo "  !! $f is mode $m (owner $o) — readable beyond its owner; run: sudo chmod 600 $f" ;;
                  *) echo "  ok $f mode $m ($o)" ;; esac; done' || true
