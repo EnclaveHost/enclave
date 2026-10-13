@@ -89,6 +89,25 @@ export function isolationBoundaryRefusal(inst) {
   return null;
 }
 
+/**
+ * gasRunway(samples, wei, now) -> { renews, burnPerHour, hoursLeft, low }: how long the operator key's gas lasts.
+ * Renewals are not the whole bill: proof-of-time checkpoints (every app, every few minutes), heartbeats and claims spend
+ * from the same key, so the runway is MEASURED - the balance's fall over the last ~6 hours, restarted by a top-up - and
+ * the renewal count is only the fallback before half an hour of samples exists (2026-10-13: "about 200 renewals" was
+ * ~7 hours with 7 apps proving, and the NucBox ran dry behind nothing but a log line). `samples` is the caller's array,
+ * appended to here. Low = under 48 hours measured, or under 200 renewals unmeasured.
+ */
+export function gasRunway(samples, wei, now) {
+  const renews = wei / 400000000000n;                  // ~1 renewal's gas, rounded up
+  if (samples.length && wei > samples[samples.length - 1].wei) samples.length = 0;   // topped up: a new window
+  samples.push({ at: now, wei });
+  while (samples.length > 2 && now - samples[1].at > 6 * 3600_000) samples.shift();
+  const first = samples[0], hours = (now - first.at) / 3600_000;
+  const burnPerHour = hours >= 0.5 && first.wei > wei ? Number(first.wei - wei) / hours : null;
+  const hoursLeft = burnPerHour ? Number(wei) / burnPerHour : null;
+  return { renews, burnPerHour, hoursLeft, low: hoursLeft !== null ? hoursLeft < 48 : renews < 200n };
+}
+
 export class Host {
   constructor(cfg) {
     this.cfg = cfg;                                  // { dir, endpoint, name, appsEnabled, ownerWallet, cpuPricePerSec6, vcpus, ramGb, wasmtime, python, gateway, portBase, inferenceUrl, log }
@@ -484,13 +503,16 @@ export class Host {
   async warnLowGas() {
     const wei = await chain.operatorBalance().catch(() => null);
     if (wei === null) return;
-    const renews = wei / 400000000000n;                  // ~1 renewal's gas, rounded up
-    const low = renews < 200n;                           // roughly four days of renewals
-    if (low && Date.now() - (this._gasWarnedAt || 0) > 3600_000) {
-      this._gasWarnedAt = Date.now();
-      this.log(`operator gas is low: ${(Number(wei) / 1e18).toFixed(6)} ETH, about ${renews} renewals left. Top up ${chain.operatorAddress()}`);
+    const now = Date.now(), { renews, burnPerHour, hoursLeft, low } = gasRunway((this._gasSamples ||= []), wei, now);
+    if (low && now - (this._gasWarnedAt || 0) > 3600_000) {
+      this._gasWarnedAt = now;
+      this.log(`operator gas is low: ${(Number(wei) / 1e18).toFixed(6)} ETH`
+        + (hoursLeft !== null ? `, about ${Math.round(hoursLeft)} hours at the measured ${(burnPerHour / 1e18).toFixed(6)} ETH/h` : `, about ${renews} renewals left`)
+        + `. Top up ${chain.operatorAddress()} or apps stop renewing and go away`);
     }
     this.gasRenewals = Number(renews);
+    this.gasHoursLeft = hoursLeft === null ? null : Math.round(hoursLeft);
+    this.gasLow = low;
   }
 
   /** The loopback port a server-shaped app binds inside the enclave. Stable per deployment id so
@@ -2298,6 +2320,9 @@ export class Host {
       gpu: this.gpuConsumer(),
       appsEnabled: !!this.cfg.appsEnabled,
       market: this.marketStatus(),
+      // the operator key's gas, so the TRAY says it before the apps go (a log line alone let the NucBox run dry, 10-13)
+      gas: { operator: chain.operatorAddress() || null, low: this.gasLow === true,
+             hoursLeft: this.gasHoursLeft ?? null, renewalsLeft: this.gasRenewals ?? null },
       logsDir: this.cfg.dir,
     };
   }
@@ -2637,6 +2662,7 @@ export class Host {
       registered: !!this.registered,
       operator: chain.operatorAddress() || null,
       gasRenewalsLeft: this.gasRenewals ?? null,   // an operator key out of gas stops renewing, and the app goes at the end of its quantum
+      gasHoursLeft: this.gasHoursLeft ?? null,     // the key's MEASURED runway (warnLowGas); null until half an hour of samples
 
       proofKey: chain.proofAddress() || null,
       // whose deployments this box serves (ownerSet): its operator and its delegated owners, never the payout wallet
