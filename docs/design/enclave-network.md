@@ -161,17 +161,40 @@ tab says so, and says that the bootstrap providers are all operated by Enclave o
 
 ## Direct hosting
 
-Hosts opt in (`connectivity.direct` in host settings, with their public address) and must hold a current
-qualification for that address; the owner selects `direct` in the policy. The Network tab states that the host's
-public IP is exposed to every visitor and destination. Existing `DirectRuntime` (Linux) serves it.
+A host opts in with `enclaveNetwork.direct {address, qualificationFile}`: its public IPv4 and a trusted checker's signed
+qualification of exactly this runner, operator and address. The owner selects `direct` in the policy; the Network tab
+states that the host's public IP is exposed to every visitor and destination. The host serves the app through the Linux
+`DirectRuntime` (SNI to the enclave, TLS ends inside, policy-judged egress) and publishes a v5 `direct` route carrying the
+qualification; the relay accepts it only from the network's trusted checkers, and the host withdraws it the moment the
+qualification lapses. Windows hosts have no direct runtime.
 
-## Billing
+## Billing (paid providers)
 
-- Bootstrap (Enclave-operated) providers are free (`pricePerGiB6 0`): the platform pays the four Droplets.
-- A priced provider is usable only by policies whose `maxPricePerGiB6`/`budget6` cover it, and settles through the
-  existing `EnclaveConnectivity` dual-signed receipts (runner and provider each sign only bytes they metered; the
-  settled amount is the minimum). Kernel WireGuard counters are the provider's own observation, never sufficient
-  alone. Paid settlement needs the connectivity contract published in the address book (governance signature).
+- Enclave-operated providers are free (`pricePerGiB6 0`): the platform pays the four Droplets.
+- A priced provider is a community provider: a registry host (record `kind: community`, `hostId`) whose operator
+  signed the record. Its price lives on chain too (`EnclaveConnectivity.setHost(hostId, direct=false, tuna=true,
+  price)`, which the provider keeps equal to its record's).
+- The owner authorizes priced providers on chain: `authorizeTuna(id, providers[<=6], expires<=30 days, maxPricePerGiB6
+  (for a whole path), budget6, owner signature)` - the Network tab's "Paid providers" (wallet: personal_sign of the
+  contract's digest + the transaction; passkey vault: the relay's `network` vault op). The ledger charges bandwidth
+  only from escrowed USDC (`bandwidthBackingRequired6` must be 0), so the tab then asks the owner to `fundEscrow` the
+  amount the ledger names. The v5 policy's `maxPricePerGiB6`/`budget6` must also cover the provider.
+- Qualification on chain: the contract counts a provider only while a quorum of the app's trusted checkers (by default
+  its bootstrap checkers, the network's two) attests to the host, operator and address, for at most 5 minutes at a time.
+  Checkers sign the contract's `qualificationDigest` for every community provider that passes; the attestation travels
+  with the verdict on the relay and the provider (the party paid) submits it with `qualify()` while it serves.
+- Admission (provider, `wg-provider/paid.mjs`): a priced provider grants a peer only while the owner's current on-chain
+  authorization names it at its price with budget left, and drops the app's peers when that ends.
+- Metering and settlement: the host meters each paid hop's app bytes (both directions) durably per on-chain policy
+  nonce (`paid-network.mjs`) and debits through `TunaUSDCSettlement`; the provider meters the same peers from its
+  kernel counters (`PeerMeter`, durable) and co-signs a cumulative receipt (`POST /v1/receipt` on its control API)
+  only up to what it observed; the host submits `settleTuna`, which charges the app's balance and credits the provider
+  operator its share (the rest is platform fee). A refused debit (budget spent, authorization revoked or changed)
+  closes the circuit. Receipts and attestations are dated a few seconds back (blocks trail clocks).
+- Hosts: Windows hosts settle with their registry proof key and operator key (`enclaveNetwork.paid`); a host whose proof
+  key lives inside its CVM (metal0) cannot sign receipts and never uses priced providers.
+- Activation is one-time governance: the ledger's `setBandwidthRouter(EnclaveConnectivity)` (permanent) and the address
+  book's `connectivity` entry. Until then no provider can be paid and none is chosen.
 - BYO: no shared-exit charge. Enclave ingress used by a BYO app is billed under the policy's `enclaveNetwork` budget.
 - No NKN anywhere.
 

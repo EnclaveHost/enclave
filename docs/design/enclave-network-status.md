@@ -3,17 +3,18 @@
 What is implemented, what is tested and how, what is deployed, and what is still blocked. Updated with each change;
 the design is `docs/design/enclave-network.md`. Nothing below is described as working unless it ran.
 
-## Deployed and serving (2026-10-12/13)
+## Deployed and serving (2026-10-13)
 
 | Piece | Where | State |
 |---|---|---|
-| Providers (kernel WireGuard + nftables + SNI router + control API) | 4 DigitalOcean Droplets: sfo3 134.199.235.187, tor1 146.190.246.39, sgp1 165.245.191.129, fra1 134.209.248.172 | live, systemd `enclave-network-provider`, all roles, price 0, transfer budget 850 GB/month each |
-| Qualification checkers | nan (`enclave-network-checker`, 0x57144c90…) and warden-host (user unit, 0x033bc2b9…), every 4 min each | live; both pass all four providers on all nine checks through WireGuard; a provider stays eligible while one current verdict passes and no checker that reached it saw a failure |
-| Relay API (`/v1/network/*`), v5 route acceptance, DNS label `enclave` | nan (main f16b792e0, 1ae64aa45) | live |
-| Network tab (status, privacy, owner-signed mode setting; passkey-vault signing) | site (main 1ae64aa45) | live |
-| NucBox (Windows, Enclave Shield): all apps on the Enclave network, own control traffic on control circuits | nucbox-k11-4 | live since 2026-10-12 23:51Z; Windows host release 2026.10.12.22 (published 00:35Z, installed 00:37Z: ENCLAVE_NETWORK=1, both checkers, no NKN) |
-| metal0 (Linux, SEV-SNP): eyesoff incl. custom domain eyesoff.ai | warden-host | live since 23:53Z |
-| pVM host agent | warden-host | on the Enclave network (serving no app at the moment) |
+| Providers (kernel WireGuard + nftables + SNI router + control API) | 4 DigitalOcean Droplets: sfo3 134.199.235.187, tor1 146.190.246.39, sgp1 165.245.191.129, fra1 134.209.248.172 | live, systemd `enclave-network-provider` (bundle of main 81ed3ebac, 02:26-02:29Z, peers restored, no interruption), all roles, price 0, transfer budget 850 GB/month each |
+| Qualification checkers | nan (`enclave-network-checker`, 0x57144c90…) and warden-host (user unit, 0x033bc2b9…), every 4 min each | live (81ed3ebac, with chain access for on-chain attestations); both pass all four providers on all nine checks through WireGuard |
+| Relay API (`/v1/network/*`), v5-only route acceptance, DNS label `enclave` | nan (main 418aec41b) | live; TUNA publications and the NKN funding endpoint are gone |
+| Network tab (status, privacy, owner-signed mode setting, paid-provider authorization; passkey-vault signing) | site (main 418aec41b) | live |
+| NucBox (Windows, Enclave Shield): all apps on the Enclave network, own control traffic on control circuits | nucbox-k11-4 | live; Windows host release 2026.10.12.24 (TUNA-free, paid-provider settlement configured with the box's proof and operator keys; published 02:53Z, installed 02:54Z; every app ready again 03:01Z - a Windows update restarts each Shield partition) |
+| metal0 (Linux, SEV-SNP): eyesoff incl. custom domain eyesoff.ai | warden-host | live (release-wg-418aec41bdf7) |
+| pVM host agent | warden-host | on the Enclave network (release-wg-418aec41bdf7; serving no app at the moment) |
+| EnclaveConnectivity (paid-provider settlement) | Base 0x5f8b636e0768e84bd47b736652030b65db615111 (block 52534480) | deployed, NOT bound: activation is the governance step below |
 
 Verified in production: every app answers HTTPS 200 through both exits with a valid certificate, the same certificate
 fingerprint as before the switch (keys stay in the enclave); custom domain eyesoff.ai; DNS returns both exits; the
@@ -65,7 +66,7 @@ The provider incident itself was mine: the first test VPN on fra1 reused fra1's 
 prompt" and disqualified it (01:18-01:21Z); every app was off its fra1 circuits, and for ~3 min had none. The VPN was
 recreated on 10.250.0.0/30.
 
-## Not yet proven in production
+## Implemented, not in use in production
 
 - **Direct hosting**: implemented end to end (7e6287724, deployed: relay on main db35b8781, host agents): a host opts
   in with `enclaveNetwork.direct {address, qualificationFile}`, a trusted checker's signed qualification of exactly that
@@ -76,8 +77,18 @@ recreated on 10.250.0.0/30.
   host's address, private destinations refused) and `test/wg-manager.test.mjs`. Not exercised in production: no
   compute host with a public IPv4 exists today (the NucBox and metal0 are behind CGNAT; the pVM is a phone), so every
   host answers "direct hosting is not available" and the Network tab shows none. Windows hosts have no direct runtime.
-- **Paid providers / USDC settlement**: price limits and budgets are enforced at grant time; settlement needs the
-  connectivity contract published in the address book (governance signature). All current providers are free.
+- **Paid providers / USDC settlement**: implemented and wired end to end, deployed in code (relay, site, providers,
+  checkers, metal0/pVM agents, Windows hosts with release .24), the settlement contract deployed - and not active,
+  because activation is a one-time governance action on the Trezor (0x0b2d): the ledger's `setBandwidthRouter`
+  (permanent) and the address book's `connectivity` entry. Both transactions are prepared and simulated as 0x0b2d
+  (`~/enclave-prod/connectivity-activation/`: trezorctl script or a localhost page). Until then no provider can be
+  paid and hosts never choose a priced one. Verified: `scripts/network/paid-fork-e2e.mjs` on a Base fork with the
+  live ledger, registry and USDC, the governance steps done by impersonation - the real provider and host code settle
+  1.5 GiB on chain (bytes served, the owner's budget, the provider operator's 80% share), refuse a receipt for more
+  than the provider observed, and close the circuit when the budget is spent: 21/21. Unit tests:
+  `test/paid-network.test.mjs` (gate, meter, co-signature, debits, manager; each check mutation-tested). Found on the
+  fork: receipts dated "now" revert on chain (blocks trail clocks) - fixed for direct receipts too. No community
+  provider exists yet, so none is paid in production.
 - **Community providers on Enclave hosts**: the opt-in record and qualification work for any Linux server with a public
   IPv4; no Enclave host has opted in, and there is no Windows provider.
 - **WebSockets / streaming / sustained traffic** (verified on the production providers, not on a customer app):
@@ -88,12 +99,14 @@ recreated on 10.250.0.0/30.
 
 ## TUNA
 
-Retired from service 2026-10-13: no app uses it. Stopped: NKN top-up, funding sync, us-west fallback sync and the NucBox
-SSH reconcile timers on warden-host; the TUNA services on the DigitalOcean nodes. Hosts keep the TUNA binaries for one
-release as a rollback. Remaining cleanup: the relay's NKN funding endpoint, the TUNA code paths in the agent.
-
-Code removal (branch `network/tuna-removal`, not merged or deployed): the relay's `/v1/hosts/tuna-funding` endpoint and
-its queue; the relay refuses every route publication that is not under a v5 policy (TUNA v1 host allocations, policies
-v2/v3/v4); the privacy agent requires `enclaveNetwork` and ignores leftover TUNA settings; the Windows enrollment and
-the Linux reconciler make no NKN wallets; the TUNA Go adapter, its containers, provider units and the site's old
-network controls are deleted (the USDC settlement modules stay, unwired, for paid providers). Deploying it ends the TUNA rollback: hosts updated to it cannot run TUNA again.
+Retired from service 2026-10-13 ~00:00Z and removed (main e4eb6fff5, deployed 01:54Z): the relay's NKN funding
+endpoint and its queue are gone (`/v1/hosts/tuna-funding` answers like any unknown path; the env entry removed); the
+relay refuses every route publication not under a v5 policy; the privacy agent runs only the Enclave network and
+refuses a configuration without it (leftover TUNA settings are ignored and logged); Windows enrollment makes no NKN
+wallets; the TUNA Go adapter, runtimes, inventory, control guards, currency conversion, containers, units and the
+site's old network controls are deleted (191 files, -25k lines). Hosts updated: NucBox (Windows release .23, no TUNA
+executables in the bundle), metal0 and the pVM agent. Leftovers removed: the TUNA units, `/opt/enclave-tuna-usdc` and
+the `tuna_proxy` nftables table on all four Droplets (archived to `/root/retired-tuna-20261013.tgz` on each), the four
+TUNA timers on warden-host (moved to `~/.config/systemd/user/retired-tuna-20261013/`), `tuna-funding.mjs` on nan.
+Names kept for installed hosts: `tuna-enroll.mjs`, `relay/tuna-routes.mjs`, the `/v1/network/tuna` route-map path,
+the `C:\Program Files\Enclave\tuna\` directory, `enclave-tuna-privacy.service`. There is no TUNA rollback any more.
