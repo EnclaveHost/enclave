@@ -104,6 +104,7 @@ test('the host meters paid hops, debits cumulatively, and the manager closes a c
  c.stats={app:{up:400,down:900}};await m.reconcile();assert.equal(debits.at(-1).cumulativeBytes,'1300','cumulative across passes');
  refuse=true;c.stats={app:{up:500,down:900}};await m.reconcile();
  assert.ok(c.closed,'refused debit: the paid circuit is closed');
+ assert.equal(m.cooldown.size,0,'a refused debit is not a provider failure: nothing is cooled down');
  l=lease({},{viaTuna:false});refuse=false;await m.reconcile();
  assert.ok(m.apps.get(id).circuits.every(x=>x.providers.exit.hostId!==hostId),'authorization revoked: the paid provider is not chosen again');
 });

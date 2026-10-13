@@ -69,12 +69,13 @@ export class EnclaveNetworkManager extends EventEmitter {
   await this.publishApp(app).catch(e=>this.log('route withdrawal: '+e.message));
   await Promise.all(old.map(c=>c.close(reason)));
  }
- async fail(app,circuit,reason){
+ // strike:false - the circuit closes for a reason that is not the providers' fault (a refused paid debit)
+ async fail(app,circuit,reason,{strike=true}={}){
   if(!app.circuits.includes(circuit))return;
   circuit.healthy=false;app.circuits=app.circuits.filter(c=>c!==circuit);circuit.admit(0);
   // a provider whose circuits keep dying soon after coming up waits longer each time (60 s doubling to 30 min)
   const early=circuit.upAt!==undefined&&this.now()-circuit.upAt<STABLE_MS;
-  for(const p of circuit.kind==='network'?[circuit.failureRole==='guard'?circuit.providers.guard:circuit.providers.exit]:[]){
+  for(const p of circuit.kind==='network'&&strike?[circuit.failureRole==='guard'?circuit.providers.guard:circuit.providers.exit]:[]){
    if(early)this.strike(p);else{this.drops.delete(p.providerId);this.strike(p);}
   }
   app.error=reason;app.lastFailure={at:this.now(),circuit:circuit.id,reason};this.log(`app ${app.id.slice(0,10)} circuit ${circuit.id}: ${reason}`);
@@ -112,7 +113,7 @@ export class EnclaveNetworkManager extends EventEmitter {
   }finally{this.busy=false;}
   await Promise.all(pending);
   // paid hops: meter and authorize the debit; a refused debit (budget spent, authorization gone) closes the circuit
-  if(this.paid&&!this.closed)for(const {app,circuit,reason} of await this.paid.meter([...this.apps.values()]).catch(e=>{this.log('paid meter: '+e.message);return [];}))await this.fail(app,circuit,reason);
+  if(this.paid&&!this.closed)for(const {app,circuit,reason} of await this.paid.meter([...this.apps.values()]).catch(e=>{this.log('paid meter: '+e.message);return [];}))await this.fail(app,circuit,reason,{strike:false});
  }
  async reconcileApp(app,providers){
   if(!this.authorizationUntil(app.id)){if(app.circuits.length)await this.withdraw(app,'not authorized');app.error='waiting for lease and guest proof';return;}
