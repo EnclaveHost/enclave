@@ -2,7 +2,7 @@
 // endpoints and negotiate this mode before using these receipts; configuring
 // this class alone does not turn a native-NKN provider into a USDC provider.
 import {encodeAbiParameters,keccak256,recoverMessageAddress,parseAbi} from 'viem';
-import {USDCBandwidthSettlement} from './usdc-bandwidth.mjs';
+import {USDCBandwidthSettlement,RECEIPT_SKEW_S} from './usdc-bandwidth.mjs';
 const receiptType={type:'tuple',components:[['id','bytes32'],['runnerId','bytes32'],['providerId','bytes32'],['policyNonce','uint64'],['leaseUntil','uint64'],['issuedAt','uint64'],['anchor','uint64'],['cumulativeBytes','uint128'],['pricePerGiB6','uint64']].map(([name,type])=>({name,type}))};
 export const tunaBandwidthABI=[...parseAbi(['function bytesServed(bytes32) view returns (uint128)']),
  {type:'function',name:'settleTuna',stateMutability:'nonpayable',inputs:[{name:'r',...receiptType},{name:'runnerSignature',type:'bytes'},{name:'providerSignature',type:'bytes'}],outputs:[]}];
@@ -41,7 +41,7 @@ export class TunaUSDCSettlement extends USDCBandwidthSettlement {
  async signedReceipt({id,s,lease,c,head}){
   const {provider}=this.context(id,s.nonce,s.rate);
   const receipt={id,runnerId:lease.runner,providerId:this.providerId,policyNonce:BigInt(s.nonce),leaseUntil:BigInt(Math.floor(lease.leaseUntil/1000)),
-   issuedAt:BigInt(Math.floor(this.now()/1000)),anchor:BigInt(lease.blockNumber),cumulativeBytes:BigInt(s.bytes),pricePerGiB6:BigInt(s.rate)};
+   issuedAt:BigInt(Math.floor(this.now()/1000)-RECEIPT_SKEW_S),anchor:BigInt(lease.blockNumber),cumulativeBytes:BigInt(s.bytes),pricePerGiB6:BigInt(s.rate)};
   const digest=tunaReceiptDigest({chainId:lease.chainId,connectivity:c.address,ledger:lease.deployments,receipt,anchorHash:head.hash});
   const runnerSignature=await this.proofAccount.signMessage({message:{raw:digest}});
   const providerSignature=await this.cosign({receipt,runnerSignature,anchorHash:head.hash});

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // The Enclave-network qualification checker (docs/design/enclave-network.md, Qualification).
 //   node scripts/network/wg-qualify.mjs --key-file checker.key --wg /path/enclave-wg --relay https://api.enclave.host [--loop 240]
+//        [--rpc https://… --book 0x…]   (a community provider that passes also gets an on-chain attestation, for paid service)
 //   node scripts/network/wg-qualify.mjs --key-file k --wg w --records records.json --out results.json      (tests)
 // For every provider record: ask it for this checker's own probe peers (exit, and guard when it offers guard), run every
 // check through the real WireGuard path (enclave-wg check), sign the verdict (valid 10 minutes) and publish it. A provider
@@ -14,12 +15,17 @@ import {recoverMessageAddress} from 'viem';
 import {peerRequestMessage,grantMessage} from '../../network/wg-provider/provider.mjs';
 import {wireGuardKeypair} from '../../network/wg-grants.mjs';
 import {verifyProviderRecord,signQualification,CHECKS,QUALIFICATION_MAX_MS} from '../../network/provider-directory.mjs';
+import {signOnchainQualification,connectivityAddress} from '../../network/onchain-qualification.mjs';
+import {createPublicClient,http} from 'viem';
+import {base} from 'viem/chains';
 
 const arg=(n,d)=>{const i=process.argv.indexOf('--'+n);return i>0?process.argv[i+1]:d;};
 const account=privateKeyToAccount((await fs.readFile(arg('key-file'),'utf8')).trim());
 if(process.argv.includes('--print-address')){console.log(account.address.toLowerCase());process.exit(0);}
 const wgBinary=arg('wg'),relay=arg('relay'),log=m=>console.log(new Date().toISOString(),m);
 const zero='0x'+'0'.repeat(64);
+const chain=arg('rpc')?createPublicClient({chain:base,transport:http(arg('rpc'),{timeout:15000})}):null;
+const book=arg('book','0xab214342d5A490150A4A977063A2f88E21F80907');
 
 async function probeGrant(rec,role){
  const keys=wireGuardKeypair(),now=Date.now();
@@ -69,9 +75,13 @@ async function round(){
  else{const d=await (await fetch(relay+'/v1/network/providers',{signal:AbortSignal.timeout(15000)})).json();
   recs=[];for(const e of d.providers||[]){try{recs.push(await verifyProviderRecord(e.record,{hostOperator:async()=>null}));}catch(err){log(`skip ${e.record?.record?.providerId?.slice(0,8)}: ${err.message}`);}}}
  const out=[];
+ // paid (community) providers also need this checker's attestation on chain; none while no connectivity contract is published
+ let connectivity=null;if(chain&&recs.some(r=>r.kind==='community'))connectivity=await connectivityAddress(chain,book).catch(e=>{log('connectivity: '+e.message);return null;});
  for(const rec of recs){
-  const {env,details}=await qualify(rec,recs);out.push({...env,details});
+  const {env,details}=await qualify(rec,recs);
   const passed=Object.values(env.qualification.checks).every(Boolean);
+  if(passed&&connectivity){try{const onchain=await signOnchainQualification({account,client:chain,connectivity,record:rec});if(onchain)env.onchain=onchain;}catch(e){log(`on-chain attestation ${rec.address}: ${e.message}`);}}
+  out.push({...env,details});
   log(`${rec.address} ${rec.region||''}: ${passed?'QUALIFIED':'NOT qualified'} ${passed?'':JSON.stringify(details).slice(0,600)}`);
   if(relay){const r=await fetch(relay+'/v1/network/qualifications',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(env),signal:AbortSignal.timeout(15000)});
    if(!r.ok)log(`publish ${rec.address}: HTTP ${r.status} ${(await r.text()).slice(0,200)}`);}

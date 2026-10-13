@@ -165,7 +165,7 @@ export async function runPrivacy(configFile){
   const networkFetch=async(url,init={})=>{if(wgControl){try{await wgControl.proxies();return await guardedFetch(wgControl.proxies,{timeoutMs:15000,maxBytes:4194304})(url,init);}catch(e){if(cfg.enclaveNetwork?.controlRequired)throw e;}}
     return directFetch(url,{...init,signal:AbortSignal.timeout(15000)});};
   const network=await createNetworkHost({config:cfg.enclaveNetwork,account,runner:cfg.runner,rpc:cfg.chain?.rpc,addressBook:cfg.chain?.addressBook,
-    leaseReader:{registryEntries:(...a)=>leaseReaderLate.registryEntries(...a)},directory:cfg.directory,log,fetch:networkFetch,
+    leaseReader:{registryEntries:(...a)=>leaseReaderLate.registryEntries(...a),bookAddress:(...a)=>leaseReaderLate.bookAddress(...a)},directory:cfg.directory,log,fetch:networkFetch,
     authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:pvm?pvmForwarder(pvm.appPort):guestd?guestd.forward:localAppForwarder(cfg.upstream)});
   if(cfg.enclaveNetwork.control===true){wgControl=new WgControlTransport({runtime:network.runtime,providers:network.providers,log});await wgControl.start();}
   // paid providers (enclaveNetwork.paid): the lease must carry the on-chain connectivity authorization

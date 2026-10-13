@@ -11,6 +11,9 @@ const receiptType={type:'tuple',components:[['id','bytes32'],['hostId','bytes32'
 export const bandwidthABI=[...parseAbi(['function bytesServed(bytes32) view returns (uint128)']),
  {type:'function',name:'settle',stateMutability:'nonpayable',inputs:[{name:'r',...receiptType},{name:'signature',type:'bytes'}],outputs:[]}];
 const walletQueues=new Map();
+// A receipt is dated a few seconds back: the contract requires issuedAt <= the including block's time, and blocks trail
+// wall clocks (Base ~2 s). The provider accepts receipts up to 30 s old, the contract up to 60 s.
+export const RECEIPT_SKEW_S=10;
 const Gib=1n<<30n,ceil=n=>(n+Gib-1n)/Gib;
 export function receiptDigest({chainId,connectivity,ledger,receipt,anchorHash}) {
  return keccak256(encodeAbiParameters([{type:'string'},{type:'uint256'},{type:'address'},{type:'address'},receiptType,{type:'bytes32'}],
@@ -84,7 +87,7 @@ export class USDCBandwidthSettlement {
  }
  async signedReceipt({id,s,lease,c,head}){
   const receipt={id,hostId:lease.runner,policyNonce:BigInt(s.nonce),leaseUntil:BigInt(Math.floor(lease.leaseUntil/1000)),
-   issuedAt:BigInt(Math.floor(this.now()/1000)),anchor:BigInt(lease.blockNumber),cumulativeBytes:BigInt(s.bytes),pricePerGiB6:BigInt(s.rate)};
+   issuedAt:BigInt(Math.floor(this.now()/1000)-RECEIPT_SKEW_S),anchor:BigInt(lease.blockNumber),cumulativeBytes:BigInt(s.bytes),pricePerGiB6:BigInt(s.rate)};
   const digest=receiptDigest({chainId:lease.chainId,connectivity:c.address,ledger:lease.deployments,receipt,anchorHash:head.hash});
   const signature=await this.proofAccount.signMessage({message:{raw:digest}});
   return {receipt,abi:bandwidthABI,functionName:'settle',args:[receipt,signature]};

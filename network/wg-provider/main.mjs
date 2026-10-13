@@ -18,6 +18,8 @@ import {createControl} from './control.mjs';
 import {providerIdFor,signProviderRecord,verifyProviderRecord} from '../provider-directory.mjs';
 import {verifyOwnerSignature} from '../owner-signature.mjs';
 import {PeerMeter,createReceiptCosigner} from './paid.mjs';
+import {connectivityAddress,submitAttestations,ensureHost} from '../onchain-qualification.mjs';
+import {createWalletClient} from 'viem';
 
 const log=m=>console.log(new Date().toISOString(),m);
 const cfg=JSON.parse(await fs.readFile(process.argv[2]||'/etc/enclave-network/provider.json','utf8'));
@@ -76,6 +78,17 @@ if(paid){
  const proofAccount=privateKeyToAccount((await fs.readFile(cfg.proofKeyFile,'utf8')).trim());
  receipt=createReceiptCosigner({hostId:cfg.hostId,proofAccount,leaseReader:leases,meter,sample:provider.meterSample});
  setInterval(()=>void provider.meterSample().catch(e=>log('meter: '+e.message)),15000).unref?.();
+ // On chain, this host offers network service at its record's price, and the checkers' current attestations of it are
+ // submitted while it serves (each lasts at most 5 minutes); the operator key pays the gas.
+ const wallet=createWalletClient({account,chain:base,transport:http(cfg.rpc[0],{timeout:15000})}),[client]=clients;
+ const onchain=async()=>{
+  const connectivity=await connectivityAddress(client,cfg.addressBook);if(!connectivity)return;
+  if(await ensureHost({wallet,client,connectivity,hostId:cfg.hostId,pricePerGiB6:cfg.pricePerGiB6}))log(`on chain: offering network service at ${cfg.pricePerGiB6} per GiB`);
+  const d=await relayJSON('/v1/network/providers');const mine=d?.providers?.find(e=>e.record?.record?.providerId===providerId);
+  const sent=await submitAttestations({wallet,client,connectivity,hostId:cfg.hostId,address:cfg.publicAddress,attestations:(mine?.qualifications||[]).map(x=>x.onchain).filter(Boolean)});
+  if(sent)log(`on chain: ${sent} checker attestation(s) submitted`);
+ };
+ setInterval(()=>void onchain().catch(e=>log('on-chain qualification: '+e.message)),120000).unref?.();void onchain().catch(e=>log('on-chain qualification: '+e.message));
 }
 const meter=new Map();
 const count=(to,up,down)=>{const m=meter.get(to)||{up:0,down:0};m.up+=up;m.down+=down;meter.set(to,m);};
