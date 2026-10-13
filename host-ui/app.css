@@ -26,11 +26,8 @@ body {
 [hidden] { display: none !important; }
 .mono { font-family: var(--mono); font-size: var(--fs-mono); }
 
-#panel {
-  max-width: 440px; margin: 0 auto;
-  padding: calc(var(--pad) + env(safe-area-inset-top, 0px)) calc(var(--pad) + env(safe-area-inset-right, 0px))
-           calc(var(--pad) + env(safe-area-inset-bottom, 0px)) calc(var(--pad) + env(safe-area-inset-left, 0px));
-}
+/* the window keeps the panel clear of system bars itself (the Android app pads its view by the insets) */
+#panel { max-width: 440px; margin: 0 auto; padding: var(--pad); }
 
 .mast { display: flex; align-items: center; gap: 10px; margin: 2px 0 14px; font: 600 calc(var(--fs) + 3px) var(--mono); letter-spacing: .01em; }
 .mast .mark { width: 28px; height: 28px; color: var(--jade); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; flex: none; }
