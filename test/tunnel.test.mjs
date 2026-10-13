@@ -84,8 +84,8 @@ test("snp: non-zero VMPL, old report version, off-allowlist measurement, stale c
 const TOKEN = "s3cret-token";
 const TOKEN_SHA = createHash("sha256").update(TOKEN).digest("hex");
 
-async function hubServer({ attest = null, operatorFor = null } = {}) {
-  const hub = createTunnelHub({ allow: [{ name: "metal0", tokenSha256: TOKEN_SHA }], attest, operatorFor });
+async function hubServer({ attest = null, operatorFor = null, onReferral } = {}) {
+  const hub = createTunnelHub({ allow: [{ name: "metal0", tokenSha256: TOKEN_SHA }], attest, operatorFor, ...(onReferral ? { onReferral } : {}) });
   const server = http.createServer((_req, res) => res.end("ok"));
   server.on("upgrade", (req, socket, head) => hub.handleUpgrade(req, socket, head));
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
@@ -117,6 +117,22 @@ test("tunnel: the token binds a name; a wrong token or a bad name never attaches
     assert.equal(ok.state, "open");
     await settle();
     assert.equal(h.hub.count(), 1);
+    ok.ws.close();
+  } finally { await h.close(); }
+});
+
+test("tunnel: a referral code is recorded only once the box has PROVEN its name", async () => {
+  const said = [];
+  const h = await hubServer({ onReferral: (name, code, meta) => said.push({ name, code, via: meta.via }) });
+  try {
+    assert.equal((await dial(h.url, { "x-metal-name": "metal0", "x-metal-token": "wrong", "x-metal-referral": "steven" })).state, 401);
+    const plain = await dial(h.url, { "x-metal-name": "metal0", "x-metal-token": TOKEN });
+    await settle(); plain.ws.close(); await settle();
+    assert.deepEqual(said, [], "a refused attach and an attach without a code record nothing");
+    const ok = await dial(h.url, { "x-metal-name": "metal0", "x-metal-token": TOKEN, "x-metal-referral": "steven" });
+    assert.equal(ok.state, "open");
+    await settle();
+    assert.deepEqual(said, [{ name: "metal0", code: "steven", via: "token" }]);
     ok.ws.close();
   } finally { await h.close(); }
 });
