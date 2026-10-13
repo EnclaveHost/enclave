@@ -396,7 +396,7 @@
 
   /** Esc (or Android's Back): closes the open section, else hides the window. An open field's Esc is the field's. */
   function back() {
-    if (el.ask.open) return true;
+    if (el.ask.open) { el.ask.close(); return true; }       // Android's Back on a question is its Cancel
     if (openKey()) { closeAll(true); return true; }
     H.send("hide");
     return false;
