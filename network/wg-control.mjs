@@ -23,6 +23,12 @@ export class WgControlTransport {
     const ok=g&&x&&g.address===c.providers.guard.address&&x.address===c.providers.exit.address&&g.wgGuardKey===c.providers.guard.wgGuardKey&&x.wgExitKey===c.providers.exit.wgExitKey&&g.eligibleRoles.includes('guard')&&x.eligibleRoles.includes('egress');
     if(!ok||c.closed){this.drop(c,ok?'closed':'provider no longer qualified');}
    }
+   // a live circuit must still carry traffic: a provider that lost this peer (or whose egress refuses it) can leave the
+   // tunnel handshaking while nothing passes. Two failed probes in a row and the circuit is replaced.
+   await Promise.all(this.circuits.map(async c=>{
+    try{const r=await guardedFetch(c.egress,{timeoutMs:10000,maxBytes:1048576})(new URL(this.probeUrl));if(r.status>=500)throw new Error('HTTP '+r.status);c.misses=0;}
+    catch(e){c.misses=(c.misses||0)+1;if(c.misses>=2)this.drop(c,'control probe failed twice: '+e.message);}
+   }));
    const keep=this.circuits.map(c=>({guard:c.providers.guard,exit:c.providers.exit}));
    if(keep.length>=this.routes)return;
    const choice=selectNetworkCircuits(providers,{routes:this.routes,ingress:false,egress:true,maxPricePerGiB6:0,keep,cooldown:this.cooldown,now:this.now()});
