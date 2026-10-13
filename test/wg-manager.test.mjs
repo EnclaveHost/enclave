@@ -58,7 +58,16 @@ test('a provider whose qualification lapses loses its circuits at once; an over-
  r.setProviders([1,2,3,4,5,6].map(n=>prov(n)).filter(p=>p.providerId!==vid));
  await r.m.reconcile();assert.ok(victim.closed,'revoked');assert.ok(r.m.apps.get(id).circuits.every(c=>c.providers.exit.providerId!==vid&&c.providers.guard.providerId!==vid));
  assert.throws(()=>selectNetworkCircuits([1,2,3,4].map(n=>prov(n,{pricePerGiB6:5})),{routes:1,ingress:true,egress:true,maxPricePerGiB6:0}),/not enough/);
- assert.throws(()=>selectNetworkCircuits([1,2,3].map(n=>prov(n)),{routes:2,ingress:true,egress:true,maxPricePerGiB6:0}),/4 distinct providers/);
+ const short=selectNetworkCircuits([1,2,3].map(n=>prov(n)),{routes:2,ingress:true,egress:true,maxPricePerGiB6:0});
+ assert.equal(short.length,1);assert.match(short.short,/1 of 2 route/);
+ assert.throws(()=>selectNetworkCircuits([1].map(n=>prov(n)),{routes:1,ingress:true,egress:true,maxPricePerGiB6:0}),/2 distinct providers/);
+});
+test('too few qualified providers degrades to the circuits they allow (never to none), and recovers when one returns',async()=>{
+ const r=rig({providers:[1,2,3].map(n=>prov(n))});await r.m.configure([app(defaultNetworkPolicy(id))]);await r.m.reconcile();
+ let st=r.m.status()[0];assert.equal(r.m.apps.get(id).circuits.length,1);assert.equal(st.ready,true,'one route serves');assert.match(st.degraded,/1 of 2/);
+ assert.equal(r.published.at(-1).length,1);
+ r.setProviders([1,2,3,4].map(n=>prov(n)));await r.m.reconcile();
+ st=r.m.status()[0];assert.equal(r.m.apps.get(id).circuits.length,2);assert.equal(st.degraded,null);assert.equal(r.published.at(-1).length,2);
 });
 test('direct hosting on a host that opted in: one direct route while its qualification is current, withdrawn when it lapses',async()=>{
  let until=Date.now()+600000;const started=[];

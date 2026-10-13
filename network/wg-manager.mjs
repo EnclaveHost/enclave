@@ -24,7 +24,10 @@ export function selectNetworkCircuits(providers,{routes,ingress,egress,maxPriceP
   const guard=guards.filter(p=>!used.has(p.address)).sort(order)[0];if(!guard){used.delete(exit.address);break;}used.add(guard.address);
   out.push({guard,exit});
  }
- if(out.length<routes)throw new Error(`not enough qualified providers: ${routes} circuit(s) need ${routes*2} distinct providers (${guards.length} guard, ${exits.length} exit candidates)`);
+ // fewer circuits than asked is degraded service, not none: build what the qualified providers allow (the caller reports
+ // the shortfall); only when not even one circuit is possible is there nothing to build
+ if(!out.length)throw new Error(`not enough qualified providers: a circuit needs 2 distinct providers (${guards.length} guard, ${exits.length} exit candidates)`);
+ out.short=out.length<routes?`${out.length} of ${routes} route(s): not enough qualified providers (${routes*2} distinct needed; ${guards.length} guard, ${exits.length} exit candidates)`:null;
  return out;
 }
 
@@ -149,10 +152,11 @@ export class EnclaveNetworkManager extends EventEmitter {
   const want=this.plan(app);
   app.fallbackActive=want.fallback;
   const network=app.circuits.filter(c=>c.kind==='network');
-  if(network.length>=want.routes){if(!plan.byo||app.circuits.some(c=>c.kind==='byo'))app.error=null;await this.publishApp(app);return;}
+  if(network.length>=want.routes){if(!plan.byo||app.circuits.some(c=>c.kind==='byo'))app.error=null;app.degraded=null;await this.publishApp(app);return;}
   const keep=network.map(c=>({guard:c.providers.guard,exit:c.providers.exit}));
   let choice;try{choice=selectNetworkCircuits(providers,{routes:want.routes,ingress:want.ingress,egress:want.egress,maxPricePerGiB6:want.maxPricePerGiB6,keep,cooldown:this.cooldown,now:this.now()});}
-  catch(e){app.error=e.message;await this.publishApp(app);return;}
+  catch(e){app.error=network.length?null:e.message;app.degraded=network.length?`${network.length} of ${want.routes} route(s): ${e.message}`:null;await this.publishApp(app);return;}
+  app.degraded=choice.short;
   for(const {guard,exit} of choice.slice(keep.length)){
    if(this.closed||!this.authorizationUntil(app.id))return;
    let c;
@@ -169,7 +173,9 @@ export class EnclaveNetworkManager extends EventEmitter {
     app.error=e.message;this.log(`app ${app.id.slice(0,10)}: ${e.message}`);
    }
   }
-  if(app.circuits.filter(c=>c.kind==='network'&&c.healthy).length>=want.routes)app.error=null;
+  const healthy=app.circuits.filter(c=>c.kind==='network'&&c.healthy).length;
+  if(healthy>=Math.min(want.routes,choice.length))app.error=null;
+  if(healthy>=want.routes)app.degraded=null;
  }
  adopt(app,c){c.admit(this.authorizationUntil(app.id));c.on('down',reason=>{void this.fail(app,c,reason).catch(e=>this.log(e.message));});app.circuits.push(c);}
  async checkHealth(app){
@@ -184,7 +190,7 @@ export class EnclaveNetworkManager extends EventEmitter {
   }
  }
  status(){return [...this.apps.values()].map(app=>{const plan=this.plan(app);return {deploymentId:app.id,transport:app.policy.mode,policyNonce:app.policy.nonce,policyHash:networkPolicyHash(app.policy),
-  ready:!app.error&&app.circuits.length>0&&app.circuits.every(c=>c.healthy)&&!!this.authorizationUntil(app.id),error:app.error||null,fallbackActive:!!app.fallbackActive,
+  ready:!app.error&&app.circuits.length>0&&app.circuits.every(c=>c.healthy)&&!!this.authorizationUntil(app.id),error:app.error||null,degraded:app.degraded||null,fallbackActive:!!app.fallbackActive,
   ingress:plan.ingress,egress:plan.byo?'byo-wireguard':plan.egress?'enclave-network':'none',
   circuits:app.circuits.map(c=>({id:c.id,kind:c.kind,healthy:!!c.healthy,address:c.address||null,ingress:!!c.ingress,egress:!!c.egressReady,fallback:!!c.fallback,
    guard:c.providers.guard?{providerId:c.providers.guard.providerId,address:c.providers.guard.address,region:c.providers.guard.region}:null,
