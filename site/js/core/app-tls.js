@@ -5,7 +5,10 @@ export function openStateOf(tls) {
   return tls?.state === "ok" ? "ok" : "noanswer";
 }
 
-export async function probeAppTls(endpoint, { fetchFn = fetch, timeoutMs = 4000 } = {}) {
+// A slow answer still proves the connection: a busy single-threaded app (the s3-ipfs-adapter while it re-hashes its bucket
+// answers in 5-8 s, 2026-10-13) must not read as "no certificate" on the dashboard, so the probe waits up to 15 s.
+export const PROBE_TIMEOUT_MS = 15000;
+export async function probeAppTls(endpoint, { fetchFn = fetch, timeoutMs = PROBE_TIMEOUT_MS } = {}) {
   const origin = new URL(endpoint);
   if (origin.protocol !== "https:") throw new TypeError("TLS probes require HTTPS");
   // The adapter and publisher have lightweight GET health routes. They need not
