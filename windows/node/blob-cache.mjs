@@ -1,8 +1,8 @@
 // windows/node/blob-cache.mjs -- the host-side cache for PUBLIC, PINNED content a Shield app fetches
 // (docs/design/shield-blob-cache.md).
 //
-// A Shield app reaches the internet through its own TUNA circuits, paid per byte in NKN. For a public object whose
-// sha256 the app already pins (risc-box's ~1 GB disk image), that buys no privacy and costs it again on every start.
+// A Shield app reaches the internet through its own Enclave-network circuits. For a public object whose sha256 the
+// app already pins (risc-box's ~1 GB disk image), that buys no privacy and costs it again on every start.
 // shield-egress dials the reserved name blobs.enclave.internal:80 to this service instead of the app's route:
 //
 //   GET /sha256/<64 hex>?src=<url-encoded https URL>      (Range: bytes=N- / N-M honoured once cached)
