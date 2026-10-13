@@ -1,12 +1,32 @@
 # Enclave hosting tray
 
-A notification-area app for the Windows node's owner. It has two sliders: the most of this machine's **CPU** and **GPU** that the node offers to hosting, each 0-100 % in steps of 5. The node enforces them (`windows/node/hosting.mjs`); the app only shows and sets them.
+A notification-area app for the Windows node's owner. Its panel is **host-ui** (`host-ui/` at the repository root): the
+same HTML, CSS and JavaScript the Android Enclave app shows, so the two are one panel and a change to it reaches both.
+This program is the panel's shell: the tray icon and its menu, a WebView2 window in the corner above the tray that is as
+tall as the panel, and the bridge that carries the panel's requests to the node with the node's token (the page never
+sees the token and opens no connection of its own; host-ui/README.md has the contract).
 
-- A cap narrows **new** work only: new claims, the free figures in `/availability`, and new partitions on the isolated backend. Lowering it below what's in use stops nothing and gives no lease back. New work waits until use drops below the cap.
+The panel: the hosting on/off switch, then an accordion in the style of the site's live enclaves list, with a row each for
+**Limits** (the CPU and GPU sliders: the most of this machine the node offers to hosting, 0-100 % in steps of 5),
+**Price**, **Earnings** (earnings and the payout wallet) and **Apps** (what runs here), then the node's state. The node
+enforces every setting (`windows/node/hosting.mjs`); the panel only shows and sets them.
+
+- A cap narrows **new** work. Lowering it below what is in use asks first: the node answers with exactly what it would
+  drop (newest first) and changes nothing until the owner confirms that list. Turning hosting off with apps running asks
+  the same way.
 - With no caps set (no `hosting-caps.json` beside the node's state), the node behaves exactly as it did before caps existed.
-- If nothing on the active backend uses the GPU (today: the isolated backend spawns every partition with `gpuShare: 0`), the panel says so. The GPU cap is still stored, and applies once something uses the GPU.
+- If nothing on the active backend uses the GPU, the panel says so. The GPU cap is still stored, and applies once
+  something uses the GPU.
 
-Left-click the icon, or choose **Hosting controls…**, to open the panel. It is short: the hosting on/off switch, then an accordion in the style of the site's live enclaves list, with a row each for **Limits** (the two sliders), **Price** and **Earnings** (earnings and the payout wallet). A closed row says what its section is set to now, in amber where something waits on you: sliders moved and not applied, more in use than offered, no payout wallet. Click a row, or Tab to it and press Enter, to open it under the row; one is open at a time, and clicking it again or Esc closes it (Esc with nothing open hides the panel). The panel reopens with every section closed. In Limits, sliders take effect when you press **Apply**. If the node refuses a change, the panel shows the error and puts the slider back where the node has it. The menu also has **Open logs folder** (the node's folder, where `agent.log` is), **Refresh** and **Exit**. When the node can't be reached, the sliders are disabled and the panel says why.
+Left-click the icon, or choose **Hosting controls...**, to open the panel; Esc closes the open section, then hides the
+panel, which reopens with every section closed and any unapplied slider moves dropped. The menu also has **Turn hosting
+off/on** (the panel's switch, asking as it does), **Open logs folder** (the node's folder, where `agent.log` is),
+**Refresh** and **Exit**. The tray icon is jade when hosting, amber when something waits on the owner (low operator gas,
+not yet taking new work, more in use than offered) and grey when off or the node can't be reached.
+
+The panel's window is WebView2: the Microsoft Edge WebView2 Runtime that Windows 11 ships with (and Windows 10 with Edge).
+Without it the window says so and links to it; hosting carries on. The page is made when the tray starts and kept, so
+the panel opens at once.
 
 ## The node side
 
@@ -17,11 +37,17 @@ Set `HOSTING_TRAY_USER` to the account the tray runs as, in the node's config (f
 ## Build and install (on the box)
 
 ```
-build.cmd              compiles EnclaveTray.exe with the in-box csc.exe (.NET Framework 4.x); installs nothing
-install-tray.cmd       copies it to %LOCALAPPDATA%\Enclave\Tray, starts it now and at this user's logon (HKCU Run),
-                       and says if this account cannot read the node's token
+build.cmd              compiles EnclaveTray.exe with the in-box csc.exe (.NET Framework 4.x), fetches the pinned WebView2
+                       SDK beside it the first time (fetch-webview2.ps1: its sha256 is checked), and copies the panel from
+                       ..\..\host-ui into ui\; installs nothing
+install-tray.cmd       copies the exe, the WebView2 files and ui\ to %LOCALAPPDATA%\Enclave\Tray, starts it now and at this
+                       user's logon (HKCU Run), and says if this account cannot read the node's token
 uninstall-tray.cmd     stops it, removes the logon start and the folder (the node's caps stay as set)
 ```
+
+After an automatic update, the user's copy takes Program Files\Enclave\tray's files (ui\, the WebView2 files, then the
+exe) at its next start. To work on the panel without a node, see host-ui/README.md (`node host-ui/dev-server.mjs --fake`);
+`"devTools": true` in tray-config.json opens the page's developer tools in the tray itself.
 
 **For the operator, after the node is redeployed with this change:**
 - The hosting controls are **on by default**: `HOSTING_ADMIN_PORT` defaults to 9610, loopback only (127.0.0.1). Set it to 0 to turn them off.
@@ -29,7 +55,7 @@ uninstall-tray.cmd     stops it, removes the logon start and the folder (the nod
 - To fix that, set `HOSTING_TRAY_USER` in the node's config and **restart the node**. The node applies the token directory's DACL when it starts, so the restart is what lets the tray read the token.
 - Then run `install-tray.cmd` as that account. It says so if the account still can't read the token.
 
-Optional `tray-config.json` beside the exe, if the node isn't on the defaults: `{"port": 9610, "tokenFile": "C:\\ProgramData\\Enclave\\hosting\\hosting-admin.token", "logsFolder": ""}`. The app writes its own log to `%LOCALAPPDATA%\Enclave\Tray\tray.log`.
+Optional `tray-config.json` beside the exe, if the node isn't on the defaults: `{"port": 9610, "tokenFile": "C:\\ProgramData\\Enclave\\hosting\\hosting-admin.token", "logsFolder": "", "uiFolder": "", "devTools": false}`. The app writes its own log to `%LOCALAPPDATA%\Enclave\Tray\tray.log`.
 
 ## Check it by hand
 

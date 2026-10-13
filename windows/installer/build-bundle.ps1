@@ -129,7 +129,10 @@ $trayDir = Join-Path $setup "windows\tray"
 & cmd.exe /c (Join-Path $trayDir "build.cmd") | Out-Host
 if ($LASTEXITCODE) { Die "the tray did not build" }
 New-Item -ItemType Directory -Force (Join-Path $B "tray") | Out-Null
-foreach ($f in "EnclaveTray.exe", "install-tray.cmd", "uninstall-tray.cmd") { Copy-Item (Join-Path $trayDir $f) (Join-Path $B "tray\$f") }
+# the tray, the WebView2 SDK it shows the panel in (fetch-webview2.ps1, pinned), and the panel itself (host-ui, in ui\)
+foreach ($f in "EnclaveTray.exe", "install-tray.cmd", "uninstall-tray.cmd", "Microsoft.Web.WebView2.Core.dll", "Microsoft.Web.WebView2.WinForms.dll",
+               "WebView2Loader.dll", "WebView2-LICENSE.txt") { Copy-Item (Join-Path $trayDir $f) (Join-Path $B "tray\$f") }
+Copy-Item (Join-Path $trayDir "ui") (Join-Path $B "tray\ui") -Recurse -Force
 $installer = Join-Path $setup "windows\installer"
 if (Test-Path (Join-Path $installer "build-setup.cmd")) {
   & cmd.exe /c (Join-Path $installer "build-setup.cmd") | Out-Host

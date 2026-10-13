@@ -1,6 +1,6 @@
 @echo off
-rem install-tray.cmd -- install the hosting tray app for THE CURRENT USER (no elevation): copy it to
-rem %LOCALAPPDATA%\Enclave\Tray, start it at this user's logon (HKCU Run value EnclaveHostingTray), put "Enclave Hosting"
+rem install-tray.cmd -- install the hosting tray app for THE CURRENT USER (no elevation): copy it (the exe, the WebView2
+rem SDK beside it, the panel in ui\) to %LOCALAPPDATA%\Enclave\Tray, start it at this user's logon (HKCU Run value EnclaveHostingTray), put "Enclave Hosting"
 rem on this user's Desktop and Start Menu (opening it while the tray runs shows the panel), and start it now.
 rem A tray-config.json beside this file is copied too. uninstall-tray.cmd reverses all of it.
 setlocal
@@ -12,6 +12,10 @@ taskkill /f /im EnclaveTray.exe /fi "USERNAME eq %USERNAME%" >nul 2>&1
 ping -n 2 127.0.0.1 >nul
 if not exist "%DEST%" mkdir "%DEST%" || (echo install: could not create %DEST% & exit /b 1)
 copy /y "%SRC%EnclaveTray.exe" "%DEST%\EnclaveTray.exe" >nul || (echo install: copy to %DEST% failed & exit /b 1)
+rem beside it: the WebView2 SDK it runs the panel in, and the panel itself (host-ui, in ui\)
+for %%f in (Microsoft.Web.WebView2.Core.dll Microsoft.Web.WebView2.WinForms.dll WebView2Loader.dll WebView2-LICENSE.txt) do copy /y "%SRC%%%f" "%DEST%\%%f" >nul || (echo install: %%f is missing beside EnclaveTray.exe; run build.cmd & exit /b 1)
+if exist "%DEST%\ui" rmdir /s /q "%DEST%\ui"
+xcopy /e /i /q /y "%SRC%ui" "%DEST%\ui" >nul || (echo install: the panel's files ^(ui\^) are missing beside EnclaveTray.exe; run build.cmd & exit /b 1)
 if exist "%SRC%tray-config.json" copy /y "%SRC%tray-config.json" "%DEST%\tray-config.json" >nul
 reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v EnclaveHostingTray /t REG_SZ /d "\"%DEST%\EnclaveTray.exe\"" /f >nul || (echo install: could not register the logon start & exit /b 1)
 rem The shortcuts: the Desktop as Windows knows it (OneDrive may have moved it), and the Start Menu's Programs.
