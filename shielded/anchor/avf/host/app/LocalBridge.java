@@ -36,20 +36,24 @@ public final class LocalBridge {
         this.vm = vm; this.localPort = localPort; this.vmPort = vmPort; this.token = token; this.label = label;
     }
 
-    /** A fresh random token (32 bytes, hex), written to <external files>/bridge-token for the owner's host to read over adb. */
+    /** A fresh random token (32 bytes, hex), written to the app's private files (the on-phone host agent reads it there,
+     *  STANDALONE.md) and to <external files>/bridge-token for an owner's host that reads it over adb. */
     static String writeToken(android.content.Context ctx) {
         final byte[] b = new byte[32]; new java.security.SecureRandom().nextBytes(b);
         final String t = RelayAttach.hex(b);
+        final String name = "bridge-token" + Main.slotSuffix();   /* each slot's own door */
+        if (!put(ctx.getFilesDir(), name, t)) return null;
+        final java.io.File ext = ctx.getExternalFilesDir(null);
+        if (ext != null && put(ext, name, t)) Main.say("BRIDGE token written (app files; and external files, for an owner's host over adb)");
+        else Main.say("BRIDGE token written to the app's files only");
+        return t;
+    }
+    private static boolean put(java.io.File dir, String name, String t) {
         try {
-            final java.io.File dir = ctx.getExternalFilesDir(null);
-            if (dir == null) return null;
-            final String name = "bridge-token" + Main.slotSuffix();   /* each slot's own door */
             final java.io.File f = new java.io.File(dir, name), tmp = new java.io.File(dir, name + ".tmp");
             try (FileOutputStream o = new FileOutputStream(tmp)) { o.write((t + "\n").getBytes("US-ASCII")); o.getFD().sync(); }
-            if (!tmp.renameTo(f)) return null;
-            Main.say("BRIDGE token written to " + f + " (the owner's host reads it over adb; other apps cannot)");
-            return t;
-        } catch (Exception e) { Main.say("BRIDGE token not written: " + e); return null; }
+            return tmp.renameTo(f);
+        } catch (Exception e) { Main.say("BRIDGE token not written to " + dir + ": " + e); return false; }
     }
 
     boolean start() {

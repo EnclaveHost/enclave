@@ -344,7 +344,22 @@ public class Main extends Activity {
         final int capMib = i.hasExtra("capture_cap_mib") ? i.getIntExtra("capture_cap_mib", -1) : CaptureSink.CAP_MIB_DEFAULT;   /* malformed -> -1 -> refused */
         CaptureSink c = CaptureSink.open(new java.io.File(ctx.getFilesDir(), "capture"), i.getStringExtra("capture"), capMib, sCaptureWarn);
         if (c == null) return false;
-        sCapture = c; return true;
+        sCapture = c; sCaptureLabel = i.getStringExtra("capture"); return true;
+    }
+    private static volatile String sCaptureLabel;
+    /* STANDALONE.md: the on-phone host agent cannot see crosvm (another uid), so this VM's own process says it serves:
+     * files/run/<instance>.alive = "<pid> <label>" (pvm-device-local.mjs alive()). A process Android brings back with no VM
+     * has another pid, and a launch removes the file before it starts the service. */
+    static void markAlive(Context ctx, String instance) {
+        final String label = sCaptureLabel;
+        if (label == null || !instance.matches("[a-z0-9_-]{1,32}")) return;
+        try {
+            final java.io.File dir = new java.io.File(ctx.getFilesDir(), "run");
+            if (!dir.isDirectory() && !dir.mkdirs()) { say("ALIVE not marked: no run dir"); return; }
+            final java.io.File f = new java.io.File(dir, instance + ".alive"), tmp = new java.io.File(dir, instance + ".alive.tmp");
+            try (java.io.FileOutputStream o = new java.io.FileOutputStream(tmp)) { o.write((android.os.Process.myPid() + " " + label + "\n").getBytes("US-ASCII")); o.getFD().sync(); }
+            if (!tmp.renameTo(f)) say("ALIVE not marked: rename failed");
+        } catch (Exception e) { say("ALIVE not marked: " + e); }
     }
     static void captureClose(boolean sawEnd) {
         CaptureSink c = sCapture; sCapture = null;   /* unpublish first: the footer line below must not be captured */
@@ -816,6 +831,7 @@ public class Main extends Activity {
                     if (token != null) { final LocalBridge be = new LocalBridge(vm, plan.bridgeEvidence, EVIDENCE_PORT, token, "evidence"); if (be.start()) bridges.add(be); }
                     else say("BRIDGE evidence NOT started: no token could be written");
                     if (plan.egressPort != 0) { final EgressPool ep = new EgressPool(vm, EGRESS_PORT, plan.egressPort, plan.egressToken); egress.add(ep); ep.start(); }
+                    markAlive(appCtx, plan.vmName);
                 }
                 if ((line.startsWith("APP serving https") || (line.startsWith("APP serving http ") && plan.appServeS == 0)) && keeper != null) keeper.arm();   // REATTACH is taken only while the app serves
                 if (line.startsWith("APP serving ") && plan.appServeS == 0) {
