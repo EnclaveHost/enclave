@@ -6,7 +6,7 @@
 // book (the one-time governance step, done here by impersonating the ledger and book owners), register a runner host
 // and a paid provider host, create + fund + claim a deployment, the provider offers service on chain and submits both
 // checkers' attestations, the owner authorizes that provider (path cap, budget). Then the real code paths settle:
-// the host's PaidNetwork meters the circuit's bytes and debits through TunaUSDCSettlement, which gets the provider's
+// the host's PaidNetwork meters the circuit's bytes and debits through ProviderUSDCSettlement, which gets the provider's
 // co-signature over HTTP from the provider's control API (createReceiptCosigner + PeerMeter), and submits settleTuna.
 // Checked on chain: bytes served, the owner's budget spent, the provider operator's earnings, the app's balance. Then:
 // a receipt for more than the provider observed is refused, and an exhausted budget closes the circuit.
@@ -15,7 +15,7 @@ import {createPublicClient,createWalletClient,http,stringToHex,keccak256,encodeA
 import {privateKeyToAccount,generatePrivateKey} from 'viem/accounts';
 import {base} from 'viem/chains';
 import {LeaseReader} from '../../network/lease-reader.mjs';
-import {TunaUSDCSettlement} from '../../network/tuna-usdc-settlement.mjs';
+import {ProviderUSDCSettlement} from '../../network/provider-settlement.mjs';
 import {PaidNetwork} from '../../network/paid-network.mjs';
 import {PeerMeter,createReceiptCosigner,receiptToJSON} from '../../network/wg-provider/paid.mjs';
 import {createControl} from '../../network/wg-provider/control.mjs';
@@ -43,13 +43,19 @@ for(const a of [owner,runnerOp,providerOp,gas])await anvil('anvil_setBalance',[a
 const LEDGER=await read(BOOK,bookABI,'addr',[key('deployments')]),REGISTRY=await read(BOOK,bookABI,'addr',[key('registry')]);
 ok(LEDGER.toLowerCase()==='0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b','the fork reads the live rev-16d ledger from the live address book');
 
-// 1. the contract and the one-time governance binding (impersonated owners)
-const h=await wallet(gas).deployContract({abi:connABI,bytecode:connBin,args:[LEDGER,[checkerA.address,checkerB.address]]});
-const CONN=(await pub.waitForTransactionReceipt({hash:h})).contractAddress;
-for(const [target,who,fn,args] of [[LEDGER,await read(LEDGER,ledgerABI,'owner'),'setBandwidthRouter',[CONN]],[BOOK,await read(BOOK,bookABI,'owner'),'set',[key('connectivity'),CONN]]]){
- await anvil('anvil_impersonateAccount',[who]);await anvil('anvil_setBalance',[who,'0x56BC75E2D63100000']);
- const tx=await createWalletClient({account:who,chain:base,transport:http(rpc)}).writeContract({address:target,abi:target===LEDGER?ledgerABI:bookABI,functionName:fn,args});
- ok((await pub.waitForTransactionReceipt({hash:tx})).status==='success',`governance: ${fn} by ${who.slice(0,10)}`);await anvil('anvil_stopImpersonatingAccount',[who]);
+// 1. the contract: the one the live ledger is bound to (production activated 2026-10-13), else a fresh one bound here
+//    by impersonating the ledger and book owners (the one-time governance step)
+let CONN=await read(LEDGER,parseAbi(['function bandwidthRouter() view returns (address)']),'bandwidthRouter');
+const bound=!/^0x0{40}$/i.test(CONN);
+if(bound)ok(true,`the live ledger is bound to ${CONN} (production): testing against it`);
+else{
+ const h=await wallet(gas).deployContract({abi:connABI,bytecode:connBin,args:[LEDGER,[checkerA.address,checkerB.address]]});
+ CONN=(await pub.waitForTransactionReceipt({hash:h})).contractAddress;
+ for(const [target,who,fn,args] of [[LEDGER,await read(LEDGER,ledgerABI,'owner'),'setBandwidthRouter',[CONN]],[BOOK,await read(BOOK,bookABI,'owner'),'set',[key('connectivity'),CONN]]]){
+  await anvil('anvil_impersonateAccount',[who]);await anvil('anvil_setBalance',[who,'0x56BC75E2D63100000']);
+  const tx=await createWalletClient({account:who,chain:base,transport:http(rpc)}).writeContract({address:target,abi:target===LEDGER?ledgerABI:bookABI,functionName:fn,args});
+  ok((await pub.waitForTransactionReceipt({hash:tx})).status==='success',`governance: ${fn} by ${who.slice(0,10)}`);await anvil('anvil_stopImpersonatingAccount',[who]);
+ }
 }
 ok((await connectivityAddress(pub,BOOK))?.toLowerCase()===CONN.toLowerCase(),'the address book publishes the connectivity contract');
 
@@ -66,6 +72,14 @@ await send(owner,{address:LEDGER,abi:ledgerABI,functionName:'fund',args:[id,10_0
 await send(runnerOp,{address:LEDGER,abi:ledgerABI,functionName:'claim',args:[id,runnerId]});
 ok(true,`deployment ${id.slice(0,10)} created, funded with 10 USDC, claimed by the runner`);
 
+// the bound production contract trusts the network's own checkers by default; the owner names this test's checkers
+// for this app (authorizeProbeTrust - per app, owner-signed, no global operator)
+if(bound){
+ const exp=BigInt(Math.floor(Date.now()/1000)+3600);
+ const dg=await read(CONN,connABI,'probeTrustDigest',[id,[checkerA.address,checkerB.address],2,exp]);
+ await send(owner,{address:CONN,abi:connABI,functionName:'authorizeProbeTrust',args:[id,[checkerA.address,checkerB.address],2,exp,await owner.signMessage({message:{raw:dg}})]});
+ ok(true,'owner: authorizeProbeTrust (this app trusts the test checkers)');
+}
 // 3. the provider offers service on chain; both checkers attest; the provider submits; the owner authorizes it
 const PRICE=50_000n;   // 0.05 USDC per GiB
 ok(await ensureHost({wallet:wallet(providerOp),client:pub,connectivity:CONN,hostId:providerHostId,pricePerGiB6:PRICE}),'provider: setHost (network provider at its price)');
@@ -99,7 +113,7 @@ const peers=[{key:'peer1',deploymentId:id,runner:runnerId,paidNonce:String(lease
 const receipt=createReceiptCosigner({hostId:providerHostId,proofAccount:providerProof,leaseReader:providerLR,meter,sample:()=>meter.sample(peers)});
 const control=await createControl({provider:{handle:async()=>{throw new Error('no peers here');},status:()=>({})},info:()=>({}),receipt,port:0,host:'127.0.0.1'});
 let cosigned=0;
-const settlement=await new TunaUSDCSettlement({providerId:providerHostId,directory:path.join(dir,'host'),leaseReader:hostLR,proofAccount:hostProof,wallet:wallet(gas),client:pub,maxPending6:'0',
+const settlement=await new ProviderUSDCSettlement({providerId:providerHostId,directory:path.join(dir,'host'),leaseReader:hostLR,proofAccount:hostProof,wallet:wallet(gas),client:pub,maxPending6:'0',
  cosign:async({receipt:r,runnerSignature,anchorHash})=>{const res=await fetch(`http://127.0.0.1:${control.port}/v1/receipt`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({receipt:receiptToJSON(r),runnerSignature,anchorHash})});
   const b=await res.json();if(!res.ok)throw new Error(b.error);cosigned++;return b.signature;}}).start();
 const paid=new PaidNetwork({directory:path.join(dir,'paid'),leaseReader:hostLR,settlementFor:async()=>settlement});
