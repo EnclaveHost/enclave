@@ -1,12 +1,13 @@
 #!/bin/bash
 # Install or update an Enclave-network provider on a Linux server with a public IPv4 address
 # (docs/design/enclave-network.md). Run as root ON the server, from a directory holding wg-provider.mjs:
-#   bash install.sh <release-dir-name> <region> <checker-address> [roles]
+#   bash install.sh <release-dir-name> <region> <checker-address[,checker-address...]> [roles]
 # Idempotent: keys and state are kept across updates; the previous release stays for rollback
 # (/opt/enclave-network/previous). It does not touch any other service or firewall table.
 set -euo pipefail
 REL=$1 REGION=$2 CHECKER=$3 ROLES=${4:-guard,ingress,egress}
-[[ $REL =~ ^[a-z0-9.-]+$ && $REGION =~ ^[a-z0-9-]+$ && $CHECKER =~ ^0x[0-9a-fA-F]{40}$ ]] || { echo "usage: install.sh <release> <region> <checker-address> [roles]" >&2; exit 2; }
+[[ $REL =~ ^[a-z0-9.-]+$ && $REGION =~ ^[a-z0-9-]+$ && $CHECKER =~ ^0x[0-9a-fA-F]{40}(,0x[0-9a-fA-F]{40})*$ ]] || { echo "usage: install.sh <release> <region> <checker-address[,...]> [roles]" >&2; exit 2; }
+CHECKERS_JSON=$(printf '%s' "$CHECKER" | tr 'A-F' 'a-f' | sed 's/^/["/; s/,/","/g; s/$/"]/')
 HERE=$(cd "$(dirname "$0")" && pwd)
 command -v wg >/dev/null || DEBIAN_FRONTEND=noninteractive apt-get install -y -q wireguard-tools >/dev/null
 NODE=$(command -v node); "$NODE" -e 'process.exit(+process.versions.node.split(".")[0]>=22?0:1)' || { echo "node 22+ required" >&2; exit 1; }
@@ -24,7 +25,7 @@ cat > /etc/enclave-network/provider.json.new <<EOF
 {"operatorKeyFile":"/etc/enclave-network/operator.key","publicAddress":"$PUBLIC","uplink":"eth0","roles":$ROLES_JSON,"pricePerGiB6":0,
  "region":"$REGION","kind":"enclave","hostId":null,"ports":{"exit":51820,"guard":51821,"control":51822},
  "rpc":["https://mainnet.base.org","https://base-rpc.publicnode.com"],"addressBook":"0xab214342d5A490150A4A977063A2f88E21F80907",
- "relay":"https://api.enclave.host","checkers":["$CHECKER"],"zone":"app.enclave.host","probeZone":"probe.enclave.host",
+ "relay":"https://api.enclave.host","checkers":$CHECKERS_JSON,"zone":"app.enclave.host","probeZone":"probe.enclave.host",
  "stateDir":"/var/lib/enclave-network","budget":{"monthlyBytes":1000000000000,"stopAt":850000000000}}
 EOF
 chmod 0600 /etc/enclave-network/provider.json.new && mv /etc/enclave-network/provider.json.new /etc/enclave-network/provider.json

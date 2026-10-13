@@ -53,9 +53,14 @@ const config={providerId,roles:cfg.roles,pricePerGiB6:cfg.pricePerGiB6||0,public
 // a host's own (control) peers: an active registry entry whose operator signed, read with the same two-RPC agreement
 const registryAddress=async()=>{const [c]=clients;return c.readContract({address:cfg.addressBook,abi:[{type:'function',name:'addr',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'address'}]}],functionName:'addr',args:['0x'+Buffer.from('registry').toString('hex').padEnd(64,'0')]});};
 let registry;const hosts=async id=>{registry||=await registryAddress();const [h]=await leases.registryEntries(registry,[id]);return h||null;};
-const provider=new WgProvider({config,signer:account,kernel,log,policyMemory,verifyOwner,domains,targets,hosts,
+// the peer table on disk: a restart (an update) keeps every peer at its tunnel address
+const peerFile=path.join(stateDir,'peers.json');
+const store={load:async()=>{try{return JSON.parse(await fs.readFile(peerFile,'utf8'));}catch{return null;}},
+ save:async v=>{await fs.writeFile(peerFile+'.tmp',JSON.stringify(v),{mode:0o600});await fs.rename(peerFile+'.tmp',peerFile);}};
+const provider=new WgProvider({config,signer:account,kernel,log,policyMemory,verifyOwner,domains,targets,hosts,store,
  leases:async id=>(await leases.readSnapshot([id]))[0]||null,
  currentPolicy:async id=>(await relayJSON('/v1/network/policy/'+id))?.envelope||null});
+log(`restored ${await provider.restore()} peer(s) from the last run`);
 const meter=new Map();
 const count=(to,up,down)=>{const m=meter.get(to)||{up:0,down:0};m.up+=up;m.down+=down;meter.set(to,m);};
 const routes=[await createRouter({port:443,route:n=>provider.route(n),tls:true,count,log}),await createRouter({port:80,route:n=>provider.route(n),tls:false,count,log})];

@@ -125,8 +125,12 @@ export class WgCircuitRuntime {
    // grants expire in 10 minutes: renew both well before; a refusal (lease ended, policy changed, provider unqualified) closes
    if(kind==='network')renewTimer=setInterval(()=>void(async()=>{
     try{
-     await this.grants.request({provider:guard,url:`http://${guard.address}:${guard.ports.control}`,role:'guard',deploymentId,wgPublicKey:keys.guard.publicKey});
-     await this.grants.request({provider:exit,url:`http://${outer.control}`,role:exitRole,deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress});
+     const g2=await this.grants.request({provider:guard,url:`http://${guard.address}:${guard.ports.control}`,role:'guard',deploymentId,wgPublicKey:keys.guard.publicKey});
+     const x2=await this.grants.request({provider:exit,url:`http://${outer.control}`,role:exitRole,deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress});
+     // a provider that lost this peer (restarted without its table) hands out a new address: the tunnel cannot use it,
+     // so rebuild now rather than wait for the route probes to fail
+     if(g2.clientAddress!==guardGrant.clientAddress){circuit.failureRole='guard';throw new Error('the guard changed this circuit\'s address');}
+     if(x2.clientAddress!==exitGrant.clientAddress){circuit.failureRole='public';throw new Error('the exit changed this circuit\'s address');}
     }catch(e){this.log(`circuit ${id}: renewal refused: ${e.message}`);circuit.failureRole=e.providerRole;void circuit.close('grant renewal failed: '+e.message);}
    })(),this.renewMs);
    if(circuit.closed||this.closed)throw new Error('circuit stopped during startup');
