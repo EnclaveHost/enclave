@@ -1,6 +1,6 @@
 // One release boundary for the relay's complete route-validation graph.
 export {LeaseReader} from '../network/lease-reader.mjs';
 export {DurableState} from '../network/durable-state.mjs';
-export {createTunaRoutes} from './tuna-routes.mjs';
+export {createNetworkRoutes} from './network-routes.mjs';
 export {createLeaseSource,createRegistryOperator} from './chain-sources.mjs';
 export {createNetworkApi} from './network-api.mjs';

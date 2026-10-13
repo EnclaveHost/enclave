@@ -105,7 +105,7 @@ import { claimCheapest, CLAIM_QUOTE_ABI } from "./cheapest-claim.mjs";
 import { createPlacement, pinnedHost } from "./placement.mjs";
 import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson } from "./measurement-predict.mjs";
 import { createTunnelHub } from "./tunnel.js";
-import {LeaseReader,createTunaRoutes,DurableState,createLeaseSource,createRegistryOperator,createNetworkApi} from "./network-runtime.bundle.mjs";
+import {LeaseReader,createNetworkRoutes,DurableState,createLeaseSource,createRegistryOperator,createNetworkApi} from "./network-runtime.bundle.mjs";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
 import { pvmCpuPolicyFromEnv, avfAttestWithPvmCpu, pvmCpuAvailability, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
 import { VBS_DEFAULT_EK_ROOTS } from "./vbs-policy.mjs";
@@ -1003,9 +1003,9 @@ async function pollAvailability() {
   updatedAt = new Date().toISOString();
 }
 
-// Hosts publish each app's signed Enclave-network routes (relay/tuna-routes.mjs; the name and the /v1/network/tuna
-// path are historical). The Base lease still decides whose app each IP serves.
-let tunaRoutes;
+// Hosts publish each app's signed Enclave-network routes (relay/network-routes.mjs; the /v1/network/tuna
+// path is historical: hosts, the DNS service and the deploy preflight read it). The Base lease still decides whose app each IP serves.
+let networkRoutes;
 
 // Share-based routing — same rule as enclave-discover.mjs. Deployments buy two
 // shares, so callers route on the shares they intend to buy (the app's specs
@@ -1819,16 +1819,16 @@ async function gateway(u, req, res) {
   // Signed per-app routes are DNS/control metadata. The old roster URL is
   // retained for clients upgrading through the cutover; it has no legacy relays.
   if ((p === "/v1/network/tuna" || p === "/v1/relays") && req.method === "GET") {
-    try { return json(res, 200, await tunaRoutes.map(await ledgerRows()), req); }
+    try { return json(res, 200, await networkRoutes.map(await ledgerRows()), req); }
     catch { return json(res, 503, { error: "network_map_unavailable" }, req); }
   }
   if (p === "/v1/network/tuna" && req.method === "POST") {
     if (!rlMiss(clientIp(req))) return json(res, 429, {error: "rate_limited"}, req);
     try {
       const b = JSON.parse((await readBody(req, 131072)).toString());
-      await tunaRoutes.publish(b.publication);
+      await networkRoutes.publish(b.publication);
       return json(res, 200, { ok: true }, req);
-    } catch (e) { console.warn("[tuna-routes] publication refused: " + String(e.message).slice(0,256)); return json(res, 400, { error: "tuna_publication_refused", message: e.message }, req); }
+    } catch (e) { console.warn("[network-routes] publication refused: " + String(e.message).slice(0,256)); return json(res, 400, { error: "tuna_publication_refused", message: e.message }, req); }
   }
 
   if (!live.length) {
@@ -2537,7 +2537,7 @@ async function registryOperator(id) {
 const networkApi = createNetworkApi({ checkers: (process.env.RELAY_NETWORK_CHECKERS || "").split(",").map(s => s.trim().toLowerCase()).filter(s => /^0x[0-9a-f]{40}$/.test(s)),
   addressBook: ADDRESS_BOOK || undefined, JsonStore, file: dataFile(dataDir(), "network.json"), clients: async () => [await rpcPool()], log: m => console.log("[network] " + m) });
 relayCtx.hostOperator = id => registryOperator(id);
-tunaRoutes = createTunaRoutes({
+networkRoutes = createNetworkRoutes({
   network: networkApi,
   operatorOf: endpoint => relayCtx.operatorOfEndpoint(endpoint), endpointId,
   memory: new DurableState(process.env.TUNA_ROUTE_STATE_DIR || '/var/lib/enclave-relay/tuna-route-state'),
