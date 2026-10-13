@@ -1,6 +1,6 @@
 # install-host.ps1 -- install an Enclave host on this Windows PC (docs/design/windows-host-installer.md). EnclaveSetup.exe
 # runs it elevated from the expanded bundle; it can also be run by hand:
-#   powershell -ExecutionPolicy Bypass -File install-host.ps1 -Name my-box [-Owner DOMAIN\user] [-CheckOnly]
+#   powershell -ExecutionPolicy Bypass -File install-host.ps1 -Name my-box [-Owner DOMAIN\user] [-Referral code] [-CheckOnly]
 # Progress goes to stdout as one JSON object per line: {"step","state":"run|ok|warn|fail|reboot","message"}.
 # Re-running is safe: every step checks what is already there. Nothing is downloaded: the bundle is this folder.
 param(
@@ -10,7 +10,8 @@ param(
   [switch] $NoStart,                    # install and start Enclave Shield, but not the node (a test that registers nothing)
   [string] $Relay = "https://api.enclave.host",
   [string] $SetupExe = "",              # EnclaveSetup.exe: kept in Program Files as the uninstaller Windows' Installed apps runs
-  [switch] $Delta                       # an update over this install: replace only the files whose sha256 changed (update-host.ps1)
+  [switch] $Delta,                      # an update over this install: replace only the files whose sha256 changed (update-host.ps1)
+  [string] $Referral = ""               # the referral code this machine came with (attribution only; relay/referrals.mjs)
 )
 $ErrorActionPreference = "Stop"
 $Bundle = $PSScriptRoot
@@ -77,6 +78,11 @@ if ($CheckOnly) { Emit "done" "ok" "This PC can host"; exit 0 }
 if ($Name -notmatch '^[a-z0-9](?:[a-z0-9-]{1,30})[a-z0-9]$' -or $Name -match '--') { Fail "name" "Pick a name of 3 to 32 lowercase letters, digits and hyphens." }
 $existing = Join-Path $PD "node\host.json"
 $sameBox = (Test-Path $existing) -and ((Get-Content $existing -Raw | ConvertFrom-Json).name -eq $Name)
+# A referral code: 1-64 letters, digits, '.', '_' or '-'. Re-running setup or an automatic update (which passes no code)
+# keeps the one this machine was installed with; a new one given here replaces it, and the relay keeps the first it saw.
+$Referral = $Referral.Trim()
+if ($Referral -and $Referral -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$') { Fail "name" "A referral code is 1 to 64 letters, digits, '.', '_' or '-'." }
+if (-not $Referral -and (Test-Path $existing)) { $Referral = [string](Get-Content $existing -Raw | ConvertFrom-Json).referral }
 if (-not $sameBox) {
   try { $avail = Invoke-RestMethod -UseBasicParsing -Uri "$Relay/v1/hosts/name/$Name" -TimeoutSec 20 }
   catch { Fail "name" "Could not reach $Relay to check the name: $($_.Exception.Message)" }
@@ -270,6 +276,7 @@ goto loop
 rem The Enclave host node. Written by install-host.ps1; re-run setup to change it.
 set APPS=1
 set NODE_NAME=$Name
+set REFERRAL_CODE=$Referral
 set PUBLIC_URL=$Relay/t/$Name
 set RELAY_URL=$($Relay -replace '^https:', 'wss:')/v1/fleet-tunnel
 set NODE_DIR=$PD\node
@@ -333,7 +340,7 @@ goto loop
 }
 RunLoop (Join-Path $PD "run-shield.cmd") (Join-Path $PD "shield-config.cmd") (Join-Path $PF "control\windows\vbslike\manager\main.mjs") (Join-Path $PD "logs\shield.log")
 RunLoop (Join-Path $PD "run-node.cmd") (Join-Path $PD "node-config.cmd") (Join-Path $PF "control\windows\node\agent.mjs") (Join-Path $PD "logs\node.log")
-[ordered]@{ name = $Name; operator = $operator; owner = $Owner; version = $manifest.version; installedAt = (Get-Date).ToUniversalTime().ToString("o") } |
+[ordered]@{ name = $Name; operator = $operator; owner = $Owner; referral = $Referral; version = $manifest.version; installedAt = (Get-Date).ToUniversalTime().ToString("o") } |
   ConvertTo-Json | Set-Content -Encoding UTF8 $existing
 Emit "config" "ok" "Configured '$Name': $slots app slot(s), $appRamGb GB for apps"
 
