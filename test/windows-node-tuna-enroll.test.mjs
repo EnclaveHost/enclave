@@ -107,3 +107,14 @@ test('the network config carries the box\'s paid-provider settlement keys when i
  assert.equal(networkConfig(base).paid,undefined);
  assert.deepEqual(networkConfig({...base,paid:{proofKeyFile:'p.key',gasKeyFile:'o.key'}}).paid,{proofKeyFile:'p.key',gasKeyFile:'o.key',rpc:'https://base-rpc.publicnode.com',maxPending6:'10000'});
 });
+
+test("an app whose new version has no ready partition yet is counted as waiting, so the node looks again soon", async () => {
+  const w = world();
+  assert.equal((await w.enroll.pass()).waiting, 0);
+  w.vm.appReady = false;                                   // the owner switched versions; the new partition is still starting
+  const r = await w.enroll.pass();
+  assert.equal(r.waiting, 1);
+  assert.ok(w.logs.some((l) => /no ready partition runs/.test(l)));
+  w.vm.appReady = true;
+  assert.equal((await w.enroll.pass()).waiting, 0);
+});
