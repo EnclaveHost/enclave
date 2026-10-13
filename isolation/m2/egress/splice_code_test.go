@@ -46,3 +46,16 @@ func TestSpliceNamesTheSideThatFailed(t *testing.T) {
 		t.Fatalf("failed write gave %q", c)
 	}
 }
+
+// spliceCount reports the bytes each way, so a big stream's end can be matched to what each side delivered.
+func TestSpliceCountsBothWays(t *testing.T) {
+	ga, gb := net.Pipe()
+	ua, ub := net.Pipe()
+	go func() { gb.Write([]byte("request")); io.ReadAll(gb); gb.Close() }()
+	go func() { b := make([]byte, 7); io.ReadFull(ub, b); ub.Write(make([]byte, 100000)); ub.Close() }()
+	code, toUp, toGuest := spliceCount(ga, ga, ua, ua)
+	if toUp != 7 || toGuest != 100000 {
+		t.Fatalf("counted %d up, %d to the guest", toUp, toGuest)
+	}
+	_ = code // net.Pipe has no half-close, so how it ends is not what this checks
+}
