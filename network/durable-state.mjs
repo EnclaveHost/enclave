@@ -23,7 +23,16 @@ export class DurableState {
       const file=this.filename(key), temporary=file+'.'+randomBytes(8).toString('hex');
       const handle=await fs.open(temporary,'wx',0o600);
       try {await handle.writeFile(JSON.stringify(value));await handle.sync();} finally {await handle.close();}
-      await fs.rename(temporary,file);
+      // Windows refuses to replace a file another process has open at that instant (EPERM/EACCES/EBUSY: a reader such
+      // as shield-egress reloading egress-routes.json); the open is brief, so the rename is retried, and a temporary
+      // that still cannot land is removed rather than left beside the file
+      for(let attempt=0;;attempt++){
+        try {await fs.rename(temporary,file);break;}
+        catch(e){
+          if(!['EPERM','EACCES','EBUSY'].includes(e.code)||attempt>=20){await fs.rm(temporary,{force:true}).catch(()=>{});throw e;}
+          await new Promise(r=>setTimeout(r,25*(attempt+1)));
+        }
+      }
       // Windows cannot open directory handles through Node's fs API.
       if(process.platform!=='win32'){const dir=await fs.open(this.directory,'r');try{await dir.sync();}finally{await dir.close();}}
       return value;
