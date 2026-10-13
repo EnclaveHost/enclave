@@ -47,3 +47,19 @@ test('the egress map writes in place; other state never does',async t=>{
  const e=new EgressMap({directory:await tmp(t),manager:{apps:new Map()},dns:[{address:'1.1.1.1:443',serverName:'x',path:'/dns-query'}]});
  assert.equal(e.state.inPlace,true);assert.equal(new DurableState(await tmp(t)).inPlace,false);
 });
+
+test('the egress map says when an app leaves it, why, and when it is back', async t => {
+ const {EgressMap}=await import('../network/egress-map.mjs');
+ const id='0x'+'7a'.repeat(32),said=[];let until=Date.now()+60000;
+ const circuit={healthy:true,closed:false,egress:'127.0.0.1:51041'};
+ const manager={apps:new Map([[id,{id,circuits:[circuit]}]]),authorizationUntil:()=>until};
+ const e=new EgressMap({directory:await tmp(t),manager,dns:[{address:'1.1.1.1:443',serverName:'x',path:'/dns-query'}],log:m=>said.push(m)});
+ await e.write();assert.deepEqual(said,[],'listed from the start: nothing to say');
+ until=Date.now()-1;await e.write();
+ circuit.healthy=false;until=Date.now()+60000;await e.write();
+ circuit.healthy=true;await e.write();
+ assert.deepEqual(said,[`app ${id.slice(0,10)} egress OFF: authorization lapsed (lease or guest proof)`,`app ${id.slice(0,10)} egress back`],
+  'one line when it leaves (and why), one when it is back; nothing while it stays out');
+ circuit.healthy=false;await e.write();
+ assert.match(said[2],/egress OFF: no healthy egress circuit \(1 circuit\(s\)\)/);
+});

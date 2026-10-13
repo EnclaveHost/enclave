@@ -46,7 +46,7 @@ export class PrivacyAgent {
       policy:id=>this.manager.apps.get(id)?.policy,qualification,now,distribute:async(id,value)=>{
         if(distribute)await distribute(id,value).catch(e=>log('optional route mirror: '+e.message));
       }});
-    this.egress=new EgressMap({directory,manager:this.manager,dns,now});this.status=new DurableState(directory);
+    this.egress=new EgressMap({directory,manager:this.manager,dns,now,log});this.status=new DurableState(directory);
   }
   async refreshAuthorization(){
     if(this.refreshing||this.closed)return;this.refreshing=true;this.authorizationRefresh={phase:"chain",startedAt:this.now()};void this.snapshot().catch(e=>this.log(e.message));
