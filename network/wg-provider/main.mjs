@@ -2,7 +2,9 @@
 //   node wg-provider.mjs /etc/enclave-network/provider.json
 // config: {operatorKeyFile, publicAddress, uplink, roles, pricePerGiB6, region, kind, hostId, ports:{exit,guard,control},
 //          rpc:[two or more https], addressBook, relay, checkers:[...], zone, probeZone, stateDir,
-//          budget:{monthlyBytes, stopAt}}   (budget: outbound bytes this month; at stopAt the provider stops accepting)
+//          budget:{monthlyBytes, stopAt},   (budget: outbound bytes this month; at stopAt the provider stops accepting)
+//          proofKeyFile}                    (a paid provider, pricePerGiB6 > 0: a community provider, i.e. a registry host
+//                                            [kind community, hostId], co-signs receipts with that host's proof key)
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {privateKeyToAccount} from 'viem/accounts';
@@ -15,6 +17,7 @@ import {createRouter} from './router.mjs';
 import {createControl} from './control.mjs';
 import {providerIdFor,signProviderRecord,verifyProviderRecord} from '../provider-directory.mjs';
 import {verifyOwnerSignature} from '../owner-signature.mjs';
+import {PeerMeter,createReceiptCosigner} from './paid.mjs';
 
 const log=m=>console.log(new Date().toISOString(),m);
 const cfg=JSON.parse(await fs.readFile(process.argv[2]||'/etc/enclave-network/provider.json','utf8'));
@@ -26,7 +29,10 @@ if(!Array.isArray(cfg.rpc)||cfg.rpc.length<2)throw new Error('two or more RPC en
 
 const kernel=new Kernel({publicAddress:cfg.publicAddress,uplink:cfg.uplink||'eth0',ports,log});
 const keys=await kernel.ensure();
-const leases=new LeaseReader({rpc:cfg.rpc,addressBook:cfg.addressBook,includeHostPayout:true});
+// A paid provider charges through the on-chain connectivity contract: it must be a registry host that can sign receipts.
+const paid=(cfg.pricePerGiB6||0)>0;
+if(paid&&(cfg.kind!=='community'||!/^0x[0-9a-f]{64}$/.test(cfg.hostId||'')||!cfg.proofKeyFile))throw new Error('a paid provider is a community provider (kind community, hostId) with its host\'s proofKeyFile');
+const leases=new LeaseReader({rpc:cfg.rpc,addressBook:cfg.addressBook,includeHostPayout:true,...(paid?{includeConnectivity:'auto'}:{})});
 const clients=cfg.rpc.map(url=>createPublicClient({chain:base,transport:http(url,{timeout:10000})}));
 // wallet, passkey vault (ERC-1271) or SessionVault owners: every RPC must agree the signature is valid.
 const verifyOwner=(owner,message,signature)=>verifyOwnerSignature({clients,owner,message,signature,addressBook:cfg.addressBook});
@@ -63,10 +69,18 @@ const provider=new WgProvider({config,signer:account,kernel,log,policyMemory,ver
  leases:async id=>(await leases.readSnapshot([id]))[0]||null,
  currentPolicy:async id=>(await relayJSON('/v1/network/policy/'+id))?.envelope||null});
 log(`restored ${await provider.restore()} peer(s) from the last run`);
+let receipt=null;
+if(paid){
+ const meter=await new PeerMeter({file:path.join(stateDir,'meter.json'),kernel,log}).load();
+ provider.meterSample=()=>meter.sample([...provider.peers.values()]);provider.meterForget=key=>meter.forget(key);
+ const proofAccount=privateKeyToAccount((await fs.readFile(cfg.proofKeyFile,'utf8')).trim());
+ receipt=createReceiptCosigner({hostId:cfg.hostId,proofAccount,leaseReader:leases,meter,sample:provider.meterSample});
+ setInterval(()=>void provider.meterSample().catch(e=>log('meter: '+e.message)),15000).unref?.();
+}
 const meter=new Map();
 const count=(to,up,down)=>{const m=meter.get(to)||{up:0,down:0};m.up+=up;m.down+=down;meter.set(to,m);};
 const routes=[await createRouter({port:443,route:n=>provider.route(n),tls:true,count,log}),await createRouter({port:80,route:n=>provider.route(n),tls:false,count,log})];
-const control=await createControl({provider,port:ports.control,log,info:()=>({providerId,operator:account.address.toLowerCase(),address:cfg.publicAddress,roles:cfg.roles,
+const control=await createControl({provider,receipt,port:ports.control,log,info:()=>({providerId,operator:account.address.toLowerCase(),address:cfg.publicAddress,roles:cfg.roles,
  pricePerGiB6:config.pricePerGiB6,keys:{exit:keys['wg-exit'],guard:keys['wg-guard']},ports,region:cfg.region,kind:cfg.kind||'enclave'})});
 
 // The transfer budget: outbound bytes this calendar month (UTC), kept across restarts and counter resets.

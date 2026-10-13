@@ -5,6 +5,7 @@ import {randomBytes} from 'node:crypto';
 import {recoverMessageAddress} from 'viem';
 import {canonical} from '../route-record.mjs';
 import {defaultNetworkPolicy,admitNetworkPolicy,networkUse} from '../network-policy.mjs';
+import {paidGate} from './paid.mjs';
 
 export const REQUEST_MAX_AGE_MS=60000,PEER_TTL_MS=10*60000,MAX_PEERS=2048;
 const app=/^0x[0-9a-f]{64}$/,hex32=/^[0-9a-f]{32}$/,wgKey=/^[A-Za-z0-9+/]{43}=$/,address=/^0x[0-9a-fA-F]{40}$/;
@@ -94,6 +95,8 @@ export class WgProvider {
   if(r.egress&&use.egress!=='enclave-network'&&use.fallback!=='enclave-network')throw new Error('the policy does not authorize Enclave-network egress');
   if(r.ingress&&use.ingress!=='enclave-network')throw new Error('the policy does not authorize Enclave-network ingress');
   if(this.config.pricePerGiB6>(use.enclaveNetwork?.maxPricePerGiB6??0))throw new Error('provider price is above the policy\'s limit');
+  // a paid provider carries an app only under the owner's current on-chain authorization of it (and meters it)
+  const paidNonce=this.config.pricePerGiB6>0?paidGate({lease,hostId:this.config.hostId,pricePerGiB6:this.config.pricePerGiB6,now}):null;
   this.nonces.set(r.nonce,now+2*REQUEST_MAX_AGE_MS);
   const names=r.ingress?await this.names(r.deploymentId):[];
   // renewal keeps the address; a new key is a new peer; at most two peers per app and role (circuit handover)
@@ -105,7 +108,8 @@ export class WgProvider {
    while(same.length>=2)await this.remove(same.shift(),'replaced');
    peer={key:r.wgPublicKey,role:r.role,deploymentId:r.deploymentId,runner:r.runner,address:this.allocate(r.role),createdAt:now};
   }
-  Object.assign(peer,{egress:r.egress,ingress:r.ingress,names,expiresAt:Math.min(r.expiresAt,now+PEER_TTL_MS),policyNonce:policy.nonce});
+  if(peer.paidNonce&&paidNonce!==peer.paidNonce){await this.meterSample?.();}   // a new on-chain policy: new meter
+  Object.assign(peer,{egress:r.egress,ingress:r.ingress,names,expiresAt:Math.min(r.expiresAt,now+PEER_TTL_MS),policyNonce:policy.nonce,paidNonce});
   this.peers.set(peer.key,peer);
   await this.kernel.setPeer(peer);
   await this.sync();await this.persist();
@@ -175,7 +179,8 @@ export class WgProvider {
   return [`${appLabel(id)}.${zone}`,...custom.slice(0,32)];
  }
  async remove(peer,why){
-  this.peers.delete(peer.key);this.used.delete(peer.address);
+  if(peer.paidNonce)await this.meterSample?.().catch(e=>this.log('meter: '+e.message));
+  this.peers.delete(peer.key);this.used.delete(peer.address);if(peer.paidNonce)await this.meterForget?.(peer.key);
   await this.kernel.removePeer({...peer,role:peer.role==='guard'||peer.onGuard?'guard':'exit'}).catch(e=>this.log(`remove ${peer.role} peer: ${e.message}`));
   this.log(`${peer.role} peer for ${peer.deploymentId.slice(0,10)} removed (${why})`);
   await this.persist();
@@ -188,7 +193,9 @@ export class WgProvider {
    if(p.role==='probe')continue;
    if(p.control){const host=await this.hosts(p.runner).catch(()=>null);if(!host||!host.active)await this.remove(p,'host no longer registered');continue;}
    const lease=await this.leases(p.deploymentId).catch(()=>null);
-   if(!lease||!lease.active||lease.runner!==p.runner||!(lease.leaseUntil>now))await this.remove(p,'lease ended');
+   if(!lease||!lease.active||lease.runner!==p.runner||!(lease.leaseUntil>now)){await this.remove(p,'lease ended');continue;}
+   // the owner revoked or replaced the on-chain authorization, or the budget is spent: no more paid traffic
+   if(p.paidNonce){let ok=false;try{ok=paidGate({lease,hostId:this.config.hostId,pricePerGiB6:this.config.pricePerGiB6,now})===p.paidNonce;}catch{}if(!ok)await this.remove(p,'paid authorization ended');}
   }
   await this.prune();
   await this.sync();

@@ -13,6 +13,7 @@ import {LeaseReader,AdmissionGate} from './lease-reader.mjs';
 import {EnclaveNetworkManager} from './wg-manager.mjs';
 import {createNetworkHost} from './enclave-network-host.mjs';
 import {WgControlTransport} from './wg-control.mjs';
+import {createPaidNetwork} from './paid-network.mjs';
 import {ShieldHostProof} from './shield-host-proof.mjs';
 import {RoutePublisher} from './route-publisher.mjs';
 import {EgressMap} from './egress-map.mjs';
@@ -35,11 +36,11 @@ export const NETWORK_REQUIRED='enclaveNetwork configuration required: TUNA is re
 // Timely admission is independent of slow allocation and publication work. Even
 // a hung RPC, allocator or distributor cannot extend an old authorization.
 export class PrivacyAgent {
-  constructor({apps,runner,account,leaseReader,probe,distribute,directory,dns,network,qualification,now=Date.now,log=()=>{}}){
+  constructor({apps,runner,account,leaseReader,probe,distribute,directory,dns,network,qualification,paid=null,now=Date.now,log=()=>{}}){
     if(!network)throw new Error(NETWORK_REQUIRED);
     Object.assign(this,{apps,leaseReader,probe,distribute,directory,now,log,network});this.refreshing=false;this.closed=false;this.publishing=false;
     this.admission=new AdmissionGate({runner,expected:id=>this.apps.find(a=>a.deploymentId===id)?.expected,now});
-    this.manager=new EnclaveNetworkManager({runtime:network.runtime,admission:this.admission,providers:network.providers,byoConfig:network.byoConfig,probeEgress:network.probeEgress,direct:network.direct,now,log,
+    this.manager=new EnclaveNetworkManager({runtime:network.runtime,admission:this.admission,providers:network.providers,byoConfig:network.byoConfig,probeEgress:network.probeEgress,direct:network.direct,paid,now,log,
       probe:(app,circuit)=>probe(app.deploymentId,app.expected,circuit),publish:(id,routes)=>this.publisher.publish(id,routes)});
     this.publisher=new RoutePublisher({directory:path.join(directory,'routes'),account,lease:id=>leaseReader.get(id),
       policy:id=>this.manager.apps.get(id)?.policy,qualification,now,distribute:async(id,value)=>{
@@ -128,8 +129,8 @@ export async function runPrivacy(configFile){
   const guestd=cfg.guestd?new GuestdIngress({...cfg.guestd,expected:id=>apps.find(a=>a.deploymentId===id)?.expected}):
     cfg.shield?.ingress?new ShieldIngress({...cfg.shield.ingress,expected:id=>apps.find(a=>a.deploymentId===id)?.expected,key:id=>agent?.admission.proofs.get(id)?.spkiSha256}):null;
   const scheduleProbe=createProbeScheduler();
-  let wgControl=null;
-  const close=()=>{hostProof?.close();void Promise.all([agent?.close(),wgControl?.close()]).catch(e=>log(e.message));};
+  let wgControl=null,paid=null;
+  const close=()=>{hostProof?.close();void Promise.all([agent?.close(),wgControl?.close()]).then(()=>paid?.close()).catch(e=>log(e.message));};
   process.once('SIGTERM',close);process.once('SIGINT',close);
   // SIGHUP re-reads the app list: each app's expectation, names and mirror
   // flag, and any new app. Everything is validated before anything changes; no
@@ -167,8 +168,10 @@ export async function runPrivacy(configFile){
     leaseReader:{registryEntries:(...a)=>leaseReaderLate.registryEntries(...a)},directory:cfg.directory,log,fetch:networkFetch,
     authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:pvm?pvmForwarder(pvm.appPort):guestd?guestd.forward:localAppForwarder(cfg.upstream)});
   if(cfg.enclaveNetwork.control===true){wgControl=new WgControlTransport({runtime:network.runtime,providers:network.providers,log});await wgControl.start();}
-  const leaseReader=new LeaseReader({...cfg.chain,...(wgControl?{proxy:wgControl.proxies}:{})});leaseReaderLate=leaseReader;
-  agent=new PrivacyAgent({apps,runner:cfg.runner,account,leaseReader,directory:cfg.directory,dns:cfg.dns,network,log,
+  // paid providers (enclaveNetwork.paid): the lease must carry the on-chain connectivity authorization
+  const leaseReader=new LeaseReader({...cfg.chain,...(cfg.enclaveNetwork.paid?{includeConnectivity:'auto'}:{}),...(wgControl?{proxy:wgControl.proxies}:{})});leaseReaderLate=leaseReader;
+  paid=cfg.enclaveNetwork.paid?await createPaidNetwork({config:cfg.enclaveNetwork.paid,directory:path.join(cfg.directory,'paid'),leaseReader,providers:network.providers,fetchFn:networkFetch,log}):null;
+  agent=new PrivacyAgent({apps,runner:cfg.runner,account,leaseReader,directory:cfg.directory,dns:cfg.dns,network,paid,log,
     // the route publisher attaches the host's direct-hosting qualification to a direct route (v5)
     qualification:network.direct?.envelope,
     distribute:async(id,value)=>{
