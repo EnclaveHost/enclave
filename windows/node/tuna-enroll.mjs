@@ -34,11 +34,14 @@ export function baseConfig({ agentDir, binDir, nodeBinary, operatorKeyFile, runn
 }
 
 /** The privacy agent's enclaveNetwork section: every app, the box's own control circuits, the bundled binaries. */
-export function networkConfig({ binDir, nodeBinary, relayBase, checkers }) {
+export function networkConfig({ binDir, nodeBinary, relayBase, checkers, paid }) {
   const bin = (f) => path.join(binDir, f);
   if (!Array.isArray(checkers) || !checkers.length || checkers.some((c) => !/^0x[0-9a-f]{40}$/.test(c))) throw new Error("Enclave network: trusted checker addresses required");
   return { relay: relayBase, checkers, apps: "all", control: true, wgBinary: bin("enclave-wg.exe"), nodeBinary,
-    workerModule: bin("windows-circuit-worker.mjs"), firewallBinary: bin("enclave-circuit-firewall.exe") };
+    workerModule: bin("windows-circuit-worker.mjs"), firewallBinary: bin("enclave-circuit-firewall.exe"),
+    // paid providers (used only for apps whose owners authorized them on chain): this box's registry proof key signs
+    // the bandwidth receipts, its operator key pays the settlement gas; up to 0.01 USDC per provider is settled in a batch
+    ...(paid ? { paid: { proofKeyFile: paid.proofKeyFile, gasKeyFile: paid.gasKeyFile, rpc: paid.rpc || "https://base-rpc.publicnode.com", maxPending6: paid.maxPending6 || "10000" } } : {}) };
 }
 
 /**

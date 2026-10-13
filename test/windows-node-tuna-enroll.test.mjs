@@ -100,3 +100,10 @@ test("a box already on the Enclave network has leftover TUNA settings dropped wi
   assert.equal(w.restarts(), 0, "the agent ignores retired settings: nothing to restart for");
   assert.ok(w.logs.some((l) => /retired TUNA settings dropped/.test(l)));
 });
+
+test('the network config carries the box\'s paid-provider settlement keys when it has them, and nothing otherwise',async()=>{
+ const {networkConfig}=await import('../windows/node/tuna-enroll.mjs');
+ const base={binDir:'C:\\bin',nodeBinary:'node.exe',relayBase:'https://api.enclave.host',checkers:['0x'+'12'.repeat(20)]};
+ assert.equal(networkConfig(base).paid,undefined);
+ assert.deepEqual(networkConfig({...base,paid:{proofKeyFile:'p.key',gasKeyFile:'o.key'}}).paid,{proofKeyFile:'p.key',gasKeyFile:'o.key',rpc:'https://base-rpc.publicnode.com',maxPending6:'10000'});
+});

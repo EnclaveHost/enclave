@@ -3,7 +3,9 @@
 // Every change is a v5 network policy signed by the app owner (wallet, or the passkey vault's ERC-1271 signature);
 // a BYO WireGuard config is checked here, sent only to the relay (which seals it) and never shown back in full.
 import {Enclave} from "./api.js";
-import {personalSign} from "./wallet.js";
+import {personalSign,personalSignBytes,sendTx,ensureBaseChain} from "./wallet.js";
+import {baseRpc,encUint,encAddr,encBytes32,waitReceipt} from "./chain.js";
+import {ADDRESS_BOOK_ADDRESS,DEPLOYMENTS_ADDRESS,USDC_BASE} from "./config.js";
 import {eip191Hash} from "./eip191.js";
 import {validateNetworkPolicy,networkPolicyMessage,networkUse,byoConfigMessage,byoOwnerMessage} from "../../../network/network-policy-core.mjs";
 import {parseWireGuardConfig,wireGuardConfigDigest} from "../../../network/wg-config.mjs";
@@ -133,6 +135,7 @@ export async function renderEnclaveNetwork(box,id,{viaVault=false,owner=null}={}
     }catch(e){saveStatus.textContent=(e.problems||[e.message]).join(" · ");}
     finally{save.disabled=!ownerOk;}
   });
+  await renderPaidProviders(box,id,{viaVault,owner,policy,providers:status.providers}).catch(e=>{const p=document.createElement("p");p.className="en-sub";p.textContent="Paid providers: "+e.message;box.append(p);});
   if(status.byoConfig){
     const view=document.createElement("button");view.type="button";view.textContent="Show the stored WireGuard config (redacted)";
     view.addEventListener("click",async()=>{try{const expiry=Math.floor(Date.now()/1000)+300;
@@ -142,4 +145,77 @@ export async function renderEnclaveNetwork(box,id,{viaVault=false,owner=null}={}
       catch(e){check.textContent=e.message;}});
     form.querySelector("[data-for=byo-wireguard]").append(view);
   }
+}
+
+// ---- paid providers: the owner's on-chain authorization (EnclaveConnectivity.authorizeTuna) ----
+// A priced provider is used only for apps whose owner authorized exactly it, under a price cap and a budget, on chain;
+// the ledger then charges its traffic from the app's USDC balance once that balance is fully held in escrow.
+const SEL={addr:"3b3b57de",tunaPolicyDigest:"70b410fa",authorizeTuna:"dff2bdf4",backing:"23d9291e",fundEscrow:"f3920f30",approve:"095ea7b3"};
+const word=h=>h.replace(/^0x/,"").padStart(64,"0");
+const call=async(to,data)=>baseRpc("eth_call",[{to,data},"latest"],{emptyRetry:true});
+async function connectivityAddress(){
+  const out=await call(ADDRESS_BOOK_ADDRESS,"0x"+SEL.addr+word(hex(new TextEncoder().encode("connectivity")).slice(2).padEnd(64,"0")));
+  const a="0x"+String(out).slice(-40);return /^0x0{40}$/.test(a)?null:a;
+}
+function tunaArgs({id,providers,expires,maxPricePerGiB6,budget6}){
+  return {head:[encBytes32(id),encUint(5*32),encUint(expires),encUint(maxPricePerGiB6),encUint(budget6)],arr:[encUint(providers.length),...providers.map(encBytes32)]};
+}
+export function tunaPolicyDigestCall(args){const {head,arr}=tunaArgs(args);return "0x"+SEL.tunaPolicyDigest+head.join("")+arr.join("");}
+export function authorizeTunaCall(args,signature){
+  const {head,arr}=tunaArgs(args),sig=String(signature).replace(/^0x/,"");
+  return "0x"+SEL.authorizeTuna+[head[0],encUint(6*32),head[2],head[3],head[4],encUint(6*32+arr.length*32)].join("")+arr.join("")+encUint(sig.length/2)+sig.padEnd(Math.ceil(sig.length/64)*64,"0");
+}
+export async function renderPaidProviders(box,id,{viaVault=false,owner=null,policy,providers}){
+  const paid=(providers||[]).filter(p=>p.kind==="community"&&Number(p.pricePerGiB6)>0);
+  const sec=document.createElement("div");sec.className="en-paid";
+  const cap=Number(policy.enclaveNetwork?.maxPricePerGiB6||0),budget=Number(policy.enclaveNetwork?.budget6||0);
+  if(!paid.length){sec.innerHTML=`<p class="en-sub">Paid providers: none offered right now (every current provider is free). When a qualified community provider charges for traffic, you authorize it here, on chain, under your price limit and budget.</p>`;box.append(sec);return;}
+  sec.innerHTML=`<fieldset><legend>Paid providers</legend>
+    ${paid.map(p=>`<label class="en-opt"><input type="checkbox" name="paid" value="${esc(p.hostId)}" data-price="${Number(p.pricePerGiB6)}"> ${esc(p.region)} ${esc(p.address)} — ${usdc(p.pricePerGiB6)} USDC per GiB</label>`).join("")}
+    <label>For <input name="days" inputmode="numeric" size="3" value="30"> days</label>
+    <button type="button" data-authorize>Authorize on chain</button> <span class="en-sub" role="status" data-paid></span>
+    <p class="en-sub">Your setting caps the price (${usdc(cap)} USDC per GiB for a whole route) and the budget (${usdc(budget)} USDC). Traffic through these providers is charged from this app's USDC balance; the ledger first asks for that balance to be held in escrow, and you are asked to top it up when it does. Revoke by authorizing nothing (budget 0).</p></fieldset>`;
+  box.append(sec);
+  const btn=sec.querySelector("[data-authorize]"),out=sec.querySelector("[data-paid]");
+  const ownerOk=viaVault||(owner&&Enclave.address&&Enclave.address.toLowerCase()===String(owner).toLowerCase());
+  if(!ownerOk){btn.disabled=true;out.textContent="Connect the app owner's wallet to authorize providers.";return;}
+  btn.addEventListener("click",async()=>{
+    btn.disabled=true;
+    try{
+      const chosen=[...sec.querySelectorAll("input[name=paid]:checked")];if(!chosen.length||chosen.length>6)throw new Error("Choose one to six providers.");
+      const total=chosen.reduce((a,c)=>a+Number(c.dataset.price),0);
+      if(!cap||!budget)throw new Error("Save a price limit and a budget above first.");
+      if(total>cap)throw new Error(`These providers cost ${usdc(total)} USDC per GiB together, above your limit of ${usdc(cap)}.`);
+      const days=Number(sec.querySelector("input[name=days]").value);if(!(days>=1&&days<=30))throw new Error("1 to 30 days.");
+      const conn=await connectivityAddress();if(!conn)throw new Error("Paid providers are not active yet: the connectivity contract is not published in the address book.");
+      const args={id,providers:chosen.map(c=>c.value),expires:Math.floor(Date.now()/1000)+days*86400,maxPricePerGiB6:cap,budget6:budget};
+      if(viaVault){
+        out.textContent="Confirm with your passkey.";
+        const q={id,mode:"tuna",providers:args.providers,expires:String(args.expires),maxPricePerGiB6:String(cap),budget6:String(budget)};
+        const prep=await Enclave.vaultPrepare({op:"network",...q});
+        if(prep.id!==id||JSON.stringify(prep.providers)!==JSON.stringify(q.providers)||prep.address?.toLowerCase()!==conn.toLowerCase())throw new Error("The prepared authorization does not match what you chose.");
+        const b64u=b=>btoa(String.fromCharCode(...b)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+        const {startAuthentication}=await import("/vendor/webauthn.js");
+        const asr=await startAuthentication({optionsJSON:{challenge:b64u(new Uint8Array(prep.digest.slice(2).match(/../g).map(h=>parseInt(h,16)))),allowCredentials:[{id:prep.credId,type:"public-key"}],userVerification:"preferred",timeout:120000}});
+        await Enclave.vaultExec({op:"network",args:q,assertion:{credId:asr.id,authenticatorData:asr.response.authenticatorData,clientDataJSON:asr.response.clientDataJSON,signature:asr.response.signature}});
+      }else{
+        await ensureBaseChain();
+        const digest=await call(conn,tunaPolicyDigestCall(args));
+        out.textContent="Sign the authorization in your wallet.";
+        const data=authorizeTunaCall(args,await personalSignBytes(digest));
+        out.textContent="Send the authorization transaction.";
+        await waitReceipt(await sendTx(conn,data));
+      }
+      // the ledger charges bandwidth only from escrowed USDC: top it up if it asks
+      const backing=BigInt(await call(DEPLOYMENTS_ADDRESS,"0x"+SEL.backing+encBytes32(id)));
+      if(backing>0n){
+        if(viaVault){out.textContent=`Authorized. Before paid traffic can be charged, the ledger needs ${usdc(backing)} USDC more in this app's escrow (fundEscrow): send it from a wallet.`;return;}
+        out.textContent=`Authorized. Approve and add ${usdc(backing)} USDC to this app's escrow (the ledger needs the balance held before it charges bandwidth).`;
+        await waitReceipt(await sendTx(USDC_BASE,"0x"+SEL.approve+encAddr(DEPLOYMENTS_ADDRESS)+encUint(backing)));
+        await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS,"0x"+SEL.fundEscrow+encBytes32(id)+encUint(backing)));
+      }
+      out.textContent="Authorized. Hosts start using these providers within a few minutes.";
+    }catch(e){out.textContent=e.message;}
+    finally{btn.disabled=false;}
+  });
 }
