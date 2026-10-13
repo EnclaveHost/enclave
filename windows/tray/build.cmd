@@ -20,11 +20,11 @@ if "%RC%"=="0" if exist ui rmdir /s /q ui
 if "%RC%"=="0" mkdir ui
 if "%RC%"=="0" for %%f in (index.html app.css app.js bridge.js text.js) do copy /y "%UI%\%%f" "ui\%%f" >nul || set RC=6
 set "REFS=/r:System.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Web.Extensions.dll /r:Microsoft.Web.WebView2.Core.dll /r:Microsoft.Web.WebView2.WinForms.dll"
-if "%RC%"=="0" "%CSC%" /nologo /target:winexe /platform:x64 /optimize+ /warn:4 /out:EnclaveTray.exe %REFS% EnclaveTray.cs
+if "%RC%"=="0" "%CSC%" /nologo /target:winexe /platform:x64 /optimize+ /warn:4 /out:EnclaveTray.exe %REFS% EnclaveTray.cs TrayTheme.cs
 if "%RC%"=="0" set RC=%ERRORLEVEL%
 if "%RC%"=="0" EnclaveTray.exe --write-icon EnclaveTray.ico
 if "%RC%"=="0" if not exist EnclaveTray.ico set RC=3
-if "%RC%"=="0" "%CSC%" /nologo /target:winexe /platform:x64 /optimize+ /warn:4 /win32icon:EnclaveTray.ico /out:EnclaveTray.exe %REFS% EnclaveTray.cs
+if "%RC%"=="0" "%CSC%" /nologo /target:winexe /platform:x64 /optimize+ /warn:4 /win32icon:EnclaveTray.ico /out:EnclaveTray.exe %REFS% EnclaveTray.cs TrayTheme.cs
 if "%RC%"=="0" set RC=%ERRORLEVEL%
 popd
 if not "%RC%"=="0" (echo build: FAILED, exit %RC% & exit /b %RC%)
