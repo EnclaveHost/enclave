@@ -55,7 +55,7 @@ async function rig() {
     const nonce = Buffer.from((await wait(frames, (f) => f.t === "challenge")).nonce, "base64");
     return { nonce, ws, send: (f) => ws.send(JSON.stringify(f)), result: () => wait(frames, (f) => f.t === "attest-result") };
   };
-  return { hub, relay, operator, owner, ownerId, cosigner, journalFile, phone, radFor, instanceProof, open,
+  return { hub, relay, operator, owner, ownerId, cosigner, journalFile, phone, radFor, instanceProof, open, rootPin: ca.rootPin,
            close: () => { for (const s of sockets) s.close(); srv.close(); cosigner.close(); } };
 }
 
@@ -165,4 +165,30 @@ test("the HTTP wrapper: loopback only; POST /attach-sign answers the co-signer's
     assert.equal(no.status, 403); assert.match(no.json.error, /must be exactly|own name/);
     assert.equal((await post("/sign", {})).status, 404);
   } finally { if (w) w.close(); R.close(); }
+});
+
+test("on the phone (learnInstance): nothing is pinned by a request that fails any other check; the first that passes pins its instance; every other instance is refused after", { skip, timeout: 60000 }, async () => {
+  const R = await rig();
+  try {
+    const learned = [];
+    const mk = (journal) => createAttachCosigner({ account: R.operator, name: "pixel-owned", relay: R.relay, codeHashes: [PVMCODE.toString("hex")], authorityHashes: [AUTH.toString("hex")],
+      rootPins: [R.rootPin], instanceIds: [], learnInstance: (id) => learned.push(id), journalFile: path.join(path.dirname(R.journalFile), journal) });
+    assert.throws(() => createAttachCosigner({ account: R.operator, name: "pixel-owned", relay: R.relay, codeHashes: [PVMCODE.toString("hex")], authorityHashes: [AUTH.toString("hex")],
+      instanceIds: [], journalFile: path.join(path.dirname(R.journalFile), "x.jsonl") }), /instanceIds must be a non-empty list/, "no pin and no learning: refused at start");
+    const c = mk("learn.jsonl"), p = R.phone();
+    const nonces = [0, 1, 2, 3, 4].map((i) => createHash("sha256").update(`learn ${i}`).digest());
+    const req = (inst, n, opts) => { const x = R.radFor(p, n, opts); return { relay: R.relay, name: "pixel-owned", nonce: n.toString("base64"), rad: x.rad, ...R.instanceProof(inst, x.B) }; };
+    const first = generateKeyPairSync("ed25519"), second = generateKeyPairSync("ed25519");
+    // another build, and an instance signature over another transcript: refused, and nothing learned
+    let r = await c.sign(req(first, nonces[0], { code: OTHER_BUILD })); assert.equal(r.ok, false);
+    { const x = R.radFor(p, nonces[1]), y = R.radFor(p, nonces[2]);
+      r = await c.sign({ relay: R.relay, name: "pixel-owned", nonce: nonces[1].toString("base64"), rad: x.rad, ...R.instanceProof(first, y.B) }); assert.equal(r.ok, false); }
+    assert.deepEqual(learned, []);
+    r = await c.sign(req(first, nonces[3])); assert.equal(r.ok, true, r.reason);
+    const firstId = sha(first.publicKey.export({ type: "spki", format: "der" }));
+    assert.deepEqual(learned, [firstId]);
+    r = await c.sign(req(second, nonces[4])); assert.equal(r.ok, false); assert.match(r.reason, /is not one of the owner's/);
+    assert.deepEqual(learned, [firstId]);
+    c.close();
+  } finally { R.close(); }
 });
