@@ -177,8 +177,17 @@ export function createLocalPvmDevice({ files, apk = null, control, pkg = RELEASE
         s.on("error", (e) => { clearTimeout(t); reject(e); });
         s.on("close", () => { clearTimeout(t); resolve(Buffer.concat(chunks).toString("utf8")); });
       });
-      const a = await once();
-      if (/bridge: AUTH <token> first/.test(a)) { token = null; await readToken(); return once(); }
+      // the VM's process opens its bridges just after it logs "serving": on the phone itself (no adb round trip) the first
+      // connect can come before the listener (measured 2026-10-13: ECONNREFUSED right after vm-serving), so a refused
+      // connection is tried again for up to 10 s
+      const tryOnce = async () => {
+        for (let i = 0; ; i++) {
+          try { return await once(); }
+          catch (e) { if (e.code !== "ECONNREFUSED" || i >= 20) throw e; await sleep(500); }
+        }
+      };
+      const a = await tryOnce();
+      if (/bridge: AUTH <token> first/.test(a)) { token = null; await readToken(); return tryOnce(); }
       return a;
     }
 
