@@ -1,0 +1,473 @@
+// (B) OWNER-ONLY serving on the NucBox's hv-node row (enclave-87, 2026-09-26), end to end on the REAL relay (api-relay.js).
+// The row serves a deployment D only when, AT DECISION TIME: D's LEDGER OWNER is served now (the row's operator: the name's
+// on-chain owner, who signed the v2 attach and is in RELAY_HVNODE_OPERATORS; or an owner whose hosting delegation to it has
+// not expired), THIS row holds D's live lease, and D's envelope requires hyperv-partition-per-app (E4); and only on the raw
+// admission published in the route map (the Enclave network). The control API refuses application streams. RELAY_HVNODE_OPERATORS grants
+// nothing but that (not dialing, not operator attach, not the relay roster), and TRUSTED_OPERATORS ("*" included) never
+// implies it.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import http from "node:http";
+import net from "node:net";
+import fs from "node:fs";
+import path from "node:path";
+import { spawn } from "node:child_process";
+import { createHash, sign as edSign } from "node:crypto";
+import { fileURLToPath } from "node:url";
+import WebSocket from "ws";
+import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
+import { keccak256, stringToBytes, toFunctionSelector, encodeFunctionResult } from "viem";
+import { bootDaemon, listenOnFreePort } from "./helpers/daemon.mjs";
+import { haveOpenssl, tmpdir, makeVbsWorld, buildLog, buildQuote } from "./fixtures/vbs-synthetic.mjs";
+import { activateCredential } from "../relay/vbs-credential.mjs";
+import { HVNODE_FORMAT, hvNodeBinding } from "../relay/hvnode-verify.mjs";
+import { delegationText, attachMessageV2 } from "../relay/host-delegation.mjs";
+import { selfRoutedUrl } from "../relay/tunnel.js";
+import { enclaveClassOf } from "../site/js/core/pricing.js";
+import { randomBytes } from "node:crypto";
+import { RoutePublisher } from "../network/route-publisher.mjs";
+import { defaultNetworkPolicy, validateNetworkPolicy } from "../network/network-policy.mjs";
+import { signProviderRecord, signQualification, providerIdFor, CHECKS } from "../network/provider-directory.mjs";
+
+const RELAY_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "relay");
+// the public anvil development keys: #0 a delegating owner, #1 the box's operator, #2 a stranger
+const OWNER = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+const OPERATOR = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d");
+const STRANGER = privateKeyToAccount("0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a");
+const REG = "0x" + "34".repeat(20), LEDGER = "0x" + "56".repeat(20), NAME = "nucbox-k11";
+const ENDPOINT = `https://api.enclave.host/t/${NAME}`, EP_ID = keccak256(stringToBytes(ENDPOINT)).toLowerCase();
+const OTHER_EP = keccak256(stringToBytes("https://api.enclave.host/t/elsewhere")).toLowerCase();
+const dep = (n) => "0x" + String(n).repeat(64).slice(0, 64);
+// the ledger (all leased to the box unless said): the operator's own, a delegating owner's, a stranger's, the operator's own
+// leased ELSEWHERE; and E4's: the delegating owner's SNP-required app, their app requiring nothing (served: no requirement
+// means the partition backend), the operator's SNP-required
+const D_OWN = dep("a1"), D_DELEG = dep("b2"), D_STRANGER = dep("c3"), D_ELSEWHERE = dep("d4"), D_SNP = dep("e5"), D_NOREQ = dep("f6"), D_OP_SNP = dep("a7");
+const HV_ENV = JSON.stringify({ isolation: { require: "hyperv-partition-per-app" } }), SNP_ENV = JSON.stringify({ isolation: { require: "snp-guest-per-app" } });
+const DEP_TUPLE = [["id", "bytes32"], ["owner", "address"], ["appRef", "string"], ["ports", "string"], ["configCid", "string"], ["gpuMilli", "uint16"],
+  ["cpuMilli", "uint16"], ["appPort", "uint32"], ["isPublic", "bool"], ["active", "bool"], ["createdAt", "uint64"], ["rate", "uint256"], ["balance6", "uint256"],
+  ["spent6", "uint256"], ["runner", "bytes32"], ["runnerOperator", "address"], ["leaseUntil", "uint64"]].map(([name, type]) => ({ name, type }));
+const PAGE = [{ type: "function", name: "getPage", stateMutability: "view", inputs: [{ type: "uint256" }, { type: "uint256" }], outputs: [{ type: "tuple[]", components: DEP_TUPLE }] }];
+const U256 = (fn) => [{ type: "function", name: fn, stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }];
+const REG_ENTRY = [["endpoint", "string"], ["repo", "string"], ["measurement", "bytes32"], ["operator", "address"], ["registeredAt", "uint64"], ["lastSeen", "uint64"], ["active", "bool"]].map(([name, type]) => ({ name, type }));
+const REG_GET = [{ type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: REG_ENTRY }] }];
+const lease = BigInt(Math.floor(Date.now() / 1000) + 3600);
+const row = (id, owner, runner, configCid = HV_ENV) => ({ id, owner: owner.address, appRef: "catalog://0x" + "5a".repeat(32) + "/1", ports: "", configCid, gpuMilli: 0, cpuMilli: 100, appPort: 0,
+  isPublic: true, active: true, createdAt: 1n, rate: 1n, balance6: 10n ** 6n, spent6: 0n, runner, runnerOperator: OPERATOR.address, leaseUntil: lease });
+const BASE_ROWS = [row(D_OWN, OPERATOR, EP_ID), row(D_DELEG, OWNER, EP_ID), row(D_STRANGER, STRANGER, EP_ID), row(D_ELSEWHERE, OPERATOR, OTHER_EP),
+                   row(D_SNP, OWNER, EP_ID, SNP_ENV), row(D_NOREQ, OWNER, EP_ID, ""), row(D_OP_SNP, OPERATOR, EP_ID, SNP_ENV)];
+let ROWS = BASE_ROWS;
+// the registry's answer for the box's name: its owner, or (registryDown) an RPC error (an outage)
+let registryOwner = null, registryDown = false, registryUnregistered = false;   // a test may swap the ledger (a transfer) and restores it
+
+function chainStub() {
+  return http.createServer((req, res) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => {
+    const q = JSON.parse(b || "{}");
+    const one = (m) => {
+      let result = "0x" + "0".repeat(64);
+      if (m.method === "eth_chainId") result = "0x2105";
+      else if (m.method === "eth_call") {
+        const to = String(m.params[0].to || "").toLowerCase(), data = String(m.params[0].data || "");
+        if (to === REG && data.startsWith(toFunctionSelector("get(bytes32)")) && registryDown) return { jsonrpc: "2.0", id: m.id, error: { code: -32000, message: "registry RPC down (test)" } };
+        if (to === REG && data.startsWith(toFunctionSelector("get(bytes32)"))) {
+          const id = ("0x" + data.slice(10, 74)).toLowerCase();
+          result = encodeFunctionResult({ abi: REG_GET, functionName: "get", result: id === EP_ID && !registryUnregistered
+            ? { endpoint: ENDPOINT, repo: "EnclaveHost/enclave", measurement: "0x" + "00".repeat(32), operator: registryOwner || OPERATOR.address, registeredAt: 1n, lastSeen: 1n, active: true }
+            : { endpoint: "", repo: "", measurement: "0x" + "00".repeat(32), operator: "0x" + "00".repeat(20), registeredAt: 0n, lastSeen: 0n, active: false } });
+        } else if (to === LEDGER && data.startsWith(toFunctionSelector("deploymentsSchema()"))) result = encodeFunctionResult({ abi: U256("deploymentsSchema"), functionName: "deploymentsSchema", result: 2n });
+        else if (to === LEDGER && data.startsWith(toFunctionSelector("count()"))) result = encodeFunctionResult({ abi: U256("count"), functionName: "count", result: BigInt(ROWS.length) });
+        else if (to === LEDGER && data.startsWith(toFunctionSelector("getPage(uint256,uint256)"))) result = encodeFunctionResult({ abi: PAGE, functionName: "getPage", result: ROWS });
+      }
+      return { jsonrpc: "2.0", id: m.id, result };
+    };
+    res.setHeader("content-type", "application/json"); res.end(JSON.stringify(Array.isArray(q) ? q.map(one) : one(q)));
+  }); });
+}
+async function startRelay(t, env) {
+  const rpc = chainStub(); await listenOnFreePort(rpc);
+  const boot = await bootDaemon({
+    start: (port) => spawn(process.execPath, [path.join(RELAY_DIR, "api-relay.js")], {
+      env: { ...process.env, ENCLAVES: "http://127.0.0.1:1", API_RELAY_PORT: String(port), API_RELAY_BIND: "127.0.0.1", BASE_RPC: `http://127.0.0.1:${rpc.address().port}`,
+             RPC_FALLBACKS: "0", REGISTRY_ADDRESS: REG, DEPLOYMENTS_ADDRESS: LEDGER, FEATURED_VIEWS_FILE: path.join(tmpdir("feat-"), "v.json"),
+             AVAIL_POLL_SEC: "1", ...networkEnv(), ...env },
+      // its own working directory: without AUTH_DATA_DIR the relay keeps the network store (network.json) in the cwd
+      cwd: tmpdir("relay-cwd-"), stdio: ["ignore", "pipe", "pipe"] }),
+    claimed: (log, port) => log.includes(`[api-relay] :${port}`),
+    ready: async (port) => (await fetch(`http://127.0.0.1:${port}/health`)).ok,
+  });
+  const { child, port } = boot;
+  t.after(() => { child.kill("SIGKILL"); rpc.close(); });
+  const origin = new String(`http://127.0.0.1:${port}`); origin.log = () => { let out = ""; try { out = boot.log(); } catch {} return out; };
+  return origin;
+}
+const waitFor = async (fn, ms = 20000) => { const until = Date.now() + ms; for (;;) { const v = await fn(); if (v) return v; if (Date.now() > until) return null; await new Promise((r) => setTimeout(r, 150)); } };
+const STATEMENT = Buffer.from(JSON.stringify({ stated: true, backend: "custom-type1", tier: "t0-hv", hostExcluded: false, derivations: [] }));
+// the node's own word: a GPU, capacity, a price, and a RELAY declaration (none of which the relay may act on for an hv-node)
+const AVAILABILITY = { gpu: true, type: "cpu", teeCpu: "amd-sev-snp", cpuShareFree: 0.75, maxShare: 0.75, nodeVcpus: 16, nodeRamGb: 64, claimEnabled: true,
+                       pricing: { gpuRate6: 1, cpuRate6: 1 }, relay: { address: "203.0.113.9", services: { https: true } } };
+
+// the node: the hv-node handshake with an operator signature (v2 by default) and optional delegations; it answers
+// /availability, and records every splice the hub opens to it (the replayed request line)
+async function attachHv(origin, w, { sig = "v2", signer = OPERATOR, delegations = [], keepOpen = false } = {}) {
+  const ws = new WebSocket(origin.replace(/^http/, "ws") + "/v1/fleet-tunnel", { headers: { "x-metal-name": NAME, "x-metal-attest": "1" } });
+  const frames = [], splices = [];
+  ws.on("message", (d) => {
+    let f; try { f = JSON.parse(d); } catch { return; } frames.push(f);
+    if (f.t === "req") ws.send(JSON.stringify({ t: "res", id: f.id, status: f.path.startsWith("/availability") ? 200 : 404, headers: { "content-type": "application/json" },
+                                                body: Buffer.from(JSON.stringify(f.path.startsWith("/availability") ? AVAILABILITY : {})).toString("base64") }));
+    if (f.t === "s+") ws.send(JSON.stringify({ t: "s=", sid: f.sid, ok: true }));
+    if (f.t === "sd") { const l = Buffer.from(f.d, "base64").toString("latin1").split("\r\n")[0]; if (l.startsWith("GET ")) splices.push(l);
+                        if (!keepOpen) ws.send(JSON.stringify({ t: "sx", sid: f.sid })); }
+  });
+  await new Promise((r) => { ws.on("open", r); ws.on("error", r); });
+  const chal = await waitFor(() => frames.find((f) => f.t === "challenge"));
+  const nonce = Buffer.from(chal.nonce, "base64");
+  ws.send(JSON.stringify({ t: "vbs-keys", ek: w.ek.cert.toString("base64"), ekChain: [w.ca.inter.toString("base64")], aikPub: w.aik.tpmtPublic.toString("base64"), aikName: w.aik.name.toString("base64") }));
+  const cred = await waitFor(() => frames.find((f) => f.t === "vbs-credential" || f.t === "attest-result"));
+  if (!cred || cred.t !== "vbs-credential") return { ok: false, reason: cred?.reason, ws, chal };
+  const credential = activateCredential(w.ek.privateKey, w.aik.name, Buffer.from(cred.credentialBlob, "base64"), Buffer.from(cred.secret, "base64"));
+  const bound = hvNodeBinding(w.transport.spki, nonce, STATEMENT);
+  const L = buildLog({ idksPub: w.idks.publicKey });
+  const Q = buildQuote({ aikPriv: w.aik.privateKey, aikName: w.aik.name, pcrs: L.pcrs, pcr0: w.pcr0, extraData: createHash("sha256").update(bound).digest() });
+  const body = { statement: STATEMENT.toString("base64"), signature: edSign(null, bound, w.transport.privateKey).toString("base64"), log: L.log.toString("base64"),
+                 quote: { attest: Q.attest.toString("base64"), sig: Q.sig.toString("base64"), aikPub: w.aik.tpmtPublic.toString("base64") }, credential: credential.toString("base64"),
+                 ek: { cert: w.ek.cert.toString("base64"), chain: [w.ca.inter.toString("base64")] }, pcr0: w.pcr0.toString("hex"), platform: {} };
+  const keyFp = createHash("sha256").update(w.transport.spki).digest("hex"), ekSha = createHash("sha256").update(w.ek.cert).digest("hex");
+  const msg = sig === "v2" ? attachMessageV2(NAME, chal.nonce, keyFp, ekSha) : `enclave-tunnel-attach:${NAME}:${chal.nonce}`;
+  ws.send(JSON.stringify({ t: "attest", operatorSig: await signer.signMessage({ message: msg }),
+                           rad: { format: HVNODE_FORMAT, transportKey: w.transport.spki.toString("base64"), body: Buffer.from(JSON.stringify(body)).toString("base64"), delegations } }));
+  const res = await waitFor(() => frames.find((f) => f.t === "attest-result"));
+  if (res?.ok) ws.send(JSON.stringify({ t: "hello", mode: "snp", publicUrl: ENDPOINT }));
+  return { ok: !!res?.ok, reason: res?.reason, ws, splices, chal };
+}
+const delegation = async (o = {}) => {
+  const message = delegationText({ owner: OWNER.address, operator: OPERATOR.address, box: NAME, chain: 8453, registry: REG, expires: Math.floor(Date.now() / 1000) + 90 * 86400, ...o });
+  return { message, signature: await (o.signer || OWNER).signMessage({ message }) };
+};
+// RFC 6455's sample key ("the sample nonce"), computed so no key-shaped literal sits in the source
+const WS_KEY = Buffer.from("the sample nonce").toString("base64");
+// a raw upgrade through the relay: the status line it answers
+function upgrade(origin, p) {
+  return new Promise((resolve) => {
+    const u = new URL(origin), s = net.connect(Number(u.port), u.hostname);
+    let got = "";
+    s.on("data", (c) => { got += c.toString("latin1"); if (got.includes("\r\n")) { s.destroy(); resolve(got.split("\r\n")[0]); } });
+    s.on("close", () => resolve(got.split("\r\n")[0] || "(closed)")); s.on("error", () => resolve("(error)"));
+    s.write(`GET ${p} HTTP/1.1\r\nHost: api.enclave.host\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: ${WS_KEY}\r\nSec-WebSocket-Version: 13\r\n\r\n`);
+    setTimeout(() => { s.destroy(); resolve(got.split("\r\n")[0] || "(timeout)"); }, 8000);
+  });
+}
+const rowOf = async (origin) => { const j = await (await fetch(origin + "/enclaves")).json(); return (j.enclaves || []).find((e) => e.name === NAME) || null; };
+
+
+// The Enclave network on the test relay (docs/design/enclave-network.md): one exit at 1.1.1.1, qualified by the relay's
+// trusted checker, and per-app v5 route publications signed exactly as a host's route publisher signs them.
+const CHECKER = privateKeyToAccount(generatePrivateKey()), PROVIDER_OP = privateKeyToAccount(generatePrivateKey()), EXIT = "1.1.1.1";
+const networkEnv = () => ({ RELAY_NETWORK_CHECKERS: CHECKER.address.toLowerCase(), TUNA_ROUTE_STATE_DIR: tmpdir("route-state-") });
+async function qualifyExit(origin) {
+  const now = Date.now(), K = () => randomBytes(32).toString("base64");
+  const record = { version: 1, providerId: providerIdFor(PROVIDER_OP.address, EXIT), operator: PROVIDER_OP.address.toLowerCase(), address: EXIT, wgExitKey: K(), wgGuardKey: K(),
+    ports: { exit: 51820, guard: 51821, control: 51822 }, roles: ["guard", "ingress", "egress"], pricePerGiB6: 0, region: "test", kind: "enclave", hostId: null, issuedAt: now, expiresAt: now + 1800000 };
+  const post = (p, body) => fetch(origin + p, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const r1 = await post("/v1/network/providers", await signProviderRecord(PROVIDER_OP, record));
+  assert.equal(r1.status, 200, await r1.text());
+  const r2 = await post("/v1/network/qualifications", await signQualification(CHECKER, { version: 1, providerId: record.providerId, operator: record.operator, address: EXIT,
+    wgExitKey: record.wgExitKey, wgGuardKey: record.wgGuardKey, roles: record.roles, checks: Object.fromEntries(CHECKS.map((c) => [c, true])), issuedAt: now, expiresAt: now + 600000 }));
+  assert.equal(r2.status, 200, await r2.text());
+}
+// every deployment leased to this box publishes its route through the exit (the relay's map then admits only the ones
+// the box may serve); -> the first refusal, or the last success
+async function publishRoutes(origin, signer = OPERATOR) {
+  const dir = tmpdir("route-publisher-");
+  let last;
+  for (const d of ROWS.filter((r) => r.runner === EP_ID)) {
+    const lease = { id: d.id, runner: EP_ID, runnerOperator: signer.address, owner: d.owner, chainId: 8453, deployments: LEDGER, active: true, isPublic: true,
+      leaseUntil: Number(d.leaseUntil) * 1000, validUntil: Date.now() + 60000 };
+    const policy = validateNetworkPolicy(defaultNetworkPolicy(d.id));
+    const bundle = await new RoutePublisher({ directory: dir, account: signer, lease: () => lease, policy: () => policy, distribute: async () => {} })
+      .publish(d.id, [{ circuit: "c".repeat(32), address: EXIT, port: 443, transport: "enclave-network" }]);
+    last = await fetch(origin + "/v1/network/tuna", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ publication: { version: 2, endpoint: ENDPOINT, policy, bundle } }) });
+    if (last.status !== 200) break;
+  }
+  fs.rmSync(dir, { recursive: true, force: true });
+  return last;
+}
+const routeMap = async origin => (await fetch(origin + "/v1/network/tuna")).json();
+
+const lc = (a) => a.address.toLowerCase();
+const hvWorld = (t) => { const dir = tmpdir("hv-owner-"); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const w = makeVbsWorld(dir); const roots = path.join(dir, "ek-roots.pem"); fs.writeFileSync(roots, w.ca.bundlePem); return { w, roots }; };
+
+for (const [label, ops] of [["listed operator", () => lc(OPERATOR)], ["RELAY_HVNODE_OPERATORS=* (the open market)", () => "*"]])
+test(`owner-only (${label}): served now + this row's lease + isolation.require hyperv-partition-per-app -> a signed route; every other deployment is absent; the row stays ineligible, unplaced, unpriced and off the relay roster`,
+     { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
+  const { w, roots } = hvWorld(t);
+  // the operator is in RELAY_HVNODE_OPERATORS (or it is "*") and NOT in TRUSTED_OPERATORS (the default list stays)
+  const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, RELAY_HVNODE_OPERATORS: ops(), TUNNEL_OPERATOR_ATTACH: "1" });
+  const exp = Math.floor(Date.now() / 1000) + 90 * 86400;
+  const good = await delegation({ expires: exp }), otherBox = await delegation({ box: "other-box" }), byStranger = await delegation({ signer: STRANGER });
+  const a = await attachHv(origin, w, { delegations: [good, otherBox, byStranger] });
+  t.after(() => { try { a.ws.close(); } catch {} });
+  assert.equal(a.ok, true, a.reason);
+  assert.deepEqual(a.chal.sigVersions, [1, 2], "the challenge offers the v2 operator signature");
+  const r = await waitFor(async () => { const x = await rowOf(origin); return x && x.availability && x.id === EP_ID && Array.isArray(x.servesDeployments) && x.servesDeployments.length ? x : null; });
+  assert.ok(r, "the owner-only row is listed with its stamped id and the deployments it carries");
+  assert.equal(r.mode, "hv-node"); assert.equal(r.eligible, false); assert.equal(r.serving, false); assert.equal(r.ownerOnly, true);
+  assert.equal(r.operator, lc(OPERATOR));
+  assert.deepEqual(r.served, [{ owner: lc(OPERATOR), expires: null }, { owner: lc(OWNER), expires: exp }], "operator (no expiry) + the ONE valid delegation, with its expiry");
+  assert.deepEqual(r.servesDeployments, [{ id: D_OWN, until: Number(lease) }, { id: D_DELEG, until: Math.min(Number(lease), exp) },
+    { id: D_NOREQ, until: Math.min(Number(lease), exp) }],
+    "only served owners' deployments leased to THIS row AND requiring hyperv-partition-per-app or no backend (E4)");
+  assert.match(r.ineligible, /serves only deployments that require hyperv-partition-per-app/);
+  // (b) never eligible, never placed, never priced, never a TEE
+  const all = await (await fetch(origin + "/enclaves")).json();
+  assert.equal(all.aggregate.serving, 0, "no serving row"); assert.equal(all.aggregate.totalCpuShareFree, 0, "its capacity is never counted");
+  assert.equal((await fetch(origin + "/route?gpuShare=0&cpuShare=0.1")).status, 503, "placement never picks it");
+  assert.equal(enclaveClassOf(r).inTee, false, "a card on an hv-node host is never a TEE GPU, whatever it says (gpu:true here)");
+  // (a) its relay declaration never reaches the roster (so neither the labels nor DNS)
+  const relays = await (await fetch(origin + "/v1/relays")).json();
+  assert.ok(!(relays.relays || []).some((x) => x.name === NAME || x.address === "203.0.113.9"), "never a relay");
+  // Route publications are joined to this verified owner-only admission, never to self-reported capacity.
+  await qualifyExit(origin);
+  const published = await publishRoutes(origin);
+  assert.equal(published.status, 200, await published.text());
+  const map = await routeMap(origin);
+  assert.deepEqual(Object.keys(map.deployments).sort(), [D_OWN, D_DELEG, D_NOREQ].sort());
+  for (const d of [D_OWN, D_DELEG, D_NOREQ]) {
+    assert.deepEqual(map.deployments[d].https, { address: "1.1.1.1", port: 443 });
+    assert.equal(map.labels[d.slice(2, 10)].a, "1.1.1.1");
+  }
+  const denied = await publishRoutes(origin, STRANGER);
+  assert.equal(denied.status, 400);
+  assert.match(await denied.text(), /not signed by current runner/);
+  for (const d of [D_OWN, D_DELEG, D_STRANGER, D_SNP]) {
+    assert.match(await upgrade(origin, `/t/${NAME}/x/${d}/https`), /410/);
+    assert.equal((await fetch(`${origin}/t/${NAME}/x/${d}/`)).status, 410);
+    assert.equal((await fetch(`${origin}/t/${NAME}/v1/deployments/${d}/restart`, { method: "POST" })).status, 503);
+  }
+  assert.equal(a.splices.length, 0, "the control tunnel never carries application streams");
+});
+
+test("owner-only needs a v2 signature by an operator in RELAY_HVNODE_OPERATORS (or \"*\" there: the open market); TRUSTED_OPERATORS (\"*\" included) never implies it: HOST-ONLY",
+     { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
+  for (const [label, env, opts] of [["v1 signature", { RELAY_HVNODE_OPERATORS: lc(OPERATOR) }, { sig: "v1" }],
+                                    ["v1 signature, RELAY_HVNODE_OPERATORS=*", { RELAY_HVNODE_OPERATORS: "*" }, { sig: "v1" }],
+                                    ["operator in TRUSTED_OPERATORS only", { TRUSTED_OPERATORS: lc(OPERATOR) }, {}],
+                                    ["TRUSTED_OPERATORS=*", { TRUSTED_OPERATORS: "*" }, {}],
+                                    ["another operator listed", { RELAY_HVNODE_OPERATORS: lc(STRANGER) }, {}]]) {
+    const { w, roots } = hvWorld(t);
+    const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, ...env });
+    const a = await attachHv(origin, w, { ...opts, delegations: [await delegation()] });
+    t.after(() => { try { a.ws.close(); } catch {} });
+    assert.equal(a.ok, true, `${label}: ${a.reason}`);
+    const r = await waitFor(async () => { const x = await rowOf(origin); return x && x.availability ? x : null; });
+    assert.ok(r, label); assert.equal(r.ownerOnly, undefined, label); assert.equal(r.served, undefined, label); assert.equal(r.servesDeployments, undefined, label);
+    assert.match(await upgrade(origin, `/t/${NAME}/x/${D_OWN}/https`), /410/, `${label}: the owner's own is NOT spliced`);
+    assert.equal(a.splices.length, 0, label);
+  }
+});
+
+test("RELAY_HVNODE_OPERATORS never implies TRUSTED_OPERATORS: its operator's OPERATOR-path attach is refused", async (t) => {
+  const origin = await startRelay(t, { RELAY_HVNODE_OPERATORS: lc(OPERATOR), TUNNEL_OPERATOR_ATTACH: "1" });
+  const ws = new WebSocket(origin.replace(/^http/, "ws") + "/v1/fleet-tunnel", { headers: { "x-metal-name": NAME, "x-metal-attach": "operator" } });
+  const frames = []; ws.on("message", (d) => { try { frames.push(JSON.parse(d)); } catch {} });
+  await new Promise((r) => { ws.on("open", r); ws.on("error", r); });
+  const chal = await waitFor(() => frames.find((f) => f.t === "challenge"));
+  assert.ok(chal, "the operator path challenges");
+  ws.send(JSON.stringify({ t: "attach", operatorSig: await OPERATOR.signMessage({ message: `enclave-tunnel-attach:${NAME}:${chal.nonce}` }) }));
+  const res = await waitFor(() => frames.find((f) => f.t === "attest-result"));
+  try { ws.close(); } catch {}
+  assert.equal(res && res.ok, false); assert.match(String(res && res.reason), /not a trusted operator of this relay/);
+});
+
+test("E2: a delegation expiring while attached withdraws its route at decision time, without a re-attach",
+     { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
+  const { w, roots } = hvWorld(t);
+  const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, RELAY_HVNODE_OPERATORS: lc(OPERATOR) });
+  const exp = Math.floor(Date.now() / 1000) + 14;
+  const a = await attachHv(origin, w, { delegations: [await delegation({ expires: exp })] });
+  t.after(() => { try { a.ws.close(); } catch {} });
+  assert.equal(a.ok, true, a.reason);
+  assert.ok(await waitFor(async () => (await rowOf(origin))?.servesDeployments?.some(d => d.id === D_DELEG)));
+  await qualifyExit(origin);
+  const published = await publishRoutes(origin);
+  assert.equal(published.status, 200, await published.text());
+  let map = await routeMap(origin);
+  assert.equal(map.deployments[D_DELEG].expiresAt, exp * 1000, "DNS cannot outlive the delegation");
+  assert.ok(map.deployments[D_OWN]);
+  await new Promise(r => setTimeout(r, Math.max(0, exp * 1000 + 100 - Date.now())));
+  map = await routeMap(origin);
+  assert.equal(map.deployments[D_DELEG], undefined);
+  assert.equal(map.labels[D_DELEG.slice(2, 10)], undefined);
+  assert.ok(map.deployments[D_OWN], "operator's own deployment stays admitted");
+});
+
+test("a ledger transfer withdraws routes when the new owner is not served", { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
+  const { w, roots } = hvWorld(t);
+  const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, RELAY_HVNODE_OPERATORS: lc(OPERATOR) });
+  const a = await attachHv(origin, w);
+  t.after(() => { try { a.ws.close(); } catch {} ROWS = BASE_ROWS; });
+  assert.equal(a.ok, true, a.reason);
+  assert.ok(await waitFor(async () => (await rowOf(origin))?.servesDeployments?.some(d => d.id === D_OWN)));
+  await qualifyExit(origin);
+  const published = await publishRoutes(origin);
+  assert.equal(published.status, 200, await published.text());
+  assert.ok((await routeMap(origin)).deployments[D_OWN]);
+  ROWS = BASE_ROWS.map(d => d.id === D_OWN ? { ...d, owner: STRANGER.address } : d);
+  assert.ok(await waitFor(async () => !(await routeMap(origin)).deployments[D_OWN], 20000), "withdrawn within the ledger refresh interval");
+  assert.equal((await routeMap(origin)).labels[D_OWN.slice(2, 10)], undefined);
+});
+
+test("secrets: /v1/secrets/exists is exactly { id, exists } for a served lease holder's deployment and a stranger's alike; /v1/secrets/fetch stays 403 host_ineligible for an hv-node row",
+     { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
+  const { w, roots } = hvWorld(t);
+  const data = tmpdir("hv-secrets-"); t.after(() => fs.rmSync(data, { recursive: true, force: true }));
+  const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, RELAY_HVNODE_OPERATORS: lc(OPERATOR),
+                                       SECRETS_KEY: "5e".repeat(32), AUTH_DATA_DIR: data });
+  const a = await attachHv(origin, w);
+  t.after(() => { try { a.ws.close(); } catch {} });
+  assert.equal(a.ok, true, a.reason);
+  assert.ok(await waitFor(async () => { const x = await rowOf(origin); return x && (x.servesDeployments || []).length ? x : null; }));
+  // the owner stages one secret on D_OWN
+  const expiry = Math.floor(Date.now() / 1000) + 120, payload = JSON.stringify({ set: { API_KEY: "s3cret" } });
+  const put = await fetch(`${origin}/v1/secrets/${D_OWN}`, { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ payload, expiry, signature: await OPERATOR.signMessage({ message: `enclave-secrets:put:${D_OWN}:${expiry}:${createHash("sha256").update(payload).digest("hex")}` }) }) });
+  assert.equal(put.status, 200, await put.text());
+  for (const [d, want] of [[D_OWN, true], [D_STRANGER, false]]) {
+    const r = await fetch(`${origin}/v1/secrets/exists`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: d }) });
+    assert.equal(r.status, 200); const text = await r.text(), j = JSON.parse(text);
+    assert.deepEqual(Object.keys(j).sort(), ["exists", "id"], "one boolean: no names, no values, no counts");
+    assert.equal(j.exists, want); assert.doesNotMatch(text, /API_KEY|s3cret/);
+  }
+  const ts = Math.floor(Date.now() / 1000);
+  const f = await fetch(`${origin}/v1/secrets/fetch`, { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ id: D_OWN, endpoint: ENDPOINT, ts, sig: "00".repeat(32), opSig: await OPERATOR.signMessage({ message: `enclave-secrets-fetch:${D_OWN}:${ENDPOINT}:${ts}` }) }) });
+  const fb = await f.json();
+  assert.equal(f.status, 403, JSON.stringify(fb)); assert.equal(fb.error, "host_ineligible", "the lease holder, served, and still never handed the secrets");
+});
+
+test("a registered name's attach signed by anyone but its owner is refused outright (v1 or v2)", { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
+  const dir = tmpdir("hv-owner-"); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const w = makeVbsWorld(dir); const roots = path.join(dir, "ek-roots.pem"); fs.writeFileSync(roots, w.ca.bundlePem);
+  const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, TRUSTED_OPERATORS: OPERATOR.address.toLowerCase() });
+  const a = await attachHv(origin, w, { signer: STRANGER });
+  try { a.ws.close(); } catch {}
+  assert.equal(a.ok, false); assert.match(String(a.reason), /registered on chain to/);
+});
+
+test("selfRoutedUrl form 2 names THIS relay's origin only (enclave-bf): another host's /t/<name> is never a row's publicUrl", () => {
+  assert.equal(selfRoutedUrl("https://api.enclave.host/t/nucbox-k11", "nucbox-k11", "https://api.enclave.host"), "https://api.enclave.host/t/nucbox-k11");
+  assert.equal(selfRoutedUrl("https://evil.example/t/nucbox-k11", "nucbox-k11", "https://api.enclave.host"), "");
+  assert.equal(selfRoutedUrl("https://api.enclave.host/t/other", "nucbox-k11", "https://api.enclave.host"), "");
+  assert.equal(selfRoutedUrl("https://api.enclave.host/t/nucbox-k11", "nucbox-k11", ""), "", "no origin given: form 2 refused");
+});
+
+test("the site never badges a TEE GPU on a tunnel row the relay did not verify as SEV-SNP", () => {
+  assert.equal(enclaveClassOf({ tunnel: true, mode: "hv-node", availability: { gpu: true } }).kind, "cpu");
+  assert.equal(enclaveClassOf({ tunnel: true, mode: "", availability: { gpu: true } }).inTee, false);
+  assert.equal(enclaveClassOf({ tunnel: true, mode: "snp", availability: { gpu: true } }).kind, "tee-gpu");
+  assert.equal(enclaveClassOf({ availability: { gpu: true } }).kind, "tee-gpu", "a dialed row is unchanged");
+});
+
+test("owner grace (87): a FAILED owner read leans on the last successful one for the grace only - within it still serving (delegations still expire), past it SUSPENDED (serves nothing, still attached), recovery RESUMES, a changed owner ENDS until re-attach; one log line per state change",
+     { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
+  const { w, roots } = hvWorld(t);
+  t.after(() => { registryDown = false; registryOwner = null; });
+  const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, RELAY_HVNODE_OPERATORS: lc(OPERATOR),
+                                       TUNNEL_OWNER_RECHECK_MS: "400", TUNNEL_OWNER_GRACE_MS: "4000" });
+  const exp = Math.floor(Date.now() / 1000) + 12;
+  const a = await attachHv(origin, w, { delegations: [await delegation({ expires: exp })] });
+  t.after(() => { try { a.ws.close(); } catch {} });
+  assert.equal(a.ok, true, a.reason);
+  const served = async () => { const x = await rowOf(origin); return x && x.ownerOnly === true ? (x.servesDeployments || []).map((d) => d.id) : null; };
+  assert.ok(await waitFor(async () => { const s = await served(); return s && s.includes(D_OWN) && s.includes(D_DELEG) ? s : null; }), "serving both before the outage");
+  // the outage starts ~2 s before the delegation expires
+  await new Promise((r) => setTimeout(r, Math.max(0, (exp - 2) * 1000 - Date.now())));
+  registryDown = true; const down = Date.now();
+  await new Promise((r) => setTimeout(r, 1500));
+  assert.ok((await served()).includes(D_OWN), "within the grace: still serving on the cached owner");
+  assert.match(await upgrade(origin, `/t/${NAME}/x/${D_OWN}/https`), /410/, "the control API cannot open an application stream");
+  await new Promise((r) => setTimeout(r, Math.max(0, exp * 1000 + 1200 - Date.now())));
+  const mid = await served();
+  assert.ok(mid && mid.includes(D_OWN) && !mid.includes(D_DELEG), "during the grace a delegation still EXPIRES by the clock (only the operator's own left)");
+  assert.ok(Date.now() - down < 4000, "(still inside the grace)");
+  // past the grace: suspended - attached, serving nothing
+  assert.ok(await waitFor(async () => ((await served()) === null ? true : null), 6000), "past the grace: owner-only SUSPENDED");
+  const row = await rowOf(origin);
+  assert.ok(row && row.mode === "hv-node" && row.ownerOnly === undefined && row.servesDeployments === undefined, "still attached, serving nothing");
+  assert.match(await upgrade(origin, `/t/${NAME}/x/${D_OWN}/https`), /410/, "the splice is refused");
+  // it STAYS suspended while the reads keep failing (several failed re-checks, each ~1 s with the RPC client's retries)
+  await new Promise((r) => setTimeout(r, 3500));
+  assert.equal(await served(), null, "still suspended while the outage lasts");
+  // recovery: the same owner resumes it, without a re-attach
+  registryDown = false;
+  assert.ok(await waitFor(async () => { const s = await served(); return s && s.includes(D_OWN) ? s : null; }, 6000), "a successful read of the same owner RESUMES");
+  // an owner change after recovery ends it - and it stays ended, even if the owner changes back, until a re-attach
+  registryOwner = STRANGER.address;
+  assert.ok(await waitFor(async () => ((await served()) === null ? true : null), 6000), "a changed owner ENDS owner-only serving");
+  registryOwner = null;
+  await new Promise((r) => setTimeout(r, 1500));
+  assert.equal(await served(), null, "and it stays ended until the box re-attaches under the owner's signature");
+  // one log line per state change (not per 400 ms re-check)
+  const log = origin.log();
+  assert.equal((log.match(/owner-only serving SUSPENDED/g) || []).length, 1, "SUSPENDED once");
+  assert.equal((log.match(/owner-only serving RESUMED/g) || []).length, 1, "RESUMED once");
+  assert.equal((log.match(/owner read FAILED: serving on the owner read/g) || []).length, 1, "the grace start once");
+});
+
+test("owner grace (5d): a re-attach during an outage LONGER than the grace starts SUSPENDED (then resumes on a good read); a deregistered owner ENDS it; a malformed grace env is logged, never silently replaced",
+     { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
+  const { w, roots } = hvWorld(t);
+  t.after(() => { registryDown = false; registryOwner = null; });
+  const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, RELAY_HVNODE_OPERATORS: lc(OPERATOR),
+                                       TUNNEL_OWNER_RECHECK_MS: "5000", TUNNEL_OWNER_GRACE_MS: "2000" });
+  const served = async () => { const x = await rowOf(origin); return x && x.ownerOnly === true ? (x.servesDeployments || []).map((d) => d.id) : null; };
+  let a = await attachHv(origin, w); assert.equal(a.ok, true, a.reason);
+  assert.ok(await waitFor(async () => { const s = await served(); return s && s.includes(D_OWN) ? s : null; }), "serving after a first attach (a good read)");
+  // the box drops; the registry goes down; more than the grace passes; the box comes back
+  a.ws.close(); registryDown = true;
+  await new Promise((r) => setTimeout(r, 3000));
+  assert.ok(await waitFor(async () => ((await rowOf(origin)) === null ? true : null), 3000), "the dropped box's row is gone");
+  a = await attachHv(origin, w); t.after(() => { try { a.ws.close(); } catch {} });
+  assert.equal(a.ok, true, `attaches on the cached owner: ${a.reason}`);
+  // read the row as soon as it is back: the state bind gave it (the 5 s re-check has had no time to change it)
+  const x = await waitFor(() => rowOf(origin), 1500);
+  assert.ok(x && x.mode === "hv-node" && x.ownerOnly === undefined, "attached, but owner-only starts SUSPENDED (the last good read is older than the grace)");
+  assert.equal((origin.log().match(/owner-only starts SUSPENDED: no successful owner read within the grace/g) || []).length, 1, "and the journal says so, once");
+  registryDown = false;
+  assert.ok(await waitFor(async () => { const s = await served(); return s && s.includes(D_OWN) ? s : null; }, 12000), "a good read of the same owner resumes it");
+  // a successful read with NO owner (deregistered: the zero operator) ENDS it, as a changed owner does
+  registryOwner = "0x" + "00".repeat(20);
+  assert.ok(await waitFor(async () => ((await served()) === null ? true : null), 12000), "a deregistered owner ENDS owner-only serving");
+  assert.match(origin.log(), /owner-only serving ENDED: the name's owner is now \(none\)/);
+});
+
+test("owner grace env: a malformed TUNNEL_OWNER_GRACE_MS / TUNNEL_OWNER_RECHECK_MS is logged LOUDLY and the default used", async (t) => {
+  const origin = await startRelay(t, { TUNNEL_OWNER_GRACE_MS: "-5", TUNNEL_OWNER_RECHECK_MS: "abc" });
+  const log = await waitFor(() => { const l = origin.log(); return /TUNNEL_OWNER_GRACE_MS/.test(l) && /TUNNEL_OWNER_RECHECK_MS/.test(l) ? l : null; }, 5000);
+  assert.ok(log, "both logged");
+  assert.match(log, /TUNNEL_OWNER_GRACE_MS="-5" is not a whole number of milliseconds >= 0: using the default 900000/);
+  assert.match(log, /TUNNEL_OWNER_RECHECK_MS="abc" is not a whole number of milliseconds >= 250: using the default 60000/);
+});
+
+test("a NEW host (attached before its sponsored registration, v2-signed by its claimant key) serves owner-only once the registry names that key; registered to anyone else it never does",
+     { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
+  for (const [label, owner, serves] of [["registered to the claimant", null, true], ["registered to another key", STRANGER.address, false]]) {
+    const { w, roots } = hvWorld(t);
+    registryUnregistered = true; registryOwner = owner;
+    t.after(() => { registryUnregistered = false; registryOwner = null; });
+    const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, RELAY_HVNODE_OPERATORS: "*", TUNNEL_OWNER_RECHECK_MS: "300" });
+    const a = await attachHv(origin, w);
+    t.after(() => { try { a.ws.close(); } catch {} });
+    assert.equal(a.ok, true, `${label}: ${a.reason}`);
+    const before = await waitFor(async () => { const x = await rowOf(origin); return x && x.availability ? x : null; });
+    assert.ok(before, label); assert.equal(before.ownerOnly, undefined, `${label}: unregistered, it serves nothing`);
+    registryUnregistered = false;
+    const after = await waitFor(async () => { const x = await rowOf(origin); return x && x.ownerOnly ? x : null; }, serves ? 20000 : 3000);
+    if (serves) { assert.ok(after, `${label}: promoted`); assert.equal(after.operator, lc(OPERATOR)); assert.deepEqual(after.served, [{ owner: lc(OPERATOR), expires: null }]);
+                  assert.match(origin.log(), /registered on chain to the key that signed its attach/); }
+    else assert.equal(after, null, `${label}: never promoted`);
+    registryUnregistered = false; registryOwner = null;
+    try { a.ws.close(); } catch {}
+  }
+});

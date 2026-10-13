@@ -62,6 +62,7 @@
 @import "./dashboard.css" layer(components);
 @import "./checkout.css" layer(components);
 @import "./link.css" layer(components);
+@import "./sessions.css" layer(components);
 @import "./host.css" layer(components);
 @import "./architecture.css" layer(components);
 @import "./terms.css" layer(components);
@@ -97,3 +98,6 @@
   select:not(:focus),
   textarea:not(:focus) { border-color: var(--line-strong); }
 }
+
+@import "../../components/cinematic-scene/cinematic-scene.css" layer(components);
+@import "./visual.css" layer(components);

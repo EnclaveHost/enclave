@@ -11,9 +11,26 @@
     "start": "node supervisor.js",
     "dev": "node --watch supervisor.js",
     "test": "node --test --test-timeout=120000 test/*.test.mjs",
+    "test:integration": "node verifier/integration/run.mjs",
+    "test:client-persistence": "node verifier/integration/run-client-persistence.mjs",
     "build:vendor": "node scripts/build-vendor.mjs",
     "build:site": "node scripts/build-site.mjs",
-    "watch:site": "tailwindcss -i site/css/src/main.css -o site/css/site.css --watch"
+    "watch:site": "tailwindcss -i site/css/src/main.css -o site/css/site.css --watch",
+    "test:client-ext": "node --test --test-timeout=180000 test/verifier-pvm-client-ext.test.mjs",
+    "test:client-supersede": "node --test test/verifier-pvm-client-supersede.test.mjs",
+    "test:client-update": "node --test test/verifier-pvm-client-update.test.mjs",
+    "test:client-activation": "node --test test/verifier-pvm-client-activation.test.mjs",
+    "test:client-next": "node --test test/verifier-pvm-client-next.test.mjs",
+    "test:client-device-activation": "node --test test/verifier-pvm-client-device-activation.test.mjs",
+    "test:client-device-2-negative": "node verifier/integration/run-device-2-negative.mjs",
+    "test:client-device-activation-3": "node --test test/verifier-pvm-client-device-activation-3.test.mjs",
+    "test:client-device-activation-2": "node --test test/verifier-pvm-client-device-activation-2.test.mjs",
+    "test:verdict": "node --test test/verifier-integration-verdict.test.mjs",
+    "test:collateral-cache": "node --test test/verifier-collateral-cache.test.mjs",
+    "test:policy-deployments": "node --test test/verifier-pvm-policy-deployments.test.mjs",
+    "test:live-differential": "node --test test/verifier-live-differential.test.mjs",
+    "live-differential": "node verifier/live-differential.mjs",
+    "test:stability-50": "node --test test/verifier-pvm-stability-50.test.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -33,6 +50,7 @@
   "devDependencies": {
     "@playwright/cli": "^0.1.17",
     "@tailwindcss/cli": "^4.3.2",
+    "buffer": "6.0.3",
     "esbuild": "^0.28.1",
     "solc": "^0.8.35",
     "tailwindcss": "^4.3.2"

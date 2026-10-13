@@ -94,6 +94,7 @@ windows/enclave-rt/target/
 windows/enclave-rt/precompile/target/
 windows/enclave-rt/*.lib
 windows/enclave-rt/*.exe
+windows/tray/*.exe
 windows/enclave-rt/*.cwasm
 windows/enclave-app-hello/target/
 
@@ -127,3 +128,11 @@ windows/enclave-app-hello/target/
 
 # isolation/m4 builds the contract's bundle tool into the tree; it is reproducible output
 /isolation/m4/.bundle
+
+# pinned cross-branch modules materialised by verifier/integration/resolve.mjs (never tracked here)
+.verifier-integration/
+
+
+# Generated standalone relay routing graph
+/relay/network-runtime.bundle.mjs
+/relay/network-runtime.bundle.mjs.manifest.json

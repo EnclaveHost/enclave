@@ -50,6 +50,12 @@
   --m-delete:#FF6B6B;
   --font-mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code","Fira Code",Menlo,Consolas,"Liberation Mono",monospace;
   --font-sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  /* section glass: a tinted frosted layer over the honeycomb, ~82-85% dark, so the backdrop glimmers through a little more.
+     Components INSIDE a section never use these: cards, panels, tables, inputs and buttons are opaque surfaces. */
+  --wash:rgba(11,15,22,.82);
+  --wash-deep:rgba(7,11,16,.85);
+  --wash-tint:linear-gradient(115deg,rgba(47,230,168,.055),transparent 38%,transparent 62%,rgba(143,162,255,.05));
+  --wash-blur:blur(8px) saturate(1.2);
   --maxw:1200px;
   --radius:14px;
   --radius-sm:9px;

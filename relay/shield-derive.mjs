@@ -1,0 +1,1 @@
+../windows/vbslike/manager/derive.mjs

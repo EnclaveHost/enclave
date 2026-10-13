@@ -160,7 +160,9 @@ export function minPctsOf(v, spec, opts){
   const volGb = Math.max(0, Number(opts && opts.volGb) || 0);
   const vramMb = Number(v && v.vramMb || 0), gpuGf = Number(v && v.gpuGflops || 0);
   const memMb = Number(v && v.memMb || 0), cpuGf = Number(v && v.cpuGflops || 0);
-  const cpuOf = (mb, gf) => pctCeil(Math.max(mb / (s.nodeRamGb * 1024), (gf != null ? gf : cpuGf) / s.nodeGflops));
+  // catalog cpuGflops floors are in the fleet convention's units (62.5 a vCPU), so they divide by the box's NOMINAL
+  // figure (nodeGflopsFloor, enclaveSpecOf), never the measured nodeGflops it publishes
+  const cpuOf = (mb, gf) => pctCeil(Math.max(mb / (s.nodeRamGb * 1024), (gf != null ? gf : cpuGf) / (s.nodeGflopsFloor || s.nodeGflops)));
   const cpu = (memMb > 0 || cpuGf > 0) ? cpuOf(memMb) : 1;
   // The same app WITHOUT a card, where its publisher sized that case. On a
   // card the weights are resident in the tenant's VRAM slice and the node
@@ -316,7 +318,11 @@ export function enclavePriceOf(row){
 export function enclaveClassOf(row){
   const a = (row && row.availability) || {};
   const shielded = !!(a.shielded && a.shielded.vramGb > 0);
-  const gpu = a.gpu === true;
+  // A TUNNEL row the relay did not verify as SEV-SNP (an hv-node host, a token or operator attach) has no TEE for a card to
+  // sit in, whatever its own availability says: never "tee-gpu" on its word (enclave-87's (B); the NucBox says gpu:false
+  // today, and the badge must not depend on that).
+  const unverifiedTunnel = !!(row && row.tunnel && row.mode !== "snp");
+  const gpu = a.gpu === true && !unverifiedTunnel;
   if (shielded) return { kind: "shielded-gpu", inTee: false, shielded: true, hasCard: true };
   if (gpu)      return { kind: "tee-gpu",      inTee: true,  shielded: false, hasCard: true };
   return { kind: "cpu", inTee: false, shielded: false, hasCard: false };
@@ -406,6 +412,100 @@ export function computeEligibleOf(row){
   return t.real === true && CONFIDENTIAL_CPU.has(t.technology);
 }
 
+/** How long a row may go unheard-from before the public list stops calling it live. Mirrors the
+ *  relay's own STALE_AFTER_SEC default; the relay already drops silent rows, so this is a second
+ *  line rather than the only one. */
+export const HOST_STALE_AFTER_SEC = 3600;
+
+/**
+ * Does this row belong in the PUBLIC app-host inventory - the list a reader treats as "what can I
+ * deploy on right now"?
+ *
+ * Only on the relay's own current verdict, and only when every part of it is positive:
+ *
+ *   serving === true      the relay routes work here NOW. Strictly true: a missing verdict is not
+ *                         a yes, and availability.claimEnabled is the BOX's word about itself and
+ *                         never overrides the relay's serving:false.
+ *   eligible             the box proved the isolation contract it would be sold under
+ *                         (computeEligibleOf: the relay's verdict when it sends one, the same rule
+ *                         mirrored from verified evidence when it does not). Relay-only rows are
+ *                         false there, so they are excluded here.
+ *   not stale             a row the relay has not heard from inside the window is not live.
+ *
+ * What this deliberately does NOT do is explain itself on the page. A host that is attached and
+ * healthy but takes no tenant work is real and its reasons are real, and they belong in the API
+ * (/enclaves carries status, eligible, ineligible and notClaiming) and in host management - not as
+ * a paragraph of security caveats in a list of machines a reader is about to buy from. That list
+ * printed exactly one such paragraph, for a consumer PC whose operator key had run out of gas, for
+ * a day and a half, under the heading "what can I deploy on right now".
+ */
+export function appHostVisible(row, nowSec){
+  if (!row || row.relay === true || row.ownerOnly === true) return false;
+  if (row.serving !== true) return false;
+  if (computeEligibleOf(row) !== true) return false;
+  const seen = Number(row.lastSeen || 0);
+  const now = Number.isFinite(nowSec) ? nowSec : Math.floor(Date.now() / 1000);
+  if (seen > 0 && now - seen > HOST_STALE_AFTER_SEC) return false;
+  return true;
+}
+
+// Display-only inventory of owner-authorized work. This never grants marketplace
+// eligibility or adds capacity to pricing/placement. Leases come from the relay.
+export function ownerHostedDeploymentCount(row, nowSec){
+  if (!row || row.relay === true || row.mode !== "hv-node" || row.ownerOnly !== true
+      || row.eligible !== false || row.availability?.ok === false) return 0;
+  const now = Number.isFinite(nowSec) ? nowSec : Math.floor(Date.now() / 1000);
+  const seen = Number(row.lastSeen);
+  if (!Number.isFinite(seen) || seen <= 0 || now - seen > HOST_STALE_AFTER_SEC) return 0;
+  const deps = Array.isArray(row.servesDeployments) ? row.servesDeployments : [];
+  return new Set(deps.filter(d => /^0x[0-9a-f]{64}$/.test(d?.id || "")
+    && Number.isFinite(Number(d.until)) && Number(d.until) > now).map(d => d.id)).size;
+}
+
+// Personalize inventory using the relay's operator/delegation list. This is
+// display filtering, not an authorization boundary or a claim of private data.
+export function ownerHostVisibleTo(row, address, nowSec){
+  if (!/^0x[0-9a-f]{40}$/i.test(address || "") || /^0x0{40}$/i.test(address)) return false;
+  if (!ownerHostedDeploymentCount(row, nowSec)) return false;
+  const wallet = address.toLowerCase();
+  if (String(row.operator || "").toLowerCase() === wallet) return true;
+  const now = Number.isFinite(nowSec) ? nowSec : Math.floor(Date.now() / 1000);
+  return Array.isArray(row.served) && row.served.some(s =>
+    String(s?.owner || "").toLowerCase() === wallet && s.expires != null
+    && Number.isFinite(Number(s.expires)) && Number(s.expires) > now);
+}
+
+// The pVM CPU tier (shielded/anchor/avf/PVM-CPU.md): a phone whose protected VM the relay attested and whose CPU-only
+// capability report it admitted - the row's lane, stamped by the relay from its own verdict, never the box's word. Display-only
+// status inventory: it never enters marketplace eligibility, pricing or placement (a pVM is not in the app serving set yet).
+export function pvmHostVisible(row, nowSec){
+  if (!row || row.relay === true || row.tunnel !== true || row.mode !== "avf" || row.lane !== "pvm-cpu" || row.tier !== "pvm-cpu") return false;
+  if (row.availability?.ok === false) return false;
+  const now = Number.isFinite(nowSec) ? nowSec : Math.floor(Date.now() / 1000);
+  const seen = Number(row.lastSeen);
+  return Number.isFinite(seen) && seen > 0 && now - seen <= HOST_STALE_AFTER_SEC;
+}
+// The VM's size as its signed capability report states it (the relay verified the signature); unknown stays null.
+export function pvmHostVm(row){
+  const vm = row?.pvmCpu?.vm || {};
+  const n = v => Number.isInteger(v) && v > 0 ? v : null;
+  const memMib = n(vm.memMib);
+  return { threads: n(vm.threads), memGb: memMib === null ? null : Math.round(memMib / 102.4) / 10 };
+}
+
+// Capacity shown for owner-only hosts uses only that host's reported pool.
+// Missing values remain unknown; never substitute the marketplace's server spec.
+export function ownerHostCpuCapacity(row){
+  const a = row?.availability || {};
+  const number = v => typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null;
+  const reported = number(a.cpuShareFree);
+  const fraction = reported === null ? null : Math.min(1, reported);
+  const vcpus = number(a.nodeVcpus), ramGb = number(a.nodeRamGb);
+  const reportedRam = number(a.ramGbFree) ?? (number(a.ramMbFree) === null ? null : a.ramMbFree / 1024);
+  const ramFreeGb = reportedRam === null ? null : ramGb === null ? reportedRam : Math.min(ramGb, reportedRam);
+  return { fraction, vcpus, vcpusFree: fraction === null || vcpus === null ? null : fraction * vcpus, ramGb, ramFreeGb };
+}
+
 // The VRAM a shielded card actually sells: the worker's budget, not the physical
 // total. The untrusted host keeps the rest (on a desktop, an X server), and
 // quoting the physical number would advertise capacity no tenant can have.
@@ -444,6 +544,54 @@ export function shieldedPoolOf(row){
   return { total, freeGb, reservedGb, vramFrac, frac, leasableGb: total * frac };
 }
 
+// Display aggregate for the host's Shield cards. A pooled report already
+// includes its members; distinct-card reports must be summed exactly once.
+export function shieldedHostCapacity(row){
+  const a = row?.availability || {}, sh = a.shielded;
+  if (!sh || sh.available === false) return null;
+  const sameCard = (x,y) => x.deviceUuid && y.deviceUuid ? x.deviceUuid === y.deviceUuid
+    : x.id != null && y.id != null ? x.id === y.id
+    : !!(x.endpoint && y.endpoint && x.endpoint === y.endpoint);
+  const inventory = [];
+  for (const c of Array.isArray(a.shieldedCards) ? a.shieldedCards : []) {
+    if (c && !inventory.some(x => sameCard(x,c))) inventory.push(c);
+  }
+  const primaryIdentified = sh.deviceUuid || sh.id != null || sh.endpoint;
+  // An anonymous primary is an alias for the primary inventory entry, not an
+  // additional card. Names alone cannot identify cards (identical models exist).
+  const cards = sh.pooled ? [sh] : inventory.length
+    ? (primaryIdentified && !inventory.some(c => sameCard(c,sh)) ? [sh, ...inventory] : inventory)
+    : [sh];
+  const usable = cards.filter(c => c.available !== false && c.vramGb > 0);
+  if (!usable.length) return null;
+  const positive = v => Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null;
+  const rates = usable.map(c => {
+    let rated = positive(c.cardTflops);
+    let measured = positive(c.gmacPerSec);
+    if (c.pooled) {
+      rated ??= positive(a.cardTflops);
+      if (inventory.length && inventory.length === Number(c.cardCount)) {
+        if (!rated && inventory.every(x => positive(x.cardTflops))) rated = inventory.reduce((n,x) => n + Number(x.cardTflops), 0);
+        if (!measured && inventory.every(x => positive(x.gmacPerSec))) measured = inventory.reduce((n,x) => n + Number(x.gmacPerSec), 0);
+      }
+    } else if (usable.length === 1 && !inventory.length) rated ??= positive(a.cardTflops);
+    return { rated, measured: measured === null ? null : measured * 2 / 1000 };
+  });
+  const basis = rates.every(r => r.rated !== null) ? 'rated'
+    : rates.every(r => r.measured !== null) ? 'measured' : null;
+  const pools = usable.map(c => shieldedPoolOf({ availability: {
+    shielded: c, gpuShareFree: c.gpuShareFree ?? (c === sh || usable.length === 1 ? a.gpuShareFree : undefined)
+  }}));
+  const sum = key => pools.reduce((n,p) => n + p[key], 0);
+  const total = sum('total'), leasableGb = sum('leasableGb');
+  return { total, leasableGb, freeGb: sum('freeGb'), reservedGb: sum('reservedGb'),
+    frac: total > 0 ? leasableGb / total : 0,
+    cardCount: sh.pooled ? Number(sh.cardCount) || inventory.length || 1 : usable.length,
+    names: (sh.pooled && inventory.length ? inventory : usable).map(c => c.device || c.card || 'GPU'),
+    basis, tflops: basis ? rates.reduce((n,r) => n + r[basis], 0) : null,
+    availableTflops: basis ? rates.reduce((n,r,i) => n + r[basis] * pools[i].frac, 0) : null };
+}
+
 // One enclave row's sizing hardware: its own advertised numbers per axis, the
 // fallback constants for anything it omits (old builds).
 export function enclaveSpecOf(row){
@@ -453,6 +601,10 @@ export function enclaveSpecOf(row){
     const v = Number(a[k]);
     if (Number.isFinite(v) && v > 0) s[k] = v;
   }
+  // nodeGflops is MEASURED now (hosts run flops-probe at start), but catalog cpuGflops floors were written in the fleet
+  // convention's units, 62.5 a vCPU (risc-box's 250 = 4 vCPUs). Sizing against a box uses that nominal figure.
+  const vc = Number(a.nodeVcpus);
+  if (Number.isFinite(vc) && vc > 0) s.nodeGflopsFloor = Math.round(vc * 1000 / 16);
   return s;
 }
 
@@ -535,7 +687,7 @@ export function rankEnclavesFor(v, rows){
     // claim hint to a box that declines, and the deploy would sit in the open
     // queue waiting for whichever box does carry them.
     const fits = (!needsGpu || (gpu && vramMb / 1024 <= spec.cardVramGb && gpuGf / 1000 <= spec.cardTflops))
-              && memMb <= spec.nodeRamGb * 1024 && cpuGf <= spec.nodeGflops
+              && memMb <= spec.nodeRamGb * 1024 && cpuGf <= (spec.nodeGflopsFloor || spec.nodeGflops)
               && hasVolumes(a, wantVols);
     const mins = minPctsOf(v, spec, { volGb: volGbOf(a, wantVols) });
     // Whether this box would serve the model on CORES rather than its card —
@@ -647,7 +799,7 @@ export function pickEnclaveFor(v, rows){
 }
 
 // Where a deployment could be moved RIGHT NOW: every enclave that could host
-// it, minus the one already holding its lease. Same eligibility rule as the
+// it, including the one already holding its lease. Same eligibility rule as the
 // deploy target list (rankEnclavesFor) — hardware, model volumes and free pool
 // — because a move IS a re-claim: the current runner hands the lease back and
 // the fleet claims it again, so a target that would refuse the record at
@@ -660,7 +812,7 @@ export function pickEnclaveFor(v, rows){
 export function moveTargetsFor(v, rows, currentRunnerId){
   const cur = String(currentRunnerId || "").toLowerCase();
   return rankEnclavesFor(v, rows)
-    .filter((c) => String((c.row && c.row.id) || "").toLowerCase() !== cur);
+    .map((c) => ({ ...c, current: !!cur && String((c.row && c.row.id) || "").toLowerCase() === cur }));
 }
 
 // Why a deployment has nowhere to go, in the reader's terms. Only called when

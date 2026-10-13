@@ -121,7 +121,7 @@ jobs:
             case "$f" in
               site/deploy.sh|relay/deploy.sh) ;;   # deploy tooling runs from a fresh checkout; nothing to redeploy
               site/*)                  site=true ;;
-              cli/install.sh|cli/install.ps1) site=true ;;   # served from /opt/enclave-get (curl|sh installers)
+              cli/install.sh|cli/install.ps1|cli/host.ps1) site=true ;;   # served from /opt/enclave-get (curl|sh installers; host.ps1 = the Windows host)
               relay/*)                 relay=true ;;
               contracts/EnclaveRegistry.sol)    registry=true ;;
               contracts/EnclaveDeployments.sol) deployments=true ;;

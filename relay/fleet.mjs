@@ -56,6 +56,12 @@ export function fleetConfig(env = process.env) {
     // the origin-following daemons never touch it.
     deploymentsAddress: (env.DEPLOYMENTS_ADDRESS || "").trim(),
     baseRpc: env.BASE_RPC || DEFAULTS.baseRpc,
+    // U7: the api-relay whose /enclaves verdicts say which hosts are ELIGIBLE to serve tenant apps. A tenant-routing daemon
+    // (relay.js, udp-relay, tcp6-relay, dns-relay) dials only an eligible host; unset, it dials none (fail closed).
+    // DOMAINS_API (the SNI relay's custom-domain map source, the same api-relay) serves as the default.
+    eligibilityApi: (env.ELIGIBILITY_API || env.DOMAINS_API || "").trim().replace(/\/+$/, ""),
+    eligibilityPollSec: parseInt(env.ELIGIBILITY_POLL_SEC || "", 10) || 15,
+    eligibilityMaxAgeSec: parseInt(env.ELIGIBILITY_MAX_AGE_SEC || "", 10) || 60,
     registryPollSec: parseInt(env.REGISTRY_POLL_SEC || "", 10) || DEFAULTS.registryPollSec,
     staleAfterSec: parseInt(env.STALE_AFTER_SEC || "", 10) || DEFAULTS.staleAfterSec,
     // Operator allowlist. Comma-separated, lowercased EnclaveRegistry operator
@@ -217,12 +223,15 @@ export function createFleet(cfg, log = () => {}) {
     }
     return _runnerClient;
   }
-  async function endpointId(ep) {
-    if (_endpointIdCache.has(ep)) return _endpointIdCache.get(ep);
+  async function loadHash() {
     if (!_hashEndpoint) {
       const { keccak256, stringToBytes } = await import("viem");
       _hashEndpoint = (s) => keccak256(stringToBytes(s));
     }
+  }
+  async function endpointId(ep) {
+    if (_endpointIdCache.has(ep)) return _endpointIdCache.get(ep);
+    await loadHash();
     const id = _hashEndpoint(ep).toLowerCase();
     _endpointIdCache.set(ep, id);
     return id;
@@ -351,15 +360,153 @@ export function createFleet(cfg, log = () => {}) {
     if (hits.length !== 1) return null;
     const d = hits[0];
     return { id: String(d.id).toLowerCase(),
+             runner: String(d.runner || "").toLowerCase(),
              runnerOperator: String(d.runnerOperator || "").toLowerCase(),
              leaseLive: !ZERO32.test(String(d.runner)) && Number(d.leaseUntil) * 1000 > Date.now() };
   }
+
+  // ---- U7: ELIGIBILITY, as the api-relay decides it -------------------------------------------------------------------
+  // The api-relay computes eligibility from verified evidence (computeEligible, the rule placement and its own routing
+  // use) and publishes it per row in /enclaves: `id` = keccak256(the registered endpoint), `eligible`. A tenant-routing
+  // daemon dials a host only while that verdict is FRESH and says eligible. A failed poll keeps the last verdict until it
+  // is older than eligibilityMaxAgeSec, and then nothing is eligible. Unconfigured, nothing is. Unknown is not permission.
+  // Every verdict is judged against the CURRENT id set: an origin's id (keccak256 of the endpoint string) is computed
+  // synchronously once viem is loaded, and cached, so no separately rebuilt origin set can lag the feed (enclave-5d's
+  // round-5 race: an older rebuild finishing after a newer one wrote back a set built from the previous ids).
+  // An ESTABLISHED session is held only while its host stays eligible: a daemon registers each live splice or flow with
+  // holdWhileEligible(origin, close), and every eligibility poll, a failed one included, closes those whose host no
+  // longer is (enclave-5d and enclave-d1, round 5: a check only at open let a host that lost eligibility keep them).
+  let _elig = { ids: new Set(), at: 0 }, _eligTimer = null;
+  const _held = new Map();   // origin -> Set of close functions of its live sessions
+  const normOrigin = (o) => String(o || "").replace(/\/+$/, "");
+  const eligibilityFresh = () => !!cfg.eligibilityApi && Date.now() - _elig.at <= cfg.eligibilityMaxAgeSec * 1000;
+  function endpointIdSync(ep) {
+    if (_endpointIdCache.has(ep)) return _endpointIdCache.get(ep);
+    if (!_hashEndpoint) return null;   // not loaded yet: unknown, so not eligible
+    const id = _hashEndpoint(ep).toLowerCase();
+    _endpointIdCache.set(ep, id);
+    return id;
+  }
+  function originEligibleNow(origin) {
+    if (!eligibilityFresh()) return false;
+    const id = endpointIdSync(normOrigin(origin));
+    return !!id && _elig.ids.has(id);
+  }
+  // (B) does this owner-only origin carry this deployment NOW (a full id, or an id prefix naming exactly ONE it carries)? Each
+  // entry's `until` (the lease end or the delegation's expiry, whichever is first) is checked at decision time, so a lapse
+  // between two /enclaves reads still refuses (enclave-bf E2).
+  const liveUntil = (u) => Number(u) > Date.now() / 1000;
+  function servedMapOf(id) { return id && _elig.served ? _elig.served.get(id) || null : null; }
+  function servedNow(origin, dep) {
+    if (!eligibilityFresh()) return false;
+    const m = servedMapOf(endpointIdSync(normOrigin(origin)));
+    if (!m) return false;
+    const d = String(dep || "").toLowerCase();
+    if (m.has(d)) return liveUntil(m.get(d));
+    if (!/^0x[0-9a-f]{8,63}$/.test(d)) return false;
+    const hits = [...m].filter(([x]) => x.startsWith(d));
+    return hits.length === 1 && liveUntil(hits[0][1]);
+  }
+  const _heldServed = new Map();   // origin + "\n" + dep -> Set of close functions
+  function sweepServed() {
+    let closed = 0;
+    for (const [key, set] of [..._heldServed]) {
+      const i = key.indexOf("\n"), o = key.slice(0, i), dep = key.slice(i + 1);
+      if (originEligibleNow(o) || servedNow(o, dep)) continue;
+      _heldServed.delete(key);
+      for (const close of set) { closed++; try { close(); } catch {} }
+    }
+    if (closed) log(`owner-only: closed ${closed} live session(s) to a deployment its hv-node host no longer serves`);
+    return closed;
+  }
+  function sweepIneligible() {
+    sweepServed();
+    let closed = 0;
+    for (const [o, set] of [..._held]) {
+      if (originEligibleNow(o)) continue;
+      _held.delete(o);   // each close runs once; its later release finds nothing
+      for (const close of set) { closed++; try { close(); } catch {} }
+    }
+    if (closed) log(`eligibility: closed ${closed} live session(s) to hosts no longer eligible (U7)`);
+    return closed;
+  }
+  async function refreshEligibility() {
+    try {
+      if (!cfg.eligibilityApi) return;
+      const j = await fetchJson(cfg.eligibilityApi + "/enclaves", 5000).catch(() => null);
+      if (!j || !Array.isArray(j.enclaves)) { log(`eligibility poll failed (${cfg.eligibilityApi}/enclaves): keeping the last verdict until it ages out`); return; }
+      const ids = new Set(j.enclaves.filter((e) => e && e.eligible === true && e.appEvidenceRequired !== true && /^0x[0-9a-f]{64}$/i.test(String(e.id || "")))
+                                     .map((e) => String(e.id).toLowerCase()));
+      // (B) an OWNER-ONLY hv-node row (never eligible): the deployments the api relay says it carries now. The daemon takes
+      // that verdict as given and never re-derives the rule from row fields (enclave-bf); anything else about the row is ignored.
+      const served = new Map();   // endpoint id -> Map(deployment id -> until, unix seconds)
+      for (const e of j.enclaves) {
+        // ...and a market host whose apps each need their own evidence (appEvidenceRequired: a Shield hv-node, or a pVM host,
+        // mode avf, relay/pvm-market.mjs): only the deployments the api relay verified for it, each until its `until`
+        if (!e || (e.eligible === true && e.appEvidenceRequired !== true) || (e.ownerOnly !== true && e.appEvidenceRequired !== true)
+            || !(String(e.mode || "") === "hv-node" || (String(e.mode || "") === "avf" && e.appEvidenceRequired === true)) || !/^0x[0-9a-f]{64}$/i.test(String(e.id || ""))) continue;
+        const deps = new Map((Array.isArray(e.servesDeployments) ? e.servesDeployments : [])
+          .filter((x) => x && /^0x[0-9a-f]{64}$/.test(String(x.id || "")) && Number.isFinite(Number(x.until)))
+          .map((x) => [String(x.id), Number(x.until)]));
+        if (deps.size) served.set(String(e.id).toLowerCase(), deps);
+      }
+      _elig = { ids, served, at: Date.now() };
+    } finally { sweepIneligible(); }   // after a failed poll too: a verdict that has aged out closes what it held open
+  }
+  const eligibility = {
+    // is this registered endpoint (an origin this daemon would dial) an eligible host right now? Synchronous: a daemon
+    // asks it at the moment it dials.
+    eligibleOriginSync: (origin) => originEligibleNow(origin),
+    // the same, for a caller that may run before the hash is loaded
+    async eligibleOrigin(origin) { await loadHash(); return originEligibleNow(origin); },
+    // is this endpoint id (keccak256 of a registered endpoint, e.g. a ledger row's runner) an eligible host right now?
+    eligibleId: (id) => eligibilityFresh() && _elig.ids.has(String(id || "").toLowerCase()),
+    // (B) does the owner-only hv-node row with endpoint id `runnerId` carry deployment `depId` (the api relay's list, fresh)?
+    servesDeploymentId: (runnerId, depId) => {
+      if (!eligibilityFresh()) return false;
+      const m = servedMapOf(String(runnerId || "").toLowerCase()), d = String(depId || "").toLowerCase();
+      return !!(m && m.has(d) && liveUntil(m.get(d)));
+    },
+    // hold a live session to `origin` only while it stays eligible: `close` is called when a poll finds it is not (and at
+    // once, if it already is not). Returns the release to call when the session ends on its own.
+    // (B) may this daemon splice deployment `dep` to `origin`? An ELIGIBLE host: any of its deployments, as before. An
+    // owner-only hv-node: only a deployment the api relay lists as one it carries. Unknown or stale = no.
+    async servesDeployment(origin, dep) { await loadHash(); return originEligibleNow(origin) || servedNow(origin, dep); },
+    // hold such a session only while that stays true (a transfer, a lease move or an ended delegation closes it at the next poll)
+    holdWhileServes(origin, dep, close) {
+      const o = normOrigin(origin), d = String(dep || "").toLowerCase();
+      if (!originEligibleNow(o) && !servedNow(o, d)) { try { close(); } catch {} return () => {}; }
+      const key = o + "\n" + d;
+      let set = _heldServed.get(key);
+      if (!set) _heldServed.set(key, (set = new Set()));
+      set.add(close);
+      return () => { set.delete(close); if (!set.size && _heldServed.get(key) === set) _heldServed.delete(key); };
+    },
+    holdWhileEligible(origin, close) {
+      const o = normOrigin(origin);
+      if (!originEligibleNow(o)) { try { close(); } catch {} return () => {}; }
+      let set = _held.get(o);
+      if (!set) _held.set(o, (set = new Set()));
+      set.add(close);
+      return () => { set.delete(close); if (!set.size && _held.get(o) === set) _held.delete(o); };
+    },
+    heldSessions: () => [..._held.values()].reduce((n, s) => n + s.size, 0),
+    async startEligibility() {
+      if (!cfg.eligibilityApi) { log("ELIGIBILITY_API (or DOMAINS_API) unset: NO host is eligible, so tenant traffic is REFUSED (U7)"); return; }
+      log(`eligibility: ${cfg.eligibilityApi}/enclaves every ${cfg.eligibilityPollSec}s (stale after ${cfg.eligibilityMaxAgeSec}s = nothing eligible, and live sessions to it are closed)`);
+      await loadHash();
+      await refreshEligibility();
+      _eligTimer = setInterval(refreshEligibility, cfg.eligibilityPollSec * 1000);
+      _eligTimer.unref?.();
+    },
+    stopEligibility() { if (_eligTimer) { clearInterval(_eligTimer); _eligTimer = null; } },
+  };
 
   if (cfg.staticList.length) {
     // Static mode has no registry to read, so nobody is provably the operator
     // of anything. null (not "unknown, allow") keeps every operator-authorized
     // path fail-closed here rather than silently open.
-    return { origins: () => origins, runnerEndpointFor, leaseEndpointFor, leaseFor, prefixAmbiguous,
+    return { origins: () => origins, runnerEndpointFor, leaseEndpointFor, leaseFor, prefixAmbiguous, ...eligibility,
              operatorForEndpoint: () => null,
              async start() { log(`static fleet: ${origins.join(", ")}`); } };
   }
@@ -450,6 +597,7 @@ export function createFleet(cfg, log = () => {}) {
     leaseEndpointFor,
     leaseFor,
     prefixAmbiguous,
+    ...eligibility,
     operatorForEndpoint: (ep) => _endpointOperators.get(String(ep || "").replace(/\/+$/, "").toLowerCase()) || null,
     async start() {
       log(`on-chain fleet: ${cfg.addressBook ? "EnclaveAddressBook " + cfg.addressBook + " -> registry" : "EnclaveRegistry " + cfg.registryAddress}`

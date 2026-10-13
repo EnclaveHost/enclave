@@ -1,14 +1,16 @@
 // relay/local-hub.mjs -- the fleet-tunnel hub ALONE, for attaching a node to a workstation instead of the
-// hosted relay (a Windows VBS node under test, a phone, a metal box): the same createTunnelHub, the same
-// policy env (METAL_VBS_ENCLAVE_MEASUREMENTS, METAL_VBS_ALLOW_TESTSIGNING, METAL_AVF_*), no chain, no
-// discovery. GET / lists the attached tunnels; /t/<name>/<path> proxies a request to one.
-//   METAL_VBS_ENCLAVE_MEASUREMENTS=<key> METAL_VBS_ALLOW_TESTSIGNING=1 PORT=8100 node relay/local-hub.mjs
+// hosted relay (the NucBox node on the custom type-1 path, mode hv-node; a phone; a metal box): the same
+// createTunnelHub, no chain, no discovery. GET / lists the attached tunnels; /t/<name>/<path> proxies a request.
+// The hv-node attach uses the pinned TPM EK roots (relay/fixtures/tpm-roots.pem, or HVNODE_EK_ROOTS=<pem file>).
+// The Windows VBS-enclave attach is RETIRED (2026-09-25): METAL_VBS_* enables nothing here or on the relay.
+//   PORT=8100 node relay/local-hub.mjs
+import fs from 'node:fs';
 import http from 'node:http';
 import { createTunnelHub } from './tunnel.js';
-import { vbsPolicyFromEnv } from './vbs-policy.mjs';
-const vbs = vbsPolicyFromEnv(process.env);
-if (!vbs) { console.error('set METAL_VBS_ENCLAVE_MEASUREMENTS (and METAL_VBS_ALLOW_TESTSIGNING=1 for the lab box)'); process.exit(2); }
-const hub = createTunnelHub({ allow: [], attest: { allowedMeasurements: [], requireVcek: false, vbs }, operatorFor: async () => null,
+import { VBS_DEFAULT_EK_ROOTS } from './vbs-policy.mjs';
+const ekRoots = fs.readFileSync(process.env.HVNODE_EK_ROOTS || VBS_DEFAULT_EK_ROOTS, 'utf8');
+if (Object.keys(process.env).some((k) => k.startsWith('METAL_VBS_'))) console.warn('[hub] METAL_VBS_* is set, but the VBS-enclave attach is retired: ignored');
+const hub = createTunnelHub({ allow: [], attest: { allowedMeasurements: [], requireVcek: false, hvNode: { ekRoots } }, operatorFor: async () => null,
                               onChange: (ev, name) => console.log(`[hub] ${ev} ${name}: ${JSON.stringify(hub.info(name))}`) });
 const server = http.createServer(async (req, res) => {
   const im = (req.url || '').match(/^\/info\/([^/]+)$/);

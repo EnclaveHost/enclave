@@ -12,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { Host } from "../windows/node/host.mjs";
+import { servedOwner } from "./helpers/owners.mjs";
 
 const ID = "0x" + "e6".repeat(32);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "artovr-"));
@@ -25,8 +26,8 @@ const deployment = { appRef: "catalog://0x" + "ab".repeat(32) + "/54", leaseUnti
                      gpuMilli: 0n, isPublic: true, owner: "0x" + "0b".repeat(20) };
 const version = { yanked: false, cid: "bafy-catalog-cid", version: "0.6.54", memMb: 3072n, config: "{}" };
 function host(logs) {
-  return new Host({ dir, endpoint: "https://api.enclave.host/t/test", name: "test", appsEnabled: true,
-                    cpuPricePerSec6: 12, log: (m) => logs.push(String(m)) });
+  return servedOwner(new Host({ dir, endpoint: "https://api.enclave.host/t/test", name: "test", appsEnabled: true,
+                    cpuPricePerSec6: 12, log: (m) => logs.push(String(m)) }), "0x" + "0b".repeat(20));
 }
 async function run(patch) {
   const logs = [];

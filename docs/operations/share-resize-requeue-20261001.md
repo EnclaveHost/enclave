@@ -1,0 +1,9 @@
+# Share changes that survive stop/requeue
+
+The previous Shares flow sent `setActive(false)` alone, waited up to three minutes for release, and only then requested the new allocation. A timeout, stale post-receipt RPC read, cancelled second prompt, or closed page could therefore leave an ended app with its old shares.
+
+The Shares action now atomically batches `setShares` with `setActive(false)` while a lease is held. The requested allocation is committed with the stop, or neither change happens. The page tolerates pre-transaction/backward-block reads and temporary RPC failures while waiting for release or chain-clock expiry. Its default wait covers the remaining lease plus 90 seconds instead of assuming release within three minutes. It then prompts to reactivate and nudges the claim queue. A running/leased app still needs two confirmations: save-and-stop, then re-queue. Closing the page or declining re-queue does not undo the saved allocation; reopen Shares and choose Resize and restart to finish.
+
+A stopped or queued app without a live lease uses one atomic shares-and-reactivate transaction. Stopped apps can re-queue with their existing shares unchanged. Version controls remain separate. Wallet and passkey paths encode the same allocation and active-state intent, with browser-side exact-calldata verification for passkeys. The ledger, rate caps, model/resource minima, and runtime fencing remain enforced.
+
+Validation: 75 focused resize, vault, signature-digest and ABI tests passed. A headless Chromium test exercised the actual Shares panel and encoders, confirming transaction order, stopped-app recovery, unchanged Version behavior and resource-floor refusal. Site build passed. The broader billing suite has three login-setup HTTP 503 failures on both unchanged main and the patched code; its five unit tests pass. No production wallet transaction was submitted by the agent.

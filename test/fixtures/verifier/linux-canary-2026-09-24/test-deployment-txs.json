@@ -1,0 +1,38 @@
+{
+  "B-public-tier": {
+    "tx": "0x126e30a2129d5e83646df02e5d97b622cd4f64071d8dc5d1e33171447eff2869",
+    "status": "success",
+    "id": "0x9ee69e3d38a2302109c183af5e268f47f6cfddf875adad60b4d9f98ed146d42f",
+    "stop": {
+      "tx": "0x882005454db4d4fa3d9133ae3bd9f6df13ecba8ad263b5ac2be8ca8cfd50cd2c",
+      "status": "success",
+      "at": "2026-09-24T19:45:41.352Z"
+    }
+  },
+  "C-private-tier": {
+    "tx": "0x429dcf353fb046e8bf6ef43a0d3b3d29d5ce13d6dccbbbd826e71d2bcd66538f",
+    "status": "success",
+    "id": "0x0f46406d2e53babe99258c603168b68b3a4a56ff624dbd224eec8e60776ee41c",
+    "stop": {
+      "tx": "0x228ca7d6eb3c2ae4aaf3578cfb6c8b3a159bcaae5955707660fd88fd1cd4b684",
+      "status": "success",
+      "at": "2026-09-24T19:45:41.974Z"
+    }
+  },
+  "D-public-no-isolation": {
+    "tx": "0xb43213e5466ddc2d56988f2d2082e558fccd53073b393b9b375289e3a1bafd1f",
+    "status": "success",
+    "id": "0x9796942b6b9fea6f76073cd2189e171804a81187ac731f5a559df6a7055bf261",
+    "stop": {
+      "tx": "0x1fe5653331503da11fa10f0d1905bd5ae7f03f2299a284f87b437033874d3b47",
+      "status": "success",
+      "at": "2026-09-24T19:45:42.893Z"
+    }
+  },
+  "E-public-tier-second-instance": {
+    "tx": "0x692231f62210ddacdb05ec4b3e3c66f13eed407009e19e920fec2f220176e8ec",
+    "status": "success",
+    "id": "0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595",
+    "at": "2026-09-24T19:51:00.359Z"
+  }
+}

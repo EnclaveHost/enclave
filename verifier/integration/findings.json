@@ -1,0 +1,52 @@
+{
+  "F2-same-version-restage": {
+    "title": "a refused same-version re-stage replaces the staged file's bytes (update.js stageUpdate renames the verified file before the commit decides)",
+    "status": "closed",
+    "raised": "2026-09-24",
+    "raisedWith": "pVM owner (session enclave-53); receipt acknowledged by the owner 2026-09-24",
+    "pin": "pvm-client-dist",
+    "knownOn": "6784f67159e835c6ef4af113c5c4d1463d52b32d",
+    "fixture": "pvm-client-dist-f2",
+    "cases": [
+      "a refused same-version re-stage must leave the staged bytes untouched",
+      "concurrent same-version stagers with other bytes: the state's digest and the file on disk never disagree, whichever completes last"
+    ],
+    "reproduction": "regression fixture: on the pre-fix build (pin pvm-client-dist-f2) the refused same-version stager DOES replace the staged bytes",
+    "rule": "while pins[pin].commit === knownOn these cases failing is NOT ACCEPTED (exit 3), never a pass; on any other pinned revision they are plainly required; close the entry (status closed, fixedOn) once they pass on the new revision",
+    "fixedOn": "e7a2badc68ecca8facb9d63dc5592687bf74119a",
+    "fixedIn": "pVM client 0.2.1: content-addressed immutable publish (link(), never replace) + the decision inside the commit; the same artifact again is idempotent",
+    "closed": "2026-09-24",
+    "closedBy": "the required cases pass on the pinned e7a2badc (strict 76/76) and the regression fixture still reproduces the defect on 6784f671"
+  },
+  "F3-run2-carrier-state-copy-missing": {
+    "title": "the repeat device run's carrier-side committed-state copies (exchanges.jsonl 'after', capture.json 'stateAfter') are null: the run script piped the client's state into a heredoc that consumed its stdin (a run-script defect, disclosed by the owner; not the client, not the device); the correlation holds through the client's primary data",
+    "status": "closed",
+    "raised": "2026-09-24",
+    "raisedWith": "pVM owner (session enclave-53); disclosed by the owner with the results, fixed in their run script for future runs. Runs 2 and 3 were both directed by Codex under Steven's standing validation scope; Steven sent no fresh approval message for either; neither authorised any host setting or reboot.",
+    "pin": "fixture:pvm-client-activation-device-2",
+    "knownOn": "ae2094960b9bb2ad7756f71414b2aafc8521ff3a",
+    "cases": [
+      "repeat: the carrier-side committed-state copy (exchanges.jsonl 'after', capture.json 'stateAfter') equals the generation log for every exchange"
+    ],
+    "rule": "while the fixture is the recorded commit this case failing is NOT ACCEPTED (exit 3), never a pass; closed only by a run whose copies are present and equal, or by the user's explicit decision to accept primary-data correlation for this run (then the entry is closed with that decision recorded)",
+    "closed": "2026-09-24",
+    "closedBy": {
+      "fixture": "pvm-client-activation-device-3",
+      "commit": "75718b4b36273037f0d3694e7d335058fb9a4611",
+      "how": "closure path 1 of the rule: a run whose carrier-side copies are present and equal to the generation log for every exchange (20 rows, 0 null snapshots), executed with capture tooling committed before it (75a8ffca) and a preflight that fails loudly on a missing state. The additional bounded run was directed by Codex under Steven's standing validation scope; Steven sent no fresh approval message; that does not affect the run's technical validity and authorises no host setting or reboot."
+    },
+    "retainedRecord": "run 2 (ae209496) stays a RECORDED FAILED RUN, never relabelled accepted: its fixture and its own failed checker output are unchanged; the run-2 review carries an F2-style regression case that passes only when the precise null-copy defect reproduces (any other defect fails); and the original equality assertion (test/helpers/pvm-device-state-copy.mjs, the one run 3 must pass) is verified to fail on run 2 with its recorded reason by the separately invoked negative runner verifier/integration/run-device-2-negative.mjs (npm run test:client-device-2-negative). The strict acceptance command has no expected failure of any kind."
+  },
+  "F4-cache-vcek-slot-unbound": {
+    "title": "verifier/collateral-cache.mjs (first cut, 5522f542) authenticated a VCEK's issuer, signature and validity but not its chip id and TCB extensions against the requested slot: an authentic certificate for another chip could occupy the slot and shadow a healthy upstream (availability poisoning; the verifier still rejected the mismatch, so not a bypass)",
+    "status": "closed",
+    "raised": "2026-09-24",
+    "raisedWith": "found and reproduced by Codex's independent review of 5522f542 under Steven's standing scope; this session's own defect",
+    "pin": "self",
+    "knownOn": "5522f542",
+    "closedBy": {
+      "how": "the slot binding through the verifier's own vcekMatchesReport on cache hits and upstream answers, the slot key format validated; regressions: Codex's reproduction, planted wrong-TCB and wrong-chip entries quarantined then restored from a healthy upstream with the verdict verified, the upstream down giving rejected, an upstream serving another chip's certificate refused and not cached"
+    },
+    "closed": "2026-09-24"
+  }
+}

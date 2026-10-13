@@ -413,21 +413,21 @@ test("rankEnclavesFor puts the CHEAPEST box for this app first, not just the big
 
 /* ---- moveTargetsFor: where a LIVE deployment may be re-claimed ------------
    A move is release-then-re-claim, so the destination must pass exactly the
-   gates a fresh deploy passes. These pin the rule that the current host is
-   never offered as a destination, and that a box which would refuse the record
+   gates a fresh deploy passes. The current host remains a destination, while a box which would refuse the record
    is never offered at all — a target the runner declines leaves the app dark
    in the open queue, which is worse than saying "nowhere to go". ---- */
 const ID_A = "0x" + "a".repeat(64), ID_B = "0x" + "b".repeat(64);
 
-test("moveTargetsFor: the box already holding the lease is never a destination", () => {
+test("moveTargetsFor: the box already holding the lease remains selectable", () => {
   const rows = [row("kryptos", GPU_BOX, { id: ID_A }), row("big", CPU_BOX, { id: ID_B })];
-  assert.deepEqual(moveTargetsFor(MC, rows, ID_A).map(t => t.name), ["big"]);
-  assert.deepEqual(moveTargetsFor(MC, rows, ID_B).map(t => t.name), ["kryptos"]);
+  assert.deepEqual(moveTargetsFor(MC, rows, ID_A).map(t => t.name), ["big", "kryptos"]);
+  assert.equal(moveTargetsFor(MC, rows, ID_A).find(t => t.name === "kryptos").current, true);
+  assert.deepEqual(moveTargetsFor(MC, rows, ID_B).map(t => t.name), ["big", "kryptos"]);
 });
 
-test("moveTargetsFor: a GPU app on the only GPU box has nowhere to go", () => {
+test("moveTargetsFor: a GPU app can keep its only eligible host", () => {
   const rows = [row("kryptos", GPU_BOX, { id: ID_A }), row("big", CPU_BOX, { id: ID_B })];
-  assert.deepEqual(moveTargetsFor(IMAGE_GEN, rows, ID_A), []);
+  assert.deepEqual(moveTargetsFor(IMAGE_GEN, rows, ID_A).map(t => t.name), ["kryptos"]);
 });
 
 test("moveTargetsFor: a box missing the model volume is not a destination", () => {
@@ -436,7 +436,7 @@ test("moveTargetsFor: a box missing the model volume is not a destination", () =
   const withVol = row("metal0", { ...CPU_BOX, volumes: [{ name: "fable-fusion-27b-mtp-gguf" }] }, { id: ID_B });
   const without = row("kryptos", GPU_BOX, { id: ID_A });
   const app = { ...MC, volumes: ["fable-fusion-27b-mtp-gguf"] };
-  assert.deepEqual(moveTargetsFor(app, [without, withVol], ID_B).map(t => t.name), []);
+  assert.deepEqual(moveTargetsFor(app, [without, withVol], ID_B).map(t => t.name), ["metal0"]);
   assert.deepEqual(moveTargetsFor(app, [without, withVol], ID_A).map(t => t.name), ["metal0"]);
 });
 
@@ -445,13 +445,13 @@ test("moveTargetsFor: a full-but-fitting box stays offered, flagged queued", () 
   // caller labels it rather than hiding the only sane target
   const full = row("big", { ...CPU_BOX, cpuShareFree: 0 }, { id: ID_B });
   const t = moveTargetsFor(MC, [row("kryptos", GPU_BOX, { id: ID_A }), full], ID_A);
-  assert.deepEqual(t.map(x => x.name), ["big"]);   // the source box is excluded, so this is the only one
-  assert.equal(t[0].queued, true);
+  assert.deepEqual(t.map(x => x.name), ["kryptos", "big"]);
+  assert.equal(t.find(x => x.name === "big").queued, true);
 });
 
 test("moveTargetsFor: a non-serving box is not a destination", () => {
   const dark = row("metal0", CPU_BOX, { id: ID_B, serving: false });
-  assert.deepEqual(moveTargetsFor(MC, [row("kryptos", GPU_BOX, { id: ID_A }), dark], ID_A), []);
+  assert.deepEqual(moveTargetsFor(MC, [row("kryptos", GPU_BOX, { id: ID_A }), dark], ID_A).map(t => t.name), ["kryptos"]);
 });
 
 test("a GPU box serves CPU wasi-nn but is never the automatic choice for it", () => {
@@ -472,7 +472,7 @@ test("a GPU box serves CPU wasi-nn but is never the automatic choice for it", ()
   const dearCpu = row("metal0", { ...CPU_BOX, volumes: [{ name: "m" }], askCpuPricePerSec6: 9999 }, { id: ID_B });
   assert.equal(rankEnclavesFor(cpuOnlyApp, [cheapGpu, dearCpu])[0].name, "metal0");
   // a manual move off the CPU box can still choose the GPU box
-  assert.deepEqual(moveTargetsFor(cpuOnlyApp, [gpuBox, cpuBox], ID_B).map(t => t.name), ["kryptos"]);
+  assert.deepEqual(moveTargetsFor(cpuOnlyApp, [gpuBox, cpuBox], ID_B).map(t => t.name), ["metal0", "kryptos"]);
   // a deployment that DID buy GPU share is not demoted - the card is the point
   const gpuApp = { ...IMAGE_GEN, volumes: ["m"] };
   assert.equal(rankEnclavesFor(gpuApp, [gpuBox, cpuBox])[0].name, "kryptos");
@@ -1010,4 +1010,63 @@ test("cardServesApp is the console's copy of gpuRouting, shielded rule included"
   assert.equal(cardServesApp({ gpu: false, shielded: { vramGb: 62 } }, small), false,
     "no card advertised is no card, whatever the block says");
   assert.equal(cardServesApp(null, small), false, "no host known: not on a card");
+});
+
+// Version changes retain their existing admission rule. Editable Shares must
+// also enforce the CPU-only floor for queued/stopped allocations without GPU.
+function panelCpuNeed(hostAvail, { active = true, gpuMilli = 970, sharesOnly = false } = {}) {
+  const src = fs.readFileSync(new URL("../site/components/deployments/deployments.js", import.meta.url), "utf8");
+  const start = src.indexOf("    const cpuNeedOf =");
+  const end = src.indexOf("    const rows =", start);
+  assert.ok(start > 0 && end > start);
+  return new Function("hostAvail", "hw", "d", "bought", "cpuFloorFor", "cardServesApp", "sharesOnly",
+    src.slice(start, end) + "\nreturn cpuNeedOf;")(
+      hostAvail, hostAvail ? { row: { availability: hostAvail } } : null,
+      { active }, { gpuMilli }, cpuFloorFor, cardServesApp, sharesOnly);
+}
+
+const EYESOFF_SHARE_SPEC = { cardVramGb: 62, cardTflops: 214.7, nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000 };
+const eyesoffShareMins = () => minPctsOf({ vramMb: 51200, gpuGflops: 320000, memMb: 4096, cpuGflops: 10,
+  gpuOptional: true, cpuFallback: { memMb: 38912, cpuGflops: 20 } }, EYESOFF_SHARE_SPEC);
+
+test("unleased deployment keeps the app's normal CPU minimum even when selecting no GPU", () => {
+  const host = leaseHostOf({ ...leased, leaseUntil: 0 }, FLEET, NOW);
+  assert.equal(host, null);
+  const need = panelCpuNeed(host);
+  const r = { mins: eyesoffShareMins() };
+  assert.equal(r.mins.cpuPct, 7);
+  assert.equal(r.mins.cpuPctNoGpu, 60);
+  assert.equal(need(r), 7, "the stored 97% GPU allocation still buys a card");
+  assert.equal(need(r, 100), 7, "typing a new nonzero GPU share keeps the normal minimum");
+  assert.equal(need(r, 0), 7, "CPU-only allocation can be saved before the app runs");
+  assert.equal(panelCpuNeed(null, { gpuMilli: 0 })(r), 7, "a queued CPU-only allocation also uses the normal minimum");
+});
+
+test("a stopped deployment uses the normal minimum even while its old host holds the lease", () => {
+  const r = { mins: eyesoffShareMins() };
+  for (const host of [{ gpu: false }, { gpu: true }, { gpu: true, shielded: {} }]) {
+    const need = panelCpuNeed(host, { active: false });
+    assert.equal(need(r), 7);
+    assert.equal(need(r, 0), 7);
+  }
+});
+
+test("a known lease holder still selects the CPU minimum for its actual GPU routing", () => {
+  const r = { mins: eyesoffShareMins() };
+  assert.equal(panelCpuNeed({ gpu: false })(r), 60);
+  assert.equal(panelCpuNeed({ gpu: true })(r), 60, "undersized local card routes this app to cores");
+  const shielded = panelCpuNeed({ gpu: true, shielded: { vramGb: 62 } });
+  assert.equal(shielded(r), 7, "shielded offload keeps the normal minimum");
+  assert.equal(shielded(r, 0), 60, "zero GPU is CPU-only even on a GPU host");
+});
+
+test("Shares enforces CPU-only requirements even before a host runs the allocation", () => {
+  const r = { mins: eyesoffShareMins() };
+  for (const active of [true, false]) {
+    const need = panelCpuNeed(null, { active, sharesOnly: true });
+    assert.equal(need(r, 0), 60);
+    assert.equal(need(r, 800), 7);
+  }
+  assert.equal(panelCpuNeed({ gpu: false }, { sharesOnly: true })(r, 800), 60);
+  assert.equal(panelCpuNeed({ gpu: true, shielded: {} }, { sharesOnly: true })(r, 800), 7);
 });

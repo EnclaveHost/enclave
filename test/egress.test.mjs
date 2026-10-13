@@ -1,7 +1,5 @@
-// End-to-end test for dedicated-IP egress (egress.js + net-guard.mjs) and the
-// three guardrails. Stands up the enclave-side egress front, a faithful relay
-// stub (same net-guard classifier the real relay/egress-relay.js uses), and an
-// echo target, then drives it with a real SOCKS5 client.
+// Authenticated egress tests with a standard SOCKS provider stub and real TCP
+// targets. Tenant credentials and DNS/private-address policy stay local.
 //
 // The PHASE-2 block at the bottom additionally drives a REAL patched wasmtime
 // (transparent egress: the -S egress shim) with two unmodified guest components,
@@ -20,13 +18,10 @@ import fs from "node:fs";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { once } from "node:events";
-import WebSocket, { createWebSocketStream } from "ws";
 import { createEgress, egressToken } from "../egress.js";
 import { isBlockedHost, parseIp } from "../net-guard.mjs";
 
 const SECRET = new TextEncoder().encode("test-enclave-secret");
-const RELAY_TOKEN = "relay-shared-token";
-const sourceAddrFor = (id) => `fd00::${Buffer.from(id).toString("hex").slice(0, 4)}`;
 
 // ---- helpers ---------------------------------------------------------------
 function reader(sock) {
@@ -69,48 +64,11 @@ async function socks({ port, user, pass, atyp, host, dport }) {
   return { sock, authOk: true, reply: Buffer.concat([head, rest]) };
 }
 
-// stand up: echo server, enclave (egress front), relay stub. Returns teardown +
-// the captured OPEN frames the relay saw.
+// A real local SOCKS upstream stands in for the TUNA SDK listener.
 async function harness() {
-  const opens = [];
-  const echo = net.createServer((s) => s.pipe(s)); echo.listen(0, "127.0.0.1"); await once(echo, "listening");
-  const echoPort = echo.address().port;
-
-  const egress = createEgress({ secret: SECRET, socksPort: 0, relayToken: RELAY_TOKEN, sourceAddrFor,
-                                isKnown: (id) => id.startsWith("dep"), log: () => {} });
-  const enclave = http.createServer();
-  enclave.on("upgrade", (req, socket, head) => { if (!egress.handleUpgrade(req, socket, head)) socket.destroy(); });
-  enclave.listen(0, "127.0.0.1"); await once(enclave, "listening");
-  const enclavePort = enclave.address().port;
-  await egress.start();                                     // socksPort 0 -> OS-assigned
-  const socksPort = egress.socksPort();
-
-  // relay stub — the same classifier the real daemon uses; dials the echo server
-  const handles = [];                                        // everything to tear down
-  const control = new WebSocket(`ws://127.0.0.1:${enclavePort}/v1/egress-control`, { headers: { Authorization: `Bearer ${RELAY_TOKEN}` } });
-  handles.push(control);
-  await once(control, "open");
-  control.on("message", (raw) => {
-    const m = JSON.parse(raw.toString());
-    if (m.type !== "open") return;
-    opens.push(m);
-    if (isBlockedHost(m.host)) { control.send(JSON.stringify({ type: "close", cid: m.cid, reason: "denied" })); return; }
-    const dst = net.connect(echoPort, "127.0.0.1"); handles.push(dst);   // test target (ignores m.host)
-    dst.on("error", () => control.send(JSON.stringify({ type: "close", cid: m.cid, reason: "error" })));
-    dst.on("connect", () => {
-      dst.pause();
-      const ws = new WebSocket(`ws://127.0.0.1:${enclavePort}/x/egress/${m.cid}`, { headers: { Authorization: `Bearer ${RELAY_TOKEN}` } });
-      handles.push(ws);
-      const stream = createWebSocketStream(ws);
-      const close = () => { try { ws.terminate(); } catch {} try { dst.destroy(); } catch {} };
-      dst.on("close", close); dst.on("error", close); stream.on("error", close); stream.on("close", close); ws.on("error", close);
-      ws.on("open", () => { dst.pipe(stream); stream.pipe(dst); dst.resume(); });
-    });
-  });
-
-  return { socksPort, enclavePort, opens,
-    teardown: () => { for (const h of handles) { try { h.terminate ? h.terminate() : h.destroy(); } catch {} }
-      echo.close(); enclave.close(); egress.stop(); } };
+  const echo = net.createServer(s => s.pipe(s)); echo.listen(0, "127.0.0.1"); await once(echo, "listening");
+  const h = await phase2Harness({host: "127.0.0.1", port: echo.address().port});
+  return {...h, teardown() {h.teardown(); echo.close();}};
 }
 
 // ---- guardrail 2: SSRF classifier (unit) -----------------------------------
@@ -134,19 +92,14 @@ test("wrong SOCKS password is rejected (tenant isolation)", async () => {
   h.teardown();
 });
 
-test("a deployment egresses from ITS OWN derived source, never a chosen one", async () => {
+test("TUNA receives the validated destination without a claimed dedicated source IP", async () => {
   const h = await harness();
-  const { sock, reply, authOk } = await socks({ port: h.socksPort, user: "depA", pass: egressToken(SECRET, "depA"),
-                                                atyp: 0x03, host: "echo.test", dport: 80 });
-  assert.equal(authOk, true);
-  assert.equal(reply[1], 0x00, "CONNECT should succeed");
-  // the OPEN frame the relay received carries the source derived from the id
-  assert.equal(h.opens.at(-1).source, sourceAddrFor("depA"));
-  // and the SOCKS reply BND.ADDR echoes that same v6 back to the app
-  assert.equal(reply[3], 0x04, "reply ATYP should be v6");
-  const bnd = []; for (let i = 0; i < 8; i++) bnd.push(reply.readUInt16BE(4 + i * 2).toString(16));
-  assert.equal(parseIp(bnd.join(":")).value, parseIp(sourceAddrFor("depA")).value);
-  sock.destroy(); h.teardown();
+  try {
+    const {sock, reply, authOk} = await socks({port:h.socksPort, user:"depA", pass:egressToken(SECRET,"depA"), atyp:3, host:"echo.test", dport:80});
+    assert.equal(authOk, true); assert.equal(reply[1], 0);
+    assert.deepEqual(h.opens.at(-1), {host:"93.184.216.34", port:80});
+    assert.equal(reply[3], 1); assert.deepEqual([...reply.subarray(4,8)], [0,0,0,0]); sock.destroy();
+  } finally {h.teardown();}
 });
 
 // ---- happy path: splice integrity ------------------------------------------
@@ -172,29 +125,12 @@ test("CONNECT to a loopback literal is denied before leaving the enclave", async
   h.teardown();
 });
 
-// ---- guardrail 3: cid is single-use ----------------------------------------
-test("a used connection id cannot be re-opened by the relay", async () => {
+test("DNS resolving into a private network never reaches TUNA", async () => {
   const h = await harness();
-  const { sock, reply } = await socks({ port: h.socksPort, user: "depA", pass: egressToken(SECRET, "depA"),
-                                        atyp: 0x03, host: "echo.test", dport: 80 });
-  assert.equal(reply[1], 0x00);
-  sock.destroy();
-  const cid = h.opens.at(-1).cid;
-  const ws = new WebSocket(`ws://127.0.0.1:${h.enclavePort}/x/egress/${cid}`, { headers: { Authorization: `Bearer ${RELAY_TOKEN}` } });
-  ws.on("error", () => {});                                   // 404 upgrade surfaces as a late error
-  const [, res] = await once(ws, "unexpected-response");
-  assert.equal(res.statusCode, 404, "second data WS for the same cid must 404");
-  res.destroy(); ws.terminate(); await once(ws, "close").catch(() => {}); h.teardown();
-});
-
-// ---- relay-channel auth ----------------------------------------------------
-test("control channel rejects a bad relay token", async () => {
-  const h = await harness();
-  const ws = new WebSocket(`ws://127.0.0.1:${h.enclavePort}/v1/egress-control`, { headers: { Authorization: "Bearer wrong" } });
-  ws.on("error", () => {});                                   // 401 upgrade surfaces as a late error
-  const [, res] = await once(ws, "unexpected-response");
-  assert.equal(res.statusCode, 401);
-  res.destroy(); ws.terminate(); await once(ws, "close").catch(() => {}); h.teardown();
+  try {
+    const {reply} = await socks({port:h.socksPort, user:"depA", pass:egressToken(SECRET,"depA"), atyp:3, host:"private.test", dport:443});
+    assert.equal(reply[1], 2); assert.equal(h.opens.length, 0);
+  } finally {h.teardown();}
 });
 
 // ===========================================================================
@@ -203,7 +139,7 @@ test("control channel rejects a bad relay token", async () => {
 // These drive an ACTUAL patched wasmtime (`-S egress` shim) so an UNMODIFIED
 // app's raw wasi:sockets / wasi:http outbound is transparently routed through
 // the SAME front + relay as phase 1 — no ENCLAVE_EGRESS in the guest. They prove:
-//   (1) transparent routing carries the deployment's derived source;
+//   (1) transparent routing carries the authenticated tenant's connection;
 //   (2) an internal/loopback destination is refused (SSRF; raw bypass closed);
 //   (3) with the network locked down a raw dial reaches nothing directly;
 //   (4) the wasi:http outgoing handler is mediated too (socks5h domain path).
@@ -220,39 +156,29 @@ const phase2Skip = !WASMTIME ? "set $ENCLAVE_EGRESS_WASMTIME to a patched wasmti
 
 // A harness whose mock relay dials `dialTarget` for every ALLOWED open (it
 // ignores the guest's requested host, exactly like test/egress.test.mjs's echo
-// relay) and records the OPEN frames. Reused by the TCP + HTTP guests.
+// relay) and records SOCKS CONNECT destinations. Reused by the TCP + HTTP guests.
 async function phase2Harness(dialTarget) {
-  const opens = [];
-  const egress = createEgress({ secret: SECRET, socksPort: 0, relayToken: RELAY_TOKEN, sourceAddrFor,
-                                isKnown: (id) => id.startsWith("dep"), log: () => {} });
-  const enclave = http.createServer();
-  enclave.on("upgrade", (req, s, head) => { if (!egress.handleUpgrade(req, s, head)) s.destroy(); });
-  enclave.listen(0, "127.0.0.1"); await once(enclave, "listening");
-  const enclavePort = enclave.address().port;
-  await egress.start();
-  const socksPort = egress.socksPort();
-  const handles = [];
-  const control = new WebSocket(`ws://127.0.0.1:${enclavePort}/v1/egress-control`, { headers: { Authorization: `Bearer ${RELAY_TOKEN}` } });
-  handles.push(control); await once(control, "open");
-  control.on("message", (raw) => {
-    const m = JSON.parse(raw.toString());
-    if (m.type !== "open") return;
-    opens.push(m);
-    if (isBlockedHost(m.host)) { control.send(JSON.stringify({ type: "close", cid: m.cid, reason: "denied" })); return; }
-    const dst = net.connect(dialTarget.port, dialTarget.host); handles.push(dst);
-    dst.on("error", () => control.send(JSON.stringify({ type: "close", cid: m.cid, reason: "error" })));
-    dst.on("connect", () => {
-      dst.pause();
-      const ws = new WebSocket(`ws://127.0.0.1:${enclavePort}/x/egress/${m.cid}`, { headers: { Authorization: `Bearer ${RELAY_TOKEN}` } });
-      handles.push(ws);
-      const stream = createWebSocketStream(ws);
-      const close = () => { try { ws.terminate(); } catch {} try { dst.destroy(); } catch {} };
-      dst.on("close", close); dst.on("error", close); stream.on("error", close); stream.on("close", close); ws.on("error", close);
-      ws.on("open", () => { dst.pipe(stream); stream.pipe(dst); dst.resume(); });
-    });
+  const opens = [], handles = [];
+  const provider = net.createServer(socket => {
+    handles.push(socket); socket.on("error", () => {});
+    (async () => {
+      const read = reader(socket);
+      assert.deepEqual([...await read(3)], [5,1,0]); socket.write(Buffer.from([5,0]));
+      const req = await read(5); assert.deepEqual([...req.subarray(0,4)], [5,1,0,3]);
+      const host = (await read(req[4])).toString(), port = (await read(2)).readUInt16BE(0);
+      opens.push({host, port});
+      const dst = net.connect(dialTarget.port, dialTarget.host); handles.push(dst); dst.on("error", () => socket.destroy());
+      await once(dst,"connect"); socket.removeAllListeners("data");
+      socket.write(Buffer.from([5,0,0,1,0,0,0,0,0,0]));
+      socket.pipe(dst).pipe(socket); socket.once("close",()=>dst.destroy()); dst.once("close",()=>socket.destroy());
+    })().catch(()=>socket.destroy());
   });
-  return { socksPort, opens,
-    teardown: () => { for (const h of handles) { try { h.terminate ? h.terminate() : h.destroy(); } catch {} } enclave.close(); egress.stop(); } };
+  provider.listen(0,"127.0.0.1"); await once(provider,"listening");
+  const egress = createEgress({secret:SECRET, socksPort:0, upstream:`socks5://127.0.0.1:${provider.address().port}`,
+    lookup: async host => [{address:host === "private.test" ? "127.0.0.1" : "93.184.216.34"}],
+    isKnown:id=>id.startsWith("dep")});
+  await egress.start();
+  return {socksPort:egress.socksPort(), opens, teardown() {for(const s of handles)s.destroy();provider.close();egress.stop();}};
 }
 
 // Spawn `wasmtime run` on a command guest with the given TARGET; capture stdout.
@@ -288,9 +214,7 @@ test("phase2: transparent egress routes an UNMODIFIED guest's raw wasi:sockets o
   const r = await runTcpGuest({ socksPort: h.socksPort, id: "depX", target: "93.184.216.34:80" });
   assert.match(r.out, /^OK ping-egress/, `guest out=${JSON.stringify(r.out)} err=${r.err.slice(0, 200)}`);
   const open = h.opens.at(-1);
-  // GUARDRAIL 1: source derived server-side from the authenticated id
-  assert.equal(open.source, sourceAddrFor("depX"), "egress must carry the deployment's derived source");
-  // and it dialed the guest's actual intended destination
+  // The authenticated tenant dialed the intended public destination.
   assert.equal(open.host, "93.184.216.34"); assert.equal(open.port, 80);
   echo.close(); h.teardown();
 });
@@ -325,13 +249,11 @@ test("phase2: phase-1 explicit SOCKS (ENCLAVE_EGRESS) still works under the lock
                                 target: "egress-fixture.test:80", guest: GUEST_SOCKS, enclaveEgress: true });
   const m = r.out.match(/^OK (\S+) (.*)$/);
   assert.ok(m, `expected OK <bnd> <reply>, got out=${JSON.stringify(r.out)} err=${r.err.slice(0, 300)}`);
-  // BND.ADDR carries the deployment's derived source (guardrail 1, phase-1 semantics)
-  assert.equal(m[1], sourceAddrFor("depS"));
+  // The SOCKS front makes no dedicated source-IP claim.
   assert.equal(m[2], "ping-egress");
-  // and the CONNECT reached the relay as a DOMAIN (socks5h — resolved there)
+  // The authenticated SOCKS request still reaches the selected public destination.
   const open = h.opens.at(-1);
-  assert.equal(open.host, "egress-fixture.test");
-  assert.equal(open.source, sourceAddrFor("depS"));
+  assert.equal(open.host, "93.184.216.34", "the front resolves and validates the destination before TUNA");
   echo.close(); h.teardown();
 });
 
@@ -376,8 +298,7 @@ test("phase2: the wasi:http outgoing handler is mediated too (serve mode, socks5
   assert.ok(up && status === 200, `serve did not respond (up=${up} status=${status} stderr=${serr.slice(0, 200)})`);
   assert.match(body, /hello-from-target/, "wasi:http response must be proxied through egress");
   const open = h.opens.at(-1);
-  assert.equal(open.source, sourceAddrFor(id), "wasi:http egress must carry the deployment's derived source");
-  assert.equal(open.host, "example.test", "host must reach the front as a socks5h DOMAIN (remote DNS)");
+  assert.equal(open.host, "93.184.216.34", "the validated DNS result reaches TUNA as a literal");
   assert.equal(open.port, 80);
 });
 
@@ -494,40 +415,4 @@ test("loopback policy: UNSET leaves the old behaviour (a hand-run wasmtime is un
                                 target: `127.0.0.1:${nb.port}`, egressOn: false, inheritNetwork: true });
   assert.match(r.out, /^OK sibling-data/, `unset must not restrict, got ${JSON.stringify(r.out)}`);
   nb.close(); h.teardown();
-});
-
-// ---- multi-relay routing: outbound follows the deployment's chosen relay ----
-// routeEgress(chosen, attachedSet, hasSource) -> { relay, dedicated } | null.
-// The default relay owns the /64 (dedicated source-bind); any other relay does
-// plain egress from its own IP. Never black-hole: an unattached choice falls
-// back to the default.
-test("egress routing follows the chosen relay, dedicated only through the /64 owner", () => {
-  // default == dedicated == nan (today's single-relay shape)
-  const e = createEgress({ secret: SECRET, socksPort: 0, relayToken: RELAY_TOKEN,
-    sourceAddrFor, relayFor: () => null, defaultRelay: "nan" });
-  const R = e.routeEgress;
-  const both = new Set(["nan", "us-west"]);
-  assert.deepEqual(R(null, both, true), { relay: "nan", dedicated: true });   // no choice -> default, dedicated
-  assert.deepEqual(R("", both, true), { relay: "nan", dedicated: true });
-  assert.deepEqual(R("nan", both, true), { relay: "nan", dedicated: true });  // chose the /64 owner
-  assert.deepEqual(R("us-west", both, true), { relay: "us-west", dedicated: false });   // chose us-west -> plain
-  assert.deepEqual(R("us-west", new Set(["nan"]), true), { relay: "nan", dedicated: true }); // unattached -> fall back, never black-hole
-  assert.deepEqual(R("us-west", both, false), { relay: "us-west", dedicated: false });  // plain needs no source
-  assert.equal(R(null, both, false), null);   // default is the /64 owner, addressing off -> can't carry
-  assert.equal(R("nan", both, false), null);
-  assert.equal(R("us-west", new Set(), true), null);   // nothing attached
-  assert.equal(R(null, new Set(), true), null);
-
-  // SEPARATED: default egress = us-west (nearby, plain), dedicated = nan (the /64 owner)
-  const e2 = createEgress({ secret: SECRET, socksPort: 0, relayToken: RELAY_TOKEN,
-    sourceAddrFor, relayFor: () => null, defaultRelay: "us-west", dedicatedRelay: "nan" });
-  const R2 = e2.routeEgress;
-  assert.deepEqual(R2(null, both, true), { relay: "us-west", dedicated: false });   // no choice -> us-west, PLAIN
-  assert.deepEqual(R2("nan", both, true), { relay: "nan", dedicated: true });       // opt in to dedicated on the /64 owner
-  assert.deepEqual(R2("us-west", both, true), { relay: "us-west", dedicated: false });
-  assert.deepEqual(R2(null, new Set(["us-west"]), true), { relay: "us-west", dedicated: false }); // nan down, still plain via us-west
-  // rollout safety: default=us-west but us-west egress not up yet -> fall back
-  // to the /64 owner (nan), egress keeps working exactly as before
-  assert.deepEqual(R2(null, new Set(["nan"]), true), { relay: "nan", dedicated: true });
-  assert.deepEqual(R2("us-west", new Set(["nan"]), true), { relay: "nan", dedicated: true });
 });

@@ -1,3 +1,5 @@
+import "../components/cinematic-scene/cinematic-scene.js";
+import "./hex-background.js";
 /* ============================================================
    Soft-navigation router. Full-document navigations can't be
    made seamless when an extension injects content scripts
@@ -33,6 +35,8 @@ const PAGES = {
   host:      () => import("./pages/host.js"),   // seller pitch + the PUBLIC live-fleet panel
   architecture: () => import("./pages/architecture.js"), // how it works, protection levels, what is proven vs planned
   "sso-authorize": () => import("./pages/sso-authorize.js"), // Sign in with Enclave for TENANT apps - EST1 hand-off (relay/sso.js)
+  grant:     () => import("./pages/grant.js"),     // approve a session an agent/device asked for (enclave session new)
+  sessions:  () => import("./pages/sessions.js"),  // every session that can act for the wallet; owner controls
 };
 // URL aliases: pathnames that render ANOTHER page's document. /apps/publish
 // is the canonical publish-form URL, but it stays a view of the Apps page -
@@ -193,7 +197,12 @@ document.addEventListener("click", (e) => {
     // "<site root>#x" and the browser would LEAVE the page (/develop#x
     // became /#x). Keep it on the current pathname ourselves.
     e.preventDefault();
-    location.hash = href;
+    // setting the hash it already has is a no-op (no scroll, no
+    // hashchange), so a second click on the same link scrolls by hand
+    if (location.hash === href) {
+      const el = document.getElementById(decodeURIComponent(href.slice(1)));
+      if (el) el.scrollIntoView({ block: "start" });
+    } else location.hash = href;
     return;
   }
   const url = new URL(a.href);                             // the PROPERTY is <base>-resolved
@@ -233,7 +242,7 @@ const initial = pageOf(location.pathname) || "overview";
 bootPage(initial);
 setTimeout(() => {
   for (const p of Object.keys(PAGES)) {
-    if (p === "admin" || p === "terms" || p === "privacy" || p === "checkout" || p === "link" || p === "authorize" || p === "sso-authorize") continue;   // nobody navigates to these by accident - don't warm them
+    if (p === "admin" || p === "terms" || p === "privacy" || p === "checkout" || p === "link" || p === "authorize" || p === "sso-authorize" || p === "grant") continue;   // nobody navigates to these by accident - don't warm them
     if (initial !== p) fetchPage(p).catch(() => {});
   }
 }, 1500);

@@ -912,6 +912,35 @@ export async function handleCerts(req, res, u, ctx) {
     return bad(ctx, res, req, 403, "not_lease_holder", "This endpoint does not hold the deployment's live lease.");
   }
 
+  // 6b. the lease holder must be a host the relay holds ELIGIBLE (U7). The chain says who runs the deployment the label
+  //     names; it never makes that host fit to serve it. Checked BEFORE the cache, the in-flight order resume and a new
+  //     order alike, so an ineligible holder gets no certificate by any of the three. A context without the verdict
+  //     (hostEligibility) refuses: unknown is not permission.
+  const el = typeof ctx.hostEligibility === "function" ? ctx.hostEligibility(epId) : null;
+  //     ...with ONE exception (enclave-87's (B)): an hv-node row may have a certificate for a deployment it serves NOW: its
+  //     LEDGER OWNER is served (the operator, or an owner whose delegation has not expired: relay/host-delegation.mjs), the
+  //     row holds its live lease, and its envelope requires hyperv-partition-per-app (api-relay.js servesDeploymentUntil).
+  //     That is the owner's own app on a host the owner chose; any other deployment on such a row is refused as before.
+  const ownerServed = !!(d && typeof ctx.ownerServesDeployment === "function" && ctx.ownerServesDeployment(epId, d));
+  if ((!el || el.eligible !== true) && !ownerServed) {
+    console.error(`[certs] ${endpoint} REFUSED for ${name}: the lease holder is not an eligible host (${el ? el.reason : "no eligibility verdict"})`);
+    return bad(ctx, res, req, 403, "host_ineligible",
+      `This endpoint holds the lease but is not eligible to serve tenant apps${el && el.reason ? ": " + el.reason : ""}.`);
+  }
+
+  // A Shield host's boot attachment is not proof of this app's key custody.
+  // Require fresh relay-verified guest evidence before cache/order handling.
+  if (el?.appEvidenceRequired === true) {
+    let proof = null;
+    try {
+      if (typeof ctx.verifyAppCertificate === 'function')
+        proof = await ctx.verifyAppCertificate(epId, d, spkiHash);
+    } catch { /* unknown evidence is a refusal */ }
+    if (proof?.ok !== true || proof.spkiSha256 !== spkiHash)
+      return bad(ctx, res, req, 403, 'app_evidence_required',
+        'This certificate key has not passed the app isolation policy. Retry after the guest evidence is available.');
+  }
+
   // 7. cache
   const key = cacheKey(name, spkiHash);
   const hit = store.data.certs[key];

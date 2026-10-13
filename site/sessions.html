@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#070A0F" />
+<title>Sessions · Enclave</title>
+<!-- device-flow approval page: nothing here is worth indexing -->
+<meta name="robots" content="noindex" />
+<meta name="description" content="Every session that can act for your wallet: this browser, other devices and agents." />
+<link rel="icon" href="favicon.ico" sizes="48x48 32x32 16x16" />
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+<script>
+/* Cross-document view transitions are skipped by Chromium when extensions
+   inject content scripts (MetaMask et al): the old page sees pageswap with
+   no viewTransition. Flag it, and the NEXT page (this script runs pre-paint)
+   plays the same settle-in itself (html.soft-enter, see base.css) - content
+   only, the static header stays put. */
+(function(){
+  try { if (sessionStorage.getItem("enclave_novt")) { sessionStorage.removeItem("enclave_novt"); document.documentElement.classList.add("soft-enter"); } } catch(e){}
+  addEventListener("pageswap", function(e){
+    try { if (!e.viewTransition && e.activation) sessionStorage.setItem("enclave_novt", "1"); } catch(e){}
+  });
+})();
+</script>
+<link rel="stylesheet" href="css/site.css" />
+<script type="module" blocking="render" src="js/boot.js"></script>
+</head>
+<body>
+<c-header current=""></c-header>
+<main id="main" tabindex="-1">
+<h1 class="sr-only">Sessions</h1>
+<section id="sessions" data-view="sessions" aria-label="Your sessions">
+  <div class="wrap">
+    <c-section-head eyebrow="Sessions" heading="Everything that can act for your wallet.">
+      <p>This browser, your other devices and your agents. Each session can only do what its policy allows, only spend its own budget, and ends at its expiry. Terminate any of them here; unspent budget returns to your wallet.</p>
+    </c-section-head>
+    <div id="ssBody" class="co-body"></div>
+  </div>
+</section>
+</main>
+<c-footer></c-footer>
+<c-toast></c-toast>
+</body>
+</html>

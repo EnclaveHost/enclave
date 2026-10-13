@@ -29,10 +29,15 @@ import { base } from "viem/chains";
 import fs from "node:fs";
 import path from "node:path";
 import { parseWaf } from "./waf.mjs";
+import { planCheckpoints } from "./verification-checkpoints.mjs";
 
 const RPCS = (process.env.BASE_RPCS || "https://base-rpc.publicnode.com,https://base.drpc.org,https://mainnet.base.org")
   .split(",").map((s) => s.trim()).filter(Boolean);
 const BOOK = (process.env.ADDRESS_BOOK_ADDRESS || "0xab214342d5A490150A4A977063A2f88E21F80907").trim();
+/** The Base RPCs this node reads (the privacy agent's config names the same ones: tuna-enroll.mjs). */
+export const rpcUrls = () => [...RPCS];
+/** The EnclaveAddressBook this node resolves contracts from (session-api-auth.mjs reads sessionVaultFactory there). */
+export const addressBook = () => BOOK;
 
 // The keys the address book publishes (same names the platform's addressbook.js reads).
 const BOOK_ABI = [{ type: "function", name: "all", stateMutability: "view", inputs: [],
@@ -148,6 +153,8 @@ export function newOperatorKey(keyFile) {
   return privateKeyToAccount(hex).address;
 }
 export const operatorAddress = () => (acct ? acct.address : null);
+/** The operator key as a viem local account (sponsor.mjs signs the sponsored registration and its 7702 authorization). */
+export const operatorAccount = () => acct;
 export const walletClient = () => wal;
 export async function operatorBalance() { return acct ? publicClient().getBalance({ address: acct.address }) : 0n; }
 
@@ -242,6 +249,30 @@ export const setPrices = (id, cpuPricePerSec6, gpuPricePerSec6) =>
 export const claimDeployment = (id, enclaveId) => send(addresses.deployments, DEP_ABI, "claim", [id, enclaveId]);
 export const renewDeployment = (id) => send(addresses.deployments, DEP_ABI, "renew", [id]);
 export const releaseDeployment = (id) => send(addresses.deployments, DEP_ABI, "release", [id]);
+// The runner's earnings: what this OPERATOR may withdraw from the live ledger (USDC, 6 dp), and the withdrawal, which
+// pays them to whatever address the caller names (payout.mjs decides which, and when).
+const EARN_ABI = [
+  { type: "function", name: "earned6", stateMutability: "view", inputs: [{ name: "operator", type: "address" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "withdrawEarnings", stateMutability: "nonpayable", inputs: [{ name: "to", type: "address" }], outputs: [] },
+];
+export const earnedOf = (operator) => publicClient().readContract({ address: addresses.deployments, abi: EARN_ABI, functionName: "earned6", args: [operator] });
+export const withdrawEarnings = (to) => send(addresses.deployments, EARN_ABI, "withdrawEarnings", [to]);
+// The payout declarations made for one box (EnclaveRegistry's PayoutWalletSet, id indexed) since a block, newest
+// last, and the calldata of the transaction that made one: payout.mjs checks it carries the code this machine issued.
+const PAYOUT_SET_EVENT = { type: "event", name: "PayoutWalletSet", inputs: [
+  { name: "id", type: "bytes32", indexed: true }, { name: "payoutWallet", type: "address", indexed: true }] };
+export const blockNumber = () => publicClient().getBlockNumber();
+export async function payoutDeclarations(id, fromBlock, { step = 500n } = {}) {
+  const latest = await publicClient().getBlockNumber();
+  const out = [];
+  for (let from = BigInt(fromBlock); from <= latest; from += step) {     // public RPCs refuse wide log ranges
+    const to = from + step - 1n > latest ? latest : from + step - 1n;
+    const logs = await publicClient().getLogs({ address: addresses.registry, event: PAYOUT_SET_EVENT, args: { id }, fromBlock: from, toBlock: to });
+    for (const l of logs) out.push({ wallet: l.args.payoutWallet, txHash: l.transactionHash, blockNumber: l.blockNumber });
+  }
+  return out;
+}
+export const txInput = async (hash) => (await publicClient().getTransaction({ hash })).input;
 export const claimCost = (id, enclaveId) => estimate(addresses.deployments, DEP_ABI, "claim", [id, enclaveId]);
 
 /** catalog://<appId>/<versionIndex> -> the version record (artifact CID, sizing, config, approval). */
@@ -325,22 +356,40 @@ export function nodeFloorOf(v) {
  * silently dropped, because every one of them is something a tenant paid for or relied on.
  *
  * Known here: `config` (the inline app-config override), `gpu` ({"optional":true}) and `network`
- * ({"relay":"<name>"}, consumed at the DNS layer, nothing for a runner to do but not refuse it).
+ * ({"transport":"tuna"}; historical relay preferences are inert metadata).
  * ...and `waf` (per-IP rate limit, concurrency and body caps, method/path/agent filters), which
  * this box now ENFORCES at both its doors - the relay's /x/<id> path and the app's own hostname.
  * NOT known here: nothing. Any other namespace is still refused by name, because the envelope is
  * fail-closed and silently ignoring an option an owner paid for is the one unacceptable answer.
  */
+export function pinnedHost(raw = '') {
+  const envelope = JSON.parse(String(raw || '{}'));
+  if (!envelope || Array.isArray(envelope) || typeof envelope !== 'object') throw Error('Invalid deployment options.');
+  if (!('placement' in envelope)) return '';
+  const p = envelope.placement;
+  if (!p || Array.isArray(p) || typeof p !== 'object' || Object.keys(p).some(k => k !== 'hostId')
+      || typeof p.hostId !== 'string' || !/^0x[0-9a-f]{64}$/.test(p.hostId) || /^0x0{64}$/.test(p.hostId))
+    throw Error('Invalid placement pin.');
+  return p.hostId;
+}
+export function placementRefusal(raw, enclaveId) {
+  let pin;
+  try { pin = pinnedHost(raw); } catch { return null; } // malformed live edits retain the old configuration
+  return pin && pin !== String(enclaveId || '').toLowerCase()
+    ? `Pinned to host ${pin}; fallback is disabled.` : null;
+}
+
 export function parseEnvelope(raw, gpuMilli) {
   const s = String(raw || "").trim();
   if (!s) return {};
   if (!s.startsWith("{")) throw new Error("its options field is a bare CID, not a JSON options envelope");
   let o; try { o = JSON.parse(s); } catch (e) { return void 0, (() => { throw new Error("its options envelope is not readable JSON: " + e.message); })(); }
   if (!o || Array.isArray(o) || typeof o !== "object") throw new Error("its options envelope is not a JSON object");
-  const known = ["config", "gpu", "network", "configCid", "waf"];
+  const known = ["config", "gpu", "network", "configCid", "waf", "isolation", "placement"];
   const unknown = Object.keys(o).filter((k) => !known.includes(k));
   if (unknown.length) throw new Error(`its options envelope carries ${unknown.join(", ")}, which this node does not enforce (it knows: ${known.join(", ")})`);
   const opts = {};
+  const pin = pinnedHost(raw); if (pin) opts.pinnedHost = pin;
   if ("gpu" in o) {
     const g = o.gpu;
     if (!g || Array.isArray(g) || typeof g !== "object") throw new Error('gpu must be a JSON object like {"optional":true}');
@@ -353,22 +402,44 @@ export function parseEnvelope(raw, gpuMilli) {
       opts.gpuOptional = g.optional;
     }
   }
+  if ("isolation" in o) {
+    // THE TENANT'S OWN REQUIREMENT that this deployment runs in its own isolated domain rather
+    // than in the shared enclave. Same form as the Linux tier's: {"require": "<backend name>"}.
+    //
+    // Before this, `isolation` was simply unknown here, so parseEnvelope THREW and claimPolicy
+    // refused the deployment outright: a tenant who asked for isolation could not even be claimed,
+    // and one who did not ask was logged "not isolating". The net effect was that no deployment
+    // could ever be isolated on this node (enclave-99, reading the activation path end to end).
+    const iso = o.isolation;
+    if (!iso || Array.isArray(iso) || typeof iso !== "object") throw new Error('isolation must be a JSON object like {"require":"hyperv-partition-per-app"}');
+    const bad = Object.keys(iso).filter((k) => !["require", "cpuTee", "gpuTee"].includes(k));
+    if (bad.length) throw new Error(`unknown isolation option ${JSON.stringify(bad[0])} (this node knows: require)`);
+    for (const key of ["cpuTee", "gpuTee"]) {
+      if (key in iso && typeof iso[key] !== "boolean") throw new Error(`isolation.${key} must be true or false`);
+    }
+    if (iso.cpuTee === true) opts.cpuTee = true;
+    if (iso.gpuTee === true) opts.gpuTee = true;
+    if ("require" in iso) {
+      if (typeof iso.require !== "string" || !/^[a-z0-9-]{3,64}$/.test(iso.require))
+        throw new Error("isolation.require must be a backend name like \"hyperv-partition-per-app\"");
+      opts.isolationRequire = iso.require;
+    }
+  }
   if ("waf" in o) {
     // Validated by the same module that enforces it, so "accepted" and "applied" cannot drift.
     opts.waf = parseWaf(o.waf);
   }
   if ("network" in o) {
     const n = o.network;
-    if (!n || Array.isArray(n) || typeof n !== "object") throw new Error('network must be a JSON object like {"relay":"us-west"}');
-    const bad = Object.keys(n).filter((k) => k !== "relay");
-    if (bad.length) throw new Error(`unknown network option ${JSON.stringify(bad[0])} (this node knows: relay)`);
-    if ("relay" in n) {
-      const r = n.relay;
-      if (r === null || r === "") opts.relay = "";
-      else if (typeof r !== "string" || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(r))
-        throw new Error('network.relay must be a relay name: lowercase letters, digits and dashes (or "" for the fleet default)');
-      else opts.relay = r;
-    }
+    if (!n || Array.isArray(n) || typeof n !== "object") throw new Error("network must be a JSON object");
+    const bad = Object.keys(n).filter(k => k !== "transport" && k !== "relay");
+    if (bad.length) throw new Error(`unknown network option ${JSON.stringify(bad[0])}`);
+    if ("transport" in n && n.transport !== "tuna") throw new Error("network.transport must be tuna");
+    // Existing ledger envelopes can still contain a relay preference. It no
+    // longer selects a route and is not copied into runtime configuration.
+    if ("relay" in n && n.relay !== null && n.relay !== "" &&
+        (typeof n.relay !== "string" || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(n.relay)))
+      throw new Error("invalid retired network.relay metadata");
   }
   if ("configCid" in o) {
     // The rev-7 split: the deployment's app-config lives at a pinned CID because the envelope
@@ -419,26 +490,34 @@ export function parseEnvelope(raw, gpuMilli) {
 export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scope = "market",
                                  version = null, capacity = null, listedAt = 0, invited = false,
                                  legacy = false, fetchesConfigCid = false, features = null,
-                                 privateOk = false } = {}) {
+                                 privateOk = false, isolationBackend = null } = {}) {
   if (!appsEnabled) return "this node is not hosting apps (set APPS=1)";
   if (!d || !Number(d.createdAt)) return "no such deployment on the ledger";
   if (!d.active) return "the deployment is not active";
-  const owners = !!ownerAllow && String(d.owner || "").toLowerCase() === String(ownerAllow).toLowerCase();
+  // ownerAllow: the SET of owners this box serves (host.mjs ownerSet: its operator and its delegated owners), or one
+  // address. Membership, never one equality: the claim, the scan, the restart gate and the sweep ask the same set.
+  const allow = new Set([...(ownerAllow instanceof Set ? ownerAllow : Array.isArray(ownerAllow) ? ownerAllow : ownerAllow ? [ownerAllow] : [])]
+                          .map((a) => String(a).toLowerCase()));
+  const owners = allow.has(String(d.owner || "").toLowerCase());
   if (scope === "owner-only") {
-    if (!ownerAllow) return "this node is in owner-only scope and no owner wallet is declared";
-    if (!owners) return `this node is in owner-only scope and hosts only ${ownerAllow} (this one is owned by ${d.owner})`;
-  } else if (!owners && !invited && !legacy && Number(listedAt) > 0 && Number(d.createdAt) < Number(listedAt)) {
+    if (!allow.size) return "this node is in owner-only scope and serves nobody: no operator key and no valid delegation";
+    if (!owners) return `this node is in owner-only scope and hosts only its operator's and its delegated owners' deployments (${[...allow].join(", ")}; this one is owned by ${d.owner})`;
+  } else if (!owners && !invited && !legacy && !["snp-guest-per-app", "hyperv-partition-per-app"].includes(isolationBackend)
+      && Number(listedAt) > 0 && Number(d.createdAt) < Number(listedAt)) {
     return "it was created before this box was listed, and this box is a VBS enclave on a consumer PC:"
          + " an app runs inside the enclave, but the enclave protects it against this machine's software,"
          + " not against whoever physically holds the machine. Pick this enclave in the deploy console,"
          + " or redeploy, and it will run here";
   }
+  // Supported per-app backends honor the owner's explicit TEE flags below.
+  // The historical listing-date consent gate applies only to the legacy engine.
   // A PRIVATE deployment is served to its owner alone. This box verifies the session token that
   // proves that (windows/node/session.mjs), so it may take one - but only when it HAS a key to
   // verify with: a box that took a private deployment and then let anybody reach it would be
   // worse than one that refused it.
   if (!d.isPublic && !privateOk)
     return "it is a private deployment, and this box has no session key to verify its owner with";
+
   if (d.runner && !/^0x0+$/.test(String(d.runner)) && String(d.runner).toLowerCase() !== String(enclaveId).toLowerCase()
       && Number(d.leaseUntil) * 1000 > Date.now())
     return "another enclave holds a live lease on it";
@@ -452,6 +531,26 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
   // version's gpuOptional.
   let opts;
   try { opts = parseEnvelope(d.configCid, d.gpuMilli); } catch (e) { return e.message; }
+  if (opts.pinnedHost && opts.pinnedHost !== String(enclaveId || '').toLowerCase())
+    return `Pinned to host ${opts.pinnedHost}; fallback is disabled.`;
+  // A DEPLOYMENT THAT REQUIRES ISOLATION may only be claimed by a box that actually runs that
+  // backend. Taking it and running it in the shared enclave would give the tenant the opposite of
+  // what they asked for while looking like success; refusing here leaves it free for a box that can.
+  //
+  // THIS MUST STAY BELOW THE PARSE. I put it above, where `opts` is still in its temporal dead
+  // zone, so `opts.isolationRequire` threw "Cannot access 'opts' before initialization" for EVERY
+  // deployment that reached the line - opted in or not - and host.mjs calls claimPolicy outside any
+  // try, so consider() rejected and the deployment was recorded neither refused nor queued. That is
+  // a claim path broken for every tenant, from a check meant to affect a few (enclave-99).
+  if (opts.cpuTee && isolationBackend !== "snp-guest-per-app") return "it requires a TEE CPU; this host supplies an Enclave Shield partition";
+  // No Windows partition backend currently supplies attested confidential-mode GPU execution.
+  if (opts.gpuTee) return "it requires a TEE GPU; masked GPU offload does not satisfy this requirement";
+  if (opts.isolationRequire) {
+    if (!isolationBackend)
+      return `it requires isolation backend ${opts.isolationRequire}, and this box runs no isolation backend`;
+    if (opts.isolationRequire !== isolationBackend)
+      return `it requires isolation backend ${opts.isolationRequire}, and this box runs ${isolationBackend}`;
+  }
   if (opts.configCid && !fetchesConfigCid)
     return "its config rides at a CID and this box is not configured to fetch one";
   // What the VERSION says it needs, checked before the gas rather than after the compile. Without
@@ -461,6 +560,8 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
     const unmet = unmetNeeds(version, features);
     if (unmet.length) return `it needs ${unmet.join(" and ")}, which this box does not offer`;
   }
+  // The box owner paused hosting (the tray's switch, windows/node/hosting.mjs): nothing new, whatever it asks for.
+  if (capacity && capacity.paused === true) return "the owner of this box has paused hosting: it takes no new work until they resume it";
   const wantsCard = Number(d.gpuMilli) > 0;
   const cardSoft = opts.gpuOptional === true || gpuOptionalOfConfig(version && version.config);
   if (wantsCard && !cardSoft) {
@@ -468,7 +569,10 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
       return "it bought a share of a card and this box has none to sell; redeploy with {\"gpu\":{\"optional\":true}} to let it run on cores instead of queueing";
     const wantCard = Number(d.gpuMilli) / 1000;
     if (wantCard > (capacity.gpuShareFree ?? 0) + 1e-9)
-      return `it asks for ${Math.round(wantCard * 100)}% of this box's card and ${Math.round((capacity.gpuShareFree ?? 0) * 100)}% of it is left to sell`;
+      return capacity.gpuCap
+        ? `it asks for ${Math.round(wantCard * 100)}% of this box's card, and the owner offers ${Math.round(capacity.gpuCap.offered * 100)}%`
+          + ` of this box's GPU to hosting with ${Math.round(capacity.gpuCap.used * 100)}% of that in use`
+        : `it asks for ${Math.round(wantCard * 100)}% of this box's card and ${Math.round((capacity.gpuShareFree ?? 0) * 100)}% of it is left to sell`;
   }
   // APPROVAL, mirrored from the platform runner's approvalVerdict (supervisor.js): rejected and
   // yanked are refused always, and a version still awaiting the catalog owner's approval is
@@ -489,8 +593,13 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
     const want = Number(d.cpuMilli) / 1000;
     if (capacity.slotsFree != null && capacity.slotsFree <= 0)
       return `this box is running its ${capacity.slots} app slots already`;
+    // The box owner's hosting cap (windows/node/hosting.mjs), named when it is what limits: the box is not full, its
+    // owner offers less of it.
     if (want > (capacity.cpuShareFree ?? 0) + 1e-9)
-      return `it asks for ${Math.round(want * 100)}% of a node and this box has ${Math.round((capacity.cpuShareFree ?? 0) * 100)}% left to sell`;
+      return capacity.cpuCap
+        ? `it asks for ${Math.round(want * 100)}% of a node, and the owner offers ${Math.round(capacity.cpuCap.offered * 100)}%`
+          + ` of this box's CPU to hosting with ${Math.round(capacity.cpuCap.used * 100)}% of that in use`
+        : `it asks for ${Math.round(want * 100)}% of a node and this box has ${Math.round((capacity.cpuShareFree ?? 0) * 100)}% left to sell`;
     if (version && capacity.ramMbFree != null) {
       const floor = nodeFloorOf(version);
       if (floor.memMb > capacity.ramMbFree)
@@ -554,7 +663,17 @@ export async function checkpoint({ id, enclaveId, upto }) {
   const sig = await proofAcct.signTypedData({
     domain: { name: "EnclaveProofOfTime", version: "1", chainId: base.id, verifyingContract: getAddress(addresses.proofOfTime) },
     types: PROOF_TYPES, primaryType: "ProofOfTime", message });
-  return send(addresses.proofOfTime, PROOF_ABI, "checkpoint", [id, enclaveId, BigInt(upto), BigInt(anchorBlock), parent.hash, sig]);
+  const [plan] = await planCheckpoints({client: publicClient(), ledger: addresses.deployments,
+    proof: addresses.proofOfTime, batch: [{...message,sig}],
+    onWarning: message => console.warn(`[proof] ${message}`)});
+  return send(plan.address, PROOF_ABI, plan.functionName, plan.args);
 }
 
 export { REGISTRY_ABI, DEP_ABI, CATALOG_ABI, PROOF_ABI };
+
+// Absence of a hardware requirement permits either isolated implementation, never the retired engine.
+export function isolationForBackend(opts, backend) {
+  return !!opts && ["snp-guest-per-app", "hyperv-partition-per-app"].includes(backend)
+    && (!opts.isolationRequire || opts.isolationRequire === backend)
+    && (!opts.cpuTee || backend === "snp-guest-per-app") && !opts.gpuTee;
+}

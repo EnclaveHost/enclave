@@ -19,13 +19,30 @@ import "../volume-picker/volume-picker.js";   // the Models tab's checklist
 import { $$, esc, hlJson, fmtDur, statusCls, copyText, showToast, lsGet, lsSet } from "../../js/core/util.js";
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
-import { pad32, encUint, encCall, hexBig, DEP_SEL, APPROVAL, depPrices6, rate6Of, depMaxGpuMilli, depGet, depSchemaRev, depFeeOf, depCapOf, depRefundableOf, depCall, catVersionFee, waitReceipt } from "../../js/core/chain.js";
-import { authenticate, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx, personalSign } from "../../js/core/wallet.js";
-import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, STORE, fetchConfigCid, stripMedia, putConfig } from "../../js/core/catalog.js";
+import { openStateOf, probeAppTls } from "../../js/core/app-tls.js";
+import { pad32, encUint, encCall, hexBig, DEP_SEL, APPROVAL, depPrices6, rate6Of, depMaxGpuMilli, depGet, depSchemaRev, depFeeOf, depCapOf, depRefundableOf, depCall, catVersionFee, catGetVersion, waitReceipt } from "../../js/core/chain.js";
+import { authenticate, asHostOwner, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx as walletSendTx, personalSign } from "../../js/core/wallet.js";
+// Every ledger call this panel sends goes through here. A row the wallet's SessionVault holds is acted on by this
+// browser's session (no wallet prompt; a prod version/config change becomes the owner's Promote signature); every
+// other row - and every other contract - sends the same wallet transaction as before (js/core/sessions.js ledgerSend).
+const sendTx = (to, data, value, gas) => String(to).toLowerCase() === String(DEPLOYMENTS_ADDRESS).toLowerCase()
+  ? import("../../js/core/sessions.js").then((S) => S.ledgerSend(data, () => walletSendTx(to, data, value, gas)))
+  : walletSendTx(to, data, value, gas);
+import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, specOfRef, STORE, fetchConfigCid, stripMedia, putConfig } from "../../js/core/catalog.js";
+import { appShareLabel } from "../../js/core/app-resources.js";
+import { shareEditor } from "../../js/core/share-editor.js";
+import { resourceOverview } from "../../js/core/resource-overview.js";
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
-import { shareRates, minPctsOf, cpuFloorFor, cardServesApp, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf, hostChargeWaived, sharesLegalOn, liftSharesForLedger } from "../../js/core/pricing.js";
+import { moveLeaseLive, prepareDeploymentMove } from "../../js/core/deployment-move.js";
+import { isolationOptions, withIsolationRequirements, hostMeetsTeeRequirements } from "../../js/core/isolation-options.js";
+import { placementMessage, pinnedHost, withPlacementPin } from "../../js/core/placement-options.js";
+import { resizeAfterStop } from "../../js/core/share-resize.js";
+import { depSnapshot } from "../../js/core/chain.js";
+import { BUCKETS, bucketOf, countBuckets } from "../../js/core/deploy-status.js";
+import { LastGood, listIdentity, failureReason, asOf } from "../../js/core/list-state.js";
+import { shareRates, minPctsOf, cpuFloorFor, cardServesApp, adoptServerSpec, leaseHostOf, moveTargetsFor, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf, hostChargeWaived, sharesLegalOn, liftSharesForLedger } from "../../js/core/pricing.js";
 
 // Keep search and the card title on the same resolved app identity.
 function deploymentTitle(d) {
@@ -65,36 +82,36 @@ function safeHref(u){
   return "";
 }
 
-/* ---- TLS-gated Open control ----
-   An app origin's certificate is minted INSIDE the enclave (ACME dns-01),
-   which takes a moment after the app reaches running - and every enclave
-   release re-mints all of them (CVMs keep no disk). Until issuance the origin
-   serves the self-signed fallback pair, so "open ↗" would land the user on a
-   browser certificate warning. The control therefore starts as a DISABLED
-   button with an amber OPEN padlock and only becomes the live link (closed
-   jade padlock) once a probe from THIS browser completes a real handshake
-   (_probeTls below) - the browser's own trust decision is the ground truth,
-   not any server-side claim. */
+/* The lock closes only after a successful browser HTTPS probe. */
 const LOCK_OPEN = '<svg class="enc-lock" viewBox="0 0 24 24" width="11" height="11" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M9 11V7a3.5 3.5 0 0 1 6.9-.9"/></svg>';
 const LOCK_SHUT = '<svg class="enc-lock" viewBox="0 0 24 24" width="11" height="11" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M9 11V7a3.5 3.5 0 0 1 7 0v4"/></svg>';
 function openCtl(d, ep, tls){
   const href = safeHref(ep);
   if (!(d && (d.status || "") === "running" && href)) return "";
   /* PRIVATE rows are offered too. They were suppressed entirely while a private
-     app had no browser-reachable form at all; now the enclave mints their
-     app-zone certificate like any other and answers a navigation with a wallet
-     sign-in, so the only difference left is WHERE the link points: /authorize
-     trades this wallet's session for an app-origin cookie first, because a
-     top-level navigation cannot carry a bearer. The TLS gate below still
-     applies - the certificate is minted in-enclave either way, and clicking
-     before it exists lands on a handshake failure just the same. */
+     app had no browser-reachable form at all; now they carry an app-zone
+     certificate like any other and answer a navigation with a wallet sign-in,
+     so the only difference left is WHERE the link points: /authorize trades
+     this wallet's session for an app-origin cookie first, because a top-level
+     navigation cannot carry a bearer. */
   const to = d.public ? esc(href) + "/" : "authorize?d=" + esc(encodeURIComponent(d.id));
-  const why = d.public
-    ? 'title="TLS certificate valid - issued inside the enclave, verified by this browser"'
-    : 'title="private - opens after a wallet sign-in, which authorizes no transaction"';
-  return (tls && tls.state === "ok")
-    ? '<a class="enc-open" data-tls="' + esc(d.id) + '" href="' + to + '" target="_blank" rel="noopener" aria-label="Open app (new tab)' + (d.public ? " - TLS certificate valid" : " - sign in with your wallet") + '" ' + why + '>' + LOCK_SHUT + ' open ↗</a>'
-    : '<button class="enc-open" data-tls="' + esc(d.id) + '" type="button" disabled aria-label="Open app - waiting for its TLS certificate" title="waiting for the app’s TLS certificate - minted inside the enclave, usually ready within a minute">' + LOCK_OPEN + ' open ↗</button>';
+  /* WHAT THE PADLOCK MEANS, and only that: this browser completed the handshake and the origin
+     answered. It is not a claim about where the private key is held. A certificate that chains to a
+     public CA says nothing about key custody, and on a consumer node the app-zone key lives in the
+     host process (that box publishes appTls.keyIn itself) - so a tooltip asserting "issued inside
+     the enclave" was telling the reader something the evidence does not support. */
+  if (tls?.href === href && openStateOf(tls) === "ok") {
+    const why = d.public
+      ? 'title="TLS verified by this browser: the certificate chains and the app answered"'
+      : 'title="private - opens through your session, or after a wallet sign-in, which authorizes no transaction"';
+    return '<a class="enc-open" data-tls="' + esc(d.id) + '" href="' + to + '" target="_blank" rel="noopener" aria-label="Open app (new tab)' + (d.public ? " - TLS verified by this browser" : " - opens through your session or a wallet sign-in") + '" ' + why + '>' + LOCK_SHUT + ' open ↗</a>';
+  }
+  /* The link still opens. The old control disabled itself and blamed the certificate; the honest
+     version offers the app and says exactly what is and is not known. */
+  return '<a class="enc-open enc-open-unknown" data-tls="' + esc(d.id) + '" href="' + to + '" target="_blank" rel="noopener"'
+    + ' aria-label="Open app (new tab) - this browser got no answer from a readiness check"'
+    + ' title="no answer to a readiness check from this browser. That can be an app that does not serve its root path, a network problem, or a certificate that is not ready - this page cannot tell them apart, so it does not guess. The link still opens.">'
+    + LOCK_OPEN + ' open ↗</a>';
 }
 
 // Per-row SECRETS section (wallet-owned on-chain rows): rendered PERMANENTLY
@@ -269,25 +286,12 @@ function domainRow(d){
 }
 
 function shortImg(s){ if (!s) return ""; return s.length > 44 ? s.slice(0, 42) + "…" : s; }
-// Status buckets for the filter bar: coarse groups beat ten raw statuses.
-// Unknown/new statuses land in "ended" rather than vanishing.
+// Status buckets for the filter bar: BUCKETS/bucketOf/countBuckets live in
+// js/core/deploy-status.js (tested there). Unknown statuses land in "ended".
 const FILTER_KEY = "enclave_dash_filters";
-const BUCKETS = ["running", "queued", "ended", "failed"];
 // Decline reasons that no amount of waiting resolves (mirrors the enclave's
 // claim-gauntlet wording; deploy.js's watchClaimAndRun keys on the same set)
 const WHY_TERMINAL = /below the app|minimum shares|yanked|not .{0,12}approved|rejected|delisted|unlisted|configcid|retired|deactivated/i;
-function bucketOf(st){
-  st = String(st || "").toLowerCase();
-  if (st === "running") return "running";
-  // the "queued" bucket matches the ledger's own vocabulary: everything on
-  // its way (queued/claimed/provisioning/awaiting_payment/...) but not over —
-  // unfunded (drained; resumes on top-up) waits here too, it just isn't "queued"
-  // "unknown" = an account row the relay's ledger cache hasn't caught up to
-  // yet (fresh deploy) - it's on its way, not over
-  if (["provisioning", "queued", "pending", "claiming", "claimed", "starting", "created", "awaiting_payment", "unfunded", "unknown"].indexOf(st) !== -1) return "queued";
-  if (["failed", "error"].indexOf(st) !== -1) return "failed";
-  return "ended";   // stopped, stopping, terminated, expired, …
-}
 // Who can act on a row: "wallet" rows are owned by the connected wallet
 // (on-chain txs + enclave-session reads); "vault" rows are owned by the
 // account's credit vault (money/control ops are passkey-signed through the
@@ -354,6 +358,8 @@ function cfgPlan(ctx){
   const verdictOf = (o) => {
     const mine = JSON.stringify(o);
     if (stockC !== null && mine === stockC) return hasOv ? { clear: true } : { same: true };
+    // No new envelope or pin is needed for the body already stored here.
+    if (ovCid && !ovLost && mine === JSON.stringify(o0)) return { same: true };
     // INLINE while the whole document fits the ledger's one options field
     const inlineEnv = JSON.stringify({ ...curBase, config: o });
     const inlineBytes = bytesOf(inlineEnv);
@@ -362,41 +368,23 @@ function cfgPlan(ctx){
       return { set: true, envelope: inlineEnv, bytes: inlineBytes, mode: "inline" };
     }
     // ...otherwise SPLIT: pin the body, keep the routing manifest on-chain
-    if (!splitOk) return { err: "this config is " + bytesOf(mine) + " bytes and the ledger's options field caps at " + cap
+    // Fleet support gates INTRODUCING the configCid namespace. An existing
+    // pinned override already needs it, so replacing its body adds no new
+    // runner requirement (the relay's build_set_config uses the same rule).
+    // Keep it editable when a partial host makes the fleet aggregate false.
+    if (!splitOk && !ovCid) return { err: "this config is " + bytesOf(mine) + " bytes and the ledger's options field caps at " + cap
       + " - the live fleet can’t serve a config pinned off-chain yet, so for now only a smaller document can override this version. Try again after the fleet updates" };
     const preview = splitEnvelope(o, CID_SIZE_HINT);
     const previewBytes = bytesOf(preview);
     if (previewBytes > cap) return { err: "even split, the envelope would be " + previewBytes + " bytes; the ledger caps it at " + cap
       + " - the routing manifest (" + MANIFEST_KEYS.join(", ") + ") plus this deployment’s protection settings don’t leave room for the reference. Trim the volumes list" };
-    if (ovCid && !ovLost && mine === JSON.stringify(o0)) return { same: true };
     return { set: true, bytes: previewBytes, mode: "split", body: mine, cfg: o };
   };
   return { verdictOf, clearEnvelope, splitEnvelope };
 }
 function encTier(d){
-  const r = d.resources || {};
-  const g = r.gpuShare || 0, c = r.cpuShare != null ? r.cpuShare : (r.share || 0);
-  if (g > 0) return Math.round(g * 100) + "% GPU · " + Math.round(c * 100) + "% CPU";
-  return c ? (Math.round(c * 100) + "% CPU") : "CPU";
+  return appShareLabel(d);
 }
-// A deployment's DEDICATED IPv6 (per-deployment addressing): declared tcp/udp
-// ports are served at [address]:<logical port> via the relays, and outbound
-// connections (dedicated-IP egress) leave from the same address. Rendered as
-// its own copyable row when the API surfaces network.address - which it also
-// does for port-less deployments when egress is on (outbound-only address).
-function depIp6Row(d){
-  const net = d.network || {};
-  if (!net.address) return "";
-  const tcp = (net.tcp && net.tcp.ports) || [];
-  const udp = (net.udp && net.udp.ports) || [];
-  const ports = (tcp.length ? " · tcp " + tcp.join(",") : "") + (udp.length ? " · udp " + udp.join(",") : "");
-  const title = (tcp.length || udp.length)
-    ? "dedicated IPv6 - this deployment's own address: tcp/udp ports are served on it at their real port numbers" + (net.egress ? ", and its outbound traffic egresses from it" : "")
-    : "dedicated IPv6 - this deployment's own address: its outbound traffic egresses from it (no inbound tcp/udp ports declared)";
-  return '<button class="enc-ep" data-ep="' + esc(net.address) + '" title="' + esc(title) + '">'
-    + 'ip6 [' + esc(net.address) + ']' + esc(ports) + ((tcp.length || udp.length) ? '' : ' · egress only') + ' ⧉</button>';
-}
-
 class Deployments extends EnclaveElement {
   static templateUrl = new URL("./deployments.html", import.meta.url);
 
@@ -465,6 +453,9 @@ class Deployments extends EnclaveElement {
     // passkey/card sign-in and sign-out edges: the same rule as the wallet edge
     this._onAcct = () => { if (Enclave.accountAuthed() !== this._paintedAcct) this.refresh(); };
     document.addEventListener("enclave:account", this._onAcct);
+    // a wallet session starting or ending changes what the list shows (the hosts' live view rides it): same rule
+    this._onSess = () => { if (Enclave.sessionMayServe() !== this._paintedSess && !this._panelPinned()) this.refresh(); };
+    document.addEventListener("enclave:session", this._onSess);
     this._onLog = (e) => this._onRunlog(e.detail || {});
     document.addEventListener("enclave:runlog", this._onLog);
     // deploys in flight (soft-nav away and back): rejoin every live run.
@@ -495,9 +486,10 @@ class Deployments extends EnclaveElement {
     if (this._onAuth) document.removeEventListener("enclave:auth", this._onAuth);
     if (this._onWallet) document.removeEventListener("enclave:wallet", this._onWallet);
     if (this._onAcct) document.removeEventListener("enclave:account", this._onAcct);
+    if (this._onSess) document.removeEventListener("enclave:session", this._onSess);
     if (this._onLog) document.removeEventListener("enclave:runlog", this._onLog);
     if (this._onCat) document.removeEventListener("enclave:catalog", this._onCat);
-    this._wired = false; this._onAuth = null; this._onWallet = null; this._onAcct = null; this._onLog = null; this._onCat = null;
+    this._wired = false; this._onAuth = null; this._onWallet = null; this._onAcct = null; this._onSess = null; this._onLog = null; this._onCat = null;
   }
 
   /* ---- live-deploy strips: one per run streaming with no row to live in ---- */
@@ -556,6 +548,7 @@ class Deployments extends EnclaveElement {
     if (!body) return;
     this._paintedFor = Enclave.address;             // what this paint reflects (see _onWallet)
     this._paintedAcct = Enclave.accountAuthed();    // …and the account edge (_onAcct)
+    this._paintedSess = Enclave.sessionMayServe();  // …and the wallet-session edge (_onSess)
     const hideBar = () => { const tb = this.querySelector(".enc-toolbar"); if (tb) tb.hidden = true; };
     if (!Enclave.address && !this._paintedAcct){
       this._stopPoll(); hideBar(); this._sessionNote();
@@ -565,6 +558,10 @@ class Deployments extends EnclaveElement {
     // NO sign-in wall: a connected wallet is enough - the list is public
     // ledger data, scoped by address (api.js adds ?owner= when tokenless);
     // a session only enriches rows with the enclaves' live view
+    // whose list this paint is: rows are never shown to another wallet/account
+    const who = listIdentity(Enclave.address, this._paintedAcct, Enclave.accountId);
+    if (!this._good) this._good = new LastGood();
+    if (this._rowsFor !== who){ this._rowsFor = null; this._list = []; body.innerHTML = ""; }   // another identity's rows never linger through a load
     if (!body.querySelector(".enc-row") || opts.spinner) body.innerHTML = '<div class="loading" role="status">loading your enclaves…</div>';
     try {
       // fire-and-forget: the row art and the mobile section resolve versions
@@ -575,6 +572,12 @@ class Deployments extends EnclaveElement {
       if (Enclave.address){
         const res = await Enclave.listDeployments();
         list.push(...(Array.isArray(res) ? res : ((res && (res.deployments || res.items || res.data)) || [])));
+        // rows the wallet's SessionVault holds (sessions): the same panel, acted on through the session
+        try {
+          const seen = new Set(list.map((d) => String(d.id).toLowerCase()));
+          for (const d of await (await import("../../js/core/sessions.js")).vaultRows())
+            if (d.id && !seen.has(String(d.id).toLowerCase())) list.push(d);
+        } catch(e){ /* sessions off or unreachable: wallet rows still serve */ }
       }
       // passkey/card accounts: rows owned by the account's credit vault (plus
       // legacy provisioned orders) via the relay's account-scoped ledger join -
@@ -589,7 +592,10 @@ class Deployments extends EnclaveElement {
         } catch(e){ if (!Enclave.address) throw e; }   // wallet rows still serve
       }
       const tb = this.querySelector(".enc-toolbar"); if (tb) tb.hidden = false;   // refresh + Deploy CTA live here now
+      this._good.ok(who, list);
+      this._loadNote(null);
       this._sessionNote();
+      this._rowsFor = who;
       this._renderRows(list, opts.highlight);
       this._startPoll();
     } catch(e){
@@ -598,8 +604,47 @@ class Deployments extends EnclaveElement {
       // but VISIBLY (the bar below), never silently: the fallback hides
       // runner-held truth, and the owner must know signing in restores it
       if (e.status === 401 && Enclave.token){ Enclave.token = null; Enclave.tokenBase = null; saveSession(); refreshWallet(); this._sessDropped = true; return this.refresh(opts); }
-      body.innerHTML = '<div class="enc-empty">couldn’t load enclaves: ' + esc(e.message || String(e)) + '</div>';
+      this._listFailed(who, e);
+      this._startPoll();   // keep retrying: the next good read clears the failure
     }
+  }
+
+  /* ---- a failed read is not an empty list (see js/core/list-state.js).
+     Same identity with a good read behind it: those rows again, marked stale
+     with their time. Otherwise: an error state, counters unknown ("–", never
+     0), and none of anyone else's rows. Either way a Retry, plus the poll. ---- */
+  _listFailed(who, e) {
+    const body = this.querySelector(".enc-body"); if (!body) return;
+    const v = this._good.failed(who, e);
+    const tb = this.querySelector(".enc-toolbar"); if (tb) tb.hidden = false;   // refresh + Deploy CTA stay reachable
+    if (v.kind === "stale"){
+      if (this._rowsFor !== who || !body.querySelector(".enc-row")){ this._rowsFor = who; this._renderRows(v.rows); }
+      this._loadNote(v);
+      return;
+    }
+    this._list = []; this._rowsFor = null;
+    this._loadNote(null);
+    $$(".enc-segs button", this).forEach(b => { const n = b.querySelector("b"); if (n) n.textContent = "–"; b.classList.add("zero"); b.title = "not loaded"; });
+    const pager = this.querySelector(".enc-pager"); if (pager){ pager.hidden = true; pager.innerHTML = ""; }
+    body.innerHTML = '<div class="enc-empty enc-loaderr" role="alert" title="' + esc(e && e.message || String(e)) + '">'
+      + 'Couldn’t load your apps: ' + esc(failureReason(e)) + '. This is a failed read, not an empty list. Retrying every 10 s. '
+      + '<button type="button" class="btn btn-sm enc-retry">Retry now</button></div>';
+    body.querySelector(".enc-retry").addEventListener("click", () => this.refresh({ spinner: true }));
+  }
+  _loadNote(v) {
+    let el = this.querySelector(".enc-loadnote");
+    if (!v){ if (el) el.remove(); return; }
+    const body = this.querySelector(".enc-body"); if (!body) return;
+    if (!el){
+      el = document.createElement("div");
+      el.className = "enc-sessnote enc-loadnote";
+      el.setAttribute("role", "status");
+      body.before(el);
+    }
+    el.title = (v.error && v.error.message) || "";
+    el.innerHTML = '⚠ Couldn’t refresh: ' + esc(failureReason(v.error)) + '. Showing your apps as of ' + esc(asOf(v.at))
+      + '; statuses may have changed since. Retrying every 10 s. <button type="button" class="btn btn-sm enc-retry">Retry now</button>';
+    el.querySelector(".enc-retry").addEventListener("click", () => this.refresh({ spinner: true }));
   }
 
   /* ---- a dropped session must be VISIBLE. Every fleet update reboots the
@@ -613,7 +658,7 @@ class Deployments extends EnclaveElement {
      missing signal, and it offers the fix. ---- */
   _sessionNote() {
     let el = this.querySelector(".enc-sessnote");
-    if (!(this._sessDropped && Enclave.address && !Enclave.token)){ if (el) el.remove(); return; }
+    if (!(this._sessDropped && Enclave.address && !Enclave.token && !Enclave.sessionMayServe())){ if (el) el.remove(); return; }
     if (el) return;
     const body = this.querySelector(".enc-body"); if (!body) return;
     el = document.createElement("div");
@@ -629,13 +674,91 @@ class Deployments extends EnclaveElement {
     body.before(el);
   }
 
+  async _shares(id, btn) {
+    const listed = (this._list || []).find(row => row.id === id);
+    if (!listed) return;
+    if (btn.dataset.editable === 'true' && listed.status === 'running') return this._upgrade(id, btn, 'shares');
+    const box = btn.closest('.enc-row').querySelector('.enc-shares');
+    if (box.dataset.busy) return;
+    if (!box.hidden) { box.hidden = true; box.innerHTML = ''; btn.setAttribute('aria-expanded', 'false'); return; }
+    box.hidden = false; btn.setAttribute('aria-expanded', 'true');
+    box.innerHTML = '<p class="enc-shares-note">Reading app requirements and host capacity…</p>';
+    try {
+      const [d, fleet] = await Promise.all([
+        /^0x[0-9a-f]{64}$/i.test(id) ? depGet(id) : Promise.resolve(listed),
+        Enclave.getEnclaves().catch(() => null),
+      ]);
+      const ref = d.appRef || listed.image?.reference || (listed.app?.appId != null && listed.app?.index != null ? catalogRef(listed.app.appId, listed.app.index) : '');
+      const cr = parseCatalogRef(ref);
+      const spec = cr ? specOf(await catGetVersion(cr.appId, cr.index)) : specOfRef(ref);
+      if (box.hidden || !box.isConnected) return;
+      box.replaceChildren(this._resourceOverview(id, btn, { spec, fleet, configCid: d.configCid,
+        unresolvedHost: listed.status === 'running' }));
+      if (btn.dataset.editable === 'true') await this._resourceBudget(id, box);
+    } catch (e) {
+      if (!box.hidden && box.isConnected) box.innerHTML = '<p class="enc-shares-note">Could not load requirements. Close and reopen Resources to retry.</p>';
+    }
+  }
+
+  async _resourceBudget(id, box) {
+    // A price ceiling is meaningful before placement; unlike a host share it
+    // must remain editable while an app is queued or stopped.
+    let rev, cap, fee, availability;
+    try { [rev, cap, fee, availability] = await Promise.all([depSchemaRev(), depCapOf(id), depFeeOf(id), Enclave.getAvailability()]); }
+    catch { return; }
+    if (box.hidden || !box.isConnected || rev < 8) return;
+    const budget = document.createElement('div'); budget.className = 'enc-resource-overview enc-resource-budget';
+    const inputId = 'resourceBudget' + appLabel(id);
+    budget.innerHTML = '<h3>Price limit</h3><p class="enc-resource-note enc-resource-context">The maximum hourly price for the next host. A host above this limit cannot start the app.</p>'
+      + '<label for="' + inputId + '">Rate cap ($/hour)</label><div class="enc-resource-budget-input"><input id="' + inputId + '" type="number" min="0" step="0.01" value="' + (Number(cap) * 3600 / 1e6).toFixed(2) + '">'
+      + '<button class="btn btn-sm" type="button" disabled>Save price limit</button></div><p class="enc-resource-note" role="status"></p>';
+    box.append(budget);
+    const input = budget.querySelector('input'), button = budget.querySelector('button'), status = budget.querySelector('[role="status"]');
+    const value = () => { const n = Number(input.value); return Number.isFinite(n) && n > 0 ? BigInt(Math.round(n * 1e6 / 3600)) : 0n; };
+    if (availability?.rateCap !== true) { input.disabled = true; status.textContent = 'The fleet cannot edit this price limit right now.'; return; }
+    input.addEventListener('input', () => { button.disabled = value() <= fee.feePerSec6 || value() === cap; });
+    button.addEventListener('click', async () => {
+      const next = value(); if (box.dataset.busy || next <= fee.feePerSec6 || next === cap) return;
+      box.dataset.busy = 'true'; button.disabled = input.disabled = true;
+      const via = ctlOf((this._list || []).find(d => d.id === id)) === 'vault';
+      try {
+        if (await depCapOf(id) !== cap) throw Error('The price limit changed elsewhere. Reopen Resources to refresh it.');
+        status.textContent = 'Confirm the price limit in your ' + (via ? 'passkey prompt.' : 'wallet.');
+        if (via) await (await import('../../js/core/vault.js')).vaultOp('control', { id, action: 'maxrate', maxRate6: Number(next) });
+        else {
+          if (!Enclave.provider) await connectWallet();
+          await ensureBaseChain();
+          await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS, encCall(DEP_SEL.setMaxRate, [{ t: 'bytes32', v: id }, { t: 'uint', v: next }])));
+        }
+        cap = next; status.textContent = 'Price limit saved.';
+      } catch (e) { status.textContent = e.message || String(e); }
+      finally { delete box.dataset.busy; input.disabled = false; button.disabled = value() === cap; if (!via) refreshWallet(); }
+    });
+  }
+
+  _resourceOverview(id, btn, options) {
+    return resourceOverview({ ...options, editable: btn.dataset.editable === 'true', onChooseHost: async name => {
+      const row = btn.closest('.enc-row'), pin = row.querySelector('.enc-movebtn');
+      if (!pin) return;
+      const box = row.querySelector('.enc-shares');
+      if (box.dataset.busy) return;
+      box.hidden = true; box.innerHTML = ''; btn.setAttribute('aria-expanded', 'false');
+      const move = row.querySelector('.enc-move');
+      if (move.hidden) await this._move(id, pin);
+      const select = move.querySelector('select');
+      if (name && select && [...select.options].some(option => option.value === name && !option.disabled)) {
+        select.value = name; select.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      pin.focus(); move.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } });
+  }
+
   _renderRows(list, highlight) {
     const body = this.querySelector(".enc-body");
     list = (list || []).slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
     this._list = list;
-    const counts = { all: list.length, running: 0, queued: 0, ended: 0, failed: 0 };
-    list.forEach(d => { counts[bucketOf(d.status)]++; });
-    $$(".enc-segs button", this).forEach(b => { const n = b.querySelector("b"); if (n) n.textContent = String(counts[b.dataset.bucket] || 0); b.classList.toggle("zero", !(counts[b.dataset.bucket] > 0)); });
+    const counts = countBuckets(list);
+    $$(".enc-segs button", this).forEach(b => { const n = b.querySelector("b"); if (n) n.textContent = String(counts[b.dataset.bucket] || 0); b.classList.toggle("zero", !(counts[b.dataset.bucket] > 0)); b.title = ""; });
     let shown = this._filter === "all" ? list.slice() : list.filter(d => bucketOf(d.status) === this._filter);
     if (this._q) shown = shown.filter(d =>
       [d.id, deploymentTitle(d), d.image && d.image.reference, d.status, d.enclave]
@@ -700,6 +823,7 @@ class Deployments extends EnclaveElement {
       const resumable = onchain && (st === "stopped" || st === "terminated" || st === "expired" || st === "failed");
       // the row's app identity, shared by the cover-art chip and the meta line
       const appLbl = deploymentTitle(d);
+      const shareText = encTier(d);
       const art = artOfRef(d.image && d.image.reference, appLbl || d.id);
       // the card leads with the APP, not the raw id: the bytes32 becomes a
       // compact copy chip (full value in data-copy/title), stated once per card
@@ -720,13 +844,12 @@ class Deployments extends EnclaveElement {
           '<span class="ap-badge ' + (d.public ? 'ep-public' : 'ep-private') + '" title="' + (d.public ? 'anyone can reach the app endpoint' : 'only your wallet token can reach the app') + '">' + (d.public ? 'public' : 'private') + '</span>' +
           '<span class="ap-badge info ep-waf" data-wafb="' + esc(d.id) + '" hidden>protected</span>' +
           '<span class="ap-badge ep-cfg" data-cfgb="' + esc(d.id) + '" hidden>custom config</span>' +
-          '<span class="ap-badge ep-relay" data-relayb="' + esc(d.id) + '" hidden></span>' +
           '<button class="enc-id" data-copy="' + esc(d.id) + '" title="' + esc(d.id) + '" aria-label="copy deployment id">' + esc(idShort) + ' ⧉</button>' +
           '<span class="enc-br" aria-hidden="true"></span>' +
-          '<span class="enc-meta">' + esc(encTier(d))
+          (shareText || d.enclave ? '<span class="enc-meta">' + (shareText ? '<span class="enc-allocation">' + esc(shareText) + '</span>' : '')
             // which box serves it (relay stamps `enclave` on live-hosted and
             // lease-held rows alike; absent while queued/stopped - nothing runs it)
-            + (d.enclave ? ' · <span class="dim enc-host" title="the enclave this app runs on">on ' + esc(d.enclave) + '</span>' : '') + '</span>' +
+            + (d.enclave ? (shareText ? ' · ' : '') + '<span class="dim enc-host" title="the enclave this app runs on">on ' + esc(d.enclave) + '</span>' : '') + '</span>' : '') +
           '<span class="enc-spend">' + bud + '</span>' +
           (runwayPct != null ? '<span class="enc-meter' + (runwaySec < RUNWAY_LOW ? ' low' : '') + '" title="' + esc(fmtDur(runwaySec)) + ' of paid runtime left · full bar = 48h" aria-hidden="true"><b style="width:' + runwayPct + '%"></b></span>' : '') +
           // the acts row holds only IMMEDIATE actions; everything that opens a
@@ -752,7 +875,6 @@ class Deployments extends EnclaveElement {
         (st === "queued" ? '<div class="enc-why" data-why="' + esc(d.id) + '" role="status" aria-live="polite" hidden></div>' : '') +
         (ep ? '<div class="enc-eprow"><button class="enc-ep" data-ep="' + esc(ep) + '">' + esc(ep) + ' ⧉</button>'
               + openCtl(d, ep, this._tls && this._tls.get(d.id)) + '</div>' : '') +
-        depIp6Row(d) +
         // panel tabs (develop-page idiom): each button toggles its panel below;
         // aria-expanded doubles as the active-tab style hook. Transfer lives
         // here - it opens a panel and does not belong beside Cancel.
@@ -760,11 +882,12 @@ class Deployments extends EnclaveElement {
           '<button class="btn btn-sm enc-outbtn" data-id="' + esc(d.id) + '" aria-expanded="false">Output</button>' +
           (live && ctl !== "order" ? '<button class="btn btn-sm enc-fundbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="' + (ctl === "vault" ? 'Add runtime from your credit balance - one passkey tap' : 'Add runtime - a gas-free USDC signature credits the deployment’s on-chain balance') + '">Top up</button>' : '') +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-upgbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Switch to another approved version of this app - paid time carries over; the app restarts in place on the new version">Version</button>' : '') +
+          '<button class="btn btn-sm enc-sharesbtn" data-id="' + esc(d.id) + '" data-editable="' + (onchain && (live || resumable) && ctl !== "order") + '" aria-expanded="false" title="App requirements, host capacity, and running allocation">Resources</button>' +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-cfgbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="This deployment’s app config (its ENCLAVE_CONFIG): edit it, save named variations, or reset to the version’s stock config - the catalog default and every other deployment stay untouched">Config</button>' : '') +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-modbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="The model volumes this app mounts: attested read-only weights the fleet carries, picked by name - a change relaunches the app in place on the new set; the catalog and every other deployment stay untouched">Models</button>' : '') +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-wafbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Per-IP rate limit + request filter, enforced inside the enclave at the app’s front door - add, tune or remove it any time; a running app picks the change up live">Protect</button>' : '') +
-          (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-netbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Which relay carries this app’s inbound traffic. The relay splices encrypted bytes on the app’s name and never terminates TLS - picking one nearer your users (or nearer the enclave) shortens the network path, and changes nothing about who can read the traffic">Network</button>' : '') +
-          (onchain && st === "running" && ctl === "wallet" ? '<button class="btn btn-sm enc-movebtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Run this app on a different enclave - the current one hands its lease back (unused lease time is refunded to the balance) and the box you pick claims it. Same URL, version and balance">Move</button>' : '') +
+          (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-netbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Current TUNA provider addresses and allocated ports. TLS ends in the app guest.">Network</button>' : '') +
+          '<button class="btn btn-sm enc-movebtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Choose a preferred host for this app, or resume an ended app on a selected host. Same URL, version and balance">Pin</button>' +
           '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '" aria-expanded="false">Verify</button>' +
           (mobileOffer(d, ep) ? '<button class="btn btn-sm enc-mobbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Install this app on a phone - the mobile build verifies the enclave on the device before the app loads">Downloads</button>' : '') +
           // secrets/domains are tabs like every other panel; their toggle
@@ -779,6 +902,7 @@ class Deployments extends EnclaveElement {
         '</div>' +
         '<div class="enc-fund" hidden></div>' +
         '<div class="enc-upg" hidden></div>' +
+        '<div class="enc-shares" hidden></div>' +
         '<div class="enc-move" hidden></div>' +
         '<div class="enc-waf" hidden></div>' +
         '<div class="enc-net" hidden></div>' +
@@ -807,6 +931,7 @@ class Deployments extends EnclaveElement {
     $$(".enc-outbtn", body).forEach(b => b.addEventListener("click", () => this._output(b.dataset.id, b)));
     $$(".enc-fundbtn", body).forEach(b => b.addEventListener("click", () => this._fund(b.dataset.id, b)));
     $$(".enc-upgbtn", body).forEach(b => b.addEventListener("click", () => this._upgrade(b.dataset.id, b)));
+    $$(".enc-sharesbtn", body).forEach(b => b.addEventListener("click", () => this._shares(b.dataset.id, b)));
     $$(".enc-movebtn", body).forEach(b => b.addEventListener("click", () => this._move(b.dataset.id, b)));
     $$(".enc-wafbtn", body).forEach(b => b.addEventListener("click", () => this._waf(b.dataset.id, b)));
     $$(".enc-cfgbtn", body).forEach(b => b.addEventListener("click", () => this._configPanel(b.dataset.id, b)));
@@ -824,7 +949,7 @@ class Deployments extends EnclaveElement {
     this._fillWhy();               // cached decline reasons repaint instantly with the rows
     this._probeWhy(pageRows);      // then refresh them (throttled per row)
     this._probeTls(pageRows);      // TLS-gate the Open controls (throttled per row)
-    this._probeEnv(pageRows);      // "protected" / "via <relay>" badges off the options envelope (cached per row)
+    this._probeEnv(pageRows);      // WAF badges from the cached options envelope
     this._renderPager(pages, shown.length, PER_PAGE);
     // finished runs' strips yield to their rows the moment those render
     [...this._strips.keys()].forEach(r => this._retireStrip(r));
@@ -874,25 +999,14 @@ class Deployments extends EnclaveElement {
       el.classList.toggle("enc-err", !!c.terminal);
       el.innerHTML = c.terminal
         ? "⚠ won’t start by waiting - the fleet refuses this work: " + esc(c.reason)
-          + " (a deployment’s shares are immutable: suspend it and redeploy at the app’s current minimums)"
+          + " (check the app’s minimum resources in Resources)"
         : '<span class="dim">fleet: ' + esc(c.reason) + " - retrying automatically</span>";
       el.hidden = false;
     });
   }
 
-  /* ---- Open-control TLS probes: does THIS browser trust the app origin? ----
-     A no-cors HEAD resolves (opaque) iff DNS + TCP + the TLS handshake all
-     succeeded with a certificate this browser trusts - the self-signed
-     fallback rejects, which is exactly the "cert not through yet" state.
-     Redirects follow (no-cors REQUIRES follow - manual throws a TypeError),
-     so an app whose / redirects somewhere broken or insecure stays amber:
-     right call, since that's also what greets whoever clicks open.
-     Throttle: pending rows retry each ~10s poll; a green row re-verifies
-     every 5 min (an enclave release re-mints every cert, so green can regress)
-     and only flips back on an actual failed probe - never while in flight. ---- */
   /* ---- per-row envelope badges: what does the options envelope carry?
-     Two of its namespaces are visible on the row itself - `waf` ("protected")
-     and `network.relay` ("via <relay>"). The list rows (supervisor live view /
+     The `waf` namespace supplies the protection badge. The list rows (supervisor live view /
      relay ledger view) don't carry the envelope, so visible on-chain rows get
      ONE cached ledger read each - an envelope only changes via an owner tx, so
      the cache lives until a panel rewrites it (which flips its badge in
@@ -904,7 +1018,7 @@ class Deployments extends EnclaveElement {
       if (!/^0x[0-9a-f]{64}$/i.test(id || "")) continue;
       const c = this._env.get(id);
       if (c) { this._envPaint(id); continue; }
-      this._env.set(id, { waf: false, summary: "", relay: "" });   // stamp before the await: overlapping polls must not double-read
+      this._env.set(id, { waf: false, summary: "" });   // stamp before the await: overlapping polls must not double-read
       try {
         const dd = await depGet(id);
         this._envLearn(id, dd && dd.configCid);
@@ -927,11 +1041,9 @@ class Deployments extends EnclaveElement {
       w.maxBodyMb != null ? "max body " + w.maxBodyMb + " MB" : null,
       w.blockScanners ? "scanner paths blocked" : null,
     ].filter(Boolean).join(" \u00b7 ") : "";
-    const n = o && o.network && typeof o.network === "object" && !Array.isArray(o.network) ? o.network : null;
-    const relay = n && typeof n.relay === "string" ? n.relay.trim().toLowerCase() : "";
     // `config` present at all = an override (even {} - explicitly empty is a
     // choice, and the badge is how the owner remembers having made it)
-    this._env.set(id, { waf: !!w, summary, relay, cfg: !!(o && "config" in o) });
+    this._env.set(id, { waf: !!w, summary, cfg: !!(o && "config" in o) });
     this._envPaint(id);
   }
   _envPaint(id) {
@@ -942,14 +1054,6 @@ class Deployments extends EnclaveElement {
       b.hidden = !c.waf;
       if (c.waf) b.title = "Protection is on: " + c.summary + " - the Protect button tunes or removes it";
     }
-    const r = this.querySelector('.ep-relay[data-relayb="' + id + '"]');
-    if (r) {
-      r.hidden = !c.relay;
-      if (c.relay) {
-        r.textContent = "via " + c.relay;
-        r.title = "Inbound traffic for this app is carried by the " + c.relay + " relay - the Network button changes it";
-      }
-    }
     const k = this.querySelector('.ep-cfg[data-cfgb="' + id + '"]');
     if (k) {
       k.hidden = !c.cfg;
@@ -959,26 +1063,26 @@ class Deployments extends EnclaveElement {
 
   async _probeTls(rows) {
     this._tls = this._tls || new Map();
-    for (const d of rows) {
-      // private rows are probed too: they now mint an app-zone certificate like
-      // any other, and the probe reads the HANDSHAKE - `no-cors` resolves on a
-      // 401 just as happily as on a 200, so the owner gate never reads as "no
-      // certificate yet".
-      if ((d.status || "") !== "running") { this._tls.delete(d.id); continue; }
+    // Probe rows independently: one unanswered app must not delay every other lock.
+    await Promise.all(rows.map(async d => {
+      if ((d.status || "") !== "running") { this._tls.delete(d.id); return; }
       const href = safeHref(appEndpoint(d));
-      if (!/^https:\/\//i.test(href)) continue;   // only absolute https origins render an Open control
+      if (!/^https:\/\//i.test(href)) return;
       const c = this._tls.get(d.id);
-      if (c && Date.now() - c.at < (c.state === "ok" ? 300_000 : 8_000)) continue;
-      this._tls.set(d.id, { state: c ? c.state : "wait", at: Date.now() });   // stamp before the await: overlapping polls must not double-probe
+      if (c?.href === href && (c.pending || Date.now() - c.at < (c.state === "ok" ? 300_000 : 8_000))) return;
+      const pending = { state: c?.href === href ? c.state : "noanswer", href, pending: true, at: Date.now() };
+      this._tls.set(d.id, pending);
       try {
-        await fetch(href + "/", { method: "HEAD", mode: "no-cors", cache: "no-store",
-                                  signal: AbortSignal.timeout(8000) });
-        this._tls.set(d.id, { state: "ok", at: Date.now() });
+        const result = await probeAppTls(href);
+        // A newer endpoint or stopped row invalidates an older in-flight result.
+        if (this._tls.get(d.id) === pending)
+          this._tls.set(d.id, { ...result, href, at: Date.now() });
       } catch (e) {
-        this._tls.set(d.id, { state: "wait", at: Date.now() });
+        if (this._tls.get(d.id) === pending)
+          this._tls.set(d.id, { state: "noanswer", href, at: Date.now(), error: e?.name || "Error" });
       }
-    }
-    this._fillTls();
+      this._fillTls();
+    }));
   }
   /* swap Open controls in place when a probe verdict differs from what's
      rendered - the 10s poll skips repaints while a panel is open, and the
@@ -987,9 +1091,11 @@ class Deployments extends EnclaveElement {
     if (!this._tls) return;
     $$("[data-tls]", this).forEach(el => {
       const c = this._tls.get(el.dataset.tls);
-      const ok = !!(c && c.state === "ok");
-      if (ok === (el.tagName === "A")) return;
+      // both verdicts render an <a> now, so the tag no longer identifies the state: the
+      // unknown one carries enc-open-unknown, and that is what a repaint compares.
       const d = (this._list || []).find(x => x.id === el.dataset.tls);
+      const ok = !!(d && c?.href === safeHref(appEndpoint(d)) && c.state === "ok");
+      if (ok === !el.classList.contains("enc-open-unknown")) return;
       const html = d ? openCtl(d, appEndpoint(d), c) : "";
       if (html) el.outerHTML = html;
     });
@@ -1096,22 +1202,18 @@ class Deployments extends EnclaveElement {
     });
   }
 
-  /* ---- per-row Version: repoint the deployment at another approved version
-     of its app - the owner's UPGRADE path (setAppRef on the ledger). Paid
-     time, shares and any live lease stay on the record: the runner restarts
-     the app in place on the new version within about a minute, so a new
-     release never costs a second buy-in. Candidates are the app's other
-     approved un-yanked versions; ones whose minimums exceed this deployment's
-     bought shares are listed disabled (created shares are immutable - those
-     need a fresh deploy at bigger dials). Checked here BEFORE the wallet
-     signature, the deploy form's floor rule: runners enforce the same gate,
-     and a version no runner accepts would leave the app dark. ---- */
-  async _upgrade(id, btn) {
-    const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-upg"); if (!box) return;
+  /* Version and Shares have separate panels and transactions. Shared ledger,
+     pricing and minimum checks keep their validation consistent. Shares pins
+     the CURRENT version; opening it must never propose an upgrade/downgrade. */
+  async _upgrade(id, btn, panel = "version") {
+    const sharesOnly = panel === "shares";
+    const title = sharesOnly ? "resources" : "change version";
+    const row = btn.closest(".enc-row"), box = row && row.querySelector(sharesOnly ? ".enc-shares" : ".enc-upg"); if (!box) return;
+    if (box.dataset.busy) return;
     if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
     btn.setAttribute("aria-expanded", "true");
     box.hidden = false;
-    box.innerHTML = '<div class="ap-attbar">change version · ' + esc(id) + '</div>'
+    box.innerHTML = '<div class="ap-attbar">' + title + ' · ' + esc(id) + '</div>'
       + '<div class="term enc-upg-status" role="status" aria-live="polite"><span class="ln dimln">// reading the ledger + catalog…</span></div>';
     let d = null, rev = 1, avail = null, fleet = null;
     try {
@@ -1132,11 +1234,18 @@ class Deployments extends EnclaveElement {
     if (!d) return fail("[x] couldn’t read this deployment from the ledger - try again shortly");
     const cr = parseCatalogRef(d.appRef);
     if (!cr) return fail("[x] this deployment doesn’t reference a catalog version (" + (d.appRef || "no appRef") + ") - only catalog deployments can switch versions");
-    const app = STORE.byId[cr.appId];
+    const app = STORE.byId[cr.appId] || (sharesOnly ? { slug: 'app', versions: [] } : null);
     if (!app || !app.versions) return fail("[x] the catalog doesn’t list this deployment’s app (delisted?) - nothing to switch to");
+    let currentVersion = null;
+    if (sharesOnly) {
+      try { currentVersion = await catGetVersion(cr.appId, cr.index); }
+      catch (e) { return fail("[x] Could not read this app’s requirements. Close and reopen Resources to retry."); }
+      if (box.hidden || !box.isConnected) return;
+    }
+    const versions = sharesOnly ? [{ v: currentVersion, i: cr.index }] : app.versions.map((v, i) => ({ v, i }));
     if (rev < 3)
       return fail("[!] the live ledger contract predates version changes - the Version control activates with the next contract upgrade. Until then: deploy the new version fresh, then suspend this one (its balance stays on the record).");
-    // The deployment's publisher-fee snapshot is as immutable as its shares:
+    // The deployment's publisher-fee snapshot is immutable:
     // a candidate version asking MORE than the snapshot could never pay its
     // publisher, so every runner would refuse the switch - list it disabled,
     // exactly like a share misfit. Fail closed on unreadable fees: offering a
@@ -1145,26 +1254,28 @@ class Deployments extends EnclaveElement {
     let snapFee = 0n; const verFees = {};
     try {
       snapFee = (await depFeeOf(id)).feePerSec6;
-      await Promise.all(app.versions.map(async (v, i) => {
+      await Promise.all(versions.map(async ({ v, i }) => {
         verFees[i] = (!v.yanked && v.approval === APPROVAL.approved) ? await catVersionFee(cr.appId, i) : 0n;
       }));
     } catch(e){ return fail("[x] couldn’t read the publisher fees involved - try again shortly"); }
-    // Resizable = a rev-6 ledger AND a fleet whose every live runner
-    // re-slices on setShares (fleet-AND flag: against an older fleet the tx
-    // would change the BILLING while the served slice silently didn't) AND
-    // readable list prices to preview the recalculated rate with. When it
-    // holds, share-misfit versions become selectable - the dials re-buy the
-    // shares in the same transaction (the contract's multicall).
-    let resizable = rev >= 6 && avail?.shareResize === true, prices = null, maxGpu = 1000;
+    // Shares uses the stop/release/reclaim lifecycle on every backend. Save
+    // shares with suspension atomically; never leave a failed resize stopped
+    // with the old allocation or pretend the existing VM resized live.
+    const restartResize = sharesOnly;
+    let resizable = sharesOnly && rev >= 6, prices = null, maxGpu = 1000;
+    let resizeReason = rev < 6 ? "This ledger does not support changing shares." : "";
     if (resizable){
       try { [prices, maxGpu] = await Promise.all([depPrices6(), depMaxGpuMilli()]); }
-      catch(e){ resizable = false; }
+      catch(e){ resizable = false; resizeReason = "Current prices could not be loaded. Close and reopen Resources to retry."; }
+    }
+    if (sharesOnly && (currentVersion.yanked || currentVersion.approval !== APPROVAL.approved)) {
+      resizable = false; resizeReason = 'This app version is not approved for a new launch. Select an approved version before changing its allocation.';
     }
     // The owner's hourly ceiling (rev 8). Editable here whenever every live
     // runner honors it — the fleet-AND flag, same rule as the resize dials:
     // against an older runner a lowered cap would just look like a renewal
     // that mysteriously stopped.
-    const capEditable = rev >= 8 && avail?.rateCap === true;
+    const capEditable = sharesOnly && rev >= 8 && avail?.rateCap === true;
     let cap6 = 0n;
     if (rev >= 8){ try { cap6 = await depCapOf(id); } catch(e){} }
     // WHOSE HARDWARE the floors divide by. A live lease pins it: the enclave
@@ -1177,6 +1288,12 @@ class Deployments extends EnclaveElement {
     // every newer version behind a resize it doesn't need. Unleased rows keep
     // the aggregate - any box may claim them next, so over-asking is right.
     const hw = leaseHostOf(d, fleet);          // null = size on the aggregate
+    if (sharesOnly && (!hw || d.active === false || ![hw.row.availability.nodeRamGb, hw.row.availability.nodeGflops, ...(hw.row.availability.gpu ? [hw.row.availability.cardVramGb, hw.row.availability.cardTflops] : [])].every(x => Number.isFinite(Number(x)) && Number(x) > 0))) {
+      box.replaceChildren(this._resourceOverview(id, btn, { spec: specOf(currentVersion), fleet,
+        configCid: d.configCid, unresolvedHost: d.active !== false }));
+      if (btn.dataset.editable === 'true') await this._resourceBudget(id, box);
+      return;
+    }
     // FREE SELF-HOSTING (ledger rev 12). The same box decides the PRICE of the
     // change, and it charges this owner nothing when its declared payout wallet
     // is the deployment's owner - _resizeRate goes through the very _hostRate
@@ -1198,8 +1315,11 @@ class Deployments extends EnclaveElement {
        gate sizes against where the tenant is ACTUALLY running for exactly this
        reason, and a console floor below the runner's would offer a switch that
        gets the deployment EVICTED rather than merely refused.
-       `gpuMilli` is a parameter because the dials can change the answer while
-       you type: dial the card to 0 and this becomes a coreless placement.
+       Version changes retain the normal minimum for stopped/queued apps.
+       The Shares editor also enforces the CPU-only floor before the next
+       launch, so its sliders cannot save an under-sized CPU-only allocation.
+       `gpuMilli` is a parameter because a running app's dials can change the
+       answer while you type: dial the card to 0 and it becomes CPU-only.
        `cardServesApp` is the shared mirror of the runner's gpuRouting, shielded
        card and all - a card too small for the app routes the work to cores,
        unless it is shielded, where offload is per-matmul and too-big is merely
@@ -1208,42 +1328,31 @@ class Deployments extends EnclaveElement {
        card unusable and demands the coreless floor for a deployment the runner
        serves on that very card at the card-case one. */
     const hostAvail = (hw && hw.row && hw.row.availability) || null;
-    const cpuNeedOf = (r, gpuMilli) => cpuFloorFor(r.mins,
-      (gpuMilli != null ? gpuMilli : bought.gpuMilli) > 0 && cardServesApp(hostAvail, r.mins) ? 1 : 0);
-    const rows = app.versions
-      .map((v, i) => ({ v, i, mins: minPctsOf(specOf(v), hw && hw.spec) }))
-      .filter(r => !r.v.yanked && r.v.approval === APPROVAL.approved)
+    const cpuNeedOf = (r, gpuMilli = bought.gpuMilli) => sharesOnly
+      ? cpuFloorFor(r.mins, gpuMilli > 0 && (!hw || cardServesApp(hostAvail, r.mins)) ? 1 : 0)
+      : !hw || d.active === false ? r.mins.cpuPct : cpuFloorFor(r.mins,
+        gpuMilli > 0 && cardServesApp(hostAvail, r.mins) ? 1 : 0);
+    const rows = versions
+      .map(({ v, i }) => ({ v, i, mins: minPctsOf(specOf(v), hw && hw.spec) }))
+      .filter(r => sharesOnly || (!r.v.yanked && r.v.approval === APPROVAL.approved))
       .map(r => ({ ...r,
         shareFit: r.mins.gpuPct * 10 <= bought.gpuMilli && cpuNeedOf(r) * 10 <= bought.cpuMilli,
         feeFit: (verFees[r.i] || 0n) <= snapFee }))
       .map(r => ({ ...r, fits: (r.shareFit || resizable) && r.feeFit }))
       .reverse();
     const others = rows.filter(r => r.i !== cr.index);
-    /* What this panel OPENS on. A newer approved release is the natural
-       upgrade and preselects (rows are newest-first). On the newest version
-       there is nothing to upgrade TO, and the honest default is the current
-       one: the dials then mean "resize in place", which is the other half of
-       what this panel does.
-
-       It used to preselect the newest release OTHER than the current, which on
-       the newest version is necessarily an OLDER one - so opening the panel to
-       change a share silently armed a downgrade, and showed that older
-       version's floors while doing it. Live 2026-09-14: an owner resizing a
-       1.0.63 deployment (which declares 1 GB beside its card) was shown
-       1.0.62's 60% floor, 1.0.62 being a release from before that version
-       split its node sizing, and read it as the panel refusing the dial.
-
-       A current version that does NOT fit keeps the old escape hatch: there
-       the newest fitting release, older or not, is the only way out. */
+    // Version may suggest a newer fitting release. Shares always keeps the
+    // current release, even when an upgrade is available.
     const newer = others.find(r => r.fits && r.i > cr.index);
     const cur = rows.find(r => r.i === cr.index);
-    const pick = newer || ((cur && cur.fits) ? null : others.find(r => r.fits)) || null;
-    if (!others.length && !resizable)
+    const pick = sharesOnly ? null : newer || ((cur && cur.fits) ? null : others.find(r => r.fits)) || null;
+    if (!sharesOnly && !others.length)
       return fail("// " + app.slug + " has no other approved version yet - new releases appear here once the catalog owner approves them");
-    const selId = "euSel" + appLabel(id);
-    box.innerHTML = '<div class="ap-attbar">change version · ' + esc(id) + '</div>'
-      + '<div class="enc-upg-body">'
-      +   '<label for="' + selId + '">Switch ' + esc(app.slug) + ' to</label>'
+    const selId = (sharesOnly ? "esShares" : "euSel") + appLabel(id);
+    box.innerHTML = '<div class="ap-attbar">' + title + ' · ' + esc(id) + '</div>'
+      + (sharesOnly && resizeReason ? '<p class="enc-shares-note" role="status">' + esc(resizeReason) + '</p>' : '')
+      + '<div class="' + (sharesOnly ? 'enc-share-content' : 'enc-upg-body') + '">'
+      + (sharesOnly ? '' : '<label for="' + selId + '">Switch ' + esc(app.slug) + ' to</label>'
       +   '<select class="eu-sel" id="' + selId + '">'
       +     rows.map(r => '<option value="' + r.i + '"' + (((r.i === cr.index && !resizable) || !r.fits) ? " disabled" : "") + (pick && r.i === pick.i ? " selected" : (!pick && r.i === cr.index ? " selected" : "")) + '>'
       +       esc(app.slug + ":" + r.v.version)
@@ -1252,14 +1361,8 @@ class Deployments extends EnclaveElement {
                                                  + (hw ? " on " + hw.name : "") : "")
       +       (r.shareFit && !r.feeFit && r.i !== cr.index ? " · charges $" + (Number(verFees[r.i]) * 3600 / 1e6).toFixed(2) + "/hr publisher fee (above this deployment’s snapshot)" : "")
       +     '</option>').join("")
-      +   '</select>'
-      +   (resizable
-         ? '<div class="eu-dials">'
-         +   '<label for="' + selId + 'g">GPU %</label><input id="' + selId + 'g" class="eu-gpu" type="number" min="0" max="' + (maxGpu / 10) + '" step="1" value="' + (bought.gpuMilli / 10) + '">'
-         +   '<label for="' + selId + 'c">CPU %</label><input id="' + selId + 'c" class="eu-cpu" type="number" min="1" max="100" step="1" value="' + (bought.cpuMilli / 10) + '">'
-         + '</div>'
-         : '')
-      +   '<button class="btn btn-sm btn-primary eu-go" type="button">Change version</button>'
+      +   '</select>')
+      +   (sharesOnly ? '' : '<button class="btn btn-sm btn-primary eu-go" type="button">Change version</button>')
       + '</div>'
       + (capEditable
          ? '<div class="enc-upg-body eu-cap-row">'
@@ -1268,12 +1371,39 @@ class Deployments extends EnclaveElement {
          +   '<button class="btn btn-sm eu-cap-go" type="button">Set cap</button>'
          + '</div>'
          : '')
-      + '<div class="term enc-upg-status" role="status" aria-live="polite"></div>';
-    const sel = box.querySelector(".eu-sel"), go = box.querySelector(".eu-go"), st = box.querySelector(".enc-upg-status");
-    const gIn = box.querySelector(".eu-gpu"), cIn = box.querySelector(".eu-cpu");
+      + '<div class="term enc-upg-status" role="status" aria-live="polite"></div>'
+      + (sharesOnly ? '<div class="enc-share-actions"><button class="btn btn-sm eu-cancel" type="button">Cancel</button><button class="btn btn-sm btn-primary eu-go" type="button">Save</button></div>' : '');
+    const sel = sharesOnly ? { value: String(cr.index) } : box.querySelector(".eu-sel");
+    const go = box.querySelector(".eu-go"), st = box.querySelector(".enc-upg-status");
+    const editor = sharesOnly && cur ? shareEditor({ id: selId, spec: specOf(cur.v), mins: cur.mins,
+      allocation: bought, maxGpu, rev, cpuMinimum: gpu => cpuNeedOf(cur, gpu), editable: resizable,
+      hostName: hw?.name, hardware: { ...hw.spec, ...(hw.row.availability.gpu !== true ? { cardVramGb: 0, cardTflops: 0 } : {}) },
+      onCompareHosts: () => box.querySelector('.enc-resource-overview').scrollIntoView({ block: 'start', behavior: 'smooth' }), onChange: () => upd() }) : null;
+    if (editor) {
+      box.querySelector('.enc-share-content').append(editor.element);
+      box.append(this._resourceOverview(id, btn, { spec: specOf(cur.v), fleet, configCid: d.configCid, currentHost: hw }));
+    }
+    box.querySelector('.eu-cancel')?.addEventListener('click', () => {
+      if (box.dataset.busy) return;
+      box.hidden = true; box.innerHTML = ''; btn.setAttribute('aria-expanded', 'false'); btn.focus();
+    });
     const paint = (cls, txt) => paintLine(st, cls, txt);
     const intro = () => {
-      paint("info", "// paid time carries over: the runner restarts the app in place (~a minute); the endpoint and balance don’t change, app state is ephemeral");
+      if (sharesOnly) {
+        if (resizable) paint("info", restartResize
+          ? d.active === false
+            ? "Save the allocation and re-queue the stopped app. Its URL and balance stay the same."
+            : "Save the new shares and stop in one confirmation, then confirm re-queue after the old lease clears. URL and balance stay the same; in-memory state resets."
+          : "The host applies the new allocation and may restart the app. Its URL and balance stay the same; in-memory state may reset.");
+        if (cur) paint("dimln", "Minimum: " + (editor ? editor.cpuMinimum() : Math.max(1, cpuNeedOf(cur, dials().gpuMilli))) + "% CPU"
+          + (cur.mins.gpuPct ? " · " + cur.mins.gpuPct + "% GPU" : "") + (hw ? " on " + hw.name : ""));
+        if (restartResize && resizable) paint("dimln", "Pricing is an estimate. The new instance must fit an eligible host and your hourly rate cap.");
+        return;
+      }
+      if (sharesOnly && resizable && restartResize)
+        paint("info", "// resizing stops this instance, waits for its lease to be released, then starts a fresh instance with the new shares. The URL and balance carry over; in-memory state is lost. Wallet confirmations are required for suspension and the resize/restart.");
+      else if (!sharesOnly || resizable) paint("info", "// paid time carries over: the runner restarts the app in place (~a minute); the endpoint and balance don’t change, app state is ephemeral");
+      if (restartResize && resizable) paint("dimln", "// pricing below is an estimate at the current host’s rates; the fresh instance must fit an eligible host and your rate cap");
       if (resizable && freeHere)
         paint("dimln", "// the dials re-buy this deployment’s shares in the same transaction - " + hw.name
           + " pays out to this deployment’s owner, so the bigger slice is re-bought at $0.00/h too"
@@ -1282,27 +1412,19 @@ class Deployments extends EnclaveElement {
         paint("dimln", "// the dials re-buy this deployment’s shares in the same transaction - the hourly rate is recalculated at "
           + (rev >= 8 ? (hw ? hw.name + "’s posted price" : "the price of whichever enclave claims it") : "the CURRENT list prices")
           + ", and a live lease settles at the old rate first");
-      if (cap6 > 0n)
+      if (sharesOnly && cap6 > 0n)
         paint("dimln", "// rate cap $" + (Number(cap6) * 3600 / 1e6).toFixed(2) + "/h: enclaves dearer than this can’t run this deployment - "
           + "it is also what decides where the app goes if its enclave dies"
           + (capEditable ? "" : " (this fleet can’t change it yet)"));
       if (hw)
         paint("dimln", "// minimum shares are measured on " + hw.name + " (" + hw.spec.nodeRamGb + " GB / " + hw.spec.nodeVcpus + " vCPU node"
           + (bought.gpuMilli ? ", " + hw.spec.cardVramGb + " GB card" : "") + "), the enclave holding this deployment’s lease - it restarts the app in place and checks the new version against its own hardware");
-      if (others.some(r => !r.shareFit) && !resizable)
-        paint("dimln", "// disabled entries need more than this deployment’s " + (bought.gpuMilli ? (bought.gpuMilli / 10) + "% GPU / " : "") + (bought.cpuMilli / 10) + "% CPU - " + (rev >= 6 ? "the fleet doesn’t re-slice live deployments yet" : "this ledger’s shares are immutable") + ", those need a fresh deploy");
-      if (others.some(r => r.shareFit && !r.feeFit))
+      if (!sharesOnly && others.some(r => !r.shareFit))
+        paint("dimln", "// disabled entries need more than this deployment’s " + (bought.gpuMilli ? (bought.gpuMilli / 10) + "% GPU / " : "") + (bought.cpuMilli / 10) + "% CPU - " + "adjust the allocation in Resources before switching to one of those versions");
+      if (!sharesOnly && others.some(r => r.shareFit && !r.feeFit))
         paint("dimln", "// entries charging a higher publisher fee than this deployment snapshotted at create need a fresh deploy - the fee snapshot is immutable");
     };
-    // target shares off the dials (milli, percent grain), read RAW - typing is
-    // never corrected and never clamped here, because a dial that fixes itself
-    // mid-entry can't be typed THROUGH: with a 6% CPU share, the "1" of an
-    // intended 18% GPU was snapped to 6 before the "8" ever arrived. Everything
-    // out of range is caught by problem() below, on the button.
-    const dials = () => ({
-      gpuMilli: gIn ? Math.round(Number(gIn.value || 0)) * 10 : bought.gpuMilli,
-      cpuMilli: cIn ? Math.round(Number(cIn.value || 0)) * 10 : bought.cpuMilli,
-    });
+    const dials = () => editor ? editor.values() : { ...bought };
     // the rate this size would run at, priced at the box that will serve it:
     // its lease holder's posted price (rev 8), else the fleet/list price - and
     // zero for the host half when that box hosts this owner for free, leaving
@@ -1310,15 +1432,11 @@ class Deployments extends EnclaveElement {
     const rateOf = t => (freeHere ? 0n : rate6Of(hw && hw.price
       ? { gpu: BigInt(Math.round(hw.price.full * 1e6)), cpu: BigInt(Math.round(hw.price.node * 1e6)) }
       : prices, t.gpuMilli, t.cpuMilli)) + snapFee;
-    // EVERY rule the transaction must satisfy, in one place. Returns "" when
-    // the dials are good. Shown as a live hint while you type - a hint only:
-    // it neither rewrites the field nor disables the button. The click runs the
-    // same function and refuses there, which is the one place a half-typed
-    // number can't be mistaken for a final answer.
+    // Sliders enforce resource floors; Save also validates pricing, capacity
+    // and ledger rules, both while editing and immediately before signing.
     const problem = (r, t, resized) => {
-      if (!gIn || !cIn) return "";
-      if (!Number.isFinite(Number(gIn.value)) || !Number.isFinite(Number(cIn.value)))
-        return "// both shares have to be numbers";
+      if (!editor) return "";
+      if (editor.problem()) return editor.problem();
       if (t.gpuMilli < 0 || t.cpuMilli < 0) return "// shares can’t be negative";
       const ver = app.slug + ":" + r.v.version;
       if (t.gpuMilli < r.mins.gpuPct * 10)
@@ -1339,7 +1457,7 @@ class Deployments extends EnclaveElement {
       const newRate = rateOf(t);
       if (cap6 > 0n && newRate > cap6)
         return "// that size costs more than this deployment’s rate cap of $" + (Number(cap6) * 3600 / 1e6).toFixed(2)
-          + "/h - raise the cap below, then resize";
+          + "/h - raise the rate cap, then save";
       if (Number(d.leaseUntil) * 1000 > Date.now()){
         const tail = Math.max(0, Number(d.leaseUntil) - Math.floor(Date.now() / 1000));
         if (BigInt(Number(d.balance6 || 0)) + BigInt(tail) * BigInt(Math.round(Number(d.rate) || 0)) < newRate)
@@ -1347,40 +1465,19 @@ class Deployments extends EnclaveElement {
       }
       return "";
     };
-    // prefill = a discrete choice (opening the panel, picking a version), NOT a
-    // keystroke: only then may the dials be written for you.
-    const upd = (prefill) => {
+    const upd = () => {
+      if (box.dataset.busy) return;
       const r = rows.find(x => String(x.i) === sel.value);
       st.innerHTML = ""; intro();
       if (!r || !r.fits){ go.disabled = true; return; }
-      if (resizable && gIn && cIn){
-        // the floors ride the spinner and the a11y contract, not the keystroke:
-        // min/max steer the arrows and announce the range without touching what
-        // you typed (browsers don't refuse out-of-range typing outside a form)
-        gIn.min = r.mins.gpuPct;
-        // the GPU dial first, because it decides which node floor applies: the
-        // CPU minimum shown beside a card is not the one shown without it
-        if (prefill && Math.round(Number(gIn.value || 0)) < r.mins.gpuPct) gIn.value = r.mins.gpuPct;
-        const cNeed = cpuNeedOf(r, dials().gpuMilli);
-        cIn.min = Math.max(1, cNeed);
-        if (prefill){
-          // pick a version that needs more than this deployment bought and the
-          // dials come up already holding its minimums - the convenience the
-          // old per-keystroke version was after, at the one moment it can't
-          // land in the middle of a number being typed
-          if (Math.round(Number(cIn.value || 0)) < Math.max(1, cNeed)) cIn.value = Math.max(1, cNeed);
-          // pre-13 ledgers refuse a GPU dial under the CPU one; on 13+ the
-          // prefill leaves both exactly where the app's floors put them
-          const p = dials();
-          if (!sharesLegalOn(p.gpuMilli / 10, p.cpuMilli / 10, rev)) gIn.value = p.cpuMilli / 10;
-        }
+      if (resizable && editor){
         const t = dials();
         const resized = t.gpuMilli !== bought.gpuMilli || t.cpuMilli !== bought.cpuMilli;
         const verChange = r.i !== cr.index;
-        go.textContent = verChange && resized ? "Change version + resize" : resized ? "Resize" : "Change version";
-        go.disabled = !verChange && !resized;
+        go.textContent = 'Save';
+        go.disabled = !verChange && !resized && !(restartResize && d.active === false);
         const bad = problem(r, t, resized);
-        if (bad){ paint("warn", bad); return; }   // hint only - the click re-checks
+        if (bad){ go.disabled = true; paint("warn", bad); return; }
         if (resized){
           const newRate = rateOf(t), oldRate = Math.round(Number(d.rate) || 0), bal = Number(d.balance6 || 0);
           paint("dimln", "// rate $" + (oldRate * 3600 / 1e6).toFixed(2)
@@ -1393,28 +1490,70 @@ class Deployments extends EnclaveElement {
         go.disabled = r.i === cr.index || !r.fits;
       }
     };
-    sel.addEventListener("change", () => upd(true));
-    if (gIn) gIn.addEventListener("input", () => upd(false));
-    if (cIn) cIn.addEventListener("input", () => upd(false));
-    upd(true);
+    if (!sharesOnly) sel.addEventListener("change", upd);
+    upd();
     go.addEventListener("click", async () => {
+      if (box.dataset.busy) return;
       const r = rows.find(x => String(x.i) === sel.value);
-      if (!r || !r.fits) return;
+      if (!r || !r.fits || (sharesOnly && !resizable)) return;
       const t = dials();
       const resized = resizable && (t.gpuMilli !== bought.gpuMilli || t.cpuMilli !== bought.cpuMilli);
-      const verChange = r.i !== cr.index;
-      if (!verChange && !resized) return;
-      // the one gate: nothing was rejected while it was being typed, so the
-      // dials are checked here, before a signature is ever asked for
-      if (resizable && gIn && cIn){
+      const verChange = !sharesOnly && r.i !== cr.index;
+      if (!verChange && !resized && !(restartResize && d.active === false)) return;
+      // Recheck the complete draft before asking for a signature.
+      if (resizable && editor){
         const bad = problem(r, t, resized);
         if (bad){ st.innerHTML = ""; intro(); paint("warn", bad); return; }
       }
+      const locked = [...row.querySelectorAll(".enc-tabs button"), ...box.querySelectorAll("input, select, button")].map(el => [el, el.disabled]);
       go.disabled = true;
+      let saved = false;
       const via = ctlOf((this._list || []).find(x => x.id === id)) === "vault";
       const doneWord = verChange ? "switched to " + app.slug + ":" + r.v.version + (resized ? " at " + (t.gpuMilli / 10) + "% GPU / " + (t.cpuMilli / 10) + "% CPU" : "")
                                  : "resized to " + (t.gpuMilli / 10) + "% GPU / " + (t.cpuMilli / 10) + "% CPU";
       try {
+        box.dataset.busy = "true";
+        locked.forEach(([el]) => { el.disabled = true; });
+        if (sharesOnly) {
+          const latest = await depGet(id), current = leaseHostOf(latest, fleet);
+          if (latest.active === false || !current || current.row.id !== hw.row.id)
+            throw new Error('The app’s host changed. Reopen Resources to size its current allocation.');
+        }
+        if (restartResize && (resized || d.active === false)) {
+          if (!via && !Enclave.provider) await connectWallet();
+          if (!via) await ensureBaseChain();
+          const walletTx = async data => { const hash = await sendTx(DEPLOYMENTS_ADDRESS, data); await waitReceipt(hash); };
+          const activeCall = active => encCall(DEP_SEL.setActive, [{ t: "bytes32", v: id }, { t: "bool", v: active }]);
+          const sharesCall = encCall(DEP_SEL.setShares, [{ t: "bytes32", v: id }, { t: "uint", v: t.gpuMilli }, { t: "uint", v: t.cpuMilli }]);
+          const vault = via ? (await import("../../js/core/vault.js")).vaultOp : null;
+          const result = await resizeAfterStop({
+            expected: d, target: t, read: () => depSnapshot(id),
+            saved: ({ active }) => {
+              // Keep the same panel retryable after cancellation/RPC trouble.
+              // The chain already retains these shares across reloads.
+              Object.assign(bought, t); Object.assign(d, t, { active });
+            },
+            resume: () => via ? vault("control", { id, action: "resume" }) : walletTx(activeCall(true)),
+            progress: message => paint("info", message),
+            apply: async ({ active }) => {
+              if (via) {
+                await vault("control", { id, action: "resize", gpuMilli: t.gpuMilli, cpuMilli: t.cpuMilli, active });
+              } else {
+                await walletTx(encCall(DEP_SEL.multicall, [{ t: "bytes[]", v: [sharesCall, activeCall(active)] }]));
+              }
+            },
+          });
+          saved = true;
+          if (result.resumed) {
+            fetch(Enclave.base + "/claim-hint", { method: "POST", headers: { "content-type": "application/json" },
+              body: JSON.stringify({ id, force: true }) }).catch(() => {});
+          }
+          if (this._why) this._why.delete(id);
+          paint("ok", "[✓] " + doneWord + (result.resumed ? " — queued for a fresh instance at the new size" : " — saved; use Resume when you are ready to start it"));
+          showToast(doneWord);
+          setTimeout(() => { if (box.isConnected){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); } this.refresh(); }, 3500);
+          return;
+        }
         if (via){
           // credit-vault row: the vault owns the deployment on-chain, so the
           // change is a passkey-signed controlDeployment op via the relay
@@ -1425,7 +1564,7 @@ class Deployments extends EnclaveElement {
             : { id, action: "version", ref: catalogRef(cr.appId, r.i) });
         } else {
           // no SIWE: setAppRef/setShares are owner-gated on-chain - a connected
-          // wallet is all this needs; both changes ride ONE multicall signature
+          // wallet is all this needs; Version and Shares each send their own action
           if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
           await ensureBaseChain();
           paint("info", "[*] confirm the transaction in your wallet…");
@@ -1437,6 +1576,7 @@ class Deployments extends EnclaveElement {
           paint("dimln", "  ↳ sent " + th + " · waiting for confirmation…");
           await waitReceipt(th);
         }
+        saved = true;
         if (this._why) this._why.delete(id);   // a pre-change decline reason must not outlive the switch
         // nudge the fleet: makes queued/suspended rows relaunch promptly (a
         // running one is restarted by its own runner's next ledger pass)
@@ -1447,9 +1587,10 @@ class Deployments extends EnclaveElement {
         setTimeout(() => { if (box.isConnected && !box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); } this.refresh(); }, 3500);
       } catch(e){
         const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
-        paint("warn", rejected ? (via ? "[x] cancelled - nothing changed" : "[x] rejected in wallet - nothing changed") : "[x] " + (e.message || String(e)));
+        paint("warn", restartResize ? "[x] " + (e.message || String(e))
+          : rejected ? (via ? "[x] cancelled - nothing changed" : "[x] rejected in wallet - nothing changed") : "[x] " + (e.message || String(e)));
         go.disabled = false;
-      } finally { if (!via) refreshWallet(); }
+      } finally { delete box.dataset.busy; locked.forEach(([el, disabled]) => { el.disabled = disabled; }); if (saved) go.disabled = true; if (!via) refreshWallet(); }
     });
     // ---- the hourly ceiling: which enclaves may run this deployment --------
     // Enclaves price their own hardware, so this line decides where the work
@@ -1626,297 +1767,20 @@ class Deployments extends EnclaveElement {
     });
   }
 
-  /* ---- the relay's view of this app's traffic -------------------------------
-     A relay is the only place OUTSIDE the enclave that can see anything about
-     a deployment's traffic, and it sees exactly this much: an address, a
-     direction, a time, and how many bytes the connection moved. It peeks SNI
-     without terminating TLS inbound and dials an already-authenticated
-     destination outbound, so there is no request, path or header here - not
-     because we chose not to log one, but because a box holding no key never
-     had one to see.
-
-     So this graph is BANDWIDTH and CONNECTIONS, and says so. Reading it as a
-     request count would undercount by a factor nothing here can know: one
-     connection carries many requests (h2 multiplexes, h1 keeps alive). Bytes
-     are the honest measure, and they distinguish the case that actually
-     matters - eight connections moving nothing is a very different picture
-     from eight moving megabytes, and only the per-connection split tells them
-     apart. ---- */
-  async _traffic(id, host, _preferred) {
-    if (!host) return;
-    const WINDOW_MS = 15 * 60 * 1000, BUCKETS = 30;
-    const fmtB = (n) => n >= 1e9 ? (n / 1e9).toFixed(1) + " GB"
-                      : n >= 1e6 ? (n / 1e6).toFixed(1) + " MB"
-                      : n >= 1e3 ? (n / 1e3).toFixed(0) + " kB" : (n | 0) + " B";
-    const ago = (ms) => { const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
-      return s < 60 ? s + "s ago" : s < 3600 ? Math.round(s / 60) + "m ago" : Math.round(s / 3600) + "h ago"; };
-
-    host.innerHTML = '<div class="ap-attbar">traffic · relay view</div>'
-      + '<div class="en-traffic"><p class="en-intro dim">reading the relay…</p></div>';
-    const body = host.querySelector(".en-traffic");
-
-    // WHICH relay carries this app - the envelope answers only for a
-    // deployment that chose one, and most never do; /v1/relays resolves the
-    // fleet default too, which is the case that matters here.
-    let relay = "";
-    try {
-      const labels = await Enclave.getRelayLabels();
-      const row = labels && labels[appLabel(id)];
-      relay = (row && row.relay) || "";
-    } catch (e) { /* fall through to the no-relay note */ }
-    if (!relay) {
-      body.innerHTML = '<p class="en-intro dim">No relay is reporting for this app yet, '
-        + 'so there is nothing to show. Traffic that never crosses a relay (a direct '
-        + 'enclave origin) is invisible here by construction.</p>';
-      return;
-    }
-
-    let view = "peer";                 // "peer" | "conn"
-    const draw = (rows, note) => {
-      if (host.hidden || !host.isConnected) return;
-      const now = Date.now(), from = now - WINDOW_MS;
-      const live = rows.filter((r) => r.t >= from);
-      const open = live.filter((r) => !r.e).length;
-      const totIn = live.reduce((n, r) => n + (r.u || 0), 0);
-      const totOut = live.reduce((n, r) => n + (r.w || 0), 0);
-
-      // Bandwidth per bucket. A connection's bytes are only known when it
-      // CLOSES, so they land in the bucket it closed in rather than smeared
-      // across its life - honest about what the relay actually reported, and
-      // the reason a long download appears as one spike at the end.
-      const buckets = new Array(BUCKETS).fill(0).map(() => ({ i: 0, o: 0, n: 0 }));
-      const span = WINDOW_MS / BUCKETS;
-      for (const r of live) {
-        const b = buckets[Math.min(BUCKETS - 1, Math.floor((r.t - from) / span))];
-        b.n++;
-        const c = buckets[Math.min(BUCKETS - 1, Math.floor(((r.e || now) - from) / span))];
-        c.i += r.u || 0; c.o += r.w || 0;
-      }
-      const peak = Math.max(1, ...buckets.map((b) => b.i + b.o));
-      const H = 46;
-      const bars = buckets.map((b, k) => {
-        const hi = Math.round((b.i / peak) * H), ho = Math.round((b.o / peak) * H);
-        const x = k * 10;
-        const t = new Date(from + k * span).toLocaleTimeString();
-        return '<g><title>' + esc(t + " · in " + fmtB(b.i) + " · out " + fmtB(b.o)
-                 + (b.n ? " · " + b.n + " new conn" : "")) + '</title>'
-             + '<rect x="' + x + '" y="' + (H - hi - ho) + '" width="8" height="' + ho + '" class="tg-out"/>'
-             + '<rect x="' + x + '" y="' + (H - hi) + '" width="8" height="' + hi + '" class="tg-in"/>'
-             + '</g>';
-      }).join("");
-
-      const dirTag = (d) => d === "out" ? '<span class="tg-d out">out</span>' : '<span class="tg-d in">in</span>';
-
-      // BY PEER is the default, because the per-connection view misleads: a
-      // browser opens several connections to load one page, each with its own
-      // ephemeral SOURCE port, so six rows that are one visitor read as six
-      // visitors. Grouping answers "who is talking to this app", which is the
-      // question people actually bring; the connection detail is one click away
-      // for when the question is "what just happened".
-      const byPeer = new Map();
-      for (const r of live) {
-        const k = r.d + " " + r.a;
-        let g = byPeer.get(k);
-        if (!g) { g = { d: r.d, a: r.a, n: 0, bytes: 0, open: 0, last: 0 }; byPeer.set(k, g); }
-        g.n++; g.bytes += (r.u || 0) + (r.w || 0);
-        if (!r.e) g.open++;
-        g.last = Math.max(g.last, r.e || r.t);
-      }
-      const peers = [...byPeer.values()].sort((x, y) => y.last - x.last).slice(0, 12).map((g) =>
-          '<tr><td>' + esc(ago(g.last)) + '</td><td>' + dirTag(g.d) + '</td>'
-        + '<td class="tg-peer">' + esc(g.a) + '</td>'
-        + '<td class="tg-b">' + fmtB(g.bytes) + '</td>'
-        + '<td class="dim">' + g.n + (g.open ? ' \u00b7 ' + g.open + ' open' : '') + '</td></tr>').join("");
-
-      // newest first: the question here is "what just happened"
-      const recent = live.slice().reverse().slice(0, 12).map((r) => {
-        const dir = dirTag(r.d);
-        const bytes = r.e ? fmtB((r.u || 0) + (r.w || 0)) : '<span class="dim">open</span>';
-        const held = r.e ? Math.max(0, Math.round((r.e - r.t) / 100) / 10) + "s" : "";
-        return '<tr><td>' + esc(ago(r.t)) + '</td><td>' + dir + '</td>'
-             + '<td class="tg-peer">' + esc(r.a) + (r.p ? ':' + (r.p | 0) : '') + '</td>'
-             + '<td class="tg-b">' + bytes + '</td><td class="dim">' + esc(held) + '</td></tr>';
-      }).join("");
-
-      body.innerHTML =
-          '<div class="tg-sum"><b>' + open + '</b> open · <b>' + fmtB(totIn) + '</b> in · <b>'
-        + fmtB(totOut) + '</b> out <span class="dim">· ' + live.length + ' connections in 15 min · via '
-        + esc(relay) + '</span></div>'
-        + (live.length
-            ? '<svg class="tg-chart" viewBox="0 0 ' + (BUCKETS * 10) + ' ' + H + '" preserveAspectRatio="none" role="img" '
-              + 'aria-label="bandwidth by connection over the last 15 minutes">' + bars + '</svg>'
-              + '<div class="tg-tabs" role="group" aria-label="group traffic by">'
-              +   '<button type="button" class="tg-tab" data-view="peer" aria-pressed="' + (view === "peer") + '">by peer</button>'
-              +   '<button type="button" class="tg-tab" data-view="conn" aria-pressed="' + (view === "conn") + '">by connection</button>'
-              + '</div>'
-              + '<table class="tg-tbl"><thead><tr><th>' + (view === "peer" ? "last" : "when") + '</th><th>dir</th><th>peer</th>'
-              +   '<th>bytes</th><th>' + (view === "peer" ? "conns" : "held") + '</th></tr></thead>'
-              + '<tbody>' + (view === "peer" ? peers : recent) + '</tbody></table>'
-            : '<p class="en-intro dim">No connections in the last 15 minutes.</p>')
-        + '<p class="en-intro dim">Connections, not requests - the relay never terminates TLS, and one '
-        + 'connection carries many requests. Bytes are counted at the socket and land in the bucket a '
-        + 'connection <em>closed</em> in. In the per-connection view the number after a peer is its '
-        + '<em>source</em> port, which the client picks fresh each time - one visitor loading a page '
-        + 'opens several. ' + esc(note || '') + '</p>';
-      body.querySelectorAll(".tg-tab").forEach((b) => b.addEventListener("click", () => {
-        view = b.dataset.view; draw(rows, note);        // same rows, redrawn - no refetch
-      }));
-    };
-
-    const poll = async () => {
-      if (host.hidden || !host.isConnected) return;          // panel closed: stop
-      try {
-        const j = await Enclave.getRelayTraffic(relay, id);
-        draw(j.rows || [], j.note || "");
-      } catch (e) {
-        if (!host.isConnected) return;
-        body.innerHTML = '<p class="en-intro dim">The ' + esc(relay) + ' relay is not reporting traffic '
-          + '(it may predate this, or be unreachable right now).</p>';
-        return;                                              // stop polling a relay that cannot answer
-      }
-      setTimeout(poll, 5000);
-    };
-    poll();
+  // The Enclave network does not expose the retired per-connection traffic feed.
+  async _traffic(id, host) {
+    if (host) host.innerHTML = '<div class="ap-attbar">traffic</div><p class="en-intro dim">Traffic is carried by the Enclave network. Per-connection traffic reports are unavailable.</p>';
   }
 
-  /* ---- per-row Network: which relay carries this app's inbound traffic ----
-     A relay splices ENCRYPTED bytes on the app's name; browser TLS terminates
-     inside the enclave and the relay holds no key, so this choice is about
-     PLACEMENT and nothing else - it can shorten the network path and cannot
-     widen who can read the traffic. That is worth saying plainly in the panel,
-     because "pick who carries my traffic" reads like a trust decision and is
-     not one.
-
-     The mechanism is the options envelope's `network` namespace, written by the
-     same owner setConfig tx as Protect (other namespaces PRESERVED verbatim).
-     Nothing in a CVM acts on it: DNS does. The relay's /v1/relays resolves
-     name -> address and the app zone answers <label>.app.enclave.host with it,
-     so the effect arrives at DNS cadence, not at claim time.
-
-     Fails closed on the fleet flag like Protect: the envelope is refused whole
-     by a runner that predates the namespace, so offering the control against a
-     mixed fleet would strand the deployment unclaimable on the next lease. ---- */
   async _network(id, btn) {
     const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-net"); if (!box) return;
-    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
-    btn.setAttribute("aria-expanded", "true");
-    box.hidden = false;
-    const bar = '<div class="ap-attbar">network · ' + esc(id) + '</div>';
-    box.innerHTML = bar + '<div class="term enc-net-status" role="status" aria-live="polite"><span class="ln dimln">// reading the ledger + relay roster…</span></div>';
-    let d = null, rev = 1, avail = null, relays = [];
-    try { [rev, d] = await Promise.all([depSchemaRev(), depGet(id)]); } catch(e){ d = null; }
-    try { avail = await Enclave.getAvailability(); } catch(e){}
-    try { relays = await Enclave.getRelays(); } catch(e){}
-    if (box.hidden || !box.isConnected) return;              // closed while loading
-    const fail = (msg) => { box.querySelector(".enc-net-status").innerHTML = ""; paintLine(box.querySelector(".enc-net-status"), "warn", msg); };
-    if (!d) return fail("[x] couldn’t read this deployment from the ledger - try again shortly");
-    if (avail && avail.networkOptions !== true)
-      return fail("[!] the live fleet doesn’t read the network envelope yet - choosing a relay now could strand this deployment on its next claim; try again after the fleet updates");
-    const raw = String(d.configCid || "").trim();
-    this._envLearn(id, raw);                       // freshest ledger truth: sync the row badge
-    let cur = {};
-    if (raw.startsWith("{")) { try { cur = JSON.parse(raw); } catch(e){} }
-    if (!cur || Array.isArray(cur) || typeof cur !== "object") cur = {};
-    const n0 = (cur.network && typeof cur.network === "object" && !Array.isArray(cur.network)) ? cur.network : null;
-    const cur0 = n0 && typeof n0.relay === "string" ? n0.relay.trim().toLowerCase() : "";
-    // Only a relay that splices SNI can front an app subdomain; one that carries
-    // only dedicated-IP TCP or egress is a real fleet member and a wrong answer
-    // here, so it is not offered.
-    const opts = (Array.isArray(relays) ? relays : []).filter(r => r && r.name && r.services && r.services.sni);
-    // A relay this deployment already NAMES but the roster does not offer has to
-    // appear anyway, selected and labelled: the record says so, and the panel
-    // must not silently redraw it as "fleet default" and turn a reload into an
-    // unintended change. The roster is only what is answering right now, so
-    // this covers both a relay that is briefly down and one that is gone for
-    // good - and DNS is doing the same thing in either case, which is what the
-    // label says.
-    const gone = !!cur0 && !opts.some(r => r.name === cur0);
-    if (gone) opts.push({ name: cur0, missing: true, services: { sni: true } });
-    const fid = "en" + appLabel(id);
-    const optLine = (r) => {
-      const bits = [
-        r.region ? esc(r.region) : null,
-        r.address ? '<span class="dim">' + esc(r.address) + '</span>' : null,
-        r.relayOnly === false ? '<span class="dim">also hosts apps</span>' : null,
-        r.missing ? '<span class="warn">not answering right now - the fleet default is carrying this app meanwhile</span>' : null,
-      ].filter(Boolean);
-      return '<label class="en-opt"><input type="radio" name="' + fid + '" value="' + esc(r.name) + '"'
-        + (r.name === cur0 ? " checked" : "") + '> <b>' + esc(r.name) + '</b>'
-        + (bits.length ? ' <span class="en-sub">' + bits.join(" · ") + '</span>' : '') + '</label>';
-    };
-    box.innerHTML = bar
-      + '<div class="enc-net-body">'
-      +   '<p class="en-intro">Which relay carries inbound traffic for <b>' + esc(appLabel(id)) + '.' + esc(APP_DOMAIN) + '</b>. '
-      +     'The relay splices encrypted bytes on the name and never terminates TLS - your app’s certificate is minted inside the enclave and stays there, '
-      +     'so this changes the path, never who can read it.</p>'
-      +   '<div class="en-list" role="radiogroup" aria-label="relay for this deployment">'
-      +     '<label class="en-opt"><input type="radio" name="' + fid + '" value=""' + (cur0 ? "" : " checked") + '> <b>Fleet default</b>'
-      +       ' <span class="en-sub">whichever relay the app zone points at - the right answer unless you have a reason</span></label>'
-      +     opts.map(optLine).join("")
-      +   '</div>'
-      +   (opts.length ? '' : '<p class="en-intro dim">No relay is publishing an address to choose from yet, so the fleet default is the only option.</p>')
-      +   '<button class="btn btn-sm btn-primary en-go" type="button">Apply</button>'
-      + '</div>'
-      + '<div class="enc-net-traffic"></div>'
-      + '<div class="term enc-net-status" role="status" aria-live="polite"></div>';
-    this._traffic(id, box.querySelector(".enc-net-traffic"), cur0 || (avail && avail.relayDefault) || "");
-    const st = box.querySelector(".enc-net-status"), go = box.querySelector(".en-go");
-    const paint = (cls, txt) => paintLine(st, cls, txt);
-    const chosen = () => (box.querySelector('input[name="' + fid + '"]:checked') || {}).value || "";
-    const envelopeFor = (name) => {
-      const next = { ...cur };
-      if (name) next.network = { ...(n0 || {}), relay: name };
-      else delete next.network;
-      return Object.keys(next).length ? JSON.stringify(next) : "";
-    };
-    const intro = () => {
-      st.innerHTML = "";
-      paint("info", "// the choice rides one owner signature; new connections follow it at DNS cadence - "
-        + "about a minute between relays, up to five when moving off the fleet default. Open connections stay where they are.");
-      if ("waf" in cur) paint("dimln", "// this deployment’s protection settings are preserved untouched");
-      if ("config" in cur) paint("dimln", "// its app-config override is preserved untouched");
-      // custom domains: a CNAME resolves THROUGH the app name and follows this
-      // choice by itself; an apex pinned straight at our edge addresses does not
-      paint("dimln", "// a custom domain CNAME’d at this app follows the choice - an apex pinned to our edge by A/AAAA keeps its own path");
-      if (gone) paint("warn", "[!] this deployment names “" + cur0 + "”, which no relay in the fleet answers to - the app is reachable on the fleet default meanwhile");
-    };
-    const sync = () => { go.disabled = envelopeFor(chosen()) === raw;
-      go.textContent = chosen() ? (chosen() === cur0 ? "Apply" : "Use " + chosen()) : "Use the fleet default"; };
-    $$('input[name="' + fid + '"]', box).forEach(el => el.addEventListener("change", sync));
-    intro(); sync();
-    go.addEventListener("click", async () => {
-      const name = chosen(), envelope = envelopeFor(name);
-      if (envelope === raw) return;
-      const cap = rev >= 5 ? 4096 : 100;
-      if (new TextEncoder().encode(envelope).length > cap)
-        return paint("warn", "[x] the options envelope is over this ledger’s " + cap + "-byte cap - trim the config override first");
-      go.disabled = true;
-      const via = ctlOf((this._list || []).find(x => x.id === id)) === "vault";
-      const doneWord = name ? "inbound now goes through " + name : "inbound is back on the fleet default";
-      try {
-        if (via){
-          paint("info", "[*] confirm with your passkey…");
-          const { vaultOp } = await import("../../js/core/vault.js");
-          await vaultOp("control", { id, action: "options", envelope });
-        } else {
-          if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
-          await ensureBaseChain();
-          paint("info", "[*] confirm the transaction in your wallet…");
-          const th = await sendTx(DEPLOYMENTS_ADDRESS,
-            encCall(DEP_SEL.setConfig, [{ t: "bytes32", v: id }, { t: "str", v: envelope }]));
-          paint("dimln", "  ↳ sent " + th + " · waiting for confirmation…");
-          await waitReceipt(th);
-        }
-        paint("ok", "[✓] " + doneWord + " - DNS picks it up within a minute or so");
-        showToast(doneWord);
-        this._envLearn(id, envelope);          // the row badge reflects the new envelope immediately
-        setTimeout(() => { if (box.isConnected && !box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); } }, 3500);
-      } catch(e){
-        const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
-        paint("warn", rejected ? (via ? "[x] cancelled - nothing changed" : "[x] rejected in wallet - nothing changed") : "[x] " + (e.message || String(e)));
-        go.disabled = false;
-      } finally { if (!via) refreshWallet(); }
-    });
+    if (!box.hidden) {box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return;}
+    btn.setAttribute("aria-expanded", "true"); box.hidden = false;
+    box.innerHTML = '<div class="ap-attbar">Network</div><div class="term enc-net-status" role="status" aria-live="polite"></div>';
+    const status = box.querySelector(".enc-net-status"), d = (this._list || []).find(x => x.id === id);
+    // the Enclave network (docs/design/enclave-network.md): status, privacy, and the owner-signed mode setting
+    try { const m = await import("../../js/core/enclave-network.js"); await m.renderEnclaveNetwork(box, id, {viaVault: ctlOf(d) === "vault", owner: d?.owner}); }
+    catch (e) { paintLine(status, "warn", "Network settings unavailable: " + e.message); }
   }
 
   /* ---- the deployment's config, as the ledger + catalog see it ----
@@ -1938,7 +1802,7 @@ class Deployments extends EnclaveElement {
      refuses the whole envelope, stranding the deployment Queued at its next
      claim); dropping one is always safe. Returns { err } when nothing can be
      edited, else the context cfgPlan() and the panels build on. ---- */
-  async _cfgRead(id) {
+  async _cfgRead(id, { allowReadOnly = false } = {}) {
     let d = null, rev = 1, avail = null;
     try { [rev, d] = await Promise.all([depSchemaRev(), depGet(id)]); await loadCatalog(); } catch(e){ d = null; }
     try { avail = await Enclave.getAvailability(); } catch(e){}
@@ -1961,10 +1825,12 @@ class Deployments extends EnclaveElement {
     } else if (hasOv){
       o0 = (cur.config && typeof cur.config === "object" && !Array.isArray(cur.config)) ? cur.config : {};
     }
+    let editBlocked = null;
     if (rev < 5 && !hasOv)
-      return { err: "[!] the live ledger caps the options field at 100 bytes (CID-sized), so a config override can’t fit - this control activates with the rev-5 ledger upgrade" };
-    if (avail && avail.configOverride !== true && !hasOv)
-      return { err: "[!] the live fleet doesn’t honor per-deployment config overrides yet - setting one now could strand this deployment on its next claim; try again after the fleet updates" };
+      editBlocked = "The current ledger does not support changing this deployment’s models.";
+    else if ((!avail || avail.configOverride !== true) && !hasOv)
+      editBlocked = "Changing models is unavailable because fleet support is missing or could not be verified.";
+    if (editBlocked && !allowReadOnly) return { err: editBlocked };
     // The STOCK config: the catalog version this deployment references. On a
     // rev-7 catalog a large config lives at a CID (the record's inline field is
     // only the routing manifest) - fetch it for display and the diff baseline;
@@ -1988,7 +1854,7 @@ class Deployments extends EnclaveElement {
                   : "it applies at the app’s next relaunch or claim")
       : "it applies when the deployment is next claimed";
     const curBase = { ...cur }; delete curBase.config; delete curBase.configCid;   // the envelope's OTHER namespaces, carried verbatim
-    return { d, rev, avail, raw, cur, curBase, ovCid, hasOv, o0, ovLost, cr, ver, stock, stockC, cap,
+    return { d, rev, avail, raw, cur, curBase, ovCid, hasOv, o0, ovLost, cr, ver, stock, stockC, cap, editBlocked,
              splitOk: !!(avail && avail.configCidOverride === true), applyWord };
   }
   /* one owner setConfig tx (vault rows: the same passkey-signed control op as
@@ -2120,7 +1986,7 @@ class Deployments extends EnclaveElement {
                                                  : "// couldn’t read the version’s stock config right now - an override can still be set, and Reset works regardless (the runner resolves stock itself)"))));
     if (ovCid && !ovLost) paint("dimln", "// its config is pinned off-chain (" + esc(ovCid.slice(0, 12)) + "…) because it doesn’t fit the ledger’s options field; the reference is what’s on-chain");
     if ("waf" in cur) paint("dimln", "// the deployment’s protection settings are preserved untouched");
-    if (cur.network) paint("dimln", "// its relay choice is preserved untouched");
+    if (cur.network) paint("dimln", "// its network options are preserved");
     if (!avail) paint("dimln", "// couldn’t read fleet availability to confirm override support - if a runner predates it, the next claim would refuse this deployment");
     // what the textarea MEANS against the ledger - the one truth Apply acts on
     const verdict = () => {
@@ -2213,7 +2079,7 @@ class Deployments extends EnclaveElement {
     box.hidden = false;
     const bar = '<div class="ap-attbar">models · ' + esc(id) + '</div>';
     box.innerHTML = bar + '<div class="term enc-mod-status" role="status" aria-live="polite"><span class="ln dimln">// reading the ledger + fleet…</span></div>';
-    const [ctx, fleet] = await Promise.all([this._cfgRead(id), Enclave.getEnclaves().catch(() => null)]);
+    const [ctx, fleet] = await Promise.all([this._cfgRead(id, { allowReadOnly: true }), Enclave.getEnclaves().catch(() => null)]);
     if (box.hidden || !box.isConnected) return;              // closed while loading
     const fail = (msg) => { const x = box.querySelector(".enc-mod-status"); x.innerHTML = ""; paintLine(x, "warn", msg); };
     if (ctx.err) return fail(ctx.err);
@@ -2255,6 +2121,16 @@ class Deployments extends EnclaveElement {
     const selected = new Set(nowVols);
     const lr = (this._list || []).find(x => x.id === id);
     const here = (lr && lr.enclave) || "";       // the box serving it right now (absent while queued/stopped)
+    // Reading a model selection does not require permission to write a new
+    // config. Show the resolved selection even when no host can edit it.
+    if (ctx.editBlocked) {
+      box.innerHTML = bar + '<div class="enc-mod-body"><h3>Selected models</h3>'
+        + (nowVols.length ? '<ul>' + nowVols.map(n => '<li><b>' + esc(n) + '</b> · '
+          + (byName.get(n).missing ? 'not on any live enclave' : 'available on ' + byName.get(n).hosts.map(esc).join(', '))
+          + '</li>').join('') + '</ul>' : '<p>No model volumes selected.</p>')
+        + '<p class="en-intro dim">' + esc(ctx.editBlocked) + ' You can still view the selection here.</p></div>';
+      return;
+    }
     box.innerHTML = bar
       + '<div class="enc-mod-body">'
       +   '<p class="en-intro">The model volumes this app mounts at <b>/models/&lt;name&gt;</b>: attested read-only weights an enclave carries, named by the <b>volumes</b> key of the app’s config. '
@@ -2279,7 +2155,7 @@ class Deployments extends EnclaveElement {
     const missing0 = nowVols.filter(n => byName.get(n).missing);
     if (missing0.length) paint("warn", "[!] " + missing0.join(", ") + ": no live enclave carries " + (missing0.length === 1 ? "it" : "these") + " right now - the fleet can’t place this deployment until one does, or until it’s unticked");
     if ("waf" in cur) paint("dimln", "// the deployment’s protection settings are preserved untouched");
-    if (cur.network) paint("dimln", "// its relay choice is preserved untouched");
+    if (cur.network) paint("dimln", "// its network options are preserved");
     // the config that rides out: today's document with the ticks as its
     // `volumes` key - the ones it already names first (in their order), new
     // ticks after in list order; no ticks = no key
@@ -2620,7 +2496,7 @@ class Deployments extends EnclaveElement {
                   scroller, offer);
     }
     if (ctlOf(d) !== "wallet") this._noteLogs(box);
-    else if (Enclave.authed()) this._startLogs(id, box);
+    else if (this._hostAuthed(id)) this._startLogs(id, box);
     else this._lockedLogs(id, box);
   }
   /* vault-owned rows: the enclaves' log read rides the in-enclave WALLET
@@ -2640,14 +2516,18 @@ class Deployments extends EnclaveElement {
     }, 5000);
   }
   /* logs are the one genuinely PRIVATE read on this panel (an app's stdout
-     routinely carries secrets), so this is where the lazy SIWE lives: prove
-     key ownership once - a gas-free signature - right where it's needed */
+     routinely carries secrets). The wallet session reads them with no prompt;
+     this unlock is the fallback for no session, or a host that hasn't learned
+     sessions yet: prove key ownership to THAT box once - a gas-free
+     signature - right where it's needed, and only on a click */
   _lockedLogs(id, box) {
     const el = box.querySelector(".enc-out-logs"); if (!el) return;
-    el.innerHTML = '<span class="ln dimln">// app logs are owner-private - one gas-free signature proves this wallet owns this deployment (lasts a week)</span>'
+    el.innerHTML = '<span class="ln dimln">// ' + (this._sessionTried(id)
+        ? "this deployment's host doesn't take your session yet - one gas-free signature proves this wallet owns it there (lasts a week)"
+        : "app logs are owner-private - one gas-free signature proves this wallet owns this deployment (lasts a week)") + '</span>'
       + '<button class="wp-mini enc-unlock" type="button">unlock logs</button>';
     el.querySelector(".enc-unlock").addEventListener("click", async () => {
-      try { await authenticate(); if (!box.hidden && box.isConnected) this._startLogs(id, box); }
+      try { await this._hostSignIn(id); if (!box.hidden && box.isConnected) this._startLogs(id, box); }
       catch(e){ showToast(e.message || String(e)); }
     });
   }
@@ -2658,7 +2538,8 @@ class Deployments extends EnclaveElement {
     const el = box.querySelector(".enc-out-logs"), scroller = box.querySelector(".enc-out-term");
     if (!el) return;
     try {
-      const text = await this._asHost(id, (h) => Enclave.logs(id, { tail: 200 }, h));
+      // never a wallet prompt from a poll: no session or token the host takes = the unlock button
+      const text = await this._asHost(id, (h) => Enclave.logs(id, { tail: 200 }, h), { prompt: false });
       if (box.hidden || !el.isConnected) return;
       const lines = String(text == null ? "" : text).split("\n");
       while (lines.length && lines[lines.length - 1] === "") lines.pop();
@@ -2675,6 +2556,7 @@ class Deployments extends EnclaveElement {
       }
       scroller.scrollTop = follow ? scroller.scrollHeight : keep;
     } catch (e) {
+      if (e && e.status === 401) { this._stopLogPoll(id); if (el.isConnected && !box.hidden) this._lockedLogs(id, box); return; }
       if (el.isConnected && !box.hidden)
         el.innerHTML = '<span class="ln warn">// logs unavailable: ' + esc(e.message || String(e)) + '</span>';
     }
@@ -2693,18 +2575,20 @@ class Deployments extends EnclaveElement {
         + '<div class="term"><span class="ln dimln">// in-browser attestation verification for credit-run deployments is coming soon - today the attestation read rides an in-enclave wallet session. The same hardware guarantees protect this deployment; verification just can’t be shown here yet.</span></div>';
       return;
     }
-    if (!Enclave.authed()){
-      // the attestation read rides the owner session; unlock it in place
-      box.innerHTML = '<div class="ap-attbar">attestation · ' + esc(id) + '</div>'
-        + '<div class="term"><span class="ln dimln">// attestation reads ride the owner session - one gas-free signature unlocks them (lasts a week)</span>'
-        + '<button class="wp-mini enc-unlock" type="button">unlock &amp; verify</button></div>';
-      box.querySelector(".enc-unlock").addEventListener("click", async () => {
-        try { await authenticate(); if (!box.hidden && box.isConnected) this._attest(id, box); }
-        catch(e){ showToast(e.message || String(e)); }
-      });
-      return;
-    }
+    if (!this._hostAuthed(id)) return this._lockedAttest(id, box);
     this._attest(id, box);
+  }
+  /* the attestation read rides the owner's session (or the host's own sign-in); unlock it in place */
+  _lockedAttest(id, box) {
+    box.innerHTML = '<div class="ap-attbar">attestation · ' + esc(id) + '</div>'
+      + '<div class="term"><span class="ln dimln">// ' + (this._sessionTried(id)
+          ? "this deployment's host doesn't take your session yet - one gas-free signature unlocks its attestation reads (lasts a week)"
+          : "attestation reads ride the owner session - one gas-free signature unlocks them (lasts a week)") + '</span>'
+      + '<button class="wp-mini enc-unlock" type="button">unlock &amp; verify</button></div>';
+    box.querySelector(".enc-unlock").addEventListener("click", async () => {
+      try { await this._hostSignIn(id); if (!box.hidden && box.isConnected) this._attest(id, box); }
+      catch(e){ showToast(e.message || String(e)); }
+    });
   }
   async _attest(id, box) {
     box.innerHTML = '<div class="ap-attbar">attestation · ' + esc(id)
@@ -2712,7 +2596,7 @@ class Deployments extends EnclaveElement {
       + '<pre class="ap-attpre">fetching…</pre>';
     const badge = box.querySelector(".enc-vbadge");
     try {
-      const att = await this._asHost(id, (h) => Enclave.attestation(id, h));
+      const att = await this._asHost(id, (h) => Enclave.attestation(id, h), { prompt: false });
       const pre = box.querySelector(".ap-attpre"); if (pre) pre.innerHTML = hlJson(att);
       const vspec = vspecOf(att);
       if (!vspec){ if (badge) badge.textContent = ""; return; }
@@ -2729,7 +2613,10 @@ class Deployments extends EnclaveElement {
         }
       } catch(e){ if (badge && !box.hidden){ badge.className = "enc-vbadge bad"; badge.textContent = "✗ could not verify: " + (e.message || e); } }
     }
-    catch(e){ const pre = box.querySelector(".ap-attpre"); if (pre) pre.textContent = e.message; if (badge) badge.textContent = ""; }
+    catch(e){
+      if (e && e.status === 401) { if (!box.hidden && box.isConnected) this._lockedAttest(id, box); return; }
+      const pre = box.querySelector(".ap-attpre"); if (pre) pre.textContent = e.message; if (badge) badge.textContent = "";
+    }
   }
 
   async _kill(id, btn) {
@@ -2928,44 +2815,52 @@ class Deployments extends EnclaveElement {
     });
   }
 
-  /* Which box HOSTS this deployment, and a session that box will honor.
+  /* Which box HOSTS this deployment, and whether an owner call there can run
+     without asking the wallet.
 
-     Sessions are per-enclave: every enclave signs with its own in-enclave key
-     and verifies only its own kid, so the session minted at sign-in (the
-     relay's sticky box) is rejected by every other enclave — a deployment
-     hosted anywhere else answered "Missing or invalid session" on Restart,
-     logs, attestation and Move alike (2026-07-27). One extra signature per box
-     you act on is the honest price of that design; it is cached per box and
-     survives a reload, so it is asked once. */
-  async _hostSession(id) {
+     The wallet session covers every box: each host verifies it against the
+     chain itself, so logs, attestation, Restart, Move and private apps need no
+     sign-in of their own. The per-host SIWE token is the fallback for a box
+     that hasn't learned sessions yet (or no session at all): every enclave
+     signs those with its own in-enclave key and verifies only its own kid, so
+     the token minted at the relay's sticky box is rejected everywhere else - a
+     deployment hosted anywhere else answered "Missing or invalid session" on
+     Restart, logs, attestation and Move alike (2026-07-27). One signature per
+     such box, cached per box across reloads, asked once. */
+  _hostOf(id) {
     const d = (this._list || []).find(x => x.id === id);
-    const host = String((d && d.enclave) || "").trim();
-    if (!host){ if (!Enclave.authed()) await authenticate(); return ""; }
-    if (!Enclave.authedFor(host)) await authenticate({ enclave: host });
+    return String((d && d.enclave) || "").trim();
+  }
+  _hostAuthed(id) {
+    const host = this._hostOf(id);
+    // A generic token says nothing about this host. Unlock must use the
+    // same scope as the read, including when no fleet-default host is serving.
+    return (host ? Enclave.authedFor(host) : Enclave.authed()) || Enclave.sessionMayServe(host);
+  }
+  /* a session exists in this browser, and this host answered it with 401: the copy says so */
+  _sessionTried(id) {
+    return !!Enclave.address && Enclave._siweHosts.has(Enclave._hostKey(this._hostOf(id)));
+  }
+  /* the explicit fallback, behind an unlock click: the per-host sign-in for this deployment's box */
+  async _hostSignIn(id) {
+    const host = this._hostOf(id);
+    await authenticate(host ? { enclave: host } : undefined);
     return host;
   }
 
-  /* Run an owner-authenticated call against the box HOSTING this deployment,
-     re-signing once if that box rejects the session.
-
-     A cached session can be one this enclave will never honour — minted on
-     another box before the sign-in pin existed, or when the pin fell back.
-     _req drops it on the 401, so a single retry re-mints against the right
-     enclave and succeeds. Without the retry the user just sees "Missing or
-     invalid session" forever, because nothing ever evicts the bad token. */
-  async _asHost(id, call) {
-    const host = await this._hostSession(id);
-    try { return await call(host); }
-    catch (e) {
-      if (e && e.status === 401 && host && !Enclave.authedFor(host)) {
-        await authenticate({ enclave: host });      // _req already dropped the stale one
-        return await call(host);
-      }
-      throw e;
-    }
+  /* Run an owner call against the box HOSTING this deployment: the wallet
+     session when that box takes it; otherwise (and only then) the per-host
+     sign-in, once (wallet.js asHostOwner). A cached per-host token the box no
+     longer honours - minted elsewhere before the sign-in pin existed, or when
+     the pin fell back - is dropped by _req on its 401, so the same retry
+     re-mints against the right enclave instead of "Missing or invalid session"
+     forever. `prompt: false` (polls, panels opened without a click on an
+     unlock) hands the 401 back instead of asking the wallet. */
+  async _asHost(id, call, opts) {
+    return asHostOwner(this._hostOf(id), call, opts);
   }
 
-  /* ---- move a running deployment to another enclave.
+  /* ---- choose placement for a deployment in any state.
 
      A lease can only be handed back by the box holding it
      (EnclaveDeployments.release is runner-only - the owner has no on-chain
@@ -2974,10 +2869,9 @@ class Deployments extends EnclaveElement {
      balance and puts the record back in the open queue still active and
      funded; then the chosen box gets a claim hint and first crack at it.
 
-     Nothing on-chain pins placement, so this is a STEER, not a guarantee. What
-     makes it land is timing: the hinted box evaluates immediately while every
-     other enclave only notices on its next sweep (CLAIM_POLL_SEC, 60s). We
-     watch the ledger and report where it ACTUALLY went rather than assuming.
+     The relay saves the owner's preferred host and tries it first whenever
+     the app is queued. The ledger envelope enforces pins without fallback. A preference
+     stays saved even when a fallback holds the lease.
 
      Cost: the app stops and relaunches, so this is the same interruption as
      Restart plus a claim. No time is lost - release refunds, claim re-burns. ---- */
@@ -2986,67 +2880,100 @@ class Deployments extends EnclaveElement {
     if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
     btn.setAttribute("aria-expanded", "true");
     box.hidden = false;
-    box.innerHTML = '<div class="ap-attbar">move · ' + esc(id) + '</div>'
+    box.innerHTML = '<div class="ap-attbar">pin · ' + esc(id) + '</div>'
       + '<div class="term enc-move-status" role="status" aria-live="polite"><span class="ln dimln">// reading the ledger + fleet…</span></div>';
     const stEl = () => box.querySelector(".enc-move-status");
     const fail = (msg) => { const s = stEl(); if (s){ s.innerHTML = ""; paintLine(s, "warn", msg); } };
-    let d = null, fleet = null, rev = 1;
+    if (!/^0x[0-9a-f]{64}$/i.test(id))
+      return fail("This legacy instance has no ledger deployment to pin. Deploy its app version on the host you want.");
+    const controller = ctlOf((this._list || []).find(x => x.id === id));
+    if (controller === "order")
+      return fail("This payment order is still being provisioned. Pin becomes actionable once its deployment is created.");
+    let d = null, fleet = null, rev = 1, placement = null;
     try {
-      [d, fleet, rev] = await Promise.all([depGet(id), Enclave.getEnclaves().catch(() => null), depSchemaRev().catch(() => 1)]);
+      [d, fleet, rev, placement] = await Promise.all([depGet(id), Enclave.getEnclaves().catch(() => null), depSchemaRev().catch(() => 1), Enclave.getPlacement(id)]);
       await loadCatalog();
       await Enclave.getAvailability().then(a => adoptServerSpec(a)).catch(() => null);
     } catch(e){ d = null; }
     if (box.hidden || !box.isConnected) return;             // closed while loading
     if (!d) return fail("[x] couldn’t read this deployment from the ledger - try again shortly");
-    if (!fleet || !fleet.length) return fail("[x] couldn’t read the fleet list - try again shortly");
-    const here = leaseHostOf(d, fleet);
+    if (!fleet) return fail("[x] couldn’t read the fleet list - try again shortly");
+    let isolation;
+    try { isolation = isolationOptions(d.configCid); }
+    catch (e) { return fail("[x] Cannot safely edit deployment options: " + e.message); }
+    const currentRunner = moveLeaseLive(d) ? d.runner : "";
+    const here = currentRunner ? leaseHostOf(d, fleet) : null;
     // The app's own requirements decide where it can go. A catalog deployment
     // carries its version's spec (hardware + model volumes); the deployment's
     // own config overrides the volume list (the row's Models tab edits it).
     const cr = parseCatalogRef(d.appRef);
-    const ver = cr && STORE.byId[cr.appId] && STORE.byId[cr.appId].versions
-      ? STORE.byId[cr.appId].versions[cr.index] : null;
+    const ver = cr ? await catGetVersion(cr.appId, cr.index).catch(() => null) : null;
     if (!ver) return fail("[x] the catalog doesn’t list this deployment’s version - a move re-claims the record, and only a listed version can be re-claimed");
-    const spec = specOf(ver);
+    const baseSpec = specOf(ver);
+    const spec = { ...baseSpec, ...(isolation.envelope.config ? { volumes: isolation.envelope.config.volumes || [] } : {}) };
     // the DEPLOYMENT's own softening (its options envelope), distinct from the
     // publisher's in specOf: an envelope speaks for the owner's dial only
     const depSoftGpu = (() => {
       try { const o = JSON.parse(String(d.configCid || "") || "{}"); return o && o.gpu && o.gpu.optional === true; }
       catch { return false; }
     })();
-    const targets = moveTargetsFor({ ...spec, depGpuOptional: depSoftGpu, gpuMilli: Number(d.gpuMilli) || 0 }, fleet, d.runner);
-    if (!targets.length)
-      return fail("[!] nowhere to move this to: " + moveBlockReason(spec, fleet, d.runner)
-                + ". A move re-claims the record, so the destination must pass the same hardware, wasi-nn, model-volume and capacity checks as a fresh deploy.");
+    const targets = moveTargetsFor({ ...spec, depGpuOptional: depSoftGpu, gpuMilli: Number(d.gpuMilli) || 0 }, fleet, currentRunner);
+    if (here && !targets.some(t => t.name === here.name))
+      targets.unshift({ ...here, current: true });
+    if (placement?.hostId && !targets.some(t => String(t.row.id).toLowerCase() === placement.hostId)) {
+      const row = fleet.find(h => String(h.id).toLowerCase() === placement.hostId)
+        || { id: placement.hostId, availability: { isolation: placement.isolation } };
+      targets.push({ name: placement.name, row, unavailable: true });
+    }
+    const initialHost = placement?.configured
+      ? (placement.hostId ? targets.find(t => String(t.row.id).toLowerCase() === placement.hostId)?.name || placement.name || '' : '')
+      : here?.name || '';
     const selId = "mvSel" + appLabel(id);
-    box.innerHTML = '<div class="ap-attbar">move · ' + esc(id) + '</div>'
-      + '<div class="enc-upg-body">'
-      +   '<label for="' + selId + '">Move' + (here ? " off " + esc(here.name) : "") + ' to</label>'
-      +   '<select class="eu-sel" id="' + selId + '">'
-      +     targets.map((t, i) => '<option value="' + esc(t.name) + '"' + (i === 0 ? " selected" : "") + '>'
-      +       esc(t.name)
-      +       (t.queued ? " · full right now (waits in the queue)" : "")
-      +       (t.cpuNn ? " · CPU only" : "")
-      +     '</option>').join("")
-      +   '</select>'
-      +   '<button class="btn btn-sm mv-go">Move</button>'
-      + '</div>'
+    box.innerHTML = '<div class="ap-attbar">pin · ' + esc(id) + '</div>'
+      + '<div class="enc-pin-form">'
+      + '<fieldset class="enc-pin-requirements"><legend>Hardware requirements</legend>'
+      + '<label><input type="checkbox" class="mv-tee-cpu"' + (isolation.cpuTee ? ' checked' : '') + '> Require TEE CPU</label>'
+      + '<label><input type="checkbox" class="mv-tee-gpu"' + (isolation.gpuTee ? ' checked' : '') + '> Require TEE GPU</label>'
+      + '</fieldset>'
+      + '<p class="enc-pin-help">Unchecked allows either supported isolation implementation. TEE GPU requires confidential GPU hardware; masked GPU offload does not qualify.</p>'
+      + '<div class="enc-pin-placement"><div class="enc-pin-host"><label for="' + selId + '">Host</label>'
+      + '<select class="eu-sel" id="' + selId + '"></select></div><button class="btn btn-sm btn-primary mv-go">Apply</button></div>'
+      + '<label><input type="checkbox" class="mv-fallback"' + (placement?.allowFallback !== false ? ' checked' : '') + '> Allow Fallback</label>'
+      + '<p class="enc-pin-help">' + (currentRunner ? 'Changing hosts restarts the app. Keeping this host leaves it running. ' : !d.active ? 'Applying placement resumes the app. ' : '')
+      + 'Auto uses the cheapest eligible hosts. A selected host stays pinned; Allow Fallback lets another eligible host run the app when that host cannot. Without fallback, the app waits. Your rate cap in Resources still applies.</p>'
+      + '<div class="enc-pin-notice" role="status" aria-live="polite"></div>'
       + '<div class="enc-upg-body mv-upg" hidden></div>'
-      + '<div class="term enc-move-status" role="status" aria-live="polite"></div>';
-    const sel = box.querySelector(".eu-sel"), go = box.querySelector(".mv-go");
+      + '<div class="term enc-move-status" role="status" aria-live="polite"></div></div>';
+    const sel = box.querySelector("#" + selId), go = box.querySelector(".mv-go");
+    const cpu = box.querySelector(".mv-tee-cpu"), gpu = box.querySelector(".mv-tee-gpu");
+    const notice = box.querySelector(".enc-pin-notice");
+    const fallback = box.querySelector(".mv-fallback");
+    box._placement = placement;
+    box._placementTargets = targets;
+    let initialized = false;
+    const syncRequirements = () => {
+      const choice = { cpuTee: cpu.checked, gpuTee: gpu.checked };
+      box._isolationChoice = { ...choice, original: JSON.stringify(d.configCid || "") };
+      const selected = initialized ? sel.value : initialHost;
+      initialized = true;
+      const eligible = targets.filter(t => hostMeetsTeeRequirements(t.row, choice));
+      sel.innerHTML = '<option value="">Auto — cheapest eligible host</option>'
+        + eligible.map(t => '<option value="' + esc(t.name) + '">' + esc(t.name) + (t.current ? ' · current host' : t.unavailable ? ' · currently unavailable' : t.queued ? ' · currently full' : '') + '</option>').join('');
+      sel.value = eligible.some(t => t.name === selected) ? selected : "";
+      notice.textContent = eligible.length ? '' : gpu.checked
+        ? 'No eligible TEE GPU host is currently available. This requirement will keep the app queued.'
+        : 'No host currently meets these hardware requirements.';
+    };
+    cpu.addEventListener("change", () => { syncRequirements(); syncUpg(); });
+    gpu.addEventListener("change", () => { syncRequirements(); syncUpg(); });
+    syncRequirements();
     const s = stEl();
-    paintLine(s, "dimln", "// the app stops here and relaunches there: same URL, version and balance.");
-    paintLine(s, "dimln", "// unused lease time is refunded, then re-bought at the new box’s price.");
-    paintLine(s, "dimln", "// HTTPS returns once the new box issues its own certificate for this URL (~1 min).");
-    // Moving soft-GPU work ONTO a card: without re-buying the slice the app
-    // would run on that box's CPU cores, which is the slow thing on the fast
-    // machine. Offer the resize with the price attached, and make it the
-    // default — landing on a GPU box and not using the GPU is almost never
-    // what the move was for.
     const upgWrap = box.querySelector(".mv-upg");
     const bought = { gpuMilli: Number(d.gpuMilli) || 0, cpuMilli: Number(d.cpuMilli) || 0 };
     const syncUpg = () => {
-      const t = targets.find((x) => x.name === sel.value);
+      fallback.disabled = !sel.value;
+      const t = targets.find((x) => x.name === sel.value && !x.unavailable && !x.current);
+      go.textContent = "Apply";
       const vv = { ...spec, depGpuOptional: depSoftGpu };
       // the upgrade buys the slice the version declares; a pre-13 ledger still
       // rounds it up to the CPU share, because its setShares would revert
@@ -3054,7 +2981,7 @@ class Deployments extends EnclaveElement {
       const up = up0 ? liftSharesForLedger(up0, rev) : null;
       const down = t && !up ? gpuDowngradeForMove(vv, t, bought.gpuMilli, bought.cpuMilli) : null;
       const act = up || down;
-      this._mvUpgrade = act ? { ...act, target: t, dir: up ? "up" : "down" } : null;
+      box._moveUpgrade = act ? { ...act, target: t, dir: up ? "up" : "down" } : null;
       if (!upgWrap) return;
       upgWrap.hidden = !act;
       if (!act) return;
@@ -3067,11 +2994,11 @@ class Deployments extends EnclaveElement {
         + (up
             ? '<span>buy ' + up.gpuPct + '% GPU on ' + esc(t.name) + ' so it uses the card'
               + ' <span class="dim">(' + up.cpuPct + '% CPU · $' + (next * 3600).toFixed(2) + '/hr, was $' + (cur * 3600).toFixed(2)
-              + '/hr on cores) — one wallet signature before the move</span></span>'
+              + '/hr on cores) — one confirmation before pinning</span></span>'
             : '<span>drop the ' + Math.round(bought.gpuMilli / 10) + '% GPU share — ' + esc(t.name) + ' has no card'
               + ' <span class="dim">(keeps ' + act.cpuPct + '% CPU. The ledger already stops charging for a card this box'
               + ' does not have; dropping it stops the record asking every future claim for GPU hardware)'
-              + ' — one wallet signature before the move</span></span>')
+              + ' — one confirmation before pinning</span></span>')
         + '</label>';
     };
     sel.addEventListener("change", syncUpg);
@@ -3084,73 +3011,134 @@ class Deployments extends EnclaveElement {
      because a steer that lost its race is a normal outcome, not an error. */
   async _doMove(id, target, box, go, fromName) {
     const s = box.querySelector(".enc-move-status");
-    const oldRunner = String((await depGet(id).catch(() => ({}))).runner || "").toLowerCase();
-    go.disabled = true; go.textContent = "moving…";
+    const controller = ctlOf((this._list || []).find(x => x.id === id));
+    const via = controller === "vault";
+    const label = go.textContent;
+    const vault = via ? (await import("../../js/core/vault.js")).vaultOp : null;
+    const walletActive = async active => {
+      if (!Enclave.provider) await connectWallet();
+      await ensureBaseChain();
+      await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS,
+        encCall(DEP_SEL.setActive, [{ t: "bytes32", v: id }, { t: "bool", v: active }])));
+    };
+    go.disabled = true; go.textContent = "Applying…";
+    const choice = box._isolationChoice;
+    const placementTarget = (box._placementTargets || []).find(t => t.name === target);
+    const hostId = target ? String(placementTarget?.row?.id || '').toLowerCase() : '';
+    const allowFallback = !target || box.querySelector('.mv-fallback')?.checked !== false;
+    if (box._placementTargets && target && !/^0x[0-9a-f]{64}$/.test(hostId)) {
+      paintLine(s, 'warn', '[x] Reopen Pin to refresh the selected host.');
+      go.disabled = false; go.textContent = label; return;
+    }
+    if (choice) {
+      try {
+        const fresh = await depGet(id);
+        const old = isolationOptions(fresh.configCid);
+        const initial = isolationOptions(JSON.parse(choice.original));
+        if (JSON.stringify(old.envelope.isolation) !== JSON.stringify(initial.envelope.isolation))
+          throw new Error("The hardware requirements changed elsewhere. Reopen Pin before applying.");
+        if (box._placementTargets && pinnedHost(fresh.configCid) !== pinnedHost(JSON.parse(choice.original)))
+          throw new Error("The placement policy changed elsewhere. Reopen Pin before applying.");
+        const cap = (await depSchemaRev()) >= 5 ? 4096 : 100;
+        let envelope = withIsolationRequirements(fresh.configCid, choice, cap);
+        if (box._placementTargets) envelope = withPlacementPin(envelope, hostId, allowFallback, cap);
+        if (envelope !== String(fresh.configCid || "")) {
+          paintLine(s, "info", "Confirm the placement and hardware requirements in your wallet.");
+          if (via) await vault("control", { id, action: "options", envelope });
+          else {
+            if (!Enclave.provider) await connectWallet();
+            await ensureBaseChain();
+            await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS,
+              encCall(DEP_SEL.setConfig, [{ t: "bytes32", v: id }, { t: "str", v: envelope }])));
+          }
+          this._envLearn(id, envelope);
+          choice.original = JSON.stringify(envelope);
+        }
+      } catch(e) {
+        paintLine(s, "warn", "[x] " + e.message);
+        go.disabled = false; go.textContent = label;
+        return;
+      }
+    }
+    if (box._placementTargets) {
+      try {
+        if (!box._placement?.configured || box._placement.hostId !== hostId || (box._placement.allowFallback !== false) !== allowFallback) {
+          const body = { hostId, allowFallback };
+          if (!via) {
+            if (!Enclave.provider) await connectWallet();
+            body.expiry = Math.floor(Date.now() / 1000) + 300;
+            body.nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+            paintLine(s, 'info', 'Confirm the placement preference in your wallet.');
+            body.signature = await personalSign(placementMessage(DEPLOYMENTS_ADDRESS.toLowerCase(), id.toLowerCase(), hostId, body.expiry, body.nonce, allowFallback));
+          }
+          box._placement = await Enclave.savePlacement(id, body, via);
+          paintLine(s, 'ok', hostId ? 'Host pin saved: ' + target + (allowFallback ? '. Other eligible hosts can serve as fallbacks.' : '. Fallback is off; the app will wait for this host.') : 'Auto placement saved.');
+        }
+      } catch (e) {
+        paintLine(s, 'warn', '[x] Placement was not saved: ' + e.message);
+        go.disabled = false; go.textContent = label;
+        return;
+      }
+    }
     // Re-buy the card BEFORE handing the lease back, so the destination claims
     // the record already sized for its GPU and provisions once. Resizing after
     // the move would land it on cores first and restart it again to add the
     // card — two interruptions for one intent. A resize refused here (rate cap,
     // an older fleet) aborts the move with the app still running where it is.
-    const upg = this._mvUpgrade;
+    const upg = box._moveUpgrade;
     const wantUpg = upg && box.querySelector(".mv-upg-on")?.checked;
     if (wantUpg) {
       try {
         paintLine(s, "info", upg.dir === "down"
           ? `[*] dropping the GPU share for ${upg.target.name} (setShares)…`
           : `[*] buying ${upg.gpuPct}% GPU on ${upg.target.name} (setShares)…`);
-        if (!Enclave.provider) await connectWallet();
-        await ensureBaseChain();
-        const th = await sendTx(DEPLOYMENTS_ADDRESS,
-          encCall(DEP_SEL.setShares, [{ t: "bytes32", v: id }, { t: "uint", v: upg.gpuPct * 10 }, { t: "uint", v: upg.cpuPct * 10 }]));
-        paintLine(s, "dimln", "    ↳ sent " + th + " · waiting for confirmation…");
-        await waitReceipt(th);
+        if (via) await vault("control", { id, action: "resize", gpuMilli: upg.gpuPct * 10, cpuMilli: upg.cpuPct * 10 });
+        else {
+          if (!Enclave.provider) await connectWallet();
+          await ensureBaseChain();
+          const th = await sendTx(DEPLOYMENTS_ADDRESS,
+            encCall(DEP_SEL.setShares, [{ t: "bytes32", v: id }, { t: "uint", v: upg.gpuPct * 10 }, { t: "uint", v: upg.cpuPct * 10 }]));
+          paintLine(s, "dimln", "    ↳ sent " + th + " · waiting for confirmation…");
+          await waitReceipt(th);
+        }
         paintLine(s, "dimln", `    shares are now ${upg.gpuPct}% GPU / ${upg.cpuPct}% CPU`);
       } catch(e){
         paintLine(s, "warn", "[x] the resize did not go through: " + (e.message || e));
-        paintLine(s, "dimln", "    nothing moved - the app keeps running where it is, on the shares it already had");
-        go.disabled = false; go.textContent = "Move";
+        paintLine(s, "dimln", "    the share change did not complete; check Resources before retrying the pin");
+        go.disabled = false; go.textContent = label;
         return;
       }
     }
+    let prepared;
     try {
-      // the release must be signed for the box HOLDING the lease — its session,
-      // not the sign-in box's (see _hostSession)
-      paintLine(s, "info", "[*] asking " + (fromName || "the current enclave") + " to hand the lease back…");
-      // owner-authenticated release on the CURRENT runner. The relay routes
-      // this to the lease holder; the record stays active and funded, so the
-      // fleet may re-claim it immediately - which is the point.
-      const rel = await this._asHost(id, (h) => Enclave.terminateDeployment(id, h, true));   // evacuate: stand down, don't re-take it
-      paintLine(s, "dimln", "    released - unused lease time refunded to the balance"
-        + (rel && rel.standDownSec ? `; ${fromName || "it"} stands down for ${rel.standDownSec}s so the move can land` : ""));
-    } catch(e){
-      paintLine(s, "warn", "[x] the current enclave would not release the lease: " + (e.message || e));
-      paintLine(s, "dimln", "    nothing changed - the app keeps running where it is");
-      go.disabled = false; go.textContent = "Move";
-      return;
-    }
-    const ZERO = "0x" + "0".repeat(64);
-    // The release is a TRANSACTION and the enclave answers before it is mined.
-    // Hinting into a still-live lease makes the destination attempt a claim
-    // that reverts "leased" — and a failed claim puts that box into its own
-    // provisioning backoff, locking out the retry that would have worked. So
-    // wait for the chain to say the lease is actually gone before hinting.
-    paintLine(s, "dimln", "    waiting for the release to land on-chain…");
-    let cleared = false;
-    for (let i = 0; i < 30 && !cleared; i++){
-      if (!box.isConnected) return;
-      await new Promise(r => setTimeout(r, 2000));
-      let d = null; try { d = await depGet(id); } catch(e){}
-      const runner = String((d && d.runner) || "").toLowerCase();
-      if (d && (!runner || runner === ZERO || !(Number(d.leaseUntil) * 1000 > Date.now()))) cleared = true;
-    }
-    if (!cleared){
-      paintLine(s, "warn", "[!] the lease is still live on-chain after 60s - the release may not have been mined");
-      paintLine(s, "dimln", "    nothing is lost: the app keeps running and its balance is intact. Try again shortly.");
-      go.disabled = false; go.textContent = "Move";
+      prepared = await prepareDeploymentMove({
+        read: () => depGet(id), connected: () => box.isConnected,
+        keepRunner: target ? String(placementTarget?.row?.id || '') : '',
+        progress: message => paintLine(s, "info", "[*] " + message),
+        resume: () => via ? vault("control", { id, action: "resume" }) : walletActive(true),
+        release: async d => {
+          if (via) {
+            // The vault controls the ledger through a passkey, not a wallet
+            // session at the runner. Suspend, wait for release, then resume.
+            await vault("control", { id, action: "suspend" });
+            return;
+          }
+          const fleet = await Enclave.getEnclaves();
+          const host = leaseHostOf(d, fleet);
+          if (!host?.name) throw Error("The lease holder is offline. Retry when its lease expires.");
+          // the session where that box takes it, else its own sign-in (once)
+          await asHostOwner(host.name, (h) => Enclave.terminateDeployment(id, h, !!target));
+        },
+      });
+      this._why?.delete(id);
+    } catch (e) {
+      paintLine(s, "warn", "[x] Pin did not finish: " + (e.message || e));
+      go.disabled = false; go.textContent = label;
       setTimeout(() => this.refresh(), 1200);
       return;
     }
-    let landed = null, lastReason = "";
+    const ZERO = "0x" + "0".repeat(64);
+    let landed = moveLeaseLive(prepared) ? prepared : null, lastReason = "";
     for (let i = 0; i < 60 && !landed; i++){
       if (!box.isConnected) return;
       // Re-hint while we wait: the first hint can beat the release being
@@ -3158,34 +3146,33 @@ class Deployments extends EnclaveElement {
       // funded record with no hint sits until someone's 60s sweep finds it.
       if (i % 4 === 0){
         try {
-          const h = await Enclave.claimHint(id, target);
+          const h = await Enclave.claimHint(id, target, { strategy: target ? "preferred" : "cheapest" });
           if (h && h.accepted === false && h.reason && h.reason !== lastReason){
             lastReason = h.reason;
-            paintLine(s, "warn", "[!] " + target + " declines: " + h.reason);
+            paintLine(s, "warn", "[!] " + (target || "the fleet") + " declines: " + h.reason);
           }
         } catch(e){}
       }
       await new Promise(r => setTimeout(r, 2000));
       let d = null; try { d = await depGet(id); } catch(e){}
       const runner = String((d && d.runner) || "").toLowerCase();
-      if (d && runner && runner !== ZERO && Number(d.leaseUntil) * 1000 > Date.now()
-          && runner !== oldRunner) landed = d;
+      if (d && runner && runner !== ZERO && Number(d.leaseUntil) * 1000 > Date.now()) landed = d;
     }
     if (!landed){
       paintLine(s, "warn", "[!] no enclave has claimed it yet");
-      paintLine(s, "dimln", "    the record is funded and in the open queue - the fleet's sweep picks it up within a minute. Watch the row.");
+      paintLine(s, "dimln", "    the app remains queued. It still needs an eligible host with capacity and funding or free hosting.");
     } else {
       const fleet = await Enclave.getEnclaves().catch(() => null);
       const now = leaseHostOf(landed, fleet);
       const where = (now && now.name) || "another enclave";
-      if (where.toLowerCase() === String(target).toLowerCase())
+      if (!target || where.toLowerCase() === String(target).toLowerCase())
         paintLine(s, "ok", "[✓] running on " + where + " now");
       else {
-        paintLine(s, "warn", "[!] claimed by " + where + ", not " + target);
-        paintLine(s, "dimln", "    placement is a steer, not a lock - whichever eligible box claims first wins. Move again to retry.");
+        paintLine(s, "ok", "[✓] running on fallback host " + where);
+        paintLine(s, "dimln", "    " + target + " remains the preferred host for future placement.");
       }
     }
-    go.disabled = false; go.textContent = "Move";
+    go.disabled = false; go.textContent = label;
     setTimeout(() => this.refresh(), 1200);
   }
 
@@ -3199,8 +3186,7 @@ class Deployments extends EnclaveElement {
   async _restart(id, btn) {
     if (btn){ btn.disabled = true; btn.textContent = "restarting…"; }
     try {
-      // owner-private action: rides the session token, lazy-SIWE like logs
-      if (!Enclave.authed()) await authenticate();
+      // owner-private action: rides the wallet session; the host's own sign-in only where it needs one
       await this._asHost(id, (h) => Enclave.restartDeployment(id, h));
       showToast("restarted " + id.slice(0, 10) + "… - relaunching in place, back within a minute");
       setTimeout(() => this.refresh(), 1200);
@@ -3301,7 +3287,7 @@ class Deployments extends EnclaveElement {
      rebuilds the row and strands the reveal in detached DOM (the dropdown
      "closes" under the wallet popup). The poll catches up once it clears. */
   _panelPinned() {
-    return !!this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-net:not([hidden]), .enc-cfg:not([hidden]), .enc-mod:not([hidden]), .enc-mob:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden]), .enc-sec[data-busy], .enc-dom[data-busy]");
+    return !!this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-shares:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-net:not([hidden]), .enc-cfg:not([hidden]), .enc-mod:not([hidden]), .enc-mob:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden]), .enc-sec[data-busy], .enc-dom[data-busy]");
   }
   _startPoll() {
     if (this._poll) return;

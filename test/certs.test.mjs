@@ -34,7 +34,7 @@ import path from "node:path";
 import http from "node:http";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { createHash, createHmac, createPublicKey, verify as cryptoVerify, X509Certificate } from "node:crypto";
+import { createHash, createHmac, createPublicKey, randomBytes, verify as cryptoVerify, X509Certificate } from "node:crypto";
 import { privateKeyToAccount } from "viem/accounts";
 
 const pexec = promisify(execFile);
@@ -64,10 +64,15 @@ async function csrFor(name, { key, cn = name, san = name, extra = [] } = {}) {
 const CA_KEY = path.join(DIR, "ca.key"), CA_PEM = path.join(DIR, "ca.pem");
 await pexec("openssl", ["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256", "-nodes",
                         "-keyout", CA_KEY, "-out", CA_PEM, "-subj", "/CN=Mock CA", "-days", "1"]);
+// Each leaf gets its own random serial, as a real CA assigns them. Not -CAcreateserial: that reads and rewrites ONE ca.srl
+// beside the CA, and concurrent finalizes (the renewal-wave test signs three at once) race on it, so openssl fails
+// "Unable to load number from ca.srl" and the mock turns the order invalid. The relay then rightly falls over to the next
+// CA, and a test pinning "no fallover" fails for the mock's sake (Test run 36126592481).
 async function signLeaf(csrDer) {
   const csr = path.join(DIR, `f${++_n}.csr`), leaf = path.join(DIR, `f${_n}.pem`);
   fs.writeFileSync(csr, csrDer);
-  await pexec("openssl", ["x509", "-req", "-in", csr, "-inform", "DER", "-CA", CA_PEM, "-CAkey", CA_KEY, "-CAcreateserial",
+  await pexec("openssl", ["x509", "-req", "-in", csr, "-inform", "DER", "-CA", CA_PEM, "-CAkey", CA_KEY,
+                          "-set_serial", "0x" + randomBytes(16).toString("hex"),
                           "-days", "90", "-copy_extensions", "copy", "-out", leaf]);
   return fs.readFileSync(leaf, "utf8") + fs.readFileSync(CA_PEM, "utf8");
 }
@@ -249,7 +254,12 @@ const ctx = {
   // every https://enclaveN.example is "this box" (later tests take a fresh N to sidestep the per-endpoint pacing bucket)
   endpointIdOf: async (ep) => (/^https:\/\/enclave\d+\.example$/.test(ep) ? RUNNER : "0x" + "ee".repeat(32)),
   operatorOfEndpoint: async () => epOwner,
+  // U7: the relay's eligibility verdict for a lease holder's endpoint id (api-relay.js hostEligibility). Every test runs
+  // with the lease holder ELIGIBLE unless it says otherwise; the U7 tests at the end flip it.
+  hostEligibility: (epId) => (INELIGIBLE.has(String(epId).toLowerCase())
+    ? { eligible: false, reason: "its attestation document presents no confidential CPU" } : { eligible: true, reason: null }),
 };
+const INELIGIBLE = new Set();
 const leaseRow = (over = {}) => ({ id: ID, owner: OTHER.address, runner: RUNNER, leaseUntil: BigInt(Math.floor(Date.now() / 1000) + 1800), ...over });
 const now = () => Math.floor(Date.now() / 1000);
 // every body gets a distinct, strictly increasing ts inside the skew window:
@@ -681,6 +691,17 @@ test("a persisted order is resumed FIRST on its own CA even when an earlier slot
   ca2.slowFinalizeMs = 0; await settle();
 });
 
+// The wave below pins "no fallover", so the mock CA must never fail a concurrent finalize on its own account. The race
+// itself is rare (about 1 signing in 300 at 8 at once, on a dev box), but its cause is deterministic: a shared serial file.
+test("the mock CA signs concurrent finalizes independently: a serial of its own per leaf, no shared serial file", async () => {
+  const derOf = (pem) => Buffer.from(pem.replace(/-----[^-]+-----/g, "").replace(/\s+/g, ""), "base64");
+  const csrs = await Promise.all([0, 1, 2, 3].map(() => csrFor(NAME)));
+  const serials = (await Promise.all(csrs.map((c) => signLeaf(derOf(c))))).map((pem) => new X509Certificate(pem).serialNumber);
+  assert.equal(new Set(serials).size, serials.length, serials.join(" "));
+  // this is the guard: distinct serials would also pass under -CAcreateserial (it increments), a ca.srl would not (enclave-99)
+  assert.equal(fs.existsSync(path.join(DIR, "ca.srl")), false, "a ca.srl is shared state every concurrent signing rewrites");
+});
+
 test("a purged account during a renewal wave: concurrent names re-register ONE account and all issue on the same CA", async () => {
   rows = [leaseRow()];
   const dirKey = ca1.url + "/directory";
@@ -864,4 +885,99 @@ test("disabled module answers 503 certs_disabled", async () => {
   const res = {};
   await m.handleCerts({ method: "POST", body: {} }, res, new URL("http://x/v1/certs/issue"), ctx);
   assert.equal(res.code, 503); assert.equal(res.body.error, "certs_disabled");
+});
+
+// ---- U7: the lease holder must be a host the relay holds ELIGIBLE ------------------------------------------------------
+// The chain names who runs the deployment; it never makes that host fit to serve it. relay/certs.js asks the relay's
+// verdict (hostEligibility) AFTER the lease check and BEFORE the cache, the in-flight order resume and a new order, so an
+// ineligible holder gets a certificate by none of the three, and the refusal leaves the store untouched.
+test("U7: an INELIGIBLE lease holder gets no certificate: not a resumed in-flight order, not a cached one, not a fresh order", async () => {
+  EP = "https://enclave91.example";                          // a fresh per-endpoint pacing bucket
+  rows = [leaseRow()];
+  const key = await genKey(), keyOf = (h) => `${NAME}|${h}`;
+  const h = await spkiHashOf(await csrFor(NAME, { key }));
+  ca1.slowFinalizeMs = 4000;                                // the order is still processing when the sync window ends
+  const o1 = ca1.calls.newOrder, o2 = ca2.calls.newOrder || 0;
+  let r = await call(await body({ csr: await csrFor(NAME, { key }) }));
+  assert.equal(r.code, 202, JSON.stringify(r.body));
+  assert.ok(_internals.store().data.orders[keyOf(h)], "the in-flight order is persisted");
+  // the holder loses eligibility while its order is in flight
+  INELIGIBLE.add(RUNNER);
+  await new Promise((s) => setTimeout(s, 1700));           // the CA finishes the order meanwhile
+  r = await call(await body({ csr: await csrFor(NAME, { key }) }));
+  assert.equal(r.code, 403, JSON.stringify(r.body)); assert.equal(r.body.error, "host_ineligible");
+  assert.match(r.body.message, /not eligible to serve tenant apps: its attestation document presents no confidential CPU/);
+  assert.equal(ca1.calls.newOrder, o1 + 1, "no new order"); assert.equal(ca2.calls.newOrder || 0, o2, "no fallover either");
+  assert.ok(_internals.store().data.orders[keyOf(h)], "the in-flight order was NOT resumed: it is still in the store");
+  // eligible again: the untouched order resumes (one order in all), and the certificate is cached
+  INELIGIBLE.delete(RUNNER);
+  r = await call(await body({ csr: await csrFor(NAME, { key }) }));
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.cached, false);
+  assert.equal(ca1.calls.newOrder, o1 + 1, "resumed, not re-ordered");
+  // a CACHED certificate is not served to an ineligible holder either
+  INELIGIBLE.add(RUNNER);
+  r = await call(await body({ csr: await csrFor(NAME, { key }) }));
+  assert.equal(r.code, 403, JSON.stringify(r.body)); assert.equal(r.body.error, "host_ineligible");
+  INELIGIBLE.delete(RUNNER);
+  r = await call(await body({ csr: await csrFor(NAME, { key }) }));
+  assert.equal(r.code, 200); assert.equal(r.body.cached, true, "the refusal left the cache as it was");
+  assert.equal(ca1.calls.newOrder, o1 + 1);
+  ca1.slowFinalizeMs = 0; await settle();
+});
+
+test("U7: a relay context with no eligibility verdict refuses (unknown is not permission), and the verdict asked is the lease holder's", async () => {
+  EP = "https://enclave92.example";
+  rows = [leaseRow()];
+  const saved = ctx.hostEligibility, asked = [];
+  delete ctx.hostEligibility;
+  const o1 = ca1.calls.newOrder;
+  let r = await call(await body({ csr: await csrFor(NAME) }));
+  assert.equal(r.code, 403, JSON.stringify(r.body)); assert.equal(r.body.error, "host_ineligible");
+  assert.equal(ca1.calls.newOrder, o1, "nothing ordered");
+  ctx.hostEligibility = (epId) => { asked.push(epId); return saved(epId); };
+  r = await call(await body({ csr: await csrFor(NAME) }));
+  assert.equal(r.code, 200, JSON.stringify(r.body));
+  assert.deepEqual([...new Set(asked)], [RUNNER], "the verdict is asked for the requesting endpoint's id, the lease holder");
+  ctx.hostEligibility = saved;
+});
+
+// ---- (B) the ONE exception to U7 in certs.js 6b: an hv-node row's owner-only serving (enclave-87) ------------------------
+// An ineligible lease holder gets a certificate only when the relay's owner-only predicate (api-relay.js
+// servesDeploymentUntil: owner served NOW, this row's live lease, isolation.require = hyperv-partition-per-app) says it
+// serves THIS ledger row now. The predicate is asked with the lease holder's endpoint id and the ledger row itself.
+test("(B) an ineligible holder gets a certificate only when the owner-only predicate serves THIS deployment now; asked with (lease holder id, ledger row)", async () => {
+  EP = "https://enclave93.example";
+  rows = [leaseRow({ configCid: '{"isolation":{"require":"hyperv-partition-per-app"}}' })];
+  INELIGIBLE.add(RUNNER);
+  const saved = ctx.ownerServesDeployment, asked = [];
+  try {
+    const o1 = ca1.calls.newOrder;
+    delete ctx.ownerServesDeployment;
+    let r = await call(await body({ csr: await csrFor(NAME) }));
+    assert.equal(r.code, 403, JSON.stringify(r.body)); assert.equal(r.body.error, "host_ineligible", "no predicate: refused");
+    ctx.ownerServesDeployment = (epId, d) => { asked.push([epId, d && d.id, d && d.configCid]); return false; };
+    r = await call(await body({ csr: await csrFor(NAME) }));
+    assert.equal(r.code, 403, JSON.stringify(r.body)); assert.equal(r.body.error, "host_ineligible", "not served: refused");
+    assert.equal(ca1.calls.newOrder, o1, "nothing ordered");
+    ctx.ownerServesDeployment = (epId, d) => { asked.push([epId, d && d.id, d && d.configCid]); return true; };
+    r = await call(await body({ csr: await csrFor(NAME) }));
+    assert.equal(r.code, 200, JSON.stringify(r.body));
+    assert.deepEqual(asked[0], [RUNNER, ID, '{"isolation":{"require":"hyperv-partition-per-app"}}'], "the lease holder's id and the ledger row (with its envelope)");
+  } finally { INELIGIBLE.delete(RUNNER); if (saved) ctx.ownerServesDeployment = saved; else delete ctx.ownerServesDeployment; await settle(); }
+});
+
+test('Shield requires matching per-app key evidence before cached certificates or orders', async () => {
+  EP='https://enclave97.example';rows=[leaseRow()];
+  const saved=ctx.hostEligibility, savedVerify=ctx.verifyAppCertificate;
+  ctx.hostEligibility=()=>({eligible:true,appEvidenceRequired:true});
+  const issued=ca1.calls.newOrder;
+  try {
+    let r=await call(await body());
+    assert.equal(r.code,403);assert.equal(r.body.error,'app_evidence_required');
+    ctx.verifyAppCertificate=async()=>({ok:true,spkiSha256:'00'.repeat(32)});
+    r=await call(await body());assert.equal(r.code,403);assert.equal(r.body.error,'app_evidence_required');
+    ctx.verifyAppCertificate=async()=>{throw Error('unavailable')};
+    r=await call(await body());assert.equal(r.code,403);
+    assert.equal(ca1.calls.newOrder,issued);
+  } finally {ctx.hostEligibility=saved;ctx.verifyAppCertificate=savedVerify;}
 });

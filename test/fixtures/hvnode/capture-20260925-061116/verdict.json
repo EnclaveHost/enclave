@@ -1,0 +1,199 @@
+{
+ "ok": true,
+ "admissible": true,
+ "capture": false,
+ "format": "windows-hv-node/v1",
+ "tier": "hv-node",
+ "technology": "windows-tpm-host",
+ "hostExcluded": false,
+ "teeCpu": null,
+ "measurement": null,
+ "omissions": [
+  "platform-firmware-unpinned"
+ ],
+ "reasons": [],
+ "checks": [
+  {
+   "name": "8 binding: Ed25519 transportKey, 32-byte nonce, a bounded statement",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "1 ek: certificate and chain parse",
+   "ok": true,
+   "detail": "0 intermediate(s) supplied"
+  },
+  {
+   "name": "1 ek: chains to a pinned TPM root",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "1 ek: on-die firmware TPM (SAN tpmManufacturer AMD/Intel)",
+   "ok": true,
+   "detail": "id:414D4400"
+  },
+  {
+   "name": "1 ek: the certificate the credential was minted for",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "2 aik: TPMT_PUBLIC parses (RSA, SHA-256 name, RSASSA-SHA256)",
+   "ok": true,
+   "detail": "RSA-2048"
+  },
+  {
+   "name": "2 aik: attributes fixedTPM|fixedParent|sensitiveDataOrigin|restricted|sign, not decrypt",
+   "ok": true,
+   "detail": "attrs=0x00050072"
+  },
+  {
+   "name": "2 aik: name is the one the credential was minted for",
+   "ok": true,
+   "detail": "name 000bab98d6b8990b16ff..."
+  },
+  {
+   "name": "3 credential: activated credential == the one minted for (EK, AK name)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "5 log: parses (TCG 2.0 crypto-agile, SHA-256 bank)",
+   "ok": true,
+   "detail": "45 events"
+  },
+  {
+   "name": "5 log: every SIPA record and PCR 7 variable event hashes to its recorded digest",
+   "ok": true,
+   "detail": "15 records recomputed"
+  },
+  {
+   "name": "4 quote: TPMS_ATTEST parses (TPM_GENERATED, TPM_ST_ATTEST_QUOTE)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "4 quote: signature verifies with the quoting key (RSASSA-PKCS1v15-SHA256)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "4 quote: extraData == challenge",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "4 quote: PCR selection is exactly the SHA-256 bank over {0,7,12,13,14}",
+   "ok": true,
+   "detail": "selected {0,7,12,13,14}"
+  },
+  {
+   "name": "4 quote: PCR digest == sha256(PCR0 || replayed PCR7 || PCR12 || PCR13 || PCR14)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "5 log: VSM_LAUNCH_TYPE == 1",
+   "ok": true,
+   "detail": "log: [1]"
+  },
+  {
+   "name": "5 log: HYPERVISOR_LAUNCH_TYPE == 1",
+   "ok": true,
+   "detail": "log: [1]"
+  },
+  {
+   "name": "5 log: VBS_VSM_REQUIRED == 1",
+   "ok": true,
+   "detail": "log: [1]"
+  },
+  {
+   "name": "5 log: VBS_HVCI_POLICY == 1",
+   "ok": true,
+   "detail": "log: [1]"
+  },
+  {
+   "name": "5 log: CODEINTEGRITY == 1",
+   "ok": true,
+   "detail": "log: [1, 1]"
+  },
+  {
+   "name": "5 log: BOOTDEBUGGING == 0",
+   "ok": true,
+   "detail": "log: [0, 0]"
+  },
+  {
+   "name": "5 log: OSKERNELDEBUG == 0",
+   "ok": true,
+   "detail": "log: [0]"
+  },
+  {
+   "name": "5 log: HYPERVISOR_DEBUG == 0",
+   "ok": true,
+   "detail": "log: [0]"
+  },
+  {
+   "name": "5 log: SAFEMODE == 0",
+   "ok": true,
+   "detail": "log: [0]"
+  },
+  {
+   "name": "5 log: WINPE == 0",
+   "ok": true,
+   "detail": "log: [0]"
+  },
+  {
+   "name": "5 log: FLIGHTSIGNING == 0",
+   "ok": true,
+   "detail": "log: [0, 0]"
+  },
+  {
+   "name": "5 log: TESTSIGNING == 0 in every section (production signing; no dev tier)",
+   "ok": true,
+   "detail": "log: [0, 0]"
+  },
+  {
+   "name": "5 log: Secure Boot on (PCR 7 SecureBoot variable; no dev tier)",
+   "ok": true,
+   "detail": "log: 1"
+  },
+  {
+   "name": "6 idks: VSM_IDKS_INFO RSA key on PCR 12 (recomputed), recorded",
+   "ok": true,
+   "detail": "RSA-2048 modulus sha256=402f2281ac8c8ac9..."
+  },
+  {
+   "name": "8 possession: Ed25519 signature over bound verifies with transportKey",
+   "ok": true,
+   "detail": ""
+  }
+ ],
+ "warnings": [
+  "log BOOTCOUNTER 233 != quote resetCount 1669444139 (AMD fTPM clockInfo is known to decode oddly; warn only)"
+ ],
+ "boot": {
+  "bootCounter": 233,
+  "resetCount": 1669444139,
+  "idksModulusSha256": "402f2281ac8c8ac9412f794e6c36e90e0176c37394afdaad49676ceec88e01a9",
+  "secureBoot": 1,
+  "testSigning": [
+   0,
+   0
+  ],
+  "pcr0": "711c1943ccff765a589a31b0347ce1b7356b0661f9ef7dabfbe9c622340b0433",
+  "pcrs": {
+   "7": "378979735f3b92f63624bbca94eb67456a90a1cb0b04f9b17d7e3d17f8c1f1fd",
+   "12": "c6fdadf5f33c50604ba5657eae34bb9b3c4ad4403d8383aef36e1af80b817bc3",
+   "13": "927dbd1a4c21de0e043bee983e723143f0f9e4c8c6d5c42cf4e8fd3b2f46f9e8",
+   "14": "9f0d7bb7b7856dfe73bf0cacb2a16d54986658d4f631d5a823d3137831a6d634"
+  },
+  "ekCertSha256": "86b95e8a766bd60a62c0f2a710a943f38be29c6f8558b87ebbd1e138823d4717",
+  "akName": "000bab98d6b8990b16ff1e7cbbc5ecc2a51dc7f26db1cb9501052813f03cc563134c"
+ },
+ "hostStatement": {
+  "sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+  "json": null,
+  "note": "the node's own statement: recorded, never read for admission"
+ }
+}

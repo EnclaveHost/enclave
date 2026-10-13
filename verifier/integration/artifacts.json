@@ -1,0 +1,34 @@
+{
+  "pvm-client-artifact": {
+    "purpose": "the pVM owner's installed client (CLI + MV3 extension), rebuilt from its commit and compared byte for byte; the lab stand-in for a transparency log (docs/security/pvm-client-bootstrap-review.md)",
+    "branch": "pvm-cpu/portable-runtime",
+    "commit": "c1341ee32b301bd31ca7710ae428022a0fc9f254",
+    "buildDir": "shielded/anchor/avf/client",
+    "buildScript": "build.sh",
+    "distDir": "dist",
+    "tool": {
+      "name": "esbuild",
+      "version": "0.28.1",
+      "env": "ESBUILD"
+    },
+    "outputs": {
+      "pvm-client.mjs": {
+        "sha256": "58f0edddb0f7db85df7edf9e56bbab043194a19a8d4e5d903ef31a5b5705abc4",
+        "size": 140740
+      },
+      "pvm-client-ext.zip": {
+        "sha256": "e993c674283496e084505e4debdebcd9f8e723e6091325dd95902380f17ecdce",
+        "size": 132983
+      }
+    },
+    "codeLoading": {
+      "pvm-client.mjs": {
+        "allowedDynamicImports": [
+          "\"crypto\""
+        ]
+      }
+    },
+    "reproducedBy": "research/independent-verifier session, 2026-09-24",
+    "note": "version 0.2.0 (the rollback-durability fix: a durable monotonic commit before any request, a generation log with link() compare-and-swap, Web Locks in the extension); the only dynamic import in the CLI bundle is @hpke/common's Node-builtin fallback import(\"crypto\")"
+  }
+}

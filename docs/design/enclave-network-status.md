@@ -1,0 +1,129 @@
+# Enclave network: status
+
+What is implemented, what is tested and how, what is deployed, and what is still blocked. Updated with each change;
+the design is `docs/design/enclave-network.md`. Nothing below is described as working unless it ran.
+
+## Deployed and serving (2026-10-13)
+
+| Piece | Where | State |
+|---|---|---|
+| Providers (kernel WireGuard + nftables + SNI router + control API) | 4 DigitalOcean Droplets: sfo3 134.199.235.187, tor1 146.190.246.39, sgp1 165.245.191.129, fra1 134.209.248.172 | live, systemd `enclave-network-provider` (bundle of main 81ed3ebac, 02:26-02:29Z, peers restored, no interruption), all roles, price 0, transfer budget 850 GB/month each |
+| Qualification checkers | nan (`enclave-network-checker`, 0x57144c90…) and warden-host (user unit, 0x033bc2b9…), every 4 min each | live (81ed3ebac, with chain access for on-chain attestations); both pass all four providers on all nine checks through WireGuard |
+| Relay API (`/v1/network/*`), v5-only route acceptance, DNS label `enclave` | nan (main 418aec41b) | live; TUNA publications and the NKN funding endpoint are gone |
+| Network tab (status, privacy, owner-signed mode setting, paid-provider authorization; passkey-vault signing) | site (main 418aec41b) | live |
+| NucBox (Windows, Enclave Shield): all apps on the Enclave network, own control traffic on control circuits | nucbox-k11-4 | live; Windows host release 2026.10.12.24 (TUNA-free, paid-provider settlement configured with the box's proof and operator keys; published 02:53Z, installed 02:54Z; every app ready again 03:01Z - a Windows update restarts each Shield partition) |
+| metal0 (Linux, SEV-SNP): eyesoff incl. custom domain eyesoff.ai | warden-host | live (release-wg-418aec41bdf7) |
+| pVM host agent | warden-host | on the Enclave network (release-wg-418aec41bdf7; serving no app at the moment) |
+| EnclaveConnectivity (paid-provider settlement) | Base 0x5f8b636e0768e84bd47b736652030b65db615111 (block 52534480) | ACTIVE since 2026-10-13 03:06Z: ledger `setBandwidthRouter` (tx 0x68dd499d…, block 52535715) and address book `connectivity` (tx 0x0f6ebcb3…, block 52535719), signed on the Trezor 0x0b2d |
+
+Verified in production: every app answers HTTPS 200 through both exits with a valid certificate, the same certificate
+fingerprint as before the switch (keys stay in the enclave); custom domain eyesoff.ai; DNS returns both exits; the
+providers' per-peer counters show each app's inner tunnel on the exit and outer tunnel on the guard; the exit sees only
+the guard's address.
+
+## Tested locally (not production paths)
+
+- `test/netns/wg-e2e.sh` (real kernel WireGuard + nftables in unprivileged network namespaces, 30 checks): guard hop,
+  egress, DNS through the tunnel, ingress with TLS ending at the host's server, custom domain, unknown SNI refused,
+  route probe through the guard, provider refusals (private, metadata, own address, own tunnel address, SMTP) as prompt
+  resets, guard refuses non-provider destinations, unregistered key gets no handshake, the host's real runtime
+  (worker + broker + grant renewal), a host control circuit, the qualification checker (mutation: removing the SMTP rule
+  fails it), bring-your-own WireGuard (egress from the VPN's address, names through its tunnel, IPv6 refused without an
+  IPv6 tunnel address, nothing leaves once the VPN is gone).
+- Unit tests: `test/network-policy.test.mjs` (policy validation, owner signatures, nonce replay; BYO parser: hooks,
+  partial tunnels, private endpoints, salted digest, redaction), `test/wg-provider.test.mjs` (runner/lease checks,
+  policy authorization, price limits, replay, roles, probe and control peers, sweeps, budget), `test/network-api.test.mjs`
+  (directory, qualifications, policies, sealed BYO configs: owner-only view, release to the current runner only,
+  replay), `test/windows-node-tuna-enroll.test.mjs` (wallet-free enrollment, one-time switch), `test/site-eip191.test.mjs`,
+  `network/wg` Go tests.
+
+## Owner configuration applied by a host in production (2026-10-13)
+
+Test deployment 0x5ece7c2e… (s3-ipfs-adapter, owner = the agent wallet, on the NucBox, since refunded), each step
+signed by the owner with `scripts/network/owner-policy.mjs` through the public relay API and applied by the NucBox's
+production agent without a restart:
+
+| Owner change (nonce) | What the host did | Seen |
+|---|---|---|
+| default -> `routes 1` (1) | rebuilt on one circuit | within ~30 s; DNS one exit; HTTPS 200; host reported nonce 1 |
+| -> BYO WireGuard, ingress on the Enclave network (2) | BYO tunnel for egress + one ingress-only network circuit | test VPN on fra1 saw the handshake; the app's DNS (1.1.1.1) and HTTPS calls left inside the BYO tunnel |
+| BYO server taken down, `fallback none` | dropped the BYO circuit after its egress probes failed (~1.5 min); NO switch to another network; app not ready, reason shown; website circuit kept | VPN up again: BYO back immediately |
+| -> `fallback enclave-network` (3), BYO down | egress through the authorized fallback; status `fallbackActive` | first try closed the website circuit too (~2 min dark): fixed (2ccd5f07a, own egress-only fallback circuit), re-tested: website circuit c3aaed2a unchanged through failover and failback |
+| -> Enclave network, `routes 2` (4); BYO config deleted | BYO tunnel closed (VPN silent since), two network circuits, DNS both exits | owner view of the config afterwards: none |
+
+Also verified on the relay: a non-owner's policy is refused and changes nothing; the stored BYO config only ever comes
+back redacted (no key material); its release to anyone but the current runner is refused (403).
+
+Found and fixed during these tests (all deployed to the NucBox, metal0 and the pVM agent the same night):
+- a config reload on a network-only host refused every app as "TUNA": a newly claimed app was never served until the
+  agent restarted (c498e4c9a);
+- one provider losing its qualification took every app with `routes 2` offline (it built nothing when it could not
+  build two): it now degrades to the circuits the qualified providers allow, reported as `degraded` (828ef2803);
+- one incident at a provider escalated its cooldown once per app (five apps: 1 min -> 16 min): failures during a
+  cooldown no longer escalate it (db35b8781).
+The provider incident itself was mine: the first test VPN on fra1 reused fra1's own wg-exit address 10.77.0.1, its
+/24 route took the return traffic of exit peers in 10.77.0.0/24, both checkers saw fra1 fail "refusals must be
+prompt" and disqualified it (01:18-01:21Z); every app was off its fra1 circuits, and for ~3 min had none. The VPN was
+recreated on 10.250.0.0/30.
+
+## Paid provider tested in production (2026-10-13 03:10-04:28Z)
+
+The Singapore provider (165.245.191.129) was turned into a paid community provider for the test: registered as a
+registry host (`scripts/network/provider-register.mjs`: host 0x668a609b..., its own receipt proof key made on the box),
+price 0.05 USDC/GiB set on chain (setHost), both checkers attesting it on chain. A test app owned by the agent wallet
+(0x942555ba..., on the NucBox; refunded after) set a v5 policy with a price limit and budget, authorized the provider on
+chain (authorizeTuna, budget 0.2 USDC) and funded the escrow the ledger asked for. The NucBox built a circuit with the
+paid provider as its guard (sgp1 -> sfo3); ~85 MiB of uploads to the app went through it. Settled on Base by the host's
+real settlement, co-signed by the provider's real meter: **bytesServed 46,926,050 (the payload the app received), the
+owner's budget charged 2,186 micro-USDC, the provider operator credited 1,748 (its 80% share)**. Afterwards: the app
+refunded ($1.00), Singapore back to a free Enclave provider; its registry host entry stays (it takes no compute work).
+
+Found and fixed during the test (deployed: relay c92678519, providers, checkers, NucBox, metal0/pVM; Windows release .25):
+- checkers and provider guards rejected every community record (no registry lookup); the provider never passed its
+  hostId to its own gate; the host never read its runner proof key, so it could not sign receipts;
+- the on-chain qualification (5 minutes) lapsed between full checks: checkers now refresh a paid provider's attestation
+  every minute (the relay accepts it against the same verdict) and the provider submits every 30 s - sampled 8 min, no gap;
+- a refused paid debit cooled down the circuit's free providers for every app on the host: it no longer counts against them;
+- settlement stuck forever on a mined transaction because publicnode refuses receipt lookups ("archive requests"): the
+  settlement client falls back across RPCs, and a journaled transaction whose nonce is spent is resolved from the
+  chain's metered bytes (also covers the host's operator key spending the nonce itself);
+- attestation and price transactions now fail on a reverted receipt.
+
+CI note: the relay deploy job starts by updating the DNS service on RELAY_SSH_HOST (46.62.128.36, the old nan-relay box),
+which no longer answers (the authoritative DNS now runs on nan from /opt/enclave-dns). CI relay deploys fail there until
+that is updated; c92678519 was deployed to nan with the same steps by hand (04:18:53Z).
+
+## Implemented, not in use in production
+
+- **Direct hosting**: implemented end to end (7e6287724, deployed: relay on main db35b8781, host agents): a host opts
+  in with `enclaveNetwork.direct {address, qualificationFile}`, a trusted checker's signed qualification of exactly that
+  runner, operator and public address; the host serves direct-mode apps through the Linux `DirectRuntime` (SNI to the
+  enclave, TLS ends inside, policy-judged egress), publishes a v5 `direct` route carrying the qualification, and the
+  relay accepts it only from the network's checkers; the route is withdrawn the moment the qualification lapses.
+  Tested in `test/netns/wg-e2e.sh` (direct ingress with the enclave's certificate on the host's IP, egress from the
+  host's address, private destinations refused) and `test/wg-manager.test.mjs`. Not exercised in production: no
+  compute host with a public IPv4 exists today (the NucBox and metal0 are behind CGNAT; the pVM is a phone), so every
+  host answers "direct hosting is not available" and the Network tab shows none. Windows hosts have no direct runtime.
+- **Paid providers / USDC settlement**: live since 2026-10-13 03:06Z and exercised in production (section above). No
+  community provider is offering paid service right now.
+- **Community providers on Enclave hosts**: the opt-in record and qualification work for any Linux server with a public
+  IPv4; no Enclave host has opted in, and there is no Windows provider.
+- **WebSockets / streaming / sustained traffic** (verified on the production providers, not on a customer app):
+  `scripts/network/wg-soak.mjs` from nan through the tor1 exit's real ingress (probe peer, TLS ending at the test
+  server): 2000 WebSocket messages up to 60 KB over one connection, all echoed intact (33.6 s); 8 parallel streams,
+  200 MiB in 23.9 s = 70.1 Mbit/s, every byte intact. A real app's server-sent-events stream (risc-box `/display`) held
+  45 s through both exits. No app in production uses WebSockets today, so none is tested on a customer app.
+
+## TUNA
+
+Retired from service 2026-10-13 ~00:00Z and removed (main e4eb6fff5, deployed 01:54Z): the relay's NKN funding
+endpoint and its queue are gone (`/v1/hosts/tuna-funding` answers like any unknown path; the env entry removed); the
+relay refuses every route publication not under a v5 policy; the privacy agent runs only the Enclave network and
+refuses a configuration without it (leftover TUNA settings are ignored and logged); Windows enrollment makes no NKN
+wallets; the TUNA Go adapter, runtimes, inventory, control guards, currency conversion, containers, units and the
+site's old network controls are deleted (191 files, -25k lines). Hosts updated: NucBox (Windows release .23, no TUNA
+executables in the bundle), metal0 and the pVM agent. Leftovers removed: the TUNA units, `/opt/enclave-tuna-usdc` and
+the `tuna_proxy` nftables table on all four Droplets (archived to `/root/retired-tuna-20261013.tgz` on each), the four
+TUNA timers on warden-host (moved to `~/.config/systemd/user/retired-tuna-20261013/`), `tuna-funding.mjs` on nan.
+Names kept for installed hosts: `tuna-enroll.mjs`, `relay/tuna-routes.mjs`, the `/v1/network/tuna` route-map path,
+the `C:\Program Files\Enclave\tuna\` directory, `enclave-tuna-privacy.service`. There is no TUNA rollback any more.

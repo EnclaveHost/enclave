@@ -1,0 +1,454 @@
+CAPTURE BEGIN label=0924092336-l1 path=/data/user/0/host.enclave.anchor.avf/files/capture/0924092336-l1.log cap_bytes=16777216
+TIER pvm-cpu (assets/tier)
+HOST start payload=libanchor.so debug=0 mem=7168MiB worker=127.0.0.1:9500 mode=app host=Main
+HOST device profile: cpu_capacity [207, 207, 824, 824, 824, 825, 825, 1024] -> 6 cores at >= half the largest; RAM 15575 MiB; decode on its own pool of 4 (measured default) -> threads 6, VM mem 7168 MiB
+GATE device=Pixel 10 Pro XL sdk=37 vendor_api_level=202504 board_api_level=202604
+GATE capabilities=3 protected_vm=true remote_attestation=true updatable_vm=true
+GATE SUPPORTED
+HOST VirtualMachineConfig.Builder ALL: setApkPath setConnectVmConsole setConsoleInputDevice setCpuTopology setCustomImageConfig setDebugLevel setDisableUpdatability setEncryptedStorageBytes setMemoryBytes setOs setPayloadBinaryName setPayloadConfigPath setProtectedVm setShouldBoostUclamp setShouldRamdump setShouldUseHugepages setVendorDiskImage setVmConsoleInputSupported setVmOutputCaptured
+HOST VirtualMachine ALL: $r8$lambda$jE9hC_Yw8T-C1lFix_Seicfe55E addDisplay binderFromPreconnectedClient clearCallback close connectToVsockServer connectVsock enableTestAttestation equals getActualMemoryBalloonBytes getCid getClass getConfig getConsoleInput getConsoleOutput getDisplays getGuestAgent getLogOutput getName getRootDir getStatus hashCode notify notifyAll removeDisplay resume run sendKeyEvent sendLidEvent sendMouseEvent sendMultiTouchEvent sendTabletModeEvent sendTrackpadEvent setCallback setConfig setMemoryBalloon setMemoryBalloonByPercent setTouchScale stop suspend toDescriptor toString wait wait wait
+HOST AVF feature com.android.kvm.NETWORK: true
+HOST vCPU uclamp boost: requested
+HOST encrypted storage 6144 MiB: set
+HOST config protected=true debug=0
+HOST VM instance 'anchorlocal' mem=7168 MiB storage=6144 MiB
+HOST VM instance 'anchorlocal' EFFECTIVE mem=7168 MiB storage=6144 MiB (requested mem=7168 storage=6144)
+HOST vm.run() returned, status=1
+VM cb onGuestAgentRegistered
+VM payload started
+VM payload ready
+PADS send cap: guest=0 cache=0
+PADS direct fill: enabled=0
+CONTROL connected
+VSOCK SPKI 302a300506032b657003210028be963b3f214dd387b4e256748e66d86308a3e881b6da8f5bb75d4fc7c85029
+VSOCK PADKEY 02b6bd8a328e58d04892ad79ac645590c41594627e279a214bec012ab60fbb77
+RELAY ws://127.0.0.1:18443/v1/fleet-tunnel as pixel10-pvm-cpu: nonce=3c5ecb7a638da70d… challenge=81efb3cf7713f870…
+CONTROL challenge=81efb3cf7713f8707c373c039ef591bb14b6e785a32fd58388bdf57b1dab3d0b
+VSOCK PINS mode=protected ledger=app model=pinned prefix=app sha256=arm_sha2 tier=pvm-cpu
+VSOCK STORAGE /mnt/encryptedstore fstype=0xef53 total=5983 MiB avail=781 MiB fs-verity=refused: Permission denied userfaultfd=Operation not permitted ram=7011 MiB vm-/data=0x1021994 (128 MiB free)
+VSOCK STORAGE2 selinux=u:r:microdroid_app:s0 measure=Permission denied enable-after-chmod=Permission denied authfs=0 authfs_service=0 /dev/fuse=1(Permission denied)
+VSOCK STORAGE2 mount=[/dev/block/mapper/crypt /mnt/encryptedstore ext4 rw,fscontext=u:object_r:encryptedstore_fs:s0,context=u:object_r:encryptedstore_file:s0,nosuid,nodev,noexec,relatime,discard 0 0]
+VSOCK STORAGE3 userfaultfd(USER_MODE_ONLY)=open: Permission denied
+VSOCK ANCHOR start in pVM apk=/mnt/apk control=owner-connected
+VSOCK ANCHOR cpu nproc=8 features= fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 sm3 sm4 asimddp sha512 sve asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp sve2 sveaes svepmull svebitperm svesha3 svesm4 flagm2 frint svei8mm svebf16 i8mm bf16 dgh bti
+VSOCK ATTEST binding: android-avf-pvm/v2 transcript over this pVM's own transport and pad keys, challenge = its sha256
+VSOCK ATTEST status=The remote attestation completes successfully. code=0
+VSOCK ATTEST certs=5
+VSOCK CERT0 bytes=567 chunks=2
+VSOCK CERT0[0] 30820233308201d8a00302010202107faf05ac38b5d176f68a80b20d75be8e300a06082a8648ce3d0403023039310c300a060355040a130341564631293027060355040313203736626661313965613037356362633065656666613637666432303735653666301e170d3236303931373030313135315a170d3236313030313133333735305a3030312e302c06035504030c25416e64726f69642050726f746563746564205669727475616c204d616368696e65204b65793059301306072a8648ce3d020106082a8648ce3d0301070342000424ca3500fe6a66d0344bf5c337cf9eb21d61790ce753f068be95fb862200a65b9627157e67fe7bf5afbd019efb0422dacf769c66bcd83217452d6adc2fdec5bfa381ca3081c73081c4060b2b06010401d67902011d010481b43081b1042081efb3cf7713f8707c373c039ef591bb14b6e785a32fd58388bdf57b1dab3d0b0101ff3081873081840c1b61706b3a686f73742e656e636c6176652e616e63686f722e6176660201060420433dd3dfa08f5be8d77cefcc93cd5297acdf022d7fa9dfc9d584fe081f1c0dfd0440cd0a7823095d98f82d4787205f020a3f2784912b032eff4f4e6525bba5654df8baaa64c7bebf03ad074788db7b517d82f3c63513f5c39a381b629c26aba38c0f3000300a06082a8648ce3d0403020349003046022100f2c5dc0a26d340599af8b948
+VSOCK CERT0[1] 037cdb7f033d0a90d55841451efc527d13ad507a022100b83ad26abd3fd08f5d68337a83ebd9086e3aae50e9cf124ac48d842d0ca65745
+VSOCK CERT1 bytes=501 chunks=1
+VSOCK CERT1[0] 308201f130820197a003020102021076bfa19ea075cbc0eeffa67fd2075e6f300a06082a8648ce3d040302302931133011060355040a130a476f6f676c65204c4c43311230100603550403130944726f696420434133301e170d3236303931373030313135315a170d3236313030313133333735305a3039310c300a060355040a1303415646312930270603550403132037366266613139656130373563626330656566666136376664323037356536663059301306072a8648ce3d020106082a8648ce3d030107034200046b172b7b60877b52d92bd619b4be2213b3d467084db01fcc54d7b7a9265ac3363b00a281f8b739205eb20fdeee4821af507248bac21a95b8306c9aec8c8cbc0ba3819030818d301d0603551d0e041604140cbf9160765d5dc532d2f9626be5deddf0265a6f301f0603551d230418301680147bd7069bdce33f810bea3edacc6af0d5b0821998300f0603551d130101ff040530030101ff300e0603551d0f0101ff040403020204302a060a2b06010401d67902011e041ca30118200366476f6f676c6505a1016c4e4f545f415050524f564544300a06082a8648ce3d040302034800304502200b28e827b22f7af5b138ca63d2c6f1e69332036045aab6995c02332a327b4410022100c214a106fc55ba2e0c9088919439718a54eec01adbece0a429bddb1ac49c35f0
+VSOCK CERT2 bytes=754 chunks=2
+VSOCK CERT2[0] 308202ee30820275a0030201020213380c9a70b7517476eb7163f9efd6f188702ce8300a06082a8648ce3d040303302931133011060355040a130a476f6f676c65204c4c43311230100603550403130944726f696420434132301e170d3236303833303139353330375a170d3236313130383139353330365a302931133011060355040a130a476f6f676c65204c4c43311230100603550403130944726f6964204341333059301306072a8648ce3d020106082a8648ce3d030107034200048b29652e85c90590d40cf701b8d88b060aeada52bf38b796d7a7f9e078d2473f2c9b944584fbe65a0a83605cb02f2936843c737ce711a0e28681115c9ac3ba27a382017a30820176300e0603551d0f0101ff040403020204300f0603551d130101ff040530030101ff301d0603551d0e041604147bd7069bdce33f810bea3edacc6af0d5b0821998301f0603551d23041830168014ccca50864c6bdb4a06eaa5ec4c2b4b626cdb5d9330818d06082b06010505070101048180307e307c06082b060105050730028670687474703a2f2f7072697661746563612d636f6e74656e742d36393865313061392d303030302d323237362d626431302d3838336432346632653637632e73746f726167652e676f6f676c65617069732e636f6d2f66636663623635383164323733396464313336612f63612e6372743081820603551d1f
+VSOCK CERT2[1] 047b30793077a075a0738671687474703a2f2f7072697661746563612d636f6e74656e742d36393865313061392d303030302d323237362d626431302d3838336432346632653637632e73746f726167652e676f6f676c65617069732e636f6d2f66636663623635383164323733396464313336612f63726c2e63726c300a06082a8648ce3d040303036700306402304944240d81052f737918942fede8992eeb9275c7cfb116f4a29f4dee2544b8a985c369ecaf426b3d2e7ebbcbfc80de510230351b22fc5e43d0b6e345f93329505719fcad6e3a4f25309d3e3ed48490417cd460b39f521d035a1c995ce78c8b1751cf
+VSOCK CERT3 bytes=618 chunks=2
+VSOCK CERT3[0] 30820266308201eba003020102021100924250191903e3ba65320efd6a2085fb300a06082a8648ce3d0403033052311c301a06035504030c134b6579204174746573746174696f6e204341313110300e060355040b0c07416e64726f696431133011060355040a0c0a476f6f676c65204c4c43310b3009060355040613025553301e170d3236303230393139353931385a170d3239303230383139353931385a302931133011060355040a130a476f6f676c65204c4c43311230100603550403130944726f6964204341323076301006072a8648ce3d020106052b810400220362000442fe6130ea3967c3bbba63788f5280fe9e2066405787a8c597c453beb93be07c3dd8191cd3a8ff19d973c583a3c5b92d5c0262d42f04167a01f1d749e6a819fbbb42208f00f1142411575a0018b0eabcec41352e63fe8607027f6ac93fafb0b5a381ad3081aa301f0603551d230418301680145232bb2cfb46439bdcd681a90e6566e03441ea4030470603551d1f0440303e303ca03aa038863668747470733a2f2f616e64726f69642e676f6f676c65617069732e636f6d2f6174746573746174696f6e2f6b65795f6361312e63726c300e0603551d0f0101ff040403020106301d0603551d0e04160414ccca50864c6bdb4a06eaa5ec4c2b4b626cdb5d93300f0603551d130101ff040530030101ff300a06082a8648ce3d04030303
+VSOCK CERT3[1] 69003066023100f4dbc058fab59924fd523ff5373c4939c04d5a3de504a052d30c350ac748c75ecc3d6255f7e2ec6e3792cfa41873548e023100b017cd6a2d3d15a1bd4a07d10829375034fdb1c0cfefe0d8aafa10313191e3febcbb7da5d9bd6812412e92bc185c7b22
+VSOCK CERT4 bytes=550 chunks=2
+VSOCK CERT4[0] 30820222308201a8a00302010202110084a9d0297b0eb58ae7ff0e80de760605300a06082a8648ce3d0403033052311c301a06035504030c134b6579204174746573746174696f6e204341313110300e060355040b0c07416e64726f696431133011060355040a0c0a476f6f676c65204c4c43310b3009060355040613025553301e170d3235303731373232333231385a170d3335303731353232333231385a3052311c301a06035504030c134b6579204174746573746174696f6e204341313110300e060355040b0c07416e64726f696431133011060355040a0c0a476f6f676c65204c4c43310b30090603550406130255533076301006072a8648ce3d020106052b810400220362000423da23714edf3e5b050a3c72e8846ace078ea0ad1bf98b15f453d0cb08b2c3c110453909f6edeac1f9c8e031a848b941a829535c97e07c2719beceb416290d3079eee1f911cce6df803914d8a3577b34fdfd143e5ef36c9713c7ac70a8c211aba3423040300f0603551d130101ff040530030101ff300e0603551d0f0101ff040403020106301d0603551d0e041604145232bb2cfb46439bdcd681a90e6566e03441ea40300a06082a8648ce3d0403030368003065023044df8cf3bf1f0a91791d824bba74656a03fcb1ecea10e2e36da8a627c71146982f1c06953f522dd8e4569cf4514391e70231008a06cb118a447553a6aa
+VSOCK CERT4[1] 46445889b5010e393a7ffacd46731798b91db387ff34950caef6f0050a3e84e005dcfa8b2646
+VSOCK SIG bytes=71 chunks=1
+VSOCK SIG[0] 3045022100af5d7248f3f6dd766ce6f899593db6afe9f7f583b8f50aa835cda5474c4aa88a02202c12e12605174ead57b1efff1d45e11b049189eca92a055156e9bd12d3129945
+VSOCK ATTEST end
+RELAY presented chain=5 certs signature=yes
+RELAY attest ACCEPTED measurement=433dd3dfa08f5be8d77cefcc93cd5297acdf022d7fa9dfc9d584fe081f1c0dfd
+RELAY abi2 nonce received (fresh, relay-owned)
+MODEL already in the VM's encrypted storage (3204 MiB), not streamed
+VSOCK ENGINE model 3204 MiB already in the VM's encrypted storage
+VSOCK MODEL stage timing: whole-file and per-tensor SHA-256 in one read, 19.5 s
+VSOCK MODEL table: 601 tensors, header 15819080 bytes retained, data at 15819104, digests from the pin's own read (arm_sha2)
+VSOCK MODEL ok 5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48 (matches the pin)
+APP over the model: /data/user/0/host.enclave.anchor.avf/files/model.gguf (3204 MiB), 6 threads, ctx 4096, graph gemma-4-e2b-it-q4_0
+APP evidence will bind the relay's nonce cd5ae66866b566a5…
+APP plan: /data/user/0/host.enclave.anchor.avf/files/app-stream-probe.wasm (109781 bytes, sha256 29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373), args none
+VSOCK APPNONCE accepted: the app's ABI/2 evidence binds the relay's nonce
+app bundle sha256=29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373 (hashed in 3 ms)
+app bundle already in the VM's encrypted storage (0 MiB, same sha256), not streamed
+VSOCK LOCAL app.wasm: already in the encrypted store (0 MiB, sha256 29e8942369846359..., re-hashed in 0.0 s)
+VSOCK APP runtime {"cache":"none","cpuFeatures":"baseline","execution":"interpreter","hostIsa":"aarch64","name":"wasmtime","targetIsa":"pulley64","version":"49.0.0","wx":"enforced"}
+VSOCK ABI2 selftest exec_pages=refused:EACCES wx=clean maps=1 scope=self
+VSOCK ABI2 runtime {"cache":"none","cpuFeatures":"baseline","execution":"interpreter","hostIsa":"aarch64","name":"wasmtime","targetIsa":"pulley64","version":"49.0.0","wx":"enforced"}
+VSOCK ABI2 binding nonce=cd5ae66866b566a50d5f9053fe304d5463fd93789463d7699e654a574888e879 (relay app nonce) runtime_id=d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba bind2=1bd73bc7f348ca8bb3a676c437d341de381f6ea16b0f29c8852836a22939b5d2 app=29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373
+VSOCK ABI2_LINK0 bytes=598 chunks=2
+VSOCK ABI2_LINK0[0] 30820252308201f9a003020102021100d81a61bacf6dfb9657d6378ff45fa5bc300a06082a8648ce3d0403023039310c300a060355040a130341564631293027060355040313203736626661313965613037356362633065656666613637666432303735653666301e170d3236303931373030313135315a170d3236313030313133333735305a3030312e302c06035504030c25416e64726f69642050726f746563746564205669727475616c204d616368696e65204b65793059301306072a8648ce3d020106082a8648ce3d03010703420004050ee713513c989b88fc5c7d6fb104347e22e18a564b7eaea78536c134cc947a11bac1d065fd789aa341b7914f95a6c74cf20351abe36d417b9487733c830f01a381ea3081e73081e4060b2b06010401d67902011d010481d43081d104401bd73bc7f348ca8bb3a676c437d341de381f6ea16b0f29c8852836a22939b5d229e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c13730101ff3081873081840c1b61706b3a686f73742e656e636c6176652e616e63686f722e6176660201060420433dd3dfa08f5be8d77cefcc93cd5297acdf022d7fa9dfc9d584fe081f1c0dfd0440cd0a7823095d98f82d4787205f020a3f2784912b032eff4f4e6525bba5654df8baaa64c7bebf03ad074788db7b517d82f3c63513f5c39a381b629c26aba38c0f30
+VSOCK ABI2_LINK0[1] 00300a06082a8648ce3d0403020347003044022027d20712e283824db8e3384c572829d47a8582f86cfbd5576a0ce6205e4ba7f0022020c081c9d705ce87cf39c99795286289eab299318504738e20ee79e960d75ec4
+VSOCK ABI2_LINK1 bytes=501 chunks=1
+VSOCK ABI2_LINK1[0] 308201f130820197a003020102021076bfa19ea075cbc0eeffa67fd2075e6f300a06082a8648ce3d040302302931133011060355040a130a476f6f676c65204c4c43311230100603550403130944726f696420434133301e170d3236303931373030313135315a170d3236313030313133333735305a3039310c300a060355040a1303415646312930270603550403132037366266613139656130373563626330656566666136376664323037356536663059301306072a8648ce3d020106082a8648ce3d030107034200046b172b7b60877b52d92bd619b4be2213b3d467084db01fcc54d7b7a9265ac3363b00a281f8b739205eb20fdeee4821af507248bac21a95b8306c9aec8c8cbc0ba3819030818d301d0603551d0e041604140cbf9160765d5dc532d2f9626be5deddf0265a6f301f0603551d230418301680147bd7069bdce33f810bea3edacc6af0d5b0821998300f0603551d130101ff040530030101ff300e0603551d0f0101ff040403020204302a060a2b06010401d67902011e041ca30118200366476f6f676c6505a1016c4e4f545f415050524f564544300a06082a8648ce3d040302034800304502200b28e827b22f7af5b138ca63d2c6f1e69332036045aab6995c02332a327b4410022100c214a106fc55ba2e0c9088919439718a54eec01adbece0a429bddb1ac49c35f0
+VSOCK ABI2_LINK2 bytes=754 chunks=2
+VSOCK ABI2_LINK2[0] 308202ee30820275a0030201020213380c9a70b7517476eb7163f9efd6f188702ce8300a06082a8648ce3d040303302931133011060355040a130a476f6f676c65204c4c43311230100603550403130944726f696420434132301e170d3236303833303139353330375a170d3236313130383139353330365a302931133011060355040a130a476f6f676c65204c4c43311230100603550403130944726f6964204341333059301306072a8648ce3d020106082a8648ce3d030107034200048b29652e85c90590d40cf701b8d88b060aeada52bf38b796d7a7f9e078d2473f2c9b944584fbe65a0a83605cb02f2936843c737ce711a0e28681115c9ac3ba27a382017a30820176300e0603551d0f0101ff040403020204300f0603551d130101ff040530030101ff301d0603551d0e041604147bd7069bdce33f810bea3edacc6af0d5b0821998301f0603551d23041830168014ccca50864c6bdb4a06eaa5ec4c2b4b626cdb5d9330818d06082b06010505070101048180307e307c06082b060105050730028670687474703a2f2f7072697661746563612d636f6e74656e742d36393865313061392d303030302d323237362d626431302d3838336432346632653637632e73746f726167652e676f6f676c65617069732e636f6d2f66636663623635383164323733396464313336612f63612e6372743081820603551d1f
+VSOCK ABI2_LINK2[1] 047b30793077a075a0738671687474703a2f2f7072697661746563612d636f6e74656e742d36393865313061392d303030302d323237362d626431302d3838336432346632653637632e73746f726167652e676f6f676c65617069732e636f6d2f66636663623635383164323733396464313336612f63726c2e63726c300a06082a8648ce3d040303036700306402304944240d81052f737918942fede8992eeb9275c7cfb116f4a29f4dee2544b8a985c369ecaf426b3d2e7ebbcbfc80de510230351b22fc5e43d0b6e345f93329505719fcad6e3a4f25309d3e3ed48490417cd460b39f521d035a1c995ce78c8b1751cf
+VSOCK ABI2_LINK3 bytes=618 chunks=2
+VSOCK ABI2_LINK3[0] 30820266308201eba003020102021100924250191903e3ba65320efd6a2085fb300a06082a8648ce3d0403033052311c301a06035504030c134b6579204174746573746174696f6e204341313110300e060355040b0c07416e64726f696431133011060355040a0c0a476f6f676c65204c4c43310b3009060355040613025553301e170d3236303230393139353931385a170d3239303230383139353931385a302931133011060355040a130a476f6f676c65204c4c43311230100603550403130944726f6964204341323076301006072a8648ce3d020106052b810400220362000442fe6130ea3967c3bbba63788f5280fe9e2066405787a8c597c453beb93be07c3dd8191cd3a8ff19d973c583a3c5b92d5c0262d42f04167a01f1d749e6a819fbbb42208f00f1142411575a0018b0eabcec41352e63fe8607027f6ac93fafb0b5a381ad3081aa301f0603551d230418301680145232bb2cfb46439bdcd681a90e6566e03441ea4030470603551d1f0440303e303ca03aa038863668747470733a2f2f616e64726f69642e676f6f676c65617069732e636f6d2f6174746573746174696f6e2f6b65795f6361312e63726c300e0603551d0f0101ff040403020106301d0603551d0e04160414ccca50864c6bdb4a06eaa5ec4c2b4b626cdb5d93300f0603551d130101ff040530030101ff300a06082a8648ce3d04030303
+VSOCK ABI2_LINK3[1] 69003066023100f4dbc058fab59924fd523ff5373c4939c04d5a3de504a052d30c350ac748c75ecc3d6255f7e2ec6e3792cfa41873548e023100b017cd6a2d3d15a1bd4a07d10829375034fdb1c0cfefe0d8aafa10313191e3febcbb7da5d9bd6812412e92bc185c7b22
+VSOCK ABI2_LINK4 bytes=550 chunks=2
+VSOCK ABI2_LINK4[0] 30820222308201a8a00302010202110084a9d0297b0eb58ae7ff0e80de760605300a06082a8648ce3d0403033052311c301a06035504030c134b6579204174746573746174696f6e204341313110300e060355040b0c07416e64726f696431133011060355040a0c0a476f6f676c65204c4c43310b3009060355040613025553301e170d3235303731373232333231385a170d3335303731353232333231385a3052311c301a06035504030c134b6579204174746573746174696f6e204341313110300e060355040b0c07416e64726f696431133011060355040a0c0a476f6f676c65204c4c43310b30090603550406130255533076301006072a8648ce3d020106052b810400220362000423da23714edf3e5b050a3c72e8846ace078ea0ad1bf98b15f453d0cb08b2c3c110453909f6edeac1f9c8e031a848b941a829535c97e07c2719beceb416290d3079eee1f911cce6df803914d8a3577b34fdfd143e5ef36c9713c7ac70a8c211aba3423040300f0603551d130101ff040530030101ff300e0603551d0f0101ff040403020106301d0603551d0e041604145232bb2cfb46439bdcd681a90e6566e03441ea40300a06082a8648ce3d0403030368003065023044df8cf3bf1f0a91791d824bba74656a03fcb1ecea10e2e36da8a627c71146982f1c06953f522dd8e4569cf4514391e70231008a06cb118a447553a6aa
+VSOCK ABI2_LINK4[1] 46445889b5010e393a7ffacd46731798b91db387ff34950caef6f0050a3e84e005dcfa8b2646
+VSOCK ABI2 end certs=5
+RELAY abi2 evidence sent (5 certificates)
+VSOCK MODEL ok 5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48 (staged already, unchanged)
+RELAY abi2 VERIFIED by the relay
+VSOCK APP over the model: 3360161216 bytes, 6 threads, ctx 4096, graph gemma-4-e2b-it-q4_0
+VSOCK LOCAL verified loader: 602 tensors (3504.4 MiB) hashed against the staged table before use: 316 repacked from verified bytes, 286 plain CPU
+VSOCK LOCAL verified loader timing: read 40.9 s (4 threads), hash 2.2 s, place+repack 1.8 s
+VSOCK LOCAL context ready: ctx 4096, 6 threads (decode 4), persistent pool=yes (poll 50, verify 0), model loaded in 64.3 s
+VSOCK LOCAL selftest pvm-cpu-selftest-v1: prompt 32 tokens at 124.52 tok/s, 64 tokens generated at 14.08 tok/s
+VSOCK CAPS 7b2276223a312c2274696572223a2270766d2d637075222c226e6f6e6365223a2233633565636237613633386461373064363065393838343730346666643034656531376138626439303461653331313261393034653439633461353965633461222c226d6f6465223a2270726f746563746564222c226d6f64656c223a7b22736861323536223a2235626632373461356138326363346662623035643761333564323536366463323037346561656638663634613237343165633831326463363530383966633438222c226279746573223a333336303136313231362c22637478223a343039367d2c22766d223a7b2274687265616473223a362c226d656d5f6d6962223a373031317d2c2273656c6674657374223a7b226964223a2270766d2d6370752d73656c66746573742d7631222c22746f6b656e73223a36342c2270726566696c6c5f746f6b5f73223a3132342e35322c226465636f64655f746f6b5f73223a31342e30382c226f75747075745f736861323536223a2239633463376637363462663635376337303863623139633634393361306265333033646234393039336664376466313433323636346366643338303163653266227d2c22766d5f6d73223a39363633372c226174746163685f766d5f6d73223a363332312c22646576696365223a22227d b9185a6cf484dd51bf599a261aa8a6de9b1eca9bfc2ca2fe6c2505da62e34f6a78e693baccca6d6c4bdd571ef75e1691544e80fb1d24e42cee946266ff846c0b
+RELAY caps sent (493 bytes, signed by the VM's attested key)
+VSOCK CAPS summary: nonce=3c5ecb7a638da70d60e9884704ffd04ee17a8bd904ae3112a904e49c4a59ec4a (relay-bound) selftest 64 tokens decode 14.08 tok/s output 9c4c7f764bf657c7...
+VSOCK LOCAL nn: the verified model 5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48 serves the app runtime (vocab 262144, ctx 4096, loaded in 64.3 s)
+RELAY caps ADMITTED tier=pvm-cpu
+VSOCK APP sealed requests on vsock 7788: app key 9bb53db1cbcaa498... (X25519, made in this process; evidence is v2)
+VSOCK APP evidence endpoint on vsock 7787: a client's nonce gets a fresh ABI/2 certificate for this app and this VM's transport key
+VSOCK APP serving https (TLS 1.3, the attested transport key) on vsock 7786: 29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373 compile_ms=349 graph=gemma-4-e2b-it-q4_0
+APP https: relay streams are forwarded to the VM as ciphertext; the lab run STOPs in 1800 s
+RELAY stream 1 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=c9a64fb13388639a... (5 certificates, answer 1, v2: sealed requests admitted under it)
+RELAY stream 1 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 2 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d633961363466623133333838363339612066696e206166746572203135206368756e6b73202831373420627974657320696e2c203336323820706c61696e74657874206279746573206f75742c2032323939206d7329
+RELAY stream 2 closed (the VM closed it): 178 bytes to the VM, 3928 bytes from it
+VSOCK APP sealed connection closed (requests so far 1)
+RELAY stream 3 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=1f955a1cd95e59f7... (5 certificates, answer 2, v2: sealed requests admitted under it)
+RELAY stream 3 closed (the VM closed it): 74 bytes to the VM, 4838 bytes from it
+RELAY stream 4 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c454420736572766564206e6f6e63653d31663935356131636439356535396637202831373320627974657320696e2c2031353137206f757429
+VSOCK APP sealed connection closed (requests so far 2)
+RELAY stream 4 closed (the VM closed it): 177 bytes to the VM, 1517 bytes from it
+RELAY stream 5 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=3f3f40fda8e474ca... (5 certificates, answer 3, v2: sealed requests admitted under it)
+RELAY stream 5 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 6 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d336633663430666461386534373463612066696e206166746572203335206368756e6b73202831373420627974657320696e2c203839383820706c61696e74657874206279746573206f75742c2035323731206d7329
+VSOCK APP sealed connection closed (requests so far 3)
+RELAY stream 6 closed (the VM closed it): 178 bytes to the VM, 9668 bytes from it
+RELAY stream 7 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=852a50d69f8e598d... (5 certificates, answer 4, v2: sealed requests admitted under it)
+RELAY stream 7 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 8 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d383532613530643639663865353938642066696e2061667465722037206368756e6b73202831373320627974657320696e2c203134383420706c61696e74657874206279746573206f75742c20373835206d7329
+RELAY stream 8 closed (the VM closed it): 177 bytes to the VM, 1632 bytes from it
+VSOCK APP sealed connection closed (requests so far 4)
+RELAY stream 9 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=3eb50632c700431c... (5 certificates, answer 5, v2: sealed requests admitted under it)
+RELAY stream 9 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 10 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c454420736572766564206e6f6e63653d33656235303633326337303034333163202831373420627974657320696e2c2033363631206f757429
+RELAY stream 10 closed (the VM closed it): 178 bytes to the VM, 3661 bytes from it
+VSOCK APP sealed connection closed (requests so far 5)
+RELAY stream 11 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=5af563adfe9eb269... (5 certificates, answer 6, v2: sealed requests admitted under it)
+RELAY stream 11 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 12 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d356166353633616466653965623236392066696e206166746572203637206368756e6b73202831373520627974657320696e2c20313735363420706c61696e74657874206279746573206f75742c203130363238206d7329
+VSOCK APP sealed connection closed (requests so far 6)
+RELAY stream 12 closed (the VM closed it): 179 bytes to the VM, 18852 bytes from it
+RELAY stream 13 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=c5f3dd68b99eff60... (5 certificates, answer 7, v2: sealed requests admitted under it)
+RELAY stream 13 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 14 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+RELAY stream 14 closed (the VM closed it): 178 bytes to the VM, 3928 bytes from it
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d633566336464363862393965666636302066696e206166746572203135206368756e6b73202831373420627974657320696e2c203336323820706c61696e74657874206279746573206f75742c2032313532206d7329
+VSOCK APP sealed connection closed (requests so far 7)
+RELAY stream 15 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=86ae713a2134aca0... (5 certificates, answer 8, v2: sealed requests admitted under it)
+RELAY stream 15 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 16 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c454420736572766564206e6f6e63653d38366165373133613231333461636130202831373420627974657320696e2c2039303231206f757429
+VSOCK APP sealed connection closed (requests so far 8)
+RELAY stream 16 closed (the VM closed it): 178 bytes to the VM, 9021 bytes from it
+RELAY stream 17 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=84ac8510258bde06... (5 certificates, answer 9, v2: sealed requests admitted under it)
+RELAY stream 17 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 18 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d383461633835313032353862646530362066696e206166746572203131206368756e6b73202831373420627974657320696e2c203235353620706c61696e74657874206279746573206f75742c2031343734206d7329
+VSOCK APP sealed connection closed (requests so far 9)
+RELAY stream 18 closed (the VM closed it): 178 bytes to the VM, 2780 bytes from it
+RELAY stream 19 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=42fe0729c6ecd82c... (5 certificates, answer 10, v2: sealed requests admitted under it)
+RELAY stream 19 closed (the VM closed it): 74 bytes to the VM, 4838 bytes from it
+RELAY stream 20 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+RELAY stream 20 closed (the VM closed it): 178 bytes to the VM, 7372 bytes from it
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d343266653037323963366563643832632066696e206166746572203237206368756e6b73202831373420627974657320696e2c203638343420706c61696e74657874206279746573206f75742c2034303432206d7329
+VSOCK APP sealed connection closed (requests so far 10)
+RELAY stream 21 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=92887454ce4bd56b... (5 certificates, answer 11, v2: sealed requests admitted under it)
+RELAY stream 21 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 22 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d393238383734353463653462643536622066696e206166746572203135206368756e6b73202831373420627974657320696e2c203336323820706c61696e74657874206279746573206f75742c2032323132206d7329
+VSOCK APP sealed connection closed (requests so far 11)
+RELAY stream 22 closed (the VM closed it): 178 bytes to the VM, 3928 bytes from it
+RELAY stream 23 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=d03f5c795896d7a5... (5 certificates, answer 12, v2: sealed requests admitted under it)
+RELAY stream 23 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 24 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c454420736572766564206e6f6e63653d64303366356337393538393664376135202831373320627974657320696e2c2031353137206f757429
+RELAY stream 24 closed (the VM closed it): 177 bytes to the VM, 1517 bytes from it
+VSOCK APP sealed connection closed (requests so far 12)
+RELAY stream 25 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=33024e9aa48f4c95... (5 certificates, answer 13, v2: sealed requests admitted under it)
+RELAY stream 25 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 26 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d333330323465396161343866346339352066696e206166746572203335206368756e6b73202831373420627974657320696e2c203839383820706c61696e74657874206279746573206f75742c2035353739206d7329
+VSOCK APP sealed connection closed (requests so far 13)
+RELAY stream 26 closed (the VM closed it): 178 bytes to the VM, 9668 bytes from it
+RELAY stream 27 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=b23f6fbc3f9a870c... (5 certificates, answer 14, v2: sealed requests admitted under it)
+RELAY stream 27 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 28 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d623233663666626333663961383730632066696e2061667465722037206368756e6b73202831373320627974657320696e2c203134383420706c61696e74657874206279746573206f75742c20393131206d7329
+RELAY stream 28 closed (the VM closed it): 177 bytes to the VM, 1632 bytes from it
+VSOCK APP sealed connection closed (requests so far 14)
+RELAY stream 29 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=f4db55969918ca44... (5 certificates, answer 15, v2: sealed requests admitted under it)
+RELAY stream 29 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 30 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c454420736572766564206e6f6e63653d66346462353539363939313863613434202831373420627974657320696e2c2033363631206f757429
+RELAY stream 30 closed (the VM closed it): 178 bytes to the VM, 3661 bytes from it
+VSOCK APP sealed connection closed (requests so far 15)
+RELAY stream 31 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=3763d2bb7dd276ed... (5 certificates, answer 16, v2: sealed requests admitted under it)
+RELAY stream 31 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 32 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d333736336432626237646432373665642066696e206166746572203637206368756e6b73202831373520627974657320696e2c20313735363420706c61696e74657874206279746573206f75742c203130393531206d7329
+RELAY stream 32 closed (the VM closed it): 179 bytes to the VM, 18852 bytes from it
+VSOCK APP sealed connection closed (requests so far 16)
+RELAY stream 33 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=29e3fd328b72d0b6... (5 certificates, answer 17, v2: sealed requests admitted under it)
+RELAY stream 33 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 34 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d323965336664333238623732643062362066696e206166746572203135206368756e6b73202831373420627974657320696e2c203336323820706c61696e74657874206279746573206f75742c2032343037206d7329
+VSOCK APP sealed connection closed (requests so far 17)
+RELAY stream 34 closed (the VM closed it): 178 bytes to the VM, 3928 bytes from it
+RELAY stream 35 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=5668b498075f43f5... (5 certificates, answer 18, v2: sealed requests admitted under it)
+RELAY stream 35 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 36 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c454420736572766564206e6f6e63653d35363638623439383037356634336635202831373420627974657320696e2c2039303231206f757429
+VSOCK APP sealed connection closed (requests so far 18)
+RELAY stream 36 closed (the VM closed it): 178 bytes to the VM, 9021 bytes from it
+RELAY stream 37 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=caab297c5da90d15... (5 certificates, answer 19, v2: sealed requests admitted under it)
+RELAY stream 37 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 38 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d636161623239376335646139306431352066696e206166746572203131206368756e6b73202831373420627974657320696e2c203235353620706c61696e74657874206279746573206f75742c2031373439206d7329
+VSOCK APP sealed connection closed (requests so far 19)
+RELAY stream 38 closed (the VM closed it): 178 bytes to the VM, 2780 bytes from it
+RELAY stream 39 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=d7c5a2a650f51686... (5 certificates, answer 20, v2: sealed requests admitted under it)
+RELAY stream 39 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 40 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d643763356132613635306635313638362066696e206166746572203237206368756e6b73202831373420627974657320696e2c203638343420706c61696e74657874206279746573206f75742c2034353935206d7329
+VSOCK APP sealed connection closed (requests so far 20)
+RELAY stream 40 closed (the VM closed it): 178 bytes to the VM, 7372 bytes from it
+RELAY stream 41 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=b18d6b1bb8126ff3... (5 certificates, answer 21, v2: sealed requests admitted under it)
+RELAY stream 41 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 42 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d623138643662316262383132366666332066696e206166746572203135206368756e6b73202831373420627974657320696e2c203336323820706c61696e74657874206279746573206f75742c2032343733206d7329
+VSOCK APP sealed connection closed (requests so far 21)
+RELAY stream 42 closed (the VM closed it): 178 bytes to the VM, 3928 bytes from it
+RELAY stream 43 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=25bc0bf4d9b3cba9... (5 certificates, answer 22, v2: sealed requests admitted under it)
+RELAY stream 43 closed (the VM closed it): 74 bytes to the VM, 4838 bytes from it
+RELAY stream 44 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c454420736572766564206e6f6e63653d32356263306266346439623363626139202831373320627974657320696e2c2031353137206f757429
+VSOCK APP sealed connection closed (requests so far 22)
+RELAY stream 44 closed (the VM closed it): 177 bytes to the VM, 1517 bytes from it
+RELAY stream 45 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=5e7a3954531ece45... (5 certificates, answer 23, v2: sealed requests admitted under it)
+RELAY stream 45 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 46 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d356537613339353435333165636534352066696e206166746572203335206368756e6b73202831373420627974657320696e2c203839383820706c61696e74657874206279746573206f75742c2036333231206d7329
+VSOCK APP sealed connection closed (requests so far 23)
+RELAY stream 46 closed (the VM closed it): 178 bytes to the VM, 9668 bytes from it
+RELAY stream 47 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=4c418780b43df5a2... (5 certificates, answer 24, v2: sealed requests admitted under it)
+RELAY stream 47 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 48 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d346334313837383062343364663561322066696e2061667465722037206368756e6b73202831373320627974657320696e2c203134383420706c61696e74657874206279746573206f75742c20383833206d7329
+VSOCK APP sealed connection closed (requests so far 24)
+RELAY stream 48 closed (the VM closed it): 177 bytes to the VM, 1632 bytes from it
+RELAY stream 49 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=27ce71101899e9ae... (5 certificates, answer 25, v2: sealed requests admitted under it)
+RELAY stream 49 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 50 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c454420736572766564206e6f6e63653d32376365373131303138393965396165202831373420627974657320696e2c2033363631206f757429
+RELAY stream 50 closed (the VM closed it): 178 bytes to the VM, 3661 bytes from it
+VSOCK APP sealed connection closed (requests so far 25)
+RELAY stream 51 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=03aed19f711838c5... (5 certificates, answer 26, v2: sealed requests admitted under it)
+RELAY stream 51 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 52 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d303361656431396637313138333863352066696e206166746572203637206368756e6b73202831373520627974657320696e2c20313735363420706c61696e74657874206279746573206f75742c203131383232206d7329
+VSOCK APP sealed connection closed (requests so far 26)
+RELAY stream 52 closed (the VM closed it): 179 bytes to the VM, 18852 bytes from it
+RELAY stream 53 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=d59885d09ed8215b... (5 certificates, answer 27, v2: sealed requests admitted under it)
+RELAY stream 53 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 54 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+RELAY stream 54 closed (the VM closed it): 178 bytes to the VM, 3928 bytes from it
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d643539383835643039656438323135622066696e206166746572203135206368756e6b73202831373420627974657320696e2c203336323820706c61696e74657874206279746573206f75742c2032363735206d7329
+VSOCK APP sealed connection closed (requests so far 27)
+RELAY stream 55 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=59eec259253bf488... (5 certificates, answer 28, v2: sealed requests admitted under it)
+RELAY stream 55 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 56 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c454420736572766564206e6f6e63653d35396565633235393235336266343838202831373420627974657320696e2c2039303231206f757429
+VSOCK APP sealed connection closed (requests so far 28)
+RELAY stream 56 closed (the VM closed it): 178 bytes to the VM, 9021 bytes from it
+RELAY stream 57 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=16353be4f46249f8... (5 certificates, answer 29, v2: sealed requests admitted under it)
+RELAY stream 57 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 58 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d313633353362653466343632343966382066696e206166746572203131206368756e6b73202831373420627974657320696e2c203235353620706c61696e74657874206279746573206f75742c2031383935206d7329
+VSOCK APP sealed connection closed (requests so far 29)
+RELAY stream 58 closed (the VM closed it): 178 bytes to the VM, 2780 bytes from it
+RELAY stream 59 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=782a11f63ef72d61... (5 certificates, answer 30, v2: sealed requests admitted under it)
+RELAY stream 59 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 60 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d373832613131663633656637326436312066696e206166746572203237206368756e6b73202831373420627974657320696e2c203638343420706c61696e74657874206279746573206f75742c2034393433206d7329
+VSOCK APP sealed connection closed (requests so far 30)
+RELAY stream 60 closed (the VM closed it): 178 bytes to the VM, 7372 bytes from it
+RELAY stream 61 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=80942ece5b310995... (5 certificates, answer 31, v2: sealed requests admitted under it)
+RELAY stream 61 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 62 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d383039343265636535623331303939352066696e206166746572203135206368756e6b73202831373420627974657320696e2c203336323820706c61696e74657874206279746573206f75742c2032373437206d7329
+RELAY stream 62 closed (the VM closed it): 178 bytes to the VM, 3928 bytes from it
+VSOCK APP sealed connection closed (requests so far 31)
+RELAY stream 63 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=083e77632e65f72f... (5 certificates, answer 32, v2: sealed requests admitted under it)
+RELAY stream 63 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 64 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c454420736572766564206e6f6e63653d30383365373736333265363566373266202831373320627974657320696e2c2031353137206f757429
+RELAY stream 64 closed (the VM closed it): 177 bytes to the VM, 1517 bytes from it
+VSOCK APP sealed connection closed (requests so far 32)
+RELAY stream 65 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=4905b82c2ba133ea... (5 certificates, answer 33, v2: sealed requests admitted under it)
+RELAY stream 65 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 66 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d343930356238326332626131333365612066696e206166746572203335206368756e6b73202831373420627974657320696e2c203839383820706c61696e74657874206279746573206f75742c2036343131206d7329
+VSOCK APP sealed connection closed (requests so far 33)
+RELAY stream 66 closed (the VM closed it): 178 bytes to the VM, 9668 bytes from it
+RELAY stream 67 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=77de043d05d909c6... (5 certificates, answer 34, v2: sealed requests admitted under it)
+RELAY stream 67 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 68 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d373764653034336430356439303963362066696e2061667465722037206368756e6b73202831373320627974657320696e2c203134383420706c61696e74657874206279746573206f75742c2031303633206d7329
+VSOCK APP sealed connection closed (requests so far 34)
+RELAY stream 68 closed (the VM closed it): 177 bytes to the VM, 1632 bytes from it
+RELAY stream 69 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=9f379d50fec1b7da... (5 certificates, answer 35, v2: sealed requests admitted under it)
+RELAY stream 69 closed (the VM closed it): 74 bytes to the VM, 4838 bytes from it
+RELAY stream 70 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c454420736572766564206e6f6e63653d39663337396435306665633162376461202831373420627974657320696e2c2033363631206f757429
+RELAY stream 70 closed (the VM closed it): 178 bytes to the VM, 3661 bytes from it
+VSOCK APP sealed connection closed (requests so far 35)
+RELAY stream 71 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=b3241aa10c0844d2... (5 certificates, answer 36, v2: sealed requests admitted under it)
+RELAY stream 71 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 72 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d623332343161613130633038343464322066696e206166746572203637206368756e6b73202831373520627974657320696e2c20313735363420706c61696e74657874206279746573206f75742c203132373432206d7329
+RELAY stream 72 closed (the VM closed it): 179 bytes to the VM, 18852 bytes from it
+VSOCK APP sealed connection closed (requests so far 36)
+RELAY stream 73 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=89e37e1de2dc0e78... (5 certificates, answer 37, v2: sealed requests admitted under it)
+RELAY stream 73 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 74 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d383965333765316465326463306537382066696e206166746572203135206368756e6b73202831373420627974657320696e2c203336323820706c61696e74657874206279746573206f75742c2032373239206d7329
+RELAY stream 74 closed (the VM closed it): 178 bytes to the VM, 3928 bytes from it
+VSOCK APP sealed connection closed (requests so far 37)
+RELAY stream 75 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=da2c8fa8733c171e... (5 certificates, answer 38, v2: sealed requests admitted under it)
+RELAY stream 75 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 76 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c454420736572766564206e6f6e63653d64613263386661383733336331373165202831373420627974657320696e2c2039303231206f757429
+VSOCK APP sealed connection closed (requests so far 38)
+RELAY stream 76 closed (the VM closed it): 178 bytes to the VM, 9021 bytes from it
+RELAY stream 77 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=b833ac4c719c3c1b... (5 certificates, answer 39, v2: sealed requests admitted under it)
+RELAY stream 77 closed (the VM closed it): 74 bytes to the VM, 4838 bytes from it
+RELAY stream 78 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d623833336163346337313963336331622066696e206166746572203131206368756e6b73202831373420627974657320696e2c203235353620706c61696e74657874206279746573206f75742c2031383834206d7329
+RELAY stream 78 closed (the VM closed it): 178 bytes to the VM, 2780 bytes from it
+VSOCK APP sealed connection closed (requests so far 39)
+RELAY stream 79 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=e72393552c80c444... (5 certificates, answer 40, v2: sealed requests admitted under it)
+RELAY stream 79 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 80 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d653732333933353532633830633434342066696e206166746572203237206368756e6b73202831373420627974657320696e2c203638343420706c61696e74657874206279746573206f75742c2034393437206d7329
+VSOCK APP sealed connection closed (requests so far 40)
+RELAY stream 80 closed (the VM closed it): 178 bytes to the VM, 7372 bytes from it
+RELAY stream 81 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=dbd27fb25d92d161... (5 certificates, answer 41, v2: sealed requests admitted under it)
+RELAY stream 81 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 82 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d646264323766623235643932643136312066696e206166746572203135206368756e6b73202831373420627974657320696e2c203336323820706c61696e74657874206279746573206f75742c2032363532206d7329
+VSOCK APP sealed connection closed (requests so far 41)
+RELAY stream 82 closed (the VM closed it): 178 bytes to the VM, 3928 bytes from it
+RELAY stream 83 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=170aea8d2db991a0... (5 certificates, answer 42, v2: sealed requests admitted under it)
+RELAY stream 83 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 84 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c454420736572766564206e6f6e63653d31373061656138643264623939316130202831373320627974657320696e2c2031353137206f757429
+VSOCK APP sealed connection closed (requests so far 42)
+RELAY stream 84 closed (the VM closed it): 177 bytes to the VM, 1517 bytes from it
+RELAY stream 85 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=7e1184f8f73c85e0... (5 certificates, answer 43, v2: sealed requests admitted under it)
+RELAY stream 85 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 86 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d376531313834663866373363383565302066696e206166746572203335206368756e6b73202831373420627974657320696e2c203839383820706c61696e74657874206279746573206f75742c2036393831206d7329
+VSOCK APP sealed connection closed (requests so far 43)
+RELAY stream 86 closed (the VM closed it): 178 bytes to the VM, 9668 bytes from it
+RELAY stream 87 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=455099590d84c641... (5 certificates, answer 44, v2: sealed requests admitted under it)
+RELAY stream 87 closed (the VM closed it): 74 bytes to the VM, 4838 bytes from it
+RELAY stream 88 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d343535303939353930643834633634312066696e2061667465722037206368756e6b73202831373320627974657320696e2c203134383420706c61696e74657874206279746573206f75742c2031313430206d7329
+VSOCK APP sealed connection closed (requests so far 44)
+RELAY stream 88 closed (the VM closed it): 177 bytes to the VM, 1632 bytes from it
+RELAY stream 89 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=33ee7c3716fd31f3... (5 certificates, answer 45, v2: sealed requests admitted under it)
+RELAY stream 89 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 90 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c454420736572766564206e6f6e63653d33336565376333373136666433316633202831373420627974657320696e2c2033363631206f757429
+RELAY stream 90 closed (the VM closed it): 178 bytes to the VM, 3661 bytes from it
+VSOCK APP sealed connection closed (requests so far 45)
+RELAY stream 91 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=fd6da07792235acd... (5 certificates, answer 46, v2: sealed requests admitted under it)
+RELAY stream 91 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 92 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d666436646130373739323233356163642066696e206166746572203637206368756e6b73202831373520627974657320696e2c20313735363420706c61696e74657874206279746573206f75742c203133353333206d7329
+RELAY stream 92 closed (the VM closed it): 179 bytes to the VM, 18852 bytes from it
+VSOCK APP sealed connection closed (requests so far 46)
+RELAY stream 93 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=ca1de3582576260e... (5 certificates, answer 47, v2: sealed requests admitted under it)
+RELAY stream 93 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 94 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d636131646533353832353736323630652066696e206166746572203135206368756e6b73202831373420627974657320696e2c203336323820706c61696e74657874206279746573206f75742c2032383230206d7329
+VSOCK APP sealed connection closed (requests so far 47)
+RELAY stream 94 closed (the VM closed it): 178 bytes to the VM, 3928 bytes from it
+RELAY stream 95 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=175f6b2c8337bb95... (5 certificates, answer 48, v2: sealed requests admitted under it)
+RELAY stream 95 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 96 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c454420736572766564206e6f6e63653d31373566366232633833333762623935202831373420627974657320696e2c2039303231206f757429
+VSOCK APP sealed connection closed (requests so far 48)
+RELAY stream 96 closed (the VM closed it): 178 bytes to the VM, 9021 bytes from it
+RELAY stream 97 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=fec898a5fea9431f... (5 certificates, answer 49, v2: sealed requests admitted under it)
+RELAY stream 97 closed (the VM closed it): 74 bytes to the VM, 4842 bytes from it
+RELAY stream 98 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d666563383938613566656139343331662066696e206166746572203131206368756e6b73202831373420627974657320696e2c203235353620706c61696e74657874206279746573206f75742c2031393333206d7329
+VSOCK APP sealed connection closed (requests so far 49)
+RELAY stream 98 closed (the VM closed it): 178 bytes to the VM, 2780 bytes from it
+RELAY stream 99 opened to the VM's evidence endpoint (public evidence; sizes only are logged)
+VSOCK EVIDENCE answered nonce=cc4e4601a6b78342... (5 certificates, answer 50, v2: sealed requests admitted under it)
+RELAY stream 99 closed (the VM closed it): 74 bytes to the VM, 4838 bytes from it
+RELAY stream 100 opened to the VM's sealed-request port (the bytes are HPKE ciphertext; sizes only are logged)
+VSOCK APPOUT 2 5345414c45442073747265616d206e6f6e63653d636334653436303161366237383334322066696e206166746572203237206368756e6b73202831373420627974657320696e2c203638343420706c61696e74657874206279746573206f75742c2035333639206d7329
+VSOCK APP sealed connection closed (requests so far 50)
+RELAY stream 100 closed (the VM closed it): 178 bytes to the VM, 7372 bytes from it

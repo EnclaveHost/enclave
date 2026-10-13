@@ -15,8 +15,10 @@
    through the order checkout (hosted Stripe page, zero crypto
    exposure) and crypto payments come from the user's wallet.
    Account-level sign-in (passkeys + SIWE against the relay) lives
-   in account.js; this module keeps the ENCLAVE session (the
-   in-CVM SIWE token that gates deployment-private reads).
+   in account.js; the wallet SESSION (sessions.js) signs the owner
+   calls hosts serve. This module keeps the per-host ENCLAVE token
+   (the in-CVM SIWE token), now only the fallback for a host that
+   hasn't learned sessions yet, or a wallet with no session.
    ============================================================ */
 import { BASE_CHAIN, BASE_CHAIN_HEX, USDC_BASE, WALLETCONNECT_PROJECT_ID } from "./config.js";
 import { Enclave, EnclaveError } from "./api.js";
@@ -25,7 +27,7 @@ import { baseRpc } from "./chain.js";
 // per-tx gas limit 15.0M, nothing over 16M). Asking for more is accepted by
 // some RPCs and then never mined.
 const MAX_TX_GAS = 15_000_000n;
-import { $, $$, esc, short, lsGet, lsSet, fmtDur, copyText, showToast, emit } from "./util.js";
+import { $, $$, esc, short, lsGet, lsSet, copyText, showToast, emit } from "./util.js";
 import { qrSvg } from "../lib/qr.js";
 import { runlog } from "./runlog.js";
 
@@ -441,7 +443,28 @@ export async function authenticate(opts){
   return sess;
 }
 
+/* Run an owner call against the box hosting a deployment (`enclave`, its fleet name; "" = the sticky box).
+   The wallet session signs it when it can (api.js _sessionReq), so nothing is asked. A 401 means no session
+   or cached per-host token could make the call: no session at all, a host that hasn't learned sessions yet
+   (api.js remembers it for this page load), or a stale token the box rejected (api.js drops it). Only THEN
+   does the wallet sign in to that host - the per-host SIWE, one signature per box, cached - and the call
+   runs once more. `prompt: false` never asks the wallet: the 401 goes back to the caller, for panels that
+   offer their own unlock button instead of a wallet prompt nobody clicked for. */
+export async function asHostOwner(enclave, call, { prompt = true } = {}){
+  const host = String(enclave || "").trim();
+  try { return await call(host); }
+  catch(e){
+    if (!e || e.status !== 401 || !prompt) throw e;
+    await authenticate(host ? { enclave: host } : undefined);
+    return await call(host);
+  }
+}
+
 export function disconnectWallet(){
+  // sign-out IS ending the browser's session (there is no separate "end"): its key signs the
+  // terminate (no wallet prompt), the unspent budget returns to the owner, API access ends in
+  // the same flow. Returned so a caller can wait for the refund before it re-renders.
+  const ended = import("./sessions.js").then((S) => S.endSession()).catch(() => {});
   const wasWc = !!(Enclave.provider && Enclave.provider._enclaveWc) || Enclave.walletRdns === WC_RDNS;
   // end the relay session too, or "Sign out" leaves the pairing live in the
   // wallet and the next sign-in silently reuses it
@@ -468,6 +491,7 @@ export function disconnectWallet(){
   const pop = $("#walletPop"); if (pop){ pop.hidden = true; pop.innerHTML = ""; popExpanded(false); }
   refreshWallet();
   emit("enclave:auth", { authed: false });
+  return ended;
 }
 
 /* ---- session persistence: survive a page refresh (localStorage bearer token) ---- */
@@ -557,8 +581,9 @@ export function refreshWallet(){
   if (btn){
     if (Enclave.address){
       btn.classList.add("connected");
-      btn.innerHTML = '<span class="wdot"></span>' + esc(short(Enclave.address));
+      btn.innerHTML = '<span class="wdot"></span>' + esc(short(Enclave.address)) + '<span class="wsess" id="wbSess"></span>';
       if (!btn.hasAttribute("aria-expanded")) btn.setAttribute("aria-expanded", "false");
+      sessionBadge();
     } else if (Enclave.accountAuthed()){
       // account-only (passkey user, no wallet connected): still signed in
       btn.classList.add("connected");
@@ -573,11 +598,31 @@ export function refreshWallet(){
   emit("enclave:wallet", { address: Enclave.address, authed: Enclave.authed() });
 }
 
+/* the persistent session indicator on the wallet button: balance · time left */
+let _badgeTimer = 0;
+async function sessionBadge(){
+  clearTimeout(_badgeTimer);
+  try {
+    const S = await import("./sessions.js");
+    const st = await S.sessionStatus();
+    const el = $("#wbSess");
+    if (!el) return;
+    if (!st || st.error || !st.live || (st.owner && Enclave.address && st.owner.toLowerCase() !== Enclave.address.toLowerCase())){ el.textContent = ""; return; }
+    el.textContent = " · " + S.fmtUsd(st.balance6) + " · " + S.fmtLeft(Number(st.expiresAt) - Math.floor(Date.now() / 1000));
+    el.title = "Session: " + S.fmtUsd(st.balance6) + " left, " + S.fmtUsd(st.spent6) + " spent";
+    _badgeTimer = setTimeout(sessionBadge, 60_000);
+  } catch(e){}
+}
+if (typeof document !== "undefined") document.addEventListener("enclave:session", () => sessionBadge());
+
 export function toggleWalletPop(){
   const pop = $("#walletPop"); if (!pop) return;
   if (!pop.hidden){ pop.hidden = true; pop.innerHTML = ""; popExpanded(false); return; }
   renderWalletPop();
 }
+
+// the little green up-arrow on a value you can raise (Balance -> Deposit, the session's budget -> Top up, its time -> Extend)
+const UP = '<svg class="wp-up" viewBox="0 0 10 12" aria-hidden="true"><path d="M5 11V1.5M1.5 5 5 1.5 8.5 5"/></svg>';
 
 export async function renderWalletPop(){
   const pop = $("#walletPop"); if (!pop) return;
@@ -606,35 +651,49 @@ export async function renderWalletPop(){
   }
   const offBase = Enclave.chainId && Enclave.chainId !== BASE_CHAIN;
   pop.innerHTML =
-    '<div class="wp-row"><span class="wp-k">Wallet</span><button class="wp-addr" id="wpCopy">' + esc(short(Enclave.address)) + ' ⧉</button></div>' +
-    '<div class="wp-row"><span class="wp-k">Network</span><span class="wp-v">' + (Enclave.chainId === BASE_CHAIN ? "Base" : ("chain " + (Enclave.chainId || "–"))) + (offBase ? ' <button class="wp-mini" id="wpSwitch">switch to Base</button>' : "") + '</span></div>' +
-    '<div class="wp-row"><span class="wp-k">Session</span><span class="wp-v">' + (Enclave.authed() ? '<span class="ok">signed in</span>' : '<button class="wp-mini" id="wpAuth">sign in</button>') + '</span></div>' +
-    '<div class="wp-bal"><div class="bl"><span>USDC balance</span><span id="wpBalUsdc">…</span></div></div>' +
-    '<div class="wp-bal" id="wpBal">' + (Enclave.authed() ? "loading deployments…" : "sign in to load deployments") + '</div>' +
-    '<div class="wp-fund">' +
-      '<button class="wp-mini" id="wpDep">Deposit</button>' +
-    '</div>' +
-    '<button class="wp-disc" id="wpDisc">Sign out</button>';
+    '<div class="wp-row wp-row-addr"><span class="wp-k">Wallet</span><button class="wp-addr" id="wpCopy" title="Copy address"><span class="wp-addr-txt">' + esc(Enclave.address) + '</span><span aria-hidden="true">⧉</span></button></div>' +
+    '<div class="wp-row"><span class="wp-k">Network</span><span class="wp-v">' + (Enclave.chainId === BASE_CHAIN
+      ? '<a class="wp-link" href="https://basescan.org/address/' + esc(Enclave.address) + '" target="_blank" rel="noopener" title="Your wallet on Basescan">Base</a>'
+      : ("chain " + (Enclave.chainId || "–"))) + (offBase ? ' <button class="wp-mini" id="wpSwitch">switch to Base</button>' : "") + '</span></div>' +
+    '<div class="wp-row"><span class="wp-k">Balance</span><button class="wp-v wp-link" id="wpBal" type="button" title="Deposit"><span id="wpBalUsdc">…</span>' + UP + '</button></div>' +
+    '<hr class="wp-sep">' +   // the wallet above, this browser's session below
+    // the session row ends the popover: its budget and time, then All (every session) and Sign out, right-aligned
+    '<div class="wp-row wp-row-sess"><span class="wp-k">Session</span><span class="wp-sess-r"><span class="wp-v" id="wpSess">…</span>' +
+      '<span class="wp-sess-btns"><a class="wp-mini" id="wpSessions" href="sessions" title="All sessions">All</a>' +
+      '<button class="wp-disc" id="wpDisc">Sign out</button></span></span></div>';
   pop.hidden = false;
   popExpanded(true);
   const c = $("#wpCopy"); if (c) c.addEventListener("click", () => copyText(Enclave.address));
   const d = $("#wpDisc"); if (d) d.addEventListener("click", disconnectWallet);
-  const dep = $("#wpDep"); if (dep) dep.addEventListener("click", () => { pop.hidden = true; popExpanded(false); openDepositModal(); });
+  // the balance is the way in to Deposit
+  const bal = $("#wpBal"); if (bal) bal.addEventListener("click", () => { pop.hidden = true; popExpanded(false); openDepositModal(); });
+  const ss = $("#wpSessions"); if (ss) ss.addEventListener("click", () => { pop.hidden = true; popExpanded(false); });   // boot.js navigates
   usdcBalanceOf(Enclave.address).then(
     (b) => { const u = $("#wpBalUsdc"); if (u) u.textContent = b.toFixed(2) + " USDC"; },
     ()  => { const u = $("#wpBalUsdc"); if (u) u.textContent = "unavailable"; });
   const s = $("#wpSwitch"); if (s) s.addEventListener("click", () => Enclave.provider && ensureBaseChainOnConnect(Enclave.provider).then(renderWalletPop));
-  const a = $("#wpAuth"); if (a) a.addEventListener("click", async () => { try { await authenticate(); renderWalletPop(); } catch(e){ showToast(e.message); } });
-  if (Enclave.authed()){
-    try {
-      const acc = await Enclave.getAccount();
-      const dp = acc.deployments || {};
-      const rows = '<div class="bl"><span>running</span><span>' + esc(String(dp.running != null ? dp.running : 0)) + '</span></div>'
-                 + '<div class="bl"><span>awaiting payment</span><span>' + esc(String(dp.awaitingPayment != null ? dp.awaitingPayment : 0)) + '</span></div>'
-                 + '<div class="bl"><span>time funded</span><span>' + esc(fmtDur(dp.totalTimeRemainingSec || 0)) + '</span></div>';
-      const el = $("#wpBal"); if (el) el.innerHTML = '<div class="bl-h">Deployments</div>' + rows;
-    } catch(e){ const el = $("#wpBal"); if (el) el.textContent = e.message; }
+  renderSessionRow();
+}
+
+/* the popover's session row: the budget left (click it to top up) and the time left (click it to extend), or
+   "start". The full list is All, beside it; ending this browser's session is Sign out, beside that. */
+async function renderSessionRow(){
+  const el = $("#wpSess"); if (!el) return;
+  let S;
+  try { S = await import("./sessions.js"); } catch(e){ el.textContent = "unavailable"; return; }
+  if (!(await S.sessionsAvailable())){ el.textContent = "not on this endpoint"; return; }
+  const st = await S.sessionStatus();
+  const mine = st && !st.error && st.live && st.owner && Enclave.address && st.owner.toLowerCase() === Enclave.address.toLowerCase();
+  if (!mine){
+    el.innerHTML = '<button class="wp-mini" id="wpSessStart">start</button>';
+    const b = $("#wpSessStart"); if (b) b.addEventListener("click", async () => { if (await S.openSessionModal()) renderWalletPop(); });
+    return;
   }
+  const left = Number(st.expiresAt) - Math.floor(Date.now() / 1000);
+  el.innerHTML = '<button class="wp-link ok" id="wpSessBal" type="button" title="Top up this session">' + esc(S.fmtUsd(st.balance6)) + UP + '</button> · '
+    + '<button class="wp-link" id="wpSessLeft" type="button" title="Extend this session">' + esc(S.fmtLeft(left)) + UP + '</button>';
+  const t = $("#wpSessBal"); if (t) t.addEventListener("click", async () => { if (await S.openTopUpModal()) renderWalletPop(); });
+  const x = $("#wpSessLeft"); if (x) x.addEventListener("click", async () => { if (await S.openExtendModal(st.sid, st.expiresAt)) renderWalletPop(); });
 }
 
 /* ---- on-chain tx helpers used by both the deploy console and the store ---- */
@@ -661,6 +720,10 @@ export async function personalSign(message){
   wcNudge();
   const hex = "0x" + [...new TextEncoder().encode(message)].map(b => b.toString(16).padStart(2, "0")).join("");
   return await Enclave.provider.request({ method: "personal_sign", params: [hex, Enclave.address] });
+}
+export async function personalSignBytes(hex){
+  if(!/^0x[0-9a-f]{64}$/i.test(hex))throw new Error("Expected a 32-byte signing digest");
+  wcNudge();return Enclave.provider.request({method:"personal_sign",params:[hex,Enclave.address]});
 }
 export async function ensureBaseChain(){
   let cur;

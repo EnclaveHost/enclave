@@ -1,3 +1,4 @@
+import {linkBytecode} from "../../js/lib/contract-linker.js";
 /* ============================================================
    <c-admin-console> - the operator console behind admin.html.
 
@@ -573,6 +574,8 @@ class AdminConsole extends EnclaveElement {
       const pre = {
         EnclavePay: { usdc: USDC_BASE, payout: (S.pay && S.pay.payout) || payoutAddr },
         EnclaveDeployments: { usdc: USDC_BASE, payout: payoutAddr, registry: S.book.entries.registry, ethUsdFeed: S.dep && S.dep.feed },
+        EnclaveAvailability: { ledger_: S.book.entries.deployments, proof_: S.book.entries.proofOfTime },
+        EnclaveVerificationFees: { l: S.book.entries.deployments, p: S.book.entries.proofOfTime },
         EnclaveFeatured: { usdc: USDC_BASE, payout: (S.feat && S.feat.payout) || payoutAddr },
         EnclaveReviews: { book: S.book.addr, ledgerFallback: S.book.entries.deployments || (S.dep && S.dep.addr) },
         // host ratings take ONE ctor arg: the book (no fallback by design)
@@ -601,7 +604,7 @@ class AdminConsole extends EnclaveElement {
         PaymentRouter: `<span class="warn">IMMUTABLE - no owner, no setters</span>: <code>treasury</code> is burned in at deploy (prefilled from the current payout - change it deliberately). Rotating the treasury = deploying a new router and repointing the book key + the relay's <code>PAYMENT_ROUTER_ADDRESS</code>.`,
         EnclaveCreditVaultFactory: `deploys the vault IMPLEMENTATION in its constructor; customer vaults are CREATE2 clones keyed by passkey. <span class="warn">No owner anywhere</span> - vault funds move to the PLATFORM only on customer passkey signatures. <code>recoveryAdmin</code> is the single exception and cannot profit us: it may call <code>migrateToSuccessor</code>, which forwards a superseded vault's whole balance to <em>that same customer's</em> vault at the book's current factory (a derived destination, spendable only by their passkey) - so a future factory migration moves credit without asking every customer to tap. Zero declines that power permanently. Existing vaults keep their old factory forever; repointing <code>vaultFactory</code> only changes where NEW vaults come from.`,
       };
-      const cards = Object.keys(CONTRACTS).map((name) => {
+      const cards = Object.keys(CONTRACTS).filter(name => CONTRACTS[name].deployable !== false).map((name) => {
         const c = CONTRACTS[name];
         const p = pre[name] || {};
         const inputs = c.ctor.map((a) => `<label class="ac-ctor-l">${esc(a.name)} <span class="ac-hint">${esc(a.type)}</span>
@@ -1259,7 +1262,15 @@ class AdminConsole extends EnclaveElement {
           // encCall with an empty selector is exactly the ABI-encoded argument
           // tuple - static heads then dynamic bodies, which address-only
           // concatenation could not express once strings joined the list
-          const data = c.bytecode + encCall("", args).slice(2);
+          const linked = {};
+          for (const [key, library] of Object.entries(c.libraries || {})) {
+            this._status(status, "p", "deploying payment library — confirm in your wallet…");
+            const libHash = await sendTx(null, linkBytecode(library.bytecode, library.linkReferences, linked));
+            const libReceipt = await waitReceipt(libHash, 90);
+            if (!libReceipt.contractAddress || !ADDR_RE.test(libReceipt.contractAddress)) throw new Error("library deployment failed");
+            linked[key] = libReceipt.contractAddress;
+          }
+          const data = linkBytecode(c.bytecode, c.linkReferences, linked) + encCall("", args).slice(2);
           const hash = await sendTx(null, data);
           this._status(status, "p", "sent " + hash.slice(0, 14) + "… waiting for confirmation…");
           const rcpt = await waitReceipt(hash, 90);

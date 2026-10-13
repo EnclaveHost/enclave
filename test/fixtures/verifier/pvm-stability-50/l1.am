@@ -1,0 +1,2 @@
+Stopping: host.enclave.anchor.avf
+Starting: Intent { cmp=host.enclave.anchor.avf/.Main (has extras) }

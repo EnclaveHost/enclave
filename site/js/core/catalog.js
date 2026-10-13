@@ -17,7 +17,10 @@ import { minPctsOf } from "./pricing.js";
 import { Enclave, EnclaveError } from "./api.js";
 import { connectWallet, personalSign } from "./wallet.js";
 
-export const STORE = { apps:[], byId:{}, sel:{}, owner:null, filter:"approved", loaded:false, loading:false, at:0 };
+/* `filter` is the store tab. It opens on "featured": the approved list with the
+   standing campaigns (or the editorial pick) lifted to the front, NOT a
+   featured-only view. "approved" is the same list without that head group. */
+export const STORE = { apps:[], byId:{}, sel:{}, owner:null, filter:"featured", loaded:false, loading:false, at:0 };
 
 // firewall entry: http (default web app) | http:N | tcp:N | udp:N, N in 1-49999 (labels; <1024 always remapped)
 // (1080/8080/8090/8091 are infra-reserved; the enclave enforces the same rules server-side)
@@ -367,7 +370,9 @@ export async function fetchConfigCid(cid){
   if (cid in _cfgCidCache) return _cfgCidCache[cid];
   let out = null;
   try {
-    const r = await fetch(IPFS_IMG_GATEWAY + encodeURIComponent(cid), { signal: AbortSignal.timeout(15000) });
+    // A cached immutable gateway response may predate its CORS repair. Fetch
+    // fresh headers once per page; successful content remains memoized by CID.
+    const r = await fetch(IPFS_IMG_GATEWAY + encodeURIComponent(cid), { cache: "reload", signal: AbortSignal.timeout(15000) });
     if (r.ok) {
       const text = await r.text();
       JSON.parse(text);                     // must parse, or it is not a config
@@ -523,6 +528,13 @@ export function slugOfRef(ref){
   const hit = cr && appOfRef(cr);
   if (!hit) return null;
   return hit.app.slug + (hit.v && hit.v.version != null ? ":" + hit.v.version : "#" + cr.index);
+}
+// Resolve the exact deployed version from the same live/persisted catalog as
+// its name and artwork. Unknown versions must not look like zero requirements.
+export function specOfRef(ref){
+  const cr = parseCatalogRef(ref);
+  const hit = cr && appOfRef(cr);
+  return hit?.v ? specOf(hit.v) : null;
 }
 // the publisher wallet behind a catalog:// reference - the payee a paid app's
 // fee snapshot must name (create() copies it; runners verify it at claim)

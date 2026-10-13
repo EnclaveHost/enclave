@@ -1,44 +1,73 @@
 /* ============================================================
    <c-fleet-list> - per-enclave capacity rows (the relay's
    /enclaves table). Assign `.rows` (already sorted upstream) and
-   it renders each box's two capacity pools. Copy says "available",
+   it renders each box as a summary ("$0.10 for 12 GB / 33 tflops of
+   GPU", one line a pool) that expands to its full pools, five boxes a
+   page. The units in those lines are the sort controls: GB or tflops on
+   a GPU line sorts every host by its price per GB of VRAM or per TFLOPS,
+   GB or gflops on a CPU line by RAM or CPU compute, the rating (stars,
+   average, count) by rating; again reverses. The Sort by bar above the hosts offers
+   every order as a dropdown, with the direction beside it.
+   Copy says "available",
    never "free": on a page that sells compute, "60 GB free" reads as
    a price, not as headroom.
    ============================================================ */
 import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { esc, fmtNum, short, showToast } from "../../js/core/util.js";
+import { asOf } from "../../js/core/list-state.js";
 import { starsHtml } from "../../js/core/reviews.js";
 import { hrevConfigured, hrevTallies, hrevMine, encCall, HREV_SEL, waitReceipt, REVIEW_MAX_BODY } from "../../js/core/chain.js";
 import { HOST_REVIEWS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
-import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedPoolOf, teeCpuOf, computeEligibleOf } from "../../js/core/pricing.js";
+import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedHostCapacity, teeCpuOf, computeEligibleOf, appHostVisible, ownerHostedDeploymentCount, ownerHostCpuCapacity, ownerHostVisibleTo, pvmHostVisible, pvmHostVm } from "../../js/core/pricing.js";
 import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
 
+const PAGE = 5;   // hosts per page
+// the sort keys, in the Sort by dropdown's order: the rating, then a pool kind and what its price is divided by.
+// `opt` is the dropdown's name for it, `unit` what the line's button reads, `dir` the first direction (1 = low first),
+// `asc` / `desc` what each direction is called.
+const SORTS = {
+  "rating":      { opt: "Rating", dir: -1, asc: "worst first", desc: "best first" },   // its button is the rating itself (the average)
+  "gpu-gb":      { opt: "$ per GB VRAM",    unit: "GB",     what: "GB of VRAM" },
+  "gpu-compute": { opt: "$ per GPU TFLOPS", unit: "tflops", what: "TFLOPS of GPU compute" },
+  "cpu-gb":      { opt: "$ per GB RAM",     unit: "GB",     what: "GB of RAM" },
+  "cpu-compute": { opt: "$ per CPU GFLOPS", unit: "gflops", what: "GFLOPS of CPU compute" },
+};
+
 class FleetList extends EnclaveElement {
-  static properties = { rows: null };
+  // error: why the latest read failed (null = it did not); staleAt: when the
+  // rows shown were read, when they are the last good table (js/core/fleet-read.js)
+  static properties = { rows: null, error: null, staleAt: 0 };
   static templateUrl = new URL("./fleet-list.html", import.meta.url);
+
+  connectedCallback() {
+    this._walletChanged ||= () => {
+      // A wallet switch must update personal rows immediately, even while a
+      // rating form had deferred ordinary telemetry refreshes.
+      this._rateOpen = false;
+      this._renderDeferred = false;
+      super.requestRender();
+    };
+    document.addEventListener("enclave:wallet", this._walletChanged);
+    super.connectedCallback();
+  }
+  disconnectedCallback() {
+    document.removeEventListener("enclave:wallet", this._walletChanged);
+    super.disconnectedCallback();
+  }
 
   renderedCallback() {
     const list = this.querySelector(".fleet-list"); if (!list) return;
-    // only enclaves that SERVE (take on-chain work) are shown: a live but
-    // non-claiming box (relay row serving:false) is operational truth, not
-    // sellable capacity - listing it would advertise hardware nobody can buy.
-    // Rows from an older relay carry no verdict and stay visible.
-    // A CONSUMER NODE (a PC attested as a VBS enclave, teeCpuOf) has two states. While it
-    // sells nothing the relay records serving:false, exactly as for a relay box, and hiding
-    // it would say the tier does not exist while a real attested node is attached - so it is
-    // shown as what it is, with no capacity bars and no price. Once it claims (claimEnabled)
-    // it is a seller like any other box and gets the ordinary row: pool, share, price.
-    // A relay row stays hidden either way: it sells nothing at all.
-    const consumerNode = (e) => e.relay !== true && teeCpuOf(e).consumer === true;
-    // A box SELLS only on hardware evidence for the contract it would be sold under
-    // (computeEligibleOf, the relay's rule mirrored): a box that merely says it claims,
-    // or that presents verified evidence for a different contract, draws no pools
-    // and no price here, because the relay will never route it a deployment.
-    const sells = (e) => (e.serving === true || e.availability?.claimEnabled === true) && computeEligibleOf(e);
-    const rows = (this.rows || []).filter((e) => e.serving !== false || consumerNode(e));
+    // Marketplace capacity keeps its eligibility gate. Active owner-only hosts
+    // get a separate status row with reported capacity, but no rental prices.
+    const rows = (this.rows || []).filter((e) => appHostVisible(e));
+    const ownerRows = (this.rows || []).filter(e => ownerHostVisibleTo(e, Enclave.address))
+      .map(e => ({ row: e, count: ownerHostedDeploymentCount(e) }));
+    // pVM CPU hosts the relay has not put in the market (not registered, or the market off): a status row with the same
+    // pool and no price. One the relay holds eligible and serving is a marketplace row above, priced like any other.
+    const pvmRows = (this.rows || []).filter(e => pvmHostVisible(e) && !appHostVisible(e));
     const meter = (pct) => '<i class="fleet-meter" aria-hidden="true"><b style="width:' + Math.max(0, Math.min(100, pct)) + '%"></b></i>';
     // one stat cell: bright available amount, then the "≈"/"/ total" context and
     // the label in dim ink so the number is what the eye lands on
@@ -52,6 +81,15 @@ class FleetList extends EnclaveElement {
     // the WHOLE card / node per hour, the ledger's basis; a share pays its
     // fraction. Trailing ".00" trims like the docs' rates.
     const perHr = (v) => "$" + (v * 3600).toFixed(2).replace(/\.00$/, "");
+    // what everything this pool has available costs, for the collapsed line: the whole card/node rate times the
+    // available share (a $3/hr card with a third available reads $1/hr). No posted rate, no price.
+    // (under a cent but not nothing reads "<$0.01", never a "$0" that says it's free)
+    const availPrice = (rate, frac) => {
+      if (rate == null) return '';
+      const v = rate * Math.max(0, Math.min(1, Number(frac) || 0));
+      return '<span class="fleet-chip-price" title="' + perHr(rate) + '/hr for the whole pool, times the share available now">'
+        + (v > 0 && v * 3600 < 0.005 ? '&lt;$0.01' : perHr(v)) + '<i>/hr</i></span> for ';
+    };
     // one pool = a [label | meter | pct] header line, the price under the
     // label, stat cells underneath. The label is the pool's badge (see the
     // row builder): the pill names the pool, so nothing else has to.
@@ -65,9 +103,53 @@ class FleetList extends EnclaveElement {
       + (price != null ? '<span class="fleet-pool-price"><b>' + perHr(price) + '</b>/hr</span>' : '')
       + '<span class="fleet-stats">' + stats + '</span>'
       + '</div>';
-    list.innerHTML = (!rows.length
-      ? '<div class="fleet-empty">no live enclaves right now</div>'
-      : rows.map(e => {
+    const computeStat = gpu => {
+      const value = n => n === null ? '—' : String(Math.round(n * 100) / 100);
+      const title = gpu.names.join(', ') + '. ' + gpu.cardCount + ' GPU' + (gpu.cardCount === 1 ? '' : 's') + '. '
+        + (gpu.basis === 'rated' ? 'Combined rated dense FP16 capacity. '
+          : gpu.basis === 'measured' ? 'Measured masked field GEMM, converted at two operations per MAC to TFLOPS-equivalent. Not manufacturer-rated floating-point throughput. '
+          : 'A complete comparable compute rate has not been reported. ')
+        + 'Available capacity follows each card’s unallocated share. Aggregate capacity is not guaranteed single-request throughput.';
+      return stat(value(gpu.availableTflops), value(gpu.tflops), '',
+        gpu.basis === 'measured' ? 'tflops equiv. available' : 'tflops available', title);
+    };
+    const number = v => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null;
+    // Use this host's GFLOPS report, never a conversion from vCPUs or
+    // another host's spec. Older hosts report only total GFLOPS + share.
+    const cpuGflopsAvail = (a, fraction) => {
+      const total = number(a.nodeGflops), share = number(fraction);
+      return number(a.cpuGflopsFree) ?? (total !== null && share !== null ? total * Math.min(1, share) : null);
+    };
+    const cpuComputeStat = (a, fraction, title) => {
+      const total = number(a.nodeGflops), available = cpuGflopsAvail(a, fraction);
+      const value = v => v === null ? '—' : fmtNum(v);
+      return stat(value(available), value(total), '', 'gflops available', title ||
+        'Reported CPU compute capacity in GFLOPS (billions of floating-point operations per second). '
+        + 'Available capacity follows unallocated CPU shares, not instantaneous processor activity.');
+    };
+    // A FAILED read is not an empty fleet: say it failed (retrying) rather than "no hosts",
+    // and under last-good rows say how old they are.
+    const failed = this.error ? String(this.error) : "";
+    const staleNote = failed && (rows.length || ownerRows.length || pvmRows.length)
+      ? '<div class="fleet-stale" role="status">Showing hosts as of ' + esc(asOf(this.staleAt)) + ': the latest read failed (' + esc(failed) + '). Retrying.</div>'
+      : "";
+    // Each row kind below builds an ITEM: { key, name, title, cls, chips, detail }. `chips` is the collapsed
+    // line, one per pool: "$0.10/hr for 12 GB / 33 tflops of GPU" (the hourly price of what it has available, that memory
+    // and compute, its badge; no posted rate -> "12 GB / 33 tflops of GPU", unknown -> "—"); `detail` is the full
+    // row it expands to.
+    const sumNum = v => { const n = number(v); return n === null ? '—' : n >= 10 ? String(Math.round(n)) : n >= 1 ? fmtNum(n) : String(Math.round(n * 100) / 100); };
+    // a line's units are its sort buttons (`kind` = "gpu" | "cpu"); the active one is marked on every row
+    const sortBy = this._sort && SORTS[this._sort.key] ? this._sort : null;
+    const unitBtn = (key) => '<button class="fleet-unit' + (sortBy && sortBy.key === key ? (sortBy.dir < 0 ? ' on desc' : ' on') : '')
+      + '" type="button" data-sort="' + key + '" title="Sort hosts by price per ' + SORTS[key].what + '">' + SORTS[key].unit + '</button>';
+    const chip = (badge, gb, compute, kind, price) => '<span class="fleet-chip">' + (price || '')
+      + '<b>' + sumNum(gb) + '</b> ' + unitBtn(kind + '-gb') + ' / <b>' + sumNum(compute) + '</b> ' + unitBtn(kind + '-compute') + ' of ' + badge + '</span>';
+    // what a host charges per unit of a pool: the whole pool's hourly rate over the whole pool's size (a share
+    // pays its fraction of both, so this is the same for any share). No rate or no size -> null, sorted last.
+    const unitPrice = (rate, amount) => { const r = number(rate), n = number(amount); return r !== null && n ? r * 3600 / n : null; };
+    const nameOf = (e, dflt) => e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || dflt;
+    const head = (e) => { const r = this._ratingHtml(e); return r ? '<span class="fleet-head">' + r + '</span>' : ''; };
+    const marketItems = rows.map(e => {
           const a = e.availability || {};
           const gpu = a.gpu === true;
           const gFree = a.gpuShareFree != null ? a.gpuShareFree : (gpu ? a.maxShare || 0 : 0);
@@ -76,7 +158,7 @@ class FleetList extends EnclaveElement {
           // the relay names each row (tunnel enclaves: their tunnel name, e.g.
           // "metal0"); the endpoint-derived fallback covers older relays — and
           // strips ANY scheme, so a tunnel:// row never renders as a pseudo-URL
-          const name = e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "enclave";
+          const name = nameOf(e, "enclave");
           // THE CONSUMER PILL, needed by two row kinds below, so it is built once here.
           // It reads "cpu" in iris, the same rule the card next door follows: the shielded GPU
           // pool reads "gpu" in iris rather than jade "tee gpu", and this pool reads "cpu" rather
@@ -90,58 +172,6 @@ class FleetList extends EnclaveElement {
               + '. The relay verified this PC’s TPM quote, measured-boot log and enclave report when it attached.'
               + (tc.dev ? ' This build is ' + esc(tc.dev) + ': admitted by a development policy.' : '')
               + '">cpu</span>';
-          // Any host may also CARRY traffic; one with no resources at all only
-          // carries it, and that is what this badge reads — no capacity, so
-          // nothing to sell and nothing to meter. Empty CPU/GPU bars would say
-          // "full", which is the opposite of the truth, so the row lists the
-          // network services the box offers instead.
-          if (e.relay === true) {
-            const r = a.relay || {};
-            const svc = [["sni", "app traffic"], ["tcp", "tcp ports"], ["udp", "udp ports"],
-                         ["egress", "outbound ip"], ["tunnelHub", "tunnel hub"]]
-              .filter(([k]) => r[k] === true).map(([, label]) => label);
-            return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
-              + '<span class="fleet-head">'
-              + '<span class="ap-badge">relay</span>'
-              + '<span class="fleet-name">' + esc(name) + '</span>'
-              + (r.region ? '<span class="fleet-relay-region">' + esc(r.region) + '</span>' : '')
-              + '</span>'
-              + '<span class="fleet-relay-note">'
-              + (svc.length ? 'carries ' + svc.map(esc).join(" · ") : 'carries no declared services')
-              + (r.ports ? ' · ports ' + esc(r.ports) : '')
-              + (r.v6Prefix ? ' · ' + esc(r.v6Prefix) : '')
-              + '</span>'
-              + '</div>';
-          }
-          // The consumer node's row: what it RUNS, not what it sells. Empty share meters
-          // would read as "full", which is the opposite of the truth, so the row names the
-          // model it hosts and the card its enclave offloads to without trusting it.
-          if (consumerNode(e) && !sells(e)) {
-            const shn = a.shielded || {};
-            const parts = [];
-            if (a.model) parts.push('hosts ' + esc(String(a.model).replace(/\.gguf$/i, '')));
-            if (shn.device) parts.push('masked offload to ' + esc(shn.device)
-              + (shn.vramGiB || shn.vramGb ? ' (' + esc(String(shn.vramGiB || shn.vramGb)) + ' GiB)' : ''));
-            // Apps, when it hosts any. The residency is the point and is never implied: on this
-            // tier the enclave holds the model, while an app is a wasm component on the Windows
-            // host, which its owner can read. So the row says where, in those words.
-            const ap = a.apps;
-            if (ap && ap.running > 0)
-              parts.push(esc(String(ap.running)) + ' app' + (ap.running === 1 ? '' : 's')
-                + (ap.inTee === true ? ' inside its enclave' : ' on the host, outside the enclave'));
-            return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
-              + '<span class="fleet-head">'
-              + consumerBadge
-              + '<span class="fleet-name">' + esc(name) + '</span>'
-              + '</span>'
-              + '<span class="fleet-relay-note">'
-              + (parts.length ? parts.join(" \u00b7 ") : 'runs a model inside its enclave')
-              + (e.ineligible ? ' \u00b7 ' + esc(e.ineligible)
-                 : a.apps && a.apps.scope === 'owner-only' ? ' \u00b7 takes app work only from its own owner'
-                 : ' \u00b7 serves its own inference, not app deployments')
-              + '</span>'
-              + '</div>';
-          }
           // A card on the box's UNTRUSTED host, reached by masked offload — the
           // enclave uses it without trusting it, so the row must not read as an
           // in-enclave GPU. It gets its own badge and its own pool, and it is
@@ -170,12 +200,18 @@ class FleetList extends EnclaveElement {
           // "NO TEE CPU" when the box reports a non-TEE document (a metal dev
           // box), plain "CPU" when it has not said.
           // THE PHONE TIER reads amber "pvm cpu": the relay verified the protected VM's chain, and the
-          // tier is under construction - CPU-only inference inside the pVM, admission by proven
-          // capability - so the badge is its identity and the tooltip is future tense. Never the jade
+          // tier is under construction - CPU-only Wasm workloads inside the pVM (no model, no accelerator),
+          // admission by proven capability - so the badge is its identity and the tooltip is future tense. Never the jade
           // "tee cpu" of the server contract, which this is not.
-          const teeCpuBadge = tc.real && tc.phone
-            ? '<span class="ap-badge warn" title="' + esc(tc.note) + '. The relay verified this phone\u2019s protected-VM attestation chain when it attached and admitted its capability report'
-              + (e.pvmCpu && e.pvmCpu.model ? ' (model ' + esc(e.pvmCpu.model) + ')' : '') + '. The tier is being built for Pixel 10 and Pixel 11 and is not available for deployments yet.">pvm cpu</span>'
+          // Shield marketplace admission is a relay verdict, separate from a CPU TEE.
+          const shieldCpu = e.tunnel === true && e.mode === "hv-node" && e.tier === "enclave-shield"
+            && e.eligible === true && e.appEvidenceRequired === true;
+          const teeCpuBadge = shieldCpu
+            ? '<span class="ap-badge info" title="Enclave Shield: the relay verifies each app’s measured partition and guest-held TLS key. The physical operator and hypervisor remain trusted.">cpu</span>'
+            : tc.real && tc.phone && e.eligible === true && e.appEvidenceRequired === true
+            ? '<span class="ap-badge warn" title="' + esc(tc.note) + '. The relay verified this phone\u2019s protected-VM attestation chain when it attached and admitted its capability report (a CPU-only Wasm runtime: no model, no accelerator). It takes CPU-only deployments: before an app is served or given a certificate, the relay verifies a fresh attestation from the VM binding that app\u2019s code and its TLS key, so TLS ends inside the protected VM.">pvm cpu</span>'
+            : tc.real && tc.phone
+            ? '<span class="ap-badge warn" title="' + esc(tc.note) + '. The relay verified this phone\u2019s protected-VM attestation chain when it attached and admitted its capability report (a CPU-only Wasm runtime: no model, no accelerator). The tier runs CPU-only workloads; it is being built for Pixel 10 and Pixel 11 and is not available for deployments yet.">pvm cpu</span>'
             : tc.real && tc.phoneUntiered
             ? '<span class="ap-badge" title="' + esc(tc.note) + '.">pvm</span>'
             : tc.real && tc.consumer
@@ -205,107 +241,36 @@ class FleetList extends EnclaveElement {
             ? '<span class="ap-badge ok" title="This card is INSIDE the confidential'
               + ' enclave and covered by its attestation.">tee gpu</span>'
             : sh
-            ? '<span class="ap-badge info" title="' + esc(sh.card || "gpu")
-              + ' on this box\u2019s untrusted host, used by masked offload: it receives '
-              + 'public weights and one-time-padded activations, and every result is '
-              + 'verified. The card is outside the enclave and outside its measurement, '
-              + 'so this is NOT a TEE GPU \u2014 your activations are protected by the '
-              + 'masking, not by the card.">gpu</span>'
+            ? '<span class="ap-badge info" title="Enclave Shield: masked GPU offload protects activations and verifies results. The GPU remains outside the confidential boundary.">gpu</span>'
             : "";
           // What is SELLABLE is the worker's budget, not the physical card: the
           // untrusted host keeps the rest (on a desktop, an X server). Showing the
           // physical total here while the GPU pool showed the budget is what put
           // two differently-sized GPU rows on one single-card box.
-          // EVIDENCE WITHOUT ELIGIBILITY. A box the relay admitted but holds no hardware
-          // evidence for (a token-attached tunnel, a build that never named its CPU
-          // technology, a report for a different contract) is shown as what it is,
-          // attached, with no pools and no price. Drawing capacity for it would present
-          // as sellable a machine the relay will never route work to, and the reason
-          // is printed in the relay's own words (`ineligible`) when it gave one.
-          if (!sells(e)) {
-            return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
-              + '<span class="fleet-head">' + teeCpuBadge + '<span class="fleet-name">' + esc(name) + '</span></span>'
-              + '<span class="fleet-relay-note">attached, takes no tenant work: '
-              + esc(e.ineligible || (tc.real ? 'this box is not claiming' : 'no hardware evidence for the isolation contract'))
-              + '</span>'
-              + '</div>';
-          }
-          const shPool = shieldedPoolOf(e);
-          const shTotal = shPool ? shPool.total : 0;
-          // LEASABLE, not resident. A shielded worker keeps only the model's
-          // encoded weights on the card, so the silicon reads nearly empty while
-          // the card is fully booked; showing that reading as "available" quoted
-          // capacity the allocator would refuse to sell. The physical number is
-          // still true and still worth saying, so it moves into the tooltip.
-          const shLeasableGb = shPool ? shPool.leasableGb : 0;
-          const shPhysFreeGb = shPool ? shPool.freeGb : 0;
-          const shReservedGb = shPool ? shPool.reservedGb : 0;
-          const shFree = shPool ? shPool.frac : 0;
-          const shPct = Math.floor(shFree * 100);
-          const shVramTitle = sh?.pooled
-            ? fmtNum(shTotal) + ' GB combined across ' + sh.cardCount + ' GPUs. Each share reserves the same fraction of every card. Models are split automatically; overflow uses the enclave CPU.'
-            : shPool
-            ? fmtNum(shPhysFreeGb) + ' GB of the ' + fmtNum(shTotal) + ' GB budget is free on the card'
-              + (shReservedGb > 0 ? ' (' + fmtNum(shReservedGb) + ' GB is held by tenants)' : '')
-              + ', and ' + shPct + '% is available to lease. A tenant reserves its share of the'
-              + ' card when it connects and the worker holds exactly that, so the two figures'
-              + ' differ only by what the host is doing with the card outside Enclave.'
-            : '';
+          const shPool = shieldedHostCapacity(e);
+          const shPct = shPool ? Math.floor(shPool.frac * 100) : 0;
+          const shVramTitle = shPool ? fmtNum(shPool.total) + ' GB combined worker budget across '
+            + shPool.cardCount + ' GPU(s). ' + fmtNum(shPool.reservedGb)
+            + ' GB reserved by apps. Available capacity follows unallocated shares, not instantaneous GPU activity.' : '';
           const s = serverSpec();   // adopted fleet hardware; display fallback for rows that omit their own
           const vramGb = a.cardVramGb || s.cardVramGb, tflops = a.cardTflops || s.cardTflops;
-          const ramGb = a.nodeRamGb || s.nodeRamGb, vcpus = a.nodeVcpus || s.nodeVcpus;
+          const ramGb = a.nodeRamGb || s.nodeRamGb;
           const price = enclavePriceOf(e);   // this box's posted ask; the fleet price where it posts none
-          return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
-            + '<span class="fleet-head">'
-            + '<span class="fleet-name">' + esc(name) + '</span>'
-            + this._ratingHtml(e)
-            + '</span>'
-            + (sh ? pool(cardBadge, shPct,
-                stat(fmtNum(shLeasableGb), fmtNum(shTotal), "GB", "vram available", shVramTitle)
-                // The card's RATED figure, which is what every other row quotes and
-                // what a share is sized against. This cell used to show the MEASURED
-                // masked rate instead -- honest in isolation, and unreadable in a
-                // list: an RTX 3070 drew "0 / 2 tflops" beside an H200's "175 / 989",
-                // so the columns implied a 500x gap where the real one is ~23x, and
-                // the number did not match the basis the same row's share was
-                // computed from.
-                //
-                // The measured rate has not been dropped, it has moved to the
-                // tooltip, which is the only place the two can sit together without
-                // being read as one scale. Rows too old to report a rated figure
-                // keep the previous behaviour.
-                + ((sh.cardTflops || a.cardTflops) > 0
-                    ? stat(fmtNum(shFree * (sh.cardTflops || a.cardTflops)), fmtNum(sh.cardTflops || a.cardTflops), "", "tflops available",
-                           (sh.pooled ? "Combined rated dense fp16 across the GPU pool. Model layers are distributed across cards; a single request is not guaranteed this aggregate throughput. " : "Rated dense fp16 for this card. ")
-                           + "The same basis every other box "
-                           + "quotes, so boxes and shares compare like for like."
-                           + (sh.gmacPerSec > 0
-                               ? " The masked path itself sustains " + Math.round(sh.gmacPerSec)
-                                 + " G-MAC/s here, about " + fmtNum(sh.gmacPerSec * 2 / 1000)
-                                 + " TFLOPS at 2 FLOP per MAC -- that is what this tier delivers, "
-                                 + "and it is measured rather than rated."
-                               : ""))
-                    : sh.gmacPerSec > 0
-                      ? stat(Math.round(shFree * sh.gmacPerSec * 2 / 1000),
-                             Math.round(sh.gmacPerSec * 2 / 1000), "", "tflops available",
-                             "Measured on this box: " + Math.round(sh.gmacPerSec)
-                             + " G-MAC/s sustained by the masked field GEMM that actually runs "
-                             + "here, converted at 2 FLOP per MAC. This box reports no rated "
-                             + "figure, so the two columns are not directly comparable.")
-                      : stat(esc(sh.card || "gpu"), "", "", "card")),
-                price.shielded) : "")
-            + (!sh?.pooled && Array.isArray(a.shieldedCards) ? a.shieldedCards.filter(c => c.id !== sh?.id).map(c => {
-                const p = shieldedPoolOf({ availability: { shielded: c, gpuShareFree: c.gpuShareFree } });
-                if (!p) return "";
-                const badge = '<span class="ap-badge info" title="Masked GPU offload on the host\u2019s card: masked inputs and verified results.">'
-                  + esc(c.card || "gpu") + '</span>';
-                return pool(badge, Math.floor(p.frac * 100),
-                  stat(fmtNum(p.leasableGb), fmtNum(p.total), "GB", "vram available",
-                    fmtNum(p.freeGb) + " GB free on the card; " + fmtNum(p.reservedGb) + " GB reserved by tenants.")
-                  + stat(fmtNum(p.frac * c.cardTflops), fmtNum(c.cardTflops), "", "tflops available",
-                    "Rated dense fp16. Masked field GEMM measured at " + Math.round(c.gmacPerSec) + " G-MAC/s."),
-                  price.shielded);
-              }).join("") : "")
+          return { key: "m:" + (e.id || e.endpoint || name), name, title: e.endpoint || "", cls: "", fb: this._fbHtml(e, sortBy),
+            chips: (shPool ? chip(cardBadge, shPool.leasableGb, shPool.availableTflops, "gpu", availPrice(price.shielded, shPool.frac)) : "")
+              + (inTee ? chip(cardBadge, a.vramFreeGb != null ? a.vramFreeGb : gFree * vramGb, gFree * tflops, "gpu", availPrice(price.full, gFree)) : "")
+              + chip(teeCpuBadge, a.ramGbFree != null ? a.ramGbFree : cFree * ramGb, cpuGflopsAvail(a, cFree), "cpu", availPrice(price.node, cFree)),
+            sortv: {
+              "gpu-gb": shPool ? unitPrice(price.shielded, shPool.total) : inTee ? unitPrice(price.full, vramGb) : null,
+              "gpu-compute": shPool ? unitPrice(price.shielded, shPool.tflops) : inTee ? unitPrice(price.full, tflops) : null,
+              "cpu-gb": unitPrice(price.node, ramGb),
+              "cpu-compute": unitPrice(price.node, a.nodeGflops),
+              rating: this._ratingSort(e),
+            },
+            detail: head(e)
+            + (shPool ? pool(cardBadge, shPct,
+                stat(fmtNum(shPool.leasableGb), fmtNum(shPool.total), "GB", "vram available", shVramTitle)
+                + computeStat(shPool), price.shielded) : "")
             // ONLY when the card is in the enclave. A shielded card already drew its
             // pool above, from the numbers the probe actually measured; drawing
             // this one too would advertise one piece of silicon twice.
@@ -317,7 +282,7 @@ class FleetList extends EnclaveElement {
                 // which is what actually gates admission) over the folded
                 // fraction — same precedence the VRAM cell above uses
                 stat(fmtNum(a.ramGbFree != null ? a.ramGbFree : cFree * ramGb), fmtNum(ramGb), "GB", "ram available")
-                + stat(fmtNum(cFree * vcpus), fmtNum(vcpus), "", "vcpu available"),
+                + cpuComputeStat(a, cFree),
                 // A "held by models" cell used to sit here, reading
                 // ramNnResidentMb against the node's RAM. It was written for a box
                 // whose preloaded weights make the meter read ~85% used while every
@@ -327,18 +292,154 @@ class FleetList extends EnclaveElement {
                 // CPU pool saying so. The field still crosses the wire, so bring the
                 // cell back if a box ever carries enough resident weight to need it.
                 price.node)
-            + '<div class="fleet-rateform" data-form="' + esc(e.id || "") + '" hidden></div>'
+            + '<div class="fleet-rateform" data-form="' + esc(e.id || "") + '" hidden></div>' };
+        });
+    const ownerItems = ownerRows.map(({ row: e, count }) => {
+      const cpu = ownerHostCpuCapacity(e);
+      const gpu = shieldedHostCapacity(e);
+      const gpuCapacity = gpu ? pool(
+        '<span class="ap-badge info" title="Enclave Shield masked GPU offload for authorized owners. This is not a confidential-computing GPU.">GPU</span>',
+        Math.floor(gpu.frac * 100),
+        stat(fmtNum(gpu.leasableGb), fmtNum(gpu.total), 'GB', 'vram available',
+          'Unallocated GPU shares in the worker pool, not instantaneous GPU activity. '
+          + fmtNum(gpu.reservedGb) + ' GB reserved by apps.')
+        + computeStat(gpu), null) : '';
+      const value = v => v === null ? '—' : fmtNum(v);
+      const stats = stat(value(cpu.ramFreeGb), value(cpu.ramGb), 'GB', 'ram available')
+        + cpuComputeStat(e.availability || {}, cpu.fraction);
+      const cpuPct = cpu.fraction === null ? null : Math.floor(cpu.fraction * 100);
+      const capacity = cpuPct === null
+        ? '<div class="fleet-pool"><span class="fleet-pool-label"><span class="ap-badge info">CPU</span></span><span class="fleet-pool-pct">Availability unknown</span><span class="fleet-stats">' + stats + '</span></div>'
+        : pool('<span class="ap-badge info">CPU</span>', cpuPct, stats, null);
+      const name = nameOf(e, "host");
+      return { key: "o:" + (e.id || e.endpoint || name), name, title: e.endpoint || "", cls: "fleet-owner-row",
+        chips: '<span class="ap-badge info">Owner-only</span>'
+          + (gpu ? chip('<span class="ap-badge info">GPU</span>', gpu.leasableGb, gpu.availableTflops, 'gpu') : '')
+          + chip('<span class="ap-badge info">CPU</span>', cpu.ramFreeGb, cpuGflopsAvail(e.availability || {}, cpu.fraction), 'cpu'),
+        detail: gpuCapacity + capacity
+          + '<span class="fleet-owner-status">' + count + ' active deployment' + (count === 1 ? '' : 's') + '</span>'
+          + '<span class="fleet-owner-note">Hosting for authorized owners. Unavailable for general deployments.</span>' };
+    });
+    const pvmItems = pvmRows.map(e => {
+      // the SAME pool as every other CPU row (badge, meter, % available, ram + gflops cells), from the relay's verified
+      // VM size (relay/pvm-cpu-tier.mjs pvmCpuAvailability); no price: the tier takes no deployments yet
+      const a = e.availability || {};
+      const vm = pvmHostVm(e);
+      const cFree = typeof a.cpuShareFree === 'number' ? a.cpuShareFree : null;
+      const ramGb = typeof a.nodeRamGb === 'number' ? a.nodeRamGb : vm.memGb;
+      const ramFree = typeof a.ramGbFree === 'number' ? a.ramGbFree : (ramGb !== null && cFree !== null ? cFree * ramGb : null);
+      const value = v => v === null ? '—' : fmtNum(v);
+      const badge = '<span class="ap-badge warn" title="The relay verified this phone\u2019s protected-VM attestation chain when it attached and admitted its capability report: a CPU-only Wasm runtime, no model, no accelerator. Its size is the VM\u2019s own, from that signed report.">pvm cpu</span>';
+      const stats = stat(value(ramFree), value(ramGb), 'GB', 'ram available') + cpuComputeStat(a, cFree,
+        'GFLOPS measured inside the protected VM under the same runtime its apps get (an exactly counted f32 multiply-add '
+        + 'workload on every vCPU at once), reported in its signed capability report. Not a native-core estimate.');
+      const name = nameOf(e, "host");
+      return { key: "p:" + (e.id || e.endpoint || name), name, title: e.endpoint || "", cls: "fleet-pvm-row", fb: this._fbHtml(e, sortBy),
+        sortv: { rating: this._ratingSort(e) },
+        chips: chip(badge, ramFree, cpuGflopsAvail(a, cFree), 'cpu'),
+        detail: head(e)
+        + (cFree === null
+          ? '<div class="fleet-pool"><span class="fleet-pool-label">' + badge + '</span><span class="fleet-pool-pct">Availability unknown</span><span class="fleet-stats">' + stats + '</span></div>'
+          : pool(badge, Math.floor(cFree * 100), stats, null))
+        + '<span class="fleet-owner-note">A protected VM on its owner\u2019s phone, running CPU-only apps. Not taking deployments yet.</span>'
+        + '<div class="fleet-rateform" data-form="' + esc(e.id || "") + '" hidden></div>' };
+    });
+    // One page of collapsed rows, at most ONE open. The open row, the page and the sort survive the host's 20 s
+    // repaint (keyed by host, clamped when the fleet shrinks). Sorted: by the chosen unit price, hosts with none
+    // (no such pool, no posted rate: owner-only and pVM rows) last, ties in the relay's order.
+    let items = marketItems.concat(ownerItems, pvmItems);
+    if (sortBy) {
+      const v = (r) => (r.sortv && r.sortv[sortBy.key] != null ? r.sortv[sortBy.key] : null);
+      items = items.map((r, i) => [r, i]).sort(([a, i], [b, j]) => {
+        const x = v(a), y = v(b);
+        if (x === null || y === null) return x === null && y === null ? i - j : x === null ? 1 : -1;
+        return (x - y) * sortBy.dir || i - j;
+      }).map(([r]) => r);
+    }
+    // the Sort by bar, always above the hosts: every order in a dropdown (Default = the relay's), and beside it
+    // the direction, as a button that flips it. The units and ratings in the rows set the same sort.
+    const uid = (this._uid ||= "fl" + Math.random().toString(36).slice(2, 8));
+    const dirWord = (key, dir) => dir < 0 ? (SORTS[key].desc || "priciest first") : (SORTS[key].asc || "cheapest first");
+    const sortBar = items.length
+      ? '<div class="fleet-sortbar"><label for="' + uid + '-sort">Sort by</label>'
+        + '<select class="fleet-sortsel" id="' + uid + '-sort"><option value="">Default</option>'
+        + Object.entries(SORTS).map(([k, s]) => '<option value="' + k + '"' + (sortBy && sortBy.key === k ? ' selected' : '') + '>' + esc(s.opt) + '</option>').join('')
+        + '</select>'
+        + (sortBy ? '<button class="fleet-sortdir" type="button" title="Reverse the order">' + (sortBy.dir < 0 ? '↓ ' : '↑ ') + dirWord(sortBy.key, sortBy.dir) + '</button>' : '')
+        + '</div>'
+      : '';
+    const pages = Math.max(1, Math.ceil(items.length / PAGE));
+    this._page = Math.min(Math.max(0, this._page || 0), pages - 1);
+    const first = this._page * PAGE;
+    list.innerHTML = !items.length
+      ? (failed
+        ? '<div class="fleet-empty fleet-error" role="alert">Couldn’t load the app hosts: ' + esc(failed) + '. This is a failed read, not an empty fleet. Retrying.</div>'
+        // Honest and short. It is said the same way whether the fleet is empty or every attached
+        // box is excluded, because from a buyer's side those are the same fact: nothing to deploy on.
+        : '<div class="fleet-empty">No app hosts available right now</div>')
+      : staleNote + sortBar + items.slice(first, first + PAGE).map((r, i) => {
+          const open = this._openKey === r.key, id = uid + "-" + (first + i);
+          // the summary line: a toggle (the name, its rating on the line under it) and the pool lines, whose units are sort buttons. A click
+          // anywhere on the line but a unit opens the host, as the whole line did when it was one button.
+          return '<div class="fleet-row' + (r.cls ? ' ' + r.cls : '') + '" data-key="' + esc(r.key) + '"' + (r.title ? ' title="' + esc(r.title) + '"' : '') + '>'
+            + '<div class="fleet-sum' + (open ? ' is-open' : '') + '">'
+            + '<span class="fleet-who"><button class="fleet-tog" type="button" aria-expanded="' + open + '" aria-controls="' + id + '"><span class="fleet-name">' + esc(r.name) + '</span></button>'
+            + (r.fb || '') + '</span>'
+            + '<span class="fleet-chips">' + r.chips + '</span></div>'
+            + '<div class="fleet-detail" id="' + id + '"' + (open ? '' : ' hidden') + '>' + r.detail + '</div>'
             + '</div>';
-        }).join(""));
+        }).join("");
+    const setOpen = (sum, open) => {
+      const d = sum.closest(".fleet-row").querySelector(".fleet-detail");
+      sum.querySelector(".fleet-tog").setAttribute("aria-expanded", String(open));
+      sum.classList.toggle("is-open", open);
+      d.hidden = !open;
+      const form = !open && d.querySelector(".fleet-rateform:not([hidden])");   // a rating form closes with its row
+      if (form) this._closeRate(form, d.querySelector(".fleet-rate"));
+    };
+    for (const sum of list.querySelectorAll(".fleet-sum")) sum.addEventListener("click", (ev) => {
+      if (ev.target.closest("[data-sort]")) return;
+      const open = !sum.classList.contains("is-open");
+      if (open) for (const o of list.querySelectorAll(".fleet-sum.is-open")) setOpen(o, false);
+      setOpen(sum, open);
+      this._openKey = open ? sum.closest(".fleet-row").dataset.key : null;
+    });
+    // a unit sorts every host by its price per that unit; the same unit again reverses; × clears
+    const resort = (next, focus) => {
+      this._sort = next; this._page = 0; this._sortFocus = focus;
+      this._rateOpen = false; this._renderDeferred = false;
+      super.requestRender();
+    };
+    for (const u of list.querySelectorAll("[data-sort]")) u.addEventListener("click", () => {
+      const key = u.dataset.sort;
+      resort({ key, dir: sortBy && sortBy.key === key ? -sortBy.dir : (SORTS[key].dir || 1) }, key);
+    });
+    const sel = list.querySelector(".fleet-sortsel");
+    if (sel) sel.addEventListener("change", () => resort(sel.value ? { key: sel.value, dir: SORTS[sel.value].dir || 1 } : null, ".fleet-sortsel"));
+    const sd = list.querySelector(".fleet-sortdir");
+    if (sd) sd.addEventListener("click", () => resort({ key: sortBy.key, dir: -sortBy.dir }, ".fleet-sortdir"));
+    // the repaint replaced the control that was used: keep keyboard focus on what it became
+    if (this._sortFocus) {
+      const f = this._sortFocus.startsWith(".") ? list.querySelector(this._sortFocus) : list.querySelector('[data-sort="' + this._sortFocus + '"]');
+      this._sortFocus = null;
+      if (f) f.focus();
+    }
     this._wireRate();
     // footer row: a manual refresh (dispatches `refresh`; the HOST owns the
     // fetch and re-assigns .rows, which re-renders and re-arms the button) +
     // the on-chain registry this table mirrors, linked once the address book
     // has resolved (enclaves register there)
-    this._loadRatings(rows);      // stars per box, one eth_call for the panel
+    this._loadRatings(rows.concat(pvmRows));      // stars per box, one eth_call for the panel
     const foot = this.querySelector(".fleet-foot");
     if (foot) {
-      foot.innerHTML = '<button class="fleet-refresh" type="button" title="re-fetch the live fleet view">↻ refresh</button>'
+      foot.innerHTML = (pages > 1
+          ? '<span class="fleet-pager" role="group" aria-label="Host pages">'
+            + '<button class="fleet-pg" type="button" data-step="-1" aria-label="Previous hosts"' + (this._page === 0 ? ' disabled' : '') + '>‹</button>'
+            + '<span class="fleet-pg-n">' + (first + 1) + '–' + Math.min(first + PAGE, items.length) + ' of ' + items.length + '</span>'
+            + '<button class="fleet-pg" type="button" data-step="1" aria-label="Next hosts"' + (this._page === pages - 1 ? ' disabled' : '') + '>›</button>'
+            + '</span>'
+          : '')
+        + '<button class="fleet-refresh" type="button" title="re-fetch the live fleet view">↻ refresh</button>'
         + (/^0x[0-9a-fA-F]{40}$/.test(REGISTRY_ADDRESS || "")
           ? '<a class="contract-link" href="' + catExplorer() + '/address/' + REGISTRY_ADDRESS + '" target="_blank" rel="noopener" title="EnclaveRegistry · ' + REGISTRY_ADDRESS + '">'
             + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
@@ -351,6 +452,18 @@ class FleetList extends EnclaveElement {
         this.dispatch("refresh");
         setTimeout(() => { btn.disabled = false; }, 4000);   // safety net if no host listener re-assigns .rows
       });
+      for (const p of foot.querySelectorAll(".fleet-pg")) p.addEventListener("click", () => {
+        this._page += Number(p.dataset.step);
+        this._pgFocus = p.dataset.step;
+        this._rateOpen = false; this._renderDeferred = false;   // a page turn drops an open rating form, as a wallet switch does
+        super.requestRender();
+      });
+      // the repaint replaced the button that was clicked: keep keyboard focus on the pager
+      if (this._pgFocus) {
+        const p = foot.querySelector('.fleet-pg[data-step="' + this._pgFocus + '"]:not(:disabled)') || foot.querySelector(".fleet-pg:not(:disabled)");
+        this._pgFocus = null;
+        if (p) p.focus();
+      }
     }
   }
 
@@ -473,19 +586,34 @@ class FleetList extends EnclaveElement {
     } finally { this._busy = false; if (sync) sync(); }
   }
 
-  /* Stars for a box, from EnclaveHostReviews. Absent contract (not deployed /
-     not in the address book yet) renders NOTHING rather than a fake 0 - an
-     unrated fleet and an unreadable one are different claims. */
+  /* The opened row's rating control: the "rate" button (the rating itself is on the summary, see _fbHtml).
+     Absent contract (not deployed / not in the address book yet) renders nothing. */
   _ratingHtml(e){
-    const t = this._tallies && this._tallies[String(e.id || "").toLowerCase()];
     if (!hrevConfigured()) return "";
-    const rate = '<button class="fleet-rate btn btn-sm" type="button" data-rate="' + esc(e.name || "") + '" data-encid="' + esc(e.id || "") + '" aria-expanded="false" '
+    return '<button class="fleet-rate btn btn-sm" type="button" data-rate="' + esc(e.name || "") + '" data-encid="' + esc(e.id || "") + '" aria-expanded="false" '
       + 'title="Rate this enclave - open to wallets whose app it is running">rate</button>';
-    if (!t || !t.count)
-      return '<span class="fleet-rating fleet-unrated" title="No wallet has rated this enclave yet">unrated</span>' + rate;
-    const avg = t.sum / t.count;
-    return '<span class="fleet-rating" title="' + t.count + ' rating' + (t.count === 1 ? "" : "s") + ' from wallets whose apps this enclave ran">'
-      + starsHtml(avg) + '<small>' + avg.toFixed(1) + ' (' + t.count + ')</small></span>' + rate;
+  }
+
+  /* The summary's rating, on the line under the name: the stars, the average and how many rated it
+     ("★★★★☆ 4.6 (12)"), or "unrated". It is also the rating sort button: best first, again for the worst.
+     Nothing while the tallies are unread, or when the contract isn't in the address book - an unrated fleet
+     and an unreadable one are different claims. */
+  _fbHtml(e, sortBy){
+    if (!hrevConfigured() || !this._tallies) return "";
+    const t = this._tallies[String(e.id || "").toLowerCase()], n = t ? Number(t.count) : 0;
+    const on = sortBy && sortBy.key === "rating" ? (sortBy.dir < 0 ? " on desc" : " on") : "";
+    if (!n) return '<button class="fleet-fb fleet-unrated' + on + '" type="button" data-sort="rating" '
+      + 'title="No wallet has rated this enclave yet. Click to sort hosts by rating.">unrated</button>';
+    const avg = Number(t.sum) / n;
+    return '<button class="fleet-fb' + on + '" type="button" data-sort="rating" title="' + n + ' rating' + (n === 1 ? "" : "s")
+      + ' from wallets whose apps this enclave ran. Click to sort hosts by rating.">'
+      + starsHtml(avg) + '<small>' + avg.toFixed(1) + ' (' + n + ')</small></button>';
+  }
+  /* rating order: the average, then more ratings first among equals; an unrated host has none (sorted last,
+     like a host without a price) */
+  _ratingSort(e){
+    const t = this._tallies && this._tallies[String(e.id || "").toLowerCase()], n = t ? Number(t.count) : 0;
+    return n ? Number(t.sum) / n + Math.min(n, 1e6) / 1e8 : null;
   }
 
   /* One talliesOf call covers every visible box. Cached per paint; a fleet

@@ -1,0 +1,28 @@
+{
+ "what": "the Linux per-app SNP tier's first enclave-catalog-bundle/2 deployment (hookbin 0.1.4, a wasi:cli command serving HTTP on 8000 in its own guest; deployment 0x0ddbd824... on metal-iso0): the verifier session's OWN public-side capture (prod-doc.json, served-cert.pem, live-report.json, taken by verifier/live-domain-check.mjs --save), the component fetched by CID from the platform gateway (component.wasm, CID-checked), and the owner's evidence files copied verbatim (owner-*); reviewed by test/verifier-linux-hookbin.test.mjs",
+ "owner": {
+  "branch": "isolation/portable-runtime-jit",
+  "commit": "ffcd572a",
+  "path": "isolation/m4/evidence/production-canary-2026-09-24/f10-hookbin",
+  "files": [
+   "README.txt",
+   "client-public.txt",
+   "record.json",
+   "expected-measurement.txt",
+   "domain-release-0181bce3.json",
+   "runtime.json",
+   "deployment-tx.json",
+   "node-image-8ed6231f.json",
+   "roundtrip-public.txt"
+  ]
+ },
+ "component": {
+  "cid": "bafkreidocbixnql7lroykdtwx4r2fmi5n6sra4lj7b7vhscsfqn4gctlee",
+  "from": "https://ipfs.enclave.host/ipfs/<cid>",
+  "sha256": "6e105176c17f5c5d850e76bf23a2b11d6fa5107169f87f53c8522c1bc30a6b21",
+  "bytes": 201013,
+  "note": "sha256 equals the CID's sha2-256 multihash digest (raw codec), checked at fetch"
+ },
+ "copiedAt": "2026-09-24T21:40:15Z",
+ "note": "vcek.der and min-tcb.json are the canary's (same chip fa11afcf..., same Turin floor); expected-runtime.json equals the owner's runtime.json and the canary's (same runtime identity); the measurement be6b8644... is the OWNER'S word (their pinned-release reconstruction, expected-measurement.sh --pin): the release's template bytes are not published, so it is not reproduced here and the suite says so"
+}

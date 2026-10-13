@@ -1,0 +1,184 @@
+{
+ "mode-flip.json": {
+  "label": "evil-mode-flip",
+  "mode": "mode-flip",
+  "enc": "15548f19272b623fb2c49733872d5b6a99495b629015a08744a4604a38262f41",
+  "exported": "b436f3bd3b6bb877c225e3b3798de3a8",
+  "nonce": "8964d5b99671b1c571dd023d067fba64579f9414895fc3288048f63adaf1b5c7",
+  "browser": {
+   "error": "refused",
+   "complete": false,
+   "chunks": 0
+  },
+  "origBytes": 77,
+  "sentBytes": 77
+ },
+ "stream-drop.json": {
+  "label": "evil-stream-drop",
+  "mode": "stream-drop",
+  "enc": "2d5f8303c16b3b92709944af504ed6eae59838c6bb9eb4d633a7f0e48515337e",
+  "exported": "17b03cfc8a07444efd5c8bb586c0f418",
+  "nonce": "556731bedf9df243ef4571be442665442cca230d9a5ab8955d5104bf5ba457c6",
+  "browser": {
+   "error": "tamper",
+   "complete": false,
+   "chunks": 1
+  },
+  "origBytes": 3928,
+  "sentBytes": 3641
+ },
+ "stream-dup.json": {
+  "label": "evil-stream-dup",
+  "mode": "stream-dup",
+  "enc": "462fb8b556d994863a5f0b04b761eb05a928c21deebba75ccf90d1dbc0391b45",
+  "exported": "8f7c3644b7285f89b9624b5053ada9c9",
+  "nonce": "deca9e4770d84ef772f0963c590c95b8bb1337e8b272fe07f7cac513a353ca0d",
+  "browser": {
+   "error": "tamper",
+   "complete": false,
+   "chunks": 2
+  },
+  "origBytes": 3928,
+  "sentBytes": 4215
+ },
+ "stream-fin-flag.json": {
+  "label": "evil-stream-fin-flag",
+  "mode": "stream-fin-flag",
+  "enc": "56383641001ab41adb618c19c8644e9e8fd8c6412f62a1621b44242e64dbb560",
+  "exported": "c2de817b5ad8f6e0ac2d452bc053e218",
+  "nonce": "7cc744a3beadc0362c4964794da0450c78d8018c0113f960197105682d1a94eb",
+  "browser": {
+   "error": "tamper",
+   "complete": false,
+   "chunks": 1
+  },
+  "origBytes": 3928,
+  "sentBytes": 3928
+ },
+ "stream-flip.json": {
+  "label": "evil-stream-flip",
+  "mode": "stream-flip",
+  "enc": "9c35b008db10fb862830193c367135af4ff240ae40011b8fcba882c13b18203e",
+  "exported": "40e361dfe44c9d27e04e9a9cdae79e02",
+  "nonce": "b86a016825fb9abeb2b51aa26bce8e8e1e12d03bcd17126a42bbc606a525836f",
+  "browser": {
+   "error": "tamper",
+   "complete": false,
+   "chunks": 1
+  },
+  "origBytes": 3928,
+  "sentBytes": 3928
+ },
+ "stream-forge-chunk.json": {
+  "label": "evil-stream-forge-chunk",
+  "mode": "stream-forge-chunk",
+  "enc": "8b9a1c20d3ea6abacd123a45c7d6f9605f243b3a1f9f5ea503929ea85247d516",
+  "exported": "0368556b9443aa9d8091bd3aaeb266da",
+  "nonce": "d5e42ebacbdda28a322c13192c7e65a31d16b63e1f34a8fc89ef74e4611ce871",
+  "browser": {
+   "error": "tamper",
+   "complete": false,
+   "chunks": 1
+  },
+  "origBytes": 3928,
+  "sentBytes": 3928
+ },
+ "stream-forge-fin.json": {
+  "label": "evil-stream-forge-fin",
+  "mode": "stream-forge-fin",
+  "enc": "99576c8c89ef4b8c5c4af1309049e75cbac170588d654d4c5ab8d8c377bc454b",
+  "exported": "ce0f010b4d4eb537d814a1d23d3dbff6",
+  "nonce": "42be1ba1205470afc3324ee98b25ed7ea403d42c5dc2a25474add39fa2c28ec5",
+  "browser": {
+   "error": "tamper",
+   "complete": false,
+   "chunks": 2
+  },
+  "origBytes": 3928,
+  "sentBytes": 748
+ },
+ "stream-pass.json": {
+  "label": "evil-stream-pass",
+  "mode": "stream-pass",
+  "enc": "e2c0a4008351a83db08590f5ad6a69399455086a58ae1b74ec08a2ec66ee4a35",
+  "exported": "5a47fb30d9fe034d1bf88adcc11cccec",
+  "nonce": "cfce539d25c364e7654d05d0bb5d429ba0cd93869d6f5422c2690ca1711f26b1",
+  "browser": {
+   "error": null,
+   "complete": true,
+   "chunks": 15
+  },
+  "origBytes": 3928,
+  "sentBytes": 3928
+ },
+ "stream-replay.json": {
+  "label": "evil-stream-replay",
+  "mode": "stream-replay",
+  "enc": "e68683332565f64107d49dc7a1ccd16e5af3432d6d6d1b578b239b18d6b63b4a",
+  "exported": "0f07fd73ed33a65e5f4a0b0a0fc1d95f",
+  "nonce": "188fd3393c5c220a9f9f5cf38203cf096dc3d1214e2041877254ed8f08da77be",
+  "browser": {
+   "error": "tamper",
+   "complete": false,
+   "chunks": 0
+  },
+  "origBytes": 3928,
+  "sentBytes": 3928
+ },
+ "stream-swap.json": {
+  "label": "evil-stream-swap",
+  "mode": "stream-swap",
+  "enc": "2902718e5d3d24f0183c005affed8c061afbc08c54a0be5fbeee8a486bb2c17b",
+  "exported": "b37c27eeec511869e048717a9d210750",
+  "nonce": "cbf89c626c3240535941b5d13a891bca3317c75edae3b34e0845c2f5dc2495f5",
+  "browser": {
+   "error": "tamper",
+   "complete": false,
+   "chunks": 0
+  },
+  "origBytes": 3928,
+  "sentBytes": 3928
+ },
+ "stream-trailing.json": {
+  "label": "evil-stream-trailing",
+  "mode": "stream-trailing",
+  "enc": "a01b490985ee6d21b6d535845cca9e023a650607443dd386b54d2c717edf1a63",
+  "exported": "600a9fb85b18bff61ce0db5df41c342b",
+  "nonce": "4b7f2be65161f42bf97ec1522933bf74f05140a648931768cedd8aa5e9f2f873",
+  "browser": {
+   "error": "trailing",
+   "complete": false,
+   "chunks": 15
+  },
+  "origBytes": 3928,
+  "sentBytes": 3929
+ },
+ "stream-truncate.json": {
+  "label": "evil-stream-truncate",
+  "mode": "stream-truncate",
+  "enc": "73645cfba86f7d5fb32b5d2ff186f357aa65d59069ebc2c10194587183761238",
+  "exported": "dccb67f3c9fc59fda8363685e02625f6",
+  "nonce": "30c70a71f5f0141fab3cc9393ce446012d7492ef32e2e890803eb0b3cb08a67e",
+  "browser": {
+   "error": "truncated",
+   "complete": false,
+   "chunks": 3
+  },
+  "origBytes": 3928,
+  "sentBytes": 1017
+ },
+ "l2/stream-replay.json": {
+  "label": "reconnect-old-stream",
+  "mode": "stream-replay",
+  "enc": "306aba7d18ffef62aba4c784229677baa49aa0da7ba95d166a02c7e95a7dfe69",
+  "exported": "03358981dbbc16794867dc874c50f9aa",
+  "nonce": "8680182f7c2cf08a24b7d005305a572f8d95852580e0edc7e7b5af0c12a68731",
+  "browser": {
+   "error": "tamper",
+   "complete": false,
+   "chunks": 0
+  },
+  "origBytes": 3928,
+  "sentBytes": 3928
+ }
+}

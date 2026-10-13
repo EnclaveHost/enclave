@@ -1,343 +1,101 @@
-// Enclave dedicated-IP EGRESS — the outbound half of the "give me an IP and a port"
-// model. Inbound (tcp6-relay/udp-relay) already serves each deployment's
-// declared ports on its OWN IPv6; this makes the app's OUTBOUND connections
-// LEAVE from that same address, so a deployment has one stable identity in both
-// directions (what a VM with a public IP gives you).
-//
-// Why a proxy and not a route: the deployment's IPv6 lives on the (untrusted)
-// relay box's routed /64 — the enclave never holds it, and the CVM runs with
-// zero privileges (no netns, no nftables, no source-routing available in here).
-// So egress round-trips through the relay, which source-binds the deployment's
-// address before dialling out. This module is the enclave-side front door; the
-// relay box runs relay/egress-relay.js.
-//
-//   guest ──SOCKS5──> [supervisor:this] ──OPEN(cid)──> relay (control WS)
-//                                        <──data WS /x/egress/<cid>── relay
-//   relay ──connect(localAddress = depAddr)──> destination
-//
-// TWO WAYS IN, ONE FRONT: a guest can opt in explicitly by honouring ENCLAVE_EGRESS
-// (a SOCKS5h URL with per-deployment credentials), OR — with the phase-2
-// wasmtime shim (`-S egress`, wasm/wasmtime-egress.patch) — the platform routes
-// the guest's raw wasi:sockets / wasi:http outbound through this SAME front
-// automatically, delivering the credential host-side (ENCLAVE_EGRESS_CRED,
-// guest-invisible) and dropping the guest's ambient `-Sinherit-network` so there
-// is no raw path left to bypass it. Either way the source IP is derived
-// server-side from the AUTHENTICATED credential, never chosen by the guest or
-// the relay: no deployment can egress AS ANOTHER's address.
-//
-// THREE GUARDRAILS (see the conversation that specced this):
-//  1. Tenant isolation on the endpoint — all guests share loopback, so the
-//     SOCKS front demands per-deployment credentials (RFC 1929 user/pass; the
-//     password is an HMAC of the id under the enclave SECRET). You can only
-//     egress as yourself; sourceAddrFor(id) is applied from the AUTHENTICATED
-//     id, never from anything the caller supplies.
-//  2. SSRF denial — a literal-IP destination in a private/loopback/link-local/
-//     ULA/multicast range is refused here (protects the enclave's own control
-//     ports); the relay repeats the check AFTER DNS resolution (protects the
-//     relay box's localhost + private services). Both ends, because each guards
-//     a different network.
-//  3. Per-connection scoping — every CONNECT gets an unguessable single-use
-//     `cid`; the relay services exactly that cid via its own data WS, and the
-//     cid is consumed on first use. A misbehaving relay can't cross-wire one
-//     tenant's stream into another's.
+// Per-tenant authenticated SOCKS front. TUNA carries the outbound connection;
+// there is no Enclave relay control channel or dedicated source-IP claim.
+import net from 'node:net';
+import dns from 'node:dns/promises';
+import { once } from 'node:events';
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { isBlockedHost } from './net-guard.mjs';
 
-import net from "node:net";
-import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { WebSocketServer, createWebSocketStream } from "ws";
-import { isBlockedHost, parseIp } from "./net-guard.mjs";
-
-const OPEN_TIMEOUT_MS = 15000;   // relay must open the data WS within this
-const enc = (s) => Buffer.from(String(s), "utf8");
-
-// Per-deployment SOCKS password: HMAC(SECRET, "nan-egress:"+id). Deterministic
-// (no state to store), unforgeable without the enclave SECRET, and scoped to
-// exactly one deployment. The supervisor mints this into the guest's ENCLAVE_EGRESS
-// env; possessing it == being that guest.
 export function egressToken(secret, id) {
-  return createHmac("sha256", secret).update("nan-egress:" + id).digest("base64url");
+  return createHmac('sha256', secret).update('nan-egress:' + id).digest('base64url');
 }
-
-// SOCKS reply codes (RFC 1928 §6)
-const REP = { OK: 0x00, GENERAL: 0x01, DENIED: 0x02, NET_UNREACH: 0x03,
-              HOST_UNREACH: 0x04, REFUSED: 0x05 };
-
-// Build a SOCKS5 CONNECT reply. BND.ADDR carries the egress source address (the
-// deployment's IPv6) on success, so an app can observe the IP it goes out as.
-function socksReply(rep, bndAddr) {
-  const ip = bndAddr && parseIp(bndAddr);
-  if (rep === REP.OK && ip && ip.family === 6) {
-    const b = Buffer.alloc(4 + 16 + 2);
-    b[0] = 0x05; b[1] = REP.OK; b[2] = 0x00; b[3] = 0x04;  // ATYP v6
-    for (let i = 0; i < 16; i++) b[4 + i] = Number((ip.value >> BigInt((15 - i) * 8)) & 0xffn);
-    return b;                                              // BND.PORT 0
-  }
-  // failures (and the v4/unknown-source success case) use a zero v4 BND.ADDR
-  return Buffer.from([0x05, rep, 0x00, 0x01, 0, 0, 0, 0, 0, 0]);
-}
-
-// createEgress wires the SOCKS front + the relay control/data channels.
-//   secret         Uint8Array/Buffer — the enclave signing SECRET
-//   socksPort      loopback port the guests' SOCKS clients dial
-//   relayToken     shared secret the relay presents on its control/data WS
-//   sourceAddrFor  (id) => the deployment's dedicated IPv6 (depAddrFor)
-//   isKnown        optional (id) => bool — extra check the id is a live deployment
-//   log            (msg) => void
-// relayFor    optional (id) => the relay NAME this deployment's network.relay
-//             envelope chose, or null for "the default relay". Outbound follows
-//             the SAME relay as inbound so a deployment routed through a nearby
-//             relay pays that relay's short hop in both directions instead of
-//             tromboning egress to the default relay's box.
-// defaultRelay the name the default egress relay attaches as (the one that owns
-//             the dedicated-IP /64); a deployment with no choice, or whose chosen
-//             relay is not attached, uses it. A control channel that attaches
-//             without a ?relay= name registers under this, so a relay that
-//             predates this change is the default automatically.
-// dedicatedRelay the name of the relay that OWNS the /64 (source-binds each
-//             deployment's dedicated IPv6). Defaults to defaultRelay — today the
-//             default relay is the one with the /64. Naming them separately lets
-//             the fleet default egress to a NEARBY plain relay while dedicated-IP
-//             egress stays available on the /64 owner by explicit choice.
-export function createEgress({ secret, socksPort, relayToken, sourceAddrFor, relayFor, defaultRelay, dedicatedRelay, isKnown, log = () => {} }) {
-  const relayTokenBuf = enc(relayToken);
-  const DEFAULT_RELAY = (String(defaultRelay || "").trim()) || "default";
-  const DEDICATED_RELAY = (String(dedicatedRelay || "").trim()) || DEFAULT_RELAY;
-  const relayChoice = relayFor || (() => null);
-  const pending = new Map();          // cid -> { sock, source, host, port, timer }
-  const conns = new Set();            // live SOCKS client sockets (for clean shutdown)
-  const wss = new WebSocketServer({ noServer: true });
-  // relay NAME -> its live control socket. Multiple relays attach at once; an
-  // `open` goes to the one the deployment chose. The default relay owns the /64
-  // and source-binds; any other does plain egress from its own IP.
-  const controlByRelay = new Map();
-  // The routing decision, factored out for the routing test. Given the chosen
-  // relay name, the set of attached relay names, and whether a dedicated source
-  // exists, returns { relay, dedicated } or null (no relay to carry it).
-  // - the chosen relay if attached; else the default if attached; else null
-  // - dedicated (source-bound) ONLY through the relay that owns the /64
-  function routeEgress(chosen, attached, hasSource) {
-    const want = chosen || DEFAULT_RELAY;
-    // chosen -> default -> the /64 owner: never black-hole a deployment because
-    // its preferred relay is momentarily unattached (e.g. us-west egress not up
-    // yet during a rollout — everything falls back to the dedicated relay and
-    // keeps working, exactly as before this change).
-    const relay = attached.has(want)            ? want
-                : attached.has(DEFAULT_RELAY)   ? DEFAULT_RELAY
-                : attached.has(DEDICATED_RELAY) ? DEDICATED_RELAY
-                : null;
-    if (!relay) return null;                    // nothing attached to carry it
-    if (relay === DEDICATED_RELAY) {
-      if (!hasSource) return null;              // the /64 owner, but addressing is off
-      return { relay, dedicated: true };
-    }
-    return { relay, dedicated: false };        // any other relay: plain egress from its own IP
-  }
-
-  const tokenOk = (id, tok) => {
-    const want = enc(egressToken(secret, id)), got = enc(tok || "");
-    return want.length === got.length && timingSafeEqual(want, got);
-  };
-  const relayOk = (tok) => {
-    const got = enc(tok || "");
-    return relayTokenBuf.length === got.length && timingSafeEqual(relayTokenBuf, got);
-  };
-
-  function failPending(cid, rep) {
-    const p = pending.get(cid);
-    if (!p) return;
-    pending.delete(cid);
-    clearTimeout(p.timer);
-    try { p.sock.write(socksReply(rep)); } catch {}
-    try { p.sock.destroy(); } catch {}
-  }
-
-  // ---- SOCKS5 (RFC 1928) with user/pass auth (RFC 1929), CONNECT only -------
-  const socks = net.createServer((sock) => {
-    conns.add(sock); sock.on("close", () => conns.delete(sock));
-    sock.on("error", () => sock.destroy());
-    let buf = Buffer.alloc(0);
-    let phase = "greet";                 // greet -> auth -> request -> done
-    let authedId = null;
-
-    const need = (n) => buf.length >= n;
-    const step = () => {
-      for (;;) {
-        if (phase === "greet") {
-          if (!need(2)) return;
-          if (buf[0] !== 0x05) return sock.destroy();
-          const nm = buf[1];
-          if (!need(2 + nm)) return;
-          const methods = buf.subarray(2, 2 + nm);
-          buf = buf.subarray(2 + nm);
-          if (!methods.includes(0x02)) {          // 0x02 = user/pass required
-            sock.end(Buffer.from([0x05, 0xff])); return;
-          }
-          sock.write(Buffer.from([0x05, 0x02]));
-          phase = "auth";
-        } else if (phase === "auth") {
-          if (!need(2)) return;
-          if (buf[0] !== 0x01) return sock.destroy();   // auth version
-          const ulen = buf[1];
-          if (!need(2 + ulen + 1)) return;
-          const plen = buf[2 + ulen];
-          if (!need(2 + ulen + 1 + plen)) return;
-          const uname = buf.subarray(2, 2 + ulen).toString("utf8");
-          const passwd = buf.subarray(3 + ulen, 3 + ulen + plen).toString("utf8");
-          buf = buf.subarray(3 + ulen + plen);
-          // GUARDRAIL 1: the id is the SOCKS username, authenticated by the
-          // per-deployment token. Everything downstream uses THIS id.
-          if (!uname || !tokenOk(uname, passwd) || (isKnown && !isKnown(uname))) {
-            sock.end(Buffer.from([0x01, 0x01])); return;   // auth failure
-          }
-          authedId = uname;
-          sock.write(Buffer.from([0x01, 0x00]));           // auth success
-          phase = "request";
-        } else if (phase === "request") {
-          if (!need(4)) return;
-          if (buf[0] !== 0x05) return sock.destroy();
-          const cmd = buf[1], atyp = buf[3];
-          let host, hlen, off;
-          if (atyp === 0x01) { hlen = 4;  off = 4; if (!need(off + 4 + 2)) return;
-            host = `${buf[4]}.${buf[5]}.${buf[6]}.${buf[7]}`; off = 8; }
-          else if (atyp === 0x04) { if (!need(4 + 16 + 2)) return;
-            host = ipv6FromBytes(buf.subarray(4, 20)); off = 20; }
-          else if (atyp === 0x03) { hlen = buf[4]; off = 5; if (!need(off + hlen + 2)) return;
-            host = buf.subarray(5, 5 + hlen).toString("utf8"); off = 5 + hlen; }
-          else return sock.destroy();
-          const port = buf.readUInt16BE(off);
-          buf = buf.subarray(off + 2);
-          phase = "done";
-          if (cmd !== 0x01) { sock.end(socksReply(REP.GENERAL)); return; }  // CONNECT only
-          beginConnect(sock, authedId, host, port);
-          return;
-        } else return;
-      }
-    };
-    sock.on("data", (d) => {
-      if (phase === "done") return;                 // post-handshake bytes belong to the tunnel
-      buf = Buffer.concat([buf, d]);
-      if (buf.length > 4096) return sock.destroy();  // handshake is tiny; cap it
-      try { step(); } catch { sock.destroy(); }
-    });
-  });
-  socks.on("error", (e) => log(`[egress] socks server: ${e.message}`));
-
-  function beginConnect(sock, id, host, port) {
-    // GUARDRAIL 2 (near end): refuse literal-IP destinations in internal ranges
-    // before they ever leave the enclave. Hostname targets are re-checked at the
-    // relay after DNS. "localhost" is blocked here too.
-    if (isBlockedHost(host)) { sock.end(socksReply(REP.DENIED)); return; }
-    // Route to the relay this deployment chose (its inbound relay), falling back
-    // to the default; the default owns the /64 and source-binds, others go plain.
-    const dedicatedSource = sourceAddrFor(id);
-    const route = routeEgress(relayChoice(id), controlByRelay, !!dedicatedSource);
-    if (!route) { sock.end(socksReply(REP.NET_UNREACH)); return; }   // no relay attached / addressing off
-    const ws = controlByRelay.get(route.relay);
-    if (!ws) { sock.end(socksReply(REP.NET_UNREACH)); return; }      // raced a drop
-    const source = route.dedicated ? dedicatedSource : null;        // null => plain egress from the relay's own IP
-    // GUARDRAIL 3: unguessable, single-use connection id.
-    const cid = randomBytes(16).toString("hex");
-    const timer = setTimeout(() => { log(`[egress] ${id} ${host}:${port} timed out waiting for relay`);
-                                     failPending(cid, REP.HOST_UNREACH); }, OPEN_TIMEOUT_MS);
-    pending.set(cid, { sock, source, host, port, timer });
-    sock.on("close", () => { if (pending.has(cid)) failPending(cid, REP.GENERAL); });
-    try {
-      // source is OMITTED for plain egress; the relay then dials without
-      // source-binding (from its own address). The chosen relay never sees a
-      // source it doesn't own — the enclave, not the relay, makes that call.
-      //
-      // `dep` names WHOSE outbound this is, so the relay can show an owner
-      // where their app has been reaching. It discloses nothing the relay is
-      // not already told: on the inbound side the SNI spells the same id in
-      // clear, and on the dedicated path `source` is that deployment's public
-      // address. Additive on purpose - a relay that predates the field ignores
-      // it, and a relay that has it treats absence as "unattributed" rather
-      // than refusing the dial.
-      const msg = { type: "open", cid, host, port, dep: id };
-      if (source) msg.source = source;
-      ws.send(JSON.stringify(msg));
-    } catch (e) { log(`[egress] control send failed: ${e.message}`); failPending(cid, REP.NET_UNREACH); }
-  }
-
-  // ---- upgrade dispatch: relay control + per-connection data WS -------------
-  // Returns true if it owned the path (so the supervisor's handler can return).
-  function handleUpgrade(req, socket, head) {
-    const url = req.url || "";
-    const auth = (req.headers["authorization"] || "").match(/^Bearer\s+(\S+)$/);
-    const qtok = (url.split("?")[1] || "").split("&").map((kv) => kv.split("="))
-                    .find(([k]) => k === "t");
-    const tok = (auth && auth[1]) || (qtok && decodeURIComponent(qtok[1] || "")) || "";
-
-    if (url.startsWith("/v1/egress-control")) {
-      if (!relayOk(tok)) { socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n"); socket.destroy(); return true; }
-      // Which relay is this? `?relay=<name>` names it; a relay that predates
-      // this change sends no name and registers as the default. The name only
-      // steers routing — auth is the shared relay token, same as before.
-      const rq = (url.split("?")[1] || "").split("&").map((kv) => kv.split("="))
-                    .find(([k]) => k === "relay");
-      const rname = (rq && decodeURIComponent(rq[1] || "").trim()) || DEFAULT_RELAY;
-      wss.handleUpgrade(req, socket, head, (ws) => {
-        const prev = controlByRelay.get(rname);
-        if (prev) { try { prev.close(); } catch {} }   // one control per relay NAME; newest wins
-        controlByRelay.set(rname, ws);
-        log(`[egress] relay control channel attached: ${rname}`);
-        ws.on("message", (raw) => {
-          let m; try { m = JSON.parse(raw.toString()); } catch { return; }
-          if (m && m.type === "close" && m.cid)                  // relay couldn't dial
-            failPending(m.cid, m.reason === "denied" ? REP.DENIED : REP.HOST_UNREACH);
-        });
-        const drop = () => { if (controlByRelay.get(rname) === ws) { controlByRelay.delete(rname); log(`[egress] relay control channel dropped: ${rname}`); } };
-        ws.on("close", drop); ws.on("error", drop);
-      });
-      return true;
-    }
-
-    const dm = url.match(/^\/x\/egress\/([0-9a-f]{32})(?:\?|$)/);
-    if (dm) {
-      const cid = dm[1];
-      if (!relayOk(tok)) { socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n"); socket.destroy(); return true; }
-      const p = pending.get(cid);
-      if (!p) { socket.write("HTTP/1.1 404 Not Found\r\n\r\n"); socket.destroy(); return true; }
-      pending.delete(cid);            // GUARDRAIL 3: consume — cid is single-use
-      clearTimeout(p.timer);
-      wss.handleUpgrade(req, socket, head, (ws) => {
-        const wsStream = createWebSocketStream(ws);
-        const close = () => { try { ws.close(); } catch {} try { p.sock.destroy(); } catch {} try { wsStream.destroy(); } catch {} };
-        p.sock.on("error", close); p.sock.on("close", close);
-        wsStream.on("error", close); wsStream.on("close", close);
-        // hand the app its CONNECT success, then splice raw bytes end to end
-        p.sock.write(socksReply(REP.OK, p.source));
-        p.sock.pipe(wsStream); wsStream.pipe(p.sock);
-      });
-      return true;
-    }
-    return false;
-  }
-
+const reply = code => Buffer.from([5, code, 0, 1, 0, 0, 0, 0, 0, 0]);
+function reader(socket) {
+  let buf = Buffer.alloc(0), waiting, failure;
+  const fail = e => { failure = e; waiting?.(); };
+  const data = b => { buf = Buffer.concat([buf, b]); if (buf.length > 65536) socket.destroy(new Error('SOCKS handshake overflow')); waiting?.(); };
+  const end = () => fail(new Error('SOCKS connection ended'));
+  socket.on('data', data); socket.on('error', fail); socket.on('end', end); socket.on('close', end);
   return {
-    // resolves once the SOCKS front is listening (port 0 -> OS-assigned)
-    start() { return new Promise((res) => socks.listen(socksPort, "127.0.0.1", () => {
-      log(`[egress] SOCKS5 on 127.0.0.1:${socks.address().port}`); res(); })); },
-    stop() { try { socks.close(); } catch {} for (const ws of controlByRelay.values()) { try { ws.close(); } catch {} }
-      for (const c of wss.clients) { try { c.terminate(); } catch {} }
-      for (const s of conns) { try { s.destroy(); } catch {} }
-      for (const cid of [...pending.keys()]) failPending(cid, REP.GENERAL); },
-    handleUpgrade,
-    // the actual listening port (config `socksPort` may be 0)
-    socksPort: () => socks.address()?.port ?? socksPort,
-    // the ENCLAVE_EGRESS value handed to a guest: SOCKS5h so DNS resolves at the
-    // relay (remote-side), giving the app the deployment's egress identity.
-    envFor(id) { return `socks5h://${id}:${egressToken(secret, id)}@127.0.0.1:${socks.address()?.port ?? socksPort}`; },
-    // egress is available once ANY relay is attached (routeEgress falls back
-    // through default -> the /64 owner, so one live relay can carry the fleet).
-    connected: () => controlByRelay.size > 0,
-    relaysAttached: () => [...controlByRelay.keys()],
-    routeEgress,         // test hook (pure)
-    _pending: pending,   // test hook
+    async take(n) {
+      while (buf.length < n) {
+        if (failure) throw failure;
+        await new Promise(resolve => { waiting = resolve; }); waiting = null;
+      }
+      const out = buf.subarray(0, n); buf = buf.subarray(n); return out;
+    },
+    release() {
+      socket.pause(); socket.off('data', data); socket.off('error', fail); socket.off('end', end); socket.off('close', end);
+      if (buf.length) socket.unshift(buf);
+    },
   };
 }
+async function address(read, type) {
+  if (type === 1) return [...await read.take(4)].join('.');
+  if (type === 4) {
+    const b = await read.take(16); return Array.from({length: 8}, (_, i) => b.readUInt16BE(i * 2).toString(16)).join(':');
+  }
+  if (type === 3) {const n = (await read.take(1))[0]; if (n) return (await read.take(n)).toString('utf8');}
+  throw new Error('invalid SOCKS address');
+}
 
-function ipv6FromBytes(b) {
-  const g = [];
-  for (let i = 0; i < 8; i++) g.push(((b[i * 2] << 8) | b[i * 2 + 1]).toString(16));
-  return g.join(":");
+export function createEgress({ secret, socksPort = 1080, upstream, isKnown, lookup = dns.lookup, log = () => {} }) {
+  const target = new URL(upstream);
+  if (target.protocol !== 'socks5:' || !target.hostname || !target.port || target.username || target.password) throw new Error('TUNA SOCKS upstream required');
+  const connections = new Set();
+  const track = s => { connections.add(s); s.on('error', () => s.destroy()); s.once('close', () => connections.delete(s)); return s; };
+  async function connect(sock) {
+    const input = reader(sock); let output, remote;
+    sock.setTimeout(15000, () => sock.destroy(new Error('SOCKS handshake timed out')));
+    try {
+      const greeting = await input.take(2);
+      if (greeting[0] !== 5 || !(await input.take(greeting[1])).includes(2)) {sock.end(Buffer.from([5, 255])); return;}
+      sock.write(Buffer.from([5, 2]));
+      const auth = await input.take(2);
+      if (auth[0] !== 1 || !auth[1]) throw new Error('invalid SOCKS authentication');
+      const id = (await input.take(auth[1])).toString('utf8');
+      const password = await input.take((await input.take(1))[0]);
+      const expected = Buffer.from(egressToken(secret, id));
+      if (password.length !== expected.length || !timingSafeEqual(password, expected) || (isKnown && !isKnown(id))) {
+        sock.end(Buffer.from([1, 1])); return;
+      }
+      sock.write(Buffer.from([1, 0]));
+      const req = await input.take(4);
+      if (req[0] !== 5 || req[1] !== 1 || req[2] !== 0) {sock.end(reply(7)); return;}
+      const host = await address(input, req[3]), port = (await input.take(2)).readUInt16BE(0);
+      if (!port || isBlockedHost(host)) {sock.end(reply(2)); return;}
+      // Resolve before sending a literal address to the provider. A hostname
+      // cannot redirect a second DNS lookup into either host's private network.
+      const addresses = net.isIP(host) ? [{address: host}] : await lookup(host, {all: true});
+      if (!addresses.length || addresses.some(a => isBlockedHost(a.address))) {sock.end(reply(2)); return;}
+      if (sock.destroyed) return;
+      const destination = addresses[0].address;
+      remote = track(net.connect(Number(target.port), target.hostname.replace(/^\[|\]$/g, '')));
+      sock.once('close', () => remote.destroy()); remote.once('close', () => sock.destroy());
+      remote.setTimeout(15000, () => remote.destroy(new Error('TUNA SOCKS upstream timed out')));
+      await once(remote, 'connect'); output = reader(remote);
+      remote.write(Buffer.from([5, 1, 0]));
+      const accepted = await output.take(2);
+      if (accepted[0] !== 5 || accepted[1] !== 0) throw new Error('TUNA SOCKS authentication unavailable');
+      const name = Buffer.from(destination), request = Buffer.alloc(7 + name.length);
+      request.set([5, 1, 0, 3, name.length]); name.copy(request, 5); request.writeUInt16BE(port, 5 + name.length);
+      remote.write(request);
+      const response = await output.take(4);
+      if (response[0] !== 5 || response[1] !== 0 || response[2] !== 0) throw new Error('TUNA provider refused destination');
+      await address(output, response[3]); await output.take(2);
+      input.release(); output.release();
+      sock.setTimeout(0); remote.setTimeout(0); sock.write(reply(0));
+      sock.pipe(remote).pipe(sock); sock.resume(); remote.resume();
+    } catch (e) {
+      log(`[egress] ${e.message}`); remote?.destroy(); if (!sock.destroyed) sock.end(reply(4));
+    }
+  }
+  const socks = net.createServer(sock => {track(sock); connect(sock).catch(() => sock.destroy());});
+  socks.on('error', e => log(`[egress] ${e.message}`));
+  return {
+    start() { return new Promise((resolve, reject) => {socks.once('error', reject); socks.listen(socksPort, '127.0.0.1', resolve);}); },
+    stop() {socks.close(); for (const s of connections) s.destroy();},
+    socksPort: () => socks.address()?.port ?? socksPort,
+    envFor(id) {return `socks5h://${id}:${egressToken(secret, id)}@127.0.0.1:${socks.address()?.port ?? socksPort}`;},
+  };
 }

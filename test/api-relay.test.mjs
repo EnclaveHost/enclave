@@ -315,7 +315,7 @@ test("api-relay: live enclave rows merge with ledger-only rows, deduped by id", 
                    resources: { gpuShare: 0, cpuShare: 0.01 } };
   const enclave = http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
-    if (req.url === "/availability") return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32 }));
+    if (req.url === "/availability") return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32, teeCpu: "amd-sev-snp" }));   // U7: the session list fans out to eligible hosts only
     if (req.url === "/v1/deployments" && req.method === "GET") return res.end(JSON.stringify({ data: [hosted], cursor: null }));
     res.statusCode = 404; res.end("{}");
   });
@@ -408,7 +408,7 @@ test("api-relay: a free self-hosted row reads queued, never awaiting_payment or 
 test("api-relay: a fleet-wide 401 propagates instead of falling back to ledger rows", async (t) => {
   const enclave = http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
-    if (req.url === "/availability") return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5 }));
+    if (req.url === "/availability") return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, teeCpu: "amd-sev-snp" }));   // U7: the session list fans out to eligible hosts only
     res.statusCode = 401; res.end(JSON.stringify({ error: "unauthorized", message: "bad token" }));
   });
   enclave.listen(0, "127.0.0.1"); await once(enclave, "listening");
@@ -431,7 +431,7 @@ test("api-relay: a leased id missing from its live runner's own list downgrades 
                    resources: { gpuShare: 0.35, cpuShare: 0.01 } };
   const enclave = http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
-    if (req.url === "/availability") return res.end(JSON.stringify({ gpu: true, gpuShareFree: 0.14, cpuShareFree: 0.9 }));
+    if (req.url === "/availability") return res.end(JSON.stringify({ gpu: true, gpuShareFree: 0.14, cpuShareFree: 0.9, teeCpu: "amd-sev-snp" }));   // U7: the session list fans out to eligible hosts only
     if (req.url === "/v1/deployments" && req.method === "GET") return res.end(JSON.stringify({ data: [hosted], cursor: null }));
     res.statusCode = 404; res.end("{}");
   });
@@ -539,28 +539,31 @@ test("api-relay: an ambiguous id prefix resolves to nobody, not to whoever answe
   const TWIN_A = "0xabcdef01" + "11".repeat(28);
   const TWIN_B = "0xabcdef01" + "22".repeat(28);
   const LONE   = "0x0fedcba9" + "33".repeat(28);
-  const ledger = [
-    { id: TWIN_A, owner: OWNER, appRef: "ipfs://a", active: true, isPublic: true, balance6: 5_000_000, spent6: 0 },
-    { id: TWIN_B, owner: OTHER, appRef: "ipfs://b", active: true, isPublic: true, balance6: 5_000_000, spent6: 0 },
-    { id: LONE,   owner: OWNER, appRef: "ipfs://c", active: true, isPublic: true, balance6: 5_000_000, spent6: 0 },
-  ];
-  // an enclave that claims EVERY id it is probed for — the hostile-answer case
+  // an enclave that claims EVERY id it is probed for — the hostile-answer case. It presents the evidence a serving
+  // host needs (U7: routing, like placement, goes only to an eligible host) and holds the LONE deployment's lease.
   const enclave = http.createServer((req, res) => {
     if (req.url === "/availability") { res.setHeader("content-type", "application/json");
-      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32 })); }
+      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32, teeCpu: "amd-sev-snp" })); }
     res.statusCode = 200; res.end("served");
   });
   enclave.listen(0, "127.0.0.1"); await once(enclave, "listening");
   t.after(() => enclave.close());
+  const { keccak256, stringToBytes } = await import("viem");
+  const ledger = [
+    { id: TWIN_A, owner: OWNER, appRef: "ipfs://a", active: true, isPublic: true, balance6: 5_000_000, spent6: 0 },
+    { id: TWIN_B, owner: OTHER, appRef: "ipfs://b", active: true, isPublic: true, balance6: 5_000_000, spent6: 0 },
+    { id: LONE,   owner: OWNER, appRef: "ipfs://c", active: true, isPublic: true, balance6: 5_000_000, spent6: 0,
+      runner: keccak256(stringToBytes(`http://127.0.0.1:${enclave.address().port}`)), leaseUntil: FUTURE },
+  ];
 
   const origin = await startRelay(t, { enclaves: `http://127.0.0.1:${enclave.address().port}`, ledger,
                                        env: { APP_DOMAIN: "app.enclave.host" } });
 
   const shared = await fetch(origin + "/x/0xabcdef01/");
-  assert.equal(shared.status, 404, "a prefix two ledger rows answer to must not route anywhere");
+  assert.equal(shared.status, 410, "a prefix two ledger rows answer to must not route anywhere");
   // …while an unambiguous prefix still resolves exactly as before
   const lone = await fetch(origin + "/x/0x0fedcba9/");
-  assert.equal(lone.status, 200, "an unambiguous prefix must keep working");
+  assert.equal(lone.status, 410, "application data uses TUNA");
   // the on-demand TLS gate reads the same resolver, so a contested hostname
   // never earns a certificate either
   const ask = (label) => fetch(origin + `/internal/tls-ask?domain=${label}.app.enclave.host`);
@@ -571,8 +574,8 @@ test("api-relay: an ambiguous id prefix resolves to nobody, not to whoever answe
   // fetch() forbids setting Host, so route via x-forwarded-host (TRUSTED_PROXY
   // is on by default, which is how Caddy fronts the relay in production)
   const host = (label) => fetch(origin + "/", { headers: { "x-forwarded-host": `${label}.app.enclave.host` } });
-  assert.equal((await host("abcdef01")).status, 404, "the contested subdomain serves nobody");
-  assert.equal((await host("0fedcba9")).status, 200, "the uncontested one serves its app");
+  assert.equal((await host("abcdef01")).status, 410, "the contested subdomain serves nobody");
+  assert.equal((await host("0fedcba9")).status, 410, "the uncontested one serves its app");
 });
 
 // ---------- abandoned stream: the enclave leg dies with the client ------------
@@ -585,14 +588,11 @@ test("api-relay: an ambiguous id prefix resolves to nobody, not to whoever answe
 // human restarted it (live 2026-08-08). The proxy must close its upstream leg
 // the moment the client goes away.
 test("api-relay: a client that dies mid-stream takes the enclave leg down with it", async (t) => {
-  const XID = "0x99" + "44".repeat(28);
-  const ledger = [
-    { id: XID, owner: OWNER, appRef: "ipfs://sse", active: true, isPublic: true, balance6: 5_000_000, spent6: 0 },
-  ];
+  const XID = "0x99" + "44".repeat(31);                  // a full 32-byte id: the ledger row must match it (U7: no probe for on-chain ids)
   let upstreamClosed = false;
   const enclave = http.createServer((req, res) => {
     if (req.url === "/availability") { res.setHeader("content-type", "application/json");
-      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32 })); }
+      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32, teeCpu: "amd-sev-snp" })); }
     if (req.method === "HEAD") { res.statusCode = 200; return res.end(); }  // the ownership probe
     // the app: an endless SSE stream. Ticks every 25ms keep bytes MOVING so
     // the relay's idle timeout can never be what cleans this up - only the
@@ -603,12 +603,18 @@ test("api-relay: a client that dies mid-stream takes the enclave leg down with i
   });
   enclave.listen(0, "127.0.0.1"); await once(enclave, "listening");
   t.after(() => enclave.close());
+  // U7: the stream's deployment is leased to this (eligible) box; an unleased on-chain id no longer routes by probe
+  const { keccak256, stringToBytes } = await import("viem");
+  const ledger = [
+    { id: XID, owner: OWNER, appRef: "ipfs://sse", active: true, isPublic: true, balance6: 5_000_000, spent6: 0,
+      runner: keccak256(stringToBytes(`http://127.0.0.1:${enclave.address().port}`)), leaseUntil: FUTURE },
+  ];
 
   const origin = await startRelay(t, { enclaves: `http://127.0.0.1:${enclave.address().port}`, ledger });
 
   // open the stream, take one chunk to prove it flows, then die abruptly
   const got = await new Promise((resolve, reject) => {
-    const creq = http.get(origin + `/x/${XID}/stream`, (cres) => {
+    const creq = http.get(origin + `/v1/deployments/${XID}/logs`, (cres) => {
       cres.once("data", () => { creq.destroy(); resolve(true); });
     });
     creq.on("error", reject);
@@ -712,8 +718,8 @@ test("api-relay: the on-chain runner outranks a cached owner, so a moved deploym
   const ID66 = ID("66");
   const mk = (label, hosts) => http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
-    if (req.url === "/availability")
-      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32 }));
+    if (req.url === "/availability")    // both hosts present the evidence a serving host needs (U7)
+      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32, teeCpu: "amd-sev-snp" }));
     // the deployment-scoped call: the previous host has nothing left to serve
     if (req.url.startsWith(`/v1/deployments/${ID66}`)) {
       if (!hosts) { res.statusCode = 404; return res.end(JSON.stringify({ code: "not_found", message: "No such deployment." })); }
@@ -761,8 +767,8 @@ test("api-relay: a runner's 404/401 on a bare record read falls back to the ledg
   let answer = "miss";                       // miss | badsession | hosted
   const box = http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
-    if (req.url === "/availability")
-      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32 }));
+    if (req.url === "/availability")    // the evidence a serving host needs (U7: control-plane forwarding is gated too)
+      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32, teeCpu: "amd-sev-snp" }));
     if (req.url.split("?")[0] === `/v1/deployments/${ID66}`) {
       if (answer === "miss")       { res.statusCode = 404; return res.end(JSON.stringify({ code: "not_found", message: "No such deployment." })); }
       if (answer === "badsession") { res.statusCode = 401; return res.end(JSON.stringify({ code: "unauthorized", message: "Missing or invalid session." })); }
@@ -827,7 +833,7 @@ test("api-relay: two enclaves claiming one deployment yield ONE row, the on-chai
   const mk = (label, status) => http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
     if (req.url === "/availability")
-      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32 }));
+      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32, teeCpu: "amd-sev-snp" }));   // U7: the session list fans out to eligible hosts only
     if (req.url.split("?")[0] === "/v1/deployments")
       return res.end(JSON.stringify({ data: [{ id: ID66, status, enclave: label }], cursor: null }));
     res.statusCode = 404; res.end("{}");
@@ -887,155 +893,23 @@ test("api-relay: a stale row on an ex-runner never shadows the ledger's live one
   assert.equal(rows[0].ledger, true, "the ledger row answers instead of the ex-runner's copy");
 });
 
-/* ---------- /v1/relays: the roster, and the choices made against it ----------
-   One endpoint answers both halves of the same question, because they only mean
-   anything together. The console asks "which relays can this deployment pick";
-   DNS asks "what address does <label>.app.enclave.host answer with". A name the
-   picker offers that the zone cannot resolve is a trap, so both are derived here
-   from the same two facts: the relay's own /availability block, and the
-   deployment's on-chain options envelope.
-
-   Note the names. A fleet row is named by its endpoint's first hostname label,
-   so every box in this file - reached over loopback - is called "127". That is
-   not a quirk of the test: it is exactly the collision the roster has to handle,
-   and the second case below leans on it deliberately. */
-const relayBoxWith = (relay) => http.createServer((req, res) => {
-  res.setHeader("content-type", "application/json");
-  if (req.url === "/availability") return res.end(JSON.stringify({
-    gpu: false, type: "cpu", cpuShareFree: 0, gpuShareFree: 0, maxShare: 0,
-    nodeVcpus: 0, nodeRamGb: 0, claimEnabled: false, relay }));
-  res.statusCode = 404; res.end("{}");
-});
-
-test("api-relay: /v1/relays publishes the roster and resolves each deployment's choice to an address", async (t) => {
-  const box = relayBoxWith({ sni: true, tcp: false, udp: false, egress: false, tunnelHub: false,
-                             address: "198.51.100.9", region: "us-west", ports: "1-49999" });
-  box.listen(0, "127.0.0.1"); await once(box, "listening");
-  t.after(() => box.close());
-
-  // "127" is what this box is called (loopback's first hostname label), so that
-  // is the name a deployment has to write in its envelope to choose it.
-  const ledger = [
-    { id: ID("11"), owner: OWNER, appRef: "ipfs://a", active: true, balance6: 5_000_000,
-      configCid: JSON.stringify({ network: { relay: "127" } }) },
-    { id: ID("22"), owner: OWNER, appRef: "ipfs://b", active: true, balance6: 5_000_000,
-      configCid: JSON.stringify({ waf: { rps: 10 }, network: { relay: "nowhere" } }) },   // names a relay the fleet doesn't have
-    { id: ID("33"), owner: OWNER, appRef: "ipfs://c", active: true, balance6: 5_000_000 }, // no envelope at all
-  ];
-  const origin = await startRelay(t, { enclaves: `http://127.0.0.1:${box.address().port}`, ledger });
-
-  const { status, body } = await getJson(origin, "/v1/relays");
-  assert.equal(status, 200);
-  assert.equal(body.relays.length, 1);
-  const r = body.relays[0];
-  assert.equal(r.name, "127");
-  assert.equal(r.address, "198.51.100.9");
-  assert.equal(r.region, "us-west");
-  assert.equal(r.relayOnly, true, "a box with no resources only relays - the console badges it as one");
-  assert.equal(r.services.sni, true);
-  assert.equal(r.services.egress, false, "services it did not declare are false, never absent");
-
-  // the choice, resolved: label -> the address the zone must answer with
-  assert.deepEqual(body.labels["11111111"], { relay: "127", a: "198.51.100.9" });
-  // a choice naming a relay the fleet no longer has is simply ABSENT: the zone
-  // default carries that app, which keeps it reachable. A preference is a
-  // preference; pointing a live app at a box that cannot serve it is not a
-  // stricter reading of the owner's wishes, it is an outage.
-  assert.equal(body.labels["22222222"], undefined);
-  assert.equal(body.labels["33333333"], undefined, "no envelope, no override");
-  assert.equal(Object.keys(body.labels).length, 1);
-});
-
-test("api-relay: two relays answering to one name are both dropped, and no deployment resolves to either", async (t) => {
-  const a = relayBoxWith({ sni: true, address: "198.51.100.9",  region: "us-west" });
-  const b = relayBoxWith({ sni: true, address: "198.51.100.10", region: "eu-north" });
-  for (const s of [a, b]) { s.listen(0, "127.0.0.1"); await once(s, "listening"); }
-  t.after(() => { a.close(); b.close(); });
-
-  const ledger = [{ id: ID("11"), owner: OWNER, appRef: "ipfs://a", active: true, balance6: 5_000_000,
-                    configCid: JSON.stringify({ network: { relay: "127" } }) }];
-  const origin = await startRelay(t, { enclaves:
-    `http://127.0.0.1:${a.address().port},http://127.0.0.1:${b.address().port}`, ledger });
-
-  const { body } = await getJson(origin, "/v1/relays");
-  // Zone 1 already NXDOMAINs an ambiguous id prefix rather than guessing, and
-  // the same rule holds here: a name that could mean two boxes means neither.
-  // Dropping both is also what makes the name safe to hand an owner - if a
-  // colliding row could win, registering a box would be a way to hijack, or
-  // simply to deny, a name someone else's app already points at.
-  assert.deepEqual(body.relays, [], "an ambiguous name is no name");
-  assert.deepEqual(body.labels, {}, "and the deployment that chose it falls back to the zone default");
-});
-
-test("api-relay: a relay that does not splice SNI is listed but cannot front an app subdomain", async (t) => {
-  // egress + dedicated-IP TCP are real relay services; neither can answer an
-  // app's name. Listing it and refusing to point a name at it is the honest
-  // split - the box exists, it just isn't an answer to THIS question.
-  const box = relayBoxWith({ sni: false, tcp: true, egress: true, address: "198.51.100.9",
-                             v6Prefix: "2a01:4f9:c013:9b52::/64" });
-  box.listen(0, "127.0.0.1"); await once(box, "listening");
-  t.after(() => box.close());
-
-  const ledger = [{ id: ID("11"), owner: OWNER, appRef: "ipfs://a", active: true, balance6: 5_000_000,
-                    configCid: JSON.stringify({ network: { relay: "127" } }) }];
-  const origin = await startRelay(t, { enclaves: `http://127.0.0.1:${box.address().port}`, ledger });
-
-  const { body } = await getJson(origin, "/v1/relays");
-  assert.equal(body.relays.length, 1, "still a fleet member worth seeing");
-  assert.equal(body.relays[0].services.sni, false);
-  assert.equal(body.relays[0].v6Prefix, "2a01:4f9:c013:9b52::/64");
-  assert.deepEqual(body.labels, {}, "but nothing resolves to it, so no app is pointed at a black hole");
-});
-
-test("api-relay: a relay that stops answering leaves the roster, and its apps fall back to the default", async (t) => {
-  // The asymmetry this encodes: forgetting a relay that is fine costs one DNS
-  // TTL of traffic on the default relay - slower, never down. Remembering one
-  // that is gone points every app that chose it at a black hole for as long as
-  // the memory lasts. A latency feature must not be able to cause an outage.
-  const box = relayBoxWith({ sni: true, address: "198.51.100.9", region: "us-west" });
-  box.listen(0, "127.0.0.1"); await once(box, "listening");
-  let closed = false;
-  t.after(() => { if (!closed) box.close(); });
-
-  const ledger = [{ id: ID("11"), owner: OWNER, appRef: "ipfs://a", active: true, balance6: 5_000_000,
-                    configCid: JSON.stringify({ network: { relay: "127" } }) }];
-  const origin = await startRelay(t, { enclaves: `http://127.0.0.1:${box.address().port}`,
-                                       ledger, env: { AVAIL_POLL_SEC: "1" } });
-  assert.equal((await getJson(origin, "/v1/relays")).body.labels["11111111"].a, "198.51.100.9");
-
-  box.close(); closed = true;                      // the relay's box goes away
-  for (let i = 0; i < 60; i++) {
-    const { body } = await getJson(origin, "/v1/relays");
-    if (!body.relays.length) {
-      assert.deepEqual(body.labels, {}, "and nothing is still pointed at it");
-      return;
-    }
-    await delay(100);
+// The old relay roster cannot advertise an application address after retirement.
+test("api-relay: the route map is empty until a host publishes, and TUNA-era publications are refused", async t => {
+  const origin = await startRelay(t, { enclaves: "http://127.0.0.1:1" });
+  for (const route of ["/v1/network/tuna", "/v1/relays"]) {
+    const {status, body} = await getJson(origin, route);
+    assert.equal(status, 200); assert.equal(body.transport, "tuna");
+    assert.deepEqual(body.relays, []); assert.deepEqual(body.labels, {});
+    assert.deepEqual(body.deployments, {});
   }
-  assert.fail("a relay that stopped answering never left the roster");
-});
-
-test("api-relay: two deployments sharing an app-zone label get no override, not one of them silently winning", async (t) => {
-  // Ids sharing their first 8 hex chars share one name - there is no answer
-  // that serves both. The name is already ambiguous with or without this
-  // feature; what must not happen is one deployment quietly deciding where the
-  // other's traffic goes.
-  const box = relayBoxWith({ sni: true, address: "198.51.100.9" });
-  box.listen(0, "127.0.0.1"); await once(box, "listening");
-  t.after(() => box.close());
-
-  const twinA = "0x" + "11".repeat(4) + "aa".repeat(28);
-  const twinB = "0x" + "11".repeat(4) + "bb".repeat(28);
-  const ledger = [
-    { id: twinA, owner: OWNER, appRef: "ipfs://a", active: true, balance6: 5_000_000,
-      configCid: JSON.stringify({ network: { relay: "127" } }) },
-    { id: twinB, owner: OWNER, appRef: "ipfs://b", active: true, balance6: 5_000_000 },   // no choice at all
-    { id: ID("77"), owner: OWNER, appRef: "ipfs://c", active: true, balance6: 5_000_000,
-      configCid: JSON.stringify({ network: { relay: "127" } }) },
-  ];
-  const origin = await startRelay(t, { enclaves: `http://127.0.0.1:${box.address().port}`, ledger });
-
-  const { body } = await getJson(origin, "/v1/relays");
-  assert.equal(body.labels["11111111"], undefined, "the contested label gets no answer from either twin");
-  assert.equal(body.labels["77777777"].a, "198.51.100.9", "an uncontested label is unaffected");
+  const rejected = await fetch(origin + "/v1/network/tuna", {
+    method: "POST", headers: {"content-type": "application/json"},
+    body: JSON.stringify({publication: {version: 1, endpoint: "https://api.enclave.host/t/unregistered",
+      expiresAt: Date.now() + 60000, web: {address: "8.8.8.8", port: 443}, raw: []}, signature: "0x00"}),
+  });
+  assert.equal(rejected.status, 400);
+  const refusal = await rejected.json();
+  assert.equal(refusal.error, "tuna_publication_refused");
+  assert.match(refusal.message, /TUNA route publications are retired/, "a v1 (TUNA host allocation) publication is refused as retired");
+  assert.deepEqual((await getJson(origin, "/v1/network/tuna")).body.labels, {});
 });

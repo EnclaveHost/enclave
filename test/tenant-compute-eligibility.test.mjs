@@ -57,6 +57,10 @@ test("computeEligibleOf: confidential evidence only; other verified contracts, s
   assert.equal(computeEligibleOf(row("phone", BOX, { tunnel: true, mode: "avf" })), false);
   assert.equal(computeEligibleOf(row("pc", BOX, { tunnel: true, mode: "vbs", tier: "vbs" })), false);
   assert.equal(computeEligibleOf(row("pc-dev", BOX, { tunnel: true, mode: "vbs", tier: "vbs-dev" })), false);
+  // the NucBox node (mode hv-node, 2026-09-25): a host-attested boot state, never capacity, never a verified TEE,
+  // even when its own availability still names the retired VBS enclave
+  assert.equal(computeEligibleOf(row("nucbox", { ...BOX, teeCpu: "windows-vbs-enclave" }, { tunnel: true, mode: "hv-node", tier: "hv-node" })), false);
+  { const t = teeCpuOf({ tunnel: true, mode: "hv-node", tier: "hv-node", availability: { teeCpu: "windows-vbs-enclave" } }); assert.equal(t.real, false); assert.equal(t.source, "self-reported"); }
   // self-reports
   assert.equal(computeEligibleOf(row("token", { ...BOX, teeCpu: "amd-sev-snp" }, { tunnel: true, mode: "" })), false);
   assert.equal(computeEligibleOf(row("liar", { ...BOX, teeCpu: "amd-sev-snp", tier: "vbs", claimEnabled: true }, { tunnel: true, mode: "" })), false);
@@ -133,11 +137,16 @@ test("the consumer node's market scope and claimEnabled are gated on the isolati
   const src = read("windows/node/host.mjs");
   assert.match(src, /appTrafficInsideEnclave\(\) \{ return false; \}/, "app traffic runs through VTL0 today, and the code says so rather than a config flag");
   const gate = between(src, "meetsIsolationContract() {", "\n  }", "windows/node/host.mjs");
-  assert.match(gate, /this\.appsInTee\(\) && this\.appTrafficInsideEnclave\(\) && String\(this\.relayTier \|\| ""\) === "vbs"/,
-    "every property, and the tier is the RELAY's verdict (relayTier), never the box's own");
+  // the Shield marketplace gate: the legacy engine retired, partition isolation, and BOTH relay
+  // verdicts: the attach tier (relayTier) and a fresh claim window only the relay opens
+  assert.match(gate, /this\.cfg\.engineRetired === true && this\.isolationBackend === "hyperv-partition-per-app"\s*&& this\.relayTier === "hv-node" && Number\(this\.shieldMarketUntil \|\| 0\) > Date\.now\(\)/,
+    "every property, and the tier and the market window are the RELAY's verdicts, never the box's own");
   assert.match(src, /scope\(\) \{ return this\.meetsIsolationContract\(\) && this\.cfg\.claimScope === "market"/, "market scope needs the contract; otherwise owner-only");
   assert.match(src, /claimEnabled: this\.meetsIsolationContract\(\) && ready,/, "claimEnabled needs the contract");
-  assert.match(read("windows/node/agent.mjs"), /host\.relayTier = tier;/, "the agent hands the relay's verdict to the host");
+  const agent = read("windows/node/agent.mjs");
+  assert.match(agent, /host\.relayTier = tier;/, "the agent hands the relay's verdict to the host");
+  assert.match(agent, /if \(s === tunnels\.current\) host\.openShieldMarket\(Math\.min\(Number\(f\.until\) \|\| 0, Date\.now\(\) \+ 300000\)\);/,
+    "only the accepted relay tunnel opens the market window, and never for more than five minutes");
 });
 
 test("the pVM CPU tier is the relay's row.tier, never the phone's own word, and never app-compute eligibility", () => {
@@ -155,7 +164,7 @@ test("the pVM CPU tier is the relay's row.tier, never the phone's own word, and 
   assert.equal(t.phone, false);
   // pinned in source: the relay's lane is mode avf + hub tier, and computeEligible does not read the tier
   const src = read("relay/api-relay.js");
-  const lane = between(src, "function inferenceLaneOf(e)", "\n}\n", "relay/api-relay.js");
+  const lane = between(src, "function pvmCpuLaneOf(e)", "\n}\n", "relay/api-relay.js");
   assert.match(lane, /String\(e\.mode \|\| ""\) === "avf" && e\.tier === PVM_CPU_TIER/);
   const hub = read("relay/tunnel.js");
   const capsHandler = between(hub, 'if (f.t === "caps") {', "return;\n      }", "relay/tunnel.js");

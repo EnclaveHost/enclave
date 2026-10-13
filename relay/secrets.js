@@ -62,9 +62,11 @@
 // puts them in its owner-readable log — same exposure class as ENCLAVE_CONFIG.
 
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { JsonStore, dataDir, dataFile, makeRateLimiter } from "./store.js";
+import { JsonStore, dataDir, dataFile, makeRateLimiter, rpcPool } from "./store.js";
 // the fleet-route primitives shared with certs.js (one spelling per rule)
 import { endpointOperator, recoverOp, makeReplayCache, rowOf, holdsLease } from "./fleet-auth.js";
+import { verifyContractOwnerSignature } from "./contract-owner-signature.mjs";
+import { handleRelease, releaseStatus } from "./secrets-release.mjs";
 
 // One env key, two derived subkeys: labels keep the fetch-auth MAC and the
 // at-rest cipher cryptographically independent even though they share a root.
@@ -136,6 +138,7 @@ const sigFresh = makeReplayCache();
 
 const rlOwner = makeRateLimiter({ capacity: 30, refillPerSec: 30 / 60 });   // per recovered wallet
 const rlFetch = makeRateLimiter({ capacity: 120, refillPerSec: 10 });       // per source ip (fleet-only traffic)
+const rlRelease = makeRateLimiter({ capacity: Math.max(1, parseInt(process.env.SECRETS_RELEASE_BURST || "30", 10) || 30), refillPerSec: 1 });   // per source ip: attested release (secrets-release.mjs)
 
 export async function initSecrets() {
   const dir = dataDir();
@@ -163,6 +166,19 @@ async function ownerGate(ctx, req, res, id, b, message) {
   const signature = String(b.signature || "");
   if (!Number.isFinite(expiry) || expiry < now || expiry > now + SIG_TTL_SEC)
     return bad(ctx, res, req, 422, "bad_expiry", `expiry must be a unix time within the next ${SIG_TTL_SEC / 60} minutes.`), null;
+  if (b.signatureType === "erc1271") {
+    if (!/^0x(?:[0-9a-fA-F]{2}){1,4096}$/.test(signature))
+      return bad(ctx, res, req, 422, "bad_sig", "Invalid contract-wallet signature."), null;
+    let d = await rowOf(ctx, id, { fresh: true });
+    if (!d) return bad(ctx, res, req, 404, "not_found", "Deployment not found."), null;
+    const address = String(d.owner).toLowerCase();
+    if (!rlOwner(address)) return bad(ctx, res, req, 429, "rate_limited", "Retry shortly."), null;
+    let valid = false;
+    try { valid = await verifyContractOwnerSignature({client: await rpcPool(), owner: address, message, signature}); } catch {}
+    if (!valid) return bad(ctx, res, req, 403, "not_owner", "Contract owner rejected the signature."), null;
+    if (!sigFresh(signature, expiry)) return bad(ctx, res, req, 409, "sig_replayed", "Signature already used."), null;
+    return {d, address};
+  }
   if (!/^0x[0-9a-fA-F]{130}$/.test(signature))
     return bad(ctx, res, req, 422, "bad_sig", "signature must be a 65-byte personal_sign hex."), null;
   let address;
@@ -175,7 +191,10 @@ async function ownerGate(ctx, req, res, id, b, message) {
   let d = await rowOf(ctx, id);
   if (!d) d = await rowOf(ctx, id, { fresh: true });          // just-created record: one cache-bypass retry
   if (!d) return bad(ctx, res, req, 404, "not_found", `No deployment ${id} on the ledger.`), null;
-  if (String(d.owner).toLowerCase() !== address)
+  // a SessionVault-held record answers to the vault's OWNER wallet (sessions:
+  // secrets stay owner-only - a session key can never sign this)
+  const owner = String(ctx.beneficialOwner ? await ctx.beneficialOwner(d.owner) : d.owner).toLowerCase();
+  if (owner !== address)
     return bad(ctx, res, req, 403, "not_owner", "The signer does not own this deployment."), null;
   if (!sigFresh(signature, expiry))
     return bad(ctx, res, req, 409, "sig_replayed", "This signature was already used; sign a fresh request."), null;
@@ -183,6 +202,7 @@ async function ownerGate(ctx, req, res, id, b, message) {
 }
 
 const recOf = (id) => store.data.byId[id] || null;
+export const hasStagedSecrets = (id) => !!recOf(String(id).toLowerCase());
 const namesOf = (env) => Object.keys(env).sort();
 
 // Core mutate. Exported for TESTS only - and it performs NO authorization: the
@@ -222,10 +242,33 @@ export function readSecrets(id) {          // TESTS only - unauthenticated, see 
 export async function handleSecrets(req, res, u, ctx) {
   if (!enabled)
     return bad(ctx, res, req, 503, "secrets_disabled", "Per-deployment secrets are not configured on this relay.");
+  // the one GET: whether attested release is enabled for a deployment (public; no signature involved)
+  if (req.method === "GET" && u.pathname === "/v1/secrets/release-status")
+    return releaseStatus(u, req, res, ctx, { bad: (code, error, message) => bad(ctx, res, req, code, error, message), rate: rlRelease });
   if (req.method !== "POST")
     return bad(ctx, res, req, 405, "method_not_allowed", "Secrets endpoints are POST-only (signatures never belong in URLs).");
   let raw; try { raw = await ctx.readBody(req, 32768); } catch (e) { return bad(ctx, res, req, 413, "too_large", e.message); }
   let b; try { b = JSON.parse(raw.toString() || "{}"); } catch { return bad(ctx, res, req, 400, "bad_json", "Body must be JSON."); }
+
+  if (u.pathname === "/v1/secrets/shield-release") {
+    if (!rlRelease(ctx.clientIp(req))) return bad(ctx,res,req,429,"rate_limited","Too many release requests.");
+    if (typeof ctx.shieldSecretRelease !== "function") return bad(ctx,res,req,503,"shield_release_disabled","Shield release is unavailable.");
+    try { return ctx.json(res,200,await ctx.shieldSecretRelease(b,ctx,readSecrets),req); }
+    catch (e) { return bad(ctx,res,req,Number.isInteger(e.status)?e.status:503,"shield_release_refused",e.message); }
+  }
+
+  // a pVM host's secrets, sealed to its VM (pvm-secrets.mjs): the operator carries ciphertext only
+  if (u.pathname === "/v1/secrets/pvm-release") {
+    if (!rlRelease(ctx.clientIp(req))) return bad(ctx, res, req, 429, "rate_limited", "Too many release requests.");
+    if (typeof ctx.pvmSecretRelease !== "function") return bad(ctx, res, req, 503, "pvm_release_disabled", "pVM release is unavailable.");
+    try { return ctx.json(res, 200, await ctx.pvmSecretRelease(b, ctx, readSecrets), req); }
+    catch (e) { return bad(ctx, res, req, Number.isInteger(e.status) ? e.status : 503, "pvm_release_refused", e.message); }
+  }
+
+  // attested release to a per-app SNP guest (secrets-release.mjs; OFF unless SECRETS_ATTESTED_RELEASE and its policy)
+  if (await handleRelease(u.pathname, b, req, res, ctx, {
+    envOf: (id) => { const rec = recOf(id); return rec ? open(id, rec.blob) : {}; },
+    bad: (code, error, message) => bad(ctx, res, req, code, error, message), rate: rlRelease })) return;
 
   // fleet fetch — the lease-holding enclave pulls right before it (re)starts the app
   if (u.pathname === "/v1/secrets/fetch") {
@@ -319,6 +362,25 @@ export async function handleSecrets(req, res, u, ctx) {
       console.error(`[secrets] ${endpoint} fetch REFUSED for ${id}: not the live lease holder `
         + `(ledger runner ${d.runner}, leaseUntil ${d.leaseUntil})`);
       return bad(ctx, res, req, 409, "not_lease_holder", "This endpoint does not hold the deployment's live lease.");
+    }
+    // ...and the lease holder must be a host the relay holds ELIGIBLE (U7): a deployment's secrets never leave for a
+    // host the relay would not route its traffic to. A context without the verdict refuses: unknown is not permission.
+    const el = typeof ctx.hostEligibility === "function" ? ctx.hostEligibility(epId) : null;
+    if (!el || el.eligible !== true || el.plaintextSecrets === false) {
+      console.error(`[secrets] ${endpoint} fetch REFUSED for ${id}: the lease holder is not an eligible host (${el ? el.reason : "no eligibility verdict"})`);
+      return bad(ctx, res, req, 403, "host_ineligible",
+        `This endpoint holds the lease but is not eligible to serve tenant apps${el && el.reason ? ": " + el.reason : ""}.`);
+    }
+    // sessions custody (docs/design/sessions.md §7): a vault-held record releases only when adopted, and a PROD one only
+    // for the exact version/config its owner promoted - never for what a session key last pointed it at
+    if (typeof ctx.custodyRefusal === "function") {
+      let why;
+      try { why = await ctx.custodyRefusal(d); }
+      catch (e) { return bad(ctx, res, req, 503, "custody_unreadable", `Could not read the deployment's custody record (${e.message}); retry shortly.`); }
+      if (why) {
+        console.error(`[secrets] ${endpoint} fetch REFUSED for ${id}: ${why}`);
+        return bad(ctx, res, req, 403, "not_promoted", why);
+      }
     }
     const { rev, env } = readSecrets(id);
     // SUCCESS is logged too, and that is the point of this pair rather than a
