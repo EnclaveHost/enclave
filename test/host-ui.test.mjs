@@ -241,6 +241,15 @@ test("as a phone: one CPU & RAM share and no GPU anywhere, the panel's own title
     await p.page.click("#payNow");
     await p.page.waitForFunction(() => /^Paying out \$1\.23 to 0x0b2d00\u2026eE61: the transaction goes out within a minute\.$/.test(document.getElementById("error").textContent));
     assert.equal(await p.page.isDisabled("#payNow"), true, "not twice while it is paying");
+    // Android's Back: a question is cancelled, then the open section closes, then the app is left (the shell's hide)
+    await p.page.click("#switch");
+    await p.page.waitForSelector("#ask[open]");
+    assert.equal(await p.page.evaluate(() => window.EnclaveHostPanel.back()), true);
+    await p.page.waitForFunction(() => document.getElementById("error").textContent === "Hosting is still on: nothing was stopped.");
+    assert.equal(p.node.state.caps.paused, false);
+    assert.equal(await p.page.evaluate(() => window.EnclaveHostPanel.back()), true, "the open section closes");
+    assert.equal(await p.page.isVisible("#pageEarnings"), false);
+    assert.equal(await p.page.evaluate(() => window.EnclaveHostPanel.back()), false, "nothing open: the shell is asked to hide");
     await p.page.click("#rowApps");
     assert.equal(await p.text("#valApps"), "2 serving");
     assert.equal(await p.page.locator("#apps a").first().innerText(), "a69dcbba.app.enclave.host");
