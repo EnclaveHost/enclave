@@ -93,6 +93,9 @@ namespace Enclave.Tray
         public string TakingWhy = "";
         public int Dropped;                                 // in the answer to an Apply: deployments it dropped
         public PriceAxis CpuPrice, GpuPrice;                // the node's pricing (null: an older node, or no card to price)
+        public bool GasLow;                                 // the operator key is running out of gas: apps stop renewing
+        public double GasHoursLeft = -1;                    // its measured runway (-1: not measured yet)
+        public string GasOperator = "";
 
         public static HostingView From(Dictionary<string, object> o)
         {
@@ -111,6 +114,8 @@ namespace Enclave.Tray
             if (market != null) { v.Taking = Bool(market, "taking"); v.TakingWhy = Str(market, "why"); }
             var pricing = Obj(o, "pricing");
             v.CpuPrice = PriceAxis.From(Obj(pricing, "cpu")); v.GpuPrice = PriceAxis.From(Obj(pricing, "gpu"));
+            var gas = Obj(o, "gas");
+            if (gas != null) { v.GasLow = Bool(gas, "low"); v.GasHoursLeft = Num(gas, "hoursLeft", -1); v.GasOperator = Str(gas, "operator"); }
             return v;
         }
         static Dictionary<string, object> Obj(Dictionary<string, object> d, string k)
@@ -1201,7 +1206,9 @@ namespace Enclave.Tray
             string waiting = v.WaitingForCap > 0 ? ", " + v.WaitingForCap + " waiting for room under the cap" : "";
             status.Text = "Node: reachable \u00B7 backend " + (v.Backend.Length > 0 ? v.Backend : "?") + " \u00B7 "
                         + v.Served + (v.Served == 1 ? " deployment" : " deployments") + " served" + waiting
-                        + (v.AppsEnabled ? "" : " \u00B7 hosting is off on this node (APPS)");
+                        + (v.AppsEnabled ? "" : " \u00B7 hosting is off on this node (APPS)")
+                        + (v.GasLow ? "\nOperator gas is LOW" + (v.GasHoursLeft >= 0 ? " (about " + v.GasHoursLeft.ToString("0", CultureInfo.InvariantCulture) + " hours left)" : "")
+                                      + ": send a little ETH on Base to " + v.GasOperator + " or apps stop renewing and go away" : "");
             // a refresh never wipes what the owner was just told; the next Apply, switch or Reset does
             if (v.CapsError.Length > 0) ShowError(v.CapsError);
             Relabel();
@@ -1660,6 +1667,7 @@ namespace Enclave.Tray
                 return;
             }
             bool over = v.CpuInUse > v.CpuCap + 1e-9 || v.GpuInUse > v.GpuCap + 1e-9 || v.CapsError.Length > 0;
+            if (v.GasLow) { icon.Icon = iconWarn; icon.Text = Tip("Enclave hosting: operator gas is low, top it up"); return; }
             if (v.Taking == false) { icon.Icon = iconWarn; icon.Text = Tip("Enclave hosting: on, not taking new work yet"); return; }
             icon.Icon = over ? iconWarn : iconOk;
             icon.Text = Tip("Enclave: CPU " + ControlPanel.Pct(v.CpuCap) + " offered, " + ControlPanel.Pct(v.CpuInUse) + " used; "
