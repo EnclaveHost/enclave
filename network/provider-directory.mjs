@@ -65,10 +65,14 @@ export async function verifyQualification(env,record,{checkers,now=Date.now()}){
 }
 
 // Several trusted checkers each sign their own verdict. A provider is eligible for a role when at least one current
-// verdict passes everything, and NO current verdict that reached it (udpEcho: the tunnel came up) failed a check: a
-// failure seen through the provider's own data path revokes it, while a checker that could not reach the provider at
-// all (its own network down) proves nothing either way.
-const SECURITY=CHECKS.filter(c=>c!=='udpEcho');
+// verdict passes everything, and NO current verdict that reached it (udpEcho: the tunnel came up) failed a SECURITY
+// check - letting private, own-address or SMTP traffic through, or proxying for an unauthorized client - which revokes it
+// at once. A reachability or throughput failure seen by one checker (a port or an HTTPS fetch timing out, a 4 MiB
+// payload not arriving in time) only means that verdict is not a pass: one checker's congested uplink must not tear
+// down every circuit through a provider the other checker just passed (2026-10-13: 4 MiB timeouts from a home uplink
+// revoked providers for a round at a time and cut live downloads). A checker that could not reach it at all proves nothing.
+export const SECURITY_CHECKS=['blocksPrivateDestinations','blocksOwnAddresses','blocksSmtp','rejectsUnauthorizedProxy'];
+const SECURITY=SECURITY_CHECKS;
 export async function verifyQualifications(envs,record,{checkers,now=Date.now()}){
  const seen=new Map();
  for(const env of envs||[]){
