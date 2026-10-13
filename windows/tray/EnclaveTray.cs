@@ -446,8 +446,7 @@ namespace Enclave.Tray
                 var here = Path.GetDirectoryName(Application.ExecutablePath);
                 if (File.Exists(Path.Combine(here, "WebView2Loader.dll"))) CoreWebView2Environment.SetLoaderDllFolderPath(here);
                 if (!File.Exists(Path.Combine(cfg.UiFolder, "index.html"))) throw new FileNotFoundException("the panel's files are missing: no index.html in " + cfg.UiFolder);
-                string data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Enclave", "Tray",
-                                           cfg.Instance.Length > 0 ? "WebView2." + cfg.Instance : "WebView2");
+                string data = Path.Combine(TrayApp.Home, "WebView2");
                 var made = web.Handle;                      // the control's window, while the panel is still hidden: the page starts now
                 var env = await CoreWebView2Environment.CreateAsync(null, data);
                 await web.EnsureCoreWebView2Async(env);
@@ -582,7 +581,8 @@ namespace Enclave.Tray
         readonly ToolStripMenuItem pauseItem;
         HostingView last;
         bool refreshing;
-        static readonly string Home = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Enclave", "Tray");
+        /// <summary>The tray's own folder: its log and the panel's WebView2 data (a named instance keeps its own, beside it).</summary>
+        public static string Home = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Enclave", "Tray");
 
         public TrayApp(TrayConfig cfg, string configError)
         {
@@ -826,6 +826,7 @@ namespace Enclave.Tray
         // apart from Main, so nothing of WebView2 is touched before RefreshFromProgramFiles has put this version's files in place
         static void Run(TrayConfig cfg, string configError, EventWaitHandle show)
         {
+            if (cfg.Instance.Length > 0) TrayApp.Home = TrayApp.Home + "." + cfg.Instance;
             var app = new TrayApp(cfg, configError);
             var wait = ThreadPool.RegisterWaitForSingleObject(show, delegate { app.ShowFromOutside(); }, null, -1, false);
             Application.Run(app);
