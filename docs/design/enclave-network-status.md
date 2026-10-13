@@ -91,3 +91,9 @@ recreated on 10.250.0.0/30.
 Retired from service 2026-10-13: no app uses it. Stopped: NKN top-up, funding sync, us-west fallback sync and the NucBox
 SSH reconcile timers on warden-host; the TUNA services on the DigitalOcean nodes. Hosts keep the TUNA binaries for one
 release as a rollback. Remaining cleanup: the relay's NKN funding endpoint, the TUNA code paths in the agent.
+
+Code removal (branch `network/tuna-removal`, not merged or deployed): the relay's `/v1/hosts/tuna-funding` endpoint and
+its queue; the relay refuses every route publication that is not under a v5 policy (TUNA v1 host allocations, policies
+v2/v3/v4); the privacy agent requires `enclaveNetwork` and ignores leftover TUNA settings; the Windows enrollment and
+the Linux reconciler make no NKN wallets; the TUNA Go adapter, its containers, provider units and the site's old
+network controls are deleted. Deploying it ends the TUNA rollback: hosts updated to it cannot run TUNA again.
