@@ -80,7 +80,7 @@ export function checkPin(exe, sha256, what) {
  * One supervised child: resolves when `ready` matches its stdout, rejects on exit, error or timeout. Its output is
  * always drained (a full pipe would stall it) and only a bounded tail is kept, for the error message.
  */
-function supervise(child, ready, what, timeoutMs) {
+function supervise(child, ready, what, timeoutMs, log = null) {
   let resolveExit;
   const exited = new Promise((r) => { resolveExit = r; });
   child.once("exit", (code, signal) => resolveExit({ code, signal }));
@@ -88,6 +88,20 @@ function supervise(child, ready, what, timeoutMs) {
   let out = "", err = "";
   child.stdout.on("data", (b) => { out = (out + b).slice(-1000); });
   child.stderr.on("data", (b) => { err = (err + b).slice(-1000); });
+  // What the child says about a stream that ENDED badly reaches the log (a cut download was invisible: both children
+  // kept their stderr in this buffer only). Codes and io errors only - shield-egress never names a destination, and
+  // its per-connection "open" line is skipped; at most 60 lines a minute per child.
+  if (log) {
+    let partial = "", minute = 0, said = 0;
+    child.stderr.on("data", (b) => {
+      const lines = (partial + b).split(/\r?\n/); partial = lines.pop().slice(-1000);
+      for (const line of lines) {
+        if (!line.trim() || / egress open$/.test(line)) continue;
+        const m = Math.floor(Date.now() / 60_000); if (m !== minute) { minute = m; said = 0; }
+        if (++said <= 60) log(`${what}: ${line.trim().slice(0, 300)}`);
+      }
+    });
+  }
   const stop = async () => {
     child.stdin.destroy();                       // EOF: the child ends itself, and with it every stream it carries
     const timer = setTimeout(() => child.kill(), 2000); timer.unref?.();
@@ -110,7 +124,8 @@ function supervise(child, ready, what, timeoutMs) {
  * ends (the path is then gone, and the caller fails the domain), and `stop` ends both, bridge first. Anything that fails
  * stops what was started before it rethrows.
  */
-export async function startEgress({ cfg, vmId, deploymentId = null, spawn = nodeSpawn, readyTimeoutMs = 10_000 }) {
+export async function startEgress({ cfg, vmId, deploymentId = null, spawn = nodeSpawn, readyTimeoutMs = 10_000,
+                                    log = (m) => console.log(`${new Date().toISOString().slice(11, 19)} [egress] ${m}`) }) {
   if (!cfg) throw new Error("egress is not configured");
   if (!GUID.test(String(vmId || "")) || /^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(vmId)) throw new Error(`not a partition id: ${vmId}`);
   if (cfg.appRoutes && !DEPLOYMENT.test(String(deploymentId || "")))
@@ -120,13 +135,15 @@ export async function startEgress({ cfg, vmId, deploymentId = null, spawn = node
   const args = ["-listen", "127.0.0.1:0", ...(cfg.socks ? ["-socks", cfg.socks] : ["-app-routes", cfg.appRoutes, "-deployment", deploymentId]),
                 ...(cfg.allow ? ["-allow", cfg.allow] : []), ...(cfg.blobService ? ["-blob-service", cfg.blobService] : [])];
   const opts = { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] };
-  const server = supervise(spawn(cfg.exe, args, opts), /shield-egress ready listen=127\.0\.0\.1:(\d{1,5})\b/, "shield-egress", readyTimeoutMs);
+  const tag = String(vmId).slice(0, 8);
+  const server = supervise(spawn(cfg.exe, args, opts), /shield-egress ready listen=127\.0\.0\.1:(\d{1,5})\b/, "shield-egress", readyTimeoutMs,
+                           (m) => log(`${tag} ${m}`));
   let bridge = null;
   try {
     const port = Number((await server.up)[1]);
     if (!(port >= 1 && port <= 65535)) throw new Error("shield-egress named no usable port");
     bridge = supervise(spawn(cfg.bridgeExe, [vmId, String(EGRESS_VSOCK_PORT), String(port), "0"], opts),
-                       /shielded bridge ready/, "the egress bridge", readyTimeoutMs);
+                       /shielded bridge ready/, "the egress bridge", readyTimeoutMs, (m) => log(`${tag} ${m}`));
     await bridge.up;
     const exited = Promise.race([server.exited.then((x) => ({ who: "shield-egress", ...x })),
                                  bridge.exited.then((x) => ({ who: "shielded-bridge", ...x }))]);

@@ -44,7 +44,7 @@ import { createPublicClient, createWalletClient, http as viemHttp, fallback,
 import { base } from "viem/chains";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 
-const VERSION = "1.4.0";
+const VERSION = "1.5.0";
 
 // The ONLY enclave source repo this CLI will verify against. Attestation targets
 // are pinned to this constant, never taken from the API response — a malicious
@@ -408,6 +408,8 @@ function flags(rest, { bool = [], val = [] } = {}) {
   }
   return out;
 }
+// a referral code (relay/referrals.mjs REFERRAL_RE): attribution only
+const REFERRAL_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 const numFlag = (v, name) => {
   if (v === undefined) return undefined;
   const n = Number(v);
@@ -4125,7 +4127,7 @@ encrypted volumes (rclone-crypt over S3; push data with scripts/enclave-encvol.s
 sell hosting (run an enclave on your own TEE hardware — metal/PROTOCOL.md)
   host init [--name N] [--payout 0x…] [--cpus N --mem MiB]
             [--price-cpu USD/hr] [--gpu N --price-gpu USD/hr]
-            [--eab-kid K --eab-hmac H]
+            [--eab-kid K --eab-hmac H] [--referral CODE]
                              scaffold metal/config.json: mints the box's operator
                              key INTO that file (gitignored; the printed address
                              derives from it — nothing external to trust) and
@@ -4144,6 +4146,9 @@ sell hosting (run an enclave on your own TEE hardware — metal/PROTOCOL.md)
                              transfer: it pays the box's register/heartbeat/claim
                              transaction fees — it is not a payment to anyone
   host status                gas left · listed/serving · accrued USDC earnings
+  host referral [CODE]       report this machine's referral code (default: the one
+                             host init saved; also ENCLAVE_REFERRAL), signed by its
+                             operator key; needs the name registered on chain
   host declare-payout [--url https://…]
                              publish THIS wallet as the box's payout wallet, so
                              deployments you own run there for nothing (a paid
@@ -4192,7 +4197,7 @@ transactions - deploying and funding by credit stays on enclave.host for now.`;
 // not a payment; earnings sweep to payoutAddress (default: this CLI wallet).
 async function cmdHost(rest) {
   const sub = rest.shift();
-  const f = flags(rest, { val: ["--config", "--name", "--payout", "--eth", "--address", "--mode", "--cpus", "--mem", "--eab-kid", "--eab-hmac", "--price-cpu", "--price-gpu", "--gpu", "--repo", "--supervisor", "--wasm", "--kernel", "--url"] });
+  const f = flags(rest, { val: ["--config", "--name", "--payout", "--eth", "--address", "--mode", "--cpus", "--mem", "--eab-kid", "--eab-hmac", "--price-cpu", "--price-gpu", "--gpu", "--repo", "--supervisor", "--wasm", "--kernel", "--url", "--referral"] });
   const cfgPath = f.config || path.join("metal", "config.json");
   const readCfg = () => { try { return JSON.parse(fs.readFileSync(cfgPath, "utf8")); } catch { return null; } };
   const operatorOf = (cfg) => {
@@ -4235,6 +4240,13 @@ async function cmdHost(rest) {
     }
     if (f.gpu) { cfg.gpuCount = Math.max(1, parseInt(f.gpu, 10) || 1);
       if (cfg.priceGpuUsdHr == null) say("note: GPU enclave with no --price-gpu — its GPU shares sell at the on-chain list price"); }
+    // the referral code this machine was set up with (attribution only): kept here, said by the guest when it attaches
+    // (x-metal-referral) and reported now by `enclave host referral` once the name is registered
+    const referral = f.referral ?? env.ENCLAVE_REFERRAL;
+    if (referral != null && String(referral).trim() !== "") {
+      if (!REFERRAL_RE.test(String(referral).trim())) throw new Error("--referral: a referral code is 1-64 letters, digits, '.', '_' or '-'");
+      cfg.referral = String(referral).trim();
+    }
     if (f.payout) cfg.payoutAddress = f.payout;
     else if (!cfg.payoutAddress) {
       const acct = loadKey({ required: false });
@@ -4247,6 +4259,7 @@ async function cmdHost(rest) {
     const askRow = (label, v, unit) => [label, v != null ? `$${Number(v).toFixed(2)} / ${unit}   (this box refuses work paying less)` : `list price (on-chain) — set with --price-${label.startsWith("cpu") ? "cpu" : "gpu"}`];
     kv([["operator", `${op}   (this box's on-chain identity; needs a little Base ETH for gas)`],
         ["payout", cfg.payoutAddress ? `${cfg.payoutAddress}   (your USDC earnings sweep here)` : "(unset — set one before earning: enclave host init --payout 0x…)"],
+        ...(cfg.referral ? [["referral", `${cfg.referral}   (reported for this machine: enclave host referral, once it is registered)`]] : []),
         askRow("cpu ask", cfg.priceCpuUsdHr, "full node-hour"),
         ...(cfg.gpuCount > 0 ? [askRow("gpu ask", cfg.priceGpuUsdHr, "full card-hour")] : []),
         ["endpoint", cfg.publicUrl]]);
@@ -4258,6 +4271,29 @@ async function cmdHost(rest) {
   sudo bash metal/host-setup.sh              one-time /dev/sev perms
   node metal/enclave-metal.mjs --config ${cfgPath}    (or metal/systemd/)
 the box hides itself until its registration confirms, then appears as serving.`);
+    return;
+  }
+
+  if (sub === "referral") {
+    // Report this machine's referral code (attribution only; relay/referrals.mjs): the operator key in the config signs
+    // "enclave-referral:<name>:<code>", and the relay records it only when that key is the name's REGISTERED owner.
+    const cfg = readCfg();
+    if (!cfg || !cfg.registryKey) throw new Error(`no host config with an operator key at ${cfgPath}: run \`enclave host init\` first`);
+    const code = String(f._[0] ?? f.referral ?? env.ENCLAVE_REFERRAL ?? cfg.referral ?? "").trim();
+    if (!code) throw new Error("no referral code: enclave host referral <code> (or set one with enclave host init --referral <code>)");
+    if (!REFERRAL_RE.test(code)) throw new Error("a referral code is 1-64 letters, digits, '.', '_' or '-'");
+    if (cfg.referral !== code) { cfg.referral = code; fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + "\n", { mode: 0o600 }); }
+    const name = cfg.name || "metal0";
+    const pk = cfg.registryKey.startsWith("0x") ? cfg.registryKey : "0x" + cfg.registryKey;
+    const signature = await privateKeyToAccount(pk).signMessage({ message: `enclave-referral:${name}:${code}` });
+    const r = await fetch(API_BASE + "/v1/referrals/host", { method: "POST", headers: { "content-type": "application/json" },
+                                                             body: JSON.stringify({ name, code, signature }) });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 409) { say(`${name} is not registered on chain yet: the code is saved in ${cfgPath}; run this again once it is`); return; }
+    if (!r.ok) throw new Error(`the relay refused it (${r.status}): ${d.message || d.error || "no reason given"}`);
+    if (opt.json) return console.log(JSON.stringify({ name, code, outcome: d.outcome }));
+    say(d.outcome === "kept-first" ? `${name} already has an earlier referral code; ${code} is recorded beside it`
+                                   : `${name}: referral code ${code} recorded`);
     return;
   }
 

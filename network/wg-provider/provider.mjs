@@ -84,7 +84,8 @@ export class WgProvider {
   if(r.role==='probe')return this.probe(r,signer,now);
   if(/^0x0{64}$/.test(r.deploymentId))return this.control(r,signer,now);
   // the lease, read with two agreeing RPCs: active, held by this runner, whose registry operator signed
-  const lease=await this.leases(r.deploymentId);
+  // a renewal of a peer this provider already holds may lean on the last agreeing lease read while the RPCs disagree
+  const lease=await this.leases(r.deploymentId,{renewal:this.peers.get(r.wgPublicKey)?.deploymentId===r.deploymentId});
   if(!lease||!lease.active||lease.runner!==r.runner||String(lease.runnerOperator).toLowerCase()!==signer||!(lease.validUntil>now)||!(lease.leaseUntil>now))
    throw new Error('the request is not from the deployment\'s current runner');
   if(r.ingress&&!lease.isPublic)throw new Error('only public apps get public ingress');
@@ -191,8 +192,10 @@ export class WgProvider {
   for(const p of [...this.peers.values()]){
    if(p.expiresAt<=now){await this.remove(p,'expired');continue;}
    if(p.role==='probe')continue;
-   if(p.control){const host=await this.hosts(p.runner).catch(()=>null);if(!host||!host.active)await this.remove(p,'host no longer registered');continue;}
-   const lease=await this.leases(p.deploymentId).catch(()=>null);
+   // a peer goes only on a definite answer: a read that FAILS (the public RPCs disagree for a moment) keeps it until the
+   // next sweep - removing on a failed read tore down every circuit through this provider at once
+   if(p.control){let host;try{host=await this.hosts(p.runner);}catch{continue;}if(!host||!host.active)await this.remove(p,'host no longer registered');continue;}
+   let lease;try{lease=await this.leases(p.deploymentId,{renewal:true});}catch{continue;}
    if(!lease||!lease.active||lease.runner!==p.runner||!(lease.leaseUntil>now)){await this.remove(p,'lease ended');continue;}
    // the owner revoked or replaced the on-chain authorization, or the budget is spent: no more paid traffic
    if(p.paidNonce){let ok=false;try{ok=paidGate({lease,hostId:this.config.hostId,pricePerGiB6:this.config.pricePerGiB6,now})===p.paidNonce;}catch{}if(!ok)await this.remove(p,'paid authorization ended');}

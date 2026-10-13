@@ -11,6 +11,8 @@
 // Configuration (environment, all optional except the model):
 //   NODE_NAME            the tunnel name (x-metal-name), default the hostname lower-cased
 //   RELAY_URL            wss://api.enclave.host/v1/fleet-tunnel
+//   REFERRAL_CODE        the referral code this machine was installed with (x-metal-referral; the relay records it against
+//                        this name once the attach proves it: relay/referrals.mjs). Attribution only.
 //   NODE_DIR             where the binaries live (default: this file's directory)
 //   MODEL, CALIB         the GGUF and its calibration (required)
 //   WORKER_EXE, WORKER_PORT (9595), WORKER_VRAM_GB (2), SHIELDED_VK_DEVICE, SHIELDED_CARD_TFLOPS (8)
@@ -59,6 +61,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DIR = process.env.NODE_DIR || HERE;
 const NAME = (process.env.NODE_NAME || os.hostname()).toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 64);
 const RELAY_URL = process.env.RELAY_URL || 'wss://api.enclave.host/v1/fleet-tunnel';
+const REFERRAL = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(process.env.REFERRAL_CODE || '') ? process.env.REFERRAL_CODE : '';
 const MODEL = process.env.MODEL, CALIB = process.env.CALIB;
 const WORKER_EXE = process.env.WORKER_EXE || path.join(DIR, 'shielded-worker.exe');
 const WORKER_PORT = Number(process.env.WORKER_PORT || 9595), WORKER_VRAM_GB = process.env.WORKER_VRAM_GB || '2';
@@ -661,7 +664,7 @@ function connect() {
     // maxPayload: an explicit ceiling on one tunnel frame. `ws` defaults to 100 MB, which is a
     // lot of agent memory to hand a single message, and every frame this tunnel legitimately
     // carries is one request or one response - already bounded by the same knob at the app.
-    const ws = s.ws = new WebSocket(RELAY_URL, { headers: { 'x-metal-name': NAME, 'x-metal-attest': '1' }, family: 4,
+    const ws = s.ws = new WebSocket(RELAY_URL, { headers: { 'x-metal-name': NAME, 'x-metal-attest': '1', ...(REFERRAL ? { 'x-metal-referral': REFERRAL } : {}) }, family: 4,
                                     maxPayload: Math.round((Number(process.env.ENCLAVE_APP_MAX_BODY_MB) || 64) * 1048576 * 1.4) });
     const send = (o) => { try { ws.send(JSON.stringify(o)); } catch {} };
     tunnels.opened(s, { standby });

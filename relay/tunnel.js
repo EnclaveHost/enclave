@@ -170,6 +170,9 @@ export async function servedList(delegations, ctx) {
   return { served: [...byOwner].map(([owner, expires]) => ({ owner, expires })).sort((a, b) => (a.owner < b.owner ? -1 : 1)), refused };
 }
 export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 30000, onChange = () => {},
+                                  // (name, code, {via, operator}) once a box has PROVEN its name and said a referral code
+                                  // (x-metal-referral; relay/referrals.mjs): attribution only, it changes nothing here
+                                  onReferral = () => {},
                                   operatorFor = null, operatorAttach = false,
                                   trustedOperators = [], operatorsUnrestricted = false,
                                   // this relay's public origin (selfRoutedUrl form 2) and, for an hv-node's owner-only
@@ -431,17 +434,20 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     const bye = () => { if (tunnels.get(name) === t) tunnels.delete(name); for (const p of t.pending.values()) p.reject(new Error("tunnel closed")); console.log(`[tunnel] ${name} detached`); try { onChange("detach", name); } catch {} };
     ws.on("close", bye);
     ws.on("error", () => { try { ws.terminate(); } catch {} });
+    // the name is PROVEN now (token, operator key or attestation): only now may its referral code be recorded
+    if (meta.referral) { try { onReferral(name, meta.referral, { via: t.via, operator: meta.operator || "" }); } catch {} }
     return true;
   }
 
   function handleUpgrade(req, socket, head) {
     const name = String(req.headers["x-metal-name"] || "").slice(0, 64);
     const token = String(req.headers["x-metal-token"] || "");
+    const referral = String(req.headers["x-metal-referral"] || "").slice(0, 64);
     const wantsAttest = req.headers["x-metal-attest"] === "1" || (!token && attestOn);
     if (!NAME_RE_OK.test(name)) { socket.write("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n"); return socket.destroy(); }
 
     // Token path (bootstrap / first-party): authorize before the handshake.
-    if (tokenOk(name, token)) return wss.handleUpgrade(req, socket, head, (ws) => bind(name, ws, { via: "token" }));
+    if (tokenOk(name, token)) return wss.handleUpgrade(req, socket, head, (ws) => bind(name, ws, { via: "token", referral }));
 
     // Operator path: prove the NAME from the chain, with no quote at all. For a
     // relay this is the only identity that exists — it runs no measured image —
@@ -503,7 +509,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             // key is the operator's own business; a stranger cannot get here.
             clearTimeout(timer); settled = true;
             try { ws.send(JSON.stringify({ t: "attest-result", ok: true })); } catch {}
-            bind(name, ws, { via: "operator" });
+            bind(name, ws, { via: "operator", referral });
           } catch (e) { deny(`attach error: ${e.message}`); }
           finally { checking = false; }
         });
@@ -707,7 +713,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             const padKey = padEligible && /^[0-9a-f]{64}$/.test(String(f.rad.padKey || "")) ? f.rad.padKey : "";
             bind(name, ws, { via: isHv ? "attestation(hv-node)" : isAvf ? "attestation(avf)" : res.vcekVerified ? "attestation" : "attestation(measurement-only)",
                              measurement: res.measurement, mode: isHv ? "hv-node" : isAvf ? "avf" : "snp", keyFp, tier: isHv ? HVNODE_TIER : "",
-                             snpChip, hvAppSession,
+                             snpChip, hvAppSession, referral,
                              hvNode: isHv ? { boot: res.boot, omissions: res.omissions, hostStatement: res.hostStatement, verifiedAt: new Date().toISOString() } : null,
                              ...(operator ? { operator, served: served.served, delegations } : {}),
                              ...(pvmOperator ? { pvmOperator } : {}),

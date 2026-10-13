@@ -23,10 +23,15 @@ function Die($m) { throw "build-bundle: $m" }
 # bundle path = (source under -Sources, sha256). Enclave Shield's host binary ships as shield-host.exe.
 $Binaries = [ordered]@{
   "bin\shield-host.exe"     = @("vbs-like\releases\risc-service-20261002\vbslike-host.exe", "4feb0adffdd412358d3d67437e096ff5001d38d85fbbc79c9ba73f01dd5242a8")
-  # public-web egress (c85e0c592, the a8f384f2 build) + -blob-service (isolation/egress-blob-cache 1dad2bb50; go1.27.1
-  # GOOS=windows CGO_ENABLED=0 go build -trimpath ./cmd/shield-egress, from isolation/m2): the host blob cache's route
-  "bin\shield-egress.exe"   = @("vbs-like\releases\blob-cache-20261012\shield-egress.exe",   "9cfb88650a6f56d68954d6768961e3c16452c7c43122111278679d10d708ce29")
-  "bin\shielded-bridge.exe" = @("vbs-like\releases\public-web-20261005\shielded-bridge.exe","046442198865f4c70f93fc79f979b760a3514f644862328800db0e26aba3ec79")
+  # public-web egress (c85e0c592, the a8f384f2 build) + -blob-service (isolation/egress-blob-cache 1dad2bb50) + a torn
+  # routes file re-read (93429cf58) + how a stream ended, logged (28be56c19), with byte counts for big streams
+  # (isolation/egress-torn-reread d24c508ca; go1.27.1
+  # GOOS=windows CGO_ENABLED=0 go build -trimpath ./cmd/shield-egress, from isolation/m2 - the 1dad2bb50 build
+  # reproduced byte for byte first)
+  "bin\shield-egress.exe"   = @("vbs-like\releases\egress-bytes-20261013\shield-egress.exe",  "ab08c73dfa09c6f1feb80a22a4c11694d5dea7003b20a14cce58df3b8f447e02")
+  # egress-bytes-20261013: cargo build --release --locked --bin shielded-bridge of windows/vbslike/host at main f0406e8f6
+  # (persistent streams: no write timeout; each end half-closes; an errored stream says how, a big one its bytes)
+  "bin\shielded-bridge.exe" = @("vbs-like\releases\egress-bytes-20261013\shielded-bridge.exe", "2999202d9d73e907d977cca0513031977f8a8a413d35409b19cc79f490712a10")
   "bin\tpmattest.exe"       = @("vbs-like\hvnode\bin\tpmattest.exe",                       "ebc30d9fa54cf70043900165ce12631224075b3301653eaf8527342d18de6982")
   "bin\wasmtime.exe"        = @("vbs\apps\wasmtime-v49.0.0-x86_64-windows\wasmtime.exe",   "cbe3e2ddc1d449a029b1f581b84688b94fc7e5758cdfe24241609a92b16a5cc2")
   "guest\runtime.bin"       = @("vbs-like\releases\public-web-20261005\runtime.bin",        "5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d")
@@ -124,7 +129,10 @@ $trayDir = Join-Path $setup "windows\tray"
 & cmd.exe /c (Join-Path $trayDir "build.cmd") | Out-Host
 if ($LASTEXITCODE) { Die "the tray did not build" }
 New-Item -ItemType Directory -Force (Join-Path $B "tray") | Out-Null
-foreach ($f in "EnclaveTray.exe", "install-tray.cmd", "uninstall-tray.cmd") { Copy-Item (Join-Path $trayDir $f) (Join-Path $B "tray\$f") }
+# the tray, the WebView2 SDK it shows the panel in (fetch-webview2.ps1, pinned), and the panel itself (host-ui, in ui\)
+foreach ($f in "EnclaveTray.exe", "install-tray.cmd", "uninstall-tray.cmd", "Microsoft.Web.WebView2.Core.dll", "Microsoft.Web.WebView2.WinForms.dll",
+               "WebView2Loader.dll", "WebView2-LICENSE.txt") { Copy-Item (Join-Path $trayDir $f) (Join-Path $B "tray\$f") }
+Copy-Item (Join-Path $trayDir "ui") (Join-Path $B "tray\ui") -Recurse -Force
 $installer = Join-Path $setup "windows\installer"
 if (Test-Path (Join-Path $installer "build-setup.cmd")) {
   & cmd.exe /c (Join-Path $installer "build-setup.cmd") | Out-Host
