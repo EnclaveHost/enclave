@@ -84,7 +84,8 @@ export async function runPrivacy(configFile){
   const cfg=JSON.parse(await fs.readFile(configFile,'utf8'));
   if(cfg.version!==2||!Array.isArray(cfg.apps)||!cfg.apps.length||cfg.apps.length>256||!path.isAbsolute(cfg.directory))throw new Error('version 2 app configuration required');
   if(!cfg.enclaveNetwork||typeof cfg.enclaveNetwork!=='object')throw new Error(NETWORK_REQUIRED);
-  const log=message=>console.error('[privacy] '+message);
+  // each line carries its UTC time: a cut stream has to be matched against circuit events, and the log had none
+  const log=message=>console.error(new Date().toISOString().slice(11,19)+' [privacy] '+message);
   const retired=RETIRED_SETTINGS.filter(k=>k in cfg);
   if(retired.length)log(`ignoring retired TUNA-era settings: ${retired.join(', ')}`);
   const readJSON=async file=>JSON.parse(await fs.readFile(file,'utf8'));
