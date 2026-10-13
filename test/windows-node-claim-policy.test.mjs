@@ -167,7 +167,7 @@ test("capacity refusals carry the numbers they were decided on", () => {
   assert.match(String(claimPolicy(dep(), ctx({ capacity: full }))), /4 app slots already/);
   const thin = { ...roomy, cpuShareFree: 0.1 };
   assert.match(String(claimPolicy(dep({ cpuMilli: 250 }), ctx({ capacity: thin }))),
-               /asks for 25% of a node and this box has 10% left/);
+               /takes 25% of this box and this box has 10% left/);
   // The publisher's cpuFallback is what makes this refusal possible at all: the on-chain memMb
   // describes the app beside its card, and the coreless case is the bigger number.
   const big = version({ memMb: 512, config: JSON.stringify({ cpuFallback: { memMb: 65536 } }) });
