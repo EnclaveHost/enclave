@@ -32,11 +32,6 @@ final class Setup {
     private final TextView vmCheck, vmState, batteryCheck, start;
     private final View vmSteps, batteryButton;
 
-    /** A standalone build (it carries the agent) that has not been set up yet. */
-    static boolean needed(Activity a) {
-        try { return java.util.Arrays.asList(a.getAssets().list("agent")).contains("standalone.mjs") && !new File(a.getFilesDir(), "agent/setup.json").isFile(); }
-        catch (Exception e) { return false; }
-    }
     static void show(Activity a) { new Setup(a).tick(); }
 
     private Setup(Activity a) {
