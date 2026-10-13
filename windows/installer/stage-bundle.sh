@@ -4,7 +4,8 @@
 #   control/   the node (windows/node) and the isolation manager (windows/vbslike), plus every file their imports reach
 #              (iterated until the import closure closes), the node's npm dependencies from its lockfile, and the Python
 #              helpers; the repo LAYOUT is kept because the node imports ../../relay/* and ../vbslike/*
-#   tuna/      the TUNA privacy agent and its Windows helpers, built from source (network/build.mjs: esbuild + Go)
+#   tuna/      the privacy agent (Enclave network) and its Windows helpers, built from source (network/build.mjs: esbuild
+#              + Go); the directory keeps its historical name, which installed hosts and install-host.ps1 use
 #   setup/     the tray's and the installer's sources (compiled on Windows by windows/installer/build-bundle.ps1)
 # and control-<c8>.tar.gz with MANIFEST-control-<c8>.txt (sha256 of every file). Deterministic: sorted names, mtime 0,
 # owner 0, gzip -n. build-bundle.ps1 adds the Windows-only parts and makes the zip.
@@ -43,7 +44,7 @@ done
 # the node's dependencies, exactly as its lockfile pins them (pure JS; no install scripts run)
 (cd "$C/windows/node" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --silent)
 
-# TUNA, from source at the same commit
+# the privacy agent and the Enclave network's Windows helpers, from source at the same commit
 W=$(mktemp -d); git archive --format=tar "$NC" | tar -x -C "$W"   # the whole tree: network's bundles reach relay/, isolation/, windows/
 # network/build.mjs uses the repo's esbuild (a root devDependency): borrow this checkout's root node_modules
 TOP=$(git rev-parse --show-toplevel)
@@ -51,7 +52,7 @@ TOP=$(git rev-parse --show-toplevel)
 ln -s "$(realpath "$TOP/node_modules")" "$W/node_modules"
 (cd "$W/network" && npm ci --ignore-scripts --no-audit --no-fund --silent && node build.mjs "$W/dist" >/dev/null)
 mkdir -p "$T/tuna"
-for f in privacy-agent.mjs windows-circuit-worker.mjs enclave-wg.exe enclave-tuna.exe enclave-route-discovery.exe enclave-provider-inventory.exe enclave-circuit-firewall.exe; do
+for f in privacy-agent.mjs windows-circuit-worker.mjs enclave-wg.exe enclave-circuit-firewall.exe; do
   cp "$W/dist/$f" "$T/tuna/$f"
 done
 rm -rf "$W"

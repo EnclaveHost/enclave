@@ -15,7 +15,7 @@ test('standalone production routing bundle passes wire, revocation, DNS and chai
  const manifest=JSON.parse(await readFile(bundle+'.manifest.json','utf8'));
  assert.equal(createHash('sha256').update(await readFile(bundle)).digest('hex'),manifest.sha256);
  const env={...process.env,ENCLAVE_TEST_RELAY_BUNDLE:pathToFileURL(bundle).href};delete env.NODE_TEST_CONTEXT;
- const {stdout}=await run(process.execPath,['--test','test/tuna-network.test.mjs','test/tuna-private-routes.test.mjs','test/connectivity-chain.test.mjs'],{timeout:60000,env});
+ const {stdout}=await run(process.execPath,['--test','test/relay-routes.test.mjs','test/connectivity-chain.test.mjs'],{timeout:60000,env});
  assert.match(stdout,/# fail 0/);
  const m=await import(pathToFileURL(bundle).href);assert.equal(typeof m.DurableState,'function');
 });

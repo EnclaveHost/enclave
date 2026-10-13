@@ -3,29 +3,16 @@
 import {createHash, createPublicKey, sign, verify} from 'node:crypto';
 import {canonical} from './canonical.mjs';
 export {canonical};
-import {assertDirectChoice} from './connectivity-control.mjs';
-import {recoverMessageAddress,keccak256,stringToHex} from 'viem';
+import {recoverMessageAddress} from 'viem';
 import net from 'node:net';
 import {isBlockedHost} from '../relay/net-guard.mjs';
-import {validateCircuitPolicy} from './circuit-policy.mjs';
 import {verifyQualification} from './provider-qualification.mjs';
-import {tunaPolicyFromLease} from './tuna-policy.mjs';
 import {validateNetworkPolicy} from './network-policy.mjs';
 
 export const recordHash = value => createHash('sha256').update(canonical(value)).digest('hex');
 const message = (kind, value) => `enclave-network:${kind}:v2\n${canonical(value)}`;
 const appPattern = /^0x[0-9a-f]{64}$/;
 const addressPattern = /^0x[0-9a-fA-F]{40}$/;
-export async function signOwnerPolicy(account, policy) {
-  validateCircuitPolicy(policy);
-  return {policy, signature: await account.signMessage({message:message('policy',policy)})};
-}
-export async function verifyOwnerPolicy(envelope, owner) {
-  validateCircuitPolicy(envelope?.policy);
-  const recovered = await recoverMessageAddress({message:message('policy',envelope.policy), signature:envelope.signature});
-  if (recovered.toLowerCase() !== owner.toLowerCase()) throw new Error('network policy requires deployment owner signature');
-  return envelope.policy;
-}
 function validateDelegation(d, now) {
   if (!d || d.version !== 2 || !appPattern.test(d.deploymentId || '') || !appPattern.test(d.runner || '') ||
       !Number.isSafeInteger(d.chainId) || d.chainId <= 0 || !addressPattern.test(d.deployments || '') ||
@@ -44,14 +31,18 @@ export async function signDelegation(account, delegation, now = Date.now()) {
 export function signRoute(privateKey, record) {
   return {record, signature:sign(null, Buffer.from(message('route',record)),privateKey).toString('base64')};
 }
-// Any route policy: v2-v4 (TUNA / on-chain direct) or v5 (the Enclave network, docs/design/enclave-network.md).
-export function validateRoutePolicy(p) {return p?.version===5?validateNetworkPolicy(p):validateCircuitPolicy(p);}
+// A route policy is the owner's v5 Enclave-network policy (docs/design/enclave-network.md). The TUNA-era policies
+// (v2 guarded TUNA, v3 on-chain direct, v4 USDC TUNA) are retired and refused.
+export function validateRoutePolicy(p) {
+  if (p?.version !== 5) throw new Error(`route policy version ${p?.version} is retired: only Enclave-network (v5) policies carry routes`);
+  return validateNetworkPolicy(p);
+}
 export async function verifyRoute(bundle, {deploymentId, policy, lease, memory, providerProbeSigners, networkProviders, now = Date.now()}) {
   if (!bundle || Buffer.byteLength(JSON.stringify(bundle)) > 32768) throw new Error('route bundle too large');
   const {delegation:d, signature:delegationSignature} = bundle.authorization || {};
   const key = validateDelegation(d, now);
-  const p = validateRoutePolicy(policy), r = bundle.record, v5 = p.version === 5;
-  const maxRoutes = v5 ? (p.mode === 'direct' ? 1 : (p.enclaveNetwork?.routes || 0)) : p.routes;
+  const p = validateRoutePolicy(policy), r = bundle.record;
+  const maxRoutes = p.mode === 'direct' ? 1 : (p.enclaveNetwork?.routes || 0);
   if (d.deploymentId !== deploymentId || p.deploymentId !== deploymentId || d.policyHash !== recordHash(p)) throw new Error('route policy or app mismatch');
   if (!lease || lease.id !== deploymentId || lease.chainId !== d.chainId || lease.deployments.toLowerCase() !== d.deployments.toLowerCase() ||
       lease.runner !== d.runner || lease.validUntil <= now || !lease.active || !lease.isPublic || lease.leaseUntil <= now) throw new Error('fresh matching lease required');
@@ -64,41 +55,18 @@ export async function verifyRoute(bundle, {deploymentId, policy, lease, memory, 
   const seen = new Set();
   for (const route of r.routes) {
     if (!route || typeof route.circuit !== 'string' || !/^[0-9a-f]{32}$/.test(route.circuit) || seen.has(route.circuit) ||
-        !net.isIP(route.address) || isBlockedHost(route.address) || route.port !== 443 || route.transport !== (p.mode==='direct'?'direct':v5?'enclave-network':'tuna-guarded-tcp') ||
-        (v5&&(route.directPort!==undefined||route.fallback!==undefined)) ||
-        (p.mode==='direct'&&(route.directPort!==undefined||route.fallback!==undefined)) ||
-        (route.directPort!==undefined&&(!Number.isInteger(route.directPort)||route.directPort<1024||route.directPort>65535)) ||
-        (route.fallback!==undefined&&route.fallback!==true) ||
-        Object.keys(route).some(k => !['circuit','address','port','transport','directPort','fallback'].includes(k))) throw new Error('invalid public route');
+        !net.isIP(route.address) || isBlockedHost(route.address) || route.port !== 443 || route.transport !== (p.mode==='direct'?'direct':'enclave-network') ||
+        Object.keys(route).some(k => !['circuit','address','port','transport'].includes(k))) throw new Error('invalid public route');
     seen.add(route.circuit);
-    if(v5&&p.mode==='direct'){
+    if(p.mode==='direct'){
       // The host's own public address, qualified for direct hosting by a trusted checker for THIS runner and operator.
       const q=await verifyQualification(r.qualification,{hostId:lease.runner,operator:lease.runnerOperator,address:route.address,probeSigners:providerProbeSigners,now});
       if(r.expiresAt>q.expiresAt)throw new Error('route outlives the host\'s direct-hosting qualification');
       continue;
     }
-    if(v5){
-      // Public ingress only through a provider that is qualified for ingress right now, under this policy's price limit.
-      const exit=(networkProviders||[]).find(x=>x.address===route.address&&x.eligibleRoles.includes('ingress')&&x.qualifiedUntil>=Math.min(r.expiresAt,now+60000)&&x.pricePerGiB6<=(p.enclaveNetwork?.maxPricePerGiB6??0));
-      if(!exit)throw new Error('route address is not a qualified Enclave-network ingress provider');
-      continue;
-    }
-    if(p.currency==='USDC'&&p.mode==='guarded'){
-      const current=tunaPolicyFromLease(lease);
-      if(recordHash(current)!==recordHash(p)||r.expiresAt>p.expiresAt||p.expiresAt<=now||route.fallback!==undefined||route.directPort!==undefined)throw Error('route lacks current USDC TUNA owner authorization');
-      const providers=lease.connectivity.providers;
-      if(providers.reduce((sum,v)=>sum+BigInt(v.pricePerGiB6),0n)>BigInt(p.maxPricePerGiB6))throw Error('USDC TUNA price exceeds owner authorization');
-      const provider=providers.find(v=>v.qualified&&v.active&&v.addressHash===keccak256(stringToHex(route.address))&&Number(v.qualifiedUntil)*1000>=r.expiresAt);
-      if(!provider)throw Error('USDC TUNA route lacks current provider qualification');
-    }
-    if(p.mode==='direct'){
-      assertDirectChoice(p,lease,now);
-      const c=lease.connectivity;
-      if(!c.direct||Number(c.qualifiedUntil)*1000<=now||c.operator.toLowerCase()!==lease.runnerOperator.toLowerCase()||c.addressHash!==keccak256(stringToHex(route.address))||r.expiresAt>p.expiresAt)throw Error('direct route lacks current on-chain provider authorization');
-      const q=c.appScopedQualification?{expiresAt:Number(c.qualifiedUntil)*1000}:await verifyQualification(r.qualification,{hostId:lease.runner,operator:lease.runnerOperator,
-        address:route.address,probeSigners:providerProbeSigners,now});
-      if(r.expiresAt>q.expiresAt)throw new Error('route outlives provider qualification');
-    }
+    // Public ingress only through a provider that is qualified for ingress right now, under this policy's price limit.
+    const exit=(networkProviders||[]).find(x=>x.address===route.address&&x.eligibleRoles.includes('ingress')&&x.qualifiedUntil>=Math.min(r.expiresAt,now+60000)&&x.pricePerGiB6<=(p.enclaveNetwork?.maxPricePerGiB6??0));
+    if(!exit)throw new Error('route address is not a qualified Enclave-network ingress provider');
   }
   const sig = Buffer.from(bundle.signature || '', 'base64');
   if (sig.length !== 64 || !verify(null,Buffer.from(message('route',r)),key,sig)) throw new Error('invalid route signature');

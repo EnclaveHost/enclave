@@ -872,7 +872,7 @@ function ledgerStatus(d) {
   return free || d.balance6 >= d.rate ? "queued" : "unfunded";
 }
 // Requested logical ports are public ledger data; assigned IPs and ports
-// are supplied separately by the expiring TUNA allocation map.
+// are supplied separately by the expiring route map (/v1/network/tuna).
 const rowPorts = (d, proto) => String(d.ports || "").split(",")
   .map((s) => s.trim()).filter((s) => s.startsWith(proto + ":"))
   .map((s) => +s.slice(proto.length + 1)).filter((p) => Number.isInteger(p) && p > 0);
@@ -1003,8 +1003,8 @@ async function pollAvailability() {
   updatedAt = new Date().toISOString();
 }
 
-// TUNA providers publish their allocated endpoints through the host's signed
-// control-plane heartbeat. The Base lease still decides whose app each IP serves.
+// Hosts publish each app's signed Enclave-network routes (relay/tuna-routes.mjs; the name and the /v1/network/tuna
+// path are historical). The Base lease still decides whose app each IP serves.
 let tunaRoutes;
 
 // Share-based routing — same rule as enclave-discover.mjs. Deployments buy two
@@ -1816,7 +1816,7 @@ async function gateway(u, req, res) {
   const bare = p.match(/^\/v1\/deployments\/([A-Za-z0-9_-]+)$/);
   if (bare && req.method === "GET") return getDeployment(bare[1], u, req, res);
 
-  // Signed TUNA allocations are DNS/control metadata. The old roster URL is
+  // Signed per-app routes are DNS/control metadata. The old roster URL is
   // retained for clients upgrading through the cutover; it has no legacy relays.
   if ((p === "/v1/network/tuna" || p === "/v1/relays") && req.method === "GET") {
     try { return json(res, 200, await tunaRoutes.map(await ledgerRows()), req); }
@@ -1826,7 +1826,7 @@ async function gateway(u, req, res) {
     if (!rlMiss(clientIp(req))) return json(res, 429, {error: "rate_limited"}, req);
     try {
       const b = JSON.parse((await readBody(req, 131072)).toString());
-      await tunaRoutes.publish(b.publication, b.signature);
+      await tunaRoutes.publish(b.publication);
       return json(res, 200, { ok: true }, req);
     } catch (e) { console.warn("[tuna-routes] publication refused: " + String(e.message).slice(0,256)); return json(res, 400, { error: "tuna_publication_refused", message: e.message }, req); }
   }
@@ -2539,7 +2539,6 @@ const networkApi = createNetworkApi({ checkers: (process.env.RELAY_NETWORK_CHECK
 relayCtx.hostOperator = id => registryOperator(id);
 tunaRoutes = createTunaRoutes({
   network: networkApi,
-  providerProbeSigners: (process.env.PROVIDER_PROBE_SIGNERS || '').split(',').map(s=>s.trim()).filter(Boolean),
   operatorOf: endpoint => relayCtx.operatorOfEndpoint(endpoint), endpointId,
   memory: new DurableState(process.env.TUNA_ROUTE_STATE_DIR || '/var/lib/enclave-relay/tuna-route-state'),
   leaseOf: async id => {
@@ -2624,7 +2623,7 @@ function handleRequest(req, res) {
 
   if (depFromHost(routingHost(req)) || domainDeployment(routingHost(req))
       || /^\/(?:t\/[^/]+\/)?x(?:\/|$)/.test(canonicalBoxPath(u.pathname) || ""))
-    return json(res, 410, {error: "application_transport_moved", message: "Use the application's TUNA hostname."}, req);
+    return json(res, 410, {error: "application_transport_moved", message: "Use the application's own hostname."}, req);
 
   // MCP endpoint (mcp.enclave.host, or /mcp on the API host): the coding-agent
   // front door. Checked AFTER the app-subdomain branch so a tenant app's own
@@ -2828,11 +2827,11 @@ function handleRequest(req, res) {
   json(res, 404, { error: "not_found", routes: ["/health", "/enclaves", "/v1/relays", "/route?gpuShare=0.25&cpuShare=0.05", "/v1/* /x/* /availability (fleet-routed to the enclaves)"] }, req);
 }
 
-// The fleet tunnel carries control requests only. Application streams use TUNA.
+// The fleet tunnel carries control requests only. Application streams use the Enclave network.
 server.on("upgrade", (req, socket, head) => {
   socket.on("error", () => socket.destroy());
   if ((req.url || "").split("?")[0] === "/v1/fleet-tunnel") return tunnelHub.handleUpgrade(req, socket, head);
-  socket.end("HTTP/1.1 410 Gone\r\nConnection: close\r\n\r\nApplication connections use their TUNA endpoint.");
+  socket.end("HTTP/1.1 410 Gone\r\nConnection: close\r\n\r\nApplication connections use their own hostname.");
 });
 
 await pollRegistry();
