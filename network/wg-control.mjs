@@ -44,8 +44,9 @@ export class WgControlTransport {
      this.log(`control circuit up: guard ${guard.region} -> exit ${exit.region}`);
     }catch(e){
      await c?.close(e.message);
-     const p=e.providerRole==='guard'?guard:exit,n=(this.strikes.get(p.providerId)||0)+1;this.strikes.set(p.providerId,n);
-     this.cooldown.set(p.providerId,this.now()+Math.min(60000*2**(n-1),COOLDOWN_MAX_MS));this.log('control circuit: '+e.message);
+     const p=e.providerRole==='guard'?guard:exit;
+     if((this.cooldown.get(p.providerId)||0)<=this.now()){const n=(this.strikes.get(p.providerId)||0)+1;this.strikes.set(p.providerId,n);this.cooldown.set(p.providerId,this.now()+Math.min(60000*2**(n-1),COOLDOWN_MAX_MS));}
+     this.log('control circuit: '+e.message);
     }
    }
   }finally{this.busy=false;}
