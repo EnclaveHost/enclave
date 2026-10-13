@@ -2,7 +2,7 @@
 // The row serves a deployment D only when, AT DECISION TIME: D's LEDGER OWNER is served now (the row's operator: the name's
 // on-chain owner, who signed the v2 attach and is in RELAY_HVNODE_OPERATORS; or an owner whose hosting delegation to it has
 // not expired), THIS row holds D's live lease, and D's envelope requires hyperv-partition-per-app (E4); and only on the raw
-// admission published for TUNA. The control API refuses application streams. RELAY_HVNODE_OPERATORS grants
+// admission published in the route map (the Enclave network). The control API refuses application streams. RELAY_HVNODE_OPERATORS grants
 // nothing but that (not dialing, not operator attach, not the relay roster), and TRUSTED_OPERATORS ("*" included) never
 // implies it.
 import { test } from "node:test";
@@ -15,7 +15,7 @@ import { spawn } from "node:child_process";
 import { createHash, sign as edSign } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import WebSocket from "ws";
-import { privateKeyToAccount } from "viem/accounts";
+import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 import { keccak256, stringToBytes, toFunctionSelector, encodeFunctionResult } from "viem";
 import { bootDaemon, listenOnFreePort } from "./helpers/daemon.mjs";
 import { haveOpenssl, tmpdir, makeVbsWorld, buildLog, buildQuote } from "./fixtures/vbs-synthetic.mjs";
@@ -24,6 +24,10 @@ import { HVNODE_FORMAT, hvNodeBinding } from "../relay/hvnode-verify.mjs";
 import { delegationText, attachMessageV2 } from "../relay/host-delegation.mjs";
 import { selfRoutedUrl } from "../relay/tunnel.js";
 import { enclaveClassOf } from "../site/js/core/pricing.js";
+import { randomBytes } from "node:crypto";
+import { RoutePublisher } from "../network/route-publisher.mjs";
+import { defaultNetworkPolicy, validateNetworkPolicy } from "../network/network-policy.mjs";
+import { signProviderRecord, signQualification, providerIdFor, CHECKS } from "../network/provider-directory.mjs";
 
 const RELAY_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "relay");
 // the public anvil development keys: #0 a delegating owner, #1 the box's operator, #2 a stranger
@@ -84,8 +88,9 @@ async function startRelay(t, env) {
     start: (port) => spawn(process.execPath, [path.join(RELAY_DIR, "api-relay.js")], {
       env: { ...process.env, ENCLAVES: "http://127.0.0.1:1", API_RELAY_PORT: String(port), API_RELAY_BIND: "127.0.0.1", BASE_RPC: `http://127.0.0.1:${rpc.address().port}`,
              RPC_FALLBACKS: "0", REGISTRY_ADDRESS: REG, DEPLOYMENTS_ADDRESS: LEDGER, FEATURED_VIEWS_FILE: path.join(tmpdir("feat-"), "v.json"),
-             AVAIL_POLL_SEC: "1", ...env },
-      stdio: ["ignore", "pipe", "pipe"] }),
+             AVAIL_POLL_SEC: "1", ...networkEnv(), ...env },
+      // its own working directory: without AUTH_DATA_DIR the relay keeps the network store (network.json) in the cwd
+      cwd: tmpdir("relay-cwd-"), stdio: ["ignore", "pipe", "pipe"] }),
     claimed: (log, port) => log.includes(`[api-relay] :${port}`),
     ready: async (port) => (await fetch(`http://127.0.0.1:${port}/health`)).ok,
   });
@@ -154,20 +159,47 @@ function upgrade(origin, p) {
 const rowOf = async (origin) => { const j = await (await fetch(origin + "/enclaves")).json(); return (j.enclaves || []).find((e) => e.name === NAME) || null; };
 
 
-async function publishTuna(origin, signer = OPERATOR) {
-  const publication = { version: 1, endpoint: ENDPOINT, expiresAt: Date.now() + 60000,
-    web: { address: "1.1.1.1", port: 443 }, raw: [] };
-  const signature = await signer.signMessage({ message: "enclave-tuna-route:v1\n" + JSON.stringify(publication) });
-  return fetch(origin + "/v1/network/tuna", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ publication, signature }) });
+// The Enclave network on the test relay (docs/design/enclave-network.md): one exit at 1.1.1.1, qualified by the relay's
+// trusted checker, and per-app v5 route publications signed exactly as a host's route publisher signs them.
+const CHECKER = privateKeyToAccount(generatePrivateKey()), PROVIDER_OP = privateKeyToAccount(generatePrivateKey()), EXIT = "1.1.1.1";
+const networkEnv = () => ({ RELAY_NETWORK_CHECKERS: CHECKER.address.toLowerCase(), TUNA_ROUTE_STATE_DIR: tmpdir("route-state-") });
+async function qualifyExit(origin) {
+  const now = Date.now(), K = () => randomBytes(32).toString("base64");
+  const record = { version: 1, providerId: providerIdFor(PROVIDER_OP.address, EXIT), operator: PROVIDER_OP.address.toLowerCase(), address: EXIT, wgExitKey: K(), wgGuardKey: K(),
+    ports: { exit: 51820, guard: 51821, control: 51822 }, roles: ["guard", "ingress", "egress"], pricePerGiB6: 0, region: "test", kind: "enclave", hostId: null, issuedAt: now, expiresAt: now + 1800000 };
+  const post = (p, body) => fetch(origin + p, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const r1 = await post("/v1/network/providers", await signProviderRecord(PROVIDER_OP, record));
+  assert.equal(r1.status, 200, await r1.text());
+  const r2 = await post("/v1/network/qualifications", await signQualification(CHECKER, { version: 1, providerId: record.providerId, operator: record.operator, address: EXIT,
+    wgExitKey: record.wgExitKey, wgGuardKey: record.wgGuardKey, roles: record.roles, checks: Object.fromEntries(CHECKS.map((c) => [c, true])), issuedAt: now, expiresAt: now + 600000 }));
+  assert.equal(r2.status, 200, await r2.text());
 }
-const tunaMap = async origin => (await fetch(origin + "/v1/network/tuna")).json();
+// every deployment leased to this box publishes its route through the exit (the relay's map then admits only the ones
+// the box may serve); -> the first refusal, or the last success
+async function publishRoutes(origin, signer = OPERATOR) {
+  const dir = tmpdir("route-publisher-");
+  let last;
+  for (const d of ROWS.filter((r) => r.runner === EP_ID)) {
+    const lease = { id: d.id, runner: EP_ID, runnerOperator: signer.address, owner: d.owner, chainId: 8453, deployments: LEDGER, active: true, isPublic: true,
+      leaseUntil: Number(d.leaseUntil) * 1000, validUntil: Date.now() + 60000 };
+    const policy = validateNetworkPolicy(defaultNetworkPolicy(d.id));
+    const bundle = await new RoutePublisher({ directory: dir, account: signer, lease: () => lease, policy: () => policy, distribute: async () => {} })
+      .publish(d.id, [{ circuit: "c".repeat(32), address: EXIT, port: 443, transport: "enclave-network" }]);
+    last = await fetch(origin + "/v1/network/tuna", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ publication: { version: 2, endpoint: ENDPOINT, policy, bundle } }) });
+    if (last.status !== 200) break;
+  }
+  fs.rmSync(dir, { recursive: true, force: true });
+  return last;
+}
+const routeMap = async origin => (await fetch(origin + "/v1/network/tuna")).json();
 
 const lc = (a) => a.address.toLowerCase();
 const hvWorld = (t) => { const dir = tmpdir("hv-owner-"); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const w = makeVbsWorld(dir); const roots = path.join(dir, "ek-roots.pem"); fs.writeFileSync(roots, w.ca.bundlePem); return { w, roots }; };
 
 for (const [label, ops] of [["listed operator", () => lc(OPERATOR)], ["RELAY_HVNODE_OPERATORS=* (the open market)", () => "*"]])
-test(`owner-only (${label}): served now + this row's lease + isolation.require hyperv-partition-per-app -> a signed TUNA route; every other deployment is absent; the row stays ineligible, unplaced, unpriced and off the relay roster`,
+test(`owner-only (${label}): served now + this row's lease + isolation.require hyperv-partition-per-app -> a signed route; every other deployment is absent; the row stays ineligible, unplaced, unpriced and off the relay roster`,
      { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
   const { w, roots } = hvWorld(t);
   // the operator is in RELAY_HVNODE_OPERATORS (or it is "*") and NOT in TRUSTED_OPERATORS (the default list stays)
@@ -195,18 +227,19 @@ test(`owner-only (${label}): served now + this row's lease + isolation.require h
   // (a) its relay declaration never reaches the roster (so neither the labels nor DNS)
   const relays = await (await fetch(origin + "/v1/relays")).json();
   assert.ok(!(relays.relays || []).some((x) => x.name === NAME || x.address === "203.0.113.9"), "never a relay");
-  // TUNA advertisements are joined to this verified owner-only admission, never to self-reported capacity.
-  const published = await publishTuna(origin);
+  // Route publications are joined to this verified owner-only admission, never to self-reported capacity.
+  await qualifyExit(origin);
+  const published = await publishRoutes(origin);
   assert.equal(published.status, 200, await published.text());
-  const map = await tunaMap(origin);
+  const map = await routeMap(origin);
   assert.deepEqual(Object.keys(map.deployments).sort(), [D_OWN, D_DELEG, D_NOREQ].sort());
   for (const d of [D_OWN, D_DELEG, D_NOREQ]) {
     assert.deepEqual(map.deployments[d].https, { address: "1.1.1.1", port: 443 });
     assert.equal(map.labels[d.slice(2, 10)].a, "1.1.1.1");
   }
-  const denied = await publishTuna(origin, STRANGER);
+  const denied = await publishRoutes(origin, STRANGER);
   assert.equal(denied.status, 400);
-  assert.match(await denied.text(), /registered operator signature required/);
+  assert.match(await denied.text(), /not signed by current runner/);
   for (const d of [D_OWN, D_DELEG, D_STRANGER, D_SNP]) {
     assert.match(await upgrade(origin, `/t/${NAME}/x/${d}/https`), /410/);
     assert.equal((await fetch(`${origin}/t/${NAME}/x/${d}/`)).status, 410);
@@ -247,7 +280,7 @@ test("RELAY_HVNODE_OPERATORS never implies TRUSTED_OPERATORS: its operator's OPE
   assert.equal(res && res.ok, false); assert.match(String(res && res.reason), /not a trusted operator of this relay/);
 });
 
-test("E2: a delegation expiring while attached withdraws its TUNA route at decision time, without a re-attach",
+test("E2: a delegation expiring while attached withdraws its route at decision time, without a re-attach",
      { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
   const { w, roots } = hvWorld(t);
   const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, RELAY_HVNODE_OPERATORS: lc(OPERATOR) });
@@ -256,31 +289,33 @@ test("E2: a delegation expiring while attached withdraws its TUNA route at decis
   t.after(() => { try { a.ws.close(); } catch {} });
   assert.equal(a.ok, true, a.reason);
   assert.ok(await waitFor(async () => (await rowOf(origin))?.servesDeployments?.some(d => d.id === D_DELEG)));
-  const published = await publishTuna(origin);
+  await qualifyExit(origin);
+  const published = await publishRoutes(origin);
   assert.equal(published.status, 200, await published.text());
-  let map = await tunaMap(origin);
+  let map = await routeMap(origin);
   assert.equal(map.deployments[D_DELEG].expiresAt, exp * 1000, "DNS cannot outlive the delegation");
   assert.ok(map.deployments[D_OWN]);
   await new Promise(r => setTimeout(r, Math.max(0, exp * 1000 + 100 - Date.now())));
-  map = await tunaMap(origin);
+  map = await routeMap(origin);
   assert.equal(map.deployments[D_DELEG], undefined);
   assert.equal(map.labels[D_DELEG.slice(2, 10)], undefined);
   assert.ok(map.deployments[D_OWN], "operator's own deployment stays admitted");
 });
 
-test("a ledger transfer withdraws TUNA routes when the new owner is not served", { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
+test("a ledger transfer withdraws routes when the new owner is not served", { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
   const { w, roots } = hvWorld(t);
   const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, RELAY_HVNODE_OPERATORS: lc(OPERATOR) });
   const a = await attachHv(origin, w);
   t.after(() => { try { a.ws.close(); } catch {} ROWS = BASE_ROWS; });
   assert.equal(a.ok, true, a.reason);
   assert.ok(await waitFor(async () => (await rowOf(origin))?.servesDeployments?.some(d => d.id === D_OWN)));
-  const published = await publishTuna(origin);
+  await qualifyExit(origin);
+  const published = await publishRoutes(origin);
   assert.equal(published.status, 200, await published.text());
-  assert.ok((await tunaMap(origin)).deployments[D_OWN]);
+  assert.ok((await routeMap(origin)).deployments[D_OWN]);
   ROWS = BASE_ROWS.map(d => d.id === D_OWN ? { ...d, owner: STRANGER.address } : d);
-  assert.ok(await waitFor(async () => !(await tunaMap(origin)).deployments[D_OWN], 20000), "withdrawn within the ledger refresh interval");
-  assert.equal((await tunaMap(origin)).labels[D_OWN.slice(2, 10)], undefined);
+  assert.ok(await waitFor(async () => !(await routeMap(origin)).deployments[D_OWN], 20000), "withdrawn within the ledger refresh interval");
+  assert.equal((await routeMap(origin)).labels[D_OWN.slice(2, 10)], undefined);
 });
 
 test("secrets: /v1/secrets/exists is exactly { id, exists } for a served lease holder's deployment and a stranger's alike; /v1/secrets/fetch stays 403 host_ineligible for an hv-node row",
