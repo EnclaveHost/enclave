@@ -107,6 +107,22 @@ export class IsolationManagerClient {
     return b;
   }
 
+  /**
+   * Is the domain named `name` running a DIFFERENT version than `derive` (the spawn body's derivation record) asks for?
+   * -> a description of the difference, or null (no such domain, the same version, or a manager that does not say).
+   */
+  static async staleVersion(client, name, derive) {
+    const want = derive?.catalog;
+    if (!want || typeof want.app !== "string" || !Number.isInteger(want.version)) return null;
+    const v = await client.findByName(name);
+    if (!v || !v.catalog) return null;
+    const diff = [];
+    if (v.catalog.app.toLowerCase() !== want.app.toLowerCase()) diff.push(`catalog app ${v.catalog.app.slice(0, 10)} -> ${want.app.slice(0, 10)}`);
+    if (v.catalog.version !== want.version) diff.push(`version ${v.catalog.version} -> ${want.version}`);
+    if (v.cid && typeof derive.cid === "string" && v.cid !== derive.cid) diff.push(`component ${v.cid.slice(0, 16)}… -> ${derive.cid.slice(0, 16)}…`);
+    return diff.length ? `${v.id} runs ${diff.join(", ")}` : null;
+  }
+
   /** Start one domain. Returns { adopted, view }: a 409 is an ADOPTION, not a failure. */
   async spawn(body) {
     const r = await this.#req("POST", "/vms", body);
@@ -212,6 +228,12 @@ export class IsolationManagerClient {
       guestIdentity: o.guestIdentity && typeof o.guestIdentity === "object"
         ? { partition: o.guestIdentity.partition ?? null, guestImageKind: o.guestIdentity.guestImageKind ?? null } : null,
       error: o.error ?? null,
+      // WHICH VERSION it runs, from its derivation record: the catalog app and version and the component's CID. The node
+      // compares them with what the ledger asks for now, so an owner's version switch replaces the domain instead of
+      // being adopted away (2026-10-13: cron stayed on /1 after setAppRef /2)
+      catalog: o.catalog && typeof o.catalog === "object" && typeof o.catalog.app === "string" && Number.isInteger(o.catalog.version)
+        ? { app: o.catalog.app, version: o.catalog.version } : null,
+      cid: typeof o.cid === "string" ? o.cid : null,
       // a domain a RESTARTED manager rebuilt from Hyper-V: alive, and never to serve under that manager
       // (its relay and readiness belonged to the old process). The lifecycle holds it; see reconcile.
       recovered: o.recovered === true,
