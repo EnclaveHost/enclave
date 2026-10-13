@@ -118,3 +118,14 @@ test('a restarted provider restores its peers at the same addresses (a renewal k
  assert.equal(renewed.grant.clientAddress,first.grant.clientAddress);
  const fresh=await again.p.handle(await request(again));assert.notEqual(fresh.grant.clientAddress,first.grant.clientAddress,'no address handed out twice');
 });
+test('a lease read that fails keeps the peer (only a definite answer removes it); a renewal says so to the lease source',async()=>{
+ const r=rig();const env=await request(r);const {grant}=await r.p.handle(env);
+ const seen=[];r.p.leases=async(id,o={})=>{seen.push(o.renewal===true);throw new Error('no fresh agreeing chain quorum');};
+ await r.p.sweep();assert.equal(r.p.peers.size,1,'a failed read is not "lease ended"');assert.ok(r.kernel.peers.has(env.request.wgPublicKey));
+ // a renewal of the held key asks for the renewal fallback; a new key does not
+ await assert.rejects(r.p.handle(await request(r,{wgPublicKey:env.request.wgPublicKey})),/quorum/);
+ await assert.rejects(r.p.handle(await request(r)),/quorum/);
+ assert.deepEqual(seen.slice(-2),[true,false]);
+ // a definite answer (the lease ended) still removes it at once
+ r.p.leases=async()=>null;await r.p.sweep();assert.equal(r.p.peers.size,0);assert.ok(grant.clientAddress);
+});

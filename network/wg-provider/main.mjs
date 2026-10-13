@@ -67,8 +67,17 @@ const peerFile=path.join(stateDir,'peers.json');
 let saving=Promise.resolve(),seq=0;
 const store={load:async()=>{try{return JSON.parse(await fs.readFile(peerFile,'utf8'));}catch{return null;}},
  save:v=>(saving=saving.catch(()=>{}).then(async()=>{const tmp=`${peerFile}.${process.pid}.${++seq}.tmp`;await fs.writeFile(tmp,JSON.stringify(v),{mode:0o600});await fs.rename(tmp,peerFile);}))};
+const lastLease=new Map();
 const provider=new WgProvider({config,signer:account,kernel,log,policyMemory,verifyOwner,domains,targets,hosts,store,
- leases:async id=>(await leases.readSnapshot([id]))[0]||null,
+ leases:async(id,{renewal=false}={})=>{
+  try{const l=(await leases.readSnapshot([id]))[0]||null;if(l)lastLease.set(id,{l,at:Date.now()});return l;}
+  catch(e){
+   // the public RPCs failing to agree for a moment must not end a peer this provider already holds: a renewal (or a
+   // sweep) may use the last agreeing read for up to 10 minutes, while that lease still runs; a NEW peer never does
+   const c=lastLease.get(id);
+   if(renewal&&c&&Date.now()-c.at<10*60000&&Number(c.l.leaseUntil)>Date.now()){log(`lease ${id.slice(0,10)}: ${e.message}; using the agreeing read from ${Math.round((Date.now()-c.at)/1000)} s ago`);return {...c.l,validUntil:Date.now()+30000};}
+   throw e;
+  }},
  currentPolicy:async id=>(await relayJSON('/v1/network/policy/'+id))?.envelope||null});
 log(`restored ${await provider.restore()} peer(s) from the last run`);
 let receipt=null;
