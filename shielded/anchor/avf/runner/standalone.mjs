@@ -212,7 +212,9 @@ async function main() {
     for (let i = 0; i < 30 && !stopping && !learned; i++) await new Promise((r) => setTimeout(r, 1000));
   }
   if (learned) { log({ ev: "restart", why: "the host VM's instance is pinned now" }); await new Promise((r) => setTimeout(r, 2000)); }
-  await agent.stop({ release: false }).catch(() => {});
+  // the runners' own loops may take a while to wind down; their state is journaled, so a deadline is safe (systemd's
+  // stop timeout did this for the computer's agent)
+  await Promise.race([agent.stop({ release: false }).catch(() => {}), new Promise((r) => setTimeout(r, 20_000).unref())]);
   if (net) net.kill("SIGTERM");
   srv.close(); attach.close(); cosigner.close();
   process.exit(learned ? 75 : 0);
