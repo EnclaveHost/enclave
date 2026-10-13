@@ -298,7 +298,7 @@ set BLOB_CACHE_DIR=$PD\shield\blobs
 rem the Enclave network replaces TUNA (docs/design/enclave-network.md): every app's route and this box's own control
 rem traffic over WireGuard providers qualified by these checkers; no NKN wallets or funding
 set ENCLAVE_NETWORK=1
-set ENCLAVE_NETWORK_CHECKERS=0x57144c9008cff0b3ed94f6e40964a321fbee848a
+set ENCLAVE_NETWORK_CHECKERS=0x57144c9008cff0b3ed94f6e40964a321fbee848a,0x033bc2b92bb1bb97c7dadf2879d3048748e2257b
 "@ | Set-Content -Encoding ASCII (Join-Path $PD "node-config.cmd")
 
 # the TUNA privacy agent: every app's private route. The node writes its config once the platform has funded the control
