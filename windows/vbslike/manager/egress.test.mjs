@@ -145,3 +145,13 @@ test("ENCLAVE_EGRESS_BLOB_SERVICE: a loopback entry for the host's blob cache, p
   const src = fs.readFileSync(fileURLToPath(new URL("./egress.mjs", import.meta.url)), "utf8");
   assert.match(src, /cfg\.blobService \? \["-blob-service", cfg\.blobService\] : \[\]/, "startEgress passes it through");
 });
+
+test("how a stream ended reaches the log, tagged by partition; the per-connection open line does not", async () => {
+  const w = world({ server: "talk", bridge: "talk" }), said = [];
+  const e = await startEgress({ cfg: w.cfg, vmId: VM, deploymentId: DEP, spawn: w.spawn, log: (m) => said.push(m) });
+  for (let i = 0; i < 50 && said.length < 2; i++) await new Promise((r) => setTimeout(r, 20));
+  await e.stop();
+  assert.ok(said.includes(`${VM.slice(0, 8)} shield-egress: guest 7 egress ended:upstream-read`), said.join("\n"));
+  assert.ok(said.some((m) => m.startsWith(`${VM.slice(0, 8)} the egress bridge: shielded bridge connection ended: guest->worker`)), said.join("\n"));
+  assert.ok(!said.some((m) => / egress open$/.test(m)), "open lines are skipped");
+});

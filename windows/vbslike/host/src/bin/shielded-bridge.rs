@@ -88,7 +88,15 @@ fn relay(mut guest: TcpStream, port: u16, persistent: bool) -> io::Result<()> {
     // bridge's 8 connection slots for good.
     let _ = upstream_done.recv_timeout(Duration::from_secs(120));
     let _ = guest.shutdown(Shutdown::Both);
-    let _ = upstream.join();
+    let up = upstream.join().unwrap_or_else(|_| Err(io::Error::other("relay thread panicked")));
     let _ = worker.shutdown(Shutdown::Both);
-    result.map(|_| ())
+    // A stream that ended in an error says which way and how (the manager logs it): a cut download was invisible.
+    if up.is_err() || result.is_err() {
+        let said = |r: &io::Result<u64>| match r {
+            Ok(n) => format!("ended after {n} B"),
+            Err(e) => format!("{e} ({:?})", e.kind()),
+        };
+        return Err(io::Error::other(format!("guest->worker {}; worker->guest {}", said(&up), said(&result))));
+    }
+    Ok(())
 }
