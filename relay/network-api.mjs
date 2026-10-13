@@ -132,7 +132,7 @@ export function createNetworkApi({checkers=[],addressBook,clients:clientsFn=asyn
    if(m&&req.method==='GET'){const id=m[1].toLowerCase();
     const e=store.data.policies[id],s=store.data.status[id];
     return send(200,{policy:currentPolicy(id),policySet:!!e,byoConfig:store.data.byo[id]?{configDigest:store.data.byo[id].digest,updatedAt:store.data.byo[id].updatedAt}:null,
-     host:s&&s.at>now()-120000?s.status:null,hostReportedAt:s?.at||null,providers:(await eligible()).map(x=>({providerId:x.providerId,address:x.address,region:x.region,kind:x.kind,roles:x.eligibleRoles,pricePerGiB6:x.pricePerGiB6,qualifiedUntil:x.qualifiedUntil}))});
+     host:s&&s.at>now()-120000?s.status:null,hostReportedAt:s?.at||null,providers:(await eligible()).map(x=>({providerId:x.providerId,address:x.address,region:x.region,kind:x.kind,hostId:x.hostId,roles:x.eligibleRoles,pricePerGiB6:x.pricePerGiB6,qualifiedUntil:x.qualifiedUntil}))});
    }
    return send(404,{error:'not found'});
   }catch(e){if(e.status!==404)log('network api: '+e.message);return send(e.status||400,{error:e.message});}

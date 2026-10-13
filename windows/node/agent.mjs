@@ -939,7 +939,9 @@ async function startHostingControls() {
                       manager: host.cfg.isolationManager, dataAddr: host.cfg.isolationDataAddr,
                       // the Enclave network (docs/design/enclave-network.md) with its trusted qualification checkers; TUNA is
                       // retired, so there is no other transport (no checkers: enrollment refuses, and says so in the log)
-                      enclaveNetwork: { checkers: String(process.env.ENCLAVE_NETWORK_CHECKERS || '').toLowerCase().split(',').map((c) => c.trim()).filter(Boolean) } },
+                      enclaveNetwork: { checkers: String(process.env.ENCLAVE_NETWORK_CHECKERS || '').toLowerCase().split(',').map((c) => c.trim()).filter(Boolean),
+                        // the box's registry proof key and operator key, beside each other here (keys.mjs): paid providers settle with them
+                        ...(fs.existsSync(path.join(DIR, 'proof.key')) && fs.existsSync(path.join(DIR, 'operator.key')) ? { paid: { proofKeyFile: path.join(DIR, 'proof.key'), gasKeyFile: path.join(DIR, 'operator.key') } } : {}) } },
             // a box whose network configuration changes restarts its privacy agent once (the \Enclave\Tuna task starts it again in 10 s)
             restartAgent: async () => { const { execFile } = await import('node:child_process'); await new Promise((res) => execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
               "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'privacy-agent\\.mjs' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"],
