@@ -29,8 +29,9 @@ export function selectNetworkCircuits(providers,{routes,ingress,egress,maxPriceP
 }
 
 export class EnclaveNetworkManager extends EventEmitter {
- constructor({runtime,admission,providers,byoConfig,probe,probeEgress,publish,now=Date.now,log=()=>{}}){
-  super();Object.assign(this,{runtime,admission,providers,byoConfig,probe,probeEgress,publish,now,log});
+ // direct: {runtime (DirectRuntime), qualification()} on a host that opted in to direct hosting with a public address
+ constructor({runtime,admission,providers,byoConfig,probe,probeEgress,publish,direct=null,now=Date.now,log=()=>{}}){
+  super();Object.assign(this,{runtime,admission,providers,byoConfig,probe,probeEgress,publish,direct,now,log});
   this.apps=new Map();this.cooldown=new Map();this.drops=new Map();this.closed=false;this.busy=false;this.publications=new Map();this.reconciling=new Map();
  }
  handles(policy){return policy?.version===5;}
@@ -75,7 +76,7 @@ export class EnclaveNetworkManager extends EventEmitter {
  async publishApp(app){
   const op=(this.publications.get(app.id)||Promise.resolve()).catch(()=>{}).then(async()=>{
    const routes=!this.closed&&this.authorizationUntil(app.id)>this.now()?app.circuits.filter(c=>c.healthy&&!c.closed&&c.ingress&&c.address)
-    .map(c=>({circuit:c.id,address:c.address,port:443,transport:'enclave-network'})):[];
+    .map(c=>({circuit:c.id,address:c.address,port:443,transport:c.kind==='direct'?'direct':'enclave-network'})):[];
    await this.publish(app.id,routes);this.emit('change',this.status());
   });
   this.publications.set(app.id,op);try{await op;}finally{if(this.publications.get(app.id)===op)this.publications.delete(app.id);}
@@ -106,7 +107,27 @@ export class EnclaveNetworkManager extends EventEmitter {
  async reconcileApp(app,providers){
   if(!this.authorizationUntil(app.id)){if(app.circuits.length)await this.withdraw(app,'not authorized');app.error='waiting for lease and guest proof';return;}
   const plan=this.plan(app);
-  if(plan.direct){app.error='direct hosting is not available on this host';return;}
+  if(plan.direct){
+   if(!this.direct){app.error='direct hosting is not available on this host';return;}
+   const live=app.circuits.find(c=>c.kind==='direct');
+   if(live){
+    const q=await this.direct.qualification().catch(()=>null);
+    if(!q||!(q.expiresAt>this.now())){await this.fail(app,live,'this host\'s direct-hosting qualification lapsed');return;}
+    live.qualifiedUntil=q.expiresAt;
+   }
+   await this.checkHealth(app);
+   if(app.circuits.some(c=>c.kind==='direct'))return void(app.error=null,await this.publishApp(app));
+   let c;
+   try{
+    // a direct route exists only while this host's qualification for its public address is current
+    const q=await this.direct.qualification();if(!q||!(q.expiresAt>this.now()))throw new Error('this host has no current direct-hosting qualification');
+    c=await this.direct.runtime.start({deploymentId:app.id,names:app.names,policy:app.policy});
+    Object.assign(c,{kind:'direct',ingress:true,egressReady:true,qualifiedUntil:q.expiresAt,providers:{direct:{address:c.address}}});
+    this.adopt(app,c);await this.probe(app,c);if(c.closed)throw new Error('direct route failed during verification');
+    c.healthy=true;c.checkedAt=this.now();c.upAt=this.now();app.error=null;await this.publishApp(app);
+   }catch(e){if(c&&app.circuits.includes(c))await this.fail(app,c,e.message);else await c?.close?.(e.message);app.error='direct hosting: '+e.message;}
+   return;
+  }
   // revocation: a provider that is no longer eligible (qualification lapsed, record changed, role or price) loses its circuits now
   const byId=new Map(providers.map(p=>[p.providerId,p]));
   for(const c of [...app.circuits])if(c.kind==='network'){
@@ -167,6 +188,7 @@ export class EnclaveNetworkManager extends EventEmitter {
   ingress:plan.ingress,egress:plan.byo?'byo-wireguard':plan.egress?'enclave-network':'none',
   circuits:app.circuits.map(c=>({id:c.id,kind:c.kind,healthy:!!c.healthy,address:c.address||null,ingress:!!c.ingress,egress:!!c.egressReady,fallback:!!c.fallback,
    guard:c.providers.guard?{providerId:c.providers.guard.providerId,address:c.providers.guard.address,region:c.providers.guard.region}:null,
+   direct:c.kind==='direct'?{address:c.address}:null,
    exit:c.providers.exit?{providerId:c.providers.exit.providerId,address:c.providers.exit.address,region:c.providers.exit.region}:null,
    handshakeAgeMs:c.stats?.inner?.handshakeAgeMs??null,bytes:c.stats?.app||null}))};});}
  async close(){if(this.closed)return;this.closed=true;for(const app of this.apps.values())await this.withdraw(app,'agent stopped').catch(()=>{});}

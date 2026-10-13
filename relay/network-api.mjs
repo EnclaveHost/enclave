@@ -139,5 +139,5 @@ export function createNetworkApi({checkers=[],addressBook,clients:clientsFn=asyn
   const s=JSON.stringify(status);if(s.length>8192)return;
   store.data.status[id]={at:now(),status:JSON.parse(s)};store.saveSoon();
  }
- return {handle,eligible,currentPolicy,noteStatus,providers,store};
+ return {handle,eligible,currentPolicy,noteStatus,providers,store,checkers:trusted};
 }

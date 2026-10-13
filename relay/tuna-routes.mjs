@@ -55,7 +55,7 @@ export function createTunaRoutes({ operatorOf, endpointId, eligible, now = Date.
         if(v5){
           // Only the owner's current network policy (or the default, when the owner never set one) may carry routes.
           if(recordHash(network.currentPolicy(id))!==recordHash(policy))throw new Error('route policy is not the owner\'s current network policy');
-          const record=await verifyRoute(bundle,{deploymentId:id,policy,lease,memory,networkProviders:await network.eligible(),now:now()});
+          const record=await verifyRoute(bundle,{deploymentId:id,policy,lease,memory,networkProviders:await network.eligible(),providerProbeSigners:network.checkers,now:now()});
           if(publication.status)network.noteStatus(id,publication.status);
           apps.set(id,{endpoint,bundle:structuredClone(bundle),record});return;
         }

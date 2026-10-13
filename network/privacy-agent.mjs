@@ -48,7 +48,7 @@ export class PrivacyAgent {
     // TUNA (policy v2-v4) and the Enclave network (v5) side by side; an app is in exactly one (docs/design/enclave-network.md)
     const tuna=new CircuitManager({runtime,directRuntime,admission:this.admission,inventory:()=>inventory.get(),wallets,now,log,
       probe:(app,circuit)=>probe(app.deploymentId,app.expected,circuit),observe:(providers,result)=>inventory.observe?.(providers,result)||Promise.resolve(),publish:(id,routes)=>this.publisher.publish(id,routes)});
-    const enclaveNetwork=network?new EnclaveNetworkManager({runtime:network.runtime,admission:this.admission,providers:network.providers,byoConfig:network.byoConfig,probeEgress:network.probeEgress,now,log,
+    const enclaveNetwork=network?new EnclaveNetworkManager({runtime:network.runtime,admission:this.admission,providers:network.providers,byoConfig:network.byoConfig,probeEgress:network.probeEgress,direct:network.direct,now,log,
       probe:(app,circuit)=>probe(app.deploymentId,app.expected,circuit),publish:(id,routes)=>this.publisher.publish(id,routes)}):null;
     this.manager=new CompositeManager({tuna,network:enclaveNetwork});
     this.publisher=new RoutePublisher({directory:path.join(directory,'routes'),account,lease:id=>leaseReader.get(id),
@@ -213,6 +213,8 @@ export async function runPrivacy(configFile){
   if(needsTuna&&!control&&!wgControl&&!cfg.chain.proxy)throw new Error('independent guarded control transport required');
   const leaseReader=new LeaseReader({...cfg.chain,includeHostPayout:directConfigured||!!cfg.tunaUSDC,includeConnectivity:cfg.connectivity||cfg.tunaUSDC?'auto':false,...(control?{proxy:control.proxies}:wgControl?{proxy:wgControl.proxies}:{})});leaseReaderLate=leaseReader;
   let directRuntime,qualification,settlement;
+  // the route publisher attaches the host's direct-hosting qualification to a direct route (v5)
+  if(network?.direct)qualification=network.direct.envelope;
   if(cfg.tunaUSDC){
     const tokenFile=cfg.tunaUSDC.tokenFile||path.join(cfg.directory,'tuna-control.token');
     await fs.writeFile(tokenFile,randomBytes(32).toString('hex'),{mode:0o600,flag:'wx'}).catch(e=>{if(e.code!=='EEXIST')throw e;});
