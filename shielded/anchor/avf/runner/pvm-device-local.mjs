@@ -2,13 +2,15 @@
 // Enclave app's AgentService runs this agent under the app's own uid, so the app's private files are this process's files,
 // and the app's own processes (the host VM's, each slot's) are this process's to see and to signal. Only a launch needs
 // Android: a foreground service can be started by the app, not by a plain process, so it goes to AgentService's control
-// endpoint (loopback, behind a token in the app's private files). There are no doors: the VMs' bridges, the host surface,
+// endpoint (loopback, behind a token in the app's private files), and so does finding and ending the app's own processes: a
+// program the app runs sees no other process in /proc, not even the app's (measured on the Pixel 10, Android 17: Node's
+// /proc held only itself). There are no doors: the VMs' bridges, the host surface,
 // the attach co-signer and the egress port are all this phone's loopback already.
 //
 // The same calls and the same checks as pvm-device.mjs (the host agent cannot tell them apart), with two changes:
 //   - a VM is alive when the process that runs it says so in files/run/<instance>.alive ("<pid> <label>", written by the
-//     VM's own process at "APP serving https-p256", Main.markAlive) and that pid is still that process: an app process
-//     cannot see crosvm (another uid), and Android may bring a VM's process back with no VM in it (measured 2026-10-11);
+//     VM's own process at "APP serving https-p256", Main.markAlive) and that pid is still that process (AgentService's
+//     process list): crosvm is another uid's, and Android may bring a VM's process back with no VM in it (2026-10-11);
 //   - the bridge token is read from the app's private files (files/bridge-token[-slotK], LocalBridge).
 import net from "node:net";
 import crypto from "node:crypto";
@@ -19,20 +21,7 @@ import { RELEASE_PACKAGE, MAX_SLOTS, slotPorts } from "./pvm-device.mjs";
 export { RELEASE_PACKAGE, MAX_SLOTS, slotPorts };
 const SERVICE = "host.enclave.anchor.avf.AnchorService";
 
-/** The app's own process named `proc` (its /proc/<pid>/cmdline), or null. Only this uid's processes are visible. */
-export function pidOfProcess(proc, procDir = "/proc") {
-  let ents = [];
-  try { ents = fs.readdirSync(procDir); } catch { return null; }
-  for (const e of ents) {
-    if (!/^[0-9]+$/.test(e)) continue;
-    let cmd;
-    try { cmd = fs.readFileSync(path.join(procDir, e, "cmdline"), "latin1"); } catch { continue; }
-    if (cmd.split("\0")[0] === proc) return Number(e);
-  }
-  return null;
-}
-
-/** The launch control: POST /launch { service, extras: [[name, "s"|"i"|"z", value]] } to AgentService, with its token. */
+/** AgentService's control endpoint: launch a VM service, list this app's processes, end one VM process. */
 export function controlClient({ port, tokenFile, timeoutMs = 20000 }) {
   if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("pvm-device-local: control port must be 1024..65535");
   const token = () => {
@@ -40,15 +29,23 @@ export function controlClient({ port, tokenFile, timeoutMs = 20000 }) {
     if (!/^[0-9a-f]{64}$/.test(t)) throw new Error("pvm-device-local: no control token in the app's files");
     return t;
   };
-  return async function launch(service, extras) {
-    const body = JSON.stringify({ service, extras });
+  async function call(method, route, body) {
     const ac = new AbortController(), t = setTimeout(() => ac.abort(), timeoutMs);
     try {
-      const r = await fetch(`http://127.0.0.1:${port}/launch`, { method: "POST", signal: ac.signal,
-        headers: { "content-type": "application/json", authorization: `Bearer ${token()}` }, body });
+      const r = await fetch(`http://127.0.0.1:${port}${route}`, { method, signal: ac.signal,
+        headers: { "content-type": "application/json", authorization: `Bearer ${token()}` }, ...(body ? { body: JSON.stringify(body) } : {}) });
       const a = await r.json().catch(() => ({}));
-      if (r.status !== 200 || a.ok !== true) throw new Error(`the service did not start: ${String(a.error || r.status).slice(0, 200)}`);
+      if (r.status !== 200) throw new Error(String(a.error || r.status).slice(0, 200));
+      return a;
     } finally { clearTimeout(t); }
+  }
+  return {
+    async launch(service, extras) {
+      const a = await call("POST", "/launch", { service, extras }).catch((e) => { throw new Error(`the service did not start: ${e.message}`); });
+      if (a.ok !== true) throw new Error("the service did not start");
+    },
+    async procs() { const a = await call("GET", "/procs"); return Array.isArray(a.procs) ? a.procs : []; },
+    async kill(proc) { const a = await call("POST", "/kill", { process: proc }); if (a.ok !== true) throw new Error(`${proc} did not end`); },
   };
 }
 
@@ -58,13 +55,13 @@ export function controlClient({ port, tokenFile, timeoutMs = 20000 }) {
  */
 export function createLocalPvmDevice({ files, apk = null, control, pkg = RELEASE_PACKAGE, vmName, relay, name, agentPort, attachPort,
                                        egressPort = 0, bridgeApp = 17786, bridgeEvidence = 17787, slots = 0, log = () => {},
-                                       procDir = "/proc", launcher = null, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
+                                       app = null, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
   if (typeof files !== "string" || !path.isAbsolute(files)) throw new Error("pvm-device-local: files must be the app's files dir (absolute)");
   if (!/^[a-z0-9-]{1,29}$/.test(vmName || "")) throw new Error("pvm-device-local: vmName must be 1..29 of [a-z0-9-] (a slot's instance is <vmName>s<k>)");
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(name || "")) throw new Error("pvm-device-local: name must be the tunnel name");
   if (!/^wss?:\/\/\S+$/.test(relay || "")) throw new Error("pvm-device-local: relay must be the relay's ws(s) fleet-tunnel URL");
   if (!Number.isInteger(slots) || slots < 0 || slots > MAX_SLOTS) throw new Error(`pvm-device-local: slots must be 0..${MAX_SLOTS}`);
-  const start = launcher || controlClient(control || {});
+  const ctl = app || controlClient(control || {});   // { launch, procs, kill }: AgentService (tests pass their own)
   const f = (...p) => path.join(files, ...p);
   const readText = (p) => { try { return fs.readFileSync(p, "utf8"); } catch { return ""; } };
   /** write 0600 under a temporary name, then rename into place */
@@ -108,15 +105,12 @@ export function createLocalPvmDevice({ files, apk = null, control, pkg = RELEASE
       if (sha(fs.readFileSync(f(optsFile))) !== sha(Buffer.from(text))) throw new Error("the staged options file does not match");
     }
 
-    const pidOf = async () => pidOfProcess(proc, procDir);
+    const pidOf = async () => { const p = (await ctl.procs()).find((x) => x.name === proc); return p ? Number(p.pid) : null; };
     /** End this VM only, by ending its own process (the VM ends with its client process). Never the app's others. */
     async function stop() {
-      const pid = await pidOf();
-      if (!pid) return;
-      try { process.kill(pid, "SIGTERM"); } catch {}
-      for (let i = 0; i < 20 && await pidOf() === pid; i++) await sleep(500);
-      if (await pidOf() === pid) { try { process.kill(pid, "SIGKILL"); } catch {} await sleep(500); }
-      if (await pidOf() === pid) throw new Error(`${proc} (pid ${pid}) did not end`);
+      if (!await pidOf()) return;
+      await ctl.kill(proc);
+      if (await pidOf()) throw new Error(`${proc} did not end`);
     }
 
     async function launch({ proofPins = null, label, attachSigner = null, sock = 0, memMib = 0, appMem = 0, vmMib = 0, cpus = 0, opts = false }) {
@@ -137,7 +131,7 @@ export function createLocalPvmDevice({ files, apk = null, control, pkg = RELEASE
                       ...(opts ? [["app_opts", "z", true]] : [])];
       await stop();
       fs.rmSync(f("run", `${instance}.alive`), { force: true });
-      await start(service, extras);
+      await ctl.launch(service, extras);
       log({ ev: "device-launch", slot: k, label, idle: proofPins === null, ...(slot ? { vmMib, cpus } : {}) });
     }
 
