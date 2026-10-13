@@ -55,8 +55,10 @@ const registryAddress=async()=>{const [c]=clients;return c.readContract({address
 let registry;const hosts=async id=>{registry||=await registryAddress();const [h]=await leases.registryEntries(registry,[id]);return h||null;};
 // the peer table on disk: a restart (an update) keeps every peer at its tunnel address
 const peerFile=path.join(stateDir,'peers.json');
+// saves are queued (concurrent grants each persist) and each writes its own temporary file before the atomic rename
+let saving=Promise.resolve(),seq=0;
 const store={load:async()=>{try{return JSON.parse(await fs.readFile(peerFile,'utf8'));}catch{return null;}},
- save:async v=>{await fs.writeFile(peerFile+'.tmp',JSON.stringify(v),{mode:0o600});await fs.rename(peerFile+'.tmp',peerFile);}};
+ save:v=>(saving=saving.catch(()=>{}).then(async()=>{const tmp=`${peerFile}.${process.pid}.${++seq}.tmp`;await fs.writeFile(tmp,JSON.stringify(v),{mode:0o600});await fs.rename(tmp,peerFile);}))};
 const provider=new WgProvider({config,signer:account,kernel,log,policyMemory,verifyOwner,domains,targets,hosts,store,
  leases:async id=>(await leases.readSnapshot([id]))[0]||null,
  currentPolicy:async id=>(await relayJSON('/v1/network/policy/'+id))?.envelope||null});

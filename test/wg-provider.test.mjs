@@ -11,7 +11,8 @@ const operator=privateKeyToAccount(generatePrivateKey()),stranger=privateKeyToAc
 const providerKey=privateKeyToAccount(generatePrivateKey()),checker=privateKeyToAccount(generatePrivateKey());
 const wgKey=()=>randomBytes(32).toString('base64');
 function rig({roles=['guard','ingress','egress'],price=0,lease={},published=null,host={active:true,operator:null}}={}){
- let now=1_000_000_000;const kernel={peers:new Map(),synced:null,setPeer:async p=>kernel.peers.set(p.key,{...p}),removePeer:async p=>kernel.peers.delete(p.key),sync:async s=>{kernel.synced=s;}};
+ let now=1_000_000_000;const kernel={peers:new Map(),synced:null,setPeer:async p=>kernel.peers.set(p.key,{...p}),removePeer:async p=>kernel.peers.delete(p.key),sync:async s=>{kernel.synced=s;},
+  listPeers:async iface=>[...kernel.peers.values()].filter(p=>(p.role==='guard'?'wg-guard':'wg-exit')===iface).map(p=>p.key)};
  const leases=new Map([[id,{active:true,runner,runnerOperator:operator.address,owner:owner.address,isPublic:true,validUntil:now+60000,leaseUntil:now+3600000,...lease}]]);
  const seen=new Map();
  const p=new WgProvider({config:{providerId:'aa'.repeat(16),roles,pricePerGiB6:price,publicAddress:'134.199.235.187',exitKey:wgKey(),guardKey:wgKey(),ports:{exit:51820,guard:51821,control:51822},checkers:[checker.address]},
@@ -109,7 +110,8 @@ test('a restarted provider restores its peers at the same addresses (a renewal k
  let saved=null;const store={load:async()=>saved,save:async v=>{saved=structuredClone(v);}};
  const r=rig();r.p.store=store;const env=await request(r);const first=await r.p.handle(env);
  assert.ok(saved.peers.length===1);
- const again=rig();again.p.store=store;assert.equal(await again.p.restore(),1);
+ const again=rig();again.p.store=store;again.kernel.peers.set('orphan',{key:'orphan',role:'exit',address:'10.77.9.9'});
+ assert.equal(await again.p.restore(),1);assert.ok(!again.kernel.peers.has('orphan'),'a kernel peer the table does not hold is removed');
  assert.ok(again.kernel.peers.has(env.request.wgPublicKey),'the kernel gets the peer back');
  assert.equal(again.p.route('abababab.app.enclave.host'),first.grant.clientAddress,'names route again at once');
  const renewed=await again.p.handle(await request(again,{wgPublicKey:env.request.wgPublicKey}));
