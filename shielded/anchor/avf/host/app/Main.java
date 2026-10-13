@@ -407,7 +407,7 @@ public class Main extends Activity {
         new Thread(() -> runVm(this, plan), "anchor-host").start();
     }
     @Override protected void onDestroy() { sScreen = null; super.onDestroy(); }
-    /* the Enclave screen's Settings page goes back to its main page first (Status.back) */
+    /* the Enclave screen (the hosting panel) takes Back first: it closes a question or the open section (Status.back) */
     @SuppressWarnings("deprecation") @Override public void onBackPressed() { if (Status.back()) return; super.onBackPressed(); }
 
     /* call obj.name(args) resolving the method by name and arity; Method.invoke unboxes primitives */

@@ -71,6 +71,9 @@ export async function createRunnerAgent({ config, publicClient, account, stateDi
     instanceIds: cfg.evidence.instanceIds, journalFile: path.join(stateDir, "attach-journal.jsonl") }) : null;
   const serveAttach = async () => { if (!cosigner) return null; const [host, port] = L.attach.listen.split(":"); return serveAttachCosigner(cosigner, { host, port: Number(port) }); };
 
+  // the owner's "Pay out now" (the hosting panel): the next lifecycle step withdraws whatever is earned, under the minimum too
+  let payoutAsked = false;
+
   // ---- at most ONE lifecycle transaction, chosen from the chain as it is now; null when nothing is due ----
   async function lifecycleStep() {
     const s = await agent.lease();
@@ -138,7 +141,10 @@ export async function createRunnerAgent({ config, publicClient, account, stateDi
     // 4. earnings, to the owner's payout address, when they reach the owner's minimum (the operator key never keeps them)
     if (L.payout) {
       const earned = BigInt(await agent.readLedger("earned6", [me]));
-      if (earned >= BigInt(L.payout.minWithdraw6))
+      // the owner's "Pay out now" (requestPayout): any amount, once
+      const asked = payoutAsked && earned > 0n;
+      if (asked) payoutAsked = false;
+      if (asked || earned >= BigInt(L.payout.minWithdraw6))
         return agent.sendCall({ op: "withdrawEarnings", contract: "deployments", functionName: "withdrawEarnings", args: [L.payout.to], event: "EarningsWithdrawn",
                                 match: { operator: me, to: L.payout.to } });
     }
@@ -189,5 +195,6 @@ export async function createRunnerAgent({ config, publicClient, account, stateDi
     }
     return outs;
   }
-  return { start, tick, stop, run, lifecycleStep, agent, cosigner, serveAttach, close: () => { if (cosigner) cosigner.close(); agent.close(); } };
+  return { start, tick, stop, run, lifecycleStep, agent, cosigner, serveAttach, requestPayout: () => { payoutAsked = true; },
+           close: () => { if (cosigner) cosigner.close(); agent.close(); } };
 }

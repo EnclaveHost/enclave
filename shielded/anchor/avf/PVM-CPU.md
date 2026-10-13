@@ -203,38 +203,28 @@ slot 1 after the sibling check.
 
 ### The Enclave app (2026-10-11)
 
-Two pages (decluttered on Steven's word): **main** -- the Hosting switch in the header, one status line, Earnings (what is
-ready to pay out), the apps here by name, a Settings button; **Settings** -- Sharing (CPU and memory sliders; Apply and
-Cancel appear only once one moves) and the payout address (Save and Cancel appear only once it is edited). The screen
-speaks of apps only. The sections below describe what each control does.
+**The screen is the hosting panel (2026-10-13).** Steven: "a change to one is mirrored to the other" and "the exact same
+GUI" as the desktop app. The Enclave app's screen is `host-ui/` (the repository's), the same HTML, CSS and JavaScript the
+Windows tray shows: the Hosting switch, then Limits (one **CPU & RAM** share: a phone has no GPU to offer), Price,
+Earnings and the payout wallet, Apps, and the node's state. `host/app/Status.java` is only its shell: a WebView that
+serves the page from the APK's `assets/host-ui/` (staged by `build.sh` from every file `index.html` loads) at
+`https://hosting.enclave.example/`, and a bridge that carries the page's requests to the agent with the agent's token
+(`files/agent/hosting-admin.token`); the page never holds the token. Back closes a question, then the open section, then
+leaves the app. A lab (debuggable) build lets the page be driven over `chrome://inspect`; a release build never does.
 
-
-The release app is **Enclave** on the phone (package `host.enclave.pvmcpu` kept: a new package would mean new VM
-instances, a new proof key and a new registration). Its icon is the site's mark (`site/assets/logo.svg` on the
-`icon.svg` tile) as an adaptive launcher icon with a themed-icon layer (`res/`, compiled and linked by `build.sh`); the
-hosting notifications carry the mark and open the app. Opened from the launcher, it shows what the phone hosts
-(`host/app/Status.java`): the host agent's `/availability`, read every 5 s over the phone's loopback (the agent's reverse
-door, USB or Wi-Fi): hosting or not connected, each app (public name, VM size, CPU share, slot; a tap opens it), the
-room left and the price. It never starts or stops a VM. Every library in the APK is 16 KB page-aligned (Android 16 warns
-on opening a debuggable app otherwise; the app stays debuggable because the agent uses `run-as`).
-
-**Sharing.** The owner chooses how much of the phone to offer to host apps, in the app: CPU (5-100% of the phone) and
-memory for apps' VMs (up to the agent's `slots.poolMemMb`). The app saves `files/offer.json` (only the app's uid or the
-owner's adb can write it; not another app, not the relay); the agent reads it every round, strictly, and admits apps and
-reports `/availability` within it (`cpuShareOffered`, `poolMemMb`, `offer`); the relay lists the node's compute as that
-part of the attested GFLOPS. Lowering it never evicts: new apps fit within it, and a running app re-judged (a config edit,
-a resize) keeps at least the room it holds. The GPU is not offered: a protected VM on this phone cannot reach it. Changes
-to the sliders take effect on **Apply** (live only while they differ from what is in effect). The **Hosting** switch turns
-hosting off entirely: the agent releases every app here (a final proof, then release), ends its VM, then ends the host VM,
-and takes nothing until it is on again (`offer.json` `"hosting": false`; turning off with apps running asks first). The
-screen runs in its own process (`:ui`), so ending the host VM never closes it.
-
-**Earnings and payout.** The screen shows what the phone has earned (the agent's `GET /v1/earnings`, public ledger data):
-ready to pay out (`earned6` for the operator), paid out so far (its `EarningsWithdrawn` events, counted from when the
-agent first looked: the free RPCs keep no archive logs, and only the operator key, which lives in the agent, can
-withdraw), earned in total (the two together) and earning now (the apps' runner rates). The owner sets the payout address
-in the app (`offer.json` `payoutTo`, confirmed: payouts can't be undone); the host runner withdraws there once $1.00 has
-built up, else to the config's `payout.to`, else earnings wait on the ledger.
+The agent answers the panel on `127.0.0.1:18191` (`standalone.mjs` `PANEL_PORT`), never on the tunnel's host surface,
+with the Windows node's local hosting API (`windows/node/hosting.mjs`, host-ui/README.md): the view says
+`device {noun: "phone"}`, `axes ["cpu"]`, `cpuLabel "CPU & RAM"`. The agent now WRITES `files/offer.json` itself (the
+screen no longer does) and reads it every round as before. The rules are the PC's: a share below what runs, or turning
+hosting off with apps here, answers `409 would_drop` with what it would stop (newest first, until what stays fits the CPU
+and the share's memory) and changes nothing until the owner confirms that list; confirmed, the round releases them (a
+final proof, then release) and keeps them from being re-claimed for 10 minutes. The price is the owner's own
+(`state/pricing.json`; the price posted before the panel existed is kept as the owner's, so no live price moves) or the
+market's default for the pVM CPU tier (`windows/node/price-guide.mjs`: the cheapest other pVM host's unit, else the
+starting unit, times this phone's pool GB and its measured GFLOPS from its relay row); the host runner re-states the
+registry entry when it changes. "Pay out now" asks the host runner to withdraw any amount with its next transaction (one
+in flight at a time), so the panel says it is pending; `DELETE /payout-wallet` pays nobody (earnings wait on the ledger,
+even with a config `payout.to`). The operator's gas is measured as the PC measures it (`windows/node/gas-runway.mjs`).
 
 The host VM runs in the app's main process, which also hosts that screen: Android brings the process back for the screen
 after an update with no VM in it, so the agent counts a VM as alive only while its own `crosvm_<instance>` runs.

@@ -207,6 +207,12 @@ export function createLocalPvmDevice({ files, apk = null, control, pkg = RELEASE
     return handles.get(k);
   };
   async function readOffer() { const t = readText(f("offer.json")); return t.trim() ? t.slice(0, 4096) : null; }
+  /** The hosting panel's settings (the agent writes them now; the app's screen is the panel): whole, then renamed in place. */
+  async function writeOffer(text) {
+    if (Buffer.byteLength(text) > 4096) throw new Error("the settings are larger than 4096 bytes");
+    const t = f(`offer.json.${process.pid}.tmp`);
+    fs.writeFileSync(t, text, { mode: 0o600 }); fs.renameSync(t, f("offer.json"));
+  }
   return { ...host, ensurePorts: async () => 0, selectTransport: async () => "local", installedApkSha, name, slots, slot: slotOf,
-           transport: () => ({ via: "local", target: "this phone" }), readOffer, useSlots: () => {}, agentPort, attachPort, egressPort };
+           transport: () => ({ via: "local", target: "this phone" }), readOffer, writeOffer, useSlots: () => {}, agentPort, attachPort, egressPort };
 }

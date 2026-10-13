@@ -39,6 +39,10 @@ import { secretsExist } from "../../../../windows/node/secrets.mjs";
 import { createEgressServer } from "./egress.mjs";
 import { createSniRouter } from "./sni-router.mjs";
 import { fetchVerified } from "./ipfs-verify.mjs";
+// the owner's hosting panel (host-ui, the Windows tray's panel too) speaks the Windows node's local hosting API: the same
+// gas runway and the same market-priced default as the PC
+import { gasRunway } from "../../../../windows/node/gas-runway.mjs";
+import { priceGuide, defaultPrice, rowCapacity, perSec6Of, perHourOf } from "../../../../windows/node/price-guide.mjs";
 
 export const HOST_CONFIG_FORMAT = "enclave-pvm-host-agent/v1";
 export const ZERO32 = "0x" + "00".repeat(32);
@@ -337,6 +341,61 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   let offer = { hosting: true, cpuMilli: 1000, memMb: S.poolMemMb, source: "config" };
   // the memory a share offers: that part of the config's pool, never under the smallest app's room
   const shareMem = (milli) => Math.max(MIN_VM_MB, Math.floor(S.poolMemMb * milli / 1000));
+  // apps the owner's panel lowered the share below (or turned hosting off over): released at the next round, newest first
+  const dropping = new Map();    // deployment -> why
+  // the operator key's gas, measured as the PC measures it (gas-runway.mjs), for the panel's warning
+  const gasSamples = [];
+  let gas = { wei: null, low: false, hoursLeft: null, renewalsLeft: null }, lastGas = 0;
+  let payRequested = null;       // { at, paid6 }: the panel's "Pay out now", until the ledger shows a withdrawal (or 15 min)
+
+  // ---- the price this phone posts (the panel's Price section): the owner's own, else the market's default for it ----
+  // state/pricing.json { cpuPerHour: number | null }. On its first start the price this phone already posts (the config's)
+  // is kept as the owner's own, so an update never moves a live price; the panel's "Use default" hands it to the market.
+  const pricingFile = path.join(stateDir, "pricing.json");
+  const pricing = (() => {
+    const persist = (v) => { const t = pricingFile + ".tmp"; fs.writeFileSync(t, JSON.stringify({ cpuPerHour: v }) + "\n", { mode: 0o600 }); fs.renameSync(t, pricingFile); };
+    let own = null;
+    try { const o = JSON.parse(fs.readFileSync(pricingFile, "utf8")); own = typeof o.cpuPerHour === "number" && o.cpuPerHour > 0 ? o.cpuPerHour : null; }
+    catch { own = perHourOf(cfg.register.cpuPricePerSec6); persist(own); }
+    let guide = null, flops = 0, at = 0;
+    const gb = () => Math.round(S.poolMemMb / 1024 * 10) / 10;
+    // the default: the cheapest pVM CPU unit among the OTHER hosts (or the network's starting unit) x this phone's GB x GFLOPS
+    const def = () => (guide && flops ? defaultPrice(guide, "pvm-cpu", gb(), flops) : null);
+    return {
+      /** The price the host runner registers (micro-USDC a second). A default that drifted under 10% keeps the posted one. */
+      posted6() {
+        if (own) return perSec6Of(own);
+        const d = def(), reg = registered ? Number(registered.cpuPricePerSec6) : 0;
+        if (!d) return reg || Number(cfg.register.cpuPricePerSec6);
+        return reg && Math.abs(d.perSec6 - reg) / reg < 0.1 ? reg : d.perSec6;
+      },
+      view() {
+        const d = def();
+        return { perHour: perHourOf(this.posted6()), tier: "pvm-cpu", gb: gb(), flops, override: own,
+                 default: d ? { perHour: d.perHour, from: d.from, unitPerHour: d.unit } : null };
+      },
+      /** PUT /v1/local/hosting/price { cpuPerHour } (USDC an hour, or null for the default). Throws a 400. */
+      set(body) {
+        const bad = (m) => Object.assign(new Error(m), { status: 400, code: "bad_price" });
+        if (!body || typeof body !== "object" || Array.isArray(body)) throw bad("the body is { cpuPerHour }");
+        const extra = Object.keys(body).filter((k) => !["cpuPerHour", "gpuPerHour"].includes(k));
+        if (extra.length) throw bad(`unknown field ${JSON.stringify(extra[0]).slice(0, 40)}: only cpuPerHour can be set`);
+        if (body.gpuPerHour !== undefined && body.gpuPerHour !== null) throw bad("this phone has no GPU to price");
+        if (!("cpuPerHour" in body)) return;
+        const v = body.cpuPerHour;
+        if (v !== null && (typeof v !== "number" || !Number.isFinite(v) || v <= 0 || v > 1000)) throw bad("cpuPerHour is a price in USDC per hour, above 0 and at most 1000, or null for the default");
+        persist(v); own = v;
+        note({ ev: "price", cpuPerHour: v, by: v === null ? "default" : "owner", posted6: this.posted6() });
+      },
+      /** The relay's /enclaves rows: the guide (this phone left out) and this phone's own measured GFLOPS. */
+      rows(list) {
+        guide = priceGuide(list, { exclude: cfg.name }); at = now();
+        const mine = list.find((r) => r && (r.name === cfg.name || lc(r.id || "") === lc(E)));
+        if (mine) flops = rowCapacity(mine).cpu.flops || flops;
+      },
+      stale: () => now() - at >= 3600_000,
+    };
+  })();
   const lastCert = new Map();    // k -> ms
   const standDown = new Map();   // deployment -> until (ms): the owner moved it away; not re-claimed meanwhile
   const sessions = createSessionApiAuth({ pc: publicClient, book: () => cfg.addressBook, ledger: () => (addrs ? addrs.deployments : null),
@@ -359,7 +418,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   const proofPins = (D) => `${cfg.chainId} ${addrs.proofOfTime} ${addrs.registry} ${D} ${E} ${me}`;
 
   // ---- the runners: the host's (deployment ZERO: register, heartbeat, withdraw) and one per slot (its deployment's lease) ----
-  function runnerConfig(D, appSha, { carrierPort, instanceIds, slot = false, gpuOptional = false, payout = null }) {
+  function runnerConfig(D, appSha, { carrierPort, instanceIds, slot = false, gpuOptional = false, payout = null, price6 = null }) {
     return { format: "enclave-pvm-runner-agent/v1",
       proof: { format: "enclave-pvm-proof-agent/v1", chainId: cfg.chainId, addressBook: cfg.addressBook, deployment: D, endpoint: cfg.endpoint,
                operator: me, carrier: `http://127.0.0.1:${carrierPort}/`, maxFeePerGasWei: cfg.maxFeePerGasWei,
@@ -368,7 +427,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
       // a slot's runner never registers or re-keys the entry: the host's key is the host VM's, and a slot that does not
       // attest it stops (proof-key-mismatch) instead of moving the host's key to itself
       lifecycle: slot ? { claim: true, syncProofKey: false, ...(gpuOptional ? { gpuOptional: true } : {}) }
-                      : { register: { repo: cfg.register.repo, measurement: "0x" + cfg.evidence.allowedCodeHashes[0], cpuPricePerSec6: cfg.register.cpuPricePerSec6 },
+                      : { register: { repo: cfg.register.repo, measurement: "0x" + cfg.evidence.allowedCodeHashes[0], cpuPricePerSec6: String(price6 || cfg.register.cpuPricePerSec6) },
                           claim: false, ...(payout ? { payout } : {}) } };
   }
   const anyPending = (except) => [...runners].some(([w, e]) => w !== except && e.r.agent.pending);
@@ -381,7 +440,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     return s;
   }
   async function useRunner(who, D, appSha, dev, opts) {
-    const key = `${D}:${appSha}:${opts.instanceIds.join(",")}:${opts.payout ? opts.payout.to : ""}`;
+    const key = `${D}:${appSha}:${opts.instanceIds.join(",")}:${opts.payout ? opts.payout.to : ""}:${opts.price6 || ""}`;
     const cur = runners.get(who);
     if (cur && cur.key === key) return cur.r;
     if (cur) { const s = await cur.r.stop({ release: false }); if (s.kind === "in-flight") throw new Error("the previous runner still has a transaction in flight"); cur.r.close(); runners.delete(who); }
@@ -395,9 +454,10 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   }
   // the host runner withdraws the operator's earnings to the owner's payout address: the one set in the Enclave app, else
   // the config's; neither, and they stay on the ledger (withdrawable later)
-  const payoutNow = () => { const to = offer.payoutTo || (cfg.payout && cfg.payout.to) || null;
+  // (the panel's "pay nobody" is an explicit null: earnings then stay on the ledger even with a config address)
+  const payoutNow = () => { const to = offer.payoutTo === null ? null : offer.payoutTo || (cfg.payout && cfg.payout.to) || null;
                             return to ? { to, minWithdraw6: (cfg.payout && cfg.payout.minWithdraw6) || "1000000" } : null; };
-  const hostRunner = () => useRunner("host", ZERO32, idleSha, device, { instanceIds: cfg.evidence.instanceIds, payout: payoutNow() });
+  const hostRunner = () => useRunner("host", ZERO32, idleSha, device, { instanceIds: cfg.evidence.instanceIds, payout: payoutNow(), price6: pricing.posted6() });
   const slotRunner = (a) => useRunner(a.slot, a.id, a.sha, slotDev(a), { instanceIds: [a.instanceId], slot: true, gpuOptional: !!a.gpuOptional });
 
   // ---- the host VM: the idle app, the tunnel, the host's proof key ----
@@ -783,6 +843,18 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
       const reg = await read(addrs.registry, REGISTRY_ABI, "get", [E]).catch(() => null);
       registered = reg && lc(reg.operator) === me && reg.active ? reg : null;
       if (reachable && typeof device.readOffer === "function") applyOffer(await device.readOffer().catch(() => null));
+      if (pricing.stale()) await refreshMarket();
+      if (now() - lastGas >= 300_000) { lastGas = now(); await refreshGas().catch((e) => note({ ev: "gas-unread", error: e.shortMessage || e.message })); }
+      // what the owner confirmed dropping in the panel: a final proof and release (the unused tail goes back), the slot freed
+      for (const a of reachable ? apps().filter((x) => dropping.has(x.id)) : []) {
+        const e = runners.get(a.slot), why = dropping.get(a.id);
+        const s = e ? await e.r.stop({ release: true }).catch((err) => ({ kind: "error", reason: err.message })) : { kind: "stopped" };
+        if (s.kind === "in-flight") { note({ ev: "drop-wait", slot: a.slot, deployment: a.id, why: "a transaction is in flight" }); continue; }
+        note({ ev: "dropped", slot: a.slot, deployment: a.id, kind: s.kind, why });
+        standDown.set(a.id, now() + 10 * 60_000);
+        await freeSlot(a, why); dropping.delete(a.id);
+      }
+      for (const id of [...dropping.keys()]) if (!appOf(id)) dropping.delete(id);
       if (reachable && offer.hosting === false) {
         await drain();
         await refreshEarnings().catch((e) => note({ ev: "earnings-unread", error: e.shortMessage || e.message }));
@@ -846,14 +918,14 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
       try {
         const o = JSON.parse(text);
         const c = Number(o.cpuMilli);
-        if (o.v !== 1 || !Number.isInteger(c) || c < 10 || c > 1000 || (o.hosting !== undefined && typeof o.hosting !== "boolean"))
+        if (o.v !== 1 || !Number.isInteger(c) || c < 0 || c > 1000 || (o.hosting !== undefined && typeof o.hosting !== "boolean"))
           throw new Error("malformed");
         // the payout address: 0x + 40 hex, never zero; absent, the config's
-        if (o.payoutTo !== undefined && (typeof o.payoutTo !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(o.payoutTo) || /^0x0{40}$/.test(o.payoutTo))) throw new Error("payoutTo is not an address");
+        if (o.payoutTo !== undefined && o.payoutTo !== null && (typeof o.payoutTo !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(o.payoutTo) || /^0x0{40}$/.test(o.payoutTo))) throw new Error("payoutTo is not an address");
         // ONE share, as the platform sells it: that part of the phone's CPU and of its memory for apps together (a
         // deployment's cpuMilli buys the node's vCPU and RAM alike); a memMb the file may still carry is not read
         next = { hosting: o.hosting !== false, cpuMilli: c, memMb: shareMem(c), source: "phone", at: typeof o.at === "string" ? o.at.slice(0, 40) : null,
-                 ...(o.payoutTo ? { payoutTo: o.payoutTo.toLowerCase() } : {}) };
+                 ...(o.payoutTo ? { payoutTo: o.payoutTo.toLowerCase() } : o.payoutTo === null ? { payoutTo: null } : {}) };
       } catch (e) { if (offer.source !== "config-bad") note({ ev: "offer-ignored", why: `the phone's Sharing settings are not usable (${e.message})` }); next.source = "config-bad"; }
     }
     if (next.cpuMilli !== offer.cpuMilli || next.memMb !== offer.memMb || next.source !== offer.source || next.hosting !== offer.hosting || next.payoutTo !== offer.payoutTo)
@@ -1089,6 +1161,178 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     if (seal.error) return [409, { error: seal.error }];
     return [200, { evidence: ev, seal }];
   }
+  // ---- the owner's hosting panel: the Windows node's local hosting API (windows/node/hosting.mjs), on its own loopback port
+  // with its own token (never the tunnel's host surface), so host-ui shows this phone as it shows a PC (host-ui/README.md) ----
+  async function refreshMarket() {
+    try {
+      const r = await fetchImpl(`${cfg.relayOrigin}/enclaves`, { signal: AbortSignal.timeout(15000) });
+      const rows = (await r.json()).enclaves;
+      if (Array.isArray(rows)) pricing.rows(rows);
+    } catch (e) { note({ ev: "market-unread", error: e.message }); }
+  }
+  async function refreshGas() {
+    if (typeof publicClient.getBalance !== "function") return;
+    const wei = BigInt(await publicClient.getBalance({ address: account.address }));
+    const r = gasRunway(gasSamples, wei, now());
+    gas = { wei: String(wei), low: r.low, hoursLeft: r.hoursLeft === null ? null : Math.round(r.hoursLeft), renewalsLeft: Number(r.renews) };
+  }
+  const shareOf = (a) => (Number(a.cpuMilli) || 0) / 1000;
+  const newestFirst = () => apps().sort((x, y) => (y.claimedAt || y.at || 0) - (x.claimedAt || x.at || 0));
+  /** Is this phone taking NEW work, as the network sees it? The switch is only the first condition. */
+  function marketStatus() {
+    const no = (why) => ({ taking: false, why });
+    if (offer.hosting === false) return no("hosting is off");
+    if (!cfg.claim.enabled) return no("hosting is disabled on this phone (its config's claim.enabled)");
+    if (!registered) return no("not registered on the network yet");
+    if (!hostUp) return no("starting this phone's host VM");
+    if (gas.renewalsLeft === 0) return no("the operator key has no gas left for claims");
+    return { taking: true, why: "listed on enclave.host" };
+  }
+  /** GET /v1/local/hosting, as the Windows node answers it (hostingView), for a phone: one CPU & RAM share, no GPU. */
+  function localView() {
+    const held = apps(), use = held.reduce((t, a) => t + shareOf(a), 0), r4 = (x) => Math.round(x * 1e4) / 1e4;
+    const cpu = offer.cpuMilli / 1000;
+    return {
+      caps: { cpuShare: cpu, gpuShare: 0, paused: offer.hosting === false }, step: 0.05,
+      capsError: offer.source === "config-bad" ? "the saved hosting settings could not be read, so the config's apply" : null,
+      pricing: { cpu: pricing.view(), gpu: null },
+      sold: { cpuShare: r4(use), gpuShare: 0 }, inUse: { cpuShare: r4(use), gpuShare: 0 },
+      free: { cpuShare: r4(Math.max(0, cpu - use)), gpuShare: 0 },
+      reservedShare: 0, deploymentsServed: held.filter((a) => a.phase === "serving").length, waitingForCap: 0, backend: "pvm",
+      gpu: { consumer: false, why: "a protected VM cannot reach the phone's GPU" }, appsEnabled: !!cfg.claim.enabled,
+      market: marketStatus(), gas: { operator: me, low: gas.low, hoursLeft: gas.hoursLeft, renewalsLeft: gas.renewalsLeft }, logsDir: null,
+      device: { kind: "phone", noun: "phone" }, axes: ["cpu"], cpuLabel: "CPU & RAM",
+      apps: newestFirst().map((a) => ({ id: a.id, appRef: a.appRef || "", phase: a.phase === "serving" ? "serving" : "starting", host: `${labelOf(a.id)}.app.enclave.host` })),
+    };
+  }
+  /** The settings file the agent reads every round (files/offer.json), written whole: the panel's change and what it keeps. */
+  async function saveOffer(patch) {
+    if (typeof device.writeOffer !== "function") throw Object.assign(new Error("the hosting panel's settings are written on a phone that hosts on its own"), { status: 501, code: "not_here" });
+    const cur = { hosting: offer.hosting !== false, cpuMilli: offer.cpuMilli, ...("payoutTo" in offer ? { payoutTo: offer.payoutTo } : {}) };
+    const next = { v: 1, ...cur, ...patch, at: new Date(now()).toISOString() };
+    const text = JSON.stringify(next) + "\n";
+    await device.writeOffer(text);
+    applyOffer(text);
+  }
+  /**
+   * PUT /v1/local/hosting { cpuShare?, gpuShare? (0), paused?, drop? }: the Windows node's rules. A share below what runs, or
+   * hosting off with apps here, is 409 would_drop with what it would stop (newest first, until what stays fits) and changes
+   * nothing, until the PUT names every one of them in `drop`.
+   */
+  async function localPut(body) {
+    const bad = (m) => [400, { error: "bad_request", message: m }];
+    if (!body || typeof body !== "object" || Array.isArray(body)) return bad("the body is { cpuShare?, paused?, drop? }");
+    const extra = Object.keys(body).filter((k) => !["cpuShare", "gpuShare", "paused", "drop"].includes(k));
+    if (extra.length) return bad(`unknown field ${JSON.stringify(extra[0]).slice(0, 40)}: only cpuShare, paused and drop can be set`);
+    if ("gpuShare" in body && body.gpuShare !== 0) return bad("this phone offers no GPU: gpuShare is 0");
+    if (!("cpuShare" in body) && !("paused" in body)) return bad("nothing to set: give cpuShare, paused or both");
+    if ("paused" in body && typeof body.paused !== "boolean") return bad("paused must be true or false");
+    let cpuMilli = offer.cpuMilli;
+    if ("cpuShare" in body) {
+      const v = body.cpuShare;
+      if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 1) return bad("cpuShare must be a number from 0 to 1 (it is snapped to steps of 0.05)");
+      cpuMilli = Math.round(v * 20) * 50;
+    }
+    if (body.drop !== undefined && (!Array.isArray(body.drop) || body.drop.some((x) => !B32.test(String(x).toLowerCase())))) return bad("drop must be a list of deployment ids");
+    const paused = "paused" in body ? body.paused : offer.hosting === false;
+    // what these settings leave no room for: everything when off; else the newest first until the CPU and memory fit
+    const plan = [];
+    let cpu = apps().reduce((t, a) => t + (Number(a.cpuMilli) || 0), 0), mem = apps().reduce((t, a) => t + (a.vmMib || 0), 0);
+    for (const a of newestFirst()) {
+      if (!paused && cpu <= cpuMilli && mem <= shareMem(cpuMilli)) break;
+      plan.push({ id: a.id, appRef: a.appRef || "", cpuShare: shareOf(a), gpuShare: 0 });
+      cpu -= Number(a.cpuMilli) || 0; mem -= a.vmMib || 0;
+    }
+    const ack = new Set((body.drop || []).map((x) => String(x).toLowerCase()));
+    if (plan.some((u) => !ack.has(u.id)))
+      return [409, { error: "would_drop", drop: plan, message: `these settings leave no room for ${plan.length} running app(s); nothing was changed. Repeat the PUT with "drop" naming them to drop them and hand their leases back` }];
+    await saveOffer({ hosting: !paused, cpuMilli });
+    const why = paused ? "the owner of this phone turned hosting off; handing the lease back so another host can take it"
+      : `the owner of this phone lowered its share to ${cpuMilli / 10}%, below what was in use; handing the lease back so a host with room can take it`;
+    if (!paused) for (const u of plan) dropping.set(u.id, why);   // off: the round's drain releases everything
+    if (plan.length || "paused" in body) setImmediate(() => tick().catch((e) => note({ ev: "tick-error", error: e.message })));
+    note({ ev: "panel-settings", hosting: !paused, cpuMilli, dropped: plan.map((u) => u.id) });
+    return [200, { ...localView(), dropped: plan }];
+  }
+  /** GET /v1/local/hosting/earnings, as payout.mjs answers it on a PC. */
+  function localEarnings() {
+    const ev = state.earnings || {}, p = payoutNow(), wallet = p ? p.to : null;
+    const own = wallet && lc(wallet) === me;
+    if (payRequested && (BigInt(ev.withdrawn6 || "0") > payRequested.paid6 || now() - payRequested.at > 15 * 60_000)) payRequested = null;
+    return { enclaveId: E, wallet, setAt: offer.at || null, minPayout6: (cfg.payout && cfg.payout.minWithdraw6) || "1000000",
+             paidOut6: ev.withdrawn6 || "0", history: [...(ev.withdrawals || [])].reverse().map((w) => ({ tx: w.tx, to: w.to, amount6: w.amount6, at: null })),
+             paying: !!payRequested, lastError: null, readable: !!ev.at, operator: me, earned6: ev.ready6 || "0", gasWei: gas.wei,
+             payTo: wallet && !own ? wallet : null,
+             why: !ev.at ? "the ledger has not been read yet (a minute after the agent starts)" : !wallet ? "no payout wallet is set"
+               : own ? "the payout wallet is this phone's own operator key, which already holds the earnings" : null };
+  }
+  async function localWallet(method, body) {
+    if (method === "DELETE") { await saveOffer({ payoutTo: null }); note({ ev: "payout-wallet", to: null }); return [200, localEarnings()]; }
+    const a = String((body && body.address) ?? "").trim();
+    if (!/^0x[0-9a-fA-F]{40}$/.test(a) || /^0x0{40}$/.test(a))
+      return [400, { error: "bad_address", message: "that is not a wallet address: it is 0x followed by 40 hexadecimal characters (0-9, a-f)" }];
+    await saveOffer({ payoutTo: a.toLowerCase() });
+    note({ ev: "payout-wallet", to: a.toLowerCase() });
+    return [200, localEarnings()];
+  }
+  /** POST /v1/local/hosting/payout: any amount, with the host runner's next transaction (one in flight at a time). */
+  async function localPayout() {
+    const e = localEarnings(), h = runners.get("host");
+    if (!e.payTo) return [409, { error: "not_paid", paid: false, message: e.why || "no payout wallet is set" }];
+    if (BigInt(e.earned6) === 0n) return [409, { error: "not_paid", paid: false, message: "$0.00 earned" }];
+    if (!h || typeof h.r.requestPayout !== "function") return [409, { error: "not_paid", paid: false, message: "this phone's host runner is not running yet" }];
+    h.r.requestPayout(); h.lastTick = 0;
+    payRequested = { at: now(), paid6: BigInt((state.earnings && state.earnings.withdrawn6) || "0") };
+    setImmediate(() => tick().catch((err) => note({ ev: "tick-error", error: err.message })));
+    const usd = `$${(Number(BigInt(e.earned6)) / 1e6).toFixed(2)}`;
+    return [202, { paid: false, pending: true, message: `Paying out ${usd} to ${e.payTo.slice(0, 8)}\u2026${e.payTo.slice(-4)}: the transaction goes out within a minute.` }];
+  }
+  function localHandler(token) {
+    const want = crypto.createHash("sha256").update(String(token)).digest();
+    const authorized = (h) => {
+      const m = /^Bearer\s+(\S+)\s*$/i.exec(String(h || ""));
+      return !!m && crypto.timingSafeEqual(crypto.createHash("sha256").update(m[1]).digest(), want);
+    };
+    return async (req, res) => {
+      try {
+        if (!["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress)) return json(res, 403, { error: "forbidden" });
+        if (!authorized(req.headers.authorization)) return json(res, 401, { error: "unauthorized", message: "the hosting panel's token is required" });
+        const p = new URL(req.url, "http://local").pathname;
+        let body;
+        if (req.method === "PUT" || req.method === "POST") {
+          let raw = ""; for await (const c of req) { raw += c; if (raw.length > 4096) return json(res, 413, { error: "too_large" }); }
+          try { body = raw ? JSON.parse(raw) : {}; } catch { return json(res, 400, { error: "bad_request", message: "the body is not JSON" }); }
+        }
+        const answer = async () => {
+          if (p === "/v1/local/hosting") {
+            if (req.method === "GET") return [200, localView()];
+            if (req.method === "PUT") return localPut(body);
+          }
+          if (p === "/v1/local/hosting/price" && req.method === "PUT") {
+            try { pricing.set(body); } catch (e) { return [e.status || 500, { error: e.code || "not_saved", message: e.message }]; }
+            return [200, localView()];
+          }
+          if (p === "/v1/local/hosting/earnings" && req.method === "GET") return [200, localEarnings()];
+          if (p === "/v1/local/hosting/payout-wallet" && (req.method === "PUT" || req.method === "DELETE")) return localWallet(req.method, body);
+          if (p === "/v1/local/hosting/payout" && req.method === "POST") return localPayout();
+          return [404, { error: "not_found" }];
+        };
+        const [st, b] = await answer().catch((e) => [e.status || 500, { error: e.code || "internal", message: e.message }]);
+        return json(res, st, b);
+      } catch (e) { note({ ev: "panel-error", error: e.message }); return json(res, 500, { error: "internal" }); }
+    };
+  }
+  /** The panel's endpoint: a fresh token in `tokenFile` (private: the app's files, mode 0600), then 127.0.0.1:port. */
+  async function serveLocal(port, tokenFile) {
+    const token = crypto.randomBytes(32).toString("hex");
+    const t = tokenFile + ".tmp";
+    fs.writeFileSync(t, token + "\n", { mode: 0o600 }); fs.renameSync(t, tokenFile);
+    const srv = http.createServer(localHandler(token));
+    await new Promise((r, j) => { srv.once("error", j); srv.listen(port, "127.0.0.1", r); });
+    note({ ev: "hosting-panel", listen: `127.0.0.1:${port}` });
+    return srv;
+  }
+
   function handler() {
     return async (req, res) => {
       try {
@@ -1220,7 +1464,8 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     for (const [who, e] of [...runners]) { out[who] = (await e.r.stop({ release: release && who !== "host" })).kind; e.r.close(); runners.delete(who); }
     return out;
   }
-  return { tick, availability, claimHint, evidence, sibling, handler, serve, stop, ensureCertificate, refusalFor, admission, earnings: earningsView, state: () => state, config: cfg };
+  return { tick, availability, claimHint, evidence, sibling, handler, serve, serveLocal, localHandler, stop, ensureCertificate, refusalFor, admission,
+           earnings: earningsView, state: () => state, config: cfg };
 }
 
 /** The DER SubjectPublicKeyInfo inside a PKCS#10 request (the second element of its CertificationRequestInfo). */

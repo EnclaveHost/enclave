@@ -18,6 +18,7 @@ Standalone moves all of it onto the phone, unchanged where possible.
 | `pvm-device` | `runner/pvm-device-local.mjs`: same interface as `pvm-device.mjs` | files are the app's own; launch/stop/alive go to `AgentService`'s control endpoint |
 | ports 18187/18188/18189, 17786+ | plain loopback | no adb forward/reverse |
 | IPFS fetch (was `python3 fetch-cid.py`) | JS CAR verifier | Node only |
+| the app's screen: the hosting panel (`host-ui/`, the Windows tray's too) | a WebView in the app's `:ui` process (`Status.java`) | the agent's panel API on 127.0.0.1:18191, its token in `files/agent/hosting-admin.token` (PVM-CPU.md "The screen is the hosting panel") |
 
 Loopback on a phone is shared by every app on it, not "the owner's machine": every agent-side listener takes a
 per-boot token (the attach co-signer keeps its rad/instance/nonce checks; the egress port already takes a token).

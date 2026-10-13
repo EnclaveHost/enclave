@@ -30,6 +30,8 @@ import { createLocalPvmDevice } from "./pvm-device-local.mjs";
 import { createAttachCosigner, serveAttachCosigner } from "./attach-cosigner.mjs";
 
 export const AGENT_PORT = 18187, ATTACH_PORT = 18188, EGRESS_PORT = 18189, ROUTER_PORT = 17780;
+// the Enclave app's screen (host-ui, the hosting panel): the local hosting API with its own token, never the tunnel's surface
+export const PANEL_PORT = 18191;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const log = (o) => console.log(JSON.stringify({ t: new Date().toISOString(), ...o }));
 
@@ -170,6 +172,7 @@ async function main() {
   const agent = await createHostAgent({ config, publicClient, account, stateDir, device, log });
   const srv = await agent.serve(d.agentPort);
   log({ ev: "host-surface", listen: `127.0.0.1:${d.agentPort}`, enclaveId: cfg.enclaveId });
+  const panel = await agent.serveLocal(PANEL_PORT, path.join(a, "hosting-admin.token"));
 
   // ---- the Enclave network: one child, once there is an app to carry ----
   const netFile = path.join(a, "network.json"), appsDir = path.join(a, "apps");
@@ -216,7 +219,7 @@ async function main() {
   // stop timeout did this for the computer's agent)
   await Promise.race([agent.stop({ release: false }).catch(() => {}), new Promise((r) => setTimeout(r, 20_000).unref())]);
   if (net) net.kill("SIGTERM");
-  srv.close(); attach.close(); cosigner.close();
+  srv.close(); panel.close(); attach.close(); cosigner.close();
   process.exit(learned ? 75 : 0);
 }
 
