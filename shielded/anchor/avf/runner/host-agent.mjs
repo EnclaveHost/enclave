@@ -185,7 +185,10 @@ export function parseOptions(raw, gpuMilli) {
   if (env.placement !== undefined) {
     const p = env.placement;
     if (!p || typeof p !== "object" || !B32.test(String(p.hostId || "").toLowerCase())) throw new Error("its placement pin is malformed");
-    o.placement = { hostId: String(p.hostId).toLowerCase(), allowFallback: p.allowFallback !== false };
+    // A pin is strict unless it says otherwise: the site and every other host write {hostId} alone and read it as
+    // "fallback is disabled" (windows/node chain.pinnedHost refuses any other key). Defaulting to fallback here let this
+    // host claim apps pinned elsewhere (api-mcp-adapter, 2026-10-13).
+    o.placement = { hostId: String(p.hostId).toLowerCase(), allowFallback: p.allowFallback === true };
   }
   if (env.waf !== undefined) {
     try { o.waf = parseWaf(env.waf); } catch (e) { throw new Error(`its protection rules are invalid: ${e.message}`); }
