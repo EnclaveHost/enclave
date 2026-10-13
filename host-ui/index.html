@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="color-scheme" content="dark">
+<title>Enclave hosting</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<main id="panel" aria-busy="true">
+  <!-- only where the window has no title of its own (a phone): the title bar says it on Windows -->
+  <header class="mast" id="mast" hidden>
+    <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><g transform="translate(16 16) scale(.82) translate(-16 -16)" fill="none" stroke="currentColor" stroke-linejoin="round"><path d="M16 2 28 9v14L16 30 4 23V9z" stroke-width="2"/><circle cx="16" cy="12.55" r="2.45" stroke-width="2"/><path d="M16 15v6.6M16 21.6h2M16 19.4h1.5" stroke-width="2" stroke-linecap="round"/></g></svg>
+    <span>Enclave hosting</span>
+  </header>
+
+  <div class="label first">Hosting</div>
+  <div class="switch-row">
+    <button type="button" id="switch" class="switch" role="switch" aria-checked="false" aria-label="Hosting" disabled><span class="knob"></span></button>
+    <span id="hostingLine" class="mono line" aria-live="polite">&ndash;</span>
+  </div>
+
+  <div class="box" id="box">
+    <button type="button" class="row" id="rowLimits" aria-expanded="false" aria-controls="pageLimits"><span class="name">Limits</span><span class="val" id="valLimits">&ndash;</span></button>
+    <section class="page" id="pageLimits" hidden aria-label="Limits">
+      <div class="label" id="cpuTitle">CPU share offered</div>
+      <input type="range" id="cpu" class="share" min="0" max="20" step="1" value="0" aria-labelledby="cpuTitle" disabled>
+      <div class="ticks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="mono line" id="cpuLine">offered &ndash; &middot; in use &ndash;</div>
+      <p class="note" id="cpuNote"></p>
+      <div id="gpuBlock">
+        <div class="label" id="gpuTitle">GPU share offered</div>
+        <input type="range" id="gpu" class="share" min="0" max="20" step="1" value="0" aria-labelledby="gpuTitle" disabled>
+        <div class="ticks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="mono line" id="gpuLine">offered &ndash; &middot; in use &ndash;</div>
+        <p class="note" id="gpuNote"></p>
+      </div>
+      <div class="actions">
+        <span class="mono unsaved" id="unsaved"></span>
+        <button type="button" class="btn" id="reset" disabled>Reset</button>
+        <button type="button" class="btn primary" id="apply" disabled>Apply</button>
+      </div>
+    </section>
+
+    <button type="button" class="row" id="rowPrice" aria-expanded="false" aria-controls="pagePrice"><span class="name">Price</span><span class="val" id="valPrice">&ndash;</span></button>
+    <section class="page" id="pagePrice" hidden aria-label="Price">
+      <div class="price" data-axis="cpu" data-label="CPU">
+        <div class="mono line" data-part="line">CPU &ndash;</div>
+        <p class="note" data-part="note"></p>
+        <input type="text" class="field mono" data-part="box" inputmode="decimal" maxlength="12" autocomplete="off" spellcheck="false" aria-label="CPU price, USDC an hour" hidden>
+        <div class="mono hint" data-part="hint" hidden></div>
+        <div class="buttons">
+          <button type="button" class="btn" data-part="edit" hidden>Edit</button>
+          <button type="button" class="btn primary" data-part="save" hidden>Save</button>
+          <button type="button" class="btn" data-part="cancel" hidden>Cancel</button>
+          <button type="button" class="btn" data-part="default" hidden>Use default</button>
+        </div>
+      </div>
+      <div class="price" data-axis="gpu" data-label="GPU" hidden>
+        <div class="mono line" data-part="line">GPU &ndash;</div>
+        <p class="note" data-part="note"></p>
+        <input type="text" class="field mono" data-part="box" inputmode="decimal" maxlength="12" autocomplete="off" spellcheck="false" aria-label="GPU price, USDC an hour" hidden>
+        <div class="mono hint" data-part="hint" hidden></div>
+        <div class="buttons">
+          <button type="button" class="btn" data-part="edit" hidden>Edit</button>
+          <button type="button" class="btn primary" data-part="save" hidden>Save</button>
+          <button type="button" class="btn" data-part="cancel" hidden>Cancel</button>
+          <button type="button" class="btn" data-part="default" hidden>Use default</button>
+        </div>
+      </div>
+    </section>
+
+    <button type="button" class="row" id="rowEarnings" aria-expanded="false" aria-controls="pageEarnings"><span class="name">Earnings</span><span class="val" id="valEarnings">&ndash;</span></button>
+    <section class="page" id="pageEarnings" hidden aria-label="Earnings">
+      <div class="mono line" id="earnLine">earned &ndash; &middot; paid out &ndash;</div>
+      <p class="note" id="earnNote">not asked yet</p>
+      <div class="label" id="walletTitle">Payout wallet</div>
+      <input type="text" class="field mono wide" id="wallet" maxlength="64" autocomplete="off" spellcheck="false" aria-labelledby="walletTitle" readonly>
+      <div class="mono hint" id="walletHint"></div>
+      <div class="buttons">
+        <button type="button" class="btn primary" id="saveWallet" hidden disabled>Save</button>
+        <button type="button" class="btn" id="editWallet" hidden>Edit</button>
+        <button type="button" class="btn" id="cancelWallet" hidden>Cancel</button>
+        <button type="button" class="btn" id="payNow" disabled>Pay out now</button>
+      </div>
+    </section>
+
+    <button type="button" class="row" id="rowApps" aria-expanded="false" aria-controls="pageApps" hidden><span class="name">Apps</span><span class="val" id="valApps">&ndash;</span></button>
+    <section class="page" id="pageApps" hidden aria-label="Apps">
+      <ul class="apps" id="apps"></ul>
+    </section>
+  </div>
+
+  <p class="mono status" id="status">Node: not reachable. not asked yet</p>
+  <p class="error" id="error" role="alert" hidden></p>
+</main>
+
+<dialog id="ask" aria-labelledby="askHeading">
+  <div class="ask-heading mono" id="askHeading"></div>
+  <p class="ask-body" id="askBody"></p>
+  <pre class="ask-detail mono" id="askDetail"></pre>
+  <div class="ask-buttons">
+    <button type="button" class="btn" id="askCancel">Cancel</button>
+    <button type="button" class="btn primary danger" id="askOk"></button>
+  </div>
+</dialog>
+
+<script src="text.js"></script>
+<script src="bridge.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

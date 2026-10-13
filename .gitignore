@@ -95,6 +95,11 @@ windows/enclave-rt/precompile/target/
 windows/enclave-rt/*.lib
 windows/enclave-rt/*.exe
 windows/tray/*.exe
+# the tray build's other outputs: its icon, the WebView2 SDK it fetches (fetch-webview2.ps1), the panel copied from host-ui
+windows/tray/*.ico
+windows/tray/*.dll
+windows/tray/WebView2-LICENSE.txt
+windows/tray/ui/
 windows/enclave-rt/*.cwasm
 windows/enclave-app-hello/target/
 

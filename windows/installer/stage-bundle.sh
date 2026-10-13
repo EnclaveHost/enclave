@@ -6,7 +6,8 @@
 #              helpers; the repo LAYOUT is kept because the node imports ../../relay/* and ../vbslike/*
 #   tuna/      the privacy agent (Enclave network) and its Windows helpers, built from source (network/build.mjs: esbuild
 #              + Go); the directory keeps its historical name, which installed hosts and install-host.ps1 use
-#   setup/     the tray's and the installer's sources (compiled on Windows by windows/installer/build-bundle.ps1)
+#   setup/     the tray's and the installer's sources (compiled on Windows by windows/installer/build-bundle.ps1), and the
+#              hosting panel the tray shows (host-ui, shared with the Android app)
 # and control-<c8>.tar.gz with MANIFEST-control-<c8>.txt (sha256 of every file). Deterministic: sorted names, mtime 0,
 # owner 0, gzip -n. build-bundle.ps1 adds the Windows-only parts and makes the zip.
 set -euo pipefail
@@ -57,7 +58,7 @@ for f in privacy-agent.mjs windows-circuit-worker.mjs enclave-wg.exe enclave-cir
 done
 rm -rf "$W"
 
-mkdir -p "$T/setup"; git archive --format=tar "$NC" windows/tray windows/installer | tar -x -C "$T/setup"
+mkdir -p "$T/setup"; git archive --format=tar "$NC" windows/tray windows/installer host-ui | tar -x -C "$T/setup"
 
 (cd "$T" && find . -type f | sort | sed 's|^\./||' | while read -r f; do printf '%s  %s\n' "$(sha256sum "$f" | cut -c1-64)" "$f"; done) > "$OUT/MANIFEST-control-$N8.txt"
 tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner --format=gnu -C "$T" -cf - control tuna setup | gzip -n -9 > "$OUT/control-$N8.tar.gz"

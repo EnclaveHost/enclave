@@ -2331,6 +2331,11 @@ export class Host {
       gas: { operator: chain.operatorAddress() || null, low: this.gasLow === true,
              hoursLeft: this.gasHoursLeft ?? null, renewalsLeft: this.gasRenewals ?? null },
       logsDir: this.cfg.dir,
+      // for the hosting panel (host-ui, shared with the phone's Enclave app): what it calls this machine, and the apps here
+      // (what occupies it, newest first, as dropPlan orders them)
+      device: { kind: "pc", noun: "PC" },
+      apps: recs.filter((r) => Host.occupies(r)).sort((a, b) => (b.claimedAt || 0) - (a.claimedAt || 0))
+        .map((r) => ({ id: r.id, appRef: r.appRef || "", phase: r.status === "running" ? "serving" : "starting" })),
     };
   }
   /**
