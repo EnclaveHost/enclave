@@ -393,7 +393,8 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
         const mine = list.find((r) => r && (r.name === cfg.name || lc(r.id || "") === lc(E)));
         if (mine) flops = rowCapacity(mine).cpu.flops || flops;
       },
-      stale: () => now() - at >= 3600_000,
+      // hourly; every 5 minutes until this phone's own row has its GFLOPS (a read made while the phone restarts has none)
+      stale: () => now() - at >= (flops ? 3600_000 : 300_000),
     };
   })();
   const lastCert = new Map();    // k -> ms
