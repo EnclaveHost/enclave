@@ -95,12 +95,18 @@ that is updated; c92678519 was deployed to nan with the same steps by hand (04:1
 
 ## Bugs found and fixed after the switch (2026-10-13)
 
-- **Shield egress cut long responses ("short body") - OPEN**: every 4 MiB GET of s3-ipfs-adapter (0x7ae476a3) ends
+- **Shield egress cut long responses ("short body") - OPEN, not seen since .29**: every 4 MiB GET of s3-ipfs-adapter (0x7ae476a3) ends
   after ~2.8 MB. Not the app's circuit (4 and 8 MB, and 4 MiB at 80 KB/s, arrive whole through its SOCKS proxies from
   the host). Two bridge fixes: no write timeout on persistent streams (.27, did NOT end it), and a half-close at
   end of stream instead of shutdown(Both), so the guest still gets what the hv_sock holds (aed5fd228, release .28).
   The second is not reproducible over hv_sock loopback (`bridge-drain-check`: the old bridge also delivers all 4 MiB
-  there), so it is confirmed only if the adapter's GETs complete after .28.
+  there), so it is confirmed only if the adapter's GETs complete after .28. They did not: short bodies at 10:17 and
+  10:20Z on .28. A bisection then cleared the app's circuit (300 of 300 4 MiB downloads through its own SOCKS proxies
+  from the host, at full speed and at the app's 1.2 MB/s), so the cut is between the guest and shield-egress. Release
+  .29 (10:55Z) logs how each egress stream ends (bridge and shield-egress, into shield.log) and its shield-egress copies
+  with its own loop instead of io.Copy; no short body has been seen since (11:05Z onward, watched by enclave-88).
+  Separate and understood: for a few minutes after every partition restart, egress is refused ("refused:admit") until
+  the node adopts the partition and its guest proof refreshes, so an app's first requests after a restart fail.
 - **Egress-map writes failed on Windows**: Windows refuses a rename over `egress-routes.json` while ANY reader holds
   it, FILE_SHARE_DELETE or not (checked on the NucBox), and shield-egress reads it on every outbound connection: 91
   failures before, still 11 in 15 min after .27's retries (618c7d156). The egress map now overwrites the file in place
@@ -116,8 +122,9 @@ that is updated; c92678519 was deployed to nan with the same steps by hand (04:1
 - Paid-path fixes found by the production paid test (registry lookup, host id, host payout, attestation refresh,
   refused debits no longer strike providers, settlement RPC fallback, reverted receipts detected): main, deployed.
 
-Windows host release 2026.10.12.27 (published 09:19Z, all apps back 09:35Z) carries the timeout-free bridge, the
-rename retry and the gas warning; .28 carries the half-close and the in-place routes write.
+Windows host releases tonight: .27 (09:19Z: timeout-free bridge, rename retry, gas warning), .28 (09:59Z: half-close,
+in-place routes write), .29 (10:54Z: egress diagnostics), .30 (11:47Z: referral codes). The gas warning is live on the
+NucBox: GET /v1/local/hosting and the relay's availability report a measured runway (205 h at 11:47Z).
 
 ## Implemented, not in use in production
 
