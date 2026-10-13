@@ -178,7 +178,7 @@ async function main() {
   const startNet = () => {
     if (net || !apps.length || stopping) return;
     netStarted = Date.now();
-    net = spawn(process.execPath, [path.join(bundleDir, "privacy-agent.mjs"), "--config", netFile], { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env } });
+    net = spawn(process.execPath, [path.join(bundleDir, "net-child.mjs"), "--config", netFile], { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env } });
     const fwd = (s) => s.on("data", (b) => { for (const l of String(b).split("\n").filter(Boolean)) log({ ev: "net", line: l.slice(0, 2000) }); });
     fwd(net.stdout); fwd(net.stderr);
     net.on("exit", (code, sig) => {

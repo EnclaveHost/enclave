@@ -18,7 +18,7 @@ const bundle = (entry, file) => build({ entryPoints: [entry], outfile: path.join
   logLevel: "warning", banner: { js: 'import {createRequire as bundleRequire} from "node:module"; const require=bundleRequire(import.meta.url);' } });
 await bundle(path.join(here, "../runner/standalone.mjs"), "standalone.mjs");
 await bundle(path.join(here, "../runner/adb-self.mjs"), "adb-self.mjs");
-await bundle(path.join(repo, "network/privacy-agent.mjs"), "privacy-agent.mjs");
+await bundle(path.join(here, "../runner/net-child.mjs"), "net-child.mjs");   // the network, watching its parent (it runs privacy-agent.mjs's runPrivacy)
 await bundle(path.join(repo, "network/windows-circuit-worker.mjs"), "windows-circuit-worker.mjs");
 fs.copyFileSync(path.join(here, "build.json"), path.join(out, "build.json"));
 const bytes = fs.readFileSync(idle);
