@@ -455,6 +455,7 @@ start('metal-agent', ['/usr/local/bin/node', '/opt/metal/agent.mjs'], {
   METAL_RELAY_URL: RELAY_URL,
   METAL_RELAY_HOST: fw.relayHost || '',           // Host/SNI override when dialing via an egress helper
   METAL_TUNNEL_TOKEN: TUNNEL_TOKEN,
+  METAL_REFERRAL: typeof fw.referral === 'string' ? fw.referral : '',   // attribution only (relay/referrals.mjs)
   METAL_SUP_URL: 'http://127.0.0.1:8080',
   METAL_RAD_PORT: '8443',
   NODE_EXTRA_CA_CERTS: '/etc/ssl/certs/ca-certificates.crt',
