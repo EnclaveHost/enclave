@@ -69,7 +69,7 @@ test("caps limit the free figures /availability publishes (maxShare, cpuShareFre
   assert.deepEqual(cap.cpuCap, { offered: 0.3, used: 0.1 }); assert.deepEqual(cap.gpuCap, { offered: 0.5, used: 0.1 });
   assert.equal(policy(h, newDep({ cpuMilli: 200 })), null, "20% fits under a 30% cap with 10% in use");
   assert.equal(policy(h, newDep({ cpuMilli: 250 })),
-    "it asks for 25% of a node, and the owner offers 30% of this box's CPU to hosting with 10% of that in use");
+    "it takes 25% of this box, and the owner offers 30% of this box's CPU to hosting with 10% of that in use");
   assert.equal(policy(h, newDep({ gpuMilli: 450 })),
     "it asks for 45% of this box's card, and the owner offers 50% of this box's GPU to hosting with 10% of that in use");
   // the node's own reserve still binds above a high cap, and then the cap is not what is named
@@ -92,7 +92,7 @@ test("LOWERING a cap below what is in use evicts nothing, advertises 0 free, and
   assert.deepEqual({ caps: v.caps, inUse: v.inUse, free: v.free, served: v.deploymentsServed },
     { caps: { cpuShare: 0.2, gpuShare: 0.1, paused: false }, inUse: { cpuShare: 0.5, gpuShare: 0.2 }, free: { cpuShare: 0, gpuShare: 0 }, served: 2 });
   assert.equal(policy(h, newDep({ cpuMilli: 50 })),
-    "it asks for 5% of a node, and the owner offers 20% of this box's CPU to hosting with 50% of that in use");
+    "it takes 5% of this box, and the owner offers 20% of this box's CPU to hosting with 50% of that in use");
   // the capacity a hint for a deployment ALREADY here is measured against (host.consider): beside the others, uncapped
   const mine = h.capacity({ exclude: A, capped: false });
   near(mine.cpuShareFree, 0.55, "1 - 0.2 (B) - 0.25"); assert.equal(mine.cpuCap, undefined);

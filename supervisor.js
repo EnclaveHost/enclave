@@ -8406,13 +8406,12 @@ async function switchTenantVersion(rec, d) {
   const onGpu = Number(rec.resources?.gpuShare || 0) > 0;
   const mins = minSharesOf(g.min,
     { volGb: volumeGb(neededVolumes(d, g), await vmHealth().catch(() => null)) });
-  const gpuShare = Number(d.gpuMilli) / 1000, cpuShare = Number(d.cpuMilli) / 1000;
+  // derived, not required (as at claim): the shares this deployment takes are its dial or the new version's floors on
+  // this hardware, whichever is more; a larger floor is a bigger slice below (resize), not a refusal
   const needGpu = onGpu ? mins.gpuFloor : 0;
-  const needCpu = cpuFloorFor(mins, onGpu);
-  if (gpuShare < needGpu - 1e-9 || cpuShare < needCpu - 1e-9)
-    return refuse(`the new version needs more than this deployment's shares on this hardware `
-                + `(needs gpuShare ${round3(needGpu)} / cpuShare ${round3(needCpu)}`
-                + (onGpu ? "" : ", serving on cores") + ")");
+  const gpuShare = Number(d.gpuMilli) > 0 ? Math.max(Number(d.gpuMilli) / 1000, needGpu) : 0;
+  const cpuShare = Math.max(Number(d.cpuMilli) / 1000, cpuFloorFor(mins, onGpu));
+  const grows = gpuShare > Number(rec.resources?.gpuShare || 0) + 1e-9 || cpuShare > Number(rec.resources?.cpuShare || 0) + 1e-9;
   let firewall;
   try { firewall = parseFirewall({ ports: g.ports ? String(g.ports).split(",") : [] }); }
   catch (e) { return refuse("the new version's port spec is not servable here: " + e.message); }
@@ -8441,7 +8440,7 @@ async function switchTenantVersion(rec, d) {
     return refuse("the old instance could not be verifiably stopped; it keeps serving until teardown succeeds", true);
   }
   delete rec._switchStopping; delete rec._switchHeldLogged;
-  if (resize) {
+  if (resize || grows) {
     // swap the held slice for one at the row's new size. Synchronous release +
     // realloc (no await between): the freed capacity of the OLD slice counts
     // toward fitting the new one, which is what lets in-place grows work at
@@ -9276,7 +9275,7 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   // as well stranded the obvious case: a soft-GPU app that bought a slice for a
   // GPU box could never move back to a CPU one ("GPU work on a CPU-only
   // enclave"), even though its publisher had already said cores are fine.
-  const gpuShare = Number(d.gpuMilli) / 1000, cpuShare = Number(d.cpuMilli) / 1000;
+  let gpuShare = Number(d.gpuMilli) / 1000, cpuShare = Number(d.cpuMilli) / 1000;
   // The VERSION now comes before the routing decision, because what the app
   // needs is what decides whether this box can serve the card ask at all. It
   // also removes the second gateAppReference the CPU-only branch used to make.
@@ -9304,6 +9303,12 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
       console.log(`[claim] ${d.id}: GPU requirement unmet here - ${r.unmet}; serving on cores instead`);
     }
   }
+  // A version's requirement is absolute (VRAM, GFLOPS, node RAM); a share exists only relative to THIS hardware, so it
+  // is derived here, never required of the record: the deployment takes what its owner dialed, or what the version
+  // needs on this box if that is more. The card is lifted only on the card path the owner chose (a 0% GPU dial stays
+  // coreless). The ledger still bills the dialed shares (its rate is set at claim from the record).
+  if (gpuShare > 0 && !asCpuFallback) gpuShare = Math.max(gpuShare, mins.gpuFloor);
+  cpuShare = Math.max(cpuShare, cpuFloorFor(mins, gpuShare > 0 && !asCpuFallback));
   if (gpuShare > 0 && !asCpuFallback) {
     // Don't claim GPU work the manager would 503: right after a boot the CUDA
     // readiness probe is still running, and a claim during that window burns
@@ -9368,15 +9373,7 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   // fallback simply isn't available at that dial, which is the honest answer
   // and the one the owner can act on. Before this it was accepted and the
   // tenant died at weight-load instead.
-  const onGpu = gpuShare > 0 && !asCpuFallback;
-  const needGpu = onGpu ? mins.gpuFloor : 0;
-  const needCpu = cpuFloorFor(mins, onGpu);
-  if (gpuShare < needGpu - 1e-9 || cpuShare < needCpu - 1e-9)
-    return `below the app's minimum shares on this hardware (needs gpuShare ${round3(needGpu)} / cpuShare ${round3(needCpu)}`
-         + (asCpuFallback ? ", serving on cores" : "")
-         + (!onGpu && needCpu > mins.cpuShare + 1e-9
-            ? ` - without a card this app's weights live in node RAM, so it needs cpuShare ${round3(needCpu)} here against ${round3(mins.cpuShare)} on a GPU enclave`
-            : "") + ")";
+  // (shares below the version's floors on this hardware were lifted to them above: there is no "below minimum" refusal)
   // WASIp3 is a RUNTIME capability, gated like the card and the volumes: the
   // version's config declares `wasi: "0.3"` (stamped from the binary by the
   // publish path) and a box whose wasmtime cannot serve p3 could only

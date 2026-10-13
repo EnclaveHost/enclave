@@ -69,15 +69,20 @@ export async function renderEnclaveNetwork(box,id,{viaVault=false,owner=null}={}
 
   // ---- the owner's setting ----
   const form=document.createElement("form");form.className="enc-network-controls";
+  // the modes the app's current host can serve (its own report); a mode it can't serve is not offered, except the one in
+  // effect (so it can be changed away from). A host that predates the report offers everything, as before.
+  const offered=Array.isArray(host?.modes)?host.modes:null;
+  const unavailable=k=>offered&&!offered.includes(k)&&k!==policy.mode;
+  const WHY_NOT={"direct":"Not available on this app's host: it has no public address of its own to serve from.","byo-wireguard":"Not available on this app's host."};
   form.innerHTML=`<fieldset><legend>How this app reaches the internet</legend><div class="en-list">${Object.entries(MODE_TEXT).map(([k,v])=>
-    `<label class="en-opt"><input type="radio" name="mode" value="${k}"${k===policy.mode?" checked":""}><b>${esc(v.title)}</b><span class="en-sub">${esc(v.sub)}</span></label>`).join("")}</div></fieldset>
+    `<label class="en-opt${unavailable(k)?" dim":""}"><input type="radio" name="mode" value="${k}"${k===policy.mode?" checked":""}${unavailable(k)?" disabled":""}><b>${esc(v.title)}</b><span class="en-sub">${esc(unavailable(k)?WHY_NOT[k]||"Not available on this app's host.":v.sub)}</span></label>`).join("")}</div></fieldset>
    <div data-for="byo-wireguard" hidden>
      <label>WireGuard config <span class="en-sub">(standard [Interface]/[Peer] file; full tunnel only; no PostUp/PreUp scripts)</span><br>
        <textarea name="config" rows="9" cols="64" spellcheck="false" autocomplete="off" placeholder="${status.byoConfig?"A config is stored (sealed). Paste a new one to replace it.":"[Interface]\nPrivateKey = …\nAddress = 10.0.0.2/32\nDNS = 10.0.0.1\n\n[Peer]\nPublicKey = …\nEndpoint = vpn.example.com:51820\nAllowedIPs = 0.0.0.0/0, ::/0"}"></textarea></label>
      <div class="en-sub" data-check role="status"></div>
      <label>Public website <select name="ingress"><option value="enclave-network">Through the Enclave network (separately billed under the limits below)</option><option value="none">None: outbound only</option></select></label>
    </div>
-   <div data-for="direct" hidden><p class="en-intro"><b>The host's public IP will be visible to every visitor and destination.</b> ${status.directHosts?"":"No host that runs this app currently offers direct hosting; the app stays unreachable until one does, unless you allow the fallback below."}</p></div>
+   <div data-for="direct" hidden><p class="en-intro"><b>The host's public IP will be visible to every visitor and destination.</b> ${offered&&offered.includes("direct")?"":"This app's host doesn't offer direct hosting; the app stays unreachable until one that does runs it, unless you allow the fallback below."}</p></div>
    <div data-fallback hidden><label>If it fails <select name="fallback"><option value="none">Stay offline (nothing else is used)</option><option value="enclave-network">Use the Enclave network instead</option></select></label></div>
    <div data-network><label>Routes <select name="routes"><option value="2">2 (recommended)</option><option value="1">1</option></select></label>
      <label>Max price, USDC per GiB <input name="price" inputmode="decimal" size="8" value="${usdc(policy.enclaveNetwork?.maxPricePerGiB6??0)}"></label>
