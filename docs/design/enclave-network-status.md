@@ -8,10 +8,10 @@ the design is `docs/design/enclave-network.md`. Nothing below is described as wo
 | Piece | Where | State |
 |---|---|---|
 | Providers (kernel WireGuard + nftables + SNI router + control API) | 4 DigitalOcean Droplets: sfo3 134.199.235.187, tor1 146.190.246.39, sgp1 165.245.191.129, fra1 134.209.248.172 | live, systemd `enclave-network-provider`, all roles, price 0, transfer budget 850 GB/month each |
-| Qualification checker | nan, systemd `enclave-network-checker` (key 0x57144c90…), every 4 min | live; all four providers pass all nine checks through WireGuard |
+| Qualification checkers | nan (`enclave-network-checker`, 0x57144c90…) and warden-host (user unit, 0x033bc2b9…), every 4 min each | live; both pass all four providers on all nine checks through WireGuard; a provider stays eligible while one current verdict passes and no checker that reached it saw a failure |
 | Relay API (`/v1/network/*`), v5 route acceptance, DNS label `enclave` | nan (main f16b792e0, 1ae64aa45) | live |
 | Network tab (status, privacy, owner-signed mode setting; passkey-vault signing) | site (main 1ae64aa45) | live |
-| NucBox (Windows, Enclave Shield): all apps on the Enclave network, own control traffic on control circuits | nucbox-k11-4 | live since 23:51Z; hand-installed, then release 2026.10.12.21 |
+| NucBox (Windows, Enclave Shield): all apps on the Enclave network, own control traffic on control circuits | nucbox-k11-4 | live since 2026-10-12 23:51Z; Windows host release 2026.10.12.22 (published 00:35Z, installed 00:37Z: ENCLAVE_NETWORK=1, both checkers, no NKN) |
 | metal0 (Linux, SEV-SNP): eyesoff incl. custom domain eyesoff.ai | warden-host | live since 23:53Z |
 | pVM host agent | warden-host | on the Enclave network (serving no app at the moment) |
 
@@ -38,9 +38,13 @@ the guard's address.
 
 ## Not yet proven in production
 
-- **An owner changing mode in the Network tab**: the path is deployed and unit-tested, but no owner has signed a v5 policy
-  yet (it needs the owner's wallet or passkey). Until one does, every app runs the default (Enclave network, free providers).
-- **Bring your own WireGuard on a real app**: tested end to end locally; needs an owner to upload a config and sign.
+- **An owner changing mode, applied by a host**: on the production relay (2026-10-13, a test deployment owned by the
+  agent wallet): the owner's signed policy was accepted (nonce 1, then 2), a non-owner's was refused and changed nothing,
+  a BYO config was stored sealed (only a redacted view comes back, no key material in any response) and its release to
+  anyone but the current runner was refused (403). The test app (cron) could not start without its secrets, so no host
+  applied the change in production; the host side (circuits rebuilt on a policy change, BYO egress + network ingress,
+  fallback only when authorized, revocation) is covered by `test/wg-manager.test.mjs` and the netns BYO tests. Every
+  production app runs the default policy (Enclave network, free providers) until its owner changes it.
 - **Direct hosting**: policy, UI and disclosure exist; no host that opted in has a public IP today (the NucBox and metal0
   are behind CGNAT), so the Network tab says none is available. The Linux `DirectRuntime` is not yet driven by v5 policies.
 - **Paid providers / USDC settlement**: price limits and budgets are enforced at grant time; settlement needs the
