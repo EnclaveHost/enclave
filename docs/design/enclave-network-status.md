@@ -95,18 +95,17 @@ that is updated; c92678519 was deployed to nan with the same steps by hand (04:1
 
 ## Bugs found and fixed after the switch (2026-10-13)
 
-- **Shield egress cut long responses ("short body") - OPEN, not seen since .29**: every 4 MiB GET of s3-ipfs-adapter (0x7ae476a3) ends
-  after ~2.8 MB. Not the app's circuit (4 and 8 MB, and 4 MiB at 80 KB/s, arrive whole through its SOCKS proxies from
-  the host). Two bridge fixes: no write timeout on persistent streams (.27, did NOT end it), and a half-close at
-  end of stream instead of shutdown(Both), so the guest still gets what the hv_sock holds (aed5fd228, release .28).
-  The second is not reproducible over hv_sock loopback (`bridge-drain-check`: the old bridge also delivers all 4 MiB
-  there), so it is confirmed only if the adapter's GETs complete after .28. They did not: short bodies at 10:17 and
-  10:20Z on .28. A bisection then cleared the app's circuit (300 of 300 4 MiB downloads through its own SOCKS proxies
-  from the host, at full speed and at the app's 1.2 MB/s), so the cut is between the guest and shield-egress. Release
-  .29 (10:55Z) logs how each egress stream ends (bridge and shield-egress, into shield.log) and its shield-egress copies
-  with its own loop instead of io.Copy; no short body has been seen since (11:05Z onward, watched by enclave-88).
-  Separate and understood: for a few minutes after every partition restart, egress is refused ("refused:admit") until
-  the node adopts the partition and its guest proof refreshes, so an app's first requests after a restart fail.
+- **Shield egress "short body" - FOUND: the upstream ends the reply, not the Enclave path**: s3-ipfs-adapter (0x7ae476a3)
+  loses ~1 in 100 4 MiB R2 range GETs to a clean early end. Fixes along the way (.27 no bridge write timeout, .28
+  half-close) were sound but not the cause. A bisection cleared the app's circuit (300 of 300 4 MiB downloads through
+  its own SOCKS proxies, fast and at its 1.2 MB/s). Release .31 logs every big egress stream's bytes: at the 12:41:03Z
+  failure shield-egress received upstream-to-guest = 3,286,788 bytes (full windows: ~4,205,550) and the stream ended
+  CLEANLY; the bridge wrote all of it into the guest's hv_sock. 3,286,788 = TLS handshake and headers + exactly 200 whole
+  16 KiB records = the 3,276,800 body bytes the app saw. So the guest, hv_sock, bridge and shield-egress delivered
+  everything; the sender (R2, or the exit's path to it) closed after a complete write. Platform-side nothing is lost.
+  The fix belongs in the app: resume a short window from its received offset (enclave-88, with Steven's catalog publish).
+  Also understood: for a few minutes after every partition restart, egress is refused ("refused:admit") until the node
+  adopts the partition and its guest proof refreshes; the agent now says when an app leaves and rejoins the egress map.
 - **Egress-map writes failed on Windows**: Windows refuses a rename over `egress-routes.json` while ANY reader holds
   it, FILE_SHARE_DELETE or not (checked on the NucBox), and shield-egress reads it on every outbound connection: 91
   failures before, still 11 in 15 min after .27's retries (618c7d156). The egress map now overwrites the file in place
@@ -123,7 +122,7 @@ that is updated; c92678519 was deployed to nan with the same steps by hand (04:1
   refused debits no longer strike providers, settlement RPC fallback, reverted receipts detected): main, deployed.
 
 Windows host releases tonight: .27 (09:19Z: timeout-free bridge, rename retry, gas warning), .28 (09:59Z: half-close,
-in-place routes write), .29 (10:54Z: egress diagnostics), .30 (11:47Z: referral codes). The gas warning is live on the
+in-place routes write), .29 (10:54Z: egress diagnostics), .30 (11:47Z: referral codes), .31 (12:21Z: byte counts, egress-map log). The gas warning is live on the
 NucBox: GET /v1/local/hosting and the relay's availability report a measured runway (205 h at 11:47Z).
 
 ## Implemented, not in use in production
