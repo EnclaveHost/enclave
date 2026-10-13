@@ -961,6 +961,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
    * not apply, a GPU share without gpu.optional, a share the phone has no room for), the lease is released with the reason. A
    * share change that keeps the VM's shape (its vCPUs) is admission and billing only: nothing is relaunched for it.
    */
+  const rejudged = new Set();
   async function optionsChanged(a, r) {
     const d = await read(addrs.deployments, DEP_ABI, "get", [a.id]).catch(() => null);
     if (!d) return false;
@@ -987,6 +988,21 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     }
     const cfgChanged = String(d.configCid || "") !== String(a.configCid || "");
     const shareChanged = a.cpuMilli !== undefined && (Number(d.cpuMilli) !== a.cpuMilli || Number(d.gpuMilli) !== a.gpuMilli);
+    // once per agent start, a held lease is judged again as at claim: a lease taken under an older rule (a placement pin
+    // read as fallback-allowed, 2026-10-13: api-mcp-adapter held against the owner's pin) is released, not renewed forever
+    if (!cfgChanged && !shareChanged && !rejudged.has(a.id)) {
+      rejudged.add(a.id);
+      const ad = await admission({ ...d, leaseUntil: 0n }, a.slot);
+      if (ad.why) {
+        note({ ev: "rejudged", deployment: a.id, slot: a.slot, refused: ad.why });
+        const s = await r.stop({ release: true });
+        if (s.kind === "in-flight") { rejudged.delete(a.id); return true; }
+        state.refused[a.id] = { at: now(), why: ad.why }; save();
+        await freeSlot(a, `it is no longer this host's to run: ${ad.why}`);
+        return true;
+      }
+      return false;
+    }
     if (!cfgChanged && !shareChanged) return false;
     const ad = await admission({ ...d, leaseUntil: 0n }, a.slot);
     note({ ev: cfgChanged ? "config-edited" : "shares-resized", deployment: a.id, slot: a.slot, cpuMilli: Number(d.cpuMilli), gpuMilli: Number(d.gpuMilli), refused: ad.why || null });
