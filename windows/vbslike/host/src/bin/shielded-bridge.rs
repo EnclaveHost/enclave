@@ -69,15 +69,26 @@ fn relay(mut guest: TcpStream, port: u16, persistent: bool) -> io::Result<()> {
     }
     let mut gr = guest.try_clone()?;
     let mut ww = worker.try_clone()?;
+    // Each direction ends with a HALF-close of the other side's write, never a shutdown(Both) or a close: the worker
+    // (shield-egress) receives a whole 4 MiB reply from the internet in a second or two and closes, while the guest is
+    // still reading it slowly (wasm TLS, hashing). Shutting the hv_sock down at that moment discarded everything it
+    // still held for the guest - each 4 MiB GET of s3-ipfs-adapter ended after ~2.8 MB, the same count every time
+    // (2026-10-13, after the write timeout above was already gone). A half-close delivers the queued bytes, then EOF.
+    let (finished, upstream_done) = std::sync::mpsc::channel::<()>();
     let upstream = std::thread::spawn(move || {
         let result = io::copy(&mut gr, &mut ww);
-        let _ = gr.shutdown(Shutdown::Both);
-        let _ = ww.shutdown(Shutdown::Both);
+        let _ = ww.shutdown(Shutdown::Write);
+        let _ = finished.send(());
         result
     });
     let result = io::copy(&mut worker, &mut guest);
+    let _ = guest.shutdown(Shutdown::Write);
+    // The guest closes once it has read the rest (the upstream copy then ends); one that never does is cut after a
+    // bounded wait (a read timeout set now would not reach the read already blocked), so it cannot hold one of the
+    // bridge's 8 connection slots for good.
+    let _ = upstream_done.recv_timeout(Duration::from_secs(120));
     let _ = guest.shutdown(Shutdown::Both);
-    let _ = worker.shutdown(Shutdown::Both);
     let _ = upstream.join();
+    let _ = worker.shutdown(Shutdown::Both);
     result.map(|_| ())
 }

@@ -5,7 +5,7 @@ import {DurableState} from './durable-state.mjs';
 export class EgressMap {
   constructor({directory,manager,dns,now=Date.now}) {
     if(!Array.isArray(dns)||!dns.length||dns.length>4)throw new Error('explicit app DNS resolvers required');
-    Object.assign(this,{manager,dns,now});this.state=new DurableState(directory);
+    Object.assign(this,{manager,dns,now});this.state=new DurableState(directory,{inPlace:true});
   }
   async write() {
     const now=this.now(),apps={};let expiresAt=now+30000;

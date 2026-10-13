@@ -24,3 +24,26 @@ test('a rename that keeps failing throws and removes its temporary; other errors
  const n=mock.method(fs,'rename',async()=>{calls=0;throw Object.assign(new Error('ENOSPC'),{code:'ENOSPC'});});t.after(()=>n.mock.restore());
  await assert.rejects(s.set('routes',{v:3}),/ENOSPC/);assert.equal(calls,0);assert.deepEqual(await fs.readdir(dir),[]);
 });
+
+test('an inPlace state overwrites the file where it stands when the rename stays refused, padding a shorter value',async t=>{
+ const dir=await tmp(t),s=new DurableState(dir,{inPlace:true});
+ await s.set('egress-routes',{apps:{a:'x'.repeat(200)}});
+ let calls=0;const m=mock.method(fs,'rename',async()=>{calls++;throw busy();});t.after(()=>m.mock.restore());
+ await s.set('egress-routes',{apps:{}});
+ assert.ok(calls>1&&calls<=8,'a few retries, then in place');
+ assert.deepEqual(await s.get('egress-routes'),{apps:{}});
+ const raw=await fs.readFile(path.join(dir,'egress-routes.json'),'utf8');
+ assert.equal(raw.trimEnd(),'{"apps":{}}','one write replaced every byte; the rest is whitespace');
+ assert.deepEqual(await fs.readdir(dir),['egress-routes.json'],'no temporary left beside it');
+ await s.set('egress-routes',{apps:{b:'y'.repeat(400)}});
+ assert.deepEqual(await s.get('egress-routes'),{apps:{b:'y'.repeat(400)}},'a longer value grows the file');
+ m.mock.restore();
+ const n=mock.method(fs,'rename',async()=>{throw Object.assign(new Error('ENOSPC'),{code:'ENOSPC'});});t.after(()=>n.mock.restore());
+ await assert.rejects(s.set('egress-routes',{v:1}),/ENOSPC/,'only a refusal falls back');
+});
+
+test('the egress map writes in place; other state never does',async t=>{
+ const {EgressMap}=await import('../network/egress-map.mjs');
+ const e=new EgressMap({directory:await tmp(t),manager:{apps:new Map()},dns:[{address:'1.1.1.1:443',serverName:'x',path:'/dns-query'}]});
+ assert.equal(e.state.inPlace,true);assert.equal(new DurableState(await tmp(t)).inPlace,false);
+});
