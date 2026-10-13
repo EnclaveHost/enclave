@@ -90,6 +90,13 @@ fn relay(mut guest: TcpStream, port: u16, persistent: bool) -> io::Result<()> {
     let _ = guest.shutdown(Shutdown::Both);
     let up = upstream.join().unwrap_or_else(|_| Err(io::Error::other("relay thread panicked")));
     let _ = worker.shutdown(Shutdown::Both);
+    // A big stream says how much it carried even when it ended cleanly (2026-10-13: a 4 MiB reply cut at ~3 MB left no
+    // error anywhere on the host): what was written into the guest's hv_sock, against what shield-egress logs it got.
+    if persistent {
+        if let (Ok(g2w), Ok(w2g)) = (&up, &result) {
+            if *w2g >= 1 << 20 { eprintln!("shielded bridge stream ended: guest->worker {g2w} B, worker->guest {w2g} B"); }
+        }
+    }
     // A stream that ended in an error says which way and how (the manager logs it): a cut download was invisible.
     if up.is_err() || result.is_err() {
         let said = |r: &io::Result<u64>| match r {
