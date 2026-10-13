@@ -10,9 +10,8 @@ import {transientProofError} from './lease-reader.mjs';
 // failures withdraw a route only after three in a row; a mismatch or refusal
 // still fails it at once.
 const ROUTE_PROBE_FAILURES=3,ROUTE_RETRY_MS=5000,COOLDOWN_MAX_MS=1800000,STABLE_MS=600000;
-export function transientRouteError(e) {
-  return transientProofError(e)||['TLS handshake timeout','SOCKS connection aborted','SOCKS connection closed','SOCKS closed during handshake','SOCKS connect refused'].includes(e?.message);
-}
+import {transientRouteError} from './wg-manager.mjs';
+export {transientRouteError};
 
 const roles=['guard','public','egress'];
 // A guard's own health says it accepted a connection, not that public
