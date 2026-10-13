@@ -295,17 +295,18 @@ set ENCLAVE_STARTUP_EGRESS_CONFIG=$PD\tuna\privacy-config.json
 rem the host-side cache for public, pinned content (blob-cache.mjs): loopback only, 32 GB, least recently used out first
 set BLOB_SERVICE_PORT=9621
 set BLOB_CACHE_DIR=$PD\shield\blobs
-rem the Enclave network replaces TUNA (docs/design/enclave-network.md): every app's route and this box's own control
-rem traffic over WireGuard providers qualified by these checkers; no NKN wallets or funding
+rem the Enclave network (docs/design/enclave-network.md): every app's route and this box's own control traffic over
+rem WireGuard providers qualified by these checkers (ENCLAVE_NETWORK=1 is read only by node releases before TUNA's removal)
 set ENCLAVE_NETWORK=1
 set ENCLAVE_NETWORK_CHECKERS=0x57144c9008cff0b3ed94f6e40964a321fbee848a,0x033bc2b92bb1bb97c7dadf2879d3048748e2257b
 "@ | Set-Content -Encoding ASCII (Join-Path $PD "node-config.cmd")
 
-# the TUNA privacy agent: every app's private route. The node writes its config once the platform has funded the control
-# wallets (control\windows\node\tuna-enroll.mjs); until then this loop waits for it.
+# the privacy agent: every app's route on the Enclave network. The node writes its config with the first app it enrolls
+# (control\windows\node\tuna-enroll.mjs); until then this loop waits for it. The task, script, log and directory keep
+# their historical "tuna" names, which installed hosts already use.
 @"
 @echo off
-rem The Enclave TUNA privacy agent. Written by install-host.ps1; re-run setup to change it.
+rem The Enclave privacy agent (Enclave network). Written by install-host.ps1; re-run setup to change it.
 cd /d "$PD\tuna"
 :loop
 if not exist "$PD\tuna\privacy-config.json" (

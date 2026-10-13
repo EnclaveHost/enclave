@@ -117,17 +117,18 @@ jobs:
           include-hidden-files: true   # .data/ is silently dropped without this
           retention-days: 7
 
-  tuna-sdk:
+  network-go:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.23.x'
-          cache-dependency-path: network/tuna/go.sum
-      - name: TUNA adapter and guarded transport
-        working-directory: network/tuna
-        run: go test -race ./...
+          go-version-file: network/wg/go.mod
+          cache-dependency-path: network/wg/go.sum
+      - name: Enclave network circuit (enclave-wg)
+        # no -race yet: the tests' own byte counters (wg_test.go) are read without synchronization
+        working-directory: network/wg
+        run: go test ./...
       - name: Windows persistent firewall helper
         working-directory: network/windows-firewall
         env:
