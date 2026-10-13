@@ -163,7 +163,7 @@ export async function runPrivacy(configFile){
     const fresh=JSON.parse(await fs.readFile(configFile,'utf8'));
     if(!Array.isArray(fresh.apps)||fresh.apps.length>256)throw new Error('version 2 app configuration required');
     const next=[];for(const item of fresh.apps)next.push(await loadApp(item));
-    if(!needsTuna&&next.some(a=>!directPolicyFromLease(leaseReader.get(a.deploymentId))&&a.ownerPolicy?.policy?.mode!=='direct'))throw new Error('adding TUNA apps requires configuring and restarting the TUNA runtime');
+    if(!needsTuna&&next.some(a=>!onNetwork(a.deploymentId)&&!directPolicyFromLease(leaseReader.get(a.deploymentId))&&a.ownerPolicy?.policy?.mode!=='direct'))throw new Error('adding TUNA apps requires configuring and restarting the TUNA runtime');
     let added=0,updated=0;
     for(const n of next){
       const cur=apps.find(a=>a.deploymentId===n.deploymentId);
