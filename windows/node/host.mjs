@@ -1150,6 +1150,13 @@ export class Host {
       return this.#record(id, { status: "held", boundaryHeld: true, isolation: null, reason: boundaryWrong,
                                 ...(inst.id ? { isolationHeld: inst.id } : {}) });
     }
+    // A domain this node had recorded as serving that the manager no longer has (it stopped by itself, crashed, or was
+    // removed by its own sweep) is replaced here silently otherwise: say so, with what was last known (2026-10-13 14:13Z:
+    // RISC Box's partition turned itself off and a new one appeared with no line saying why).
+    const before = this.records.get(id)?.isolation;
+    if (r.action === "spawned" && before?.instance && before.instance !== inst.id)
+      this.log(`${id.slice(0, 10)} isolation: the domain ${before.instance} recorded as serving is gone from the manager `
+               + `(it ended by itself or was removed outside this node); a new one was started`);
     this.log(`${id.slice(0, 10)} isolation ${r.action}: ${inst.id} status=${inst.status} image=${inst.image || "?"}`);
     return this.#record(id, { status: "running", reason: null, isolationHeld: null, boundaryHeld: null,
                               isolation: { backend: "hyperv-partition-per-app", instance: inst.id,
