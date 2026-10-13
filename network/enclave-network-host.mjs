@@ -38,7 +38,12 @@ export async function createNetworkHost({config:c,account,runner,rpc,addressBook
  async function policyFor(app,lease){
   if(!lease||lease.id!==app.deploymentId)throw new Error('policy requires the current lease');
   let env=policyCache.get(app.deploymentId);
-  if(!env||now()-env.at>15000){env={at:now(),value:(await relay('/v1/network/policy/'+app.deploymentId))?.envelope||null};policyCache.set(app.deploymentId,env);}
+  if(!env||now()-env.at>15000){
+   // an unreachable relay is not an answer: the last policy it gave stays in force for up to 10 minutes (a refresh that
+   // throws must not revoke the app; 2026-10-13 15:21Z), while a definite answer (an envelope, or none) replaces it
+   try{env={at:now(),value:(await relay('/v1/network/policy/'+app.deploymentId))?.envelope||null};policyCache.set(app.deploymentId,env);}
+   catch(e){if(!env||now()-env.at>10*60_000)throw e;}
+  }
   if(env.value)return admitNetworkPolicy(env.value,{owner:lease.owner,deploymentId:app.deploymentId,verify,memory});
   const seen=await memory.get(app.deploymentId);
   if(seen!==undefined&&seen>0)throw new Error('the owner\'s network policy is unavailable');

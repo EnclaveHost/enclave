@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { openStateOf, probeAppTls } from '../site/js/core/app-tls.js';
+import { openStateOf, probeAppTls, PROBE_TIMEOUT_MS } from '../site/js/core/app-tls.js';
 
 const src = fs.readFileSync(new URL('../site/components/deployments/deployments.js', import.meta.url), 'utf8');
 // Execute the real rendering function without booting the dashboard's wallet imports.
@@ -115,4 +115,15 @@ test('an in-flight success cannot overwrite a new endpoint or a stopped row', as
   pending[2]({ state: 'ok' });
   await last;
   assert.equal(dashboard._tls.has(row.id), false);
+});
+
+test('a slow but answering app verifies: the default probe waits out a busy app (6 s, like the s3-ipfs-adapter while hashing)', async () => {
+  assert.ok(PROBE_TIMEOUT_MS >= 10000);
+  const t0 = Date.now();
+  const result = await probeAppTls(origin, { fetchFn: (url, { signal }) => new Promise((resolve, reject) => {
+    const t = setTimeout(() => resolve({ type: 'opaque', status: 0 }), 6000);
+    signal.addEventListener('abort', () => { clearTimeout(t); reject(signal.reason); });
+  }) });
+  assert.equal(result.state, 'ok');
+  assert.ok(Date.now() - t0 >= 5900);
 });

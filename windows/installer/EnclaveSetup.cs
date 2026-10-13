@@ -41,12 +41,14 @@ namespace Enclave.Setup
             try { SetProcessDPIAware(); } catch { }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            string resumeName = null; bool uninstall = false;
+            string resumeName = null, referral = null; bool uninstall = false;
             for (int i = 0; i < args.Length; i++)
             {
                 if (args[i] == "--resume" && i + 1 < args.Length) resumeName = args[i + 1];
+                if (args[i] == "--referral" && i + 1 < args.Length) referral = args[i + 1].Trim();
                 if (args[i] == "--uninstall") uninstall = true;
             }
+            if (referral != null && !SetupForm.ReferralOk(referral)) referral = null;   // never passed on unchecked
             // Never run from inside Program Files\Enclave: the uninstall deletes that folder, and an install replaces it (and
             // stops every process running from it). Windows' Installed apps starts the copy kept there, so it relaunches
             // itself from a temporary copy - with uninstall-host.ps1 beside it - and that copy does the work.
@@ -63,7 +65,7 @@ namespace Enclave.Setup
                 Process.Start(new ProcessStartInfo(copy, string.Join(" ", args)) { UseShellExecute = true, WorkingDirectory = tmp });
                 return 0;
             }
-            Application.Run(new SetupForm(resumeName, uninstall));
+            Application.Run(new SetupForm(resumeName, uninstall, referral));
             return 0;
         }
     }
@@ -97,7 +99,13 @@ namespace Enclave.Setup
         string phase = "", runningKey, runningMsg;
         DateTime runningSince, startedAt;
         int frame;
-        readonly TextBox nameBox = new TextBox();
+        readonly TextBox nameBox = new TextBox(), refBox = new TextBox();
+        readonly Label refLabel = new Label(), refNote = new Label();
+        // The referral code this machine is installed with: attribution only (relay/referrals.mjs), optional, kept by the
+        // install-host.ps1 -Referral of every later re-run and update.
+        public static bool ReferralOk(string s) { return System.Text.RegularExpressions.Regex.IsMatch(s ?? "", @"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$"); }
+        string Referral { get { var r = refBox.Text.Trim(); return ReferralOk(r) ? r : ""; } }
+        bool RefValid { get { var r = refBox.Text.Trim(); return r.Length == 0 || ReferralOk(r); } }
         readonly FlowLayoutPanel steps = new FlowLayoutPanel(), nameRow = new FlowLayoutPanel();
         readonly ThemeButton primary = new ThemeButton("Start", true), secondary = new ThemeButton("Cancel", false);
         readonly System.Windows.Forms.Timer nameTimer = new System.Windows.Forms.Timer { Interval = 450 };
@@ -107,9 +115,10 @@ namespace Enclave.Setup
         bool nameOk, busy;
         Action onPrimary;
 
-        public SetupForm(string resumeName, bool uninstall)
+        public SetupForm(string resumeName, bool uninstall, string referral)
         {
             this.resumeName = resumeName;
+            refBox.Text = referral ?? "";
             Text = uninstall ? "Remove Enclave" : "Enclave setup";
             FormBorderStyle = FormBorderStyle.FixedSingle; MaximizeBox = false; StartPosition = FormStartPosition.CenterScreen;
             AutoScaleMode = AutoScaleMode.None; AutoSize = true; AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -131,7 +140,16 @@ namespace Enclave.Setup
             nameBox.CharacterCasing = CharacterCasing.Lower; nameBox.Margin = new Padding(3, Theme.Px(6), 3, 0);
             nameNote.AutoSize = true; nameNote.MaximumSize = new Size(Wide, 0); nameNote.Font = Theme.Mono(8.5f, FontStyle.Regular);
             nameNote.Margin = new Padding(3, Theme.Px(6), 3, 0);
-            nameRow.Controls.Add(nameBox); nameRow.Controls.Add(nameNote); nameRow.Visible = false;
+            refLabel.AutoSize = true; refLabel.Text = "Referral code (optional)"; refLabel.ForeColor = Theme.Muted;
+            refLabel.Margin = new Padding(3, Theme.Px(14), 3, 0);
+            refBox.Width = Theme.Px(300); refBox.Font = Theme.Mono(11f, FontStyle.Regular); refBox.BackColor = Theme.Surface2;
+            refBox.ForeColor = Theme.Text; refBox.BorderStyle = BorderStyle.FixedSingle; refBox.MaxLength = 64;
+            refBox.Margin = new Padding(3, Theme.Px(6), 3, 0); refBox.AccessibleName = "Referral code (optional)";
+            refNote.AutoSize = true; refNote.MaximumSize = new Size(Wide, 0); refNote.Font = Theme.Mono(8.5f, FontStyle.Regular);
+            refNote.Margin = new Padding(3, Theme.Px(6), 3, 0); refNote.ForeColor = Theme.Dim;
+            refNote.Text = "If someone sent you here, their code. Letters, digits, '.', '_' or '-'.";
+            nameRow.Controls.Add(nameBox); nameRow.Controls.Add(nameNote);
+            nameRow.Controls.Add(refLabel); nameRow.Controls.Add(refBox); nameRow.Controls.Add(refNote); nameRow.Visible = false;
             flow.Controls.Add(nameRow);
             // the uninstall's one choice
             removeData.AutoSize = true; removeData.MaximumSize = new Size(Wide, 0); removeData.ForeColor = Theme.Text; removeData.BackColor = Theme.Bg;
@@ -155,6 +173,14 @@ namespace Enclave.Setup
             secondary.Click += delegate { if (!busy) Close(); };
             nameBox.TextChanged += delegate { nameOk = false; primary.Enabled = false; nameNote.ForeColor = Theme.Dim; nameNote.Text = "checking…"; nameTimer.Stop(); nameTimer.Start(); };
             nameTimer.Tick += delegate { nameTimer.Stop(); CheckName(nameBox.Text.Trim()); };
+            refBox.TextChanged += delegate
+            {
+                bool ok = RefValid;
+                refNote.ForeColor = ok ? Theme.Dim : Theme.Amber;
+                refNote.Text = ok ? "If someone sent you here, their code. Letters, digits, '.', '_' or '-'."
+                                  : "A referral code is 1 to 64 letters, digits, '.', '_' or '-'.";
+                primary.Enabled = nameOk && ok;
+            };
             tick.Tick += delegate { Animate(); }; tick.Start();
             if (uninstall) Uninstall(); else if (resumeName != null) { name = resumeName; ResumeAfterRestart(); } else Welcome();
         }
@@ -311,7 +337,7 @@ namespace Enclave.Setup
                 string self = Path.Combine(WorkDir, "EnclaveSetup.exe");
                 try { File.Copy(Application.ExecutablePath, self, true); } catch { }
                 using (var k = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"))
-                    k.SetValue("EnclaveSetup", "\"" + self + "\" --resume " + (name ?? "-"));
+                    k.SetValue("EnclaveSetup", "\"" + self + "\" --resume " + (name ?? "-") + (Referral.Length > 0 ? " --referral " + Referral : ""));
                 Process.Start(new ProcessStartInfo("shutdown.exe", "/r /t 5 /c \"Enclave setup: restarting to turn on Hyper-V\"") { CreateNoWindow = true, UseShellExecute = false });
                 Close();
             });
@@ -351,7 +377,7 @@ namespace Enclave.Setup
                 Post(delegate
                 {
                     if (nameBox.Text.Trim() != candidate) return;           // the owner typed on
-                    nameOk = ok; primary.Enabled = ok;
+                    nameOk = ok; primary.Enabled = ok && RefValid;
                     nameNote.ForeColor = ok ? Theme.Jade : Theme.Amber;
                     nameNote.Text = ok ? "✓ '" + candidate + "' is available" : (reason ?? "not available");
                 });
@@ -364,7 +390,8 @@ namespace Enclave.Setup
             Page("Installing '" + name + "'", "This takes a few minutes. Keep this PC on.", "Next", null);
             phase = "install"; rail.Failed = false;
             string owner = Environment.UserDomainName + "\\" + Environment.UserName;
-            RunScript(Path.Combine(bundleDir, "install-host.ps1"), "-Name " + name + " -Owner \"" + owner + "\" -SetupExe \"" + Application.ExecutablePath + "\"", delegate (int code)
+            RunScript(Path.Combine(bundleDir, "install-host.ps1"), "-Name " + name + " -Owner \"" + owner + "\" -SetupExe \"" + Application.ExecutablePath + "\""
+                      + (Referral.Length > 0 ? " -Referral " + Referral : ""), delegate (int code)
             {
                 if (code == 0) Done();
                 else if (code == 3010) NeedsRestart();

@@ -105,6 +105,7 @@ import { claimCheapest, CLAIM_QUOTE_ABI } from "./cheapest-claim.mjs";
 import { createPlacement, pinnedHost } from "./placement.mjs";
 import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson } from "./measurement-predict.mjs";
 import { createTunnelHub } from "./tunnel.js";
+import { createReferrals } from "./referrals.mjs";
 import {LeaseReader,createNetworkRoutes,DurableState,createLeaseSource,createRegistryOperator,createNetworkApi} from "./network-runtime.bundle.mjs";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
 import { pvmCpuPolicyFromEnv, avfAttestWithPvmCpu, pvmCpuAvailability, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
@@ -262,6 +263,12 @@ function msEnv(key, dflt, min) {
   console.error(`[api-relay] ${key}="${v.slice(0, 40)}" is not a whole number of milliseconds >= ${min}: using the default ${dflt}`);
   return dflt;
 }
+// Referral codes (relay/referrals.mjs): which code each host machine and each mobile-app install came with, for
+// reporting. referrals.json beside the account stores; in memory only where no data dir is configured.
+const referrals = createReferrals({ file: dataDir() ? dataFile(dataDir(), "referrals.json") : null,
+                                    adminToken: (process.env.REFERRAL_ADMIN_TOKEN || process.env.BILLING_ADMIN_TOKEN || "").trim(),
+                                    ownerOf: async (n) => (await tunnelNameOwner(n)) || "",
+                                    signerOf: async (message, signature) => (await import("viem")).recoverMessageAddress({ message, signature }) });
 const tunnelHub = createTunnelHub({
   allow: [...DEFAULT_METAL_ALLOW, ...ENV_METAL_ALLOW],
   attest: METAL_ALLOWED_MEASUREMENTS.length || AVF_HUB_ATTEST || HVNODE_ATTEST
@@ -292,6 +299,7 @@ const tunnelHub = createTunnelHub({
   // when an enclave attaches/detaches, refresh discovery + availability now so it
   // enters/leaves `live` immediately rather than on the slow (5 min) registry poll
   onChange: () => { pollRegistry().then(pollAvailability).catch(() => {}); },
+  onReferral: (name, code, meta) => { const r = referrals.recordHost(name, code, meta); if (r === "recorded") console.log(`[referral] ${name}: ${code}`); },
 });
 
 let   REGISTRY_ADDRESS  = (process.env.REGISTRY_ADDRESS || "").trim();   // env fallback; the address book (below) overrides
@@ -1898,6 +1906,14 @@ async function gateway(u, req, res) {
   // windows and the shipment store, one router shared with the local hub.
   if (p.startsWith("/v1/pads/")) {
     if (await padsRoutes()(req, res, u)) return;
+  }
+  if (p === "/v1/referrals" || p === "/v1/referrals/host" || p === "/v1/admin/referrals") {
+    // a phone's report comes from the mobile app's own page (not enclave.host) and carries no credential: any origin
+    // may read the answer; the app sends text/plain, so there is no preflight to pass
+    const anyOrigin = (r, status, body) => { r.writeHead(status, { "content-type": "application/json", "access-control-allow-origin": "*",
+                                                                   "cache-control": "no-store", ...OWN_HEADERS }); r.end(JSON.stringify(body)); };
+    if (await referrals.route(req, res, u, { json: p === "/v1/referrals" ? anyOrigin : (r, status, body) => json(r, status, body, req), ip: clientIp(req),
+                                            readJson: async (rq) => JSON.parse((await readBody(rq, 4096)).toString("utf8")) })) return;
   }
   if (p.startsWith("/v1/hosts/sponsor/")) {
     if (await hostSponsorRoutes()(req, res, u)) return;

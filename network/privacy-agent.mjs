@@ -17,6 +17,8 @@ import {createPaidNetwork} from './paid-network.mjs';
 import {ShieldHostProof} from './shield-host-proof.mjs';
 import {RoutePublisher} from './route-publisher.mjs';
 import {EgressMap} from './egress-map.mjs';
+// how long a lease still running on chain is believed from its last agreeing read when a chain read fails outright
+const LEASE_GRACE_MS=10*60_000;
 import {DurableState} from './durable-state.mjs';
 import {localAppForwarder} from './local-app-transport.mjs';
 import {pvmAppPort,openPvmApp,pvmForwarder} from './pvm-app-transport.mjs';
@@ -46,12 +48,22 @@ export class PrivacyAgent {
       policy:id=>this.manager.apps.get(id)?.policy,qualification,now,distribute:async(id,value)=>{
         if(distribute)await distribute(id,value).catch(e=>log('optional route mirror: '+e.message));
       }});
-    this.egress=new EgressMap({directory,manager:this.manager,dns,now});this.status=new DurableState(directory);
+    this.egress=new EgressMap({directory,manager:this.manager,dns,now,log});this.status=new DurableState(directory);
   }
   async refreshAuthorization(){
     if(this.refreshing||this.closed)return;this.refreshing=true;this.authorizationRefresh={phase:"chain",startedAt:this.now()};void this.snapshot().catch(e=>this.log(e.message));
     try{
-      const leases=await this.leaseReader.refresh(this.apps.map(a=>a.deploymentId));
+      // A chain read that fails outright (the control circuits or this host's uplink down for a minute) must not lapse
+      // every app: leases still running on chain are held up to LEASE_GRACE_MS after their last agreeing read, and the
+      // round goes on to the policies and guest proofs (2026-10-13 15:21Z: control circuits down ~1 min -> three apps'
+      // egress OFF, their leases fine).
+      let leases;
+      try{leases=await this.leaseReader.refresh(this.apps.map(a=>a.deploymentId));}
+      catch(e){
+        const held=this.leaseReader.hold?this.leaseReader.hold(LEASE_GRACE_MS):[];
+        this.log(`chain authorization read failed: ${e.message}; ${held.length} running lease(s) held from their last agreeing read`);
+        leases=held.map(id=>this.leaseReader.get(id)).filter(Boolean);
+      }
       for(const lease of leases)this.admission.observeLease(lease);
       this.authorizationRefresh.phase="policy";void this.snapshot().catch(e=>this.log(e.message));
       const policies=await Promise.allSettled(this.apps.map(async app=>{const lease=this.leaseReader.get(app.deploymentId);
@@ -84,7 +96,8 @@ export async function runPrivacy(configFile){
   const cfg=JSON.parse(await fs.readFile(configFile,'utf8'));
   if(cfg.version!==2||!Array.isArray(cfg.apps)||!cfg.apps.length||cfg.apps.length>256||!path.isAbsolute(cfg.directory))throw new Error('version 2 app configuration required');
   if(!cfg.enclaveNetwork||typeof cfg.enclaveNetwork!=='object')throw new Error(NETWORK_REQUIRED);
-  const log=message=>console.error('[privacy] '+message);
+  // each line carries its UTC time: a cut stream has to be matched against circuit events, and the log had none
+  const log=message=>console.error(new Date().toISOString().slice(11,19)+' [privacy] '+message);
   const retired=RETIRED_SETTINGS.filter(k=>k in cfg);
   if(retired.length)log(`ignoring retired TUNA-era settings: ${retired.join(', ')}`);
   const readJSON=async file=>JSON.parse(await fs.readFile(file,'utf8'));

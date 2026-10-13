@@ -59,21 +59,51 @@ fn relay(mut guest: TcpStream, port: u16, persistent: bool) -> io::Result<()> {
     let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
     let mut worker = TcpStream::connect_timeout(&addr, Duration::from_secs(3))?;
     worker.set_nodelay(true)?;
+    // A supervised (persistent) bridge carries an app's long-lived streams: a guest that stops reading for a while (a
+    // single-threaded app hashing what it already received) must not have its stream cut under it. A write timeout here
+    // ended each 4 MiB download after ~2.9 MB with EOF (s3-ipfs-adapter, 2026-10-13); the stream ends when either side
+    // closes, or when the supervisor stops the bridge. Timed (non-persistent) bridges keep both limits.
     for socket in [&guest, &worker] {
         socket.set_read_timeout(if persistent { None } else { Some(Duration::from_secs(60)) })?;
-        socket.set_write_timeout(Some(Duration::from_secs(60)))?;
+        socket.set_write_timeout(if persistent { None } else { Some(Duration::from_secs(60)) })?;
     }
     let mut gr = guest.try_clone()?;
     let mut ww = worker.try_clone()?;
+    // Each direction ends with a HALF-close of the other side's write, never a shutdown(Both) or a close: the worker
+    // (shield-egress) receives a whole 4 MiB reply from the internet in a second or two and closes, while the guest is
+    // still reading it slowly (wasm TLS, hashing). Shutting the hv_sock down at that moment discarded everything it
+    // still held for the guest - each 4 MiB GET of s3-ipfs-adapter ended after ~2.8 MB, the same count every time
+    // (2026-10-13, after the write timeout above was already gone). A half-close delivers the queued bytes, then EOF.
+    let (finished, upstream_done) = std::sync::mpsc::channel::<()>();
     let upstream = std::thread::spawn(move || {
         let result = io::copy(&mut gr, &mut ww);
-        let _ = gr.shutdown(Shutdown::Both);
-        let _ = ww.shutdown(Shutdown::Both);
+        let _ = ww.shutdown(Shutdown::Write);
+        let _ = finished.send(());
         result
     });
     let result = io::copy(&mut worker, &mut guest);
+    let _ = guest.shutdown(Shutdown::Write);
+    // The guest closes once it has read the rest (the upstream copy then ends); one that never does is cut after a
+    // bounded wait (a read timeout set now would not reach the read already blocked), so it cannot hold one of the
+    // bridge's 8 connection slots for good.
+    let _ = upstream_done.recv_timeout(Duration::from_secs(120));
     let _ = guest.shutdown(Shutdown::Both);
+    let up = upstream.join().unwrap_or_else(|_| Err(io::Error::other("relay thread panicked")));
     let _ = worker.shutdown(Shutdown::Both);
-    let _ = upstream.join();
-    result.map(|_| ())
+    // A big stream says how much it carried even when it ended cleanly (2026-10-13: a 4 MiB reply cut at ~3 MB left no
+    // error anywhere on the host): what was written into the guest's hv_sock, against what shield-egress logs it got.
+    if persistent {
+        if let (Ok(g2w), Ok(w2g)) = (&up, &result) {
+            if *w2g >= 1 << 20 { eprintln!("shielded bridge stream ended: guest->worker {g2w} B, worker->guest {w2g} B"); }
+        }
+    }
+    // A stream that ended in an error says which way and how (the manager logs it): a cut download was invisible.
+    if up.is_err() || result.is_err() {
+        let said = |r: &io::Result<u64>| match r {
+            Ok(n) => format!("ended after {n} B"),
+            Err(e) => format!("{e} ({:?})", e.kind()),
+        };
+        return Err(io::Error::other(format!("guest->worker {}; worker->guest {}", said(&up), said(&result))));
+    }
+    Ok(())
 }

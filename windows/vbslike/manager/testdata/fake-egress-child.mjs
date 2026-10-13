@@ -7,6 +7,7 @@
 //   hang       never say ready
 //   die-later  say ready, then exit 1 after 150 ms
 //   no-port    (server) a ready line naming no usable port
+//   talk       say ready, then on stderr: a per-connection "open" line and how a stream ended (as the real ones do)
 // FAKE_EGRESS_LOG (env): a file each child appends one JSON line to per event: {role, event, argv}.
 import fs from "node:fs";
 
@@ -24,6 +25,8 @@ if (mode !== "hang") {
                                                                    : "shield-egress ready listen=127.0.0.1:41234 upstream=socks host-allow=0\n");
   else process.stdout.write(`shielded bridge ready vm=${argv[0]} port=${argv[1]} worker=127.0.0.1:${argv[2]}\n`);
 }
+if (mode === "talk") process.stderr.write(role === "server" ? "guest 7 egress open\nguest 7 egress ended:upstream-read\n"
+                                                             : "shielded bridge connection ended: guest->worker ended after 812 B; worker->guest An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset)\n");
 if (mode === "die-later") setTimeout(() => { log("died"); process.exit(1); }, 150);
 process.stdin.on("end", () => { log("stdin-eof"); process.exit(0); });
 process.stdin.resume();
