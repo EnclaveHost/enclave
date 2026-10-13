@@ -16,6 +16,9 @@ import {DurableState} from './durable-state.mjs';
 import {verifyOwnerSignature} from './owner-signature.mjs';
 import {canonical} from './route-record.mjs';
 import {guardedFetch} from './guarded-fetch.mjs';
+import {DirectRuntime} from './direct-runtime.mjs';
+import {verifyQualification} from './provider-qualification.mjs';
+import fs from 'node:fs/promises';
 
 
 export async function createNetworkHost({config:c,account,runner,rpc,addressBook,leaseReader,directory,authorize,forward,fetch=globalThis.fetch,now=Date.now,log=()=>{}}){
@@ -71,5 +74,18 @@ export async function createNetworkHost({config:c,account,runner,rpc,addressBook
   const f=guardedFetch(circuit.egress,{timeoutMs:15000,maxBytes:65536});
   const r=await f(new URL('https://enclave.host/'));if(r.status>=500)throw new Error('egress probe HTTP '+r.status);
  }
- return {onNetwork,policyFor,providers,byoConfig,runtime,probeEgress,grants};
+ // Direct hosting (c.direct = {address, bindHost?, qualificationFile}): this host opted in to serve apps whose owners
+ // chose direct on its own public address. It serves only while a trusted checker's current qualification of exactly
+ // this runner, operator and address is on file; free (the host's own connection, no metering to settle).
+ let direct=null;
+ if(c.direct){
+  if(!c.direct.address||!path.isAbsolute(c.direct.qualificationFile||''))throw new Error('Enclave network: direct hosting needs an address and a qualification file');
+  const envelope=async()=>JSON.parse(await fs.readFile(c.direct.qualificationFile,'utf8'));
+  const qualification=async()=>{const env=await envelope();const q=await verifyQualification(env,{hostId:runner,operator:account.address,address:c.direct.address,probeSigners:c.checkers,now:now()});return {...q,envelope:env};};
+  const runtimeD=new DirectRuntime({address:c.direct.address,bindHost:c.direct.bindHost||'0.0.0.0',httpsPort:c.direct.httpsPort||443,httpPort:c.direct.httpPort||80,authorize,forward,log,
+   terms:async()=>{const q=await qualification();return {pricePerGiB6:0,selfHosted:false,expiresAt:q.expiresAt};},
+   meter:async()=>({consume(){}})});
+  direct={runtime:runtimeD,qualification,envelope};
+ }
+ return {onNetwork,policyFor,providers,byoConfig,runtime,probeEgress,grants,direct};
 }

@@ -60,6 +60,19 @@ test('a provider whose qualification lapses loses its circuits at once; an over-
  assert.throws(()=>selectNetworkCircuits([1,2,3,4].map(n=>prov(n,{pricePerGiB6:5})),{routes:1,ingress:true,egress:true,maxPricePerGiB6:0}),/not enough/);
  assert.throws(()=>selectNetworkCircuits([1,2,3].map(n=>prov(n)),{routes:2,ingress:true,egress:true,maxPricePerGiB6:0}),/4 distinct providers/);
 });
+test('direct hosting on a host that opted in: one direct route while its qualification is current, withdrawn when it lapses',async()=>{
+ let until=Date.now()+600000;const started=[];
+ const direct={qualification:async()=>({expiresAt:until}),runtime:{start:async a=>{const c=new EventEmitter();Object.assign(c,{...a,id:'d'.repeat(32),address:'45.0.0.9',closed:false,egress:'127.0.0.1:7',admit(){},async close(r){this.closed=true;this.emit('down',r);}});started.push(c);return c;}}};
+ const admission={allows:()=>true,leases:new Map([[id,{validUntil:Date.now()+600000}]]),proofs:new Map([[id,{validUntil:Date.now()+600000}]])};
+ const published=[];
+ const m=new EnclaveNetworkManager({runtime:{start:async()=>{throw new Error('no network circuit for a direct app');}},admission,providers:async()=>[],direct,probe:async()=>{},publish:async(i,r)=>{published.push(r);}});
+ await m.configure([app({version:5,deploymentId:id,nonce:1,issuedAt:1,mode:'direct',fallback:'none',direct:{maxPricePerGiB6:0}})]);await m.reconcile();
+ assert.equal(started.length,1);assert.deepEqual(published.at(-1),[{circuit:'d'.repeat(32),address:'45.0.0.9',port:443,transport:'direct'}]);
+ assert.equal(m.status()[0].ready,true);
+ until=Date.now()-1;await m.reconcile();
+ assert.ok(started[0].closed,'qualification lapsed: the direct route closes');assert.deepEqual(published.at(-1),[]);
+ assert.match(m.status()[0].error,/qualification/);
+});
 test('a direct-mode policy builds nothing here and says why (no qualified direct host)',async()=>{
  const r=rig();await r.m.configure([app({version:5,deploymentId:id,nonce:1,issuedAt:1,mode:'direct',fallback:'none',direct:{maxPricePerGiB6:0}})]);await r.m.reconcile();
  assert.equal(r.m.apps.get(id).circuits.length,0);assert.match(r.m.status()[0].error,/direct hosting is not available/);

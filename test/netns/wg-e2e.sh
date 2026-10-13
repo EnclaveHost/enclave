@@ -192,4 +192,18 @@ if [ -s "$T/byo.json" ]; then
   s=$(date +%s); nsx "$H" curl -s -m 8 --socks5-hostname "$BE" http://web.test/ >/dev/null && fail byo-killswitch "traffic went somewhere with the VPN gone" || pass "BYO VPN gone: nothing leaves (no fallback to the host's network)"
 else fail byo "$(cat "$T/byo.err")"; fi
 
+# direct hosting: the host's own public address (45.0.0.2), qualified by the checker, through the real host code
+nsx "$H" node test/netns/direct-node.mjs "$WG_BIN" "$RUNNER_KEY" "$CHECKER_KEY" 45.0.0.2 9443 > "$T/direct.json" 2>"$T/direct.err" & pids+=($!)
+for i in $(seq 60); do [ -s "$T/direct.json" ] && break; sleep 0.2; done
+if [ -s "$T/direct.json" ]; then
+  rt=$(node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1]));console.log(j.routes.map(r=>r.transport+"@"+r.address).join(",")||("none: "+j.error))' "$T/direct.json")
+  [ "$rt" = "direct@45.0.0.2" ] && pass "direct: the manager publishes one direct route on the host's own address" || fail direct-route "$rt"
+  out=$(nsx "$W" node test/netns/visitor-node.mjs 45.0.0.2 abababab.app.enclave.host)
+  case "$out" in *"$FP"*"enclave says: hello"*) pass "direct: visitors reach the enclave on the host's IP; TLS ends in the enclave";; *) fail direct-ingress "$out";; esac
+  DE=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).egress)' "$T/direct.json")
+  r=$(nsx "$H" curl -s -m 10 --socks5 "$DE" http://44.0.0.1/)
+  [ "$r" = "remote=45.0.0.2" ] && pass "direct: egress leaves from the host's own address" || fail direct-egress "got '$r'"
+  nsx "$H" curl -s -m 5 --socks5 "$DE" http://10.9.9.9/ >/dev/null 2>&1 && fail direct-private "a private destination was reached" || pass "direct: private destinations refused"
+else fail direct "$(cat "$T/direct.err")"; fi
+
 exit $FAILED

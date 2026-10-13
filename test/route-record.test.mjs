@@ -95,3 +95,16 @@ test('direct route accepts owner-scoped chain quorum without a global checker li
  assert.equal((await verifyRoute(bundle(r),opts)).routes[0].transport,'direct');
  for(const change of [{nonce:'2',expires:1},{direct:false},{operator:owner.address},{qualifiedUntil:Math.floor(options.now/1000)+1}])await assert.rejects(verifyRoute(bundle(r),{...opts,lease:{...lease,connectivity:{...c,...change}}}));
 });
+
+test('v5 direct routes (Enclave network policy): accepted only with a trusted checker\'s current qualification of this runner, operator and address',async t=>{
+ const p={version:5,deploymentId:app,nonce:1,issuedAt:1,mode:'direct',fallback:'none',direct:{maxPricePerGiB6:0}};
+ const {record,bundle,options}=await fixture(t,p),checker=privateKeyToAccount('0x'+'04'.repeat(32)),stranger=privateKeyToAccount('0x'+'05'.repeat(32));
+ const address=record.routes[0].address;
+ const q=(signer,over={})=>qualifyProvider({hostId:runner,operator:operator.address,address,probe:Object.fromEntries(PROVIDER_CHECKS.map(k=>[k,async()=>true])),signer,now:()=>options.now,validForMs:300000,...over});
+ const r={...record,qualification:await q(checker),routes:[{...record.routes[0],transport:'direct'}]},opts={...options,providerProbeSigners:[checker.address]};
+ assert.equal((await verifyRoute(bundle(r),opts)).routes[0].transport,'direct');
+ await assert.rejects(verifyRoute(bundle({...r,qualification:await q(stranger)}),opts),/./,'an untrusted checker');
+ const {qualification:_q,...bare}=r;await assert.rejects(verifyRoute(bundle(bare),opts),/./,'no qualification');
+ await assert.rejects(verifyRoute(bundle({...r,routes:[{...r.routes[0],transport:'enclave-network'}]}),opts),/invalid public route/,'a direct policy routes only direct');
+ await assert.rejects(verifyRoute(bundle({...r,routes:[{...r.routes[0],address:'9.9.9.9'}]}),opts),/./,'another address than the qualified one');
+});

@@ -51,7 +51,7 @@ export async function verifyRoute(bundle, {deploymentId, policy, lease, memory, 
   const {delegation:d, signature:delegationSignature} = bundle.authorization || {};
   const key = validateDelegation(d, now);
   const p = validateRoutePolicy(policy), r = bundle.record, v5 = p.version === 5;
-  const maxRoutes = v5 ? (p.enclaveNetwork?.routes || 0) : p.routes;
+  const maxRoutes = v5 ? (p.mode === 'direct' ? 1 : (p.enclaveNetwork?.routes || 0)) : p.routes;
   if (d.deploymentId !== deploymentId || p.deploymentId !== deploymentId || d.policyHash !== recordHash(p)) throw new Error('route policy or app mismatch');
   if (!lease || lease.id !== deploymentId || lease.chainId !== d.chainId || lease.deployments.toLowerCase() !== d.deployments.toLowerCase() ||
       lease.runner !== d.runner || lease.validUntil <= now || !lease.active || !lease.isPublic || lease.leaseUntil <= now) throw new Error('fresh matching lease required');
@@ -64,13 +64,19 @@ export async function verifyRoute(bundle, {deploymentId, policy, lease, memory, 
   const seen = new Set();
   for (const route of r.routes) {
     if (!route || typeof route.circuit !== 'string' || !/^[0-9a-f]{32}$/.test(route.circuit) || seen.has(route.circuit) ||
-        !net.isIP(route.address) || isBlockedHost(route.address) || route.port !== 443 || route.transport !== (v5?'enclave-network':p.mode==='direct'?'direct':'tuna-guarded-tcp') ||
+        !net.isIP(route.address) || isBlockedHost(route.address) || route.port !== 443 || route.transport !== (p.mode==='direct'?'direct':v5?'enclave-network':'tuna-guarded-tcp') ||
         (v5&&(route.directPort!==undefined||route.fallback!==undefined)) ||
         (p.mode==='direct'&&(route.directPort!==undefined||route.fallback!==undefined)) ||
         (route.directPort!==undefined&&(!Number.isInteger(route.directPort)||route.directPort<1024||route.directPort>65535)) ||
         (route.fallback!==undefined&&route.fallback!==true) ||
         Object.keys(route).some(k => !['circuit','address','port','transport','directPort','fallback'].includes(k))) throw new Error('invalid public route');
     seen.add(route.circuit);
+    if(v5&&p.mode==='direct'){
+      // The host's own public address, qualified for direct hosting by a trusted checker for THIS runner and operator.
+      const q=await verifyQualification(r.qualification,{hostId:lease.runner,operator:lease.runnerOperator,address:route.address,probeSigners:providerProbeSigners,now});
+      if(r.expiresAt>q.expiresAt)throw new Error('route outlives the host\'s direct-hosting qualification');
+      continue;
+    }
     if(v5){
       // Public ingress only through a provider that is qualified for ingress right now, under this policy's price limit.
       const exit=(networkProviders||[]).find(x=>x.address===route.address&&x.eligibleRoles.includes('ingress')&&x.qualifiedUntil>=Math.min(r.expiresAt,now+60000)&&x.pricePerGiB6<=(p.enclaveNetwork?.maxPricePerGiB6??0));
