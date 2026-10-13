@@ -122,4 +122,11 @@ test('a paid (community) provider\'s on-chain attestation travels with a passing
  assert.equal((await call('POST','/v1/network/qualifications',{...await qual(env.record,r),onchain})).status,200);
  const served=(await call('GET','/v1/network/providers')).body.providers[0].qualifications[0];
  assert.deepEqual(served.onchain,onchain);
+ // between full checks the checker refreshes only the on-chain attestation of the same verdict
+ const same={qualification:served.qualification,signature:served.signature};
+ const newer={...onchain,issuedAt:onchain.issuedAt+60,expires:onchain.expires+60};
+ const ref=await call("POST","/v1/network/qualifications",{...same,onchain:newer});assert.equal(ref.status,200);assert.equal(ref.body.refreshed,true);
+ assert.deepEqual((await call('GET','/v1/network/providers')).body.providers[0].qualifications[0].onchain,newer);
+ assert.equal((await call('POST','/v1/network/qualifications',{...same,onchain})).status,409,'an older attestation never replaces a newer one');
+ assert.equal((await call('POST','/v1/network/qualifications',{...same,signature:'0x'+'22'.repeat(65),onchain:{...newer,expires:newer.expires+1}})).status!==200,true,'only the same signed verdict');
 });

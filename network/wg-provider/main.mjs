@@ -51,12 +51,12 @@ const targets=async()=>{
  try{const d=await relayJSON('/v1/network/providers');
   // A guard may forward to any provider with a current, operator-signed record that offers an exit role - qualified
   // or not, so qualification itself can test guard paths. Which exits a host USES is decided by qualification, on the host.
-  const ok=[];for(const e of d?.providers||[]){try{ok.push(await verifyProviderRecord(e.record,{hostOperator:async()=>null}));}catch{}}
+  const ok=[];for(const e of d?.providers||[]){try{ok.push(await verifyProviderRecord(e.record,{hostOperator:async id=>{const h=await hosts(id);return h?.active?h.operator:null;}}));}catch{}}
   targetCache={at:Date.now(),list:ok.filter(p=>p.providerId!==providerId&&p.roles.some(r=>r!=='guard')).map(p=>({address:p.address,ports:p.ports}))};
  }catch(e){log('provider directory: '+e.message);}
  return targetCache.list;
 };
-const config={providerId,roles:cfg.roles,pricePerGiB6:cfg.pricePerGiB6||0,publicAddress:cfg.publicAddress,exitKey:keys['wg-exit'],guardKey:keys['wg-guard'],
+const config={providerId,hostId:cfg.hostId||null,roles:cfg.roles,pricePerGiB6:cfg.pricePerGiB6||0,publicAddress:cfg.publicAddress,exitKey:keys['wg-exit'],guardKey:keys['wg-guard'],
  ports,zone:cfg.zone||'app.enclave.host',probeZone:cfg.probeZone||'probe.enclave.host',checkers:cfg.checkers||[]};
 // a host's own (control) peers: an active registry entry whose operator signed, read with the same two-RPC agreement
 const registryAddress=async()=>{const [c]=clients;return c.readContract({address:cfg.addressBook,abi:[{type:'function',name:'addr',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'address'}]}],functionName:'addr',args:['0x'+Buffer.from('registry').toString('hex').padEnd(64,'0')]});};
@@ -88,7 +88,7 @@ if(paid){
   const sent=await submitAttestations({wallet,client,connectivity,hostId:cfg.hostId,address:cfg.publicAddress,attestations:(mine?.qualifications||[]).map(x=>x.onchain).filter(Boolean)});
   if(sent)log(`on chain: ${sent} checker attestation(s) submitted`);
  };
- setInterval(()=>void onchain().catch(e=>log('on-chain qualification: '+e.message)),120000).unref?.();void onchain().catch(e=>log('on-chain qualification: '+e.message));
+ setInterval(()=>void onchain().catch(e=>log('on-chain qualification: '+e.message)),30000).unref?.();void onchain().catch(e=>log('on-chain qualification: '+e.message));
 }
 const meter=new Map();
 const count=(to,up,down)=>{const m=meter.get(to)||{up:0,down:0};m.up+=up;m.down+=down;meter.set(to,m);};
