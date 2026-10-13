@@ -14,7 +14,7 @@ the design is `docs/design/enclave-network.md`. Nothing below is described as wo
 | NucBox (Windows, Enclave Shield): all apps on the Enclave network, own control traffic on control circuits | nucbox-k11-4 | live; Windows host release 2026.10.12.24 (TUNA-free, paid-provider settlement configured with the box's proof and operator keys; published 02:53Z, installed 02:54Z; every app ready again 03:01Z - a Windows update restarts each Shield partition) |
 | metal0 (Linux, SEV-SNP): eyesoff incl. custom domain eyesoff.ai | warden-host | live (release-wg-418aec41bdf7) |
 | pVM host agent | warden-host | on the Enclave network (release-wg-418aec41bdf7; serving no app at the moment) |
-| EnclaveConnectivity (paid-provider settlement) | Base 0x5f8b636e0768e84bd47b736652030b65db615111 (block 52534480) | deployed, NOT bound: activation is the governance step below |
+| EnclaveConnectivity (paid-provider settlement) | Base 0x5f8b636e0768e84bd47b736652030b65db615111 (block 52534480) | ACTIVE since 2026-10-13 03:06Z: ledger `setBandwidthRouter` (tx 0x68dd499d…, block 52535715) and address book `connectivity` (tx 0x0f6ebcb3…, block 52535719), signed on the Trezor 0x0b2d |
 
 Verified in production: every app answers HTTPS 200 through both exits with a valid certificate, the same certificate
 fingerprint as before the switch (keys stay in the enclave); custom domain eyesoff.ai; DNS returns both exits; the
@@ -77,12 +77,9 @@ recreated on 10.250.0.0/30.
   host's address, private destinations refused) and `test/wg-manager.test.mjs`. Not exercised in production: no
   compute host with a public IPv4 exists today (the NucBox and metal0 are behind CGNAT; the pVM is a phone), so every
   host answers "direct hosting is not available" and the Network tab shows none. Windows hosts have no direct runtime.
-- **Paid providers / USDC settlement**: implemented and wired end to end, deployed in code (relay, site, providers,
-  checkers, metal0/pVM agents, Windows hosts with release .24), the settlement contract deployed - and not active,
-  because activation is a one-time governance action on the Trezor (0x0b2d): the ledger's `setBandwidthRouter`
-  (permanent) and the address book's `connectivity` entry. Both transactions are prepared and simulated as 0x0b2d
-  (`~/enclave-prod/connectivity-activation/`: trezorctl script or a localhost page). Until then no provider can be
-  paid and hosts never choose a priced one. Verified: `scripts/network/paid-fork-e2e.mjs` on a Base fork with the
+- **Paid providers / USDC settlement**: live in production since 2026-10-13 03:06Z (settlement contract bound to the ledger and published in the address book; relay, site, providers,
+  checkers, metal0/pVM agents, Windows hosts with release .24), and lease reads include the on-chain authorization (verified on
+  a live app after activation; all apps still serving). Verified: `scripts/network/paid-fork-e2e.mjs` on a Base fork with the
   live ledger, registry and USDC, the governance steps done by impersonation - the real provider and host code settle
   1.5 GiB on chain (bytes served, the owner's budget, the provider operator's 80% share), refuse a receipt for more
   than the provider observed, and close the circuit when the budget is spent: 21/21. Unit tests:
