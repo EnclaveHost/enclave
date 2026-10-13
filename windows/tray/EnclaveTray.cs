@@ -41,6 +41,7 @@ namespace Enclave.Tray
         public string LogsFolder = "";          // empty: the folder the node reports (its agent.log), else the tray's own
         public string UiFolder = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "ui");   // host-ui's files
         public bool DevTools;                   // the page's developer tools and context menu (for working on host-ui)
+        public string Instance = "";            // a second, separate tray beside the owner's (a test copy): its own name, no self-refresh
 
         public static TrayConfig Load(string path, out string error)
         {
@@ -57,6 +58,11 @@ namespace Enclave.Tray
                 if (o.TryGetValue("logsFolder", out v) && v is string) c.LogsFolder = Environment.ExpandEnvironmentVariables((string)v);
                 if (o.TryGetValue("uiFolder", out v) && v is string && ((string)v).Length > 0) c.UiFolder = Environment.ExpandEnvironmentVariables((string)v);
                 if (o.TryGetValue("devTools", out v) && v is bool) c.DevTools = (bool)v;
+                if (o.TryGetValue("instance", out v) && v is string)
+                {
+                    if (!Regex.IsMatch((string)v, "^[a-z0-9-]{0,24}$")) throw new FormatException("instance is a short name: a-z, 0-9 and -");
+                    c.Instance = (string)v;
+                }
                 if (c.Port < 1 || c.Port > 65535) throw new FormatException("port " + c.Port + " is not a port");
             }
             catch (Exception e)
@@ -440,7 +446,8 @@ namespace Enclave.Tray
                 var here = Path.GetDirectoryName(Application.ExecutablePath);
                 if (File.Exists(Path.Combine(here, "WebView2Loader.dll"))) CoreWebView2Environment.SetLoaderDllFolderPath(here);
                 if (!File.Exists(Path.Combine(cfg.UiFolder, "index.html"))) throw new FileNotFoundException("the panel's files are missing: no index.html in " + cfg.UiFolder);
-                string data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Enclave", "Tray", "WebView2");
+                string data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Enclave", "Tray",
+                                           cfg.Instance.Length > 0 ? "WebView2." + cfg.Instance : "WebView2");
                 var made = web.Handle;                      // the control's window, while the panel is still hidden: the page starts now
                 var env = await CoreWebView2Environment.CreateAsync(null, data);
                 await web.EnsureCoreWebView2Async(env);
@@ -793,25 +800,24 @@ namespace Enclave.Tray
 
         [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
 
-        const string ShowSignal = "Local\\EnclaveHostingTray.Show";
-
         [STAThread]
         static int Main(string[] args)
         {
             // build.cmd: the exe's own icon file, drawn by the same code as the tray glyph
             if (args.Length == 2 && args[0] == "--write-icon") return IconFile.Write(args[1]) ? 0 : 1;
-            if (RefreshFromProgramFiles(args)) return 0;
+            string configError;
+            var cfg = TrayConfig.Load(Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "tray-config.json"), out configError);
+            // a named instance is a test copy beside the owner's tray: it keeps its own files and its own single-instance name
+            if (cfg.Instance.Length == 0 && RefreshFromProgramFiles(args)) return 0;
+            string name = "Local\\EnclaveHostingTray" + (cfg.Instance.Length > 0 ? "." + cfg.Instance : "");
             bool first;
-            using (var one = new Mutex(true, "Local\\EnclaveHostingTray", out first))
-            using (var show = new EventWaitHandle(false, EventResetMode.AutoReset, ShowSignal))
+            using (var one = new Mutex(true, name, out first))
+            using (var show = new EventWaitHandle(false, EventResetMode.AutoReset, name + ".Show"))
             {
                 if (!first) { show.Set(); return 0; }  // one tray per signed-in user: a second launch opens its panel
                 try { SetProcessDPIAware(); } catch { }
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
-                string configError;
-                var here = Path.GetDirectoryName(Application.ExecutablePath);
-                var cfg = TrayConfig.Load(Path.Combine(here, "tray-config.json"), out configError);
                 Run(cfg, configError, show);
                 GC.KeepAlive(one);
             }
