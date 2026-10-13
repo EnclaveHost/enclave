@@ -86,3 +86,9 @@ test('a direct-mode policy builds nothing here and says why (no qualified direct
  const r=rig();await r.m.configure([app({version:5,deploymentId:id,nonce:1,issuedAt:1,mode:'direct',fallback:'none',direct:{maxPricePerGiB6:0}})]);await r.m.reconcile();
  assert.equal(r.m.apps.get(id).circuits.length,0);assert.match(r.m.status()[0].error,/direct hosting is not available/);
 });
+test('one provider incident failing every app through it cools it down once, not once per app',async()=>{
+ let t=1e12;const r=rig();r.m.now=()=>t;
+ const p=prov(9);for(let i=0;i<5;i++)r.m.strike(p);
+ assert.equal(r.m.drops.get(p.providerId),1);assert.equal(r.m.cooldown.get(p.providerId),t+60000);
+ t+=61000;r.m.strike(p);assert.equal(r.m.drops.get(p.providerId),2,'a later incident still escalates');assert.equal(r.m.cooldown.get(p.providerId),t+120000);
+});

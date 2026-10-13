@@ -69,8 +69,7 @@ export class EnclaveNetworkManager extends EventEmitter {
   // a provider whose circuits keep dying soon after coming up waits longer each time (60 s doubling to 30 min)
   const early=circuit.upAt!==undefined&&this.now()-circuit.upAt<STABLE_MS;
   for(const p of circuit.kind==='network'?[circuit.failureRole==='guard'?circuit.providers.guard:circuit.providers.exit]:[]){
-   const n=early?(this.drops.get(p.providerId)||0)+1:1;if(early)this.drops.set(p.providerId,n);else this.drops.delete(p.providerId);
-   this.cooldown.set(p.providerId,this.now()+Math.min(60000*2**(n-1),COOLDOWN_MAX_MS));
+   if(early)this.strike(p);else{this.drops.delete(p.providerId);this.strike(p);}
   }
   app.error=reason;app.lastFailure={at:this.now(),circuit:circuit.id,reason};this.log(`app ${app.id.slice(0,10)} circuit ${circuit.id}: ${reason}`);
   await this.publishApp(app).catch(e=>this.log('route withdrawal: '+e.message));
@@ -168,7 +167,7 @@ export class EnclaveNetworkManager extends EventEmitter {
     c.healthy=true;c.checkedAt=this.now();c.upAt=this.now();await this.publishApp(app);
    }catch(e){
     const role=e.providerRole||c?.failureRole||'public',p=role==='guard'?guard:exit;
-    const n=(this.drops.get(p.providerId)||0)+1;this.drops.set(p.providerId,n);this.cooldown.set(p.providerId,this.now()+Math.min(60000*2**(n-1),COOLDOWN_MAX_MS));
+    this.strike(p);
     if(c&&app.circuits.includes(c))await this.fail(app,c,e.message);else await c?.close(e.message);
     app.error=e.message;this.log(`app ${app.id.slice(0,10)}: ${e.message}`);
    }
@@ -176,6 +175,12 @@ export class EnclaveNetworkManager extends EventEmitter {
   const healthy=app.circuits.filter(c=>c.kind==='network'&&c.healthy).length;
   if(healthy>=Math.min(want.routes,choice.length))app.error=null;
   if(healthy>=want.routes)app.degraded=null;
+ }
+ // One incident at a provider fails the circuits of every app through it at once: failures while it is already cooling
+ // down are the same incident and do not lengthen the wait (five apps would otherwise turn one minute into sixteen).
+ strike(p){
+  if((this.cooldown.get(p.providerId)||0)>this.now())return;
+  const n=(this.drops.get(p.providerId)||0)+1;this.drops.set(p.providerId,n);this.cooldown.set(p.providerId,this.now()+Math.min(60000*2**(n-1),COOLDOWN_MAX_MS));
  }
  adopt(app,c){c.admit(this.authorizationUntil(app.id));c.on('down',reason=>{void this.fail(app,c,reason).catch(e=>this.log(e.message));});app.circuits.push(c);}
  async checkHealth(app){
