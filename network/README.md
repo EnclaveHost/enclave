@@ -19,6 +19,7 @@ the relay refuses route publications that are not under a v5 policy.
 | Provider daemon and qualification checker | `wg-provider/`, `../scripts/network/wg-qualify.mjs` |
 | Policies, provider records, routes | `network-policy*.mjs`, `provider-directory.mjs`, `route-record.mjs`, `owner-signature.mjs` |
 | Direct hosting (v5 `direct`) | `direct-runtime.mjs`, `direct-egress.mjs`, `traffic-meter.mjs`, `provider-qualification.mjs` |
+| USDC settlement kept for paid Enclave-network providers (not wired into the agent today) | `usdc-bandwidth.mjs`, `tuna-usdc-settlement.mjs`, `connectivity-chain.mjs`, `connectivity-policy.mjs`, and the policy/selection helpers their tests use: `tuna-policy.mjs`, `circuit-policy.mjs`, `public-fallback.mjs` |
 
 ## Build
 
