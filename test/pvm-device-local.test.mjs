@@ -131,3 +131,14 @@ test("the control client: the token on every call; launch, procs, kill; anything
   await assert.rejects(c.procs(), /no control token/);
   srv.close();
 });
+
+test("exchange: a bridge that is not listening yet is tried again (the VM opens it just after it says serving)", async () => {
+  const port = await new Promise((r) => { const t = net.createServer(); t.listen(0, "127.0.0.1", () => { const p = t.address().port; t.close(() => r(p)); }); });
+  const o = base({ app: fakeApp(), bridgeEvidence: port, sleep: (ms) => new Promise((r) => setTimeout(r, ms)) });
+  const d = createLocalPvmDevice(o);
+  fs.writeFileSync(path.join(o.files, "bridge-token"), "d".repeat(64));
+  let srv;
+  setTimeout(() => { srv = net.createServer((s) => s.on("data", () => s.end("late but here"))); srv.listen(port, "127.0.0.1"); }, 1200);
+  assert.equal(await d.exchange("PING"), "late but here");
+  srv.close();
+});
