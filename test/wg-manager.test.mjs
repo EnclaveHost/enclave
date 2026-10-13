@@ -82,6 +82,12 @@ test('direct hosting on a host that opted in: one direct route while its qualifi
  assert.ok(started[0].closed,'qualification lapsed: the direct route closes');assert.deepEqual(published.at(-1),[]);
  assert.match(m.status()[0].error,/qualification/);
 });
+test('the status says which modes this host can serve: no direct without the opt-in, direct with it (the Network tab offers only these)',async()=>{
+ const r=rig();await r.m.configure([app({version:5,deploymentId:id,nonce:1,issuedAt:1,mode:'enclave-network',fallback:'none',enclaveNetwork:{routes:2,guard:true,maxPricePerGiB6:0,budget6:0}})]);
+ assert.deepEqual(r.m.status()[0].modes,['enclave-network','byo-wireguard']);
+ const d=new EnclaveNetworkManager({runtime:{start:async()=>{throw new Error('x');}},admission:r.m.admission,providers:async()=>[],direct:{qualification:async()=>null,runtime:{}},probe:async()=>{},publish:async()=>{}});
+ assert.deepEqual(d.hostModes(),['enclave-network','byo-wireguard','direct']);
+});
 test('a direct-mode policy builds nothing here and says why (no qualified direct host)',async()=>{
  const r=rig();await r.m.configure([app({version:5,deploymentId:id,nonce:1,issuedAt:1,mode:'direct',fallback:'none',direct:{maxPricePerGiB6:0}})]);await r.m.reconcile();
  assert.equal(r.m.apps.get(id).circuits.length,0);assert.match(r.m.status()[0].error,/direct hosting is not available/);
