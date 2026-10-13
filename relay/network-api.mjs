@@ -84,7 +84,15 @@ export function createNetworkApi({checkers=[],addressBook,clients:clientsFn=asyn
     const e=store.data.providers[q.providerId];if(!e)return send(404,{error:'unknown provider'});
     const r=e.record.record;if(r.address!==q.address||r.wgExitKey!==q.wgExitKey||r.wgGuardKey!==q.wgGuardKey||r.operator!==q.operator)return send(409,{error:'qualification does not match the current provider record'});
     e.byChecker||={};
-    if(e.byChecker[signer]&&e.byChecker[signer].qualification.issuedAt>=q.issuedAt)return send(409,{error:'stale qualification'});
+    // the same verdict again with a newer on-chain attestation: the checker keeps a paid provider's 5-minute on-chain
+    // qualification current between full checks (the verdict itself stays as it was)
+    const held=e.byChecker[signer];
+    if(held&&held.qualification.issuedAt===q.issuedAt&&held.signature===env.signature&&env.onchain!==undefined){
+     const o=validateOnchain(env.onchain);
+     if(o.hostId!==r.hostId||!Object.values(q.checks).every(Boolean)||(held.onchain&&o.expires<=held.onchain.expires))return send(409,{error:'stale on-chain attestation'});
+     held.onchain=o;store.saveSoon();return send(200,{ok:true,refreshed:true});
+    }
+    if(held&&held.qualification.issuedAt>=q.issuedAt)return send(409,{error:'stale qualification'});
     // a paid (community) provider's on-chain attestation travels with the verdict; the contract checks its signature
     let onchain=null;if(env.onchain!==undefined){onchain=validateOnchain(env.onchain);if(onchain.hostId!==r.hostId||!Object.values(q.checks).every(Boolean))return send(422,{error:'on-chain attestation does not match a passing verdict for this provider'});}
     e.byChecker[signer]={qualification:q,signature:env.signature,...(onchain?{onchain}:{})};delete e.qualification;store.saveSoon();

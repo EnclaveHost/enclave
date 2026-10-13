@@ -58,7 +58,7 @@ export async function submitAttestations({wallet,client,connectivity,hostId,addr
   if(Number(held)>=o.expires)continue;
   const tx=await wallet.writeContract({address:connectivity,abi:connectivityQualificationABI,functionName:'qualify',
    args:[o.hostId,o.addressHash,BigInt(o.issuedAt),BigInt(o.expires),o.checks,o.signature]});
-  await client.waitForTransactionReceipt({hash:tx,timeout:60000});sent++;
+  if((await client.waitForTransactionReceipt({hash:tx,timeout:60000})).status!=='success')throw new Error('qualify reverted (tx '+tx+')');sent++;
  }
  return sent;
 }
@@ -68,5 +68,5 @@ export async function ensureHost({wallet,client,connectivity,hostId,pricePerGiB6
  const [direct,tuna,price]=await client.readContract({address:connectivity,abi:connectivityQualificationABI,functionName:'hosts',args:[hostId]});
  if(tuna&&!direct&&BigInt(price)===BigInt(pricePerGiB6))return false;
  const tx=await wallet.writeContract({address:connectivity,abi:connectivityQualificationABI,functionName:'setHost',args:[hostId,false,true,BigInt(pricePerGiB6)]});
- await client.waitForTransactionReceipt({hash:tx,timeout:60000});return true;
+ if((await client.waitForTransactionReceipt({hash:tx,timeout:60000})).status!=='success')throw new Error('setHost reverted (tx '+tx+')');return true;
 }
