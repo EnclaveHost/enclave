@@ -16,7 +16,7 @@ function rig({providers=[1,2,3,4].map(n=>prov(n)),byoFails=false}={}){
    address:a.kind==='byo'?null:a.exit.address,egressReady:!!a.egress,egress:a.egress?'127.0.0.1:9':null,admit(){},async close(r){this.closed=true;this.emit('down',r);}});started.push(c);return c;}};
  const m=new EnclaveNetworkManager({runtime,admission,providers:async()=>list,byoConfig:async()=>({endpoint:{address:'1.2.3.4',port:51820}}),probe:async()=>{},probeEgress:async()=>{},
   publish:async(app,routes)=>{published.push(routes);}});
- return {m,started,published,setProviders:p=>{list=p;}};
+ return {m,started,published,setProviders:p=>{list=p;},setByoFails:v=>{byoFails=v;}};
 }
 const app=(policy,names=['abababab.app.enclave.host'])=>({deploymentId:id,names,policy,isPublic:true});
 
@@ -91,4 +91,20 @@ test('one provider incident failing every app through it cools it down once, not
  const p=prov(9);for(let i=0;i<5;i++)r.m.strike(p);
  assert.equal(r.m.drops.get(p.providerId),1);assert.equal(r.m.cooldown.get(p.providerId),t+60000);
  t+=61000;r.m.strike(p);assert.equal(r.m.drops.get(p.providerId),2,'a later incident still escalates');assert.equal(r.m.cooldown.get(p.providerId),t+120000);
+});
+test('BYO egress fails over to the authorized fallback and back without touching the website circuits',async()=>{
+ const r=rig({providers:[1,2,3,4,5,6].map(n=>prov(n))});
+ const policy={version:5,deploymentId:id,nonce:4,issuedAt:4,mode:'byo-wireguard',fallback:'enclave-network',byo:{configDigest:'cd'.repeat(32),ingress:'enclave-network'},enclaveNetwork:{routes:1,guard:true,maxPricePerGiB6:0,budget6:0}};
+ await r.m.configure([app(policy)]);await r.m.reconcile();
+ const web=r.m.apps.get(id).circuits.find(c=>c.kind==='network');assert.ok(web.ingress&&!web.egressReady);
+ r.setByoFails(true);await r.m.apps.get(id).circuits.find(c=>c.kind==='byo').close('BYO endpoint gone');
+ await r.m.reconcile();await r.m.reconcile();
+ let cs=r.m.apps.get(id).circuits;const fb=cs.find(c=>c.fallback);
+ assert.ok(!web.closed&&cs.includes(web),'the website circuit stays up during failover');
+ assert.ok(fb&&fb.egressReady&&!fb.ingress,'egress through its own fallback circuit');
+ assert.ok(![fb.guard.address,fb.exit.address].some(a=>[web.guard.address,web.exit.address].includes(a)),'distinct providers when there are enough');
+ let st=r.m.status()[0];assert.equal(st.fallbackActive,true);assert.equal(st.ready,true);
+ r.setByoFails(false);await r.m.reconcile();await r.m.reconcile();
+ cs=r.m.apps.get(id).circuits;assert.ok(fb.closed&&!cs.includes(fb),'fallback withdrawn once BYO is back');
+ assert.ok(!web.closed&&cs.includes(web)&&cs.some(c=>c.kind==='byo'));st=r.m.status()[0];assert.equal(st.fallbackActive,false);assert.equal(st.ready,true);
 });

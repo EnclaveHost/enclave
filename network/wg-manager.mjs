@@ -90,7 +90,7 @@ export class EnclaveNetworkManager extends EventEmitter {
   const byoUp=app.circuits.some(c=>c.kind==='byo'&&c.healthy&&!c.closed);
   const fallback=byo&&use.fallback==='enclave-network'&&!byoUp&&app.byoFailedAt!==undefined;
   const ingress=pub&&use.ingress==='enclave-network';
-  const egress=use.egress==='enclave-network'||fallback;
+  const egress=use.egress==='enclave-network';
   return {byo,ingress,egress,fallback,routes:(ingress||egress)?(use.enclaveNetwork?.routes||2):0,maxPricePerGiB6:use.enclaveNetwork?.maxPricePerGiB6??0,direct:use.egress==='direct'};
  }
  async reconcile(){
@@ -136,7 +136,7 @@ export class EnclaveNetworkManager extends EventEmitter {
    const g=byId.get(c.providers.guard.providerId),x=byId.get(c.providers.exit.providerId);
    const same=(a,b)=>a&&a.address===b.address&&a.wgGuardKey===b.wgGuardKey&&a.wgExitKey===b.wgExitKey&&a.qualifiedUntil>this.now();
    const fits=x&&x.pricePerGiB6<=plan.maxPricePerGiB6&&(!c.ingress||x.eligibleRoles.includes('ingress'))&&(!c.egressReady||x.eligibleRoles.includes('egress'))&&g?.eligibleRoles.includes('guard');
-   const shape=c.ingress===plan.ingress&&(c.egressReady===plan.egress);
+   const shape=c.fallback?plan.fallback&&!c.ingress:c.ingress===plan.ingress&&(c.egressReady===plan.egress);
    if(!same(g,c.providers.guard)||!same(x,c.providers.exit)||!fits)await this.fail(app,c,'provider no longer qualified for this circuit');
    else if(!shape)await this.fail(app,c,'circuit no longer matches the policy');
   }
@@ -150,31 +150,46 @@ export class EnclaveNetworkManager extends EventEmitter {
   }
   const want=this.plan(app);
   app.fallbackActive=want.fallback;
-  const network=app.circuits.filter(c=>c.kind==='network');
-  if(network.length>=want.routes){if(!plan.byo||app.circuits.some(c=>c.kind==='byo'))app.error=null;app.degraded=null;await this.publishApp(app);return;}
-  const keep=network.map(c=>({guard:c.providers.guard,exit:c.providers.exit}));
-  let choice;try{choice=selectNetworkCircuits(providers,{routes:want.routes,ingress:want.ingress,egress:want.egress,maxPricePerGiB6:want.maxPricePerGiB6,keep,cooldown:this.cooldown,now:this.now()});}
-  catch(e){app.error=network.length?null:e.message;app.degraded=network.length?`${network.length} of ${want.routes} route(s): ${e.message}`:null;await this.publishApp(app);return;}
-  app.degraded=choice.short;
-  for(const {guard,exit} of choice.slice(keep.length)){
-   if(this.closed||!this.authorizationUntil(app.id))return;
-   let c;
-   try{
-    c=await this.runtime.start({deploymentId:app.id,names:app.names,kind:'network',guard,exit,ingress:want.ingress,egress:want.egress,fallback:want.fallback});
-    this.adopt(app,c);
-    if(c.ingress)await this.probe(app,c);else await this.probeEgress?.(app,c);
-    if(c.closed)throw new Error('circuit failed during verification');
-    c.healthy=true;c.checkedAt=this.now();c.upAt=this.now();await this.publishApp(app);
-   }catch(e){
-    const role=e.providerRole||c?.failureRole||'public',p=role==='guard'?guard:exit;
-    this.strike(p);
-    if(c&&app.circuits.includes(c))await this.fail(app,c,e.message);else await c?.close(e.message);
-    app.error=e.message;this.log(`app ${app.id.slice(0,10)}: ${e.message}`);
+  // the app's own circuits (website, and egress unless BYO carries it), plus with an active authorized fallback one
+  // egress-only circuit of its own: failing over and back never touches the circuits that carry the website
+  const groups=[{routes:want.routes,ingress:want.ingress,egress:want.egress,fallback:false}];
+  if(want.fallback)groups.push({routes:1,ingress:false,egress:true,fallback:true});
+  let error=null,degraded=null;
+  for(const g of groups){
+   const have=()=>app.circuits.filter(c=>c.kind==='network'&&!!c.fallback===g.fallback);
+   if(have().length>=g.routes)continue;
+   const keep=have().map(c=>({guard:c.providers.guard,exit:c.providers.exit}));
+   // prefer providers the app's other circuits do not use; share them only when there are not enough
+   const others=new Set(app.circuits.filter(c=>c.kind==='network'&&!!c.fallback!==g.fallback).flatMap(c=>[c.providers.guard.address,c.providers.exit.address]));
+   const pick=list=>selectNetworkCircuits(list,{routes:g.routes,ingress:g.ingress,egress:g.egress,maxPricePerGiB6:want.maxPricePerGiB6,keep,cooldown:this.cooldown,now:this.now()});
+   let choice;
+   try{try{choice=pick(providers.filter(p=>!others.has(p.address)));if(choice.short&&others.size)throw new Error(choice.short);}catch{choice=pick(providers);}}
+   catch(e){const n=keep.length;if(n)degraded=`${n} of ${g.routes} route(s): ${e.message}`;else error=(g.fallback?'fallback: ':'')+e.message;continue;}
+   if(choice.short)degraded=choice.short;
+   for(const {guard,exit} of choice.slice(keep.length)){
+    if(this.closed||!this.authorizationUntil(app.id))return;
+    let c;
+    try{
+     c=await this.runtime.start({deploymentId:app.id,names:app.names,kind:'network',guard,exit,ingress:g.ingress,egress:g.egress,fallback:g.fallback});
+     this.adopt(app,c);
+     if(c.ingress)await this.probe(app,c);else await this.probeEgress?.(app,c);
+     if(c.closed)throw new Error('circuit failed during verification');
+     c.healthy=true;c.checkedAt=this.now();c.upAt=this.now();await this.publishApp(app);
+    }catch(e){
+     const role=e.providerRole||c?.failureRole||'public',p=role==='guard'?guard:exit;
+     this.strike(p);
+     if(c&&app.circuits.includes(c))await this.fail(app,c,e.message);else await c?.close(e.message);
+     this.log(`app ${app.id.slice(0,10)}: ${e.message}`);
+    }
    }
+   const healthy=have().filter(c=>c.healthy).length;
+   if(!healthy)error=error||(g.fallback?'fallback: ':'')+'no circuit could be built';
+   else if(healthy<g.routes)degraded=degraded||`${healthy} of ${g.routes} route(s)`;
   }
-  const healthy=app.circuits.filter(c=>c.kind==='network'&&c.healthy).length;
-  if(healthy>=Math.min(want.routes,choice.length))app.error=null;
-  if(healthy>=want.routes)app.degraded=null;
+  // a BYO tunnel that is down stays the reason unless the owner's fallback is carrying the egress
+  const byoDown=plan.byo&&!app.circuits.some(c=>c.kind==='byo')&&!want.fallback;
+  app.error=error||(byoDown?app.error:null);app.degraded=degraded;
+  await this.publishApp(app);
  }
  // One incident at a provider fails the circuits of every app through it at once: failures while it is already cooling
  // down are the same incident and do not lengthen the wait (five apps would otherwise turn one minute into sixteen).
