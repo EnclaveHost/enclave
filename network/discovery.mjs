@@ -75,14 +75,14 @@ export async function resolveDiscovery({name,readers=[],backupReaders=[],readBlo
 }
 
 // All transports are explicit callbacks. The host supplies guarded HTTPS or a
-// guarded NKN wallet; no implicit public gateway or fallback direct dial exists.
+// guarded backup channel; no implicit public gateway or fallback direct dial exists.
 export async function publishDiscovery(encoded,{blockStores,ipnsPublishers,publishBackup}) {
  const stores=await Promise.allSettled(blockStores.map(async put=>{
   const cid=await put(encoded.bytes,encoded.cid);if(cid!==encoded.cid)throw new Error('storage returned wrong CID');return cid;
  }));
  if(!stores.some(r=>r.status==='fulfilled'))throw new Error('no IPFS block store accepted the route');
  const publishers=await Promise.allSettled(ipnsPublishers.map(put=>put(encoded.name,encoded.ipns)));
- // An authenticated inline copy on NKN lets a client reconstruct and CID-check
+ // An authenticated inline copy lets a client reconstruct and CID-check
  // the small block even when all configured HTTP gateways are unreachable.
  const backup=await publishBackup({name:encoded.name,cid:encoded.cid,block:encoded.bytes.toString('base64'),ipns:Buffer.from(encoded.ipns).toString('base64')});
  if(!publishers.some(r=>r.status==='fulfilled'))throw new Error('IPNS announcement failed; signed backup was retained');

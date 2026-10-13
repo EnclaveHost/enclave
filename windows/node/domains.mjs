@@ -2,7 +2,7 @@
 //
 // WHAT THIS IS FOR. An owner can point their own domain at a deployment: they attach it on the
 // dashboard, prove the DNS, and the relay's domain store records it. From then on the app should
-// answer on that name with a certificate a browser trusts. The local TUNA adapter
+// answer on that name with a certificate a browser trusts. The circuit's ingress worker
 // maps its SNI to the deployment. The lease holder learns the attached names here
 // so it can obtain and serve the corresponding certificates.
 //

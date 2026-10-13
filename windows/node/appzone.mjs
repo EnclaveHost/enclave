@@ -1,4 +1,4 @@
-// Local application ingress for the TUNA host adapter. The adapter reads SNI
+// Local application ingress for the privacy agent's circuits (the Enclave network). Their ingress worker reads SNI
 // and passes the encrypted stream here. Isolated apps keep TLS in their guest;
 // legacy local apps retain their existing tenant authorization gate.
 import net from "node:net";
@@ -313,7 +313,7 @@ export function appZone({ resolve, serveHttp, maxBodyBytes = 0, log = () => {}, 
   }
 
   /** The tunnel frames this module owns: s+ (open), sd (data), sx (close). */
-  // TUNA reaches this loopback upgrade directly. The same target, certificate,
+  // The privacy agent reaches this loopback upgrade directly. The same target, certificate,
   // private-app and partition-splice checks apply as on the previous transport.
   function handleUpgrade(req, socket, head) {
     if (streams.size >= MAX_STREAMS) { socket.destroy(); return true; }

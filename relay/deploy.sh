@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Deploy Nan's control API and authoritative DNS. Host TUNA adapters are
-# deployed separately. Keep /etc/nan-relay/*.env as host-owned state.
+# Deploy Nan's control API and authoritative DNS. Hosts' privacy agents and the
+# Enclave-network providers are deployed separately. Keep /etc/nan-relay/*.env as host-owned state.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -17,7 +17,7 @@ node ../network/preflight.mjs "$@"
 # A registry failure aborts before any restart (set -e, && chaining): the
 # running processes keep serving from their already-loaded module graph, and
 # the next deploy repairs the tree.
-# DNS remains a control-plane service. TUNA providers and host adapters have
+# DNS remains a control-plane service. Enclave-network providers and host agents have
 # separate deployments; this script never starts retired Enclave data relays.
 DNS_HOST="${DNS_HOST:-nan-relay}"
 scp dns-relay.js fleet.mjs net-guard.mjs fleet-auth.js boxhost.js package.json package-lock.json "$DNS_HOST":/opt/nan-relay/

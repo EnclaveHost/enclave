@@ -6,7 +6,7 @@ const readJSON=file=>{const b=fs.readFileSync(file);if(b.length>1048576)throw Er
 export function startupEgressReady(id,{configFile,routeFile,now=Date.now(),read=readJSON}={}) {
  if(!configFile&&!routeFile)return true;
  if(!configFile||!routeFile)throw Error('startup egress needs config and routes');
- // no privacy config yet (TUNA enrolls with the first app): no app is configured for startup egress, so none waits on it
+ // no privacy config yet (the network enrollment writes it with the first app): no app is configured for startup egress, so none waits on it
  if(read===readJSON&&!fs.existsSync(configFile))return true;
  const config=read(configFile);
  if(config.version!==2||!Array.isArray(config.apps))throw Error('invalid startup egress config');

@@ -1767,9 +1767,9 @@ class Deployments extends EnclaveElement {
     });
   }
 
-  // TUNA does not expose the retired Enclave per-connection traffic feed.
+  // The Enclave network does not expose the retired per-connection traffic feed.
   async _traffic(id, host) {
-    if (host) host.innerHTML = '<div class="ap-attbar">traffic</div><p class="en-intro dim">Traffic is carried by TUNA. Per-connection traffic reports are unavailable.</p>';
+    if (host) host.innerHTML = '<div class="ap-attbar">traffic</div><p class="en-intro dim">Traffic is carried by the Enclave network. Per-connection traffic reports are unavailable.</p>';
   }
 
   async _network(id, btn) {

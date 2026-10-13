@@ -1,6 +1,6 @@
 // windows/node/apptls.mjs -- the app's OWN hostname, with a real certificate.
 //
-// Application HTTPS arrives through a TUNA provider and the local host adapter,
+// Application HTTPS arrives through an Enclave-network provider and the circuit's ingress worker,
 // which routes its SNI to /x/<id>/https without terminating the TLS session.
 // The lease holder answers with the application certificate.
 //

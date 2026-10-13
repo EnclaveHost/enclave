@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import {GuestdControl,parseKey} from '../isolation/m4/guestd/control-client.mjs';
 import {routeFor,openSplice} from '../isolation/m4/guestd/supervisor-splice.mjs';
 
-// The app-bound TUNA broker reaches the authenticated guest manager directly.
+// The app-bound circuit broker reaches the authenticated guest manager directly.
 // The control CVM, public DNS and SNI are not needed to select the guest. No
 // pairing credential or manager socket is passed into a circuit sandbox.
 export class GuestdIngress {

@@ -1,4 +1,4 @@
-// One qualification contract for direct hosts and TUNA providers. Evidence is
+// One qualification contract for direct hosts (and, historically, TUNA providers). Evidence is
 // produced by independent probes, never by a host setting its own ready flag.
 import net from 'node:net';
 import {recoverMessageAddress} from 'viem';
