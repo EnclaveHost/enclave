@@ -42,6 +42,9 @@ const SUP_HOST_URL = `http://${SUP_HOST}:${SUP_PORT}`;
 const RELAY_URL = process.env.METAL_RELAY_URL || '';
 const RELAY_HOST = process.env.METAL_RELAY_HOST || '';    // Host/SNI when dialing via an egress helper
 const TOKEN     = process.env.METAL_TUNNEL_TOKEN || '';
+// the referral code this machine was set up with (fw_cfg via gsup): said once per attach, recorded by the relay only
+// once the attach proves the name (relay/referrals.mjs). Attribution only.
+const REFERRAL  = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(process.env.METAL_REFERRAL || '') ? process.env.METAL_REFERRAL : '';
 // Gate for the supervisor's scoped attach-signer (see below). Derived, never the
 // raw fleet SECRET on the wire, and the untrusted relay never holds it.
 const OPSIGN_TOKEN = process.env.SECRET
@@ -372,6 +375,7 @@ function connectTunnel() {
     // header even though the socket target is the helper.
     const headers = { 'x-metal-name': NAME, 'x-metal-token': TOKEN };
     if (!TOKEN) headers['x-metal-attest'] = '1';   // no token → prove identity by SEV-SNP quote (permissionless)
+    if (REFERRAL) headers['x-metal-referral'] = REFERRAL;
     if (RELAY_HOST) headers.host = RELAY_HOST;
     ws = new WebSocket(RELAY_URL, { headers, family: 4 });
     const send = (o) => { try { ws.send(JSON.stringify(o)); } catch {} };
