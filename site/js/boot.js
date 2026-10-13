@@ -197,7 +197,12 @@ document.addEventListener("click", (e) => {
     // "<site root>#x" and the browser would LEAVE the page (/develop#x
     // became /#x). Keep it on the current pathname ourselves.
     e.preventDefault();
-    location.hash = href;
+    // setting the hash it already has is a no-op (no scroll, no
+    // hashchange), so a second click on the same link scrolls by hand
+    if (location.hash === href) {
+      const el = document.getElementById(decodeURIComponent(href.slice(1)));
+      if (el) el.scrollIntoView({ block: "start" });
+    } else location.hash = href;
     return;
   }
   const url = new URL(a.href);                             // the PROPERTY is <base>-resolved
