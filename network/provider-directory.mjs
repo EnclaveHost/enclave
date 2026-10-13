@@ -64,12 +64,35 @@ export async function verifyQualification(env,record,{checkers,now=Date.now()}){
  return {roles:q.roles.filter(r=>record.roles.includes(r)),until:q.expiresAt,checker:signer};
 }
 
-// Eligible providers from directory entries [{record:{record,signature}, qualification:{qualification,signature}|null}].
+// Several trusted checkers each sign their own verdict. A provider is eligible for a role when at least one current
+// verdict passes everything, and NO current verdict that reached it (udpEcho: the tunnel came up) failed a check: a
+// failure seen through the provider's own data path revokes it, while a checker that could not reach the provider at
+// all (its own network down) proves nothing either way.
+const SECURITY=CHECKS.filter(c=>c!=='udpEcho');
+export async function verifyQualifications(envs,record,{checkers,now=Date.now()}){
+ const seen=new Map();
+ for(const env of envs||[]){
+  let q,signer;try{q=validateQualification(env?.qualification);signer=(await recoverMessageAddress({message:qualificationMessage(q),signature:env.signature})).toLowerCase();}catch{continue;}
+  if(!checkers.map(c=>c.toLowerCase()).includes(signer)||signer===q.operator)continue;
+  if(q.providerId!==record.providerId||q.operator!==record.operator||q.address!==record.address||q.wgExitKey!==record.wgExitKey||q.wgGuardKey!==record.wgGuardKey)continue;
+  if(q.expiresAt<=now||q.issuedAt>now+60000)continue;
+  const prev=seen.get(signer);if(!prev||q.issuedAt>prev.issuedAt)seen.set(signer,q);
+ }
+ const current=[...seen.values()];
+ if(current.some(q=>q.checks.udpEcho===true&&SECURITY.some(c=>q.checks[c]!==true)))throw new Error('a trusted checker reached the provider and it failed a mandatory check');
+ const pass=current.filter(q=>CHECKS.every(c=>q.checks[c]===true));
+ if(!pass.length)throw new Error(current.length?'no current passing verdict (checkers could not reach it)':'not qualified');
+ const best=pass.sort((a,b)=>b.expiresAt-a.expiresAt)[0];
+ return {roles:best.roles.filter(r=>record.roles.includes(r)),until:best.expiresAt,passing:pass.length};
+}
+
+// Eligible providers from directory entries [{record:{record,signature}, qualifications:[...], qualification}].
 export async function eligibleProviders(entries,{checkers,now=Date.now(),hostOperator,log=()=>{}}){
  const out=[];
  for(const e of entries||[]){
-  try{const r=await verifyProviderRecord(e.record,{now,hostOperator});if(!e.qualification)throw new Error('not qualified');
-   const q=await verifyQualification(e.qualification,r,{checkers,now});if(q.roles.length)out.push({...r,eligibleRoles:q.roles,qualifiedUntil:q.until});}
+  try{const r=await verifyProviderRecord(e.record,{now,hostOperator});
+   const list=Array.isArray(e.qualifications)?e.qualifications:e.qualification?[e.qualification]:[];
+   const q=await verifyQualifications(list,r,{checkers,now});if(q.roles.length)out.push({...r,eligibleRoles:q.roles,qualifiedUntil:q.until});}
   catch(err){log(`provider ${String(e?.record?.record?.providerId||'?').slice(0,8)}: ${err.message}`);}
  }
  return out;

@@ -36,7 +36,10 @@ export function createNetworkApi({checkers=[],addressBook,clients:clientsFn=asyn
 
  async function providers(){
   const t=now(),out=[];
-  for(const [pid,e] of Object.entries(store.data.providers)){if(e.record.record.expiresAt<=t){delete store.data.providers[pid];store.saveSoon();continue;}out.push({record:e.record,qualification:e.qualification||null});}
+  for(const [pid,e] of Object.entries(store.data.providers)){if(e.record.record.expiresAt<=t){delete store.data.providers[pid];store.saveSoon();continue;}
+   // every trusted checker's latest verdict; `qualification` (the newest) for hosts that read one
+   const all=Object.values(e.byChecker||{});const newest=all.sort((a,b)=>b.qualification.issuedAt-a.qualification.issuedAt)[0]||e.qualification||null;
+   out.push({record:e.record,qualifications:all.length?all:e.qualification?[e.qualification]:[],qualification:newest});}
   return out;
  }
  // the relay's own verified view (for route acceptance); hosts compute theirs independently
@@ -67,8 +70,9 @@ export function createNetworkApi({checkers=[],addressBook,clients:clientsFn=asyn
     if(old&&old.record.record.issuedAt>=r.issuedAt)return send(409,{error:'stale provider record'});
     if(!old&&Object.keys(store.data.providers).length>=4096)return send(429,{error:'provider directory full'});
     // a qualification binds address and keys: it survives a re-publication only if those did not change
-    const q=old?.qualification?.qualification;const keep=q&&q.address===r.address&&q.wgExitKey===r.wgExitKey&&q.wgGuardKey===r.wgGuardKey;
-    store.data.providers[r.providerId]={record:{record:r,signature:env.signature},qualification:keep?old.qualification:null};store.saveSoon();
+    const same=q=>q&&q.address===r.address&&q.wgExitKey===r.wgExitKey&&q.wgGuardKey===r.wgGuardKey;
+    const byChecker=Object.fromEntries(Object.entries(old?.byChecker||{}).filter(([,v])=>same(v.qualification)));const keep=Object.keys(byChecker).length>0;
+    store.data.providers[r.providerId]={record:{record:r,signature:env.signature},byChecker};store.saveSoon();
     return send(200,{ok:true,providerId:r.providerId,qualified:!!keep});
    }
    if(p==='/v1/network/qualifications'&&req.method==='POST'){
@@ -77,8 +81,9 @@ export function createNetworkApi({checkers=[],addressBook,clients:clientsFn=asyn
     if(!trusted.includes(signer)||signer===q.operator)return send(403,{error:'not a trusted checker'});
     const e=store.data.providers[q.providerId];if(!e)return send(404,{error:'unknown provider'});
     const r=e.record.record;if(r.address!==q.address||r.wgExitKey!==q.wgExitKey||r.wgGuardKey!==q.wgGuardKey||r.operator!==q.operator)return send(409,{error:'qualification does not match the current provider record'});
-    if(e.qualification&&e.qualification.qualification.issuedAt>=q.issuedAt)return send(409,{error:'stale qualification'});
-    e.qualification={qualification:q,signature:env.signature};store.saveSoon();
+    e.byChecker||={};
+    if(e.byChecker[signer]&&e.byChecker[signer].qualification.issuedAt>=q.issuedAt)return send(409,{error:'stale qualification'});
+    e.byChecker[signer]={qualification:q,signature:env.signature};delete e.qualification;store.saveSoon();
     return send(200,{ok:true,passed:Object.values(q.checks).every(Boolean)});
    }
    let m=p.match(/^\/v1\/network\/policy\/(0x[0-9a-fA-F]{64})$/);

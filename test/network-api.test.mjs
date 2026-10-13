@@ -87,3 +87,22 @@ test('BYO configs: sealed, redacted, owner-only view, released only to the curre
  const bad=await r.call('POST','/v1/network/byo/'+id,{config:cfg.replace('AllowedIPs','PostUp = rm -rf /\nAllowedIPs'),salt,expiry,signature:'0x'});
  assert.equal(bad.status,422);assert.ok(bad.body.problems.some(p=>/PostUp/.test(p)));
 });
+
+test('two checkers: a pass from either keeps a provider; a checker that reached it and saw a failure revokes it; one that could not reach it proves nothing',async()=>{
+ const r=rig(),env=await record(r);await r.call('POST','/v1/network/providers',env);
+ const second=privateKeyToAccount(generatePrivateKey());
+ const api2=createNetworkApi({checkers:[checker.address,second.address],file:path.join(fs.mkdtempSync(path.join(os.tmpdir(),'netapi2-')),'n.json'),JsonStore,secretsKey:'aa'.repeat(32),clients:async()=>[],now:()=>r.now()});
+ const ctx={json:(res,status,body)=>{res.status=status;res.body=body;},readBody:async req=>Buffer.from(JSON.stringify(req.body||{})),ledgerRows:async()=>r.rows};
+ const call=async(method,p,body)=>{const res={};await api2.handle({method,body},res,new URL('http://x'+p),ctx);return res;};
+ await call('POST','/v1/network/providers',env);
+ const all=Object.fromEntries(CHECKS.map(c=>[c,true])),unreachable=Object.fromEntries(CHECKS.map(c=>[c,false])),smtpOpen={...all,blocksSmtp:false};
+ await call('POST','/v1/network/qualifications',await qual(env.record,r,checker,all));
+ r.advance(1000);await call('POST','/v1/network/qualifications',await qual(env.record,r,second,unreachable));
+ assert.equal((await api2.eligible()).length,1,'the second checker could not reach it: the first one\'s pass stands');
+ assert.equal((await call('GET','/v1/network/providers')).body.providers[0].qualifications.length,2,'both verdicts are served');
+ r.advance(1000);await call('POST','/v1/network/qualifications',await qual(env.record,r,second,smtpOpen));
+ assert.equal((await api2.eligible()).length,0,'a checker that reached it saw SMTP open: revoked despite the other pass');
+ r.advance(1000);await call('POST','/v1/network/qualifications',await qual(env.record,r,second,all));
+ assert.equal((await api2.eligible()).length,1,'fixed and rechecked: eligible again');
+ r.advance(11*60000);assert.equal((await api2.eligible()).length,0,'every verdict expired: not eligible (fail closed)');
+});
