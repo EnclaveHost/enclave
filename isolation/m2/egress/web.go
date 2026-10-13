@@ -410,9 +410,9 @@ func (s *Server) handleWeb(ctx context.Context, cid uint32, g net.Conn, br *bufi
 	if _, err := io.WriteString(g, "ok\n"); err != nil {
 		return
 	}
-	if code := splice(g, br, up, up); code != "" {
-		s.outcome(cid, "ended:"+strings.NewReplacer("a-", "guest-", "b-", "upstream-").Replace(code))
-	}
+	started := time.Now()
+	code, toUp, toGuest := spliceCount(g, br, up, up)
+	s.streamEnd(cid, code, toUp, toGuest, started)
 }
 
 // DialWeb opens a TCP connection for guest `cid` to a public host:port, by name (resolved and judged as Dial does) or

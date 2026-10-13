@@ -313,9 +313,9 @@ func (s *Server) handle(ctx context.Context, g net.Conn) {
 	if _, err := io.WriteString(g, "ok\n"); err != nil {
 		return
 	}
-	if code := splice(g, br, up, up); code != "" { // br holds anything the guest sent after its header
-		s.outcome(cid, "ended:"+strings.NewReplacer("a-", "guest-", "b-", "upstream-").Replace(code))
-	}
+	started := time.Now()
+	code, toUp, toGuest := spliceCount(g, br, up, up) // br holds anything the guest sent after its header
+	s.streamEnd(cid, code, toUp, toGuest, started)
 }
 
 // outcome is the server's ONLY log line. Its arguments are the CID and a code from a fixed set; there is no format
@@ -347,33 +347,78 @@ func readLine(br *bufio.Reader, max int) (string, error) {
 // It returns how the stream ended, as a code from a fixed set ("" when both directions ended cleanly): which side
 // failed and whether reading or writing - "a-read", "b-write", ... - never an error's text.
 func splice(a net.Conn, ar io.Reader, b net.Conn, br io.Reader) string {
-	codes := make(chan string, 2)
-	go func() { codes <- copyCode(b, ar, "a-read", "b-write"); closeWrite(b) }()
-	go func() { codes <- copyCode(a, br, "b-read", "a-write"); closeWrite(a) }()
-	first, second := <-codes, <-codes
-	if first == "" {
-		return second
+	code, _, _ := spliceCount(a, ar, b, br)
+	return code
+}
+
+// spliceCount is splice, also returning the bytes copied each way: a->b, then b->a.
+func spliceCount(a net.Conn, ar io.Reader, b net.Conn, br io.Reader) (string, int64, int64) {
+	type end struct {
+		ab   bool
+		code string
+		n    int64
 	}
-	return first
+	ends := make(chan end, 2)
+	go func() { n, c := copyCount(b, ar, "a-read", "b-write"); ends <- end{true, c, n}; closeWrite(b) }()
+	go func() { n, c := copyCount(a, br, "b-read", "a-write"); ends <- end{false, c, n}; closeWrite(a) }()
+	var code string
+	var ab, ba int64
+	for i := 0; i < 2; i++ {
+		e := <-ends
+		if code == "" {
+			code = e.code
+		}
+		if e.ab {
+			ab = e.n
+		} else {
+			ba = e.n
+		}
+	}
+	return code, ab, ba
 }
 
 // copyCode copies until EOF and names a failure by side: readFail when src failed, writeFail when dst did.
 func copyCode(dst io.Writer, src io.Reader, readFail, writeFail string) string {
+	_, c := copyCount(dst, src, readFail, writeFail)
+	return c
+}
+
+func copyCount(dst io.Writer, src io.Reader, readFail, writeFail string) (int64, string) {
 	buf := make([]byte, 32*1024)
+	var total int64
 	for {
 		n, rerr := src.Read(buf)
 		if n > 0 {
-			if _, werr := dst.Write(buf[:n]); werr != nil {
-				return writeFail
+			w, werr := dst.Write(buf[:n])
+			total += int64(w)
+			if werr != nil {
+				return total, writeFail
 			}
 		}
 		if rerr == io.EOF {
-			return ""
+			return total, ""
 		}
 		if rerr != nil {
-			return readFail
+			return total, readFail
 		}
 	}
+}
+
+// bigStream: a stream that carried at least this much toward the guest is logged with its byte counts however it
+// ended, so a reply the guest saw cut short can be matched to what the upstream actually delivered (2026-10-13)
+const bigStream = 1 << 20
+
+// streamEnd is the server's line for an egress stream's end: the fixed code (or "clean"), and for an abnormal end or a
+// big stream the bytes each way and how long it lasted. Codes and numbers only, never a destination.
+func (s *Server) streamEnd(cid uint32, code string, toUp, toGuest int64, started time.Time) {
+	if code == "" && toGuest < bigStream {
+		return
+	}
+	if code == "" {
+		code = "clean"
+	}
+	code = strings.NewReplacer("a-", "guest-", "b-", "upstream-").Replace(code)
+	s.outcome(cid, fmt.Sprintf("ended:%s guest-to-upstream=%d upstream-to-guest=%d ms=%d", code, toUp, toGuest, time.Since(started).Milliseconds()))
 }
 
 func closeWrite(c net.Conn) {
