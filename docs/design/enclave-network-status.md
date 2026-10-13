@@ -96,4 +96,4 @@ Code removal (branch `network/tuna-removal`, not merged or deployed): the relay'
 its queue; the relay refuses every route publication that is not under a v5 policy (TUNA v1 host allocations, policies
 v2/v3/v4); the privacy agent requires `enclaveNetwork` and ignores leftover TUNA settings; the Windows enrollment and
 the Linux reconciler make no NKN wallets; the TUNA Go adapter, its containers, provider units and the site's old
-network controls are deleted. Deploying it ends the TUNA rollback: hosts updated to it cannot run TUNA again.
+network controls are deleted (the USDC settlement modules stay, unwired, for paid providers). Deploying it ends the TUNA rollback: hosts updated to it cannot run TUNA again.
