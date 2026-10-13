@@ -5,7 +5,9 @@
  *
  * Its own process, because the host VM is the app's main process: hosting off ends that process, and must not end the agent.
  *
- *   control   127.0.0.1:18190, POST /launch { service, extras: [[name, "s"|"i"|"z", value]] } with "Authorization: Bearer
+ *   control   127.0.0.1:18190 with "Authorization: Bearer <files/agent/control-token>": GET /procs (this app's processes, which
+ *             a program it runs cannot see in /proc), POST /kill { process } (one VM process), and
+ *             POST /launch { service, extras: [[name, "s"|"i"|"z", value]] } with "Authorization: Bearer
  *             <files/agent/control-token>": starts one of this app's VM services (AnchorService, AnchorServiceSlot1..32) with
  *             those extras -- what `adb shell am start-foreground-service` did for an owner's computer. Loopback is shared by
  *             every app on a phone, so the token (fresh each start, 0600 in the app's private files) is what makes it ours.
@@ -183,12 +185,15 @@ public class AgentService extends Service {
                 if (k.equals("content-length")) len = Integer.parseInt(v);
                 if (k.equals("authorization")) auth = v;
             }
-            if (!lines[0].startsWith("POST /launch ")) { answer(sock, 404, "{\"error\":\"not found\"}"); return; }
             if (!java.security.MessageDigest.isEqual(auth.getBytes(StandardCharsets.US_ASCII), ("Bearer " + token).getBytes(StandardCharsets.US_ASCII))) { answer(sock, 401, "{\"error\":\"token\"}"); return; }
+            if (lines[0].startsWith("GET /procs ")) { answer(sock, 200, procs().toString()); return; }
+            final boolean isLaunch = lines[0].startsWith("POST /launch "), isKill = lines[0].startsWith("POST /kill ");
+            if (!isLaunch && !isKill) { answer(sock, 404, "{\"error\":\"not found\"}"); return; }
             if (len < 0 || len > MAX_BODY) { answer(sock, 400, "{\"error\":\"body\"}"); return; }
             final byte[] body = new byte[len]; int off = 0;
             while (off < len) { final int r = in.read(body, off, len - off); if (r < 0) break; off += r; }
-            final String err = launch(new JSONObject(new String(body, 0, off, StandardCharsets.UTF_8)));
+            final JSONObject req = new JSONObject(new String(body, 0, off, StandardCharsets.UTF_8));
+            final String err = isLaunch ? launch(req) : kill(req.optString("process"));
             answer(sock, err == null ? 200 : 400, err == null ? "{\"ok\":true}" : new JSONObject().put("error", err).toString());
         } catch (Exception e) { Log.w(TAG, "control: " + e); }
     }
@@ -212,6 +217,30 @@ public class AgentService extends Service {
         }
         startForegroundService(i);
         return null;
+    }
+
+    /* An app sees none of its own other processes in /proc from a program it runs (measured on the Pixel 10, Android 17:
+     * Node's /proc held only itself), so the agent asks here: this app's processes, as the system lists them. */
+    JSONObject procs() throws Exception {
+        final JSONArray a = new JSONArray();
+        final java.util.List<android.app.ActivityManager.RunningAppProcessInfo> l = getSystemService(android.app.ActivityManager.class).getRunningAppProcesses();
+        if (l != null) for (android.app.ActivityManager.RunningAppProcessInfo p : l) a.put(new JSONObject().put("pid", p.pid).put("name", p.processName));
+        return new JSONObject().put("procs", a);
+    }
+
+    /** End one of this app's VM processes (the host VM's, a slot's): never the agent's own or the screen's. null when ended. */
+    String kill(String name) throws Exception {
+        final String pkg = getPackageName();
+        if (!name.equals(pkg) && !name.matches(java.util.regex.Pattern.quote(pkg) + ":slot([1-9]|[12][0-9]|3[0-2])")) return "not one of this app's VM processes";
+        for (int i = 0; i < 40; i++) {
+            int pid = 0;
+            final java.util.List<android.app.ActivityManager.RunningAppProcessInfo> l = getSystemService(android.app.ActivityManager.class).getRunningAppProcesses();
+            if (l != null) for (android.app.ActivityManager.RunningAppProcessInfo p : l) if (name.equals(p.processName)) pid = p.pid;
+            if (pid == 0) return null;
+            if (i == 0) android.os.Process.killProcess(pid);
+            Thread.sleep(250);
+        }
+        return name + " did not end";
     }
 
     private static String readHead(InputStream in) throws Exception {
