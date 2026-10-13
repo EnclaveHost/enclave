@@ -1013,6 +1013,19 @@ export class Host {
     const capHeld = await this.#spawnCapHold(id, body, client, { relaunch });
     if (capHeld) return capHeld;
     if (this.records.get(id)?.capHeld) this.#record(id, { capHeld: null });
+    // A DOMAIN RUNNING ANOTHER VERSION of this deployment is not adopted. When the owner switches the version on the
+    // ledger (setAppRef: another catalog version or component), the domain the manager holds under this name still runs
+    // the old one, and adopting it by name served the old version forever while the relay refused it as "not the
+    // requested app" (2026-10-13 22:16Z: cron stayed on /1 after its switch to /2, down until retired by hand). It is
+    // retired, confirmed gone, and the current version is spawned below. A manager that does not say which version it
+    // runs is not second-guessed.
+    const stale = await IsolationManagerClient.staleVersion(client, id, body.derive).catch(() => null);
+    if (stale) {
+      this.log(`${id.slice(0, 10)} isolation: version change: ${stale}; replacing the domain`);
+      const gone = await this.#retireIsolated(id, `version change: ${stale}`);
+      if (!gone) return this.#record(id, { status: "provisioning", reason: `isolation: version change (${stale}); the old domain `
+        + "could not be confirmed removed, so nothing new is started" });
+    }
     let r;
     try { r = await reconcile({ client, deployment: { id, body }, ledger: null }); }
     catch (e) { return this.#record(id, { status: "failed", reason: `isolation: ${e.message}` }); }
