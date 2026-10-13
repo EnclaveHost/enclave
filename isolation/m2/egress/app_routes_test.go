@@ -54,3 +54,34 @@ type panicResolver struct{}
 func (panicResolver) LookupNetIP(context.Context, string, string) ([]netip.Addr, error) {
 	panic("app egress attempted host DNS")
 }
+
+// The node overwrites the file in place when Windows refuses its rename: a reader that catches it half-written
+// (here: not JSON, then trailing bytes) reads it again instead of failing the app's connection; a file that stays
+// unreadable is still refused.
+func TestAppRouteRereadsATornCopy(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "routes.json")
+	id := "0x" + strings.Repeat("1", 64)
+	r := AppRoute{Proxies: []string{"127.0.0.1:14567"}, DNS: []DNSEndpoint{{Address: "1.1.1.1:443", ServerName: "cloudflare-dns.com", Path: "/dns-query"}}}
+	good, _ := json.Marshal(AppRouteFile{Version: 1, ExpiresAt: time.Now().Add(time.Minute).UnixMilli(), Apps: map[string]AppRoute{id: r}})
+	for _, torn := range [][]byte{good[:len(good)/2], append(append([]byte{}, good...), []byte(`"apps":{}}`)...)} {
+		os.WriteFile(file, torn, 0600)
+		go func() {
+			time.Sleep(15 * time.Millisecond)
+			os.WriteFile(file, append(append([]byte{}, good...), "   "...), 0600)
+		}()
+		if _, e := ReadAppRoute(file, id); e != nil {
+			t.Fatalf("a torn copy that is rewritten within the retries: %v", e)
+		}
+	}
+	os.WriteFile(file, good[:10], 0600)
+	start := time.Now()
+	if _, e := ReadAppRoute(file, id); e == nil || !strings.Contains(e.Error(), "invalid app routes") {
+		t.Fatalf("a file that stays torn: %v", e)
+	}
+	if time.Since(start) > 200*time.Millisecond {
+		t.Fatal("the rereads are bounded")
+	}
+	if _, e := ReadAppRoute(filepath.Join(t.TempDir(), "absent.json"), id); !os.IsNotExist(e) {
+		t.Fatalf("a missing file is not reread as torn: %v", e)
+	}
+}

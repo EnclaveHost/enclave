@@ -39,29 +39,47 @@ type AppRouteFile struct {
 
 var appIDPattern = regexp.MustCompile(`^0x[0-9a-f]{64}$`)
 
+var errTornRoutes = errors.New("invalid app routes")
+
+// readAppRouteFile reads and parses the routes file; a copy that does not parse is errTornRoutes (ReadAppRoute reads
+// it again), a file that cannot be opened is its own error.
+func readAppRouteFile(file string) (AppRouteFile, error) {
+	var doc AppRouteFile
+	f, e := os.Open(file)
+	if e != nil {
+		return doc, e
+	}
+	defer f.Close()
+	b, e := io.ReadAll(io.LimitReader(f, 1<<20+1))
+	if e != nil || len(b) > 1<<20 {
+		return doc, errTornRoutes
+	}
+	dec := json.NewDecoder(strings.NewReader(string(b)))
+	dec.DisallowUnknownFields()
+	if e = dec.Decode(&doc); e != nil {
+		return doc, fmt.Errorf("%w: %v", errTornRoutes, e)
+	}
+	var extra any
+	if dec.Decode(&extra) != io.EOF {
+		return doc, fmt.Errorf("%w: trailing app route data", errTornRoutes)
+	}
+	return doc, nil
+}
+
 func ReadAppRoute(file, deploymentID string) (AppRoute, error) {
 	var zero AppRoute
 	if !appIDPattern.MatchString(deploymentID) {
 		return zero, errors.New("unbound guest")
 	}
-	f, e := os.Open(file)
+	// The node may be overwriting the file where it stands (Windows refuses its rename while this or any reader has
+	// it open; network/durable-state.mjs inPlace), so a copy that does not parse is read again before it is refused.
+	doc, e := readAppRouteFile(file)
+	for try := 1; errors.Is(e, errTornRoutes) && try < 4; try++ {
+		time.Sleep(time.Duration(try) * 10 * time.Millisecond)
+		doc, e = readAppRouteFile(file)
+	}
 	if e != nil {
 		return zero, e
-	}
-	defer f.Close()
-	b, e := io.ReadAll(io.LimitReader(f, 1<<20+1))
-	if e != nil || len(b) > 1<<20 {
-		return zero, errors.New("invalid app routes")
-	}
-	var doc AppRouteFile
-	dec := json.NewDecoder(strings.NewReader(string(b)))
-	dec.DisallowUnknownFields()
-	if e = dec.Decode(&doc); e != nil {
-		return zero, e
-	}
-	var extra any
-	if dec.Decode(&extra) != io.EOF {
-		return zero, errors.New("trailing app route data")
 	}
 	now := time.Now().UnixMilli()
 	if doc.Version != 1 || doc.ExpiresAt <= now || doc.ExpiresAt > now+120000 || len(doc.Apps) > 256 {
