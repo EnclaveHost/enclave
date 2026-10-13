@@ -1,7 +1,7 @@
 // One listener belongs to exactly one app and circuit. Never dispatch to another
 // deployment based on a hostname supplied by a public provider or visitor.
 import net from 'node:net';
-import {clientHelloName} from './tuna-host.mjs';
+import {clientHelloName} from './client-hello.mjs';
 
 export function validateAppNames(deploymentId,names) {
   if (!/^0x[0-9a-f]{64}$/.test(deploymentId || '') || !Array.isArray(names) || !names.length || names.length > 64 ||

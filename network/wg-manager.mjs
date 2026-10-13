@@ -5,8 +5,13 @@ import {EventEmitter} from 'node:events';
 import {validateNetworkPolicy,networkUse,networkPolicyHash} from './network-policy.mjs';
 import {recordHash} from './route-record.mjs';
 import {validateAppNames} from './app-ingress.mjs';
-import {transientRouteError} from './circuit-manager.mjs';
+import {transientProofError} from './lease-reader.mjs';
 const PROBE_FAILURES=3,PROBE_EVERY_MS=20000,COOLDOWN_MAX_MS=30*60000,STABLE_MS=10*60000;
+// A route probe crosses two tunnels, so one slow handshake is ordinary: these transport failures fail a circuit only
+// after PROBE_FAILURES in a row; a mismatch or refusal fails it at once.
+export function transientRouteError(e){
+ return transientProofError(e)||['TLS handshake timeout','SOCKS connection aborted','SOCKS connection closed','SOCKS closed during handshake','SOCKS connect refused'].includes(e?.message);
+}
 
 // Two circuits never share a provider, a guard is never its own exit, and every provider fits the price limit and
 // offers the role. Distinct addresses are all this can check: it does not prove distinct operators (the Network tab

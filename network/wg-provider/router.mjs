@@ -2,7 +2,7 @@
 // name. Raw bytes only: TLS terminates inside the enclave; this never holds a certificate. An unknown or missing name
 // is closed, so this is not an open proxy.
 import net from 'node:net';
-import {clientHelloName} from '../tuna-host.mjs';
+import {clientHelloName} from '../client-hello.mjs';
 
 function hostHeader(buf){
  const end=buf.indexOf('\r\n\r\n');if(end<0)return buf.length>16384?'':null;

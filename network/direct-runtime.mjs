@@ -2,7 +2,7 @@ import net from 'node:net';
 import http from 'node:http';
 import {EventEmitter} from 'node:events';
 import {randomBytes} from 'node:crypto';
-import {clientHelloName} from './tuna-host.mjs';
+import {clientHelloName} from './client-hello.mjs';
 import {validateAppNames} from './app-ingress.mjs';
 import {meteredSocket} from './traffic-meter.mjs';
 import {createDirectEgress} from './direct-egress.mjs';
