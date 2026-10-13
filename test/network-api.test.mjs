@@ -106,3 +106,20 @@ test('two checkers: a pass from either keeps a provider; a checker that reached 
  assert.equal((await api2.eligible()).length,1,'fixed and rechecked: eligible again');
  r.advance(11*60000);assert.equal((await api2.eligible()).length,0,'every verdict expired: not eligible (fail closed)');
 });
+
+test('a paid (community) provider\'s on-chain attestation travels with a passing verdict and is served with it',async()=>{
+ const r=rig();const hostId='0x'+'dd'.repeat(32);
+ const env=await record(r,{kind:'community',hostId,pricePerGiB6:50000});
+ const ctx=r;   // the relay checks the record's operator against the registry host
+ const api=r.api;let res={};
+ const call=async(method,p,body)=>{const out={};await api.handle({method,body},out,new URL('http://x'+p),{json:(o,status,b)=>{o.status=status;o.body=b;},readBody:async req=>Buffer.from(JSON.stringify(req.body||{})),ledgerRows:async()=>[],hostOperator:async h=>h===hostId?operator.address:null});return out;};
+ assert.equal((await call('POST','/v1/network/providers',env)).status,200);
+ const onchain={hostId,addressHash:'0x'+'ee'.repeat(32),issuedAt:Math.floor(r.now()/1000)-30,expires:Math.floor(r.now()/1000)+270,checks:511,signature:'0x'+'11'.repeat(65)};
+ assert.equal((await call('POST','/v1/network/qualifications',{...await qual(env.record,r),onchain:{...onchain,hostId:'0x'+'ab'.repeat(32)}})).status,422,'another host');
+ assert.equal((await call('POST','/v1/network/qualifications',{...await qual(env.record,r,checker,Object.fromEntries(CHECKS.map(c=>[c,c!=='tcp80']))),onchain})).status,422,'a failing verdict carries none');
+ assert.notEqual((await call('POST','/v1/network/qualifications',{...await qual(env.record,r),onchain:{...onchain,expires:onchain.issuedAt+301}})).status,200,'over 5 minutes');
+ r.advance(1000);
+ assert.equal((await call('POST','/v1/network/qualifications',{...await qual(env.record,r),onchain})).status,200);
+ const served=(await call('GET','/v1/network/providers')).body.providers[0].qualifications[0];
+ assert.deepEqual(served.onchain,onchain);
+});

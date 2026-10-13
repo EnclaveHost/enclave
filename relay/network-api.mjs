@@ -3,7 +3,8 @@
 //
 //   GET  /v1/network/providers                   provider records + current qualifications (and the trusted checkers)
 //   POST /v1/network/providers                   {record, signature}           a provider's signed opt-in
-//   POST /v1/network/qualifications              {qualification, signature}    a trusted checker's verdict
+//   POST /v1/network/qualifications              {qualification, signature, onchain?}   a trusted checker's verdict
+//                                                (onchain: its attestation for a paid provider's contract, kept with it)
 //   GET  /v1/network/policy/:id                  {envelope|null}               the owner's newest v5 policy
 //   POST /v1/network/policy/:id                  {envelope}                    set it (owner signature, higher nonce)
 //   POST /v1/network/byo/:id                     {config, salt, expiry, signature}   store a BYO WireGuard config (owner)
@@ -15,6 +16,7 @@
 // logged, put in a route, a provider record or a public response; only its salted digest is public (in the policy).
 import {createCipheriv,createDecipheriv,createHmac,randomBytes,createHash} from 'node:crypto';
 import {verifyProviderRecord,validateQualification,qualificationMessage,eligibleProviders} from '../network/provider-directory.mjs';
+import {validateOnchain} from '../network/onchain-qualification.mjs';
 import {verifyNetworkPolicy,validateNetworkPolicy,defaultNetworkPolicy,byoReleaseMessage,byoConfigMessage,byoOwnerMessage} from '../network/network-policy.mjs';
 import {parseWireGuardConfig,redactWireGuardConfig,wireGuardConfigDigest} from '../network/wg-config.mjs';
 import {verifyOwnerSignature} from '../network/owner-signature.mjs';
@@ -83,7 +85,9 @@ export function createNetworkApi({checkers=[],addressBook,clients:clientsFn=asyn
     const r=e.record.record;if(r.address!==q.address||r.wgExitKey!==q.wgExitKey||r.wgGuardKey!==q.wgGuardKey||r.operator!==q.operator)return send(409,{error:'qualification does not match the current provider record'});
     e.byChecker||={};
     if(e.byChecker[signer]&&e.byChecker[signer].qualification.issuedAt>=q.issuedAt)return send(409,{error:'stale qualification'});
-    e.byChecker[signer]={qualification:q,signature:env.signature};delete e.qualification;store.saveSoon();
+    // a paid (community) provider's on-chain attestation travels with the verdict; the contract checks its signature
+    let onchain=null;if(env.onchain!==undefined){onchain=validateOnchain(env.onchain);if(onchain.hostId!==r.hostId||!Object.values(q.checks).every(Boolean))return send(422,{error:'on-chain attestation does not match a passing verdict for this provider'});}
+    e.byChecker[signer]={qualification:q,signature:env.signature,...(onchain?{onchain}:{})};delete e.qualification;store.saveSoon();
     return send(200,{ok:true,passed:Object.values(q.checks).every(Boolean)});
    }
    let m=p.match(/^\/v1\/network\/policy\/(0x[0-9a-fA-F]{64})$/);

@@ -44,11 +44,13 @@ export async function createNetworkHost({config:c,account,runner,rpc,addressBook
   if(seen!==undefined&&seen>0)throw new Error('the owner\'s network policy is unavailable');
   return validateNetworkPolicy(defaultNetworkPolicy(app.deploymentId));
  }
- let directory_={at:0,list:[]};
+ let directory_={at:0,list:[]},registryAddress=null;
  async function providers(){
   if(now()-directory_.at<30000)return directory_.list;
   const d=await relay('/v1/network/providers');
-  const hostOperator=async hostId=>{if(!c.registry)return null;const [h]=await leaseReader.registryEntries(c.registry,[hostId]);return h?.active?h.operator:null;};
+  // a community provider must be the operator of its registry host (the registry the address book publishes, unless configured)
+  const hostOperator=async hostId=>{const registry=c.registry||(registryAddress||=await leaseReader.bookAddress?.('registry'));if(!registry)return null;
+   const [h]=await leaseReader.registryEntries(registry,[hostId]);return h?.active?h.operator:null;};
   directory_={at:now(),list:await eligibleProviders(d?.providers||[],{checkers:c.checkers,now:now(),hostOperator,log})};
   return directory_.list;
  }

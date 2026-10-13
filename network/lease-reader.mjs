@@ -140,6 +140,11 @@ export class LeaseReader {
 
   // Who holds registry ids, from the same agreeing peers. Only the original
   // seven-field entry prefix is decoded, so every registry revision reads alike.
+  // an address the book publishes (e.g. 'registry'), read like everything else: an agreeing quorum at a confirmed block
+  async bookAddress(name) {
+    const v=await this.agreed(async(c,blockNumber)=>({address:(await c.readContract({address:this.addressBook,abi:bookABI,functionName:'addr',args:[stringToHex(name,{size:32})],blockNumber})).toLowerCase()}));
+    return v.address;
+  }
   registryEntries(registry,ids) {
     if(!/^0x[0-9a-fA-F]{40}$/.test(registry||'')||!Array.isArray(ids)||ids.length<1||ids.length>256||ids.some(id=>!/^0x[0-9a-f]{64}$/.test(id)))return Promise.reject(new Error('exact registry ids required'));
     // Not queued behind lease snapshots: a registry answer must not hold up a lease renewal.
