@@ -66,6 +66,33 @@ The provider incident itself was mine: the first test VPN on fra1 reused fra1's 
 prompt" and disqualified it (01:18-01:21Z); every app was off its fra1 circuits, and for ~3 min had none. The VPN was
 recreated on 10.250.0.0/30.
 
+## Paid provider tested in production (2026-10-13 03:10-04:28Z)
+
+The Singapore provider (165.245.191.129) was turned into a paid community provider for the test: registered as a
+registry host (`scripts/network/provider-register.mjs`: host 0x668a609b..., its own receipt proof key made on the box),
+price 0.05 USDC/GiB set on chain (setHost), both checkers attesting it on chain. A test app owned by the agent wallet
+(0x942555ba..., on the NucBox; refunded after) set a v5 policy with a price limit and budget, authorized the provider on
+chain (authorizeTuna, budget 0.2 USDC) and funded the escrow the ledger asked for. The NucBox built a circuit with the
+paid provider as its guard (sgp1 -> sfo3); ~85 MiB of uploads to the app went through it. Settled on Base by the host's
+real settlement, co-signed by the provider's real meter: **bytesServed 46,926,050 (the payload the app received), the
+owner's budget charged 2,186 micro-USDC, the provider operator credited 1,748 (its 80% share)**. Afterwards: the app
+refunded ($1.00), Singapore back to a free Enclave provider; its registry host entry stays (it takes no compute work).
+
+Found and fixed during the test (deployed: relay c92678519, providers, checkers, NucBox, metal0/pVM; Windows release .25):
+- checkers and provider guards rejected every community record (no registry lookup); the provider never passed its
+  hostId to its own gate; the host never read its runner proof key, so it could not sign receipts;
+- the on-chain qualification (5 minutes) lapsed between full checks: checkers now refresh a paid provider's attestation
+  every minute (the relay accepts it against the same verdict) and the provider submits every 30 s - sampled 8 min, no gap;
+- a refused paid debit cooled down the circuit's free providers for every app on the host: it no longer counts against them;
+- settlement stuck forever on a mined transaction because publicnode refuses receipt lookups ("archive requests"): the
+  settlement client falls back across RPCs, and a journaled transaction whose nonce is spent is resolved from the
+  chain's metered bytes (also covers the host's operator key spending the nonce itself);
+- attestation and price transactions now fail on a reverted receipt.
+
+CI note: the relay deploy job starts by updating the DNS service on RELAY_SSH_HOST (46.62.128.36, the old nan-relay box),
+which no longer answers (the authoritative DNS now runs on nan from /opt/enclave-dns). CI relay deploys fail there until
+that is updated; c92678519 was deployed to nan with the same steps by hand (04:18:53Z).
+
 ## Implemented, not in use in production
 
 - **Direct hosting**: implemented end to end (7e6287724, deployed: relay on main db35b8781, host agents): a host opts
@@ -77,15 +104,8 @@ recreated on 10.250.0.0/30.
   host's address, private destinations refused) and `test/wg-manager.test.mjs`. Not exercised in production: no
   compute host with a public IPv4 exists today (the NucBox and metal0 are behind CGNAT; the pVM is a phone), so every
   host answers "direct hosting is not available" and the Network tab shows none. Windows hosts have no direct runtime.
-- **Paid providers / USDC settlement**: live in production since 2026-10-13 03:06Z (settlement contract bound to the ledger and published in the address book; relay, site, providers,
-  checkers, metal0/pVM agents, Windows hosts with release .24), and lease reads include the on-chain authorization (verified on
-  a live app after activation; all apps still serving). Verified: `scripts/network/paid-fork-e2e.mjs` on a Base fork with the
-  live ledger, registry and USDC, the governance steps done by impersonation - the real provider and host code settle
-  1.5 GiB on chain (bytes served, the owner's budget, the provider operator's 80% share), refuse a receipt for more
-  than the provider observed, and close the circuit when the budget is spent: 21/21. Unit tests:
-  `test/paid-network.test.mjs` (gate, meter, co-signature, debits, manager; each check mutation-tested). Found on the
-  fork: receipts dated "now" revert on chain (blocks trail clocks) - fixed for direct receipts too. No community
-  provider exists yet, so none is paid in production.
+- **Paid providers / USDC settlement**: live since 2026-10-13 03:06Z and exercised in production (section above). No
+  community provider is offering paid service right now.
 - **Community providers on Enclave hosts**: the opt-in record and qualification work for any Linux server with a public
   IPv4; no Enclave host has opted in, and there is no Windows provider.
 - **WebSockets / streaming / sustained traffic** (verified on the production providers, not on a customer app):
