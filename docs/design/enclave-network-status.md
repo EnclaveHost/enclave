@@ -7,7 +7,7 @@ the design is `docs/design/enclave-network.md`. Nothing below is described as wo
 
 | Piece | Where | State |
 |---|---|---|
-| Providers (kernel WireGuard + nftables + SNI router + control API) | 4 DigitalOcean Droplets: sfo3 134.199.235.187, tor1 146.190.246.39, sgp1 165.245.191.129, fra1 134.209.248.172 | live, systemd `enclave-network-provider` (bundle of main 81ed3ebac, 02:26-02:29Z, peers restored, no interruption), all roles, price 0, transfer budget 850 GB/month each |
+| Providers (kernel WireGuard + nftables + SNI router + control API) | 4 DigitalOcean Droplets: sfo3 134.199.235.187, tor1 146.190.246.39, sgp1 165.245.191.129, fra1 134.209.248.172 | live, systemd `enclave-network-provider` (bundle of main 9c198fef9, 08:59Z, peers restored, no interruption), all roles, price 0, transfer budget 850 GB/month each |
 | Qualification checkers | nan (`enclave-network-checker`, 0x57144c90…) and warden-host (user unit, 0x033bc2b9…), every 4 min each | live (81ed3ebac, with chain access for on-chain attestations); both pass all four providers on all nine checks through WireGuard |
 | Relay API (`/v1/network/*`), v5-only route acceptance, DNS label `enclave` | nan (main 418aec41b) | live; TUNA publications and the NKN funding endpoint are gone |
 | Network tab (status, privacy, owner-signed mode setting, paid-provider authorization; passkey-vault signing) | site (main 418aec41b) | live |
@@ -93,6 +93,32 @@ CI note: the relay deploy job starts by updating the DNS service on RELAY_SSH_HO
 which no longer answers (the authoritative DNS now runs on nan from /opt/enclave-dns). CI relay deploys fail there until
 that is updated; c92678519 was deployed to nan with the same steps by hand (04:18:53Z).
 
+## Bugs found and fixed after the switch (2026-10-13)
+
+- **Shield egress cut long responses ("short body") - OPEN**: every 4 MiB GET of s3-ipfs-adapter (0x7ae476a3) ends
+  after ~2.8 MB. Not the app's circuit (4 and 8 MB, and 4 MiB at 80 KB/s, arrive whole through its SOCKS proxies from
+  the host). Two bridge fixes: no write timeout on persistent streams (.27, did NOT end it), and a half-close at
+  end of stream instead of shutdown(Both), so the guest still gets what the hv_sock holds (aed5fd228, release .28).
+  The second is not reproducible over hv_sock loopback (`bridge-drain-check`: the old bridge also delivers all 4 MiB
+  there), so it is confirmed only if the adapter's GETs complete after .28.
+- **Egress-map writes failed on Windows**: Windows refuses a rename over `egress-routes.json` while ANY reader holds
+  it, FILE_SHARE_DELETE or not (checked on the NucBox), and shield-egress reads it on every outbound connection: 91
+  failures before, still 11 in 15 min after .27's retries (618c7d156). The egress map now overwrites the file in place
+  after a few refused renames (padded so one write replaces every byte), and shield-egress re-reads a torn copy
+  (aed5fd228 + isolation/egress-torn-reread 93429cf58, release .28).
+- **A failed public-RPC read tore down circuits**: the provider's sweep removed every peer whose lease or registry
+  read failed, so one moment of RPC disagreement dropped every circuit through a provider. Only a definite answer
+  (lease ended, another runner, host inactive) removes a peer now; a renewal may use the last agreeing lease read
+  (at most 10 minutes old, lease still running) (9c198fef9, deployed to all four providers 08:59Z).
+- **Operator gas ran out with only a log line**: the Windows node counted renewals ("200 = four days"), but proof
+  checkpoints for every app spend from the same key, so the NucBox ran dry in hours. The node now measures the
+  balance's fall, calls it low under 48 hours, and the tray shows a warning with the address to top up (94f4dca1c).
+- Paid-path fixes found by the production paid test (registry lookup, host id, host payout, attestation refresh,
+  refused debits no longer strike providers, settlement RPC fallback, reverted receipts detected): main, deployed.
+
+Windows host release 2026.10.12.27 (published 09:19Z, all apps back 09:35Z) carries the timeout-free bridge, the
+rename retry and the gas warning; .28 carries the half-close and the in-place routes write.
+
 ## Implemented, not in use in production
 
 - **Direct hosting**: implemented end to end (7e6287724, deployed: relay on main db35b8781, host agents): a host opts
@@ -125,5 +151,5 @@ site's old network controls are deleted (191 files, -25k lines). Hosts updated: 
 executables in the bundle), metal0 and the pVM agent. Leftovers removed: the TUNA units, `/opt/enclave-tuna-usdc` and
 the `tuna_proxy` nftables table on all four Droplets (archived to `/root/retired-tuna-20261013.tgz` on each), the four
 TUNA timers on warden-host (moved to `~/.config/systemd/user/retired-tuna-20261013/`), `tuna-funding.mjs` on nan.
-Names kept for installed hosts: `tuna-enroll.mjs`, `relay/tuna-routes.mjs`, the `/v1/network/tuna` route-map path,
+Names kept for installed hosts: `tuna-enroll.mjs`, the `/v1/network/tuna` route-map path,
 the `C:\Program Files\Enclave\tuna\` directory, `enclave-tuna-privacy.service`. There is no TUNA rollback any more.
