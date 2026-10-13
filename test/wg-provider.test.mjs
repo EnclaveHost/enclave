@@ -104,3 +104,15 @@ test('a registered host gets egress-only control peers for its own traffic; nobo
  assert.equal([...r.p.peers.values()].filter(p=>p.role==='control').length,2);
  r.p.hosts=async()=>({active:false});await r.p.sweep();assert.equal([...r.p.peers.values()].filter(p=>p.control).length,0);
 });
+
+test('a restarted provider restores its peers at the same addresses (a renewal keeps working)',async()=>{
+ let saved=null;const store={load:async()=>saved,save:async v=>{saved=structuredClone(v);}};
+ const r=rig();r.p.store=store;const env=await request(r);const first=await r.p.handle(env);
+ assert.ok(saved.peers.length===1);
+ const again=rig();again.p.store=store;assert.equal(await again.p.restore(),1);
+ assert.ok(again.kernel.peers.has(env.request.wgPublicKey),'the kernel gets the peer back');
+ assert.equal(again.p.route('abababab.app.enclave.host'),first.grant.clientAddress,'names route again at once');
+ const renewed=await again.p.handle(await request(again,{wgPublicKey:env.request.wgPublicKey}));
+ assert.equal(renewed.grant.clientAddress,first.grant.clientAddress);
+ const fresh=await again.p.handle(await request(again));assert.notEqual(fresh.grant.clientAddress,first.grant.clientAddress,'no address handed out twice');
+});

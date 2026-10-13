@@ -30,13 +30,27 @@ export function validatePeerRequest(r,now=Date.now()){
 
 export class WgProvider {
  // config: {providerId, roles:[...], pricePerGiB6, publicAddress, exitKey, guardKey, ports:{exit,guard,control}, zone}
- constructor({config,signer,kernel,leases,hosts=async()=>null,verifyOwner,policyMemory,currentPolicy=async()=>null,domains,targets=async()=>[],now=Date.now,log=()=>{}}){
-  Object.assign(this,{config,signer,kernel,leases,hosts,verifyOwner,policyMemory,currentPolicy,domains,targets,now,log});
+ constructor({config,signer,kernel,leases,hosts=async()=>null,verifyOwner,policyMemory,currentPolicy=async()=>null,domains,targets=async()=>[],store=null,now=Date.now,log=()=>{}}){
+  Object.assign(this,{config,signer,kernel,leases,hosts,verifyOwner,policyMemory,currentPolicy,domains,targets,store,now,log});
   this.peers=new Map();          // wg public key -> peer
   this.nonces=new Map();         // request nonce -> expiry (replay)
   this.used=new Set();this.next={exit:2,guard:2};
   this.accepting=true;           // false when over the transfer budget or unqualified: no new peers
  }
+ // Restore the peers a previous run granted and that have not expired (a restart keeps every peer at its address);
+ // the kernel is brought back to exactly that set.
+ async restore(){
+  const saved=this.store?await this.store.load():null,now=this.now();
+  for(const p of saved?.peers||[]){
+   if(!p||p.expiresAt<=now||!/^10\.7[78]\./.test(p.address||''))continue;
+   this.peers.set(p.key,p);this.used.add(p.address);
+   try{await this.kernel.setPeer({...p,role:p.role==='guard'||p.onGuard?'guard':'exit'});}catch(e){this.log('restore peer: '+e.message);}
+  }
+  if(saved?.next)this.next={...this.next,...saved.next};
+  await this.sync();
+  return this.peers.size;
+ }
+ async persist(){if(this.store)await this.store.save({version:1,peers:[...this.peers.values()],next:this.next});}
  allocate(role){
   // 10.77/16 exit, 10.78/16 guard; .0.1 is this side
   const base=role==='exit'?[10,77]:[10,78];
@@ -84,7 +98,7 @@ export class WgProvider {
   Object.assign(peer,{egress:r.egress,ingress:r.ingress,names,expiresAt:Math.min(r.expiresAt,now+PEER_TTL_MS),policyNonce:policy.nonce});
   this.peers.set(peer.key,peer);
   await this.kernel.setPeer(peer);
-  await this.sync();
+  await this.sync();await this.persist();
   const grant={version:1,providerId:this.config.providerId,role:r.role,deploymentId:r.deploymentId,clientPublicKey:r.wgPublicKey,
    providerPublicKey:r.role==='guard'?this.config.guardKey:this.config.exitKey,
    endpoint:`${this.config.publicAddress}:${r.role==='guard'?this.config.ports.guard:this.config.ports.exit}`,
@@ -119,7 +133,7 @@ export class WgProvider {
    peer={key:r.wgPublicKey,role:r.role,deploymentId:r.deploymentId,runner:r.runner,address:this.allocate(r.role==='guard'?'guard':'exit'),createdAt:now,control:true};
   }
   Object.assign(peer,{egress:r.role==='control',ingress:false,names:[],expiresAt:Math.min(r.expiresAt,now+PEER_TTL_MS)});
-  this.peers.set(peer.key,peer);await this.kernel.setPeer({...peer,role:r.role==='guard'?'guard':'exit'});await this.sync();
+  this.peers.set(peer.key,peer);await this.kernel.setPeer({...peer,role:r.role==='guard'?'guard':'exit'});await this.sync();await this.persist();
   const guard=r.role==='guard';
   const grant={version:1,providerId:this.config.providerId,role:r.role,deploymentId:r.deploymentId,clientPublicKey:r.wgPublicKey,
    providerPublicKey:guard?this.config.guardKey:this.config.exitKey,endpoint:`${this.config.publicAddress}:${guard?this.config.ports.guard:this.config.ports.exit}`,
@@ -140,7 +154,7 @@ export class WgProvider {
   const peer={key:r.wgPublicKey,role:'probe',onGuard,deploymentId:r.deploymentId,runner:r.runner,checker:signer,address:this.allocate(onGuard?'guard':'exit'),createdAt:now,
    egress:r.egress,ingress:r.ingress,names,expiresAt:Math.min(r.expiresAt,now+5*60000)};
   if(this.peers.has(peer.key))throw new Error('key is held by another peer');
-  this.peers.set(peer.key,peer);await this.kernel.setPeer({...peer,role:onGuard?'guard':'exit'});await this.sync();
+  this.peers.set(peer.key,peer);await this.kernel.setPeer({...peer,role:onGuard?'guard':'exit'});await this.sync();await this.persist();
   const grant={version:1,providerId:this.config.providerId,role:'probe',deploymentId:r.deploymentId,clientPublicKey:r.wgPublicKey,providerPublicKey:onGuard?this.config.guardKey:this.config.exitKey,
    endpoint:`${this.config.publicAddress}:${onGuard?this.config.ports.guard:this.config.ports.exit}`,clientAddress:peer.address,serverAddress:onGuard?'10.78.0.1':'10.77.0.1',names,issuedAt:now,expiresAt:peer.expiresAt};
   return {grant,signature:await this.signer.signMessage({message:grantMessage(grant)})};
@@ -154,6 +168,7 @@ export class WgProvider {
   this.peers.delete(peer.key);this.used.delete(peer.address);
   await this.kernel.removePeer({...peer,role:peer.role==='guard'||peer.onGuard?'guard':'exit'}).catch(e=>this.log(`remove ${peer.role} peer: ${e.message}`));
   this.log(`${peer.role} peer for ${peer.deploymentId.slice(0,10)} removed (${why})`);
+  await this.persist();
  }
  // Remove what expired or lost its lease; re-sync firewall sets and the SNI table.
  async sweep(){
