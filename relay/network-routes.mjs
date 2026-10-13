@@ -11,7 +11,7 @@ import {validateNetworkPolicy} from '../network/network-policy.mjs';
 
 export const RETIRED_PUBLICATION='TUNA route publications are retired: only signed per-app routes under an Enclave-network (v5) policy are accepted';
 
-export function createTunaRoutes({ operatorOf, endpointId, eligible, now = Date.now, leaseOf, memory, network }) {
+export function createNetworkRoutes({ operatorOf, endpointId, eligible, now = Date.now, leaseOf, memory, network }) {
   const apps = new Map();
   return {
     async publish(publication) {
