@@ -701,7 +701,7 @@ export class Host {
    * fit can take it.
    */
   async #applyShareResize(id, d, rec) {
-    const cpu = Number(d.cpuMilli) / 1000, gpu = Number(d.gpuMilli) / 1000;
+    const cpu = this.cpuShareOf(id, d), gpu = Number(d.gpuMilli) / 1000;
     const wasCpu = Number(rec?.servedCpuShare), wasGpu = Number(rec?.servedGpuShare);
     if (!Number.isFinite(wasCpu) || !Number.isFinite(wasGpu)) {
       // First sight of this deployment under the watch: adopt what it is, without a restart.
@@ -1183,7 +1183,7 @@ export class Host {
     // a reasonable moment to try again, and each such retry is still one attempt, held again if it fails.
     if (force && this.records.get(id)?.rebootHeld) this.#record(id, { rebootHeld: null });
     const rec = this.#record(id, { appRef: d.appRef, leaseUntil: Number(d.leaseUntil),
-                                   cpuShare: Number(d.cpuMilli) / 1000, gpuShare: Number(d.gpuMilli) / 1000,
+                                   cpuShare: this.cpuShareOf(id, d, version), gpuShare: Number(d.gpuMilli) / 1000,
                                    // What the data-path gate needs, from the ledger and nowhere else.
                                    isPublic: d.isPublic !== false, owner: String(d.owner || "").toLowerCase() });
     // HELD first, before the catalog read: a yanked version, like every later gate, would otherwise give the
@@ -1223,7 +1223,8 @@ export class Host {
     // figure is how a big model lands on a small slice and dies at weight-load with nothing having
     // said no, so the guest's memory cap is the larger number.
     const floor = chain.nodeFloorOf(v);
-    this.#record(id, { cid: v.cid, version: v.version, memMb: floor.memMb, cpuFallbackSized: floor.fromFallback });
+    this.#record(id, { cid: v.cid, version: v.version, memMb: floor.memMb, cpuFallbackSized: floor.fromFallback,
+                       needCpuShare: this.cpuShareOf(id, { cpuMilli: 0 }, v), cpuShare: this.cpuShareOf(id, d, v) });
 
     // A FORCED re-ensure retires the existing domain first. Without this the reconcile below
     // ADOPTS the live one by name and the deployment keeps running its previous configuration
@@ -1736,7 +1737,9 @@ export class Host {
         if (!rec || rec.reason !== refuse) { this.#record(id, { status: "refused", reason: refuse, appRef: d.appRef }); this.log(`ledger: not taking ${id.slice(0, 10)}: ${refuse}`); }
         continue;
       }
-      this.log(`ledger: considering ${id.slice(0, 10)} (${d.appRef}, owner ${d.owner}, ${Math.round(Number(d.cpuMilli) / 10)}% of a node)`);
+      const takes = this.cpuShareOf(id, d, v);
+      this.log(`ledger: considering ${id.slice(0, 10)} (${d.appRef}, owner ${d.owner}, ${Math.round(takes * 100)}% of this box`
+        + `${takes > Number(d.cpuMilli) / 1000 + 1e-9 ? `, dialed ${Math.round(Number(d.cpuMilli) / 10)}%: its version needs that much here` : ""})`);
       // a throw still says whether a claim went out before it (consider()'s claimAttempted, set at send)
       const r = await this.consider(id).catch((e) => {
         this.log(`consider ${id.slice(0, 10)}: ${e.message}`);
@@ -1906,7 +1909,7 @@ export class Host {
         }
       }
       this.#record(id, { leaseUntil: Number(d.leaseUntil), rate6: String(d.rate), balance6: String(d.balance6),
-                         cpuShare: Number(d.cpuMilli) / 1000, gpuShare: Number(d.gpuMilli) / 1000,
+                         cpuShare: this.cpuShareOf(id, d), gpuShare: Number(d.gpuMilli) / 1000,
                          isPublic: d.isPublic !== false, owner: String(d.owner || "").toLowerCase() });
       // THE OWNER'S EDIT, reaching an app that is already running. The envelope is mutable on the
       // ledger (setConfig) and used to be read only at claim time, so an owner who changed their
@@ -2118,6 +2121,17 @@ export class Host {
    * run), summed. `cpu` and `gpu` are what their leases bought; `gpuInUse` is what they hold of the card, which for a
    * partition is what it was spawned with (partitionGpuShare: 0 on this backend today, node-bridge.mjs isolationPlan).
    */
+  /**
+   * The CPU share a deployment takes on this box (chain.effectiveCpuShare): its dialed share, or what its version needs
+   * here if that is more. Recorded per deployment as `needCpuShare` once the version is known, so every later pass
+   * (renewals, resizes, capacity) counts what the box actually gives, not only what the record dials.
+   */
+  cpuShareOf(id, d, version = null) {
+    const dial = Number(d && d.cpuMilli) / 1000 || 0;
+    const need = version ? chain.effectiveCpuShare({ cpuMilli: 0 }, version, Number(this.cfg.gflopsFloorBasis ?? this.cfg.gflops) || 0)
+                         : Number(this.records.get(id)?.needCpuShare) || 0;
+    return Math.max(dial, need);
+  }
   shareUse({ exclude = null } = {}) {
     let cpu = 0, gpu = 0, gpuInUse = 0;
     for (const r of this.records.values()) {
