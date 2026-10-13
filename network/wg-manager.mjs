@@ -219,7 +219,10 @@ export class EnclaveNetworkManager extends EventEmitter {
    }
   }
  }
- status(){return [...this.apps.values()].map(app=>{const plan=this.plan(app);return {deploymentId:app.id,transport:app.policy.mode,policyNonce:app.policy.nonce,policyHash:networkPolicyHash(app.policy),
+ // the modes this host can serve an app in (the Network tab offers only these): the Enclave network and the owner's own
+ // WireGuard everywhere; direct only on a host that opted in with a public address (its qualification is checked per app)
+ hostModes(){return ['enclave-network','byo-wireguard',...(this.direct?['direct']:[])];}
+ status(){const modes=this.hostModes();return [...this.apps.values()].map(app=>{const plan=this.plan(app);return {deploymentId:app.id,transport:app.policy.mode,policyNonce:app.policy.nonce,policyHash:networkPolicyHash(app.policy),modes,
   ready:!app.error&&app.circuits.length>0&&app.circuits.every(c=>c.healthy)&&!!this.authorizationUntil(app.id),error:app.error||null,degraded:app.degraded||null,fallbackActive:!!app.fallbackActive,
   ingress:plan.ingress,egress:plan.byo?'byo-wireguard':plan.egress?'enclave-network':'none',
   circuits:app.circuits.map(c=>({id:c.id,kind:c.kind,healthy:!!c.healthy,address:c.address||null,ingress:!!c.ingress,egress:!!c.egressReady,fallback:!!c.fallback,
