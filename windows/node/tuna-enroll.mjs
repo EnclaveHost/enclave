@@ -60,7 +60,7 @@ export function createTunaEnroll({ agentDir, binDir, runner, relayBase, config, 
   async function pass() {
     await fs.mkdir(file("state"), { recursive: true });
     // The config is written only once it names an app: the privacy agent refuses an empty app list.
-    let cfg = await readJSON(file("privacy-config.json"), null), changed = false;
+    let cfg = await readJSON(file("privacy-config.json"), null), changed = false, waiting = 0;
     const fresh = !cfg;
     if (fresh) cfg = baseConfig(config);
     const want = networkConfig({ binDir, nodeBinary: config.nodeBinary, relayBase, ...config.enclaveNetwork });
@@ -93,7 +93,7 @@ export function createTunaEnroll({ agentDir, binDir, runner, relayBase, config, 
       const expectedFile = path.join(dir, "expected.json");
       const previous = await readJSON(expectedFile, null);
       const v = shieldExpectation({ row, version: await version(row.appRef), vms: list, policy, previous });
-      if (!v.expected) { log(`${short}: ${v.wait || v.skip}`); continue; }
+      if (!v.expected) { if (v.wait) waiting++; log(`${short}: ${v.wait || v.skip}`); continue; }
       const existing = cfg.apps.find((a) => a.deploymentId === id);
       await fs.mkdir(dir, { recursive: true });
       if (JSON.stringify(previous) !== JSON.stringify(v.expected)) {
@@ -113,7 +113,8 @@ export function createTunaEnroll({ agentDir, binDir, runner, relayBase, config, 
       if (fresh) log("privacy-config.json written: the privacy agent starts");
       if (switched) { log("restarting the privacy agent on its new network configuration"); await restartAgent().catch((e) => log(`agent restart: ${e.message}`)); }
     }
-    return { ready: true, apps: cfg.apps.length, changed: changed && cfg.apps.length > 0 };
+    // waiting: apps whose new version's partition is not ready yet - the caller looks again soon instead of in 5 minutes
+    return { ready: true, apps: cfg.apps.length, changed: changed && cfg.apps.length > 0, waiting };
   }
   return { pass };
 }
