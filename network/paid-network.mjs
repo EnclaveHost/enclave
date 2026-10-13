@@ -10,7 +10,7 @@
 //     spent, authorization revoked or changed) is reported so the manager closes it - no unpaid traffic continues.
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import {keccak256,encodeAbiParameters,createPublicClient,createWalletClient,http} from 'viem';
+import {keccak256,encodeAbiParameters,createPublicClient,createWalletClient,http,fallback} from 'viem';
 import {privateKeyToAccount} from 'viem/accounts';
 import {tunaContext,TunaUSDCSettlement} from './tuna-usdc-settlement.mjs';
 import {receiptToJSON} from './wg-provider/paid.mjs';
@@ -81,8 +81,9 @@ export async function createPaidNetwork({config,directory,leaseReader,providers,
  if(!String(config.rpc||'').startsWith('https://'))throw new Error('an HTTPS settlement RPC is required');
  const [proof,gas]=await Promise.all([fs.readFile(config.proofKeyFile,'utf8'),fs.readFile(config.gasKeyFile,'utf8')]);
  const proofAccount=privateKeyToAccount(proof.trim()),account=privateKeyToAccount(gas.trim());
- const client=createPublicClient({chain:base,transport:http(config.rpc,{timeout:15000})});
- const wallet=createWalletClient({account,chain:base,transport:http(config.rpc,{timeout:15000})});
+ // receipts and nonces must be readable: some public RPCs refuse receipt lookups, so others follow the configured one
+ const transport=fallback([...new Set([config.rpc,'https://base.drpc.org','https://mainnet.base.org'])].map(u=>http(u,{timeout:15000})));
+ const client=createPublicClient({chain:base,transport}),wallet=createWalletClient({account,chain:base,transport});
  const settlements=new Map();
  const cosign=hostId=>async({receipt,runnerSignature,anchorHash})=>{
   const p=(await providers()).find(x=>x.hostId===hostId);if(!p)throw new Error('the paid provider is not in the directory');
