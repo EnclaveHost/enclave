@@ -906,8 +906,6 @@ async function startHostingControls() {
       // soon after start: ensurePriced posts nothing over a registered price until these are known
       setTimeout(readPrices, 5_000).unref?.(); setInterval(readPrices, 3_600_000).unref?.();
     }
-    // An open-market host keeps its own TUNA privacy agent enrolled (tuna-enroll.mjs): wallets made here, funded by the
-    // platform on request, the config the \Enclave\Tuna task waits for. Every 5 minutes, once the box is registered.
     // The host-side cache for public, pinned content (blob-cache.mjs, docs/design/shield-blob-cache.md): shield-egress
     // dials blobs.enclave.internal:80 here instead of the app's paid route. Loopback only; off unless configured.
     if (process.env.BLOB_SERVICE_PORT) {
@@ -920,6 +918,9 @@ async function startHostingControls() {
         svc.on('error', (e) => log(`blob cache: ${e.message}`));
       } catch (e) { log(`blob cache: not started (${e.message})`); }
     }
+    // An open-market host keeps its own privacy agent enrolled on the Enclave network (tuna-enroll.mjs; the TUNA_* names
+    // are the installed hosts' historical ones): the config the \Enclave\Tuna task waits for. Every 5 minutes, once the
+    // box is registered.
     if (process.env.TUNA_AGENT_DIR && process.env.TUNA_BIN_DIR && process.env.TUNA_SHIELD_POLICY && host.cfg.isolationManager && nodeKey) {
       const { createTunaEnroll, fileSha256 } = await import('./tuna-enroll.mjs');
       const chainMod = await import('./chain.mjs');
@@ -929,26 +930,26 @@ async function startHostingControls() {
         if (enrolling || !host.registered) return;
         enrolling = true;
         try {
-          enroll ||= createTunaEnroll({ agentDir: process.env.TUNA_AGENT_DIR, binDir: process.env.TUNA_BIN_DIR, name: NAME, endpoint: PUBLIC_URL,
-            runner: host.enclaveId, relayBase, transportKey: nodeKey.privateKey,
+          enroll ||= createTunaEnroll({ agentDir: process.env.TUNA_AGENT_DIR, binDir: process.env.TUNA_BIN_DIR,
+            runner: host.enclaveId, relayBase,
             config: { agentDir: process.env.TUNA_AGENT_DIR, binDir: process.env.TUNA_BIN_DIR, nodeBinary: process.execPath,
                       operatorKeyFile: path.join(DIR, 'operator.key'), runner: host.enclaveId, endpoint: PUBLIC_URL, relayBase,
                       policyFile: process.env.TUNA_SHIELD_POLICY, tpmBinary: process.env.TPMATTEST_EXE,
                       tpmSha256: await fileSha256(process.env.TPMATTEST_EXE), addressBook: chainMod.addressBook(), chainRpc: chainMod.rpcUrls(),
                       manager: host.cfg.isolationManager, dataAddr: host.cfg.isolationDataAddr,
-                      // the Enclave network replaces TUNA (docs/design/enclave-network.md): ENCLAVE_NETWORK=1 (the installer's
-                      // default) with the trusted qualification checkers; unset keeps a box on TUNA
-                      ...(process.env.ENCLAVE_NETWORK === '1' ? { enclaveNetwork: { checkers: String(process.env.ENCLAVE_NETWORK_CHECKERS || '').toLowerCase().split(',').map((c) => c.trim()).filter(Boolean) } } : {}) },
-            // a box switching from TUNA restarts its privacy agent once (the \Enclave\Tuna task starts it again in 10 s)
+                      // the Enclave network (docs/design/enclave-network.md) with its trusted qualification checkers; TUNA is
+                      // retired, so there is no other transport (no checkers: enrollment refuses, and says so in the log)
+                      enclaveNetwork: { checkers: String(process.env.ENCLAVE_NETWORK_CHECKERS || '').toLowerCase().split(',').map((c) => c.trim()).filter(Boolean) } },
+            // a box whose network configuration changes restarts its privacy agent once (the \Enclave\Tuna task starts it again in 10 s)
             restartAgent: async () => { const { execFile } = await import('node:child_process'); await new Promise((res) => execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
               "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'privacy-agent\\.mjs' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"],
               { timeout: 30000, windowsHide: true }, () => res())); },
             rows: () => chainMod.allDeployments(), version: (appRef) => chainMod.resolveAppRef(appRef),
             vms: async () => { const r = await fetch(`${host.cfg.isolationManager}/vms`, { signal: AbortSignal.timeout(15000) });
                                if (!r.ok) throw new Error(`the manager answered /vms ${r.status}`); const j = await r.json(); return Array.isArray(j) ? j : j.vms || []; },
-            log: (m) => log('[tuna]', m) });
+            log: (m) => log('[network]', m) });
           await enroll.pass(); lastEnrollError = '';
-        } catch (e) { if (e.message !== lastEnrollError) log('[tuna]', `enrollment: ${e.message}`); lastEnrollError = e.message; }
+        } catch (e) { if (e.message !== lastEnrollError) log('[network]', `enrollment: ${e.message}`); lastEnrollError = e.message; }
         finally { enrolling = false; }
       };
       setTimeout(tickEnroll, 60_000).unref?.(); setInterval(tickEnroll, 300_000).unref?.();
