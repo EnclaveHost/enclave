@@ -134,7 +134,7 @@ function setup() {
   fs.writeFileSync(path.join(stateDir, "host-state.json"), JSON.stringify({ current: { id: D0, appRef: `catalog://${APPID}/1`, configCid: "", cid: "bafyapp0000001",
     sha: "x", file: path.join(cache, "bafyapp0000001.wasm"), sock: 0, memMib: 0, cpuMilli: 250, gpuMilli: 0, label: "app-d0d0d0d0-old", phase: "serving", sealed: { blob: "00", count: 1 },
     cert: { name: "d0d0d0d0.app.enclave.host" }, at: T }, idle: { label: "idle-old" }, refused: {} }));   // gitleaks:allow
-  return { dir, config, E, now, advance: (ms) => { T += ms; }, rows, publicClient, device, createRunner, made, calls, vms, store, fetchImpl, stateDir,
+  return { dir, config, E, now, advance: (ms) => { T += ms; }, rows, versions, publicClient, device, createRunner, made, calls, vms, store, fetchImpl, stateDir,
            unplug: (v) => { unplugged = v; }, failOnce, failAlways, setHead: (h) => { head = h; }, setOffer: (o) => { offerText = o === null ? null : typeof o === "string" ? o : JSON.stringify({ v: 1, ...o }); } };
 }
 
@@ -318,4 +318,32 @@ test("slots: the served app moves to slot 1, more apps take their own VMs, the h
     assert.equal(agent.state().refused[D1].n, 1, "a new version starts the count over (and is tried at once)");
     t.failAlways.delete("stage 3");
   } finally { globalThis.fetch = realFetch; fs.rmSync(t.dir, { recursive: true, force: true }); }
+});
+
+test("a held lease is judged again once per agent start: admitted while it fits, released after a restart once it no longer does (2026-10-13: a pin read under an older rule)", async () => {
+  const t = setup(), logs = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: false, status: 503, text: async () => "test", json: async () => ({}) });
+  const make = () => createHostAgent({ config: t.config, publicClient: t.publicClient, account: operator, stateDir: t.stateDir, device: t.device, fetchImpl: t.fetchImpl,
+    now: t.now, sleep: async () => {}, log: (o) => logs.push(o), createRunner: t.createRunner,
+    verifyEvidence: (doc, x) => ({ ok: doc.nonce === x.nonce && doc.app === x.appId, reasons: ["test refusal"], instanceId: doc.instanceId, transportSpki: doc.transportSpki }) });
+  try {
+    const a = await make();
+    const s0 = a.state(); s0.slots["1"].sha = (await import("node:crypto")).createHash("sha256").update(fs.readFileSync(s0.slots["1"].file)).digest("hex");
+    for (let i = 0; i < 3; i++) { t.advance(1000); await a.tick(); }
+    assert.equal(t.rows.get(D0).runner, t.E, "D0 held");
+    assert.ok(!logs.some((o) => o.ev === "rejudged"), "admitted: nothing to say");
+    // the rule moves under the held lease (here: its version now needs more memory than this host admits)
+    t.versions[2].memMb = 4096;   // D0 (and D2) run version 2
+    t.advance(1000); await a.tick();
+    assert.equal(t.rows.get(D0).runner, t.E, "judged once per start: the running agent keeps it");
+    await a.stop({ release: false });
+    // a restart (a new build, a new rule): the held lease is judged again, and released
+    const b = await make();
+    for (let i = 0; i < 2 && t.rows.get(D0).runner === t.E; i++) { t.advance(1000); await b.tick(); }
+    const j = logs.find((o) => o.ev === "rejudged" && o.deployment === D0);
+    assert.ok(j, "rejudged after the restart"); assert.match(j.refused, /4096/);
+    assert.equal(t.rows.get(D0).leaseUntil, 0n, "released");
+    assert.equal(b.state().refused[D0] !== undefined, true);
+  } finally { globalThis.fetch = realFetch; }
 });
