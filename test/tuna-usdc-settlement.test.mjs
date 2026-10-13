@@ -45,3 +45,17 @@ test('shared gas journal serializes distinct provider meters without nonce races
  for(const adapter of [x.adapter,y])adapter.sendReceipt=async()=>{active++;max=Math.max(max,active);await new Promise(r=>setTimeout(r,10));active--;done++;};
  await Promise.all([x.adapter.settle(id,{}),y.settle(id,{})]);assert.equal(done,2);assert.equal(max,1);
 });
+test('a journaled transaction whose receipt cannot be read is resolved from the chain once its nonce is spent',async t=>{
+ for(const [served,state] of [['1000','confirmed'],['0','dropped']]){
+  const x=await fixture(t);const gas=privateKeyToAccount('0x'+'06'.repeat(32));
+  const raw=await gas.signTransaction({chainId:8453,type:'eip1559',nonce:7,to:contract,data:'0x',gas:21000n,maxFeePerGas:1n,maxPriorityFeePerGas:1n});
+  await x.adapter.transactions.set('wallet-current',{acceptedDirectory:x.adapter.state.directory,meter:providerId,state:'prepared',deploymentId:id,nonce:'1',accepted:{bytes:'1000'},hash:'0x'+'ee'.repeat(32),raw,bytes:'1000'});
+  let sentAgain=false;
+  x.adapter.wallet={account:gas};
+  x.adapter.client={getTransactionReceipt:async()=>{throw new Error('Archive requests require a personal token');},getTransactionCount:async()=>8,sendRawTransaction:async()=>{sentAgain=true;},getBlock:async()=>({hash})};
+  x.adapter.leaseReader.clients.forEach(c=>{c.readContract=async()=>BigInt(served);});
+  // the new receipt asks for no more than is served (served '1000'), or is refused before signing (nothing to prepare in this rig)
+  await x.adapter.sendReceipt(id,{bytes:served==='1000'?'1000':'0',nonce:'1',rate:'1000'}).catch(()=>{});
+  assert.equal((await x.adapter.transactions.get('wallet-current')).state,state);assert.equal(sentAgain,false,'a spent nonce is never re-broadcast');
+ }
+});

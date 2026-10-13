@@ -100,7 +100,26 @@ export class USDCBandwidthSettlement {
   if(prior?.state==='prepared'){
    const done=await this.client.getTransactionReceipt({hash:prior.hash}).catch(()=>null);
    if(done){await this.transactions.set(key,{...prior,state:done.status==='success'?'confirmed':'reverted'});if(done.status!=='success')throw Error('bandwidth settlement reverted');await this.leaseReader.refresh([...new Set([id,prior.deploymentId])]);}
-   else {await this.client.sendRawTransaction({serializedTransaction:prior.raw}).catch(()=>{});throw Error('bandwidth transaction remains pending');}
+   else {
+    // No receipt. Either the RPC refuses receipt lookups (some public RPCs call them archive requests), or another
+    // transaction from this wallet (a host's operator key also sends its own) took the nonce. Once the wallet's nonce
+    // is past this one, the chain's metered bytes decide: counted -> it was mined; not counted -> dropped, start over.
+    const {parseTransaction}=await import('viem');
+    const used=await this.client.getTransactionCount({address:this.wallet.account.address,blockTag:'latest'}).catch(()=>null);
+    if(used!==null&&used>parseTransaction(prior.raw).nonce){
+     await this.leaseReader.refresh([prior.deploymentId]);
+     const lease=this.leaseReader.get(prior.deploymentId),c=lease?.connectivity;
+     if(!c)throw Error('bandwidth transaction state unknown');
+     const host=(prior.meter||'direct')==='direct'?lease.runner:prior.meter;
+     const args={address:c.address,abi:bandwidthABI,functionName:'bytesServed',args:[meterKey(lease.id,host,prior.nonce)],blockNumber:BigInt(lease.blockNumber)};
+     const values=(await Promise.all(this.leaseReader.clients.map(cl=>cl.readContract(args).then(String).catch(()=>null)))).filter(v=>v!==null);
+     const agreed=values.find(v=>values.filter(x=>x===v).length>=2);
+     if(agreed===undefined)throw Error('bandwidth transaction state unknown');
+     await this.transactions.set(key,{...prior,state:BigInt(agreed)>=BigInt(prior.bytes)?'confirmed':'dropped'});
+     return this.sendReceipt(id,s);
+    }
+    await this.client.sendRawTransaction({serializedTransaction:prior.raw}).catch(()=>{});throw Error('bandwidth transaction remains pending');
+   }
   }
   if(prior?.acceptedDirectory&&['prepared','confirmed'].includes(prior.state)&&(path.resolve(prior.acceptedDirectory)!==path.resolve(this.state.directory)||prior.meter!==this.meterNamespace()||prior.deploymentId!==id||String(prior.nonce)!==String(s.nonce))){
    const saved=await new DurableState(prior.acceptedDirectory).get(prior.deploymentId.slice(2)+'-'+prior.nonce);
