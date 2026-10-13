@@ -155,6 +155,20 @@ export class LeaseReader {
   }
 
   get(id) {const value=this.cache.get(id);return value&&value.validUntil>this.now()?structuredClone(value):null;}
+  // A refresh that got NO agreeing answer (an outage of the RPCs, the control circuits or this host's uplink) says
+  // nothing about the leases, so each one still running on chain stays valid until `graceMs` after its last agreeing read
+  // (the providers' rule for a held peer, wg-provider/main.mjs). Never past the lease's end; never for a lease a read
+  // has answered about (a definite answer deletes or replaces the cache entry). -> the ids held.
+  hold(graceMs) {
+    const now=this.now(),held=[];
+    for(const [id,lease] of this.cache){
+      if(!(lease.leaseUntil>now))continue;
+      const until=Math.min(lease.leaseUntil,lease.blockTime+graceMs);
+      if(until>lease.validUntil){lease.validUntil=until;}
+      if(lease.validUntil>now)held.push(id);
+    }
+    return held;
+  }
 }
 
 // Only these say nothing about the guest: the transport between this host and
