@@ -59,9 +59,13 @@ fn relay(mut guest: TcpStream, port: u16, persistent: bool) -> io::Result<()> {
     let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
     let mut worker = TcpStream::connect_timeout(&addr, Duration::from_secs(3))?;
     worker.set_nodelay(true)?;
+    // A supervised (persistent) bridge carries an app's long-lived streams: a guest that stops reading for a while (a
+    // single-threaded app hashing what it already received) must not have its stream cut under it. A write timeout here
+    // ended each 4 MiB download after ~2.9 MB with EOF (s3-ipfs-adapter, 2026-10-13); the stream ends when either side
+    // closes, or when the supervisor stops the bridge. Timed (non-persistent) bridges keep both limits.
     for socket in [&guest, &worker] {
         socket.set_read_timeout(if persistent { None } else { Some(Duration::from_secs(60)) })?;
-        socket.set_write_timeout(Some(Duration::from_secs(60)))?;
+        socket.set_write_timeout(if persistent { None } else { Some(Duration::from_secs(60)) })?;
     }
     let mut gr = guest.try_clone()?;
     let mut ww = worker.try_clone()?;
