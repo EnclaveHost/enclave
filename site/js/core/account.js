@@ -167,7 +167,7 @@ export function openAuthModal(){
     const mainView = () => {
       inPhone = false;
       host.innerHTML = '<div class="wp-card"><div class="wp-h">Sign in to Enclave</div>' +
-        '<div class="wp-note">A wallet is the recommended way to use Enclave: it gives you direct, on-chain control of your deployments. No wallet? A passkey account works for card checkout.</div>' +
+        '<div class="wp-note">Sign in with a passkey and pay by card - no wallet or crypto needed. Already use a wallet? Connect it for direct on-chain control of your deployments.</div>' +
         (pk ? '<button class="wp-item wp-go" id="authPasskey" type="button">' + (passkeyDirect ? "Create a passkey" : "Continue with passkey") + '</button>' +
               '<div class="wp-or"><span>or</span></div>'
             : '<div class="wp-note">This browser does not support passkeys - use your phone below.</div>') +

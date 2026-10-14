@@ -315,9 +315,10 @@ for i in $(seq 8); do curl -s 127.0.0.1:8080/ &amp; done; wait   # concurrent on
             </tbody>
           </table></div>
           <p>Unlisted CIDs can't deploy: the catalog listing carries everything a deploy needs on-chain - the resource specs that floor the dials, the open ports, the publisher's hourly fee if the version charges one (shown in the rate before you sign; paid to the publisher's wallet out of each funding), and the owner's approval of that exact CID. Built something new? Publish it first (<a href="#docs-publish">chapter 04</a>), then deploy the slug.</p>
-          <p>The easy path is the <a href="apps">store</a>: your published app's card has a <b>Deploy</b> button that sizes the shares from the version's specs, applies its open ports and config, and funds it from your wallet in one step; the model volumes, config, protection and relay of a running deployment are tabs on its dashboard row. The site speaks the same public API you can drive yourself:</p>
+          <p>The easy path is the <a href="apps">store</a>: your published app's card has a <b>Deploy</b> button that sizes the shares from the version's specs, applies its open ports and config, and funds it in one step; the model volumes, config, protection and relay of a running deployment are tabs on its dashboard row. No wallet or crypto is needed there: sign in with a passkey (or approve from your phone), add credit by card through Stripe Checkout, and deploy with a dollar budget. Your credit sits in a credit vault that only your passkey can authorize and that can spend only on Enclave compute, and the platform pays every network fee. A wallet adds what credit deployments don't support yet: live logs, the in-browser attestation view, secrets, custom domains, config overrides and apps with a publisher fee.</p>
+          <p>Agents and direct integrations use the wallet path below, which is the same public API the site speaks:</p>
 
-          <h4>Sign in: an Ethereum signature - your wallet is your account</h4>
+          <h4>Sign in over the API: an Ethereum signature</h4>
           <c-code fn="deploy.js · SIWE handshake"><pre><code>const API = "https://api.enclave.host/v1";
 
 const addr  = (await ethereum.request({ method: "eth_requestAccounts" }))[0];
@@ -366,7 +367,7 @@ enclave secrets rm  0x9c41…88d1 OLD_KEY  # "clear" removes all</code></pre></c
                    "secretAccessKey": "$S3_SECRET_ACCESS_KEY" } }</code></pre></c-code>
 
           <h4>Fund it: pay-per-second, credited on-chain, no custody</h4>
-          <p>Funding lands in the deployment's on-chain <code>balance6</code> (the money itself forwards in the same transaction - the contract holds nothing, and payments are final). Your rate is snapshotted at create: <code>gpuShare × $<span data-live-price="unit-hr" data-gpu="100">6</span>/hr + cpuShare × $<span data-live-price="unit-hr" data-cpu="100">3</span>/hr</code>, plus the app's hourly publisher fee if it charges one. On a paid app every funding is split in that same transaction: the publisher's share (their fee's fraction of the rate) goes straight to their wallet, the rest to Enclave - still nothing custodied. Pay either way:</p>
+          <p>On the site, card credit does this step for you: your credit vault creates and funds the record when you deploy. From a wallet, funding lands in the deployment's on-chain <code>balance6</code> (the money itself forwards in the same transaction - the contract holds nothing, and payments are final). Your rate is snapshotted at create: <code>gpuShare × $<span data-live-price="unit-hr" data-gpu="100">6</span>/hr + cpuShare × $<span data-live-price="unit-hr" data-cpu="100">3</span>/hr</code>, plus the app's hourly publisher fee if it charges one. On a paid app every funding is split in that same transaction: the publisher's share (their fee's fraction of the rate) goes straight to their wallet, the rest to Enclave - still nothing custodied. Pay either way:</p>
           <c-code fn="EnclaveDeployments · two ways to fund"><pre><code>// USDC: sign an EIP-3009 ReceiveWithAuthorization (gas-free wallet signature,
 // to = the EnclaveDeployments contract, nonce prefixed with the id's first 16 bytes), then ONE tx:
 fundWithAuthorization(bytes32 id, address from, uint256 value,
