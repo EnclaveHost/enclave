@@ -928,7 +928,7 @@ async function startHostingControls() {
       const { createTunaEnroll, fileSha256 } = await import('./tuna-enroll.mjs');
       const chainMod = await import('./chain.mjs');
       const relayBase = RELAY_URL.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:').replace(/\/v1\/fleet-tunnel$/, '');
-      let enroll = null, enrolling = false, lastEnrollError = '';
+      let enroll = null, enrolling = false, lastEnrollError = '', enrollWaiting = 0;
       const tickEnroll = async () => {
         if (enrolling || !host.registered) return;
         enrolling = true;
@@ -953,11 +953,15 @@ async function startHostingControls() {
             vms: async () => { const r = await fetch(`${host.cfg.isolationManager}/vms`, { signal: AbortSignal.timeout(15000) });
                                if (!r.ok) throw new Error(`the manager answered /vms ${r.status}`); const j = await r.json(); return Array.isArray(j) ? j : j.vms || []; },
             log: (m) => log('[network]', m) });
-          await enroll.pass(); lastEnrollError = '';
+          const r = await enroll.pass(); lastEnrollError = ''; enrollWaiting = Number(r?.waiting) || 0;
         } catch (e) { if (e.message !== lastEnrollError) log('[network]', `enrollment: ${e.message}`); lastEnrollError = e.message; }
         finally { enrolling = false; }
       };
-      setTimeout(tickEnroll, 60_000).unref?.(); setInterval(tickEnroll, 300_000).unref?.();
+      // every 5 minutes, but every 30 s while an app's new version waits for its partition: its expectation (and with it
+      // the app's route) follows the partition within seconds instead of up to a whole cycle (2026-10-13: ipns-publisher's
+      // /5 partition was ready just after a pass and waited ~5 min with no route)
+      const loopEnroll = async () => { try { await tickEnroll(); } finally { setTimeout(loopEnroll, enrollWaiting > 0 ? 30_000 : 300_000).unref?.(); } };
+      setTimeout(loopEnroll, 60_000).unref?.();
     }
     // resolve(id): the app's loopback port and its certificate, or null. Both come from the host,
     // which is the half that holds leases; a deployment this box does not serve resolves to null

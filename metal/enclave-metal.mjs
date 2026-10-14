@@ -142,6 +142,9 @@ const cmdline = [
   `metal.mode=${MODE}`,
 ].join(' ');
 const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', relayUrl: cfg.relayUrl || '', tunnelToken: cfg.tunnelToken || '',
+  // the referral code this machine was set up with (`enclave host init --referral`): attribution only; the guest agent
+  // says it when it attaches (x-metal-referral, relay/referrals.mjs). fw_cfg, so it never changes the measurement
+  referral: cfg.referral || '',
   // seller earning (metal/PROTOCOL.md Phase C): the operator EOA key that
   // registers/claims/earns on-chain (needs a little Base ETH for gas), and the
   // wallet the supervisor auto-sweeps accrued USDC earnings to. Both optional:

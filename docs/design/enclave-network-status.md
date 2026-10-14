@@ -111,6 +111,13 @@ that is updated; c92678519 was deployed to nan with the same steps by hand (04:1
   their leases running. Now (d45fe2ef2) a refresh with no agreeing answer holds each running lease up to 10 min after its
   last agreeing read (the providers' rule) and goes on to the guest proofs; an unreachable relay keeps the last owner
   policy for up to 10 min. Live on metal0's agent 22:11Z (release-wg-949a47f89); on the NucBox with Windows .32.
+- **An owner's version switch was adopted away**: the node adopted the partition named for a deployment whatever version
+  it ran, so after a setAppRef the old version kept serving and the relay refused it (cron, 22:16Z). The node now compares
+  the running domain's catalog version and CID with the ledger's and replaces it (d0f6b45f5); expectations are re-checked
+  every 30 s while a new version's partition is starting (efab4ba9a). Windows .32 (23:28Z).
+- **A host's tunnel blip withdrew its apps' DNS**: the route map dropped every label the moment the host's tunnel
+  detached, and resolvers cached the NXDOMAIN. Routes are now kept for 3 min after the host was last eligible
+  (relay/route-grace.mjs, live on nan 23:39Z).
 - **A partition that ended by itself was replaced without a word**: the node now says when a domain it recorded as
   serving is gone from the manager before it starts the new one (949a47f89, Windows .32).
 - **Egress-map writes failed on Windows**: Windows refuses a rename over `egress-routes.json` while ANY reader holds
@@ -129,7 +136,7 @@ that is updated; c92678519 was deployed to nan with the same steps by hand (04:1
   refused debits no longer strike providers, settlement RPC fallback, reverted receipts detected): main, deployed.
 
 Windows host releases tonight: .27 (09:19Z: timeout-free bridge, rename retry, gas warning), .28 (09:59Z: half-close,
-in-place routes write), .29 (10:54Z: egress diagnostics), .30 (11:47Z: referral codes), .31 (12:21Z: byte counts, egress-map log). The gas warning is live on the
+in-place routes write), .29 (10:54Z: egress diagnostics), .30 (11:47Z: referral codes), .31 (12:21Z: byte counts, egress-map log), .32 (23:28Z: outage hold, version-change replace, 30-s expectations), .33 (23:53Z: the WebView2 tray, enclave-40). The gas warning is live on the
 NucBox: GET /v1/local/hosting and the relay's availability report a measured runway (205 h at 11:47Z).
 
 ## Implemented, not in use in production
