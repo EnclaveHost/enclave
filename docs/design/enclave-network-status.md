@@ -173,3 +173,19 @@ the `tuna_proxy` nftables table on all four Droplets (archived to `/root/retired
 TUNA timers on warden-host (moved to `~/.config/systemd/user/retired-tuna-20261013/`), `tuna-funding.mjs` on nan.
 Names kept for installed hosts: `tuna-enroll.mjs`, the `/v1/network/tuna` route-map path,
 the `C:\Program Files\Enclave\tuna\` directory, `enclave-tuna-privacy.service`. There is no TUNA rollback any more.
+
+What the word still names on main (checked 2026-10-14 01:20Z; none of it reaches NKN or a TUNA service):
+- **Wire values kept for compatibility**: the route map at `/v1/network/tuna` (format marker `transport: "tuna"`; all 9
+  live labels say `transport: "enclave-network"`, pending none), read by `relay/dns-relay.js` (`TUNA_MAP_URL`) and
+  `network/preflight.mjs`; the options-envelope value `network.transport: "tuna"` that ledger envelopes already on
+  chain carry (validated by `supervisor.js`, `windows/node/chain.mjs`, `relay/shield-app-verifier.mjs`; it selects
+  nothing) and the supervisor's `/v1/net-map` marker; the deployed `EnclaveConnectivity` contract's `tuna` field,
+  `authorizeTuna`/`settleTuna` and their digests (the provider mode of that contract, used by the paid path).
+- **`egress.js` + `TUNA_SOCKS_UPSTREAM`** (the Linux supervisor's per-tenant SOCKS front): a generic authenticated
+  SOCKS front that forwards to whatever SOCKS5 upstream the variable names; with it unset the front is not created.
+  No production host sets it (metal0's units, launcher and config don't, and didn't under TUNA either), so it is
+  inactive. Its error strings still say TUNA.
+- Installed names listed above, and tests that check retired TUNA settings are dropped.
+Renaming the wire values would break installed hosts, on-chain envelopes or the deployed contract; the env name and
+strings can change with the next supervisor/relay release, which they don't justify on their own (each costs an app
+outage).
