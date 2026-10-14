@@ -1,0 +1,31 @@
+{
+  "at": "2026-09-30T00:54:35.379Z",
+  "instance": "gd562eb153",
+  "measurement": "4ba78c8eae02fcdb38dc4114f6fafb29d577f31b9e1b792a3306bd7ec8fbf1b2f5728da5da81f128f283bfcde312e90f",
+  "phase": "baseline-before-deferred-memory",
+  "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/m2-gd562eb153-2954309.service",
+  "MemoryCurrent": "67014017024",
+  "MemoryPeak": "67014234112",
+  "otherGuests": [
+    {
+      "id": "gd3f112c5e",
+      "status": "running"
+    },
+    {
+      "id": "gd46ad5e46",
+      "status": "running"
+    },
+    {
+      "id": "gd481d1411",
+      "status": "running"
+    },
+    {
+      "id": "gdabe06812",
+      "status": "running"
+    },
+    {
+      "id": "gdfb2bacd3",
+      "status": "running"
+    }
+  ]
+}

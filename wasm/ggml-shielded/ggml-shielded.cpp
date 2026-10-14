@@ -1,4 +1,7 @@
 #include "ggml-shielded.h"
+#ifdef SHIELDED_COMPACT
+#include "shielded-compact.h"
+#endif
 #include "shielded-latency.h"
 #include "shielded-fusion.h"
 #include "shielded-weight-cache.h"
@@ -86,6 +89,8 @@ static int64_t sh_af_delta(const sh_state &s);
 static sh_window_fn g_win_fn; static void *g_win_ctx;   /* dealt pads: see ggml_backend_shielded_set_window_provider */
 static ggml_shielded_weight_verifier g_weight_verifier;
 static void *g_weight_verifier_ctx;
+static ggml_shielded_source_release g_source_release;
+static void *g_source_release_ctx;
 static ggml_shielded_encoded_source g_encoded_source;   /* optional catalog hit path (shielded-encoded-source.h) */
 static void *g_encoded_source_ctx;
 static ggml_shielded_encoded_failure g_encoded_failure;  /* optional: names the tensor whose catalog artifact failed a verified read */
@@ -234,6 +239,9 @@ struct sh_state {
         const sh_calib_site *site = nullptr;
         std::string group;
         std::vector<int8_t> w;          /* (N,K): THE encoding, borrowed by the link */
+#ifdef SHIELDED_COMPACT
+        std::unique_ptr<sh_compact_store, decltype(&sh_compact_free)> compact{nullptr, sh_compact_free};
+#endif
         std::unique_ptr<sh_weight_cache> w_cache; /* opt-in, authenticated public blocks on disk */
         bool source_verified = false;
         bool encoded_hit = false;       /* w_cache is a catalog artifact (its later reads report a failed block by name) */
@@ -326,6 +334,7 @@ static sh_state &sh_get() { static sh_state s; return s; }
 struct sh_pool {
     std::mutex mu;
     bool initialized = false, invalid = false;
+    size_t backend_refs = 0;
     ggml_shielded_cpu_idle_hook cpu_idle_hook = nullptr;
     void *cpu_idle_ctx = nullptr;
     std::vector<std::unique_ptr<sh_state>> extra;
@@ -362,6 +371,27 @@ int ggml_backend_shielded_set_weight_verifier(ggml_shielded_weight_verifier veri
             return SH_ERR_RANGE;
     g_weight_verifier = verifier; g_weight_verifier_ctx = ctx;
     return SH_OK;
+}
+
+int ggml_backend_shielded_set_source_release(ggml_shielded_source_release release, void *ctx) {
+    sh_pool &p = sh_pool_get();
+    std::lock_guard<std::mutex> lk(p.mu);
+    if (!release || g_source_release || !g_weight_verifier || p.invalid || !p.pending.empty()) return SH_ERR_RANGE;
+    for (const auto *s : p.cards)
+        if (!s->weights.empty() || !s->refused.empty() || s->source_verification_failed || s->weight_cache_failed)
+            return SH_ERR_RANGE;
+    g_source_release = release; g_source_release_ctx = ctx;
+    return SH_OK;
+}
+
+static void sh_release_consumed_sources(sh_pool &p) {
+    if (!g_source_release) return;
+    int rc = SH_ERR_IO;
+    try { rc = g_source_release(g_source_release_ctx); } catch (...) { }
+    if (rc != SH_OK) {
+        for (auto *s : p.cards) s->source_verification_failed = true;
+        fprintf(stderr, "[shielded] consumed source retirement failed; aborting model load\n");
+    }
 }
 
 /* Same admission rules as the verifier: only before any registration, and only WITH a verifier (the catalog is an
@@ -846,6 +876,21 @@ static const sh_calib_site *sh_site_for(sh_state &s, const char *name) {
     return it == s.calib.end() ? nullptr : &it->second;
 }
 
+bool ggml_backend_shielded_source_candidate(const ggml_tensor *w) {
+    if (!w || w->view_src || !ggml_is_contiguous(w) || w->ne[2] != 1 || w->ne[3] != 1 ||
+        w->ne[0] <= 0 || w->ne[1] <= 0 || !sh_source_type_ok(w->type) ||
+        !sh_source_geometry_ok(w->type, w->ne[0]) || w->ne[0] % SH_QK ||
+        !sh_layout_fits(w->ne[0], w->ne[1], sh_max_m()) ||
+        w->ne[0] * w->ne[1] < sh_min_macs()) return false;
+    // Never make a token-indexed embedding lookup an observable storage read.
+    const char *name = ggml_get_name(w);
+    if (strncmp(name, "blk.", 4) || strstr(name, "token_embd")) return false;
+    sh_pool &p = sh_pool_get();
+    std::lock_guard<std::mutex> lk(p.mu);
+    sh_pool_init(p);
+    return !p.invalid && sh_site_for(*p.cards[0], name);
+}
+
 /* --------------------------------------------------------------------------
  * Weight registration: from ggml's rows into THE encoding, one row per output,
  * which is also what the worker wants. No transpose anywhere. A q8_0 source
@@ -992,7 +1037,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
     }
     if (!hit) {
     const void *source = w->data;
-    std::vector<uint8_t> private_source;
+    sh_source_bytes private_source;
     if (g_weight_verifier) {
         // Hashing the mapping and encoding it afterwards would race hostile
         // page replacements. Copy first; authenticate and encode this copy.
@@ -1059,7 +1104,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
     // Encoding has consumed every authenticated source byte. Release this
     // potentially GiB-sized copy before cache writeback and worker upload;
     // all remaining registration work reads the encoded rows in e.w.
-    std::vector<uint8_t>().swap(private_source);
+    sh_source_bytes().swap(private_source);
     source = nullptr;
     t_encode = profile_registration ? sh_now_ms() : 0;
     }   /* !hit */
@@ -1165,6 +1210,15 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
     stored.col0 = split_col0; stored.ncols = split_ncols;
     auto gf = s.group_first.find(stored.group);
     const int share = gf == s.group_first.end() ? -1 : gf->second;
+#if defined(SHIELDED_COMPACT) && !defined(SHIELDED_DEALER_MODE)
+    // A later graph (notably MTP drafting) can discover another weight after
+    // prefill opened the link. Registration already excludes active exchanges;
+    // stop refill users and close the old upload before attaching its private
+    // adapter. Quiesce burns unused pads and preserves integrity latches and
+    // mask counters. The dirty plan reconnects with the complete registry.
+    if (sh_env_int("SHIELDED_COMPACT_WEIGHTS", 0) && !sh_link_is_dealt(s.link))
+        sh_link_quiesce(s.link);
+#endif
     const int node = sh_link_add_weight(s.link, name.c_str(), stored.w.data(), K, link_N, sh_max_m(), share);
     if (node < 0) {
         SH_LOG("%s: %s\n", name.c_str(), sh_link_last_error(s.link));
@@ -1200,6 +1254,22 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
             stored.w_cache.reset(); stored.w_cache_ctx.reset();
         }
     }
+#if defined(SHIELDED_COMPACT) && !defined(SHIELDED_DEALER_MODE)
+    if (sh_env_int("SHIELDED_COMPACT_WEIGHTS", 0) && !sh_link_is_dealt(s.link) && !stored.w.empty()) {
+        stored.compact.reset(sh_compact_create(stored.w.data(), K, link_N));
+        if (!stored.compact || sh_link_set_local_weight_source(s.link, node,
+                sh_compact_read, sh_compact_refill, stored.compact.get()) != SH_OK) {
+            // Keep the borrowed raw vector alive until link teardown on failure.
+            s.weight_cache_failed = true;
+            fprintf(stderr, "[shielded] %s: private compact storage admission failed\n", name.c_str());
+            return false;
+        }
+        const size_t original_bytes = stored.w.size();
+        std::vector<int8_t>().swap(stored.w);
+        fprintf(stderr, "[shielded] %s: private compact weights %zu -> %zu bytes\n",
+                name.c_str(), original_bytes, sh_compact_bytes(stored.compact.get()));
+    }
+#endif
     s.device_bytes += dev_add;   /* committed to the card; counts against reserve_cap */
     if (share < 0) s.group_first[stored.group] = node;
     s.group_members[stored.group].push_back(name);
@@ -1334,6 +1404,7 @@ static void sh_plan(sh_pool &p) {
             }
         }
         p.pending.clear();
+        sh_release_consumed_sources(p);
         return;
     }
     for (auto &layer : layers) {
@@ -1372,13 +1443,21 @@ static void sh_plan(sh_pool &p) {
         }
     }
     p.pending.clear();
+    sh_release_consumed_sources(p);
 }
 
 /* --------------------------------------------------------------------------
  * The backend
  * ----------------------------------------------------------------------- */
 static const char *ggml_backend_shielded_get_name(ggml_backend_t) { return "Shielded"; }
-static void ggml_backend_shielded_free(ggml_backend_t backend) { delete backend; }
+static void sh_pool_quiesce(sh_pool &p);
+static void ggml_backend_shielded_free(ggml_backend_t backend) {
+    auto &p = sh_pool_get();
+    std::lock_guard<std::mutex> lock(p.mu);
+    GGML_ASSERT(p.backend_refs > 0);
+    if (--p.backend_refs == 0) sh_pool_quiesce(p);
+    delete backend;
+}
 
 /* Claimable at all: a calibrated q8_0 weight times an f32 activation, above the
  * size floor. Collects the public weight metadata on first sight of its data,
@@ -1483,7 +1562,7 @@ struct sh_split_worker {
     std::thread th;
     std::mutex mu; std::condition_variable cv;
     std::atomic<uint64_t> gen{0}, done{0};
-    bool quit = false;
+    std::atomic<bool> quit{false};
     sh_link *link = nullptr; const int *nodes = nullptr; size_t n = 0;
     const int64_t *x = nullptr; int32_t m = 0; int64_t **y = nullptr; const int64_t *stride = nullptr;
     const sh_split_post *post = nullptr; const int64_t *col0 = nullptr, *ncols = nullptr;
@@ -1495,6 +1574,22 @@ struct sh_split_worker {
     double t_dispatch = 0, t_start_delay = 0, t_gemm = 0, t_post = 0;
     uint64_t runs = 0;
 };
+/* Context teardown must join library callers before oneDNN's process-exit
+ * cache destructors run. Static sh_state teardown alone is too late. Preserve
+ * the registry and mask bank so a later context can reconnect safely. */
+static void sh_pool_quiesce(sh_pool &p) {
+    for (auto *w : p.split_workers) {
+        { std::lock_guard<std::mutex> lock(w->mu); w->quit.store(true); }
+        w->cv.notify_all();
+        if (w->th.joinable()) w->th.join();
+        delete w;
+    }
+    p.split_workers.clear();
+    for (auto *s : p.cards) {
+        if (s->link) sh_link_quiesce(s->link);
+        s->dirty = true;
+    }
+}
 static int sh_split_spin_us() { static int v = -1; if (v < 0) v = sh_env_int("SHIELDED_SPLIT_SPIN_US", 2000); return v; }
 static double sh_split_helper_gemm() { double t = 0; for (auto *w : sh_pool_get().split_workers) if (w) t += w->t_gemm; return t; }
 static double sh_split_helper_post() { double t = 0; for (auto *w : sh_pool_get().split_workers) if (w) t += w->t_post; return t; }
@@ -1995,6 +2090,46 @@ static void sh_link_down(sh_state &s) {
 static int sh_local_products(sh_state &s, const std::vector<int> &nodes,
                             const std::vector<sh_state::entry *> &entries,
                             const int64_t *x, int32_t m, int64_t **y) {
+    if (!entries.empty() && entries[0]->part_cards.size() > 1) {
+        // A link owns only its columns. Reconstruct every authenticated slice
+        // into the full-width result, including prefill wider than max_m.
+        if (nodes.empty() || nodes.size() > SH_GROUP_MAX || entries.size() != nodes.size() ||
+            m <= 0 || sh_max_m() <= 0) return SH_ERR_PROTO;
+        sh_pool &pool = sh_pool_get();
+        for (size_t t = 0; t < entries.size(); t++) {
+            const auto &e = *entries[t];
+            if (e.part_nodes.size() != e.part_cards.size() || e.part_col0.size() != e.part_cards.size())
+                return SH_ERR_PROTO;
+            for (size_t c = 0; c < e.part_cards.size(); c++) {
+                const int ci = e.part_cards[c];
+                if (ci < 0 || (size_t)ci >= pool.cards.size()) return SH_ERR_PROTO;
+                sh_state &card = *pool.cards[ci];
+                std::unique_lock<std::mutex> lock(card.mu, std::defer_lock);
+                if (&card != &s) lock.lock();
+                if (!card.link) return SH_ERR_IO;
+                uint64_t failures = 0;
+                sh_link_stats(card.link, nullptr, nullptr, &failures);
+                if (card.verify_fail || failures) return SH_ERR_VERIFY;
+                const int64_t col = e.part_col0[c];
+                const int64_t end = c + 1 < e.part_col0.size() ? e.part_col0[c + 1] : e.N;
+                if (col < 0 || end <= col || end > e.N || (c == 0 && col != 0)) return SH_ERR_PROTO;
+                const size_t width = (size_t)(end - col);
+                std::vector<int64_t> slice((size_t)std::min(m, sh_max_m()) * width);
+                int64_t *dst = slice.data();
+                for (int32_t at = 0; at < m;) {
+                    const int32_t rows = std::min(sh_max_m(), m - at);
+                    const int rc = sh_link_gemm_local(card.link, &e.part_nodes[c], 1,
+                                                      x + (size_t)at * e.K, rows, &dst);
+                    if (rc != SH_OK) return rc;
+                    for (int32_t r = 0; r < rows; r++)
+                        memcpy(y[t] + (size_t)(at + r) * e.N + col,
+                               slice.data() + (size_t)r * width, width * sizeof(int64_t));
+                    at += rows;
+                }
+            }
+        }
+        return SH_OK;
+    }
     if (!g_weight_verifier || m <= sh_max_m())
         return sh_link_gemm_local(s.link, nodes.data(), nodes.size(), x, m, y);
     if (nodes.empty() || nodes.size() > SH_GROUP_MAX || entries.size() != nodes.size() || sh_max_m() <= 0)
@@ -2617,7 +2752,10 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
                             (long long)(xents[t]->part_col0.size() > 1 ? xents[t]->N - xents[t]->part_col0[1] : 0));
                 return GGML_STATUS_FAILED;
             }
-            if (rc != SH_OK) {
+            if (rc != SH_OK && g_weight_verifier) {
+                rc = sh_local_products(s, nodes, xents, x_gpu.data(), m, yp.data());
+                s.local_nodes += members.size();
+            } else if (rc != SH_OK) {
                 /* A card that is not live cannot produce its columns, and this
                  * card's own nodes are only a SLICE of each weight -- so the
                  * local fallback is the whole-tensor one, straight from the
@@ -2934,6 +3072,7 @@ static ggml_backend_t sh_dev_init_backend(ggml_backend_dev_t dev, const char *) 
         /* .device  = */ dev,
         /* .context = */ NULL,
     };
+    { auto &p = sh_pool_get(); std::lock_guard<std::mutex> lock(p.mu); ++p.backend_refs; }
     return backend;
 }
 static ggml_backend_buffer_type_t sh_dev_get_buffer_type(ggml_backend_dev_t) {
@@ -2992,7 +3131,13 @@ static const struct ggml_backend_reg_i ggml_backend_shielded_reg_i = {
     /* .get_name         = */ sh_reg_get_name,
     /* .get_device_count = */ sh_reg_get_device_count,
     /* .get_device       = */ sh_reg_get_device,
-    /* .get_proc_address = */ NULL,
+    /* .get_proc_address = */ [](ggml_backend_reg_t, const char *name) -> void * {
+        if (!strcmp(name, "ggml_backend_shielded_set_weight_verifier")) return (void *)ggml_backend_shielded_set_weight_verifier;
+        if (!strcmp(name, "ggml_backend_shielded_set_source_release")) return (void *)ggml_backend_shielded_set_source_release;
+        if (!strcmp(name, "ggml_backend_shielded_weight_source")) return (void *)ggml_backend_shielded_weight_source;
+        if (!strcmp(name, "ggml_backend_shielded_source_candidate")) return (void *)ggml_backend_shielded_source_candidate;
+        return nullptr;
+    },
 };
 
 ggml_backend_reg_t ggml_backend_shielded_reg(void) {

@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-29T02:56:36.044Z",
+  "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+  "short": "9eb4e600",
+  "hostname": "eyesoff.ai",
+  "attested": true,
+  "measurement": "8489060385f3e83eeaff6eded39d8baab9d6fd42c05338dad057b50fbec42291c2a14204cd6dc767d39591ad06b09209",
+  "appId": "ba5495a0b06fe423c74f3e1ecc9aa5614fa75d3991c02fdbd60a00ec37080a1b",
+  "release": "16ef43bd8ae21bb220b612f6abe4bd712827059f7a78e969dda27fa2a019d656",
+  "spkiSha256": "7519ad80b8396a4b692606d8f7798239c1fdc681ce73e658699c46bac7985f16",
+  "healthPath": "/",
+  "healthStatus": 200
+}

@@ -1,0 +1,106 @@
+{
+  "default": "qwen3.8-27b-mtp",
+  "ladder": [
+    {
+      "bytes": 17559178144,
+      "feed_ms": 0,
+      "load_ms": 0,
+      "model": "qwen3.8-27b-mtp",
+      "ok": true,
+      "prefix": {
+        "complete": true,
+        "marks": [
+          1371,
+          2797,
+          2813
+        ],
+        "ms": 0,
+        "parked": true,
+        "plan_ms": 7342,
+        "planned_variants": 5,
+        "router": null,
+        "target": "gpu",
+        "tokens": 2813,
+        "unique_prefixes": 8,
+        "variants": [
+          {
+            "name": "default",
+            "prefix": {
+              "marks": [
+                1371,
+                2797,
+                2813
+              ],
+              "ms": 0,
+              "parked": true,
+              "router": null,
+              "target": "gpu",
+              "tokens": 2813
+            }
+          },
+          {
+            "name": "loop",
+            "prefix": {
+              "marks": [
+                1371,
+                2797,
+                3222
+              ],
+              "ms": 1,
+              "parked": true,
+              "router": null,
+              "target": "gpu",
+              "tokens": 3222
+            }
+          },
+          {
+            "name": "search-off",
+            "prefix": {
+              "marks": [
+                1371,
+                2407,
+                2423
+              ],
+              "ms": 0,
+              "parked": true,
+              "router": null,
+              "target": "gpu",
+              "tokens": 2423
+            }
+          },
+          {
+            "name": "search-off-loop",
+            "prefix": {
+              "marks": [
+                1371,
+                2407,
+                2832
+              ],
+              "ms": 0,
+              "parked": true,
+              "router": null,
+              "target": "gpu",
+              "tokens": 2832
+            }
+          },
+          {
+            "name": "chat-only",
+            "prefix": {
+              "marks": [
+                1516
+              ],
+              "ms": 0,
+              "parked": true,
+              "router": null,
+              "target": "gpu",
+              "tokens": 1516
+            }
+          }
+        ]
+      },
+      "target": "gpu",
+      "volume": "qwen3.8-27b-mtp-q4-vl-gguf"
+    }
+  ],
+  "ok": true
+}

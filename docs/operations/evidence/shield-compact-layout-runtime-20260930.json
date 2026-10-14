@@ -1,0 +1,2991 @@
+{
+  "date": "2026-09-30T14:35:03.479783+00:00",
+  "status": "implemented and staged; not deployed; full-model performance and RAM qualification pending",
+  "base_commit": "7728ee9ee5a37b901c2d7bb153cfcc0626faf892",
+  "production_release_unchanged": "4bb9f020d0d3c0760c60f7e3a28e32e4429139c82023785d5415f83bcb054170",
+  "staged_release_sha256": "5d48542ab5744f4c8e72cf58265844a5e820164dd0fa7610f482f161a4465d2c",
+  "staged_path": "/home/steven/enclave-bench/shield-layout-integrated-20260930/staged-final/release",
+  "changed_runtime_files": [
+    "backends/libggml-shielded.so"
+  ],
+  "source_sha256": {
+    "wasm/ggml-shielded/shielded-compact.cpp": "2ab45361b45adbe27fc1e56f404c6339b6f183f5884560cf7cb0fb505e5e8b93",
+    "wasm/ggml-shielded/shielded-compact.h": "a56faf37f15588b3a235277f20794345e49bb16c2956d15d753ce0639a5c1c10",
+    "isolation/m4/build-shielded-compact.py": "1c9ff2801b5045b678454976184c34eff0116bc56a360e49f12dc8284351404e",
+    "test/fixtures/shielded-compact-runtime.cpp": "b8d1b8b5abba3d0c51a147e4de2cb82cde7a71304c89d8659e84d605f938cca3",
+    "test/fixtures/shielded-weight-verifier.cpp": "59a2d7ef1fa890b7c11401c5835b177b17ef6bf9a2a931780f6c90df98e19d26"
+  },
+  "runtime_provenance": {
+    "baseRuntime": "/home/steven/enclave-prod/release-4bb9f020/template/rt",
+    "oneDNN": "9b75e53727029539b30cf76178cff4fff31e36e623d7c0dfa710d4149f118ecd",
+    "runtime": {
+      "backends/libggml-cpu.so": "2e816c2fe5572491ed36bd1eb215d40ddc5213ee9daac7dce919c518873dd84c",
+      "backends/libggml-shielded.so": "a26e1fcf27b108ae53f45aa864b93bc5ecd92e0d92ebdd6556fdf4aae404657c",
+      "calib/model.calib": "25698f09603838fbb840dfbf1b0eeb87883326130e85156bfc142805fff26ce7",
+      "calib/qwen2.5-0.5b-q8-gguf.calib": "25698f09603838fbb840dfbf1b0eeb87883326130e85156bfc142805fff26ce7",
+      "calib/qwen3.8-27b-mtp-q4-vl-gguf.calib": "1220f83cb518e0354a6d554e517ceeeb83ee8bab44733fae1e4801ae1982ddbd",
+      "ld-linux-x86-64.so.2": "d011113b7054c641c8ca064f58bcc23804fd2654a3dff2444dad06ddeda61bfb",
+      "libbrotlicommon.so.1": "4f895094b7b6ff9c82909e6516bc9cf212e2ec5af451d39bf1bcbc5e5fa225b2",
+      "libbrotlidec.so.1": "0883fb05fa42aa6a883722098530ab08551ed317e38a2311f5c96e94dd460979",
+      "libbrotlienc.so.1": "8dbc539197d276310ce2750dcb73de5465a1259d46a5d1894e6138fd354bf5c7",
+      "libc.so.6": "e221b10fee9ee4776d8f0f1701253bc06817f7a4dbe6c5292487277d0bf8ffff",
+      "libcrypto.so.3": "24882a9ce56d9bf2f4c3722772aa8ce99e53b7165d70072ad06c9dd35cee13e3",
+      "libdnnl.so.3": "9b75e53727029539b30cf76178cff4fff31e36e623d7c0dfa710d4149f118ecd",
+      "libenclave_llama.so": "5fce1b9e76824424e9d549bc2b784d946007067856d7530edb5ba958ead81b5c",
+      "libgcc_s.so.1": "e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a",
+      "libggml-base.so.0": "c427fac4e59ded2d0889b20c5aadafb98a8458ec0f324754f0522c777ce58304",
+      "libggml.so.0": "2fc3c55e37179c52bb2f164eda3b9532942264471063a12452aa3d11af19e96b",
+      "libgomp.so.1": "d6c6309ee83dbe9b50bf38342489799a4822ee22451677730ff5542aa74bdefc",
+      "libllama.so.0": "1d84a421cdc6864bffa59cab547f264cef3dbc6bb288ad7f12e15d583e319a04",
+      "libm.so.6": "965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d",
+      "libmtmd.so.0": "d886ca4c8845ada0032516a868de7a2807e514acdc37e2b5d5fb2a4756ad785f",
+      "libshielded-omp-affinity.so": "4a0b071efd385ad4c53cd5d3a6da90d734d41cba765030b8a89029c06fbdadd7",
+      "libstdc++.so.6": "f5fc7380f2ae46fa4053a64be04e7b98109f1066a4bbfff3c37042488aa0be0e",
+      "libz.so.1": "9ba92a0b85dc9b659e8f5e596a69452cec801def6ece0883a8a2c1f032e52397",
+      "libzstd.so.1": "f023d49e85fb22057bfdd21857263d2638b73356c06f3b342f678a75212379f8",
+      "runtime.json": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "shield-compact-weights.enabled": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "shield-model": "0800f12f32be3514ec06cf090e8b9e7e3bb23f22dbf5092636c008d0ed0975e6",
+      "shield-native-cpu-pool.enabled": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "shield-original-source-reclaim.enabled": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "wasmtime": "f7d3104cdd44eb225eb13c089783144e3fa9449123e82b4a5e008f18c12b55da"
+    },
+    "sources": {
+      "bank-probe.c": "a8fc3d41d49ddf6ee68d7d60b2f3c4a64315f25b3022c9f1eecd996b4762a11e",
+      "bench-batch.cpp": "821482b3522e5c936ed895e6934c7f42310789093faa7f7191e1632af8c659bd",
+      "bench-spec.cpp": "fc129b351613b41560aba6139334760a964fe0ddd77cf12a6563e6aa85dfbcd3",
+      "dealt-selftest.c": "f87880759e920b5e1eb418fb871e573faf5b71e463f1c086bca121665b66beb2",
+      "field-selftest.c": "8e06b91e5b08d9371c1ff837617d9029f6f83bbf76b99d2636b885a3b308851b",
+      "ggml-shielded.cpp": "c739167e3af82e83e66855a77237719810e809d93bfd0062d4c7c068004f2513",
+      "ggml-shielded.h": "527f741d8ed4e90f45d04cf90933f7f44a16426cddda2254535e0a6216c1f354",
+      "ggml-test.cpp": "31c0be94fb224136848c1d949cfaad6ba21cae1a97d5a81167a7a3460a472f8d",
+      "half-selftest.c": "4f436386f4ceaae7da7ca20ccf1a858890456e2e9a65ecb2f38b99e8f3ba23c5",
+      "pads-keygen.c": "d839f11c89e179fb8bd344382641d6d9d7e9646b04f8e2d13ad2ba880307eee6",
+      "pads-unbox.c": "d5e3103c13128affaaf07815e082a8c24aed006930c778adeaac0637444940bb",
+      "poly1305-donna-32.h": "85bc63c1a468fe31a896c242be1cb7afe0cc9a262e5042911abc2cc5dbd1bcb6",
+      "poly1305-donna-64.h": "9911f24eef3da8af2daf153bd99b8c275bec9567194110262e5c6ac7f33b47df",
+      "poly1305-donna.c": "5b73b696330f991a62f8e6971eaf32f134533f9a374d7420c1f5bceb74691999",
+      "poly1305-donna.h": "db2194945f4aeb914e13efee982d365cd32cc16009febb6f68b51b6aaf17514e",
+      "postmortem-selftest.c": "3de58def154cba4c5727026583287c445d36f07f965597a8a2b141528d72ec97",
+      "prefix-kv-llama.h": "5d53046ae08ef57d69c2d1683253783d8bc7b523e706cd0a09c3d8e485fbcffc",
+      "prefix-kv-mint.cpp": "72924128a102c89668db158219e4b9d6800f76e7e9393ea9553e34653307580a",
+      "prefix-kv-selftest.c": "d4eb87a4527f6006ecb270d83c146ccb15d605e370f9f74eb635e0cc54c7306d",
+      "prefix-kv.c": "21fd87ce01afbca69c96e2f2a6a157a23c58fada0268207c20acad154800955c",
+      "prefix-kv.h": "3151a67e5ac152d134e703b38359067013b65d7d838c51d57220ca6c81cdae29",
+      "prefix-mtp.h": "2149d915128d24753244f33d8578c58c9ef4cf2e2044d1c5e28a39910456e156",
+      "prepare-selftest.c": "4961c0e1e185c503bf21d5734b4013430dd77dcbbd07c63653fa513e6c60bd56",
+      "refill-selftest.c": "14851633add89772ded1245cfc442acf3b03b0efe7903a4580be4dfb7d9843cf",
+      "shielded-avf-binding.h": "5bc3960b60e6595dfa85d39b5c5cc58f9ce91dc9c7096c9b70a1e963ece6eb46",
+      "shielded-bank.c": "9375e1ae4db84ed9b103068a05cd3d2754f606cce8aa9fc1e742d9a633d1054b",
+      "shielded-bank.h": "4ce0d4280f8c691fb1af1a17583a0419beed8edcd17b18263a723bdb6ac7f821",
+      "shielded-calib.cpp": "b9b7132253eeae2e6f164e8b4e1fcabfaaa2f4a42869b6385dbaf11f2ef72b82",
+      "shielded-compact.cpp": "2ab45361b45adbe27fc1e56f404c6339b6f183f5884560cf7cb0fb505e5e8b93",
+      "shielded-compact.h": "a56faf37f15588b3a235277f20794345e49bb16c2956d15d753ce0639a5c1c10",
+      "shielded-dealer-stream.h": "04ccea7f68e1aa8cf8e13d90f4da066a55ebdbb066f5b3713dd5490bafa36dc3",
+      "shielded-dealer.cpp": "d062baefe5a5913161342dce0d08ccc72915c086e261e38548eff424028b0b4b",
+      "shielded-encoded-source.h": "c5b5accc0baa91b02895b7a9ec075f462e68e8f646a0803796cf39ff27bfc083",
+      "shielded-field.c": "ffe2655492c20c7a38758bdaf5df190b0a90e4b1bf151a6d8bd0f21ec5ff68f4",
+      "shielded-field.h": "1693cae50a6e31ad6395fc90982b9ec2a10052e6ca5fbddb6d50be3b0341ef31",
+      "shielded-fusion.h": "95d4d90846854eff53fbc873eb6a160313f3a54051724fb7fa4a60c40e6a0637",
+      "shielded-http.c": "102e3640e0c07919ffa84d037c9b73e7d9f418838819feb7ea675933eaaf650e",
+      "shielded-http.h": "267bcac022946511b64f799652d43ec620ac5db47433e56bb87b1bdfcb4e6052",
+      "shielded-idle.h": "c0507b1adcf8fd83fcf24137ec971b06b01a3bcb62a9167b3a4ce44a64ab3945",
+      "shielded-latency.h": "67ddab93589916ffb32a9951294aacd6169b5f8cc8827abb857ee8066eecac5d",
+      "shielded-mint-balance.h": "6afd5ac1fb35c41cf2a170cd18a617e1e41b57b6d8c44356dd272b446a68fbfd",
+      "shielded-omp-affinity.c": "4645d4dfe74587ebe423493ee84676f15e5d4fc3f9dad7971541c4a0aaab3117",
+      "shielded-omp-profile.c": "4c26c608b616e88594bd69531312e2aa3a7e854cf4f1eb4d33bed242aa1255ee",
+      "shielded-overlap.h": "5c5b8e4e4d3f5f117f70e8ad524b7f42f2f02d0561c50732bfa71f5012b0e090",
+      "shielded-pad-budget.h": "a5d1409e4e1deb49c4f00de894be83a210b76dc3227623a40020544d995df70a",
+      "shielded-pad-check.h": "046b2b174e9d20a1638f2867a54226c41de1423b569312baea52fdcea9b63ebc",
+      "shielded-pad-grant.h": "763c5d49a233bdbdbedc635d4f41406fb13cd6338a675e89f189b37389d818c5",
+      "shielded-pad-layout.h": "436216922faecbe1144d23653902ced98dceca8b4318ff7009fcaed6e3cc34dd",
+      "shielded-pad-manifest.h": "a4c720a22f59cb55d2fee367d3d06ea4e9f263ee1be2f1f2014b3d23e034d6f1",
+      "shielded-pad-mint-v3.h": "63ee01a17758ae18839df3fd9941378c743594105bec1a856d5a35054bb7097d",
+      "shielded-pad-mint-v3.inc": "cf7ee976b96a781341c144a8c6934f03659cbccee0447c32ac859e096da3dc5f",
+      "shielded-pad-parallel.h": "1ad2b30cead53062a4c98a8364f9332a74f6287e12a3daaefbc9331e6763cbd0",
+      "shielded-pad-r4.h": "ac5d551f754f9f037b34a6d53b93057b916e95836f2cd995f35d235946f6b9f2",
+      "shielded-pad-sparse-plan.h": "e62db38ace0277ad5ea6535fa513be4b19010cf9d233ea038f5c23cea796fbd2",
+      "shielded-pad-sparse-table.h": "eca4fd703329a7cbe5afdffb9e52dc9b926d15733fe3a56e4311cb48634d1dfc",
+      "shielded-pads-v3.h": "54382dca27cd07e52799a9ef4b4b194ee8f169df2b340c90a258747b6d5afb8d",
+      "shielded-pads-v3.inc": "13fc10cfd77755d9058dc058b666efdf37cd08a3ca277ba7267fa3b826970a96",
+      "shielded-pads.c": "a1ca4b8f8d3d1acf1cd0d7ad0d980170a07c8c4b7c1f1f1075291d0e4406bfec",
+      "shielded-pads.h": "782c67a8fed4f31d020275a2b5326a8013d17e2f695605a86a39b5602920bb50",
+      "shielded-parwork.c": "ee8acafb08e373647191505d5df6e9b6274cae56d1ab5544eb9b5f4e9962038a",
+      "shielded-parwork.h": "62eebcf421528169da9b201a8f451d8b802a29a3bb66e77a3372342c827c8ce2",
+      "shielded-probe.c": "f4f0830b1ec8fef2a58419a1d36c8f038222ebc09342755b995ed788bf6fc78b",
+      "shielded-recv-profile.h": "d5949d0353bc08868bc54dcd1ee69f28d36917d6132d60208c35ff96929c7894",
+      "shielded-run.cpp": "7e85538c733bcb618a0dd9f22e7e2ba7c37f2484bba598ae9ca9cb411bb59624",
+      "shielded-sha256.h": "d14ff2af54899a9d14b47fa838ba1f8f5d2ac0a3d7098f9f6fa942cb3ec8e90c",
+      "shielded-simd.c": "d1e15f174c6ac243af03cf4279bbee1f1ff289017584f9734ea3b4fde73310ef",
+      "shielded-simd.h": "4a598bed4180d2745a2250dd096d44130a69a19c336f69ed481650b151f55f3c",
+      "shielded-soak.c": "54aed6ee56e735b6014068e86db461d4f8f58fc47dc7359b8749ddded207872d",
+      "shielded-source-bytes.h": "3a072ac82c792f1ba411077aede13806fd8c20b211e81ce197eb0b91826cc469",
+      "shielded-source-prefetch.h": "182e4506d187666c66031b5669b6cac96c9847930c78c2b4b33dc023752c908e",
+      "shielded-source-profile.h": "df936df021db0106d8d2a44d373f82d0943246988625e2d9223c36de48e32641",
+      "shielded-source-quant.h": "cc5a00dfdb46cb7ab763c13c5d4a26cc5561d1fe0f49c60f14c65013e60d0f34",
+      "shielded-tee.c": "f680985dbab4d28037a698db65cd864207ba7457e2c7da7ad3b1924524da50bd",
+      "shielded-tee.h": "9b61baa26dc220f48406a189b6ef6c40cb4669bfd053cb709751172252f4e348",
+      "shielded-weight-cache.h": "4b9210ebe85c701d99f9f174fbe816f5b22e2bc434b9073727394210a5cbdb32",
+      "shielded-weight-source.h": "eab219b03446f4ce69691ad3b661b45af10cfc054895150537f00198b62a5dca",
+      "shielded-wide.h": "5dc5ba2c59c4dacc58f413707bd95bdac94640d990977a93dd1d5e2160e4f352",
+      "shielded-wire-sched.h": "0d999b52941bb1b486cccece6119d3aa90d961146534fba9f4a50a0918558796",
+      "shielded-wire.c": "959c42a3006d881b6d44759618a2981771b0469950fcf6e03d4d61ee76ef5fe3",
+      "shielded-wire.h": "0c535df1730633cd64a1b6b4cd3288174fa06a10a2b1843204632c2973a810be",
+      "tweetnacl.c": "fdde1227f686ab94794798be51036f515694b165444b00d09e84bf971d5f2749",
+      "tweetnacl.h": "43f29ad721d9927b747b0100ab4160c119e7bb180c7c98a66e4bf79d31244287",
+      "vendor/ggml/ggml-alloc.h": "94e4cd069b9313b2ceb35dacec901981e0bb478d8bb31035b7126be091998c23",
+      "vendor/ggml/ggml-backend-impl.h": "d9c62d72b13bff67ef7ada8feccf90c9cd1b6d176eae85df3ed1d4f3d2240e52",
+      "vendor/ggml/ggml-backend.h": "a620e815b43a44cc72d5f216629a3a91980335b61bc37eb6b2d0813368c3704f",
+      "vendor/ggml/ggml-impl.h": "2ed56e264202906d107e26d08eabb242d3107b026ebfb78096fa1e5f94bdbbb8",
+      "vendor/ggml/ggml.h": "c65c30fdb4dce95eac71c26bb38ae8423fbc80d79db91d2b2ffaea8c4e46276a",
+      "vendor/ggml/gguf.h": "e56714aab702e5ce62ee587a409643c08f7e93e8fbb77f48ef7cc85075f96fa4"
+    }
+  },
+  "measurement_note": "Public model tensors and synthetic masks, half-width rows; no private live pads or serving GPU benchmark. O2 for both variants. First four repeats excluded. Timed build precedes the final reserve(n) cold-allocation change; arithmetic and warm refill paths are identical. Final release passes the repeated sanitizer and hermetic-provider checks.",
+  "bench_sources": {
+    "base.cpp": "ac53840df3403591c2daf982eadd37ede6777bd5d9da6f339075ddb53a3fe510",
+    "bench-concurrent.cpp": "c065c08d90ace55ccce1fc82fa2da724de9e8f67ee46cddc67053df6afcf098c",
+    "bench.cpp": "d6b354b164bf94d08edb537ac0eff34d282bfe45113ce88112655ef7c63af206",
+    "integrated.cpp": "a65406fb5b71e573975115fbb93b561d48b039e2c85d2ef3633d3d5b4a82c4e1"
+  },
+  "bench_binaries": {
+    "bench": "a2c4a229f30435366d817ac80f42469e47a3aa6039ded2280d25f44dc51659ff",
+    "bench-concurrent": "bb516f440e8cd7899a416f52d7c6949b38bdcd73b245db67b9adc49900db5987"
+  },
+  "results": {
+    "concurrent-down.jsonl": {
+      "medians": {
+        "base": {
+          "cpu_ms": 231.894,
+          "wall_ms": 67.1327,
+          "store_bytes": null
+        },
+        "integrated": {
+          "cpu_ms": 211.97750000000002,
+          "wall_ms": 64.34935,
+          "store_bytes": null
+        }
+      },
+      "time_reduction_percent": 4.146042092750624,
+      "metric": "wall_ms",
+      "samples": [
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 0,
+          "seconds": 0.0699294,
+          "cpu_s": 0.25173,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 0,
+          "seconds": 0.0667588,
+          "cpu_s": 0.234518,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 1,
+          "seconds": 0.0617983,
+          "cpu_s": 0.231337,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 1,
+          "seconds": 0.0688947,
+          "cpu_s": 0.258583,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 2,
+          "seconds": 0.0680465,
+          "cpu_s": 0.248892,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 2,
+          "seconds": 0.0622416,
+          "cpu_s": 0.214665,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 3,
+          "seconds": 0.0621936,
+          "cpu_s": 0.218653,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 3,
+          "seconds": 0.0768361,
+          "cpu_s": 0.232783,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 4,
+          "seconds": 0.0660037,
+          "cpu_s": 0.235678,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 4,
+          "seconds": 0.0597394,
+          "cpu_s": 0.21258,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 5,
+          "seconds": 0.0753445,
+          "cpu_s": 0.213755,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 5,
+          "seconds": 0.063744,
+          "cpu_s": 0.232185,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 6,
+          "seconds": 0.0643503,
+          "cpu_s": 0.237737,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 6,
+          "seconds": 0.0727485,
+          "cpu_s": 0.228533,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 7,
+          "seconds": 0.0690196,
+          "cpu_s": 0.226689,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 7,
+          "seconds": 0.0701587,
+          "cpu_s": 0.232522,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 8,
+          "seconds": 0.0669315,
+          "cpu_s": 0.237854,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 8,
+          "seconds": 0.0674956,
+          "cpu_s": 0.212001,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 9,
+          "seconds": 0.0622295,
+          "cpu_s": 0.208878,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 9,
+          "seconds": 0.0653843,
+          "cpu_s": 0.23164,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 10,
+          "seconds": 0.0673339,
+          "cpu_s": 0.223745,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 10,
+          "seconds": 0.0540685,
+          "cpu_s": 0.210889,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 11,
+          "seconds": 0.0611986,
+          "cpu_s": 0.21163,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 11,
+          "seconds": 0.0679062,
+          "cpu_s": 0.228458,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 12,
+          "seconds": 0.0676448,
+          "cpu_s": 0.238605,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 12,
+          "seconds": 0.0660094,
+          "cpu_s": 0.227142,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 13,
+          "seconds": 0.0677431,
+          "cpu_s": 0.233463,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 13,
+          "seconds": 0.0728237,
+          "cpu_s": 0.245368,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 14,
+          "seconds": 0.0668815,
+          "cpu_s": 0.231318,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 14,
+          "seconds": 0.0615701,
+          "cpu_s": 0.211954,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 15,
+          "seconds": 0.064641,
+          "cpu_s": 0.20975,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 15,
+          "seconds": 0.0736327,
+          "cpu_s": 0.258217,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 16,
+          "seconds": 0.0694843,
+          "cpu_s": 0.24743,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 16,
+          "seconds": 0.0654682,
+          "cpu_s": 0.210372,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 17,
+          "seconds": 0.0594653,
+          "cpu_s": 0.223149,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 17,
+          "seconds": 0.0703312,
+          "cpu_s": 0.228884,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 18,
+          "seconds": 0.0643681,
+          "cpu_s": 0.229916,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 18,
+          "seconds": 0.0626824,
+          "cpu_s": 0.216709,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 19,
+          "seconds": 0.0663769,
+          "cpu_s": 0.220227,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 19,
+          "seconds": 0.0790792,
+          "cpu_s": 0.232148,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 20,
+          "seconds": 0.0775449,
+          "cpu_s": 0.227576,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 20,
+          "seconds": 0.0739309,
+          "cpu_s": 0.20914,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 21,
+          "seconds": 0.063674,
+          "cpu_s": 0.204951,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 21,
+          "seconds": 0.0607289,
+          "cpu_s": 0.226983,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 22,
+          "seconds": 0.0657973,
+          "cpu_s": 0.226796,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 22,
+          "seconds": 0.0640577,
+          "cpu_s": 0.208696,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 23,
+          "seconds": 0.0633193,
+          "cpu_s": 0.208944,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "workers": 8,
+          "rep": 23,
+          "seconds": 0.0663485,
+          "cpu_s": 0.22667,
+          "exact": true
+        }
+      ],
+      "raw_sha256": "88a48d067a31faa93ebe852bb3007dddccd2089aba61f6b9d41252d7c2b16af1"
+    },
+    "concurrent-gate.jsonl": {
+      "medians": {
+        "base": {
+          "cpu_ms": 224.23000000000002,
+          "wall_ms": 63.12635,
+          "store_bytes": null
+        },
+        "integrated": {
+          "cpu_ms": 210.9,
+          "wall_ms": 62.61155,
+          "store_bytes": null
+        }
+      },
+      "time_reduction_percent": 0.8155073119228362,
+      "metric": "wall_ms",
+      "samples": [
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 0,
+          "seconds": 0.0805658,
+          "cpu_s": 0.230106,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 0,
+          "seconds": 0.0703613,
+          "cpu_s": 0.212059,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 1,
+          "seconds": 0.0587338,
+          "cpu_s": 0.21179,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 1,
+          "seconds": 0.0669278,
+          "cpu_s": 0.230963,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 2,
+          "seconds": 0.0661519,
+          "cpu_s": 0.217168,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 2,
+          "seconds": 0.0593059,
+          "cpu_s": 0.206071,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 3,
+          "seconds": 0.0587998,
+          "cpu_s": 0.209841,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 3,
+          "seconds": 0.0674418,
+          "cpu_s": 0.225952,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 4,
+          "seconds": 0.0602596,
+          "cpu_s": 0.224367,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 4,
+          "seconds": 0.0683924,
+          "cpu_s": 0.207695,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 5,
+          "seconds": 0.062608,
+          "cpu_s": 0.218046,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 5,
+          "seconds": 0.0623667,
+          "cpu_s": 0.233013,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 6,
+          "seconds": 0.0775863,
+          "cpu_s": 0.229167,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 6,
+          "seconds": 0.0740196,
+          "cpu_s": 0.205287,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 7,
+          "seconds": 0.0678834,
+          "cpu_s": 0.206545,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 7,
+          "seconds": 0.0714665,
+          "cpu_s": 0.226469,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 8,
+          "seconds": 0.0572949,
+          "cpu_s": 0.228359,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 8,
+          "seconds": 0.0607824,
+          "cpu_s": 0.211288,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 9,
+          "seconds": 0.0623519,
+          "cpu_s": 0.211503,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 9,
+          "seconds": 0.0615069,
+          "cpu_s": 0.221332,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 10,
+          "seconds": 0.0813076,
+          "cpu_s": 0.222125,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 10,
+          "seconds": 0.0633427,
+          "cpu_s": 0.210254,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 11,
+          "seconds": 0.060141,
+          "cpu_s": 0.21139,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 11,
+          "seconds": 0.0633201,
+          "cpu_s": 0.224011,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 12,
+          "seconds": 0.0629326,
+          "cpu_s": 0.224422,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 12,
+          "seconds": 0.0657586,
+          "cpu_s": 0.221081,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 13,
+          "seconds": 0.054962,
+          "cpu_s": 0.214828,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 13,
+          "seconds": 0.0756681,
+          "cpu_s": 0.223425,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 14,
+          "seconds": 0.0674175,
+          "cpu_s": 0.222418,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 14,
+          "seconds": 0.0608153,
+          "cpu_s": 0.213006,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 15,
+          "seconds": 0.0626151,
+          "cpu_s": 0.218293,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 15,
+          "seconds": 0.0614838,
+          "cpu_s": 0.226236,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 16,
+          "seconds": 0.0611831,
+          "cpu_s": 0.222005,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 16,
+          "seconds": 0.0636989,
+          "cpu_s": 0.2086,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 17,
+          "seconds": 0.0632243,
+          "cpu_s": 0.213027,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 17,
+          "seconds": 0.0782181,
+          "cpu_s": 0.225783,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 18,
+          "seconds": 0.058144,
+          "cpu_s": 0.224093,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 18,
+          "seconds": 0.0563016,
+          "cpu_s": 0.214787,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 19,
+          "seconds": 0.0606339,
+          "cpu_s": 0.208653,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 19,
+          "seconds": 0.0656324,
+          "cpu_s": 0.221516,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 20,
+          "seconds": 0.0589939,
+          "cpu_s": 0.225265,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 20,
+          "seconds": 0.0749187,
+          "cpu_s": 0.210357,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 21,
+          "seconds": 0.0582637,
+          "cpu_s": 0.210512,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 21,
+          "seconds": 0.0644843,
+          "cpu_s": 0.23028,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 22,
+          "seconds": 0.0688962,
+          "cpu_s": 0.22187,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 22,
+          "seconds": 0.0761622,
+          "cpu_s": 0.206597,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 23,
+          "seconds": 0.059962,
+          "cpu_s": 0.209538,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "workers": 8,
+          "rep": 23,
+          "seconds": 0.0589103,
+          "cpu_s": 0.221037,
+          "exact": true
+        }
+      ],
+      "raw_sha256": "8918991bd2208e72c0e85bb865f1bc89f7f5778c7deb099a9674c8d0a14a5fce"
+    },
+    "down-1.jsonl": {
+      "medians": {
+        "base": {
+          "cpu_ms": 3.811,
+          "wall_ms": 3.8249,
+          "store_bytes": 40286535
+        },
+        "integrated": {
+          "cpu_ms": 3.563,
+          "wall_ms": 3.57619,
+          "store_bytes": 40559988
+        }
+      },
+      "time_reduction_percent": 6.50747835213854,
+      "metric": "cpu_ms",
+      "samples": [
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 0,
+          "seconds": 0.00381484,
+          "cpu_s": 0.003793,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 0,
+          "seconds": 0.0041954,
+          "cpu_s": 0.004179,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 1,
+          "seconds": 0.0034093,
+          "cpu_s": 0.003397,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 1,
+          "seconds": 0.00379976,
+          "cpu_s": 0.003786,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 2,
+          "seconds": 0.00377825,
+          "cpu_s": 0.003765,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 2,
+          "seconds": 0.00358401,
+          "cpu_s": 0.003572,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 3,
+          "seconds": 0.00349405,
+          "cpu_s": 0.003485,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 3,
+          "seconds": 0.00391584,
+          "cpu_s": 0.003903,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 4,
+          "seconds": 0.00379859,
+          "cpu_s": 0.003785,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 4,
+          "seconds": 0.00357619,
+          "cpu_s": 0.003563,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 5,
+          "seconds": 0.00346902,
+          "cpu_s": 0.003459,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 5,
+          "seconds": 0.0038249,
+          "cpu_s": 0.003811,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 6,
+          "seconds": 0.00393275,
+          "cpu_s": 0.003919,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 6,
+          "seconds": 0.0037399,
+          "cpu_s": 0.003723,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 7,
+          "seconds": 0.00349103,
+          "cpu_s": 0.003482,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 7,
+          "seconds": 0.00384856,
+          "cpu_s": 0.003835,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 8,
+          "seconds": 0.0038016,
+          "cpu_s": 0.003787,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 8,
+          "seconds": 0.00375828,
+          "cpu_s": 0.003742,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 9,
+          "seconds": 0.00353145,
+          "cpu_s": 0.003522,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 9,
+          "seconds": 0.00394326,
+          "cpu_s": 0.003928,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 10,
+          "seconds": 0.00380973,
+          "cpu_s": 0.003798,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 10,
+          "seconds": 0.00367478,
+          "cpu_s": 0.003661,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 11,
+          "seconds": 0.00351173,
+          "cpu_s": 0.0035,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 11,
+          "seconds": 0.00392355,
+          "cpu_s": 0.003908,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 12,
+          "seconds": 0.00381014,
+          "cpu_s": 0.003797,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 12,
+          "seconds": 0.00371315,
+          "cpu_s": 0.0037,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 13,
+          "seconds": 0.00351764,
+          "cpu_s": 0.003508,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 13,
+          "seconds": 0.00386421,
+          "cpu_s": 0.003853,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 14,
+          "seconds": 0.0037989,
+          "cpu_s": 0.003784,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 1,
+          "rep": 14,
+          "seconds": 0.00366523,
+          "cpu_s": 0.003652,
+          "packed_bytes": 40559988,
+          "exact": true
+        }
+      ],
+      "raw_sha256": "90dabf44d53ff34ddcfc3fcdd26cc1633915ad42a0d03a79d4752c5a317666a0"
+    },
+    "down-16.jsonl": {
+      "medians": {
+        "base": {
+          "cpu_ms": 8.895999999999999,
+          "wall_ms": 8.925650000000001,
+          "store_bytes": 40286535
+        },
+        "integrated": {
+          "cpu_ms": 7.988,
+          "wall_ms": 8.02449,
+          "store_bytes": 40559988
+        }
+      },
+      "time_reduction_percent": 10.206834532374087,
+      "metric": "cpu_ms",
+      "samples": [
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 0,
+          "seconds": 0.00880981,
+          "cpu_s": 0.008783,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 0,
+          "seconds": 0.00894999,
+          "cpu_s": 0.008909,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 1,
+          "seconds": 0.00783051,
+          "cpu_s": 0.007793,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 1,
+          "seconds": 0.00929751,
+          "cpu_s": 0.009264,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 2,
+          "seconds": 0.00884705,
+          "cpu_s": 0.008817,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 2,
+          "seconds": 0.00832846,
+          "cpu_s": 0.008297,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 3,
+          "seconds": 0.00806486,
+          "cpu_s": 0.008014,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 3,
+          "seconds": 0.00914736,
+          "cpu_s": 0.009112,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 4,
+          "seconds": 0.00898393,
+          "cpu_s": 0.008947,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 4,
+          "seconds": 0.00826818,
+          "cpu_s": 0.008228,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 5,
+          "seconds": 0.00802449,
+          "cpu_s": 0.007988,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 5,
+          "seconds": 0.00901024,
+          "cpu_s": 0.008976,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 6,
+          "seconds": 0.00895124,
+          "cpu_s": 0.008917,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 6,
+          "seconds": 0.00820639,
+          "cpu_s": 0.008173,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 7,
+          "seconds": 0.00801581,
+          "cpu_s": 0.007986,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 7,
+          "seconds": 0.00899948,
+          "cpu_s": 0.008971,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 8,
+          "seconds": 0.00893447,
+          "cpu_s": 0.008905,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 8,
+          "seconds": 0.0081208,
+          "cpu_s": 0.008094,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 9,
+          "seconds": 0.00797296,
+          "cpu_s": 0.007948,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 9,
+          "seconds": 0.00892565,
+          "cpu_s": 0.008896,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 10,
+          "seconds": 0.00884724,
+          "cpu_s": 0.008817,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 10,
+          "seconds": 0.00812698,
+          "cpu_s": 0.008095,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 11,
+          "seconds": 0.00794121,
+          "cpu_s": 0.007909,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 11,
+          "seconds": 0.00890092,
+          "cpu_s": 0.00887,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 12,
+          "seconds": 0.00882781,
+          "cpu_s": 0.008795,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 12,
+          "seconds": 0.00807129,
+          "cpu_s": 0.008039,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 13,
+          "seconds": 0.00792398,
+          "cpu_s": 0.007896,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 13,
+          "seconds": 0.00888899,
+          "cpu_s": 0.008853,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 14,
+          "seconds": 0.00881803,
+          "cpu_s": 0.008782,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 16,
+          "rep": 14,
+          "seconds": 0.00800772,
+          "cpu_s": 0.00798,
+          "packed_bytes": 40559988,
+          "exact": true
+        }
+      ],
+      "raw_sha256": "803eead93de0478efdb51e7617f8d84de380ee0c483b50eeec3aeb798bdd346a"
+    },
+    "down-64.jsonl": {
+      "medians": {
+        "base": {
+          "cpu_ms": 23.839,
+          "wall_ms": 23.951,
+          "store_bytes": 40286535
+        },
+        "integrated": {
+          "cpu_ms": 22.379,
+          "wall_ms": 22.4787,
+          "store_bytes": 40559988
+        }
+      },
+      "time_reduction_percent": 6.124417970552443,
+      "metric": "cpu_ms",
+      "samples": [
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 0,
+          "seconds": 0.0306152,
+          "cpu_s": 0.030458,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 0,
+          "seconds": 0.0238764,
+          "cpu_s": 0.023773,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 1,
+          "seconds": 0.0235164,
+          "cpu_s": 0.023413,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 1,
+          "seconds": 0.0249556,
+          "cpu_s": 0.024825,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 2,
+          "seconds": 0.0246674,
+          "cpu_s": 0.024547,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 2,
+          "seconds": 0.0245401,
+          "cpu_s": 0.024421,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 3,
+          "seconds": 0.024838,
+          "cpu_s": 0.024697,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 3,
+          "seconds": 0.0263999,
+          "cpu_s": 0.026303,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 4,
+          "seconds": 0.0260047,
+          "cpu_s": 0.025889,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 4,
+          "seconds": 0.0246002,
+          "cpu_s": 0.024504,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 5,
+          "seconds": 0.0241514,
+          "cpu_s": 0.024055,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 5,
+          "seconds": 0.0255554,
+          "cpu_s": 0.025441,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 6,
+          "seconds": 0.0255564,
+          "cpu_s": 0.025433,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 6,
+          "seconds": 0.0241598,
+          "cpu_s": 0.024048,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 7,
+          "seconds": 0.0235012,
+          "cpu_s": 0.023376,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 7,
+          "seconds": 0.0245899,
+          "cpu_s": 0.024474,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 8,
+          "seconds": 0.0241627,
+          "cpu_s": 0.024047,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 8,
+          "seconds": 0.0226511,
+          "cpu_s": 0.022558,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 9,
+          "seconds": 0.0221952,
+          "cpu_s": 0.022087,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 9,
+          "seconds": 0.023951,
+          "cpu_s": 0.023839,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 10,
+          "seconds": 0.0236869,
+          "cpu_s": 0.023584,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 10,
+          "seconds": 0.0224787,
+          "cpu_s": 0.022379,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 11,
+          "seconds": 0.0223181,
+          "cpu_s": 0.022228,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 11,
+          "seconds": 0.0234598,
+          "cpu_s": 0.023361,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 12,
+          "seconds": 0.0232597,
+          "cpu_s": 0.023161,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 12,
+          "seconds": 0.0221843,
+          "cpu_s": 0.022087,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 13,
+          "seconds": 0.0220195,
+          "cpu_s": 0.02193,
+          "packed_bytes": 40559988,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 13,
+          "seconds": 0.0237334,
+          "cpu_s": 0.023624,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 14,
+          "seconds": 0.023242,
+          "cpu_s": 0.023129,
+          "packed_bytes": 40286535,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_down.weight",
+          "batch": 64,
+          "rep": 14,
+          "seconds": 0.0220606,
+          "cpu_s": 0.021966,
+          "packed_bytes": 40559988,
+          "exact": true
+        }
+      ],
+      "raw_sha256": "cad92fbeb467ca2b01cc811efd15c31cfe77bb5a405d2ea97fb5333a9675452a"
+    },
+    "gate-33.jsonl": {
+      "medians": {
+        "base": {
+          "cpu_ms": 15.261999999999999,
+          "wall_ms": 15.3157,
+          "store_bytes": 40411931
+        },
+        "integrated": {
+          "cpu_ms": 13.929,
+          "wall_ms": 13.980400000000001,
+          "store_bytes": 40505611
+        }
+      },
+      "time_reduction_percent": 8.734110863582744,
+      "metric": "cpu_ms",
+      "samples": [
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 0,
+          "seconds": 0.0202735,
+          "cpu_s": 0.020195,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 0,
+          "seconds": 0.0151779,
+          "cpu_s": 0.015103,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 1,
+          "seconds": 0.0141336,
+          "cpu_s": 0.014057,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 1,
+          "seconds": 0.0167143,
+          "cpu_s": 0.016633,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 2,
+          "seconds": 0.0154299,
+          "cpu_s": 0.01536,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 2,
+          "seconds": 0.0142555,
+          "cpu_s": 0.0142,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 3,
+          "seconds": 0.0142302,
+          "cpu_s": 0.014176,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 3,
+          "seconds": 0.0154899,
+          "cpu_s": 0.015418,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 4,
+          "seconds": 0.0153994,
+          "cpu_s": 0.015338,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 4,
+          "seconds": 0.0141305,
+          "cpu_s": 0.01407,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 5,
+          "seconds": 0.014027,
+          "cpu_s": 0.013965,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 5,
+          "seconds": 0.0154202,
+          "cpu_s": 0.015335,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 6,
+          "seconds": 0.0153461,
+          "cpu_s": 0.015282,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 6,
+          "seconds": 0.0141277,
+          "cpu_s": 0.014069,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 7,
+          "seconds": 0.0139804,
+          "cpu_s": 0.013919,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 7,
+          "seconds": 0.0153696,
+          "cpu_s": 0.015309,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 8,
+          "seconds": 0.0152702,
+          "cpu_s": 0.015216,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 8,
+          "seconds": 0.0140047,
+          "cpu_s": 0.013952,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 9,
+          "seconds": 0.0139548,
+          "cpu_s": 0.013893,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 9,
+          "seconds": 0.0153157,
+          "cpu_s": 0.015262,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 10,
+          "seconds": 0.0151549,
+          "cpu_s": 0.015093,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 10,
+          "seconds": 0.0139796,
+          "cpu_s": 0.013929,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 11,
+          "seconds": 0.0139011,
+          "cpu_s": 0.013845,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 11,
+          "seconds": 0.0153124,
+          "cpu_s": 0.015259,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 12,
+          "seconds": 0.0151423,
+          "cpu_s": 0.015084,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 12,
+          "seconds": 0.0139717,
+          "cpu_s": 0.01392,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 13,
+          "seconds": 0.0139504,
+          "cpu_s": 0.013894,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 13,
+          "seconds": 0.0153892,
+          "cpu_s": 0.015333,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 14,
+          "seconds": 0.0151044,
+          "cpu_s": 0.01503,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 33,
+          "rep": 14,
+          "seconds": 0.0140166,
+          "cpu_s": 0.013965,
+          "packed_bytes": 40505611,
+          "exact": true
+        }
+      ],
+      "raw_sha256": "01c23ab856f00fcb98abb615c7dfa76847e8e72c9750d2a4a19f1a163d81395f"
+    },
+    "gate-64.jsonl": {
+      "medians": {
+        "base": {
+          "cpu_ms": 24.295,
+          "wall_ms": 24.3964,
+          "store_bytes": 40411931
+        },
+        "integrated": {
+          "cpu_ms": 23.08,
+          "wall_ms": 23.1691,
+          "store_bytes": 40505611
+        }
+      },
+      "time_reduction_percent": 5.0010290183165385,
+      "metric": "cpu_ms",
+      "samples": [
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 0,
+          "seconds": 0.0297761,
+          "cpu_s": 0.029658,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 0,
+          "seconds": 0.0238543,
+          "cpu_s": 0.023753,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 1,
+          "seconds": 0.0243031,
+          "cpu_s": 0.024208,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 1,
+          "seconds": 0.0270412,
+          "cpu_s": 0.026928,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 2,
+          "seconds": 0.0263967,
+          "cpu_s": 0.026295,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 2,
+          "seconds": 0.0252633,
+          "cpu_s": 0.025168,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 3,
+          "seconds": 0.0244795,
+          "cpu_s": 0.024391,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 3,
+          "seconds": 0.0256892,
+          "cpu_s": 0.025597,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 4,
+          "seconds": 0.0256585,
+          "cpu_s": 0.025522,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 4,
+          "seconds": 0.0244027,
+          "cpu_s": 0.024304,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 5,
+          "seconds": 0.0236176,
+          "cpu_s": 0.023517,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 5,
+          "seconds": 0.0244768,
+          "cpu_s": 0.024379,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 6,
+          "seconds": 0.0243187,
+          "cpu_s": 0.024219,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 6,
+          "seconds": 0.0232608,
+          "cpu_s": 0.02317,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 7,
+          "seconds": 0.0231812,
+          "cpu_s": 0.023095,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 7,
+          "seconds": 0.0244334,
+          "cpu_s": 0.024339,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 8,
+          "seconds": 0.0242178,
+          "cpu_s": 0.024122,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 8,
+          "seconds": 0.0231691,
+          "cpu_s": 0.02308,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 9,
+          "seconds": 0.0231197,
+          "cpu_s": 0.023023,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 9,
+          "seconds": 0.0244536,
+          "cpu_s": 0.024339,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 10,
+          "seconds": 0.0242065,
+          "cpu_s": 0.024106,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 10,
+          "seconds": 0.0230936,
+          "cpu_s": 0.022982,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 11,
+          "seconds": 0.023013,
+          "cpu_s": 0.022923,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 11,
+          "seconds": 0.0243964,
+          "cpu_s": 0.024295,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 12,
+          "seconds": 0.024973,
+          "cpu_s": 0.024861,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 12,
+          "seconds": 0.0234375,
+          "cpu_s": 0.023327,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 13,
+          "seconds": 0.0229733,
+          "cpu_s": 0.022886,
+          "packed_bytes": 40505611,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 13,
+          "seconds": 0.0243566,
+          "cpu_s": 0.024231,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 14,
+          "seconds": 0.0241178,
+          "cpu_s": 0.024033,
+          "packed_bytes": 40411931,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "blk.0.ffn_gate.weight",
+          "batch": 64,
+          "rep": 14,
+          "seconds": 0.0231061,
+          "cpu_s": 0.023014,
+          "packed_bytes": 40505611,
+          "exact": true
+        }
+      ],
+      "raw_sha256": "f9c706b7019366ece40c3234ebae2772a0d8d8329f6e8cdb47dda1cfe760bd22"
+    },
+    "head-64.jsonl": {
+      "medians": {
+        "base": {
+          "cpu_ms": 353.031,
+          "wall_ms": 354.42400000000004,
+          "store_bytes": 559852185
+        },
+        "integrated": {
+          "cpu_ms": 354.072,
+          "wall_ms": 355.576,
+          "store_bytes": 560195753
+        }
+      },
+      "time_reduction_percent": -0.29487495432412025,
+      "metric": "cpu_ms",
+      "samples": [
+        {
+          "mode": "base",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 0,
+          "seconds": 0.36233,
+          "cpu_s": 0.360851,
+          "packed_bytes": 559852185,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 0,
+          "seconds": 0.35643,
+          "cpu_s": 0.354975,
+          "packed_bytes": 560195753,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 1,
+          "seconds": 0.355747,
+          "cpu_s": 0.354255,
+          "packed_bytes": 560195753,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 1,
+          "seconds": 0.354251,
+          "cpu_s": 0.352749,
+          "packed_bytes": 559852185,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 2,
+          "seconds": 0.355796,
+          "cpu_s": 0.35426,
+          "packed_bytes": 559852185,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 2,
+          "seconds": 0.352398,
+          "cpu_s": 0.351055,
+          "packed_bytes": 560195753,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 3,
+          "seconds": 0.352525,
+          "cpu_s": 0.351037,
+          "packed_bytes": 560195753,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 3,
+          "seconds": 0.356153,
+          "cpu_s": 0.354712,
+          "packed_bytes": 559852185,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 4,
+          "seconds": 0.353438,
+          "cpu_s": 0.352059,
+          "packed_bytes": 559852185,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 4,
+          "seconds": 0.355576,
+          "cpu_s": 0.354072,
+          "packed_bytes": 560195753,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 5,
+          "seconds": 0.352059,
+          "cpu_s": 0.35072,
+          "packed_bytes": 560195753,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 5,
+          "seconds": 0.35249,
+          "cpu_s": 0.351095,
+          "packed_bytes": 559852185,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 6,
+          "seconds": 0.352443,
+          "cpu_s": 0.351051,
+          "packed_bytes": 559852185,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 6,
+          "seconds": 0.354606,
+          "cpu_s": 0.353172,
+          "packed_bytes": 560195753,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 7,
+          "seconds": 0.354558,
+          "cpu_s": 0.35319,
+          "packed_bytes": 560195753,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 7,
+          "seconds": 0.358525,
+          "cpu_s": 0.357026,
+          "packed_bytes": 559852185,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 8,
+          "seconds": 0.357318,
+          "cpu_s": 0.35594,
+          "packed_bytes": 559852185,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 8,
+          "seconds": 0.3602,
+          "cpu_s": 0.358673,
+          "packed_bytes": 560195753,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 9,
+          "seconds": 0.358308,
+          "cpu_s": 0.356842,
+          "packed_bytes": 560195753,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 9,
+          "seconds": 0.354424,
+          "cpu_s": 0.353031,
+          "packed_bytes": 559852185,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 10,
+          "seconds": 0.3538,
+          "cpu_s": 0.352312,
+          "packed_bytes": 559852185,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 10,
+          "seconds": 0.363753,
+          "cpu_s": 0.362148,
+          "packed_bytes": 560195753,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 11,
+          "seconds": 0.359703,
+          "cpu_s": 0.358199,
+          "packed_bytes": 560195753,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 11,
+          "seconds": 0.359618,
+          "cpu_s": 0.358029,
+          "packed_bytes": 559852185,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 12,
+          "seconds": 0.353034,
+          "cpu_s": 0.351465,
+          "packed_bytes": 559852185,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 12,
+          "seconds": 0.352025,
+          "cpu_s": 0.35051,
+          "packed_bytes": 560195753,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 13,
+          "seconds": 0.356536,
+          "cpu_s": 0.354857,
+          "packed_bytes": 560195753,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 13,
+          "seconds": 0.356905,
+          "cpu_s": 0.355286,
+          "packed_bytes": 559852185,
+          "exact": true
+        },
+        {
+          "mode": "base",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 14,
+          "seconds": 0.357048,
+          "cpu_s": 0.355437,
+          "packed_bytes": 559852185,
+          "exact": true
+        },
+        {
+          "mode": "integrated",
+          "tensor": "output.weight",
+          "batch": 64,
+          "rep": 14,
+          "seconds": 0.352145,
+          "cpu_s": 0.35063,
+          "packed_bytes": 560195753,
+          "exact": true
+        }
+      ],
+      "raw_sha256": "ce72ecd593ed00b85ad005f7f3643fc071c97beea4ba8fe42fe20031a8426883"
+    }
+  },
+  "tests": {
+    "sanitizer_final": "TAP version 13\n# Subtest: production compact provider preserves field arithmetic and fails closed\nok 1 - production compact provider preserves field arithmetic and fails closed\n  ---\n  duration_ms: 10435.478902\n  type: 'test'\n  ...\n1..1\n# tests 1\n# suites 0\n# pass 1\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 10485.657164\n",
+    "authentication_lifecycle_log_sha256": "c3abee8dd121f9ef1234059dfa00f9ea13a142beeb04f4e3f45ae80369d02858",
+    "authentication_lifecycle": "both test suites passed, including eligible-layout original-source discard and quiesce/restart",
+    "hermetic_release_log_sha256": "f4dcdd2daef8914dbe7bbe9f9b6d8796584ba1fb68da269e43cec7a55c73441c",
+    "manifest_files": 45
+  },
+  "limits": {
+    "encoded_payload_growth_per_tile_percent": 1,
+    "workspace_bytes_per_worker": 8388608,
+    "workspace_alignment_slack_bytes": 64,
+    "small_batch_plans_per_geometry": 4,
+    "geometry_weak_lookup_entries": 32,
+    "total_process_memory": "not yet qualified; store byte metric excludes shared plans and worker scratch",
+    "production_tok_s": "not measured"
+  },
+  "rejected": "staged/0ad49799 reverse-layout small-refill version; see NOT_FOR_ROLLOUT.txt",
+  "scratch_directory": "/home/steven/enclave-bench/shield-layout-integrated-20260930"
+}

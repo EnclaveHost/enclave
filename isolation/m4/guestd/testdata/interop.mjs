@@ -8,7 +8,7 @@ const step = async (name, f) => { try { out[name] = await f(); } catch (e) { out
 const c = new GuestdControl(url, parseKey(keyHex));
 await step("connect", async () => { await c.connect(); return "ok"; });
 await step("health", async () => (await c.request("GET", "/health")).status);
-await step("launch", async () => { const r = await c.request("POST", "/vms", { image: "file://" + bundle, name: "0xjs" }); return r.status + " " + r.body.status; });
+await step("launch", async () => { const r = await c.request("POST", "/vms", { cpuShare: 1, image: "file://" + bundle, name: "0xjs" }); return r.status + " " + r.body.status; });
 await step("lease", async () => { const r = await c.request("POST", "/vms/lease", { ids: ["0xjs"] }); return r.status + " " + JSON.stringify(r.body.extended); });
 await step("replay", async () => {
   const { headers } = c.sign("GET", "/vms", "");

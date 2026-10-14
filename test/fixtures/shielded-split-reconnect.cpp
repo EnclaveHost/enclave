@@ -3,6 +3,8 @@
 #include <cassert>
 int main(int argc, char **argv) {
     assert(argc == 3);
+    const bool compact = getenv("TEST_COMPACT") != nullptr;
+    if (compact) setenv("SHIELDED_COMPACT_WEIGHTS", "1", 1);
     cpu_set_t allowed, main_cpu, other_cpu;
     assert(!sched_getaffinity(0, sizeof allowed, &allowed));
     std::vector<int> cpus;
@@ -64,6 +66,26 @@ int main(int argc, char **argv) {
     assert(p.cards[0]->local_nodes == 0 && p.cards[1]->local_nodes == 0);
     assert(ggml_backend_shielded_profile_snapshot(counters, 24) == 1);
     assert(counters[1] == 2 && counters[3] > 0 && counters[4] == 0);
+    if (compact) {
+        // MTP may first expose a weight after prefill has opened both links.
+        // Late registration must discard old pads, reconnect, and preserve
+        // exact verified output without retaining original tensor pages.
+        auto *late = ggml_dup_tensor(ctx, w);
+        memcpy(late->data, w->data, ggml_nbytes(w));
+        ggml_set_name(late, "blk.1.ffn_gate.weight");
+        for (auto *s : p.cards) s->calib[ggml_get_name(late)] = {8, {}};
+        p.pending[ggml_get_name(late)] = *late;
+        sh_plan(p);
+        for (auto *s : p.cards) {
+            assert(!s->weight_cache_failed);
+            assert(s->weights.at(ggml_get_name(late)).w.empty());
+        }
+        auto *next = ggml_mul_mat(ctx, late, x);
+        auto *ng = ggml_new_graph_custom(ctx, 8, false); ggml_graph_add_node(ng, next);
+        assert(sh_card_compute(*p.cards[0], ng) == GGML_STATUS_SUCCESS);
+        assert(!memcmp(first.data(), next->data, 128*sizeof(float)));
+        assert(p.cards[0]->local_nodes == 0 && p.cards[1]->local_nodes == 0);
+    }
     std::atomic<bool> holding{false}, release{false};
     std::thread busy([&] { std::lock_guard<std::mutex> lock(p.mu); holding = true; while (!release) std::this_thread::yield(); });
     while (!holding) std::this_thread::yield();

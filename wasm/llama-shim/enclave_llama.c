@@ -186,6 +186,11 @@ int32_t ell_d2h_probe(int32_t size_mb, int64_t *out) {
     return 0;
 }
 
+#ifdef ELL_SHIELD_SOURCE_LOADER
+extern struct llama_model *ell_shield_load_model(const char *, struct llama_model_params);
+extern void ell_shield_free_model(struct llama_model *);
+#endif
+
 void *ell_load_model(const char *path, int32_t n_gpu_layers) {
     struct llama_model_params p = llama_model_default_params();
     p.n_gpu_layers = n_gpu_layers;
@@ -218,10 +223,20 @@ void *ell_load_model(const char *path, int32_t n_gpu_layers) {
      * card; everyone else keeps the repacked kernels. */
     const char *xb = getenv("ENCLAVE_GGML_EXTRA_BUFTS");
     p.use_extra_bufts = !(xb && xb[0] == '0' && xb[1] == '\0');
+#ifdef ELL_SHIELD_SOURCE_LOADER
+    return ell_shield_load_model(path, p);
+#else
     return llama_model_load_from_file(path, p);
+#endif
 }
 
-void ell_free_model(void *model) { llama_model_free((struct llama_model *)model); }
+void ell_free_model(void *model) {
+#ifdef ELL_SHIELD_SOURCE_LOADER
+    ell_shield_free_model((struct llama_model *)model);
+#else
+    llama_model_free((struct llama_model *)model);
+#endif
+}
 
 int32_t ell_n_vocab(void *model) {
     return llama_vocab_n_tokens(llama_model_get_vocab((const struct llama_model *)model));

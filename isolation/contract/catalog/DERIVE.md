@@ -70,7 +70,8 @@ Every `/1` vector in `derive_vectors.json` is byte-identical to the one before `
   hashed into the bundle.
 - **Another pinned policy gives another AppID.** The contract makes the manifest's policy the domain's share
   (`EffectivePolicy`), so the policy is part of what was attested. The supervisor's per-deployment share does NOT
-  flow into the bundle; the record pins it.
+  flow into the bundle; the record pins it. Admission independently requires the effective app RAM
+  (including any model minimum) to fit the deployment's CPU/RAM share. This does not change AppID derivation.
 - **Another pinned runtime gives the same AppID but a different record.** A mapping is refused on a host whose
   runtime is not the one pinned, so a verifier's expected runtime identity is the record's.
 - **A new rule is a new version.** Any change to how the manifest is built becomes a new version (`/2` was the
