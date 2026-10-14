@@ -64,7 +64,7 @@ async function socks({ port, user, pass, atyp, host, dport }) {
   return { sock, authOk: true, reply: Buffer.concat([head, rest]) };
 }
 
-// A real local SOCKS upstream stands in for the TUNA SDK listener.
+// A real local SOCKS upstream stands in for the host's egress circuit SOCKS entry.
 async function harness() {
   const echo = net.createServer(s => s.pipe(s)); echo.listen(0, "127.0.0.1"); await once(echo, "listening");
   const h = await phase2Harness({host: "127.0.0.1", port: echo.address().port});
@@ -92,7 +92,7 @@ test("wrong SOCKS password is rejected (tenant isolation)", async () => {
   h.teardown();
 });
 
-test("TUNA receives the validated destination without a claimed dedicated source IP", async () => {
+test("the upstream receives the validated destination without a claimed dedicated source IP", async () => {
   const h = await harness();
   try {
     const {sock, reply, authOk} = await socks({port:h.socksPort, user:"depA", pass:egressToken(SECRET,"depA"), atyp:3, host:"echo.test", dport:80});
@@ -125,7 +125,7 @@ test("CONNECT to a loopback literal is denied before leaving the enclave", async
   h.teardown();
 });
 
-test("DNS resolving into a private network never reaches TUNA", async () => {
+test("DNS resolving into a private network never reaches the upstream", async () => {
   const h = await harness();
   try {
     const {reply} = await socks({port:h.socksPort, user:"depA", pass:egressToken(SECRET,"depA"), atyp:3, host:"private.test", dport:443});
@@ -253,7 +253,7 @@ test("phase2: phase-1 explicit SOCKS (ENCLAVE_EGRESS) still works under the lock
   assert.equal(m[2], "ping-egress");
   // The authenticated SOCKS request still reaches the selected public destination.
   const open = h.opens.at(-1);
-  assert.equal(open.host, "93.184.216.34", "the front resolves and validates the destination before TUNA");
+  assert.equal(open.host, "93.184.216.34", "the front resolves and validates the destination before the upstream");
   echo.close(); h.teardown();
 });
 
@@ -298,7 +298,7 @@ test("phase2: the wasi:http outgoing handler is mediated too (serve mode, socks5
   assert.ok(up && status === 200, `serve did not respond (up=${up} status=${status} stderr=${serr.slice(0, 200)})`);
   assert.match(body, /hello-from-target/, "wasi:http response must be proxied through egress");
   const open = h.opens.at(-1);
-  assert.equal(open.host, "93.184.216.34", "the validated DNS result reaches TUNA as a literal");
+  assert.equal(open.host, "93.184.216.34", "the validated DNS result reaches the upstream as a literal");
   assert.equal(open.port, 80);
 });
 

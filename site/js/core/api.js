@@ -272,13 +272,15 @@ export const Enclave = {
       return r.json();
     }).then(j => (j && j.enclaves) || []);
   },
-  // Current provider allocations and expiring deployment-to-address mappings.
-  getTunaNetwork(){
-    const url = (this.base || "").replace(/\/v1\/?$/, "") + "/v1/network/tuna";
-    return fetch(url, {headers: {Accept: "application/json"}}).then(r => {
-      if (!r.ok) throw new EnclaveError("network: HTTP " + r.status, r.status);
-      return r.json();
-    });
+  // The relay's expiring per-app routes (deployment -> provider addresses). A relay from before the 2026-10-14 rename
+  // serves them only at /v1/network/tuna.
+  async getNetworkRoutes(){
+    const base = (this.base || "").replace(/\/v1\/?$/, "");
+    const get = path => fetch(base + path, {headers: {Accept: "application/json"}});
+    let r = await get("/v1/network/routes");
+    if (r.status === 404) r = await get("/v1/network/tuna");
+    if (!r.ok) throw new EnclaveError("network: HTTP " + r.status, r.status);
+    return r.json();
   },
   /* Deployments. List/get are PUBLIC ledger reads: the wallet session (or a
      per-host token) gives the enclaves' live view (status/network), but a

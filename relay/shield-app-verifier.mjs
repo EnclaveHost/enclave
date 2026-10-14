@@ -37,7 +37,8 @@ export async function expectedShieldApp(row, { policy, readCatalog, readConfig, 
     if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(k => !allowed.includes(k)))
       throw new Error(`unsupported ${key} options`);
   }
-  if (envelope.network?.transport !== undefined && envelope.network.transport !== 'tuna')
+  // 'tuna' is what envelopes written before the 2026-10-14 rename carry; both mean the Enclave network
+  if (envelope.network?.transport !== undefined && envelope.network.transport !== 'enclave-network' && envelope.network.transport !== 'tuna')
     throw new Error('unsupported network transport');
   // Historical ledger metadata no longer selects a route.
   const relay = envelope.network?.relay;
