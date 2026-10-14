@@ -185,14 +185,14 @@ async function publishRoutes(origin, signer = OPERATOR) {
     const policy = validateNetworkPolicy(defaultNetworkPolicy(d.id));
     const bundle = await new RoutePublisher({ directory: dir, account: signer, lease: () => lease, policy: () => policy, distribute: async () => {} })
       .publish(d.id, [{ circuit: "c".repeat(32), address: EXIT, port: 443, transport: "enclave-network" }]);
-    last = await fetch(origin + "/v1/network/tuna", { method: "POST", headers: { "content-type": "application/json" },
+    last = await fetch(origin + "/v1/network/routes", { method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ publication: { version: 2, endpoint: ENDPOINT, policy, bundle } }) });
     if (last.status !== 200) break;
   }
   fs.rmSync(dir, { recursive: true, force: true });
   return last;
 }
-const routeMap = async origin => (await fetch(origin + "/v1/network/tuna")).json();
+const routeMap = async origin => (await fetch(origin + "/v1/network/routes")).json();
 
 const lc = (a) => a.address.toLowerCase();
 const hvWorld = (t) => { const dir = tmpdir("hv-owner-"); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

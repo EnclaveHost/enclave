@@ -896,14 +896,14 @@ test("api-relay: a stale row on an ex-runner never shadows the ledger's live one
 // The old relay roster cannot advertise an application address after retirement.
 test("api-relay: the route map is empty until a host publishes, and TUNA-era publications are refused", async t => {
   const origin = await startRelay(t, { enclaves: "http://127.0.0.1:1" });
-  // /v1/network/routes, and the pre-rename path installed hosts and DNS still read
-  for (const route of ["/v1/network/routes", "/v1/network/tuna", "/v1/relays"]) {
+  for (const route of ["/v1/network/routes", "/v1/relays"]) {
     const {status, body} = await getJson(origin, route);
     assert.equal(status, 200); assert.equal(body.transport, "enclave-network");
     assert.deepEqual(body.relays, []); assert.deepEqual(body.labels, {});
     assert.deepEqual(body.deployments, {});
   }
-  for (const path of ["/v1/network/routes", "/v1/network/tuna"]) {
+  assert.notEqual((await fetch(origin + "/v1/network/tuna")).status, 200, "the pre-rename path is retired");
+  for (const path of ["/v1/network/routes"]) {
   const rejected = await fetch(origin + path, {
     method: "POST", headers: {"content-type": "application/json"},
     body: JSON.stringify({publication: {version: 1, endpoint: "https://api.enclave.host/t/unregistered",

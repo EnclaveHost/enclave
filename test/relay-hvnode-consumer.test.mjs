@@ -201,7 +201,7 @@ test("an operator attach authenticates the host but its legacy relay declaration
   assert.equal(res && res.ok, true, res && res.reason);
   const row = await waitFor(async () => { const j = await (await fetch(origin + "/enclaves")).json(); const r = (j.enclaves || []).find((e) => e.name === "us-west"); return r && r.availability ? r : null; });
   assert.ok(row); assert.equal(row.attach, "operator"); assert.equal(row.mode, "");
-  const response = await fetch(origin + "/v1/network/tuna");
+  const response = await fetch(origin + "/v1/network/routes");
   assert.equal(response.status, 200);
   const rel = await response.json();
   assert.deepEqual(rel.relays, []);

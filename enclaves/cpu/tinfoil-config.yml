@@ -97,9 +97,9 @@ containers:
       # the registry automatically — there is no secret to provision.
       # - PROOF_OF_TIME_ADDRESS: "0x..."               # optional: pin the prover (else from the address book)
       # - PROOF_INTERVAL_SEC: "300"                    # optional: how often we prove we are serving (contract window is 900s)
-      # TUNA egress uses a host-side SOCKS entry; configure its reachable origin
+      # App egress uses a host-side SOCKS entry (an Enclave-network circuit); configure its reachable origin
       # only after installing and funding that host adapter (network/README.md).
-      # - TUNA_SOCKS_UPSTREAM: "socks5://HOST_GATEWAY:30489"
+      # - EGRESS_SOCKS_UPSTREAM: "socks5://HOST_GATEWAY:30489"
       - EGRESS_SOCKS_PORT: "1080"
       # manual-billing / pilot controls, same semantics as the GPU flavor.
       - AUTO_PROVISION: ""
