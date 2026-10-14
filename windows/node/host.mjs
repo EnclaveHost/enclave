@@ -53,6 +53,7 @@ import { CAP_STEP, loadCaps, saveCaps } from "./hosting.mjs";
 import { priceGuide, defaultPrice, rowTiers, perSec6Of, perHourOf } from "./price-guide.mjs";
 import { gasRunway } from "./gas-runway.mjs";
 import { registrationAction, mayReconcile } from "../../network/registry-reconcile.mjs";
+import { readUpdateWindow } from "./update-window.mjs";
 import { recentHyperVEvents } from "./hyperv-events.mjs";
 import { createAuditJobs, auditAppRefsOf } from "./audit-jobs.mjs";
 import { PARTITION_OFFERS } from "../vbslike/datapath/partition-offers.mjs";
@@ -3092,6 +3093,8 @@ export class Host {
       gas: { operator: chain.operatorAddress() || null, leases: chain.leaseGasActive() ? "app-funded" : "operator-paid",
              low: this.gasLow === true && !chain.leaseGasActive(), registryEthLow: this.gasLow === true,
              hoursLeft: this.gasHoursLeft ?? null, renewalsLeft: chain.leaseGasActive() ? null : this.gasRenewals ?? null },
+      // when Windows Update may restart this PC (install-host.ps1 sets it as policy from host.json; update-window.mjs)
+      updateWindow: readUpdateWindow(this.cfg.dir),
       logsDir: this.cfg.dir,
       // for the hosting panel (host-ui, shared with the phone's Enclave app): what it calls this machine, and the apps here
       // (what occupies it, newest first, as dropPlan orders them)
