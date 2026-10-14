@@ -109,7 +109,8 @@ const ACME_CONTACT = _contactRaw && (_contactRaw.includes(":") ? _contactRaw : `
 
 // Timing knobs — production defaults mirror supervisor.js; tests shrink them.
 const HTTP_MS        = parseInt(env("CERTS_HTTP_TIMEOUT_MS") || "20000", 10);
-const CA_COOLDOWN_MS = parseInt(env("CERTS_CA_COOLDOWN_MS") || "120000", 10);   // 2 min, see supervisor.js
+const CA_COOLDOWN_MS = parseInt(env("CERTS_CA_COOLDOWN_MS") || "120000", 10);
+const ACME_READ_RETRY_MS = parseInt(env("CERTS_ACME_READ_RETRY_MS") || "1500", 10);   // a 5xx on a POST-as-GET: asked again after 1.5 s, 3 s   // 2 min, see supervisor.js
 const DNS_SETTLE_MS  = parseInt(env("CERTS_DNS_SETTLE_MS") || "5000", 10);
 const POLL_MS        = parseInt(env("CERTS_POLL_MS") || "2000", 10);
 const POLL_TIMEOUT_MS = parseInt(env("CERTS_POLL_TIMEOUT_MS") || "90000", 10);
@@ -439,6 +440,11 @@ async function acmePost(ca, url, payload, { useJwk = false, acct = ca.account } 
     const data = isJson ? await r.json().catch(() => null) : await r.text();
     if (r.status >= 400) {
       if (attempt === 0 && data && /badNonce/.test(data.type || "")) continue;
+      // A POST-as-GET (payload null: reading an order, an authorization, a certificate) that the CA answers with a 5xx
+      // is asked again, twice, a moment apart: it is a read, so repeating it changes nothing at the CA. ZeroSSL answered
+      // authz reads with an HTML 502 now and then on 2026-10-14, and each one sank the whole order. Orders, challenge
+      // responses and finalizations (a payload) are never repeated here.
+      if (payload === null && r.status >= 500 && attempt < 2) { await sleepMs(ACME_READ_RETRY_MS * (attempt + 1)); continue; }
       const type = isJson ? String(data?.type || "") : "";
       const e = new Error(`ACME ${r.status} at ${url}: ${isJson ? `${type || "?"} ${data?.detail || ""}`.trim() : String(data).slice(0, 200)}`);
       e.status = r.status;

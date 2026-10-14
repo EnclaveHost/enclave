@@ -180,7 +180,11 @@ function mockCa({ eab = null } = {}) {
       const authzBody = () => ({ status: o.authz, identifier: { type: "dns", value: o.name },
         challenges: [{ type: "dns-01", url: `${ca.url}/chal/${o.id}`, token: o.token, status: o.authz === "valid" ? "valid" : "pending",
                        ...(o.authz === "invalid" ? { error: { type: "urn:ietf:params:acme:error:unauthorized", detail: "no TXT" } } : {}) }] });
-      if (m[1] === "authz") { count("authz"); return send(200, authzBody()); }
+      if (m[1] === "authz") {
+        count("authz");
+        if (ca.mode === "authz502Once") { ca.mode = "ok"; count("authz502"); res.writeHead(502, { "content-type": "text/html", "replay-nonce": nonce() }); return res.end("<html>502</html>"); }   // ZeroSSL 2026-10-14
+        return send(200, authzBody());
+      }
       if (m[1] === "chal") {
         count("challenge");
         if (ca.slowInvalidMs) { await new Promise((r) => setTimeout(r, ca.slowInvalidMs)); o.authz = "invalid"; return send(200, authzBody().challenges[0]); }
@@ -230,7 +234,7 @@ Object.assign(process.env, {
   CERTS_ENDPOINT_BURST: "500", CERTS_CA_BURST: "500",       // the suite asks far more often than a real box may
   ACME_EAB_KID: EAB.kid, ACME_EAB_HMAC: EAB.hmac, ACME_CONTACT: "certs@example.test",
   ACME_DIRECTORY: ca1.url + "/directory", ACME_DIRECTORY_2: ca2.url + "/directory",
-  CERTS_HTTP_TIMEOUT_MS: "400", CERTS_CA_COOLDOWN_MS: "1500", CERTS_DNS_SETTLE_MS: "0",
+  CERTS_HTTP_TIMEOUT_MS: "400", CERTS_CA_COOLDOWN_MS: "1500", CERTS_ACME_READ_RETRY_MS: "50", CERTS_DNS_SETTLE_MS: "0",
   CERTS_POLL_MS: "20", CERTS_POLL_TIMEOUT_MS: "3000", CERTS_SYNC_WAIT_MS: "10000",
 });
 const { initCerts, handleCerts, certsEnabled, issueSig, issueMessage, parseCsr, authorizeName, _internals } =
@@ -525,6 +529,16 @@ test("a newNonce HEAD that answers 502 without a nonce falls back to GET (ZeroSS
   const r = await call(await body());
   assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.ca, "zerossl", "the first CA still issues");
   assert.ok((ca1.calls.nonceHead502 || 0) > before, "the HEAD really failed first");
+  ca1.mode = "ok";
+});
+
+test("an authorization read the CA answers with a 5xx is asked again, and the order still issues on that CA (ZeroSSL, 2026-10-14)", async () => {
+  rows = [leaseRow()];
+  ca1.mode = "authz502Once";
+  const before = ca1.calls.authz502 || 0;
+  const r = await call(await body());
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.ca, "zerossl", "no fallover for a read that failed once");
+  assert.equal((ca1.calls.authz502 || 0), before + 1, "the read really failed first");
   ca1.mode = "ok";
 });
 
