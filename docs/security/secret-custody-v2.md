@@ -1,8 +1,45 @@
 # Secret custody v2: custodians run by the hosts, inside their TEEs
 
-Status: BEING BUILT (Steven, 2026-10-14: "build this out now and deploy to production"). Successor to
-[secret-custody.md](secret-custody.md) (v1, live since 2026-10-14). The decisions in §11 are made; §6.2 adds Steven's
-Enclave-seat rules.
+Status: LIVE on Base and metal0 (2026-10-14 23:35Z), verified on hardware. Successor to
+[secret-custody.md](secret-custody.md) (v1, still serving v1 bundles). The decisions in §11 are made; §6.2 adds Steven's
+Enclave-seat rules. Interfaces: [secret-custody-v2-spec.md](secret-custody-v2-spec.md).
+
+**What is live:**
+
+| Part | Where |
+|---|---|
+| `EnclaveSecretVaultV2` | Base `0xE48699B8401564aaCe7A814AE4569b67a3F7eEF5` (no owner, admin or proxy; book key `secretVaultV2` NOT set) |
+| Committee | `0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3`: epoch 1, ONE seat (the Enclave seat), `t = 1` |
+| Custodian | its own SEV-SNP VM on warden-host (`enclave-custodian-v2` user unit; image `custodian-v2-9d43e63e8`, measurement `c8663742…`) |
+| Custodian key | generated in the VM, sealed with the chip's derived key; the host holds only ciphertext |
+| Custodian endpoint | `https://api.enclave.host/t/custody-metal0` (relay fleet tunnel, attached by the VM's own quote) |
+| Relay | `CUSTODY_VAULT_V2` on nan; the v2 pointer in signed releases; the custodian API allowed for `custody-*` tunnels |
+| Guest | CPU release `d84fb52b` (front from `custody/front-prod`); guestd `custody2-568ab660bab4` |
+| Supervisor | metal0 control image `dist-custody-v2-295650320` (measurement `5678855f…`): signs v2 releases for this vault only |
+| CLI | `enclave custody set|migrate|status|pause|resume --v2` |
+
+**Hardware verification (canary `0x4e62e60d`, agent wallet, hello-world, rules admitting one image `ab852fe5…`):**
+- The guest logged `DOM custody: … secrets revision 1 from a v2 threshold of 1 over 1 custodian machines` and started
+  the app. The custodian logged `release … OK`.
+- With the custodian stopped, the guest refused (`insufficient custodian quorum … need 1`) and did not start the app.
+- After a restart, the custodian reopened its sealed state with the same identity and share, and the next boot
+  unlocked.
+- On anvil, `test/custody-v2-e2e.test.mjs` covers the multi-seat paths: a capacity-gated join, a handover through the
+  contract, `t = 2` with exactly one Enclave partial, and the two Enclave machines unable to reach `t` alone.
+
+**Not yet (each fails closed):**
+- **Only the Enclave seat exists.** No other SEV-SNP host is in the fleet.
+- **Non-Enclave candidates are refused.** Their proof of capacity must be Capacity Work receipts that name the
+  candidate's chip ID (§5 item 2). The capacity pipeline is not active and its receipts do not name chips yet.
+  `capacityCheck` refuses every candidate until both change.
+- **A single machine holds the key.** If warden-host's chip or sealed state is lost, every v2 bundle is unreadable, and
+  owners must re-enter their values (§10).
+- **The custodian keeps some state only in memory.** That is its per-deployment high-water marks and its AMD VCEK
+  cache. After a restart, rollback protection starts again from the next read.
+- **The relay is in the path.** The guest reaches the custodian through the relay's tunnel, and gets the pointer from
+  the relay-signed release (v1 L3).
+- **Not built yet:** the site's "Save to custody" (v1 only; v2 via the CLI) and the governance book entry.
+- **No external cryptographic review.**
 
 ## 1. Why v1 is not enough
 
