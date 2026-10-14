@@ -450,6 +450,8 @@ function makeRateLimiter({ capacity, refillPerSec }) {
   };
 }
 const rlExpected = makeRateLimiter({ capacity: 60, refillPerSec: 1 });   // per client IP: GET /v1/expected-guest
+const rlFreshAttest = makeRateLimiter({ capacity: 6, refillPerSec: 0.2 }); // per client IP: GET /v1/enclaves/<name>/attestation (a quote per call)
+const rlKds = makeRateLimiter({ capacity: 60, refillPerSec: 2 });          // per client IP: GET /v1/amd-kds/... (cached; AMD rate-limits us)
 const rlMiss = makeRateLimiter({ capacity: 60, refillPerSec: 10 });   // /x + app-subdomain owner misses
 const rlHint = makeRateLimiter({ capacity: 20, refillPerSec: 2 });    // /v1/claim-hint fan-out
 // Signed-upload authorization (/v1/apps/upload-token): per-wallet token-mint cap.
@@ -1076,6 +1078,25 @@ const cors = (req) => {
 // its headers through), and nosniff can change how an app's own bytes render.
 const OWN_HEADERS = { "X-Content-Type-Options": "nosniff",
                       "Strict-Transport-Security": "max-age=31536000; includeSubDomains" };
+// The AMD KDS mirror's fetch and cache (GET /v1/amd-kds/...): one upstream fetch per path at a time; chains and CRLs for
+// hours, VCEKs (immutable per chip + TCB) for a week; KDS refusals (404 for an unknown chip) are cached briefly too.
+const AMD_KDS = "https://kdsintf.amd.com";
+const _kdsCache = new Map(), _kdsInflight = new Map();
+function amdKds(rel) {
+  const hit = _kdsCache.get(rel);
+  if (hit && Date.now() < hit.until) return Promise.resolve(hit);
+  if (_kdsInflight.has(rel)) return _kdsInflight.get(rel);
+  const p = fetch(`${AMD_KDS}/${rel}`, { signal: AbortSignal.timeout(15000) }).then(async (r) => {
+    const body = Buffer.from(await r.arrayBuffer());
+    if (body.length > 256 * 1024) throw new Error("the KDS answer is larger than any collateral");
+    const ttl = r.status !== 200 ? 60_000 : /\/(cert_chain|crl)$/.test(rel.split("?")[0]) ? 6 * 3600_000 : 7 * 86400_000;
+    const v = { status: r.status === 200 ? 200 : r.status === 404 ? 404 : 502, type: r.headers.get("content-type") || "application/octet-stream", body, until: Date.now() + ttl };
+    if (r.status === 200 || r.status === 404) { _kdsCache.set(rel, v); while (_kdsCache.size > 512) _kdsCache.delete(_kdsCache.keys().next().value); }
+    return v;
+  }).finally(() => _kdsInflight.delete(rel));
+  _kdsInflight.set(rel, p);
+  return p;
+}
 const json = (res, code, body, req) => {
   res.writeHead(code, { "Content-Type": "application/json", "Cache-Control": "no-store", ...OWN_HEADERS,
                         ...(req ? cors(req) : { "Access-Control-Allow-Origin": "*" }) });
@@ -2680,6 +2701,38 @@ function handleRequest(req, res) {
   if (u.pathname === "/v1/release-index" && req.method === "GET") {
     res.setHeader("cache-control", "public, max-age=300");
     return json(res, 200, reverifier.mirror(), req);
+  }
+
+  // A FRESH attestation of an attached SEV-SNP box over the CALLER's nonce (verifier/consumer.mjs verifyMetalBox; the site's
+  // live verify). The box signs nothing here and neither does the relay: the document is the box's own, AMD-signed, with
+  // report_data[0:32] = sha256(its transport SPKI || YOUR nonce), handed back verbatim. The relay's admitted measurements are
+  // attached for information and labelled as what they are: this operator's allowlist, not an independent expectation.
+  const freshAt = u.pathname.match(/^\/v1\/enclaves\/([A-Za-z0-9_-]{1,64})\/attestation$/);
+  if (freshAt && req.method === "GET") {
+    if (!rlFreshAttest(clientIp(req))) return json(res, 429, { error: "rate_limited", message: "Too many fresh attestations; retry in a few seconds." }, req);
+    const nonceHex = String(u.searchParams.get("nonce") || "");
+    if (!/^[0-9a-f]{64}$/.test(nonceHex)) return json(res, 422, { error: "bad_nonce", message: "nonce must be 64 lowercase hex characters (32 bytes) of your own choosing." }, req);
+    const name = freshAt[1], row = tunnelHub.origins().find((o) => o.name === name);
+    return tunnelHub.freshAttestation(name, Buffer.from(nonceHex, "hex")).then(
+      (document) => json(res, 200, { name, nonce: nonceHex, fetchedAt: new Date().toISOString(), document,
+        operatorAllowlist: { source: "this relay's METAL_ALLOWED_MEASUREMENTS (the operator's own word, not a reproduction)",
+                             admittedAtAttach: row?.measurement || null, measurements: METAL_ALLOWED_MEASUREMENTS } }, req),
+      (e) => { const code = { no_box: 404, bad_nonce: 422, busy: 503, timeout: 504 }[e.code] || 502;
+               return json(res, code, { error: e.code || "attestation_failed", message: e.message }, req); });
+  }
+
+  // AMD's KDS (kdsintf.amd.com), mirrored for BROWSERS: AMD sends no CORS headers, so a page cannot fetch a VCEK, the ASK/ARK
+  // chain or the CRL itself. Bytes only, cached: the client verifies them against the AMD root it pins (relay/snp-verify.mjs
+  // AMD_ARK_SHA256), so this mirror can withhold collateral but never forge it. Only KDS's own VCEK paths are accepted.
+  const kdsPath = u.pathname.match(/^\/v1\/amd-kds\/(vcek\/v1\/(?:Milan|Genoa|Turin)\/(?:cert_chain|crl|[0-9a-f]{16}|[0-9a-f]{128}))$/);
+  if (kdsPath && req.method === "GET") {
+    if (!rlKds(clientIp(req))) return json(res, 429, { error: "rate_limited", message: "Too many collateral requests; retry shortly." }, req);
+    const q = [...u.searchParams.entries()];
+    if (q.length > 6 || q.some(([k, v]) => !/^[a-zA-Z]{2,8}SPL$/.test(k) || !/^\d{1,3}$/.test(v))) return json(res, 422, { error: "bad_query", message: "only the KDS TCB parameters (blSPL, teeSPL, snpSPL, ucodeSPL, fmcSPL) are accepted." }, req);
+    return amdKds(kdsPath[1] + (q.length ? "?" + new URLSearchParams(q).toString() : "")).then(
+      (r) => { res.writeHead(r.status, { "Content-Type": r.type, "Cache-Control": r.status === 200 ? "public, max-age=3600" : "no-store", "Access-Control-Allow-Origin": "*", ...OWN_HEADERS });
+               res.end(r.body); },
+      (e) => json(res, 502, { error: "kds_unreachable", message: `AMD KDS did not answer: ${e.message}` }, req));
   }
 
   if (u.pathname === "/enclaves") {

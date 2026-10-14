@@ -430,8 +430,12 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       }
       if (f.t === "pong") return;
       if (f.t === "res" && f.id != null) { const p = t.pending.get(f.id); if (p) { t.pending.delete(f.id); p.resolve(f); } return; }
+      // the box's answer to a CLIENT's fresh-attestation challenge (freshAttestation below): taken only when its report binds
+      // the nonce in flight under this tunnel's attested transport key; anything else is ignored
+      if (f.t === "attest" && t.freshWait && t.freshWait.check(f)) { const w = t.freshWait; t.freshWait = null; w.resolve(f.rad); return; }
     });
-    const bye = () => { if (tunnels.get(name) === t) tunnels.delete(name); for (const p of t.pending.values()) p.reject(new Error("tunnel closed")); console.log(`[tunnel] ${name} detached`); try { onChange("detach", name); } catch {} };
+    const bye = () => { if (tunnels.get(name) === t) tunnels.delete(name); for (const p of t.pending.values()) p.reject(new Error("tunnel closed"));
+                        if (t.freshWait) { const w = t.freshWait; t.freshWait = null; w.reject(Object.assign(new Error("the tunnel closed"), { code: "closed" })); } console.log(`[tunnel] ${name} detached`); try { onChange("detach", name); } catch {} };
     ws.on("close", bye);
     ws.on("error", () => { try { ws.terminate(); } catch {} });
     // the name is PROVEN now (token, operator key or attestation): only now may its referral code be recorded
@@ -781,6 +785,29 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       t.ws.send(JSON.stringify({ t: "shield-market", until }));
       return true;
     },
+    // A FRESH attestation over a CLIENT's nonce (verifier/consumer.mjs verifyMetalBox, the site's live verify): the hub sends
+    // the attached SEV-SNP box the same challenge an attach runs and hands back the box's document verbatim. The box answers
+    // with report_data[0:32] = sha256(transport SPKI || nonce); the hub takes the frame only when it binds THIS nonce under
+    // the key the attach verified, and vouches for nothing else: the client checks the AMD signature, the binding to its own
+    // nonce and the measurement itself. One challenge in flight per box; 15 s to answer.
+    freshAttestation: (name, nonce) => new Promise((resolve, reject) => {
+      const t = tunnels.get(name);
+      const fail = (code, msg) => reject(Object.assign(new Error(msg), { code }));
+      if (!Buffer.isBuffer(nonce) || nonce.length !== 32) return fail("bad_nonce", "the nonce must be 32 bytes");
+      if (!t || t.ws.readyState !== t.ws.OPEN || t.mode !== "snp" || !t.spki) return fail("no_box", `no attested SEV-SNP box named ${name} is attached`);
+      if (t.freshWait) return fail("busy", "a fresh attestation is already in flight for this box");
+      const spki = Buffer.from(t.spki, "base64"), want = createHash("sha256").update(Buffer.concat([spki, nonce])).digest();
+      const timer = setTimeout(() => { if (t.freshWait === w) t.freshWait = null; fail("timeout", "the box did not answer the challenge within 15 s"); }, 15000);
+      timer.unref?.();
+      const w = {
+        check: (f) => { try { const b = Buffer.from(String(f.rad?.body || ""), "base64"); return f.rad.transportKey === t.spki && b.length >= 0x90 && b.subarray(0x50, 0x70).equals(want); } catch { return false; } },
+        resolve: (rad) => { clearTimeout(timer); resolve(rad); },
+        reject: (e) => { clearTimeout(timer); reject(e); },
+      };
+      t.freshWait = w;
+      try { t.ws.send(JSON.stringify({ t: "challenge", nonce: nonce.toString("base64") })); }
+      catch (e) { t.freshWait = null; w.reject(Object.assign(e, { code: "send" })); }
+    }),
     nameOf: (origin) => (String(origin || "").match(NAME_RE) || [])[1] || null,
     // synthetic registry rows for the attached tunnels (bypass the dial-based
     // discovery filters; auth already happened at attach time). `endpoint`
