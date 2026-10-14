@@ -11,23 +11,19 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { createHash, sign, randomBytes, X509Certificate } from "node:crypto";
-import { gunzipSync, gzipSync } from "node:zlib";
 import { synthChain, synthReport } from "./helpers/snp-synth.mjs";
-import { verifyEvidence, memoryCollateral, spkiOfCert, verdictStatus, parseReportStrict, JUDGED_MAX_REPORT_VERSION } from "../verifier/index.mjs";
+import { verifyEvidence, memoryCollateral, verdictStatus, parseReportStrict, JUDGED_MAX_REPORT_VERSION } from "../verifier/index.mjs";
+import { report, MEAS, doc as rad, docWith, context as genoaContext, FLOOR } from "./helpers/genoa-capture.mjs";
 
 const F = new URL("./fixtures/verifier/", import.meta.url), A = new URL("./fixtures/amd/", import.meta.url);
-const rad = JSON.parse(fs.readFileSync(new URL("genoa-tinfoil/rad.json", F), "utf8"));
-const report = gunzipSync(Buffer.from(rad.body, "base64"));
-const certPem = fs.readFileSync(new URL("genoa-tinfoil/tls-cert.pem", F), "utf8"), { spki } = spkiOfCert(certPem);
-const MEAS = report.subarray(0x90, 0xc0).toString("hex"), NOW = "2026-09-24T05:00:00Z";
-const FLOOR = { Genoa: { bootloader: 10, tee: 0, snp: 23, microcode: 84 } };
+const NOW = "2026-09-24T05:00:00Z";
 const genoaCol = memoryCollateral({ chains: { Genoa: fs.readFileSync(new URL("Genoa-cert_chain.pem", A), "utf8") }, vceks: { Genoa: fs.readFileSync(new URL("genoa-tinfoil/vcek-kds-amd.der", F)) }, crls: { Genoa: fs.readFileSync(new URL("amd/Genoa-crl.der", F)) } });
-const runGenoa = (doc, policy = {}) => verifyEvidence(doc, { policy: { snp: { allowedMeasurements: [MEAS], minTcb: FLOOR, ...policy } }, context: { transportKeySpki: spki, certPem, host: "inference.tinfoil.sh", now: NOW }, collateral: genoaCol });
-const withVersion = (v) => { const r = Buffer.from(report); r.writeUInt32LE(v, 0); return { format: rad.format, body: gzipSync(r).toString("base64") }; };
+const runGenoa = (doc, policy = {}) => verifyEvidence(doc, { policy: { snp: { allowedMeasurements: [MEAS], minTcb: FLOOR, ...policy } }, context: genoaContext({ now: NOW }), collateral: genoaCol });
+const withVersion = (v) => { const r = Buffer.from(report); r.writeUInt32LE(v, 0); return docWith(r); };
 
 test("the verdict status is derived, not asserted: any omission makes it limited", () => {
   assert.equal(verdictStatus([]), "verified");
-  for (const o of [["report-version-unjudged"], ["tcb-floor-unjudged"], ["crl-revocation-unchecked"], ["crl-stale-accepted"], ["certificate-binding-unchecked"], ["freshness-unbound"], ["a", "b"]]) assert.equal(verdictStatus(o), "limited", o.join());
+  for (const o of [["report-version-unjudged"], ["tcb-floor-unjudged"], ["crl-revocation-unchecked"], ["crl-stale-accepted"], ["freshness-unbound"], ["a", "b"]]) assert.equal(verdictStatus(o), "limited", o.join());
 });
 test("report version 6 (ABI 1.59, ETCB fields) is UNSUPPORTED by default, before any collateral or signature work", async () => {
   const v = await runGenoa(withVersion(6));
@@ -58,15 +54,13 @@ test("the authentic v3 and v5 paths still verify, admission-safe, with nothing o
     collateral: memoryCollateral({ chains: { Turin: fs.readFileSync(new URL("Turin-cert_chain.pem", A), "utf8") }, vceks: { Turin: fs.readFileSync(new URL("turin-m4a/vcek-kds-amd.der", F)) }, crls: { Turin: fs.readFileSync(new URL("amd/Turin-crl.der", F)) } }) });
   assert.equal(t.status, "verified", t.reasons.join("\n")); assert.deepEqual(t.omissions, []); assert.equal(t.checks["report version"], true);
 });
-test("every policy relaxation is an omission and caps the verdict at limited (hosted format)", async () => {
-  const cases = [[{ minTcb: undefined }, "tcb-floor-unjudged"], [{ crl: "none" }, "crl-revocation-unchecked"], [{ requireCertificateBinding: false, _noCert: true }, "certificate-binding-unchecked"]];
-  for (const [policy, omission] of cases) {
-    const { _noCert, ...pol } = policy;
-    const v = await verifyEvidence(rad, { policy: { snp: { allowedMeasurements: [MEAS], minTcb: FLOOR, ...pol } }, context: { transportKeySpki: spki, certPem: _noCert ? undefined : certPem, host: "inference.tinfoil.sh", now: NOW }, collateral: genoaCol });
+test("every policy relaxation is an omission and caps the verdict at limited (genuine Genoa report)", async () => {
+  for (const [policy, omission] of [[{ minTcb: undefined }, "tcb-floor-unjudged"], [{ crl: "none" }, "crl-revocation-unchecked"]]) {
+    const v = await runGenoa(rad, policy);
     assert.equal(v.status, "limited", `${omission}: ${v.reasons.join("\n")}`); assert.deepEqual(v.omissions, [omission]); assert.equal(v.admissionSafe, false);
   }
-  const all = await verifyEvidence(rad, { policy: { snp: { allowedMeasurements: [MEAS], crl: "none", requireCertificateBinding: false } }, context: { transportKeySpki: spki, now: NOW }, collateral: genoaCol });
-  assert.equal(all.status, "limited"); assert.deepEqual(all.omissions.sort(), ["certificate-binding-unchecked", "crl-revocation-unchecked", "tcb-floor-unjudged"]);
+  const all = await runGenoa(rad, { minTcb: undefined, crl: "none" });
+  assert.equal(all.status, "limited"); assert.deepEqual(all.omissions.sort(), ["crl-revocation-unchecked", "tcb-floor-unjudged"]);
 });
 
 // ---- the SYNTHETIC AMD-shaped chain now lives in test/helpers/snp-synth.mjs (moved verbatim) ----------------------------

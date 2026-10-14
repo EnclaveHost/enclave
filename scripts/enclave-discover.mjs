@@ -2,13 +2,12 @@
 // an enclave. No trusted gateway: this runs in the CALLER (browser or server).
 //
 // IMPORTANT — this helper does discovery + placement ONLY. It does NOT verify
-// attestation. The caller MUST connect to the chosen endpoint through Tinfoil's
-// SecureClient (tinfoil-js / tinfoil-go / tinfoil python / swift), which fetches
-// the enclave's live SEV-SNP/TDX quote, checks it against the Sigstore
-// measurement for `repo`, and pins the TLS key. Picking the wrong enclave here
-// costs you a suboptimal placement, NOT security — attestation still gates trust
-// at connect time. Treat `repo` from the registry as the value you hand to
-// SecureClient(endpoint, repo).
+// attestation. The caller MUST verify the chosen enclave before sending it data
+// (`enclave attest`, or the verifier in verifier/: a fresh SEV-SNP report over
+// the caller's own nonce, chained to AMD's root, with the launch measurement
+// checked). Picking the wrong enclave here costs you a suboptimal placement,
+// NOT security — attestation still gates trust at connect time. `repo` from the
+// registry names the source repository the enclave says it runs.
 //
 // Node: `npm i viem` then `node enclave-discover.mjs`. Browser: import the same way;
 // `fetch` and viem both work in-page.
@@ -171,7 +170,7 @@ export async function pickEnclave(want = {}, address = REGISTRY_ADDRESS) {
                  totalCpuShareFree: Math.round(live.reduce((s, r) => s + r.cpuShareFree, 0) * 1000) / 1000,
                  totalSmFree: live.reduce((s, r) => s + (r.smFree || 0), 0),
                  totalVramFreeGb: Math.round(live.reduce((s, r) => s + (r.vramFreeGb || 0), 0) * 10) / 10 },
-    chosen,                            // hand chosen.endpoint + chosen.repo to Tinfoil SecureClient
+    chosen,                            // verify chosen.endpoint's attestation before sending it data
     all: live,
   };
 }
@@ -182,6 +181,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   pickEnclave(want).then((r) => {
     console.log(JSON.stringify(r, null, 2));
     if (!r.chosen) { console.error(`\nNo live enclave has gpuShare >= ${want.gpuShare} and cpuShare >= ${want.cpuShare} free.`); process.exit(1); }
-    console.log(`\n-> connect via Tinfoil SecureClient("${r.chosen.endpoint}", "${r.chosen.repo}")`);
+    console.log(`\n-> verify ${r.chosen.endpoint} (repo ${r.chosen.repo}) before sending it data`);
   }).catch((e) => { console.error("discovery failed:", e.message); process.exit(1); });
 }

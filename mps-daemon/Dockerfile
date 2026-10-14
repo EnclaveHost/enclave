@@ -1,8 +1,8 @@
 # MPS control daemon sidecar. The CUDA runtime image already ships
-# nvidia-cuda-mps-control. Needs runtime:nvidia + gpus:all + ipc:host in the
-# Tinfoil config so it can own the GPU's MPS server.
+# nvidia-cuda-mps-control. Needs runtime:nvidia + gpus:all + ipc:host in its
+# container config so it can own the GPU's MPS server.
 # Base pinned by DIGEST, not just the mutable tag: this image is part of the
-# MEASURED enclave TCB, and its sidecar digest is what enclaves/*/tinfoil-config.yml
+# MEASURED enclave TCB, and its sidecar digest is what a GPU enclave config
 # commits to. An upstream repush of the same tag silently changes the measurement,
 # which is exactly what the reproducibility claim behind METAL_ALLOWED_MEASUREMENTS
 # cannot survive (see the root Dockerfile, which has always pinned). This digest is

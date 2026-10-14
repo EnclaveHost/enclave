@@ -126,11 +126,13 @@ const PERMISSIVE = new Set(["MIT", "ISC", "Apache-2.0", "BSD-3-Clause", "BSD-2-C
 
 // canonical texts: lifted verbatim from a representative package in-tree so we
 // never paraphrase a license. Families we don't have a canonical for fall back
-// to a per-package pointer.
+// to a per-package pointer. Apache-2.0 comes from detect-libc: its LICENSE is
+// the unmodified Apache text (appendix placeholders unfilled), and it is in the
+// root tree on every `npm ci`.
 const CANONICAL_SOURCES = {
   "MIT": "node_modules/express",
   "ISC": "node_modules/semver",
-  "Apache-2.0": "node_modules/@tinfoilsh/verifier",
+  "Apache-2.0": "node_modules/detect-libc",
   "BSD-3-Clause": null,
   "BSD-2-Clause": null,
   "0BSD": null,
@@ -138,7 +140,7 @@ const CANONICAL_SOURCES = {
 };
 function canonicalText(lic) {
   const rel = CANONICAL_SOURCES[lic];
-  if (!rel) return null;
+  if (!rel || !fs.existsSync(path.join(ROOT, rel))) return null;
   const lf = licenseFileOf(path.join(ROOT, rel));
   return lf ? fs.readFileSync(lf, "utf8").trim() : null;
 }

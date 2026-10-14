@@ -26,13 +26,13 @@ if [ -f wasm/apps/catalog.json ]; then
   else bad "catalog.json is not valid JSON"; fi
 fi
 
-sec "enclaves/gpu/tinfoil-config.yml"
-C=enclaves/gpu/tinfoil-config.yml
+sec "enclaves/cpu/config.yml"
+C=enclaves/cpu/config.yml
 if [ -f "$C" ]; then
   grep -q 'name: *"*wasm-manager' "$C" && ok "has wasm-manager container" || bad "no wasm-manager container (config not updated)"
   grep -q 'enclave-wasm-manager' "$C"      && ok "references enclave-wasm-manager image" || bad "no enclave-wasm-manager image ref"
   if grep -Eq 'runsc-manager|nan-runsc-manager' "$C"; then bad "STILL references runsc-manager (stale config)"; else ok "no runsc references"; fi
-  if grep -vE '^[[:space:]]*#' "$C" | grep -Eq 'privileged: *true'; then warn "privileged:true still present (Tinfoil ignores it; harmless but stale)"; else ok "no privileged flag"; fi
+  if grep -vE '^[[:space:]]*#' "$C" | grep -Eq 'privileged: *true'; then warn "privileged:true still present (nothing reads it; harmless but stale)"; else ok "no privileged flag"; fi
   imgline=$(grep 'enclave-wasm-manager' "$C" | head -1)
   if   echo "$imgline" | grep -q '@sha256:';   then ok "wasm-manager image pinned (@sha256:)"
   elif echo "$imgline" | grep -q ':placeholder'; then bad "wasm-manager still :placeholder -> run scripts/release.sh enclave-wasm-manager"
@@ -59,12 +59,12 @@ sec "git / deploy state"
 if git rev-parse --git-dir >/dev/null 2>&1; then
   dirty=$(git status --porcelain -- wasm enclaves scripts/release.sh 2>/dev/null)
   if [ -n "$dirty" ]; then
-    bad "uncommitted changes (Tinfoil only deploys a committed + attested tag):"
+    bad "uncommitted changes (a release only ships a committed + tagged tree):"
     echo "$dirty" | sed 's/^/         /'
   else ok "wasm/config/release changes are committed"; fi
   if git rev-parse '@{u}' >/dev/null 2>&1; then
     ahead=$(git rev-list --count '@{u}..HEAD' 2>/dev/null || echo '?')
-    [ "$ahead" = "0" ] && ok "HEAD is pushed to upstream" || warn "HEAD is $ahead commit(s) ahead of upstream (push a tag so Build-and-Attest runs)"
+    [ "$ahead" = "0" ] && ok "HEAD is pushed to upstream" || warn "HEAD is $ahead commit(s) ahead of upstream (push to main so deploy.yml cuts a release)"
   else warn "no upstream tracking branch set"; fi
 else warn "not a git repo here; cannot check commit/push state"; fi
 
@@ -74,12 +74,12 @@ if [ "$fail" -eq 0 ]; then
 Local files look fully migrated to the Wasm backend.
 If the live enclave STILL reports runsc at localhost:8091/debug/env, the
 remaining step is the deploy chain, not the files:
-  1) git commit + push a new tag
-  2) let the Build-and-Attest workflow go green
-  3) relaunch the enclave onto that tag
-Until you relaunch, the old attested release keeps running.
+  1) git commit + push to main
+  2) let deploy.yml + release-cpu.yml go green (a vX.Y.Z-cpu release)
+  3) the box updates onto that tag (metal/update.mjs)
+Until it updates, the old release keeps running.
 EOF
 else
-  echo "Fix the FAILs above, then: release.sh -> commit -> push tag -> relaunch enclave."
+  echo "Fix the FAILs above, then: release.sh -> commit -> push to main -> the box updates."
 fi
 exit "$fail"

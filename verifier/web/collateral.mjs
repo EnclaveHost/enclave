@@ -11,11 +11,11 @@ export function memoryCollateral({ chains = {}, vceks = {}, crls = {} } = {}, so
   };
 }
 
-// Network, for a page: AMD KDS's paths under an EXPLICIT base (a same-origin mirror; KDS itself sends no CORS headers, so a
+// Network, for a page: AMD KDS's paths under an EXPLICIT base (the relay's mirror, <api>/v1/amd-kds; KDS itself sends no CORS headers, so a
 // page cannot read it directly). Bounded like verifier/collateral.mjs httpCollateral: a hung or oversized answer is a
 // failure, never a wait. Only the three KDS-shaped paths are ever requested, under the base given; nothing else.
 export function httpCollateral({ base, fetchImpl = globalThis.fetch, timeoutMs = 8000, maxBytes = 256 * 1024 } = {}) {
-  if (typeof base !== "string" || !/^https?:\/\/[^/?#]+$/.test(base)) throw new Error("httpCollateral: base must be an absolute http(s) origin with no path");
+  if (typeof base !== "string" || !/^https?:\/\/[^/?#]+(\/[A-Za-z0-9._-]+)*$/.test(base)) throw new Error("httpCollateral: base must be an absolute http(s) origin, optionally with a fixed path prefix (no query, no trailing slash)");
   async function get(url) {
     const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), timeoutMs);
     try {

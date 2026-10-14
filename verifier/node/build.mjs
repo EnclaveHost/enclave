@@ -1,14 +1,12 @@
 #!/usr/bin/env node
 // verifier/node/build.mjs: the Node consumer bundle, packaged reproducibly, the way verifier/web/build.mjs packages the
 // browser one. ONE file carries verifier/consumer.mjs with everything it imports (this tree's verifier modules,
-// relay/snp-verify.mjs, @freedomofpress/sigstore-browser and the pinned Sigstore root), so a consumer that ships a subset of
-// this repository still runs exactly this verifier: the enclave image (Dockerfile copies files by name), the relay (its
-// deploy ships relay/** only: relay/vendor/ holds a byte-identical copy), and the CLI (cli/build.mjs bundles it in).
+// relay/snp-verify.mjs), so a consumer that ships a subset of this repository still runs exactly this verifier: the relay
+// (its deploy ships relay/** only: relay/vendor/ holds a byte-identical copy).
 //   node verifier/node/build.mjs            -> verifier/dist/{enclave-verifier-node.mjs, MANIFEST.json, THIRD-PARTY-NOTICES.md}
 //                                              + relay/vendor/enclave-verifier-node.mjs (+ .MANIFEST.json), byte-identical
 //   node verifier/node/build.mjs --out FILE -> one ad-hoc bundle, nothing else written
-// @tinfoilsh/verifier stays EXTERNAL: the reference leg imports it at run time where it is installed (the enclave image,
-// the CLI) and reports installed:false where it is not (the relay), never a silent pass. Node built-ins are external.
+// Node built-ins are external.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,7 +17,7 @@ import { noticesFor } from "../web/notices.mjs";
 const HERE = path.dirname(fileURLToPath(import.meta.url)), REPO = path.resolve(HERE, "..", "..");
 export const DIST = path.join(REPO, "verifier", "dist"), ARTIFACT = "enclave-verifier-node.mjs", MANIFEST = "MANIFEST.json", NOTICES = "THIRD-PARTY-NOTICES.md";
 export const VENDOR = path.join(REPO, "relay", "vendor"), VENDOR_MANIFEST = "enclave-verifier-node.MANIFEST.json";
-export const OPTIONS = Object.freeze({ entry: "verifier/consumer.mjs", format: "esm", platform: "node", target: "node20", minify: false, external: ["@tinfoilsh/verifier"] });
+export const OPTIONS = Object.freeze({ entry: "verifier/consumer.mjs", format: "esm", platform: "node", target: "node20", minify: false, external: [] });
 const sha = (b) => createHash("sha256").update(b).digest("hex");
 
 export async function buildNode({ outfile = path.join(DIST, ARTIFACT), minify = OPTIONS.minify } = {}) {

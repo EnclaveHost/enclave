@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// metal/verify.mjs — first-party, Tinfoil-independent verification of a metal
-// enclave's SEV-SNP attestation. No @tinfoilsh/verifier, no Tinfoil proxies:
-// the AMD certificate chain is fetched straight from AMD's KDS, the launch
+// metal/verify.mjs — first-party verification of a metal enclave's SEV-SNP
+// attestation, with no third-party verifier library or proxy: the AMD
+// certificate chain is fetched straight from AMD's KDS, the launch
 // measurement is compared to (or recomputed from) the reproducible build
 // manifest, and the report_data → transport-key binding is checked.
 //

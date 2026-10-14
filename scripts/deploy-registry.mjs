@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // deploy-registry.mjs - compile + deploy contracts/EnclaveRegistry.sol to Base,
 // print the address, and (optionally) wire it everywhere the repo reads it:
-// tinfoil-config.yml (REGISTRY_ADDRESS -> the supervisor self-registers on boot)
+// enclaves/cpu/config.yml (REGISTRY_ADDRESS -> the supervisor self-registers on boot)
 // and scripts/enclave-discover.mjs (default REGISTRY_ADDRESS for callers).
 //
 // EnclaveRegistry has no constructor args and NO owner: registration is open, each
@@ -20,7 +20,7 @@
 //   NETWORK               base-sepolia (default) | base
 //   RPC_URL               override the chain RPC.
 // Flags:
-//   --no-write-config     do NOT touch tinfoil-config.yml / enclave-discover.mjs
+//   --no-write-config     do NOT touch enclaves/cpu/config.yml / enclave-discover.mjs
 //   --yes                 skip the interactive confirmation (CI)
 //   --dry-run             compile + show the plan, do NOT broadcast
 //   --replace             on mainnet, allow re-deploying even though the current
@@ -43,7 +43,7 @@ const REPO = path.resolve(HERE, "..");
 const CONTRACT = path.join(REPO, "contracts", "EnclaveRegistry.sol");
 const ABI_OUT = path.join(REPO, "contracts", "EnclaveRegistry.abi.json");
 const DISCOVER = path.join(REPO, "scripts", "enclave-discover.mjs");
-const CONFIG = path.join(REPO, "enclaves", "gpu", "tinfoil-config.yml");
+const CONFIG = path.join(REPO, "enclaves", "cpu", "config.yml");
 
 const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has("--dry-run");
@@ -197,10 +197,10 @@ async function main() {
   console.log("===============================================================\n");
 
   if (!NO_WRITE_CONFIG) { writeSupervisorConfig(addr); writeDiscoverDefault(addr); }
-  else console.log("(--no-write-config: skipped wiring tinfoil-config.yml + enclave-discover.mjs; set REGISTRY_ADDRESS manually)");
+  else console.log("(--no-write-config: skipped wiring enclaves/cpu/config.yml + enclave-discover.mjs; set REGISTRY_ADDRESS manually)");
 
   console.log("\nNext:");
-  console.log(`  1. tinfoil-config.yml now points at ${addr}; set ENCLAVE_ENDPOINT to each enclave's own URL there.`);
+  console.log(`  1. enclaves/cpu/config.yml now points at ${addr}; set ENCLAVE_ENDPOINT to each enclave's own URL there.`);
   console.log("  2. Set the REGISTRY_PRIVATE_KEY enclave secret (an EOA per enclave) and fund it with a little Base ETH for gas.");
   console.log("  3. Redeploy the enclave config; on boot you should see \"[registry] registered ... tx=0x...\".");
   console.log("  4. Verify discovery:  REGISTRY_ADDRESS=" + addr + " node scripts/enclave-discover.mjs");

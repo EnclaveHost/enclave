@@ -29,7 +29,7 @@ export function createNonceRegistry({ max = 65536 } = {}) {
 }
 
 // admit(verdict, expect, options) -> { decision, reasons, pinned }
-//   expect: { nonce: Buffer(32) (required unless the format's freshness is the served certificate window),
+//   expect: { nonce: Buffer(32) (required: freshness is always the client's own challenge),
 //             appId?: Buffer(32), allowedMeasurements?: [hex], minTcb?: object, roots?: {product: sha256hex} | Map,
 //             allowedRuntimeIds?: [hex], allowedCodeHashes?: [hex], allowedAuthorityHashes?: [hex], rootPins?: [hex] }
 //   options: { clientKind: "native" | "browser", observedPeerSpki?: Buffer (native), nonceRegistry? }
@@ -55,7 +55,7 @@ export function admit(verdict, expect = {}, { clientKind = "native", observedPee
   // 2. expectations: supplied by the client, matched against the claims
   const tech = claims.technology;
   if (tech === "amd-sev-snp") {
-    if (!nonEmptyList(expect.allowedMeasurements)) return hold("client supplied no allowed measurements (policy from verified provenance is the client's to hold)");
+    if (!nonEmptyList(expect.allowedMeasurements)) return hold("client supplied no allowed measurements (the expectation is the client's own to hold)");
     if (!isHex(claims.measurement, 96) || !expect.allowedMeasurements.map((m) => m.toLowerCase()).includes(claims.measurement)) return hold("the verified measurement is not one the client expects");
     if (!expect.minTcb || typeof expect.minTcb !== "object") return hold("client supplied no minimum-TCB policy");
     const roots = expect.roots instanceof Map ? Object.fromEntries(expect.roots) : expect.roots;
@@ -83,27 +83,21 @@ export function admit(verdict, expect = {}, { clientKind = "native", observedPee
     reasons.push("expectations met: app id, runtime id, code and authority hashes, root pins (all client-supplied)");
   } else return hold(`no admission rule for technology ${JSON.stringify(tech)}`);
 
-  // 3. freshness: a client challenge, or (hosted format only) the served certificate window
-  const certWindow = claims.freshness === "served certificate window";
-  if (certWindow) {
-    if (claims.family !== "hosted-tinfoil") return hold("certificate-window freshness is only the hosted format's rule");
-    reasons.push("freshness: the served certificate's validity window and the hatt binding (hosted format; no client challenge in this format)");
-  } else {
-    if (!nonceHex) return hold("client supplied no 32-byte challenge");
-    if (!["verifier nonce", "client-nonce"].includes(claims.freshness)) return hold(`the verdict's freshness is ${JSON.stringify(claims.freshness)}, not the client's challenge`);
-    reasons.push("freshness: the client's own single-use challenge");
-  }
+  // 3. freshness: the client's own challenge, always
+  if (!nonceHex) return hold("client supplied no 32-byte challenge");
+  if (!["verifier nonce", "client-nonce"].includes(claims.freshness)) return hold(`the verdict's freshness is ${JSON.stringify(claims.freshness)}, not the client's challenge`);
+  reasons.push("freshness: the client's own single-use challenge");
 
   // 4. transport binding, by what this kind of client can actually check
   const pinned = {};
   if (clientKind === "native") {
     if (!Buffer.isBuffer(observedPeerSpki) || observedPeerSpki.length < 44) return hold("native client supplied no observed peer key from its own TLS handshake");
-    const bound = claims.transportSpkiSha256 || claims.tlsSpkiSha256 || (claims.transportSpki ? sha256hex(Buffer.from(claims.transportSpki, "hex")) : null);
+    const bound = claims.transportSpkiSha256 || (claims.transportSpki ? sha256hex(Buffer.from(claims.transportSpki, "hex")) : null);
     if (!isHex(bound, 64)) return hold("the verdict binds no transport key");
     if (sha256hex(observedPeerSpki) !== bound) return hold("the peer key this connection presented is not the key the evidence binds");
     pinned.transportSpkiSha256 = bound; reasons.push("transport: the connection's peer key is the key the evidence binds (pinned)");
   } else if (clientKind === "browser") {
-    const appKey = claims.appKey || claims.hpkePublicKey || null;
+    const appKey = claims.appKey || null;
     if (!isHex(appKey, 64)) return hold("browser client: the evidence binds no application-layer public key, and browser code cannot read the peer TLS certificate, so nothing here binds the transport");
     pinned.appKey = appKey; reasons.push("transport: application-layer key bound in the evidence (browser client; TLS certificate pinning is NOT claimed, browser code cannot see the peer certificate)");
     if (claims.sealed) { pinned.sealed = { ...claims.sealed }; reasons.push(`sealed channel: this key is good for ${claims.sealed.windowSeconds} s and ${claims.sealed.maxRequests} requests from the evidence exchange; re-attest after that, never retry a refused request`); }

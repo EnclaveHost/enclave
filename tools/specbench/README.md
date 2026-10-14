@@ -16,10 +16,8 @@ persisted so future engine/pin bumps can be gated against the shipped wins.
    (full rows).
 4. **Verify pins with asserting scripts, never bare sed** (a silent no-op
    once nearly mislabeled a whole engine build).
-5. **Space pushes to main >= 3 min** (two releases close together wedge the
-   Tinfoil updater; recovery = fleet-op stop->start).
-6. **Suspend the bench when done** - it bills by the hour.
-7. **Local CPU golden runs prove correctness, never fleet perf** (CVM vCPUs
+5. **Suspend the bench when done** - it bills by the hour.
+6. **Local CPU golden runs prove correctness, never fleet perf** (CVM vCPUs
    run llama's CPU path 10-1000x slower; GPU exec hides differently).
 
 ## Scripts

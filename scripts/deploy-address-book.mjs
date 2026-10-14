@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // deploy-address-book.mjs - compile + deploy contracts/EnclaveAddressBook.sol,
 // SEED it with the platform's current contract addresses (read from
-// enclaves/gpu/tinfoil-config.yml), and bake the book's own address everywhere
-// a component boots from: both tinfoil configs, site/js/core/config.js, and
+// enclaves/cpu/config.yml), and bake the book's own address everywhere
+// a component boots from: the enclave config, site/js/core/config.js, and
 // the CLI's defaults.
 //
 // The book is the ONE address that must stay stable: everything else
@@ -46,8 +46,7 @@ const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
 const CONTRACT = path.join(REPO, "contracts", "EnclaveAddressBook.sol");
 const ABI_OUT = path.join(REPO, "contracts", "EnclaveAddressBook.abi.json");
-const CONFIG_GPU = path.join(REPO, "enclaves", "gpu", "tinfoil-config.yml");
-const CONFIG_CPU = path.join(REPO, "enclaves", "cpu", "tinfoil-config.yml");
+const CONFIG_CPU = path.join(REPO, "enclaves", "cpu", "config.yml");
 const SITE_CONFIG = path.join(REPO, "site", "js", "core", "config.js");
 const CLI = path.join(REPO, "cli", "enclave.mjs");
 
@@ -103,10 +102,10 @@ function compile() {
   return { abi: c.abi, bytecode: "0x" + c.evm.bytecode.object };
 }
 
-// Current platform addresses, from the gpu flavor config (the sync script's
+// Current platform addresses, from the enclave config (the sync script's
 // authority for everything but the catalog, which it also carries).
 function currentAddresses() {
-  const cfg = fs.readFileSync(CONFIG_GPU, "utf8");
+  const cfg = fs.readFileSync(CONFIG_CPU, "utf8");
   const out = [];
   for (const e of ENTRIES) {
     const m = cfg.match(new RegExp(`-\\s*${e.env}:\\s*"(0x[0-9a-fA-F]{40})"`));
@@ -117,7 +116,6 @@ function currentAddresses() {
 
 function writeEverywhere(addr) {
   const targets = [
-    [CONFIG_GPU,  /(-\s*ADDRESS_BOOK_ADDRESS:\s*)"[^"]*"/, `$1"${addr}"`],
     [CONFIG_CPU,  /(-\s*ADDRESS_BOOK_ADDRESS:\s*)"[^"]*"/, `$1"${addr}"`],
     [SITE_CONFIG, /(ADDRESS_BOOK_ADDRESS\s*=\s*)"[^"]*"/,  `$1"${addr}"`],
     [CLI,         /(ADDRESS_BOOK_ADDRESS:\s*)"[^"]*"/,     `$1"${addr}"`],
@@ -185,7 +183,7 @@ async function main() {
   // the ONE stable root every component boots from; re-deploying rewrites the
   // configs/site/cli to a new root (a full release train), so make it explicit.
   if (isMainnet && !REPLACE) {
-    const m = fs.readFileSync(CONFIG_GPU, "utf8").match(/-\s*ADDRESS_BOOK_ADDRESS:\s*"(0x[0-9a-fA-F]{40})"/);
+    const m = fs.readFileSync(CONFIG_CPU, "utf8").match(/-\s*ADDRESS_BOOK_ADDRESS:\s*"(0x[0-9a-fA-F]{40})"/);
     if (m) {
       const existing = getAddress(m[1]);
       const code = await pub.getCode({ address: existing }).catch(() => null);

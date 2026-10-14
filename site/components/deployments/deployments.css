@@ -372,7 +372,7 @@ a.ed-host:hover{color:var(--jade);}
 .enc-open[disabled] .enc-lock{animation:encpulse 1.2s ease-in-out infinite;}   /* "being issued" reads as activity, not a dead end */
 @media (prefers-reduced-motion:reduce){.enc-open[disabled] .enc-lock{animation:none;}}
 .enc-vbadge{float:right;text-transform:none;letter-spacing:0;font-size:.7rem;}
-.enc-vbadge.ok{color:var(--jade);} .enc-vbadge.bad{color:var(--amber);}
+.enc-vbadge.ok{color:var(--jade);} .enc-vbadge.bad{color:var(--amber);} .enc-vbadge.warn{color:var(--iris);}
 .ap-attbar{font-family:var(--font-mono);font-size:.66rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;padding:9px 18px;background:var(--bg-1);border-bottom:1px solid var(--line-soft);overflow-wrap:anywhere;}   /* wrap (don't ellipsize) the id: nowrap would clip the floated verify badge */
 .ap-attpre{margin:0;padding:14px 18px;max-height:320px;overflow:auto;font-family:var(--font-mono);font-size:.76rem;line-height:1.55;white-space:pre-wrap;word-break:break-word;}
 .btn.danger{border-color:var(--danger-deep);color:var(--danger-2);} .btn.danger:hover{border-color:var(--danger);background:rgba(255,107,107,.08);}

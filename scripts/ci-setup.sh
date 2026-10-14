@@ -14,8 +14,6 @@
 # What it can NOT do for you (prints reminders):
 #   - DEPLOYER_PRIVATE_KEY: your funded Base EOA, set it yourself on the environment
 #   - ghcr Actions access for the sidecar packages (web UI only), or a CR_PAT secret
-#   - TINFOIL_API_KEY: Tinfoil admin key so publishes auto-update the running fleet
-#     (the same key powers autoscale.yml; see docs/autoscale.md)
 set -euo pipefail
 say() { printf '\033[1;36m[ci-setup]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[ci-setup] WARNING:\033[0m %s\n' "$*" >&2; }
@@ -60,14 +58,14 @@ KNOWN="$(ssh-keyscan -t ed25519 "$SITE_HOST" "$RELAY_HOST" 2>/dev/null)"
 gh variable set DEPLOY_KNOWN_HOSTS -R "$REPO_SLUG" -b "$KNOWN"
 say "set vars SITE_SSH_HOST=$SITE_HOST RELAY_SSH_HOST=$RELAY_HOST CONTRACTS_NETWORK=${CONTRACTS_NETWORK:-base} DEPLOY_KNOWN_HOSTS"
 
-# 4) review-gated environments: contract deploys and fleet scale-ups.
+# 4) review-gated environment: contract deploys.
 # Reviewer = the AUTHENTICATED USER, not the repo owner: when the repo lives
 # in an org, users/<owner> resolves to the ORG id and GitHub silently stores
 # an empty reviewer list — runs then wait on an approval nobody can give
-# (bit us live 2026-07-17: the first fleet-scale apply deadlocked "waiting").
+# (bit us live 2026-07-17: a gated run deadlocked "waiting").
 REVIEWER_ID="$(gh api user --jq .id)"
 REVIEWER_LOGIN="$(gh api user --jq .login)"
-for envname in contract-deploy fleet-scale; do
+for envname in contract-deploy; do
   gh api -X PUT "repos/$REPO_SLUG/environments/$envname" \
     --input - >/dev/null <<EOF
 {"reviewers":[{"type":"User","id":$REVIEWER_ID}]}
@@ -77,8 +75,6 @@ done
 
 say "still manual:"
 say "  1. gh secret set DEPLOYER_PRIVATE_KEY -R $REPO_SLUG --env contract-deploy   # funded Base EOA for contract deploys"
-say "  2. ghcr package settings for enclave-worker / enclave-mps / enclave-wasm-manager: grant this repo"
+say "  2. ghcr package settings for enclave-supervisor / enclave-wasm-manager: grant this repo"
 say "     'Actions access: write' (workflows auth with GITHUB_TOKEN only; the CR_PAT secret is retired -"
 say "     a brand-new package name needs one-time web-UI creation before its first push)"
-say "  3. gh secret set TINFOIL_API_KEY -R $REPO_SLUG   # Tinfoil admin key (dash.tinfoil.sh) —"
-say "     lets tinfoil-release-publish.yml auto-update the running enclaves after each release"

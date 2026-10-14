@@ -42,7 +42,7 @@
 # thread-suite verification ran against. Move it to the v49.0.0 release tag
 # when that exists, re-verifying the same suite.
 # Base pinned by DIGEST, not just the mutable tag: this image is part of the
-# MEASURED enclave TCB, and its sidecar digest is what enclaves/*/tinfoil-config.yml
+# MEASURED enclave TCB, and its sidecar digest is what enclaves/cpu/config.yml
 # commits to. An upstream repush of the same tag silently changes the measurement,
 # which is exactly what the reproducibility claim behind METAL_ALLOWED_MEASUREMENTS
 # cannot survive (see the root Dockerfile, which has always pinned). This digest is

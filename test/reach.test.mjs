@@ -34,8 +34,8 @@ async function selftest(cases) {
 
 test("hostnames: public dns names pass, everything unwatchable maps to null", async () => {
   const { hosts } = await selftest({ hosts: [
-    "https://kryptos.enclave.containers.tinfoil.dev",              // the real shape
-    "https://KRYPTOS.Enclave.Containers.Tinfoil.Dev:8443/x/abc",   // case + port + path
+    "https://kryptos.nodes.example.com",                           // a public DNS name
+    "https://KRYPTOS.Nodes.Example.Com:8443/x/abc",                // case + port + path
     "https://127.0.0.1:8443",                                      // IPv4 literal
     "https://[2a01:4f9:c013:9b52::1]/health",                      // IPv6 literal (URL keeps brackets)
     "http://localhost:3000",                                       // single label
@@ -43,8 +43,8 @@ test("hostnames: public dns names pass, everything unwatchable maps to null", as
     "not a url at all",
   ] });
   assert.deepEqual(hosts, [
-    "kryptos.enclave.containers.tinfoil.dev",
-    "kryptos.enclave.containers.tinfoil.dev",
+    "kryptos.nodes.example.com",
+    "kryptos.nodes.example.com",
     null, null, null, null, null,
   ]);
 });

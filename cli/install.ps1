@@ -129,7 +129,7 @@ if (-not $cliDir -or -not (Test-Path (Join-Path $cliDir "enclave.mjs"))) {
 $haveRoot = Test-Path (Join-Path $cliDir "..\node_modules\viem")
 $haveCli  = Test-Path (Join-Path $cliDir "node_modules\viem")
 if (-not $haveRoot -and -not $haveCli) {
-  Write-Host "installing bundle dependencies (viem, @tinfoilsh/verifier, esbuild)..."
+  Write-Host "installing bundle dependencies (viem, esbuild)..."
   # Prefer `npm ci` — exact versions from the checked-in package-lock.json (this
   # is a key-holding signing binary; no floating caret ranges). Fall back to
   # `npm install` only if the lockfile is missing (e.g. an old checkout).

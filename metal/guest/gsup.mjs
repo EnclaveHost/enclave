@@ -24,8 +24,8 @@ const readJson = (p, d) => { try { return JSON.parse(fs.readFileSync(p, 'utf8'))
 // GFLOPS scaling with them -- at the per-vCPU rate the HOST MEASURED where the apps run (fw_cfg gflopsPerVcpu, below),
 // else the fleet's ~62.5/vCPU convention (the flavor's 1000 for 16).
 // RAM follows the FLEET convention: advertise the NOMINAL size the host gives
-// the VM (fw_cfg nodeRamGb, from config memMiB) exactly as the Tinfoil flavors
-// advertise their baked constants — on both, the wasm manager's RAM-headroom
+// the VM (fw_cfg nodeRamGb, from config memMiB) exactly as the retired hosted
+// flavors advertised their baked constants — on both, the wasm manager's RAM-headroom
 // admission gate (×0.9) is what holds back the kernel + base-system overhead.
 // The nominal is capped at MemTotal + 3 GB (≈ the kernel's boot-time haircut)
 // so a config typo or a dishonest seller can't advertise RAM the VM doesn't
@@ -65,7 +65,7 @@ const TUNNEL_TOKEN = fw.tunnelToken || '';
 // rev-7 ledger — auto-swept to payoutAddress. Without a key the enclave still
 // serves over the tunnel; it just neither claims nor earns.
 // --- ggml engine tuning for the manager's tenants ---------------------------
-// The Tinfoil flavors set these in their compose env; metal had no channel at
+// The retired hosted flavors set these in their compose env; metal had no channel at
 // all, so every metal box ran the ENGINE defaults. ENCLAVE_GGML_MAX_SESSIONS
 // defaults to 1, and one inference slot per graph means a chat turn's own
 // internal passes (router verdict, title) queue behind its main answer - the
@@ -92,7 +92,7 @@ const GGML_ALLOWED = new Set([
 ]);
 const GGML_ENV = (() => {
   // LLAMA_GRAPH_SLOT_ALT=0: stand the alt graph-slot ring down, matching every
-  // hosted-fleet tinfoil-config.yml (v0.5.408). Armed (the default when the
+  // enclaves/ config since v0.5.408. Armed (the default when the
   // env is absent) it decays decode under sustained request churn and only
   // heals at idle — measured on metal0 2026-09-01: a 27b fell 3.6 → 0.8 tok/s
   // across ~30 min of back-to-back turns and recovered to 3.64 after 12 idle
@@ -225,7 +225,7 @@ function start(name, argv, env, opts = {}) {
 
 // --- attested model volumes --------------------------------------------------
 // Large read-only weights (GGUF/ONNX/diffusion checkpoints) reach tenants the
-// way Tinfoil's Modelwrap delivers them: as dm-verity-protected read-only
+// way attested weights must arrive: as dm-verity-protected read-only
 // images mounted in the CVM, never as bytes the guest has to trust the host
 // for. Each volume is one host file (ext4 + an appended verity hash tree,
 // built by metal/volumes.mjs) attached as a virtio-blk disk; the guest sets
@@ -415,8 +415,8 @@ const supEnv = {
                       // the firmware floor for guest certificate issuance, from the MEASURED image (build-image.mjs)
                       ...(() => { try { return { ISOLATION_MIN_TCB: fs.readFileSync('/opt/metal/isolation-min-tcb.json', 'utf8') }; }
                                   catch { return {}; } })() } : {}),
-  // metal-agent serves the Remote Attestation Document here; this override
-  // replaces the Tinfoil shim's loopback endpoint with no supervisor changes.
+  // metal-agent serves the Remote Attestation Document here; the supervisor
+  // reads it over loopback from this URL.
   ATTESTATION_URL: 'http://127.0.0.1:8443/.well-known/enclave-attestation',
   RAD_CACHE_MS: '15000',
   PUBLIC_URL,

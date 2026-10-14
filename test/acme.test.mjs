@@ -232,7 +232,7 @@ test("EAB: HS256 inner JWS - header shape, JWK payload, recomputed signature", a
 
 const OP_KEY  = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";   // a well-known test key, never funded
 const OP_ADDR = privateKeyToAccount(OP_KEY).address;
-const ENDPOINT = "https://box7.enclave.containers.tinfoil.dev";
+const ENDPOINT = "https://box7.nodes.example.com";
 const CERTS_KEY = createHmac("sha256", "test-secret").update("enclave certs v1").digest("hex");   // the harness's SECRET
 // The wire format, spelled out here INDEPENDENTLY of both files, and then
 // cross-checked against the relay's own issueSig / issueMessage so the two
@@ -335,7 +335,7 @@ test("platform: an app-zone name goes to the service first; the returned chain i
   assert.equal(svc.seen.length, 1);
   const { url, body } = svc.seen[0];
   assert.equal(url, "/v1/certs/issue");
-  assert.deepEqual(Object.keys(body).sort(), ["csr", "endpoint", "name", "opSig", "sig", "ts"], "the harness SECRET counts as the fleet secret (flag unset = Tinfoil), so sig rides along");
+  assert.deepEqual(Object.keys(body).sort(), ["csr", "endpoint", "name", "opSig", "sig", "ts"], "the harness SECRET counts as the fleet secret (flag unset = a hosted image), so sig rides along");
   assert.equal(body.name, APP);
   assert.equal(body.endpoint, ENDPOINT);
   assert.ok(Math.abs(body.ts - Date.now() / 1000) < 60, "ts is unix seconds, now");
@@ -353,7 +353,7 @@ test("platform: sig = HMAC-SHA256(hex-decode(CERTS_KEY), '<name>:<endpoint>:<spk
   const svc = await mockService([ok200]);
   t.after(svc.close);
   const v = await platformOf(svc.url, { name: APP, endpoint: ENDPOINT, cas: [] });
-  assert.equal(v.fleetSecretPresent, true, "FLEET_SECRET_PRESENT unset + SECRET set = the fleet secret (the Tinfoil image sets no flag)");
+  assert.equal(v.fleetSecretPresent, true, "FLEET_SECRET_PRESENT unset + SECRET set = the fleet secret (a hosted image sets no flag)");
   assert.equal(v.certsKey, CERTS_KEY);
   // the printed vector: spkiHash recomputed here from the printed key's SPKI
   assert.equal(v.spkiHash, spkiHashOfPem(v.vecKeyPem));   // createPublicKey accepts a private PEM and yields its public half
@@ -432,7 +432,7 @@ test("platform: a box with neither the fleet secret nor an operator key fails th
   assert.match(none.rounds[0].error, /neither an operator key nor the fleet secret/);
 });
 
-// A8: at boot the endpoint is "" until the register tx confirms (Tinfoil has
+// A8: at boot the endpoint is "" until the register tx confirms (a box with
 // no PUBLIC_URL). That is a deferral (15-30 s), never a name-level failure
 // that walks the in-enclave CAs for every held name on every restart.
 test("platform: not registered yet (endpoint '') DEFERS 15-30 s - no in-enclave CA is walked, nothing cools, no key is minted", async (t) => {

@@ -2,7 +2,7 @@
 
 **Status: implemented. The contract compiles clean; the claim loop is wired
 into `supervisor.js` (search `startClaimLoop`) behind `CLAIM_ENABLED` +
-`DEPLOYMENTS_ADDRESS` in `enclaves/*/tinfoil-config.yml`. The code excerpts below are the
+`DEPLOYMENTS_ADDRESS` in `enclaves/cpu/config.yml`. The code excerpts below are the
 design reference; `supervisor.js` is authoritative where they diverge.**
 
 Today a deployment is one enclave's private state: the spec and the funded-time
@@ -744,7 +744,7 @@ particular enclave first:
 ```
 EnclaveDeployments.get(id)      -> runner (enclave id), leaseUntil, appRef, balance
 EnclaveRegistry.get(runner)     -> endpoint, repo
-SecureClient(endpoint,repo) -> attest, then https://<endpoint>/x/<id>[...]
+verify the attestation (verifier/, enclave attest) -> then https://<endpoint>/x/<id>[...]
 ```
 
 On failover the endpoint changes; clients re-resolve (a 404/refused from the
@@ -825,7 +825,7 @@ the new enclave. This is the same no-trusted-gateway shape as discovery today.
 # Base Sepolia dry run (compile + plan, no broadcast; re-emits the ABI):
 DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-deployments.mjs --dry-run --yes
 
-# Base Sepolia (uses REGISTRY_ADDRESS from enclaves/gpu/tinfoil-config.yml; prices and the
+# Base Sepolia (uses REGISTRY_ADDRESS from enclaves/cpu/config.yml; prices and the
 # publisher-fee cap are hardcoded in the contract, owner-adjustable later — no setter txs sent):
 DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-deployments.mjs
 
@@ -841,7 +841,7 @@ NETWORK=base DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-deployments.mjs
 > $1.00/hour, which had drifted below the advertised price — a redeploy back
 > then would have silently reverted the live rate.)
 
-The script writes `DEPLOYMENTS_ADDRESS` into `tinfoil-config.yml` when the line
+The script writes `DEPLOYMENTS_ADDRESS` into `enclaves/cpu/config.yml` when the line
 exists (add it under the supervisor `env:` alongside `FORWARDER_ADDRESS`), and
 re-emits `contracts/EnclaveDeployments.abi.json` so the checked-in ABI can't drift.
 Constructor wiring: `usdc`, `payout` (the Enclave cold wallet), `registry` (claim gating),

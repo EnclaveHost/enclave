@@ -186,9 +186,10 @@ Still to do:
    already is — and to read `0` as `CAP_HOST`.
 6. Then the XFF fix.
 
-One constraint worth keeping in view: on Tinfoil hosting a relay cannot be an
-existing host, because the shim is path-based HTTPS and raw TCP only ever
-arrives as WebSocket upgrades over `/x/*`, which a browser does not speak.
+One constraint worth keeping in view: on the hosted fleet (retired 2026-10-14)
+a relay could not be an existing host, because its ingress shim was path-based
+HTTPS and raw TCP only ever arrived as WebSocket upgrades over `/x/*`, which a
+browser does not speak.
 Host-as-relay is real on metal-style self-hosted boxes with public inbound —
 `/v1/relays` already offers those (membership is "declares an address it relays
 on", not the relay badge), which is where `metal/PROTOCOL.md` was heading.

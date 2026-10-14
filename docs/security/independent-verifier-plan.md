@@ -4,6 +4,14 @@ Status: investigation and bounded proof of concept, branch `research/independent
 Written 2026-09-24 against main at fcb980c0 plus the feature branches named in section 2.6.
 Nothing in this document changes production verification; section 9 is the only path by which it may.
 
+> **Status update 2026-10-14.** The Tinfoil-hosted paths are gone: the hosted fleet, the Tinfoil release
+> provenance (`tinfoilsh/measure-image-action`, the `tinfoil.hash` asset and its Sigstore predicate), the signed
+> release index, the TUF-refreshed Sigstore root and the Tinfoil differential were all removed on 2026-10-14. The
+> verifier (`verifier/`) now judges the metal box flow (`verifier/metal-box.mjs`: a fresh SEV-SNP report over the
+> caller's nonce through the relay, AMD's chain, guest policy, TCB floor, launch measurement). Releases are
+> `vX.Y.Z-cpu` tags cut by `.github/workflows/release-cpu.yml`. The rest of this document is the plan as written
+> on 2026-09-24 and describes those removed paths in the present tense.
+
 ## 0. Summary
 
 Today "verified" on the hosted fleet means: the `@tinfoilsh/verifier` library, fetching through two Tinfoil-run

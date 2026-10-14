@@ -92,9 +92,9 @@ if (process.argv.includes('--print-kver')) {
 // what the box attests to without anyone choosing it.
 //
 // supervisor -> the RELEASE'S OWN image (`enclave-supervisor:<release tag>`).
-//   NOT the digest in enclaves/<flavor>/tinfoil-config.yml: the release
-//   workflow rewrites that line inside its own checkout and commits back only
-//   the wasm-manager repins, so the committed supervisor pin is a placeholder
+//   NOT the digest in enclaves/cpu/config.yml: the release
+//   workflow publishes the supervisor by TAG and CI commits back only the
+//   wasm-manager repins, so the committed supervisor pin is a placeholder
 //   last touched 2026-07-07 whose image ghcr has since garbage-collected — it
 //   404s. And NOT `:latest`, which is the wrong flavor for a CPU build and
 //   moves under you: on 2026-08-09 metal0 was built from `:latest` and
@@ -103,7 +103,7 @@ if (process.argv.includes('--print-kver')) {
 //   code the fleet runs for that release.
 // wasm-manager -> the flavor config's pin, which CI DOES repin and commit, so
 //   it is current and specific.
-const FLAVOR_YML = path.join(HERE, '..', 'enclaves', 'cpu', 'tinfoil-config.yml');
+const FLAVOR_YML = path.join(HERE, '..', 'enclaves', 'cpu', 'config.yml');
 const pinnedRef = (containerName) => {
   try {
     const lines = fs.readFileSync(FLAVOR_YML, 'utf8').split('\n');
@@ -247,10 +247,10 @@ for (const g of stripGlobs) {
 }
 console.log(`[build] stripped ${(stripped / 1e9).toFixed(2)} GB of GPU libraries`);
 
-// --- 3. flavor env (non-secret) from the CPU tinfoil-config ------------------
+// --- 3. flavor env (non-secret) from the CPU config ---------------------------
 console.log('[build] extracting CPU flavor env…');
 fs.mkdirSync(path.join(ROOT, 'opt/metal'), { recursive: true });
-const flavorEnv = parseFlavorEnv(path.join(HERE, '..', 'enclaves', 'cpu', 'tinfoil-config.yml'), 'supervisor');
+const flavorEnv = parseFlavorEnv(FLAVOR_YML, 'supervisor');
 delete flavorEnv.PORT; delete flavorEnv.PUBLIC_URL;          // metal sets these
 fs.writeFileSync(path.join(ROOT, 'opt/metal/flavor-env.json'), JSON.stringify(flavorEnv, null, 2));
 // wasm image env (for the chroot) from its OCI config
@@ -747,7 +747,7 @@ function readCpuSig() {
 }
 function parseFlavorEnv(ymlPath, containerName) {
   // minimal parser for the `env:` list under the named container in a
-  // tinfoil-config.yml (lines like `      - KEY: "value"`), non-secret only.
+  // enclaves/cpu/config.yml (lines like `      - KEY: "value"`), non-secret only.
   const lines = fs.readFileSync(ymlPath, 'utf8').split('\n');
   const env = {}; let inContainer = false, inEnv = false;
   for (const line of lines) {

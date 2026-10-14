@@ -176,7 +176,7 @@ shares it. The difference is **who has physical access**.
 
 | deployment | physical access | exposure |
 |---|---|---|
-| Tinfoil / datacenter fleet | controlled, audited, badge-in | low -- the vendors' recommended mitigation is actually in place |
+| datacenter fleet (the hosted fleet, retired 2026-10) | controlled, audited, badge-in | low -- the vendors' recommended mitigation is actually in place |
 | **metal, anonymous seller at home** | **the adversary owns the building** | **unmitigated** |
 
 The permissionless protocol is precisely the case the vendors' threat model
@@ -358,7 +358,7 @@ attack class, new affordability.
 | deployment | adversary | TEE value |
 |---|---|---|
 | public cloud | remote attacker, or an employee under camera | high |
-| Tinfoil fleet, metal0 in a controlled space | same | high |
+| datacenter fleet, metal0 in a controlled space | same | high |
 | **anonymous home seller** | **owns the building, unlimited time, unsupervised, financially motivated** | **gap fully open** |
 
 The permissionless model is the single configuration where every mitigating

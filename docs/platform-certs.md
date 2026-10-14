@@ -22,7 +22,7 @@ boundary — could terminate any app's traffic. It was retired for that reason.
 `acmeIssue`): key, CSR, order, dns-01 and download all inside the CVM. The key
 never leaves, which is right. The cost is the **CA credential**: ZeroSSL needs
 an External Account Binding, so the platform's EAB pair reaches *every* box —
-as a Tinfoil fleet secret on the cloud boxes, and on metal boxes through
+as a fleet secret on the hosted cloud boxes (while they ran), and on metal boxes through
 `metal/config.json` → fw_cfg, a file the box operator can read outside the CVM.
 Whoever holds that pair can register accounts and order certificates for any
 name they can answer dns-01 for; N copies of it is N places to leak it, and a
@@ -172,7 +172,7 @@ Only then does an order start.
 
 The enclave keeps what it was issued. Every installed certificate is written,
 **with its private key**, to `ACME_STORE_DIR` (`/var/lib/enclave/acme`, the
-Tinfoil ramdisk: memory-backed, survives a container restart within one CVM
+CVM ramdisk: memory-backed, survives a container restart within one CVM
 boot, gone on a CVM relaunch) as `<sha256(name)>.json`, alongside the ACME
 account per CA (`accounts.json`) and the per-name per-CA rate-limit dates
 (`ratelimits.json`). At boot `acmeRestore` reloads every unexpired record and

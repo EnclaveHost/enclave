@@ -7,7 +7,7 @@
 // (on-demand TLS gated by /internal/tls-ask) and was retired because the relay
 // then HELD app TLS keys. Since then every enclave has run its own ACME client
 // (supervisor.js acmeIssue), which needs the platform's ZeroSSL EAB pair on
-// every box — as a Tinfoil fleet secret, and on metal boxes as an fw_cfg
+// every box — as a hosted-fleet secret, and on metal boxes as an fw_cfg
 // config file outside the CVM. That pair is a platform credential: whoever
 // holds it can register accounts and order certificates for any name they can
 // answer dns-01 for. Putting it on N boxes was the price of keeping keys in

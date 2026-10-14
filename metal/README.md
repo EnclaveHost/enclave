@@ -1,17 +1,17 @@
 # Enclave Metal: self-hosted TEE enclave server
 
-Metal runs the exact same enclave stack as the hosted fleet (supervisor +
-wasm-manager, the same digest-pinned images) inside a **self-launched
-confidential VM** on hardware you own. No external controlplane, no vendor
-shim, no hosted vault: every service the managed fleet gets from its provider
-is replaced by an auditable first-party equivalent in this directory.
+Metal runs the Enclave stack (supervisor + wasm-manager, the digest-pinned
+images of each release) inside a **self-launched confidential VM** on hardware
+you own. No external controlplane, no vendor shim, no hosted vault: every
+service the enclave needs has an auditable first-party implementation in this
+directory.
 
 It targets **any TEE, CPU and/or GPU**: AMD SEV-SNP today (QEMU
 `sev-snp-guest`), Intel TDX by swapping the launch object (`tdx-guest`, same
 image, same agent, because the guest attestation driver is the configfs-tsm
 abstraction, which serves both), and NVIDIA confidential computing by GPU
-passthrough into the CVM (the GPU flavor's worker/MPS containers ride along
-unchanged; CC attestation still comes from NVML inside the guest).
+passthrough into the CVM (the GPU worker/MPS images in `worker/` and
+`mps-daemon/`; CC attestation still comes from NVML inside the guest).
 
 **See also:** [PROTOCOL.md](PROTOCOL.md), the permissionless protocol for
 anyone to sell hosting on enclave.host anonymously (attestation-gated attach,
@@ -37,9 +37,9 @@ host (untrusted)                       guest CVM (trusted, measured)
 
 ## Staying current (auto-update)
 
-Tinfoil enclaves are PUSHED: merge to main, CI cuts a release, `tinfoil-cli`
-moves each running enclave. A metal box usually has no inbound path at all
-(CGNAT), so it PULLS the same artifact on a timer instead:
+Merge to main and CI cuts a release (`vX.Y.Z-cpu`, `.github/workflows/release-cpu.yml`).
+A metal box usually has no inbound path at all (CGNAT), so nothing pushes it:
+it PULLS the release on a timer instead:
 
     cp metal/systemd/enclave-metal-update.* ~/.config/systemd/user/
     systemctl --user daemon-reload
@@ -49,7 +49,8 @@ moves each running enclave. A metal box usually has no inbound path at all
     node metal/update.mjs --force     # ignore the idle policy (still health-gated)
 
 It tracks the newest published release for this box's flavor (`vX.Y.Z-cpu` for a
-CPU box) — the same artifact the CPU fleet moves to — and builds it in a
+CPU box) — a GitHub Release whose tag names the commit and the supervisor
+image — and builds it in a
 throwaway git worktree at that tag, never from the working tree this box runs
 out of. That tree is also somebody's desk, and an enclave must not attest to
 half-finished work.
@@ -114,8 +115,7 @@ remains as provenance, not as a trust root).
 ## Model volumes (the self-hosted Modelwrap)
 
 Large read-only weights — GGUF/ONNX LLMs, diffusion checkpoints, RAG corpora —
-reach tenants the way Tinfoil's Modelwrap delivers them, without Tinfoil. Each
-volume is **one host file**: an ext4 image of the model tree with a dm-verity
+reach tenants as attested, read-only volumes. Each volume is **one host file**: an ext4 image of the model tree with a dm-verity
 hash tree appended. The launcher attaches it as a read-only virtio-blk disk; the
 guest brings dm-verity up **itself** and mounts it read-only, so every block a
 tenant reads is hash-checked inside the CVM and a host that flips a byte gets an
@@ -382,8 +382,8 @@ the hosted fleet.
 
 Every app-zone certificate (`<label>.app.enclave.host`) is minted for a private
 key that is generated **inside the CVM** and never leaves it. What moved is the
-CA account: until now each box carried the fleet's ZeroSSL EAB pair (Tinfoil
-secrets on the hosted fleet, `metal/config.json` -> fw_cfg on metal) and ran
+CA account: until now each box carried the fleet's ZeroSSL EAB pair (container
+secrets on the hosted fleet while it ran, `metal/config.json` -> fw_cfg on metal) and ran
 its own ACME client. That put the platform's CA credential in an
 operator-readable file on every seller box, and left nobody in a position to
 pace the fleet against the CA rate limits (Let's Encrypt's 50 certificates per
@@ -423,23 +423,21 @@ reorder, the per-box EAB pair is the fallback until the last step):
      ```sh
      node -e 'console.log(require("node:crypto").createHmac("sha256", process.env.SECRET).update("enclave certs v1").digest("hex"))'
      ```
-     run wherever the fleet `SECRET` is in the environment (the Tinfoil secret
-     value / `fleetSecret` in `metal/config.json`; they are the same string).
+     run wherever the fleet `SECRET` is in the environment (`fleetSecret` in
+     `metal/config.json`).
    - `ACME_EAB_KID` / `ACME_EAB_HMAC`: the platform ZeroSSL pair, moved here
-     from `metal/config.json` / the Tinfoil secrets.
+     from `metal/config.json`.
    - `DNS_API` / `DNS_TXT_KEY`: already present (the dns-01 push).
    Until this is done the route answers `503 certs_disabled` and every box
    falls back to its in-guest client, so nothing changes yet.
 2. **Release the supervisor** (push to main): boxes that pick it up try
    `CERTS_API` first and fall back to their own ACME slots on 503/unreachable.
 3. **Boxes restart on their schedule** (the metal auto-update timer takes the
-   release when it appears, unless the box opted into `onlyWhenIdle`; the
-   hosted fleet repoints on release). Watch the relay log for `certs: issued`
+   release when it appears, unless the box opted into `onlyWhenIdle`). Watch the relay log for `certs: issued`
    lines per flavor.
 4. **Remove the per-box EAB pair**: delete `acmeEabKid`/`acmeEabHmac` from every
    first-party `metal/config.json`, and drop `ACME_EAB_KID`/`ACME_EAB_HMAC` from
-   `enclaves/*/tinfoil-config.yml` (Tinfoil binds secrets at container
-   creation, so that is a rebind + relaunch, not a hot change). From here the
+   the supervisor's `secrets:` list in `enclaves/cpu/config.yml`. From here the
    only copy of the CA credential is on the relay.
 
 ## What degrades without the fleet secrets (and stays off by default)

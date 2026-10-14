@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // deploy-deployments.mjs - compile + deploy contracts/EnclaveDeployments.sol to Base,
-// print the address, and (optionally) write it into tinfoil-config.yml as
+// print the address, and (optionally) write it into enclaves/cpu/config.yml as
 // DEPLOYMENTS_ADDRESS. Re-emits contracts/EnclaveDeployments.abi.json on every run so
 // the checked-in ABI can't drift from what's deployed.
 //
@@ -30,7 +30,7 @@
 //                         (testnet default nan.eth; set it explicitly to opt into
 //                         ENS resolution on mainnet instead of a raw address).
 //   REGISTRY_ADDRESS      EnclaveRegistry to gate claims against. If unset, read from
-//                         tinfoil-config.yml's REGISTRY_ADDRESS line.
+//                         enclaves/cpu/config.yml's REGISTRY_ADDRESS line.
 //   ETH_USD_FEED          Chainlink ETH/USD aggregator; defaults per network;
 //                         "none" disables ETH funding (USDC only).
 //   PRICE_PER_SEC6        IGNORED since ledger rev 8: enclaves post their own
@@ -51,7 +51,7 @@
 //   DEPLOY_TX             with --finish: the deploy tx hash (address read from
 //                         its receipt when DEPLOYED_ADDRESS is unset).
 // Flags:
-//   --no-write-config     do NOT touch tinfoil-config.yml (default is to write it)
+//   --no-write-config     do NOT touch enclaves/cpu/config.yml (default is to write it)
 //   --yes                 skip the interactive confirmation (CI)
 //   --dry-run             compile + show the plan, do NOT broadcast
 //   --replace             on mainnet, allow re-deploying even though the current
@@ -83,8 +83,7 @@ const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
 const CONTRACT = path.join(REPO, "contracts", "EnclaveDeployments.sol");
 const ABI_OUT = path.join(REPO, "contracts", "EnclaveDeployments.abi.json");
-const CONFIG = path.join(REPO, "enclaves", "gpu", "tinfoil-config.yml");
-const CONFIG_CPU = path.join(REPO, "enclaves", "cpu", "tinfoil-config.yml");  // CPU flavor points at the same ledger
+const CONFIG = path.join(REPO, "enclaves", "cpu", "config.yml");
 
 const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has("--dry-run");
@@ -181,13 +180,13 @@ function resolveRegistry() {
   const cfg = fs.readFileSync(CONFIG, "utf8");
   const m = cfg.match(/-\s*REGISTRY_ADDRESS:\s*"(0x[0-9a-fA-F]{40})"/);
   if (!m) die(`REGISTRY_ADDRESS not set and no address found in ${CONFIG}; deploy the registry first (scripts/deploy-registry.mjs).`);
-  console.log(`REGISTRY_ADDRESS unset; using ${m[1]} from tinfoil-config.yml`);
+  console.log(`REGISTRY_ADDRESS unset; using ${m[1]} from enclaves/cpu/config.yml`);
   return getAddress(m[1]);
 }
 
 function writeDeploymentsAddress(addr) {
   const re = /(-\s*DEPLOYMENTS_ADDRESS:\s*)"[^"]*"/;
-  for (const file of [CONFIG, CONFIG_CPU]) {
+  for (const file of [CONFIG]) {
     if (!fs.existsSync(file)) continue;
     let cfg = fs.readFileSync(file, "utf8");
     if (!re.test(cfg)) {
@@ -259,7 +258,7 @@ function announce(addr, net) {
   console.log(`  set in config    DEPLOYMENTS_ADDRESS: "${addr}"`);
   console.log("===============================================================\n");
   if (!NO_WRITE_CONFIG) writeDeploymentsAddress(addr);
-  else console.log("(--no-write-config: skipped tinfoil-config.yml; set DEPLOYMENTS_ADDRESS manually)");
+  else console.log("(--no-write-config: skipped enclaves/cpu/config.yml; set DEPLOYMENTS_ADDRESS manually)");
 }
 
 // Pricing left this contract at rev 8: each enclave publishes its own
@@ -438,8 +437,8 @@ async function main() {
   await ensurePrice(pub, wallet, abi, addr);
 
   console.log("\nNext:");
-  console.log(`  1. Ensure DEPLOYMENTS_ADDRESS in tinfoil-config.yml is ${addr} (written above)`);
-  console.log("  2. Rebuild+repin the supervisor (CLAIM_ENABLED is on in tinfoil-config.yml):  ./scripts/release.sh enclave-supervisor");
+  console.log(`  1. Ensure DEPLOYMENTS_ADDRESS in enclaves/cpu/config.yml is ${addr} (written above)`);
+  console.log("  2. Rebuild+repin the supervisor (CLAIM_ENABLED is on in enclaves/cpu/config.yml):  ./scripts/release.sh enclave-supervisor");
   await proverNext(pub, abi, addr, registry, net);
   if (!isMainnet) console.log("  Then exercise create/fund/claim/renew/release on testnet, THEN re-run with NETWORK=base.");
 }

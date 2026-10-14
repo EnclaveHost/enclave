@@ -164,8 +164,7 @@ byte, exactly as with a first-party enclave.
   `setClaimBond`, exit is timelocked, and provable misbehavior such as repeated
   claim-without-serving is slashable with public evidence in the event log).
   Off by default; spinning up thousands of earning identities has a cost the
-  moment it's on. Griefing is further bounded by non-refundable funding
-  thresholds (see `docs/autoscale.md`).
+  moment it's on.
 
 ## Measurement governance
 

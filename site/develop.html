@@ -344,7 +344,7 @@ create("catalog://0x06a4…c13/5", 250, 50, 8080, "", true, "", "0x0…0", 0)
 // -&gt; the receipt's Created event: topics[1] is your deployment id (bytes32)</code></pre></c-code>
 
           <h4>Attach model volumes: big weights, attested, not in the wasm</h4>
-          <p>An enclave can carry <b>attested read-only model volumes</b> (Tinfoil Modelwrap): weights declared in the enclave's config become a dm-verity image whose root hash is part of the enclave measurement, so the attestation commits to the exact bytes. A version <b>attaches</b> volumes by name and the runner mounts each read-only at <code>/models/&lt;name&gt;</code> inside the guest - so a multi-GB model reaches your app without riding the app wasm (no <code>include_bytes!</code>, no IPFS weight fetch, none of the 4&nbsp;GiB linear-memory ceiling on the weights). Volumes ride the <b>version's config</b> - its <code>volumes</code> key - set at publish (the publish form's App config box, or <code>enclave publish --config</code>) and delivered to the app as <code>ENCLAVE_CONFIG</code> straight from the on-chain record. Like the bytes, specs and ports, the config is <b>immutable once published and covered by the version's approval</b> - a publisher cannot change an approved release's behavior; a new default config means a new version and a fresh review. For deployers it is the <b>default</b>, not a straitjacket: on fleets that support it, a deployment may carry its own config override at create (the deploy form's App config box, or <code>enclave deploy --config</code>) - it replaces the version's config as that one deployment's <code>ENCLAVE_CONFIG</code>, and the catalog record and every other deployment stay untouched.</p>
+          <p>An enclave can carry <b>attested read-only model volumes</b>: weights declared in the enclave's config become a dm-verity image whose root hash is part of the enclave measurement, so the attestation commits to the exact bytes. A version <b>attaches</b> volumes by name and the runner mounts each read-only at <code>/models/&lt;name&gt;</code> inside the guest - so a multi-GB model reaches your app without riding the app wasm (no <code>include_bytes!</code>, no IPFS weight fetch, none of the 4&nbsp;GiB linear-memory ceiling on the weights). Volumes ride the <b>version's config</b> - its <code>volumes</code> key - set at publish (the publish form's App config box, or <code>enclave publish --config</code>) and delivered to the app as <code>ENCLAVE_CONFIG</code> straight from the on-chain record. Like the bytes, specs and ports, the config is <b>immutable once published and covered by the version's approval</b> - a publisher cannot change an approved release's behavior; a new default config means a new version and a fresh review. For deployers it is the <b>default</b>, not a straitjacket: on fleets that support it, a deployment may carry its own config override at create (the deploy form's App config box, or <code>enclave deploy --config</code>) - it replaces the version's config as that one deployment's <code>ENCLAVE_CONFIG</code>, and the catalog record and every other deployment stay untouched.</p>
           <p><b>Large configs.</b> A config up to 4096 bytes is stored inline in the version record. Past that it is pinned to IPFS and the record carries its <b>CID</b> instead, which raises the ceiling to <b>1&nbsp;MB</b> - the publish path does this for you, so <code>enclave publish --config</code> and the App config box behave the same either way. The guarantee does not change: the CID is part of the immutable, approval-covered version record, exactly like the wasm CID beside it, and the enclave fetches it through the same path that verifies the content hashes back to the CID - so what your app receives is what the owner approved, not whatever a gateway felt like serving. Two details worth knowing if your config is large: a handful of keys (<code>wasi</code>, <code>threads</code>, <code>set</code>, <code>gpuOptional</code>, <code>cpuFallback</code>, <code>volumes</code>, <code>_media</code>) stay on-chain as a small manifest, because a runner reads them to pick a machine - and size the share it must have bought - before it fetches anything; and above 64&nbsp;KB the config no longer fits in an environment variable (a kernel limit on argument size), so it arrives <em>only</em> as a file. Read <code>ENCLAVE_CONFIG_FILE</code> - it is set at every size, and points at the same JSON <code>ENCLAVE_CONFIG</code> carries when it fits.</p>
           <c-code fn="the version's config → ENCLAVE_CONFIG"><pre><code>// published WITH the version (enclave publish --config '…'); the runner reads it
 // from the catalog record, mounts each volume at /models/&lt;name&gt; (read-only), and
@@ -787,19 +787,20 @@ _acme-challenge.shop.example.com.    CNAME  _acme-challenge.cc1f4f3f.app.enclave
         <article class="doc" id="docs-attest">
           <h3><span class="n">15</span>Attestation for your users</h3>
           <p>On a confidential host the platform's core promise extends to your app: a user can verify, cryptographically and before sending a byte of data, that they're talking to an attested enclave running exactly the code that was measured. For apps deployed by CID, the attestation includes <b>your app</b>: its <code>app.cid</code> field names the exact bytes that ran, hash-verified against the CID inside the enclave by the measured runtime, with a <code>coverage</code> note stating precisely what covers it (the boot measurement covers the runtime; the runtime pins your app).</p>
-          <c-code fn="verify.js · attested client"><pre><code>import { SecureClient } from "tinfoil";
+          <c-code fn="terminal · verify before you send data"><pre><code># Enclave's own verifier (verifier/ in the repo, bundled into the CLI):
+enclave attest dep_3xK9f2Qa                       # the box your deployment runs on
+enclave attest dep_3xK9f2Qa --expect &lt;measurement&gt;  # pin the launch measurement yourself
 
-const c = new SecureClient({ baseURL: "https://&lt;enclave-host&gt;" });
-await c.ready();          // verifies the CPU TEE report (AMD SEV-SNP on this fleet) + Sigstore
-                          // code provenance, compares measurements, pins TLS
-const res = await c.fetch("/x/dep_3xK9f2Qa/");   // provably served by attested code</code></pre></c-code>
-          <c-code fn="terminal · independent paths"><pre><code># fully independent check with tinfoil-cli:
-tinfoil attestation verify -e &lt;enclave-host&gt; -r EnclaveHost/enclave
+# what it checks: a FRESH report for a nonce it draws (sent through the relay to the box),
+# AMD signature up to AMD's root, firmware floor, guest policy, the box's key bound to the
+# nonce, and the launch measurement (yours with --expect; otherwise the operator's list,
+# reported as "limited", never as a pass)</code></pre></c-code>
+          <c-code fn="verify.js · in your users' browser"><pre><code>// same-origin, hash-pinned build of verifier/web
+import { verifyMetalBoxWeb } from "https://enclave.host/vendor/enclave-verifier.js";
 
-# the enclave's attestation (public), and your deployment's view of it (owner):
-curl https://&lt;enclave-host&gt;/v1/attestation
-curl -H "Authorization: Bearer $LOGIN_TOKEN" \
-  https://&lt;enclave-host&gt;/v1/deployments/dep_3xK9f2Qa/attestation</code></pre></c-code>
+const r = await verifyMetalBoxWeb({ name: "metal0", expected: { measurements: ["&lt;measurement&gt;"] } });
+if (r.status !== "verified") throw new Error("not verified: " + r.reasons.at(-1));
+// r.transportKeySha256 is the key the report binds: use it for an end-to-end channel</code></pre></c-code>
           <p>Point your users at the <a href="./#attest">attestation walkthrough</a> for what each link in the chain proves, or embed the check in your own client as above. For raw-TCP services, add the <a href="#docs-tcp">bridge-cert pin</a> so even the TLS session is bound to the measured enclave.</p>
         </article>
 

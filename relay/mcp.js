@@ -765,8 +765,8 @@ Funding is prepaid and burns per second while leased.
 
   attestation: `Never trust the gateway: verify the enclave BEFORE sending it secrets.
 - attestation returns the fleet attestation document; deployment_attestation { id } returns the hosting enclave's (public; an owner token adds a fresh GPU nonce challenge).
-- REAL verification runs client-side with @tinfoilsh/verifier against the pinned source repo ${EXPECTED_REPO} (hardware TEE quote -> vendor root, Sigstore provenance, measurement match, TLS binding). Never verify against a repo name the API returns; pin ${EXPECTED_REPO}.
-- Easiest: the enclave CLI does it in one command: enclave attest [<id>]  (curl -fsSL https://get.enclave.host | sh)
+- REAL verification runs client-side with this repository's own verifier (verifier/ in ${EXPECTED_REPO}): the box is challenged with YOUR fresh nonce, the AMD SEV-SNP report must chain to AMD's pinned root, meet the TCB floor and bind the box's transport key with that nonce, and the launch measurement must be one you expect (pin it with --expect; otherwise the relay operator's allowlist is used and the verdict says LIMITED).
+- Easiest: the enclave CLI does it in one command: enclave attest [<id>]  (no id: every attached SEV-SNP box; curl -fsSL https://get.enclave.host | sh). Exit 0 verified, 3 limited, 1 not verified.
 - Session tokens are minted in-enclave (ES256); the JWKS is at ${API_BASE}/v1/session-jwks and inside the attestation document, so a verified enclave transitively authenticates the API.`,
 
   volumes: `Two kinds of volumes:
@@ -943,10 +943,10 @@ const TOOLS = [
   },
   {
     name: "fleet_attestation",
-    description: "The fleet's enclave attestation document (public). Verify CLIENT-SIDE with @tinfoilsh/verifier pinned to the repo EnclaveHost/enclave, or `enclave attest`; never trust this gateway's copy blindly.",
+    description: "The fleet's enclave attestation document (public). Verify CLIENT-SIDE with `enclave attest` (this repository's own verifier); never trust this gateway's copy blindly.",
     inputSchema: S({}),
     handler: async () => ({ attestation: await self("GET", "/v1/attestation"),
-      verify: `Client-side only: @tinfoilsh/verifier with configRepo pinned to ${EXPECTED_REPO} (see guide topic "attestation")` }),
+      verify: `Client-side only: enclave attest, the verifier in ${EXPECTED_REPO} (see guide topic "attestation")` }),
   },
   {
     name: "deployment_attestation",

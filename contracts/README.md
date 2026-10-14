@@ -3,13 +3,14 @@
 Transparent, gateway-free enclave discovery. The registry is the on-chain source
 of truth for *which enclaves exist, where, and what code they claim*. Callers
 read it from any RPC and connect to an enclave **directly**, verifying its live
-attestation with Tinfoil's SecureClient. There is no trusted middleman: the
-contract publishes claims, attestation (at connect time) gates trust.
+attestation with Enclave's verifier (`verifier/`, `enclave attest`). There is no
+trusted middleman: the contract publishes claims, attestation (at connect time)
+gates trust.
 
 ```
 caller --(eth_call)--> EnclaveRegistry            "enclave at URL, repo=org/repo"
 caller --(/availability)--> each enclave      live free share (off-chain)
-caller --(SecureClient(URL, repo))--> enclave verifies SEV-SNP/TDX + Sigstore, pins TLS
+caller --(enclave attest / verifier)--> enclave   fresh SEV-SNP report over the caller's nonce, AMD root, measurement
 ```
 
 ## Files
@@ -22,7 +23,7 @@ caller --(SecureClient(URL, repo))--> enclave verifies SEV-SNP/TDX + Sigstore, p
 ## 1. Deploy the contract to Base (chain 8453)
 
 No constructor args, no owner — the deployer keeps no special power. A viem+solc
-script mirrors `deploy-app-catalog.mjs` and **wires `enclaves/gpu/tinfoil-config.yml`'s
+script mirrors `deploy-app-catalog.mjs` and **wires `enclaves/cpu/config.yml`'s
 `REGISTRY_ADDRESS` plus `enclave-discover.mjs`'s default automatically** on success
 (pass `--no-write-config` to skip):
 
@@ -44,7 +45,7 @@ NETWORK=base DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-registry.mjs
 ## 2. Give each enclave a registry config
 
 The enclave self-registers on boot when `REGISTRY_ENABLED` is set. The supervisor
-container's env in `enclaves/gpu/tinfoil-config.yml` already carries the block — the deploy
+container's env in `enclaves/cpu/config.yml` already carries the block — the deploy
 script fills in the address; the one value you set **per enclave** is its own URL:
 
 ```yaml
@@ -52,7 +53,7 @@ env:
   REGISTRY_ENABLED: "1"
   REGISTRY_ADDRESS: ""       # written by scripts/deploy-registry.mjs
   ENCLAVE_ENDPOINT: ""       # per enclave, e.g. "https://enclave1.enclave.host"; empty = don't advertise
-  ENCLAVE_REPO: "EnclaveHost/enclave"          # what callers attest against (Sigstore-measured; exact GitHub casing — Sigstore compares it verbatim)
+  ENCLAVE_REPO: "EnclaveHost/enclave"          # the source repository the enclave says it runs (its release tags); exact GitHub casing
   # REGISTRY_HEARTBEAT_SEC: "900"           # optional, default 15 min
 ```
 
@@ -84,30 +85,24 @@ Prints aggregate free capacity across all live enclaves and the best one for a
 deployment buying a 25% GPU share + 5% CPU share (args: gpuShare cpuShare,
 0..1 each; gpuShare 0 for a CPU-only app: CPU enclaves first, GPU leftovers as
 fallback — derive the minimum shares from the app's exact specs against each
-enclave's /availability), ending with the endpoint+repo to hand to SecureClient.
+enclave's /availability), ending with the endpoint+repo of the pick.
 
-Then connect with attestation (the part that actually gates trust):
-```js
-// JS/TS, browser or server
-import { SecureClient } from "tinfoil";
-const c = new SecureClient({ baseURL: chosen.endpoint /*, repo handling per tinfoil-js*/ });
-await c.ready();                       // verifies SEV-SNP/TDX + Sigstore, pins TLS
-await c.fetch("/availability");        // now provably talking to attested code
-await c.fetch(`/x/${deploymentId}/run`, { method: "POST", body });
+Then verify the attestation before sending data (the part that actually gates trust):
+```bash
+enclave attest <deployment-id>        # verifies the box it runs on; nonzero exit on FAIL
 ```
-```go
-// Go
-import "github.com/tinfoilsh/verifier/client"
-tc := client.NewSecureClient(chosen.endpoint, chosen.repo)
-resp, _ := tc.Get("/availability", nil)
+```js
+// Node: the verifier the CLI uses
+import { verifyMetalBox } from "./verifier/consumer.mjs";
+const v = await verifyMetalBox({ apiBase: "https://api.enclave.host", name: "metal0" /*, expected: { measurements: [...] } */ });
 ```
 
 ## Trust boundaries (what this does and does not do)
 - **Discovery is trustless**: the enclave list is public chain state; no operator
   sits in the request path. Picking the wrong enclave costs placement, not safety.
-- **Trust is gated by attestation at connect**, done by the caller's SecureClient
+- **Trust is gated by attestation at connect**, done by the caller's verifier
   — not by registration. A malicious operator can register an enclave, but its
-  live quote won't match an Enclave-good `repo`/measurement, so callers reject it.
+  live quote won't carry a measurement the caller expects, so callers reject it.
 - **Liveness is advisory**: heartbeats set `lastSeen`; readers drop entries
   staler than their window (the helper uses 1h).
 - **Open registration for now.** Sybil resistance via stake-to-register +
@@ -237,7 +232,7 @@ Manager env: `IPFS_GATEWAY` (default `https://ipfs.enclave.host`), `WASM_MAX_BYT
 
 No constructor args; the deployer EOA becomes `owner` (approves/rejects versions,
 can flip `verified`, can `transferOwnership`). A viem+solc script mirrors
-`deploy-enclave-pay.mjs` and **wires the site and `enclaves/gpu/tinfoil-config.yml` automatically**
+`deploy-enclave-pay.mjs` and **wires the site and `enclaves/cpu/config.yml` automatically**
 on success:
 
 ```bash

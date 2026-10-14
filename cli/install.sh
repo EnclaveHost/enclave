@@ -149,7 +149,7 @@ main() {
   # bundle deps: the repo root has them; a bare checkout of cli/ installs its own
   if [ ! -d "$CLI_DIR/../node_modules/viem" ] && [ ! -d "$CLI_DIR/node_modules/viem" ]; then
     need npm
-    echo "installing bundle dependencies (viem, @tinfoilsh/verifier, esbuild)…"
+    echo "installing bundle dependencies (viem, esbuild)…"
     # Prefer `npm ci` — it installs the EXACT versions from the checked-in
     # package-lock.json (this is a key-holding signing binary; floating caret
     # ranges have no place in it). Fall back to `npm install` only if the lockfile

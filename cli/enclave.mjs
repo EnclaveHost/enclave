@@ -11,7 +11,7 @@
 //   enclave login                    or sign in with your Enclave account (passkey)
 //   enclave deploy hello-world:1 --fund 2  create + fund + wait until live
 //   enclave ls | status | logs -f    watch it run
-//   enclave attest <id>              verify the enclave BEFORE you send data  [--verifier tinfoil|enclave|both] [--min-tcb JSON]
+//   enclave attest [<id>]            verify the enclave BEFORE you send data  [--expect HEX[,HEX]] [--min-tcb JSON]  (exit 0 verified, 3 limited, 1 not)
 //   enclave publish app.wasm --slug hello-world   pin to IPFS + cut a catalog version
 //
 // State lives in ~/.config/enclave/ (key: chmod 600; cached bearer tokens).
@@ -46,15 +46,9 @@ import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 
 const VERSION = "1.5.0";
 
-// The ONLY enclave source repo this CLI will verify against. Attestation targets
-// are pinned to this constant, never taken from the API response — a malicious
-// gateway/enclave could otherwise point the verifier at an attacker-controlled
-// repo that passes. Compared case-insensitively against the API-returned repo.
-const EXPECTED_REPO = "EnclaveHost/enclave";
-
 // ---- platform constants -----------------------------------------------------
 // Addresses are Base mainnet (chain 8453), kept in lockstep with
-// enclaves/*/tinfoil-config.yml and site/index.html by
+// enclaves/cpu/config.yml and site/index.html by
 // scripts/sync-contract-addresses.sh — same values, one authority.
 const DEFAULTS = {
   apiBase: "https://api.enclave.host",
@@ -341,11 +335,10 @@ const opt = { json: false, trace: false, base: null, rpc: null, yes: false,
               unsigned: false, signer: null, from: null,
               // --wallet: act with the wallet key even when a session is active (see "sessions" below)
               wallet: false,
-              // `enclave attest`: which verifier judges (docs/security/independent-verifier-plan.md, section 9 stage 3).
-              //   tinfoil (default): @tinfoilsh/verifier, exactly as before.
-              //   both:              both run; both verdicts print; the EXIT CODE follows Tinfoil's until the cutover.
-              //   enclave:           the Enclave-owned verifier alone decides (opt-in).
-              verifier: "tinfoil", minTcb: null, releaseBundle: null, releaseDigest: null, collateralDir: null, requireIndex: false };
+              // `enclave attest` (verifier/metal-box.mjs, this repository's own verifier): --expect pins the launch measurement(s)
+              // that must run (without it the relay operator's allowlist is used and the verdict is at best "limited");
+              // --min-tcb overrides the published TCB floor; --collateral-dir reads AMD collateral from disk instead of AMD KDS.
+              expect: null, minTcb: null, collateralDir: null };
 const args = [];
 {
   const a = argv.slice(2);
@@ -367,12 +360,9 @@ const args = [];
     else if (a[i] === "--signer") opt.signer = a[++i];
     else if (a[i] === "--from") opt.from = a[++i];
     else if (a[i] === "--wallet") opt.wallet = true;
-    else if (a[i] === "--verifier") opt.verifier = a[++i];
-    else if (a[i] === "--min-tcb") opt.minTcb = a[++i];                 // JSON TCB floor per product line; without it the Enclave verdict is at best "limited"
-    else if (a[i] === "--release-bundle") opt.releaseBundle = a[++i];   // offline release provenance: attestation bundle file(s), comma-separated,
-    else if (a[i] === "--release-digest") opt.releaseDigest = a[++i];   //   paired with the release digest(s); default: GitHub's public release index
+    else if (a[i] === "--expect") opt.expect = a[++i];                  // the launch measurement(s) you expect, 96 hex each, comma-separated
+    else if (a[i] === "--min-tcb") opt.minTcb = a[++i];                 // JSON TCB floor per product line (default: the verifier's published floors)
     else if (a[i] === "--collateral-dir") opt.collateralDir = a[++i];   // AMD collateral from a directory (amd/<product>-cert_chain.pem, amd/<product>-crl.der, vcek/<product>-<chip>-<tcb>.der) instead of KDS
-    else if (a[i] === "--require-index") opt.requireIndex = true;       // the strict switch: no verified, fresh signed release index = no expected measurement
     else args.push(a[i]);
   }
 }
@@ -997,110 +987,43 @@ async function waitVisible(id, owner, { relay }) {
   }
 }
 
-// ---- attestation verification (the real thing, run locally) ----------------------
-async function verifyEnclaveOrigin(origin, repo) {
-  let Verifier;
-  try { ({ Verifier } = await import("@tinfoilsh/verifier")); }
-  catch { throw new Error("@tinfoilsh/verifier is not installed; reinstall the CLI (npm i -g enclave-cli)"); }
-  trace(`verify ${origin} against ${repo} (@tinfoilsh/verifier: quote -> vendor root, Sigstore provenance, measurement match, TLS binding)`);
-  const v = new Verifier({ serverURL: origin, configRepo: repo });
-  let failure = null;
-  try { await v.verify(); } catch (e) { failure = e; }
-  const doc = v.getVerificationDocument();
-  if (!doc) throw new Error(`verifier produced no document${failure ? `: ${failure.message}` : ""}`);
-  const word = (s) => !s || s.status === "pending" ? "skipped" : s.status === "success" ? "pass" : "fail";
-  const steps = {};
-  for (const k of ["fetchDigest", "verifyEnclave", "verifyCode", "compareMeasurements", "verifyCertificate"])
-    steps[k] = word(doc.steps?.[k]) + (doc.steps?.[k]?.error ? `: ${doc.steps[k].error}` : "");
-  return { pass: !!doc.securityVerified, steps,
-           release: doc.releaseDigest ? `sha256:${doc.releaseDigest}` : null,
-           measurement: doc.enclaveFingerprint || null,
-           error: failure?.message || null };
-}
-// ---- the Enclave-owned verifier (verifier/consumer.mjs), beside the Tinfoil one --------------------------------
-// The same origin, verified again by THIS repository's verifier: one capture over the CLI's own TLS connection
-// (document + the certificate of that handshake), the expected measurement from the release's Sigstore provenance
-// against the pinned Sigstore root (GitHub's public index directly, no Tinfoil proxy; or --release-bundle offline),
-// the AMD chain and CRL from KDS. Bundled by cli/build.mjs; an install without it says so and never pretends.
-const VERIFIER_MODES = ["tinfoil", "enclave", "both"];
-async function verifyEnclaveOriginOwn(origin, repo) {
+// ---- attestation verification (the real thing, run locally, with this repository's own verifier) ---------------------
+// verifier/metal-box.mjs through verifier/consumer.mjs (bundled by cli/build.mjs): the box is challenged with OUR fresh nonce
+// through the relay, the report must be AMD-signed (VCEK -> the pinned AMD root), meet the TCB floor and bind the box's
+// transport key with that nonce, and its launch measurement must be one we expect: --expect, or - labelled, never a pass -
+// the relay operator's allowlist. Nothing here trusts the relay's or the box's word for any of it.
+async function verifyBox(name) {
   let C;
-  try { C = await import(new URL("../verifier/consumer.mjs", import.meta.url).href); }
-  catch (e) { throw new Error(`the Enclave verifier is not part of this install (${e.message}); reinstall the CLI, or use --verifier tinfoil`); }
-  const u = new URL(origin), host = u.hostname, port = u.port ? Number(u.port) : 443;
-  let expectations = null;
-  if (opt.releaseBundle || opt.releaseDigest) {
-    if (!opt.releaseBundle || !opt.releaseDigest) throw new Error("--release-bundle and --release-digest go together");
-    const files = opt.releaseBundle.split(","), digests = opt.releaseDigest.split(",");
-    if (files.length !== digests.length) throw new Error("--release-bundle and --release-digest must pair up");
-    expectations = await C.releaseExpectationsFrom(files.map((f, i) => { const j = JSON.parse(fs.readFileSync(f, "utf8")); return { tag: path.basename(f), digest: digests[i].trim(), bundle: j.attestations ? j.attestations[0]?.bundle : j }; }), { repo });
-    trace(`release provenance from ${files.length} local bundle(s): ${expectations.reasons.join("; ")}`);
+  try { C = await import("../verifier/consumer.mjs"); }
+  catch (e) { throw new Error(`the Enclave verifier is not part of this install (${e.message}); reinstall the CLI`); }
+  let expected = null;
+  if (opt.expect) {
+    const ms = String(opt.expect).split(",").map((m) => m.trim().toLowerCase()).filter(Boolean);
+    if (!ms.length || !ms.every((m) => /^[0-9a-f]{96}$/.test(m))) throw new Error("--expect takes launch measurements, 96 hex characters each, comma-separated");
+    expected = { measurements: ms, source: "--expect" };
   }
   let minTcb;
-  if (opt.minTcb) { try { minTcb = JSON.parse(opt.minTcb); } catch { throw new Error("--min-tcb must be JSON like {\"Genoa\":{\"bootloader\":10,\"tee\":0,\"snp\":23,\"microcode\":84}}"); } }
+  if (opt.minTcb) { try { minTcb = JSON.parse(opt.minTcb); } catch { throw new Error("--min-tcb must be JSON like {\"Turin\":{\"fmc\":1,\"bootloader\":3,\"tee\":2,\"snp\":5,\"microcode\":117}}"); } }
   let collateral = null;
-  if (opt.collateralDir) { const { fileCollateral } = await import(new URL("../verifier/collateral.mjs", import.meta.url).href); collateral = fileCollateral(path.resolve(opt.collateralDir)); }
-  // the highest signed release index seen so far is remembered beside the key: a replayed or equivocating index is refused
-  // and the unsigned fallback never accepts below the remembered floor (index.freshness says which case this run was)
-  const indexMemory = C.createIndexMemory({ file: path.join(CONF_DIR, "verifier-index-memory.json"), log: (m) => trace(m) });
-  trace(`verify ${origin} with the Enclave verifier (capture over this connection, release provenance from ${expectations ? "local bundles" : "GitHub, signed index first"}, AMD collateral from ${collateral ? opt.collateralDir : "KDS"})`);
-  const r = await C.verifyHost({ host, port, repo, expectations, reference: false, minTcb, collateral, indexMemory, requireIndex: opt.requireIndex });
-  const v = r.enclave;
-  return { verifier: "enclave", status: v.status, pass: v.status === "verified", admissionSafe: v.admissionSafe === true,
-           release: v.matched ? { tag: v.matched, digest: r.expectations.allowed.find((a) => a.tag === v.matched)?.digest ?? null } : null,
-           expected: r.expectations.allowed.map((a) => a.tag), latestTag: r.expectations.latestTag ?? null, index: r.expectations.index ?? null, indexError: r.expectations.indexError ?? null,
-           measurement: v.measurement ?? null, failedChecks: v.failedChecks ?? [], omissions: v.omissions ?? [], checks: v.checks ?? {},
-           certificate: r.capture?.certificate ? { subject: r.capture.certificate.subject, sha256: r.capture.certificate.sha256, notAfter: r.capture.certificate.notAfter } : null,
-           reasons: v.reasons ?? [] };
+  if (opt.collateralDir) { const { fileCollateral } = await import("../verifier/collateral.mjs"); collateral = fileCollateral(path.resolve(opt.collateralDir)); }
+  trace(`verify box ${name}: fresh attestation over our nonce through ${API_BASE}, AMD collateral from ${collateral ? opt.collateralDir : "AMD KDS"}, measurement from ${expected ? "--expect" : "the relay operator's allowlist (limited)"}`);
+  return C.verifyMetalBox({ apiBase: new URL(API_BASE).origin, name, expected, minTcb, collateral });
 }
-function printOwnVerdict(r) {
-  kv([["verifier", "enclave (verifier/consumer.mjs)"], ["  status", r.status],
-      ["  index", r.index ? `${r.index.status}${r.index.freshness ? ` (${r.index.freshness})` : ""}${r.index.publication ? `, run ${r.index.publication.runId} attempt ${r.index.publication.attempt}` : ""}${r.index.floorApplied ? `, floor ${r.index.floorApplied}` : ""}` : null],
-      ["  release", r.release ? `${r.release.tag}${r.release.digest ? ` sha256:${r.release.digest}` : ""}` : `none matched (expected ${r.expected.join(", ") || "nothing: no verified provenance"})`],
-      ["  measurement", r.measurement], ["  failed", r.failedChecks.join(", ") || "-"], ["  omitted", r.omissions.join(", ") || "-"]]);
-  const last = r.reasons.at(-1);
-  say(r.pass ? "verdict     PASS (enclave): this origin's document, served key and certificate verify against a release with verified provenance"
-    : r.status === "limited" ? `verdict     LIMITED (enclave): every check passed, but ${r.omissions.join(", ")} was not judged (state a floor with --min-tcb); not a pass`
-    : `verdict     ${r.status.toUpperCase()} (enclave): do not send data${last ? ` (${last})` : ""}`);
+// the box a deployment runs on, from its attestation pointer (".../t/<box>/..."); null when it is not an attested SNP box
+const boxOfEndpoint = (ep) => { try { return (new URL(ep).pathname.match(/^\/t\/([A-Za-z0-9_-]{1,64})\//) || [])[1] || null; } catch { return null; } };
+function printBoxVerdict(r) {
+  kv([["box", r.subject?.name], ["verifier", "enclave (verifier/metal-box.mjs)"], ["  status", r.status],
+      ["  measurement", r.measurement], ["  expected", r.expected ? `${r.expected.source}: ${r.expected.measurements.length} value(s)` : null],
+      ["  product", r.product], ["  transport key", r.transportKeySha256 ? `sha256:${r.transportKeySha256}` : null],
+      ["  nonce", r.nonce ? `${r.nonce.slice(0, 16)}… (ours, fresh)` : null],
+      ["  failed", (r.failedChecks || []).join(", ") || "-"], ["  omitted", (r.omissions || []).join(", ") || "-"]]);
+  if (r.channel) say(`  channel     ${r.channel}`);
+  const last = (r.reasons || []).at(-1);
+  say(r.status === "verified" ? "verdict     PASS: a genuine, fresh AMD SEV-SNP report from this box, at a measurement you expect"
+    : r.status === "limited" ? `verdict     LIMITED: every check passed, but ${(r.omissions || []).join(", ")} was not independently judged${r.omissions?.includes("expected-measurement-operator-stated") ? " (pin the measurement with --expect)" : ""}; not a pass`
+    : `verdict     ${String(r.status).toUpperCase()}: do not send data${last ? ` (${last})` : ""}`);
 }
-// Both verdicts, by mode. `pass` is what the exit code follows: Tinfoil's in tinfoil and both modes (stage 3), the
-// Enclave verifier's in enclave mode. `agreement` is descriptive: two verifiers over their own fetches of one origin.
-async function verifyByMode(origin, repo) {
-  const mode = opt.verifier;
-  if (!VERIFIER_MODES.includes(mode)) throw new Error(`--verifier must be one of ${VERIFIER_MODES.join(", ")}`);
-  const out = { verifier: mode, tinfoil: null, enclave: null, agreement: null, pass: false };
-  if (mode === "tinfoil") out.tinfoil = await verifyEnclaveOrigin(origin, repo);          // as before: a thrown verification ends the command
-  else if (mode === "both") {
-    // both legs report; a Tinfoil leg that throws is a recorded failure here, not the end of the command
-    try { out.tinfoil = await verifyEnclaveOrigin(origin, repo); }
-    catch (e) { out.tinfoil = { pass: false, steps: {}, release: null, measurement: null, error: e.message }; }
-  }
-  if (mode !== "tinfoil") {
-    try { out.enclave = await verifyEnclaveOriginOwn(origin, repo); }
-    catch (e) { out.enclave = { verifier: "enclave", status: "unavailable", pass: false, admissionSafe: false, release: null, expected: [], measurement: null, failedChecks: [], omissions: [], checks: {}, certificate: null, reasons: [`unavailable: ${e.message}`] }; }
-  }
-  if (out.tinfoil && out.enclave) {
-    const { dualAgreement } = await import(new URL("../verifier/consumer.mjs", import.meta.url).href).catch(() => ({ dualAgreement: () => "not-compared" }));
-    out.agreement = dualAgreement({ reference: { available: true, pass: out.tinfoil.pass, measurement: out.tinfoil.measurement }, own: out.enclave });
-  }
-  out.pass = mode === "enclave" ? out.enclave.pass : out.tinfoil.pass;
-  return out;
-}
-function printVerdict(r, origin, repo) {
-  kv([["enclave", origin], ["repo", repo],
-      ...Object.entries(r.steps).map(([k, v]) => ["  " + k, v]),
-      ["release", r.release], ["measurement", r.measurement]]);
-  say(r.pass ? `verdict     PASS: this enclave's quote matches the signed ${EXPECTED_REPO} release and TLS terminates inside it (trust rests on the pinned repo + the verifier's vendor/Sigstore roots)`
-             : `verdict     FAIL: do not send data${r.error ? ` (${r.error})` : ""}`);
-}
-// The verification target repo is PINNED to EXPECTED_REPO, never the API's own
-// claim. If the API names a different repo we refuse — a gateway that could pick
-// the repo could pick one whose (attacker-controlled) release the quote matches.
-function pinnedRepo(apiRepo) {
-  if (apiRepo && String(apiRepo).toLowerCase() !== EXPECTED_REPO.toLowerCase())
-    throw new Error(`attestation names repo "${apiRepo}", but this CLI only verifies against ${EXPECTED_REPO}; refusing (a chosen repo can carry a chosen release the quote would match)`);
-  return EXPECTED_REPO;
-}
+const attestExit = (status) => (status === "verified" ? 0 : status === "limited" ? 3 : 1);
 async function attestDeployment(account, id) {
   // Keyless works: the endpoint is public. The OWNER's session adds one thing —
   // the GPU report is regenerated fresh over OUR nonce — so only authenticate
@@ -1113,18 +1036,17 @@ async function attestDeployment(account, id) {
     asOwner = !!d && d.owner.toLowerCase() === account.address.toLowerCase();
   } else if (account) asOwner = true;   // legacy dep_… id: no chain row to compare against
   const nonce = asOwner ? crypto.randomBytes(32).toString("hex") : null;
-  const att = await api("GET", `/v1/deployments/${id}/attestation${nonce ? `?nonce=${nonce}` : ""}`,
-                        asOwner ? { auth: account } : {});
-  const origin = new URL(att.verification.attestationEndpoint).origin;
-  const repo = pinnedRepo(att.verification.repo);
-  return { att, nonce, origin, repo, result: await verifyByMode(origin, repo) };
+  let att;
+  try { att = await api("GET", `/v1/deployments/${id}/attestation${nonce ? `?nonce=${nonce}` : ""}`, asOwner ? { auth: account } : {}); }
+  catch (e) {
+    // a Shield (Hyper-V partition) host carries its evidence in the app's own TLS, not an SNP report this command verifies
+    if (/shield_tls_only/.test(e.message)) return { att: null, nonce, box: null, unsupported: "this deployment runs on an Enclave Shield host (a Hyper-V partition): its evidence travels in the app's own TLS and is host-attested, not an AMD SEV-SNP report; `enclave attest` verifies SEV-SNP boxes only" };
+    throw e;
+  }
+  const box = boxOfEndpoint(att.verification?.attestationEndpoint);
+  if (!box) return { att, nonce, box: null, unsupported: `the deployment's host is not an attested SEV-SNP box (${att.verification?.attestationEndpoint || "no attestation pointer"})` };
+  return { att, nonce, box, result: await verifyBox(box) };
 }
-function printVerdicts(r, origin, repo) {
-  if (r.tinfoil) printVerdict(r.tinfoil, origin, repo);
-  if (r.enclave) printOwnVerdict(r.enclave);
-  if (r.agreement) say(`agreement   ${r.agreement}${r.verifier === "both" ? " (exit code follows the Tinfoil verdict)" : ""}`);
-}
-
 // ---- commands ---------------------------------------------------------------------
 // `enclave login`: sign in with an Enclave ACCOUNT (passkey/SIWE) through the
 // platform's device flow — the same /v1/account/device/* endpoints behind the
@@ -1416,14 +1338,15 @@ async function cmdFund(rest) {
 
 async function cmdAttest(rest) {
   if (!rest[0]) {
-    // no id: verify the enclave serving this API base (the enclave-level report)
-    const att = await api("GET", "/v1/attestation");
-    const origin = new URL(att.verification.attestationEndpoint).origin;
-    const repo = pinnedRepo(att.verification.repo);   // pinned, not API-chosen
-    const r = await verifyByMode(origin, repo);
-    if (opt.json) return jout({ origin, repo, ...(r.tinfoil || {}), ...r });
-    printVerdicts(r, origin, repo);
-    if (!r.pass) exit(1);
+    // no id: every attested SEV-SNP box the relay holds (the boxes tenant apps run on)
+    const rows = ((await api("GET", "/enclaves").catch(() => null))?.enclaves || []).filter((e) => e.mode === "snp" && e.name);
+    if (!rows.length) { if (opt.json) return jout({ boxes: [] }); say("no attested SEV-SNP box is attached right now"); exit(1); }
+    const results = [];
+    for (const e of rows) results.push(await verifyBox(e.name));
+    // the exit code follows the verdict in both output modes (0 verified, 3 limited, 1 anything else): a script that only
+    // reads the code can never take a refusal for a pass
+    if (opt.json) jout({ boxes: results.map(({ document, ...r }) => r) }); else for (const r of results) printBoxVerdict(r);
+    exit(Math.max(...results.map((r) => attestExit(r.status))));
     return;
   }
   // No wallet needed: attestation is a READER's tool (an app's users verify the
@@ -1432,20 +1355,23 @@ async function cmdAttest(rest) {
   // signed over our own nonce.
   const account = loadKey({ required: false });
   const id = await resolveId(rest[0], account);
-  const { att, nonce, origin, repo, result } = await attestDeployment(account, id);
+  const { att, nonce, box, result, unsupported } = await attestDeployment(account, id);
+  if (unsupported) {
+    if (opt.json) jout({ id, status: "unsupported", reason: unsupported }); else { kv([["deployment", id]]); say(`verdict     UNSUPPORTED: ${unsupported}`); }
+    exit(1); return;
+  }
   // The GPU CC report must be signed over the SAME nonce we sent, or its
   // freshness is unproven (a replayed report would still "have a nonce").
   const gpuNonce = att.gpu ? String(att.gpu.nonce || "").toLowerCase().replace(/^0x/, "") : "";
   const gpuNonceOk = !!nonce && !!gpuNonce && gpuNonce === nonce.toLowerCase();
-  if (opt.json) return jout({ id, origin, repo, ...(result.tinfoil || {}), ...result, vm: att.vm ? { technology: att.vm.technology, measurements: att.vm.measurements } : null, gpu: att.gpu ? { ccMode: att.gpu.ccMode, nonce: att.gpu.nonce, nonceVerified: gpuNonceOk } : null });
+  if (opt.json) { const { document, ...r } = result; jout({ id, box, ...r, gpu: att.gpu ? { ccMode: att.gpu.ccMode ?? null, fresh: gpuNonceOk, report: !!att.gpu.report } : null }); exit(attestExit(result.status)); return; }
   kv([["deployment", id], att.app?.digest ? ["app digest", att.app.digest] : null]);
-  printVerdicts(result, origin, repo);
-  if (att.vm?.technology) say(`vm          ${att.vm.technology} quote present (registers in --json)`);
+  printBoxVerdict(result);
   if (att.gpu) say(`gpu         CC report ${att.gpu.report ? "present" : "absent"}${att.gpu.ccMode ? `, ccMode=${att.gpu.ccMode}` : ""}`
     + (gpuNonceOk ? `, fresh (signed over our nonce)`
      : nonce      ? `, freshness NOT verified (${att.gpu.nonce ? "nonce mismatch" : "no nonce returned"})`
                   : `, enclave-chosen nonce (an owner key buys a challenge over your own nonce)`));
-  if (!result.pass) exit(1);
+  exit(attestExit(result.status));
 }
 
 

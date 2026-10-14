@@ -25,8 +25,7 @@ test("the release set is exactly the rule's: verified, safe, omission-free, expe
   const releases = file.cases.filter((c) => c.decision === "release").map((c) => c.name).sort();
   assert.deepEqual(releases, [
     "domain verified, native, nonce + app id + peer key",
-    "hosted verified, browser, HPKE key present",
-    "hosted verified, native, own peer key is the bound key",
+    "metal verified, native, nonce + own peer key is the bound key",
     "pVM v1 verified, native",
     "pVM v2 verified, browser, app key + sealed window",
     "pVM v2 verified, native, own peer key is the transport key",

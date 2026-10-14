@@ -9,7 +9,7 @@
   "servers": [
     {
       "url": "https://api.enclave.host/v1",
-      "description": "Production API gateway: proxies to the live enclave (attested TLS terminates in the enclave; the gateway sees control-plane traffic). Talk to an enclave directly by using its base, e.g. https://svalbard.enclave.containers.tinfoil.dev/v1"
+      "description": "Production API gateway: the relay that holds every attached box's tunnel and proxies to it (the gateway sees control-plane traffic). Verify a box yourself with a fresh attestation over your own nonce: GET /v1/enclaves/{name}/attestation?nonce=<64 hex>."
     }
   ],
   "security": [
@@ -936,7 +936,7 @@
         ],
         "operationId": "getEnclaveAttestation",
         "summary": "Get the enclave attestation (public)",
-        "description": "Enclave-level attestation, no auth: the Tinfoil Remote Attestation Document (the live CPU attestation report binding this origin's TLS key - AMD SEV-SNP on today's fleet; Intel TDX quotes are handled identically), parsed measurement registers, and NVIDIA GPU CC evidence from a short server-side cache. Verify client-side BEFORE logging in or sending data. For a fresh GPU nonce challenge, use the per-deployment endpoint.",
+        "description": "Enclave-level attestation, no auth: the serving enclave's attestation document, parsed measurement registers and any GPU CC evidence, from a short server-side cache; 503 no_serving_enclave when no enclave serves this origin. A box attached through the relay is verified FRESH instead: GET /v1/enclaves/{name}/attestation?nonce=… with your own nonce, judged by Enclave's verifier (`enclave attest`). Verify client-side BEFORE logging in or sending data.",
         "security": [],
         "responses": {
           "200": {
@@ -959,7 +959,7 @@
         ],
         "operationId": "getAttestation",
         "summary": "Get a deployment's attestation",
-        "description": "The live CPU attestation report (AMD SEV-SNP on today's fleet; relayed Tinfoil Remote Attestation Document plus parsed registers) and the NVIDIA GPU attestation report, with honest per-app coverage notes. Public: no session needed (an app's users are exactly who should verify it). With the owner's session the GPU report is regenerated fresh over your ?nonce; anonymous callers share a short-lived cached report and get freshness from the TLS-bound quote instead. Verify client-side before sending data.",
+        "description": "The hosting box's CPU attestation document (AMD SEV-SNP on today's fleet, plus parsed registers), any GPU attestation report, and `verification` pointers (the box, the fresh-attestation endpoint, `enclave attest`), with honest per-app coverage notes. Public: no session needed (an app's users are exactly who should verify it). With the owner's session the GPU report is regenerated fresh over your ?nonce; anonymous callers share a short-lived cached report and get freshness from the TLS-bound quote instead. Verify client-side before sending data.",
         "security": [
           {},
           {
@@ -1560,7 +1560,7 @@
           },
           "volumes": {
             "type": "array",
-            "description": "Attested read-only model volumes this enclave carries (Tinfoil Modelwrap). A version attaches one or more by name (the `volumes` key of its immutable, approval-covered config); the runner mounts each read-only at /models/<name> inside the guest, so large model weights reach a tenant without riding the app wasm. On the fleet /availability, each entry also carries `endpoints`: which enclaves can mount it (a volume only lives where its enclave declares it).",
+            "description": "Attested read-only model volumes this enclave carries. A version attaches one or more by name (the `volumes` key of its immutable, approval-covered config); the runner mounts each read-only at /models/<name> inside the guest, so large model weights reach a tenant without riding the app wasm. On the fleet /availability, each entry also carries `endpoints`: which enclaves can mount it (a volume only lives where its enclave declares it).",
             "items": {
               "type": "object",
               "properties": {
@@ -1733,7 +1733,7 @@
           "endpoint": {
             "type": "string",
             "description": "Public URL on the enclave's single pinned origin: a path under the shim.",
-            "example": "https://svalbard.enclave.containers.tinfoil.dev/x/dep_3xK9f2Qa"
+            "example": "https://api.enclave.host/t/metal0/x/dep_3xK9f2Qa"
           },
           "address": {
             "type": "string",
@@ -2148,14 +2148,14 @@
       },
       "EnclaveAttestation": {
         "type": "object",
-        "description": "The Tinfoil Remote Attestation Document relayed verbatim from /.well-known/tinfoil-attestation; feed `attestationDocument` to Tinfoil's verifier (tinfoil-cli `attestation verify`, or the @tinfoilsh/verifier npm package). This copy is a convenience: fetch the document over your OWN connection for the binding to mean anything.",
+        "description": "The box's attestation document (AMD SEV-SNP, format `sev-snp-guest-metal-v1`) as the box serves it at /.well-known/tinfoil-attestation (a legacy path name). This copy is a convenience and carries no freshness: verify a FRESH document over your own nonce (GET /v1/enclaves/{name}/attestation?nonce=…) with Enclave's verifier (`enclave attest`, or verifier/ in the repo).",
         "properties": {
           "attestationDocument": {
             "type": "object",
             "properties": {
               "format": {
                 "type": "string",
-                "example": "https://tinfoil.sh/predicate/sev-snp-guest/v2"
+                "example": "sev-snp-guest-metal-v1"
               },
               "body": {
                 "type": "string",
@@ -2193,7 +2193,7 @@
           },
           "verification": {
             "type": "object",
-            "description": "`selfCheck`: the enclave verifying ITSELF with @tinfoilsh/verifier; `result` is `pass`/`fail`/`pending`/`unavailable` with per-step detail (`fetchDigest`, `verifyEnclave`, `verifyCode`, `compareMeasurements`, `verifyCertificate`), the release digest and measurement it matched, and a note explaining that a self-check is a diagnostic, not trust. Alongside it, how to reproduce client-side: instructions (`how`), a ready-to-run tinfoil-cli command (`cli`), the npm verifier package (`npm`, works in Node and browsers), an in-browser verifier (`browser`), the enclave repo whose release holds the signed measurements (`repo`, exact GitHub casing), and the well-known attestation endpoint.",
+            "description": "How to verify this enclave yourself: `selfCheck` is `{ result: \"not-run\", note }` (an enclave cannot vouch for itself); `how` states the checks; `cli` is the ready-to-run `enclave attest` command; `browser` the in-browser verifier; `library` where Enclave's verifier lives (verifier/ in the repo: verifyMetalBox in Node, verifyMetalBoxWeb in a browser); `freshAttestation` the URL that returns a fresh document for a nonce you choose; `attestationEndpoint` the box's own (stored) document.",
             "properties": {
               "selfCheck": {
                 "type": "object",

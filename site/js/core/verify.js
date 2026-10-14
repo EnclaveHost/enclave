@@ -1,108 +1,84 @@
 /* ============================================================
-   Live in-browser enclave verification (@tinfoilsh/verifier).
-   Shared core for the Overview attest widget and the Deploy
-   page's per-deployment console badge. Runs the full client-side
-   check: hardware report → vendor cert chain → silicon root of
-   trust, Sigstore provenance of the release, measurement
-   comparison, certificate binding, in THIS browser, cached per
-   enclave+repo for the session. (The verifier follows whatever
-   report the enclave presents; today's fleet presents AMD
-   SEV-SNP + NVIDIA CC, and Intel TDX quotes verify the same
-   way should a host land on Intel silicon.) The API's
-   verification.selfCheck is the enclave running the same steps
-   on itself; this is the version that actually carries trust.
-   ============================================================ */
-// Same-origin, version-pinned bundle of @tinfoilsh/verifier (built by
-// scripts/build-vendor.mjs -> site/vendor/verifier.js, served from our own IPFS
-// pin behind Caddy TLS). This is deliberately NOT an esm.sh import: the whole
-// product is "✓ verify it yourself in your browser", so the verifier code MUST
-// come from the same origin as the page — a third-party CDN with no integrity
-// pin could return code that reports verified:true for anything.
-export const LV_VERIFIER_URL = "/vendor/verifier.js";
-// Opt-in shadow verification beside this verdict (records, never decides): site/js/core/verify-shadow.js
-import { runShadow } from "./verify-shadow.js";
+   Live in-browser enclave verification with THIS repository's
+   own verifier (verifier/web, bundled to /vendor/enclave-verifier.js
+   by scripts/build-vendor.mjs and served same-origin). Shared core
+   for the Overview attest widget (<c-live-verify>) and the Deploy
+   page's per-deployment badge.
 
-// verification pointers: new shape (verification) with fallback to the
-// pre-selfCheck field name (verify) so older enclaves still work.
+   What runs in the browser (verifier/metal-box.mjs has the rules):
+   the attached SEV-SNP box is challenged with a nonce THIS page
+   draws (through the relay, which forwards it over the box's tunnel
+   and hands back the box's own document); the report must be
+   AMD-signed (VCEK -> the AMD root pinned in the bundle, collateral
+   through the relay's KDS mirror: bytes only), meet the published TCB
+   floor, refuse debug/migration, and bind the box's transport key
+   together with OUR nonce. The launch measurement is compared with
+   the relay operator's allowlist - which is the operator's word, so
+   the best result here is "limited" with that reason, never a
+   silent green. Nothing on this path is Tinfoil's.
+   ============================================================ */
+// Same-origin, version-pinned (sha256 in verifier/web/dist/MANIFEST.json). Deliberately not a CDN import: a third party
+// that could serve this file could report anything it liked.
+export const LV_VERIFIER_URL = "/vendor/enclave-verifier.js";
+export const API_ORIGIN = "https://api.enclave.host";
+
+// verification pointers: new shape (verification) with fallback to the pre-selfCheck field name (verify)
 export const vspecOf = (att) => (att && (att.verification || att.verify)) || null;
 
-// Flavor-aware verification. The stock Verifier compares against the repo's
-// single "latest" GitHub release (our GPU flavor carries that tag); a CPU or
-// gpu8 enclave measures differently and would always fail compareMeasurements.
-// Fast-path latest, then - only on a mismatch - probe the SAME version's
-// sibling-flavor tags (vX.Y.Z-cpu / -gpu8) and verify against whichever signed
-// release the enclave's own measurement matches. Security is unchanged: every
-// candidate's provenance is still Sigstore-verified inside verifyBundle. The
-// github-proxy whitelists only /releases/latest, the tinfoil.hash download and
-// /attestations, so we probe known tags rather than enumerate. This MIRRORS
-// verifyMatchingRelease in supervisor.js (the enclave's own self-check).
-const GITHUB_PROXY = "https://github-proxy.tinfoil.sh";
-async function verifyMatchingRelease(mod, host, repo) {
-  const base = await mod.assembleAttestationBundle(host, repo);
-  const attempt = async (digest, sigstoreBundle) => {
-    const v = new mod.Verifier({ configRepo: repo });
-    try { await v.verifyBundle({ ...base, digest, sigstoreBundle }); } catch (e) { /* recorded on the doc */ }
-    return v.getVerificationDocument();
-  };
-  const latest = await attempt(base.digest, base.sigstoreBundle);
-  if (latest && latest.securityVerified) return latest;
-  let latestTag;
-  try { latestTag = (await (await fetch(`${GITHUB_PROXY}/repos/${repo}/releases/latest`)).json()).tag_name; } catch (e) {}
-  for (const suffix of (latestTag ? ["-cpu", "-gpu8"] : [])) {
-    const tag = latestTag + suffix;
-    let digest, sigstoreBundle;
-    try {
-      const hr = await fetch(`${GITHUB_PROXY}/${repo}/releases/download/${tag}/tinfoil.hash`);
-      if (!hr.ok) continue;
-      digest = (await hr.text()).trim();
-      const at = await (await fetch(`${GITHUB_PROXY}/repos/${repo}/attestations/sha256:${digest}`)).json();
-      sigstoreBundle = at && at.attestations && at.attestations[0] && at.attestations[0].bundle;
-    } catch (e) { continue; }
-    if (!digest || !sigstoreBundle) continue;
-    const doc = await attempt(digest, sigstoreBundle);
-    if (doc && doc.securityVerified) return doc;
-  }
-  return latest;
+// the box a deployment runs on, from its attestation pointer (https://api.enclave.host/t/<box>/...)
+export const boxOfEndpoint = (ep) => { try { return (new URL(ep).pathname.match(/^\/t\/([A-Za-z0-9_-]{1,64})\//) || [])[1] || null; } catch (e) { return null; } };
+
+// the checks the verdict reports (verifier/snp.mjs), in the order a reader follows the chain, with what each one means
+export const CHECK_ORDER = ["report shape", "product line", "chain", "crl", "vcek identity", "signature", "tcb policy", "guest policy", "vmpl", "binding", "measurement"];
+export const CHECK_LABELS = {
+  "report shape": "well-formed AMD SEV-SNP attestation report",
+  "product line": "product line named by the report and confirmed by its chain",
+  "chain":        "VCEK → ASK → AMD root of trust (the ARK pinned in this page's verifier)",
+  "crl":          "AMD revocation list checked (no revoked certificate in the chain)",
+  "vcek identity":"the VCEK belongs to this chip at this TCB",
+  "signature":    "the report is signed by that VCEK",
+  "tcb policy":   "firmware TCB at or above the published floor",
+  "guest policy": "guest policy forbids debug and migration",
+  "vmpl":         "report produced at VMPL 0",
+  "binding":      "report binds the box's transport key and this page's fresh nonce",
+  "measurement":  "launch measurement is on the expected list",
+};
+export const OMISSION_LABELS = {
+  "expected-measurement-operator-stated": "the expected measurement comes from the relay operator's own allowlist, not an independent reproduction",
+  "tcb-floor-unjudged": "no TCB floor is published for this product line",
+  "freshness-unbound": "no fresh nonce was bound",
+};
+
+// one run per box at a time; a finished result is reused for 60 s (every run draws a new nonce, so this only spares the box)
+const _cache = new Map();   // name -> { at, promise }
+export function verifyBoxInBrowser(name, { apiOrigin = API_ORIGIN } = {}) {
+  const hit = _cache.get(name);
+  if (hit && (Date.now() - hit.at < 60_000 || !hit.done)) return hit.promise;
+  const entry = { at: Date.now(), done: false };
+  entry.promise = (async () => {
+    const mod = await import(LV_VERIFIER_URL);
+    if (typeof mod.verifyMetalBoxWeb !== "function") throw new Error("the verifier bundle on this page has no verifyMetalBoxWeb");
+    return mod.verifyMetalBoxWeb({ apiBase: apiOrigin, name });
+  })().finally(() => { entry.done = true; entry.at = Date.now(); });
+  entry.promise.catch(() => _cache.delete(name));
+  _cache.set(name, entry);
+  return entry.promise;
 }
 
-// The ONLY repo a green "verified" result may attest to. The attestation JSON
-// is server-supplied, so its verification.repo is UNTRUSTED input: we verify
-// against this build-time constant, never against whatever the endpoint claims.
-// (Sigstore provenance is anchored here too - see verifyMatchingRelease.)
-const EXPECTED_REPO = "EnclaveHost/enclave";
+// the attested SEV-SNP boxes the relay holds right now (the boxes tenant apps run on)
+export async function snpBoxes({ apiOrigin = API_ORIGIN } = {}) {
+  const r = await fetch(apiOrigin + "/enclaves", { credentials: "omit" });
+  if (!r.ok) throw new Error("GET /enclaves -> " + r.status);
+  return ((await r.json()).enclaves || []).filter((e) => e.mode === "snp" && e.name).map((e) => e.name);
+}
 
-const _encVerifyCache = new Map();     // "host|repo" -> Promise<{ok, doc, repo, host, error}>
-export function verifyEnclaveInBrowser(vspec) {
-  const claimed = vspec && vspec.repo;
-  const ep = vspec && vspec.attestationEndpoint;
-  if (!claimed || !ep) return Promise.reject(new Error("attestation is missing verification.repo / attestationEndpoint"));
-  const host = new URL(ep).host;
-  // Verify against our own constant, not the enclave's claimed repo.
-  let repo = EXPECTED_REPO;
-  const key = host + "|" + repo;
-  // If the enclave attests to some OTHER repo, refuse a green result outright -
-  // whatever its self-attestation says, that isn't the code we ship.
-  if (String(claimed).toLowerCase() !== EXPECTED_REPO.toLowerCase())
-    return Promise.resolve({ ok: false, doc: null, repo: EXPECTED_REPO, host,
-      error: "enclave attests to an unexpected repo (" + claimed + "); expected " + EXPECTED_REPO });
-  if (!_encVerifyCache.has(key)) _encVerifyCache.set(key, (async () => {
-    // Sigstore compares the repo string verbatim against the signing cert's
-    // GitHubWorkflowRepository claim, so normalize EXPECTED_REPO to GitHub's
-    // canonical casing (anchored to our constant, not the server's value).
-    try { const gh = await fetch("https://api.github.com/repos/" + repo); if (gh.ok) repo = (await gh.json()).full_name || repo; } catch (e) {}
-    const mod = await import(LV_VERIFIER_URL);
-    let doc = null, failure = null;
-    try { doc = await verifyMatchingRelease(mod, host, repo); } catch (e) { failure = e; }
-    const err = (doc && doc.securityVerified) ? null
-              : (doc && doc.steps && doc.steps.compareMeasurements && doc.steps.compareMeasurements.error)
-              || (failure && (failure.message || String(failure))) || "verification failed";
-    const res = { ok: !!(doc && doc.securityVerified), doc, repo, host, error: err };
-    // Opt-in shadow: the Enclave-owned verifier on the same enclave, recorded on the result (res.shadow) and on the page
-    // (globalThis.__enclaveVerifierShadow) for inspection. It never changes res.ok, res.doc or res.error, and it runs only
-    // for a viewer who opted in (verify-shadow.js), so nobody else's verification changes at all.
-    try { const shadow = await runShadow({ host, doc }); if (shadow) { res.shadow = shadow; globalThis.__enclaveVerifierShadow = shadow; } } catch (e) { /* the shadow never fails the primary */ }
-    if (!res.ok) _encVerifyCache.delete(key);          // don't cache failures: allow retry
-    return res;
-  })().catch((e) => { _encVerifyCache.delete(key); throw e; }));
-  return _encVerifyCache.get(key);
+// a one-line summary of a verdict for a badge: { cls: ok|warn|bad, text, title }
+export function verdictBadge(r) {
+  if (!r) return { cls: "bad", text: "✗ not verified", title: "" };
+  if (r.status === "verified") return { cls: "ok", text: "✓ verified in your browser", title: "AMD SEV-SNP report verified here: chain to AMD's root, TCB floor, fresh nonce binding, and an expected measurement." };
+  if (r.status === "limited") return { cls: "warn", text: "◐ genuine and fresh (measurement: operator-stated)",
+    title: "Verified in your browser: a genuine AMD SEV-SNP report, fresh for this page's nonce. Not judged independently: "
+      + (r.omissions || []).map((o) => OMISSION_LABELS[o] || o).join("; ") + "." };
+  const last = (r.reasons || []).at(-1) || r.status;
+  return { cls: "bad", text: "✗ not verified: " + String(last).replace(/^(REJECT|UNSUPPORTED|OMITTED)[^:]*:\s*/, ""), title: (r.reasons || []).join("\n") };
 }

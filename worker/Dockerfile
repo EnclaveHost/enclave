@@ -3,7 +3,7 @@
 # Config gives it runtime:nvidia, gpus:all, ipc:host, and the shared
 # /tmp/nvidia-mps mount so it joins the MPS daemon.
 # Base pinned by DIGEST, not just the mutable tag: this image is part of the
-# MEASURED enclave TCB, and its sidecar digest is what enclaves/*/tinfoil-config.yml
+# MEASURED enclave TCB, and its sidecar digest is what a GPU enclave config
 # commits to. An upstream repush of the same tag silently changes the measurement,
 # which is exactly what the reproducibility claim behind METAL_ALLOWED_MEASUREMENTS
 # cannot survive (see the root Dockerfile, which has always pinned). This digest is

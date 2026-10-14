@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // deploy-enclave-pay.mjs - compile + deploy contracts/EnclavePay.sol to Base, print the
-// address, and (optionally) write it into enclaves/gpu/tinfoil-config.yml as
-// FORWARDER_ADDRESS (scripts/sync-contract-addresses.sh fans it out to the CPU flavor).
+// address, and (optionally) write it into enclaves/cpu/config.yml as
+// FORWARDER_ADDRESS (scripts/sync-contract-addresses.sh fans it out to the CLI defaults).
 //
 // EnclavePay is non-custodial: it forwards USDC (payWithAuthorization, EIP-3009 —
 // the payer signs a ReceiveWithAuthorization, no approve) or native ETH (payEth)
@@ -17,7 +17,7 @@
 //   NETWORK=base DEPLOYER_PRIVATE_KEY=0x... PAYOUT_ADDRESS=0x... \
 //     node scripts/deploy-enclave-pay.mjs                 # -> Base MAINNET
 //
-// On a successful deploy it writes FORWARDER_ADDRESS into enclaves/gpu/tinfoil-config.yml
+// On a successful deploy it writes FORWARDER_ADDRESS into enclaves/cpu/config.yml
 // automatically (pass --no-write-config to skip).
 //
 // Env:
@@ -33,7 +33,7 @@
 //   USDC_ADDRESS          override the USDC token address for the network.
 //   ETH_RPC               L1 RPC for ENS resolution (default cloudflare-eth.com).
 // Flags:
-//   --no-write-config     do NOT touch tinfoil-config.yml (default is to write it)
+//   --no-write-config     do NOT touch enclaves/cpu/config.yml (default is to write it)
 //   --yes                 skip the interactive confirmation (CI)
 //   --dry-run             compile + show the plan, do NOT broadcast
 //   --replace             on mainnet, allow re-deploying even though the current
@@ -56,7 +56,7 @@ import { normalize } from "viem/ens";
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
 const CONTRACT = path.join(REPO, "contracts", "EnclavePay.sol");
-const CONFIG = path.join(REPO, "enclaves", "gpu", "tinfoil-config.yml");
+const CONFIG = path.join(REPO, "enclaves", "cpu", "config.yml");
 
 const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has("--dry-run");
@@ -238,10 +238,10 @@ async function main() {
   console.log("===============================================================\n");
 
   if (!NO_WRITE_CONFIG) writeForwarder(addr);
-  else console.log("(--no-write-config: skipped enclaves/gpu/tinfoil-config.yml; set FORWARDER_ADDRESS manually)");
+  else console.log("(--no-write-config: skipped enclaves/cpu/config.yml; set FORWARDER_ADDRESS manually)");
 
   console.log("\nNext:");
-  console.log(`  1. Set FORWARDER_ADDRESS in enclaves/*/tinfoil-config.yml to ${addr}`);
+  console.log(`  1. Set FORWARDER_ADDRESS in enclaves/cpu/config.yml to ${addr}`);
   console.log("  2. Rebuild+repin the supervisor:  ./scripts/release.sh enclave-supervisor");
   console.log("  3. Confirm the enclave has outbound egress to BASE_RPC so it can watch this contract.");
   if (!isMainnet) console.log("  4. Test the pay flow on testnet, THEN re-run with NETWORK=base for mainnet.");

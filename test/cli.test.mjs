@@ -1185,7 +1185,7 @@ test("login: a challenge that is not a SIWE message for this wallet is refused, 
 
 test("--unsigned prints the exact transaction a signer would broadcast, and sends nothing", async () => {
   const GOV = "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61";
-  const URL_ = "https://kryptos.enclave.containers.tinfoil.dev";
+  const URL_ = "https://kryptos.nodes.example.com";
   const r = await run(["host", "declare-payout", "--unsigned", "--from", GOV, "--url", URL_, "--json"]);
   assert.equal(r.code, 0, r.err);
   const out = JSON.parse(r.out.slice(r.out.indexOf("{")));

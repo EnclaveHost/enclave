@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // enclave-metal volumes — build the attested read-only model volumes a metal
-// enclave attaches, the self-hosted equivalent of Tinfoil's Modelwrap "mpk"
-// images.
+// enclave attaches (ext4 + an appended dm-verity hash tree per volume).
 //
 //   node metal/volumes.mjs build qwen2.5-0.5b-gguf --src ~/Projects/enclave-models/qwen2.5-0.5b-gguf
 //   node metal/volumes.mjs list

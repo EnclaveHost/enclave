@@ -1,18 +1,18 @@
-// The browser build against the Node build, verdict for verdict, over the mutation matrix of the SNP suites (Genoa hosted,
+// The browser build against the Node build, verdict for verdict, over the mutation matrix of the SNP suites (a genuine Genoa report,
 // Turin domain ABI/2, the synthetic chain of the fail-closed suite) plus envelope-level cases. Both builds run the SAME
 // verifier/snp.mjs; what differs is the crypto provider (node:crypto vs WebCrypto + verifier/web/x509.mjs), so a
 // divergence here is a provider defect. Equality is on the whole verdict: status, admissionSafe, omissions, checks, claims
-// and reasons, after one normalisation: text after "unparseable:" (the reader's own message) and inside the gunzip decoder's
-// parentheses. No silent reduction: a check the Node build fails, the browser build fails on the same check with the same
+// and reasons, after one normalisation: text after "unparseable:" (the reader's own message). No silent reduction: a check the Node build fails, the browser build fails on the same check with the same
 // words, and a verdict the Node build gives green, the browser build gives green with the same claims.
 //   run: node --test test/verifier-web-differential.test.mjs
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
-import { gunzipSync, gzipSync } from "node:zlib";
+import { gzipSync } from "node:zlib";
 import { synthChain, synthReport } from "./helpers/snp-synth.mjs";
-import { verifyEvidence, memoryCollateral, spkiOfCert } from "../verifier/index.mjs";
+import { verifyEvidence, memoryCollateral } from "../verifier/index.mjs";
+import { report, MEAS, BINDING, APP_ID, spki, doc as rad, docWith, context as genoaContext, vcekAmd, vcekProxy, crl as crlG, FLOOR } from "./helpers/genoa-capture.mjs";
 import { verifyEvidenceWeb } from "../verifier/web/index.mjs";
 
 const F = new URL("./fixtures/verifier/", import.meta.url), A = new URL("./fixtures/amd/", import.meta.url);
@@ -20,20 +20,16 @@ const read = (u) => fs.readFileSync(u), text = (u) => fs.readFileSync(u, "utf8")
 const sha = (...b) => createHash("sha256").update(Buffer.concat(b)).digest();
 const NOW = "2026-09-24T05:00:00Z";
 const chains = { Genoa: text(new URL("Genoa-cert_chain.pem", A)), Milan: text(new URL("Milan-cert_chain.pem", A)), Turin: text(new URL("Turin-cert_chain.pem", A)) };
-export const norm = (v) => JSON.parse(JSON.stringify(v, (k, val) => (typeof val === "string" ? val.replace(/(unparseable: ).*$/, "$1<reader>").replace(/(unreadable or over the cap \().*\)$/, "$1<decoder>)") : val)));
+export const norm = (v) => JSON.parse(JSON.stringify(v, (k, val) => (typeof val === "string" ? val.replace(/(unparseable: ).*$/, "$1<reader>") : val)));
 
-// ---- Genoa, hosted format (test/verifier-snp-genoa.test.mjs's inputs) ----
-const rad = JSON.parse(text(new URL("genoa-tinfoil/rad.json", F))), report = gunzipSync(Buffer.from(rad.body, "base64"));
-const certPem = text(new URL("genoa-tinfoil/tls-cert.pem", F)), { spki } = spkiOfCert(certPem), HOST = "inference.tinfoil.sh";
-const MEAS = report.subarray(0x90, 0xc0).toString("hex"), FLOOR = { Genoa: { bootloader: 10, tee: 0, snp: 23, microcode: 84 } };
-const vcekAmd = read(new URL("genoa-tinfoil/vcek-kds-amd.der", F)), vcekProxy = read(new URL("genoa-tinfoil/vcek-kds-proxy-tinfoil.der", F)), crlG = read(new URL("amd/Genoa-crl.der", F));
+// ---- the genuine Genoa report (test/verifier-snp-genoa.test.mjs's inputs, test/helpers/genoa-capture.mjs) ----
 const turinVcek = read(new URL("turin-m4a/vcek-kds-amd.der", F)), crlT = read(new URL("amd/Turin-crl.der", F));
 const gCol = (over = {}) => memoryCollateral({ chains, vceks: { Genoa: vcekAmd }, crls: { Genoa: crlG }, ...over });
-const docWith = (r) => ({ format: rad.format, body: gzipSync(r).toString("base64") });
 const mutated = (fn) => { const r = Buffer.from(report); fn(r); return docWith(r); };
 const G = (doc = rad, { policy = {}, context = {}, collateral = gCol() } = {}) =>
-  ({ doc, opts: { policy: { snp: { allowedMeasurements: [MEAS], minTcb: FLOOR, ...policy } }, context: { transportKeySpki: spki, certPem, host: HOST, now: NOW, ...context }, collateral } });
-const otherKey = Buffer.from(spki); otherKey[otherKey.length - 1] ^= 1;
+  ({ doc, opts: { policy: { snp: { allowedMeasurements: [MEAS], minTcb: FLOOR, ...policy } }, context: genoaContext({ now: NOW, ...context }), collateral } });
+const flip = (b) => { const x = Buffer.from(b); x[0] ^= 1; return x; };
+const metalOf = (r) => ({ format: "sev-snp-guest-metal-v1", body: Buffer.from(r).toString("base64") });
 
 // ---- Turin, domain format ABI/2 (test/verifier-snp-turin.test.mjs's inputs) ----
 const savedT = JSON.parse(text(new URL("turin-m4a/doc.json", F))), tDoc = savedT.doc ?? savedT, tReport = Buffer.from(tDoc.report, "base64");
@@ -60,15 +56,15 @@ export const CASES = [
   // Genoa: the green path and its policy shades
   ["genoa verified", G()], ["genoa proxy-reissued VCEK", G(rad, { collateral: gCol({ vceks: { Genoa: vcekProxy } }) })],
   ["genoa no TCB floor -> limited", G(rad, { policy: { minTcb: undefined } })], ["genoa floor above the part", G(rad, { policy: { minTcb: { Genoa: { ...FLOOR.Genoa, microcode: 255 } } } })],
-  ["genoa no certificate binding required -> limited", G(rad, { policy: { requireCertificateBinding: false }, context: { certPem: undefined } })],
-  ["genoa no certificate but required", G(rad, { context: { certPem: undefined } })],
+  ["genoa judged as a metal document (report_data[32:64] is not zero)", G(metalOf(report), { context: { expectedBinding: undefined, expectedAppId: undefined } })],
   // signature and identity
   ["genoa flipped r", G(mutated((r) => { r[0x2a0] ^= 1; }))], ["genoa flipped s", G(mutated((r) => { r[0x2a0 + 0x48] ^= 1; }))], ["genoa flipped signed region", G(mutated((r) => { r[0x91] ^= 1; }))],
   ["genoa r out of range", G(mutated((r) => r.fill(0xff, 0x2a0, 0x2a0 + 48)))], ["genoa edited reported TCB", G(mutated((r) => { r[0x180] ^= 1; }))],
   ["genoa Milan chain as Genoa's", G(rad, { collateral: gCol({ chains: { ...chains, Genoa: chains.Milan } }) })], ["genoa Turin VCEK as Genoa's", G(rad, { collateral: gCol({ vceks: { Genoa: turinVcek } }) })],
   ["genoa no VCEK", G(rad, { collateral: gCol({ vceks: {} }) })], ["genoa no chain", G(rad, { collateral: gCol({ chains: {} }) })],
   ["genoa measurement not allowed", G(rad, { policy: { allowedMeasurements: ["00".repeat(48)] } })], ["genoa policy names no measurement", G(rad, { policy: { allowedMeasurements: [] } })],
-  ["genoa another transport key", G(rad, { context: { transportKeySpki: otherKey } })], ["genoa no transport key", G(rad, { context: { transportKeySpki: undefined } })],
+  ["genoa another binding", G(rad, { context: { expectedBinding: flip(BINDING) } })], ["genoa another app", G(rad, { context: { expectedAppId: flip(APP_ID) } })],
+  ["genoa no transport key", G(rad, { context: { transportKeySpki: undefined } })], ["genoa ABI/2 document judged under ABI/1", G({ ...rad, abi: "enclave-domain-abi/1" })],
   ["genoa DEBUG policy bit", G(mutated((r) => { r[0x0a] |= 0x08; }))], ["genoa VMPL1 expected", G(rad, { policy: { expectedVmpl: 1 } })], ["genoa SMT off required", G(rad, { policy: { guestPolicy: { smt: false } } })],
   // shape
   ["genoa truncated", G(docWith(report.subarray(0, 0x400)))], ["genoa padded", G(docWith(Buffer.concat([report, Buffer.alloc(1)])))], ["genoa version 1", G(mutated((r) => r.writeUInt32LE(1, 0)))],
@@ -80,14 +76,13 @@ export const CASES = [
   ["genoa CRL missing, stale-ok -> limited", G(rad, { policy: { crl: "stale-ok" }, collateral: gCol({ crls: {} }) })], ["genoa CRL missing, required", G(rad, { collateral: gCol({ crls: {} }) })],
   ["genoa foreign CRL", G(rad, { collateral: gCol({ crls: { Genoa: crlT } }) })], ["genoa tampered CRL", G(rad, { collateral: gCol({ crls: { Genoa: (() => { const b = Buffer.from(crlG); b[b.length - 1] ^= 1; return b; })() } }) })],
   ["genoa garbage CRL", G(rad, { collateral: gCol({ crls: { Genoa: Buffer.from("not a crl at all, just bytes") } }) })],
-  ["genoa served certificate expired", G(rad, { context: { now: "2027-01-15T00:00:00Z" }, policy: { crl: "none" } })], ["genoa AMD certificates not yet valid", G(rad, { context: { now: "2020-01-01T00:00:00Z" }, policy: { crl: "none" } })],
-  ["genoa host mismatch", G(rad, { context: { host: "other.tinfoil.sh" } })], ["genoa garbage served certificate", G(rad, { context: { certPem: "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n" } })],
+  ["genoa AMD certificates not yet valid", G(rad, { context: { now: "2020-01-01T00:00:00Z" }, policy: { crl: "none" } })],
   ["genoa garbage VCEK", G(rad, { collateral: gCol({ vceks: { Genoa: Buffer.alloc(300, 7) } }) })], ["genoa garbage chain", G(rad, { collateral: gCol({ chains: { Genoa: "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n" } }) })],
   // envelope
-  ["unknown format", G({ format: "nope", body: rad.body })], ["dev format", G({ format: "dev-unattested-metal-v1", body: rad.body })], ["TDX metal", G({ format: "tdx-guest-metal-v1", body: rad.body })],
-  ["hosted body not gzip", G({ format: rad.format, body: report.toString("base64") })], ["metal body gzip", G({ format: "sev-snp-guest-metal-v1", body: rad.body })],
-  ["missing body", G({ format: rad.format })], ["closed shape extra field", G({ ...rad, extra: 1 })], ["body under the other name", G({ format: rad.format, report: rad.body })],
-  ["not strict base64", G({ format: rad.format, body: rad.body.slice(0, -1) + "!" })], ["gzip over the cap", G({ format: rad.format, body: gzipSync(Buffer.alloc(200 * 1024)).toString("base64") })],
+  ["unknown format", G({ format: "nope", body: rad.report })], ["dev format", G({ format: "dev-unattested-metal-v1", body: rad.report })], ["TDX metal", G({ format: "tdx-guest-metal-v1", body: rad.report })],
+  ["the retired hosted predicate", G({ format: "https://tinfoil.sh/predicate/sev-snp-guest/v2", body: rad.report })], ["metal body gzip", G({ format: "sev-snp-guest-metal-v1", body: gzipSync(report).toString("base64") })],
+  ["missing body", G({ format: "sev-snp-guest-metal-v1" })], ["declared field malformed", G({ ...metalOf(report), name: 5 })], ["body under the other name", G({ format: "sev-snp-guest-metal-v1", report: rad.report })],
+  ["not strict base64", G({ ...rad, report: rad.report.slice(0, -1) + "!" })], ["domain report under the metal name", G({ ...rad, body: rad.report })],
   // oversized and over-wide documents, an over-long body, and collateral adapters that fail (throw) rather than answer
   ["document over 1 MiB", G({ format: "sev-snp-guest-metal-v1", body: report.toString("base64"), manifest: { pad: "x".repeat(1024 * 1024 + 64) } })],
   ["document with too many fields", G({ format: "sev-snp-guest-metal-v1", body: report.toString("base64"), ...Object.fromEntries(Array.from({ length: 33 }, (_, i) => [`f${i}`, i])) })],
@@ -142,7 +137,7 @@ test("every case: the browser build's verdict equals the Node build's (status, c
   }
   assert.ok(CASES.length >= 90, `${CASES.length} cases`);
   for (const [k, v] of Object.entries(seen)) assert.ok(v >= 2, `${k}: ${v} cases`);
-  for (const k of ["chain", "crl", "signature", "vcek identity", "binding", "certificate binding", "app id", "measurement", "tcb policy", "guest policy", "vmpl", "report shape", "vcek", "host data"]) assert.ok(failing.has(k), `a case fails the ${k} check`);
+  for (const k of ["chain", "crl", "signature", "vcek identity", "binding", "app id", "measurement", "tcb policy", "guest policy", "vmpl", "report shape", "vcek", "host data"]) assert.ok(failing.has(k), `a case fails the ${k} check`);
 });
 
 test("anchors: the green and the refused outcomes are what the SNP suites assert, in both builds", async () => {

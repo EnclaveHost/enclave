@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // update-address-book.mjs — the one-transaction follow-up to any contract
 // redeploy: diff the LIVE EnclaveAddressBook against the repo's current
-// addresses (enclaves/gpu/tinfoil-config.yml — run the deploy script and/or
+// addresses (enclaves/cpu/config.yml — run the deploy script and/or
 // sync-contract-addresses.sh first) and push the changes with one owner
 // setMany. Enclaves, the site, relays, and the CLI follow within a poll.
 //
@@ -25,7 +25,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia } from "viem/chains";
 
 const REPO = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "..");
-const CONFIG_GPU = path.join(REPO, "enclaves", "gpu", "tinfoil-config.yml");
+const CONFIG_CPU = path.join(REPO, "enclaves", "cpu", "config.yml");
 const NETWORKS = {
   "base-sepolia": { chain: baseSepolia, rpc: "https://sepolia.base.org", explorer: "https://sepolia.basescan.org" },
   "base":         { chain: base, rpc: "https://mainnet.base.org", explorer: "https://basescan.org" },
@@ -119,7 +119,7 @@ async function main() {
   const netName = await chooseNetwork();
   const net = NETWORKS[netName]; if (!net) die(`unknown network "${netName}"`);
   const rpc = process.env.RPC_URL || net.rpc;
-  const cfg = fs.readFileSync(CONFIG_GPU, "utf8");
+  const cfg = fs.readFileSync(CONFIG_CPU, "utf8");
   const book = process.env.ADDRESS_BOOK_ADDRESS
     || (cfg.match(/-\s*ADDRESS_BOOK_ADDRESS:\s*"(0x[0-9a-fA-F]{40})"/) || [])[1]
     || die("no ADDRESS_BOOK_ADDRESS (deploy the book first: scripts/deploy-address-book.mjs)");

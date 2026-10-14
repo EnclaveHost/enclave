@@ -32,7 +32,7 @@ import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, 
 import { appShareLabel } from "../../js/core/app-resources.js";
 import { shareEditor } from "../../js/core/share-editor.js";
 import { resourceOverview } from "../../js/core/resource-overview.js";
-import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
+import { vspecOf, boxOfEndpoint, verifyBoxInBrowser, verdictBadge } from "../../js/core/verify.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
 import { moveLeaseLive, prepareDeploymentMove } from "../../js/core/deployment-move.js";
@@ -2600,17 +2600,15 @@ class Deployments extends EnclaveElement {
       const pre = box.querySelector(".ap-attpre"); if (pre) pre.innerHTML = hlJson(att);
       const vspec = vspecOf(att);
       if (!vspec){ if (badge) badge.textContent = ""; return; }
-      // the badge is computed HERE, in the customer's browser; the API's
-      // verification.selfCheck is the enclave's own (labeled) diagnostic.
+      // the badge is computed HERE, in the customer's browser, with the repository's own verifier: the box this deployment
+      // runs on is challenged with this page's nonce (core/verify.js); the API's verification.selfCheck is never the verdict.
+      const boxName = boxOfEndpoint(vspec.attestationEndpoint);
+      if (!boxName){ if (badge){ badge.className = "enc-vbadge bad"; badge.textContent = "· not an SEV-SNP box: nothing to verify in the browser"; } return; }
       try {
-        const r = await verifyEnclaveInBrowser(vspec);
+        const r = await verifyBoxInBrowser(boxName);
         if (!badge || box.hidden) return;
-        if (r.ok){
-          badge.className = "enc-vbadge ok"; badge.textContent = "✓ verified in your browser";
-          badge.title = "hardware report → silicon vendor's root of trust (AMD SEV-SNP on today's fleet; Intel TDX via DCAP), Sigstore release provenance, measurement match and cert binding, checked client-side against " + r.repo + " (enclave " + r.host + ")";
-        } else {
-          badge.className = "enc-vbadge bad"; badge.textContent = "✗ not verified: " + (r.error || "check failed");
-        }
+        const b = verdictBadge(r);
+        badge.className = "enc-vbadge " + b.cls; badge.textContent = b.text; badge.title = b.title;
       } catch(e){ if (badge && !box.hidden){ badge.className = "enc-vbadge bad"; badge.textContent = "✗ could not verify: " + (e.message || e); } }
     }
     catch(e){

@@ -24,8 +24,8 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MGR = path.join(REPO, "wasm", "wasm_manager.py");
 
 // Import the module with a GPU node's environment and read back the two envs it
-// builds for tenants. NODE_HAS_GPU/CUDA_MPS_PIPE_DIRECTORY mirror
-// enclaves/gpu/tinfoil-config.yml's manager container.
+// builds for tenants. NODE_HAS_GPU/CUDA_MPS_PIPE_DIRECTORY mirror a GPU
+// node's manager environment (the retired GPU flavor's manager container).
 function envs() {
   const code = `
 import importlib.util, sys, json
