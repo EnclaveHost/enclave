@@ -98,7 +98,7 @@ import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep, hasStage
 import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDeployment, tlsAskAllowed } from "./domains.js";
 import { initSessions, handleSessions, sessionsService, createCustodyGate, sessionRowRefusal } from "./sessions.mjs";
 import { handleCerts, initCerts } from "./certs.js";
-import { createShieldMarketplace } from "./shield-marketplace.mjs";
+import { createShieldMarketplace, fingerprint as deploymentFingerprint } from "./shield-marketplace.mjs";
 import { createPvmMarket } from "./pvm-market.mjs";
 import { createPvmSecretRelease } from "./pvm-secrets.mjs";
 import { claimCheapest, CLAIM_QUOTE_ABI } from "./cheapest-claim.mjs";
@@ -881,12 +881,12 @@ function ledgerStatus(d) {
   return free || d.balance6 >= d.rate ? "queued" : "unfunded";
 }
 // Requested logical ports are public ledger data; assigned IPs and ports
-// are supplied separately by the expiring route map (/v1/network/tuna).
+// are supplied separately by the expiring route map (/v1/network/routes).
 const rowPorts = (d, proto) => String(d.ports || "").split(",")
   .map((s) => s.trim()).filter((s) => s.startsWith(proto + ":"))
   .map((s) => +s.slice(proto.length + 1)).filter((p) => Number.isInteger(p) && p > 0);
 function ledgerNetwork(d) {
-  return { transport: "tuna", dedicatedIP: false,
+  return { transport: "enclave-network", dedicatedIP: false,
     requested: {tcp: rowPorts(d, "tcp"), udp: rowPorts(d, "udp")} };
 }
 // Shape a ledger record like the enclaves' own rows (supervisor view()), so
@@ -1012,8 +1012,10 @@ async function pollAvailability() {
   updatedAt = new Date().toISOString();
 }
 
-// Hosts publish each app's signed Enclave-network routes (relay/network-routes.mjs; the /v1/network/tuna
-// path is historical: hosts, the DNS service and the deploy preflight read it). The Base lease still decides whose app each IP serves.
+// Hosts publish each app's signed Enclave-network routes (relay/network-routes.mjs) at /v1/network/routes; the old
+// path /v1/network/tuna answers the same for hosts and the DNS service installed before the rename. The Base lease
+// still decides whose app each IP serves.
+const ROUTE_PATHS = new Set(["/v1/network/routes", "/v1/network/tuna"]);
 let networkRoutes;
 
 // Share-based routing — same rule as enclave-discover.mjs. Deployments buy two
@@ -1827,17 +1829,17 @@ async function gateway(u, req, res) {
 
   // Signed per-app routes are DNS/control metadata. The old roster URL is
   // retained for clients upgrading through the cutover; it has no legacy relays.
-  if ((p === "/v1/network/tuna" || p === "/v1/relays") && req.method === "GET") {
+  if ((ROUTE_PATHS.has(p) || p === "/v1/relays") && req.method === "GET") {
     try { return json(res, 200, await networkRoutes.map(await ledgerRows()), req); }
     catch { return json(res, 503, { error: "network_map_unavailable" }, req); }
   }
-  if (p === "/v1/network/tuna" && req.method === "POST") {
+  if (ROUTE_PATHS.has(p) && req.method === "POST") {
     if (!rlMiss(clientIp(req))) return json(res, 429, {error: "rate_limited"}, req);
     try {
       const b = JSON.parse((await readBody(req, 131072)).toString());
       await networkRoutes.publish(b.publication);
       return json(res, 200, { ok: true }, req);
-    } catch (e) { console.warn("[network-routes] publication refused: " + String(e.message).slice(0,256)); return json(res, 400, { error: "tuna_publication_refused", message: e.message }, req); }
+    } catch (e) { console.warn("[network-routes] publication refused: " + String(e.message).slice(0,256)); return json(res, 400, { error: "route_publication_refused", message: e.message }, req); }
   }
 
   if (!live.length) {
@@ -2554,10 +2556,22 @@ async function registryOperator(id) {
 const networkApi = createNetworkApi({ checkers: (process.env.RELAY_NETWORK_CHECKERS || "").split(",").map(s => s.trim().toLowerCase()).filter(s => /^0x[0-9a-f]{40}$/.test(s)),
   addressBook: ADDRESS_BOOK || undefined, JsonStore, file: dataFile(dataDir(), "network.json"), clients: async () => [await rpcPool()], log: m => console.log("[network] " + m) });
 relayCtx.hostOperator = id => registryOperator(id);
+// The routes' durable state: ROUTE_STATE_DIR (TUNA_ROUTE_STATE_DIR is its pre-2026-10-14 name, used as given), else the
+// default; a box still holding the pre-rename default directory has it moved once so no published route is lost.
+function routeStateDir() {
+  const named = (process.env.ROUTE_STATE_DIR || process.env.TUNA_ROUTE_STATE_DIR || "").trim();
+  if (named) return named;
+  const dir = "/var/lib/enclave-relay/route-state", old = "/var/lib/enclave-relay/tuna-route-state";
+  if (!fs.existsSync(dir) && fs.existsSync(old)) {
+    try { fs.renameSync(old, dir); console.log(`[network-routes] state moved ${old} -> ${dir}`); }
+    catch (e) { console.warn(`[network-routes] state stays at ${old}: ${e.message}`); return old; }
+  }
+  return dir;
+}
 networkRoutes = createNetworkRoutes({
   network: networkApi,
   operatorOf: endpoint => relayCtx.operatorOfEndpoint(endpoint), endpointId,
-  memory: new DurableState(process.env.TUNA_ROUTE_STATE_DIR || '/var/lib/enclave-relay/tuna-route-state'),
+  memory: new DurableState(routeStateDir()),
   leaseOf: async id => {
     if(!networkLeaseReader){const d=(await ledgerRows()).find(d=>String(d.id).toLowerCase()===id);
       if(!d||_ledger.at+30000<=Date.now())return null;
@@ -2567,8 +2581,21 @@ networkRoutes = createNetworkRoutes({
   },
   eligible: d => routeEligibility(d),
 });
-// A host whose tunnel blips keeps its apps' routes for a few minutes (relay/route-grace.mjs).
+// A host whose tunnel blips keeps its apps' routes for a few minutes (relay/route-grace.mjs), and so does a relay
+// restart: the grace state is saved in the data directory and read back at start.
+const ROUTE_GRACE_FILE = dataDir() ? dataFile(dataDir(), "route-grace.json") : null;
 const routeEligibility = withDetachGrace({
+  store: ROUTE_GRACE_FILE && {
+    load: () => { try { return JSON.parse(fs.readFileSync(ROUTE_GRACE_FILE, "utf8")).entries || []; } catch { return []; } },
+    save: (entries) => {
+      const tmp = ROUTE_GRACE_FILE + ".tmp";
+      fs.writeFileSync(tmp, JSON.stringify({ version: 1, savedAt: Date.now(), entries }));
+      fs.renameSync(tmp, ROUTE_GRACE_FILE);
+    },
+  },
+  // an Enclave Shield host that just (re)attached: its apps keep the grace until the marketplace has a verdict on them
+  pending: (row, d) => row.mode === "hv-node" && shieldMarket.pending(row, d),
+  fingerprint: deploymentFingerprint,
   rowOf: (d) => live.find(e => String(e.id || "").toLowerCase() === String(d.runner).toLowerCase()),
   rowEligibility: (row, d) => {
     // a pVM host's app is routed only while its own evidence holds (relay/pvm-market.mjs servesUntil)
@@ -2782,7 +2809,7 @@ function handleRequest(req, res) {
     } catch (e) { return json(res, e.status || 503, { message: e.message }, req); }
     })();
   }
-  if (u.pathname.startsWith("/v1/network/") && u.pathname !== "/v1/network/tuna")
+  if (u.pathname.startsWith("/v1/network/") && !ROUTE_PATHS.has(u.pathname))
     return networkApi.handle(req, res, u, relayCtx);
   if (u.pathname === "/v1/secrets" || u.pathname.startsWith("/v1/secrets/"))
     return handleSecrets(req, res, u, relayCtx).catch((e) =>

@@ -162,7 +162,7 @@ const rowOf = async (origin) => { const j = await (await fetch(origin + "/enclav
 // The Enclave network on the test relay (docs/design/enclave-network.md): one exit at 1.1.1.1, qualified by the relay's
 // trusted checker, and per-app v5 route publications signed exactly as a host's route publisher signs them.
 const CHECKER = privateKeyToAccount(generatePrivateKey()), PROVIDER_OP = privateKeyToAccount(generatePrivateKey()), EXIT = "1.1.1.1";
-const networkEnv = () => ({ RELAY_NETWORK_CHECKERS: CHECKER.address.toLowerCase(), TUNA_ROUTE_STATE_DIR: tmpdir("route-state-") });
+const networkEnv = () => ({ RELAY_NETWORK_CHECKERS: CHECKER.address.toLowerCase(), ROUTE_STATE_DIR: tmpdir("route-state-") });
 async function qualifyExit(origin) {
   const now = Date.now(), K = () => randomBytes(32).toString("base64");
   const record = { version: 1, providerId: providerIdFor(PROVIDER_OP.address, EXIT), operator: PROVIDER_OP.address.toLowerCase(), address: EXIT, wgExitKey: K(), wgGuardKey: K(),

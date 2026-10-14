@@ -368,7 +368,7 @@ export function nodeFloorOf(v) {
  * silently dropped, because every one of them is something a tenant paid for or relied on.
  *
  * Known here: `config` (the inline app-config override), `gpu` ({"optional":true}) and `network`
- * ({"transport":"tuna"}; historical relay preferences are inert metadata).
+ * ({"transport":"enclave-network"}; historical relay preferences are inert metadata).
  * ...and `waf` (per-IP rate limit, concurrency and body caps, method/path/agent filters), which
  * this box now ENFORCES at both its doors - the relay's /x/<id> path and the app's own hostname.
  * NOT known here: nothing. Any other namespace is still refused by name, because the envelope is
@@ -446,7 +446,7 @@ export function parseEnvelope(raw, gpuMilli) {
     if (!n || Array.isArray(n) || typeof n !== "object") throw new Error("network must be a JSON object");
     const bad = Object.keys(n).filter(k => k !== "transport" && k !== "relay");
     if (bad.length) throw new Error(`unknown network option ${JSON.stringify(bad[0])}`);
-    if ("transport" in n && n.transport !== "tuna") throw new Error("network.transport must be tuna");
+    if ("transport" in n && n.transport !== "enclave-network") throw new Error("network.transport must be enclave-network");
     // Existing ledger envelopes can still contain a relay preference. It no
     // longer selects a route and is not copied into runtime configuration.
     if ("relay" in n && n.relay !== null && n.relay !== "" &&

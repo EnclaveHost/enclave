@@ -67,7 +67,7 @@ async function boot() {
       // the relay map is fetched in the same poll the daemon runs at boot, but
       // the API is listening before that poll returns - wait for the labels or
       // the zone tests race the first fetch
-      if (j && j.zones && j.zones.app === APP_ZONE && j.tunaLabels === 2) return { p, log: () => log };
+      if (j && j.zones && j.zones.app === APP_ZONE && j.routeLabels === 2) return { p, log: () => log };
     } catch {}
     await new Promise((r) => setTimeout(r, 100));
   }

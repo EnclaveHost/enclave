@@ -173,3 +173,30 @@ the `tuna_proxy` nftables table on all four Droplets (archived to `/root/retired
 TUNA timers on warden-host (moved to `~/.config/systemd/user/retired-tuna-20261013/`), `tuna-funding.mjs` on nan.
 Names kept for installed hosts: `tuna-enroll.mjs`, the `/v1/network/tuna` route-map path,
 the `C:\Program Files\Enclave\tuna\` directory, `enclave-tuna-privacy.service`. There is no TUNA rollback any more.
+
+Renamed 2026-10-14 (main 4764a023c, relay deployed 01:33Z; DNS on nan 01:49Z):
+- The route map is `/v1/network/routes` with format `transport: "enclave-network"`. `/v1/network/tuna` answers the same
+  for hosts installed before the rename; the privacy agent, the deploy preflight and the site use the new path and fall
+  back to the old one only on a 404. The production DNS service (`/opt/enclave-dns`, unit env `ROUTE_MAP_URL`) reads
+  the new path (backups `*.before-routes-20261014T014924Z`). Refusal code `route_publication_refused`.
+- Relay route state in `route-state` (the old `tuna-route-state` directory was moved at the first start: logged
+  01:33:01Z).
+- Supervisor: `EGRESS_SOCKS_UPSTREAM` (old name read when unset); views and `/v1/net-map` say `enclave-network`;
+  `egress.js` messages say "SOCKS upstream". The envelope validators (supervisor, Windows node, shield-app verifier, pVM
+  market) accept `network.transport` `enclave-network` and the `tuna` value that envelopes already on chain carry.
+
+Kept on purpose: `tuna` as an accepted envelope value and the `/v1/network/tuna` alias (on-chain envelopes and installed
+hosts); the deployed `EnclaveConnectivity` contract's `tuna` field and `authorizeTuna`/`settleTuna` (its provider mode,
+used by the paid path: renaming needs a new contract); installed paths (`C:\Program Files\Enclave\tuna\`,
+`ProgramData\Enclave\tuna`, `\Enclave\Tuna` task, `enclave-tuna-privacy.service`, `tuna-enroll.mjs`); tests that check
+retired TUNA settings are dropped. None of it reaches NKN or a TUNA service.
+
+## Relay restarts no longer take apps off DNS (2026-10-14)
+
+Measured on k11-4's 8 apps: a relay restart cost ~60 s (01:33Z) because the relay started with no host rows and no
+accepted publications, and the DNS service applied each partial map. Fixed (main a64942d25, 882dae8ca, 9345c9d90):
+the detach grace is saved (`route-grace.json`) and holds while a re-attached Shield host's app awaits its verdict
+(bound to the deployment's ledger fingerprint: a transfer still withdraws at once); accepted publications are kept in
+the route state and restored while still the committed record; dns-relay holds the previous labels for 12 s after a map
+drops more than half. Verified on the 01:55:53Z relay deploy: the first map served all 9 labels, DNS never changed
+(one failed poll, kept), every app answered 200 throughout.

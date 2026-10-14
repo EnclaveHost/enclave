@@ -896,20 +896,23 @@ test("api-relay: a stale row on an ex-runner never shadows the ledger's live one
 // The old relay roster cannot advertise an application address after retirement.
 test("api-relay: the route map is empty until a host publishes, and TUNA-era publications are refused", async t => {
   const origin = await startRelay(t, { enclaves: "http://127.0.0.1:1" });
-  for (const route of ["/v1/network/tuna", "/v1/relays"]) {
+  // /v1/network/routes, and the pre-rename path installed hosts and DNS still read
+  for (const route of ["/v1/network/routes", "/v1/network/tuna", "/v1/relays"]) {
     const {status, body} = await getJson(origin, route);
-    assert.equal(status, 200); assert.equal(body.transport, "tuna");
+    assert.equal(status, 200); assert.equal(body.transport, "enclave-network");
     assert.deepEqual(body.relays, []); assert.deepEqual(body.labels, {});
     assert.deepEqual(body.deployments, {});
   }
-  const rejected = await fetch(origin + "/v1/network/tuna", {
+  for (const path of ["/v1/network/routes", "/v1/network/tuna"]) {
+  const rejected = await fetch(origin + path, {
     method: "POST", headers: {"content-type": "application/json"},
     body: JSON.stringify({publication: {version: 1, endpoint: "https://api.enclave.host/t/unregistered",
       expiresAt: Date.now() + 60000, web: {address: "8.8.8.8", port: 443}, raw: []}, signature: "0x00"}),
   });
   assert.equal(rejected.status, 400);
   const refusal = await rejected.json();
-  assert.equal(refusal.error, "tuna_publication_refused");
+  assert.equal(refusal.error, "route_publication_refused");
   assert.match(refusal.message, /TUNA route publications are retired/, "a v1 (TUNA host allocation) publication is refused as retired");
-  assert.deepEqual((await getJson(origin, "/v1/network/tuna")).body.labels, {});
+  }
+  assert.deepEqual((await getJson(origin, "/v1/network/routes")).body.labels, {});
 });

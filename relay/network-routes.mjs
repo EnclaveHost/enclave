@@ -1,6 +1,6 @@
 // Authenticated, expiring per-app routes on the Enclave network (docs/design/enclave-network.md). This is DNS/control
-// metadata; application bytes never pass through this service. (The file, its export names and the endpoint
-// /v1/network/tuna keep their historical names: relay/deploy.sh copies it by name and installed hosts post to that path.)
+// metadata; application bytes never pass through this service. The relay serves it at /v1/network/routes (and at the
+// pre-rename path /v1/network/tuna, which hosts and the DNS service installed before 2026-10-14 still use).
 //
 // Only signed v2 publications carrying the owner's current v5 network policy are accepted. Everything from the TUNA
 // era is refused: v1 host allocation publications, and route policies v2 (guarded TUNA), v3 (on-chain direct) and
@@ -11,8 +11,22 @@ import {validateNetworkPolicy} from '../network/network-policy.mjs';
 
 export const RETIRED_PUBLICATION='TUNA route publications are retired: only signed per-app routes under an Enclave-network (v5) policy are accepted';
 
+// Each accepted publication is also kept in `memory` (key p-<id>), so a restarted relay serves the routes it had
+// instead of none until every host publishes again (a relay deploy took every app off DNS for ~25-60 s, 2026-10-14).
+// A kept route is used only while it is still the latest one the anti-rollback record committed (same hash), and
+// stays subject to its own expiry, the lease and the host's eligibility, exactly as before the restart.
+const keptKey = id => 'p-' + id;
 export function createNetworkRoutes({ operatorOf, endpointId, eligible, now = Date.now, leaseOf, memory, network }) {
-  const apps = new Map();
+  const apps = new Map(), restored = new Set();
+  async function restore(id) {
+    if (!memory || apps.has(id) || restored.has(id)) return;
+    restored.add(id);
+    try {
+      const kept = await memory.get(keptKey(id)), committed = await memory.get(id);
+      if (kept?.record && kept.bundle?.record && committed?.hash && recordHash(kept.bundle.record) === committed.hash && !apps.has(id))
+        apps.set(id, kept);
+    } catch {}
+  }
   return {
     async publish(publication) {
       if (publication?.version !== 2) throw new Error(RETIRED_PUBLICATION);
@@ -35,7 +49,9 @@ export function createNetworkRoutes({ operatorOf, endpointId, eligible, now = Da
       if (recordHash(network.currentPolicy(id)) !== recordHash(policy)) throw new Error('route policy is not the owner\'s current network policy');
       const record = await verifyRoute(bundle, {deploymentId: id, policy, lease, memory, networkProviders: await network.eligible(), providerProbeSigners: network.checkers, now: now()});
       if (publication.status) network.noteStatus(id, publication.status);
-      apps.set(id, {endpoint, bundle: structuredClone(bundle), record});
+      const entry = {endpoint, bundle: structuredClone(bundle), record};
+      apps.set(id, entry);
+      await memory.update(keptKey(id), () => entry).catch(() => {});
     },
     async map(rows) {
       const labels = {}, deployments = {}, pending = [], seen = new Set(), duplicates = new Set();
@@ -43,6 +59,7 @@ export function createNetworkRoutes({ operatorOf, endpointId, eligible, now = Da
         if (!/^0x[0-9a-f]{64}$/i.test(d.id || '')) continue;
         const id = d.id.toLowerCase(), label = id.slice(2, 10);
         if (seen.has(label)) { duplicates.add(label); delete labels[label]; } seen.add(label);
+        await restore(id);
         const route = apps.get(id), published = !!route || !!(memory && await memory.get(id));
         const admission = eligible(d);
         if (Number(d.leaseUntil) * 1000 <= now() || !admission || (typeof admission === 'number' && admission <= now())) continue;
@@ -61,9 +78,9 @@ export function createNetworkRoutes({ operatorOf, endpointId, eligible, now = Da
             ...(addresses.find(net.isIPv4) ? {a: addresses.find(net.isIPv4)} : {}), ...(addresses.find(net.isIPv6) ? {aaaa: addresses.find(net.isIPv6)} : {})};
         }
       }
-      // `transport: 'tuna'` identifies this map's format to its readers (relay/dns-relay.js, network/preflight.mjs); it
-      // is a format name, not the transport any app uses (each deployment and label says its own).
-      return {transport: 'tuna', updatedAt: new Date(now()).toISOString(), relays: [], labels, deployments, pending};
+      // `transport` names this map's format for its readers (relay/dns-relay.js, network/preflight.mjs); each deployment
+      // and label says its own transport (enclave-network or direct).
+      return {transport: 'enclave-network', updatedAt: new Date(now()).toISOString(), relays: [], labels, deployments, pending};
     },
   };
 }

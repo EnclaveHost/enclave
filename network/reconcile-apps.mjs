@@ -1,7 +1,6 @@
 // Keep a Linux host's privacy-agent app list current, then SIGHUP the agent.
 //
-//   node reconcile-apps.mjs --config FILE --guestd-root DIR [--ipfs-repo DIR] [--dry-run]
-//   (--tuna-binary, --topup and --targets, from the TUNA era, are accepted and ignored)
+//   node reconcile-apps.mjs --config FILE --guestd-root DIR [--ipfs-repo DIR] [--agent-unit UNIT] [--dry-run]
 //
 // For every public, active deployment leased to this runner it derives the expectation the agent pins:
 // appRef and configCid from the lease, and appSha256/runtimeId/release/measurement from guestd's record of
@@ -20,7 +19,8 @@ const run=promisify(execFile);
 
 const arg=(k,d)=>{const i=process.argv.indexOf(k);return i>0?process.argv[i+1]:d;};
 const DRY=process.argv.includes('--dry-run');
-const ipfsRepo=arg('--ipfs-repo','/home/steven/enclave-prod/tuna-privacy/ipfs-cid');
+const ipfsRepo=arg('--ipfs-repo','/home/steven/enclave-prod/enclave-network/ipfs-cid');
+const agentUnit=arg('--agent-unit','enclave-network-agent.service');
 const configFile=arg('--config'),guestdRoot=arg('--guestd-root');
 if(!configFile||!guestdRoot)throw new Error('usage: --config --guestd-root [--ipfs-repo DIR] [--dry-run]');
 const here=path.dirname(new URL(import.meta.url).pathname);
@@ -113,8 +113,7 @@ for(const row of mine){
 }
 if(changed&&!DRY){
   await writeAtomic(configFile,JSON.stringify(cfg,null,2));
-  // the agent's unit (and the default --ipfs-repo path) keep their TUNA-era names on the installed host
-  await run('systemctl',['--user','reload','enclave-tuna-privacy.service']);
+  await run('systemctl',['--user','reload',agentUnit]);
   log('agent reloaded');
 }
 log(`${mine.length} leased apps checked; ${changed?'changes applied':'no changes'}${DRY?' (dry run)':''}`);

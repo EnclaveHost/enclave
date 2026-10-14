@@ -37,7 +37,8 @@ test('a v5 publication is mapped to both exits, with the Enclave-network DNS lab
  assert.throws(()=>checkMap(unpublished),/not ready/);
  await w.mirror.publish({...await w.publication(),status:{deploymentId:id,ready:true}});
  const map=await w.mirror.map([w.row()]);
- assert.equal(map.transport,'tuna','the map format name readers check');
+ assert.equal(map.transport,'enclave-network','the map format name readers check');
+ assert.throws(()=>checkMap({...map,transport:'tuna'},[id],w.now),/unavailable/,'only the Enclave-network format');
  assert.deepEqual(map.labels.abababab.addresses,exits);assert.equal(map.labels.abababab.relay,'enclave');assert.equal(map.labels.abababab.a,exits[0]);
  assert.equal(map.deployments[id].transport,'enclave-network');assert.equal(map.deployments[id].httpsRoutes.length,2);
  assert.deepEqual(w.statuses,[[id,{deploymentId:id,ready:true}]],'the host\'s reported status reaches the Network tab');
@@ -103,4 +104,21 @@ test('a chain-read lease that proved the runner registration needs no second ope
  runnerOf=async()=>runner;delete w.lease.runnerRegistered;
  await assert.rejects(w.mirror.publish(await w.publication()),/inactive route operator/);
  assert.equal(asked,1);
+});
+
+
+test('a restarted relay serves the routes it had accepted, only while they are still the latest committed ones',async t=>{
+ const w=await world(t);
+ await w.mirror.publish(await w.publication());
+ assert.ok((await w.mirror.map([w.row()])).deployments[id]);
+ const restarted=createNetworkRoutes(w.options);                       // same state directory, empty memory
+ const map=await restarted.map([w.row()]);
+ assert.deepEqual(map.pending,[]);assert.equal(map.deployments[id].httpsRoutes.length,2,'served at once, before the host publishes again');
+ w.now+=301000;                                                       // past the record's own expiry
+ assert.equal((await createNetworkRoutes(w.options).map([w.row()])).deployments[id],undefined,'never past its expiry');
+ w.now-=301000;
+ await w.mirror.publish(await w.publication([w.routes()[0]]));         // a newer record is committed...
+ const kept=await w.options.memory.get('p-'+id);
+ await w.options.memory.update('p-'+id,()=>({...kept,bundle:{...kept.bundle,record:{...kept.bundle.record,sequence:1}}}));
+ assert.equal((await createNetworkRoutes(w.options).map([w.row()])).deployments[id],undefined,'a kept copy that is not the committed one is not served');
 });

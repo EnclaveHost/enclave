@@ -13,7 +13,7 @@
 // (relay/pvm-app-attest.mjs verifyPvmAppEvidence, requireTls): a fresh AVF certificate rooted at Google that binds the pinned
 // build, the pinned runtime, this VM instance, the transport key THIS tunnel attached with, and the app -- the SHA-256 of the
 // component the relay itself fetched by the catalog's CID -- plus the TLS key, signed by that transport key. Only then is the
-// deployment served (routes, TUNA) for TTL, and a certificate issued only for exactly that TLS key. A failure that says
+// deployment served (routes) for TTL, and a certificate issued only for exactly that TLS key. A failure that says
 // nothing about the app (busy, unreachable, the gateway) leaves the last verdict to expire on its own; any other revokes it.
 import { randomBytes, createHash } from "node:crypto";
 import { recoverAddress } from "viem";
@@ -49,8 +49,8 @@ export function pvmOptionsRefusal(d, { gpuOptional = false } = {}) {
       || iso.cpuTee === true || iso.gpuTee === true || (iso.require !== undefined && iso.require !== PVM_ISOLATION_BACKEND)))
     return `the deployment's isolation requirement is not ${PVM_ISOLATION_BACKEND}`;
   const n = env.network;
-  if (n !== undefined && (!n || typeof n !== "object" || Object.keys(n).some((k) => !["transport", "relay"].includes(k)) || (n.transport !== undefined && n.transport !== "tuna")))
-    return "the deployment's network options are not TUNA";
+  if (n !== undefined && (!n || typeof n !== "object" || Object.keys(n).some((k) => !["transport", "relay"].includes(k)) || (n.transport !== undefined && n.transport !== "enclave-network")))
+    return "the deployment's network options are not the Enclave network's";
   if (env.gpu !== undefined && (!env.gpu || typeof env.gpu !== "object" || env.gpu.optional !== true)) return "the deployment's gpu options are not { optional: true }";
   return null;
 }

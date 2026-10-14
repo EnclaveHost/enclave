@@ -102,3 +102,10 @@ test('open market: hosts "*" admits any host name with a live session; other non
  const m=createShieldMarketplace({hub,policy:{...base,hosts:'*'},confirmRow:async()=>null,hasSecrets:()=>false,log:()=>{}});
  assert.equal(m.configured('stranger-box'),true);assert.equal(m.eligible({name:'stranger-box',mode:'hv-node'}),false);
 });
+test('pending: an app has no verdict until this attachment verifies or refuses it; a reconnect starts over',async()=>{
+ const x=fixture();assert.equal(x.market.pending(x.host,x.row),true);
+ await x.market.refresh([x.host],[x.row]);assert.equal(x.market.pending(x.host,x.row),false);
+ x.setSession('connection2');assert.equal(x.market.pending(x.host,x.row),true,'a re-attached host has no verdict yet');
+ x.hub.verifyShieldApp=()=>({ok:false,reason:'app digest mismatch'});await x.market.refresh([x.host],[x.row]);
+ assert.equal(x.market.pending(x.host,x.row),false,'a refusal is a verdict');assert.equal(x.market.servesUntil(x.host,x.row),0);
+});
