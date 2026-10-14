@@ -46,7 +46,7 @@ test("on the tier a share is a fraction of the guest pool: a 128 MB app still ne
   const tier = await seam({ pool: pool(B), shares: [small] });
   assert.equal(cvm.node.pool, false);
   assert.equal(cvm.shares[0].cpuShare, 0.03, "against the 6 GiB control CVM a 128 MB app 'needs 3%' - the wrong pool");
-  assert.deepEqual({ ...tier.node }, { vcpus: 8, ramGb: 32, gflops: 8 * (250 / 4), pool: true });
+  assert.deepEqual({ ...tier.node }, { vcpus: 8, ramGb: 32, gflops: 8 * (250 / 4), gflopsFloor: 8 * 1000 / 16, pool: true });
   assert.equal(tier.shares[0].cpuShare, 0.01, "against the guest pool it needs the 1% floor");
   // the host's price is unchanged by the pool, and what 1% of it costs a deployment is under a69dcbba's cap
   assert.equal(tier.sellCpuPrice6, 834);

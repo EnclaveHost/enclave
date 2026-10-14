@@ -50,7 +50,7 @@ test("flag UNSET: every other envelope parses exactly as before", async () => {
   const r = await seam({ parse: ['{"waf":{"blockScanners":true}}', '{"nope":{}}', "", '{"gpu":{"optional":false}}'] });
   assert.equal(r.parse[0].ok, true);
   // the unknown-namespace message lists exactly the namespaces it always did
-  assert.equal(r.parse[1].error, 'unknown option namespace "nope" (this runner knows: waf, config, configCid, gpu, network)');
+  assert.equal(r.parse[1].error, 'unknown option namespace "nope" (this runner knows: waf, config, configCid, gpu, network, placement)');
   assert.deepEqual(r.parse[2], { ok: true, opts: {} });
   assert.equal(r.parse[3].ok, true);
 });
@@ -67,7 +67,7 @@ test("flag SET: the namespace parses, strictly", async () => {
   assert.match(r.parse[1].error, /must be a JSON object/);
   assert.match(r.parse[2].error, /isolation.require must be one of: snp-guest-per-app, hyperv-partition-per-app/);
   assert.match(r.parse[3].error, /unknown isolation option "x"/);
-  assert.match(r.parse[4].error, /this runner knows: waf, config, configCid, gpu, network, isolation/);
+  assert.match(r.parse[4].error, /this runner knows: waf, config, configCid, gpu, network, placement, isolation/);
 });
 
 test("flag SET: a clean isolated deployment is claimable, and only while the manager IS guestd", async () => {
