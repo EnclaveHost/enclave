@@ -17,7 +17,7 @@ import { report, MEAS, doc as rad, docWith, context as genoaContext, FLOOR } fro
 
 const F = new URL("./fixtures/verifier/", import.meta.url), A = new URL("./fixtures/amd/", import.meta.url);
 const NOW = "2026-09-24T05:00:00Z";
-const genoaCol = memoryCollateral({ chains: { Genoa: fs.readFileSync(new URL("Genoa-cert_chain.pem", A), "utf8") }, vceks: { Genoa: fs.readFileSync(new URL("genoa-Cloud Provider/vcek-kds-amd.der", F)) }, crls: { Genoa: fs.readFileSync(new URL("amd/Genoa-crl.der", F)) } });
+const genoaCol = memoryCollateral({ chains: { Genoa: fs.readFileSync(new URL("Genoa-cert_chain.pem", A), "utf8") }, vceks: { Genoa: fs.readFileSync(new URL("genoa-2026-09/vcek-kds-amd.der", F)) }, crls: { Genoa: fs.readFileSync(new URL("amd/Genoa-crl.der", F)) } });
 const runGenoa = (doc, policy = {}) => verifyEvidence(doc, { policy: { snp: { allowedMeasurements: [MEAS], minTcb: FLOOR, ...policy } }, context: genoaContext({ now: NOW }), collateral: genoaCol });
 const withVersion = (v) => { const r = Buffer.from(report); r.writeUInt32LE(v, 0); return docWith(r); };
 

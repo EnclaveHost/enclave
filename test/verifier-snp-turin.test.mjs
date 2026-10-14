@@ -64,7 +64,7 @@ test("Turin TCB floors: the FMC field is judged; a floor above the part is refus
 });
 test("root and VCEK: Genoa's chain does not verify a Turin report; a Genoa VCEK is not this report's key", async () => {
   rejectedAt(await run(doc, { collateral: col({ chains: { Turin: chains.Genoa } }) }), "chain", /pinned/);
-  rejectedAt(await run(doc, { collateral: col({ vceks: { Turin: fs.readFileSync(new URL("genoa-Cloud Provider/vcek-kds-amd.der", F)) } }) }), "chain", /SEV-Turin|issuer|signed/);
+  rejectedAt(await run(doc, { collateral: col({ vceks: { Turin: fs.readFileSync(new URL("genoa-2026-09/vcek-kds-amd.der", F)) } }) }), "chain", /SEV-Turin|issuer|signed/);
 });
 test("replay: the same report presented against a fresh nonce is refused", async () => {
   const fresh = Buffer.alloc(32, 7);

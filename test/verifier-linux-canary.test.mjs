@@ -84,7 +84,7 @@ test("single-field forgeries: another nonce, another runtime identity, another a
   // canary guest runs on the SAME Turin part as the lab capture (chip id fa11afcf54ae9c53); the Genoa VCEK is the wrong key
   const lab = await run(doc, { collateral: col({ vceks: { Turin: read(new URL("../turin-m4a/vcek-kds-amd.der", F)) } }) });
   assert.equal(lab.status, "verified", "the lab VCEK is this chip's VCEK (same part)"); assert.equal(lab.claims.chipId.slice(0, 16), "fa11afcf54ae9c53");
-  rejectedAt(await run(doc, { collateral: col({ vceks: { Turin: read(new URL("../genoa-Cloud Provider/vcek-kds-amd.der", F)) } }) }), "chain", /VCEK issuer CN is SEV-Genoa/);
+  rejectedAt(await run(doc, { collateral: col({ vceks: { Turin: read(new URL("../genoa-2026-09/vcek-kds-amd.der", F)) } }) }), "chain", /VCEK issuer CN is SEV-Genoa/);
   rejectedAt(await run(doc, { policy: { allowedMeasurements: ["00".repeat(48)] } }), "measurement", /not an allowed measurement/);
   rejectedAt(await run(doc, { policy: { minTcb: { Turin: { ...minTcb.Turin, microcode: 118 } } } }), "tcb policy", /below policy/);
   rejectedAt(await run(doc, { collateral: col({ crls: {} }) }), "crl", /required by policy but none/);

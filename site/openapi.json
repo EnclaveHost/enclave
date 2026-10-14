@@ -2148,7 +2148,7 @@
       },
       "EnclaveAttestation": {
         "type": "object",
-        "description": "The box's attestation document (AMD SEV-SNP, format `sev-snp-guest-metal-v1`) as the box serves it at /.well-known/Cloud Provider-attestation (a legacy path name). This copy is a convenience and carries no freshness: verify a FRESH document over your own nonce (GET /v1/enclaves/{name}/attestation?nonce=…) with Enclave's verifier (`enclave attest`, or verifier/ in the repo).",
+        "description": "The box's attestation document (AMD SEV-SNP, format `sev-snp-guest-metal-v1`) as the box serves it at its well-known attestation path. This copy is a convenience and carries no freshness: verify a FRESH document over your own nonce (GET /v1/enclaves/{name}/attestation?nonce=…) with Enclave's verifier (`enclave attest`, or verifier/ in the repo).",
         "properties": {
           "attestationDocument": {
             "type": "object",

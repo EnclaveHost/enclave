@@ -1,54 +1,69 @@
 # An Enclave-owned verifier: trust map, gap analysis, recommendation, rollout
 
-Status: investigation and bounded proof of concept, branch `research/independent-verifier`.
-Written 2026-09-24 against main at fcb980c0 plus the feature branches named in section 2.6.
-Nothing in this document changes production verification; section 9 is the only path by which it may.
+Status: investigation, bounded proof of concept and production consumers, `verifier/` on main.
+Written 2026-09-24 against main at fcb980c0 plus the feature branches named in section 2.6; brought in line with the code on
+main at 949a2f4cd on 2026-10-14. Dated entries (sections 8.1 and 10.x) record what was measured on that date.
 
-> **Status update 2026-10-14.** The Cloud Provider-hosted paths are gone: the hosted fleet, the Cloud Provider release
-> provenance (`Cloud Providersh/measure-image-action`, the `Cloud Provider.hash` asset and its Sigstore predicate), the signed
-> release index, the TUF-refreshed Sigstore root and the Cloud Provider differential were all removed on 2026-10-14. The
-> verifier (`verifier/`) now judges the metal box flow (`verifier/metal-box.mjs`: a fresh SEV-SNP report over the
-> caller's nonce through the relay, AMD's chain, guest policy, TCB floor, launch measurement). Releases are
-> `vX.Y.Z-cpu` tags cut by `.github/workflows/release-cpu.yml`. The rest of this document is the plan as written
-> on 2026-09-24 and describes those removed paths in the present tense.
+> **Status 2026-10-14.** What the verifier is and does today:
+> - It is the only verifier on every client path. The CLI (`enclave attest`: `cli/enclave.mjs` -> `verifier/consumer.mjs`
+>   `verifyMetalBox`) and the site's live verify (`site/js/core/verify.js` -> the same-origin bundle `/vendor/enclave-verifier.js`,
+>   `verifier/web` `verifyMetalBoxWeb`) run this repository's code; no third-party verifier library, proxy or release format
+>   is on either path.
+> - `verifier/metal-box.mjs` verifies an attached metal SEV-SNP box through the relay (section 2.2): a fresh document over the
+>   caller's own 32-byte nonce (`GET <api>/v1/enclaves/<name>/attestation?nonce=`), `report_data[0:32]` = sha256(transport
+>   SPKI || nonce), the AMD chain to the pinned ARK, the CRL, the published TCB floors (Genoa, Turin), the guest policy (no
+>   DEBUG, no MIGRATE_MA) and VMPL 0.
+> - The launch measurement is held to a caller pin (`--expect`; the outcome can be `verified`) or to the relay operator's
+>   allowlist (`METAL_ALLOWED_MEASUREMENTS`), which carries the omission `expected-measurement-operator-stated` and is never
+>   better than `limited`.
+> - The site takes AMD collateral through the relay's KDS mirror (`GET <api>/v1/amd-kds/...`): bytes only, each piece judged
+>   in the browser against the pinned roots. The CLI takes it from AMD KDS, or from disk with `--collateral-dir`.
+> - Unchanged beside it: the domain, pVM, Linux-tier, Hyper-V and NucBox paths, the admission gate, the sealed stream, the
+>   envelope registry, the collateral adapters and their cache, the Node bundle (vendored for the relay at `relay/vendor/`)
+>   and the web bundle.
+> - REMOVED from the code on 2026-10-14, and their sections from this document: a third-party hosted provider's document
+>   format (its predicates are now unknown formats, i.e. `unsupported`) and verifier library, the certificate-window
+>   freshness rule in admission, release provenance, the signed release index and its memory, the TUF refresh of the
+>   Sigstore root, the same-origin release mirror, the live and provenance differentials, the web shadow adapter, relay
+>   re-verification of dialed rows, and the supervisor self-check (`verification.selfCheck` reads `not-run`). Releases are
+>   `vX.Y.Z-cpu` tags cut by `.github/workflows/release-cpu.yml`, which builds the supervisor image and then creates the tag
+>   and the GitHub Release, with no measurement step (section 2.3).
 
 ## 0. Summary
 
-Today "verified" on the hosted fleet means: the `@Cloud Providersh/verifier` library, fetching through two Cloud Provider-run
-proxies, checks a Cloud Provider-shim document against a Cloud Provider-produced release predicate, chains it to AMD's
-Genoa root embedded in the library, and binds it to a Cloud Provider-shim certificate format. The relay, metal and
-isolation paths already verify SEV-SNP first-party (`relay/snp-verify.mjs`), but that code has no release
-provenance, no revocation handling, no browser build, and cannot verify an ABI/2 document on main.
+"Verified" on a client path today means: this repository's verifier, run by the client (CLI or browser), challenged an
+attached SEV-SNP box with the client's own nonce through the relay, and the box's report is AMD-signed to a pinned root,
+unrevoked, at or above the published TCB floor, refuses DEBUG and migration at VMPL 0, binds the box's transport key together
+with that nonce, and carries a launch measurement the client pinned. The same report matched only against the relay
+operator's allowlist is `limited`, never `verified`. The relay, metal and isolation paths verify SEV-SNP first-party as
+before (`relay/snp-verify.mjs` at attach, the vendored bundle for per-app guests' release documents).
 
-Recommendation: **option B, own the orchestration and formats, keep audited primitives**, seeded from the
-existing first-party code. Concretely: one evidence envelope with a closed format registry, one verdict model
-with `verified | rejected | unsupported`, an explicit policy object (pinned roots, product lines, TCB floors,
-VMPL, policy bits, binding rule per format, release identity, collateral freshness), collateral that is
-verifiable from any source because everything chains to a pin, and release provenance verified against an
-identity **we** state (repo, workflow path, tag pattern, OIDC issuer, predicate type) with the Sigstore root
-taken from Sigstore's TUF repository. Cryptography and X.509/Sigstore parsing come from Node's crypto,
-WebCrypto, and reviewed libraries (`@freedomofpress/sigstore-browser` today, `sigstore-js` as the Node
-reference). No cryptographic primitive is invented, and no new mandatory service is introduced: the verifier
-runs in the client (browser, CLI, relay), mirrors are optional caches of vendor-signed data, and the enclave
-self-check stays a diagnostic.
+Recommendation, written on 2026-09-24 and built since: **option B, own the orchestration and formats, keep audited
+primitives**, seeded from the existing first-party code. Concretely: one evidence envelope with a closed format registry,
+one verdict model with `verified | limited | rejected | unsupported`, an explicit policy object (pinned roots, product lines,
+TCB floors, VMPL, policy bits, binding rule per format, collateral freshness), and collateral that is verifiable from any
+source because everything chains to a pin. Cryptography and X.509 parsing come from Node's crypto, WebCrypto and a reviewed
+library (`@freedomofpress/sigstore-browser`'s `X509Certificate` in the browser). No cryptographic primitive is invented, and
+no new mandatory service is introduced: the verifier runs in the client (browser, CLI) and in the relay for the relay's own
+decisions, and the relay's KDS mirror is an optional cache of AMD-signed data.
 
-The proof of concept (section 8) verifies authentic Genoa and Turin evidence offline, exercises adversarial
-mutations of every input independently, and uses Cloud Provider's verifier as one differential reference.
+The proof of concept (section 8) verifies authentic Genoa and Turin evidence offline and exercises adversarial mutations of
+every input independently; the browser build is held to the Node build verdict for verdict.
 
 ## 1. Scope and terms
 
 - **Evidence**: bytes a client obtains from the party being verified (report, certificate, document).
-- **Collateral**: vendor-published data needed to judge evidence (AMD ARK/ASK/VCEK/CRL, Sigstore trusted
-  root, Google attestation roots, Intel PCS data, NVIDIA RIMs). Public, signed, cacheable.
+- **Collateral**: vendor-published data needed to judge evidence (AMD ARK/ASK/VCEK/CRL, Google attestation
+  roots, Intel PCS data, NVIDIA RIMs). Public, signed, cacheable.
 - **Policy**: what the verifier's operator or user decided to accept. Never learned from the server.
 - **Verdict**: `verified` (admission-safe: every security check passed and the policy omitted nothing),
   `limited` (every cryptographic check passed but the policy explicitly skipped a security check, or the
   report version's semantics are unimplemented; the omissions are listed; never admission-safe), `rejected`
   (a check failed), `unsupported` (the evidence class or version is not implemented; never green). Each
   carries reasons, per-check results (`true`, `false`, or `null` for not judged) and the authenticated claims.
-  A research policy (no TCB floor, `crl: none`, no certificate binding, no nonce, an unjudged report
-  version) can therefore be run and inspected, but its best outcome is `limited`, and `status === "verified"`
-  is the only outcome a consumer may treat as acceptance.
+  A research policy (no TCB floor, `crl: none`, no nonce, an unjudged report version) can therefore be run
+  and inspected, but its best outcome is `limited`, and `status === "verified"` is the only outcome a consumer
+  may treat as acceptance.
 - Dependency classes, kept separate throughout: **library** (code we run), **network service** (a host we
   fetch from at verification time), **release format and build toolchain** (who defines what a
   "measurement of our release" is), **hardware root** (whose signing key ends the chain), **deployment
@@ -58,92 +73,90 @@ mutations of every input independently, and uses Cloud Provider's verifier as on
 
 ### 2.1 Consumers of verification and what each trusts
 
-| consumer | code | library | network services on the verification path | release format | hardware root | operator |
+| consumer | code | library | network services on the verification path | measurement expectation | hardware root | operator |
 |---|---|---|---|---|---|---|
-| Browser "verify it yourself" | `site/js/core/verify.js` -> `site/vendor/verifier.js` (built by `scripts/build-vendor.mjs`, pin 1.1.10; upstream is at 1.2.1) | `@Cloud Providersh/verifier` 1.1.10 (Apache-2.0), `@freedomofpress/sigstore-browser` 0.1.14 (Apache-2.0 LICENSE file), `crypto-browser` 0.1.7 (Apache-2.0) | `github-proxy.Cloud Provider.sh` (releases/latest, Cloud Provider.hash, attestations), `kds-proxy.Cloud Provider.sh` (VCEK), `api.github.com` (repo casing), the enclave host (RAD + certificate) | Cloud Provider predicate `snp-tdx-multiplatform/v1` produced by `Cloud Providersh/measure-image-action` | AMD Genoa ARK/ASK embedded in the library (Genoa only) | Cloud Provider (shim, TLS key, ingress) |
-| CLI `enclave attest` | `cli/enclave.mjs` `verifyEnclaveOrigin` | `@Cloud Providersh/verifier` ^1.1.7 (cli/package.json) | same proxies | same | same | same |
-| Enclave self-check | `supervisor.js` `runSelfCheck` / `verifyMatchingRelease` | `@Cloud Providersh/verifier` 1.1.10 | same proxies, hairpin to its own origin | same | same | same; labelled diagnostic, not trust |
+| Browser live verify | `site/js/core/verify.js` -> `/vendor/enclave-verifier.js` (`verifier/web` `verifyMetalBoxWeb`, built by `scripts/build-vendor.mjs`, sha256 in `verifier/web/dist/MANIFEST.json`) | this repository's verifier; `@freedomofpress/sigstore-browser` 0.1.14 `X509Certificate` over `@freedomofpress/crypto-browser` 0.1.7 (Apache-2.0) for X.509 structure; WebCrypto for every signature | the relay (`api.enclave.host`): the fresh document (`/v1/enclaves/<name>/attestation?nonce=`) and AMD collateral through its KDS mirror (`/v1/amd-kds/...`) | the relay operator's allowlist, labelled: `limited` at best | Milan/Genoa/Turin ARKs pinned by sha256 in the bundle | the box's seller; the relay forwards |
+| CLI `enclave attest` | `cli/enclave.mjs` -> `verifier/consumer.mjs` `verifyMetalBox` | this repository's verifier (node:crypto) | the relay for the fresh document; `kdsintf.amd.com` directly, or `--collateral-dir` | `--expect HEX[,HEX]` (a caller pin; `verified` possible) or the operator's allowlist (`limited`) | same pins | same |
+| Supervisor `verification` block | `supervisor.js` `getMeasurements` | none | n/a | n/a | n/a | publishes no verdict: `verification.selfCheck.result` is `not-run`, beside pointers to the client paths |
 | MCP / docs | `relay/mcp.js`, `site/components/attest-chain` | text pointers only | n/a | n/a | n/a | n/a |
-| Relay attach gate (permissionless sellers) | `relay/tunnel.js` -> `relay/snp-verify.mjs` | none (node:crypto) | `kdsintf.amd.com` directly (or the report's own cert table) | none: `METAL_ALLOWED_MEASUREMENTS` env allowlist, `METAL_MIN_TCB` env | Milan/Genoa/Turin ARKs pinned by sha256, corroborated against go-sev-guest | the seller |
-| Metal buyer tool | `metal/verify.mjs` | none | `kdsintf.amd.com` | none: local `metal/dist/manifest.json` from `sev-snp-measure` | same pins | the seller |
-| Isolation judge (M2..M4) | `isolation/m2/judge.mjs` | none | KDS or `--no-kds` | none: `--measurement` on the command line | same pins | the lab |
+| Relay attach gate (permissionless sellers) | `relay/tunnel.js` -> `relay/snp-verify.mjs` | none (node:crypto) | `kdsintf.amd.com` directly (or the report's own cert table) | `METAL_ALLOWED_MEASUREMENTS` env allowlist, `METAL_MIN_TCB` env | Milan/Genoa/Turin ARKs pinned by sha256, corroborated against go-sev-guest | the seller |
+| Relay release judgement (per-app SNP guests) | `relay/secrets-release.mjs` -> `relay/vendor/enclave-verifier-node.mjs` `verifyGuestDomainEvidence` | the vendored Node bundle | AMD KDS through the bundle's authenticated disk cache (`RELAY_VERIFIER_CACHE_DIR`) | an admitted domain release's runtime and measurement pairs; binding, AppID and HOST_DATA = the deployment | same pins | the lease holder |
+| Metal buyer tool | `metal/verify.mjs` | none | `kdsintf.amd.com` | local `metal/dist/manifest.json` from `sev-snp-measure` | same pins | the seller |
+| Isolation judge (M2..M4) | `isolation/m2/judge.mjs` | none | KDS or `--no-kds` | `--measurement` on the command line | same pins | the lab |
 | Android pVM attach | `relay/avf-verify.mjs`, branch `relay/pvm-app-attest.mjs` | none | none at verify time | APK code hash + signer hash policy from env | Google attestation roots pinned (2 fingerprints) | the phone owner |
 | Windows VBS attach | `relay/vbs-verify.mjs` | none | none at verify time | enclave identity policy from env | AMD fTPM EK root pinned | the node owner |
 | Windows partition (T0-hv) | launcher-only: `windows/vbslike/verify/judge-hv.mjs`; with the guest VBS report (since 2026-09-29): `relay/shield-app-policy.mjs` -> `relay/vbs-app-verify.mjs`, also called by `verifier/hyperv.mjs` | none | none | launcher-only: launcher key; VBS report: image/runtime pairs and EK/PCR0 platform pairs in the Shield app policy | launcher-only: none (no hardware root); VBS report: AMD fTPM EK root pinned, the boot's VSM IDKS key from the quoted log; `hostExcluded=false` either way | the node owner |
-| GPU (NVIDIA CC) | `supervisor.js getMeasurements` publishes the NVML report and a pointer to NRAS/nvtrust | none | n/a | n/a | not verified first-party anywhere | n/a |
+| GPU (NVIDIA CC) | `supervisor.js getMeasurements` publishes the NVML report and a pointer to NRAS/nvtrust on a GPU build only (the GPU flavors were removed on 2026-10-14) | none | n/a | n/a | not verified first-party anywhere | n/a |
 | Intel TDX | `supervisor.js parseTdxQuote` | parse only | n/a | n/a | not verified anywhere | n/a |
 
-Source lines: `supervisor.js:41` (import), `:3460` (`RAD_PATH`), `:3630-3662` (proxy probing of sibling
-flavors), `:3701-3769` (`getMeasurements`), `:6732` (public re-serve of the RAD); `site/js/core/verify.js:37-64`
-(same probing in the browser), `:70` (`EXPECTED_REPO` pin); `cli/enclave.mjs:912-946`;
-`relay/tunnel.js:402-507` (formats `sev-snp-guest*`, `android-avf-pvm/v1`, pad v2, `windows-vbs-enclave/v1`);
-`relay/api-relay.js:130-141` (env policies), `:1408-1413` (`computeEligible`: dialed rows trust their own
-`availability.teeCpu`).
+Where to read each: `verifier/metal-box.mjs` (the client flow), `verifier/consumer.mjs` (the Node entry points),
+`verifier/web/index.mjs` (`verifyMetalBoxWeb`, `KDS_MIRROR_PATH`), `site/js/core/verify.js` (`LV_VERIFIER_URL`),
+`cli/enclave.mjs` (`attest`), `relay/api-relay.js` (`METAL_ALLOWED_MEASUREMENTS`, `METAL_MIN_TCB`, the `/v1/amd-kds/` route,
+`guestVerifier`, `computeEligible`: dialed rows trust their own `availability.teeCpu`), `relay/tunnel.js` (formats
+`sev-snp-guest*`, `android-avf-pvm/v1`, pad v2, `windows-vbs-enclave/v1`).
 
-### 2.2 What the Cloud Provider library actually checks (1.1.10, read from `dist/`)
+### 2.2 The metal box flow (`verifier/metal-box.mjs`, the CLI and the site)
 
-- `bundle.js`: fetches `/.well-known/Cloud Provider-attestation` and `/.well-known/Cloud Provider-certificate` from the
-  host, `releases/latest` + `Cloud Provider.hash` + `attestations/sha256:<digest>` from `github-proxy.Cloud Provider.sh`,
-  and the VCEK from `kds-proxy.Cloud Provider.sh` using the Milan/Genoa TCB layout and the full 64-byte chip id.
-- `sev/cert-chain.js`: **Genoa only** (`fromReport` throws for any other product; a Turin report fails even earlier,
-  in the parser's TCB_VERSION check, which applies the Milan/Genoa layout to a field Turin lays out differently), ARK/ASK from
-  `sev/certs.js`, RSA-PSS on the VCEK, P-384 key, no `CSP_ID` (VLEK refused), certificate validity at `now`.
-- `sev/report.js`: fixed-offset parse with MBZ checks, VCEK signer only, ECDSA P-384 only.
-- `sev/validation.js`: **Cloud Provider's** floors baked in (`minimumTcb` bl 7 / snp 14 / ucode 72, firmware
-  build 21, version 1.55; DEBUG and MIGRATE_MA refused; SMT allowed). No caller policy in the site/CLI path.
-- `sigstore.js`: embedded trusted root (JSON-identical to Sigstore's TUF `trusted_root.json` v14 on
-  2026-09-24, checked), bundle v0.3 only, policy = GitHub OIDC issuer + repository + `^refs/tags/`, in-toto
-  statement with only the recognised fields, predicate must be Cloud Provider's, subject digest must equal the
-  digest fetched from GitHub. **The workflow path is not part of the policy**: any tagged workflow in the
-  repo may sign.
-- `cert-verify.js` + `dcode.js`: the served certificate must carry the enclave's domain, an `.hpke.` SAN set
-  encoding the HPKE key that `report_data[32:64]` states, and a `.hatt.` SAN set encoding
-  sha256(format + body). This is the shim's format; nothing else produces such a certificate.
-- `client.js`: the five steps `fetchDigest, verifyEnclave, verifyCode, compareMeasurements, verifyCertificate`;
-  `securityVerified` only when all pass.
+One environment-free function, `verifyMetalBoxWith`, carries the rules; `verifyMetalBox` (Node) and `verifyMetalBoxWeb`
+(browser) supply fetch, randomness, the SNP verdict and the collateral.
+
+1. **Freshness.** The client draws 32 random bytes and asks the relay for the box's document
+   (`GET <api>/v1/enclaves/<name>/attestation?nonce=<hex>`); the relay forwards the nonce over the box's tunnel and returns
+   the box's `sev-snp-guest-metal-v1` document verbatim. An answer for another nonce, a non-metal document, an HTTP error or
+   more than 512 KiB is `unavailable`, never a verdict. `report_data[0:32]` must equal sha256(the document's transport SPKI ||
+   the client's nonce).
+2. **Genuineness.** The report is judged by `verifier/snp.mjs`: VCEK from the box's own certificate table (`certs`) or AMD
+   KDS (the site: the relay's KDS mirror), chained to the pinned ARK, ASK serial against the ARK-signed CRL, DEBUG and
+   MIGRATE_MA refused, VMPL 0, and the reported and committed TCB at or above `TCB_FLOORS` (Genoa: bootloader 10, tee 0, snp
+   23, microcode 84; Turin, metal0's reported TCB on 2026-10-14: fmc 1, bootloader 3, tee 2, snp 5, microcode 117). A
+   product line with no floor stays `limited`; `--min-tcb` overrides the floor in the CLI.
+3. **What runs.** The launch measurement must be one the client expects. A caller pin (`expected.measurements`, the CLI's
+   `--expect`) is the policy and a clean verdict is `verified`. Without one the relay's admitted list
+   (`METAL_ALLOWED_MEASUREMENTS`, returned beside the document) is used and the result carries the omission
+   `expected-measurement-operator-stated`, so it is `limited`: an operator vouching for its own box is not an independent
+   expectation.
+
+The relay is trusted for neither 1 nor 2: it can withhold or delay a document, not forge one. The request's TLS ends at the
+relay; the key the report binds is the box's transport key, which the result names (`transportKeySha256`) for an
+end-to-end channel. The CLI exits 0 for `verified`, 3 for `limited`, 1 otherwise; with no id it challenges every attested
+SEV-SNP box the relay holds, with a deployment id it resolves the box from the deployment's attestation pointer, and a
+deployment on an Enclave Shield host is `unsupported` (its evidence is host-attested, not an SNP report).
 
 ### 2.3 What the release actually is
 
-`.github/workflows/Cloud Provider-release-publish.yml` runs `Cloud Providersh/measure-image-action@e9967c4a` (v0.9.2)
-with `id-token: write` and `attestations: write`. The GitHub attestation for v0.5.841 (fixture
-`test/fixtures/verifier/release/`) is a Sigstore v0.3 bundle whose Fulcio certificate states issuer
-`https://token.actions.githubusercontent.com`, repository `EnclaveHost/enclave`, ref `refs/tags/v0.5.841`,
-build config `https://github.com/EnclaveHost/enclave/.github/workflows/Cloud Provider-release-publish.yml@refs/tags/v0.5.841`,
-trigger `workflow_dispatch`, and a Rekor v1 entry with inclusion proof and promise. The in-toto predicate
-is `https://Cloud Provider.sh/predicate/snp-tdx-multiplatform/v1` with `snp_measurement`, `tdx_measurement`
-(rtmr1, rtmr2), the kernel `cmdline` (dm-verity root hash, `Cloud Provider-config-hash`), `hashes` of Cloud Provider's
-CVM image (`version v0.7.5`: root, initrd, kernel, raw) and the base64 `Cloud Provider-config.yml`.
+`.github/workflows/release-cpu.yml` (dispatched by `deploy.yml` with the next `vX.Y.Z-cpu` version, or by hand) builds
+`ghcr.io/enclavehost/enclave-supervisor:<tag>`, then creates the git tag on the commit the image was built from and a GitHub
+Release named by it; `enclaves/cpu/config.yml` at the tag carries the supervisor environment and the wasm-manager pin. No
+release asset is read by anything, and no measurement is computed or signed in CI: `metal/update.mjs` on each box takes
+the newest `-cpu` tag and runs `metal/build-image.mjs` at it on the host, which pulls that image and, where
+`sev-snp-measure` is installed, records the launch measurement in `metal/dist/manifest.json` (the input `metal/verify.mjs`
+uses).
 
-So the launch measurement's **meaning** (this measurement is our containers under Cloud Provider's OS) is defined
-by Cloud Provider's image and Cloud Provider's action. We can verify the signature chain and the identity that produced
-it; we cannot today recompute `snp_measurement` from sources we hold. That is a build-toolchain dependency,
-distinct from the library and from the proxies, and the one that survives every option in section 4 until
-either Cloud Provider's image inputs are archived and re-measured per release (`sev-snp-measure`) or the fleet
-runs our own image (metal, M4b).
+So a client has no signed release measurement to compare with: the measurement's meaning rests on the box's own build, and
+the expectation is either one the client reproduced or trusts (`--expect`) or the operator's allowlist, labelled. An
+independent expectation needs a client-side reproduction of the image from the tag's inputs; it is not built.
 
 ### 2.4 Network services, and what each actually is
 
 | host | operated by | content | replaceable by | consequence if it lies or is down |
 |---|---|---|---|---|
-| `github-proxy.Cloud Provider.sh` | Cloud Provider | CORS front for `api.github.com` and release assets | direct GitHub calls (server side), a signed release index we publish (section 5), any mirror: bundles are self-verifying | lie: cannot forge a bundle, can serve an older genuine release (rollback) or nothing; down: browser verification fails |
-| `kds-proxy.Cloud Provider.sh` | Cloud Provider | cache of `kdsintf.amd.com` VCEKs | KDS directly, the report's own certificate table, any mirror: VCEK chains to the pinned ASK and its extensions must match the report | lie: cannot forge; down: no chain (KDS itself rate-limits with 429) |
-| `kdsintf.amd.com` | AMD | VCEK, cert_chain, CRL | mirror + auxblob | same |
-| `rekor.sigstore.dev`, `fulcio.sigstore.dev`, `tuf-repo-cdn.sigstore.dev` | Sigstore | not contacted at verify time; the trusted root is embedded; bundles carry inclusion proofs | TUF refresh of the root on a schedule | root expiry blocks verification of new releases only |
-| the enclave host | Cloud Provider shim (hosted) / metal agent / domain front | RAD, certificate | none: this is the evidence | n/a |
+| `api.enclave.host` (the relay) | Enclave | the fresh document: the client's nonce forwarded over the box's tunnel, the box's answer returned verbatim with the operator's allowlist beside it; the KDS mirror `/v1/amd-kds/vcek/v1/{Milan,Genoa,Turin}/{cert_chain,crl,<hwID>}` (cached, rate-limited per client IP) | for the document, none: the relay holds the box's tunnel; for collateral, KDS directly, the box's own certificate table, a disk cache | lie: cannot forge a report (the client's nonce, the pinned ARK) or collateral (everything chains to the pin); can withhold or delay, and states the allowlist, which is labelled `limited`; down: no fresh document |
+| `kdsintf.amd.com` | AMD | VCEK, cert_chain, CRL | the relay's mirror, the report's certificate table, `verifier/collateral-cache.mjs`, `--collateral-dir` | lie: cannot forge; down or 429: no chain unless cached |
+| the box | its seller (metal agent) / domain front | the document | none: this is the evidence | n/a |
 
 ### 2.5 Evidence classes and the binding rule each uses
 
 | format string | technology | `report_data[0:32]` | `[32:64]` | freshness | first-party verifier today |
 |---|---|---|---|---|---|
-| `https://Cloud Provider.sh/predicate/sev-snp-guest/v2` | SNP, hosted | sha256(TLS SPKI) | HPKE public key | none in the report; the certificate's `hatt` SAN binds the document to the served certificate, whose validity window is the clock | none (Cloud Provider lib only) |
-| `sev-snp-guest-metal-v1` | SNP, metal | sha256(SPKI) or sha256(SPKI || nonce) on attach | zero | relay nonce per attach | `relay/snp-verify.mjs`, `metal/verify.mjs` |
-| `sev-snp-guest-domain-v1` | SNP, isolation | ABI/1 sha256(SPKI || nonce); ABI/2 `Bind2` = sha256("enclave-bind-v2\n" || SPKI || nonce || RuntimeID) | AppID from the monitor | verifier nonce | `isolation/m2/judge.mjs` (+ `expectedBinding`, branch only) |
+| `sev-snp-guest-metal-v1` | SNP, metal | sha256(SPKI || nonce) with a nonce; sha256(SPKI) without one (`freshness-unbound`, `limited`) | zero | the client's nonce on the fresh document; the relay's nonce per attach | `verifier/metal-box.mjs` over `verifier/snp.mjs`; `relay/snp-verify.mjs` (attach), `metal/verify.mjs` |
+| `sev-snp-guest-domain-v1` | SNP, isolation | ABI/1 sha256(SPKI || nonce); ABI/2 `Bind2` = sha256("enclave-bind-v2\n" || SPKI || nonce || RuntimeID) | AppID from the monitor | verifier nonce (a release document binds the relay's ticket instead) | `verifier/snp.mjs` (+ HOST_DATA, section 10.3), the relay's release judgement, `isolation/m2/judge.mjs` |
 | `hyperv-partition-domain/v1` | Hyper-V partition (T0-hv, host not excluded) | same as domain; with `vbsVmReport`, the paravisor's VBS report carries `Bind2 || AppID` as its 64 bytes of guest input | AppID | verifier nonce, plus the caller's own host TPM session (nonce + minted credential) | launcher-only: `windows/vbslike/verify/judge-hv.mjs` (launcher signature, no hardware); with `vbsVmReport`: `relay/shield-app-policy.mjs`, called by `verifier/hyperv.mjs` |
 | `android-avf-pvm/v1`, pad v2, ABI/2 app | AVF | sha256(transcript) as the AVF challenge; ABI/2: `Bind2 || AppID` (64 bytes) | n/a | relay nonce | `relay/avf-verify.mjs`, `relay/pvm-app-attest.mjs` (branch) |
 | `windows-vbs-enclave/v1` | VBS enclave + TPM | `EnclaveData` = sha256(bound transcript) | n/a | relay nonce + TPM quote nonce | `relay/vbs-verify.mjs` |
 | `tdx-guest-metal-v1` | TDX | as metal | zero | as metal | **none** (parse only) |
 | `dev-unattested-metal-v1` | none | n/a | n/a | n/a | must be refused (`metal/verify.mjs` exits 1) |
 | NVIDIA CC report | GPU | NVML nonce | n/a | owner nonce | **none** |
+| anything else | | | | | `unsupported`, never green |
 
 ### 2.6 The feature branches (read-only)
 
@@ -184,75 +197,66 @@ runs our own image (metal, M4b).
 
 ## 3. Gap analysis of the first-party implementation
 
-Judged against the required properties, for `relay/snp-verify.mjs` (R), `metal/verify.mjs` (M),
-`isolation/m2/judge.mjs` (J) and, for contrast, `@Cloud Providersh/verifier` (T).
+Judged against the required properties, for `relay/snp-verify.mjs` (R), `metal/verify.mjs` (M) and `isolation/m2/judge.mjs`
+(J) as they stood on 2026-09-24, with what `verifier/` does today in the last column.
 
-| property | R | M | J | T | gap the new verifier closes |
-|---|---|---|---|---|---|
-| signature chain to pinned roots | yes: sha256 pins for three lines, chain from KDS or auxblob | yes (same pins) | via R | Genoa only, PEMs embedded | keep the pins; add certificate validity windows, ASK subject/CN checks, and refuse VLEK explicitly |
-| platform and TCB policy | caller `minTcb` on reported TCB, per-product layouts; no floor built in | `--min-tcb` | `--min-tcb` | Cloud Provider's floors, all four TCBs, firmware build/version | policy object with explicit floors for reported **and** committed TCB, product allowlist, firmware version floor as an option |
-| debug / VMPL / configuration | DEBUG, MIGRATE_MA refused; VMPL pinned (default 0) | same | same + boundary tuple above VMPL0 | DEBUG, MIGRATE_MA; SMT allowed; VMPL unchecked | export SMT, single-socket, CXL, RAPL, ciphertext hiding as claims; policy chooses which are required |
-| nonce and replay / freshness | challenge bound into `report_data` | key-only or challenge | nonce | none (TLS certificate binding instead) | per-format freshness rule, stated in the verdict; no nonce means "possession at attest time, freshness rests on the certificate window" |
-| measured workload / app / runtime identity, ABI/2 | measurement allowlist from env; ABI/2 only on the branch | manifest measurement | measurement + AppID + ABI/2 (branch) | measurement from Cloud Provider predicate | measurement allowlist **derived from verified provenance**; app id and Bind2 as explicit inputs |
-| TLS / transport key binding | SPKI from the handshake | served key | handshake SPKI | HPKE + hatt SANs | both rules, chosen by format; the hosted rule verified without Cloud Provider code |
-| release / build provenance against a trusted policy | none | none | none | repo + tag prefix, embedded root | Sigstore verification with our identity policy (repo, workflow path, tag pattern, issuer, predicate), trusted root from TUF, subject digest, minimum release |
-| reject malformed / truncated / replayed / substituted / unknown / missing | bounded KDS fetch, length check `>= 0x330`, unknown format -> deny | exits on unknown format | reject | strict parser with MBZ checks | strict envelope (exact report length, base64 strictness, gzip caps), explicit `unsupported` verdict class |
-| separation of evidence classes | tunnel dispatches by format string | SNP only | SNP | SNP (Genoa) only | one registry; TDX, GPU, unknown -> `unsupported`; dev formats -> `rejected` |
-| key rotation / revocation / collateral expiry | VCEK cached per URL; no CRL; ARK pins only | no CRL | no CRL | certificate validity only | CRL parsed and ARK-signed, ASK serial checked, `nextUpdate` as the collateral clock, VCEK cached by public key not bytes (KDS re-signs: fixture shows two valid certs for one key) |
-| rollback | none (env allowlist) | none | none | `releases/latest` only (older genuine releases verify) | minimum release / monotonic release index policy |
-| offline verification | `kds:false` + `seedCertChain` | no | `--no-kds` | no (proxies required) | offline collateral store is the default in tests; network sources are adapters |
-| browser | no (node:crypto) | no | no | yes | WebCrypto + a browser X.509 parser (section 4) |
-| relay-side re-verification of dialed rows | no (`teeCpu` self-reported) | n/a | n/a | n/a | run the verifier on the RAD the row serves |
-| self-check as diagnostic | n/a | n/a | n/a | n/a | keep; run both verifiers there in shadow |
+| property | R | M | J | `verifier/` today |
+|---|---|---|---|---|
+| signature chain to pinned roots | yes: sha256 pins for three lines, chain from KDS or auxblob | yes (same pins) | via R | the same pins, plus certificate validity windows, ASK subject/CN checks, and VLEK refused explicitly |
+| platform and TCB policy | caller `minTcb` on reported TCB, per-product layouts; no floor built in | `--min-tcb` | `--min-tcb` | a policy object with floors for reported **and** committed TCB, a product allowlist, firmware floors as an option; published floors for the metal box flow (section 2.2) |
+| debug / VMPL / configuration | DEBUG, MIGRATE_MA refused; VMPL pinned (default 0) | same | same + boundary tuple above VMPL0 | SMT, single-socket, CXL, RAPL, ciphertext hiding exported as claims; the policy chooses which are required |
+| nonce and replay / freshness | challenge bound into `report_data` | key-only or challenge | nonce | a per-format freshness rule stated in the verdict; no nonce is the omission `freshness-unbound` (`limited`) |
+| measured workload / app / runtime identity, ABI/2 | measurement allowlist from env; ABI/2 only on the branch | manifest measurement | measurement + AppID + ABI/2 (branch) | the allowlist is a caller input (a pin, or the operator's allowlist labelled as such); app id, Bind2 and HOST_DATA as explicit inputs |
+| TLS / transport key binding | SPKI from the handshake | served key | handshake SPKI | the SPKI of the verifier's own handshake, or, through the relay, the document's transport key bound together with the verifier's nonce |
+| release / build provenance against a trusted policy | none | none | none | none: CPU releases carry no signed measurement (section 2.3) |
+| reject malformed / truncated / replayed / substituted / unknown / missing | bounded KDS fetch, length check `>= 0x330`, unknown format -> deny | exits on unknown format | reject | strict envelope (exact report length, base64 strictness, no gzip, size caps), explicit `unsupported` verdict class |
+| separation of evidence classes | tunnel dispatches by format string | SNP only | SNP | one registry; TDX, GPU, unknown -> `unsupported`; dev formats -> `rejected` |
+| key rotation / revocation / collateral expiry | VCEK cached per URL; no CRL; ARK pins only | no CRL | no CRL | CRL parsed and ARK-signed, ASK serial checked, `nextUpdate` as the collateral clock, VCEK cached by public key not bytes (KDS re-signs: fixture shows two valid certs for one key) |
+| rollback | none (env allowlist) | none | none | bounded by the expectation only: a caller pin, or whatever the operator's allowlist still admits |
+| offline verification | `kds:false` + `seedCertChain` | no | `--no-kds` | an offline collateral store is the default in tests; network sources are adapters |
+| browser | no (node:crypto) | no | no | WebCrypto + a browser X.509 parser (section 4): `verifier/web` |
+| relay-side re-verification of dialed rows | no (`teeCpu` self-reported) | n/a | n/a | not done: dialed rows' `teeCpu` stays self-reported |
+| self-check as diagnostic | n/a | n/a | n/a | the supervisor runs none: `verification.selfCheck` is `not-run` |
 
 Smaller findings recorded while reading: the comment in `relay/snp-verify.mjs:76-79` names
 `verify/trust/ask_ark_*.pem` which does not exist on main (the chains are `test/fixtures/amd/*-cert_chain.pem`);
 `metal/verify.mjs` builds its own `parseReport` beside the imported one; `parseSnpReport` accepts any length
-`>= 0x330` while the ABI fixes the report at 0x4a0; the site bundle's build script must be re-run by hand
-after a pin bump; `cli/package.json` floats `^1.1.7` (AGPL below 1.1.9) while `scripts/build-vendor.mjs`
-pins 1.1.10.
+`>= 0x330` while the ABI fixes the report at 0x4a0.
 
 ## 4. Options
 
 | | A. extend the existing verifier | B. own orchestration and formats, keep audited primitives | C. from scratch |
 |---|---|---|---|
-| what it is | grow `relay/snp-verify.mjs` + `metal/verify.mjs` + `judge.mjs` in place, add provenance, browser build | a `verifier/` package: envelope, policy, verdict, per-format binding, collateral adapters, provenance; primitives from node:crypto / WebCrypto / X.509 and Sigstore libraries; R's checked functions imported, not copied | new parsers for X.509, DER, Sigstore bundles, TUF, PKCS |
+| what it is | grow `relay/snp-verify.mjs` + `metal/verify.mjs` + `judge.mjs` in place, add a browser build | a `verifier/` package: envelope, policy, verdict, per-format binding, collateral adapters; primitives from node:crypto / WebCrypto / a reviewed X.509 library; R's checked functions imported, not copied | new parsers for X.509, DER, PKCS |
 | crypto risk | low (node:crypto) but browser needs a rewrite anyway | low: reviewed libraries for everything with a spec | high: exactly what "do not invent primitives" forbids |
-| dependency on Cloud Provider after | library gone; proxies gone; release format stays until section 5.4 | same | same |
-| covers hosted format | needs new code | yes (binding rule + SAN decode, ~60 lines) | yes |
 | browser | not without restructuring (node-only APIs throughout) | designed for it: pure functions over bytes, crypto injected | yes |
-| effort to first shadow run | 3-4 weeks | 2-3 weeks (prototype exists) | 8+ weeks |
+| effort to a first working build | 3-4 weeks | 2-3 weeks (prototype exists) | 8+ weeks |
 | reviewability | mixed concerns (relay attach, CLI printing) | one package with one verdict type and fixtures | large surface |
 | chosen | as the seed | **yes** | no |
 
-Libraries to keep (versions verified in `node_modules` on 2026-09-24): `@freedomofpress/sigstore-browser`
-0.1.14 (LICENSE file Apache-2.0, package.json says MIT) for Sigstore bundle verification in both browser and Node (it is what the site already ships);
-`sigstore-js` (`sigstore`, `@sigstore/verify`, Apache-2.0) as a second, official implementation for Node
-differential runs; `@noble/hashes`/`@noble/curves` (MIT, already dependencies) only if WebCrypto lacks an
-algorithm; for X.509 in the browser: DECIDED 2026-09-24 (`browser-x509-parser-decision.md`): `@freedomofpress/sigstore-browser`'s
-`X509Certificate` for structured access, `verifier/der.mjs` for the compared and signed bytes, WebCrypto for every signature,
-with AMD's PSS profile checked from the certificate's own AlgorithmIdentifier bytes; `@peculiar/x509` and `pkijs` measured and declined.
-AMD report parsing stays ours: fixed offsets from the ABI specification, cross-checked against
-go-sev-guest's layout, tested on authentic v3 and v5 reports.
+Libraries kept (versions verified in `node_modules` on 2026-09-24): `@freedomofpress/sigstore-browser` 0.1.14 (LICENSE file
+Apache-2.0, package.json says MIT), used for its `X509Certificate` only, over `@freedomofpress/crypto-browser` 0.1.7;
+`@noble/hashes`/`@noble/curves` (MIT, already dependencies) only if WebCrypto lacks an algorithm. For X.509 in the browser:
+DECIDED 2026-09-24 (`browser-x509-parser-decision.md`): `@freedomofpress/sigstore-browser`'s `X509Certificate` for
+structured access, `verifier/der.mjs` for the compared and signed bytes, WebCrypto for every signature, with AMD's PSS
+profile checked from the certificate's own AlgorithmIdentifier bytes; `@peculiar/x509` and `pkijs` measured and declined.
+AMD report parsing stays ours: fixed offsets from the ABI specification, cross-checked against go-sev-guest's layout,
+tested on authentic v3 and v5 reports.
 
 ## 5. External roots and collateral: what remains necessary, what can be mirrored, what offline means
 
 | root or collateral | necessary? | mirror / cache | freshness rule | offline |
 |---|---|---|---|---|
 | AMD ARK + ASK (Milan, Genoa, Turin) | yes, the hardware root | pinned by sha256 in code and shipped as PEM; refreshed only by a reviewed repository change; corroborated against go-sev-guest (re-done 2026-09-24, all three match) | ASK rotation shows up in the CRL (Genoa revoked serial 020001 on 2022-10-31) and as a new `cert_chain`; an unpinned root fails closed | yes |
-| VCEK | yes, per chip and TCB | cache by (product, chip id, TCB) -> public key; any source is acceptable because the chain and the extension match decide; the report's own certificate table (metal, domains) needs no network at all | no expiry semantics of its own (KDS re-signs on request; two valid certificates for the same key are in the fixtures) | yes with a cache or the auxblob |
-| AMD CRL | yes for ASK revocation (VCEK serials are all 00) | fetch per product, ARK-signed, ~6-week `nextUpdate` | policy `crl: required` refuses past `nextUpdate`; `crl: stale-ok <days>` verifies with a stated warning; `none` says so in the verdict | yes within `nextUpdate` |
-| Sigstore trusted root | yes for provenance | shipped from TUF (`trusted_root.json` v14, hash-checked); refreshed by a TUF client on a schedule, never by fetching a bundle's own idea of a root | Fulcio leaf certificates live 10 minutes; verification anchors at Rekor `integratedTime` or an RFC 3161 timestamp carried in the bundle, so no live Rekor call | yes |
-| GitHub release index (tag -> digest -> bundle) | today yes; replaceable | publish a signed release index (a Sigstore-signed JSON we produce in the release workflow, mirrored at `enclave.host` and in the repo) so a verifier needs neither `api.github.com` nor a proxy; bundles are immutable and cacheable | minimum-release policy + monotonic index defeats rollback to an older genuine release | yes with a cached index |
-| Cloud Provider CVM image inputs | yes while the hosted fleet runs Cloud Provider's image | archive `kernel`, `initrd`, `root` hashes and the OVMF per release; recompute `snp_measurement` with `sev-snp-measure` if the image is published | n/a | n/a |
+| VCEK | yes, per chip and TCB | cache by (product, chip id, TCB) -> public key; any source is acceptable because the chain and the extension match decide (the relay's KDS mirror, a disk cache); the report's own certificate table (metal, domains) needs no network at all | no expiry semantics of its own (KDS re-signs on request; two valid certificates for the same key are in the fixtures) | yes with a cache or the auxblob |
+| AMD CRL | yes for ASK revocation (VCEK serials are all 00) | fetch per product (KDS or the relay's mirror), ARK-signed, ~6-week `nextUpdate` | policy `crl: required` refuses past `nextUpdate`; `crl: stale-ok <days>` verifies with a stated warning; `none` says so in the verdict | yes within `nextUpdate` |
 | Google attestation roots | yes for AVF | pinned (2 fingerprints), source `android.googleapis.com/attestation/root` | rotation by reviewed change | yes |
 | AMD fTPM EK root | yes for VBS | pinned | same | yes |
 | Intel SGX Root CA + PCS (TDX) | when TDX is supported | PCS data is signed and cacheable (`tcbinfo`, `qeidentity`, PCK CRLs) | TCB info has `nextUpdate` | yes within `nextUpdate` |
 | NVIDIA device CA + RIMs (GPU) | when GPU evidence is verified | RIM bundles are signed and cacheable; NRAS is optional | RIM validity | yes with cached RIMs |
 
-**Guarantees this buys.** With a warm cache (chains, CRLs within `nextUpdate`, trusted root, release index and
-bundles), a client verifies with **zero** network calls beyond the enclave itself, and the verdict states
-which collateral was stale.
+**Guarantees this buys.** With a warm cache (chains, CRLs within `nextUpdate`, VCEKs), a client verifies with **zero**
+network calls beyond the box's document, and the verdict states which collateral was stale.
 
 **Built (2026-09-24, M1 slice): `verifier/collateral-cache.mjs`**, an authenticated, freshness-aware disk cache in
 front of any adapter (`cachedCollateral({ dir, upstream, now, roots })`; CLI `--cache-dir`). Every entry is
@@ -275,13 +279,11 @@ ARK).
 **Built (2026-09-24, M1 slice): the per-format document shape in the registry** (`verifier/envelope.mjs`, `SHAPES`):
 each registered format names its body field exactly (no `body`/`report` alias), whether its top level is closed, and
 the fields the verifier reads with their kinds and caps, taken from the producers as they are (the metal guest agent,
-the isolation front, the relay's AVF and VBS handling, the Hyper-V judge). The hosted document is closed to exactly
-`{ format, body }`, since the served certificate binds `sha256(format + body)` and nothing else; the metal and domain
-documents stay open because they carry unsigned informational fields that evolve, but are bounded and every declared
-field is validated when present; AVF v2 requires the pad key its transcript binds. `parseEnvelope` enforces this before
-any cryptography and the verdict for a malformed shape is rejected. Nothing here replaces trust in Cloud Provider with trust in our relay: the relay's
-verdict is diagnostic to a client exactly like the enclave's self-check; a client that wants to trust
-nothing but silicon vendors and Sigstore can, because every mirror's content is vendor-signed.
+the isolation front, the relay's AVF and VBS handling, the Hyper-V judge). The metal and domain documents are open because
+they carry unsigned informational fields that evolve, but are bounded and every declared field is validated when present;
+AVF v2 requires the pad key its transcript binds. `parseEnvelope` enforces this before any cryptography and the verdict for
+a malformed shape is rejected. The relay's KDS mirror changes no trust: it serves AMD's bytes, and a client accepts them only
+through the chain to its own pinned ARK, so a client that wants to trust nothing but the silicon vendor can.
 
 ## 6. Required properties, and how the design meets each
 
@@ -293,44 +295,44 @@ nothing but silicon vendors and Sigstore can, because every mirror's content is 
    build/version floors; DEBUG and MIGRATE_MA always refused; SMT, single-socket, CXL, RAPL, ciphertext
    hiding exported as claims and required only when the policy says so; VMPL equal to the expected level.
 3. **Nonce, replay and freshness.** Formats with a nonce bind it in `report_data[0:32]`; the verifier only
-   ever compares against a nonce **it** chose. Formats without a nonce (hosted) get "key possession at
-   attest time" and rely on the served certificate's window and the `hatt` binding; the verdict says which.
-   A verifier keeps no server-side replay state because the nonce makes replay impossible by construction.
-4. **Measured workload, app, runtime identity, ABI/2.** The measurement allowlist is the output of verified
-   provenance, never an env var in the client path; the app id is an expected input compared to
-   `report_data[32:64]`; ABI/2 bindings are computed by the contract's own `runtime.mjs` and passed in as
-   bytes (identical to the branch's `expectedBinding`); a document that states ABI/1 when ABI/2 was expected
-   is rejected (no silent downgrade).
-5. **TLS / transport-key binding.** The SPKI comes from the verifier's own handshake, never from the
-   document; hosted format: sha256(SPKI) and the `hatt` SAN; metal and domain: sha256(SPKI || nonce) or Bind2.
-6. **Release provenance against an explicit policy.** Sigstore bundle verified with the pinned trusted root;
-   identity policy = issuer `https://token.actions.githubusercontent.com`, repository `EnclaveHost/enclave`,
-   build config `.github/workflows/Cloud Provider-release-publish.yml@<ref>`, ref `^refs/tags/v\d+\.\d+\.\d+(-cpu|-gpu8)?$`,
-   predicate type allowlist, subject digest equal to the release digest, minimum release version. The repo
-   named by the server is never used, only compared.
+   ever compares against a nonce **it** chose. A document without one proves key possession at attest time only: the
+   verdict carries the omission `freshness-unbound` and is `limited` at best. A verifier keeps no server-side replay
+   state because the nonce makes replay impossible by construction.
+4. **Measured workload, app, runtime identity, ABI/2.** The measurement allowlist is a client input: a measurement the
+   client pinned, or the relay operator's allowlist under the omission `expected-measurement-operator-stated` (never
+   `verified`); the app id is an expected input compared to `report_data[32:64]`; ABI/2 bindings are computed by the
+   contract's own `runtime.mjs` and passed in as bytes (identical to the branch's `expectedBinding`); a document that
+   states ABI/1 when ABI/2 was expected is rejected (no silent downgrade).
+5. **TLS / transport-key binding.** The SPKI comes from the verifier's own handshake, never from a third party's
+   restatement; through the relay, the box's document names its transport key and the report binds it together with the
+   verifier's nonce: metal sha256(SPKI || nonce), domain sha256(SPKI || nonce) or Bind2.
+6. **Release provenance.** Not judged: CPU releases carry no signed measurement (section 2.3), so the measurement's
+   meaning rests on the expectation of item 4.
 7. **Reject malformed, truncated, replayed, substituted, unknown, missing.** Envelope: exact lengths, strict
-   base64, gzip only where the format says, size caps, closed format registry; parser: MBZ ranges that are
+   base64, no gzip body, size caps, closed format registry; parser: MBZ ranges that are
    reserved in every ABI version, signer type, signature algorithm; unknown format -> `unsupported`; dev
    formats -> `rejected`; missing context (no SPKI, no nonce where required) -> `rejected`. A report version
    whose fields the verifier has not implemented (version 6, ABI Rev 1.59, ETCB fields at 0x220..0x280) is
    `unsupported` by default, before any collateral or signature work; the judged range is versions 2..5.
    Structurally parsed but unjudged semantics never count as verified (independent review, 2026-09-24).
-8. **Separate evidence classes.** One dispatcher: SNP (three families), TDX (`unsupported` until a QVL-grade
+8. **Separate evidence classes.** One dispatcher: SNP (metal and domain), TDX (`unsupported` until a QVL-grade
    implementation is chosen), AVF (delegates to `relay/avf-verify.mjs` and the pVM ABI/2 module), VBS +
    Enclave Shield (delegates; tier `vbs-dev` never reads as verified; a CPU verdict never implies GPU
    protection), GPU (`unsupported` until NVIDIA evidence is verified first-party), Hyper-V T0-hv (launcher
    signature, `hostExcluded=false` always).
-9. **Key rotation, revocation, rollback, offline.** Section 5. Additionally: a rotated enclave TLS key
-   invalidates the cached RAD (the supervisor already reports `observedTlsKeyFingerprint` beside the
-   attested one), and the GitHub OIDC signing identity has no key to rotate: its identity is the workflow
-   path, which tag and branch protection must guard.
-10. **Self-check and gateway responses are diagnostics.** Unchanged: `verification.selfCheck` and any relay
-    verdict are displayed, never used as the client's verdict.
+9. **Key rotation, revocation, rollback, offline.** Section 5. Additionally: every client verification is a fresh document
+   over a fresh nonce, so a rotated transport key is simply the key the next document binds (the supervisor still
+   reports `observedTlsKeyFingerprint` beside the attested one); rollback to an older genuine measurement is bounded only
+   by the expectation (section 3).
+10. **Box and gateway statements are diagnostics.** The supervisor publishes no verdict (`verification.selfCheck.result` is
+    `not-run`); a relay's statements (its allowlist, its attach verdict) are displayed and labelled, never used as the
+    client's verdict.
 
 ## 7. What must never happen (anti-goals, checked in tests)
 
 - A green verdict for an evidence class the verifier does not implement.
 - A measurement accepted because the server said which repo or which release to compare against.
+- A measurement matched only by the relay operator's allowlist reading as `verified`.
 - A chain accepted because it is self-consistent (any root that is not the pin fails).
 - A binding skipped because context was missing.
 - A `vbs-dev` or dev-unattested document reading as attested.
@@ -338,33 +340,31 @@ nothing but silicon vendors and Sigstore can, because every mirror's content is 
 
 ## 8. Proof of concept (deliverable 2)
 
-Location: `verifier/` and `test/verifier-*.test.mjs` on this branch; fixtures `test/fixtures/verifier/` (sources,
-capture times and hashes in `SOURCES.json`). Commit: 6db627e4 (fixtures 7d70de94) on `research/independent-verifier`. Not in scope: a browser bundle,
-TDX, GPU, live relay wiring, any change to production code (nothing outside `verifier/`, `test/`, `docs/security/`
-is touched).
+Location: `verifier/` and `test/verifier-*.test.mjs`; fixtures `test/fixtures/verifier/` (sources, capture times and hashes
+in `SOURCES.json`). First built at 6db627e4 (fixtures 7d70de94) on `research/independent-verifier`, touching nothing outside
+`verifier/`, `test/` and `docs/security/`; the production consumers came later (section 10.4). Not in scope: TDX, GPU.
 
 | module | what it owns | primitives it reuses |
 |---|---|---|
-| `verifier/envelope.mjs` | the closed format registry (section 2.5), strict base64, gzip only where the format says, size caps, `unsupported` vs `rejected` | node:zlib |
-| `verifier/snp.mjs` | strict 0x4a0-byte parser with the ABI's must-be-zero ranges (version-aware: MIT vectors from v4, ETCB in v6), VCEK-only signer, P-384 r/s range, chain VCEK -> ASK -> pinned ARK with subject CNs and validity windows, ARK-signed CRL (ASK serial, `nextUpdate` policy), floors on reported and committed TCB, firmware floors, guest-policy bits, VMPL, measurement allowlist, binding rule per format, one verdict | `relay/snp-verify.mjs` (`AMD_ARK_SHA256`, `decodeTcb`, `TCB_FIELDS`, `snpProductHint`, `kdsVcekUrl`, `vcekMatchesReport`, `checkMinTcb`), node:crypto |
+| `verifier/envelope.mjs` | the closed format registry (section 2.5), strict base64, no gzip body, size caps, per-format shapes, `unsupported` vs `rejected` | none |
+| `verifier/snp.mjs` | strict 0x4a0-byte parser with the ABI's must-be-zero ranges (version-aware: MIT vectors from v4, ETCB in v6), VCEK-only signer, P-384 r/s range, chain VCEK -> ASK -> pinned ARK with subject CNs and validity windows, ARK-signed CRL (ASK serial, `nextUpdate` policy), floors on reported and committed TCB, firmware floors, guest-policy bits, VMPL, measurement allowlist, binding rule per format, HOST_DATA, one verdict | `relay/snp-verify.mjs` (`AMD_ARK_SHA256`, `decodeTcb`, `TCB_FIELDS`, `snpProductHint`, `kdsVcekUrl`, `vcekMatchesReport`, `checkMinTcb`), node:crypto |
 | `verifier/der.mjs` | a bounded DER reader for the CRL and a certificate's subject Name | none |
-| `verifier/tls-binding.mjs` | SPKI hashing, the shim's `hpke`/`hatt` SAN encoding, `hashAttestationDocument`, the hosted certificate rule | node:crypto X509Certificate |
-| `verifier/collateral.mjs` | file, memory, HTTP (AMD KDS or any mirror) and layered adapters with the same shape; source and fetch time reported | fetch |
-| `verifier/provenance.mjs` | the release identity policy (repo, workflow path, tag pattern, issuer, trigger, visibility), in-toto v1 statement shape, predicate allowlist, subject digest, minimum release | `@freedomofpress/sigstore-browser` (Fulcio chain, SCT, Rekor inclusion, DSSE) |
+| `verifier/tls-binding.mjs` | the SPKI a verifier binds, and its hash | node:crypto X509Certificate |
+| `verifier/collateral.mjs`, `verifier/collateral-cache.mjs` | file, memory, HTTP (AMD KDS or any mirror) and layered adapters with the same shape, source and fetch time reported; the authenticated disk cache (section 5) | fetch |
 | `verifier/index.mjs` | dispatch by technology; the verdict shape (`status`, `admissionSafe`, `omissions`, per-check `true/false/null`); AVF delegates to `relay/avf-verify.mjs` and requires the attested key's signature; the pVM ABI/2 module is imported when present; TDX, VBS, Hyper-V, GPU are `unsupported` with the pointer to their verifier | |
-| `verifier/cli.mjs` | `verify`, `release`, `capture` (RAD + certificate + VCEK/chain/CRL from AMD), `differential` (runs Cloud Provider's library on the same bytes) | |
+| `verifier/metal-box.mjs`, `verifier/consumer.mjs` | the metal box flow (section 2.2) and the Node entry points (section 10.4) | |
+| `verifier/web/` | the browser build: the same `snp.mjs` behind a WebCrypto provider, `verifyMetalBoxWeb`, collateral through the relay's KDS mirror | WebCrypto, `@freedomofpress/sigstore-browser` `X509Certificate` |
+| `verifier/cli.mjs` | `verify`: a saved document judged offline against explicit expectations and collateral; `--admit` runs the consumer gate | |
 
 What each suite proves (all offline, all on authentic bytes unless the case is a mutation of them):
 
 | suite | passing means |
 |---|---|
-| `verifier-envelope` (6) | unknown formats are `unsupported`, development and T0 formats `rejected`, TDX/VBS/Hyper-V/GPU never green, malformed or oversized bodies refused before any cryptography |
-| `verifier-fail-closed` (10) | the status is derived from the omission list (any omission -> `limited`); report version 6 is `unsupported` before any collateral work and, under the research policy, `limited` at best even when signature, chain, CRL and binding all pass (shown on a synthetic version-6 report); the authentic v3 and v5 paths still verify with nothing omitted; each policy relaxation (no TCB floor, `crl: none`, no certificate binding) is an omission that caps the verdict; on a synthetic AMD-shaped chain (own ARK/ASK/VCEK/CRL, pinned by the test and refused by the real pin) the metal format verifies with a nonce, is `limited` without one, refuses a replay, and the domain ABI/1 branch binds the nonce and app id |
-| `verifier-snp-genoa` (17) | the hosted Genoa document verifies to AMD's pinned root with the served certificate binding and a TCB floor (without the floor the verdict is `limited`, not `verified`); a KDS re-issue of the same VCEK verifies identically (collateral source is irrelevant); with a floor the reported and committed TCB are judged; each of signature (r, s, signed region, out-of-range r), root (Milan or Turin chain under the Genoa name, no pin), VCEK (other chip, none), TCB edit, measurement (other, none), transport key (other, none), report_data, DEBUG, MIGRATE_MA, VMPL, SMT policy, product policy, shape (truncated, padded, zero, version 1, VLEK signer, reserved bytes, signature tail), CRL (stale under each mode, missing, foreign issuer, tampered), revocation (an ASK with the Genoa CRL's revoked serial), certificate windows, and the served certificate (wrong key, substituted document, wrong host, missing) is refused on its own |
+| `verifier-fail-closed` (9) | the status is derived from the omission list (any omission -> `limited`); report version 6 is `unsupported` before any collateral work and, under the research policy, `limited` at best even when signature, chain, CRL and binding all pass (shown on a synthetic version-6 report); the authentic v3 and v5 paths still verify with nothing omitted; each policy relaxation (no TCB floor, `crl: none`) is an omission that caps the verdict; on a synthetic AMD-shaped chain (own ARK/ASK/VCEK/CRL, pinned by the test and refused by the real pin) the metal format verifies with a nonce, is `limited` without one, refuses a replay, and the domain ABI/1 branch binds the nonce and app id |
+| `verifier-snp-genoa` (16) | the genuine Genoa capture (`test/helpers/genoa-capture.mjs`), presented as an ABI/2 domain document whose caller-supplied binding and app id are the report's own `report_data`, verifies to AMD's pinned root with a TCB floor (without the floor the verdict is `limited`, not `verified`); a KDS re-issue of the same VCEK verifies identically (collateral source is irrelevant); with a floor the reported and committed TCB are judged; each of signature (r, s, signed region, out-of-range r), root (Milan or Turin chain under the Genoa name, no pin), VCEK (other chip, none), TCB edit, measurement (other, none), report_data (another binding, another app, no key, an edited field), DEBUG, MIGRATE_MA, VMPL, SMT policy, shape (truncated, padded, zero, version 1, VLEK signer, reserved bytes, signature tail), CRL (stale under each mode, missing, foreign issuer, tampered), revocation (an ASK with the Genoa CRL's revoked serial) and certificate windows is refused on its own |
 | `verifier-snp-turin` (7) | the M4a v5 document verifies with the Turin TCB layout, ABI/2 binding and app id; another runtime identity, nonce, key or app changes the binding; ABI/2 to ABI/1 downgrade in either direction is refused; FMC floors are judged; Genoa's chain or VCEK do not verify it; a fresh nonce refuses the replayed report; any flipped byte refuses |
-| `verifier-provenance` (10) | both release bundles verify against our identity with the TUF-sourced root; repo (including case), workflow path, ref pattern, issuer, trigger, visibility, subject digest, predicate type and the release floor each refuse independently; payload, signature, certificate swap, missing log entry, legacy chain form, wrong media type, two signatures, and a root without Sigstore's CA or logs each refuse |
-| `verifier-tls-binding` (3) | the real shim certificate's SANs decode to sha256(format + body); chunk order, duplicates and non-base32 are refused |
-| `verifier-differential` (3) | Cloud Provider's library accepts the same authentic Genoa bytes with the same measurement and refuses the same single-byte mutations; it refuses the Turin report outright where ours verifies it (stated, not hidden) |
+| `verifier-metal-box` (5) | with a recording stand-in for the verdict: the client's nonce reaches the relay and the verdict's binding, the transport key and the box's VCEK table come from the document; a measurement matched only by the operator's allowlist is `limited` with the named omission; a caller pin with a clean verdict is `verified`; a refusal stays a refusal with its failed checks; another nonce, a non-metal document, an HTTP error or a bad name is `unavailable` |
+| `verifier-web-differential` (3) | the browser build equals the Node build verdict for verdict (status, omissions, checks, claims, reasons) over the mutation matrix of the SNP suites and envelope-level cases |
 | `verifier-abi2-contract`, `verifier-pvm-abi2` | skip on main; on the feature branches they check the ABI/2 test vector against `isolation/contract/runtime.mjs` and judge the real Pixel captures through `relay/pvm-app-attest.mjs` |
 
 Review correction (2026-09-24): the first cut let a version-6 report reach `verified` with a note, and let
@@ -376,10 +376,10 @@ omission list, every relaxation is an omission, and an unjudged report version i
 
 `verifier/admission.mjs` is the one function that may release a client request. It releases only when the
 verdict is `verified`, `admissionSafe`, has an empty omission list and every check `true`; when every
-expectation was supplied by the client and matches the claims (SNP: allowed measurements from provenance, a
+expectation was supplied by the client and matches the claims (SNP: allowed measurements the client holds, a
 TCB floor, the root pin for the product the chain proved, the app id for a domain document; AVF/pVM: runtime
 ids, APK code and authority hashes, root pins, app id); when freshness is the client's own single-use
-32-byte challenge (or, for the hosted format only, the served certificate window); and when the transport
+32-byte challenge; and when the transport
 is bound in a way the client can check: a **native** client compares the peer key its own TLS handshake saw
 with the key the evidence bound, a **browser** client releases only on an application-layer public key
 bound in the evidence and never claims TLS certificate pinning, because browser code cannot read the peer
@@ -395,18 +395,18 @@ and the transport key to pin. Absent the module the verdict is `unsupported`, an
 
 | suite | passing means |
 |---|---|
-| `verifier-admission` (7) | on the authentic Genoa verdict a native client releases only when its own peer key is the bound key, a browser client releases on the HPKE key with TLS pinning explicitly not claimed; a `limited` verdict (no floor, no CRL) never releases; missing or mismatched client expectations (measurements, floor, root pins, wrong product pin) hold; on the authentic Turin ABI/2 verdict the nonce, app id and peer key are each required; the same nonce holds the second time; every non-verified or inconsistent verdict shape holds |
+| `verifier-admission` (7) | on the authentic Genoa verdict a native client releases only when its own peer key is the bound key, a browser client holds without an application-layer key and releases on one with TLS pinning explicitly not claimed; a `limited` verdict (no floor, no CRL) never releases; missing or mismatched client expectations (measurements, floor, root pins, wrong product pin) hold; on the authentic Turin ABI/2 verdict the nonce, app id and peer key are each required; the same nonce holds the second time; every non-verified or inconsistent verdict shape holds |
 | `verifier-pvm-device` (11, skips without the owner's module) | on the two real Pixel 10 envelopes with client-held pins: both boots verify and release a native client on that boot's key only; a browser client holds on v1; replay of launch 1 against launch 2, a pasted nonce, a swapped key, a foreign chain, a fresh nonce over a genuine chain, wrong app/runtime/code hash/authority/root pins, empty pins, an expired or not-yet-valid leaf, stripped/extra fields, non-canonical base64 and another format each refuse |
 | `verifier-sealed-stream` (12; the differential case runs under the strict command) | on the owner's sealed-stream fixture: the stream opens complete to the known plaintext however it is split, the ABORT variant is an authentic prefix; sequencing, replay, truncation, tamper, framing, trailing and cancellation attacks are refused with nothing released beyond the last authenticated chunk; the policy layer reads nothing unless the gate released a browser client with the pinned app key inside the window; the owner's reader agrees on accept/refuse and prefix for every case |
-| `verifier-envelope` (11) | the registry refuses what it does not know or cannot judge (unknown, development, T0, TDX, VBS and Hyper-V formats never verified), malformed envelopes before any cryptography, and, since 2026-09-24, the per-format SHAPE: the body field's exact name with no alias (the domain and Hyper-V documents say `report`, the shim and the metal agent say `body`); the hosted document closed to exactly `{ format, body }` because the served certificate binds nothing else; the metal, domain and AVF documents open but bounded (at most 32 top-level fields and 1 MB) with every field the verifier reads declared and validated when present (transport keys strict base64 with caps, fingerprints, nonces and pad keys 64 lowercase hex, `abi` one of the two known values, `runtime` and `manifest` objects, strings capped), AVF v2 requiring its pad key; a malformed shape is rejected, never unsupported and never verified; the real Genoa, Turin and agent-shaped documents parse |
+| `verifier-envelope` (11) | the registry refuses what it does not know or cannot judge (unknown, development, T0, TDX, VBS and Hyper-V formats never verified), malformed envelopes before any cryptography, and, since 2026-09-24, the per-format SHAPE: the body field's exact name with no alias (the domain and Hyper-V documents say `report`, the metal agent says `body`); the metal, domain and AVF documents open but bounded (at most 32 top-level fields and 1 MB) with every field the verifier reads declared and validated when present (transport keys strict base64 with caps, fingerprints, nonces and pad keys 64 lowercase hex, `abi` one of the two known values, `runtime` and `manifest` objects, strings capped), AVF v2 requiring its pad key; a malformed shape is rejected, never unsupported and never verified; the real domain document and an agent-shaped metal document parse |
 | `verifier-pvm-policy-deployments` (4; the differential runs under the strict command) | the optional deployment table on 24 lab-signed vectors (absent; one, three and 64 entries; the table in another position; empty; 65; non-array; non-object entries; extra or missing keys; uppercase, unprefixed, short and long ids; an unadmitted or non-hex app; duplicate ids) accepted or refusing the whole policy as the contract says; selection by id, by id plus app, unknown, tableless (also with an app given), non-canonical, mismatched, empty and app-only; a lower serial remapping a deployment is a rollback, the same serial with another table equivocation, a stranger's table and a bare catalog object refused; the owner's pinned `trust.js` agrees on every vector and selection |
-| `verifier-collateral-cache` (9) | the authenticated collateral cache: cold, warm and offline with the verdict naming each piece's source; a poisoned cached chain or VCEK and a tampered or sidecar-less CRL quarantined and refetched, and fail-closed when the upstream is down; a poisoned or garbage upstream answer refused and not cached; KDS 429 through the real http adapter (cold fails closed, warm never asks); an unwritable cache reported and never a false hit, a leftover temp file ignored; a stale cached CRL refreshed from the upstream; a stale CRL with no upstream served flagged so only the policy can accept it (required rejects, stale-ok limited within its bound, beyond it rejects); an authentic revoking CRL served and never hidden |
+| `verifier-collateral-cache` (11) | the authenticated collateral cache: cold, warm and offline with the verdict naming each piece's source; a poisoned cached chain or VCEK and a tampered or sidecar-less CRL quarantined and refetched, and fail-closed when the upstream is down; a poisoned or garbage upstream answer refused and not cached; KDS 429 through the real http adapter (cold fails closed, warm never asks); an unwritable cache reported and never a false hit, a leftover temp file ignored; a stale cached CRL refreshed from the upstream; a stale CRL with no upstream served flagged so only the policy can accept it (required rejects, stale-ok limited within its bound, beyond it rejects); an authentic revoking CRL served and never hidden |
 | `verifier-pvm-client-persistence` (8, black-box, own runner) | against the BUILT client with a fake carrier and a held evidence request as the barrier: an accepted serial is committed before the client acts and survives a kill, a rollback is then refused without a request; concurrent old/new serials in both orders never lose the newer one; equal serial with other bytes is refused (same bytes idempotent); a read-only store means nothing is sent; a corrupt state is fatal; an attacker policy plus a stall leaves no trace. Failed 7 of 8 on 0.1.0 (the reproduction); passes 11 of 11 on 0.2.0 |
 | `verifier-pvm-client-ext` (5, real Chromium, strict command) | the SHIPPED 0.2.0 extension zip (pinned and reproduced), unzipped and loaded unpacked in Chrome for Testing 151 over the DevTools protocol, with the lab relay holding `/evidence` as the barrier: a stall then SIGKILL of the whole browser leaves the committed serial for the relaunch, which refuses a rollback without a request; the same with only the tab closed; two tabs holding old and new serials in both orders never lose the newer one; equal serial with other bytes is refused as equivocation and the same bytes again are acted on; the commit event precedes the evidence request; every outcome carries Chrome 151's user agent under the computed unpacked-extension id. The 0.1.0 zip runs the first case as the preserved old-client failure (old serial remains, the rollback is acted on). Negative control: the four 0.2.0 cases run against the 0.1.0 zip fail on `1 !== 2`, `1 !== 3`, `the old tab must be refused, not act` and `equivocation must be refused without acting on it`. Proves persistence across browser process death and tab close on this machine; whole-machine power loss is not proven by anything here |
 | `verifier-pvm-client-supersede` (4, pinned 0.2.0 SOURCE, strict command) | the superseded-policy refusal at request release needs evidence that verifies, so the owner's `cli.mjs` runs from the pinned sources with ONE import replaced through a Node loader hook (`verifyPvmAppEvidence` as imported by `web/pvm-client.js`; the store, flow, gate and sealing are the owner's code): client A commits serial 5 and waits on evidence, client B commits 6, A's evidence is released and verifies, A refuses at the gate (`serial 5 was superseded by serial 6`) and sends no sealed request; the same under a key rotation; a control reaches the sealed request; the stub refuses an envelope for another nonce. A source-level result, not one against the built artifact |
 | `verifier-pvm-client-update` (10, built CLI, strict command) | update manifests signed by the lab release key and countersigned by the lab policy key, artifact downloads held as barriers: a valid update stages its exact bytes and the state records it, tampered staged bytes are reported; a wrong countersignature, a stranger's release key and a non-newer version are refused with nothing on disk; two stagers of different versions in both completion orders (the older never replaces the newer); a policy-key rotation by signed `nextPolicyKey` after which the retired key's policies and a rollback under it are refused; a release-key rotation and a policy commit in both orders, neither losing the other's fields, then the successor signs and the retired key and a stranger do not; a storm of six concurrent updates and six policy commits ends at the highest version and serial with every loser refused by the monotonic rule and one generation per commit. Finding F2 (`verifier/integration/findings.json`, closed): the sequential and concurrent same-version re-stage cases require that a refused stager leaves the staged bytes untouched and that the state's digest and the file on disk never disagree; they failed on 6784f671 (strict verdict NOT ACCEPTED, exit 3) and pass on the owner's 0.2.1 fix e7a2badc, now the pin; the same artifact again is idempotent there (no generation, file untouched) and other bytes under another source commit are refused; the pre-fix build stays pinned as `pvm-client-dist-f2` with a regression fixture that requires the defect to reproduce there |
 | `verifier-pvm-policy` (7) | on the seven real signed lab policies of the installed-client device run, from the run's anchor and rollback memory: genuine policies accepted in order, the attacker's refused (and genuine only under the attacker's own anchor), rollback, equivocation and the install floor refused, root narrowing that excludes the device's root accepted as a policy, the kill switch disables the old client, a non-admitting policy yields no expectations, a genuine policy's expectations are what the gate takes, and every forgery of bytes, signature, shape or window refuses; each outcome equals the device's |
-| `verifier-admission-vectors` (3) | `verifier/admission-vectors.json` is the gate's rule as data: 40 deterministic cases (hosted, domain ABI/2, pVM v1 and v2 verdicts; native and browser clients; every expectation, omission, verdict-shape and nonce-reuse hold) replay through the gate with the same decision and reason, the file has not drifted from the generator, and exactly six cases release; another implementation of the client's release decision is held to this file |
+| `verifier-admission-vectors` (3) | `verifier/admission-vectors.json` is the gate's rule as data: 49 deterministic cases (metal, domain ABI/2, pVM v1, v2 and v3 verdicts; native and browser clients; every expectation, omission, verdict-shape and nonce-reuse hold) replay through the gate with the same decision and reason, the file has not drifted from the generator, and exactly eight cases release; another implementation of the client's release decision is held to this file |
 | `verifier-sealed-traces` (4; the differential case runs under the strict command) | on the thirteen Pixel 10 device traces: every genuine stream opens complete under the page's context, every relay mutation fails with the page's class after the same number of chunks and releases only an authentic prefix, both replays are refused, and the owner's reader agrees on class and prefix for all 26 streams |
 | `verifier-pvm-evidence` (10; the stand-in returns the owner's v2 result shape) | with an injected stand-in for the owner's verifier (modelling only that the certificate challenge covers nonce, app, transport key and identity): an honest exchange verifies and releases for a native client; a browser client holds until an application-layer key is present; a hostile relay rewriting the echoed nonce or app is caught by the consumer cross-check, and substituting the chain, transport key or identity, or pasting our echo onto another session's evidence, is caught by the challenge; stale evidence under a fresh challenge and a reused challenge hold; each empty pin list and a missing challenge or app id refuse; malformed envelopes refuse; without the owner's module the verdict is `unsupported` and holds. The last case runs against the owner's module once it is pushed |
 
@@ -569,76 +569,37 @@ Exact remaining integration gaps (nothing below is verified today):
 Findings the harness produced: AMD KDS re-signs a VCEK on request (two valid certificates for one key, one month
 apart, in the fixtures), so caching must key on the public key; Genoa's CRL revokes the pre-2022 ASK (serial
 020001) and the current ASK is 020002, so the CRL check is live rather than decorative; report version 5 carries
-MIT vectors at 0x1f8 that a "reserved must be zero" parser written against version 3 would refuse; Cloud Provider's
-library hardcodes its own TCB and firmware floors and refuses every non-Genoa part (a Turin report is rejected as
-"TCB version field is malformed" by its Milan/Genoa layout check, before any product logic runs).
+MIT vectors at 0x1f8 that a "reserved must be zero" parser written against version 3 would refuse.
 
-## 9. Rollout: dual verification, shadow, rollback
+## 9. Rollout
 
-No automatic cutover. Each stage is a reviewed change with a configuration flag to fall back.
+The staged plan of 2026-09-24 (shadow runs beside the previous hosted platform's verifier in CI, the self-check, the CLI and
+the browser, then a per-consumer cutover after four weeks without unexplained divergence) ended on 2026-10-14, when that
+platform and its verifier were dropped: this verifier became the only one on every client path at once, with no fallback
+flag. What stands:
 
-1. **Shadow in CI** (this branch): the harness runs on every push against the fixtures and, in a scheduled
-   job, against live public evidence (a Cloud Provider public host for the hosted format, the fleet when attached);
-   the job also runs `@Cloud Providersh/verifier` and fails on divergence.
-2. **Shadow in the enclave self-check** (BUILT 2026-09-25, section 10.4): `runSelfCheck` runs both verifiers and publishes
-   the second result beside the first as `verification.selfCheck.enclave` with `agreement`; still a diagnostic. Flag:
-   `SELF_CHECK_VERIFIERS=both|Cloud Provider|enclave` (default both; Cloud Provider = the previous object).
-3. **Shadow in the CLI** (BUILT 2026-09-25): `enclave attest --verifier both` prints both verdicts; the exit code follows the
-   Cloud Provider verdict until stage 7. Flag on the command line only (default Cloud Provider, unchanged).
-4. **Shadow in the browser**: `site/js/core/verify.js` runs the new bundle beside `verifier.js` and renders
-   the new verdict as a secondary line; the green state still comes from the Cloud Provider result. Same-origin
-   bundle built by `build-vendor.mjs` from this repository's code, so no CDN and no new host.
-5. **Consumer gate**: clients (CLI, Node consumers, later the browser bundle) release requests only through
-   `verifier/admission.mjs`; pVM evidence enters through the owner's `verifyPvmAppEvidence` behind the
-   adapter; the gaps in section 8.1 close first.
-6. **Relay** (BUILT 2026-09-25, shadow by default): dialed rows are re-verified with the new verifier
-   (`RELAY_REVERIFY=shadow|enforce|off`; today `teeCpu` is self-reported and stays the rule until `enforce`);
-   permissionless attach keeps `relay/snp-verify.mjs` until the new module has replaced it behind the same
-   tests, then `expectedBinding` and the pVM ABI/2 frame land with the isolation and pVM owners.
-7. **Cutover decision**: after an independent review of `verifier/` and at least four weeks of zero
-   unexplained divergence, the primary is switched per consumer (CLI, then self-check, then browser) with
-   the Cloud Provider path kept as the fallback flag for one release cycle. Rollback = flip the flag and rebuild
-   the vendor bundle; the Cloud Provider package stays pinned until the fallback is removed.
+1. **CLI** (`enclave attest`): this verifier decides; exit 0 `verified`, 3 `limited`, 1 otherwise.
+2. **Browser**: the site's live verify runs the same-origin bundle and shows its verdict, `limited` at best while its
+   expectation is the operator's allowlist.
+3. **Consumer gate**: clients release requests only through `verifier/admission.mjs`; pVM evidence enters through the
+   owner's `verifyPvmAppEvidence` behind the adapter; the gaps in section 8.1 are the remaining work.
+4. **Relay**: permissionless attach keeps `relay/snp-verify.mjs` until the new module has replaced it behind the same
+   tests, then `expectedBinding` and the pVM ABI/2 frame land with the isolation and pVM owners; per-app guests' release
+   documents are judged by the vendored bundle (section 10.4); dialed rows keep their self-reported `teeCpu`.
+5. **Rollback**: a reviewed revert and a rebuild of the bundles (`verifier/node/build.mjs`, `verifier/web/build.mjs`,
+   `scripts/build-vendor.mjs`); there is no second verifier to fall back to.
 
 ## 10. Effort and milestones (engineering days, one engineer, excluding review)
 
 | milestone | content | days |
 |---|---|---|
-| M0 (done on this branch) | map, fixtures, harness for SNP + provenance + hosted binding, differential run, CLI | done |
-| M1 | strict envelope for every format in the registry (DONE 2026-09-24: per-format shapes), CRL policy modes (done), collateral adapters with a disk cache (DONE 2026-09-24: the authenticated, slot-bound cache), Rekor v2 bundles (BLOCKED: no authentic v2 bundle located; see below), scheduled live differential job (PREPARED 2026-09-24 as a shadow job: `verifier/live-differential.mjs` and `.github/workflows/verifier-live-differential.yml`, dispatch-only and gated by a repository variable that is not set, read-only, tested offline on the fixtures) | 5 |
-| M2 | browser build: WebCrypto signatures, X.509 via a reviewed library (PROTOTYPE DONE 2026-09-24: `verifier/web/`, the same `snp.mjs` verdict code behind a crypto provider; see `browser-x509-parser-decision.md`); reproducible packaging with an input manifest and exact notices (DONE 2026-09-24: `verifier/web/dist/`, `reproduce.mjs` under the strict command); an opt-in same-origin shadow adapter that records and never decides (DONE 2026-09-24: `verifier/web/shadow.mjs`, proven in Node and in Chrome 151); same-origin delivery through the site's vendor rule and the site's opt-in shadow line (DONE 2026-09-24 under Steven's website authorization: `site/vendor/enclave-verifier.js` via `scripts/build-vendor.mjs`, `site/js/core/verify-shadow.js` awaited by `verify.js`, record only, viewer opt-in, no primary root or verdict change; `verifier/web/README.md`) | 8 |
-| M3 | CLI `--verifier both`, self-check both, relay re-verification of dialed rows (BUILT 2026-09-25, section 10.4: every path behind a flag whose fallback is the previous behaviour; no live hosted enclave existed to show a `verified` end to end) | done, pending live data |
-| M4 | signed release index in the release workflow (BUILT 2026-09-25, section 10.5), minimum-release policy (BUILT: `verifier/release-policy.json`, the floor only rises), publication order from the signing run + persisted memory (BUILT, section 10.5), TUF-verified refresh of the pinned root with a weekly PR job (BUILT, section 10.6), the same-origin mirror on the relay and the per-consumer strict rollout criteria (BUILT/WRITTEN, section 10.7), the browser's own release provenance from the mirror (BUILT 2026-09-25, section 10.7: verified in the browser against the pinned root, labelled fallback) | done |
-| M5 | independent review, cutover per consumer with fallback flags | 3 + review |
-| later | TDX (QVL-grade), NVIDIA GPU evidence, measurement recompute from archived image inputs, AVF ABI/2 relay frame | separate plans |
-
-**Rekor v2 (2026-09-24).** The pinned Sigstore trusted root already knows the v2 log (`log2025-1.rekor.sigstore.dev`,
-valid from 2025-09-23), so a v2 entry would verify through the same library once a bundle carries one. No authentic
-public bundle with a v2 entry was located to make a fixture of: our own latest release (v0.5.841, the pinned one) and
-cosign v3.1.3's release bundle are both on the original log (`rekor.sigstore.dev`, with an inclusion promise), and the
-GitHub artifact-attestation API returned no inline bundle for a recent gh release, only a framed binary blob that was
-not decoded here. Nothing is fabricated: the v2 path stays untested until a release of ours, or a public bundle with
-provenance, carries a v2 entry; the differential job will show it the day our release workflow moves.
-
-**The live differential job (2026-09-24), prepared; ENABLED and scheduled 2026-09-25 (Steven: repeatable live coverage): the repository
-variables `VERIFIER_LIVE_DIFFERENTIAL=enabled` and `VERIFIER_LIVE_HOST` are set, the workflow runs daily at 06:17 UTC against that host
-(Cloud Provider's public host until a hosted enclave of ours is live, which yields agree-refuse on every run and a `disagree` on any drift in
-the bytes, the collateral or the reference; a dispatch names its own host).** `verifier/live-differential.mjs` is glue over what
-exists: `cli.mjs capture` for the enclave's document, certificate and AMD collateral (bounded fetches), the release's
-Sigstore bundle verified by `verifier/provenance.mjs` for the expected measurement (never taken from the enclave or a
-proxy; latest and the sibling flavors tried), this branch's verifier on the document, the Cloud Provider reference on the same
-bytes, and a comparison with four verdicts: agree, agree-refuse, disagree (exit 1), and reference-missing (exit 1: a
-differential that cannot compare has not run); provenance or capture failure exits 2 with nothing verified. The
-comparison is like with like: the reference checks the bytes and reports a measurement but applies no measurement
-policy, so the same provenance-derived policy is applied to its measurement, and the report says separately whether the
-two agree on the bytes and whether the measurement is one of ours. On the Genoa fixture, captured from Cloud Provider's own
-public host, the honest outcome is agree-refuse: both accept the bytes, and the measurement is nobody's release of
-ours, which the offline test asserts as such. The workflow runs only on a manual dispatch with the host a REQUIRED
-input (a host that does not run one of this repository's releases yields a shared policy refusal, never a
-disagreement) AND only when the repository variable `VERIFIER_LIVE_DIFFERENTIAL` is set to `enabled` (it is not), with
-read-only permissions, no secret, pinned actions and the report as its only output.
-Enabling it is a recorded act in the repository's variables, not a merge. The offline test runs the same orchestrator
-on the fixtures with the installed reference.
+| M0 (done) | map, fixtures, SNP harness, CLI | done |
+| M1 | strict envelope for every format in the registry (DONE 2026-09-24: per-format shapes), CRL policy modes (done), collateral adapters with a disk cache (DONE 2026-09-24: the authenticated, slot-bound cache) | done |
+| M2 | browser build: WebCrypto signatures, X.509 via a reviewed library (DONE 2026-09-24: `verifier/web/`, the same `snp.mjs` verdict code behind a crypto provider; see `browser-x509-parser-decision.md`); reproducible packaging with an input manifest and exact notices (DONE 2026-09-24: `verifier/web/dist/`, `reproduce.mjs` under the strict command); same-origin delivery through the site's vendor rule (DONE: `site/vendor/enclave-verifier.js` via `scripts/build-vendor.mjs`; `verifier/web/README.md`); the site's live verify on it (DONE: `verifyMetalBoxWeb`, section 2.2) | done |
+| M3 | the production consumers: the CLI, the site and the relay's release judgement on this verifier (section 10.4) | done |
+| M4 | release provenance and its supporting machinery (built 2026-09-25, removed 2026-10-14 with the release format it served) | removed |
+| M5 | independent review of `verifier/` | review |
+| later | TDX (QVL-grade), NVIDIA GPU evidence, an independent measurement expectation (section 2.3), AVF ABI/2 relay frame | separate plans |
 
 ## 10.1 The Linux per-app SNP tier (2026-09-24, Steven's direction: verify the tier, defects to the owner directly)
 
@@ -829,354 +790,44 @@ as the command-line expectation (the owner's pinned-release reconstruction; not 
 are). The negative: the same record read as v1 (no port) derives 9add8960… and the report is REFUSED at the app-id
 check, so the port is in the identity, not beside it.
 
-## 10.4 M3: the production consumers (2026-09-25, Steven's direction: the next unfinished consumer integrations)
+## 10.4 M3: the production consumers (2026-09-25; the live entry points as of 2026-10-14)
 
-One module carries the three consumers: `verifier/consumer.mjs`. It composes what existed and adds no verdict rule: one
-capture over the caller's OWN TLS connection (`captureHosted`: the document and the certificate of that handshake, from
-one `https.request`, WebPKI on by default), the expected measurements from VERIFIED release provenance only
-(`releaseExpectations`: the latest tag from GitHub's index or explicit tags, each flavor's `Cloud Provider.hash` and attestation
-bundle, `verifier/provenance.mjs` against the Sigstore root pinned at `verifier/roots/sigstore-trusted-root.json`, which the
-module imports so it travels inside every bundle), the verdict of `verifier/snp.mjs` through the envelope registry (TDX,
-GPU, VBS, Hyper-V and unknown formats are `unsupported`, never green), the Cloud Provider reference on the same bytes when asked
-(`referenceVerify`), and the comparison in the live differential's words (`compareVerdicts`: agree, agree-limited,
-agree-refuse, disagree, reference-missing) plus a descriptive `dualAgreement` for two legs that fetched for themselves.
-A TCB floor is a stated policy input (`minTcb`); without one the best verdict is `limited` (tcb-floor-unjudged), which
-every consumer prints as such and never as a pass.
+One module carries the Node consumers: `verifier/consumer.mjs`. It composes what exists and adds no verdict rule:
+`verifyMetalBox` (the flow of section 2.2 with node:crypto, node randomness and AMD collateral from KDS or a caller's
+adapter), `verifyGuestDomainEvidence` (the SNP branch of `verifier/index.mjs` `verifyEvidence`: anything but
+`sev-snp-guest-domain-v1` is `unsupported`, a malformed envelope `rejected`) and `prewarmSnpCollateral` (the collateral that
+judgement will need, fetched before a ticket is consumed), with the collateral adapters re-exported. Everything
+network-bound is bounded. A TCB floor is a stated policy input; without one the best verdict is `limited`
+(`tcb-floor-unjudged`), which every consumer prints as such and never as a pass.
 
-The Node bundle. `verifier/node/build.mjs` packages the module reproducibly (esbuild, platform node, `@Cloud Providersh/verifier`
-external so the reference stays a run-time import that reports `installed:false` where absent) into
-`verifier/dist/enclave-verifier-node.mjs` with a MANIFEST naming every input's sha256 and regenerated notices, and copies
-it byte for byte to `relay/vendor/` (the relay's deploy ships `relay/**` only). `verifier/node/reproduce.mjs` rebuilds
-and compares; the strict command runs it before any suite (`test/verifier-node-bundle.test.mjs`: same verdict through the
-bundle as through the sources).
+The Node bundle. `verifier/node/build.mjs` packages `verifier/consumer.mjs` with everything it imports reproducibly
+(esbuild, platform node, nothing external but Node built-ins) into `verifier/dist/enclave-verifier-node.mjs` with a MANIFEST
+naming every input's sha256 and regenerated notices, and copies it byte for byte to `relay/vendor/` (the relay's deploy
+ships `relay/**` only). `verifier/node/reproduce.mjs` rebuilds and compares; the strict command runs it before any suite
+(`test/verifier-node-bundle.test.mjs`: the reproduction, exactly the consumer's live exports, the source's verdict on the
+same bytes, no third-party verifier inside).
 
-Stage 3, the CLI (`cli/enclave.mjs`): `enclave attest [id] --verifier Cloud Provider|enclave|both` (default Cloud Provider, byte for
-byte the previous behaviour, including a thrown Cloud Provider verification ending the command). `both` runs both and prints
-both verdicts with `agreement`; the exit code follows Cloud Provider's; a Cloud Provider leg that throws is recorded, not fatal.
-`enclave` lets this verifier decide. `--min-tcb JSON` states the floor; `--release-bundle F[,F] --release-digest HEX[,HEX]`
-takes provenance offline; `--collateral-dir DIR` takes AMD collateral from disk. `test/cli-attest-verifier.test.mjs` runs
-the real CLI process against a local API and a local TLS enclave serving the Genoa document (the run's own CA through
-NODE_EXTRA_CA_CERTS): rejected on the measurement under our releases' provenance, `unavailable` for a dead enclave, the
-other-repo refusal unchanged, an unknown mode refused. Measured limit: `@Cloud Providersh/verifier` builds its URL from the
-hostname alone, so its leg cannot reach an enclave on another port.
+The CLI (`cli/enclave.mjs`): `enclave attest [<id>] [--expect HEX[,HEX]] [--min-tcb JSON] [--collateral-dir DIR]`, the
+behaviour of section 2.2. `test/cli-attest-verifier.test.mjs` runs the real CLI process against a stand-in relay whose box
+signs with the synthetic chain: every box is challenged with the CLI's own nonce, a chain to a root that is not AMD's pin is
+`rejected` (exit 1), `--expect` pins the measurement and a malformed pin is refused, the plain output never says PASS for a
+refused box, a deployment resolves to its box, a Shield host is `unsupported` and a vanished box `unavailable`, both
+non-zero.
 
-Stage 2, the self-check (`supervisor.js`): `SELF_CHECK_VERIFIERS=both` (default) runs Cloud Provider's leg as before AND
-`selfCheckHosted` from the bundle the Dockerfile now copies into the image (`verifier/dist/enclave-verifier-node.mjs`):
-the capture over loopback to the shim with SNI for the public name (the trusted in-CVM source the existing self-check
-uses), the release index through the github-proxy the enclave already reaches (`SELF_CHECK_RELEASE_INDEX=direct` for
-GitHub), AMD collateral through Cloud Provider's KDS proxy (`SELF_CHECK_KDS=amd` for AMD), `SELF_CHECK_MIN_TCB` for the floor.
-`verification.selfCheck` keeps `result`/`steps`/`release`/`measurement` as Cloud Provider's and adds `verifiers`, `enclave` (the
-own leg's status, matched release, measurement, failed checks, omissions, a four-line tail of reasons) and `agreement`.
-`=Cloud Provider` is the fallback (the previous object, unchanged); `=enclave` makes the own leg decide `result` (stage 7 for
-this consumer). The glue in `supervisor.js` is not unit-testable (the module runs at import); `selfCheckHosted` is
-(`test/verifier-consumer.test.mjs`: a local shim, a local release index with the three routes, the Genoa document
-rejected on the measurement, a loopback that does not answer is `unavailable`).
+The site: `site/js/core/verify.js` imports `/vendor/enclave-verifier.js` (the web bundle `verifier/web/dist/`, sha256 in its
+MANIFEST, reproduced by `verifier/web/reproduce.mjs`) and calls `verifyMetalBoxWeb`, with AMD collateral through the relay's
+KDS mirror. `test/verifier-web-browser.test.mjs` runs the bundle in Chrome for Testing 151 over the DevTools protocol: its
+verdicts equal the Node build's on the shared fixtures, and `verifyMetalBoxWeb` runs against a stand-in relay on the same origin.
 
-Stage 6, the relay (`relay/reverify.mjs`, wired in `relay/api-relay.js`): `RELAY_REVERIFY=shadow` (default) re-verifies
-every DIALED row on its own cadence (`RELAY_REVERIFY_SEC`, 900), one row at a time, never inside the availability poll:
-capture over the relay's TLS connection to the row's endpoint, provenance from GitHub (cached an hour; a failed refresh
-keeps the last good set and says so on the row), AMD collateral through the authenticated disk cache
-(`RELAY_REVERIFY_CACHE_DIR`), the floor from `METAL_MIN_TCB` (the attach gate's). Rows carry `reverify` in the fleet
-view and the aggregate carries the run statistics; eligibility is unchanged in shadow. `=enforce` makes a dialed row
-eligible only on a `verified` re-verification (`ineligibleReason` says why not: rejected with the failed checks,
-unsupported, limited, unavailable, pending); tunnel rows are untouched (their evidence is the attach gate's). `=off` is
-the fallback: nothing runs, no annotation, `computeEligible` exactly as before. `test/relay-reverify.test.mjs`: the real
-capture path against a local enclave (rejected on the measurement, annotated, eligibility untouched in shadow), the
-three modes' effect on eligibility with verdicts of the real shape, no verified provenance never verifying, the vendored
-bundle loading with the exports the module uses.
+The relay: per-app guests' release documents (`relay/secrets-release.mjs`) are judged by the vendored bundle's
+`verifyGuestDomainEvidence` against an admitted domain release's runtime and measurement pairs, the release binding, the
+AppID and HOST_DATA = the deployment, with AMD collateral through the authenticated disk cache (`RELAY_VERIFIER_CACHE_DIR`;
+a cached VCEK is re-verified to the pinned ARK on read).
 
-What no test could show today: a `verified` outcome end to end on a hosted enclave of ours. The fleet was empty
-(`no_serving_enclave`) throughout, and no capture of an enclave running one of our releases exists as a fixture; the
-mechanism is shown on the Genoa capture under a policy naming its own measurement and floor (verified, no omission), and
-every consumer's positive path is exercised with verdicts of the real shape. The first live hosted enclave will produce
-the first `agree` or the first disagreement, in the self-check's `enclave` field, the relay's `reverify` annotation and
-`enclave attest --verifier both`.
+What the consumers can show today: the site's verdict on a live box is `limited` by construction (its expectation is the
+operator's allowlist); `verified` on a live box needs a caller pin (`enclave attest --expect`).
 
-## 10.5 M4: the signed release index and the release floor (2026-09-25)
-
-Until now a consumer learned which release is current from GitHub's unauthenticated `/releases/latest` and verified that
-release's provenance: every release it was pointed at was genuine, the pointer was not, and only the built-in floor
-(`DEFAULT_RELEASE_POLICY.minimumRelease`) stood between a verifier and an older genuine release. `verifier/release-index.mjs`
-closes that. The publish workflow gained its own `release-index` job after the measure step: it builds
-`release-index.json` from the published releases (this tag included; the latest tag and digest per flavor; the floor and
-the revocation list from `verifier/release-policy.json` at the tag, currently v0.5.841 and none), attests it keylessly
-under the SAME identity as the release (`actions/attest`, pinned; subject = the file's sha256; predicate
-`https://enclave.host/predicate/release-index/v1` carrying the index's digest and pointers), and attaches it to the
-release. Its failure leaves the release published and shows red on its own.
-
-Consumers (`releaseExpectations`) fetch the latest release's index and its attestation by the file's digest, verify it
-through the provenance module's shared statement check (`verifyStatementBundle`: Fulcio chain to the pinned root, SCT,
-Rekor, DSSE, the identity policy, exactly one subject that IS the digest, the index predicate), then apply `checkIndex`
-(schema, repository, the predicate's digest and pointers equal the index's, a floor that is at or ABOVE the built-in one,
-well-formed `latest` per flavor, nothing revoked or below the floor pointed at). Verified, the index names the tags to
-verify and raises the floor and the revocation list for that run; a revoked tag contributes no measurement whatever its
-provenance says. Absent or refused, the unsigned pointer is the recorded fallback (`index.status`: unavailable, refused);
-`requireIndex` fails closed and is the switch for a later cutover. Raising the floor is a reviewed commit to the policy
-file; the next release signs it.
-
-**Authenticity and freshness, separated (2026-09-25, after Codex's audit of the first index).** The first index's
-`sequence` was the length of a page of releases (100), which is not an order: later releases could carry the same number.
-The order now comes from what the signature already authenticates, the signing certificate's run invocation (GitHub's
-`.../actions/runs/<run_id>/attempts/<attempt>`, assigned by GitHub, increasing with every run created on the platform,
-chosen by no builder). The index file carries the same pair (`sequence` = the run id, `attempt`; schema v2, from the next
-release) and the verifier requires them to equal the certificate's; the v1 index is ordered by its certificate alone and
-marked `sequenceAuthenticated: false`. Freshness is then a consumer's MEMORY (`verifier/index-memory.mjs`: the highest
-publication verified, the digest that carried it, the highest floor), which refuses an older publication (replay), the
-same publication with other bytes (equivocation, remembered as such until a later publication supersedes it) and a floor
-below the remembered one; a re-run is the same run's next attempt and a re-dispatch a new run, both newer. Concurrent
-CPU and GPU publications are two runs: the later-created one wins and lists what existed when it was built, so a sibling
-published in between is a transient gap, never a downgrade. The remembered floor applies to EVERY path, the unsigned
-fallback included. Every consumer states which case a run was (`index.freshness`: first-seen, newest-seen, same,
-not-remembered, or the refusal), and each has a strict switch that fails closed without a verified, fresh index: the
-relay `RELAY_REQUIRE_INDEX=1` (memory at `RELAY_REVERIFY_CACHE_DIR/index-memory.json`), the self-check
-`SELF_CHECK_REQUIRE_INDEX=1` (memory under `SELF_CHECK_STATE_DIR`, the instance's life unless a volume is named), the
-CLI `--require-index` (memory beside its key). All three switches are OFF: until a memory has history, refusing on
-freshness would refuse the first index. What is still not closed, stated: a consumer with no memory (or a fresh one)
-cannot tell a replayed genuine index from the newest, and the unsigned fallback with no remembered floor is bounded only
-by the built-in floor; both are "not-remembered" in the result, never silence. A TUF-style timestamp role remains the
-complete answer, with the TUF refresh of the pinned Sigstore root and the mirror at `enclave.host`. Regression evidence:
-`test/verifier-index-memory.test.mjs` (successive publications past a hundred releases, replay, equivocation with both
-values refused and the refusal surviving a reload, retry and re-dispatch, floor regression, persistence with an
-unwritable location reported as not durable) and the memory cases in `test/verifier-release-index.test.mjs` (the real
-index first-seen, then a replay under a memory that saw a newer one, with the fallback under the remembered floor). The
-first two schema-v2 indexes are real: the release cut by 7c694c41 published one per flavor (v0.5.848, run 36089632273;
-v0.5.848-cpu, run 36089622272), both pinned under `test/fixtures/verifier/release-index/`; each verifies with its
-`sequence` equal to its signing run (`sequenceAuthenticated: true`), the memory takes the later and refuses the earlier
-as a replay, and the live index-first path against GitHub with a fresh persisted memory reported signed, first-seen,
-then same from a second process. Tests
-(`test/verifier-release-index.test.mjs`): the build under a policy, every `checkIndex` refusal by name, the authentic
-v0.5.841 release bundle refused as an index attestation, the consumers' index-first path with its fallback and the strict
-switch through a local release index, revocations, the workflow job's pins and predicate. The first signed index exists:
-v0.5.847 (dispatched 2026-09-25 02:31Z to exercise the job; the first attempt, v0.5.846, failed on a missing
-install step, fixed at dc86269c), attestation 50058862, sequence 100, floor v0.5.841, latest v0.5.847 and v0.5.845-cpu,
-twenty releases listed; pinned at `test/fixtures/verifier/release-index/v0.5.847/` and verified positively (the claims name
-the publish workflow at refs/tags/v0.5.847), and the consumers' live index-first path against GitHub reported
-`index.status: verified` with both flavors' provenance verified from the index's pointers.
-
-## 10.6 M4: the TUF-verified refresh of the pinned Sigstore root (2026-09-25)
-
-The consumers verify release provenance against `verifier/roots/sigstore-trusted-root.json`. Until now that copy had
-been reached by following hashes through Sigstore's TUF metadata without verifying the metadata's signatures (its
-SOURCES entry said so). `verifier/tuf-refresh.mjs` now refreshes it as TUF prescribes, from pinned trust, through
-`@freedomofpress/tuf-browser` (MIT; already a dependency of the Sigstore library the site ships), reviewed here: root
-rotations exactly N+1, each signed to the threshold of both the old and the new root and not expired; timestamp,
-snapshot and targets signed to threshold, versions never lower than the cached ones, expiry against the clock, lengths
-and hashes from the role above; the target by hash and length. Two gaps found in the client and closed around it:
-its update returns early when the served timestamp equals the cached one, so after an update that stopped half-way
-(timestamp cached, snapshot or targets not) the cached chain would stay stale until the timestamp rolled; the wrapper
-checks the cached chain's consistency and re-runs the update once, re-verifying the same signatures. And the ECDSA
-signature check reads r and s out of the DER and ignores the framing, so a test that corrupts only the outer tag still
-verifies (the test helper corrupts the value). The starting root is `verifier/roots/sigstore-tuf-root.json`: root v15,
-reached on 2026-09-25 by walking v1 to v15 live (14 rotations, timestamp v790, snapshot v165, targets v14, the target
-byte-identical to the pinned copy). The anchor, root v1, is byte-identical from two independent sources (the CDN and
-`sigstore/root-signing` `metadata/root_history/1.root.json`, sha256 cd7549b1...). Every role is cached per file as it
-verifies; the pinned files are replaced only from a fully verified refresh, atomically, and only with `--write`; a
-refused refresh writes nothing. The weekly workflow (`verifier-tuf-refresh.yml`, dispatch too) refreshes from the pinned
-root and, when the verified target or the highest root differs, opens a PULL REQUEST with the files and the versions;
-it never writes to main; a verification failure fails the job. A CDN or mirror can only refuse to serve: nothing it
-serves verifies unless the chain from the pinned root signs it.
-
-Tests (`test/verifier-tuf-refresh.test.mjs`, through the real client against a repository minted per run with real
-keys): the happy path with a rotation, idempotence and a new target; a corrupted signature on each role, with the cached
-roles unchanged; a rotation signed below the old threshold; expired timestamp, snapshot, targets and root (the freeze
-refusals); a timestamp rolled back and a timestamp whose snapshot pointer went backwards; an update cut at the snapshot
-and its recovery with the last trusted target standing; a target whose bytes changed under its name; the pinned files
-written only from a verified refresh; a different repository served at the same URLs refused by the pinned root's keys.
-And Sigstore's real chain offline (fixture `sigstore-2026-09-25`: roots 1..15, timestamp v790, snapshot v165, targets v14
-and the target), verified while its timestamp is unexpired and asserted as the freeze refusal after 2026-09-29, which is
-the correct outcome for stale metadata.
-
-**What the publication order does and does not say (release index, section 10.5).** GitHub allocates a workflow run's
-id when the run is CREATED; observed ids on this repository increase with creation time across all workflows, and
-GitHub documents run ids as unique but publishes no ordering guarantee. So a higher run id says "created later", and
-nothing else: not "completed later" (a run created later can publish its index first; the two flavor publications of
-one push are exactly that), not "lists everything published before it" (a transient gap, section 10.5), and not
-"newer than what a consumer saw elsewhere" unless that consumer's own memory says so. The attempt number orders re-runs
-of one run. The index's `generatedAt` is the builder's clock, signed but self-asserted. Freshness in this design is
-therefore "the highest creation-ordered publication this consumer has verified", which refuses replays of anything it
-has seen and bounds the rest by the floor; it is not a proof that no newer index exists, and a consumer on its first
-use, or falling back to the unsigned pointer, has only the built-in floor. Those two cases are said in every result
-(`index.freshness`), and the TUF timestamp role above is the shape of the complete answer.
-
-## 10.7 The same-origin mirror, and the per-consumer strict rollout criteria (2026-09-25)
-
-**The mirror.** `GET /v1/release-index` on the api relay serves what the relay's re-verification last VERIFIED: the
-signed index bytes, their attestation bundle, and the release attestation bundles of the flavors the index names,
-together with the relay's own freshness state (`status`, `authenticity`, `freshness`, `publication`). It is bytes and
-signatures, never a verdict: a client verifies the bundles against ITS pinned Sigstore root and orders the index with
-ITS memory, exactly as it would from GitHub, so the mirror cannot become an authority; the relay's own memory keeps a
-replayed or equivocating index out of it, and a refused or unavailable index is served as that status with no bytes.
-`test/relay-reverify.test.mjs`: what the mirror serves verifies client-side (index and both release bundles), altered
-bytes and a bundle served for another release's digest are refused by the client, a relay memory that saw a newer
-publication serves no bytes.
-
-**The browser verifies release provenance itself (2026-09-25).** `verifier/web/provenance.mjs`
-`releaseExpectationsFromMirror({ mirrorUrl })` fetches the mirror (bounded: 8 s, 1 MiB, no redirect, no credentials)
-and then decides everything locally: the index's digest is computed in the browser, its Sigstore bundle is verified
-against the trusted root PINNED INTO THE BUNDLE (`verifier/roots/sigstore-trusted-root.json`, the same pin the Node
-consumers carry), the signing identity and run invocation are read from the certificate, the content checks of
-`verifier/release-index-core.mjs` run, freshness is the browser's own `verifier/index-memory.mjs` over `localStorage`
-(`enclave.verifierIndexMemory`), and each release the SIGNED index names is verified from its bundle against the
-index's digest for that tag, under the index's floor and the union of the index's and the caller's revocations. The
-mirror's `status`, `freshness`, `publication`, `indexSha256`, per-release `digest` and `index` fields are recorded
-under `mirror.said` and never read for a decision. The modules this needed are now free of Node imports:
-`verifier/provenance.mjs` (WebCrypto digest), `verifier/release-index-core.mjs` (the pure half of
-`release-index.mjs`, which keeps the builder, the policy file and the command) and `verifier/index-memory.mjs` (a
-store adapter: `fileStore` in `verifier/index-memory-file.mjs` for Node, `webStorageStore` for a page, `memoryStore`);
-the Node consumers' `createIndexMemory({ file })` is unchanged.
-
-The site shadow (`site/js/core/verify-shadow.js`) now takes its expected measurements from this path first and records
-`independent: true` with `expectedFrom` naming the index and its freshness; the primary's `codeMeasurement` is
-cross-checked against the verified index (`provenance.primaryMeasurementAttested`). When the mirror is unavailable or
-the index is refused, the shadow falls back to the primary's `codeMeasurement` and records `independent: false` with
-`expectedFrom` starting `FALLBACK, not independent:` and the provenance status, so a fallback can never be read as an
-independent result; with neither, nothing is allowed. Stage 4 of section 9 is therefore independent of the primary's
-provenance whenever the mirror answers; the record says which case applied.
-
-Evidence: `test/verifier-web-provenance.test.mjs` (7) on the REAL production mirror answer captured on 2026-09-25
-(`test/fixtures/verifier/release-index/mirror-2026-09-25.json`, run 36089632273, v0.5.848 and v0.5.848-cpu): a mirror
-that lies about its own run changes nothing; first-seen, then `same` after a reload over the same storage, `replay`
-when the storage remembers a newer publication, `equivocation` locked across reloads, a storage that cannot write
-reported as `memoryNotPersisted`; the index bundle of v0.5.847 over v0.5.848's bytes refused (unverified), one digit of
-a digest changed refused, the mirror's own `index` object ignored; the cpu bundle under the gpu tag refused on the
-index's digest while the other release verifies, a lying per-release digest ignored, a tag the mirror does not carry
-`unavailable`, a tag the index does not name not a candidate; HTTP 503, non-JSON, over the cap, a redirect, "verified"
-without bytes, a bad URL: `unavailable`, fail closed; a caller floor above the index refuses it, a remembered higher
-floor is a floor regression, a caller revocation survives the index. `test/site-verifier-shadow.test.mjs` (5) runs the
-REAL vendored bundle through the glue: `independent: true` from the mirror, `primaryMeasurementAttested: false` for
-Cloud Provider's inference host (not an Enclave release, so the shadow's verdict is `rejected` and the comparison `disagree`,
-recorded, deciding nothing), the memory in the page's storage and `same` on reload, HTTP 503 giving the labelled
-fallback, and the older origin-only case now labelled fallback. `test/verifier-web-browser.test.mjs` (3) still passes
-in Chrome for Testing 151 with the enlarged bundle (243 KB minified; the Sigstore verifier and the pinned root are in
-it). The bundle's provenance is `verifier/web/dist/MANIFEST.json`, reproduced by `verifier/web/reproduce.mjs`.
-
-Limits, unchanged in kind: the mirror is the browser's only source (a down mirror means the labelled fallback, not an
-independent expectation); a browser profile's memory starts empty, so its first index is `first-seen` (authenticity,
-not freshness) and a genuine old index replayed to a fresh profile is not detectable until a newer one has been
-remembered; the built-in floor on the unavailable and refused paths is `verifier/release-policy.json`'s (v0.5.841,
-section 10.8; until 2026-09-25 it was a separate library constant, v0.5.0); private windows and blocked storage give a per-page memory that the record reports as not persisted. The
-browser's own verdict remains a shadow: `acceptance: false`, no primary root or verdict changed.
-
-**Strict rollout criteria, per consumer.** Each strict switch stays OFF until every gate below has passed with
-recorded evidence; flipping one is a reviewed commit that names the evidence. Status on 2026-09-25 in brackets.
-
-| consumer | switch | gates | status |
-|---|---|---|---|
-| all | (precondition) | a hosted enclave running one of our releases verified end to end by this verifier (`verified`, no omission) at least once, from the CLI, the self-check and the relay | NOT MET: the fleet has had no hosted enclave since before this work; every positive path is shown on the Genoa capture under a stated policy |
-| all | (precondition) | the live differential daily job green for 14 consecutive days with zero `disagree`, its three jobs included (section 10.9: the differential, the positive control, the provenance parity); the TUF refresh job green for two cycles | NOT MET: day 1 of 14. Run 36104580079 (2026-09-25 06:49Z, dispatched once because the 06:17Z schedule had not fired by 06:48Z) green in all three jobs: the differential agree-refuse on the signed-index path; the control agree, ours verified with no omission on Cloud Provider's Genoa host, matched v0.0.155; the parity agree across all five legs (Chrome 153 on the runner), the served bundle this commit's. The TUF job green on dispatch (36097826591) after its fix; its scheduled cycles have not run |
-| CLI | `--require-index` default | the user's memory has history (`persisted: true`, one index seen) is unknowable per user: the default stays opt-in; documented in `--help` | opt-in, by design |
-| self-check | `SELF_CHECK_REQUIRE_INDEX=1` | 14 days of `verification.selfCheck.enclave.index.status = verified` and `agreement` in {agree, agree-limited} on every hosted enclave, with `memoryNotPersisted` absent | NOT MET: no hosted enclave |
-| self-check | `SELF_CHECK_VERIFIERS=enclave` (own verdict decides `result`) | the above, plus the independent review of `verifier/` (M5) | NOT MET |
-| relay | `RELAY_REQUIRE_INDEX=1` | the relay's memory has history (`aggregate.reverify.indexMemory.remembered` set, persisted) and 14 days of `expectations.index.status = verified`, the relay's mirror agreeing daily with GitHub's signed index (section 10.9 provenance parity) | NOT MET: shadow live since 2026-09-25 01:52Z; the memory persists across restarts (freshness `same` after the 04:28Z and 05:04Z redeploys); no dialed rows to judge |
-| relay | `RELAY_REVERIFY=enforce` | the above, plus every dialed row `verified` for 14 days with zero unexplained `rejected`/`unavailable` | NOT MET |
-| browser | own verdict primary | provenance verified in the browser from the mirror (DONE 2026-09-25, above; checked daily in a real Chrome on the live page by the provenance parity job, section 10.9), then 14 days of `agree` with `independent: true` in the site shadow with the primary on hosted enclaves | NOT MET: no hosted enclave; the shadow is opt-in and records only, so the verdict half has no collected evidence yet |
-
-Until then Cloud Provider is the primary everywhere, and every own verdict is published beside it.
-
-## 10.8 One source for the release floor and revocations (2026-09-25, after Codex's audit)
-
-**The mismatch.** `verifier/release-policy.json` (reviewed, signed into every release index since v0.5.847) set the floor
-at v0.5.841, while the library's built-in `DEFAULT_RELEASE_POLICY.minimumRelease` was a separate constant, `[0, 5, 0]`,
-841 patch releases lower. Every path without a verified index inherited the constant: a fresh browser profile or a fresh
-Node memory whose index was unavailable or refused, the unsigned `/releases/latest` fallback, and `requireIndex` refusals
-all reported and applied v0.5.0. Section 10.5 already said the built-in floor is what bounds such a consumer; the
-constant made that bound meaningless. The intended product floor is the reviewed file's: v0.5.841 was the latest release
-when the index was designed (the plan's pinned release, section 8), and no host in service runs a tagged release below
-it (the relay's `/enclaves` on 2026-09-25: the traffic-only relay row, the Linux SNP tier box, whose measurements come
-from the isolation branch and are judged by the deployment-binding path, not release provenance, and the NucBox VBS
-row, unsupported). No compatibility exception is justified, so none is made.
-
-**The fix.** `verifier/release-policy.mjs` imports the JSON file and is the only definition of the built-in policy:
-`DEFAULT_RELEASE_POLICY.minimumRelease` and `.revoked` are the file's, and the Node bundle, its relay copy and the
-browser bundle carry the file as a bundled input whose sha256 their manifests pin (so the floor a shipped bundle
-applies is reproducible from the tree it was built from, and the reproduce checks refuse a bundle built from another
-policy). A malformed file fails the import: nothing loads without a floor. The rules every consumer applies, in one
-place (`floorOf`, `revokedOf`) and used by the Node consumer and the browser alike: the floor applied is the highest of
-the built-in one, the consumer's remembered floor and a verified index's floor; an index whose floor is below the
-built-in one is refused (`checkIndex`, unchanged); a mirror's own fields are never read; revocations are the UNION of
-the built-in list, a caller's and a verified index's, so no index or caller can un-revoke a tag. A caller may still pass
-an explicit floor (the offline CLI's `--min-release`, the tests), and the result then says `floorSource: "caller"` and
-`callerBelowBuiltin: true` beside `builtinFloor`: an explicitly lower floor is possible and never silent. Every result
-of `releaseExpectations` and `releaseExpectationsFromMirror` carries `floorApplied`, `floorSource` (built-in,
-remembered, signed index, caller) and `builtinFloor`.
-
-**Raising the floor.** A raise is a reviewed commit to the JSON file that rebuilds the bundles in the same commit. The
-consumers built from it refuse any index signed before it (its floor is below theirs) until a release built from that
-commit publishes an index carrying the new floor. In that window they take their recorded fallback: Node the unsigned
-pointer under the RAISED floor, the browser shadow its labelled fallback to the primary's measurement. The policy file
-alone cuts no release (deploy.yml releases on image inputs), so a raise that must take effect in the index at once
-should land with, or be followed by, a release; nothing is ever accepted below the new floor in the meantime.
-
-**Evidence.** `test/verifier-release-floor.test.mjs` (6): the file, the compiled-in module, the provenance default and
-all four shipped artifacts (Node bundle, relay copy, browser bundle, site vendor copy) carry the same floor and
-revocations, each manifest pinning the file's sha256; the genuine release v0.5.840 (pinned for this, published five
-minutes before v0.5.841) verifies under an explicit lower floor and is refused by default, while v0.5.841 verifies; the
-Node consumer and the browser on the same cases (verified index with and without a fresh memory, index unavailable,
-index refused, strict, a remembered higher floor, a caller revocation) give EQUAL floor fields, and Node's fallback
-refuses v0.5.840 under the built-in floor; a mirror that claims a lower floor, and a mirror with no bytes that says
-"verified" and v0.5.0, change nothing; the compiled bundles give the same results as the source on four cases; and a
-copy of the tree with the floor raised to v0.5.848 and v0.5.848-cpu revoked refuses the real signed index as below its
-floor, falls back under the raised floor, and keeps the revocation against a caller's empty list and a caller's lower
-floor, while a malformed file fails the import. Four deliberate regressions (the old constant restored, the built-in
-list dropped from the union, the built-in revocation check removed, the remembered floor ignored) each fail the suite.
-`test/site-verifier-shadow.test.mjs` asserts the fallback record's floor through the real vendored bundle, for a
-profile with history (remembered) and a fresh one (built-in).
-
-## 10.9 Cutover evidence that needs no Enclave host (2026-09-25)
-
-Three gaps in the evidence the gates of section 10.7 rest on could be closed without a host running one of our releases.
-
-**The differential measured a path no consumer uses.** `verifier/live-differential.mjs` took its expected measurements
-from GitHub's unsigned `/releases/latest` pointer and checked them against a TEST-FIXTURE Sigstore root. Its provenance
-leg is now the consumers' own: `releaseExpectations` (the signed index first, the pinned root in `verifier/roots/`, the
-built-in floor, the unsigned pointer only as the recorded fallback) or `releaseExpectationsFrom` for explicit files, and
-the report records the source, the index record and the floor applied.
-
-**The differential could not score a positive case.** Its comparison had no `agree-limited` outcome, so a host running a
-matching release with no TCB floor stated (the workflow states none) fell through to `disagree`: the first day a host ran
-one of our releases the job would have gone red for that reason alone (shown by mutation: without the new rule the case
-exits 1). It now reports `agree-limited` when the only omission is `tcb-floor-unjudged` and the reference accepts the same
-measurement.
-
-**No live positive case existed.** Against Cloud Provider's host the differential can only ever say `agree-refuse` (their image is
-not ours). A CONTROL now runs the accepting path daily on production hardware: `verifier/differential/Cloud Provider-model-router.json`
-names Cloud Provider's host, Cloud Provider's release repository (`Cloud Providersh/confidential-model-router`), a floor for their version line
-and the Genoa TCB floor measured on that host; our identity rules are otherwise unchanged (same workflow name, trigger and
-visibility, which Cloud Provider's releases share), and the floor is recorded as the caller's, below ours. Offline on real bytes
-(`test/fixtures/verifier/Cloud Provider-router/`, pinned with their sources): the 2026-09-24 capture against Cloud Provider's v0.0.154,
-whose attested measurement is that capture's, is `agree` with our verdict `verified` and no omission; without the TCB
-floor `agree-limited`; the newer v0.0.155 against the old capture `agree-refuse`; Cloud Provider's bundle under OUR policy
-`provenance-failed` (identity); a floor above the release `provenance-failed`. Live on 2026-09-25 (local run, read-only):
-`agree`, ours `verified` with every check true, the reference accepting the report and the certificate binding, the same
-measurement, matched v0.0.155. This is evidence about the verifier's accepting path on live AMD hardware, never about an
-Enclave host, and it does not satisfy the precondition that a host running OUR release verify end to end.
-
-**The provenance paths were not compared.** `verifier/provenance-parity.mjs` runs daily as its own job: the Node consumer
-against GitHub's signed index, the browser module from source and this commit's bundle against the relay mirror, the
-bundle the SITE SERVES (its sha256 must be an artifact this repository built, a `MANIFEST.json` in its history, or it is
-not executed) and that deployed bundle in the runner's Chrome on the live page. Each verifies for itself; the legs must
-agree on the publication, the index digest, the releases and measurements and the floor; a mirror still serving an older
-publication is `mirror-behind` within an hour of GitHub's and `mirror-stale` after. Offline tests
-(`test/verifier-provenance-parity.test.mjs`, 4): agree; a one-byte-changed served bundle is `unknown-artifact` and not run;
-a refused or down mirror `not-verified`; the CPU run's older index on the mirror `mirror-behind` then `mirror-stale`. Live
-on 2026-09-25 (local run, Chromium): all five legs verified run 36089632273 with digest 9ef3346a..., floor v0.5.841 from
-the signed index, v0.5.848 and v0.5.848-cpu allowed; the served bundle is this commit's.
-
-**The TUF refresh job's first CI run (dispatched once, 2026-09-25 05:11Z, run 36097509275) found two defects the local
-tests could not.** The refresh verified (root v15, no rotation, `trusted_root.json` equal to the pin), but `--write`
-rewrote `verifier/roots/SOURCES.json` with a new `refreshedAt` and `startingRootVersion`, so the job saw a change every
-week; and the repository does not let GitHub Actions create pull requests, so the job pushed a branch and failed on
-`gh pr create`. Fixed: `writePinned` writes only when the verified trusted root or the verified TUF root differs from the
-pinned file (a verified unchanged refresh writes nothing, tested, and the live refresh reported "nothing written"); on a
-real change the job pushes a `verifier/tuf-refresh-*` branch, puts the compare link and the report in the run summary and
-fails the run for a maintainer to review and open the pull request; it no longer asks for `pull-requests: write`. The
-stray branch of that run (a timestamp-only commit) was deleted.
-
-What stays open, unchanged: a host running one of our releases verified end to end by the CLI, the self-check and the
-relay; the 14-day windows; the TUF job's scheduled cycles; the independent review (M5). Cloud Provider stays primary and every
-strict switch stays off.
-
-## 10.10 NucBox: the custom type-1 path only (2026-09-25, Steven via enclave-d1)
+## 10.5 NucBox: the custom type-1 path only (2026-09-25, Steven via enclave-d1)
 
 The custom type-1 partition with our measured paravisor is the ONLY NucBox target; the ee-engine VBS-enclave backend is
 retired and no legacy enclave report may stand in for a custom-VM report. This lane owns the verifier contract and the
@@ -1190,41 +841,43 @@ path waits for the real boot-68 frame from enclave-5d.
 
 ## 11. Open risks
 
-- **Measurement semantics** stay Cloud Provider-defined for the hosted fleet (section 2.3). Without archived image
-  inputs a "verified" hosted enclave means "runs the image Cloud Provider measured for our config".
-- **Hosted binding format** is the shim's certificate format; if Cloud Provider changes the SAN encoding the hosted
-  rule breaks loudly (rejected, not green).
-- **Sigstore root and Fulcio identity** depend on GitHub's OIDC and Sigstore's public-good instance;
-  workflow-path identity is only as strong as tag/branch protection on the repository.
-- **KDS rate limiting** (429 after a few requests) makes a cache or the auxblob mandatory for anything
+- **Measurement semantics.** CPU releases carry no signed measurement and metal images are built on the host (section
+  2.3), so the expectation is a caller pin or the operator's allowlist; the site's verdict stays `limited` until an
+  independent expectation exists.
+- **Operator allowlist and rollback.** An allowlist can keep an old genuine measurement admitted; nothing but a caller pin
+  bounds a rollback.
+- **The relay on the document path.** It can withhold or delay a fresh document, never forge one; the request's TLS ends at
+  the relay, so an end-to-end channel must use the transport key the report binds.
+- **TCB floors** are hand-set no-downgrade floors (`verifier/metal-box.mjs` `TCB_FLOORS`); they rise only by a reviewed
+  change after an AMD security bulletin, and a product line without one stays `limited`.
+- **KDS rate limiting** (429 after a few requests) makes a cache, the relay's mirror or the auxblob mandatory for anything
   interactive.
 - **Browser X.509**: decided and prototyped 2026-09-24 (`browser-x509-parser-decision.md`). The browser build is stricter than
   Node in three measured places (non-canonical DER, the PSS profile, the host rule), each a refusal; it judges SNP only.
 - **Clock**: certificate windows and CRL `nextUpdate` need a trustworthy clock in the browser; a wrong clock
   can only reject, never accept, if `notBefore` and `nextUpdate` are both enforced.
 - **TDX and GPU** are `unsupported` in the verifier; the site must not imply otherwise.
-- **Relay dialed rows** trust self-reported `teeCpu` until stage 5.
+- **Relay dialed rows** trust self-reported `teeCpu`; nothing re-verifies them.
 - **pVM ABI/2** relay frame undecided; the payload printed a 72-byte zero-padded ECDSA signature once (pVM
   owner, 2026-09-24): the verifier must require canonical DER and refuse padding.
 - **Isolation IGVM path**: `runtime.json` inside the guest image is outside the launch measurement there
   (`isolation/m3/PLAN.md` section 16), so the runtime identity is "the domain's word" until the SVSM carries
   it (M4b).
-- **Supply chain of the verifier itself**: pinned versions, `THIRD-PARTY-NOTICES.md` regenerated, the same
-  same-origin rule as today.
+- **Supply chain of the verifier itself**: pinned versions, reproducible bundles with input manifests,
+  `THIRD-PARTY-NOTICES.md` regenerated, served same-origin.
 
 ## 12. Specification and implementation references
 
 The companion file `independent-verifier-references.md` holds the authoritative specifications (AMD 56860 Rev 1.59
 and 57230 Rev 1.05, Intel DCAP API Rev 0.91 and PCS v4, NVIDIA nvtrust and NVAT, Android AVF remote attestation,
-Sigstore bundle and Fulcio OIDs, TUF root v15), the current reference verifiers with versions and licenses, and the
-licensing table. Three points from it shape this plan: go-sev-guest v0.15.0 parses report versions 2..5 while ABI
-Rev 1.59 introduces version 6 (our parser accepts 6 structurally and says its new fields are unjudged); the Turin
-fmcSPL query and 8-byte hardware id are confirmed in practice by KDS answering the URL `relay/snp-verify.mjs` builds;
-and `Cloud Providersh/measure-image-action` is AGPL-3.0, which is fine in CI and must never be bundled.
+Sigstore bundle and Fulcio OIDs, kept for reference), the current reference verifiers with versions and licenses, and the
+licensing table. Two points from it shape this plan: go-sev-guest v0.15.0 parses report versions 2..5 while ABI Rev 1.59
+introduces version 6 (our parser accepts 6 structurally and says its new fields are unjudged); and the Turin fmcSPL query
+and 8-byte hardware id are confirmed in practice by KDS answering the URL `relay/snp-verify.mjs` builds.
 
 ## 13. Licensing
 
-`@Cloud Providersh/verifier` 1.1.10 Apache-2.0 (1.1.8 and below AGPL, never use); `@freedomofpress/sigstore-browser`
-0.1.14 Apache-2.0 by its LICENSE file (package.json says MIT; ship the Apache notice); `@freedomofpress/crypto-browser` 0.1.7 Apache-2.0; `@freedomofpress/tuf-browser` 0.1.11 MIT;
-`@noble/*` MIT. Apache-2.0 requires the NOTICE and license text to ship with the bundle (`build-notices.mjs`
+`@freedomofpress/sigstore-browser` 0.1.14 Apache-2.0 by its LICENSE file (package.json says MIT; ship the Apache notice);
+`@freedomofpress/crypto-browser` 0.1.7 Apache-2.0; `@freedomofpress/tuf-browser` 0.1.11 MIT (bundled as a dependency of the
+former); `@noble/*` MIT. Apache-2.0 requires the NOTICE and license text to ship with the bundle (`build-notices.mjs`
 already does this); MIT requires the copyright notice. No copyleft obligation is introduced by option B.

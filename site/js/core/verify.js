@@ -15,7 +15,7 @@
    together with OUR nonce. The launch measurement is compared with
    the relay operator's allowlist - which is the operator's word, so
    the best result here is "limited" with that reason, never a
-   silent green. Nothing on this path is Cloud Provider's.
+   silent green. Nothing on this path is a third party's.
    ============================================================ */
 // Same-origin, version-pinned (sha256 in verifier/web/dist/MANIFEST.json). Deliberately not a CDN import: a third party
 // that could serve this file could report anything it liked.

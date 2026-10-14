@@ -129,7 +129,7 @@ prose finding as cosmetic.
   `ftrylockfile` thread-exit flush that an ordinary `flockfile()` silently
   defeats.
 * **Fleet cgroup config** — `WASM_CPU_WEIGHT: "100"` pinned in all three
-  `enclaves/*/Cloud Provider-config.yml`, `cpu.max` commented out, no `pids.max`,
+  enclave flavor configs (`enclaves/*/`), `cpu.max` commented out, no `pids.max`,
   placement fails open. Live behaviour today, independent of SET, Steven's call.
 
 ## Recipes

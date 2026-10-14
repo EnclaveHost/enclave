@@ -17,7 +17,7 @@ import { synthChain, synthReport } from "./helpers/snp-synth.mjs";
 const F = new URL("./fixtures/verifier/", import.meta.url), A = new URL("./fixtures/amd/", import.meta.url);
 const read = (u) => fs.readFileSync(u), text = (u) => fs.readFileSync(u, "utf8"), sha256 = (b) => createHash("sha256").update(b).digest("hex");
 const NOW = "2026-09-24T05:00:00Z";
-const REAL = { chain: text(new URL("Genoa-cert_chain.pem", A)), milan: text(new URL("Milan-cert_chain.pem", A)), vcek: read(new URL("genoa-Cloud Provider/vcek-kds-amd.der", F)), turinVcek: read(new URL("turin-m4a/vcek-kds-amd.der", F)), crl: read(new URL("amd/Genoa-crl.der", F)) };
+const REAL = { chain: text(new URL("Genoa-cert_chain.pem", A)), milan: text(new URL("Milan-cert_chain.pem", A)), vcek: read(new URL("genoa-2026-09/vcek-kds-amd.der", F)), turinVcek: read(new URL("turin-m4a/vcek-kds-amd.der", F)), crl: read(new URL("amd/Genoa-crl.der", F)) };
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "collateral-cache-"));
 test.after(() => fs.rmSync(tmpRoot, { recursive: true, force: true }));
 const fresh = (n) => { const d = path.join(tmpRoot, n); fs.mkdirSync(d, { recursive: true }); return d; };
