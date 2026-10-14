@@ -172,15 +172,18 @@ async function pollRouteMap() {
     next.set(label, { a, aaaa, expiresAt: v.expiresAt, relay: "enclave-network" });
   }
   // A map that suddenly loses most labels is the relay restarting, not the apps going away (2026-10-14: a relay deploy
-  // served 0, then 5, then 9 labels within 9 s): keep the labels it dropped until a second poll SHRINK_CONFIRM_MS later
-  // still drops them. A held label keeps its own signed expiry, so nothing is served past what the relay signed.
-  if (appRoutes.size >= 2 && next.size * 2 < appRoutes.size) {
-    shrinkSince ??= Date.now();
+  // served 0, then 5, then 9 labels within 9 s; then 1, 7, 9): from that drop, every label it dropped is kept for
+  // SHRINK_CONFIRM_MS while the relay fills its map again; whatever is still missing after that is dropped. A held
+  // label keeps its own signed expiry, so nothing is served past what the relay signed.
+  if (shrinkSince === null && appRoutes.size >= 2 && next.size * 2 < appRoutes.size) {
+    shrinkSince = Date.now();
+    console.warn(`[dns-relay] route map dropped to ${next.size} label(s); keeping the previous ${appRoutes.size} for ${SHRINK_CONFIRM_MS / 1000} s`);
+  }
+  if (shrinkSince !== null) {
     if (Date.now() - shrinkSince < SHRINK_CONFIRM_MS) {
       for (const [label, v] of appRoutes) if (!next.has(label) && v.expiresAt > Date.now()) next.set(label, v);
-      console.warn(`[dns-relay] route map dropped to ${j.labels ? Object.keys(j.labels).length : 0} label(s); keeping the previous ones until a poll confirms it`);
-    }
-  } else shrinkSince = null;
+    } else shrinkSince = null;
+  }
   if (next.size !== appRoutes.size) console.log(`[dns-relay] route map: ${next.size} routed label(s)`);
   deployments = Object.entries(j.deployments || {}).filter(([id, d]) => /^0x[0-9a-f]{64}$/.test(id)
     && d.address && Number.isSafeInteger(d.expiresAt) && d.expiresAt > Date.now())
