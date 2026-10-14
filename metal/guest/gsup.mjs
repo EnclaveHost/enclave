@@ -468,6 +468,8 @@ const supEnv = {
   // releases to (supervisor authorizeCustody). Measured here, never from fw_cfg: the vault on Base is immutable.
   CUSTODY_VAULT: '0x08074300f75e78212ae10ebd14984f78e17811a6',
   CUSTODY_CHAIN_ID: '8453',
+  // custody v2: the host-run custodians' vault (docs/security/secret-custody-v2.md), measured like v1's
+  CUSTODY_VAULT_V2: '0xe48699b8401564aace7a814ae4569b67a3f7eef5',
   // Certificates + keys survive a supervisor restart within one guest boot on
   // the guest's own tmpfs (init mounts /mnt/ramdisk); the supervisor's default
   // (/var/lib/enclave/acme) sits on the initramfs rootfs here, which its
