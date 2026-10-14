@@ -122,3 +122,13 @@ test('a restarted relay serves the routes it had accepted, only while they are s
  await w.options.memory.update('p-'+id,()=>({...kept,bundle:{...kept.bundle,record:{...kept.bundle.record,sequence:1}}}));
  assert.equal((await createNetworkRoutes(w.options).map([w.row()])).deployments[id],undefined,'a kept copy that is not the committed one is not served');
 });
+
+test('the deploy preflight reads again when an allocation is about to be renewed, and refuses anything else at once',async()=>{
+ const {preflightWithRetry}=await import('../network/preflight.mjs');
+ let calls=0;const flaky=async()=>{if(++calls<3)throw new Error('missing, expired or invalid HTTPS allocation: 0xabc');return ['ok'];};
+ assert.deepEqual(await preflightWithRetry('x',[],{run:flaky,sleep:async()=>{}}),['ok']);assert.equal(calls,3);
+ calls=0;const hard=async()=>{calls++;throw new Error('0xabc: TLS key does not match');};
+ await assert.rejects(preflightWithRetry('x',[],{run:hard,sleep:async()=>{}}),/TLS key/);assert.equal(calls,1,'a real refusal is not retried');
+ calls=0;const always=async()=>{calls++;throw new Error('routes not ready for 0xabc: private_routes_unavailable');};
+ await assert.rejects(preflightWithRetry('x',[],{run:always,sleep:async()=>{},attempts:4}),/not ready/);assert.equal(calls,4);
+});
