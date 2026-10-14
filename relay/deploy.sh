@@ -8,6 +8,14 @@ cd "$(dirname "$0")"
 # while any admitted application lacks a working replacement endpoint.
 node ../network/preflight.mjs "$@"
 
+# A relay restart kills a running measurement prediction (isolation/m4/expected-measurement.sh, ~30 min for a big app),
+# and every guest of that app release then dies at boot until it is predicted again (2026-10-14: two restarts tonight,
+# eyesoff /85's guests powering down ~140 s into boot). Refuse before anything is copied; rerun when it has finished.
+if ssh -o ConnectTimeout=15 -o BatchMode=yes nan 'pgrep -f "isolation/m4/[e]xpected-measurement[.]sh" >/dev/null'; then
+  echo "::error::a measurement prediction is running on nan: not restarting the relay now (rerun this deploy when it has finished)"
+  exit 1
+fi
+
 # DEPENDENCIES: `npm ci` against a SHIPPED package-lock.json, never `npm install`
 # against package.json alone. Every dependency here is a caret range, so
 # resolving them on the box means whatever the registry serves that morning —
