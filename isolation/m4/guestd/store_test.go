@@ -337,8 +337,22 @@ func TestTheRealVerifierAgainstASyntheticGateway(t *testing.T) {
 		// a substituting gateway: asked for small's CID, it serves another component's block
 		rawCID(component("asked for")): car(rawBlock(other)),
 	}
+	// ipfs_fetch.py asks for a raw CID as the raw block itself (Accept: application/vnd.ipld.raw) and hash-checks it
+	// exactly like a CAR's block, so the gateway answers both forms and the substitution must fail in either.
+	raws := map[string][]byte{
+		rawCID(small):                  small,
+		rawCID(component("asked for")): other,
+	}
 	gw := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, q *http.Request) {
 		cid := strings.TrimPrefix(q.URL.Path, "/ipfs/")
+		if q.Header.Get("Accept") == "application/vnd.ipld.raw" {
+			if b, ok := raws[cid]; ok {
+				_, _ = w.Write(b)
+				return
+			}
+			http.NotFound(w, q)
+			return
+		}
 		if q.URL.Query().Get("format") != "car" {
 			http.Error(w, "car only", 400)
 			return
