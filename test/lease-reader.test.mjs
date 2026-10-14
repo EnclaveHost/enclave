@@ -170,3 +170,14 @@ test('a refresh with NO agreeing answer holds a running lease up to the grace af
  assert.equal(short.get(id).validUntil,1700000060000,'never past the lease itself');
  short.now=()=>1700000061000;assert.deepEqual(short.hold(10*60_000),[],'an ended lease is not held');
 });
+
+test('a lease extended by an outage hold keeps the proofs made before it: a proof lasts its own 60 s (2026-10-14 07:28)',async()=>{
+ let clock=now();const expected={appRef:row.appRef,configCid:'',appSha256:'ab'.repeat(32),runtimeId:'cd'.repeat(32)};
+ const gate=new AdmissionGate({runner,expected:()=>expected,now:()=>clock});
+ const lease={...row,leaseUntil:clock+300000,validUntil:clock+10000};gate.observeLease(lease);   // the last read: valid 10 s more
+ const verify=async()=>({verified:true,deploymentId:id,appSha256:expected.appSha256,runtimeId:expected.runtimeId,spkiSha256:'ef'.repeat(32)});
+ await gate.attest(id,verify);
+ gate.observeLease({...lease,validUntil:clock+600000});                                   // the chain read failed: the lease is held
+ clock+=20000;assert.equal(gate.allows(id),true,'the proof is not cut to the lease validity it was made under');
+ clock+=40001;assert.equal(gate.allows(id),false,'and still lasts only its own 60 s');
+});
