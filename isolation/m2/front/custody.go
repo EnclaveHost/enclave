@@ -5,6 +5,11 @@ package main
 // fetches the values from a threshold of custodians (isolation/m2/custody) under a fresh attestation, and the lease
 // holder's operator authorizes the release over guestd's custody-auth port.
 //
+// Two pointer versions (release.Custody.Version): v1 (a per-deployment committee of shares, custody.Client.Obtain) and v2
+// (one committee key held by host custodian machines, partial decryptions verified one by one, and the Enclave rule:
+// custody.Client.ObtainV2; docs/security/secret-custody-v2-spec.md §4). A v2 custodian endpoint may carry a path prefix
+// (custodianEndpointV2); only its host is dialled through the egress path.
+//
 // Fail closed, everywhere: a custody deployment whose release ALSO carries relay-held secrets, an image whose AppID is not
 // derived from its loaded code, a pointer that does not parse, a quorum that does not answer: each ends the domain, and
 // init never starts the app without its secrets.
@@ -23,6 +28,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -74,8 +80,63 @@ func custodyState(id [32]byte, c *release.Custody) (custody.State, error) {
 	return st, nil
 }
 
+// custodianEndpointV2 checks a v2 custodian's endpoint: an https URL whose authority is an origin v1 accepts (a DNS name,
+// port 443 only, no userinfo or percent-escapes: egress.ParseOrigin) and an optional path prefix of at most 4 segments of
+// [A-Za-z0-9._~-] (no "." or ".." segment, no query, fragment, backslash or escapes). The custodian VM may sit behind the
+// relay's fleet tunnel (https://api.enclave.host/t/custody-metal0); the API paths are appended. A single trailing "/" is
+// dropped. Returns the base URL to append to, and the host to dial through the egress path.
+func custodianEndpointV2(raw string) (base, host string, err error) {
+	if !strings.HasPrefix(raw, "https://") {
+		return "", "", errors.New("not an https:// URL")
+	}
+	rest := raw[len("https://"):]
+	cut := strings.IndexAny(rest, "/?#\\")
+	origin, path := raw, ""
+	if cut >= 0 {
+		origin, path = raw[:len("https://")+cut], rest[cut:]
+	}
+	o, err := egress.ParseOrigin(origin)
+	if err != nil {
+		return "", "", err
+	}
+	path = strings.TrimSuffix(path, "/")
+	if !custodianPathRE.MatchString(path) {
+		return "", "", errors.New("the path prefix is not at most 4 segments of [A-Za-z0-9._~-]")
+	}
+	for _, seg := range strings.Split(path, "/") {
+		if seg == "." || seg == ".." || strings.Contains(seg, "..") {
+			return "", "", errors.New("a dot segment in the path prefix")
+		}
+	}
+	return "https://" + o.Host + path, o.Host, nil
+}
+
+var custodianPathRE = regexp.MustCompile(`^(/[A-Za-z0-9._~-]+){0,4}$`)
+
+func custodyStateV2(id [32]byte, c *release.Custody) (custody.StateV2, error) {
+	var st custody.StateV2
+	p, err := c.V2()
+	if err != nil {
+		return st, err
+	}
+	st.ID, st.Ctx = id, custody.Context{ChainID: p.ChainID, Vault: p.Vault}
+	st.CommitteeID, st.PolicyRev, st.SecretRev, st.Epoch, st.Threshold, st.Bundle = p.CommitteeID, p.PolicyRev, p.SecretRev, p.Epoch, p.T, p.Bundle
+	if st.Commitments, err = custody.SplitCommitmentsV2(p.Commitments, p.T); err != nil {
+		return st, fmt.Errorf("the custody pointer's %w", err)
+	}
+	for i, m := range p.Machines {
+		base, _, err := custodianEndpointV2(m.Endpoint)
+		if err != nil {
+			return st, fmt.Errorf("custodian machine %d's endpoint: %w", i, err)
+		}
+		st.Machines = append(st.Machines, custody.MachineV2{EncKey: m.EncKey, Endpoint: base, Enclave: m.Enclave, Indices: m.Indices})
+	}
+	return st, nil
+}
+
 // post runs one JSON POST to a custodian through the egress path, TLS with the image's pinned roots and the custodian's
-// own name. TLS here guards availability only: every share is sealed end to end to this guest's recipient key.
+// own name. TLS here guards availability only: every share is sealed end to end to this guest's recipient key. The URL's
+// path (a v2 custodian's prefix plus the API path) is sent as is; only its host is dialled.
 func (p *provisioner) custodyPost(ctx context.Context, raw string, body, out any) error {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -137,6 +198,25 @@ func (p *provisioner) authorize(ctx context.Context, id, binding [32]byte) (stri
 	return a.Endpoint, a.Sig, a.Expiry, nil
 }
 
+// authorizeV2 is authorize for a v2 release: the request names the vault, which the supervisor signs for only if it is
+// the v2 vault it was measured with.
+func (p *provisioner) authorizeV2(ctx context.Context, vault [20]byte, id, binding [32]byte) (string, string, int64, error) {
+	c, err := p.custodyAuth()
+	if err != nil {
+		return "", "", 0, fmt.Errorf("the host's custody authorization service: %w", err)
+	}
+	defer c.Close()
+	c.SetDeadline(time.Now().Add(2 * time.Minute))
+	if err := release.WriteAuthRequestV2(c, vault, id, binding); err != nil {
+		return "", "", 0, err
+	}
+	a, err := release.ReadAuth(c)
+	if err != nil {
+		return "", "", 0, err
+	}
+	return a.Endpoint, a.Sig, a.Expiry, nil
+}
+
 // custodySecrets obtains the values and refuses them unless `configText` (the config they are about to be substituted into,
 // as the relay delivered it) is the one the OWNER committed inside the bundle: the relay chooses neither where a value goes
 // nor, since the allowlist is derived from the resolved config, where the app may send it (review H2).
@@ -147,7 +227,7 @@ func (p *provisioner) custodySecrets(ctx context.Context, ptr *release.Custody, 
 	if p.custodyAuth == nil {
 		return nil, errors.New("this front has no custody authorization channel")
 	}
-	st, err := custodyState(id, ptr)
+	ver, err := ptr.Version()
 	if err != nil {
 		return nil, err
 	}
@@ -158,6 +238,7 @@ func (p *provisioner) custodySecrets(ctx context.Context, ptr *release.Custody, 
 	cl := &custody.Client{
 		Post:          p.custodyPost,
 		Authorize:     p.authorize,
+		AuthorizeV2:   p.authorizeV2,
 		RuntimeID:     rt.RID,
 		TransportSPKI: spki,
 		Logf:          p.logf,
@@ -179,15 +260,33 @@ func (p *provisioner) custodySecrets(ctx context.Context, ptr *release.Custody, 
 	}
 	cctx, cancel := context.WithTimeout(ctx, custodyWindow)
 	defer cancel()
-	b, err := cl.Obtain(cctx, st)
-	if err != nil {
-		return nil, fmt.Errorf("custody: %w", err)
+	var b *custody.Bundle
+	var rev uint64
+	var what string
+	switch ver {
+	case 2:
+		st, err := custodyStateV2(id, ptr)
+		if err != nil {
+			return nil, err
+		}
+		if b, err = cl.ObtainV2(cctx, st); err != nil {
+			return nil, fmt.Errorf("custody: %w", err)
+		}
+		rev, what = st.SecretRev, fmt.Sprintf("a v2 threshold of %d over %d custodian machines", st.Threshold, len(st.Machines))
+	default:
+		st, err := custodyState(id, ptr)
+		if err != nil {
+			return nil, err
+		}
+		if b, err = cl.Obtain(cctx, st); err != nil {
+			return nil, fmt.Errorf("custody: %w", err)
+		}
+		rev, what = st.SecretRev, fmt.Sprintf("a threshold of %d of %d custodians", st.Threshold, len(st.Members))
 	}
 	if got := sha256.Sum256([]byte(configText)); hex.EncodeToString(got[:]) != b.ConfigSha256 {
 		return nil, fmt.Errorf("custody: the delivered config (sha256 %x...) is not the one the owner committed (%.16s...): its values are not substituted into it", got[:8], b.ConfigSha256)
 	}
 	env := b.Env
-	p.logf("DOM custody: deployment 0x%x... secrets revision %d from a threshold of %d of %d custodians, %d name(s)",
-		id[:4], st.SecretRev, st.Threshold, len(st.Members), len(env))
+	p.logf("DOM custody: deployment 0x%x... secrets revision %d from %s, %d name(s)", id[:4], rev, what, len(env))
 	return env, nil
 }
