@@ -387,3 +387,29 @@ test("U7: a customer's own hostname routes, and earns an edge certificate, only 
   assert.equal(await upgrade(origin, "/", { "x-forwarded-host": "bad.customer-shop.net" }), 410, "the WebSocket router does not route custom domains at all");
   assert.deepEqual(f.inel.log.slice(before), []);
 });
+
+test("custody v2: a tunnel named custody-<name> exposes ONLY its custodian API (exact paths and methods); other boxes do not", async (t) => {
+  const NAME = "custody-test0", OTHER = "e0fedcba987654321";
+  const origin = await startRelay(t, { enclaves: "http://127.0.0.1:1", ledger: [], env: { METAL_TUNNEL_TOKENS: `${NAME}:tok-c,${OTHER}:tok-o` } });
+  const seen = [];
+  const attach = async (name, tok) => {
+    const ws = new WebSocket(origin.replace(/^http/, "ws") + "/v1/fleet-tunnel", { headers: { "x-metal-name": name, "x-metal-token": tok } });
+    t.after(() => ws.close());
+    ws.on("message", (d) => { const f = JSON.parse(d); if (f.t !== "req") return; seen.push(`${name} ${f.method} ${f.path}`);
+      ws.send(JSON.stringify({ t: "res", id: f.id, status: 200, headers: { "content-type": "application/json" }, body: Buffer.from("{}").toString("base64") })); });
+    await once(ws, "open");
+  };
+  await attach(NAME, "tok-c"); await attach(OTHER, "tok-o");
+  assert.ok(await waitFor(async () => ((await getJ(origin, "/enclaves")).body?.enclaves || []).filter((e) => /^tunnel:/.test(e.endpoint)).length === 2));
+  const call = (p, method = "GET") => fetch(origin + p, method === "GET" ? {} : { method, headers: { "content-type": "application/json" }, body: "{}" }).then((r) => r.status);
+  assert.equal(await call(`/t/${NAME}/v2/custody/info`), 200);
+  for (const p of ["challenge", "release", "evidence", "join", "approve"]) assert.equal(await call(`/t/${NAME}/v2/custody/${p}`, "POST"), 200, p);
+  // the host-binding route, wrong methods, prefixes, encodings and tenant paths stay refused
+  for (const [p, m] of [["/v2/custody/host-binding", "POST"], ["/v2/custody/info", "POST"], ["/v2/custody/release", "GET"], ["/v2/custody/release/x", "POST"],
+                        ["/v2/custody/%72elease", "POST"], ["//v2/custody/release", "POST"], ["/v1/deployments", "POST"]])
+    assert.equal(await call(`/t/${NAME}${p}`, m), 503, `${m} ${p}`);
+  // the same paths on any other (ineligible) box: refused
+  assert.equal(await call(`/t/${OTHER}/v2/custody/release`, "POST"), 503);
+  assert.equal(await call(`/t/${OTHER}/v2/custody/info`), 503);
+  assert.ok(!seen.some((l) => l.includes("host-binding") || l.startsWith(OTHER + " POST")));
+});
