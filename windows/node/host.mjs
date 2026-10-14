@@ -48,6 +48,7 @@ import * as waf from "./waf.mjs";
 import { CAP_STEP, loadCaps, saveCaps } from "./hosting.mjs";
 import { priceGuide, defaultPrice, rowTiers, perSec6Of, perHourOf } from "./price-guide.mjs";
 import { gasRunway } from "./gas-runway.mjs";
+import { readUpdateWindow } from "./update-window.mjs";
 import { recentHyperVEvents } from "./hyperv-events.mjs";
 import { PARTITION_OFFERS } from "../vbslike/datapath/partition-offers.mjs";
 
@@ -2378,6 +2379,8 @@ export class Host {
       // the operator key's gas, so the TRAY says it before the apps go (a log line alone let the NucBox run dry, 10-13)
       gas: { operator: chain.operatorAddress() || null, low: this.gasLow === true,
              hoursLeft: this.gasHoursLeft ?? null, renewalsLeft: this.gasRenewals ?? null },
+      // when Windows Update may restart this PC (install-host.ps1 sets it as policy from host.json; update-window.mjs)
+      updateWindow: readUpdateWindow(this.cfg.dir),
       logsDir: this.cfg.dir,
       // for the hosting panel (host-ui, shared with the phone's Enclave app): what it calls this machine, and the apps here
       // (what occupies it, newest first, as dropPlan orders them)

@@ -11,7 +11,12 @@ param(
   [string] $Relay = "https://api.enclave.host",
   [string] $SetupExe = "",              # EnclaveSetup.exe: kept in Program Files as the uninstaller Windows' Installed apps runs
   [switch] $Delta,                      # an update over this install: replace only the files whose sha256 changed (update-host.ps1)
-  [string] $Referral = ""               # the referral code this machine came with (attribution only; relay/referrals.mjs)
+  [string] $Referral = "",              # the referral code this machine came with (attribution only; relay/referrals.mjs)
+  # When Windows Update may restart this PC (windows/node/update-window.mjs). Each is kept from node\host.json when not given.
+  [int] $UpdateWindowStart = -1,        # the window's first hour, 0-23, this PC's time (default 1)
+  [int] $UpdateWindowHours = -1,        # its length, 6-24 (default 6)
+  [ValidateSet("", "on", "off")] [string] $ManageWindowsUpdate = "",     # off: leave this PC's own Windows Update policy
+  [ValidateSet("", "on", "off")] [string] $NoRebootWhileSignedIn = ""    # on: never restart while anyone is signed in
 )
 $ErrorActionPreference = "Stop"
 $Bundle = $PSScriptRoot
@@ -371,8 +376,70 @@ goto loop
 }
 RunLoop (Join-Path $PD "run-shield.cmd") (Join-Path $PD "shield-config.cmd") (Join-Path $PF "control\windows\vbslike\manager\main.mjs") (Join-Path $PD "logs\shield.log")
 RunLoop (Join-Path $PD "run-node.cmd") (Join-Path $PD "node-config.cmd") (Join-Path $PF "control\windows\node\agent.mjs") (Join-Path $PD "logs\node.log")
-[ordered]@{ name = $Name; operator = $operator; owner = $Owner; referral = $Referral; version = $manifest.version; installedAt = (Get-Date).ToUniversalTime().ToString("o") } |
-  ConvertTo-Json | Set-Content -Encoding UTF8 $existing
+
+# When Windows Update may restart this PC: every app's partition goes down with it (nucbox-k11-4, 2026-10-14: the
+# October cumulative update restarted it at 07:32 local, outside the active hours Windows had picked, and the node gave
+# every app back to the fleet). The install is scheduled at the window's start, and the rest of the day is "active hours",
+# which Windows does not restart during. windows/node/update-window.mjs holds the same rules (and the tests).
+# The values this replaces are kept in host.json the first time, so turning it off (-ManageWindowsUpdate off) or
+# uninstalling puts the owner's own policy back.
+$wuKeys = [ordered]@{ WindowsUpdate = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate"
+                      AU = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" }
+$wuNames = @{ WindowsUpdate = @("SetActiveHours", "ActiveHoursStart", "ActiveHoursEnd")
+              AU = @("NoAutoUpdate", "AUOptions", "ScheduledInstallDay", "ScheduledInstallTime", "NoAutoRebootWithLoggedOnUsers") }
+$uw = [ordered]@{ managed = $true; start = 1; hours = 6; noRebootWhileSignedIn = $false; replaced = $null }
+$prevUw = if (Test-Path $existing) { (Get-Content $existing -Raw | ConvertFrom-Json).updateWindow } else { $null }
+if ($prevUw) {
+  if ($prevUw.managed -is [bool]) { $uw.managed = $prevUw.managed }
+  if ($prevUw.start -is [int] -and $prevUw.start -ge 0 -and $prevUw.start -le 23) { $uw.start = $prevUw.start }
+  if ($prevUw.hours -is [int] -and $prevUw.hours -ge 6 -and $prevUw.hours -le 24) { $uw.hours = $prevUw.hours }
+  if ($prevUw.noRebootWhileSignedIn -is [bool]) { $uw.noRebootWhileSignedIn = $prevUw.noRebootWhileSignedIn }
+  $uw.replaced = $prevUw.replaced
+}
+if ($UpdateWindowStart -ne -1) { if ($UpdateWindowStart -lt 0 -or $UpdateWindowStart -gt 23) { Fail "updates" "-UpdateWindowStart is an hour, 0 to 23." }; $uw.start = $UpdateWindowStart }
+if ($UpdateWindowHours -ne -1) { if ($UpdateWindowHours -lt 6 -or $UpdateWindowHours -gt 24) { Fail "updates" "-UpdateWindowHours is 6 to 24 (Windows keeps at most 18 active hours)." }; $uw.hours = $UpdateWindowHours }
+if ($ManageWindowsUpdate) { $uw.managed = $ManageWindowsUpdate -eq "on" }
+if ($NoRebootWhileSignedIn) { $uw.noRebootWhileSignedIn = $NoRebootWhileSignedIn -eq "on" }
+function RestoreWindowsUpdate($replaced) {
+  foreach ($k in $wuKeys.Keys) { foreach ($n in $wuNames[$k]) {
+    $was = if ($replaced -and $replaced.$k) { $replaced.$k.$n } else { $null }
+    if ($null -ne $was) { New-ItemProperty -Path $wuKeys[$k] -Name $n -PropertyType DWord -Value ([int]$was) -Force | Out-Null }
+    else { Remove-ItemProperty -Path $wuKeys[$k] -Name $n -ErrorAction SilentlyContinue }
+  } }
+}
+if ($uw.managed) {
+  foreach ($k in $wuKeys.Keys) { if (-not (Test-Path $wuKeys[$k])) { New-Item $wuKeys[$k] -Force | Out-Null } }
+  if ($null -eq $uw.replaced) {
+    $uw.replaced = [ordered]@{}
+    foreach ($k in $wuKeys.Keys) {
+      $now = Get-ItemProperty -Path $wuKeys[$k] -ErrorAction SilentlyContinue; $was = [ordered]@{}
+      foreach ($n in $wuNames[$k]) { $was[$n] = if ($now -and $null -ne $now.$n) { [int]$now.$n } else { $null } }
+      $uw.replaced[$k] = $was
+    }
+  }
+  # active hours = everything outside the window (none for a 24-hour one); AUOptions 4 = download, then install on the
+  # schedule; ScheduledInstallDay 0 = every day
+  $set = @{ WindowsUpdate = $(if ($uw.hours -ge 24) { [ordered]@{ SetActiveHours = 0 } }
+                              else { [ordered]@{ SetActiveHours = 1; ActiveHoursStart = ($uw.start + $uw.hours) % 24; ActiveHoursEnd = $uw.start } })
+            AU = [ordered]@{ NoAutoUpdate = 0; AUOptions = 4; ScheduledInstallDay = 0; ScheduledInstallTime = $uw.start
+                             NoAutoRebootWithLoggedOnUsers = $(if ($uw.noRebootWhileSignedIn) { 1 } else { 0 }) } }
+  foreach ($k in $wuKeys.Keys) {
+    foreach ($n in $wuNames[$k]) {
+      if ($set[$k].Contains($n)) { New-ItemProperty -Path $wuKeys[$k] -Name $n -PropertyType DWord -Value $set[$k][$n] -Force | Out-Null }
+      else { Remove-ItemProperty -Path $wuKeys[$k] -Name $n -ErrorAction SilentlyContinue }
+    }
+  }
+  $end = ($uw.start + $uw.hours) % 24
+  Emit "updates" "ok" $(if ($uw.hours -ge 24) { "Windows Update installs at $('{0:D2}' -f $uw.start):00 and may restart at any hour" }
+                        else { "Windows Update restarts this PC only between $('{0:D2}' -f $uw.start):00 and $('{0:D2}' -f $end):00" + $(if ($uw.noRebootWhileSignedIn) { ", never while someone is signed in" } else { "" }) })
+} else {
+  if ($null -ne $uw.replaced) { RestoreWindowsUpdate $uw.replaced; $uw.replaced = $null; Emit "updates" "ok" "This PC's own Windows Update settings are back" }
+  else { Emit "updates" "ok" "Windows Update is left as this PC has it" }
+}
+
+[ordered]@{ name = $Name; operator = $operator; owner = $Owner; referral = $Referral; version = $manifest.version; installedAt = (Get-Date).ToUniversalTime().ToString("o")
+            updateWindow = $uw } |
+  ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 $existing
 Emit "config" "ok" "Configured '$Name': $slots app slot(s), $appRamGb GB for apps"
 
 # ---------------------------------------------------------------------------------------------------------------------
