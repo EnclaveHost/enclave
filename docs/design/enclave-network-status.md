@@ -197,6 +197,7 @@ What still says TUNA, and why:
   uses those names. A renamed v2 is ready on branch `connectivity/provider-mode` (dc560667a; Foundry 26/26, paid fork e2e
   22/22), but it cannot be activated on the live ledger: `EnclaveDeployments.setBandwidthRouter` binds once and 16d is
   bound to v1. It ships with the next ledger revision (it must not merge before: callers would use functions v1 lacks).
+  Steven, 2026-10-14: keep the v1 names until a ledger revision happens for other reasons; v2 ships with it.
 - Code that recognizes the retired transport: the privacy agent's and Windows enroll's lists of retired settings, the
   "TUNA is retired" refusals, the relay's refusal of TUNA-era route publications, and the installer's one-time
   migration. `tuna` stays a reserved host name (relay/host-names.mjs).
