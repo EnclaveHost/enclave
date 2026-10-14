@@ -2542,6 +2542,27 @@ async function fetchReleaseTicket(id, endpoint = _advertisedEndpoint) {
   return b.ticket;
 }
 
+// ---- custody: the lease holder's authorization of ONE guest's custody release (docs/security/secret-custody.md) -----
+// A deployment whose owner moved its secrets to custodians gets them in the guest, from a threshold of custodians, under
+// a fresh attestation; the custodians also require THIS endpoint's registered operator to sign the release binding the
+// guest computed (their proof the request comes from the lease holder). guestd shows the binding as awaitingCustodyAuth;
+// this signs it and hands it back. The binding is a hash; nothing secret passes through this box.
+const CUSTODY_VAULT = String(process.env.CUSTODY_VAULT || "").trim().toLowerCase();
+const CUSTODY_CHAIN_ID = parseInt(process.env.CUSTODY_CHAIN_ID || "8453", 10);
+const CUSTODY_SIG_TTL_SEC = 300;
+// exactly custody/protocol.mjs operatorMessage (test/isolation-release-ticket.test.mjs pins the two equal)
+const custodyOperatorMessage = (id, endpoint, bindingHex, expiry) =>
+  `enclave-custody-release-v1:${CUSTODY_CHAIN_ID}:${CUSTODY_VAULT}:${id}:${endpoint}:${bindingHex}:${expiry}`;
+async function authorizeCustody(id, bindingHex, endpoint = _advertisedEndpoint) {
+  if (!REGISTRY_PK) throw new Error("no operator key: a custody release is authorized by the endpoint's registry operator");
+  if (!endpoint) throw new Error("this box has no registered endpoint yet");
+  if (!/^0x[0-9a-f]{40}$/.test(CUSTODY_VAULT)) throw new Error("CUSTODY_VAULT is not set: this box cannot authorize custody releases");
+  if (!/^[0-9a-f]{64}$/.test(String(bindingHex))) throw new Error("the guest's custody binding is not 32 bytes of hex");
+  const expiry = Math.floor(Date.now() / 1000) + CUSTODY_SIG_TTL_SEC;
+  const sig = await claimSigner().account.signMessage({ message: custodyOperatorMessage(String(id).toLowerCase(), endpoint, bindingHex, expiry) });
+  return { binding: bindingHex, endpoint, sig, expiry };
+}
+
 // The pump for ONE guest: guestd holds the booting guest and reports awaitingTicket; only THEN is a ticket fetched
 // (so none of its 120 s is spent on the image build) and handed to guestd for that guest alone. It ends when the guest
 // is no longer starting (running, failed, gone) or at the deadline. A relay refusal is retried while the guest waits:
@@ -2555,11 +2576,12 @@ function pumpReleaseTicket(deploymentId, vmId) {
   _ticketPumps.set(vmId, p);
   return p;
 }
-async function releaseTicketPump(deploymentId, vmId, { req = vmReq, fetchTicket = fetchReleaseTicket,
+async function releaseTicketPump(deploymentId, vmId, { req = vmReq, fetchTicket = fetchReleaseTicket, authorize = authorizeCustody,
                                                         pollMs = 2000, retryMs = 10_000, deadlineMs = 15 * 60_000,
                                                         sleep = sleepMs, log = console } = {}) {
   const until = Date.now() + deadlineMs, path = `/vms/${encodeURIComponent(vmId)}`;
-  let handed = false, nextTry = 0;
+  let handed = false, nextTry = 0, nextAuth = 0;
+  const authorized = new Set();   // bindings already signed for this guest (a retried release asks with a new one)
   while (Date.now() < until) {
     const r = await req("GET", path, null, 10_000).catch(() => null);
     const v = r && r.status === 200 ? r.body : null;
@@ -2584,6 +2606,23 @@ async function releaseTicketPump(deploymentId, vmId, { req = vmReq, fetchTicket 
       } catch (e) {
         log.warn(`[isolation] ${deploymentId.slice(0, 10)}: release ticket for ${vmId}: ${e.message}`);
         nextTry = Date.now() + retryMs;
+      }
+    }
+    const want = v && typeof v.awaitingCustodyAuth === "string" ? v.awaitingCustodyAuth : null;
+    if (want && /^[0-9a-f]{64}$/.test(want) && !authorized.has(want) && Date.now() >= nextAuth) {
+      try {
+        const a = await authorize(deploymentId, want);
+        const p = await req("POST", `${path}/custody-auth`, a, 10_000);
+        if (p.status === 202) {
+          authorized.add(want);
+          log.log(`[isolation] ${deploymentId.slice(0, 10)}: custody release authorized for guest ${vmId}`);
+        } else {
+          log.warn(`[isolation] ${deploymentId.slice(0, 10)}: guestd did not take the custody authorization for ${vmId} (HTTP ${p.status})`);
+          nextAuth = Date.now() + retryMs;
+        }
+      } catch (e) {
+        log.warn(`[isolation] ${deploymentId.slice(0, 10)}: custody authorization for ${vmId}: ${e.message}`);
+        nextAuth = Date.now() + retryMs;
       }
     }
     await sleep(pollMs);
@@ -6758,7 +6797,7 @@ async function fetchDepSecrets(id) {
     return _secretsCache.get(id) || null;
   }
   const idL = String(id).toLowerCase();
-  let last = "";
+  let last = "", custodyHeld = false;
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt) await sleepMs(attempt === 1 ? 1000 : 3000);
     try {
@@ -6791,14 +6830,44 @@ async function fetchDepSecrets(id) {
         return out;
       }
       // 503 = relay without the feature, 404 = record not on its ledger view:
-      // authoritative "nothing to inject", not worth retrying this launch
+      // authoritative "nothing to inject", not worth retrying this launch - EXCEPT a 503 that says the relay could not
+      // confirm whether custodians hold this deployment's secrets: that must stop the launch like custody_held, never fall
+      // back to a snapshot that may predate the move (review L1)
+      if (r.status === 503) {
+        let b = null;
+        try { b = await r.clone().json(); } catch { b = null; }
+        if (b && b.error === "custody_unconfirmed") { custodyHeld = true; break; }
+      }
       if (r.status === 503 || r.status === 404) return _secretsCache.get(id) || null;
+      // the owner moved this deployment's secrets to custodians (docs/security/secret-custody.md): the relay holds no
+      // value any more, and only an attested release guest can get them. This launch must NOT go ahead without them,
+      // and must never use a plaintext snapshot this process cached before the move.
+      if (r.status === 409) {
+        let b = null;
+        try { b = await r.json(); } catch { b = null; }
+        if (b && b.error === "custody_held") { custodyHeld = true; break; }
+      }
       last = `HTTP ${r.status}`;                 // 409 right after our claim tx = ledger lag; retry
     } catch (e) { last = e.message; }
+  }
+  if (custodyHeld) {
+    _secretsCache.delete(id);
+    throw new Error(`${idL}'s secrets are, or may be, held by custodians: only an attested release guest can receive them, so this box does not launch it`);
   }
   const cached = _secretsCache.get(id);
   console.warn(`[secrets] ${idL} fetch failed (${last}); launching ${cached ? `on the cached rev ${cached.rev} snapshot` : "without secrets"}`);
   return cached || null;
+}
+
+// SECRETS_FETCH_SELFTEST='{"id":"0x…","endpoint":"https://…","cached":{…}}' runs ONE fetchDepSecrets against SECRETS_API
+// (test/custody-supervisor.test.mjs) with an optional pre-move snapshot in the cache, prints {result} or {error, cached}.
+if (process.env.SECRETS_FETCH_SELFTEST) {
+  const c = JSON.parse(process.env.SECRETS_FETCH_SELFTEST);
+  _advertisedEndpoint = c.endpoint;
+  if (c.cached) _secretsCache.set(c.id, { rev: 1, env: c.cached });
+  try { console.log(JSON.stringify({ result: await fetchDepSecrets(c.id) })); }
+  catch (e) { console.log(JSON.stringify({ error: e.message, cached: _secretsCache.has(c.id) })); }
+  process.exit(0);
 }
 
 // --- custom domains ---------------------------------------------------------
@@ -9088,14 +9157,19 @@ if (process.env.RELEASE_SELFTEST) {
   let i = 0;
   const posts = [], logs = [];
   const req = async (method, path, body) => {
-    if (method === "POST") { posts.push({ path, ticketBytes: Buffer.from(String(body && body.ticket), "base64").length, afterGet: i }); return { status: c.post ?? 202, body: {} }; }
+    if (method === "POST") {
+      posts.push(path.endsWith("/custody-auth") ? { path, custody: body, afterGet: i }
+                                                : { path, ticketBytes: Buffer.from(String(body && body.ticket), "base64").length, afterGet: i });
+      return { status: c.post ?? 202, body: {} };
+    }
     const e = c.script[Math.min(i++, c.script.length - 1)];
     return e.code ? { status: e.code, body: {} } : { status: 200, body: e };
   };
   const log = { log: (m) => logs.push(m), warn: (m) => logs.push(m) };
   // a REF'd sleep: sleepMs unrefs its timer (right for the long-running process), and here nothing else holds the loop
   const result = await releaseTicketPump(c.id, c.vmId, { req, pollMs: 5, retryMs: c.retryMs ?? 5, deadlineMs: c.deadlineMs ?? 5000,
-    log, sleep: (ms) => new Promise((r) => setTimeout(r, ms)), fetchTicket: (id) => fetchReleaseTicket(id, c.endpoint) });
+    log, sleep: (ms) => new Promise((r) => setTimeout(r, ms)), fetchTicket: (id) => fetchReleaseTicket(id, c.endpoint),
+    authorize: (id, b) => authorizeCustody(id, b, c.endpoint) });
   console.log(JSON.stringify({ result, posts, logs }));
   process.exit(0);
 }
