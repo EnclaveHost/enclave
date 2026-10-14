@@ -196,7 +196,11 @@ export class AdmissionGate {
     if(verdict?.ready===false&&!(expected.requiresConfigSocketServer===true&&expected.requiresSecretsV1===true))throw new Error('startup proof requires a configured secret command');
     if(!verdict?.verified||verdict.deploymentId!==id||verdict.appSha256!==expected.appSha256||verdict.runtimeId!==expected.runtimeId||
       !/^[0-9a-f]{64}$/.test(verdict.spkiSha256||'')||canonical(this.leases.get(id))!==fingerprint)throw new Error('fresh bound guest proof required');
-    this.proofs.set(id,{...verdict,validUntil:Math.min(startedAt+60000,lease.validUntil)});
+    // A proof is good for 60 s from its start, on its own: allows() still requires a valid lease, so capping it at the
+    // lease's validity AT PROOF TIME added nothing - except that a lease extended later by an outage hold (hold())
+    // was outlived by none of its proofs: 2026-10-14 07:28:08 the chain read failed, the leases were held, and every
+    // proof still lapsed 8 s later at the old lease validity, turning off all nine k11-4 apps' egress.
+    this.proofs.set(id,{...verdict,validUntil:startedAt+60000});
   }
   allows(id) {
     const lease=this.leases.get(id),proof=this.proofs.get(id),expected=this.expected(id);
