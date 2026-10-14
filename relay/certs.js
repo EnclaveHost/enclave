@@ -406,9 +406,18 @@ async function acmeDir(ca) {
 }
 async function takeNonce(ca) {
   if (ca.nonce) { const n = ca.nonce; ca.nonce = null; return n; }
-  let r; try { r = await acmeFetch((await acmeDir(ca)).newNonce, { method: "HEAD" }); }
+  const url = (await acmeDir(ca)).newNonce;
+  let r; try { r = await acmeFetch(url, { method: "HEAD" }); }
   catch (e) { throw e.caLevel ? e : caErr(`newNonce: ${e.message}`); }
-  const n = r.headers.get("replay-nonce");
+  let n = r.headers.get("replay-nonce");
+  // RFC 8555 7.2 allows GET (204) as well as HEAD. ZeroSSL's HEAD answered 502 with no
+  // nonce for over half an hour on 2026-10-14 while GET on the same URL worked, and every
+  // order through it failed. An ANSWER without a nonce gets one GET; a HEAD that never
+  // answered (timeout, network) is still the caller's to handle as before.
+  if (!n) {
+    try { r = await acmeFetch(url, { method: "GET" }); } catch (e) { throw e.caLevel ? e : caErr(`newNonce: ${e.message}`); }
+    n = r.headers.get("replay-nonce");
+  }
   if (!n) throw caErr("newNonce returned no replay-nonce");
   return n;
 }

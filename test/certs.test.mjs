@@ -127,6 +127,8 @@ function mockCa({ eab = null } = {}) {
     if (u.pathname === "/nonce") {
       count("nonce");
       if (ca.mode === "nonceHangOnce") { ca.mode = "ok"; ca.hung.push(res); return; }   // never answers
+      if (ca.mode === "headNonce502" && req.method === "HEAD") { count("nonceHead502"); res.writeHead(502, { "content-type": "text/html" }); return res.end(); }   // ZeroSSL 2026-10-14
+      if (req.method === "GET") { res.writeHead(204, { "replay-nonce": nonce() }); return res.end(); }
       return send(200, "");
     }
     const chunks = [];
@@ -513,6 +515,17 @@ test("a nonce timeout at the first CA gets a second chance once the second CA pr
   assert.equal(ca1.mode, "ok");
   ca2.mode = "ok";
   assert.equal(_internals.CAS[0].downUntil, 0, "success clears the latch");
+});
+
+test("a newNonce HEAD that answers 502 without a nonce falls back to GET (ZeroSSL, 2026-10-14)", async () => {
+  rows = [leaseRow()];
+  _internals.CAS[0].nonce = null;                           // force a newNonce round trip
+  ca1.mode = "headNonce502";                                // HEAD /nonce: 502, no nonce; GET: 204 + nonce
+  const before = ca1.calls.nonceHead502 || 0;
+  const r = await call(await body());
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.ca, "zerossl", "the first CA still issues");
+  assert.ok((ca1.calls.nonceHead502 || 0) > before, "the HEAD really failed first");
+  ca1.mode = "ok";
 });
 
 test("every CA refusing the name = 502, then a backoff 202; every CA cooling = 202 with retryAfterSec", async () => {
