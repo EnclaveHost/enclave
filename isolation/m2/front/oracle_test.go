@@ -111,8 +111,9 @@ func TestEveryReportPathIsAKnownOne(t *testing.T) {
 		return ""
 	})
 	want := strings.Join([]string{
-		// custody: report_data = the CUSTODY binding (domain "enclave-custody-release-v1\n", distinct from Bind/Bind2 and
-		// from the relay release's) || the AppID from the loaded code; sent to custodians only, never served
+		// custody: report_data = the CUSTODY binding (domain "enclave-custody-release-v1\n", or "enclave-custody-release-v2\n"
+		// for a v2 pointer; distinct from Bind/Bind2 and from the relay release's) || the AppID from the loaded code; sent
+		// to custodians only, never served
 		"front/custody.go provisioner.custodySecrets: p.report",
 		"front/main.go front.attest: f.askMonitor",   // M3: the monitor writes the app half; the front sends Bind/Bind2
 		"front/main.go front.attest: f.plane.report", // M4b: the SVSM computes the binding; the front sends a nonce
