@@ -2,7 +2,12 @@
 
 (This mechanism is the GPU offload component of Enclave Shield, Enclave's protection technology for machines without confidential-computing hardware, whose other component is hardware-enforced per-app host isolation; "shielded" stays the technical adjective in code, paths and wire fields.)
 
-Status: DESIGN (2026-08-14), **RUNNING END TO END (2026-08-25)**, nothing on the fleet.
+Status: DESIGN (2026-08-14), **RUNNING END TO END (2026-08-25)**, **IN PRODUCTION (2026-09-27)**.
+As of 2026-10-14 Shield GPU offload is live on two hosts: metal0 (one SEV-SNP guest per app,
+two NVIDIA V100-class cards with no confidential-computing mode, reached over AF_VSOCK, serving
+`qwen3.8-27b-mtp-q4-vl-gguf`; `isolation/m4/SHIELDED-GPU.md`) and nucbox-k11-4 (Hyper-V
+partition per app, AMD Radeon 780M via Vulkan, `qwen2.5-0.5b`). The design text below is
+kept as written; dated notes mark where it has been overtaken.
 
 The oracle in `shielded/reference/` still exists to prove the constructions. Since 2026-08-25
 there is also a working implementation: `shielded/worker.py` (the untrusted GPU half),
@@ -26,7 +31,9 @@ are public (open-weight catalog models only); weight secrecy is a non-goal every
 This is the successor to the "Layer 4" caveat in `worker/worker.py` and
 `supervisor.js` (freed VRAM is not zeroed; residual-data scrubbing unimplemented): in the
 shielded tier that caveat dissolves, because nothing that ever reaches VRAM is plaintext.
-Ghost data in VRAM is ciphertext by construction, not by scrubbing.
+Ghost data in VRAM is ciphertext by construction, not by scrubbing. (2026-10-14: `worker/`
+belongs to the hosted shared-VM fleet, which was retired on 2026-10-14, so the caveat
+describes retired code, not a live host.)
 
 ## What this does and does not provide
 
@@ -223,11 +230,11 @@ recovers `Q·K^T` with cheap block algebra. OutSoftMax offloads only the exponen
 (`x−r` out, `e^(x−r)` back, rescale by precomputed `e^r`, normalize in TEE). Softmax·V
 reuses the OutAttnMult shape.
 
-Our analysis (to be adversarially reviewed before v2 lands — this is TCB work): the
-construction's hiding degrades with row count. The GPU sees `a·R_Q` rows raw, so Q is
-confined to a (candidate-rows × 2^24-scalar) family rather than an OTP-uniform set; the
-paper's own security accounting is `log(d·(2m)!)` bits, which at **decode (m=1) collapses
-to ~25 bits**. Additionally, real activations have strong priors, so small candidate
+Our analysis (TCB work; as of 2026-10-14 it has had internal review only, and no
+external review of Shield has happened): the construction's hiding degrades with row
+count. The GPU sees `a·R_Q` rows raw, so Q is confined to a (candidate-rows ×
+2^24-scalar) family rather than an OTP-uniform set; the paper's own security accounting
+is `log(d·(2m)!)` bits, which at **decode (m=1) collapses to ~25 bits**. Additionally, real activations have strong priors, so small candidate
 families are dangerous. Consequences baked into the plan:
 
 - v2 offloads attention for **prefill and batched contexts only** (m large: prefill QK^T
@@ -407,6 +414,13 @@ Model-size policy follows directly: 1.5B-class models are comfortable today, 8B 
 with VNNI or a wide CVM, and 32B-class models are out of reach on anything resembling this
 hardware. That is a catalog decision the measurement makes for us.
 
+(2026-10-14: that policy was set by the 2026-08 measurement above and has since been
+overtaken. The int8/VNNI refill is integrated (see Open risks, item 0), and a 27B model,
+`qwen3.8-27b-mtp-q4-vl-gguf`, has served in production on metal0 since 2026-09-27 at
+11.75 tok/s aggregate warm masked decode (peak 12.45), in a per-app SNP guest with two
+V100-class cards: `isolation/m4/SHIELDED-GPU.md` and
+`isolation/m4/evidence/shield-27b-production-2026-09-27/README.md`.)
+
 ### The per-token loop
 
 Per token, v1, with installed per-segment graphs on the worker:
@@ -459,7 +473,11 @@ shipped `u`, verifies every product as before (SECURITY.md section 5), and
 never mints. The *platform* keeps a consumption ledger. Privacy now rests
 on the dealer and the accelerator not colluding (the dealer knows `r`, the
 accelerator knows `x + r`, neither knows both); integrity rests on the same
-Freivalds check as before plus an import-time check of each pad.
+Freivalds check as before plus an import-time check of each pad. The platform
+runs the dealer, so dealt-pad privacy means trusting the platform not to collude
+with the GPU operator. As of 2026-10-14 dealt pads are verified on CPU and on a
+Pixel 8 Pro pVM and are not in production on metal boxes: the pad-bank transport
+for a metal box is not built, so metal0 mints its own pads.
 
 **The pad.** `r = ChaCha20(seed, (group << 48) | (index << 24) | block)`
 reduced to `[0, M)` exactly as the mask bank draws; `u` ships as 3 bytes per
@@ -613,13 +631,15 @@ model).
 
 ## Worker protocol (hardened ggml-rpc derivative)
 
-Transport: TCP loopback CVM↔host (repo has no vsock anywhere; house pattern is TCP +
-derived-token auth). Framing follows the nn-arbiter lesson: compact, byte-pinned frames
-with raw-bytes tests (`wasm_manager.py:1917` — wire format is not style). Auth: bearer
-derived HMAC-style from `SECRET` per the `X-Vmmgr-Token` pattern — this gates GPU
-consumption; it is *not* a security boundary for confidentiality (masks are). Nothing
-secret crosses the link by design, so no TLS in v1; revisit if the worker ever moves off-
-box.
+Transport: TCP loopback CVM↔host (as designed on 2026-08-14, when the repo had no vsock;
+house pattern is TCP + derived-token auth). Since then the CVM reaches the worker over
+AF_VSOCK (REPORT.md §11), and production on metal0 uses vsock ports 9501 and 9502, one
+per card (`isolation/m4/SHIELDED-GPU.md`). Framing follows the nn-arbiter lesson:
+compact, byte-pinned frames with raw-bytes tests (`wasm_manager.py:1917` — wire format
+is not style). Auth: bearer derived HMAC-style from `SECRET` per the `X-Vmmgr-Token`
+pattern — this gates GPU consumption; it is *not* a security boundary for
+confidentiality (masks are). Nothing secret crosses the link by design, so no TLS in v1;
+revisit if the worker ever moves off-box.
 
 Command surface vs stock ggml-rpc (proto 5.0.0):
 
@@ -644,7 +664,10 @@ the operator, which is exactly the point: its honesty is enforced by Freivalds, 
 attestation. On fleet boxes it must coexist with existing tenants: it takes an MPS slice
 and (when co-resident with the wasi-nn arbiter) an arbiter-client turn per compute quantum,
 same discipline as `worker/worker.py` children. v1 runs it single-tenant on a dedicated
-commodity box.
+commodity box. (2026-10-14: the fleet boxes were retired that day and no per-tenant MPS
+cap is live; production workers run on the hosts of metal0 and nucbox-k11-4, beside their
+per-app guests, and on metal0 a tenant reserves part of each card's VRAM budget instead,
+`isolation/m4/SHIELDED-GPU.md`.)
 
 ## Repo integration
 
@@ -760,18 +783,20 @@ end-to-end run: no engine exists yet, so no phase is closed in the shipping sens
    (`shielded/worker.py`, `test/shielded-gpu.test.mjs`); kernel choice settled by measurement
    (RNS-3 int8); the TEE side, the wire protocol, the mask bank, the refill and the
    verifier all exist and run (`shielded/tee.py`). A real model runs end to end and matches
-   an in-TEE reference exactly. NOT built: the C++/CUDA fleet worker, and the sched-pinned
-   executor inside wasmtime -- `shielded/model.py` is its specification, not its
-   replacement. The KV-Shield permuted pipeline was analysed and deliberately not built --
-   it is void against public weights, so it would validate plumbing while teaching a wrong
-   habit.
+   an in-TEE reference exactly. NOT built (as of 2026-08-14): the C++/CUDA fleet worker,
+   and the sched-pinned executor inside wasmtime -- `shielded/model.py` is its
+   specification, not its replacement. (2026-10-14: the C++/CUDA worker now exists as `shielded/worker-cuda`
+   and serves production on metal0.) The KV-Shield permuted pipeline was analysed and
+   deliberately not built -- it is void against public weights, so it would validate
+   plumbing while teaching a wrong habit.
 2. **whisper.cpp / sd.cpp (DiT)** — PARTIAL. Conv masking and a ViT block are oracle-proven;
    the STT CPU-in-TEE feasibility measurement is in `shielded/REPORT.md`. sd.cpp itself is
    untouched.
 3. **TwinShield v2** — ANALYSED + BOUNDED. Prefill offload implemented and exact at m=64
    and m=256; decode offload proven unsafe and permanently excluded. Softmax offload
-   remains refused pending the real-vs-field numeric analysis. The adversarial review this
-   phase was gated on has effectively happened, and its outcome was to shrink the phase.
+   remains refused pending the real-vs-field numeric analysis. This phase was gated on an
+   adversarial review; the reviews so far were internal, their outcome was to shrink the
+   phase, and no external review of Shield has happened (as of 2026-10-14).
 4. **TTS + SDXL conv** — PARTIAL. TTS pick made (Pocket TTS via mtmd) and blocked on an
    mm30 engine bump; the conv masking path it shares with SDXL is oracle-proven.
 5. **Final report** — `shielded/REPORT.md` (§10 is the end-to-end revision), plus

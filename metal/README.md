@@ -80,8 +80,13 @@ so a permanently busy box still takes fixes.
 
 Note the measurement changes with the image, by design. While the relay's
 `METAL_ALLOWED_MEASUREMENTS` allowlist is empty (token-only attach) that costs
-nothing; once it is in use, the new release's measurement has to be published
-before boxes move to it, exactly as for any other release.
+nothing; once it is in use, the operator has to add the new measurement to that
+relay env before a box that moved to it can attach again. Nothing enforces
+publishing first: as of 2026-10-14 there is no time-lock and no public
+pre-announcement, the allowlist lives only in the relay's environment (shown in
+each attestation response as `operatorAllowlist`), and since the image is built
+on the host with the host's kernel there is no signed release measurement to
+publish (PROTOCOL.md, "Measurement governance").
 
 ## Why the trust story is *stronger* than the hosted fleet
 
@@ -91,11 +96,13 @@ never folded into the hardware registers: the quote proves only that *some* CVM
 of theirs is running, and a transparency log ties the config to the repo.
 Metal's guest is a **single initramfs**: kernel, initrd
 (which *contains* the supervisor and wasm-manager bytes, extracted from the
-same digest-pinned images the fleet runs) and cmdline are all covered by the
+same digest-pinned images the hosted fleet ran) and cmdline are all covered by the
 SEV-SNP **launch digest** via direct-boot measured OVMF (`kernel-hashes=on`).
 There is no unmeasured byte in the TCB: the quote alone proves the exact
-supervisor code, with no transparency-log detour needed (the Sigstore record
-remains as provenance, not as a trust root).
+supervisor code, with no transparency-log detour needed. (As of 2026-10-14 there
+is no Sigstore record either; `release-cpu.yml` has no signing step. And because
+the image is host-built, a client can only check that measurement against one it
+reproduced or the operator's allowlist.)
 
 ## Components
 
@@ -344,8 +351,8 @@ and that is exactly why the GPU can sit outside the enclave at all.
 ## RAD format
 
 The metal-agent serves `/.well-known/enclave-attestation` (and the supervisor
-finds it via the `RAD_URL` env override; on the hosted fleet that env is
-unset and its own loopback attestation path is used, unchanged):
+finds it via the `RAD_URL` env override; on the hosted fleet, retired
+2026-10-14, that env was unset and its own loopback attestation path was used):
 
 ```json
 { "format": "sev-snp-guest-metal-v1", "body": "<base64 SNP report>",
@@ -375,8 +382,8 @@ The SNI relay reaches tunnel enclaves by dialing the api-relay hub
 termination, TLS-ALPN-01 ACME) keeps working without the fleet SECRET.
 
 A metal enclave with a public IP (a colo box) skips the tunnel: set
-`PUBLIC_URL`, the agent fronts 443 directly, the relay dials in as it does for
-the hosted fleet.
+`PUBLIC_URL`, the agent fronts 443 directly, the relay dials in as it did for
+the hosted fleet (retired 2026-10-14).
 
 ## Certificate issuance: who holds what
 
