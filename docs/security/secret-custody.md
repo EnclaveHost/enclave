@@ -9,6 +9,25 @@ the owner chose to proceed without it.
 | Bootstrap committee | `0xf14080496fbb6f12aee6577fd3f0fdc2ba1226a159b727dbfc8bf0de07fe4f9c`, **3 of 4**, epoch 1 (tx `0x60a5b996…`) |
 | Custodians | `https://custody-{us-west,ca-east,ap-southeast,eu-central}.app.enclave.host`, one per regional network box |
 
+**What is live, and what is blocked (2026-10-14 18:30Z):**
+
+- LIVE: the vault; the committee; the four custodians (TLS on ISRG, chain reads across 4 public RPCs, 2 agreeing); the
+  relay's custody gates (`CUSTODY_VAULT` on nan, restarted 18:20:00Z: no plaintext for a custody-held deployment on any
+  path, the custody pointer in its signed release); the CLI (`enclave custody`) and the site code, which stays hidden
+  until the book names the vault.
+- BLOCKED, the guest side on metal0 (§9 steps 7-8):
+  - The production guestd (`~/enclave-prod/bin/guestd.vision-2c655f108a17`) has a flag, `-release-bootstrap-routes`,
+    that eyesoff's release depends on. Its source is in no branch, worktree or remote.
+  - The front in the CPU release `340a09c1` also matches no commit.
+  - Shipping custody's guestd and front from source in git would drop that feature, which is what took eyesoff.ai down
+    on 10-14 07:35-08:39Z.
+  - Unblock: whoever built those binaries commits their source; custody's changes are then applied on top, with
+    `isolation/m4/guestd/custody.go`, `isolation/m2/custody`, `front/custody.go` and `front/appidentity.go` as the patch
+    set, and §9 steps 7-9 run.
+- **Until the guest side is live, do not move a deployment's secrets to custody.** The relay would send its guest a
+  custody pointer that today's front ignores, and the app would start without its secrets. The site panel is hidden
+  for that reason; the CLI needs `ENCLAVE_SECRET_VAULT` set by hand.
+
 **The bootstrap committee is NOT decentralized custody.** Its four custodians run on four separate VPSs, each with its own
 key generated on the box, none on `nan` where the relay runs. So a compromise of the relay alone reads no secret. But all
 four boxes are operated by Enclave, and their operator could collect three shares. Independent operators replace members
