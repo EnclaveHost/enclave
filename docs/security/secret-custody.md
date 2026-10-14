@@ -9,24 +9,46 @@ the owner chose to proceed without it.
 | Bootstrap committee | `0xf14080496fbb6f12aee6577fd3f0fdc2ba1226a159b727dbfc8bf0de07fe4f9c`, **3 of 4**, epoch 1 (tx `0x60a5b996…`) |
 | Custodians | `https://custody-{us-west,ca-east,ap-southeast,eu-central}.app.enclave.host`, one per regional network box |
 
-**What is live, and what is blocked (2026-10-14 18:30Z):**
+**What is live (2026-10-14 19:55Z), verified on hardware:**
 
 - LIVE: the vault; the committee; the four custodians (TLS on ISRG, chain reads across 4 public RPCs, 2 agreeing); the
-  relay's custody gates (`CUSTODY_VAULT` on nan, restarted 18:20:00Z: no plaintext for a custody-held deployment on any
-  path, the custody pointer in its signed release); the CLI (`enclave custody`) and the site code, which stays hidden
-  until the book names the vault.
-- BLOCKED, the guest side on metal0 (§9 steps 7-8):
-  - The production guestd (`~/enclave-prod/bin/guestd.vision-2c655f108a17`) has a flag, `-release-bootstrap-routes`,
-    that eyesoff's release depends on. Its source is in no branch, worktree or remote.
-  - The front in the CPU release `340a09c1` also matches no commit.
-  - Shipping custody's guestd and front from source in git would drop that feature, which is what took eyesoff.ai down
-    on 10-14 07:35-08:39Z.
-  - Unblock: whoever built those binaries commits their source; custody's changes are then applied on top, with
-    `isolation/m4/guestd/custody.go`, `isolation/m2/custody`, `front/custody.go` and `front/appidentity.go` as the patch
-    set, and §9 steps 7-9 run.
-- **Until the guest side is live, do not move a deployment's secrets to custody.** The relay would send its guest a
-  custody pointer that today's front ignores, and the app would start without its secrets. The site panel is hidden
-  for that reason; the CLI needs `ENCLAVE_SECRET_VAULT` set by hand.
+  relay's custody gates (`CUSTODY_VAULT` on nan: no plaintext for a custody-held deployment on any path, the custody
+  pointer in its signed release); the CLI (`enclave custody`) and the site code, which stays hidden until the book names
+  the vault.
+- LIVE, the guest side on metal0 (§9 steps 7-8). The production guestd and front had been built by Codex from trees in
+  no repository; both were found, reproduced byte for byte and pushed (`codex/guestd-release-bootstrap-20261004`,
+  `codex/front-release-340a09c1-snapshot`). Custody's patch set was applied on top:
+  - CPU domain release **`987d08c3`** = release 340a09c1 with only `template/front` replaced (branch
+    `custody/front-prod`, front sha256 `a9c07233…`, reproduced with a cold Go cache). The relay installs, admits and
+    certifies it beside 340a09c1 (`SECRETS_RELEASE_{PREDICT,DOMAIN,CERT}_RELEASES`); the predictor's known-answer test
+    passes.
+  - guestd from branch `custody/guestd-prod` (custody-auth on vsock 9445, and `-custody-bootstrap-hosts`, below),
+    building new CPU guests from 987d08c3. Running guests were adopted in place across both restarts.
+  - metal0's control image `dist-custody-9e5fb2028` (branch `metal0/custody`: the supervisor's custody hunk, with
+    `CUSTODY_VAULT` measured in gsup), measurement `c64d8196…`, on the relay's metal allowlist.
+- **Hardware verification (§9 step 9), on the agent-owned canary `0x4e62e60d` (hello-world) on metal0 (Turin):**
+  - Rules admitting ONE image (987d08c3, measurement `4164ab7f…`), reproduced locally with `expected-measurement.sh`
+    before admitting; secrets revision 1 sealed 3-of-4.
+  - The guest logged `DOM custody: … secrets revision 1 from a threshold of 3 of 4 custodians, 1 name(s)` and started
+    the app; three custodians logged `release … OK (member n, measurement 4164ab7f…)`.
+  - Two custodians stopped: `insufficient custodian quorum: 2 of 4 custodians issued a challenge (need 3)`, and the
+    app was NOT started. One stopped: the other three released and the app started. A restarted custodian served again.
+  - Migration between hosts is not yet tested on hardware: metal0 is the only SNP host serving release guests.
+- Found and fixed by the canary:
+  - Custodians decoded the registry with the full schema-5 tuple; the live Base registry is older, so every release was
+    refused as `chain_unconfirmed`. They now read the schema-1 prefix (main `09895e649`, redeployed to all four).
+  - On metal0 a starting release guest's egress is admitted only through `-release-bootstrap-routes`, which allowed only
+    the relay; the front asks its custodians in that same window. guestd now also allows the hosts named in
+    `-custody-bootstrap-hosts` (exact names, port 443, same eligibility), so a committee change the list misses fails
+    closed.
+- Open follow-ups:
+  - A custodian caches VCEKs in memory only: right after a restart its first fetch from AMD KDS can be refused with
+    HTTP 429 (seen once on ap-southeast; quorum held). A disk cache, or the VCEK carried in the evidence, removes this.
+  - metal0's release bootstrap is still the interim per-app list (`release-bootstrap-direct.mjs`: eyesoff and the
+    canary). Any other release-listed deployment cannot start on metal0 until it is listed, custody or not. Each app
+    needs its OWN proxy: guestd refuses the whole file when two apps share one.
+  - The governance step `book.set("secretVault", 0x0807…)` (Trezor) turns on the site panel. A custody-held deployment
+    can run only on metal0's SNP release path today (§8 L5, L9), so owners should be told that before the panel opens.
 
 **The bootstrap committee is NOT decentralized custody.** Its four custodians run on four separate VPSs, each with its own
 key generated on the box, none on `nan` where the relay runs. So a compromise of the relay alone reads no secret. But all
@@ -461,14 +483,11 @@ asserted in the front's tests.
   relayer endpoint that pays gas. Neither is built.
 - **L9. Legacy VM tier and Windows boxes.** These run apps without attestation, so they cannot receive custody-held
   secrets at all. The supervisor refuses to launch such a deployment rather than start it without its values.
-- **B1. Hardware verification is blocked** on:
-  1. building and measuring a domain release with this front, then pinning it in the relay's predictor;
-  2. deploying the vault;
-  3. standing up a committee;
-  4. setting `CUSTODY_VAULT` on the relay and on metal0's supervisor;
-  5. running one release on metal0 (Turin).
+- **B1. Hardware verification: DONE 2026-10-14** on metal0 (Turin), release 987d08c3, the canary 0x4e62e60d: release
+  from 3 of 4, refusal at 2 of 4, release with one custodian down (see the status at the top). Migration between hosts
+  is not yet verified on hardware.
 
-## 9. Production rollout (reviewable steps, NOT executed)
+## 9. Production rollout (steps 2 and 4-9 DONE 2026-10-14; 1, 3 and 10 open)
 
 Each step names who acts. None has been run.
 
