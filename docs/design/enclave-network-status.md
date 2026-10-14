@@ -174,22 +174,32 @@ TUNA timers on warden-host (moved to `~/.config/systemd/user/retired-tuna-202610
 Names kept for installed hosts: `tuna-enroll.mjs`, the `/v1/network/tuna` route-map path,
 the `C:\Program Files\Enclave\tuna\` directory, `enclave-tuna-privacy.service`. There is no TUNA rollback any more.
 
-Renamed 2026-10-14 (main 4764a023c, relay deployed 01:33Z; DNS on nan 01:49Z):
-- The route map is `/v1/network/routes` with format `transport: "enclave-network"`. `/v1/network/tuna` answers the same
-  for hosts installed before the rename; the privacy agent, the deploy preflight and the site use the new path and fall
-  back to the old one only on a 404. The production DNS service (`/opt/enclave-dns`, unit env `ROUTE_MAP_URL`) reads
-  the new path (backups `*.before-routes-20261014T014924Z`). Refusal code `route_publication_refused`.
-- Relay route state in `route-state` (the old `tuna-route-state` directory was moved at the first start: logged
-  01:33:01Z).
-- Supervisor: `EGRESS_SOCKS_UPSTREAM` (old name read when unset); views and `/v1/net-map` say `enclave-network`;
-  `egress.js` messages say "SOCKS upstream". The envelope validators (supervisor, Windows node, shield-app verifier, pVM
-  market) accept `network.transport` `enclave-network` and the `tuna` value that envelopes already on chain carry.
+Names retired 2026-10-14 (all hosts moved, then the aliases removed):
+- Route map: `/v1/network/routes`, format `enclave-network` (main 4764a023c). `/v1/network/tuna` answers 404 since the
+  02:40Z relay deploy (main 30536f806), after every reader and publisher moved: the nan DNS (`ROUTE_MAP_URL`, 01:49Z),
+  metal0's agent (02:06Z), the phone's standalone bundle (enclave-88, pvm-cpu/standalone ea8210a55), the NucBox (Windows
+  2026.10.12.35, 02:27Z), the site and the deploy preflight. Relay state in `route-state`.
+- `network.transport` accepts only `enclave-network` (no live ledger envelope carried `tuna`: 0xB1783B61, 79 rows).
+- Supervisor egress: `EGRESS_SOCKS_UPSTREAM`; no `TUNA_*` variable is read anywhere.
+- metal0: `enclave-network-agent.service`, `enclave-network-reconcile.timer`, tree `~/enclave-prod/enclave-network`;
+  the TUNA tree and units are archived (`~/enclave-prod/retired-tuna-20261014`, `~/.config/systemd/user/retired-tuna-20261014`).
+  `~/enclave-prod/tuna-privacy/metal0/state` remains only as a symlink for the running `enclave-guestd`, whose drop-ins
+  already name the new path: delete it after guestd's next restart.
+- pVM: `network-enroll.mjs`, transport and egress capability `enclave-network` (pvm-cpu/cpu-only 744218aa3).
+- Windows .35: `ProgramData\Enclave\network`, `Program Files\Enclave\network`, task `\Enclave\Network`,
+  `logs\network.log`, `network-enroll.mjs`, `ENCLAVE_NETWORK_*` (installer moves an older box once; verified on k11-4).
+- Site: no user-facing TUNA text (main 77131a7dc).
 
-Kept on purpose: `tuna` as an accepted envelope value and the `/v1/network/tuna` alias (on-chain envelopes and installed
-hosts); the deployed `EnclaveConnectivity` contract's `tuna` field and `authorizeTuna`/`settleTuna` (its provider mode,
-used by the paid path: renaming needs a new contract); installed paths (`C:\Program Files\Enclave\tuna\`,
-`ProgramData\Enclave\tuna`, `\Enclave\Tuna` task, `enclave-tuna-privacy.service`, `tuna-enroll.mjs`); tests that check
-retired TUNA settings are dropped. None of it reaches NKN or a TUNA service.
+What still says TUNA, and why:
+- **The deployed `EnclaveConnectivity` contract (0x5f8b636e)**: its provider mode is named `tuna` (`hosts().tuna`,
+  `authorizeTuna`, `settleTuna`, `tunaProviders`, the `tuna-policy.v1`/`tuna-receipt.v1` digest domains), so the code that
+  calls it (connectivity-chain, onchain-qualification, provider-settlement, vaultsvc, the site's paid panel, scripts)
+  uses those names. A renamed v2 is ready on branch `connectivity/provider-mode` (dc560667a; Foundry 26/26, paid fork e2e
+  22/22), but it cannot be activated on the live ledger: `EnclaveDeployments.setBandwidthRouter` binds once and 16d is
+  bound to v1. It ships with the next ledger revision (it must not merge before: callers would use functions v1 lacks).
+- Code that recognizes the retired transport: the privacy agent's and Windows enroll's lists of retired settings, the
+  "TUNA is retired" refusals, the relay's refusal of TUNA-era route publications, and the installer's one-time
+  migration. `tuna` stays a reserved host name (relay/host-names.mjs).
 
 ## Relay restarts no longer take apps off DNS (2026-10-14)
 
