@@ -55,7 +55,7 @@ export async function renderEnclaveNetwork(box,id,{viaVault=false,owner=null}={}
   const live=route&&route.expiresAt>Date.now()?route:null;
   const lines=[];
   lines.push(`<b>${esc(MODE_TEXT[policy.mode].title)}</b>${status.policySet?` <span class="en-sub">owner setting #${policy.nonce}</span>`:` <span class="en-sub">default</span>`}`);
-  const website=use.ingress==="none"?"off (no public website)":live?`ready — ${esc(live.addresses?.join(", ")||live.a||"")}${live.transport==="enclave-network"?" (Enclave network)":live.transport==="direct"?" (direct)":" (TUNA, being retired)"}`:"not reachable yet";
+  const website=use.ingress==="none"?"off (no public website)":live?`ready — ${esc(live.addresses?.join(", ")||live.a||"")}${live.transport==="enclave-network"?" (Enclave network)":live.transport==="direct"?" (direct)":""}`:"not reachable yet";
   lines.push(`<span class="en-sub">Website (public HTTPS): ${website}</span>`);
   if(host){
     lines.push(`<span class="en-sub">Outbound: ${host.egress==="none"?"off":esc(host.egress)}${host.fallbackActive?' <span class="warn">— your BYO tunnel is down; the fallback you authorized (Enclave network) is carrying it</span>':""}</span>`);
