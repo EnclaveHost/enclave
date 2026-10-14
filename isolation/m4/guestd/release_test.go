@@ -553,3 +553,45 @@ func TestReleaseBootstrapOnlyStartingTicketedGuestAndPinnedRelay(t *testing.T) {
 	v.lc.RequestEnd("test")
 	denied()
 }
+
+// A custody-held deployment's front asks its custodians while it is still starting: the operator's named custodian hosts
+// get the same bootstrap as the relay, under the same eligibility, and nothing else does.
+func TestReleaseBootstrapAdmitsNamedCustodiansOnly(t *testing.T) {
+	hosts, err := parseCustodyHosts("custody-us-west.app.enclave.host, custody-eu-central.app.enclave.host")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &server{vms: map[string]*vm{}, CustodyBootstrapHosts: hosts}
+	v := &vm{Status: "starting", cid: 140001, HostData: hostDataFor(name(1)), release: true, ticketTaken: true, lc: contract.NewLifecycle(contract.Starting)}
+	s.vms["app"] = v
+	for _, tc := range []struct {
+		host string
+		port int
+		want string
+	}{
+		{"custody-us-west.app.enclave.host", 443, name(1)}, {"custody-eu-central.app.enclave.host", 443, name(1)},
+		{release.RelayHost, 443, name(1)}, {"custody-us-west.app.enclave.host", 80, ""},
+		{"custody-ca-east.app.enclave.host", 443, ""}, {"custody-us-west.app.enclave.host.evil.example", 443, ""},
+		{"x.custody-us-west.app.enclave.host", 443, ""}, {"CUSTODY-US-WEST.app.enclave.host", 443, ""},
+	} {
+		if got := s.bootstrapDeploymentOfCID(v.cid, tc.host, tc.port); got != tc.want {
+			t.Fatalf("%s:%d: got %q, want %q", tc.host, tc.port, got, tc.want)
+		}
+	}
+	v.ticketTaken = false
+	if s.bootstrapDeploymentOfCID(v.cid, "custody-us-west.app.enclave.host", 443) != "" {
+		t.Fatal("a guest with no ticket reached a custodian over the bootstrap")
+	}
+	v.ticketTaken, v.Status = true, "running"
+	if s.bootstrapDeploymentOfCID(v.cid, "custody-us-west.app.enclave.host", 443) != "" {
+		t.Fatal("a running guest used the bootstrap (it has its app routes)")
+	}
+	for _, bad := range []string{"1.1.1.1", "*.app.enclave.host", "custody.example:443", "https://custody.example", release.RelayHost, "Custody.example", "localhost"} {
+		if _, err := parseCustodyHosts(bad); err == nil {
+			t.Fatalf("%q accepted as a custodian host", bad)
+		}
+	}
+	if h, err := parseCustodyHosts(""); err != nil || len(h) != 0 {
+		t.Fatalf("empty list: %v %v", h, err)
+	}
+}

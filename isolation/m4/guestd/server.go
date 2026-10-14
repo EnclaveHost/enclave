@@ -197,6 +197,11 @@ type server struct {
 	vms          map[string]*vm
 	lastBeat     time.Time // zero = never heard one: the lease is INERT
 	launching    sync.WaitGroup
+
+	// CustodyBootstrapHosts: custodian hostnames a STARTING ticketed release guest may also reach over the bootstrap
+	// route (-custody-bootstrap-hosts). The front asks the custodians for its secrets before the app, and so before app
+	// routes admit the guest; exact names, port 443 only. Empty: custody-held deployments cannot start on this host.
+	CustodyBootstrapHosts map[string]bool
 }
 
 func newServer(l Launcher, root string) *server {

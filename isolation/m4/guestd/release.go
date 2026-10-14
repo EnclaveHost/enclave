@@ -35,6 +35,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"regexp"
+	"strings"
 	"time"
 
 	"enclave.host/isolation/contract"
@@ -277,8 +279,10 @@ func (s *server) deploymentOfCID(cid uint32) string {
 // endpoint that admits normal app circuits. Permit only the pinned relay over
 // guarded control transport during that interval. TLS and the attested release
 // protocol remain end-to-end in the measured guest; no host receives secrets.
+// A custody-held deployment's front also asks its custodians in that interval
+// (front/custody.go), so the operator's named custodian hosts are allowed the same way.
 func (s *server) bootstrapDeploymentOfCID(cid uint32, host string, port int) string {
-	if host != release.RelayHost || port != 443 || cid == 0 {
+	if (host != release.RelayHost && !s.CustodyBootstrapHosts[host]) || port != 443 || cid == 0 {
 		return ""
 	}
 	s.mu.Lock()
@@ -357,3 +361,22 @@ func (s *server) releaseChoice(req *Request, hostData string) (ticket *[32]byte,
 	}
 	return ticket, legacy, nil
 }
+
+// parseCustodyHosts reads -custody-bootstrap-hosts: lowercase DNS names, exact (no wildcard, port or scheme), never the
+// release relay itself (already allowed) and never an IP literal, so the list widens the bootstrap only by name.
+func parseCustodyHosts(v string) (map[string]bool, error) {
+	out := map[string]bool{}
+	for _, h := range strings.Split(v, ",") {
+		h = strings.TrimSpace(h)
+		if h == "" {
+			continue
+		}
+		if !custodyHostRE.MatchString(h) || net.ParseIP(h) != nil || h == release.RelayHost {
+			return nil, fmt.Errorf("%q is not a custodian hostname (lowercase DNS name, no port, not an IP, not the relay)", h)
+		}
+		out[h] = true
+	}
+	return out, nil
+}
+
+var custodyHostRE = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$`)

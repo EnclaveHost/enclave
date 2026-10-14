@@ -326,6 +326,7 @@ func main() {
 	ticketPort := flag.Uint("ticket-port", release.TicketPort, "vsock host port of the ticket service (-release); a LAB guestd uses its lab image's (19444) so it never holds production's")
 	egressPortFlag := flag.Uint("egress-port", egressPort, "vsock host port of the egress server (-release); a LAB guestd moves it off production's too")
 	egressRoutes := flag.String("egress-app-routes", "", "expiring per-app TUNA SOCKS map; absent apps fail closed, DNS uses their circuit")
+	custodyHosts := flag.String("custody-bootstrap-hosts", "", "custodian hostnames (comma-separated, exact, port 443) a starting ticketed release guest may also reach over -release-bootstrap-routes: a custody-held deployment's front asks them for its secrets before the app starts")
 	bootstrapRoutes := flag.String("release-bootstrap-routes", "", "expiring guarded routes used only by starting ticketed guests to reach the pinned release relay")
 	egressSOCKS := flag.String("egress-socks", "", "optional loopback TUNA SOCKS entry IP:port for guest outbound traffic; no direct fallback")
 	isoRelease := flag.String("isolation-release", "", "the domain release(s) the -isolation tree was installed from, comma-separated: a 64-hex id, or @<release.json> (its sha256 IS the id). Named to the judge for every guest this tree builds and recorded with it; the judge's table (m2/judge.mjs LEGACY_WX_RELEASES) decides what that release may state. REQUIRED when the tree predates per-release W^X")
@@ -342,6 +343,13 @@ func main() {
 	flag.Parse()
 	if *bootstrapRoutes != "" && (!*releaseOn || *egressRoutes == "") {
 		log.Fatal("-release-bootstrap-routes requires -release and -egress-app-routes")
+	}
+	custodyBootstrapHosts, err := parseCustodyHosts(*custodyHosts)
+	if err != nil {
+		log.Fatalf("-custody-bootstrap-hosts: %v", err)
+	}
+	if len(custodyBootstrapHosts) > 0 && *bootstrapRoutes == "" {
+		log.Fatal("-custody-bootstrap-hosts requires -release-bootstrap-routes")
 	}
 	if *guestMem < 0 || *guestCPUs < 0 || (*guestMem > 0) != (*guestCPUs > 0) {
 		log.Fatal("-guest-mem-mib and -guest-cpus are set together, both positive (or neither: then every create is refused)")
@@ -590,6 +598,7 @@ func main() {
 		// to the origins that guest's own allowlist names. Both listen on vsock, where the peer's CID - set by this
 		// host for its guests, and unforgeable by another VM - is the only identity either service takes.
 		s.Release = true
+		s.CustodyBootstrapHosts = custodyBootstrapHosts
 		l.bootWait = 10 * time.Minute // a deployment guest waits for its ticket before its front serves
 		if *legacyIso != "" {
 			if _, err := os.Stat(filepath.Join(*legacyIso, "m4", "build-app-guest.sh")); err != nil {
