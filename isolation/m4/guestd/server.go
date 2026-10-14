@@ -152,6 +152,8 @@ type vm struct {
 	awaitingTicket                                       bool                 // its guest is connected and waiting for the ticket
 	ticketTaken                                          bool                 // its guest took its one ticket: no second is handed
 	custodyPending                                       string               // the binding its guest waits to have authorized (custody.go)
+	custodyV                                             int                  // that request's version: 1, or 2 (custody v2, names a vault)
+	custodyVault                                         string               // v2: the vault the request names ("0x" + 40 lowercase hex)
 	custodyAuth                                          chan custodyAuthMsg
 	custodyServed                                        int
 }
@@ -281,7 +283,12 @@ func (v *vm) public() map[string]any {
 		m["awaitingTicket"] = true // its guest is booted and waiting: the supervisor fetches a ticket now (release.go)
 	}
 	if v.custodyPending != "" {
-		m["awaitingCustodyAuth"] = v.custodyPending // the binding the supervisor's operator key signs (custody.go)
+		if v.custodyV == 2 {
+			// custody v2: the supervisor signs only for the v2 vault it was measured with (custody.go)
+			m["awaitingCustodyAuth"] = map[string]any{"v": 2, "vault": v.custodyVault, "binding": v.custodyPending}
+		} else {
+			m["awaitingCustodyAuth"] = v.custodyPending // v1: the binding the supervisor's operator key signs (custody.go)
+		}
 	}
 	if s := len(v.splices); s > 0 {
 		m["openSplices"] = s

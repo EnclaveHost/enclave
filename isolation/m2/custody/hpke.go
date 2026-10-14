@@ -3,8 +3,9 @@
 // this package generates and binds into the hardware report, combines them and opens the bundle. It mirrors custody/*.mjs
 // byte for byte; testdata/vectors.json (written by test/custody-vectors.test.mjs) pins the two together.
 //
-// Standard library only, like the rest of the guest: HPKE here is RFC 9180 base mode over crypto/ecdh (X25519),
-// crypto/hkdf (HKDF-SHA256) and crypto/cipher (AES-128-GCM), checked against the RFC's Appendix A.1 vectors.
+// v1 is standard library only: HPKE here is RFC 9180 base mode over crypto/ecdh (X25519), crypto/hkdf (HKDF-SHA256) and
+// crypto/cipher (AES-128-GCM), checked against the RFC's Appendix A.1 vectors. Custody v2 (v2.go, v2client.go) adds ONE
+// dependency for secp256k1 point arithmetic, github.com/decred/dcrd/dcrec/secp256k1/v4, pinned by go.sum.
 package custody
 
 import (
