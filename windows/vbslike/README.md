@@ -90,6 +90,13 @@ costs (3.4 s, 586 MB) in kind, with the 5.3 s dominated by the general-purpose W
 
 ## 4. Trust, stated exactly
 
+> **2026-10-14:** this table describes the phase-1 build of 2026-09-23 (plain HCS child partitions,
+> launcher-signed `T0-hv` documents). Production no longer runs it: the manager launches VBS-isolated
+> type-1 partitions from our measured OpenHCL IGVM (`wmi-openhcl-gen2-igvm-linux`, `wmi-launcher.mjs`),
+> and the relay verifies an IDKS-signed report per app (`relay/vbs-app-verify.mjs`,
+> `docs/operations/nucbox-readiness-witness.md`). Host exclusion there is still unrecorded until our own
+> host-memory evidence (E3, `docs/security/nucbox-custom-vm-verifier.md` V8) exists.
+
 | party | sees a domain's memory? | in the domain's TCB? |
 |---|---|---|
 | another app's partition | **no**: separate child partition under the hypervisor's second-level paging; hv_sock has no guest-to-guest path (measured: every cross reach refused) | no |
