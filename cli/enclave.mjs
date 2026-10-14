@@ -42,7 +42,6 @@ import { createPublicClient, createWalletClient, http as viemHttp, fallback,
          parseEther, formatUnits, encodeFunctionData, getAddress,
          keccak256, toHex } from "viem";
 import { base } from "viem/chains";
-import { cmdCustody } from "./custody.mjs";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 
 const VERSION = "1.6.0";
@@ -2919,6 +2918,8 @@ async function cmdSecrets(rest) {
 
 // ---- secret custody (cli/custody.mjs; docs/security/secret-custody.md): the CLI's own helpers, handed in ----------
 async function cmdCustodyHere(rest) {
+  // loaded on use: the custody code imports ../custody (and viem from the repo root), which a bare `cli/` install lacks
+  const { cmdCustody } = await import("./custody.mjs");
   return cmdCustody(rest, {
     flags, loadKey, resolveId, say, jout, short, api, sendTx, secretsKv, env, json: !!opt.json, chainId: DEFAULTS.chainId,
     warn: (m) => console.error(m),
@@ -2930,6 +2931,12 @@ async function cmdCustodyHere(rest) {
       const a = book ? await bookEntry(book, "secretVault") : null;
       if (!a) throw new Error('no EnclaveSecretVault: the address book names no "secretVault" yet (set ENCLAVE_SECRET_VAULT to use one)');
       return a;
+    },
+    vaultV2Address: async () => {
+      if (env.ENCLAVE_SECRET_VAULT_V2) return getAddress(env.ENCLAVE_SECRET_VAULT_V2);
+      const book = env.ENCLAVE_ADDRESS_BOOK !== undefined ? env.ENCLAVE_ADDRESS_BOOK : DEFAULTS.ADDRESS_BOOK_ADDRESS;
+      const a = book ? await bookEntry(book, "secretVaultV2") : null;
+      return a || getAddress("0xE48699B8401564aaCe7A814AE4569b67a3F7eEF5");   // deployed 2026-10-14 (contracts/deployments/secret-vault-v2-base.json)
     },
     relayRead: (id) => secretsCall(loadKey(), id, null),
     relayClear: (id) => secretsCall(loadKey(), id, JSON.stringify({ clear: true })),

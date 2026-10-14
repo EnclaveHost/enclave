@@ -27,13 +27,15 @@ export const PLATFORM_COMMITTEE = "0xf14080496fbb6f12aee6577fd3f0fdc2ba1226a159b
 const USAGE = "usage: enclave custody status <id>\n"
   + "     | enclave custody set <id> KEY=VALUE… [--file .env] [--rules rules.json | --rules-from-relay --admit] [--committee 0x…] [--config-file app-config.json | --no-config]\n"
   + "     | enclave custody migrate <id> [--rules rules.json | --rules-from-relay --admit] [--committee 0x…] [--config-file app-config.json | --no-config]\n"
-  + "     | enclave custody pause <id> | enclave custody resume <id>";
+  + "     | enclave custody pause <id> | enclave custody resume <id>\n"
+  + "  add --v2 to any of them for custody v2: the host-run committee (EnclaveSecretVaultV2; docs/security/secret-custody-v2.md)";
 
 export async function cmdCustody(rest, h) {
   const sub = rest.shift();
   if (!["status", "set", "migrate", "pause", "resume"].includes(sub || "")) throw new Error(USAGE);
-  const f = h.flags(rest, { bool: ["--rules-from-relay", "--admit", "--no-config"], val: ["--file", "--rules", "--committee", "--config-file"] });
+  const f = h.flags(rest, { bool: ["--rules-from-relay", "--admit", "--no-config", "--v2"], val: ["--file", "--rules", "--committee", "--config-file"] });
   if (!f._[0]) throw new Error(USAGE);
+  if (f.v2) { const { cmdCustodyV2 } = await import("./custody-v2.mjs"); return cmdCustodyV2(sub, f, h); }
   const account = h.loadKey();
   const id = (await h.resolveId(f._[0], account)).toLowerCase();
   if (!/^0x[0-9a-f]{64}$/.test(id)) throw new Error("custody needs an on-chain deployment (bytes32 id)");
