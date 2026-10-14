@@ -93,3 +93,16 @@ test("a restart before the network's prices are read keeps the CPU price on the 
   assert.equal(c.calls.length, 1);
   assert.notEqual(Number(c.calls[0][1]), 12);
 });
+
+test("a card for sale keeps the registry's price until the network's prices are known: a start sends no card transaction", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ee-price-card-")), c = counter();
+  // the card is for sale (sellsCard) and the registry lists 12 while the configured fallback is 28 (k11-4, 2026-10-14)
+  const h = start(dir, 12, { engineRetired: false, card: () => card });
+  h.card = () => card;
+  await h.ensurePriced({ setPrices: c.setPrices });
+  assert.equal(c.calls.length, 0, "the fallback 28 is not posted over the registry's 12 before the guide arrives");
+  h.priceGuide = { rows: [] };                       // the guide is known: what cfg asks is posted again, as before
+  await h.ensurePriced({ setPrices: c.setPrices });
+  assert.equal(c.calls.length, 1);
+  assert.equal(c.calls[0][2], 28);
+});

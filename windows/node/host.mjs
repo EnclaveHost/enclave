@@ -385,7 +385,12 @@ export class Host {
     // as before: a worker that stops must take it off at once.
     const onChainCpu = Number(this.registered.cpuPricePerSec6 || 0);
     const keepCpu = !this.priceGuide && !this.pricing?.cpuPerHour && onChainCpu > 0;
-    const cpu = keepCpu ? onChainCpu : Number(this.cfg.cpuPricePerSec6) || 0, want = this.cardPrice(), key = `${cpu}/${want}`;
+    // The card's the same way while it is for sale: before the guide is known, the price on the registry stands (the
+    // configured fallback was posted at every start and the default posted back a minute later, two transactions per
+    // restart: 2026-10-14 06:21 and 06:23 on k11-4). A card that is not for sale is still taken off at once (0).
+    const ask = this.cardPrice(), onChainGpu = Number(this.registered.gpuPricePerSec6 || 0);
+    const keepGpu = ask > 0 && !this.priceGuide && !this.pricing?.gpuPerHour && onChainGpu > 0;
+    const cpu = keepCpu ? onChainCpu : Number(this.cfg.cpuPricePerSec6) || 0, want = keepGpu ? onChainGpu : ask, key = `${cpu}/${want}`;
     if (cpu <= 0) return;
     if (Number(this.registered.cpuPricePerSec6 || 0) === cpu && Number(this.registered.gpuPricePerSec6 || 0) === want) {
       if (this.priceSent) { this.priceSent = null; this.#saveTracked(); }

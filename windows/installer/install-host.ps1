@@ -290,6 +290,18 @@ ping -n 31 127.0.0.1 >nul
 goto loop
 "@ | Set-Content -Encoding ASCII (Join-Path $PD "run-card.cmd")
 
+# A box's own node settings live in node-config.local.cmd, which updates leave alone. Settings an operator set by hand in
+# node-config.cmd before it existed (the apps this box respawns after a crash) are carried into it once, so an update
+# does not silently drop them.
+$nodeCfg = Join-Path $PD "node-config.cmd"; $nodeLocal = Join-Path $PD "node-config.local.cmd"
+if ((Test-Path $nodeCfg) -and -not (Test-Path $nodeLocal)) {
+  $carried = @(Get-Content $nodeCfg | Where-Object { $_ -match '^set ENCLAVE_ISOLATION_RESPAWN_IDS=0x[0-9a-fA-F]{64}(,0x[0-9a-fA-F]{64})*\s*$' })
+  if ($carried.Count) {
+    (@("@echo off", "rem This box's own node settings, read after node-config.cmd. Updates never write this file.") + $carried) |
+      Set-Content -Encoding ASCII $nodeLocal
+    Emit "config" "run" "Kept this box's own node settings in $nodeLocal"
+  }
+}
 @"
 @echo off
 rem The Enclave host node. Written by install-host.ps1; re-run setup to change it.
@@ -324,6 +336,8 @@ set BLOB_CACHE_DIR=$PD\shield\blobs
 rem the Enclave network (docs/design/enclave-network.md): every app's route and this box's own control traffic over
 rem WireGuard providers qualified by these checkers
 set ENCLAVE_NETWORK_CHECKERS=0x57144c9008cff0b3ed94f6e40964a321fbee848a,0x033bc2b92bb1bb97c7dadf2879d3048748e2257b
+rem this box's own settings (node-config.local.cmd: never written by an update), after and over everything above
+if exist "$PD\node-config.local.cmd" call "$PD\node-config.local.cmd"
 "@ | Set-Content -Encoding ASCII (Join-Path $PD "node-config.cmd")
 
 # the network agent: every app's route on the Enclave network. The node writes its config with the first app it enrolls
