@@ -1,11 +1,11 @@
-// windows/node/tuna-enroll.mjs: an open-market Windows host enrolls its own privacy agent on the Enclave network - the
+// windows/node/network-enroll.mjs: an open-market Windows host enrolls its own privacy agent on the Enclave network - the
 // config, then each leased app - with no wallets and no funding; a box with retired TUNA settings is cleaned and switched.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createTunaEnroll, RETIRED_KEYS } from "../windows/node/tuna-enroll.mjs";
+import { createNetworkEnroll, RETIRED_KEYS } from "../windows/node/network-enroll.mjs";
 import { rawDigest } from "../network/shield-expectation.mjs";
 
 const RID = "ab".repeat(32), APP = "0x" + "5a".repeat(32), RUNNER = "0x" + "22".repeat(32), D = "0x" + "11".repeat(32);
@@ -29,14 +29,14 @@ function world({ checkers = [CHECKER] } = {}) {
   const config = { agentDir, binDir: path.join(dir, "bin"), nodeBinary: "node.exe", operatorKeyFile: "op.key", runner: RUNNER, endpoint: "https://api.enclave.host/t/box",
                    relayBase: "https://api.enclave.host", policyFile, tpmBinary: "tpmattest.exe", tpmSha256: "aa".repeat(32), addressBook: "0x" + "44".repeat(20), chainRpc: ["https://rpc"],
                    enclaveNetwork: { checkers } };
-  const enroll = createTunaEnroll({ agentDir, binDir: path.join(dir, "bin"), runner: RUNNER, relayBase: "https://api.enclave.host", fetch: fetchFn,
+  const enroll = createNetworkEnroll({ agentDir, binDir: path.join(dir, "bin"), runner: RUNNER, relayBase: "https://api.enclave.host", fetch: fetchFn,
     log: (m) => logs.push(m), restartAgent: async () => { restarts++; }, config, rows: async () => rows, version: async () => ({ cid: CID }), vms: async () => [vm] });
   const read = () => JSON.parse(fs.readFileSync(path.join(agentDir, "privacy-config.json"), "utf8"));
   return { enroll, agentDir, logs, vm, fetched, read, config, restarts: () => restarts };
 }
 
 test("TUNA is retired: enrollment needs the Enclave network configuration and its trusted checkers", async () => {
-  assert.throws(() => createTunaEnroll({ agentDir: "/x", binDir: "/y", runner: RUNNER, relayBase: "https://api.enclave.host", config: {} }), /Enclave network configuration/);
+  assert.throws(() => createNetworkEnroll({ agentDir: "/x", binDir: "/y", runner: RUNNER, relayBase: "https://api.enclave.host", config: {} }), /Enclave network configuration/);
   await assert.rejects(world({ checkers: [] }).enroll.pass(), /trusted checker addresses required/);
 });
 
@@ -102,7 +102,7 @@ test("a box already on the Enclave network has leftover TUNA settings dropped wi
 });
 
 test('the network config carries the box\'s paid-provider settlement keys when it has them, and nothing otherwise',async()=>{
- const {networkConfig}=await import('../windows/node/tuna-enroll.mjs');
+ const {networkConfig}=await import('../windows/node/network-enroll.mjs');
  const base={binDir:'C:\\bin',nodeBinary:'node.exe',relayBase:'https://api.enclave.host',checkers:['0x'+'12'.repeat(20)]};
  assert.equal(networkConfig(base).paid,undefined);
  assert.deepEqual(networkConfig({...base,paid:{proofKeyFile:'p.key',gasKeyFile:'o.key'}}).paid,{proofKeyFile:'p.key',gasKeyFile:'o.key',rpc:'https://base-rpc.publicnode.com',maxPending6:'10000'});
@@ -117,4 +117,22 @@ test("an app whose new version has no ready partition yet is counted as waiting,
   assert.ok(w.logs.some((l) => /no ready partition runs/.test(l)));
   w.vm.appReady = true;
   assert.equal((await w.enroll.pass()).waiting, 0);
+});
+
+test("a box whose agent directory moved (tuna -> network) has its paths repointed and its agent restarted once", async () => {
+  const w = world();
+  await w.enroll.pass();
+  const cfg = w.read(), old = path.join(path.dirname(w.agentDir), "tuna");
+  // the config as the installer moved it: every path still names the old directory
+  const moved = { ...cfg, directory: path.join(old, "state"), shield: { ...cfg.shield, policyFile: path.join(old, "policy.json") },
+    apps: cfg.apps.map((a) => ({ ...a, expectedFile: path.join(old, a.deploymentId, "expected.json") })) };
+  fs.writeFileSync(path.join(w.agentDir, "privacy-config.json"), JSON.stringify(moved));
+  assert.equal((await w.enroll.pass()).changed, true);
+  const after = w.read();
+  assert.equal(after.directory, path.join(w.agentDir, "state"));
+  assert.equal(after.shield.policyFile, w.config.policyFile);
+  assert.equal(after.apps[0].expectedFile, path.join(w.agentDir, D, "expected.json"));
+  assert.equal(w.restarts(), 1, "the state directory changed: one restart");
+  assert.equal((await w.enroll.pass()).changed, false, "settled");
+  assert.equal(w.restarts(), 1);
 });

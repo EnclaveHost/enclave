@@ -116,7 +116,7 @@ Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.Executa
 Start-Sleep 2
 $manifest = Get-Content (Join-Path $Bundle "manifest.json") -Raw | ConvertFrom-Json
 $installedManifest = Join-Path $PF "manifest.json"
-$inPF = { param($e) $e.path -match '^(runtime|control|tuna|bin|guest|tray)/' }
+$inPF = { param($e) $e.path -match '^(runtime|control|network|bin|guest|tray)/' }
 if ($Delta -and (Test-Path $installedManifest)) {
   # AN UPDATE: Program Files already holds the installed release, whose manifest says what each file is. Only the files
   # whose sha256 changed are copied, files the new release no longer has are removed, and only the copied ones are
@@ -129,13 +129,15 @@ if ($Delta -and (Test-Path $installedManifest)) {
     Copy-Item -LiteralPath (Join-Path $Bundle ($e.path -replace '/', '\')) $dst -Force
   }
   $keep = @{}; foreach ($e in $want) { $keep[$e.path] = 1 }
-  $gone = @($old.Keys | Where-Object { $_ -match '^(runtime|control|tuna|bin|guest|tray)/' -and -not $keep.ContainsKey($_) })
+  # tuna/: the network agent's directory before release .35 (now network/), removed with everything it held
+  $gone = @($old.Keys | Where-Object { $_ -match '^(runtime|control|network|tuna|bin|guest|tray)/' -and -not $keep.ContainsKey($_) })
   foreach ($g in $gone) { Remove-Item -LiteralPath (Join-Path $PF ($g -replace '/', '\')) -Force -ErrorAction SilentlyContinue }
+  if (Test-Path (Join-Path $PF "tuna")) { Remove-Item (Join-Path $PF "tuna") -Recurse -Force -ErrorAction SilentlyContinue }
   $check = $changed
 } else {
   if (Test-Path $PF) { Remove-Item $PF -Recurse -Force }
   New-Item -ItemType Directory -Force $PF | Out-Null
-  foreach ($d in "runtime", "control", "tuna", "bin", "guest", "tray") { Copy-Item (Join-Path $Bundle $d) (Join-Path $PF $d) -Recurse -Force }
+  foreach ($d in "runtime", "control", "network", "bin", "guest", "tray") { Copy-Item (Join-Path $Bundle $d) (Join-Path $PF $d) -Recurse -Force }
   $changed = $null; $gone = @()
   $check = @($manifest.files | Where-Object { & $inPF $_ })
 }
@@ -157,10 +159,25 @@ foreach ($v in @(@("DisplayName", "Enclave", "String"), @("DisplayVersion", "$($
                  @("UninstallString", $(if (Test-Path (Join-Path $PF "EnclaveSetup.exe")) { "`"$(Join-Path $PF 'EnclaveSetup.exe')`" --uninstall" } else { $script }), "String"))) {
   New-ItemProperty -Path $un -Name $v[0] -Value $v[1] -PropertyType $v[2] -Force | Out-Null
 }
-foreach ($d in "", "node", "shield", "shield\vmgs-archive", "shield\bundles", "tuna", "tuna\state", "logs") { New-Item -ItemType Directory -Force (Join-Path $PD $d) | Out-Null }
+# The network agent's state was in ProgramData\Enclave\tuna until release .35: moved once to network\, with the paths in its
+# config. Its route state must survive (a fresh one restarts the route sequence, which the relay refuses as a rollback), so a
+# move that keeps failing (a scanner holding a file) falls back to a copy.
+$oldNet = Join-Path $PD "tuna"; $newNet = Join-Path $PD "network"
+if ((Test-Path $oldNet) -and -not (Test-Path $newNet)) {
+  $moved = $false
+  for ($i = 0; $i -lt 10 -and -not $moved; $i++) { try { Move-Item -LiteralPath $oldNet -Destination $newNet -ErrorAction Stop; $moved = $true } catch { Start-Sleep 2 } }
+  if (-not $moved) { Copy-Item -LiteralPath $oldNet -Destination $newNet -Recurse -Force; Remove-Item -LiteralPath $oldNet -Recurse -Force -ErrorAction SilentlyContinue }
+  $pc = Join-Path $newNet "privacy-config.json"
+  if (Test-Path $pc) { [IO.File]::WriteAllText($pc, ([IO.File]::ReadAllText($pc)).Replace('\\Enclave\\tuna\\', '\\Enclave\\network\\')) }
+  Emit "files" "run" "The network agent's state moved to $newNet"
+}
+if ((Test-Path (Join-Path $PD "logs\tuna.log")) -and -not (Test-Path (Join-Path $PD "logs\network.log"))) { Move-Item (Join-Path $PD "logs\tuna.log") (Join-Path $PD "logs\network.log") }
+Remove-Item (Join-Path $PD "run-tuna.cmd") -Force -ErrorAction SilentlyContinue
+if (Get-ScheduledTask -TaskPath "\Enclave\" -TaskName "Tuna" -ErrorAction SilentlyContinue) { Unregister-ScheduledTask -TaskPath "\Enclave\" -TaskName "Tuna" -Confirm:$false }
+foreach ($d in "", "node", "shield", "shield\vmgs-archive", "shield\bundles", "network", "network\state", "logs") { New-Item -ItemType Directory -Force (Join-Path $PD $d) | Out-Null }
 # the root: owners full, users may only pass through (the node opens hosting\ to the tray user itself); the rest: owners only
 icacls $PD /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-32-545:(RX)" /q | Out-Null
-foreach ($d in "node", "shield", "tuna", "logs") { icacls (Join-Path $PD $d) /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /q | Out-Null }
+foreach ($d in "node", "shield", "network", "logs") { icacls (Join-Path $PD $d) /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /q | Out-Null }
 Emit "files" "ok" ("Enclave $($manifest.version) installed in $PF" + $(if ($null -ne $changed) { " ($($changed.Count) file(s) changed, $($gone.Count) removed)" } else { "" }))
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -245,7 +262,7 @@ set ENCLAVE_EGRESS_EXE=$PF\bin\shield-egress.exe
 set ENCLAVE_EGRESS_EXE_SHA256=$(& $pin 'bin/shield-egress.exe')
 set ENCLAVE_EGRESS_BRIDGE_EXE=$PF\bin\shielded-bridge.exe
 set ENCLAVE_EGRESS_BRIDGE_EXE_SHA256=$(& $pin 'bin/shielded-bridge.exe')
-set ENCLAVE_EGRESS_APP_ROUTES=$PD\tuna\state\egress-routes.json
+set ENCLAVE_EGRESS_APP_ROUTES=$PD\network\state\egress-routes.json
 rem public, pinned content an app asks blobs.enclave.internal for comes from the node's host-side cache, not its paid route
 rem (docs/design/shield-blob-cache.md); the bundle's shield-egress must be the -blob-service build (build-bundle.ps1 pins it)
 set ENCLAVE_EGRESS_BLOB_SERVICE=127.0.0.1:9621
@@ -291,40 +308,38 @@ set PYTHON_BIN=$PF\runtime\python\python.exe
 set IPFS_GATEWAY=https://ipfs.enclave.host
 set APP_SLOTS=$slots
 set NODE_APP_RAM_GB=$appRamGb
-set ENCLAVE_EGRESS_APP_ROUTES=$PD\tuna\state\egress-routes.json
+set ENCLAVE_EGRESS_APP_ROUTES=$PD\network\state\egress-routes.json
 set WASMTIME_BIN=$PF\bin\wasmtime.exe
 set SHIELD_WITNESS_CONFIG=$witnessFile
-set TUNA_AGENT_DIR=$PD\tuna
-set TUNA_BIN_DIR=$PF\tuna
-set TUNA_SHIELD_POLICY=$PF\tuna\admitted-shield-policy.json
+set ENCLAVE_NETWORK_AGENT_DIR=$PD\network
+set ENCLAVE_NETWORK_BIN_DIR=$PF\network
+set ENCLAVE_NETWORK_SHIELD_POLICY=$PF\network\admitted-shield-policy.json
 rem an app whose config asks for startup egress gets its secrets only once its private route is up (missing file: pending)
-set ENCLAVE_STARTUP_EGRESS_CONFIG=$PD\tuna\privacy-config.json
+set ENCLAVE_STARTUP_EGRESS_CONFIG=$PD\network\privacy-config.json
 rem the host-side cache for public, pinned content (blob-cache.mjs): loopback only, 32 GB, least recently used out first
 set BLOB_SERVICE_PORT=9621
 set BLOB_CACHE_DIR=$PD\shield\blobs
 rem the Enclave network (docs/design/enclave-network.md): every app's route and this box's own control traffic over
-rem WireGuard providers qualified by these checkers (ENCLAVE_NETWORK=1 is read only by node releases before TUNA's removal)
-set ENCLAVE_NETWORK=1
+rem WireGuard providers qualified by these checkers
 set ENCLAVE_NETWORK_CHECKERS=0x57144c9008cff0b3ed94f6e40964a321fbee848a,0x033bc2b92bb1bb97c7dadf2879d3048748e2257b
 "@ | Set-Content -Encoding ASCII (Join-Path $PD "node-config.cmd")
 
-# the privacy agent: every app's route on the Enclave network. The node writes its config with the first app it enrolls
-# (control\windows\node\tuna-enroll.mjs); until then this loop waits for it. The task, script, log and directory keep
-# their historical "tuna" names, which installed hosts already use.
+# the network agent: every app's route on the Enclave network. The node writes its config with the first app it enrolls
+# (control\windows\node\network-enroll.mjs); until then this loop waits for it.
 @"
 @echo off
-rem The Enclave privacy agent (Enclave network). Written by install-host.ps1; re-run setup to change it.
-cd /d "$PD\tuna"
+rem The Enclave network agent. Written by install-host.ps1; re-run setup to change it.
+cd /d "$PD\network"
 :loop
-if not exist "$PD\tuna\privacy-config.json" (
+if not exist "$PD\network\privacy-config.json" (
   ping -n 61 127.0.0.1 >nul
   goto loop
 )
-"$node" "$PF\tuna\privacy-agent.mjs" --config "$PD\tuna\privacy-config.json" >> "$PD\logs\tuna.log" 2>&1
-echo %date% %time% [run] privacy-agent exited %errorlevel%; restarting in 10 s >> "$PD\logs\tuna.log"
+"$node" "$PF\network\privacy-agent.mjs" --config "$PD\network\privacy-config.json" >> "$PD\logs\network.log" 2>&1
+echo %date% %time% [run] network agent exited %errorlevel%; restarting in 10 s >> "$PD\logs\network.log"
 ping -n 11 127.0.0.1 >nul
 goto loop
-"@ | Set-Content -Encoding ASCII (Join-Path $PD "run-tuna.cmd")
+"@ | Set-Content -Encoding ASCII (Join-Path $PD "run-network.cmd")
 
 function RunLoop($file, $config, $script, $log) {
 @"
@@ -357,7 +372,7 @@ function Task($name, $cmd, $delay) {
 Task "Shield" (Join-Path $PD "run-shield.cmd") "PT30S"
 if (Test-Path (Join-Path $PF "bin\shielded-worker.exe")) { Task "Card" (Join-Path $PD "run-card.cmd") "PT20S" }
 Task "Node" (Join-Path $PD "run-node.cmd") "PT90S"
-Task "Tuna" (Join-Path $PD "run-tuna.cmd") "PT120S"
+Task "Network" (Join-Path $PD "run-network.cmd") "PT120S"
 # automatic updates (update-host.ps1): 5 minutes after boot, then every hour, as SYSTEM; one run at a time. Left as it is
 # while an update is the one running this script.
 if ($env:ENCLAVE_UPDATING -ne "1" -or -not (Get-ScheduledTask -TaskPath "\Enclave\" -TaskName "Update" -ErrorAction SilentlyContinue)) {
@@ -378,12 +393,12 @@ for ($i = 0; $i -lt 60; $i++) {
 if (-not $ready) { Fail "services" "Enclave Shield did not come up (see $PD\logs\shield.log)." }
 if ($NoStart) {
   Disable-ScheduledTask -TaskPath "\Enclave\" -TaskName "Node" | Out-Null
-  Disable-ScheduledTask -TaskPath "\Enclave\" -TaskName "Tuna" | Out-Null
+  Disable-ScheduledTask -TaskPath "\Enclave\" -TaskName "Network" | Out-Null
   Emit "services" "ok" "Enclave Shield is running; the node is installed but NOT started (-NoStart): nothing registers"
   Emit "done" "ok" "Installed without joining the network"; exit 0
 }
 Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Node"
-Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Tuna"
+Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Network"
 Emit "services" "ok" "Enclave Shield, the node and the private-route agent are running, and start with Windows"
 
 # ---------------------------------------------------------------------------------------------------------------------

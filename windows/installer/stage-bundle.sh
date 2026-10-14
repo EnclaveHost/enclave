@@ -4,7 +4,7 @@
 #   control/   the node (windows/node) and the isolation manager (windows/vbslike), plus every file their imports reach
 #              (iterated until the import closure closes), the node's npm dependencies from its lockfile, and the Python
 #              helpers; the repo LAYOUT is kept because the node imports ../../relay/* and ../vbslike/*
-#   tuna/      the privacy agent (Enclave network) and its Windows helpers, built from source (network/build.mjs: esbuild
+#   network/   the network agent (Enclave network) and its Windows helpers, built from source (network/build.mjs: esbuild
 #              + Go); the directory keeps its historical name, which installed hosts and install-host.ps1 use
 #   setup/     the tray's and the installer's sources (compiled on Windows by windows/installer/build-bundle.ps1), and the
 #              hosting panel the tray shows (host-ui, shared with the Android app)
@@ -52,14 +52,14 @@ TOP=$(git rev-parse --show-toplevel)
 [ -d "$TOP/node_modules/esbuild" ] || { echo "run 'npm ci' at the repo root first: network/build.mjs needs its esbuild" >&2; exit 1; }
 ln -s "$(realpath "$TOP/node_modules")" "$W/node_modules"
 (cd "$W/network" && npm ci --ignore-scripts --no-audit --no-fund --silent && node build.mjs "$W/dist" >/dev/null)
-mkdir -p "$T/tuna"
+mkdir -p "$T/network"
 for f in privacy-agent.mjs windows-circuit-worker.mjs enclave-wg.exe enclave-circuit-firewall.exe; do
-  cp "$W/dist/$f" "$T/tuna/$f"
+  cp "$W/dist/$f" "$T/network/$f"
 done
 rm -rf "$W"
 
 mkdir -p "$T/setup"; git archive --format=tar "$NC" windows/tray windows/installer host-ui | tar -x -C "$T/setup"
 
 (cd "$T" && find . -type f | sort | sed 's|^\./||' | while read -r f; do printf '%s  %s\n' "$(sha256sum "$f" | cut -c1-64)" "$f"; done) > "$OUT/MANIFEST-control-$N8.txt"
-tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner --format=gnu -C "$T" -cf - control tuna setup | gzip -n -9 > "$OUT/control-$N8.tar.gz"
+tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner --format=gnu -C "$T" -cf - control network setup | gzip -n -9 > "$OUT/control-$N8.tar.gz"
 echo "commit $NC -> $OUT/control-$N8.tar.gz sha256 $(sha256sum "$OUT/control-$N8.tar.gz" | cut -c1-64) ($(wc -l < "$OUT/MANIFEST-control-$N8.txt") files, $(du -h "$OUT/control-$N8.tar.gz" | cut -f1))"

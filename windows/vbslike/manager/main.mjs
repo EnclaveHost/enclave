@@ -73,7 +73,7 @@ if (wmiserveExe || wmiserveSha || bundleDir) {
 // both executables must be their pinned bytes, or the manager refuses to start rather than run half of it:
 //   ENCLAVE_EGRESS_EXE / _SHA256                 shield-egress.exe (isolation/m2/cmd/shield-egress)
 //   ENCLAVE_EGRESS_BRIDGE_EXE / _SHA256          shielded-bridge.exe (the Shield GPU path's bridge, unchanged)
-//   ENCLAVE_EGRESS_SOCKS=127.0.0.1:30489         the host's loopback SOCKS entry (TUNA), or instead
+//   ENCLAVE_EGRESS_SOCKS=127.0.0.1:30489         the host's loopback SOCKS entry (an Enclave-network circuit), or instead
 //   ENCLAVE_EGRESS_APP_ROUTES=<routes.json>      the per-app routes file (egress.ReadAppRoute)
 //   ENCLAVE_EGRESS_ALLOW (optional)              comma-separated https origins: a host-side narrowing for every partition
 // The hv_sock service for vsock 9443 must be registered under GuestCommunicationServices: preflight reads it, and
