@@ -18,6 +18,9 @@ mkdir -p "$d/rt" "$d/proc" "$d/sys" "$d/dev" "$d/tmp"
 W=$(command -v wasmtime)
 cp -L "$W" "$d/rt/wasmtime"
 ldd "$W" | awk '/=>/ {print $3}' | while read -r lib; do cp -L "$lib" "$d/rt/"; done
+# the runtime identity ABI/2 binds into report_data, beside the runtime it describes. In the image, so it
+# is in the launch measurement on this path, and the front checks it against the domain before stating it.
+"$here/../contract/runtime-identity.sh" "$W" > "$d/rt/runtime.json"
 cp "$app" "$d/app.wasm"
 sha256sum "$app" | cut -c1-64 > "$d/app.sha256"
 # The guest kernel's module tree is named after the GUEST kernel, so domain.env has to be read
@@ -30,6 +33,7 @@ cp "$M/net/vmw_vsock/vsock.ko.zst" "$M/net/vmw_vsock/vmw_vsock_virtio_transport_
 find "$d" -exec touch -h -d @0 {} +
 (cd "$d" && find . -mindepth 1 | LC_ALL=C sort | cpio -o -H newc --reproducible 2>/dev/null | gzip -n -9) > "$out"
 echo "domain $out: app sha256 $(cat "$d/app.sha256"), $(stat -c %s "$out") bytes"
+echo "runtime identity $(cat "$d/rt/runtime.json")"
 echo "front sha256 $(sha256sum "$d/front" | cut -c1-64) ($(go version | cut -d' ' -f3))"
 
 # The launch digest this domain will have as an SNP guest (run-domain.sh uses the same kernel,

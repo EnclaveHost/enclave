@@ -1,0 +1,81 @@
+diff --git a/wasm/ggml-shielded/shielded-tee.c b/wasm/ggml-shielded/shielded-tee.c
+index 503d832f7..9b88fa3f0 100644
+--- a/wasm/ggml-shielded/shielded-tee.c
++++ b/wasm/ggml-shielded/shielded-tee.c
+@@ -369,6 +369,7 @@ typedef struct {
+     int64_t   u_len;            /* sum of N over the group */
+     int32_t   max_m;
+     int       depth, count, head, generating, held;
++    int       refill_unit;     /* zero inherits the link's scheduling unit */
+     uint8_t  *ready;            /* per slot: written by a refill, not yet counted */
+     int32_t  *r_store;          /* depth x K, each in [0,M) */
+     int32_t  *u_store;          /* depth x u_len, balanced */
+@@ -418,6 +419,7 @@ struct sh_link {
+     pthread_t *threads; int n_threads; bool threads_running, stop;
+     int threads_env;               /* SHIELDED_REFILL_THREADS, or -1 = derive from the weights */
+     int pool_depth, refill_batch, refill_unit, target_ms, warm_ms, pad_wait_us, refill_cost_priority;
++    int output_pool_depth, output_refill_unit;
+     int64_t Kmax, Nmax, ulen_max;
+ 
+     /* request-path scratch (caller thread) */
+@@ -565,6 +567,10 @@ sh_link *sh_link_open(const char *host, int port, bool verify, int *err) {
+      * 10.9 with pads starting to miss. 16 streams the weights once per 16
+      * pads; a pool should hold at least twice the unit. */
+     l->refill_unit  = env_int("SHIELDED_REFILL_UNIT", 16, 1, 64);
++    /* The vocabulary projection is much more expensive than other groups.
++     * Buffer it independently instead of multiplying every pool's memory. */
++    l->output_pool_depth = env_int("SHIELDED_OUTPUT_POOL_DEPTH", 0, 0, 4096);
++    l->output_refill_unit = env_int("SHIELDED_OUTPUT_REFILL_UNIT", 0, 0, 64);
+     l->target_ms    = env_int("SHIELDED_REFILL_TARGET_MS", 6, 1, 10000);
+     l->warm_ms      = env_int("SHIELDED_WARM_MS", 5000, 0, 600000);
+     l->pad_wait_us  = env_int("SHIELDED_PAD_WAIT_US", 0, 0, 50000);
+@@ -987,9 +993,10 @@ static sh_group *pick_refill_group(sh_link *l, int B, int *deficit) {
+      * against 25 s for a 492-token prompt. Eight-at-a-time keeps both: decode
+      * refills in 8-row passes, prefill finds the pool topped up. (27B,
+      * 2026-09-21.) */
+-    const int unit = B < l->refill_unit ? B : l->refill_unit;
+     for (size_t i = 0; i < l->n_groups; i++) {
+         sh_group *c = &l->groups[i];
++        const int configured_unit = c->refill_unit > 0 ? c->refill_unit : l->refill_unit;
++        const int unit = B < configured_unit ? B : configured_unit;
+         const int d = group_deficit(c);
+         if (d <= 0) continue;
+         const int coming = c->count + c->generating;
+@@ -1479,6 +1486,16 @@ static int dealt_open(sh_link *l) {
+     return SH_OK;
+ }
+ 
++static void configure_output_pool(const sh_link *l, sh_group *g) {
++    g->refill_unit = 0;
++    for (int n = 0; n < g->n_nodes; ++n) {
++        if (strcmp(l->nodes[g->nodes[n]].name, "output.weight")) continue;
++        if (l->output_pool_depth > g->depth) g->depth = l->output_pool_depth;
++        g->refill_unit = l->output_refill_unit;
++        break;
++    }
++}
++
+ static int start_pools(sh_link *l) {
+     stop_threads(l);
+     if (sh_integrity_failed(l)) return SH_ERR_VERIFY;
+@@ -1503,6 +1520,7 @@ static int start_pools(sh_link *l) {
+             if (want < g->max_m) want = g->max_m;     /* never narrower than the widest exchange */
+             g->depth = l->pool_depth > 0 ? l->pool_depth : want;
+         }
++        configure_output_pool(l, g);
+         g->r_store = (int32_t *)malloc((size_t)g->depth * g->K * sizeof(int32_t));
+         g->u_store = (int32_t *)malloc((size_t)g->depth * g->u_len * sizeof(int32_t));
+         g->ready   = (uint8_t *)calloc((size_t)g->depth, 1);
+diff --git a/wasm/ggml-shielded/shielded-tee.h b/wasm/ggml-shielded/shielded-tee.h
+index f78a79915..ca0d9fab8 100644
+--- a/wasm/ggml-shielded/shielded-tee.h
++++ b/wasm/ggml-shielded/shielded-tee.h
+@@ -62,6 +62,8 @@ typedef struct sh_link sh_link;
+  *   SHIELDED_REFILL_TARGET_MS the token time the derived count must keep up
+  *                            with (default 6, the measured 0.5B decode)
+  *   SHIELDED_POOL_DEPTH      ready pads kept per group (default 16)
++ *   SHIELDED_OUTPUT_POOL_DEPTH  minimum depth for output.weight groups (0: inherit)
++ *   SHIELDED_OUTPUT_REFILL_UNIT output.weight scheduling unit (0: inherit)
+  *   SHIELDED_REFILL_BATCH    pads generated per batch (default 4)
+  *   SHIELDED_WARM_MS         longest sh_link_start waits for one ready pad per
+  *                            group before the first exchange (default 5000)

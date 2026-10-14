@@ -1,0 +1,52 @@
+{
+  "release": "1d2263e694aa02eef0dd0a262d239d0707c24ecddc9f14ed2507ca43590af002",
+  "measurement": "e6b0aafc88fec7842994340d22ff8ec9f356168e0d7a9313da1d9e51c803ad2f8608f13d125e2d7bed1e95ff4a4c78ea",
+  "goal_met": false,
+  "profiling_enabled": false,
+  "baseline_cold128": {
+    "prompt_tokens": 3781,
+    "tokens": 128,
+    "prefill_ms": 245511,
+    "decode_ms": 7380,
+    "tok_per_s": 17.3
+  },
+  "baseline_cached128": {
+    "prompt_tokens": 3781,
+    "tokens": 128,
+    "prefill_ms": 1,
+    "decode_ms": 7024,
+    "tok_per_s": 18.2
+  },
+  "changed_context384_not_comparable": {
+    "prompt_tokens": 2894,
+    "tokens": 384,
+    "prefill_ms": 124947,
+    "decode_ms": 25499,
+    "tok_per_s": 15.1,
+    "note": "Same request settings; tool discovery or routing changed rendered prompt. Cause not captured for this request."
+  },
+  "cached_original_after_changed_context": {
+    "prompt_tokens": 3781,
+    "tokens": 128,
+    "prefill_ms": 1,
+    "decode_ms": 8366,
+    "tok_per_s": 15.3,
+    "notice_count": 0
+  },
+  "vcpu7_other_llc_experiment": {
+    "prompt_tokens": 3781,
+    "tokens": 128,
+    "prefill_ms": 1,
+    "decode_ms": 8551,
+    "tok_per_s": 15.0,
+    "host_cpu": 24,
+    "restored_host_cpu": 7
+  },
+  "draft_p_min_update": "Still waiting for owner wallet signature; not applied",
+  "unpromoted_experiments": [
+    "independent attention heads: slower",
+    "static F16 tile scheduling: mixed microbenchmark results",
+    "paired eight-lane F16 AVX512 accumulators: mixed microbenchmark results"
+  ],
+  "remaining": "No production-equivalent 20 tok/s proof. Investigate cache occupancy/placement after mixed requests; complete owner-signed draft threshold experiment."
+}

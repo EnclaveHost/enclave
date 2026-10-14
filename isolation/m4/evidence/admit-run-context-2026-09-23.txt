@@ -1,0 +1,53 @@
+M4b admission on hardware, warden-host, 2026-09-23
+
+IGVM digest (igvmmeasure, from the shipped IGVM)
+  796AD982D4DE386D47F15D760EF188A463D3BAE01F69663AF90018044AE353F5D14A9FDBD48AF27EEB2CE36BEB85CFCA
+built with
+  make RELEASE=1 FW_FILE=/usr/share/edk2-ovmf/x64/OVMF.4m.fd igvm
+  ENCLAVE_APP_IDS=8773d33454df65f420cf3923344e05e1bd28db15568ba49f4c1dfe111ff12685,ce52712f14ed972c66a97c8ca046d69f0c4133d9b7a7fdb27d4ea307dd310b91
+  ENCLAVE_RUNTIME_IDS=ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8 (x2, the ABI/2 RuntimeID)
+  ENCLAVE_RUNTIME_SHA256=b77aecdb33fbf0262ffefdd4383adedc8235ca214b97335bcd31c1912ebdf451 (x2)
+  coconut-svsm/svsm at d37095e + PR 1209 + isolation/m4/svsm/{appid.rs,0001-wire-appid-protocol.diff}
+launched with
+  planes QEMU, -machine ...,igvm-cfg=igvm0,device-plane=2 -cpu host,phys-bits=46
+guest
+  kernel 7.2.3-arch1-2, initramfs from isolation/m4/build-admit-guest.sh
+  plane 2 artifacts: B.bundle (59829 bytes, AppID ce52712f...b91) and the wasmtime 48.0.1 ELF
+                     (45616736 bytes, sha256 b77aecdb...451)
+
+Verified from the signed report in admit-good-2026-09-23.txt (parsed, not eyeballed):
+  response status 0, report_size 1184
+  VMPL field         = 2                      the report names the plane, not VMPL0
+  report_data[0:32]  = the SVSM's OWN Bind2 over the key this plane registered, the caller's nonce and the
+                       RuntimeID compiled into this image: b303eadb4d01cf19cc635e883e52e9542e9aff8aa616...19e6
+                       recomputed independently by isolation/contract/runtime.mjs bind2 and equal byte for byte
+  report_data[32:64] = ce52712f...b91         the AppID the SVSM holds for plane 2
+  measurement        = 796AD982D4DE386D47F15D760EF188A463D3BAE01F69663AF90018044AE353F5D14A9FDBD48AF27EEB2CE36BEB85CFCA
+                       equal to the igvmmeasure digest above
+
+LAYOUT an allowlist entry for this digest must carry (see svsm/README.md, condition 3): a report differs
+between a dedicated and a shared plane only by the VMPL field, so the shape has to come from the digest.
+
+  { "plane": 2, "shape": "dedicated", "slots": 1,
+    "admitted": { "bundle": "ce52712f...0b91", "runtime": "b77aecdb...f451" },
+    "guest_vmpck": "none", "runtime_id": "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8",
+    "report_paths": ["svsm protocol 6", "svsm protocol 1 (gated on admission)"] }
+
+Plane 1 is named in ENCLAVE_APP_IDS but unreachable: require_owning_plane serves only GUEST_VMPL.
+A verifier demanding hardware app-vs-app isolation must accept dedicated planes only.
+
+"shape": "dedicated" IS A STATEMENT ABOUT NAMING, NOT EXECUTION. While A4 is open it means the SVSM will only
+ever name this plane as ONE admitted app; it does NOT mean only that app's code runs here. The plane's kernel
+is unmeasured and could run anything. This report establishes the naming authority's word about the admitted
+bytes, the level and the freeze - nothing about what executed.
+
+ON THE 91-BYTE HEX IN admit-good-*.txt (ADMIT key_registered=...): it is a PUBLIC key slot and not a secret,
+and in this run not even a real key. It is the deterministic stand-in generated at isolation/m4/guest/
+admitinit.c:244 as (i*11+5)&0xff for i in 0..91, standing in for a domain's transport-key SPKI - which is
+public by definition, being the thing a verifier compares against its own TLS handshake. It is recorded in
+full because recomputing Bind2 over it is how the binding is checked:
+
+  bind2(spki, nonce, runtime_id) == report_data[0:32]
+
+A secret scanner flags it as a generic high-entropy string. That is a false positive; the proof is one line of
+source above, and the check is repeatable with isolation/contract/runtime.mjs.

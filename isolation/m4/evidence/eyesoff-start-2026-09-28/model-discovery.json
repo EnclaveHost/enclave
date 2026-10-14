@@ -1,0 +1,22 @@
+{
+  "default": "qwen3.8-27b-mtp",
+  "gpu": true,
+  "models": [
+    {
+      "backend": "ggml",
+      "bytes": 17559178144,
+      "default": true,
+      "fits": true,
+      "name": "qwen3.8-27b-mtp",
+      "preloaded": true,
+      "thinking": true,
+      "video": true,
+      "vision": true,
+      "volume": "qwen3.8-27b-mtp-q4-vl-gguf",
+      "vram_fit": true
+    }
+  ],
+  "serve_budget": 34359738368,
+  "serve_kind": "RAM",
+  "vram_budget": 64574833294
+}

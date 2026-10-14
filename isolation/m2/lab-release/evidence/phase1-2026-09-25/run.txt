@@ -1,0 +1,18 @@
+18:30:55Z lab dir /home/steven/enclave-bench/lab-release/phase1-run-20260925c; production units before: 3; MemAvailable 80 GiB
+18:30:55Z lab pins from the session /home/steven/enclave-bench/lab-release/phase2-20260925T180033Z
+18:30:55Z lab pins written (relay name release-lab.enclave.test, release key 3b75834ea968e93d…)
+/home/steven/enclave-bench/lab-release/phase1-run-20260925c/app.bundle 397821 bytes app_id=975a4396029b08fa027558254fa81a53002a8ff0b8d368a8a078705ab8ee03a4
+18:30:57Z synthetic deployment 0x8e79622751aed04ee394c092101a752d3a42f57a77ed0f6ecbc7cdf619d0fdb0
+18:30:59Z lab relay, egress router and guestd (prefix lb, -release) up
+18:30:59Z created lb23abf9ff; building and booting
+18:31:08Z the guest waited for its ticket: handed (measurement bb6637637902fcd0…)
+18:31:09Z instance status: running 
+18:31:15Z ok   guestd's image measurement equals the pinned lab domain release's reconstruction (bb6637637902fcd05b61194e7da0ed5d7239faf8e8085c93cf866bc3d5dd51532b5acbe2963fd4529c1920296f617c00)
+18:31:15Z ok   tools/list with the released synthetic key: 200
+18:31:15Z ok   tools/list with no key: 401
+18:31:15Z ok   tools/list with synthetic-wrong key: 401
+DOM release: deployment 0x8e796227... envelope b05a0764b2bcbcbb... 4 allowed origin(s), 0 refused, config 1119 bytes
+DOM app config: 1119 bytes (ENCLAVE_CONFIG)
+18:31:15Z ok   no synthetic secret value in any host-side file (guestd root and logs, serial console, the units' journal, relay and router logs)
+18:31:15Z LAB PASS: the release reached a real SNP guest and its app serves on it
+18:31:20Z cleanup done; production m2-gd* units unchanged

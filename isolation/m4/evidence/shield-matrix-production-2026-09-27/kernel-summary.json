@@ -1,0 +1,46 @@
+[
+  {
+    "shapeKNB": [
+      5120,
+      2560,
+      16
+    ],
+    "beforeMs": 2.4161145,
+    "afterMs": 2.041817,
+    "timeReductionPct": 15.491712002887281,
+    "allOutputsIdentical": true
+  },
+  {
+    "shapeKNB": [
+      5120,
+      8704,
+      64
+    ],
+    "beforeMs": 34.0488975,
+    "afterMs": 30.240160000000003,
+    "timeReductionPct": 11.186081722616715,
+    "allOutputsIdentical": true
+  },
+  {
+    "shapeKNB": [
+      5120,
+      124160,
+      16
+    ],
+    "beforeMs": 114.170616,
+    "afterMs": 98.1836715,
+    "timeReductionPct": 14.002678675220592,
+    "allOutputsIdentical": true
+  },
+  {
+    "shapeKNB": [
+      17408,
+      2560,
+      32
+    ],
+    "beforeMs": 15.392884500000001,
+    "afterMs": 13.1645395,
+    "timeReductionPct": 14.476461510511562,
+    "allOutputsIdentical": true
+  }
+]

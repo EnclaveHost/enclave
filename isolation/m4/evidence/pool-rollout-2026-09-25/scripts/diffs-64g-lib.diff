@@ -1,0 +1,16 @@
+--- /home/steven/enclave-bench/pool-rollout-20260925/scripts-v1/lib.v3.sh	2026-09-25 11:14:32.872888289 -0700
++++ /home/steven/enclave-bench/pool-rollout-20260925/lib.sh	2026-09-25 11:14:32.881928835 -0700
+@@ -35,8 +35,11 @@
+ for n,k in want.items():
+     if got[n]!=("running",k): print("guest", n[:10], got[n]); sys.exit(1)
+ p=h.get("pool")
+-if mode=="pool":
+-    ok = p and p.get("budget")=={"memMiB":16384,"cpuPct":800} and p.get("free")=={"memMiB":11008,"cpuPct":500} and p.get("overcommitted") is False and p.get("guests")==3
++# pool = the S1 budget 16384/800; pool64 = Steven's 65536/1600. Both: allocated exactly the 3 canaries (5376/300)
++budgets={"pool":({"memMiB":16384,"cpuPct":800},{"memMiB":11008,"cpuPct":500}),"pool64":({"memMiB":65536,"cpuPct":1600},{"memMiB":60160,"cpuPct":1300})}
++if mode in budgets:
++    b,fr=budgets[mode]
++    ok = p and p.get("budget")==b and p.get("free")==fr and p.get("allocated")=={"memMiB":5376,"cpuPct":300} and p.get("overcommitted") is False and p.get("guests")==3
+     if not ok: print("pool:", p); sys.exit(1)
+ elif p is not None: print("an old guestd has no pool, but:", p); sys.exit(1)
+ print("guestd ok:", mode, "3 canaries running, same keys")

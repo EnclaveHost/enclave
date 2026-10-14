@@ -1,0 +1,59 @@
+{
+  "warmup-cache": {
+    "feed_ms": 59,
+    "load_ms": 237,
+    "model": "qwen3.8-27b-mtp",
+    "ok": true,
+    "prefix": {
+      "marks": [
+        1371,
+        2813
+      ],
+      "ms": 206801,
+      "parked": true,
+      "router": null,
+      "target": "gpu",
+      "tokens": 2813
+    },
+    "target": "gpu",
+    "volume": "qwen3.8-27b-mtp-q4-vl-gguf"
+  },
+  "warmup-hot": {
+    "feed_ms": 0,
+    "load_ms": 0,
+    "model": "qwen3.8-27b-mtp",
+    "ok": true,
+    "prefix": {
+      "marks": [
+        1371,
+        2813
+      ],
+      "ms": 1,
+      "parked": true,
+      "router": null,
+      "target": "gpu",
+      "tokens": 2813
+    },
+    "target": "gpu",
+    "volume": "qwen3.8-27b-mtp-q4-vl-gguf"
+  },
+  "warmup-follower": {
+    "feed_ms": 1845,
+    "load_ms": 0,
+    "model": "qwen3.8-27b-mtp",
+    "ok": true,
+    "prefix": {
+      "marks": [
+        1371,
+        2813
+      ],
+      "ms": 40030,
+      "parked": true,
+      "router": null,
+      "target": "gpu",
+      "tokens": 2813
+    },
+    "target": "gpu",
+    "volume": "qwen3.8-27b-mtp-q4-vl-gguf"
+  }
+}

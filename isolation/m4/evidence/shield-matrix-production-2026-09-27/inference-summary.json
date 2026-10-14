@@ -1,0 +1,53 @@
+{
+  "tokensPerRequest": 128,
+  "allTenResponsesIdentical": true,
+  "promptTokens": 17,
+  "results": {
+    "ordinary": {
+      "beforeAggregateTokPerS": 19.16258015843078,
+      "afterAggregateTokPerS": 19.52944794710134,
+      "throughputChangePct": 1.9145009995386708,
+      "beforeIndividualTokPerS": [
+        19.61,
+        18.73
+      ],
+      "afterIndividualTokPerS": [
+        19.6,
+        19.45
+      ],
+      "beforePrefillMs": [
+        82494,
+        594
+      ],
+      "afterPrefillMs": [
+        76880,
+        496
+      ]
+    },
+    "mtp": {
+      "beforeAggregateTokPerS": 17.8671918964547,
+      "afterAggregateTokPerS": 19.923652146629713,
+      "throughputChangePct": 11.50970036082204,
+      "beforeIndividualTokPerS": [
+        19.19,
+        16.96,
+        17.6
+      ],
+      "afterIndividualTokPerS": [
+        20.34,
+        19.71,
+        19.73
+      ],
+      "beforePrefillMs": [
+        35638,
+        631,
+        992
+      ],
+      "afterPrefillMs": [
+        44893,
+        540,
+        486
+      ]
+    }
+  }
+}

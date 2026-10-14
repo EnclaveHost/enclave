@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { measureGflops } from './compute-measure.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 function arg(name, dflt) { const i = process.argv.indexOf('--' + name); return i > 0 ? process.argv[i + 1] : dflt; }
@@ -137,10 +138,54 @@ const CERTS = certsCfg(cfg);
 // (name, public URL, relay, tunnel token) is delivered out-of-band via QEMU
 // fw_cfg — NOT measured — so a given image has ONE stable launch measurement
 // regardless of which relay/token it uses, and no secret ever enters the quote.
+// Per-app isolation tier (isolation/DEPLOYMENT-PATH.md, M4a): this node CVM runs the control plane only and every
+// app runs in its OWN SEV-SNP guest, launched on this host by isolation/m4/guestd. WHICH tier a node is belongs to
+// its identity, so it rides the measured cmdline (metal.isolation=<backend>) and changes the launch measurement;
+// WHERE guestd listens and the pairing key that authenticates the channel to it are host-side runtime config and
+// ride fw_cfg like the tunnel token. The key protects the channel from other processes on this host, not from the
+// host's operator, who holds it in any case.
+const ISOLATION_BACKENDS = ['snp-guest-per-app'];
+// fw_cfg's `isolation` object, and nothing else of the config's: the endpoints, the pairing key, and the operator's
+// attested-release opt-in. gsup (metal/guest/gsup.mjs) passes ISOLATION_RELEASE=1 to the supervisor only for
+// `isolation.release === true`, so only a boolean true is forwarded; no other isolation key (backend, pairingKeyFile,
+// anything added later) crosses to the guest. A release that is neither absent nor a boolean REFUSES the launch, so a
+// typo ("true", 1) cannot look like a successful opt-in while running with the release off. Pure, so
+// test/metal-launcher-isolation.test.mjs slices it out by text (and also drives the real launcher).
+function isoRuntimeOf(iso, key) {
+  if (iso.release !== undefined && typeof iso.release !== 'boolean')
+    throw new Error(`isolation.release must be the boolean true or false (got ${JSON.stringify(iso.release)}); refusing rather than reading it as off`);
+  const managerUrl = String(iso.managerUrl || 'http://10.0.2.2:8095');
+  const dataAddr = String(iso.dataAddr || '10.0.2.2:8096');
+  if (!/^http:\/\/(?:\d{1,3}\.){3}\d{1,3}:\d{1,5}$/.test(managerUrl) || !/^(?:\d{1,3}\.){3}\d{1,3}:\d{1,5}$/.test(dataAddr))
+    throw new Error('isolation.managerUrl / dataAddr must be IPv4 literals (http://10.0.2.2:8095, 10.0.2.2:8096)');
+  return { managerUrl, dataAddr, pairingKey: key, ...(iso.release === true ? { release: true } : {}) };
+}
+const ISO = (cfg.isolation && typeof cfg.isolation === 'object') ? cfg.isolation : null;
+let ISO_RUNTIME = null;
+if (ISO) {
+  if (!ISOLATION_BACKENDS.includes(ISO.backend)) throw new Error(`isolation.backend must be one of ${ISOLATION_BACKENDS.join(', ')}`);
+  const key = fs.readFileSync(String(ISO.pairingKeyFile || ''), 'utf8').trim();
+  if (!/^[0-9a-f]{64}$/.test(key)) throw new Error('isolation.pairingKeyFile must hold the 64-hex guestd pairing key (guestd -gen-key)');
+  ISO_RUNTIME = isoRuntimeOf(ISO, key);
+  console.log(`[enclave-metal] isolation ${ISO.backend}: attested release ${ISO_RUNTIME.release === true ? 'OPTED IN (isolation.release: true)' : 'off'}`);
+}
 const cmdline = [
   'console=ttyS0', 'root=/dev/ram0', 'rootfstype=ramfs', 'quiet',
   `metal.mode=${MODE}`,
+  ...(ISO ? [`metal.isolation=${ISO.backend}`] : []),
 ].join(' ');
+// The node's GFLOPS, MEASURED where its apps run, before the control VM starts: flops-probe (an exactly counted f32x4
+// multiply-add workload) under the guests' wasmtime, one copy per guest-pool vCPU (config gflopsCopies; default this
+// host's CPUs) at once, the work grown until a run lasts a second (compute-measure.mjs). Its per-vCPU rate rides fw_cfg
+// to gsup (gflopsPerVcpu), which publishes it in place of the 62.5-per-vCPU convention. On failure gsup keeps that.
+let GFLOPS_PER_VCPU = null;
+if (cfg.measureGflops !== false) {
+  try {
+    const m = await measureGflops({ wasmtime: cfg.wasmtimeBin || '/usr/bin/wasmtime', instances: Number(cfg.gflopsCopies) || os.cpus().length });
+    GFLOPS_PER_VCPU = m.perInstance;
+    console.log(`[metal] compute measured: ${m.gflops} GFLOPS for ${m.instances} copies, ${m.perInstance} per vCPU (${m.wallMs} ms, ${m.runs} runs; ${m.method})`);
+  } catch (e) { console.error(`[metal] compute NOT measured (${e.message}): the guest keeps the 62.5-per-vCPU convention`); }
+}
 const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', relayUrl: cfg.relayUrl || '', tunnelToken: cfg.tunnelToken || '',
   // the referral code this machine was set up with (`enclave host init --referral`): attribution only; the guest agent
   // says it when it attaches (x-metal-referral, relay/referrals.mjs). fw_cfg, so it never changes the measurement
@@ -161,6 +206,8 @@ const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', rel
   // total + a small boot haircut so a config typo (or a dishonest seller)
   // can't advertise RAM the VM doesn't have.
   nodeRamGb: Math.round(Number(MEM) / 1024),
+  // the measured per-vCPU GFLOPS (above); absent when unmeasured, and gsup then keeps the convention
+  ...(GFLOPS_PER_VCPU ? { gflopsPerVcpu: GFLOPS_PER_VCPU } : {}),
   // what this operator CHARGES, in USD per hour for a FULL node / FULL card
   // (see gsup: converted to the ledger's per-second 6dp basis). The GPU ask is
   // only meaningful on a GPU enclave; gsup drops it otherwise.
@@ -187,7 +234,23 @@ const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', rel
   // — the guest hashes this table and refuses to mount unless it matches the
   // measured metal.vols digest above, so this is a delivery channel, not a
   // trusted one. The host path never crosses: only the serial the disk carries.
-  volumes: VOLUMES.map(({ image, ...v }) => v) };
+  volumes: VOLUMES.map(({ image, ...v }) => v),
+  // the per-app isolation tier's host-side endpoints and pairing key (see ISO above)
+  ...(ISO_RUNTIME ? { isolation: ISO_RUNTIME } : {}),
+  // This chip's VCEK (DER, base64), when the host attaches no certificate table to reports and AMD KDS has none
+  // for the part: the agent sends it with a tunnel quote so the relay can chain it to AMD's root. Public data,
+  // judged by the chain, never trusted as delivered.
+  ...(cfg.vcekFile ? { vcek: fs.readFileSync(cfg.vcekFile).toString('base64') } : {}) };
+// Inventory/probe routes only. Tenant inference still runs in guestd's measured
+// app guest; these externally managed workers are never attached to a control-VM tenant.
+if (ISO?.shieldedInference === true) {
+  runtimeCfg.isolationShieldedWorkers = [9501,9502].map(port => ({host:'10.0.2.2',port,vsockPort:port}));
+  const pricing = ISO.shieldedPricing;
+  if (!pricing || ![pricing.tflopUsdHr,pricing.vramGiBUsdHr].every(v=>Number.isFinite(v)&&v>=0&&v<=100) || pricing.tflopUsdHr+pricing.vramGiBUsdHr<=0)
+    throw new Error('isolation.shieldedInference requires explicit shieldedPricing');
+  runtimeCfg.shieldedPool = {mode:'layers',cardIds:[0,1],pricing};
+}
+if (ISO && VOLUMES.length) throw new Error('an isolation-tier node runs no apps itself, so it attaches no model volumes');
 
 // Optional egress helper. QEMU user-net (slirp) NATs outbound for a normal host,
 // but some sandboxed/dev hosts block slirp's EXTERNAL sockets while still routing
@@ -465,6 +528,8 @@ const haltpollFwCfg = (() => {
 // that are gone (a crash, a SIGKILL) are swept here rather than left in /tmp
 // forever -- 2026-08-27: three of them from earlier in the week, readable by
 // any local user. QEMU reads the file once at start-up.
+if (ISO && shieldedWorkers.length)
+  throw new Error('an isolation-tier node runs no apps itself, so it has no shielded GPU workers');
 const fwCfgPath = path.join(os.tmpdir(), `metal-fwcfg-${process.pid}.json`);
 for (const f of fs.readdirSync(os.tmpdir()).filter((n) => /^metal-fwcfg-\d+\.json$/.test(n))) {
   const pid = Number(n(f));

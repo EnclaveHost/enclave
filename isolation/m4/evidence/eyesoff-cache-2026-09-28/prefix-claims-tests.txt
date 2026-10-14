@@ -1,0 +1,14 @@
+
+running 9 tests
+test tests::a_different_prefix_never_waits_and_a_shared_head_waits_only_for_the_head ... ok
+test tests::a_dropped_or_failed_leader_frees_its_followers ... ok
+test tests::marks_outside_the_prompt_or_at_zero_are_not_claims ... ok
+test tests::declining_to_wait_leads_beside_the_leader_without_stealing_its_claim ... ok
+test tests::a_leader_re_planning_refreshes_its_own_claims_and_never_waits_on_itself ... ok
+test tests::a_stale_leader_is_ignored_and_replaced ... ok
+test tests::resolve_touches_only_that_owner_and_mark ... ok
+test tests::first_caller_leads_and_matching_follower_waits_with_progress ... ok
+test tests::the_table_is_bounded_and_overflow_degrades_to_leading_unclaimed ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,9 @@
+90159dd72c461d62  lib.sh
+910dd094ff771cd8  noncanary.mjs
+e0db9edd0abe8125  s1-apply.sh
+09614d9f1ac1a99a  s1-rollback.sh
+9fc327d70b15969a  s2a-relay-apply.sh
+efa10485bc3b9d3d  s2a-relay-rollback.sh
+615b5a5e0a87f8cf  s2b-node-apply.sh
+8a68f8a26e50c163  s2b-node-rollback.sh
+dcbd6cd2b1be172a  observe.sh

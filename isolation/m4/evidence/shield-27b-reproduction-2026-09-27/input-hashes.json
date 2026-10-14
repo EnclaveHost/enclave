@@ -1,0 +1,26 @@
+{
+  "native_bench": {
+    "path": "/home/steven/enclave-bench/b27/bench-spec2",
+    "sha256": "21881354c9e9dd21a3ccc1417baa58da96bd27ef2c2cc703c210950a4030935c"
+  },
+  "production_cpu": {
+    "path": "/home/steven/enclave-prod/release-f674c047/template/rt/backends/libggml-cpu.so",
+    "sha256": "2156d9fa0742445c27371a657b55baaa56e6c8d870bfddd5f54e7a0fde29ea7f"
+  },
+  "avx512_cpu": {
+    "path": "/home/steven/enclave-bench/v100-shield-20260927/reproduce/engine-avx512/bin/libggml-cpu.so",
+    "sha256": "a0a41dca0c574874bd5421bc460883c3ce84d4cd752cebc290acf2e90fcb0203"
+  },
+  "current_native_backend": {
+    "path": "/home/steven/enclave-bench/v100-shield-20260927/reproduce/backend-native/libggml-shielded.so",
+    "sha256": "0ba554056d9e2d58dcb3ea283ca6aff2f9f1bfb2d8f1b989e68010544b7e206a"
+  },
+  "calibration": {
+    "path": "/home/steven/Projects/enclave-v100-isolation/metal/shielded-overlay/calib/qwen3.8-27b-mtp-q4-vl-gguf.calib",
+    "sha256": "1220f83cb518e0354a6d554e517ceeeb83ee8bab44733fae1e4801ae1982ddbd"
+  },
+  "unmasked_bench": {
+    "path": "/home/steven/gvs5h/llama.cpp/build/bin/llama-bench",
+    "sha256": "0ef2c8287384d38e9e71241068b7c78a92fe462884bf6cc7d6468b66d43e5db1"
+  }
+}

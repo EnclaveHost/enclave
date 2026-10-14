@@ -1,0 +1,188 @@
+# Installing release 79c5ecf2: what goes where, the 4d flags, the pins, the rollback
+
+For enclave-63's guarded rollout scripts (rows 4-10 of GUEST-POOL-ROLLOUT.md). This is a description, not a script.
+
+**For THIS release the procedure is enclave-63's TREE SWITCH, not a first install.**
+- 4d is done: production guestd is `guestd.4e78ba80` with `-release`, `-isolation iso-17e182a8` (a4f22748),
+  `-legacy-isolation iso-03be27d6` and the 16384 floor.
+- The switch installs this tree inert beside iso-17e182a8, with step 0's musl prefix. It gates on 1d (the installed
+  tree reproduces 79c5ecf2) and then moves ONLY guestd's `-isolation` to it. The binary stays 4e78ba80's (guestd is
+  unchanged), and so do the other flags.
+- It uses a detached apply, the adoption preflight, and a rollback to the current 4d unit, BEFORE any real release
+  guest exists.
+- Sections 2-4 below still hold for the flags, pins and rollback, with iso-aa6c985c in place of the tree 4d named.
+
+**Gate.** Nothing here runs until:
+- the image diff 0181bce3..aa6c985c is signed off:
+  - enclave-d1 signed off 0181bce3..aff21c73 (should-fix: d1a38994) and approved d1a38994;
+  - enclave-e3 (for enclave-99) approved every commit through d1a38994, with one medium fail-open, fixed in ecf02384;
+  - d1 and e3 approved ecf02384 (release 0839ac3a, installed inert, superseded);
+  - d1 and e3 approved 77cf2d78 (release a4f22748: installed 20:09:57Z, and guestd's live -isolation tree since 4d);
+  - aa6c985c (init links musl; Codex's decision) awaits enclave-d1's and enclave-e3's review, and e3's predictor check;
+- enclave-99 reviews the scripts;
+- Codex gives the go.
+
+The release stays OFF throughout.
+
+Ids:
+- New release: `79c5ecf24eb48a70e2bb20f4bca684b4d5e3c7700f9bf9d38735c19509898ce4`, image commit
+  `aa6c985c688e73ffc2ec547b691c2d804e50ad69`.
+- Live release: `5c3561f91bc76a7aab5830071d1093162c5833872884c938574673f491dd87f2`, commit
+  `0181bce3aac5fa03dfaf2928d834ecd04d2a4a73`.
+- Known-answer release: `6f14ce7537082bd2a68d96ead6a133af4a5134e97e9b43ebc210a3cb957c1adb`, 6757d139.
+
+## A fact the scripts must respect: guestd never reads a release directory
+guestd builds every guest image from its `-isolation` SOURCE TREE:
+- `m4/build-app-guest.sh` runs `app-image-template.sh`;
+- that builds the front from `m2/` with the host's Go and the init from `dominit.c` with gcc, composes the runtime set,
+  and copies the guest modules;
+- the kernel and cmdline come from `m1/domain.env` (`/boot/vmlinuz-linux`), and the firmware from guestd's `-ovmf`.
+
+So a guest runs release 79c5ecf2's image only because that build reproduces the release on this host. Two builds did.
+Phase 2 showed guestd's build equal to the relay's prediction for the lab release. Step 1d below checks it again on
+the installed tree.
+
+A host kernel or toolchain change (`/boot/vmlinuz-linux`, Go, gcc, glibc) moves every new guest's measurement away
+from the release. That fails CLOSED: the relay refuses the release and the guest does not serve. It is never a
+silent acceptance. Re-run 1d after any host package upgrade.
+
+## 1. INSTALL on warden-host (inert)
+**0. NEW PREREQUISITE for this release: musl, for init (a host change to coordinate, not a silent install).**
+guestd rebuilds every template from its `-isolation` tree, and this tree's `m4/app-image-template.sh` links init against
+musl at `${MUSL_PREFIX:-$HOME/.cache/enclave-isolation/musl-1.2.6}`. Without it, template builds REFUSE (exit 2) and
+new guests fail to build, closed. guestd's unit sets no MUSL_PREFIX, so the default path must exist:
+- create it with `sh <tree>/isolation/m2/build-musl.sh`. It fetches musl 1.2.6 from musl.libc.org and pins it twice:
+  sha256 `d585fd3b613c66151fc3249e8ed44f77020cb5e6c1e635a616d3f9f82460512a`, and a VALIDSIG by musl's release key
+  `836489290BB6B70F99FFDA0556BCDB593020450F`, in a throwaway keyring. It builds static only with `/usr/bin/gcc`, and
+  writes nothing outside the prefix. No host package; no root;
+- check that `<prefix>/SOURCE` records `libc.a sha256 4f72e098ed0562e8361f7c1713189c5cd7b3e6672dd8d9311d32c49201260959`
+  (two builds into two prefixes gave that value);
+- it is inert until the tree switch: the running guestd (iso-17e182a8's template script) never reads it.
+The predictor on nan never rebuilds init (assemble-app-image.sh copies the release's template as it is), so nan needs
+no musl.
+
+**a. The release, as a reference copy.**
+- `~/enclave-prod/release-aa6c985c/` is `cp -a ~/enclave-bench/prod-release-aa6c985c/release-aa6c985c`.
+- Then `python3 ~/enclave-prod/iso-aa6c985c/isolation/m4/release-manifest.py verify ~/enclave-prod/release-aa6c985c
+  --expect 79c5ecf2…` must print `verified 15 files`.
+- Keep every copy OWNER-WRITABLE. The manifest pins contents, not modes. `expected-measurement.sh` snapshots the
+  release with `cp -a`, so a read-only copy yields a read-only snapshot. The measurement then fails before it is
+  printed (assembling writes into it), and the cleanup cannot remove the snapshot. Found by enclave-e3 on the
+  artifact, which I had made read-only; it has been owner-writable since 2026-09-25 19:27Z, and the existing
+  `release-*` dirs are too.
+- No process on warden-host reads it. It is the copy that verifiers and `expected-measurement.sh --pin` use, and the
+  source for nan's copy (3a).
+
+**b. The new tree.**
+- `~/enclave-prod/iso-aa6c985c/` is a clean checkout detached at aa6c985c…, in the same form as `iso-03be27d6` (a git
+  worktree of `~/Projects/enclave`).
+- Checks:
+  - `git -C … rev-parse HEAD` = `aa6c985c688e73ffc2ec547b691c2d804e50ad69`;
+  - `git -C … status --porcelain --ignored` prints nothing: no `isolation/m2/release/labpins/`, no built binaries.
+- At 4d, guestd reads from `<tree>/isolation`:
+  - `m4/build-app-guest.sh` and what it calls (`app-image-template.sh`, `assemble-app-image.sh`, `runtime-set.sh`,
+    `pack-initrd.sh`, `release-manifest.py`);
+  - `m1/domain.env`;
+  - `m2/run-domain.sh`, which boots EVERY guest, legacy ones included;
+  - `m2/fwd`, which guestd builds into `<root>/bin/fwd` at start;
+  - `m2/client.mjs` + `judge.mjs` + `../relay/snp-verify.mjs`, its judge (node builtins only, no node_modules);
+  - `../test/fixtures/amd/Turin-cert_chain.pem`, the default `-chain`.
+- The judge, fwd and snp-verify are byte-unchanged since 0181bce3.
+
+**c. The guestd binary.**
+- `~/enclave-prod/bin/guestd.<commit>`, built from the reviewed host-side commit with
+  `cd isolation/m4/guestd && go build -trimpath`.
+- That commit is the merge carrying enclave-63's host-memory floor (d67b0020 + 1b5375c9) once enclave-99 approves
+  them. guestd is host-side and not measured, so this choice does not touch 79c5ecf2.
+- Keep `guestd.c42612c0` (live) and every `guestd.prev-*`.
+
+**d. Reproduction on the installed tree** (the check that makes 1b meaningful).
+- From `~/enclave-prod/iso-aa6c985c`, with the unit's environment (GOFLAGS and ISOLATION_LAB_FRONT unset), run
+  `sh isolation/m4/domain-release.sh $(mktemp -d)/r`.
+- It must print `release 79c5ecf2…`. Then remove the temporary directory.
+- This is guestd's own template build, from the installed tree, with this host's tools.
+
+**Inert.** 1a-1c create paths that nothing references: the unit's ExecStart is unchanged and nothing restarts. 1d
+builds files in a temporary directory only. Checks before and after:
+- `systemctl --user show enclave-guestd -p MainPID -p ExecStart` is unchanged;
+- the `m2-gd*` unit list is unchanged (the fatal diff).
+
+## 2. 4d: guestd's flags
+ExecStart is the new binary, with the live flags unchanged except:
+- `-isolation ~/enclave-prod/iso-aa6c985c/isolation` (was `iso-03be27d6`);
+- `-release`;
+- `-legacy-isolation ~/enclave-prod/iso-03be27d6/isolation`: the live tree at 0181bce3, untouched;
+- `-instance-prefix gd`: the default, written out;
+- NO `-ticket-port` / `-egress-port`. The defaults 9444/9443 are the production front's compiled `TicketPort` /
+  `EgressPort`. A lab port on the production guestd would strand every release guest.
+- Keep `-root`, `-listen`, `-data-listen`, `-auth-key`, `-gateway`, `-guest-mem-mib 65536` and `-guest-cpus 16`, plus
+  `-guest-host-floor-mib 16384`: Codex chose it for this pool at its next coordinated guestd rollout, and 4d is that
+  rollout (enclave-63).
+
+Preflight (enclave-d1's conditions):
+- vsock ports 9443 and 9444 are free. Bind-probe them with `isolation/m2/lab-release/portprobe`; this host has no
+  vsock_diag, so `ss --vsock` shows nothing either way.
+- No lab is running: no `m2-lb*` units, and no process whose `/proc/PID/exe` is under `~/enclave-bench/lab-release`.
+- MemAvailable as in S2.
+
+What 4d changes while the live supervisor (c42612c0, ISOLATION_RELEASE unset) runs:
+- `/health` `supports.release` and `supports.legacyImage` become true. `config`, `secrets` and `egress` STAY false, so
+  the supervisor's claim gate is unchanged.
+- The supervisor never sends `release:true`. So every deployment guest is built from `-legacy-isolation`, which is
+  0181bce3's image, exactly as today.
+- Only the boot script (`run-domain.sh`) comes from the new tree. Its one change is that guestd chooses the CID (band
+  131072-196607). The CID is not a launch-measurement input; the kernel, firmware, cmdline and vCPUs are unchanged.
+- The adopted canaries keep running: their units are separate, and guestd adopts them from its records.
+- A deployment the supervisor ever marks `release:true` (only after rows 7-8) is built from the new tree, which is
+  79c5ecf2's image.
+
+**Pre-4d hardware check: RAN, PASS (2026-09-25 19:22Z, `isolation/m2/lab-release/evidence/legacy-2026-09-25/`).**
+A legacy hookbin guest came up with the LIVE canary's AppID and VCEK-signed measurement (be6b8644…), and served.
+Re-run `run-legacy-check.sh` if run-domain.sh, guestd or the host's tools change before 4d. The check as designed:
+the legacy path, 0181bce3's image booted by aa6c985c's `run-domain.sh`, had never run on hardware. Before 4d, launch ONE non-release deployment guest from a LAB guestd with:
+- `-instance-prefix lb`, the lab ports, `-release`, `-legacy-isolation ~/enclave-prod/iso-03be27d6/isolation`, and its
+  own root;
+- the lab conditions: the fatal `m2-gd*` diff, MemAvailable ≥ 44 GiB, and the exe sweep.
+
+It passes if the guest's measurement equals the 0181bce3 prediction (expected-measurement.sh --pin 5c3561f9…) and it
+serves.
+
+## 3. PINS: each ADDED beside the old, never replacing it
+**The relay on nan (enclave-99):**
+- Copy the release to nan and verify it with `--expect 79c5ecf2…`.
+- `SECRETS_RELEASE_PREDICT_RELEASES` += `79c5ecf2…=<nan dir>`, beside `5c3561f9…=…` and `6f14ce75…=…`. The known-answer
+  test needs those two, so they stay installed.
+- `SECRETS_RELEASE_DOMAIN_RELEASES` += `79c5ecf2…`, beside the ids already admitted.
+- `SECRETS_RELEASE_PREDICT_COMMIT` stays at 0181bce3…. The toolchain it runs (`expected-measurement.sh`,
+  `assemble-app-image.sh`, `release-manifest.py`, `hash-table.py`, `appbundle.c`, `pack-initrd.sh`, `runtime-set.sh`,
+  `m1/`) is byte-identical at aa6c985c. Phase 2's prediction of the new-front lab release ran on that toolchain.
+- The response key file is S3b's seed, keyId 06212e5df9c3779a, exactly the key pinned in 79c5ecf2's front.
+
+**Trusted clients (row 6):** I found NO list of admitted domain-release ids in `site/`, `cli/` or `verifier/` on main.
+The only references to 5c3561f9 or 6f14ce75 there are fixture hashes of `release.json` files. Where a client pins a
+release is therefore still open for the row-6 owner. Whatever it is, the rule is 5c3561f9 AND 79c5ecf2, never one in
+place of the other.
+
+## 4. ROLLBACK: always back to 5c3561f9 only
+Kept installed at every step:
+- `~/enclave-prod/release-0181bce3` (5c3561f9) and `release-6757d139` (6f14ce75);
+- `~/enclave-prod/iso-03be27d6` (0181bce3);
+- `~/enclave-prod/bin/guestd.c42612c0` and every `guestd.prev-*`;
+- on nan, the 5c3561f9 and 6f14ce75 release dirs.
+
+- **After 1 (install).** Nothing is live. To abandon, remove `release-aa6c985c`, `iso-aa6c985c` (`git worktree
+  remove`) and the new `bin/guestd.*`.
+- **After 2 (4d).**
+  - Restore the previous ExecStart (`guestd.c42612c0 -isolation ~/enclave-prod/iso-03be27d6/isolation …`, no
+    `-release` and no `-legacy-isolation`), then daemon-reload and restart.
+  - While the supervisor sets no release, every guest launched under 4d is a 0181bce3 image, and the old guestd adopts
+    it unchanged.
+  - A release guest (possible only after rows 7-8) must be DELETED before this rollback: the old guestd has no ticket
+    or egress service, so it could not be re-released. It relaunches on the old guestd as a 0181bce3 image, which
+    serves no config app, exactly as today.
+- **Relay.**
+  - Turning the release OFF returns every release request to refused: fails closed.
+  - Removing 79c5ecf2 from `SECRETS_RELEASE_DOMAIN_RELEASES` refuses new releases to that image. Guests already
+    released keep their config in memory until they are relaunched.
+  - Never remove 5c3561f9 or 6f14ce75: the known-answer test needs them.
+- **Clients.** 79c5ecf2 may stay pinned. It admits nothing while no guest runs it.

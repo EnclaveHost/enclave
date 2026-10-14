@@ -1,0 +1,46 @@
+--- a/isolation/m2/dominit.c
++++ b/isolation/m2/dominit.c
+@@ -432,6 +432,11 @@
+         }
+         char *envp[64] = {"HOME=/tmp", "PATH=/rt"};
+         int ei = 2;
++        /* Explicit measured profile; never infer a larger team from host input.
++         * Requires the native pool and the 16-vCPU large-model guest profile. */
++        const int shield_wide_cpu = shield_on && drop && shield_large &&
++            access("/rt/shield-native-cpu-pool.enabled", F_OK) == 0 &&
++            access("/rt/shield-wide-cpu-pool.enabled", F_OK) == 0;
+         if (shield_on && drop) {
+             envp[ei++] = "ENCLAVE_GGML_BACKEND_DIR=/rt/backends";
+             envp[ei++] = "GGML_BACKEND_PATH=/rt/backends/libggml-shielded.so";
+@@ -454,8 +459,8 @@
+              * Leave room for the mask pool and runtime within each measured model profile's floor. */
+             envp[ei++] = shield_large ? "ENCLAVE_NN_SERVE_BYTES=34359738368" : "ENCLAVE_NN_SERVE_BYTES=2147483648";
+             envp[ei++] = "ENCLAVE_NN_SERVE_KIND=RAM";
+-            envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS=6" : "ENCLAVE_GGML_N_THREADS=2";
+-            envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS_BATCH=6" : "ENCLAVE_GGML_N_THREADS_BATCH=2";
++            envp[ei++] = shield_wide_cpu ? "ENCLAVE_GGML_N_THREADS=12" : shield_large ? "ENCLAVE_GGML_N_THREADS=6" : "ENCLAVE_GGML_N_THREADS=2";
++            envp[ei++] = shield_wide_cpu ? "ENCLAVE_GGML_N_THREADS_BATCH=12" : shield_large ? "ENCLAVE_GGML_N_THREADS_BATCH=6" : "ENCLAVE_GGML_N_THREADS_BATCH=2";
+             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_BATCH=64" : "ENCLAVE_GGML_N_BATCH=16";
+             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_UBATCH=64" : "ENCLAVE_GGML_N_UBATCH=16";
+             if (shield_large) envp[ei++] = "ENCLAVE_GGML_FLASH_ATTN=off";
+@@ -474,17 +479,17 @@
+                 if (access("/rt/shield-native-cpu-pool.enabled", F_OK) == 0)
+                     envp[ei++] = "ENCLAVE_GGML_SHARED_CPU_POOL=1";
+                 envp[ei++] = "LD_PRELOAD=/rt/libshielded-omp-affinity.so";
+-                envp[ei++] = "SHIELDED_CPU_COMPUTE=0,2,3,4,5,6";
++                envp[ei++] = shield_wide_cpu ? "SHIELDED_CPU_COMPUTE=0,2,3,4,5,6,7,8,9,10,11,12" : "SHIELDED_CPU_COMPUTE=0,2,3,4,5,6";
+                 envp[ei++] = "SHIELDED_CPU_MAIN=0";
+                 envp[ei++] = "SHIELDED_CPU_HELPER=1";
+-                envp[ei++] = "SHIELDED_CPU_REST=7-15";
++                envp[ei++] = shield_wide_cpu ? "SHIELDED_CPU_REST=13-15" : "SHIELDED_CPU_REST=7-15";
+             }
+             envp[ei++] = "SHIELDED_MAX_M=64";
+             envp[ei++] = "SHIELDED_SHM_STREAM_LOAD=1";
+             envp[ei++] = "SHIELDED_SPLIT_COLS=1";
+             envp[ei++] = "SHIELDED_OVERLAP_VERIFY=1";
+             envp[ei++] = "SHIELDED_WEIGHT_BUDGET_FRAC=0.95";
+-            envp[ei++] = shield_large ? "OMP_NUM_THREADS=6" : "OMP_NUM_THREADS=2";
++            envp[ei++] = shield_wide_cpu ? "OMP_NUM_THREADS=12" : shield_large ? "OMP_NUM_THREADS=6" : "OMP_NUM_THREADS=2";
+             envp[ei++] = shield_models_env;
+             envp[ei++] = shield_preloads_env;
+         }

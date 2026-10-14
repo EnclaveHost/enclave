@@ -1,0 +1,5 @@
+enclave-guestd.service ActiveState=active SubState=running ActiveEnterTimestamp=Fri 2026-09-25 10:49:35 MST MainPID=3534847 NRestarts=0 MemoryCurrent=45613056 CPUQuotaPerSecUSec=infinity MemoryMax=infinity
+enclave-metal-iso.service ActiveState=active SubState=running ActiveEnterTimestamp=Fri 2026-09-25 11:01:23 MST MainPID=3566173 NRestarts=0 MemoryCurrent=5343559680 CPUQuotaPerSecUSec=infinity MemoryMax=infinity
+m2-gd6e734a97-3817590.service ActiveState=active SubState=running ActiveEnterTimestamp=Thu 2026-09-24 13:44:06 MST MainPID=3817611 NRestarts=0 MemoryCurrent=1119588352 CPUQuotaPerSecUSec=1s MemoryMax=1879048192
+m2-gdb677d751-3886305.service ActiveState=active SubState=running ActiveEnterTimestamp=Thu 2026-09-24 14:21:54 MST MainPID=3886326 NRestarts=0 MemoryCurrent=1119592448 CPUQuotaPerSecUSec=1s MemoryMax=1879048192
+m2-gdebc9c709-3817546.service ActiveState=active SubState=running ActiveEnterTimestamp=Thu 2026-09-24 13:44:05 MST MainPID=3817567 NRestarts=0 MemoryCurrent=1119580160 CPUQuotaPerSecUSec=1s MemoryMax=1879048192

@@ -1,0 +1,22 @@
+{
+  "libmtmd.so.0": "d886ca4c8845ada0032516a868de7a2807e514acdc37e2b5d5fb2a4756ad785f",
+  "libggml.so.0": "2fc3c55e37179c52bb2f164eda3b9532942264471063a12452aa3d11af19e96b",
+  "libggml-base.so.0": "c427fac4e59ded2d0889b20c5aadafb98a8458ec0f324754f0522c777ce58304",
+  "libstdc++.so.6": "f5fc7380f2ae46fa4053a64be04e7b98109f1066a4bbfff3c37042488aa0be0e",
+  "libllama.so.0": "168d565c9add7f1e5d57685fd4f1158cf30b1eab2bbddbd8ba260e4d8d079425",
+  "libgcc_s.so.1": "e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a",
+  "ld-linux-x86-64.so.2": "d011113b7054c641c8ca064f58bcc23804fd2654a3dff2444dad06ddeda61bfb",
+  "libgomp.so.1": "d6c6309ee83dbe9b50bf38342489799a4822ee22451677730ff5542aa74bdefc",
+  "libm.so.6": "965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d",
+  "libenclave_llama.so": "c2657077e7cae7cc3cc19a852f7e58fab8deafbe4e471b5c2dbf8a02a0291aee",
+  "wasmtime": "0931201837ade40d36f3ce5578872ccf9445bbc74ad39e68892f301d7479a351",
+  "libc.so.6": "e221b10fee9ee4776d8f0f1701253bc06817f7a4dbe6c5292487277d0bf8ffff",
+  "libshielded-omp-affinity.so": "4a0b071efd385ad4c53cd5d3a6da90d734d41cba765030b8a89029c06fbdadd7",
+  "shield-model": "0800f12f32be3514ec06cf090e8b9e7e3bb23f22dbf5092636c008d0ed0975e6",
+  "runtime.json": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+  "backends/libggml-cpu.so": "2156d9fa0742445c27371a657b55baaa56e6c8d870bfddd5f54e7a0fde29ea7f",
+  "backends/libggml-shielded.so": "67b369704ed77c8b2f2a2810cf911aad25354db1e0db83e58ae83128f6173fb3",
+  "calib/model.calib": "25698f09603838fbb840dfbf1b0eeb87883326130e85156bfc142805fff26ce7",
+  "calib/qwen3.8-27b-mtp-q4-vl-gguf.calib": "1220f83cb518e0354a6d554e517ceeeb83ee8bab44733fae1e4801ae1982ddbd",
+  "calib/qwen2.5-0.5b-q8-gguf.calib": "25698f09603838fbb840dfbf1b0eeb87883326130e85156bfc142805fff26ce7"
+}

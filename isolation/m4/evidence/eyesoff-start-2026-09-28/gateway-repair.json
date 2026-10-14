@@ -1,0 +1,12 @@
+{
+  "cid": "bafkreih662plyjjjqzgmla75stqdgl5situtmynfvhdgdtbt35gdlvzngm",
+  "sha256": "fef69ebc2529864cc583fd94e0332fb244e93661a5a9c661cc33df4c35d72d33",
+  "bytes": 8169,
+  "httpStatus": 200,
+  "accessControlAllowOrigin": "*",
+  "browserEditorValidJson": true,
+  "browserEditorCharacters": 8998,
+  "siteCommit": "57396f0d230a04207237854b6e3ae38810a8b848",
+  "deploymentRun": 36391208558,
+  "deploymentResult": "success"
+}

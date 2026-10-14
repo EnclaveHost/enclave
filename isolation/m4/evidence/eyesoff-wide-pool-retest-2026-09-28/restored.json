@@ -1,0 +1,48 @@
+{
+  "release": "f7fae72afbddbcb3f8b29782f34ae2ce49410a0a53ad6a6d7bb5a3b988270e43",
+  "guest": "gd3b4fd898",
+  "state": "complete",
+  "prompt_tokens": 3781,
+  "tokens": 384,
+  "outputSha256": "734bc8f0fcda21c12e64ada36fadc957858be54a828888b8c5ddb3b5d617e511",
+  "all_output_hashes_equal": true,
+  "all_http_status": 200,
+  "all_draft_tokens": 218,
+  "all_draft_accepted": 166,
+  "notices": [],
+  "runs": [
+    {
+      "at": 1790634681318,
+      "cold": true,
+      "decode_ms": 22322,
+      "prefill_ms": 247859,
+      "wall_ms": 274761.2,
+      "mtp_draft_us": 1309466,
+      "mtp_verify_decode_us": 20763636
+    },
+    {
+      "at": 1790634956080,
+      "decode_ms": 21286,
+      "prefill_ms": 1,
+      "wall_ms": 23822.2,
+      "mtp_draft_us": 1086801,
+      "mtp_verify_decode_us": 19935635
+    },
+    {
+      "at": 1790634979902,
+      "decode_ms": 20799,
+      "prefill_ms": 1,
+      "wall_ms": 23135.1,
+      "mtp_draft_us": 1048961,
+      "mtp_verify_decode_us": 19508807
+    },
+    {
+      "at": 1790635003038,
+      "decode_ms": 21260,
+      "prefill_ms": 1,
+      "wall_ms": 24166.5,
+      "mtp_draft_us": 1060549,
+      "mtp_verify_decode_us": 19947302
+    }
+  ]
+}

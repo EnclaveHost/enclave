@@ -1,0 +1,74 @@
+[
+  {
+    "original": "/tmp/tmp11ek3s4o/big.log",
+    "archive": "/home/steven/enclave-bench/v100-shield-20260927/deploy-pool128/archived-tmp-logs/tmp11ek3s4o-big.log",
+    "bytes": 134231745,
+    "sha256": "6af61bbcc55b30e28f932bd9a30415c2ae97b9637d2b3099fb4bf39bb5bdaaea"
+  },
+  {
+    "original": "/tmp/tmp1rxczu9v/big.log",
+    "archive": "/home/steven/enclave-bench/v100-shield-20260927/deploy-pool128/archived-tmp-logs/tmp1rxczu9v-big.log",
+    "bytes": 134231745,
+    "sha256": "6af61bbcc55b30e28f932bd9a30415c2ae97b9637d2b3099fb4bf39bb5bdaaea"
+  },
+  {
+    "original": "/tmp/tmp3ii3z_p7/big.log",
+    "archive": "/home/steven/enclave-bench/v100-shield-20260927/deploy-pool128/archived-tmp-logs/tmp3ii3z_p7-big.log",
+    "bytes": 134231745,
+    "sha256": "6af61bbcc55b30e28f932bd9a30415c2ae97b9637d2b3099fb4bf39bb5bdaaea"
+  },
+  {
+    "original": "/tmp/tmp4gk1l637/big.log",
+    "archive": "/home/steven/enclave-bench/v100-shield-20260927/deploy-pool128/archived-tmp-logs/tmp4gk1l637-big.log",
+    "bytes": 134231745,
+    "sha256": "6af61bbcc55b30e28f932bd9a30415c2ae97b9637d2b3099fb4bf39bb5bdaaea"
+  },
+  {
+    "original": "/tmp/tmp4jcavmiw/big.log",
+    "archive": "/home/steven/enclave-bench/v100-shield-20260927/deploy-pool128/archived-tmp-logs/tmp4jcavmiw-big.log",
+    "bytes": 134231745,
+    "sha256": "6af61bbcc55b30e28f932bd9a30415c2ae97b9637d2b3099fb4bf39bb5bdaaea"
+  },
+  {
+    "original": "/tmp/tmp6kw8268c/big.log",
+    "archive": "/home/steven/enclave-bench/v100-shield-20260927/deploy-pool128/archived-tmp-logs/tmp6kw8268c-big.log",
+    "bytes": 134231745,
+    "sha256": "6af61bbcc55b30e28f932bd9a30415c2ae97b9637d2b3099fb4bf39bb5bdaaea"
+  },
+  {
+    "original": "/tmp/tmp7l7kv8rs/big.log",
+    "archive": "/home/steven/enclave-bench/v100-shield-20260927/deploy-pool128/archived-tmp-logs/tmp7l7kv8rs-big.log",
+    "bytes": 134231745,
+    "sha256": "6af61bbcc55b30e28f932bd9a30415c2ae97b9637d2b3099fb4bf39bb5bdaaea"
+  },
+  {
+    "original": "/tmp/tmp95uavqe3/big.log",
+    "archive": "/home/steven/enclave-bench/v100-shield-20260927/deploy-pool128/archived-tmp-logs/tmp95uavqe3-big.log",
+    "bytes": 134231745,
+    "sha256": "6af61bbcc55b30e28f932bd9a30415c2ae97b9637d2b3099fb4bf39bb5bdaaea"
+  },
+  {
+    "original": "/tmp/tmp9hcrkwg2/big.log",
+    "archive": "/home/steven/enclave-bench/v100-shield-20260927/deploy-pool128/archived-tmp-logs/tmp9hcrkwg2-big.log",
+    "bytes": 134231745,
+    "sha256": "6af61bbcc55b30e28f932bd9a30415c2ae97b9637d2b3099fb4bf39bb5bdaaea"
+  },
+  {
+    "original": "/tmp/tmp_vy8bq_7/big.log",
+    "archive": "/home/steven/enclave-bench/v100-shield-20260927/deploy-pool128/archived-tmp-logs/tmp_vy8bq_7-big.log",
+    "bytes": 134231745,
+    "sha256": "6af61bbcc55b30e28f932bd9a30415c2ae97b9637d2b3099fb4bf39bb5bdaaea"
+  },
+  {
+    "original": "/tmp/tmparzz80fw/big.log",
+    "archive": "/home/steven/enclave-bench/v100-shield-20260927/deploy-pool128/archived-tmp-logs/tmparzz80fw-big.log",
+    "bytes": 134231745,
+    "sha256": "6af61bbcc55b30e28f932bd9a30415c2ae97b9637d2b3099fb4bf39bb5bdaaea"
+  },
+  {
+    "original": "/tmp/tmpblpbuco1/big.log",
+    "archive": "/home/steven/enclave-bench/v100-shield-20260927/deploy-pool128/archived-tmp-logs/tmpblpbuco1-big.log",
+    "bytes": 134231745,
+    "sha256": "6af61bbcc55b30e28f932bd9a30415c2ae97b9637d2b3099fb4bf39bb5bdaaea"
+  }
+]

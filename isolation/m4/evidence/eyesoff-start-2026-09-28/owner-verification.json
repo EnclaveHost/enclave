@@ -1,0 +1,18 @@
+[
+  {
+    "hash": "0xd1562785fa7ce5c17dba3686623b209c948f05a0f953d41f3c5505035ae6d622",
+    "block": "51893564",
+    "success": true,
+    "isolation": {
+      "require": "snp-guest-per-app"
+    }
+  },
+  {
+    "hash": "0xd1562785fa7ce5c17dba3686623b209c948f05a0f953d41f3c5505035ae6d622",
+    "block": "51893564",
+    "success": true,
+    "isolation": {
+      "require": "snp-guest-per-app"
+    }
+  }
+]

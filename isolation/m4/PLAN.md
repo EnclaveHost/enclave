@@ -19,13 +19,21 @@ written before the code so they could not be softened to fit a result.
    measurement (`isolation/m3/PLAN.md` section 16, corrected 2026-09-23). `report_data[32:64]` is the app ID
    *as the monitor states it*, so if the monitor's own identity is unestablished, a per-app claim inherits
    that. Per-app isolation without per-app identity is not worth shipping.
-3. **One app bundle, one ABI, across backends.** `isolation/contract` (ABI `enclave-domain-abi/1`) is the
+3. **One app bundle, one ABI, across backends.** `isolation/contract` is the
    agreement: `AppID = sha256(all bundle bytes)`, `report_data[0:32] = sha256(SPKI || nonce)` computed in the
    domain, `[32:64]` the monitor's app ID and never the caller's, a one-field report request, and the
    starting/running/ending/ended lifecycle with exactly one reclamation. The Linux monitor imports it; the
    Windows Hyper-V launcher mirrors it in `src/contract.rs`. M4 uses it unchanged - a second ABI for the SNP
    backend would defeat the point.
-4. **Nothing verified in M1, M2, M3a or M3b regresses**, including the derived launch identity, the VMPL0
+4. **The app is the portable component, and the domain states what compiled it** (added 2026-09-23,
+   `isolation/contract/RUNTIME.md`). The bundle carries a WebAssembly component and nothing else, and each
+   domain compiles it inside its own boundary: JIT to x86-64 in these SNP guests, ARM64 where the domain is
+   ARM64, and Pulley bytecode interpreted where the platform refuses executable pages (a stock Pixel pVM and
+   a Windows VBS enclave, both measured). ABI/2 binds the runtime identity - runtime, version, execution
+   mode, target and host ISA, CPU-feature policy, W^X and cache mode - into `report_data[0:32]`, because a
+   report that named only the bundle would not say what turned it into instructions. M4a's guests do this
+   today and it is verified on hardware (14/14 with ABI/2 fronts); for M4b see section 6.
+5. **Nothing verified in M1, M2, M3a or M3b regresses**, including the derived launch identity, the VMPL0
    refusal, the 31-check suite, and rollback to the previous kernel entry.
 
 ## 2. The hard limit, stated before the design
@@ -52,12 +60,73 @@ Each app gets its own SEV-SNP guest: its own ASID, its own memory-encryption key
 the strongest separation the hardware offers, stronger than two VMPLs in one guest, and it needs no SVSM work
 and no planes.
 
+**MEASURED CORRECTION, 2026-09-23: `kernel-hashes=on` commits to HASHES, and this firmware never checks the
+bytes it serves against them.** See the box below; read the rest of this section with that in mind.
+
 It also **closes requirement 2 for free**, which is the reason to do it first: without IGVM, `run-domain.sh`
 launches with `kernel-hashes=on`, so the guest image *is* in the launch measurement and the predicted digest
 moves with it - measured today, from both directions, when another session changed the monitor (the M3a
 predicted digest moved to `af898e78...` and live == predicted, while the M3b derived digest did not move).
 So on this path the code that names the app is measured, and one app per guest means the app itself is part
 of that image.
+
+> **AND THAT IS A STATEMENT ABOUT HASHES, NOT ABOUT WHAT EXECUTES.** `/usr/share/edk2-ovmf/x64/OVMF.4m.fd` is
+> the `OvmfPkgX64` platform, which upstream links with `BlobVerifierLibNull`: only `OvmfPkg/AmdSev/AmdSevX64.dsc`
+> links `BlobVerifierLibSevHashes`, the one that compares the served kernel, initrd and command line against the
+> hash table and fails closed. The reset-vector hash-table GUID is present, so `kernel-hashes=on` "works" - QEMU
+> writes the table and the launch digest commits to it - **but the firmware never verifies the bytes it is
+> served.**
+>
+> Measured here, independently: the same M2 domain image launched with `kernel-hashes=off`, so with **no hash
+> table in the measurement at all**, boots normally (`DOM started`, `DOM serving`). A firmware that verified
+> would refuse. Evidence `~/enclave-bench/f0-235238/`.
+>
+> A parallel review measured the consequence with a test-only QEMU that hashes one initrd while serving another:
+> the guest boots the SERVED image and its signed report carries the measurement predicted for the HASHED one
+> (`~/.cache/enclave-isolation/parallel-review-m4b/evidence/ovmf-hash-{control,substitution}/`).
+>
+> So on every `kernel-hashes` path in this repository - M1, M2 and M4a - "the app is in the measured image"
+> means the digest commits to hashes the host supplied, and a host that serves different bytes than it hashed
+> boots them under the intended measurement. **M4a's two-apps-two-measurements result does not show that the
+> measured app is the one running.** What it does show is unchanged and still worth having: two apps get two
+> different launch identities, an adversary in its own guest cannot forge the other's measurement, and the
+> guest boundary holds.
+>
+> The fix is firmware built from `AmdSevX64.dsc`, which Arch does not package (`edk2-ovmf 202608-1` ships no
+> AmdSev variant), so it needs a userspace edk2 build. That is step 0 of the dedicated-plane plan, and it is
+> **prior to M4b**: it sits under both layouts.
+>
+> **RESOLVED 2026-09-24, and here is exactly what it bought.** `isolation/m2/build-verifying-firmware.sh` builds
+> that firmware; `m1/domain.env` names it and fails closed if it is absent. On it, the review lane's substitution
+> fixture inverts: where the distro firmware booted a served initrd whose hash was NOT in the table, this one
+> refuses and says why - `QemuKernelFetchBlob: loading 383098 bytes for "initrd"` followed by `VerifyBlob: Hash
+> comparison failed for "initrd"`, after the kernel's own hash had succeeded. A missing table gives `VerifyBlob:
+> Verifier called but no hashes table discoverd in MEMFD`. M2 passes 24/24 and M4a 14/14 on it, with every
+> measurement moved by the firmware change.
+>
+> **The claim, stated to the limit of the evidence and no further.** With firmware sha256
+> `142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9` pinned, *the kernel, initrd and command line
+> that boot are the ones whose hashes the launch digest commits to* - enforced by the measured firmware,
+> demonstrated by the substitution refusal - *and the app's bytes are inside that initrd*. The firmware is itself
+> an input to the measurement (`sev-snp-measure --ovmf`), so **a verifier pinning a digest derived against this
+> firmware pins this firmware**. That condition travels with the sentence: a digest derived against `OVMF.4m.fd`
+> pins the NON-verifying firmware just as faithfully. The digest-to-firmware link is what is self-certifying;
+> WHICH firmware an allowlist entry was derived against remains an **operator statement**, and keeping that
+> statement true is allowlist-provenance work rather than a property of the mechanism.
+>
+> **"The measured app is the one running" is still not written without these beside it:**
+>
+> 1. **Host-supplied boot data is not measured.** The ACPI tables whose AML the guest kernel executes, SMBIOS, the
+>    memory map, every fw_cfg item other than the three hashed blobs, and the device model all come from the host
+>    and are outside the digest. So "no unmeasured byte in the TCB" is false even now.
+> 2. **What the guest does after boot rests on measured code behaving.** The runtime's W^X and execution-mode
+>    statements remain the guest's own word (`isolation/contract/RUNTIME.md`), not something the hardware attests.
+> 3. **Every prediction must name the firmware sha256**, because the digest depends on the firmware identity and
+>    the vCPU count - and this build deviates from stock `AmdSevX64` by two GRUB modules Arch does not ship
+>    (`linuxefi`, `sevsecret`), which the no-table run showed landing in the GRUB path and nowhere near a hash
+>    path.
+>
+> That is stronger than what M4a had this morning, and it names what step 0 did not buy.
 
 Cost and what it is not: no VMPL boundary above the app's own kernel, so the guest kernel is still in that
 app's TCB - but it is in *only* that app's TCB, which is the point. Cross-app isolation is the SNP guest
@@ -166,3 +235,14 @@ in-guest to be refused. N4 is an M4b property, where the SVSM holds VMPL0 above 
 (`isolation/contract`, on `windows/custom-vbs-like-hyperv`); the SNP backend imports it there and both the
 M3b and plain M3a suites pass with it (31/31 each, another session's live runs). The next concrete step is **M4b** (section 3): move the app-naming authority into the SVSM so a
 plane per app can carry per-app identity, within the 2-3 apps-per-guest ceiling of section 2.
+
+**M4b must carry the runtime identity too, and for the same reason it carries the app ID.** Requirement 4
+above puts the runtime that compiled the component into `report_data[0:32]` (ABI/2). In M4a that identity
+lives in the guest image, which `kernel-hashes=on` measures, so the domain's statement about its runtime is
+covered by the launch digest. Under IGVM it is not (`isolation/m3/PLAN.md` section 16): the guest image is
+outside the measurement, so a `runtime.json` inside it is asserted by unmeasured code, exactly as the app
+half was before `svsm/appid.rs`. So the SVSM protocol that fills `report_data[32:64]` from `APP_TABLE` needs
+a companion for `[0:32]`: either the SVSM computes `Bind2` over a runtime identity compiled into its own
+measured image beside the app table, or the ABI/2 claim narrows on that path to "the domain says so" and
+must be written that way. `svsm/README.md` records this as the open item; nothing in the current step
+depends on it, and the M4a path is unaffected.

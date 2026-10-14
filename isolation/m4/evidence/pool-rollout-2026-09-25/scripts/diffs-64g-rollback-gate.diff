@@ -1,0 +1,16 @@
+--- /home/steven/enclave-bench/pool-rollout-20260925/scripts-v1/s3-budget64-rollback.v1.sh	2026-09-25 11:17:03.349902705 -0700
++++ /home/steven/enclave-bench/pool-rollout-20260925/s3-budget64-rollback.sh	2026-09-25 11:17:03.358640216 -0700
+@@ -2,6 +2,13 @@
+ # Rollback to the S1 budget 16384/8: the pre-64g unit back, one restart, checked.
+ set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh
+ BAK=$EV/secret/enclave-guestd.service.bak-pre-64g
++# enclave-99: back to 16384/8 is a simple step ONLY while the 3 canaries alone run (a guest admitted under 64 GiB may not
++# fit 16 GiB). The same gate as the S2 dist rollback: chain AND guestd show no non-canary, a failed read is unsafe;
++# OVERRIDE=<reason> is logged. (The apply's own immediate fail() runs with the canaries alone, so it passes this gate.)
++if ! noncanary_empty; then
++  [ -n "${OVERRIDE:-}" ] || { say "REFUSING the budget rollback: a non-canary deployment is (or may be) on metal-iso0; escalate to Codex"; exit 30; }
++  say "NON-CANARY OVERRIDE (budget rollback): $OVERRIDE" | tee -a $EV/rollback-override.log
++fi
+ [ -f "$BAK" ] || { say "no $BAK"; exit 1; }
+ grep -q -- "-guest-mem-mib 16384 -guest-cpus 8\$" "$BAK" || { say "the backup is not the 16384/8 unit"; exit 1; }
+ cp -p "$BAK" "$U.new" && mv "$U.new" "$U"

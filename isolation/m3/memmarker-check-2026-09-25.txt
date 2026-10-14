@@ -1,0 +1,23 @@
+# memmarker.ko: the guest half of the host memory-read positive control (VBS-ISOLATION.md section 3).
+# LOCAL: QEMU/KVM on warden-host with the box's own WSL kernel (6.6.87.2), NOT Hyper-V. QEMU's pmemsave stands
+# in for the host reader. Probe medium only; it is never a production medium.
+
+## pins
+memmarker.ko      567661aa0dc6309f739e2918721b92c3e58de72acc33408c888dc8de46345080  (WSL tag linux-msft-wsl-6.6.87.2, IKCONFIG of 7fe3edb5)
+probe initrd      6dd5deeb993d19d7bd916359b7e17817275142054f6674322f0677551cac9f0a  (production 0d14db23 + /probe.ko = memmarker.ko; NOT a production medium)
+probe UKI (box)   265de2cccef20022fec592e50b003293ed3512d7d00ff0d82d7087031cc45bfa  (WSL kernel 7fe3edb5; NOT a production medium)
+
+## guest console
+MON PROBE IMAGE: loading /probe.ko (this is not a production medium)
+MEMMARKER probe: planting a run-unique marker in one private and one host-shared page (a probe image, not a production medium)
+MEMMARKER marker=e1ae16641b85d2a687691d3ba179c48a private_gpa=0x361b2000 shared_gpa=0x361b3000 shared_visibility_rc=0
+MON PROBE finished: loaded
+
+## the host-side read, at exactly the printed guest-physical addresses (QEMU monitor pmemsave, 4096 bytes each)
+private gpa=0x361b2000: 67 full repetitions of "ENCLAVE-MEMMARKER/1 <marker> PRIVATE "
+shared  gpa=0x361b3000: 68 full repetitions of "ENCLAVE-MEMMARKER/1 <marker> SHARED "
+unmarked control gpa=0x362b2000: marker present = False
+=> on an unisolated guest a reader of guest-physical memory finds both pages at their addresses and nothing
+   elsewhere: the address-level check works. On Hyper-V the reader is enclave-d1's saved-state decoder
+   (vmsavedstatedumpprovider, ReadGuestPhysicalAddress). On type 16 both pages must match (its positive
+   control). On a VBS type 1 the SHARED page must still match (it reads THIS VM), and the PRIVATE page is the test.

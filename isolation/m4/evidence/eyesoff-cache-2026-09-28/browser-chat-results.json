@@ -1,0 +1,27 @@
+{
+  "url": "https://9eb4e600.app.enclave.host",
+  "source": "Browser UI answers and /chat SSE done frames captured via CDP",
+  "release": "9958ac99a4492bc9cf5d3b598dd6a7e4b04d27c99d7f7526b6ccc7042f4c5724",
+  "turns": [
+    {
+      "prompt": "Remember the code amber-421 for this conversation. Reply with exactly: Stored. Do not use any tools.",
+      "answer": "Stored.",
+      "promptTokens": 3846,
+      "prefillMs": 152970,
+      "decodeMs": 4306,
+      "generatedTokens": 37,
+      "decodeTokensPerSecond": 8.6
+    },
+    {
+      "prompt": "What code did I ask you to remember? Reply with only the code. Do not use any tools.",
+      "answer": "amber-421",
+      "promptTokens": 3883,
+      "prefillMs": 2176,
+      "decodeMs": 7025,
+      "generatedTokens": 68,
+      "decodeTokensPerSecond": 9.7
+    }
+  ],
+  "prefillSpeedup": 70.29871323529412,
+  "notes": "First full Loop-mode chat establishes a longer prefix than the non-Loop default warmup. The appended follow-up reuses it. Timing is prefill only, not total response latency or decode throughput."
+}

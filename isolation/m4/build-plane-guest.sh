@@ -1,0 +1,105 @@
+#!/bin/sh
+# Build an M4b PLANE domain: a domain that admits its artifacts to the measured SVSM and then serves TLS.
+#
+# HOW IT DIFFERS FROM THE OTHER TWO GUESTS. build-app-guest.sh makes a serving domain whose app is in the LAUNCH
+# measurement (M4a, one guest per app); build-admit-guest.sh makes a guest that only exercises admission and
+# prints results. This makes a SERVING domain whose app identity comes from the SVSM's compiled tables instead of
+# from its own image - which is what the IGVM path needs, because there the guest image is outside the launch
+# measurement and anything the image asserted about the app would be asserted by unmeasured code.
+#
+# So this image carries the artifacts to be ADMITTED (the bundle, and the runtime SET - every file in /rt, the
+# interpreter and shared libraries included, see guest/rtset.h) and the front, and its init refuses to serve if
+# the SVSM refuses either artifact. The digests the SVSM must have been built to expect are printed at the end:
+# they go into ENCLAVE_APP_IDS and ENCLAVE_RUNTIME_SHA256, so a mismatch is a build error rather than a mystery at
+# runtime.
+#
+#   usage: build-plane-guest.sh <app.bundle> <out.cpio.gz>
+#
+# RT_MUTATE builds a NEGATIVE CONTROL and nothing else: flip:<name> flips one byte of /rt/<name>, drop:<name>
+# deletes it, add:<name> adds a file. The digest printed is of the MUTATED set, and verify-runtime-set.sh builds
+# the SVSM with the UNMUTATED one, so the plane must be refused. Never set it for an image anyone will serve.
+#
+# APP_MUTATE is the same for the app: decoy:<file.wasm> puts a DIFFERENT component at /app.wasm, where the old
+# planeinit ran it from (the plane must serve the admitted bundle's component anyway); truncate cuts the last 4 KiB
+# off /app.bundle; drop leaves /app.bundle out. The app id printed is ALWAYS the unmutated bundle's, because that is
+# what the SVSM is built to admit - verify-app-binding.sh relies on it.
+set -e
+here=$(cd "$(dirname "$0")" && pwd)
+m2=$here/../m2
+bundle=$1; out=$2
+[ -f "$bundle" ] && [ -n "$out" ] || { echo "usage: build-plane-guest.sh <app.bundle> <out.cpio.gz>"; exit 2; }
+
+BUNDLETOOL=${BUNDLETOOL:-$here/.bundle}
+[ -x "$BUNDLETOOL" ] || (cd "$here/../contract" && CGO_ENABLED=0 go build -trimpath -buildvcs=false \
+  -ldflags='-s -w -buildid=' -o "$BUNDLETOOL" ./cmd/bundle)
+app_id=$("$BUNDLETOOL" id "$bundle")
+[ ${#app_id} = 64 ] || { echo "bundle id did not give 32 bytes of hex: $app_id"; exit 1; }
+
+d=$(mktemp -d)
+trap 'rm -rf "$d"' EXIT
+gcc -static -O2 -o "$d/init" "$here/guest/planeinit.c"
+(cd "$m2" && CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags='-s -w -buildid=' -o "$d/front" ./front)
+# the module is built against the GUEST kernel; one for the wrong release will not load
+(cd "$here/guest" && make >/dev/null)
+cp "$here/guest/appidmod.ko" "$d/appidmod.ko"
+mkdir -p "$d/rt" "$d/proc" "$d/sys" "$d/dev" "$d/tmp"
+rmdir "$d/rt"
+"$here/runtime-set.sh" compose "$d/rt"
+if [ -n "${RT_MUTATE:-}" ]; then
+  f=$d/rt/${RT_MUTATE#*:}
+  case "$RT_MUTATE" in
+    flip:*) [ -f "$f" ] || { echo "RT_MUTATE: no $f" >&2; exit 2; }
+            python3 -c 'import sys; p=sys.argv[1]; b=bytearray(open(p,"rb").read()); b[len(b)//2]^=0xff; open(p,"wb").write(b)' "$f" ;;
+    drop:*) [ -f "$f" ] || { echo "RT_MUTATE: no $f" >&2; exit 2; }; rm -f "$f" ;;
+    add:*)  [ ! -e "$f" ] || { echo "RT_MUTATE: $f exists" >&2; exit 2; }; printf 'not admitted\n' > "$f" ;;
+    *) echo "RT_MUTATE must be flip:<name>, drop:<name> or add:<name>" >&2; exit 2 ;;
+  esac
+  echo "RT_MUTATE=$RT_MUTATE: this image is a NEGATIVE CONTROL and must be refused" >&2
+fi
+# The bundle is what the SVSM admits AND what the runtime executes: planeinit cuts the component from the bundle
+# bytes it staged (guest/appbundle.h). No /app.wasm is extracted into the image any more - that separate file was
+# the executed copy, tied to the admitted one only by this build.
+cp "$bundle" "$d/app.bundle"
+if [ -n "${APP_MUTATE:-}" ]; then
+  case "$APP_MUTATE" in
+    decoy:*) cp "${APP_MUTATE#decoy:}" "$d/app.wasm" ;;
+    truncate) head -c "$(( $(stat -c %s "$d/app.bundle") - 4096 ))" "$bundle" > "$d/app.bundle" ;;
+    drop) rm -f "$d/app.bundle" ;;
+    *) echo "APP_MUTATE must be decoy:<file.wasm>, truncate or drop" >&2; exit 2 ;;
+  esac
+  echo "APP_MUTATE=$APP_MUTATE: this image is a NEGATIVE CONTROL" >&2
+fi
+printf '%s\n' "$app_id" > "$d/app.sha256"
+. "$here/../m1/domain.env"
+M=/lib/modules/$GUEST_KREL/kernel
+# The report modules ARE carried, deliberately. Leaving them out would make "this plane has no report interface"
+# a property of the PACKAGING, which a verifier cannot check; carrying them and having sev-guest REFUSE to load
+# for want of a VMPCK is evidence, and it is the non-forgeable form of the boundary self-test - there is no key to
+# configure around, unlike tsm-report's privlevel_floor which a command line alone can set. planeinit probes both
+# vmpck_id=0 and its own level and POWERS OFF if either loads.
+cp "$M/net/vmw_vsock/vsock.ko.zst" "$M/net/vmw_vsock/vmw_vsock_virtio_transport_common.ko.zst" \
+   "$M/net/vmw_vsock/vmw_vsock_virtio_transport.ko.zst" \
+   "$M/drivers/virt/coco/guest/tsm_report.ko.zst" "$M/drivers/virt/coco/sev-guest/sev-guest.ko.zst" "$d/"
+# modes, ownership and times normalised, so the measurement depends on contents alone (pack-initrd.sh)
+"$here/pack-initrd.sh" "$d" "$out"
+
+set -- $("$here/runtime-set.sh" digest "$d/rt")
+rt_sha=$2; rt_desc="$3 $4 $5"
+[ ${#rt_sha} = 64 ] || { echo "no runtime-set digest for $d/rt" >&2; exit 1; }
+# RuntimeID comes from the CONTRACT's own implementation (runtime.mjs runtimeId), never recomputed here: it is
+# sha256 of a canonical JSON encoding, and a second implementation of that canonicalisation is a second thing to
+# get wrong. The SVSM must be built with this value, so a wrong one here would produce a binding no verifier
+# could reproduce.
+rid=$(node -e '
+import("'"$here"'/../contract/runtime.mjs").then(m => {
+  const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+  process.stdout.write(m.runtimeId(r).toString("hex"));
+}).catch(e => { process.stderr.write(String(e)); process.exit(1); });
+' "$d/rt/runtime.json")
+[ ${#rid} = 64 ] || { echo "the contract did not give a 32-byte RuntimeID for $d/rt/runtime.json" >&2; exit 1; }
+echo "plane_guest $out ($(stat -c %s "$out") bytes)"
+echo "  bundle  app id  $app_id   <- ENCLAVE_APP_IDS entry for this plane"
+echo "  runtime set     $rt_sha   <- ENCLAVE_RUNTIME_SHA256 entry (rtset v1, every file in /rt: $rt_desc)"
+echo "  runtime id      $rid   <- ENCLAVE_RUNTIME_IDS entry"
+[ -z "${RT_MUTATE:-}" ] || echo "  NEGATIVE CONTROL: RT_MUTATE=$RT_MUTATE"
+[ -z "${APP_MUTATE:-}" ] || echo "  NEGATIVE CONTROL: APP_MUTATE=$APP_MUTATE"

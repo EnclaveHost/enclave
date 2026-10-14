@@ -516,6 +516,37 @@ void ggml_backend_shielded_pads_used(uint64_t *used, uint64_t *missed) {
     if (missed) *missed = m;
 }
 
+int ggml_backend_shielded_profile_snapshot(uint64_t *out, size_t count) {
+    // v1: version, cards, exchanges, offloaded nodes, local nodes;
+    // cumulative microseconds: encode, link, post, graph, split gemm/post/join,
+    // mask, wire, refill-on-path, unmask-lhs, rhs, check, pads, idle, pad-wait;
+    // then pads used, missed, waited. Card times overlap; do not sum as wall time.
+    if (!out || count < 24) return -1;
+    sh_pool &p = sh_pool_get();
+    std::unique_lock<std::mutex> lock(p.mu, std::try_to_lock);
+    if (!lock.owns_lock()) return 0;
+    std::vector<std::unique_lock<std::mutex>> cards;
+    for (auto *s : p.cards) {
+        cards.emplace_back(s->mu, std::try_to_lock);
+        if (!cards.back().owns_lock()) return 0;
+    }
+    uint64_t v[24] = {1, (uint64_t)p.cards.size()};
+    for (auto *s : p.cards) {
+        sh_link_profile lp{}; sh_link_profile_snapshot(s->link, &lp);
+        uint64_t used=0, missed=0, waited=0; double wait_ms=0;
+        sh_link_pool_stats(s->link, &used, &missed);
+        sh_link_pad_wait_stats(s->link, &waited, &wait_ms);
+        v[2] += s->exchanges; v[3] += s->offloaded_nodes; v[4] += s->local_nodes;
+        const double ms[] = {s->t_encode,s->t_link,s->t_post,s->t_graph,
+            s->t_split_gemm,s->t_split_post,s->t_split_join,lp.mask_ms,lp.wire_ms,
+            lp.refill_ms,lp.unmask_lhs_ms,lp.rhs_ms,lp.check_ms,lp.pads_ms,lp.idle_ms,wait_ms};
+        for (size_t i=0; i<16; ++i) v[5+i] += (uint64_t)(std::max(0.0,ms[i])*1000.0);
+        v[21] += used; v[22] += missed; v[23] += waited;
+    }
+    std::copy(v,v+24,out);
+    return 1;
+}
+
 void ggml_backend_shielded_stats(uint64_t *off, uint64_t *loc, uint64_t *macs, uint64_t *vf) {
     sh_pool &p = sh_pool_get();
     std::lock_guard<std::mutex> lock(p.mu);
@@ -681,15 +712,28 @@ static void sh_pool_init(sh_pool &p) {
         std::istringstream fields(line);
         std::string part;
         while (std::getline(fields, part, '|')) parts.push_back(part);
-        if ((parts.size() != 4 && parts.size() != 6) || parts[0].empty() || parts[0].size() > 127 || parsed.size() >= 16 ||
-            parts[0].find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-") != std::string::npos) { reject("line needs 4 or 6 fields with a valid host"); return; }
+        if ((parts.size() != 4 && parts.size() != 6) || parts[0].empty() || parts[0].size() > 127 || parsed.size() >= 16) {
+            reject("line needs 4 or 6 fields with a valid host"); return;
+        }
+        const std::string broker_prefix = "unix:/run/enclave-shield/gpu";
+        const bool local_broker = parts[0].compare(0, broker_prefix.size(), broker_prefix) == 0;
+        if (local_broker) {
+            const std::string id = parts[0].substr(broker_prefix.size());
+            if (id.empty() || id.size() > 2 || id.find_first_not_of("0123456789") != std::string::npos ||
+                (id.size() > 1 && id[0] == '0') || atoi(id.c_str()) >= 16) {
+                reject("invalid private broker path"); return;
+            }
+        } else if (parts[0].find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-") != std::string::npos) {
+            reject("invalid worker host"); return;
+        }
         uint64_t nums[3];
         for (int i = 0; i < 3; i++) {
             if (parts[i+1].empty() || parts[i+1].find_first_not_of("0123456789") != std::string::npos || parts[i+1].size() > 15) { reject("port/vsock/reservation must be plain decimal"); return; }
             nums[i] = strtoull(parts[i+1].c_str(), nullptr, 10);
         }
         if (nums[0] < 1 || nums[0] > 65535 || nums[1] > (1U << 30) || nums[2] < 1 || nums[2] > (1ULL << 50) ||
-            !endpoints.insert(parts[0] + ":" + std::to_string(nums[0])).second) { reject("port out of range, reservation out of range, or duplicate endpoint"); return; }
+            (local_broker && nums[1] != 0) ||
+            !endpoints.insert(local_broker ? parts[0] : parts[0] + ":" + std::to_string(nums[0])).second) { reject("port out of range, reservation out of range, or duplicate endpoint"); return; }
         auto s = std::make_unique<sh_state>();
         sh_env_defaults(*s);
         if (parts.size() == 6) {
@@ -1580,7 +1624,7 @@ static int sh_split_exchange(sh_pool &p, std::vector<sh_state::entry *> &xents,
             sh_state *card = p.cards[e0.part_cards[c]];
             const int r = sh_link_gemm_stride(card->link, pnodes[c].data(), pnodes[c].size(), x, m, pyp[c].data(), pstride[c].data());
             if (r == SH_OK && post) sh_split_post_slice(*post, pcol0[c].data(), pncols[c].data());
-            if (rc == SH_OK) rc = r;
+            if (rc == SH_OK || r == SH_ERR_VERIFY) rc = r;
             if (c > 0 && r == SH_OK) card->exchanges++;
         }
         return rc;
@@ -2047,13 +2091,20 @@ static void sh_place_helper_self() {
     p.helper_tid.store(tid);
     if (p.has_helper) sh_place_set(tid, &p.helper_set, nullptr);
 }
-/* Called by card 0's compute thread, under its state mutex, every 256 graphs. */
-static void sh_place_sweep() {
+/* Async callers can change between graphs. Place the active caller on every
+ * graph; the less frequent sweep below only handles other idle threads. */
+static void sh_place_main_self() {
     sh_placement &p = sh_place();
     if (!p.on) return;
     const pid_t self = (pid_t)syscall(SYS_gettid);
     if (p.main_tid.load() != self) { p.main_tid.store(self); }
     sh_place_set(self, &p.main_set, &p.moved);
+}
+/* Called by card 0's compute thread, under its state mutex, every 256 graphs. */
+static void sh_place_sweep() {
+    sh_placement &p = sh_place();
+    if (!p.on) return;
+    const pid_t self = (pid_t)syscall(SYS_gettid);
     if (!p.has_rest) return;
     const pid_t helper = p.helper_tid.load();
     DIR *d = opendir("/proc/self/task");
@@ -2100,7 +2151,10 @@ static void sh_place_report() {
 
 static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
     std::lock_guard<std::mutex> lk(s.mu);
-    if (s.card_index == 0 && (s.graph_calls & 255) == 0) sh_place_sweep();
+    if (s.card_index == 0) {
+        sh_place_main_self();
+        if ((s.graph_calls & 255) == 0) sh_place_sweep();
+    }
     if (sh_card_integrity_failed(s) || s.weight_cache_failed || s.source_verification_failed) return GGML_STATUS_FAILED;
     const double tg0 = sh_now_ms();
     s.graph_calls++;
@@ -2111,6 +2165,7 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
     /* A failed link is retried once its backoff has passed: the same start
      * path as the first connection, carrying the whole weight set again. */
     if (s.link_failed && s.link && sh_now_ms() >= s.link_retry_at) { s.link_failed = false; s.dirty = true; }
+    if (s.link && !s.link_failed && !sh_link_is_live(s.link)) s.dirty = true;
     if (s.dirty && s.link && !s.link_failed) {
         const double t0 = sh_now_ms();
         const int rc = sh_link_start(s.link);
@@ -2154,6 +2209,7 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
             if (o == &s || !o->link) continue;
             std::lock_guard<std::mutex> olk(o->mu);
             if (o->link_failed && sh_now_ms() >= o->link_retry_at) { o->link_failed = false; o->dirty = true; }
+            if (!o->link_failed && !sh_link_is_live(o->link)) o->dirty = true;
             if (!o->dirty || o->link_failed) continue;
             const double t0 = sh_now_ms();
             const int rc = sh_link_start(o->link);
@@ -2468,6 +2524,46 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
                 }
             }
             rc = all_live ? sh_split_exchange(pool, xents, yp, x_gpu.data(), m, post_ok ? &post : nullptr) : SH_ERR_IO;
+            /* Unlike a shape refusal, a broken transport must re-enter the
+             * start path. Otherwise column splitting silently stays on the
+             * whole-model CPU fallback forever after the broker goes idle.
+             * Both split threads have joined here. Reconnect once and retry
+             * this still-uncommitted product with fresh pads. A verifier
+             * failure is never eligible for this recovery. */
+            if (rc == SH_ERR_IO || rc == SH_ERR_VIOLATION) {
+                bool recovered = true;
+                for (int ci : xents[0]->part_cards) {
+                    sh_state *card = pool.cards[ci];
+                    std::unique_lock<std::mutex> card_lock(card->mu, std::defer_lock);
+                    if (card != &s) card_lock.lock();
+                    if (sh_card_integrity_failed(*card)) {
+                        rc = SH_ERR_VERIFY; recovered = false; break;
+                    }
+                    if (!card->link) { recovered = false; break; }
+                    const int start_rc = sh_link_start(card->link);
+                    if (start_rc != SH_OK) {
+                        sh_link_down(*card);
+                        recovered = false;
+                        if (start_rc == SH_ERR_VERIFY) { rc = SH_ERR_VERIFY; break; }
+                    } else {
+                        card->dirty = false;
+                        card->link_failed = false;
+                        card->link_backoff_ms = 1000;
+                    }
+                }
+                if (recovered) rc = sh_split_exchange(pool, xents, yp, x_gpu.data(), m, post_ok ? &post : nullptr);
+                if (rc != SH_OK && rc != SH_ERR_VERIFY) {
+                    for (int ci : xents[0]->part_cards) {
+                        sh_state *card = pool.cards[ci];
+                        std::unique_lock<std::mutex> card_lock(card->mu, std::defer_lock);
+                        if (card != &s) card_lock.lock();
+                        sh_link_down(*card);
+                    }
+                    sh_link_set_idle_work(s.link, nullptr, nullptr);
+                    fprintf(stderr, "[shielded] split transport recovery failed; refusing a silent CPU downgrade\n");
+                    return GGML_STATUS_FAILED;
+                }
+            }
             if (!idle.items.empty()) {
                 sh_link_set_idle_work(s.link, nullptr, nullptr);
                 /* Mark only what actually completed. A pilot must not be able

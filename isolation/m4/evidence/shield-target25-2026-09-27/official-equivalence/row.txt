@@ -1,0 +1,73 @@
+case 0: S_v=128 H=48 H_k=16 n_t=1 n_s=1 K=1 inplace scalar-gate threads=8  ade5fd4339d6ff12
+case 1: S_v=128 H=48 H_k=16 n_t=1 n_s=1 K=1 copy scalar-gate threads=8  3f57354217273f7b
+case 2: S_v=128 H=48 H_k=16 n_t=1 n_s=1 K=2 inplace scalar-gate threads=8  ab45d01087957cb8
+case 3: S_v=128 H=48 H_k=16 n_t=1 n_s=1 K=2 copy scalar-gate threads=8  45cc48d5f2960306
+case 4: S_v=128 H=48 H_k=16 n_t=1 n_s=1 K=3 inplace scalar-gate threads=8  39dd4aadb167036f
+case 5: S_v=128 H=48 H_k=16 n_t=1 n_s=1 K=3 copy scalar-gate threads=8  0db8476240f0963e
+case 6: S_v=128 H=48 H_k=16 n_t=2 n_s=1 K=1 inplace scalar-gate zeros threads=8  daffb6557cdaf0e3
+case 7: S_v=128 H=48 H_k=16 n_t=2 n_s=1 K=1 copy scalar-gate zeros threads=8  01e7cf2d7d7fd316
+case 8: S_v=128 H=48 H_k=16 n_t=2 n_s=1 K=2 inplace scalar-gate zeros threads=8  c922998c74a92143
+case 9: S_v=128 H=48 H_k=16 n_t=2 n_s=1 K=2 copy scalar-gate zeros threads=8  ead21161a394f311
+case 10: S_v=128 H=48 H_k=16 n_t=2 n_s=1 K=3 inplace scalar-gate zeros threads=8  8fb1c878af1dc640
+case 11: S_v=128 H=48 H_k=16 n_t=2 n_s=1 K=3 copy scalar-gate zeros threads=8  416070cbb5e94715
+case 12: S_v=128 H=48 H_k=16 n_t=3 n_s=1 K=1 inplace scalar-gate threads=8  e9777332998b56db
+case 13: S_v=128 H=48 H_k=16 n_t=3 n_s=1 K=1 copy scalar-gate threads=8  99d54da5833a6ed0
+case 14: S_v=128 H=48 H_k=16 n_t=3 n_s=1 K=2 inplace scalar-gate threads=8  1457e88b47712062
+case 15: S_v=128 H=48 H_k=16 n_t=3 n_s=1 K=2 copy scalar-gate threads=8  8f6e6c71642833ee
+case 16: S_v=128 H=48 H_k=16 n_t=3 n_s=1 K=3 inplace scalar-gate threads=8  a9efab6d107c7f72
+case 17: S_v=128 H=48 H_k=16 n_t=3 n_s=1 K=3 copy scalar-gate threads=8  44f2f2d2d3756d87
+case 18: S_v=128 H=48 H_k=16 n_t=4 n_s=1 K=1 inplace scalar-gate zeros threads=8  0cd210ec7c161129
+case 19: S_v=128 H=48 H_k=16 n_t=4 n_s=1 K=1 copy scalar-gate zeros threads=8  669914e3b508761b
+case 20: S_v=128 H=48 H_k=16 n_t=4 n_s=1 K=2 inplace scalar-gate zeros threads=8  21acb053218ac10f
+case 21: S_v=128 H=48 H_k=16 n_t=4 n_s=1 K=2 copy scalar-gate zeros threads=8  95df3b91079fd34d
+case 22: S_v=128 H=48 H_k=16 n_t=4 n_s=1 K=3 inplace scalar-gate zeros threads=8  bb45738f7b173cb2
+case 23: S_v=128 H=48 H_k=16 n_t=4 n_s=1 K=3 copy scalar-gate zeros threads=8  7998e91c3b9904b2
+case 24: S_v=128 H=48 H_k=16 n_t=5 n_s=1 K=1 inplace scalar-gate threads=8  ea28d5656f46a6d3
+case 25: S_v=128 H=48 H_k=16 n_t=5 n_s=1 K=1 copy scalar-gate threads=8  85e825ccd2a933ff
+case 26: S_v=128 H=48 H_k=16 n_t=5 n_s=1 K=2 inplace scalar-gate threads=8  9b8a237df8ea4886
+case 27: S_v=128 H=48 H_k=16 n_t=5 n_s=1 K=2 copy scalar-gate threads=8  14c563e899d0b465
+case 28: S_v=128 H=48 H_k=16 n_t=5 n_s=1 K=3 inplace scalar-gate threads=8  1adaac846f411cc5
+case 29: S_v=128 H=48 H_k=16 n_t=5 n_s=1 K=3 copy scalar-gate threads=8  dc590fb8b5d5ed9a
+case 30: S_v=128 H=48 H_k=16 n_t=8 n_s=1 K=1 inplace scalar-gate zeros threads=8  c246259da073e821
+case 31: S_v=128 H=48 H_k=16 n_t=8 n_s=1 K=1 copy scalar-gate zeros threads=8  4f7980ff9c8ab8a4
+case 32: S_v=128 H=48 H_k=16 n_t=8 n_s=1 K=2 inplace scalar-gate zeros threads=8  8626dd8564ed2062
+case 33: S_v=128 H=48 H_k=16 n_t=8 n_s=1 K=2 copy scalar-gate zeros threads=8  097275e6452675ed
+case 34: S_v=128 H=48 H_k=16 n_t=8 n_s=1 K=3 inplace scalar-gate zeros threads=8  004815dcd9cd7cc6
+case 35: S_v=128 H=48 H_k=16 n_t=8 n_s=1 K=3 copy scalar-gate zeros threads=8  5b4bced62f82113c
+case 36: S_v=128 H=48 H_k=16 n_t=16 n_s=1 K=1 inplace scalar-gate zeros threads=8  fc705c99b60cf085
+case 37: S_v=128 H=48 H_k=16 n_t=16 n_s=1 K=1 copy scalar-gate zeros threads=8  bd40f9678140d5e9
+case 38: S_v=128 H=48 H_k=16 n_t=16 n_s=1 K=2 inplace scalar-gate zeros threads=8  d9e03f0397d369fd
+case 39: S_v=128 H=48 H_k=16 n_t=16 n_s=1 K=2 copy scalar-gate zeros threads=8  748bd01cc8671d18
+case 40: S_v=128 H=48 H_k=16 n_t=16 n_s=1 K=3 inplace scalar-gate zeros threads=8  2a8afb5b0580dcac
+case 41: S_v=128 H=48 H_k=16 n_t=16 n_s=1 K=3 copy scalar-gate zeros threads=8  be418aa7c1267cff
+case 42: S_v=128 H=48 H_k=16 n_t=17 n_s=1 K=1 inplace scalar-gate threads=8  102d2e859fafddb9
+case 43: S_v=128 H=48 H_k=16 n_t=17 n_s=1 K=1 copy scalar-gate threads=8  4489c4543f0b7ec4
+case 44: S_v=128 H=48 H_k=16 n_t=17 n_s=1 K=2 inplace scalar-gate threads=8  71a36f42b61108c6
+case 45: S_v=128 H=48 H_k=16 n_t=17 n_s=1 K=2 copy scalar-gate threads=8  5f8239c69e676014
+case 46: S_v=128 H=48 H_k=16 n_t=17 n_s=1 K=3 inplace scalar-gate threads=8  c4aec5c85ace2e4f
+case 47: S_v=128 H=48 H_k=16 n_t=17 n_s=1 K=3 copy scalar-gate threads=8  0bf23bf390e004ba
+case 48: S_v=128 H=48 H_k=16 n_t=2 n_s=1 K=4 inplace scalar-gate zeros threads=8  9c5ec0e5182eb02f
+case 49: S_v=128 H=48 H_k=16 n_t=2 n_s=1 K=4 copy scalar-gate zeros threads=8  0a221694686bf283
+case 50: S_v=128 H=48 H_k=16 n_t=3 n_s=1 K=4 inplace scalar-gate zeros threads=8  43003e7d7f649f22
+case 51: S_v=128 H=48 H_k=16 n_t=3 n_s=1 K=4 copy scalar-gate zeros threads=8  7d98bff29a097270
+case 52: S_v=64 H=6 H_k=3 n_t=2 n_s=3 K=2 inplace scalar-gate zeros threads=1  db930485641a388b
+case 53: S_v=33 H=5 H_k=5 n_t=7 n_s=2 K=3 inplace scalar-gate threads=1  a356eb34fa00fc2a
+case 54: S_v=16 H=4 H_k=2 n_t=16 n_s=2 K=1 inplace scalar-gate zeros threads=1  bf02f8e33d2199dc
+case 55: S_v=64 H=6 H_k=3 n_t=2 n_s=3 K=2 copy scalar-gate zeros threads=1  10101afa64fff9e7
+case 56: S_v=33 H=5 H_k=5 n_t=7 n_s=2 K=3 copy scalar-gate threads=1  3ff30a3f4cef1a8a
+case 57: S_v=16 H=4 H_k=2 n_t=16 n_s=2 K=1 copy scalar-gate zeros threads=1  2b21db0d77e9cb3d
+case 58: S_v=64 H=6 H_k=3 n_t=2 n_s=3 K=2 inplace scalar-gate zeros threads=3  0eeecf7a7957cc3e
+case 59: S_v=33 H=5 H_k=5 n_t=7 n_s=2 K=3 inplace scalar-gate threads=3  d00ca3b942adfc73
+case 60: S_v=16 H=4 H_k=2 n_t=16 n_s=2 K=1 inplace scalar-gate zeros threads=3  a22b6e279b7410db
+case 61: S_v=64 H=6 H_k=3 n_t=2 n_s=3 K=2 copy scalar-gate zeros threads=3  2aaefbca0e353f5a
+case 62: S_v=33 H=5 H_k=5 n_t=7 n_s=2 K=3 copy scalar-gate threads=3  8009443078394d48
+case 63: S_v=16 H=4 H_k=2 n_t=16 n_s=2 K=1 copy scalar-gate zeros threads=3  e500a4d463142f53
+case 64: S_v=64 H=6 H_k=3 n_t=2 n_s=3 K=2 inplace scalar-gate zeros threads=8  47e1b6faeb0e4e86
+case 65: S_v=33 H=5 H_k=5 n_t=7 n_s=2 K=3 inplace scalar-gate threads=8  950fbfc07896051d
+case 66: S_v=16 H=4 H_k=2 n_t=16 n_s=2 K=1 inplace scalar-gate zeros threads=8  82577de6ebc60584
+case 67: S_v=64 H=6 H_k=3 n_t=2 n_s=3 K=2 copy scalar-gate zeros threads=8  f9c3a1b3c1a82523
+case 68: S_v=33 H=5 H_k=5 n_t=7 n_s=2 K=3 copy scalar-gate threads=8  26399198c63d3a0d
+case 69: S_v=16 H=4 H_k=2 n_t=16 n_s=2 K=1 copy scalar-gate zeros threads=8  9644437642d95e34
+case 70: S_v=64 H=4 H_k=4 n_t=3 n_s=1 K=2 inplace kda zeros threads=8  0ce40bea0156d08c
+case 71: S_v=64 H=4 H_k=4 n_t=3 n_s=1 K=2 copy kda zeros threads=8  ac4e4f74419f5e12
+cases=72 bytes=448983256
