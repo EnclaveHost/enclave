@@ -116,7 +116,7 @@ export let PAYMENT_ROUTER_ADDRESS = "";                         // PaymentRouter
 export let SECRET_VAULT_ADDRESS = "";                           // EnclaveSecretVault (secret custody, docs/security/secret-custody.md); book key "secretVault" only - "" = no custody option in the Secrets panel
 // the custodian committee new custody policies seal to (a bytes32 committee id in EnclaveSecretVault); "" until one exists.
 // An owner's existing policy keeps its own committee whatever this says.
-export const CUSTODY_COMMITTEE = "";
+export const CUSTODY_COMMITTEE = "0xf14080496fbb6f12aee6577fd3f0fdc2ba1226a159b727dbfc8bf0de07fe4f9c";   // the bootstrap committee (3 of 4, Enclave-operated: NOT decentralized)
 export const APP_CATALOG_CHAIN   = 8453;                        // Base mainnet (kept in sync by the deploy script; 84532 = Base Sepolia)
 
 /* apply an address-book map ({appCatalog, deployments}) onto the live

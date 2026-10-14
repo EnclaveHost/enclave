@@ -315,10 +315,19 @@ function resolveWildcard(qname, qtype, zone, a4, a6) {
 // back per family would hand every v6-preferring client to the DEFAULT relay
 // while v4 clients used the chosen one, which is not a fallback but a silent
 // half-undo of the choice, and the hardest kind of routing bug to see.
+// APP_STATIC="label=1.2.3.4,label2=5.6.7.8": fixed A records for platform services that share the zone (the secret
+// custodians, docs/security/secret-custody.md). A label must contain a non-hex character, so it can never be a deployment
+// label (those are hex), and it answers before the route map.
+const APP_STATIC = new Map(String(process.env.APP_STATIC || "").split(",").map((x) => x.trim()).filter(Boolean)
+  .map((x) => x.split("=").map((y) => y.trim().toLowerCase()))
+  .filter(([l, a]) => /^[a-z0-9-]{1,63}$/.test(l || "") && /[g-z-]/.test(l) && ipv4Bytes(a || ""))
+  .map(([l, a]) => [l, ipv4Bytes(a)]));
 function resolveApp(qname, qtype) {
   if (qname === APP_ZONE) return apex(APP_ZONE, qtype);
   if (qname.startsWith("_acme-challenge.")) return resolveWildcard(qname, qtype, APP_ZONE, null, null);
   const sub = qname.slice(0, -(APP_ZONE.length + 1));
+  const fixed = sub.includes(".") ? null : APP_STATIC.get(sub);
+  if (fixed) return (qtype === T.A || qtype === T.ANY) ? HIT([rr(qname, T.A, 300, fixed)]) : NODATA(APP_ZONE);
   const pick = sub.includes(".") ? null : appRoutes.get(sub);
   if (!pick || pick.expiresAt <= Date.now()) return NODATA(APP_ZONE);
   const an = [];

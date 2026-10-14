@@ -60,8 +60,14 @@ export async function deploySecretVault({ rpc, chain, privateKey, book, log = co
   const r = await pc.waitForTransactionReceipt({ hash });
   if (r.status !== "success" || !r.contractAddress) die(`deployment reverted: ${hash}`);
   const vault = getAddress(r.contractAddress);
-  // verify what is on chain: the book it reads, and that the deployer holds nothing (there is nothing TO hold)
-  const gotBook = await pc.readContract({ address: vault, abi: art.abi, functionName: "book" });
+  // verify what is on chain: the book it reads, and that the deployer holds nothing (there is nothing TO hold). A public RPC
+  // can answer the receipt before it serves the new code (10-14: "book returned no data" on the first read), so retry.
+  let gotBook = null;
+  for (let i = 0; i < 20 && !gotBook; i++) {
+    gotBook = await pc.readContract({ address: vault, abi: art.abi, functionName: "book" }).catch(() => null);
+    if (!gotBook) await new Promise((r) => setTimeout(r, 1500));
+  }
+  if (!gotBook) die(`deployed ${vault} (tx ${hash}) but no RPC answered book() yet: verify it by hand`);
   if (getAddress(gotBook) !== getAddress(book)) die(`the vault reads book ${gotBook}, not ${book}`);
   log(`deployed ${vault} (tx ${hash}, block ${r.blockNumber})`);
   const setData = encodeFunctionData({ abi: [{ type: "function", name: "set", stateMutability: "nonpayable", inputs: [{ type: "bytes32" }, { type: "address" }], outputs: [] }],

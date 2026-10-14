@@ -1,7 +1,18 @@
 # Secret custody: attestation-gated release from independent custodians
 
-Status (2026-10-14): implemented and tested on branch `secrets/custody`. NOT deployed: no contract, no custodian,
-no relay or guest image change is live. The rollout below is a list of steps to review before anyone runs them.
+Status (2026-10-14): rolling out to production (§9 records each step). The external review (§9 step 1) was NOT done:
+the owner chose to proceed without it.
+
+| Piece | Production |
+|---|---|
+| `EnclaveSecretVault` | Base `0x08074300F75e78212Ae10eBd14984f78e17811A6` (tx `0x90ea64f0…`, block 52605914; `contracts/deployments/secret-vault-base.json`); address-book key `secretVault` NOT set yet (governance Trezor) |
+| Bootstrap committee | `0xf14080496fbb6f12aee6577fd3f0fdc2ba1226a159b727dbfc8bf0de07fe4f9c`, **3 of 4**, epoch 1 (tx `0x60a5b996…`) |
+| Custodians | `https://custody-{us-west,ca-east,ap-southeast,eu-central}.app.enclave.host`, one per regional network box |
+
+**The bootstrap committee is NOT decentralized custody.** Its four custodians run on four separate VPSs, each with its own
+key generated on the box, none on `nan` where the relay runs. So a compromise of the relay alone reads no secret. But all
+four boxes are operated by Enclave, and their operator could collect three shares. Independent operators replace members
+by resharing (§5.3), with no owner action; until then, say "bootstrap committee", never "decentralized".
 
 This replaces the relay as the holder of application secrets. Before this change the relay stored every deployment's
 secrets encrypted under `SECRETS_KEY`, a key it holds, so its operator could read them all. After it, for a deployment
