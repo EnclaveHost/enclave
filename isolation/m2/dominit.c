@@ -385,6 +385,7 @@ static void seccomp_statement_from(int fd, pid_t child) {
         printf("DOM ERROR could not record the app's seccomp statement for the front: %s\n", strerror(errno));
 }
 
+static int public_web_egress;
 static int public_https_egress; /* only the authenticated front handoff can enable it */
 static pid_t spawn(char *const argv[], char *extra, int fd3, int flags);
 /* The app, through the seccomp statement channel: a close-on-exec pipe made here (the front, already running, never
@@ -458,6 +459,7 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
         /* Protocol credential, not a security boundary: one app owns this guest.
          * Policy is enforced by the measured front, CID admission and host IP checks. */
         if (public_https_egress && drop) envp[ei++] = "ENCLAVE_EGRESS_CRED=guest:public-https";
+        if (public_web_egress && drop) envp[ei++] = "ENCLAVE_EGRESS=socks5://guest:public-https@127.0.0.2:1080";
         if (shield_on && drop) {
             /* This runtime belongs to one isolated app. Reuse only transport
              * connections; every tool request still carries fresh credentials. */
@@ -558,9 +560,10 @@ static const char *read_front_msg(int fd, char **env, size_t *len) {
     *env = NULL;
     *len = 0;
     public_https_egress = 0;
+    public_web_egress = 0;
     if (n == 0) why = "ended before it handed over the app's config";
     else if (n == 1 && msg[0] == 'N') why = NULL;
-    else if ((msg[0] != 'C' && msg[0] != 'P') || n < 2) why = "sent no valid config message";
+    else if ((msg[0] != 'C' && msg[0] != 'P' && msg[0] != 'W') || n < 2) why = "sent no valid config message";
     else if (n == sizeof msg) why = "sent a config over the 64 KiB ENCLAVE_CONFIG ceiling";
     else if (memchr(msg + 1, 0, n - 1)) why = "sent a config with a NUL byte";
     else {
@@ -571,7 +574,8 @@ static const char *read_front_msg(int fd, char **env, size_t *len) {
             memcpy(*env, pre, sizeof pre - 1);
             memcpy(*env + sizeof pre - 1, msg + 1, *len);
             (*env)[sizeof pre - 1 + *len] = 0;
-            public_https_egress = msg[0] == 'P';
+            public_https_egress = msg[0] == 'P' || msg[0] == 'W';
+            public_web_egress = msg[0] == 'W';
         }
     }
     explicit_bzero(msg, n);
@@ -780,6 +784,9 @@ int main(void) {
     for (int i = 0; base[i]; i++) {
         if (public_https_egress && strcmp(base[i], "/app.wasm") == 0) {
             app[k++] = "-S"; app[k++] = "egress=127.0.0.2:1080";
+        }
+        if (public_web_egress && strcmp(base[i], "/app.wasm") == 0) {
+            app[k++] = "--env"; app[k++] = "ENCLAVE_EGRESS";
         }
         if (cfg_env && strcmp(base[i], "/app.wasm") == 0) {
             app[k++] = "--env";

@@ -32,6 +32,8 @@ const (
 
 // Forwarder runs one loopback listener per allowed origin.
 type Forwarder struct {
+	DNSListen    string // test override; empty uses PublicDNSAddress
+	dnsAddr      netip.AddrPort
 	PublicListen string // test override; empty uses PublicSOCKSAddress
 	publicAddr   netip.AddrPort
 	publicSlots  chan struct{}
@@ -55,6 +57,9 @@ func loopbackFor(i int) netip.Addr {
 func (f *Forwarder) HostsFile() string {
 	var b strings.Builder
 	b.WriteString("127.0.0.1 localhost\n")
+	if f.Policy.PublicWeb {
+		return b.String()
+	}
 	for i, o := range f.Policy.Origins {
 		fmt.Fprintf(&b, "%s %s\n", loopbackFor(i), o.Host)
 	}
@@ -80,6 +85,12 @@ func (f *Forwarder) Start(ctx context.Context) error {
 	}
 	if f.Policy.PublicHTTPS {
 		if err := f.startPublic(ctx); err != nil {
+			f.Close()
+			return err
+		}
+	}
+	if f.Policy.PublicWeb {
+		if err := f.startDNS(ctx); err != nil {
 			f.Close()
 			return err
 		}
@@ -269,6 +280,10 @@ func (s *Server) handle(ctx context.Context, g net.Conn) {
 	}
 	g.SetReadDeadline(time.Time{})
 	f := strings.Fields(line)
+	if len(f) == 3 && (f[0] == "egress-web-v1" || f[0] == "egress-dns-v1") {
+		s.handleWeb(ctx, cid, g, br, f)
+		return
+	}
 	if len(f) != 3 || f[0] != protoVersion || f[2] != "443" {
 		s.outcome(cid, "refused:"+string(ReasonHeader))
 		io.WriteString(g, "refused\n")
