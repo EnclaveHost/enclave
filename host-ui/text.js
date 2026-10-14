@@ -96,9 +96,12 @@
   function statusText(v) {
     var waiting = v.waitingForCap > 0 ? ", " + v.waitingForCap + " waiting for room under the cap" : "";
     return "Node: reachable" + DOT + "backend " + (v.backend || "?") + DOT + v.served + plural(v.served, " deployment", " deployments") + " served" + waiting
-      + (v.appsEnabled ? "" : DOT + "hosting is off on this node (APPS)")
-      + (v.gasLow ? "\nOperator gas is LOW" + (v.gasHoursLeft >= 0 ? " (about " + Math.round(v.gasHoursLeft) + " hours left)" : "")
-                    + ": send a little ETH on Base to " + v.gasOperator + " or apps stop renewing and go away" : "");
+      + (v.appsEnabled ? "" : DOT + "hosting is off on this node (APPS)");
+  }
+  /** The operator key running out of gas, under the node's state in amber: apps stop renewing and go away. "" when not low. */
+  function gasText(v) {
+    return !v || !v.gasLow ? "" : "Operator gas is LOW" + (v.gasHoursLeft >= 0 ? " (about " + Math.round(v.gasHoursLeft) + " hours left)" : "")
+      + ": send a little ETH on Base to " + v.gasOperator + " or apps stop renewing and go away";
   }
 
   /** The accordion rows' right side: what each section is set to now; warn where it waits on the owner. */
@@ -224,7 +227,7 @@
   }
 
   var T = { STEPS: STEPS, DASH: DASH, hostingView: hostingView, earningsView: earningsView, pct: pct, step: step, usd: usd, usdPrice: usdPrice,
-            short: short, isAddress: isAddress, hostingLine: hostingLine, statusText: statusText, limitsRow: limitsRow, priceRow: priceRow,
+            short: short, isAddress: isAddress, hostingLine: hostingLine, statusText: statusText, gasText: gasText, limitsRow: limitsRow, priceRow: priceRow,
             earningsRow: earningsRow, appsRow: appsRow, cpuLines: cpuLines, gpuLines: gpuLines, priceLines: priceLines, parsePrice: parsePrice,
             priceHint: priceHint, earningsLines: earningsLines, walletHint: walletHint, askDrop: askDrop, askOff: askOff, updateSay: updateSay };
   root.EnclaveHostText = T;

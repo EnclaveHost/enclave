@@ -106,6 +106,7 @@ import { createPlacement, pinnedHost } from "./placement.mjs";
 import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson } from "./measurement-predict.mjs";
 import { createTunnelHub } from "./tunnel.js";
 import { createReferrals } from "./referrals.mjs";
+import { withDetachGrace } from "./route-grace.mjs";
 import {LeaseReader,createNetworkRoutes,DurableState,createLeaseSource,createRegistryOperator,createNetworkApi} from "./network-runtime.bundle.mjs";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
 import { pvmCpuPolicyFromEnv, avfAttestWithPvmCpu, pvmCpuAvailability, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
@@ -2564,15 +2565,19 @@ networkRoutes = createNetworkRoutes({
         leaseUntil:Number(d.leaseUntil)*1000,validUntil:Math.min(Number(d.leaseUntil)*1000,_ledger.at+30000)};}
     return leaseFromChain(id);
   },
-  eligible: d => {
-    const row = live.find(e => String(e.id || "").toLowerCase() === String(d.runner).toLowerCase());
+  eligible: d => routeEligibility(d),
+});
+// A host whose tunnel blips keeps its apps' routes for a few minutes (relay/route-grace.mjs).
+const routeEligibility = withDetachGrace({
+  rowOf: (d) => live.find(e => String(e.id || "").toLowerCase() === String(d.runner).toLowerCase()),
+  rowEligibility: (row, d) => {
     // a pVM host's app is routed only while its own evidence holds (relay/pvm-market.mjs servesUntil)
-    if (row && row.mode === "avf") return pvmMarket.servesUntil(row, d) > 0;
+    if (row.mode === "avf") return pvmMarket.servesUntil(row, d) > 0;
     // an hv-node (Enclave Shield) row is routed ONLY per deployment: its owner-only rule or its own app evidence
     // (servesDeploymentUntil -> shieldMarket.servesUntil), never the row's market eligibility as a whole. The value is the
     // route's expiry in ms (0 = none), as for an owner-only row below.
-    if (row && row.mode === "hv-node") return servesDeploymentUntil(row, d) * 1000;
-    return !!row && (isOwnerOnlyRow(row) ? servesDeploymentUntil(row, d) * 1000 : computeEligible(row));
+    if (row.mode === "hv-node") return servesDeploymentUntil(row, d) * 1000;
+    return isOwnerOnlyRow(row) ? servesDeploymentUntil(row, d) * 1000 : computeEligible(row);
   },
 });
 
