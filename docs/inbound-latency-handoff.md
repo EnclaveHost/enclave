@@ -139,7 +139,7 @@ curl -sso /dev/null -w 'via relay  ttfb %{time_starttransfer}s\n' https://e64f7c
 # ONLY, to attribute the difference. Never a route to point a client at.
 ID=0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b
 curl -sso /dev/null -w 'direct     ttfb %{time_starttransfer}s\n' \
-  "https://kryptos.enclave.containers.tinfoil.dev/x/$ID/ping"
+  "https://<the box's own origin>/x/$ID/ping"
 
 # who is where
 REGISTRY_ADDRESS=0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC node scripts/enclave-discover.mjs --all | grep endpoint

@@ -22,5 +22,5 @@ test("every file under test/fixtures/verifier is tracked by git (a clean clone h
   const ignored = execFileSync("git", ["status", "--ignored", "--porcelain", "--", DIR], { cwd: REPO, encoding: "utf8" }).split("\n").filter((l) => l.startsWith("!!")).map((l) => l.slice(3));
   assert.deepEqual(ignored.filter((f) => !f.endsWith("/")), [], "no ignored file under the fixtures");
   assert.ok(present.length > 700, `${present.length} fixture files`);
-  for (const f of ["test/fixtures/verifier/genoa-tinfoil/tls-cert.pem", "test/fixtures/verifier/linux-canary-2026-09-24/served-cert.pem", "test/fixtures/verifier/pvm-stability-50/run.log"]) assert.ok(tracked.has(f), `${f} is tracked`);
+  for (const f of ["test/fixtures/verifier/genoa-2026-09/tls-cert.pem", "test/fixtures/verifier/linux-canary-2026-09-24/served-cert.pem", "test/fixtures/verifier/pvm-stability-50/run.log"]) assert.ok(tracked.has(f), `${f} is tracked`);
 });

@@ -25,7 +25,7 @@ versions 2..5 (`MaxSupportedReportVersion = 5`); version-6 reports from 1.59 fir
 in the certificates). Rate limiting is documented ("Error 429 Too Many Requests"). VLEK under `/vlek/v1/`. Keys: ARK
 and ASK RSA-4096 RSASSA-PSS; VCEK ECDSA P-384. Extension OIDs 1.3.6.1.4.1.3704.1.1 structVersion, .1.2 productName,
 .1.3.1 blSPL, .1.3.2 teeSPL, .1.3.3 snpSPL, .1.3.4-.1.3.7 spl_4..7, .1.3.8 ucodeSPL, .1.4 hwID. Turin: hwID is 8
-octets and the query adds `fmcSPL` (OID 1.3.6.1.4.1.3704.1.3.9, `OidFmcSpl` in tinfoilsh/go-sev-guest; upstream
+octets and the query adds `fmcSPL` (OID 1.3.6.1.4.1.3704.1.3.9; upstream
 google/go-sev-guest PR 198 still an open draft on 2026-09-02). The 8-octet/fmcSPL statement is **unconfirmed** by a
 direct read of Rev 1.05 (only Rev 0.51 is mirrored); it is confirmed in practice by KDS answering the Turin URL form
 `relay/snp-verify.mjs` builds (warden-host, fixture `turin-m4a`).
@@ -91,6 +91,9 @@ only provisioning mechanism from Android 16.
 
 ## 5. Sigstore / provenance
 
+Reference only since 2026-10-14: release provenance was removed from the verifier, and `@freedomofpress/sigstore-browser`
+is bundled for its `X509Certificate` alone (section 6).
+
 Bundle: sigstore/protobuf-specs v0.5.2 (Apache-2.0); media types `application/vnd.dev.sigstore.bundle+json;version=0.1|0.2`
 and `application/vnd.dev.sigstore.bundle.v0.3+json` (single leaf certificate). Fulcio OIDs
 (https://github.com/sigstore/fulcio/blob/main/docs/oid-info.md) 1.3.6.1.4.1.57264.1.x: .1-.6 deprecated raw (Issuer,
@@ -101,18 +104,13 @@ URI; .22 Visibility; .23 Deployment Environment; .24 Token Subject (.8+ are DER 
 `rekor.sigstore.dev` in parallel with Rekor v2 `log2025-1.rekor.sigstore.dev` (GA 2025-10-10, yearly shards). TUF at
 https://tuf-repo-cdn.sigstore.dev: root version 15 (expires 2026-11-20, threshold 3 of 5); consistent snapshots, so
 `timestamp.json` -> `<n>.snapshot.json` -> `<n>.targets.json` -> `targets/<sha256>.trusted_root.json` (targets v14 on
-2026-09-24, fixture `sigstore/trusted_root.json`). sigstore-js: npm `sigstore` 5.0.0, `@sigstore/verify` 4.1.2,
+2026-09-24). sigstore-js: npm `sigstore` 5.0.0, `@sigstore/verify` 4.1.2,
 Apache-2.0; sigstore-go v1.3.0 (2026-07-30), Apache-2.0. GitHub attestations API
 `GET /repos/{owner}/{repo}/attestations/sha256:{digest}` (unauthenticated for public repos);
 `gh attestation verify` flags `--signer-workflow`, `--cert-identity`, `--cert-oidc-issuer`, `--deny-self-hosted-runners`.
 in-toto Statement v1 `https://in-toto.io/Statement/v1`; SLSA provenance v1 `https://slsa.dev/provenance/v1`.
 `@freedomofpress/sigstore-browser` 0.1.14: package.json says MIT, the shipped LICENSE file is Apache-2.0 (treat as
 Apache-2.0: ship the notice); deps crypto-browser ^0.1.7, tuf-browser ^0.1.11, @noble/curves ^2.0.1.
-Tinfoil: predicate types (https://docs.tinfoil.sh/verification/predicate) `sev-snp-guest/v1`, `tdx-guest/v1`,
-`snp-tdx-multiplatform/v1` (register 0 SNP launch measurement, 1 TDX RTMR1, 2 TDX RTMR2), `hardware-measurements/v1`.
-tinfoilsh/measure-image-action ("Private Deployment Build Action"): **AGPL-3.0**, latest v0.13.1 (2026-09-22); the
-repository pins v0.9.2 by SHA and runs it only in CI, which carries no distribution obligation. tinfoilsh/tinfoil-js
-`@tinfoilsh/verifier` latest 1.2.1, Apache-2.0 from 1.1.9 (AGPL-3.0-or-later through 1.1.8).
 
 ## 6. Cryptographic libraries for a browser and Node verifier
 
@@ -137,9 +135,9 @@ was found; `relay/vbs-verify.mjs` is first-party.
 
 | item | SPDX | obligation when bundled |
 |---|---|---|
-| go-sev-guest, virtee/sev, sev-snp-measure, go-tdx-guest, nvtrust, attestation-sdk, sigstore-js, sigstore-go, protobuf-specs, @tinfoilsh/verifier >= 1.1.9, @freedomofpress/sigstore-browser (LICENSE file), crypto-browser | Apache-2.0 | ship LICENSE and any NOTICE; mark modified files |
+| go-sev-guest, virtee/sev, sev-snp-measure, go-tdx-guest, nvtrust, attestation-sdk, sigstore-js, sigstore-go, protobuf-specs, @freedomofpress/sigstore-browser (LICENSE file), crypto-browser | Apache-2.0 | ship LICENSE and any NOTICE; mark modified files |
 | coconut-svsm igvmmeasure, igvm crate, dcap-qvl, @noble/curves, @noble/hashes, @peculiar/x509, tuf-browser | MIT | copyright and permission notice in the bundle's notices |
 | DCAP (QVL), pkijs | BSD-3-Clause | copyright and license text; no endorsement using the names |
 | sev-tool | Apache-2.0 (archived) | avoid, unmaintained |
-| go-tdx-qpl, measure-image-action, @tinfoilsh/verifier <= 1.1.8 | AGPL-3.0 | never bundle; the action runs only in CI |
+| go-tdx-qpl | AGPL-3.0 | never bundle |
 | snpguest | unconfirmed | check before use |

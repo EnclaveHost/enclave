@@ -1201,7 +1201,7 @@ Hard-won process rules, each of which I violated at least once:
    and nearly caused a whole build to be measured under the wrong label. Use
    Python with assertions; check `git diff` before pushing.
 4. **Space the releases.** Every push to main cuts a release and repoints the
-   fleet; two within ~3 minutes wedge the Tinfoil updater
+   fleet; two within ~3 minutes wedge the hosted fleet's updater
    ("an update is already in progress"). Recovery is `fleet-op.yml`
    stop → start, not retry/relaunch. Watch the publish job explicitly.
 5. **Suspend the bench instance when done** — it bills $1.62/h and drained

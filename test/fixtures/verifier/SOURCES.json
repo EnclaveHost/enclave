@@ -1,28 +1,28 @@
 {
- "genoa-tinfoil/rad.json": {
+ "genoa-2026-09/rad.json": {
   "url": "https://inference.tinfoil.sh/.well-known/tinfoil-attestation",
   "fetchedAt": "2026-09-24T04:47Z",
   "what": "authentic Tinfoil RAD (format sev-snp-guest/v2, gzip body): AMD Genoa, report version 3, VMPL0, PSP-signed for chip 1af1aa6c...",
   "sha256": "d7d765c4795c8d26585bdba0b8f3ead4a7d4b1ac0c0c1a60160dd4563c0f2b63"
  },
- "genoa-tinfoil/report.bin": {
+ "genoa-2026-09/report.bin": {
   "derivedFrom": "rad.json body, base64 + gunzip",
   "what": "raw 0x4a0-byte ATTESTATION_REPORT",
   "sha256": "cb2939731a59188c5750e017065be0a923e23529985b8cc7fd664c0f45aba321"
  },
- "genoa-tinfoil/vcek-kds-amd.der": {
+ "genoa-2026-09/vcek-kds-amd.der": {
   "url": "https://kdsintf.amd.com/vcek/v1/Genoa/1af1aa6c1f56037a05849a59b8815cf909583f9ba9ef2f053218c437f33ba183e4e415b039b37f8205250ad15f8b88a0a3add9f4c081c0779a48ed2214378e44?blSPL=10&teeSPL=0&snpSPL=23&ucodeSPL=84",
   "fetchedAt": "2026-09-24T04:47Z",
   "what": "VCEK for that chip+TCB from AMD KDS directly (notBefore 2026-09-23: KDS re-signs on demand)",
   "sha256": "6319c7957879314b473684cbd5a362ae4ae040ad504edafd566b5a17f6ee8a02"
  },
- "genoa-tinfoil/vcek-kds-proxy-tinfoil.der": {
+ "genoa-2026-09/vcek-kds-proxy.der": {
   "url": "https://kds-proxy.tinfoil.sh/vcek/v1/Genoa/1af1aa6c1f56037a05849a59b8815cf909583f9ba9ef2f053218c437f33ba183e4e415b039b37f8205250ad15f8b88a0a3add9f4c081c0779a48ed2214378e44?blSPL=10&teeSPL=0&snpSPL=23&ucodeSPL=84",
   "fetchedAt": "2026-09-24T04:47Z",
   "what": "the same VCEK key from Tinfoil's proxy (older re-issue, notBefore 2026-08-24): same public key, same serial 00, different validity and signature bytes",
   "sha256": "3c0d43f9abb25c6109f7fc8b36cf434fbbf047d2941de4d5f9a33b0e212c88e6"
  },
- "genoa-tinfoil/tls-cert.pem": {
+ "genoa-2026-09/tls-cert.pem": {
   "derivedFrom": "tinfoil-certificate.json .certificate",
   "what": "PEM of the same certificate; sha256(SPKI) == report_data[0:32]",
   "sha256": "f8ba7853a0694d9dee4e0870ab7f72ddbb7590f3f5dde97b3aa53e7049693f34"

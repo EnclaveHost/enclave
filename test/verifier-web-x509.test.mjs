@@ -52,7 +52,7 @@ test("all three real AMD chains: the reader agrees with node:crypto field by fie
 
 test("the real VCEKs (Genoa, Turin): EC P-384, signed by the ASK, AMD extensions present, and the PSP's report signature verifies in WebCrypto", async () => {
   const cases = [
-    ["Genoa", read(new URL("genoa-tinfoil/vcek-kds-amd.der", F)), genoaReport],
+    ["Genoa", read(new URL("genoa-2026-09/vcek-kds-amd.der", F)), genoaReport],
     ["Turin", read(new URL("turin-m4a/vcek-kds-amd.der", F)), Buffer.from((JSON.parse(text(new URL("turin-m4a/doc.json", F))).doc ?? JSON.parse(text(new URL("turin-m4a/doc.json", F)))).report, "base64")],
   ];
   for (const [product, vcekDer, report] of cases) {
@@ -125,7 +125,7 @@ test("the three real CRLs: profile, ARK signature and the revoked serial agree w
 });
 
 test("a real served TLS certificate: the reader's DNS SANs and host rule agree with node:crypto", async () => {
-  const certPem = text(new URL("genoa-tinfoil/tls-cert.pem", F));
+  const certPem = text(new URL("genoa-2026-09/tls-cert.pem", F));
   const cert = await X.loadCertificate(X.pemToDer(certPem)), sans = X.dnsSans(cert), n = new X509Certificate(certPem);
   assert.ok(sans.includes("inference.tinfoil.sh")); assert.equal(n.checkHost("inference.tinfoil.sh"), "inference.tinfoil.sh");
   assert.equal(X.hostMatches(sans, "inference.tinfoil.sh"), true); assert.equal(X.hostMatches(sans, "INFERENCE.tinfoil.sh"), true);

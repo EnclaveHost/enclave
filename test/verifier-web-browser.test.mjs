@@ -31,7 +31,7 @@ const read = (u) => fs.readFileSync(u), text = (u) => fs.readFileSync(u, "utf8")
 const sha = (...b) => createHash("sha256").update(Buffer.concat(b)).digest();
 const NOW = "2026-09-24T05:00:00Z";
 const chains = { Genoa: text(new URL("Genoa-cert_chain.pem", A)), Milan: text(new URL("Milan-cert_chain.pem", A)), Turin: text(new URL("Turin-cert_chain.pem", A)) };
-const gCol = { chains, vceks: { Genoa: b64(read(new URL("genoa-tinfoil/vcek-kds-amd.der", F))) }, crls: { Genoa: b64(read(new URL("amd/Genoa-crl.der", F))) } };
+const gCol = { chains, vceks: { Genoa: b64(read(new URL("genoa-2026-09/vcek-kds-amd.der", F))) }, crls: { Genoa: b64(read(new URL("amd/Genoa-crl.der", F))) } };
 const savedT = JSON.parse(text(new URL("turin-m4a/doc.json", F))), tDoc = savedT.doc ?? savedT, tReport = Buffer.from(tDoc.report, "base64");
 const tSpki = Buffer.from(tDoc.transportKey, "base64"), tNonce = Buffer.from(tDoc.nonce, "hex"), tApp = Buffer.from(tDoc.appSha256, "hex");
 const canon = (o) => JSON.stringify(Object.fromEntries(Object.keys(o).sort().map((k) => [k, o[k]])));

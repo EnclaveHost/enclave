@@ -323,7 +323,7 @@ all prefill concurrently on the OLD engine: page-warm parked after 482,171 ms (4
 prefill lines, 0 wait lines); chat prefill_ms 423,190, first text at 513 s. Old-engine single
 warm-up probe while the boot warm-up ran: boot-warm-idle-probe.log 255 s (marks [1371, 2453]).
 v0.5.597-cpu released 10:00Z (deploy 34026108806, CPU release 34026188332 OK; publish 34026233982
-failed only at the Tinfoil fleet-repoint step, HTTP 504 - irrelevant to metal0). update-0.5.597.log
+failed only at the hosted-fleet repoint step, HTTP 504 - irrelevant to metal0). update-0.5.597.log
 captures `node metal/update.mjs --force` started 10:09:14Z. Next: recover_and_bench.py --recover-only,
 verify manifest wasm digest changed, run shared-warm-test.py restart-boot --tag after-597 (+ warm-warm,
 cancel, distinct), compare with the before control. Funded through ~12:04Z.
