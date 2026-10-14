@@ -1,4 +1,4 @@
-// Per-tenant authenticated SOCKS front. TUNA carries the outbound connection;
+// Per-tenant authenticated SOCKS front. The host's SOCKS5 upstream (an Enclave-network circuit) carries the outbound connection;
 // there is no Enclave relay control channel or dedicated source-IP claim.
 import net from 'node:net';
 import dns from 'node:dns/promises';
@@ -41,7 +41,7 @@ async function address(read, type) {
 
 export function createEgress({ secret, socksPort = 1080, upstream, isKnown, lookup = dns.lookup, log = () => {} }) {
   const target = new URL(upstream);
-  if (target.protocol !== 'socks5:' || !target.hostname || !target.port || target.username || target.password) throw new Error('TUNA SOCKS upstream required');
+  if (target.protocol !== 'socks5:' || !target.hostname || !target.port || target.username || target.password) throw new Error('SOCKS upstream required');
   const connections = new Set();
   const track = s => { connections.add(s); s.on('error', () => s.destroy()); s.once('close', () => connections.delete(s)); return s; };
   async function connect(sock) {
@@ -72,16 +72,16 @@ export function createEgress({ secret, socksPort = 1080, upstream, isKnown, look
       const destination = addresses[0].address;
       remote = track(net.connect(Number(target.port), target.hostname.replace(/^\[|\]$/g, '')));
       sock.once('close', () => remote.destroy()); remote.once('close', () => sock.destroy());
-      remote.setTimeout(15000, () => remote.destroy(new Error('TUNA SOCKS upstream timed out')));
+      remote.setTimeout(15000, () => remote.destroy(new Error('SOCKS upstream timed out')));
       await once(remote, 'connect'); output = reader(remote);
       remote.write(Buffer.from([5, 1, 0]));
       const accepted = await output.take(2);
-      if (accepted[0] !== 5 || accepted[1] !== 0) throw new Error('TUNA SOCKS authentication unavailable');
+      if (accepted[0] !== 5 || accepted[1] !== 0) throw new Error('SOCKS upstream authentication unavailable');
       const name = Buffer.from(destination), request = Buffer.alloc(7 + name.length);
       request.set([5, 1, 0, 3, name.length]); name.copy(request, 5); request.writeUInt16BE(port, 5 + name.length);
       remote.write(request);
       const response = await output.take(4);
-      if (response[0] !== 5 || response[1] !== 0 || response[2] !== 0) throw new Error('TUNA provider refused destination');
+      if (response[0] !== 5 || response[1] !== 0 || response[2] !== 0) throw new Error('SOCKS upstream refused destination');
       await address(output, response[3]); await output.take(2);
       input.release(); output.release();
       sock.setTimeout(0); remote.setTimeout(0); sock.write(reply(0));

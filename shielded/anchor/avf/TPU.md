@@ -240,7 +240,7 @@ either. A 270M-class model leaves 10.7 ms for everything else at one token per s
 out of reach, transport alone is 1.19) and 64 ms at 1.8 tokens per step (0.889 ms per exchange: reachable,
 transport 1.19 and unmask 2.88 today but both fall on a model with a quarter of the output width). **The bar
 is reachable on this architecture only with a model of about 18 blocks and 170 MB of int8 weights, plus the
-drafter.** Off-the-shelf pruned E2Bs do not provide it: `trim/` evaluated a 10-of-35-layer drop (gibberish)
+drafter.** Off-the-shelf pruned E2Bs do not provide it: the Gemma trim work (moved out of the repo 10-13) evaluated a 10-of-35-layer drop (gibberish)
 and a 40 %-sparse rebuild (parrots the prompt, PPL 94 against 47), so a shallow model means a healing run.
 
 ### The modular 2x2, and digit-split's verdict

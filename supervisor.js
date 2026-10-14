@@ -40,7 +40,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { SignJWT, jwtVerify } from "jose";
 import { Verifier, assembleAttestationBundle } from "@tinfoilsh/verifier";
-// Per-tenant SOCKS credentials and destination policy in front of TUNA.
+// Per-tenant SOCKS credentials and destination policy in front of the host's egress upstream.
 import { createEgress } from "./egress.js";
 // contract addresses: LIVE BINDINGS owned by addressbook.js — seeded from the
 // baked env, overridden from the on-chain EnclaveAddressBook when
@@ -1990,7 +1990,7 @@ function parseDepOptions(raw, gpuMilli) {
     if (!n || Array.isArray(n) || typeof n !== "object") throw new Error("network must be a JSON object");
     const bad = Object.keys(n).filter(k => k !== "transport" && k !== "relay");
     if (bad.length) throw new Error(`unknown network option ${JSON.stringify(bad[0])}`);
-    if ("transport" in n && n.transport !== "tuna") throw new Error("network.transport must be tuna");
+    if ("transport" in n && n.transport !== "enclave-network") throw new Error("network.transport must be enclave-network");
     // Existing ledger envelopes can still contain a relay preference. It no
     // longer selects a route and is not copied into runtime configuration.
     if ("relay" in n && n.relay !== null && n.relay !== "" &&
@@ -3370,7 +3370,7 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
         // predates the field ignores it — which is why the claim path gates on
         // the fleet advertising config_cid before taking such a deployment.
         configCid: configCid || "",
-        // TUNA egress: a per-deployment SOCKS URL the manager forwards
+        // App egress: a per-deployment SOCKS URL the manager forwards
         // verbatim as the guest's ENCLAVE_EGRESS (empty when egress is off). The
         // token in it is minted from the enclave SECRET, so the manager never
         // needs the secret and the value never touches a log line.
@@ -3941,17 +3941,19 @@ function parseFirewall(fw) {
 const fwTcpPorts = (rec) => (rec.firewall || []).filter((x) => x.startsWith("tcp:")).map((x) => +x.slice(4));
 const fwUdpPorts = (rec) => (rec.firewall || []).filter((x) => x.startsWith("udp:")).map((x) => +x.slice(4));
 
-// Public raw-port inventory for the host's TUNA adapter. Addresses and public
+// Public raw-port inventory for the host's network agent. Addresses and public
 // ports exist only after the provider assigns them; the control API publishes those.
 const netMap = () => [...deployments.values()]
   .filter(r => r.public && r.status === "running" && (fwTcpPorts(r).length || fwUdpPorts(r).length))
   .map(r => ({id: r.id, tcp: fwTcpPorts(r), udp: fwUdpPorts(r)}));
-const TUNA_SOCKS_UPSTREAM = (process.env.TUNA_SOCKS_UPSTREAM || "").trim();
+// The host's SOCKS5 egress upstream (an Enclave-network circuit's SOCKS entry); unset = no app egress.
+// TUNA_SOCKS_UPSTREAM is its pre-2026-10-14 name, read when the new one is unset.
+const EGRESS_SOCKS_UPSTREAM = (process.env.EGRESS_SOCKS_UPSTREAM || process.env.TUNA_SOCKS_UPSTREAM || "").trim();
 const EGRESS_SOCKS_PORT = Number(process.env.EGRESS_SOCKS_PORT || 1080);
 
-const egress = TUNA_SOCKS_UPSTREAM
+const egress = EGRESS_SOCKS_UPSTREAM
   ? createEgress({
-      secret: SECRET, socksPort: EGRESS_SOCKS_PORT, upstream: TUNA_SOCKS_UPSTREAM,
+      secret: SECRET, socksPort: EGRESS_SOCKS_PORT, upstream: EGRESS_SOCKS_UPSTREAM,
       // "claimed" is mid-provision on THIS enclave: the app process starts
       // (and may dial out — its very first S3 fetch) fractionally before the
       // provision path flips the record to "running", and the egress token in
@@ -5029,7 +5031,7 @@ app.get("/availability", async (_req, res) => {
                    cardFreeVram(gpuCards[v.id]) / cardVram(gpuCards[v.id])))) })),
                ...(sh.pricePerSec6 > 0 ? { askShieldedPricePerSec6: sh.pricePerSec6 } : {}) };
     })(),   // a card on the UNTRUSTED host, reached by masked offload; NOT `gpu` — see shieldedCapacity()
-    networkOptions: true,   // accepts the TUNA network envelope; fleet capability checks keep older runners from claiming unsupported options
+    networkOptions: true,   // accepts the network options envelope; fleet capability checks keep older runners from claiming unsupported options
     waf: true,   // this build accepts + enforces the deployment-options envelope (waf); the relay ANDs this across the fleet and the console shows the Protection controls only then
     configOverride: true,   // this build accepts the envelope's `config` namespace (per-deployment app-config override); same fleet-AND rule — the console unlocks the App config box only when every live runner honors it
     configEdit: true,   // this build's audit re-applies an owner's setConfig to LIVE deployments (waf live-swapped, config = restart in place); without it an edit only lands at the next re-claim — same fleet-AND rule
@@ -5454,7 +5456,7 @@ const view = (rec) => {
     provenUntil: new Date(rec._provenUntil * 1000).toISOString(),
     lastProofAt: rec._provenAt ? new Date(rec._provenAt).toISOString() : null,
     verify: "EnclaveDeployments.provenUntil(id) is authoritative; the runner meter never pays past it." };
-  o.network = { transport: "tuna", dedicatedIP: false,
+  o.network = { transport: "enclave-network", dedicatedIP: false,
     requested: { tcp: fwTcpPorts(rec), udp: fwUdpPorts(rec) }, egress: !!egress };
   return o;
 };
@@ -6864,7 +6866,7 @@ app.post("/v1/internal/tunnel-attach-sig", async (req, res) => {
 
 // Provider-independent local inventory. The host adapter validates each dial
 // again through /x/:id/(tcp|udp)/:port before reaching a tenant.
-app.get("/v1/net-map", (_req, res) => res.json({transport: "tuna", deployments: netMap()}));
+app.get("/v1/net-map", (_req, res) => res.json({transport: "enclave-network", deployments: netMap()}));
 
 // Tail the worker's stdout/stderr (owner only). ?tail=N (default 200, max 2000).
 app.get("/v1/deployments/:id/logs", ownerAuth("api.logs"), async (req, res) => {
@@ -6982,7 +6984,7 @@ async function authUpgrade(req) {
 }
 
 // --- platform-terminated TLS for app TCP ports (/x/:id/tls/:port) -----------
-// The TUNA provider and local host adapter forward a client's
+// The network provider and local host adapter forward a client's
 // raw TLS bytes into this bridge; the session terminates HERE, inside the
 // attested enclave. The key pair is MINTED IN-ENCLAVE at boot — never
 // provisioned as a secret, so no operator, ACME account, or
@@ -10123,7 +10125,7 @@ server.listen(PORT, () => console.log(`enclave supervisor on :${PORT} · ${IS_GP
 // warm the CPU-TEE detection (shim loopback) so the first deployment record
 // created after boot already reports the real silicon, not null
 fetchEnclaveRad().then(() => console.log(`[attest] CPU TEE detected: ${vmTech()}`)).catch(() => {});
-if (egress) { egress.start(); console.log(`[egress] TUNA egress on (authenticated SOCKS 127.0.0.1:${EGRESS_SOCKS_PORT})`); }
+if (egress) { egress.start(); console.log(`[egress] app egress on (authenticated SOCKS 127.0.0.1:${EGRESS_SOCKS_PORT})`); }
 
 // advertise this enclave on-chain (opt-in, non-blocking, never fatal)
 // If the origin is pinned (PUBLIC_URL), advertise eagerly at boot; otherwise

@@ -50,7 +50,7 @@ export async function renderEnclaveNetwork(box,id,{viaVault=false,owner=null}={}
   let status;
   try{status=await relay("/v1/network/status/"+id);}
   catch(e){wrap.innerHTML=`<p class="en-intro">Network status is unavailable: ${esc(e.message)}</p>`;return;}
-  let route=null;try{const map=await Enclave.getTunaNetwork();route=map.labels?.[id.slice(2,10)]||null;}catch{}
+  let route=null;try{const map=await Enclave.getNetworkRoutes();route=map.labels?.[id.slice(2,10)]||null;}catch{}
   const policy=status.policy,use=networkUse(policy),host=status.host;
   const live=route&&route.expiresAt>Date.now()?route:null;
   const lines=[];

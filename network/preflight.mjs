@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Read-only cutover check (relay/deploy.sh runs it first): every admitted deployment needs a live route in the relay's
-// route map (/v1/network/tuna, a historical path) and a valid guest TLS endpoint at that IP. No DNS mutation or
+// route map (/v1/network/routes) and a valid guest TLS endpoint at that IP. No DNS mutation or
 // certificate bypass.
 import https from 'node:https';
 import http from 'node:http';
@@ -9,8 +9,11 @@ import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { isBlockedHost } from '../relay/net-guard.mjs';
 
+export const fetchRouteMap = (api, fetchImpl = fetch) =>
+  fetchImpl(new URL('/v1/network/routes', api), { signal: AbortSignal.timeout(15000) });
+
 export function checkMap(map, required = [], now = Date.now()) {
-  if (map?.transport !== 'tuna' || !Array.isArray(map.pending) || !map.deployments) throw new Error('route map unavailable or incomplete');
+  if (map?.transport !== 'enclave-network' || !Array.isArray(map.pending) || !map.deployments) throw new Error('route map unavailable or incomplete');
   if (map.pending.length) throw new Error(`routes not ready for ${map.pending.map(x => `${x.id}: ${x.reason}`).join(', ')}`);
   for (const id of required) if (!map.deployments[id]) throw new Error(`required deployment is not admitted: ${id}`);
   const entries = Object.entries(map.deployments);
@@ -59,14 +62,14 @@ export function probeRedirect(id, allocation, zone = 'app.enclave.host') {
 }
 
 export async function preflight(api, required = []) {
-  const response = await fetch(new URL('/v1/network/tuna', api), { signal: AbortSignal.timeout(15000) });
+  const response = await fetchRouteMap(api);
   if (!response.ok) throw new Error(`route map returned HTTP ${response.status}`);
   const entries = checkMap(await response.json(), required), results = [];
   for (const [id, allocation] of entries) {
     const [tls, httpStatus] = await Promise.all([probe(id, allocation), probeRedirect(id, allocation)]);
     results.push({...tls, httpStatus});
   }
-  const fresh = await fetch(new URL('/v1/network/tuna', api), { signal: AbortSignal.timeout(15000) });
+  const fresh = await fetchRouteMap(api);
   if (!fresh.ok) throw new Error('route map refresh failed');
   const current = new Map(checkMap(await fresh.json(), entries.map(([id]) => id)));
   for (const [id, allocation] of entries) if (current.get(id)?.https?.address !== allocation.https.address)
@@ -74,7 +77,7 @@ export async function preflight(api, required = []) {
   return results;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
-  preflight(process.env.ENCLAVE_API || process.env.TUNA_API || 'https://api.enclave.host', process.argv.slice(2))
+  preflight(process.env.ENCLAVE_API || 'https://api.enclave.host', process.argv.slice(2))
     .then(results => console.log(JSON.stringify({ok: true, results}, null, 2)))
     .catch(e => { console.error(`relay cutover refused: ${e.message}`); process.exitCode = 1; });
 }

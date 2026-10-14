@@ -13,7 +13,7 @@ const TTL = 300000, REFRESH = 60000;
 const TRANSIENT = [/^RPC Request failed/, /^HTTP request failed/, /^The request took too long to respond/, /^Request timed out/, /^fetch failed/,
   /^Shield verification busy; retry shortly$/, /^no bounded app proof from the live node$/, /^catalog component could not be CID-verified$/];
 export const transientAdmissionError = message => TRANSIENT.some(pattern => pattern.test(String(message || '')));
-const fingerprint = d => JSON.stringify([d.id, d.runner, d.appRef, d.configCid, d.isPublic,
+export const fingerprint = d => JSON.stringify([d.id, d.runner, d.appRef, d.configCid, d.isPublic,
   Number(d.cpuMilli), Number(d.gpuMilli), d.active, String(d.owner || "").toLowerCase()]);
 export function createShieldMarketplace({ hub, policyFile = '', policy: supplied, confirmRow,
   hasSecrets, isOwnerDeployment = () => false, readCatalog, readConfig, fetchVerified, now = Date.now, log = console.warn }) {
@@ -46,7 +46,7 @@ export function createShieldMarketplace({ hub, policyFile = '', policy: supplied
     const sid = session(host);
     if (!sid) return {ok:false, reason:'no configured live Shield session'};
     let state = stateFor(host);
-    if (!state) states.set(host.name, state = {session:sid, until:0, apps:new Map(), attempts:new Map()});
+    if (!state) states.set(host.name, state = {session:sid, until:0, apps:new Map(), attempts:new Map(), verdicts:new Set()});
     state.attempts.set(candidate.id,now());
     try {
       const d = await confirmRow(candidate.id);
@@ -65,11 +65,12 @@ export function createShieldMarketplace({ hub, policyFile = '', policy: supplied
       const until = now() + TTL;
       state.until = until;
       state.apps.set(d.id, {until, checked:now(), fingerprint:fingerprint(d), ownerException, spkiSha256:proof.spkiSha256});
+      state.verdicts.add(d.id);
       if (policy.marketEnabled === true) hub.notifyShieldMarket(host.name, sid, until);
       log(`[shield-market] verified ${host.name}/${d.id.slice(0,10)} runtime app and TLS key (market=${policy.marketEnabled === true})`);
       return proof;
     } catch(e) {
-      if (!transientAdmissionError(e.message)) stateFor(host)?.apps.delete(candidate.id);
+      if (!transientAdmissionError(e.message)) { stateFor(host)?.apps.delete(candidate.id); stateFor(host)?.verdicts?.add(candidate.id); }
       return {ok:false,reason:e.message};
     }
   }
@@ -78,7 +79,7 @@ export function createShieldMarketplace({ hub, policyFile = '', policy: supplied
     const sid = session(host);
     if (!sid) return;
     let state = stateFor(host);
-    if (!state) states.set(host.name, state = {session:sid, until:0, apps:new Map(), attempts:new Map()});
+    if (!state) states.set(host.name, state = {session:sid, until:0, apps:new Map(), attempts:new Map(), verdicts:new Set()});
     if (state.witnessAttempt !== undefined && now()-state.witnessAttempt < REFRESH) return;
     state.witnessAttempt = now();
     try {
@@ -100,6 +101,8 @@ export function createShieldMarketplace({ hub, policyFile = '', policy: supplied
   }
   return {
     configured, eligible, servesUntil,
+    // true until this host's current attachment has a verdict on d (relay/route-grace.mjs keeps a route meanwhile)
+    pending: (host, d) => !stateFor(host)?.verdicts?.has(d?.id),
     certificate: (host, d, spki) => admit(host, d, spki),
     async refresh(hosts, rows) {
       if (!policy || refreshing) return;
