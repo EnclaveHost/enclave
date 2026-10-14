@@ -6,9 +6,12 @@ package main
 // also require the lease holder's OPERATOR to authorize that exact release (their proof the request comes from the host
 // that holds the lease). The operator key is the supervisor's, not this host's, so guestd only carries it:
 //
-//   1. the guest connects to release.CustodyAuthPort and sends "custody-auth-v1 0x<id> <binding>";
+//   1. the guest connects to release.CustodyAuthPort and sends "custody-auth-v1 0x<id> <binding>", or for custody v2
+//      (docs/security/secret-custody-v2-spec.md §3) "custody-auth-v2 0x<vault> 0x<id> <binding>";
 //   2. guestd answers only the ONE instance it launched with that vsock CID, and only for that instance's own
-//      deployment (HOST_DATA), and reports it as awaitingCustodyAuth: <binding> in GET /vms/<id>;
+//      deployment (HOST_DATA), and reports it in GET /vms/<id> as awaitingCustodyAuth: "<binding>" for v1 (the shape the
+//      v1 supervisor reads), or awaitingCustodyAuth: {v: 2, vault, binding} for v2 (the supervisor signs a v2 release
+//      only for the v2 vault it was measured with; a v1-only supervisor reads no string there and signs nothing);
 //   3. the supervisor signs the binding with the operator key and POSTs /vms/<id>/custody-auth {binding, endpoint,
 //      sig, expiry}; guestd hands it to that guest only if the binding is the one the guest is waiting on.
 //
@@ -36,10 +39,18 @@ var (
 	custodySigRE      = regexp.MustCompile(`^0x[0-9a-f]{130}$`)
 	custodyEndpointRE = regexp.MustCompile(`^https?://[!-~]{1,190}$`)
 	custodyBindingRE  = regexp.MustCompile(`^[0-9a-f]{64}$`)
+	custodyVaultRE    = regexp.MustCompile(`^0x[0-9a-f]{40}$`)
 )
 
-func (s *server) takeCustodyAuth(ctx context.Context, cid uint32, id, binding [32]byte, gone <-chan struct{}) (release.CustodyAuth, *vm, error) {
+func (s *server) takeCustodyAuth(ctx context.Context, cid uint32, req release.AuthRequest, gone <-chan struct{}) (release.CustodyAuth, *vm, error) {
 	var out release.CustodyAuth
+	id, binding := req.ID, req.Binding
+	switch {
+	case req.V == 1 && req.Vault == "":
+	case req.V == 2 && custodyVaultRE.MatchString(req.Vault):
+	default:
+		return out, nil, errors.New("not a custody-auth-v1 or custody-auth-v2 request")
+	}
 	s.mu.Lock()
 	var v *vm
 	for _, o := range s.vms {
@@ -66,10 +77,10 @@ func (s *server) takeCustodyAuth(ctx context.Context, cid uint32, id, binding [3
 		return out, v, errors.New("too many guests are waiting")
 	}
 	ch := make(chan release.CustodyAuth, 1)
-	v.custodyPending, v.custodyAuth = hex.EncodeToString(binding[:]), ch
+	v.custodyPending, v.custodyV, v.custodyVault, v.custodyAuth = hex.EncodeToString(binding[:]), req.V, req.Vault, ch
 	s.held++
 	s.mu.Unlock()
-	defer s.set(v, func() { v.custodyPending, v.custodyAuth = "", nil; s.held-- })
+	defer s.set(v, func() { v.custodyPending, v.custodyV, v.custodyVault, v.custodyAuth = "", 0, "", nil; s.held-- })
 
 	hold := s.TicketHold
 	if hold <= 0 {
@@ -122,7 +133,7 @@ func (s *server) serveCustodyAuth(ctx context.Context, l net.Listener, cidOf fun
 			defer c.Close()
 			cid := cidOf(c)
 			c.SetReadDeadline(time.Now().Add(10 * time.Second))
-			id, binding, err := release.ReadAuthRequest(c)
+			req, err := release.ReadAnyAuthRequest(c)
 			if err != nil {
 				lg.Printf("guest %d: custody authorization request refused: %v", cid, err)
 				return
@@ -130,7 +141,7 @@ func (s *server) serveCustodyAuth(ctx context.Context, l net.Listener, cidOf fun
 			c.SetReadDeadline(time.Time{})
 			gone := make(chan struct{})
 			go func() { var b [1]byte; _, _ = c.Read(b[:]); close(gone) }()
-			a, v, err := s.takeCustodyAuth(ctx, cid, id, binding, gone)
+			a, v, err := s.takeCustodyAuth(ctx, cid, req, gone)
 			inst := "-"
 			if v != nil {
 				inst = v.ID
@@ -144,7 +155,7 @@ func (s *server) serveCustodyAuth(ctx context.Context, l net.Listener, cidOf fun
 				lg.Printf("guest %d (instance %s): custody authorization not delivered: %v", cid, inst, err)
 				return
 			}
-			lg.Printf("guest %d (instance %s): custody authorization delivered", cid, inst)
+			lg.Printf("guest %d (instance %s): custody-auth-v%d authorization delivered", cid, inst, req.V)
 		}()
 	}
 }
