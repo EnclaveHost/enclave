@@ -128,7 +128,7 @@ func sandbox(file string) {
 	}
 	defer windows.FreeSid(sid)
 	grantCircuit(dir, sid)
-	check(exec.Command(filepath.Join(os.Getenv("SystemRoot"), "System32", "CheckNetIsolation.exe"), "LoopbackExempt", "-a", "-p="+sid.String()).Run())
+	exemptLoopback(sid.String())
 	// App workers have zero capabilities. A separately identified guard has
 	// InternetClient only, still constrained by its package-wide WFP rules.
 	capabilities := securityCapabilities{SID: sid}
@@ -297,4 +297,20 @@ func privateDesktop(profile string, sid *windows.SID) (string, func()) {
 	}
 	runtime.KeepAlive(sd)
 	return profile + `\Worker`, func() { user32.NewProc("CloseDesktop").Call(desk); user32.NewProc("CloseWindowStation").Call(station) }
+}
+
+// exemptLoopback adds this circuit's loopback exemption. When Windows refuses it (exit status 87 once hundreds of stale
+// exemptions of killed circuits piled up, 2026-10-14), the exemptions whose AppContainer no longer exists are removed and
+// the add is tried once more.
+func exemptLoopback(sid string) {
+	tool := filepath.Join(os.Getenv("SystemRoot"), "System32", "CheckNetIsolation.exe")
+	if exec.Command(tool, "LoopbackExempt", "-a", "-p="+sid).Run() == nil {
+		return
+	}
+	listing, e := exec.Command(tool, "LoopbackExempt", "-s").Output()
+	check(e)
+	for _, stale := range staleLoopbackSIDs(string(listing)) {
+		_ = exec.Command(tool, "LoopbackExempt", "-d", "-p="+stale).Run()
+	}
+	check(exec.Command(tool, "LoopbackExempt", "-a", "-p="+sid).Run())
 }
