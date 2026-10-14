@@ -26,6 +26,7 @@ import { createCustodianV2 } from "../custody/v2/custodian.mjs";
 import { createMember, BATCH_MS, SILENT_MS } from "../custody/v2/member.mjs";
 import { buildBundleV2, makeUpdateV2, UPDATE_V2_ABI } from "../custody/v2/owner.mjs";
 import { runtimeId } from "../isolation/contract/runtime.mjs";
+import { createCustodyReader } from "../relay/custody-state.mjs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const require = createRequire(import.meta.url);
@@ -226,6 +227,15 @@ test("custody v2 end to end: genesis, release at t=1, join + handover through th
     assert.deepEqual(await unlock([E1, E2, NB, NC]), env, "all answer: one Enclave partial used");
     await assert.rejects(unlock([E1, E2], { expectEnclaveRule: false }), /exactly 2 distinct/, "two Enclave machines are ONE seat: they cannot reach t");
     assert.deepEqual(await unlock([NB, NC]), env, "no Enclave machine online: the other seats suffice");
+    // ---- 5. the relay's v2 pointer for the guest's signed release (relay/custody-state.mjs) ----
+    const relayReader = createCustodyReader({ vault2: vault, chainId, rpcs: [anvil.url], minAgree: 1, maxAgeSec: null });
+    const ptr = await relayReader.custodyStateFor(id);
+    assert.equal(ptr.v, 2); assert.equal(ptr.vault, vault); assert.equal(ptr.committeeId, cid); assert.equal(ptr.t, 2); assert.equal(ptr.epoch, committee.epoch);
+    assert.equal(typeof ptr.policyRev, "string"); assert.equal(ptr.commitments.length, 2 * 33 * 2);
+    assert.deepEqual(ptr.machines.map((m) => [m.enclave, m.indices]), committee.machines.map((m) => [m.enclave, m.enclave ? [1] : null]).map(([e, k], i) => [e, k || ptr.machines[i].indices]));
+    assert.deepEqual(new Set(ptr.machines.filter((m) => !m.enclave).flatMap((m) => m.indices)), new Set([2, 3]));
+    assert.equal(await relayReader.custodyHeld(id), true);
+    assert.equal(await relayReader.custodyHeld("0x" + "ab".repeat(32)), false);
     void SILENT_MS;
   } finally { anvil.stop(); }
 });

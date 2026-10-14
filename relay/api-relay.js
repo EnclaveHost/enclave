@@ -2466,7 +2466,7 @@ const secretCustody = CUSTODY_CFG.on ? createCustodyReader(CUSTODY_CFG)
   : CUSTODY_CFG.error ? { custodyStateFor: async () => { throw new Error(CUSTODY_CFG.error); }, custodyHeld: async () => { throw new Error(CUSTODY_CFG.error); } }
   : null;
 if (CUSTODY_CFG.error) console.error(`[custody] CUSTODY_VAULT is set but unusable (${CUSTODY_CFG.error}): custody questions answer 503`);
-else if (CUSTODY_CFG.on) console.log(`[custody] vault ${CUSTODY_CFG.vault} on chain ${CUSTODY_CFG.chainId}, ${CUSTODY_CFG.rpcs.length} RPCs, ${CUSTODY_CFG.minAgree} must agree`);
+else if (CUSTODY_CFG.on) console.log(`[custody] vault ${CUSTODY_CFG.vault || "-"}, v2 vault ${CUSTODY_CFG.vault2 || "-"} on chain ${CUSTODY_CFG.chainId}, ${CUSTODY_CFG.rpcs.length} RPCs, ${CUSTODY_CFG.minAgree} must agree`);
 const relayCtx = { shieldSecretRelease, pvmSecretRelease, json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility, leaseHolderChipIds,
                    ...(secretCustody ? { custodyStateFor: secretCustody.custodyStateFor, custodyHeld: secretCustody.custodyHeld } : {}),
                    // sessions: the owner wallet behind a SessionVault-held record, and the custody release gate
