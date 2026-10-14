@@ -921,11 +921,12 @@ async function startHostingControls() {
         svc.on('error', (e) => log(`blob cache: ${e.message}`));
       } catch (e) { log(`blob cache: not started (${e.message})`); }
     }
-    // An open-market host keeps its own privacy agent enrolled on the Enclave network (tuna-enroll.mjs; the TUNA_* names
-    // are the installed hosts' historical ones): the config the \Enclave\Tuna task waits for. Every 5 minutes, once the
+    // An open-market host keeps its own network agent enrolled on the Enclave network (network-enroll.mjs): the config the
+    // \Enclave\Network task waits for. Every 5 minutes, once the
     // box is registered.
-    if (process.env.TUNA_AGENT_DIR && process.env.TUNA_BIN_DIR && process.env.TUNA_SHIELD_POLICY && host.cfg.isolationManager && nodeKey) {
-      const { createTunaEnroll, fileSha256 } = await import('./tuna-enroll.mjs');
+    const NET = { agentDir: process.env.ENCLAVE_NETWORK_AGENT_DIR, binDir: process.env.ENCLAVE_NETWORK_BIN_DIR, policy: process.env.ENCLAVE_NETWORK_SHIELD_POLICY };
+    if (NET.agentDir && NET.binDir && NET.policy && host.cfg.isolationManager && nodeKey) {
+      const { createNetworkEnroll, fileSha256 } = await import('./network-enroll.mjs');
       const chainMod = await import('./chain.mjs');
       const relayBase = RELAY_URL.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:').replace(/\/v1\/fleet-tunnel$/, '');
       let enroll = null, enrolling = false, lastEnrollError = '', enrollWaiting = 0;
@@ -933,11 +934,11 @@ async function startHostingControls() {
         if (enrolling || !host.registered) return;
         enrolling = true;
         try {
-          enroll ||= createTunaEnroll({ agentDir: process.env.TUNA_AGENT_DIR, binDir: process.env.TUNA_BIN_DIR,
+          enroll ||= createNetworkEnroll({ agentDir: NET.agentDir, binDir: NET.binDir,
             runner: host.enclaveId, relayBase,
-            config: { agentDir: process.env.TUNA_AGENT_DIR, binDir: process.env.TUNA_BIN_DIR, nodeBinary: process.execPath,
+            config: { agentDir: NET.agentDir, binDir: NET.binDir, nodeBinary: process.execPath,
                       operatorKeyFile: path.join(DIR, 'operator.key'), runner: host.enclaveId, endpoint: PUBLIC_URL, relayBase,
-                      policyFile: process.env.TUNA_SHIELD_POLICY, tpmBinary: process.env.TPMATTEST_EXE,
+                      policyFile: NET.policy, tpmBinary: process.env.TPMATTEST_EXE,
                       tpmSha256: await fileSha256(process.env.TPMATTEST_EXE), addressBook: chainMod.addressBook(), chainRpc: chainMod.rpcUrls(),
                       manager: host.cfg.isolationManager, dataAddr: host.cfg.isolationDataAddr,
                       // the Enclave network (docs/design/enclave-network.md) with its trusted qualification checkers; TUNA is
@@ -945,7 +946,7 @@ async function startHostingControls() {
                       enclaveNetwork: { checkers: String(process.env.ENCLAVE_NETWORK_CHECKERS || '').toLowerCase().split(',').map((c) => c.trim()).filter(Boolean),
                         // the box's registry proof key and operator key, beside each other here (keys.mjs): paid providers settle with them
                         ...(fs.existsSync(path.join(DIR, 'proof.key')) && fs.existsSync(path.join(DIR, 'operator.key')) ? { paid: { proofKeyFile: path.join(DIR, 'proof.key'), gasKeyFile: path.join(DIR, 'operator.key') } } : {}) } },
-            // a box whose network configuration changes restarts its privacy agent once (the \Enclave\Tuna task starts it again in 10 s)
+            // a box whose network configuration changes restarts its network agent once (the \Enclave\Network task starts it again in 10 s)
             restartAgent: async () => { const { execFile } = await import('node:child_process'); await new Promise((res) => execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
               "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'privacy-agent\\.mjs' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"],
               { timeout: 30000, windowsHide: true }, () => res())); },

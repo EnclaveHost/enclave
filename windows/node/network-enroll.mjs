@@ -1,9 +1,9 @@
-// tuna-enroll.mjs -- an open-market Windows host keeps its own privacy agent enrolled on the Enclave network, with no
-// operator SSH. (The file keeps its historical name: installed hosts and windows/node/agent.mjs load it by this name.)
+// network-enroll.mjs -- an open-market Windows host keeps its own network agent enrolled on the Enclave network, with no
+// operator SSH.
 //
 // Every app this box serves reaches the internet only through its own Enclave-network circuits (network/privacy-agent.mjs,
-// the \Enclave\Tuna task; docs/design/enclave-network.md). This pass, run by the node agent every few minutes:
-//   1. writes privacy-config.json with the first app (the agent refuses an empty list) - the \Enclave\Tuna task waits
+// the \Enclave\Network task; docs/design/enclave-network.md). This pass, run by the node agent every few minutes:
+//   1. writes privacy-config.json with the first app (the agent refuses an empty list) - the \Enclave\Network task waits
 //      for it; the box's own control traffic uses Enclave-network control circuits;
 //   2. enrolls each public deployment leased to this box, running ready in a partition of its current version: its
 //      expectation (network/shield-expectation.mjs) and its names (the relay's domain map). An expectation that changes
@@ -11,8 +11,10 @@
 // The privacy agent re-reads its config when the file changes. Nothing is ever removed: a lease that ends ends its
 // admission at the relay.
 //
-// A box whose config still carries retired TUNA settings (NKN wallets, the TUNA control guards, the TUNA runtime) has
-// them dropped, and is switched once to the current enclaveNetwork section (its agent restarted).
+// A box whose config still carries settings of the retired TUNA transport (NKN wallets, its control guards, its runtime)
+// has them dropped, and is switched once to the current enclaveNetwork section (its agent restarted). Paths follow the
+// agent's directory: a box whose agent directory moved (ProgramData\Enclave\tuna -> network, release .35) has its
+// state directory and expectations repointed, and its agent restarted once.
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -45,12 +47,12 @@ export function networkConfig({ binDir, nodeBinary, relayBase, checkers, paid })
 }
 
 /**
- * createTunaEnroll(opts) -> { pass() }. opts: agentDir (ProgramData\Enclave\tuna), binDir (Program Files\Enclave\tuna),
+ * createNetworkEnroll(opts) -> { pass() }. opts: agentDir (ProgramData\Enclave\network), binDir (Program Files\Enclave\network),
  * runner, relayBase, config (baseConfig's inputs, with enclaveNetwork: {checkers}), rows() (the ledger),
  * version(appRef) (its catalog version record), vms() (the manager's /vms list), restartAgent(), and for tests: fetch, log.
  * name, endpoint and transportKey are accepted (and unused) so older callers keep working.
  */
-export function createTunaEnroll({ agentDir, binDir, runner, relayBase, config, rows, version, vms,
+export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, config, rows, version, vms,
                                    fetch: fetchFn = globalThis.fetch, restartAgent = async () => {}, log = () => {} }) {
   if (!config?.enclaveNetwork) throw new Error("the Enclave network configuration (trusted checkers) is required: TUNA is retired");
   const file = (f) => path.join(agentDir, f);
@@ -69,6 +71,13 @@ export function createTunaEnroll({ agentDir, binDir, runner, relayBase, config, 
     if (JSON.stringify(cfg.enclaveNetwork) !== JSON.stringify(want)) {
       cfg.enclaveNetwork = want; switched = !fresh; changed = true;
       log(fresh ? "Enclave network: new config" : "Enclave network: this box's network configuration changes");
+    }
+    // paths follow the agent's directory (it moved once, tuna -> network): the state directory needs a restart
+    if (!fresh && cfg.directory !== file("state")) { cfg.directory = file("state"); switched = true; changed = true; log(`state directory now ${cfg.directory}`); }
+    if (!fresh && cfg.shield && cfg.shield.policyFile !== config.policyFile) { cfg.shield.policyFile = config.policyFile; switched = true; changed = true; }
+    for (const a of cfg.apps) {
+      const want = path.join(file(String(a.deploymentId).toLowerCase()), "expected.json");
+      if (a.expectedFile !== want) { a.expectedFile = want; changed = true; }
     }
     // retired TUNA settings are dropped (the agent ignores them; nothing restarts for this alone)
     const retired = RETIRED_KEYS.filter((k) => k in cfg);
