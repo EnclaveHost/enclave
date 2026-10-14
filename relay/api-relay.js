@@ -1425,6 +1425,8 @@ function ownerServedDeployments(row) {
 // segments resolved, lower-cased; a path that will not decode is refused. null = allowed.
 const BOX_OWN_SURFACES = new Set(["/availability", "/health", "/v1/health", "/v1/version", "/v1/pricing", "/v1/session-jwks",
                                   "/v1/net-map", "/v1/udp-map", "/v1/attestation", "/.well-known/tinfoil-attestation"]);
+const CUSTODY_SURFACES = new Map([["/v2/custody/info", "GET"], ["/v2/custody/challenge", "POST"], ["/v2/custody/release", "POST"],
+                                   ["/v2/custody/evidence", "POST"], ["/v2/custody/join", "POST"], ["/v2/custody/approve", "POST"]]);
 function canonicalBoxPath(path) {
   let p = String(path || "/");
   for (let i = 0; i < 3; i++) {
@@ -1444,6 +1446,10 @@ function tunnelTenantRefusal(origin, path, method = "GET") {
   const unaltered = canon !== null && canon === raw;          // canonicalizing changed nothing but case
   if (unaltered && /^(?:GET|HEAD|OPTIONS)$/i.test(String(method || ""))
       && (BOX_OWN_SURFACES.has(canon) || BOX_OWN_SURFACES.has(canon.replace(/\/$/, "")))) return null;
+  // a custody v2 custodian's tunnel (docs/security/secret-custody-v2.md: a custodian VM attaches by its own quote under
+  // custody-<name>): its public API, EXACT paths and methods, never the host-binding route (the host reaches that
+  // locally). It serves no tenant app; every answer is checked by its caller (DLEQ proofs, attestation, signatures).
+  if (unaltered && /^tunnel:\/\/custody-[a-z0-9-]{1,40}$/.test(String(origin)) && CUSTODY_SURFACES.get(canon) === String(method || "").toUpperCase()) return null;
   return deny(503, "host_ineligible", `This box is not eligible to serve tenant apps${row ? ": " + ineligibleReason(row) : " (not in the live fleet)"}; only its own surfaces (availability, health, attestation) are reachable.`);
 }
 async function xOwnerOf(id) {                                // data-path resolve: the eligible owner, or null
