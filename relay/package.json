@@ -4,7 +4,7 @@
   "private": true,
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
-  "description": "Enclave control API, attestation, certificates and authoritative TUNA DNS",
+  "description": "Enclave control API, attestation, certificates and authoritative DNS",
   "main": "api-relay.js",
   "scripts": {
     "start": "node api-relay.js",

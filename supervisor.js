@@ -1990,8 +1990,7 @@ function parseDepOptions(raw, gpuMilli) {
     if (!n || Array.isArray(n) || typeof n !== "object") throw new Error("network must be a JSON object");
     const bad = Object.keys(n).filter(k => k !== "transport" && k !== "relay");
     if (bad.length) throw new Error(`unknown network option ${JSON.stringify(bad[0])}`);
-    // "tuna" is what envelopes written before the 2026-10-14 rename carry; both mean the Enclave network
-    if ("transport" in n && n.transport !== "enclave-network" && n.transport !== "tuna") throw new Error("network.transport must be enclave-network");
+    if ("transport" in n && n.transport !== "enclave-network") throw new Error("network.transport must be enclave-network");
     // Existing ledger envelopes can still contain a relay preference. It no
     // longer selects a route and is not copied into runtime configuration.
     if ("relay" in n && n.relay !== null && n.relay !== "" &&

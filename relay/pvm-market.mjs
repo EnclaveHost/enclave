@@ -49,7 +49,7 @@ export function pvmOptionsRefusal(d, { gpuOptional = false } = {}) {
       || iso.cpuTee === true || iso.gpuTee === true || (iso.require !== undefined && iso.require !== PVM_ISOLATION_BACKEND)))
     return `the deployment's isolation requirement is not ${PVM_ISOLATION_BACKEND}`;
   const n = env.network;
-  if (n !== undefined && (!n || typeof n !== "object" || Object.keys(n).some((k) => !["transport", "relay"].includes(k)) || (n.transport !== undefined && n.transport !== "enclave-network" && n.transport !== "tuna")))
+  if (n !== undefined && (!n || typeof n !== "object" || Object.keys(n).some((k) => !["transport", "relay"].includes(k)) || (n.transport !== undefined && n.transport !== "enclave-network")))
     return "the deployment's network options are not the Enclave network's";
   if (env.gpu !== undefined && (!env.gpu || typeof env.gpu !== "object" || env.gpu.optional !== true)) return "the deployment's gpu options are not { optional: true }";
   return null;

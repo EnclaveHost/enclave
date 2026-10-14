@@ -9,18 +9,11 @@ import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { isBlockedHost } from '../relay/net-guard.mjs';
 
-// The map's format name: 'enclave-network', or 'tuna' from a relay that predates the 2026-10-14 rename.
-const MAP_FORMATS = new Set(['enclave-network', 'tuna']);
-
-// The relay's route map; a relay that predates the rename serves it only at /v1/network/tuna.
-export async function fetchRouteMap(api, fetchImpl = fetch) {
-  const get = path => fetchImpl(new URL(path, api), { signal: AbortSignal.timeout(15000) });
-  const response = await get('/v1/network/routes');
-  return response.status === 404 ? get('/v1/network/tuna') : response;
-}
+export const fetchRouteMap = (api, fetchImpl = fetch) =>
+  fetchImpl(new URL('/v1/network/routes', api), { signal: AbortSignal.timeout(15000) });
 
 export function checkMap(map, required = [], now = Date.now()) {
-  if (!MAP_FORMATS.has(map?.transport) || !Array.isArray(map.pending) || !map.deployments) throw new Error('route map unavailable or incomplete');
+  if (map?.transport !== 'enclave-network' || !Array.isArray(map.pending) || !map.deployments) throw new Error('route map unavailable or incomplete');
   if (map.pending.length) throw new Error(`routes not ready for ${map.pending.map(x => `${x.id}: ${x.reason}`).join(', ')}`);
   for (const id of required) if (!map.deployments[id]) throw new Error(`required deployment is not admitted: ${id}`);
   const entries = Object.entries(map.deployments);
