@@ -45,9 +45,10 @@
       <p>A market for compute where buyers check what they get. Your machine is listed at the protection level it proves, at the price you set, and the ledger pays you for every lease it serves. Nobody holds your earnings on your behalf.</p>
       <div class="hero-cta host-hero-cta">
         <a class="btn btn-primary" href="https://get.enclave.host/windows/EnclaveSetup.exe">Download for Windows <span class="arr" aria-hidden="true">↓</span></a>
+        <a class="btn btn-ghost" href="https://get.enclave.host/android/Enclave.apk">Download for Android <span class="arr" aria-hidden="true">↓</span></a>
         <a class="btn btn-ghost" href="#setup">Linux server setup</a>
       </div>
-      <p class="host-hero-note">For a Windows 11 PC with an AMD processor. <a href="#windows">What it needs →</a></p>
+      <p class="host-hero-note">For a Windows 11 PC with an AMD processor, or a Pixel phone (early preview). <a href="#windows">What it needs →</a></p>
     </c-section-head>
     </div>
 
@@ -64,6 +65,17 @@
       <div class="doc-note">
         <span class="nt">What tenants get</span>
         <p>Enclave Shield keeps each app apart from the others and from the rest of the PC, and the network checks the PC's TPM evidence before it sends any work. It does not encrypt memory against the PC's owner the way a confidential server does; buyers who need that choose confidential hosts.</p>
+      </div>
+
+      <h2 id="android">On an Android phone</h2>
+      <p>Each app runs in its own protected virtual machine, which Android itself cannot reach into, and the phone proves to the network which build of the app it runs before it is sent any work. Install the app and open it: it asks for the virtual-machine permission once, through the phone's Wireless debugging, makes its key and starts hosting. Its screen is the same hosting panel as the Windows app: hosting on or off, how much of the phone to share, your price, earnings and payout.</p>
+      <div class="doc-note">
+        <span class="nt">Early preview</span>
+        <p>Tested on a Pixel 10 Pro XL. Other Pixels from the Pixel 8 on have the same protected virtual machines but are untested so far. Keep the phone on its charger and on Wi-Fi. Install the download from your browser (Android asks you to allow that once); a new version is a new download for now.</p>
+      </div>
+      <div class="doc-note">
+        <span class="nt">What tenants get</span>
+        <p>The phone's protected virtual machines keep each app's memory out of reach of Android and of every other app on the phone. Phones host on their processor only: no GPU is offered.</p>
       </div>
 
       <h2>The fleet you would be joining</h2>
