@@ -1,18 +1,37 @@
 # Enclave
 
-**Compute that cannot see your data.** Enclave is a verifiable compute platform built around one architecture: one portable app bundle and one versioned domain contract; an OS-independent hardware-isolation security contract (per-app hardware isolation, the ordinary host operating system excluded by a smaller measured trusted layer, measured identity, attestation, key and traffic binding, fail-closed verification, lifecycle cleanup); **Enclave Shield**, our protection technology for machines without confidential-computing hardware, which combines hardware-enforced per-app CPU isolation that keeps the ordinary host OS out of every app's domain, on every operating system, with masked, verified GPU offload for any GPU outside a confidential boundary, whatever processor sits beside it; and confidential hardware, which adds protection from the machine's operator and memory encryption without changing the app contract. Publish a WebAssembly app once to an on-chain catalog, fund a deployment straight from your wallet, and it runs on a host that proved its level with verified evidence when it attached. Today that means confidential hardware (AMD SEV-SNP CPUs + NVIDIA confidential computing on the hosted fleet, and self-hosted confidential servers): TLS terminates inside the enclave and the whole chain of trust, from the CPU's attestation quote down to the exact commit of this repo that built the running image, can be verified from a browser before you send the service a byte. Billing is per-second on Base. The architecture, the isolation contract property by property, and a dated engineering note on what has been demonstrated live at https://enclave.host/develop#architecture (source: `site/develop.html`); the per-app hardware isolation research lives under `isolation/`.
+**Compute that cannot see your data.** Enclave is a verifiable compute platform built around one architecture: one portable app bundle and one versioned domain contract; an OS-independent hardware-isolation security contract (per-app hardware isolation, the ordinary host operating system excluded by a smaller measured trusted layer, measured identity, attestation, key and traffic binding, fail-closed verification, lifecycle cleanup); **Enclave Shield**, our protection technology for machines without confidential-computing hardware, which combines hardware-enforced per-app CPU isolation that keeps the ordinary host OS out of every app's domain, on every operating system, with masked, verified GPU offload for any GPU outside a confidential boundary, whatever processor sits beside it; and confidential hardware, which adds protection from the machine's operator and memory encryption without changing the app contract. Pick an app from the catalog, sign in with a passkey, pay by card, and it runs on a host that proved its level with verified evidence when it attached. Today that means confidential hardware (AMD SEV-SNP CPUs + NVIDIA confidential computing on the hosted fleet, and self-hosted confidential servers): TLS terminates inside the enclave and the whole chain of trust, from the CPU's attestation quote down to the exact commit of this repo that built the running image, can be verified from a browser before you send the service a byte. Billing is per second, from card credit or, if you prefer, directly from a wallet. The architecture, the isolation contract property by property, and a dated engineering note on what has been demonstrated live at https://enclave.host/develop#architecture (source: `site/develop.html`); the per-app hardware isolation research lives under `isolation/`.
 
 - **Site / app store / dashboard:** https://enclave.host
 - **Developer guide + API reference:** https://enclave.host/develop (OpenAPI spec: [site/openapi.json](site/openapi.json))
 - **REST API:** https://api.enclave.host/v1 (CORS-enabled; drive it from a browser)
 - **Deployed apps:** `https://<id>.app.enclave.host` (the deployment id's first 8 hex chars), TLS terminated in-enclave — or **your own domain**, with its certificate minted inside the enclave too ([docs/custom-domains.md](docs/custom-domains.md))
 
-Your wallet is your account: an Ethereum wallet is the identity, and paying is an on-chain transaction.
+## Getting started: a passkey and a card
+
+No wallet, seed phrase, browser extension or crypto is needed to use Enclave.
+
+1. **Sign in with a passkey** at [enclave.host](https://enclave.host): Face ID, Touch ID, Windows Hello, a password manager or a security key. On a computer without a passkey, **Use your phone** shows a QR code that you approve on your phone.
+2. **Add credit by card.** Payment goes through hosted Stripe Checkout, and your balance is shown in dollars.
+3. **Deploy** from any app's card with a dollar budget. You can top up, suspend, resume, change the version or cancel from the dashboard. Cancelling returns unused runtime to your credit.
+
+The platform pays all network fees. Refunds are handled by support and go back to the original card through Stripe ([docs/billing-runbook.md](docs/billing-runbook.md) §3, §6). In the terminal, `enclave login` signs the CLI in to the same account through your phone or browser ([cli/README.md](cli/README.md)).
+
+How credit works underneath: your credit is held in a credit vault, a contract on Base that only your passkey can authorize. It can be spent only on Enclave compute: there is no withdrawal path and no admin key, so neither you nor the company can move it anywhere else. The balance is capped at $2,000. **Register a second passkey**: a lost passkey cannot be recovered by anyone, because a recovery path would mean the company holds your funds.
+
+### Prefer a wallet?
+
+Any Ethereum wallet works too, paying in USDC or ETH on Base, and agents use one with scoped [wallet sessions](https://enclave.host/develop#docs-sessions). A wallet gives you direct on-chain ownership of each deployment. It is also still required for the following, which credit deployments don't support yet:
+
+- live logs and the in-browser attestation view;
+- secrets and custom domains;
+- config overrides;
+- deploying apps that charge a publisher fee, and publishing your own apps.
 
 ## How it works
 
 1. **Apps are Wasm components** (`wasi:http`). Anyone publishes to the on-chain app store (`EnclaveAppCatalog` on Base): the bytes go to IPFS addressed by CID, the listing, versions, and resource specs live on-chain. A version may declare an hourly publisher fee (capped on-chain, immutable per version, covered by approval): deployers see it in the rate up front and the publisher's cut of every funding forwards straight to their wallet, non-custodially. The enclave image ships no deployable apps; everything it runs is fetched by CID and hash-verified inside the enclave.
-2. **Deployments are on-chain work items** (`EnclaveDeployments`: create → fund → claim → lease). A deployment references a catalog **version** (`catalog://<appId>/<versionIndex>`), the immutable wasm + config + ports record the catalog owner approved. Funding is USDC (EIP-3009) or ETH, metered per second; top up to extend, stop anytime.
+2. **Deployments are on-chain work items** (`EnclaveDeployments`: create → fund → claim → lease). A deployment references a catalog **version** (`catalog://<appId>/<versionIndex>`), the immutable wasm + config + ports record the catalog owner approved. Funding comes from card credit (the customer's credit vault creates and funds the record when they deploy) or directly in USDC (EIP-3009) or ETH. It is metered per second; top up to extend, stop anytime.
 3. **Enclaves claim the work.** Each enclave self-registers in `EnclaveRegistry`, polls for funded work it can serve, claims it, and runs the app in a wasmtime sandbox: per-tenant process isolation, a private RAM-backed `/data`, no network beyond the served HTTP socket unless the app declares firewall ports.
 4. **Every layer attests.** Cloud Provider measures the container image (with a Sigstore transparency-log record tying it to this repo's release), the enclave proves the measurement in its attestation quote, and TLS keys never leave it. The site and CLI verify the full chain client-side before connecting.
 
@@ -29,7 +48,7 @@ Beyond plain web apps: GPU inference via `wasi-nn` (ONNX, GGUF through a bundled
 | `shielded/` | the GPU offload component of **Enclave Shield**: inference on an *untrusted* GPU, where activations and KV cache never leave the trusted domain in plaintext. Required for any card outside a confidential boundary, on any host; the large-model performance research on it is a separate line of work with unpublished numbers. Engine code exists (CUDA and Vulkan workers here, the TEE-side ggml backend under `wasm/ggml-shielded/`) and runs on one self-hosted confidential server; not on the hosted fleet ([docs](docs/shielded-inference.md)) |
 | `isolation/` | per-app hardware isolation research: the backend-neutral app-domain contract (`contract/`), and milestones M1 to M4 with their evidence scripts; lab results on one host, nothing in the product starts a domain yet. Where a milestone also runs the same image on ordinary KVM, that run is a control for the confidential path, not a product tier: there is no ordinary-Linux host backend, and none is built or listed unless a hardware-enforced, measured boundary excludes the host OS |
 | `windows/` | the Windows host: the live VBS-enclave node (`node/`, `vbs/`), and the partition-per-app backend built on Hyper-V partitions with the same guest image as Linux (`vbslike/`, lab only) |
-| `contracts/` | Solidity on Base: `EnclaveRegistry`, `EnclaveAppCatalog`, `EnclaveDeployments` |
+| `contracts/` | Solidity on Base: `EnclaveRegistry`, `EnclaveAppCatalog`, `EnclaveDeployments`, and for card customers `EnclaveCreditVault` (passkey-signed, closed-loop credit) |
 | `relay/` | SNI relay + dedicated-IP relay (TLS passthrough to enclaves, IPv6 ingress/egress) + the API gateway with the MCP server for coding agents (`mcp.enclave.host`) |
 | `egress.js` / `net-guard.mjs` | outbound egress shim and network guard |
 | `site/` | the enclave.host static site, published to IPFS (LWC-style web components, soft-nav router; `npm run build:site`) |
@@ -97,10 +116,17 @@ are gated to the registry).
 
 Deliberately still manual:
 
-- **Approving contract deploys:** redeploys mint fresh addresses and on-chain
-  state (registry entries, deployment balances) does not migrate. Approve or
-  reject under the run's **Review deployments** prompt; rejecting skips the
-  contract jobs and the rest of the pipeline continues on the next push.
+- **Approving contract deploys:** a CI deploy mints a fresh, empty contract at
+  a new address and moves no state by itself. Approve or reject under the run's
+  **Review deployments** prompt; rejecting skips the contract jobs and the rest
+  of the pipeline continues on the next push. A live contract is replaced only
+  by a migration (`scripts/migrate-contract.mjs`): every record, balance and
+  rate cap is imported into the new revision and diffed field by field against
+  the source before it is sealed. The platform re-backs refundable escrow, and
+  only then does governance point the address book at it. The 2026-10-12 ledger
+  cutover moved all 74 records. Customer credit vaults are
+  separate contracts that never move: a factory rotation changes only the
+  addresses of new vaults.
 - **Updating the running enclaves** is automated: after a release publishes,
   the `update-fleet` job in `Cloud Provider-release-publish.yml` runs
   `scripts/Cloud Provider-update-fleet.sh`, which repoints every running instance of

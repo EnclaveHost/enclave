@@ -1,15 +1,18 @@
 # The `enclave` CLI
 
-One file, wallet-native; your wallet is your account. Every command maps 1:1 onto the
+One file. Sign in with the same passkey account you use on enclave.host, or bring a
+wallet for full on-chain control from the terminal. Every command maps 1:1 onto the
 [public API](https://enclave.host/#api) and the on-chain contracts on Base;
 full reference in the site's [Develop → CLI](https://enclave.host/#cli) chapter,
 or `enclave help`.
 
 ```
-enclave key new                      # bring a wallet; fund it with USDC on Base
-enclave login                        # …or sign in with your Enclave account (passkey):
+enclave login                        # sign in with your Enclave account (passkey):
                                      # approve a link from your phone/browser; then ls,
-                                     # whoami and account read your credit deployments
+                                     # whoami and account show the deployments and credit
+                                     # you bought by card on enclave.host
+enclave key new                      # …or bring a wallet (USDC on Base) to deploy, fund
+                                     # and publish from the terminal:
 enclave publish app.wasm --slug hello-world
                                      # add --fee <$/hr> to charge deployers an hourly
                                      # publisher fee, paid straight to your wallet
