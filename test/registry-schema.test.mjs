@@ -215,10 +215,11 @@ test("registration re-fires when the address book repoints the registry", () => 
 
   // EVERY path that short-circuits on _registered must consult it, or that path
   // becomes the one that silently keeps the box on the dead registry
-  const shim = /async function registerFromShimCert\(\) \{[\s\S]*?\n\}/.exec(sup);
-  assert.ok(shim, "registerFromShimCert not found");
-  assert.match(shim[0], /registryRepointed\(\)/,
-    "the shim-cert path short-circuits on _registered and must check for a repoint too");
+  // (the shim-cert path that also did this went with the hosted fleet's shim, 2026-10-14)
+  const adv = /function advertised\(\) \{[\s\S]*?\n\}/.exec(sup);
+  assert.ok(adv, "advertised not found");
+  assert.match(adv[0], /registryRepointed\(\)/,
+    "the retry loop's done-check short-circuits on registration and must check for a repoint too");
 
   const onChain = /async function registerOnChain\(endpoint\) \{[\s\S]*?_registeredOn = /.exec(sup);
   assert.ok(onChain, "registerOnChain not found");

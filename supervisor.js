@@ -1,4 +1,4 @@
-// Enclave supervisor - the WHOLE service, running INSIDE the Tinfoil enclave behind
+// Enclave supervisor - the WHOLE service, running INSIDE the attested guest behind
 // the shim (the single ingress). It is the measured/attested image: the same
 // published code that checks a user's signature, gates on escrow, mints the
 // session token, launches the per-use container, and proxies the data path.
@@ -38,7 +38,6 @@ import { verifyMessage, createPublicClient, createWalletClient, http as viemHttp
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { SignJWT, jwtVerify } from "jose";
-import { Verifier, assembleAttestationBundle } from "@tinfoilsh/verifier";
 // dedicated-IP egress: the outbound half of the per-deployment address (see egress.js)
 import { createEgress } from "./egress.js";
 // contract addresses: LIVE BINDINGS owned by addressbook.js — seeded from the
@@ -121,7 +120,7 @@ function initSessionKey() {
 // here through time T, anchored to block N". Minted IN-ENCLAVE at boot for
 // exactly the same reason as the session key above — and here the reason is
 // money. The operator EOA (REGISTRY_PRIVATE_KEY) is provisioned from OUTSIDE
-// the CVM: the seller creates it and hands it in (Tinfoil secret, or metal
+// the CVM: the seller creates it and hands it in (a hosted secret, or metal
 // fw_cfg), so a signature from THAT key proves nothing about what this box is
 // running. This key the operator has never seen, so a checkpoint signed with it
 // can only have been produced by the measured supervisor inside this CVM, which
@@ -253,8 +252,8 @@ function cookieVals(req, name) {
   }
   return out;
 }
-// This enclave's on-chain identity is bound to its OWN attested shim-cert SAN
-// (see registerFromShimCert), never to the request Host/x-forwarded-host header —
+// This enclave's on-chain identity is its configured PUBLIC_URL (see
+// registerSelf), never the request Host/x-forwarded-host header —
 // a spoofable value — so no caller can make the enclave advertise a bogus origin.
 // --- pay-per-deploy (no custody): users pay the EnclavePay forwarder; the supervisor
 //     WATCHES it for Paid events and converts each payment to runtime. No held
@@ -314,7 +313,7 @@ const WORKER_PIDS     = process.env.WORKER_PIDS || "512";
 // ---- worker MANAGER (Layer 2/3) --------------------------------------------
 // The GPU container runs a manager that forks one MPS-capped CHILD PROCESS per
 // tenant. The supervisor routes deploys/submissions HERE instead of creating
-// containers itself (Tinfoil forbids runtime container creation). Reachable over
+// containers itself (the hosted image forbids runtime container creation). Reachable over
 // the enclave-local network; default loopback.
 const WORKER_MGR_URL  = (process.env.WORKER_MGR_URL || "http://127.0.0.1:8090").replace(/\/+$/, "");
 // Opt-in bearer for the GPU worker manager's control plane (worker/worker.py
@@ -544,7 +543,6 @@ let _registered = false;
 let _registeredOn = null;         // WHICH registry _registered refers to (see below)
 let _enclaveId = null;            // our EnclaveRegistry id (keccak256 of the advertised endpoint); claim gating needs it
 let _advertisedEndpoint = null;   // the endpoint we registered under; adopted deployments build their URL from it
-let _certSan = null;              // our own attested shim-cert SAN hostname — the ONLY name we self-register / advertise
 /// Has the address book moved the registry out from under our registration?
 /// Every guard that would otherwise short-circuit on `_registered` has to ask
 /// this too, or the box latches onto a registry nobody reads any more.
@@ -730,40 +728,11 @@ async function syncDeclaredPayoutWallet(id) {
       + `(the operator key cannot send it; that is deliberate).`);
 }
 
-// Boot-time hostname discovery: the shim terminates TLS inside this CVM, and
-// its certificate names this enclave's public ingress (<name>.containers.
-// tinfoil.dev) in the SANs — the same cert whose key the attestation quote
-// binds, so it is stronger provenance for our own endpoint than the Host
-// header of whoever happens to call first. Reading it over loopback lets a
-// fresh enclave advertise without config and without waiting for external
-// traffic — which may never come: discovery needs the registry entry, and the
-// entry needed traffic (the lazy middleware alone deadlocks on this).
-function shimCertHostname(port = 443, timeoutMs = 5000) {
-  return new Promise((resolve, reject) => {
-    const s = tls.connect({ host: "127.0.0.1", port, rejectUnauthorized: false }, () => {
-      try {
-        const sans = (s.getPeerX509Certificate()?.subjectAltName || "")
-          .split(",").map((e) => e.trim()).filter((e) => e.startsWith("DNS:")).map((e) => e.slice(4));
-        // the public ingress name; *.hpke/*.hatt.tinfoil.sh SANs are Tinfoil-internal
-        resolve(sans.find((n) => /\.containers\.tinfoil\.dev$/i.test(n)) || null);
-      } catch (e) { reject(e); } finally { s.destroy(); }
-    });
-    s.setTimeout(timeoutMs, () => s.destroy(new Error("shim cert read timeout")));
-    s.on("error", reject);
-  });
-}
-// Self-register ONLY our own attested shim-cert SAN — never the request Host.
-// Caches the SAN once discovered so originOf() and the lazy trigger reuse it.
-async function registerFromShimCert() {
-  if (!REGISTRY_READY || (_registered && !registryRepointed())) return;
-  const name = _certSan || (_certSan = await shimCertHostname());
-  if (name) await registerOnChain("https://" + name);
-}
-// The name this box registers under: its pinned PUBLIC_URL when it has one (a
-// tunnelled host such as metal0 has no shim cert to read), else the shim SAN.
+// The name this box registers under: its pinned PUBLIC_URL (a tunnelled host such as metal0: https://api.enclave.host/t/<name>).
+// There is no other source: never the request Host header of whoever calls first.
 async function registerSelf() {
   if (PUBLIC_URL) return registerOnChain(PUBLIC_URL);
-  return registerFromShimCert();
+  console.warn("[registry] no PUBLIC_URL: this box cannot name itself, so it does not register");
 }
 // Done = a register() went through on the registry the book points at NOW.
 // _registered alone is not enough: an attempt still in flight sets it, and that
@@ -772,8 +741,7 @@ function advertised() {
   return !!_enclaveId && !registryRepointed();
 }
 // Register, retrying with backoff until one attempt goes through. Early in boot
-// the shim may present a placeholder cert with no public SAN (ACME still
-// running), and the host's network or the RPC may not be up yet. A PUBLIC_URL
+// the host's network or the RPC may not be up yet. A PUBLIC_URL
 // box used to try exactly once: metal0 booted on 2026-10-10 with its USB uplink
 // missing, that one register() failed, and the box stayed off the live list —
 // and claimed nothing, since the claim loop waits on _enclaveId — until it was
@@ -784,13 +752,10 @@ async function advertise() {
   if (_advertising) return;
   _advertising = true;
   try {
-    for (let delaySec = 5; REGISTRY_READY && !advertised(); delaySec = Math.min(delaySec * 2, 300)) {
-      try {
-        await registerSelf();
-        if (!_registered && !PUBLIC_URL && !_certSan) console.log("[registry] shim cert has no public SAN yet — retrying");
-      } catch (e) { console.warn(`[registry] shim cert read failed (${e.message}) — retrying`); }
+    for (let delaySec = 5; REGISTRY_READY && PUBLIC_URL && !advertised(); delaySec = Math.min(delaySec * 2, 300)) {
+      try { await registerSelf(); } catch (e) { console.warn(`[registry] register failed (${e.message}) — retrying`); }
       if (advertised()) break;
-      if (!_registered && (PUBLIC_URL || _certSan)) console.warn(`[registry] not registered — retrying in ${delaySec}s`);
+      if (!_registered) console.warn(`[registry] not registered — retrying in ${delaySec}s`);
       await new Promise((r) => setTimeout(r, delaySec * 1000).unref());
     }
   } finally { _advertising = false; }
@@ -810,7 +775,7 @@ function need(n){ const v = process.env[n]; if(!v){ console.error("FATAL: missin
 // gap, same spirit as the hand-rolled ABI/DER encodings elsewhere).
 //
 // CVMs have no disk. Certs live in memory and, when ACME_STORE_DIR names a
-// MEMORY-BACKED tmpfs (the Tinfoil ramdisk that survives container restarts
+// MEMORY-BACKED tmpfs (a ramdisk that survives container restarts
 // within one CVM boot), in that tmpfs too - so a release repoint, which
 // restarts every container on the fleet, does not re-issue every name from
 // scratch (2026-08-27: ZeroSSL hung for hours, Let's Encrypt's 5-per-name
@@ -887,7 +852,7 @@ const CERTS_API       = (process.env.CERTS_API || "").trim().replace(/\/+$/, "")
 // Only a box whose SECRET IS the fleet secret can derive a CERTS_KEY the
 // relay knows. On metal, gsup.mjs mints SECRET = FLEET_SECRET || random and
 // says which with FLEET_SECRET_PRESENT (0 = a per-boot random secret: a
-// seller box, or a first-party metal box without cfg.fleetSecret); the Tinfoil
+// seller box, or a first-party metal box without cfg.fleetSecret); the hosted
 // image passes the fleet SECRET straight through and sets no flag, so unset
 // means present. The relay refuses a sig that fails (fail closed, never
 // silently ignored), so a box without the fleet secret must SEND NONE and
@@ -1311,10 +1276,10 @@ function acmeRetryPlan(e, prevFailures, coolingUntil, now = Date.now()) {
 // session key's (SESSION_KEY_DIR) and the TLS bridge's (TLS_BRIDGE_DIR):
 // MEMORY-BACKED ONLY, never host disk. Enforced, not assumed: acmeStoreGuard
 // accepts only a directory whose filesystem statfs reports as tmpfs (f_type
-// 0x01021994) -- a PATH tells nothing: inside the Tinfoil supervisor
+// 0x01021994) -- a PATH tells nothing: inside the hosted supervisor
 // container /mnt/ramdisk is the container's own overlay, not the CVM's
 // ramdisk; the ramdisk reaches the container only as the /var/lib/enclave
-// bind (enclaves/*/tinfoil-config.yml `volumes:`), and a bind of a tmpfs
+// bind (enclaves/*/config.yml `volumes:`), and a bind of a tmpfs
 // statfs's as tmpfs. Anything else is refused - logged once, certs stay
 // memory-only - unless
 // ACME_STORE_ALLOW_DISK=1 says so explicitly (metal/dev: the metal guest is
@@ -1341,7 +1306,7 @@ function acmeStoreOpen(dir, { allowDisk = ACME_STORE_ALLOW_DISK, statfs, log = c
   const g = acmeStoreGuard(dir, { allowDisk, ...(statfs ? { statfs } : {}) });
   if (!g.ok) {
     if (g.why === "disabled") log.log("[acme] ACME_STORE_DIR is empty - certificates live in memory only, re-issued on every restart");
-    else log.warn(`[acme] REFUSING ACME_STORE_DIR=${dir}: ${g.why}. Private keys never touch host-backed disk; point it at a tmpfs (the Tinfoil ramdisk) or set ACME_STORE_ALLOW_DISK=1 if this is a metal/dev box whose "disk" is RAM. Certificates stay memory-only this boot.`);
+    else log.warn(`[acme] REFUSING ACME_STORE_DIR=${dir}: ${g.why}. Private keys never touch host-backed disk; point it at a tmpfs (a ramdisk) or set ACME_STORE_ALLOW_DISK=1 if this is a metal/dev box whose "disk" is RAM. Certificates stay memory-only this boot.`);
     return null;
   }
   try { mkdirSync(dir, { recursive: true, mode: 0o700 }); chmodSync(dir, 0o700); }
@@ -3160,7 +3125,7 @@ const gpuCards = Array.from({ length: GPU_COUNT }, (_, i) => ({ id: i, uuid: nul
 // The card outranks config: GPU_VRAM_GB is only the boot fallback. The real
 // memory.total arrives from whichever probe can reach the card - our own
 // nvidia-smi discovery where this process can see the GPU, or the manager's
-// boot probe via /health on Tinfoil (the supervisor container has neither).
+// boot probe via /health (the supervisor container has neither).
 // Rebase the free pools by the delta so reservations made before adoption
 // (loadState restores, early claims) stay accounted.
 function adoptCardVram(gb, source) {
@@ -3400,7 +3365,7 @@ const sessionApi = createSessionApiAuth({
   factories: envList(process.env.SESSIONS_FACTORIES).length ? envList(process.env.SESSIONS_FACTORIES) : DEFAULT_FACTORIES,
   bases: () => apiBases({ hosts: SESSION_API_HOSTS.length ? SESSION_API_HOSTS : DEFAULT_API_HOSTS,
     tunnelNames: envList(process.env.SESSION_API_TUNNEL_NAMES),
-    publicUrls: [PUBLIC_URL, _certSan ? `https://${_certSan}` : null] }),
+    publicUrls: [PUBLIC_URL] }),
   log: (m) => console.warn(`[session-auth] ${m}`),
 });
 
@@ -3959,7 +3924,7 @@ function startInstanceReconciler() {
 // ============================================================================
 // >>> IMPLEMENT THESE for your CVM launch mechanism (e.g. the app manager on
 //     VMMGR_URL). Contract: one ingress port, no sibling reach.
-//     Tinfoil exposes no guest RTMR-extend, so a launched image's digest cannot
+//     the hosted CVM exposes no guest RTMR-extend, so a launched image's digest cannot
 //     be folded into the hardware measurements; /attestation reports exactly
 //     that (per-app `coverage` in getMeasurements) instead of implying it.
 // ============================================================================
@@ -4216,26 +4181,17 @@ function appMeasurement(rec) {
                        + "measurement registers below." };
 }
 // ---- REAL ATTESTATION -------------------------------------------------------
-// The Tinfoil shim generates the enclave TLS key, obtains a CPU attestation
-// report (AMD SEV-SNP on today's fleet; Intel TDX flows through the same path)
-// whose report_data[0:32] = sha256(TLS pubkey, SPKI DER), and serves the signed
-// Remote Attestation Document at /.well-known/tinfoil-attestation. We RELAY that
-// document verbatim and PARSE the quote so the registers are inspectable - but
-// we never assert trust on the client's behalf: the party being verified cannot
-// vouch for itself. What we DO publish is verification.selfCheck - this enclave
-// running the same five checks a client would (via @tinfoilsh/verifier) and
-// reporting the outcome as a clearly-labeled diagnostic, so a healthy deployment
-// reads as a wall of passes instead of a bare "verified: false". Clients
-// reproduce it with tinfoil-cli / @tinfoilsh/verifier against the Sigstore-
-// signed measurements on ENCLAVE_REPO's releases, over their OWN connection.
+// The guest agent (metal/guest/agent.mjs) holds the box's transport key and produces the AMD SEV-SNP report whose
+// report_data binds it; this supervisor reads the stored document over loopback (ATTESTATION_URL, set by metal/guest/gsup.mjs),
+// relays it verbatim under RAD_PATH (a legacy name kept for wire compatibility: the relay's allowlist and older clients use
+// it) and PARSES the report so the registers are inspectable. It never asserts trust on a client's behalf.
 const RAD_PATH        = "/.well-known/tinfoil-attestation";
 const ATTESTATION_URL = process.env.ATTESTATION_URL || "";                 // explicit RAD URL override
 const RAD_CACHE_MS    = parseInt(process.env.RAD_CACHE_MS || "300000", 10); // convenience-copy staleness bound
 const sha256Hex = (b) => createHash("sha256").update(b).digest("hex");
 
-// GET url, tolerate the shim's cert (the RAD is SELF-verifying: the quote binds
-// the TLS key, so transport trust adds nothing), and capture the peer key so we
-// can report the fingerprint exactly as Tinfoil's verifier computes it.
+// GET url (the document is SELF-verifying: the report binds the key, so transport trust adds nothing) and capture
+// the peer key's fingerprint when the source speaks TLS.
 function fetchRad(url, timeoutMs = 5000) {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
@@ -4250,7 +4206,7 @@ function fetchRad(url, timeoutMs = 5000) {
           if (res.statusCode !== 200) return reject(new Error(`${u.host}${u.pathname}: HTTP ${res.statusCode}`));
           let doc; try { doc = JSON.parse(buf); } catch { return reject(new Error(`${u.host}: not JSON`)); }
           if (typeof doc.format !== "string" || typeof doc.body !== "string")
-            return reject(new Error(`${u.host}: not a Tinfoil attestation document`));
+            return reject(new Error(`${u.host}: not an attestation document ({ format, body })`));
           resolve({ doc, liveTlsKeyFP, url });
         });
       });
@@ -4264,16 +4220,10 @@ let _radInflight = null;
 async function fetchEnclaveRad(origin) {
   if (_radCache && Date.now() - _radCache.at < RAD_CACHE_MS) return _radCache;
   if (_radInflight) return _radInflight;
-  // The shim terminates TLS inside this CVM, so loopback is the trusted source.
-  // We deliberately DO NOT fall back to the public origin (origin + RAD_PATH): that
-  // hairpin leaves the CVM and re-enters through the untrusted ingress with
-  // rejectUnauthorized off, so a MITM on that path could answer it. Loopback (the
-  // shim, in-CVM) is ALWAYS available here, so there is genuinely no case with "no
-  // loopback option" — we fail closed rather than trust the hairpin. ATTESTATION_URL
-  // remains the explicit override for a shim that binds elsewhere.
+  // The guest agent on loopback (ATTESTATION_URL) is the only source: never the public origin (that hairpin leaves the
+  // guest and re-enters through an untrusted path). Without it there is no document, and we say so.
   void origin;
-  const candidates = ATTESTATION_URL ? [ATTESTATION_URL]
-    : ["https://127.0.0.1" + RAD_PATH, "http://127.0.0.1" + RAD_PATH];
+  const candidates = ATTESTATION_URL ? [ATTESTATION_URL] : [];
   _radInflight = (async () => {
     let lastErr = null;
     for (const url of candidates) {
@@ -4373,121 +4323,33 @@ async function cachedGpuEvidence() {
   return _gpuEvCache.ev;
 }
 
-// ---- SELF-CHECK (diagnostic, not trust) --------------------------------------
-// The enclave runs the exact five-step client verification against ITSELF
-// (@tinfoilsh/verifier: SNP report -> AMD root, Sigstore release provenance,
-// measurement comparison, cert binding) and reports the outcome. Labeled a
-// self-check because self-vouching carries no trust - its value is (a) honest
-// green-by-default optics and (b) catching config drift (wrong repo casing,
-// stale release, broken egress) before a customer's verifier does. Fetches its
-// own PUBLIC origin (hairpin) plus Tinfoil's GitHub/KDS proxies; if any of that
-// is unreachable from inside, it degrades to "unavailable", never an error.
-const SELF_CHECK_TTL_MS  = parseInt(process.env.SELF_CHECK_TTL_MS || "300000", 10); // re-check cadence after a pass (non-pass retries after 30s)
-const SELF_CHECK_WAIT_MS = parseInt(process.env.SELF_CHECK_WAIT_MS || "8000", 10);  // max time one request waits on a fresh run
-const SELF_CHECK_NOTE = "Run by the enclave itself as a diagnostic: it proves this deployment is configured "
-                      + "to verify, not that you should trust it. Reproduce it on your side with `cli`, `npm`, "
-                      + "or `browser` - trust ends at YOUR verifier, never at this field.";
-// Flavor-aware verification. The stock Verifier compares an enclave against the
-// repo's single "latest" GitHub release, which carries our GPU flavor — a CPU
-// (or gpu8) enclave measures differently and would always fail
-// compareMeasurements. So: fast-path latest, and ONLY on a mismatch probe the
-// same version's sibling-flavor tags (vX.Y.Z-cpu / -gpu8), verifying against
-// whichever release the enclave's own measurement matches. Security is
-// unchanged — every candidate's provenance is still Sigstore-verified inside
-// verifyBundle; we only widen WHICH signed release is the reference. The
-// github-proxy the enclave reaches whitelists only /releases/latest,
-// /releases/download/<tag>/tinfoil.hash and /attestations/<digest>, so we probe
-// known tags rather than enumerate releases. Mirrored in site/js/core/verify.js.
-const GITHUB_PROXY = "https://github-proxy.tinfoil.sh";
-async function verifyMatchingRelease(host, repo) {
-  const base = await assembleAttestationBundle(host, repo);   // enclave attestation + latest's digest/sigstore
-  const attempt = async (digest, sigstoreBundle) => {
-    const v = new Verifier({ configRepo: repo });
-    try { await v.verifyBundle({ ...base, digest, sigstoreBundle }); } catch { /* step failure recorded on the doc */ }
-    return v.getVerificationDocument();
-  };
-  const latest = await attempt(base.digest, base.sigstoreBundle);
-  if (latest?.securityVerified) return latest;                // the common case: this node runs the latest (GPU) release
-  // Bounded, like every other outbound call here: this runs inside the
-  // self-check that /v1/attestation's consumers read, and node's fetch has no
-  // default timeout — a github-proxy that accepts and stalls would pin the
-  // shared in-flight self-check promise (and every request awaiting it) rather
-  // than answering "unavailable".
-  const ghFetch = (u) => fetch(u, { signal: AbortSignal.timeout(15000) });
-  let latestTag;
-  try { latestTag = (await (await ghFetch(`${GITHUB_PROXY}/repos/${repo}/releases/latest`)).json())?.tag_name; } catch { /* offline */ }
-  for (const suffix of (latestTag ? ["-cpu", "-gpu8"] : [])) {
-    const tag = latestTag + suffix;
-    let digest, sigstoreBundle;
-    try {
-      const hr = await ghFetch(`${GITHUB_PROXY}/${repo}/releases/download/${tag}/tinfoil.hash`);
-      if (!hr.ok) continue;
-      digest = (await hr.text()).trim();
-      sigstoreBundle = (await (await ghFetch(`${GITHUB_PROXY}/repos/${repo}/attestations/sha256:${digest}`)).json())?.attestations?.[0]?.bundle;
-    } catch { continue; }
-    if (!digest || !sigstoreBundle) continue;
-    const doc = await attempt(digest, sigstoreBundle);
-    if (doc?.securityVerified) return doc;                    // matched this flavor's signed release
-  }
-  return latest;   // nothing matched: the latest-comparison doc carries the mismatch detail
+// ---- HOW TO VERIFY (never a self-check) ---------------------------------------
+// The machine being verified cannot vouch for itself, so it publishes no verdict at all: verification.selfCheck stays
+// "not-run" (the field is kept for clients that read it), and the pointers beside it are how a client verifies this box
+// itself - Enclave's own verifier (verifier/ in the repo: the CLI's `enclave attest`, the site's in-browser check), over a
+// FRESH document for the client's own nonce from the relay that holds this box's tunnel.
+const SELF_CHECK = Object.freeze({ result: "not-run",
+  note: "An enclave cannot vouch for itself, so it runs no self-check. Verify it with your own client: `cli`, `browser` "
+      + "or `library` below - trust ends at YOUR verifier, never at this field." });
+// this box's name and relay, from its pinned PUBLIC_URL (https://<relay>/t/<name>)
+function boxOfOrigin(origin) {
+  try { const u = new URL(origin); const m = u.pathname.match(/^\/t\/([A-Za-z0-9_-]{1,64})$/); return m ? { name: m[1], relay: u.origin } : null; } catch { return null; }
 }
-
-let _selfCheck = null;                  // { data, at }
-let _selfCheckRun = null;               // in-flight run (shared across concurrent requests)
-async function runSelfCheck(origin) {
-  if (!ENCLAVE_REPO) return { result: "unavailable", error: "ENCLAVE_REPO not configured" };
-  if (!origin)       return { result: "unavailable", error: "public origin not known yet (no external request seen)" };
-  let doc, failure = null;
-  try { doc = await verifyMatchingRelease(new URL(origin).hostname, ENCLAVE_REPO); }
-  catch (e) { failure = e; }
-  if (!doc) return { result: "unavailable", error: failure?.message || "verifier produced no document" };
-  const word = (s) => !s || s.status === "pending" ? "skipped" : s.status === "success" ? "pass" : "fail";
-  const steps = {};
-  for (const k of ["fetchDigest", "verifyEnclave", "verifyCode", "compareMeasurements", "verifyCertificate"]) {
-    steps[k] = word(doc.steps?.[k]);
-    if (doc.steps?.[k]?.error) steps[k] += `: ${doc.steps[k].error}`;
-  }
-  return { result: doc.securityVerified ? "pass" : "fail",
-           ...(failure ? { error: failure.message } : {}),
-           steps,
-           release: doc.releaseDigest ? `sha256:${doc.releaseDigest}` : null,
-           measurement: doc.enclaveFingerprint || null };
-}
-async function getSelfCheck(origin) {
-  const ttl = _selfCheck?.data?.result === "pass" ? SELF_CHECK_TTL_MS : Math.min(SELF_CHECK_TTL_MS, 30_000);
-  if (_selfCheck && Date.now() - _selfCheck.at < ttl) return _selfCheck.data;
-  if (!_selfCheckRun)
-    _selfCheckRun = runSelfCheck(origin)
-      .catch((e) => ({ result: "unavailable", error: e.message }))
-      .then((r) => { const data = { result: r.result, ...r, checkedAt: new Date().toISOString(), note: SELF_CHECK_NOTE };
-                     _selfCheck = { data, at: Date.now() }; _selfCheckRun = null; return data; });
-  // don't hold the attestation response hostage to a slow first run
-  const done = await Promise.race([_selfCheckRun,
-    new Promise((res) => setTimeout(res, SELF_CHECK_WAIT_MS).unref())]);
-  return done || { result: "pending",
-                   detail: "self-check still running - request this endpoint again in a few seconds",
-                   note: SELF_CHECK_NOTE };
-}
-
 async function getMeasurements(rec, { origin = PUBLIC_URL, nonce, freshGpu = true } = {}) {
-  let enclaveHost = null; try { enclaveHost = origin ? new URL(origin).host : null; } catch {}
+  const box = origin ? boxOfOrigin(origin) : null;
   const out = {
-    // No server-asserted "verified" boolean: the machine being verified cannot
-    // vouch for itself, and a hardcoded `false` reads like an outage. Instead,
-    // selfCheck reports this enclave running the same checks a client would
-    // (labeled diagnostic), and the pointers beside it reproduce the result
-    // client-side in seconds - where it actually carries trust.
+    // No server-asserted "verified" boolean and no self-check: the machine being verified cannot vouch for itself.
+    // The pointers below are how a client verifies this box, with its own verifier, over its own nonce.
     verification: {
-      selfCheck: await getSelfCheck(origin),
-      how: "Fetch " + RAD_PATH + " from this origin over your OWN TLS connection, verify the quote "
-         + "against the Intel/AMD root of trust, compare the registers to the Sigstore-signed "
-         + "measurements on the release page of `repo` (exact casing - Sigstore compares it verbatim), "
-         + "and check that reportData[0:32] equals sha256 of the TLS public key (SPKI DER) your "
-         + "connection presents. Tinfoil's verifier does all of this for you:",
-      cli: enclaveHost && ENCLAVE_REPO
-         ? `tinfoil attestation verify -e ${enclaveHost} -r ${ENCLAVE_REPO}` : null,  // github.com/tinfoilsh/tinfoil-cli
-      npm: "@tinfoilsh/verifier",  // Node + browsers: await new Verifier({ serverURL, configRepo: repo }).verify()
+      selfCheck: SELF_CHECK,
+      how: "Ask the relay for a FRESH document over a nonce you choose (`freshAttestation`), then verify it yourself: "
+         + "the AMD SEV-SNP report signed by its VCEK up to AMD's root (VCEK -> ASK -> ARK), the TCB floor and guest policy, "
+         + "report_data[0:32] = sha256(the document's transportKey SPKI || your nonce), and a launch measurement you expect. "
+         + "Enclave's verifier does all of this for you:",
+      cli: box ? `enclave attest${rec && rec.id ? " " + rec.id : ""}` : null,
       browser: "https://enclave.host/#attest",
+      library: "verifier/ in https://github.com/EnclaveHost/enclave (Node: verifier/consumer.mjs verifyMetalBox; browser: verifyMetalBoxWeb)",
+      freshAttestation: box ? `${box.relay}/v1/enclaves/${box.name}/attestation?nonce=<64 hex of your own>` : null,
       repo: ENCLAVE_REPO || null,
       attestationEndpoint: (origin || "") + RAD_PATH,
     },
@@ -4502,17 +4364,16 @@ async function getMeasurements(rec, { origin = PUBLIC_URL, nonce, freshGpu = tru
     const attestedTlsFP = parsed.reportData ? parsed.reportData.slice(0, 64) : null;
     out.tlsKeyFingerprint = attestedTlsFP ? `sha256:${attestedTlsFP}` : null;
     out.enclave = {
-      attestationDocument: doc,               // verbatim Tinfoil RAD - feed to Tinfoil's verifier (tinfoil-cli / @tinfoilsh/verifier)
+      attestationDocument: doc,               // the box's stored document, verbatim (a convenience: no freshness - use freshAttestation)
       fetchedFrom: url, fetchedAt: new Date(_radCache.at).toISOString(),
-      // fingerprint of the key the shim ACTUALLY presented when we fetched; equals
-      // the quote-bound one unless the shim rotated its key mid-cache-window.
+      // fingerprint of the key the attestation source presented when we fetched (null over plain-HTTP loopback)
       observedTlsKeyFingerprint: liveTlsKeyFP,
     };
     out.vm = { technology: parsed.technology, quote: parsed.quote, quoteVersion: parsed.quoteVersion,
                measurements: parsed.measurements, reportData: parsed.reportData };
   } catch (e) {
     out.enclave = { available: false, error: e.message,
-                    note: "Fetch " + RAD_PATH + " from this origin yourself - the shim serves it directly." };
+                    note: "Ask the relay for a fresh document instead: verification.freshAttestation." };
   }
   // GPU evidence only when this deployment actually holds a card slice (a
   // CPU-only app placed on a GPU enclave holds none — no card fields for it).
@@ -4600,12 +4461,11 @@ function fail(res, status, code, message) { return res.status(status).json({ cod
 // Prefer our attested SAN once known; fall back to the request Host only during
 // early boot before the shim cert is read (client verifies attestation over its
 // own TLS, so a reflected Host there is not trusted for identity).
-const originOf = (req) => PUBLIC_URL || (_certSan ? `https://${_certSan}` : `https://${req.headers["x-forwarded-host"] || req.headers.host}`);
+const originOf = (req) => PUBLIC_URL || `https://${req.headers["x-forwarded-host"] || req.headers.host}`;
 
 // Kick self-registration on any request in case the boot loop is mid-backoff. We
-// register ONLY our pinned PUBLIC_URL or our attested shim-cert SAN
-// (registerSelf), never the request Host, so a spoofed Host can never make us
-// advertise a bogus origin.
+// register ONLY our pinned PUBLIC_URL (registerSelf), never the request Host, so a
+// spoofed Host can never make us advertise a bogus origin.
 app.use((req, _res, next) => {
   if (REGISTRY_READY && !_registered) registerSelf().catch(() => {});
   next();
@@ -6837,7 +6697,7 @@ app.post("/v1/deployments", ownerAuth(null, { refuseSessions: "A wallet session 
       : { gpuShare: slice.gpuShare, cpuShare: slice.cpuShare, cardId: gpu.cardId },
     network: { port: appPort, protocol: "https", endpoint: `${originOf(req)}/x/${id}` },
     attestation: { available: true, vmTechnology: vmTech(), gpuTechnology: gpuTechnology(), href: `/v1/deployments/${id}/attestation` },
-    region: "tinfoil", createdAt: new Date().toISOString(), startedAt: null,
+    region: "enclave", createdAt: new Date().toISOString(), startedAt: null,
     // fair-billing clock: a funded BALANCE (null = unlimited pilot) drained only
     // on healthy ticks - see startBillingTicker. paused surfaces a frozen clock.
     remainingMs: null, consumedMs: 0, paused: false, pauseReason: null, _lastTickAt: 0,
@@ -7470,7 +7330,7 @@ app.post("/v1/admin/deployments/:id/release", async (req, res) => {
 // manager's device-measured memory, the per-PID compute-app list, the
 // reservation ledger and each tenant's pin. On 2026-08-18 ~104 GiB of device
 // memory orphaned by an in-place update had to be reconstructed from share
-// arithmetic and boot-log fragments because a Tinfoil CVM offers no shell;
+// arithmetic and boot-log fragments because a hosted CVM offers no shell;
 // this is the lever that makes the next such hunt a single request. Gated
 // like the other admin levers (404 when the token is unset).
 app.get("/v1/admin/gpu", async (req, res) => {
@@ -7646,13 +7506,11 @@ app.get("/v1/deployments/:id/attestation", async (req, res) => {
   catch (e) { fail(res, 502, "attestation_error", e.message); }
 });
 
-// The RAW attestation document, PUBLIC and verbatim — the artifact every
-// verifier actually consumes (tinfoil-cli, @tinfoilsh/verifier, the site's
-// in-browser check all fetch exactly this path and parse {format, body}).
+// The RAW attestation document, PUBLIC and verbatim, under its legacy path name (RAD_PATH; the relay's ineligible-box
+// allowlist and older clients read exactly this path and parse {format, body}). It carries no freshness: a client that
+// verifies asks the relay for a fresh document over its own nonce (verification.freshAttestation).
 //
-// On Tinfoil the SHIM serves this path in front of us, so this route is dead
-// code there — the shim wins and nothing changes. It exists for METAL, where
-// there is no shim: the document lives on a private loopback port
+// On metal the document lives on a private loopback port
 // (ATTESTATION_URL, e.g. http://127.0.0.1:8443/.well-known/enclave-attestation)
 // and nothing re-served it publicly. So a metal box advertised
 // verification.attestationEndpoint pointing at a path that 404'd — its own
@@ -10883,7 +10741,7 @@ async function adopt(d, g, firewall, slice, { resume = false } = {}) {
     _shares: { gpuMilli: Number(d.gpuMilli), cpuMilli: Number(d.cpuMilli) },
     network: { port: appPort, protocol: "https", endpoint: `${_advertisedEndpoint}/x/${d.id}` },
     attestation: { available: true, vmTechnology: vmTech(), gpuTechnology: gpuTechnology(), href: `/v1/deployments/${d.id}/attestation` },
-    region: "tinfoil", createdAt: new Date(Number(d.createdAt) * 1000).toISOString(), startedAt: null,
+    region: "enclave", createdAt: new Date(Number(d.createdAt) * 1000).toISOString(), startedAt: null,
     // the local clock only mirrors the CURRENT lease; the chain holds the rest
     remainingMs: Number(d.leaseUntil) * 1000 - Date.now(), consumedMs: 0,
     paused: false, pauseReason: null, _lastTickAt: Date.now(),
@@ -11395,9 +11253,8 @@ fetchEnclaveRad().then(() => console.log(`[attest] CPU TEE detected: ${vmTech()}
 if (egress) { egress.start(); console.log(`[egress] dedicated-IP egress on (SOCKS 127.0.0.1:${EGRESS_SOCKS_PORT}); awaiting relay control channel`); }
 
 // advertise this enclave on-chain (opt-in, non-blocking, never fatal)
-// Register eagerly at boot under the pinned origin (PUBLIC_URL) or, without one,
-// the public hostname in the shim's loopback TLS cert; advertise() retries until
-// it goes through, with the first-external-request middleware above as a kick.
+// Register eagerly at boot under the pinned origin (PUBLIC_URL); advertise() retries
+// until it goes through, with the first-external-request middleware above as a kick.
 if (REGISTRY_READY) advertise();
 
 // pay-per-deploy: watch the forwarder for payments + fair-billing ticker (drains
