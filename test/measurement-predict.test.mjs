@@ -52,7 +52,9 @@ test("the supervisor's rule is pinned: every tier supervisor this clone holds, a
     checked++;
   }
   const here = fs.existsSync("supervisor.js") ? P.supervisorRuleSha256(fs.readFileSync("supervisor.js", "utf8")) : null;
-  if (here !== null) { assert.equal(here, P.SUPERVISOR_RULE_SHA256, "the working tree's supervisor.js carries another rule"); checked++; }
+  // the working tree carries the CURRENT rule, the Shield one (caa47a0c8, the per-app tier metal0 serves); the older rule is
+  // pinned by the tier supervisors above
+  if (here !== null) { assert.equal(here, P.SHIELD_SUPERVISOR_RULE_SHA256, "the working tree's supervisor.js carries another rule"); checked++; }
   if (!checked) t.skip("no tier supervisor in this clone");
 });
 
