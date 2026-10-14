@@ -1129,6 +1129,19 @@ export class Host {
       this.log(`${id.slice(0, 10)} isolation held: ${r.reason}`);
       return this.#record(id, { status: "provisioning", reason: r.reason, ...(r.instance?.id ? { isolationHeld: r.instance.id } : {}) });
     }
+    // A HOST-WIDE LOSS IS NOT THIS APP FAILING (2026-10-14 14:29Z: Windows Update restarted nucbox-k11-4; while it shut
+    // down, each partition in turn was "no longer on this host" and the node gave all eight up: released on chain and
+    // blocked here, so after the boot nothing came back until an operator cleared them). A domain that ended ABSENT while
+    // most of the domains this node saw serving are absent too (or the manager no longer answers) is a host shutdown or
+    // restart: the lease is kept, nothing is released or blocked, and the next pass after the restart starts it again.
+    if (r.action === "failed" && r.ended === true && /no longer on this host/.test(String(r.reason || ""))) {
+      const wide = await this.#hostWideLoss(client);
+      if (wide) {
+        this.log(`${id.slice(0, 10)} isolation: its domain is gone with ${wide}: a host shutdown or restart, not this app; `
+          + "the lease is kept and nothing is released");
+        return this.#record(id, { status: "provisioning", reason: `isolation: host-wide loss (${wide}); waiting for the host` });
+      }
+    }
     if (r.action === "failed") {
       if (r.leaseFree) return await this.#giveUp(id, `isolation: ${r.reason}`);
       return this.#record(id, { status: "failed", reason: `isolation: ${r.reason}` });
@@ -2055,6 +2068,21 @@ export class Host {
   }
 
   /** A reboot recovery that did not end serving: HELD, not retried by ensureApp and not renewed, until a forced relaunch. */
+  /**
+   * Whether the domains this node saw serving in the last 10 minutes are mostly gone from the manager at once (or the
+   * manager no longer answers): -> a short description of the loss, or null when it is this domain alone.
+   */
+  async #hostWideLoss(client) {
+    const since = Date.now() - 10 * 60_000;
+    const seen = [...this.#lastServing.values()].filter((l) => l?.instance && Number(l.lastSeenAt) >= since);
+    if (seen.length < 2) return null;
+    let listed;
+    // present = still a live domain: the manager keeps an ended one listed, as failed, until the node retires it
+    try { listed = new Set((await client.list()).filter((v) => v.status !== "failed" && v.status !== "stopped").map((v) => v.id)); }
+    catch (e) { return `the manager not answering (${String(e.message).slice(0, 80)})`; }
+    const present = seen.filter((l) => listed.has(l.instance)).length;
+    return present * 2 < seen.length ? `${seen.length - present} of the ${seen.length} domains this host was serving` : null;
+  }
   #rebootHold(id, why, instanceId = null) {
     const reason = `isolation: reboot recovery: ${why}; held (not retried, not renewed) until a forced relaunch, or the owner's resize or config edit`;
     this.log(`${id.slice(0, 10)} ${reason}`);
