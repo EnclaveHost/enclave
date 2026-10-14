@@ -20,7 +20,7 @@ const why = (d, v = version()) => pvmClaimRefusal(d, v, { enclaveId: E, maxMemMb
 
 test("a pVM takes what the CPU hosts take, and says why it takes nothing else", () => {
   assert.equal(why(row()), null);
-  assert.equal(why(row({ configCid: JSON.stringify({ network: { transport: "tuna" }, isolation: { require: ISOLATION_BACKEND } }) })), null);
+  assert.equal(why(row({ configCid: JSON.stringify({ network: { transport: "enclave-network" }, isolation: { require: ISOLATION_BACKEND } }) })), null);
   assert.equal(why(row({ configCid: JSON.stringify({ placement: { hostId: E, allowFallback: false } }) })), null, "pinned to this host");
   // the site's pin is {hostId} alone, which means fallback is disabled (as on every other host)
   assert.match(String(why(row({ configCid: JSON.stringify({ placement: { hostId: "0x" + "77".repeat(32) } }) }))), /pinned to another host/);
@@ -53,7 +53,8 @@ test("a pVM takes what the CPU hosts take, and says why it takes nothing else", 
     [row({ configCid: '{"gpu":{"optional":true}}' }), version(), /only to a deployment that bought GPU share/],
     [row({ configCid: '{"isolation":{"cpuTee":true}}' }), version(), /confidential-computing/],
     [row({ configCid: '{"isolation":{"require":"snp-guest-per-app"}}' }), version(), /requires isolation backend/],
-    [row({ configCid: '{"network":{"transport":"relay"}}' }), version(), /other than TUNA/],
+    [row({ configCid: '{"network":{"transport":"relay"}}' }), version(), /other than the Enclave network/],
+    [row({ configCid: '{"network":{"transport":"tuna"}}' }), version(), /other than the Enclave network/],
     [row({ configCid: JSON.stringify({ placement: { hostId: "0x" + "77".repeat(32), allowFallback: false } }) }), version(), /pinned to another host/],
     [row(), null, /could not be read/],
     [row(), version({ yanked: true }), /yanked/],
@@ -75,7 +76,7 @@ test("a pVM takes what the CPU hosts take, and says why it takes nothing else", 
 
 test("the options envelope is read as the CPU host reads it (fail-closed)", () => {
   assert.deepEqual(parseOptions("", 0), {});
-  const o = parseOptions('{"config":{"a":1},"waf":{"rps":10},"network":{"transport":"tuna","relay":"us-west"},"gpu":{"optional":true}}', 250);
+  const o = parseOptions('{"config":{"a":1},"waf":{"rps":10},"network":{"transport":"enclave-network","relay":"us-west"},"gpu":{"optional":true}}', 250);
   assert.deepEqual(o.config, { a: 1 });
   assert.deepEqual(o.waf, { rps: 10, burst: 40 }, "the platform's normalisation (parseWaf): the default burst");
   assert.equal(o.gpuOptional, true);
