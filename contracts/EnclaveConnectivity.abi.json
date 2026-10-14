@@ -101,7 +101,7 @@
       {
         "indexed": false,
         "internalType": "bool",
-        "name": "tuna",
+        "name": "provider",
         "type": "bool"
       },
       {
@@ -151,6 +151,31 @@
       {
         "indexed": true,
         "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "nonce",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32[]",
+        "name": "providers",
+        "type": "bytes32[]"
+      }
+    ],
+    "name": "ProvidersAuthorized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
         "name": "hostId",
         "type": "bytes32"
       },
@@ -168,31 +193,6 @@
       }
     ],
     "name": "Qualified",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "id",
-        "type": "bytes32"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint64",
-        "name": "nonce",
-        "type": "uint64"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes32[]",
-        "name": "providers",
-        "type": "bytes32[]"
-      }
-    ],
-    "name": "TunaAuthorized",
     "type": "event"
   },
   {
@@ -341,7 +341,7 @@
         "type": "bytes"
       }
     ],
-    "name": "authorizeTuna",
+    "name": "authorizeProviders",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -382,7 +382,7 @@
       },
       {
         "internalType": "bool",
-        "name": "tuna",
+        "name": "provider",
         "type": "bool"
       }
     ],
@@ -411,7 +411,7 @@
       },
       {
         "internalType": "bool",
-        "name": "tuna",
+        "name": "provider",
         "type": "bool"
       }
     ],
@@ -435,7 +435,7 @@
       },
       {
         "internalType": "bool",
-        "name": "tuna",
+        "name": "provider",
         "type": "bool"
       },
       {
@@ -644,6 +644,130 @@
     "inputs": [
       {
         "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32[]",
+        "name": "providers",
+        "type": "bytes32[]"
+      },
+      {
+        "internalType": "uint64",
+        "name": "expires",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "maxPricePerGiB6",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint128",
+        "name": "budget6",
+        "type": "uint128"
+      }
+    ],
+    "name": "providerPolicyDigest",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "id",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "runnerId",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "providerId",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint64",
+            "name": "policyNonce",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "leaseUntil",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "issuedAt",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "anchor",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint128",
+            "name": "cumulativeBytes",
+            "type": "uint128"
+          },
+          {
+            "internalType": "uint64",
+            "name": "pricePerGiB6",
+            "type": "uint64"
+          }
+        ],
+        "internalType": "struct EnclaveConnectivity.ProviderReceipt",
+        "name": "r",
+        "type": "tuple"
+      }
+    ],
+    "name": "providerReceiptDigest",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      }
+    ],
+    "name": "providersOf",
+    "outputs": [
+      {
+        "internalType": "bytes32[]",
+        "name": "",
+        "type": "bytes32[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
         "name": "hostId",
         "type": "bytes32"
       },
@@ -836,7 +960,7 @@
         "type": "bytes32"
       }
     ],
-    "name": "quoteTuna",
+    "name": "quoteProvider",
     "outputs": [
       {
         "internalType": "uint64",
@@ -948,7 +1072,7 @@
       },
       {
         "internalType": "bool",
-        "name": "tuna",
+        "name": "provider",
         "type": "bool"
       },
       {
@@ -1072,7 +1196,7 @@
             "type": "uint64"
           }
         ],
-        "internalType": "struct EnclaveConnectivity.TunaReceipt",
+        "internalType": "struct EnclaveConnectivity.ProviderReceipt",
         "name": "r",
         "type": "tuple"
       },
@@ -1087,133 +1211,9 @@
         "type": "bytes"
       }
     ],
-    "name": "settleTuna",
+    "name": "settleProvider",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "id",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "bytes32[]",
-        "name": "providers",
-        "type": "bytes32[]"
-      },
-      {
-        "internalType": "uint64",
-        "name": "expires",
-        "type": "uint64"
-      },
-      {
-        "internalType": "uint64",
-        "name": "maxPricePerGiB6",
-        "type": "uint64"
-      },
-      {
-        "internalType": "uint128",
-        "name": "budget6",
-        "type": "uint128"
-      }
-    ],
-    "name": "tunaPolicyDigest",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "id",
-        "type": "bytes32"
-      }
-    ],
-    "name": "tunaProviders",
-    "outputs": [
-      {
-        "internalType": "bytes32[]",
-        "name": "",
-        "type": "bytes32[]"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "components": [
-          {
-            "internalType": "bytes32",
-            "name": "id",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "bytes32",
-            "name": "runnerId",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "bytes32",
-            "name": "providerId",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "uint64",
-            "name": "policyNonce",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint64",
-            "name": "leaseUntil",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint64",
-            "name": "issuedAt",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint64",
-            "name": "anchor",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint128",
-            "name": "cumulativeBytes",
-            "type": "uint128"
-          },
-          {
-            "internalType": "uint64",
-            "name": "pricePerGiB6",
-            "type": "uint64"
-          }
-        ],
-        "internalType": "struct EnclaveConnectivity.TunaReceipt",
-        "name": "r",
-        "type": "tuple"
-      }
-    ],
-    "name": "tunaReceiptDigest",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -1243,7 +1243,7 @@
         "type": "bytes32"
       }
     ],
-    "name": "viaTuna",
+    "name": "viaProviders",
     "outputs": [
       {
         "internalType": "bool",

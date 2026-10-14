@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import {EnclaveDeployments, IEnclaveRegistry} from "./EnclaveDeployments.sol";
 
-/// Qualification gates direct service and TUNA service identically. It grants
+/// Qualification gates direct service and provider-routed (Enclave network) service identically. It grants
 /// no compute entitlement. Direct payment uses the current app lease, an owner
 /// allowance, and a receipt from the host's registered compute proof key.
 contract EnclaveConnectivity {
@@ -19,21 +19,21 @@ contract EnclaveConnectivity {
     mapping(bytes32 => Trust) private _probeTrust;
     mapping(bytes32 => mapping(address => Attestation)) public attestations;
     event ProbeTrustAuthorized(bytes32 indexed id,uint64 nonce,address[] signers,uint8 threshold);
-    struct Host { bool direct; bool tuna; uint64 pricePerGiB6; uint64 qualifiedUntil; bytes32 addressHash; address operator; address qualifier; }
+    struct Host { bool direct; bool provider; uint64 pricePerGiB6; uint64 qualifiedUntil; bytes32 addressHash; address operator; address qualifier; }
     struct Policy { address owner; uint64 nonce; uint64 expires; uint64 maxPricePerGiB6; uint128 budget6; uint128 spent6; uint16 providerBps; }
     struct Receipt { bytes32 id; bytes32 hostId; uint64 policyNonce; uint64 leaseUntil; uint64 issuedAt; uint64 anchor; uint128 cumulativeBytes; uint64 pricePerGiB6; }
     // One owner authorization covers the complete paid provider path. Its
     // aggregate price, rather than each individual hop, is capped by the owner.
-    struct TunaReceipt { bytes32 id; bytes32 runnerId; bytes32 providerId; uint64 policyNonce; uint64 leaseUntil; uint64 issuedAt; uint64 anchor; uint128 cumulativeBytes; uint64 pricePerGiB6; }
-    mapping(bytes32 => bool) public viaTuna;
-    mapping(bytes32 => bytes32[]) private _tunaProviders;
-    event TunaAuthorized(bytes32 indexed id,uint64 nonce,bytes32[] providers);
+    struct ProviderReceipt { bytes32 id; bytes32 runnerId; bytes32 providerId; uint64 policyNonce; uint64 leaseUntil; uint64 issuedAt; uint64 anchor; uint128 cumulativeBytes; uint64 pricePerGiB6; }
+    mapping(bytes32 => bool) public viaProviders;
+    mapping(bytes32 => bytes32[]) private _providers;
+    event ProvidersAuthorized(bytes32 indexed id,uint64 nonce,bytes32[] providers);
     mapping(bytes32 => Host) public hosts;
     mapping(bytes32 => Policy) public policies;
     mapping(bytes32 => uint256) public units;
     mapping(bytes32 => uint128) public bytesServed;
     mapping(bytes32 => uint256) public policyUnits;
-    event HostConfigured(bytes32 indexed hostId, bool direct, bool tuna, uint64 pricePerGiB6);
+    event HostConfigured(bytes32 indexed hostId, bool direct, bool provider, uint64 pricePerGiB6);
     event Qualified(bytes32 indexed hostId, bytes32 addressHash, uint64 expires);
     event DirectAuthorized(bytes32 indexed id, uint64 nonce, uint64 expires, uint64 maxPricePerGiB6, uint128 budget6);
     event BandwidthCharged(bytes32 indexed id, bytes32 indexed hostId, uint256 amount6, uint256 cumulativeUnits);
@@ -104,16 +104,16 @@ contract EnclaveConnectivity {
         (ok,,,)=qualificationFor(hostId,bytes32(0));
     }
     function qualifiedFor(bytes32 hostId,bytes32 id) public view returns(bool ok){(ok,,,)=qualificationFor(hostId,id);}
-    function setHost(bytes32 hostId, bool direct, bool tuna, uint64 pricePerGiB6) external {
+    function setHost(bytes32 hostId, bool direct, bool provider, uint64 pricePerGiB6) external {
         require(registry.get(hostId).operator == msg.sender);
-        Host storage h = hosts[hostId];h.direct = direct;h.tuna = tuna;h.pricePerGiB6 = pricePerGiB6;
-        emit HostConfigured(hostId,direct,tuna,pricePerGiB6);
+        Host storage h = hosts[hostId];h.direct = direct;h.provider = provider;h.pricePerGiB6 = pricePerGiB6;
+        emit HostConfigured(hostId,direct,provider,pricePerGiB6);
     }
-    function capabilities(bytes32 hostId) external view returns (bool direct, bool tuna) {
+    function capabilities(bytes32 hostId) external view returns (bool direct, bool provider) {
         return capabilitiesFor(hostId,bytes32(0));
     }
-    function capabilitiesFor(bytes32 hostId,bytes32 id) public view returns(bool direct,bool tuna) {
-        bool q=qualifiedFor(hostId,id);return(q&&hosts[hostId].direct,q&&hosts[hostId].tuna);
+    function capabilitiesFor(bytes32 hostId,bytes32 id) public view returns(bool direct,bool provider) {
+        bool q=qualifiedFor(hostId,id);return(q&&hosts[hostId].direct,q&&hosts[hostId].provider);
     }
     function policyDigest(bytes32 id, uint64 expires, uint64 maxPricePerGiB6, uint128 budget6) public view returns (bytes32) {
         return keccak256(abi.encode("EnclaveConnectivity.policy.v1",block.chainid,address(this),address(ledger),id,
@@ -125,7 +125,7 @@ contract EnclaveConnectivity {
         require(_signedBy(d.owner,policyDigest(id,expires,maxPricePerGiB6,budget6),signature));
         uint64 nonce = policies[id].nonce + 1;
         policies[id] = Policy(d.owner,nonce,expires,maxPricePerGiB6,budget6,0,ledger.runnerBps());
-        viaTuna[id] = false;delete _tunaProviders[id];
+        viaProviders[id] = false;delete _providers[id];
         emit DirectAuthorized(id,nonce,expires,maxPricePerGiB6,budget6);
     }
     function revokeDirect(bytes32 id) external {
@@ -134,7 +134,7 @@ contract EnclaveConnectivity {
     function quote(bytes32 id) public view returns (uint64 pricePerGiB6, bool selfHosted) {
         EnclaveDeployments.Deployment memory d = ledger.get(id);
         Policy memory p = policies[id];Host memory h = hosts[d.runner];
-        require(!viaTuna[id] && d.active && d.leaseUntil > block.timestamp && p.owner == d.owner && p.expires > block.timestamp && h.direct && qualifiedFor(d.runner,id));
+        require(!viaProviders[id] && d.active && d.leaseUntil > block.timestamp && p.owner == d.owner && p.expires > block.timestamp && h.direct && qualifiedFor(d.runner,id));
         IEnclaveRegistry.Enclave memory provider = registry.get(d.runner);
         require(provider.operator == d.runnerOperator);
         selfHosted = provider.payoutWallet != address(0) && provider.payoutWallet == d.owner;
@@ -170,50 +170,50 @@ contract EnclaveConnectivity {
         if (delta6 > 0) ledger.chargeBandwidth(r.id,delta6,provider6,d.runnerOperator);
         emit BandwidthCharged(r.id,r.hostId,delta6,units[key]);
     }
-    function tunaProviders(bytes32 id) external view returns(bytes32[] memory) {return _tunaProviders[id];}
-    function tunaPolicyDigest(bytes32 id,bytes32[] calldata providers,uint64 expires,uint64 maxPricePerGiB6,uint128 budget6) public view returns(bytes32) {
-        return keccak256(abi.encode("EnclaveConnectivity.tuna-policy.v1",block.chainid,address(this),address(ledger),id,
+    function providersOf(bytes32 id) external view returns(bytes32[] memory) {return _providers[id];}
+    function providerPolicyDigest(bytes32 id,bytes32[] calldata providers,uint64 expires,uint64 maxPricePerGiB6,uint128 budget6) public view returns(bytes32) {
+        return keccak256(abi.encode("EnclaveConnectivity.provider-policy.v1",block.chainid,address(this),address(ledger),id,
             ledger.get(id).owner,policies[id].nonce+1,providers,expires,maxPricePerGiB6,budget6));
     }
-    function authorizeTuna(bytes32 id,bytes32[] calldata providers,uint64 expires,uint64 maxPricePerGiB6,uint128 budget6,bytes calldata signature) external {
+    function authorizeProviders(bytes32 id,bytes32[] calldata providers,uint64 expires,uint64 maxPricePerGiB6,uint128 budget6,bytes calldata signature) external {
         EnclaveDeployments.Deployment memory d=ledger.get(id);
         require(d.active&&expires>block.timestamp&&expires<=block.timestamp+30 days&&providers.length>0&&providers.length<=6);
-        require(_signedBy(d.owner,tunaPolicyDigest(id,providers,expires,maxPricePerGiB6,budget6),signature));
+        require(_signedBy(d.owner,providerPolicyDigest(id,providers,expires,maxPricePerGiB6,budget6),signature));
         uint256 total;
         for(uint256 i;i<providers.length;i++){
-            require(providers[i]!=bytes32(0)&&hosts[providers[i]].tuna&&qualifiedFor(providers[i],id));
+            require(providers[i]!=bytes32(0)&&hosts[providers[i]].provider&&qualifiedFor(providers[i],id));
             for(uint256 j;j<i;j++)require(providers[j]!=providers[i]);
             total+=hosts[providers[i]].pricePerGiB6;
         }
         require(total<=maxPricePerGiB6);
         uint64 nonce=policies[id].nonce+1;
         policies[id]=Policy(d.owner,nonce,expires,maxPricePerGiB6,budget6,0,ledger.runnerBps());
-        viaTuna[id]=true;_tunaProviders[id]=providers;
-        emit TunaAuthorized(id,nonce,providers);
+        viaProviders[id]=true;_providers[id]=providers;
+        emit ProvidersAuthorized(id,nonce,providers);
     }
-    function quoteTuna(bytes32 id,bytes32 providerId) public view returns(uint64 pricePerGiB6) {
+    function quoteProvider(bytes32 id,bytes32 providerId) public view returns(uint64 pricePerGiB6) {
         EnclaveDeployments.Deployment memory d=ledger.get(id);Policy memory p=policies[id];
-        require(viaTuna[id]&&d.active&&d.leaseUntil>block.timestamp&&p.owner==d.owner&&p.expires>block.timestamp);
-        bool included;uint256 total;bytes32[] storage providers=_tunaProviders[id];
+        require(viaProviders[id]&&d.active&&d.leaseUntil>block.timestamp&&p.owner==d.owner&&p.expires>block.timestamp);
+        bool included;uint256 total;bytes32[] storage providers=_providers[id];
         for(uint256 i;i<providers.length;i++){
             bytes32 h=providers[i];
             total+=hosts[h].pricePerGiB6;if(h==providerId)included=true;
         }
-        require(included&&hosts[providerId].tuna&&qualifiedFor(providerId,id)&&total<=p.maxPricePerGiB6);
+        require(included&&hosts[providerId].provider&&qualifiedFor(providerId,id)&&total<=p.maxPricePerGiB6);
         return hosts[providerId].pricePerGiB6;
     }
-    function tunaReceiptDigest(TunaReceipt calldata r) public view returns(bytes32) {
-        return keccak256(abi.encode("EnclaveConnectivity.tuna-receipt.v1",block.chainid,address(this),address(ledger),r,blockhash(r.anchor)));
+    function providerReceiptDigest(ProviderReceipt calldata r) public view returns(bytes32) {
+        return keccak256(abi.encode("EnclaveConnectivity.provider-receipt.v1",block.chainid,address(this),address(ledger),r,blockhash(r.anchor)));
     }
-    function settleTuna(TunaReceipt calldata r,bytes calldata runnerSignature,bytes calldata providerSignature) external {
-        uint64 rate=quoteTuna(r.id,r.providerId);require(rate>0&&rate==r.pricePerGiB6);
+    function settleProvider(ProviderReceipt calldata r,bytes calldata runnerSignature,bytes calldata providerSignature) external {
+        uint64 rate=quoteProvider(r.id,r.providerId);require(rate>0&&rate==r.pricePerGiB6);
         EnclaveDeployments.Deployment memory d=ledger.get(r.id);Policy storage p=policies[r.id];
         require(r.runnerId==d.runner&&r.leaseUntil==d.leaseUntil&&r.policyNonce==p.nonce&&r.issuedAt<=block.timestamp&&
             block.timestamp-r.issuedAt<=60&&r.anchor<block.number&&block.number-r.anchor<=256&&blockhash(r.anchor)!=bytes32(0));
         IEnclaveRegistry.Enclave memory runner=registry.get(d.runner);
         IEnclaveRegistry.Enclave memory provider=registry.get(r.providerId);
         require(runner.active&&runner.operator==d.runnerOperator&&provider.active);
-        bytes32 digest=tunaReceiptDigest(r);
+        bytes32 digest=providerReceiptDigest(r);
         require(_recover(digest,runnerSignature)==runner.proofKey&&_recover(digest,providerSignature)==provider.proofKey);
         bytes32 key=keccak256(abi.encode(r.id,r.providerId,r.policyNonce));
         uint128 previous=bytesServed[key];require(r.cumulativeBytes>previous);
