@@ -44,7 +44,7 @@ import { createPublicClient, createWalletClient, http as viemHttp, fallback,
 import { base } from "viem/chains";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 
-const VERSION = "1.5.0";
+const VERSION = "1.6.0";
 
 // ---- platform constants -----------------------------------------------------
 // Addresses are Base mainnet (chain 8453), kept in lockstep with
