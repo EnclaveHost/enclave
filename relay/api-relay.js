@@ -98,7 +98,7 @@ import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep, hasStage
 import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDeployment, tlsAskAllowed } from "./domains.js";
 import { initSessions, handleSessions, sessionsService, createCustodyGate, sessionRowRefusal } from "./sessions.mjs";
 import { handleCerts, initCerts } from "./certs.js";
-import { createShieldMarketplace } from "./shield-marketplace.mjs";
+import { createShieldMarketplace, fingerprint as deploymentFingerprint } from "./shield-marketplace.mjs";
 import { createPvmMarket } from "./pvm-market.mjs";
 import { createPvmSecretRelease } from "./pvm-secrets.mjs";
 import { claimCheapest, CLAIM_QUOTE_ABI } from "./cheapest-claim.mjs";
@@ -2581,8 +2581,21 @@ networkRoutes = createNetworkRoutes({
   },
   eligible: d => routeEligibility(d),
 });
-// A host whose tunnel blips keeps its apps' routes for a few minutes (relay/route-grace.mjs).
+// A host whose tunnel blips keeps its apps' routes for a few minutes (relay/route-grace.mjs), and so does a relay
+// restart: the grace state is saved in the data directory and read back at start.
+const ROUTE_GRACE_FILE = dataDir() ? dataFile(dataDir(), "route-grace.json") : null;
 const routeEligibility = withDetachGrace({
+  store: ROUTE_GRACE_FILE && {
+    load: () => { try { return JSON.parse(fs.readFileSync(ROUTE_GRACE_FILE, "utf8")).entries || []; } catch { return []; } },
+    save: (entries) => {
+      const tmp = ROUTE_GRACE_FILE + ".tmp";
+      fs.writeFileSync(tmp, JSON.stringify({ version: 1, savedAt: Date.now(), entries }));
+      fs.renameSync(tmp, ROUTE_GRACE_FILE);
+    },
+  },
+  // an Enclave Shield host that just (re)attached: its apps keep the grace until the marketplace has a verdict on them
+  pending: (row, d) => row.mode === "hv-node" && shieldMarket.pending(row, d),
+  fingerprint: deploymentFingerprint,
   rowOf: (d) => live.find(e => String(e.id || "").toLowerCase() === String(d.runner).toLowerCase()),
   rowEligibility: (row, d) => {
     // a pVM host's app is routed only while its own evidence holds (relay/pvm-market.mjs servesUntil)
