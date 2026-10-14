@@ -151,6 +151,7 @@ body {
 @media (pointer: coarse) { .apps li { padding: 12px 0; } }
 
 .status { margin: 12px 0 0; color: var(--muted); font-size: var(--fs-small); white-space: pre-line; overflow-wrap: anywhere; user-select: text; }
+#gas { margin-top: 4px; }
 .error { margin: 10px 0 0; color: var(--danger); overflow-wrap: anywhere; }
 .error.notice { color: var(--amber); }
 

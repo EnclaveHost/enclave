@@ -23,7 +23,7 @@
     unsaved: $("unsaved"), apply: $("apply"), reset: $("reset"),
     earnLine: $("earnLine"), earnNote: $("earnNote"), wallet: $("wallet"), walletHint: $("walletHint"),
     saveWallet: $("saveWallet"), editWallet: $("editWallet"), cancelWallet: $("cancelWallet"), payNow: $("payNow"),
-    apps: $("apps"), status: $("status"), error: $("error"),
+    apps: $("apps"), status: $("status"), gas: $("gas"), error: $("error"),
     ask: $("ask"), askHeading: $("askHeading"), askBody: $("askBody"), askDetail: $("askDetail"), askOk: $("askOk"), askCancel: $("askCancel"),
   };
   var priceEls = {};
@@ -84,6 +84,8 @@
     var status = T.statusText(v);
     if (update && update.state === "downloading") status += "\n" + T.updateSay(update);
     setText(el.status, status);
+    var gas = T.gasText(v);
+    setText(el.gas, gas); el.gas.hidden = !gas;
     // a refresh never wipes what the owner was just told; the next Apply, switch or Reset does
     if (v.capsError) showError(v.capsError);
     showPrice("cpu"); showPrice("gpu");
@@ -100,6 +102,7 @@
     setText(el.cpuNote, ""); setText(el.gpuNote, "");
     // an automatic update stops the node for a few minutes: say that, not "not reachable"
     setText(el.status, update ? T.updateSay(update) : "Node: not reachable. " + why);
+    setText(el.gas, ""); el.gas.hidden = true;
     showError("");
     showPrice("cpu"); showPrice("gpu");
     el.panel.removeAttribute("aria-busy");
