@@ -47,6 +47,7 @@ export function createFakeNode({ kind = "pc", token = null, now = () => Date.now
       appsEnabled: true, market: s.caps.paused ? { taking: false, why: "hosting is off" } : { ...s.market }, gas: { ...s.gas },
       logsDir: phone ? null : "C:\\ProgramData\\Enclave\\node",
       device: phone ? { kind: "phone", noun: "phone" } : { kind: "pc", noun: "PC" },
+      ...(phone ? {} : { updateWindow: { managed: true, start: 1, hours: 6, noRebootWhileSignedIn: false } }),
       ...(phone ? { axes: ["cpu"], cpuLabel: "CPU & RAM" } : {}),
       apps: s.apps.map((a) => ({ id: a.id, appRef: a.appRef, phase: a.phase })),
     };
