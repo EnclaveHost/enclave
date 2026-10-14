@@ -11,8 +11,8 @@ a=p.parse_args();repo=Path(__file__).resolve().parents[2];out=a.out.resolve()
 if out.exists():p.error('release output already exists')
 if not (a.runtime/'libshielded-omp-affinity.so').is_file():p.error('runtime needs the measured OpenMP affinity helper (build-shielded-engine.py)')
 wasmtime = (a.runtime/'wasmtime').read_bytes()
-if any(marker not in wasmtime for marker in [b'ENCLAVE_GGML_PARK_SLOTS', b'[prefix_warming]']):
- p.error('runtime lacks prompt caching; rebuild with build-shielded-wasmtime.py')
+if any(marker not in wasmtime for marker in [b'ENCLAVE_GGML_PARK_SLOTS', b'[prefix_warming]', b'ENCLAVE_HTTP_POOL']):
+ p.error('runtime lacks prompt caching or HTTP reuse; rebuild with build-shielded-wasmtime.py')
 for f,h in [(a.model,'f81d63cf49568f78154f6ddc8b114f603579360c7c878831a7f95a51dc284d24'),(a.tokenizer,'c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539'),(a.model27,'3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e'),(a.tokenizer27,'0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3')]:
  if hashlib.file_digest(f.open('rb'),'sha256').hexdigest()!=h:p.error('model/tokenizer digest mismatch')
 for f in a.runtime.rglob('*.so*'):
@@ -23,12 +23,13 @@ t=out/'template';shutil.rmtree(t/'rt');shutil.copytree(a.runtime,t/'rt')
 shutil.copy2(a.haltpoll_module,t/'cpuidle-haltpoll.ko.zst')
 # The inference profile doesn't advertise unprobed optional app ABIs.
 for n in ['set.enabled','mem64.enabled']:(t/'rt'/n).unlink(missing_ok=True)
+(t/'rt/shield-ram-admission.enabled').write_text('1\n')
 (t/'rt/shield-model').write_text('qwen2.5-0.5b-q8-gguf\nqwen3.8-27b-mtp-q4-vl-gguf\n')
 (t/'rt/calib').mkdir(exist_ok=True)
 shutil.copy2(repo/'metal/shielded-overlay/calib/qwen2.5-0.5b-q8-gguf.calib',t/'rt/calib/qwen2.5-0.5b-q8-gguf.calib')
-model=t/'models/qwen2.5-0.5b-q8-gguf';model.mkdir(parents=True)
+model=t/'models/qwen2.5-0.5b-q8-gguf';model.mkdir(parents=True,exist_ok=True)
 shutil.copy2(a.model,model/'model.gguf');shutil.copy2(a.tokenizer,model/'tokenizer.json')
-large=t/'models/qwen3.8-27b-mtp-q4-vl-gguf';large.mkdir(parents=True)
+large=t/'models/qwen3.8-27b-mtp-q4-vl-gguf';large.mkdir(parents=True,exist_ok=True)
 shutil.copy2(a.tokenizer27,large/'tokenizer.json')
 shutil.copy2(repo/'metal/shielded-overlay/calib/qwen3.8-27b-mtp-q4-vl-gguf.calib',t/'rt/calib/qwen3.8-27b-mtp-q4-vl-gguf.calib')
 (t/'run').mkdir(exist_ok=True)

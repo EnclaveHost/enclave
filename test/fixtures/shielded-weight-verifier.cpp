@@ -79,12 +79,30 @@ int main(int argc, char **argv) {
     setenv("SHIELDED_PAD_SK", std::string(64, '0').c_str(), 1);
     setenv("SHIELDED_PAD_CHECK", "1", 1); setenv("SHIELDED_NO_SIMD", "1", 1);
     setenv("SHIELDED_MIN_MACS", "0", 1); setenv("SHIELDED_MAX_M", "16", 1);
+    const bool compact_local = scenario == "source_compact_local" || scenario == "source_compact_split";
+    if(compact_local) setenv("SHIELDED_COMPACT_WEIGHTS","1",1);
+    const bool split_local = scenario == "source_split_local" || scenario == "source_compact_split";
+    const bool local_mint = scenario == "source_local_mint" || split_local || compact_local;
+    const int expected_reads = split_local ? 4 : 2;
+    if (local_mint) unsetenv("SHIELDED_PAD_SOURCE");
     auto *cpu = ggml_backend_cpu_init(); assert(cpu); ggml_backend_cpu_set_n_threads(cpu, 1);
     verifier_state state;
+    struct release_state { verifier_state *state; int calls; bool fail; } release{&state, 0, scenario == "source_release_fail"};
+    auto release_sources = +[](void *opaque) {
+        auto &r = *static_cast<release_state *>(opaque);
+        assert(r.state->calls == 2); // every source authenticated first
+        assert(sh_pool_get().cards[0]->weights.size() == 2); // encoded storage exists
+        r.calls++;
+        return r.fail ? SH_ERR_IO : SH_OK;
+    };
     source_stats_check(state);
+    assert(ggml_backend_shielded_set_source_release(release_sources, &release) == SH_ERR_RANGE);
     assert(ggml_backend_shielded_set_weight_verifier(nullptr, &state) == SH_ERR_RANGE);
     assert(ggml_backend_shielded_set_weight_verifier(verify, &state) == SH_OK);
     assert(ggml_backend_shielded_set_weight_verifier(verify, &state) == SH_ERR_RANGE);
+    assert(ggml_backend_shielded_set_source_release(nullptr, &release) == SH_ERR_RANGE);
+    assert(ggml_backend_shielded_set_source_release(release_sources, &release) == SH_OK);
+    assert(ggml_backend_shielded_set_source_release(release_sources, &release) == SH_ERR_RANGE);
     sh_pool &p = sh_pool_get(); sh_state &s = *p.cards[0];
     s.configured = s.calib_loaded = true; s.calib_version = 2;
     s.calib["blk.0.ffn_gate.weight"] = {8, {}};
@@ -142,14 +160,37 @@ int main(int argc, char **argv) {
         ggml_free(ctx); ggml_backend_free(cpu);
         puts("weight-verifier: private-copy encoding and authenticated CPU fallback passed"); return 0;
     }
-    sh_plan(p);
+    if (split_local) {
+        p.extra.emplace_back(new sh_state()); p.cards.push_back(p.extra.back().get());
+        auto &other = *p.cards.back();
+        other.configured = other.calib_loaded = true; other.calib_version = 2; other.calib = s.calib;
+        for (auto *w : weights) {
+            assert(sh_register(s, w, nullptr, nullptr, 0, 4));
+            assert(sh_register(other, w, nullptr, nullptr, 4, 4));
+            auto &e = s.weights.at(w->name);
+            e.part_cards = {0, 1}; e.part_nodes = {e.node, other.weights.at(w->name).node}; e.part_col0 = {0, 4};
+            p.owners[e.group] = 0;
+        }
+        p.pending.clear();
+        other.link_failed = true; other.link_retry_at = DBL_MAX; other.dirty = false;
+    } else sh_plan(p);
     ggml_cgraph empty = {};
-    if (scenario != "honest" && scenario != "source" && scenario != "background_integrity") {
+    if (scenario == "source_release_fail") {
+        assert(release.calls == 1 && state.calls == 2 && s.weights.size() == 2 && s.source_verification_failed);
+        assert(ggml_backend_shielded_graph_compute(nullptr, &empty) == GGML_STATUS_FAILED);
+    } else if (scenario != "honest" && scenario != "source" && !local_mint && scenario != "background_integrity") {
+        assert(release.calls == 0);
         assert(s.source_verification_failed && s.weights.empty() && state.calls == (state.read_fail ? 0 : 1));
         assert(ggml_backend_shielded_graph_compute(nullptr, &empty) == GGML_STATUS_FAILED);
     } else {
-        assert(state.calls == 2 && s.weights.size() == 2 && !s.source_verification_failed);
-        for (const auto &kv : s.weights) assert(kv.second.source_verified && kv.second.w.empty() && kv.second.w_cache);
+        assert(release.calls == (split_local ? 0 : 1));
+        assert(state.calls == expected_reads && s.weights.size() == 2 && !s.source_verification_failed);
+        for (const auto &kv : s.weights) {
+            assert(kv.second.source_verified);
+            if (compact_local) {assert(kv.second.w.empty() && !kv.second.w_cache);}
+            else if (local_mint) assert(!kv.second.w.empty() && !kv.second.w_cache);
+            else assert(kv.second.w.empty() && kv.second.w_cache);
+        }
         uint64_t cache_calls = 99, cache_bytes = 99;
         ggml_backend_shielded_weight_cache_stats(&cache_calls, &cache_bytes);
         assert(cache_calls == 0 && cache_bytes == 0); // creation does not count as reading
@@ -178,9 +219,79 @@ int main(int argc, char **argv) {
                 }
             }
         }
-        assert(state.calls == 2); // no reread/reverification of the revoked source
-        assert(state.reads == (streamed ? 2 : 0));
+        assert(state.calls == expected_reads); // no reread/reverification of the revoked source
+        assert(state.reads == (streamed ? expected_reads : 0));
         ggml_backend_shielded_weight_cache_stats(&cache_calls, &cache_bytes);
+        if (local_mint) {
+            assert(cache_calls == 0 && cache_bytes == 0);
+            // The original tensor pages are absent. The same resident encoded
+            // rows still support CPU pad minting, without rereading the source.
+            uint8_t seed[32] = {}, pk[32]; crypto_scalarmult_base(pk, seed);
+            const std::string minted = std::string(argv[1]) + "/local-source-discard.pads";
+            assert(!sh_link_is_dealt(s.link));
+            assert(sh_link_mint_shipment(s.link, seed, seed, seed, 0, 2, pk, minted.c_str()) == SH_OK);
+            assert(state.reads == expected_reads && state.calls == expected_reads);
+            assert(unlink(minted.c_str()) == 0);
+            if (compact_local) {
+                // An adapter error retires the link even if that adapter would
+                // later recover; previously staged pad outputs cannot be reused.
+                struct failing_source { int8_t w[256] = {}; int calls = 0; bool fail = true; } f;
+                int open_rc = SH_OK;
+                sh_link *probe = sh_link_open("127.0.0.1", 1, true, &open_rc); assert(probe);
+                int nid = sh_link_add_weight(probe, "failure", f.w, 32, 8, 16, -1); assert(nid >= 0);
+                auto read = +[](void *ctx, uint64_t off, uint8_t *out, size_t n) {
+                    auto &f = *static_cast<failing_source *>(ctx);
+                    if(off > sizeof f.w || n > sizeof f.w-off)return SH_ERR_RANGE;
+                    memcpy(out,f.w+off,n);return SH_OK;
+                };
+                auto refill = +[](void *ctx, const int32_t *, int, int32_t *, int64_t) {
+                    auto &f = *static_cast<failing_source *>(ctx); f.calls++;
+                    return f.fail ? SH_ERR_IO : SH_OK;
+                };
+                assert(sh_link_set_local_weight_source(probe,nid,read,refill,&f)==SH_OK);
+                assert(sh_link_set_local_weight_source(probe,nid,read,refill,&f)==SH_ERR_RANGE);
+                assert(sh_link_mint_shipment(probe,seed,seed,seed,0,2,pk,minted.c_str())==SH_ERR_VERIFY);
+                const int calls=f.calls;assert(calls>0);f.fail=false;
+                sh_link_quiesce(probe); // disconnect cannot reset an integrity failure
+                assert(sh_link_mint_shipment(probe,seed,seed,seed,0,2,pk,minted.c_str())==SH_ERR_VERIFY);
+                assert(f.calls==calls);sh_link_close(probe);unlink(minted.c_str());
+            }
+            if (compact_local) {
+#ifdef SHIELDED_COMPACT
+                // Exercise a geometry eligible for the prearranged codec,
+                // after discarding the original matrix. Minting and quiesce
+                // must use the private reader/refill adapters across restart.
+                std::vector<int8_t> original(256*64,3);
+                auto *packed=sh_compact_create(original.data(),256,64);assert(packed);
+                int err=SH_OK;
+                auto *isolated=sh_link_open("127.0.0.1",1,true,&err);assert(isolated);
+                int node=sh_link_add_weight(isolated,"layout",original.data(),256,64,16,-1);assert(node>=0);
+                assert(sh_link_set_local_weight_source(isolated,node,sh_compact_read,sh_compact_refill,packed)==SH_OK);
+                original.clear();original.shrink_to_fit();
+                assert(sh_link_mint_shipment(isolated,seed,seed,seed,0,2,pk,minted.c_str())==SH_OK);
+                assert(unlink(minted.c_str())==0);
+                sh_link_quiesce(isolated);
+                assert(sh_link_mint_shipment(isolated,seed,seed,seed,2,2,pk,minted.c_str())==SH_OK);
+                assert(unlink(minted.c_str())==0);
+                sh_link_close(isolated);sh_compact_free(packed);
+#endif
+                auto *first = ggml_backend_shielded_init();
+                auto *second = ggml_backend_shielded_init();
+                assert(p.backend_refs == 2);
+                ggml_backend_free(first); assert(p.backend_refs == 1);
+                ggml_backend_free(second); assert(p.backend_refs == 0 && s.dirty);
+                assert(s.weights.size() == 2 && s.link);
+                // Context restart retains verified rows and can mint fresh pads.
+                auto *again = ggml_backend_shielded_init();
+                assert(sh_link_mint_shipment(s.link,seed,seed,seed,2,2,pk,minted.c_str())==SH_OK);
+                unlink(minted.c_str()); ggml_backend_free(again);
+            }
+            source_stats_check(state);
+            for (auto *buf : source_buffers) ggml_backend_buffer_free(buf);
+            ggml_free(ctx); ggml_backend_free(cpu);
+            puts("weight-verifier: private-copy encoding, discarded source, local pad minting and exact fallback passed");
+            return 0;
+        }
         assert(cache_calls > 0 && cache_bytes == cache_calls * 256); // each small cached matrix is one full authenticated block
 
         // A real authenticated-cache read failure must reach the backend's

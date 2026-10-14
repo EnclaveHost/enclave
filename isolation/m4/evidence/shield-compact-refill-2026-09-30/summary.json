@@ -1,0 +1,120 @@
+{
+  "bits-down16.jsonl": {
+    "pairs": 6,
+    "all_exact": true,
+    "resident_median_seconds": 0.0154699,
+    "candidate_median_seconds": 0.018168749999999997,
+    "elapsed_reduction_percent": -17.445814129373804,
+    "cpu_reduction_percent": -17.41573033707864,
+    "weight_storage_reduction_percent": 9.67462539672852
+  },
+  "bits-down64.jsonl": {
+    "pairs": 6,
+    "all_exact": true,
+    "resident_median_seconds": 0.05688675,
+    "candidate_median_seconds": 0.04887305,
+    "elapsed_reduction_percent": 14.087111673632258,
+    "cpu_reduction_percent": 14.109470486417752,
+    "weight_storage_reduction_percent": 9.67462539672852
+  },
+  "bits-gate16.jsonl": {
+    "pairs": 6,
+    "all_exact": true,
+    "resident_median_seconds": 0.01524655,
+    "candidate_median_seconds": 0.0188389,
+    "elapsed_reduction_percent": -23.56172379981045,
+    "cpu_reduction_percent": -23.709369024856606,
+    "weight_storage_reduction_percent": 9.312747506534347
+  },
+  "bits-gate64.jsonl": {
+    "pairs": 6,
+    "all_exact": true,
+    "resident_median_seconds": 0.059132000000000004,
+    "candidate_median_seconds": 0.0504869,
+    "elapsed_reduction_percent": 14.62000270581073,
+    "cpu_reduction_percent": 14.692844647497417,
+    "weight_storage_reduction_percent": 9.312747506534347
+  },
+  "bits-output16.jsonl": {
+    "pairs": 6,
+    "all_exact": true,
+    "resident_median_seconds": 0.2096845,
+    "candidate_median_seconds": 0.2738,
+    "elapsed_reduction_percent": -30.577128972336997,
+    "cpu_reduction_percent": -30.37804372963564,
+    "weight_storage_reduction_percent": 11.779433260258942
+  },
+  "bits-output64.jsonl": {
+    "pairs": 6,
+    "all_exact": true,
+    "resident_median_seconds": 0.8113895,
+    "candidate_median_seconds": 0.6956565,
+    "elapsed_reduction_percent": 14.263556528646227,
+    "cpu_reduction_percent": 14.256059947575572,
+    "weight_storage_reduction_percent": 11.779433260258942
+  },
+  "gmac-down256.jsonl": {
+    "pairs": 6,
+    "all_exact": true,
+    "resident_median_seconds": 0.2256685,
+    "candidate_median_seconds": 0.17157,
+    "elapsed_reduction_percent": 23.972552660207334,
+    "cpu_reduction_percent": 17.707181029244513
+  },
+  "gmac-gate256.jsonl": {
+    "pairs": 6,
+    "all_exact": true,
+    "resident_median_seconds": 0.2436025,
+    "candidate_median_seconds": 0.17286800000000002,
+    "elapsed_reduction_percent": 29.036853070062897,
+    "cpu_reduction_percent": 24.284492617740085
+  },
+  "gmac-output256.jsonl": {
+    "pairs": 6,
+    "all_exact": true,
+    "resident_median_seconds": 3.49084,
+    "candidate_median_seconds": 2.47471,
+    "elapsed_reduction_percent": 29.108466730070703,
+    "cpu_reduction_percent": 26.156708043436982
+  },
+  "sha-down256-aligned.jsonl": {
+    "pairs": 6,
+    "all_exact": true,
+    "resident_median_seconds": 0.223751,
+    "candidate_median_seconds": 0.188542,
+    "elapsed_reduction_percent": 15.735795594209645,
+    "cpu_reduction_percent": -3.0311740045223745
+  },
+  "sha-down256-boundary.jsonl": {
+    "pairs": 6,
+    "all_exact": true,
+    "resident_median_seconds": 0.240184,
+    "candidate_median_seconds": 0.17473349999999999,
+    "elapsed_reduction_percent": 27.250149885088103,
+    "cpu_reduction_percent": 3.1121314057584337
+  },
+  "sha-down256.jsonl": {
+    "pairs": 6,
+    "all_exact": true,
+    "resident_median_seconds": 0.228383,
+    "candidate_median_seconds": 0.172811,
+    "elapsed_reduction_percent": 24.332809359715924,
+    "cpu_reduction_percent": -1.8377895475719441
+  },
+  "sha-gate256.jsonl": {
+    "pairs": 6,
+    "all_exact": true,
+    "resident_median_seconds": 0.24778250000000002,
+    "candidate_median_seconds": 0.177161,
+    "elapsed_reduction_percent": 28.501407484386508,
+    "cpu_reduction_percent": 5.741608371768791
+  },
+  "sha-output256.jsonl": {
+    "pairs": 6,
+    "all_exact": true,
+    "resident_median_seconds": 3.4255199999999997,
+    "candidate_median_seconds": 2.49801,
+    "elapsed_reduction_percent": 27.07647306102431,
+    "cpu_reduction_percent": 3.896385570418659
+  }
+}

@@ -5,7 +5,7 @@
  *      under SEV-SNP, the report interface;
  *   2. brings up loopback and starts /front, which mints the domain's TLS key in guest memory, terminates TLS on
  *      vsock port 443, serves the attestation document binding that key, and proxies everything else to the app;
- *   3. waits for the front's ONE message on the pipe it gave it (fd 3): "N" (no config) or "C" + the app's config.
+ *   3. waits for the front's ONE message on the pipe it gave it (fd 3): "N" (no config), "C" + the app's config, or "P" + config for owner-opted public HTTPS.
  *      For a guest that serves a deployment, the front sends it only after the attested release has delivered the
  *      owner's config and secrets and the egress forwarders are up (front/provision.go); an empty pipe means the
  *      front died first, and the domain powers off rather than start an app without the config it should have;
@@ -269,9 +269,63 @@ static void lo_up(void) {
  * A drop, reach or filter failure exits 125, so the app never starts privileged or unfiltered, and the domain powers
  * off as for any app exit. The app gets all three; the front none. */
 /* Measured, bundle-derived inference profile. Never read a host environment. */
-static int shield_on, shield_large;
+static int shield_on, shield_large, shield_load_allowed;
+static char shield_ram_env[96];
+static int shield_memory_group;
+#define SHIELD_CGROUP "/sys/fs/cgroup/shield-app"
+#include "shield-memory.h"
+#include "shield-config.h"
 static char shield_model[64], shield_graph[128], shield_models_env[96], shield_preloads_env[96], shield_calib[128];
 static char shield_workers[512], shield_vram_env[80];
+/* The controller is private to this guest and remains root-owned. The
+ * unprivileged application cannot raise its limit or move itself out. */
+static unsigned long long shield_available_ram(void) {
+    FILE *f = fopen("/proc/meminfo", "r");
+    if (!f) return 0;
+    char line[256]; unsigned long long kb = 0;
+    while (fgets(line, sizeof line, f))
+        if (sscanf(line, "MemAvailable: %llu kB", &kb) == 1) break;
+    fclose(f);
+    return kb <= ULLONG_MAX / 1024 ? kb * 1024 : 0;
+}
+static int shield_cgroup_write(const char *file, const char *value) {
+    char path[160]; snprintf(path, sizeof path, SHIELD_CGROUP "/%s", file);
+    return write_sysctl(path, value);
+}
+static int shield_cgroup_setup(unsigned long long budget) {
+    if (!budget) return 0;
+    if (mkdir("/sys/fs/cgroup", 0755) != 0 && errno != EEXIST) return 0;
+    if (mount("cgroup2", "/sys/fs/cgroup", "cgroup2", MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL) != 0) return 0;
+    if (write_sysctl("/sys/fs/cgroup/cgroup.subtree_control", "+memory") != 0 ||
+        mkdir(SHIELD_CGROUP, 0755) != 0) return 0;
+    char limit[32]; snprintf(limit, sizeof limit, "%llu", budget);
+    if (shield_cgroup_write("memory.max", limit) != 0 ||
+        shield_cgroup_write("memory.swap.max", "0") != 0 ||
+        shield_cgroup_write("memory.oom.group", "1") != 0) return 0;
+    return 1;
+}
+static unsigned long long shield_oom_events(void) {
+    FILE *f = fopen(SHIELD_CGROUP "/memory.events", "r");
+    if (!f) return 0;
+    char line[128]; unsigned long long n = 0;
+    while (fgets(line, sizeof line, f))
+        if (sscanf(line, "oom %llu", &n) == 1) break;
+    fclose(f); return n;
+}
+static void shield_disable_model(void) {
+    shield_load_allowed = 0;
+    snprintf(shield_preloads_env, sizeof shield_preloads_env, "ENCLAVE_NN_PRELOADS=");
+    /* No process may still hold the source when this is called. Remove only
+     * the private copy; never change the host-backed device or its digest. */
+    if (shield_large) {
+        const char *dir = "/models/qwen3.8-27b-mtp-q4-vl-gguf/";
+        char p[160];
+        snprintf(p, sizeof p, "%sprivate/model.gguf", dir); unlink(p);
+        snprintf(p, sizeof p, "%smodel.gguf", dir); unlink(p);
+        snprintf(p, sizeof p, "%sQwen3.8-27B-UD-Q4_K_XL.gguf", dir); unlink(p);
+    }
+    printf("DOM Shield model declined: actual load exceeded its guest RAM budget; app available without model\n");
+}
 static void shield_profile(void) {
     FILE *f = fopen("/app.shield", "r");
     if (!f) return;
@@ -292,6 +346,42 @@ static void shield_profile(void) {
     snprintf(shield_vram_env, sizeof shield_vram_env, "ENCLAVE_VRAM_BYTES=%llu", bytes * 2);
     snprintf(shield_calib, sizeof shield_calib, "SHIELDED_CALIB=/rt/calib/%s.calib", model);
     shield_on = 1;
+    struct sysinfo si;
+    unsigned long long total = sysinfo(&si) == 0 ? (unsigned long long)si.totalram * si.mem_unit : 0;
+    unsigned long long budget = shield_memory_budget(total, shield_available_ram());
+    shield_memory_group = shield_cgroup_setup(budget);
+    shield_load_allowed = shield_memory_group;
+    printf("DOM Shield dynamic RAM budget: %llu MiB, controller=%s\n", budget / SHIELD_MIB, shield_memory_group ? "enforced" : "unavailable");
+    snprintf(shield_ram_env, sizeof shield_ram_env, "ENCLAVE_NN_SERVE_BYTES=%llu", budget ? budget : 1);
+    if (!shield_load_allowed) {
+        snprintf(shield_preloads_env, sizeof shield_preloads_env, "ENCLAVE_NN_PRELOADS=");
+        printf("DOM Shield model not loaded: bounded loading unavailable; app remains available\n");
+    }
+}
+
+/* The pad spill (wasm/ggml-shielded/shielded-spill.h): a host disk the 27B
+ * engine fills with sealed one-time pads while the app is idle, so a long
+ * prompt imports its pads instead of minting them. The host attaches it as the
+ * SECOND virtio disk, after the model's. Only a release carrying the measured
+ * marker uses it, and nothing here trusts it: the engine seals everything it
+ * writes under keys it draws at start and never stores. Init opens it only so
+ * the dropped runtime can reach it, as one descriptor (spawn: fd 197). */
+#define SHIELD_SPILL_FD 197
+static int shield_spill_ok;
+static void shield_spill_probe(void) {
+    if (!shield_large || access("/rt/shield-pad-spill.enabled", R_OK) != 0) return;
+    struct stat model, disk;
+    if (stat("/dev/vdb", &disk) != 0) { printf("DOM Shield pad spill: no disk attached\n"); return; }
+    if (!S_ISBLK(disk.st_mode) || stat("/dev/vda", &model) != 0 || model.st_rdev == disk.st_rdev) {
+        printf("DOM Shield pad spill: /dev/vdb is not a second block device; not used\n");
+        return;
+    }
+    int fd = open("/dev/vdb", O_RDWR | O_CLOEXEC);
+    const off_t bytes = fd >= 0 ? lseek(fd, 0, SEEK_END) : -1;
+    if (fd >= 0) close(fd);
+    if (bytes < (off_t)1 << 30) { printf("DOM Shield pad spill: /dev/vdb unusable (%s)\n", fd < 0 ? strerror(errno) : "under 1 GiB"); return; }
+    shield_spill_ok = 1;
+    printf("DOM Shield pad spill: /dev/vdb, %lld GiB\n", (long long)(bytes >> 30));
 }
 
 static int shield_rings(void) {
@@ -374,6 +464,7 @@ static void seccomp_statement_from(int fd, pid_t child) {
         printf("DOM ERROR could not record the app's seccomp statement for the front: %s\n", strerror(errno));
 }
 
+static int public_https_egress; /* only the authenticated front handoff can enable it */
 static pid_t spawn(char *const argv[], char *extra, int fd3, int flags);
 /* The app, through the seccomp statement channel: a close-on-exec pipe made here (the front, already running, never
  * holds it), handed to the child, and read to EOF - until the child's exec closes its end - so the positive line and the
@@ -397,8 +488,33 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
     const int quiet = flags & SPAWN_QUIET, drop = flags & SPAWN_DROP;
     pid_t pid = fork();
     if (pid == 0) {
+        /* Charge both the verified tmpfs model copy and the runtime to the
+         * same limit. TLS and init stay outside, so a failed load cannot kill
+         * the attesting front. Join before allocating, dropping uid or exec. */
+        if (shield_memory_group && (drop || strcmp(argv[0], "/shieldmodel") == 0)) {
+            if (shield_cgroup_write("cgroup.procs", "0") != 0) _exit(125);
+        }
         if (fd3 == 3) fcntl(3, F_SETFD, 0);                      /* already fd 3: only drop CLOEXEC */
         else if (fd3 >= 0 && dup2(fd3, 3) < 0) _exit(127);       /* dup2 leaves the new fd 3 without CLOEXEC */
+        const int reclaim_sources = shield_on && shield_load_allowed && shield_large && drop &&
+            access("/rt/shield-original-source-reclaim.enabled", R_OK) == 0;
+        if (reclaim_sources) {
+            /* Narrow native-loader capabilities, opened BEFORE dropping uid.
+             * Do not make the model device writable or relax filesystem access.
+             * WASI does not inherit native descriptor numbers as WASI handles. */
+            int model = open("/models/qwen3.8-27b-mtp-q4-vl-gguf/model.gguf", O_RDWR | O_CLOEXEC);
+            int backing = open("/dev/vda", O_RDONLY | O_CLOEXEC);
+            if (model < 0 || backing < 0 || dup2(model, 198) < 0 || dup2(backing, 199) < 0) _exit(125);
+            close(model); close(backing);
+        }
+        /* The pad spill, opened before the drop like the sources above. A
+         * disk that will not open now just means no spill: the engine mints. */
+        int spill_fd = -1;
+        if (shield_on && shield_load_allowed && shield_large && drop && shield_spill_ok) {
+            int fd = open("/dev/vdb", O_RDWR | O_CLOEXEC);
+            if (fd >= 0 && dup2(fd, SHIELD_SPILL_FD) == SHIELD_SPILL_FD) spill_fd = SHIELD_SPILL_FD;   /* dup2 clears CLOEXEC */
+            if (fd >= 0 && fd != SHIELD_SPILL_FD) close(fd);
+        }
         int con = 1;
         if (quiet) {
             con = fcntl(1, F_DUPFD_CLOEXEC, 10);
@@ -430,29 +546,50 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
                 _exit(125);
             }
         }
-        char *envp[64] = {"HOME=/tmp", "PATH=/rt"};
+        char *envp[80] = {"HOME=/tmp", "PATH=/rt"};
         int ei = 2;
+        /* Protocol credential, not a security boundary: one app owns this guest.
+         * Policy is enforced by the measured front, CID admission and host IP checks. */
+        if (public_https_egress && drop) envp[ei++] = "ENCLAVE_EGRESS_CRED=guest:public-https";
         if (shield_on && drop) {
+            /* This runtime belongs to one isolated app. Reuse only transport
+             * connections; every tool request still carries fresh credentials. */
+            envp[ei++] = "ENCLAVE_HTTP_POOL=1";
             envp[ei++] = "ENCLAVE_GGML_BACKEND_DIR=/rt/backends";
             envp[ei++] = "GGML_BACKEND_PATH=/rt/backends/libggml-shielded.so";
+            /* The Shield calibration authenticates language weights only. Keep
+             * image pixels and projector operations on the guest CPU. */
+            envp[ei++] = "MTMD_BACKEND_DEVICE=CPU";
+            /* Vision-conditioned activations need four times the calibrated
+             * integer headroom. Keep the field integrity checks unchanged. */
+            if (shield_large) envp[ei++] = "SHIELDED_AF_DELTA=-2";
             envp[ei++] = "SHIELDED_HOST=unix:/run/enclave-shield/gpu0";
             envp[ei++] = "SHIELDED_PORT=9501";
             envp[ei++] = shield_workers;
             envp[ei++] = shield_calib;
             envp[ei++] = "ENCLAVE_GGML_EXTRA_BUFTS=0";
-            envp[ei++] = shield_large ? "ENCLAVE_GGML_N_CTX=8192" : "ENCLAVE_GGML_N_CTX=512";
-            /* Tool-enabled apps retain a tokenizer session while generating. One slot deadlocks them. */
-            envp[ei++] = "ENCLAVE_GGML_MAX_SESSIONS=8";
+            /* The 27B's KV is 68 KB a token (17 full-attention layers incl. the
+             * MTP head, 4 KV heads x 256, K and V in f16), so 64K tokens is
+             * ~4.4 GB. 8192 could not hold eyesoff's ~6.2K-token system prompt
+             * beside a conversation: the parked prefix was evicted, every turn
+             * re-read it, and a web-search step (8.5K tokens) did not fit. */
+            envp[ei++] = shield_large ? "ENCLAVE_GGML_N_CTX=65536" : "ENCLAVE_GGML_N_CTX=512";
+            /* Tool-enabled apps retain a tokenizer session while generating. One slot deadlocks them.
+             * A speculative (MTP) chat holds THREE: its tokenizer, its sequence and the draft-verify
+             * scratch branch, so 8 slots served two chats at once and a third waited for a slot.
+             * The 27B guest takes 16 (five chats; each slower, the aggregate higher): sessions share
+             * the one pooled KV window, so a slot costs a sequence id, not another window. */
+            envp[ei++] = shield_large ? "ENCLAVE_GGML_MAX_SESSIONS=16" : "ENCLAVE_GGML_MAX_SESSIONS=8";
             /* Keep prompt forks in private guest RAM across HTTP requests.
              * Separate shared system/tool prefixes from per-conversation turns.
-             * Active + turn + shared-prefix slots must fit N_BATCH (8+6+2=16). */
+             * Active + turn + shared-prefix slots must fit N_BATCH (16+6+8=30 <= 64). */
             envp[ei++] = shield_large ? "ENCLAVE_GGML_PARK_SLOTS=6" : "ENCLAVE_GGML_PARK_SLOTS=0";
-            envp[ei++] = shield_large ? "ENCLAVE_GGML_PREFIX_SLOTS=2" : "ENCLAVE_GGML_PREFIX_SLOTS=0";
+            envp[ei++] = shield_large ? "ENCLAVE_GGML_PREFIX_SLOTS=8" : "ENCLAVE_GGML_PREFIX_SLOTS=0";
             envp[ei++] = "ENCLAVE_GGML_POOLED=1";
             envp[ei++] = shield_vram_env;
             /* Weights and KV live in private guest RAM; VRAM is only the masked-offload reservation.
-             * Leave room for the mask pool and runtime within each measured model profile's floor. */
-            envp[ei++] = shield_large ? "ENCLAVE_NN_SERVE_BYTES=34359738368" : "ENCLAVE_NN_SERVE_BYTES=2147483648";
+             * The guest-local cgroup accounts for their real allocations alongside the runtime. */
+            envp[ei++] = shield_ram_env;
             envp[ei++] = "ENCLAVE_NN_SERVE_KIND=RAM";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS=6" : "ENCLAVE_GGML_N_THREADS=2";
             envp[ei++] = shield_large ? "ENCLAVE_GGML_N_THREADS_BATCH=6" : "ENCLAVE_GGML_N_THREADS_BATCH=2";
@@ -463,10 +600,19 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = shield_large ? "SHIELDED_REFILL_THREADS=16" : "SHIELDED_REFILL_THREADS=2";
             envp[ei++] = shield_large ? "SHIELDED_POOL_DEPTH=128" : "SHIELDED_POOL_DEPTH=16";
             envp[ei++] = "SHIELDED_REFILL_BATCH=64";
+            /* Candidate capability belongs to the measured runtime, never to
+             * host-supplied app configuration. The release must include the
+             * matching compact backend and pinned integer-GEMM dependency. */
+            int shield_compact = shield_large && access("/rt/shield-compact-weights.enabled", R_OK) == 0;
+            if (shield_compact)
+                envp[ei++] = "SHIELDED_COMPACT_WEIGHTS=1";
             /* Eight refill workers per card; exact vector CRT is qualified for the 27B profile. */
             if (shield_large) envp[ei++] = "SHIELDED_REFILL_VECTOR_CRT=1";
             if (shield_large) envp[ei++] = "SHIELDED_MASK_CHACHA16=1";
-            if (shield_large) envp[ei++] = "SHIELDED_REFILL_UNIT=32";
+            /* Compact unit 64 is the qualified memory-priority profile.
+             * Real MTP chat is slightly slower than raw weights; this tradeoff
+             * is accepted for the resident-memory saving. */
+            if (shield_large) envp[ei++] = shield_compact ? "SHIELDED_REFILL_UNIT=64" : "SHIELDED_REFILL_UNIT=32";
             if (shield_large) envp[ei++] = "SHIELDED_REFILL_COST_PRIORITY=1";
             if (shield_large) {
                 /* This marker is part of the measured runtime, never host input.
@@ -481,6 +627,31 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             }
             envp[ei++] = "SHIELDED_MAX_M=64";
             envp[ei++] = "SHIELDED_SHM_STREAM_LOAD=1";
+            if (reclaim_sources) {
+                envp[ei++] = "ENCLAVE_SHIELD_ORIGINAL_SOURCE=fd:199";
+                envp[ei++] = "ENCLAVE_SHIELD_PRIVATE_SOURCE=fd:198";
+            }
+            if (spill_fd == SHIELD_SPILL_FD) {
+                envp[ei++] = "SHIELDED_PAD_SPILL=fd:197";
+                /* Minting into the spill beside a request is the deployment's
+                 * choice: "shieldPadBusyMint" in its app config (true = the
+                 * engine's default, half its refill threads; a number = that
+                 * many). Absent or false keeps release 07ff8fae's idle-only rule.
+                 * (The 15 tok/s once blamed on busy minting was mostly attention
+                 * over the 64K pool's parked cells, fixed by KV runs.) */
+                static char busy_env[48];
+                const int busy = shield_busy_mint(extra && strncmp(extra, "ENCLAVE_CONFIG=", 15) == 0 ? extra + 15 : NULL);
+                if (busy != SHIELD_BUSY_DEFAULT) {
+                    snprintf(busy_env, sizeof busy_env, "SHIELDED_PAD_SPILL_BUSY_THREADS=%d", busy < 0 ? 0 : busy);
+                    envp[ei++] = busy_env;
+                }
+                /* The app shows its pad bank: the runtime answers a request
+                 * that asks (x-enclave-performance: 1) with the engine's
+                 * "pads" layout, the bank's counters and nothing else - not
+                 * the profile's timings (wasm/ggml-shielded/ggml-shielded.cpp). */
+                envp[ei++] = "ENCLAVE_SHIELD_PERF_HEADER=1";
+                envp[ei++] = "SHIELDED_PROFILE_LAYOUT=pads";
+            }
             envp[ei++] = "SHIELDED_SPLIT_COLS=1";
             envp[ei++] = "SHIELDED_OVERLAP_VERIFY=1";
             envp[ei++] = "SHIELDED_WEIGHT_BUDGET_FRAC=0.95";
@@ -496,7 +667,7 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
     return pid;
 }
 
-/* The front's one message on the pipe: "N" (no config), or "C" + the app's config, at most the standard runtime's
+/* The front's one message on the pipe: "N" (no config), "C" + config, or "P" + config (public HTTPS), at most the runtime's
  * ENCLAVE_CONFIG ceiling (64 KiB), then EOF. On "C" *env is a malloc'd "ENCLAVE_CONFIG=<config>" and *len the config's
  * length; on "N" *env stays NULL. Anything else - an empty pipe (the front died first), one byte over the ceiling, a
  * NUL, another tag - returns why, and the caller does not start the app. The read buffer is wiped either way. */
@@ -515,9 +686,10 @@ static const char *read_front_msg(int fd, char **env, size_t *len) {
     }
     *env = NULL;
     *len = 0;
+    public_https_egress = 0;
     if (n == 0) why = "ended before it handed over the app's config";
     else if (n == 1 && msg[0] == 'N') why = NULL;
-    else if (msg[0] != 'C' || n < 2) why = "sent no valid config message";
+    else if ((msg[0] != 'C' && msg[0] != 'P') || n < 2) why = "sent no valid config message";
     else if (n == sizeof msg) why = "sent a config over the 64 KiB ENCLAVE_CONFIG ceiling";
     else if (memchr(msg + 1, 0, n - 1)) why = "sent a config with a NUL byte";
     else {
@@ -528,6 +700,7 @@ static const char *read_front_msg(int fd, char **env, size_t *len) {
             memcpy(*env, pre, sizeof pre - 1);
             memcpy(*env + sizeof pre - 1, msg + 1, *len);
             (*env)[sizeof pre - 1 + *len] = 0;
+            public_https_egress = msg[0] == 'P';
         }
     }
     explicit_bzero(msg, n);
@@ -586,7 +759,7 @@ int main(void) {
     lo_up();
     shield_profile();
     pid_t shield_pid = -1;
-    if (shield_on) {
+    if (shield_on && shield_load_allowed) {
         // Bounded adaptive polling avoids an SNP halt/wake transition for
         // every split-helper handoff. The measured module/parameters mirror
         // the control VM's idle policy; it shrinks back when the guest idles.
@@ -596,18 +769,23 @@ int main(void) {
         if (idle) { (void)fgets(driver,sizeof driver,idle); fclose(idle); }
         printf("DOM Shield idle driver: %s\n", driver[0] ? driver : "unavailable");
         if (shield_rings() != 0) { printf("DOM ERROR invalid Shield rings\n"); reboot(RB_POWER_OFF); _exit(1); }
+        shield_spill_probe();
         if (shield_large) {
             char *mv[] = {"/shieldmodel", NULL}; int status=0;
+            unsigned long long oom_before = shield_oom_events();
             pid_t pid=spawn(mv,NULL,-1,0);
             if(pid<0 || waitpid(pid,&status,0)!=pid || !WIFEXITED(status) || WEXITSTATUS(status)!=0) {
-                printf("DOM ERROR model verification failed\n"); reboot(RB_POWER_OFF); _exit(1);
+                if (pid > 0 && shield_oom_events() > oom_before) shield_disable_model();
+                else { printf("DOM ERROR model verification failed\n"); reboot(RB_POWER_OFF); _exit(1); }
             }
         }
-        char *av[] = {"/shieldbroker", NULL};
-        shield_pid = spawn(av, NULL, -1, 0);
-        for (int i = 0; access("/run/enclave-shield/gpu1", F_OK) != 0; i++) {
-            if (i > 1000 || shield_pid < 0) { printf("DOM ERROR Shield broker not ready\n"); fflush(stdout); reboot(RB_POWER_OFF); _exit(1); }
-            usleep(10000);
+        if (shield_load_allowed) {
+            char *av[] = {"/shieldbroker", NULL};
+            shield_pid = spawn(av, NULL, -1, 0);
+            for (int i = 0; access("/run/enclave-shield/gpu1", F_OK) != 0; i++) {
+                if (i > 1000 || shield_pid < 0) { printf("DOM ERROR Shield broker not ready\n"); fflush(stdout); reboot(RB_POWER_OFF); _exit(1); }
+                usleep(10000);
+            }
         }
     }
 
@@ -728,19 +906,29 @@ int main(void) {
     }
     if (cfg_env) printf("DOM app config: %zu bytes (ENCLAVE_CONFIG)\n", cfg_len);   /* its length, never its content */
     else printf("DOM app config: none\n");
+    if (shield_spill_ok) {
+        /* the same reading spawn() applies to the app's engine (see shieldPadBusyMint there) */
+        const int busy = shield_busy_mint(cfg_env ? cfg_env + sizeof "ENCLAVE_CONFIG=" - 1 : NULL);
+        if (busy == SHIELD_BUSY_DEFAULT) printf("DOM Shield pad spill: minting while requests run too (engine default threads)\n");
+        else if (busy > 0) printf("DOM Shield pad spill: minting while requests run too (%d threads)\n", busy);
+        else printf("DOM Shield pad spill: minting only while idle\n");
+    }
 
     /* the runtime passes ENCLAVE_CONFIG to the guest program from its own environment (--env NAME, no value), so the
      * value is never an argument */
-    char **base = port ? run : serve, *app[64];
+    char **base = port ? run : serve, *app[96];
     int k = 0;
     for (int i = 0; base[i]; i++) {
+        if (public_https_egress && strcmp(base[i], "/app.wasm") == 0) {
+            app[k++] = "-S"; app[k++] = "egress=127.0.0.2:1080";
+        }
         if (cfg_env && strcmp(base[i], "/app.wasm") == 0) {
             app[k++] = "--env";
             app[k++] = "ENCLAVE_CONFIG";
         }
         if (shield_on && strcmp(base[i], "/app.wasm") == 0) {
             app[k++]="-S"; app[k++]="nn";
-            app[k++]="-S"; app[k++]=shield_graph;
+            if (shield_load_allowed) { app[k++]="-S"; app[k++]=shield_graph; }
             app[k++]="--dir"; app[k++]="/models::/models";
             app[k++]="--env"; app[k++]="ENCLAVE_MODELS";
             app[k++]="--env"; app[k++]="ENCLAVE_NN_PRELOADS";
@@ -754,14 +942,15 @@ int main(void) {
         app[k++] = base[i];
     }
     app[k] = NULL;
+    unsigned long long app_oom_before = shield_oom_events();
     pid_t app_pid = spawn_app(app, cfg_env, SPAWN_QUIET | SPAWN_DROP | SPAWN_FILTER);   /* quiet, dropped to APP_UID, filtered */
     if (app_pid == -2) {
         fflush(stdout);
         reboot(RB_POWER_OFF);
     }
-    if (cfg_env) {
+    if (cfg_env && !shield_load_allowed) {
         explicit_bzero(cfg_env, sizeof "ENCLAVE_CONFIG=" + cfg_len);
-        free(cfg_env);
+        free(cfg_env); cfg_env = NULL;
     }
     printf("DOM started app=%d front=%d at_ms=%.0f\n", app_pid, front_pid, now_ms());
 
@@ -769,6 +958,28 @@ int main(void) {
         int st = 0;
         pid_t w = wait(&st);
         if (w < 0 && errno == ECHILD) break;
+        if (w == app_pid && shield_load_allowed && shield_oom_events() > app_oom_before) {
+            /* Retry once WITHOUT an inference graph, not with a larger RAM
+             * share or weaker isolation. All runtime threads are gone. */
+            if (shield_pid > 0) {
+                kill(shield_pid, SIGTERM);
+                for (int i=0; i<100 && waitpid(shield_pid, NULL, WNOHANG)==0; i++) usleep(10000);
+                if (waitpid(shield_pid, NULL, WNOHANG)==0) { kill(shield_pid, SIGKILL); waitpid(shield_pid, NULL, 0); }
+                shield_pid = -1;
+            }
+            shield_disable_model();
+            for (int i = 0; app[i]; i++) {
+                if (strcmp(app[i], "-S") == 0 && app[i+1] == shield_graph) {
+                    for (int j=i; ; j++) { app[j]=app[j+2]; if (!app[j]) break; }
+                    break;
+                }
+            }
+            app_pid = spawn_app(app, cfg_env, SPAWN_QUIET | SPAWN_DROP | SPAWN_FILTER);
+            if (cfg_env) { explicit_bzero(cfg_env, sizeof "ENCLAVE_CONFIG=" + cfg_len); free(cfg_env); cfg_env=NULL; }
+            if (app_pid <= 0) break;
+            printf("DOM app restarted without model after bounded load failure\n");
+            continue;
+        }
         if (w == app_pid || w == front_pid || (shield_on && w == shield_pid)) {
             printf("DOM ERROR %s exited status=%d\n", w == app_pid ? "app" : "front",
                    WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st));

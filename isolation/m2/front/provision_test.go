@@ -34,6 +34,7 @@ import (
 
 	"enclave.host/isolation/contract"
 	"enclave.host/isolation/m2/domtls"
+	"enclave.host/isolation/m2/egress"
 	"enclave.host/isolation/m2/release"
 )
 
@@ -528,5 +529,39 @@ func TestTheTicketWaitOutlastsGuestdsHold(t *testing.T) {
 	tk, err := w.p.readTicket(context.Background())
 	if err != nil || tk != w.ticket {
 		t.Fatalf("a late ticket: %v %v", tk, err)
+	}
+}
+
+func TestProvisionPublicHTTPSOnlyAfterOwnerRelease(t *testing.T) {
+	w := newProvWorld(t)
+	w.config = map[string]any{"egress": "public-https"}
+	p, err := w.run(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, ok := p.fwd.PublicAddr()
+	if !p.fwd.Policy.PublicHTTPS || !ok || a.String() != egress.PublicSOCKSAddress {
+		t.Fatalf("missing public listener: %v %v", a, ok)
+	}
+	found := false
+	for _, want := range w.audited {
+		if want == a {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("public listener was not audited")
+	}
+	rd, wr, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rd.Close()
+	if err = handToInitMode(wr, p.config, true); err != nil {
+		t.Fatal(err)
+	}
+	b, err := io.ReadAll(rd)
+	if err != nil || string(b) != `P{"egress":"public-https"}` {
+		t.Fatalf("handoff: %q %v", b, err)
 	}
 }

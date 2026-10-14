@@ -17,7 +17,9 @@
 //     unspecified and its own addresses on the FINAL resolved IP (dialer.go).
 //
 // An owner who sets a top-level "egress" list in the config states the allowlist explicitly; otherwise every
-// absolute https URL in the resolved config becomes reachable, which the owner-facing page must say.
+// absolute https URL in the resolved config becomes reachable. The explicit string "public-https" instead grants
+// arbitrary DNS origins on port 443 through the guest SOCKS forwarder. The host still checks every resolved address
+// and peer against the same public-address policy. This mode is opt-in; it is never inferred from an app/tool name.
 package egress
 
 import (
@@ -128,8 +130,9 @@ func ParseOrigin(raw string) (Origin, error) {
 
 // Policy is the guest's allowlist.
 type Policy struct {
-	Origins []Origin // sorted, unique
-	Refused []string // the reasons config URLs were NOT allowed, for the guest's own log (no URL text: it may be secret)
+	PublicHTTPS bool     // owner explicitly opted into arbitrary public DNS origins on 443
+	Origins     []Origin // sorted, unique
+	Refused     []string // the reasons config URLs were NOT allowed, for the guest's own log (no URL text: it may be secret)
 }
 
 // FromRelease is the ONLY public way to build a guest's allowlist: from a release the release client OPENED (the
@@ -170,13 +173,17 @@ func derive(resolvedConfig string, relay Origin) (*Policy, error) {
 		var candidates []string
 		if obj, ok := doc.(map[string]any); ok && obj["egress"] != nil {
 			list, ok := obj["egress"].([]any)
+			if obj["egress"] == "public-https" {
+				p.PublicHTTPS = true
+				ok = true
+			}
 			if !ok {
-				return nil, errors.New(`"egress" must be a list of https origins`)
+				return nil, errors.New(`"egress" must be a list of https origins or "public-https"`)
 			}
 			for _, e := range list {
 				s, ok := e.(string)
 				if !ok {
-					return nil, errors.New(`"egress" must be a list of https origins`)
+					return nil, errors.New(`"egress" must be a list of https origins or "public-https"`)
 				}
 				candidates = append(candidates, s)
 			}
@@ -223,6 +230,9 @@ func (p *Policy) Allows(host string) bool {
 	o, err := ParseOrigin("https://" + host + "/")
 	if err != nil {
 		return false
+	}
+	if p.PublicHTTPS {
+		return true
 	}
 	for _, a := range p.Origins {
 		if a.Host == o.Host {
