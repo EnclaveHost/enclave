@@ -2541,17 +2541,30 @@ async function fetchReleaseTicket(id, endpoint = _advertisedEndpoint) {
 // this signs it and hands it back. The binding is a hash; nothing secret passes through this box.
 const CUSTODY_VAULT = String(process.env.CUSTODY_VAULT || "").trim().toLowerCase();
 const CUSTODY_CHAIN_ID = parseInt(process.env.CUSTODY_CHAIN_ID || "8453", 10);
+// custody v2 (docs/security/secret-custody-v2.md): the ONE v2 vault this box authorizes releases for (measured in gsup)
+const CUSTODY_VAULT_V2 = String(process.env.CUSTODY_VAULT_V2 || "").trim().toLowerCase();
 const CUSTODY_SIG_TTL_SEC = 300;
 // exactly custody/protocol.mjs operatorMessage (test/isolation-release-ticket.test.mjs pins the two equal)
 const custodyOperatorMessage = (id, endpoint, bindingHex, expiry) =>
   `enclave-custody-release-v1:${CUSTODY_CHAIN_ID}:${CUSTODY_VAULT}:${id}:${endpoint}:${bindingHex}:${expiry}`;
-async function authorizeCustody(id, bindingHex, endpoint = _advertisedEndpoint) {
+// v2: guestd reports { v: 2, vault, binding }; the message names the v2 vault, and only THIS box's measured one is signed for
+const custodyOperatorMessageV2 = (vault, id, endpoint, bindingHex, expiry) =>
+  `enclave-custody-release-v2:${CUSTODY_CHAIN_ID}:${vault}:${id}:${endpoint}:${bindingHex}:${expiry}`;
+async function authorizeCustody(id, bindingHex, endpoint = _advertisedEndpoint, { v = 1, vault = null } = {}) {
   if (!REGISTRY_PK) throw new Error("no operator key: a custody release is authorized by the endpoint's registry operator");
   if (!endpoint) throw new Error("this box has no registered endpoint yet");
-  if (!/^0x[0-9a-f]{40}$/.test(CUSTODY_VAULT)) throw new Error("CUSTODY_VAULT is not set: this box cannot authorize custody releases");
   if (!/^[0-9a-f]{64}$/.test(String(bindingHex))) throw new Error("the guest's custody binding is not 32 bytes of hex");
   const expiry = Math.floor(Date.now() / 1000) + CUSTODY_SIG_TTL_SEC;
-  const sig = await claimSigner().account.signMessage({ message: custodyOperatorMessage(String(id).toLowerCase(), endpoint, bindingHex, expiry) });
+  let message;
+  if (v === 2) {
+    if (!/^0x[0-9a-f]{40}$/.test(CUSTODY_VAULT_V2)) throw new Error("CUSTODY_VAULT_V2 is not set: this box cannot authorize v2 custody releases");
+    if (String(vault || "").toLowerCase() !== CUSTODY_VAULT_V2) throw new Error("the guest asked for a v2 vault this box does not serve");
+    message = custodyOperatorMessageV2(CUSTODY_VAULT_V2, String(id).toLowerCase(), endpoint, bindingHex, expiry);
+  } else {
+    if (!/^0x[0-9a-f]{40}$/.test(CUSTODY_VAULT)) throw new Error("CUSTODY_VAULT is not set: this box cannot authorize custody releases");
+    message = custodyOperatorMessage(String(id).toLowerCase(), endpoint, bindingHex, expiry);
+  }
+  const sig = await claimSigner().account.signMessage({ message });
   return { binding: bindingHex, endpoint, sig, expiry };
 }
 
@@ -2600,10 +2613,12 @@ async function releaseTicketPump(deploymentId, vmId, { req = vmReq, fetchTicket 
         nextTry = Date.now() + retryMs;
       }
     }
-    const want = v && typeof v.awaitingCustodyAuth === "string" ? v.awaitingCustodyAuth : null;
+    const aw = v ? v.awaitingCustodyAuth : null;
+    const want = typeof aw === "string" ? aw : aw && typeof aw === "object" && aw.v === 2 && typeof aw.binding === "string" ? aw.binding : null;
+    const wantOpts = aw && typeof aw === "object" ? { v: 2, vault: String(aw.vault || "") } : { v: 1 };
     if (want && /^[0-9a-f]{64}$/.test(want) && !authorized.has(want) && Date.now() >= nextAuth) {
       try {
-        const a = await authorize(deploymentId, want);
+        const a = await authorize(deploymentId, want, undefined, wantOpts);
         const p = await req("POST", `${path}/custody-auth`, a, 10_000);
         if (p.status === 202) {
           authorized.add(want);
@@ -9051,7 +9066,7 @@ if (process.env.RELEASE_SELFTEST) {
   // a REF'd sleep: sleepMs unrefs its timer (right for the long-running process), and here nothing else holds the loop
   const result = await releaseTicketPump(c.id, c.vmId, { req, pollMs: 5, retryMs: c.retryMs ?? 5, deadlineMs: c.deadlineMs ?? 5000,
     log, sleep: (ms) => new Promise((r) => setTimeout(r, ms)), fetchTicket: (id) => fetchReleaseTicket(id, c.endpoint),
-    authorize: (id, b) => authorizeCustody(id, b, c.endpoint) });
+    authorize: (id, b, _e, o) => authorizeCustody(id, b, c.endpoint, o) });
   console.log(JSON.stringify({ result, posts, logs }));
   process.exit(0);
 }

@@ -376,3 +376,26 @@ test("custody: without CUSTODY_VAULT, or for a malformed binding, nothing is sig
     assert.equal(r2.posts.filter((p) => p.path.endsWith("/custody-auth")).length, 0);
   } finally { relay.close(); }
 });
+
+test("custody v2: guestd's {v:2, vault, binding} is signed over the v2 message for THIS box's measured v2 vault only", async () => {
+  const { operatorMessage } = await import("../custody/v2/protocol.mjs");
+  const relay = await fakeRelay();
+  const vault2 = "0x" + "e4".repeat(20), binding = "c2".repeat(32);
+  try {
+    const want = { status: "starting", awaitingCustodyAuth: { v: 2, vault: vault2, binding } };
+    const r = await pump(relay, { script: [awaiting, starting, want, want, { status: "running" }] }, { CUSTODY_VAULT_V2: vault2, CUSTODY_CHAIN_ID: "8453" });
+    const posts = r.posts.filter((p) => p.path.endsWith("/custody-auth"));
+    assert.equal(posts.length, 1);
+    const a = posts[0].custody;
+    const msg = operatorMessage({ chainId: 8453, vault: vault2, id: ID, endpoint: "https://iso0.example", binding: Buffer.from(binding, "hex"), expiry: a.expiry });
+    assert.equal(await recoverMessageAddress({ message: msg, signature: a.sig }), operator);
+    // another vault, or no v2 vault on this box: nothing signed
+    const other = { status: "starting", awaitingCustodyAuth: { v: 2, vault: "0x" + "99".repeat(20), binding } };
+    const r2 = await pump(relay, { script: [other, other, { status: "running" }] }, { CUSTODY_VAULT_V2: vault2 });
+    assert.equal(r2.posts.filter((p) => p.path.endsWith("/custody-auth")).length, 0);
+    assert.ok(r2.logs.some((l) => /v2 vault this box does not serve/.test(l)));
+    const r3 = await pump(relay, { script: [want, want, { status: "running" }] }, {});
+    assert.equal(r3.posts.filter((p) => p.path.endsWith("/custody-auth")).length, 0);
+    assert.ok(r3.logs.some((l) => /CUSTODY_VAULT_V2 is not set/.test(l)));
+  } finally { relay.close(); }
+});
