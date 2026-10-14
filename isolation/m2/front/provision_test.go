@@ -116,7 +116,11 @@ type provWorld struct {
 	secrets map[string]string
 	sealFor []byte             // seal to this key instead of the request's
 	signer  ed25519.PrivateKey // the relay's release key (the provisioner pins releasePub)
+	custody any                // a custody pointer in the release (custody_test.go), nil = none
 	mu      sync.Mutex
+
+	ca     *provCA
+	routes map[string]string // the egress table; tests add origins before run
 }
 
 func newProvWorld(t *testing.T) *provWorld {
@@ -174,6 +178,7 @@ func newProvWorld(t *testing.T) *provWorld {
 		}
 	}()
 	routes := map[string]string{release.RelayHost: relayL.Addr().String(), "images.example": img.Addr().String()}
+	w.ca, w.routes = ca, routes
 	el, _ := net.Listen("tcp", "127.0.0.1:0")
 	t.Cleanup(func() { el.Close() })
 	go func() {
@@ -245,7 +250,7 @@ func (w *provWorld) relay(rw http.ResponseWriter, r *http.Request) {
 	}
 	fail := func(what string) { w.mu.Lock(); w.checks = append(w.checks, what); w.mu.Unlock() }
 	w.mu.Lock()
-	status, config, secrets, sealFor, signer := w.status, w.config, w.secrets, w.sealFor, w.signer
+	status, config, secrets, sealFor, signer, cust := w.status, w.config, w.secrets, w.sealFor, w.signer, w.custody
 	w.mu.Unlock()
 	id, _ := release.ID(req.ID)
 	tk, _ := base64.StdEncoding.DecodeString(req.Ticket)
@@ -279,8 +284,12 @@ func (w *provWorld) relay(rw http.ResponseWriter, r *http.Request) {
 		io.WriteString(rw, `{"error":"evidence_refused","message":"not for the guest's log"}`)
 		return
 	}
-	plain, _ := json.Marshal(map[string]any{"id": req.ID, "envelopeSha256": strings.Repeat("ab", 32), "config": config,
-		"secrets": secrets, "issuedAt": "2026-09-25T20:00:00.000Z"})
+	rel := map[string]any{"id": req.ID, "envelopeSha256": strings.Repeat("ab", 32), "config": config,
+		"secrets": secrets, "issuedAt": "2026-09-25T20:00:00.000Z"}
+	if cust != nil {
+		rel["custody"] = cust
+	}
+	plain, _ := json.Marshal(rel)
 	to := sk
 	if sealFor != nil {
 		to = sealFor

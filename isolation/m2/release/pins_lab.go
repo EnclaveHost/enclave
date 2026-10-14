@@ -17,6 +17,9 @@ const RelayHost = "release-lab.enclave.test"
 // TicketPort, LAB build: a lab guestd serves tickets here (-ticket-port 19444), never on production's 9444.
 const TicketPort = 19444
 
+// CustodyAuthPort, LAB build: never production's 9445.
+const CustodyAuthPort = 19445
+
 //go:embed labpins/ca.pem
 var labCA []byte
 
