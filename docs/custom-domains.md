@@ -32,7 +32,7 @@ mint a certificate for it* — and the value is in keeping them separate.
 |---|---|---|
 | Whose name is this? | `relay/domains.js` | owner's EIP-191 signature, checked against the ledger's `owner`, plus a TXT token in their zone |
 | Where does it route? | `relay/relay.js` | hostname→deployment from the domain store; deployment→enclave from the on-chain lease |
-| Who may mint a cert? | `/internal/tls-ask` + `desiredCertNames` | the record's status, which only DNS can advance |
+| Who may mint a cert? | `/v1/certs/issue` (`relay/certs.js` `authorizeName`, since 2026-09-02) + `desiredCertNames`; `/internal/tls-ask` answers from the same records for Caddy | the record's status, which only DNS can advance, plus the on-chain lease |
 
 The split is the point. A map cannot name an enclave and an enclave cannot name
 a domain, so neither side alone can point a customer's hostname anywhere.
@@ -92,6 +92,20 @@ would have needed a new authorization rule over there.
 Concurrent orders on one alias are fine: the challenge store keeps a *set* of
 values per name (`MAX_TXT_VALUES = 8`) and a DELETE removes one value, not the
 name.
+
+### What the delegation trusts
+
+The certificate's key and CSR are generated in the enclave, and the relay never
+holds that key. The challenge is not answered there, though: the delegated
+`_acme-challenge` zone is served by `relay/dns-relay.js` on the platform's own
+server, and the relay holds the CA accounts (`docs/platform-certs.md`). So
+whoever controls that zone could obtain a valid certificate for a delegated
+customer name, with a key of their own and the platform's CA account (or any
+account the customer's CAA does not exclude), without the enclave. CAA records
+(`dig CAA`, below) narrow which CAs and accounts may issue, but cannot exclude
+the platform's own account, which is the one that issues. Certificate
+Transparency logs are how a customer detects a certificate their enclave did not
+ask for.
 
 ## Status machine
 

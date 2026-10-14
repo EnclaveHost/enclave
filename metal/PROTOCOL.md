@@ -144,7 +144,7 @@ residual dust after a record is drained and unleased).
 ### 3. The relay stays a keyless router
 
 The relay routes ciphertext, not trust. Control-plane API calls terminate TLS at
-the relay today (the same trade-off as the hosted fleet); **app traffic**
+the relay today (the same trade-off the hosted fleet made); **app traffic**
 (`<id>.app.enclave.host`) is SNI-passed-through the tunnel so TLS terminates
 **inside the CVM** and the relay never sees tenant plaintext. A tenant can fetch
 `/t/<id>/v1/attestation` and verify the enclave end-to-end *before* sending a
@@ -168,16 +168,25 @@ byte, exactly as with a first-party enclave.
 
 ## Measurement governance
 
-The allowlist is the set of launch measurements of **published, reproducibly-built
-Metal releases**. Because the build is deterministic (`build-image.mjs` →
-byte-identical initramfs → identical measurement), anyone can rebuild a release
-and confirm its measurement independently with `sev-snp-measure`. The allowlist
-is therefore **auditable, not authoritative**: the platform publishes it (committed
-in the relay, and/or in an on-chain `EnclaveMeasurements` registry), and anyone
-can check that each entry corresponds to a real, inspectable source release.
+As of 2026-10-14 the allowlist is the relay's `METAL_ALLOWED_MEASUREMENTS`
+environment variable, maintained by the operator. It is not committed in the
+repo and there is no on-chain measurement registry. The relay publishes it only
+as `operatorAllowlist` in each `GET /v1/enclaves/<box>/attestation` response,
+labelled as the operator's own word, and `verifier/metal-box.mjs` treats a match
+against it as "limited", never "verified".
 
-This is strictly stronger than the hosted model's Sigstore link: the measurement
-*is* the code, folded into the hardware quote, with no transparency-log detour.
+Releases move by pull, not by announcement. A change under `metal/`, `wasm/` or
+the supervisor makes `deploy.yml` dispatch `release-cpu.yml`, which publishes a
+`vX.Y.Z-cpu` GitHub Release; each metal box pulls the newest one on a 6 h timer
+(`metal/update.mjs`), health-gated with rollback (README, "Staying current"). There is
+no time-lock and no public pre-announcement, and the release workflow has no
+Sigstore signing step.
+
+The measurement does fold the exact initramfs into the hardware quote, but
+metal images are built on the host with the host's kernel, so there is no signed
+release measurement a client could compare with (`verifier/metal-box.mjs`
+header). A client that wants an independent expectation has to reproduce the
+image itself and pin that measurement.
 
 ### Model volumes stay OUT of the measurement (and in HOST_DATA)
 

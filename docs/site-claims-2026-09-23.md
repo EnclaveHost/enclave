@@ -1,5 +1,16 @@
 # Site refresh 2026-09-23: claim-to-evidence record
 
+> **Note, 2026-10-14.** This is a historical record of the copy as reviewed on 2026-09-23; the
+> table below is kept as written and is superseded on these points. Per-app domains are in
+> production on all three live hosts: metal0 runs one SEV-SNP guest per app (M4a,
+> `isolation/m4/guestd`; first production app 2026-09-24,
+> `isolation/m4/evidence/production-canary-2026-09-24/README.txt`), nucbox-k11-4 runs one
+> Hyper-V partition per app (Enclave Shield; the host OS is not excluded), and pixel10-pvm-cpu
+> runs one Android pVM per app. The hosted shared-VM fleet (SNP CVMs with NVIDIA CC GPUs and
+> MPS slices) and all Cloud Provider integration were retired on 2026-10-14, so rows citing "the hosted
+> fleet", Sigstore provenance or NVIDIA CC describe a fleet that no longer serves. metal0 is
+> attached and serving, including Shield GPU offload (`docs/shielded-inference.md`).
+
 Branch `site/architecture-positioning`. This is the review record for the public copy and for the
 admission code that the copy depends on. It is an engineering document: the public site itself
 carries no readiness taxonomy (no available / experimental / planned labels, no status board), by
