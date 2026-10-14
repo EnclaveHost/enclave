@@ -1,0 +1,193 @@
+{
+ "note": "custody v2 vectors (scripts/custody-v2-vectors.mjs); every hex is lowercase, no 0x unless an address/id",
+ "chainId": 8453,
+ "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
+ "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+ "committeeId": "0xc0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
+ "secretRev": 3,
+ "policyRev": 2,
+ "epoch": 5,
+ "seats": {
+  "machines": [
+   true,
+   true,
+   false,
+   false
+  ],
+  "n": 3,
+  "t": 2,
+  "W": 3,
+  "indices": [
+   [
+    1
+   ],
+   [
+    1
+   ],
+   [
+    2
+   ],
+   [
+    3
+   ]
+  ]
+ },
+ "commitments": [
+  "029c5530e4385ebc41cdaf8257edf9a2baaf8506a4099103211e6ed7382103ed67",
+  "0257eb3638f51f4dc5c8d5a7324b47df99e816cfcc5b5eb1245bc8c98029f9e674"
+ ],
+ "Y": "029c5530e4385ebc41cdaf8257edf9a2baaf8506a4099103211e6ed7382103ed67",
+ "label": "466efcd073a0b7bbfcf83de0174964b4016bedd2126db1a62286c53cc49e1f42",
+ "configSha256": "7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d",
+ "env": {
+  "API_KEY": "vector-value",
+  "DB_URL": "postgres://u:p@db:5432/x"
+ },
+ "bundle": "03ab5d2e79cfd621b1b027ffb24e2453ed7fb571ba9a841ff0e2473466cabd168d892d9709e918dcde174965b93ea54e8c62d76951a8eee218063c78086769672d59fed8a40ca9625a53ac775f74afbade5ec27081090cf7d05c6c381350b343cf00112233445566778899aabbaeb4e496edfecc1b959ecd136b0368f10cda726b6b9eaff036c65f7e288188b135061a8911818280ea24932378cfdb42ede34d103157f48d969288e2c0a94e59d3f3f583cdd3fe8d8ad537c650dfb62b6a8aa5b1e71993361a6a5e83ba078426a6e1d0ee23d3310249ca29df31446261ae6d8e648046342d1fc27bf9cff135b9f207c5a7ba1c40f60995819b8ba0f4b36a90473667cfa4f2623b6cb023e3a254bf3575c76a1d9a2955c206fbc72a",
+ "challenges": [
+  {
+   "encKey": "e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
+   "nonce": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  {
+   "encKey": "e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3",
+   "nonce": "3333333333333333333333333333333333333333333333333333333333333333"
+  }
+ ],
+ "challengeRoot": "584c5b13dc3ca46b94b10b6f479996070a437539a4344814d4e47036ebcc476c",
+ "runtimeId": "9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b",
+ "transportSpki": "3030303030303030303030303030303030303030303030303030303030303030303030303030303030303030",
+ "recipientPrivate": "415eec9fd7eaedb5e8ae5b4d084f2fc6e739620c715c3925845773554dd42a38",
+ "recipientKey": "37fac70f3c86f2fa01f80f8c8191779124d997ec7f1067e7da0e7fa69892a901",
+ "binding": "824e1ae5e9ac65b9e7b7660840743fbc6131a53013b9e888aa1f0d2a651f70f3",
+ "partials": [
+  "0000000102261663ed46bcc281817fff7c6679054621c2a54756fde850df208a2f7d6e867f53eca8702558ba97d85fda4187fcbd4a829b795c01dd168afe6bda4892f2b848c5cae0e1fe9a728eb5f2cea1acc9d8089a1b1d1dacb96e6ac4f8d76fef3951f8",
+  "00000003033e7289e4f65c4de9e487b49a4ed7aa96f564eaee14c690a61790ca212b6ea0f3f9ace2acbcb29b26bd63f704e87b3b190c2e1f4da12c4b538a426c852768e8cd160a3c6a8380ab7cecd22628ea35dd7457a04a18bcadfa2fcde32ae27117689c"
+ ],
+ "partialIndices": [
+  1,
+  3
+ ],
+ "sealedPartial": {
+  "memberEncKey": "e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3",
+  "count": 1,
+  "sealed": "86e76b8dd088dabf46d94d4820a251861376de69c3a36f2e53f8bffcdb519e0019bdeaffab949a8f533d95a35489cf88dd7d27e994096669b2762230f1b2adad253f8b1195fb01dab0f1834c0c2b7dbb39552ccba30ad61a1a1a869204d346dcf78d7737f7cc79bbadc988897a9e6b6114f3ba0ba4e54aece13d85a7303c5369e3d1b6572d6d99388a29c5609ba2a318b8355ea377",
+  "record": "00000003033e7289e4f65c4de9e487b49a4ed7aa96f564eaee14c690a61790ca212b6ea0f3f9ace2acbcb29b26bd63f704e87b3b190c2e1f4da12c4b538a426c852768e8cd160a3c6a8380ab7cecd22628ea35dd7457a04a18bcadfa2fcde32ae27117689c"
+ },
+ "S": "03dc37b00280aab513ca059b09f791569a9c8eaff9310430aeae8727557e708887",
+ "decrypted": {
+  "env": {
+   "API_KEY": "vector-value",
+   "DB_URL": "postgres://u:p@db:5432/x"
+  },
+  "configSha256": "7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d"
+ },
+ "seatCases": [
+  {
+   "machines": [
+    true
+   ],
+   "n": 1,
+   "t": 1,
+   "W": 1,
+   "indices": [
+    [
+     1
+    ]
+   ]
+  },
+  {
+   "machines": [
+    true,
+    true,
+    true
+   ],
+   "n": 1,
+   "t": 1,
+   "W": 1,
+   "indices": [
+    [
+     1
+    ],
+    [
+     1
+    ],
+    [
+     1
+    ]
+   ]
+  },
+  {
+   "machines": [
+    true,
+    false
+   ],
+   "n": 2,
+   "t": 2,
+   "W": 3,
+   "indices": [
+    [
+     1,
+     2
+    ],
+    [
+     3
+    ]
+   ]
+  },
+  {
+   "machines": [
+    false,
+    true,
+    false
+   ],
+   "n": 3,
+   "t": 2,
+   "W": 3,
+   "indices": [
+    [
+     2
+    ],
+    [
+     1
+    ],
+    [
+     3
+    ]
+   ]
+  },
+  {
+   "machines": [
+    true,
+    true,
+    false,
+    false,
+    false,
+    false
+   ],
+   "n": 5,
+   "t": 4,
+   "W": 5,
+   "indices": [
+    [
+     1
+    ],
+    [
+     1
+    ],
+    [
+     2
+    ],
+    [
+     3
+    ],
+    [
+     4
+    ],
+    [
+     5
+    ]
+   ]
+  }
+ ]
+}
