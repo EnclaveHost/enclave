@@ -39,6 +39,10 @@ set -euo pipefail
 
 KUBO="--api=/ip4/127.0.0.1/tcp/5001"
 GATEWAY="${GATEWAY:-https://ipfs.enclave.host}"   # fetch source (adapter, with kubo fallback)
+# The adapter's own origin. The gateway sends CAR requests to kubo, so an object that
+# only the adapter holds (uploaded through its /add-wasm route) comes back as kubo's
+# 59-byte header-only CAR and this job could never pin it; the adapter serves the CAR.
+ADAPTER_ORIGIN="${ADAPTER_ORIGIN:-https://7ae476a3.app.enclave.host}"
 MAX_NEW_PINS="${MAX_NEW_PINS:-25}"
 ADAPTER_DEP="0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33"
 
@@ -227,6 +231,14 @@ for cid, label in rows:
 PY
 )
 
+# Fetch a CAR for $2 from origin $1 into $3 and import it pinned; success only when
+# dag import confirms the root itself arrived (an empty CAR confirms nothing).
+car_pin() {
+  curl -sf --max-time 300 -H "Accept: application/vnd.ipld.car" \
+       "$1/ipfs/$2?format=car&dag-scope=all" -o "$3" \
+    && ipfs $KUBO dag import --pin-roots=true "$3" 2>/dev/null | grep -q "$2"
+}
+
 total=0; already=0; pinned=0; failed=0; deferred=0
 while IFS=$'\t' read -r cid label; do
   [ -n "$cid" ] || continue
@@ -245,14 +257,15 @@ while IFS=$'\t' read -r cid label; do
   # a CID it lacks with a 59-byte header-only CAR, and the adapter's kubo
   # fallback can hand us exactly that. dag import only confirms a root it
   # actually received, so the grep below is the check that catches it.
-  if curl -sf --max-time 300 -H "Accept: application/vnd.ipld.car" \
-       "$GATEWAY/ipfs/$cid?format=car&dag-scope=all" -o "$tmp" \
-     && ipfs $KUBO dag import --pin-roots=true "$tmp" 2>/dev/null | grep -q "$cid"; then
+  if car_pin "$GATEWAY" "$cid" "$tmp"; then
     pinned=$((pinned + 1))
     echo "[pin-catalog] pinned $cid"
+  elif car_pin "$ADAPTER_ORIGIN" "$cid" "$tmp"; then
+    pinned=$((pinned + 1))
+    echo "[pin-catalog] pinned $cid (from the adapter's origin: the gateway's CAR was empty)"
   else
     failed=$((failed + 1))
-    echo "[pin-catalog] FAILED $cid  <- $label (gateway cannot serve it either)" >&2
+    echo "[pin-catalog] FAILED $cid  <- $label (neither the gateway nor the adapter can serve it)" >&2
   fi
   rm -f "$tmp"
   sleep 1
