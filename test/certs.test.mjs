@@ -539,9 +539,11 @@ test("every CA refusing the name = 502, then a backoff 202; every CA cooling = 2
   assert.equal(r.code, 202); assert.ok(r.body.retryAfterSec >= 1 && r.body.retryAfterSec <= 60);
   ca1.mode = "5xx"; ca2.mode = "5xx";
   r = await call(await body());
-  assert.equal(r.code, 502);                                // both cooled this round (no network proven)
+  // both failed AT THE CA this round: a retry after the cool-off, not a failure of the name (2026-10-14)
+  assert.equal(r.code, 202, JSON.stringify(r.body)); assert.ok(r.body.retryAfterSec >= 1 && r.body.retryAfterSec <= 15, JSON.stringify(r.body));
+  assert.equal(_internals.store().data.failures[NAME], undefined, "a CA-level failure is not counted against the name");
   r = await call(await body());
-  assert.equal(r.code, 202); assert.equal(r.body.retryAfterSec, 60, "the per-name backoff answers first");
+  assert.equal(r.code, 202, "every CA is still cooling");
   r = await call(await body({ name: "cdcdcdcdcdcd.app.enclave.host" }));   // a fresh name: every CA is cooling
   assert.equal(r.code, 202); assert.ok(r.body.retryAfterSec >= 1 && r.body.retryAfterSec <= 15, JSON.stringify(r.body));
   ca1.mode = "ok"; ca2.mode = "ok";
@@ -549,6 +551,18 @@ test("every CA refusing the name = 502, then a backoff 202; every CA cooling = 2
   delete _internals.store().data.failures[NAME];
   r = await call(await body());
   assert.equal(r.code, 200);
+});
+
+test("a CA failing at the CA while the other refuses the name: retried after the cool-off, the name not charged", async () => {
+  rows = [leaseRow()];
+  const name = "cdcdcdcdcdcdcd.app.enclave.host";      // a longer prefix of the same id: a fresh name
+  _internals.CAS[0].nonce = null;
+  ca1.mode = "5xx"; ca2.mode = "rateLimited";              // ZeroSSL broken, Let's Encrypt's weekly limit for the name spent
+  const r = await call(await body({ name }));
+  assert.equal(r.code, 202, JSON.stringify(r.body)); assert.ok(r.body.retryAfterSec >= 1 && r.body.retryAfterSec <= 15);
+  assert.equal(_internals.store().data.failures[name], undefined);
+  ca1.mode = "ok"; ca2.mode = "ok";
+  await new Promise((s) => setTimeout(s, 2200));          // the cool-off (2 s here) elapses for the tests after this one
 });
 
 test("a duplicate ask while the order is in flight rides the same order", async () => {

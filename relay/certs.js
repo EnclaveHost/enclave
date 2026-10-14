@@ -764,6 +764,13 @@ async function acmeIssue(name, csrDer, key, txtName) {
     const soonest = Math.min(...CAS.map((ca) => ca.downUntil > Date.now() ? ca.downUntil : Date.now() + 60_000));
     throw Object.assign(new Error("every CA is cooling off or paced"), { paced: true, retryAfterSec: Math.max(15, Math.ceil((soonest - Date.now()) / 1000)) });
   }
+  // A CA that failed AT THE CA (a 5xx, no nonce, a network error) says nothing about this name: when one did, the
+  // outcome is "try again once it has cooled off", not a failure of the name. Counting it made the name's backoff (and
+  // the asking node's) double towards an hour while the CA was broken for everyone (ZeroSSL's newNonce 502s with Let's
+  // Encrypt's per-name weekly limit spent, 2026-10-14: three k11-4 apps waited 30+ min after the CA was usable again).
+  if (cooledNow.length)
+    throw Object.assign(new Error(`${cooledNow.map((ca) => ca.name).join(", ")} failed at the CA (${lastErr?.message || "unknown"})`),
+      { paced: true, retryAfterSec: Math.ceil(CA_COOLDOWN_MS / 1000) });
   throw lastErr;
 }
 // ---------------------------------------------------------------------------
