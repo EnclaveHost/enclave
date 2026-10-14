@@ -1,12 +1,12 @@
 // Paid Enclave-network providers (docs/design/enclave-network.md, "Paid providers"). A community provider is a
 // registry host; it charges its on-chain price through the existing EnclaveConnectivity contract:
-//   - the app's owner authorizes it on chain (authorizeTuna: these exact providers, an aggregate price cap, a budget
+//   - the app's owner authorizes it on chain (authorizeProviders: these exact providers, an aggregate price cap, a budget
 //     and an expiry, signed by the owner), and this provider admits an app's peers only while that authorization
 //     names it at its current price and the budget is not spent (paidGate);
 //   - it meters each paid peer itself, from the kernel's per-peer WireGuard counters, durably and per on-chain policy
 //     nonce (PeerMeter);
 //   - it co-signs the host's cumulative receipt only up to what it observed (ProviderReceiptSigner, unchanged), and the
-//     host submits settleTuna, which charges the app's existing USDC balance (ledger.chargeBandwidth).
+//     host submits settleProvider, which charges the app's existing USDC balance (ledger.chargeBandwidth).
 // A free provider (price 0) uses none of this.
 import fs from 'node:fs/promises';
 import {providerContext,ProviderReceiptSigner} from '../provider-settlement.mjs';

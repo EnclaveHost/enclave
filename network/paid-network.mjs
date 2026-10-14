@@ -1,12 +1,12 @@
 // Paid Enclave-network providers, the host's side (docs/design/enclave-network.md, "Paid providers"; the provider's
 // side is wg-provider/paid.mjs). A provider with a price is a community provider: a registry host whose price, and the
-// app owner's authorization of it, live in the existing EnclaveConnectivity contract (authorizeTuna: these exact
+// app owner's authorization of it, live in the EnclaveConnectivity contract (authorizeProviders: these exact
 // providers, an aggregate price cap, a budget, an expiry; signed by the owner). Here:
 //   - paidEligible: a priced provider is usable for an app only while that on-chain authorization names it at exactly
 //     its price and the budget is not spent; free providers always are;
 //   - PaidNetwork.meter: the app bytes through each paid hop, accumulated durably per (app, provider, on-chain policy
 //     nonce), are authorized with the existing settlement (ProviderUSDCSettlement.authorizeDebit), which settles receipts
-//     co-signed by the provider (settleTuna charges the app's USDC balance); a circuit whose debit is refused (budget
+//     co-signed by the provider (settleProvider charges the app's USDC balance); a circuit whose debit is refused (budget
 //     spent, authorization revoked or changed) is reported so the manager closes it - no unpaid traffic continues.
 import path from 'node:path';
 import fs from 'node:fs/promises';

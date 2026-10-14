@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Independent direct-host qualification, with the exact same acceptance list
-// required of TUNA providers. Never consumes host-supplied pass/fail booleans.
+// required of Enclave-network providers. Never consumes host-supplied pass/fail booleans.
 import fs from 'node:fs/promises';import path from 'node:path';
 import {createPublicClient,createWalletClient,http,parseAbi,keccak256,stringToHex,encodeAbiParameters} from 'viem';
 import {privateKeyToAccount} from 'viem/accounts';import {base} from 'viem/chains';

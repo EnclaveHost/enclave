@@ -55,7 +55,7 @@ export async function renderEnclaveNetwork(box,id,{viaVault=false,owner=null}={}
   const live=route&&route.expiresAt>Date.now()?route:null;
   const lines=[];
   lines.push(`<b>${esc(MODE_TEXT[policy.mode].title)}</b>${status.policySet?` <span class="en-sub">owner setting #${policy.nonce}</span>`:` <span class="en-sub">default</span>`}`);
-  const website=use.ingress==="none"?"off (no public website)":live?`ready — ${esc(live.addresses?.join(", ")||live.a||"")}${live.transport==="enclave-network"?" (Enclave network)":live.transport==="direct"?" (direct)":" (TUNA, being retired)"}`:"not reachable yet";
+  const website=use.ingress==="none"?"off (no public website)":live?`ready — ${esc(live.addresses?.join(", ")||live.a||"")}${live.transport==="enclave-network"?" (Enclave network)":live.transport==="direct"?" (direct)":" (legacy route)"}`:"not reachable yet";
   lines.push(`<span class="en-sub">Website (public HTTPS): ${website}</span>`);
   if(host){
     lines.push(`<span class="en-sub">Outbound: ${host.egress==="none"?"off":esc(host.egress)}${host.fallbackActive?' <span class="warn">— your BYO tunnel is down; the fallback you authorized (Enclave network) is carrying it</span>':""}</span>`);
@@ -152,23 +152,23 @@ export async function renderEnclaveNetwork(box,id,{viaVault=false,owner=null}={}
   }
 }
 
-// ---- paid providers: the owner's on-chain authorization (EnclaveConnectivity.authorizeTuna) ----
+// ---- paid providers: the owner's on-chain authorization (EnclaveConnectivity.authorizeProviders) ----
 // A priced provider is used only for apps whose owner authorized exactly it, under a price cap and a budget, on chain;
 // the ledger then charges its traffic from the app's USDC balance once that balance is fully held in escrow.
-const SEL={addr:"3b3b57de",tunaPolicyDigest:"70b410fa",authorizeTuna:"dff2bdf4",backing:"23d9291e",fundEscrow:"f3920f30",approve:"095ea7b3"};
+const SEL={addr:"3b3b57de",providerPolicyDigest:"5c50050e",authorizeProviders:"2be89fe4",backing:"23d9291e",fundEscrow:"f3920f30",approve:"095ea7b3"};
 const word=h=>h.replace(/^0x/,"").padStart(64,"0");
 const call=async(to,data)=>baseRpc("eth_call",[{to,data},"latest"],{emptyRetry:true});
 async function connectivityAddress(){
   const out=await call(ADDRESS_BOOK_ADDRESS,"0x"+SEL.addr+word(hex(new TextEncoder().encode("connectivity")).slice(2).padEnd(64,"0")));
   const a="0x"+String(out).slice(-40);return /^0x0{40}$/.test(a)?null:a;
 }
-function tunaArgs({id,providers,expires,maxPricePerGiB6,budget6}){
+function providerArgs({id,providers,expires,maxPricePerGiB6,budget6}){
   return {head:[encBytes32(id),encUint(5*32),encUint(expires),encUint(maxPricePerGiB6),encUint(budget6)],arr:[encUint(providers.length),...providers.map(encBytes32)]};
 }
-export function tunaPolicyDigestCall(args){const {head,arr}=tunaArgs(args);return "0x"+SEL.tunaPolicyDigest+head.join("")+arr.join("");}
-export function authorizeTunaCall(args,signature){
-  const {head,arr}=tunaArgs(args),sig=String(signature).replace(/^0x/,"");
-  return "0x"+SEL.authorizeTuna+[head[0],encUint(6*32),head[2],head[3],head[4],encUint(6*32+arr.length*32)].join("")+arr.join("")+encUint(sig.length/2)+sig.padEnd(Math.ceil(sig.length/64)*64,"0");
+export function providerPolicyDigestCall(args){const {head,arr}=providerArgs(args);return "0x"+SEL.providerPolicyDigest+head.join("")+arr.join("");}
+export function authorizeProvidersCall(args,signature){
+  const {head,arr}=providerArgs(args),sig=String(signature).replace(/^0x/,"");
+  return "0x"+SEL.authorizeProviders+[head[0],encUint(6*32),head[2],head[3],head[4],encUint(6*32+arr.length*32)].join("")+arr.join("")+encUint(sig.length/2)+sig.padEnd(Math.ceil(sig.length/64)*64,"0");
 }
 export async function renderPaidProviders(box,id,{viaVault=false,owner=null,policy,providers}){
   const paid=(providers||[]).filter(p=>p.kind==="community"&&Number(p.pricePerGiB6)>0);
@@ -196,7 +196,7 @@ export async function renderPaidProviders(box,id,{viaVault=false,owner=null,poli
       const args={id,providers:chosen.map(c=>c.value),expires:Math.floor(Date.now()/1000)+days*86400,maxPricePerGiB6:cap,budget6:budget};
       if(viaVault){
         out.textContent="Confirm with your passkey.";
-        const q={id,mode:"tuna",providers:args.providers,expires:String(args.expires),maxPricePerGiB6:String(cap),budget6:String(budget)};
+        const q={id,mode:"providers",providers:args.providers,expires:String(args.expires),maxPricePerGiB6:String(cap),budget6:String(budget)};
         const prep=await Enclave.vaultPrepare({op:"network",...q});
         if(prep.id!==id||JSON.stringify(prep.providers)!==JSON.stringify(q.providers)||prep.address?.toLowerCase()!==conn.toLowerCase())throw new Error("The prepared authorization does not match what you chose.");
         const b64u=b=>btoa(String.fromCharCode(...b)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
@@ -205,9 +205,9 @@ export async function renderPaidProviders(box,id,{viaVault=false,owner=null,poli
         await Enclave.vaultExec({op:"network",args:q,assertion:{credId:asr.id,authenticatorData:asr.response.authenticatorData,clientDataJSON:asr.response.clientDataJSON,signature:asr.response.signature}});
       }else{
         await ensureBaseChain();
-        const digest=await call(conn,tunaPolicyDigestCall(args));
+        const digest=await call(conn,providerPolicyDigestCall(args));
         out.textContent="Sign the authorization in your wallet.";
-        const data=authorizeTunaCall(args,await personalSignBytes(digest));
+        const data=authorizeProvidersCall(args,await personalSignBytes(digest));
         out.textContent="Send the authorization transaction.";
         await waitReceipt(await sendTx(conn,data));
       }
