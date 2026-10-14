@@ -47,3 +47,16 @@ Tests: `go test -race ./egress ./front` from `isolation/m2`, plus
 `EGRESS_EYESOFF_WASM` pointing to the actual runtime and eyesoff-ai component.
 It reads public pages with HTTP pooling enabled and confirms HTTP port 80 is
 refused; it performs no inference and uses no production credentials.
+
+## Browser networking
+
+`"egress":"public-web"` opts into DNS plus HTTP (80) and HTTPS (443) for
+socket-based browsers. A measured TCP DNS stub on loopback answers only public
+A/AAAA records, and init provides `ENCLAVE_EGRESS` for the app's SOCKS client.
+The standard libc resolver uses TCP as configured in `/etc/resolv.conf`.
+SOCKS accepts public IP literals as well as names in this mode. The host
+rechecks all answers and its own addresses before connecting to a judged IP;
+private destinations, other ports, BIND, and UDP remain unavailable.
+HTTP is unencrypted by definition; HTTPS remains end-to-end. TUNA transport
+retains its existing route and never falls back to direct host traffic.
+The existing `public-https` mode retains its narrower behavior.
