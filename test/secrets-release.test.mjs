@@ -742,3 +742,37 @@ test("timedStep (enclave-87's slow-step line): a fast step logs NOTHING and retu
   await assert.rejects(R.timedStep("release", id, "the prediction", async () => { throw new Error("boom"); }, log), /boom/);
   assert.deepEqual(lines, [], "nothing logged for fast steps (the slow case is test/relay-rpc-bounded.test.mjs, against the real relay)");
 });
+
+// ---- custody (docs/security/secret-custody.md): a custody-held deployment's release carries the pointer, never a value ----
+test("custody: the sealed release carries the custody pointer and NO secrets, even with a relay copy present; an unconfirmed state keeps the ticket", async () => {
+  rows = [leaseRow(A)]; ineligible = false; chips = [S.chip.toString("hex")];
+  const pointer = { chainId: 8453, vault: "0x" + "5e".repeat(20), policyRev: "3", secretRev: "2", epoch: 1, threshold: 3,
+                    members: [{ encKey: "11".repeat(32), endpoint: "https://custodian-0.example" }], c0: "02" + "c0".repeat(32), ciphertext: "AAAA" };
+  let fail = false;
+  ctx.custodyStateFor = async (id) => { if (fail) throw new Error("RPCs disagree about the vault"); return id === A ? pointer : null; };
+  try {
+    const t = await ticketFor(A), g = guest({ id: A, ticket: t.body.ticket });
+    const r = await release(A, t.body.ticket, g);
+    assert.equal(r.code, 200, JSON.stringify(r.body));
+    const p = opened(A, t.body.ticket, g, r);
+    assert.deepEqual(p.secrets, {}, "the relay's own copy (synthetic-a-key) is never released for a custody-held deployment");
+    assert.deepEqual(p.custody, pointer);
+    assert.deepEqual(p.config, { endpoint: "$IMAGE_ENDPOINT", n: 1 }, "the public config still comes from the relay");
+    // a cleared custody bundle: no pointer, and still no relay copy
+    ctx.custodyStateFor = async () => ({ cleared: true });
+    const t2 = await ticketFor(A), g2 = guest({ id: A, ticket: t2.body.ticket });
+    const p2 = opened(A, t2.body.ticket, g2, await release(A, t2.body.ticket, g2));
+    assert.deepEqual(p2.secrets, {}); assert.equal(p2.custody, undefined);
+    // the vault cannot be confirmed: 503 and the ticket kept, then the retry releases
+    ctx.custodyStateFor = async (id) => { if (fail) throw new Error("RPCs disagree about the vault"); return id === A ? pointer : null; };
+    fail = true;
+    const t3 = await ticketFor(A), g3 = guest({ id: A, ticket: t3.body.ticket });
+    const r3 = await release(A, t3.body.ticket, g3);
+    assert.equal(r3.code, 503); assert.equal(r3.body.error, "custody_unconfirmed");
+    assert.ok(R._internals.tickets.has(t3.body.ticket), "the ticket is kept");
+    fail = false;
+    const r4 = await release(A, t3.body.ticket, g3);
+    assert.equal(r4.code, 200, JSON.stringify(r4.body));
+    assert.deepEqual(opened(A, t3.body.ticket, g3, r4).custody, pointer);
+  } finally { delete ctx.custodyStateFor; }
+});

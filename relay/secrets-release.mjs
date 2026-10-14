@@ -552,6 +552,19 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
     if (Number.isInteger(e.code)) { if (e.code !== 503) tickets.delete(tk); bad(e.code, e.error, e.message); return true; }   // a 503 keeps the ticket
     tickets.delete(tk); bad(422, "bad_config", `${source || "The config"} is not a JSON object or array (${e.message}).`); return true;
   }
+  // custody (docs/security/secret-custody.md): a deployment whose owner moved its secrets to custodians gets NO value from
+  // here, ever, and never a relay-held copy as a fallback; its release carries a pointer to its custody state instead,
+  // from which the guest obtains the values from a threshold of custodians itself. Read BEFORE the ticket is consumed: an
+  // unconfirmed chain read is the relay's own 503 and keeps the ticket.
+  let custody = null;
+  if (typeof ctx.custodyStateFor === "function") {
+    try { custody = await ctx.custodyStateFor(id); }
+    catch (e) {
+      const why = String((e && e.message) || e).split("\n")[0].slice(0, 200);
+      console.warn(`[secrets-release] ${id}: custody state unconfirmed (ticket kept): ${why}`);
+      bad(503, "custody_unconfirmed", `The deployment's custody state could not be confirmed (${why}); retry shortly.`); return true;
+    }
+  }
   // the AMD collateral the evidence will need, fetched BEFORE the ticket is consumed (enclave-d1): a KDS or CRL outage is the
   // relay's own 503 and keeps the ticket, instead of a verifier "rejected" that would burn it. It judges nothing.
   // Only for a report that names a chip the ticket was issued for (enclave-d1): a 503 keeps the ticket, so otherwise one ticket
@@ -606,7 +619,9 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
     : !t.chips.includes(f.chipId.toString("hex")) ? "the report is not from a chip the lease holder attested with"
     : null;
   if (why) { console.warn(`[secrets-release] ${id}: REFUSED: ${why}`); bad(403, "evidence_refused", why); return true; }
-  const plaintext = JSON.stringify({ id, envelopeSha256: sha256(Buffer.from(envelope)).toString("hex"), config, secrets: envOf(id) || {},
+  const plaintext = JSON.stringify({ id, envelopeSha256: sha256(Buffer.from(envelope)).toString("hex"), config,
+                                     secrets: custody ? {} : envOf(id) || {},
+                                     ...(custody && !custody.cleared ? { custody } : {}),
                                      issuedAt: new Date().toISOString() });
   let sealed;
   try { sealed = sealRelease({ id, ticket, sealKey, plaintext }); }

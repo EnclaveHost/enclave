@@ -87,7 +87,7 @@ func render(ss []site) string {
 }
 
 // the packages this binary links from this module that could touch a report or a socket
-var linked = []string{".", "../egress", "../release", "../appconfig", "../vsock", "../domtls"}
+var linked = []string{".", "../egress", "../release", "../appconfig", "../vsock", "../domtls", "../custody"}
 
 func TestEveryReportPathIsAKnownOne(t *testing.T) {
 	got := sites(t, linked, func(n ast.Node) string {
@@ -111,6 +111,9 @@ func TestEveryReportPathIsAKnownOne(t *testing.T) {
 		return ""
 	})
 	want := strings.Join([]string{
+		// custody: report_data = the CUSTODY binding (domain "enclave-custody-release-v1\n", distinct from Bind/Bind2 and
+		// from the relay release's) || the AppID from the loaded code; sent to custodians only, never served
+		"front/custody.go provisioner.custodySecrets: p.report",
 		"front/main.go front.attest: f.askMonitor",   // M3: the monitor writes the app half; the front sends Bind/Bind2
 		"front/main.go front.attest: f.plane.report", // M4b: the SVSM computes the binding; the front sends a nonce
 		"front/main.go front.attest: f.report",       // M2: Bind/Bind2 over the verifier's nonce, served

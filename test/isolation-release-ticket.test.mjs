@@ -341,3 +341,38 @@ test("CID config claim uses attested delivery only for a listed isolated release
     assert.match(ordinary.cidClaims[0], /cannot fetch/);
   } finally { await relay.close(); }
 });
+
+// ---- custody (docs/security/secret-custody.md): the operator authorizes the binding the guest computed, nothing else ----
+
+test("custody: the binding guestd reports is signed by this endpoint's operator over custody/protocol.mjs's exact message", async () => {
+  const { operatorMessage } = await import("../custody/protocol.mjs");
+  const relay = await fakeRelay();
+  const vault = "0x" + "5e".repeat(20), binding = "b1".repeat(32);
+  try {
+    const want = { status: "starting", awaitingCustodyAuth: binding };
+    const r = await pump(relay, { script: [awaiting, starting, want, want, want, { status: "running" }] }, { CUSTODY_VAULT: vault, CUSTODY_CHAIN_ID: "8453" });
+    assert.equal(r.result, "running");
+    const posts = r.posts.filter((p) => p.path.endsWith("/custody-auth"));
+    assert.equal(posts.length, 1, "one authorization per binding, however long guestd keeps showing it");
+    const a = posts[0].custody;
+    assert.equal(a.binding, binding);
+    assert.equal(a.endpoint, "https://iso0.example");
+    assert.ok(a.expiry > Date.now() / 1000 && a.expiry <= Date.now() / 1000 + 600);
+    const msg = operatorMessage({ chainId: 8453, vault, id: ID, endpoint: "https://iso0.example", binding: Buffer.from(binding, "hex"), expiry: a.expiry });
+    assert.equal(await recoverMessageAddress({ message: msg, signature: a.sig }), operator);
+    assert.ok(r.logs.some((l) => /custody release authorized for guest gd01020304/.test(l)));
+  } finally { relay.close(); }
+});
+
+test("custody: without CUSTODY_VAULT, or for a malformed binding, nothing is signed", async () => {
+  const relay = await fakeRelay();
+  try {
+    const want = { status: "starting", awaitingCustodyAuth: "b1".repeat(32) };
+    const r = await pump(relay, { script: [want, want, { status: "running" }] });
+    assert.equal(r.posts.filter((p) => p.path.endsWith("/custody-auth")).length, 0);
+    assert.ok(r.logs.some((l) => /CUSTODY_VAULT is not set/.test(l)));
+    const bad = { status: "starting", awaitingCustodyAuth: "B1".repeat(32) };
+    const r2 = await pump(relay, { script: [bad, bad, { status: "running" }] }, { CUSTODY_VAULT: "0x" + "5e".repeat(20) });
+    assert.equal(r2.posts.filter((p) => p.path.endsWith("/custody-auth")).length, 0);
+  } finally { relay.close(); }
+});

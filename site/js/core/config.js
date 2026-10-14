@@ -113,6 +113,10 @@ export let FEATURED_ADDRESS    = "";                            // EnclaveFeatur
 export let REVIEWS_ADDRESS     = "";                            // EnclaveReviews (1-5 star ratings + comments); resolved from the address book only - "" = the store shows no ratings at all
 export let HOST_REVIEWS_ADDRESS = "";                           // EnclaveHostReviews (1-5 star ratings for the ENCLAVES that run apps); book-resolved only - "" = the fleet panel shows no ratings
 export let PAYMENT_ROUTER_ADDRESS = "";                         // PaymentRouter (order checkout, USDC -> treasury); resolved from the address book only - "" = card-only checkout
+export let SECRET_VAULT_ADDRESS = "";                           // EnclaveSecretVault (secret custody, docs/security/secret-custody.md); book key "secretVault" only - "" = no custody option in the Secrets panel
+// the custodian committee new custody policies seal to (a bytes32 committee id in EnclaveSecretVault); "" until one exists.
+// An owner's existing policy keeps its own committee whatever this says.
+export const CUSTODY_COMMITTEE = "";
 export const APP_CATALOG_CHAIN   = 8453;                        // Base mainnet (kept in sync by the deploy script; 84532 = Base Sepolia)
 
 /* apply an address-book map ({appCatalog, deployments}) onto the live
@@ -137,6 +141,9 @@ export function __applyAddresses(map){
   }
   if (map && ok(map.hostReviews) && map.hostReviews.toLowerCase() !== HOST_REVIEWS_ADDRESS.toLowerCase()){
     HOST_REVIEWS_ADDRESS = map.hostReviews; changed.push("HOST_REVIEWS_ADDRESS");
+  }
+  if (map && ok(map.secretVault) && map.secretVault.toLowerCase() !== SECRET_VAULT_ADDRESS.toLowerCase()){
+    SECRET_VAULT_ADDRESS = map.secretVault; changed.push("SECRET_VAULT_ADDRESS");
   }
   if (map && ok(map.paymentRouter) && map.paymentRouter.toLowerCase() !== PAYMENT_ROUTER_ADDRESS.toLowerCase()){
     PAYMENT_ROUTER_ADDRESS = map.paymentRouter; changed.push("PAYMENT_ROUTER_ADDRESS");

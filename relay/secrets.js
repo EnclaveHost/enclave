@@ -202,6 +202,12 @@ async function ownerGate(ctx, req, res, id, b, message) {
 }
 
 const recOf = (id) => store.data.byId[id] || null;
+// whether custodians hold this deployment's secrets (relay/custody-state.mjs): true / false, or null when it could not be
+// confirmed (the caller answers 503). A relay without CUSTODY_VAULT has no custody: false.
+async function custodyHeldOf(ctx, id) {
+  if (typeof ctx.custodyHeld !== "function") return false;
+  try { return (await ctx.custodyHeld(id)) === true; } catch { return null; }
+}
 export const hasStagedSecrets = (id) => !!recOf(String(id).toLowerCase());
 const namesOf = (env) => Object.keys(env).sort();
 
@@ -249,6 +255,17 @@ export async function handleSecrets(req, res, u, ctx) {
     return bad(ctx, res, req, 405, "method_not_allowed", "Secrets endpoints are POST-only (signatures never belong in URLs).");
   let raw; try { raw = await ctx.readBody(req, 32768); } catch (e) { return bad(ctx, res, req, 413, "too_large", e.message); }
   let b; try { b = JSON.parse(raw.toString() || "{}"); } catch { return bad(ctx, res, req, 400, "bad_json", "Body must be JSON."); }
+
+  // custody-held deployments: Shield (not a TEE against its operator) and the pVM (no attestation revocation check, no
+  // custody client) have no path custodians accept, so they get nothing here either: refused, never a relay-held copy
+  if (u.pathname === "/v1/secrets/shield-release" || u.pathname === "/v1/secrets/pvm-release") {
+    const rid = String(b.id || "").toLowerCase();
+    if (/^0x[0-9a-f]{64}$/.test(rid)) {
+      const held = await custodyHeldOf(ctx, rid);
+      if (held === null) return bad(ctx, res, req, 503, "custody_unconfirmed", "Retry shortly.");
+      if (held) return bad(ctx, res, req, 409, "custody_held", "This deployment's secrets are held by custodians, and this platform has no attestation path they accept.");
+    }
+  }
 
   if (u.pathname === "/v1/secrets/shield-release") {
     if (!rlRelease(ctx.clientIp(req))) return bad(ctx,res,req,429,"rate_limited","Too many release requests.");
@@ -382,6 +399,13 @@ export async function handleSecrets(req, res, u, ctx) {
         return bad(ctx, res, req, 403, "not_promoted", why);
       }
     }
+    // custody: never a plaintext copy for a deployment whose secrets custodians hold, however old the copy here
+    const held = await custodyHeldOf(ctx, id);
+    if (held === null) return bad(ctx, res, req, 503, "custody_unconfirmed", "Whether this deployment's secrets are custody-held could not be confirmed; retry shortly.");
+    if (held) {
+      console.error(`[secrets] ${endpoint} fetch REFUSED for ${id}: its secrets are custody-held (only an attested release guest gets them)`);
+      return bad(ctx, res, req, 409, "custody_held", "This deployment's secrets are held by custodians; only an attested release guest can receive them.");
+    }
     const { rev, env } = readSecrets(id);
     // SUCCESS is logged too, and that is the point of this pair rather than a
     // nicety. A launch that comes up without its secrets looks identical from
@@ -412,7 +436,9 @@ export async function handleSecrets(req, res, u, ctx) {
       return bad(ctx, res, req, 429, "rate_limited", "Too many probes; retry shortly.");
     const id = String(b.id || "").toLowerCase();
     if (!/^0x[0-9a-f]{64}$/.test(id)) return bad(ctx, res, req, 422, "bad_id", "id must be a bytes32 deployment id.");
-    return ctx.json(res, 200, { id, exists: !!recOf(id) }, req);
+    const held = await custodyHeldOf(ctx, id);
+    if (held === null) return bad(ctx, res, req, 503, "custody_unconfirmed", "Retry shortly.");
+    return ctx.json(res, 200, { id, exists: !!recOf(id) || held, ...(held ? { custody: true } : {}) }, req);
   }
 
   const m = u.pathname.match(/^\/v1\/secrets\/(0x[0-9a-fA-F]{64})(\/get)?$/);
@@ -432,6 +458,12 @@ export async function handleSecrets(req, res, u, ctx) {
     return bad(ctx, res, req, 422, "bad_payload", "payload must be a JSON *string* of {set?, del?, clear?} (it is hashed byte-exact into the signed message), under 24576 bytes.");
   const gate = await ownerGate(ctx, req, res, id, b, putMessage(id, parseInt(b.expiry, 10), payload));
   if (!gate) return;
+  // custody (docs/security/secret-custody.md): once the owner has moved this deployment's secrets to custodians, the
+  // relay stores no value for it. The one write still accepted is a CLEAR, which deletes a copy left from before the move.
+  const held = await custodyHeldOf(ctx, id);
+  if (held === null) return bad(ctx, res, req, 503, "custody_unconfirmed", "Whether this deployment's secrets are custody-held could not be confirmed; retry shortly.");
+  if (held && payload.replace(/\s/g, "") !== '{"clear":true}')
+    return bad(ctx, res, req, 409, "custody_held", "This deployment's secrets are held by custodians (EnclaveSecretVault): set them there; the relay only accepts {\"clear\":true} to delete its old copy.");
   let out;
   try { out = applyPut(id, payload); }
   catch (e) { return bad(ctx, res, req, 422, "bad_secrets", e.message); }

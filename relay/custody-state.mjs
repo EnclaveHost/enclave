@@ -1,0 +1,90 @@
+// The relay's view of EnclaveSecretVault (docs/security/secret-custody.md): for a deployment whose owner moved its
+// secrets to custodians, the relay holds NO value and can decrypt nothing. It still answers two questions, from the chain:
+//   - custodyStateFor(id): the deployment's custody POINTER for its attested release (secrets-release.mjs puts it in the
+//     sealed, signed release; the guest fetches the values from the custodians itself), or null for no custody policy;
+//   - custodyHeld(id): whether the relay must refuse to store or serve a plaintext copy for it (secrets.js).
+// Reads go through >= minAgree RPCs that must agree at one block (the relay's confirmRow rule), so one RPC cannot make
+// the relay serve a stale plaintext copy or point a guest at the wrong committee. custody/chain.mjs is the same reader
+// for custodians; test/custody-relay.test.mjs pins the two equal. Self-contained (viem only): the relay ships relay/ files.
+//
+// Config: CUSTODY_VAULT (address; unset = custody off, every path behaves as before) and the RPC list the release
+// already uses (SECRETS_RELEASE_CATALOG_RPCS, two or more).
+import { createPublicClient, http } from "viem";
+
+const ABI = [
+  { type: "function", name: "policyOf", stateMutability: "view", inputs: [{ name: "id", type: "bytes32" }],
+    outputs: [{ name: "owner", type: "address" }, { name: "policyRev", type: "uint64" }, { name: "secretRev", type: "uint64" }, { name: "committeeId", type: "bytes32" }, { name: "paused", type: "bool" }, { name: "rules", type: "bytes" }] },
+  { type: "function", name: "bundleOf", stateMutability: "view", inputs: [{ name: "id", type: "bytes32" }],
+    outputs: [{ name: "secretRev", type: "uint64" }, { name: "epoch", type: "uint32" }, { name: "ciphertext", type: "bytes" }] },
+  { type: "function", name: "sharesOf", stateMutability: "view", inputs: [{ name: "id", type: "bytes32" }, { name: "secretRev", type: "uint64" }, { name: "epoch", type: "uint32" }],
+    outputs: [{ name: "complete", type: "bool" }, { name: "source", type: "uint256" }, { name: "commitments", type: "bytes" }, { name: "sealedShares", type: "bytes[]" }] },
+  { type: "function", name: "epochOf", stateMutability: "view", inputs: [{ name: "cid", type: "bytes32" }, { name: "epoch", type: "uint32" }],
+    outputs: [{ name: "threshold", type: "uint8" }, { name: "activatedAt", type: "uint64" },
+              { name: "members", type: "tuple[]", components: [{ name: "operator", type: "address" }, { name: "encKey", type: "bytes32" }, { name: "endpoint", type: "string" }] }] },
+];
+
+export function custodyConfig(env = process.env) {
+  const vault = String(env.CUSTODY_VAULT || "").trim().toLowerCase();
+  const chainId = parseInt(env.CUSTODY_CHAIN_ID || "8453", 10);
+  const rpcs = String(env.CUSTODY_RPCS || env.SECRETS_RELEASE_CATALOG_RPCS || "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (!vault) return { on: false };
+  if (!/^0x[0-9a-f]{40}$/.test(vault)) return { on: false, error: "CUSTODY_VAULT is not an address" };
+  const minAgree = parseInt(env.CUSTODY_MIN_AGREE || "2", 10);
+  if (rpcs.length < minAgree || minAgree < 1) return { on: false, error: `custody needs ${minAgree} or more RPCs (CUSTODY_RPCS or SECRETS_RELEASE_CATALOG_RPCS)` };
+  const maxAgeSec = parseInt(env.CUSTODY_MAX_AGE_SEC || "120", 10);
+  return { on: true, vault, chainId, rpcs, minAgree, maxAgeSec };
+}
+
+export function createCustodyReader({ vault, chainId, rpcs = [], minAgree = 2, clients = null, ttlMs = 15_000, now = () => Date.now(), maxAgeSec = 120 }) {
+  const cs = clients || rpcs.map((url) => createPublicClient({ transport: http(url, { timeout: 8000, retryCount: 1 }) }));
+  const cache = new Map();   // id -> { at, value } for custodyHeld only (the release always reads fresh)
+  async function readAt(c, id, blockNumber) {
+    const rd = (functionName, args) => c.readContract({ address: vault, abi: ABI, functionName, args, blockNumber });
+    const [[owner, policyRev, secretRev, committeeId, paused], [, epoch, ciphertext]] = await Promise.all([rd("policyOf", [id]), rd("bundleOf", [id])]);
+    if (policyRev === 0n) return { policyRev: "0" };
+    const out = { policyRev: String(policyRev), secretRev: String(secretRev), committeeId, paused, epoch, owner: owner.toLowerCase(), hasBundle: ciphertext !== "0x" };
+    if (!out.hasBundle || epoch === 0) return out;
+    const [[complete, , commitments], [threshold, , members]] = await Promise.all([rd("sharesOf", [id, secretRev, epoch]), rd("epochOf", [committeeId, epoch])]);
+    return { ...out, complete, threshold, c0: commitments.slice(2, 2 + 66), ciphertext,
+             members: members.map((m) => ({ encKey: m.encKey.slice(2).toLowerCase(), endpoint: m.endpoint })) };
+  }
+  async function read(id) {
+    const heads = await Promise.allSettled(cs.map((c) => c.getBlockNumber({ cacheTime: 0 })));
+    const ok = heads.filter((h) => h.status === "fulfilled").map((h) => h.value);
+    if (ok.length < minAgree) throw Object.assign(new Error(`only ${ok.length} RPCs answered`), { code: "custody_unconfirmed" });
+    // the HIGHEST head, never the lowest: a lagging RPC drops out instead of dragging the others back (custody/chain.mjs)
+    const at = ok.reduce((a, x) => (x > a ? x : a));
+    const got = (await Promise.allSettled(cs.map((c) => readAt(c, id, at)))).filter((r) => r.status === "fulfilled").map((r) => r.value);
+    if (got.length < minAgree) throw Object.assign(new Error(`only ${got.length} RPCs could read the vault at block ${at}`), { code: "custody_unconfirmed" });
+    const d0 = JSON.stringify(got[0]);
+    if (got.some((g) => JSON.stringify(g) !== d0)) throw Object.assign(new Error("RPCs disagree about the vault"), { code: "custody_unconfirmed" });
+    if (maxAgeSec != null) {
+      const blk = await cs[0].getBlock({ blockNumber: at }).catch(() => null);
+      if (!blk || Number(blk.timestamp) < Math.floor(now() / 1000) - maxAgeSec)
+        throw Object.assign(new Error(`the agreed block ${at} is older than ${maxAgeSec} s, or unreadable`), { code: "custody_unconfirmed" });
+    }
+    return got[0];
+  }
+  return {
+    // the pointer for the attested release; null = no custody policy; { cleared: true } = a policy with no bundle
+    async custodyStateFor(id) {
+      const s = await read(id);
+      if (s.policyRev === "0") return null;
+      if (!s.hasBundle) return { cleared: true };
+      if (!s.complete) throw Object.assign(new Error("the bundle's share set is incomplete"), { code: "custody_incomplete" });
+      return { chainId, vault, policyRev: s.policyRev, secretRev: s.secretRev, epoch: s.epoch, threshold: s.threshold, members: s.members,
+               c0: s.c0, ciphertext: Buffer.from(s.ciphertext.slice(2), "hex").toString("base64") };
+    },
+    // whether a custody policy exists. Only a YES is cached: custody is monotonic (a policy revision never returns to 0),
+    // so a cached yes stays true, while a cached NO could let the legacy fetch serve the old plaintext copy in the seconds
+    // after the owner moved the deployment. A no is always read fresh.
+    async custodyHeld(id) {
+      const c = cache.get(id);
+      if (c && now() - c.at < ttlMs) return true;
+      const s = await read(id);
+      const value = s.policyRev !== "0";
+      if (value) cache.set(id, { at: now() });
+      return value;
+    },
+  };
+}
