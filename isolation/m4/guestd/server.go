@@ -151,6 +151,9 @@ type vm struct {
 	releases                                             []string             // the release(s) of the tree that built it (treeReleases), as recorded
 	awaitingTicket                                       bool                 // its guest is connected and waiting for the ticket
 	ticketTaken                                          bool                 // its guest took its one ticket: no second is handed
+	custodyPending                                       string               // the binding its guest waits to have authorized (custody.go)
+	custodyAuth                                          chan custodyAuthMsg
+	custodyServed                                        int
 }
 
 type server struct {
@@ -271,6 +274,9 @@ func (v *vm) public() map[string]any {
 	if v.awaitingTicket {
 		m["awaitingTicket"] = true // its guest is booted and waiting: the supervisor fetches a ticket now (release.go)
 	}
+	if v.custodyPending != "" {
+		m["awaitingCustodyAuth"] = v.custodyPending // the binding the supervisor's operator key signs (custody.go)
+	}
 	if s := len(v.splices); s > 0 {
 		m["openSplices"] = s
 	}
@@ -337,6 +343,8 @@ func (s *server) route(w http.ResponseWriter, r *http.Request) {
 		s.prefetch(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/vms/lease":
 		s.lease(w, r)
+	case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/vms/") && strings.HasSuffix(r.URL.Path, "/custody-auth"):
+		s.postCustodyAuth(w, r, strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/vms/"), "/custody-auth"))
 	case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/vms/") && strings.HasSuffix(r.URL.Path, "/ticket"):
 		s.postTicket(w, r, strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/vms/"), "/ticket"))
 	case r.Method == http.MethodGet && r.URL.Path == "/vms":

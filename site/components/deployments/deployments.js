@@ -40,6 +40,7 @@ import { isolationOptions, withIsolationRequirements, hostMeetsTeeRequirements }
 import { placementMessage, pinnedHost, withPlacementPin } from "../../js/core/placement-options.js";
 import { resizeAfterStop } from "../../js/core/share-resize.js";
 import { depSnapshot } from "../../js/core/chain.js";
+import { custodyAvailable, custodyStatus, saveToCustody, rulesFromPredictionPreview } from "../../js/core/custody.js";
 import { BUCKETS, bucketOf, countBuckets } from "../../js/core/deploy-status.js";
 import { LastGood, listIdentity, failureReason, asOf } from "../../js/core/list-state.js";
 import { shareRates, minPctsOf, cpuFloorFor, cardServesApp, adoptServerSpec, leaseHostOf, moveTargetsFor, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf, hostChargeWaived, sharesLegalOn, liftSharesForLedger } from "../../js/core/pricing.js";
@@ -130,6 +131,7 @@ function secretsSection(id){
     +     '<textarea class="es-ta" id="esTa' + label + '" rows="5" spellcheck="false" autocomplete="off" placeholder="S3_ACCESS_KEY_ID=&quot;…&quot;&#10;S3_SECRET_ACCESS_KEY=&quot;…&quot;"></textarea>'
     +     '<span class="enc-sec-acts">'
     +       '<button class="btn btn-sm es-save" type="button" title="One wallet signature stores the textarea as this deployment’s complete secret set">Save</button>'
+    +       '<button class="btn btn-sm es-custody" type="button" hidden title="Encrypts the textarea IN THIS BROWSER to independent custodians and stores it on Base: the relay no longer holds or sees the values, and only this app, attested in hardware, can open them. One wallet transaction; replaces the whole set">Save to custody</button>'
     +     '</span>'
     +   '</div>'
     +   '<div class="term enc-sec-status" role="status" aria-live="polite"></div>'
@@ -2210,7 +2212,7 @@ class Deployments extends EnclaveElement {
     const row = box.closest(".enc-row") || box;
     const ta = box.querySelector(".es-ta"), toggle = row.querySelector(".es-toggle"),
           body_ = box.querySelector(".enc-sec-body"), save = box.querySelector(".es-save"),
-          st = box.querySelector(".enc-sec-status");
+          cust = box.querySelector(".es-custody"), st = box.querySelector(".enc-sec-status");
     if (!id || !ta || !toggle || !body_ || !save || !st) return;
     const paint = (cls, txt) => paintLine(st, cls, txt);
     // dotenv-style value quoting, both directions: the reveal renders every
@@ -2237,7 +2239,20 @@ class Deployments extends EnclaveElement {
       if (!r.ok) throw new Error(j.message || j.error || ("HTTP " + r.status));
       return j;
     };
-    let hadKeys = 0, armedClear = false;
+    let hadKeys = 0, armedClear = false, custodyHeld = false, admitted = null;
+    // the textarea as an env map (both Save paths); throws naming the first bad line
+    const parseSet = () => {
+      const set = {};
+      for (let line of ta.value.split("\n")) {
+        line = line.trim();
+        if (!line || line.startsWith("#")) continue;
+        const m = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(line);
+        if (!m) throw new Error('"' + (line.length > 40 ? line.slice(0, 37) + "…" : line) + '" is not KEY=value');
+        if (/^ENCLAVE_/i.test(m[1])) throw new Error(m[1] + ": the ENCLAVE_ prefix is reserved for platform variables");
+        set[m[1]] = unq(m[2]);
+      }
+      return set;
+    };
     // One control, two states. Unlock: sign the get, fill the editor, show the
     // body. Lock: wipe the values and collapse back to the bare bar (what's
     // stored is untouched; nothing is sent).
@@ -2255,6 +2270,28 @@ class Deployments extends EnclaveElement {
       toggle.disabled = true;
       box.dataset.busy = "1";   // pin repaints for the wallet wait - the body is still hidden (see _panelPinned)
       try {
+        // custody (docs/security/secret-custody.md): a custody-held set is readable by NOBODY here - not the relay,
+        // not this page - so there is nothing to reveal; the editor opens empty and saves a complete new set
+        custodyHeld = false;
+        if (custodyAvailable()) {
+          let cs = null;
+          try { cs = await custodyStatus(id); }
+          catch(e){ paint("dimln", "// the custody vault could not be read just now (" + (e.message || e) + ")"); }
+          if (cs) {
+            custodyHeld = true; hadKeys = 0;
+            ta.value = "";
+            save.hidden = true; cust.hidden = false;
+            body_.hidden = false;
+            toggle.dataset.open = "1";
+            toggle.setAttribute("aria-expanded", "true");
+            toggle.disabled = false;
+            ta.focus();
+            paint("ok", "[✓] custody-held · rev " + cs.secretRev + (cs.threshold ? " · " + cs.threshold + " of " + cs.custodians.length + " custodians" : "")
+              + (cs.paused ? " · PAUSED" : "") + " - the values are encrypted to the custodians and cannot be shown here; enter the complete set to replace it");
+            return;
+          }
+          save.hidden = false; cust.hidden = false;
+        }
         paint("info", "[*] one signature reveals this deployment’s stored secrets…");
         const expiry = Math.floor(Date.now() / 1000) + 300;
         const signature = await sign("enclave-secrets:get:" + id + ":" + expiry);
@@ -2282,17 +2319,8 @@ class Deployments extends EnclaveElement {
       } finally { delete box.dataset.busy; }   // on success the visible body takes over the pin
     });
     save.addEventListener("click", async () => {
-      const set = {};
-      try {
-        for (let line of ta.value.split("\n")) {
-          line = line.trim();
-          if (!line || line.startsWith("#")) continue;
-          const m = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(line);
-          if (!m) throw new Error('"' + (line.length > 40 ? line.slice(0, 37) + "…" : line) + '" is not KEY=value');
-          if (/^ENCLAVE_/i.test(m[1])) throw new Error(m[1] + ": the ENCLAVE_ prefix is reserved for platform variables");
-          set[m[1]] = unq(m[2]);
-        }
-      } catch(e){ return paint("warn", "[x] " + e.message); }
+      let set;
+      try { set = parseSet(); } catch(e){ return paint("warn", "[x] " + e.message); }
       if (!Object.keys(set).length && hadKeys && !armedClear) {
         armedClear = true; save.textContent = "Really clear all?";
         return paint("warn", "[!] the textarea is empty - Save again to remove all " + hadKeys + " stored secret" + (hadKeys === 1 ? "" : "s"));
@@ -2313,6 +2341,48 @@ class Deployments extends EnclaveElement {
         const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
         paint("warn", rejected ? "[x] rejected in wallet - nothing changed" : "[x] " + (e.message || String(e)));
       } finally { save.disabled = false; }
+    });
+    // Save to custody: encrypt in this browser, one wallet transaction to the vault; then, for a set the relay held,
+    // delete the relay's copy (only once the relay itself reports the deployment custody-held)
+    if (cust) cust.addEventListener("click", async () => {
+      let env;
+      try { env = parseSet(); } catch(e){ return paint("warn", "[x] " + e.message); }
+      if (!Object.keys(env).length) return paint("warn", "[x] custody stores a complete set: add KEY=value lines (to remove every value use: enclave custody set with a new set, or clear the policy with the CLI)");
+      cust.disabled = true; save.disabled = true;
+      try {
+        // a FIRST custody policy admits which code may receive the values: the relay's public prediction is SHOWN, and
+        // only a second click admits it (it decides who gets the secrets, so it is never taken silently)
+        if (!custodyHeld && !admitted) {
+          const pr = await fetch(Enclave.base + "/expected-guest?id=" + encodeURIComponent(id));
+          if (!pr.ok) throw new Error("no public prediction of this deployment's guest (set its rules with the CLI: enclave custody set --rules)");
+          const rules = await rulesFromPredictionPreview(await pr.json());
+          admitted = rules; cust.textContent = "Admit and save";
+          return paint("warn", "[!] the values will only be released to app " + rules.appId.slice(0, 16) + "… running in: "
+            + rules.images.map((im) => "measurement " + im.measurement.slice(0, 16) + "… / runtime " + im.runtimeId.slice(0, 12) + "…").join("; ")
+            + " - as the relay predicts them. Check them, then click Admit and save.");
+        }
+        if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
+        const r = await saveToCustody({ id, env, admittedRules: admitted, sendTx: (to, data) => walletSendTx(to, data), waitReceipt,
+                                        onStep: (m) => paint("info", "[*] " + m) });
+        admitted = null; cust.textContent = "Save to custody";
+        let note = "";
+        if (hadKeys) {
+          const ex = await call("/secrets/exists", { id }).catch(() => null);
+          if (ex && ex.custody === true) {
+            const payload = '{"clear":true}', expiry = Math.floor(Date.now() / 1000) + 300;
+            const signature = await sign("enclave-secrets:put:" + id + ":" + expiry + ":" + await sha256hex(payload));
+            await call("/secrets/" + id, { payload, expiry, signature });
+            note = " · the relay's old copy is deleted - rotate those credentials at their issuers: the relay could read them";
+          } else note = " · the relay still holds its old copy (it is not custody-aware yet); clear it later";
+        }
+        custodyHeld = true; hadKeys = 0; ta.value = ""; save.hidden = true;
+        paint("ok", "[✓] custody rev " + r.secretRev + " · " + r.threshold + " of " + r.custodians.length + " custodians" + note
+          + " - Restart applies it to the running app");
+        showToast("secrets moved to custody for " + id.slice(0, 10) + "…");
+      } catch(e){
+        const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
+        paint("warn", rejected ? "[x] rejected in wallet - nothing changed" : "[x] " + (e.message || String(e)));
+      } finally { cust.disabled = false; save.disabled = false; }
     });
   }
 

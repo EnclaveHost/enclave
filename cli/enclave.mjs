@@ -42,6 +42,7 @@ import { createPublicClient, createWalletClient, http as viemHttp, fallback,
          parseEther, formatUnits, encodeFunctionData, getAddress,
          keccak256, toHex } from "viem";
 import { base } from "viem/chains";
+import { cmdCustody } from "./custody.mjs";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 
 const VERSION = "1.6.0";
@@ -2916,6 +2917,25 @@ async function cmdSecrets(rest) {
   }
 }
 
+// ---- secret custody (cli/custody.mjs; docs/security/secret-custody.md): the CLI's own helpers, handed in ----------
+async function cmdCustodyHere(rest) {
+  return cmdCustody(rest, {
+    flags, loadKey, resolveId, say, jout, short, api, sendTx, secretsKv, env, json: !!opt.json, chainId: DEFAULTS.chainId,
+    warn: (m) => console.error(m),
+    readFile: (p) => fs.readFileSync(p, "utf8"),
+    pubEachClients: () => pubEach().map((x) => x.c),
+    vaultAddress: async () => {
+      if (env.ENCLAVE_SECRET_VAULT) return getAddress(env.ENCLAVE_SECRET_VAULT);
+      const book = env.ENCLAVE_ADDRESS_BOOK !== undefined ? env.ENCLAVE_ADDRESS_BOOK : DEFAULTS.ADDRESS_BOOK_ADDRESS;
+      const a = book ? await bookEntry(book, "secretVault") : null;
+      if (!a) throw new Error('no EnclaveSecretVault: the address book names no "secretVault" yet (set ENCLAVE_SECRET_VAULT to use one)');
+      return a;
+    },
+    relayRead: (id) => secretsCall(loadKey(), id, null),
+    relayClear: (id) => secretsCall(loadKey(), id, JSON.stringify({ clear: true })),
+  });
+}
+
 // ---- per-deployment options envelope: the owner's config/waf EDIT path --------
 // The envelope (create()'s configCid field: {"waf":{…},"config":{…}}) is
 // MUTABLE via EnclaveDeployments.setConfig - one owner tx rewrites it, and a
@@ -4437,7 +4457,7 @@ const COMMANDS = {
   resize: (rest) => cmdUpgrade(rest, { resize: true }),
   "rate-cap": cmdRateCap, cap: cmdRateCap,
   refund: cmdRefund, cancel: cmdRefund, transfer: cmdTransfer,
-  secrets: cmdSecrets, config: cmdConfig,
+  secrets: cmdSecrets, config: cmdConfig, custody: cmdCustodyHere,
   publish: cmdPublish, apps: cmdApps,
   pricing: cmdPricing, availability: cmdAvailability, gpu: cmdGpu, account: cmdAccount,
   encvol: cmdEncvol, host: cmdHost, session: cmdSession,

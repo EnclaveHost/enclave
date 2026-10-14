@@ -1,0 +1,13 @@
+{
+  "file": "site/vendor/custody.js",
+  "sha256": "a7d5c6df739f19a93fd3b0509a342c2f97f8763983982560020dbc4497055284",
+  "bytes": 308954,
+  "entry": "custody/browser.mjs",
+  "esbuild": "0.28.1",
+  "deps": {
+    "@noble/curves": "1.9.1",
+    "@noble/hashes": "1.8.0",
+    "@noble/ciphers": "1.3.0",
+    "viem": "2.53.1"
+  }
+}

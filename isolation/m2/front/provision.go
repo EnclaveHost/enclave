@@ -47,18 +47,22 @@ import (
 )
 
 type provisioner struct {
-	ticket    func() (net.Conn, error) // a stream to guestd's ticket service
-	egress    func() (net.Conn, error) // a stream to guestd's egress server
-	report    func(rd []byte) (rep, certs []byte, err error)
-	relayHost string
-	roots     *x509.CertPool
-	keys      []ed25519.PublicKey               // the relay's pinned release keys (release.PinnedRelayKeys)
-	etc       string                            // "/etc" in a guest
-	fwdPort   int                               // 443 in a guest
-	audit     func(want []netip.AddrPort) error // auditListeners("/proc/net", …) in a guest
-	window    time.Duration                     // retry a ticket-keeping refusal this long after the ticket arrived; 0 = release.ReleaseWindow
-	retry     time.Duration                     // between those retries; 0 = the client's 5 s
-	logf      func(string, ...any)
+	ticket func() (net.Conn, error) // a stream to guestd's ticket service
+	egress func() (net.Conn, error) // a stream to guestd's egress server
+	report func(rd []byte) (rep, certs []byte, err error)
+	// custody (custody.go): a stream to guestd's custody-authorization service, and whether this front derived its AppID
+	// from the loaded code (a custody release refuses an image where it did not)
+	custodyAuth func() (net.Conn, error)
+	appFromCode bool
+	relayHost   string
+	roots       *x509.CertPool
+	keys        []ed25519.PublicKey               // the relay's pinned release keys (release.PinnedRelayKeys)
+	etc         string                            // "/etc" in a guest
+	fwdPort     int                               // 443 in a guest
+	audit       func(want []netip.AddrPort) error // auditListeners("/proc/net", …) in a guest
+	window      time.Duration                     // retry a ticket-keeping refusal this long after the ticket arrived; 0 = release.ReleaseWindow
+	retry       time.Duration                     // between those retries; 0 = the client's 5 s
+	logf        func(string, ...any)
 }
 
 type provisioned struct {
@@ -137,17 +141,30 @@ func (p *provisioner) run(ctx context.Context, hostData, spki []byte, rt *runtim
 		return nil, fmt.Errorf("the relay's reply does not open under this guest's seal key: %w", err)
 	}
 
-	pol, err := egress.FromRelease(rel, relay)
-	if err != nil {
-		return nil, fmt.Errorf("the allowlist: %w", err)
-	}
 	text, err := rel.ConfigText()
 	if err != nil {
 		return nil, err
 	}
 	out := &provisioned{envelope: rel.EnvelopeTag()}
+	if rel.Custody != nil {
+		// the owner moved this deployment's secrets to custodians: the relay must not ALSO carry values, and the values
+		// come only from a threshold of custodians, released to this guest's attested key, and only into the config the
+		// owner committed (custody.go). They become the release's secrets BEFORE the allowlist is derived, so an origin
+		// named through a placeholder (${IMAGE_ENDPOINT}) is allowed exactly as for a relay-held value.
+		if len(rel.Secrets) != 0 {
+			return nil, errors.New("the release names a custody state AND carries relay-held secrets: refused")
+		}
+		if rel.Secrets, err = p.custodySecrets(ctx, rel.Custody, id, spki, rt, appSha, text); err != nil {
+			return nil, err
+		}
+	}
+	secrets := rel.Secrets
+	pol, err := egress.FromRelease(rel, relay)
+	if err != nil {
+		return nil, fmt.Errorf("the allowlist: %w", err)
+	}
 	if text != "" {
-		resolved, err := appconfig.Resolve(text, rel.Secrets)
+		resolved, err := appconfig.Resolve(text, secrets)
 		if err != nil {
 			return nil, fmt.Errorf("the config: %w", err)
 		}
@@ -161,6 +178,7 @@ func (p *provisioner) run(ctx context.Context, hostData, spki []byte, rt *runtim
 	// be zeroed, so they sit in this process's heap until reused: guest memory the host cannot read (SEV-SNP) and the
 	// tenant cannot reach (the runtime gives it no access to other processes).
 	rel.Secrets = nil
+	secrets = nil
 
 	out.fwd = &egress.Forwarder{Policy: pol, Port: p.fwdPort, Upstream: p.egress, Logf: domLogf(p.logf)}
 	if err := out.fwd.Start(ctx); err != nil {

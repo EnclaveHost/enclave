@@ -112,6 +112,7 @@ import { hostNames, hostNamesRouter } from "./host-names.mjs";
 import { dataDir, JsonStore, dataFile, rpcPool } from "./store.js";
 import { screenAddress } from "./ofac.js";
 import { expectedGuest, prepareGuestUpdate, prewarmReleasePredictions } from "./secrets-release.mjs";
+import { custodyConfig, createCustodyReader } from "./custody-state.mjs";
 import { expectedForRow, prepareForRow } from "./guest-prediction-row.mjs";
 import { boxOrigin, boxLabelOfHost } from "./boxhost.js";
 installProcessGuards("api-relay");
@@ -2457,7 +2458,17 @@ async function prewarmCollateral(doc) {
 // the RuntimeID of the runtime identity a guest states (isolation/contract/runtime.go: sha256 of its canonical JSON); it
 // is admitted only when it equals an admitted domain release's own
 const runtimeIdOf = (r) => Buffer.from(runtimeIdOfJson(JSON.stringify(r)), "hex");
+// secret custody (docs/security/secret-custody.md; relay/custody-state.mjs): with CUSTODY_VAULT set, a deployment whose owner
+// moved its secrets to custodians gets no value from this relay on any path. A CUSTODY_VAULT that is set but unusable
+// fails CLOSED: every custody question then answers 503, never "no custody" (which would serve an old plaintext copy).
+const CUSTODY_CFG = custodyConfig();
+const secretCustody = CUSTODY_CFG.on ? createCustodyReader(CUSTODY_CFG)
+  : CUSTODY_CFG.error ? { custodyStateFor: async () => { throw new Error(CUSTODY_CFG.error); }, custodyHeld: async () => { throw new Error(CUSTODY_CFG.error); } }
+  : null;
+if (CUSTODY_CFG.error) console.error(`[custody] CUSTODY_VAULT is set but unusable (${CUSTODY_CFG.error}): custody questions answer 503`);
+else if (CUSTODY_CFG.on) console.log(`[custody] vault ${CUSTODY_CFG.vault} on chain ${CUSTODY_CFG.chainId}, ${CUSTODY_CFG.rpcs.length} RPCs, ${CUSTODY_CFG.minAgree} must agree`);
 const relayCtx = { shieldSecretRelease, pvmSecretRelease, json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility, leaseHolderChipIds,
+                   ...(secretCustody ? { custodyStateFor: secretCustody.custodyStateFor, custodyHeld: secretCustody.custodyHeld } : {}),
                    // sessions: the owner wallet behind a SessionVault-held record, and the custody release gate
                    beneficialOwner, custodyRefusal, sessionAuth, screenAddress: (a) => screenAddressSafe(a),
                    isSessionVault: async (a) => !!(await (await custody()).vaultOwnerOf(a)),
