@@ -1012,10 +1012,9 @@ async function pollAvailability() {
   updatedAt = new Date().toISOString();
 }
 
-// Hosts publish each app's signed Enclave-network routes (relay/network-routes.mjs) at /v1/network/routes; the old
-// path /v1/network/tuna answers the same for hosts and the DNS service installed before the rename. The Base lease
+// Hosts publish each app's signed Enclave-network routes (relay/network-routes.mjs) at /v1/network/routes. The Base lease
 // still decides whose app each IP serves.
-const ROUTE_PATHS = new Set(["/v1/network/routes", "/v1/network/tuna"]);
+const ROUTE_PATHS = new Set(["/v1/network/routes"]);
 let networkRoutes;
 
 // Share-based routing — same rule as enclave-discover.mjs. Deployments buy two
@@ -2556,18 +2555,8 @@ async function registryOperator(id) {
 const networkApi = createNetworkApi({ checkers: (process.env.RELAY_NETWORK_CHECKERS || "").split(",").map(s => s.trim().toLowerCase()).filter(s => /^0x[0-9a-f]{40}$/.test(s)),
   addressBook: ADDRESS_BOOK || undefined, JsonStore, file: dataFile(dataDir(), "network.json"), clients: async () => [await rpcPool()], log: m => console.log("[network] " + m) });
 relayCtx.hostOperator = id => registryOperator(id);
-// The routes' durable state: ROUTE_STATE_DIR (TUNA_ROUTE_STATE_DIR is its pre-2026-10-14 name, used as given), else the
-// default; a box still holding the pre-rename default directory has it moved once so no published route is lost.
-function routeStateDir() {
-  const named = (process.env.ROUTE_STATE_DIR || process.env.TUNA_ROUTE_STATE_DIR || "").trim();
-  if (named) return named;
-  const dir = "/var/lib/enclave-relay/route-state", old = "/var/lib/enclave-relay/tuna-route-state";
-  if (!fs.existsSync(dir) && fs.existsSync(old)) {
-    try { fs.renameSync(old, dir); console.log(`[network-routes] state moved ${old} -> ${dir}`); }
-    catch (e) { console.warn(`[network-routes] state stays at ${old}: ${e.message}`); return old; }
-  }
-  return dir;
-}
+// The routes' durable state: ROUTE_STATE_DIR, else the default.
+const routeStateDir = () => (process.env.ROUTE_STATE_DIR || "").trim() || "/var/lib/enclave-relay/route-state";
 networkRoutes = createNetworkRoutes({
   network: networkApi,
   operatorOf: endpoint => relayCtx.operatorOfEndpoint(endpoint), endpointId,

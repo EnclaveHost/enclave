@@ -1,6 +1,5 @@
 // Authenticated, expiring per-app routes on the Enclave network (docs/design/enclave-network.md). This is DNS/control
-// metadata; application bytes never pass through this service. The relay serves it at /v1/network/routes (and at the
-// pre-rename path /v1/network/tuna, which hosts and the DNS service installed before 2026-10-14 still use).
+// metadata; application bytes never pass through this service. The relay serves it at /v1/network/routes.
 //
 // Only signed v2 publications carrying the owner's current v5 network policy are accepted. Everything from the TUNA
 // era is refused: v1 host allocation publications, and route policies v2 (guarded TUNA), v3 (on-chain direct) and

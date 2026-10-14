@@ -5,8 +5,7 @@
 //
 // IP_ZONE, APP_ZONE and NS_NAME are required. Optional TCP_ZONE preserves its
 // authority and DNS-01 records. BOX_ZONE and BOX_A/BOX_AAAA serve control names.
-// ROUTE_MAP_URL defaults to https://api.enclave.host/v1/network/routes; TUNA_MAP_URL and
-// RELAY_MAP_URL are read when it is unset (installs from before the 2026-10-14 rename).
+// ROUTE_MAP_URL defaults to https://api.enclave.host/v1/network/routes.
 // NET_POLL_SEC controls refresh (default 15). DNS_PORT defaults to 53,
 // DNS_API_PORT to 8153; DNS_API_BIND restricts the challenge API listener.
 // DNS_BIND is a comma-separated IP list; unset preserves the dual-stack wildcard.
@@ -147,8 +146,7 @@ const BOX_AAAA = process.env.BOX_AAAA ? ipv6Bytes(process.env.BOX_AAAA.trim()) :
 // each record's signed expiry; queries never revive an expired address.
 let deployments = [];
 
-const ROUTE_MAP_URL = (process.env.ROUTE_MAP_URL || process.env.TUNA_MAP_URL || process.env.RELAY_MAP_URL
-  || "https://api.enclave.host/v1/network/routes").trim();
+const ROUTE_MAP_URL = (process.env.ROUTE_MAP_URL || "https://api.enclave.host/v1/network/routes").trim();
 const ROUTE_TTL = 15;
 let appRoutes = new Map();   // label -> { a: Buffer|null, aaaa: Buffer|null, relay: string }
 const SHRINK_CONFIRM_MS = Number(process.env.ROUTE_SHRINK_CONFIRM_MS || 12_000);

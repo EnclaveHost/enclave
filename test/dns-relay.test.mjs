@@ -31,8 +31,8 @@ let proc, dnsPort, apiPort;
 // address that relay answers on. "chosen4" took a v4-only relay, "chosen6" a
 // v6-only one; every other label in the zone made no choice at all.
 const RELAY_MAP = { labels: {
-  chosen4: { expiresAt: Date.now() + 120000, transport: "tuna", a: "198.51.100.9", addresses: ["198.51.100.9", "198.51.100.10"] },
-  chosen6: { expiresAt: Date.now() + 120000, transport: "tuna", aaaa: "2001:db8:beef::9" },
+  chosen4: { expiresAt: Date.now() + 120000, transport: "enclave-network", a: "198.51.100.9", addresses: ["198.51.100.9", "198.51.100.10"] },
+  chosen6: { expiresAt: Date.now() + 120000, transport: "enclave-network", aaaa: "2001:db8:beef::9" },
 } };
 let mapServer, mapPort;
 
@@ -54,7 +54,7 @@ async function boot() {
     env: { ...process.env, IP_ZONE, APP_ZONE, NS_NAME: "ns1.test", ENCLAVES: "https://example.invalid",
            DNS_PORT: String(dnsPort), DNS_API_PORT: String(apiPort), DNS_API_BIND: "127.0.0.1",
            DNS_TXT_KEY: KEY, APP_A: "203.0.113.7", APP_AAAA: "2001:db8::7",
-           RELAY_MAP_URL: `http://127.0.0.1:${mapPort}/v1/relays` },
+           ROUTE_MAP_URL: `http://127.0.0.1:${mapPort}/v1/relays` },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let log = "";

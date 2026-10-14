@@ -178,9 +178,9 @@ containers:
       - MIN_COMPUTE_PCT: "1"
       - VRAM_GRANULARITY_GB: "1"
       - CTX_OVERHEAD_GB: "0.5"
-      # TUNA egress uses a host-side SOCKS entry; configure its reachable origin
+      # App egress uses a host-side SOCKS entry (an Enclave-network circuit); configure its reachable origin
       # only after installing and funding that host adapter (network/README.md).
-      # - TUNA_SOCKS_UPSTREAM: "socks5://HOST_GATEWAY:30489"
+      # - EGRESS_SOCKS_UPSTREAM: "socks5://HOST_GATEWAY:30489"
       - EGRESS_SOCKS_PORT: "1080"
       # manual-billing / pilot: boot deployments without an on-chain payment.
       # AUTO_PROVISION="1" provisions EVERY deploy for free (use only for a closed

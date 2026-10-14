@@ -3947,8 +3947,7 @@ const netMap = () => [...deployments.values()]
   .filter(r => r.public && r.status === "running" && (fwTcpPorts(r).length || fwUdpPorts(r).length))
   .map(r => ({id: r.id, tcp: fwTcpPorts(r), udp: fwUdpPorts(r)}));
 // The host's SOCKS5 egress upstream (an Enclave-network circuit's SOCKS entry); unset = no app egress.
-// TUNA_SOCKS_UPSTREAM is its pre-2026-10-14 name, read when the new one is unset.
-const EGRESS_SOCKS_UPSTREAM = (process.env.EGRESS_SOCKS_UPSTREAM || process.env.TUNA_SOCKS_UPSTREAM || "").trim();
+const EGRESS_SOCKS_UPSTREAM = (process.env.EGRESS_SOCKS_UPSTREAM || "").trim();
 const EGRESS_SOCKS_PORT = Number(process.env.EGRESS_SOCKS_PORT || 1080);
 
 const egress = EGRESS_SOCKS_UPSTREAM
