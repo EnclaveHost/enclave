@@ -134,6 +134,8 @@ func main() {
 	reportUnix := flag.String("report-unix", "", "ask the monitor on this unix socket for reports (M3)")
 	upstream := flag.String("upstream", "127.0.0.1:8080", "the app on the guest loopback")
 	appShaPath := flag.String("app-sha", "/app.sha256", "hex sha256 of the app, written at build time")
+	appWasmPath := flag.String("app-wasm", "/app.wasm", "the component init runs: when present, the AppID is derived from it (appidentity.go)")
+	appBundlePath := flag.String("app-bundle", "/app.bundle", "the contract bundle /app.wasm was extracted from, when the image carries one")
 	snp := flag.Bool("snp", false, "this domain is an SEV-SNP guest: serve hardware reports")
 	boundaryPath := flag.String("boundary", "", "a file holding the boundary self-test this domain relays (M4b); "+
 		"written by init after it probes for VMPCK absence, because the front cannot probe for it itself")
@@ -148,11 +150,25 @@ func main() {
 	initFD := flag.Int("init-fd", 0, "a pipe from init (M2): after provisioning, the front writes N (no config) or C+config there, and init starts the app only then (provision.go)")
 	flag.Parse()
 
-	raw, err := os.ReadFile(*appShaPath)
-	must(err)
-	appSha, err := hex.DecodeString(strings.TrimSpace(string(raw)))
-	if err != nil || len(appSha) != 32 {
-		die("app sha256 in %s is not 32 bytes of hex", *appShaPath)
+	// The AppID: derived from the code init will run whenever this image holds it (M2/M4a), so report_data[32:64] names
+	// what runs, never just what a file says; otherwise (M3/M4b, where the monitor or the SVSM writes that half from the
+	// code IT loaded) the build's statement, used only for this front's own records.
+	var appSha []byte
+	appFromCode := false
+	if _, err := os.Stat(*appWasmPath); err == nil {
+		id, how, err := loadedAppID(*appBundlePath, *appWasmPath, *appShaPath)
+		if err != nil {
+			die("app identity: %v", err)
+		}
+		appSha, appFromCode = id, true
+		fmt.Printf("DOM app id %x (%s)\n", id, how)
+	} else {
+		raw, err := os.ReadFile(*appShaPath)
+		must(err)
+		appSha, err = hex.DecodeString(strings.TrimSpace(string(raw)))
+		if err != nil || len(appSha) != 32 {
+			die("app sha256 in %s is not 32 bytes of hex", *appShaPath)
+		}
 	}
 	// Before anything is served: the runtime identity, checked against this domain. A fault here is
 	// fatal on purpose - a domain that cannot substantiate what compiles its app attests nothing.
@@ -258,10 +274,12 @@ func main() {
 				return "", err
 			}
 			p := &provisioner{
-				ticket:    func() (net.Conn, error) { return vsock.Dial(vsock.CIDHost, release.TicketPort) },
-				egress:    func() (net.Conn, error) { return vsock.Dial(vsock.CIDHost, EgressPort) },
-				report:    f.report,
-				relayHost: release.RelayHost, roots: roots, keys: keys,
+				ticket:      func() (net.Conn, error) { return vsock.Dial(vsock.CIDHost, release.TicketPort) },
+				egress:      func() (net.Conn, error) { return vsock.Dial(vsock.CIDHost, EgressPort) },
+				report:      f.report,
+				custodyAuth: func() (net.Conn, error) { return vsock.Dial(vsock.CIDHost, release.CustodyAuthPort) },
+				appFromCode: appFromCode,
+				relayHost:   release.RelayHost, roots: roots, keys: keys,
 				etc: "/etc", fwdPort: 443,
 				audit: func(want []netip.AddrPort) error { return auditListeners("/proc/net", want) },
 				logf:  func(format string, a ...any) { fmt.Printf(format+"\n", a...) },
