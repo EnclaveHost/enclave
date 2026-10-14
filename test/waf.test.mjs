@@ -235,12 +235,12 @@ test("a bare CID in the field is still retired, even now that the namespace exis
   assert.match(r.err, /deployment-options JSON envelope/);
 });
 
-test("the network transport name (enclave-network, or tuna from older envelopes) and historical relay metadata do not configure relays", async () => {
-  for (const network of [{transport:"tuna"}, {transport:"enclave-network"}, {relay:"us-west"}, {relay:""}, {relay:null}]) {
+test("the network transport enclave-network and historical relay metadata do not configure relays; the retired tuna value is refused", async () => {
+  for (const network of [{transport:"enclave-network"}, {relay:"us-west"}, {relay:""}, {relay:null}]) {
     const [result] = await parse(JSON.stringify({network}));
     assert.deepEqual(result, {ok:{}});
   }
-  for (const network of [{transport:"relay"}, {relay:"5.78.85.108"}, {relay:"UPPER"}, {relay:"-leading"}, {relay:"has space"}, {relay:"a".repeat(64)}, {relay:"semi;colon"}])
+  for (const network of [{transport:"tuna"}, {transport:"relay"}, {relay:"5.78.85.108"}, {relay:"UPPER"}, {relay:"-leading"}, {relay:"has space"}, {relay:"a".repeat(64)}, {relay:"semi;colon"}])
     assert.ok((await parse(JSON.stringify({network})))[0].err);
 });
 

@@ -14,9 +14,9 @@ const deps = {policy,readCatalog:async()=>({app:{active:true},version}),readConf
 test('TUNA and historical network metadata preserve the measured app identity',async()=>{
  const expected=await expectedShieldApp(row,deps);
  const withNetwork=network=>({...row,configCid:JSON.stringify({...JSON.parse(row.configCid),network})});
- for(const network of [{transport:'tuna'},{transport:'enclave-network'},{relay:'us-west'},{transport:'tuna',relay:'us-west'}])
+ for(const network of [{transport:'enclave-network'},{relay:'us-west'},{transport:'enclave-network',relay:'us-west'}])
   assert.deepEqual(await expectedShieldApp(withNetwork(network),deps),expected);
- for(const network of [{transport:'legacy'},{transport:null},{relay:'https://untrusted.example'},{provider:'arbitrary'}])
+ for(const network of [{transport:'tuna'},{transport:'legacy'},{transport:null},{relay:'https://untrusted.example'},{provider:'arbitrary'}])
   await assert.rejects(expectedShieldApp(withNetwork(network),deps));
 });
 test('relay derives CPU and GPU app identities from catalog bytes and purchased GPU share',async()=>{

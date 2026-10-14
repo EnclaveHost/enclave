@@ -198,13 +198,12 @@ export async function runPrivacy(configFile){
       const tasks=[];
       // Publishing to Nan's DNS mirror moves an app off the shared route for good
       // (the mirror remembers it), so it is opted into per app, never all at once.
-      // (/v1/network/routes; a relay that predates the 2026-10-14 rename has it only at /v1/network/tuna.)
       if(cfg.mirror&&apps.find(a=>a.deploymentId===id)?.publishToMirror===true)tasks.push((async()=>{
         let error;for(const publishFetch of paths){try{
           const post=path=>publishFetch(new URL(path,cfg.mirror),{method:'POST',signal:AbortSignal.timeout(5000),headers:{'content-type':'application/json'},
             body:JSON.stringify({publication:{version:2,endpoint:cfg.endpoint,policy:value.policy,bundle:value.bundle,
               status:agent.manager.status().find(x=>x.deploymentId===id)}})});
-          let response=await post('/v1/network/routes');if(response.status===404)response=await post('/v1/network/tuna');
+          const response=await post('/v1/network/routes');
           if(!response.ok)throw new Error('DNS mirror HTTP '+response.status);return;
         }catch(e){error=e;}}throw error;
       })());

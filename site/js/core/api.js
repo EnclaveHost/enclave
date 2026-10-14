@@ -272,13 +272,9 @@ export const Enclave = {
       return r.json();
     }).then(j => (j && j.enclaves) || []);
   },
-  // The relay's expiring per-app routes (deployment -> provider addresses). A relay from before the 2026-10-14 rename
-  // serves them only at /v1/network/tuna.
+  // The relay's expiring per-app routes (deployment -> provider addresses).
   async getNetworkRoutes(){
-    const base = (this.base || "").replace(/\/v1\/?$/, "");
-    const get = path => fetch(base + path, {headers: {Accept: "application/json"}});
-    let r = await get("/v1/network/routes");
-    if (r.status === 404) r = await get("/v1/network/tuna");
+    const r = await fetch((this.base || "").replace(/\/v1\/?$/, "") + "/v1/network/routes", {headers: {Accept: "application/json"}});
     if (!r.ok) throw new EnclaveError("network: HTTP " + r.status, r.status);
     return r.json();
   },

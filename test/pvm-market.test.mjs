@@ -129,7 +129,8 @@ test("per app: a deployment a pVM does not serve is never asked for evidence", {
   const y = setup({ catalog: { yanked: true } });
   assert.match((await y.m.certificate(y.row, y.ledger.d)).reason, /yanked/);
   // the pure rule, for the host agent's twin: the CPU hosts' options are served (the host agent applies them)
-  assert.equal(pvmOptionsRefusal({ active: true, isPublic: true, gpuMilli: 0, configCid: '{"network":{"transport":"tuna"},"isolation":{"require":"avf-pvm-per-app"}}' }), null);
+  assert.equal(pvmOptionsRefusal({ active: true, isPublic: true, gpuMilli: 0, configCid: '{"network":{"transport":"enclave-network"},"isolation":{"require":"avf-pvm-per-app"}}' }), null);
+  assert.match(pvmOptionsRefusal({ active: true, isPublic: true, gpuMilli: 0, configCid: '{"network":{"transport":"tuna"}}' }), /network options/);
   assert.equal(pvmOptionsRefusal({ active: true, isPublic: true, gpuMilli: 0, configCid: '{"config":{"a":"$SECRET"},"waf":{"rps":5}}' }), null);
   assert.equal(pvmOptionsRefusal({ active: true, isPublic: true, gpuMilli: 0, configCid: '{"configCid":"bafkreigdyrztxyzxyzxyzxyz"}' }), null);
   assert.equal(pvmOptionsRefusal({ active: true, isPublic: true, gpuMilli: 250, configCid: '{"gpu":{"optional":true}}' }), null, "the owner's gpu.optional");
