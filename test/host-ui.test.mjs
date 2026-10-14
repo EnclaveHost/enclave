@@ -40,7 +40,9 @@ test("the panel's sentences: the switch line, the rows, the notes, the questions
   const phone = T.hostingView(fake("phone").view());
   assert.equal(T.limitsRow(phone, 0.5, 0, false).text, "CPU & RAM 50%");
   assert.match(T.statusText(v), /^Node: reachable \u00B7 backend hv \u00B7 2 deployments served$/);
-  assert.match(T.statusText({ ...v, gasLow: true, gasHoursLeft: 5.4 }), /\nOperator gas is LOW \(about 5 hours left\): send a little ETH on Base to 0x389c/);
+  assert.equal(T.gasText(v), "", "gas not low: nothing said");
+  assert.match(T.gasText({ ...v, gasLow: true, gasHoursLeft: 5.4 }), /^Operator gas is LOW \(about 5 hours left\): send a little ETH on Base to 0x389c.* or apps stop renewing and go away$/);
+  assert.doesNotMatch(T.statusText({ ...v, gasLow: true }), /gas/, "the gas warning is its own (amber) line, not the muted status");
   assert.equal(T.cpuLines(v, 0.2, true).note, "Below what is in use: Apply asks before it drops running deployments (newest first) until use fits.");
   assert.equal(T.cpuLines(v, 0.9, false).note, "New claims stop at 75%: the node keeps 25% for itself.");
   assert.equal(T.cpuLines(phone, 1, false).note, "", "a phone keeps no reserve");
@@ -280,9 +282,17 @@ test("a node that can't be reached, or is being updated, is said as such and the
     await p.page.evaluate(() => window.EnclaveHostPanel.refresh());
     await p.page.waitForFunction(() => document.getElementById("status").textContent === "Updating to 2026.10.13.32: installing. Hosting stops for a few minutes and resumes on its own.");
     p.node.state.unreachable = false; p.node.state.update = null;
+    // the operator's gas running out: its own line, in amber, naming the operator (a8 2026-10-13: not in muted ink)
+    p.node.state.gas = { operator: "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0", low: true, hoursLeft: 12, renewalsLeft: 300 };
     await p.page.evaluate(() => window.EnclaveHostPanel.refresh());
     await p.page.waitForFunction(() => document.getElementById("status").textContent.startsWith("Node: reachable"));
     assert.equal(await p.page.isDisabled("#switch"), false);
+    assert.equal(await p.text("#gas"), "Operator gas is LOW (about 12 hours left): send a little ETH on Base to 0x1A01194c34Fe3577C6d0a54feB78af6253e494e0 or apps stop renewing and go away");
+    assert.equal(await p.page.$eval("#gas", (e) => getComputedStyle(e).color), "rgb(255, 145, 77)", "amber (DESIGN.md --amber #FF914D)");
+    p.node.state.unreachable = "the node is not answering";
+    await p.page.evaluate(() => window.EnclaveHostPanel.refresh());
+    await p.page.waitForFunction(() => /^Node: not reachable/.test(document.getElementById("status").textContent));
+    assert.equal(await p.page.isVisible("#gas"), false, "no gas line while the node can't be asked");
     assert.deepEqual(p.errors, []);
   } finally { await p.close(); }
 });
