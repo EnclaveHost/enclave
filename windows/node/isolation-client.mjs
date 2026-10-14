@@ -240,6 +240,10 @@ export class IsolationManagerClient {
       // ...and the state its VM was surveyed in (Hyper-V's word: "Off", "Running", "Saved", ...), for a recovered one: an
       // Off VM runs nothing, which is what lets the node replace it after a host restart (host.mjs, reboot recovery)
       vmState: typeof o.vmState === "string" ? o.vmState : null,
+      // when the manager started it (ms since the epoch) and its VM's name: diagnostics only, for the node's line about a
+      // domain that vanished (host.mjs #vanishedEvidence)
+      startedAt: Number.isFinite(o.startedAt) ? o.startedAt : null,
+      vmName: typeof o.vmName === "string" ? o.vmName : null,
       // a recovered VM that names no deployment: see findByName
       unattributed: o.unattributed === true,
       reason: o.reason ?? null,
