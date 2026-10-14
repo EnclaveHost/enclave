@@ -5,7 +5,7 @@
 // certificates, secrets, egress, the SNI router) and the attach co-signer run in THIS process, against the phone's own
 // files and processes (pvm-device-local.mjs); the Enclave network (network/privacy-agent.mjs, pvm mode, enclave-wg per
 // circuit) runs as one child, started once there is an app to carry, and each served app is enrolled in it here (the
-// Enclave-network half of tuna-enroll.mjs: an app's expectation, no wallets).
+// same expectation network-enroll.mjs writes, no wallets).
 //
 // What it keeps, all in the app's private files (files/agent/):
 //   setup.json      the owner's choices, written by the app's setup screens: { name?, vmName?, payoutTo?, priceCpuPerSec6? }.
@@ -100,7 +100,7 @@ export function networkConfig({ build, host, apps, files, lib, bundleDir, codeHa
  * Enroll the apps the host agent serves (state/host-state.json) into the network's app list: each serving app with its
  * certificate gets its expectation (appRef and configCid as the ledger has them, the attested component's SHA-256, the
  * pinned runtime) and its platform name. Returns the new list and whether anything changed. Nothing is removed: a lease
- * that ends ends its admission (tuna-enroll.mjs).
+ * that ends ends its admission (as in network-enroll.mjs).
  */
 export function enrollApps({ hostState, apps, appsDir, runtimeId, log = () => {} }) {
   const served = [...Object.values((hostState && hostState.slots) || {}), hostState && hostState.current].filter(Boolean);
