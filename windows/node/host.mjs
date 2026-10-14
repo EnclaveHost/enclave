@@ -1770,7 +1770,17 @@ export class Host {
       // scan ran before the resume and stamped "refused" on an app that was seconds from serving -
       // visible to the tenant and to the console, and a lie either way. Caught by curling the app
       // during a restart and finding it marked refused while the lease was live.
-      if (ours && live) continue;
+      // ...UNLESS this box no longer tracks it: a give-up whose release never reached the chain (2026-10-14 14:30:46,
+      // 0x7ae476a3: the node gave it up, the host restart came before the release transaction) leaves a lease held here
+      // with no record, and the tick resumes only what it tracks, so it sat unserved until the lease lapsed. Tracking it
+      // again hands it back to the tick, which resumes it as any lease this box holds.
+      if (ours && live) {
+        if (!this.tracked.has(id)) {
+          this.tracked.add(id); this.#saveTracked();
+          this.log(`${id.slice(0, 10)}: this box holds its lease on chain but no longer tracked it; resuming it`);
+        }
+        continue;
+      }
       if (!ours && live && !/^0x0+$/.test(String(d.runner || ""))) continue;   // somebody else is running it
       if (!ours && (claimed >= 1 || declined >= Host.SCAN_DECLINED_PER_PASS)) continue;
       const holdKey = this.scanHoldKey(d, ov);

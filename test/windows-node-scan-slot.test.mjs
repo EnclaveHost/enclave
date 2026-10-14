@@ -273,3 +273,15 @@ test("the failed-claim count restarts after a good claim, and the hold is exactl
   await h.scanLedger();
   assert.deepEqual(asked.slice(5), [F], "F was not asked again once its 2-minute hold ran out");
 });
+
+test("a lease this box holds on chain but no longer tracks (a give-up whose release never landed) is tracked again, not claimed", async () => {
+  const HELD = id("7a");
+  const h = await nucbox();
+  rpc.rows.current = [row(HELD, { runner: h.enclaveId.toLowerCase(), leaseUntil: BigInt(Math.floor(Date.now() / 1000) + 600) })];
+  const asked = scripted(h, {});
+  assert.equal(h.tracked.has(HELD), false);
+  await h.scanLedger();
+  assert.equal(h.tracked.has(HELD), true, "handed back to the tick, which resumes what this box holds");
+  assert.deepEqual(asked, [], "not a claim: the lease is already this box's");
+  assert.ok(h.logs.some((l) => /no longer tracked it; resuming it/.test(l)), h.logs.join("\n"));
+});
