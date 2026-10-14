@@ -79,6 +79,19 @@ async function fakeBox(t, availability) {
   return `http://127.0.0.1:${srv.address().port}`;
 }
 
+// A box that answers the control plane too (the enclave supervisor does): /v1/pricing says who it is.
+async function controlBox(t, availability, who) {
+  const srv = http.createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    if (req.url === "/availability") return res.end(JSON.stringify(availability));
+    if (req.url.startsWith("/v1/pricing")) return res.end(JSON.stringify({ servedBy: who }));
+    res.statusCode = 404; res.end("{}");
+  });
+  srv.listen(0, "127.0.0.1"); await once(srv, "listening");
+  t.after(() => srv.close());
+  return `http://127.0.0.1:${srv.address().port}`;
+}
+
 async function startRelay(t, endpoints) {
   const rpc = stubRpc(); await listenOnFreePort(rpc);
   // The relay must prove it won the port before /health means anything: every
@@ -239,6 +252,29 @@ test("only a partial box serving: the aggregate reports ITS capabilities and ITS
   const { status: cpStatus, body: cp } = await getJson(origin, "/v1/pricing");
   assert.equal(cpStatus, 503, "no full-service box is serving, so there is nowhere to ask");
   assert.equal(cp.error, "no_serving_enclave");
+});
+
+// ---------- 3b. the supervisor's isolation tier IS a control plane ----------
+// metal0 since 2026-10-13: the enclave supervisor running per-app isolation says fullService:false
+// (it sells a subset) but serves /v1/auth, /v1/pricing and /v1/version like every supervisor. With
+// it the only box serving, refusing it made sign-in and pricing a platform-wide 503 for a day.
+const ISO_SUPERVISOR = { ...PARTIAL, isolation: "snp-guest-per-app" };
+test("only the supervisor's isolation tier serving: the control plane lands on it, not a 503", async (t) => {
+  const origin = await startRelay(t, [await controlBox(t, ISO_SUPERVISOR, "iso-supervisor")]);
+  const { status, body } = await getJson(origin, "/v1/pricing");
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.equal(body.servedBy, "iso-supervisor");
+});
+
+test("a full-service box still wins over the isolation tier; other partial boxes never get the control plane", async (t) => {
+  const both = await startRelay(t, [await controlBox(t, ISO_SUPERVISOR, "iso-supervisor"), await controlBox(t, FULL, "full")]);
+  assert.equal((await getJson(both, "/v1/pricing")).body.servedBy, "full", "the fallback is only for when no full-service box serves");
+  // a phone's pVM tier and a box that is silent about claiming are partial sellers, not control planes
+  for (const box of [{ ...PARTIAL, isolation: "avf-pvm-per-app" }, { ...ISO_SUPERVISOR, claimEnabled: undefined }]) {
+    const origin = await startRelay(t, [await controlBox(t, box, "partial")]);
+    const { status, body } = await getJson(origin, "/v1/pricing");
+    assert.equal(status, 503, JSON.stringify(box)); assert.equal(body.error, "no_serving_enclave");
+  }
 });
 
 // ---------- 4. regression: silence is not a zero-byte ceiling ----------------
