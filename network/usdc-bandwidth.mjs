@@ -22,8 +22,8 @@ export function receiptDigest({chainId,connectivity,ledger,receipt,anchorHash}) 
 export function meterKey(id,hostId,nonce){return keccak256(encodeAbiParameters([{type:'bytes32'},{type:'bytes32'},{type:'uint64'}],[id,hostId,BigInt(nonce)]));}
 // Provider credit is explicit and bounded. Zero waits for settlement before
 // admitting each charge; a positive cap batches settlement off the packet path.
-// Outstanding credit can be lost on owner revocation/lease loss, just as unpaid
-// native TUNA traffic can be lost. It is never a second customer balance.
+// Outstanding credit can be lost on owner revocation/lease loss (a provider
+// accepts that risk up to its cap). It is never a second customer balance.
 export class USDCBandwidthSettlement {
  constructor({directory,transactionDirectory,leaseReader,proofAccount,wallet,client,maxPending6,intervalMs=10000,now=Date.now,log=()=>{}}){
   if(!/^(0|[1-9]\d{0,11})$/.test(maxPending6||'')||intervalMs<1000||intervalMs>20000)throw Error('explicit bounded provider credit required');
@@ -32,7 +32,7 @@ export class USDCBandwidthSettlement {
  }
  context(id,nonce,price){
   const lease=this.leaseReader.get(id),c=lease?.connectivity;
-  if(!lease?.active||!c?.direct||c.viaTuna||String(c.nonce)!==String(nonce)||Number(c.expires)*1000<=this.now()||
+  if(!lease?.active||!c?.direct||c.viaProviders||String(c.nonce)!==String(nonce)||Number(c.expires)*1000<=this.now()||
    c.owner.toLowerCase()!==lease.owner.toLowerCase()||lease.runnerProofKey?.toLowerCase()!==this.proofAccount.address.toLowerCase())throw Error('current bound meter authorization required');
   if(String(c.pricePerGiB6)!==String(price)||BigInt(c.budget6)<BigInt(c.spent6)||BigInt(lease.bandwidthBackingRequired6||'-1')!==0n)throw Error('bandwidth rate or USDC backing changed');
   return {lease,c};

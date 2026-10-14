@@ -19,14 +19,14 @@ const tmp=async t=>{const d=await fs.mkdtemp(path.join(os.tmpdir(),'paid-'));t.a
 // a lease as LeaseReader returns it, with the owner's on-chain authorization of one paid provider (hostId, 1000/GiB)
 const lease=(over={},conn={})=>({id,runner,owner:owner.address,runnerOperator:runnerOperator.address,runnerProofKey:hostProof.address,active:true,isPublic:true,chainId:8453,deployments:ledger,
  validUntil:190000,leaseUntil:200000,blockNumber:'100',blockHash:hash,balance6:'100000',bandwidthBackingRequired6:'0',
- connectivity:{address:contract,viaTuna:true,owner:owner.address,nonce:'3',expires:200,maxPricePerGiB6:'1000',budget6:'10000',spent6:'0',
+ connectivity:{address:contract,viaProviders:true,owner:owner.address,nonce:'3',expires:200,maxPricePerGiB6:'1000',budget6:'10000',spent6:'0',
   providers:[{id:hostId,qualified:true,active:true,qualifiedUntil:200,pricePerGiB6:'1000',operator:providerProof.address,proofKey:providerProof.address}],...conn},...over});
 const NOW=100000;
 
 test('a paid provider admits an app only under the owner\'s current on-chain authorization of it, with budget left',()=>{
  assert.equal(paidGate({lease:lease(),hostId,pricePerGiB6:1000,now:NOW}),'3');
  for(const [why,l,h=hostId,price=1000] of [
-  ['not authorized at all',lease({},{viaTuna:false})],['another provider',lease(),other],['a different price',lease(),hostId,1500],
+  ['not authorized at all',lease({},{viaProviders:false})],['another provider',lease(),other],['a different price',lease(),hostId,1500],
   ['path over the owner\'s cap',lease({},{maxPricePerGiB6:'999'})],['budget spent',lease({},{spent6:'10000'})],['authorization expired',lease({},{expires:50})],
   ['not qualified on chain',lease({},{providers:[{...lease().connectivity.providers[0],qualified:false}]})],['no connectivity',lease({connectivity:undefined})],['not a registry host',lease(),null]])
   assert.throws(()=>paidGate({lease:l,hostId:h,pricePerGiB6:price,now:NOW}),undefined,why);
@@ -59,7 +59,7 @@ test('a paid provider grants only authorized apps, meters them, and drops their 
  p.meterSample=async()=>{sampled.push(now);};p.meterForget=async()=>{};
  const ask=async()=>{const r={version:1,providerId:'ab'.repeat(16),role:'exit',deploymentId:id,runner,wgPublicKey:randomBytes(32).toString('base64'),policy:null,ingress:true,egress:true,issuedAt:now,nonce:randomBytes(16).toString('hex'),expiresAt:now+600000};
   return p.handle({request:r,signature:await runnerOperator.signMessage({message:peerRequestMessage(r)})});};
- l=lease({},{viaTuna:false});await assert.rejects(ask(),/authorization/);
+ l=lease({},{viaProviders:false});await assert.rejects(ask(),/authorization/);
  l=lease();const {grant}=await ask();const peer=[...p.peers.values()][0];assert.equal(peer.paidNonce,'3');assert.ok(grant.clientAddress);
  l=lease({},{spent6:'10000'});await p.sweep();assert.equal(p.peers.size,0,'budget spent: the peer is gone');assert.ok(sampled.length,'metered before removal');
 });
@@ -105,6 +105,6 @@ test('the host meters paid hops, debits cumulatively, and the manager closes a c
  refuse=true;c.stats={app:{up:500,down:900}};await m.reconcile();
  assert.ok(c.closed,'refused debit: the paid circuit is closed');
  assert.equal(m.cooldown.size,0,'a refused debit is not a provider failure: nothing is cooled down');
- l=lease({},{viaTuna:false});refuse=false;await m.reconcile();
+ l=lease({},{viaProviders:false});refuse=false;await m.reconcile();
  assert.ok(m.apps.get(id).circuits.every(x=>x.providers.exit.hostId!==hostId),'authorization revoked: the paid provider is not chosen again');
 });

@@ -1,6 +1,6 @@
 // The app expectation a Windows (Enclave Shield) host's privacy agent pins for one leased deployment, from the node
 // manager's record of the partition it launched: shared by the platform's SSH reconcile (reconcile-shield-apps.mjs) and
-// the host's own enrollment (windows/node/tuna-enroll.mjs), so both pin exactly the same thing.
+// the host's own enrollment (windows/node/network-enroll.mjs), so both pin exactly the same thing.
 //
 // A record is used only when it is running and ready, names the lease's CURRENT catalog app and version, carries that
 // version's catalog CID (and, for a raw-leaf CID, a component sha256 equal to the CID's digest), and runs the runtime the

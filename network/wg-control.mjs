@@ -1,6 +1,6 @@
 // The host's own control traffic over the Enclave network (docs/design/enclave-network.md): chain reads, relay calls and
 // route publication leave through two guarded, egress-only circuits, so RPC providers and the relay see an exit's
-// address, never the host's. Replaces TUNA's control guards; same shape (proxies(), close()).
+// address, never the host's. Replaces the retired transport's control guards; same shape (proxies(), close()).
 import {selectNetworkCircuits} from './wg-manager.mjs';
 import {guardedFetch} from './guarded-fetch.mjs';
 const ZERO='0x'+'0'.repeat(64),COOLDOWN_MAX_MS=30*60000;

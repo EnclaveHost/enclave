@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 const {LeaseReader}=await import(process.env.ENCLAVE_TEST_RELAY_BUNDLE||'../network/lease-reader.mjs');
 const address='0x'+'11'.repeat(20),ledger='0x'+'22'.repeat(20),owner='0x'+'33'.repeat(20),id='0x'+'aa'.repeat(32),runner='0x'+'bb'.repeat(32),now=1700000000000;
 const providerId='0x'+'ee'.repeat(32);
-function peer({nonce=1n,expires=1700000600n,boundLedger=ledger,viaTuna=false,providerKey=owner}={}) {
+function peer({nonce=1n,expires=1700000600n,boundLedger=ledger,viaProviders=false,providerKey=owner}={}) {
  return {getChainId:async()=>8453,getBlockNumber:async()=>1000n,getBlock:async()=>({timestamp:1699999995n,hash:'0x'+'cc'.repeat(32)}),
   readContract:async({functionName,args,blockNumber})=>{
    assert.equal(blockNumber,998n);
@@ -11,9 +11,9 @@ function peer({nonce=1n,expires=1700000600n,boundLedger=ledger,viaTuna=false,pro
    if(functionName==='deploymentsSchema')return 16n;
    if(functionName==='get'&&args[0]===providerId)return {operator:owner,active:true,proofKey:providerKey};
    if(functionName==='get')return {id,runner,owner,runnerOperator:owner,leaseUntil:1700003600n,active:true};
-   if(functionName==='viaTuna')return viaTuna;
+   if(functionName==='viaProviders')return viaProviders;
    if(functionName==='registry')return address;
-   if(functionName==='tunaProviders')return [providerId];
+   if(functionName==='providersOf')return [providerId];
    if(functionName==='ledger')return boundLedger;
    if(functionName==='bandwidthBackingRequired6')return 0n;
    if(functionName==='policies')return [owner,nonce,expires,1000n,10000n,10n,8000];
@@ -36,10 +36,10 @@ test('one peer cannot fabricate a policy or bind a foreign ledger',async()=>{
  }
 });
 
-test('TUNA provider identity and proof key join the same-block lease quorum',async()=>{
- const reader=new LeaseReader({addressBook:address,clients:[peer({viaTuna:true}),peer({viaTuna:true})],includeConnectivity:true,now:()=>now});
+test('paid provider identity and proof key join the same-block lease quorum',async()=>{
+ const reader=new LeaseReader({addressBook:address,clients:[peer({viaProviders:true}),peer({viaProviders:true})],includeConnectivity:true,now:()=>now});
  const [lease]=await reader.refresh([id]);
- assert.equal(lease.connectivity.viaTuna,true);assert.equal(lease.connectivity.providers[0].id,providerId);assert.equal(lease.connectivity.providers[0].proofKey,owner);
- reader.clients=[peer({viaTuna:true}),peer({viaTuna:true,providerKey:address})];
+ assert.equal(lease.connectivity.viaProviders,true);assert.equal(lease.connectivity.providers[0].id,providerId);assert.equal(lease.connectivity.providers[0].proofKey,owner);
+ reader.clients=[peer({viaProviders:true}),peer({viaProviders:true,providerKey:address})];
  await assert.rejects(reader.refresh([id]),/quorum/);
 });

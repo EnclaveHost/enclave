@@ -5,9 +5,9 @@ import {ProviderUSDCSettlement,ProviderReceiptSigner,providerReceiptDigest} from
 const id='0x'+'aa'.repeat(32),runner='0x'+'bb'.repeat(32),providerId='0x'+'dd'.repeat(32),owner='0x'+'11'.repeat(20),contract='0x'+'22'.repeat(20),ledger='0x'+'33'.repeat(20),hash='0x'+'cc'.repeat(32);
 const host=privateKeyToAccount('0x'+'04'.repeat(32)),provider=privateKeyToAccount('0x'+'05'.repeat(32));
 async function fixture(t){
- const directory=await fs.mkdtemp(path.join(os.tmpdir(),'tuna-settle-'));t.after(()=>fs.rm(directory,{recursive:true,force:true}));
+ const directory=await fs.mkdtemp(path.join(os.tmpdir(),'provider-settle-'));t.after(()=>fs.rm(directory,{recursive:true,force:true}));
  const lease={id,runner,owner,runnerProofKey:host.address,active:true,chainId:8453,deployments:ledger,validUntil:190000,leaseUntil:200000,blockNumber:'100',blockHash:hash,balance6:'100000',bandwidthBackingRequired6:'0',
-  connectivity:{address:contract,viaTuna:true,owner,nonce:'1',expires:200,maxPricePerGiB6:'1000',budget6:'10000',spent6:'0',providers:[{id:providerId,qualified:true,active:true,qualifiedUntil:200,pricePerGiB6:'1000',operator:provider.address,proofKey:provider.address}]}};
+  connectivity:{address:contract,viaProviders:true,owner,nonce:'1',expires:200,maxPricePerGiB6:'1000',budget6:'10000',spent6:'0',providers:[{id:providerId,qualified:true,active:true,qualifiedUntil:200,pricePerGiB6:'1000',operator:provider.address,proofKey:provider.address}]}};
  const client={readContract:async()=>0n,getBlock:async()=>({hash})},reader={clients:[client,client],get:()=>lease,refresh:async()=>[lease]};
  let observed=1000n;
  const signer=new ProviderReceiptSigner({providerId,proofAccount:provider,leaseReader:reader,observedBytes:async()=>observed,now:()=>100000});
@@ -21,7 +21,7 @@ test('independent provider and host sign the same metered receipt',async t=>{
  const x=await fixture(t);await x.adapter.authorizeDebit(x.request);
  const state=await x.adapter.state.get(id.slice(2)+'-1');assert.equal(state.hostId,providerId);assert.equal(state.runnerId,runner);
  const result=await x.adapter.signedReceipt({id,s:state,lease:x.lease,c:x.lease.connectivity,head:{hash}});
- assert.equal(result.functionName,'settleTuna');
+ assert.equal(result.functionName,'settleProvider');
  const digest=providerReceiptDigest({chainId:8453,connectivity:contract,ledger,receipt:result.receipt,anchorHash:hash});
  assert.equal(await recoverMessageAddress({message:{raw:digest},signature:result.args[1]}),host.address);
  assert.equal(await recoverMessageAddress({message:{raw:digest},signature:result.args[2]}),provider.address);
@@ -33,7 +33,7 @@ test('provider rejects unobserved traffic, wrong host, stale anchor and replayed
  const x=await fixture(t);const request=await x.signRequest({});request.anchorHash='0x'+'00'.repeat(32);await assert.rejects(x.signer.sign(request),/quorum/);
 });
 test('current provider path, qualification, backing, price and signature are mandatory',async t=>{
- for(const alter of [x=>x.lease.connectivity.viaTuna=false,x=>x.lease.connectivity.providers[0].qualified=false,x=>x.lease.connectivity.maxPricePerGiB6='999',x=>x.lease.bandwidthBackingRequired6='1',x=>x.lease.connectivity.providers[0].id=runner,x=>x.lease.runnerProofKey=owner]){
+ for(const alter of [x=>x.lease.connectivity.viaProviders=false,x=>x.lease.connectivity.providers[0].qualified=false,x=>x.lease.connectivity.maxPricePerGiB6='999',x=>x.lease.bandwidthBackingRequired6='1',x=>x.lease.connectivity.providers[0].id=runner,x=>x.lease.runnerProofKey=owner]){
   const x=await fixture(t);alter(x);await assert.rejects(x.adapter.authorizeDebit(x.request));
  }
  const x=await fixture(t);await x.adapter.authorizeDebit(x.request);x.adapter.cosign=async r=>r.runnerSignature;

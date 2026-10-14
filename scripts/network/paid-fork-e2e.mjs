@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // Paid Enclave-network providers, end to end against the LIVE Base contracts on a local fork (anvil --fork-url <Base>
 // --block-time 2). Nothing here touches Base itself.
-//   node scripts/network/paid-fork-e2e.mjs --rpc http://127.0.0.1:18545 --artifact conn.json --abis <dir with the rev-16d ABIs>
+//   node scripts/network/paid-fork-e2e.mjs --rpc http://127.0.0.1:18545 --artifact conn.json --abis <dir with the rev-16d ABIs> [--fresh]
 // On the fork: deploy EnclaveConnectivity (bootstrap checkers = two fresh keys), bind it to the live ledger and address
 // book (the one-time governance step, done here by impersonating the ledger and book owners), register a runner host
 // and a paid provider host, create + fund + claim a deployment, the provider offers service on chain and submits both
 // checkers' attestations, the owner authorizes that provider (path cap, budget). Then the real code paths settle:
 // the host's PaidNetwork meters the circuit's bytes and debits through ProviderUSDCSettlement, which gets the provider's
-// co-signature over HTTP from the provider's control API (createReceiptCosigner + PeerMeter), and submits settleTuna.
+// co-signature over HTTP from the provider's control API (createReceiptCosigner + PeerMeter), and submits settleProvider.
 // Checked on chain: bytes served, the owner's budget spent, the provider operator's earnings, the app's balance. Then:
 // a receipt for more than the provider observed is refused, and an exhausted budget closes the circuit.
 import fs from 'node:fs/promises';import os from 'node:os';import path from 'node:path';
@@ -44,11 +44,20 @@ const LEDGER=await read(BOOK,bookABI,'addr',[key('deployments')]),REGISTRY=await
 ok(LEDGER.toLowerCase()==='0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b','the fork reads the live rev-16d ledger from the live address book');
 
 // 1. the contract: the one the live ledger is bound to (production activated 2026-10-13), else a fresh one bound here
-//    by impersonating the ledger and book owners (the one-time governance step)
+//    by impersonating the ledger and book owners (the one-time governance step). A fresh one is also used when the
+//    bound contract does not have the artifact's interface (it predates the provider-mode names) or with --fresh: the
+//    ledger's one-time bandwidthRouter slot is cleared ON THE FORK first, so setBandwidthRouter can bind the new one.
 let CONN=await read(LEDGER,parseAbi(['function bandwidthRouter() view returns (address)']),'bandwidthRouter');
-const bound=!/^0x0{40}$/i.test(CONN);
+const bound=!/^0x0{40}$/i.test(CONN)&&!process.argv.includes('--fresh')&&await read(CONN,connABI,'viaProviders',[key('')]).then(()=>true,()=>false);
 if(bound)ok(true,`the live ledger is bound to ${CONN} (production): testing against it`);
 else{
+ if(!/^0x0{40}$/i.test(CONN)){
+  const word='0x'+CONN.slice(2).toLowerCase().padStart(64,'0');let slot=-1;
+  for(let i=0;i<256&&slot<0;i++)if((await pub.getStorageAt({address:LEDGER,slot:'0x'+i.toString(16)}))?.toLowerCase()===word)slot=i;
+  if(slot<0)throw new Error('bandwidthRouter storage slot not found on the fork');
+  await anvil('anvil_setStorageAt',[LEDGER,'0x'+slot.toString(16),'0x'+'0'.repeat(64)]);
+  ok(true,`fork only: the ledger's binding to ${CONN.slice(0,10)} (no provider-mode interface) cleared at slot ${slot}; a fresh contract from the artifact is bound instead`);
+ }
  const h=await wallet(gas).deployContract({abi:connABI,bytecode:connBin,args:[LEDGER,[checkerA.address,checkerB.address]]});
  CONN=(await pub.waitForTransactionReceipt({hash:h})).contractAddress;
  for(const [target,who,fn,args] of [[LEDGER,await read(LEDGER,ledgerABI,'owner'),'setBandwidthRouter',[CONN]],[BOOK,await read(BOOK,bookABI,'owner'),'set',[key('connectivity'),CONN]]]){
@@ -88,9 +97,9 @@ const attestations=[];for(const c of [checkerA,checkerB])attestations.push(await
 ok(await submitAttestations({wallet:wallet(providerOp),client:pub,connectivity:CONN,hostId:providerHostId,address:record.address,attestations})===2,'provider: both checker attestations submitted');
 ok(await submitAttestations({wallet:wallet(providerOp),client:pub,connectivity:CONN,hostId:providerHostId,address:record.address,attestations})===0,'provider: nothing resubmitted while the chain holds them');
 const expires=BigInt(Math.floor(Date.now()/1000)+86400),maxPrice=PRICE,budget=1_000_000n;   // 1 USDC
-const digest=await read(CONN,connABI,'tunaPolicyDigest',[id,[providerHostId],expires,maxPrice,budget]);
-await send(owner,{address:CONN,abi:connABI,functionName:'authorizeTuna',args:[id,[providerHostId],expires,maxPrice,budget,await owner.signMessage({message:{raw:digest}})]});
-ok(true,'owner: authorizeTuna (this provider, cap 0.05/GiB, budget 1 USDC, 1 day)');
+const digest=await read(CONN,connABI,'providerPolicyDigest',[id,[providerHostId],expires,maxPrice,budget]);
+await send(owner,{address:CONN,abi:connABI,functionName:'authorizeProviders',args:[id,[providerHostId],expires,maxPrice,budget,await owner.signMessage({message:{raw:digest}})]});
+ok(true,'owner: authorizeProviders (this provider, cap 0.05/GiB, budget 1 USDC, 1 day)');
 // rev 16 charges bandwidth only from fully escrowed USDC: the owner backs the app's balance first
 const backing=await read(LEDGER,ledgerABI,'bandwidthBackingRequired6',[id]);
 await send(owner,{address:USDC,abi:usdcABI,functionName:'approve',args:[LEDGER,backing+1000n]});
@@ -102,9 +111,9 @@ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'paid-fork-'));
 const reader=()=>new LeaseReader({clients:[pub,pub2],chainId:8453,addressBook:BOOK,includeHostPayout:true,includeConnectivity:'auto',maxBlockAgeMs:120000});
 const hostLR=reader(),providerLR=reader();
 // lease snapshots trail the head by two confirmations
-let lease;for(let i=0;i<15;i++){await hostLR.refresh([id]).catch(e=>console.log('lease read: '+e.message));lease=hostLR.get(id);if(lease?.connectivity?.viaTuna&&String(lease.bandwidthBackingRequired6)==='0')break;await new Promise(r=>setTimeout(r,2000));}
-if(!lease?.connectivity?.viaTuna)console.log('lease:',JSON.stringify(lease,(k,v)=>typeof v==='bigint'?String(v):v)?.slice(0,1500));
-ok(lease?.connectivity?.viaTuna&&lease.connectivity.providers[0]?.qualified===true&&lease.runnerProofKey?.toLowerCase()===hostProof.address.toLowerCase(),'host lease snapshot: on-chain authorization, provider qualified, runner proof key');
+let lease;for(let i=0;i<15;i++){await hostLR.refresh([id]).catch(e=>console.log('lease read: '+e.message));lease=hostLR.get(id);if(lease?.connectivity?.viaProviders&&String(lease.bandwidthBackingRequired6)==='0')break;await new Promise(r=>setTimeout(r,2000));}
+if(!lease?.connectivity?.viaProviders)console.log('lease:',JSON.stringify(lease,(k,v)=>typeof v==='bigint'?String(v):v)?.slice(0,1500));
+ok(lease?.connectivity?.viaProviders&&lease.connectivity.providers[0]?.qualified===true&&lease.runnerProofKey?.toLowerCase()===hostProof.address.toLowerCase(),'host lease snapshot: on-chain authorization, provider qualified, runner proof key');
 ok(String(lease?.bandwidthBackingRequired6)==='0','no extra backing required for bandwidth');
 ok((await hostLR.bookAddress('registry'))===REGISTRY.toLowerCase(),'host: the registry for community-provider checks comes from the address book');
 let stats={};const kernel={stats:async()=>stats};

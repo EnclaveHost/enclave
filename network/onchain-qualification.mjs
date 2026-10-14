@@ -14,8 +14,8 @@ export const connectivityQualificationABI=parseAbi([
  'function qualificationDigest(bytes32 hostId,bytes32 addressHash,uint64 issuedAt,uint64 expires,uint16 checks) view returns (bytes32)',
  'function qualify(bytes32 hostId,bytes32 addressHash,uint64 issuedAt,uint64 expires,uint16 checks,bytes signature)',
  'function attestations(bytes32 hostId,address signer) view returns (address operator,bytes32 addressHash,uint64 expires)',
- 'function hosts(bytes32) view returns (bool direct,bool tuna,uint64 pricePerGiB6,uint64 qualifiedUntil,bytes32 addressHash,address operator,address qualifier)',
- 'function setHost(bytes32 hostId,bool direct,bool tuna,uint64 pricePerGiB6)',
+ 'function hosts(bytes32) view returns (bool direct,bool provider,uint64 pricePerGiB6,uint64 qualifiedUntil,bytes32 addressHash,address operator,address qualifier)',
+ 'function setHost(bytes32 hostId,bool direct,bool provider,uint64 pricePerGiB6)',
  'function ledger() view returns (address)',
 ]);
 const bookABI=parseAbi(['function addr(bytes32) view returns (address)']);
@@ -63,10 +63,10 @@ export async function submitAttestations({wallet,client,connectivity,hostId,addr
  return sent;
 }
 
-// The provider's on-chain offer: a TUNA-path ("network provider") host at exactly its record's price. -> true if changed.
+// The provider's on-chain offer: a provider-path ("network provider") host at exactly its record's price. -> true if changed.
 export async function ensureHost({wallet,client,connectivity,hostId,pricePerGiB6}){
- const [direct,tuna,price]=await client.readContract({address:connectivity,abi:connectivityQualificationABI,functionName:'hosts',args:[hostId]});
- if(tuna&&!direct&&BigInt(price)===BigInt(pricePerGiB6))return false;
+ const [direct,provider,price]=await client.readContract({address:connectivity,abi:connectivityQualificationABI,functionName:'hosts',args:[hostId]});
+ if(provider&&!direct&&BigInt(price)===BigInt(pricePerGiB6))return false;
  const tx=await wallet.writeContract({address:connectivity,abi:connectivityQualificationABI,functionName:'setHost',args:[hostId,false,true,BigInt(pricePerGiB6)]});
  if((await client.waitForTransactionReceipt({hash:tx,timeout:60000})).status!=='success')throw new Error('setHost reverted (tx '+tx+')');return true;
 }

@@ -1,4 +1,4 @@
-// Paid Enclave-network provider settlement (EnclaveConnectivity: authorizeTuna / settleTuna - the contract's own names).
+// Paid Enclave-network provider settlement (EnclaveConnectivity: authorizeProviders / settleProvider).
 // A transport must meter both
 // endpoints and negotiate this mode before using these receipts; configuring
 // this class alone does not turn a native-NKN provider into a USDC provider.
@@ -6,14 +6,14 @@ import {encodeAbiParameters,keccak256,recoverMessageAddress,parseAbi} from 'viem
 import {USDCBandwidthSettlement,RECEIPT_SKEW_S} from './usdc-bandwidth.mjs';
 const receiptType={type:'tuple',components:[['id','bytes32'],['runnerId','bytes32'],['providerId','bytes32'],['policyNonce','uint64'],['leaseUntil','uint64'],['issuedAt','uint64'],['anchor','uint64'],['cumulativeBytes','uint128'],['pricePerGiB6','uint64']].map(([name,type])=>({name,type}))};
 export const providerBandwidthABI=[...parseAbi(['function bytesServed(bytes32) view returns (uint128)']),
- {type:'function',name:'settleTuna',stateMutability:'nonpayable',inputs:[{name:'r',...receiptType},{name:'runnerSignature',type:'bytes'},{name:'providerSignature',type:'bytes'}],outputs:[]}];
+ {type:'function',name:'settleProvider',stateMutability:'nonpayable',inputs:[{name:'r',...receiptType},{name:'runnerSignature',type:'bytes'},{name:'providerSignature',type:'bytes'}],outputs:[]}];
 export function providerReceiptDigest({chainId,connectivity,ledger,receipt,anchorHash}){
  return keccak256(encodeAbiParameters([{type:'string'},{type:'uint256'},{type:'address'},{type:'address'},receiptType,{type:'bytes32'}],
- ['EnclaveConnectivity.tuna-receipt.v1',BigInt(chainId),connectivity,ledger,receipt,anchorHash]));
+ ['EnclaveConnectivity.provider-receipt.v1',BigInt(chainId),connectivity,ledger,receipt,anchorHash]));
 }
 export function providerContext(lease,providerId,nonce,rate,now=Date.now()){
  const c=lease?.connectivity;
- if(!lease?.active||lease.validUntil<=now||lease.leaseUntil<=now||!c?.viaTuna||String(c.nonce)!==String(nonce)||Number(c.expires)*1000<=now||c.owner.toLowerCase()!==lease.owner.toLowerCase())throw Error('current on-chain provider authorization required');
+ if(!lease?.active||lease.validUntil<=now||lease.leaseUntil<=now||!c?.viaProviders||String(c.nonce)!==String(nonce)||Number(c.expires)*1000<=now||c.owner.toLowerCase()!==lease.owner.toLowerCase())throw Error('current on-chain provider authorization required');
  const providers=c.providers;
  if(!Array.isArray(providers)||providers.length<1||providers.length>6||new Set(providers.map(p=>p.id)).size!==providers.length)throw Error('invalid authorized provider path');
  let total=0n;
@@ -47,7 +47,7 @@ export class ProviderUSDCSettlement extends USDCBandwidthSettlement {
   const runnerSignature=await this.proofAccount.signMessage({message:{raw:digest}});
   const providerSignature=await this.cosign({receipt,runnerSignature,anchorHash:head.hash});
   if((await recoverMessageAddress({message:{raw:digest},signature:providerSignature})).toLowerCase()!==provider.proofKey.toLowerCase())throw Error('provider receipt signature mismatch');
-  return {receipt,abi:providerBandwidthABI,functionName:'settleTuna',args:[receipt,runnerSignature,providerSignature]};
+  return {receipt,abi:providerBandwidthABI,functionName:'settleProvider',args:[receipt,runnerSignature,providerSignature]};
  }
 }
 // Provider-side co-signer. observedBytes must read its own durable transport

@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync, createSign, createHash } from "node:crypto";
 import { coseToXY } from "../relay/auth.js";
-import { derToRS, buildControlCall, floatSweepAmount } from "../relay/vaultsvc.js";
+import { derToRS, buildControlCall, floatSweepAmount, networkArgs } from "../relay/vaultsvc.js";
 
 function coseP256(x, y) {
   // map(5) { 1:2, 3:-7, -1:1, -2:bstr32(x), -3:bstr32(y) } - canonical CBOR
@@ -124,4 +124,14 @@ test('resize atomically saves shares with requested active state, matching brows
     assert.notEqual(data, expectedControlCall({ ...args, active: !active }));
   }
   await assert.rejects(buildControlCall(id, 'resize', undefined, { gpuMilli: 0, cpuMilli: 10 }, undefined, undefined, 'false'), /boolean/);
+});
+
+test("networkArgs: the provider-routed mode is 'providers' (authorizeProviders argument order); the retired 'tuna' value is refused", () => {
+  const id = "0x" + "ab".repeat(32), p1 = "0x" + "01".repeat(32), p2 = "0x" + "02".repeat(32);
+  const base = { id, expires: "1791900000", maxPricePerGiB6: "50000", budget6: "1000000" };
+  assert.deepEqual(networkArgs({ ...base, mode: "providers", providers: [p1, p2] }), [id, [p1, p2], 1791900000n, 50000n, 1000000n]);
+  assert.deepEqual(networkArgs({ ...base, mode: "direct" }), [id, 1791900000n, 50000n, 1000000n]);
+  assert.throws(() => networkArgs({ ...base, mode: "tuna", providers: [p1] }), /invalid bandwidth mode/);
+  assert.throws(() => networkArgs({ ...base, mode: "providers", providers: [p1, p1] }), /invalid provider path/);
+  assert.throws(() => networkArgs({ ...base, mode: "direct", providers: [p1] }), /providers require provider authorization/);
 });
