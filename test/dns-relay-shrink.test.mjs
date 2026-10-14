@@ -40,9 +40,14 @@ test("a sudden drop of most labels is held until a poll confirms it; a small cha
   t.after(() => p.kill("SIGKILL"));
   const count = async () => (await (await fetch(`http://127.0.0.1:${apiPort}/health`)).json()).routeLabels;
 
-  labels = { a1: labels.a1 };                                  // the relay restarts: 4 -> 1
-  await sleep(1800);
+  const all = labels;
+  labels = { a1: all.a1 };                                     // the relay restarts: 4 -> 1
+  await sleep(1300);
   assert.equal(await count(), 4, "held while unconfirmed");
+  labels = { a1: all.a1, a2: all.a2, a3: all.a3 };             // ... and refills its map: 3 of 4
+  await sleep(1300);
+  assert.equal(await count(), 4, "still held while the relay refills");
+  labels = { a1: all.a1 };
   await sleep(3500);
   assert.equal(await count(), 1, "a drop that persists is applied");
 
