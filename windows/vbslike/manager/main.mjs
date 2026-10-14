@@ -19,6 +19,7 @@ import { powershellRunner } from "./psrun.mjs";
 import { cidFetcher } from "./fetchcid.mjs";
 import { egressConfigFromEnv, checkPin, startEgress, EGRESS_SERVICE_GUID } from "./egress.mjs";
 import { DERIVATION_V6, DERIVATION_V7 } from "./derive.mjs";
+import { PartitionConsoleLogs, consoleTargets, partitionLogDir } from "./console-log.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const env = (k, d = "") => (process.env[k] || d).trim();
@@ -250,6 +251,16 @@ if (answerMs > 0) {
     if (r && r.error) console.error(`[winmgr] answer check could not run: ${r.error}`);
   }, answerMs);
   t.unref?.();
+}
+// EVERY PARTITION'S CONSOLE, KEPT (console-log.mjs): once a domain's record carries its VM handle (after the launcher's
+// boot read is over), its COM1 pipe is read into <logs>\partitions\<vmName>.log, so a later panic, OOM kill or poweroff
+// leaves a trace. ENCLAVE_PARTITION_LOG_DIR overrides the directory ("off" disables). Never fatal: errors are one line.
+const partitionLogs = launcher ? partitionLogDir(process.env) : null;
+if (partitionLogs) {
+  const consoles = new PartitionConsoleLogs({ dir: partitionLogs });
+  const t = setInterval(() => { try { consoles.sync(consoleTargets(manager)); } catch (e) { console.error(`[winmgr] console sync: ${e.message}`); } }, 2_000);
+  t.unref?.();
+  console.log(`[winmgr] partition consoles are kept in ${partitionLogs}`);
 }
 console.log(`[winmgr] inventory ${inv.state}` + (inv.state === "ready" ? `: recovered ${inv.recovered}, unattributed ${inv.unattributed}` : inv.error ? `: ${inv.error}` : ""));
 if (inv.state === "failed") {

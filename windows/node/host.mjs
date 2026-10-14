@@ -48,6 +48,7 @@ import * as waf from "./waf.mjs";
 import { CAP_STEP, loadCaps, saveCaps } from "./hosting.mjs";
 import { priceGuide, defaultPrice, rowTiers, perSec6Of, perHourOf } from "./price-guide.mjs";
 import { gasRunway } from "./gas-runway.mjs";
+import { recentHyperVEvents } from "./hyperv-events.mjs";
 import { PARTITION_OFFERS } from "../vbslike/datapath/partition-offers.mjs";
 
 const HEARTBEAT_MS = 10 * 60_000;
@@ -1098,7 +1099,7 @@ export class Host {
               ...(r.instance?.id ? { isolationHeld: r.instance.id } : {}) });
         }
         if (r.instance?.id) this.#record(id, { isolationHeld: r.instance.id });
-        const gone = await this.#retireIsolated(id, "respawn after the domain ended");
+        const gone = await this.#retireIsolated(id, "respawn after the domain ended", { ended: true });
         if (!gone) {
           return this.#record(id, { status: "provisioning", reason: `isolation: ${r.reason}; not respawned: the ended domain `
             + "could not be confirmed gone, so its lease is kept and nothing new is started" });
@@ -1148,13 +1149,12 @@ export class Host {
       return this.#record(id, { status: "held", boundaryHeld: true, isolation: null, reason: boundaryWrong,
                                 ...(inst.id ? { isolationHeld: inst.id } : {}) });
     }
-    // A domain this node had recorded as serving that the manager no longer has (it stopped by itself, crashed, or was
-    // removed by its own sweep) is replaced here silently otherwise: say so, with what was last known (2026-10-13 14:13Z:
-    // RISC Box's partition turned itself off and a new one appeared with no line saying why).
-    const before = this.records.get(id)?.isolation;
-    if (r.action === "spawned" && before?.instance && before.instance !== inst.id)
-      this.log(`${id.slice(0, 10)} isolation: the domain ${before.instance} recorded as serving is gone from the manager `
-               + `(it ended by itself or was removed outside this node); a new one was started`);
+    // A domain this node saw serving that the manager no longer has (it stopped by itself, crashed, or was removed by
+    // its own sweep) is replaced here silently otherwise: say so, with what was last known (2026-10-13 14:13Z: RISC Box's
+    // partition turned itself off and a new one appeared with no line saying why). Read from #lastServing, NOT from
+    // rec.isolation: any intermediate record may clear that (the respawn's cleanup retire, a boundary hold), and on the
+    // 2026-10-14 03:52Z poweroff one did, so the line never fired. Only this node's own retire forgets a domain.
+    this.#noteServing(id, inst, r.action);
     this.log(`${id.slice(0, 10)} isolation ${r.action}: ${inst.id} status=${inst.status} image=${inst.image || "?"}`);
     return this.#record(id, { status: "running", reason: null, isolationHeld: null, boundaryHeld: null,
                               isolation: { backend: "hyperv-partition-per-app", instance: inst.id,
@@ -1173,7 +1173,9 @@ export class Host {
                                            // this tier's own word, never the manager's (isolationBoundaryRefusal
                                            // has refused any view claiming more); this is NOT verified capacity
                                            hostExcluded: false,
-                                           transportKeySha256: inst.transportKeySha256 ?? null } });
+                                           transportKeySha256: inst.transportKeySha256 ?? null,
+                                           // when the manager started this partition (its record's startedAt, ms)
+                                           startedAt: Number.isFinite(inst.startedAt) ? inst.startedAt : null } });
   }
 
   /**
@@ -2054,7 +2056,49 @@ export class Host {
     return this.#record(id, { status: "held", rebootHeld: reason, reason, ...(instanceId ? { isolationHeld: instanceId } : {}) });
   }
 
-  async #retireIsolated(id, why) {
+  /**
+   * THE LAST DOMAIN THIS NODE SAW SERVING, per deployment: { instance, startedAt, firstSeenAt, lastSeenAt }. Kept apart
+   * from rec.isolation (which routes traffic, and which intermediate records clear), and forgotten ONLY by this node's
+   * own retire of a domain (#retireIsolated without `ended`). So a later spawn of a DIFFERENT instance that this node did
+   * not retire is a domain that vanished, and is said, with Hyper-V's own account of it (#vanishedEvidence).
+   */
+  #lastServing = new Map();
+  /** The pending Hyper-V evidence read for the last vanished domain (tests await it; nothing else waits on it). */
+  vanishedEvidence = null;
+  #noteServing(id, inst, action) {
+    const now = Date.now();
+    const prev = this.#lastServing.get(id);
+    if (prev && inst.id && prev.instance !== inst.id) {
+      this.log(`${id.slice(0, 10)} isolation: the domain ${prev.instance} recorded as serving is gone from the manager `
+               + `(it ended by itself or was removed outside this node); ${action === "spawned" ? "a new one was started" : `${inst.id} was found in its place`}`);
+      this.vanishedEvidence = this.#vanishedEvidence(id, prev, now).catch(() => {});
+    }
+    if (!inst.id) return;
+    const startedAt = Number.isFinite(inst.startedAt) ? inst.startedAt : null;
+    this.#lastServing.set(id, prev && prev.instance === inst.id
+      ? { ...prev, lastSeenAt: now, startedAt: prev.startedAt ?? startedAt }
+      : { instance: inst.id, startedAt, firstSeenAt: now, lastSeenAt: now });
+  }
+  /** Under the vanished line: what was last known of it, then the Hyper-V Worker-Admin events naming its VM. Never throws;
+   *  on a host that is not Windows, or when the query fails, nothing more is said. */
+  async #vanishedEvidence(id, prev, now) {
+    const tag = `${id.slice(0, 10)}   `;
+    const iso = (t) => (Number.isFinite(t) ? new Date(t).toISOString() : "?");
+    const up = (ms) => { const m = Math.max(0, Math.round(ms / 60_000)); return m >= 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}m` : `${m}m`; };
+    const since = prev.startedAt ?? prev.firstSeenAt;
+    this.log(`${tag}last known: ${prev.startedAt ? `started ${iso(prev.startedAt)}` : `first seen serving ${iso(prev.firstSeenAt)}`}, `
+             + `last seen serving ${iso(prev.lastSeenAt)}${Number.isFinite(since) ? ` (up at least ${up(prev.lastSeenAt - since)})` : ""}`);
+    // from a minute before it was last seen serving (at most two hours back), and never less than the last ten minutes
+    const from = Math.max(now - 2 * 3600_000, Math.min(now - 10 * 60_000, (prev.lastSeenAt ?? now) - 60_000));
+    const events = await recentHyperVEvents({ instanceId: prev.instance, since: from, now, run: this.cfg.hyperVEventsRun || null });
+    if (!Array.isArray(events)) return;
+    if (!events.length) { this.log(`${tag}hyper-v: no Worker-Admin event names its VM since ${iso(from)}`); return; }
+    for (const e of events) this.log(`${tag}hyper-v ${e.time ?? "?"} event ${e.id ?? "?"}: ${e.message}`);
+  }
+
+  /** `ended`: the manager already reported this domain ENDED (the respawn's cleanup), so retiring it is not this node's
+   *  decision and it stays the last domain seen serving, for the vanished line on its replacement. */
+  async #retireIsolated(id, why, { ended = false } = {}) {
     if (!this.cfg.isolationManager) return true;                                // no backend: nothing can be out there
     const rec = this.records.get(id) || {};
     // The instance this node KNOWS of: serving (rec.isolation) or held (rec.isolationHeld). With neither, it retires BY
@@ -2073,6 +2117,7 @@ export class Host {
         // would keep serving and nothing here would name it, so a later tick could neither retire
         // it nor even report it. Keeping it is what makes an unconfirmed retire visible.
         this.#record(id, { isolation: null, isolationHeld: null, isolationRetireFailed: null });
+        if (!ended) this.#lastServing.delete(id);                                 // this node's own decision: not a vanish
         this.log(`${id.slice(0, 10)} isolated domain retired (${why})`);
         return true;
       }
