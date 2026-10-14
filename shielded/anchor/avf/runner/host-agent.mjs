@@ -14,7 +14,7 @@
 //             fresh) -- the agent only carries bytes. D's runner (claim on, proof-key sync OFF: a slot never re-registers the
 //             host's key) claims, renews and proves; this agent asks the relay for D's certificate (a CSR made in the slot VM)
 //             and installs it. When D ends, a final proof and release, and the slot is free.
-//   router    the TUNA privacy agent's one app port: each connection goes to the slot VM serving the name in its ClientHello
+//   router    the Enclave-network agent's one app port: each connection goes to the slot VM serving the name in its ClientHello
 //             (sni-router.mjs; TLS ends in the VM).
 //
 // The phone's pool (slots.poolMemMb of VM memory, 1000 per mille of CPU share) is what the slots divide: a deployment is taken
@@ -117,7 +117,7 @@ export function checkHostConfig(c) {
   const sl = c.slots;
   if (!sl || Object.keys(sl).sort().join() !== "count,poolMemMb,routerPort" || !Number.isInteger(sl.count) || sl.count < 1 || sl.count > MAX_SLOTS
       || !Number.isInteger(sl.poolMemMb) || sl.poolMemMb < MIN_VM_MB || sl.poolMemMb > 12288 || !Number.isInteger(sl.routerPort) || sl.routerPort < 1024 || sl.routerPort > 65535)
-    bad(`slots must be exactly { count (1..${MAX_SLOTS}: the most VMs at once), poolMemMb (${MIN_VM_MB}..12288: the VM memory they share), routerPort (the TUNA app port) }`);
+    bad(`slots must be exactly { count (1..${MAX_SLOTS}: the most VMs at once), poolMemMb (${MIN_VM_MB}..12288: the VM memory they share), routerPort (the network agent's app port) }`);
   if (vmMibFor(cl.maxMemMb) > sl.poolMemMb) bad(`claim.maxMemMb ${cl.maxMemMb} needs a ${vmMibFor(cl.maxMemMb)} MiB VM, beyond slots.poolMemMb`);
   const i = c.ipfs || {};
   if ((i.fetchScript !== undefined && typeof i.fetchScript !== "string") || !Array.isArray(i.gateways) || !i.gateways.length || typeof i.cacheDir !== "string")
@@ -186,8 +186,8 @@ export function parseOptions(raw, gpuMilli) {
   }
   if (env.network !== undefined) {
     const n = env.network;
-    if (!n || typeof n !== "object" || Array.isArray(n) || Object.keys(n).some((k) => !["transport", "relay"].includes(k)) || (n.transport !== undefined && n.transport !== "tuna"))
-      throw new Error("its network options ask for a transport other than TUNA");
+    if (!n || typeof n !== "object" || Array.isArray(n) || Object.keys(n).some((k) => !["transport", "relay"].includes(k)) || (n.transport !== undefined && n.transport !== "enclave-network"))
+      throw new Error("its network options ask for a transport other than the Enclave network");
     if ("relay" in n && n.relay !== null && n.relay !== "" && (typeof n.relay !== "string" || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(n.relay))) throw new Error("its network options carry an invalid relay");
   }
   if (env.gpu !== undefined) {
@@ -1113,10 +1113,10 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
       maxAppMemMb: cfg.claim.maxMemMb, vmOverheadMb: VM_OVERHEAD_MB, minVmMb: MIN_VM_MB,
       isolation: ISOLATION_BACKEND, appTls: "in-vm", appEvidence: "enclave-pvm-app-evidence/v4", claimScope: "market",
       // the platform's capability flags (the relay AND-folds them across the fleet): each true only for what this host does
-      networkOptions: true, networkTransports: ["tuna"], secrets: true, secretsInConfig: true, secretsKeyIn: "vm (sealed by the relay)", configOverride: true, configCidOverride: true,
-      configEdit: true, shareResize: true, waf: true, wafScope: "per-deployment: the app's hostname reaches the VM as TLS through TUNA, with no client address",
+      networkOptions: true, networkTransports: ["enclave-network"], secrets: true, secretsInConfig: true, secretsKeyIn: "vm (sealed by the relay)", configOverride: true, configCidOverride: true,
+      configEdit: true, shareResize: true, waf: true, wafScope: "per-deployment: the app's hostname reaches the VM as TLS through the Enclave network, with no client address",
       gpuOptional: true, cpuFallback: true, rateCap: true, proofOfTime: true, mem64: true, set: false, p3: false, coopThreads: false,
-      egress: cfg.egress ? "tuna-per-app" : false, customDomains: false, devDeploy: false,
+      egress: cfg.egress ? "enclave-network-per-app" : false, customDomains: false, devDeploy: false,
       apps: held.map((a) => ({ id: a.id, phase: a.phase, slot: a.slot, vmMib: a.vmMib, cpuMilli: a.cpuMilli, appSha256: a.sha, since: new Date(a.at).toISOString(), cert: a.cert ? a.cert.name : null })) };
   }
   async function claimHint(body) {
@@ -1444,7 +1444,7 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
   async function serve(port) {
     const srv = http.createServer(handler());
     await new Promise((r, j) => { srv.once("error", j); srv.listen(port, "127.0.0.1", r); });
-    // the TUNA privacy agent's app port: each connection to the slot VM serving the name its ClientHello asks for
+    // the Enclave-network agent's app port: each connection to the slot VM serving the name its ClientHello asks for
     const router = createSniRouter({ log: (o) => note(o),
       portFor: (name) => { const a = apps().find((x) => x.label && `${labelOf(x.id)}.app.enclave.host` === name); return a ? slotDev(a).appPort : null; } });
     await new Promise((r, j) => { router.once("error", j); router.listen(S.routerPort, "127.0.0.1", r); });
