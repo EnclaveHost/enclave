@@ -9,6 +9,7 @@
 // RELAY_MAP_URL are read when it is unset (installs from before the 2026-10-14 rename).
 // NET_POLL_SEC controls refresh (default 15). DNS_PORT defaults to 53,
 // DNS_API_PORT to 8153; DNS_API_BIND restricts the challenge API listener.
+// DNS_BIND is a comma-separated IP list; unset preserves the dual-stack wildcard.
 // DNS_TXT_KEY is HMAC-SHA256(fleet SECRET, 'enclave dns-txt v1') as hex, never
 // the raw fleet secret. TXT_TTL_SEC caps challenges (default 600).
 // Fleet discovery (REGISTRY_ADDRESS or ENCLAVES, BASE_RPC) authenticates DNS-01
@@ -49,6 +50,13 @@ const NS_NAME   = fqdn(need("NS_NAME"));
 // hostmaster at the NS name's parent (ns1.enclave.host -> hostmaster.enclave.host)
 const RNAME     = "hostmaster." + (NS_NAME.includes(".") ? NS_NAME.slice(NS_NAME.indexOf(".") + 1) : NS_NAME);
 const DNS_PORT  = parseInt(process.env.DNS_PORT || "53", 10);
+const DNS_BINDS = process.env.DNS_BIND
+  ? [...new Set(process.env.DNS_BIND.split(",").map((v) => v.trim()).filter(Boolean))]
+  : ["::"];
+if (!DNS_BINDS.length || DNS_BINDS.some((address) => !net.isIP(address))) {
+  console.error("fatal: DNS_BIND must contain IP addresses");
+  process.exit(1);
+}
 const API_PORT  = parseInt(process.env.DNS_API_PORT || "8153", 10);
 const API_BIND  = process.env.DNS_API_BIND || undefined;
 // The enclave signs TXT pushes with a DERIVED key, NOT the raw fleet SECRET:
@@ -397,7 +405,9 @@ function handle(msg, limit) {
 
 // ---- transports: UDP + TCP on DNS_PORT ---------------------------------------
 
-const udp = dgram.createSocket({ type: "udp6", ipv6Only: false });   // dual-stack
+for (const address of DNS_BINDS) {
+const ipv6Only = net.isIP(address) === 6 && address !== "::";
+const udp = dgram.createSocket({ type: net.isIP(address) === 4 ? "udp4" : "udp6", ipv6Only });
 let udpUp = false;
 udp.on("error", (e) => { console.error("[dns-relay] udp:", e.message); if (!udpUp) process.exit(1); });
 udp.on("message", (msg, rinfo) => {
@@ -405,7 +415,7 @@ udp.on("message", (msg, rinfo) => {
   const out = handle(msg, UDP_MAX);
   if (out) udp.send(out, rinfo.port, rinfo.address, () => {});
 });
-udp.bind(DNS_PORT, () => { udpUp = true; console.log(`[dns-relay] udp+tcp :${DNS_PORT}`); });
+udp.bind(DNS_PORT, address, () => { udpUp = true; console.log(`[dns-relay] udp ${address}:${DNS_PORT}`); });
 
 const tcp = net.createServer((sock) => {
   sock.setTimeout(15_000, () => sock.destroy());
@@ -427,7 +437,8 @@ const tcp = net.createServer((sock) => {
   });
 });
 tcp.on("error", (e) => { console.error("[dns-relay] tcp:", e.message); process.exit(1); });
-tcp.listen(DNS_PORT);
+tcp.listen({ port: DNS_PORT, host: address, ipv6Only }, () => console.log(`[dns-relay] tcp ${address}:${DNS_PORT}`));
+}
 
 // ---- challenge-push HTTP API --------------------------------------------------
 
