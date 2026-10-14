@@ -17,6 +17,10 @@ const RelayHost = "api.enclave.host"
 // (pins_lab.go), so a lab guestd never holds a production port (enclave-d1).
 const TicketPort = 9444
 
+// CustodyAuthPort is the host port guestd takes a guest's custody-release authorization request on (custody.go): the
+// guest sends its binding, the lease holder's operator signs it. Lab builds use their own (pins_lab.go).
+const CustodyAuthPort = 9445
+
 // The roots the relay's certificate must chain to, for the two issuers api.enclave.host's ACME client uses:
 //   - Let's Encrypt: ISRG Root X1 and X2 (served 2026-09-25: YE1 -> Root YE -> ISRG Root X2 -> ISRG Root X1);
 //   - ZeroSSL, Caddy's fallback issuer, whose failover a real Let's Encrypt outage has exercised: Sectigo Public Server
