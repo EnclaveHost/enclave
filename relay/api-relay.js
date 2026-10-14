@@ -1213,8 +1213,24 @@ const proxied = (p) => p.startsWith("/v1/") || p === "/availability" || p === "/
 // honest answer to "what does the fleet cost", and a wrong answer to "where do I sign in". A
 // clean 503 that says nobody is taking work beats /v1/auth and /v1/pricing 404ing off a box that
 // never implemented them.
+//
+// ONE exception, for a box that is partial in what it SELLS but whole in what it SERVES: the enclave
+// supervisor running a per-app isolation tier. It says fullService:false (so it stays out of the
+// fleet-wide feature AND and default pricing), but it is the same supervisor that implements
+// /v1/auth, /v1/pricing and /v1/version on every full-service box. When it is the only such box
+// (metal0 since 2026-10-13, with no full-service box left), refusing it made sign-in, pricing and
+// /v1/health a platform-wide 503 for a day. It is recognised by what only the supervisor
+// publishes - one of ITS isolation backends, or an explicit controlPlane:true - and it must be
+// serving (live, eligible under U7) and SAY it claims work (claimEnabled:true, not the legacy
+// silence); hv-node boxes stay out whatever they publish. A box that just says fullService:false
+// is still never picked.
+const SUPERVISOR_ISOLATION = new Set(["snp-guest-per-app", "hyperv-partition-per-app"]);
+const servesControlPlane = (e) => e.mode !== "hv-node" && e.availability?.claimEnabled === true
+  && (e.availability?.controlPlane === true || SUPERVISOR_ISOLATION.has(String(e.availability?.isolation || "")));
 const sticky = () => {
-  const s = servingEnclaves().filter((e) => e.mode !== "hv-node" && e.availability?.fullService !== false);
+  const serving = servingEnclaves();
+  let s = serving.filter((e) => e.mode !== "hv-node" && e.availability?.fullService !== false);
+  if (!s.length) s = serving.filter(servesControlPlane);
   return s.filter((e) => e.availability?.gpu === true).sort((a, b) => a.endpoint.localeCompare(b.endpoint))[0]
       || s.slice().sort((a, b) => a.endpoint.localeCompare(b.endpoint))[0] || null;
 };
