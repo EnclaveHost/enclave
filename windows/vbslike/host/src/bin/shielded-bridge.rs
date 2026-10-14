@@ -36,10 +36,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let end = Instant::now() + Duration::from_secs(seconds);
     let active = Arc::new(AtomicUsize::new(0));
-    println!("shielded bridge ready vm={} port={} worker=127.0.0.1:{}", a[1], port, worker);
+    // A timed bridge carries one GPU worker's few streams: 8 is plenty. A supervised (persistent) bridge carries an
+    // app's whole public-web egress, and a client that stripes over many peers needs more: a Sia upload opens one
+    // connection per host for 30 hosts at once (2026-10-14: sia-s3 got exactly 8 of 40 hosts, then nothing). 64 matches
+    // the guest's own SOCKS front (publicSOCKSSlots). SHIELDED_BRIDGE_MAX_CONNS overrides either.
+    let cap: usize = std::env::var("SHIELDED_BRIDGE_MAX_CONNS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .filter(|&n| n > 0 && n <= 1024)
+        .unwrap_or(if seconds == 0 { 64 } else { 8 });
+    println!("shielded bridge ready vm={} port={} worker=127.0.0.1:{} slots={}", a[1], port, worker, cap);
     while !stopped.load(Ordering::SeqCst) && (seconds == 0 || Instant::now() < end) {
         let Some((guest, peer)) = listener.accept_timeout(500)? else { continue };
-        if hvsock::guid_string(&peer) != hvsock::guid_string(&vm) || active.load(Ordering::SeqCst) >= 8 {
+        if hvsock::guid_string(&peer) != hvsock::guid_string(&vm) || active.load(Ordering::SeqCst) >= cap {
             let _ = guest.shutdown(Shutdown::Both);
             continue;
         }
@@ -75,13 +84,53 @@ fn relay(mut guest: TcpStream, port: u16, persistent: bool) -> io::Result<()> {
     // still held for the guest - each 4 MiB GET of s3-ipfs-adapter ended after ~2.8 MB, the same count every time
     // (2026-10-13, after the write timeout above was already gone). A half-close delivers the queued bytes, then EOF.
     let (finished, upstream_done) = std::sync::mpsc::channel::<()>();
+    // Once the guest has closed its side, a peer that never closes (a Sia host keeps an idle mux connection open
+    // indefinitely) would hold this stream, and one of the bridge's slots, for good: persistent streams have no read
+    // timeout. So after the guest's half-close, a stream that carries nothing toward the guest for HALF_CLOSED_IDLE is
+    // shut. Bytes still flowing (a slow download the guest already asked for) keep resetting the clock.
+    const HALF_CLOSED_IDLE: Duration = Duration::from_secs(120);
+    let started = Instant::now();
+    let last_down = Arc::new(std::sync::atomic::AtomicU64::new(0)); // ms since `started` of the last byte to the guest
+    let down_done = Arc::new(AtomicBool::new(false));
+    let (last_down_w, down_done_w) = (last_down.clone(), down_done.clone());
     let upstream = std::thread::spawn(move || {
         let result = io::copy(&mut gr, &mut ww);
         let _ = ww.shutdown(Shutdown::Write);
         let _ = finished.send(());
+        if persistent {
+            loop {
+                std::thread::sleep(Duration::from_secs(5));
+                if down_done_w.load(Ordering::SeqCst) {
+                    break;
+                }
+                let idle = started.elapsed().saturating_sub(Duration::from_millis(last_down_w.load(Ordering::SeqCst)));
+                if idle >= HALF_CLOSED_IDLE {
+                    // unblocks the read below; the guest side was already finished writing
+                    let _ = ww.shutdown(Shutdown::Both);
+                    break;
+                }
+            }
+        }
         result
     });
-    let result = io::copy(&mut worker, &mut guest);
+    let result = (|| -> io::Result<u64> {
+        use std::io::{Read, Write};
+        let mut buf = vec![0u8; 64 << 10];
+        let mut total = 0u64;
+        loop {
+            let n = match worker.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => n,
+                Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+                Err(e) => return Err(e),
+            };
+            last_down.store(started.elapsed().as_millis() as u64, Ordering::SeqCst);
+            guest.write_all(&buf[..n])?;
+            total += n as u64;
+        }
+        Ok(total)
+    })();
+    down_done.store(true, Ordering::SeqCst);
     let _ = guest.shutdown(Shutdown::Write);
     // The guest closes once it has read the rest (the upstream copy then ends); one that never does is cut after a
     // bounded wait (a read timeout set now would not reach the read already blocked), so it cannot hold one of the
