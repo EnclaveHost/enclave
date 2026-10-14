@@ -50,3 +50,19 @@ test("one partition gone while the others still run is still that app ending (un
   assert.doesNotMatch(String(r.reason), /host-wide loss/);
   assert.ok(logs.some((l) => /giving up on/.test(l)) || r.status === "failed", `${r.status}: ${r.reason}`);
 });
+
+test("a recovered VM for a deployment this box no longer holds is retired, and one it holds is left to its reconcile", async () => {
+  const { host, m, h, logs } = await twoServing();
+  const m2 = await (await import("./helpers/hv-fake-manager.mjs")).restartManager(m, host);   // every VM comes back RECOVERED
+  h.cfg.isolationManager = `http://127.0.0.1:${m2.port}`;
+  h.tracked.add(DEP);                                        // DEP is held (claimed) here; DEP2 was released (the shutdown's
+  h.records.set(DEP2, { ...h.records.get(DEP2), status: "released" });   // give-up) and may be served elsewhere now
+  const client = (await import("./helpers/hv-fake-manager.mjs")).clientFor(m2.port);
+  const before = await client.list();
+  assert.ok(before.some((v) => v.recovered && v.name === DEP2) && before.some((v) => v.recovered && v.name === DEP), JSON.stringify(before));
+  await h.retireForeignRecovered(client);
+  const after = await client.list();
+  assert.equal(after.some((v) => v.name === DEP2), false, "the foreign recovered VM is retired");
+  assert.equal(after.some((v) => v.name === DEP), true, "the held one is left to its own restart recovery");
+  assert.ok(logs.some((l) => /names a deployment this box no longer holds: retired/.test(l)), logs.join("\n"));
+});
