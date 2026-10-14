@@ -209,7 +209,9 @@ $operator = ([regex]::Match(($keys -join "`n"), '0x[0-9a-fA-F]{40}')).Value
 Emit "keys" "ok" "Operator key $operator (created on this PC; it never leaves it)"
 
 $appRamGb = [math]::Max(4, [math]::Floor($ramGb / 2))
-$slots = [math]::Max(1, [math]::Min(8, [math]::Floor($appRamGb / 4)))
+# one slot per 4 GB of the apps' half, up to 16: the count is only a ceiling (capacity() also holds every app to the RAM
+# left), and 8 refused a 2 GB app on a 112 GB box running seven small ones and one 12 GB one (2026-10-14)
+$slots = [math]::Max(1, [math]::Min(16, [math]::Floor($appRamGb / 4)))
 $runtimeJson = Join-Path $PF "guest\runtime.json"
 $runtimeId = & $node --input-type=module -e "import fs from 'node:fs'; import { runtimeId } from 'file:///$((Join-Path $PF 'control\isolation\contract\runtime.mjs').Replace('\','/'))'; process.stdout.write(Buffer.from(runtimeId(JSON.parse(fs.readFileSync(process.argv[1], 'utf8')))).toString('hex'))" $runtimeJson
 if ($runtimeId -notmatch '^[0-9a-f]{64}$') { Fail "config" "The runtime identity could not be derived: $runtimeId" }
