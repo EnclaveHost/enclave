@@ -9,11 +9,16 @@ import { gzipSync } from "node:zlib";
 import { verifyEvidence, parseEnvelope } from "../verifier/index.mjs";
 
 const F = new URL("./fixtures/verifier/", import.meta.url);
-const rad = JSON.parse(fs.readFileSync(new URL("genoa-Cloud Provider/rad.json", F), "utf8"));
+const metal = { format: "sev-snp-guest-metal-v1", body: Buffer.alloc(0x4a0).toString("base64") };
 
 test("unknown format -> unsupported, never verified", async () => {
-  const v = await verifyEvidence({ format: "vendor-x/quote/v9", body: rad.body });
+  const v = await verifyEvidence({ format: "vendor-x/quote/v9", body: metal.body });
   assert.equal(v.status, "unsupported"); assert.match(v.reasons[0], /unknown evidence format/);
+  // the hosted predicates this verifier once judged are unknown formats now: unsupported, never verified
+  for (const format of ["https://Cloud Provider.sh/predicate/sev-snp-guest/v2", "https://Cloud Provider.sh/predicate/tdx-guest/v1"]) {
+    const h = await verifyEvidence({ format, body: metal.body });
+    assert.equal(h.status, "unsupported", format); assert.match(h.reasons[0], /unknown evidence format/);
+  }
 });
 test("development and T0 formats -> rejected", async () => {
   for (const format of ["dev-unattested-metal-v1", "none"]) {
@@ -23,7 +28,7 @@ test("development and T0 formats -> rejected", async () => {
 });
 test("Intel TDX, VBS enclave and Hyper-V partition documents -> unsupported with the pointer to their own verifier", async () => {
   // each on its own real shape (the Hyper-V front's document carries its report in `report`, not `body`)
-  for (const [format, re, doc] of [["tdx-guest-metal-v1", /Intel TDX/, { body: Buffer.from("{}").toString("base64") }], ["https://Cloud Provider.sh/predicate/tdx-guest/v1", /Intel TDX/, { body: Buffer.from("{}").toString("base64") }],
+  for (const [format, re, doc] of [["tdx-guest-metal-v1", /Intel TDX/, { body: Buffer.from("{}").toString("base64") }],
                               ["windows-vbs-enclave/v1", /vbs-verify|VBS/, { body: Buffer.from("{}").toString("base64") }], ["hyperv-partition-domain/v1", /judge-hv|Hyper-V/, { tier: "T0-hv", nonce: "ab".repeat(32), report: Buffer.from("{}").toString("base64"), appSha256: "cd".repeat(32) }]]) {
     const v = await verifyEvidence({ format, ...doc });
     assert.equal(v.status, "unsupported", format); assert.match(v.reasons.join(" "), re);
@@ -36,31 +41,24 @@ test("a GPU report on its own is not CPU evidence", async () => {
 });
 test("malformed envelopes are refused before any cryptography", () => {
   assert.throws(() => parseEnvelope(null), /not an object/);
-  assert.throws(() => parseEnvelope({ format: rad.format }), /missing/);
-  assert.throws(() => parseEnvelope({ format: rad.format, body: rad.body + "!" }), /strict base64/);
-  assert.throws(() => parseEnvelope({ format: rad.format, body: "A".repeat(70 * 1024) }), /cap/);
-  // the hosted format is gzip; a plain body is not that format
-  assert.throws(() => parseEnvelope({ format: rad.format, body: Buffer.alloc(0x4a0).toString("base64") }), /must be gzip/);
-  // the metal format is not gzip; a gzip body is not that format
+  assert.throws(() => parseEnvelope({ format: metal.format }), /missing/);
+  assert.throws(() => parseEnvelope({ format: metal.format, body: metal.body + "!" }), /strict base64/);
+  assert.throws(() => parseEnvelope({ format: metal.format, body: "A".repeat(70 * 1024) }), /cap/);
+  // no format is compressed: a gzip body is not that format
   assert.throws(() => parseEnvelope({ format: "sev-snp-guest-metal-v1", body: gzipSync(Buffer.alloc(0x4a0)).toString("base64") }), /is gzip but/);
-  // a gzip bomb stays bounded
-  assert.throws(() => parseEnvelope({ format: rad.format, body: gzipSync(Buffer.alloc(1 << 20)).toString("base64") }), /over the cap|cap/);
-  assert.throws(() => parseEnvelope({ format: 123, body: rad.body }), /format/);
+  assert.throws(() => parseEnvelope({ format: 123, body: metal.body }), /format/);
 });
-test("a well-formed hosted envelope parses to the raw 0x4a0-byte report", () => {
-  const env = parseEnvelope(rad);
-  assert.equal(env.body.length, 0x4a0); assert.equal(env.spec.technology, "amd-sev-snp"); assert.equal(env.spec.binding, "hosted-Cloud Provider");
+test("a well-formed metal envelope parses to the raw 0x4a0-byte report", () => {
+  const env = parseEnvelope(metal);
+  assert.equal(env.body.length, 0x4a0); assert.equal(env.spec.technology, "amd-sev-snp"); assert.equal(env.spec.binding, "spki");
 });
 
 // ---- the per-format SHAPE (2026-09-24): the body field's exact name, closed or open top level, declared fields validated --
 const domainDoc = JSON.parse(fs.readFileSync(new URL("turin-m4a/doc.json", F), "utf8")).doc;
 const metalBody = Buffer.alloc(0x4a0).toString("base64");
-test("shapes: the hosted document is closed to exactly { format, body } (the certificate binds nothing else); the body field is never an alias", () => {
-  assert.doesNotThrow(() => parseEnvelope(rad));
-  assert.throws(() => parseEnvelope({ ...rad, transportKey: "AAAA" }), /unexpected field `transportKey`.*closed/);
-  assert.throws(() => parseEnvelope({ ...rad, note: "x" }), /unexpected field `note`/);
-  assert.throws(() => parseEnvelope({ format: rad.format, report: rad.body }), /carries `report` but this format's body field is `body`/);
-  assert.throws(() => parseEnvelope({ ...rad, report: rad.body }), /carries `report`/);
+test("shapes: the body field is never an alias", () => {
+  assert.throws(() => parseEnvelope({ format: metal.format, report: metal.body }), /carries `report` but this format's body field is `body`/);
+  assert.throws(() => parseEnvelope({ ...metal, report: metal.body }), /carries `report`/);
 });
 test("shapes: a metal document as the guest agent emits it (transport key, unsigned certs, name, manifest, volumes) parses; each declared field is validated when present; unknown fields are tolerated but bounded", () => {
   const agentDoc = { format: "sev-snp-guest-metal-v1", body: metalBody, certs: Buffer.alloc(300).toString("base64"), transportKey: Buffer.alloc(44).toString("base64"), transportKeyFp: "ab".repeat(32), padKey: "cd".repeat(32), name: "box-1", manifest: { image: "x" }, volumes: { models: [] }, futureField: 1 };
@@ -97,6 +95,6 @@ test("shapes: AVF v2 requires the pad key the transcript binds, 32 bytes of lowe
   assert.throws(() => parseEnvelope({ format: "hyperv-partition-domain/v1", body: Buffer.from("{}").toString("base64") }), /carries `body` but this format's body field is `report`/);
 });
 test("shapes: the verdict on a malformed shape is rejected before any cryptography, never unsupported and never verified", async () => {
-  const v = await verifyEvidence({ ...rad, extra: 1 }); assert.equal(v.status, "rejected"); assert.match(v.reasons[0], /MALFORMED: .*unexpected field/);
+  const v = await verifyEvidence({ ...metal, name: 5 }); assert.equal(v.status, "rejected"); assert.match(v.reasons[0], /MALFORMED: .*name must be a string/);
   const w = await verifyEvidence({ format: "android-avf-pvm/v2", body: Buffer.from("{}").toString("base64") }); assert.equal(w.status, "rejected"); assert.match(w.reasons[0], /padKey is required/);
 });

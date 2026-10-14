@@ -43,7 +43,7 @@ const REPO = path.resolve(HERE, "..");
 const CONTRACT = path.join(REPO, "contracts", "EnclaveAppCatalog.sol");
 const ABI_OUT = path.join(REPO, "contracts", "EnclaveAppCatalog.abi.json");
 const SITE = path.join(REPO, "site", "js", "core", "config.js");
-const CONFIG = path.join(REPO, "enclaves", "gpu", "Cloud Provider-config.yml");
+const CONFIG = path.join(REPO, "enclaves", "cpu", "config.yml");
 
 const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has("--dry-run");
@@ -119,7 +119,7 @@ function writeSupervisorConfig(addr, chainId) {
   console.log(`Wrote APP_CATALOG_ADDRESS="${addr}" into ${path.relative(REPO, CONFIG)}`);
   const chainRe = /-\s*CHAIN_ID:\s*"(\d+)"/.exec(cfg);
   if (chainRe && Number(chainRe[1]) !== chainId)
-    console.warn(`WARNING: Cloud Provider-config.yml has CHAIN_ID ${chainRe[1]} but the catalog was deployed to chain ${chainId} — the supervisor reads the catalog over BASE_RPC, so approval checks will fail until they match.`);
+    console.warn(`WARNING: enclaves/cpu/config.yml has CHAIN_ID ${chainRe[1]} but the catalog was deployed to chain ${chainId} — the supervisor reads the catalog over BASE_RPC, so approval checks will fail until they match.`);
 }
 
 async function chooseNetwork() {
@@ -209,10 +209,10 @@ async function main() {
   console.log("===============================================================\n");
 
   if (!NO_WRITE_CONFIG) { writeSiteConfig(addr, net.chain.id, rpc); writeSupervisorConfig(addr, net.chain.id); }
-  else console.log("(--no-write-config: skipped wiring site/js/core/config.js + Cloud Provider-config.yml; set APP_CATALOG_ADDRESS manually)");
+  else console.log("(--no-write-config: skipped wiring site/js/core/config.js + enclaves/cpu/config.yml; set APP_CATALOG_ADDRESS manually)");
 
   console.log("\nNext:");
-  console.log(`  1. site/js/core/config.js + Cloud Provider-config.yml now point at ${addr} on chain ${net.chain.id}.`);
+  console.log(`  1. site/js/core/config.js + enclaves/cpu/config.yml now point at ${addr} on chain ${net.chain.id}.`);
   console.log("  2. Redeploy the site:  cd site && ./deploy.sh");
   console.log("  3. Rebuild+repin the supervisor so the enclave enforces approval:  ./scripts/release.sh enclave-supervisor");
   console.log("  4. Approve versions from the Apps tab with the deployer wallet (it is the catalog owner).");

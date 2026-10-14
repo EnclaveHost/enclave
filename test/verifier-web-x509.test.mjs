@@ -11,13 +11,12 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { X509Certificate } from "node:crypto";
-import { gunzipSync } from "node:zlib";
 import * as X from "../verifier/web/x509.mjs";
-import { WEB_CRYPTO, checkHostedCertificate as webHosted, checkCrlAuthentic as webCrlAuthentic } from "../verifier/web/provider.mjs";
+import { WEB_CRYPTO, checkCrlAuthentic as webCrlAuthentic } from "../verifier/web/provider.mjs";
 import { parseReportStrict, checkCrlAuthentic as nodeCrlAuthentic, checkChain as nodeCheckChain, verifyReportSignature as nodeReportSignature } from "../verifier/snp.mjs";
-import { checkHostedCertificate as nodeHosted } from "../verifier/tls-binding.mjs";
 import { parseCrl, tlv, children } from "../verifier/der.mjs";
 import { AMD_ARK_SHA256 } from "../relay/snp-verify.mjs";
+import { report as genoaReport } from "./helpers/genoa-capture.mjs";
 
 const F = new URL("./fixtures/verifier/", import.meta.url), A = new URL("./fixtures/amd/", import.meta.url);
 const read = (u) => new Uint8Array(fs.readFileSync(u)), text = (u) => fs.readFileSync(u, "utf8");
@@ -53,7 +52,7 @@ test("all three real AMD chains: the reader agrees with node:crypto field by fie
 
 test("the real VCEKs (Genoa, Turin): EC P-384, signed by the ASK, AMD extensions present, and the PSP's report signature verifies in WebCrypto", async () => {
   const cases = [
-    ["Genoa", read(new URL("genoa-Cloud Provider/vcek-kds-amd.der", F)), gunzipSync(Buffer.from(JSON.parse(text(new URL("genoa-Cloud Provider/rad.json", F))).body, "base64"))],
+    ["Genoa", read(new URL("genoa-Cloud Provider/vcek-kds-amd.der", F)), genoaReport],
     ["Turin", read(new URL("turin-m4a/vcek-kds-amd.der", F)), Buffer.from((JSON.parse(text(new URL("turin-m4a/doc.json", F))).doc ?? JSON.parse(text(new URL("turin-m4a/doc.json", F)))).report, "base64")],
   ];
   for (const [product, vcekDer, report] of cases) {
@@ -125,19 +124,12 @@ test("the three real CRLs: profile, ARK signature and the revoked serial agree w
   }
 });
 
-test("the served (hosted-format) certificate: DNS SANs, the host rule, and the hpke/hatt binding agree with Node's tls-binding", async () => {
-  const certPem = text(new URL("genoa-Cloud Provider/tls-cert.pem", F)), rad = JSON.parse(text(new URL("genoa-Cloud Provider/rad.json", F)));
-  const report = gunzipSync(Buffer.from(rad.body, "base64")), hpke = report.subarray(0x70, 0x90).toString("hex");
+test("a real served TLS certificate: the reader's DNS SANs and host rule agree with node:crypto", async () => {
+  const certPem = text(new URL("genoa-Cloud Provider/tls-cert.pem", F));
   const cert = await X.loadCertificate(X.pemToDer(certPem)), sans = X.dnsSans(cert), n = new X509Certificate(certPem);
   assert.ok(sans.includes("inference.Cloud Provider.sh")); assert.equal(n.checkHost("inference.Cloud Provider.sh"), "inference.Cloud Provider.sh");
   assert.equal(X.hostMatches(sans, "inference.Cloud Provider.sh"), true); assert.equal(X.hostMatches(sans, "INFERENCE.Cloud Provider.sh"), true);
   assert.equal(X.hostMatches(sans, "other.Cloud Provider.sh"), false); assert.equal(X.hostMatches(sans, ""), false); assert.equal(X.hostMatches(sans, "inference.Cloud Provider.sh."), false);
   assert.equal(X.hostMatches(["*.example.com"], "a.example.com"), true); assert.equal(X.hostMatches(["*.example.com"], "a.b.example.com"), false);
   assert.equal(X.hostMatches(["*.com"], "example.com"), false); assert.equal(X.hostMatches(["f*o.example.com"], "foo.example.com"), false, "no partial wildcards (stricter than OpenSSL)");
-  for (const [host, doc, key] of [["inference.Cloud Provider.sh", rad, hpke], ["other.Cloud Provider.sh", rad, hpke], ["inference.Cloud Provider.sh", { ...rad, body: rad.body.slice(0, -4) + "AAAA" }, hpke], ["inference.Cloud Provider.sh", rad, "00".repeat(32)]]) {
-    const w = await webHosted({ certPem, host, doc, hpkeKeyHex: key, now: NOW }), nd = nodeHosted({ certPem, host, doc, hpkeKeyHex: key, now: NOW });
-    assert.deepEqual(w, nd, `host=${host}`);
-  }
-  assert.equal((await webHosted({ certPem, host: "inference.Cloud Provider.sh", doc: rad, hpkeKeyHex: hpke, now: new Date("2030-01-01T00:00:00Z") })).reasons.at(-1),
-    nodeHosted({ certPem, host: "inference.Cloud Provider.sh", doc: rad, hpkeKeyHex: hpke, now: new Date("2030-01-01T00:00:00Z") }).reasons.at(-1));
 });

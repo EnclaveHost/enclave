@@ -1,6 +1,6 @@
 // addressbook.js — the supervisor's contract-address root. Exports LIVE
 // BINDINGS for the platform's contract addresses, seeded from the baked env
-// (the measured Cloud Provider config) and — when ADDRESS_BOOK_ADDRESS is set —
+// (the measured enclave config) and — when ADDRESS_BOOK_ADDRESS is set —
 // overridden from the on-chain EnclaveAddressBook at boot and re-polled, so
 // a contract redeploy reaches running enclaves with ONE owner transaction
 // instead of a release + dashboard update.

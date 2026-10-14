@@ -50,8 +50,8 @@ for (const f of [KERNEL, INITRD]) if (!fs.existsSync(f)) { console.error(`missin
 // What makes it attested rather than merely hashed: the digest of the whole
 // volume table is launched into the CPU's HOST_DATA field, which the hardware
 // signs into every attestation report this VM ever produces. Add, drop, or swap
-// a model and the quote says so — the property Cloud Provider's Modelwrap gets by
-// putting its dm-verity root on the measured cmdline. HOST_DATA rather than the
+// a model and the quote says so — the property a dm-verity root on the
+// measured cmdline would give. HOST_DATA rather than the
 // cmdline on purpose: it is host-supplied config bound to the quote WITHOUT
 // entering the launch measurement, so the release measurement (what allowlists
 // and dist/manifest.json pin) stays stable while the model set stays provable.
@@ -200,9 +200,9 @@ const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', rel
   // how app-zone certificates get minted: see certsCfg() above. Rides fw_cfg
   // like the keys: out-of-band, unmeasured.
   ...CERTS,
-  // NOMINAL node RAM (fleet parity): the Cloud Provider flavors advertise their baked
-  // size (64/512 GB), not the guest kernel's MemTotal, so metal advertises the
-  // size the host gives the VM the same way. gsup caps it at the measured
+  // NOMINAL node RAM (fleet parity): the retired hosted flavors advertised their
+  // baked size (64/512 GB), not the guest kernel's MemTotal, so metal advertises
+  // the size the host gives the VM the same way. gsup caps it at the measured
   // total + a small boot haircut so a config typo (or a dishonest seller)
   // can't advertise RAM the VM doesn't have.
   nodeRamGb: Math.round(Number(MEM) / 1024),
@@ -218,8 +218,8 @@ const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', rel
   // it); without it the guest mints its own SECRET per boot and truthfully
   // advertises secrets-incapable. Anonymous sellers leave this unset.
   fleetSecret: cfg.fleetSecret || '',
-  // ggml engine tuning for the wasm-manager's tenants. The Cloud Provider flavors set
-  // these in their compose env; metal had no channel for them at all, so every
+  // ggml engine tuning for the wasm-manager's tenants. The retired hosted
+  // flavors set these in their compose env; metal had no channel for them at all, so every
   // metal box ran the ENGINE defaults - and the one that matters is
   // ENCLAVE_GGML_MAX_SESSIONS, whose default is 1. One inference slot per
   // graph means a single chat turn's own internal passes queue behind its main

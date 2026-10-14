@@ -141,7 +141,7 @@ test("guard: a plain directory on a non-tmpfs filesystem is REFUSED (logged once
   assert.equal(tmpfs.opened, true);
 });
 
-test("guard: a path tells nothing -- only a statfs that says tmpfs is accepted (inside the Cloud Provider container /mnt/ramdisk is the overlay); an empty ACME_STORE_DIR disables the store", async () => {
+test("guard: a path tells nothing -- only a statfs that says tmpfs is accepted (inside a container /mnt/ramdisk can be the overlay); an empty ACME_STORE_DIR disables the store", async () => {
   const EXT4 = 0xEF53, TMPFS = 0x01021994;
   // the old path allowlist is gone: /mnt/ramdisk and /dev/shm are refused when their filesystem is not tmpfs
   for (const dir of ["/mnt/ramdisk/enclave-acme", "/mnt/ramdisk", "/dev/shm/enclave-acme/", "/var/lib/enclave"]) {
@@ -184,7 +184,7 @@ test("boot: a restored name is HELD - the platform service is never asked for it
   const url = `http://127.0.0.1:${svc.address().port}`;
   const run = (name) => selftest("platform", {
     CERTS_API: url, APP_CERT_DOMAIN: "app.enclave.host", ACME_STORE_DIR: dir, ACME_STORE_ALLOW_DISK: "1",
-    ACME_SELFTEST_PLATFORM: JSON.stringify({ name, endpoint: "https://box7.enclave.containers.Cloud Provider.dev", restoreFirst: true,
+    ACME_SELFTEST_PLATFORM: JSON.stringify({ name, endpoint: "https://box7.nodes.example.com", restoreFirst: true,
                                              cas: [{ host: "acme.zerossl.com", outcome: "nameErr" }] }) });
   const held = await run(APP);
   assert.equal(held.restoredCount, 1);
@@ -270,7 +270,7 @@ const LE_AT = Date.parse(LE_ISO);
 const NAME = "cafe0000.app.enclave.host";
 const walk = (dir, c, extra = {}) => selftest("platform", {
   APP_CERT_DOMAIN: "app.enclave.host", ...(dir ? { ACME_STORE_DIR: dir, ACME_STORE_ALLOW_DISK: "1" } : {}),
-  ACME_SELFTEST_PLATFORM: JSON.stringify({ name: NAME, endpoint: "https://box7.enclave.containers.Cloud Provider.dev", ...c }), ...extra });
+  ACME_SELFTEST_PLATFORM: JSON.stringify({ name: NAME, endpoint: "https://box7.nodes.example.com", ...c }), ...extra });
 
 test("rateLimited: retry-after is parsed from the detail and from the header (seconds or HTTP-date); the later wins; an hour when unsaid; a week at most", async () => {
   const v = await walk("", { cas: [{ host: ZS, outcome: "ok" }] });

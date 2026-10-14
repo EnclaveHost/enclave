@@ -1,7 +1,6 @@
 // The Node consumer bundle (verifier/node/build.mjs -> verifier/dist/enclave-verifier-node.mjs, vendored for the relay at
-// relay/vendor/): it must reproduce byte for byte from this tree, give the same verdict as the source modules on the same
-// bytes, keep @Cloud Providersh/verifier external (the reference is a run-time import that reports installed:false where absent),
-// and carry the pinned Sigstore root inside. The strict integration command runs the reproduction before any suite.
+// relay/vendor/): it must reproduce byte for byte from this tree, carry exactly the consumer's live entry points, and give the
+// same verdict as the source modules on the same bytes. The strict integration command runs the reproduction before any suite.
 //   run: node --test test/verifier-node-bundle.test.mjs
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -12,49 +11,41 @@ import { createHash } from "node:crypto";
 import { reproduceNode } from "../verifier/node/reproduce.mjs";
 import { DIST, VENDOR, ARTIFACT, MANIFEST, OPTIONS } from "../verifier/node/build.mjs";
 import { memoryCollateral } from "../verifier/collateral.mjs";
-import { spkiOfCert } from "../verifier/tls-binding.mjs";
-import { verifyHostedCapture as sourceVerify, releaseExpectationsFrom as sourceExpectations, reportOf } from "../verifier/consumer.mjs";
+import * as source from "../verifier/consumer.mjs";
+import { MEAS, doc, context, chains, vcekAmd, crl, FLOOR } from "./helpers/genoa-capture.mjs";
 
-const REPO = new URL("..", import.meta.url).pathname, F = path.join(REPO, "test", "fixtures", "verifier");
-const rd = (...p) => fs.readFileSync(path.join(F, ...p));
-const CHAIN = path.join(REPO, "test", "fixtures", "amd", "Genoa-cert_chain.pem");   // AMD KDS cert_chain, the same file every other suite uses
+const REPO = new URL("..", import.meta.url).pathname;
 const NOW = "2026-09-24T05:00:00Z";
-const genoa = () => { const rad = JSON.parse(rd("genoa-Cloud Provider", "rad.json").toString()); const certPem = rd("genoa-Cloud Provider", "tls-cert.pem").toString(); return { host: "inference.Cloud Provider.sh", rad, certPem, spki: spkiOfCert(certPem).spki }; };
-const collateral = () => memoryCollateral({ chains: { Genoa: fs.readFileSync(CHAIN, "utf8") }, vceks: { Genoa: rd("genoa-Cloud Provider", "vcek-kds-amd.der") }, crls: { Genoa: rd("amd", "Genoa-crl.der") } });
-const candidate = (tag) => { const j = JSON.parse(rd("release", `${tag}.attestation.json`).toString()); return { tag, digest: rd("release", `${tag}.Cloud Provider.hash`).toString().trim(), bundle: j.attestations ? j.attestations[0]?.bundle : j }; };
+const collateral = () => memoryCollateral({ chains, vceks: { Genoa: vcekAmd }, crls: { Genoa: crl } });
 const sha = (b) => createHash("sha256").update(b).digest("hex");
+const policy = { snp: { allowedMeasurements: [MEAS], minTcb: FLOOR } };
 
 test("the committed bundle reproduces from this tree, byte for byte, with its manifest, notices and the relay's vendored copy", async () => {
   const r = await reproduceNode();
-  assert.equal(r.ok, true, r.problems.join("; ")); assert.ok(r.inputs > 10, `${r.inputs} inputs`);
+  assert.equal(r.ok, true, r.problems.join("; ")); assert.ok(r.inputs >= 8, `${r.inputs} inputs`);
 });
-test("the bundle gives the same verdict as the source modules on the Genoa capture under our releases' policy (rejected on the measurement alone), and verifies under a policy naming its measurement", async () => {
+test("the bundle exports the consumer's live entry points and gives the source's verdict on the same bytes", async () => {
   const m = await import(pathToFileURL(path.join(DIST, ARTIFACT)).href);
-  for (const name of ["releaseExpectationsFrom", "verifyHostedCapture", "captureHosted", "referenceVerify", "compareVerdicts", "verifyHost", "releaseExpectations", "reportOf"]) assert.equal(typeof m[name], "function", name);
-  const cands = [candidate("v0.5.841"), candidate("v0.5.841-cpu")];
-  const [eb, es] = await Promise.all([m.releaseExpectationsFrom(cands), sourceExpectations(cands)]);
-  assert.deepEqual(eb.allowed, es.allowed);
-  const cap = genoa();
-  const [vb, vs] = await Promise.all([m.verifyHostedCapture(cap, { allowed: eb.allowed, collateral: collateral(), now: NOW }), sourceVerify(cap, { allowed: es.allowed, collateral: collateral(), now: NOW })]);
-  assert.equal(vb.status, "rejected"); assert.deepEqual(vb.failedChecks, ["measurement"]); assert.deepEqual({ status: vb.status, checks: vb.checks, omissions: vb.omissions, measurement: vb.measurement }, { status: vs.status, checks: vs.checks, omissions: vs.omissions, measurement: vs.measurement });
-  const ok = await m.verifyHostedCapture(cap, { allowed: [{ tag: "capture", measurement: m.reportOf(cap.rad).measurement }], minTcb: { Genoa: { bootloader: 10, tee: 0, snp: 23, microcode: 84 } }, collateral: collateral(), now: NOW });
-  assert.equal(ok.status, "verified", ok.reasons.join(" | "));
-  assert.equal(m.TRUSTED_ROOT.certificateAuthorities?.length > 0, true, "the pinned Sigstore root is inside the bundle");
+  for (const name of ["verifyGuestDomainEvidence", "prewarmSnpCollateral", "verifyMetalBox", "httpCollateral", "fileCollateral", "memoryCollateral", "layeredCollateral", "cachedCollateral"]) assert.equal(typeof m[name], "function", name);
+  assert.deepEqual(Object.keys(m).sort(), Object.keys(source).sort(), "the bundle's exports are the source module's");
+  const [vb, vs] = await Promise.all([m.verifyGuestDomainEvidence(doc, { policy, context: context({ now: NOW }), collateral: collateral() }), source.verifyGuestDomainEvidence(doc, { policy, context: context({ now: NOW }), collateral: collateral() })]);
+  assert.equal(vb.status, "verified", vb.reasons.join(" | ")); assert.deepEqual(vb, vs);
+  const metal = { format: "sev-snp-guest-metal-v1", body: doc.report };
+  assert.equal((await m.verifyGuestDomainEvidence(metal, { policy, context: context({ now: NOW }), collateral: collateral() })).status, "unsupported", "a release document is the domain format only");
+  assert.equal((await m.verifyGuestDomainEvidence({ format: "https://Cloud Provider.sh/predicate/sev-snp-guest/v2", body: doc.report })).status, "unsupported");
+  assert.deepEqual(await m.prewarmSnpCollateral(doc, collateral()), { ok: true, product: "Genoa" });
+  assert.deepEqual(await m.prewarmSnpCollateral(doc, memoryCollateral({ chains })), { ok: false, product: "Genoa", missing: ["vcek", "crl"] });
 });
-test("@Cloud Providersh/verifier is external to the bundle: no static import of it, and a reference leg whose loader fails reports installed:false (never a pass)", async () => {
+test("nothing is external, and no third-party verifier is bundled", () => {
+  assert.deepEqual(OPTIONS.external, []);
   const text = fs.readFileSync(path.join(DIST, ARTIFACT), "utf8");
-  assert.equal(/^import .* from "@Cloud Providersh\/verifier"/m.test(text), false, "no static import");
-  assert.match(text, /import\("@Cloud Providersh\/verifier"\)/, "the run-time import is kept verbatim");
-  assert.deepEqual(OPTIONS.external, ["@Cloud Providersh/verifier"]);
-  const m = await import(pathToFileURL(path.join(DIST, ARTIFACT)).href);
-  const r = await m.referenceVerify(genoa(), { collateral: collateral(), load: async () => { throw new Error("absent on this host"); } });
-  assert.equal(r.installed, false); assert.equal(m.compareVerdicts({ ours: { status: "verified", checks: {}, claims: {} }, reference: r, allowed: [] }).agreement, "reference-missing");
+  assert.equal(/Cloud Provider/i.test(text), false, "no Cloud Provider code or name in the bundle");
+  assert.equal(/^import .* from "(?!node:)/m.test(text), false, "only node: built-ins are imported");
 });
-test("the manifest names this tree's inputs (the consumer, the SNP verifier, the relay's report parser, the pinned root) with hashes that match the files now", () => {
+test("the manifest names this tree's inputs (the consumer, the SNP verifier, the metal-box rules, the relay's report parser) with hashes that match the files now", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(DIST, MANIFEST), "utf8"));
-  for (const p of ["verifier/consumer.mjs", "verifier/snp.mjs", "verifier/provenance.mjs", "relay/snp-verify.mjs", "verifier/roots/sigstore-trusted-root.json"]) {
+  for (const p of ["verifier/consumer.mjs", "verifier/snp.mjs", "verifier/metal-box.mjs", "verifier/envelope.mjs", "relay/snp-verify.mjs"]) {
     const i = manifest.inputs.find((x) => x.path === p); assert.ok(i, `${p} is an input`); assert.equal(i.sha256, sha(fs.readFileSync(path.join(REPO, p))), `${p} unchanged since the build`);
   }
-  assert.equal(manifest.inputs.some((x) => /@Cloud Providersh/.test(x.path)), false, "the Cloud Provider library is not bundled");
   assert.equal(sha(fs.readFileSync(path.join(VENDOR, ARTIFACT))), manifest.artifact.sha256, "the relay's copy is the artifact");
 });

@@ -1,46 +1,31 @@
-// The hosted-fleet format on AUTHENTIC evidence: a Cloud Provider-shim document from a public Genoa host, its VCEK
-// from AMD, the Genoa chain, AMD's CRL and the served certificate. Then every input is mutated on its own.
-// A passing suite proves: the verifier walks a genuine PSP signature to AMD's pinned Genoa root offline,
-// applies the hosted binding rule (TLS key, hpke and hatt SANs), and refuses each single-field forgery for
-// the reason that field carries.
+// AUTHENTIC Genoa evidence: a genuine PSP-signed report from a public Genoa host, its VCEK from AMD, the Genoa chain and
+// AMD's CRL (test/helpers/genoa-capture.mjs says how the report is presented). Then every input is mutated on its own.
+// A passing suite proves: the verifier walks a genuine PSP signature to AMD's pinned Genoa root offline and refuses each
+// single-field forgery for the reason that field carries.
 //   run: node --test test/verifier-snp-genoa.test.mjs
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { execFileSync } from "node:child_process";
-import { gunzipSync, gzipSync } from "node:zlib";
-import { createHash, X509Certificate } from "node:crypto";
-import { verifyEvidence, memoryCollateral, spkiOfCert, checkCrl, checkChain } from "../verifier/index.mjs";
+import { X509Certificate } from "node:crypto";
+import { verifyEvidence, memoryCollateral, checkCrl, checkChain } from "../verifier/index.mjs";
+import { report, MEAS, BINDING, APP_ID, spki, doc as rad, docWith, context, chains, vcekAmd, vcekProxy, crl, FLOOR } from "./helpers/genoa-capture.mjs";
 
-const F = new URL("./fixtures/verifier/", import.meta.url), A = new URL("./fixtures/amd/", import.meta.url);
-const read = (u) => fs.readFileSync(u), text = (u) => fs.readFileSync(u, "utf8");
-const rad = JSON.parse(text(new URL("genoa-Cloud Provider/rad.json", F)));
-const report = gunzipSync(Buffer.from(rad.body, "base64"));
-const certPem = text(new URL("genoa-Cloud Provider/tls-cert.pem", F));
-const { spki } = spkiOfCert(certPem);
-const MEAS = report.subarray(0x90, 0xc0).toString("hex");
-const NOW = "2026-09-24T05:00:00Z", HOST = "inference.Cloud Provider.sh";
-const chains = { Genoa: text(new URL("Genoa-cert_chain.pem", A)), Milan: text(new URL("Milan-cert_chain.pem", A)), Turin: text(new URL("Turin-cert_chain.pem", A)) };
-const vcekAmd = read(new URL("genoa-Cloud Provider/vcek-kds-amd.der", F)), vcekProxy = read(new URL("genoa-Cloud Provider/vcek-kds-proxy-Cloud Provider.der", F));
-const crl = read(new URL("amd/Genoa-crl.der", F));
+const F = new URL("./fixtures/verifier/", import.meta.url);
+const read = (u) => fs.readFileSync(u);
+const NOW = "2026-09-24T05:00:00Z";
 const col = (over = {}) => memoryCollateral({ chains, vceks: { Genoa: vcekAmd }, crls: { Genoa: crl }, ...over });
-const docWith = (r) => ({ format: rad.format, body: gzipSync(r).toString("base64") });
-const FLOOR = { Genoa: { bootloader: 10, tee: 0, snp: 23, microcode: 84 } };   // the part's own TCB: an admission-safe run needs a floor
-const run = (doc = rad, { policy = {}, context = {}, collateral = col() } = {}) =>
-  verifyEvidence(doc, { policy: { snp: { allowedMeasurements: [MEAS], minTcb: FLOOR, ...policy } }, context: { transportKeySpki: spki, certPem, host: HOST, now: NOW, ...context }, collateral });
+const run = (doc = rad, { policy = {}, context: ctx = {}, collateral = col() } = {}) =>
+  verifyEvidence(doc, { policy: { snp: { allowedMeasurements: [MEAS], minTcb: FLOOR, ...policy } }, context: context({ now: NOW, ...ctx }), collateral });
 const rejectedAt = (v, check, re) => { assert.equal(v.status, "rejected", v.reasons.join("\n")); assert.equal(v.checks[check], false, `expected the ${check} check to fail: ${v.reasons.at(-1)}`); if (re) assert.match(v.reasons.at(-1), re); };
 
-test("the authentic document verifies end to end, and the verdict states what it rests on", async () => {
+test("the authentic report verifies end to end, and the verdict states what it rests on", async () => {
   const v = await run();
   assert.equal(v.status, "verified", v.reasons.join("\n")); assert.equal(v.admissionSafe, true); assert.deepEqual(v.omissions, []);
-  for (const k of ["report shape", "report version", "product line", "guest policy", "vmpl", "chain", "crl", "signature", "vcek identity", "tcb policy", "measurement", "binding", "certificate binding"]) assert.equal(v.checks[k], true, k);
+  for (const k of ["report shape", "report version", "product line", "guest policy", "vmpl", "chain", "crl", "signature", "vcek identity", "tcb policy", "measurement", "binding", "app id"]) assert.equal(v.checks[k], true, k);
   assert.equal(v.claims.product, "Genoa"); assert.equal(v.claims.reportVersion, 3); assert.equal(v.claims.vmpl, 0);
-  assert.equal(v.claims.freshness, "served certificate window");
-  assert.equal(v.claims.tcb.reported.snp, 23); assert.equal(v.claims.certificate.attestationHash.length, 64);
+  assert.equal(v.claims.tcb.reported.snp, 23); assert.equal(v.claims.appId, APP_ID.toString("hex"));
 });
-test("the same key re-issued by KDS (Cloud Provider's proxy copy) verifies identically: collateral source is irrelevant", async () => {
+test("the same key fetched through a third-party KDS proxy verifies identically: collateral source is irrelevant", async () => {
   const v = await run(rad, { collateral: col({ vceks: { Genoa: vcekProxy } }) });
   assert.equal(v.status, "verified", v.reasons.join("\n"));
   assert.notEqual(vcekAmd.equals(vcekProxy), true, "the two certificates differ in bytes");
@@ -98,10 +83,13 @@ test("identity: the measurement must be one the policy allows, and the policy mu
   const r = Buffer.from(report); r[0x90] ^= 1;
   assert.equal((await run(docWith(r))).status, "rejected");
 });
-test("report_data / transport key: another key, another report", async () => {
-  const other = Buffer.from(spki); other[other.length - 1] ^= 1;
-  rejectedAt(await run(rad, { context: { transportKeySpki: other } }), "binding", /another key/);
+test("report_data: another binding, another app, no key, or an edited report_data is refused", async () => {
+  const other = Buffer.from(BINDING); other[0] ^= 1;
+  rejectedAt(await run(rad, { context: { expectedBinding: other } }), "binding", /does not equal the ABI\/2 .* binding/);
+  const app = Buffer.from(APP_ID); app[0] ^= 1;
+  rejectedAt(await run(rad, { context: { expectedAppId: app } }), "app id", /expected/);
   rejectedAt(await run(rad, { context: { transportKeySpki: undefined } }), "binding", /never skipped/);
+  rejectedAt(await run({ ...rad, abi: "enclave-domain-abi/1" }), "binding", /no silent downgrade/);
   const r = Buffer.from(report); r[0x50] ^= 1;
   assert.equal((await run(docWith(r))).status, "rejected");
 });
@@ -146,36 +134,6 @@ test("revocation: the Genoa CRL really revokes serial 020001, and an ASK with th
   assert.equal(revoked.ok, false); assert.match(revoked.reasons[0], /REVOKED since 2022-10-31/);
   assert.equal(checkCrl({ crlDer: crl, ark: ch.ark, ask: ch.ask, now: new Date(NOW) }).ok, true);
 });
-test("certificate windows: a clock past the served certificate's expiry rejects; the AMD certificates too", async () => {
-  rejectedAt(await run(rad, { context: { now: "2027-01-15T00:00:00Z" }, policy: { crl: "none" } }), "certificate binding", /not valid at/);
+test("certificate windows: a clock before the AMD certificates' validity rejects", async () => {
   rejectedAt(await run(rad, { context: { now: "2020-01-01T00:00:00Z" }, policy: { crl: "none" } }), "chain", /not valid at/);
-});
-
-// ---- the served certificate (hosted-format freshness) --------------------------------------------
-const B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-const b32 = (buf) => { let bits = 0, val = 0, out = ""; for (const b of buf) { val = (val << 8) | b; bits += 8; while (bits >= 5) { out += B32[(val >>> (bits - 5)) & 31]; bits -= 5; } } if (bits) out += B32[(val << (5 - bits)) & 31]; return out.toLowerCase(); };
-const chunks = (buf, label, zone) => { const s = b32(buf); const out = []; for (let i = 0, n = 0; i < s.length; i += 45, n++) out.push(`${String(n).padStart(2, "0")}${s.slice(i, i + 45)}.${label}.${zone}`); return out; };
-function synthCert({ host = HOST, hpkeHex, hattHex, spkiOnly = false } = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vcert-"));
-  const sans = ["DNS:" + host, ...chunks(Buffer.from(hpkeHex, "hex"), "hpke", "x.test").map((d) => "DNS:" + d), ...chunks(Buffer.from(hattHex, "ascii"), "hatt", "x.test").map((d) => "DNS:" + d)];
-  execFileSync("openssl", ["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-nodes", "-keyout", `${dir}/k.pem`, "-out", `${dir}/c.pem`, "-days", "2", "-subj", `/CN=${host}`, "-addext", `subjectAltName=${sans.join(",")}`], { stdio: "ignore" });
-  const pem = fs.readFileSync(`${dir}/c.pem`, "utf8"); fs.rmSync(dir, { recursive: true }); return pem;
-}
-test("served certificate: hatt must hash THIS document, hpke must match the report, the host must match", async () => {
-  const hpke = report.subarray(0x70, 0x90).toString("hex");
-  const hatt = createHash("sha256").update(rad.format + rad.body).digest("hex");
-  // a synthetic certificate with the right SANs but a key that is NOT the one the report binds
-  const good = synthCert({ hpkeHex: hpke, hattHex: hatt });
-  rejectedAt(await run(rad, { context: { certPem: good, now: new Date().toISOString() } }), "certificate binding", /not the key the report binds/);
-  // and, with the verifier's own SPKI taken from that synthetic certificate, the report no longer binds it
-  rejectedAt(await run(rad, { context: { certPem: good, transportKeySpki: spkiOfCert(good).spki, now: new Date().toISOString() } }), "binding", /another key/);
-  // substituted document: hatt of a different document
-  const otherHatt = synthCert({ hpkeHex: hpke, hattHex: "00".repeat(32) });
-  const v = await run(rad, { context: { certPem: otherHatt, transportKeySpki: spkiOfCert(otherHatt).spki, now: new Date().toISOString() }, policy: { requireCertificateBinding: true } });
-  assert.equal(v.status, "rejected");
-  rejectedAt(await run(rad, { context: { host: "other.example" } }), "certificate binding", /not valid for host/);
-  rejectedAt(await run(rad, { context: { certPem: undefined } }), "certificate binding", /requires the served certificate/);
-  const lax = await run(rad, { context: { certPem: undefined }, policy: { requireCertificateBinding: false } });
-  assert.equal(lax.status, "limited"); assert.deepEqual(lax.omissions, ["certificate-binding-unchecked"]); assert.equal(lax.checks["certificate binding"], null);
-  assert.equal(lax.claims.freshness, "none (certificate binding omitted)");
 });

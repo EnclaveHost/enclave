@@ -112,11 +112,10 @@ fi
 command -v gh >/dev/null || { echo "error: gh CLI required to publish the release" >&2; exit 1; }
 git push origin "$TAG"
 say "gh release create $TAG"
-# --prerelease is LOAD-BEARING: the Cloud Provider verifier resolves this repo's
-# /releases/latest for Cloud Provider.hash, and a CLI release sitting there (no such
-# asset) breaks attestation verification platform-wide until the next enclave
-# release buries it. Prereleases are excluded from /releases/latest; the
-# installers are unaffected (they resolve cli-* TAGS via git/matching-refs).
+# --prerelease: /releases/latest should stay the latest ENCLAVE release
+# (vX.Y.Z-cpu, release-cpu.yml), not a CLI tarball. Prereleases are excluded
+# from /releases/latest; the installers are unaffected (they resolve cli-* TAGS
+# via git/matching-refs).
 # shellcheck disable=SC2086 # $SIG_ASSET is deliberately word-split (empty = omit)
 SIG_ASSET=""
 [ "$SIGNED" = "1" ] && SIG_ASSET="$OUT/SHA256SUMS.sig"

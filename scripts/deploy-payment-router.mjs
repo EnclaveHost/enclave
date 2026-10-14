@@ -12,7 +12,7 @@
 //
 // Unlike the enclave-side contracts this address is consumed by the RELAY
 // (indexer + checkout instructions) and the SITE (address book), never by
-// Cloud Provider configs or the CLI - so this script writes no config files.
+// the enclave config or the CLI - so this script writes no config files.
 //
 // Usage:
 //   DEPLOYER_PRIVATE_KEY=0x... TREASURY_ADDRESS=0x...coldwallet \

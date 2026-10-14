@@ -11,22 +11,14 @@ Build tool, not distributed in the bundle: esbuild 0.28.1 (MIT).
 - `relay/snp-verify.mjs`
 - `verifier/der.mjs`
 - `verifier/envelope.mjs`
-- `verifier/index-memory.mjs`
-- `verifier/provenance.mjs`
-- `verifier/release-index-core.mjs`
-- `verifier/release-policy.json`
-- `verifier/release-policy.mjs`
-- `verifier/roots/sigstore-trusted-root.json`
+- `verifier/metal-box.mjs`
 - `verifier/snp.mjs`
 - `verifier/tls-binding.mjs`
 - `verifier/web/collateral.mjs`
 - `verifier/web/index.mjs`
-- `verifier/web/provenance.mjs`
 - `verifier/web/provider.mjs`
-- `verifier/web/shadow.mjs`
 - `verifier/web/shims/buffer-global.mjs`
 - `verifier/web/shims/node-crypto.mjs`
-- `verifier/web/shims/node-zlib.mjs`
 - `verifier/web/x509.mjs`
 
 ## Third-party

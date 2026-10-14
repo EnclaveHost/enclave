@@ -1,5 +1,5 @@
 // Self-registration retries until it goes through, for a box with a pinned PUBLIC_URL too. The registration functions of
-// supervisor.js (registerOnChain, registerFromShimCert, registerSelf, advertise), sliced out by text so the test runs
+// supervisor.js (registerOnChain, registerSelf, advertise), sliced out by text so the test runs
 // the production code against a stub registry without starting a supervisor. The case it exists for (2026-10-10,
 // metal0): the host booted with its USB uplink missing, the one boot-time register() of a PUBLIC_URL box failed with
 // "HTTP request failed", and nothing ever tried again. The box stayed off the live enclave list, and claimed nothing
@@ -13,27 +13,25 @@ const slice = (re, what) => { const m = re.exec(src); assert.ok(m, `${what} is i
 const FNS = [
   slice(/function registryRepointed\(\) \{[\s\S]*?\n\}/, "registryRepointed"),
   slice(/async function registerOnChain\(endpoint\) \{[\s\S]*?\n\}/, "registerOnChain"),
-  slice(/async function registerFromShimCert\(\) \{[\s\S]*?\n\}/, "registerFromShimCert"),
   slice(/async function registerSelf\(\) \{[\s\S]*?\n\}/, "registerSelf"),
   slice(/function advertised\(\) \{[\s\S]*?\n\}/, "advertised"),
   slice(/let _advertising = false;\nasync function advertise\(\) \{[\s\S]*?\n\}/, "advertise"),
 ].join("\n");
 
-// One supervisor's registration state, with the chain, the shim and the clock stubbed. env.send(fn, args) answers each
+// One supervisor's registration state, with the chain and the clock stubbed. env.send(fn, args) answers each
 // operator tx: return a hash, or throw. Backoff sleeps are recorded and yield to the event loop instead of waiting.
 function box(env) {
   const sleeps = [], txs = [], logs = [];
   const make = new Function("env", "sleeps", "txs", "logs", `
     let REGISTRY_ADDRESS = "0xAAAA";
     const REGISTRY_READY = true, PUBLIC_URL = env.PUBLIC_URL || "";
-    let _registered = false, _registeredOn = null, _enclaveId = null, _advertisedEndpoint = null, _certSan = null;
+    let _registered = false, _registeredOn = null, _enclaveId = null, _advertisedEndpoint = null;
     const keccak256 = (b) => "id(" + b + ")", stringToBytes = (s) => s;
     const registryRev = async () => 3;
     const PROOF_ACCOUNT = null, REGISTRY_ABI = [], REGISTRY_ABI_V2 = [], REGISTRY_ABI_V1 = [];
     const ENCLAVE_REPO = "EnclaveHost/enclave", ENCLAVE_MEASUREMENT = "0x00", SELL_CPU_PRICE6 = 1, SELL_GPU_PRICE6 = 2;
     const IS_GPU = false, HEARTBEAT_SEC = 60;
     const sendOperatorTx = async (address, _abi, fn, args) => { txs.push({ address, fn, endpoint: args[0] }); return env.send(fn, args); };
-    const shimCertHostname = env.shimCertHostname || (async () => { throw new Error("connect ECONNREFUSED 127.0.0.1:443"); });
     const setInterval = () => ({ unref() {} });
     const setTimeout = (fn, ms) => {
       if (sleeps.length >= 50) throw new Error("still not registered after 50 retries");   // fail, don't spin forever
@@ -109,13 +107,14 @@ test("a PUBLIC_URL box re-registers its pinned origin when the address book repo
     ["0xAAAA", "https://api.enclave.host/t/metal0"], ["0xBBBB", "https://api.enclave.host/t/metal0"]]);
 });
 
-test("a shim box still waits for its public SAN, then registers it", async () => {
-  let reads = 0;
-  const b = box({ send: () => "0xhash",
-    shimCertHostname: async () => (++reads <= 2 ? null : "abc.containers.Cloud Provider.dev") });
+test("a box with no PUBLIC_URL cannot name itself, so it never registers (and never spins a retry loop)", async () => {
+  const b = box({ send: () => "0xhash" });
   await b.advertise();
-  assert.deepEqual(b.sleeps, [5, 10]);
-  assert.deepEqual(b.txs.map((t) => t.endpoint), ["https://abc.containers.Cloud Provider.dev"]);
+  assert.deepEqual(b.txs, [], "no register tx without an origin to register");
+  assert.deepEqual(b.sleeps, [], "no backoff loop either");
+  await b.registerSelf();
+  assert.deepEqual(b.txs, []);
+  assert.ok(b.logs.some((l) => /no PUBLIC_URL/.test(l)), "it says why");
 });
 
 test("boot, the heartbeat's repoint path and the request middleware all go through the retrying entry points", () => {

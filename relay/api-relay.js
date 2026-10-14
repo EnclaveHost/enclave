@@ -82,11 +82,6 @@ import http from "node:http";
 import https from "node:https";
 import fs from "node:fs";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-// relay/reverify.mjs is loaded at run time, not imported statically: the deploy copies NAMED files to the box, and a box
-// that does not have it yet must still start (2026-09-25: the first deploy of this crash-looped on a missing module).
-let createReverifier = null, reverifyModeOf = (raw) => (["off", "shadow", "enforce"].includes(String(raw || "")) ? String(raw) : "shadow");
-try { ({ createReverifier, modeOf: reverifyModeOf } = await import("./reverify.mjs")); }
-catch (e) { console.error(`[reverify] relay/reverify.mjs is not on this box (${e.message}); re-verification is OFF until a deploy ships it`); }
 import { readCappedText, MAX_BODY_BYTES, installProcessGuards } from "./fleet.mjs";
 import { isBlockedHost } from "./net-guard.mjs";
 import { isMcpHost, handleMcp } from "./mcp.js";
@@ -149,24 +144,10 @@ const METAL_MIN_TCB = (() => {
   if (!raw) return undefined;
   try { return JSON.parse(raw); } catch { console.error("[relay] METAL_MIN_TCB is not JSON: SNP attaches will be refused"); return raw; }
 })();
-// Re-verification of DIALED rows with the repository's own verifier (relay/reverify.mjs, the vendored
-// relay/vendor/enclave-verifier-node.mjs; docs/security/independent-verifier-plan.md section 9 stage 6). Until now a
-// dialed row's confidential-CPU claim was its own word (availability.teeCpu); this checks it against the row's own
-// attestation document, captured over this relay's TLS connection, and the release's verified provenance.
-//   RELAY_REVERIFY=shadow (default): rows carry `reverify` in the fleet view, eligibility is unchanged, non-verified
-//                  rows are logged; =enforce: a dialed row must have re-verified to be eligible; =off: nothing runs
-//                  (the fallback: the previous behaviour, byte for byte). RELAY_REVERIFY_SEC: the cadence (default 900).
-//   The TCB floor is METAL_MIN_TCB, the same floor the attach gate applies; without one a verdict is at best "limited".
-const RELAY_REVERIFY = createReverifier ? reverifyModeOf(process.env.RELAY_REVERIFY) : "off";
-const RELAY_REVERIFY_SEC = parseInt(process.env.RELAY_REVERIFY_SEC || "900", 10);
-//   The signed release index is consulted first and REMEMBERED (RELAY_REVERIFY_CACHE_DIR/index-memory.json): a replayed
-//   or equivocating index is refused and the fallback never accepts below the remembered floor. RELAY_REQUIRE_INDEX=1 is
-//   the strict switch: without a verified, fresh index nothing re-verifies (off by default until the memory has history).
-const RELAY_REVERIFY_CACHE_DIR = process.env.RELAY_REVERIFY_CACHE_DIR || (typeof dataDir() === "string" && dataDir() ? `${dataDir()}/verifier-collateral` : "/tmp/enclave-relay-verifier-collateral");
-const reverifier = createReverifier
-  ? createReverifier({ mode: RELAY_REVERIFY, minTcb: METAL_MIN_TCB && typeof METAL_MIN_TCB === "object" ? METAL_MIN_TCB : undefined,
-      cacheDir: RELAY_REVERIFY_CACHE_DIR, indexMemoryFile: `${RELAY_REVERIFY_CACHE_DIR}/index-memory.json`, requireIndex: process.env.RELAY_REQUIRE_INDEX === "1", log: (m) => console.log(`[reverify] ${m}`) })
-  : { mode: "off", run: async () => new Map(), annotate: (r) => r, eligible: (r, base) => base, ineligibleReason: () => null, verdictOf: () => null, stats: () => ({}) };
+// The vendored verifier's AMD collateral cache (relay/vendor/enclave-verifier-node.mjs cachedCollateral: a cached VCEK is
+// re-verified to the pinned ARK on read). RELAY_REVERIFY_CACHE_DIR is the variable's older name, still honoured.
+const VERIFIER_CACHE_DIR = process.env.RELAY_VERIFIER_CACHE_DIR || process.env.RELAY_REVERIFY_CACHE_DIR
+  || (typeof dataDir() === "string" && dataDir() ? `${dataDir()}/verifier-collateral` : "/tmp/enclave-relay-verifier-collateral");
 // Phone-anchored hosts (shielded/anchor/PLAN.md): the anchor APK builds admitted
 // (codeHash = the APK's v4 Merkle root) and the APK signing certificate(s) that
 // may sign them (authorityHash = sha512 of the certificate). Routing builds
@@ -999,8 +980,7 @@ async function pollAvailability() {
                        : await fetchJson(`${e.endpoint}/availability`);
       // a pVM CPU row's pool is the relay-verified VM size (pvmCpuAvailability), never the phone host's own word
       if (a && e.tunnel) a = pvmCpuAvailability(e, a);
-      rows[idx] = a ? reverifier.annotate({ ...e, availability: a, relay: hasNoResources(a),
-                                            checkedAt: new Date().toISOString() }) : null;
+      rows[idx] = a ? { ...e, availability: a, relay: hasNoResources(a), checkedAt: new Date().toISOString() } : null;
     }
   };
   await Promise.all(Array.from({ length: Math.min(AVAIL_POLL_CONCURRENCY, src.length || 1) }, worker));
@@ -1107,8 +1087,8 @@ const json = (res, code, body, req) => {
 // body through and pipes the response back, swapping the enclave's CORS for
 // ours. This is the API-gateway path: the relay terminates TLS, so it sees the
 // control-plane token/body in plaintext (accepted trade for a single origin).
-// Attestation fetched this way is informational — real verification stays
-// client-side-direct via Cloud Provider SecureClient.
+// Attestation fetched this way is informational — real verification stays with
+// the client's own verifier (verifier/: `enclave attest`, the site's live verify).
 // Reverse-proxy `req` to `enclaveOrigin + path`. `setCors`: on the api.enclave.host
 // control-plane paths WE own CORS (swap the enclave's for ours); on an app
 // subdomain the app is its own origin, so pass its headers through untouched.
@@ -1568,8 +1548,8 @@ const CONFIDENTIAL_CPU = new Set(["amd-sev-snp", "intel-tdx"]);
 function computeEligible(e) {
   if (!e || e.relay) return false;
   if (e.tunnel) return TENANT_COMPUTE_MODES.has(String(e.mode || "")) || shieldMarket.eligible(e) || pvmMarket.eligible(e);
-  // a dialed row: its own word, and (RELAY_REVERIFY=enforce) this relay's re-verification of it; shadow/off leave the word
-  return reverifier.eligible(e, CONFIDENTIAL_CPU.has(String(e.availability?.teeCpu || "")));
+  // a dialed row: its own word
+  return CONFIDENTIAL_CPU.has(String(e.availability?.teeCpu || ""));
 }
 // The pVM CPU tier is its own lane: a phone the hub tiered "pvm-cpu" (one admitted
 // capability report, relay/pvm-cpu-tier.mjs) runs CPU-ONLY Wasm workloads in its protected
@@ -1595,8 +1575,6 @@ function ineligibleReason(e) {
                          : "verified protected-VM chain; no pVM CPU capability report admitted yet";
     return "attached on a token, no hardware quote verified";
   }
-  const rv = reverifier.ineligibleReason(e);
-  if (rv) return rv;
   const t = String(e.availability?.teeCpu || "");
   const gpu = (e.availability?.gpu === true || (e.availability?.shielded && e.availability.shielded.vramGb > 0))
     ? "; its GPU is exposed only through Enclave Shield, whose evidence it has not presented" : "";
@@ -2453,13 +2431,13 @@ const predictorProblems = () => [...predictor().problems,
 // A release document judged by the VENDORED verifier's SNP domain path (verifier/consumer.mjs verifyGuestDomainEvidence:
 // verifier/index.mjs verifyEvidence's SNP branch, bundled because the relay ships relay/** only): the pinned AMD roots, the
 // CRL, the caller's TCB floor and VMPL, report_data = the release binding and the AppID, HOST_DATA = the deployment. AMD
-// collateral comes from KDS through the reverify cache directory (a cached VCEK is re-verified to the pinned ARK on read).
+// collateral comes from KDS through the verifier cache directory (a cached VCEK is re-verified to the pinned ARK on read).
 let _guestVerifier = null;
 async function guestVerifier() {
   if (!_guestVerifier) {
     const bundle = await import("./vendor/enclave-verifier-node.mjs");
     let collateral;
-    try { fs.mkdirSync(RELAY_REVERIFY_CACHE_DIR, { recursive: true }); collateral = bundle.cachedCollateral({ dir: RELAY_REVERIFY_CACHE_DIR, upstream: bundle.httpCollateral({ timeoutMs: 8000 }) }); }
+    try { fs.mkdirSync(VERIFIER_CACHE_DIR, { recursive: true }); collateral = bundle.cachedCollateral({ dir: VERIFIER_CACHE_DIR, upstream: bundle.httpCollateral({ timeoutMs: 8000 }) }); }
     catch { collateral = bundle.httpCollateral({ timeoutMs: 8000 }); }
     _guestVerifier = { verify: bundle.verifyGuestDomainEvidence, prewarm: bundle.prewarmSnpCollateral, collateral };
   }
@@ -2712,13 +2690,6 @@ function handleRequest(req, res) {
   if (u.pathname === "/health")
     return json(res, 200, { ok: true, enclaves: live.length, of: registry.length, updatedAt }, req);
 
-  // The same-origin mirror of the signed release index and the release attestations this relay last verified
-  // (relay/reverify.mjs mirror): bytes and signatures for a client to verify itself, never a verdict. Cached briefly.
-  if (u.pathname === "/v1/release-index" && req.method === "GET") {
-    res.setHeader("cache-control", "public, max-age=300");
-    return json(res, 200, reverifier.mirror(), req);
-  }
-
   // A FRESH attestation of an attached SEV-SNP box over the CALLER's nonce (verifier/consumer.mjs verifyMetalBox; the site's
   // live verify). The box signs nothing here and neither does the relay: the document is the box's own, AMD-signed, with
   // report_data[0:32] = sha256(its transport SPKI || YOUR nonce), handed back verbatim. The relay's admitted measurements are
@@ -2778,7 +2749,6 @@ function handleRequest(req, res) {
       totalGpuShareFree: Math.round(serving.reduce((s, e) => s + gpuFreeOf(e.availability), 0) * 1000) / 1000,
       totalCpuShareFree: Math.round(serving.reduce((s, e) => s + cpuFreeOf(e.availability), 0) * 1000) / 1000,
       totalVramFreeGb: Math.round(serving.reduce((s, e) => s + (e.availability.vramFreeGb || 0), 0) * 10) / 10,
-      ...(RELAY_REVERIFY !== "off" ? { reverify: { mode: RELAY_REVERIFY, ...reverifier.stats() } } : {}),
     };
     return json(res, 200, { updatedAt, aggregate: agg, enclaves: rows }, req);
   }
@@ -2795,7 +2765,7 @@ function handleRequest(req, res) {
     if (!c) return json(res, 503, { error: "no_capacity",
       message: `No live enclave has gpuShare >= ${want.gpuShare} and cpuShare >= ${want.cpuShare} free.`, updatedAt }, req);
     return json(res, 200, { endpoint: c.endpoint, repo: c.repo, availability: c.availability, updatedAt,
-                            note: "Verify attestation at the endpoint (Cloud Provider SecureClient + repo) before sending anything." }, req);
+                            note: "Verify attestation at the endpoint with your own verifier (enclave attest) before sending anything." }, req);
   }
 
   // Featured-slot view metering (owned by the relay, never proxied): the
@@ -2996,15 +2966,6 @@ await initCerts();             // platform certs: CERTS_KEY + DNS_API + DNS_TXT_
 setInterval(pollRegistry, REGISTRY_POLL_SEC * 1000);
 setInterval(resolveDeployments, REGISTRY_POLL_SEC * 1000);
 setInterval(pollAvailability, AVAIL_POLL_SEC * 1000);
-// the re-verification of dialed rows: its own cadence, never inside the availability poll (KDS rate-limits; a slow
-// enclave must not delay the fleet view); rows are re-annotated from the verdicts it writes
-if (RELAY_REVERIFY !== "off") {
-  const reverifyRound = async () => { try { await reverifier.run(live); live = live.map((e) => reverifier.annotate(e)); } catch (e) { console.error("[reverify] round failed:", e.message); } };
-  setTimeout(reverifyRound, 20_000).unref?.();
-  setInterval(reverifyRound, RELAY_REVERIFY_SEC * 1000).unref?.();
-  console.log(`[reverify] ${RELAY_REVERIFY}: dialed rows re-verified every ${RELAY_REVERIFY_SEC}s with the vendored verifier`);
-}
-
 const BIND = process.env.API_RELAY_BIND || undefined;
 if (!BIND) console.error("[api-relay] NOTE: binding ALL interfaces (no API_RELAY_BIND). If a local Caddy fronts this relay, set API_RELAY_BIND=127.0.0.1 so :" + PORT + " isn't reachable directly.");
 server.listen(PORT, BIND, () => console.log(

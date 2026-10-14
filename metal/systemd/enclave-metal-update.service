@@ -1,7 +1,7 @@
 # enclave-metal-update — the pull half of "merge to main and the fleet moves".
 #
-# Cloud Provider enclaves are pushed to by CI; a metal box behind CGNAT has no inbound
-# path, so it checks for the newest published release for its flavor and, when
+# CI publishes releases but cannot push to a metal box behind CGNAT (no inbound
+# path), so the box checks for the newest published release for its flavor and, when
 # the policy in metal/config.json's `autoUpdate` allows, rebuilds and restarts
 # enclave-metal. The updater stages beside the live image and rolls back if the
 # box does not come back healthy, so a bad release costs one restart, not a night.

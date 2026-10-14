@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# release.sh - build + push every Enclave container for linux/amd64, read each pushed
-# digest, and repin it in enclaves/*/Cloud Provider-config.yml. Pin by DIGEST (what Cloud Provider attests),
-# not by tag. Run from anywhere inside the repo.
+# release.sh - build + push Enclave container images for linux/amd64, read each pushed
+# digest, and repin it in enclaves/cpu/config.yml. Pin by DIGEST (what the measured
+# guest image is built from), not by tag. Run from anywhere inside the repo.
 #
-#   ./scripts/release.sh                        # all images
+#   ./scripts/release.sh                        # the images the CPU config ships
 #   ./scripts/release.sh enclave-supervisor enclave-wasm-manager   # just these
 #   DRY_RUN=1 ./scripts/release.sh        # no docker; repin with a fake digest (test)
 #
@@ -15,14 +15,12 @@ set -euo pipefail
 
 REGISTRY="ghcr.io"
 ORG="enclavehost"
-PLATFORM="linux/amd64"          # Cloud Provider enclave is x86
-DIGEST_SEP="${DIGEST_SEP:-@}"   # OCI digest pin form: name@sha256:HEX. (':' is invalid and Cloud Provider rejects it.)
+PLATFORM="linux/amd64"          # the guests are x86
+DIGEST_SEP="${DIGEST_SEP:-@}"   # OCI digest pin form: name@sha256:HEX. (':' is not a valid digest reference.)
 TAG="${TAG:-$(git rev-parse --short HEAD 2>/dev/null || echo dev)}"
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-CONFIG="$REPO_ROOT/enclaves/gpu/Cloud Provider-config.yml"
-CONFIG_CPU="$REPO_ROOT/enclaves/cpu/Cloud Provider-config.yml"    # CPU-only flavor; shares the supervisor + wasm-manager images
-CONFIG_GPU8="$REPO_ROOT/enclaves/gpu8/Cloud Provider-config.yml"  # 8xGPU tenant-compute flavor; same containers as the gpu flavor, scaled to 8 cards
+CONFIG="$REPO_ROOT/enclaves/cpu/config.yml"    # the CPU flavor: supervisor + wasm-manager
 cd "$REPO_ROOT"
 
 # image short-name -> build context (Dockerfile is <context>/Dockerfile unless
@@ -37,9 +35,12 @@ declare -A CONTEXT=(
 declare -A DOCKERFILE=(
   [enclave-wasm-manager]="wasm/Dockerfile.wasm"
 )
-ORDER=(enclave-mps enclave-worker enclave-supervisor enclave-wasm-manager)   # deterministic build order
+# deterministic build order of the default set: the images the CPU config ships.
+# enclave-mps / enclave-worker still build by name, but no shipped config pins them
+# since the GPU flavors were retired (2026-10-14).
+ORDER=(enclave-supervisor enclave-wasm-manager)
 
-# pick the subset (positional args) or all
+# pick the subset (positional args) or the default set
 TARGETS=("$@"); [ ${#TARGETS[@]} -eq 0 ] && TARGETS=("${ORDER[@]}")
 
 DRY_RUN="${DRY_RUN:-0}"
@@ -51,11 +52,11 @@ if [ "$DRY_RUN" != "1" ] && [ -n "${CR_PAT:-}" ]; then
   echo "$CR_PAT" | docker login "$REGISTRY" -u "$ORG" --password-stdin >/dev/null
 fi
 
-repin(){ # $1=image name, $2=digest (sha256:...) — pins into EVERY config that ships the image
+repin(){ # $1=image name, $2=digest (sha256:...) — pins into the config when it ships the image
   local name="$1" digest="$2" cfg
   local pat="(image: \"${REGISTRY//./\\.}/${ORG}/${name})[:@][^\"]*\""
   local rep="\\1${DIGEST_SEP}${digest}\""
-  for cfg in "$CONFIG" "$CONFIG_CPU" "$CONFIG_GPU8"; do
+  for cfg in "$CONFIG"; do
     [ -f "$cfg" ] || continue
     grep -qE "image: \"${REGISTRY}/${ORG}/${name}[:@]" "$cfg" || continue  # this flavor doesn't ship it
     sed -i -E "s#${pat}#${rep}#" "$cfg"
@@ -87,14 +88,14 @@ for name in "${TARGETS[@]}"; do
   say "  repinned ${name} -> ${DIGEST_SEP}${digest}"
 done
 
-# validate the configs still parse
-for cfg in "$CONFIG" "$CONFIG_CPU" "$CONFIG_GPU8"; do
+# validate the config still parses
+for cfg in "$CONFIG"; do
   [ -f "$cfg" ] || continue
   python3 -c "import yaml; yaml.safe_load(open('$cfg'))" \
     && say "$(basename "$cfg") valid"
 done
 
 say "done. pinned images:"
-grep -nE "image:" "$CONFIG" "$CONFIG_CPU" "$CONFIG_GPU8" 2>/dev/null | sed 's/^/    /'
+grep -nE "image:" "$CONFIG" 2>/dev/null | sed 's/^/    /'
 [ "$DRY_RUN" = "1" ] && say "DRY_RUN: no images were built or pushed; digests are fake."
-say "reminder: confirm each package is PUBLIC so Cloud Provider can pull it anonymously."
+say "reminder: confirm each package is PUBLIC so metal boxes can pull it anonymously (metal/oci-pull.mjs)."

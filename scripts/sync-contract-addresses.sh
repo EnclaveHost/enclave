@@ -6,20 +6,18 @@
 # admin-console deploy updates (it points the book without touching the repo).
 #
 # The deploy scripts each wire their own primary target (deploy-registry /
-# -enclavepay / -deployments write enclaves/gpu/Cloud Provider-config.yml; deploy-app-catalog
-# writes site/js/core/config.js) but none of them touch the CPU flavor's config, and the
-# catalog address is never copied into the enclave configs. This script reads
-# the authoritative values from those primary targets and rewrites BOTH
-# Cloud Provider configs. Idempotent; safe to run any time from anywhere in the repo.
+# -enclavepay / -deployments write enclaves/cpu/config.yml; deploy-app-catalog
+# writes site/js/core/config.js), and the catalog address is never copied into
+# the enclave config by its deploy script. This script reads the authoritative
+# values from those primary targets and rewrites the enclave config and the
+# CLI's baked defaults. Idempotent; safe to run any time from anywhere in the repo.
 set -euo pipefail
 REPO="$(git rev-parse --show-toplevel)"
-GPU="$REPO/enclaves/gpu/Cloud Provider-config.yml"
-CPU="$REPO/enclaves/cpu/Cloud Provider-config.yml"
-GPU8="$REPO/enclaves/gpu8/Cloud Provider-config.yml"   # 8-card flavor; carries the same keys
+CPU="$REPO/enclaves/cpu/config.yml"
 SITE="$REPO/site/js/core/config.js"
 ADDR='0x[0-9a-fA-F]{40}'
 
-from_cfg() { grep -oE "$1: \"$ADDR\"" "$GPU" | head -1 | grep -oE "$ADDR" || true; }
+from_cfg() { grep -oE "$1: \"$ADDR\"" "$CPU" | head -1 | grep -oE "$ADDR" || true; }
 ADDRESSBOOK="$(from_cfg ADDRESS_BOOK_ADDRESS)"
 REGISTRY="$(from_cfg REGISTRY_ADDRESS)"
 DEPLOYMENTS="$(from_cfg DEPLOYMENTS_ADDRESS)"
@@ -38,7 +36,7 @@ CATALOG="$(grep -oE "APP_CATALOG_ADDRESS = \"$ADDR\"" "$SITE" | grep -oE "$ADDR"
 # a ledger that no longer holds their deployments. Observed 2026-08-09, after
 # the rev-12 rollout: cli DEPLOYMENTS_ADDRESS was two ledgers behind.
 if [ "${1:-}" = "--from-book" ]; then
-  [ -n "$ADDRESSBOOK" ] || { echo "[sync] no ADDRESS_BOOK_ADDRESS in $GPU" >&2; exit 1; }
+  [ -n "$ADDRESSBOOK" ] || { echo "[sync] no ADDRESS_BOOK_ADDRESS in $CPU" >&2; exit 1; }
   eval "$(node -e '
     const { createPublicClient, http, fallback } = require("viem");
     const { base } = require("viem/chains");
@@ -76,12 +74,10 @@ set_js_key() { # $1=file $2=exported name $3=address
   sed -i -E "s/($2 = \")$ADDR(\")/\1$(printf '%s' "$3" | tr 'A-Z' 'a-z')\2/" "$1"
 }
 # cli/enclave.mjs pins the same addresses in its DEFAULTS block, in the same
-# KEY: "0x…" shape the yaml uses — one regex serves both.
-# gpu8 was missing from this list and sat three revisions behind on every
-# address as a result — set_key is a no-op on files without the key, so the
-# cost of listing a flavor here is nothing and the cost of forgetting one is a
-# flavor that boots pointed at a retired ledger.
-for f in "$GPU" "$CPU" "$GPU8" "$REPO/cli/enclave.mjs"; do
+# KEY: "0x…" shape the yaml uses — one regex serves both. set_key is a no-op on
+# files without the key, so the cost of listing a file here is nothing and the
+# cost of forgetting one is a component that boots pointed at a retired ledger.
+for f in "$CPU" "$REPO/cli/enclave.mjs"; do
   [ -f "$f" ] || continue
   set_key "$f" ADDRESS_BOOK_ADDRESS  "$ADDRESSBOOK"
   set_key "$f" REGISTRY_ADDRESS      "$REGISTRY"

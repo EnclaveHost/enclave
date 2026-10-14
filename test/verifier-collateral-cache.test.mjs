@@ -8,17 +8,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { gunzipSync } from "node:zlib";
 import { createHash } from "node:crypto";
-import { verifyEvidence, spkiOfCert, httpCollateral } from "../verifier/index.mjs";
+import { verifyEvidence, httpCollateral } from "../verifier/index.mjs";
+import { report, MEAS, doc as rad, context as genoaContext } from "./helpers/genoa-capture.mjs";
 import { cachedCollateral, inspectCache } from "../verifier/collateral-cache.mjs";
 import { synthChain, synthReport } from "./helpers/snp-synth.mjs";
 
 const F = new URL("./fixtures/verifier/", import.meta.url), A = new URL("./fixtures/amd/", import.meta.url);
 const read = (u) => fs.readFileSync(u), text = (u) => fs.readFileSync(u, "utf8"), sha256 = (b) => createHash("sha256").update(b).digest("hex");
-const rad = JSON.parse(text(new URL("genoa-Cloud Provider/rad.json", F))), report = gunzipSync(Buffer.from(rad.body, "base64"));
-const certPem = text(new URL("genoa-Cloud Provider/tls-cert.pem", F)), { spki } = spkiOfCert(certPem);
-const MEAS = report.subarray(0x90, 0xc0).toString("hex"), NOW = "2026-09-24T05:00:00Z";
+const NOW = "2026-09-24T05:00:00Z";
 const REAL = { chain: text(new URL("Genoa-cert_chain.pem", A)), milan: text(new URL("Milan-cert_chain.pem", A)), vcek: read(new URL("genoa-Cloud Provider/vcek-kds-amd.der", F)), turinVcek: read(new URL("turin-m4a/vcek-kds-amd.der", F)), crl: read(new URL("amd/Genoa-crl.der", F)) };
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "collateral-cache-"));
 test.after(() => fs.rmSync(tmpRoot, { recursive: true, force: true }));
@@ -33,7 +31,7 @@ function upstream(bytes) {
   return u;
 }
 let FLOOR = null;
-const runReal = async (collateral, policy = {}) => { const v = await verifyEvidence(rad, { policy: { snp: { allowedMeasurements: [MEAS], ...(FLOOR ? { minTcb: FLOOR } : {}), ...policy } }, context: { transportKeySpki: spki, certPem, host: "inference.Cloud Provider.sh", now: NOW }, collateral }); if (!FLOOR && v.claims?.tcb) FLOOR = { Genoa: v.claims.tcb.reported }; return v; };
+const runReal = async (collateral, policy = {}) => { const v = await verifyEvidence(rad, { policy: { snp: { allowedMeasurements: [MEAS], ...(FLOOR ? { minTcb: FLOOR } : {}), ...policy } }, context: genoaContext({ now: NOW }), collateral }); if (!FLOOR && v.claims?.tcb) FLOOR = { Genoa: v.claims.tcb.reported }; return v; };
 const plant = (dir, product, name, bytes, { sidecar = true } = {}) => { const f = path.join(dir, product, name); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, bytes); if (sidecar) fs.writeFileSync(`${f}.meta.json`, JSON.stringify({ sha256: sha256(bytes), source: "planted", fetchedAt: "2026-09-24T03:00:00Z" })); else fs.rmSync(`${f}.meta.json`, { force: true }); return f; };
 
 test("cold, then warm, then offline: the first verification fetches and stores only authenticated bytes; the second answers from the cache with no network and the same verdict; the verdict states each piece's source", async () => {

@@ -15,7 +15,7 @@ jwtVerify(token, SECRET)                               // same symmetric key ver
 ```
 
 With HS256 the **minting key equals the verifying key equals a value the operator
-provisions**. `SECRET` is a bare Cloud Provider secret injected at runtime (not baked
+provisions**. `SECRET` is a bare secret injected at runtime (not baked
 into the measured image) and is the same value fleet-wide. So a human operator
 holds it, and anyone holding it can mint a valid token for **any** wallet —
 `setSubject(anyone).sign(SECRET)` — without ever touching the SIWE signature
@@ -167,8 +167,8 @@ deployment lives on a different enclave than where they logged in re-signs once
 
 **Follow-on (transparent roaming, not yet implemented):** attestation-anchored
 peer JWKS. An enclave verifying a foreign-`kid` token fetches that peer's
-`/v1/session-jwks`, verifies the peer's Cloud Provider RAD with the in-process
-`@Cloud Providersh/verifier` (measurement matches the official release), binds the key
+`/v1/session-jwks`, verifies the peer's attestation document with the in-process
+verifier (`verifier/`: measurement matches an expected release), binds the key
 to the attested endpoint, caches it, then verifies. This keeps the operator out
 of the trust path (the pubkey is trusted because attestation proves the peer runs
 the measured code, not because a registry entry or the relay said so) while

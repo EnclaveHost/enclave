@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""wasm-manager: per-tenant WebAssembly app manager for Enclave on Cloud Provider.
+"""wasm-manager: per-tenant WebAssembly app manager for Enclave.
 
 Replaces the runsc/microVM backends. Nested container runtimes need privileged
-namespace/mount/exec operations that Cloud Provider confines away; a Wasm runtime needs
-none of them. Each tenant app is a `wasmtime serve` subprocess bound to a unique
+namespace/mount/exec operations that a confined container does not get; a Wasm
+runtime needs none of them. Each tenant app is a `wasmtime serve` subprocess bound to a unique
 host loopback port. Isolation is provided by three independent layers, all
 unprivileged: the Wasm sandbox (memory-safe, no ambient authority), the OS
 process boundary (separate PID, own process group), and curated WASI (no
@@ -151,7 +151,7 @@ NODE_VCPUS   = int(os.environ.get("NODE_VCPUS", "16"))
 NODE_RAM_GB  = int(os.environ.get("NODE_RAM_GB", "64"))
 # Does this node have a GPU attached? Catalog apps that declare a GPU need
 # (vram_mb or gpu_gflops > 0) are refused at launch on CPU-only nodes
-# (enclaves/cpu/Cloud Provider-config.yml sets NODE_HAS_GPU=0). Apps without a GPU
+# (metal/guest/gsup.mjs and enclaves/cpu/config.yml set NODE_HAS_GPU=0). Apps without a GPU
 # need are CPU-only and run anywhere the routing sends them.
 NODE_HAS_GPU = os.environ.get("NODE_HAS_GPU", "0").lower() in ("1", "true", "on")
 # CPU-only nodes: how much node RAM to hold back from mmap-backed ggml
@@ -282,18 +282,19 @@ MPS_PIPE_DIR = os.environ.get("CUDA_MPS_PIPE_DIRECTORY", "/tmp/nvidia-mps")
 # never-validated CUDA_MPS_PINNED_DEVICE_MEM_LIMIT; VRAM stays accounted by
 # the supervisor's allocator), anything else = GPU launches are refused with
 # the probe's diagnosis instead of hanging apps.
-# --- attached model volumes (Cloud Provider Modelwrap) --------------------------- #
-# The enclave can carry read-only, ATTESTED model volumes: Cloud Provider-config.yml
-# declares `models:` whose weights become dm-verity+EROFS images mounted at
-# MODEL_VOLUME_ROOT/mpk-<root_hash> (the dm-verity root is on the kernel
-# cmdline, so the enclave measurement commits to the exact bytes). A deployment
-# attaches one or more by name; launch() preopens each into the guest as a
-# read-only /models/<name> dir. This is how big models reach a tenant without
-# riding the app wasm (no include_bytes, no IPFS fetch, no 4GiB linear-memory
-# or hostcall-fuel ceiling on the weights). MODEL_VOLUME_ROOT is scanned for
-# mpk-* mounts; MODEL_VOLUMES adds/overrides explicit name:path pairs (for
-# local dev without a real Modelwrap mount). Names must be [a-z0-9-]+.
-MODEL_VOLUME_ROOT = pathlib.Path(os.environ.get("MODEL_VOLUME_ROOT", "/Cloud Provider/mpk"))
+# --- attached model volumes --------------------------------------------------- #
+# The enclave can carry read-only, ATTESTED model volumes: dm-verity images the
+# guest mounts itself (metal/volumes.mjs builds them; metal/guest/gsup.mjs
+# mounts them and passes MODEL_VOLUMES). A deployment attaches one or more by
+# name; launch() preopens each into the guest as a read-only /models/<name> dir.
+# This is how big models reach a tenant without riding the app wasm (no
+# include_bytes, no IPFS fetch, no 4GiB linear-memory or hostcall-fuel ceiling
+# on the weights). MODEL_VOLUMES names explicit name:path pairs; MODEL_VOLUME_ROOT,
+# when set, is also scanned for mpk-* mount directories (unset = no scan: the
+# retired hosted fleet's auto-mount root is no longer a default, 2026-10-14). Names
+# must be [a-z0-9-]+.
+_MODEL_VOLUME_ROOT_ENV = os.environ.get("MODEL_VOLUME_ROOT", "").strip()
+MODEL_VOLUME_ROOT = pathlib.Path(_MODEL_VOLUME_ROOT_ENV) if _MODEL_VOLUME_ROOT_ENV else None
 _MODEL_VOLUMES_ENV = os.environ.get("MODEL_VOLUMES", "").strip()
 # Volumes that preload through the stable-diffusion.cpp backend
 # (-S nn-graph=sd::<dir>) instead of ggml/llama.cpp: comma-separated volume
@@ -1372,7 +1373,7 @@ def _gguf_path(name: str, host_path):
 
 def _model_volumes() -> dict:
     """Discover attached model volumes. Two sources, env wins (friendly names):
-      1. scan MODEL_VOLUME_ROOT for `mpk-*` mounts (Cloud Provider Modelwrap); the
+      1. scan MODEL_VOLUME_ROOT (when set) for `mpk-*` mount dirs; the
          mount's dir name IS the volume name (e.g. mpk-0900ca6b...).
       2. MODEL_VOLUMES="name:/path[:file.gguf],name2:/path2" - explicit
          name->path, for friendly aliases of the mpk mounts and for local dev;
@@ -1405,7 +1406,7 @@ def _model_volumes() -> dict:
         gguf = not sd and _gguf_path(name, p) is not None
         out[name] = {"name": name, "path": str(p), "bytes": _dir_bytes(p),
                      "onnx": onnx, "gguf": gguf, "sd": sd, "files": top}
-    if MODEL_VOLUME_ROOT.is_dir():
+    if MODEL_VOLUME_ROOT is not None and MODEL_VOLUME_ROOT.is_dir():
         try:
             for child in MODEL_VOLUME_ROOT.iterdir():
                 if child.is_dir() and child.name.startswith("mpk-"):
@@ -2690,7 +2691,7 @@ def _nn_tenant_env(gpu_share: float, pinned: bool) -> dict:
     # (wasm/onnxruntime-sm90-mps.patch: flash/lean num_SMs clamp), so the fused
     # kernels are safe again - and much faster on long contexts / big models.
     # Default is now FUSED ON. Revert WITHOUT a release by setting
-    # ENCLAVE_FUSED_ATTENTION=0 on the wasm-manager container (Cloud Provider dashboard) -
+    # ENCLAVE_FUSED_ATTENTION=0 in the wasm-manager's environment -
     # it re-applies the conservative unfused knobs. ORT_DISABLE_MATMUL4BITS_KERNEL
     # (also from the patch) is a SEPARATE, unrelated switch for the fp16 M=1
     # GEMV corruption - production dodges that with fp32-activation models.
@@ -5229,7 +5230,7 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
             rec["status"], rec["error"] = "failed", (
                 f"volume(s) {', '.join(missing)} not attached to this enclave after "
                 f"{VOL_READY_SECS:.0f}s (available: {', '.join(sorted(have)) or 'none'}) - "
-                f"still mounting, or not in this enclave's Cloud Provider-config")
+                f"still mounting, or not in this enclave's volume set")
             return rec
         for vname in wanted:
             vol_mounts[vname] = have[vname]["path"]

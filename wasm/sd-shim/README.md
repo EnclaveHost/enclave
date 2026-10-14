@@ -54,8 +54,8 @@ ESD_LIB_LOCATION=<dir with both .so> cargo build --release -p wasmtime-cli \
 
 - `wasm_manager.py`: volumes named in the `MODEL_VOLUMES_SD` env preload via
   `-S nn-graph=sd::<staged dir>` instead of ggml (`_sd_checkpoint_path`;
-  MODEL_VOLUMES' third field still picks the file). Set it in the enclave's
-  Cloud Provider-config next to MODEL_VOLUMES.
+  MODEL_VOLUMES' third field still picks the file). On metal,
+  metal/guest/gsup.mjs sets it from the volumes marked `sd`.
 - **Flash attention is diffusion-only.** `ENCLAVE_SD_FLASH_ATTN=1` enables FA
   on the DIFFUSION model (needed so big-resolution attention doesn't
   materialize seq² score matrices) but the shim no longer forces it globally:

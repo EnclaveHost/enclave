@@ -18,8 +18,8 @@ const hex = (b) => b.toString("hex");
 const SPKI_G = bytes("genoa spki", 91), SPKI_T = Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), bytes("turin spki", 32)]);
 const NONCE = bytes("nonce"), APP = bytes("app"), MEAS = hex(bytes("measurement", 48)), RID = hex(bytes("runtime id"));
 const ROOTS = { Genoa: hex(bytes("ark genoa")), Turin: hex(bytes("ark turin")) };
-const hosted = { status: "verified", admissionSafe: true, omissions: [], checks: { "report shape": true, chain: true, crl: true, signature: true, binding: true, "certificate binding": true, "tcb policy": true, measurement: true },
-  claims: { technology: "amd-sev-snp", family: "hosted-Cloud Provider", product: "Genoa", arkFingerprint: ROOTS.Genoa, measurement: MEAS, freshness: "served certificate window", hpkePublicKey: hex(bytes("hpke")), tlsSpkiSha256: sha256(SPKI_G), transportSpkiSha256: sha256(SPKI_G) } };
+const metal = { status: "verified", admissionSafe: true, omissions: [], checks: { "report shape": true, chain: true, crl: true, signature: true, binding: true, "tcb policy": true, measurement: true },
+  claims: { technology: "amd-sev-snp", family: "metal", product: "Genoa", arkFingerprint: ROOTS.Genoa, measurement: MEAS, freshness: "verifier nonce", transportSpkiSha256: sha256(SPKI_G) } };
 const domain = { status: "verified", admissionSafe: true, omissions: [], checks: { "report shape": true, chain: true, crl: true, signature: true, binding: true, "app id": true, "tcb policy": true, measurement: true },
   claims: { technology: "amd-sev-snp", family: "domain", product: "Turin", arkFingerprint: ROOTS.Turin, measurement: MEAS, appId: hex(APP), abi: "enclave-domain-abi/2", freshness: "verifier nonce", transportSpkiSha256: sha256(SPKI_T) } };
 const pvmV2 = { status: "verified", admissionSafe: true, omissions: [], checks: { "echo matches client": true, pvmEvidence: true },
@@ -28,29 +28,30 @@ const pvmV1 = { ...pvmV2, claims: { ...pvmV2.claims, format: "enclave-pvm-app-ev
 // v3: the instance inside the challenge (INSTANCE-BINDING.md); InstanceID = sha256(instance SPKI), never a field
 const SPKI_I = Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), bytes("instance spki", 32)]), IID = sha256(SPKI_I), IID2 = sha256(Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), bytes("other instance", 32)]));
 const pvmV3 = { ...pvmV2, claims: { ...pvmV2.claims, format: "enclave-pvm-app-evidence/v3", instanceId: IID, instanceKey: hex(SPKI_I) } };
-const limited = { ...hosted, status: "limited", admissionSafe: false, omissions: ["tcb-floor-unjudged"], checks: { ...hosted.checks, "tcb policy": null } };
+const limited = { ...metal, status: "limited", admissionSafe: false, omissions: ["tcb-floor-unjudged"], checks: { ...metal.checks, "tcb policy": null } };
 const snpExpect = { allowedMeasurements: [MEAS], minTcb: { Genoa: { bootloader: 1, tee: 0, snp: 1, microcode: 1 } }, roots: ROOTS };
+const metalExpect = { ...snpExpect, nonce: NONCE };
 const pvmExpect = { nonce: NONCE, appId: APP, allowedRuntimeIds: [RID], allowedCodeHashes: [hex(bytes("code"))], allowedAuthorityHashes: [hex(bytes("authority", 64))], rootPins: [hex(bytes("google root"))] };
 
 const cases = [
-  ["hosted verified, native, own peer key is the bound key", hosted, snpExpect, { clientKind: "native", observedPeerSpki: SPKI_G }],
-  ["hosted verified, native, another peer key", hosted, snpExpect, { clientKind: "native", observedPeerSpki: SPKI_T }],
-  ["hosted verified, native, no observed peer key", hosted, snpExpect, { clientKind: "native" }],
-  ["hosted verified, browser, HPKE key present", hosted, snpExpect, { clientKind: "browser" }],
-  ["hosted verified, browser, HPKE key absent", { ...hosted, claims: { ...hosted.claims, hpkePublicKey: undefined } }, snpExpect, { clientKind: "browser" }],
+  ["metal verified, native, nonce + own peer key is the bound key", metal, metalExpect, { clientKind: "native", observedPeerSpki: SPKI_G }],
+  ["metal verified, native, another peer key", metal, metalExpect, { clientKind: "native", observedPeerSpki: SPKI_T }],
+  ["metal verified, native, no observed peer key", metal, metalExpect, { clientKind: "native" }],
+  ["metal verified, browser (no application-layer key in a metal document)", metal, metalExpect, { clientKind: "browser" }],
+  ["metal verified, native, no client nonce", metal, snpExpect, { clientKind: "native", observedPeerSpki: SPKI_G }],
   ["limited (no TCB floor) never releases", limited, snpExpect, { clientKind: "browser" }],
-  ["unsupported never releases", { ...hosted, status: "unsupported", admissionSafe: false }, snpExpect, { clientKind: "browser" }],
-  ["rejected never releases", { ...hosted, status: "rejected", admissionSafe: false }, snpExpect, { clientKind: "browser" }],
-  ["verified but not admission-safe", { ...hosted, admissionSafe: false }, snpExpect, { clientKind: "browser" }],
-  ["verified but with an omission listed", { ...hosted, omissions: ["crl-revocation-unchecked"] }, snpExpect, { clientKind: "browser" }],
-  ["verified but a check is null", { ...hosted, checks: { ...hosted.checks, crl: null } }, snpExpect, { clientKind: "browser" }],
-  ["verified but a check is false", { ...hosted, checks: { ...hosted.checks, crl: false } }, snpExpect, { clientKind: "browser" }],
-  ["no allowed measurements from the client", hosted, { ...snpExpect, allowedMeasurements: [] }, { clientKind: "browser" }],
-  ["measurement not the client's", hosted, { ...snpExpect, allowedMeasurements: [hex(bytes("other", 48))] }, { clientKind: "browser" }],
-  ["no TCB floor from the client", hosted, { ...snpExpect, minTcb: undefined }, { clientKind: "browser" }],
-  ["no root pins from the client", hosted, { ...snpExpect, roots: {} }, { clientKind: "browser" }],
-  ["root pin for another product only", hosted, { ...snpExpect, roots: { Turin: ROOTS.Turin } }, { clientKind: "browser" }],
-  ["root pin differs from the chained root", hosted, { ...snpExpect, roots: { Genoa: hex(bytes("other ark")) } }, { clientKind: "browser" }],
+  ["unsupported never releases", { ...metal, status: "unsupported", admissionSafe: false }, snpExpect, { clientKind: "browser" }],
+  ["rejected never releases", { ...metal, status: "rejected", admissionSafe: false }, snpExpect, { clientKind: "browser" }],
+  ["verified but not admission-safe", { ...metal, admissionSafe: false }, snpExpect, { clientKind: "browser" }],
+  ["verified but with an omission listed", { ...metal, omissions: ["crl-revocation-unchecked"] }, snpExpect, { clientKind: "browser" }],
+  ["verified but a check is null", { ...metal, checks: { ...metal.checks, crl: null } }, snpExpect, { clientKind: "browser" }],
+  ["verified but a check is false", { ...metal, checks: { ...metal.checks, crl: false } }, snpExpect, { clientKind: "browser" }],
+  ["no allowed measurements from the client", metal, { ...snpExpect, allowedMeasurements: [] }, { clientKind: "browser" }],
+  ["measurement not the client's", metal, { ...snpExpect, allowedMeasurements: [hex(bytes("other", 48))] }, { clientKind: "browser" }],
+  ["no TCB floor from the client", metal, { ...snpExpect, minTcb: undefined }, { clientKind: "browser" }],
+  ["no root pins from the client", metal, { ...snpExpect, roots: {} }, { clientKind: "browser" }],
+  ["root pin for another product only", metal, { ...snpExpect, roots: { Turin: ROOTS.Turin } }, { clientKind: "browser" }],
+  ["root pin differs from the chained root", metal, { ...snpExpect, roots: { Genoa: hex(bytes("other ark")) } }, { clientKind: "browser" }],
   ["domain verified, native, nonce + app id + peer key", domain, { ...snpExpect, nonce: NONCE, appId: APP }, { clientKind: "native", observedPeerSpki: SPKI_T }],
   ["domain verified, native, no nonce", domain, { ...snpExpect, appId: APP }, { clientKind: "native", observedPeerSpki: SPKI_T }],
   ["domain verified, native, no app id", domain, { ...snpExpect, nonce: NONCE }, { clientKind: "native", observedPeerSpki: SPKI_T }],
@@ -90,7 +91,7 @@ export function runCase([name, verdict, expect, opts]) {
   const r = admit(verdict, expect, { clientKind: opts.clientKind, observedPeerSpki: opts.observedPeerSpki || null, nonceRegistry: reg });
   return { name, verdict: toJson(verdict), expect: toJson(expect), clientKind: opts.clientKind, observedPeerSpki: opts.observedPeerSpki ? hex(opts.observedPeerSpki) : null, usedNonces: opts.used || [], decision: r.decision, reason: r.reasons.at(-1), pinned: r.pinned };
 }
-export const vectors = () => ({ note: "generated by verifier/admission-vectors.mjs from verifier/admission.mjs; Buffers are {hex}; replayed by test/verifier-admission-vectors.test.mjs; another release-decision implementation must produce the same decision for every case", rule: "release only when status is verified, admissionSafe is true, omissions is empty, every check is true, every expectation is client-supplied and matched, freshness is the client's single-use challenge (or the hosted certificate window), and the transport is bound in a way THIS client kind can check: native = the observed peer key hashes to the bound key, browser = an application-layer key is bound (TLS pinning is never claimed)", cases: cases.map(runCase) });
+export const vectors = () => ({ note: "generated by verifier/admission-vectors.mjs from verifier/admission.mjs; Buffers are {hex}; replayed by test/verifier-admission-vectors.test.mjs; another release-decision implementation must produce the same decision for every case", rule: "release only when status is verified, admissionSafe is true, omissions is empty, every check is true, every expectation is client-supplied and matched, freshness is the client's single-use challenge, and the transport is bound in a way THIS client kind can check: native = the observed peer key hashes to the bound key, browser = an application-layer key is bound (TLS pinning is never claimed)", cases: cases.map(runCase) });
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
   const v = vectors(); fs.writeFileSync(VECTORS_PATH, JSON.stringify(v, null, 1) + "\n");
   console.log(`${v.cases.length} vectors -> ${path.relative(process.cwd(), VECTORS_PATH)}: ${v.cases.filter((c) => c.decision === "release").length} release, ${v.cases.filter((c) => c.decision === "hold").length} hold`);

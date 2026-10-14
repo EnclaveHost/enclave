@@ -1,8 +1,8 @@
 # enclave-wasm-manager: runs tenant Wasm apps via `wasmtime serve`.
 # No privileged mode, no nested runtime, no namespace/mount/exec ops. The whole
-# reason this backend exists: it runs unprivileged inside Cloud Provider's confinement.
-# Image integrity is covered by Cloud Provider attestation (the built image is measured),
-# so every input is pinned: the wasmtime toolchain image by digest, the CUDA
+# reason this backend exists: it runs unprivileged inside a confined container.
+# Image integrity is covered by attestation (the built image's bytes are part of
+# the measured guest), so every input is pinned: the wasmtime toolchain image by digest, the CUDA
 # base by tag+digest at measurement time.
 #
 # WHY the CUDA base: tenant deployments that buy a GPU share get wasi-nn
@@ -47,7 +47,7 @@ RUN LD_LIBRARY_PATH=/tmp/toolchain-base ldd -r /src/llama/build/bin/libggml-cpu.
     && ! grep -E 'not found|undefined symbol' /tmp/cpu-deps
 
 # Base pinned by DIGEST, not just the mutable tag: this image is part of the
-# MEASURED enclave TCB, and its sidecar digest is what enclaves/*/Cloud Provider-config.yml
+# MEASURED enclave TCB, and its sidecar digest is what enclaves/cpu/config.yml
 # commits to. An upstream repush of the same tag silently changes the measurement,
 # which is exactly what the reproducibility claim behind METAL_ALLOWED_MEASUREMENTS
 # cannot survive (see the root Dockerfile, which has always pinned). This digest is

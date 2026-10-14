@@ -1,4 +1,4 @@
-# Builds the enclave image. Pin the resulting digest in Cloud Provider-config.yml.
+# Builds the supervisor image (the CPU release workflow pushes it; metal/build-image.mjs folds it into the measured guest).
 # Keep deps minimal — this image is measured and published; smaller TCB = easier audit.
 # Base pinned by DIGEST (not just the mutable 20-slim tag) so the measured TCB is
 # reproducible build-to-build. Re-pin deliberately on a base bump:
@@ -17,9 +17,6 @@ COPY supervisor.js ./
 COPY windows/node/verification-checkpoints.mjs ./windows/node/
 # wallet sessions as owner credentials (shared with the Windows node, which ships it through deploy-files.mjs)
 COPY windows/node/session-api-auth.mjs ./windows/node/
-# the repository's own verifier, one reproducible file (verifier/node/build.mjs; MANIFEST.json names every input): the
-# self-check's second result (SELF_CHECK_VERIFIERS) runs it against this enclave's own document and certificate
-COPY verifier/dist/enclave-verifier-node.mjs ./verifier/dist/
 # dedicated-IP egress: the enclave-side SOCKS front + its SSRF classifier
 # (net-guard.mjs is also symlinked into relay/ and shipped to the relay box).
 COPY egress.js ./

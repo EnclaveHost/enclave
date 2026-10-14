@@ -2,8 +2,8 @@
  "copiedFrom": "verifier/dist/enclave-verifier-node.mjs",
  "artifact": {
   "file": "enclave-verifier-node.mjs",
-  "bytes": 404408,
-  "sha256": "3bcc7a78f342a3b4469568598236d7b47b2d56e44f7f4baacbc7c030f39f13ba"
+  "bytes": 68922,
+  "sha256": "2177c328b22f6656b92c9a329dc4316005b9105f2e872ab62024a994cf0e19ab"
  },
  "build": {
   "tool": "esbuild",
@@ -13,8 +13,6 @@
   "platform": "node",
   "target": "node20",
   "minify": false,
-  "external": [
-   "@Cloud Providersh/verifier"
-  ]
+  "external": []
  }
 }

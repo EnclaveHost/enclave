@@ -9,20 +9,22 @@
 #   contracts/<Name>.sol                     -> deploy that contract to Base (scripts/deploy-*.mjs),
 #                                               gated on the `contract-deploy` environment approval,
 #                                               then commit the address wiring back to main
-#   Dockerfile|supervisor.js|package*.json   -> supervisor image  } sidecars are built+repinned here
-#   worker/** | mps-daemon/** | wasm/**      -> sidecar images    } (scripts/release.sh); the supervisor
-#   enclaves/*/Cloud Provider-config.yml (non-image) -> release only      } is built by Cloud Provider-release.yml
-#                                            -> then auto-dispatch Cloud Provider-release[-cpu].yml with the
-#                                               next patch version so the enclave measurement updates
+#   Dockerfile|supervisor.js|package*.json   -> supervisor image  } the wasm-manager image is built +
+#   wasm/**                                  -> wasm-manager image} repinned here (scripts/release.sh);
+#   metal/** (code)                          -> release only      } the supervisor is built by
+#   enclaves/cpu/config.yml (non-image)      -> release only      } release-cpu.yml
+#                                            -> then auto-dispatch release-cpu.yml with the next
+#                                               patch version (vX.Y.Z-cpu): it builds the supervisor
+#                                               image, tags, and publishes the GitHub Release that
+#                                               metal boxes follow (metal/update.mjs)
 #
 # Loop safety: commits made here use GITHUB_TOKEN, which never retriggers push
 # workflows, and detect ignores commits authored by github-actions[bot].
 #
 # One-time setup (secrets/vars/environment + host keys): scripts/ci-setup.sh.
-# What stays manual: approving contract deploys (environment gate). Running
-# enclaves auto-update after each release publishes (update-fleet job in
-# Cloud Provider-release-publish.yml; needs the TINFOIL_API_KEY secret, else it
-# no-ops and you click Update in the Cloud Provider dashboard).
+# What stays manual: approving contract deploys (environment gate). Metal
+# boxes pull each published release on their own timer (metal/update.mjs);
+# nothing here pushes to them.
 
 name: Deploy
 
@@ -55,10 +57,7 @@ jobs:
       catalog:       ${{ steps.diff.outputs.catalog }}
       enclavepay:        ${{ steps.diff.outputs.enclavepay }}
       contracts_any: ${{ steps.diff.outputs.contracts_any }}
-      worker:        ${{ steps.diff.outputs.worker }}
-      mps:           ${{ steps.diff.outputs.mps }}
       wasm:          ${{ steps.diff.outputs.wasm }}
-      release:       ${{ steps.diff.outputs.release }}
       cpu_release:   ${{ steps.diff.outputs.cpu_release }}
 
     steps:
@@ -115,7 +114,7 @@ jobs:
 
           site=false relay=false registry=false deployments=false catalog=false enclavepay=false
           paymentrouter=false
-          sup=false worker=false mps=false wasm=false metal=false config_touched=false
+          sup=false wasm=false metal=false config_touched=false
           while IFS= read -r f; do
             [ -n "$f" ] || continue
             case "$f" in
@@ -131,8 +130,10 @@ jobs:
               contracts/EnclaveCreditVault.sol) ;;   # vault factory deploys from the admin console (browser wallet), never CI
               contracts/foundry/*|foundry.toml) ;;   # Foundry test toolchain only - deploys stay solc-via-JS
               Dockerfile|supervisor.js|package.json|package-lock.json) sup=true ;;
-              worker/*)                worker=true ;;
-              mps-daemon/*)            mps=true ;;
+              # GPU worker + MPS sidecars: only the retired GPU flavors (enclaves/gpu,
+              # enclaves/gpu8, removed 2026-10-14 with the hosted fleet) shipped
+              # them, so no released config carries their images any more.
+              worker/*|mps-daemon/*) ;;
               wasm/__pycache__/*) ;;
               wasm/Dockerfile.wasmtime|wasm/wasmtime-onnx-gpu-strict.patch) ;;   # toolchain-image inputs, built by toolchain.yml, pinned into Dockerfile.wasm by digest
               # Ignore rules are not build inputs. `wasm/*` matches at any depth,
@@ -180,11 +181,6 @@ jobs:
           if [ "$registry" = true ] || [ "$deployments" = true ] || [ "$catalog" = true ] || [ "$enclavepay" = true ] || [ "$paymentrouter" = true ]; then
             contracts_any=true
           fi
-          release=false
-          if [ "$sup" = true ] || [ "$worker" = true ] || [ "$mps" = true ] || [ "$wasm" = true ] || [ "$config" = true ]; then
-            release=true
-          fi
-          # worker + mps images do not ship in the CPU flavor's config.
           # Metal boxes track the -cpu tags (their update flow builds the
           # guest at that tag), so metal code rides the CPU release.
           cpu_release=false
@@ -198,8 +194,8 @@ jobs:
             echo "catalog=$catalog"; echo "enclavepay=$enclavepay"
             echo "paymentrouter=$paymentrouter"
             echo "contracts_any=$contracts_any"
-            echo "worker=$worker"; echo "mps=$mps"; echo "wasm=$wasm"
-            echo "release=$release"; echo "cpu_release=$cpu_release"
+            echo "wasm=$wasm"
+            echo "cpu_release=$cpu_release"
           } | tee -a "$GITHUB_OUTPUT"
 
   # Contract deploys are irreversible and rotate on-chain addresses (old
@@ -393,25 +389,24 @@ jobs:
       - name: Deploy relay
         run: bash relay/deploy.sh
 
-  # Builds whichever SIDECAR images changed (worker / mps / wasm-manager) and
-  # repins their digests via scripts/release.sh, then dispatches the existing
-  # Cloud Provider-release workflows — which build the supervisor image themselves,
-  # pin it, tag, measure, and publish — with the next patch version.
+  # Builds the wasm-manager image when wasm/** changed and repins its digest
+  # via scripts/release.sh, then dispatches release-cpu.yml - which builds the
+  # supervisor image itself, tags, and publishes the GitHub Release - with the
+  # next patch version.
   release:
     needs: [detect, contracts]
-    # cpu_release alone must also run this job: the dispatch step inside picks
-    # flavors by flag, but a CPU-only change (e.g. metal/*) used to skip the
-    # whole job and cut nothing (found 2026-09-01 — v0.5.535-cpu was hand-
+    # A CPU-only change (e.g. metal/*) must run this job too: it used to skip
+    # the whole job and cut nothing (found 2026-09-01 — v0.5.535-cpu was hand-
     # dispatched to ship the gsup.mjs ring stand-down).
     if: >-
       !cancelled() && needs.contracts.result != 'failure' &&
-      (needs.detect.outputs.release == 'true' || needs.detect.outputs.cpu_release == 'true' || needs.contracts.outputs.wired_config == 'true')
+      (needs.detect.outputs.cpu_release == 'true' || needs.contracts.outputs.wired_config == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
       contents: write   # push the digest-repin commit
-      packages: write   # push sidecar images to ghcr
-      actions: write    # dispatch Cloud Provider-release[-cpu].yml
+      packages: write   # push the wasm-manager image to ghcr
+      actions: write    # dispatch release-cpu.yml
 
     steps:
       - name: Checkout main tip (includes any wiring commit)
@@ -421,14 +416,12 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Build, push, and repin changed sidecar images
+      - name: Build, push, and repin the changed sidecar image
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           TARGETS=""
-          [ '${{ needs.detect.outputs.mps }}'    = 'true' ] && TARGETS="$TARGETS enclave-mps"
-          [ '${{ needs.detect.outputs.worker }}' = 'true' ] && TARGETS="$TARGETS enclave-worker"
           [ '${{ needs.detect.outputs.wasm }}'   = 'true' ] && TARGETS="$TARGETS enclave-wasm-manager"
           if [ -z "$TARGETS" ]; then echo "no sidecar images changed"; exit 0; fi
 
@@ -445,52 +438,34 @@ jobs:
           git fetch origin main && git rebase origin/main
           git push origin HEAD:main
 
-      - name: Dispatch Cloud Provider release(s) and wait for the tags
+      - name: Dispatch the CPU release and wait for its tag
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          CPU: ${{ needs.detect.outputs.cpu_release == 'true' || needs.contracts.outputs.wired_config == 'true' }}
-          # The GPU flavor releases only on its own triggers — without this a
-          # CPU-only change (metal/*) would repoint the whole GPU fleet for a
-          # no-op measurement bump.
-          GPU: ${{ needs.detect.outputs.release == 'true' || needs.contracts.outputs.wired_config == 'true' }}
         run: |
           set -euo pipefail
-          # Count BOTH flavors' tags: the CPU flavor releases on its own cadence
-          # (cpu_release gate + manual dispatches), so its counter can run ahead
-          # of the GPU one — v0.5.530-cpu existed while GPU was at v0.5.529, and
-          # a version computed from GPU tags alone collided on the -cpu tag.
+          # The counter runs over EVERY vX.Y.Z[-cpu] tag: the retired GPU flavor
+          # released bare vX.Y.Z tags off the same counter, and a version
+          # computed from -cpu tags alone could collide with one of those.
           LATEST="$(git ls-remote --tags origin 'refs/tags/v*' | awk '{print $2}' | sed 's#refs/tags/##; s#-cpu$##' \
                     | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)"
           LATEST="${LATEST:-v0.0.0}"
           IFS=. read -r MA MI PA <<<"${LATEST#v}"
-          VERSION="v${MA}.${MI}.$((PA + 1))"
+          VERSION="v${MA}.${MI}.$((PA + 1))-cpu"
           echo "releasing $VERSION (latest was $LATEST)"
 
-          WAIT_FOR=""
-          if [ "$GPU" = "true" ]; then
-            gh workflow run Cloud Provider-release.yml -f "version=$VERSION"
-            WAIT_FOR="refs/tags/$VERSION"
-          fi
-          if [ "$CPU" = "true" ]; then
-            gh workflow run Cloud Provider-release-cpu.yml -f "version=${VERSION}-cpu"
-            WAIT_FOR="$WAIT_FOR refs/tags/${VERSION}-cpu"
-          fi
+          gh workflow run release-cpu.yml -f "version=${VERSION}"
 
-          # Wait for phase 1 to create the tag(s): keeps this run "green = released"
+          # Wait for release-cpu.yml to create the tag (it creates the tag and
+          # the GitHub Release in one call): keeps this run "green = released"
           # and serializes version numbers behind the deploy-main concurrency group.
+          ref="refs/tags/${VERSION}"
           DEADLINE=$((SECONDS + 900))
-          for ref in $WAIT_FOR; do
-            until git ls-remote --exit-code --tags origin "$ref" >/dev/null 2>&1; do
-              if [ $SECONDS -gt $DEADLINE ]; then
-                echo "::error::timed out waiting for $ref — check the Cloud Provider Release workflow runs"
-                exit 1
-              fi
-              sleep 20
-            done
-            echo "$ref created"
+          until git ls-remote --exit-code --tags origin "$ref" >/dev/null 2>&1; do
+            if [ $SECONDS -gt $DEADLINE ]; then
+              echo "::error::timed out waiting for $ref — check the Release (CPU) workflow run"
+              exit 1
+            fi
+            sleep 20
           done
-          echo "release(s) tagged; measurement + publish continue in Cloud Provider-release-publish.yml" \
-               "(both flavors measure the root Cloud Provider-config.yml generated in each tag)," \
-               "then its update-fleet job repoints the running enclaves" \
-               "(no-op without the TINFOIL_API_KEY secret — then use the Cloud Provider dashboard)."
+          echo "$ref created; metal boxes pick it up on their next update tick (metal/update.mjs)"

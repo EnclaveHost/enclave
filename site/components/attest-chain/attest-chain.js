@@ -19,7 +19,7 @@ const LINKS = [
   { fn: "tls.json",
     j: { tlsKeyFingerprint: "sha256:4b8c…e2a1", boundTo: "reportData[0:32] = sha256(TLS pubkey SPKI)" } },
   { fn: "verify.js",
-    code: "import { Verifier } from '@Cloud Providersh/verifier';\n// or from a shell: Cloud Provider attestation verify -e <enclave-host> -r EnclaveHost/enclave\n\nconst att = await (await fetch(`/v1/attestation`)).json(); // public: verify BEFORE login\natt.verification.selfCheck;          // enclave's own diagnostic: useful, but not trust\n\nawait new Verifier({\n  serverURL:  new URL(att.verification.attestationEndpoint).origin,\n  configRepo: att.verification.repo, // exact GitHub casing; Sigstore compares verbatim\n}).verify();  // hardware report → vendor root · Sigstore release provenance · measurements match\n\npinTls(att.tlsKeyFingerprint);       // only now: connect" }
+    code: "// the verifier this page ships (same-origin, hash-pinned): verifier/web in the EnclaveHost/enclave repo\n// from a shell: enclave attest [<deployment-id>] [--expect <measurement>]\nimport { verifyMetalBoxWeb } from '/vendor/enclave-verifier.js';\n\nconst r = await verifyMetalBoxWeb({ name: 'metal0' });   // a fresh nonce is drawn here and sent to the box\nconsole.log(r.status, r.measurement, r.omissions);       // verified | limited | rejected | unavailable\n" },
 ];
 
 class AttestChain extends EnclaveElement {

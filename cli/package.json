@@ -1,7 +1,7 @@
 {
   "name": "enclave-cli",
   "version": "1.0.2",
-  "description": "The `enclave` CLI — wallet-native terminal client for the Enclave platform (enclave.host). Every command maps 1:1 onto the public API and the on-chain contracts.",
+  "description": "The `enclave` CLI \u2014 wallet-native terminal client for the Enclave platform (enclave.host). Every command maps 1:1 onto the public API and the on-chain contracts.",
   "type": "module",
   "bin": {
     "enclave": "./enclave.mjs"
@@ -13,7 +13,6 @@
     "build": "node build.mjs"
   },
   "dependencies": {
-    "@Cloud Providersh/verifier": "^1.1.7",
     "viem": "^2.53.1"
   },
   "devDependencies": {

@@ -379,15 +379,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.release_tag }}
         run: |
-          # --prerelease is load-bearing: this is a LIB TARBALL, not an enclave
-          # release. GitHub's /releases/latest returns the most recent
-          # NON-prerelease release, and the attestation verifier (github-proxy)
-          # hits exactly that endpoint. A plain release here would, for the window
-          # between its creation and the next vX.Y.Z enclave release, make
-          # /releases/latest point at a tarball with no Cloud Provider.hash - breaking
-          # verification fleet-wide. Marking it prerelease keeps it out of that
-          # endpoint forever. (Same reason the existing tarball releases were
-          # retro-flagged prerelease.)
+          # --prerelease: this is a LIB TARBALL, not an enclave release. GitHub's
+          # /releases/latest returns the most recent NON-prerelease release, which
+          # should stay the latest enclave release (vX.Y.Z-cpu, release-cpu.yml);
+          # marking the tarball prerelease keeps it out of that endpoint forever.
+          # (Same reason the existing tarball releases were retro-flagged
+          # prerelease.)
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
             || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease \
                  --title "$TAG (ggml-stack lib tarball)" \

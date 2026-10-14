@@ -4,8 +4,8 @@
 // a strict fixed-size parser with the ABI's must-be-zero ranges, VCEK-only signer, P-384 range checks on
 // r and s; certificate validity windows and subject checks along VCEK -> ASK -> pinned ARK; the ARK-signed
 // CRL (ASK revocation, collateral freshness); floors applied to the reported AND the committed TCB;
-// firmware version floors; a binding rule chosen by the evidence FORMAT (hosted shim, metal, domain
-// ABI/1 or ABI/2); and one verdict shape: { status, reasons, checks, claims }.
+// firmware version floors; a binding rule chosen by the evidence FORMAT (metal, domain ABI/1 or
+// ABI/2); and one verdict shape: { status, reasons, checks, claims }.
 //
 // Layout references: AMD 56860 (SEV-SNP Firmware ABI) Rev 1.59 Table 27 ATTESTATION_REPORT, Tables 4/5
 // TCB_VERSION (Turin adds FMC at bits 7:0), Table 148 signature (R, S 72-byte zero-extended little-endian);
@@ -15,13 +15,13 @@
 //
 // VERDICTS. "verified" is admission-safe: every security check passed under a policy that omitted nothing.
 // "limited" means every cryptographic check passed but the policy EXPLICITLY relaxed a security check (no
-// TCB floor, no CRL, no certificate binding, no nonce, a research-only report version); the omissions are
+// TCB floor, no CRL, no nonce, a research-only report version); the omissions are
 // listed and a consumer that tests `status === "verified"` cannot mistake it for acceptance. "rejected" is
 // a failed check; "unsupported" is evidence whose semantics this verifier does not implement.
 import { X509Certificate, constants, verify as cryptoVerify } from "node:crypto";
 import { AMD_ARK_SHA256, decodeTcb, TCB_FIELDS, snpProductHint, kdsVcekUrl, vcekMatchesReport, checkMinTcb } from "../relay/snp-verify.mjs";
 import { parseCrl, subjectNameDer } from "./der.mjs";
-import { sha256, checkHostedCertificate } from "./tls-binding.mjs";
+import { sha256 } from "./tls-binding.mjs";
 
 export const REPORT_SIZE = 0x4a0, SIG_OFFSET = 0x2a0, MAX_REPORT_VERSION = 6, JUDGED_MAX_REPORT_VERSION = 5;
 // The status a run ends with when every check passed: admission-safe only when nothing was omitted.
@@ -31,7 +31,7 @@ export const verdictStatus = (omissions) => omissions.length ? "limited" : "veri
 // is Node's. Nothing about policy, order or wording lives in a provider: it answers what a certificate, a CRL or a
 // signature IS, and this file decides what that means.
 //   checkChain, checkCrl, verifyReportSignature: as the functions of the same name below, possibly async
-//   certRaw(cert) -> DER bytes, certFp(cert) -> sha256 hex, sha256(...parts) -> bytes, checkHostedCertificate: tls-binding
+//   certRaw(cert) -> DER bytes, certFp(cert) -> sha256 hex, sha256(...parts) -> bytes
 const P384_N = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffc7634d81f4372ddf581a0db248b0a77aecec196accc52973");
 const VCEK_GUID = "63da758de6644564adc5f4b93be8accd";
 const hex = (b) => Buffer.from(b).toString("hex");
@@ -49,7 +49,6 @@ export const DEFAULT_SNP_POLICY = Object.freeze({
   allowedMeasurements: [],               // hex; empty = refuse (a verifier with no expected measurement has nothing to compare)
   crl: "required",                       // required | stale-ok | none
   crlMaxStaleDays: 0,
-  requireCertificateBinding: true,       // hosted format: the served certificate must be supplied and must bind this document
   researchAllowUnjudgedReportVersions: false, // RESEARCH ONLY: run the checks on a report version whose new fields are unjudged; the result is at best "limited"
 });
 
@@ -194,14 +193,14 @@ export function judgeCrl({ crl, askSerialHex, now, mode = "required", maxStaleDa
 }
 
 // Node's provider: the functions above, as they are.
-export const NODE_CRYPTO = Object.freeze({ checkChain, checkCrl, verifyReportSignature, sha256, checkHostedCertificate, certRaw: (c) => c.raw, certFp: fpHex });
+export const NODE_CRYPTO = Object.freeze({ checkChain, checkCrl, verifyReportSignature, sha256, certRaw: (c) => c.raw, certFp: fpHex });
 
 const tcbHex = (b) => hex(b);
 const fw = (maj, min, build) => `${maj}.${min} build ${build}`;
 
 // verifySnp(env, policy, context, collateral) -> { status, reasons, checks, claims }
 //   env:        parseEnvelope() output ({ format, spec, body, doc })
-//   context:    { transportKeySpki, nonce?, expectedBinding?, expectedAppId?, host?, certPem?, auxblob?, now? }
+//   context:    { transportKeySpki, nonce?, expectedBinding?, expectedAppId?, expectedHostData?, auxblob?, now? }
 //   collateral: an adapter from verifier/collateral.mjs (chain, vcek, crl); the auxblob wins for the VCEK
 export async function verifySnp(env, policy = {}, context = {}, collateral = null) {
   const pol = { ...DEFAULT_SNP_POLICY, ...policy, guestPolicy: { ...DEFAULT_SNP_POLICY.guestPolicy, ...(policy.guestPolicy || {}) } };
@@ -286,7 +285,7 @@ export async function verifySnp(env, policy = {}, context = {}, collateral = nul
   const allow = new Set((pol.allowedMeasurements || []).map((m) => String(m).toLowerCase()));
   if (!allow.size) return fail("measurement", "policy names no allowed measurement: a verifier with nothing expected has nothing to compare (fail closed)");
   if (!allow.has(claims.measurement)) return fail("measurement", `launch measurement ${claims.measurement.slice(0, 16)}... is not an allowed measurement`);
-  pass("measurement", "launch measurement is one the policy allows (from verified provenance, or the caller's explicit expectation)");
+  pass("measurement", "launch measurement is one the policy allows (the caller's explicit expectation)");
 
   // 7. binding, by format
   const rd0 = p.reportData.subarray(0, 32), rd1 = p.reportData.subarray(32, 64);
@@ -294,18 +293,7 @@ export async function verifySnp(env, policy = {}, context = {}, collateral = nul
   if (!Buffer.isBuffer(spki) || spki.length < 44 || spki.length > 2048) return fail("binding", "no transport key SPKI from the verifier's own handshake: the binding cannot be checked (never skipped)");
   const spkiHash = Buffer.from(await X.sha256(spki));
   claims.transportSpkiSha256 = hex(spkiHash);   // the key THIS verifier bound; a consumer compares its own peer key to it (verifier/admission.mjs)
-  if (env.spec.binding === "hosted-Cloud Provider") {
-    if (!spkiHash.equals(rd0)) return fail("binding", "report_data[0:32] != sha256(the TLS key this connection presented): the report belongs to another key");
-    claims.hpkePublicKey = hex(rd1); claims.tlsSpkiSha256 = hex(spkiHash);
-    pass("binding", "report_data[0:32] binds the served TLS key (hosted format: no nonce in the report; freshness rests on the served certificate)");
-    if (context.certPem) {
-      const c = await X.checkHostedCertificate({ certPem: context.certPem, host: context.host, doc: env.doc, hpkeKeyHex: claims.hpkePublicKey, now });
-      reasons.push(...c.reasons); if (!c.ok) { checks["certificate binding"] = false; return out("rejected"); }
-      if (c.claims.tlsSpkiSha256 !== claims.tlsSpkiSha256) return fail("certificate binding", "the served certificate's key is not the key the report binds");
-      checks["certificate binding"] = true; claims.certificate = c.claims;
-    } else if (pol.requireCertificateBinding) return fail("certificate binding", "hosted format requires the served certificate (hatt SAN binds the document; without it a replayed document over a fresh key is not excluded)");
-    else { checks["certificate binding"] = null; omit("certificate-binding-unchecked", "the served certificate was not checked (policy.requireCertificateBinding=false): document freshness is not established"); }
-  } else if (env.spec.binding === "spki") {
+  if (env.spec.binding === "spki") {
     if (context.nonce && context.nonce.length !== 32) return fail("binding", "nonce must be 32 bytes");
     const want = Buffer.from(context.nonce ? await X.sha256(spki, context.nonce) : spkiHash);
     if (!want.equals(rd0)) return fail("binding", context.nonce ? "report_data[0:32] != sha256(SPKI || nonce): stale, replayed, or another key" : "report_data[0:32] != sha256(SPKI): another key");
@@ -335,7 +323,7 @@ export async function verifySnp(env, policy = {}, context = {}, collateral = nul
     if (!p.hostData.equals(context.expectedHostData)) return fail("host data", `report HOST_DATA names ${hex(p.hostData).slice(0, 16)}..., not the expected deployment ${hex(context.expectedHostData).slice(0, 16)}...`);
     pass("host data", "report HOST_DATA equals the expected deployment id (the host's launch-time binding, PSP-signed)");
   }
-  claims.freshness = env.spec.binding === "hosted-Cloud Provider" ? (checks["certificate binding"] ? "served certificate window" : "none (certificate binding omitted)") : context.nonce || context.expectedBinding ? "verifier nonce" : "none (key possession only)";
+  claims.freshness = context.nonce || context.expectedBinding ? "verifier nonce" : "none (key possession only)";
   // The only way to "verified": every check true and nothing omitted. Anything relaxed by policy is "limited".
   return out(verdictStatus(omissions));
 }

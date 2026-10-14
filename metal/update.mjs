@@ -2,14 +2,13 @@
 /* enclave-metal auto-update — the self-hosted half of "merge to main and the
    fleet moves".
    ===========================================================================
-   Cloud Provider enclaves are PUSHED: CI cuts a release and Cloud Provider-cli updates each
-   running enclave. A metal box cannot be pushed to — it is typically behind
-   CGNAT with no inbound path at all — so it PULLS on a timer instead. Same
-   destination, opposite direction.
+   CI cuts a release (release-cpu.yml), but a metal box cannot be pushed to —
+   it is typically behind CGNAT with no inbound path at all — so it PULLS on a
+   timer instead.
 
    WHAT IT TRACKS. The published release tag for this box's flavor (metal0 is
-   CPU-only, so `vX.Y.Z-cpu`), which is the same artifact the CPU fleet moves
-   to. Not the local checkout: this box runs out of a working tree that is also
+   CPU-only, so `vX.Y.Z-cpu`): a GitHub Release whose tag names the commit to
+   build and the supervisor image (`enclave-supervisor:<tag>`) to build with. Not the local checkout: this box runs out of a working tree that is also
    somebody's desk, and a half-finished edit must never become the thing the
    enclave attests to. The build happens in a throwaway git worktree at the tag.
 

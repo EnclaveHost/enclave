@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// metal-agent — the in-CVM service that replaces everything the Cloud Provider shim
-// did for us, with no Cloud Provider dependency:
+// metal-agent — the in-CVM service that does attestation and ingress for the
+// guest, with no outside attestation service in the path:
 //
 //   1. Attestation. Generates the enclave's transport keypair inside the CVM,
 //      asks the CPU for a hardware attestation report over configfs-tsm with

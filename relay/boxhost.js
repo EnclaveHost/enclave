@@ -3,9 +3,9 @@
 //
 // WHY A HOSTNAME AT ALL. A tunnel box used to be reachable only as a PATH on
 // the relay: https://api.enclave.host/t/<name>/…. That works for proxying and
-// nothing else. Every attestation verifier in the ecosystem — Cloud Provider-cli's
-// `-e`, @Cloud Providersh/verifier, the site's in-browser check — takes a bare HOST
-// and builds /.well-known/Cloud Provider-attestation from it, so a path-scoped
+// nothing else. The attestation verifiers of the time (the Cloud Provider tools we
+// used until 2026-10, the site's in-browser check) took a bare HOST and built
+// /.well-known/Cloud Provider-attestation from it, so a path-scoped
 // endpoint gets truncated to the relay's own hostname and verifies the RELAY.
 // Worse, the client's TLS terminates at the relay, so the quote's reportData
 // (which binds the BOX's key) can never match the certificate the browser

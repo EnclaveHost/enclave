@@ -542,8 +542,7 @@ export async function resumeDeployWatch(run){
    ============================================================ */
 // Last-seen free capacity in whole percent (null = no availability read yet /
 // fetch failed, so nobody warns on unknown). A pick ABOVE these is legal - the
-// record queues on-chain and the autoscaler reads queued funded demand as its
-// scale signal - but the user must know they're buying a queue slot, not an
+// record queues on-chain until a runner with room claims it - but the user must know they're buying a queue slot, not an
 // instant boot: confirmQueuedDeploy asks, and deployOnChain narrates it.
 // A GPU app's CPU slice rides its card's node, so it checks cpuOnGpuNode.
 const freePct = { gpu: null, cpuAny: null, cpuOnGpuNode: null };

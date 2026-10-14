@@ -79,9 +79,11 @@ NTFS the file is only as private as your user profile.
 - **Payment**: `fundWithAuthorization` is an EIP-3009 `ReceiveWithAuthorization`
   signature over USDC, its nonce bound to the deployment id's first 16 bytes, so
   the money can land on that deployment's balance and nowhere else.
-- **Attestation**: `enclave attest` runs Cloud Provider's verifier *locally* (hardware
-  quote → vendor root, Sigstore code provenance, measurement match, TLS
-  binding) and exits non-zero on FAIL.
+- **Attestation**: `enclave attest` runs Enclave's own verifier (`verifier/`)
+  *locally*: it challenges the box with a fresh nonce through the relay, checks
+  the SEV-SNP report against AMD's root (guest policy, TCB floor) and the launch
+  measurement (against `--expect`, or the relay's admitted list, which it
+  reports as limited), and exits non-zero on FAIL.
 - **No hidden traffic**: any command run with `-x` prints every REST call and
   transaction before it is sent, ready to replay with `curl`.
 

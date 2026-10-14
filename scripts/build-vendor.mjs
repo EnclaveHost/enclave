@@ -15,10 +15,10 @@
    un-SRI'd CDN from the TCB; the bytes are covered by the
    site's own IPFS pin + Caddy TLS, and pinned by version here.
 
-     • site/vendor/verifier.js -> @Cloud Providersh/verifier (used by
-       site/js/core/verify.js). Its one Node-builtin use,
-       `await import('zlib')` for gunzipSync, is aliased to the
-       pure-JS synchronous fflate implementation for the browser.
+     • site/vendor/enclave-verifier.js -> this repository's own
+       verifier (verifier/web), COPIED from its reproducible build
+       in verifier/web/dist and checked against its manifest (used
+       by site/js/core/verify.js).
      • site/vendor/webauthn.js -> @simplewebauthn/browser (used
        by site/js/core/account.js for passkey sign-in/creation;
        lazy-imported, so no WebAuthn bytes load until a user
@@ -47,11 +47,9 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..")
 const WORK = path.join(ROOT, "scripts", ".vendor-build");
 const OUT = path.join(ROOT, "site", "vendor");
 
-// Pinned. verifier MUST match the version site/js/core/verify.js expects.
+// Pinned.
 const DEPS = {
-  "@Cloud Providersh/verifier": "1.1.10",   // 1.1.9+ is Apache-2.0 (≤1.1.8 was AGPL — a license conflict with ours; keep ≥1.1.9)
   "@simplewebauthn/browser": "13.1.0",   // MIT; passkey client (startRegistration/startAuthentication)
-  "fflate": "0.8.2",           // browser gunzipSync shim for the verifier's zlib use
   // Apache-2.0, and its @walletconnect/* tree is MIT - NOT the Reown "community"
   // license that build-notices.mjs has to inline verbatim. That holds only while
   // we bundle the bare EIP-1193 provider; pulling @reown/appkit (the modal UI)
@@ -82,16 +80,6 @@ const shared = {
   logLevel: "warning",
 };
 
-console.log("[vendor] esbuild @Cloud Providersh/verifier -> site/vendor/verifier.js");
-await build({
-  ...shared,
-  entryPoints: [nm("@Cloud Providersh/verifier")],
-  outfile: path.join(OUT, "verifier.js"),
-  // the verifier's only Node builtin: `await import('zlib')` for gunzipSync.
-  // fflate provides a byte-compatible synchronous gunzipSync in pure JS.
-  alias: { zlib: nm("fflate/esm/browser.js") },
-});
-
 console.log("[vendor] esbuild @simplewebauthn/browser -> site/vendor/webauthn.js");
 await build({
   ...shared,
@@ -109,7 +97,7 @@ await build({
 // site/vendor/enclave-verifier.js <- verifier/web/dist/enclave-verifier-web.js: the Enclave-owned browser verifier
 // (verifier/web/README.md), a REPRODUCIBLE artifact whose manifest names every input with its hash (verifier/web/reproduce.mjs
 // under the strict integration command). It is COPIED, never rebuilt here, and refused unless its bytes are the manifest's.
-// Loaded only by the opt-in shadow (site/js/core/verify-shadow.js); it grants nothing and changes no primary pin.
+// Loaded by site/js/core/verify.js: the site's live verification runs on it (verifyMetalBoxWeb).
 {
   const dist = path.join(ROOT, "verifier", "web", "dist");
   const manifest = JSON.parse(fs.readFileSync(path.join(dist, "MANIFEST.json"), "utf8"));
@@ -132,10 +120,9 @@ await build({
 // Fail loud if an upgrade ever drops an export the callers destructure, so a
 // broken bundle can never ship silently to the verify/auth paths.
 const must = [
-  ["verifier.js", ["Verifier", "assembleAttestationBundle"]],
   ["webauthn.js", ["startRegistration", "startAuthentication"]],
   ["walletconnect.js", ["EthereumProvider"]],
-  ["enclave-verifier.js", ["createShadow", "verifyEvidenceWeb", "releaseExpectationsFromMirror", "createBrowserIndexMemory"]],
+  ["enclave-verifier.js", ["verifyMetalBoxWeb", "verifyEvidenceWeb"]],
   ["sessions.js", ["newSessionKey", "buildGrant", "openSession", "IndexedDbStore", "RelayClient", "sessionFromRecord",
     "decodeGrantRequest", "describeGrant", "ownerOperation", "topUpFromWallet", "usdcDomain", "chainClient", "readSession",
     "delegationStatus", "setDelegateCall"]],

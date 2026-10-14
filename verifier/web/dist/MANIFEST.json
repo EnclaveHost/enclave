@@ -1,8 +1,8 @@
 {
  "artifact": {
   "file": "enclave-verifier-web.js",
-  "bytes": 246267,
-  "sha256": "3c827b30d9b5a72d5bdea55c9a16b7b96cea9a73da0f9c691b33a5081d7116a1"
+  "bytes": 129401,
+  "sha256": "bac4e031265aac4ca1ed7352fe4393e1d4e11811df48a6dbcd6514270e309ecb"
  },
  "build": {
   "tool": "esbuild",
@@ -353,73 +353,38 @@
   },
   {
    "path": "verifier/envelope.mjs",
-   "bytes": 13489,
-   "sha256": "f3a5ca25cfc8dfe76d2946803c2f5ffdb311a1bd83ebbb0af988debf46553b95"
+   "bytes": 12106,
+   "sha256": "ba94f540c5e3574c5750dbf8a0d5cf24885dd0ae3ffcc8729f526700015e4b39"
   },
   {
-   "path": "verifier/index-memory.mjs",
-   "bytes": 7614,
-   "sha256": "5f1ee9b7bd82919e3096b1b1284c020ed49bd1cc941578be1ada12be2878a6d6"
-  },
-  {
-   "path": "verifier/provenance.mjs",
-   "bytes": 11256,
-   "sha256": "f70a4ea3ccd3c14fb6fe1a7b100398f7388cc41319f3d919e9f5bf80d1a937be"
-  },
-  {
-   "path": "verifier/release-index-core.mjs",
-   "bytes": 11395,
-   "sha256": "796a229b7aaa056ba64593466d5fbb573de3fc086d6fb60274f406b1734ffc0d"
-  },
-  {
-   "path": "verifier/release-policy.json",
-   "bytes": 988,
-   "sha256": "13fad58e0294f1874749321a33cfbc484732ec9fb102ded723d4c12ba5509034"
-  },
-  {
-   "path": "verifier/release-policy.mjs",
-   "bytes": 5155,
-   "sha256": "99a0abd4347c4c19534a3c3adf81d52ee94e35e59ad40ae00b15d33b52f82ed1"
-  },
-  {
-   "path": "verifier/roots/sigstore-trusted-root.json",
-   "bytes": 6787,
-   "sha256": "6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66"
+   "path": "verifier/metal-box.mjs",
+   "bytes": 7626,
+   "sha256": "6bcbb136b320ed01add947626d7a19d44a9e6db9606744cc8c0e667bc89abef2"
   },
   {
    "path": "verifier/snp.mjs",
-   "bytes": 34321,
-   "sha256": "6dfabe48d9f3022b3e94005716f556ac046a8b692667e4d33b13bde8e21e9c25"
+   "bytes": 32501,
+   "sha256": "beb7571c9b3004da4cd8bfd87377e2dd2fcaca72884b83676325d1e150df6721"
   },
   {
    "path": "verifier/tls-binding.mjs",
-   "bytes": 4481,
-   "sha256": "1747f48bf4d154ede59e3b634f4faf795c7851fc111e2d2e0aa9fc60fd886358"
+   "bytes": 841,
+   "sha256": "f11b1ff36e43f90c20b2349a9880dc1f86821a7270b31273c612bd4a532dc8e7"
   },
   {
    "path": "verifier/web/collateral.mjs",
-   "bytes": 3453,
-   "sha256": "4e97186431876c1a96c4a369b13ede68090d725286f99fcf2ff15849c8245414"
+   "bytes": 3543,
+   "sha256": "7ae4a84daf2d2159ab1969c963f3e3c4681d13546429bacbcbee57096186e4e7"
   },
   {
    "path": "verifier/web/index.mjs",
-   "bytes": 5363,
-   "sha256": "7755dd11f9e2456f0ea1816e653d4209c0520ed8f549ae9c7a2475388c9797ac"
-  },
-  {
-   "path": "verifier/web/provenance.mjs",
-   "bytes": 11998,
-   "sha256": "389faf3ce3d287713b2ef36679722a1859760481c4d3a6db6c0631c0d61f3a4a"
+   "bytes": 5005,
+   "sha256": "312929e9b5e3fbc8f94e06fac52265a06c3e9a008716651d5912dc8879207d05"
   },
   {
    "path": "verifier/web/provider.mjs",
-   "bytes": 7889,
-   "sha256": "f8e3bbfe6756e25fc76fc69e90a230a3e373802a9fa57f67d9a74975cb0f77ef"
-  },
-  {
-   "path": "verifier/web/shadow.mjs",
-   "bytes": 8333,
-   "sha256": "6ec0e70a9bba39fedbfdcaae6a3e336d94496c628f34458d787e17ca280d7006"
+   "bytes": 5744,
+   "sha256": "9e4889830df6b6e9596c25e43fcb4c907da39a4837d288bdb695d5e50606e86a"
   },
   {
    "path": "verifier/web/shims/buffer-global.mjs",
@@ -430,11 +395,6 @@
    "path": "verifier/web/shims/node-crypto.mjs",
    "bytes": 991,
    "sha256": "c9852c965dc3fbf01e9bca3e39c81f8391f9239fb3c9296ac2f857149d83c953"
-  },
-  {
-   "path": "verifier/web/shims/node-zlib.mjs",
-   "bytes": 416,
-   "sha256": "f17d27fecf9a9c7c0cca7c024a87fdb3de6ad24397bdb75cec70d76d24b4b3f3"
   },
   {
    "path": "verifier/web/x509.mjs",

@@ -33,9 +33,9 @@ Any Ethereum wallet works too, paying in USDC or ETH on Base, and agents use one
 1. **Apps are Wasm components** (`wasi:http`). Anyone publishes to the on-chain app store (`EnclaveAppCatalog` on Base): the bytes go to IPFS addressed by CID, the listing, versions, and resource specs live on-chain. A version may declare an hourly publisher fee (capped on-chain, immutable per version, covered by approval): deployers see it in the rate up front and the publisher's cut of every funding forwards straight to their wallet, non-custodially. The enclave image ships no deployable apps; everything it runs is fetched by CID and hash-verified inside the enclave.
 2. **Deployments are on-chain work items** (`EnclaveDeployments`: create → fund → claim → lease). A deployment references a catalog **version** (`catalog://<appId>/<versionIndex>`), the immutable wasm + config + ports record the catalog owner approved. Funding comes from card credit (the customer's credit vault creates and funds the record when they deploy) or directly in USDC (EIP-3009) or ETH. It is metered per second; top up to extend, stop anytime.
 3. **Enclaves claim the work.** Each enclave self-registers in `EnclaveRegistry`, polls for funded work it can serve, claims it, and runs the app. How apps on one machine are kept apart from each other depends on the host type (see [Tenant isolation](#tenant-isolation-by-host-type) below).
-4. **Every layer attests.** Cloud Provider measures the container image (with a Sigstore transparency-log record tying it to this repo's release), the enclave proves the measurement in its attestation quote, and TLS keys never leave it. The site and CLI verify the full chain client-side before connecting.
+4. **Every layer attests.** A release is built from this repo's release tag; the enclave's launch measurement covers the code it runs, the enclave proves that measurement in an attestation quote over the verifier's own nonce, and TLS keys never leave it. The site and CLI (`enclave attest`) check the quote client-side before connecting.
 
-Beyond plain web apps: GPU inference via `wasi-nn` (ONNX, GGUF through a bundled llama.cpp backend, and image diffusion through a stable-diffusion.cpp backend, on an MPS-capped GPU slice), attested read-only **model volumes** mounted at `/models` (Cloud Provider Modelwrap; the attestation commits to the exact weight bytes), raw TCP/UDP services behind an SNI relay, and per-deployment dedicated IPv6 (inbound and outbound).
+Beyond plain web apps: GPU inference via `wasi-nn` (ONNX, GGUF through a bundled llama.cpp backend, and image diffusion through a stable-diffusion.cpp backend, on an MPS-capped GPU slice), attested read-only **model volumes** mounted at `/models` (dm-verity images; the attestation commits to the exact weight bytes), raw TCP/UDP services behind an SNI relay, and per-deployment dedicated IPv6 (inbound and outbound).
 
 ## Tenant isolation, by host type
 
@@ -46,11 +46,11 @@ Beyond plain web apps: GPU inference via `wasi-nn` (ONNX, GGUF through a bundled
 | **Enclave Shield hosts** (Windows) | **A separate VM per app.** Every market deployment runs in its own Hyper-V partition (`windows/vbslike/manager`), and market scope refuses any other placement (`windows/node/host.mjs`). Separation between apps is enforced by the hypervisor, not a process boundary. These hosts do not yet exclude their own operator: the launcher that signs the report runs in the root partition. |
 | **pVM phone hosts** | **A separate protected VM per app** (`relay/pvm-app-attest.mjs`, backend `avf-pvm-per-app`). CPU only. |
 | **Confidential servers** (SEV-SNP, e.g. metal0) | **A separate SEV-SNP guest per app.** The node's own confidential VM runs the control plane only; `isolation/m4/guestd` launches every app in its own SNP guest on the same machine, the app's TLS ends inside that guest, and the node serves only deployments that require this isolation. App-vs-app separation is enforced by the processor, and each guest is also protected from the host and its operator. The node side is `metal/` (`isolation.backend: "snp-guest-per-app"`), the guest side `isolation/m4/guestd`. |
-| **Shared-VM Cloud Provider flavors** (`enclaves/`; none serving today) | **Shared confidential VM, separate process per app.** The hardware boundary is around the whole VM and protects every tenant from the host. Inside it, each app is its own `wasmtime` process with a loopback wall between apps, so a sandbox escape in one app would reach the others on that VM. This is the original design. |
+| **Shared-VM hosts** (the hosted fleet that ran on Cloud Provider until 2026-10; none serving today) | **Shared confidential VM, separate process per app.** The hardware boundary is around the whole VM and protects every tenant from the host. Inside it, each app is its own `wasmtime` process with a loopback wall between apps, so a sandbox escape in one app would reach the others on that VM. This is the original design. |
 
-**GPU sharing.** Tenant code never runs on the GPU. A Wasm app reaches the card only through the platform's own `wasi-nn` backends (llama.cpp, ONNX Runtime, stable-diffusion.cpp), so no device pointer or kernel crosses the boundary (raw PTX submission is refused). A GPU outside a confidential boundary is used only through Enclave Shield's masked, verified offload (`shielded/`). NVIDIA MPS appears only in the shared-VM Cloud Provider GPU flavors, where it divides capacity; it is not an isolation boundary there, and NVIDIA does not present it as one.
+**GPU sharing.** Tenant code never runs on the GPU. A Wasm app reaches the card only through the platform's own `wasi-nn` backends (llama.cpp, ONNX Runtime, stable-diffusion.cpp), so no device pointer or kernel crosses the boundary (raw PTX submission is refused). A GPU outside a confidential boundary is used only through Enclave Shield's masked, verified offload (`shielded/`). NVIDIA MPS appeared only in the retired shared-VM GPU flavors, where it divided capacity; it was not an isolation boundary there, and NVIDIA does not present it as one.
 
-Every host serving today runs one VM per app. The shared-VM model applies only to the Cloud Provider flavors, which are not serving.
+Every host serving today runs one VM per app. The shared-VM model applied only to the retired hosted flavors.
 
 ## Repository layout
 
@@ -68,7 +68,7 @@ Every host serving today runs one VM per app. The shared-VM model applies only t
 | `egress.js` / `net-guard.mjs` | outbound egress shim and network guard |
 | `site/` | the enclave.host static site, published to IPFS (LWC-style web components, soft-nav router; `npm run build:site`) |
 | `cli/` | the `enclave` CLI (deploy, fund, attest-verify from a terminal) |
-| `enclaves/` | Cloud Provider config flavors: `gpu/`, `cpu/`, `gpu8/` (8×GPU tenant compute) |
+| `enclaves/` | the release's enclave config (`cpu/config.yml`): supervisor environment + image pins a metal guest is built from |
 | `scripts/` | build, release, and CI setup |
 | `test/` | `npm test` (node --test) |
 
@@ -87,27 +87,15 @@ The leftovers are the point: a tenant buying 100% GPU + 10% CPU leaves 90% of th
 
 Routing: GPU work (`gpuShare > 0`) runs **only** on GPU-enabled enclaves. CPU-only work is served by CPU-only enclaves first; GPU enclaves bid on it only after a grace window (`CPU_CLAIM_GRACE_SEC`, default 120s) and only out of leftover CPU pool.
 
-## Enclave flavors & releases (operators)
+## Releases (operators)
 
-The service runs as a [Cloud Provider container](https://docs.Cloud Provider.sh/containers/overview); each flavor's config lives under `enclaves/` and **flavor selection happens by release tag**. The Cloud Provider dashboard has no config-file picker; it always reads `Cloud Provider-config.yml` from the repo root of a release tag. That is why there is deliberately no root config on `main`: each release workflow copies its flavor's config to the root **in the release-tag commit**. Deploy a `vX.Y.Z` tag for the GPU flavor or a `vX.Y.Z-cpu` tag for the CPU flavor. Each release creates an auditable record in the Sigstore transparency log.
-
-- `enclaves/gpu/Cloud Provider-config.yml`: GPU flavor (supervisor + MPS daemon + GPU worker + wasm-manager). Serves GPU deployments, plus CPU-only deployments out of leftover CPU/RAM. Released as `vX.Y.Z` via `gh workflow run Cloud Provider-release.yml -f version=vX.Y.Z`.
-- `enclaves/cpu/Cloud Provider-config.yml`: CPU flavor (supervisor + wasm-manager only, `GPU_COUNT=0`). Serves CPU-only deployments (GPU asks are refused with a 422). Released as `vX.Y.Z-cpu` via `Cloud Provider-release-cpu.yml`.
-- `enclaves/gpu8/Cloud Provider-config.yml`: the 8×GPU tenant-compute flavor (the same four containers as the GPU flavor, scaled to 8 cards). Released via `Cloud Provider-release-gpu8.yml`.
-
-To spin up a CPU enclave:
-
-1. Release the CPU flavor (CPU versions must end in `-cpu`; the workflow copies `enclaves/cpu/Cloud Provider-config.yml` to the root, pins the supervisor digest, and measures that copy). `scripts/release.sh` repins image digests into **both** flavor configs.
-2. In the Cloud Provider dashboard, deploy the `-cpu` release tag with the same secrets (`SECRET`, `ADMIN_TOKEN`, `REGISTRY_PRIVATE_KEY`; use a distinct registry EOA per enclave). No config selection is needed: the `-cpu` tag's default config IS the CPU flavor.
-3. The enclave self-registers in EnclaveRegistry like any other; callers read both pools from `/availability` (`gpuShareFree` / `cpuShareFree`; `gpu: false` marks the CPU flavor).
+`enclaves/cpu/config.yml` is the release's enclave config: the supervisor's non-secret environment (`GPU_COUNT=0`, CPU-enclave mode, the contract addresses) and the digest pin of the wasm-manager image. A release is a `vX.Y.Z-cpu` tag plus its GitHub Release, cut by `.github/workflows/release-cpu.yml`, which also builds `ghcr.io/enclavehost/enclave-supervisor:vX.Y.Z-cpu`. Metal boxes follow it: `metal/update.mjs` takes the newest `-cpu` release and builds the guest image at that tag (`metal/build-image.mjs`), health-gated with rollback; see [metal/README.md](metal/README.md) to run one. The GPU flavors (`enclaves/gpu`, `enclaves/gpu8`) and their hosted fleet were retired on 2026-10-14.
 
 How the routing is enforced:
 
 - **Deploys**: the supervisor floors `resources.{gpuShare, cpuShare}` at the app's spec-derived minimums and refuses `gpuShare > 0` on a CPU enclave. The two shares are otherwise independent — a GPU app may buy more node than card. CPU-only requests are served on either flavor from the node's CPU pool.
 - **On-chain**: `EnclaveDeployments.create(appRef, gpuMilli, cpuMilli, ...)` takes the two shares in 1/1000ths (the contract bounds each and prices both additively; from schema 13 they are independent of one another). GPU enclaves only adopt `gpuMilli > 0` work; CPU-only work goes to CPU enclaves first, with GPU enclaves as a delayed fallback (`CPU_CLAIM_GRACE_SEC`). Each runner re-derives the app's minimum shares from its catalog specs (via `cidStatus`) and skips under-provisioned deployments.
 - **Apps**: catalog apps declare exact specs on-chain on four axes: `vramMb`/`gpuGflops`/`memMb`/`cpuGflops` (EnclaveAppCatalog, returned by `cidStatus`). Those specs only set minimum shares; GPU-needing apps are refused on nodes with `NODE_HAS_GPU=0`.
-
-Verification caveat: verifiers that check against this repo's *latest* release (the `Cloud Provider-cli` default) will see the GPU flavor's measurement, so verify CPU enclaves against their matching `-cpu` release explicitly.
 
 ## CI/CD (push-to-main deploys)
 
@@ -118,16 +106,18 @@ last successfully deployed commit and deploys only what changed:
 |---|---|
 | `site/**` | scp + IPFS publish to the site box (`site/deploy.sh`) |
 | `relay/**` | scp + systemd restart on the relay box (`relay/deploy.sh`) |
-| `contracts/<Name>.sol` | that contract deploys to Base (`scripts/deploy-*.mjs`), **after a one-click approval** on the `contract-deploy` environment; addresses are wired into both Cloud Provider configs + the site and committed back |
-| `Dockerfile` / `supervisor.js` / `package*.json` | a new Cloud Provider release (supervisor is built by `Cloud Provider-release.yml`) |
-| `worker/**`, `mps-daemon/**`, `wasm/**` | changed sidecar images are built + digest-repinned (`scripts/release.sh`), then a Cloud Provider release |
-| `enclaves/*/Cloud Provider-config.yml` (non-`image:` lines) | a new Cloud Provider release (config is part of the measurement) |
+| `contracts/<Name>.sol` | that contract deploys to Base (`scripts/deploy-*.mjs`), **after a one-click approval** on the `contract-deploy` environment; addresses are wired into `enclaves/cpu/config.yml` + the site and committed back |
+| `Dockerfile` / `supervisor.js` / `package*.json` | a new release (`release-cpu.yml` builds the supervisor image, tags `vX.Y.Z-cpu` and publishes the GitHub Release) |
+| `wasm/**` | the wasm-manager image is built + digest-repinned (`scripts/release.sh`), then a release |
+| `metal/**` (code) | a new release (metal boxes build the guest image at the tag) |
+| `enclaves/cpu/config.yml` (non-`image:` lines) | a new release (the supervisor environment is part of the guest image) |
 
-Releases are auto-versioned (latest `vX.Y.Z` tag, patch-bumped) and dispatch the
-existing `Cloud Provider-release.yml`, plus `Cloud Provider-release-cpu.yml` when the CPU
-flavor is affected (supervisor/wasm-manager/config; worker and mps are GPU-only).
-A registry redeploy automatically cascades into a deployments redeploy (claims
-are gated to the registry).
+Releases are auto-versioned (the latest `vX.Y.Z` / `vX.Y.Z-cpu` tag, patch-bumped,
+released as `-cpu`) and dispatch `release-cpu.yml`. Running enclaves need nothing
+from CI: each metal box pulls the newest `-cpu` release on its own timer
+(`metal/update.mjs`), stages the new image beside the live one, and rolls back if
+it does not come back healthy. A registry redeploy automatically cascades into a
+deployments redeploy (claims are gated to the registry).
 
 Deliberately still manual:
 
@@ -142,23 +132,6 @@ Deliberately still manual:
   cutover moved all 74 records. Customer credit vaults are
   separate contracts that never move: a factory rotation changes only the
   addresses of new vaults.
-- **Updating the running enclaves** is automated: after a release publishes,
-  the `update-fleet` job in `Cloud Provider-release-publish.yml` runs
-  `scripts/Cloud Provider-update-fleet.sh`, which repoints every running instance of
-  that tag's flavor (plain = GPU, `-cpu`, `-gpu8`) at the new tag through the
-  Cloud Provider controlplane (pinned [Cloud Provider-cli](https://docs.Cloud Provider.sh/containers/cli);
-  blue-green with auto-promotion, then a `/v1/health` probe). Requires the
-  `TINFOIL_API_KEY` repo secret (Cloud Provider admin key); until it's set the job
-  no-ops and updates happen in the [Cloud Provider dashboard](https://dash.Cloud Provider.sh)
-  as before. Caveats: creating/deleting enclaves stays manual, and a release
-  that introduces a **new secret name** still needs a manual bind + relaunch
-  (Cloud Provider binds secret names at container creation, not on update).
-- **Fleet scaling** is demand-driven: `autoscale.yml` (cron) reads funded,
-  unservable deployments from the chain and starts/creates standby `auto-*`
-  enclave containers — approval-gated on the `fleet-scale` environment by
-  default, idle boxes stopped automatically, griefing bounded by
-  non-refundable funding thresholds and hard caps. Design + threat model:
-  [docs/autoscale.md](docs/autoscale.md).
 
 One-time setup on a new machine/repo: `scripts/ci-setup.sh` (SSH deploy key,
 repo secrets/vars, the `contract-deploy` environment), then set
@@ -178,7 +151,6 @@ twice.
 
 - App developers: the guide and API reference live on the site at https://enclave.host/develop
 - Coding agents: MCP server at `https://mcp.enclave.host` (Streamable HTTP) exposing the full platform surface as tools; state changes come back as unsigned Base transactions, keys stay with the agent (`claude mcp add --transport http enclave https://mcp.enclave.host`)
-- The underlying confidential-container platform is [Cloud Provider](https://docs.Cloud Provider.sh) ([contact@Cloud Provider.sh](mailto:contact@Cloud Provider.sh))
 
 ## License
 
