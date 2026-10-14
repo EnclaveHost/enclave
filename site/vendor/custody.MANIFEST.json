@@ -1,7 +1,7 @@
 {
   "file": "site/vendor/custody.js",
-  "sha256": "a7d5c6df739f19a93fd3b0509a342c2f97f8763983982560020dbc4497055284",
-  "bytes": 308954,
+  "sha256": "69f5b846ef8fd7ee4d8ab29e67035243184c1dfb5c27dbd29a895a000e4dc15f",
+  "bytes": 308748,
   "entry": "custody/browser.mjs",
   "esbuild": "0.28.1",
   "deps": {

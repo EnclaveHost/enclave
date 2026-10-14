@@ -35,10 +35,14 @@ const LEDGER_ABI = [{ type: "function", name: "get", stateMutability: "view", in
   { name: "gpuMilli", type: "uint16" }, { name: "cpuMilli", type: "uint16" }, { name: "appPort", type: "uint32" }, { name: "isPublic", type: "bool" }, { name: "active", type: "bool" }, { name: "createdAt", type: "uint64" },
   { name: "rate", type: "uint256" }, { name: "balance6", type: "uint256" }, { name: "spent6", type: "uint256" },
   { name: "runner", type: "bytes32" }, { name: "runnerOperator", type: "address" }, { name: "leaseUntil", type: "uint64" }] }] }];
-const REGISTRY_ABI = [{ type: "function", name: "get", stateMutability: "view", inputs: [{ name: "id", type: "bytes32" }], outputs: [{ type: "tuple", components: [
+// EnclaveRegistry.get, decoded as the SCHEMA-1 PREFIX only: later schemas APPENDED fields (prices, proof key, payout wallet,
+// caps, region) and keep every earlier offset, so the prefix reads the same on every live registry, and operator + active
+// are all a release needs. Decoding the full schema-5 tuple against an older registry misreads its tail and throws, which
+// made every custodian refuse every release on Base (2026-10-14, the first hardware canary). relay/api-relay.js sniffs the
+// schema for the fields it shows; this reader needs none of them.
+export const REGISTRY_ABI = [{ type: "function", name: "get", stateMutability: "view", inputs: [{ name: "id", type: "bytes32" }], outputs: [{ type: "tuple", components: [
   { name: "endpoint", type: "string" }, { name: "repo", type: "string" }, { name: "measurement", type: "bytes32" }, { name: "operator", type: "address" },
-  { name: "registeredAt", type: "uint64" }, { name: "lastSeen", type: "uint64" }, { name: "active", type: "bool" }, { name: "cpuPricePerSec6", type: "uint64" },
-  { name: "gpuPricePerSec6", type: "uint64" }, { name: "proofKey", type: "address" }, { name: "payoutWallet", type: "address" }, { name: "caps", type: "uint64" }, { name: "region", type: "string" }] }] }];
+  { name: "registeredAt", type: "uint64" }, { name: "lastSeen", type: "uint64" }, { name: "active", type: "bool" }] }] }];
 const key = (s) => stringToHex(s, { size: 32 });   // ascii, right-padded (no Buffer: this module also runs in the browser)
 export const BOOK_KEYS = { deployments: key("deployments"), registry: key("registry") };
 export const endpointIdOf = (endpoint) => keccak256(toBytes(endpoint));   // EnclaveRegistry: id = keccak256(bytes(endpoint))
