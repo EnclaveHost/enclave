@@ -350,6 +350,11 @@ headroom, not measured as a minimum).
 
 ## 11. What wiring M3a into the platform would take (design; not implemented)
 
+(Note, 2026-10-14: this section describes 2026-09. Since then per-app SNP guests (M4a,
+`isolation/m4/guestd`) have run in production on metal0, first app 2026-09-24
+(`isolation/m4/evidence/production-canary-2026-09-24/README.txt`), and that work was merged to main on
+2026-10-14 (de19dfbb8). The "production today" column below is the pre-M4a state.)
+
 M3a lives under `isolation/` and nothing in the product starts a domain. Worth saying first, because it
 reframes the work: **production already runs many apps in one CVM with the app outside the launch
 measurement.** metal0 boots one SNP guest whose supervisor hands each app to an app manager
