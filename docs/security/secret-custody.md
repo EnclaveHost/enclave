@@ -50,6 +50,9 @@ the owner chose to proceed without it.
   - The governance step `book.set("secretVault", 0x0807…)` (Trezor) turns on the site panel. A custody-held deployment
     can run only on metal0's SNP release path today (§8 L5, L9), so owners should be told that before the panel opens.
 
+**Successor design:** [secret-custody-v2.md](secret-custody-v2.md) (host-run custodians inside their TEEs, admitted on
+attestation plus proof of capacity, one committee key, shares moved on membership change). Not built.
+
 **The bootstrap committee is NOT decentralized custody.** Its four custodians run on four separate VPSs, each with its own
 key generated on the box, none on `nan` where the relay runs. So a compromise of the relay alone reads no secret. But all
 four boxes are operated by Enclave, and their operator could collect three shares. Independent operators replace members
