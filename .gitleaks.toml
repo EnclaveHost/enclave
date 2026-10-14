@@ -115,6 +115,12 @@ regexes = [
 ]
 
 [[allowlists]]
+description = "RFC 9180 Appendix A.1 test vector: the published AES-128-GCM key of the base-mode example (https://www.rfc-editor.org/rfc/rfc9180.txt, A.1.1), which test/custody-hpke.test.mjs checks custody/hpke.mjs against byte for byte. It is printed in the RFC and protects nothing. Scoped to this one file and this one exact value."
+targetRules = ["generic-api-key"]
+paths = ['''^test/custody-hpke\.test\.mjs$''']
+regexes = ['''^4531685d41d65f03dc48f6b8302c05b0$''']
+
+[[allowlists]]
 description = "isolation/m4 evidence holds a PUBLIC key slot and not a secret: the 91-byte value after ADMIT key_registered= is a domain transport-key SubjectPublicKeyInfo, which is what a verifier compares against its own TLS handshake. In these runs it is not even a real key - it is the deterministic stand-in generated at isolation/m4/guest/admitinit.c as (i*11+5)&0xff for i in 0..91 - and it is recorded in full because recomputing Bind2 over it is how the report binding is checked. Same class of value, and the same reasoning, as the windows/vbslike entry below."
 targetRules = ["generic-api-key"]
 paths = ['''^isolation/m4/evidence/''']
