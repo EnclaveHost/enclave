@@ -54,9 +54,11 @@ type State struct {
 // Client runs one release. Post is the transport (TLS through the guest's egress), Evidence asks the hardware for a
 // report over a binding, Authorize asks the host's operator to sign the release.
 type Client struct {
-	Post          func(ctx context.Context, url string, body, out any) error
-	Evidence      func(binding [32]byte) (json.RawMessage, error)
-	Authorize     func(ctx context.Context, id, binding [32]byte) (endpoint, sig string, expiry int64, err error)
+	Post      func(ctx context.Context, url string, body, out any) error
+	Evidence  func(binding [32]byte) (json.RawMessage, error)
+	Authorize func(ctx context.Context, id, binding [32]byte) (endpoint, sig string, expiry int64, err error)
+	// AuthorizeV2 is the custody-auth-v2 request (ObtainV2): it names the vault the supervisor must have measured.
+	AuthorizeV2   func(ctx context.Context, vault [20]byte, id, binding [32]byte) (endpoint, sig string, expiry int64, err error)
 	RuntimeID     [32]byte
 	TransportSPKI []byte
 	MaxSubsets    int // combinations tried before giving up; 0 = 65536 (each costs one Lagrange, one HKDF and one AES-GCM open)
