@@ -64,6 +64,15 @@ every order in the zone and can pace them.
 
 Never: a certificate's private key, or the fleet `SECRET`.
 
+What it still allows: the relay answers dns-01 (through `relay/dns-relay.js`,
+on the platform's own server, not in an enclave) and holds the CA accounts, so
+whoever controls the relay could order a valid certificate for an app-zone name
+or a delegated custom domain with a key of its own, without the enclave. Keeping
+the key in the CVM means the relay cannot use *the enclave's* key; it does not
+stop a second certificate being issued. Certificate Transparency logs are where
+such a certificate would show up; for customer names see
+[custom-domains.md](custom-domains.md) "What the delegation trusts".
+
 ## What it refuses (fail closed, before any CA is contacted)
 
 The operator constraint is that this service may only ever issue for names in

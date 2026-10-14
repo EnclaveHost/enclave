@@ -2060,7 +2060,7 @@
       },
       "Measurements": {
         "type": "object",
-        "description": "Registers parsed out of the report (AMD SEV-SNP: measurement; Intel TDX: mrTd + rtmr0-3). Compare against the Sigstore-signed measurements published on the enclave repo's release.",
+        "description": "Registers parsed out of the report (AMD SEV-SNP: measurement; Intel TDX: mrTd + rtmr0-3). Compare against the operator's allowlist returned with the box's attestation, or pin a measurement you derived yourself.",
         "additionalProperties": true
       },
       "VmAttestation": {

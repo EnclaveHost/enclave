@@ -63,7 +63,9 @@ memory cap, MPS caps, the loopback wall, and the egress path — none of that
 moves. What p3 changes is *within one deployment*: concurrent requests to the
 same instance share linear memory and guest state. That is one tenant's own
 app sharing state with itself — the same trust domain — and it is precisely
-the feature (agent session state without a database). Publishers whose
+the feature (agent session state without a database). (2026-10-14: the MPS
+caps belonged to the hosted shared-VM fleet, retired that day; on metal0 each
+deployment now also runs in its own SNP guest.) Publishers whose
 handler assumes per-request isolation set `"p3": {"maxConcurrent": 1}` (they
 still gain instance reuse: state warm across sequential requests) or stay p2.
 
@@ -145,7 +147,9 @@ verifier today — for p2 either.** The app trust chain is: CID re-derived
 in-enclave from the fetched bytes by the attested wasm-manager before launch
 (`ipfs_fetch.fetch_verified` + the attestation's explicit "the CID itself is
 NOT in a hardware register" coverage note), publish-time CID readback in the
-browser, and Sigstore provenance for the platform itself. "Rebuild the CID
+browser, and Sigstore provenance for the platform itself (removed 2026-10-14;
+platform evidence is now the launch measurement in the hardware report,
+`metal/PROTOCOL.md` "Measurement governance"). "Rebuild the CID
 from source" is a property publishers can offer their users, not a platform
 gate. p3 must not be held to a bar p2 never met, so the p3 publish gate is
 OPEN, not held for tier-2 std.

@@ -8,16 +8,26 @@ refuses to automate. The only automated value movement is company->company
 toward cold storage (the float sweep, §1). Pair it with the hard invariants
 the software enforces:
 
-- Money flows **in only**. Company wallets never send crypto to customer
-  addresses, there is no onramp, no customer crypto balance, no self-serve
-  refund or withdrawal anywhere in the product.
+- Company wallets take money **in only**. They never send crypto to customer
+  addresses, there is no onramp and no customer crypto
+  balance. The one self-serve path back is the ledger contract's own
+  `refund(id)` (§3a), which pays a deployment's owner from escrow the contract
+  holds, never from a company wallet.
 - The PaymentRouter is immutable and non-custodial: payer -> treasury in one
   transaction, zero balance between transactions, no owner, no admin surface.
   "Rotating" anything about it means deploying a new router.
 - Accepting crypto as payment for services makes the company a *user* of
   crypto under FinCEN guidance, not a money transmitter. Every procedure
-  below is written to keep it that way: no value ever flows outward to
-  customers, and no customer funds are ever held.
+  below is written to keep it that way: no company wallet sends value to
+  customers. The one exception to "no funds held" is the ledger contract
+  (16d, live at `0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B` since 2026-10-12):
+  the host's share of each USDC funding stays in the contract as `escrow6`
+  until a host proves served time, and `refund(id)` pays the owner
+  `min(escrow6 - live-lease reserve, ownerEscrow6)` after first paying the
+  host for proven time (§3a). The publisher's cut, the platform's share and
+  ETH fundings leave at funding time and are never refunded; escrow that
+  governance re-backed after a migration (`fundEscrow` after `importsSealed`)
+  is not owner-refundable.
 
 ## 1. Converting Stripe fiat revenue to crypto (treasury management)
 

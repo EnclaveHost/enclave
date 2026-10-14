@@ -6,7 +6,9 @@ goal. Inside our plane, one app is still separated from another by the **guest k
 where app-vs-app separation stops resting on it.
 
 **M4a is now implemented and passing on hardware (13/13, twice) - see section 6 for the evidence. M4b is
-still design.** This document is the design, the honest scaling limit, and the negative tests, which were
+still design.** (2026-10-14: M4a, one SEV-SNP guest per app via `isolation/m4/guestd`, runs in production
+on metal0, first app 2026-09-24 (`evidence/production-canary-2026-09-24/README.txt`); merged to main
+2026-10-14, de19dfbb8. M4b remains lab-only.) This document is the design, the honest scaling limit, and the negative tests, which were
 written before the code so they could not be softened to fit a result.
 
 ## 1. What has to be true

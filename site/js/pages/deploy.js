@@ -610,7 +610,7 @@ export async function confirmQueuedDeploy(gpuPct, cpuPct, target){
       '<div class="qd-card capq" role="dialog" aria-modal="true" aria-label="Not enough free capacity">' +
         '<div class="qd-h">⚠ The fleet is full for this size</div>' +
         '<p class="qd-sub">' + esc(freeLine) + '. You can still deploy: the deployment is created on-chain, waits as <b>Queued</b>, and starts automatically the moment capacity frees up.</p>' +
-        '<p class="qd-sub">Queued time is never billed - the balance only burns while the app runs. But payments are final: the funding stays on the deployment until it runs, it cannot be withdrawn back to your wallet.</p>' +
+        '<p class="qd-sub">Queued time is never billed - the balance only burns while the app runs. The funding stays on the deployment until it runs; cancelling returns only the unspent part held for the host, the rest is final.</p>' +
         '<label class="qd-tos"><input type="checkbox" class="capq-ck" /> <span>I understand this deployment will <b>wait in the queue</b> - possibly for a while - and start on its own once capacity frees up.</span></label>' +
         '<div class="qd-actions">' +
           '<button class="btn btn-primary capq-go" type="button" disabled>▸ Queue for Deployment</button>' +
