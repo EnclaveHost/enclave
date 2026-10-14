@@ -1,7 +1,8 @@
 # Secret custody v2: custodians run by the hosts, inside their TEEs
 
-Status: DESIGN, not built. Successor to [secret-custody.md](secret-custody.md) (v1, live since 2026-10-14). Decisions
-still open are listed in §11; nothing here is final until they are made.
+Status: BEING BUILT (Steven, 2026-10-14: "build this out now and deploy to production"). Successor to
+[secret-custody.md](secret-custody.md) (v1, live since 2026-10-14). The decisions in §11 are made; §6.2 adds Steven's
+Enclave-seat rules.
 
 ## 1. Why v1 is not enough
 
@@ -72,8 +73,10 @@ any real value depends on v2 (v1's L1 applies twice over).
   degree-`(t-1)` polynomial.
 - `Y = x·G` is the committee's public key. `Y_i = x_i·G` are the public verification shares, derived from the Feldman
   commitments on chain.
-- The key is created by a distributed key generation among the first members: Pedersen/Feldman DKG with complaints,
-  following Gennaro, Jarecki, Krawczyk and Rabin ("Secure DKG"). No dealer ever knows `x`.
+- **Genesis is one Enclave-owned member (§6.2, §10).** It generates `x` inside its TEE and publishes `Y` and the
+  commitments. Every later member receives shares by handover (§4.4), so no multi-party DKG is needed. If a committee
+  ever has to be created by several parties at once, use Pedersen/Feldman DKG with complaints, following Gennaro,
+  Jarecki, Krawczyk and Rabin ("Secure DKG").
 
 ### 4.2 Saving secrets (owner side)
 
@@ -169,13 +172,37 @@ held by live members when it restarts, so shares follow membership, never usage.
 
 ### 6.1 The threshold
 
-- `t = max(ceil(2n/3), T_MIN)`, where `n` is the size of the member set at the last handover.
+- `n` counts SEATS at the last handover: one per non-Enclave member, plus ONE for all Enclave-owned members together
+  (§6.2).
+- `n >= 3`: every seat holds one share and `t = ceil(2n/3)`, so `t >= 2`.
+- `n < 3`: see §6.2, the seeding rule.
 - **`t` never depends on who is online when a request arrives.** If it did, an outage or an attacker taking honest
   hosts offline would lower the number needed, down to the attacker's own seats.
-- `T_MIN` is an absolute floor (open decision, §11). Below `N_MIN` qualified members, v2 accepts no new bundles at all
-  (§10).
-- Trade-off at `2/3`: stealing needs `2n/3` qualified seats. Unlocks keep working while up to `n/3` are down. A handover
-  needs `t_old` old members online.
+- Trade-off at `2/3`: stealing needs `2n/3` seats. Unlocks keep working while up to `n/3` seats are down. A handover
+  needs `t_old` old seats online.
+
+### 6.2 The Enclave seat (Steven, 2026-10-14)
+
+A member is **Enclave-owned** when its host's EnclaveRegistry entry has `payoutWallet = 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61`.
+That field is set only by that wallet itself (`setPayoutWallet`), so the governance Trezor consented. The vault reads
+it on chain at admission.
+
+1. **All Enclave-owned members share ONE seat.** Each holds a copy of the same share(s). However many machines Enclave
+   runs, they count once. **Enclave machines can never make up the threshold among themselves once `n >= 3`.** This is
+   enforced by the sharing itself, not by policy.
+2. **Seeding: below 3 seats, the Enclave seat alone unlocks.** With `n < 3` there must be an Enclave seat. It holds
+   `t = (non-Enclave seats) + 1` shares; every other seat holds 1. So:
+   - Enclave seat only: `t = 1`;
+   - Enclave seat plus one other host: the Enclave seat holds 2 shares, the other holds 1, and `t = 2`. Enclave alone
+     unlocks; the other host alone does not.
+   - Without an Enclave seat, fewer than 3 seats is refused.
+3. **When Enclave is online, exactly one Enclave machine takes part.** If any Enclave-owned member answers the
+   challenge round, the guest must use exactly one Enclave partial. The sharing already allows at most one seat's worth.
+   "At least one" cannot be enforced by the sharing (it must still work when no Enclave machine is up), so the guest's
+   measured front enforces it: it waits for one Enclave partial, and refuses if none arrives.
+
+**What rule 3 means:** while any Enclave machine is online, Enclave can block every unlock by having it refuse. v2 does
+NOT resist censorship by Enclave; it resists censorship and theft by everyone else, and theft by Enclave.
 
 ## 7. The unlock protocol at request time
 
@@ -257,8 +284,13 @@ temporary outage of more than `n/3` members only blocks unlocks until enough ret
 
 ## 10. Rollout and migration from v1
 
-- **Activation gate.** v2 accepts new bundles only once at least `N_MIN` members, across at least 3 operators, have run
-  the DKG. Today one host (metal0) has SEV-SNP, so v2 cannot activate until more SNP/TDX hosts join.
+- **Activation: the Enclave seat seeds the network (§6.2).** The committee is created by ONE Enclave-owned member,
+  which generates `x` inside its TEE. Today that is metal0, the only SEV-SNP host. Every later member joins by handover
+  (§4.4).
+  - Until other hosts join, a v2 secret depends on that one machine's sealed state. If warden-host loses it (a new chip,
+    lost storage, or a custodian code change without a handover), every v2 bundle becomes unreadable. Owners must then
+    re-enter their values; apps fail closed until they do.
+  - v1 stays live beside v2 until owners have moved.
 - **v1 keeps serving v1 bundles** until owners move. `enclave custody migrate` (owner-signed) re-encrypts to `Y`.
   Moving bundles without the owner would need a new contract path authorized by the attested guest plus the v1
   committee; that is not proposed here.
@@ -280,18 +312,19 @@ temporary outage of more than `n/3` members only blocks unlocks until enough ret
 7. **Owner tooling and site:** encrypt to `Y`, migrate from v1.
 8. **Hardware verification** in the v1 style: release at `t`, refusal below `t`, a handover with live apps, a host move.
 
-## 11. Open decisions
+## 11. Decisions (2026-10-14; Steven asked for the recommendation on each)
 
-1. **Upgrade authority** for the custodian code set. Recommended: `t` members plus a 7-day public delay, no Enclave
-   override. Any Enclave override means goal 1 does not hold.
-2. **Threshold fraction and floor.** `2/3` (requested) against `1/2`. `2/3` makes theft cost more seats; `1/2`
-   tolerates more members down. Values for `T_MIN` and `N_MIN`.
-3. **Liveness grace and batching window** (§6): how long a silent member keeps its seat, and how long admissions wait
-   to share one handover.
-4. **Capacity witnesses at launch.** Independent mode needs two witness groups other than the host's own. Who runs them
-   while the network is small? Enclave-run witnesses defeat §5.
-5. **Payment for custodian seats.** The share of the existing fee path, and what a member forfeits when it fails
-   liveness.
-6. **The `2/3` handover requirement.** A handover needs `t_old` old members online. If more than a third are away when
-   the member set changes, handovers wait. Decide whether the safety trigger may run with fewer, which would weaken
-   the theft bound during that handover.
+1. **Upgrade authority.** Adding a custodian measurement needs signatures from seats holding `t` shares, then a 7-day
+   public delay. Enclave has no override. Removing one needs the same signatures and takes effect at once. With only
+   the Enclave seat, Enclave decides upgrades alone, until other seats exist.
+2. **Threshold.** `2/3` of seats (§6.1) and the Enclave rules (§6.2). There is no separate `T_MIN`: with `n >= 3`,
+   `t >= 2`, and below 3 seats the seeding rule applies.
+3. **Liveness.** Members send heartbeats every 60 s. A seat silent for 30 min is removed at the next handover.
+   Admissions and removals are batched for 10 min. A handover runs at once when the reachable shares fall to `t + 1`.
+4. **Capacity witnesses at launch.** Receipts from the existing witness groups are accepted, including Enclave's
+   `operator-bootstrap` group: rule 3 of §6.2 already gives Enclave a veto, so its witnesses add no new power.
+   Receipts must still name the candidate's chip ID.
+5. **Payment.** The Enclave seat is unpaid. Other seats are paid a flat hourly rate from the verification fee router
+   while they answer heartbeats; silent periods are unpaid.
+6. **Handover quorum.** Never fewer than `t_old` old shares. The seeding rule (§6.2) covers the small-network case
+   this question was about.
