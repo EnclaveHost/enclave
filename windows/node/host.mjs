@@ -1846,6 +1846,7 @@ export class Host {
     // registry with it.
     await this.ensurePriced().catch((e) => this.log(`prices: ${e.message}`));
     await this.scanLedger().catch(() => {});
+    await this.retireForeignRecovered().catch((e) => this.log(`isolation: recovered-VM sweep: ${e.message}`));
     for (const id of [...this.tracked]) {
       let d; try { d = await chain.readDeployment(id); } catch { continue; }
       const rec = this.records.get(id) || this.#record(id, {});
@@ -2082,6 +2083,31 @@ export class Host {
     catch (e) { return `the manager not answering (${String(e.message).slice(0, 80)})`; }
     const present = seen.filter((l) => listed.has(l.instance)).length;
     return present * 2 < seen.length ? `${seen.length - present} of the ${seen.length} domains this host was serving` : null;
+  }
+  /**
+   * A VM the manager RECOVERED after a host or manager restart can never serve again (its relay and report key belonged
+   * to the previous manager), and the node retires it only on the reconcile of the deployment it names. One whose
+   * deployment this box no longer holds - released (a host shutdown's give-ups, 2026-10-14 14:30Z) and maybe served
+   * elsewhere since (0xc13d4b6a moved to the phone) - was never reconciled here, so it stayed, and the manager refused
+   * every new partition ("RAM allocation is unknown until recovered partitions are reconciled"): k11-4 could start
+   * nothing. Each tick, a recovered VM naming a deployment this box does not track is retired through the manager.
+   * Only recovered VMs, only for deployments not held here; a held one is the reconcile's (restart recovery above).
+   */
+  async retireForeignRecovered(client = null) {
+    if (!this.cfg.isolationManager && !client) return;
+    if (!client) {
+      const { IsolationManagerClient } = await import("./isolation-client.mjs");
+      client = new IsolationManagerClient({ base: this.cfg.isolationManager });
+    }
+    for (const v of await client.list()) {
+      const owner = String(v.name || "").toLowerCase();
+      const rec = this.records.get(owner);
+      if (v.recovered !== true || !/^0x[0-9a-f]{64}$/.test(owner) || this.tracked.has(owner)
+          || ["running", "provisioning", "held"].includes(rec?.status)) continue;
+      const r = await client.remove(v.id);
+      this.log(`${owner.slice(0, 10)} isolation: the recovered VM ${v.id} (${v.vmState || "state unknown"}) names a deployment `
+        + `this box no longer holds: ${r.removed ? "retired" : r.absent ? "already gone" : "NOT retired"}`);
+    }
   }
   #rebootHold(id, why, instanceId = null) {
     const reason = `isolation: reboot recovery: ${why}; held (not retried, not renewed) until a forced relaunch, or the owner's resize or config edit`;
