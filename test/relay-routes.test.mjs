@@ -8,7 +8,7 @@ const {createNetworkRoutes}=await import(process.env.ENCLAVE_TEST_RELAY_BUNDLE||
 import {RoutePublisher} from '../network/route-publisher.mjs';
 import {DurableState} from '../network/durable-state.mjs';
 import {defaultNetworkPolicy,validateNetworkPolicy} from '../network/network-policy.mjs';
-import {checkMap} from '../network/preflight.mjs';
+import {checkMap,fetchRouteMap} from '../network/preflight.mjs';
 
 const id='0x'+'ab'.repeat(32),runner='0x'+'cd'.repeat(32),endpoint='https://api.enclave.host/t/metal0';
 const account=privateKeyToAccount('0x'+'03'.repeat(32));
@@ -37,7 +37,9 @@ test('a v5 publication is mapped to both exits, with the Enclave-network DNS lab
  assert.throws(()=>checkMap(unpublished),/not ready/);
  await w.mirror.publish({...await w.publication(),status:{deploymentId:id,ready:true}});
  const map=await w.mirror.map([w.row()]);
- assert.equal(map.transport,'tuna','the map format name readers check');
+ assert.equal(map.transport,'enclave-network','the map format name readers check');
+ assert.equal(checkMap({...map,transport:'tuna'},[id],w.now).length,1,'a pre-rename relay\'s map is still read');
+ assert.throws(()=>checkMap({...map,transport:'other'},[id],w.now),/unavailable/);
  assert.deepEqual(map.labels.abababab.addresses,exits);assert.equal(map.labels.abababab.relay,'enclave');assert.equal(map.labels.abababab.a,exits[0]);
  assert.equal(map.deployments[id].transport,'enclave-network');assert.equal(map.deployments[id].httpsRoutes.length,2);
  assert.deepEqual(w.statuses,[[id,{deploymentId:id,ready:true}]],'the host\'s reported status reaches the Network tab');
@@ -103,4 +105,11 @@ test('a chain-read lease that proved the runner registration needs no second ope
  runnerOf=async()=>runner;delete w.lease.runnerRegistered;
  await assert.rejects(w.mirror.publish(await w.publication()),/inactive route operator/);
  assert.equal(asked,1);
+});
+
+test('the preflight reads /v1/network/routes, and /v1/network/tuna only from a relay that predates the rename',async()=>{
+ const seen=[];const fake=status=>async url=>{seen.push(new URL(url).pathname);return {status:new URL(url).pathname==='/v1/network/routes'?status:200};};
+ assert.equal((await fetchRouteMap('https://api.example',fake(200))).status,200);assert.deepEqual(seen,['/v1/network/routes']);
+ seen.length=0;await fetchRouteMap('https://api.example',fake(404));assert.deepEqual(seen,['/v1/network/routes','/v1/network/tuna']);
+ seen.length=0;assert.equal((await fetchRouteMap('https://api.example',fake(503))).status,503,'only a 404 falls back');
 });

@@ -1,12 +1,12 @@
 // Authoritative Enclave DNS. Application A/AAAA and raw-port SRV answers come
-// only from unexpired, operator-signed TUNA allocations joined to live leases
+// only from unexpired, operator-signed Enclave-network routes joined to live leases
 // and host admission on Nan. There is no wildcard or legacy relay fallback.
 // DNS-01 TXT challenges and the box control namespace remain available.
 //
 // IP_ZONE, APP_ZONE and NS_NAME are required. Optional TCP_ZONE preserves its
 // authority and DNS-01 records. BOX_ZONE and BOX_A/BOX_AAAA serve control names.
-// TUNA_MAP_URL defaults to https://api.enclave.host/v1/network/tuna;
-// RELAY_MAP_URL remains a configuration alias during upgrades.
+// ROUTE_MAP_URL defaults to https://api.enclave.host/v1/network/routes; TUNA_MAP_URL and
+// RELAY_MAP_URL are read when it is unset (installs from before the 2026-10-14 rename).
 // NET_POLL_SEC controls refresh (default 15). DNS_PORT defaults to 53,
 // DNS_API_PORT to 8153; DNS_API_BIND restricts the challenge API listener.
 // DNS_TXT_KEY is HMAC-SHA256(fleet SECRET, 'enclave dns-txt v1') as hex, never
@@ -135,19 +135,20 @@ function ipv6Bytes(s) {
 const BOX_A = process.env.BOX_A ? ipv4Bytes(process.env.BOX_A.trim()) : null;
 const BOX_AAAA = process.env.BOX_AAAA ? ipv6Bytes(process.env.BOX_AAAA.trim()) : null;
 
-// Unexpired TUNA allocations. Failed refreshes retain the last map only until
+// Unexpired per-app routes. Failed refreshes retain the last map only until
 // each record's signed expiry; queries never revive an expired address.
 let deployments = [];
 
-const TUNA_MAP_URL = (process.env.TUNA_MAP_URL || process.env.RELAY_MAP_URL || "https://api.enclave.host/v1/network/tuna").trim();
-const TUNA_TTL = 15;
+const ROUTE_MAP_URL = (process.env.ROUTE_MAP_URL || process.env.TUNA_MAP_URL || process.env.RELAY_MAP_URL
+  || "https://api.enclave.host/v1/network/routes").trim();
+const ROUTE_TTL = 15;
 let appRoutes = new Map();   // label -> { a: Buffer|null, aaaa: Buffer|null, relay: string }
 
-async function pollTunaMap() {
-  if (!TUNA_MAP_URL) return;
-  const j = await fetchJson(TUNA_MAP_URL);
+async function pollRouteMap() {
+  if (!ROUTE_MAP_URL) return;
+  const j = await fetchJson(ROUTE_MAP_URL);
   if (!j || !j.labels || typeof j.labels !== "object") {
-    console.error(`[dns-relay] TUNA map poll failed: ${TUNA_MAP_URL} (keeping ${appRoutes.size} label(s))`);
+    console.error(`[dns-relay] route map poll failed: ${ROUTE_MAP_URL} (keeping ${appRoutes.size} label(s))`);
     return;
   }
   const next = new Map();
@@ -158,16 +159,16 @@ async function pollTunaMap() {
     const aaaa=addresses.map(value=>ipv6Bytes(String(value))).filter(Boolean);
     if (!a.length && !aaaa.length) continue;                 // no current provider address
     if (!Number.isSafeInteger(v.expiresAt) || v.expiresAt <= Date.now()) continue;
-    next.set(label, { a, aaaa, expiresAt: v.expiresAt, relay: "tuna" });
+    next.set(label, { a, aaaa, expiresAt: v.expiresAt, relay: "enclave-network" });
   }
-  if (next.size !== appRoutes.size) console.log(`[dns-relay] TUNA map: ${next.size} allocated label(s)`);
+  if (next.size !== appRoutes.size) console.log(`[dns-relay] route map: ${next.size} routed label(s)`);
   deployments = Object.entries(j.deployments || {}).filter(([id, d]) => /^0x[0-9a-f]{64}$/.test(id)
     && d.address && Number.isSafeInteger(d.expiresAt) && d.expiresAt > Date.now())
     .map(([id, d]) => ({hex: id.slice(2), address: d.address, expiresAt: d.expiresAt, tcp: (d.tcp || []).map(p => p.publicPort)}));
   appRoutes = next;
 }
 
-async function poll() { await pollTunaMap(); }
+async function poll() { await pollRouteMap(); }
 
 // ---- challenge store (zone 2's TXT) ----------------------------------------
 
@@ -300,7 +301,7 @@ function resolveApp(qname, qtype) {
   const pick = sub.includes(".") ? null : appRoutes.get(sub);
   if (!pick || pick.expiresAt <= Date.now()) return NODATA(APP_ZONE);
   const an = [];
-  const ttl=Math.min(TUNA_TTL,Math.max(0,Math.floor((pick.expiresAt-Date.now())/1000)));
+  const ttl=Math.min(ROUTE_TTL,Math.max(0,Math.floor((pick.expiresAt-Date.now())/1000)));
   if (qtype === T.A || qtype === T.ANY) for(const address of pick.a) an.push(rr(qname,T.A,ttl,address));
   if (qtype === T.AAAA || qtype === T.ANY) for(const address of pick.aaaa) an.push(rr(qname,T.AAAA,ttl,address));
   return an.length ? HIT(an) : NODATA(APP_ZONE);
@@ -581,7 +582,7 @@ function apiHandler(req, res) {
     for (const name of [...txtStore.keys()]) txtRecords += txtValues(name).length;
     return json(200, { ok: true, zones: { ip: IP_ZONE, app: APP_ZONE, tcp: TCP_ZONE, box: BOX_ZONE },
                        deployments: deployments.length, txtRecords,
-                       tunaLabels: appRoutes.size, tunaMap: TUNA_MAP_URL || null });
+                       routeLabels: appRoutes.size, routeMap: ROUTE_MAP_URL || null });
   }
   if (u.pathname !== "/v1/txt" || (req.method !== "POST" && req.method !== "DELETE"))
     return json(404, { error: "not_found", routes: ["GET /health", "POST /v1/txt", "DELETE /v1/txt"] });
@@ -676,5 +677,5 @@ await poll();
 setInterval(poll, POLL_MS);
 console.log(`[dns-relay] authoritative for ${IP_ZONE} + ${APP_ZONE}${TCP_ZONE ? " + " + TCP_ZONE : ""} (ns ${NS_NAME}, serial ${SERIAL}); ` +
             `refreshing allocations every ${POLL_MS / 1000}s` +
-            (TUNA_MAP_URL ? ` + TUNA allocations from ${TUNA_MAP_URL}`
-                           : "; TUNA map unavailable"));
+            (ROUTE_MAP_URL ? ` + per-app routes from ${ROUTE_MAP_URL}`
+                           : "; route map unavailable"));

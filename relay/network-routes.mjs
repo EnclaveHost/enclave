@@ -1,6 +1,6 @@
 // Authenticated, expiring per-app routes on the Enclave network (docs/design/enclave-network.md). This is DNS/control
-// metadata; application bytes never pass through this service. (The file, its export names and the endpoint
-// /v1/network/tuna keep their historical names: relay/deploy.sh copies it by name and installed hosts post to that path.)
+// metadata; application bytes never pass through this service. The relay serves it at /v1/network/routes (and at the
+// pre-rename path /v1/network/tuna, which hosts and the DNS service installed before 2026-10-14 still use).
 //
 // Only signed v2 publications carrying the owner's current v5 network policy are accepted. Everything from the TUNA
 // era is refused: v1 host allocation publications, and route policies v2 (guarded TUNA), v3 (on-chain direct) and
@@ -61,9 +61,9 @@ export function createNetworkRoutes({ operatorOf, endpointId, eligible, now = Da
             ...(addresses.find(net.isIPv4) ? {a: addresses.find(net.isIPv4)} : {}), ...(addresses.find(net.isIPv6) ? {aaaa: addresses.find(net.isIPv6)} : {})};
         }
       }
-      // `transport: 'tuna'` identifies this map's format to its readers (relay/dns-relay.js, network/preflight.mjs); it
-      // is a format name, not the transport any app uses (each deployment and label says its own).
-      return {transport: 'tuna', updatedAt: new Date(now()).toISOString(), relays: [], labels, deployments, pending};
+      // `transport` names this map's format for its readers (relay/dns-relay.js, network/preflight.mjs); each deployment
+      // and label says its own transport (enclave-network or direct).
+      return {transport: 'enclave-network', updatedAt: new Date(now()).toISOString(), relays: [], labels, deployments, pending};
     },
   };
 }
