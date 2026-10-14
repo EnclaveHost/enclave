@@ -951,3 +951,44 @@ test("pvm-cpu: a relay configured with ONLY the tier's policy (no SNP measuremen
     r.ws.close();
   } finally { await h.close(); }
 });
+
+// ---- a FRESH attestation over a CLIENT's nonce (hub.freshAttestation; GET /v1/enclaves/<name>/attestation) --------------
+// The hub re-sends the attach challenge on the bound tunnel and takes the box's next `attest` frame ONLY when its report binds
+// the client's nonce under the transport key the attach verified; it vouches for nothing else.
+test("tunnel: freshAttestation challenges the bound SNP box with the client's nonce and returns its document verbatim; a report over another nonce or key is ignored", async () => {
+  const h = await hubServer({ attest: { allowedMeasurements: [MEAS], requireVcek: false } });
+  try {
+    const r = await dial(h.url, { "x-metal-name": "fresh1", "x-metal-attest": "1" });
+    await settle();
+    r.ws.send(JSON.stringify({ t: "attest", rad: radFor(Buffer.from(r.frames.find((f) => f.t === "challenge").nonce, "base64")) }));
+    assert.equal((await waitResult(r.frames))?.ok, true);
+    const client = Buffer.alloc(32, 0x5a);
+    const p = h.hub.freshAttestation("fresh1", client);
+    await settle();
+    const ch = r.frames.filter((f) => f.t === "challenge").at(-1);
+    assert.equal(Buffer.from(ch.nonce, "base64").equals(client), true, "the box is challenged with the CLIENT's nonce");
+    // a stale report (the attach nonce) and one under another key are ignored; the right one resolves
+    r.ws.send(JSON.stringify({ t: "attest", rad: radFor(Buffer.alloc(32, 1)) }));
+    r.ws.send(JSON.stringify({ t: "attest", rad: { ...radFor(client), transportKey: Buffer.from("3059aaaa", "hex").toString("base64") } }));
+    const good = radFor(client);
+    r.ws.send(JSON.stringify({ t: "attest", rad: good }));
+    assert.deepEqual(await p, good, "the box's own document, verbatim");
+    // one in flight per box; an unknown name or a bad nonce is refused
+    const q = h.hub.freshAttestation("fresh1", Buffer.alloc(32, 2));
+    await assert.rejects(h.hub.freshAttestation("fresh1", Buffer.alloc(32, 3)), (e) => e.code === "busy");
+    await assert.rejects(h.hub.freshAttestation("nobody", client), (e) => e.code === "no_box");
+    await assert.rejects(h.hub.freshAttestation("fresh1", Buffer.alloc(31)), (e) => e.code === "bad_nonce");
+    r.ws.close();
+    await assert.rejects(q, (e) => e.code === "closed", "a tunnel that closes rejects the challenge in flight");
+  } finally { await h.close(); }
+});
+
+test("tunnel: freshAttestation is refused for a box that did not attach with SEV-SNP evidence (a token attach)", async () => {
+  const h = await hubServer();
+  try {
+    const r = await dial(h.url, { "x-metal-name": "metal0", "x-metal-token": TOKEN });
+    assert.equal(r.state, "open"); await settle();
+    await assert.rejects(h.hub.freshAttestation("metal0", Buffer.alloc(32, 4)), (e) => e.code === "no_box");
+    r.ws.close();
+  } finally { await h.close(); }
+});
