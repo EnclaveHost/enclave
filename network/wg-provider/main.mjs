@@ -101,7 +101,13 @@ if(paid){
 }
 const meter=new Map();
 const count=(to,up,down)=>{const m=meter.get(to)||{up:0,down:0};m.up+=up;m.down+=down;meter.set(to,m);};
-const routes=[await createRouter({port:443,route:n=>provider.route(n),tls:true,count,log}),await createRouter({port:80,route:n=>provider.route(n),tls:false,count,log})];
+// localRoutes: {"<name>": {"host":"127.0.0.1","tls":8443,"http":8080}} - a service on THIS box reached by name on the public
+// ports (a secret custodian, docs/security/secret-custody.md). Loopback targets only; a name a peer also claims still
+// answers locally, so only names no app can hold belong here.
+const localRoutes=new Map(Object.entries(cfg.localRoutes||{}).filter(([n,r])=>/^[a-z0-9.-]{1,253}$/.test(n)&&r&&/^127\.\d+\.\d+\.\d+$/.test(r.host)
+ &&Number.isInteger(r.tls)&&Number.isInteger(r.http)).map(([n,r])=>[n,{host:r.host,tls:r.tls,http:r.http}]));
+const routeOf=n=>localRoutes.get(n)||provider.route(n);
+const routes=[await createRouter({port:443,route:routeOf,tls:true,count,log}),await createRouter({port:80,route:routeOf,tls:false,count,log})];
 const control=await createControl({provider,receipt,port:ports.control,log,info:()=>({providerId,operator:account.address.toLowerCase(),address:cfg.publicAddress,roles:cfg.roles,
  pricePerGiB6:config.pricePerGiB6,keys:{exit:keys['wg-exit'],guard:keys['wg-guard']},ports,region:cfg.region,kind:cfg.kind||'enclave'})});
 

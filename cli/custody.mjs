@@ -20,6 +20,10 @@ import { configTextOf, configTextFromEnvelope, configSha256 } from "../custody/p
 import { validateRules, parseRules, rulesFromPrediction, DEFAULT_MIN_TCB } from "../custody/rules.mjs";
 export { rulesFromPrediction, DEFAULT_MIN_TCB };
 
+// the platform's bootstrap committee (docs/security/secret-custody.md: NOT decentralized; replaced by resharing), used when
+// nothing else names a committee
+export const PLATFORM_COMMITTEE = "0xf14080496fbb6f12aee6577fd3f0fdc2ba1226a159b727dbfc8bf0de07fe4f9c";
+
 const USAGE = "usage: enclave custody status <id>\n"
   + "     | enclave custody set <id> KEY=VALUE… [--file .env] [--rules rules.json | --rules-from-relay --admit] [--committee 0x…] [--config-file app-config.json | --no-config]\n"
   + "     | enclave custody migrate <id> [--rules rules.json | --rules-from-relay --admit] [--committee 0x…] [--config-file app-config.json | --no-config]\n"
@@ -54,7 +58,7 @@ export async function cmdCustody(rest, h) {
   }
 
   // the policy this update writes
-  const committeeId = String(f.committee || (pol.policyRev ? pol.committeeId : "") || h.env.ENCLAVE_CUSTODY_COMMITTEE || "").toLowerCase();
+  const committeeId = String(f.committee || (pol.policyRev ? pol.committeeId : "") || h.env.ENCLAVE_CUSTODY_COMMITTEE || PLATFORM_COMMITTEE).toLowerCase();
   if (!/^0x[0-9a-f]{64}$/.test(committeeId)) throw new Error("no custodian committee: pass --committee 0x… (or set ENCLAVE_CUSTODY_COMMITTEE)");
   let rules;
   if (f.rules) rules = validateRules(JSON.parse(h.readFile(f.rules)));
