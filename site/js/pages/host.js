@@ -19,7 +19,21 @@ async function refreshFleet(){
   await refreshFleetInto(document.querySelector(".host-fleet c-fleet-list"), Enclave.base);
 }
 
+// The hero's primary download is the visitor's own platform: on an Android phone the Android app (its notes say what it
+// needs and offer Windows instead); everywhere else Windows, with the Android app on a line under the buttons.
+function downloadForThisDevice(){
+  if (!/Android/i.test(navigator.userAgent || "")) return;
+  const btn = document.querySelector('.host-hero-cta [data-download="windows"]');
+  if (btn) {
+    btn.href = "https://get.enclave.host/android/Enclave.apk";
+    btn.dataset.download = "android";
+    btn.firstChild.textContent = "Download for Android ";
+  }
+  document.querySelectorAll(".host-hero-note[data-platform]").forEach((p) => { p.hidden = p.dataset.platform !== "android"; });
+}
+
 export function boot(){
+  downloadForThisDevice();
   refreshFleet();
   const fl = document.querySelector(".host-fleet c-fleet-list");
   if (fl) fl.addEventListener("refresh", refreshFleet);

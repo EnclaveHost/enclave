@@ -44,11 +44,14 @@
     <c-section-head eyebrow="Host an enclave" heading="Your hardware belongs on this list.">
       <p>A market for compute where buyers check what they get. Your machine is listed at the protection level it proves, at the price you set, and the ledger pays you for every lease it serves. Nobody holds your earnings on your behalf.</p>
       <div class="hero-cta host-hero-cta">
-        <a class="btn btn-primary" href="https://get.enclave.host/windows/EnclaveSetup.exe">Download for Windows <span class="arr" aria-hidden="true">↓</span></a>
-        <a class="btn btn-ghost" href="https://get.enclave.host/android/Enclave.apk">Download for Android <span class="arr" aria-hidden="true">↓</span></a>
+        <a class="btn btn-primary" data-download="windows" href="https://get.enclave.host/windows/EnclaveSetup.exe">Download for Windows <span class="arr" aria-hidden="true">↓</span></a>
         <a class="btn btn-ghost" href="#setup">Linux server setup</a>
       </div>
-      <p class="host-hero-note">For a Windows 11 PC with an AMD processor, or a Pixel phone (early preview). <a href="#windows">What it needs →</a></p>
+      <!-- the primary download is the visitor's own platform (js/pages/host.js swaps it on an Android phone); the other is a line here -->
+      <p class="host-hero-note" data-platform="windows">For a Windows 11 PC with an AMD processor. <a href="#windows">What it needs&nbsp;→</a></p>
+      <p class="host-hero-note" data-platform="windows">Have a Pixel phone? <a href="https://get.enclave.host/android/Enclave.apk">Get the Android app</a> (early preview).</p>
+      <p class="host-hero-note" data-platform="android" hidden>For Pixel phones (early preview). <a href="#android">What it needs&nbsp;→</a></p>
+      <p class="host-hero-note" data-platform="android" hidden>Hosting on a PC? <a href="https://get.enclave.host/windows/EnclaveSetup.exe">Get the Windows app</a>.</p>
     </c-section-head>
     </div>
 
