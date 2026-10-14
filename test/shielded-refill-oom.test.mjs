@@ -20,10 +20,10 @@ test('blocked CPU refill remains exact when its temporary allocation fails', { s
     execFileSync('cc', [...flags, join(repo, 'test/fixtures/shielded-refill-oom.c'), join(gg, 'shielded-field.c'), fast,
       '-Wl,--wrap=malloc', '-Wl,--wrap=aligned_alloc', '-Wl,--gc-sections', '-lm', '-o', binary], { env, timeout: 60_000 });
     for (const args of [[], ['vector-crt']]) {
-      const result = spawnSync(binary, args, { env, encoding: 'utf8', timeout: 60_000 });
+      const result = spawnSync(binary, args, { env, encoding: 'utf8', timeout: 120_000 });
       if (result.status === 77) { t.skip('AVX-512 VNNI unavailable'); return; }
       assert.equal(result.status, 0, result.error?.message || result.stderr);
-      assert.match(result.stdout, /refill-oom: 320 normal and forced-OOM shape pairs PASS/);
+      assert.match(result.stdout, /refill-oom: 720 normal and forced-OOM shape pairs PASS/);
     }
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

@@ -1,0 +1,121 @@
+# hvlab-accept.mjs: the node acceptance run, local. QEMU/KVM guests, NOT Hyper-V. Development evidence only.
+# node tree: enclave-d1 windows/isolation-manager cf640825 (worktree ~/enclave-bench/wt-d1-cf640825)
+# guest initrd a1ff9864 (build-domain.sh at this commit); manager = hvlab-manager.mjs (d1's Manager + judgeRunning + dataPlaneFor + onReclaim, as main.mjs wires them)
+# the launcher stand-in (hvlab.py signer) signs guestImageSha256 = the initrd on BOTH boots below; on the box's UEFI path it is the medium
+
+## 1. direct boot (-kernel/-initrd): NODE_TREE=... test-hv-accept.sh ~/enclave-bench/hvacc-1
+image a1ff9864015f6032141304e770c4912fb13c1efa07b654d5d342fef81895452f
+boot direct (QEMU/KVM, NOT Hyper-V)
+MON ready control_port=9000 snp=false transport=virtio
+MON ready control_port=9000 snp=false transport=virtio
+{"manager":"http://127.0.0.1:46611","data":"127.0.0.1:35487","launcherKey":"510K3MdZXHTiAnw6JsHrJsYT4dJPkwnpbbAge8YBvE0="}
+manager http://127.0.0.1:46611: backend=hyperv-partition-per-app canStart=true tier=t0-hv hostExcluded=false partition="kvm-plain-fixture (hvlab, NOT Hyper-V)" derivations=["enclave-catalog-bundle/1"]
+[tunnel] hvacc-node attached via token (1 enclave)
+[tunnel] hvacc-node claimed publicUrl http://127.0.0.1:42159/t/hvacc-node — IGNORED (not this tunnel's own https://<relay>/t/hvacc-node route); its on-chain runner id stays unstamped
+ensureApp: status=running after 7.8 s, instance=hv4ec5c1d1 key=fafbb7ffce38a9ad image=a1ff9864015f6032 tier=T0-hv hostExcluded=false reason=null
+PASS ensureApp reaches running through the node's own path: status=running instance=hv4ec5c1d1
+PASS the record's labels are this tier's: T0-hv, the host NOT excluded: tier=T0-hv hostExcluded=false
+the manager's view of hv4ec5c1d1: {"id":"hv4ec5c1d1","name":"0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e","status":"running","appId":"9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45","runtimeId":"ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8","recordSha256":"bff33b951aade0a921edea4b0aca89712005d20cbb2c074c0f885d079e059d6c","image":"a1ff9864015f6032141304e770c4912fb13c1efa0
+PASS browser -> tunnel -> app zone -> data plane -> domain: the session's key is the one the manager verified: monitor-signed on the browser's handshake key fafbb7ffce38a9ad, record fafbb7ffce38a9ad
+PASS the app answers on its own name: 200 "Hello World!\n"
+PASS a verifier that holds another key does not accept the document: reject (binding does not match the handshake)
+PASS a document for another nonce is not accepted (no replay): reject (document nonce is not ours; binding does not match the handshake)
+PASS a verifier expecting another app does not accept it: reject (the report names a different app; the domain's own claim differs from the expected app (informational field))
+PASS data plane admission, the exact record (control: admitted): "OK"
+PASS data plane admission, another transport key: "NO the instance's verified transport key is not that key"
+PASS data plane admission, another guest image: "NO the instance was not booted from that guest image"
+PASS data plane admission, another app: "NO the instance is not that app"
+PASS data plane admission, another runtime: "NO the instance does not carry that runtime"
+PASS data plane admission, an instance the manager does not hold: "NO no such instance"
+ensureApp {force:true}: status=running after 6.3 s, instance=hvaee7e85e key=487e963c9311456a image=a1ff9864015f6032 tier=T0-hv hostExcluded=false reason=null
+PASS the forced relaunch reaches running on a NEW instance with a NEW transport key: instance hv4ec5c1d1 -> hvaee7e85e, key fafbb7ffce38a9ad -> 487e963c9311456a
+PASS the manager no longer holds the old instance: null
+PASS exactly one instance carries this deployment's name: hvaee7e85e:running
+PASS the session opened on the old domain has ended: closed
+PASS the old route (old instance, old key) is refused: "NO no such instance"
+PASS the new instance under the OLD key is refused: "NO the instance's verified transport key is not that key"
+PASS the browser reconnects: monitor-signed on the NEW key the manager verified: monitor-signed on 487e963c9311456a, record 487e963c9311456a
+PASS a client pinned to the old key sees a different key and must refuse: pinned fafbb7ffce38a9ad, served 487e963c9311456a
+PASS the app answers after the relaunch: 200
+[tunnel] hvacc-node detached
+[tunnel] hvacc-node attached via token (1 enclave)
+[tunnel] hvacc-node claimed publicUrl http://127.0.0.1:42159/t/hvacc-node — IGNORED (not this tunnel's own https://<relay>/t/hvacc-node route); its on-chain runner id stays unstamped
+ensureApp after a node restart: status=running after 0.4 s, instance=hvaee7e85e key=487e963c9311456a image=a1ff9864015f6032 tier=T0-hv hostExcluded=false reason=null
+PASS after a node restart ensureApp adopts the SAME instance and key: instance hvaee7e85e key 487e963c9311456a
+PASS still exactly one instance for the deployment: hvaee7e85e:running
+PASS the browser reconnects through the restarted node, on the same verified key: monitor-signed on 487e963c9311456a
+PASS the app answers through the restarted node: 200
+PASS cleanup: instance hvaee7e85e retired and confirmed gone: removed=true reason=null after=null
+  node: [node-1] 0x4e62e60d isolation spawned: hv4ec5c1d1 status=running image=a1ff9864015f6032141304e770c4912fb13c1efa07b654d5d342fef81895452f
+  node: [node-1 app-zone] app-zone 0x4e62e60d -> spliced: guest ended
+  node: [node-1] 0x4e62e60d isolated domain retired (forced relaunch)
+  node: [node-1] 0x4e62e60d isolation spawned: hvaee7e85e status=running image=a1ff9864015f6032141304e770c4912fb13c1efa07b654d5d342fef81895452f
+  node: [node-2] 0x4e62e60d isolation adopted: hvaee7e85e status=running image=a1ff9864015f6032141304e770c4912fb13c1efa07b654d5d342fef81895452f
+  node: [node-2 app-zone] app-zone 0x4e62e60d -> spliced: guest ended
+  node: [node-1 app-zone] app-zone 0x4e62e60d -> spliced: guest ended
+HVLAB-ACCEPT ALL PASS
+data plane: {"admitted":4,"closed":4,"refused:identity":5,"refused:no-instance":2,"open":0}
+TEST-HV-ACCEPT PASS (QEMU/KVM, NOT Hyper-V)
+
+## 2. BOOT=uefi (OVMF -> ESP -> UKI): BOOT=uefi NODE_TREE=... test-hv-accept.sh ~/enclave-bench/hvacc-uefi
+MON ready control_port=9000 snp=false transport=virtio
+MON ready control_port=9000 snp=false transport=virtio
+uki /home/steven/enclave-bench/hvacc-uefi/esp/EFI/BOOT/BOOTX64.EFI sha256 5530c88cee828e8293535fd46daa20fec6ed004a9097a5dd635b1195b3409a2f bytes 41401856
+  stub    2d9b80732fa76c29be1134cd51536df595b61510874ba646ec5fe12181f5ba18  /usr/lib/systemd/boot/efi/linuxx64.efi.stub
+  kernel  1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  /boot/vmlinuz-linux
+  initrd  a1ff9864015f6032141304e770c4912fb13c1efa07b654d5d342fef81895452f  /home/steven/enclave-bench/hvacc-uefi/mon.cpio.gz
+  cmdline c99a16aef605f38db0d6b5ba307665c74658b86b79b3be3f33055f362b394615  "console=ttyS0 rdinit=/init loglevel=3 report_host=9001"
+  osrel   b6bca85d3e1933b36e542863b088667a56c8575de37f5e739d699d262d92d184  (fixed text: NAME="enclave NucBox guest" ID=enclave-nucbox-guest)
+  tool    GNU objcopy (GNU Binutils) 2.47
+manager http://127.0.0.1:33685: backend=hyperv-partition-per-app canStart=true tier=t0-hv hostExcluded=false partition="kvm-plain-fixture (hvlab, NOT Hyper-V)" derivations=["enclave-catalog-bundle/1"]
+[tunnel] hvacc-node attached via token (1 enclave)
+[tunnel] hvacc-node claimed publicUrl http://127.0.0.1:36649/t/hvacc-node — IGNORED (not this tunnel's own https://<relay>/t/hvacc-node route); its on-chain runner id stays unstamped
+ensureApp: status=running after 6.2 s, instance=hvb15249c2 key=98e8381701867552 image=a1ff9864015f6032 tier=T0-hv hostExcluded=false reason=null
+PASS ensureApp reaches running through the node's own path: status=running instance=hvb15249c2
+PASS the record's labels are this tier's: T0-hv, the host NOT excluded: tier=T0-hv hostExcluded=false
+the manager's view of hvb15249c2: {"id":"hvb15249c2","name":"0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e","status":"running","appId":"9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45","runtimeId":"ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8","recordSha256":"bff33b951aade0a921edea4b0aca89712005d20cbb2c074c0f885d079e059d6c","image":"a1ff9864015f6032141304e770c4912fb13c1efa0
+PASS browser -> tunnel -> app zone -> data plane -> domain: the session's key is the one the manager verified: monitor-signed on the browser's handshake key 98e8381701867552, record 98e8381701867552
+PASS the app answers on its own name: 200 "Hello World!\n"
+PASS a verifier that holds another key does not accept the document: reject (binding does not match the handshake)
+PASS a document for another nonce is not accepted (no replay): reject (document nonce is not ours; binding does not match the handshake)
+PASS a verifier expecting another app does not accept it: reject (the report names a different app; the domain's own claim differs from the expected app (informational field))
+PASS data plane admission, the exact record (control: admitted): "OK"
+PASS data plane admission, another transport key: "NO the instance's verified transport key is not that key"
+PASS data plane admission, another guest image: "NO the instance was not booted from that guest image"
+PASS data plane admission, another app: "NO the instance is not that app"
+PASS data plane admission, another runtime: "NO the instance does not carry that runtime"
+PASS data plane admission, an instance the manager does not hold: "NO no such instance"
+ensureApp {force:true}: status=running after 6.3 s, instance=hv15efb5c3 key=1af7d875d7b6d35b image=a1ff9864015f6032 tier=T0-hv hostExcluded=false reason=null
+PASS the forced relaunch reaches running on a NEW instance with a NEW transport key: instance hvb15249c2 -> hv15efb5c3, key 98e8381701867552 -> 1af7d875d7b6d35b
+PASS the manager no longer holds the old instance: null
+PASS exactly one instance carries this deployment's name: hv15efb5c3:running
+PASS the session opened on the old domain has ended: closed
+PASS the old route (old instance, old key) is refused: "NO no such instance"
+PASS the new instance under the OLD key is refused: "NO the instance's verified transport key is not that key"
+PASS the browser reconnects: monitor-signed on the NEW key the manager verified: monitor-signed on 1af7d875d7b6d35b, record 1af7d875d7b6d35b
+PASS a client pinned to the old key sees a different key and must refuse: pinned 98e8381701867552, served 1af7d875d7b6d35b
+PASS the app answers after the relaunch: 200
+[tunnel] hvacc-node detached
+[tunnel] hvacc-node attached via token (1 enclave)
+[tunnel] hvacc-node claimed publicUrl http://127.0.0.1:36649/t/hvacc-node — IGNORED (not this tunnel's own https://<relay>/t/hvacc-node route); its on-chain runner id stays unstamped
+ensureApp after a node restart: status=running after 0.3 s, instance=hv15efb5c3 key=1af7d875d7b6d35b image=a1ff9864015f6032 tier=T0-hv hostExcluded=false reason=null
+PASS after a node restart ensureApp adopts the SAME instance and key: instance hv15efb5c3 key 1af7d875d7b6d35b
+PASS still exactly one instance for the deployment: hv15efb5c3:running
+PASS the browser reconnects through the restarted node, on the same verified key: monitor-signed on 1af7d875d7b6d35b
+PASS the app answers through the restarted node: 200
+PASS cleanup: instance hv15efb5c3 retired and confirmed gone: removed=true reason=null after=null
+  node: [node-1] 0x4e62e60d isolation spawned: hvb15249c2 status=running image=a1ff9864015f6032141304e770c4912fb13c1efa07b654d5d342fef81895452f
+  node: [node-1 app-zone] app-zone 0x4e62e60d -> spliced: guest ended
+  node: [node-1] 0x4e62e60d isolated domain retired (forced relaunch)
+  node: [node-1] 0x4e62e60d isolation spawned: hv15efb5c3 status=running image=a1ff9864015f6032141304e770c4912fb13c1efa07b654d5d342fef81895452f
+  node: [node-2] 0x4e62e60d isolation adopted: hv15efb5c3 status=running image=a1ff9864015f6032141304e770c4912fb13c1efa07b654d5d342fef81895452f
+  node: [node-2 app-zone] app-zone 0x4e62e60d -> spliced: guest ended
+  node: [node-1 app-zone] app-zone 0x4e62e60d -> spliced: guest ended
+HVLAB-ACCEPT ALL PASS
+data plane: {"admitted":4,"closed":4,"refused:identity":5,"refused:no-instance":2,"open":0}
+
+## 3. the Manager never calls onReclaim (main.mjs:101 sets it so the data plane closes a removed domain's sessions)
+$ node reclaim-repro.mjs ~/enclave-bench/wt-d1-cf640825
+remove -> {"removed":true,"absent":false}; onReclaim calls: 0
+grep over the tree: onReclaim appears only at main.mjs:99-101; closeInstance only in datapath.mjs
+=> both runs above count closed:reclaimed 0: the old session ended because the KVM relay closed when the domain was destroyed

@@ -177,6 +177,45 @@ const WASM_ROOT = path.join(ROOT, 'opt/roots/wasm');
 fs.mkdirSync(path.dirname(WASM_ROOT), { recursive: true });
 console.log('[build] pulling supervisor (guest root)…');
 const supDigest = pull(SUPERVISOR_REF, ROOT);
+// --supervisor-overlay <repo checkout>: the supervisor files a pinned image does not carry yet, copied over it from a
+// git checkout and recorded by commit and hash (the per-app isolation tier's first builds: supervisor.js plus the
+// guestd client modules it imports). Reproducible only from a CLEAN tree at the recorded commit, and the manifest
+// says which it was rather than letting a dirty tree pass as a release.
+const OVERLAY_SRC = arg('supervisor-overlay', '');
+let supervisorOverlay = null;
+if (OVERLAY_SRC) {
+  const src = path.resolve(OVERLAY_SRC);
+  const files = ['supervisor.js', 'isolation/m4/guestd/supervisor-transport.mjs',
+                 'isolation/m4/guestd/control-client.mjs', 'isolation/m4/guestd/supervisor-splice.mjs',
+                 // the guest-certificate relay and the judge it verifies each guest with (and the judge's imports)
+                 'isolation/m4/guestd/supervisor-guestcert.mjs', 'isolation/m2/judge.mjs',
+                 'isolation/contract/runtime.mjs', 'relay/snp-verify.mjs'];
+  const git = (...a) => spawnSync('git', ['-C', src, ...a], { encoding: 'utf8' }).stdout.trim();
+  const dirty = git('status', '--porcelain', '--', ...files) !== '';
+  supervisorOverlay = { commit: git('rev-parse', 'HEAD'), dirty, files: [] };
+  for (const f of files) {
+    const to = path.join(ROOT, 'app', f);
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    fs.copyFileSync(path.join(src, f), to);
+    supervisorOverlay.files.push({ path: '/app/' + f, sha256: sha256File(to) });
+  }
+  console.log(`[build] supervisor overlay from ${supervisorOverlay.commit.slice(0, 12)}${dirty ? ' (DIRTY tree: not reproducible)' : ''}: ${files.join(', ')}`);
+}
+// --isolation <backend>: this image is for a per-app isolation tier node, whose launcher adds
+// metal.isolation=<backend> to the measured cmdline; the expected measurement below uses the same cmdline.
+const ISOLATION = arg('isolation', '');
+if (ISOLATION && ISOLATION !== 'snp-guest-per-app') throw new Error('--isolation must be snp-guest-per-app');
+// --isolation-min-tcb <json file>: the firmware floor a per-app guest's report must meet before this node asks a CA
+// to certify the guest's key. INSIDE the measured image, so the host cannot lower it without changing the node's
+// measurement (the relay's allowlist pins that).
+const ISOLATION_MIN_TCB = arg('isolation-min-tcb', '');
+let isolationMinTcb = null;
+if (ISOLATION_MIN_TCB) {
+  isolationMinTcb = fs.readFileSync(ISOLATION_MIN_TCB);
+  JSON.parse(isolationMinTcb.toString());          // malformed = a build error, not a floor that refuses everything later
+  fs.mkdirSync(path.join(ROOT, 'opt/metal'), { recursive: true });
+  fs.writeFileSync(path.join(ROOT, 'opt/metal/isolation-min-tcb.json'), isolationMinTcb);
+}
 console.log('[build] pulling wasm-manager (chroot)…');
 const wasmDigest = pull(WASM_REF, WASM_ROOT);
 // A tag was resolved, not pinned: say so once, loudly, and hand over the exact
@@ -370,7 +409,10 @@ function buildShieldedBackend(dstRoot) {
   fs.rmSync(objDir, { recursive: true, force: true });
   fs.mkdirSync(objDir, { recursive: true });
   const inc = ['-I' + vendorDir, '-I' + SHIELDED_CODE];
-  const base = ['-O2', '-Wall', '-Wextra', '-fPIC', '-fno-math-errno'];
+  // -ffile-prefix-map: the sources are compiled from ABSOLUTE paths, and a __FILE__ (shielded-weight-source.h) lands in
+  // .rodata, so without it the .so - and the node image's measurement - depended on the CHECKOUT PATH: no verifier could
+  // reproduce a metal measurement except from the builder's own directory (enclave-d1, 2026-09-25, on the 4c image).
+  const base = ['-O2', '-Wall', '-Wextra', '-fPIC', '-fno-math-errno', `-ffile-prefix-map=${SHIELDED_CODE}=wasm/ggml-shielded`];
   // Flags mirror wasm/ggml-shielded/Makefile. THREE are load-bearing rather
   // than taste: -ffp-contract=off on the field encoder, because the worker runs
   // the same source and an FMA would round differently on one side, making the
@@ -557,7 +599,8 @@ const kernelSha = sha256File(path.join(DIST, 'vmlinuz'));
 // --- 7. manifest (written into the image AND to dist; the in-image copy lets
 // the agent report exactly what it was built from) ---------------------------
 // The MEASURED cmdline carries only the mode; everything else is fw_cfg (unmeasured).
-const cmdlineTemplate = 'console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE}';
+const cmdlineTemplate = 'console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE}'
+  + (ISOLATION ? ` metal.isolation=${ISOLATION}` : '');
 const manifest = {
   builtWith: 'metal/build-image.mjs',
   flavor: 'cpu',
@@ -577,7 +620,12 @@ const manifest = {
   // could rebuild this measurement and check it. `shieldedBuild` is non-null
   // exactly when it was compiled here.
   reproducible: isPinned(SUPERVISOR_REF) && isPinned(WASM_REF)
-                && (shieldedFiles.length === 0 || shieldedBuild !== null),
+                && (shieldedFiles.length === 0 || shieldedBuild !== null)
+                && !(supervisorOverlay && supervisorOverlay.dirty),
+  ...(supervisorOverlay ? { supervisorOverlay } : {}),
+  ...(ISOLATION ? { isolation: ISOLATION } : {}),
+  ...(isolationMinTcb ? { isolationMinTcb: { path: '/opt/metal/isolation-min-tcb.json', sha256: createHash('sha256').update(isolationMinTcb).digest('hex'),
+                                             policy: JSON.parse(isolationMinTcb.toString()) } } : {}),
   kernel: { path: KERNEL, kver: KVER, sha256: kernelSha },
   modules: modList,
   // Every shielded file baked in, by hash. Empty on a box with no shielded card.

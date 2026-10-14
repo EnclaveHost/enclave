@@ -1,0 +1,55 @@
+{
+  "attested": true,
+  "measurement": "0b115f55bd06a343e4d817a76ac0ad0e8321de9fa12088fdb92b352a98cf212ba5e043034549e4a676735cbbb61d3af9",
+  "appId": "7f60f91c68ad116470db88f7b1aa9b9f0c9f90925b490ae41d7e57b7e384712a",
+  "tests": [
+    {
+      "tcp": 19222,
+      "bytes": 65536,
+      "halfClose": true
+    },
+    {
+      "tcp": 19984,
+      "bytes": 65536,
+      "halfClose": true
+    },
+    {
+      "tcp": 19989,
+      "bytes": 65536,
+      "halfClose": true
+    },
+    {
+      "tcp": 19010,
+      "bytes": 65536,
+      "halfClose": true
+    },
+    {
+      "udp": 19998,
+      "sizes": [
+        0,
+        1,
+        1400,
+        16000
+      ]
+    },
+    {
+      "udp": 19999,
+      "sizes": [
+        0,
+        1,
+        1400,
+        16000
+      ]
+    },
+    {
+      "udp": 19000,
+      "sizes": [
+        0,
+        1,
+        1400,
+        16000
+      ]
+    }
+  ],
+  "undeclaredRefused": true
+}

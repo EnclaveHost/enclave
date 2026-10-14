@@ -1,0 +1,11 @@
+# 2026-09-24T21:24:00Z public round-trip, system trust (no -k), bin f10canary6fed5040
+## POST /api/bins
+{"ok":true}
+HTTP 200 verify=0
+## POST /b/f10canary6fed5040 (webhook body carries nonce b1223d9a06e5120a)
+{"ok":true}
+
+HTTP 200
+## GET /api/bins/f10canary6fed5040/requests
+[{"n":1,"ts":1790285043,"method":"POST","target":"/b/f10canary6fed5040","headers":[["host","0ddbd824.app.enclave.host"],["user-agent","curl/8.22.0"],["content-length","49"],["accept","*/*"],["content-type","application/json"],["x-forwarded-for","2"],["accept-encoding","gzip"]],"body_b64":"eyJldmVudCI6ImYxMC1jYW5hcnkiLCJub25jZSI6ImIxMjIzZDlhMDZlNTEyMGEifQ==","truncated":false,"len":49}]
+HTTP 200

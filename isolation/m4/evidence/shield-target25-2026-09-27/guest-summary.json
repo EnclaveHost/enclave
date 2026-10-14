@@ -1,0 +1,29 @@
+[
+  {
+    "label": "baseline",
+    "memMiB": 51584,
+    "ordinary128": 19.299445330901907,
+    "mtp128": 19.94137967130744,
+    "ordinary384": 17.88,
+    "mtp384": 20.961606874093533,
+    "all_tokens_match_baseline": true
+  },
+  {
+    "label": "candidate",
+    "memMiB": 51584,
+    "ordinary128": 19.14236189614892,
+    "mtp128": 20.356913870485148,
+    "ordinary384": 19.26,
+    "mtp384": 20.890149449110943,
+    "all_tokens_match_baseline": true
+  },
+  {
+    "label": "pool128-60g",
+    "memMiB": 61440,
+    "ordinary128": 19.518942595865674,
+    "mtp128": 21.180787191460976,
+    "ordinary384": 18.18,
+    "mtp384": 21.34120859220461,
+    "all_tokens_match_baseline": true
+  }
+]

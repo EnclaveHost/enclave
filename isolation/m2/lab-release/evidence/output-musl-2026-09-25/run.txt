@@ -1,0 +1,24 @@
+20:48:52Z app-output lab /home/steven/enclave-bench/lab-release/output-run-20260925b; tag SNTLa67d9469ffe1; production units before: 3; MemAvailable 79 GiB
+20:48:52Z this tree: aa6c985c6 (the NEW image); positive control: 0181bce3's image
+/home/steven/enclave-bench/lab-release/output-run-20260925b/app.bundle 194300 bytes app_id=2609d1f4605d8b4a83625de1c509f561ea16e3692f5a930b2125cbeb59556fbc
+20:49:06Z guest new lb7f9cce1a: status running, legacyImage , hostPort 37425
+20:49:06Z guest old lb10b36ef5: status running, legacyImage true, hostPort 41653
+20:49:06Z guest new: request HTTP 200, panic request HTTP 502
+20:49:06Z guest old: request HTTP 200, panic request HTTP 502
+20:49:08Z guest new after the panic: status failed
+20:49:08Z guest old after the panic: status failed
+20:49:11Z ok   control: the OLD image's serial shows "SNTLa67d9469ffe1-STDOUT-START"
+20:49:11Z ok   control: the OLD image's serial shows "SNTLa67d9469ffe1-STDERR-START"
+20:49:11Z ok   control: the OLD image's serial shows "SNTLa67d9469ffe1-STDOUT-REQ /req-SNTLa67d9469ffe1-old"
+20:49:11Z ok   control: the OLD image's serial shows "SNTLa67d9469ffe1-PANIC /panic-SNTLa67d9469ffe1-old"
+20:49:11Z ok   no tag in serial-new.txt
+20:49:11Z ok   no tag in journal-new.txt (not a channel here: the control's output is absent from it too)
+20:49:11Z ok   no tag in guestd-new-lines.txt (not a channel here: the control's output is absent from it too)
+20:49:11Z ok   no tag in vm-new.json
+20:49:11Z ok   the new guest's requests appear nowhere on the host (run dir, whole user journal)
+20:49:11Z ok   NEW serial keeps "DOM serving"
+20:49:11Z ok   NEW serial keeps "DOM started app="
+20:49:11Z ok   NEW serial keeps "DOM app config: none"
+20:49:11Z ok   NEW serial keeps "DOM ERROR app exited"
+20:49:11Z OUTPUT CHECK PASS: the control leaks (old image), the new image leaks nothing tagged, and its control lines stand
+20:49:17Z cleanup done; production m2-gd* units unchanged

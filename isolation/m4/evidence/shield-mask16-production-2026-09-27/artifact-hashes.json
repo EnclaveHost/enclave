@@ -1,0 +1,7 @@
+{
+  "backend/libggml-shielded.so": "d4813a88e417aae5c9e96d6307f5c86db56393991c35072745855f72ca0d3487",
+  "generation-bench": "1ae4cdd40cbd64823feba4145f77d0c6fb16d332e151d8151f75dc3297c9f3a3",
+  "generation-bench.c": "dd7fa126676233b0aa3fa828fa6bb3f8956e4e893554d045aa1800f94da1ee8a",
+  "candidate-init.c": "9112a3a7fcd5d97e6ca9341bdcc4d31d56fc5b130e8c677721d8f533a20370bf",
+  "release/template/init": "3d1b832de05e5ee395df3839556d518ce52544c87fc8ad595ebe530c39f31fa5"
+}

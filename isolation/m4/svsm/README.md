@@ -8,6 +8,154 @@ is a build tree, not version control. Apply them to coconut-svsm/svsm at d37095e
 |---|---|
 | `appid.rs` | `kernel/src/protocols/appid.rs`: the new SVSM protocol (number 6). A guest at a lower VMPL supplies ONLY a 32-byte bind; the SVSM fills `report_data[32:64]` from `APP_TABLE` indexed by the CALLING PLANE. The app half is not a field of the request, so no caller can reach it. |
 | `0001-wire-appid-protocol.diff` | registers the module and protocol number in `protocols/mod.rs`, adds `get_attestation_report_for_app` to `protocols/attest.rs` so there is one PSP call site, and dispatches from `requests.rs`. |
+| `0002-measured-guest-hash-table.diff` | step 0b+2: `igvmbuilder` gains `--guest-kernel/--guest-initrd/--guest-cmdline` and emits the SevHashTable as MEASURED page data, splits the pre-validated area around that page so the SVSM cannot zero it, and records `hash_table_address/size` in `GuestFwInfoBlock` so `adjust_fw_mem` grants it to the guest VMPL. The SVSM refuses to launch if the two ever disagree. |
+
+Apply in order; both touch `kernel/src/platform/snp_fw.rs`, in different functions. Verified by applying both to
+a pristine d37095e worktree and comparing every file against the tree that was built and tested - identical.
+`tools/igvmbuilder/src/gpa_map.rs` and `tools/igvmmeasure/` are PR 1209 and are deliberately not in either patch.
+
+**On attribution (2026-09-24).** Where this file says "Steven's direction" or "Steven asked", some of those
+directions were relayed by the coordinator (Codex) under Steven's standing scope for this project, rather than
+given by Steven directly; none of them is a fresh approval of anything. Read them as prior coordinator direction
+unless a direct message from Steven is cited.
+
+## Step 2 is CLOSED on hardware (2026-09-24): the measurement covers what executes
+
+15 of 15, warden-host, both the DEBUG and the RELEASE AmdSev firmware, launch digest AD876B1C...CBB986F86.
+`evidence/step2-measured-boot-2026-09-24.txt`, generated from the run by `write-step2-evidence.sh`.
+
+What now holds, and it is the thing M3b could not say: the kernel, initrd and command line that ACTUALLY
+EXECUTE are inside the launch measurement, and that measurement is in a report verified to AMD's pinned root
+at VMPL 2. Substituting the initrd is refused by the firmware - `Hash comparison failed for "initrd"`, zero
+guest markers - and refused silently by the RELEASE build production would run.
+
+    firmware   Found injected hashes table in secure location
+               Hash comparison succeeded for "kernel" / "initrd" / "cmdline"
+    SVSM       Validating 0x800000-0x809000 / 0x80a000-0x810000 / 0x811000-0x830000
+               Measured SEV hash table [0x810000-0x811000] excluded from validation
+               Firmware region 2 at [0x810000-0x811000]
+    report     chain VCEK -> ASK -> ARK offline, vmpl 2, policy 0x30000, MEASUREMENT == the manifest's
+               digest, report_data[32:64] == the compiled-in app id, report_data[0:32] == Bind2 recomputed
+
+Three mechanisms had to hold together, and two of them fail in ways that look like something else: emit the
+table where the FIRMWARE reads it (`SEV_HASH_TABLE_RV_GUID`, 0x810c00 - NOT the descriptor's base), SPLIT the
+pre-validated range so the SVSM does not validate-and-zero that page, and GRANT the page through
+`adjust_fw_mem`. `0002-measured-guest-hash-table.diff`.
+
+Run it with `verify-measured-boot.sh <good.cpio.gz> <other.cpio.gz>`, `RELEASE_FW=` for cases 6/7. Build with
+`build-measured-igvm.sh`, which refuses any firmware not in `verifying-firmware.txt` and deletes its own
+output if the emitted page is not `construct_page(offset)`.
+
+**What step 2 does NOT establish:** this is ONE app on ONE plane. It demonstrates no isolation BETWEEN two
+apps, which is the actual requirement. The five second-plane preconditions below are untouched. The runtime
+image admitted is the wasmtime ELF only, so the executing bytes include unadmitted code. (That last sentence is
+the scope of THIS run and stays true of it. For the serving plane it is closed by the runtime-set increment
+below; the step-2 fixture itself was not re-run.)
+
+## The monitor integration is CLOSED too (2026-09-24): the handshake key is the key the SVSM binds
+
+`evidence/plane-handshake-binding-2026-09-24.txt`. A serving plane domain: VERDICT attested, gate open, one real
+application request over the connection whose key the report binds. Until this ran, "the report binds this
+domain's transport key" was true of a 91-byte value `admitinit` made up.
+
+    build-plane-guest.sh <app.bundle> <out.cpio.gz>    # planeinit + front + the artifacts to admit
+    build-measured-igvm.sh -i <that image>             # the step-2 measured table over it
+    m2/fwd -cid <cid> -port 443                        # then m2/client.mjs --vmpl 2 --runtime ...
+
+`m2/front/appid.go` registers the minted SPKI once and afterwards sends only a nonce; the SVSM computes both
+halves of `report_data`. The front dies at startup without a runtime identity (the SVSM binds Bind2, so ABI/1
+could never match), reads its registered key BACK to check the SVSM holds what it minted, and REFUSES to serve a
+document whose `report_data[0:32]` differs from the binding it recomputes.
+
+`m4/guest/planeinit.c` admits both artifacts and POWERS OFF rather than serving if either is refused - a domain
+that served after a refusal would answer `/attest` with a T0 document, silently substituting a weaker claim. It
+also carries `tsm_report` and `sev-guest` ON PURPOSE and powers off if either loads: leaving them out would make
+"no report interface" a property of the packaging, which no verifier can check, whereas `vmpck0=No such device`
+is evidence.
+
+`m2/judge.mjs` now has a FORMAT TABLE rather than a condition. `sev-snp-svsm-plane-v1` requires ABI/2 and a
+non-zero VMPL, because at VMPL0 nothing is above the guest and under ABI/1 the binding folds in no runtime
+identity. The first run of the fixture was correctly rejected as an unknown format.
+
+The confinement is established in the KERNEL'S words, not from an errno: `sev-guest` refusing with ENODEV proves
+nothing by itself (`module_platform_driver_probe` returns it whenever nothing binds, including when no device
+exists or the kernel sees no SNP), so planeinit reads `/dev/kmsg` and the acceptance requires
+`Empty VMPCK0 communication key` and `Empty VMPCK2 communication key` verbatim, each naming its own key.
+
+**Still not established:** the boundary tuple was deliberately NOT extended with a VMPCK field, because any field
+the guest writes is a guest claim - a VMPL0 guest could write it as easily as it can set tsm-report's floor.
+Properties of the confining monitor belong to the DIGEST: under the digests pinned here, app planes hold no
+VMPCK, and the kmsg lines are the run evidence for that digest. The format LABEL is unauthenticated too - the
+same document relabelled `sev-snp-guest-domain-v1` still verifies, a weaker claim rather than a wider acceptance.
+The binding property holds because `judge.mjs` RECOMPUTES Bind2 over the handshake key, so
+`doc_key_matches_handshake` is informational and a swapped handshake key is rejected. A `domtls` key rotation
+implies a RECLAIM cycle, since REGISTER_KEY is once per admission. And it remains ONE app on ONE plane.
+
+## The runtime SET is admitted whole (2026-09-24): the interpreter and shared libraries are inside admission
+
+`evidence/runtime-set-2026-09-24.txt`, generated from the run by `write-runtime-set-evidence.sh`. Not
+independently reviewed.
+
+The plane runs `/rt/ld-linux-x86-64.so.2 --library-path /rt /rt/wasmtime`, and the runtime kind admitted the
+wasmtime ELF alone. It now admits ONE canonical encoding of every file in `/rt` (`guest/rtset.h`,
+`enclave-runtime-set-v1`), and `ENCLAVE_RUNTIME_SHA256` is sha256 of that encoding - the interpreter, libc, libm,
+libgcc_s, wasmtime and runtime.json. `appid.rs` did not change: it hashes bytes and compares digests, so a changed,
+missing, added or renamed file is refused by the comparison every artifact already goes through. A subdirectory or
+any other non-file refuses the whole set, because the loader searches `/rt/glibc-hwcaps/*` before `/rt`.
+`planeinit` then reads the running runtime's `/proc` maps before starting the front: every executable file mapping
+must be an admitted member with the inode that was encoded, and every admitted ELF must be mapped, or it powers off.
+
+    good     10/10 (verify-plane.sh): SVSM froze 12097 pages = the whole 49546136-byte set (the ELF alone: 11137)
+             runtime_maps=ok elf_members_mapped=5/5, the only other file mapping /app.wasm (data)
+    changed  one byte of libc: firmware verified the image, bundle admitted, runtime REFUSED 0x80001004, powered off
+    missing  no libgcc_s:      the same, members=5 elf=4, REFUSED 0x80001004, powered off
+    local    test-rtset.sh 14/14 (every member flipped, shortened and dropped; three maps-check negatives)
+
+Each negative ran under an IGVM whose table covers ITS image and whose SVSM is the good run's own binary, so only
+admission could refuse it. **Not established:** the maps check is one reading at load and is the plane's own
+word, not the hardware's; ONE app on ONE plane, and the second-plane blocker is unchanged. (This run's plane still
+executed a build-time `/app.wasm`; that gap is closed in the next section.)
+
+## The app a plane serves is the component of the bundle it ADMITTED (2026-09-24)
+
+`evidence/app-binding-2026-09-24.txt`, run `~/enclave-bench/m4b-app-085652`. Not independently reviewed.
+planeinit reads `/app.bundle` once, stages exactly those bytes, and after the SVSM admits them cuts the component
+from the same buffer (`guest/appbundle.h`: the contract's framing, and the manifest must name this component's
+sha256) and hands it to the runtime as a sealed memfd at `/proc/self/fd/3`. The image carries no `/app.wasm`.
+
+    good       11/11; the plane's component hash == the contract extractor's; runtime maps the sealed memfd only
+    decoy      a DIFFERENT component planted at /app.wasm: every check passes, it serves exactly the good app,
+               and reports the decoy unused (the old planeinit would have served DECOY under the good AppID)
+    truncated  REFUSED 0x80001004, nothing admitted, powered off
+    missing    refused before any admission call, powered off
+    local      test-appbundle.sh 6/6 (13 malformed bundles refused by the plane AND the contract)
+
+## A malformed hash table does not refuse - it disarms verification
+
+Worth stating before anything else about step 2, because it inverts the intuition the rest of this file is
+built on. Everywhere else in M4b, getting a measurement wrong produces a refusal. The SEV hash table does not.
+
+`BlobVerifierSevHashes` SEARCHES the table for a per-blob GUID. Its constructor checks only that the header GUID
+matches and that the declared length fits the area; `VerifyBlob` then walks entries, and reaching the end without
+a match is not an error - the code says "If the GUID is not in the hash table, execution can still continue" and
+returns `EFI_SUCCESS`. So a table that passes the constructor but whose entries are malformed verifies NOTHING,
+for the kernel, the initrd and the cmdline alike, while the guest boots exactly as it should. On a RELEASE build
+the DEBUG lines that would have reported it are compiled out.
+
+This is not hypothetical. A revision of `isolation/m4/hash-table.py` emitted six spurious pad bytes and three
+wrong entry GUIDs, and its self-check compared only the three digests - which were correct. It would have
+produced a booting positive control over a firmware that checked nothing (found by enclave-59 before any hardware
+run; see the CORRECTIONS section of `evidence/igvm-0b-precondition-2026-09-24.txt`).
+
+Three consequences, all now in force:
+
+  - the offline check compares the WHOLE table to `sev-snp-measure`'s `construct_table()`, not the digests, and
+    the GUIDs are derived from the strings in the firmware's own header rather than transcribed
+  - `build-measured-igvm.sh` re-extracts the table from the IGVM it just wrote and DELETES the output on any
+    difference. There is no flag to skip it.
+  - **a booting guest is not evidence that verification happened.** Step 2 acceptance requires "Hash comparison
+    succeeded" for kernel, initrd AND cmdline on the DEBUG firmware; "Hash GUID not found in table" is an INFRA
+    failure, never a pass.
 
 ## Why this is the authority M3b lacked
 
@@ -22,9 +170,496 @@ lands in the SVSM binary, in the IGVM, in the measurement. **Changing which app 
 the measurement.** That is what makes the naming trustworthy rather than merely convenient, and it needs no
 new derivation path.
 
-Refusals are fail-closed and unit-tested (`cargo test -p svsm --lib appid`, 5 tests):
+Refusals are fail-closed and unit-tested (`cargo test -p svsm --lib appid`, 31 tests):
 VMPL0 is never an app; a plane at or beyond `VMPL_MAX` is refused; an unassigned plane is refused rather than
 named with zeros, because a null identity that verified would be worse than no service.
+
+## Admission, and the independent review that shaped it
+
+`appid.rs` v3 does not merely NAME a plane from a compiled-in table. Before this SVSM will name a plane or
+fetch a report for it, the plane must present each artifact its identity covers - the contract bundle, whose
+sha256 IS the AppID, and the runtime image - and this code must have hashed those bytes itself at VMPL0, found
+the digest equal to one compiled into this measured image, made the pages immutable to the owning plane with
+RMPADJUST, and hashed them again. `hash, freeze, re-hash` in that order: freezing first would let a plane
+freeze pages by naming them, and hashing once would leave a swap window.
+
+An independent review (enclave-59, 2026-09-23) found real defects in v2, all fixed here:
+
+| finding | what was wrong | now |
+|---|---|---|
+| A2 | every protocol-6 report was signed as **VMPL0** - `get_attestation_report_for_app` left `SnpReportRequest.vmpl` at its zero default, so a verifier pinning the plane would reject it and one that did not would lose the level | the SVSM writes the CALLER's plane into the request |
+| A6 | `freeze_pages` **granted** `READ\|X_USER\|X_SUPER` to VMPL1, 2 and 3, handing every neighbour read and execute on the caller's memory | the owner keeps read (and execute only for code) and loses WRITE; every other plane is set to NONE. Nothing is ever granted |
+| A6 | no ownership check on any guest GPA, so with planes `write_out` is a cross-plane write primitive and ADMIT freezes a neighbour's runtime pages (same image on every plane, so hashing first does not stop it) | **every call is refused unless it comes from `GUEST_VMPL`.** See the precondition below |
+| A5 | frozen pages thaw through `SVSM_CORE_PVALIDATE` (invalidate, PSC, validate zeroes the page and restores guest RWX) while `ADMITTED` stayed set | admitted frames are recorded and `core_pvalidate_one` refuses any 4 KiB or 2 MiB entry intersecting them |
+| B1 | protocol 6 was absent from `core_query_protocol`, so the "version 2 is detectable" claim was false | protocol 6 answers QUERY_PROTOCOL. The lint also caught that the first attempt was a catch-all match arm swallowing every protocol |
+| B2 | the table parser silently mis-parsed: no comma became two planes, a space or semicolon dropped later planes, a short entry named a plane with a half-zero digest, a fourth entry was ignored, an odd length panicked with an index error | strict: 64 hex digits, one comma, at most three entries, or a `panic!` in a const fn - a BUILD error, which is the right outcome for an input that ends up in a launch measurement |
+| B4 | a bundle was frozen with execute | data gets READ only |
+| B9 | a 2-byte ELF delta between two builds was reported, against our "reproducible" claim | not reproduced here: two builds of identical source, with `appid.rs` touched to force a rebuild, gave a **byte-identical IGVM and a byte-identical ELF** and the digest `00CE1F57...` twice |
+
+### The ownership precondition: this protocol serves ONE plane
+
+Planes share one guest-physical address space partitioned by RMP permissions, and this SVSM cannot ask the
+hardware which plane owns a page: COCONUT has no RMPQUERY and records no per-plane validated-page map. Without
+that oracle a guest-supplied GPA cannot be attributed. So every call is refused unless it comes from
+`GUEST_VMPL`, and with one guest plane ownership holds by construction - there is no neighbour to attribute a
+page to. **A compiled-in table can NAME three planes; this code speaks for one.** Per-app planes stay
+unimplemented, and that is deliberate rather than pending.
+
+## RUN ON HARDWARE, 2026-09-23: the gate holds, and the guest has no key of its own
+
+`isolation/m4/evidence/admit-{good,tampered,run-context}-2026-09-23.txt`. Both runs match the line sets that
+were written down BEFORE them, which is the only way a pass here means anything.
+
+The good run, in order:
+
+| line | result |
+|---|---|
+| `sev_guest_no_vmpck` | **`No such device`** - the driver found no usable VMPCK and refused to probe, so this guest cannot ask the PSP for anything |
+| `tsm_report_dir` | absent: no configfs-tsm report interface exists in the guest |
+| `whoami_before`, `report_before` | refused, `0x80001003` (not admitted): the SVSM will not name the plane |
+| `admit_bundle` | `rax_out=0x0` after staging 59829 bytes in 15 pages |
+| `whoami_after_bundle` | still refused, `0x80001003`: the bundle alone is not what the identity covers |
+| `admit_runtime` | `rax_out=0x0` after staging 45616736 bytes in 11137 pages, hashed twice and frozen |
+| `whoami` | `ce52712f...b91`, the AppID compiled into this measured image for plane 2 |
+| `report` | GRANTED |
+| `admit_again` | refused, `0x80001005` (already admitted) |
+| `thaw_admitted` | refused, `0x80000006` - and `thaw_unadmitted` **allowed** (`0x0`) then re-validated, so the probe demonstrably reaches PVALIDATE |
+| `thaw_admitted_2m` | refused, `0x80000006`: the hook, not the alignment check |
+
+The report was parsed rather than eyeballed: VMPL field **2**, `report_data[0:32]` the caller's bind,
+`report_data[32:64]` **the AppID the SVSM holds for that plane**, and the measurement **equal to the
+`igvmmeasure` digest of the shipped IGVM**. So a verifier pinning that digest knows which SVSM produced the
+report, which app the plane was named, and that the plane's artifacts were hashed and frozen before it was.
+
+The tampered run: one flipped byte, a real staging of 59829 bytes, `admit_bundle_result 0x80001004`
+(digest mismatch), `admitted=0x00` afterwards, **`poke_result=WROTE`** - a refused admission froze nothing,
+which is the property hash-before-freeze exists for - and `whoami_final` and `report_final` both refused.
+
+### Two things the run cost, both worth recording
+
+* **`FW_FILE` and `RELEASE=1`.** Every IGVM built *in the session that produced this run* came from a bare
+  `make igvm`, so it carried NO firmware (3.69 MB against 4.83 MB) and could not boot a guest at all. The
+  digests taken from those builds - `C97F3D6A…`, `02D647AC…`, `00CE1F57…`, `B4BA1451…` and the rest above -
+  did establish that the tables are inside the measurement, reproducibly and sensitively, and that remains
+  true. **They are digests of images that cannot run**, and citing them as progress toward a working boundary
+  was wrong. A measurement is not evidence that anything works.
+
+  **This does NOT apply to the earlier 31/0 M3b run** (commit 67b699af, digests `5462DDEB…` and `00DE2FCB…`).
+  That run reported a derived digest equal to a **live signed report**, which a guest that never booted cannot
+  produce, so its IGVM carried firmware. The mistake above was confined to the builds in this session, and the
+  correction is to the over-broad sentence that first appeared here, not to that run.
+* **A shared serial port loses evidence.** The first complete run dropped five consecutive result lines and
+  mangled a sixth into an SVSM console message: the guest and the SVSM write the same UART with no flow
+  control. `run-domain.sh EVIDENCE_SERIAL=1` now gives the guest its own port, and the guest writes results
+  there as well as to the console. Nothing a harness scores may share a lossy channel.
+
+## What clearing the VMPCK broke, and why upstream assumed otherwise
+
+`get_report` in `kernel/src/greq/services.rs` refused every non-VMPL0 request, with the comment "Non-VMPL0
+attestation reports can be requested by the guest kernel directly to the PSP". That premise is exactly what
+this change invalidates: the guest has no VMPCK, so it can request nothing, and the SVSM - the only holder of
+a key - was forbidden from requesting the report the guest plane needs. Protocol 6 returned
+`INVALID_PARAMETER` for that reason, and protocol 1 would have too once it started naming the plane. A request
+naming VMPL0 or the one guest plane this SVSM serves is now allowed and nothing else is; the level is written
+by the SVSM and never taken from the request.
+
+## The gate that WAS bypassable, and what closed it
+
+Recorded because it was true until this change, and because the fix is what makes everything above mean
+anything. The guest at VMPL2 held VMPCK2 and VMPCK3: `copy_for_vmpl` clears only `vmpck[0..vmpl]`. So the guest
+did not have to ask this SVSM for anything. It mints its own report over its own GHCB, with `report_data` of its choosing and `vmpl=2` - which
+is exactly what the M3 monitor does through configfs-tsm today - and a verifier sees the SVSM's measurement,
+`vmpl=2` and an attacker-chosen `[32:64]` and cannot tell that apart from a report this SVSM issued after
+admission.
+
+"The SVSM will not name a plane until it has admitted the plane's artifacts" is therefore bypassed by not
+asking the SVSM. Admission is a correct mechanism sitting beside an open door.
+
+What closed it, in `SecretsPage::copy_with_no_vmpck` and measured above:
+
+1. the guest's copy of the secrets page carries NO VMPCK at all (clear `0..VMPL_MAX` for the guest copy, not
+   `0..vmpl`), so
+2. `sev-guest` fails to load in the guest and configfs-tsm offers no report interface, and
+3. protocol 6 becomes the ONLY path to a report, which is what makes admission a precondition rather than a
+   suggestion.
+
+Step 2 is not a side effect to paper over, and it is the open work: **it breaks how every M3a and M3b domain
+gets its report**, because they use configfs-tsm. The admission guest does not need it - it talks protocol 6
+directly - which is why this run was possible before the monitor was ported. The monitor's move to protocol 6
+is the next increment, and until it lands the M3a and M3b suites will not pass against an IGVM built from this
+SVSM.
+
+### The invariant, stated so it is true rather than nearly true
+
+**Every report carrying this measurement and `vmpl=N` was issued by this SVSM for plane N, and only after
+plane N's artifacts were hashed and frozen.** Protocol 1 was the hole in that sentence: it is callable by an
+app plane and, since it started naming the plane, would have returned such a report before anything was
+admitted. Its `report_data` is SHA-512(nonce‖manifest) and cannot satisfy the contract's binding, so it was
+never a forgery of an app's evidence - but "only after admission" was false as written. Protocol 1 is now
+gated on `require_admitted` as well, because nothing here needs a pre-admission services report. The sentence
+is now true of both protocols rather than narrowed to one.
+
+### What a second plane requires, agreed with the reviewer
+
+Stated jointly so neither of us discovers it later. Once app planes hold no VMPCK and protocol 6 is the only
+report path, `require_owning_plane(GUEST_VMPL)` means exactly ONE plane can ever obtain a report. A second
+plane cannot exist until ALL of these land together:
+
+1. the per-plane secrets-page copy with **every** VMPCK cleared, not `0..vmpl`;
+2. `requests.rs` deriving the calling VMPL from the VMSA that exited, rather than passing `GUEST_VMPL`;
+3. an ownership oracle for guest GPAs - with no RMPQUERY in COCONUT, a per-plane validated-page map recorded
+   in `core_pvalidate_one` keyed by the calling plane is the practical one;
+4. the AP_CREATE restriction on the hypervisor side, or the SVSM as sole VMSA issuer with the kernel
+   enforcing it: the planes kernel's `sev_snp_ap_creation` checks only `vmpl < VMPL_MAX` and that VMPL0 is
+   replaced only by a VMPL0 vCPU, so an AP_CREATE from plane 1 targeting plane 2's APIC id is honoured and the
+   SVSM is not in that path. **(2026-09-24: that last clause is under question and unverified** - a guest not at
+   VMPL0 creates vCPUs through the SVSM's `SVSM_CORE_CREATE_VCPU`, so the SVSM may be in the path for our
+   topology; what it checks about the caller was not read. The remedy, and whether it needs a host change at all,
+   are open. See `HANDOFF.md` and `HOST-CHANGE-PLAN.md`. The blocker stands either way.)
+5. per-plane calling areas and the request-loop multiplexing that implies.
+
+**Scope, measured in the kit tree 2026-09-24 rather than estimated.** These five are not one size. 1 and 3 are
+SVSM-local: `copy_with_no_vmpck` already clears `0..VMPL_MAX` (so precondition 1 is satisfied in the code today,
+and the plane probes all four keys and is refused each time - `evidence/plane-handshake-binding-2026-09-24.txt`),
+and 3 is a map recorded in `core_pvalidate_one`, which is already the choke point.
+
+**2 and 5 are a rewrite of COCONUT's guest-entry path, not a patch.** `enter_guest` calls
+`switch_to_vmpl(GUEST_VMPL)` once and a CPU holds exactly one `guest_vmsa: SpinLock<GuestVmsaRef>`, so "derive
+the calling VMPL from the VMSA that exited" first requires there to BE more than one guest VMSA to exit from.
+The single-guest assumption is spread across `guest_vmsa_ref` (10 sites), `update_guest_mappings` (4),
+`map_guest_vmsa` (4), `alloc_guest_vmsa`, `update_guest_vmsa_caa`, `clear_guest_vmsa_if_match` and
+`update_apic_emulation` (2 each), plus a plane-selection and scheduling policy that does not exist yet, per-plane
+CAA request flags, and 85 `GUEST_VMPL` references to audit. That is upstream-shaped work on the SVSM's core loop.
+
+**4 gates the others, and any host change it needs is Steven's decision.** As stated above - subject to the open
+question recorded there about which path a non-VMPL0 plane's vCPU creation takes - the planes kernel honours an
+AP_CREATE from plane 1 targeting plane 2's APIC id, so a second plane built on 1, 2, 3 and 5 alone
+would run, and would NOT be isolated. Building the multi-plane exec loop before 4 lands therefore produces a system
+that cannot honestly be called isolated and cannot be tested for the property that matters. **Do not score any run
+as isolation until precondition 4 is resolved and a second plane has been tested for the property.** (This used to
+say "until the kernel change and reboot have happened". Whether the remedy is a host kernel change, an SVSM change
+or both is not established; `HOST-CHANGE-PLAN.md` is the read-only plan for the host case, with no patch in it.)
+
+Also settled, and fixed here: the SVSM **attestation protocol (protocol 1)** stays callable by an app plane
+and used to return reports signed as VMPL0. That is not a forgery of the contract's `report_data` layout, but
+it breaks "every report carrying this measurement and `vmpl=N` was issued for plane N" through a door beside
+the admission gate. Both of its report builders now stamp the plane the SVSM serves.
+
+### Two costs worth naming
+
+* Holding the PVALIDATE write lock across freeze, the second hash and the record **stalls other vCPUs'
+  PVALIDATE and CREATE_VCPU for the duration of that hash** - tens of milliseconds for a 45 MiB artifact.
+  Acceptable for a one-shot admission at plane start, and it is the price of closing the re-validation race.
+* The staging buffers are never freed. Once frozen they are read-only to the plane for the life of the guest,
+  and returning them to the allocator would hand the kernel memory it cannot write.
+
+### Refusal codes, and the divergence from upstream COCONUT
+
+Each refusal has its own protocol-specific code (`SvsmReqError::protocol`, so `0x80001000 + code`), because
+`INVALID_REQUEST` alone covered eight different reasons and a harness could only report "refused" - which
+cannot tell a finding from a bug in our own staging:
+
+| code | refusal |
+|---|---|
+| `0x80001001` | the caller is not the plane this SVSM serves |
+| `0x80001002` | this image names no artifact for that plane and kind |
+| `0x80001003` | the plane has not admitted every artifact its identity covers |
+| `0x80001004` | the bytes do not hash to the expected digest |
+| `0x80001005` | that kind is already admitted for this plane |
+| `0x80001006` | the freeze failed (RMPADJUST: a 2 MiB RMP entry gives FAIL_SIZEMISMATCH here) |
+| `0x80001007` | the bytes changed between the first hash and the freeze |
+| `0x80001008` | the admitted-page record could not be extended |
+
+**Divergence worth recording:** both of protocol 1's report builders now stamp `GUEST_VMPL`, so an upstream
+consumer of COCONUT's attestation protocol that expects VMPL0-labelled reports would see VMPL2 from this
+build. The SVSM's own boot-time attestation (`kernel/src/attest.rs`) is untouched and still VMPL0.
+
+### Scoring the run, so a pass cannot be vacuous
+
+* when a monitor port lands, its first acceptance check is **"every domain's report comes through protocol 6
+  AND names that domain's own admitted slot"** - a port that satisfies only the first half would collapse N
+  identities into one and still pass;
+* the GOOD path prints no `poke_result` at all; a scorer that looks for one will wrongly fail it;
+* the TAMPERED path must show `poke_result=WROTE` **and** `admit_bundle_result` carrying the SVSM's refusal,
+  after a staging that really happened - a refusal over a zeroed buffer would pass for the wrong reason;
+* `thaw_admitted` refused **and** `thaw_unadmitted` allowed: without the second, "refused" only shows the probe
+  does not work. Score the CODES, not the words: `thaw_admitted_result` must read `rax_out=0x80000006` (the
+  admitted-region hook) and `thaw_unadmitted_result` `0x0`. A `0x80000005` on the 2 MiB control means the
+  alignment check refused it before the hook ran, so that control did not run at all;
+* the expected good-path line set: `admit_bundle_result` and `admit_runtime_result` `rax_out=0x0`, `report
+  GRANTED` with `report_hex[0x30..0x34] = 02000000` (the plane, little-endian) and a measurement equal to
+  `igvmmeasure` of the launched IGVM, `admit_again_result 0x80001005`, `thaw_admitted_result 0x80000006`,
+  `thaw_unadmitted_result 0x0` then a successful re-validate, `thaw_admitted_2m_result 0x80000006`;
+* the expected tampered-path line set: `admit_bundle_result 0x80001004` after a staging that really happened,
+  `poke_result=WROTE`, and `whoami_final` and `report_final` both refused.
+
+## STEP 1 DONE: the SVSM computes the binding over a key registered at plane start
+
+Steven's direction of 2026-09-23 is the dedicated one-app-per-plane path (option 2), with M4a kept as the
+scalable layout and option 3 explicitly not to be built as equivalent per-app isolation. The requirement is
+measured authority binding **the actual executed app and the transport key**. The key half is closed; the
+executed half has a measured blocker, below.
+
+`SVSM_APPID_REGISTER_KEY` records a plane's transport-key SPKI **once**, and `GET_REPORT` now takes only the
+verifier's nonce. The SVSM computes
+
+    report_data[0:32] = sha256("enclave-bind-v2\n" || registered SPKI || nonce || RuntimeID)
+
+which is `isolation/contract` `Bind2` byte for byte, with the RuntimeID compiled into this measured image
+(`ENCLAVE_RUNTIME_IDS`). So all 64 bytes are now the SVSM's word: the binding over a key fixed at plane start,
+and the app ID from the measured table. A caller cannot present a different key later, cannot choose the runtime
+label, and gets nothing at all until its artifacts are admitted.
+
+That also closes **B5**, which had been open since the portable-runtime work: the runtime label in
+`report_data[0:32]` was previously computed by the front over an identity file inside an unmeasured image, so it
+was the guest's word. One mechanism, two findings.
+
+Verified on hardware (`isolation/m4/evidence/`, digest `796AD982…53F5`):
+
+| line | result |
+|---|---|
+| `register_key` | `rax_out=0x0`, 91-byte SPKI recorded |
+| `register_key_again` | refused, `0x8000100a`: a second key would re-point the binding after the first was vouched for |
+| `report_before_result` | `0x80001003`: no report before admission, whatever key is registered |
+| `report_data[0:32]` | `b303eadb…19e6`, **equal byte for byte** to `runtime.mjs bind2(registered SPKI, nonce, RuntimeID)` recomputed outside the guest |
+| `report_data[32:64]` | `ce52712f…0b91` from the measured table |
+| VMPL / measurement | 2 / equal to the `igvmmeasure` digest |
+
+An allowlist entry for a digest must therefore also carry the **RuntimeID**, or a verifier cannot recompute the
+binding. It is in the layout entry in the evidence file.
+
+## THE EXECUTED-ARTIFACT HALF IS BLOCKED, and this is the exact blocker
+
+Steven asked for the blocker stated exactly if a dedicated-plane step needs an architecture or host-security
+change outside this scope. It does, and the finding is from the sources rather than from reasoning:
+
+* `qemu/target/i386/sev.c:1707` - `if (!X86_MACHINE(qdev_get_machine())->igvm) { … snp_populate_metadata_pages(…) }`,
+  with the comment that an IGVM file "will be used to configure the metadata pages directly". So **with
+  `igvm-cfg`, QEMU never launch-updates the OVMF metadata pages**, and `SEV_DESC_TYPE_SNP_KERNEL_HASHES` is one
+  of them: `kernel-hashes=on` does nothing on this path.
+* `igvmbuilder`'s options are `--kernel` (the SVSM's own ELF) and `--filesystem` (the SVSM's archive). There is
+  **no option for a guest kernel or initrd**, so they cannot be embedded as measured IGVM page data.
+
+The measured chain on the IGVM path is therefore **SVSM (measured) → OVMF (measured) → guest kernel (NOT
+measured, loaded from the host through fw_cfg)**. M4a does not have this problem because it uses
+`kernel-hashes=on` with no IGVM, which is exactly why M4a stays the scalable layout.
+
+Three routes, and only the third is inside this scope:
+
+1. teach `igvmbuilder` to embed the plane's kernel and initrd as measured page data - an upstream tooling change;
+2. make QEMU populate the kernel-hashes page on the IGVM path and have OVMF verify it - a host-side change to
+   QEMU and firmware behaviour, i.e. host security code;
+3. **the SVSM loads the plane itself**: its measured FS archive carries the plane's kernel and initrd, the SVSM
+   places them in pages it validated and froze, and creates the plane's VMSA with RIP at the kernel entry. The
+   archive is already measured, the SVSM already unpacks it and already creates guest VMSAs, so no new
+   mechanism is needed - at the price of the SVSM becoming the plane's boot loader (zero page, boot params, the
+   kernel's entry conventions).
+
+Route 3 is proposed and is with the reviewer. Until it lands, **no document may say the admitted bytes are the
+bytes that executed**: what holds is that the bytes exist, are immutable to every plane, and that this SVSM
+speaks for the plane only once it has hashed and frozen them.
+
+## The monitor port: NOT the path, by direction
+
+The agreed next increment was "move the monitor to protocol 6, so every domain's report comes through it".
+That cannot be done as stated without destroying something M3a has today, and the reason is worth setting out
+before anyone writes the code.
+
+`monitor/main.go:877` builds `contract.ReportData(bind, d.appHash)`: `[32:64]` is the app **this monitor loaded
+for THIS domain**, and a plane holds many domains, each with its own bundle and its own hash. Protocol 6, by
+design, writes `[32:64]` from `APP_TABLE[plane]` and refuses to take it from the caller - which is the property
+that makes it an authority. So a monitor calling protocol 6 would give **every domain in the plane the same
+identity**: the reviewer's B6, and a straight loss of per-domain naming.
+
+The three ways out, and what each costs:
+
+1. **Many domains per plane, the SVSM vouches only for the PLANE.** Per-domain naming then comes from code
+   inside the plane - the monitor - which is unmeasured on the IGVM path. That is the original M3b defect
+   unchanged, so it is not a way out, it is giving up.
+2. **One app per plane.** The SVSM names each app, which is what M4b is for, but `vmpl_count=4` caps it at two
+   or three and it needs all five second-plane preconditions. It does not rescue the M3a shape.
+3. **The SVSM admits SEVERAL bundles per plane and names one by admitted index.** `APP_TABLE` becomes
+   `[plane][slot]`, admission takes a slot, and GET_REPORT names the digest of whichever admitted slot the
+   caller selects. A caller cannot invent an identity - only choose among ones this measured image already
+   expected and whose bytes it hashed and froze. A compromised monitor could choose the WRONG admitted slot for
+   a domain's traffic, but it already holds every domain's socket, and M3a documents the guest kernel as being
+   in the app-vs-app TCB for exactly this reason. So this preserves per-domain measured identity as far as a
+   shared plane can, and is strictly better than the monitor's own unmeasured hash.
+
+**Steven's direction: option 2, the dedicated plane. Option 3 is NOT to be implemented as equivalent per-app
+hardware isolation, and M3a/M3b compatibility is not to be rescued by weakening acceptance.** The analysis below
+is kept because it is the record of why a shared plane cannot give per-app identity, not as a plan.
+
+Option 3 was the recommendation before that direction, and it is a change to what the naming authority MEANS - the contract says
+`[32:64]` is "the monitor's app ID, never the caller's", and this makes it "an admitted app ID, chosen by the
+caller from a measured set". That is a contract-level decision and is flagged rather than taken unilaterally.
+
+### What naming by admitted index is and is not an authority over
+
+From the independent review (enclave-59, recorded because it is the clearest statement of the limit):
+
+* **YES over the SET.** A caller can only obtain an identity this measured image expected, so a verifier's app
+  allowlist is enforced by the SVSM and a compromised monitor cannot introduce a new identity.
+* **YES over the BYTES.** They were hashed and frozen by the SVSM before anything was named.
+* **NO over the MAPPING** from a domain's key to an app, inside the plane. Every observable the SVSM has for a
+  request - registers, the descriptor, the GPAs, the CPU - is the plane kernel's to set, so **nothing attributes
+  a request to a domain rather than to the plane**. That is a hardware limit of a shared plane, not a gap in the
+  design, and it is why M3a puts the guest kernel in the app-vs-app TCB. No design below the plane boundary
+  obtains it, so it is not worth asking the SVSM to derive the slot from something the caller cannot choose:
+  nothing such exists.
+
+The contract sentence survives if read precisely: **"never the caller's" is about the DOMAIN**, and a domain
+cannot reach protocol 6 at all (ring 0 only, no `/sys` in the domain's root, M3a check 5 measures it). The
+caller of protocol 6 is the monitor, which was always the chooser; what changes is that it chooses from the
+SVSM's admitted set instead of from its own table. Proposed wording, to land with an ABI bump:
+
+> `[32:64]` is an app ID the platform's measured naming authority admitted for the domain's plane; a domain
+> never states it. In a dedicated plane the authority names the plane; in a shared plane it names the slot the
+> plane's monitor registered for the domain's key.
+
+### Three conditions that make option 3 worth building
+
+1. **Register the key with the slot at admission, and let the SVSM compute the bind.** `ADMIT(slot, pages,
+   SPKI)` records `sha256(SPKI)` per slot, one slot to one SPKI with duplicates across slots refused;
+   `GET_REPORT(slot, nonce)` has the SVSM compute `Bind(SPKI, nonce)` itself - or `Bind2` with a RuntimeID
+   compiled in beside `RUNTIME_TABLE`, which closes B5 for free. The mapping is then fixed at domain start and
+   one-to-one, so no later compromise can re-label a live domain and a report for slot *i* can only ever carry
+   slot *i*'s key. The residual is a monitor that mis-registers at start, which is the TCB statement M3a
+   already makes.
+2. **A4 makes the chooser measured.** Once the SVSM owns or verifies the plane's initial image (kernel plus
+   monitor), the registration above is measured code's word, and option 3 regains M3a's standing on the IGVM
+   path: "chosen by measured code from a measured set", which is the contract's original meaning. Until A4 it
+   is "chosen by UNMEASURED code from a measured set", and every document must say so.
+3. **Tell the verifier the shape** - see the next section, and it applies today.
+
+### Condition 3 applies NOW, to the single plane this SVSM already serves
+
+All planes share one launch measurement, so a shared-plane report differs from a dedicated-plane one only by
+the VMPL field plus whatever the IGVM digest implies. Nothing in a report says which shape produced it. So an
+allowlist entry for a digest must carry the compiled-in layout, and a verifier that demands hardware app-vs-app
+isolation must accept **dedicated planes only** - otherwise a shared-plane report can be presented as though it
+had M4b-strength identity.
+
+**"dedicated" is a statement about NAMING, not about execution.** While A4 is open,
+`"shape": "dedicated"` means *the SVSM will only ever name this plane as ONE admitted app* - which `slots: 1`
+enforces - and it does **not** mean that only that app's code runs in the plane. The plane's kernel is
+unmeasured and could run anything. So a dedicated-plane report tells a verifier the naming authority's word
+about the admitted bytes, the level, and the freeze, and **nothing about what executes**, until A4 or 4c lands.
+Anyone hardening the allowlist schema must carry that distinction into it, or a later reader will take
+"dedicated" for hardware isolation of the code, which is precisely the claim this project keeps having to
+correct.
+
+The layout of the IGVM measured in `isolation/m4/evidence/`, which an allowlist entry for that digest must
+state:
+
+    { "plane": 2, "shape": "dedicated", "slots": 1,
+      "admitted": { "bundle": "ce52712f...0b91", "runtime": "b77aecdb...f451" },
+      "apps": { "plane1": "8773d334...2685", "plane2": "ce52712f...0b91" },
+      "guest_vmpck": "none", "report_paths": ["svsm protocol 6", "svsm protocol 1, gated on admission"] }
+
+`plane1` is named in the table but unreachable: `require_owning_plane` serves only `GUEST_VMPL`. The
+`"shape"` field is read per the paragraph above: one admitted app NAMED, not one app's code executing.
+
+### The fourth options, and the non-options
+
+* **4b, hybrid layout, and the reviewer calls it the honest product shape.** With `vmpl_count=4`: two dedicated
+  planes (VMPL1, VMPL2) for apps that need hardware identity, and one shared plane (VMPL3) under option 3 for
+  density, with the verifier choosing by policy. M4a-strength identity and M3a-style density in one guest.
+* **4c, measured monitor.** The plane's kernel and initrd as measured IGVM page data, or verified by the SVSM
+  against compiled-in digests before the plane launches. That is A4 by another route, and the cheapest way to
+  get its effect for the monitor specifically.
+* **Non-options, listed so nobody chases them:** the SVSM holding domains' TLS private keys (a signing oracle
+  still signs for whoever the monitor routes to it); per-domain VMPCKs (there are four keys, one per level, not
+  one per domain); any sub-plane signal from the CPU, registers or GPAs (all of it is the plane kernel's).
+
+### Naming the two SVSM configurations
+
+They have different IGVM digests by construction, so a verifier's allowlist separates them already. Every
+write-up names them by digest, and an M3 pass and an M4b admission are never presented as one configuration.
+
+Until it is settled: **M3a and M3b do not pass against an IGVM built from this SVSM**, because their domains
+get reports through configfs-tsm and the guest holds no key. M4a is unaffected - it has no SVSM. Running the M3
+suites means building the SVSM without `copy_with_no_vmpck`, which reopens the bypass, so the two
+configurations cannot be conflated in any write-up.
+
+## Reclaim: which half of the lifecycle this is, and what it does not undo
+
+`SVSM_APPID_RECLAIM` undoes ADMISSION **at the plane's own request**. Named precisely because the distinction
+matters:
+
+* **It is not plane teardown.** VMSAs, every page the plane owns beyond its artifacts, the calling area and the
+  secrets copy are untouched. The SVSM-initiated half of A7 - reclaiming a plane that *crashed*, which never calls
+  anything - stays open, and a plane that dies takes its admission with it into the next boot of the guest.
+* **The caller must have stopped using the artifacts first.** `KIND_RUNTIME` pages are readable and executable and
+  may be mapped by a running runtime; reclaim zeroes them regardless and the SVSM cannot check whether anything is
+  still executing from them. So the guest sequence is: stop the runtime, then RECLAIM. A plane that reclaims under
+  its own running runtime has zeroed the code beneath it, and that is its own doing.
+* **It revokes naming, not evidence already issued.** A report fetched before reclaim stays a valid report: it is
+  signed, its measurement is unchanged, and only the verifier's own nonce expires it. Reclaim stops the SVSM
+  speaking for the plane from then on; it cannot reach back into reports already handed out.
+* **A frame that was recorded but never frozen is zeroed too.** If a freeze failed before reaching frame *k*,
+  that frame is still in the list and reclaim zeroes it like any other. That is correct rather than a bug: these
+  are artifact pages the plane offered for admission, and zeroing a page whose freeze never happened costs the
+  plane nothing it had a claim to - while leaving it alone would mean reclaim's guarantee ("nothing of the old
+  artifact survives") depended on how far a failed freeze got.
+* **It fails closed.** The naming and the key are cleared BEFORE any page is touched, so a failure partway leaves
+  the plane unspoken-for rather than named over a half-erased artifact. Unprocessed frames stay recorded, the
+  PVALIDATE hook keeps refusing them, and a later RECLAIM retries the remainder instead of being told there is
+  nothing to do.
+
+## Still open, and not to be written up as done
+
+* **A1, and it blocks plane-per-app outright.** `kernel/src/sev/secrets_page.rs` `copy_for_vmpl` clears only
+  `vmpck[0..vmpl]`, so a plane keeps the VMPCKs of less privileged planes. The reviewer measured a VMPL2 guest
+  minting a signed report naming **vmpl=3** with the shared measurement. With planes, plane 1 forges plane 2
+  completely - its own key bound, B's AppID, vmpl=2, the SVSM's measurement - over its own GHCB, and admission
+  never sees it. The fix is that app planes get NO VMPCK and protocol 6 becomes the only report path.
+* ~~**The admitted "runtime image" is the wasmtime ELF alone.**~~ Closed for the serving plane 2026-09-24: the
+  runtime kind admits the whole `/rt` set (section "The runtime SET is admitted whole"), and the executed component
+  is cut by the plane from the bundle bytes it admitted (section "The app a plane serves...").
+* **A4: admitted bytes are not bound to what EXECUTES.** The loader is the unmeasured guest kernel: it can
+  present the genuine bundle and runtime, have them admitted, and execute a different copy. Closing it means
+  the SVSM owning the plane's initial image and entry - loading it from compiled-in digests into pages it
+  validated and froze, and creating the plane's VMSA with RIP inside them - after which KIND_RUNTIME admission
+  disappears because the SVSM launched it. That is the next increment and the decision to record.
+* **A7: no plane lifecycle.** `ADMITTED` is never cleared and there is no SVSM-side teardown (no scrub, no
+  permission revocation, no per-plane VMSA teardown), so `contract.Lifecycle`'s "exactly one reclamation" has
+  no SVSM counterpart.
+* **Protocol 6 has not run on hardware.** The guest caller exists (`isolation/m4/guest/appidmod.ko` +
+  `admitinit`, both building) and uses the exported `snp_issue_svsm_attest_req`, which is why the protocol
+  takes a descriptor rather than RDX/R8. No admission has been performed on the machine yet.
+* **B5: the runtime LABEL in `report_data[0:32]` is still the guest's word** under IGVM. Compile RuntimeID per
+  plane into the SVSM and compute Bind2 here, or narrow RUNTIME.md's IGVM row.
+* **B6:** if today's multi-domain monitor guest called protocol 6, every domain would be `APP_TABLE[2]`.
+* **B3:** `freeze_pages` adjusts 4 KiB at a time; a 2 MiB-validated page returns FAIL_SIZEMISMATCH and fails
+  admission after a partial freeze. Needs one hardware run to confirm.
+* **B7:** the vTPM and UEFI-vars protocols are guest-global state and would be a cross-tenant channel once
+  planes exist.
+
+## Open in this step: the runtime identity, not only the app ID
+
+`isolation/contract` now also binds **what compiled the app** into `report_data[0:32]` under ABI/2
+(`RUNTIME.md`): the app is one portable WebAssembly component compiled inside the domain, so the runtime,
+its version, its execution mode, the ISA it targets, its CPU-feature policy, its W^X statement and its
+cache mode are part of what a report vouches for. The Linux domains do this today and it is verified on
+hardware (M2 24/24, M3a 31/31, M4a 14/14, 2026-09-23).
+
+**On this path that identity has the problem this whole step exists to fix.** `appid.rs` moves the app half
+into the measured SVSM because, under IGVM, the guest image is outside the launch measurement. The runtime
+identity is a file in that same unmeasured image, so on the IGVM path it is asserted by code whose identity
+the report does not establish - the same defect, one field over.
+
+So whoever continues this step does one of two things, and says which:
+
+1. **compile the runtime identity into the SVSM** beside `APP_TABLE` (from the build, as `ENCLAVE_APP_IDS`
+   already is) and have the SVSM compute `contract.Bind2(spki, nonce, RuntimeID(identity))` for the calling
+   plane, so the binding is produced by measured code and changes the measurement when the runtime changes;
+   or
+2. **narrow the claim in writing** for the IGVM path: the runtime identity is the domain's own statement,
+   authenticated to the transport key but not measured, and no document may describe it otherwise.
+
+Option 1 is the one that matches what `appid.rs` already does for the app half, and it needs no new
+derivation path: the digest is derived with `igvmmeasure` and matched against the live report today.
 
 ## The honest ceiling
 

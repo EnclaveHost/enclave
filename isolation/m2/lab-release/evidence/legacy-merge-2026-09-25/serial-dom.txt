@@ -1,0 +1,7 @@
+DOM snp=1 vcpus=1 memMiB=883 boot_ms=836
+DOM app mode run: a wasi:cli command serving HTTP on 8000 (ENCLAVE_PORTS http:8000=8000, /data 64 MiB scratch)
+DOM started app=77 front=78 at_ms=855
+DOM runtime wasmtime/48.0.1 execution=jit target=x86_64 host=x86_64 features=host-detected wx=enforced cache=none id=ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8
+DOM runtime selftest exec_pages=allowed wx=clean maps=3 scope=all-processes
+DOM certificate: this domain may certify 09015e0c.app.enclave.host (HOST_DATA 09015e0ca42662fa...)
+DOM serving vsock=443 spki_sha256=934755850d76434e020f0f7b1ce40fd8afc21b818716b46bb3b24fbf0aac8f3d ready_ms=1030

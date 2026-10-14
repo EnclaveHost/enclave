@@ -243,18 +243,21 @@ if [ "${RECHECK:-0}" != 1 ]; then
   # ...and the real domains must be untouched by any of it
   client "$W/s1-A.after-probe" "$W/s1-AAAAA.fwd" --app-sha "$shaA" $TR
   pid=$(sed -n 's/.*"id":\([0-9]*\).*/\1/p' "$W/s1-PROBE.load" | head -1)
+  pboot=$(sed -n 's/.*"boot":"\([0-9a-f]*\)".*/\1/p' "$W/s1-PROBE.load" | head -1)
   "$W/m3ctl" -cid "$cid" list > "$W/s1.list-after-probe" 2>&1 || true
-  "$W/m3ctl" -cid "$cid" -id "${pid:-0}" destroy > "$W/s1.probe-destroy" 2>&1 || true
+  "$W/m3ctl" -cid "$cid" -id "${pid:-0}" -boot "${pboot:-}" destroy > "$W/s1.probe-destroy" 2>&1 || true
 
   # --- graceful stop: signal the front and let the domain wind down -------------------------------
   agid=$(sed -n 's/.*"id":\([0-9]*\).*/\1/p' "$W/s1-AGAIN.load" | head -1)
-  "$W/m3ctl" -cid "$cid" -id "${agid:-0}" stop > "$W/s1.stop" 2>&1 || true
+  agboot=$(sed -n 's/.*"boot":"\([0-9a-f]*\)".*/\1/p' "$W/s1-AGAIN.load" | head -1)
+  "$W/m3ctl" -cid "$cid" -id "${agid:-0}" -boot "${agboot:-}" stop > "$W/s1.stop" 2>&1 || true
   sleep 2
   "$W/m3ctl" -cid "$cid" state > "$W/s1.state-after-stop" 2>&1 || true
 
   "$W/m3ctl" -cid "$cid" list > "$W/s1.list-before" 2>&1 || true
   idB=$(sed -n 's/.*"id":\([0-9]*\).*/\1/p' "$W/s1-BBBBB.load" | head -1)
-  "$W/m3ctl" -cid "$cid" -id "${idB:-2}" destroy > "$W/s1.destroy" 2>&1 || true
+  bootB=$(sed -n 's/.*"boot":"\([0-9a-f]*\)".*/\1/p' "$W/s1-BBBBB.load" | head -1)
+  "$W/m3ctl" -cid "$cid" -id "${idB:-2}" -boot "${bootB:-}" destroy > "$W/s1.destroy" 2>&1 || true
   sleep 1
   # a short probe, not the client: the client is built to WAIT for a domain to come up, which is the
   # opposite of what this checks
@@ -480,31 +483,50 @@ ser s1 | grep -a '^PROBE' | sed 's/^/    /' || true
 probe_lines=$(ser s1 | grep -ac '^PROBE' || true)
 bad=0
 # every one of these must have FAILED. A line that says READABLE or CONNECTED is a broken boundary.
-for k in other_app_absolute other_app_relative other_app_escape other_front_socket configfs_tsm sysfs \
+for k in other_app_absolute other_app_relative other_app_escape other_front_socket configfs_tsm sysfs dev_tpm0 dev_tpmrm0 \
          vsock_local_domain1 vsock_local_domain2 vsock_own_control vsock_host_control host_gateway; do
   v=$(ser s1 | sed -n "s/^PROBE[0-9]* $k=//p" | head -1)
   case "$v" in
-    *READABLE*|*CONNECTED*) echo "    BROKEN: $k=$v"; bad=$((bad + 1)) ;;
+    *READABLE*|*CONNECTED*|*OPENED*) echo "    BROKEN: $k=$v"; bad=$((bad + 1)) ;;
     "") echo "    MISSING: $k never reported"; bad=$((bad + 1)) ;;
   esac
 done
 [ "$(ser s1 | sed -n 's/^PROBE[0-9]* create_tsm_entry=//p' | head -1)" = "CREATED" ] && bad=$((bad + 1))
-[ "${probe_lines:-0}" -ge 15 ] && [ "$bad" = 0 ] && r=ok || r=no
-check "10 a COMPROMISED domain (measured native code as the domain's uid) cannot read another domain's app or socket, cannot reach configfs or the report interface, cannot open another domain's vsock port or the host's, and cannot reach the host network" $r
+# TWO LAYERS (domprobe.c): the vsock lines above are the layer BENEATH the runtime's seccomp filter, so each must have
+# failed ON ITS OWN, never with EPERM (only the filter gives that); the probe then filters itself (seccomp=2) and each
+# filtered_ line must fail WITH EPERM. Otherwise a filtered probe would pass the vsock lines on EPERM alone and measure
+# nothing about the relay and port confinement beneath (enclave-5d, on enclave-b4's filter).
+for k in vsock_local_domain1 vsock_local_domain2 vsock_own_control vsock_host_control; do
+  b=$(ser s1 | sed -n "s/^PROBE[0-9]* $k=//p" | head -1)
+  f=$(ser s1 | sed -n "s/^PROBE[0-9]* filtered_$k=//p" | head -1)
+  # ...and it must be a refusal the relay and port confinement give (the values seen in real guests: reset, refused, a
+  # timeout, unreachable), not one that means vsock was never there to measure (EAFNOSUPPORT) or the filter (EPERM):
+  # enclave-bf's review of 80b3f0de. A new errno fails loudly here, to be looked at, never passed by default.
+  case "$b" in
+    "Connection reset by peer"|"Connection refused"|"timed out (no answer)"|"Connection timed out"|"Network is unreachable") ;;
+    *) echo "    BASE LAYER UNMEASURED: $k=${b:-missing}"; bad=$((bad + 1)) ;;
+  esac
+  [ "$f" = "Operation not permitted" ] || { echo "    NOT REFUSED BY THE FILTER: filtered_$k=${f:-missing}"; bad=$((bad + 1)); }
+done
+[ "$(ser s1 | sed -n 's/^PROBE[0-9]* seccomp=//p' | head -1)" = 2 ] || { echo "    the probe did not filter itself (seccomp=2)"; bad=$((bad + 1)); }
+[ "${probe_lines:-0}" -ge 22 ] && [ "$bad" = 0 ] && r=ok || r=no
+check "10 a COMPROMISED domain (measured native code as the domain's uid) cannot read another domain's app or socket, cannot reach configfs, the report interface or the TPM devices (open only), cannot open another domain's vsock port or the host's, and cannot reach the host network" $r
 sig=$(ser s1 | sed -n 's/^PROBE[0-9]* signalable_pids=//p' | head -1)
 vis=$(ser s1 | sed -n 's/^PROBE[0-9]* visible_pids=//p' | head -1)
 echo "evidence: it could see $vis processes and signal $sig of the first 400 pids"
 [ -n "$sig" ] && [ "$sig" -le 2 ] && [ -n "$vis" ] && [ "$vis" -le 3 ] && r=ok || r=no
 check "10b it can see and signal only its own processes, not the monitor's and not another domain's" $r
-# the report it DID get must name its own app: a compromised domain can only ever speak for itself
-prep=$(ser s1 | sed -n 's/^PROBE[0-9]* report_b64=//p' | head -1)
-named=$(python3 -c "
-import base64,sys
-b=base64.b64decode(sys.argv[1]) if sys.argv[1] else b''
-print(b[0x50+32:0x50+64].hex() if len(b)>=0x90 else '')" "$prep" 2>/dev/null)
-echo "evidence: the app named in its report: ${named:-none} (its own $shaP; the other domains run $shaA / $shaB)"
-[ -n "$named" ] && [ "$named" = "$shaP" ] && r=ok || r=no
-check "10c the report it obtained names ITS OWN app, although its request also carried another app hash: naming is the monitor's, not the caller's" $r
+# the RUNTIME (the probe runs as its uid) must get NO report at all, unfiltered or filtered: the report channel is the
+# front's (enclave-87's ruling on enclave-bf's finding; the monitor answers the front's uid only, and /run is the front's)
+rep=$(ser s1 | sed -n 's/^PROBE[0-9]* report=//p' | head -1)
+frep=$(ser s1 | sed -n 's/^PROBE[0-9]* filtered_report=//p' | head -1)
+got=$(ser s1 | sed -n 's/^PROBE[0-9]* report_b64=//p' | head -1)
+echo "evidence: the runtime's report request: ${rep:-missing}; filtered: ${frep:-missing}; a report obtained: ${got:+YES}${got:-none}"
+# exactly "Permission denied" (the front's 0700 /run refusing), never merely "not granted": "no-answer" would mean the
+# runtime REACHED the report socket and only the monitor stayed silent (enclave-5d). The monitor's own uid refusal is
+# proved separately (monitor/frontuid_test.go), so each layer is measured on its own
+[ "$rep" = "Permission denied" ] && [ "$frep" = "Permission denied" ] && [ -z "$got" ] && r=ok || r=no
+check "10c the RUNTIME (the probe, as its uid) is REFUSED a report, unfiltered and filtered: the report channel is the front's alone" $r
 
 # --- graceful stop ------------------------------------------------------------------------------
 echo "evidence: stop: $(cat "$W/s1.stop" 2>/dev/null | tr -d '\n') / $(ser s1 | grep -aE 'stop:|stopped' | tr '\n' '; ')"

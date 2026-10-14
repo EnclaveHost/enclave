@@ -159,6 +159,35 @@ if (opt('--genuine') && opt('--vcek')) {
   const tampered = { ...g.doc, report: (() => { const r = Buffer.from(g.doc.report, 'base64'); r[0x10] ^= 1; return r.toString('base64'); })() };
   t = await judge(tampered, gs, gn, want('trusted', { vcek, minTcb: own }));
   check('N9f the genuine report with one signed byte changed: REJECTED on the signature', t.verdict === 'reject' && /signature over the report is invalid/.test(t.reasons.at(-1)), t.reasons.at(-1));
+
+  // ABI/2, with the GENUINE report this live domain signed. The identity in the document is not decoration:
+  // report_data[0:32] was computed over it, so restating the same report under any other runtime identity
+  // has to fail ON THE BINDING - the crypto, not a field comparison. And a document that keeps the report
+  // while dropping to ABI/1 must fail too, or the whole binding could be sidestepped by omitting a field.
+  if (g.doc.abi === 'enclave-domain-abi/2' && g.doc.runtime) {
+    const rt = g.doc.runtime;
+    check('N9g the genuine ABI/2 document verifies when its OWN runtime identity is pinned',
+      (t = await run('trusted', { vcek, minTcb: own, runtime: rt })).verdict === 'attested' && t.gateOpen, t.verdict);
+    for (const [k, v] of [['version', '0.0.0'], ['execution', 'interpreter'], ['cpuFeatures', 'baseline'],
+      ['cache', 'authenticated'], ['name', 'wasmer']]) {
+      const restated = { ...g.doc, runtime: { ...rt, [k]: v } };
+      if (k === 'execution') restated.runtime.targetIsa = 'pulley64';   // else the identity is inadmissible
+      t = await judge(restated, gs, gn, want('trusted', { vcek, minTcb: own }));
+      check(`N9h the genuine report restated with a different runtime ${k}: REJECTED on the BINDING`,
+        t.verdict === 'reject' && /does not bind/.test(t.reasons.at(-1)), t.reasons.at(-1));
+    }
+    const { abi, runtime, runtimeSelfTest, ...dropped } = g.doc;
+    t = await judge({ ...dropped, abi: 'enclave-domain-abi/1' }, gs, gn, want('trusted', { vcek, minTcb: own }));
+    check('N9i the genuine ABI/2 report re-presented as an ABI/1 document: REJECTED (the binding covers the runtime)',
+      t.verdict === 'reject' && /does not bind/.test(t.reasons.at(-1)), t.reasons.at(-1));
+    t = await judge({ ...dropped, abi: 'enclave-domain-abi/1' }, gs, gn, want('trusted', { vcek, minTcb: own, runtime: rt }));
+    check('N9j a verifier that EXPECTS a runtime refuses a document that dropped to ABI/1',
+      t.verdict === 'reject' && /silent downgrade/.test(t.reasons.join(' ')), t.reasons.at(-1));
+    const bad = { ...g.doc, runtimeSelfTest: 'exec_pages=allowed wx=dirty maps=3 scope=all-processes' };
+    t = await judge(bad, gs, gn, want('trusted', { vcek, minTcb: own }));
+    check('N9k the genuine report with a self-test admitting a writable+executable page: REJECTED',
+      t.verdict === 'reject' && /wx=clean/.test(t.reasons.join(' ')), t.reasons.at(-1));
+  }
 }
 console.log(fails ? `NEGATIVE: ${fails} FAILED` : 'NEGATIVE: ALL PASS');
 process.exit(fails ? 1 : 0);

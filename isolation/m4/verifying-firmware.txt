@@ -1,0 +1,26 @@
+# Firmwares that are KNOWN TO VERIFY the measured SEV hash table, by sha256 of the .fd file.
+#
+# WHY A PIN AND NOT A NAME. igvmbuilder emits the measured table for ANY firmware that declares a KERNEL_HASHES
+# area, and a non-verifying firmware declares one too: the distro OvmfPkgX64 links BlobVerifierLibNull, which
+# never looks at the table. So an IGVM can carry a byte-perfect measured table over a firmware that checks
+# nothing, and every structural check - the directive, the split, the grant, the whole-table comparison - PASSES.
+# Found by enclave-59 on 2026-09-24 by building exactly that IGVM; the structural inspector accepted it.
+#
+# Structure cannot tell a verifying firmware from a non-verifying one. Only the firmware's identity can, and what
+# makes a firmware "verifying" is SUBSTITUTION EVIDENCE - a run in which it refused artifacts that did not match
+# the table - never its filename, its .dsc, or the library it appears to link.
+#
+# The firmware is recoverable from a built IGVM: the pages at 0xffc00000 reassemble to the .fd file's sha256, so
+# this pin is checkable after the fact and not only at build time.
+#
+# To add a line: run the substitution negative against that firmware, commit the evidence, and cite it here.
+# Never add a firmware because it "should" verify.
+
+# sha256                                                            file                  evidence
+50c063542f9886f8b3ec67ebe698ae1d617b7691bef89bb6eff4a34566930ec2  OVMF.amdsev.debug.fd  m4/evidence/step2-measured-boot-2026-09-24.txt (case 2: Hash comparison failed for "initrd"); m2/evidence firmware-0a
+142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9  OVMF.amdsev.fd        m4/evidence/firmware-0a-2026-09-24.txt (same build, RELEASE: refuses, silently)
+
+# KNOWN NOT VERIFYING, listed so it is never mistaken for an omission:
+#   2a489a243844bc210f46c6d2093766830a97763ee1456ef83f8b3ae033f41f4c  /usr/share/edk2/x64/OVMF.4m.fd
+#     BlobVerifierLibNull. Boots with no table at all (measured, m2/verify-firmware.sh 2026-09-23) and boots a
+#     perfect measured table without checking it (enclave-59, 2026-09-24).

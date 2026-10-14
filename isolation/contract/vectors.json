@@ -1,5 +1,6 @@
 {
  "abi": "enclave-domain-abi/1",
+ "abi2": "enclave-domain-abi/2",
  "bundles": [
   {
    "name": "A",
@@ -135,6 +136,14 @@
    "app_id": "be22c1588a17de272fea5cc4866f1ec7bd2bc7d146bbe442f0b3f4873aebf44f",
    "parses": false,
    "note": "the manifest names a different artifact than the bundle carries: refused"
+  },
+  {
+   "name": "native-kind-refused",
+   "artifact_hex": "00090e171c252a333841464f545d626b70797e878c959aa3a8b1b6bfc4cdd2dbe0e9eef7fc050a131821262f343d424b50595e676c757a838891969fa4adb2bbc0c9ced7dce5eaf3f801060f141d222b30393e474c555a636871767f848d929ba0a9aeb7bcc5cad3d8e1e6eff4fd020b10191e272c353a434851565f646d727b80898e979ca5aab3b8c1c6cfd4dde2ebf0f9fe070c151a232831363f444d525b60696e777c858a9398a1a6afb4bdc2cbd0d9dee7ecf5fa030811161f242d323b40494e575c656a737881868f949da2abb0b9bec7ccd5dae3e8f1f6ff040d121b20292e373c454a535861666f747d828b90999ea7acb5bac3c8d1d6dfe4edf2fb00090e171c252a333841464f545d626b70797e878c959aa3a8b1b6bfc4cdd2dbe0e9eef7fc050a131821262f",
+   "bundle_hex": "454e434c4156452d42554e444c452f310ae00000007b22616269223a22656e636c6176652d646f6d61696e2d6162692f31222c226172746966616374223a7b226b696e64223a22637761736d2d7838365f3634222c22736861323536223a2262373461626361636236613464346132613366316235333830333039366534633836393331656234663531636462633630633762336266666563623162353839227d2c226c6162656c223a2241222c22706f6c696379223a7b2263707550657263656e74223a3130302c226d656d4d6942223a3235362c227663707573223a317d2c22776f726c64223a22776173693a68747470227d2c01000000090e171c252a333841464f545d626b70797e878c959aa3a8b1b6bfc4cdd2dbe0e9eef7fc050a131821262f343d424b50595e676c757a838891969fa4adb2bbc0c9ced7dce5eaf3f801060f141d222b30393e474c555a636871767f848d929ba0a9aeb7bcc5cad3d8e1e6eff4fd020b10191e272c353a434851565f646d727b80898e979ca5aab3b8c1c6cfd4dde2ebf0f9fe070c151a232831363f444d525b60696e777c858a9398a1a6afb4bdc2cbd0d9dee7ecf5fa030811161f242d323b40494e575c656a737881868f949da2abb0b9bec7ccd5dae3e8f1f6ff040d121b20292e373c454a535861666f747d828b90999ea7acb5bac3c8d1d6dfe4edf2fb00090e171c252a333841464f545d626b70797e878c959aa3a8b1b6bfc4cdd2dbe0e9eef7fc050a131821262f",
+   "app_id": "a118c78684edfa38a16586248fe316dc8f06d8bb4116377fa6dfde104191aac8",
+   "parses": false,
+   "note": "a precompiled or native artifact kind is not part of the contract: refused even when otherwise well-formed"
   }
  ],
  "bind": [
@@ -281,6 +290,191 @@
     "state:ended"
    ],
    "final": "ended"
+  }
+ ],
+ "runtime": [
+  {
+   "identity": {
+    "name": "wasmtime",
+    "version": "48.0.1",
+    "execution": "jit",
+    "targetIsa": "x86_64",
+    "hostIsa": "x86_64",
+    "cpuFeatures": "baseline",
+    "wx": "enforced",
+    "cache": "none"
+   },
+   "valid": true,
+   "runtime_id": "36437283a1a5310c7e2513313b8b5a6cbad44a86f1d8420947f7052ea8c51414",
+   "bind2": "a9bf3e3af7cc7f7fe2092e64a64926048b108715e8bb0ccc8019b5f6abcb5551",
+   "cache_key": "0ebed366470f41bd6fba7a73af255bf5eeec12afb71a93ad5e5a8f228646bb98",
+   "note": "the reference: wasmtime 48.0.1 on x86_64, baseline features, W^X enforced, no cache"
+  },
+  {
+   "identity": {
+    "name": "wasmtime",
+    "version": "48.0.1",
+    "execution": "jit",
+    "targetIsa": "aarch64",
+    "hostIsa": "aarch64",
+    "cpuFeatures": "baseline",
+    "wx": "enforced",
+    "cache": "none"
+   },
+   "valid": true,
+   "runtime_id": "14b93dce01f72b1441a27212604f31a5e398270ec80d53933c7b5eb78f50d013",
+   "bind2": "b6b0d83f9f290f741ba078e52b1612c441247ca97f64fad127e77ef1d86e65f1",
+   "cache_key": "f13f07d0607f0b8cf5832943a0960496061dec4fc037c552608817d85b0b8218",
+   "note": "the same runtime emitting ARM64 inside a Pixel pVM: a different runtime ID"
+  },
+  {
+   "identity": {
+    "name": "wasmtime",
+    "version": "48.0.1",
+    "execution": "jit",
+    "targetIsa": "x86_64",
+    "hostIsa": "x86_64",
+    "cpuFeatures": "+sse4.2,+avx2",
+    "wx": "enforced",
+    "cache": "none"
+   },
+   "valid": true,
+   "runtime_id": "82c0609742ec9adc25466b67ee40a2cf2fe49ceba93fa657d68fa0a1f76621bb",
+   "bind2": "54c017884de8a6e709266acd3fa86ea763d76c1992def2cd8a59272e25b5f119",
+   "cache_key": "7e9855e104f721946395196bd308e139d139246f87b10e034312a44281b41073",
+   "note": "a different CPU-feature policy: a different runtime ID"
+  },
+  {
+   "identity": {
+    "name": "wasmtime",
+    "version": "49.0.0",
+    "execution": "jit",
+    "targetIsa": "x86_64",
+    "hostIsa": "x86_64",
+    "cpuFeatures": "baseline",
+    "wx": "enforced",
+    "cache": "none"
+   },
+   "valid": true,
+   "runtime_id": "8b3cd38f3b624421dc6220fd17941c017a61e09b8a00daf81ca08541ad60b844",
+   "bind2": "b62e1b804195cb013dff4aeab4555f014951648fa681ce8613bd4d62d0b63157",
+   "cache_key": "d6f8cbfbc4ada3c7cfefda3eb1fab80d963df898d6b788cc0337e06045f5ac79",
+   "note": "a different runtime version: a different runtime ID"
+  },
+  {
+   "identity": {
+    "name": "wasmtime",
+    "version": "48.0.1",
+    "execution": "interpreter",
+    "targetIsa": "pulley64",
+    "hostIsa": "aarch64",
+    "cpuFeatures": "baseline",
+    "wx": "enforced",
+    "cache": "none"
+   },
+   "valid": true,
+   "runtime_id": "0ad15c8390e5e5305e8d5e386597fe48feefa79da4508ca2a752a172508fe302",
+   "bind2": "dc3b611a9491af49602cb98a4034c32d423f270fd83792582d928f4eae6da77f",
+   "cache_key": "b87964078657b87ad345938046d42160222202991014b963a9902d12dcb66f9e",
+   "note": "the Pixel pVM: the component compiled to Pulley bytecode inside the pVM and interpreted on ARM64"
+  },
+  {
+   "identity": {
+    "name": "wasmtime",
+    "version": "48.0.1",
+    "execution": "jit",
+    "targetIsa": "x86_64",
+    "hostIsa": "x86_64",
+    "cpuFeatures": "baseline",
+    "wx": "best-effort",
+    "cache": "none"
+   },
+   "valid": false,
+   "note": "W^X not stated as enforced: refused"
+  },
+  {
+   "identity": {
+    "name": "wasmtime",
+    "version": "48.0.1",
+    "execution": "jit",
+    "targetIsa": "x86_64",
+    "hostIsa": "x86_64",
+    "cpuFeatures": "baseline",
+    "wx": "enforced",
+    "cache": "unauthenticated"
+   },
+   "valid": false,
+   "note": "an unauthenticated cache: refused"
+  },
+  {
+   "identity": {
+    "name": "wasmtime",
+    "version": "48.0.1",
+    "execution": "jit",
+    "targetIsa": "riscv64",
+    "hostIsa": "riscv64",
+    "cpuFeatures": "baseline",
+    "wx": "enforced",
+    "cache": "none"
+   },
+   "valid": false,
+   "note": "an ISA the contract does not name: refused"
+  },
+  {
+   "identity": {
+    "name": "wasmtime",
+    "version": "48.0.1",
+    "execution": "jit",
+    "targetIsa": "pulley64",
+    "hostIsa": "aarch64",
+    "cpuFeatures": "baseline",
+    "wx": "enforced",
+    "cache": "none"
+   },
+   "valid": false,
+   "note": "pulley64 with execution jit: refused (bytecode is interpreted)"
+  },
+  {
+   "identity": {
+    "name": "wasmtime",
+    "version": "48.0.1",
+    "execution": "interpreter",
+    "targetIsa": "aarch64",
+    "hostIsa": "aarch64",
+    "cpuFeatures": "baseline",
+    "wx": "enforced",
+    "cache": "none"
+   },
+   "valid": false,
+   "note": "aarch64 with execution interpreter: refused (an interpreter runs pulley64)"
+  },
+  {
+   "identity": {
+    "name": "wasmtime",
+    "version": "48.0.1",
+    "execution": "jit",
+    "targetIsa": "aarch64",
+    "hostIsa": "x86_64",
+    "cpuFeatures": "baseline",
+    "wx": "enforced",
+    "cache": "none"
+   },
+   "valid": false,
+   "note": "a JIT whose target is not the host ISA: refused"
+  },
+  {
+   "identity": {
+    "name": "wasmtime",
+    "version": "48.0.1",
+    "execution": "",
+    "targetIsa": "x86_64",
+    "hostIsa": "x86_64",
+    "cpuFeatures": "baseline",
+    "wx": "enforced",
+    "cache": "none"
+   },
+   "valid": false,
+   "note": "no execution mode stated: refused"
   }
  ]
 }

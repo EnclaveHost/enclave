@@ -1,0 +1,13 @@
+from pathlib import Path
+import os,subprocess,json,sys
+w=Path(__file__).resolve().parent; rt=Path('/home/steven/enclave-prod/release-fef26ae1/template/rt');r=Path('/home/steven/Projects/enclave-v100-isolation');label=sys.argv[1]
+for i in range(2):
+ alias=Path(f'/dev/shm/enclave-shielded-shm/card-{i+2}');target=Path(f'/dev/shm/enclave-shield-v100/card-{i}')
+ assert alias.exists() and alias.samefile(target) and alias.stat().st_size==67108864
+threads=os.environ.get('TEST_THREADS','6');refill=os.environ.get('TEST_REFILL','16');compute='0,'+','.join(str(i) for i in range(2,int(threads)+1))
+env={**os.environ,'LD_LIBRARY_PATH':str(rt),'BACKENDS':os.environ.get('TEST_CPU',str(rt/'backends/libggml-cpu.so'))+':'+os.environ.get('TEST_BACKEND',str(w/'backend-native/libggml-shielded.so')),'SHIELDED_SO_FOR_STATS':os.environ.get('TEST_BACKEND',str(w/'backend-native/libggml-shielded.so')),'LD_PRELOAD':str(rt/'libshielded-omp-affinity.so'),'ENCLAVE_GGML_EXTRA_BUFTS':'0','SHIELDED_PROFILE':'1','SHIELDED_CALIB':str(r/'metal/shielded-overlay/calib/qwen3.8-27b-mtp-q4-vl-gguf.calib'),'SHIELDED_WORKERS':'127.0.0.1|9501|0|16642998272|/dev/shm/enclave-shielded-shm/card-2|67108864\n127.0.0.1|9502|0|16642998272|/dev/shm/enclave-shielded-shm/card-3|67108864','SHIELDED_MAX_M':'64','SHIELDED_REFILL_BATCH':'64','SHIELDED_POOL_DEPTH':os.environ.get('TEST_POOL','64'),'SHIELDED_REFILL_THREADS':refill,'SHIELDED_SPLIT_COLS':'1','SHIELDED_OVERLAP_VERIFY':'1','SHIELDED_WEIGHT_BUDGET_FRAC':'.95','SHIELDED_REFILL_VECTOR_CRT':'1','SHIELDED_MASK_CHACHA16':'1','SHIELDED_CPU_COMPUTE':compute,'SHIELDED_CPU_MAIN':'0','SHIELDED_CPU_HELPER':'1','SHIELDED_CPU_REST':os.environ.get('TEST_REST',str(int(threads)+1)+'-15'),'OMP_NUM_THREADS':threads,'THREADS':threads,'K':os.environ.get('TEST_K','1'),'ENCLAVE_GGML_N_RS_SEQ':os.environ.get('TEST_K','1'),'WARM':'1','LABEL':label}
+# Store only explicit benchmark settings, never unrelated inherited credentials.
+(w/(label+'-config.json')).write_text(json.dumps({k:v for k,v in env.items() if k.startswith(('SHIELDED_','TEST_','OMP_','ENCLAVE_GGML_')) or k in ['LD_LIBRARY_PATH','LD_PRELOAD','BACKENDS','THREADS','K','WARM','LABEL']},indent=2))
+with (w/(label+'.json')).open('w') as out,(w/(label+'.err')).open('w') as err:
+ p=subprocess.run(['/home/steven/enclave-bench/b27/bench-spec2','/home/steven/Projects/enclave-models/qwen3.8-27b-mtp-q4-vl-gguf/Qwen3.8-27B-UD-Q4_K_XL.gguf','Explain in one paragraph why the sky is blue, then list three related phenomena.',os.environ.get('TEST_STEPS','128')],env=env,stdout=out,stderr=err,timeout=400)
+print('returncode',p.returncode);print((w/(label+'.json')).read_text());raise SystemExit(p.returncode)

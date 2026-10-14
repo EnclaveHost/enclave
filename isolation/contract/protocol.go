@@ -5,9 +5,12 @@ package contract
 // monitor decides what it is called (AppID of the bytes it received).
 //
 //	{"cmd":"load","label":"A","size":N,"cpu":100,"mem":256,"probe":false}  + N bytes
-//	{"cmd":"list"} | {"cmd":"state"} | {"cmd":"stop","id":N} | {"cmd":"destroy","id":N}
+//	{"cmd":"list"} | {"cmd":"state"} | {"cmd":"stop","id":N,"boot":B} | {"cmd":"destroy","id":N,"boot":B}
 //
-// Answers: {"id":N,"label":..,"appSha256":..,"port":..,...} for load, {"error":".."} on refusal.
+// Answers: {"id":N,"boot":B,"label":..,"appSha256":..,"port":..,...} for load, {"error":".."} on refusal.
+// B is the monitor's per-boot nonce (32 hex). Ids restart at 1 when the guest reboots, so stop and destroy
+// name (boot, id): a missing boot is refused ("bootRequired":true), and another boot's answers
+// {"rebooted":true,"boot":<current>}, touching nothing. list and state carry "boot" too.
 type Request struct {
 	Cmd    string `json:"cmd"`
 	Label  string `json:"label,omitempty"`
@@ -15,6 +18,7 @@ type Request struct {
 	CPU    int    `json:"cpu,omitempty"`
 	MemMiB int    `json:"mem,omitempty"`
 	ID     int    `json:"id,omitempty"`
+	Boot   string `json:"boot,omitempty"`
 	Probe  bool   `json:"probe,omitempty"`
 }
 

@@ -1,0 +1,29 @@
+{
+  "release": "fb81c2493173dabfc4371ea688382e297b0ad4510f36964826a303562bccfb2c",
+  "promptTokens": 3781,
+  "coldFirstRequest": "Timed out before generation; caller affinity corrected in e53c01ae",
+  "postInit128": {
+    "tokS": 18.2,
+    "decodeMs": 7044,
+    "prefillMs": 157804
+  },
+  "cached128": {
+    "tokS": 18.9,
+    "decodeMs": 6778,
+    "prefillMs": 2,
+    "cpuGraphUs": 2883430,
+    "shieldGraphUs": 3487079,
+    "gateWaitUs": 0,
+    "localProductFallbacks": 0,
+    "requestPathRefillUs": 0,
+    "padMisses": 0
+  },
+  "cached384": {
+    "tokS": 18.7,
+    "decodeMs": 20494,
+    "prefillMs": 1,
+    "draftAccepted": 160,
+    "draftTokens": 195
+  },
+  "targetMet": false
+}

@@ -1,0 +1,2 @@
+CACHE_CAPS turn=6 boundary=2 shared=1
+CACHE_APPEND_PASS prefix=128 append=16 cold_ms=948 reused_ms=119 uncached_ms=1067 max_logit_delta=0 divergent_delta=0

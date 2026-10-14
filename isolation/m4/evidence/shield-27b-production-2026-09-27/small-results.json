@@ -1,0 +1,40 @@
+[
+  {
+    "graph": "qwen2.5-0.5b-q8-gguf",
+    "n_vocab": 151936,
+    "prompt_tokens": 9,
+    "tokens": [
+      6771,
+      752,
+      1414,
+      421,
+      498,
+      646,
+      1492,
+      752
+    ],
+    "load_ms": 4,
+    "prefill_ms": 3127,
+    "decode_ms": 771,
+    "tok_per_s": 9.08
+  },
+  {
+    "graph": "qwen2.5-0.5b-q8-gguf",
+    "n_vocab": 151936,
+    "prompt_tokens": 9,
+    "tokens": [
+      6771,
+      752,
+      1414,
+      421,
+      498,
+      646,
+      1492,
+      752
+    ],
+    "load_ms": 0,
+    "prefill_ms": 188,
+    "decode_ms": 763,
+    "tok_per_s": 9.17
+  }
+]

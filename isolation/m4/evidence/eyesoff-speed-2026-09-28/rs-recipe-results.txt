@@ -1,0 +1,1 @@
+RS_MULTISLOT_PASS; max_logit_difference= 0.0

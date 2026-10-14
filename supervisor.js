@@ -326,6 +326,16 @@ const WORKER_TOKEN    = process.env.WORKER_TOKEN || "";
 // hosting via the app manager on VMMGR_URL (the wasm-manager runs each app as a
 // `wasmtime serve` process). The "vm"/VMMGR_URL names are legacy, kept for config compat.
 const PROVISION_BACKEND = (process.env.PROVISION_BACKEND || "worker").toLowerCase();
+// Per-app hardware isolation (isolation/DEPLOYMENT-PATH.md). OFF unless set, and nothing in production sets it.
+// The one backend that exists: each app in its OWN SEV-SNP guest, launched on the HOST by isolation/m4/guestd,
+// which speaks the /vms contract behind VMMGR_URL. A box with this set serves ONLY deployments whose envelope
+// requires it, and only while its manager's /health says it IS that backend; a box without it refuses every
+// deployment that requires it (parseDepOptions). An unknown value takes no tenant work at all.
+const ISOLATION_BACKEND = (process.env.ISOLATION_BACKEND || "").trim().toLowerCase();
+// hyperv-partition-per-app: the Windows owner's backend (a Hyper-V isolated partition per app) under the SAME
+// contract - envelope, claim gate, derivation, manager channel and splice. Inert until a box sets it, and a client
+// cannot verify it until the judge has that evidence format's own branch (isolation/m2/judge.mjs).
+const ISOLATION_BACKENDS = ["snp-guest-per-app", "hyperv-partition-per-app"];
 const VMMGR_URL = (process.env.VMMGR_URL || "http://127.0.0.1:8091").replace(/\/+$/, "");
 function mgrReq(method, path, body, timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
@@ -368,7 +378,37 @@ async function mgrHealth(timeoutMs = 3000) {
 // probe), which is why metal/build-image.mjs pins the two images in step.
 const VMMGR_TOKEN = process.env.VMMGR_TOKEN
   || (SECRET.length ? createHmac("sha256", SECRET).update("enclave vmmgr v1").digest("hex") : "");
+// With ISOLATION_BACKEND set, the manager is guestd on the HOST, and it is reached over guestd-control/1 ONLY
+// (isolation/m4/guestd/supervisor-transport.mjs): signed, replay-proof requests; answers verified; a mutating
+// request never repeated on an unsigned 401. Loaded only on that path, so without the flag nothing here changes.
+// Without a valid pairing key (GUESTD_KEY_FILE) every call fails - there is no fallback to plain HTTP.
+let _guestdTransport = null;
+function guestdTransport() {
+  if (!_guestdTransport) {
+    _guestdTransport = import(new URL("./isolation/m4/guestd/supervisor-transport.mjs", import.meta.url))
+      .then((m) => m.openGuestdTransport({ url: VMMGR_URL, keyFile: process.env.GUESTD_KEY_FILE || "" }))
+      .catch((e) => { _guestdTransport = null; throw e; });   // not cached: a key installed later is picked up
+  }
+  return _guestdTransport;
+}
+// With ISOLATION_BACKEND set, an app's TLS never ends in this process. /x/<id>/https splices the client's session
+// UNOPENED to the deployment's own guest through guestd's data plane at GUESTD_DATA_ADDR
+// (isolation/m4/guestd/supervisor-splice.mjs), every plaintext path to a deployment is refused (the /x/:id proxy,
+// the tcp/tls/udp bridges), and this process requests no certificate for a deployment's names (desiredCertNames).
+// Without GUESTD_DATA_ADDR the https path refuses as well: there is no fallback to terminating here.
+const GUESTD_DATA_ADDR = (process.env.GUESTD_DATA_ADDR || "").trim();
+let _isolationSplice = null;
+function isolationSplice() {
+  if (!_isolationSplice) {
+    _isolationSplice = import(new URL("./isolation/m4/guestd/supervisor-splice.mjs", import.meta.url))
+      .catch((e) => { _isolationSplice = null; throw e; });
+  }
+  return _isolationSplice;
+}
+const isolationSpliceCounts = new Map();   // "<outcome>:<kind or why>" -> count, for logs
+let _isolationSpliceObserver = null;       // ISOLATION_DATAPATH_SELFTEST only
 function vmReq(method, path, body, timeoutMs = 120000) {
+  if (ISOLATION_BACKEND) return guestdTransport().then((t) => t.request(method, path, body, timeoutMs));
   return new Promise((resolve, reject) => {
     const u = new URL(VMMGR_URL + path);
     const data = body != null ? Buffer.from(JSON.stringify(body)) : null;
@@ -383,12 +423,36 @@ function vmReq(method, path, body, timeoutMs = 120000) {
     if (data) r.write(data); r.end();
   });
 }
+let _isolationInferenceHealth = null;
 async function vmHealth(timeoutMs = 3000) {
   const r = await vmReq("GET", "/health", null, timeoutMs);
   if (r.status !== 200) throw new Error(`vmmanager /health ${r.status}`);
   // the wasm-manager holds the card this container can't see: adopt its probed VRAM
   if (r.body && r.body.gpuVramSource === "nvidia-smi") adoptCardVram(r.body.gpuVramGb, "manager");
+  // guestd's guest pool is the tier's node (TASK 4c): every answer refreshes it, an answer without one clears it
+  if (ISOLATION_BACKEND) {
+    adoptGuestPool(r.body?.pool);
+    _isolationInferenceHealth = r.body?.supports?.gpu === true && r.body?.inference?.model === "qwen2.5-0.5b-q8-gguf"
+      ? { ...r.body.inference, at: Date.now() } : null;
+  }
   return r.body;
+}
+
+// GUESTD_TRANSPORT_SELFTEST='{"calls":[{"method","path","body"?,"timeoutMs"?}]}' sends each through vmReq - the
+// supervisor's own manager path, with ISOLATION_BACKEND/VMMGR_URL/GUESTD_KEY_FILE from the environment - and prints
+// one JSON line of {status, reconciled?, body} or {error, kind, mayHaveExecuted} per call, then exits
+// (isolation/m4/guestd/transport_test.go drives it against a real guestd server).
+if (process.env.GUESTD_TRANSPORT_SELFTEST) {
+  const c = JSON.parse(process.env.GUESTD_TRANSPORT_SELFTEST);
+  const out = [];
+  for (const k of c.calls || []) {
+    try {
+      const r = await vmReq(k.method, k.path, k.body ?? null, k.timeoutMs ?? 10_000);
+      out.push({ status: r.status, ...(r.reconciled ? { reconciled: true } : {}), body: r.body });
+    } catch (e) { out.push({ error: e.message, kind: e.kind ?? null, mayHaveExecuted: e.mayHaveExecuted ?? null }); }
+  }
+  console.log(JSON.stringify(out));
+  process.exit(0);
 }
 
 // ---- on-chain discovery: self-register in EnclaveRegistry (no trusted gateway) --
@@ -542,7 +606,7 @@ async function registerOnChain(endpoint) {
       // an IDLE box gets no requests, so the heartbeat is its only chance to
       // notice the book repointed the registry - without this it heartbeats
       // forever into a contract the ledger no longer reads
-      if (registryRepointed()) return void registerFromShimCert().catch(() => {});
+      if (registryRepointed()) return void advertise();
       await syncRegisteredPrice(id).catch(() => {});
       await syncRegisteredProofKey(id).catch(() => {});
       await syncDeclaredPayoutWallet(id).catch(() => {});
@@ -696,18 +760,41 @@ async function registerFromShimCert() {
   const name = _certSan || (_certSan = await shimCertHostname());
   if (name) await registerOnChain("https://" + name);
 }
-// Register eagerly from the shim cert, retrying with backoff: early in boot the
-// shim may present a placeholder cert with no public SAN (ACME still running),
-// and a register tx can fail transiently. The lazy per-request path (below) also
-// kicks this, and the loop ends the moment either wins (_registered).
-async function advertiseFromShimCert() {
-  for (let delaySec = 5; REGISTRY_READY && !_registered; delaySec = Math.min(delaySec * 2, 300)) {
-    try {
-      await registerFromShimCert();
-      if (!_registered && !_certSan) console.log("[registry] shim cert has no public SAN yet — retrying");
-    } catch (e) { console.warn(`[registry] shim cert read failed (${e.message}) — retrying`); }
-    if (!_registered) await new Promise((r) => setTimeout(r, delaySec * 1000).unref());
-  }
+// The name this box registers under: its pinned PUBLIC_URL when it has one (a
+// tunnelled host such as metal0 has no shim cert to read), else the shim SAN.
+async function registerSelf() {
+  if (PUBLIC_URL) return registerOnChain(PUBLIC_URL);
+  return registerFromShimCert();
+}
+// Done = a register() went through on the registry the book points at NOW.
+// _registered alone is not enough: an attempt still in flight sets it, and that
+// attempt may yet fail and clear it again.
+function advertised() {
+  return !!_enclaveId && !registryRepointed();
+}
+// Register, retrying with backoff until one attempt goes through. Early in boot
+// the shim may present a placeholder cert with no public SAN (ACME still
+// running), and the host's network or the RPC may not be up yet. A PUBLIC_URL
+// box used to try exactly once: metal0 booted on 2026-10-10 with its USB uplink
+// missing, that one register() failed, and the box stayed off the live list —
+// and claimed nothing, since the claim loop waits on _enclaveId — until it was
+// restarted. One loop at a time; the lazy per-request path (below) also kicks
+// registerSelf, and the loop ends the moment either one gets through.
+let _advertising = false;
+async function advertise() {
+  if (_advertising) return;
+  _advertising = true;
+  try {
+    for (let delaySec = 5; REGISTRY_READY && !advertised(); delaySec = Math.min(delaySec * 2, 300)) {
+      try {
+        await registerSelf();
+        if (!_registered && !PUBLIC_URL && !_certSan) console.log("[registry] shim cert has no public SAN yet — retrying");
+      } catch (e) { console.warn(`[registry] shim cert read failed (${e.message}) — retrying`); }
+      if (advertised()) break;
+      if (!_registered && (PUBLIC_URL || _certSan)) console.warn(`[registry] not registered — retrying in ${delaySec}s`);
+      await new Promise((r) => setTimeout(r, delaySec * 1000).unref());
+    }
+  } finally { _advertising = false; }
 }
 function need(n){ const v = process.env[n]; if(!v){ console.error("FATAL: missing env", n); process.exit(1);} return v; }
 
@@ -1974,17 +2061,68 @@ function setOfConfig(cfg) {
 function mem64OfConfig(cfg) {
   try { return JSON.parse(String(cfg || "{}") || "{}").mem64 === true; } catch { return false; }
 }
+function pinnedHost(raw = '') {
+  const envelope = JSON.parse(String(raw || '{}'));
+  if (!envelope || Array.isArray(envelope) || typeof envelope !== 'object') throw Error('Invalid deployment options.');
+  if (!('placement' in envelope)) return '';
+  const p = envelope.placement;
+  if (!p || Array.isArray(p) || typeof p !== 'object' || Object.keys(p).some(k => k !== 'hostId')
+      || typeof p.hostId !== 'string' || !/^0x[0-9a-f]{64}$/.test(p.hostId) || /^0x0{64}$/.test(p.hostId))
+    throw Error('Invalid placement pin.');
+  return p.hostId;
+}
+function placementRefusal(raw, enclaveId) {
+  let pin;
+  try { pin = pinnedHost(raw); } catch { return null; } // malformed live edits retain the old configuration
+  return pin && pin !== String(enclaveId || '').toLowerCase()
+    ? `Pinned to host ${pin}; fallback is disabled.` : null;
+}
+
+async function retireForPlacement(rec, why) {
+  // Stop before releasing: two hosts must never serve this pin concurrently.
+  await stopContainer(rec);
+  await proveAndRelease(rec, why);
+  if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
+  rec.status = "terminated";
+  rec.error = why;
+  saveStateSoon();
+}
+
 function parseDepOptions(raw, gpuMilli) {
   const s = String(raw || "").trim();
-  if (!s) return {};
+  if (!s) return ISOLATION_BACKEND ? { isolation: ISOLATION_BACKEND } : {};
   if (s.length > DEP_OPTIONS_MAX_BYTES) throw new Error(`options exceed ${DEP_OPTIONS_MAX_BYTES} bytes`);
   if (!s.startsWith("{") && !s.startsWith("["))
     throw new Error("configCid is retired: a CID names bytes nobody validated — this field may only carry a deployment-options JSON envelope like {\"waf\":{…},\"config\":{…}} (config = an inline app-config override for this deployment); recreate the deployment without a config reference");
   let o; try { o = JSON.parse(s); } catch (e) { throw new Error("options envelope is not valid JSON: " + e.message); }
   if (!o || Array.isArray(o) || typeof o !== "object") throw new Error("options envelope must be a JSON object");
-  const unknown = Object.keys(o).filter((k) => k !== "waf" && k !== "config" && k !== "configCid" && k !== "gpu" && k !== "network");
-  if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: waf, config, configCid, gpu, network)`);
-  const opts = {};
+  // `isolation` is a namespace ONLY on a box that provides it. Everywhere else it is refused exactly as an unknown
+  // namespace always was - at claim, and as a surfaced "error" (never a silent live swap) if an owner adds it to a
+  // deployment that is already serving here - with a message that says what the deployment asked for.
+  if ("isolation" in o && !ISOLATION_BACKEND)
+    throw new Error(`this deployment requires per-app hardware isolation (isolation.require=${JSON.stringify(o.isolation && o.isolation.require)}), which this runner does not provide`);
+  const known = ["waf", "config", "configCid", "gpu", "network", "placement", ...(ISOLATION_BACKEND ? ["isolation"] : [])];
+  const unknown = Object.keys(o).filter((k) => !known.includes(k));
+  if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: ${known.join(", ")})`);
+  const opts = ISOLATION_BACKEND ? { isolation: ISOLATION_BACKEND } : {};
+  const pin = pinnedHost(raw); if (pin) opts.pinnedHost = pin;
+  if ("isolation" in o) {
+    const iso = o.isolation;
+    if (!iso || Array.isArray(iso) || typeof iso !== "object")
+      throw new Error("isolation must be a JSON object like {\"require\":\"snp-guest-per-app\"}");
+    const badI = Object.keys(iso).filter((k) => !["require", "cpuTee", "gpuTee"].includes(k));
+    if (badI.length) throw new Error(`unknown isolation option ${JSON.stringify(badI[0])} (this runner knows: require)`);
+    for (const key of ["cpuTee", "gpuTee"]) {
+      if (key in iso && typeof iso[key] !== "boolean") throw new Error(`isolation.${key} must be true or false`);
+    }
+    if (iso.cpuTee === true && ISOLATION_BACKEND !== "snp-guest-per-app")
+      throw new Error("this deployment requires a TEE CPU");
+    // Current per-app GPU implementations are masked offload, not confidential-mode GPUs.
+    if (iso.gpuTee === true) throw new Error("this deployment requires a TEE GPU; masked GPU offload does not qualify");
+    if (iso.require !== undefined && !ISOLATION_BACKENDS.includes(iso.require))
+      throw new Error(`isolation.require must be one of: ${ISOLATION_BACKENDS.join(", ")}`);
+    opts.isolation = iso.require ?? ISOLATION_BACKEND;
+  }
   if ("network" in o) {
     const n = o.network;
     if (!n || Array.isArray(n) || typeof n !== "object") throw new Error("network must be a JSON object");
@@ -2139,6 +2277,13 @@ function envelopeEditVerdict(rec, chainCid) {
   // rides the same key: repointing it at a different pinned document is a config
   // change even when the inline manifest is byte-identical, and swapping an
   // inline override for a CID one is too.
+  // A change to what isolation the deployment REQUIRES cannot be applied to what already runs (only a box that
+  // provides isolation parses the namespace at all): keep serving and surface it, never a silent live swap.
+  if ((oldO.isolation || "") !== (newO.isolation || "")) return "error";
+  // On the isolation tier, protection rules cannot be applied at all (the plaintext exists only in the guest, and
+  // the claim gate refuses a deployment that sets them), so adding them to a running deployment is surfaced as an
+  // error rather than swapped in as rules that would silently never run.
+  if (ISOLATION_BACKEND && newO.waf && Object.keys(newO.waf).length) return "error";
   const cfg = (o) => ("config" in o || "configCid" in o)
     ? JSON.stringify([o.configCid || "", "config" in o ? o.config : null]) : null;
   return cfg(newO) === cfg(oldO) ? "waf" : "restart";
@@ -2150,6 +2295,339 @@ function envelopeEditVerdict(rec, chainCid) {
 if (process.env.CFG_EDIT_SELFTEST) {
   const c = JSON.parse(process.env.CFG_EDIT_SELFTEST);
   console.log(JSON.stringify((c.records || []).map((r) => ({ verdict: envelopeEditVerdict(r.rec || {}, r.chainCid) }))));
+  process.exit(0);
+}
+
+// ---- per-app isolation: what a catalog version becomes on the per-app guest tier ----
+// The app config a guest on this tier would receive: the version's (or override's) config WITHOUT `_media`, which is
+// the catalog store's display metadata and never an app's input. "" when nothing else remains. Anything that does
+// remain is app config, which this tier refuses (isolationClaimVerdict), so a store thumbnail never blocks a claim
+// and a real config never slips through.
+function isolationAppConfig(config) {
+  if (!config) return "";
+  let o;
+  try { o = typeof config === "string" ? JSON.parse(config) : config; } catch { return String(config); }
+  if (!o || typeof o !== "object" || Array.isArray(o)) return String(config);
+  const { _media, ...rest } = o;
+  return Object.keys(rest).length ? JSON.stringify(rest) : "";
+}
+// enclave-isolation-policy/1: the ONE policy a catalog version runs under on this tier, fixed per version and
+// recomputable by anyone from the chain (isolation/contract/catalog/DERIVE.md): 1 vCPU (part of the measurement),
+// memMiB = the version's own on-chain memMb (floor 128), cpuPercent 100. It reads only the version's immutable
+// record, never a deployment's purchase, so every deployment of a version is the same AppID and measurement.
+const ISOLATION_POLICY_RULE = "enclave-isolation-policy/1";
+function isolationPolicyFor(version) {
+  const mem = Math.max(128, Math.ceil(Number(version && version.memMb) || 0));
+  return { cpuPercent: 100, memMiB: mem, vcpus: 1 };
+}
+// The derivation record guestd needs to turn a catalog version into the exact bundle it runs
+// (enclave-catalog-bundle/1): the catalog ref, the component CID, the policy above, and the runtime the host's
+// images carry (guestd's own /health states it; guestd refuses a record pinned to any other).
+function isolatedInference(gpuMilli, volumes) {
+  const g = Number(gpuMilli || 0);
+  if (!g && !(volumes || []).length) return null;
+  if (!Number.isInteger(g) || g < 70 || g > 1000 || g % 10 !== 0 || !Array.isArray(volumes) || volumes.length !== 1 || !["qwen2.5-0.5b-q8-gguf", "qwen3.8-27b-mtp-q4-vl-gguf"].includes(volumes[0]) || (volumes?.[0] === "qwen3.8-27b-mtp-q4-vl-gguf" && g < 500))
+    throw new Error("isolated inference requires a supported model and whole-percent GPU shares: at least 7% for 0.5B or 50% for 27B");
+  return { model: volumes[0], gpuMilli: g };
+}
+function isolationDerivation(catalogRef, wasmRef, policy, runtimeId, httpPort = 0, tunnelPorts = [], inference = null) {
+  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d+)$/.exec(String(catalogRef || ""));
+  const c = /^ipfs:\/\/([A-Za-z0-9]+)$/.exec(String(wasmRef || ""));
+  if (!m || !c) throw new Error(`per-app isolation needs a catalog version and its component CID (got ${catalogRef} / ${wasmRef})`);
+  if (!/^[0-9a-f]{64}$/.test(String(runtimeId || ""))) throw new Error("the per-app manager states no runtime identity");
+  if (inference?.model === "qwen3.8-27b-mtp-q4-vl-gguf") policy = {...policy, cpuPercent:1600, vcpus:16, memMiB:Math.max(policy.memMiB,51200-384)};
+  // a command that declares its HTTP port is enclave-catalog-bundle/2: the bundle states world wasi:cli and the port
+  return { ...(inference ? { inference } : {}), derivation: inference ? "enclave-catalog-bundle/4" : tunnelPorts.length ? "enclave-catalog-bundle/3" : httpPort ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
+           catalog: { app: m[1].toLowerCase(), version: Number(m[2]) }, cid: c[1], policy, runtimeId,
+           ...(httpPort ? { http: httpPort } : {}), ...(tunnelPorts.length ? { ports: tunnelPorts } : {}) };
+}
+
+// The ports a tier app may declare: none (a wasi:http component the runtime serves) or exactly ONE "http:N" (a wasi:cli
+// command that serves HTTP on N inside its own guest; enclave-catalog-bundle/2). Returns N, or 0 for none; throws for
+// anything else - raw tcp/udp ports and a second HTTP port are not offered on this tier.
+function isolationPortsOf(ports) {
+  const list = (Array.isArray(ports) ? ports : String(ports || "").split(","))
+    .map(p => String(p).trim().toLowerCase()).filter(Boolean);
+  if (!list.length) return { http: 0, ports: [] };
+  let http = 0; const dests = [];
+  for (const p of list) {
+    const m = /^(http|tcp|udp):([1-9][0-9]{0,4})$/.exec(p);
+    if (!m || +m[2] > 49999) throw new Error(`invalid declared port ${p}`);
+    if (m[1] === "http") { if (http) throw new Error("only one HTTP port is supported"); http = +m[2]; }
+    else dests.push(p);
+  }
+  if (!http || dests.length > 32 || new Set(dests).size !== dests.length || dests.includes(`tcp:${http}`))
+    throw new Error("tunnel destinations need one HTTP port, no duplicates or HTTP collision, and at most 32 ports");
+  return { http, ports: dests.sort() };
+}
+function isolationHttpPortOf(ports) { return isolationPortsOf(ports).http; }
+
+// sha256 of the derivation record's canonical JSON (compact, keys sorted at every level): catalog.Derivation.Digest,
+// the key guestd files a mapping under and reports as recordSha256.
+function derivationDigest(d) {
+  const canon = (v) => Array.isArray(v) ? `[${v.map(canon).join(",")}]`
+    : v && typeof v === "object" ? `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canon(v[k])}`).join(",")}}`
+    : JSON.stringify(v);
+  return createHash("sha256").update(canon(d)).digest("hex");
+}
+// What the manager's /prefetch needs for a version: on the tier, the same derivation record the spawn will send (a
+// catalog CID alone names bytes, not a contract identity, and guestd refuses it).
+function isolationPrefetchBody(g, runtimeId) {
+  return { image: g.wasmRef, derive: isolationDerivation(g.ref, g.wasmRef, isolationPolicyFor(g.min), runtimeId,
+    isolationHttpPortOf(g.ports), isolationPortsOf(g.ports).ports) };
+}
+// The derivation record the SPAWN sends for a catalog version (spawnContainer): the ONE function the resume's
+// same-record test and the self-test use too, so the three can never drift apart (enclave-e3).
+function isolationSpawnDerivation({ catalogRef, wasmRef, versionMemMb, runtimeId, ports, inference = null }) {
+  return isolationDerivation(catalogRef, wasmRef, isolationPolicyFor({ memMb: versionMemMb }), runtimeId, isolationHttpPortOf(ports), isolationPortsOf(ports).ports, inference);
+}
+// Whether the guest guestd holds under this deployment's name was launched from exactly the record the spawn would
+// send for version g (PURE; considerClaim's resume credit). The spawn derives its port from the PARSED firewall
+// (rec.firewall), so this does too; anything missing or underivable is false: a replacement, the conservative side.
+function isolationHeldSameRecord(held, g, firewall, runtimeId, inference = null) {
+  if (!held || typeof held.recordSha256 !== "string" || !/^[0-9a-f]{64}$/.test(held.recordSha256) || !g || !runtimeId) return false;
+  try {
+    // what the claim path would put on the record (rec.image = g.ref, rec.appWasm = g.wasmRef, rec._versionMemMb =
+    // g.min.memMb, rec.firewall = the parsed firewall), through the spawn's own derivation
+    return held.recordSha256 === derivationDigest(isolationSpawnDerivation({ catalogRef: g.ref, wasmRef: g.wasmRef,
+      versionMemMb: g.min && g.min.memMb, runtimeId: held.runtimeId || runtimeId, ports: firewall || [], inference }));
+  } catch { return false; }
+}
+async function managerPrefetchBody(g) {
+  if (!ISOLATION_BACKEND) return { image: g.wasmRef };
+  const h = await vmHealth();
+  return isolationPrefetchBody(g, h && h.catalog && h.catalog.runtimeId);
+}
+
+// ---- per-app isolation claim gate (ISOLATION_BACKEND set) ------------------
+// PURE: every input is passed in, so ISOLATION_SELFTEST exercises exactly this decision. null = claimable here.
+// On a box WITHOUT the backend it never refuses anything itself: parseDepOptions has already refused every
+// deployment that requires isolation. On a box WITH it, in this order:
+//   - the deployment must ask for this backend: the box serves nothing else (an isolated box running unisolated
+//     work would be advertised as one thing and be another);
+//   - the app manager must BE that backend, by its own /health: a box whose VMMGR_URL still reached the in-CVM
+//     wasm-manager would otherwise run the deployment unisolated under an isolation lease;
+//   - the deployment must need nothing the guest cannot honour. Each is REFUSED, never dropped: a dropped secret
+//     is a leak, a dropped config is a wrong app. guestd refuses the same things at launch; refusing here keeps
+//     the lease from being taken for work that could only fail.
+function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, appConfigCid, hasSecrets,
+                                 firewall, volumes, isPublic, waf, policy, held, heldSameRecord, listed }) {
+  if (!backend) return null;
+  if (!ISOLATION_BACKENDS.includes(backend))
+    return `ISOLATION_BACKEND=${JSON.stringify(backend)} is not a backend this build knows; taking no tenant work`;
+  if (require !== backend)
+    return `this runner serves only deployments that require per-app isolation (isolation.require="${backend}"), and this one does not ask for it`;
+  if (!manager || manager.backend !== backend)
+    return `the app manager at VMMGR_URL is not the ${backend} manager (its /health says `
+         + `${manager ? "backend=" + JSON.stringify(manager.backend ?? null) : "nothing: unreachable"}); `
+         + "refusing rather than running this deployment without the isolation it requires";
+  const sup = manager.supports || {};
+  if (Number(gpuMilli) > 0 && sup.gpu !== true)
+    return "the deployment bought a GPU share, and a per-app SNP guest has no GPU path";
+  // The attested release (docs/security/attested-release.md) delivers a deployment's config and secrets INTO its
+  // guest, sealed to a key only that guest holds; nothing of them crosses this host or guestd's. Claimable only when
+  // BOTH ends say so: guestd runs with -release (supports.release) and this box's operator opted in
+  // (ISOLATION_RELEASE=1, once the relay's release is on and each already-leased deployment passed its go/no-go).
+  if (isolationReleaseOn(manager) && listed === "unknown")
+    return "the relay's release list could not be read for this deployment just now; not claiming it until it can be";
+  const released = isolationReleaseGuest(manager, listed);
+  if ((config || appConfigCid) && sup.config !== true && !released)
+    return "the deployment carries app config, which is not yet delivered into a per-app guest";
+  if (hasSecrets !== false && sup.secrets !== true && !released)
+    return hasSecrets === true
+      ? "the deployment has staged secrets, and they would cross this host in plaintext (attested in-guest delivery is not built)"
+      : "cannot verify the deployment has no staged secrets (relay probe unreachable)";
+  if ((firewall || []).length && sup.ports !== true) {
+    // ONE declared HTTP port is served: the app is a wasi:cli command listening on it inside its guest, and the guest
+    // front forwards the attested TLS endpoint there (enclave-catalog-bundle/2) - only if the manager derives that
+    let port = 0;
+    try { port = isolationHttpPortOf(firewall); }
+    catch { return `the version declares ports (${firewall.join(", ")}) beyond one HTTP port, which a per-app guest does not forward`; }
+    const derivations = (manager.catalog && manager.catalog.derivations) || [];
+    if (isolationPortsOf(firewall).ports.length && (!derivations.includes("enclave-catalog-bundle/3") || sup.protectedPorts !== true || (sup.release === true && !released)))
+      return "the version needs protected TCP/UDP tunnels inside its release guest; this manager cannot provide them";
+    if (port && !isolationPortsOf(firewall).ports.length && !derivations.includes("enclave-catalog-bundle/2"))
+      return `the version serves HTTP on its own port (http:${port}), and this box's per-app manager cannot derive such a bundle (enclave-catalog-bundle/2)`;
+  }
+  // A -release guestd starts THIS tree's image only for a release guest; any other deployment runs its legacy image
+  // (d1's rollout option (i)), and without one it cannot run here at all.
+  if (sup.release === true && !released && sup.legacyImage !== true)
+    return "this box's per-app guests need the attested release, and this deployment is not a release guest here (not listed by the relay, or this box has not opted in), and its manager has no legacy image to run it on";
+  if (Number(gpuMilli)>0 || (volumes || []).length) {
+    let inf; try { inf=isolatedInference(gpuMilli,volumes); } catch(e) { return e.message; }
+    if (!released || !manager.inference || !(manager.inference.models || [manager.inference.model]).includes(inf.model) || sup.gpu!==true)
+      return "the measured Shield model release is not ready for this deployment";
+    const needs = Math.floor(31*2**30*inf.gpuMilli/1000);
+    if (!heldSameRecord && needs > Number(manager.inference.cardFreeBytes || 0)) return "the isolated GPU reservation pool is full";
+    policy = { ...policy, ...(inf.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? {cpuPercent:1600,vcpus:16} : {}), memMiB: Math.max(Number(policy?.memMiB)||0, (inf.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? 51200 : 8192)-384) };
+  }
+  // The next two are enforced in THIS process on every other backend, on the plaintext of each request. Here the
+  // plaintext exists only inside the guest (the session is spliced unopened), so neither could be applied: an
+  // owner gate that is not applied is a private app served to anyone, and a rule that is not applied is a
+  // promise the owner was sold and did not get.
+  if (isPublic !== true)
+    return "the deployment is private, and its owner gate needs the request's plaintext, which exists only inside the guest on this backend";
+  if (waf && Object.keys(waf).length)
+    return "the deployment sets protection rules (waf), which need the request's plaintext, which exists only inside the guest on this backend";
+  // Last, the guest pool (TASK 4c): this version's guest must fit what guestd has free, by the reservation guestd
+  // admits it at (its unit's ceilings), never by the share bought. guestd refuses the same at create (507
+  // pool_full); refusing here keeps a lease from being taken for work that could only be refused. A create that still
+  // meets a 507 (a race between two claims) is a failed provision like any other: noted, backed off, released once.
+  return guestPoolRefusal(manager.pool || null, policy, held || null, heldSameRecord === true);
+}
+
+// ---- the attested release: this box's half (docs/security/attested-release.md) ------------------------------------
+// ISOLATION_RELEASE=1 is the operator's opt-in to run RELEASE GUESTS on this box at all (isolationReleaseGuest): with
+// it, a deployment the relay lists is built from the release image and gets its ticket pumped, and its config and staged
+// secrets become claimable. Without it no deployment here is a release guest, and a -release guestd runs every one on
+// its legacy image (or refuses it, if it has none).
+const ISOLATION_RELEASE = process.env.ISOLATION_RELEASE === "1";
+function isolationReleaseOn(manager) {
+  return ISOLATION_RELEASE && !!manager && !!manager.supports && manager.supports.release === true;
+}
+// A RELEASE GUEST: this box and its guestd are on (isolationReleaseOn) AND the relay lists the deployment for the
+// release. The relay's SECRETS_RELEASE_DEPLOYMENTS is the only place an owner's decision lives (d1); the spawn and the
+// claim gate both decide through this predicate.
+function isolationReleaseGuest(manager, listed) {
+  return isolationReleaseOn(manager) && listed === "listed";
+}
+// The relay's list for one deployment, in THREE states (enclave-99's review of e425947a):
+//   "listed"    exactly {id: <this id>, listed: true}
+//   "unlisted"  exactly {id: <this id>, listed: false}, or the relay's deliberate 503 release_off
+//   "unknown"   anything else: a 429, another 5xx, a timeout, a network error, a malformed answer
+// An unknown is NEVER read as unlisted: that would build a listed deployment from the legacy image on a transient
+// failure. The spawn throws on it (the provision backoff retries) and the claim gate refuses it for now.
+async function releaseListedFor(id) {
+  const idL = String(id).toLowerCase();
+  try {
+    const r = await fetch(`${SECRETS_API}/v1/secrets/release-status?id=${encodeURIComponent(idL)}`, { signal: AbortSignal.timeout(5000) });
+    let b = null;
+    try { b = await r.json(); } catch { b = null; }
+    if (r.status === 503 && b && b.error === "release_off") return "unlisted";
+    if (!r.ok || !b || String(b.id || "") !== idL || typeof b.listed !== "boolean") return "unknown";
+    return b.listed ? "listed" : "unlisted";
+  } catch { return "unknown"; }
+}
+// CID configs on an isolated release guest arrive through the attested relay,
+// not guestd's host-side fetcher. Keep the per-deployment release check here:
+// advertising release support alone never authorizes config delivery.
+async function configCidClaimRefusal(manager, id, listedFor = releaseListedFor) {
+  if (!manager) return "app keeps its config at a CID and the app manager cannot be asked (unreachable)";
+  if (manager.configCid === true) return null;
+  if (ISOLATION_BACKEND && isolationReleaseOn(manager)) {
+    const listed = await listedFor(id);
+    if (isolationReleaseGuest(manager, listed)) return null;
+    if (listed === "unknown") return "the relay's release list could not be read for this CID-config deployment; retrying";
+    return "app keeps its config at a CID and is not enabled for attested configuration delivery";
+  }
+  return "app keeps its config at a CID and this box's manager cannot fetch it";
+}
+
+// The spawn's release decision, in one place (so a test can hold it): a release guest per isolationReleaseGuest; an
+// unknown list THROWS, never a fall back to the legacy image; config or staged secrets (known, or unknown) that no
+// guest here could receive also throw. `staged` is depHasSecrets' answer: true, false, or null (unknown).
+async function isolationSpawnRelease(h, deploymentId, { config, configCid, staged }, listedFor = releaseListedFor) {
+  const on = isolationReleaseOn(h);
+  const listed = on ? await listedFor(deploymentId) : "unlisted";
+  if (listed === "unknown")
+    throw new Error("per-app isolation: the relay's release list could not be read for this deployment; retrying rather than launching it on the legacy image");
+  const released = isolationReleaseGuest(h, listed);
+  if (!released && (staged !== false || configCid || isolationAppConfig(config)))
+    throw new Error("per-app isolation: this deployment carries config or secrets the guest tier does not support"
+      + (on ? " (it is not listed for the attested release)" : ""));
+  return released;
+}
+
+// One ticket, for this deployment, signed by the key that registered this endpoint (the relay checks it is the
+// endpoint's registered operator, that the endpoint holds the deployment's LIVE lease, and that its SNP tunnel proved a
+// chip). The ticket is one-use and lives 120 s; it is never logged.
+async function fetchReleaseTicket(id, endpoint = _advertisedEndpoint) {
+  if (!REGISTRY_PK) throw new Error("no operator key: a release ticket is signed by the endpoint's registry operator");
+  if (!endpoint) throw new Error("this box has no registered endpoint yet");
+  const idL = String(id).toLowerCase();
+  const ts = Math.floor(Date.now() / 1000);
+  const opSig = await claimSigner().account.signMessage({ message: `enclave-secrets-release-ticket:${idL}:${endpoint}:${ts}` });
+  const r = await fetch(`${SECRETS_API}/v1/secrets/release-ticket`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ id: idL, endpoint, ts, opSig }), signal: AbortSignal.timeout(10_000) });
+  let b = null;
+  try { b = await r.json(); } catch { b = null; }
+  if (!r.ok) {
+    const code = b && /^[a-z_]{1,40}$/.test(String(b.error || "")) ? ` ${b.error}` : "";
+    throw new Error(`the relay refused a release ticket (HTTP ${r.status}${code})`);
+  }
+  if (!b || typeof b.ticket !== "string" || Buffer.from(b.ticket, "base64").length !== 32
+      || Buffer.from(b.ticket, "base64").toString("base64") !== b.ticket)
+    throw new Error("the relay's ticket is not base64 of 32 bytes");
+  return b.ticket;
+}
+
+// The pump for ONE guest: guestd holds the booting guest and reports awaitingTicket; only THEN is a ticket fetched
+// (so none of its 120 s is spent on the image build) and handed to guestd for that guest alone. It ends when the guest
+// is no longer starting (running, failed, gone) or at the deadline. A relay refusal is retried while the guest waits:
+// guestd's hold (5 min) is what ends a guest whose ticket never comes, through its lifecycle.
+const _ticketPumps = new Map();   // vmId -> the pump's promise
+function pumpReleaseTicket(deploymentId, vmId) {
+  if (_ticketPumps.has(vmId)) return _ticketPumps.get(vmId);
+  const p = releaseTicketPump(deploymentId, vmId)
+    .catch((e) => { console.warn(`[isolation] ${deploymentId.slice(0, 10)}: release ticket pump for ${vmId} ended: ${e.message}`); return "error"; })
+    .finally(() => _ticketPumps.delete(vmId));
+  _ticketPumps.set(vmId, p);
+  return p;
+}
+async function releaseTicketPump(deploymentId, vmId, { req = vmReq, fetchTicket = fetchReleaseTicket,
+                                                        pollMs = 2000, retryMs = 10_000, deadlineMs = 15 * 60_000,
+                                                        sleep = sleepMs, log = console } = {}) {
+  const until = Date.now() + deadlineMs, path = `/vms/${encodeURIComponent(vmId)}`;
+  let handed = false, nextTry = 0;
+  while (Date.now() < until) {
+    const r = await req("GET", path, null, 10_000).catch(() => null);
+    const v = r && r.status === 200 ? r.body : null;
+    if (r && r.status === 404) return "gone";
+    if (v && v.status !== "starting") return v.status;          // running, failed: nothing more to hand
+    if (v && v.awaitingTicket === true && !handed && Date.now() >= nextTry) {
+      try {
+        const ticket = await fetchTicket(deploymentId);
+        const p = await req("POST", `${path}/ticket`, { ticket }, 10_000);
+        if (p.status === 202) {
+          handed = true;
+          log.log(`[isolation] ${deploymentId.slice(0, 10)}: release ticket handed to guest ${vmId}`);
+        } else if (p.status === 409) {
+          // a ticket is already pending, or the guest already took one: nothing more to hand (enclave-99's L2); a
+          // guest that is no longer starting ends the pump at its next answer
+          handed = true;
+          log.warn(`[isolation] ${deploymentId.slice(0, 10)}: guestd did not take the release ticket for ${vmId} (HTTP 409: it holds or took one)`);
+        } else {
+          log.warn(`[isolation] ${deploymentId.slice(0, 10)}: guestd did not take the release ticket for ${vmId} (HTTP ${p.status})`);
+          nextTry = Date.now() + retryMs;
+        }
+      } catch (e) {
+        log.warn(`[isolation] ${deploymentId.slice(0, 10)}: release ticket for ${vmId}: ${e.message}`);
+        nextTry = Date.now() + retryMs;
+      }
+    }
+    await sleep(pollMs);
+  }
+  return "timeout";
+}
+
+// ISOLATION_SELFTEST='{"verdicts":[{…isolationClaimVerdict input…}],"parse":["<envelope>",…],
+//   "edits":[{"rec":{…},"chainCid":"…"}]}' prints {verdicts, parse, edits} as one JSON line and exits.
+// ISOLATION_BACKEND comes from the environment, as in production (test/isolation-claim-gate.test.mjs drives it).
+if (process.env.ISOLATION_SELFTEST) {
+  const c = JSON.parse(process.env.ISOLATION_SELFTEST);
+  console.log(JSON.stringify({
+    verdicts: (c.verdicts || []).map((v) => isolationClaimVerdict({ backend: ISOLATION_BACKEND, ...v })),
+    parse: (c.parse || []).map((e) => { try { return { ok: true, opts: parseDepOptions(e) }; }
+                                        catch (err) { return { ok: false, error: err.message }; } }),
+    edits: (c.edits || []).map((r) => envelopeEditVerdict(r.rec || {}, r.chainCid)),
+    appConfig: (c.appConfig || []).map((x) => isolationAppConfig(x)),
+    recordDigest: (c.recordDigest || []).map((d) => derivationDigest(d)),
+    heldMatches: (c.heldMatches || []).map(x => isolationHeldSameRecord(x.held, x.g, x.firewall, x.runtimeId, x.inference)),
+    prefetch: (c.prefetch || []).map((x) => { try { return isolationPrefetchBody(x.g, x.runtimeId); } catch (err) { return { error: err.message }; } }),
+    derive: (c.derive || []).map((d) => { try { return isolationDerivation(d.catalogRef, d.wasmRef, isolationPolicyFor({ memMb: d.memMb }), d.runtimeId, isolationHttpPortOf(d.ports), isolationPortsOf(d.ports).ports, d.inference || null); }
+                                          catch (err) { return { error: err.message }; } }),
+  }));
   process.exit(0);
 }
 
@@ -2387,8 +2865,166 @@ const quantizePct = (share) => Math.min(100, Math.max(MIN_COMPUTE_PCT, Math.roun
 const pctCeil = (x) => Math.max(MIN_COMPUTE_PCT, Math.ceil(x * 100 - 1e-9));
 const gpuShareOf = (vramGb, gpuTflops = 0) => (vramGb > 0 || gpuTflops > 0)
   ? pctCeil(Math.max(vramGb / CARD_VRAM_GB, gpuTflops / CARD_TFLOPS)) / 100 : 0;
-const cpuShareOf = (memMb, cpuGflops = 0) =>
-  pctCeil(Math.max(memMb / (NODE_RAM_GB * 1024), cpuGflops / NODE_GFLOPS)) / 100;
+const cpuShareOf = (memMb, cpuGflops = 0) => {
+  const n = nodeSpec();
+  // catalog cpuGflops floors are in the fleet convention's units (62.5 a vCPU), so they divide by the NOMINAL figure
+  // (gflopsFloor), never the measured one this box publishes (gsup: fw_cfg gflopsPerVcpu)
+  return pctCeil(Math.max(memMb / (n.ramGb * 1024), cpuGflops / (n.gflopsFloor || n.gflops))) / 100;
+};
+
+// ---- the per-app guest pool (ISOLATION_BACKEND; TASK 4c, isolation/m4/guestd/pool.go) --------------------------
+// On the per-app isolation tier this CVM runs only the control plane. Every tenant is its own SNP guest on the HOST,
+// admitted by guestd into a budget the operator set. So on that tier "the node" a share is a fraction of is guestd's
+// GUEST POOL (its /health.pool budget), not this CVM's NODE_RAM_GB / NODE_VCPUS, and what is free is the pool's free
+// room, never this CVM's. Everywhere else nothing changes: nodeSpec() is the NODE_* constants.
+//   - A share stays a PRICE unit: a fraction of the pool at SELL_CPU_PRICE6, which is unchanged, and app minimums are
+//     unchanged (the declared memMb against the pool, so a 128 MB app still needs 1%).
+//   - The pool is a separate RESERVATION ledger, and it decides fit: an app's guest reserves its unit's ceilings
+//     (guestReservationFor), whatever share it bought. A 128 MB app's 1% share is priced at 1% of the pool while its
+//     guest reserves ~1792 MiB. That gap is a pricing question for the operator; admission never uses the share.
+//   - guestd is the authority: it refuses a guest that does not fit (507 pool_full). This process mirrors it only so
+//     it never CLAIMS work guestd must refuse (isolationClaimVerdict) and never advertises room there is not.
+let _guestPool = null;   // guestd's last /health.pool, checked; null = not heard (the tier then offers and claims nothing)
+// A {memMiB, cpuPct} of non-negative numbers, or null.
+function readRoom(x) {
+  const n = (v) => Number.isFinite(Number(v)) && Number(v) >= 0;
+  return x && typeof x === "object" && n(x.memMiB) && n(x.cpuPct) ? { memMiB: +x.memMiB, cpuPct: +x.cpuPct } : null;
+}
+// guestd's /health.pool, checked and normalized, or null: an older guestd (no pool) or a malformed one is a pool we
+// cannot read, and nothing is offered or judged on it.
+function readGuestPool(p) {
+  const n = (x) => Number.isFinite(Number(x)) && Number(x) >= 0;
+  const g = p && p.perGuest, allocated = p && readRoom(p.allocated), free = p && readRoom(p.free);
+  const budget = p && p.budget != null ? readRoom(p.budget) : null;
+  if (!p || !allocated || !free || !g || !n(g.floorMiB) || !n(g.runtimeMiB) || !n(g.unitOverheadMiB)
+      || (p.budget != null && !(budget && budget.memMiB > 0 && budget.cpuPct > 0))) return null;
+  // host: guestd's LIVE memory floor (pool.go hostRefusal). An older guestd sends none, and nothing changes then.
+  // The host fields must be JSON NUMBERS: Number() would read "", false, [] or " " as 0 and "0x10" as 16 (enclave-e3).
+  const num = (x) => typeof x === "number" && Number.isFinite(x) && x >= 0;
+  let host = null;
+  if (p.host && typeof p.host === "object" && num(p.host.floorMiB) && p.host.floorMiB > 0)
+    host = { floorMiB: p.host.floorMiB,
+             // what the held guests may still draw beyond MemAvailable (pool.go pendingLocked: a starting guest's whole
+             // reservation, a running one's reservation minus what its unit holds). A MemAvailable or a pendingMiB that
+             // is not a number (null = guestd could not read it) makes the host UNKNOWN, never "0 available" or
+             // "nothing pending"
+             memAvailableMiB: num(p.host.memAvailableMiB) && num(p.host.pendingMiB) ? p.host.memAvailableMiB : null,
+             pendingMiB: num(p.host.pendingMiB) ? p.host.pendingMiB : 0 };
+  return { budget, allocated, free, guests: Number(p.guests) || 0, overcommitted: p.overcommitted === true, host,
+    perGuest: { floorMiB: +g.floorMiB, runtimeMiB: +g.runtimeMiB, unitOverheadMiB: +g.unitOverheadMiB } };
+}
+// Every answer replaces the mirror; one without a readable pool CLEARS it (never "keep the last pool"), so the tier
+// offers and claims nothing on a pool it cannot read. The BUDGET the last readable answer stated is kept for sizing
+// only (nodeSpec): the node does not shrink to this CVM because one answer failed. Sized against the CVM, floors
+// triple, and an owner's resize landing during a guestd restart would evict a deployment that fits (enclave-5d).
+let _guestPoolBudgetSeen = null;
+function adoptGuestPool(p) {
+  _guestPool = readGuestPool(p);
+  if (_guestPool && _guestPool.budget) _guestPoolBudgetSeen = _guestPool.budget;
+}
+// The node shares are fractions of: the guest pool's budget on the tier (its cores at this CVM's per-vCPU GFLOPS, the
+// same host CPU), the last budget guestd stated while an answer is unreadable, and the NODE_* constants everywhere
+// else and before any budget is heard.
+function nodeSpec() {
+  const b = ISOLATION_BACKEND && ((_guestPool && _guestPool.budget) || _guestPoolBudgetSeen);
+  if (!b) return { vcpus: NODE_VCPUS, ramGb: NODE_RAM_GB, gflops: NODE_GFLOPS, gflopsFloor: Math.round(NODE_VCPUS * 1000 / 16), pool: false };
+  const cores = b.cpuPct / 100;
+  return { vcpus: cores, ramGb: b.memMiB / 1024, gflops: cores * (NODE_GFLOPS / NODE_VCPUS), gflopsFloor: Math.round(cores * 1000 / 16), pool: true };
+}
+// What a version's guest reserves, computed exactly as guestd admits it: its unit's ceilings.
+function guestReservationFor(policy, perGuest) {
+  const mem = Math.max(perGuest.floorMiB, Number(policy.memMiB) + perGuest.runtimeMiB) + perGuest.unitOverheadMiB;
+  return { memMiB: mem, cpuPct: Number(policy.cpuPercent) };
+}
+// The pool's free room as a fraction of its budget: 0 unless one smallest guest still fits (and never while it is
+// unheard, unconfigured or overcommitted), so a full pool is never advertised as a sliver of free share.
+function guestPoolFreeFraction(pool = _guestPool) {
+  if (!pool || !pool.budget || pool.overcommitted) return 0;
+  const g = pool.perGuest, f = pool.free, b = pool.budget, smallest = g.floorMiB + g.unitOverheadMiB;
+  if (f.memMiB < smallest || f.cpuPct < 1) return 0;
+  let frac = Math.min(f.memMiB / b.memMiB, f.cpuPct / b.cpuPct);
+  // the host's live room above guestd's floor caps it too: no share is advertised that guestd's floor would refuse.
+  // Quantized DOWN to whole percent, so the advertised share does not jitter with every MiB of MemAvailable (enclave-99).
+  const room = hostRoom(pool);
+  if (room !== undefined) {
+    if (room < smallest) return 0;
+    frac = Math.min(frac, Math.floor(room / b.memMiB * 100) / 100);
+  }
+  return Math.max(0, frac);
+}
+// The host's live room above guestd's floor, net of starting guests: undefined without a floor, -1 when unreadable.
+function hostRoom(pool) {
+  if (!pool || !pool.host) return undefined;
+  if (pool.host.memAvailableMiB === null) return -1;
+  return pool.host.memAvailableMiB - pool.host.pendingMiB - pool.host.floorMiB;
+}
+// Why this version's guest cannot be admitted by the pool guestd reported, or null (PURE; isolationClaimVerdict).
+// `held` is the guest guestd ALREADY runs under this deployment's name (its GET /vms entry, starting or running): on a
+// RESUME after this CVM restarted, guestd kept the guest, so its reservation is already in `allocated`. Adopting it
+// (the spawn path's 409-by-name) takes no new room, and relaunching it (another record) frees that room first, so it
+// is judged against free PLUS the room it holds, and never refused for the room it is itself using. A resume whose
+// guest guestd no longer holds is a new guest and needs real room. (enclave-99's review of 829ea21b: judged against
+// free alone, every canary's resume after the release's own reboot was refused.)
+function guestPoolRefusal(rawPool, policy, held = null, heldSameRecord = false) {
+  const pool = readGuestPool(rawPool);
+  const holds = !!held && (held.status === "running" || held.status === "starting");
+  const heldRoom = holds ? readRoom(held.reserved) : null;
+  // an older guestd (no pool, no `reserved`) admits unbudgeted, as before the pool: adopting what it runs is no worse
+  if (!pool) return holds ? null
+    : "the per-app manager reports no readable guest pool (it predates admission by reservation), so this box claims no work it may not be able to place";
+  if (!policy || !(Number(policy.memMiB) > 0) || !(Number(policy.cpuPercent) > 0)) return "the version has no isolation policy to size its guest by";
+  const r = guestReservationFor(policy, pool.perGuest);
+  // the POOL: a version that fits in the room its own running guest already holds takes no new room, whatever the rest
+  // of the pool says; anything else needs free room (crediting the held guest's reservation, which its replacement frees)
+  const fitsHeld = !!heldRoom && r.memMiB <= heldRoom.memMiB && r.cpuPct <= heldRoom.cpuPct;
+  if (!fitsHeld) {
+    if (!pool.budget) return "this host's guest pool has no budget (guestd -guest-mem-mib/-guest-cpus), so it admits no guest";
+    if (pool.overcommitted) return "the guest pool is overcommitted (its recovered guests exceed the budget), so it admits no guest until guests end";
+    const room = { memMiB: pool.free.memMiB + (heldRoom ? heldRoom.memMiB : 0), cpuPct: pool.free.cpuPct + (heldRoom ? heldRoom.cpuPct : 0) };
+    if (r.memMiB > room.memMiB || r.cpuPct > room.cpuPct)
+      return `the guest pool cannot fit this app's guest: it reserves ${r.memMiB} MiB / ${r.cpuPct}% CPU (its unit's ceilings), `
+           + `and ${room.memMiB} MiB / ${room.cpuPct}% is free${heldRoom ? " counting the room its current guest holds" : ""}`;
+  }
+  // the HOST (guestd's live floor, pool.go): ADOPTING the running guest of the SAME record takes no new memory. Anything
+  // else - a new guest, or a held guest replaced because its record differs (the spawn's 409 path deletes it first) -
+  // needs the host's room, crediting only what the replaced guest actually frees: its RAM, not the 768 allowance it
+  // never used (enclave-99). Refused here too, so no lease is taken, and no running guest is deleted, for a create
+  // guestd would refuse.
+  const hr = hostRoom(pool);
+  if (hr !== undefined && !(holds && heldSameRecord)) {
+    if (hr < 0 && pool.host.memAvailableMiB === null) return "the host's available memory is unknown, and guestd admits no guest while it is";
+    // the credit for the held guest the replacement deletes: a STARTING one is wholly in guestd's pending, so all of its
+    // reservation comes back; a running one only surely returns its reservation less the unit allowance (the rest of
+    // it is in MemAvailable, and is judged when guestd admits). Both err toward refusal, never toward a deleted guest
+    // whose successor guestd then refuses.
+    const credit = !heldRoom ? 0 : held.status === "starting" ? heldRoom.memMiB : Math.max(0, heldRoom.memMiB - pool.perGuest.unitOverheadMiB);
+    const after = hr - r.memMiB + credit;                          // room above the floor after this create
+    // no live number in the reason: it is returned by the public claim-hint and logged by the sweep on every change,
+    // so MemAvailable must not be reconstructable from it (enclave-e3). The floor is configuration.
+    if (after < 0)
+      return `the host is too low on memory: admitting this app's guest would take the host under guestd's ${pool.host.floorMiB} MiB floor`;
+  }
+  return null;
+}
+// The guest guestd runs under this deployment's name (its GET /vms entry), or null: what a resume would adopt.
+async function isolationHeldGuest(name) {
+  try {
+    const r = await vmReq("GET", "/vms", null, 5000);
+    const list = (r.status === 200 && r.body && Array.isArray(r.body.vms)) ? r.body.vms : [];
+    return list.find((v) => v && v.name === name && (v.status === "running" || v.status === "starting")) || null;
+  } catch { return null; }
+}
+// The pool as this box reports it (availability): reservations, stated as such, never observed use.
+function guestPoolReport() {
+  if (!_guestPool) return { heard: false };
+  const { host, ...rest } = _guestPool;
+  const g = _guestPool.perGuest, room = hostRoom(_guestPool);
+  return { heard: true, ...rest,
+    // the floor's VERDICT, never the host's live MemAvailable (published availability must not carry, or jitter with, it)
+    host: host ? { floorMiB: host.floorMiB, admitsSmallestGuest: room !== undefined && room >= g.floorMiB + g.unitOverheadMiB } : null,
+    basis: "allocated = the reservations of the guests guestd holds (each unit's MemoryMax and CPUQuota), not observed use",
+    pricing: "a share is priced as a fraction of this pool's budget; an app's guest reserves its own reservation, which admission uses" };
+}
 // An app's catalog specs -> the minimum shares a deployment must buy here.
 // Zero-guarded: axes the app didn't declare add no minimum. Each axis floors on
 // its own hardware and nothing else.
@@ -2539,7 +3175,16 @@ function allocCpu(share) {
   cpuPool.shareFree -= share;
   return { cpu: true, share };
 }
-const maxFreeCpu = () => Math.max(0, Math.min(1, cpuPool.shareFree));
+// On the per-app isolation tier the share ledger is capped by the guest pool's own free room (guestPoolFreeFraction).
+const maxFreeCpu = () => Math.max(0, Math.min(1, cpuPool.shareFree, ISOLATION_BACKEND ? guestPoolFreeFraction() : 1));
+// Isolated guests are sized by their catalog policy, not by the pricing share.
+// Check the share ledger here; isolationClaimVerdict below checks the exact
+// reservation against guestd's pool and live host floor. Applying the pool's
+// free fraction here double-counts resumed guests and wrongly refuses a small
+// new guest whose owner bought a larger share.
+function claimFreeCpu() {
+  return ISOLATION_BACKEND ? Math.max(0, Math.min(1, cpuPool.shareFree)) : maxFreeCpu();
+}
 // CPU requests use the same whole-percent grain as GPU compute; priced at the
 // share of the whole-node rate.
 const normalizeCpuReq = (share) => { const pct = quantizePct(share); return { cpu: true, gpuShare: 0, cpuShare: pct / 100, share: pct / 100, pct }; };
@@ -2593,13 +3238,17 @@ const cardVram = c => c.vramTotal ?? CARD_VRAM_GB;
 const cardFreeVram = c => c.shielded
   ? (c.available ? Math.min(c.vramFree, c.proof?.vramFreeGb || 0) : 0)
   : c.vramFree;
-function allocGpu(vramGb, computeShare, cpuShare) {
+function allocGpu(vramGb, computeShare, cpuShare, { heldReservation = false } = {}) {
+  // A matching running guest already occupies device VRAM. Reconstruct its
+  // local reservation against the share ledger, not the device's remaining
+  // free memory. New claims must satisfy both; unavailable cards still fail.
+  const room = c => heldReservation && c.shielded && c.available ? c.vramFree : cardFreeVram(c);
   if (_shieldedPool) {
     if (!(computeShare > 0) || cpuPool.shareFree < cpuShare - 1e-9) return null;
     const shares = _shieldedPool.cardIds.map(id => ({ cardId: id, computeShare,
       vramGb: computeShare * cardVram(gpuCards[id]),
       _needV: computeShare * cardVram(gpuCards[id]) }));
-    if (shares.some(h => cardFreeVram(gpuCards[h.cardId]) < h._needV - 1e-9 ||
+    if (shares.some(h => room(gpuCards[h.cardId]) < h._needV - 1e-9 ||
         gpuCards[h.cardId].computeFree < computeShare - 1e-9)) return null;
     for (const h of shares) {
       gpuCards[h.cardId].vramFree -= h._needV;
@@ -2614,7 +3263,7 @@ function allocGpu(vramGb, computeShare, cpuShare) {
     : vramGb + ctxOverheadGb();
   if (cpuPool.shareFree < cpuShare - 1e-9) return null;
   const fit = gpuCards
-    .filter(c => cardFreeVram(c) >= need(c) - 1e-9 && c.computeFree >= computeShare - 1e-9)
+    .filter(c => room(c) >= need(c) - 1e-9 && c.computeFree >= computeShare - 1e-9)
     .sort((a, b) => (cardFreeVram(a) - need(a)) - (cardFreeVram(b) - need(b)));
   const card = fit[0];
   if (!card) return null;
@@ -2943,6 +3592,35 @@ if (process.env.POOL_SELFTEST) {
   process.exit(0);
 }
 
+// GUEST_POOL_SELFTEST='{"pool":{…guestd /health.pool…}|null,"shareFree":0.7,"shares":[{memMb}],"reservations":[{memMb}],
+//   "verdicts":[{…isolationClaimVerdict input…}]}' adopts the pool as vmHealth would, then prints what the tier
+// computes from it as one JSON line and exits (test/isolation-guest-pool.test.mjs drives it; TASK 4c).
+if (process.env.GUEST_POOL_SELFTEST) {
+  const c = JSON.parse(process.env.GUEST_POOL_SELFTEST);
+  // viaHealth: the pool comes the production way, vmHealth() over guestd-control/1 from the guestd at VMMGR_URL, and
+  // the claim verdict for a version (viaHealth.memMb) is judged on that same answer (isolation/m4/guestd/pool_test.go)
+  let health = null, healthError = null, held = null;
+  if (c.viaHealth) { try { health = await vmHealth(); } catch (e) { healthError = e.message; } }
+  if (c.viaHealth && c.viaHealth.resumeOf) held = await isolationHeldGuest(c.viaHealth.resumeOf);
+  if ("pool" in c) adoptGuestPool(c.pool);
+  for (const p of c.pools || []) adoptGuestPool(p);               // answers in order, as successive vmHealth() calls
+  if (c.shareFree != null) cpuPool.shareFree = c.shareFree;
+  console.log(JSON.stringify({
+    node: nodeSpec(), claimFreeCpu: (c.claimHeld || []).map(claimFreeCpu), maxFreeCpu: round3(maxFreeCpu()), guestPool: guestPoolReport(), sellCpuPrice6: SELL_CPU_PRICE6,
+    ...(c.viaHealth ? { healthError, healthVerdict: health && isolationClaimVerdict({ backend: ISOLATION_BACKEND,
+      require: ISOLATION_BACKEND, manager: health, gpuMilli: 0, config: "", appConfigCid: "", hasSecrets: false, firewall: [],
+      volumes: [], isPublic: true, waf: null, policy: isolationPolicyFor({ memMb: c.viaHealth.memMb }), held }), held } : {}),
+    shares: (c.shares || []).map((m) => minSharesOf(m)),
+    reservations: (c.reservations || []).map((v) => _guestPool && guestReservationFor(isolationPolicyFor(v), _guestPool.perGuest)),
+    verdicts: (c.verdicts || []).map((v) => isolationClaimVerdict({ backend: ISOLATION_BACKEND, ...v })),
+    sameRecord: (c.sameRecord || []).map((x) => isolationHeldSameRecord(x.held, x.g, x.firewall, x.runtimeId, x.inference)),
+    // the digest the SPAWN would record for a version (its own derivation function), to compare the resume's test with
+    ...(c.recordOf ? { recordOf: derivationDigest(isolationSpawnDerivation({ catalogRef: c.recordOf.g.ref, wasmRef: c.recordOf.g.wasmRef,
+      versionMemMb: c.recordOf.g.min.memMb, runtimeId: c.recordOf.runtimeId, ports: c.recordOf.ports, inference: c.recordOf.inference })) } : {}),
+  }));
+  process.exit(0);
+}
+
 // SIZING_SELFTEST='{"cardVramGb":6.5,"cardTflops":42.7,"isGpu":true,"volGb":25.94,
 //   "min":{"vramMb":51200,"gpuGflops":320000,"memMb":4096,"cpuGflops":10,"gpuOptional":true},
 //   "gpuMilli":360,"cpuMilli":120,"envelopeOptional":false}'
@@ -3148,6 +3826,8 @@ async function vouchTenants() {
 let _instanceSweep = { at: null, ok: null, reason: "not yet run", seen: 0, orphans: 0, reaped: 0 };
 function instanceSweepStatus() { return { ..._instanceSweep }; }
 
+// Set once the claim loop has finished its first pass, i.e. once this node has resumed the leases it holds on chain.
+let _firstClaimSweepAt = 0;
 async function reconcileInstances() {
   if (/^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) return [];
   const stamp = (o) => { _instanceSweep = { at: new Date().toISOString(), ...o }; };
@@ -3167,6 +3847,16 @@ async function reconcileInstances() {
   if (instances === null) {
     console.warn("[instance] backend listing unavailable - skipping this pass");
     stamp({ ok: false, reason: "listing unavailable (non-200 or unexpected shape)", seen: 0, orphans: 0, reaped: 0 });
+    return [];
+  }
+  // Per-app guest tier: guests live on the HOST and outlive this node CVM, so after a node restart guestd still
+  // runs the guests this node's leases launched. Until the claim loop has resumed those leases, no record owns
+  // them yet and every one would read as an orphan: reaping then would end a live tenant only for the resumed
+  // lease to launch it again (seen on the production canary, 2026-09-24). So reap nothing on this tier before the
+  // claim loop's first pass; the vouch above has already run, and guestd's own dead-man lease still ends
+  // anything nobody claims.
+  if (ISOLATION_BACKEND && CLAIM_ENABLED && !_firstClaimSweepAt) {
+    stamp({ ok: true, reason: "per-app guest tier: no reaping before the claim loop's first pass", seen: instances.length, orphans: 0, reaped: 0 });
     return [];
   }
   const plan = orphanInstancePlan(instances, [...deployments.values()],
@@ -3307,6 +3997,7 @@ function launchSpecFrom(rec, sec, hosts) {
     gpuCardsHeld: rec._gpu?.cards,
     gpuShare: rec.resources.gpuShare || 0, cpuShare: rec.resources.cpuShare,
     image: { reference: rec.appWasm || (rec.image && rec.image.reference) },
+    catalogRef: rec.image && rec.image.reference, versionMemMb: rec._versionMemMb,
     appPort: rec.network.port, ports: rec.firewall,
     config: rec.config || "", configCid: rec.appConfigCid || "",
     secrets: sec && Object.keys(sec.env).length ? sec.env : null,
@@ -3325,7 +4016,7 @@ if (process.env.LAUNCH_SPEC_SELFTEST) {
   })));
   process.exit(0);
 }
-async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVramGb, gpuCardsHeld, image, appPort, ports, config, configCid, secrets, hosts }) {
+async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVramGb, gpuCardsHeld, image, appPort, ports, config, configCid, secrets, secretsStaged, hosts, catalogRef, versionMemMb }) {
   // Two backends. "vm": hand the app reference to the app manager on VMMGR_URL
   // (the wasm-manager runs it as a `wasmtime serve` process; cpuShare is its
   // admission unit and sets the guest memory cap — cpuShare × node RAM;
@@ -3340,6 +4031,59 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
     return { internalPort: 0 };
   }
 
+  if (PROVISION_BACKEND === "vm" && ISOLATION_BACKEND) {
+    // Per-app guest tier: guestd derives the bundle from the catalog version and runs it in its OWN SNP guest. It
+    // refuses every feature it cannot honour inside the guest, so none is sent; the claim gate already refused
+    // deployments that need one. With the attested release on, config and secrets are not sent EITHER: the guest
+    // fetches them from the relay itself, sealed to it, with the ticket this process hands guestd (pumpReleaseTicket).
+    const h = await vmHealth();
+    // on this tier launchSpec never pulls secret VALUES (enclave-99's L6): a release guest gets them from the relay
+    // itself, and any other guest may not have any; `secretsStaged` is only whether some are staged
+    const released = await isolationSpawnRelease(h, deploymentId,
+      { config, configCid, staged: secrets ? true : (secretsStaged === undefined ? false : secretsStaged) });
+    isolationPortsOf(ports); // validate the complete measured port set
+    // The policy is the version's; a record that lost the version's memMb must not guess one (a different policy
+    // is a different AppID and measurement for the same version).
+    if (versionMemMb == null) throw new Error("per-app isolation: this record does not carry its version's on-chain memMb");
+    // ONE derivation for the spawn, the resume's same-record test and the self-test (isolationSpawnDerivation)
+    const derive = isolationSpawnDerivation({ catalogRef, wasmRef: image && image.reference, versionMemMb,
+      runtimeId: h && h.catalog && h.catalog.runtimeId, ports,
+      inference: isolatedInference(Math.round((gpuShare || 0)*1000),volumesInConfig(config)) });
+    const body = { image: image.reference, name: deploymentId, cpuShare: cpuShare ?? 0.05,
+      gpuShare: gpuShare || 0, appPort: appPort || 8080, ports: [], config: "", configCid: "", egress: "", derive,
+      ...(hosts && hosts.length ? { hosts: hosts.join(",") } : {}),
+      // sent only when true: a guestd that predates the release refuses unknown fields, and it is never asked for one
+      ...(released ? { release: true } : {}) };
+    let r = await vmReq("POST", "/vms", body, SPAWN_TIMEOUT_MS);
+    // Guests live on the HOST and outlive this node CVM: after a node restart, guestd still runs the guest this
+    // deployment launched before. Adopt it only if it is starting or running AND was launched from exactly this
+    // derivation record (same catalog version, component, policy and runtime); anything else under this name is
+    // ended and launched again, never adopted.
+    // Adoption is by NAME (this deployment) and record digest, never by the id's spelling: the manager owns its ids.
+    if (r.status === 409 && r.body && /^[A-Za-z0-9-]{1,64}$/.test(String(r.body.id || ""))) {
+      const cur = await vmReq("GET", `/vms/${encodeURIComponent(r.body.id)}`, null, 10_000);
+      const v = cur && cur.status === 200 && cur.body;
+      if (v && v.name === deploymentId && (v.status === "running" || v.status === "starting")
+          && v.recordSha256 === derivationDigest({ ...derive, runtimeId: v.runtimeId || derive.runtimeId })) {
+        console.log(`[isolation] ${deploymentId.slice(0, 10)}: adopted guest ${v.id} (${v.status}), launched from this record before the node restarted`);
+        if (v.status === "starting" && v.release === true) pumpReleaseTicket(deploymentId, v.id);
+        return { internalPort: 0, vmId: v.id, hostPort: 0, appId: v.appId };
+      }
+      console.warn(`[isolation] ${deploymentId.slice(0, 10)}: guest ${r.body.id} under this name is not this record's; ending it and launching again`);
+      const d = await vmReq("DELETE", `/vms/${encodeURIComponent(r.body.id)}`, null, 60_000);
+      if (d.status !== 200 && d.status !== 404) throw new Error(`guestd would not end the stale guest ${r.body.id} (HTTP ${d.status})`);
+      r = await vmReq("POST", "/vms", body, SPAWN_TIMEOUT_MS);
+    }
+    if (r.status !== 201) throw new Error(`guestd refused the launch (HTTP ${r.status}): ${(r.body && r.body.error) || JSON.stringify(r.body)}`);
+    console.log(`[isolation] ${deploymentId.slice(0, 10)}: guest ${r.body.id} app ${String(r.body.appId).slice(0, 16)}… `
+              + `(${ISOLATION_POLICY_RULE} ${JSON.stringify(derive.policy)}, record ${String(r.body.recordSha256 || "").slice(0, 16)}…)${r.reconciled ? " [reconciled]" : ""}`);
+    // A release guest's front reads a ticket before it serves, config or not (the host must not be able to start one
+    // without its owner's release), so its ticket is pumped; a legacy guest takes none.
+    if (released) pumpReleaseTicket(deploymentId, r.body.id);
+    // hostPort 0: the guest's forwarder is on the HOST, which this process cannot reach as 127.0.0.1; liveness is
+    // guestd's "running", which it reports only after verifying the guest (instanceAlive, tenantServing)
+    return { internalPort: 0, vmId: r.body.id, hostPort: 0, appId: r.body.appId };
+  }
   if (PROVISION_BACKEND === "vm") {
     const ref = image && image.reference;
     if (!ref) throw new Error("VM backend requires an image reference.");
@@ -3390,7 +4134,7 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
               + ` vm=${r.body.id} hostPort=${r.body.hostPort} status=${r.body.status}`);
     // The VM boots asynchronously; the data path 502s until its server is up.
     // status carries the manager's state.
-    return { internalPort: r.body.hostPort || 0, vmId: r.body.id, hostPort: r.body.hostPort,
+    return { internalPort: r.body.hostPort || 0, vmId: r.body.id, hostPort: r.body.hostPort, appId: r.body.appId,
              portMap: r.body.portMap || {}, status: r.body.status };   // logical "tcp:5432" -> actual loopback bind
   }
 
@@ -3813,7 +4557,8 @@ async function getMeasurements(rec, { origin = PUBLIC_URL, nonce, freshGpu = tru
   }
   // GPU evidence only when this deployment actually holds a card slice (a
   // CPU-only app placed on a GPU enclave holds none — no card fields for it).
-  if (IS_GPU && rec?._gpu && !rec._gpu.cpu) {
+  if (IS_GPU && rec?._gpu && !rec._gpu.cpu && _shieldedAdopted) out.gpu = shieldedGpuAttestation(rec);
+  else if (IS_GPU && rec?._gpu && !rec._gpu.cpu) {
     const n = nonce || randomBytes(32).toString("hex");
     try {
       const ev = freshGpu ? await fetchGpuEvidence(n) : await cachedGpuEvidence();
@@ -3899,10 +4644,11 @@ function fail(res, status, code, message) { return res.status(status).json({ cod
 const originOf = (req) => PUBLIC_URL || (_certSan ? `https://${_certSan}` : `https://${req.headers["x-forwarded-host"] || req.headers.host}`);
 
 // Kick self-registration on any request in case the boot loop is mid-backoff. We
-// register ONLY our attested shim-cert SAN (registerFromShimCert), never the
-// request Host, so a spoofed Host can never make us advertise a bogus origin.
+// register ONLY our pinned PUBLIC_URL or our attested shim-cert SAN
+// (registerSelf), never the request Host, so a spoofed Host can never make us
+// advertise a bogus origin.
 app.use((req, _res, next) => {
-  if (REGISTRY_READY && !_registered) registerFromShimCert().catch(() => {});
+  if (REGISTRY_READY && !_registered) registerSelf().catch(() => {});
   next();
 });
 
@@ -3943,8 +4689,9 @@ const fwUdpPorts = (rec) => (rec.firewall || []).filter((x) => x.startsWith("udp
 
 // Public raw-port inventory for the host's network agent. Addresses and public
 // ports exist only after the provider assigns them; the control API publishes those.
+// An isolation box publishes no raw ports: a tenant's ports are reachable only through its protected tunnel.
 const netMap = () => [...deployments.values()]
-  .filter(r => r.public && r.status === "running" && (fwTcpPorts(r).length || fwUdpPorts(r).length))
+  .filter(r => !ISOLATION_BACKEND && r.public && r.status === "running" && (fwTcpPorts(r).length || fwUdpPorts(r).length))
   .map(r => ({id: r.id, tcp: fwTcpPorts(r), udp: fwUdpPorts(r)}));
 // The host's SOCKS5 egress upstream (an Enclave-network circuit's SOCKS entry); unset = no app egress.
 const EGRESS_SOCKS_UPSTREAM = (process.env.EGRESS_SOCKS_UPSTREAM || "").trim();
@@ -4390,6 +5137,13 @@ app.use("/x/:id", async (req, res) => {
   if (req.method === "HEAD" && (req.url === "/" || req.url === "")) {
     res.writeHead(204); return res.end();
   }
+  // Per-app isolation tier: nothing is proxied in plaintext, to anyone. The only way in is TLS that ends in the
+  // deployment's own guest (/x/<id>/https, spliced). Refused before the WAF, the owner gate and the status check,
+  // because none of them could be applied to that path anyway (the plaintext exists only in the guest).
+  if (ISOLATION_BACKEND) {
+    res.writeHead(421, { "Content-Type": "text/plain", "Cache-Control": "no-store" });
+    return res.end(`This deployment is served only over TLS that ends in its own guest: https://${APP_CERT_DOMAIN ? appCertName(rec.id) : "<its app-zone name>"}/\n`);
+  }
   // Deployer-enabled WAF (the options envelope): before auth so a flood on a
   // private deployment can't grind token verification either. The relay's
   // bare-root HEAD probe above stays exempt - that's infrastructure, not
@@ -4634,7 +5388,8 @@ app.get("/v1/pricing", async (_req, res) => {
     ethUsd: ethUsd8 ? (Number(ethUsd8) / 1e8).toFixed(2) : null,
     model: "Deployments buy TWO shares: gpuShare (0..1 of ONE GPU card — VRAM and compute move together; 0 = CPU-only app) and cpuShare (0..1 of the node's vCPU+RAM). Apps declare their exact specs in the catalog — VRAM GB + GPU TFLOPS of a card, RAM MB + CPU GFLOPS of the node; those specs divided by this server's spec (the LARGER of the memory and compute axes per pool, rounded up to the whole percent) are the MINIMUM shares a deployment may buy. A GPU app's gpuShare must be >= its cpuShare. Billed per second, additively.",
     pricing: "The prices below are THIS enclave's, published in its EnclaveRegistry entry — every enclave sets its own, and a deployment is charged its shares of whichever one claims it. Set maxRatePerHourUsdc (create's maxRate6) to cap that: an enclave costing more than the cap cannot take the work, which is also what bounds where a deployment fails over to when its host dies. Change it any time with setMaxRate.",
-    node: { vcpus: NODE_VCPUS, ramGb: NODE_RAM_GB, gflops: NODE_GFLOPS,
+    node: { vcpus: nodeSpec().vcpus, ramGb: nodeSpec().ramGb, gflops: nodeSpec().gflops,
+            ...(nodeSpec().pool ? { is: "the per-app guest pool guestd admits into (its budget), not this CVM" } : {}),
             wholeNodePerSecondUsdc: CPU_RATE.toFixed(7), wholeNodePerHourUsdc: (CPU_RATE * 3600).toFixed(2) },
     computeGranularity: { unit: "percent", step: 1, minPercent: MIN_COMPUTE_PCT },
     formula: "ratePerSecondUsdc = gpuShare × wholeCardPerSecond + cpuShare × wholeNodePerSecond; minGpuShare = ceilPct(max(vramGb / cardVramGb, gpuTflops / cardTflops)); minCpuShare = ceilPct(max(memMb / nodeRam, cpuGflops / nodeGflops))",
@@ -4644,7 +5399,7 @@ app.get("/v1/pricing", async (_req, res) => {
     const r = rateFor(g, c);
     return { gpuShare: g, cpuShare: c,
              ...(g > 0 ? { vramGb: round1(g * CARD_VRAM_GB), gpuTflops: round1(g * CARD_TFLOPS) } : {}),
-             ramGb: round1(c * NODE_RAM_GB), vcpus: round1(c * NODE_VCPUS), cpuGflops: Math.round(c * NODE_GFLOPS),
+             ramGb: round1(c * nodeSpec().ramGb), vcpus: round1(c * nodeSpec().vcpus), cpuGflops: Math.round(c * nodeSpec().gflops),
              ratePerSecondUsdc: r.toFixed(7), ratePerHourUsdc: (r * 3600).toFixed(2) };
   };
   if (!IS_GPU) return res.json({
@@ -4772,7 +5527,22 @@ app.post("/v1/claim-hint", async (req, res) => {
 // tenants mid-lease over a probe that may simply be restarting.
 // (`_shieldedAdopted` is declared with the card pool above, because the pool
 // math reads it and the POOL_SELFTEST seam runs before this point.)
+// What this enclave's GPU path IS, for the attestation records. A shielded card is on the UNTRUSTED host, outside this CVM and
+// its launch measurement, reached by masked offload: it has no hardware report, and naming it NVIDIA confidential computing
+// would be false. Only a card inside the CVM's trust boundary is "nvidia-cc".
+const gpuTechnology = () => (!IS_GPU ? null : _shieldedAdopted ? "enclave-shield-masked" : "nvidia-cc");
+const SHIELD_GPU_NOTE = "No GPU report exists for this path, by design: the card is on the operator's untrusted host, outside this "
+  + "CVM and its launch measurement, and is reached by Enclave Shield masked offload. It only ever sees masked activations, "
+  + "never the conversation. The masking runs inside this CVM, so the CPU quote is what vouches for it.";
+// rec: the deployment (its own card, or every shielded card when the pool serves it); none: the enclave as a whole.
+function shieldedGpuAttestation(rec = null) {
+  const own = rec && !_shieldedPool && Number.isInteger(rec.resources?.cardId) ? gpuCards[rec.resources.cardId] : null;
+  const cards = (own?.shielded ? [own] : gpuCards.filter((c) => c.shielded && c.proof))
+    .map((c) => ({ index: c.id, uuid: c.uuid || null, name: c.proof?.card ?? null, vramGb: c.vramTotal ?? null }));
+  return { technology: "enclave-shield-masked", gpus: cards, ...(rec ? { gpuShare: rec.resources.gpuShare } : {}), verify: SHIELD_GPU_NOTE };
+}
 function adoptShieldedCards(values) {
+  const previousGpuPrice = SELL_GPU_PRICE6;
   if (!values.length) return;
   _shieldedAdopted = true;
   IS_GPU = true;
@@ -4807,6 +5577,10 @@ function adoptShieldedCards(values) {
     const rate = _shieldedPool.pricing;
     SELL_GPU_PRICE6 = Math.round((CARD_TFLOPS * rate.tflopUsdHr + CARD_VRAM_GB * rate.vramGiBUsdHr) * 1e6 / 3600);
   } else if (prices.length) SELL_GPU_PRICE6 = Math.min(...prices);
+  // Discovery can finish after registration. Publish the new ask immediately,
+  // rather than quoting it while the ledger retains a zero GPU price for 15 minutes.
+  if (_enclaveId && SELL_GPU_PRICE6 !== previousGpuPrice)
+    syncRegisteredPrice(_enclaveId).catch(e => console.warn(`[registry] GPU price update will retry on heartbeat: ${e.shortMessage || e.message}`));
   // Reconstruct every sibling's holds after discovery (restored arrays may
   // predate the probe that creates card 1..N in this process).
   if (_shieldedPool) reconcilePools();
@@ -4816,6 +5590,8 @@ const SHIELDED_VERDICT = process.env.SHIELDED_VERDICT || "/run/shielded-gpu.json
 let _shieldedCache = { at: 0, cards: [] };
 function shieldedCapacity(cardId = null) {
   const now = Date.now();
+  // A worker probe alone does not establish that the measured model can launch.
+  if (ISOLATION_BACKEND && (!_isolationInferenceHealth || now - _isolationInferenceHealth.at > 30_000)) return null;
   if (now - _shieldedCache.at >= 10_000) {
     const cards = [], ids = new Set(), endpoints = new Set(), devices = new Set();
     let pool = null;
@@ -4950,7 +5726,7 @@ if (process.env.SHIELDED_POOL_SELFTEST) {
     let handle, route, error;
     if (action.alloc) {
       const q = normalizeGpuReq(action.alloc.gpu, action.alloc.cpu);
-      handle = allocGpu(q.vramGb, q.computeShare, q.cpuShare);
+      handle = allocGpu(q.vramGb, q.computeShare, q.cpuShare, { heldReservation: action.alloc.heldReservation === true });
       if (handle) { handles.set(action.alloc.name, handle); deployments.set(action.alloc.name, { status: 'running', _gpu: handle }); }
     }
     if (action.launch) {
@@ -4958,9 +5734,18 @@ if (process.env.SHIELDED_POOL_SELFTEST) {
       try { route = shieldedLaunchSpec(h.cardId, h.computeShare, h.vramGb, h.cards); }
       catch (e) { error = e.message; }
     }
+    // the attestation records a buyer reads: this deployment's GPU block (getMeasurements, no origin, so nothing is fetched),
+    // the enclave-level one, and the deployment record's pointer
+    let attest;
+    if (action.attest) {
+      const h = handles.get(action.attest);
+      const rec = { _gpu: h, resources: { gpuShare: h.computeShare, cardId: h.cardId } };
+      attest = { deployment: (await getMeasurements(rec, { origin: null, freshGpu: false })).gpu,
+                 enclave: _shieldedAdopted ? shieldedGpuAttestation() : null, gpuTechnology: gpuTechnology() };
+    }
     if (action.release) { releaseGpu(handles.get(action.release)); handles.delete(action.release); deployments.delete(action.release); }
     if (action.reconcile) reconcilePools();
-    results.push({ handle, route, error, free: maxFreeGpuShare(), cpu: maxFreeCpu(),
+    results.push({ handle, route, error, attest, free: maxFreeGpuShare(), cpu: maxFreeCpu(),
       capacity: shieldedCapacity(), pricePerSec6: SELL_GPU_PRICE6, sizingUnits: GPU_COUNT,
       cards: gpuCards.map(c => ({ id: c.id, total: cardVram(c), free: c.vramFree, available: c.available })) });
   }
@@ -5009,9 +5794,9 @@ app.get("/availability", async (_req, res) => {
     gpuShareFree: round3(gpuFree), cpuShareFree: round3(cpuFree),
     usedGpuShare: IS_GPU ? round3(1 - gpuFree) : 0, usedCpuShare: round3(1 - cpuFree),
     maxShare: round3(IS_GPU ? gpuFree : cpuFree),
-    vcpusFree: round1(cpuFree * NODE_VCPUS), ramGbFree: round1(cpuFree * NODE_RAM_GB),
-    cpuGflopsFree: Math.round(cpuFree * NODE_GFLOPS),
-    nodeVcpus: NODE_VCPUS, nodeRamGb: NODE_RAM_GB, nodeGflops: NODE_GFLOPS,
+    vcpusFree: round1(cpuFree * nodeSpec().vcpus), ramGbFree: round1(cpuFree * nodeSpec().ramGb),
+    cpuGflopsFree: Math.round(cpuFree * nodeSpec().gflops),
+    nodeVcpus: nodeSpec().vcpus, nodeRamGb: nodeSpec().ramGb, nodeGflops: nodeSpec().gflops,   // exactly NODE_* off the tier
     smFree: IS_GPU ? Math.round(gpuFree * SM_TOTAL) : 0, smTotal: IS_GPU ? SM_TOTAL : 0,
     vramFreeGb: IS_GPU ? round1(gpuFree * CARD_VRAM_GB) : 0,
     gpuTflopsFree: IS_GPU ? round1(gpuFree * CARD_TFLOPS) : 0,
@@ -5068,6 +5853,19 @@ app.get("/availability", async (_req, res) => {
     askCpuPricePerSec6: SELL_CPU_PRICE6,
     ...(IS_GPU && SELL_GPU_PRICE6 > 0 ? { askGpuPricePerSec6: SELL_GPU_PRICE6 } : {}),
     claimEnabled: CLAIM_READY && !!_enclaveId && teeOk(),   // whether this enclave CLAIMS ledger work RIGHT NOW: configured for it, registered, AND its own RAD presents a confidential CPU (teeOk; a dev launch answers false here): configured for it AND its on-chain registration landed (_enclaveId is only set by a successful register tx — a staged seller with an unfunded gas EOA truthfully reports false until the first register confirms). The relay sizes app minimums, fleet capacity and the deploy target list over CLAIMING enclaves only
+    // A per-app isolation box serves ONLY deployments that require it, so it must stay out of the relay's
+    // fleet-wide feature AND and default pricing (fullService:false, the Windows node's precedent) and say which
+    // tier it is. Absent unless ISOLATION_BACKEND is set, so every other box's availability is unchanged.
+    //
+    // It must also not ADVERTISE what its claim gate refuses. The relay computes what the platform offers over the
+    // full-service boxes, but falls back to every serving box when none of those serves, so a tier box alone in
+    // the fleet would otherwise turn on controls (secrets, custom domains, config overrides, waf, private dev
+    // deploys, live resize) whose deployments it then refuses: Queued forever. Found on the production canary.
+    ...(ISOLATION_BACKEND ? { isolation: ISOLATION_BACKEND, fullService: false,
+      secrets: false, secretsInConfig: false, customDomains: false, configOverride: false, configEdit: false,
+      waf: false, gpuOptional: false, devDeploy: false, shareResize: false,
+      // the node above IS this pool; the pool's own ledger, stated as reservations and apart from any utilization
+      guestPool: guestPoolReport() } : {}),
     source, ...(note ? { note } : {}), updatedAt: new Date().toISOString(),
   });
   try {
@@ -5124,8 +5922,9 @@ app.get("/availability", async (_req, res) => {
     // manager too old to have an opinion, which the AND correctly reads as
     // false. `configMaxBytes` is the spam ceiling it will actually honor, so
     // the publish UI can size its own check off the fleet rather than guess.
-    const ccid = PROVISION_BACKEND === "vm" && h.configCid !== undefined
-      ? { configCid: h.configCid === true,
+    const attestedConfig = !!ISOLATION_BACKEND && isolationReleaseOn(h);
+    const ccid = PROVISION_BACKEND === "vm" && (h.configCid !== undefined || attestedConfig)
+      ? { configCid: h.configCid === true || attestedConfig,
           ...(h.configMaxBytes ? { configMaxBytes: Number(h.configMaxBytes) } : {}) } : {};
     // attached model volumes this enclave carries (Modelwrap): the console and
     // clients read this to know which volumes a deployment here can mount.
@@ -5457,6 +6256,9 @@ const view = (rec) => {
     verify: "EnclaveDeployments.provenUntil(id) is authoritative; the runner meter never pays past it." };
   o.network = { transport: "enclave-network", dedicatedIP: false,
     requested: { tcp: fwTcpPorts(rec), udp: fwUdpPorts(rec) }, egress: !!egress };
+  if (ISOLATION_BACKEND && (fwTcpPorts(rec).length || fwUdpPorts(rec).length)) {
+    o.network = { ...o.network, protectedTunnel: { protocol: "enclave-port/1", endpoint: APP_CERT_DOMAIN ? `https://${appCertName(rec.id)}` : null, tcp: fwTcpPorts(rec), udp: fwUdpPorts(rec), requiresLocalConnector: true } };
+  }
   return o;
 };
 
@@ -5946,7 +6748,7 @@ app.post("/v1/deployments", ownerAuth(null, { refuseSessions: "A wallet session 
       ? { gpuShare: 0, cpuShare: slice.cpuShare }
       : { gpuShare: slice.gpuShare, cpuShare: slice.cpuShare, cardId: gpu.cardId },
     network: { port: appPort, protocol: "https", endpoint: `${originOf(req)}/x/${id}` },
-    attestation: { available: true, vmTechnology: vmTech(), gpuTechnology: IS_GPU ? "nvidia-cc" : null, href: `/v1/deployments/${id}/attestation` },
+    attestation: { available: true, vmTechnology: vmTech(), gpuTechnology: gpuTechnology(), href: `/v1/deployments/${id}/attestation` },
     region: "Cloud Provider", createdAt: new Date().toISOString(), startedAt: null,
     // fair-billing clock: a funded BALANCE (null = unlimited pilot) drained only
     // on healthy ticks - see startBillingTicker. paused surfaces a frozen clock.
@@ -6194,6 +6996,14 @@ function hostsFor(rec) {
 // so) — a relay outage must not take provisioning down with it.
 async function launchSpec(rec) {
   const relayHeld = PROVISION_BACKEND === "vm" && rec._onchain;
+  // The per-app isolation tier never takes secret VALUES into this node (enclave-99's L6): a release guest fetches
+  // them from the relay itself, sealed to it, and no other guest there may have any. It asks only WHETHER some are
+  // staged (true / false / null = unknown), which is what decides whether the guest may start.
+  if (relayHeld && ISOLATION_BACKEND) {
+    const staged = await depHasSecrets(rec.id);
+    await fetchDepDomains(rec.id).catch(() => {});
+    return { ...launchSpecFrom(rec, null, hostsFor(rec)), secretsStaged: staged };
+  }
   const sec = relayHeld ? await fetchDepSecrets(rec.id) : null;
   if (sec) { if (sec.rev > 0) rec.secretsRev = sec.rev; else delete rec.secretsRev; }
   if (relayHeld) await fetchDepDomains(rec.id).catch(() => {});
@@ -6220,7 +7030,7 @@ async function performTenantProvision(rec) {
   try {
     const sp = await spawnContainer(await launchSpec(rec));
     rec._port = sp.internalPort;
-    if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; }
+    if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; rec._vmAppId = sp.appId; }
     if (sp.portMap) rec.portMap = sp.portMap;   // logical -> actual (public: clients see their mapping)
     if (!rec.startedAt) rec.startedAt = Date.now();
     rec.status = "running"; rec.paused = false; rec.pauseReason = null; rec._lastTickAt = Date.now();
@@ -6366,7 +7176,11 @@ async function instanceAlive(rec) {
   const r = await vmReq("GET", `/vms/${encodeURIComponent(rec._vmId)}`, null, 5000).catch(() => null);
   if (!r) return false;                        // manager unreachable mid-tick: freeze, don't respawn
   // the manager reports crashed processes as status "failed" (with the exit
-  // signal in .error) - an existing record is NOT the same as a live app
+  // signal in .error) - an existing record is NOT the same as a live app.
+  // On the per-app guest tier a launch takes tens of seconds (boot, then guestd's own verification) and reads
+  // "starting" meanwhile: that is a live launch, not a missing instance, and respawning it would only collide
+  // with it. It does not count as SERVING (tenantServing).
+  if (ISOLATION_BACKEND && r.status === 200 && r.body && r.body.status === "starting") return true;
   return r.status === 200 && r.body && r.body.status === "running";
 }
 function pauseRec(rec, reason) {
@@ -6398,7 +7212,7 @@ async function respawnTenant(rec) {
   try {
     const sp = await spawnContainer(await launchSpec(rec));
     rec._port = sp.internalPort;
-    if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; }
+    if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; rec._vmAppId = sp.appId; }
     if (sp.portMap) rec.portMap = sp.portMap;
     rec._respawnAt = 0; rec._respawnBackoffMs = 0;
     console.log(`[bill] ${rec.id} instance respawned after outage`);
@@ -6795,6 +7609,10 @@ app.get("/v1/attestation", async (req, res) => {
     : null;
   if (!IS_GPU)                                 // CPU-only enclave: no card, no NVML evidence to fetch
     return res.json({ generatedAt: new Date().toISOString(), ...out, guideUrl: "https://enclave.host/#attest" });
+  if (_shieldedAdopted) {                       // a shielded card: nothing to fetch from NVML, and it is not confidential computing
+    out.gpu = shieldedGpuAttestation();
+    return res.json({ generatedAt: new Date().toISOString(), ...out, guideUrl: "https://enclave.host/#attest" });
+  }
   try {
     const ev = await cachedGpuEvidence();
     out.gpu = { technology: "nvidia-cc", ccMode: ev.ccMode ?? null, nonce: ev.nonce,
@@ -7093,6 +7911,10 @@ const appCertName  = (id) => `${appCertLabel(id)}.${APP_CERT_DOMAIN}`;
 // http:N entry; tcp/udp-only apps get no browser subdomain cert.
 const servesHttp   = (rec) => { const fw = rec.firewall || []; return fw.length === 0 || fw.some((x) => String(x).startsWith("http")); };
 const desiredCertNames = (rec) => {
+  // On the per-app isolation tier a deployment's TLS ends in ITS OWN GUEST, so this process must hold no
+  // certificate for any of its names: one here would let the node CVM answer as the app. The guest front's own
+  // certificate is not built yet (isolation/DEPLOYMENT-PATH.md, C4), so a browser has no CA-signed name for it.
+  if (ISOLATION_BACKEND) return [];
   const names = [];
   // ONE hostname per deployment: on <label>.APP_CERT_DOMAIN, port 443 is the
   // HTTP surface (unless the tenant declared tcp:443 — their socket wins) and
@@ -7743,6 +8565,24 @@ function wsUdpBridge(req, socket, head, port) {
   });
 }
 
+// /x/<id>/https on the per-app isolation tier: the relay's raw TLS bytes, spliced to the deployment's own guest.
+// Nothing here opens the session. See isolation/m4/guestd/supervisor-splice.mjs for what is checked and why none
+// of it is the client's trust.
+async function isolationHttps(req, socket, head, rec, deny) {
+  if (!GUESTD_DATA_ADDR || !APP_CERT_DOMAIN) return deny("503 Service Unavailable");
+  let mod, transport;
+  try { [mod, transport] = await Promise.all([isolationSplice(), guestdTransport()]); }
+  catch (e) { console.warn(`[isolation] ${rec.id.slice(0, 10)}: no splice (${e.message})`); return deny("503 Service Unavailable"); }
+  const o = await mod.handleIsolationHttps({ wss, req, socket, head, expectName: appCertName(rec.id),
+    allowedNames: _depDomains.get(String(rec.id).toLowerCase()) || [],
+    instanceId: rec._vmId, expectAppId: rec._vmAppId, transport, dataAddr: GUESTD_DATA_ADDR });
+  const key = `${o.outcome}:${o.kind || o.why}`;
+  isolationSpliceCounts.set(key, (isolationSpliceCounts.get(key) || 0) + 1);
+  if (o.outcome !== "spliced") console.warn(`[isolation] ${rec.id.slice(0, 10)}: refused (${o.kind}) ${o.why}`);
+  if (_isolationSpliceObserver) _isolationSpliceObserver(rec.id, o);
+  return o;
+}
+
 server.on("upgrade", async (req, socket, head) => {
   const deny = (line) => { socket.write(`HTTP/1.1 ${line}\r\n\r\n`); socket.destroy(); };
 
@@ -7766,9 +8606,14 @@ server.on("upgrade", async (req, socket, head) => {
     const rec = depByIdOrPrefix(hx[1]);
     if (!rec)                                   return deny("404 Not Found");
     if (rec.status !== "running")               return deny("409 Conflict");
+    if (ISOLATION_BACKEND)                      return isolationHttps(req, socket, head, rec, deny);
     if (!TLS_BRIDGE_CTX && !acmeCerts.size)     return deny("503 Service Unavailable"); // no context could complete a handshake
     return wsHttpsBridge(req, socket, head, rec.id);
   }
+
+  // Per-app isolation tier: /x/<id>/https above is the ONLY way to a deployment. Its tcp/tls/udp bridges would
+  // carry bytes this process terminates or reads, and a tier deployment declares no ports (the claim gate).
+  if (ISOLATION_BACKEND && /^\/x\//.test(req.url || "")) return deny("403 Forbidden");
 
   // ---- app TCP ports: /x/:id/(tcp|tls)/:port — the declared-firewall data path ----
   // Auth follows the deployment's `public` flag (like the HTTP path). Two gates
@@ -7823,6 +8668,169 @@ server.on("upgrade", async (req, socket, head) => {
 
   socket.destroy();
 });
+
+// ---- per-app isolation: a WebPKI certificate for each guest's OWN key (F2) ----------------------------------------
+// A browser needs a CA certificate for <label>.APP_CERT_DOMAIN. On this tier the key is the guest's and never leaves
+// it, and TLS ends in the guest, so this process holds no certificate for the name (desiredCertNames). Instead it
+// RELAYS: the guest's CSR goes to the platform certificate service under this box's lease authority, and the
+// certificate goes back into the guest - but only after the guest verified, over a session with guestd's verified
+// key, as this deployment's app (isolation/m4/guestd/supervisor-guestcert.mjs says exactly what is checked).
+let _guestCertMod = null, _guestCertJudgeMode = "trusted";
+// The relay's expected guest for a deployment (supervisor-guestcert.mjs expectedGuestFetcher): the independent AppID and
+// (runtime, measurement) pairs an SEV-SNP guest is held to before its key is certified. Over WebPKI to SECRETS_API, the
+// relay origin this measured image fixes (the node's launcher sets no override), never with certificate checks off.
+let _expectedGuest = null;
+// The firmware floor a guest's report must meet before its key is certified: from the node's MEASURED image (gsup,
+// ISOLATION_MIN_TCB). With it, only "attested" issues; without it, "no-tcb-policy" (chain verified, TCB unjudged)
+// still issues, and the log says which. Malformed = no issuance at all (the judge refuses a malformed floor).
+const ISOLATION_MIN_TCB = (() => { try { return process.env.ISOLATION_MIN_TCB ? JSON.parse(process.env.ISOLATION_MIN_TCB) : undefined; }
+                                     catch { return "malformed"; } })();
+const _guestCerts = new Map();         // deployment id -> { instanceId, key, notAfter, renewAt, issuer } | { instanceId, backoffUntil, failures, starts, why }
+async function issueGuestCsr(name, csrPem, spkiHash) {
+  if (!CERTS_API) throw new Error("no platform certificate service (CERTS_API)");
+  const endpoint = _advertisedEndpoint || PUBLIC_URL;
+  if (!endpoint) throw new Error("this node has not registered its endpoint yet");
+  const ts = Math.floor(Date.now() / 1000);
+  const sig = CERTS_KEY ? certsSig(name, endpoint, spkiHash, ts) : "";
+  // signed with the operator key directly: the same key claimSigner() uses, without its wallet client
+  const opSig = REGISTRY_PK ? await privateKeyToAccount(REGISTRY_PK.startsWith("0x") ? REGISTRY_PK : `0x${REGISTRY_PK}`)
+    .signMessage({ message: certsOpSigText(name, endpoint, spkiHash, ts) }) : "";
+  if (!sig && !opSig) throw new Error("this node has neither an operator key nor the fleet secret to sign the request");
+  const r = await acmeFetch(`${CERTS_API}/v1/certs/issue`, { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name, csr: csrPem, endpoint, ts, ...(sig ? { sig } : {}), ...(opSig ? { opSig } : {}) }) }, CERTS_HTTP_MS);
+  const data = /json/.test(r.headers.get("content-type") || "") ? await r.json().catch(() => null) : null;
+  if (r.status === 202) throw Object.assign(new Error(`order for ${name} in flight`), { retryMs: Math.max(5, Number(data?.retryAfterSec) || 60) * 1000 });
+  if (r.status !== 200 || !data || !data.certPem) throw new Error(`the certificate service answered ${r.status} ${String(data?.error || "")} ${String(data?.message || "")}`.trim());
+  return data.certPem;
+}
+// When a failed certificate pass may try again, and whether a pass skips a guest: the pure policy (test/guestcert-retry.test.mjs
+// slices it out by text, from here to _guestCertRunning).
+// The error's own hint wins (the platform's 202 "in flight" retryAfterSec, the relay's Retry-After on a cold
+// prediction). A guest that guestd still reports STARTING (routeFor's SpliceRefused "not-running", "the instance is
+// starting") serves within seconds of spawning, so it is tried again after GUEST_CERT_STARTING_MS and is NOT counted as
+// a failure: the doubling back-off (5 min, 10, ... 1 h) is for real refusals. Only a guest still "starting" after
+// GUEST_CERT_STARTING_TRIES of those short waits falls through to it. Seen 2026-09-26 on metal-iso0: the first pass ran
+// 2 s after the spawn, 25 s before the guest served, and its 300 s back-off was 5 of the 8 minutes before a first
+// launch's public TLS (enclave-63's breakdown; enclave-87).
+const GUEST_CERT_STARTING_MS = 20_000, GUEST_CERT_STARTING_TRIES = 30, GUEST_CERT_EVERY_MS = 60_000;
+function guestCertRetry(e, prevFailures = 0, prevStarts = 0) {
+  const startingErr = !!e && e.kind === "not-running" && e.message === "the instance is starting";
+  const starting = startingErr && prevStarts < GUEST_CERT_STARTING_TRIES;
+  const failures = starting ? prevFailures : prevFailures + 1;
+  const wait = (e && e.retryMs) || (starting ? GUEST_CERT_STARTING_MS : Math.min(3600_000, 300_000 * 2 ** (failures - 1)));
+  // once the short tries are spent, a guest STILL starting stays on the doubling back-off (enclave-bf): starts holds at
+  // the cap until another answer resets it
+  return { wait, failures, starts: starting ? prevStarts + 1 : startingErr ? prevStarts : 0 };
+}
+// How long until the first record in back-off is due again (ms), or null when none is: the loop wakes then rather than
+// at its next tick, so a 20 s or 30 s wait is honored within a second instead of being rounded up to the loop's period.
+function nextGuestCertWakeMs(states, now) {
+  let next = Infinity;
+  for (const st of states) if (st && typeof st.backoffUntil === "number" && st.backoffUntil > now) next = Math.min(next, st.backoffUntil);
+  return next === Infinity ? null : next - now;
+}
+// Whether a pass skips this deployment's guest now. The back-off and its counts belong to the INSTANCE (enclave-5d): when
+// guestd replaces a guest (a relaunch, a restart) the new instance is asked at once, never waiting out its predecessor's
+// back-off (up to an hour); the same instance is skipped while in back-off or while its installed certificate is fresh.
+function guestCertSkip(st, vmId, now) {
+  if (!st || st.instanceId !== vmId) return false;
+  if (st.backoffUntil && now < st.backoffUntil) return true;
+  return !!(st.renewAt && now < st.renewAt);
+}
+// The entry a failed pass records, keyed to the instance: a new instance's counts start at 0; the same instance keeps
+// its installed-certificate fields and its counts.
+function guestCertFailure(st, vmId, e, now) {
+  const same = !!st && st.instanceId === vmId;
+  const { wait, failures, starts } = guestCertRetry(e, same ? st.failures || 0 : 0, same ? st.starts || 0 : 0);
+  return { wait, entry: { ...(same ? st : {}), instanceId: vmId, backoffUntil: now + wait, failures, starts, why: e.message } };
+}
+let _guestCertRunning = false, _guestCertWake = null;
+function runGuestCertPass() {
+  guestCertPass().catch((e) => console.warn(`[isolation] certificate pass failed: ${e.message}`));
+}
+async function guestCertPass() {
+  if (!ISOLATION_BACKEND || !GUESTD_DATA_ADDR || !APP_CERT_DOMAIN) return;
+  if (_guestCertRunning) return;   // a wake and a tick never run two passes at once (one CSR per guest at a time)
+  _guestCertRunning = true;
+  try { await guestCertPassOnce(); } finally {
+    _guestCertRunning = false;
+    const ms = nextGuestCertWakeMs(_guestCerts.values(), Date.now());
+    if (ms !== null && ms < GUEST_CERT_EVERY_MS) {
+      if (_guestCertWake) clearTimeout(_guestCertWake);
+      _guestCertWake = setTimeout(() => { _guestCertWake = null; runGuestCertPass(); }, ms + 100);
+      if (_guestCertWake.unref) _guestCertWake.unref();
+    }
+  }
+}
+async function guestCertPassOnce() {
+  let mod, judgeMod, transport;
+  try {
+    _guestCertMod = _guestCertMod || await import(new URL("./isolation/m4/guestd/supervisor-guestcert.mjs", import.meta.url));
+    judgeMod = await import(new URL("./isolation/m2/judge.mjs", import.meta.url));
+    transport = await guestdTransport();
+    mod = _guestCertMod;
+  } catch (e) { console.warn(`[isolation] guest certificates unavailable: ${e.message}`); return; }
+  for (const rec of deployments.values()) {
+    if (rec.status !== "running" || !rec._vmId || !rec.public) continue;
+    const names = [appCertName(rec.id), ...await fetchDepDomains(rec.id)];
+    for (const name of new Set(names)) {
+      const cacheKey = name === appCertName(rec.id) ? rec.id : rec.id + ":" + name;
+      const st = _guestCerts.get(cacheKey);
+      if (guestCertSkip(st, rec._vmId, Date.now())) continue;   // this instance's back-off, or its certificate is fresh
+
+      try {
+        const got = await mod.ensureGuestCert({ transport, dataAddr: GUESTD_DATA_ADDR, instanceId: rec._vmId,
+          expectAppId: rec._vmAppId, deploymentId: rec.id, name, judge: judgeMod.judge, judgeMode: _guestCertJudgeMode,
+          expected: _expectedGuest || (_expectedGuest = mod.expectedGuestFetcher({ base: SECRETS_API })),
+          requirePrediction: ISOLATION_BACKEND === "snp-guest-per-app",   // the MEASURED cmdline's tier, never guestd's word
+          judgeOk: _guestCertJudgeMode !== "trusted" ? ["attested", "no-tcb-policy", "unauthenticated"]
+            : ISOLATION_MIN_TCB !== undefined ? ["attested"] : ["attested", "no-tcb-policy"],
+          minTcb: ISOLATION_MIN_TCB, customName: name !== appCertName(rec.id), issue: issueGuestCsr });
+        _guestCerts.set(cacheKey, got);
+        if (name !== appCertName(rec.id) && customDomainOwner(name) === rec.id.toLowerCase())
+          _certReports.set(name, { owner: rec.id.toLowerCase(), ok: true, ca: got.issuer });
+        console.log(got.reused
+          ? `[isolation] ${rec.id.slice(0, 10)}: guest ${got.instanceId} already serves a valid certificate for ${name} on its `
+            + `key ${got.key.slice(0, 16)}… (serial ${got.serial}, ${got.issuer.slice(0, 60)}, until ${new Date(got.notAfter).toISOString()}); `
+            + `nothing issued until ${new Date(got.renewAt).toISOString()}`
+          : `[isolation] ${rec.id.slice(0, 10)}: certificate for ${name} installed in guest ${got.instanceId} `
+            + `(key ${got.key.slice(0, 16)}…, ${got.issuer.slice(0, 60)}, until ${new Date(got.notAfter).toISOString()}; guest ${got.verdict}`
+            + `${got.wxCoverage === "runtime-unmeasured" ? `; runtime W^X UNMEASURED: legacy release ${String(got.release).slice(0, 8)}` : ""})`);
+      } catch (e) {
+        const { wait, entry } = guestCertFailure(st, rec._vmId, e, Date.now());
+        _guestCerts.set(cacheKey, entry);
+        console.warn(`[isolation] ${rec.id.slice(0, 10)}: no certificate for ${name} (${e.message}); retry in ${Math.round(wait / 1000)}s`);
+      }
+    }
+  }
+}
+function startGuestCertLoop(everyMs = GUEST_CERT_EVERY_MS) {
+  if (!ISOLATION_BACKEND || !CERTS_API) return;
+  const t = setInterval(runGuestCertPass, everyMs);
+  if (t.unref) t.unref();
+}
+
+// ISOLATION_DATAPATH_SELFTEST='{"deployments":[{"id","vmId","appId","status","public"}]}' - the per-app data path
+// through THIS process's own upgrade handler and /x/:id routes, for isolation/m4/guestd/datapath_chain_test.go.
+// It installs the given deployment records, serves on an ephemeral loopback port (printing
+// {"listening":<port>}), prints one "SPLICE {…}" line per /x/<id>/https outcome, and never returns: nothing after
+// this point (the claim loop, the registry, the chain) runs. ISOLATION_BACKEND, VMMGR_URL, GUESTD_KEY_FILE,
+// GUESTD_DATA_ADDR and APP_CERT_DOMAIN come from the environment, as in production.
+if (process.env.ISOLATION_DATAPATH_SELFTEST) {
+  const c = JSON.parse(process.env.ISOLATION_DATAPATH_SELFTEST);
+  for (const d of c.deployments || []) {
+    deployments.set(d.id, { id: d.id, owner: "0x" + "00".repeat(20), status: d.status || "running",
+      public: d.public !== false, firewall: [], _vmId: d.vmId, _vmAppId: d.appId });
+  }
+  _isolationSpliceObserver = (id, o) => console.log("SPLICE " + JSON.stringify({ id, ...o }));
+  // guest certificates in the fixture: its reports are unsigned, so the lab judge mode stands in for "trusted"
+  // here and ONLY here (production hardcodes trusted; nothing else reads this seam's config)
+  if (c.guestCerts) { _guestCertJudgeMode = "lab-unsigned"; startGuestCertLoop(Number(c.guestCerts.everyMs) || 2000); }
+  // and which certificates this process would ask for on their behalf: none, on this tier
+  const certNames = Object.fromEntries([...deployments.values()].map((r) => [r.id, desiredCertNames(r)]));
+  server.listen(0, "127.0.0.1", () => console.log(JSON.stringify({ listening: server.address().port, certNames })));
+  await new Promise(() => {});
+}
 
 // ============================================================================
 // portable deployments — the EnclaveDeployments claim loop (see contracts/DEPLOYMENTS.md)
@@ -8055,6 +9063,82 @@ function claimSigner() {
   }
   return { account: _claimAccount, wallet: _claimWallet };
 }
+// RELEASE_SELFTEST='{"id":"0x…","vmId":"gd…","endpoint":"…","script":[{status,awaitingTicket}|{"code":404},…],
+//   "post":202}' runs ONE ticket pump against a scripted guestd (each GET answers the next script entry; the last
+//   repeats) and the REAL signed fetch against SECRETS_API, then prints {result, posts, logs} as one JSON line and
+//   exits (test/isolation-release-ticket.test.mjs drives it with a fake relay and a throwaway REGISTRY_PRIVATE_KEY).
+if (process.env.RELEASE_SELFTEST) {
+  const c = JSON.parse(process.env.RELEASE_SELFTEST);
+  if (Array.isArray(c.listed)) {   // {"listed":["0x…",…]}: the relay's list, as releaseListedFor reads it
+    console.log(JSON.stringify({ listed: await Promise.all(c.listed.map((id) => releaseListedFor(id))) }));
+    process.exit(0);
+  }
+  if (Array.isArray(c.staged)) {   // {"staged":["0x…",…]}: depHasSecrets, against SECRETS_API
+    console.log(JSON.stringify({ staged: await Promise.all(c.staged.map((id) => depHasSecrets(id))) }));
+    process.exit(0);
+  }
+  if (c.spawnReal) {               // {"spawnReal":{endpoint, spec}}: the REAL spawn, pump and signed fetch against the REAL
+    // guestd at VMMGR_URL (guestd-control/1, GUESTD_KEY_FILE) and the relay at SECRETS_API - the release lab's phase 2
+    // (isolation/m2/lab-release/run-lab-phase2.sh). Prints the instance id, the pump's result and guestd's view.
+    _advertisedEndpoint = c.spawnReal.endpoint;
+    // the pump sleeps on sleepMs, whose timers are unref'd (right for the long-running process); here nothing else holds
+    // the event loop, so hold it while the seam waits, or node exits mid-pump with the top-level await unsettled
+    const hold = setInterval(() => {}, 1000);
+    let out = {};
+    try {
+      const r = await spawnContainer(c.spawnReal.spec);
+      out.vmId = r.vmId;
+      out.pump = await pumpReleaseTicket(c.spawnReal.spec.deploymentId, r.vmId);   // the running pump's own promise
+      const v = await vmReq("GET", `/vms/${encodeURIComponent(r.vmId)}`, null, 10_000);
+      out.view = v.body;
+    } catch (e) { out.error = e.message; }
+    clearInterval(hold);
+    console.log(JSON.stringify(out));
+    process.exit(0);
+  }
+  if (c.spawnSite) {               // {"spawnSite":{health, spec}}: the REAL spawnContainer against a scripted guestd
+    const posted = [], pumped = [];
+    vmReq = async (method, path, body) => {
+      if (method === "GET" && path === "/health") return { status: 200, body: c.spawnSite.health };
+      if (method === "POST" && path === "/vms") { posted.push(body); return { status: 201, body: { id: "gd0a0b0c0d", appId: "ab".repeat(32), recordSha256: "" } }; }
+      return { status: 404, body: {} };
+    };
+    pumpReleaseTicket = (dep, vmId) => { pumped.push(vmId); return Promise.resolve("recorded"); };
+    let error = null;
+    try { await spawnContainer(c.spawnSite.spec); } catch (e) { error = e.message; }
+    console.log(JSON.stringify({ posted, pumped, error }));
+    process.exit(0);
+  }
+  if (Array.isArray(c.cidClaims)) {
+    const out = [];
+    for (const x of c.cidClaims) out.push(await configCidClaimRefusal(x.h, x.id));
+    console.log(JSON.stringify({ cidClaims: out }));
+    process.exit(0);
+  }
+  if (Array.isArray(c.spawn)) {    // {"spawn":[{h, id, config, configCid, staged}]}: the spawn's release decision, against SECRETS_API
+    const out = [];
+    for (const x of c.spawn) {
+      try { out.push({ released: await isolationSpawnRelease(x.h, x.id, x) }); }
+      catch (e) { out.push({ error: e.message }); }
+    }
+    console.log(JSON.stringify({ spawn: out }));
+    process.exit(0);
+  }
+  let i = 0;
+  const posts = [], logs = [];
+  const req = async (method, path, body) => {
+    if (method === "POST") { posts.push({ path, ticketBytes: Buffer.from(String(body && body.ticket), "base64").length, afterGet: i }); return { status: c.post ?? 202, body: {} }; }
+    const e = c.script[Math.min(i++, c.script.length - 1)];
+    return e.code ? { status: e.code, body: {} } : { status: 200, body: e };
+  };
+  const log = { log: (m) => logs.push(m), warn: (m) => logs.push(m) };
+  // a REF'd sleep: sleepMs unrefs its timer (right for the long-running process), and here nothing else holds the loop
+  const result = await releaseTicketPump(c.id, c.vmId, { req, pollMs: 5, retryMs: c.retryMs ?? 5, deadlineMs: c.deadlineMs ?? 5000,
+    log, sleep: (ms) => new Promise((r) => setTimeout(r, ms)), fetchTicket: (id) => fetchReleaseTicket(id, c.endpoint) });
+  console.log(JSON.stringify({ result, posts, logs }));
+  process.exit(0);
+}
+
 // Bare-metal receipt wait: poll eth_getTransactionReceipt every 2s. viem's
 // waitForTransactionReceipt spent the FULL 120s timeout on every tx here even
 // though each one mined within seconds — the whole night of 2026-07-19 the
@@ -8300,6 +9384,9 @@ async function renewLeases() {
     const lapsed = rec._leaseUntil * 1000 <= Date.now();
     rec._renewing = true;
     try {
+      const fresh = await readLedgerContract("get", [rec.id]);
+      const pinRefusal = placementRefusal(fresh.configCid, _enclaveId);
+      if (pinRefusal) { await retireForPlacement(rec, pinRefusal); continue; }
       const sent = lapsed ? sendClaimTx("claim", [rec.id, _enclaveId]) : sendClaimTx("renew", [rec.id]);
       await sent;
       const rcpt = await sent.receipt;
@@ -8424,7 +9511,7 @@ async function switchTenantVersion(rec, d) {
   // fetch + verify + cache the new bytes while the old version keeps serving
   if (PROVISION_BACKEND === "vm" && /^ipfs:\/\//.test(g.wasmRef)) {
     try {
-      const r = await vmReq("POST", "/prefetch", { image: g.wasmRef }, 300_000);
+      const r = await vmReq("POST", "/prefetch", await managerPrefetchBody(g), 300_000);
       if (r.status !== 200) throw new Error((r.body && (r.body.error || r.body.message)) || `HTTP ${r.status}`);
     } catch (e) { return refuse("could not fetch the new version's wasm: " + e.message, true); }
   }
@@ -8462,7 +9549,7 @@ async function switchTenantVersion(rec, d) {
   }
   const httpFw = firewall.find((x) => x.startsWith("http:"));
   rec.image = { reference: g.ref };
-  rec.app = g.app; rec.appWasm = g.wasmRef;
+  rec.app = g.app; rec.appWasm = g.wasmRef; rec._versionMemMb = g.min && g.min.memMb;
   // the deployer's config override rides the DEPLOYMENT (the on-chain
   // envelope), not the version — a version switch keeps it; only an
   // override-free deployment follows the new version's config. The envelope
@@ -8649,6 +9736,11 @@ async function auditClaims(ledgerById) {
     // AND the sweep (per-record re-reads were what blew the RPC rate budget)
     const d = ledgerById.get(rec.id.toLowerCase());
     if (!d) continue;                         // not in the page (RPC anomaly): keep serving, the lease is prepaid
+    const pinRefusal = placementRefusal(d.configCid, _enclaveId);
+    if (pinRefusal) {
+      await retireForPlacement(rec, pinRefusal);
+      continue;
+    }
     rec.paidUsdc = Number(d.spent6 + d.balance6);
     rec._balance6 = Number(d.balance6);          // funded-runtime display: balance beyond the current lease
     rec.rate = Number(d.rate) / 1e6;             // a setShares resize recalculates it on-chain; keep the mirror honest
@@ -9134,17 +10226,21 @@ async function depHasSecrets(id){
     const r = await fetch(`${SECRETS_API}/v1/secrets/exists`, {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ id: String(id).toLowerCase() }), signal: AbortSignal.timeout(5000) });
-    if (r.status === 404 || r.status === 503) return false;
-    if (!r.ok) return null;
-    const b = await r.json();
-    return b.exists === true;
+    let b = null;
+    try { b = await r.json(); } catch { b = null; }
+    // only the relay's deliberate "secrets are off" is a clean NO; any other 503 (a relay restarting), a 404 (the relay
+    // always answers this route: a 404 is an old or mis-routed one) or a malformed answer is UNKNOWN, never "none
+    // staged": an unknown read as none would start a deployment without its secrets (enclave-99, the M1 shape)
+    if (r.status === 503) return b && b.error === "secrets_disabled" ? false : null;
+    if (!r.ok || !b || typeof b.exists !== "boolean") return null;
+    return b.exists;
   } catch { return null; }
 }
 
-const volumesInConfig = (cfgStr) => {
+function volumesInConfig(cfgStr) {
   try { const c = JSON.parse(cfgStr || "{}"); if (Array.isArray(c.volumes)) return c.volumes.map(String); } catch {}
   return [];
-};
+}
 
 // The model volumes the app will actually mount: the version's config, or the
 // deployment's override where it has one. Pure — no I/O, so both the volume
@@ -9202,6 +10298,10 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   // what makes enclave updates near-seamless for tenants.
   const leaseLive = Number(d.leaseUntil) * 1000 > Date.now();
   const resume = leaseLive && d.runner === _enclaveId;
+  // Browser claim hints can arrive before the first sweep, too. They must not
+  // steal the shares of live leases still being recovered after a restart.
+  if (!resume && ISOLATION_BACKEND && (!_firstClaimSweepAt || _resumeHoldLogged))
+    return "recovering existing leases before accepting new work";
   if (leaseLive && !resume) return "another enclave holds a live lease";
   // The record's own `rate` is the WORST case (its ceiling, until a host prices
   // it), so this is only a cheap pre-filter; rateCapRefusal below decides
@@ -9215,8 +10315,11 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   // doesn't recognize is refused, never ignored: silently dropping an option
   // would serve traffic the owner believes is filtered, or run the app on a
   // config the owner believes was overridden.
-  try { parseDepOptions(d.configCid, d.gpuMilli); }
+  let claimOpts;
+  try { claimOpts = parseDepOptions(d.configCid, d.gpuMilli); }
   catch (e) { return "deployment options refused: " + e.message; }
+  const pinRefusal = placementRefusal(d.configCid, _enclaveId);
+  if (pinRefusal) return pinRefusal;
   // Routing: the deployment bought two shares. GPU work (gpuMilli > 0)
   // runs ONLY on GPU enclaves and must fit a card AND the node's cpu pool.
   // CPU-only work runs on CPU enclaves immediately; a GPU enclave bids on
@@ -9290,6 +10393,20 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   const wantVols = neededVolumes(d, g);
   const health = (wantVols.length || gpuShare > 0) ? await vmHealth().catch(() => null) : undefined;
   const mins = minSharesOf(g.min, { volGb: wantVols.length ? volumeGb(wantVols, health) : 0 });
+  const resumeHeld = resume && ISOLATION_BACKEND ? await isolationHeldGuest(d.id) : null;
+  // Existing isolated guests already reserve their GPU/CPU room. Credit only
+  // a live-lease resume whose derivation matches exactly; replacements still
+  // need free capacity and all manager admission checks below still apply.
+  let resumeSameRecord = false;
+  if (resumeHeld) {
+    try {
+      const resumeManager = health || await vmHealth();
+      const resumeFirewall = parseFirewall({ ports: g.ports ? String(g.ports).split(",") : [] });
+      resumeSameRecord = isolationHeldSameRecord(resumeHeld, g, resumeFirewall,
+        resumeManager?.catalog?.runtimeId, isolatedInference(d.gpuMilli, neededVolumes(d, g)));
+    } catch { resumeSameRecord = false; }
+  }
+  const cpuRoom = claimFreeCpu();
   // The PUBLISHER's own declaration, not the volume-corrected figure: this is
   // "did the version state a card requirement", which is what decides whether
   // the OWNER's envelope flag is allowed to waive it.
@@ -9333,7 +10450,7 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     if (_shieldedPool && h.shieldedPool !== true)
       return "shielded model-layer backend is not ready";
     slice = normalizeGpuReq(gpuShare, cpuShare);
-    if (slice.vramGb > maxFreeVram() + 1e-9 || slice.cpuShare > maxFreeCpu() + 1e-9)
+    if (!resumeSameRecord && (slice.vramGb > maxFreeVram() + 1e-9 || slice.cpuShare > cpuRoom + 1e-9))
       return "no free capacity for those shares here right now";
     // The card's own count outranks the share arithmetic when it says LESS.
     // Every check above is a ledger: it knows what was handed out, never what
@@ -9345,7 +10462,7 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     // fit is refused HERE, before a lease is burned. Absent field (older
     // manager, probe failure) skips the check - the ledgers above still hold.
     const devFreeGb = Number(h && h.capacity && h.capacity.vramDevFreeGb);
-    if (Number.isFinite(devFreeGb) && slice.vramGb + CTX_OVERHEAD_GB > devFreeGb + 1e-9) {
+    if (!resumeSameRecord && Number.isFinite(devFreeGb) && slice.vramGb + CTX_OVERHEAD_GB > devFreeGb + 1e-9) {
       console.warn(`[claim] ${d.id}: needs ${slice.vramGb} GB VRAM but the device physically has `
         + `${devFreeGb} GB free (ledger free ${h.capacity.vramFreeGb ?? "?"} GB, divergence `
         + `${h.capacity.vramDivergenceGb ?? "?"} GB) - refusing the claim`);
@@ -9360,7 +10477,7 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
       if (Date.now() < (claimableSince + CPU_CLAIM_GRACE_SEC) * 1000) return "cpu-first grace";
     }
     slice = normalizeCpuReq(cpuShare);
-    if (slice.cpuShare > maxFreeCpu() + 1e-9) return "no free CPU capacity here right now";
+    if (!resumeSameRecord && slice.cpuShare > cpuRoom + 1e-9) return "no free CPU capacity here right now";
   }
   // the app's catalog specs set its MINIMUM shares on our hardware, gating
   // claims exactly like HTTP deploys: a deployment that bought less than
@@ -9396,8 +10513,8 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   // let a capable box take it.
   if (g.configCid) {
     const ch = await vmHealth().catch(() => null);
-    if (!ch) return "app keeps its config at a CID and the app manager cannot be asked (unreachable)";
-    if (ch.configCid !== true) return "app keeps its config at a CID and this box's manager cannot fetch it";
+    const cidWhy = await configCidClaimRefusal(ch, d.id);
+    if (cidWhy) return cidWhy;
   }
   // Cooperative threads (🧵): gated exactly like p3 — the manager probed its
   // own engine (coopThreads on /health: the thread.new-indirect compile
@@ -9409,10 +10526,14 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   }
   // Shared-everything threads (⚡): gated exactly like coop threads, on the
   // manager's own thread.spawn-indirect compile probe (`set` on /health).
+  if (ISOLATION_BACKEND && Number(d.gpuMilli) > 0 && (setOfConfig(g.config) || mem64OfConfig(g.config) || threadsOfConfig(g.config) || wasiOfConfig(g.config) === "p3"))
+    return "this measured inference profile does not yet admit the app’s optional runtime ABI";
   if (setOfConfig(g.config)) {
     const sh = await vmHealth().catch(() => null);
     if (!sh) return "app uses shared-everything threads and the app manager cannot be asked (unreachable)";
     if (sh.set !== true) return "app uses shared-everything threads and this box's runtime does not serve them";
+    if (sh.setRequiresRelease === true && !isolationReleaseGuest(sh, await releaseListedFor(d.id)))
+      return "app uses shared-everything threads and must use this host's updated attested guest release";
   }
   // wasm64 (memory64): gated exactly the same, on the manager's own flagless
   // memory64 compile probe (`mem64` on /health). A box whose engine cannot
@@ -9421,6 +10542,8 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     const mh = await vmHealth().catch(() => null);
     if (!mh) return "app is a wasm64 (memory64) module and the app manager cannot be asked (unreachable)";
     if (mh.mem64 !== true) return "app is a wasm64 (memory64) module and this box's runtime does not serve it";
+    if (mh.mem64RequiresRelease === true && !isolationReleaseGuest(mh, await releaseListedFor(d.id)))
+      return "app uses 64-bit memory and must use this host's updated attested guest release";
   }
   // The firewall is the VERSION's declared ports — part of what approval
   // covered. The deployment's own ports field is ignored (create() still
@@ -9447,6 +10570,29 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   // heterogeneous fleet: a metal box carries no Modelwrap volumes.)
   const volWhy = await volumeGate(d, g, health);
   if (volWhy) return volWhy;
+  // Per-app isolation: on a box that provides it, the deployment must ask for it, the manager must be it, and
+  // nothing the guest cannot honour may be needed (isolationClaimVerdict). Inert when ISOLATION_BACKEND is unset.
+  if (ISOLATION_BACKEND) {
+    const cf = overrideConfigFields(claimOpts, g);
+    const isoMgr = await vmHealth().catch(() => null);
+    // a resume after this CVM restarted: the guest guestd kept for it already holds its room (guestPoolRefusal)
+    const isoHeld = resumeHeld;
+    // ...and whether the spawn would ADOPT it (the same derivation record) or replace it (a different one); only an
+    // adoption takes no new host memory. Unknown counts as a replacement (the conservative side).
+    const heldSameRecord = isolationHeldSameRecord(isoHeld, g, firewall, isoMgr && isoMgr.catalog && isoMgr.catalog.runtimeId,
+      (()=>{ try { return isolatedInference(d.gpuMilli,neededVolumes(d,g)); } catch { return null; } })());
+    // the relay's list is read only for a deployment that passes the cheap checks first (it requires this tier, and
+    // the manager IS this tier's) on an opted-in box: one status call per real candidate, not per sweep entry (L1)
+    const isoAsk = claimOpts.isolation === ISOLATION_BACKEND && isoMgr && isoMgr.backend === ISOLATION_BACKEND && isolationReleaseOn(isoMgr);
+    const isoWhy = isolationClaimVerdict({ backend: ISOLATION_BACKEND, require: claimOpts.isolation,
+      manager: isoMgr, listed: isoAsk ? await releaseListedFor(d.id) : "unlisted",
+      gpuMilli: d.gpuMilli, ...cf, config: isolationAppConfig(cf.config),
+      policy: isolationPolicyFor(g.min),
+      held: isoHeld, heldSameRecord,
+      hasSecrets: await depHasSecrets(d.id), firewall, volumes: neededVolumes(d, g), isPublic: d.isPublic === true,
+      waf: claimOpts.waf || null });
+    if (isoWhy) return isoWhy;
+  }
   // Staged secrets are injected at launch via a FLEET-secret-derived auth this
   // box may not hold (SECRETS_CAPABLE=0: a metal enclave running its own
   // minted SECRET). The fetch fails SOFT — the app would launch WITHOUT its
@@ -9514,7 +10660,7 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false 
   // user nothing (no claim ever happens).
   if (PROVISION_BACKEND === "vm" && /^ipfs:\/\//.test(g.wasmRef)) {
     try {
-      const r = await vmReq("POST", "/prefetch", { image: g.wasmRef }, 300_000);
+      const r = await vmReq("POST", "/prefetch", await managerPrefetchBody(g), 300_000);
       if (r.status !== 200) throw new Error((r.body && (r.body.error || r.body.message)) || `HTTP ${r.status}`);
       if (r.body && r.body.seconds > 1) console.log(`[claim] ${d.id} prefetched ${r.body.bytes} bytes in ${r.body.seconds}s`);
     } catch (e) {
@@ -9523,12 +10669,17 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false 
       return;
     }
   }
+  // Prefetch can take minutes; re-check the owner policy before spending a lease.
+  const latest = await readLedgerContract("get", [d.id]);
+  const latestPinRefusal = placementRefusal(latest.configCid, _enclaveId);
+  if (latestPinRefusal) return latestPinRefusal;
   if (resume) {
     // we already HOLD this lease (a previous life of this enclave claimed
     // it; the reboot wiped local state, not the chain) - no claim tx, just
     // pick the work back up
     console.log(`[claim] ${d.id} resuming our own live lease after a restart`);
-    await adopt(d, g, firewall, slice);
+    if (await adopt(d, g, firewall, slice, { resume: true }) === false)
+      throw new Error("existing lease reservation cannot yet be restored");
     return;
   }
   const open = await openForUs(d.id);
@@ -9562,7 +10713,15 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false 
 // and clients resolving id -> runner -> endpoint from chain state need no
 // mapping. rec.owner is the on-chain owner address — SIWE tokens already carry
 // an address, so owner-only routes (status, delete) work unchanged.
-async function adopt(d, g, firewall, slice) {
+async function adopt(d, g, firewall, slice, { resume = false } = {}) {
+  let heldReservation = false;
+  if (resume && ISOLATION_BACKEND && !slice.cpu) {
+    const held = await isolationHeldGuest(d.id);
+    const health = held ? await vmHealth().catch(() => null) : null;
+    heldReservation = isolationHeldSameRecord(held, g, firewall, health?.catalog?.runtimeId,
+      isolatedInference(d.gpuMilli, neededVolumes(d, g)));
+  }
+  // Check after the await: another sweep/hint may already have adopted it.
   const left = deployments.get(d.id);
   // A concurrent hint/sweep may have completed its prefetch after another
   // adoption already installed the live record. Never replace that launch.
@@ -9574,10 +10733,12 @@ async function adopt(d, g, firewall, slice) {
     }
     deployments.delete(d.id);
   }
-  const gpu = slice.cpu ? allocCpu(slice.cpuShare) : allocGpu(slice.vramGb, slice.computeShare, slice.cpuShare);
+  const gpu = slice.cpu ? allocCpu(slice.cpuShare) : allocGpu(slice.vramGb, slice.computeShare, slice.cpuShare, { heldReservation });
   if (!gpu) {                                                // capacity vanished since the sweep checked
-    releaseLease(d.id, "capacity vanished").catch(() => {}); // hand it back with the lease refunded (never served: no proof)
-    return;
+    // Never surrender a live guest's lease because local recovery is pending.
+    // Returning false keeps the sweep's new-claim hold in force.
+    if (!resume) releaseLease(d.id, "capacity vanished").catch(() => {});
+    return false;
   }
   // the version's declared http:N entry is the app port; the record decides
   // (create()'s appPort field, like its ports field, is not consulted)
@@ -9589,7 +10750,7 @@ async function adopt(d, g, firewall, slice) {
     // dashboard shows app.slug:app.version from it); the wasm CID in appWasm
     // is only the manager's fetch address
     image: { reference: g.ref }, command: [],
-    app: g.app, appWasm: g.wasmRef, config: g.config || "",
+    app: g.app, appWasm: g.wasmRef, config: g.config || "", _versionMemMb: g.min && g.min.memMb,
     // rev-7: when the version keeps its config at a CID, `config` above is only
     // the routing manifest and this is where the real one lives (the manager
     // fetches and hash-checks it). Empty on every inline version.
@@ -9615,7 +10776,7 @@ async function adopt(d, g, firewall, slice) {
       : { gpuShare: slice.gpuShare, cpuShare: slice.cpuShare, cardId: gpu.cardId },
     _shares: { gpuMilli: Number(d.gpuMilli), cpuMilli: Number(d.cpuMilli) },
     network: { port: appPort, protocol: "https", endpoint: `${_advertisedEndpoint}/x/${d.id}` },
-    attestation: { available: true, vmTechnology: vmTech(), gpuTechnology: IS_GPU ? "nvidia-cc" : null, href: `/v1/deployments/${d.id}/attestation` },
+    attestation: { available: true, vmTechnology: vmTech(), gpuTechnology: gpuTechnology(), href: `/v1/deployments/${d.id}/attestation` },
     region: "Cloud Provider", createdAt: new Date(Number(d.createdAt) * 1000).toISOString(), startedAt: null,
     // the local clock only mirrors the CURRENT lease; the chain holds the rest
     remainingMs: Number(d.leaseUntil) * 1000 - Date.now(), consumedMs: 0,
@@ -9773,6 +10934,12 @@ let _proof = { at: 0, proved: 0, rejected: 0, lastError: null };
 // port yet, raw-TCP-only app with nothing on the HTTP port) falls back to the
 // manager's answer rather than refusing to pay ourselves for real work.
 async function tenantServing(rec) {
+  if (ISOLATION_BACKEND) {
+    // the guest serves only once guestd has verified it; its forwarder is on the host, not probeable from here
+    if (!rec._vmId) return false;
+    const r = await vmReq("GET", `/vms/${encodeURIComponent(rec._vmId)}`, null, 5000).catch(() => null);
+    return !!(r && r.status === 200 && r.body && r.body.status === "running");
+  }
   if (!(await instanceAlive(rec))) return false;
   const port = rec._vmHostPort;
   if (!port) return true;                                  // nothing to probe yet; the manager's word stands
@@ -10074,6 +11241,7 @@ function startClaimLoop() {
         const byId = new Map(ledger.map(d => [String(d.id).toLowerCase(), d]));
         await stage("audit", () => auditClaims(byId));
         await stage("sweep", () => claimSweep(ledger));
+        if (!_firstClaimSweepAt) _firstClaimSweepAt = Date.now();   // the tier's reaper waits for this (reconcileInstances)
       }
     } finally { _claimBusy = false; }
   }, CLAIM_POLL_SEC * 1000);
@@ -10127,11 +11295,10 @@ fetchEnclaveRad().then(() => console.log(`[attest] CPU TEE detected: ${vmTech()}
 if (egress) { egress.start(); console.log(`[egress] app egress on (authenticated SOCKS 127.0.0.1:${EGRESS_SOCKS_PORT})`); }
 
 // advertise this enclave on-chain (opt-in, non-blocking, never fatal)
-// If the origin is pinned (PUBLIC_URL), advertise eagerly at boot; otherwise
-// discover our public hostname from the shim's loopback TLS cert and register
-// eagerly, with the first-external-request middleware above as the fallback.
-if (PUBLIC_URL) registerOnChain(PUBLIC_URL);
-else if (REGISTRY_READY) advertiseFromShimCert();
+// Register eagerly at boot under the pinned origin (PUBLIC_URL) or, without one,
+// the public hostname in the shim's loopback TLS cert; advertise() retries until
+// it goes through, with the first-external-request middleware above as a kick.
+if (REGISTRY_READY) advertise();
 
 // pay-per-deploy: watch the forwarder for payments + fair-billing ticker (drains
 // funded time only while healthy; freezes through outages; reaps at -grace)
@@ -10143,6 +11310,7 @@ startPoolReconciler();
 // record owns, so an unconfirmed stop can never strand a tenant's slice (and
 // its resident model weights) against a deployment that no longer exists.
 startInstanceReconciler();
+startGuestCertLoop();
 
 // portable deployments: claim/renew/release on-chain leases (opt-in; see
 // contracts/DEPLOYMENTS.md). Requires registry advertising + DEPLOYMENTS_ADDRESS.

@@ -118,3 +118,6 @@ windows/enclave-app-hello/target/
 # Generated standalone relay routing graph
 /relay/network-runtime.bundle.mjs
 /relay/network-runtime.bundle.mjs.manifest.json
+
+# the release lab's per-run pins (isolation/m2/lab-release/run-lab.sh): generated, never committed
+isolation/m2/release/labpins/

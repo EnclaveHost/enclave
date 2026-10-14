@@ -1,0 +1,57 @@
+[build] clean dist/
+[build] contract artifacts (admin console deploy bytecode + selectors)
+[build] tailwind css/src/main.css -> css/site.css
+≈ tailwindcss v4.3.2
+
+Done in 185ms
+[build] esbuild (router entry + code-split pages, templates inlined)
+▲ [WARNING] The CommonJS "module" variable is treated as a global variable in an ECMAScript module and may not work as expected [commonjs-variable-in-esm]
+
+    site/js/lib/qr.js:2300:6:
+      2300 │       module.exports = factory();
+           ╵       ~~~~~~
+
+  This file is considered to be an ECMAScript module because of the "export" keyword here:
+
+    site/js/lib/qr.js:2306:0:
+      2306 │ export function qrSvg(text, opts){
+           ╵ ~~~~~~
+
+[build] copy pages (components prerendered) + static files
+[build] csp-script-src.txt: 6 inline-script hashes (server CSP can now drop 'unsafe-inline' + esm.sh)
+      3.1 KB  dist/js/chunks/sso-authorize-BTLEIFDR.js
+     38.7 KB  dist/js/chunks/migrator-ORHSF7ZG.js
+    346.6 KB  dist/js/chunks/admin-DVNVPS6B.js
+      0.3 KB  dist/js/chunks/terms-TBCY23XY.js
+      0.3 KB  dist/js/chunks/privacy-APEUFG3P.js
+      6.2 KB  dist/js/chunks/checkout-PCJHOP6G.js
+      3.6 KB  dist/js/chunks/link-K6EN4IP5.js
+      3.2 KB  dist/js/chunks/authorize-2LCRJK67.js
+      0.6 KB  dist/js/chunks/host-AWCMB6YG.js
+      0.2 KB  dist/js/boot.js
+      0.3 KB  dist/js/chunks/vault-WOGKW4KC.js
+     21.4 KB  dist/js/chunks/overview-GNZQHV4T.js
+     17.1 KB  dist/js/chunks/deploy-V7HK3IC5.js
+      4.7 KB  dist/js/chunks/chunk-MS4ESGRU.js
+      1.9 KB  dist/js/chunks/chunk-GPCHFJQ2.js
+     64.1 KB  dist/js/chunks/apps-II7CNQIV.js
+      0.4 KB  dist/js/chunks/architecture-NEG5MA5U.js
+     14.1 KB  dist/js/chunks/develop-VAYBVCZ7.js
+      1.6 KB  dist/js/chunks/chunk-FI5HJC5W.js
+      0.4 KB  dist/js/chunks/chunk-U64NFJOL.js
+      1.3 KB  dist/js/chunks/dashboard-IYDE3PWJ.js
+    119.4 KB  dist/js/chunks/chunk-VA5BCOKK.js
+      4.8 KB  dist/js/chunks/chunk-C2RR4RWK.js
+      4.3 KB  dist/js/chunks/chunk-B3LBEH3P.js
+     14.2 KB  dist/js/chunks/chunk-3WPXB2NU.js
+      0.9 KB  dist/js/chunks/chunk-HDZ2G3SF.js
+      3.3 KB  dist/js/chunks/chunk-BOL2L4YK.js
+      0.3 KB  dist/js/chunks/chunk-D7VGFCH5.js
+     17.6 KB  dist/js/chunks/chunk-OEAGTHDX.js
+      8.8 KB  dist/js/chunks/chunk-5P5P26ZR.js
+     41.4 KB  dist/js/chunks/chunk-NBF32ID3.js
+      8.7 KB  dist/js/chunks/chunk-PLVITQX5.js
+      2.6 KB  dist/js/chunks/chunk-TXG5D22N.js
+     31.8 KB  dist/js/chunks/chunk-3YL6FM6I.js
+      6.0 KB  dist/js/chunks/chunk-U4PYRU4G.js
+[build] dist/: 130 files · 24.2 MB

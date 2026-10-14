@@ -1,0 +1,29 @@
+# 2026-09-25 isolation/m3/hvlab-node.mjs (test-hv-local.sh phase 4) against enclave-d1's windows/isolation-manager at ebc0ef27: THROUGH THE NODE'S OWN ensureApp.
+# REAL (that tree): Host.ensureApp -> #isolationReconcile -> isolationPlan -> isolation-client -> the manager (server.mjs + ready.mjs judgeRunning, as main.mjs wires it);
+# appZoneTarget, appzone.mjs's isolation branch, relay/tunnel.js's hub; the chain read-only (address book, catalog). The tree carries node-bridge 4cb8d54f,
+# datapath 2db32e0a, supervisor-splice c841ac7c (the published bytes). STAND-INS: a KVM launch backend returning d1's own HCS BOUNDARY (partition label
+# changed), the agent's three-line frame dispatch, the relay secrets route ('none'), a test node endpoint that is no deployment's runner.
+# Guests: initrd 5bc06259 (4127789d), plain KVM, NOT Hyper-V. Development evidence, not NucBox completion; nothing on the box runs this branch's agent yet.
+# RESULT: hello-world /1 reaches running through ensureApp as configured (plan -> manager spawn -> readiness monitor-signed, record bff33b95), and a
+# browser through the relay hub -> appzone -> bridge -> data plane -> guest gets TLS on exactly the key the manager verified; the app answers.
+# hookbin /2 is refused BY NAME (manager.catalog.derivations: that manager serves /1 only) and the node gives the lease back - the correct outcome.
+# Pass 3 (direct #isolationReconcile steps) did not run: nothing needed it. Earlier runs' defects (appsInTee/memory gate order, memMb, envOpts, 16/19) are fixed.
+PASS the node tree carries the published node-bridge.mjs: tree 4cb8d54f, published 4cb8d54f
+PASS the node tree carries the published datapath.mjs: tree 2db32e0a, published 2db32e0a
+PASS the node tree carries the published supervisor-splice.mjs: tree c841ac7c, published c841ac7c
+PASS SAFETY: this node's enclave id is a test id, not a deployment's runner: enclaveId 0xf367bd4b6c393db4..., no operator key in /tmp/hvnode-QNjury
+[as configured] ensureApp A 0x4e62e60d: status=running reason=null
+[as configured] ensureApp B 0x0ddbd824: status=failed reason="isolation: manager.catalog.derivations: the version serves HTTP on its own port (http:8000), and the manager cannot serve enclave-catalog-bundle/2 yet"
+manager record hv0178e36f (0x4e62e60d): status=running verdict=monitor-signed reason=null
+PASS ensureApp A (hello-world /1) reaches running through the node's own path, AS CONFIGURED: status=running reason=null
+PASS ensureApp B (hookbin /2) is refused by name (the manager serves /1 only) through the node's own path, AS CONFIGURED: status=failed reason="isolation: manager.catalog.derivations: the version serves HTTP on its own port (http:8000), and the manager cannot serve enclave-catalog-bundle/2 yet"
+PASS browser -> A through relay tunnel -> app zone -> data plane -> partition: TLS ends in the domain: monitor-signed on the browser's own handshake key 5ac163a3ca433373...
+PASS A: the app answers on its own name: 200 "Hello World!\n"
+SKIP browser -> B: the plan refused it (isolation: manager.catalog.derivations: the version serves HTTP on its own port (http:8000), and the manager cannot serve enclave-catalog-bundle/2 yet)
+secrets probed for: 0x4e62e60d, 0x0ddbd824
+data plane: {"admitted":1,"open":1}
+  node: secrets: rev 0, 0 name(s) for 0x4e62e60d
+  node: 0x4e62e60d isolation spawned: hv0178e36f status=running image=5bc062598212f1e509c4579ba76ab2e34ed090960fc6712d503c49ae427fb359
+  node: secrets: rev 0, 0 name(s) for 0x0ddbd824
+  node: giving up on 0x0ddbd824: isolation: manager.catalog.derivations: the version serves HTTP on its own port (http:8000), and the manager cannot serve enclave-catalog-bundle/2 yet
+HVLAB-NODE ALL PASS

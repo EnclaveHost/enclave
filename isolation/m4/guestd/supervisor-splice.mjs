@@ -238,7 +238,7 @@ export function pipeBoth(client, guest, { idleMs = IDLE_MS } = {}) {
 // (handleIsolationHttps below) and the NucBox node's app zone (windows/vbslike/datapath/node-bridge.mjs) both call
 // it. Resolves with what happened and never throws; on a refusal it ends `stream` and calls `close` (the caller's
 // own transport, e.g. its WebSocket).
-export async function spliceStream({ stream, close = () => {}, expectName, instanceId, expectAppId, transport, dataAddr,
+export async function spliceStream({ stream, close = () => {}, expectName, allowedNames = [], instanceId, expectAppId, transport, dataAddr,
                                      limits = {} }) {
   const refuse = (kind, why) => {
     try { stream.destroy(); } catch {}
@@ -249,7 +249,7 @@ export async function spliceStream({ stream, close = () => {}, expectName, insta
   let hello;
   try { hello = await readClientHello(stream, { timeoutMs: limits.helloMs ?? HELLO_MS }); }
   catch (e) { return refuse(e.kind || "closed", e.message); }
-  if (hello.sni !== expectName)
+  if (hello.sni !== expectName && !allowedNames.includes(hello.sni))
     return refuse("wrong-name", `the ClientHello names ${hello.sni}, not this deployment's ${expectName}`);
   let guest;
   try {
@@ -265,7 +265,7 @@ export async function spliceStream({ stream, close = () => {}, expectName, insta
 
 // handleIsolationHttps is the whole of /x/<id>/https for a deployment on this backend. It resolves when the
 // connection is over, with what happened; it never throws. `expectName` is the deployment's app-zone name.
-export function handleIsolationHttps({ wss, req, socket, head, expectName, instanceId, expectAppId, transport,
+export function handleIsolationHttps({ wss, req, socket, head, expectName, allowedNames = [], instanceId, expectAppId, transport,
                                        dataAddr, limits = {}, onOutcome = () => {} }) {
   return new Promise((resolve) => {
     wss.handleUpgrade(req, socket, head, async (ws) => {
@@ -273,7 +273,7 @@ export function handleIsolationHttps({ wss, req, socket, head, expectName, insta
       let stream;
       try { stream = (await wsLib()).createWebSocketStream(ws); }
       catch (e) { try { ws.terminate(); } catch {} return report({ outcome: "refused", kind: "internal", why: `ws: ${e.message}` }); }
-      report(await spliceStream({ stream, close: () => ws.terminate(), expectName, instanceId, expectAppId, transport,
+      report(await spliceStream({ stream, close: () => ws.terminate(), expectName, allowedNames, instanceId, expectAppId, transport,
                                   dataAddr, limits }));
     });
   });

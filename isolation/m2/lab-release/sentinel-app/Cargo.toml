@@ -1,0 +1,12 @@
+[package]
+name = "sentinel-app"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# A LAB app (isolation/m2/lab-release/run-output-check.sh): it prints synthetic sentinels on stdout and stderr, at start,
+# per request and in a panic, so a lab can show whether an app's output reaches the host's serial file. No dependencies.
+[dependencies]
+
+[profile.release]
+opt-level = "s"

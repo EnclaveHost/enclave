@@ -11,6 +11,8 @@
 // usage: node client.mjs <https://host:port> --measurement <hex> --app-sha <hex>
 //          [--lab-unsigned | --t0-diagnostic] [--min-tcb <json>|@<file>] [--vcek <der>]
 //          [--amd-chain <Product>=<cert_chain.pem>] [--no-kds] [--t0 <epoch ms>] [--perf] [--save <doc.json>]
+//          [--runtime <runtime.json>] [--servername <name>] [--answer-within <ms>] [--host-data <deployment id>]
+//          [--release <release id>[,<release id>...]]
 //   default          trusted: only a report that is AMD-chain-verified AND meets --min-tcb opens the gate
 //   --lab-unsigned   lab-only diagnostic: verdicts "no-tcb-policy" / "unauthenticated" open it, never "attested"
 //   --t0-diagnostic  talk to a T0 domain, explicitly untrusted (the pin is trust-on-first-use)
@@ -18,11 +20,28 @@
 //   --vcek           a VCEK the caller already holds; judged exactly like one in the report's certificate table
 //   --amd-chain      AMD's cert_chain for a product line, held locally; refused unless its ARK is the pinned root
 //   --no-kds         never contact AMD KDS (which answers 429 after a couple of requests)
+//   --runtime        the runtime identity this domain must state, as a file in the shape
+//                    isolation/contract/runtime-identity.sh writes. Supplying it DEMANDS ABI/2 and pins the
+//                    runtime field for field: the app is one portable WebAssembly component compiled inside
+//                    the domain, so the runtime, its version, its execution mode, the ISA it targets and its
+//                    CPU-feature policy are part of what the report vouches for. Without it the runtime a
+//                    domain states is bound but unpinned, and the verdict lines say so
 //   --vmpl N         the privilege level the report must come from (default 0). A domain beneath a monitor
 //                    at VMPL0 reports its own level, and the launch measurement is the same at every level.
 //                    Above 0 this ALSO requires the monitor's boundary self-test in the document to record
 //                    that a report at VMPL0 was refused: a guest at VMPL0 holds every VMPCK and can request
 //                    a report naming a lower level, so the level alone never shows confinement
+//
+//   --servername     the name to put in the ClientHello when the URL names an address rather than the domain -
+//                    a relay or splice in front of the domain that routes on SNI. It changes nothing about trust:
+//                    the key is still taken from this handshake and judged against the report
+//   --host-data      the full 32-byte deployment id this client means to reach; the report's SEV-SNP HOST_DATA must
+//                    equal it (judge.mjs). Without it, another instance of the same app version verifies identically
+//   --release        the domain release(s) the pinned --measurement is, to THIS caller's own knowledge (never the
+//                    domain's word): only if every one is in judge.mjs LEGACY_WX_RELEASES may the document state the
+//                    legacy runtime self-test, which is then reported as runtime W^X UNMEASURED (wx_coverage)
+//   --answer-within  how long to keep retrying for the first attestation document (default 180000 ms, for a
+//                    domain that is still booting); a route that refuses the connection fails after this
 //
 // Prints `RESULT k=v` lines for the harness, `evidence:` lines for people, and one VERDICT line.
 // Exit status: 0 served, 3 gate closed (no application traffic), 4 application traffic aborted on a key
@@ -32,11 +51,17 @@ import tls from 'node:tls';
 import fs from 'node:fs';
 import { createHash, randomBytes } from 'node:crypto';
 import { judge } from './judge.mjs';
+import { startConnector, parseBindings } from './port-connector.mjs';
 import { seedCertChain } from '../../relay/snp-verify.mjs';
 
 const args = process.argv.slice(2);
 const url = new URL(args[0]);
 const opt = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
+// App-specific health/inference probes still use the attested connection and
+// cannot redirect to another origin. The historical fixture path is unchanged.
+const appPath = opt('--path') || '/hello?from=client';
+if (!appPath.startsWith('/') || appPath.startsWith('//') || /[\r\n]/.test(appPath))
+  throw new Error('--path must be an origin-relative HTTP path');
 const lab = args.includes('--lab-unsigned'), t0diag = args.includes('--t0-diagnostic');
 if (lab && t0diag) { console.error('--lab-unsigned and --t0-diagnostic are exclusive'); process.exit(2); }
 const mode = lab ? 'lab-unsigned' : t0diag ? 't0-diagnostic' : 'trusted';
@@ -49,11 +74,21 @@ if (opt('--min-tcb') !== undefined) {
   try { want.minTcb = JSON.parse(text); } catch { want.minTcb = text; }        // malformed: the verifier refuses it
 }
 if (opt('--vcek')) want.vcek = fs.readFileSync(opt('--vcek'));
+if (opt('--runtime')) want.runtime = JSON.parse(fs.readFileSync(opt('--runtime'), 'utf8'));
+if (opt('--host-data') !== undefined) want.hostData = opt('--host-data');
+if (opt('--release') !== undefined) want.release = opt('--release').split(',');
 if (opt('--amd-chain')) {
   const [product, file] = opt('--amd-chain').split('=');
   seedCertChain(product, fs.readFileSync(file, 'utf8'));                       // throws unless the ARK is the pin
 }
+const bindings = opt('--forward');
+if (bindings) {
+  parseBindings(bindings);
+  if (mode !== 'trusted' || !want.runtime || !want.hostData || !want.minTcb) throw new Error('--forward requires trusted mode, --runtime, --host-data and --min-tcb');
+}
 const t0 = Number(opt('--t0') || 0);
+const servername = opt('--servername');
+const answerMs = opt('--answer-within') !== undefined ? Number(opt('--answer-within')) : 180000;
 const sha = (b) => createHash('sha256').update(b).digest('hex');
 const out = (k, v) => console.log(`RESULT ${k}=${v}`);
 
@@ -74,7 +109,8 @@ class PinnedAgent extends https.Agent {
     if (tripped) { process.nextTick(cb, tripped); return undefined; }
     let settled = false;
     const done = (err, s) => { if (!settled) { settled = true; cb(err, s); } };
-    const s = tls.connect({ ...options, rejectUnauthorized: false, session: undefined });  // trust = the report
+    const s = tls.connect({ ...options, ...(servername ? { servername } : {}), rejectUnauthorized: false,
+      session: undefined, allowHalfOpen: true });                                                             // trust = the report
     s.once('secureConnect', () => {
       const cert = s.getPeerX509Certificate();
       const key = cert ? cert.publicKey.export({ type: 'spki', format: 'der' }) : null;
@@ -126,7 +162,7 @@ out('mode', mode);
 // 1. the document, on a discovery connection: before a verdict, this GET and its nonce are the only traffic
 const n1 = randomBytes(32), n2 = randomBytes(32);
 let a1;
-for (const until = Date.now() + 180000; ; await new Promise((r) => setTimeout(r, 50))) {
+for (const until = Date.now() + answerMs; ; await new Promise((r) => setTimeout(r, 50))) {
   const probe = new PinnedAgent(null);
   try { a1 = await attest(probe, n1); probe.destroy(); break; } catch { probe.destroy(); }
   if (Date.now() > until) { console.log('VERDICT reject reason="the domain never answered"'); finish(1); }
@@ -142,11 +178,21 @@ const j1 = await judge(a1.doc, a1.spki, n1, want);
 for (const s of j1.reasons) console.log(`evidence: ${s}`);
 if (j1.measurement) { out('measurement', j1.measurement); out('report_data', j1.reportData); }
 out('expected_vmpl', want.expectedVmpl ?? 0);
+if (j1.hostData !== undefined) out('host_data', j1.hostData);
+out('host_data_checked', want.hostData !== undefined ? 1 : 0);
 if (j1.vmpl !== undefined) out('report_vmpl', j1.vmpl);
 // The monitor's boundary self-test, as it arrived over THIS attested connection rather than on the host's
 // serial console. A report naming a lower level proves nothing on its own; the refusal at level 0 is the
 // part that distinguishes confinement, and judge.mjs rejects a document that cannot show it.
 if (j1.boundary !== undefined) out('boundary', JSON.stringify(j1.boundary));
+// The ABI the domain bound, and under ABI/2 the runtime identity that went into report_data[0:32] plus the
+// domain's own runtime self-test (may it hold an executable page at all; is any page writable AND
+// executable). Whether that identity was PINNED by this caller is in the evidence lines above.
+out('abi', j1.abi ?? 'enclave-domain-abi/1');
+out('runtime_pinned', want.runtime !== undefined ? 1 : 0);
+if (j1.runtime !== undefined) out('runtime', JSON.stringify(j1.runtime));
+if (j1.runtimeSelfTest !== undefined) out('runtime_selftest', JSON.stringify(j1.runtimeSelfTest));
+if (j1.wxCoverage !== undefined) out('wx_coverage', j1.wxCoverage);
 if (j1.tcb) { out('tcb_product', j1.tcb.product); out('tcb_reported', JSON.stringify(j1.tcb.reported)); out('tcb_checked', j1.tcb.checked ? 1 : 0); }
 console.log(`VERDICT ${j1.verdict} reason=${JSON.stringify(j1.reasons.at(-1))}`);
 out('gate', j1.gateOpen ? 'open' : 'closed');
@@ -163,14 +209,41 @@ try {
     const a2 = await attest(side, n2);
     side.destroy();
     out('key_stable_in_launch', a2.spki && a2.spki.equals(pin) ? 1 : 0);
-    out('second_nonce_verdict', (await judge(a2.doc, a2.spki, n2, want)).verdict);
+    const j2 = await judge(a2.doc, a2.spki, n2, want);
+    out('second_nonce_verdict', j2.verdict);
+    if (bindings && !j2.gateOpen) throw new Error('fresh attestation refused before opening ports');
     out('replay_rejected', (await judge(a1.doc, a1.spki, n2, want)).verdict === 'reject' ? 1 : 0);
+  }
+
+  if (bindings) {
+    const stop = await startConnector(bindings, (protocol, port) => new Promise((resolve, reject) => {
+      const a = new PinnedAgent(pin);
+      const req = https.request({ host: url.hostname, port: url.port, agent: a, method: 'GET',
+        path: `/.well-known/enclave-tunnel/${protocol}/${port}`,
+        headers: { Connection: 'Upgrade', Upgrade: 'enclave-port/1' } });
+      req.setTimeout(10000, () => req.destroy(new Error('tunnel upgrade timeout')));
+      req.once('upgrade', (res, socket, head) => {
+        if (res.statusCode !== 101 || res.headers.upgrade !== 'enclave-port/1') {
+          socket.destroy(); a.destroy(); reject(new Error('invalid tunnel upgrade')); return;
+        }
+        socket.setTimeout(0);
+        if (head.length) socket.unshift(head);
+        socket.once('close', () => a.destroy());
+        resolve(socket);
+      });
+      req.once('response', res => { res.resume(); a.destroy(); reject(new Error(`tunnel refused: HTTP ${res.statusCode}`)); });
+      req.once('error', e => { a.destroy(); reject(e); });
+      req.end();
+    }));
+    process.once('SIGINT', () => { stop(); finish(0); });
+    process.once('SIGTERM', () => { stop(); finish(0); });
+    await new Promise(() => {});
   }
 
   // the app (it may still be starting behind the front: retry a 502 briefly)
   let app;
   for (const until = Date.now() + 60000; ; await new Promise((r) => setTimeout(r, 50))) {
-    app = await request(agent, 'GET', '/hello?from=client');
+    app = await request(agent, 'GET', appPath);
     if (app.status !== 502 || Date.now() > until) break;
   }
   if (t0) out('first_app_response_ms', Date.now() - t0);

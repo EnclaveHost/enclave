@@ -1,0 +1,4 @@
+[isolation] 0x4e62e60d: no certificate for 4e62e60d.app.enclave.host (order for 4e62e60d.app.enclave.host in flight); retry in 30s
+[isolation] 0x395bed3e: no certificate for 395bed3e.app.enclave.host (order for 395bed3e.app.enclave.host in flight); retry in 30s
+[isolation] 0x4e62e60d: certificate for 4e62e60d.app.enclave.host installed in guest gdb35f8cef (key 03f6f61bd653f942…, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2026-12-23T23:59:59.000Z; guest no-tcb-policy)
+[isolation] 0x395bed3e: certificate for 395bed3e.app.enclave.host installed in guest gd5d318bac (key 05db9b45d9be7f34…, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2026-12-23T23:59:59.000Z; guest no-tcb-policy)

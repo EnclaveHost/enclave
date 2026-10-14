@@ -1,8 +1,115 @@
+diff --git a/kernel/src/greq/services.rs b/kernel/src/greq/services.rs
+index d998c92..655e666 100644
+--- a/kernel/src/greq/services.rs
++++ b/kernel/src/greq/services.rs
+@@ -9,6 +9,7 @@
+ use zerocopy::FromBytes;
+ 
+ use crate::error::SvsmError;
++use crate::types::GUEST_VMPL;
+ use crate::greq::{
+     driver::{send_extended_guest_request, send_regular_guest_request},
+     msg::SnpGuestRequestMsgType,
+@@ -19,11 +20,33 @@ use core::mem::size_of;
+ const REPORT_REQUEST_SIZE: usize = size_of::<SnpReportRequest>();
+ const REPORT_RESPONSE_SIZE: usize = size_of::<SnpReportResponse>();
+ 
++/// Which VMPL a report request may name in this build: VMPL0, or the ONE guest plane this SVSM serves.
++///
++/// Exposed so the test asserts THIS function rather than a copy of the condition beside it - a test that
++/// recomputes the rule passes even when the rule in the code drifts, which is how an earlier version of the
++/// freeze test would have passed against a version that granted neighbours read and execute.
++///
++/// When planes multiply, the calling plane must be passed in and compared against, rather than this set
++/// widened: an admissible-set check cannot distinguish "plane 2 asking for plane 2" from "plane 1 asking for
++/// plane 2". See isolation/m4/svsm/README.md, the second-plane preconditions.
++pub fn report_vmpl_admissible(vmpl: u32) -> bool {
++    vmpl == 0 || vmpl == GUEST_VMPL as u32
++}
++
+ fn get_report(buffer: &mut [u8], certs: Option<&mut [u8]>) -> Result<usize, SvsmError> {
+     let request: &SnpReportRequest = SnpReportRequest::try_from_as_ref(buffer)?;
+-    // Non-VMPL0 attestation reports can be requested by the guest kernel
+-    // directly to the PSP.
+-    if !request.is_vmpl0() {
++    // Upstream refused every non-VMPL0 request here, on the stated grounds that "non-VMPL0 attestation
++    // reports can be requested by the guest kernel directly to the PSP". That premise no longer holds in this
++    // build: the guest's secrets-page copy carries NO VMPCK (see SecretsPage::copy_with_no_vmpck), precisely so
++    // that it CANNOT ask the PSP for anything and every report must come through an SVSM protocol. If this
++    // check stayed as it was, the SVSM would be the only entity able to request a report and would be forbidden
++    // from requesting the one the guest plane needs - protocol 6 returned INVALID_PARAMETER for exactly that
++    // reason, and protocol 1 would have too once it started naming the plane.
++    //
++    // So a request naming VMPL0 or the one guest plane this SVSM serves is allowed, and nothing else is: a
++    // caller cannot get a report for a plane that does not exist here, and no path lets a guest choose the
++    // level, because the level is written by the SVSM and never taken from the request.
++    if !report_vmpl_admissible(request.vmpl) {
+         return Err(SvsmError::InvalidParameter);
+     }
+     let response_len = if certs.is_none() {
+@@ -106,6 +129,41 @@ pub fn get_extended_report(buffer: &mut [u8], certs: &mut [u8]) -> Result<usize,
+     get_report(buffer, Some(certs))
+ }
+ 
++#[cfg(test)]
++mod vmpl_tests {
++    use super::*;
++    use crate::greq::pld_report::SnpReportRequest;
++    use zerocopy::FromZeros;
++
++    /// get_report accepts VMPL0 and the ONE guest plane this SVSM serves, and nothing else. The upstream check
++    /// refused every non-zero level on the grounds that a guest could ask the PSP itself; this build clears the
++    /// guest's VMPCKs so it cannot, which is why the level the SVSM serves had to be allowed. A level that
++    /// belongs to no plane here must still be refused, or the relaxation would be a widening rather than a
++    /// substitution. When planes multiply, the calling plane must be passed in rather than this set widened.
++    #[test]
++    fn only_vmpl0_and_the_served_guest_plane_are_accepted() {
++        // asserts the function get_report itself calls, so this fails if that check drifts
++        assert!(report_vmpl_admissible(0), "VMPL0 is the SVSM's own level");
++        assert!(report_vmpl_admissible(GUEST_VMPL as u32), "the plane this SVSM serves");
++        for vmpl in 0u32..4 {
++            if vmpl == 0 || vmpl == GUEST_VMPL as u32 {
++                continue;
++            }
++            assert!(
++                !report_vmpl_admissible(vmpl),
++                "vmpl {vmpl} belongs to no plane here and must be refused: the relaxation is a substitution \
++                 for the upstream VMPL0-only rule, not a widening"
++            );
++        }
++        // and the field the check reads is the one the request carries
++        let mut req = SnpReportRequest::new_zeroed();
++        req.vmpl = GUEST_VMPL as u32;
++        assert!(report_vmpl_admissible(req.vmpl));
++        req.vmpl = 3;
++        assert_eq!(report_vmpl_admissible(req.vmpl), GUEST_VMPL == 3);
++    }
++}
++
+ #[cfg(test)]
+ mod tests {
+     #[allow(unused)]
+diff --git a/kernel/src/platform/snp_fw.rs b/kernel/src/platform/snp_fw.rs
+index c6ed036..f9615f7 100644
+--- a/kernel/src/platform/snp_fw.rs
++++ b/kernel/src/platform/snp_fw.rs
+@@ -208,7 +208,10 @@ unsafe fn copy_secrets_page_to_fw(
+     }
+ 
+     // Copy secrets page
+-    let mut fw_secrets_page = secrets_page().unwrap().copy_for_vmpl(GUEST_VMPL);
++    // No message key for the guest: see SecretsPage::copy_with_no_vmpck. copy_for_vmpl(GUEST_VMPL) left the
++    // guest holding VMPCK2 and VMPCK3, with which it could mint its own signed reports and bypass every gate
++    // this SVSM puts in front of one.
++    let mut fw_secrets_page = secrets_page().unwrap().copy_with_no_vmpck();
+ 
+     fw_secrets_page.set_svsm_data(
+         kernel_region.start().into(),
 diff --git a/kernel/src/protocols/attest.rs b/kernel/src/protocols/attest.rs
-index 3a3be24..818ec2c 100644
+index 3a3be24..944b33c 100644
 --- a/kernel/src/protocols/attest.rs
 +++ b/kernel/src/protocols/attest.rs
-@@ -359,6 +359,17 @@ const _: () = assert!(
+@@ -359,6 +359,33 @@ const _: () = assert!(
          && core::mem::size_of::<AttestSingleServiceOp>() == 0x58
  );
  
@@ -11,15 +118,143 @@ index 3a3be24..818ec2c 100644
 +/// The 64 bytes are assembled by the SVSM - the caller's bind in the low half, the calling plane's measured
 +/// app ID in the high half - so this deliberately takes the whole report_data rather than a "nonce" a guest
 +/// could shape. Kept next to the standard path so there is one PSP call site, not two.
++/// A report for an app plane, naming THAT PLANE rather than VMPL0.
++///
++/// get_attestation_report_standard leaves SnpReportRequest.vmpl at its zero default, which is right for the
++/// SVSM's own reports and wrong for a plane's: a report signed as VMPL0 for code running at VMPL2 is either
++/// rejected by a verifier that pins the plane or, worse, accepted by one that does not, losing the only field
++/// that distinguishes the monitor's evidence from an app's. The SVSM holds VMPCK0 and may name any level, so
++/// this is its call to make and not the caller's.
 +pub fn get_attestation_report_for_app(
 +    report_data: &[u8; 64],
++    vmpl: u32,
 +) -> Result<Box<SnpReportResponse>, SvsmReqError> {
-+    get_attestation_report_standard(report_data)
++    let mut resp = SnpReportResponse::new_box_zeroed()
++        .map_err(|_| SvsmReqError::FatalError(SvsmError::Mem))?;
++    let resp_buffer = resp.as_mut_bytes();
++    let (report_req, _) = SnpReportRequest::mut_from_prefix(resp_buffer)
++        .map_err(|_| SvsmReqError::invalid_parameter())?;
++    report_req.user_data = *report_data;
++    report_req.vmpl = vmpl;
++    let _response_size = get_regular_report(resp_buffer)?;
++    Ok(resp)
 +}
 +
  fn get_attestation_report_standard(nonce: &[u8]) -> Result<Box<SnpReportResponse>, SvsmReqError> {
      let mut resp = SnpReportResponse::new_box_zeroed()
          .map_err(|_| SvsmReqError::FatalError(SvsmError::Mem))?;
+@@ -366,9 +393,13 @@ fn get_attestation_report_standard(nonce: &[u8]) -> Result<Box<SnpReportResponse
+     // Cast error is infallibly discarded.
+     let (report_req, _) = SnpReportRequest::mut_from_prefix(resp_buffer)
+         .map_err(|_| SvsmReqError::invalid_parameter())?;
+-    // Zero initialized, so
+-    // vmpl=0
+-    // flags=0: Use VLEK if installed, otherwise VCEK.
++    // flags=0 (zero initialized): use VLEK if installed, otherwise VCEK.
++    //
++    // vmpl is NOT left at its zero default. The attestation protocol is callable by an app plane, and a report
++    // signed as VMPL0 for code running at GUEST_VMPL would break "every report carrying this measurement and
++    // vmpl=N was issued for plane N" - which is the invariant protocol 6's admission gate depends on, through
++    // a door beside it. The SVSM holds VMPCK0 and may name any level, so it names the plane it serves.
++    report_req.vmpl = crate::types::GUEST_VMPL as u32;
+     report_req.user_data = nonce
+         .try_into()
+         .map_err(|_| SvsmReqError::invalid_parameter())?;
+@@ -394,9 +425,13 @@ fn get_attestation_report_extended(
+         .map_err(|_| SvsmReqError::FatalError(SvsmError::Mem))?;
+     let certs_buffer = certs.as_mut_bytes();
+ 
+-    // Zero initialized, so
+-    // vmpl=0
+-    // flags=0: Use VLEK if installed, otherwise VCEK.
++    // flags=0 (zero initialized): use VLEK if installed, otherwise VCEK.
++    //
++    // vmpl is NOT left at its zero default. The attestation protocol is callable by an app plane, and a report
++    // signed as VMPL0 for code running at GUEST_VMPL would break "every report carrying this measurement and
++    // vmpl=N was issued for plane N" - which is the invariant protocol 6's admission gate depends on, through
++    // a door beside it. The SVSM holds VMPCK0 and may name any level, so it names the plane it serves.
++    report_req.vmpl = crate::types::GUEST_VMPL as u32;
+     report_req.user_data = nonce
+         .try_into()
+         .map_err(|_| SvsmReqError::invalid_parameter())?;
+@@ -577,6 +612,11 @@ pub fn attest_protocol_request(
+     request: u32,
+     params: &mut RequestParams,
+ ) -> Result<(), SvsmReqError> {
++    // Gated on admission, exactly like protocol 6. A plane that has not had its artifacts hashed and frozen
++    // by this SVSM gets no report from it at all - not a contract-layout one, and not a services one either.
++    // Without this a plane could obtain a report carrying this measurement and its own level before admitting
++    // anything, which would falsify the invariant the admission gate exists to establish.
++    crate::protocols::appid::require_admitted(crate::types::GUEST_VMPL)?;
+     match request {
+         SVSM_ATTEST_SERVICES => attest_multiple_services(params),
+         SVSM_ATTEST_SINGLE_SERVICE => attest_single_service_handler(params),
+diff --git a/kernel/src/protocols/core.rs b/kernel/src/protocols/core.rs
+index 0e428f2..3fe0397 100644
+--- a/kernel/src/protocols/core.rs
++++ b/kernel/src/protocols/core.rs
+@@ -15,12 +15,13 @@ use crate::mm::{valid_phys_region, writable_phys_addr};
+ #[cfg(feature = "uefivars")]
+ use crate::protocols::SVSM_UEFI_MM_PROTOCOL;
+ use crate::protocols::apic::{APIC_PROTOCOL_VERSION_MAX, APIC_PROTOCOL_VERSION_MIN};
++use crate::protocols::appid::{APPID_PROTOCOL_VERSION_MAX, APPID_PROTOCOL_VERSION_MIN};
+ use crate::protocols::attest::{ATTEST_PROTOCOL_VERSION_MAX, ATTEST_PROTOCOL_VERSION_MIN};
+ use crate::protocols::errors::SvsmReqError;
+ #[cfg(feature = "uefivars")]
+ use crate::protocols::uefivars::{UEFI_MM_PROTOCOL_VERSION_MAX, UEFI_MM_PROTOCOL_VERSION_MIN};
+ use crate::protocols::{
+-    RequestParams, SVSM_APIC_PROTOCOL, SVSM_ATTEST_PROTOCOL, SVSM_CORE_PROTOCOL,
++    RequestParams, SVSM_APIC_PROTOCOL, SVSM_APPID_PROTOCOL, SVSM_ATTEST_PROTOCOL, SVSM_CORE_PROTOCOL,
+ };
+ #[cfg(feature = "vtpm")]
+ use crate::protocols::{
+@@ -59,6 +60,16 @@ pub const CORE_PROTOCOL_VERSION_MAX: u32 = 1;
+ // the lock for write.
+ static PVALIDATE_LOCK: RWLock<()> = RWLock::new(());
+ 
++/// Take the PVALIDATE serialization lock for writing.
++///
++/// Exposed for `protocols::appid`, whose admission must exclude page-state changes across freeze, re-hash and
++/// record: otherwise another vCPU can re-validate a page in the window between the hash that vouched for it
++/// and the record that protects it, which zeroes the page and restores guest RWX. Same lock and same order as
++/// `core_pvalidate_one`, so there is no inversion.
++pub fn pvalidate_write_lock() -> impl Drop {
++    PVALIDATE_LOCK.lock_write()
++}
++
+ #[repr(C, packed)]
+ #[derive(Copy, Clone, FromBytes, IntoBytes)]
+ struct PValidateRequest {
+@@ -265,6 +276,13 @@ fn core_query_protocol(params: &mut RequestParams) -> Result<(), SvsmReqError> {
+             ATTEST_PROTOCOL_VERSION_MIN,
+             ATTEST_PROTOCOL_VERSION_MAX,
+         ),
++        // Without this a guest cannot discover protocol 6 at all, so appid's "version 2 is detectable"
++        // claim was false: a caller could only find out by being refused.
++        SVSM_APPID_PROTOCOL => protocol_supported(
++            version,
++            APPID_PROTOCOL_VERSION_MIN,
++            APPID_PROTOCOL_VERSION_MAX,
++        ),
+         #[cfg(feature = "vtpm")]
+         SVSM_VTPM_PROTOCOL => protocol_supported(
+             version,
+@@ -334,6 +352,15 @@ fn core_pvalidate_one(entry: u64) -> Result<(), SvsmReqError> {
+         return Err(SvsmReqError::invalid_address());
+     }
+ 
++    // An admitted artifact must never be re-validated. PVALIDATE(invalid) followed by PVALIDATE(valid) zeroes
++    // the page and restores guest RWX, which would thaw bytes this SVSM has hashed, frozen and vouched for -
++    // while its admission record still said they were fine. Refused for the life of the guest, because that
++    // is exactly what admission promises; see protocols::appid.
++    if crate::protocols::appid::region_is_admitted(paddr, page_size_bytes) {
++        log::error!("PVALIDATE refused: {paddr:#x} belongs to an admitted artifact");
++        return Err(SvsmReqError::invalid_request());
++    }
++
+     let guard = PerCPUPageMappingGuard::create(paddr, paddr + page_size_bytes, valign)?;
+     let vaddr = guard.virt_addr();
+ 
 diff --git a/kernel/src/protocols/mod.rs b/kernel/src/protocols/mod.rs
 index 2c9a15c..64c0cf9 100644
 --- a/kernel/src/protocols/mod.rs
@@ -70,3 +305,40 @@ index f2d2cfe..b1abc8f 100644
          #[cfg(feature = "vtpm")]
          SVSM_VTPM_PROTOCOL => vtpm_protocol_request(request, params),
          SVSM_APIC_PROTOCOL => apic_protocol_request(request, params),
+diff --git a/kernel/src/sev/secrets_page.rs b/kernel/src/sev/secrets_page.rs
+index 27f7f09..7222e13 100644
+--- a/kernel/src/sev/secrets_page.rs
++++ b/kernel/src/sev/secrets_page.rs
+@@ -115,6 +115,32 @@ impl SecretsPage {
+         sp
+     }
+ 
++    /// A copy of the secrets page carrying NO message key at all, for a guest plane that must not be able to
++    /// speak to the PSP on its own behalf.
++    ///
++    /// `copy_for_vmpl` clears only `0..vmpl`, so a guest at VMPL2 keeps VMPCK2 and VMPCK3 - and with them it
++    /// can request a signed report over its own GHCB, with `report_data` of its choosing and any VMPL from its
++    /// own level downwards, without involving this SVSM at all. Every gate the SVSM puts in front of a report
++    /// is then bypassed by not asking for one: an app-naming protocol that admits artifacts before it will
++    /// name a plane is worth nothing while the plane can name itself.
++    ///
++    /// Clearing all four makes the SVSM the only holder of a message key in this guest, so the SVSM's
++    /// protocols become the only path to a report. Two consequences, both intended:
++    ///
++    ///   * Linux's `sev-guest` driver finds no usable VMPCK and fails to probe, so configfs-tsm offers no
++    ///     report interface inside the guest. Anything that used it must move to an SVSM protocol.
++    ///   * that failure is itself the key-absence evidence this project wanted: a guest that can load
++    ///     `sev-guest` with `vmpck_id=0` demonstrably holds VMPCK0 and is therefore NOT beneath a VMPL0
++    ///     monitor, which is the test the forgeable `vmpl0=refused` tuple could never perform
++    ///     (isolation/DESIGN.md section 12).
++    pub fn copy_with_no_vmpck(&self) -> Box<SecretsPage> {
++        let mut sp = self.copy_for_vmpl(0);
++        for idx in 0..VMPL_MAX {
++            sp.clear_vmpck(idx);
++        }
++        sp
++    }
++
+     pub fn set_svsm_data(&mut self, base: u64, size: u64, caa_addr: u64) {
+         self.svsm_base = base;
+         self.svsm_size = size;

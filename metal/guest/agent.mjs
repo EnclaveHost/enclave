@@ -135,6 +135,21 @@ async function padsBootstrap() {
 }
 
 // --- hardware attestation via configfs-tsm ----------------------------------
+// The certificate table the host attaches to a report (auxblob) holds the VCEK. A host that attaches none, on a
+// part AMD KDS does not publish a VCEK for, leaves a verifier nothing to chain the report to; the launcher can
+// then hand this chip's VCEK over fw_cfg (METAL_VCEK_B64), and it goes out in the same table format. It is public
+// data and proves nothing by arriving here: a verifier chains it to AMD's pinned root and matches it to the
+// report's chip id and TCB, exactly as it would a host-attached one.
+const VCEK_FALLBACK = (() => {
+  const b64 = process.env.METAL_VCEK_B64 || '';
+  if (!b64) return null;
+  const der = Buffer.from(b64, 'base64');
+  const hdr = Buffer.alloc(48);                                           // {guid, offset, length}, then a zero entry
+  Buffer.from('63da758de6644564adc5f4b93be8accd', 'hex').copy(hdr, 0);
+  hdr.writeUInt32LE(48, 16);
+  hdr.writeUInt32LE(der.length, 20);
+  return Buffer.concat([hdr, der]);
+})();
 const TSM = '/sys/kernel/config/tsm/report';
 function tsmReport(reportData64) {
   // one entry per call; the kernel serialises access and bumps `generation`
@@ -145,6 +160,7 @@ function tsmReport(reportData64) {
     const outblob = fs.readFileSync(`${dir}/outblob`);               // raw report
     let auxblob = null, provider = null;
     try { auxblob = fs.readFileSync(`${dir}/auxblob`); } catch {}    // cert chain (VCEK…)
+    if ((!auxblob || !auxblob.length) && VCEK_FALLBACK) auxblob = VCEK_FALLBACK;
     try { provider = fs.readFileSync(`${dir}/provider`, 'utf8').trim(); } catch {}
     return { outblob, auxblob, provider };
   } finally { try { fs.rmdirSync(dir); } catch {} }
@@ -418,6 +434,11 @@ function connectTunnel() {
         })();
       } else if (f.t === 'attest-result') {
         log(`attest ${f.ok ? 'ACCEPTED' + (f.measurement ? ' meas=' + String(f.measurement).slice(0, 16) + '…' : '') : 'REJECTED: ' + f.reason}`);
+        // The hello sent at 'open' reaches a hub that has not bound this tunnel yet on the ATTESTED path (binding
+        // waits for the quote), so its publicUrl - which becomes this box's registry id upstream, and routes the
+        // relay's /x/<id> data path to the lease holder - was dropped and the row stayed synthetic. Say it again now
+        // that the tunnel is bound. The hub still decides what it believes (relay/tunnel.js selfRoutedUrl).
+        if (f.ok) send({ t: 'hello', name: NAME, mode: MODE, token: TOKEN, publicUrl: process.env.METAL_PUBLIC_URL || '', transportKeyFp: keyFp.toString('hex') });
         if (f.ok) padsBootstrap().catch((e) => log(`pads: bootstrap failed: ${e.message}`));
       }
     });

@@ -1,0 +1,4 @@
+[
+  "template/init",
+  "template/rt/wasmtime"
+]

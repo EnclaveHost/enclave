@@ -1,0 +1,146 @@
+[
+  {
+    "kv": 4096,
+    "tokens": 2,
+    "threads": 6,
+    "repeat": 0,
+    "ms": 10.656,
+    "sha256": "459d5c22a027f5caf5de090b2eac91d738a8532c5008c90df82d55f7c7ad4a15"
+  },
+  {
+    "kv": 4096,
+    "tokens": 2,
+    "threads": 12,
+    "repeat": 0,
+    "ms": 8.992,
+    "sha256": "459d5c22a027f5caf5de090b2eac91d738a8532c5008c90df82d55f7c7ad4a15"
+  },
+  {
+    "kv": 4096,
+    "tokens": 2,
+    "threads": 12,
+    "repeat": 1,
+    "ms": 9.327,
+    "sha256": "459d5c22a027f5caf5de090b2eac91d738a8532c5008c90df82d55f7c7ad4a15"
+  },
+  {
+    "kv": 4096,
+    "tokens": 2,
+    "threads": 6,
+    "repeat": 1,
+    "ms": 10.44,
+    "sha256": "459d5c22a027f5caf5de090b2eac91d738a8532c5008c90df82d55f7c7ad4a15"
+  },
+  {
+    "kv": 4096,
+    "tokens": 2,
+    "threads": 6,
+    "repeat": 2,
+    "ms": 10.771,
+    "sha256": "459d5c22a027f5caf5de090b2eac91d738a8532c5008c90df82d55f7c7ad4a15"
+  },
+  {
+    "kv": 4096,
+    "tokens": 2,
+    "threads": 12,
+    "repeat": 2,
+    "ms": 9.154,
+    "sha256": "459d5c22a027f5caf5de090b2eac91d738a8532c5008c90df82d55f7c7ad4a15"
+  },
+  {
+    "kv": 4096,
+    "tokens": 1,
+    "threads": 6,
+    "repeat": 0,
+    "ms": 10.452,
+    "sha256": "84ef167128994bfbf82eab3b6fdc9ce73f4cc7a95413f6b7956757638079f88a"
+  },
+  {
+    "kv": 4096,
+    "tokens": 1,
+    "threads": 12,
+    "repeat": 0,
+    "ms": 7.853,
+    "sha256": "84ef167128994bfbf82eab3b6fdc9ce73f4cc7a95413f6b7956757638079f88a"
+  },
+  {
+    "kv": 4096,
+    "tokens": 1,
+    "threads": 12,
+    "repeat": 1,
+    "ms": 9.239,
+    "sha256": "84ef167128994bfbf82eab3b6fdc9ce73f4cc7a95413f6b7956757638079f88a"
+  },
+  {
+    "kv": 4096,
+    "tokens": 1,
+    "threads": 6,
+    "repeat": 1,
+    "ms": 10.571,
+    "sha256": "84ef167128994bfbf82eab3b6fdc9ce73f4cc7a95413f6b7956757638079f88a"
+  },
+  {
+    "kv": 4096,
+    "tokens": 1,
+    "threads": 6,
+    "repeat": 2,
+    "ms": 11.024,
+    "sha256": "84ef167128994bfbf82eab3b6fdc9ce73f4cc7a95413f6b7956757638079f88a"
+  },
+  {
+    "kv": 4096,
+    "tokens": 1,
+    "threads": 12,
+    "repeat": 2,
+    "ms": 8.603,
+    "sha256": "84ef167128994bfbf82eab3b6fdc9ce73f4cc7a95413f6b7956757638079f88a"
+  },
+  {
+    "kv": 4352,
+    "tokens": 2,
+    "threads": 6,
+    "repeat": 0,
+    "ms": 10.875,
+    "sha256": "c47d1247f83c752d851bed2f0aa6ae6b5d4869fcce4e09b939cb3c584a09beaa"
+  },
+  {
+    "kv": 4352,
+    "tokens": 2,
+    "threads": 12,
+    "repeat": 0,
+    "ms": 9.864,
+    "sha256": "c47d1247f83c752d851bed2f0aa6ae6b5d4869fcce4e09b939cb3c584a09beaa"
+  },
+  {
+    "kv": 4352,
+    "tokens": 2,
+    "threads": 12,
+    "repeat": 1,
+    "ms": 9.801,
+    "sha256": "c47d1247f83c752d851bed2f0aa6ae6b5d4869fcce4e09b939cb3c584a09beaa"
+  },
+  {
+    "kv": 4352,
+    "tokens": 2,
+    "threads": 6,
+    "repeat": 1,
+    "ms": 11.0,
+    "sha256": "c47d1247f83c752d851bed2f0aa6ae6b5d4869fcce4e09b939cb3c584a09beaa"
+  },
+  {
+    "kv": 4352,
+    "tokens": 2,
+    "threads": 6,
+    "repeat": 2,
+    "ms": 11.123,
+    "sha256": "c47d1247f83c752d851bed2f0aa6ae6b5d4869fcce4e09b939cb3c584a09beaa"
+  },
+  {
+    "kv": 4352,
+    "tokens": 2,
+    "threads": 12,
+    "repeat": 2,
+    "ms": 9.405,
+    "sha256": "c47d1247f83c752d851bed2f0aa6ae6b5d4869fcce4e09b939cb3c584a09beaa"
+  }
+]

@@ -1,0 +1,28 @@
+--- scripts-v1/s2a-relay-rollback.sh	2026-09-25 10:40:01.721351535 -0700
++++ s2a-relay-rollback.sh	2026-09-25 10:44:11.040216213 -0700
+@@ -1,4 +1,22 @@
+ #!/usr/bin/env bash
+-# S2 relay rollback: restore the named backup (the allowlist back to 04e953a4 alone) and restart. Usage: s2a-relay-rollback.sh <backup path on nan>
+-set -euo pipefail; B=${1:?backup path}
+-ssh -i ~/.ssh/nan-ci-deploy -o IdentitiesOnly=yes -o BatchMode=yes nan "set -euo pipefail; [ -f '$B' ]; cp -p '$B' /etc/nan-relay/api-relay.env; systemctl restart enclave-api-relay.service; systemctl is-active enclave-api-relay.service; grep '^METAL_ALLOWED_MEASUREMENTS=' /etc/nan-relay/api-relay.env | cut -c1-60"
++# S2a rollback: revert ONLY the one line (04e953a4,<prediction> -> 04e953a4), never a whole old file (enclave-99 H1).
++# Refused unless the node runs the OLD image again (rollback order: s2b before s2a), unless FORCE_ORDER=<reason>.
++set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh
++dist=$(python3 -c "import json;print(json.load(open('$C'))['dist'])"); att=$(node_attested | cut -d' ' -f1 || true)
++if [ "$dist" != "$OLDD" ] || [ "$att" = "$NEWM" ]; then
++  [ -n "${FORCE_ORDER:-}" ] || { say "REFUSING: the node still runs or attests the NEW image (dist=$dist, attested=${att:0:12}); roll back S2b first"; exit 30; }
++  say "ORDER OVERRIDE by FORCE_ORDER: $FORCE_ORDER" | tee -a $EV/rollback-override.log
++fi
++say "S2a ROLLBACK: removing the prediction from the allowlist on nan"
++$NAN "set -euo pipefail
++F=/etc/nan-relay/api-relay.env; B=\$F.bak-pool-rollback-\$(date -u +%Y%m%dT%H%M%SZ)
++[ \"\$(grep -c '^METAL_ALLOWED_MEASUREMENTS=' \$F)\" = 1 ] || { echo 'REFUSING: not exactly one allowlist line'; exit 3; }
++grep -qx 'METAL_ALLOWED_MEASUREMENTS=$OLDM,$NEWM' \$F || { echo 'REFUSING: the allowlist is not exactly 04e953a4 + the prediction'; exit 3; }
++cp -p \$F \$B; chmod 600 \$B; echo backup=\$B
++sed -i 's/^METAL_ALLOWED_MEASUREMENTS=$OLDM,$NEWM\$/METAL_ALLOWED_MEASUREMENTS=$OLDM/' \$F
++grep -qx 'METAL_ALLOWED_MEASUREMENTS=$OLDM' \$F || { cp -p \$B \$F; echo 'the revert did not verify: file restored'; exit 4; }
++diff <(grep -v '^METAL_ALLOWED_MEASUREMENTS=' \$B) <(grep -v '^METAL_ALLOWED_MEASUREMENTS=' \$F) >/dev/null || { cp -p \$B \$F; echo 'other lines changed: file restored'; exit 4; }
++systemctl restart enclave-api-relay.service; sleep 8
++systemctl is-active --quiet enclave-api-relay.service && [ \"\$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 https://api.enclave.host/enclaves)\" = 200 ] || { echo 'the relay is not healthy after the revert'; exit 5; }
++grep -qx 'METAL_ALLOWED_MEASUREMENTS=$OLDM' \$F && echo 'allowlist is 04e953a4 alone again'" 2>&1 | tee $EV/s2a-rollback-remote.txt
++wait_for 180 relay_row_ok && say "S2a ROLLED BACK and checked" || { say "S2a ROLLBACK: metal-iso0 has not re-attached"; exit 21; }

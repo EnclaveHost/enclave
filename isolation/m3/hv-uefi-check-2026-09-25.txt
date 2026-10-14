@@ -1,0 +1,65 @@
+# 2026-09-25 isolation/m3/test-hv-local.sh BOOT=uefi on warden-host: QEMU + OVMF, NOT Hyper-V. The guests boot from an ESP holding only \EFI\BOOT\BOOTX64.EFI (the UKI);
+# no -kernel/-initrd/-append. UKI (Arch kernel .linux, the SAME initrd 4610d594 and cmdline):
+uki /home/steven/enclave-bench/hvuefi-run2/esp/EFI/BOOT/BOOTX64.EFI sha256 ba0335b0e075baaaef78baa38ff65ac934312069707f3cf6c93fc908d5f7de49 bytes 41401344
+  stub    2d9b80732fa76c29be1134cd51536df595b61510874ba646ec5fe12181f5ba18  /usr/lib/systemd/boot/efi/linuxx64.efi.stub
+  kernel  1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  /boot/vmlinuz-linux
+  initrd  4610d5944cc2d67a6510ece964915b6a90b20ecc27a0169d514a2701c9fc9f85  /home/steven/enclave-bench/hvuefi-run2/mon.cpio.gz
+  cmdline c99a16aef605f38db0d6b5ba307665c74658b86b79b3be3f33055f362b394615  "console=ttyS0 rdinit=/init loglevel=3 report_host=9001"
+# results:
+PASS A (wasi:http, /1): judged on this handshake's key and a fresh nonce: verdict monitor-signed, tier T0-hv, key 8a30bddef9251a30...
+PASS A (wasi:http, /1): the document never claims host exclusion or hardware attestation: tier T0-hv, format hyperv-partition-domain/v1
+PASS A (wasi:http, /1): enclave-ready on the SAME session: 200 {"appId":"9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45","mode":"serve","port":8080,"ready":true}
+PASS B (wasi:cli socket server, /2): judged on this handshake's key and a fresh nonce: verdict monitor-signed, tier T0-hv, key 02dbaa2d03aa67be...
+PASS B (wasi:cli socket server, /2): the document never claims host exclusion or hardware attestation: tier T0-hv, format hyperv-partition-domain/v1
+PASS B (wasi:cli socket server, /2): enclave-ready on the SAME session: 200 {"appId":"d2c4dfc0ec475910aa509d1045ae4f2997346c1cd666a167cd5fc959c036aa24","mode":"run","port":8000,"ready":true}
+PASS A: the app answers through the domain's TLS: 200 "Hello World!\n"
+PASS B: webhook captured inside the guest and read back: create 200, post 200, read 200, body "{\"nonce\":\"fe21392d5c4f1b54\"}"
+PASS B: the app is told no X-Forwarded-For (not the host's CID, not the client's claim): headers the app saw: host,content-length,content-type,accept-encoding
+PASS A: a CSR for exactly the launcher's name, on the handshake key: 200, name in CSR true, key matches true
+PASS B (loaded with no name): no CSR: 404 this domain has no deployment name to certify: no SEV-SNP HOST_DATA names one, a
+PASS B's domain judged as A's app: refused: reject: the report names a different app; the domain's own claim differs from the expected app (informational field)
+PASS A's document presented on B's key: refused: reject: binding does not match the handshake
+PASS A's document replayed for another nonce: refused: reject
+PASS A's document under an untrusted launcher key: not monitor-signed: reject
+HVLAB-CHECK ALL PASS
+PASS A (wasi:http, /1): judged on this handshake's key and a fresh nonce: verdict monitor-signed, tier T0-hv, key 8a30bddef9251a30...
+PASS A (wasi:http, /1): the document never claims host exclusion or hardware attestation: tier T0-hv, format hyperv-partition-domain/v1
+PASS A (wasi:http, /1): enclave-ready on the SAME session: 200 {"appId":"9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45","mode":"serve","port":8080,"ready":true}
+PASS A: the app answers through the domain's TLS: 200 "Hello World!\n"
+SKIP B: webhook captured inside the guest and read back: needs a second domain
+SKIP B: the app is told no X-Forwarded-For: needs a second domain
+PASS A: a CSR for exactly the launcher's name, on the handshake key: 200, name in CSR true, key matches true
+SKIP B (loaded with no name): no CSR: needs a second domain
+SKIP B's domain judged as A's app: refused: needs a second domain
+PASS A's document presented on another key: refused: reject: binding does not match the handshake
+PASS A's document replayed for another nonce: refused: reject
+PASS A's document under an untrusted launcher key: not monitor-signed: reject
+HVLAB-CHECK PASS WITH 4 SKIPPED (one domain)
+PASS plan 0x4e62e60d: enclave-catalog-bundle/1: enclave-catalog-bundle/1 http=0 memMiB=128
+PASS plan 0x0ddbd824: enclave-catalog-bundle/2: enclave-catalog-bundle/2 http=8000 memMiB=256
+PASS plan: a deployment with staged secrets is refused, naming the input: hasSecrets
+PASS manager readiness 0x4e62e60d: monitor-signed, ready 200, key 8a30bddef9251a30...
+PASS manager readiness 0x0ddbd824: monitor-signed, ready 200, key 02dbaa2d03aa67be...
+PASS A through relay -> app zone -> data plane -> partition: TLS ends in the domain: verdict monitor-signed on the client's own handshake key 8a30bddef9251a30...
+PASS A: the app answers on that route: 200 "Hello World!\n"
+PASS B (/2 socket server) through the same path: TLS ends in the domain: verdict monitor-signed
+PASS B: webhook round-trip on that route: create 200, post 200, read 200
+PASS A's route with B's name in the ClientHello: refused before the data plane: wrong-name
+PASS a deployment this node holds no isolated record for: refused: no-route
+PASS a stale route (the instance's verified key changed): refused by the data plane: stale key
+PASS outcomes the app zone saw: spliced,spliced,wrong-name,no-route,refused
+HVLAB-ROUTE ALL PASS
+TEST-HV-LOCAL PASS
+# The box's UKI (WSL kernel .linux) booted under OVMF to MON ready; its hv_sock-only transport cannot be exercised in QEMU:
+uki /home/steven/enclave-bench/hvuefi/uki-wsl.efi sha256 a1fdb5c3e973accc2f04bfecce7fb22cfdcfcf7568244350328ec6436a1a87b1 bytes 40045056
+  stub    2d9b80732fa76c29be1134cd51536df595b61510874ba646ec5fe12181f5ba18  /usr/lib/systemd/boot/efi/linuxx64.efi.stub
+  kernel  7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd  /home/steven/enclave-bench/ownguest-pkg/sources/guest/wsl-kernel
+  initrd  4610d5944cc2d67a6510ece964915b6a90b20ecc27a0169d514a2701c9fc9f85  /home/steven/enclave-bench/hvuefi/mon.cpio.gz
+  cmdline c99a16aef605f38db0d6b5ba307665c74658b86b79b3be3f33055f362b394615  "console=ttyS0 rdinit=/init loglevel=3 report_host=9001"
+EFI stub: Loaded initrd from LINUX_EFI_INITRD_MEDIA_GUID device path
+MON snp=0 vcpus=1 memMiB=958 boot_ms=604
+MON insmod /vsock.ko.zst failed: Operation not supported
+MON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported
+MON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported
+MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a partition=hcs-child host_excluded=no
+MON ready control_port=9000 snp=false

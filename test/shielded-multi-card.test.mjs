@@ -193,3 +193,38 @@ test('pool waits for all boot proofs and refuses malformed or duplicated members
     { ...pooled, pool: {...pool,pricing:{tflopUsdHr:-1,vramGiBUsdHr:.1}} },
   ]) assert.equal(run([{alloc:{name:'no',gpu:.1,cpu:.1}}], verdict)[0].handle, null);
 });
+
+test('matching held guest restores its reservation without double-counting occupied device VRAM', () => {
+  const occupied = { ...pooled, cards: pooled.cards.map(c => ({ ...c, vram_free_gb: c.vram_budget_gb * .1 })) };
+  const r = run([
+    { alloc: { name: 'new', gpu: .8, cpu: .65 } },
+    { alloc: { name: 'held', gpu: .8, cpu: .65, heldReservation: true } },
+    { alloc: { name: 'double', gpu: .8, cpu: .65, heldReservation: true } },
+    { alloc: { name: 'small', gpu: .05, cpu: .1 } },
+    { alloc: { name: 'cpu-over', gpu: .01, cpu: .3, heldReservation: true } },
+  ], occupied);
+  assert.equal(r[0].handle, null);
+  assert.equal(r[1].handle.pooled, true);
+  assert.ok(Math.abs(r[1].cpu - .35) < 1e-9);
+  assert.equal(r[2].handle, null);
+  assert.equal(r[3].handle.pooled, true);
+  assert.equal(r[4].handle, null);
+});
+
+test('held reservation cannot restore onto an unavailable card', () => {
+  const r = run([{ alloc: { name: 'held', gpu: .8, cpu: .65, heldReservation: true } }],
+    { ...pooled, cards: pooled.cards.map((c,i) => i === 1 ? {...c, exact: false} : c) });
+  assert.equal(r[0].handle, null);
+});
+test('a shielded card is attested as Enclave Shield masked offload, never NVIDIA confidential computing', () => {
+  const r = run([{ alloc: { name: 'a', gpu: .5, cpu: .1 } }, { attest: 'a' }],
+    { cards: [{ ...cards[1], id: 0, deviceUuid: 'GPU-shield' }] });
+  const { deployment, enclave, gpuTechnology } = r[1].attest;
+  assert.equal(gpuTechnology, 'enclave-shield-masked');
+  for (const g of [deployment, enclave]) {
+    assert.equal(g.technology, 'enclave-shield-masked'); assert.equal(g.ccMode, undefined); assert.equal(g.report, undefined);
+    assert.deepEqual(g.gpus, [{ index: 0, uuid: 'GPU-shield', name: 'GPU 1', vramGb: 31 }]);
+    assert.match(g.verify, /untrusted host, outside this CVM.*masked offload/);
+  }
+  assert.equal(deployment.gpuShare, .5); assert.doesNotMatch(JSON.stringify(r[1].attest), /nvidia-cc/);
+});

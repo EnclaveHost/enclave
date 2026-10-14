@@ -1,0 +1,6 @@
+19:39:00Z 1b: /home/steven/enclave-prod/iso-ecf02384 at ecf0238494190906da9166aede5b77f7cb69b46e, clean (no ignored files either)
+release 0839ac3a859b7025abe261c56449d72f19fc8c4ed19ee50c63ab290718dfdb02 verified 15 files
+19:39:00Z 1a: /home/steven/enclave-prod/release-ecf02384 verified as 0839ac3a859b7025abe261c56449d72f19fc8c4ed19ee50c63ab290718dfdb02
+release 0839ac3a859b7025abe261c56449d72f19fc8c4ed19ee50c63ab290718dfdb02
+19:39:01Z 1d: the installed tree reproduces release 0839ac3a859b7025abe261c56449d72f19fc8c4ed19ee50c63ab290718dfdb02 on this host
+19:39:01Z S4 INSTALL (tree + release) done and inert: guestd's MainPID/ExecStart and the m2-gd* units are unchanged

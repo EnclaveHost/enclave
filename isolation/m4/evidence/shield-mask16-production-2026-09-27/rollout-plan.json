@@ -1,0 +1,12 @@
+{
+  "oldRelease": "f61fed6187c32316fcbc41d3364139a66d06a98e181efacad58cc3127b477b46",
+  "newRelease": "5463501b563f5ca6a627266979cc61b26a230a50f3b71ebb9df75f17040da7a9",
+  "oldDropinSha256": "8a1b470aa274e8bd8ce5b2e9722499973b6968f786cebd43ba71deded2fa5229",
+  "releasePath": "/home/steven/enclave-prod/release-5463501b",
+  "sourcePath": "/home/steven/enclave-prod/iso-160ef357",
+  "cpuModule": "unchanged AVX2",
+  "sampler": "ChaCha20, 16 simultaneous blocks, same stream",
+  "sourceCommit": "0b45361767c6b03461db7380e212ddaab1ffa58e",
+  "masked27BOrdinaryTokPerSec": 18.62306620719994,
+  "masked27BMtpTokPerSec": 16.986936555352447
+}

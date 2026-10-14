@@ -21,7 +21,8 @@ const log = (...a) => { try { fs.writeSync(1, `[gsup] ${a.join(' ')}\n`); } catc
 const readJson = (p, d) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return d; } };
 
 // The node's ADVERTISED capacity is this VM's size: vCPUs from the scheduler,
-// GFLOPS scaling with them (~62.5/vCPU, matching the flavor's 1000 for 16).
+// GFLOPS scaling with them -- at the per-vCPU rate the HOST MEASURED where the apps run (fw_cfg gflopsPerVcpu, below),
+// else the fleet's ~62.5/vCPU convention (the flavor's 1000 for 16).
 // RAM follows the FLEET convention: advertise the NOMINAL size the host gives
 // the VM (fw_cfg nodeRamGb, from config memMiB) exactly as the Cloud Provider flavors
 // advertise their baked constants — on both, the wasm manager's RAM-headroom
@@ -31,7 +32,6 @@ const readJson = (p, d) => { try { return JSON.parse(fs.readFileSync(p, 'utf8'))
 // have; with no nominal, fall back to the measured size as before.
 const NODE_VCPUS = os.cpus().length;
 const totalGb = os.totalmem() / (1024 ** 3);
-const NODE_GFLOPS = Math.max(1, Math.round((1000 / 16) * NODE_VCPUS));
 
 // --- config: mode from the MEASURED cmdline; deployment config from fw_cfg ----
 // (out-of-band, NOT measured — so the launch measurement is stable per image).
@@ -47,6 +47,13 @@ const nominalRamGb = Math.round(Number(fw.nodeRamGb) || 0);
 const NODE_RAM_GB  = nominalRamGb > 0
   ? Math.min(nominalRamGb, Math.ceil(totalGb) + 3)
   : Math.max(1, Math.floor(totalGb - 1.5));            // measured: reserve ~1.5 GB for the base system
+// GFLOPS: MEASURED. The host runs flops-probe -- an exactly counted f32x4 multiply-add workload -- under the guests'
+// wasmtime, one copy per pool vCPU at once, and passes the per-vCPU rate (metal/measure-gflops.mjs -> config
+// gflopsPerVcpu -> fw_cfg). Like nodeRamGb it is the host's word (fw_cfg is not measured), so it is bounded. Without it,
+// the fleet's 62.5-per-vCPU convention stands. The supervisor scales it to the guest pool (nodeSpec: cores x per vCPU).
+const FW_GFLOPS_PER_VCPU = Number(fw.gflopsPerVcpu);
+const GFLOPS_MEASURED = Number.isFinite(FW_GFLOPS_PER_VCPU) && FW_GFLOPS_PER_VCPU > 0 && FW_GFLOPS_PER_VCPU <= 1000;
+const NODE_GFLOPS = Math.max(1, Math.round((GFLOPS_MEASURED ? FW_GFLOPS_PER_VCPU : 1000 / 16) * NODE_VCPUS));
 const MODE         = fw.mode || cmdMode || 'snp';      // snp | tdx | dev
 const NAME         = fw.name || 'metal0';
 const PUBLIC_URL   = fw.publicUrl || '';               // e.g. https://api.enclave.host/t/metal0
@@ -138,6 +145,25 @@ const FLEET_SECRET = fw.fleetSecret || '';             // first-party boxes only
 // supervisor re-checks its own RAD before every claim (supervisor.js teeOk), and
 // the relay checks its verified attach mode - three gates, all fail-closed.
 const SELLING      = !!(REGISTRY_KEY && PUBLIC_URL) && MODE !== 'dev';
+// --- per-app isolation tier (isolation/DEPLOYMENT-PATH.md, M4a) --------------
+// WHICH tier comes from the MEASURED cmdline, so a node cannot be switched into or out of it without a different
+// launch measurement. On this tier no app runs in this CVM: each runs in its own SNP guest on the host, launched
+// by guestd, which the supervisor reaches over guestd-control/1 (fw_cfg: managerUrl + the pairing key) and whose
+// data plane carries each app's TLS unopened (fw_cfg: dataAddr). A tier node with incomplete config still tells
+// the supervisor it is on the tier, so it refuses every deployment rather than running any here.
+const ISO_BACKEND = (cmdline.match(/(?:^|\s)metal\.isolation=([^\s]+)/) || [])[1] || '';
+const ISO_CFG = (fw.isolation && typeof fw.isolation === 'object') ? fw.isolation : {};
+let ISO_KEY_FILE = '';
+if (ISO_BACKEND) {
+  if (/^[0-9a-f]{64}$/.test(String(ISO_CFG.pairingKey || ''))) {
+    ISO_KEY_FILE = '/run/guestd-pair.key';
+    fs.writeFileSync(ISO_KEY_FILE, ISO_CFG.pairingKey + '\n', { mode: 0o600 });
+    fs.chmodSync(ISO_KEY_FILE, 0o600);
+  }
+  log(`per-app isolation tier ${ISO_BACKEND}: manager ${ISO_CFG.managerUrl || '(none)'}, data plane ${ISO_CFG.dataAddr || '(none)'}, `
+    + `pairing key ${ISO_KEY_FILE ? 'present' : 'MISSING - every deployment will be refused'}, `
+    + `attested release ${ISO_CFG.release === true ? 'OPTED IN (relay-listed deployments launch as release guests)' : 'off'}; no app runs in this CVM`);
+}
 if (REGISTRY_KEY && PUBLIC_URL && MODE === 'dev')
   console.error('[gsup] registryKey + publicUrl set but mode=dev: a dev launch is not a host and will not register or claim');
 
@@ -327,7 +353,7 @@ const MODEL_VOLUMES_SD = mountedVols.filter((v) => v.sd).map((v) => v.name).join
 // --- wasm-manager (chroot) ---------------------------------------------------
 const WASM_ROOT = '/opt/roots/wasm';
 const wasmImgEnv = readJson('/opt/metal/wasm-env.json', {});
-start('wasm-manager',
+if (!ISO_BACKEND) start('wasm-manager',
   ['/usr/sbin/chroot', WASM_ROOT, '/usr/bin/python3', '/opt/enclave/wasm_manager.py'],
   {
     ...wasmImgEnv,
@@ -378,7 +404,17 @@ const supEnv = {
   PORT: '8080',
   GPU_COUNT: '0',
   PROVISION_BACKEND: 'vm',
-  VMMGR_URL: 'http://127.0.0.1:8091',
+  VMMGR_URL: ISO_BACKEND ? String(ISO_CFG.managerUrl || '') : 'http://127.0.0.1:8091',
+  ...(ISO_BACKEND ? { ISOLATION_BACKEND: ISO_BACKEND, GUESTD_KEY_FILE: ISO_KEY_FILE,
+                      GUESTD_DATA_ADDR: String(ISO_CFG.dataAddr || ''),
+                      // the operator's opt-in to run RELEASE GUESTS (supervisor.js ISOLATION_RELEASE), from host config like the
+                      // pairing key. On, it only lets the attested release run for deployments the RELAY itself lists, and a
+                      // guest's config and secrets still reach only a guest whose report the relay verified; off refuses them,
+                      // which costs availability, never confidentiality. A running guest is adopted either way (never relaunched).
+                      ...(ISO_CFG.release === true ? { ISOLATION_RELEASE: '1' } : {}),
+                      // the firmware floor for guest certificate issuance, from the MEASURED image (build-image.mjs)
+                      ...(() => { try { return { ISOLATION_MIN_TCB: fs.readFileSync('/opt/metal/isolation-min-tcb.json', 'utf8') }; }
+                                  catch { return {}; } })() } : {}),
   // metal-agent serves the Remote Attestation Document here; this override
   // replaces the Cloud Provider shim's loopback endpoint with no supervisor changes.
   ATTESTATION_URL: 'http://127.0.0.1:8443/.well-known/enclave-attestation',
@@ -456,6 +492,7 @@ start('metal-agent', ['/usr/local/bin/node', '/opt/metal/agent.mjs'], {
   METAL_RELAY_HOST: fw.relayHost || '',           // Host/SNI override when dialing via an egress helper
   METAL_TUNNEL_TOKEN: TUNNEL_TOKEN,
   METAL_REFERRAL: typeof fw.referral === 'string' ? fw.referral : '',   // attribution only (relay/referrals.mjs)
+  METAL_VCEK_B64: typeof fw.vcek === 'string' ? fw.vcek : '',
   METAL_SUP_URL: 'http://127.0.0.1:8080',
   METAL_RAD_PORT: '8443',
   NODE_EXTRA_CA_CERTS: '/etc/ssl/certs/ca-certificates.crt',
@@ -472,7 +509,7 @@ start('metal-agent', ['/usr/local/bin/node', '/opt/metal/agent.mjs'], {
 // It is deliberately at boot rather than on demand. The failure this catches --
 // a worker that is absent, wrong-version, or quietly returning garbage -- is one
 // you want to find before a tenant's request depends on it.
-const configuredShieldedWorkers = fw.shieldedWorkers ?? (fw.shieldedWorker ? [fw.shieldedWorker] : []);
+const configuredShieldedWorkers = fw.isolation && fw.isolationShieldedWorkers ? fw.isolationShieldedWorkers : fw.shieldedWorkers ?? (fw.shieldedWorker ? [fw.shieldedWorker] : []);
 const shieldedWorkers = Array.isArray(configuredShieldedWorkers) ? configuredShieldedWorkers.slice(0, 16) : [];
 const shieldedVerdicts = new Map();
 const VERDICT = '/run/shielded-gpu.json';

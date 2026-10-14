@@ -1,0 +1,20 @@
+[
+  {
+    "name": "canary",
+    "attested": true,
+    "measurement": "a230f6bd46e9dfd9927c8315367ea5eb40c23b4c65e7f7edb2ca38b996afb3862d86a218837e26f4bd37bba4f75ae9bc",
+    "app": "19b4db4591709731e192bbd4ec3ceeee340e315b7f1405916884d249f3b9f875",
+    "requests": 10,
+    "allHTTP200": true,
+    "correctResponses": true
+  },
+  {
+    "name": "risc-canary",
+    "attested": true,
+    "measurement": "bba655c0a14cfb170d74f648875fa3924b7835845bc71921d3b9d8dbfc524b16e5a91680cd86d6a6d423515fe60086fe",
+    "app": "67ae1deb4dfe6e4c6ae0ec1e81f13390b51fc8298a31202b15ec64dcb5c0ff12",
+    "requests": 10,
+    "allHTTP200": true,
+    "correctResponses": true
+  }
+]
