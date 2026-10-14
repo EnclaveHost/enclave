@@ -322,6 +322,7 @@ func main() {
 	guestCPUs := flag.Int("guest-cpus", 0, "host cores set aside for guests: the guest pool's CPU budget, against each guest's CPUQuota; unset = every create is refused")
 	legacyIso := flag.String("legacy-isolation", "", "with -release: the PREVIOUS isolation/ tree, to build the deployment guests the supervisor does not mark release (their image unchanged); empty = such a deployment is refused")
 	idPrefix := flag.String("instance-prefix", "gd", "two lowercase letters for this guestd's instance ids and guest units (m2-<prefix>…); a SECOND guestd on a host needs its own, or its boot sweep stops the first one's guests")
+	custodyAuthPort := flag.Uint("custody-auth-port", release.CustodyAuthPort, "vsock host port of the custody authorization service (-release); a LAB guestd uses 19445")
 	ticketPort := flag.Uint("ticket-port", release.TicketPort, "vsock host port of the ticket service (-release); a LAB guestd uses its lab image's (19444) so it never holds production's")
 	egressPortFlag := flag.Uint("egress-port", egressPort, "vsock host port of the egress server (-release); a LAB guestd moves it off production's too")
 	egressRoutes := flag.String("egress-app-routes", "", "expiring per-app TUNA SOCKS map; absent apps fail closed, DNS uses their circuit")
@@ -617,6 +618,13 @@ func main() {
 				log.Fatal(err)
 			}
 		}
+		cl, err := vsock.Listen(uint32(*custodyAuthPort))
+		if err != nil {
+			log.Fatalf("custody authorization: %v", err)
+		}
+		go func() {
+			log.Fatal(s.serveCustodyAuth(context.Background(), cl, vsockCID, log.New(os.Stderr, "custody: ", log.LstdFlags)))
+		}()
 		el, err := vsock.Listen(uint32(*egressPortFlag))
 		if err != nil {
 			log.Fatalf("egress: %v", err)

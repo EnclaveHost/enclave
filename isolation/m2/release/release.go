@@ -103,6 +103,9 @@ type Release struct {
 	Config         json.RawMessage   `json:"config"`
 	Secrets        map[string]string `json:"secrets"`
 	IssuedAt       string            `json:"issuedAt"` // ISO-8601, as the relay writes it
+	// Custody points at the deployment's custody state (EnclaveSecretVault) when its secrets are held by custodians
+	// rather than the relay: Secrets is then empty, and the front fetches them itself (custody.go, isolation/m2/custody).
+	Custody *Custody `json:"custody,omitempty"`
 
 	opened bool // set ONLY by SealKey.Open: this release came through the attested channel
 }
