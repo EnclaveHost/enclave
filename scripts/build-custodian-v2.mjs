@@ -37,7 +37,8 @@ if (sha(fs.readFileSync(path.join(BASE, "vmlinuz"))) !== m.kernel.sha256) throw 
 const measured = `export const MEASURED = Object.freeze(${JSON.stringify({
   chainId: 8453, vault: VAULT,
   rpcs: ["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.drpc.org", "https://1rpc.io/base"],
-  minAgree: 2, maxAgeSec: 120, enclaveOwner: "0x0b2d009c0c9af05b12100d77f3c815fea822ee61" })});\n`;
+  minAgree: 2, maxAgeSec: 120, enclaveOwner: "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+  capacityContract: "0x87c7266543ff5839b2c20226bd9b3cd511a23641", witnesses: { "0xd80bf435467df887f1031743c2a2125a130fe225": "enclave-bootstrap" } })});\n`;
 const bundled = await build({ entryPoints: [path.join(ROOT, "custody/v2/daemon.mjs")], bundle: true, platform: "node", format: "esm", target: "node22",
   write: false, legalComments: "none", banner: { js: 'import { createRequire as __cr } from "node:module"; const require = __cr(import.meta.url);' },
   plugins: [{ name: "measured", setup(b) { b.onLoad({ filter: /custody[\\/]v2[\\/]measured\.mjs$/ }, () => ({ contents: measured, loader: "js" })); } }] });

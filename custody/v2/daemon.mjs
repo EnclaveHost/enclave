@@ -25,6 +25,7 @@ import { productionVerifiers } from "../verifiers.mjs";
 import { cachedCollateral, httpCollateral } from "../../verifier/consumer.mjs";
 import { verifyQuote, parseSnpReport } from "../../relay/snp-verify.mjs";
 import { MEASURED } from "./measured.mjs";
+import { receiptCapacityCheck } from "./capacity.mjs";
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 const FW = "/sys/firmware/qemu_fw_cfg/by_name/opt/org.enclave.custody/raw";
@@ -122,7 +123,11 @@ async function main() {
     return { ok: true, measurement: p.measurement.toString("hex"), chipId: p.chipId.toString("hex") };
   };
   const member = createMember({ chainId: MEASURED.chainId, vault: MEASURED.vault, identity, encPrivateKey, machine, chain, store, submit, fetchJson,
-                                attestSelf: async (b) => tsmReport(b, hc.vcek), verifyPeerQuote, enclaveOwner: MEASURED.enclaveOwner, log });
+                                attestSelf: async (b) => tsmReport(b, hc.vcek), verifyPeerQuote, enclaveOwner: MEASURED.enclaveOwner, log,
+                                // a non-Enclave candidate proves capacity with the audit witness's receipt for its chip (§5 item 2)
+                                capacityCheck: receiptCapacityCheck({ chainId: MEASURED.chainId, contract: MEASURED.capacityContract, witnesses: MEASURED.witnesses }),
+                                // this machine's own receipts, which its host fetches from the witness (unverified here: every member checks them)
+                                capacityReceipts: async () => { const r = await fetch(hc.hostUrl + "/receipts"); return r.ok ? (await r.json()).slice(0, 8) : []; } });
   const custodian = createCustodianV2({ chainId: MEASURED.chainId, vault: MEASURED.vault, encPrivateKey, shares: member.shares, chain,
                                         verifiers: productionVerifiers({ collateral: cachedCollateral({ dir: "/tmp/amd-collateral", upstream: httpCollateral({ timeoutMs: 8000 }) }) }), log });
 
