@@ -178,6 +178,8 @@ with ingress `none` or on the Enclave network exactly as for BYO. Unlike `direct
 no qualification, because nothing is served from it; but its operator must opt in, because the app's destinations see
 the operator's address: `enclaveNetwork.hostEgress {apps: 'all' | [deploymentIds], own: [the host's public addresses]}`.
 A host reports `host` among its modes only for the apps it offers it to, so the Network tab offers nothing else.
+The offer applies without restarting the agent: it re-reads the block when the config file changes (or on SIGHUP), and an
+app no longer offered loses its host circuit at the next reconcile (its owner's fallback, if any, takes over).
 
 The host runs the app's egress entry itself (`network/host-egress.mjs`): the same loopback SOCKS5 contract as
 enclave-wg's (`network/wg/socks.go`: no authentication, CONNECT only, IPv4/IPv6/name), so the Shield and guest paths

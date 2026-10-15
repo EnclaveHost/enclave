@@ -24,6 +24,14 @@ import {HostEgress} from './host-egress.mjs';
 import fs from 'node:fs/promises';
 
 
+// cfg.enclaveNetwork.hostEgress -> {apps, own} or null (absent); a malformed block throws
+export function hostEgressOffer(h){
+ if(h==null)return null;
+ if(h.apps!=='all'&&!(Array.isArray(h.apps)&&h.apps.every(id=>/^0x[0-9a-f]{64}$/.test(id))))throw new Error('Enclave network: hostEgress.apps must be "all" or a list of deployment ids');
+ if(h.own!==undefined&&!(Array.isArray(h.own)&&h.own.every(a=>ipKind(a))))throw new Error('Enclave network: hostEgress.own must list IP addresses');
+ return {apps:h.apps==='all'?'all':[...h.apps],own:[...(h.own||[])]};
+}
+
 export async function createNetworkHost({config:c,account,runner,rpc,addressBook,leaseReader,directory,authorize,forward,fetch=globalThis.fetch,now=Date.now,log=()=>{}}){
  if(!c?.relay||!/^https:\/\//.test(c.relay)&&!/^http:\/\/127\.0\.0\.1/.test(c.relay))throw new Error('Enclave network: relay https URL required');
  if(!Array.isArray(c.checkers)||!c.checkers.length)throw new Error('Enclave network: trusted checker addresses required');
@@ -99,14 +107,18 @@ export async function createNetworkHost({config:c,account,runner,rpc,addressBook
  }
  // Host egress: the operator's opt-in to let named apps (or all) leave through this host's own connection. Their
  // destinations see this host's address; the entry refuses private and reserved ranges, SMTP and the host's own addresses.
- let hostEgress=null;
- if(c.hostEgress){
-  const h=c.hostEgress;
-  if(h.apps!=='all'&&!(Array.isArray(h.apps)&&h.apps.every(id=>/^0x[0-9a-f]{64}$/.test(id))))throw new Error('Enclave network: hostEgress.apps must be "all" or a list of deployment ids');
-  if(h.own!==undefined&&!(Array.isArray(h.own)&&h.own.every(a=>ipKind(a))))throw new Error('Enclave network: hostEgress.own must list IP addresses');
-  const egress=new HostEgress({authorize,own:h.own||[],log});
-  hostEgress={allows:id=>h.apps==='all'||h.apps.includes(id),start:a=>egress.start(a),close:()=>egress.close()};
- }
+ // The offer can change while the agent runs (update(), from a config reload): an app no longer offered loses its host
+ // circuit on the next reconcile (wg-manager.mjs), and a newly offered one gets it then.
+ let offer=hostEgressOffer(c.hostEgress),egress=null;
+ const hostEgress={
+  allows:id=>!!offer&&(offer.apps==='all'||offer.apps.includes(id)),
+  start:a=>{if(!offer)return Promise.reject(new Error('this host does not offer its own connection'));
+   egress||=new HostEgress({authorize,own:offer.own,log});egress.own=offer.own;return egress.start(a);},
+  close:()=>egress?.close(),
+  // -> true when the offer changed; a malformed block throws and leaves the current offer in force
+  update(h){const next=hostEgressOffer(h);if(JSON.stringify(next)===JSON.stringify(offer))return false;offer=next;if(egress&&next)egress.own=next.own;return true;},
+  get offered(){return offer?{apps:offer.apps,own:[...offer.own]}:null;},
+ };
  // localRoutes: apps on this host reach each other's websites here (local-app-router.mjs); false turns it off
  return {onNetwork,policyFor,providers,byoConfig,runtime,probeEgress,grants,direct,hostEgress,localRoutes:c.localRoutes!==false};
 }

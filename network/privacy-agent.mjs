@@ -146,7 +146,7 @@ export async function runPrivacy(configFile){
     const seedModule=cfg.linux.snpModule?await import(pathToFileURL(cfg.linux.snpModule).href):await import('../relay/snp-verify.mjs');
     seedModule.seedCertChain(cfg.linux.product,await fs.readFile(cfg.linux.certChainFile,'utf8'));
   }
-  let agent;
+  let agent,networkHost=null;
   if(windows&&cfg.guestd)throw new Error('Linux guest manager configuration on Windows');
   if(!windows&&cfg.shield?.ingress)throw new Error('Windows partition ingress configuration on Linux');
   const guestd=cfg.guestd?new GuestdIngress({...cfg.guestd,expected:id=>apps.find(a=>a.deploymentId===id)?.expected}):
@@ -156,13 +156,15 @@ export async function runPrivacy(configFile){
   const close=()=>{hostProof?.close();void Promise.all([agent?.close(),wgControl?.close()]).then(()=>paid?.close()).catch(e=>log(e.message));};
   process.once('SIGTERM',close);process.once('SIGINT',close);
   // SIGHUP re-reads the app list: each app's expectation, names and mirror
-  // flag, and any new app. Everything is validated before anything changes; no
+  // flag, and any new app, and the operator's host-egress offer (enclaveNetwork.hostEgress). Everything is validated before anything changes; no
   // existing circuit is rebuilt (new names apply to circuits built later).
   // An app dropped from the file is left alone (its lease decides its fate).
   const reloadApps=async()=>{try{
     const fresh=JSON.parse(await fs.readFile(configFile,'utf8'));
     if(!Array.isArray(fresh.apps)||fresh.apps.length>256)throw new Error('version 2 app configuration required');
     const next=[];for(const item of fresh.apps)next.push(await loadApp(item));
+    // the operator's host-egress offer applies without a restart (a malformed block is refused before anything changes)
+    const egressChanged=!!networkHost?.hostEgress.update(fresh.enclaveNetwork?.hostEgress);
     let added=0,updated=0;
     for(const n of next){
       const cur=apps.find(a=>a.deploymentId===n.deploymentId);
@@ -171,6 +173,9 @@ export async function runPrivacy(configFile){
       for(const k of ['expected','names','publishToMirror','expectedFile','startupEgress'])cur[k]=n[k];
     }
     log(`config reloaded: ${apps.length} apps (${added} added, ${updated} changed); mirror apps: `+(apps.filter(a=>a.publishToMirror).map(a=>a.deploymentId.slice(0,10)).join(',')||'none'));
+    if(egressChanged){const o=networkHost.hostEgress.offered;
+      log('host egress now offered to: '+(!o?'no apps':o.apps==='all'?'all apps':o.apps.map(id=>id.slice(0,10)).join(',')||'no apps'));
+      void agent?.manager.reconcile().catch(e=>log('reconcile: '+e.message));}
   }catch(e){log('config reload refused: '+e.message);}};
   process.on('SIGHUP',()=>void reloadApps());
   // Windows has no SIGHUP: the config file's modification time is the signal
@@ -191,6 +196,7 @@ export async function runPrivacy(configFile){
     leaseReader:{registryEntries:(...a)=>leaseReaderLate?leaseReaderLate.registryEntries(...a):Promise.reject(new Error('lease reader not ready yet')),
       bookAddress:(...a)=>leaseReaderLate?leaseReaderLate.bookAddress(...a):Promise.reject(new Error('lease reader not ready yet'))},directory:cfg.directory,log,fetch:networkFetch,
     authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:pvm?pvmForwarder(pvm.appPort):guestd?guestd.forward:localAppForwarder(cfg.upstream)});
+  networkHost=network;
   if(cfg.enclaveNetwork.control===true){wgControl=new WgControlTransport({runtime:network.runtime,providers:network.providers,log});await wgControl.start();}
   // paid providers (enclaveNetwork.paid): the lease must carry the on-chain connectivity authorization
   const leaseReader=new LeaseReader({...cfg.chain,...(cfg.enclaveNetwork.paid?{includeConnectivity:'auto',includeHostPayout:true}:{}),...(wgControl?{proxy:wgControl.proxies}:{})});leaseReaderLate=leaseReader;
