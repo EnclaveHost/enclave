@@ -17,6 +17,8 @@ import {createPaidNetwork} from './paid-network.mjs';
 import {ShieldHostProof} from './shield-host-proof.mjs';
 import {RoutePublisher} from './route-publisher.mjs';
 import {EgressMap} from './egress-map.mjs';
+import {LocalAppRouter} from './local-app-router.mjs';
+import {networkUse} from './network-policy.mjs';
 // how long a lease still running on chain is believed from its last agreeing read when a chain read fails outright
 const LEASE_GRACE_MS=10*60_000;
 import {DurableState} from './durable-state.mjs';
@@ -48,7 +50,15 @@ export class PrivacyAgent {
       policy:id=>this.manager.apps.get(id)?.policy,qualification,now,distribute:async(id,value)=>{
         if(distribute)await distribute(id,value).catch(e=>log('optional route mirror: '+e.message));
       }});
-    this.egress=new EgressMap({directory,manager:this.manager,dns,now,log});this.status=new DurableState(directory);
+    // apps this host serves reach each other here, not out through one's egress and back through the other's circuits
+    this.router=network.localRoutes===false||!network.runtime?.forward?null:new LocalAppRouter({log,forward:(stream,id)=>network.runtime.forward(stream,id),
+      target:name=>{for(const app of this.manager.apps.values()){
+        if(!app.names?.some(n=>n.toLowerCase()===name))continue;
+        // only a website the owner serves publicly, to an app whose lease and guest proof are current
+        if(app.isPublic===false||networkUse(app.policy).ingress==='none'||!this.admission.allows(app.id))return null;
+        return app.id;
+      }return null;}});
+    this.egress=new EgressMap({directory,manager:this.manager,dns,router:this.router,now,log});this.status=new DurableState(directory);
   }
   async refreshAuthorization(){
     if(this.refreshing||this.closed)return;this.refreshing=true;this.authorizationRefresh={phase:"chain",startedAt:this.now()};void this.snapshot().catch(e=>this.log(e.message));
@@ -89,7 +99,7 @@ export class PrivacyAgent {
       setInterval(()=>void this.manager.reconcile().catch(e=>this.log('circuits: '+e.message)),5000)];
     void this.manager.reconcile().catch(e=>this.log('circuits: '+e.message));return this;
   }
-  async close(){if(this.closed)return;this.closed=true;for(const timer of this.timers||[])clearInterval(timer);await this.manager.close();await this.snapshot();}
+  async close(){if(this.closed)return;this.closed=true;for(const timer of this.timers||[])clearInterval(timer);await this.manager.close();await this.snapshot();this.router?.close();}
 }
 
 export async function runPrivacy(configFile){

@@ -116,6 +116,11 @@ func Up(p Peer, bind conn.Bind, logf func(string, ...any)) (*Device, error) {
 	if err != nil {
 		return nil, err
 	}
+	// long-path TCP (tune.go): without it a circuit's uploads stayed far under the line
+	if err := TuneTCP(tnet); err != nil {
+		tunDev.Close()
+		return nil, err
+	}
 	if logf == nil {
 		logf = func(string, ...any) {}
 	}

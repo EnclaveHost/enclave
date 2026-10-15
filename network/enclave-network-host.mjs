@@ -107,5 +107,6 @@ export async function createNetworkHost({config:c,account,runner,rpc,addressBook
   const egress=new HostEgress({authorize,own:h.own||[],log});
   hostEgress={allows:id=>h.apps==='all'||h.apps.includes(id),start:a=>egress.start(a),close:()=>egress.close()};
  }
- return {onNetwork,policyFor,providers,byoConfig,runtime,probeEgress,grants,direct,hostEgress};
+ // localRoutes: apps on this host reach each other's websites here (local-app-router.mjs); false turns it off
+ return {onNetwork,policyFor,providers,byoConfig,runtime,probeEgress,grants,direct,hostEgress,localRoutes:c.localRoutes!==false};
 }
