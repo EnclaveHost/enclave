@@ -120,7 +120,7 @@ export class HostEgress {
 
 function ipv6(b){const h=[];for(let i=0;i<16;i+=2)h.push(b.readUInt16BE(i).toString(16));return h.join(':');}
 // exact-length reads from a socket, keeping any extra bytes for the splice
-function reader(sock){
+export function reader(sock){
  let buf=Buffer.alloc(0),want=0,wake=null,ended=false;
  const onData=d=>{buf=Buffer.concat([buf,d]);if(wake&&buf.length>=want){const w=wake;wake=null;w();}};
  const onEnd=()=>{ended=true;if(wake){const w=wake;wake=null;w();}};
@@ -129,6 +129,14 @@ function reader(sock){
   if(buf.length<n){want=n;await new Promise(r=>{wake=r;});}
   if(buf.length<n)throw new Error(ended?'client closed during the SOCKS handshake':'short read');
   const out=buf.subarray(0,n);buf=buf.subarray(n);return out;
+ };
+ // whatever has arrived (at least one byte), or null once the peer has closed
+ rd.some=async(ms)=>{
+  if(!buf.length){
+   if(ended)return null;want=1;
+   await new Promise(r=>{let t=null;const done=()=>{clearTimeout(t);if(wake===done)wake=null;r();};wake=done;if(ms)t=setTimeout(done,ms);});
+  }
+  if(!buf.length)return null;const out=buf;buf=Buffer.alloc(0);return out;
  };
  rd.rest=()=>{sock.off('data',onData);sock.pause();const r=buf;buf=Buffer.alloc(0);return r;};
  return rd;

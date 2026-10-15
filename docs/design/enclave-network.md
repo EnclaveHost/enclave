@@ -189,6 +189,25 @@ when it fails, an owner-authorized `fallback` carries egress on one egress-only 
 circuits are never touched. Providers need no change of behavior: `networkUse()` reports the host mode's ingress, so they
 grant ingress-only circuits and refuse egress unless the fallback is in use.
 
+## Apps on the same host
+
+An app that connects to the website of another app the same host serves is handed to it on the host (`network/local-app-router.mjs`),
+the way that app's own ingress hands it a visitor, instead of leaving through the caller's egress and coming back through the
+target's circuits. Each egress address in the egress map is published as a front with the same loopback SOCKS5 contract; a CONNECT
+to port 443 whose name, or whose TLS ClientHello's server name (callers resolve names themselves and connect to an exit's shared
+address), is a local app's website goes to that app; everything else is replayed to the real egress byte for byte. Only an app
+with public ingress (its policy's ingress is not `none`) and a current lease and guest proof is reached locally. TLS still runs
+end to end into the target enclave. Why: sia-s3 and the apps storing on it share the NucBox, and their traffic crossed two
+providers each way: ~0.9 MiB/s (2026-10-15). `enclaveNetwork.localRoutes: false` turns it off on a host.
+
+## Circuit TCP
+
+Every circuit's TCP runs in enclave-wg's gVisor netstack. With its defaults (reno, 1 MiB buffers capped at 4 MiB) uploads over a
+guard and an exit stayed at 0.23-2.2 MB/s against 7-13 MB/s lines, while downloads (sent by the far, ordinary stack) ran 3-5 MB/s.
+`network/wg/tune.go` sets cubic, 4 MiB default / 32 MiB maximum buffers and receive-buffer moderation on every tunnel stack
+(`TestTunedThroughput`, in-memory link: 60 ms RTT 18.7 -> 22.8 MB/s, 300 ms 3.6 -> 4.8 MB/s). gVisor has no BBR, so a long, lossy
+path still limits one stream; keeping traffic between apps on one host local (above) is what removes the path entirely.
+
 ## Billing (paid providers)
 
 - Enclave-operated providers are free (`pricePerGiB6 0`): the platform pays the four Droplets.
