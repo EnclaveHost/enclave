@@ -299,8 +299,9 @@ func (s *state) watch() {
 			if (!ok && a > 30*time.Second) || a > 180*time.Second {
 				fail(x.name + " tunnel: no handshake for " + a.Round(time.Second).String())
 			}
-			stats[x.name] = map[string]any{"handshakeAgeMs": a.Milliseconds(), "rx": rx, "tx": tx}
+			stats[x.name] = map[string]any{"handshakeAgeMs": a.Milliseconds(), "rx": rx, "tx": tx, "tcp": wg.TCPCounters(x.d.Net)}
 		}
+		stats["paceSleptMs"] = wg.PaceSleptNs.Load() / int64(time.Millisecond)
 		emit(stats)
 	}
 }
