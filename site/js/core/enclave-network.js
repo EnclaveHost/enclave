@@ -37,11 +37,13 @@ const MODE_TEXT={
   "enclave-network":{title:"Enclave network",sub:"Public HTTPS and outbound traffic through Enclave-network providers, two independent routes, each behind a guard hop."},
   "byo-wireguard":{title:"Bring your own WireGuard",sub:"Outbound traffic through your own VPN. Public HTTPS separately, through the Enclave network, or not at all."},
   "direct":{title:"Direct hosting",sub:"The host's own connection: the shortest path, and the host's public IP is visible to everyone."},
+  "host":{title:"Host connection",sub:"Outbound traffic straight out of the host's own internet connection: no extra hops. Public HTTPS separately, through the Enclave network, or not at all."},
 };
 const PRIVACY={
   "enclave-network":"The host's IP stays hidden: the guard sees it but only encrypted traffic; the exit provider sees visitors and destinations but never the host. Your TLS key stays inside the enclave; providers only pass encrypted bytes. Qualification checks cannot prove a provider keeps no logs, and the current providers are all operated by Enclave on DigitalOcean, so separate addresses are not separate operators.",
   "byo-wireguard":"Your VPN provider sees the host's IP and where the app connects: there is no guard hop and no multi-hop privacy. The host running your app holds the WireGuard key while the app runs, so use a peer made for this app only, and do not use it anywhere else at the same time. A WireGuard VPN does not forward public ports: a website still needs Enclave-network ingress.",
   "direct":"Every visitor and every destination sees the host's public IP address. TLS still ends inside the enclave. Only hosts that opted in and passed qualification can serve direct apps.",
+  "host":"Every destination the app connects to sees the host's IP address, and the host's network operator sees where it connects (its traffic stays as encrypted as the app makes it). Visitors still reach a website through the Enclave network if you keep it on. The host never needs a public address, but its operator must offer its connection to this app; private networks, SMTP and the host's own addresses stay unreachable.",
 };
 
 export async function renderEnclaveNetwork(box,id,{viaVault=false,owner=null}={}){
@@ -58,8 +60,8 @@ export async function renderEnclaveNetwork(box,id,{viaVault=false,owner=null}={}
   const website=use.ingress==="none"?"off (no public website)":live?`ready — ${esc(live.addresses?.join(", ")||live.a||"")}${live.transport==="enclave-network"?" (Enclave network)":live.transport==="direct"?" (direct)":""}`:"not reachable yet";
   lines.push(`<span class="en-sub">Website (public HTTPS): ${website}</span>`);
   if(host){
-    lines.push(`<span class="en-sub">Outbound: ${host.egress==="none"?"off":esc(host.egress)}${host.fallbackActive?' <span class="warn">— your BYO tunnel is down; the fallback you authorized (Enclave network) is carrying it</span>':""}</span>`);
-    for(const c of host.circuits||[])lines.push(`<span class="en-sub">${c.kind==="byo"?"Your WireGuard peer":`Route: guard ${esc(c.guard?.region||"")} → exit ${esc(c.exit?.region||"")} ${esc(c.exit?.address||"")}`} — ${c.healthy?"healthy":'<span class="warn">checking</span>'}${c.ingress?" · website":""}${c.egress?" · outbound":""}</span>`);
+    lines.push(`<span class="en-sub">Outbound: ${host.egress==="none"?"off":esc(host.egress)}${host.fallbackActive?` <span class="warn">— your ${policy.mode==="host"?"host connection":"BYO tunnel"} is down; the fallback you authorized (Enclave network) is carrying it</span>`:""}</span>`);
+    for(const c of host.circuits||[])lines.push(`<span class="en-sub">${c.kind==="byo"?"Your WireGuard peer":c.kind==="host"?"The host's own connection":`Route: guard ${esc(c.guard?.region||"")} → exit ${esc(c.exit?.region||"")} ${esc(c.exit?.address||"")}`} — ${c.healthy?"healthy":'<span class="warn">checking</span>'}${c.ingress?" · website":""}${c.egress?" · outbound":""}</span>`);
     if(host.error)lines.push(`<span class="en-sub warn">${esc(host.error)}</span>`);
     lines.push(`<span class="en-sub dim">Host report ${Math.max(0,Math.round((Date.now()-status.hostReportedAt)/1000))} s ago</span>`);
   }else lines.push(`<span class="en-sub dim">The host has not reported this app's network yet.</span>`);
@@ -73,7 +75,7 @@ export async function renderEnclaveNetwork(box,id,{viaVault=false,owner=null}={}
   // effect (so it can be changed away from). A host that predates the report offers everything, as before.
   const offered=Array.isArray(host?.modes)?host.modes:null;
   const unavailable=k=>offered&&!offered.includes(k)&&k!==policy.mode;
-  const WHY_NOT={"direct":"Not available on this app's host: it has no public address of its own to serve from.","byo-wireguard":"Not available on this app's host."};
+  const WHY_NOT={"direct":"Not available on this app's host: it has no public address of its own to serve from.","byo-wireguard":"Not available on this app's host.","host":"Not available on this app's host: its operator doesn't offer its own connection to this app."};
   form.innerHTML=`<fieldset><legend>How this app reaches the internet</legend><div class="en-list">${Object.entries(MODE_TEXT).map(([k,v])=>
     `<label class="en-opt${unavailable(k)?" dim":""}"><input type="radio" name="mode" value="${k}"${k===policy.mode?" checked":""}${unavailable(k)?" disabled":""}><b>${esc(v.title)}</b><span class="en-sub">${esc(unavailable(k)?WHY_NOT[k]||"Not available on this app's host.":v.sub)}</span></label>`).join("")}</div></fieldset>
    <div data-for="byo-wireguard" hidden>
@@ -83,6 +85,10 @@ export async function renderEnclaveNetwork(box,id,{viaVault=false,owner=null}={}
      <label>Public website <select name="ingress"><option value="enclave-network">Through the Enclave network (separately billed under the limits below)</option><option value="none">None: outbound only</option></select></label>
    </div>
    <div data-for="direct" hidden><p class="en-intro"><b>The host's public IP will be visible to every visitor and destination.</b> ${offered&&offered.includes("direct")?"":"This app's host doesn't offer direct hosting; the app stays unreachable until one that does runs it, unless you allow the fallback below."}</p></div>
+   <div data-for="host" hidden>
+     <label>Public website <select name="hostIngress"><option value="enclave-network">Through the Enclave network (separately billed under the limits below)</option><option value="none">None: outbound only</option></select></label>
+     ${offered&&!offered.includes("host")?`<p class="en-intro">This app's host doesn't offer its own connection; the app has no outbound route until one that does runs it, unless you allow the fallback below.</p>`:""}
+   </div>
    <div data-fallback hidden><label>If it fails <select name="fallback"><option value="none">Stay offline (nothing else is used)</option><option value="enclave-network">Use the Enclave network instead</option></select></label></div>
    <div data-network><label>Routes <select name="routes"><option value="2">2 (recommended)</option><option value="1">1</option></select></label>
      <label>Max price, USDC per GiB <input name="price" inputmode="decimal" size="8" value="${usdc(policy.enclaveNetwork?.maxPricePerGiB6??0)}"></label>
@@ -94,12 +100,13 @@ export async function renderEnclaveNetwork(box,id,{viaVault=false,owner=null}={}
     const m=f.mode.value;
     for(const el of form.querySelectorAll("[data-for]"))el.hidden=el.dataset.for!==m;
     form.querySelector("[data-fallback]").hidden=m==="enclave-network";
-    const needsNetwork=m==="enclave-network"||f.fallback.value==="enclave-network"||(m==="byo-wireguard"&&f.ingress.value==="enclave-network");
+    const needsNetwork=m==="enclave-network"||f.fallback.value==="enclave-network"||(m==="byo-wireguard"&&f.ingress.value==="enclave-network")||(m==="host"&&f.hostIngress.value==="enclave-network");
     form.querySelector("[data-network]").hidden=!needsNetwork;
   };
   if(policy.mode==="byo-wireguard")f.ingress.value=policy.byo.ingress;
+  if(policy.mode==="host")f.hostIngress.value=policy.host.ingress;
   f.fallback.value=policy.fallback;f.routes.value=String(policy.enclaveNetwork?.routes||2);
-  for(const el of [...form.querySelectorAll("input[name=mode]"),f.fallback,f.ingress])el.addEventListener("change",show);show();
+  for(const el of [...form.querySelectorAll("input[name=mode]"),f.fallback,f.ingress,f.hostIngress])el.addEventListener("change",show);show();
   const check=form.querySelector("[data-check]");
   f.config.addEventListener("input",()=>{
     if(!f.config.value.trim()){check.textContent="";return;}
@@ -113,10 +120,11 @@ export async function renderEnclaveNetwork(box,id,{viaVault=false,owner=null}={}
     ev.preventDefault();save.disabled=true;
     try{
       const mode=f.mode.value,next={version:5,deploymentId:id,nonce:policy.nonce+1,issuedAt:Math.floor(Date.now()/1000),mode,fallback:mode==="enclave-network"?"none":f.fallback.value};
-      const needsNetwork=mode==="enclave-network"||next.fallback==="enclave-network"||(mode==="byo-wireguard"&&f.ingress.value==="enclave-network");
+      const needsNetwork=mode==="enclave-network"||next.fallback==="enclave-network"||(mode==="byo-wireguard"&&f.ingress.value==="enclave-network")||(mode==="host"&&f.hostIngress.value==="enclave-network");
       if(needsNetwork){const p=toU6(f.price.value),b=toU6(f.budget.value);if((p>0)!==(b>0))throw new Error("A price limit needs a budget, and a budget needs a price limit.");
         next.enclaveNetwork={routes:Number(f.routes.value),guard:true,maxPricePerGiB6:p,budget6:b};}
       if(mode==="direct")next.direct={maxPricePerGiB6:0};
+      if(mode==="host")next.host={ingress:f.hostIngress.value};
       if(mode==="byo-wireguard"){
         let digest=status.byoConfig?.configDigest;
         if(f.config.value.trim()){

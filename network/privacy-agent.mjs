@@ -42,7 +42,7 @@ export class PrivacyAgent {
     if(!network)throw new Error(NETWORK_REQUIRED);
     Object.assign(this,{apps,leaseReader,probe,distribute,directory,now,log,network});this.refreshing=false;this.closed=false;this.publishing=false;
     this.admission=new AdmissionGate({runner,expected:id=>this.apps.find(a=>a.deploymentId===id)?.expected,now});
-    this.manager=new EnclaveNetworkManager({runtime:network.runtime,admission:this.admission,providers:network.providers,byoConfig:network.byoConfig,probeEgress:network.probeEgress,direct:network.direct,paid,now,log,
+    this.manager=new EnclaveNetworkManager({runtime:network.runtime,admission:this.admission,providers:network.providers,byoConfig:network.byoConfig,probeEgress:network.probeEgress,direct:network.direct,hostEgress:network.hostEgress||null,paid,now,log,
       probe:(app,circuit)=>probe(app.deploymentId,app.expected,circuit),publish:(id,routes)=>this.publisher.publish(id,routes)});
     this.publisher=new RoutePublisher({directory:path.join(directory,'routes'),account,lease:id=>leaseReader.get(id),
       policy:id=>this.manager.apps.get(id)?.policy,qualification,now,distribute:async(id,value)=>{

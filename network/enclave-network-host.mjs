@@ -1,7 +1,9 @@
 // A host's connection to the Enclave network (docs/design/enclave-network.md): which apps use it, each app's owner-
 // signed policy, the verified provider directory, BYO WireGuard configs, and the runtime that builds circuits.
 // host config (cfg.enclaveNetwork): {relay, checkers:[...], apps:'all'|[ids], wgBinary, nodeBinary, workerModule,
-//   firewallBinary (Windows), registry (registry address, for community providers)}
+//   firewallBinary (Windows), registry (registry address, for community providers),
+//   hostEgress {apps:'all'|[ids], own:[this host's public addresses]} (optional: the operator lets apps whose owners chose
+//   'host' send their outbound traffic through this host's own connection)}
 import path from 'node:path';
 import dns from 'node:dns';
 import {randomBytes} from 'node:crypto';
@@ -18,6 +20,7 @@ import {canonical} from './route-record.mjs';
 import {guardedFetch} from './guarded-fetch.mjs';
 import {DirectRuntime} from './direct-runtime.mjs';
 import {verifyQualification} from './provider-qualification.mjs';
+import {HostEgress} from './host-egress.mjs';
 import fs from 'node:fs/promises';
 
 
@@ -94,5 +97,15 @@ export async function createNetworkHost({config:c,account,runner,rpc,addressBook
    meter:async()=>({consume(){}})});
   direct={runtime:runtimeD,qualification,envelope};
  }
- return {onNetwork,policyFor,providers,byoConfig,runtime,probeEgress,grants,direct};
+ // Host egress: the operator's opt-in to let named apps (or all) leave through this host's own connection. Their
+ // destinations see this host's address; the entry refuses private and reserved ranges, SMTP and the host's own addresses.
+ let hostEgress=null;
+ if(c.hostEgress){
+  const h=c.hostEgress;
+  if(h.apps!=='all'&&!(Array.isArray(h.apps)&&h.apps.every(id=>/^0x[0-9a-f]{64}$/.test(id))))throw new Error('Enclave network: hostEgress.apps must be "all" or a list of deployment ids');
+  if(h.own!==undefined&&!(Array.isArray(h.own)&&h.own.every(a=>ipKind(a))))throw new Error('Enclave network: hostEgress.own must list IP addresses');
+  const egress=new HostEgress({authorize,own:h.own||[],log});
+  hostEgress={allows:id=>h.apps==='all'||h.apps.includes(id),start:a=>egress.start(a),close:()=>egress.close()};
+ }
+ return {onNetwork,policyFor,providers,byoConfig,runtime,probeEgress,grants,direct,hostEgress};
 }

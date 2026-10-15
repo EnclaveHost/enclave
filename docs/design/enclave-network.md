@@ -18,6 +18,7 @@ settlement through the existing connectivity contract instead of NKN.
 | `enclave-network` (default) | public 443/80 on an Enclave-network ingress provider, SNI passthrough to the enclave over WireGuard | through an Enclave-network egress provider | the guard sees the host's IP but only ciphertext; the ingress/egress provider sees visitors' and destinations' IPs, never the host's |
 | `byo-wireguard` | none, or the Enclave network's ingress (separately authorized) | through the owner's own WireGuard peer | the owner's VPN vendor sees the host's IP and destination metadata; no multi-hop privacy claim |
 | `direct` | the host's own public IP | the host's own connection | everyone sees the host's public IP |
+| `host` | none, or the Enclave network's ingress (separately authorized) | the host's own connection (an operator opt-in; no public address needed) | destinations see the host's IP; visitors of the website still see only Enclave-network providers |
 
 Rules that hold in every mode:
 
@@ -35,11 +36,12 @@ Rules that hold in every mode:
 
 ```
 { version:5, deploymentId, nonce, issuedAt,
-  mode: 'enclave-network' | 'byo-wireguard' | 'direct',
-  fallback: 'none' | 'enclave-network',          // byo/direct only; enclave-network has no fallback
+  mode: 'enclave-network' | 'byo-wireguard' | 'direct' | 'host',
+  fallback: 'none' | 'enclave-network',          // byo/direct/host only; enclave-network has no fallback
   enclaveNetwork: { routes:1|2, guard:true, maxPricePerGiB6, budget6 },      // when mode or fallback uses it
   byo: { configDigest, ingress: 'none' | 'enclave-network' },                 // byo-wireguard only
-  direct: { maxPricePerGiB6 } }                                               // direct only
+  direct: { maxPricePerGiB6 },                                                // direct only
+  host: { ingress: 'none' | 'enclave-network' } }                             // host only
 ```
 
 Signed message: `enclave-network:policy:v5\n` + canonical JSON (sorted keys, safe integers only).
@@ -167,6 +169,25 @@ states that the host's public IP is exposed to every visitor and destination. Th
 `DirectRuntime` (SNI to the enclave, TLS ends inside, policy-judged egress) and publishes a v5 `direct` route carrying the
 qualification; the relay accepts it only from the network's trusted checkers, and the host withdraws it the moment the
 qualification lapses. Windows hosts have no direct runtime.
+
+## Host egress
+
+For an app whose outbound traffic needs to be fast and close (sia-s3 talking to Sia hosts: two hops through distant
+regions gave it ~0.34 MiB/s), the owner may choose `host`: its egress leaves through the host's own internet connection,
+with ingress `none` or on the Enclave network exactly as for BYO. Unlike `direct` the host needs no public address and
+no qualification, because nothing is served from it; but its operator must opt in, because the app's destinations see
+the operator's address: `enclaveNetwork.hostEgress {apps: 'all' | [deploymentIds], own: [the host's public addresses]}`.
+A host reports `host` among its modes only for the apps it offers it to, so the Network tab offers nothing else.
+
+The host runs the app's egress entry itself (`network/host-egress.mjs`): the same loopback SOCKS5 contract as
+enclave-wg's (`network/wg/socks.go`: no authentication, CONNECT only, IPv4/IPv6/name), so the Shield and guest paths
+use it unchanged. Names resolve through public resolvers (1.1.1.1, 9.9.9.9), never the host's LAN resolver, and every
+address is judged like `network/wg/policy.go`: loopback, private, CGNAT, link-local and metadata, multicast, reserved and
+documentation ranges are refused, as are SMTP and the host's own addresses; IPv6 is refused. Admission gates every
+connection, and a lapsed lease cuts the open ones. The entry is verified with the egress probe before it counts as up;
+when it fails, an owner-authorized `fallback` carries egress on one egress-only Enclave-network circuit, and the website
+circuits are never touched. Providers need no change of behavior: `networkUse()` reports the host mode's ingress, so they
+grant ingress-only circuits and refuse egress unless the fallback is in use.
 
 ## Billing (paid providers)
 

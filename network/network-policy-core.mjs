@@ -2,7 +2,9 @@
 // allows (docs/design/enclave-network.md). Signature checks live in network-policy.mjs.
 import {canonical} from './canonical.mjs';
 
-export const MODES=['enclave-network','byo-wireguard','direct'];
+// host: egress leaves through the host's own internet connection (an operator opt-in; no public address needed, unlike
+// direct), with ingress either none or on the Enclave network, like BYO
+export const MODES=['enclave-network','byo-wireguard','direct','host'];
 const app=/^0x[0-9a-f]{64}$/,hex64=/^[0-9a-f]{64}$/,U6=1e15;
 const keys=(o,allowed,required=allowed)=>{
  if(!o||typeof o!=='object'||Array.isArray(o)||Object.getPrototypeOf(o)!==Object.prototype)return false;
@@ -17,11 +19,11 @@ export function defaultNetworkPolicy(deploymentId){
 
 export function validateNetworkPolicy(p){
  const base=['version','deploymentId','nonce','issuedAt','mode','fallback'];
- if(!keys(p,[...base,'enclaveNetwork','byo','direct'],base)||p.version!==5||!app.test(p.deploymentId)||
+ if(!keys(p,[...base,'enclaveNetwork','byo','direct','host'],base)||p.version!==5||!app.test(p.deploymentId)||
     !Number.isSafeInteger(p.nonce)||p.nonce<0||!Number.isSafeInteger(p.issuedAt)||p.issuedAt<0||!MODES.includes(p.mode)||
     !['none','enclave-network'].includes(p.fallback))throw new Error('invalid network policy');
  if(p.mode==='enclave-network'&&p.fallback!=='none')throw new Error('the Enclave network has no fallback');
- const usesNetwork=p.mode==='enclave-network'||p.fallback==='enclave-network'||(p.mode==='byo-wireguard'&&p.byo?.ingress==='enclave-network');
+ const usesNetwork=p.mode==='enclave-network'||p.fallback==='enclave-network'||(p.mode==='byo-wireguard'&&p.byo?.ingress==='enclave-network')||(p.mode==='host'&&p.host?.ingress==='enclave-network');
  if(usesNetwork!==('enclaveNetwork' in p))throw new Error(usesNetwork?'Enclave network settings required':'unused Enclave network settings');
  if(usesNetwork){const n=p.enclaveNetwork;
   if(!keys(n,['routes','guard','maxPricePerGiB6','budget6'])||![1,2].includes(n.routes)||n.guard!==true||!amount(n.maxPricePerGiB6)||!amount(n.budget6)||
@@ -30,6 +32,8 @@ export function validateNetworkPolicy(p){
  if(p.mode==='byo-wireguard'&&(!keys(p.byo,['configDigest','ingress'])||!hex64.test(p.byo.configDigest)||!['none','enclave-network'].includes(p.byo.ingress)))throw new Error('invalid BYO settings');
  if((p.mode==='direct')!==('direct' in p))throw new Error('direct settings belong to direct only');
  if(p.mode==='direct'&&(!keys(p.direct,['maxPricePerGiB6'])||!amount(p.direct.maxPricePerGiB6)))throw new Error('invalid direct settings');
+ if((p.mode==='host')!==('host' in p))throw new Error('host settings belong to host only');
+ if(p.mode==='host'&&(!keys(p.host,['ingress'])||!['none','enclave-network'].includes(p.host.ingress)))throw new Error('invalid host settings');
  return p;
 }
 
@@ -40,7 +44,7 @@ export function networkUse(p){
  const v=validateNetworkPolicy(p);
  return {
   egress:v.mode,                                                     // where outbound traffic goes
-  ingress:v.mode==='byo-wireguard'?v.byo.ingress:v.mode,             // 'enclave-network' | 'direct' | 'none'
+  ingress:v.mode==='byo-wireguard'?v.byo.ingress:v.mode==='host'?v.host.ingress:v.mode, // 'enclave-network' | 'direct' | 'none'
   fallback:v.fallback,
   enclaveNetwork:v.enclaveNetwork||null,
  };

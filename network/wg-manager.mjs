@@ -39,8 +39,9 @@ export function selectNetworkCircuits(providers,{routes,ingress,egress,maxPriceP
 export class EnclaveNetworkManager extends EventEmitter {
  // direct: {runtime (DirectRuntime), qualification()} on a host that opted in to direct hosting with a public address
  // paid: {eligible(app, provider), meter(apps) -> [{app, circuit, reason}]} (paid-network.mjs) when priced providers may be used
- constructor({runtime,admission,providers,byoConfig,probe,probeEgress,publish,direct=null,paid=null,now=Date.now,log=()=>{}}){
-  super();Object.assign(this,{runtime,admission,providers,byoConfig,probe,probeEgress,publish,direct,paid,now,log});
+ // hostEgress: {allows(id), start({deploymentId})} (host-egress.mjs) on a host whose operator lets apps use its own connection
+ constructor({runtime,admission,providers,byoConfig,probe,probeEgress,publish,direct=null,paid=null,hostEgress=null,now=Date.now,log=()=>{}}){
+  super();Object.assign(this,{runtime,admission,providers,byoConfig,probe,probeEgress,publish,direct,paid,hostEgress,now,log});
   this.apps=new Map();this.cooldown=new Map();this.drops=new Map();this.closed=false;this.busy=false;this.publications=new Map();this.reconciling=new Map();
  }
  handles(policy){return policy?.version===5;}
@@ -90,21 +91,23 @@ export class EnclaveNetworkManager extends EventEmitter {
   });
   this.publications.set(app.id,op);try{await op;}finally{if(this.publications.get(app.id)===op)this.publications.delete(app.id);}
  }
- // What this app needs right now: network circuits (count, ingress, egress) and/or a BYO tunnel.
+ // What this app needs right now: network circuits (count, ingress, egress) and/or its own egress tunnel: the owner's BYO
+ // WireGuard ('byo') or this host's own connection ('host'). Either may fall back to an Enclave-network egress circuit.
  plan(app){
   const use=networkUse(app.policy),pub=app.isPublic!==false;
-  const byo=use.egress==='byo-wireguard';
-  const byoUp=app.circuits.some(c=>c.kind==='byo'&&c.healthy&&!c.closed);
-  const fallback=byo&&use.fallback==='enclave-network'&&!byoUp&&app.byoFailedAt!==undefined;
+  const own=use.egress==='byo-wireguard'?'byo':use.egress==='host'?'host':null;
+  const ownUp=!!own&&app.circuits.some(c=>c.kind===own&&c.healthy&&!c.closed);
+  const fallback=!!own&&use.fallback==='enclave-network'&&!ownUp&&app.ownFailedAt!==undefined;
   const ingress=pub&&use.ingress==='enclave-network';
   const egress=use.egress==='enclave-network';
-  return {byo,ingress,egress,fallback,routes:(ingress||egress)?(use.enclaveNetwork?.routes||2):0,maxPricePerGiB6:use.enclaveNetwork?.maxPricePerGiB6??0,direct:use.egress==='direct'};
+  return {own,byo:own==='byo',host:own==='host',ingress,egress,fallback,routes:(ingress||egress)?(use.enclaveNetwork?.routes||2):0,maxPricePerGiB6:use.enclaveNetwork?.maxPricePerGiB6??0,direct:use.egress==='direct'};
  }
  async reconcile(){
   if(this.busy||this.closed)return;this.busy=true;const pending=[];
   try{
    this.enforceAdmission();
-   const providers=[...this.apps.values()].some(a=>a.policy.mode!=='direct'||a.policy.fallback!=='none')?await this.providers():[];
+   // the provider directory only for apps that use the Enclave network at all (the policy then carries its settings)
+   const providers=[...this.apps.values()].some(a=>'enclaveNetwork' in a.policy)?await this.providers():[];
    for(const app of this.apps.values()){
     if(this.reconciling.has(app.id))continue;
     const op=this.reconcileApp(app,providers).catch(e=>{app.error=e.message;this.log(`app ${app.id.slice(0,10)}: ${e.message}`);}).finally(()=>this.reconciling.delete(app.id));
@@ -150,16 +153,26 @@ export class EnclaveNetworkManager extends EventEmitter {
    else if(!shape)await this.fail(app,c,'circuit no longer matches the policy');
   }
   await this.checkHealth(app);
-  // BYO egress
-  if(plan.byo&&!app.circuits.some(c=>c.kind==='byo')){
-   try{const cfg=await this.byoConfig(app);
-    const c=await this.runtime.start({deploymentId:app.id,names:app.names,kind:'byo',byo:cfg,egress:true});
-    this.adopt(app,c);c.healthy=true;app.byoFailedAt=undefined;app.fallbackActive=false;
-   }catch(e){app.byoFailedAt=this.now();app.error='BYO WireGuard: '+e.message;this.log(`app ${app.id.slice(0,10)}: ${app.error}`);}
+  // the app's own egress: BYO WireGuard, or this host's own connection (only where the operator offers it to this app)
+  if(plan.own&&!app.circuits.some(c=>c.kind===plan.own)){
+   let c;
+   try{
+    if(plan.byo){const cfg=await this.byoConfig(app);c=await this.runtime.start({deploymentId:app.id,names:app.names,kind:'byo',byo:cfg,egress:true});this.adopt(app,c);}
+    else{
+     if(!this.hostEgress?.allows(app.id))throw new Error('this host does not offer its own connection to this app');
+     c=await this.hostEgress.start({deploymentId:app.id});this.adopt(app,c);
+     await this.probeEgress?.(app,c);if(c.closed)throw new Error('host egress failed during verification');
+     c.checkedAt=this.now();c.upAt=this.now();
+    }
+    c.healthy=true;app.ownFailedAt=undefined;app.fallbackActive=false;
+   }catch(e){
+    if(c&&app.circuits.includes(c))await this.fail(app,c,e.message);else await c?.close?.(e.message);
+    app.ownFailedAt=this.now();app.error=(plan.byo?'BYO WireGuard: ':'host egress: ')+e.message;this.log(`app ${app.id.slice(0,10)}: ${app.error}`);
+   }
   }
   const want=this.plan(app);
   app.fallbackActive=want.fallback;
-  // the app's own circuits (website, and egress unless BYO carries it), plus with an active authorized fallback one
+  // the app's own circuits (website, and egress unless its own tunnel carries it), plus with an active authorized fallback one
   // egress-only circuit of its own: failing over and back never touches the circuits that carry the website
   const groups=[{routes:want.routes,ingress:want.ingress,egress:want.egress,fallback:false}];
   if(want.fallback)groups.push({routes:1,ingress:false,egress:true,fallback:true});
@@ -195,9 +208,9 @@ export class EnclaveNetworkManager extends EventEmitter {
    if(!healthy)error=error||(g.fallback?'fallback: ':'')+'no circuit could be built';
    else if(healthy<g.routes)degraded=degraded||`${healthy} of ${g.routes} route(s)`;
   }
-  // a BYO tunnel that is down stays the reason unless the owner's fallback is carrying the egress
-  const byoDown=plan.byo&&!app.circuits.some(c=>c.kind==='byo')&&!want.fallback;
-  app.error=error||(byoDown?app.error:null);app.degraded=degraded;
+  // the app's own tunnel being down stays the reason unless the owner's fallback is carrying the egress
+  const ownDown=!!plan.own&&!app.circuits.some(c=>c.kind===plan.own)&&!want.fallback;
+  app.error=error||(ownDown?app.error:null);app.degraded=degraded;
   await this.publishApp(app);
  }
  // One incident at a provider fails the circuits of every app through it at once: failures while it is already cooling
@@ -220,11 +233,12 @@ export class EnclaveNetworkManager extends EventEmitter {
   }
  }
  // the modes this host can serve an app in (the Network tab offers only these): the Enclave network and the owner's own
- // WireGuard everywhere; direct only on a host that opted in with a public address (its qualification is checked per app)
- hostModes(){return ['enclave-network','byo-wireguard',...(this.direct?['direct']:[])];}
- status(){const modes=this.hostModes();return [...this.apps.values()].map(app=>{const plan=this.plan(app);return {deploymentId:app.id,transport:app.policy.mode,policyNonce:app.policy.nonce,policyHash:networkPolicyHash(app.policy),modes,
+ // WireGuard everywhere; direct only on a host that opted in with a public address (its qualification is checked per app);
+ // host only where the operator offers its own connection to this app
+ hostModes(id){return ['enclave-network','byo-wireguard',...(this.direct?['direct']:[]),...(this.hostEgress?.allows(id)?['host']:[])];}
+ status(){return [...this.apps.values()].map(app=>{const plan=this.plan(app),modes=this.hostModes(app.id);return {deploymentId:app.id,transport:app.policy.mode,policyNonce:app.policy.nonce,policyHash:networkPolicyHash(app.policy),modes,
   ready:!app.error&&app.circuits.length>0&&app.circuits.every(c=>c.healthy)&&!!this.authorizationUntil(app.id),error:app.error||null,degraded:app.degraded||null,fallbackActive:!!app.fallbackActive,
-  ingress:plan.ingress,egress:plan.byo?'byo-wireguard':plan.egress?'enclave-network':'none',
+  ingress:plan.ingress,egress:plan.byo?'byo-wireguard':plan.host?'host':plan.egress?'enclave-network':'none',
   circuits:app.circuits.map(c=>({id:c.id,kind:c.kind,healthy:!!c.healthy,address:c.address||null,ingress:!!c.ingress,egress:!!c.egressReady,fallback:!!c.fallback,
    guard:c.providers.guard?{providerId:c.providers.guard.providerId,address:c.providers.guard.address,region:c.providers.guard.region}:null,
    direct:c.kind==='direct'?{address:c.address}:null,
