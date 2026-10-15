@@ -5,6 +5,8 @@ import test from 'node:test';import assert from 'node:assert/strict';import net 
 import {validateNetworkPolicy,networkUse,defaultNetworkPolicy} from '../network/network-policy-core.mjs';
 import {HostEgress,judgeHostDestination} from '../network/host-egress.mjs';
 import {EnclaveNetworkManager} from '../network/wg-manager.mjs';
+import {createNetworkHost,hostEgressOffer} from '../network/enclave-network-host.mjs';
+import fs from 'node:fs/promises';import os from 'node:os';import path from 'node:path';
 
 const id='0x'+'cd'.repeat(32);
 const base={version:5,deploymentId:id,nonce:1,issuedAt:1,fallback:'none'};
@@ -79,10 +81,11 @@ function rig({offer=true,hostFails=false}={}){
   region:'r'+n,kind:'enclave',pricePerGiB6:0,eligibleRoles:['guard','ingress','egress'],qualifiedUntil:Date.now()+600000});
  const runtime={start:async a=>{const c=new EventEmitter();Object.assign(c,{...a,id:String(started.length).padStart(32,'0'),closed:false,providers:{guard:a.guard,exit:a.exit},
   address:a.exit.address,egressReady:!!a.egress,egress:a.egress?'127.0.0.1:9':null,admit(){},async close(r){this.closed=true;this.emit('down',r);}});started.push(c);return c;}};
- const hostEgress=offer?{allows:x=>x===id,start:async({deploymentId})=>{if(hostFails)throw new Error('no route out');const c=new EventEmitter();
+ const offered={on:true};
+ const hostEgress=offer?{allows:x=>offered.on&&x===id,start:async({deploymentId})=>{if(hostFails)throw new Error('no route out');const c=new EventEmitter();
   Object.assign(c,{id:'h'.repeat(32),deploymentId,kind:'host',closed:false,ingress:false,egressReady:true,egress:'127.0.0.1:7',providers:{host:{}},admit(){},async close(r){this.closed=true;this.emit('down',r);}});started.push(c);return c;}}:null;
  const m=new EnclaveNetworkManager({runtime,admission,providers:async()=>[1,2,3,4].map(prov),probe:async()=>{},probeEgress:async()=>{},hostEgress,publish:async(i,r)=>{published.push(r);}});
- return {m,started,published};
+ return {m,started,published,offered};
 }
 const app=policy=>({deploymentId:id,names:['cdcdcdcd.app.enclave.host'],policy,isPublic:true});
 
@@ -109,4 +112,35 @@ test('manager: host egress down with the owner\'s fallback: one egress-only netw
  const a=r.m.apps.get(id),s=r.m.status()[0];
  assert.equal(s.fallbackActive,true);assert.ok(a.circuits.some(c=>c.kind==='network'&&c.fallback&&c.egressReady&&!c.ingress));
  assert.equal(a.circuits.filter(c=>c.kind==='network'&&!c.fallback).length,2,'the website circuits are untouched');
+});
+
+test('manager: the operator withdraws the offer (config reload): the host circuit goes, the owner\'s fallback takes over',async()=>{
+ const r=rig();await r.m.configure([app({...base,mode:'host',fallback:'enclave-network',host:{ingress:'none'},enclaveNetwork:net2})]);await r.m.reconcile();
+ const a=r.m.apps.get(id),host=a.circuits.find(c=>c.kind==='host');assert.ok(host&&!host.closed);
+ r.offered.on=false;await r.m.reconcile();
+ assert.ok(host.closed,'the host circuit is closed');assert.ok(!a.circuits.some(c=>c.kind==='host'));
+ assert.ok(a.circuits.some(c=>c.kind==='network'&&c.fallback&&c.egressReady),'the fallback carries the egress');
+ assert.ok(!r.m.status()[0].modes.includes('host'),'the Network tab no longer offers host');
+ r.offered.on=true;await r.m.reconcile();
+ assert.ok(a.circuits.some(c=>c.kind==='host'&&!c.closed),'offered again: the host circuit comes back');
+});
+
+test('network host: hostEgress changes apply in place; a malformed block is refused and the offer stands',async t=>{
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'host-egress-offer-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));
+ const other='0x'+'ab'.repeat(32);
+ const host=await createNetworkHost({config:{relay:'http://127.0.0.1:9',checkers:['0x'+'22'.repeat(20)],apps:'all',wgBinary:'/bin/true',nodeBinary:process.execPath,workerModule:'/bin/true'},
+  directory:dir,authorize:()=>true,fetch:async()=>new Response('{}',{status:404})});
+ assert.equal(host.hostEgress.allows(id),false,'no hostEgress block: nothing offered');
+ await assert.rejects(host.hostEgress.start({deploymentId:id}),/does not offer/);
+ assert.equal(host.hostEgress.update({apps:[id],own:['203.0.113.9']}),true);
+ assert.equal(host.hostEgress.allows(id),true);assert.equal(host.hostEgress.allows(other),false);
+ assert.equal(host.hostEgress.update({apps:[id],own:['203.0.113.9']}),false,'the same offer is no change');
+ assert.throws(()=>host.hostEgress.update({apps:['nope']}),/hostEgress.apps/);
+ assert.equal(host.hostEgress.allows(id),true,'a refused block leaves the offer in force');
+ const c=await host.hostEgress.start({deploymentId:id});assert.equal(c.kind,'host');
+ assert.equal(host.hostEgress.update({apps:'all'}),true);assert.equal(host.hostEgress.allows(other),true);
+ assert.deepEqual(host.hostEgress.offered,{apps:'all',own:[]});
+ assert.equal(host.hostEgress.update(undefined),true);assert.equal(host.hostEgress.allows(id),false,'removed: nothing offered');
+ await c.close('test');await host.hostEgress.close();
+ assert.equal(hostEgressOffer(null),null);assert.throws(()=>hostEgressOffer({apps:'all',own:['nope']}),/hostEgress.own/);
 });

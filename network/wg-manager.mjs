@@ -152,6 +152,9 @@ export class EnclaveNetworkManager extends EventEmitter {
    if(!same(g,c.providers.guard)||!same(x,c.providers.exit)||!fits)await this.fail(app,c,'provider no longer qualified for this circuit');
    else if(!shape)await this.fail(app,c,'circuit no longer matches the policy');
   }
+  // the operator withdrew this host's own connection from the app (hostEgress changed on a config reload): its host circuit goes
+  // now, and the app's fallback (if its owner chose one) takes over below
+  for(const c of [...app.circuits])if(c.kind==='host'&&!this.hostEgress?.allows(app.id))await this.fail(app,c,'this host no longer offers its own connection to this app');
   await this.checkHealth(app);
   // the app's own egress: BYO WireGuard, or this host's own connection (only where the operator offers it to this app)
   if(plan.own&&!app.circuits.some(c=>c.kind===plan.own)){
