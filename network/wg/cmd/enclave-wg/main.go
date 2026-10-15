@@ -49,7 +49,9 @@ type msg struct {
 	} `json:"egress,omitempty"`
 	Ingress map[string]string `json:"ingress,omitempty"`
 	Own     []string          `json:"own,omitempty"`
-	Open    *bool             `json:"open,omitempty"`
+	// the host's uplink in Mbps: the tunnel's real UDP socket is paced to it (pace.go); 0 = unpaced
+	PaceMbps float64 `json:"paceMbps,omitempty"`
+	Open     *bool   `json:"open,omitempty"`
 }
 
 var (
@@ -141,7 +143,7 @@ func (s *state) outerUp(m msg) {
 	if err != nil {
 		fail("control address required")
 	}
-	d, err := wg.Up(*m.Peer, conn.NewDefaultBind(), func(f string, a ...any) {})
+	d, err := wg.Up(*m.Peer, wg.Paced(conn.NewDefaultBind(), m.PaceMbps), func(f string, a ...any) {})
 	if err != nil {
 		fail("outer tunnel: " + err.Error())
 	}
@@ -185,7 +187,8 @@ func (s *state) innerUp(m msg) {
 	if s.inner != nil || m.Peer == nil {
 		fail("inner tunnel once")
 	}
-	var bind conn.Bind = conn.NewDefaultBind()
+	// the real socket is paced; an inner tunnel inside the outer one rides the outer's paced socket
+	var bind conn.Bind = wg.Paced(conn.NewDefaultBind(), m.PaceMbps)
 	if s.outer != nil {
 		local, ok := s.outer.Local(false)
 		if !ok {

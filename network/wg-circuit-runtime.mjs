@@ -15,9 +15,11 @@ async function freePort(){const s=net.createServer();await new Promise((r,j)=>{s
 async function json(file,value){await fs.writeFile(file,JSON.stringify(value),{mode:0o600});}
 
 export class WgCircuitRuntime {
- constructor({directory,wgBinary,nodeBinary,workerModule,firewallBinary,grants,authorize,forward,platform=process.platform==='win32'?'windows':'plain',renewMs=RENEW_MS,resolvers=['1.1.1.1','9.9.9.9'],log=()=>{}}){
+ // paceMbps: the host's uplink; each tunnel's real UDP socket is paced to it (network/wg/pace.go), 0 = unpaced
+ constructor({directory,wgBinary,nodeBinary,workerModule,firewallBinary,grants,authorize,forward,platform=process.platform==='win32'?'windows':'plain',renewMs=RENEW_MS,resolvers=['1.1.1.1','9.9.9.9'],paceMbps=0,log=()=>{}}){
   if([directory,wgBinary,nodeBinary,workerModule].some(v=>typeof v!=='string'||!path.isAbsolute(v))||(platform==='windows'&&!path.isAbsolute(firewallBinary||'')))throw new Error('explicit Enclave-network runtime paths required');
-  Object.assign(this,{directory,wgBinary,nodeBinary,workerModule,firewallBinary,grants,authorize,forward,platform,renewMs,resolvers,log});this.active=new Set();this.closed=false;
+  if(!(Number.isFinite(paceMbps)&&paceMbps>=0&&paceMbps<=100000))throw new Error('paceMbps must be a number of Mbps');
+  Object.assign(this,{directory,wgBinary,nodeBinary,workerModule,firewallBinary,grants,authorize,forward,platform,renewMs,resolvers,paceMbps,log});this.active=new Set();this.closed=false;
  }
  async close(){this.closed=true;await Promise.all([...this.active].map(c=>c.close('runtime stopped')));}
  async prepare(dir){
@@ -96,7 +98,7 @@ export class WgCircuitRuntime {
    const send=v=>wg.stdin.write(JSON.stringify(v)+'\n');
    let outer;
    if(kind==='network'){
-    send({type:'outer',peer:{privateKey:keys.guard.privateKey,publicKey:guardGrant.providerPublicKey,endpoint:guardGrant.endpoint,addresses:[guardGrant.clientAddress],mtu:1420,keepalive:25},
+    send({type:'outer',...(this.paceMbps?{paceMbps:this.paceMbps}:{}),peer:{privateKey:keys.guard.privateKey,publicKey:guardGrant.providerPublicKey,endpoint:guardGrant.endpoint,addresses:[guardGrant.clientAddress],mtu:1420,keepalive:25},
      control:`${exit.address}:${exit.ports.control}`,controlListen:`127.0.0.1:${ports.control}`,
      guardSocks:{listen:`127.0.0.1:${ports.guardSocks}`,only:[`${exit.address}:443`,`${exit.address}:80`]}});
     outer=await next('outer-ready');
@@ -111,7 +113,7 @@ export class WgCircuitRuntime {
    const inner=kind==='network'
     ?{privateKey:keys.exit.privateKey,publicKey:exitGrant.providerPublicKey,endpoint:exitGrant.endpoint,addresses:[exitGrant.clientAddress],dns:this.resolvers,mtu:1340,keepalive:25}
     :{privateKey:byo.privateKey,publicKey:byo.publicKey,...(byo.presharedKey?{presharedKey:byo.presharedKey}:{}),endpoint:udpPeer,addresses:byo.addresses,dns:byo.dns,mtu:byo.mtu,keepalive:byo.keepalive||25};
-   send({type:'inner',peer:inner,...(egress?{egress:{user:'',pass:'',listen:`127.0.0.1:${ports.socks}`}}:{}),
+   send({type:'inner',...(kind!=='network'&&this.paceMbps?{paceMbps:this.paceMbps}:{}),peer:inner,...(egress?{egress:{user:'',pass:'',listen:`127.0.0.1:${ports.socks}`}}:{}),
     ...(ingress?{ingress:{'443':`127.0.0.1:${ports.ingress}`,'80':`127.0.0.1:${ports.redirect}`}}:{})});
    const ready=await next('ready');
    if(egress&&ready.egress!==`127.0.0.1:${ports.socks}`)throw new Error('egress listener mismatch');

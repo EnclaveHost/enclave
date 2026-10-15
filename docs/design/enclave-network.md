@@ -210,6 +210,13 @@ guard and an exit stayed at 0.23-2.2 MB/s against 7-13 MB/s lines, while downloa
 (`TestTunedThroughput`, in-memory link: 60 ms RTT 18.7 -> 22.8 MB/s, 300 ms 3.6 -> 4.8 MB/s). gVisor has no BBR, so a long, lossy
 path still limits one stream; keeping traffic between apps on one host local (above) is what removes the path entirely.
 
+Pacing (`network/wg/pace.go`, `enclaveNetwork.paceMbps`): a home router buffers a few hundred packets, and a host's 1 Gbps
+NIC hands it a TCP window's burst ten times faster than a 100 Mbps uplink drains. Measured on the NucBox's line: paced UDP at
+80 Mbps lost nothing, but bursts of 256/512/1024 packets lost 6/40/66%, and every burst collapsed the netstack's TCP. With
+`paceMbps` set to the host's uplink, each tunnel's real UDP socket sends in chunks of at most 8 packets at that rate
+(`TestPacedThroughRouter`, 250-packet buffer, 12.5 MB/s line: 100 ms RTT 7.0 -> 9.1 MB/s, 250 ms 2.6 -> 6.7 MB/s). Unset or 0
+leaves it unpaced.
+
 ## Billing (paid providers)
 
 - Enclave-operated providers are free (`pricePerGiB6 0`): the platform pays the four Droplets.

@@ -192,3 +192,122 @@ func TestQueueBoundThroughput(t *testing.T) {
 		}
 	}
 }
+
+// A home router: packets arrive as fast as the sender emits them (a 1 Gbps NIC), queue in a small buffer (250 packets),
+// drain at the uplink's rate and are dropped when the buffer is full. pace (bytes/s, 0 = off) spaces the sender's packets
+// before they reach it, as a paced WireGuard bind would. -> upload bytes/s through it.
+func uploadRouter(t *testing.T, delay time.Duration, line, pace float64, size int) float64 {
+	a4, b4 := netip.MustParseAddr("10.9.0.1"), netip.MustParseAddr("10.9.0.2")
+	da, na, _ := netstack.CreateNetTUN([]netip.Addr{a4}, nil, 1340)
+	db, nb, _ := netstack.CreateNetTUN([]netip.Addr{b4}, nil, 1340)
+	TuneTCP(na)
+	TuneTCP(nb)
+	stop := make(chan struct{})
+	defer close(stop)
+	type pkt struct {
+		at time.Time
+		b  []byte
+	}
+	router := make(chan []byte, 250)
+	wire := make(chan pkt, 1<<16)
+	go func() { // sender NIC -> (pacer) -> router buffer (drop when full)
+		bufs, sizes := [][]byte{make([]byte, 2048)}, []int{0}
+		var start time.Time
+		var sent float64
+		for {
+			if _, err := da.Read(bufs, sizes, 0); err != nil {
+				return
+			}
+			if pace > 0 {
+				if start.IsZero() {
+					start = time.Now()
+				}
+				sent += float64(sizes[0])
+				if ahead := time.Duration(sent/pace*float64(time.Second)) - time.Since(start); ahead > time.Millisecond {
+					time.Sleep(ahead)
+				} else if ahead < -50*time.Millisecond {
+					start, sent = time.Now(), 0
+				}
+			}
+			select {
+			case router <- append([]byte(nil), bufs[0][:sizes[0]]...):
+			default: // buffer full: dropped
+			}
+		}
+	}()
+	go func() { // router drains at the line rate onto the long path
+		start, sent := time.Now(), 0.0
+		for {
+			select {
+			case b := <-router:
+				sent += float64(len(b))
+				if ahead := time.Duration(sent/line*float64(time.Second)) - time.Since(start); ahead > time.Millisecond {
+					time.Sleep(ahead)
+				} else if ahead < -50*time.Millisecond {
+					start, sent = time.Now(), 0
+				}
+				wire <- pkt{time.Now().Add(delay), b}
+			case <-stop:
+				return
+			}
+		}
+	}()
+	go func() {
+		for {
+			select {
+			case p := <-wire:
+				if d := time.Until(p.at); d > 0 {
+					time.Sleep(d)
+				}
+				db.Write([][]byte{p.b}, 0)
+			case <-stop:
+				return
+			}
+		}
+	}()
+	link(t, db, da, delay, 0, stop) // ACKs back: plenty of room
+	l, _ := nb.ListenTCPAddrPort(netip.AddrPortFrom(b4, 9000))
+	defer l.Close()
+	done := make(chan int64, 1)
+	go func() {
+		c, err := l.Accept()
+		if err != nil {
+			done <- 0
+			return
+		}
+		n, _ := io.Copy(io.Discard, c)
+		c.Close()
+		done <- n
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	c, err := na.DialContextTCPAddrPort(ctx, netip.AddrPortFrom(b4, 9000))
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	buf := make([]byte, 64<<10)
+	for sent := 0; sent < size; sent += len(buf) {
+		if _, err := c.Write(buf); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c.Close()
+	if got := <-done; got != int64(size) {
+		t.Fatalf("received %d of %d", got, size)
+	}
+	return float64(size) / time.Since(start).Seconds()
+}
+
+// Pacing the sender below the uplink keeps a small router buffer from dropping bursts (WG_THROUGHPUT=1).
+func TestPacedThroughRouter(t *testing.T) {
+	if os.Getenv("WG_THROUGHPUT") == "" {
+		t.Skip("set WG_THROUGHPUT=1 to measure")
+	}
+	for _, rtt := range []time.Duration{100 * time.Millisecond, 250 * time.Millisecond} {
+		for _, pace := range []float64{0, 11.5e6} {
+			bps := uploadRouter(t, rtt/2, 12.5e6, pace, 32<<20)
+			t.Logf("rtt %3dms uplink 12.5 MB/s, 250-packet buffer, pace %4.1f MB/s: %6.2f MB/s", rtt.Milliseconds(), pace/1e6, bps/1e6)
+		}
+	}
+}
