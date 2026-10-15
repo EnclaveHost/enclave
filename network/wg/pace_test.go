@@ -20,7 +20,8 @@ func (c *countBind) Send(bufs [][]byte, _ conn.Endpoint) error {
 }
 
 // 300 packets of 1372 B (+28 on the wire) at 4.2 MB/s take ~0.1 s, never go out more than paceChunk at a time, and all
-// arrive; an unpaced bind passes a batch straight through.
+// arrive; one packet per Send at 95 Mbps still reaches the rate (a sleep per call would cap it near 2 MB/s); an unpaced
+// bind passes a batch straight through.
 func TestPacedBind(t *testing.T) {
 	inner := &countBind{}
 	b := Paced(inner, 4.2e6*8/1e6)
@@ -45,6 +46,16 @@ func TestPacedBind(t *testing.T) {
 	}
 	if el < 80*time.Millisecond || el > 250*time.Millisecond {
 		t.Fatalf("300 packets took %v, want ~100 ms at 4.2 MB/s", el)
+	}
+	fast := &countBind{}
+	fb := Paced(fast, 95)
+	one := [][]byte{make([]byte, 1372)}
+	start = time.Now()
+	for i := 0; i < 8000; i++ { // 11.2 MB at 11.9 MB/s: ~0.94 s
+		fb.Send(one, nil)
+	}
+	if el := time.Since(start); el < 800*time.Millisecond || el > 1300*time.Millisecond {
+		t.Fatalf("8000 single-packet sends at 95 Mbps took %v, want ~0.94 s", el)
 	}
 	raw := &countBind{}
 	if Paced(raw, 0) != conn.Bind(raw) {

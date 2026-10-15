@@ -22,6 +22,9 @@ type PacedBind struct {
 
 const paceChunk = 8 // packets sent together between waits: a burst any router buffer holds
 
+// paceCredit is the most a tunnel may run ahead: 2 ms at 100 Mbps is ~16 packets
+const paceCredit = 2 * time.Millisecond
+
 func (b *PacedBind) Send(bufs [][]byte, ep conn.Endpoint) error {
 	if b.Rate <= 0 {
 		return b.Bind.Send(bufs, ep)
@@ -36,14 +39,18 @@ func (b *PacedBind) Send(bufs [][]byte, ep conn.Endpoint) error {
 		}
 		b.mu.Lock()
 		now := time.Now()
-		// no credit for idle time beyond one chunk: an idle tunnel does not earn a burst
-		if b.next.Before(now) {
-			b.next = now
+		// a token bucket holding at most paceCredit: an idle tunnel earns no more than that burst, yet the time a sleep
+		// overshoots is not lost (resetting to now each time left the rate ~35% short)
+		if floor := now.Add(-paceCredit); b.next.Before(floor) {
+			b.next = floor
 		}
 		at := b.next
 		b.next = at.Add(time.Duration(float64(size) / b.Rate * float64(time.Second)))
 		b.mu.Unlock()
-		if d := time.Until(at); d > 0 {
+		// a sleep lasts at least ~1 ms, far longer than one chunk's share at 100 Mbps (~1 ms for 8 packets, 130 us for
+		// one): sleeping for every chunk capped metal0 at ~2 MB/s whatever the rate. So run ahead by up to a millisecond
+		// (a burst any router holds) and sleep only once the debt is larger; the average rate is still exact.
+		if d := time.Until(at); d > time.Millisecond {
 			time.Sleep(d)
 		}
 		if err := b.Bind.Send(chunk, ep); err != nil {
