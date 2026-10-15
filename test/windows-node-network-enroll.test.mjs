@@ -148,4 +148,8 @@ test("an operator's hostEgress block is kept across passes (not replaced, no res
   fs.writeFileSync(path.join(w.agentDir, "privacy-config.json"), JSON.stringify({ ...cfg, enclaveNetwork: { ...cfg.enclaveNetwork, hostEgress: { apps: ["not-an-id"] } } }));
   await w.enroll.pass();
   assert.equal(w.read().enclaveNetwork.hostEgress, undefined, "a malformed block is not carried");
+  const all = { apps: "all", own: ["203.0.113.7"] };
+  fs.writeFileSync(path.join(w.agentDir, "privacy-config.json"), JSON.stringify({ ...w.read(), enclaveNetwork: { ...w.read().enclaveNetwork, hostEgress: all } }));
+  await w.enroll.pass();
+  assert.deepEqual(w.read().enclaveNetwork.hostEgress, all, "apps: \"all\" is the agent's shape too");
 });
