@@ -176,9 +176,24 @@ function deploymentsEnv() {
   const ids = s.split(",").map((x) => x.trim()).filter((x) => /^0x[0-9a-f]{64}$/.test(x));
   return ids.length ? new Set(ids) : null;
 }
+// app versions whose EVERY deployment a release may serve, by exact catalog ref (catalog://0x<64 hex>/<index>): for
+// platform work whose deployments are created per job (the capacity audit's Capacity Work, docs/design/
+// paid-capacity-verification.md), which no per-id list can name ahead of time. Every other check still applies.
+function appRefsEnv() {
+  return new Set(String(process.env.SECRETS_RELEASE_APP_REFS || "").split(",").map((x) => x.trim().toLowerCase())
+    .filter((x) => /^catalog:\/\/0x[0-9a-f]{64}\/\d{1,6}$/.test(x)));
+}
+// listed: by id (or "*"), else by the deployment's app version (its ledger row, read through the relay's ledger cache)
+export async function releaseListed(ctx, cfg, id, row = undefined) {
+  if (cfg.deployments === "*" || (cfg.deployments && cfg.deployments.has(id))) return true;
+  if (!cfg.appRefs || !cfg.appRefs.size) return false;
+  const r = row === undefined ? await rowOf(ctx, id) : row;
+  return !!r && cfg.appRefs.has(String(r.appRef || "").toLowerCase());
+}
 export const releaseConfig = () => ({
   on: /^(1|true|on|yes)$/i.test(String(process.env.SECRETS_ATTESTED_RELEASE || "").trim()),
   deployments: deploymentsEnv(),
+  appRefs: appRefsEnv(),
   minTcb: minTcbEnv(),                                         // passed to the verifier explicitly: never left to a provider
   vmpl: vmplEnv(),                                             // pinned, and re-read from the report below
   signingKey: signingKeyEnv(),                                 // v1.2: every release is signed with it
@@ -200,7 +215,7 @@ export const releaseConfig = () => ({
 export async function prewarmReleasePredictions(ctx, { log = console.log, sets = ["release", "cert"], gapMs = 750, retryAfterMs = 61_000,
                                                        sleep = (ms) => new Promise((r) => setTimeout(r, ms).unref?.()) } = {}) {
   const cfg = releaseConfig();
-  if (!cfg.deployments) return { skipped: "no deployment is listed for release" };
+  if (!cfg.deployments) return { skipped: "no deployment is listed for release by id" };
   if (cfg.deployments === "*") return { skipped: "SECRETS_RELEASE_DEPLOYMENTS=* names every deployment: not pre-warmed" };
   if (typeof ctx.expectedGuestFor !== "function" || typeof ctx.ledgerRows !== "function") return { skipped: "no predictor or ledger in this relay" };
   if (typeof ctx.predictorProblems === "function" && ctx.predictorProblems().length) return { skipped: "the predictor is not fully configured" };
@@ -260,7 +275,7 @@ export const _internals = { tickets };
 
 // provider check: every piece the release needs, or a 503 that names what is missing
 function missingFor(ctx, cfg) {
-  return [!cfg.on && "SECRETS_ATTESTED_RELEASE", !cfg.deployments && "SECRETS_RELEASE_DEPLOYMENTS", !cfg.minTcb && "SECRETS_RELEASE_MIN_TCB",
+  return [!cfg.on && "SECRETS_ATTESTED_RELEASE", !cfg.deployments && !(cfg.appRefs && cfg.appRefs.size) && "SECRETS_RELEASE_DEPLOYMENTS", !cfg.minTcb && "SECRETS_RELEASE_MIN_TCB",
           cfg.vmpl === null && "SECRETS_RELEASE_VMPL", !cfg.signingKey && "SECRETS_RELEASE_SIGNING_KEY(_FILE)",
           typeof ctx.versionConfigFor !== "function" && "the version-config lookup", typeof ctx.leaseHolderChipIds !== "function" && "the lease holder's chip ids",
           typeof ctx.verifyGuestEvidence !== "function" && "the guest-evidence verifier", typeof ctx.runtimeIdOf !== "function" && "the runtime-id function",
@@ -298,13 +313,13 @@ const predictionRefusal = (p) => {
 // The owner's decision lives ONLY in SECRETS_RELEASE_DEPLOYMENTS; a supervisor asks here at spawn to choose the guest image
 // (enclave-5d, d1's option (i)). Public: deployment ids are public on chain and the answer names nothing else. 503 while
 // release is off or not fully configured, which a supervisor reads as not listed; the missing pieces are not named here.
-export function releaseStatus(u, req, res, ctx, { bad, rate }) {
+export async function releaseStatus(u, req, res, ctx, { bad, rate }) {
   if (!rate(`status:${ctx.clientIp(req)}`)) return bad(429, "rate_limited", "Too many status requests; retry shortly.");
   const cfg = releaseConfig();
   if (missingFor(ctx, cfg).length) return bad(503, "release_off", "Attested release is not enabled on this relay.");
   const id = String(u.searchParams.get("id") || "").toLowerCase();
   if (!/^0x[0-9a-f]{64}$/.test(id)) return bad(422, "bad_id", "id must be a bytes32 deployment id.");
-  ctx.json(res, 200, { id, listed: cfg.deployments === "*" || cfg.deployments.has(id) }, req);
+  ctx.json(res, 200, { id, listed: await releaseListed(ctx, cfg, id) }, req);
 }
 
 // GET /v1/expected-guest?id=0x<64 hex> -> { id, catalogRef, appId, images: [{ release, runtimeId, measurement,
@@ -406,7 +421,7 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
   if (!rate(peek ? `ep:${peek.endpoint}` : `ip:${ctx.clientIp(req)}`)) { bad(429, "rate_limited", "Too many release requests; retry shortly."); return true; }
   const id = String(b.id || "").toLowerCase();
   if (!/^0x[0-9a-f]{64}$/.test(id)) { bad(422, "bad_id", "id must be a bytes32 deployment id."); return true; }
-  if (cfg.deployments !== "*" && !cfg.deployments.has(id)) { bad(403, "release_not_enabled", `Attested release is not enabled for ${id} on this relay.`); return true; }
+  if (!(await releaseListed(ctx, cfg, id))) { bad(403, "release_not_enabled", `Attested release is not enabled for ${id} on this relay.`); return true; }
   const epIdOf = async (endpoint) => String(await ctx.endpointIdOf(endpoint)).toLowerCase();
   // the lease holder: holds D's live lease NOW, and the relay holds it eligible NOW (U7). The record the decision rests on
   // is re-read by id through two or more AGREEING RPCs (ctx.confirmRow, enclave-d1); a disagreement or an unreachable
@@ -419,6 +434,8 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
     try { confirmed = await timedStep("release", id, "the confirmed ledger read", () => ctx.confirmRow(id)); }
     catch (e) { return { retry: true, refusal: [503, "ledger_unconfirmed", `The deployment's record could not be confirmed (${e.message}); retry shortly.`] }; }
     if (!holdsLease(confirmed, epId)) return { refusal: [403, "not_lease_holder", `${endpoint} does not hold a live lease for ${id} (confirmed read).`] };
+    // listed by its app version: that version is re-checked on the CONFIRMED row, as the lease is
+    if (!(await releaseListed(ctx, cfg, id, confirmed))) return { refusal: [403, "release_not_enabled", `Attested release is not enabled for ${id} on this relay (confirmed read).`] };
     const elig = ctx.hostEligibility(epId);
     if (!elig || !elig.eligible) return { refusal: [403, "host_ineligible", `the lease holder is not an eligible host (U7)${elig && elig.reason ? `: ${elig.reason}` : ""}.`] };
     // sessions custody (docs/design/sessions.md §7), on the CONFIRMED row

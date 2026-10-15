@@ -776,3 +776,19 @@ test("custody: the sealed release carries the custody pointer and NO secrets, ev
     assert.deepEqual(opened(A, t3.body.ticket, g3, r4).custody, pointer);
   } finally { delete ctx.custodyStateFor; }
 });
+
+test("SECRETS_RELEASE_APP_REFS: every deployment of a listed app version is release-listed (status and ticket); other versions are not", async () => {
+  const status = async (id) => { const res = {}; await handleSecrets({ method: "GET" }, res, new URL(`http://x/v1/secrets/release-status?id=${id}`), ctx); return res; };
+  const saved = [process.env.SECRETS_RELEASE_DEPLOYMENTS, process.env.SECRETS_RELEASE_APP_REFS];
+  try {
+    rows = [leaseRow(A), leaseRow(B, { appRef: "catalog://0x" + "77".repeat(32) + "/0" })];
+    process.env.SECRETS_RELEASE_DEPLOYMENTS = C;                       // A and B are not listed by id
+    process.env.SECRETS_RELEASE_APP_REFS = REF.toUpperCase().replace("CATALOG://0X", "catalog://0x") + ", not-a-ref";
+    assert.deepEqual((await status(A)).body, { id: A, listed: true }, "A runs the listed version");
+    assert.deepEqual((await status(B)).body, { id: B, listed: false }, "B runs another version");
+    process.env.SECRETS_RELEASE_DEPLOYMENTS = "";                      // the version list alone configures release
+    assert.deepEqual((await status(A)).body, { id: A, listed: true });
+    process.env.SECRETS_RELEASE_APP_REFS = "";
+    assert.equal((await status(A)).code, 503, "neither list: release is unconfigured");
+  } finally { process.env.SECRETS_RELEASE_DEPLOYMENTS = saved[0]; process.env.SECRETS_RELEASE_APP_REFS = saved[1] ?? ""; }
+});
