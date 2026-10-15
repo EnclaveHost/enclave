@@ -40,7 +40,9 @@ func netstackStack(n *netstack.Net) (*stack.Stack, error) {
 }
 
 // TuneTCP sets the tunnel stack's TCP for long paths. Called right after the stack is made, before any connection.
-func TuneTCP(n *netstack.Net) error {
+func TuneTCP(n *netstack.Net) error { return tuneSized(n, tunedBufferDefault, tunedBufferMax) }
+
+func tuneSized(n *netstack.Net, bufDefault, bufMax int) error {
 	s, err := netstackStack(n)
 	if err != nil {
 		return err
@@ -52,13 +54,13 @@ func TuneTCP(n *netstack.Net) error {
 		return nil
 	}
 	// the stack-wide socket limits bound what the TCP ranges below may ask for
-	if err := set("send buffer limit", s.SetOption(tcpip.SendBufferSizeOption{Min: 4 << 10, Default: tunedBufferDefault, Max: tunedBufferMax})); err != nil {
+	if err := set("send buffer limit", s.SetOption(tcpip.SendBufferSizeOption{Min: 4 << 10, Default: bufDefault, Max: bufMax})); err != nil {
 		return err
 	}
-	if err := set("receive buffer limit", s.SetOption(tcpip.ReceiveBufferSizeOption{Min: 4 << 10, Default: tunedBufferDefault, Max: tunedBufferMax})); err != nil {
+	if err := set("receive buffer limit", s.SetOption(tcpip.ReceiveBufferSizeOption{Min: 4 << 10, Default: bufDefault, Max: tunedBufferMax})); err != nil {
 		return err
 	}
-	snd := tcpip.TCPSendBufferSizeRangeOption{Min: 4 << 10, Default: tunedBufferDefault, Max: tunedBufferMax}
+	snd := tcpip.TCPSendBufferSizeRangeOption{Min: 4 << 10, Default: bufDefault, Max: bufMax}
 	if err := set("tcp send buffer", s.SetTransportProtocolOption(tcp.ProtocolNumber, &snd)); err != nil {
 		return err
 	}

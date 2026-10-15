@@ -15,7 +15,9 @@ import (
 )
 
 // link moves packets from one tunnel stack to the other after delay, dropping a fraction of them (a long circuit).
-func link(t *testing.T, from, to tun.Device, delay time.Duration, loss float64, stop <-chan struct{}) {
+// rate (bytes/s, 0 = unlimited) is how fast the far side drains the stack: a real line behind WireGuard. A slow drain
+// fills the netstack's 1024-packet outbound queue, which drops when full.
+func link(t *testing.T, from, to tun.Device, delay time.Duration, loss float64, stop <-chan struct{}, rate ...float64) {
 	type pkt struct {
 		at time.Time
 		b  []byte
@@ -24,10 +26,24 @@ func link(t *testing.T, from, to tun.Device, delay time.Duration, loss float64, 
 	go func() {
 		bufs, sizes := [][]byte{make([]byte, 2048)}, []int{0}
 		r := rand.New(rand.NewSource(1))
+		// token bucket: sleeping per packet would be capped by the timer's ~1 ms granularity
+		var start time.Time
+		var sent float64
 		for {
 			n, err := from.Read(bufs, sizes, 0)
 			if err != nil {
 				return
+			}
+			if len(rate) > 0 && rate[0] > 0 {
+				if start.IsZero() {
+					start = time.Now()
+				}
+				sent += float64(sizes[0])
+				if ahead := time.Duration(sent/rate[0]*float64(time.Second)) - time.Since(start); ahead > 2*time.Millisecond {
+					time.Sleep(ahead)
+				} else if ahead < -50*time.Millisecond {
+					start, sent = time.Now(), 0 // idle: no credit for time nothing was sent
+				}
 			}
 			for i := 0; i < n; i++ {
 				if loss > 0 && r.Float64() < loss {
@@ -59,6 +75,15 @@ func link(t *testing.T, from, to tun.Device, delay time.Duration, loss float64, 
 
 // upload sends size bytes from a to b over one TCP connection; -> bytes per second
 func upload(t *testing.T, tuned bool, delay time.Duration, loss float64, size int) float64 {
+	return uploadWith(t, func(n *netstack.Net) error {
+		if tuned {
+			return TuneTCP(n)
+		}
+		return nil
+	}, delay, loss, size, 0)
+}
+
+func uploadWith(t *testing.T, tune func(*netstack.Net) error, delay time.Duration, loss float64, size int, rate float64) float64 {
 	a4, b4 := netip.MustParseAddr("10.9.0.1"), netip.MustParseAddr("10.9.0.2")
 	da, na, err := netstack.CreateNetTUN([]netip.Addr{a4}, nil, 1340)
 	if err != nil {
@@ -68,17 +93,15 @@ func upload(t *testing.T, tuned bool, delay time.Duration, loss float64, size in
 	if err != nil {
 		t.Fatal(err)
 	}
-	if tuned {
-		if err := TuneTCP(na); err != nil {
-			t.Fatal(err)
-		}
-		if err := TuneTCP(nb); err != nil {
-			t.Fatal(err)
-		}
+	if err := tune(na); err != nil {
+		t.Fatal(err)
+	}
+	if err := tune(nb); err != nil {
+		t.Fatal(err)
 	}
 	stop := make(chan struct{})
 	defer close(stop)
-	link(t, da, db, delay, loss, stop)
+	link(t, da, db, delay, loss, stop, rate)
 	link(t, db, da, delay, loss, stop)
 	l, err := nb.ListenTCPAddrPort(netip.AddrPortFrom(b4, 9000))
 	if err != nil {
@@ -147,5 +170,25 @@ func TestTuneTCPFindsTheStack(t *testing.T) {
 	}
 	if err := TuneTCP(n); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// The sender's queue to WireGuard: with a line that drains at 12.5 MB/s, compare buffer sizes (WG_THROUGHPUT=1).
+func TestQueueBoundThroughput(t *testing.T) {
+	if os.Getenv("WG_THROUGHPUT") == "" {
+		t.Skip("set WG_THROUGHPUT=1 to measure")
+	}
+	none := func(*netstack.Net) error { return nil }
+	sized := func(def, max int) func(*netstack.Net) error {
+		return func(n *netstack.Net) error { return tuneSized(n, def, max) }
+	}
+	for _, c := range []struct {
+		name string
+		tune func(*netstack.Net) error
+	}{{"gvisor default", none}, {"tuned 4/32 MiB", TuneTCP}, {"cubic 1/4 MiB", sized(1<<20, 4<<20)}, {"cubic 1/1.25 MiB", sized(1<<20, 1280<<10)}} {
+		for _, rtt := range []time.Duration{80 * time.Millisecond, 300 * time.Millisecond} {
+			bps := uploadWith(t, c.tune, rtt/2, 0, 24<<20, 12.5e6)
+			t.Logf("%-18s rtt %3dms line 12.5 MB/s: %6.2f MB/s", c.name, rtt.Milliseconds(), bps/1e6)
+		}
 	}
 }
