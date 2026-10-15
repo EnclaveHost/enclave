@@ -285,3 +285,30 @@ test("a lease this box holds on chain but no longer tracks (a give-up whose rele
   assert.deepEqual(asked, [], "not a claim: the lease is already this box's");
   assert.ok(h.logs.some((l) => /no longer tracked it; resuming it/.test(l)), h.logs.join("\n"));
 });
+
+test("an expired lease with nothing left to fund it waits for a top-up, not the 2-minute queued bound (0x2215bad4, 2026-10-15)", async () => {
+  const U = id("b1"), Q = id("b2");
+  // U: the lease ended and the balance is gone; Q: queued too, but still funded
+  rpc.rows.current = [row(U, { createdAt: 1n, balance6: 0n, spent6: 1_250_000n, leaseUntil: 1n }), row(Q, { createdAt: 2n, leaseUntil: 1n })];
+  const h = await nucbox();
+  const asked = scripted(h, { [U]: "queued", [Q]: "queued" });
+  await h.scanLedger();
+  assert.deepEqual(asked, [U, Q]);
+  assert.equal(h.scanHold.get(U).ms, Host.SCAN_UNFUNDED_HOLD_MS, "an unfunded expired row is held until its funding changes");
+  assert.equal(h.scanHold.get(Q).ms, Host.SCAN_QUEUED_HOLD_MS, "a funded queued row keeps the short bound");
+  // past the queued bound: the funded row is asked again, the unfunded one is not
+  h.scanHold.get(U).at -= Host.SCAN_QUEUED_HOLD_MS + 1;
+  h.scanHold.get(Q).at -= Host.SCAN_QUEUED_HOLD_MS + 1;
+  await h.scanLedger();
+  assert.deepEqual(asked.slice(2), [Q], "the unfunded row was asked again every queued bound (the ~2.5 min loop)");
+  // a top-up changes the key: asked at once
+  rpc.rows.current = [row(U, { createdAt: 1n, balance6: 5_000_000n, spent6: 1_250_000n, leaseUntil: 1n }), row(Q, { createdAt: 2n, leaseUntil: 1n })];
+  await h.scanLedger();
+  assert.ok(asked.slice(3).includes(U), "a top-up did not clear the hold");
+  // and spent6 moving (a settlement) is a change too
+  h.scanHold.set(U, { key: h.scanHoldKey({ ...rpc.rows.current[0] }, h.ownersVersion()), at: Date.now(), ms: Host.SCAN_UNFUNDED_HOLD_MS });
+  const n = asked.length;
+  rpc.rows.current = [row(U, { createdAt: 1n, balance6: 5_000_000n, spent6: 1_300_000n, leaseUntil: 1n }), row(Q, { createdAt: 2n, leaseUntil: 1n })];
+  await h.scanLedger();
+  assert.ok(asked.slice(n).includes(U), "a changed spent6 did not re-ask the row");
+});
