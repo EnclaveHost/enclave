@@ -2,6 +2,7 @@ package wg
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.zx2c4.com/wireguard/conn"
@@ -51,6 +52,7 @@ func (b *PacedBind) Send(bufs [][]byte, ep conn.Endpoint) error {
 		// one): sleeping for every chunk capped metal0 at ~2 MB/s whatever the rate. So run ahead by up to a millisecond
 		// (a burst any router holds) and sleep only once the debt is larger; the average rate is still exact.
 		if d := time.Until(at); d > time.Millisecond {
+			PaceSleptNs.Add(int64(d))
 			time.Sleep(d)
 		}
 		if err := b.Bind.Send(chunk, ep); err != nil {
@@ -59,6 +61,9 @@ func (b *PacedBind) Send(bufs [][]byte, ep conn.Endpoint) error {
 	}
 	return nil
 }
+
+// PaceSleptNs is how long this process's pacers have waited in all (the circuit's stats line).
+var PaceSleptNs atomic.Int64
 
 // Paced wraps bind when mbps > 0 (megabits per second, the host's uplink as its operator configured it).
 func Paced(bind conn.Bind, mbps float64) conn.Bind {

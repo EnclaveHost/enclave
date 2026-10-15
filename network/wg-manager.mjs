@@ -246,6 +246,8 @@ export class EnclaveNetworkManager extends EventEmitter {
    guard:c.providers.guard?{providerId:c.providers.guard.providerId,address:c.providers.guard.address,region:c.providers.guard.region}:null,
    direct:c.kind==='direct'?{address:c.address}:null,
    exit:c.providers.exit?{providerId:c.providers.exit.providerId,address:c.providers.exit.address,region:c.providers.exit.region}:null,
-   handshakeAgeMs:c.stats?.inner?.handshakeAgeMs??null,bytes:c.stats?.app||null}))};});}
+   handshakeAgeMs:c.stats?.inner?.handshakeAgeMs??null,bytes:c.stats?.app||null,
+   // the circuit's TCP loss/recovery counters and its pacer's wait (enclave-wg stats): what a stalled upload looked like
+   tcp:c.stats?.inner?.tcp||null,paceSleptMs:c.stats?.paceSleptMs??null}))};});}
  async close(){if(this.closed)return;this.closed=true;for(const app of this.apps.values())await this.withdraw(app,'agent stopped').catch(()=>{});}
 }

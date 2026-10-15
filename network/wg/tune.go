@@ -75,3 +75,24 @@ func tuneSized(n *netstack.Net, bufDefault, bufMax int) error {
 	cc := tcpip.CongestionControlOption("cubic")
 	return set("congestion control", s.SetTransportProtocolOption(tcp.ProtocolNumber, &cc))
 }
+
+// TCPCounters are the tunnel stack's loss and recovery counters, for the circuit's stats line: a stalled upload shows
+// as retransmission timeouts (lost retransmits), refused sends (the outbound queue was full) or neither (a quiet path).
+func TCPCounters(n *netstack.Net) map[string]uint64 {
+	s, err := netstackStack(n)
+	if err != nil {
+		return nil
+	}
+	st := s.Stats()
+	return map[string]uint64{
+		"segmentsSent":    st.TCP.SegmentsSent.Value(),
+		"retransmits":     st.TCP.Retransmits.Value(),
+		"fastRetransmit":  st.TCP.FastRetransmit.Value(),
+		"slowStartRetx":   st.TCP.SlowStartRetransmits.Value(),
+		"timeouts":        st.TCP.Timeouts.Value(),
+		"tlpRecovery":     st.TCP.TLPRecovery.Value(),
+		"sackRecovery":    st.TCP.SACKRecovery.Value(),
+		"sendErrors":      st.TCP.SegmentSendErrors.Value(),
+		"txDroppedNoRoom": st.NICs.TxPacketsDroppedNoBufferSpace.Value(),
+	}
+}
