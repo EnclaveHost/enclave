@@ -28,6 +28,7 @@ type Socks struct {
 	Policy     Policy
 	MaxConns   int
 	Count      func(up, down int64) // optional byte meter
+	OnConn     func(map[string]any) // optional: a big connection's summary when it ends (connwatch.go)
 	mu         sync.Mutex
 	conns      map[net.Conn]struct{}
 	closed     bool
@@ -250,11 +251,15 @@ func reply(c net.Conn, code byte) error {
 }
 
 func (s *Socks) splice(a, b net.Conn) {
+	w := watchConn(tcpEndpoint(b))
 	done := make(chan struct{}, 2)
-	go func() { copyCounted(b, a, func(n int64) { s.count(n, 0) }); done <- struct{}{} }()
-	go func() { copyCounted(a, b, func(n int64) { s.count(0, n) }); done <- struct{}{} }()
+	go func() { copyCounted(b, a, func(n int64) { s.count(n, 0); w.up.Add(n) }); done <- struct{}{} }()
+	go func() { copyCounted(a, b, func(n int64) { s.count(0, n); w.down.Add(n) }); done <- struct{}{} }()
 	<-done
 	<-done
+	if r := w.report(); r != nil && s.OnConn != nil {
+		s.OnConn(r)
+	}
 }
 
 func (s *Socks) count(up, down int64) {

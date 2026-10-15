@@ -311,3 +311,110 @@ func TestPacedThroughRouter(t *testing.T) {
 		}
 	}
 }
+
+// Loss on the ACK path only (the sender's data all arrives): how far does the tunnel stack's upload fall (WG_THROUGHPUT=1)?
+func TestAckLossSensitivity(t *testing.T) {
+	if os.Getenv("WG_THROUGHPUT") == "" {
+		t.Skip("set WG_THROUGHPUT=1 to measure")
+	}
+	for _, loss := range []float64{0, 0.005, 0.02, 0.05} {
+		a4, b4 := netip.MustParseAddr("10.9.0.1"), netip.MustParseAddr("10.9.0.2")
+		da, na, _ := netstack.CreateNetTUN([]netip.Addr{a4}, nil, 1340)
+		db, nb, _ := netstack.CreateNetTUN([]netip.Addr{b4}, nil, 1340)
+		TuneTCP(na)
+		TuneTCP(nb)
+		stop := make(chan struct{})
+		link(t, da, db, 50*time.Millisecond, 0, stop, 11.5e6) // data: paced line, no loss
+		link(t, db, da, 50*time.Millisecond, loss, stop)      // ACKs: lossy
+		l, _ := nb.ListenTCPAddrPort(netip.AddrPortFrom(b4, 9000))
+		done := make(chan int64, 1)
+		go func() {
+			c, err := l.Accept()
+			if err != nil {
+				done <- 0
+				return
+			}
+			n, _ := io.Copy(io.Discard, c)
+			c.Close()
+			done <- n
+		}()
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		c, err := na.DialContextTCPAddrPort(ctx, netip.AddrPortFrom(b4, 9000))
+		if err != nil {
+			t.Fatal(err)
+		}
+		start, buf, size := time.Now(), make([]byte, 64<<10), 24<<20
+		for sent := 0; sent < size; sent += len(buf) {
+			c.Write(buf)
+		}
+		c.Close()
+		<-done
+		st, _ := netstackStack(na)
+		t.Logf("ACK loss %4.1f%%: %6.2f MB/s  (retransmits %d, RTO timeouts %d)", loss*100, float64(size)/time.Since(start).Seconds()/1e6, st.Stats().TCP.Retransmits.Value(), st.Stats().TCP.Timeouts.Value())
+		cancel()
+		l.Close()
+		close(stop)
+	}
+}
+
+// ACKs that arrive in late clumps (a receive path that holds them for spike every period): spurious retransmission
+// timeouts? (WG_THROUGHPUT=1)
+func TestAckDelaySpikes(t *testing.T) {
+	if os.Getenv("WG_THROUGHPUT") == "" {
+		t.Skip("set WG_THROUGHPUT=1 to measure")
+	}
+	for _, spike := range []time.Duration{0, 150 * time.Millisecond, 300 * time.Millisecond, 600 * time.Millisecond} {
+		a4, b4 := netip.MustParseAddr("10.9.0.1"), netip.MustParseAddr("10.9.0.2")
+		da, na, _ := netstack.CreateNetTUN([]netip.Addr{a4}, nil, 1340)
+		db, nb, _ := netstack.CreateNetTUN([]netip.Addr{b4}, nil, 1340)
+		TuneTCP(na)
+		TuneTCP(nb)
+		stop := make(chan struct{})
+		link(t, da, db, 50*time.Millisecond, 0, stop, 11.5e6)
+		// ACK path: 50 ms, but every 2 s everything is held for `spike` and then delivered at once
+		go func() {
+			bufs, sizes := [][]byte{make([]byte, 2048)}, []int{0}
+			t0 := time.Now()
+			for {
+				if _, err := db.Read(bufs, sizes, 0); err != nil {
+					return
+				}
+				b := append([]byte(nil), bufs[0][:sizes[0]]...)
+				el := time.Since(t0) % (2 * time.Second)
+				hold := 50 * time.Millisecond
+				if spike > 0 && el < spike {
+					hold += spike - el
+				}
+				go func(b []byte, d time.Duration) { time.Sleep(d); da.Write([][]byte{b}, 0) }(b, hold)
+			}
+		}()
+		l, _ := nb.ListenTCPAddrPort(netip.AddrPortFrom(b4, 9000))
+		done := make(chan int64, 1)
+		go func() {
+			c, err := l.Accept()
+			if err != nil {
+				done <- 0
+				return
+			}
+			n, _ := io.Copy(io.Discard, c)
+			c.Close()
+			done <- n
+		}()
+		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+		c, err := na.DialContextTCPAddrPort(ctx, netip.AddrPortFrom(b4, 9000))
+		if err != nil {
+			t.Fatal(err)
+		}
+		start, buf, size := time.Now(), make([]byte, 64<<10), 24<<20
+		for sent := 0; sent < size; sent += len(buf) {
+			c.Write(buf)
+		}
+		c.Close()
+		<-done
+		st, _ := netstackStack(na)
+		t.Logf("ACK spike %3dms every 2s: %6.2f MB/s  (retransmits %d, RTO timeouts %d)", spike.Milliseconds(), float64(size)/time.Since(start).Seconds()/1e6, st.Stats().TCP.Retransmits.Value(), st.Stats().TCP.Timeouts.Value())
+		cancel()
+		l.Close()
+		close(stop)
+	}
+}

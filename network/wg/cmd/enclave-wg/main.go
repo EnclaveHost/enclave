@@ -221,7 +221,8 @@ func (s *state) innerUp(m msg) {
 			}
 		}
 		s.socks = &wg.Socks{User: m.Egress.User, Pass: m.Egress.Pass, Tunnel: d, Policy: pol,
-			Count: func(up, down int64) { s.up.Add(up); s.down.Add(down) }}
+			Count:  func(up, down int64) { s.up.Add(up); s.down.Add(down) },
+			OnConn: func(r map[string]any) { r["type"] = "conn"; emit(r) }}
 		l, err := net.Listen("tcp", listenOr(m.Egress.Listen))
 		if err != nil {
 			fail("egress listener: " + err.Error())
