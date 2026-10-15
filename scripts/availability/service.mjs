@@ -120,10 +120,28 @@ const releaseRuntime = (rid) => {   // the runtime identity JSON of an installed
   }
   return null;
 };
-const workload = createCpuWorkload({ referenceBinary: cfg.referenceBinary, rounds: cfg.workload.rounds, memoryMiB: cfg.workload.memoryMiB, passes: cfg.workload.passes, timeoutMs: cfg.workload.timeoutMs,
+// READINESS, inside the paid lease and BEFORE the timed challenge starts (the first production jobs, 2026-10-15,
+// challenged a guest that had just been claimed: the relay's prediction for a new lease is cold, and the guest needs to
+// boot and obtain its certificate). Wait until the relay predicts the job's guest and the guest answers its attestation
+// endpoint over TLS. Nothing here is evidence: the attested exchange and every check in verifiedAppRequest are unchanged.
+const predictions = new Map();
+async function untilReady(job) {
+  const leaseEndMs = Number(job.lease.leaseUntil) * 1000 - cfg.workload.timeoutMs - 15_000;
+  const origin = `https://${job.deployment.id.slice(2, 10)}.app.enclave.host/`;
+  let p = null;
+  for (;;) {
+    if (!p) { const r = await fetch(`${cfg.relay}/v1/expected-guest?id=${job.deployment.id}`, { signal: AbortSignal.timeout(30_000) }).catch(() => null);
+              if (r && r.ok) { const j = await r.json().catch(() => null); if (j && (j.images || []).length) p = j; } }
+    if (p) { const r = await fetch(origin + ".well-known/enclave-attestation?nonce=" + "00".repeat(32), { signal: AbortSignal.timeout(15_000) }).catch(() => null);
+             if (r && r.status === 200) { predictions.set(job.deployment.id, p); return; } }
+    if (Date.now() > leaseEndMs) throw new Error(p ? "the guest did not answer over TLS within its lease" : "no prediction for the job's guest within its lease");
+    await new Promise((r) => setTimeout(r, 10_000));
+  }
+}
+const cpuWorkload = createCpuWorkload({ referenceBinary: cfg.referenceBinary, rounds: cfg.workload.rounds, memoryMiB: cfg.workload.memoryMiB, passes: cfg.workload.passes, timeoutMs: cfg.workload.timeoutMs,
   requestVerified: verifiedAppRequest({ collateral, loadExpectations: async (job) => {
+    const p = predictions.get(job.deployment.id) || await getJson(`${cfg.relay}/v1/expected-guest?id=${job.deployment.id}`);
     // the relay's prediction (Enclave-operated: operator-bootstrap trust), only the images of releases it ADMITS
-    const p = await getJson(`${cfg.relay}/v1/expected-guest?id=${job.deployment.id}`);
     const images = (p.images || []).filter((i) => i.releaseAdmitted !== false);
     if (!images.length) throw new Error("no admitted predicted image for the job");
     const runtimeIdentity = releaseRuntime(images[0].runtimeId);
@@ -131,6 +149,7 @@ const workload = createCpuWorkload({ referenceBinary: cfg.referenceBinary, round
     return { deploymentId: job.deployment.id, hostId: job.offer.hostId, appId: lc(p.appId), origin: `https://${job.deployment.id.slice(2, 10)}.app.enclave.host/`, kind: "snp",
              runtimeIdentity, policy: { snp: { ...DEFAULT_SNP_POLICY, product: "Turin", minTcb: cfg.minTcb, allowedMeasurements: images.map((i) => lc(i.measurement)) } } };
   } }) });
+const workload = { async runAndVerify(job) { await untilReady(job); try { return await cpuWorkload.runAndVerify(job); } finally { predictions.delete(job.deployment.id); } } };
 const loadObservation = createObservationLoader({
   chain: { client: read, ledger: cfg.ledger, proof: cfg.proof, availability: cfg.fees, windowSec: B(cfg.observation.windowSec), classId: cfg.classId, resource: "cpu",
            knownVerificationAppRefs: [cfg.profile.appRef] },
