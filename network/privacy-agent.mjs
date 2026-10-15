@@ -163,6 +163,9 @@ export async function runPrivacy(configFile){
     const fresh=JSON.parse(await fs.readFile(configFile,'utf8'));
     if(!Array.isArray(fresh.apps)||fresh.apps.length>256)throw new Error('version 2 app configuration required');
     const next=[];for(const item of fresh.apps)next.push(await loadApp(item));
+    // the operator's uplink pace (enclaveNetwork.paceMbps): circuits built from now on use it; running ones keep theirs
+    const pace=fresh.enclaveNetwork?.paceMbps??0;
+    if(!(typeof pace==='number'&&Number.isFinite(pace)&&pace>=0&&pace<=100000))throw new Error('enclaveNetwork.paceMbps must be a number of Mbps');
     // the operator's host-egress offer applies without a restart (a malformed block is refused before anything changes)
     const egressChanged=!!networkHost?.hostEgress.update(fresh.enclaveNetwork?.hostEgress);
     let added=0,updated=0;
@@ -173,6 +176,7 @@ export async function runPrivacy(configFile){
       for(const k of ['expected','names','publishToMirror','expectedFile','startupEgress'])cur[k]=n[k];
     }
     log(`config reloaded: ${apps.length} apps (${added} added, ${updated} changed); mirror apps: `+(apps.filter(a=>a.publishToMirror).map(a=>a.deploymentId.slice(0,10)).join(',')||'none'));
+    if(networkHost&&networkHost.runtime.paceMbps!==pace){networkHost.runtime.paceMbps=pace;log(`circuit pacing now ${pace?pace+' Mbps':'off'} (new circuits)`);}
     if(egressChanged){const o=networkHost.hostEgress.offered;
       log('host egress now offered to: '+(!o?'no apps':o.apps==='all'?'all apps':o.apps.map(id=>id.slice(0,10)).join(',')||'no apps'));
       void agent?.manager.reconcile().catch(e=>log('reconcile: '+e.message));}
