@@ -46,6 +46,15 @@ export function networkConfig({ binDir, nodeBinary, relayBase, checkers, paid })
     ...(paid ? { paid: { proofKeyFile: paid.proofKeyFile, gasKeyFile: paid.gasKeyFile, rpc: paid.rpc || "https://base-rpc.publicnode.com", maxPending6: paid.maxPending6 || "10000" } } : {}) };
 }
 
+/** An operator's hostEgress block kept as it is when its shape is right (apps: deployment ids, own: IP addresses); else none. */
+export function validHostEgress(h) {
+  if (!h || typeof h !== "object" || Array.isArray(h)) return null;
+  const apps = Array.isArray(h.apps) ? h.apps : [], own = Array.isArray(h.own) ? h.own : [];
+  if (!apps.length || apps.length > 64 || apps.some((a) => !ID.test(String(a).toLowerCase()))) return null;
+  if (own.length > 8 || own.some((ip) => !/^[0-9a-fA-F:.]{2,45}$/.test(String(ip)))) return null;
+  return structuredClone(h);
+}
+
 /**
  * createNetworkEnroll(opts) -> { pass() }. opts: agentDir (ProgramData\Enclave\network), binDir (Program Files\Enclave\network),
  * runner, relayBase, config (baseConfig's inputs, with enclaveNetwork: {checkers}), rows() (the ledger),
@@ -65,7 +74,11 @@ export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, confi
     let cfg = await readJSON(file("privacy-config.json"), null), changed = false, waiting = 0;
     const fresh = !cfg;
     if (fresh) cfg = baseConfig(config);
-    const want = networkConfig({ binDir, nodeBinary: config.nodeBinary, relayBase, ...config.enclaveNetwork });
+    // HOST EGRESS (network/privacy-agent.mjs, main 7e27c1d0c) is the OPERATOR's opt-in, set by hand in privacy-config.json
+    // ({apps:[deployment ids], own:[this box's public addresses]}): kept across passes, never computed here. Without this
+    // the next pass replaced the whole section and dropped it (and restarted the agent).
+    const hostEgress = validHostEgress(cfg?.enclaveNetwork?.hostEgress);
+    const want = { ...networkConfig({ binDir, nodeBinary: config.nodeBinary, relayBase, ...config.enclaveNetwork }), ...(hostEgress ? { hostEgress } : {}) };
     // a box whose config predates the current enclaveNetwork section (or still runs TUNA): switched once, then restarted
     let switched = false;
     if (JSON.stringify(cfg.enclaveNetwork) !== JSON.stringify(want)) {
