@@ -49,8 +49,12 @@ export function networkConfig({ binDir, nodeBinary, relayBase, checkers, paid })
 /** An operator's hostEgress block kept as it is when its shape is right (apps: deployment ids, own: IP addresses); else none. */
 export function validHostEgress(h) {
   if (!h || typeof h !== "object" || Array.isArray(h)) return null;
-  const apps = Array.isArray(h.apps) ? h.apps : [], own = Array.isArray(h.own) ? h.own : [];
-  if (!apps.length || apps.length > 64 || apps.some((a) => !ID.test(String(a).toLowerCase()))) return null;
+  const own = Array.isArray(h.own) ? h.own : [];
+  // apps: "all", or a list of deployment ids (network/enclave-network-host.mjs reads the same shape)
+  if (h.apps !== "all") {
+    const apps = Array.isArray(h.apps) ? h.apps : [];
+    if (!apps.length || apps.length > 64 || apps.some((a) => !ID.test(String(a).toLowerCase()))) return null;
+  }
   if (own.length > 8 || own.some((ip) => !/^[0-9a-fA-F:.]{2,45}$/.test(String(ip)))) return null;
   return structuredClone(h);
 }
