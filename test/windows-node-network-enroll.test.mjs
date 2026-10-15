@@ -153,3 +153,18 @@ test("an operator's hostEgress block is kept across passes (not replaced, no res
   await w.enroll.pass();
   assert.deepEqual(w.read().enclaveNetwork.hostEgress, all, "apps: \"all\" is the agent's shape too");
 });
+
+test("an operator's paceMbps is kept across passes (no restart); a bad value is dropped", async () => {
+  const w = world();
+  await w.enroll.pass();
+  const cfg = w.read();
+  fs.writeFileSync(path.join(w.agentDir, "privacy-config.json"), JSON.stringify({ ...cfg, enclaveNetwork: { ...cfg.enclaveNetwork, paceMbps: 90 } }));
+  assert.equal((await w.enroll.pass()).changed, false, "nothing to change");
+  assert.equal(w.read().enclaveNetwork.paceMbps, 90);
+  assert.equal(w.restarts(), 0);
+  for (const bad of [-1, 0, 200000, "90", null]) {
+    fs.writeFileSync(path.join(w.agentDir, "privacy-config.json"), JSON.stringify({ ...cfg, enclaveNetwork: { ...cfg.enclaveNetwork, paceMbps: bad } }));
+    await w.enroll.pass();
+    assert.equal(w.read().enclaveNetwork.paceMbps, undefined, `${JSON.stringify(bad)} is not carried`);
+  }
+});

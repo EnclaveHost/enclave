@@ -59,6 +59,12 @@ export function validHostEgress(h) {
   return structuredClone(h);
 }
 
+/** An operator's enclaveNetwork.paceMbps (this host's uplink in Mbps; circuits pace their UDP to it) kept when it is a number
+ *  in (0, 100000]; else none (unpaced). */
+export function validPaceMbps(v) {
+  return typeof v === "number" && Number.isFinite(v) && v > 0 && v <= 100000 ? v : null;
+}
+
 /**
  * createNetworkEnroll(opts) -> { pass() }. opts: agentDir (ProgramData\Enclave\network), binDir (Program Files\Enclave\network),
  * runner, relayBase, config (baseConfig's inputs, with enclaveNetwork: {checkers}), rows() (the ledger),
@@ -82,7 +88,9 @@ export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, confi
     // ({apps:[deployment ids], own:[this box's public addresses]}): kept across passes, never computed here. Without this
     // the next pass replaced the whole section and dropped it (and restarted the agent).
     const hostEgress = validHostEgress(cfg?.enclaveNetwork?.hostEgress);
-    const want = { ...networkConfig({ binDir, nodeBinary: config.nodeBinary, relayBase, ...config.enclaveNetwork }), ...(hostEgress ? { hostEgress } : {}) };
+    // PACING (main d476cc0f9): the operator's uplink in Mbps, set by hand like hostEgress and kept the same way
+    const paceMbps = validPaceMbps(cfg?.enclaveNetwork?.paceMbps);
+    const want = { ...networkConfig({ binDir, nodeBinary: config.nodeBinary, relayBase, ...config.enclaveNetwork }), ...(hostEgress ? { hostEgress } : {}), ...(paceMbps ? { paceMbps } : {}) };
     // a box whose config predates the current enclaveNetwork section (or still runs TUNA): switched once, then restarted
     let switched = false;
     if (JSON.stringify(cfg.enclaveNetwork) !== JSON.stringify(want)) {
