@@ -19,7 +19,9 @@ paths={'app/supervisor.js':'supervisor.js','opt/metal/gsup.mjs':'metal/guest/gsu
  'app/isolation/m4/guestd/supervisor-guestcert.mjs':'isolation/m4/guestd/supervisor-guestcert.mjs'}
 replacements={k:subprocess.check_output(['git','show',commit+':'+v],cwd=repo) for k,v in paths.items()}
 # files the base image does not carry yet, appended as new entries before the trailer
-additions={'app/session-api-auth.mjs':subprocess.check_output(['git','show',commit+':windows/node/session-api-auth.mjs'],cwd=repo)}
+additions={k:subprocess.check_output(['git','show',commit+':'+v],cwd=repo) for k,v in {
+ 'app/session-api-auth.mjs':'windows/node/session-api-auth.mjs',
+ 'app/verification-checkpoints.mjs':'windows/node/verification-checkpoints.mjs'}.items()}
 m.pop('expectedMeasurement',None);m.pop('initramfs',None)
 m['controlOverlay']={'baseInitramfsSha256':sha(compressed),'commit':commit,'builder':'metal/overlay-control-image.py','files':[{'path':'/'+k,'sha256':sha(v)} for k,v in {**replacements,**additions}.items()]}
 replacements['opt/metal/manifest.json']=(json.dumps(m,indent=2)+'\n').encode()
