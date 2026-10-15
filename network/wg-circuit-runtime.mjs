@@ -14,6 +14,24 @@ export const RENEW_MS=4*60000;
 async function freePort(){const s=net.createServer();await new Promise((r,j)=>{s.once('error',j);s.listen(0,'127.0.0.1',r)});const p=s.address().port;await new Promise(r=>s.close(r));return p;}
 async function json(file,value){await fs.writeFile(file,JSON.stringify(value),{mode:0o600});}
 
+// A circuit's grant renewals: renew() every `every` ms resolves to the new grants' expiry. A renewal that got no answer
+// (err.unanswered: refused, reset or timed out before the provider spoke) is tried again while the grants last; on the
+// NucBox about one in a few dozen did (fetch failed, 2026-10-15), and closing for it dropped every connection the circuit
+// carried. Anything else, or grants about to run out, is refused(err).
+export function renewGrants({every,until,renew,closed,retrying,refused,now=Date.now}){
+ const retryMs=Math.min(30000,every/4);let timer,cancelled=false;
+ const run=async()=>{
+  try{until=await renew();if(!cancelled&&!closed())timer=setTimeout(run,every);}
+  catch(e){
+   if(cancelled||closed())return;
+   if(e?.unanswered&&until-now()>2*retryMs){retrying(e);timer=setTimeout(run,retryMs);return;}
+   refused(e);
+  }
+ };
+ timer=setTimeout(run,every);
+ return {cancel(){cancelled=true;clearTimeout(timer);}};
+}
+
 export class WgCircuitRuntime {
  // paceMbps: the host's uplink; each tunnel's real UDP socket is paced to it (network/wg/pace.go), 0 = unpaced
  constructor({directory,wgBinary,nodeBinary,workerModule,firewallBinary,grants,authorize,forward,platform=process.platform==='win32'?'windows':'plain',renewMs=RENEW_MS,resolvers=['1.1.1.1','9.9.9.9'],paceMbps=0,log=()=>{}}){
@@ -40,7 +58,7 @@ export class WgCircuitRuntime {
   const circuit=new EventEmitter();Object.assign(circuit,{id,deploymentId,kind,closed:false,transport:kind==='byo'?'byo-wireguard':'enclave-network',fallback,
    providers:kind==='network'?{guard,exit,public:{address:exit.address,fallback}}:{byo:{address:byo.endpoint.address}}});
   this.active.add(circuit);
-  const children=[],exits=[],sockets=new Set(),installed=[];let broker,worker,wg,wgLines,egressServer,renewTimer,closing,pending;
+  const children=[],exits=[],sockets=new Set(),installed=[];let broker,worker,wg,wgLines,egressServer,renewal,closing,pending;
   const launch=(folder,exe,args)=>{
    if(circuit.closed||this.closed)throw new Error('runtime stopped');
    const child=this.platform==='windows'?spawn(this.firewallBinary,['sandbox',path.join(folder,path.basename(exe,'.exe')+'-sandbox.json')],{stdio:['pipe','pipe','pipe'],windowsHide:true})
@@ -48,7 +66,7 @@ export class WgCircuitRuntime {
    children.push(child);exits.push(new Promise(r=>{child.once('error',r);child.once('exit',r);}));child.stdin.on('error',()=>{});return child;
   };
   circuit.close=reason=>{
-   if(closing)return closing;circuit.closed=true;closing=(async()=>{clearInterval(renewTimer);pending?.reject?.(new Error(reason||'circuit closed'));
+   if(closing)return closing;circuit.closed=true;closing=(async()=>{renewal?.cancel();pending?.reject?.(new Error(reason||'circuit closed'));
     broker?.revoke();for(const s of sockets)s.destroy();egressServer?.close();wgLines?.close();
     for(const c of children){c.stdin.destroy();if(c.exitCode===null)c.kill();}
     await Promise.all(exits);await broker?.close();
@@ -128,16 +146,18 @@ export class WgCircuitRuntime {
     });await new Promise((r,j)=>{egressServer.once('error',j);egressServer.listen(0,'127.0.0.1',r);});
    }
    // grants expire in 10 minutes: renew both well before; a refusal (lease ended, policy changed, provider unqualified) closes
-   if(kind==='network')renewTimer=setInterval(()=>void(async()=>{
-    try{
+   if(kind==='network')renewal=renewGrants({every:this.renewMs,until:Math.min(guardGrant.expiresAt,exitGrant.expiresAt),closed:()=>circuit.closed,
+    renew:async()=>{
      const g2=await this.grants.request({provider:guard,url:`http://${guard.address}:${guard.ports.control}`,role:'guard',deploymentId,wgPublicKey:keys.guard.publicKey});
      const x2=await this.grants.request({provider:exit,url:`http://${outer.control}`,role:exitRole,deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress});
      // a provider that lost this peer (restarted without its table) hands out a new address: the tunnel cannot use it,
      // so rebuild now rather than wait for the route probes to fail
-     if(g2.clientAddress!==guardGrant.clientAddress){circuit.failureRole='guard';throw new Error('the guard changed this circuit\'s address');}
-     if(x2.clientAddress!==exitGrant.clientAddress){circuit.failureRole='public';throw new Error('the exit changed this circuit\'s address');}
-    }catch(e){this.log(`circuit ${id}: renewal refused: ${e.message}`);circuit.failureRole=e.providerRole;void circuit.close('grant renewal failed: '+e.message);}
-   })(),this.renewMs);
+     if(g2.clientAddress!==guardGrant.clientAddress)throw Object.assign(new Error('the guard changed this circuit\'s address'),{providerRole:'guard'});
+     if(x2.clientAddress!==exitGrant.clientAddress)throw Object.assign(new Error('the exit changed this circuit\'s address'),{providerRole:'public'});
+     return Math.min(g2.expiresAt,x2.expiresAt);
+    },
+    retrying:e=>this.log(`circuit ${id}: renewal unanswered, retrying: ${e.message}`),
+    refused:e=>{this.log(`circuit ${id}: renewal refused: ${e.message}`);circuit.failureRole=e.providerRole;void circuit.close('grant renewal failed: '+e.message);}});
    if(circuit.closed||this.closed)throw new Error('circuit stopped during startup');
    Object.assign(circuit,{address:kind==='network'?exit.address:null,port:443,ingress,egressReady:!!egress,
     egress:egress?'127.0.0.1:'+egressServer.address().port:null,

@@ -19,7 +19,10 @@ export class WgGrants {
   const request={version:1,providerId:provider.providerId,role,deploymentId,runner:this.runner,wgPublicKey,policy:await this.policy(deploymentId),
    ingress:role!=='guard'&&ingress,egress:role!=='guard'&&egress,issuedAt:now,nonce:randomBytes(16).toString('hex'),expiresAt:now+10*60000};
   const signature=await this.account.signMessage({message:peerRequestMessage(request)});
-  const res=await this.fetch(url.replace(/\/$/,'')+'/v1/peer',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({request,signature}),signal:AbortSignal.timeout(this.timeoutMs)});
+  // no answer at all (refused, reset, timed out) is marked: a renewal tries again while its grant lasts, where a
+  // provider's answer stands
+  const res=await this.fetch(url.replace(/\/$/,'')+'/v1/peer',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({request,signature}),signal:AbortSignal.timeout(this.timeoutMs)})
+   .catch(e=>{throw Object.assign(new Error(`${role} provider ${provider.address}: no answer (${e?.cause?.code||e?.cause?.message||e?.name||e?.message})`),{providerRole:role==='guard'?'guard':'public',unanswered:true});});
   let body;try{body=await res.json();}catch{throw new Error(`${role} provider ${provider.address}: HTTP ${res.status}`);}
   if(!res.ok)throw Object.assign(new Error(`${role} provider ${provider.address}: ${body?.error||res.status}`),{providerRole:role==='guard'?'guard':'public',refused:res.status===403});
   return this.verify(body,{provider,role,request});
