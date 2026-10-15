@@ -59,6 +59,7 @@ const witnessState = (() => {
   let m = {}; try { m = JSON.parse(fs.readFileSync(f, "utf8")); } catch {}
   return { get: (k) => m[k] || null, set: (k, v) => { m[k] = v; fs.writeFileSync(f + ".tmp", JSON.stringify(m)); fs.renameSync(f + ".tmp", f); } };
 })();
+const VERIFIER_SIDE = /\/v1\/expected-guest\?id=|^no prediction for the job's guest|^no installed release states runtime|^no admitted predicted image/;
 const witness = createWitness({
   signer: witnessKey, chainId: 8453, contract: cfg.fees, classId: cfg.classId, readRegistry, minTcb: cfg.minTcb,
   allowedMeasurements: cfg.hostMeasurements, state: witnessState, receiptTtlSec: cfg.receiptTtlSec,
@@ -68,8 +69,13 @@ const witness = createWitness({
                                           allowedMeasurements, auxblob, requireVcek: true, minTcb, expectedVmpl: 0 });
     return v.ok ? { ok: true, measurement: p.measurement.toString("hex"), chipId: p.chipId.toString("hex") } : { ok: false, reason: v.reasons.slice(-1)[0] };
   },
+  // A failure counts against the host only when the host held the paid lease and the verifier had its own expectations:
+  // a job that never reached the challenge (offer, funding, claim) or that failed on the verifier's side (its relay's
+  // prediction, its installed releases) is INCONCLUSIVE. Otherwise one verifier-side fault would refuse the host's
+  // receipts, so no further audit could be offered and it could never pass again (job 2, 2026-10-15: relay 503).
   lastAudit: async (hardwareId) => {
     const done = (await store.list()).filter((j) => j.offer && lc(j.offer.hardwareId) === lc(hardwareId) && ["complete", "failed"].includes(j.state))
+      .filter((j) => j.state === "complete" || (j.lease && !VERIFIER_SIDE.test(String(j.failure || ""))))
       .sort((a, b) => Number(B(b.offer.atSec) - B(a.offer.atSec)));
     return done.length ? { passed: done[0].state === "complete" && !done[0].failure, atSec: String(done[0].offer.atSec), job: done[0].id } : null;
   },
