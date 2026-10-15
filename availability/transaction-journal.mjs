@@ -6,6 +6,10 @@ export function transactionJournal({store,publicClient}){
   const run=async()=>{
    let current=await store.get(job.id),saved=current.transactions?.[key];
    if(!saved){
+    // Simulate BEFORE journaling: a call that reverts here was never sent, so it leaves no ambiguous record and the
+    // job may try again (the first production audit, 2026-10-15: a read that lagged the host's acceptance reverted
+    // fundJob in simulation, and the "requested" record then blocked every retry until the offer expired).
+    if(publicClient.simulateContract)await publicClient.simulateContract({...request,account:wallet.account});
     await store.transition(job.id,current.state,{transactions:{...current.transactions,[key]:{status:'requested'}}});
     const hash=await wallet.writeContract(request);
     current=await store.get(job.id);saved={hash,status:'submitted'};

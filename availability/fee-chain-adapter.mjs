@@ -1,7 +1,13 @@
 import fs from 'node:fs';import {decodeEventLog} from 'viem';
 import {transactionJournal} from './transaction-journal.mjs';
 const abi=n=>JSON.parse(fs.readFileSync(new URL(`../contracts/${n}.abi.json`,import.meta.url)));
-const D=abi('EnclaveDeployments'),F=abi('EnclaveVerificationFees'),R=abi('EnclaveRegistry');
+const D=abi('EnclaveDeployments'),F=abi('EnclaveVerificationFees');
+// EnclaveRegistry.get as its schema-4 PREFIX: later schemas append fields and keep offsets, while the full ABI misdecodes
+// an older live registry (Base runs schema 4); active, operator and payoutWallet are all this adapter reads.
+const R=[{type:'function',name:'get',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'tuple',components:[
+ {name:'endpoint',type:'string'},{name:'repo',type:'string'},{name:'measurement',type:'bytes32'},{name:'operator',type:'address'},
+ {name:'registeredAt',type:'uint64'},{name:'lastSeen',type:'uint64'},{name:'active',type:'bool'},{name:'cpuPricePerSec6',type:'uint64'},
+ {name:'gpuPricePerSec6',type:'uint64'},{name:'proofKey',type:'address'},{name:'payoutWallet',type:'address'}]}]}];
 const same=(a,b)=>String(a).toLowerCase()===String(b).toLowerCase();
 export function createFeeChainAdapter({publicClient,executorWallet,ledger,fees,registry,chainId,source,profile,store,stageSecrets,acceptHostOffer,claimHint,now=()=>BigInt(Math.floor(Date.now()/1000))}){
  const read=(address,abi,functionName,args=[])=>publicClient.readContract({address,abi,functionName,args});

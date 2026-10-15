@@ -30,6 +30,8 @@ export function createHostAcceptor({ publicClient, operatorWallet, ledger, fees,
     const d = await read(ledger, D, "get", [id]);
     if (!allowed.has(lc(d.appRef))) throw new Error(`acceptor: ${d.appRef} is not an approved audit workload`);
     if (BigInt(d.cpuMilli) === 0n || BigInt(j[5]) < minRatePerShareMilli6 * BigInt(d.cpuMilli)) throw new Error("acceptor: below this host's floor");
+    // idempotent: an acceptance already on chain at this rate is not sent again
+    try { if (BigInt(await read(ledger, D, "rateFor", [id, enclaveId])) === BigInt(j[5])) { log(`[acceptor] audit job ${id.slice(0, 10)} already accepted`); return { tx: null }; } } catch {}
     const hash = await operatorWallet.writeContract({ address: ledger, abi: D, functionName: "offerJobRate", args: [id, enclaveId, BigInt(j[5]), BigInt(j[4])] });
     const r = await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
     if (r.status !== "success") throw new Error(`acceptor: offerJobRate reverted (${hash})`);
