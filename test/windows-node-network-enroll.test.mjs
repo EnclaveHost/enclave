@@ -136,3 +136,16 @@ test("a box whose agent directory moved (tuna -> network) has its paths repointe
   assert.equal((await w.enroll.pass()).changed, false, "settled");
   assert.equal(w.restarts(), 1);
 });
+
+test("an operator's hostEgress block is kept across passes (not replaced, no restart); a malformed one is dropped", async () => {
+  const w = world();
+  await w.enroll.pass();
+  const cfg = w.read(), he = { apps: [D], own: ["203.0.113.7"] };
+  fs.writeFileSync(path.join(w.agentDir, "privacy-config.json"), JSON.stringify({ ...cfg, enclaveNetwork: { ...cfg.enclaveNetwork, hostEgress: he } }));
+  assert.equal((await w.enroll.pass()).changed, false, "nothing to change");
+  assert.deepEqual(w.read().enclaveNetwork.hostEgress, he);
+  assert.equal(w.restarts(), 0);
+  fs.writeFileSync(path.join(w.agentDir, "privacy-config.json"), JSON.stringify({ ...cfg, enclaveNetwork: { ...cfg.enclaveNetwork, hostEgress: { apps: ["not-an-id"] } } }));
+  await w.enroll.pass();
+  assert.equal(w.read().enclaveNetwork.hostEgress, undefined, "a malformed block is not carried");
+});
