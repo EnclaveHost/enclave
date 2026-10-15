@@ -1,7 +1,7 @@
 #!/bin/sh
 # The handoff from the front to init (dominit.c read_front_msg), checked outside a guest: init starts the app only on
 # "N" or on "C" + a config within the 64 KiB ENCLAVE_CONFIG ceiling, and refuses an empty pipe (the front died before
-# it provisioned), another tag, one byte over the ceiling and a NUL. PID 1 itself cannot run here, so the harness
+# it provisioned), another tag, one byte over the ceiling and a NUL; and the optional secrets section after "\0S". PID 1 itself cannot run here, so the harness
 # compiles dominit.c with its main renamed and calls the reader on a pipe for each case.
 #
 # usage: test-dominit-handoff.sh        (needs gcc)
@@ -63,6 +63,33 @@ int main(void) {
     check("exactly the 64 KiB ceiling", big, 1 + 65536, 1, want);
     big[1 + 65536] = 'x';
     check("one byte over the ceiling", big, 1 + 65536 + 1, 0, NULL);
+    /* the secrets section: NUL, "S", NAME=VALUE entries each ending in NUL; they become runtime ARGUMENTS only */
+#define M(lit) lit, sizeof lit - 1
+    check("C + two secrets", M("C{}\0SAPI_KEY=v1\0DB_URL=postgres://u:p@h/x\0"), 1, "ENCLAVE_CONFIG={}");
+    if (secret_n != 2 || strcmp(secret_args[0], "API_KEY=v1") || strcmp(secret_args[1], "DB_URL=postgres://u:p@h/x")) { printf("FAIL secrets parsed: %d\n", secret_n); fails++; }
+    wipe_secrets();
+    check("N + a secret (no config)", M("N\0SCAPACITY_WORK_TOKEN=abc\0"), 1, NULL);
+    if (secret_n != 1 || strcmp(secret_args[0], "CAPACITY_WORK_TOKEN=abc")) { printf("FAIL secret without config\n"); fails++; }
+    wipe_secrets();
+    check("an empty value is a value", M("C{}\0SEMPTY=\0"), 1, "ENCLAVE_CONFIG={}"); wipe_secrets();
+    check("a reserved ENCLAVE_ name", M("C{}\0Senclave_x=1\0"), 0, NULL);
+    check("a name starting with a digit", M("C{}\0S1A=1\0"), 0, NULL);
+    check("a name with a dash", M("C{}\0SA-B=1\0"), 0, NULL);
+    check("no '='", M("C{}\0SNAME\0"), 0, NULL);
+    check("a value with a newline", M("C{}\0SA=x\ny\0"), 0, NULL);
+    check("a duplicate name", M("C{}\0SA=1\0A=2\0"), 0, NULL);
+    check("a section not ending in NUL", M("C{}\0SA=1"), 0, NULL);
+    check("a NUL not followed by S", M("C{}\0XA=1\0"), 0, NULL);
+    check("an empty secrets section", M("C{}\0S"), 0, NULL);
+    if (secret_n) { printf("FAIL a refused message left secrets behind\n"); fails++; }
+    {   /* 65 entries: one over the count */
+        static char many[4096]; size_t o = 0;
+        memcpy(many, "C{}\0S", 5); o = 5;
+        for (int i = 0; i < 65; i++) o += (size_t)sprintf(many + o, "K%d=v", i) + 1;
+        check("65 secrets", many, o, 0, NULL);
+        o = 5; for (int i = 0; i < 64; i++) o += (size_t)sprintf(many + o, "K%d=v", i) + 1;
+        check("64 secrets", many, o, 1, "ENCLAVE_CONFIG={}"); wipe_secrets();
+    }
     return fails ? 1 : 0;
 }
 EOF

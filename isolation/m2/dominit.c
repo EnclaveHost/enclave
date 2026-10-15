@@ -543,10 +543,54 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
 /* The front's one message on the pipe: "N" (no config), "C" + config, or "P" + config (public HTTPS), at most the runtime's
  * ENCLAVE_CONFIG ceiling (64 KiB), then EOF. On "C" *env is a malloc'd "ENCLAVE_CONFIG=<config>" and *len the config's
  * length; on "N" *env stays NULL. Anything else - an empty pipe (the front died first), one byte over the ceiling, a
- * NUL, another tag - returns why, and the caller does not start the app. The read buffer is wiped either way. */
+ * NUL, another tag - returns why, and the caller does not start the app. The read buffer is wiped either way.
+ *
+ * SECRETS (2026-10-14, the standard runtime's parity: each staged secret reaches the app as its own environment
+ * variable). The message may end with NUL, "S", then NAME=VALUE entries each terminated by NUL. Each becomes ONE
+ * runtime ARGUMENT "--env NAME=VALUE": never this process's or the runtime's own environment, so no name can steer the
+ * loader or the runtime (LD_*, WASMTIME_*, ...); the app sees exactly these names. Names: [A-Za-z_][A-Za-z0-9_]{0,63},
+ * not ENCLAVE_*; values: no CR or LF; at most 64 entries and 20 KiB. Any violation refuses the whole message. */
 #define CFG_MAX 65536
+#define SECRETS_MAX 20480
+#define SECRETS_N 64
+static char *secret_args[SECRETS_N];     /* "NAME=VALUE", malloc'd; wiped and freed once the app is spawned */
+static int secret_n;
+static int secret_name_ok(const char *e, const char *eq) {
+    size_t n = (size_t)(eq - e);
+    if (n < 1 || n > 64) return 0;
+    if (!((e[0] >= 'A' && e[0] <= 'Z') || (e[0] >= 'a' && e[0] <= 'z') || e[0] == '_')) return 0;
+    for (size_t i = 1; i < n; i++)
+        if (!((e[i] >= 'A' && e[i] <= 'Z') || (e[i] >= 'a' && e[i] <= 'z') || (e[i] >= '0' && e[i] <= '9') || e[i] == '_')) return 0;
+    if (n >= 8 && strncasecmp(e, "ENCLAVE_", 8) == 0) return 0;
+    return 1;
+}
+/* parse [start, end) of "NAME=VALUE\0"... into secret_args; returns why, or NULL */
+static const char *parse_secrets(const char *start, const char *end) {
+    secret_n = 0;
+    if (end - start > SECRETS_MAX) return "sent secrets over the 20 KiB ceiling";
+    if (start == end || end[-1] != 0) return "sent a secrets section that does not end in NUL";
+    for (const char *e = start; e < end;) {
+        const char *z = memchr(e, 0, (size_t)(end - e));
+        const char *eq = memchr(e, '=', (size_t)(z - e));
+        if (!eq || !secret_name_ok(e, eq)) return "sent a secret with an invalid name";
+        if (memchr(eq, '\n', (size_t)(z - eq)) || memchr(eq, '\r', (size_t)(z - eq))) return "sent a secret value with a newline";
+        for (int i = 0; i < secret_n; i++)
+            if (strncmp(secret_args[i], e, (size_t)(eq - e) + 1) == 0) return "sent a secret name twice";
+        if (secret_n == SECRETS_N) return "sent more than 64 secrets";
+        secret_args[secret_n] = malloc((size_t)(z - e) + 1);
+        if (!secret_args[secret_n]) return "sent secrets there was no memory for";
+        memcpy(secret_args[secret_n], e, (size_t)(z - e) + 1);
+        secret_n++;
+        e = z + 1;
+    }
+    return NULL;
+}
+static void wipe_secrets(void) {
+    for (int i = 0; i < secret_n; i++) { explicit_bzero(secret_args[i], strlen(secret_args[i])); free(secret_args[i]); secret_args[i] = NULL; }
+    secret_n = 0;
+}
 static const char *read_front_msg(int fd, char **env, size_t *len) {
-    static char msg[1 + CFG_MAX + 1];
+    static char msg[1 + CFG_MAX + 2 + SECRETS_MAX + 1];
     static const char pre[] = "ENCLAVE_CONFIG=";
     size_t n = 0;
     const char *why = NULL;
@@ -561,13 +605,19 @@ static const char *read_front_msg(int fd, char **env, size_t *len) {
     *len = 0;
     public_https_egress = 0;
     public_web_egress = 0;
+    /* the optional secrets section starts at the first NUL ("\0S"); the config is what precedes it */
+    size_t body = n;
+    const char *nul = n > 1 ? memchr(msg + 1, 0, n - 1) : NULL;
+    if (nul) body = (size_t)(nul - msg);
     if (n == 0) why = "ended before it handed over the app's config";
-    else if (n == 1 && msg[0] == 'N') why = NULL;
-    else if ((msg[0] != 'C' && msg[0] != 'P' && msg[0] != 'W') || n < 2) why = "sent no valid config message";
-    else if (n == sizeof msg) why = "sent a config over the 64 KiB ENCLAVE_CONFIG ceiling";
-    else if (memchr(msg + 1, 0, n - 1)) why = "sent a config with a NUL byte";
+    else if (n == sizeof msg) why = "sent a message over its ceiling";
+    else if (nul && (body + 1 >= n || msg[body + 1] != 'S')) why = "sent a config with a NUL byte";
+    else if (nul && (why = parse_secrets(msg + body + 2, msg + n)) != NULL) { wipe_secrets(); }
+    else if (body == 1 && msg[0] == 'N') why = NULL;
+    else if ((msg[0] != 'C' && msg[0] != 'P' && msg[0] != 'W') || body < 2) why = "sent no valid config message";
+    else if (body - 1 > CFG_MAX) why = "sent a config over the 64 KiB ENCLAVE_CONFIG ceiling";
     else {
-        *len = n - 1;
+        *len = body - 1;
         *env = malloc(sizeof pre + *len);
         if (!*env) why = "sent a config there was no memory for";
         else {
@@ -578,6 +628,7 @@ static const char *read_front_msg(int fd, char **env, size_t *len) {
             public_web_egress = msg[0] == 'W';
         }
     }
+    if (why) wipe_secrets();
     explicit_bzero(msg, n);
     return why;
 }
@@ -776,10 +827,11 @@ int main(void) {
     }
     if (cfg_env) printf("DOM app config: %zu bytes (ENCLAVE_CONFIG)\n", cfg_len);   /* its length, never its content */
     else printf("DOM app config: none\n");
+    if (secret_n) printf("DOM app secrets: %d as environment variables\n", secret_n);   /* how many, never names or values */
 
     /* the runtime passes ENCLAVE_CONFIG to the guest program from its own environment (--env NAME, no value), so the
      * value is never an argument */
-    char **base = port ? run : serve, *app[96];
+    char **base = port ? run : serve, *app[96 + 2 * SECRETS_N];
     int k = 0;
     for (int i = 0; base[i]; i++) {
         if (public_https_egress && strcmp(base[i], "/app.wasm") == 0) {
@@ -792,6 +844,8 @@ int main(void) {
             app[k++] = "--env";
             app[k++] = "ENCLAVE_CONFIG";
         }
+        if (strcmp(base[i], "/app.wasm") == 0)
+            for (int j = 0; j < secret_n; j++) { app[k++] = "--env"; app[k++] = secret_args[j]; }
         if (shield_on && strcmp(base[i], "/app.wasm") == 0) {
             app[k++]="-S"; app[k++]="nn";
             if (shield_load_allowed) { app[k++]="-S"; app[k++]=shield_graph; }
@@ -817,6 +871,7 @@ int main(void) {
         explicit_bzero(cfg_env, sizeof "ENCLAVE_CONFIG=" + cfg_len);
         free(cfg_env);
     }
+    wipe_secrets();
     printf("DOM started app=%d front=%d at_ms=%.0f\n", app_pid, front_pid, now_ms());
 
     for (;;) {                   /* PID 1 reaps everything; either server ending ends the domain */

@@ -92,6 +92,7 @@ type doc struct {
 }
 
 type front struct {
+	secretEnv    []string // the staged secrets for init (provisioned.env), held only until the hand-over
 	publicWeb    bool
 	publicHTTPS  bool // set only by successful attested provisioning
 	spki, appSha []byte
@@ -289,6 +290,7 @@ func main() {
 				return "", err
 			}
 			f.publicHTTPS = prov.fwd.Policy.PublicHTTPS
+			f.secretEnv = prov.env
 			f.publicWeb = prov.fwd.Policy.PublicWeb
 			warmupPath = configuredWarmup(prov.config)
 			return prov.config, nil
@@ -605,7 +607,9 @@ func (f *front) releaseForInit(initPipe *os.File, hd []byte, hdErr error, provis
 		initPipe.Close()
 		return err
 	}
-	return handToInitNetwork(initPipe, config, f.publicHTTPS, f.publicWeb)
+	err = handToInitFull(initPipe, config, f.publicHTTPS, f.publicWeb, f.secretEnv)
+	f.secretEnv = nil
+	return err
 }
 
 func must(err error) {
