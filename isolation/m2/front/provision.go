@@ -66,8 +66,9 @@ type provisioner struct {
 }
 
 type provisioned struct {
-	config   string // ENCLAVE_CONFIG, resolved; "" = the release carried no config
-	envelope string // the ledger envelope's sha256 (hex): public (it is on chain), stated on the console
+	config   string   // ENCLAVE_CONFIG, resolved; "" = the release carried no config
+	env      []string // each staged secret as "NAME=VALUE", sorted: init gives the app each as its own variable
+	envelope string   // the ledger envelope's sha256 (hex): public (it is on chain), stated on the console
 	fwd      *egress.Forwarder
 }
 
@@ -174,7 +175,12 @@ func (p *provisioner) run(ctx context.Context, hostData, spki []byte, rt *runtim
 		}
 		out.config = v
 	}
-	// The values now live only inside out.config, which init receives and this process then drops. Go strings cannot
+	// Each staged secret also reaches the app as its own environment variable, as on the standard runtime (init passes
+	// them as runtime ARGUMENTS "--env NAME=VALUE", never through any process environment: dominit.c read_front_msg).
+	if out.env, err = secretEnv(secrets); err != nil {
+		return nil, err
+	}
+	// The values now live only inside out.config and out.env, which init receives and this process then drops. Go strings cannot
 	// be zeroed, so they sit in this process's heap until reused: guest memory the host cannot read (SEV-SNP) and the
 	// tenant cannot reach (the runtime gives it no access to other processes).
 	rel.Secrets = nil
@@ -347,6 +353,40 @@ func isZero(b []byte) bool {
 	return true
 }
 
+// secretEnv validates the staged secrets for init (the same rules it enforces: [A-Za-z_][A-Za-z0-9_]{0,63}, not
+// ENCLAVE_*, no CR/LF in a value, at most 64 and 20 KiB) and returns them as sorted "NAME=VALUE" entries.
+func secretEnv(secrets map[string]string) ([]string, error) {
+	if len(secrets) > 64 {
+		return nil, fmt.Errorf("%d secrets: at most 64 reach the app", len(secrets))
+	}
+	names := make([]string, 0, len(secrets))
+	for k := range secrets {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	out, total := make([]string, 0, len(names)), 0
+	for _, k := range names {
+		v := secrets[k]
+		ok := len(k) >= 1 && len(k) <= 64 && !strings.HasPrefix(strings.ToUpper(k), "ENCLAVE_")
+		for i := 0; ok && i < len(k); i++ {
+			c := k[i]
+			ok = c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (i > 0 && c >= '0' && c <= '9')
+		}
+		if !ok {
+			return nil, fmt.Errorf("a secret's name is not an environment variable name (or is reserved): refused")
+		}
+		if strings.ContainsAny(v, "\r\n\x00") {
+			return nil, fmt.Errorf("a secret's value holds a newline or NUL: refused")
+		}
+		total += len(k) + 1 + len(v) + 1
+		out = append(out, k+"="+v)
+	}
+	if total > 20480 {
+		return nil, fmt.Errorf("the secrets are %d bytes: at most 20480 reach the app", total)
+	}
+	return out, nil
+}
+
 // handToInit is the one message init waits for before it starts the app, on the pipe it gave this process: "N" (no
 // config) or "C" followed by the resolved config, then EOF. A front that dies first leaves the pipe empty, and init
 // powers the guest off rather than start an app that has no config it should have had.
@@ -360,6 +400,11 @@ func handToInitMode(w *os.File, config string, publicHTTPS bool) error {
 }
 
 func handToInitNetwork(w *os.File, config string, publicHTTPS, publicWeb bool) error {
+	return handToInitFull(w, config, publicHTTPS, publicWeb, nil)
+}
+
+// handToInitFull appends the secrets section ("\0S" then "NAME=VALUE\0" per entry) when there are secrets.
+func handToInitFull(w *os.File, config string, publicHTTPS, publicWeb bool, env []string) error {
 	defer w.Close()
 	msg := make([]byte, 0, len(config)+1)
 	if config == "" {
@@ -374,6 +419,13 @@ func handToInitNetwork(w *os.File, config string, publicHTTPS, publicWeb bool) e
 		}
 		msg = append(msg, tag)
 		msg = append(msg, config...)
+	}
+	if len(env) > 0 {
+		msg = append(msg, 0, 'S')
+		for _, e := range env {
+			msg = append(msg, e...)
+			msg = append(msg, 0)
+		}
 	}
 	_, err := w.Write(msg)
 	for i := range msg {
