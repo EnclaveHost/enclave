@@ -2,7 +2,35 @@
 
 Implementation branch: `codex/paid-capacity-audits-20260930`. Workload app:
 `EnclaveHost/enclave-apps`, branch `codex/capacity-work-20260930`, directory
-`capacity-work`. Capacity Work 1.0.0 is published and approved on Base; revision-15 ledger, proof and fee contracts are live in the production address book after the October 1 rollover. All 69 deployment records and side mappings were verified and imports sealed. Verification spending and bootstrap workers are not activated. The relay supports contract-wallet secret staging.
+`capacity-work`. Capacity Work 1.0.0 is published and approved on Base.
+
+## Production status (2026-10-15 00:45Z): RUNNING, bootstrap trust
+
+The fee market runs as designed; its first and only funded source is Enclave's own canary.
+
+| Piece | Where |
+|---|---|
+| Ledger (16d), proof, fees | `0xB1783B61…`, `0x6F462d77…`, `0x87c72665…` (the ledger's `feeRouter`) |
+| Payer policy | source = canary `0x4e62e60d` (agent wallet), executor `0x1609E6e8…`, policy wallet `0x3e98AAC0…`; revenue 10%, ≤ 100 cpu milli, 1 USDC/day, 0.10 USDC/job, rate ≤ 200 µUSDC/s, 90 days, Capacity Work on `snp-guest-per-app` |
+| Budget | accrues from the canary's PROVEN paid time: metal0's control image `dist-fee-3dfeb4c0c` routes opted-in checkpoints through the fee contract (`metal0/fee-checkpoints`) |
+| Service | `enclave-capacity-audit` (user unit, warden-host): `scripts/availability/service.mjs` = witness + coordinator + metal0's host acceptor |
+| Witness | `availability/witness.mjs`, key `0xD80Bf435…`, receipts every 10 min, `operator-bootstrap` |
+| Expected guests | the relay's predictor (Enclave-operated): consistent with the bootstrap label |
+| Observation RPC | `base.gateway.tenderly.co` (archive + 1000-block `getLogs`; the other public RPCs refuse one or the other) |
+| Release listing | relay `SECRETS_RELEASE_APP_REFS` = Capacity Work 1.0.0: every audit deployment gets attested release |
+| Secrets | CPU release `16c2999d`: each staged secret reaches the app as its own environment variable (Capacity Work reads `CAPACITY_WORK_TOKEN` there) |
+
+What this does and does not give:
+- **Trust is operator-bootstrap.** Enclave runs the only witness and supplies the expected measurements. Receipts say
+  so, and `evidence.mjs` never counts them as independent.
+- **The witness checks a boot-time quote.** For metal it verifies the control VM's attestation document, a quote bound
+  to its TLS key at boot. Liveness comes from the attested `/availability` read in the same round.
+- **Only attested hosts can be audited.** The workload runs over attested HTTP, which needs SNP or Shield. Today that is
+  metal0.
+- **The budget is tiny.** It is about 10% of the canary's runner credit, capped by the fee share actually routed. The
+  canary costs 0.30 USDC/h of real money, so audits run only while someone pays for paid demand like it.
+- **Receipts also qualify custodians.** Custody v2 (`docs/security/secret-custody-v2.md` §5) uses the same receipts
+  for non-Enclave custodian candidates; that takes effect with the next custodian build.
 
 ## Price follows paid demand and qualified supply
 
