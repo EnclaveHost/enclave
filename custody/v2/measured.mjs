@@ -7,4 +7,7 @@ export const MEASURED = Object.freeze({
   minAgree: 2,
   maxAgeSec: 120,
   enclaveOwner: "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+  // the capacity audit's witnesses and receipt domain (availability/witness.mjs; the EnclaveVerificationFees contract)
+  capacityContract: "0x87c7266543ff5839b2c20226bd9b3cd511a23641",
+  witnesses: { "0xd80bf435467df887f1031743c2a2125a130fe225": "enclave-bootstrap" },
 });

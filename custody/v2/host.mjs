@@ -41,6 +41,12 @@ const srv = http.createServer(async (req, res) => {
   const send = (code, body, type = "application/json") => { res.writeHead(code, { "content-type": type }); res.end(typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body)); };
   try {
     if (req.url === "/state" && req.method === "GET") return fs.existsSync(STATE) ? send(200, fs.readFileSync(STATE), "application/octet-stream") : send(404, { error: "none" });
+    // the capacity witness's receipts for this host (availability/witness.mjs), passed through: the guest's peers verify them
+    if (req.url === "/receipts" && req.method === "GET") {
+      let all = []; try { all = cfg.receiptsFile ? JSON.parse(fs.readFileSync(cfg.receiptsFile, "utf8")) : []; } catch {}
+      const mine = keccak256(toBytes(cfg.registryEndpoint)).toLowerCase();
+      return send(200, all.filter((e) => String(e?.payload?.hostId || "").toLowerCase() === mine).slice(0, 8));
+    }
     const chunks = []; for await (const c of req) chunks.push(c);
     const body = Buffer.concat(chunks);
     if (req.url === "/state" && req.method === "PUT") {

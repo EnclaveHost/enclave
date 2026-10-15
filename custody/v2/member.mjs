@@ -30,7 +30,7 @@ export const machineBinding = (machine, nonce) => sha256(Buffer.from("enclave-cu
 // state shape: { epochs: { "<cid>:<epoch>": [{k, x (hex)}] }, pending: { "<cid>:<toEpoch>": [{k,x}] }, hostSig, candidates }
 export function createMember({ chainId, vault, identity, encPrivateKey, machine, chain, store, submit, fetchJson, attestSelf,
                                verifyPeerQuote, capacityCheck = async () => ({ ok: false, reason: "no proof-of-capacity verifier configured" }),
-                               enclaveOwner, now = () => Date.now(), log = console.log, minTcb = DEFAULT_MIN_TCB }) {
+                               enclaveOwner, now = () => Date.now(), log = console.log, minTcb = DEFAULT_MIN_TCB, capacityReceipts = null }) {
   const vaultL = lc(vault);
   const me = { ...machine, identity: lc(machine.identity) };
   let st = store.load() || { epochs: {}, pending: {}, hostSig: null, candidates: {} };
@@ -46,7 +46,8 @@ export function createMember({ chainId, vault, identity, encPrivateKey, machine,
   async function evidence(nonceHex) {
     if (!/^[0-9a-f]{64}$/.test(String(nonceHex))) throw new Error("nonce: 32 bytes hex");
     const { report, auxblob } = await attestSelf(machineBinding(me, Buffer.from(nonceHex, "hex")));
-    return { machine: me, hostSig: st.hostSig, report: Buffer.from(report).toString("base64"), auxblob: auxblob ? Buffer.from(auxblob).toString("base64") : null };
+    return { machine: me, hostSig: st.hostSig, report: Buffer.from(report).toString("base64"), auxblob: auxblob ? Buffer.from(auxblob).toString("base64") : null,
+             receipts: typeof capacityReceipts === "function" ? await capacityReceipts().catch(() => []) : [] };
   }
   function info(committeeId) {
     const cur = Object.keys(st.epochs).filter((k) => !committeeId || k.startsWith(lc(committeeId) + ":"));
@@ -95,7 +96,7 @@ export function createMember({ chainId, vault, identity, encPrivateKey, machine,
     if (!who || who !== reg.entry.operator) return { ok: false, reason: "host binding not signed by the host's registry operator" };
     const enclave = reg.entry.payoutWallet === lc(enclaveOwner);
     if (!enclave) {
-      const c = await capacityCheck({ machine: m, chipIdRaw: v.chipId, registry: reg.entry });
+      const c = await capacityCheck({ machine: m, chipIdRaw: v.chipId, registry: reg.entry, receipts: Array.isArray(ev.receipts) ? ev.receipts : [] });
       if (!c || !c.ok) return { ok: false, reason: `proof of capacity: ${(c && c.reason) || "refused"}` };
     }
     return { ok: true, enclave, hostSig: hostSig || ev.hostSig };
