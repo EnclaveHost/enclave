@@ -1820,8 +1820,13 @@ export class Host {
       // held only on an answer consider() says is STANDING - refused (policy, partition verdict) or queued (the ledger's
       // claimableBy, a verdict input not known yet) - never read off the record, which may be an OLDER answer; a transient
       // failure (chain unavailable, a read that failed, a throw) is asked the next pass (enclave-5d's should-fix)
+      // ...and a queued row whose lease has EXPIRED with nothing left to fund it (balance6 0) is not coming back on its own:
+      // only a top-up, or a new version, changes that, and either changes the key (balance6, spent6, appRef). Asked every
+      // SCAN_QUEUED_HOLD_MS instead, such a row was re-tracked and retired again every ~2.5 min for as long as nobody
+      // paid (customer 0x2215bad4 on k11-4, 2026-10-15: its lease ended 10-14 17:42Z with 1.25 USDC spent and 0 left).
       if (!r.accepted && (r.standing === "refused" || r.standing === "queued"))
-        this.scanHold.set(id, { key: holdKey, at: Date.now(), ms: r.standing === "refused" ? Host.SCAN_HOLD_MS : Host.SCAN_QUEUED_HOLD_MS });
+        this.scanHold.set(id, { key: holdKey, at: Date.now(),
+          ms: r.standing === "refused" ? Host.SCAN_HOLD_MS : Host.unfundedExpired(d) ? Host.SCAN_UNFUNDED_HOLD_MS : Host.SCAN_QUEUED_HOLD_MS });
       else this.scanHold.delete(id);
     }
   }
@@ -2610,6 +2615,12 @@ export class Host {
   static SCAN_HOLD_MS = 10 * 60_000;       // a refused row
   static SCAN_QUEUED_HOLD_MS = 2 * 60_000; // a queued one: its input may come back soon (the preclaim's unknown, the ledger's cap)
   static SCAN_CLAIMFAIL_HOLD_MS = 2 * 60_000; // a row whose claim tx failed twice running under the same inputs
+  static SCAN_UNFUNDED_HOLD_MS = 6 * 3600_000; // a queued row whose lease expired with a zero balance: waits for a top-up
+  /** unfundedExpired(d) -> the lease has ended and the deployment holds nothing to pay for another quantum. */
+  static unfundedExpired(d) {
+    let bal; try { bal = BigInt(d.balance6 ?? 0); } catch { return false; }
+    return bal === 0n && Number(d.leaseUntil) * 1000 <= Date.now();
+  }
   // at most this many rows a pass hands consider() and it declines, so a pool full of refused rows cannot make one pass
   // ask the chain and the relay about every row (enclave-bf's should-fix, enclave-87's bound); the next pass moves on,
   // past the ones now held
@@ -2622,7 +2633,7 @@ export class Host {
    */
   scanHoldKey(d, ownersVersion) {
     return JSON.stringify([String(d.appRef || ""), String(d.configCid || ""), String(d.cpuMilli), String(d.gpuMilli), d.isPublic === true,
-      String(d.owner || "").toLowerCase(), d.active === true, String(d.balance6 ?? ""), String(d.rate ?? ""),
+      String(d.owner || "").toLowerCase(), d.active === true, String(d.balance6 ?? ""), String(d.spent6 ?? ""), String(d.rate ?? ""),
       String(d.runner || "").toLowerCase(), String(d.leaseUntil ?? ""), ownersVersion, String(this.cfg.cpuPricePerSec6), String(this.cardPrice())]);
   }
   /** retiredEngineClaimRefusal(d) -> why a retired-engine node will not CLAIM a deployment, or null (see heldReason). */
