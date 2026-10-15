@@ -92,7 +92,10 @@ export class WgCircuitRuntime {
    const events=new EventEmitter();
    wgLines.on('line',line=>{if(line.length>65536)return;let v;try{v=JSON.parse(line);}catch{return;}
     if(v.type==='down'){circuit.failureRole=/^outer|^guard/.test(v.error||'')?'guard':'public';void circuit.close(v.error);}
-    else if(v.type==='stats'){circuit.stats=v;}else events.emit(v.type,v);});
+    else if(v.type==='stats'){circuit.stats=v;}
+    // a big egress connection's windows per second (network/wg/connwatch.go): what a slow upload looked like
+    else if(v.type==='conn'){this.log(`circuit ${id.slice(0,8)} conn ${JSON.stringify(v).slice(0,2400)}`);}
+    else events.emit(v.type,v);});
    wg.once('exit',()=>void circuit.close('tunnel process exited'));
    const next=(type,ms=45000)=>new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(new Error(type+' timeout')),ms);pending={reject};events.once(type,v=>{clearTimeout(t);pending=null;resolve(v);});});
    const send=v=>wg.stdin.write(JSON.stringify(v)+'\n');
