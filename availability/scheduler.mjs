@@ -12,12 +12,16 @@ export function planRound({observation, policy, previous, nowSec, durationSec,
     || maxConcurrent<1||maxConcurrent>64||typeof cooldownSec!=='bigint'||cooldownSec<0n)
     throw new Error('invalid scheduling limits');
   if(compatibleCustomerQueueUnits>0n) return {offers:[],reason:'customer work has priority'};
-  const seen=new Set();
+  const seen=new Set(),skipped=[];
+  const skip=(h,reason)=>{skipped.push({hostId:h.hostId,reason});return false;};
   const candidates=observation.hosts.filter(h=>{
     if(seen.has(h.hardwareId)) return false; seen.add(h.hardwareId);
     const last=history[h.hardwareId];
-    return h.spareUnits>=allocationUnits && h.expiresSec>nowSec+durationSec
-      && (!last || (!last.pending && nowSec-BigInt(last.atSec)>=cooldownSec));
+    if(h.spareUnits<allocationUnits)return skip(h,`spare ${h.spareUnits} below allocation ${allocationUnits}`);
+    if(h.expiresSec<=nowSec+durationSec)return skip(h,'capacity receipt expires before the job ends');
+    if(last?.pending)return skip(h,'a job for this hardware is pending');
+    if(last&&nowSec-BigInt(last.atSec)<cooldownSec)return skip(h,'cooldown');
+    return true;
   }).map(h=>({h,at:BigInt(history[h.hardwareId]?.atSec||0)}));
   // Oldest checked first, random tie breaking. Hosts cannot request their own
   // repetitions. Persistent history is keyed by hardware rather than wallet.
@@ -33,18 +37,18 @@ export function planRound({observation, policy, previous, nowSec, durationSec,
     // allocation. Round shares UP, then price the actual resulting allocation.
     const shareMilli=(allocationUnits*1000n+h.units-1n)/h.units;
     const actualUnits=(h.units*shareMilli+999n)/1000n;
-    if(shareMilli>1000n||actualUnits>h.spareUnits) continue;
+    if(shareMilli>1000n||actualUnits>h.spareUnits){skip(h,'allocation exceeds the host');continue;}
     const scaled={...policy,anchorRate6:policy.anchorRate6*actualUnits,
       maximumRate6:policy.maximumRate6*actualUnits};
     const prior=previous?{...previous,rate6:previous.rate6*actualUnits}:null;
     const q=quoteVerification({observation,previous:prior,policy:scaled,nowSec,durationSec,
       availableBudget6:budget,hostMinimumRate6:h.minimumRate6*actualUnits,spareUnits:h.spareUnits});
-    if(!q.accepted) continue;
+    if(!q.accepted){skip(h,q.reason||'quote refused');continue;}
     budget-=q.maximumSpend6;
     offers.push({...q,id:'0x'+randomBytes(32).toString('hex'),hostId:h.hostId,hardwareId:h.hardwareId,
       operator:h.operator,shareMilli,allocationUnits:actualUnits,capacityExpiresSec:h.expiresSec,trustMode:observation.trustMode||"independent"});
   }
-  return {offers,reserved6:availableBudget6-budget,remaining6:budget};
+  return {offers,reserved6:availableBudget6-budget,remaining6:budget,skipped};
 }
 
 /** Drive a persisted job exactly once through normal deployment operations.

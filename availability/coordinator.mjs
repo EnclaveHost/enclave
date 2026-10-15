@@ -51,5 +51,6 @@ export async function runRound({store,chain,workload,loadObservation,policy,sche
  if(control)await store.transition(CONTROL,'controller',{price});
  else await store.create({id:CONTROL,state:'controller',price});
  for(const offer of plan.offers)await store.create({id:offer.id,state:'offered',offer,token:randomBytes(32).toString('hex')});
- return {created:plan.offers.map(q=>q.id),pending:pending.length+plan.offers.length,reserved6:plan.reserved6||0n,errors};
+ return {created:plan.offers.map(q=>q.id),pending:pending.length+plan.offers.length,reserved6:plan.reserved6||0n,errors,
+  ...(plan.skipped?.length?{skipped:plan.skipped}:{}),...(plan.reason?{reason:plan.reason}:{})};
 }
