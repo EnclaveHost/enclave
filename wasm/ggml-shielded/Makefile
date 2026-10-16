@@ -198,8 +198,10 @@ clean:
 ifneq ($(SHIELDED_COMPACT_ROOT),)
 COMPACT_DEFS := -DSHIELDED_COMPACT
 COMPACT_LIBDIR := $(SHIELDED_COMPACT_ROOT)/usr/lib
-libggml-shielded.so: shielded-compact.o
+libggml-shielded.so: shielded-compact.o shielded-source-store.o
 LDLIBS += -L$(COMPACT_LIBDIR) -ldnnl -lgomp
+shielded-source-store.o: shielded-source-store.cpp shielded-source-store.h shielded-source-quant.h
+	$(CXX) $(CXXFLAGS) $(GGML_INC) -I$(SHIELDED_COMPACT_ROOT)/usr/include -O3 -mavx512f -mavx512bw -mavx512dq -mavx512vl -mavx512vnni -c $< -o $@
 shielded-compact.o: shielded-compact.cpp shielded-compact.h
 	$(CXX) $(CXXFLAGS) -I$(SHIELDED_COMPACT_ROOT)/usr/include -O3 -mavx512f -mavx512bw -mavx512dq -mavx512vl -mavx512vnni -c $< -o $@
 endif

@@ -1,6 +1,7 @@
 #include "ggml-shielded.h"
 #ifdef SHIELDED_COMPACT
 #include "shielded-compact.h"
+#include "shielded-source-store.h"
 #endif
 #include "shielded-latency.h"
 #include "shielded-group-key.h"
@@ -214,6 +215,7 @@ struct sh_state {
         std::vector<int8_t> w;          /* (N,K): THE encoding, borrowed by the link */
 #ifdef SHIELDED_COMPACT
         std::unique_ptr<sh_compact_store, decltype(&sh_compact_free)> compact{nullptr, sh_compact_free};
+        std::unique_ptr<sh_source_store, decltype(&sh_source_store_free)> src_store{nullptr, sh_source_store_free};
 #endif
         std::unique_ptr<sh_weight_cache> w_cache; /* opt-in, authenticated public blocks on disk */
         bool source_verified = false;
@@ -1251,6 +1253,25 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
         }
     }
 #if defined(SHIELDED_COMPACT) && !defined(SHIELDED_DEALER_MODE)
+    /* SHIELDED_SOURCE_WEIGHTS=1: hold no encoded copy at all; reads and refills
+     * re-encode from the weight's own mapped source (shielded-source-store.cpp).
+     * Only for an unverified-mapping build path whose source is the guest's private
+     * verified model copy (no weight verifier: that path copies and hashes instead). */
+    if (sh_env_int("SHIELDED_SOURCE_WEIGHTS", 0) && !g_weight_verifier && !sh_link_is_dealt(s.link) &&
+        !stored.w.empty() && w->data && ggml_is_contiguous(w)) {
+        stored.src_store.reset(sh_source_store_create(w->data, (int)w->type, K, split_col0,
+                                                      split_ncols > 0 ? split_ncols : N, stored.w.data()));
+        if (!stored.src_store || sh_link_set_local_weight_source(s.link, node,
+                sh_source_store_read, sh_source_store_refill, stored.src_store.get()) != SH_OK) {
+            s.weight_cache_failed = true;
+            fprintf(stderr, "[shielded] %s: source-backed weight storage admission failed\n", name.c_str());
+            return false;
+        }
+        const size_t original_bytes = stored.w.size();
+        std::vector<int8_t>().swap(stored.w);
+        static bool told = false;
+        if (!told) { told = true; fprintf(stderr, "[shielded] source-backed weights: no encoded copies held (%s: %zu bytes released)\n", name.c_str(), original_bytes); }
+    }
     if (sh_env_int("SHIELDED_COMPACT_WEIGHTS", 0) && !sh_link_is_dealt(s.link) && !stored.w.empty()) {
         stored.compact.reset(sh_compact_create(stored.w.data(), K, link_N));
         if (!stored.compact || sh_link_set_local_weight_source(s.link, node,
