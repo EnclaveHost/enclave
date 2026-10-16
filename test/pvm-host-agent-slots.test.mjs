@@ -176,6 +176,11 @@ test("slots: the served app moves to slot 1, more apps take their own VMs, the h
     assert.equal(await recoverAddress({ hash: "0x" + siblingDigest({ nonce, transportSpki: s.transportSpki, instanceId: s.instanceId, deployment: D2 }).toString("hex"), signature: "0x" + s.sig }), hostKey.address);
     assert.equal(s.instanceId, "03".repeat(32), "slot 2's own VM answered");
     assert.equal((await agent.evidence(new URLSearchParams({ deployment: D1, nonce })))[0], 404, "not served here (yet)");
+    // no deployment named: the HOST VM's own evidence over the caller's nonce (a client verifying this host itself);
+    // a deployment parameter that names nothing is still a deployment question, never the host's answer
+    const [hc, hv] = await agent.evidence(new URLSearchParams({ nonce }));
+    assert.equal(hc, 200); assert.equal(hv.nonce, nonce); assert.equal(hv.instanceId, "01".repeat(32), "the host VM answered, not a slot");
+    assert.equal((await agent.evidence(new URLSearchParams({ deployment: "", nonce })))[0], 404);
 
     // the owner shares only half the phone's CPU (the Enclave app's Sharing): D0 and D2 hold 500 per mille, so D1 waits
     t.setOffer({ cpuMilli: 500 }); t.calls.length = 0; t.advance(61_000);

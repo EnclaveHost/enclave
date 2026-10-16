@@ -1135,9 +1135,15 @@ export async function createHostAgent({ config, publicClient, account, stateDir,
     setImmediate(() => tick().catch((e) => note({ ev: "tick-error", error: e.message })));
     return { accepted: true, reason: "Claiming: a VM sized to its share starts the app, then claims the lease." };
   }
+  // With no deployment named, the HOST VM answers (its idle app): what a client verifying this host itself asks for
+  // (relay GET /v1/enclaves/<box>/attestation). It is evidence for the host only, never for any deployment on it.
   async function evidence(q) {
     const D = lc(q.get("deployment") || ""), nonce = String(q.get("nonce") || "");
     if (!/^[0-9a-f]{64}$/.test(nonce)) return [400, { error: "nonce must be 64 lowercase hex" }];
+    if (!q.has("deployment")) {
+      const ans = await device.exchange(`EVIDENCE3 ${nonce}`, null, 30000);
+      try { return [200, JSON.parse(ans.split("\n")[0])]; } catch { return [502, { error: "the host VM gave no evidence" }]; }
+    }
     const a = appOf(D);
     if (!a || !a.label) return [404, { error: "this host does not serve that deployment now" }];
     const ans = await slotDev(a).exchange(`EVIDENCE3 ${nonce}`, null, 30000);
