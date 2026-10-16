@@ -26,11 +26,21 @@ What this does and does not give:
 - **The witness checks a boot-time quote.** For metal it verifies the control VM's attestation document, a quote bound
   to its TLS key at boot. Liveness comes from the attested `/availability` read in the same round.
 - **Only metal0 is audited today, by our implementation's limits, not attestation's.** Enclave Shield and pVM hosts
-  attest too. What is missing:
-  - witness adapters for their host evidence (the pVM host-VM evidence route exists since 2026-10-16);
-  - a pVM branch in `verified-http.mjs` (the Shield branch exists and needs a fresh authenticated host session);
-  - host acceptors for their operators;
-  - a payer policy per isolation backend. The fee contract keys policies by source deployment, and each pins one
+  attest too.
+  - **Enclave Shield: implemented on branch `audit/shield`, not deployed.** A config's host may say `"kind": "shield"`.
+    The witness then runs a fresh `windows-hv-node/v1` TPM session over our nonce and our credential. Its allowlist is
+    the EK certificates' sha256, and that sha256 is the hardware id basis. Spare is `floor(nodeGflops ×
+    min(cpuShareFree, maxShare))`. Each audit derives the app from our own ledger read, the catalog and the
+    CID-verified component under our pinned Shield policy, and runs a fresh host session last
+    (`availability/shield.mjs`). The Shield branch of `verified-http.mjs` passes the image requirements (config
+    bundle, secrets, config socket) to the app policy. Host checks are serialized per box and spaced at least 20 s
+    apart. A busy, rate-limited or re-attaching relay is retried after a jittered backoff of at least 20 s. It runs as
+    a second `service.mjs` instance with its own config (below). Its payer policy is a separate source on
+    `hyperv-partition-per-app`. k11-4 accepts offers itself (PULL), so no acceptor runs here.
+  - **pVM: blocked on the fee contract.** `EnclaveVerificationFees.configure` (line 124) accepts only
+    `snp-guest-per-app` and `hyperv-partition-per-app`. The ledger's `feeRouter` is set once, so a pVM backend needs
+    a new fee contract and a new ledger. A pVM branch in `verified-http.mjs` and a witness adapter are also missing.
+  - A payer policy per isolation backend: the fee contract keys policies by source deployment, and each pins one
     backend, so each tier needs its own funded source.
 - **The budget has two caps, and routed fees alone cannot pay.** Spending is capped by `available6`: 10% of the
   canary's proven runner credit. USDC is capped by the policy wallet's balance. Fee routing puts only 1% of each canary
@@ -47,6 +57,43 @@ What this does and does not give:
   - the binding used one release's runtime for every predicted image (`0b54e95cf`).
 - **Receipts also qualify custodians.** Custody v2 (`docs/security/secret-custody-v2.md` §5) uses the same receipts
   for non-Enclave custodian candidates; that takes effect with the next custodian build.
+
+### An Enclave Shield instance's config (example; no secrets)
+
+The second instance runs `node scripts/availability/service.mjs /absolute/shield-config.json`. Its keys come from the
+environment variables it names. Its pinned policy is our own copy of `windows/installer/admitted-shield-policy.json`
+at a reviewed commit; with `policySha256` set, any other bytes are refused. Each witness round costs the box a TPM
+quote, so `witnessEverySec` defaults to 3600 for a config with Shield hosts. `maxSpareAgeSec` must then exceed it.
+The other fields are the metal instance's, with this instance's own values:
+
+```json
+{
+  "classId": "cpu-shield",
+  "source": "0x<the Shield payer policy's source deployment>",
+  "stateDirectory": "/home/<user>/.local/state/enclave-capacity-audit-shield",
+  "executorKeyEnv": "AUDIT_SHIELD_EXECUTOR_KEY", "witnessKeyEnv": "AUDIT_WITNESS_KEY",
+  "profile": { "appRef": "catalog://0x<Capacity Work>/<version>", "isolationBackend": "hyperv-partition-per-app", "classId": "cpu-shield" },
+  "hosts": [{ "kind": "shield", "endpoint": "https://api.enclave.host/t/nucbox-k11-4" }],
+  "hostMeasurements": ["<k11-4's EK certificate sha256>"],
+  "witnessEverySec": 3600,
+  "shield": {
+    "policyFile": "/home/<user>/.local/state/enclave-capacity-audit-shield/admitted-shield-policy.json",
+    "policySha256": "<sha256 of that file>",
+    "catalog": "0x18419CA2b502D423A8de6269AEeE171a378626e3",
+    "gateways": ["https://<trustless gateway>"],
+    "sessionAttempts": 4
+  },
+  "observation": { "maxSpareAgeSec": "5400" },
+  "workload": { "rounds": 0, "memoryMiB": 0, "passes": 1, "timeoutMs": 0 }
+}
+```
+
+`rpcRead`, `rpcSend`, `registry`, `ledger`, `fees`, `proof`, `relay`, `releasesDir`, `referenceBinary`, `policy`,
+`scheduling`, `receiptTtlSec`, `intervalSec` and the rest of `observation` are as in the metal config. The workload
+numbers are sized per config (zeros above are placeholders). Shield readiness polls only `/.well-known/enclave-ready`.
+The expectation and the host session are loaded before the challenge timer starts (`requestVerified.prepare`). A
+Shield failure on the verifier's side is INCONCLUSIVE and does not block the host: no host session from the relay,
+our own derivation failing, a missing policy file, or a stale session.
 
 ## Price follows paid demand and qualified supply
 

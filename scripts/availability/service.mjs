@@ -7,6 +7,11 @@
 //     host acceptors, the CPU workload over attested HTTP, and the finalized-ledger observation;
 //   - the HOST ACCEPTORS this machine's hosts run (availability/host-acceptor.mjs), called in-process.
 //
+// One process serves ONE payer policy (source, classId, profile). A host's `kind` selects how it is witnessed and audited:
+// "metal" (the default: a SEV-SNP metal box, the relay's predicted guest) or "shield" (an Enclave Shield box: a fresh TPM
+// session per witness round and per audit, the app expectation derived here from the ledger and catalog under our pinned
+// Shield policy, cfg.shield; availability/shield.mjs). A Shield deployment runs as its own instance with its own config.
+//
 //   node scripts/availability/service.mjs /absolute/config.json
 // Keys come from the environment named in the config (AUDIT_EXECUTOR_KEY, AUDIT_WITNESS_KEY), and a host's operator key
 // from its own key file; nothing secret is in the config. TRUST: operator-bootstrap. The witness and the expected guest
@@ -31,6 +36,9 @@ import { verifyQuote, parseSnpReport } from "../../relay/snp-verify.mjs";
 import { DEFAULT_SNP_POLICY } from "../../verifier/snp.mjs";
 import { runtimeId as runtimeIdOf } from "../../isolation/contract/runtime.mjs";
 import { cachedCollateral, httpCollateral } from "../../verifier/index.mjs";
+import { createShieldHostChecker, shieldBoxName, shieldWitnessVerifier, shieldAvailability, shieldPolicyLoader, createShieldExpectations, rawCidFetcher,
+         SHIELD_EVIDENCE } from "../../availability/shield.mjs";
+import { catalogReader, versionConfigReader } from "../../relay/measurement-predict.mjs";
 
 const cfg = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const log = (...a) => console.log(new Date().toISOString(), ...a);
@@ -52,6 +60,9 @@ const readRegistry = async (hostId, blockNumber) => {
   const e = await send.readContract({ address: cfg.registry, abi: REG_V4, functionName: "get", args: [hostId], ...(blockNumber ? { blockNumber } : {}) });
   return { active: e.active, operator: lc(e.operator), payoutWallet: lc(e.payoutWallet), cpuPricePerSec6: e.cpuPricePerSec6 };
 };
+const DEP_ABI = JSON.parse(fs.readFileSync(new URL("../../contracts/EnclaveDeployments.abi.json", import.meta.url)));
+const kindOf = (h) => { const k = h.kind || "metal"; if (!["metal", "shield"].includes(k)) throw new Error(`${h.endpoint}: unknown host kind ${k}`); return k; };
+const hostKind = new Map(cfg.hosts.map((h) => [lc(keccak256(toBytes(h.endpoint))), kindOf(h)]));
 const getJson = async (url) => { const r = await fetch(url, { signal: AbortSignal.timeout(20_000) }); if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`); return r.json(); };
 
 // ---- the witness ----
@@ -60,7 +71,9 @@ const witnessState = (() => {
   let m = {}; try { m = JSON.parse(fs.readFileSync(f, "utf8")); } catch {}
   return { get: (k) => m[k] || null, set: (k, v) => { m[k] = v; fs.writeFileSync(f + ".tmp", JSON.stringify(m)); fs.renameSync(f + ".tmp", f); } };
 })();
-const VERIFIER_SIDE = /\/v1\/expected-guest\?id=|^no prediction for the job's guest|^no installed release states runtime|^no admitted predicted image/;
+// (Shield: our relay route gave no host session (busy, absent, timed out), our own derivation of the app failed, our pinned
+// policy is missing, or the session aged past verified-http's 30 s before the capture)
+const VERIFIER_SIDE = /\/v1\/expected-guest\?id=|^no prediction for the job's guest|^no installed release states runtime|^no admitted predicted image|^Shield host session unavailable|^Shield expectation unavailable|^Shield app policy|^current authenticated host session required/;
 const witness = createWitness({
   signer: witnessKey, chainId: 8453, contract: cfg.fees, classId: cfg.classId, readRegistry, minTcb: cfg.minTcb,
   allowedMeasurements: cfg.hostMeasurements, state: witnessState, receiptTtlSec: cfg.receiptTtlSec,
@@ -96,9 +109,22 @@ const metalHost = (h) => ({
   },
   availability: () => getJson(`${h.endpoint}/availability`),
 });
+// ---- Enclave Shield (kind "shield"): cfg.shield = { policyFile, policySha256?, catalog, catalogRpcs?, gateways, sessionAttempts? }
+const shieldOn = cfg.hosts.some((h) => kindOf(h) === "shield");
+const shieldPolicy = shieldOn ? shieldPolicyLoader({ file: cfg.shield.policyFile, sha256: cfg.shield.policySha256 || null }) : null;
+const shieldChecker = shieldOn ? createShieldHostChecker({ relay: cfg.relay, ekRoots: () => shieldPolicy().ekRoots, log,
+  attempts: cfg.shield.sessionAttempts || 4 }) : null;
+// a Shield box: a fresh TPM session over our nonce (each one is a quote on the box) + live /availability
+const shieldHost = (h) => {
+  const name = shieldBoxName(h);
+  return { endpoint: h.endpoint,
+    attest: async () => ({ check: await shieldChecker.session(name), evidence: SHIELD_EVIDENCE }),
+    verify: async (q, o) => shieldWitnessVerifier(q, o),
+    availability: async () => shieldAvailability(await getJson(`${h.endpoint}/availability`)) };
+};
 const receiptsFile = path.join(cfg.stateDirectory, "receipts.json");
 async function witnessRound() {
-  const r = await witness.round(cfg.hosts.map(metalHost));
+  const r = await witness.round(cfg.hosts.map((h) => (kindOf(h) === "shield" ? shieldHost(h) : metalHost(h))));
   fs.writeFileSync(receiptsFile + ".tmp", JSON.stringify(r.receipts, null, 1)); fs.renameSync(receiptsFile + ".tmp", receiptsFile);
   log(`[witness] ${r.receipts.length} receipt(s), ${r.refused.length} refused`);
 }
@@ -150,6 +176,16 @@ const predictions = new Map();
 async function untilReady(job) {
   const leaseEndMs = Number(job.lease.leaseUntil) * 1000 - cfg.workload.timeoutMs - 15_000;
   const origin = `https://${job.deployment.id.slice(2, 10)}.app.enclave.host/`;
+  // Shield: no prediction to wait for, and no attestation poll (each would cost the box a TPM report); the guest's own
+  // readiness answer over TLS is enough to start (the attested exchange checks everything)
+  if (hostKind.get(lc(job.offer.hostId)) === "shield") {
+    for (;;) {
+      const r = await fetch(origin + ".well-known/enclave-ready", { signal: AbortSignal.timeout(15_000) }).catch(() => null);
+      if (r && r.status === 200) return;
+      if (Date.now() > leaseEndMs) throw new Error("the Shield guest was not ready within its lease");
+      await new Promise((res) => setTimeout(res, 10_000));
+    }
+  }
   let p = null;
   for (;;) {
     if (!p) { const r = await fetch(`${cfg.relay}/v1/expected-guest?id=${job.deployment.id}`, { signal: AbortSignal.timeout(30_000) }).catch(() => null);
@@ -160,8 +196,24 @@ async function untilReady(job) {
     await new Promise((r) => setTimeout(r, 10_000));
   }
 }
+// the deployment's ledger record, read by us through both RPCs, which must agree
+const readDeploymentRow = async (id) => {
+  const got = await Promise.all([read, send].map((c) => c.readContract({ address: cfg.ledger, abi: DEP_ABI, functionName: "get", args: [id] })));
+  const rows = got.map((d) => ({ id: lc(d.id), runner: lc(d.runner), leaseUntil: String(d.leaseUntil), appRef: d.appRef, owner: lc(d.owner), isPublic: !!d.isPublic,
+                                 configCid: d.configCid, active: !!d.active, cpuMilli: Number(d.cpuMilli), gpuMilli: Number(d.gpuMilli) }));
+  if (rows.some((r) => JSON.stringify(r) !== JSON.stringify(rows[0]))) throw new Error("the RPCs disagree about the deployment's record");
+  return rows[0];
+};
+const shieldExpect = shieldOn ? (() => {
+  const clients = (cfg.shield.catalogRpcs || []).length ? cfg.shield.catalogRpcs.map((u) => createPublicClient({ chain: base, transport: http(u, { timeout: 30_000, retryCount: 2 }) })) : [read, send];
+  return createShieldExpectations({ readRow: readDeploymentRow, readCatalog: catalogReader(clients, cfg.shield.catalog), readConfig: versionConfigReader(clients, cfg.shield.catalog),
+    fetchVerified: rawCidFetcher({ gateways: cfg.shield.gateways }), policy: shieldPolicy, appRef: cfg.profile.appRef, secretsRequired: true,
+    // the host session LAST: verified-http wants it within 30 s of the capture
+    hostSession: (job) => shieldChecker.session(shieldBoxName(cfg.hosts.find((h) => lc(keccak256(toBytes(h.endpoint))) === lc(job.offer.hostId)))) });
+})() : null;
 const cpuWorkload = createCpuWorkload({ referenceBinary: cfg.referenceBinary, rounds: cfg.workload.rounds, memoryMiB: cfg.workload.memoryMiB, passes: cfg.workload.passes, timeoutMs: cfg.workload.timeoutMs,
   requestVerified: verifiedAppRequest({ collateral, loadExpectations: async (job) => {
+    if (hostKind.get(lc(job.offer.hostId)) === "shield") return shieldExpect(job);
     const p = predictions.get(job.deployment.id) || await getJson(`${cfg.relay}/v1/expected-guest?id=${job.deployment.id}`);
     // the relay's prediction (Enclave-operated: operator-bootstrap trust), only the images of releases it ADMITS
     const admitted = (p.images || []).filter((i) => i.releaseAdmitted !== false);
@@ -172,7 +224,7 @@ const cpuWorkload = createCpuWorkload({ referenceBinary: cfg.referenceBinary, ro
     return { deploymentId: job.deployment.id, hostId: job.offer.hostId, appId: lc(p.appId), origin: `https://${job.deployment.id.slice(2, 10)}.app.enclave.host/`, kind: "snp",
              images, policy: { snp: { ...DEFAULT_SNP_POLICY, product: "Turin", minTcb: cfg.minTcb } } };
   } }) });
-const workload = { async runAndVerify(job) { await untilReady(job); try { return await cpuWorkload.runAndVerify(job); } finally { predictions.delete(job.deployment.id); } } };
+const workload = { async runAndVerify(job) { await untilReady(job); try { return await cpuWorkload.runAndVerify(job); } finally { predictions.delete(job.deployment.id); shieldExpect?.forget(job.deployment.id); } } };
 const loadObservation = createObservationLoader({
   chain: { client: read, ledger: cfg.ledger, proof: cfg.proof, availability: cfg.fees, windowSec: B(cfg.observation.windowSec), classId: cfg.classId, resource: "cpu",
            knownVerificationAppRefs: [cfg.profile.appRef] },
@@ -185,10 +237,12 @@ const policy = Object.fromEntries(Object.entries(cfg.policy).map(([k, v]) => [k,
 const scheduling = { durationSec: B(cfg.scheduling.durationSec), allocationUnits: B(cfg.scheduling.allocationUnits), maxConcurrent: cfg.scheduling.maxConcurrent, cooldownSec: B(cfg.scheduling.cooldownSec) };
 log(`[audit] executor ${executor.address}, witness ${witnessKey.address}, source ${cfg.source}, ${cfg.hosts.length} host(s), ${acceptors.size} acceptor(s)`);
 
+// each Shield witness round is a TPM quote on the box: hourly unless the config says otherwise
+const witnessEverySec = cfg.witnessEverySec ?? (shieldOn ? 3600 : 600);
 let stopped = false, lastWitness = 0;
 for (const s of ["SIGINT", "SIGTERM"]) process.on(s, () => { stopped = true; });
 while (!stopped) {
-  if (Date.now() - lastWitness >= cfg.witnessEverySec * 1000) { try { await witnessRound(); } catch (e) { log(`[witness] round failed: ${e.message}`); } lastWitness = Date.now(); }
+  if (Date.now() - lastWitness >= witnessEverySec * 1000) { try { await witnessRound(); } catch (e) { log(`[witness] round failed: ${e.message}`); } lastWitness = Date.now(); }
   try {
     const r = await runRound({ store, chain, workload, loadObservation, policy, scheduling, nowSec: B(Math.floor(Date.now() / 1000)) });
     log(`[audit] ${JSON.stringify(r, (_, v) => (typeof v === "bigint" ? v.toString() : v))}`);
