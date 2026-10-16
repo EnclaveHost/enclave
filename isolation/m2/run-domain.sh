@@ -72,7 +72,7 @@ start)
   pin_shield=0
   if [ -f "$img.shield" ]; then
     model=$(cat "$img.shield")
-    case "$model" in qwen2.5-0.5b-q8-gguf|qwen3.8-27b-mtp-q4-vl-gguf) ;; *) echo "invalid Shield model" >&2; exit 2;; esac
+    case "$model" in qwen2.5-0.5b-q8-gguf|qwen3.8-27b-mtp-q4-vl-gguf|z-image-turbo-q4km-sd) ;; *) echo "invalid Shield model" >&2; exit 2;; esac
     [ -n "${SHIELDED_SHM_DIR:-}" ] || { echo "missing Shield rings" >&2; exit 2; }
     case "$SHIELDED_SHM_DIR${SHIELDED_MODEL_FILE:-}" in *,*) echo "commas are forbidden in QEMU asset paths" >&2; exit 2;; esac
     for card in 0 1; do
@@ -80,9 +80,65 @@ start)
       [ -f "$ring" ] && [ "$(stat -c %s "$ring")" = 67108864 ] || { echo "bad Shield ring" >&2; exit 2; }
       set -- "$@" -object "memory-backend-file,id=sh$card,mem-path=$ring,size=64M,share=on" -device "ivshmem-plain,memdev=sh$card,addr=$((5+card))"
     done
+    if [ "$model" = z-image-turbo-q4km-sd ]; then
+      # ONE public disk: the dm-verity volume (ext4 + hash tree) holding the three model files. The guest verifies
+      # every block it reads against the root hash in its measured release; nothing is copied into guest RAM.
+      # Pad bank second (vdb).
+      [ -n "${SHIELDED_MODEL_FILE:-}" ] || { echo "missing Shield model" >&2; exit 2; }
+      n=0
+      old_ifs=$IFS; IFS=:
+      for f in $SHIELDED_MODEL_FILE; do
+        IFS=$old_ifs
+        [ -f "$f" ] || { echo "missing Shield model file" >&2; exit 2; }
+        set -- "$@" -drive "file=$f,format=raw,if=virtio,readonly=on,cache=none"
+        n=$((n + 1))
+      done
+      IFS=$old_ifs
+      [ "$n" = 1 ] || { echo "the Z-Image Shield model is exactly one verity volume" >&2; exit 2; }
+      if [ -n "${SHIELDED_PAD_BANK_DIR:-}" ]; then
+        case "$tag" in ''|*[!0-9A-Za-z_-]*) echo "invalid tag for the pad bank" >&2; exit 2 ;; esac
+        case "$SHIELDED_PAD_BANK_DIR" in *,*) echo "commas are forbidden in QEMU asset paths" >&2; exit 2 ;; esac
+        # Its own size: a 512px image draws ~45 GB of pads, and the 27B's bank setting is sized for chat.
+        gib=${SHIELDED_PAD_BANK_GIB_SD:-192}
+        case "$gib" in ''|*[!0-9]*) echo "SHIELDED_PAD_BANK_GIB_SD must be a whole number" >&2; exit 2 ;; esac
+        mkdir -p "$SHIELDED_PAD_BANK_DIR"
+        find "$SHIELDED_PAD_BANK_DIR" -maxdepth 1 -name '*.padbank' -mmin +10 2>/dev/null | while read -r old; do
+          t=$(basename "$old" .padbank)
+          systemctl --user list-units --plain --no-legend "m2-$t-*" 2>/dev/null | grep -q . || rm -f "$old"
+        done
+        bank="$SHIELDED_PAD_BANK_DIR/$tag.padbank"
+        rm -f "$bank"
+        truncate -s "${gib}G" "$bank"
+        set -- "$@" -drive "file=$bank,format=raw,if=none,id=padbank,cache=none" \
+          -device "virtio-blk-pci,drive=padbank,addr=0x10,logical_block_size=4096,physical_block_size=4096"
+      fi
+    fi
     if [ "$model" = qwen3.8-27b-mtp-q4-vl-gguf ]; then
       [ -f "${SHIELDED_MODEL_FILE:-}" ] || { echo "missing Shield model" >&2; exit 2; }
       set -- "$@" -drive "file=$SHIELDED_MODEL_FILE,format=raw,if=virtio,readonly=on,cache=none"
+      # The pad spill (wasm/ggml-shielded/shielded-spill.h): a scratch disk per guest, the SECOND virtio disk (vdb,
+      # pinned to a slot after the model's), that the measured engine fills with one-time pads while the app is idle.
+      # Everything on it is sealed under keys that never leave the guest and die with it, so it is created empty
+      # here and removed at stop; nothing on it outlives the guest. Opt-in by SHIELDED_PAD_BANK_DIR.
+      if [ -n "${SHIELDED_PAD_BANK_DIR:-}" ]; then
+        case "$tag" in ''|*[!0-9A-Za-z_-]*) echo "invalid tag for the pad bank" >&2; exit 2 ;; esac
+        case "$SHIELDED_PAD_BANK_DIR" in *,*) echo "commas are forbidden in QEMU asset paths" >&2; exit 2 ;; esac
+        gib=${SHIELDED_PAD_BANK_GIB:-192}
+        case "$gib" in ''|*[!0-9]*) echo "SHIELDED_PAD_BANK_GIB must be a whole number" >&2; exit 2 ;; esac
+        mkdir -p "$SHIELDED_PAD_BANK_DIR"
+        # A guest that ended without a stop left its bank behind; its keys are gone, so the bytes are noise. Only
+        # banks idle for 10 minutes whose guest unit is gone, so a guest starting beside this one keeps its own.
+        find "$SHIELDED_PAD_BANK_DIR" -maxdepth 1 -name '*.padbank' -mmin +10 2>/dev/null | while read -r old; do
+          t=$(basename "$old" .padbank)
+          systemctl --user list-units --plain --no-legend "m2-$t-*" 2>/dev/null | grep -q . || rm -f "$old"
+        done
+        bank="$SHIELDED_PAD_BANK_DIR/$tag.padbank"
+        rm -f "$bank"
+        truncate -s "${gib}G" "$bank"
+        # 4 KiB logical blocks: the engine aligns its slots to them, so no I/O is a partial host block (cache=none)
+        set -- "$@" -drive "file=$bank,format=raw,if=none,id=padbank,cache=none" \
+          -device "virtio-blk-pci,drive=padbank,addr=0x10,logical_block_size=4096,physical_block_size=4096"
+      fi
       # Pause until critical vCPUs are placed on physical cores sharing an L3.
       qmp_dir=$(mktemp -d /tmp/enclave-shield-qmp.XXXXXX)
       trap 'rm -rf "$qmp_dir"' EXIT
@@ -120,6 +176,10 @@ stop)
     echo "HOST stopped unit=$unit"
   else
     echo "HOST ERROR unit=$unit was not running at stop (the domain ended early)"
+  fi
+  # the guest's pad spill, if it had one: noise without the guest's keys
+  if [ -n "${SHIELDED_PAD_BANK_DIR:-}" ]; then
+    case "$tag" in ''|*[!0-9A-Za-z_-]*) ;; *) rm -f "$SHIELDED_PAD_BANK_DIR/$tag.padbank" ;; esac
   fi
   ;;
 *) echo "usage: run-domain.sh start|stop ..."; exit 2 ;;
