@@ -32,3 +32,25 @@ export function hostMeetsTeeRequirements(row, { cpuTee, gpuTee }) {
   return ['snp-guest-per-app', 'hyperv-partition-per-app'].includes(backend)
     && (!cpuTee || backend === 'snp-guest-per-app') && !gpuTee;
 }
+// Can the hosts that could claim this deployment take a per-deployment config
+// override? key: 'configOverride' (inline) or 'configCidOverride' (pinned).
+// The relay's aggregate ANDs the flag over every serving box, and a per-app
+// isolation host reports configOverride:false ON PURPOSE: it takes config only
+// through the attested release, which delivers it into the guest. With the
+// whole fleet on isolation tiers that one deliberate false locks every
+// deployment's Config tab (queued ones included), so judge the candidates
+// instead, the way the CLI does: the claim-enabled hosts the envelope admits,
+// EVERY one of which must take the override. No candidate = false, and the
+// caller keeps the aggregate's answer.
+export function hostsTakeConfig(rows, raw = '', key = 'configOverride') {
+  let iso;
+  try { iso = isolationOptions(raw); } catch { return false; }
+  const wantsIso = 'isolation' in iso.envelope;
+  const hosts = (rows || []).filter(row => row?.availability?.claimEnabled === true && !row.relay)
+    .filter(row => !wantsIso || (iso.required ? hostIsolationBackend(row) === iso.required : hostMeetsTeeRequirements(row, iso)));
+  const takes = row => {
+    const a = row.availability, viaRelease = !!hostIsolationBackend(row) && a.configOverride !== true;
+    return key === 'configCidOverride' ? a.configCidOverride === true || viaRelease : a.configOverride === true || viaRelease;
+  };
+  return hosts.length > 0 && hosts.every(takes);
+}
