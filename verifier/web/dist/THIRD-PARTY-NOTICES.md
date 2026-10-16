@@ -8,11 +8,14 @@ Build tool, not distributed in the bundle: esbuild 0.28.1 (MIT).
 
 ## First-party (this repository)
 
+- `isolation/contract/runtime.mjs`
 - `relay/hvnode-core.mjs`
 - `relay/pvm-evidence-core.mjs`
 - `relay/snp-verify.mjs`
+- `relay/vbs-app-core.mjs`
 - `relay/vbs-tcglog-core.mjs`
 - `relay/vbs-tpm.mjs`
+- `relay/vbs-vm-report-core.mjs`
 - `verifier/der.mjs`
 - `verifier/envelope.mjs`
 - `verifier/metal-box.mjs`
@@ -23,6 +26,7 @@ Build tool, not distributed in the bundle: esbuild 0.28.1 (MIT).
 - `verifier/web/index.mjs`
 - `verifier/web/provider.mjs`
 - `verifier/web/pvm-host.mjs`
+- `verifier/web/shield-app.mjs`
 - `verifier/web/shield-host.mjs`
 - `verifier/web/shims/buffer-global.mjs`
 - `verifier/web/shims/node-crypto.mjs`
