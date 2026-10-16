@@ -3,9 +3,9 @@
 // crypto provider. Only AMD SEV-SNP is judged by verifyEvidenceWeb; every other technology is "unsupported" there (the
 // delegated classes call Node-only modules), never green. An attached Android pVM host is judged by verifyPvmHostWeb
 // (verifier/web/pvm-host.mjs, on the relay's own rules in relay/pvm-evidence-core.mjs), and an Enclave Shield host whole by
-// verifyShieldHostWeb (verifier/web/shield-host.mjs, on relay/hvnode-core.mjs). The envelope's rules are
-// verifier/envelope.mjs's validateEnvelope; the bytes are decoded here with the browser's own primitives (atob) under the
-// same caps.
+// verifyShieldHostWeb (verifier/web/shield-host.mjs, on relay/hvnode-core.mjs), and one app on it by verifyShieldAppWeb
+// (verifier/web/shield-app.mjs). The envelope's rules are verifier/envelope.mjs's validateEnvelope; the bytes are decoded here
+// with the browser's own primitives (atob) under the same caps.
 //
 // Built for a page by verifier/web/build.mjs (esbuild: node:crypto aliased to a throwing shim, Buffer from the
 // `buffer` package); the same file runs unbundled under Node 22 for the differential and the unit suites.
@@ -80,4 +80,18 @@ export { verifyHvNodeEvidenceWeb, makeCredentialWeb, TPM_EK_ROOTS_PEM, TPM_EK_RO
 export async function verifyShieldHostWeb({ apiBase = "https://api.enclave.host", name, fetchImpl = globalThis.fetch, timeoutMs = 45000 } = {}) {
   return verifyShieldHostWith({ fetchImpl, randomBytes: (n) => globalThis.crypto.getRandomValues(new Uint8Array(n)), now: () => new Date() },
                               { apiBase, name, timeoutMs });
+}
+
+// ONE APP's Enclave Shield partition (a VBS-isolated Hyper-V partition on that host), verified IN THIS BROWSER
+// (verifier/web/shield-app.mjs): the host check above first, then, only if it passed, one app request over a fresh nonce this
+// page draws, judged by the relay's own app rules (relay/vbs-app-core.mjs, relay/vbs-vm-report-core.mjs) with the report's
+// signature checked under the VSM identity key from the host's TPM-quoted log. Never retried (a 503 "busy" is an error). A
+// pass is "limited": the host's omissions, plus the expected app/runtime (relay-derived) and the image list (operator-stated).
+// verifyShieldAppWeb({ apiBase, name, deployment, fetchImpl?, timeoutMs? }) -> the verdict shape above, the host's check keys
+// followed by the app's.
+import { verifyShieldAppWith } from "./shield-app.mjs";
+export { verifyShieldAppEvidenceWeb, SHIELD_APP_CHECK_ORDER, SHIELD_APP_CHECK_LABELS, SHIELD_APP_OMISSION_LABELS } from "./shield-app.mjs";
+export async function verifyShieldAppWeb({ apiBase = "https://api.enclave.host", name, deployment, fetchImpl = globalThis.fetch, timeoutMs = 60000 } = {}) {
+  return verifyShieldAppWith({ fetchImpl, randomBytes: (n) => globalThis.crypto.getRandomValues(new Uint8Array(n)), now: () => new Date() },
+                             { apiBase, name, deployment, timeoutMs });
 }
