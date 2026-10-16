@@ -178,6 +178,8 @@ export function transientProofError(e) {
   return !!e&&(transientCodes.has(e.code)||e.message==='guest probe timeout'||/^guest (attestation|readiness) HTTP 5\d\d$/.test(e.message||''));
 }
 
+const leaseIdentity=l=>l?canonical({id:l.id,chainId:l.chainId??null,deployments:l.deployments??null,runner:l.runner,owner:l.owner??null,appRef:l.appRef,configCid:l.configCid}):null;
+
 export class AdmissionGate {
   constructor({runner,expected,now=Date.now}) {
     if(!/^0x[0-9a-f]{64}$/.test(runner||''))throw new Error('runner required');
@@ -191,11 +193,14 @@ export class AdmissionGate {
   async attest(id,verifyGuest) {
     const lease=this.leases.get(id),expected=this.expected(id);
     if(!lease||!expected||lease.runner!==this.runner||lease.validUntil<=this.now()||expected.appRef!==lease.appRef||expected.configCid!==lease.configCid) throw new Error('no matching current app expectation');
-    const fingerprint=canonical(lease),startedAt=this.now();
+    // bound to the lease's identity - the fields whose change drops a proof (observeLease) - not to its read freshness: a
+    // chain round that re-reads the same lease while the guest is asked (block, validity, a renewed leaseUntil) does not
+    // void the proof, while a changed runner, owner, app or config still does
+    const fingerprint=leaseIdentity(lease),startedAt=this.now();
     const verdict=await verifyGuest(id,expected);
     if(verdict?.ready===false&&!(expected.requiresConfigSocketServer===true&&expected.requiresSecretsV1===true))throw new Error('startup proof requires a configured secret command');
     if(!verdict?.verified||verdict.deploymentId!==id||verdict.appSha256!==expected.appSha256||verdict.runtimeId!==expected.runtimeId||
-      !/^[0-9a-f]{64}$/.test(verdict.spkiSha256||'')||canonical(this.leases.get(id))!==fingerprint)throw new Error('fresh bound guest proof required');
+      !/^[0-9a-f]{64}$/.test(verdict.spkiSha256||'')||leaseIdentity(this.leases.get(id))!==fingerprint)throw new Error('fresh bound guest proof required');
     // A proof is good for 60 s from its start, on its own: allows() still requires a valid lease, so capping it at the
     // lease's validity AT PROOF TIME added nothing - except that a lease extended later by an outage hold (hold())
     // was outlived by none of its proofs: 2026-10-14 07:28:08 the chain read failed, the leases were held, and every
