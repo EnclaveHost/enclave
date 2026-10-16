@@ -17,14 +17,24 @@ type PacedBind struct {
 	conn.Bind
 	Rate float64 // bytes per second; 0 = unpaced
 
-	mu   sync.Mutex
-	next time.Time
+	mu     sync.Mutex
+	next   time.Time
+	credit time.Duration // how far behind the schedule may be made up at once: paceCredit, or a coarse timer's oversleep
 }
 
 const paceChunk = 8 // packets sent together between waits: a burst any router buffer holds
 
 // paceCredit is the most a tunnel may run ahead: 2 ms at 100 Mbps is ~16 packets
 const paceCredit = 2 * time.Millisecond
+
+// maxPaceCredit bounds the credit a coarse timer earns. Windows at its default 15.6 ms timer resolution turned every
+// 1 ms sleep into ~15.6 ms, and with only paceCredit made up afterwards a circuit sent ~3 ms of every 15.6: a flat
+// ~2.2 MB/s at 90 Mbps, on every circuit at once, for minutes, until some program raised the resolution again (the
+// NucBox's bimodal uploads, 2026-10-16). 16 ms at 90 Mbps is ~130 packets, under the ~250 the home router held.
+const maxPaceCredit = 16 * time.Millisecond
+
+// paceSleep is time.Sleep (a test swaps in a coarse one)
+var paceSleep = time.Sleep
 
 func (b *PacedBind) Send(bufs [][]byte, ep conn.Endpoint) error {
 	if b.Rate <= 0 {
@@ -40,9 +50,10 @@ func (b *PacedBind) Send(bufs [][]byte, ep conn.Endpoint) error {
 		}
 		b.mu.Lock()
 		now := time.Now()
-		// a token bucket holding at most paceCredit: an idle tunnel earns no more than that burst, yet the time a sleep
+		// a token bucket holding at most b.credit: an idle tunnel earns no more than that burst, yet the time a sleep
 		// overshoots is not lost (resetting to now each time left the rate ~35% short)
-		if floor := now.Add(-paceCredit); b.next.Before(floor) {
+		credit := max(b.credit, paceCredit)
+		if floor := now.Add(-credit); b.next.Before(floor) {
 			b.next = floor
 		}
 		at := b.next
@@ -53,7 +64,14 @@ func (b *PacedBind) Send(bufs [][]byte, ep conn.Endpoint) error {
 		// (a burst any router holds) and sleep only once the debt is larger; the average rate is still exact.
 		if d := time.Until(at); d > time.Millisecond {
 			PaceSleptNs.Add(int64(d))
-			time.Sleep(d)
+			t0 := time.Now()
+			paceSleep(d)
+			// what the timer overslept is behind schedule through no fault of the line: let it be made up (up to
+			// maxPaceCredit); a timer that sleeps true brings the credit back down to paceCredit
+			over := time.Since(t0) - d
+			b.mu.Lock()
+			b.credit = min(max(over+time.Millisecond, paceCredit), maxPaceCredit)
+			b.mu.Unlock()
 		}
 		if err := b.Bind.Send(chunk, ep); err != nil {
 			return err
