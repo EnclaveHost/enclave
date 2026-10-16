@@ -45,7 +45,7 @@ export const NETWORK_REQUIRED='enclaveNetwork configuration required: TUNA is re
 export class PrivacyAgent {
   constructor({apps,runner,account,leaseReader,probe,distribute,directory,dns,network,qualification,paid=null,chainDeadlineMs=CHAIN_DEADLINE_MS,now=Date.now,log=()=>{}}){
     if(!network)throw new Error(NETWORK_REQUIRED);
-    Object.assign(this,{apps,leaseReader,probe,distribute,directory,now,log,network,chainDeadlineMs});this.refreshing=false;this.closed=false;this.publishing=false;this.configured=[];this.proving=new Map();this.chainRead=null;
+    Object.assign(this,{apps,leaseReader,probe,distribute,directory,now,log,network,chainDeadlineMs});this.refreshing=false;this.closed=false;this.publishing=false;this.configured=[];this.proving=new Map();this.proofFailures=new Map();this.chainRead=null;
     this.admission=new AdmissionGate({runner,expected:id=>this.apps.find(a=>a.deploymentId===id)?.expected,now});
     this.manager=new EnclaveNetworkManager({runtime:network.runtime,admission:this.admission,providers:network.providers,byoConfig:network.byoConfig,probeEgress:network.probeEgress,direct:network.direct,hostEgress:network.hostEgress||null,paid,now,log,
       probe:(app,circuit)=>probe(app.deploymentId,app.expected,circuit),publish:(id,routes)=>this.publisher.publish(id,routes)});
@@ -104,8 +104,16 @@ export class PrivacyAgent {
     for(const app of this.configured){
       const id=app.deploymentId;
       if(this.proving.has(id)||(this.admission.allows(id)&&this.admission.proofs.get(id).validUntil-this.now()>40000))continue;
+      // after a failure the app waits 4 s before it is asked again, and the same failure is logged once a minute (a guest
+      // that is still starting answers the same thing for many minutes)
+      const failure=this.proofFailures.get(id);
+      if(failure&&this.now()-failure.at<4000)continue;
       const run=this.admission.attest(id,(i,expected)=>this.probe(i,expected,null))
-        .catch(e=>{const kept=this.admission.failed(id,e);this.log(`local guest proof ${id.slice(0,10)}: ${e.message}${kept?' (last proof kept until it expires)':''}`);})
+        .then(()=>{this.proofFailures.delete(id);})
+        .catch(e=>{const kept=this.admission.failed(id,e),line=`${e.message}${kept?' (last proof kept until it expires)':''}`,last=this.proofFailures.get(id);
+          const repeat=last&&last.line===line&&this.now()-last.loggedAt<60000;
+          this.proofFailures.set(id,{at:this.now(),line,loggedAt:repeat?last.loggedAt:this.now(),count:repeat?last.count+1:1});
+          if(!repeat)this.log(`local guest proof ${id.slice(0,10)}: ${line}${last?.line===line&&last.count>1?` (${last.count} more since the last line)`:''}`);})
         .finally(()=>{this.proving.delete(id);this.manager.enforceAdmission();});
       this.proving.set(id,run);
     }
