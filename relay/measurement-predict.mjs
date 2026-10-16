@@ -574,7 +574,7 @@ export function makePredictor(o) {
     const vr = versionRefusal(cat && cat.app, cat && cat.version, forPrivate);
     if (vr) return refuse("version_not_admitted", vr);
     // one record per distinct runtime among the admitted releases (the AppID excludes the runtime; the record does not)
-    if (inference && (!["qwen2.5-0.5b-q8-gguf","qwen3.8-27b-mtp-q4-vl-gguf","z-image-turbo-q4km-sd"].includes(inference.model) || !Number.isInteger(inference.gpuMilli) || inference.gpuMilli < (inference.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? 500 : inference.model === "z-image-turbo-q4km-sd" ? 200 : 65) || inference.gpuMilli > 1000))
+    if (inference && (!["qwen2.5-0.5b-q8-gguf","qwen3.8-27b-mtp-q4-vl-gguf","z-image-turbo-q4km-sd"].includes(inference.model) || !Number.isInteger(inference.gpuMilli) || inference.gpuMilli < (inference.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? 500 : inference.model === "z-image-turbo-q4km-sd" ? 100 : 65) || inference.gpuMilli > 1000))
       return refuse("unsupported_inference", "unsupported isolated model or GPU allocation");
     const byRuntime = new Map();
     for (const id of admitIds) {

@@ -35,7 +35,7 @@ async function predictRow(row, preparedRef, options, { confirmRow, readVersionCo
     if (gpuMilli < 65 || !Array.isArray(vols) || vols.length !== 1
         || !["qwen2.5-0.5b-q8-gguf", "qwen3.8-27b-mtp-q4-vl-gguf", "z-image-turbo-q4km-sd"].includes(vols[0])
         || (vols[0] === "qwen3.8-27b-mtp-q4-vl-gguf" && gpuMilli < 500)
-        || (vols[0] === "z-image-turbo-q4km-sd" && gpuMilli < 200))
+        || (vols[0] === "z-image-turbo-q4km-sd" && gpuMilli < 100))
       return { ok: false, code: "unsupported_inference", reason: "unsupported isolated model or GPU allocation" };
     inference = { model: vols[0], gpuMilli };
   }
