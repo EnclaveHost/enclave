@@ -2748,7 +2748,7 @@ function handleRequest(req, res) {
     if (!/^[0-9a-f]{64}$/.test(nonceHex)) return json(res, 422, { error: "bad_nonce", message: "nonce must be 64 lowercase hex characters (32 bytes) of your own choosing." }, req);
     if (row && row.mode === "avf")
       return tunnelHub.pvmFreshEvidence(name, Buffer.from(nonceHex, "hex")).then(
-        ({ document, transportKey }) => json(res, 200, { name, mode: "avf", nonce: nonceHex, fetchedAt: new Date().toISOString(), document, transportKey,
+        ({ document, transportKey }) => json(res, 200, { name, mode: "avf", nonce: nonceHex, fetchedAt: new Date().toISOString(), document, attachTransportKey: transportKey,
           scope: "the HOST VM only (the host's own idle app): this is never evidence for any deployment on the box",
           operatorAllowlist: { source: "this relay's PVM_CPU policy (PVM_CPU_CODE_HASHES / _AUTHORITY_HASHES / _RUNTIME_IDS: the operator's own word, not a reproduction)",
                                codeHashes: PVM_CPU_POLICY ? [...PVM_CPU_POLICY.codeHashes] : [], authorityHashes: PVM_CPU_POLICY ? [...PVM_CPU_POLICY.authorityHashes] : [],

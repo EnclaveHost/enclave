@@ -161,7 +161,7 @@ test("mutations: each is refused by BOTH verifiers, with the same reasons, under
 
 // ---- verifyPvmHostWeb against a stub relay ----
 const answerOf = (fx, over = {}) => ({ name: "pixel10-pvm-cpu", mode: "avf", nonce: fx.doc.nonce, fetchedAt: fx.capturedAt, document: fx.doc,
-  transportKey: Buffer.from(fx.doc.spki, "hex").toString("base64"),
+  attachTransportKey: Buffer.from(fx.doc.spki, "hex").toString("base64"),
   operatorAllowlist: { source: "PVM_CPU_CODE_HASHES, PVM_CPU_AUTHORITY_HASHES, PVM_CPU_RUNTIME_IDS", codeHashes: [fx.codeHash], authorityHashes: [fx.authorityHash], runtimeIds: [fx.runtimeId] }, ...over });
 const stub = (answer, { status = 200, seen = [] } = {}) => function (url, init) {   // a plain function: `this` must be undefined (unbound)
   if (this !== undefined) throw new TypeError("Illegal invocation");
@@ -231,13 +231,13 @@ test("verifyPvmHostWeb: the caller's own pins replace the operator's and a full 
 
 test("verifyPvmHostWeb: another attach key, nonce, app or document is rejected, with the check that failed", async () => {
   const otherKey = generateKeyPairSync("ed25519").publicKey.export({ format: "der", type: "spki" }).toString("base64");
-  const k = await host(live, { answer: answerOf(live, { transportKey: otherKey }) });
+  const k = await host(live, { answer: answerOf(live, { attachTransportKey: otherKey }) });
   shapeOk(k); assert.equal(k.status, "rejected"); assert.equal(k.checks.transportKey, false); assert.equal(k.checks.challenge, true);
   assert.match(k.reasons.at(-1), /not the key the relay verified when the box attached/);
   // the evidence's own transportKey field (base64 of the v4 TLS key) is not the attach key
-  const tls = await host(live, { answer: answerOf(live, { transportKey: live.doc.transportKey }) });
+  const tls = await host(live, { answer: answerOf(live, { attachTransportKey: live.doc.transportKey }) });
   assert.equal(tls.status, "rejected"); assert.equal(tls.checks.transportKey, false);
-  const none = await host(live, { answer: answerOf(live, { transportKey: undefined }) });
+  const none = await host(live, { answer: answerOf(live, { attachTransportKey: undefined }) });
   assert.equal(none.status, "rejected"); assert.match(none.reasons.at(-1), /stated no attach transport key/);
   // a page's own random nonce: the fixture answers another, so it is a replay
   const fresh = await host(live, { randomBytes: (n) => globalThis.crypto.getRandomValues(new Uint8Array(n)) });
