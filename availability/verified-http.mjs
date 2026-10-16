@@ -15,7 +15,8 @@ function exchange(url,{method='GET',headers={},body,timeoutMs,maxBytes=131072,pi
    const chunks=[];let size=0;
    res.on('data',b=>{size+=b.length;if(size>maxBytes)req.destroy(new Error('response too large'));else chunks.push(b);});
    res.on('error',reject);res.on('end',()=>{
-    try{if(res.statusCode!==200)throw new Error(`HTTP ${res.statusCode}`);resolve({body:JSON.parse(Buffer.concat(chunks)),spki});}catch(e){reject(e);}
+    try{if(res.statusCode!==200)throw Object.assign(new Error(`HTTP ${res.statusCode}`),{status:res.statusCode,text:Buffer.concat(chunks).subarray(0,512).toString('utf8')});
+     resolve({body:JSON.parse(Buffer.concat(chunks)),spki});}catch(e){reject(e);}
    });
   });
   const timer=setTimeout(()=>req.destroy(new Error('request deadline exceeded')),timeoutMs);
@@ -23,28 +24,49 @@ function exchange(url,{method='GET',headers={},body,timeoutMs,maxBytes=131072,pi
  });
 }
 
+// A Shield guest makes one TPM report at a time (~3 s) and answers any other
+// request meanwhile with HTTP 500 "attestation busy; retry" (network/guest-probe.mjs);
+// that answer is waited out with the SAME nonce, never counted as evidence.
+const GUEST_BUSY=/attestation busy; retry|too many concurrent report requests/,GUEST_BUSY_RETRIES=5;
+
 /** Expectations MUST be independently derived from the current ledger/catalog,
  * pinned runtime release and authenticated current host session. No values
  * learned from the report are promoted to trusted expectations here.
+ *
+ * request.prepare(job) loads the expectations ahead of the request (the workload
+ * calls it before its timer starts: verifier-side work, such as a Shield host's
+ * TPM session, is not charged to the host); the request then uses them once.
+ * transport and verifyShield are for tests only.
  */
-export function verifiedAppRequest({loadExpectations,collateral,now=Date.now}) {
+export function verifiedAppRequest({loadExpectations,collateral,now=Date.now,transport=exchange,verifyShield=verifyShieldAppPolicy,
+                                    sleep=ms=>new Promise(r=>setTimeout(r,ms))}) {
  if(typeof loadExpectations!=='function')throw new Error('independent expectation loader required');
- return async(job,request)=>{
-  const exp=await loadExpectations(job);
+ const prepared=new Map();
+ const call=async(job,request)=>{
+  const exp=prepared.get(job.deployment.id)||await loadExpectations(job);prepared.delete(job.deployment.id);
   if(exp.deploymentId!==job.deployment.id||exp.hostId!==job.offer.hostId
     || !/^[0-9a-f]{64}$/.test(exp.appId||''))throw new Error('wrong expected deployment, host or artifact');
   const origin=new URL(exp.origin);
   if(origin.protocol!=='https:'||origin.username||origin.password||origin.pathname!=='/'||origin.search||origin.hash)
    throw new Error('invalid attested origin');
   const nonce=randomBytes(32),at=now();
-  const capture=await exchange(new URL('/.well-known/enclave-attestation?nonce='+nonce.toString('hex'),origin),{timeoutMs:request.timeoutMs});
+  let capture;
+  for(let attempt=0;;attempt++) {
+   try{capture=await transport(new URL('/.well-known/enclave-attestation?nonce='+nonce.toString('hex'),origin),{timeoutMs:request.timeoutMs-(now()-at)});break;}
+   catch(e){if(e.status!==500||attempt>=GUEST_BUSY_RETRIES||!GUEST_BUSY.test(e.text||'')||now()-at>=request.timeoutMs)throw e;}
+   await sleep(1000+Math.floor(Math.random()*2500));
+  }
   let verdict;
   if(exp.kind==='shield') {
    if(!Number.isSafeInteger(exp.hostSessionAtMs)||exp.hostSessionAtMs>at||at-exp.hostSessionAtMs>30000)
     throw new Error('current authenticated host session required');
-   verdict=verifyShieldAppPolicy({doc:capture.body,handshakeSpki:capture.spki,nonce,
-    expectedAppSha256:exp.appId,expectedRuntimeId:exp.runtimeId,hostSession:exp.hostSession},exp.policy);
-   if(!verdict.ok)throw new Error('Shield app evidence rejected: '+verdict.reason);
+   // the image must support what this app's derivation needs (a config bundle, sealed secrets, the config socket):
+   // an image without secrets support is not admitted for an app that has them
+   verdict=verifyShield({doc:capture.body,handshakeSpki:capture.spki,nonce,
+    expectedAppSha256:exp.appId,expectedRuntimeId:exp.runtimeId,hostSession:exp.hostSession,
+    requiresConfigBundleV5:exp.requiresConfigBundleV5===true,requiresSecretsV1:exp.requiresSecretsV1===true,
+    requiresConfigSocketServer:exp.requiresConfigSocketServer===true},exp.policy);
+   if(!verdict.ok)throw new Error('Shield app evidence rejected: '+String(verdict.reason||'no reason given').slice(0,400));
   } else if(exp.kind==='snp') {
    // Each expected image is its OWN expectation: a launch measurement together with the runtime identity that image
    // binds (one per admitted release). Allowing every measurement but binding one runtime refuses every guest of the
@@ -68,8 +90,11 @@ export function verifiedAppRequest({loadExpectations,collateral,now=Date.now}) {
   const target=new URL(request.path,origin);if(target.origin!==origin.origin)throw new Error('cross-origin workload');
   const remainingMs=request.timeoutMs-(now()-at);
   if(remainingMs<=0)throw new Error('request deadline exceeded');
-  const response=await exchange(target,{...request,timeoutMs:remainingMs,pinnedSpki:capture.spki});
+  const response=await transport(target,{...request,timeoutMs:remainingMs,pinnedSpki:capture.spki});
   return {body:response.body,attestationVerified:true,hostId:exp.hostId,deploymentId:exp.deploymentId,
    evidence:{nonce:nonce.toString('hex'),document:capture.body,spki:capture.spki.toString('base64'),verdict}};
  };
+ call.prepare=async job=>{prepared.set(job.deployment.id,await loadExpectations(job));};
+ call.discard=job=>{prepared.delete(job.deployment.id);};
+ return call;
 }

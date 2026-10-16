@@ -24,8 +24,10 @@ export function createCpuWorkload({referenceBinary,requestVerified,rounds,memory
   const pending=referenceQueue.then(()=>runReference(referenceBinary,input,timeoutMs));
   referenceQueue=pending.catch(()=>{});
   const expected=await pending;
+  // the verifier's own expectations (and, for a Shield host, its fresh TPM session) before the timer starts
+  if(typeof requestVerified.prepare==='function')await requestVerified.prepare(job);
   if(BigInt(Math.ceil(timeoutMs/1000))>BigInt(job.offer.durationSec) ||
-    BigInt(job.lease.leaseUntil)*1000n<=BigInt(Date.now()+timeoutMs))throw new Error('insufficient paid lease for challenge');
+    BigInt(job.lease.leaseUntil)*1000n<=BigInt(Date.now()+timeoutMs)){requestVerified.discard?.(job);throw new Error('insufficient paid lease for challenge');}
   const start=performance.now();
   const actual=await requestVerified(job,{method:'POST',path:'/v1/run',body:input,
    headers:{authorization:`Bearer ${job.token}`},timeoutMs});
