@@ -523,6 +523,8 @@ static pid_t crash_tail_pid = -1;
 static pid_t crash_tail_reader(int rfd) {
     pid_t p = fork();
     if (p != 0) { close(rfd); return p; }
+    /* hold nothing of init's but this pipe: an inherited write end would keep someone else's pipe from ending */
+    for (int fd = 3; fd < 1024; fd++) if (fd != rfd) close(fd);
     static char ring[8192], buf[4096];
     size_t n = 0; ssize_t r;
     while ((r = read(rfd, buf, sizeof buf)) > 0 || (r < 0 && errno == EINTR))
@@ -554,14 +556,14 @@ static pid_t spawn_app(char *const argv[], char *extra, int flags) {
     }
     seccomp_status_fd = sfd[1];
     pid_t pid = spawn(argv, extra, -1, flags);
-    if (tfd[1] >= 0) {
-        close(tfd[1]); crash_tail_fd = -1;
-        crash_tail_pid = pid > 0 ? crash_tail_reader(tfd[0]) : (close(tfd[0]), -1);
-    }
+    if (tfd[1] >= 0) { close(tfd[1]); crash_tail_fd = -1; }
     close(sfd[1]);
     seccomp_status_fd = -1;
     seccomp_statement_from(sfd[0], pid);
     close(sfd[0]);
+    /* Only now: a reader forked while init still held the statement pipe's write end would keep it open, and the
+     * statement would never end (guestd then rejects the guest: "no seccomp filter"). */
+    if (tfd[0] >= 0) crash_tail_pid = pid > 0 ? crash_tail_reader(tfd[0]) : (close(tfd[0]), -1);
     return pid;
 }
 
