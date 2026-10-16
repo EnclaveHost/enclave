@@ -378,6 +378,8 @@ class FleetList extends EnclaveElement {
     const pages = Math.max(1, Math.ceil(items.length / PAGE));
     this._page = Math.min(Math.max(0, this._page || 0), pages - 1);
     const first = this._page * PAGE;
+    // an opened "Show the checks" stays open through the 20 s repaint (keyed by its box or app)
+    const openMore = new Set([...list.querySelectorAll("details.lv-more[open]")].map((d) => d.closest("[data-vkey]")?.dataset.vkey).filter(Boolean));
     list.innerHTML = !items.length
       ? (failed
         ? '<div class="fleet-empty fleet-error" role="alert">Couldn’t load the app hosts: ' + esc(failed) + '. This is a failed read, not an empty fleet. Retrying.</div>'
@@ -396,6 +398,7 @@ class FleetList extends EnclaveElement {
             + '<div class="fleet-detail" id="' + id + '"' + (open ? '' : ' hidden') + '>' + r.detail + '</div>'
             + '</div>';
         }).join("");
+    for (const k of openMore) { const d = list.querySelector('[data-vkey="' + CSS.escape(k) + '"] > details.lv-more'); if (d) d.open = true; }
     const setOpen = (sum, open) => {
       const d = sum.closest(".fleet-row").querySelector(".fleet-detail");
       sum.querySelector(".fleet-tog").setAttribute("aria-expanded", String(open));
@@ -517,7 +520,7 @@ class FleetList extends EnclaveElement {
       : v.r ? verificationHtml(e.name, v.r)
       : v.err ? '<div class="lv-verdict bad" role="status">✗ could not run verification: ' + esc(v.err) + '</div>'
       : '';
-    return '<div class="fleet-verify"' + (v.busy ? ' aria-busy="true"' : '') + '>'
+    return '<div class="fleet-verify" data-vkey="box:' + esc(e.name) + '"' + (v.busy ? ' aria-busy="true"' : '') + '>'
       + '<div class="fleet-verify-h"><span>Is this box what it claims? Check ' + esc(EVIDENCE_OF[e.mode]) + ' yourself.</span>'
       + '<button class="btn btn-sm fleet-verify-run" type="button" data-box="' + esc(e.name) + '" data-mode="' + esc(e.mode) + '"' + (v.busy ? ' disabled' : '') + '>'
       + (v.r || v.err ? 'Verify again' : 'Verify in your browser') + ' <span class="arr">→</span></button></div>'
@@ -532,7 +535,7 @@ class FleetList extends EnclaveElement {
         const v = ver[d.id] || {};
         const body = v.busy ? '<div class="lv-verdict" role="status">verifying the host, then this app\u2019s partition, in your browser …</div>'
           : v.r ? verificationHtml(name, v.r) : v.err ? '<div class="lv-verdict bad" role="status">✗ could not run verification: ' + esc(v.err) + '</div>' : '';
-        return '<li class="fleet-app"' + (v.busy ? ' aria-busy="true"' : '') + '><div class="fleet-app-h"><span title="' + esc(d.id) + '">app ' + esc(short(d.id))
+        return '<li class="fleet-app" data-vkey="app:' + esc(d.id) + '"' + (v.busy ? ' aria-busy="true"' : '') + '><div class="fleet-app-h"><span title="' + esc(d.id) + '">app ' + esc(short(d.id))
           + (d.appRef ? ' <small>' + esc(d.appRef.replace(/^catalog:\/\/(0x[0-9a-f]{6})[0-9a-f]+/i, "catalog $1…")) + '</small>' : '') + '</span>'
           + '<button class="btn btn-sm fleet-app-run" type="button" data-box="' + esc(name) + '" data-dep="' + esc(d.id) + '"' + (v.busy ? ' disabled' : '') + '>'
           + (v.r || v.err ? 'Verify again' : 'Verify app') + ' <span class="arr">→</span></button></div>' + body + '</li>';

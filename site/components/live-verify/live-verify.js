@@ -1,14 +1,17 @@
 /* ============================================================
-   <c-live-verify> - the "run the check now" widget: lists every
-   box the relay holds, and verifies the one picked IN THIS BROWSER
-   with the repository's own verifier (core/verify.js ->
-   /vendor/enclave-verifier.js) for its tier - SEV-SNP, phone pVM or
-   Enclave Shield - rendering every check, what was not judged, and
-   the verdict. A box this page cannot challenge says so.
+   <c-live-verify> - the Overview's "don't take our word for it":
+   one chip per kind of host that has a live, verifiable box (AMD
+   SEV-SNP, phone pVM, Enclave Shield), and a button that verifies
+   a host of that kind, chosen at random, IN THIS BROWSER with the
+   repository's own verifier (core/verify.js). It stays one row
+   however many hosts there are; picking a particular host is the
+   fleet list's job (host#fleet), where every row has the check.
    ============================================================ */
 import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { esc } from "../../js/core/util.js";
-import { liveBoxes, boxVerifiable, unverifiableReason, verifyBoxInBrowser, verificationHtml, TIER_NAMES } from "../../js/core/verify.js";
+import { liveBoxes, boxVerifiable, verifyBoxInBrowser, verificationHtml, TIER_NAMES } from "../../js/core/verify.js";
+
+const TIERS = ["snp", "avf", "hv-node"];   // the order the chips read in
 
 class LiveVerify extends EnclaveElement {
   static templateUrl = new URL("./live-verify.html", import.meta.url);
@@ -18,30 +21,25 @@ class LiveVerify extends EnclaveElement {
     if (!btn || btn._wired) return;
     btn._wired = true;
     btn.addEventListener("click", () => this.verify(btn));
-    const sel = this.querySelector(".lv-box");
-    sel.addEventListener("change", () => this.picked(btn));
-    this.loadBoxes(sel);
+    this.loadTiers();
   }
 
-  // fill the picker; a failed read leaves it hidden and the button finds a box itself
-  async loadBoxes(sel) {
+  // the chips: only kinds with at least one verifiable host now; a failed read leaves them hidden (the button still works)
+  async loadTiers() {
     try {
-      this._rows = await liveBoxes();
-      if (!this._rows.length) return;
-      sel.innerHTML = this._rows.map((e, i) => '<option value="' + i + '">' + esc(e.name)
-        + " · " + esc(TIER_NAMES[e.mode] || e.mode || "unattested") + (boxVerifiable(e) ? "" : " (no browser check)") + "</option>").join("");
-      this.querySelector(".lv-pick").hidden = false;
-    } catch (e) { this._rows = null; }
-  }
-
-  picked(btn) {
-    const row = this._rows && this._rows[Number(this.querySelector(".lv-box").value)];
-    btn.disabled = !!row && !boxVerifiable(row);
-    const body = this.querySelector(".lv-body");
-    if (row && !boxVerifiable(row)) {
-      body.hidden = false;
-      body.innerHTML = '<p class="lv-na"><b>' + esc(row.name) + "</b> is " + esc(unverifiableReason(row)) + "</p>";
-    } else body.hidden = true;
+      const rows = (await liveBoxes()).filter(boxVerifiable);
+      this._by = new Map(TIERS.map((m) => [m, rows.filter((e) => e.mode === m)]).filter(([, l]) => l.length));
+      if (this._by.size < 2) return;
+      this._tier = this._by.keys().next().value;
+      const box = this.querySelector(".lv-tiers");
+      box.innerHTML = [...this._by].map(([m, l]) => '<button type="button" class="lv-tier" role="radio" data-tier="' + esc(m) + '" aria-checked="' + (m === this._tier) + '">'
+        + esc(TIER_NAMES[m] || m) + ' <small>' + l.length + '</small></button>').join("");
+      for (const b of box.querySelectorAll(".lv-tier")) b.addEventListener("click", () => {
+        this._tier = b.dataset.tier;
+        for (const o of box.querySelectorAll(".lv-tier")) o.setAttribute("aria-checked", String(o === b));
+      });
+      box.hidden = false;
+    } catch (e) { this._by = null; }
   }
 
   async verify(btn) {
@@ -49,17 +47,15 @@ class LiveVerify extends EnclaveElement {
     body.hidden = false; body.setAttribute("aria-busy", "true"); btn.disabled = true;
     const status = (cls, t) => { body.innerHTML = '<div class="lv-verdict ' + cls + '" role="status">' + esc(t) + "</div>"; };
     try {
-      status("", "finding the attested boxes …");
-      const rows = this._rows || await liveBoxes();
-      const ok = rows.filter(boxVerifiable);
-      const sel = this.querySelector(".lv-box");
-      const row = this._rows && sel.value !== "" ? this._rows[Number(sel.value)] : ok[0];
-      if (!row) throw new Error("no attested box is attached right now");
-      status("", "challenging " + row.name + " with a fresh nonce and verifying its evidence in your browser …");
-      const r = await verifyBoxInBrowser(row.name, { mode: row.mode });
-      body.innerHTML = verificationHtml(row.name, r, { more: this._rows ? 0 : ok.length - 1 });
+      status("", "finding a live host …");
+      if (!this._by) await this.loadTiers();
+      const pool = (this._by && (this._by.get(this._tier) || [...this._by.values()][0])) || (await liveBoxes()).filter(boxVerifiable);
+      if (!pool || !pool.length) throw new Error("no verifiable host is attached right now");
+      const row = pool[Math.floor(Math.random() * pool.length)];
+      status("", "checking " + row.name + " (" + (TIER_NAMES[row.mode] || row.mode) + ") with a fresh nonce, in your browser …");
+      body.innerHTML = verificationHtml(row.name, await verifyBoxInBrowser(row.name, { mode: row.mode }));
     } catch (e) {
-      status("bad", "✗ could not run verification: " + (e && e.message ? e.message : e));
+      status("bad", "✗ could not run the check: " + (e && e.message ? e.message : e));
     } finally { btn.disabled = false; body.setAttribute("aria-busy", "false"); }
   }
 }

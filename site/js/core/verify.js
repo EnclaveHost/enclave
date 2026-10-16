@@ -147,49 +147,40 @@ export function unverifiableReason(row) {
   return "a host that attached without hardware evidence the relay verified (a token or operator attach), so there is nothing for this page to challenge.";
 }
 
-// One verdict as HTML (the lv-* classes, styled in components/live-verify/live-verify.css): every check, what was
-// not judged, the verdict line, then the evidence. Shared by <c-live-verify> and each <c-fleet-list> host row.
-export function verificationHtml(name, r, { more = 0 } = {}) {
+// One verdict, compact (the lv-* classes, styled in components/live-verify/live-verify.css): a one-line verdict and a count,
+// with the summary, every check, what was not judged and the evidence behind "Show the checks". Shared by <c-live-verify>,
+// each <c-fleet-list> host row and the Dashboard's Shield badge. An SEV-SNP verdict is first put in the shape the pVM and
+// Shield verifiers already return (their own checks, labels, omissions, summary and facts).
+function asGeneric(name, r) {
+  if (Array.isArray(r.checkOrder)) return r;
+  return { ...r, checkOrder: CHECK_ORDER, checkLabels: CHECK_LABELS, omissionLabels: OMISSION_LABELS,
+    summary: r.status === "verified" ? name + " presented a genuine, fresh AMD SEV-SNP report at an expected measurement."
+      : r.status === "limited" ? name + "'s report verifies to AMD's root for this page's nonce; its measurement matches the operator's list, which this page cannot reproduce on its own." : "",
+    facts: [["box", name], r.measurement && ["measurement", r.measurement], r.product && ["product", "AMD EPYC " + r.product],
+      r.transportKeySha256 && ["transport key", "sha256:" + r.transportKeySha256], r.nonce && ["nonce", r.nonce.slice(0, 32) + "… (drawn by this page)"],
+      r.expected && ["expected from", r.expected.source]].filter(Boolean) };
+}
+export function verificationHtml(name, r) {
+  const g = asGeneric(name, r), labels = g.checkLabels || {}, omit = g.omissionLabels || {};
   const li = (cls, st, txt) => '<li class="' + cls + '"><span class="st">' + st + "</span><span>" + esc(txt) + "</span></li>";
-  if (Array.isArray(r.checkOrder)) return genericHtml(name, r, li);
-  const steps = CHECK_ORDER.map((k) => {
-    const v = r.checks ? r.checks[k] : undefined;
-    return v === true ? li("ok", "✓", CHECK_LABELS[k]) : v === false ? li("bad", "✗", CHECK_LABELS[k]) : li("", "·", CHECK_LABELS[k]);
-  }).concat((r.omissions || []).map((o) => li("warn", "◐", "not judged independently: " + (OMISSION_LABELS[o] || o)))).join("");
-  const [cls, text] = r.status === "verified"
-    ? ["ok", "✓ VERIFIED: " + name + " presented a genuine, fresh AMD SEV-SNP report at an expected measurement"]
-    : r.status === "limited"
-    ? ["warn", "◐ GENUINE AND FRESH: " + name + "'s report verifies to AMD's root for this page's nonce; its measurement matches the operator's list, which this page cannot reproduce on its own"]
-    : ["bad", "✗ NOT VERIFIED (" + r.status + "): " + String((r.reasons || []).at(-1) || "verification incomplete")];
-  const meta = [
-    "box           " + name + (more ? "  (" + more + " more attached)" : ""),
-    r.measurement ? "measurement   " + r.measurement : null,
-    r.product ? "product       AMD EPYC " + r.product : null,
-    r.transportKeySha256 ? "transport key sha256:" + r.transportKeySha256 : null,
-    r.nonce ? "nonce         " + r.nonce.slice(0, 32) + "…  (drawn by this page)" : null,
-    r.expected ? "expected from " + r.expected.source : null,
-  ].filter(Boolean);
-  return '<ul class="lv-steps">' + steps + "</ul>"
-    + '<div class="lv-verdict ' + cls + '" role="status">' + esc(text) + "</div>"
-    + '<div class="lv-meta">' + meta.map((x) => "<span>" + esc(x) + "</span>").join("") + "</div>";
+  const order = g.checkOrder || [], checks = g.checks || {};
+  const passed = order.filter((k) => checks[k] === true).length, failed = order.find((k) => checks[k] === false);
+  const limits = (g.omissions || []).length;
+  const reason = String((g.reasons || []).at(-1) || "verification incomplete").replace(/^(REJECT|UNSUPPORTED|OMITTED)[^:]*:\s*/, "");
+  const short = (t) => (t.length > 160 ? t.slice(0, 157) + "…" : t);
+  const [cls, head] = isBusy(g) ? ["", "Busy right now; try again shortly (not a verdict)"]
+    : g.status === "verified" ? ["ok", "✓ Verified"] : g.status === "limited" ? ["warn", "◐ Genuine and fresh"]
+    : ["bad", "✗ Not verified: " + short(failed ? (labels[failed] || failed) + " failed" : reason.replace(/^.*?HTTP \d{3}:\s*/, ""))];
+  const count = isBusy(g) ? "" : passed + " of " + order.length + " checks passed" + (limits ? " · " + limits + " not judged independently" : "");
+  const steps = order.map((k) => checks[k] === true ? li("ok", "✓", labels[k] || k) : checks[k] === false ? li("bad", "✗", labels[k] || k) : li("", "·", labels[k] || k))
+    .concat((g.omissions || []).map((o) => li("warn", "◐", "not judged independently: " + (omit[o] || o)))).join("");
+  const facts = (Array.isArray(g.facts) ? g.facts : []).filter((f) => Array.isArray(f) && f.length === 2)
+    .map(([k, v]) => '<span><b>' + esc(k) + '</b> ' + esc(v) + "</span>").join("");
+  return '<div class="lv-verdict ' + cls + '" role="status">' + esc(head) + ' <span class="lv-of">' + esc(name) + "</span></div>"
+    + (count ? '<div class="lv-count">' + esc(count) + "</div>" : "")
+    + (order.length ? '<details class="lv-more"><summary>Show the checks</summary>'
+      + (g.summary ? '<p class="lv-sum">' + esc(g.summary) + "</p>" : "")
+      + (g.status !== "verified" && g.status !== "limited" && !isBusy(g) ? '<p class="lv-sum bad">' + esc(reason) + "</p>" : "")
+      + '<ul class="lv-steps">' + steps + "</ul>" + (facts ? '<div class="lv-meta">' + facts + "</div>" : "") + "</details>" : "");
 }
 
-// The pVM and Shield verdicts carry their own check list, labels, omissions, one-sentence summary and facts (verifier/web
-// pvm-host.mjs, shield-host.mjs), so this page states only what each verifier says it established.
-function genericHtml(name, r, li) {
-  const labels = r.checkLabels || {}, omit = r.omissionLabels || {};
-  const steps = r.checkOrder.map((k) => {
-    const v = r.checks ? r.checks[k] : undefined, t = labels[k] || k;
-    return v === true ? li("ok", "✓", t) : v === false ? li("bad", "✗", t) : li("", "·", t);
-  }).concat((r.omissions || []).map((o) => li("warn", "◐", "not judged independently: " + (omit[o] || o)))).join("");
-  const busy = isBusy(r);
-  const [cls, text] = busy ? ["", "· busy right now, not a verdict: " + String((r.reasons || []).at(-1)).replace(/^.*?HTTP \d{3}:\s*/, "") + " Try again shortly."]
-    : r.status === "verified" ? ["ok", "✓ VERIFIED: " + (r.summary || name + " verified")]
-    : r.status === "limited" ? ["warn", "◐ GENUINE AND FRESH: " + (r.summary || name + "'s evidence verifies for this page's nonce")]
-    : ["bad", "✗ NOT VERIFIED (" + r.status + "): " + String((r.reasons || []).at(-1) || "verification incomplete")];
-  const facts = (Array.isArray(r.facts) ? r.facts : []).filter((f) => Array.isArray(f) && f.length === 2)
-    .map(([k, v]) => String(k).padEnd(13) + " " + String(v));
-  return '<ul class="lv-steps">' + steps + "</ul>"
-    + '<div class="lv-verdict ' + cls + '" role="status">' + esc(text) + "</div>"
-    + '<div class="lv-meta">' + facts.map((x) => "<span>" + esc(x) + "</span>").join("") + "</div>";
-}

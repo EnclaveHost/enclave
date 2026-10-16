@@ -130,7 +130,9 @@ c-fleet-list{display:contents;}
 .fleet-verify{margin-top:4px;padding-top:10px;border-top:1px dashed var(--line-soft);}
 .fleet-verify-h{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;color:var(--text-dim);font-size:.68rem;}
 .fleet-verify .lv-steps{margin-top:10px;font-size:.68rem;gap:5px;}
-.fleet-verify .lv-verdict{margin-top:10px;font-size:.72rem;line-height:1.5;}
+.fleet-verify .lv-verdict{margin-top:10px;font-size:.74rem;line-height:1.5;}
+.fleet-verify .lv-count,.fleet-verify .lv-more>summary{font-size:.66rem;}
+.fleet-verify .lv-sum{font-size:.68rem;}
 .fleet-verify .lv-meta{font-size:.64rem;}
 .fleet-verify .lv-na{font-size:.68rem;line-height:1.6;color:var(--text-dim);}
 /* an Enclave Shield host's apps, each verifiable on its own */
