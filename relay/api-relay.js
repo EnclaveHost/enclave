@@ -94,6 +94,7 @@ import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDep
 import { initSessions, handleSessions, sessionsService, createCustodyGate, sessionRowRefusal } from "./sessions.mjs";
 import { handleCerts, initCerts } from "./certs.js";
 import { createShieldMarketplace, fingerprint as deploymentFingerprint } from "./shield-marketplace.mjs";
+import { createShieldAppFresh, appsOn } from "./shield-app-fresh.mjs";
 import { createPvmMarket } from "./pvm-market.mjs";
 import { createPvmSecretRelease } from "./pvm-secrets.mjs";
 import { claimCheapest, CLAIM_QUOTE_ABI } from "./cheapest-claim.mjs";
@@ -2376,6 +2377,13 @@ const shieldMarket = createShieldMarketplace({ hub: tunnelHub,
   readConfig: versionConfigReader(catalogClients, catalogAddress),
   fetchVerified: (cid, max) => predictor().fetchVerified(cid, max),
 });
+// a page verifying ONE Shield app itself: a fresh partition report over its nonce, beside this relay's expectation
+// (relay/shield-app-fresh.mjs; GET /v1/enclaves/<box>/apps/<id>/attestation)
+const shieldAppFresh = createShieldAppFresh({ hub: tunnelHub, policyFile: process.env.RELAY_SHIELD_MARKET_POLICY || "", confirmRow,
+  hasSecrets: hasStagedSecrets, isOwnerDeployment: (host, d) => !!servedEntryNow(host, d.owner),
+  readCatalog: catalogReader(catalogClients, catalogAddress), readConfig: versionConfigReader(catalogClients, catalogAddress),
+  fetchVerified: (cid, max) => predictor().fetchVerified(cid, max),
+  appGapMs: Number(process.env.RELAY_FRESH_APP_GAP_MS || 30000) });
 // PVM_MARKET=1 lets admitted, registered pVM CPU hosts take buyers' CPU-only apps (relay/pvm-market.mjs), under the tier's
 // own pins (PVM_CPU_CODE_HASHES / _AUTHORITY_HASHES / _RUNTIME_IDS): without them the market stays off.
 // a pVM host's registered proof key: a sibling VM proves it to have its evidence taken as the host's (pvm-market.mjs)
@@ -2720,6 +2728,24 @@ function handleRequest(req, res) {
   const freshAt = u.pathname.match(/^\/v1\/enclaves\/([A-Za-z0-9_-]{1,64})\/attestation(\/credential)?$/);
   const freshFail = (e) => { const code = { no_box: 404, no_session: 404, bad_nonce: 422, bad_credential: 422, busy: 503, timeout: 504 }[e.code] || 502;
                              return json(res, code, { error: e.code || "attestation_failed", message: e.message, ...(e.retryAfter ? { retryAfter: e.retryAfter } : {}) }, req); };
+  // The public apps a box serves now (public ledger rows leased to it), and ONE Shield app's fresh partition report over
+  // the caller's nonce: the node's guest report verbatim, beside what this relay expects (relay/shield-app-fresh.mjs).
+  const appsAt = u.pathname.match(/^\/v1\/enclaves\/([A-Za-z0-9_-]{1,64})\/apps(?:\/(0x[0-9a-fA-F]{64})\/attestation)?$/);
+  if (appsAt && req.method === "GET") return (async () => {
+    const name = appsAt[1], host = live.find((e) => e.tunnel && e.name === name);
+    if (!host) return json(res, 404, { error: "no_box", message: `no enclave named ${name} is attached` }, req);
+    if (!appsAt[2]) {
+      let rows; try { rows = await ledgerRows(); } catch (e) { return json(res, 503, { error: "ledger_unavailable", message: `the deployment ledger could not be read: ${String(e.shortMessage || e.message).slice(0, 200)}` }, req); }
+      return json(res, 200, { name, mode: host.mode, apps: appsOn(host, rows) }, req);
+    }
+    if (!rlFreshAttest(clientIp(req))) return json(res, 429, { error: "rate_limited", message: "Too many fresh attestations; retry in a few seconds." }, req);
+    const nonceHex = String(u.searchParams.get("nonce") || "");
+    if (!/^[0-9a-f]{64}$/.test(nonceHex)) return json(res, 422, { error: "bad_nonce", message: "nonce must be 64 lowercase hex characters (32 bytes) of your own choosing." }, req);
+    return shieldAppFresh(host, appsAt[2].toLowerCase(), Buffer.from(nonceHex, "hex")).then(
+      (r) => json(res, 200, { name, mode: "hv-node", deployment: appsAt[2].toLowerCase(), nonce: nonceHex, fetchedAt: new Date().toISOString(), ...r }, req),
+      (e) => { const code = { no_box: 404, not_here: 404, not_configured: 404, bad_nonce: 422, bad_deployment: 422, busy: 503, timeout: 504 }[e.code] || 502;
+               return json(res, code, { error: e.code || "attestation_failed", message: e.message, ...(e.retryAfter ? { retryAfter: e.retryAfter } : {}) }, req); });
+  })().catch((e) => json(res, 500, { error: "attestation_failed", message: e.message }, req));
   if (freshAt && req.method === "POST") return (async () => {
     const name = freshAt[1];
     let b; try { b = JSON.parse((await readBody(req, 8192)).toString("utf8")); } catch { return json(res, 400, { error: "bad_json", message: "the body must be JSON" }, req); }

@@ -24,9 +24,9 @@ const STATEMENT = Buffer.from(JSON.stringify({ stated: true, backend: "custom-ty
 const waitFor = async (fn, ms = 15000) => { const until = Date.now() + ms; for (;;) { const v = await fn(); if (v) return v; if (Date.now() > until) return null; await new Promise((r) => setTimeout(r, 50)); } };
 
 async function startRelay(t, env) {
-  // a chain that knows nothing: the box's name is unregistered, so no operator signature is due
+  // a chain that knows nothing: the box's name is unregistered (no operator signature is due) and the ledger is empty
   const rpc = http.createServer((req, res) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => {
-    const q = JSON.parse(b || "{}"), one = (m) => ({ jsonrpc: "2.0", id: m.id, result: m.method === "eth_chainId" ? "0x2105" : "0x" });
+    const q = JSON.parse(b || "{}"), one = (m) => ({ jsonrpc: "2.0", id: m.id, result: m.method === "eth_chainId" ? "0x2105" : "0x" + "0".repeat(64) });   // every call a zero word: an empty ledger
     res.setHeader("content-type", "application/json"); res.end(JSON.stringify(Array.isArray(q) ? q.map(one) : one(q))); }); });
   await listenOnFreePort(rpc);
   const { child, port } = await bootDaemon({
@@ -141,6 +141,10 @@ test("relay: a client verifies a live Enclave Shield host itself - the relay for
 
   // malformed input
   assert.equal((await post(`${at}/credential`, { session: "nope" })).status, 422);
+  // the app routes: this box's public apps (none: an unregistered test box), and an app check on a relay with no Shield policy
+  const apps = await (await fetch(`${origin}/v1/enclaves/shield-box/apps`)).json();
+  assert.equal(apps.name, "shield-box"); assert.deepEqual(apps.apps, []);
+  assert.equal((await fetch(`${origin}/v1/enclaves/nobody/apps`)).status, 404);
   // ...and past the per-IP budget (6, then one per 5 s) a client is told to slow down, whatever box it asks for
   assert.equal((await post(`${origin}/v1/enclaves/nobody/attestation`, { nonce: "34".repeat(32) })).status, 429);
 });
