@@ -54,7 +54,9 @@ export function derivationRecord(catalogRef, version, runtimeId, inference = nul
   const { http, ports } = isolationPortsOf(version.ports);
   return { ...(inference ? { inference } : {}), derivation: inference ? "enclave-catalog-bundle/4" : ports.length ? "enclave-catalog-bundle/3" : http ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
            catalog: { app: m[1].toLowerCase(), version: Number(m[2]) }, cid: String(version.cid),
-           policy: inference?.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? {...isolationPolicyFor(version),cpuPercent:1600,vcpus:16,memMiB:Math.max(isolationPolicyFor(version).memMiB,51200-384)} : isolationPolicyFor(version), runtimeId, ...(http ? { http } : {}), ...(ports.length ? { ports } : {}) };
+           policy: inference?.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? {...isolationPolicyFor(version),cpuPercent:1600,vcpus:16,memMiB:Math.max(isolationPolicyFor(version).memMiB,51200-384)}
+             : inference?.model === "z-image-turbo-q4km-sd" ? {...isolationPolicyFor(version),cpuPercent:800,vcpus:8,memMiB:Math.max(isolationPolicyFor(version).memMiB,24576-384)}
+             : isolationPolicyFor(version), runtimeId, ...(http ? { http } : {}), ...(ports.length ? { ports } : {}) };
 }
 // the supervisor's approvalVerdict: an approved, unyanked version of a listed app; a PENDING one only for a private
 // deployment (forPrivate = !isPublic, as the supervisor runs it); a rejected one never
@@ -572,7 +574,7 @@ export function makePredictor(o) {
     const vr = versionRefusal(cat && cat.app, cat && cat.version, forPrivate);
     if (vr) return refuse("version_not_admitted", vr);
     // one record per distinct runtime among the admitted releases (the AppID excludes the runtime; the record does not)
-    if (inference && (!["qwen2.5-0.5b-q8-gguf","qwen3.8-27b-mtp-q4-vl-gguf"].includes(inference.model) || !Number.isInteger(inference.gpuMilli) || inference.gpuMilli < (inference.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? 500 : 65) || inference.gpuMilli > 1000))
+    if (inference && (!["qwen2.5-0.5b-q8-gguf","qwen3.8-27b-mtp-q4-vl-gguf","z-image-turbo-q4km-sd"].includes(inference.model) || !Number.isInteger(inference.gpuMilli) || inference.gpuMilli < (inference.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? 500 : inference.model === "z-image-turbo-q4km-sd" ? 200 : 65) || inference.gpuMilli > 1000))
       return refuse("unsupported_inference", "unsupported isolated model or GPU allocation");
     const byRuntime = new Map();
     for (const id of admitIds) {
