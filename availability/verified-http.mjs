@@ -46,12 +46,24 @@ export function verifiedAppRequest({loadExpectations,collateral,now=Date.now}) {
     expectedAppSha256:exp.appId,expectedRuntimeId:exp.runtimeId,hostSession:exp.hostSession},exp.policy);
    if(!verdict.ok)throw new Error('Shield app evidence rejected: '+verdict.reason);
   } else if(exp.kind==='snp') {
-   const rid=runtimeId(exp.runtimeIdentity);
-   verdict=await verifyEvidence(capture.body,{policy:exp.policy,collateral,
-    context:{transportKeySpki:capture.spki,nonce,expectedBinding:bind2(capture.spki,nonce,rid),
-     expectedAppId:Buffer.from(exp.appId,'hex'),expectedHostData:Buffer.from(job.deployment.id.slice(2),'hex'),
-     auxblob:capture.body.certs?Buffer.from(capture.body.certs,'base64'):undefined,now:new Date(at).toISOString()}});
-   if(verdict.status!=='verified'||verdict.admissionSafe!==true)throw new Error('SNP app evidence rejected');
+   // Each expected image is its OWN expectation: a launch measurement together with the runtime identity that image
+   // binds (one per admitted release). Allowing every measurement but binding one runtime refuses every guest of the
+   // other releases (production job 0xb11f432d, 2026-10-16). Trying each trusted pair promotes nothing from the report.
+   const images=exp.images||[{measurements:exp.policy?.snp?.allowedMeasurements,runtimeIdentity:exp.runtimeIdentity}];
+   if(!images.length)throw new Error('no expected image');
+   const reasons=[];
+   for(const image of images) {
+    const rid=runtimeId(image.runtimeIdentity);
+    const policy={...exp.policy,snp:{...exp.policy.snp,allowedMeasurements:image.measurements}};
+    verdict=await verifyEvidence(capture.body,{policy,collateral,
+     context:{transportKeySpki:capture.spki,nonce,expectedBinding:bind2(capture.spki,nonce,rid),
+      expectedAppId:Buffer.from(exp.appId,'hex'),expectedHostData:Buffer.from(job.deployment.id.slice(2),'hex'),
+      auxblob:capture.body.certs?Buffer.from(capture.body.certs,'base64'):undefined,now:new Date(at).toISOString()}});
+    if(verdict.status==='verified'&&verdict.admissionSafe===true)break;
+    reasons.push(...(verdict.reasons||[]).filter(r=>/^REJECT/.test(r)));
+   }
+   if(verdict.status!=='verified'||verdict.admissionSafe!==true)
+    throw new Error('SNP app evidence rejected: '+([...new Set(reasons)].join('; ').slice(0,400)||'no reason given'));
   } else throw new Error('unsupported isolation verifier');
   const target=new URL(request.path,origin);if(target.origin!==origin.origin)throw new Error('cross-origin workload');
   const remainingMs=request.timeoutMs-(now()-at);
