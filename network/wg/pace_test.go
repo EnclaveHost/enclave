@@ -62,3 +62,26 @@ func TestPacedBind(t *testing.T) {
 		t.Fatal("0 Mbps must leave the bind unpaced")
 	}
 }
+
+// A timer that sleeps in 15.6 ms steps (Windows' default resolution) must not drag the rate down to the ~3 ms of
+// every step that paceCredit alone makes up (~2.2 MB/s at 90 Mbps); the oversleep is earned back as credit, and no
+// single Send burst exceeds what maxPaceCredit allows.
+func TestPacedBindCoarseTimer(t *testing.T) {
+	defer func(s func(time.Duration)) { paceSleep = s }(paceSleep)
+	const step = 15600 * time.Microsecond
+	paceSleep = func(d time.Duration) { time.Sleep((d + step - 1) / step * step) }
+	inner := &countBind{}
+	b := Paced(inner, 90)
+	one := [][]byte{make([]byte, 1372)}
+	start := time.Now()
+	for i := 0; i < 8000; i++ { // 11.2 MB at 11.25 MB/s: ~1.0 s
+		b.Send(one, nil)
+	}
+	el := time.Since(start)
+	if el > 1400*time.Millisecond {
+		t.Fatalf("8000 packets at 90 Mbps with a 15.6 ms timer took %v (%.1f MB/s), want ~1 s", el, 8000*1400/el.Seconds()/1e6)
+	}
+	if el < 850*time.Millisecond {
+		t.Fatalf("8000 packets at 90 Mbps took only %v: the pacer is not pacing", el)
+	}
+}

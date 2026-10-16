@@ -73,9 +73,11 @@ const witness = createWitness({
   // a job that never reached the challenge (offer, funding, claim) or that failed on the verifier's side (its relay's
   // prediction, its installed releases) is INCONCLUSIVE. Otherwise one verifier-side fault would refuse the host's
   // receipts, so no further audit could be offered and it could never pass again (job 2, 2026-10-15: relay 503).
+  // An operator may also mark a failed record `inconclusive: "<why>"` when the fault was the verifier's own (job 4,
+  // 2026-10-16: the binding used one release's runtime for every predicted image); the annotation stays on the record.
   lastAudit: async (hardwareId) => {
     const done = (await store.list()).filter((j) => j.offer && lc(j.offer.hardwareId) === lc(hardwareId) && ["complete", "failed"].includes(j.state))
-      .filter((j) => j.state === "complete" || (j.lease && !VERIFIER_SIDE.test(String(j.failure || ""))))
+      .filter((j) => j.state === "complete" || (j.lease && !j.inconclusive && !VERIFIER_SIDE.test(String(j.failure || ""))))
       .sort((a, b) => Number(B(b.offer.atSec) - B(a.offer.atSec)));
     return done.length ? { passed: done[0].state === "complete" && !done[0].failure, atSec: String(done[0].offer.atSec), job: done[0].id } : null;
   },
@@ -120,7 +122,12 @@ const chain = createFeeChainAdapter({ publicClient: send, executorWallet, ledger
   acceptHostOffer: async (o) => { const a = acceptors.get(lc(o.hostId)); if (!a) throw new Error(`no acceptor for host ${o.hostId}`); return a(o); },
   claimHint: async (id, hostId) => { await fetch(`${cfg.relay}/v1/claim-hint`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) }).catch(() => {}); void hostId; } });
 const collateral = cachedCollateral({ dir: path.join(cfg.stateDirectory, "amd"), upstream: httpCollateral({ timeoutMs: 8000 }) });
-const releaseRuntime = (rid) => {   // the runtime identity JSON of an installed release whose runtime id the prediction names
+const runtimeCache = new Map();
+const releaseRuntime = (rid) => {   // hits are cached; a miss is rescanned (a release may be installed later)
+  if (!runtimeCache.has(lc(rid))) { const j = scanRuntime(rid); if (!j) return null; runtimeCache.set(lc(rid), j); }
+  return runtimeCache.get(lc(rid));
+};
+const scanRuntime = (rid) => {   // the runtime identity JSON of an installed release whose runtime id the prediction names
   for (const d of fs.readdirSync(cfg.releasesDir).filter((x) => /^release-[0-9a-f]{8}$/.test(x))) {
     try { const j = JSON.parse(fs.readFileSync(path.join(cfg.releasesDir, d, "template/rt/runtime.json"), "utf8")); if (runtimeIdOf(j).toString("hex") === lc(rid)) return j; } catch {}
   }
@@ -148,12 +155,13 @@ const cpuWorkload = createCpuWorkload({ referenceBinary: cfg.referenceBinary, ro
   requestVerified: verifiedAppRequest({ collateral, loadExpectations: async (job) => {
     const p = predictions.get(job.deployment.id) || await getJson(`${cfg.relay}/v1/expected-guest?id=${job.deployment.id}`);
     // the relay's prediction (Enclave-operated: operator-bootstrap trust), only the images of releases it ADMITS
-    const images = (p.images || []).filter((i) => i.releaseAdmitted !== false);
-    if (!images.length) throw new Error("no admitted predicted image for the job");
-    const runtimeIdentity = releaseRuntime(images[0].runtimeId);
-    if (!runtimeIdentity) throw new Error(`no installed release states runtime ${images[0].runtimeId}`);
+    const admitted = (p.images || []).filter((i) => i.releaseAdmitted !== false);
+    if (!admitted.length) throw new Error("no admitted predicted image for the job");
+    // one expectation per image: its measurement with the runtime identity that image binds
+    const images = admitted.map((i) => ({ measurements: [lc(i.measurement)], runtimeIdentity: releaseRuntime(i.runtimeId) })).filter((i) => i.runtimeIdentity);
+    if (!images.length) throw new Error(`no installed release states runtime ${admitted.map((i) => i.runtimeId).join(", ")}`);
     return { deploymentId: job.deployment.id, hostId: job.offer.hostId, appId: lc(p.appId), origin: `https://${job.deployment.id.slice(2, 10)}.app.enclave.host/`, kind: "snp",
-             runtimeIdentity, policy: { snp: { ...DEFAULT_SNP_POLICY, product: "Turin", minTcb: cfg.minTcb, allowedMeasurements: images.map((i) => lc(i.measurement)) } } };
+             images, policy: { snp: { ...DEFAULT_SNP_POLICY, product: "Turin", minTcb: cfg.minTcb } } };
   } }) });
 const workload = { async runAndVerify(job) { await untilReady(job); try { return await cpuWorkload.runAndVerify(job); } finally { predictions.delete(job.deployment.id); } } };
 const loadObservation = createObservationLoader({

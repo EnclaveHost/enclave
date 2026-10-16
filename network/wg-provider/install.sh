@@ -24,7 +24,7 @@ ROLES_JSON=$(printf '%s' "$ROLES" | "$NODE" -e 'let s="";process.stdin.on("data"
 cat > /etc/enclave-network/provider.json.new <<EOF
 {"operatorKeyFile":"/etc/enclave-network/operator.key","publicAddress":"$PUBLIC","uplink":"eth0","roles":$ROLES_JSON,"pricePerGiB6":0,
  "region":"$REGION","kind":"enclave","hostId":null,"ports":{"exit":51820,"guard":51821,"control":51822},
- "rpc":["https://mainnet.base.org","https://base-rpc.publicnode.com"],"addressBook":"0xab214342d5A490150A4A977063A2f88E21F80907",
+ "rpc":["https://mainnet.base.org","https://base-rpc.publicnode.com","https://base.drpc.org"],"addressBook":"0xab214342d5A490150A4A977063A2f88E21F80907",
  "relay":"https://api.enclave.host","checkers":$CHECKERS_JSON,"zone":"app.enclave.host","probeZone":"probe.enclave.host",
  "stateDir":"/var/lib/enclave-network","budget":{"monthlyBytes":1000000000000,"stopAt":850000000000}}
 EOF
