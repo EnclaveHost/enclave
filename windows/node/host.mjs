@@ -49,6 +49,7 @@ import { CAP_STEP, loadCaps, saveCaps } from "./hosting.mjs";
 import { priceGuide, defaultPrice, rowTiers, perSec6Of, perHourOf } from "./price-guide.mjs";
 import { gasRunway } from "./gas-runway.mjs";
 import { recentHyperVEvents } from "./hyperv-events.mjs";
+import { createAuditJobs, auditAppRefsOf } from "./audit-jobs.mjs";
 import { PARTITION_OFFERS } from "../vbslike/datapath/partition-offers.mjs";
 
 const HEARTBEAT_MS = 10 * 60_000;
@@ -1736,6 +1737,17 @@ export class Host {
    * a row declined with a STANDING answer is not asked again while its inputs are unchanged (scanHold), so it
    * cannot starve the rows behind it (enclave-d1's TEST2). At most SCAN_DECLINED_PER_PASS declines a pass.
    */
+  #audits = null;
+  #auditJobs() {
+    if (this.#audits && this.#audits.fees === chain.addresses.verificationFees) return this.#audits.jobs;
+    let floor = 0n; try { floor = BigInt(String(this.cfg.auditMinRatePerShareMilli6 ?? "0").trim() || "0"); } catch {}
+    const jobs = createAuditJobs({ appRefs: auditAppRefsOf(this.cfg.auditAppRefs), minRatePerShareMilli6: floor < 0n ? 0n : floor,
+      enclaveId: this.enclaveId, ledger: chain.addresses.deployments, fees: chain.addresses.verificationFees || null,
+      publicClient: chain.publicClient(), send: chain.sendOperatorTx, log: this.log });
+    if (jobs.enabled) this.log(`paid capacity audits: accepting jobs for ${auditAppRefsOf(this.cfg.auditAppRefs).join(", ")} at >= ${floor} per milli`);
+    this.#audits = { fees: chain.addresses.verificationFees, jobs };
+    return jobs;
+  }
   async scanLedger() {
     const owners = this.ownerSet();
     const scope = this.scope();
@@ -1743,7 +1755,10 @@ export class Host {
     if (scope === "owner-only" && !owners.size) return;
     let rows; try { rows = await chain.allDeployments(); } catch (e) { this.log(`ledger scan failed: ${e.shortMessage || e.message}`); return; }
     const isOwners = (d) => owners.has(String(d.owner || "").toLowerCase());
-    const pool = rows.filter((d) => d.active && (scope === "market" ? d.isPublic : isOwners(d)));
+    // PAID CAPACITY AUDITS (audit-jobs.mjs): jobs the fee contract created for THIS host are accepted here (the operator
+    // key never leaves the box) and join the pool whatever the scope; off unless ENCLAVE_AUDIT_APPREFS lists workloads
+    const audits = await this.#auditJobs().pass(rows).catch((e) => { this.log(`audit jobs: ${e.message}`); return new Set(); });
+    const pool = rows.filter((d) => d.active && ((scope === "market" ? d.isPublic : isOwners(d)) || audits.has(String(d.id).toLowerCase())));
     if (pool.length && !this._sawLedger) {
       this._sawLedger = true;
       this.log(`ledger: ${pool.length} active deployment(s) in scope (${scope})`);
