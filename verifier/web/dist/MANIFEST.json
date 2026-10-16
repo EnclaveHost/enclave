@@ -1,8 +1,8 @@
 {
  "artifact": {
   "file": "enclave-verifier-web.js",
-  "bytes": 235517,
-  "sha256": "5ac9b57dcb51f17ae0b33ca6c3c6b99d483eca62a7e9cdf5db1b52c11a225c2e"
+  "bytes": 254034,
+  "sha256": "e83f958d5f0f980fd2a6b16769a7f9441be4bb63df3244ed335f86bda0519f16"
  },
  "build": {
   "tool": "esbuild",
@@ -21,6 +21,11 @@
   ]
  },
  "inputs": [
+  {
+   "path": "isolation/contract/runtime.mjs",
+   "bytes": 6224,
+   "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69"
+  },
   {
    "path": "node_modules/@freedomofpress/crypto-browser/dist/asn1/error.js",
    "bytes": 789,
@@ -377,6 +382,11 @@
    "sha256": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91"
   },
   {
+   "path": "relay/vbs-app-core.mjs",
+   "bytes": 4229,
+   "sha256": "4d6130154e61f994898df5b869f9d4e332eb2b437204a5c631c1ac53e9978f70"
+  },
+  {
    "path": "relay/vbs-tcglog-core.mjs",
    "bytes": 13766,
    "sha256": "936fc2ccc116154b6936d16a05fa89774a8f68a6dcb36b2733b064d4f2425912"
@@ -385,6 +395,11 @@
    "path": "relay/vbs-tpm.mjs",
    "bytes": 10151,
    "sha256": "993c69a8e9931d67fb741ff93c52dc10503f11b42aedb125a42cffb71922b4f6"
+  },
+  {
+   "path": "relay/vbs-vm-report-core.mjs",
+   "bytes": 5972,
+   "sha256": "5c0fca2992494d985c6ac83d44c6a185e71ac83d0b9c232320da77db9609e314"
   },
   {
    "path": "verifier/der.mjs",
@@ -423,8 +438,8 @@
   },
   {
    "path": "verifier/web/index.mjs",
-   "bytes": 6975,
-   "sha256": "8266f4052b6edaa12be77f079d81a7585a09274ec71e133f5bc7780c9f56566d"
+   "bytes": 8383,
+   "sha256": "698d54c0729a57f36b8e4829ae0bc7dc6ff5963aea0c363f8ce9a6fb165589fa"
   },
   {
    "path": "verifier/web/provider.mjs",
@@ -437,9 +452,14 @@
    "sha256": "459c2bc8914fb9d91b78ce79f7b0da3c6196f849dc73e0a4d5e71f5743f856d6"
   },
   {
+   "path": "verifier/web/shield-app.mjs",
+   "bytes": 21290,
+   "sha256": "ba6af3eca4ae4b87d8ae9b4aaaa7d53881548d8745e3f57bdc93327afdce1434"
+  },
+  {
    "path": "verifier/web/shield-host.mjs",
-   "bytes": 20829,
-   "sha256": "2f83eb540908b5a1ba7a84350fac36fd41e1457e27750ae0d73e248e8891b86d"
+   "bytes": 22134,
+   "sha256": "44a4284d7dca2d7e790b8aa7614001fddb2b10fa54d36ef45ee713cf48d9be92"
   },
   {
    "path": "verifier/web/shims/buffer-global.mjs",
