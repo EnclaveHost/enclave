@@ -1740,12 +1740,25 @@ export class Host {
    * cannot starve the rows behind it (enclave-d1's TEST2). At most SCAN_DECLINED_PER_PASS declines a pass.
    */
   #audits = null;
+  #auditAdmitted = new Set();
+  #auditScanned = false;
+  /**
+   * An audit job an OWNER-ONLY box serves although its ledger owner is a keyless fee wallet (audit-jobs.mjs admitted: a job
+   * created for this box by a payer policy of an owner it already serves). Until this process's first scan has decided,
+   * a deployment running an audit workload is not swept on owner grounds - a node restart must not kill a running job.
+   */
+  servesAuditJob(d) {
+    const id = String(d?.id || "").toLowerCase();
+    if (this.#auditAdmitted.has(id)) return true;
+    return !this.#auditScanned && auditAppRefsOf(this.cfg.auditAppRefs).includes(String(d?.appRef || "").toLowerCase());
+  }
   #auditJobs() {
     if (this.#audits && this.#audits.fees === chain.addresses.verificationFees) return this.#audits.jobs;
     let floor = 0n; try { floor = BigInt(String(this.cfg.auditMinRatePerShareMilli6 ?? "0").trim() || "0"); } catch {}
     const jobs = createAuditJobs({ appRefs: auditAppRefsOf(this.cfg.auditAppRefs), minRatePerShareMilli6: floor < 0n ? 0n : floor,
       enclaveId: this.enclaveId, ledger: chain.addresses.deployments, fees: chain.addresses.verificationFees || null,
-      publicClient: chain.publicClient(), send: chain.sendOperatorTx, log: this.log });
+      publicClient: chain.publicClient(), send: chain.sendOperatorTx, log: this.log,
+      servedOwners: () => this.ownerSet(), ownerOnly: () => this.servingScope() === "owner-only" });
     if (jobs.enabled) this.log(`paid capacity audits: accepting jobs for ${auditAppRefsOf(this.cfg.auditAppRefs).join(", ")} at >= ${floor} per milli`);
     this.#audits = { fees: chain.addresses.verificationFees, jobs };
     return jobs;
@@ -1759,8 +1772,9 @@ export class Host {
     const isOwners = (d) => owners.has(String(d.owner || "").toLowerCase());
     // PAID CAPACITY AUDITS (audit-jobs.mjs): jobs the fee contract created for THIS host are accepted here (the operator
     // key never leaves the box) and join the pool whatever the scope; off unless ENCLAVE_AUDIT_APPREFS lists workloads
-    const audits = await this.#auditJobs().pass(rows).catch((e) => { this.log(`audit jobs: ${e.message}`); return new Set(); });
-    const pool = rows.filter((d) => d.active && ((scope === "market" ? d.isPublic : isOwners(d)) || audits.has(String(d.id).toLowerCase())));
+    const audits = await this.#auditJobs().pass(rows).catch((e) => { this.log(`audit jobs: ${e.message}`); return null; });
+    if (audits) { this.#auditAdmitted = audits.admitted; this.#auditScanned = true; }
+    const pool = rows.filter((d) => d.active && ((scope === "market" ? d.isPublic : isOwners(d)) || !!audits?.pool.has(String(d.id).toLowerCase())));
     if (pool.length && !this._sawLedger) {
       this._sawLedger = true;
       this.log(`ledger: ${pool.length} active deployment(s) in scope (${scope})`);
@@ -2631,7 +2645,7 @@ export class Host {
   }
   /** ownerNotServed(d) -> true when, in owner-only scope, the deployment's ledger owner is not in ownerSet(). */
   ownerNotServed(d) {
-    return this.servingScope() === "owner-only" && !this.ownerSet().has(String(d?.owner || "").toLowerCase());
+    return this.servingScope() === "owner-only" && !this.ownerSet().has(String(d?.owner || "").toLowerCase()) && !this.servesAuditJob(d);
   }
   /**
    * claimRefusal(d, ...) -> why this box will not CLAIM ledger row `d` on policy, or null: chain.claimPolicy AND the
@@ -2642,6 +2656,9 @@ export class Host {
    * hyperv row was never reached).
    */
   claimRefusal(d, { version = null, capacity, appsEnabled, invited = false, ownerAllow = this.ownerSet() }) {
+    // an admitted audit job (servesAuditJob) is claimed as its fee wallet's own: owner-only scope still holds, because only
+    // a payer this box serves can have created it here
+    if (this.#auditAdmitted.has(String(d?.id || "").toLowerCase())) ownerAllow = new Set([...ownerAllow, String(d.owner || "").toLowerCase()]);
     return chain.claimPolicy(d, { isolationBackend: this.isolationBackend, ownerAllow, enclaveId: this.enclaveId,
                                   appsEnabled, scope: this.scope(), version, capacity, listedAt: this.listedAt(), invited,
                                   legacy: this.cfg.claimLegacy === true, fetchesConfigCid: this.features().configCidOverride,
@@ -3241,7 +3258,7 @@ export class Host {
     // WHOSE app: in owner-only scope a deployment whose ledger owner this box no longer serves (a delegation removed,
     // expired or invalid) is never spliced, whatever list the relay still holds - the removal takes effect here at once
     // (enclave-bf's belt, enclave-87's revocation ruling on the make-before-break re-attach).
-    if (rec && rec.owner && this.servingScope() === "owner-only" && !this.ownerSet().has(rec.owner)) return null;
+    if (rec && rec.owner && this.servingScope() === "owner-only" && !this.ownerSet().has(rec.owner) && !this.servesAuditJob({ id, appRef: rec.appRef })) return null;
     // AN ISOLATED DEPLOYMENT HAS NO `app` HERE, AND MUST NOT NEED ONE.
     //
     // Its process is a partition, not an entry in this.apps, so the checks below - which want a
