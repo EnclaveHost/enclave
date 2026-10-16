@@ -256,6 +256,7 @@ struct sh_state {
     bool dirty = false;                       /* new weights since the last start() */
 
     uint64_t offloaded_nodes = 0, local_nodes = 0, macs = 0, verify_fail = 0, exchanges = 0;
+    int64_t lead_rows_local = 0;   /* caption rows computed here (g_lead_rows) */
     /* Width diagnostics for the profile line: how many exchanges carried m
      * rows (m_hist[m], 9+ folded into [9]) and how many graphs reached this
      * backend whose widest claimed matmul had 1, 2-4, 5-8 or 9+ rows. The
@@ -1960,6 +1961,38 @@ static bool sh_cpu_compute(ggml_tensor *node) {
 }
 static bool sh_local_exact() { static int v = -1; if (v < 0) v = sh_env_int("SHIELDED_LOCAL_EXACT", 0); return v != 0; }
 
+/* Leading rows that stay in the enclave (ggml_backend_shielded_set_lead_rows).
+ * A diffusion transformer runs one joint [caption, image] sequence through every
+ * linear; the caption rows' activations are 10-200x the image rows' (Z-Image), and
+ * a site's public exponent has to cover its peak, so offloading both rounds every
+ * image row coarsely. With the caption rows computed here (on the CPU backend, in
+ * floating point, as the model would) the calibration fits the image rows. The
+ * count is the model's own public structure, and the worker already sees the batch
+ * height, so nothing new is revealed. 0 = off: no other workload sees a change.
+ * Applies only to weights under SH_LEAD_PREFIX (the joint transformer layers). */
+static std::atomic<int> g_lead_rows{0};
+static const char *SH_LEAD_PREFIX = "model.diffusion_model.layers.";
+extern "C" void ggml_backend_shielded_set_lead_rows(int n) { g_lead_rows.store(n > 0 ? n : 0); }
+
+/* dst rows [0, rows) = w x a rows [0, rows), on the CPU backend, written in place. */
+static bool sh_cpu_lead_rows(const ggml_tensor *w, const ggml_tensor *a, ggml_tensor *dst, int64_t rows) {
+    ggml_backend_t be = sh_cpu_backend();
+    if (!be) return false;
+    ggml_init_params ip = { ggml_tensor_overhead() * 4 + ggml_graph_overhead_custom(8, false) + 1024, nullptr, true };
+    ggml_context *ctx = ggml_init(ip);
+    if (!ctx) return false;
+    ggml_tensor *av = ggml_view_2d(ctx, const_cast<ggml_tensor *>(a), a->ne[0], rows, a->nb[1], 0);
+    ggml_tensor *out = ggml_mul_mat(ctx, const_cast<ggml_tensor *>(w), av);
+    out->data = dst->data;                      /* rows [0, rows) of dst: contiguous, same row stride */
+    out->buffer = dst->buffer;
+    av->buffer = a->buffer;
+    ggml_cgraph *gf = ggml_new_graph_custom(ctx, 8, false);
+    ggml_build_forward_expand(gf, out);
+    const bool ok = out->nb[1] == dst->nb[1] && ggml_backend_graph_compute(be, gf) == GGML_STATUS_SUCCESS;
+    ggml_free(ctx);
+    return ok;
+}
+
 /* The escape hatch: q8_0 x f32 in the clear, in the enclave.
  *
  * A backend that claims an op and then returns GGML_STATUS_FAILED does not
@@ -2423,6 +2456,31 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
             members.push_back(o); ents.push_back(&jt->second); done[j] = 1;
         }
         done[i] = 1;
+
+        /* Caption rows stay here (g_lead_rows): compute them now, then exchange
+         * only the rows after them, through shifted copies of the tensors. */
+        const int lead = g_lead_rows.load();
+        ggml_tensor a_tail, m_tail[SH_GROUP_MAX];
+        if (lead > 0 && lead < a->ne[1] && a->ne[2] == 1 && a->ne[3] == 1 &&
+            strncmp(ggml_get_name(node->src[0]), SH_LEAD_PREFIX, strlen(SH_LEAD_PREFIX)) == 0) {
+            for (ggml_tensor *mt : members)
+                if (!sh_cpu_lead_rows(mt->src[0], a, mt, lead)) {
+                    fprintf(stderr, "[shielded] %s: leading rows could not be computed in the enclave; failing the graph\n", ggml_get_name(mt->src[0]));
+                    return GGML_STATUS_FAILED;
+                }
+            a_tail = *a;
+            a_tail.ne[1] = a->ne[1] - lead;
+            a_tail.data = (char *)a->data + (size_t)lead * a->nb[1];
+            for (size_t t = 0; t < members.size(); t++) {
+                m_tail[t] = *members[t];
+                m_tail[t].ne[1] = members[t]->ne[1] - lead;
+                m_tail[t].data = (char *)members[t]->data + (size_t)lead * members[t]->nb[1];
+                m_tail[t].src[1] = &a_tail;
+                members[t] = &m_tail[t];
+            }
+            a = &a_tail;
+            s.lead_rows_local += (int64_t)lead * (int64_t)members.size();
+        }
 
         const sh_state::entry &e0 = *ents[0];
         const int64_t K = e0.K;
@@ -3130,6 +3188,7 @@ static const struct ggml_backend_reg_i ggml_backend_shielded_reg_i = {
     /* .get_device       = */ sh_reg_get_device,
     /* .get_proc_address = */ [](ggml_backend_reg_t, const char *name) -> void * {
         if (!strcmp(name, "ggml_backend_shielded_set_weight_verifier")) return (void *)ggml_backend_shielded_set_weight_verifier;
+        if (!strcmp(name, "ggml_backend_shielded_set_lead_rows")) return (void *)ggml_backend_shielded_set_lead_rows;
         if (!strcmp(name, "ggml_backend_shielded_set_source_release")) return (void *)ggml_backend_shielded_set_source_release;
         if (!strcmp(name, "ggml_backend_shielded_weight_source")) return (void *)ggml_backend_shielded_weight_source;
         if (!strcmp(name, "ggml_backend_shielded_source_candidate")) return (void *)ggml_backend_shielded_source_candidate;
