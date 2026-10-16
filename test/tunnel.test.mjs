@@ -84,8 +84,8 @@ test("snp: non-zero VMPL, old report version, off-allowlist measurement, stale c
 const TOKEN = "s3cret-token";
 const TOKEN_SHA = createHash("sha256").update(TOKEN).digest("hex");
 
-async function hubServer({ attest = null, operatorFor = null, onReferral } = {}) {
-  const hub = createTunnelHub({ allow: [{ name: "metal0", tokenSha256: TOKEN_SHA }], attest, operatorFor, ...(onReferral ? { onReferral } : {}) });
+async function hubServer({ attest = null, operatorFor = null, onReferral, freshGapMs } = {}) {
+  const hub = createTunnelHub({ allow: [{ name: "metal0", tokenSha256: TOKEN_SHA }], attest, operatorFor, ...(onReferral ? { onReferral } : {}), ...(freshGapMs !== undefined ? { freshGapMs } : {}) });
   const server = http.createServer((_req, res) => res.end("ok"));
   server.on("upgrade", (req, socket, head) => hub.handleUpgrade(req, socket, head));
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
@@ -989,6 +989,54 @@ test("tunnel: freshAttestation is refused for a box that did not attach with SEV
     const r = await dial(h.url, { "x-metal-name": "metal0", "x-metal-token": TOKEN });
     assert.equal(r.state, "open"); await settle();
     await assert.rejects(h.hub.freshAttestation("metal0", Buffer.alloc(32, 4)), (e) => e.code === "no_box");
+    r.ws.close();
+  } finally { await h.close(); }
+});
+
+// ---- a FRESH pVM host attestation over a CLIENT's nonce (hub.pvmFreshEvidence; GET /v1/enclaves/<avf box>/attestation) ----
+// The hub asks the phone's host agent for the HOST VM's evidence over the client's nonce and hands it back verbatim beside the
+// attach's transport key; it drops an answer over another nonce or key, and spaces checks of one box.
+test("tunnel: pvmFreshEvidence asks the attached pVM host for its host VM's evidence over the client's nonce and returns it verbatim; a foreign answer, a refusal and a check moments after another are refused",
+     { skip: !haveOpenssl && "openssl not installed" }, async () => {
+  const dir = tmpdir("pvm-fresh-");
+  const ca = makeCa(dir);
+  const PVMCODE = createHash("sha256").update("pvm-cpu protected build").digest();
+  const policy = pvmCpuPolicy({ codeHashes: [PVMCODE.toString("hex")], authorityHashes: [AUTH.toString("hex")], runtimeIds: ["d3370878" + "e".repeat(56)] });
+  const h = await hubServer({ attest: { allowedMeasurements: [], avf: { ...avfAttestWithPvmCpu(null, policy), rootPins: [ca.rootPin] }, pvmCpu: policy }, freshGapMs: 300 });
+  try {
+    const r = await dial(h.url, { "x-metal-name": "pixel-fresh", "x-metal-attest": "1" });
+    await settle();
+    const nonce = Buffer.from(r.frames.find((f) => f.t === "challenge").nonce, "base64");
+    const transport = generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "der" });
+    const padKey = generateKeyPairSync("x25519").publicKey.export({ type: "spki", format: "der" }).subarray(-32).toString("hex");
+    const bound = avfPadBinding(transport, padKey, nonce);
+    const leaf = issueLeaf(dir, { ext: extension({ challenge: createHash("sha256").update(bound).digest(), code: PVMCODE }) });
+    r.ws.send(JSON.stringify({ t: "attest", rad: { format: AVF_PAD_FORMAT, body: Buffer.from(JSON.stringify({ chain: [leaf.leaf, ca.inter, ca.root].map((d) => d.toString("base64")), signature: leaf.sign(bound).toString("base64") })).toString("base64"), transportKey: transport.toString("base64"), padKey } }));
+    assert.equal((await waitResult(r.frames))?.ok, true);
+    // the phone's agent: GET /v1/pvm/evidence?nonce=<hex> -> the host VM's evidence (here: as the test says)
+    let answer = (n) => ({ status: 200, body: { format: "enclave-pvm-app-evidence/v3", nonce: n, spki: transport.toString("hex"), app: "ab".repeat(32) } });
+    const paths = [];
+    r.ws.on("message", (d) => { const f = JSON.parse(d); if (f.t !== "req") return; paths.push(f.path);
+      const n = new URL(f.path, "http://x").searchParams.get("nonce"), a = answer(n);
+      r.ws.send(JSON.stringify({ t: "res", id: f.id, status: a.status, headers: { "content-type": "application/json" }, body: Buffer.from(JSON.stringify(a.body)).toString("base64") })); });
+    const client = Buffer.alloc(32, 0x6b);
+    const got = await h.hub.pvmFreshEvidence("pixel-fresh", client);
+    assert.equal(paths.at(-1), `/v1/pvm/evidence?nonce=${client.toString("hex")}`, "no deployment: the HOST VM, over the client's nonce");
+    assert.deepEqual(got.document, answer(client.toString("hex")).body, "the VM's evidence, verbatim");
+    assert.equal(got.transportKey, transport.toString("base64"), "beside the transport key the attach verified");
+    await assert.rejects(h.hub.pvmFreshEvidence("pixel-fresh", Buffer.alloc(32, 1)), (e) => e.code === "busy" && e.retryAfter >= 1, "one check per box per gap");
+    await new Promise((res) => setTimeout(res, 350));
+    answer = () => ({ status: 200, body: { nonce: "00".repeat(32), spki: transport.toString("hex") } });
+    await assert.rejects(h.hub.pvmFreshEvidence("pixel-fresh", Buffer.alloc(32, 2)), (e) => e.code === "attestation_failed", "an answer over another nonce is dropped");
+    await new Promise((res) => setTimeout(res, 350));
+    answer = (n) => ({ status: 200, body: { nonce: n, spki: "302a300506032b6570032100" + "00".repeat(32) } });
+    await assert.rejects(h.hub.pvmFreshEvidence("pixel-fresh", Buffer.alloc(32, 3)), (e) => e.code === "attestation_failed", "an answer under another transport key is dropped");
+    await new Promise((res) => setTimeout(res, 350));
+    answer = () => ({ status: 404, body: { error: "this host does not serve that deployment now" } });
+    await assert.rejects(h.hub.pvmFreshEvidence("pixel-fresh", Buffer.alloc(32, 4)), (e) => e.code === "attestation_failed" && /404/.test(e.message));
+    await assert.rejects(h.hub.pvmFreshEvidence("nobody", client), (e) => e.code === "no_box");
+    await assert.rejects(h.hub.pvmFreshEvidence("pixel-fresh", Buffer.alloc(31)), (e) => e.code === "bad_nonce");
+    await assert.rejects(h.hub.shieldFreshStart("pixel-fresh", client), (e) => e.code === "no_box", "a pVM host is not a Shield host");
     r.ws.close();
   } finally { await h.close(); }
 });

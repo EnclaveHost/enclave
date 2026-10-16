@@ -170,6 +170,8 @@ export async function servedList(delegations, ctx) {
   return { served: [...byOwner].map(([owner, expires]) => ({ owner, expires })).sort((a, b) => (a.owner < b.owner ? -1 : 1)), refused };
 }
 export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 30000, onChange = () => {},
+                                  // the least time between two client fresh checks of one pVM or Shield box (freshSlot)
+                                  freshGapMs = 20000,
                                   // (name, code, {via, operator}) once a box has PROVEN its name and said a referral code
                                   // (x-metal-referral; relay/referrals.mjs): attribution only, it changes nothing here
                                   onReferral = () => {},
@@ -433,9 +435,14 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       // the box's answer to a CLIENT's fresh-attestation challenge (freshAttestation below): taken only when its report binds
       // the nonce in flight under this tunnel's attested transport key; anything else is ignored
       if (f.t === "attest" && t.freshWait && t.freshWait.check(f)) { const w = t.freshWait; t.freshWait = null; w.resolve(f.rad); return; }
+      // an Enclave Shield host's answers to a CLIENT's fresh check (shieldFreshStart/Finish below): its TPM keys, then its
+      // evidence over the client's nonce; taken only in the phase the check is in, anything else is ignored
+      if (t.shieldFresh && f.t === "vbs-keys" && t.shieldFresh.phase === "keys") return t.shieldFresh.onKeys(f);
+      if (t.shieldFresh && f.t === "attest" && t.shieldFresh.phase === "attest") return t.shieldFresh.onAttest(f);
     });
     const bye = () => { if (tunnels.get(name) === t) tunnels.delete(name); for (const p of t.pending.values()) p.reject(new Error("tunnel closed"));
-                        if (t.freshWait) { const w = t.freshWait; t.freshWait = null; w.reject(Object.assign(new Error("the tunnel closed"), { code: "closed" })); } console.log(`[tunnel] ${name} detached`); try { onChange("detach", name); } catch {} };
+                        if (t.freshWait) { const w = t.freshWait; t.freshWait = null; w.reject(Object.assign(new Error("the tunnel closed"), { code: "closed" })); }
+                        if (t.shieldFresh) t.shieldFresh.fail("closed", "the tunnel closed"); console.log(`[tunnel] ${name} detached`); try { onChange("detach", name); } catch {} };
     ws.on("close", bye);
     ws.on("error", () => { try { ws.terminate(); } catch {} });
     // the name is PROVEN now (token, operator key or attestation): only now may its referral code be recorded
@@ -541,12 +548,16 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       return wss.handleUpgrade(req, socket, head, (ws) => {
         const nonce = randomBytes(32);
         let settled = false, verifying = false;
+        // counted until this exchange binds, is denied or the socket ends (freshSlot reads it)
+        let counted = true; attaching.set(name, (attaching.get(name) || 0) + 1);
+        const uncount = () => { if (!counted) return; counted = false; const n = (attaching.get(name) || 1) - 1; if (n > 0) attaching.set(name, n); else attaching.delete(name); };
+        ws.once("close", uncount);
         // VBS state for THIS attach (EVIDENCE.md steps 3-4): the keys the node
         // presented and the credential minted for them. The 15 s timer above
         // covers both rounds; the credential is compared on `attest`.
         let vbs = null;
         const b64 = (v, cap) => { if (typeof v !== "string" || !v.length || v.length > 4 * Math.ceil(cap / 3) + 4) return null; const b = Buffer.from(v, "base64"); return b.length && b.length <= cap ? b : null; };
-        const deny = (why) => { if (settled) return; settled = true; console.log(`[tunnel] ${name} attest REJECTED: ${why}`); try { ws.send(JSON.stringify({ t: "attest-result", ok: false, reason: why })); } catch {} setTimeout(() => { try { ws.close(); } catch {} }, 100); };
+        const deny = (why) => { if (settled) return; settled = true; uncount(); console.log(`[tunnel] ${name} attest REJECTED: ${why}`); try { ws.send(JSON.stringify({ t: "attest-result", ok: false, reason: why })); } catch {} setTimeout(() => { try { ws.close(); } catch {} }, 100); };
         const timer = setTimeout(() => deny("attestation timeout"), 15000);
         timer.unref?.();                                     // a stalled attach must not hold the loop open
         ws.on("message", async (data) => {
@@ -706,7 +717,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             const prev = tunnels.get(name);
             if (prev && (!prev.keyFp || prev.keyFp !== keyFp))
               return deny("that name is held by another enclave");
-            clearTimeout(timer); settled = true;
+            clearTimeout(timer); settled = true; uncount();
             try { ws.send(JSON.stringify({ t: "attest-result", ok: true, measurement: res.measurement, ...(isHv ? { tier: HVNODE_TIER, hostExcluded: false } : {}) })); } catch {}
             // A v1 padKey was outside the attested message. Never retain it
             // for seed issuance or for the dealer's consumer enumeration.
@@ -738,6 +749,20 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
 
     socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
     socket.destroy();
+  }
+
+  // One client fresh check per pVM or Shield box at a time, and at most one every FRESH_GAP_MS: each costs the box a VM
+  // evidence exchange or a TPM quote, and the Shield node's guests share that TPM (enclave-88: one TPM report at a time).
+  // Never while an attach for the same name is still in its challenge rounds either: the node keeps ONE pending nonce per
+  // connection and its TPM commands queue behind each other (enclave-a8), so a check must not run beside a re-attach.
+  const FRESH_GAP_MS = Number(freshGapMs);
+  const attaching = new Map();   // name -> attach exchanges in flight (the permissionless path, before bind or deny)
+  function freshSlot(name, t) {
+    if (attaching.get(name)) throw Object.assign(new Error("the box is re-attaching; retry in a few seconds"), { code: "busy", retryAfter: 5 });
+    if (t.freshBusy || t.shieldFresh) throw Object.assign(new Error("a fresh attestation is already in flight for this box"), { code: "busy" });
+    const wait = (t.freshAt || 0) + FRESH_GAP_MS - Date.now();
+    if (wait > 0) throw Object.assign(new Error(`this box was checked moments ago; retry in ${Math.ceil(wait / 1000)} s`), { code: "busy", retryAfter: Math.ceil(wait / 1000) });
+    t.freshBusy = true; t.freshAt = Date.now();
   }
 
   let seq = 1;
@@ -807,6 +832,74 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       t.freshWait = w;
       try { t.ws.send(JSON.stringify({ t: "challenge", nonce: nonce.toString("base64") })); }
       catch (e) { t.freshWait = null; w.reject(Object.assign(e, { code: "send" })); }
+    }),
+    // A FRESH pVM attestation over a CLIENT's nonce: the phone's host agent asks its HOST VM for evidence over that nonce
+    // (EVIDENCE3, GET /v1/pvm/evidence with no deployment) and the hub hands the VM's evidence back verbatim, beside the
+    // transport key this attach verified. It vouches for nothing: the client checks the AVF chain, the challenge over its
+    // own nonce and the builds itself. The host VM's evidence is evidence for the HOST only, never for any deployment.
+    pvmFreshEvidence: async (name, nonce) => {
+      const t = tunnels.get(name);
+      const fail = (code, msg) => { throw Object.assign(new Error(msg), { code }); };
+      if (!Buffer.isBuffer(nonce) || nonce.length !== 32) fail("bad_nonce", "the nonce must be 32 bytes");
+      if (!t || t.ws.readyState !== t.ws.OPEN || t.mode !== "avf" || !t.spki) fail("no_box", `no attested pVM host named ${name} is attached`);
+      freshSlot(name, t);
+      try {
+        let r; try { r = await send(name, "GET", `/v1/pvm/evidence?nonce=${nonce.toString("hex")}`, {}, null); }
+        catch (e) { fail("timeout", `the host did not answer: ${e.message}`); }
+        let ev; try { ev = JSON.parse(Buffer.from(r.body || "", "base64").toString("utf8")); } catch { ev = null; }
+        if (r.status !== 200 || !ev || typeof ev !== "object") fail("attestation_failed", `the host gave no evidence (${r.status}${ev && ev.error ? `: ${String(ev.error).slice(0, 200)}` : ""})`);
+        // the hub's only filter: the answer is over THIS nonce under THIS attach's transport key (a stale or foreign answer is dropped)
+        if (ev.nonce !== nonce.toString("hex") || ev.spki !== Buffer.from(t.spki, "base64").toString("hex")) fail("attestation_failed", "the host's evidence answers another nonce or another transport key");
+        return { document: ev, transportKey: t.spki };
+      } finally { t.freshBusy = false; }
+    },
+    // A FRESH Enclave Shield host attestation over a CLIENT's nonce, in two steps because the CLIENT mints the TPM credential
+    // (so the hub cannot stand in for the TPM): start sends the box the same challenge an attach runs and returns its TPM keys
+    // (the vbs-keys frame, verbatim); finish forwards the credential the client made for those keys and returns the box's
+    // windows-hv-node/v1 document verbatim. No attest-result is sent: the live attach is untouched. One check per box at a time.
+    shieldFreshStart: (name, nonce) => new Promise((resolve, reject) => {
+      const t = tunnels.get(name);
+      const fail = (code, msg) => reject(Object.assign(new Error(msg), { code }));
+      if (!Buffer.isBuffer(nonce) || nonce.length !== 32) return fail("bad_nonce", "the nonce must be 32 bytes");
+      if (!t || t.ws.readyState !== t.ws.OPEN || t.mode !== "hv-node" || !t.spki) return fail("no_box", `no attested Enclave Shield host named ${name} is attached`);
+      try { freshSlot(name, t); } catch (e) { return reject(e); }
+      const b64ok = (v, cap) => typeof v === "string" && v.length > 0 && v.length <= 4 * Math.ceil(cap / 3) + 4 && /^[A-Za-z0-9+/]+=*$/.test(v);
+      let timer = null;
+      const s = t.shieldFresh = {
+        session: randomBytes(24).toString("hex"), nonce, phase: "keys",
+        arm: (ms, what) => { clearTimeout(timer); timer = setTimeout(() => s.fail("timeout", what), ms); timer.unref?.(); },
+        fail: (code, msg) => { clearTimeout(timer); if (t.shieldFresh === s) { t.shieldFresh = null; t.freshBusy = false; }
+                               const w = s.wait; s.wait = null; if (w) w.reject(Object.assign(new Error(msg), { code })); },
+        wait: { resolve, reject },
+        onKeys: (f) => {
+          if (!b64ok(f.ek, VBS_MAX_CERT_BYTES) || !b64ok(f.aikPub, VBS_MAX_TPMT_PUBLIC_BYTES) || !b64ok(f.aikName, 34)
+              || (f.ekChain !== undefined && (!Array.isArray(f.ekChain) || f.ekChain.length > VBS_MAX_CHAIN_CERTS || !f.ekChain.every((c) => b64ok(c, VBS_MAX_CERT_BYTES)))))
+            return s.fail("attestation_failed", "the host's TPM keys are malformed");
+          s.phase = "credential"; s.arm(30000, "no credential arrived within 30 s");
+          const w = s.wait; s.wait = null;
+          w.resolve({ session: s.session, keys: { ek: f.ek, ekChain: f.ekChain || [], aikPub: f.aikPub, aikName: f.aikName } });
+        },
+        onAttest: (f) => {
+          const rad = f.rad || {};
+          if (rad.refused) return s.fail("attestation_failed", `the host refused: ${String(rad.refused).slice(0, 300)}`);
+          if (rad.format !== HVNODE_FORMAT || rad.transportKey !== t.spki || typeof rad.body !== "string" || !rad.body || rad.body.length > 12 * 1024 * 1024) return;
+          clearTimeout(timer); t.shieldFresh = null; t.freshBusy = false;
+          const w = s.wait; s.wait = null;
+          if (w) w.resolve({ format: rad.format, body: rad.body, transportKey: rad.transportKey });
+        },
+      };
+      s.arm(20000, "the host did not send its TPM keys within 20 s");
+      try { t.ws.send(JSON.stringify({ t: "challenge", nonce: nonce.toString("base64"), sigVersions: [1, 2] })); }
+      catch (e) { s.fail("send", e.message); }
+    }),
+    shieldFreshFinish: (name, session, credentialBlob, secret) => new Promise((resolve, reject) => {
+      const t = tunnels.get(name), s = t && t.shieldFresh;
+      if (!s || s.session !== session || s.phase !== "credential") return reject(Object.assign(new Error("no Enclave Shield check is waiting for that session"), { code: "no_session" }));
+      if (!Buffer.isBuffer(credentialBlob) || !credentialBlob.length || credentialBlob.length > 1024 || !Buffer.isBuffer(secret) || !secret.length || secret.length > 1024)
+        return s.fail("bad_credential", "credentialBlob and secret must be 1..1024 bytes each"), reject(Object.assign(new Error("credentialBlob and secret must be 1..1024 bytes each"), { code: "bad_credential" }));
+      s.phase = "attest"; s.wait = { resolve, reject }; s.arm(30000, "the host did not send its evidence within 30 s");
+      try { t.ws.send(JSON.stringify({ t: "vbs-credential", credentialBlob: credentialBlob.toString("base64"), secret: secret.toString("base64") })); }
+      catch (e) { s.fail("send", e.message); }
     }),
     nameOf: (origin) => (String(origin || "").match(NAME_RE) || [])[1] || null,
     // synthetic registry rows for the attached tunnels (bypass the dial-based

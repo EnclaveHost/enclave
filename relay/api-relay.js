@@ -253,6 +253,8 @@ const referrals = createReferrals({ file: dataDir() ? dataFile(dataDir(), "refer
                                     ownerOf: async (n) => (await tunnelNameOwner(n)) || "",
                                     signerOf: async (message, signature) => (await import("viem")).recoverMessageAddress({ message, signature }) });
 const tunnelHub = createTunnelHub({
+  // the least time between two client fresh checks of one pVM or Shield box (tests shorten it)
+  freshGapMs: Number(process.env.RELAY_FRESH_GAP_MS || 20000),
   allow: [...DEFAULT_METAL_ALLOW, ...ENV_METAL_ALLOW],
   attest: METAL_ALLOWED_MEASUREMENTS.length || AVF_HUB_ATTEST || HVNODE_ATTEST
     ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK, ...(METAL_MIN_TCB !== undefined ? { minTcb: METAL_MIN_TCB } : {}), ...(AVF_HUB_ATTEST ? { avf: AVF_HUB_ATTEST } : {}), ...(PVM_CPU_POLICY ? { pvmCpu: PVM_CPU_POLICY } : {}), ...(HVNODE_ATTEST ? { hvNode: HVNODE_ATTEST } : {}) }
@@ -2711,12 +2713,48 @@ function handleRequest(req, res) {
   // live verify). The box signs nothing here and neither does the relay: the document is the box's own, AMD-signed, with
   // report_data[0:32] = sha256(its transport SPKI || YOUR nonce), handed back verbatim. The relay's admitted measurements are
   // attached for information and labelled as what they are: this operator's allowlist, not an independent expectation.
-  const freshAt = u.pathname.match(/^\/v1\/enclaves\/([A-Za-z0-9_-]{1,64})\/attestation$/);
-  if (freshAt && req.method === "GET") {
+  //
+  // The same route answers for the other attested tiers, each with its own box's evidence and the same rule (the relay hands
+  // it back verbatim and vouches for nothing): a pVM host's HOST VM evidence (GET, mode "avf"), and an Enclave Shield host's
+  // TPM evidence in two steps (POST, mode "hv-node"), because the CALLER mints the TPM credential the box must recover.
+  const freshAt = u.pathname.match(/^\/v1\/enclaves\/([A-Za-z0-9_-]{1,64})\/attestation(\/credential)?$/);
+  const freshFail = (e) => { const code = { no_box: 404, no_session: 404, bad_nonce: 422, bad_credential: 422, busy: 503, timeout: 504 }[e.code] || 502;
+                             return json(res, code, { error: e.code || "attestation_failed", message: e.message, ...(e.retryAfter ? { retryAfter: e.retryAfter } : {}) }, req); };
+  if (freshAt && req.method === "POST") return (async () => {
+    const name = freshAt[1];
+    let b; try { b = JSON.parse((await readBody(req, 8192)).toString("utf8")); } catch { return json(res, 400, { error: "bad_json", message: "the body must be JSON" }, req); }
+    if (freshAt[2]) {
+      const b64 = (v) => (typeof v === "string" && v.length <= 1400 && /^[A-Za-z0-9+/]+=*$/.test(v) ? Buffer.from(v, "base64") : null);
+      if (typeof b.session !== "string" || !/^[0-9a-f]{48}$/.test(b.session)) return json(res, 422, { error: "bad_session", message: "session must be the 48-hex value the first step returned" }, req);
+      return tunnelHub.shieldFreshFinish(name, b.session, b64(b.credentialBlob), b64(b.secret)).then(
+        (document) => json(res, 200, { name, mode: "hv-node", fetchedAt: new Date().toISOString(), document,
+                                       scope: "the HOST's boot state, attested by its TPM; the host OS and operator remain trusted (Enclave Shield)" }, req),
+        freshFail);
+    }
+    if (!rlFreshAttest(clientIp(req))) return json(res, 429, { error: "rate_limited", message: "Too many fresh attestations; retry in a few seconds." }, req);
+    const nonceHex = String(b.nonce || "");
+    if (!/^[0-9a-f]{64}$/.test(nonceHex)) return json(res, 422, { error: "bad_nonce", message: "nonce must be 64 lowercase hex characters (32 bytes) of your own choosing." }, req);
+    return tunnelHub.shieldFreshStart(name, Buffer.from(nonceHex, "hex")).then(
+      ({ session, keys }) => json(res, 200, { name, mode: "hv-node", session, nonce: nonceHex, keys,
+                                              next: `POST /v1/enclaves/${name}/attestation/credential {session, credentialBlob, secret}: MakeCredential for these keys, with a credential only you know` }, req),
+      freshFail);
+  })().catch((e) => json(res, 500, { error: "attestation_failed", message: e.message }, req));
+  if (freshAt && !freshAt[2] && req.method === "GET") {
+    const name = freshAt[1], row = tunnelHub.origins().find((o) => o.name === name);
+    if (row && row.mode === "hv-node")   // answered before the rate limit: it costs the box nothing
+      return json(res, 405, { error: "use_post", message: `${name} is an Enclave Shield host: POST {nonce} here, then POST the credential you mint to /v1/enclaves/${name}/attestation/credential` }, req);
     if (!rlFreshAttest(clientIp(req))) return json(res, 429, { error: "rate_limited", message: "Too many fresh attestations; retry in a few seconds." }, req);
     const nonceHex = String(u.searchParams.get("nonce") || "");
     if (!/^[0-9a-f]{64}$/.test(nonceHex)) return json(res, 422, { error: "bad_nonce", message: "nonce must be 64 lowercase hex characters (32 bytes) of your own choosing." }, req);
-    const name = freshAt[1], row = tunnelHub.origins().find((o) => o.name === name);
+    if (row && row.mode === "avf")
+      return tunnelHub.pvmFreshEvidence(name, Buffer.from(nonceHex, "hex")).then(
+        ({ document, transportKey }) => json(res, 200, { name, mode: "avf", nonce: nonceHex, fetchedAt: new Date().toISOString(), document, transportKey,
+          scope: "the HOST VM only (the host's own idle app): this is never evidence for any deployment on the box",
+          operatorAllowlist: { source: "this relay's PVM_CPU policy (PVM_CPU_CODE_HASHES / _AUTHORITY_HASHES / _RUNTIME_IDS: the operator's own word, not a reproduction)",
+                               codeHashes: PVM_CPU_POLICY ? [...PVM_CPU_POLICY.codeHashes] : [], authorityHashes: PVM_CPU_POLICY ? [...PVM_CPU_POLICY.authorityHashes] : [],
+                               runtimeIds: PVM_CPU_POLICY ? [...PVM_CPU_POLICY.runtimeIds] : [],
+                               ...(AVF_HUB_ATTEST && AVF_HUB_ATTEST.rootPins ? { rootPins: [...AVF_HUB_ATTEST.rootPins] } : {}) } }, req),
+        freshFail);
     return tunnelHub.freshAttestation(name, Buffer.from(nonceHex, "hex")).then(
       (document) => json(res, 200, { name, nonce: nonceHex, fetchedAt: new Date().toISOString(), document,
         operatorAllowlist: { source: "this relay's METAL_ALLOWED_MEASUREMENTS (the operator's own word, not a reproduction)",
