@@ -78,3 +78,16 @@ pass `limited`. `test/verifier-web-pvm-host.test.mjs` holds the two builds equal
 The site's glue is `site/js/core/verify.js` (`verifyBoxInBrowser`, `verdictBadge`), used by the Overview attest widget and
 the Deploy page's per-deployment badge. A browser cannot see its own TLS peer certificate, so nothing here claims a TLS
 binding: the result names the box's transport key instead.
+
+## On the site: `verifyShieldHostWeb`
+
+`verifyShieldHostWeb({ apiBase, name, fetchImpl?, timeoutMs? })` (the flow: `shield-host.mjs`; the rules: `../../relay/hvnode-core.mjs`,
+the same code the relay runs for `windows-hv-node/v1`) verifies an attached Enclave Shield host. The page draws the nonce
+(`POST <api>/v1/enclaves/<name>/attestation`), checks the host's keys, and MINTS THE TPM CREDENTIAL ITSELF
+(`tpm-credential.mjs`, byte-compatible with `relay/vbs-credential.mjs`), sending only the blob through the relay
+(`POST .../attestation/credential`); only the TPM holding that EK can recover it, so a matching credential in the evidence
+shows the quoting key lives in that TPM without trusting the relay. The EK chain is walked by `tpm-certs.mjs` against the
+TPM roots embedded there (relay/fixtures/tpm-roots.pem's certificates; AMD fTPM only today). A full pass is `limited`, never
+`verified`: Shield does not exclude the host (omission `host-not-excluded`) and PCR 0 has no independent pin
+(`platform-firmware-unpinned`). `test/verifier-web-shield-host.test.mjs` holds the two builds' verdicts equal on every real
+and synthetic session, accepted or refused, and runs the bundled build where no Node global exists.

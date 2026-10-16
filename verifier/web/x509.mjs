@@ -36,7 +36,7 @@ export const pemCertificates = (pem) => String(pem).split(/(?=-----BEGIN CERTIFI
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 export const opensslTime = (d) => { const z = (n) => String(n).padStart(2, "0"); return `${MON[d.getUTCMonth()]} ${String(d.getUTCDate()).padStart(2, " ")} ${z(d.getUTCHours())}:${z(d.getUTCMinutes())}:${z(d.getUTCSeconds())} ${d.getUTCFullYear()} GMT`; };
 
-function parseSpki(der, node) {
+export function parseSpki(der, node) {
   const [alg, bits] = children(der, node); if (!alg || !bits || alg.tag !== 0x30 || bits.tag !== 0x03) throw new Error("SubjectPublicKeyInfo shape");
   const [algOid, params] = children(der, alg); if (!algOid || algOid.tag !== 0x06) throw new Error("SubjectPublicKeyInfo algorithm");
   const id = oid(der, algOid), key = bytes(der, bits); if (!key.length || key[0] !== 0) throw new Error("SubjectPublicKeyInfo BIT STRING with unused bits");
@@ -51,7 +51,7 @@ function parseSpki(der, node) {
   return { type: "other", oid: id };
 }
 // [3] EXPLICIT SEQUENCE OF Extension { extnID OID, critical BOOLEAN DEFAULT FALSE, extnValue OCTET STRING }
-function parseExtensions(der, node) {
+export function parseExtensions(der, node) {
   const out = new Map(); if (!node) return out;
   const [seq] = children(der, node); if (!seq || seq.tag !== 0x30) throw new Error("extensions shape");
   for (const e of children(der, seq, 256)) {

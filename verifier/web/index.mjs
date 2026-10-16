@@ -2,8 +2,10 @@
 // shape as verifier/index.mjs verifyEvidence, from the same verifier/snp.mjs code, with verifier/web/provider.mjs as the
 // crypto provider. Only AMD SEV-SNP is judged by verifyEvidenceWeb; every other technology is "unsupported" there (the
 // delegated classes call Node-only modules), never green. An attached Android pVM host is judged by verifyPvmHostWeb
-// (verifier/web/pvm-host.mjs), on the relay's own pVM evidence rules (relay/pvm-evidence-core.mjs). The envelope's rules are verifier/envelope.mjs's validateEnvelope; the bytes
-// are decoded here with the browser's own primitives (atob) under the same caps.
+// (verifier/web/pvm-host.mjs, on the relay's own rules in relay/pvm-evidence-core.mjs), and an Enclave Shield host whole by
+// verifyShieldHostWeb (verifier/web/shield-host.mjs, on relay/hvnode-core.mjs). The envelope's rules are
+// verifier/envelope.mjs's validateEnvelope; the bytes are decoded here with the browser's own primitives (atob) under the
+// same caps.
 //
 // Built for a page by verifier/web/build.mjs (esbuild: node:crypto aliased to a throwing shim, Buffer from the
 // `buffer` package); the same file runs unbundled under Node 22 for the differential and the unit suites.
@@ -68,3 +70,14 @@ export async function verifyMetalBoxWeb({ apiBase = "https://api.enclave.host", 
 // verifyPvmHostWeb({ apiBase, name, expected?, fetchImpl?, timeoutMs? }) -> { status, technology, name, checkOrder, checkLabels,
 // checks, omissions, omissionLabels, reasons, summary, facts }
 export { verifyPvmHostWeb, verifyPvmEvidenceWeb, APP_FROM_EVIDENCE } from "./pvm-host.mjs";
+
+// An attached Enclave Shield host (the NucBox hv-node: a Windows Hyper-V host attested by its TPM), verified IN THIS BROWSER
+// (verifier/web/shield-host.mjs has the flow, relay/hvnode-core.mjs the rules the relay also runs): this page draws the
+// nonce AND mints the TPM credential, so the relay cannot stand in for the TPM. A pass is "limited", never "verified":
+// Shield does not exclude the host, and PCR 0 has no independent pin.
+import { verifyShieldHostWith } from "./shield-host.mjs";
+export { verifyHvNodeEvidenceWeb, makeCredentialWeb, TPM_EK_ROOTS_PEM, TPM_EK_ROOT_PINS, SHIELD_CHECK_ORDER, SHIELD_CHECK_LABELS, SHIELD_OMISSION_LABELS } from "./shield-host.mjs";
+export async function verifyShieldHostWeb({ apiBase = "https://api.enclave.host", name, fetchImpl = globalThis.fetch, timeoutMs = 45000 } = {}) {
+  return verifyShieldHostWith({ fetchImpl, randomBytes: (n) => globalThis.crypto.getRandomValues(new Uint8Array(n)), now: () => new Date() },
+                              { apiBase, name, timeoutMs });
+}
