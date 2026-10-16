@@ -1176,6 +1176,8 @@ export class Host {
     this.#noteServing(id, inst, r.action);
     this.log(`${id.slice(0, 10)} isolation ${r.action}: ${inst.id} status=${inst.status} image=${inst.image || "?"}`);
     return this.#record(id, { status: "running", reason: null, isolationHeld: null, boundaryHeld: null,
+                              // when this pass last saw it serving: what proveAll's checkpoint stands on
+                              servingSeenAt: Date.now(),
                               isolation: { backend: "hyperv-partition-per-app", instance: inst.id,
                                            // appId is REQUIRED by isolatedTarget; without it the
                                            // app-zone route cannot name what it is splicing to
@@ -2241,24 +2243,45 @@ export class Host {
     this.tracked.delete(id); this.#saveTracked();
     this.log(`stopped ${id.slice(0, 10)}: ${why}`);
   }
-  /** A checkpoint per live lease whose app answers right now. */
+  /**
+   * A checkpoint per live paid lease that is serving right now, all in one batch (chain.checkpointBatch: one checkpointMany,
+   * plus one fee-routed call per deployment with a payer policy). Serving means: an engine app that answers, or an ISOLATED
+   * partition the tick saw serving within the last two minutes (rec.servingSeenAt: every pass re-adopts a serving domain). Before
+   * 2026-10-16 isolated partitions were never proven (only this.apps, the retired engine's), so past the ledger's
+   * proofRequiredFrom every paid partition lease on a Windows host earned nothing, and a fee-contract source's budget
+   * (capacity audits) never accrued.
+   */
   async proveAll() {
     if (!this.chainReady || !chain.proofAddress() || !this.registered) return;
-    for (const [id, app] of this.apps) {
-      const rec = this.records.get(id);
-      if (!rec || rec.status !== "running" || !rec.leaseUntil) continue;
+    const due = [];
+    const free = (id, rec) => {
       // A checkpoint earns the runner its lease seconds. At rate 0 (a free self-hosted lease:
       // _hostRate returns 0 when the box's payout wallet owns the deployment) there is nothing to
       // earn and nothing to meter, so proving it would spend this box's gas, every five minutes,
       // to move a number that is multiplied by zero. It is skipped and said, not silently dropped.
       if (rec.rate6 !== undefined && BigInt(rec.rate6 || 0) === 0n) {
         if (!this._freeProofSaid) { this._freeProofSaid = true; this.log(`no checkpoints for ${id.slice(0, 10)}: a free lease (rate 0) has nothing to credit`); }
-        continue;
+        return true;
       }
-      if (!(await app.alive())) { this.log(`no checkpoint for ${id.slice(0, 10)}: the app did not answer`); continue; }
-      const upto = Math.min(Math.floor(Date.now() / 1000), Number(rec.leaseUntil));
-      try { await chain.checkpoint({ id, enclaveId: this.enclaveId, upto }); this.#record(id, { provenAt: upto }); }
-      catch (e) { this.log(`checkpoint ${id.slice(0, 10)} failed: ${e.shortMessage || e.message}`); }
+      return false;
+    };
+    const now = Date.now();
+    for (const [id, rec] of this.records) {
+      if (!rec || rec.status !== "running" || !rec.leaseUntil || free(id, rec)) continue;
+      const app = this.apps.get(id);
+      if (app) { if (!(await app.alive())) { this.log(`no checkpoint for ${id.slice(0, 10)}: the app did not answer`); continue; } }
+      else {
+        if (!rec.isolation?.instance || !(now - Number(rec.servingSeenAt || 0) <= 120_000)) continue;
+      }
+      due.push({ id, enclaveId: this.enclaveId, upto: Math.min(Math.floor(now / 1000), Number(rec.leaseUntil)) });
+    }
+    if (!due.length) return;
+    let results;
+    try { results = await (this.cfg.checkpointBatch || chain.checkpointBatch)(due); }
+    catch (e) { this.log(`checkpoints failed: ${e.shortMessage || e.message}`); return; }
+    for (const r of results) {
+      if (r.error) { this.log(`checkpoint ${r.ids.map((i) => i.slice(0, 10)).join(",")} failed: ${r.error.shortMessage || r.error.message}`); continue; }
+      for (const id of r.ids) this.#record(id, { provenAt: due.find((d) => d.id === id)?.upto });
     }
   }
 

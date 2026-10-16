@@ -636,6 +636,9 @@ const PROOF_ABI = [
   { type: "function", name: "checkpoint", stateMutability: "nonpayable", inputs: [
     { name: "id", type: "bytes32" }, { name: "enclaveId", type: "bytes32" }, { name: "upto", type: "uint64" },
     { name: "anchorBlock", type: "uint64" }, { name: "anchorHash", type: "bytes32" }, { name: "sig", type: "bytes" }], outputs: [] },
+  { type: "function", name: "checkpointMany", stateMutability: "nonpayable", inputs: [{ name: "cps", type: "tuple[]", components: [
+    { name: "id", type: "bytes32" }, { name: "enclaveId", type: "bytes32" }, { name: "upto", type: "uint64" },
+    { name: "anchorBlock", type: "uint64" }, { name: "anchorHash", type: "bytes32" }, { name: "sig", type: "bytes" }] }], outputs: [{ type: "bool[]" }] },
   { type: "function", name: "proofWindowSec", stateMutability: "view", inputs: [], outputs: [{ type: "uint64" }] },
   { type: "function", name: "unprovenSec", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "uint64" }] },
 ];
@@ -681,6 +684,36 @@ export async function checkpoint({ id, enclaveId, upto }) {
     proof: addresses.proofOfTime, batch: [{...message,sig}],
     onWarning: message => console.warn(`[proof] ${message}`)});
   return send(plan.address, PROOF_ABI, plan.functionName, plan.args);
+}
+
+/**
+ * Checkpoints for several deployments at once ([{ id, enclaveId, upto }]), all anchored to one block: the direct ones go in
+ * ONE checkpointMany (tolerant: one bad entry does not sink the rest), a deployment with a fee-contract payer policy through
+ * the fee router on its own (planCheckpoints). -> [{ ids, hash } | { ids, error }], one per transaction.
+ */
+export async function checkpointBatch(items) {
+  if (!items.length) return [];
+  if (!proofAcct) throw new Error("no proof key on this box");
+  if (!addresses.proofOfTime) throw new Error("the address book publishes no proofOfTime");
+  const head = await publicClient().getBlock({ blockTag: "latest" });
+  const anchorBlock = Number(head.number) - 1;
+  const parent = await publicClient().getBlock({ blockNumber: BigInt(anchorBlock) });
+  const batch = [];
+  for (const { id, enclaveId, upto } of items) {
+    const message = { id, enclaveId, operator: acct.address, upto: BigInt(upto), anchorBlock: BigInt(anchorBlock), anchorHash: parent.hash };
+    const sig = await proofAcct.signTypedData({
+      domain: { name: "EnclaveProofOfTime", version: "1", chainId: base.id, verifyingContract: getAddress(addresses.proofOfTime) },
+      types: PROOF_TYPES, primaryType: "ProofOfTime", message });
+    batch.push({ ...message, sig });
+  }
+  const plans = await planCheckpoints({ client: publicClient(), ledger: addresses.deployments, proof: addresses.proofOfTime, batch,
+    onWarning: (m) => console.warn(`[proof] ${m}`) });
+  const out = [];
+  for (const plan of plans) {
+    try { out.push({ ids: plan.ids, hash: await send(plan.address, PROOF_ABI, plan.functionName, plan.args) }); }
+    catch (e) { out.push({ ids: plan.ids, error: e }); }
+  }
+  return out;
 }
 
 export { REGISTRY_ABI, DEP_ABI, CATALOG_ABI, PROOF_ABI };
