@@ -77,6 +77,40 @@ export function verifyBoxInBrowser(name, { apiOrigin = API_ORIGIN, mode = "snp" 
   return entry.promise;
 }
 
+// ONE app's Enclave Shield partition, verified in this browser (verifier/web shield-app.mjs): the host's TPM-quoted boot first,
+// with a credential this page mints, then the app guest's report under that boot's VSM identity key, over a fresh nonce.
+// One run per deployment at a time; a result is reused for 60 s (the relay allows one report per app every 30 s).
+const _appCache = new Map();   // deployment id -> { at, promise }
+export function verifyAppInBrowser(name, deployment, { apiOrigin = API_ORIGIN } = {}) {
+  const key = String(deployment).toLowerCase(), hit = _appCache.get(key);
+  if (hit && (Date.now() - hit.at < 60_000 || !hit.done)) return hit.promise;
+  const entry = { at: Date.now(), done: false };
+  entry.promise = (async () => {
+    const mod = await import(LV_VERIFIER_URL);
+    if (typeof mod.verifyShieldAppWeb !== "function") throw new Error("this page's verifier cannot check an Enclave Shield app yet");
+    return mod.verifyShieldAppWeb({ apiBase: apiOrigin, name, deployment: key });
+  })().finally(() => { entry.done = true; entry.at = Date.now(); });
+  entry.promise.catch(() => _appCache.delete(key));
+  _appCache.set(key, entry);
+  return entry.promise;
+}
+// the public apps a box serves now (the relay's ledger view): [{ id, appRef }]
+export async function appsOnBox(name, { apiOrigin = API_ORIGIN } = {}) {
+  const r = await fetch(apiOrigin + "/v1/enclaves/" + encodeURIComponent(name) + "/apps", { credentials: "omit" });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.message || ("GET apps -> " + r.status));
+  return Array.isArray(j.apps) ? j.apps : [];
+}
+// a box's tier as the relay verified it at attach (row.mode), read once a minute
+let _modes = { at: 0, map: null };
+export async function boxModeOf(name, { apiOrigin = API_ORIGIN } = {}) {
+  if (!_modes.map || Date.now() - _modes.at > 60_000) {
+    const rows = await liveBoxes({ apiOrigin });
+    _modes = { at: Date.now(), map: new Map(rows.map((e) => [e.name, e.mode])) };
+  }
+  return _modes.map.get(name) || null;
+}
+
 // every named box the relay holds right now, the ones this page can challenge first
 export async function liveBoxes({ apiOrigin = API_ORIGIN } = {}) {
   const r = await fetch(apiOrigin + "/enclaves", { credentials: "omit" });
@@ -88,6 +122,10 @@ export async function liveBoxes({ apiOrigin = API_ORIGIN } = {}) {
 // a one-line summary of a verdict for a badge: { cls: ok|warn|bad, text, title }
 export function verdictBadge(r) {
   if (!r) return { cls: "bad", text: "✗ not verified", title: "" };
+  // a verdict that carries its own summary and omission labels (pVM, Enclave Shield) speaks for itself
+  if (r.summary && (r.status === "verified" || r.status === "limited")) return { cls: r.status === "verified" ? "ok" : "warn",
+    text: r.status === "verified" ? "✓ verified in your browser" : "◐ genuine and fresh (verified in your browser, with limits)",
+    title: r.summary + ((r.omissions || []).length ? " Not judged independently: " + r.omissions.map((o) => (r.omissionLabels || {})[o] || o).join("; ") : "") };
   if (r.status === "verified") return { cls: "ok", text: "✓ verified in your browser", title: "AMD SEV-SNP report verified here: chain to AMD's root, TCB floor, fresh nonce binding, and an expected measurement." };
   if (r.status === "limited") return { cls: "warn", text: "◐ genuine and fresh (measurement: operator-stated)",
     title: "Verified in your browser: a genuine AMD SEV-SNP report, fresh for this page's nonce. Not judged independently: "
