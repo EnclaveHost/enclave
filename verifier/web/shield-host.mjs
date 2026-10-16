@@ -26,7 +26,7 @@
 import { sha256 as nobleSha256 } from "@noble/hashes/sha2";
 import { ed25519 } from "@noble/curves/ed25519";
 import { hvNodeChecks, runAsync, HVNODE_FORMAT, HVNODE_TECHNOLOGY } from "../../relay/hvnode-core.mjs";
-import { tcgLogWith } from "../../relay/vbs-tcglog-core.mjs";
+import { tcgLogWith, parseTcgLog } from "../../relay/vbs-tcglog-core.mjs";
 import { parseTpmtPublic, tpmNameWith, tpmManufacturerOf, AIK_REQUIRED_ATTRIBUTES, TPMA_DECRYPT, TPM_ALG_SHA256, TPM_ALG_RSASSA, TPM_MANUFACTURERS_ON_DIE,
          VBS_MAX_CERT_BYTES, VBS_MAX_CHAIN_CERTS, VBS_MAX_TPMT_PUBLIC_BYTES } from "../../relay/vbs-tpm.mjs";
 import { parseTpmCertificate, loadTpmRootsWeb, verifyEkChainWeb, TPM_EK_ROOTS_PEM, TPM_EK_ROOT_PINS } from "./tpm-certs.mjs";
@@ -113,7 +113,20 @@ export function groupChecks(engineChecks) {
 
 // deps: { fetchImpl, randomBytes(n) -> Uint8Array, now() -> Date, ekRoots? (default TPM_EK_ROOTS_PEM), ekRootPins? (default
 // TPM_EK_ROOT_PINS) }. randomBytes is called three times, in order: the nonce, the credential, the MakeCredential seed.
-export async function verifyShieldHostWith(deps, { apiBase = "https://api.enclave.host", name, timeoutMs = 45000 } = {}) {
+export async function verifyShieldHostWith(deps, opts = {}) { return (await verifyShieldHostSessionWith(deps, opts)).verdict; }
+
+// verifyShieldHostSessionWith(deps, opts) -> { verdict, session }: the same verdict, and on a "limited" pass (only then) what
+// an app check of this boot needs from it (verifier/web/shield-app.mjs): session = { idks: { modulus, exponent, bits }, the
+// VSM identity key read from the SAME log the checks above authenticated (its modulus' sha256 equal to the one they
+// recorded), and boot: the verified boot record ({ ekCertSha256, pcr0, ... }) }. session is null on anything but a pass.
+export async function verifyShieldHostSessionWith(deps, opts = {}) {
+  const out = { verdict: null, session: null };
+  out.verdict = await shieldHost(deps, opts, out);
+  if (out.verdict.status !== "limited") out.session = null;
+  return out;
+}
+
+async function shieldHost(deps, { apiBase = "https://api.enclave.host", name, timeoutMs = 45000 } = {}, out) {
   const checks = Object.fromEntries(SHIELD_CHECK_ORDER.map((k) => [k, undefined]));
   const facts = [["Box", typeof name === "string" ? name : "(none)"]];
   let omissions = [], reasons = [];
@@ -214,6 +227,11 @@ export async function verifyShieldHostWith(deps, { apiBase = "https://api.enclav
     if (b.bootCounter != null) facts.push(["Boot counter (measured-boot log)", String(b.bootCounter)]);
     if (b.resetCount != null) facts.push(["TPM reset count (quote)", String(b.resetCount)]);
     facts.push(["IDKS modulus sha256", b.idksModulusSha256]);
+    // the key itself, for an app check of this boot: from the log just authenticated, never from anything else
+    try {
+      const k = ENV.tcg.vsmKey(parseTcgLog(Buffer.from(evidence.log, "base64")).events, "IDKS");
+      if (k && toHex(sha256(k.modulus)) === b.idksModulusSha256) out.session = { idks: { modulus: Buffer.from(k.modulus), exponent: Buffer.from(k.exponent), bits: k.bits }, boot: b };
+    } catch { out.session = null; }
     reasons = [...omissions.map((o) => `OMITTED (${o}): ${SHIELD_OMISSION_LABELS[o] || o}`), ...v.warnings.map((w) => `WARNING: ${w}`)];
     return verdict("limited", "This Enclave Shield host's genuine on-die TPM (its endorsement key chained to a root pinned in this page) recovered the credential this page minted and quoted, "
       + "for this page's nonce, a measured boot with Secure Boot on, test signing off and VBS/HVCI running, and the host's transport key signed the same transcript; "

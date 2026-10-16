@@ -4,20 +4,15 @@
 // this app and key; it does not make the host or another app eligible.
 import { createHash } from 'node:crypto';
 import { verifyVbsAppEvidence } from './vbs-app-verify.mjs';
+import { platformsValid, platformAdmitted } from './vbs-app-core.mjs';
 
 const HEX = /^[0-9a-f]{64}$/;
 // policy.hosts: the host names admitted to the Shield market, or "*" (the open market, 2026-10-11): any hv-node whose
 // attach the hub verified and whose registered owner signed it. Admission still needs this module's per-app evidence.
 export const shieldHostAdmitted = (policy, name) => !!policy && !!name &&
   (policy.hosts === '*' || (Array.isArray(policy.hosts) && policy.hosts.includes(name)));
-// policy.platforms: explicit {ekCertSha256, pcr0} pins, or "attested" (the open market): any TPM whose EK chains to the
-// pinned ekRoots, on a boot that passed the production checks (Secure Boot on, no test signing; hvnode-verify.mjs).
-// "attested" admits any firmware (PCR 0) on such a TPM: it says the app ran isolated on genuine hardware, not on whose.
-export const platformsValid = platforms => platforms === 'attested' || (Array.isArray(platforms) && platforms.length > 0 &&
-  platforms.every(p => HEX.test(p?.ekCertSha256 || '') && HEX.test(p?.pcr0 || '')));
-// a VERIFIED boot (an admissible hvnode-verify verdict's .boot) on an admitted platform
-export const platformAdmitted = (platforms, boot) => platformsValid(platforms) && HEX.test(boot?.ekCertSha256 || '') &&
-  (platforms === 'attested' || platforms.some(p => p.ekCertSha256 === boot.ekCertSha256 && p.pcr0 === boot.pcr0));
+// platformsValid / platformAdmitted: relay/vbs-app-core.mjs (shared with the browser verifier), re-exported here unchanged
+export { platformsValid, platformAdmitted } from './vbs-app-core.mjs';
 export function verifyShieldAppPolicy(input, policy = {}) {
   const no = reason => ({ ok: false, reason });
   try {
