@@ -89,3 +89,16 @@ test('a proof survives a re-read of the same lease while the guest is asked; a c
   const run = gate.attest(id, () => new Promise(res => { setImmediate(() => { gate.leases.set(id, {...gate.leases.get(id), configCid: 'bafyother'}); res(verdict(id)); }); }));
   await assert.rejects(run, /no matching current app expectation|fresh bound guest proof required/);
 });
+
+test('a guest that keeps failing is asked at most every 4 s and its repeated failure is logged once a minute', async t => {
+  let calls = 0;
+  const r = await rig(t, {refresh: async (ids, rows) => rows(),
+    probe: async id => { if (id === B) { calls++; throw new Error('deployment has no unique running guest'); } return verdict(id); }});
+  await r.agent.refreshAuthorization();
+  await r.agent.refreshProofs();
+  for (let i = 0; i < 24; i++) { r.tick(2_500); await r.agent.refreshProofs(); }     // 60 s, asked every 2.5 s
+  assert.ok(calls >= 10 && calls <= 16, `asked ${calls} times in 60 s`);
+  const lines = r.logs.filter(m => /local guest proof 0xbbbbbbbb: deployment has no unique running guest/.test(m));
+  assert.ok(lines.length >= 1 && lines.length <= 2, lines.join('\n'));
+  assert.equal(r.agent.admission.allows(A), true, 'the healthy app is untouched');
+});
