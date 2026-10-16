@@ -144,7 +144,7 @@ function genericHtml(name, r, li) {
     : r.status === "limited" ? ["warn", "◐ GENUINE AND FRESH: " + (r.summary || name + "'s evidence verifies for this page's nonce")]
     : ["bad", "✗ NOT VERIFIED (" + r.status + "): " + String((r.reasons || []).at(-1) || "verification incomplete")];
   const facts = (Array.isArray(r.facts) ? r.facts : []).filter((f) => Array.isArray(f) && f.length === 2)
-    .map(([k, v]) => String(k).padEnd(14) + String(v));
+    .map(([k, v]) => String(k).padEnd(13) + " " + String(v));
   return '<ul class="lv-steps">' + steps + "</ul>"
     + '<div class="lv-verdict ' + cls + '" role="status">' + esc(text) + "</div>"
     + '<div class="lv-meta">' + facts.map((x) => "<span>" + esc(x) + "</span>").join("") + "</div>";
