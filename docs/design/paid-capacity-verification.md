@@ -4,7 +4,7 @@ Implementation branch: `codex/paid-capacity-audits-20260930`. Workload app:
 `EnclaveHost/enclave-apps`, branch `codex/capacity-work-20260930`, directory
 `capacity-work`. Capacity Work 1.0.0 is published and approved on Base.
 
-## Production status (2026-10-15 00:45Z): RUNNING, bootstrap trust
+## Production status (2026-10-16): RUNNING, first audit verified, bootstrap trust
 
 The fee market runs as designed; its first and only funded source is Enclave's own canary.
 
@@ -27,8 +27,19 @@ What this does and does not give:
   to its TLS key at boot. Liveness comes from the attested `/availability` read in the same round.
 - **Only attested hosts can be audited.** The workload runs over attested HTTP, which needs SNP or Shield. Today that is
   metal0.
-- **The budget is tiny.** It is about 10% of the canary's runner credit, capped by the fee share actually routed. The
-  canary costs 0.30 USDC/h of real money, so audits run only while someone pays for paid demand like it.
+- **The budget has two caps, and routed fees alone cannot pay.** Spending is capped by `available6`: 10% of the
+  canary's proven runner credit. USDC is capped by the policy wallet's balance. Fee routing puts only 1% of each canary
+  funding into that wallet, and one audit costs about 0.009 USDC, so routing alone needs about $1 of canary funding per
+  audit. On 2026-10-16 the owner topped up the wallet directly with 5 USDC; `available6` and the daily cap still bound
+  spending, and unused USDC can only fund jobs or return to the ledger payout (`returnUnused`).
+- **First complete audit: 2026-10-16 04:16Z.** Job `0x6175863f` (deployment `0x3e6781ac`): metal0, 11 units at 22/s
+  for 450 s. The cpu-ram/1 challenge took 6.5 s, the SNP evidence verified and was admission-safe, the digest equals the
+  reference, and the job stopped and refunded. Cost 9152 µUSDC. The cooldown is 24 h per host.
+- **What failed before it, and is fixed on main:**
+  - the challenge ran before the guest was ready (`05551bee1`);
+  - one verifier-side failure locked the host out of further audits (`b4e9f42ff`);
+  - audit guests had no release bootstrap route (`886be0f7c`);
+  - the binding used one release's runtime for every predicted image (`0b54e95cf`).
 - **Receipts also qualify custodians.** Custody v2 (`docs/security/secret-custody-v2.md` §5) uses the same receipts
   for non-Enclave custodian candidates; that takes effect with the next custodian build.
 
