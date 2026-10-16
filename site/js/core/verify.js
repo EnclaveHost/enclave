@@ -52,23 +52,32 @@ export const OMISSION_LABELS = {
   "freshness-unbound": "no fresh nonce was bound",
 };
 
+// Which verifier answers for a box: the relay's verdict on how it attached (row.mode), never the box's own word.
+//   snp      an AMD SEV-SNP guest: its AMD-signed report (verifyMetalBoxWeb)
+//   avf      a phone's protected VM: its Android attestation chain to Google's root (verifyPvmHostWeb)
+//   hv-node  an Enclave Shield host: its TPM-quoted boot, with a credential THIS page mints (verifyShieldHostWeb)
+const VERIFIERS = { snp: "verifyMetalBoxWeb", avf: "verifyPvmHostWeb", "hv-node": "verifyShieldHostWeb" };
+export const TIER_NAMES = { snp: "AMD SEV-SNP", avf: "phone pVM", "hv-node": "Enclave Shield", vbs: "Windows VBS" };
+// what each check looks at, in a phrase for the "check it yourself" line
+export const EVIDENCE_OF = { snp: "its AMD SEV-SNP report", avf: "its protected VM's Android attestation", "hv-node": "its TPM-attested boot" };
+
 // one run per box at a time; a finished result is reused for 60 s (every run draws a new nonce, so this only spares the box)
 const _cache = new Map();   // name -> { at, promise }
-export function verifyBoxInBrowser(name, { apiOrigin = API_ORIGIN } = {}) {
+export function verifyBoxInBrowser(name, { apiOrigin = API_ORIGIN, mode = "snp" } = {}) {
   const hit = _cache.get(name);
   if (hit && (Date.now() - hit.at < 60_000 || !hit.done)) return hit.promise;
   const entry = { at: Date.now(), done: false };
   entry.promise = (async () => {
-    const mod = await import(LV_VERIFIER_URL);
-    if (typeof mod.verifyMetalBoxWeb !== "function") throw new Error("the verifier bundle on this page has no verifyMetalBoxWeb");
-    return mod.verifyMetalBoxWeb({ apiBase: apiOrigin, name });
+    const mod = await import(LV_VERIFIER_URL), fn = VERIFIERS[mode];
+    if (!fn || typeof mod[fn] !== "function") throw new Error("this page's verifier cannot check a " + (TIER_NAMES[mode] || mode || "unattested") + " box");
+    return mod[fn]({ apiBase: apiOrigin, name });
   })().finally(() => { entry.done = true; entry.at = Date.now(); });
   entry.promise.catch(() => _cache.delete(name));
   _cache.set(name, entry);
   return entry.promise;
 }
 
-// every named box the relay holds right now, the ones this page can challenge (SEV-SNP) first
+// every named box the relay holds right now, the ones this page can challenge first
 export async function liveBoxes({ apiOrigin = API_ORIGIN } = {}) {
   const r = await fetch(apiOrigin + "/enclaves", { credentials: "omit" });
   if (!r.ok) throw new Error("GET /enclaves -> " + r.status);
@@ -87,21 +96,20 @@ export function verdictBadge(r) {
   return { cls: "bad", text: "✗ not verified: " + String(last).replace(/^(REJECT|UNSUPPORTED|OMITTED)[^:]*:\s*/, ""), title: (r.reasons || []).join("\n") };
 }
 
-// Whether THIS page can challenge a box itself: the relay's fresh-nonce route (and verifier/web) cover attested
-// SEV-SNP tunnels only. Any other tier gets an honest "not here yet" with what the relay checked instead.
-export const boxVerifiable = (row) => !!(row && row.name && row.mode === "snp");
+// Whether THIS page can challenge a box itself: the attested tiers the relay's fresh route and verifier/web cover.
+// Any other box gets an honest "not here" with what the relay checked instead.
+export const boxVerifiable = (row) => !!(row && row.name && VERIFIERS[row.mode]);
 export function unverifiableReason(row) {
   const m = row && row.mode;
-  if (m === "avf") return "a protected VM on a phone. The relay verifies its Android Virtualization Framework chain to Google's root when it attaches, and a fresh attestation per app before serving it; this page cannot run that check yet.";
-  if (m === "hv-node") return "an Enclave Shield host. The relay verifies each app's measured partition and its guest-held TLS key before serving it; this page cannot run that check yet.";
   if (m === "vbs") return "a Windows VBS enclave host. The relay verifies its enclave report when it attaches; this page cannot run that check yet.";
-  return "a host that presented no AMD SEV-SNP report to the relay, so there is nothing for this page to challenge.";
+  return "a host that attached without hardware evidence the relay verified (a token or operator attach), so there is nothing for this page to challenge.";
 }
 
 // One verdict as HTML (the lv-* classes, styled in components/live-verify/live-verify.css): every check, what was
 // not judged, the verdict line, then the evidence. Shared by <c-live-verify> and each <c-fleet-list> host row.
 export function verificationHtml(name, r, { more = 0 } = {}) {
   const li = (cls, st, txt) => '<li class="' + cls + '"><span class="st">' + st + "</span><span>" + esc(txt) + "</span></li>";
+  if (Array.isArray(r.checkOrder)) return genericHtml(name, r, li);
   const steps = CHECK_ORDER.map((k) => {
     const v = r.checks ? r.checks[k] : undefined;
     return v === true ? li("ok", "✓", CHECK_LABELS[k]) : v === false ? li("bad", "✗", CHECK_LABELS[k]) : li("", "·", CHECK_LABELS[k]);
@@ -122,4 +130,22 @@ export function verificationHtml(name, r, { more = 0 } = {}) {
   return '<ul class="lv-steps">' + steps + "</ul>"
     + '<div class="lv-verdict ' + cls + '" role="status">' + esc(text) + "</div>"
     + '<div class="lv-meta">' + meta.map((x) => "<span>" + esc(x) + "</span>").join("") + "</div>";
+}
+
+// The pVM and Shield verdicts carry their own check list, labels, omissions, one-sentence summary and facts (verifier/web
+// pvm-host.mjs, shield-host.mjs), so this page states only what each verifier says it established.
+function genericHtml(name, r, li) {
+  const labels = r.checkLabels || {}, omit = r.omissionLabels || {};
+  const steps = r.checkOrder.map((k) => {
+    const v = r.checks ? r.checks[k] : undefined, t = labels[k] || k;
+    return v === true ? li("ok", "✓", t) : v === false ? li("bad", "✗", t) : li("", "·", t);
+  }).concat((r.omissions || []).map((o) => li("warn", "◐", "not judged independently: " + (omit[o] || o)))).join("");
+  const [cls, text] = r.status === "verified" ? ["ok", "✓ VERIFIED: " + (r.summary || name + " verified")]
+    : r.status === "limited" ? ["warn", "◐ GENUINE AND FRESH: " + (r.summary || name + "'s evidence verifies for this page's nonce")]
+    : ["bad", "✗ NOT VERIFIED (" + r.status + "): " + String((r.reasons || []).at(-1) || "verification incomplete")];
+  const facts = (Array.isArray(r.facts) ? r.facts : []).filter((f) => Array.isArray(f) && f.length === 2)
+    .map(([k, v]) => String(k).padEnd(14) + String(v));
+  return '<ul class="lv-steps">' + steps + "</ul>"
+    + '<div class="lv-verdict ' + cls + '" role="status">' + esc(text) + "</div>"
+    + '<div class="lv-meta">' + facts.map((x) => "<span>" + esc(x) + "</span>").join("") + "</div>";
 }

@@ -9,8 +9,8 @@
    average, count) by rating; again reverses. The Sort by bar above the hosts offers
    every order as a dropdown, with the direction beside it.
    An opened host carries the Overview's "run the check now": an
-   attested SEV-SNP box is challenged and verified in this browser
-   (core/verify.js); any other tier says why it cannot be yet.
+   attested box (SEV-SNP, phone pVM, Enclave Shield) is challenged and
+   verified in this browser (core/verify.js); any other says why not.
    Copy says "available",
    never "free": on a page that sells compute, "60 GB free" reads as
    a price, not as headroom.
@@ -26,7 +26,7 @@ import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js"
 import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedHostCapacity, teeCpuOf, computeEligibleOf, appHostVisible, ownerHostedDeploymentCount, ownerHostCpuCapacity, ownerHostVisibleTo, pvmHostVisible, pvmHostVm } from "../../js/core/pricing.js";
 import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
-import { boxVerifiable, unverifiableReason, verifyBoxInBrowser, verificationHtml } from "../../js/core/verify.js";
+import { boxVerifiable, unverifiableReason, verifyBoxInBrowser, verificationHtml, EVIDENCE_OF } from "../../js/core/verify.js";
 
 const PAGE = 5;   // hosts per page
 // the sort keys, in the Sort by dropdown's order: the rating, then a pool kind and what its price is divided by.
@@ -432,7 +432,7 @@ class FleetList extends EnclaveElement {
       if (f) f.focus();
     }
     this._wireRate();
-    for (const b of list.querySelectorAll(".fleet-verify-run")) b.addEventListener("click", () => this._runVerify(b.dataset.box));
+    for (const b of list.querySelectorAll(".fleet-verify-run")) b.addEventListener("click", () => this._runVerify(b.dataset.box, b.dataset.mode));
     if (this._verFocus) {   // the repaint replaced the button that was clicked
       const b = list.querySelector('.fleet-verify-run[data-box="' + CSS.escape(this._verFocus) + '"]');
       this._verFocus = null;
@@ -506,21 +506,21 @@ class FleetList extends EnclaveElement {
       return '<div class="fleet-verify"><p class="lv-na">In-browser check: not available for <b>' + esc(e.name || "this host")
         + '</b>, ' + esc(unverifiableReason(e)) + '</p></div>';
     const v = (this._ver ||= {})[e.name] || {};
-    const body = v.busy ? '<div class="lv-verdict" role="status">challenging ' + esc(e.name) + ' with a fresh nonce and verifying its report in your browser …</div>'
+    const body = v.busy ? '<div class="lv-verdict" role="status">challenging ' + esc(e.name) + ' with a fresh nonce and verifying its evidence in your browser …</div>'
       : v.r ? verificationHtml(e.name, v.r)
       : v.err ? '<div class="lv-verdict bad" role="status">✗ could not run verification: ' + esc(v.err) + '</div>'
       : '';
     return '<div class="fleet-verify"' + (v.busy ? ' aria-busy="true"' : '') + '>'
-      + '<div class="fleet-verify-h"><span>Is this box what it claims? Check its AMD SEV-SNP report yourself.</span>'
-      + '<button class="btn btn-sm fleet-verify-run" type="button" data-box="' + esc(e.name) + '"' + (v.busy ? ' disabled' : '') + '>'
+      + '<div class="fleet-verify-h"><span>Is this box what it claims? Check ' + esc(EVIDENCE_OF[e.mode]) + ' yourself.</span>'
+      + '<button class="btn btn-sm fleet-verify-run" type="button" data-box="' + esc(e.name) + '" data-mode="' + esc(e.mode) + '"' + (v.busy ? ' disabled' : '') + '>'
       + (v.r || v.err ? 'Verify again' : 'Verify in your browser') + ' <span class="arr">→</span></button></div>'
       + body + '</div>';
   }
-  async _runVerify(name){
+  async _runVerify(name, mode){
     const ver = (this._ver ||= {});
     if (ver[name] && ver[name].busy) return;
     ver[name] = { busy: true }; this._verFocus = name; this.requestRender();
-    try { ver[name] = { r: await verifyBoxInBrowser(name) }; }
+    try { ver[name] = { r: await verifyBoxInBrowser(name, { mode }) }; }
     catch (e) { ver[name] = { err: e && e.message ? e.message : String(e) }; }
     this._verFocus = name; this.requestRender();
   }

@@ -2,15 +2,13 @@
    <c-live-verify> - the "run the check now" widget: lists every
    box the relay holds, and verifies the one picked IN THIS BROWSER
    with the repository's own verifier (core/verify.js ->
-   /vendor/enclave-verifier.js), rendering every check, what was not
-   judged, and the verdict. A box this page cannot challenge (any
-   tier but SEV-SNP) says so, with what the relay checked instead.
+   /vendor/enclave-verifier.js) for its tier - SEV-SNP, phone pVM or
+   Enclave Shield - rendering every check, what was not judged, and
+   the verdict. A box this page cannot challenge says so.
    ============================================================ */
 import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { esc } from "../../js/core/util.js";
-import { liveBoxes, boxVerifiable, unverifiableReason, verifyBoxInBrowser, verificationHtml } from "../../js/core/verify.js";
-
-const TIER = { snp: "AMD SEV-SNP", avf: "phone pVM", "hv-node": "Enclave Shield", vbs: "Windows VBS" };
+import { liveBoxes, boxVerifiable, unverifiableReason, verifyBoxInBrowser, verificationHtml, TIER_NAMES } from "../../js/core/verify.js";
 
 class LiveVerify extends EnclaveElement {
   static templateUrl = new URL("./live-verify.html", import.meta.url);
@@ -31,7 +29,7 @@ class LiveVerify extends EnclaveElement {
       this._rows = await liveBoxes();
       if (!this._rows.length) return;
       sel.innerHTML = this._rows.map((e, i) => '<option value="' + i + '">' + esc(e.name)
-        + " · " + esc(TIER[e.mode] || e.mode || "unattested") + (boxVerifiable(e) ? "" : " (no browser check yet)") + "</option>").join("");
+        + " · " + esc(TIER_NAMES[e.mode] || e.mode || "unattested") + (boxVerifiable(e) ? "" : " (no browser check)") + "</option>").join("");
       this.querySelector(".lv-pick").hidden = false;
     } catch (e) { this._rows = null; }
   }
@@ -51,15 +49,15 @@ class LiveVerify extends EnclaveElement {
     body.hidden = false; body.setAttribute("aria-busy", "true"); btn.disabled = true;
     const status = (cls, t) => { body.innerHTML = '<div class="lv-verdict ' + cls + '" role="status">' + esc(t) + "</div>"; };
     try {
-      status("", "finding the attested SEV-SNP boxes …");
+      status("", "finding the attested boxes …");
       const rows = this._rows || await liveBoxes();
-      const snp = rows.filter(boxVerifiable);
+      const ok = rows.filter(boxVerifiable);
       const sel = this.querySelector(".lv-box");
-      const row = this._rows && sel.value !== "" ? this._rows[Number(sel.value)] : snp[0];
-      if (!row) throw new Error("no attested SEV-SNP box is attached right now");
-      status("", "challenging " + row.name + " with a fresh nonce and verifying its report in your browser …");
-      const r = await verifyBoxInBrowser(row.name);
-      body.innerHTML = verificationHtml(row.name, r, { more: this._rows ? 0 : snp.length - 1 });
+      const row = this._rows && sel.value !== "" ? this._rows[Number(sel.value)] : ok[0];
+      if (!row) throw new Error("no attested box is attached right now");
+      status("", "challenging " + row.name + " with a fresh nonce and verifying its evidence in your browser …");
+      const r = await verifyBoxInBrowser(row.name, { mode: row.mode });
+      body.innerHTML = verificationHtml(row.name, r, { more: this._rows ? 0 : ok.length - 1 });
     } catch (e) {
       status("bad", "✗ could not run verification: " + (e && e.message ? e.message : e));
     } finally { btn.disabled = false; body.setAttribute("aria-busy", "false"); }
