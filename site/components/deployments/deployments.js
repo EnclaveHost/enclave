@@ -32,7 +32,7 @@ import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, 
 import { appShareLabel } from "../../js/core/app-resources.js";
 import { shareEditor } from "../../js/core/share-editor.js";
 import { resourceOverview } from "../../js/core/resource-overview.js";
-import { vspecOf, boxOfEndpoint, verifyBoxInBrowser, verdictBadge } from "../../js/core/verify.js";
+import { vspecOf, boxOfEndpoint, verifyBoxInBrowser, verdictBadge, verificationHtml, boxModeOf, verifyAppInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
 import { moveLeaseLive, prepareDeploymentMove } from "../../js/core/deployment-move.js";
@@ -2637,6 +2637,10 @@ class Deployments extends EnclaveElement {
     if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
     box.hidden = false;
     btn.setAttribute("aria-expanded", "true");
+    // an app on an Enclave Shield host: its partition is verified from public evidence, so no session is needed
+    const dep = (this._list || []).find(x => x.id === id);
+    if (dep && dep.enclave && /^0x[0-9a-f]{64}$/i.test(id) && await boxModeOf(dep.enclave).catch(() => null) === "hv-node")
+      return this._attestShield(id, box, dep.enclave);
     if (ctlOf((this._list || []).find(x => x.id === id)) !== "wallet"){
       // vault/order rows: the per-deployment attestation read rides an
       // in-enclave wallet session the account doesn't hold - honest note
@@ -2659,6 +2663,20 @@ class Deployments extends EnclaveElement {
       try { await this._hostSignIn(id); if (!box.hidden && box.isConnected) this._attest(id, box); }
       catch(e){ showToast(e.message || String(e)); }
     });
+  }
+  /* An Enclave Shield app, verified in this browser (core/verify.js verifyAppInBrowser): the host's TPM-quoted boot with a
+     credential this page mints, then this app's partition report under that boot's VSM identity key, over a fresh nonce. */
+  async _attestShield(id, box, name) {
+    box.innerHTML = '<div class="ap-attbar">attestation · ' + esc(id) + '<span class="enc-vbadge">⏳ verifying the host, then this app\u2019s partition, in your browser…</span></div>'
+      + '<div class="enc-shield-v"></div>';
+    const badge = box.querySelector(".enc-vbadge"), out = box.querySelector(".enc-shield-v");
+    try {
+      const r = await verifyAppInBrowser(name, id);
+      if (box.hidden || !box.isConnected) return;
+      const b = verdictBadge(r);
+      badge.className = "enc-vbadge " + b.cls; badge.textContent = b.text; badge.title = b.title;
+      out.innerHTML = verificationHtml(name, r);
+    } catch (e) { if (!box.hidden && box.isConnected){ badge.className = "enc-vbadge bad"; badge.textContent = "✗ could not verify: " + (e.message || e); } }
   }
   async _attest(id, box) {
     box.innerHTML = '<div class="ap-attbar">attestation · ' + esc(id)
