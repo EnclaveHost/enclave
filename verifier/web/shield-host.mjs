@@ -19,8 +19,9 @@
 // The relay is trusted for nothing here: it can withhold or delay an answer, not forge one. The TLS of the request ends at
 // the relay; the key the evidence binds is the host's transport key, which the facts name.
 //
-// What a pass is: at most "limited", never "verified". Enclave Shield does not exclude the host (HVNODE_SCOPE, hostExcluded
-// false): the host OS, its hypervisor and its operator remain trusted, and PCR 0 has no independent pin. Both are stated
+// What a pass is: at most "limited", never "verified". Enclave Shield keeps the host OS out of each app's VBS-isolated
+// partition by Microsoft's hypervisor, which (with the paravisor and physical access) stays trusted; that the host cannot read
+// a partition is not evidenced by us (HVNODE_SCOPE, hostExcluded false), and PCR 0 has no independent pin. Both are stated
 // omissions on every verdict the checks reach.
 import { sha256 as nobleSha256 } from "@noble/hashes/sha2";
 import { ed25519 } from "@noble/curves/ed25519";
@@ -93,7 +94,7 @@ export const SHIELD_CHECK_ORDER = Object.freeze(SHIELD_CHECKS.map((c) => c.key))
 export const SHIELD_CHECK_LABELS = Object.freeze(Object.fromEntries(SHIELD_CHECKS.map((c) => [c.key, c.label])));
 export const SHIELD_OMISSION_LABELS = Object.freeze({
   "platform-firmware-unpinned": "The platform firmware measurement (PCR 0) is quoted and shown, but nothing independent pins it: there is no published value for this machine's firmware to compare it with.",
-  "host-not-excluded": "The host OS and its operator remain trusted. Enclave Shield isolates apps from each other and verifies each app's partition; it does not exclude the host, and this is a check of the host, not of an app.",
+  "host-exclusion-unevidenced": "Each app here runs in its own VBS-isolated partition, which Microsoft's hypervisor keeps the host OS out of. That hypervisor, the paravisor and anyone with physical access to the machine remain trusted (VBS does not encrypt memory in hardware), and this page has no evidence of its own that the host cannot read a partition's memory. This check covers the host's boot, not an app's partition.",
 });
 export const SHIELD_FRESH_PATH = (name) => `/v1/enclaves/${encodeURIComponent(name)}/attestation`;
 export const SHIELD_CREDENTIAL_PATH = (name) => `${SHIELD_FRESH_PATH(name)}/credential`;
@@ -205,7 +206,7 @@ export async function verifyShieldHostWith(deps, { apiBase = "https://api.enclav
     const v = await verifyHvNodeEvidenceWeb({ evidence, nonce, transportKeySpki: spki, expectedCredential: credential, mintedFor: { ekCert: ekDer, aikName } },
                                             { ekRoots: deps.ekRoots ?? TPM_EK_ROOTS_PEM, ekRootPins: deps.ekRootPins ?? TPM_EK_ROOT_PINS, now: (deps.now ? deps.now() : new Date()).getTime() }, ops);
     Object.assign(checks, groupChecks(v.checks));
-    omissions = [...v.omissions, "host-not-excluded"];
+    omissions = [...v.omissions, "host-exclusion-unevidenced"];
     if (root) facts.push(["EK root (pinned)", `${root.subject.split(", ").filter((p) => p.startsWith("CN=")).join(", ") || root.subject} sha256:${root.fp256}`]);
     if (!v.ok) { reasons = [...v.reasons]; return verdict("rejected", `This Enclave Shield host's evidence was refused (${v.reasons[0]}); nothing about its boot state is established.`); }
     const b = v.boot;
@@ -216,6 +217,7 @@ export async function verifyShieldHostWith(deps, { apiBase = "https://api.enclav
     reasons = [...omissions.map((o) => `OMITTED (${o}): ${SHIELD_OMISSION_LABELS[o] || o}`), ...v.warnings.map((w) => `WARNING: ${w}`)];
     return verdict("limited", "This Enclave Shield host's genuine on-die TPM (its endorsement key chained to a root pinned in this page) recovered the credential this page minted and quoted, "
       + "for this page's nonce, a measured boot with Secure Boot on, test signing off and VBS/HVCI running, and the host's transport key signed the same transcript; "
-      + "it does not exclude the host: the host OS, its hypervisor and its operator remain trusted, and the firmware measurement (PCR 0) is not pinned.");
+      + "apps here run in VBS-isolated partitions that Microsoft's hypervisor keeps the host OS out of, though that hypervisor and physical access stay trusted, "
+      + "this page has no evidence of its own that the host cannot read them, and the firmware measurement (PCR 0) is not pinned.");
   } catch (e) { return error(`verifier: ${e && e.message ? e.message : String(e)}`); }
 }
