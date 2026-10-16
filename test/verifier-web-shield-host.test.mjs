@@ -238,9 +238,9 @@ test("the flow: our nonce reaches the relay, our credential is minted here and r
   const v = await runFlow(world, s);
   assert.equal(v.status, "limited", v.reasons.join("\n")); assert.equal(v.technology, "windows-tpm-host"); assert.equal(v.name, "nucbox-test");
   assert.deepEqual(v.checkOrder, [...SHIELD_CHECK_ORDER]); for (const k of v.checkOrder) { assert.equal(v.checks[k], true, k); assert.ok(v.checkLabels[k].length > 20, k); }
-  assert.deepEqual(v.omissions, ["platform-firmware-unpinned", "host-not-excluded"]);
-  assert.match(v.omissionLabels["host-not-excluded"], /host OS and its operator remain trusted.*Enclave Shield isolates apps from each other.*does not exclude the host/);
-  assert.match(v.summary, /does not exclude the host/); assert.doesNotMatch(JSON.stringify(v), /vbs-like/i);
+  assert.deepEqual(v.omissions, ["platform-firmware-unpinned", "host-exclusion-unevidenced"]);
+  assert.match(v.omissionLabels["host-exclusion-unevidenced"], /VBS-isolated partition.*keeps the host OS out.*remain trusted.*no evidence of its own/);
+  assert.match(v.summary, /keeps the host OS out of.*no evidence of its own/); assert.doesNotMatch(JSON.stringify(v), /vbs-like/i);
   const facts = Object.fromEntries(v.facts);
   assert.equal(facts.Box, "nucbox-test"); assert.match(facts["TPM manufacturer"], /^AMD \(id:414D4400\)$/); assert.equal(facts["PCR 0 (platform firmware, unpinned)"], hex(world.pcr0));
   assert.equal(facts["Transport key sha256"], hex(sha(world.transport.spki))); assert.equal(facts["Boot counter (measured-boot log)"], "228"); assert.equal(facts["Quoting key name"], hex(world.aik.name));

@@ -1,8 +1,8 @@
 {
  "artifact": {
   "file": "enclave-verifier-web.js",
-  "bytes": 235179,
-  "sha256": "5b97a260a482fbff92aabf4f271b6260ca438739e12ab7cd9979e31bf4f76b2f"
+  "bytes": 235517,
+  "sha256": "5ac9b57dcb51f17ae0b33ca6c3c6b99d483eca62a7e9cdf5db1b52c11a225c2e"
  },
  "build": {
   "tool": "esbuild",
@@ -438,8 +438,8 @@
   },
   {
    "path": "verifier/web/shield-host.mjs",
-   "bytes": 20355,
-   "sha256": "5785dc6aacf64864da50ca95e2d50bb9f10d86ffad37c786bd80866e6dcd11b6"
+   "bytes": 20829,
+   "sha256": "2f83eb540908b5a1ba7a84350fac36fd41e1457e27750ae0d73e248e8891b86d"
   },
   {
    "path": "verifier/web/shims/buffer-global.mjs",

@@ -88,6 +88,6 @@ the same code the relay runs for `windows-hv-node/v1`) verifies an attached Encl
 (`POST .../attestation/credential`); only the TPM holding that EK can recover it, so a matching credential in the evidence
 shows the quoting key lives in that TPM without trusting the relay. The EK chain is walked by `tpm-certs.mjs` against the
 TPM roots embedded there (relay/fixtures/tpm-roots.pem's certificates; AMD fTPM only today). A full pass is `limited`, never
-`verified`: Shield does not exclude the host (omission `host-not-excluded`) and PCR 0 has no independent pin
+`verified`: Shield's host exclusion rests on Microsoft's hypervisor and is not evidenced by us (omission `host-exclusion-unevidenced`) and PCR 0 has no independent pin
 (`platform-firmware-unpinned`). `test/verifier-web-shield-host.test.mjs` holds the two builds' verdicts equal on every real
 and synthetic session, accepted or refused, and runs the bundled build where no Node global exists.
