@@ -1,7 +1,8 @@
 // verifier/web/index.mjs: the browser entry. verifyEvidenceWeb(doc, { policy, context, collateral }) gives the same verdict
 // shape as verifier/index.mjs verifyEvidence, from the same verifier/snp.mjs code, with verifier/web/provider.mjs as the
-// crypto provider. Only AMD SEV-SNP is judged here; every other technology is "unsupported" in this build (the delegated
-// classes call Node-only modules), never green. The envelope's rules are verifier/envelope.mjs's validateEnvelope; the bytes
+// crypto provider. Only AMD SEV-SNP is judged by verifyEvidenceWeb; every other technology is "unsupported" there (the
+// delegated classes call Node-only modules), never green. An attached Android pVM host is judged by verifyPvmHostWeb
+// (verifier/web/pvm-host.mjs), on the relay's own pVM evidence rules (relay/pvm-evidence-core.mjs). The envelope's rules are verifier/envelope.mjs's validateEnvelope; the bytes
 // are decoded here with the browser's own primitives (atob) under the same caps.
 //
 // Built for a page by verifier/web/build.mjs (esbuild: node:crypto aliased to a throwing shim, Buffer from the
@@ -60,3 +61,10 @@ export async function verifyMetalBoxWeb({ apiBase = "https://api.enclave.host", 
                               toBytes: (u) => u, now: () => new Date() },
                             { apiBase, name, expected, minTcb, timeoutMs });
 }
+
+// An attached Android pVM host (relay mode "avf", e.g. pixel10-pvm-cpu), verified IN THIS BROWSER (verifier/web/pvm-host.mjs
+// has the rules): a fresh app evidence document over a nonce this page draws, its AVF chain to a Google root pinned here, the
+// release, runtime, instance, app and TLS keys under the relay's own rules, and its transport key against the box's attach.
+// verifyPvmHostWeb({ apiBase, name, expected?, fetchImpl?, timeoutMs? }) -> { status, technology, name, checkOrder, checkLabels,
+// checks, omissions, omissionLabels, reasons, summary, facts }
+export { verifyPvmHostWeb, verifyPvmEvidenceWeb, APP_FROM_EVIDENCE } from "./pvm-host.mjs";
