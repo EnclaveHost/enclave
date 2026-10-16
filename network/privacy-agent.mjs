@@ -21,6 +21,9 @@ import {LocalAppRouter} from './local-app-router.mjs';
 import {networkUse} from './network-policy.mjs';
 // how long a lease still running on chain is believed from its last agreeing read when a chain read fails outright
 const LEASE_GRACE_MS=10*60_000;
+// how long one round waits for the chain before it goes on with the held leases (a slow read through a failing control
+// circuit must not hold up the round past the 60-s proofs: 2026-10-16 01:41:42Z every k11-4 app lapsed at once)
+export const CHAIN_DEADLINE_MS=20_000;
 import {DurableState} from './durable-state.mjs';
 import {localAppForwarder} from './local-app-transport.mjs';
 import {pvmAppPort,openPvmApp,pvmForwarder} from './pvm-app-transport.mjs';
@@ -40,9 +43,9 @@ export const NETWORK_REQUIRED='enclaveNetwork configuration required: TUNA is re
 // Timely admission is independent of slow allocation and publication work. Even
 // a hung RPC, allocator or distributor cannot extend an old authorization.
 export class PrivacyAgent {
-  constructor({apps,runner,account,leaseReader,probe,distribute,directory,dns,network,qualification,paid=null,now=Date.now,log=()=>{}}){
+  constructor({apps,runner,account,leaseReader,probe,distribute,directory,dns,network,qualification,paid=null,chainDeadlineMs=CHAIN_DEADLINE_MS,now=Date.now,log=()=>{}}){
     if(!network)throw new Error(NETWORK_REQUIRED);
-    Object.assign(this,{apps,leaseReader,probe,distribute,directory,now,log,network});this.refreshing=false;this.closed=false;this.publishing=false;
+    Object.assign(this,{apps,leaseReader,probe,distribute,directory,now,log,network,chainDeadlineMs});this.refreshing=false;this.closed=false;this.publishing=false;this.configured=[];this.proving=new Map();this.chainRead=null;
     this.admission=new AdmissionGate({runner,expected:id=>this.apps.find(a=>a.deploymentId===id)?.expected,now});
     this.manager=new EnclaveNetworkManager({runtime:network.runtime,admission:this.admission,providers:network.providers,byoConfig:network.byoConfig,probeEgress:network.probeEgress,direct:network.direct,hostEgress:network.hostEgress||null,paid,now,log,
       probe:(app,circuit)=>probe(app.deploymentId,app.expected,circuit),publish:(id,routes)=>this.publisher.publish(id,routes)});
@@ -68,7 +71,13 @@ export class PrivacyAgent {
       // round goes on to the policies and guest proofs (2026-10-13 15:21Z: control circuits down ~1 min -> three apps'
       // egress OFF, their leases fine).
       let leases;
-      try{leases=await this.leaseReader.refresh(this.apps.map(a=>a.deploymentId));}
+      try{
+        // one read at a time: a read still running from an earlier round is not doubled, and that round's leases are held
+        if(this.chainRead)throw new Error('the previous chain read has not finished');
+        const read=this.chainRead=this.leaseReader.refresh(this.apps.map(a=>a.deploymentId)).finally(()=>{if(this.chainRead===read)this.chainRead=null;});
+        let timer;
+        leases=await Promise.race([read,new Promise((_,j)=>{timer=setTimeout(()=>j(new Error(`no chain answer within ${this.chainDeadlineMs/1000} s`)),this.chainDeadlineMs);})]).finally(()=>clearTimeout(timer));
+      }
       catch(e){
         const held=this.leaseReader.hold?this.leaseReader.hold(LEASE_GRACE_MS):[];
         this.log(`chain authorization read failed: ${e.message}; ${held.length} running lease(s) held from their last agreeing read`);
@@ -81,20 +90,33 @@ export class PrivacyAgent {
         return {...app,isPublic:!!lease?.isPublic,policy:await this.network.policyFor(app,lease)};}));
       const configured=[];policies.forEach((r,i)=>{if(r.status==='fulfilled')configured.push(r.value);else{this.admission.revoke(this.apps[i].deploymentId);this.log(`app policy ${this.apps[i].deploymentId.slice(0,10)}: ${r.reason.message}`);}});
       await this.manager.configure(configured);
-      this.authorizationRefresh.phase="guest-proof";void this.snapshot().catch(e=>this.log(e.message));
-      // A proof lasts 60 s and is renewed once 40 s or less remain (three tries
-      // before it lapses), so a guest is asked for a report 2-3 times a minute
-      // (a Shield guest makes one at a time).
-      const due=configured.filter(app=>!(this.admission.allows(app.deploymentId)&&this.admission.proofs.get(app.deploymentId).validUntil-this.now()>40000));
-      const results=await Promise.allSettled(due.map(app=>this.admission.attest(app.deploymentId,(id,expected)=>this.probe(id,expected,null))));
-      results.forEach((r,i)=>{if(r.status==='rejected'){const kept=this.admission.failed(due[i].deploymentId,r.reason);this.log(`local guest proof ${due[i].deploymentId.slice(0,10)}: ${r.reason.message}${kept?' (last proof kept until it expires)':''}`);}});
+      this.configured=configured;
+      // guest proofs renew on their own (refreshProofs), so neither a slow app nor a slow round holds up the others
+      void this.refreshProofs();
     }catch(e){this.authorizationRefresh.error=e.message;this.log('chain/app authorization: '+e.message);}finally{this.authorizationRefresh.completedAt=this.now();this.authorizationRefresh.phase='idle';this.refreshing=false;this.manager.enforceAdmission();}
+  }
+  // A proof lasts 60 s and is renewed once 40 s or less remain, every 5 s (a Shield guest makes one report at a time).
+  // Each app's renewal runs on its own: one app's slow or hanging probe, or a slow chain round, never delays another
+  // app's proof (2026-10-16 01:41:42Z: one round waited on its slowest step and all eight k11-4 apps lapsed together).
+  // -> settles when every renewal in flight has.
+  refreshProofs(){
+    if(this.closed)return Promise.resolve();
+    for(const app of this.configured){
+      const id=app.deploymentId;
+      if(this.proving.has(id)||(this.admission.allows(id)&&this.admission.proofs.get(id).validUntil-this.now()>40000))continue;
+      const run=this.admission.attest(id,(i,expected)=>this.probe(i,expected,null))
+        .catch(e=>{const kept=this.admission.failed(id,e);this.log(`local guest proof ${id.slice(0,10)}: ${e.message}${kept?' (last proof kept until it expires)':''}`);})
+        .finally(()=>{this.proving.delete(id);this.manager.enforceAdmission();});
+      this.proving.set(id,run);
+    }
+    return Promise.allSettled([...this.proving.values()]);
   }
   async snapshot(){await this.egress.write();await this.status.set('status',{version:2,updatedAt:this.now(),authorizationRefresh:this.authorizationRefresh,apps:this.manager.status().map(app=>({...app,leaseUntil:this.admission.leases.get(app.deploymentId)?.validUntil||0,proofUntil:this.admission.proofs.get(app.deploymentId)?.validUntil||0}))});}
   async start(){
-    await this.refreshAuthorization();if(this.closed)throw new Error('privacy agent stopped during startup');await this.snapshot();
+    await this.refreshAuthorization();await this.refreshProofs();if(this.closed)throw new Error('privacy agent stopped during startup');await this.snapshot();
     this.timers=[setInterval(()=>{this.manager.enforceAdmission();void this.snapshot().catch(e=>this.log(e.message));},1000),
       setInterval(()=>void this.refreshAuthorization(),15000),
+      setInterval(()=>void this.refreshProofs(),5000),
       setInterval(()=>{if(this.publishing||this.closed)return;this.publishing=true;void Promise.allSettled([...this.manager.apps.values()].map(app=>this.manager.publishApp(app))).finally(()=>{this.publishing=false;});},10000),
       setInterval(()=>void this.manager.reconcile().catch(e=>this.log('circuits: '+e.message)),5000)];
     void this.manager.reconcile().catch(e=>this.log('circuits: '+e.message));return this;
