@@ -379,15 +379,13 @@ static void shield_profile(void) {
 static int shield_spill_ok;
 /* The bank is the disk after the model's: vdb for the 27B (one model disk), vdd for the
  * stable-diffusion profile (three). */
-static const char *shield_spill_dev(void) { return shield_sd ? "/dev/vdd" : "/dev/vdb"; }
+static const char *shield_spill_dev(void) { return "/dev/vdb"; }   /* one model disk for both profiles */
 static void shield_spill_probe(void) {
     if (!(shield_large || shield_sd) || access("/rt/shield-pad-spill.enabled", R_OK) != 0) return;
     const char *dev = shield_spill_dev();
     struct stat model, disk;
     if (stat(dev, &disk) != 0) { printf("DOM Shield pad spill: no disk attached\n"); return; }
-    const char *models[3] = {"/dev/vda", "/dev/vdb", "/dev/vdc"};
-    for (int i = 0; i < (shield_sd ? 3 : 1); i++)
-        if (!S_ISBLK(disk.st_mode) || stat(models[i], &model) != 0 || model.st_rdev == disk.st_rdev) {
+    if (!S_ISBLK(disk.st_mode) || stat("/dev/vda", &model) != 0 || model.st_rdev == disk.st_rdev) {
             printf("DOM Shield pad spill: %s is not a block device after the model's; not used\n", dev);
             return;
         }
@@ -397,6 +395,38 @@ static void shield_spill_probe(void) {
     if (bytes < (off_t)1 << 30) { printf("DOM Shield pad spill: %s unusable (%s)\n", dev, fd < 0 ? strerror(errno) : "under 1 GiB"); return; }
     shield_spill_ok = 1;
     printf("DOM Shield pad spill: %s, %lld GiB\n", dev, (long long)(bytes >> 30));
+}
+
+/* The stable-diffusion profile's model is NOT copied into guest RAM: it stays on the
+ * host's NVMe as a dm-verity volume (ext4 + appended hash tree, metal/volumes.mjs) and
+ * every block is verified against the root hash in the measured /rt/shield-volume as the
+ * kernel reads it. Verified pages are ordinary page cache, so under memory pressure they
+ * are dropped and re-read (and re-verified) instead of pinning 7.8 GB of guest RAM. A
+ * tampered block is an I/O error, never a different weight. */
+static pid_t spawn(char *const argv[], char *extra, int fd3, int flags);
+static int shield_mount_volume(void) {
+    char model[64], alg[16], root[80], salt[80];
+    unsigned long long dbs, hbs, dblocks, hstart;
+    FILE *f = fopen("/rt/shield-volume", "r");
+    if (!f) return -1;
+    const int n = fscanf(f, "%63s %15s %79s %79s %llu %llu %llu %llu", model, alg, root, salt, &dbs, &hbs, &dblocks, &hstart);
+    fclose(f);
+    if (n != 8 || strcmp(model, shield_model) || strcmp(alg, "sha256") || strlen(root) != 64 || strlen(salt) != 64) return -1;
+    insmod("/dm-mod.ko.zst"); insmod("/dm-bufio.ko.zst"); insmod("/reed_solomon.ko.zst"); insmod("/dm-verity.ko.zst");
+    char a_dbs[24], a_hbs[24], a_db[24], a_hs[24];
+    snprintf(a_dbs, sizeof a_dbs, "%llu", dbs); snprintf(a_hbs, sizeof a_hbs, "%llu", hbs);
+    snprintf(a_db, sizeof a_db, "%llu", dblocks); snprintf(a_hs, sizeof a_hs, "%llu", hstart);
+    char *av[] = {"/mverity", "shieldvol", "/dev/vda", a_dbs, a_hbs, a_db, a_hs, alg, root, salt, NULL};
+    int status = 0;
+    pid_t pid = spawn(av, NULL, -1, 0);    /* its one line (the device path) goes to the serial log */
+    if (pid < 0 || waitpid(pid, &status, 0) != pid || !WIFEXITED(status) || WEXITSTATUS(status) != 0) return -1;
+    char dir[128];
+    snprintf(dir, sizeof dir, "/models/%s", shield_model);
+    mkdir("/models", 0755);
+    if (mkdir(dir, 0755) != 0 && errno != EEXIST) return -1;
+    if (mount("/dev/mapper/shieldvol", dir, "ext4", MS_RDONLY | MS_NODEV | MS_NOSUID | MS_NOEXEC, "noload") != 0) return -1;
+    printf("DOM Shield model volume: dm-verity root %s, %llu blocks, mounted read-only at %s\n", root, dblocks, dir);
+    return 0;
 }
 
 static int shield_rings(void) {
@@ -830,7 +860,10 @@ int main(void) {
         printf("DOM Shield idle driver: %s\n", driver[0] ? driver : "unavailable");
         if (shield_rings() != 0) { printf("DOM ERROR invalid Shield rings\n"); reboot(RB_POWER_OFF); _exit(1); }
         shield_spill_probe();
-        if (shield_large || shield_sd) {
+        if (shield_sd && shield_mount_volume() != 0) {
+            printf("DOM ERROR Shield model volume did not verify or mount\n"); fflush(stdout); reboot(RB_POWER_OFF); _exit(1);
+        }
+        if (shield_large) {
             char *mv[] = {"/shieldmodel", NULL}; int status=0;
             unsigned long long oom_before = shield_oom_events();
             pid_t pid=spawn(mv,NULL,-1,0);
