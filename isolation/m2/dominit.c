@@ -269,7 +269,9 @@ static void lo_up(void) {
  * A drop, reach or filter failure exits 125, so the app never starts privileged or unfiltered, and the domain powers
  * off as for any app exit. The app gets all three; the front none. */
 /* Measured, bundle-derived inference profile. Never read a host environment. */
-static int shield_on, shield_large, shield_load_allowed;
+static int shield_on, shield_large, shield_sd, shield_load_allowed;
+/* shield_sd: the stable-diffusion profile (Z-Image-Turbo, three model disks vda..vdc, pad bank vdd). */
+#define SHIELD_SD_MODEL "z-image-turbo-q4km-sd"
 static char shield_ram_env[96];
 static int shield_memory_group;
 #define SHIELD_CGROUP "/sys/fs/cgroup/shield-app"
@@ -317,6 +319,11 @@ static void shield_disable_model(void) {
     snprintf(shield_preloads_env, sizeof shield_preloads_env, "ENCLAVE_NN_PRELOADS=");
     /* No process may still hold the source when this is called. Remove only
      * the private copy; never change the host-backed device or its digest. */
+    if (shield_sd) {
+        unlink("/models/" SHIELD_SD_MODEL "/diffusion.gguf");
+        unlink("/models/" SHIELD_SD_MODEL "/llm.gguf");
+        unlink("/models/" SHIELD_SD_MODEL "/vae.safetensors");
+    }
     if (shield_large) {
         const char *dir = "/models/qwen3.8-27b-mtp-q4-vl-gguf/";
         char p[160];
@@ -333,13 +340,15 @@ static void shield_profile(void) {
     int n = fscanf(f, "%63s %d %llu %c", model, &milli, &bytes, &extra);
     fclose(f);
     shield_large = !strcmp(model, "qwen3.8-27b-mtp-q4-vl-gguf");
-    if (n != 3 || (!shield_large && strcmp(model, "qwen2.5-0.5b-q8-gguf")) || milli < (shield_large ? 500 : 65) || milli > 1000 ||
+    shield_sd = !strcmp(model, SHIELD_SD_MODEL);
+    if (n != 3 || (!shield_large && !shield_sd && strcmp(model, "qwen2.5-0.5b-q8-gguf")) ||
+        milli < (shield_large ? 500 : shield_sd ? 200 : 65) || milli > 1000 ||
         bytes != (31ULL * 1024 * 1024 * 1024 * milli / 1000)) {
         printf("DOM ERROR invalid measured Shield profile\n"); fflush(stdout); reboot(RB_POWER_OFF); _exit(1);
     }
     snprintf(shield_workers, sizeof shield_workers,
         "SHIELDED_WORKERS=unix:/run/enclave-shield/gpu0|9501|0|%llu|/dev/enclave-shielded-shm/card-0|67108864\nunix:/run/enclave-shield/gpu1|9502|0|%llu|/dev/enclave-shielded-shm/card-1|67108864", bytes, bytes);
-    snprintf(shield_graph, sizeof shield_graph, "nn-graph=ggml::/models/%s", model);
+    snprintf(shield_graph, sizeof shield_graph, shield_sd ? "nn-graph=sd::/models/%s" : "nn-graph=ggml::/models/%s", model);
     snprintf(shield_models_env, sizeof shield_models_env, "ENCLAVE_MODELS=%s", model);
     snprintf(shield_preloads_env, sizeof shield_preloads_env, "ENCLAVE_NN_PRELOADS=%s", model);
     /* Two worker reservations, derived from the measured bundle, not the host environment. */
@@ -368,20 +377,26 @@ static void shield_profile(void) {
  * the dropped runtime can reach it, as one descriptor (spawn: fd 197). */
 #define SHIELD_SPILL_FD 197
 static int shield_spill_ok;
+/* The bank is the disk after the model's: vdb for the 27B (one model disk), vdd for the
+ * stable-diffusion profile (three). */
+static const char *shield_spill_dev(void) { return shield_sd ? "/dev/vdd" : "/dev/vdb"; }
 static void shield_spill_probe(void) {
-    if (!shield_large || access("/rt/shield-pad-spill.enabled", R_OK) != 0) return;
+    if (!(shield_large || shield_sd) || access("/rt/shield-pad-spill.enabled", R_OK) != 0) return;
+    const char *dev = shield_spill_dev();
     struct stat model, disk;
-    if (stat("/dev/vdb", &disk) != 0) { printf("DOM Shield pad spill: no disk attached\n"); return; }
-    if (!S_ISBLK(disk.st_mode) || stat("/dev/vda", &model) != 0 || model.st_rdev == disk.st_rdev) {
-        printf("DOM Shield pad spill: /dev/vdb is not a second block device; not used\n");
-        return;
-    }
-    int fd = open("/dev/vdb", O_RDWR | O_CLOEXEC);
+    if (stat(dev, &disk) != 0) { printf("DOM Shield pad spill: no disk attached\n"); return; }
+    const char *models[3] = {"/dev/vda", "/dev/vdb", "/dev/vdc"};
+    for (int i = 0; i < (shield_sd ? 3 : 1); i++)
+        if (!S_ISBLK(disk.st_mode) || stat(models[i], &model) != 0 || model.st_rdev == disk.st_rdev) {
+            printf("DOM Shield pad spill: %s is not a block device after the model's; not used\n", dev);
+            return;
+        }
+    int fd = open(dev, O_RDWR | O_CLOEXEC);
     const off_t bytes = fd >= 0 ? lseek(fd, 0, SEEK_END) : -1;
     if (fd >= 0) close(fd);
-    if (bytes < (off_t)1 << 30) { printf("DOM Shield pad spill: /dev/vdb unusable (%s)\n", fd < 0 ? strerror(errno) : "under 1 GiB"); return; }
+    if (bytes < (off_t)1 << 30) { printf("DOM Shield pad spill: %s unusable (%s)\n", dev, fd < 0 ? strerror(errno) : "under 1 GiB"); return; }
     shield_spill_ok = 1;
-    printf("DOM Shield pad spill: /dev/vdb, %lld GiB\n", (long long)(bytes >> 30));
+    printf("DOM Shield pad spill: %s, %lld GiB\n", dev, (long long)(bytes >> 30));
 }
 
 static int shield_rings(void) {
@@ -510,8 +525,8 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
         /* The pad spill, opened before the drop like the sources above. A
          * disk that will not open now just means no spill: the engine mints. */
         int spill_fd = -1;
-        if (shield_on && shield_load_allowed && shield_large && drop && shield_spill_ok) {
-            int fd = open("/dev/vdb", O_RDWR | O_CLOEXEC);
+        if (shield_on && shield_load_allowed && (shield_large || shield_sd) && drop && shield_spill_ok) {
+            int fd = open(shield_spill_dev(), O_RDWR | O_CLOEXEC);
             if (fd >= 0 && dup2(fd, SHIELD_SPILL_FD) == SHIELD_SPILL_FD) spill_fd = SHIELD_SPILL_FD;   /* dup2 clears CLOEXEC */
             if (fd >= 0 && fd != SHIELD_SPILL_FD) close(fd);
         }
@@ -551,7 +566,45 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
         /* Protocol credential, not a security boundary: one app owns this guest.
          * Policy is enforced by the measured front, CID admission and host IP checks. */
         if (public_https_egress && drop) envp[ei++] = "ENCLAVE_EGRESS_CRED=guest:public-https";
-        if (shield_on && drop) {
+        if (shield_on && drop && shield_sd) {
+            /* The stable-diffusion profile: stable-diffusion.cpp on the guest CPU, its
+             * calibrated matmuls offloaded through the Shield backend (SD_ACCEL_BACKEND:
+             * a sched over [Shielded, CPU]; a backend that fails to load fails every
+             * generation, never a silent CPU run). Every image token goes through every
+             * linear at every step, so batches are wide: SHIELDED_WIDE=1 exchanges them in
+             * SHIELDED_MAX_M-row chunks, each masked and Freivalds-checked on its own. */
+            envp[ei++] = "ENCLAVE_HTTP_POOL=1";
+            envp[ei++] = "SD_ACCEL_BACKEND=/rt/backends/libggml-shielded.so";
+            envp[ei++] = "ENCLAVE_SD_USE_GPU=0";
+            envp[ei++] = "ENCLAVE_SD_MMAP=1";
+            envp[ei++] = "ENCLAVE_SD_DIFFUSION_FILE=diffusion.gguf";
+            envp[ei++] = "ENCLAVE_SD_LLM_FILE=llm.gguf";
+            envp[ei++] = "ENCLAVE_SD_VAE_FILE=vae.safetensors";
+            envp[ei++] = "ENCLAVE_SD_VAE_TILING=64:0.25";
+            envp[ei++] = "ENCLAVE_SD_FLASH_ATTN=1";
+            envp[ei++] = "SHIELDED_HOST=unix:/run/enclave-shield/gpu0";
+            envp[ei++] = "SHIELDED_PORT=9501";
+            envp[ei++] = shield_workers;
+            envp[ei++] = shield_calib;
+            envp[ei++] = shield_vram_env;
+            envp[ei++] = shield_ram_env;
+            envp[ei++] = "ENCLAVE_NN_SERVE_KIND=RAM";
+            envp[ei++] = "SHIELDED_WIDE=1";
+            envp[ei++] = "SHIELDED_MAX_M=64";
+            envp[ei++] = "SHIELDED_POOL_DEPTH=256";        /* TUNE: 4 x max_m */
+            envp[ei++] = "SHIELDED_REFILL_THREADS=6";      /* TUNE: 8 guest vCPUs */
+            envp[ei++] = "SHIELDED_REFILL_BATCH=64";
+            envp[ei++] = "SHIELDED_SHM_STREAM_LOAD=1";
+            envp[ei++] = "SHIELDED_SPLIT_COLS=1";
+            envp[ei++] = "SHIELDED_OVERLAP_VERIFY=1";
+            envp[ei++] = "SHIELDED_WEIGHT_BUDGET_FRAC=0.95";
+            if (spill_fd == SHIELD_SPILL_FD) {
+                envp[ei++] = "SHIELDED_PAD_SPILL=fd:197";
+                envp[ei++] = "ENCLAVE_SHIELD_PERF_HEADER=1";
+                envp[ei++] = "SHIELDED_PROFILE_LAYOUT=pads";
+            }
+            envp[ei++] = shield_models_env;
+        } else if (shield_on && drop) {
             /* This runtime belongs to one isolated app. Reuse only transport
              * connections; every tool request still carries fresh credentials. */
             envp[ei++] = "ENCLAVE_HTTP_POOL=1";
@@ -770,7 +823,7 @@ int main(void) {
         printf("DOM Shield idle driver: %s\n", driver[0] ? driver : "unavailable");
         if (shield_rings() != 0) { printf("DOM ERROR invalid Shield rings\n"); reboot(RB_POWER_OFF); _exit(1); }
         shield_spill_probe();
-        if (shield_large) {
+        if (shield_large || shield_sd) {
             char *mv[] = {"/shieldmodel", NULL}; int status=0;
             unsigned long long oom_before = shield_oom_events();
             pid_t pid=spawn(mv,NULL,-1,0);
@@ -926,7 +979,12 @@ int main(void) {
             app[k++] = "--env";
             app[k++] = "ENCLAVE_CONFIG";
         }
-        if (shield_on && strcmp(base[i], "/app.wasm") == 0) {
+        if (shield_on && shield_sd && strcmp(base[i], "/app.wasm") == 0) {
+            app[k++]="-S"; app[k++]="nn";
+            if (shield_load_allowed) { app[k++]="-S"; app[k++]=shield_graph; }
+            app[k++]="--dir"; app[k++]="/models::/models";
+            app[k++]="--env"; app[k++]="ENCLAVE_MODELS";
+        } else if (shield_on && strcmp(base[i], "/app.wasm") == 0) {
             app[k++]="-S"; app[k++]="nn";
             if (shield_load_allowed) { app[k++]="-S"; app[k++]=shield_graph; }
             app[k++]="--dir"; app[k++]="/models::/models";
