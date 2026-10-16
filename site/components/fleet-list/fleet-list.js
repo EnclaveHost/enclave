@@ -26,7 +26,7 @@ import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js"
 import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedHostCapacity, teeCpuOf, computeEligibleOf, appHostVisible, ownerHostedDeploymentCount, ownerHostCpuCapacity, ownerHostVisibleTo, pvmHostVisible, pvmHostVm } from "../../js/core/pricing.js";
 import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
-import { boxVerifiable, unverifiableReason, verifyBoxInBrowser, verificationHtml, EVIDENCE_OF, appsOnBox, verifyAppInBrowser } from "../../js/core/verify.js";
+import { boxVerifiable, unverifiableReason, verifyBoxInBrowser, verificationHtml, EVIDENCE_OF } from "../../js/core/verify.js";
 
 const PAGE = 5;   // hosts per page
 // the sort keys, in the Sort by dropdown's order: the rating, then a pool kind and what its price is divided by.
@@ -436,13 +436,6 @@ class FleetList extends EnclaveElement {
     }
     this._wireRate();
     for (const b of list.querySelectorAll(".fleet-verify-run")) b.addEventListener("click", () => this._runVerify(b.dataset.box, b.dataset.mode));
-    for (const b of list.querySelectorAll(".fleet-apps-load")) b.addEventListener("click", () => this._loadApps(b.dataset.box));
-    for (const b of list.querySelectorAll(".fleet-app-run")) b.addEventListener("click", () => this._runApp(b.dataset.box, b.dataset.dep));
-    if (this._appFocus) {   // the repaint replaced the button that was clicked
-      const b = list.querySelector('.fleet-app-run[data-dep="' + CSS.escape(this._appFocus) + '"]');
-      this._appFocus = null;
-      if (b) b.focus();
-    }
     if (this._verFocus) {   // the repaint replaced the button that was clicked
       const b = list.querySelector('.fleet-verify-run[data-box="' + CSS.escape(this._verFocus) + '"]');
       this._verFocus = null;
@@ -524,42 +517,7 @@ class FleetList extends EnclaveElement {
       + '<div class="fleet-verify-h"><span>Is this box what it claims? Check ' + esc(EVIDENCE_OF[e.mode]) + ' yourself.</span>'
       + '<button class="btn btn-sm fleet-verify-run" type="button" data-box="' + esc(e.name) + '" data-mode="' + esc(e.mode) + '"' + (v.busy ? ' disabled' : '') + '>'
       + (v.r || v.err ? 'Verify again' : 'Verify in your browser') + ' <span class="arr">→</span></button></div>'
-      + body + (e.mode === "hv-node" ? this._appsHtml(e.name) : "") + '</div>';
-  }
-  /* An Enclave Shield host runs each app in its own VBS-isolated partition: list the public apps it serves and verify one
-     app's partition (its report under the VSM identity key of the boot the TPM quoted), the host's check included. */
-  _appsHtml(name){
-    const a = (this._apps ||= {})[name] || {}, ver = (this._appVer ||= {});
-    const short = (id) => id.slice(0, 10) + "…" + id.slice(-6);
-    const list = a.list ? (a.list.length ? '<ul class="fleet-app-list">' + a.list.map((d) => {
-        const v = ver[d.id] || {};
-        const body = v.busy ? '<div class="lv-verdict" role="status">verifying the host, then this app\u2019s partition, in your browser …</div>'
-          : v.r ? verificationHtml(name, v.r) : v.err ? '<div class="lv-verdict bad" role="status">✗ could not run verification: ' + esc(v.err) + '</div>' : '';
-        return '<li class="fleet-app" data-vkey="app:' + esc(d.id) + '"' + (v.busy ? ' aria-busy="true"' : '') + '><div class="fleet-app-h"><span title="' + esc(d.id) + '">app ' + esc(short(d.id))
-          + (d.appRef ? ' <small>' + esc(d.appRef.replace(/^catalog:\/\/(0x[0-9a-f]{6})[0-9a-f]+/i, "catalog $1…")) + '</small>' : '') + '</span>'
-          + '<button class="btn btn-sm fleet-app-run" type="button" data-box="' + esc(name) + '" data-dep="' + esc(d.id) + '"' + (v.busy ? ' disabled' : '') + '>'
-          + (v.r || v.err ? 'Verify again' : 'Verify app') + ' <span class="arr">→</span></button></div>' + body + '</li>';
-      }).join("") + '</ul>' : '<p class="lv-na">This host serves no public app right now.</p>')
-      : a.err ? '<p class="lv-na">Couldn\u2019t list its apps: ' + esc(a.err) + '</p>' : '';
-    return '<div class="fleet-apps"><div class="fleet-verify-h"><span>Each app here runs in its own partition. Check one app\u2019s partition yourself.</span>'
-      + (a.list ? '' : '<button class="btn btn-sm fleet-apps-load" type="button" data-box="' + esc(name) + '"' + (a.loading ? ' disabled' : '') + '>'
-        + (a.loading ? 'Listing…' : 'Show its apps') + '</button>') + '</div>' + list + '</div>';
-  }
-  async _loadApps(name){
-    const apps = (this._apps ||= {});
-    if (apps[name] && apps[name].loading) return;
-    apps[name] = { loading: true }; this.requestRender();
-    try { apps[name] = { list: await appsOnBox(name) }; }
-    catch (e) { apps[name] = { err: e && e.message ? e.message : String(e) }; }
-    this.requestRender();
-  }
-  async _runApp(name, dep){
-    const ver = (this._appVer ||= {});
-    if (ver[dep] && ver[dep].busy) return;
-    ver[dep] = { busy: true }; this._appFocus = dep; this.requestRender();
-    try { ver[dep] = { r: await verifyAppInBrowser(name, dep) }; }
-    catch (e) { ver[dep] = { err: e && e.message ? e.message : String(e) }; }
-    this._appFocus = dep; this.requestRender();
+      + body + '</div>';
   }
   async _runVerify(name, mode){
     const ver = (this._ver ||= {});

@@ -136,11 +136,6 @@ c-fleet-list{display:contents;}
 .fleet-verify .lv-meta{font-size:.64rem;}
 .fleet-verify .lv-na{font-size:.68rem;line-height:1.6;color:var(--text-dim);}
 /* an Enclave Shield host's apps, each verifiable on its own */
-.fleet-apps{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line-soft);}
-.fleet-app-list{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:8px;}
-.fleet-app{border:1px solid var(--line-soft);border-radius:8px;padding:8px 10px;}
-.fleet-app-h{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between;color:var(--text-muted);font-size:.68rem;}
-.fleet-app-h small{color:var(--text-dim);}
 .fleet-gate{margin:0;font-size:.72rem;color:var(--text-muted);}
 .revs-write{display:flex;flex-direction:column;gap:8px;}
 .revs-pick{display:flex;align-items:center;gap:2px;border:0;padding:0;margin:0;}
