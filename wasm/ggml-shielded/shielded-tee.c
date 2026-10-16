@@ -2654,7 +2654,49 @@ void sh_fv_postmortem(const int8_t *w, int64_t K, int64_t N, const int64_t *x, i
              bad ? "" : " (the reply matches the local product: the CHECK side is suspect)", wrapped);
 }
 
+static int sh_link_gemm_stride_one(sh_link *l, const int *nodes, size_t n_nodes,
+                 const int64_t *x_field, int32_t m, int64_t **y_out,
+                 const int64_t *y_stride);
+
+/* SHIELDED_WIDE=1: a batch wider than the group's max_m is exchanged as a run
+ * of max_m-row chunks, each one an ordinary masked, Freivalds-checked exchange
+ * with its own pads (pads are per row, so a chunk is exactly a smaller batch).
+ * Built for workloads whose every step is wide (diffusion: all image tokens,
+ * every step). Off by default: an LLM keeps prefill in the enclave unless its
+ * deployment opts in. A failed chunk fails the whole call; rows of earlier
+ * chunks are then as unusable as the caller already treats any failed call. */
+static int sh_wide(void) {
+    static int v = -1;
+    if (v < 0) { const char *e = getenv("SHIELDED_WIDE"); v = e && !strcmp(e, "1"); }
+    return v;
+}
+
 int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
+                 const int64_t *x_field, int32_t m, int64_t **y_out,
+                 const int64_t *y_stride) {
+    if (!sh_wide() || !l || !nodes || !n_nodes || n_nodes > SH_GROUP_MAX || !x_field || !y_out ||
+        nodes[0] < 0 || (size_t)nodes[0] >= l->n_nodes)
+        return sh_link_gemm_stride_one(l, nodes, n_nodes, x_field, m, y_out, y_stride);
+    const sh_group *g = &l->groups[l->nodes[nodes[0]].group];
+    const int32_t step = g->max_m;
+    if (step < 1 || m <= step)
+        return sh_link_gemm_stride_one(l, nodes, n_nodes, x_field, m, y_out, y_stride);
+    for (size_t i = 0; i < n_nodes; i++)
+        if (nodes[i] < 0 || (size_t)nodes[i] >= l->n_nodes || !y_out[i]) return SH_ERR_PROTO;
+    int64_t *yp[SH_GROUP_MAX];
+    for (int32_t at = 0; at < m; at += step) {
+        const int32_t rows = m - at < step ? m - at : step;
+        for (size_t i = 0; i < n_nodes; i++) {
+            const int64_t row = y_stride && y_stride[i] ? y_stride[i] : l->nodes[nodes[i]].N;
+            yp[i] = y_out[i] + (size_t)at * (size_t)row;
+        }
+        const int rc = sh_link_gemm_stride_one(l, nodes, n_nodes, x_field + (size_t)at * (size_t)g->K, rows, yp, y_stride);
+        if (rc != SH_OK) return rc;
+    }
+    return SH_OK;
+}
+
+static int sh_link_gemm_stride_one(sh_link *l, const int *nodes, size_t n_nodes,
                  const int64_t *x_field, int32_t m, int64_t **y_out,
                  const int64_t *y_stride) {
     const double t_entry = now_ms();   /* prologue: input range scan and buffer ensures */

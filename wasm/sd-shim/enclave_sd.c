@@ -133,6 +133,13 @@ void *esd_load_model(const char *model_path,
     p.llm_path             = llm_path;
     p.vae_path             = vae_path;
     p.n_threads            = n_threads > 0 ? n_threads : sd_get_num_physical_cores();
+    /* ENCLAVE_SD_MMAP=1: CPU-resident weights are mapped, not copied. In a
+     * guest whose verified model copies already live in private RAM this keeps
+     * one copy of the weights instead of two. */
+    {
+        const char *mm = getenv("ENCLAVE_SD_MMAP");
+        p.enable_mmap = mm && mm[0] == '1' && mm[1] == 0;
+    }
     if (wtype && wtype[0]) {
         p.wtype = str_to_sd_type(wtype);
         if (p.wtype >= SD_TYPE_COUNT) {

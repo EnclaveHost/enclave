@@ -203,3 +203,12 @@ LDLIBS += -L$(COMPACT_LIBDIR) -ldnnl -lgomp
 shielded-compact.o: shielded-compact.cpp shielded-compact.h
 	$(CXX) $(CXXFLAGS) -I$(SHIELDED_COMPACT_ROOT)/usr/include -O3 -mavx512f -mavx512bw -mavx512dq -mavx512vl -mavx512vnni -c $< -o $@
 endif
+
+# The diffusion sibling of shielded-calib (sd-calib.cpp): stable-diffusion.cpp's
+# eval callback instead of libllama's. Host tool, shipped nowhere. Build against
+# the SAME ggml the runtime's stable-diffusion.cpp links (SD_SRC / SD_LIB).
+SD_SRC ?= $(HOME)/Projects/sd.cpp
+SD_LIB ?= $(SD_SRC)/build/bin
+sd-calib: sd-calib.cpp shielded-field.o shielded-field.h shielded-group-key.h shielded-source-quant.h
+	$(CXX) $(CXXFLAGS) -DGGML_MAX_NAME=128 -I$(SD_SRC)/include -I$(SD_SRC)/ggml/include -I$(SD_SRC)/ggml/src \
+	  -o $@ sd-calib.cpp shielded-field.o -L$(SD_LIB) -lstable-diffusion -lggml -lggml-base $(LDLIBS) -Wl,-rpath,$(SD_LIB)

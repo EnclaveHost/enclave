@@ -129,6 +129,7 @@ static int sh_encoded_reader(void *ctx, uint64_t offset, uint8_t *out, size_t by
  * ----------------------------------------------------------------------- */
 static int64_t sh_min_macs() { static int64_t v = -1; if (v < 0) v = sh_env_int("SHIELDED_MIN_MACS", 2000000); return v; }
 static int     sh_max_m()    { static int v = -1;     if (v < 0) v = sh_env_int("SHIELDED_MAX_M", 8); return v; }
+static bool    sh_env_wide() { static int v = -1;     if (v < 0) v = sh_env_int("SHIELDED_WIDE", 0) == 1; return v == 1; }
 
 /* --------------------------------------------------------------------------
  * Calibration.
@@ -1489,7 +1490,9 @@ static bool sh_claimable(const ggml_tensor *op, bool batch_ok) {
         p.pending[nm] = *src0;
     else if (src0->data && owner >= 0 && !p.cards[owner]->weights.count(nm) && !p.cards[owner]->refused.count(nm))
         p.pending[nm] = *src0;
-    if (batch_ok && src1->ne[1] > sh_max_m() && !g_weight_verifier) return false;
+    /* Wider than one exchange: stays in the enclave unless SHIELDED_WIDE=1, in
+     * which case the link exchanges it in max_m-row chunks (shielded-tee.c). */
+    if (batch_ok && src1->ne[1] > sh_max_m() && !g_weight_verifier && !sh_env_wide()) return false;
     if (!g_weight_verifier && p.owners.count(sh_group_key(nm)) && owner < 0) return false;
     if (!g_weight_verifier && owner >= 0 && p.cards[owner]->contention.contended && sh_group_key(nm) != p.cards[owner]->probe_group) return false;
     return true;
