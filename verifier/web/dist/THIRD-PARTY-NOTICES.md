@@ -8,17 +8,26 @@ Build tool, not distributed in the bundle: esbuild 0.28.1 (MIT).
 
 ## First-party (this repository)
 
+- `relay/hvnode-core.mjs`
+- `relay/pvm-evidence-core.mjs`
 - `relay/snp-verify.mjs`
+- `relay/vbs-tcglog-core.mjs`
+- `relay/vbs-tpm.mjs`
 - `verifier/der.mjs`
 - `verifier/envelope.mjs`
 - `verifier/metal-box.mjs`
 - `verifier/snp.mjs`
 - `verifier/tls-binding.mjs`
+- `verifier/web/avf.mjs`
 - `verifier/web/collateral.mjs`
 - `verifier/web/index.mjs`
 - `verifier/web/provider.mjs`
+- `verifier/web/pvm-host.mjs`
+- `verifier/web/shield-host.mjs`
 - `verifier/web/shims/buffer-global.mjs`
 - `verifier/web/shims/node-crypto.mjs`
+- `verifier/web/tpm-certs.mjs`
+- `verifier/web/tpm-credential.mjs`
 - `verifier/web/x509.mjs`
 
 ## Third-party
@@ -446,10 +455,40 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+### @noble/ciphers@1.3.0
+
+- package.json license: MIT; LICENSE file: `LICENSE` (MIT text)
+- bundled files (3): `esm/_polyval.js`, `esm/aes.js`, `esm/utils.js`
+
+```
+The MIT License (MIT)
+
+Copyright (c) 2022 Paul Miller (https://paulmillr.com)
+Copyright (c) 2016 Thomas Pornin <pornin@bolet.org>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the “Software”), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
 ### @noble/curves@1.9.1
 
 - package.json license: MIT; LICENSE file: `LICENSE` (MIT text)
-- bundled files (10): `esm/_shortw_utils.js`, `esm/abstract/curve.js`, `esm/abstract/edwards.js`, `esm/abstract/hash-to-curve.js`, `esm/abstract/modular.js`, `esm/abstract/montgomery.js`, `esm/abstract/utils.js`, `esm/abstract/weierstrass.js`, `esm/ed25519.js`, `esm/nist.js`
+- bundled files (11): `esm/_shortw_utils.js`, `esm/abstract/curve.js`, `esm/abstract/edwards.js`, `esm/abstract/hash-to-curve.js`, `esm/abstract/modular.js`, `esm/abstract/montgomery.js`, `esm/abstract/utils.js`, `esm/abstract/weierstrass.js`, `esm/ed25519.js`, `esm/nist.js`, `esm/p256.js`
 
 ```
 The MIT License (MIT)
