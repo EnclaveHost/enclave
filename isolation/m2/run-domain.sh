@@ -81,6 +81,9 @@ start)
       set -- "$@" -object "memory-backend-file,id=sh$card,mem-path=$ring,size=64M,share=on" -device "ivshmem-plain,memdev=sh$card,addr=$((5+card))"
     done
     if [ "$model" = z-image-turbo-q4km-sd ]; then
+      # A preemptible guest (guestd -shield-profile preemptible=1): if the host kernel ever has to OOM-kill, it takes
+      # this guest before any other (they run at the user manager's +200).
+      oom_adj=1000
       # ONE public disk: the dm-verity volume (ext4 + hash tree) holding the three model files. The guest verifies
       # every block it reads against the root hash in its measured release; nothing is copied into guest RAM.
       # Pad bank second (vdb).
@@ -153,7 +156,7 @@ start)
   # contents the measured loader copies and authenticates before execution.
   # shellcheck disable=SC2086
   systemd-run --user --unit="$unit" --collect -q \
-    -p CPUQuota="${quota}%" -p MemoryMax="$((mem + 768))M" -p TasksMax=256 \
+    -p CPUQuota="${quota}%" -p MemoryMax="$((mem + 768))M" -p TasksMax=256 ${oom_adj:+-p OOMScoreAdjust=$oom_adj} \
     qemu-system-x86_64 $MACH -cpu host -smp "$vcpus" -m "${mem}M" -bios "$OVMF" \
       -kernel "$KERNEL" -initrd "$(realpath "$img")" -append "$APPEND" \
       -device "vhost-vsock-pci,guest-cid=$cid" \
