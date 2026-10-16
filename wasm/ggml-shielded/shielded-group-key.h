@@ -22,6 +22,11 @@ static inline std::string sh_group_key(std::string_view name) {
         { "ffn_up",    "ffn_gate" },
         { "attn_gate", "attn_qkv" }, { "ssm_alpha", "attn_qkv" }, { "ssm_beta", "attn_qkv" },
         { "ssm_ba",    "attn_qkv" },   /* qwen3next: the same norm output */
+        /* stable-diffusion.cpp names. Z-Image's DiT FFN is w2(silu(w1(x)) * w3(x)),
+         * its attention one fused qkv; its Qwen3 text encoder keeps HF names. */
+        { "feed_forward.w3",  "feed_forward.w1" },
+        { "self_attn.k_proj", "self_attn.q_proj" }, { "self_attn.v_proj", "self_attn.q_proj" },
+        { "mlp.up_proj",      "mlp.gate_proj" },
     };
     for (const auto &m : members) {
         const size_t p = name.find(m.first);
