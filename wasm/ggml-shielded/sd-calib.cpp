@@ -175,7 +175,15 @@ static bool eval_cb(struct ggml_tensor *t, bool ask, void *) {
 
     if (!c->stored.insert({ { c->graph_id, (const void *)a }, g }).second) return true;
     const float *x = (const float *)a->data;
-    for (int64_t r = 0; r < m; r++) {
+    /* The joint layers' caption rows stay in the enclave at run time (the model's
+     * lead-rows hint, sd_get_accel_lead_rows): calibrate those sites on the image
+     * rows only, which is all the backend will ever offload there. */
+    int64_t r0 = 0;
+    if (name.rfind("model.diffusion_model.layers.", 0) == 0) {
+        const int lead = sd_get_accel_lead_rows();
+        if (lead > 0 && lead < m) r0 = lead;
+    }
+    for (int64_t r = r0; r < m; r++) {
         const float *xr = x + (size_t)r * K;
         double l2 = 0; float linf = 0;
         for (int64_t k = 0; k < K; k++) {
@@ -193,7 +201,7 @@ static bool eval_cb(struct ggml_tensor *t, bool ask, void *) {
             if (j < c->sample_rows) s.reservoir[j].assign(xr, xr + K);
         }
     }
-    s.m_total += m;
+    s.m_total += m - r0;
     return true;
 }
 
