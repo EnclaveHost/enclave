@@ -1972,7 +1972,10 @@ static bool sh_local_exact() { static int v = -1; if (v < 0) v = sh_env_int("SHI
  * Applies only to weights under SH_LEAD_PREFIX (the joint transformer layers). */
 static std::atomic<int> g_lead_rows{0};
 static const char *SH_LEAD_PREFIX = "model.diffusion_model.layers.";
-extern "C" void ggml_backend_shielded_set_lead_rows(int n) { g_lead_rows.store(n > 0 ? n : 0); }
+extern "C" void ggml_backend_shielded_set_lead_rows(int n) {
+    const int v = n > 0 ? n : 0;
+    if (g_lead_rows.exchange(v) != v) fprintf(stderr, "[shielded] lead rows: %d (kept in the enclave for %s*)\n", v, SH_LEAD_PREFIX);
+}
 
 /* dst rows [0, rows) = w x a rows [0, rows), on the CPU backend, written in place. */
 static bool sh_cpu_lead_rows(const ggml_tensor *w, const ggml_tensor *a, ggml_tensor *dst, int64_t rows) {
@@ -1986,9 +1989,12 @@ static bool sh_cpu_lead_rows(const ggml_tensor *w, const ggml_tensor *a, ggml_te
     out->data = dst->data;                      /* rows [0, rows) of dst: contiguous, same row stride */
     out->buffer = dst->buffer;
     av->buffer = a->buffer;
+    /* Only the product: the view already points at computed rows, and expanding
+     * from it would walk the whole model graph behind the activation. */
     ggml_cgraph *gf = ggml_new_graph_custom(ctx, 8, false);
-    ggml_build_forward_expand(gf, out);
-    const bool ok = out->nb[1] == dst->nb[1] && ggml_backend_graph_compute(be, gf) == GGML_STATUS_SUCCESS;
+    ggml_graph_add_node(gf, out);
+    out->flags |= GGML_TENSOR_FLAG_COMPUTE;    /* the CPU backend skips a node without it (no build_forward_expand here) */
+    const bool ok = av->data != nullptr && out->nb[1] == dst->nb[1] && ggml_backend_graph_compute(be, gf) == GGML_STATUS_SUCCESS;
     ggml_free(ctx);
     return ok;
 }
@@ -2480,6 +2486,9 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
             }
             a = &a_tail;
             s.lead_rows_local += (int64_t)lead * (int64_t)members.size();
+            static bool told = false;
+            if (!told) { told = true; fprintf(stderr, "[shielded] %s: %d leading rows computed here, %lld exchanged\n",
+                                              ggml_get_name(node->src[0]), lead, (long long)a->ne[1]); }
         }
 
         const sh_state::entry &e0 = *ents[0];
@@ -3055,6 +3064,36 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
         auto rc = sh_card_compute(*p.cards[owner], &view);
         if (rc != GGML_STATUS_SUCCESS) return rc;
         i = end;
+    }
+    /* TEST-ONLY (SHIELDED_DEBUG_COMPARE=1): recompute every offloaded matmul of this
+     * graph on the CPU backend in floating point and print its relative error,
+     * once per weight. Plaintext comparison: a host diagnostic, never in production. */
+    if (sh_env_int("SHIELDED_DEBUG_COMPARE", 0) == 1) {
+        static std::set<std::string> told;
+        for (int i = 0; i < graph->n_nodes; i++) {
+            ggml_tensor *node = graph->nodes[i];
+            if (node->op != GGML_OP_MUL_MAT || !node->src[0] || !node->src[1]) continue;
+            const std::string nm = ggml_get_name(node->src[0]);
+            if (told.count(nm)) continue;
+            told.insert(nm);
+            const int64_t N = node->ne[0], m = node->ne[1];
+            std::vector<float> ref((size_t)N * m);
+            ggml_tensor scratch = *node;
+            scratch.data = ref.data();
+            scratch.buffer = nullptr;
+            if (!sh_cpu_lead_rows(node->src[0], node->src[1], &scratch, m)) { fprintf(stderr, "[compare] %s: reference failed\n", nm.c_str()); continue; }
+            const float *got = (const float *)node->data;
+            double se = 0, sr = 0, se_tail = 0, sr_tail = 0;
+            const int lead = g_lead_rows.load();
+            for (int64_t r = 0; r < m; r++)
+                for (int64_t j = 0; j < N; j++) {
+                    const double d = (double)got[r * N + j] - ref[r * N + j], v = ref[r * N + j];
+                    se += d * d; sr += v * v;
+                    if (r >= lead) { se_tail += d * d; sr_tail += v * v; }
+                }
+            fprintf(stderr, "[compare] %-60s m=%lld SNR all %.1f dB, offloaded rows %.1f dB\n", nm.c_str(), (long long)m,
+                    10 * log10(sr / std::max(se, 1e-30)), 10 * log10(sr_tail / std::max(se_tail, 1e-30)));
+        }
     }
     if (getenv("SHIELDED_PROFILE")) {
         static uint64_t last = 0;
