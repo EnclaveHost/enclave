@@ -6,14 +6,18 @@
 c-live-verify{display:contents;}
 
 .lv{margin-top:26px;border:1px solid var(--line);border-radius:var(--radius);background:linear-gradient(180deg,var(--surface),var(--surface-deep));padding:22px;}
-.lv-h{display:flex;gap:18px;align-items:center;justify-content:space-between;flex-wrap:wrap;}
+.lv-h{display:flex;flex-direction:column;gap:16px;align-items:stretch;}
 .lv-txt{max-width:660px;}
 .lv-txt h3{margin:0 0 6px;font-family:var(--font-mono);font-size:.98rem;font-weight:600;}
 .lv-txt p{margin:0;color:var(--text-muted);font-size:.86rem;}
 .lv-txt p a{color:var(--jade-2);}
-.lv-act{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+/* the two controls, stacked and full width: the kinds of host, then the button */
+.lv-act{display:flex;flex-direction:column;gap:10px;align-items:stretch;}
+.lv-run{width:100%;justify-content:center;}
 .lv-tiers{display:flex;flex-wrap:wrap;gap:6px;}
-.lv-tier{font-family:var(--font-mono);font-size:.74rem;color:var(--text-muted);background:transparent;border:1px solid var(--line);border-radius:999px;padding:6px 11px;cursor:pointer;}
+.lv-tiers>.lv-tier{flex:1 1 130px;}   /* one row of equal segments; a chip left alone on a line spans it */
+.lv-tiers[hidden]{display:none;}
+.lv-tier{font-family:var(--font-mono);font-size:.74rem;color:var(--text-muted);background:transparent;border:1px solid var(--line);border-radius:999px;padding:8px 11px;cursor:pointer;text-align:center;}
 .lv-tier small{color:var(--text-dim);margin-left:2px;}
 .lv-tier[aria-checked="true"]{color:var(--text);border-color:var(--jade-2);background:color-mix(in srgb,var(--jade) 10%,transparent);}
 .lv-tier:focus-visible{outline:2px solid var(--jade-2);outline-offset:2px;}
