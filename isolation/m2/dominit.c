@@ -514,7 +514,39 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags);
 /* The app, through the seccomp statement channel: a close-on-exec pipe made here (the front, already running, never
  * holds it), handed to the child, and read to EOF - until the child's exec closes its end - so the positive line and the
  * front's statement come from init once the filter is on. -> the app's pid, or -2 when no pipe could be made. */
+/* DIAGNOSTIC releases only (/rt/shield-crash-tail.enabled, a measured marker, so a verifier sees it): the app's
+ * stderr goes to a pipe instead of /dev/null. A reader keeps only its LAST 8 KiB, in guest memory, and init prints
+ * that tail to the console only if the app exits abnormally. Normal output never leaves the guest. */
+static int crash_tail_fd = -1;
+static pid_t crash_tail_pid = -1;
+#define CRASH_TAIL_PATH "/run/app-stderr.tail"
+static pid_t crash_tail_reader(int rfd) {
+    pid_t p = fork();
+    if (p != 0) { close(rfd); return p; }
+    static char ring[8192], buf[4096];
+    size_t n = 0; ssize_t r;
+    while ((r = read(rfd, buf, sizeof buf)) > 0 || (r < 0 && errno == EINTR))
+        for (ssize_t i = 0; i < r; i++) ring[n++ % sizeof ring] = buf[i];
+    int fd = open(CRASH_TAIL_PATH, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+    if (fd >= 0) {
+        size_t start = n < sizeof ring ? 0 : n % sizeof ring, len = n < sizeof ring ? n : sizeof ring;
+        if (write(fd, ring + start, len - start) < 0 || (start && write(fd, ring, start) < 0)) {}
+        close(fd);
+    }
+    _exit(0);
+}
+static void crash_tail_print(void) {
+    if (crash_tail_pid <= 0) return;
+    for (int i = 0; i < 200 && waitpid(crash_tail_pid, NULL, WNOHANG) == 0; i++) usleep(10000);
+    FILE *f = fopen(CRASH_TAIL_PATH, "r");
+    if (!f) return;
+    char line[512];
+    while (fgets(line, sizeof line, f)) printf("DOM app stderr: %s%s", line, strchr(line, '\n') ? "" : "\n");
+    fclose(f);
+}
 static pid_t spawn_app(char *const argv[], char *extra, int flags) {
+    int tfd[2] = {-1, -1};
+    if (access("/rt/shield-crash-tail.enabled", R_OK) == 0 && pipe2(tfd, O_CLOEXEC) == 0) crash_tail_fd = tfd[1];
     int sfd[2];
     if (pipe2(sfd, O_CLOEXEC) != 0) {
         printf("DOM ERROR pipe: %s\n", strerror(errno));
@@ -522,6 +554,10 @@ static pid_t spawn_app(char *const argv[], char *extra, int flags) {
     }
     seccomp_status_fd = sfd[1];
     pid_t pid = spawn(argv, extra, -1, flags);
+    if (tfd[1] >= 0) {
+        close(tfd[1]); crash_tail_fd = -1;
+        crash_tail_pid = pid > 0 ? crash_tail_reader(tfd[0]) : (close(tfd[0]), -1);
+    }
     close(sfd[1]);
     seccomp_status_fd = -1;
     seccomp_statement_from(sfd[0], pid);
@@ -566,6 +602,7 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             int nul = open("/dev/null", O_RDWR);
             if (nul < 0 || dup2(nul, 0) < 0 || dup2(nul, 1) < 0 || dup2(nul, 2) < 0) _exit(126);
             if (nul > 2) close(nul);
+            if (drop && crash_tail_fd >= 0 && dup2(crash_tail_fd, 2) < 0) _exit(126);   /* diagnostic release only */
         }
         if (drop) {
             const char *bad = drop_to_app();
@@ -1079,6 +1116,7 @@ int main(void) {
             continue;
         }
         if (w == app_pid || w == front_pid || (shield_on && w == shield_pid)) {
+            if (w == app_pid && !(WIFEXITED(st) && WEXITSTATUS(st) == 0)) crash_tail_print();
             printf("DOM ERROR %s exited status=%d\n", w == app_pid ? "app" : "front",
                    WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st));
             break;
