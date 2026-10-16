@@ -55,7 +55,11 @@ export function createShieldAppFresh({ hub, policyFile = '', policy: supplied = 
       try { r = await hub.request(`tunnel://${name}`, { method: 'GET', path: `/v1/shield/evidence?deployment=${id}&nonce=${nonce.toString('hex')}` }); }
       catch (e) { throw fail('timeout', `the host did not answer: ${e.message}`); }
       let proof = null; try { proof = JSON.parse(r.body.toString('utf8')); } catch {}
+      // a node already answering evidence reads (429), or a guest whose report path was busy for a moment (the node's 503
+      // app_evidence_unavailable: a guest report that met the network agent's own proof, enclave-a8) is BUSY, never a verdict
       if (r.status === 429) throw fail('busy', 'the host is answering other evidence reads; retry shortly', { retryAfter: 10 });
+      if (r.status === 503 && proof?.error === 'app_evidence_unavailable')
+        throw fail('busy', `the app's partition was busy making another report; retry in ${Math.ceil(appGapMs / 1000)} s`, { retryAfter: Math.ceil(appGapMs / 1000) });
       if (r.status !== 200 || !proof || typeof proof.handshakeSpki !== 'string' || proof.handshakeSpki.length > 5500 || !proof.doc || typeof proof.doc !== 'object')
         throw fail('attestation_failed', `the host gave no app report (${r.status}${proof?.reason ? `: ${String(proof.reason).slice(0, 200)}` : proof?.error ? `: ${String(proof.error).slice(0, 200)}` : ''})`);
       // the relay's only filter: the report answers THIS nonce (a stale or foreign answer is dropped)

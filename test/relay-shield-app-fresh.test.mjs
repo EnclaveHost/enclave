@@ -58,7 +58,9 @@ test("shield-app-fresh: one check per app per gap and one per box at a time; a b
   const foreign = world({ answer: () => good("00".repeat(32)) }); foreign.setRow({ ...row(), leaseUntil: lease() + 10_000_000 });
   await assert.rejects(foreign.fresh(HOST, DEP, Buffer.alloc(32, 5)), (e) => e.code === "attestation_failed" && /another nonce/.test(e.message));
   const none = world({ answer: () => ({ status: 503, body: { error: "app_evidence_unavailable", reason: "guest busy" } }) }); none.setRow({ ...row(), leaseUntil: lease() + 10_000_000 });
-  await assert.rejects(none.fresh(HOST, DEP, Buffer.alloc(32, 6)), (e) => e.code === "attestation_failed" && /503: guest busy/.test(e.message));
+  await assert.rejects(none.fresh(HOST, DEP, Buffer.alloc(32, 6)), (e) => e.code === "busy" && e.retryAfter === 30, "a guest whose report path was busy: busy, not a verdict");
+  const broken = world({ answer: () => ({ status: 500, body: { error: "boom" } }) }); broken.setRow({ ...row(), leaseUntil: lease() + 10_000_000 });
+  await assert.rejects(broken.fresh(HOST, DEP, Buffer.alloc(32, 7)), (e) => e.code === "attestation_failed" && /500: boom/.test(e.message));
 });
 
 test("shield-app-fresh: only a public deployment leased to this Shield box, a well-formed id and nonce, a configured policy", async () => {

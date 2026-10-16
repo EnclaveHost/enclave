@@ -120,8 +120,12 @@ export async function liveBoxes({ apiOrigin = API_ORIGIN } = {}) {
 }
 
 // a one-line summary of a verdict for a badge: { cls: ok|warn|bad, text, title }
+// A box or app that was only busy (the relay's 503 busy, a node's 429) is not a verdict: the page says so and when to retry.
+export const isBusy = (r) => !!r && r.status === "error"
+  && /HTTP (503|429)\b.*(busy|moments ago|in flight|other evidence|retry)/i.test(String((r.reasons || []).at(-1) || ""));
 export function verdictBadge(r) {
   if (!r) return { cls: "bad", text: "✗ not verified", title: "" };
+  if (isBusy(r)) return { cls: "", text: "· busy right now; try again shortly (not a verdict)", title: String((r.reasons || []).at(-1)) };
   // a verdict that carries its own summary and omission labels (pVM, Enclave Shield) speaks for itself
   if (r.summary && (r.status === "verified" || r.status === "limited")) return { cls: r.status === "verified" ? "ok" : "warn",
     text: r.status === "verified" ? "✓ verified in your browser" : "◐ genuine and fresh (verified in your browser, with limits)",
@@ -178,7 +182,9 @@ function genericHtml(name, r, li) {
     const v = r.checks ? r.checks[k] : undefined, t = labels[k] || k;
     return v === true ? li("ok", "✓", t) : v === false ? li("bad", "✗", t) : li("", "·", t);
   }).concat((r.omissions || []).map((o) => li("warn", "◐", "not judged independently: " + (omit[o] || o)))).join("");
-  const [cls, text] = r.status === "verified" ? ["ok", "✓ VERIFIED: " + (r.summary || name + " verified")]
+  const busy = isBusy(r);
+  const [cls, text] = busy ? ["", "· busy right now, not a verdict: " + String((r.reasons || []).at(-1)).replace(/^.*?HTTP \d{3}:\s*/, "") + " Try again shortly."]
+    : r.status === "verified" ? ["ok", "✓ VERIFIED: " + (r.summary || name + " verified")]
     : r.status === "limited" ? ["warn", "◐ GENUINE AND FRESH: " + (r.summary || name + "'s evidence verifies for this page's nonce")]
     : ["bad", "✗ NOT VERIFIED (" + r.status + "): " + String((r.reasons || []).at(-1) || "verification incomplete")];
   const facts = (Array.isArray(r.facts) ? r.facts : []).filter((f) => Array.isArray(f) && f.length === 2)
