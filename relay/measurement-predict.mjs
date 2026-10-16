@@ -55,7 +55,7 @@ export function derivationRecord(catalogRef, version, runtimeId, inference = nul
   return { ...(inference ? { inference } : {}), derivation: inference ? "enclave-catalog-bundle/4" : ports.length ? "enclave-catalog-bundle/3" : http ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
            catalog: { app: m[1].toLowerCase(), version: Number(m[2]) }, cid: String(version.cid),
            policy: inference?.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? {...isolationPolicyFor(version),cpuPercent:1600,vcpus:16,memMiB:Math.max(isolationPolicyFor(version).memMiB,51200-384)}
-             : inference?.model === "z-image-turbo-q4km-sd" ? {...isolationPolicyFor(version),cpuPercent:800,vcpus:8,memMiB:Math.max(isolationPolicyFor(version).memMiB,13312-384)}
+             : inference?.model === "z-image-turbo-q4km-sd" ? {...isolationPolicyFor(version),cpuPercent:800,vcpus:8,memMiB:Math.max(isolationPolicyFor(version).memMiB,6144-384)}
              : isolationPolicyFor(version), runtimeId, ...(http ? { http } : {}), ...(ports.length ? { ports } : {}) };
 }
 // the supervisor's approvalVerdict: an approved, unyanked version of a listed app; a PENDING one only for a private
