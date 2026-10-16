@@ -591,9 +591,16 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = "ENCLAVE_NN_SERVE_KIND=RAM";
             envp[ei++] = "SHIELDED_WIDE=1";
             envp[ei++] = "SHIELDED_MAX_M=64";
-            envp[ei++] = "SHIELDED_POOL_DEPTH=256";        /* TUNE: 4 x max_m */
-            envp[ei++] = "SHIELDED_REFILL_THREADS=6";      /* TUNE: 8 guest vCPUs */
+            /* One 64-row chunk of pads per group (~0.4 GiB over the DiT); the pad
+             * spill supplies the rest of a wide step. */
+            envp[ei++] = "SHIELDED_POOL_DEPTH=64";
+            envp[ei++] = "SHIELDED_REFILL_THREADS=6";      /* of the guest's 8 vCPUs */
             envp[ei++] = "SHIELDED_REFILL_BATCH=64";
+            /* Lossless bit-packed encodings (the 27B's qualified memory profile). With the
+             * measured source-weights marker, no encoded copy at all: refills re-encode
+             * from the private verified model (~4.6 GiB less, more refill CPU). */
+            envp[ei++] = "SHIELDED_COMPACT_WEIGHTS=1";
+            if (access("/rt/shield-source-weights.enabled", R_OK) == 0) envp[ei++] = "SHIELDED_SOURCE_WEIGHTS=1";
             envp[ei++] = "SHIELDED_SHM_STREAM_LOAD=1";
             envp[ei++] = "SHIELDED_SPLIT_COLS=1";
             envp[ei++] = "SHIELDED_OVERLAP_VERIFY=1";
