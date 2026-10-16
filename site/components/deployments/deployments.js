@@ -36,7 +36,7 @@ import { vspecOf, boxOfEndpoint, verifyBoxInBrowser, verdictBadge, verificationH
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
 import { moveLeaseLive, prepareDeploymentMove } from "../../js/core/deployment-move.js";
-import { isolationOptions, withIsolationRequirements, hostMeetsTeeRequirements } from "../../js/core/isolation-options.js";
+import { isolationOptions, withIsolationRequirements, hostMeetsTeeRequirements, hostsTakeConfig } from "../../js/core/isolation-options.js";
 import { placementMessage, pinnedHost, withPlacementPin } from "../../js/core/placement-options.js";
 import { resizeAfterStop } from "../../js/core/share-resize.js";
 import { depSnapshot } from "../../js/core/chain.js";
@@ -1800,14 +1800,16 @@ class Deployments extends EnclaveElement {
      shares one 4096-byte ledger field with waf/network, so an app whose
      config is bigger than that has no override without it.
      Fails closed like the deploy gates: CREATING an override needs the fleet
-     aggregate's configOverride flag (a runner that predates the namespace
-     refuses the whole envelope, stranding the deployment Queued at its next
-     claim); dropping one is always safe. Returns { err } when nothing can be
+     aggregate's configOverride flag, or every host that could claim THIS
+     deployment taking it (hostsTakeConfig: an isolation host takes it through
+     the attested release) - a runner that predates the namespace refuses the
+     whole envelope, stranding the deployment Queued at its next claim;
+     dropping one is always safe. Returns { err } when nothing can be
      edited, else the context cfgPlan() and the panels build on. ---- */
   async _cfgRead(id, { allowReadOnly = false } = {}) {
-    let d = null, rev = 1, avail = null;
+    let d = null, rev = 1, avail = null, fleet = null;
     try { [rev, d] = await Promise.all([depSchemaRev(), depGet(id)]); await loadCatalog(); } catch(e){ d = null; }
-    try { avail = await Enclave.getAvailability(); } catch(e){}
+    [avail, fleet] = await Promise.all([Enclave.getAvailability().catch(() => null), Enclave.getEnclaves().catch(() => null)]);
     if (!d) return { err: "[x] couldn’t read this deployment from the ledger - try again shortly" };
     // the current envelope; anything unparseable reads as empty (setConfig
     // replaces it wholesale, which is also how such a string gets healed)
@@ -1830,7 +1832,7 @@ class Deployments extends EnclaveElement {
     let editBlocked = null;
     if (rev < 5 && !hasOv)
       editBlocked = "The current ledger does not support changing this deployment’s models.";
-    else if ((!avail || avail.configOverride !== true) && !hasOv)
+    else if ((!avail || avail.configOverride !== true) && !hostsTakeConfig(fleet, raw) && !hasOv)
       editBlocked = "Changing models is unavailable because fleet support is missing or could not be verified.";
     if (editBlocked && !allowReadOnly) return { err: editBlocked };
     // The STOCK config: the catalog version this deployment references. On a
@@ -1857,7 +1859,7 @@ class Deployments extends EnclaveElement {
       : "it applies when the deployment is next claimed";
     const curBase = { ...cur }; delete curBase.config; delete curBase.configCid;   // the envelope's OTHER namespaces, carried verbatim
     return { d, rev, avail, raw, cur, curBase, ovCid, hasOv, o0, ovLost, cr, ver, stock, stockC, cap, editBlocked,
-             splitOk: !!(avail && avail.configCidOverride === true), applyWord };
+             splitOk: !!(avail && avail.configCidOverride === true) || hostsTakeConfig(fleet, raw, "configCidOverride"), applyWord };
   }
   /* one owner setConfig tx (vault rows: the same passkey-signed control op as
      Protect/Network) rewriting the envelope - shared by the Config and Models
