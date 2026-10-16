@@ -7,8 +7,9 @@ on any page): `scripts/build-vendor.mjs` copies `dist/enclave-verifier-web.js` t
 
 The same verdict code as the Node verifier (`verifier/snp.mjs`, `verifier/envelope.mjs`, `relay/snp-verify.mjs`), run
 in a browser with WebCrypto and a reviewed X.509 reader behind a crypto provider (`provider.mjs`, `x509.mjs`). The parser
-decision and its measurements: `docs/security/browser-x509-parser-decision.md`. It judges AMD SEV-SNP evidence only;
-every other technology answers `unsupported`, never green.
+decision and its measurements: `docs/security/browser-x509-parser-decision.md`. `verifyEvidenceWeb` judges AMD SEV-SNP
+evidence only; every other technology answers `unsupported` there, never green. An attached Android pVM host has its own
+entry, `verifyPvmHostWeb` (below).
 
 ## Packaging: reproducible, provenance explicit
 
@@ -61,6 +62,18 @@ this bundle; collateral through the relay's KDS mirror `<api>/v1/amd-kds/...`, b
 headers), meet the published TCB floor, refuse debug and migration, and bind the box's transport key with that nonce. The
 launch measurement is compared with a caller pin or, labelled `expected-measurement-operator-stated` and never better than
 `limited`, with the relay operator's allowlist. The relay can withhold or delay a document; it cannot forge one.
+
+## On the site: `verifyPvmHostWeb`
+
+`verifyPvmHostWeb({ apiBase, name, expected?, fetchImpl?, timeoutMs? })` (`pvm-host.mjs`) verifies an attached pVM host
+(relay mode `avf`) from a page over the same route and a nonce the page draws. The document is judged by
+`relay/pvm-evidence-core.mjs`, the text the relay's `relay/pvm-app-attest.mjs` runs, with the cryptography passed in: here
+@noble (SHA-256, Ed25519 RFC 8032 strict, the P-256 curve) and `avf.mjs`, which restates `relay/avf-verify.mjs` (that file
+is pinned byte-for-byte by the integration and cannot be bundled) and checks every certificate signature on WebCrypto. The
+chain must reach a Google root pinned in this bundle (the relay's root pins may only narrow them), and the document's
+transport key must be the one the relay attached. The app is the one the evidence names (`expected-app-from-evidence`)
+and the allow-lists are the operator's (`expected-measurement-operator-stated`) unless the caller pins them; either keeps a
+pass `limited`. `test/verifier-web-pvm-host.test.mjs` holds the two builds equal on the real documents and their mutations.
 
 The site's glue is `site/js/core/verify.js` (`verifyBoxInBrowser`, `verdictBadge`), used by the Overview attest widget and
 the Deploy page's per-deployment badge. A browser cannot see its own TLS peer certificate, so nothing here claims a TLS
