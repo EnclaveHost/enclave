@@ -166,6 +166,10 @@ const host = new Host({
   // Delay allows an ended process's external storage lease to expire first.
   isolationRespawnIds: (process.env.ENCLAVE_ISOLATION_RESPAWN_IDS || '').split(',').map(x => x.trim().toLowerCase()).filter(x => /^0x[0-9a-f]{64}$/.test(x)),
   isolationRespawnDelayMs: Number(process.env.ENCLAVE_ISOLATION_RESPAWN_DELAY_MS || 0),
+  // Paid capacity audits (audit-jobs.mjs): the audit workloads this host accepts jobs for, and its floor per milli of CPU
+  // share (USDC 6dp per second). Empty = off.
+  auditAppRefs: process.env.ENCLAVE_AUDIT_APPREFS || '',
+  auditMinRatePerShareMilli6: process.env.ENCLAVE_AUDIT_MIN_RATE || '0',
   cpuPricePerSec6: Number(process.env.CPU_PRICE_PER_SEC6 || 12),
   // What the whole CARD costs per second, USDC 6dp, and what a share of it buys here: the model
   // inside the enclave, whose linear algebra runs on this card by masked offload. The default is

@@ -17,7 +17,8 @@ mkdir -p "$OUT"; T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 C="$T/control"; mkdir -p "$C"
 
 git archive --format=tar "$NC" windows/node windows/vbslike/manager windows/vbslike/datapath windows/vbslike/verify \
-  relay/fixtures/tpm-roots.pem wasm/ipfs_fetch.py | tar -x -C "$C"
+  relay/fixtures/tpm-roots.pem wasm/ipfs_fetch.py \
+  contracts/EnclaveDeployments.abi.json contracts/EnclaveVerificationFees.abi.json | tar -x -C "$C"   # read by availability/host-acceptor.mjs (audit-jobs.mjs)
 cp "$C/wasm/ipfs_fetch.py" "$C/windows/node/ipfs_fetch.py"          # fetch-cid.py imports it from its own directory
 rm -rf "$C/windows/node/ops" "$C/windows/node/test-fixtures" "$C/windows/vbslike/manager/testdata"
 find "$C" \( -name '*.test.mjs' -o -name '*.md' \) -delete

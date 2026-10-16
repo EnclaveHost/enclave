@@ -124,7 +124,7 @@ export async function catalogSchemaRev() {
   }
 }
 
-export const addresses = { registry: "", deployments: "", appCatalog: "", proofOfTime: "" };
+export const addresses = { registry: "", deployments: "", appCatalog: "", proofOfTime: "", verificationFees: "" };
 let pub = null, acct = null, wal = null;
 // The book keys a value by its NAME right-padded to 32 bytes, not by a hash of it
 // (scripts/deploy-address-book.mjs: stringToHex(key, { size: 32 })).
@@ -161,7 +161,7 @@ export async function operatorBalance() { return acct ? publicClient().getBalanc
 /** Resolve the live contract addresses from the on-chain address book (never hardcoded). */
 export async function resolveAddresses() {
   const [keys, vals] = await publicClient().readContract({ address: getAddress(BOOK), abi: BOOK_ABI, functionName: "all" });
-  const want = { registry: keyOf("registry"), deployments: keyOf("deployments"), appCatalog: keyOf("appCatalog"), proofOfTime: keyOf("proofOfTime") };
+  const want = { registry: keyOf("registry"), deployments: keyOf("deployments"), appCatalog: keyOf("appCatalog"), proofOfTime: keyOf("proofOfTime"), verificationFees: keyOf("verificationFees") };
   for (const [name, k] of Object.entries(want)) {
     const i = keys.findIndex((x) => String(x).toLowerCase() === k.toLowerCase());
     if (i >= 0 && vals[i] && /^0x[0-9a-fA-F]{40}$/.test(vals[i]) && BigInt(vals[i]) !== 0n) addresses[name] = getAddress(vals[i]);
@@ -248,6 +248,8 @@ export const setPrices = (id, cpuPricePerSec6, gpuPricePerSec6) =>
   send(addresses.registry, REGISTRY_ABI, "setPrices", [id, BigInt(cpuPricePerSec6), BigInt(gpuPricePerSec6)]);
 export const claimDeployment = (id, enclaveId) => send(addresses.deployments, DEP_ABI, "claim", [id, enclaveId]);
 export const renewDeployment = (id) => send(addresses.deployments, DEP_ABI, "renew", [id]);
+/** Any operator transaction through the same serialized sender (audit-jobs.mjs: offerJobRate). */
+export const sendOperatorTx = (address, abi, functionName, args) => send(address, abi, functionName, args);
 export const releaseDeployment = (id) => send(addresses.deployments, DEP_ABI, "release", [id]);
 // The runner's earnings: what this OPERATOR may withdraw from the live ledger (USDC, 6 dp), and the withdrawal, which
 // pays them to whatever address the caller names (payout.mjs decides which, and when).
