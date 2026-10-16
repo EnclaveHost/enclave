@@ -42,6 +42,7 @@ const keyEnv = (name) => { const k = process.env[name]; if (!k) throw new Error(
 const executor = keyEnv(cfg.executorKeyEnv), witnessKey = keyEnv(cfg.witnessKeyEnv);
 const executorWallet = createWalletClient({ chain: base, account: executor, transport: http(cfg.rpcSend) });
 const REG_ABI = JSON.parse(fs.readFileSync(new URL("../../contracts/EnclaveRegistry.abi.json", import.meta.url)));
+const RATE_FOR_ABI = [{ type: "function", name: "rateFor", stateMutability: "view", inputs: [{ type: "bytes32" }, { type: "bytes32" }], outputs: [{ type: "uint256" }] }];
 const REG_V4 = [{ type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: [
   { name: "endpoint", type: "string" }, { name: "repo", type: "string" }, { name: "measurement", type: "bytes32" }, { name: "operator", type: "address" },
   { name: "registeredAt", type: "uint64" }, { name: "lastSeen", type: "uint64" }, { name: "active", type: "bool" },
@@ -119,7 +120,15 @@ for (const h of cfg.hosts) {
 const store = await openStore(cfg.stateDirectory);
 const chain = createFeeChainAdapter({ publicClient: send, executorWallet, ledger: cfg.ledger, fees: cfg.fees, registry: cfg.registry, chainId: 8453, source: cfg.source,
   profile: cfg.profile, store, stageSecrets: stageDeploymentSecrets({ apiBase: cfg.relay, account: executor, contractWallet: true }),
-  acceptHostOffer: async (o) => { const a = acceptors.get(lc(o.hostId)); if (!a) throw new Error(`no acceptor for host ${o.hostId}`); return a(o); },
+  // A host this machine runs no acceptor for accepts on its own (PULL: the Windows node, enclave-a8 2026-10-16, signs
+  // offerJobRate with its operator key, which never leaves the box). Funding waits for that acceptance on chain: until
+  // rateFor(id, host) equals the job's rate the job stays unfunded, and the job's funding deadline ends it.
+  acceptHostOffer: async (o) => {
+    const a = acceptors.get(lc(o.hostId)); if (a) return a(o);
+    const r = await read.readContract({ address: cfg.ledger, abi: RATE_FOR_ABI, functionName: "rateFor", args: [o.id, o.hostId] }).catch(() => 0n);
+    if (BigInt(r) !== BigInt(o.rate6)) throw new Error(`awaiting host ${o.hostId.slice(0, 10)}'s own acceptance of ${o.id.slice(0, 10)} at ${o.rate6}/s`);
+    return { tx: null };
+  },
   claimHint: async (id, hostId) => { await fetch(`${cfg.relay}/v1/claim-hint`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) }).catch(() => {}); void hostId; } });
 const collateral = cachedCollateral({ dir: path.join(cfg.stateDirectory, "amd"), upstream: httpCollateral({ timeoutMs: 8000 }) });
 const runtimeCache = new Map();
