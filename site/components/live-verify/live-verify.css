@@ -1,5 +1,6 @@
 /* ============================================================
-   <c-live-verify> - live in-browser verification widget
+   <c-live-verify> - live in-browser verification widget; the
+   lv-steps/verdict/meta readout is shared with <c-fleet-list> rows
    ============================================================ */
 c-live-verify{display:contents;}
 
@@ -8,6 +9,13 @@ c-live-verify{display:contents;}
 .lv-txt{max-width:660px;}
 .lv-txt h3{margin:0 0 6px;font-family:var(--font-mono);font-size:.98rem;font-weight:600;}
 .lv-txt p{margin:0;color:var(--text-muted);font-size:.86rem;}
+.lv-txt p a{color:var(--jade-2);}
+.lv-act{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.lv-pick{display:flex;gap:8px;align-items:center;font-family:var(--font-mono);font-size:.76rem;color:var(--text-dim);}
+.lv-box{font:inherit;font-size:.8rem;color:var(--text);background:var(--surface-deep);border:1px solid var(--line);border-radius:8px;padding:7px 10px;max-width:100%;}
+.lv-box:focus-visible{outline:2px solid var(--jade-2);outline-offset:2px;}
+.lv-na{margin:0;font-family:var(--font-mono);font-size:.8rem;color:var(--text-muted);}
+.lv-na b{color:var(--iris);font-weight:600;}
 /* results open under a hairline rule - the readout half of the instrument */
 .lv-body{margin-top:18px;padding-top:16px;border-top:1px solid var(--line-soft);}
 .lv-steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px;font-family:var(--font-mono);font-size:.8rem;}

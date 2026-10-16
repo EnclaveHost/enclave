@@ -2,8 +2,9 @@
    Live in-browser enclave verification with THIS repository's
    own verifier (verifier/web, bundled to /vendor/enclave-verifier.js
    by scripts/build-vendor.mjs and served same-origin). Shared core
-   for the Overview attest widget (<c-live-verify>) and the Deploy
-   page's per-deployment badge.
+   for the Overview attest widget (<c-live-verify>), each host row of
+   the Live enclaves list (<c-fleet-list>) and the Dashboard's
+   per-deployment badge.
 
    What runs in the browser (verifier/metal-box.mjs has the rules):
    the attached SEV-SNP box is challenged with a nonce THIS page
@@ -17,6 +18,8 @@
    the best result here is "limited" with that reason, never a
    silent green. Nothing on this path is a third party's.
    ============================================================ */
+import { esc } from "./util.js";
+
 // Same-origin, version-pinned (sha256 in verifier/web/dist/MANIFEST.json). Deliberately not a CDN import: a third party
 // that could serve this file could report anything it liked.
 export const LV_VERIFIER_URL = "/vendor/enclave-verifier.js";
@@ -65,11 +68,12 @@ export function verifyBoxInBrowser(name, { apiOrigin = API_ORIGIN } = {}) {
   return entry.promise;
 }
 
-// the attested SEV-SNP boxes the relay holds right now (the boxes tenant apps run on)
-export async function snpBoxes({ apiOrigin = API_ORIGIN } = {}) {
+// every named box the relay holds right now, the ones this page can challenge (SEV-SNP) first
+export async function liveBoxes({ apiOrigin = API_ORIGIN } = {}) {
   const r = await fetch(apiOrigin + "/enclaves", { credentials: "omit" });
   if (!r.ok) throw new Error("GET /enclaves -> " + r.status);
-  return ((await r.json()).enclaves || []).filter((e) => e.mode === "snp" && e.name).map((e) => e.name);
+  const rows = ((await r.json()).enclaves || []).filter((e) => e && e.name);
+  return rows.filter(boxVerifiable).concat(rows.filter((e) => !boxVerifiable(e)));
 }
 
 // a one-line summary of a verdict for a badge: { cls: ok|warn|bad, text, title }
@@ -81,4 +85,41 @@ export function verdictBadge(r) {
       + (r.omissions || []).map((o) => OMISSION_LABELS[o] || o).join("; ") + "." };
   const last = (r.reasons || []).at(-1) || r.status;
   return { cls: "bad", text: "✗ not verified: " + String(last).replace(/^(REJECT|UNSUPPORTED|OMITTED)[^:]*:\s*/, ""), title: (r.reasons || []).join("\n") };
+}
+
+// Whether THIS page can challenge a box itself: the relay's fresh-nonce route (and verifier/web) cover attested
+// SEV-SNP tunnels only. Any other tier gets an honest "not here yet" with what the relay checked instead.
+export const boxVerifiable = (row) => !!(row && row.name && row.mode === "snp");
+export function unverifiableReason(row) {
+  const m = row && row.mode;
+  if (m === "avf") return "a protected VM on a phone. The relay verifies its Android Virtualization Framework chain to Google's root when it attaches, and a fresh attestation per app before serving it; this page cannot run that check yet.";
+  if (m === "hv-node") return "an Enclave Shield host. The relay verifies each app's measured partition and its guest-held TLS key before serving it; this page cannot run that check yet.";
+  if (m === "vbs") return "a Windows VBS enclave host. The relay verifies its enclave report when it attaches; this page cannot run that check yet.";
+  return "a host that presented no AMD SEV-SNP report to the relay, so there is nothing for this page to challenge.";
+}
+
+// One verdict as HTML (the lv-* classes, styled in components/live-verify/live-verify.css): every check, what was
+// not judged, the verdict line, then the evidence. Shared by <c-live-verify> and each <c-fleet-list> host row.
+export function verificationHtml(name, r, { more = 0 } = {}) {
+  const li = (cls, st, txt) => '<li class="' + cls + '"><span class="st">' + st + "</span><span>" + esc(txt) + "</span></li>";
+  const steps = CHECK_ORDER.map((k) => {
+    const v = r.checks ? r.checks[k] : undefined;
+    return v === true ? li("ok", "✓", CHECK_LABELS[k]) : v === false ? li("bad", "✗", CHECK_LABELS[k]) : li("", "·", CHECK_LABELS[k]);
+  }).concat((r.omissions || []).map((o) => li("warn", "◐", "not judged independently: " + (OMISSION_LABELS[o] || o)))).join("");
+  const [cls, text] = r.status === "verified"
+    ? ["ok", "✓ VERIFIED: " + name + " presented a genuine, fresh AMD SEV-SNP report at an expected measurement"]
+    : r.status === "limited"
+    ? ["warn", "◐ GENUINE AND FRESH: " + name + "'s report verifies to AMD's root for this page's nonce; its measurement matches the operator's list, which this page cannot reproduce on its own"]
+    : ["bad", "✗ NOT VERIFIED (" + r.status + "): " + String((r.reasons || []).at(-1) || "verification incomplete")];
+  const meta = [
+    "box           " + name + (more ? "  (" + more + " more attached)" : ""),
+    r.measurement ? "measurement   " + r.measurement : null,
+    r.product ? "product       AMD EPYC " + r.product : null,
+    r.transportKeySha256 ? "transport key sha256:" + r.transportKeySha256 : null,
+    r.nonce ? "nonce         " + r.nonce.slice(0, 32) + "…  (drawn by this page)" : null,
+    r.expected ? "expected from " + r.expected.source : null,
+  ].filter(Boolean);
+  return '<ul class="lv-steps">' + steps + "</ul>"
+    + '<div class="lv-verdict ' + cls + '" role="status">' + esc(text) + "</div>"
+    + '<div class="lv-meta">' + meta.map((x) => "<span>" + esc(x) + "</span>").join("") + "</div>";
 }
