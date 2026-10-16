@@ -25,8 +25,13 @@ What this does and does not give:
   so, and `evidence.mjs` never counts them as independent.
 - **The witness checks a boot-time quote.** For metal it verifies the control VM's attestation document, a quote bound
   to its TLS key at boot. Liveness comes from the attested `/availability` read in the same round.
-- **Only attested hosts can be audited.** The workload runs over attested HTTP, which needs SNP or Shield. Today that is
-  metal0.
+- **Only metal0 is audited today, by our implementation's limits, not attestation's.** Enclave Shield and pVM hosts
+  attest too. What is missing:
+  - witness adapters for their host evidence (the pVM host-VM evidence route exists since 2026-10-16);
+  - a pVM branch in `verified-http.mjs` (the Shield branch exists and needs a fresh authenticated host session);
+  - host acceptors for their operators;
+  - a payer policy per isolation backend. The fee contract keys policies by source deployment, and each pins one
+    backend, so each tier needs its own funded source.
 - **The budget has two caps, and routed fees alone cannot pay.** Spending is capped by `available6`: 10% of the
   canary's proven runner credit. USDC is capped by the policy wallet's balance. Fee routing puts only 1% of each canary
   funding into that wallet, and one audit costs about 0.009 USDC, so routing alone needs about $1 of canary funding per
