@@ -198,7 +198,7 @@ export async function verifyPvmHostWeb({ apiBase = "https://api.enclave.host", n
     checks.app = appId !== null && doc.app === appId;
     if (!checks.app) failures.push(pinnedApp ? "the evidence names another app than the one you pinned" : "the evidence names no app (64 lowercase hex)");
     let attachSpki = null;
-    try { const k = b64ToBytes(body.transportKey); if (k.length === 44 && toHex(k.subarray(0, 12)) === ED25519_SPKI_PREFIX) attachSpki = toHex(k); } catch {}
+    try { const k = b64ToBytes(body.attachTransportKey); if (k.length === 44 && toHex(k.subarray(0, 12)) === ED25519_SPKI_PREFIX) attachSpki = toHex(k); } catch {}
     checks.transportKey = attachSpki !== null && doc.spki === attachSpki;
     if (!checks.transportKey) failures.push(attachSpki === null ? "the relay stated no attach transport key (base64 of a 44-byte Ed25519 SPKI): nothing ties this VM to the box's tunnel"
                                                                 : "the evidence's transport key is not the key the relay verified when the box attached: this VM is not the one behind the box's tunnel");
