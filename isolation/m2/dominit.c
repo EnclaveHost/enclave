@@ -342,7 +342,7 @@ static void shield_profile(void) {
     shield_large = !strcmp(model, "qwen3.8-27b-mtp-q4-vl-gguf");
     shield_sd = !strcmp(model, SHIELD_SD_MODEL);
     if (n != 3 || (!shield_large && !shield_sd && strcmp(model, "qwen2.5-0.5b-q8-gguf")) ||
-        milli < (shield_large ? 500 : shield_sd ? 200 : 65) || milli > 1000 ||
+        milli < (shield_large ? 500 : shield_sd ? 100 : 65) || milli > 1000 ||
         bytes != (31ULL * 1024 * 1024 * 1024 * milli / 1000)) {
         printf("DOM ERROR invalid measured Shield profile\n"); fflush(stdout); reboot(RB_POWER_OFF); _exit(1);
     }
