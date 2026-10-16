@@ -8,7 +8,8 @@
 //     binding its adapter states, its measurement on the operator's allowlist; the chip id comes from that quote. For a
 //     metal box that is the attestation document its control VM serves (a boot-time quote bound to its TLS key), so
 //     LIVENESS comes from the attested /availability read in the same round, not from the quote; the receipt says which
-//     (payload.evidence);
+//     (payload.evidence). An Enclave Shield host instead brings its own verifier: a fresh TPM session over our nonce
+//     (availability/shield.mjs; the host's boot state only, the host is not excluded), its EK certificate on the allowlist;
 //   - the registry entry (active; operator and payout wallet are copied from it, never from the host);
 //   - capacity (units) and spare from the host's attested surfaces (/availability), bounded by configured ceilings;
 //   - optionally, the most recent PASSING paid audit for that hardware (the coordinator's store): a host with a failed
@@ -23,7 +24,9 @@ const sha = (b) => createHash("sha256").update(b).digest("hex");
 const lc = (s) => String(s || "").toLowerCase();
 
 // hosts: [{ endpoint (registry endpoint), attest: async () -> { report, auxblob, binding (32 bytes), evidence (label) },
-//           availability: async () -> { nodeGflops, cpuGflopsFree } }]
+//           availability: async () -> { nodeGflops, cpuGflopsFree },
+//           verify?: async (attested, { binding, auxblob, allowedMeasurements, minTcb }) -> { ok, measurement, chipId (hex) } | { ok: false, reason } }]
+// verify (optional) replaces the witness's verifyQuote for that host and receives attest()'s whole answer.
 export function createWitness({ signer, chainId, contract, classId = "cpu", readRegistry, verifyQuote, allowedMeasurements, minTcb,
                                 lastAudit = async () => null, state, receiptTtlSec = 6 * 3600, maxUnits = 4096n, now = () => BigInt(Math.floor(Date.now() / 1000)),
                                 log = console.log }) {
@@ -35,8 +38,13 @@ export function createWitness({ signer, chainId, contract, classId = "cpu", read
     const reg = await readRegistry(hostId);
     if (!reg || !reg.active) return { hostId, ok: false, reason: "registry entry not active" };
     const q = await host.attest();
-    const v = await verifyQuote(q.report, { binding: q.binding, auxblob: q.auxblob, allowedMeasurements, minTcb });
+    // a host adapter may bring its own verifier (an Enclave Shield host's TPM session: availability/shield.mjs); the default
+    // is the SEV-SNP quote verifier this witness was built with. Either returns the allowlisted measurement and the
+    // hardware identity basis (chipId: the SNP chip id, or the Shield TPM's EK certificate sha256).
+    const opts = { binding: q.binding, auxblob: q.auxblob, allowedMeasurements, minTcb };
+    const v = await (typeof host.verify === "function" ? host.verify(q, opts) : verifyQuote(q.report, opts));
     if (!v.ok) return { hostId, ok: false, reason: `attestation: ${v.reason}` };
+    if (!/^[0-9a-f]+$/i.test(String(v.chipId || "")) || typeof v.measurement !== "string") return { hostId, ok: false, reason: "attestation: no hardware identity" };
     const hardwareId = "0x" + sha(Buffer.from(v.chipId, "hex"));
     const a = await host.availability();
     const units = BigInt(Math.floor(Number(a.nodeGflops || 0))), spareUnits = BigInt(Math.max(0, Math.floor(Number(a.cpuGflopsFree || 0))));
