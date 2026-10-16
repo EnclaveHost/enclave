@@ -2,14 +2,13 @@
   <div class="lv-h">
     <div class="lv-txt">
       <h3>Don't take this page's word for it: run the check now</h3>
-      <p>Your browser loads Enclave's own open-source verifier (<a href="https://github.com/EnclaveHost/enclave/tree/main/verifier" target="_blank" rel="noopener">verifier/</a>, served from this site) and checks <b>a live attested box</b> itself: it sends the box a fresh nonce, then verifies the hardware report it signs up to AMD's root of trust, the firmware level, the guest policy, the binding of the box's key to your nonce, and the launch measurement. Your dashboard runs the same check for each deployment's box.</p>
+      <p>Your browser loads Enclave's own open-source verifier (<a href="https://github.com/EnclaveHost/enclave/tree/main/verifier" target="_blank" rel="noopener">verifier/</a>, served from this site) and checks <b>any live box you pick</b> itself: it sends the box a fresh nonce, then verifies the hardware report it signs up to AMD's root of trust, the firmware level, the guest policy, the binding of the box's key to your nonce, and the launch measurement. Every host in the <a href="dashboard">Live enclaves</a> list carries the same check, and your dashboard runs it for each deployment's box.</p>
     </div>
-    <button class="btn btn-primary lv-run" type="button">Verify enclave <span class="arr">→</span></button>
+    <div class="lv-act">
+      <label class="lv-pick" hidden><span>Box</span><select class="lv-box"></select></label>
+      <button class="btn btn-primary lv-run" type="button">Verify enclave <span class="arr">→</span></button>
+    </div>
   </div>
-  <div class="lv-body" hidden>
-    <ul class="lv-steps"></ul>
-    <div class="lv-verdict" role="status"></div>
-    <div class="lv-meta"></div>
-  </div>
+  <div class="lv-body" hidden></div>
   <p class="lv-note">The verifier is served from this site (same-origin, hash-pinned in its manifest). The nonce goes through the relay to the box and the box's report comes back untouched; AMD's certificates come through the relay's KDS mirror and are checked against the AMD root built into the verifier, so the relay can delay a check but cannot fake one. The expected measurement is the operator's own allowlist, which is why a pass here says "genuine and fresh" rather than "independently reproduced". From a terminal: <code class="lv-cli">enclave attest</code>, with <code>--expect &lt;measurement&gt;</code> to pin the value yourself.</p>
 </div>

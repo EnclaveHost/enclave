@@ -126,6 +126,13 @@ c-fleet-list{display:contents;}
    style-scoped), so rating a host looks and behaves like rating an app */
 .fleet-rate{margin-left:0;padding:1px 8px;font-size:.62rem;letter-spacing:.04em;}
 .fleet-rateform{grid-column:1/-1;margin-top:8px;}
+/* the in-browser attestation check of an opened host (readout classes from live-verify.css) */
+.fleet-verify{margin-top:4px;padding-top:10px;border-top:1px dashed var(--line-soft);}
+.fleet-verify-h{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;color:var(--text-dim);font-size:.68rem;}
+.fleet-verify .lv-steps{margin-top:10px;font-size:.68rem;gap:5px;}
+.fleet-verify .lv-verdict{margin-top:10px;font-size:.72rem;line-height:1.5;}
+.fleet-verify .lv-meta{font-size:.64rem;}
+.fleet-verify .lv-na{font-size:.68rem;line-height:1.6;color:var(--text-dim);}
 .fleet-gate{margin:0;font-size:.72rem;color:var(--text-muted);}
 .revs-write{display:flex;flex-direction:column;gap:8px;}
 .revs-pick{display:flex;align-items:center;gap:2px;border:0;padding:0;margin:0;}
