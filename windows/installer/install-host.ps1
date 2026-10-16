@@ -209,6 +209,14 @@ $operator = ([regex]::Match(($keys -join "`n"), '0x[0-9a-fA-F]{40}')).Value
 Emit "keys" "ok" "Operator key $operator (created on this PC; it never leaves it)"
 
 $appRamGb = [math]::Max(4, [math]::Floor($ramGb / 2))
+# an owner who gives apps more (or less) than half sets NODE_APP_RAM_GB in node-config.local.cmd (never written by an
+# update). The node reads that file itself; the Shield manager does not, so the figure is carried into shield-config.cmd
+# here, or the manager refuses partitions the node admitted. It stays at least 16 GB short of the machine.
+$localRam = Join-Path $PD "node-config.local.cmd"
+if (Test-Path $localRam) {
+  $m = Select-String -Path $localRam -Pattern '^set NODE_APP_RAM_GB=(\d+)\s*$' | Select-Object -Last 1
+  if ($m) { $appRamGb = [math]::Max(4, [math]::Min($ramGb - 16, [int]$m.Matches[0].Groups[1].Value)) }
+}
 # one slot per 4 GB of the apps' half, up to 16: the count is only a ceiling (capacity() also holds every app to the RAM
 # left), and 8 refused a 2 GB app on a 112 GB box running seven small ones and one 12 GB one (2026-10-14)
 $slots = [math]::Max(1, [math]::Min(16, [math]::Floor($appRamGb / 4)))
