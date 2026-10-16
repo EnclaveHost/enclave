@@ -1,11 +1,45 @@
 # Enclave
 
-**Compute that cannot see your data.** Enclave is a verifiable compute platform built around one architecture: one portable app bundle and one versioned domain contract; an OS-independent hardware-isolation security contract (per-app hardware isolation, the ordinary host operating system excluded by a smaller measured trusted layer, measured identity, attestation, key and traffic binding, fail-closed verification, lifecycle cleanup); **Enclave Shield**, our protection technology for machines without confidential-computing hardware, which combines hardware-enforced per-app CPU isolation that keeps the ordinary host OS out of every app's domain, on every operating system, with masked, verified GPU offload for any GPU outside a confidential boundary, whatever processor sits beside it; and confidential hardware, which adds protection from the machine's operator and memory encryption without changing the app contract. Pick an app from the catalog, sign in with a passkey, pay by card, and it runs on a host that proved its level with verified evidence when it attached. Three kinds of host serve today, each running one VM per app: a confidential server (AMD SEV-SNP, one SNP guest per app, with Enclave Shield's masked offload to GPUs that sit outside the confidential boundary), a Windows machine running Enclave Shield (a VBS-isolated Hyper-V partition per app, booted from our measured paravisor image, with a hardware-signed report per app that the relay verifies; the hypervisor and the machine's owner remain trusted, and our own host-memory test is still to run, so its records say `host_excluded: no`), and Android phones (a protected VM per app, CPU only). TLS terminates inside the app's own domain. A browser can check a confidential server's AMD attestation chain and freshness before you send a byte; that check compares the measurement against the operator's published allowlist, so for an independent verdict pin the measurement yourself with `enclave attest --expect`. Billing is per second, from card credit or, if you prefer, directly from a wallet. The architecture, the isolation contract property by property, and a dated engineering note on what has been demonstrated live at https://enclave.host/develop#architecture (source: `site/develop.html`); the per-app hardware isolation research lives under `isolation/`.
+**Compute that cannot see your data.** Deploy a WebAssembly app into a hardware-isolated VM of its own, check from your browser or the CLI which hardware and code it runs on, and pay per second by card or from a wallet.
+
+Enclave is source-available, commercial software ([license](#license)). This README separates what serves customers today from research and roadmap; the [threat model](#threat-model-what-you-are-trusting) below says what each kind of host protects you from and whom you still trust.
 
 - **Site / app store / dashboard:** https://enclave.host
 - **Developer guide + API reference:** https://enclave.host/develop (OpenAPI spec: [site/openapi.json](site/openapi.json))
 - **REST API:** https://api.enclave.host/v1 (CORS-enabled; drive it from a browser)
 - **Deployed apps:** `https://<id>.app.enclave.host` (the deployment id's first 8 hex chars), TLS terminated in-enclave — or **your own domain**, with its certificate minted inside the enclave too ([docs/custom-domains.md](docs/custom-domains.md))
+
+## What runs today
+
+Three kinds of host serve apps, and every one of them runs each app in a VM of its own. TLS terminates inside that VM.
+
+| host | your app runs in | status |
+|---|---|---|
+| **Confidential server** (AMD SEV-SNP) | its own SEV-SNP guest, with memory encrypted by the processor | production (metal0) |
+| **Windows machine running Enclave Shield** | its own VBS-isolated Hyper-V partition, booted from our measured paravisor image | production on one machine; host exclusion not yet tested by us (below) |
+| **Android phone** (pVM tier) | its own protected VM (pKVM), CPU only | production on one Pixel 10 |
+
+GPU inference runs through Enclave Shield's masked offload: the GPU computes on masked tensors and every result is checked, so a card outside any confidential boundary never sees plaintext. It serves metal0's two V100-class cards and the Windows host's integrated GPU.
+
+Not live, and not to be read as such: Enclave Shield's CPU isolation on Linux (a design; nothing upstream provides it on x86) or on any OS other than Windows; several hardware-separated apps inside one confidential guest (`isolation/` M4b, design). The original hosted fleet, which ran every app as a process inside one shared confidential VM, was retired on 2026-10-14. The live list of attached hosts is at https://enclave.host/develop#fleet, and the dated engineering record of what has and has not been demonstrated is at https://enclave.host/develop#progress.
+
+## Threat model: what you are trusting
+
+Each kind of host protects against different parties, and each still relies on someone:
+
+| host | protects your app from | you still trust | who checks the evidence |
+|---|---|---|---|
+| **Confidential server** | the host OS, hypervisor and operator, and other tenants: the processor encrypts the guest's memory and keeps them out | AMD (processor and its signing chain; the root key is pinned), and the image built from this repo's release tag | the site and `enclave attest` check the server's report (AMD chain, a fresh nonce). Unpinned, the verdict is **limited**: the measurement is compared against Enclave's published allowlist. Pin a measurement you derived yourself (`enclave attest --expect`) for **verified**. The site and CLI do not yet check each app guest's own report. |
+| **Enclave Shield on Windows** | other tenants (the hypervisor separates partitions); Windows itself, which VBS keeps out of a partition's memory per Microsoft's design (our own host-side test has not run, so these hosts report `host_excluded: no`) | Microsoft (Hyper-V hypervisor, secure kernel, boot chain), the machine's owner and anyone with physical access. Partition memory is **not** encrypted. | the relay checks the machine's measured boot through its TPM and each partition's hardware-signed report. The site and CLI do not yet check that report themselves. |
+| **Android phone** | the Android host OS, which pKVM keeps out of the VM's memory, and other tenants | Google (pKVM, the DICE/RKP attestation chain to Google's pinned root; revocation is not checked) and the phone's hardware | the relay, when the phone attaches |
+
+Across every host:
+
+- **Enclave's own servers** run discovery and placement, the API relay, the site and its IPFS gateway, the certificate service and its DNS zone, card checkout, and the measurement allowlist that admits new hosts and releases. The catalog, the deployment ledger, the host registry and payment routing are public contracts on Base.
+- **Deployment secrets** (environment variables) are stored by the API relay, whose operator, Enclave, can read them. For data Enclave must never see, use [encrypted volumes](https://enclave.host/develop#docs-encvol), whose keys derive from your own signature in your browser. A custody path that takes secrets off the relay is rolling out on SEV-SNP hosts ([docs/security/secret-custody.md](docs/security/secret-custody.md)); its custodians are still operated by Enclave.
+- **GPUs.** Tenant code never runs on a GPU, and today a GPU is reached only through Shield's masked offload ([Tenant isolation](#tenant-isolation-by-host-type) covers several tenants on one card).
+- **No external audit** of the platform, Enclave Shield or secret custody has been done. Every review so far is internal.
+- **Contract upgrades** are owner-governed; [Contract upgrades and refunds](#contract-upgrades-and-refunds) says what moves and what doesn't.
 
 ## Getting started: a passkey and a card
 
@@ -35,7 +69,7 @@ Any Ethereum wallet works too, paying in USDC or ETH on Base, and agents use one
 3. **Enclaves claim the work.** Each enclave self-registers in `EnclaveRegistry`, polls for funded work it can serve, claims it, and runs the app. How apps on one machine are kept apart from each other depends on the host type (see [Tenant isolation](#tenant-isolation-by-host-type) below).
 4. **Every layer attests.** A release is built from this repo's release tag; the enclave's launch measurement covers the code it runs, the enclave proves that measurement in an attestation quote over the verifier's own nonce, and TLS keys never leave it. The site and CLI (`enclave attest`) check the quote client-side before connecting.
 
-Beyond plain web apps: GPU inference via `wasi-nn` (ONNX, GGUF through a bundled llama.cpp backend, and image diffusion through a stable-diffusion.cpp backend; on today's hosts the GPU is reached only through Enclave Shield's masked offload, which serves GGUF models), attested read-only **model volumes** mounted at `/models` (dm-verity images; the attestation commits to the exact weight bytes), raw TCP/UDP services behind an SNI relay, and per-deployment dedicated IPv6 (inbound and outbound).
+Beyond plain web apps: GPU inference via `wasi-nn` (ONNX, GGUF through a bundled llama.cpp backend, and image diffusion through a stable-diffusion.cpp backend; on today's hosts the GPU is reached only through Enclave Shield's masked offload, which serves GGUF models), attested read-only **model volumes** mounted at `/models` (dm-verity images; the attestation commits to the exact weight bytes), raw TCP/UDP services reached through the Enclave network (WireGuard circuits whose providers route by SNI and never hold a TLS key; `network/`), and per-deployment dedicated IPv6 (inbound and outbound).
 
 ## Tenant isolation, by host type
 
@@ -48,9 +82,23 @@ Beyond plain web apps: GPU inference via `wasi-nn` (ONNX, GGUF through a bundled
 | **Confidential servers** (SEV-SNP, e.g. metal0) | **A separate SEV-SNP guest per app.** The node's own confidential VM runs the control plane only; `isolation/m4/guestd` launches every app in its own SNP guest on the same machine, the app's TLS ends inside that guest, and the node serves only deployments that require this isolation. App-vs-app separation is enforced by the processor, and each guest is also protected from the host and its operator. The node side is `metal/` (`isolation.backend: "snp-guest-per-app"`), the guest side `isolation/m4/guestd`. |
 | **Shared-VM hosts** (the original hosted fleet, retired 2026-10; none serving today) | **Shared confidential VM, separate process per app.** The hardware boundary is around the whole VM and protects every tenant from the host. Inside it, each app is its own `wasmtime` process with a loopback wall between apps, so a sandbox escape in one app would reach the others on that VM. This is the original design. |
 
-**GPU sharing.** Tenant code never runs on the GPU. A Wasm app reaches the card only through the platform's own `wasi-nn` backends (llama.cpp, ONNX Runtime, stable-diffusion.cpp), so no device pointer or kernel crosses the boundary (raw PTX submission is refused). A GPU outside a confidential boundary is used only through Enclave Shield's masked, verified offload (`shielded/`). NVIDIA MPS appeared only in the retired shared-VM GPU flavors, where it divided capacity; it was not an isolation boundary there, and NVIDIA does not present it as one.
+**GPU sharing.** Tenant code never runs on the GPU. A Wasm app reaches the card only through the platform's own `wasi-nn` backends (llama.cpp, ONNX Runtime, stable-diffusion.cpp), so no device pointer or kernel crosses the boundary (raw PTX submission is refused). A GPU outside a confidential boundary is used only through Enclave Shield's masked, verified offload (`shielded/`). One untrusted worker per card serves every tenant on it, and the design treats that worker, the host and the card as hostile. Each app's trusted half runs inside the app's own VM, masks every tensor with a fresh one-time pad before it leaves, and checks every result (Freivalds) before any output leaves the VM. A co-tenant on the same card can therefore do no more than the card's owner could ([docs/shielded-inference.md](docs/shielded-inference.md)). It can learn padded request shapes, size buckets and coarse timing. It cannot read prompts, activations, KV cache or outputs, and it cannot alter a result undetected. What sharing does **not** give you is availability: a stalled or crashed worker affects every tenant on that card, whose apps fall back to computing on the CPU inside their VM. Model weights are public and are not masked. NVIDIA MPS appeared only in the retired shared-VM GPU flavors, where it divided capacity; it was not an isolation boundary there, and NVIDIA does not present it as one.
 
 Every host serving today runs one VM per app. The shared-VM model applied only to the retired hosted flavors.
+
+## Architecture and roadmap
+
+The goal is one app contract on every kind of machine, where only the protection level changes with the host:
+
+- **One portable app bundle and one versioned domain contract.** The same Wasm package runs on every backend. The contract has a Go reference and a Rust mirror that pass one set of conformance vectors (`isolation/contract/`). *Live.*
+- **An OS-independent isolation contract.** Each app gets its own hardware domain, and a smaller measured trusted layer keeps the ordinary host OS out of it. The contract also covers measured identity, attestation, key and traffic binding, fail-closed verification and cleanup. *Live as one VM per app on all three host types; host exclusion is processor-enforced on SEV-SNP and pKVM-enforced on the phones, and unproven by us on Windows.*
+- **Enclave Shield** is the protection for machines without confidential-computing hardware. It has two parts:
+  - **Per-app CPU isolation that keeps the host OS out.** *Live on Windows* (VBS-isolated Hyper-V partitions). The rest is roadmap: Linux is a design, and nothing upstream provides that backend on x86. No other OS has a backend.
+  - **Masked, verified GPU offload** for any GPU outside a confidential boundary. *Live* on the hosts above. There has been no external review, and performance figures stay unpublished until they are stable.
+- **Confidential hardware** (SEV-SNP today) adds protection from the machine's operator and memory encryption without changing the app contract. *Live.*
+- **Fewer indispensable parties.** On the roadmap: publisher-signed bundles, a trust policy you keep locally instead of our allowlist, reproducible measurements, mirrors, interchangeable coordinators and secrets that recover without us. *Not built.*
+
+The full architecture, the isolation contract property by property, and the dated evidence note are at https://enclave.host/develop#architecture (source: `site/develop.html`). The research behind per-app hardware isolation, with its evidence scripts, is under `isolation/`.
 
 ## Repository layout
 
@@ -64,7 +112,8 @@ Every host serving today runs one VM per app. The shared-VM model applied only t
 | `isolation/` | per-app hardware isolation research: the backend-neutral app-domain contract (`contract/`), and milestones M1 to M4 with their evidence scripts; M4a (one SEV-SNP guest per app, `m4/guestd`) runs in production on metal0; M4b is design. Where a milestone also runs the same image on ordinary KVM, that run is a control for the confidential path, not a product tier: there is no ordinary-Linux host backend, and none is built or listed unless a hardware-enforced, measured boundary excludes the host OS |
 | `windows/` | the Windows host: the node (`node/`; its original VBS-enclave engine in `vbs/` is retired), and the partition-per-app backend built on Hyper-V partitions with the same guest image as Linux (`vbslike/`): the isolation manager the Windows host installer runs for every market deployment |
 | `contracts/` | Solidity on Base: `EnclaveRegistry`, `EnclaveAppCatalog`, `EnclaveDeployments`, and for card customers `EnclaveCreditVault` (passkey-signed, closed-loop credit) |
-| `relay/` | SNI relay + dedicated-IP relay (TLS passthrough to enclaves, IPv6 ingress/egress) + the API gateway with the MCP server for coding agents (`mcp.enclave.host`) |
+| `relay/` | the control services Enclave runs: the API gateway, fleet discovery and placement, attestation checks, certificate coordination, accounts and billing, and the MCP server for coding agents (`mcp.enclave.host`). It carries no app traffic ([relay/README.md](relay/README.md)) |
+| `network/` | the Enclave network that carries app traffic: WireGuard circuits through qualified providers, the owner's own peer, or a host's own public address; TLS stays end to end into the app's VM |
 | `egress.js` / `net-guard.mjs` | outbound egress shim and network guard |
 | `site/` | the enclave.host static site, published to IPFS (LWC-style web components, soft-nav router; `npm run build:site`) |
 | `cli/` | the `enclave` CLI (deploy, fund, attest-verify from a terminal) |
@@ -86,6 +135,15 @@ The app's specs set the **minimum shares**: each pool's floor is the spec divide
 The leftovers are the point: a tenant buying 100% GPU + 10% CPU leaves 90% of that node's CPU/RAM rentable by CPU-only apps. Pricing is additive: `rate = gpuShare × cardRate + cpuShare × nodeRate`, per second. The current rates live on-chain in `EnclaveDeployments` and are shown live on [enclave.host](https://enclave.host).
 
 Routing: GPU work (`gpuShare > 0`) runs **only** on GPU-enabled enclaves. CPU-only work is served by CPU-only enclaves first; GPU enclaves bid on it only after a grace window (`CPU_CLAIM_GRACE_SEC`, default 120s) and only out of leftover CPU pool.
+
+## Contract upgrades and refunds
+
+The deployment ledger and the on-chain address book are governed by an owner key held on a hardware wallet, and governance points the on-chain address book at the live revision of each contract. Here is what that means for money you have put in:
+
+- **Refunds while a deployment runs.** For a deployment you funded from a wallet, `refund(id)` pays you your own unspent escrow: the host's share of what you funded in USDC, after the host is paid for time it has proven. `refundableOf(id)` quotes the exact figure. The publisher's cut, the platform's share and ETH fundings leave at funding time and are never refunded. For a deployment paid from card credit, cancelling returns unused runtime to your credit. Refunds of credit to your card go through support ([docs/billing-runbook.md](docs/billing-runbook.md)).
+- **A new contract revision never moves records by redeploying.** A deploy from CI mints a fresh, empty contract at a new address, after a one-click approval. A live ledger is replaced only by a migration (`scripts/migrate-contract.mjs`). The migration imports every record, balance and rate cap into the new revision, diffs them field by field against the source and then seals the import. The 2026-10-12 cutover moved all 74 records.
+- **Escrow does not move in a migration. It goes home.** Imported records carry no escrow: the USDC stays on the old contract. The platform re-backs the new records so they keep running, but that re-backed escrow is not refundable to the owner on the new ledger. Instead, the old ledger is retired (`retire()`, one-way). Retiring stops every claim, renewal and funding there and opens `refund()` to any caller, which still always pays each record's **owner**. One permissionless sweep therefore returns every record's held escrow to the wallet that funded it, with no owner signature needed and nothing the platform can redirect. The audit before the 2026-10-12 cutover found no active record holding owner-refundable escrow.
+- **Card credit never migrates.** Credit vaults are separate contracts that stay where they are. Rotating the vault factory changes only the addresses of new vaults.
 
 ## Releases (operators)
 
@@ -124,15 +182,8 @@ Deliberately still manual:
 - **Approving contract deploys:** a CI deploy mints a fresh, empty contract at
   a new address and moves no state by itself. Approve or reject under the run's
   **Review deployments** prompt; rejecting skips the contract jobs and the rest
-  of the pipeline continues on the next push. A live contract is replaced only
-  by a migration (`scripts/migrate-contract.mjs`): every record, balance and
-  rate cap is imported into the new revision and diffed field by field against
-  the source before it is sealed. The platform re-backs the imported escrow (after
-  the seal, so that re-backed escrow pays hosts but is not refundable to the
-  owner), and only then does governance point the address book at it. The 2026-10-12 ledger
-  cutover moved all 74 records. Customer credit vaults are
-  separate contracts that never move: a factory rotation changes only the
-  addresses of new vaults.
+  of the pipeline continues on the next push. Replacing a live contract is a
+  migration, not a deploy: see [Contract upgrades and refunds](#contract-upgrades-and-refunds).
 
 One-time setup on a new machine/repo: `scripts/ci-setup.sh` (SSH deploy key,
 repo secrets/vars, the `contract-deploy` environment), then set
@@ -155,9 +206,9 @@ twice.
 
 ## License
 
-Enclave is commercial, proprietary software. The source is published so anyone
-can audit it and verify that the running enclave images match this repo — see
-[LICENSE](LICENSE) for exactly what that permits (reading, auditing, local
+Enclave is commercial, proprietary software: **source-available, not open
+source**. The source is published so anyone can audit it and verify that the
+running enclave images match this repo — see [LICENSE](LICENSE) for exactly what that permits (reading, auditing, local
 verification builds, and using the CLI against the hosted service) and what it
 doesn't (production use, redistribution, or running your own service from it).
 Third-party components (`site/vendor/`, upstream patches, build-time

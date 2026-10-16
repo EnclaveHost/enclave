@@ -15,7 +15,9 @@ label is evidence: admission is.
 - **Not the OS-neutral app isolation contract** (isolation/contract, isolation/DESIGN.md T0-T2). That contract hosts tenant
   app bundles in per-app domains on servers; pVM CPU hosts the platform's own inference engine for the phone's owner. It
   claims nothing about that contract, admits nothing for tenant app deployments (relay `computeEligible` keeps `avf` out of
-  app compute), and its evidence type is its own.
+  app compute), and its evidence type is its own. (2026-10: tenant CPU-only apps now reach phones through a separate path,
+  the pVM market, one protected VM per app on per-app evidence the relay verifies: `relay/pvm-market.mjs`,
+  `relay/pvm-app-attest.mjs`. This tier's own engine evidence is unchanged.)
 - **Not a TPU tier.** No TPU/NPU library is in the build (below); the VM refuses the TPU fields.
 - **Not "confidential GPU" or "TEE CPU" in the server sense.** The boundary is pKVM's: the Android host is excluded from the
   VM's memory; the hypervisor, Google's DICE/RKP chain and the phone's hardware are trusted.

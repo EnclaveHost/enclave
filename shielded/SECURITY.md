@@ -7,8 +7,10 @@ oracle), [`protocol.py`](protocol.py) (worker admission rules), and the tests in
 rest on a cited construction name it; claims that rest on our own analysis are marked
 **[our analysis]** and say what would falsify them.
 
-Status: DESIGN + reference. No engine code has shipped. This document is the argument the
-implementation must preserve, not a statement about deployed software.
+Status: written as DESIGN + reference, before any engine code shipped. Since then the offload has
+gone to production (2026-10: CUDA workers on metal0's V100-class cards, a Vulkan worker on the
+Windows Shield host; see the README's "What runs today"). This document remains the argument the
+implementation must preserve; it is not a deployment record, and it has had no external review.
 
 ## 1. Threat model
 
