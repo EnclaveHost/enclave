@@ -223,7 +223,7 @@ static thread_local compact_scratch scratch;
 extern "C" int sh_compact_refill(void *ctx, const int32_t *r, int b, int32_t *u,
                                  int64_t stride) {
   auto *s = static_cast<sh_compact_store *>(ctx);
-  if (!s || !r || !u || b < 1 || b > 64 || stride < s->N || stride > (1 << 21))
+  if (!s || !r || !u || b < 1 || b > 256 || stride < s->N || stride > (1 << 21))
     return SH_ERR_RANGE;
   auto wipe = [&] {
     for (int i = 0; i < b; i++)
