@@ -2334,9 +2334,11 @@ let _catalogAddr = { addr: (process.env.APP_CATALOG_ADDRESS || "").trim(), pinne
 async function catalogAddress() {
   if (!_catalogAddr.pinned && ADDRESS_BOOK && Date.now() - _catalogAddr.at > 600_000) {
     if (!catalogClients.length) throw new Error("no catalog RPCs configured");
-    const got = await Promise.all(catalogClients.map((c) => c.readContract({ address: ADDRESS_BOOK, abi: BOOK_ABI, functionName: "addr", args: [BOOK_KEY_CATALOG] })));
-    if (got.some((a) => String(a).toLowerCase() !== String(got[0]).toLowerCase())) throw new Error("the catalog RPCs disagree about the address book's appCatalog");
-    if (got[0] && !/^0x0{40}$/i.test(got[0])) _catalogAddr = { addr: got[0], pinned: false, at: Date.now() };
+    // the agreement rule (agreeingRead): two agreeing answers, a failed RPC drops out (2026-10-17 05:38Z: this read still
+    // needed every RPC, so two rate-limited providers took every Shield app off DNS after the relay restart)
+    const addr = await agreeingRead(catalogClients, (c) => c.readContract({ address: ADDRESS_BOOK, abi: BOOK_ABI, functionName: "addr", args: [BOOK_KEY_CATALOG] }),
+      { key: (a) => String(a).toLowerCase(), what: "the address book's appCatalog" });
+    if (addr && !/^0x0{40}$/i.test(addr)) _catalogAddr = { addr, pinned: false, at: Date.now() };
   }
   if (!_catalogAddr.addr) throw new Error("no appCatalog address (address book or APP_CATALOG_ADDRESS)");
   return _catalogAddr.addr;
@@ -2351,11 +2353,11 @@ async function confirmedLedger() {
   const pinned = (process.env.DEPLOYMENTS_ADDRESS || "").trim();
   if (pinned) return pinned;
   if (_confirmedLedger.addr && Date.now() - _confirmedLedger.at < 600_000) return _confirmedLedger.addr;
-  const books = await Promise.all(catalogClients.map((c) => c.readContract({ address: ADDRESS_BOOK, abi: BOOK_ABI, functionName: "addr", args: [BOOK_KEY_DEPLOYMENTS] })));
-  if (books.some((a) => String(a).toLowerCase() !== String(books[0]).toLowerCase()) || /^0x0{40}$/i.test(String(books[0])))
-    throw new Error("the RPCs disagree about the deployments ledger");
-  _confirmedLedger = { addr: books[0], at: Date.now() };
-  return books[0];
+  const addr = await agreeingRead(catalogClients, (c) => c.readContract({ address: ADDRESS_BOOK, abi: BOOK_ABI, functionName: "addr", args: [BOOK_KEY_DEPLOYMENTS] }),
+    { key: (a) => String(a).toLowerCase(), what: "the deployments ledger" });
+  if (/^0x0{40}$/i.test(String(addr))) throw new Error("the address book names no deployments ledger");
+  _confirmedLedger = { addr, at: Date.now() };
+  return addr;
 }
 async function confirmRow(id) {
   if (catalogRpcHosts.size < 2) throw new Error("fewer than two independent RPCs are configured");
