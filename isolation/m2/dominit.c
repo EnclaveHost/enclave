@@ -622,6 +622,10 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             if (nul < 0 || dup2(nul, 0) < 0 || dup2(nul, 1) < 0 || dup2(nul, 2) < 0) _exit(126);
             if (nul > 2) close(nul);
             if (drop && crash_tail_fd >= 0 && dup2(crash_tail_fd, 2) < 0) _exit(126);   /* diagnostic release only */
+            /* DIAGNOSTIC releases only (/rt/shield-diag-stderr.enabled, a measured marker a verifier
+             * sees): the app's stderr goes to the serial console, for the Shield profile counters
+             * and stable-diffusion.cpp's phase timings. Synthetic prompts only while it is live. */
+            if (drop && con >= 0 && access("/rt/shield-diag-stderr.enabled", R_OK) == 0 && dup2(con, 2) < 0) _exit(126);
         }
         if (drop) {
             const char *bad = drop_to_app();
@@ -701,6 +705,7 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = "SHIELDED_FIELD_THREADS=4";
             envp[ei++] = "SHIELDED_FIELD_SPINS=20000";
             envp[ei++] = "SHIELDED_PAD_WAIT_US=5000";
+            if (access("/rt/shield-diag-stderr.enabled", R_OK) == 0) envp[ei++] = "SHIELDED_PROFILE=1";   /* diagnostic only */
             /* stable-diffusion.cpp: RoPE in one fused pass (bit-identical), and the measured tiny
              * autoencoder (TAEF1, FLUX.1's latent space, which Z-Image uses) for the decode. */
             envp[ei++] = "SD_ROPE_FUSED=1";
