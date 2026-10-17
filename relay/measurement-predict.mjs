@@ -680,6 +680,22 @@ export const CATALOG_READ_ABI = [
 ];
 // `clients`: one client, or several INDEPENDENT ones (enclave-d1): every one is read and all must agree, so one lying RPC
 // cannot make the relay predict another app; a disagreement is an unreachable catalog (503), never a pick.
+// THE AGREEMENT RULE for a read through several independent RPCs (the custody reader's, relay/custody-state.mjs): at least
+// `min` of them must answer (default 2, or all when fewer are configured) and every answer must agree; one that fails drops
+// out, one that disagrees fails the read closed. With two RPCs configured both must answer, as before; a third makes one
+// flaky provider harmless (2026-10-17 05:09-05:13Z: one public RPC failed, every Shield app's check on nan failed with
+// it, and sia-s3 was unroutable for a minute). -> the agreed answer.
+export async function agreeingRead(list, readOne, { min = Math.min(2, list.length), key = canonical, what = "the read" } = {}) {
+  const settled = await Promise.allSettled(list.map((c) => readOne(c)));
+  const got = settled.filter((r) => r.status === "fulfilled").map((r) => r.value);
+  if (got.length < min) {
+    const why = settled.find((r) => r.status === "rejected")?.reason;
+    throw new Error(`only ${got.length} of ${list.length} RPCs answered ${what}${why ? ` (${why.shortMessage || why.message})` : ""}`);
+  }
+  if (got.some((g) => key(g) !== key(got[0]))) throw Object.assign(new Error(`the ${list.length} RPCs disagree about ${what}`), { code: "disagree" });
+  return got[0];
+}
+
 export function catalogReader(clients, catalogAddress) {
   const list = Array.isArray(clients) ? clients : [clients];
   const readOne = async (client, address, app, index) => {
@@ -690,11 +706,9 @@ export function catalogReader(clients, catalogAddress) {
   };
   const read = async (app, index) => {
     const address = typeof catalogAddress === "function" ? await catalogAddress() : catalogAddress;
-    // each provider gets one retry for a transient failure; a provider that still fails fails the read (all must answer)
+    // each provider gets one retry for a transient failure; then the agreement rule (agreeingRead) decides
     const once = async (c) => { try { return await readOne(c, address, app, index); } catch { await new Promise((r) => setTimeout(r, 500)); return readOne(c, address, app, index); } };
-    const got = await Promise.all(list.map(once));
-    if (got.some((g) => canonical(g) !== canonical(got[0]))) throw new Error(`the ${list.length} catalog RPCs disagree about ${app}/${index}`);
-    return got[0];
+    return agreeingRead(list, once, { what: `${app}/${index}` });
   };
   read.sources = list.length;
   return read;
@@ -714,9 +728,7 @@ export function versionConfigReader(clients, catalogAddress) {
   };
   return async (app, index) => {
     const address = typeof catalogAddress === "function" ? await catalogAddress() : catalogAddress;
-    const got = await Promise.all(list.map((c) => readOne(c, address, app, index)));
-    if (got.some((g) => canonical(g) !== canonical(got[0]))) throw new Error(`the ${list.length} catalog RPCs disagree about ${app}/${index}'s config`);
-    return got[0];
+    return agreeingRead(list, (c) => readOne(c, address, app, index), { what: `${app}/${index}'s config` });
   };
 }
 
