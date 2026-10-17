@@ -122,7 +122,21 @@ struct capture {
 static capture g_cap;
 
 static bool excluded(const std::string &name) {
-    return name.find("adaLN_modulation") != std::string::npos || name.find("t_embedder") != std::string::npos;
+    if (name.find("adaLN_modulation") != std::string::npos || name.find("t_embedder") != std::string::npos) return true;
+    /* caption-token layers: only image rows are calibrated (see the lead rows below) */
+    if (name.find("context_refiner") != std::string::npos || name.find("cap_embedder") != std::string::npos) return true;
+    /* SD_CALIB_ONLY=<prefix>[,<prefix>...]: observe only these sites (to add a few to an
+     * existing calibration) */
+    static const char *only = getenv("SD_CALIB_ONLY");
+    if (!only || !*only) return false;
+    for (const char *p = only; *p;) {
+        const char *e = strchr(p, ',');
+        const size_t n = e ? (size_t)(e - p) : strlen(p);
+        if (n && name.compare(0, n, p, n) == 0) return false;
+        if (!e) break;
+        p = e + 1;
+    }
+    return true;
 }
 
 /* sh_claimable minus the MIN_MACS / batch policy, as shielded-calib. */
@@ -156,7 +170,11 @@ static bool eval_cb(struct ggml_tensor *t, bool ask, void *) {
     if (!claimable(t)) return true;
     const ggml_tensor *w = t->src[0], *a = t->src[1];
     const std::string name = ggml_get_name(w);
-    const std::string g = sh_group_key(name);
+    /* SD_CALIB_LEAD=1: the joint layers' CAPTION rows instead (sites keyed "lead:<group>"),
+     * for a backend that exchanges them under their own calibration (SHIELDED_CALIB_LEAD). */
+    static const bool lead_mode = [] { const char *e = getenv("SD_CALIB_LEAD"); return e && e[0] == '1'; }();
+    const bool joint = name.rfind("model.diffusion_model.layers.", 0) == 0;
+    const std::string g = (lead_mode && joint ? "lead:" : "") + sh_group_key(name);
     site &s = c->sites[g];
     const int64_t K = w->ne[0], m = a->ne[1];
     if (s.K == 0) {
@@ -178,12 +196,12 @@ static bool eval_cb(struct ggml_tensor *t, bool ask, void *) {
     /* The joint layers' caption rows stay in the enclave at run time (the model's
      * lead-rows hint, sd_get_accel_lead_rows): calibrate those sites on the image
      * rows only, which is all the backend will ever offload there. */
-    int64_t r0 = 0;
-    if (name.rfind("model.diffusion_model.layers.", 0) == 0) {
+    int64_t r0 = 0, r1 = m;
+    if (joint) {
         const int lead = sd_get_accel_lead_rows();
-        if (lead > 0 && lead < m) r0 = lead;
+        if (lead > 0 && lead < m) { if (lead_mode) r1 = lead; else r0 = lead; }
     }
-    for (int64_t r = r0; r < m; r++) {
+    for (int64_t r = r0; r < r1; r++) {
         const float *xr = x + (size_t)r * K;
         double l2 = 0; float linf = 0;
         for (int64_t k = 0; k < K; k++) {
@@ -201,7 +219,7 @@ static bool eval_cb(struct ggml_tensor *t, bool ask, void *) {
             if (j < c->sample_rows) s.reservoir[j].assign(xr, xr + K);
         }
     }
-    s.m_total += m - r0;
+    s.m_total += r1 - r0;
     return true;
 }
 
