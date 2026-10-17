@@ -11,10 +11,19 @@ node ../network/preflight.mjs "$@"
 # A relay restart kills a running measurement prediction (isolation/m4/expected-measurement.sh, ~30 min for a big app),
 # and every guest of that app release then dies at boot until it is predicted again (2026-10-14: two restarts tonight,
 # eyesoff /85's guests powering down ~140 s into boot). Refuse before anything is copied; rerun when it has finished.
-if ssh -o ConnectTimeout=15 -o BatchMode=yes nan 'pgrep -f "isolation/m4/[e]xpected-measurement[.]sh" >/dev/null'; then
-  echo "::error::a measurement prediction is running on nan: not restarting the relay now (rerun this deploy when it has finished)"
-  exit 1
-fi
+# WAIT for a gap first: after a relay restart the predictor works through a queue of short predictions back to back
+# (2026-10-17 05:44-06:40Z: busy at every look for an hour, a fresh pin every few seconds), so a single look refused every
+# deploy. Look every 5 s for up to PREDICTION_WAIT_SEC (default 600, inside the CI job's 15-min timeout) and go at the first moment none is running; a
+# prediction that starts after that is the queue's next one and is predicted again after the restart.
+waited=0; limit="${PREDICTION_WAIT_SEC:-600}"
+while ssh -o ConnectTimeout=15 -o BatchMode=yes nan 'pgrep -f "isolation/m4/[e]xpected-measurement[.]sh" >/dev/null'; do
+  if [ "$waited" -ge "$limit" ]; then
+    echo "::error::a measurement prediction has been running on nan at every look for ${limit}s: not restarting the relay now (rerun this deploy)"
+    exit 1
+  fi
+  [ $((waited % 60)) -eq 0 ] && echo "a measurement prediction is running on nan; waiting for a gap (${waited}s of ${limit}s)"
+  sleep 5; waited=$((waited + 5))
+done
 
 # DEPENDENCIES: `npm ci` against a SHIPPED package-lock.json, never `npm install`
 # against package.json alone. Every dependency here is a caret range, so
