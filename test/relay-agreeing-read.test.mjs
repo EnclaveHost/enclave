@@ -34,3 +34,10 @@ test("catalogReader: one of three RPCs failing still reads the version", async (
   assert.equal(got.version.cid, "bafy");
   assert.equal(got.app.active, true);
 });
+
+test("the Shield market treats too few answering RPCs as transient, a disagreement as hard", async () => {
+  const { transientAdmissionError } = await import("../relay/shield-marketplace.mjs");
+  assert.equal(transientAdmissionError("only 1 of 3 RPCs answered the deployment's record (RPC Request failed.)"), true);
+  assert.equal(transientAdmissionError("the 3 RPCs disagree about the deployment's record"), false);
+  assert.equal(transientAdmissionError("RPC Request failed."), true, "the bare viem message stays transient");
+});
