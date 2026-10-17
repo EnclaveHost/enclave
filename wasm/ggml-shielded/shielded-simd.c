@@ -125,15 +125,30 @@ void sh_simd_avx512_mask_stream(const uint32_t key[8], uint64_t ctr, int32_t *ou
             SH_CHACHA16_QR(x[0],x[5],x[10],x[15]); SH_CHACHA16_QR(x[1],x[6],x[11],x[12]);
             SH_CHACHA16_QR(x[2],x[7],x[8],x[13]); SH_CHACHA16_QR(x[3],x[4],x[9],x[14]);
         }
-        uint32_t words[16][16];
-        for (int i = 0; i < 16; i++)
-            _mm512_storeu_si512(words[i], _mm512_add_epi32(x[i], initial[i]));
-        const size_t take = n < 128 ? n : 128;
-        for (size_t i = 0; i < take; i++) {
-            const int block = (int)(i / 8), word = 2 * (int)(i % 8);
-            const uint64_t v = ((uint64_t)words[word + 1][block] << 32) | words[word][block];
-            out[i] = (int32_t)(v % (uint64_t)SH_M_MOD);
+        /* v % M for v = hi:lo, eight lanes at a time and exactly: v == hi*C + lo (mod M) with
+         * C = 2^32 mod M, folded twice to below 2^50, where a double holds it exactly and its
+         * quotient estimate is off by at most one either way. res[j][block] is out[8*block + j]. */
+        int32_t res[8][16];
+        const __m512i C = _mm512_set1_epi64((int64_t)((UINT64_C(1) << 32) % (uint64_t)SH_M_MOD));
+        const __m512i M = _mm512_set1_epi64(SH_M_MOD), low32 = _mm512_set1_epi64(0xffffffffLL);
+        const __m512d invM = _mm512_set1_pd(1.0 / (double)SH_M_MOD);
+        for (int j = 0; j < 8; j++) {
+            const __m512i lo = _mm512_add_epi32(x[2 * j], initial[2 * j]), hi = _mm512_add_epi32(x[2 * j + 1], initial[2 * j + 1]);
+            for (int h = 0; h < 2; h++) {
+                const __m512i l64 = _mm512_cvtepu32_epi64(h ? _mm512_extracti64x4_epi64(lo, 1) : _mm512_castsi512_si256(lo));
+                const __m512i h64 = _mm512_cvtepu32_epi64(h ? _mm512_extracti64x4_epi64(hi, 1) : _mm512_castsi512_si256(hi));
+                const __m512i x1 = _mm512_add_epi64(_mm512_mullo_epi64(h64, C), l64);                        /* < 2^57 */
+                const __m512i x2 = _mm512_add_epi64(_mm512_mullo_epi64(_mm512_srli_epi64(x1, 32), C),
+                                                    _mm512_and_si512(x1, low32));                            /* < 2^50 */
+                const __m512i q = _mm512_cvttpd_epi64(_mm512_mul_pd(_mm512_cvtepi64_pd(x2), invM));
+                __m512i r = _mm512_sub_epi64(x2, _mm512_mullo_epi64(q, M));
+                r = _mm512_mask_add_epi64(r, _mm512_cmplt_epi64_mask(r, _mm512_setzero_si512()), r, M);
+                r = _mm512_mask_sub_epi64(r, _mm512_cmpge_epi64_mask(r, M), r, M);
+                _mm256_storeu_si256((__m256i *)(res[j] + 8 * h), _mm512_cvtepi64_epi32(r));
+            }
         }
+        const size_t take = n < 128 ? n : 128;
+        for (size_t i = 0; i < take; i++) out[i] = res[i % 8][i / 8];
         n -= take; out += take; ctr += 16;
     }
 }
@@ -179,6 +194,25 @@ size_t sh_simd_avx512_chacha_ietf_xor(const uint8_t key[32], uint32_t counter, c
     volatile uint32_t *w = words;                                    /* keystream off the stack */
     for (size_t i = 0; i < 16 * 16; i++) w[i] = 0;
     return whole;
+}
+/* The pad spill's packed u (shielded-spill.inc sp_unpack24): n values of 24-bit two's
+ * complement, each checked to lie in [-HALF_M, HALF_M]. Returns how many it unpacked
+ * (whole groups of sixteen) or -1 when a value is out of range; the caller does the
+ * tail. VBMI: call only when the CPU has it. */
+__attribute__((target("avx512vbmi")))
+int64_t sh_simd_avx512_unpack24(const uint8_t *p, int64_t n, int32_t *u) {
+    uint8_t idx[64];
+    for (int i = 0; i < 16; i++) { idx[4*i] = (uint8_t)(3*i); idx[4*i+1] = (uint8_t)(3*i+1); idx[4*i+2] = (uint8_t)(3*i+2); idx[4*i+3] = (uint8_t)(3*i+2); }
+    const __m512i perm = _mm512_loadu_si512(idx);
+    const __m512i lo = _mm512_set1_epi32(-(int32_t)SH_HALF_M), hi = _mm512_set1_epi32((int32_t)SH_HALF_M);
+    int64_t i = 0;
+    for (; i + 16 <= n; i += 16) {
+        const __m512i b = _mm512_maskz_loadu_epi8((__mmask64)0xffffffffffffULL, p + 3 * i);    /* 48 bytes */
+        const __m512i v = _mm512_srai_epi32(_mm512_slli_epi32(_mm512_permutexvar_epi8(perm, b), 8), 8);
+        if (_mm512_cmplt_epi32_mask(v, lo) | _mm512_cmpgt_epi32_mask(v, hi)) return -1;
+        _mm512_storeu_si512(u + i, v);
+    }
+    return i;
 }
 #undef SH_CHACHA16_QR
 #endif

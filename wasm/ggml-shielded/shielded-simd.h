@@ -105,6 +105,8 @@ void sh_simd_avx512_mask_stream(const uint32_t key[8], uint64_t counter,
 /* RFC 8439 ChaCha20 XOR over whole 1 KiB groups of n; returns the bytes done. */
 size_t sh_simd_avx512_chacha_ietf_xor(const uint8_t key[32], uint32_t counter, const uint8_t nonce[12],
                                       const uint8_t *in, uint8_t *out, size_t n);
+/* 24-bit balanced unpack, whole groups of 16; -1 on a value out of range. Needs VBMI. */
+int64_t sh_simd_avx512_unpack24(const uint8_t *p, int64_t n, int32_t *u);
 void sh_simd_avx512_refill_vector_crt(const uint8_t *, int, const int8_t *,
     int64_t, int64_t, int32_t *, int64_t, int32_t *);
 SH_SIMD_DECL(generic)
