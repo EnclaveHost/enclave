@@ -5,6 +5,8 @@
 #include "shielded-field.h"
 #include "shielded-pads.h"
 #include "shielded-tee.h"
+#include "shielded-simd.h"
+#include "poly1305-donna.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -61,6 +63,115 @@ static bool sp_random(void *buf, size_t n) {
 }
 
 static void sp_wipe(void *p, size_t n) { volatile uint8_t *v = (volatile uint8_t *)p; while (n--) *v++ = 0; }
+
+/* The spill's AEAD: RFC 8439 ChaCha20-Poly1305, no AAD, laid out tag || ciphertext,
+ * the same bytes as sh_aead_seal / sh_aead_open (shielded-pads.c). Every pad a request
+ * takes from the spill is opened here, ~3.6 GB a Z-Image 512px step, and the scalar
+ * ChaCha block was the largest cost on the request path (2026-10-17 host profile:
+ * 22% of the DiT's critical path). The body runs sixteen blocks at a time on AVX-512
+ * once sp_aead_admit has compared both directions with the scalar AEAD; otherwise,
+ * and for every tail, the scalar block. */
+static pthread_once_t sp_aead_once = PTHREAD_ONCE_INIT;
+static bool sp_aead_vec;
+
+static uint32_t sp_ld32(const uint8_t *p) { return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24; }
+#define SP_ROTL(v, c) (((v) << (c)) | ((v) >> (32 - (c))))
+#define SP_QR(a, b, c, d) (a += b, d ^= a, d = SP_ROTL(d, 16), c += d, b ^= c, b = SP_ROTL(b, 12), a += b, d ^= a, d = SP_ROTL(d, 8), c += d, b ^= c, b = SP_ROTL(b, 7))
+static void sp_chacha_block(const uint8_t key[32], uint32_t counter, const uint8_t nonce[12], uint8_t out[64]) {
+    uint32_t s[16], x[16];
+    s[0] = 0x61707865; s[1] = 0x3320646e; s[2] = 0x79622d32; s[3] = 0x6b206574;
+    for (int i = 0; i < 8; i++) s[4 + i] = sp_ld32(key + 4 * i);
+    s[12] = counter; s[13] = sp_ld32(nonce); s[14] = sp_ld32(nonce + 4); s[15] = sp_ld32(nonce + 8);
+    memcpy(x, s, sizeof x);
+    for (int i = 0; i < 10; i++) {
+        SP_QR(x[0], x[4], x[8], x[12]); SP_QR(x[1], x[5], x[9], x[13]); SP_QR(x[2], x[6], x[10], x[14]); SP_QR(x[3], x[7], x[11], x[15]);
+        SP_QR(x[0], x[5], x[10], x[15]); SP_QR(x[1], x[6], x[11], x[12]); SP_QR(x[2], x[7], x[8], x[13]); SP_QR(x[3], x[4], x[9], x[14]);
+    }
+    for (int i = 0; i < 16; i++) { const uint32_t v = x[i] + s[i]; out[4 * i] = (uint8_t)v; out[4 * i + 1] = (uint8_t)(v >> 8); out[4 * i + 2] = (uint8_t)(v >> 16); out[4 * i + 3] = (uint8_t)(v >> 24); }
+    sp_wipe(x, sizeof x); sp_wipe(s, sizeof s);
+}
+#undef SP_QR
+#undef SP_ROTL
+
+/* in may equal out (the read opens in place). */
+static void sp_xor_stream(const uint8_t key[32], const uint8_t nonce[12], const uint8_t *in, size_t n, uint8_t *out, bool vec) {
+    size_t off = 0;
+#if !defined(__aarch64__)
+    if (vec) off = sh_simd_avx512_chacha_ietf_xor(key, 1, nonce, in, out, n);
+#else
+    (void)vec;
+#endif
+    uint8_t blk[64];
+    for (uint32_t ctr = 1 + (uint32_t)(off / 64); off < n; off += 64, ctr++) {
+        sp_chacha_block(key, ctr, nonce, blk);
+        const size_t take = n - off < 64 ? n - off : 64;
+        for (size_t i = 0; i < take; i++) out[off + i] = in[off + i] ^ blk[i];
+    }
+    sp_wipe(blk, sizeof blk);
+}
+static void sp_tag(const uint8_t key[32], const uint8_t nonce[12], const uint8_t *ct, size_t n, uint8_t tag[16]) {
+    static const uint8_t zeros[16] = {0};
+    uint8_t blk[64], lens[16] = {0};
+    sp_chacha_block(key, 0, nonce, blk);                 /* the one-time Poly1305 key */
+    poly1305_context st;
+    poly1305_init(&st, blk);
+    poly1305_update(&st, ct, n);
+    if (n % 16) poly1305_update(&st, zeros, 16 - n % 16);
+    for (int i = 0; i < 8; i++) lens[8 + i] = (uint8_t)((uint64_t)n >> (8 * i));
+    poly1305_update(&st, lens, 16);
+    poly1305_finish(&st, tag);
+    sp_wipe(blk, sizeof blk); sp_wipe(&st, sizeof st);
+}
+static void sp_seal_with(const uint8_t key[32], const uint8_t nonce[12], const uint8_t *msg, size_t n, uint8_t *box, bool vec) {
+    sp_xor_stream(key, nonce, msg, n, box + SPILL_TAG, vec);
+    sp_tag(key, nonce, box + SPILL_TAG, n, box);
+}
+static int sp_open_with(const uint8_t key[32], const uint8_t nonce[12], const uint8_t *box, size_t n, uint8_t *out, bool vec) {
+    uint8_t tag[16];
+    sp_tag(key, nonce, box + SPILL_TAG, n, tag);
+    if (!poly1305_verify(tag, box)) return SH_ERR_VERIFY;
+    sp_xor_stream(key, nonce, box + SPILL_TAG, n, out, vec);
+    return SH_OK;
+}
+
+/* Sealed by the vector body == sealed by sh_aead_seal, and each opens the other's box,
+ * over lengths that cover whole 1 KiB groups, tails, and a 1-byte message. */
+static void sp_aead_admit(void) {
+#if !defined(__aarch64__)
+    __builtin_cpu_init();
+    if (!__builtin_cpu_supports("avx512f") || !__builtin_cpu_supports("avx512bw") || !__builtin_cpu_supports("avx512vl") ||
+        !__builtin_cpu_supports("avx512dq") || !__builtin_cpu_supports("avx512vnni")) return;
+    static const size_t lens[] = {1, 1023, 1024, 3 * 1024 + 37, 64 * 1024 + 5};
+    const size_t most = 64 * 1024 + 5;
+    uint8_t key[32], nonce[12];
+    uint8_t *msg = (uint8_t *)malloc(most), *a = (uint8_t *)malloc(most + SPILL_TAG), *b = (uint8_t *)malloc(most + SPILL_TAG), *o = (uint8_t *)malloc(most);
+    bool ok = msg && a && b && o && sp_random(key, sizeof key) && sp_random(nonce, sizeof nonce) && sp_random(msg, most);
+    for (size_t i = 0; ok && i < sizeof lens / sizeof lens[0]; i++) {
+        const size_t n = lens[i];
+        sh_aead_seal(key, nonce, msg, n, a);
+        sp_seal_with(key, nonce, msg, n, b, true);
+        ok = !memcmp(a, b, n + SPILL_TAG) &&
+             sp_open_with(key, nonce, a, n, o, true) == SH_OK && !memcmp(o, msg, n) &&
+             sh_aead_open(key, nonce, b, n, o) == SH_OK && !memcmp(o, msg, n);
+        b[SPILL_TAG + n / 2] ^= 1;                        /* and a flipped bit is refused */
+        ok = ok && sp_open_with(key, nonce, b, n, o, true) == SH_ERR_VERIFY;
+    }
+    sp_wipe(key, sizeof key);
+    if (msg) { sp_wipe(msg, most); free(msg); }
+    if (o) { sp_wipe(o, most); free(o); }
+    free(a); free(b);
+    sp_aead_vec = ok;
+    if (!ok) fprintf(stderr, "[shielded] pad spill: the vector AEAD disagrees with the scalar one; using the scalar\n");
+#endif
+}
+static void sp_seal(const uint8_t key[32], const uint8_t nonce[12], const uint8_t *msg, size_t n, uint8_t *box) {
+    pthread_once(&sp_aead_once, sp_aead_admit);
+    sp_seal_with(key, nonce, msg, n, box, sp_aead_vec);
+}
+static int sp_open(const uint8_t key[32], const uint8_t nonce[12], const uint8_t *box, size_t n, uint8_t *out) {
+    pthread_once(&sp_aead_once, sp_aead_admit);
+    return sp_open_with(key, nonce, box, n, out, sp_aead_vec);
+}
 
 /* Under sp_dev.mu. */
 static void sp_dev_open(void) {
@@ -307,7 +418,7 @@ int sh_spill_write(const sh_spill *s, size_t g, uint32_t slot0, int b,
             memset(box + SPILL_TAG + body, 0, (size_t)sb - SPILL_TAG - body);
             uint8_t nonce[12];
             sp_nonce(wid[i + (int)j], g, nonce);
-            sh_aead_seal(s->aead_key, nonce, box + SPILL_TAG, body, box);
+            sp_seal(s->aead_key, nonce, box + SPILL_TAG, body, box);
         }
         const int rc = sp_io(true, io, (uint64_t)run * sb, s->region[g] + (uint64_t)slot * sb);
         if (rc != SH_OK) return rc;
@@ -334,7 +445,7 @@ int sh_spill_read(const sh_spill *s, size_t g, uint32_t slot0, int b,
             uint8_t *box = io + (size_t)j * sb;
             uint8_t nonce[12];
             sp_nonce(wid[i + (int)j], g, nonce);
-            if (sh_aead_open(s->aead_key, nonce, box, body, box + SPILL_TAG) != SH_OK) return SH_ERR_VERIFY;
+            if (sp_open(s->aead_key, nonce, box, body, box + SPILL_TAG) != SH_OK) return SH_ERR_VERIFY;
             if (!sp_unpack24(box + SPILL_TAG, n, u_out + (size_t)(i + (int)j) * (size_t)n)) return SH_ERR_VERIFY;
             sh_spill_mask(s, wid[i + (int)j], r_out + (size_t)(i + (int)j) * (size_t)K, K);
         }
