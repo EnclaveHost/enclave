@@ -99,7 +99,7 @@ import { createPvmMarket } from "./pvm-market.mjs";
 import { createPvmSecretRelease } from "./pvm-secrets.mjs";
 import { claimCheapest, CLAIM_QUOTE_ABI } from "./cheapest-claim.mjs";
 import { createPlacement, pinnedHost } from "./placement.mjs";
-import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson } from "./measurement-predict.mjs";
+import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson, agreeingRead } from "./measurement-predict.mjs";
 import { createTunnelHub } from "./tunnel.js";
 import { createReferrals } from "./referrals.mjs";
 import { withDetachGrace } from "./route-grace.mjs";
@@ -2360,11 +2360,13 @@ async function confirmedLedger() {
 async function confirmRow(id) {
   if (catalogRpcHosts.size < 2) throw new Error("fewer than two independent RPCs are configured");
   const ledger = await confirmedLedger();
-  const got = await Promise.all(catalogClients.map((c) => c.readContract({ address: ledger, abi: DEP_GET_ABI, functionName: "get", args: [id] })));
   const pick = (d) => ({ id: String(d.id).toLowerCase(), runner: String(d.runner).toLowerCase(), leaseUntil: String(d.leaseUntil), appRef: d.appRef,
                          owner: String(d.owner).toLowerCase(), isPublic: !!d.isPublic, configCid: d.configCid, active: !!d.active, cpuMilli: Number(d.cpuMilli), gpuMilli: Number(d.gpuMilli) });
-  const rows = got.map(pick);
-  if (rows.some((r) => JSON.stringify(r) !== JSON.stringify(rows[0]))) throw new Error("the RPCs disagree about the deployment's record");
+  // the agreement rule (measurement-predict.mjs agreeingRead): two or more agreeing answers, a disagreement fails closed
+  const row = await agreeingRead(catalogClients, async (c) => pick(await c.readContract({ address: ledger, abi: DEP_GET_ABI, functionName: "get", args: [id] })),
+    { key: (r) => JSON.stringify(r), what: "the deployment's record" }).catch((e) => {
+      throw e.code === "disagree" ? new Error("the RPCs disagree about the deployment's record") : e; });
+  const rows = [row];
   if (rows[0].id !== String(id).toLowerCase()) throw Object.assign(new Error("the ledger holds no such deployment"), { code: "no_deployment" });
   return rows[0];
 }
