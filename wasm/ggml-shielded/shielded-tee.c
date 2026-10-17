@@ -438,6 +438,14 @@ struct sh_link {
     const int32_t **rp; const int32_t **up; int *slots; size_t p_cap;   /* per-row pad pointers, m of each */
     int32_t *r;       size_t r_cap;      /* pads generated ON the path, pool dry */
     int32_t *u;       size_t u_cap;
+    /* Lookahead (SHIELDED_LOOKAHEAD=1): the next wide chunk's pads, taken from the
+     * spill inside this chunk's GPU window into the buffer no chunk is using
+     * (la_fill). Rule 1 holds: a pad taken here serves the next chunk or nobody. */
+    bool lookahead;
+    int32_t *la_r[2], *la_u[2]; size_t la_rcap[2], la_ucap[2];
+    const sh_group *la_g; int la_n, la_buf;              /* ready: la_n pads of la_g in buffer la_buf */
+    const sh_group *la_want_g; int la_want, la_in_use;   /* asked by the chunk loop; buffer the running chunk reads */
+    uint64_t la_imported;
     int8_t  *planes;  size_t planes_cap;
     uint8_t *gplanes; size_t gplanes_cap;
     int32_t *acc;     size_t acc_cap;
@@ -475,7 +483,7 @@ struct sh_link {
     uint64_t   spill_fp;                    /* the registration its layout was cut for */
     uint32_t   spill_slots;                 /* per group */
     uint64_t   spill_wid;                   /* the next write id; never reused */
-    int        spill_minters, spill_mint_max, spill_mint_busy, spill_idle_ms, spill_min_rows;
+    int        spill_minters, spill_mint_max, spill_mint_busy, spill_idle_ms, spill_min_rows, spill_batch;
     double     spill_last_take;             /* now_ms() of the request path's last take */
     double     spill_t0;                    /* attach time, for the "full" line */
     bool       spill_full_said;
@@ -641,6 +649,8 @@ sh_link *sh_link_open(const char *host, int port, bool verify, int *err) {
     snprintf(l->host, sizeof l->host, "%s", host);
     l->port = port; l->verify = verify; l->ywidth = 4;
     l->overlap_verify = env_int("SHIELDED_OVERLAP_VERIFY", 0, 0, 1) != 0;
+    l->lookahead = env_int("SHIELDED_LOOKAHEAD", 0, 0, 1) != 0;
+    l->la_in_use = -1;
     l->vsock_port = env_int("SHIELDED_VSOCK_PORT", -1, -1, 1 << 30);
     const char *r = getenv("SHIELDED_RESERVE_BYTES");
     if (r && *r) { char *end = NULL; unsigned long long v = strtoull(r, &end, 10); if (end && *end == 0) l->reserve_bytes = v; }
@@ -797,6 +807,10 @@ void sh_link_close(sh_link *l) {
     free(l->nodes); free(l->groups);
     free(l->rp); free(l->up); free(l->slots);
     free(l->r); free(l->u); free(l->planes); free(l->gplanes); free(l->acc); free(l->hdr);
+    for (int i = 0; i < 2; i++) {
+        if (l->la_r[i]) { sp_wipe(l->la_r[i], l->la_rcap[i]); free(l->la_r[i]); }
+        if (l->la_u[i]) { sp_wipe(l->la_u[i], l->la_ucap[i]); free(l->la_u[i]); }
+    }
     free(l->fv_rhs);
     sh_pipe_close(l->pipe);
     sh_bank_close(l->padbank);
@@ -1106,6 +1120,22 @@ static int generate_products(sh_link *l, const sh_group *g, int b,
     return SH_OK;
 }
 
+/* A spill mint's products, b up to SP_MINT_MAX rows: providers (source,
+ * compact) take the whole width, re-encoding or decompressing each tile once;
+ * native nodes run in ring-batch slices, the widths they always ran at. */
+static int mint_products(sh_link *l, const sh_group *g, int b, int B,
+                         const int32_t *r, uint8_t *planes, int32_t *u_out, int32_t *acc) {
+    bool native = false;
+    for (int i = 0; i < g->n_nodes; i++) if (!l->nodes[g->nodes[i]].w_refill) native = true;
+    if (!native || b <= B) return generate_products(l, g, b, r, planes, u_out, acc);
+    for (int b0 = 0; b0 < b; b0 += B) {
+        const int n = b - b0 < B ? b - b0 : B;
+        const int rc = generate_products(l, g, n, r + (size_t)b0 * g->K, planes, u_out + (size_t)b0 * g->u_len, acc);
+        if (rc != SH_OK) return rc;
+    }
+    return SH_OK;
+}
+
 static int generate(sh_link *l, const sh_group *g, int b, int32_t *r_out, int32_t *u_out, gen_scratch *s) {
     const int64_t K = g->K;
 #ifdef SHIELDED_DEALER_MODE
@@ -1184,6 +1214,7 @@ static sh_group *pick_refill_group(sh_link *l, int B, int *deficit) {
 #define SP_WRITTEN 1
 #define SP_READ    2
 #define SP_TAKE_MAX 64              /* pads one take moves (the refill batch is at most 64) */
+#define SP_MINT_MAX 256             /* pads one spill mint makes (SHIELDED_PAD_SPILL_BATCH) */
 
 static bool spill_usable(const sh_link *l) { return l->spill && !l->spill_off; }
 
@@ -1301,6 +1332,12 @@ static void spill_start(sh_link *l) {
      * free: half of them keep minting into it, so a busy stretch drains the
      * spill far slower than it consumes. */
     l->spill_mint_busy = env_int("SHIELDED_PAD_SPILL_BUSY_THREADS", l->n_threads / 2, 0, 64);
+    /* Rows one spill mint makes. A weight provider that re-encodes its tiles
+     * (SHIELDED_SOURCE_WEIGHTS) or decompresses them (compact) does that once a
+     * mint, whatever its width, so a wider mint divides that cost: on Z-Image the
+     * re-encode was ~5x the pad GEMM at 64 rows. The ring refill stays at
+     * SHIELDED_REFILL_BATCH; the default keeps every other profile as it was. */
+    l->spill_batch = env_int("SHIELDED_PAD_SPILL_BATCH", l->refill_batch, 1, SP_MINT_MAX);
     l->spill_last_take = now_ms();
 }
 
@@ -1469,11 +1506,12 @@ static void *refill_main(void *arg) {
     sh_link *l = (sh_link *)arg;
     gen_scratch s;
     const int B = l->refill_batch;
-    if (gen_scratch_init(l, &s, B) != SH_OK) return NULL;
+    const int SB = spill_usable(l) && l->spill_batch > B ? l->spill_batch : B;   /* spill mints, at most SP_MINT_MAX */
+    if (gen_scratch_init(l, &s, SB) != SH_OK) return NULL;
     /* Private staging, used only when the reserved slots wrap around the ring
      * end; otherwise the batch is generated straight into the ring. */
-    int32_t *r = (int32_t *)malloc((size_t)B * l->Kmax * sizeof(int32_t));
-    int32_t *u = (int32_t *)malloc((size_t)B * l->ulen_max * sizeof(int32_t));
+    int32_t *r = (int32_t *)malloc((size_t)SB * l->Kmax * sizeof(int32_t));
+    int32_t *u = (int32_t *)malloc((size_t)SB * l->ulen_max * sizeof(int32_t));
     if (!r || !u) { free(r); free(u); free(s.planes); free(s.acc); return NULL; }
     /* This thread's spill I/O buffer; without one it neither mints into nor
      * imports from the spill. */
@@ -1499,8 +1537,8 @@ static void *refill_main(void *arg) {
              * Lowest-first among the low ones in either policy. */
             g = pick_refill_group(l, B, &deficit);
             if (g) break;
-            if (io && (g = pick_spill_group(l, B, &deficit)) != NULL) { to_spill = true; break; }
-            if (io && spill_wants_mint(l, B)) {
+            if (io && (g = pick_spill_group(l, SB, &deficit)) != NULL) { to_spill = true; break; }
+            if (io && spill_wants_mint(l, SB)) {
                 /* Idleness is a matter of time, which no signal announces:
                  * look again shortly. */
                 struct timespec dl; clock_gettime(CLOCK_REALTIME, &dl);
@@ -1516,7 +1554,7 @@ static void *refill_main(void *arg) {
              * masks, then seal and write. */
             const size_t gi = (size_t)(g - l->groups);
             const int b = deficit;
-            uint64_t wid[SP_TAKE_MAX];
+            uint64_t wid[SP_MINT_MAX];
             const uint32_t slot0 = spill_reserve(l, g, b, wid);
             if (l->spill_imported + l->spill_onpath != l->spill_said) {
                 /* The first mint after a busy spell: say what the spell drew. */
@@ -1530,7 +1568,7 @@ static void *refill_main(void *arg) {
             pthread_cond_broadcast(&l->need_refill);         /* another minter may start too */
             pthread_mutex_unlock(&l->pool_mu);
             for (int i = 0; i < b; i++) sh_spill_mask(l->spill, wid[i], r + (size_t)i * g->K, g->K);
-            int rc = generate_products(l, g, b, r, s.planes, u, s.acc);
+            int rc = mint_products(l, g, b, B, r, s.planes, u, s.acc);
             const bool minted = rc == SH_OK;
             if (minted) rc = sh_spill_write(l->spill, gi, slot0, b, wid, u, io);
             pthread_mutex_lock(&l->pool_mu);
@@ -1538,7 +1576,7 @@ static void *refill_main(void *arg) {
             if (rc == SH_OK) {
                 spill_publish(l, g, slot0, b);
                 l->spill_written += (uint64_t)b;
-                if (!l->spill_full_said && !spill_wants_mint(l, B)) {
+                if (!l->spill_full_said && !spill_wants_mint(l, SB)) {
                     l->spill_full_said = true;
                     fprintf(stderr, "[shielded] pad spill full: %u pads per group, %llu written in %.0f s\n",
                             l->spill_slots, (unsigned long long)l->spill_written, (now_ms() - l->spill_t0) / 1000.0);
@@ -2552,9 +2590,47 @@ typedef struct {
  * can run while the masked request travels. Nothing here touches the pipe or
  * a reply. The worker still has to pass the SAME unrelated-prime check before
  * the caller can use any output. */
+/* Inside a wide chunk's GPU window, on the request thread: take the NEXT chunk's
+ * pads from the spill into the lookahead buffer the running chunk is not reading.
+ * The ring cannot take them: its slots stay held until this chunk is unmasked, so
+ * with a ring one chunk deep every chunk used to open its pads on the path, after
+ * the window, serially (2026-10-17 host profile: 46% of the Z-Image DiT's critical
+ * path). The spill I/O buffer is free here: this thread's own on-path import for
+ * the running chunk finished before its request was sent. */
+static void la_fill(sh_link *l) {
+    const sh_group *g = l->la_want_g;
+    const int want = l->la_want;
+    l->la_want_g = NULL;
+    if (!g || want <= 0 || !l->threads_running || !l->spill_io || !spill_usable(l)) return;
+    const int target = l->la_in_use == 0 ? 1 : 0;
+    if (ensure((void **)&l->la_r[target], &l->la_rcap[target], (size_t)want * g->K * sizeof(int32_t)) != SH_OK ||
+        ensure((void **)&l->la_u[target], &l->la_ucap[target], (size_t)want * g->u_len * sizeof(int32_t)) != SH_OK) return;
+    sh_group *gw = &l->groups[g - l->groups];
+    int have = 0;
+    while (have < want) {                                 /* a take moves at most SP_TAKE_MAX */
+        uint64_t wid[SP_TAKE_MAX];
+        uint32_t slot0 = 0;
+        pthread_mutex_lock(&l->pool_mu);
+        const int n = spill_take(l, gw, want - have, &slot0, wid);
+        pthread_mutex_unlock(&l->pool_mu);
+        if (n <= 0) break;
+        const int rc = sh_spill_read(l->spill, (size_t)(g - l->groups), slot0, n, wid,
+                                     l->la_r[target] + (size_t)have * g->K, l->la_u[target] + (size_t)have * g->u_len, l->spill_io);
+        pthread_mutex_lock(&l->pool_mu);
+        spill_retire(l, gw, slot0, n);
+        if (rc == SH_OK) l->la_imported += (uint64_t)n;
+        else spill_fail(l, "a lookahead read", rc);
+        pthread_mutex_unlock(&l->pool_mu);
+        if (rc != SH_OK) break;                           /* these are burned; the next chunk makes up the rest */
+        have += n;
+    }
+    if (have > 0) { l->la_g = g; l->la_n = have; l->la_buf = target; }
+}
+
 /* The window with no RHS to compute: the hook alone. Same contract. */
 static void sh_idle_only(void *ctx) {
     sh_link *l = ((sh_verify_work *)ctx)->link;
+    la_fill(l);
     if (l->idle_fn) l->idle_fn(l->idle_ctx);
 }
 static void sh_verify_rhs(void *ctx) {
@@ -2571,6 +2647,7 @@ static void sh_verify_rhs(void *ctx) {
     /* Then the backend's deferred work, if it registered any. Ordering is
      * deliberate: the RHS is what the window exists for and must not be
      * displaced by an optional passenger. */
+    la_fill(l);
     if (l->idle_fn) l->idle_fn(l->idle_ctx);
     w->ran = 1;
     l->profile.rhs_ms += w->elapsed_ms;
@@ -2690,9 +2767,15 @@ int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
             const int64_t row = y_stride && y_stride[i] ? y_stride[i] : l->nodes[nodes[i]].N;
             yp[i] = y_out[i] + (size_t)at * (size_t)row;
         }
+        if (l->lookahead) {                              /* la_fill takes the next chunk's pads in this one's window */
+            const int32_t next = m - at - rows;
+            l->la_want_g = next > 0 ? g : NULL;
+            l->la_want = next < step ? next : step;
+        }
         const int rc = sh_link_gemm_stride_one(l, nodes, n_nodes, x_field + (size_t)at * (size_t)g->K, rows, yp, y_stride);
-        if (rc != SH_OK) return rc;
+        if (rc != SH_OK) { l->la_want_g = NULL; l->la_n = 0; return rc; }
     }
+    l->la_want_g = NULL; l->la_n = 0;                    /* nothing outlives the wide matmul */
     return SH_OK;
 }
 
@@ -2757,22 +2840,35 @@ static int sh_link_gemm_stride_one(sh_link *l, const int *nodes, size_t n_nodes,
     if (l->dealt && l->threads_running) dealt_wait(l, g, m);
     const double tp_a = now_ms();
     l->profile.dealt_wait_ms += tp_a - t0;
-    const int took = l->threads_running ? take_pads(l, g, m, l->slots) : 0;
+    /* Lookahead pads first: they were taken for this chunk and serve it or nobody. */
+    int from_la = 0;
+    l->la_in_use = -1;
+    if (l->la_n > 0 && l->la_g == g) {
+        from_la = l->la_n < m ? l->la_n : m;
+        l->la_in_use = l->la_buf;
+        for (int i = 0; i < from_la; i++) {
+            l->rp[i] = l->la_r[l->la_buf] + (size_t)i * K;
+            l->up[i] = l->la_u[l->la_buf] + (size_t)i * g->u_len;
+        }
+    }
+    l->la_n = 0;                                         /* any left over are burned, never reused */
+    const int took = l->threads_running && from_la < m ? take_pads(l, g, m - from_la, l->slots) : 0;
+    const int have = from_la + took;
     l->profile.pads_ms += now_ms() - tp_a;
     /* A background rejection must reach the backend as an integrity error,
      * even if a different group still had ready pads. Taken pads stay burned. */
     if (sh_integrity_failed(l)) { rc = SH_ERR_VERIFY; goto fail; }
     for (int i = 0; i < took; i++) {
-        l->rp[i] = g->r_store + (size_t)l->slots[i] * K;
-        l->up[i] = g->u_store + (size_t)l->slots[i] * g->u_len;
+        l->rp[from_la + i] = g->r_store + (size_t)l->slots[i] * K;
+        l->up[from_la + i] = g->u_store + (size_t)l->slots[i] * g->u_len;
     }
-    if (took < m && l->dealt) {
+    if (have < m && l->dealt) {
         /* A dealt engine has no key to mint with; the bank is behind. */
-        snprintf(l->err, sizeof l->err, "dealt pads: %d of %d ready for group %s; the bank is behind", took, m, l->nodes[g->nodes[0]].name);
+        snprintf(l->err, sizeof l->err, "dealt pads: %d of %d ready for group %s; the bank is behind", have, m, l->nodes[g->nodes[0]].name);
         rc = SH_ERR_EXHAUST; goto fail;
     }
-    if (took < m) {
-        const int miss = m - took;
+    if (have < m) {
+        const int miss = m - have;
         if ((rc = ensure((void **)&l->r,       &l->r_cap,       (size_t)miss * K * sizeof(int32_t))) != SH_OK) goto fail;
         if ((rc = ensure((void **)&l->u,       &l->u_cap,       (size_t)miss * g->u_len * sizeof(int32_t))) != SH_OK) goto fail;
         if ((rc = ensure((void **)&l->gplanes, &l->gplanes_cap, (size_t)3 * miss * K)) != SH_OK) goto fail;
@@ -2806,8 +2902,8 @@ static int sh_link_gemm_stride_one(sh_link *l, const int *nodes, size_t n_nodes,
         g->on_path_ms += elapsed_ms;
         if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "pad bank exhausted; stall the request"); goto fail; }
         for (int i = 0; i < miss; i++) {
-            l->rp[took + i] = l->r + (size_t)i * K;
-            l->up[took + i] = l->u + (size_t)i * g->u_len;
+            l->rp[have + i] = l->r + (size_t)i * K;
+            l->up[have + i] = l->u + (size_t)i * g->u_len;
         }
         l->pads_missed += (uint64_t)miss;
         g->pads_missed += (uint64_t)miss;
