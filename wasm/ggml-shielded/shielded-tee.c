@@ -444,8 +444,15 @@ struct sh_link {
     bool lookahead;
     int32_t *la_r[2], *la_u[2]; size_t la_rcap[2], la_ucap[2];
     const sh_group *la_g; int la_n, la_buf;              /* ready: la_n pads of la_g in buffer la_buf */
-    const sh_group *la_want_g; int la_want, la_in_use;   /* asked by the chunk loop; buffer the running chunk reads */
+    int la_in_use;                                       /* the buffer the running chunk reads, -1 none */
     uint64_t la_imported;
+    /* The helper thread that imports them (la_main): one job at a time, posted by the chunk
+     * loop and collected before the chunk it is for. It writes only the job's buffer and the
+     * job_* results; the request thread copies those to la_* in la_collect. */
+    pthread_t la_thread; bool la_thread_on, la_quit; pthread_mutex_t la_mu; pthread_cond_t la_cv;
+    int la_job;                                          /* 0 idle, 1 posted or running */
+    const sh_group *job_g; int job_want, job_target, job_n;
+    uint8_t *la_io;
     int8_t  *planes;  size_t planes_cap;
     uint8_t *gplanes; size_t gplanes_cap;
     int32_t *acc;     size_t acc_cap;
@@ -807,6 +814,13 @@ void sh_link_close(sh_link *l) {
     free(l->nodes); free(l->groups);
     free(l->rp); free(l->up); free(l->slots);
     free(l->r); free(l->u); free(l->planes); free(l->gplanes); free(l->acc); free(l->hdr);
+    if (l->la_thread_on) {
+        pthread_mutex_lock(&l->la_mu); l->la_quit = true; pthread_cond_broadcast(&l->la_cv); pthread_mutex_unlock(&l->la_mu);
+        pthread_join(l->la_thread, NULL);
+        pthread_mutex_destroy(&l->la_mu); pthread_cond_destroy(&l->la_cv);
+        l->la_thread_on = false;
+    }
+    free(l->la_io); l->la_io = NULL;
     for (int i = 0; i < 2; i++) {
         if (l->la_r[i]) { sp_wipe(l->la_r[i], l->la_rcap[i]); free(l->la_r[i]); }
         if (l->la_u[i]) { sp_wipe(l->la_u[i], l->la_ucap[i]); free(l->la_u[i]); }
@@ -2590,32 +2604,28 @@ typedef struct {
  * can run while the masked request travels. Nothing here touches the pipe or
  * a reply. The worker still has to pass the SAME unrelated-prime check before
  * the caller can use any output. */
-/* Inside a wide chunk's GPU window, on the request thread: take the NEXT chunk's
- * pads from the spill into the lookahead buffer the running chunk is not reading.
- * The ring cannot take them: its slots stay held until this chunk is unmasked, so
- * with a ring one chunk deep every chunk used to open its pads on the path, after
- * the window, serially (2026-10-17 host profile: 46% of the Z-Image DiT's critical
- * path). The spill I/O buffer is free here: this thread's own on-path import for
- * the running chunk finished before its request was sent. */
-static void la_fill(sh_link *l) {
-    const sh_group *g = l->la_want_g;
-    const int want = l->la_want;
-    l->la_want_g = NULL;
-    if (!g || want <= 0 || !l->threads_running || !l->spill_io || !spill_usable(l)) return;
-    const int target = l->la_in_use == 0 ? 1 : 0;
+/* The lookahead (SHIELDED_LOOKAHEAD=1). With a ring one chunk deep (POOL_DEPTH = MAX_M) the
+ * ring cannot take the next chunk's pads: its slots stay held until the running chunk is
+ * unmasked, so every wide chunk used to open its pads on the request thread, serially
+ * (2026-10-17 host profile: 46% of the Z-Image DiT's critical path). A helper thread now
+ * takes the next chunk's pads from the spill into the buffer the running chunk is not
+ * reading, while the running chunk masks, travels and unmasks. Each pad still serves one
+ * exchange: what the next chunk does not use is burned (la_n = 0), never reused. */
+static int la_import(sh_link *l, const sh_group *g, int want, int target, uint8_t *io) {
+    if (!g || want <= 0 || !io || !spill_usable(l)) return 0;
     if (ensure((void **)&l->la_r[target], &l->la_rcap[target], (size_t)want * g->K * sizeof(int32_t)) != SH_OK ||
-        ensure((void **)&l->la_u[target], &l->la_ucap[target], (size_t)want * g->u_len * sizeof(int32_t)) != SH_OK) return;
+        ensure((void **)&l->la_u[target], &l->la_ucap[target], (size_t)want * g->u_len * sizeof(int32_t)) != SH_OK) return 0;
     sh_group *gw = &l->groups[g - l->groups];
     int have = 0;
     while (have < want) {                                 /* a take moves at most SP_TAKE_MAX */
         uint64_t wid[SP_TAKE_MAX];
         uint32_t slot0 = 0;
         pthread_mutex_lock(&l->pool_mu);
-        const int n = spill_take(l, gw, want - have, &slot0, wid);
+        const int n = spill_usable(l) ? spill_take(l, gw, want - have, &slot0, wid) : 0;
         pthread_mutex_unlock(&l->pool_mu);
         if (n <= 0) break;
         const int rc = sh_spill_read(l->spill, (size_t)(g - l->groups), slot0, n, wid,
-                                     l->la_r[target] + (size_t)have * g->K, l->la_u[target] + (size_t)have * g->u_len, l->spill_io);
+                                     l->la_r[target] + (size_t)have * g->K, l->la_u[target] + (size_t)have * g->u_len, io);
         pthread_mutex_lock(&l->pool_mu);
         spill_retire(l, gw, slot0, n);
         if (rc == SH_OK) l->la_imported += (uint64_t)n;
@@ -2624,13 +2634,56 @@ static void la_fill(sh_link *l) {
         if (rc != SH_OK) break;                           /* these are burned; the next chunk makes up the rest */
         have += n;
     }
-    if (have > 0) { l->la_g = g; l->la_n = have; l->la_buf = target; }
+    return have;
+}
+static void *la_main(void *arg) {
+    sh_link *l = (sh_link *)arg;
+    pthread_mutex_lock(&l->la_mu);
+    for (;;) {
+        while (!l->la_quit && l->la_job != 1) pthread_cond_wait(&l->la_cv, &l->la_mu);
+        if (l->la_quit) break;
+        const sh_group *g = l->job_g; const int want = l->job_want, target = l->job_target;
+        pthread_mutex_unlock(&l->la_mu);
+        const int n = la_import(l, g, want, target, l->la_io);
+        pthread_mutex_lock(&l->la_mu);
+        l->job_n = n; l->la_job = 0;
+        pthread_cond_broadcast(&l->la_cv);
+    }
+    pthread_mutex_unlock(&l->la_mu);
+    return NULL;
+}
+/* Request thread: wait for the posted job, then its pads are the next chunk's. */
+static void la_collect(sh_link *l) {
+    if (!l->la_thread_on) return;
+    pthread_mutex_lock(&l->la_mu);
+    while (l->la_job == 1) pthread_cond_wait(&l->la_cv, &l->la_mu);
+    if (l->job_g && l->job_n > 0) { l->la_g = l->job_g; l->la_n = l->job_n; l->la_buf = l->job_target; }
+    l->job_g = NULL; l->job_n = 0;
+    pthread_mutex_unlock(&l->la_mu);
+}
+/* Request thread: the next chunk's pads, into the buffer the coming chunk will not read. */
+static void la_post(sh_link *l, const sh_group *g, int want) {
+    if (!l->la_thread_on) {
+        if (!l->spill || !(l->la_io = sh_spill_io_alloc(l->spill))) { l->lookahead = false; return; }
+        pthread_mutex_init(&l->la_mu, NULL); pthread_cond_init(&l->la_cv, NULL);
+        l->la_quit = false; l->la_job = 0;
+        if (pthread_create(&l->la_thread, NULL, la_main, l) != 0) {
+            pthread_mutex_destroy(&l->la_mu); pthread_cond_destroy(&l->la_cv);
+            free(l->la_io); l->la_io = NULL; l->lookahead = false; return;
+        }
+        l->la_thread_on = true;
+    }
+    pthread_mutex_lock(&l->la_mu);
+    l->job_g = g; l->job_want = want; l->job_n = 0;
+    l->job_target = l->la_n > 0 ? 1 - l->la_buf : 0;     /* la_buf is what the coming chunk reads */
+    l->la_job = 1;
+    pthread_cond_broadcast(&l->la_cv);
+    pthread_mutex_unlock(&l->la_mu);
 }
 
 /* The window with no RHS to compute: the hook alone. Same contract. */
 static void sh_idle_only(void *ctx) {
     sh_link *l = ((sh_verify_work *)ctx)->link;
-    la_fill(l);
     if (l->idle_fn) l->idle_fn(l->idle_ctx);
 }
 static void sh_verify_rhs(void *ctx) {
@@ -2647,7 +2700,6 @@ static void sh_verify_rhs(void *ctx) {
     /* Then the backend's deferred work, if it registered any. Ordering is
      * deliberate: the RHS is what the window exists for and must not be
      * displaced by an optional passenger. */
-    la_fill(l);
     if (l->idle_fn) l->idle_fn(l->idle_ctx);
     w->ran = 1;
     l->profile.rhs_ms += w->elapsed_ms;
@@ -2767,15 +2819,15 @@ int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
             const int64_t row = y_stride && y_stride[i] ? y_stride[i] : l->nodes[nodes[i]].N;
             yp[i] = y_out[i] + (size_t)at * (size_t)row;
         }
-        if (l->lookahead) {                              /* la_fill takes the next chunk's pads in this one's window */
+        if (l->lookahead && l->threads_running && spill_usable(l)) {
+            la_collect(l);                               /* this chunk's pads, if a job took them */
             const int32_t next = m - at - rows;
-            l->la_want_g = next > 0 ? g : NULL;
-            l->la_want = next < step ? next : step;
+            if (next > 0) la_post(l, g, next < step ? next : step);
         }
         const int rc = sh_link_gemm_stride_one(l, nodes, n_nodes, x_field + (size_t)at * (size_t)g->K, rows, yp, y_stride);
-        if (rc != SH_OK) { l->la_want_g = NULL; l->la_n = 0; return rc; }
+        if (rc != SH_OK) { la_collect(l); l->la_n = 0; return rc; }
     }
-    l->la_want_g = NULL; l->la_n = 0;                    /* nothing outlives the wide matmul */
+    la_collect(l); l->la_n = 0;                          /* nothing outlives the wide matmul */
     return SH_OK;
 }
 
