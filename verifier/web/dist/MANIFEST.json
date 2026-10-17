@@ -1,8 +1,8 @@
 {
  "artifact": {
   "file": "enclave-verifier-web.js",
-  "bytes": 254034,
-  "sha256": "e83f958d5f0f980fd2a6b16769a7f9441be4bb63df3244ed335f86bda0519f16"
+  "bytes": 265096,
+  "sha256": "e2d85f4891ca4a62f08a979cadf12461dd6d80ff893ca84e02ddf2d81e18cc54"
  },
  "build": {
   "tool": "esbuild",
@@ -438,8 +438,8 @@
   },
   {
    "path": "verifier/web/index.mjs",
-   "bytes": 8383,
-   "sha256": "698d54c0729a57f36b8e4829ae0bc7dc6ff5963aea0c363f8ce9a6fb165589fa"
+   "bytes": 9876,
+   "sha256": "e9d1af967be4bb90f553680b81a762b2c698a302adf421a453e3cb13cfd8d74a"
   },
   {
    "path": "verifier/web/provider.mjs",
@@ -470,6 +470,11 @@
    "path": "verifier/web/shims/node-crypto.mjs",
    "bytes": 991,
    "sha256": "c9852c965dc3fbf01e9bca3e39c81f8391f9239fb3c9296ac2f857149d83c953"
+  },
+  {
+   "path": "verifier/web/snp-app.mjs",
+   "bytes": 16883,
+   "sha256": "72f0403de7d4b211074dcfdc93a827fb82b46d38e3a5194ad479bffc26079112"
   },
   {
    "path": "verifier/web/tpm-certs.mjs",

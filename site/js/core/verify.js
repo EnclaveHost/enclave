@@ -77,18 +77,23 @@ export function verifyBoxInBrowser(name, { apiOrigin = API_ORIGIN, mode = "snp" 
   return entry.promise;
 }
 
-// ONE app's Enclave Shield partition, verified in this browser (verifier/web shield-app.mjs): the host's TPM-quoted boot first,
-// with a credential this page mints, then the app guest's report under that boot's VSM identity key, over a fresh nonce.
+// ONE app's own isolated VM, verified in this browser:
+//   hv-node  its Enclave Shield partition (verifier/web shield-app.mjs): the host's TPM-quoted boot first, with a credential
+//            this page mints, then the app guest's report under that boot's VSM identity key, over a fresh nonce.
+//   snp      its own SEV-SNP guest (verifier/web snp-app.mjs): the server's AMD report first, then the app guest's, fetched
+//            from the app's own origin over a fresh nonce, bound to the key its TLS certificate carries, on the same chip.
 // One run per deployment at a time; a result is reused for 60 s (the relay allows one report per app every 30 s).
+const APP_VERIFIERS = { "hv-node": ["verifyShieldAppWeb", "an Enclave Shield app"], snp: ["verifySnpAppWeb", "an app on a confidential server"] };
+export const appVerifiable = (mode) => !!APP_VERIFIERS[mode];
 const _appCache = new Map();   // deployment id -> { at, promise }
-export function verifyAppInBrowser(name, deployment, { apiOrigin = API_ORIGIN } = {}) {
+export function verifyAppInBrowser(name, deployment, { apiOrigin = API_ORIGIN, mode = "hv-node" } = {}) {
   const key = String(deployment).toLowerCase(), hit = _appCache.get(key);
   if (hit && (Date.now() - hit.at < 60_000 || !hit.done)) return hit.promise;
   const entry = { at: Date.now(), done: false };
   entry.promise = (async () => {
-    const mod = await import(LV_VERIFIER_URL);
-    if (typeof mod.verifyShieldAppWeb !== "function") throw new Error("this page's verifier cannot check an Enclave Shield app yet");
-    return mod.verifyShieldAppWeb({ apiBase: apiOrigin, name, deployment: key });
+    const mod = await import(LV_VERIFIER_URL), [fn, what] = APP_VERIFIERS[mode] || [];
+    if (!fn || typeof mod[fn] !== "function") throw new Error("this page's verifier cannot check " + (what || "this kind of app") + " yet");
+    return mod[fn]({ apiBase: apiOrigin, name, deployment: key });
   })().finally(() => { entry.done = true; entry.at = Date.now(); });
   entry.promise.catch(() => _appCache.delete(key));
   _appCache.set(key, entry);

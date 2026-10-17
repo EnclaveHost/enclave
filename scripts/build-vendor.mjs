@@ -122,7 +122,7 @@ await build({
 const must = [
   ["webauthn.js", ["startRegistration", "startAuthentication"]],
   ["walletconnect.js", ["EthereumProvider"]],
-  ["enclave-verifier.js", ["verifyMetalBoxWeb", "verifyEvidenceWeb", "verifyPvmHostWeb", "verifyShieldHostWeb", "verifyShieldAppWeb"]],
+  ["enclave-verifier.js", ["verifyMetalBoxWeb", "verifyEvidenceWeb", "verifyPvmHostWeb", "verifyShieldHostWeb", "verifyShieldAppWeb", "verifySnpAppWeb"]],
   ["sessions.js", ["newSessionKey", "buildGrant", "openSession", "IndexedDbStore", "RelayClient", "sessionFromRecord",
     "decodeGrantRequest", "describeGrant", "ownerOperation", "topUpFromWallet", "usdcDomain", "chainClient", "readSession",
     "delegationStatus", "setDelegateCall"]],

@@ -30,6 +30,7 @@ Build tool, not distributed in the bundle: esbuild 0.28.1 (MIT).
 - `verifier/web/shield-host.mjs`
 - `verifier/web/shims/buffer-global.mjs`
 - `verifier/web/shims/node-crypto.mjs`
+- `verifier/web/snp-app.mjs`
 - `verifier/web/tpm-certs.mjs`
 - `verifier/web/tpm-credential.mjs`
 - `verifier/web/x509.mjs`

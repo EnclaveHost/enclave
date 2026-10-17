@@ -33,6 +33,7 @@ import { appShareLabel } from "../../js/core/app-resources.js";
 import { shareEditor } from "../../js/core/share-editor.js";
 import { resourceOverview } from "../../js/core/resource-overview.js";
 import { vspecOf, boxOfEndpoint, verifyBoxInBrowser, verdictBadge, verificationHtml, boxModeOf, verifyAppInBrowser } from "../../js/core/verify.js";
+import { protectionOf } from "../../js/core/protection.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
 import { moveLeaseLive, prepareDeploymentMove } from "../../js/core/deployment-move.js";
@@ -851,7 +852,8 @@ class Deployments extends EnclaveElement {
           (shareText || d.enclave ? '<span class="enc-meta">' + (shareText ? '<span class="enc-allocation">' + esc(shareText) + '</span>' : '')
             // which box serves it (relay stamps `enclave` on live-hosted and
             // lease-held rows alike; absent while queued/stopped - nothing runs it)
-            + (d.enclave ? (shareText ? ' · ' : '') + '<span class="dim enc-host" title="the enclave this app runs on">on ' + esc(d.enclave) + '</span>' : '') + '</span>' : '') +
+            + (d.enclave ? (shareText ? ' · ' : '') + '<span class="dim enc-host" title="the enclave this app runs on">on ' + esc(d.enclave) + '</span>'
+              + ' <span class="ap-badge enc-prot" data-prot="' + esc(d.enclave) + '" hidden></span>' : '') + '</span>' : '') +
           '<span class="enc-spend">' + bud + '</span>' +
           (runwayPct != null ? '<span class="enc-meter' + (runwaySec < RUNWAY_LOW ? ' low' : '') + '" title="' + esc(fmtDur(runwaySec)) + ' of paid runtime left · full bar = 48h" aria-hidden="true"><b style="width:' + runwayPct + '%"></b></span>' : '') +
           // the acts row holds only IMMEDIATE actions; everything that opens a
@@ -944,6 +946,11 @@ class Deployments extends EnclaveElement {
     $$(".enc-dom[data-id]", body).forEach(el => this._domainsWire(el));
     $$(".enc-mobbtn", body).forEach(b => b.addEventListener("click", () => this._mobile(b.dataset.id, b)));
     $$(".enc-verify", body).forEach(b => b.addEventListener("click", () => this._verify(b.dataset.id, b)));
+    // what the host running each deployment protects (core/protection.js), from the relay's verdict on how it attached
+    $$(".enc-prot[data-prot]", body).forEach(el => boxModeOf(el.dataset.prot).then((mode) => {
+      const p = protectionOf(mode); if (!p || !el.isConnected) return;
+      el.className = "ap-badge " + p.cls + " enc-prot"; el.textContent = p.label; el.title = p.line; el.hidden = false;
+    }).catch(() => {}));
     $$(".enc-kill", body).forEach(b => b.addEventListener("click", () => this._kill(b.dataset.id, b)));
     $$(".enc-refund", body).forEach(b => b.addEventListener("click", () => this._refund(b.dataset.id, b)));
     $$(".enc-resume", body).forEach(b => b.addEventListener("click", () => this._resume(b.dataset.id, b)));
@@ -2639,16 +2646,23 @@ class Deployments extends EnclaveElement {
     if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
     box.hidden = false;
     btn.setAttribute("aria-expanded", "true");
-    // an app on an Enclave Shield host: its partition is verified from public evidence, so no session is needed
+    // Checks that need no session, for every account (wallet, card credit, order):
+    //   - an app's OWN isolated VM, from public evidence: an Enclave Shield partition, or a public deployment's own
+    //     SEV-SNP guest (read from the app's public address, so a private deployment cannot take this one);
+    //   - a phone host's own protected VM (a per-app pVM check in the browser does not exist yet, and the note says so);
+    //   - a private card deployment on a confidential server: the server itself, with the same honest note.
     const dep = (this._list || []).find(x => x.id === id);
-    if (dep && dep.enclave && /^0x[0-9a-f]{64}$/i.test(id) && await boxModeOf(dep.enclave).catch(() => null) === "hv-node")
-      return this._attestShield(id, box, dep.enclave);
+    const mode = dep && dep.enclave && /^0x[0-9a-f]{64}$/i.test(id) ? await boxModeOf(dep.enclave).catch(() => null) : null;
+    if (mode === "hv-node" || (mode === "snp" && dep.public)) return this._attestApp(id, box, dep.enclave, mode);
+    if (mode === "avf") return this._attestHost(id, box, dep.enclave, mode,
+      "This checks the phone's own protected VM. Each app runs in a protected VM of its own, which the relay checks when it starts; checking an app's own VM in your browser is not available yet.");
+    if (mode === "snp" && ctlOf(dep) !== "wallet") return this._attestHost(id, box, dep.enclave, mode,
+      "This checks the confidential server. Checking this app's own SEV-SNP guest in your browser reads the app's public address, which a private deployment does not have.");
     if (ctlOf((this._list || []).find(x => x.id === id)) !== "wallet"){
-      // vault/order rows: the per-deployment attestation read rides an
-      // in-enclave wallet session the account doesn't hold - honest note
-      // (ERC-1271 passkey sessions are the tracked follow-up)
+      // vault/order rows reach here only when no attached host holds the deployment (every attached kind of host is
+      // checked above without a session); the session-based attestation read below is a wallet's
       box.innerHTML = '<div class="ap-attbar">attestation · ' + esc(id) + '</div>'
-        + '<div class="term"><span class="ln dimln">// in-browser attestation verification for credit-run deployments is coming soon - today the attestation read rides an in-enclave wallet session. The same hardware guarantees protect this deployment; verification just can’t be shown here yet.</span></div>';
+        + '<div class="term"><span class="ln dimln">// no attached host is running this deployment right now, so there is nothing to verify yet. Once a host claims it, Verify checks that host (and, on a confidential server or an Enclave Shield host, this app’s own VM) in your browser.</span></div>';
       return;
     }
     if (!this._hostAuthed(id)) return this._lockedAttest(id, box);
@@ -2666,14 +2680,31 @@ class Deployments extends EnclaveElement {
       catch(e){ showToast(e.message || String(e)); }
     });
   }
-  /* An Enclave Shield app, verified in this browser (core/verify.js verifyAppInBrowser): the host's TPM-quoted boot with a
-     credential this page mints, then this app's partition report under that boot's VSM identity key, over a fresh nonce. */
-  async _attestShield(id, box, name) {
-    box.innerHTML = '<div class="ap-attbar">attestation · ' + esc(id) + '<span class="enc-vbadge">⏳ verifying the host, then this app\u2019s partition, in your browser…</span></div>'
+  /* One app's own VM, verified in this browser (core/verify.js verifyAppInBrowser). Enclave Shield: the host's TPM-quoted boot
+     with a credential this page mints, then this app's partition report under that boot's VSM identity key. Confidential
+     server: the server's AMD report, then this app's own SEV-SNP guest report from its public address, on the same chip.
+     Both over fresh nonces this page draws. */
+  async _attestApp(id, box, name, mode) {
+    const what = mode === "snp" ? "the server, then this app\u2019s own SEV-SNP guest" : "the host, then this app\u2019s partition";
+    box.innerHTML = '<div class="ap-attbar">attestation · ' + esc(id) + '<span class="enc-vbadge">⏳ verifying ' + what + ', in your browser…</span></div>'
       + '<div class="enc-shield-v"></div>';
     const badge = box.querySelector(".enc-vbadge"), out = box.querySelector(".enc-shield-v");
     try {
-      const r = await verifyAppInBrowser(name, id);
+      const r = await verifyAppInBrowser(name, id, { mode });
+      if (box.hidden || !box.isConnected) return;
+      const b = verdictBadge(r);
+      badge.className = "enc-vbadge " + b.cls; badge.textContent = b.text; badge.title = b.title;
+      out.innerHTML = verificationHtml(name, r);
+    } catch (e) { if (!box.hidden && box.isConnected){ badge.className = "enc-vbadge bad"; badge.textContent = "✗ could not verify: " + (e.message || e); } }
+  }
+  /* The HOST this deployment runs on, verified in this browser from public evidence (no session), with a note saying plainly
+     that it is the host and not the app's own VM. */
+  async _attestHost(id, box, name, mode, note) {
+    box.innerHTML = '<div class="ap-attbar">attestation · ' + esc(id) + '<span class="enc-vbadge">⏳ verifying the host, in your browser…</span></div>'
+      + '<div class="term"><span class="ln dimln">// ' + esc(note) + '</span></div><div class="enc-shield-v"></div>';
+    const badge = box.querySelector(".enc-vbadge"), out = box.querySelector(".enc-shield-v");
+    try {
+      const r = await verifyBoxInBrowser(name, { mode });
       if (box.hidden || !box.isConnected) return;
       const b = verdictBadge(r);
       badge.className = "enc-vbadge " + b.cls; badge.textContent = b.text; badge.title = b.title;

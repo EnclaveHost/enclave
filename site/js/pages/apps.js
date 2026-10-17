@@ -22,6 +22,7 @@ import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf, pe
 import { STORE, loadCatalog, noteCatalogWrite, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, specOf, fetchConfigCid, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia, signedUploadToken, putConfig, cpuFallbackOfConfig } from "../core/catalog.js";
 import { minPctsOf, startSharesFor, shareRates, pickEnclaveFor, rankEnclavesFor, liftSharesForLedger } from "../core/pricing.js";
 import { appResources } from "../core/app-resources.js";
+import { protectionOf, PROTECTION_DOC } from "../core/protection.js";
 import { navigate } from "../boot.js";
 
 /* ---- render: filter + sort the catalog into <c-app-card>s ---- */
@@ -484,10 +485,11 @@ function quickDeploy(app, v, idx){
   host.innerHTML =
     '<div class="qd-card" role="dialog" aria-modal="true" aria-label="Deploy ' + esc(app.name || app.slug) + '">' +
       '<div class="qd-h">Deploy <b>' + esc(app.name || app.slug) + '</b> <span class="qd-ver">' + esc(v.version) + '</span></div>' +
-      '<p class="qd-sub">Runs in its own confidential enclave on <b class="qd-shares"></b> at <b class="qd-rate">$' + perHr + '/hr</b>. ' +
+      '<p class="qd-sub">Runs in a VM of its own on <b class="qd-shares"></b> at <b class="qd-rate">$' + perHr + '/hr</b>. ' +
         (acct ? 'It runs on your credit - it runs until the time you bought is used up, and you can top up or stop it whenever you like.'
               : 'Fund it from your wallet - it runs until the time you bought is used up, and you can top up or stop it whenever you like.') + '</p>' +
       '<p class="qd-sub qd-target" hidden></p>' +
+      '<p class="qd-sub qd-prot" hidden></p>' +
       '<p class="qd-sub qd-fee" hidden></p>' +
       '<div class="qd-bal"><span>' + (acct ? 'Your credit' : 'Your wallet') + '</span><b class="qd-balv">…</b><button class="qd-connect btn btn-sm" type="button" hidden>Connect wallet</button></div>' +
       '<label class="qd-lbl" for="qdAmt">Amount to fund (' + (acct ? 'USD' : 'USDC · 0 = create now, fund later') + ')</label>' +
@@ -628,8 +630,23 @@ function quickDeploy(app, v, idx){
     }
     return { ...ranked[0], ranked, picked: false };
   };
+  // WHAT the chosen host protects, in the threat model's words (core/protection.js). The pick is a preference, not a
+  // binding: any eligible host may claim the deployment first, so the other kinds that could are named too, and the
+  // dashboard row then shows the host that did.
+  const paintProtection = (t) => {
+    const pEl = host.querySelector(".qd-prot"); if (!pEl) return;
+    const p = t && !t.none && protectionOf(t.row && t.row.mode);
+    pEl.hidden = !p; if (!p) { pEl.innerHTML = ""; return; }
+    const others = [...new Set((t.ranked || [t]).map((c) => c.row && c.row.mode))].filter((m) => m && m !== t.row.mode)
+      .map((m) => protectionOf(m)).filter(Boolean).map((x) => x.label);
+    pEl.innerHTML = "Protection on " + esc(t.name) + ': <span class="qd-prot-k">' + esc(p.label) + "</span>"
+      + '<span class="qd-prot-d">' + esc(p.line) + "</span>"
+      + '<span class="qd-prot-d">' + (others.length ? "Another eligible host may take it first (" + esc(others.join(" or ")) + "); your dashboard shows which host did. " : "")
+      + '<a href="' + PROTECTION_DOC + '" target="_blank" rel="noopener">What each host protects ↗</a></span>';
+  };
   const applyTarget = (t) => {
     target = t;
+    paintProtection(t);
     const tEl = host.querySelector(".qd-target");
     if (!t){ capTarget = null; if (tEl) tEl.hidden = true; capCheck(); recalc(); return; }
     if (t.none){
