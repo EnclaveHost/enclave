@@ -73,6 +73,7 @@ static void sp_wipe(void *p, size_t n) { volatile uint8_t *v = (volatile uint8_t
  * and for every tail, the scalar block. */
 static pthread_once_t sp_aead_once = PTHREAD_ONCE_INIT;
 static bool sp_aead_vec;
+static bool sp_unpack_vec;   /* VBMI, set by sp_aead_admit */
 
 static uint32_t sp_ld32(const uint8_t *p) { return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24; }
 #define SP_ROTL(v, c) (((v) << (c)) | ((v) >> (32 - (c))))
@@ -136,6 +137,8 @@ static int sp_open_with(const uint8_t key[32], const uint8_t nonce[12], const ui
 
 /* Sealed by the vector body == sealed by sh_aead_seal, and each opens the other's box,
  * over lengths that cover whole 1 KiB groups, tails, and a 1-byte message. */
+static bool sp_pack24(const int32_t *u, int64_t n, uint8_t *p);
+static bool sp_unpack24(const uint8_t *p, int64_t n, int32_t *u);
 static void sp_aead_admit(void) {
 #if !defined(__aarch64__)
     __builtin_cpu_init();
@@ -161,6 +164,25 @@ static void sp_aead_admit(void) {
     if (o) { sp_wipe(o, most); free(o); }
     free(a); free(b);
     sp_aead_vec = ok;
+    /* The unpack, against the scalar loop over every field edge and random values. */
+    if (__builtin_cpu_supports("avx512vbmi")) {
+        enum { N = 4099 };
+        static int32_t want[N], got[N];
+        static uint8_t packed[3 * N];
+        uint32_t rnd[N];
+        bool same = sp_random(rnd, sizeof rnd);
+        for (int i = 0; same && i < N; i++) {
+            const int32_t v = i < 6 ? (int32_t[]){-SH_HALF_M, SH_HALF_M, 0, -1, 1, SH_HALF_M - 1}[i] : (int32_t)(rnd[i] % (uint32_t)SH_M_MOD) - SH_HALF_M;
+            want[i] = v;
+        }
+        same = same && sp_pack24(want, N, packed);
+        sp_unpack_vec = true;
+        same = same && sp_unpack24(packed, N, got) && !memcmp(want, got, sizeof want);
+        packed[3 * 100 + 2] = 0x7f;                       /* out of range: refused */
+        same = same && !sp_unpack24(packed, N, got);
+        sp_unpack_vec = same;
+        if (!same) fprintf(stderr, "[shielded] pad spill: the vector unpack disagrees with the scalar one; using the scalar\n");
+    }
     if (!ok) fprintf(stderr, "[shielded] pad spill: the vector AEAD disagrees with the scalar one; using the scalar\n");
 #endif
 }
@@ -375,8 +397,13 @@ static bool sp_pack24(const int32_t *u, int64_t n, uint8_t *p) {
     }
     return true;
 }
+
 static bool sp_unpack24(const uint8_t *p, int64_t n, int32_t *u) {
-    for (int64_t i = 0; i < n; i++) {
+    int64_t i = 0;
+#if !defined(__aarch64__)
+    if (sp_unpack_vec) { i = sh_simd_avx512_unpack24(p, n, u); if (i < 0) return false; }
+#endif
+    for (; i < n; i++) {
         const int32_t raw = (int32_t)((uint32_t)p[3 * i] | (uint32_t)p[3 * i + 1] << 8 | (uint32_t)p[3 * i + 2] << 16);
         const int32_t v = (raw ^ 0x800000) - 0x800000;
         if (v < -SH_HALF_M || v > SH_HALF_M) return false;
