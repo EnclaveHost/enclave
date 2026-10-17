@@ -11,7 +11,11 @@ const TTL = 300000, REFRESH = 60000;
 // to expire on its own TTL (never extended); anything else revokes it now. One
 // such blip used to drop a verified app from DNS until a later round passed.
 const TRANSIENT = [/^RPC Request failed/, /^HTTP request failed/, /^The request took too long to respond/, /^Request timed out/, /^fetch failed/,
-  /^Shield verification busy; retry shortly$/, /^no bounded app proof from the live node$/, /^catalog component could not be CID-verified$/];
+  /^Shield verification busy; retry shortly$/, /^no bounded app proof from the live node$/, /^catalog component could not be CID-verified$/,
+  // too few RPCs ANSWERED a quorum read (measurement-predict.mjs agreeingRead): a provider blip, not an answer. RPCs that
+  // answered and DISAGREE are not here: that stays a hard failure (2026-10-17 13:08:19Z: one round of "only 1 of 3"
+  // dropped ipns-publisher from DNS at once)
+  /^only \d+ of \d+ RPCs answered /];
 export const transientAdmissionError = message => TRANSIENT.some(pattern => pattern.test(String(message || '')));
 export const fingerprint = d => JSON.stringify([d.id, d.runner, d.appRef, d.configCid, d.isPublic,
   Number(d.cpuMilli), Number(d.gpuMilli), d.active, String(d.owner || "").toLowerCase()]);
