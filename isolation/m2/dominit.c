@@ -665,6 +665,19 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = "SHIELDED_POOL_DEPTH=64";
             envp[ei++] = "SHIELDED_REFILL_THREADS=6";      /* of the guest's 8 vCPUs */
             envp[ei++] = "SHIELDED_REFILL_BATCH=64";
+            /* Latency profile (2026-10-17, host Z-Image 512px/4: DiT 24.2 -> 12.2 s a step, the
+             * same PNG byte for byte): spill mints 256 rows per weight pass (the source re-encode
+             * is paid once per mint), the vector mask stream and CRT refill the 27B already uses,
+             * and the lookahead: a helper takes the next wide chunk's pads from the spill while
+             * the running chunk is on the GPU, so no chunk opens its own pads on the path. */
+            envp[ei++] = "SHIELDED_PAD_SPILL_BATCH=256";
+            envp[ei++] = "SHIELDED_MASK_CHACHA16=1";
+            envp[ei++] = "SHIELDED_REFILL_VECTOR_CRT=1";
+            envp[ei++] = "SHIELDED_LOOKAHEAD=1";
+            /* stable-diffusion.cpp: RoPE in one fused pass (bit-identical), and the measured tiny
+             * autoencoder (TAEF1, FLUX.1's latent space, which Z-Image uses) for the decode. */
+            envp[ei++] = "SD_ROPE_FUSED=1";
+            if (access("/rt/taef1.safetensors", R_OK) == 0) envp[ei++] = "ENCLAVE_SD_TAESD_FILE=/rt/taef1.safetensors";
             /* Lossless bit-packed encodings (the 27B's qualified memory profile). With the
              * measured source-weights marker, no encoded copy at all: refills re-encode
              * from the private verified model (~4.6 GiB less, more refill CPU). */
@@ -676,6 +689,9 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = "SHIELDED_WEIGHT_BUDGET_FRAC=0.95";
             if (spill_fd == SHIELD_SPILL_FD) {
                 envp[ei++] = "SHIELDED_PAD_SPILL=fd:197";
+                /* Mint only while idle: a request takes its pads from the spill, and minting
+                 * beside it took three of the guest's eight vCPUs (half the request's CPU). */
+                envp[ei++] = "SHIELDED_PAD_SPILL_BUSY_THREADS=0";
                 envp[ei++] = "ENCLAVE_SHIELD_PERF_HEADER=1";
                 envp[ei++] = "SHIELDED_PROFILE_LAYOUT=pads";
             }
