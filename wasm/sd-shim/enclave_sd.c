@@ -140,6 +140,13 @@ void *esd_load_model(const char *model_path,
         const char *mm = getenv("ENCLAVE_SD_MMAP");
         p.enable_mmap = mm && mm[0] == '1' && mm[1] == 0;
     }
+    /* ENCLAVE_SD_TAESD_FILE: decode with the tiny autoencoder at this path (TAEF1 for the
+     * FLUX.1 VAE that Z-Image uses) instead of the full VAE: ~1/50th of the decoder's work,
+     * which on a CPU-only decode (a Shield guest) was a quarter of the image time. */
+    {
+        const char *tae = getenv("ENCLAVE_SD_TAESD_FILE");
+        if (tae && tae[0]) p.taesd_path = tae;
+    }
     if (wtype && wtype[0]) {
         p.wtype = str_to_sd_type(wtype);
         if (p.wtype >= SD_TYPE_COUNT) {
