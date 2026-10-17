@@ -137,6 +137,49 @@ void sh_simd_avx512_mask_stream(const uint32_t key[8], uint64_t ctr, int32_t *ou
         n -= take; out += take; ctr += 16;
     }
 }
+
+/* RFC 8439 ChaCha20 (32-bit block counter, 96-bit nonce), sixteen blocks per
+ * iteration: out = in XOR keystream from block `counter` on. The pad spill's
+ * AEAD body (shielded-spill.inc), whose link admits it only after it matched
+ * the scalar AEAD byte for byte. Whole 1 KiB groups only: returns the bytes
+ * done, the caller finishes the tail with the scalar block. */
+size_t sh_simd_avx512_chacha_ietf_xor(const uint8_t key[32], uint32_t counter, const uint8_t nonce[12],
+                                      const uint8_t *in, uint8_t *out, size_t n) {
+    size_t whole = n / 1024 * 1024;
+    if (whole / 64 > (size_t)(UINT32_MAX - counter)) whole = 0;      /* never wrap the block counter */
+    uint32_t k[8], nw[3];
+    memcpy(k, key, sizeof k); memcpy(nw, nonce, sizeof nw);          /* little-endian words, as ld32 */
+    __m512i initial[16], x[16];
+    initial[0] = _mm512_set1_epi32(0x61707865);
+    initial[1] = _mm512_set1_epi32(0x3320646e);
+    initial[2] = _mm512_set1_epi32(0x79622d32);
+    initial[3] = _mm512_set1_epi32(0x6b206574);
+    for (int i = 0; i < 8; i++) initial[4 + i] = _mm512_set1_epi32((int)k[i]);
+    for (int i = 0; i < 3; i++) initial[13 + i] = _mm512_set1_epi32((int)nw[i]);
+    const __m512i lane = _mm512_set_epi32(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
+    const __m512i stride = _mm512_mullo_epi32(lane, _mm512_set1_epi32(16));
+    uint32_t words[16 * 16];
+    for (size_t off = 0; off < whole; off += 1024, counter += 16) {
+        initial[12] = _mm512_add_epi32(_mm512_set1_epi32((int)counter), lane);
+        for (int i = 0; i < 16; i++) x[i] = initial[i];
+        for (int i = 0; i < 10; i++) {
+            SH_CHACHA16_QR(x[0],x[4],x[8],x[12]); SH_CHACHA16_QR(x[1],x[5],x[9],x[13]);
+            SH_CHACHA16_QR(x[2],x[6],x[10],x[14]); SH_CHACHA16_QR(x[3],x[7],x[11],x[15]);
+            SH_CHACHA16_QR(x[0],x[5],x[10],x[15]); SH_CHACHA16_QR(x[1],x[6],x[11],x[12]);
+            SH_CHACHA16_QR(x[2],x[7],x[8],x[13]); SH_CHACHA16_QR(x[3],x[4],x[9],x[14]);
+        }
+        /* words[16 * i + b] = word i of block b; block b's keystream is words b, 16 + b, ... */
+        for (int i = 0; i < 16; i++) _mm512_storeu_si512(words + 16 * i, _mm512_add_epi32(x[i], initial[i]));
+        for (int b = 0; b < 16; b++) {
+            const __m512i ks = _mm512_i32gather_epi32(_mm512_add_epi32(stride, _mm512_set1_epi32(b)), (const void *)words, 4);
+            const __m512i v = _mm512_loadu_si512(in + off + 64 * (size_t)b);
+            _mm512_storeu_si512(out + off + 64 * (size_t)b, _mm512_xor_si512(v, ks));
+        }
+    }
+    volatile uint32_t *w = words;                                    /* keystream off the stack */
+    for (size_t i = 0; i < 16 * 16; i++) w[i] = 0;
+    return whole;
+}
 #undef SH_CHACHA16_QR
 #endif
 
