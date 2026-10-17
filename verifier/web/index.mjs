@@ -111,3 +111,16 @@ export async function verifySnpAppWeb({ apiBase = "https://api.enclave.host", na
                             verifyBox: (n) => verifyMetalBoxWeb({ apiBase, name: n, fetchImpl, timeoutMs: Math.min(timeoutMs, 20000) }) },
                           { apiBase, name, deployment, expected, timeoutMs });
 }
+
+// ONE app's own protected VM on a phone host (verifier/web/pvm-app.mjs has the flow): the phone first (verifyPvmHostWeb),
+// then the app VM's evidence from the app's own origin over this page's nonce under the market's admission rules, the TLS key
+// its public certificate carries, and the phone link (its own VM, or a sibling recovering to the phone's proof key here).
+// verifyPvmAppWeb({ apiBase, name, deployment, expected?, fetchImpl?, timeoutMs? }) -> the Shield-app verdict shape
+import { verifyPvmAppWith } from "./pvm-app.mjs";
+import { verifyPvmHostWeb as _verifyPvmHostWeb } from "./pvm-host.mjs";
+export { PVM_APP_CHECK_ORDER, PVM_APP_CHECK_LABELS, PVM_APP_OMISSION_LABELS, checkSiblingWeb } from "./pvm-app.mjs";
+export async function verifyPvmAppWeb({ apiBase = "https://api.enclave.host", name, deployment, expected = null, fetchImpl = globalThis.fetch, timeoutMs = 45000 } = {}) {
+  return verifyPvmAppWith({ fetchImpl, now: () => new Date(), randomBytes: (n) => globalThis.crypto.getRandomValues(new Uint8Array(n)),
+                            verifyHost: (n) => _verifyPvmHostWeb({ apiBase, name: n, fetchImpl, timeoutMs: Math.min(timeoutMs, 30000) }) },
+                          { apiBase, name, deployment, expected, timeoutMs });
+}

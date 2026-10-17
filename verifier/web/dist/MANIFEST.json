@@ -1,8 +1,8 @@
 {
  "artifact": {
   "file": "enclave-verifier-web.js",
-  "bytes": 265096,
-  "sha256": "e2d85f4891ca4a62f08a979cadf12461dd6d80ff893ca84e02ddf2d81e18cc54"
+  "bytes": 281968,
+  "sha256": "77a10569e96d31e844f66580a2e1341e3bf7f2cf731e9e65daa489146fced892"
  },
  "build": {
   "tool": "esbuild",
@@ -322,6 +322,11 @@
    "sha256": "da2cde6823df4ae747e8da4cf1109a7fbee6eaae4d3f7763358acfa92bb628ac"
   },
   {
+   "path": "node_modules/@noble/curves/esm/secp256k1.js",
+   "bytes": 12723,
+   "sha256": "30943ee7362d12dcbb2ec8756055aa1b2d0246e1bea56288abcbf0aeb7969216"
+  },
+  {
    "path": "node_modules/@noble/hashes/esm/_md.js",
    "bytes": 6192,
    "sha256": "cefb1557e7715cb2117c83f82ef3e3175c7e0391c80bd5795b2d4effc45fc582"
@@ -345,6 +350,11 @@
    "path": "node_modules/@noble/hashes/esm/sha2.js",
    "bytes": 16832,
    "sha256": "e729088b82e5450bff54c3a0013582aa42e1fe8f58dd31f5967f6ebe34c52299"
+  },
+  {
+   "path": "node_modules/@noble/hashes/esm/sha3.js",
+   "bytes": 8770,
+   "sha256": "0260b46f92a3a94c7179958600d7f92469ef2c8f5d2e966bd9a838ff815713e9"
   },
   {
    "path": "node_modules/@noble/hashes/esm/utils.js",
@@ -438,8 +448,8 @@
   },
   {
    "path": "verifier/web/index.mjs",
-   "bytes": 9876,
-   "sha256": "e9d1af967be4bb90f553680b81a762b2c698a302adf421a453e3cb13cfd8d74a"
+   "bytes": 11134,
+   "sha256": "665622fc11987b8c7acf063c0fc3384e983701056676fe801631a9e8b2859b12"
   },
   {
    "path": "verifier/web/provider.mjs",
@@ -447,9 +457,14 @@
    "sha256": "9e4889830df6b6e9596c25e43fcb4c907da39a4837d288bdb695d5e50606e86a"
   },
   {
+   "path": "verifier/web/pvm-app.mjs",
+   "bytes": 19571,
+   "sha256": "2b53a22453566bde401a5ddfc3bea15b25bf149820da54cc181db7b89324fe65"
+  },
+  {
    "path": "verifier/web/pvm-host.mjs",
-   "bytes": 21954,
-   "sha256": "459c2bc8914fb9d91b78ce79f7b0da3c6196f849dc73e0a4d5e71f5743f856d6"
+   "bytes": 21961,
+   "sha256": "9eaec535c5d3109fe644bad4e7bf4d2d6afec4d6b0c6eba8884d8142143d8e2d"
   },
   {
    "path": "verifier/web/shield-app.mjs",

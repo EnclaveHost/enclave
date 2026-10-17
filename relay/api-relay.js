@@ -96,6 +96,7 @@ import { handleCerts, initCerts } from "./certs.js";
 import { createShieldMarketplace, fingerprint as deploymentFingerprint } from "./shield-marketplace.mjs";
 import { createShieldAppFresh, appsOn } from "./shield-app-fresh.mjs";
 import { createSnpAppFresh } from "./snp-app-fresh.mjs";
+import { createPvmAppFresh } from "./pvm-app-fresh.mjs";
 import { createPvmMarket } from "./pvm-market.mjs";
 import { createPvmSecretRelease } from "./pvm-secrets.mjs";
 import { claimCheapest, CLAIM_QUOTE_ABI } from "./cheapest-claim.mjs";
@@ -2404,6 +2405,15 @@ async function registryProofKey(id) {
 }
 const pvmMarket = createPvmMarket({ hub: tunnelHub, enabled: process.env.PVM_MARKET === "1", pins: PVM_CPU_POLICY, confirmRow, proofKeyOf: registryProofKey,
   readCatalog: catalogReader(catalogClients, catalogAddress), fetchVerified: (cid, max) => predictor().fetchVerified(cid, max) });
+// the pVM operator's allow-lists as a page sees them, on both fresh routes (the host VM's and one app VM's)
+const pvmOperatorAllowlist = () => ({ source: "this relay's PVM_CPU policy (PVM_CPU_CODE_HASHES / _AUTHORITY_HASHES / _RUNTIME_IDS: the operator's own word, not a reproduction)",
+  codeHashes: PVM_CPU_POLICY ? [...PVM_CPU_POLICY.codeHashes] : [], authorityHashes: PVM_CPU_POLICY ? [...PVM_CPU_POLICY.authorityHashes] : [],
+  runtimeIds: PVM_CPU_POLICY ? [...PVM_CPU_POLICY.runtimeIds] : [],
+  ...(AVF_HUB_ATTEST && AVF_HUB_ATTEST.rootPins ? { rootPins: [...AVF_HUB_ATTEST.rootPins] } : {}) });
+// the same for ONE app on a phone host: its own protected VM's evidence from the app's public origin, with the key that origin
+// presented, the expected app, the attach key and (for a sibling VM) the sibling statement and the box's proof key
+const pvmAppFresh = createPvmAppFresh({ hub: tunnelHub, market: pvmMarket, confirmRow, appDomain: APP_DOMAINS[0] || "",
+  operatorAllowlist: pvmOperatorAllowlist, appGapMs: Number(process.env.RELAY_FRESH_APP_GAP_MS || 30000) });
 // a pVM host's secrets: sealed to its VM, signed by the release key, never plaintext to the operator (relay/pvm-secrets.mjs)
 const pvmSecretRelease = createPvmSecretRelease({ hub: tunnelHub, market: pvmMarket, pins: PVM_CPU_POLICY, confirmRow,
   hostForEndpoint: (id) => live.find((e) => String(e.id).toLowerCase() === String(id).toLowerCase()) });
@@ -2739,7 +2749,8 @@ function handleRequest(req, res) {
                              return json(res, code, { error: e.code || "attestation_failed", message: e.message, ...(e.retryAfter ? { retryAfter: e.retryAfter } : {}) }, req); };
   // The public apps a box serves now (public ledger rows leased to it), and ONE app's fresh guest report over the caller's
   // nonce: a Shield app's partition report from its node, beside what this relay expects (relay/shield-app-fresh.mjs), or
-  // a confidential server's app guest report from the app's own origin (relay/snp-app-fresh.mjs).
+  // a confidential server's app guest report from the app's own origin (relay/snp-app-fresh.mjs), or a phone app's own
+  // protected VM evidence from the app's origin (relay/pvm-app-fresh.mjs).
   const appsAt = u.pathname.match(/^\/v1\/enclaves\/([A-Za-z0-9_-]{1,64})\/apps(?:\/(0x[0-9a-fA-F]{64})\/attestation)?$/);
   if (appsAt && req.method === "GET") return (async () => {
     const name = appsAt[1], host = live.find((e) => e.tunnel && e.name === name);
@@ -2751,8 +2762,8 @@ function handleRequest(req, res) {
     if (!rlFreshAttest(clientIp(req))) return json(res, 429, { error: "rate_limited", message: "Too many fresh attestations; retry in a few seconds." }, req);
     const nonceHex = String(u.searchParams.get("nonce") || "");
     if (!/^[0-9a-f]{64}$/.test(nonceHex)) return json(res, 422, { error: "bad_nonce", message: "nonce must be 64 lowercase hex characters (32 bytes) of your own choosing." }, req);
-    const appMode = host.mode === "snp" ? "snp" : "hv-node";
-    return (appMode === "snp" ? snpAppFresh : shieldAppFresh)(host, appsAt[2].toLowerCase(), Buffer.from(nonceHex, "hex")).then(
+    const appMode = host.mode === "snp" || host.mode === "avf" ? host.mode : "hv-node";
+    return ({ snp: snpAppFresh, avf: pvmAppFresh }[appMode] || shieldAppFresh)(host, appsAt[2].toLowerCase(), Buffer.from(nonceHex, "hex")).then(
       (r) => json(res, 200, { name, mode: appMode, deployment: appsAt[2].toLowerCase(), nonce: nonceHex, fetchedAt: new Date().toISOString(), ...r }, req),
       (e) => { const code = { no_box: 404, not_here: 404, no_origin: 404, not_configured: 404, bad_nonce: 422, bad_deployment: 422, busy: 503, timeout: 504 }[e.code] || 502;
                return json(res, code, { error: e.code || "attestation_failed", message: e.message, ...(e.retryAfter ? { retryAfter: e.retryAfter } : {}) }, req); });
@@ -2787,10 +2798,7 @@ function handleRequest(req, res) {
       return tunnelHub.pvmFreshEvidence(name, Buffer.from(nonceHex, "hex")).then(
         ({ document, transportKey }) => json(res, 200, { name, mode: "avf", nonce: nonceHex, fetchedAt: new Date().toISOString(), document, attachTransportKey: transportKey,
           scope: "the HOST VM only (the host's own idle app): this is never evidence for any deployment on the box",
-          operatorAllowlist: { source: "this relay's PVM_CPU policy (PVM_CPU_CODE_HASHES / _AUTHORITY_HASHES / _RUNTIME_IDS: the operator's own word, not a reproduction)",
-                               codeHashes: PVM_CPU_POLICY ? [...PVM_CPU_POLICY.codeHashes] : [], authorityHashes: PVM_CPU_POLICY ? [...PVM_CPU_POLICY.authorityHashes] : [],
-                               runtimeIds: PVM_CPU_POLICY ? [...PVM_CPU_POLICY.runtimeIds] : [],
-                               ...(AVF_HUB_ATTEST && AVF_HUB_ATTEST.rootPins ? { rootPins: [...AVF_HUB_ATTEST.rootPins] } : {}) } }, req),
+          operatorAllowlist: pvmOperatorAllowlist() }, req),
         freshFail);
     return tunnelHub.freshAttestation(name, Buffer.from(nonceHex, "hex")).then(
       (document) => json(res, 200, { name, nonce: nonceHex, fetchedAt: new Date().toISOString(), document,

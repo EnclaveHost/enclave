@@ -2647,15 +2647,15 @@ class Deployments extends EnclaveElement {
     box.hidden = false;
     btn.setAttribute("aria-expanded", "true");
     // Checks that need no session, for every account (wallet, card credit, order):
-    //   - an app's OWN isolated VM, from public evidence: an Enclave Shield partition, or a public deployment's own
-    //     SEV-SNP guest (read from the app's public address, so a private deployment cannot take this one);
-    //   - a phone host's own protected VM (a per-app pVM check in the browser does not exist yet, and the note says so);
-    //   - a private card deployment on a confidential server: the server itself, with the same honest note.
+    //   - an app's OWN isolated VM, from public evidence: an Enclave Shield partition, or a public deployment's own SEV-SNP
+    //     guest or phone protected VM (both read from the app's public address, so a private deployment cannot take these);
+    //   - a private deployment on a phone, or a private card deployment on a confidential server: the host itself, with a
+    //     note saying plainly that it is the host and why.
     const dep = (this._list || []).find(x => x.id === id);
     const mode = dep && dep.enclave && /^0x[0-9a-f]{64}$/i.test(id) ? await boxModeOf(dep.enclave).catch(() => null) : null;
-    if (mode === "hv-node" || (mode === "snp" && dep.public)) return this._attestApp(id, box, dep.enclave, mode);
+    if (mode === "hv-node" || ((mode === "snp" || mode === "avf") && dep.public)) return this._attestApp(id, box, dep.enclave, mode);
     if (mode === "avf") return this._attestHost(id, box, dep.enclave, mode,
-      "This checks the phone's own protected VM. Each app runs in a protected VM of its own, which the relay checks when it starts; checking an app's own VM in your browser is not available yet.");
+      "This checks the phone itself. Checking this app's own protected VM in your browser reads the app's public address, which a private deployment does not have; the relay checks the app's VM when it starts.");
     if (mode === "snp" && ctlOf(dep) !== "wallet") return this._attestHost(id, box, dep.enclave, mode,
       "This checks the confidential server. Checking this app's own SEV-SNP guest in your browser reads the app's public address, which a private deployment does not have.");
     if (ctlOf((this._list || []).find(x => x.id === id)) !== "wallet"){
@@ -2685,7 +2685,7 @@ class Deployments extends EnclaveElement {
      server: the server's AMD report, then this app's own SEV-SNP guest report from its public address, on the same chip.
      Both over fresh nonces this page draws. */
   async _attestApp(id, box, name, mode) {
-    const what = mode === "snp" ? "the server, then this app\u2019s own SEV-SNP guest" : "the host, then this app\u2019s partition";
+    const what = mode === "snp" ? "the server, then this app\u2019s own SEV-SNP guest" : mode === "avf" ? "the phone, then this app\u2019s own protected VM" : "the host, then this app\u2019s partition";
     box.innerHTML = '<div class="ap-attbar">attestation · ' + esc(id) + '<span class="enc-vbadge">⏳ verifying ' + what + ', in your browser…</span></div>'
       + '<div class="enc-shield-v"></div>';
     const badge = box.querySelector(".enc-vbadge"), out = box.querySelector(".enc-shield-v");
