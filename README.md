@@ -27,11 +27,11 @@ Not live, and not to be read as such: Enclave Shield's CPU isolation on Linux (a
 
 ## Threat model: what you are trusting
 
-Each kind of host protects against different parties, and each still relies on someone:
+Each kind of host protects against different parties, and each still relies on someone. The deploy dialog and each dashboard row name the kind of host and what it protects.
 
 | host | protects your app from | you still trust | who checks the evidence |
 |---|---|---|---|
-| **Confidential server** | the host OS, hypervisor and operator, and other tenants: the processor encrypts the guest's memory and keeps them out | AMD (processor and its signing chain; the root key is pinned), and the image built from this repo's release tag | the site and `enclave attest` check the server's report (AMD chain, a fresh nonce). Unpinned, the verdict is **limited**: the measurement is compared against Enclave's published allowlist. Pin a measurement you derived yourself (`enclave attest --expect`) for **verified**. **Gap:** the site and CLI check the server, not each app guest's own report (the report that binds the app's TLS key). |
+| **Confidential server** | the host OS, hypervisor and operator, and other tenants: the processor encrypts the guest's memory and keeps them out | AMD (processor and its signing chain; the root key is pinned), and the image built from this repo's release tag | the site and `enclave attest` check the server's report (AMD chain, a fresh nonce). Unpinned, the verdict is **limited**: the measurement is compared against Enclave's published allowlist. Pin a measurement you derived yourself (`enclave attest --expect`) for **verified**. For a public deployment, its **Verify** button then checks the app's own guest in your browser, for card and wallet accounts alike. The guest's report, fetched from the app's public address over a fresh nonce, must bind the key the app's TLS certificate carries, name this deployment and app, come from the same processor, and match the relay's published prediction of that guest (`/v1/expected-guest`). That makes it **limited** too. **Gaps:** the CLI checks only the server, and a private deployment has no public address to ask. |
 | **Enclave Shield on Windows** | other tenants (the hypervisor separates partitions); Windows itself, which VBS keeps out of a partition's memory per Microsoft's design (our own host-side test has not run, so these hosts report `host_excluded: no`) | Microsoft (Hyper-V hypervisor, secure kernel, boot chain), the machine's owner and anyone with physical access. Partition memory is **not** encrypted. | the relay checks both at attach. Your browser can check them too: a Shield deployment's **Verify** button checks the machine's TPM-quoted boot (with a credential the page mints itself), then that app's own partition report under that boot's key, over a fresh nonce. That works for card and wallet accounts alike. The verdict stays **limited**, because host exclusion is unevidenced and the image list is the operator's. The CLI does not do this check yet. |
 | **Android phone** | the Android host OS, which pKVM keeps out of the VM's memory, and other tenants | Google (pKVM, the DICE/RKP attestation chain to Google's pinned root; revocation is not checked) and the phone's hardware | the relay checks each app's protected VM at attach; the site checks the phone's own host VM in the browser, not each app's VM |
 
@@ -61,7 +61,7 @@ How credit works underneath: your credit is held in a credit vault, a contract o
 
 Any Ethereum wallet works too, paying in USDC or ETH on Base, and agents use one with scoped [wallet sessions](https://enclave.host/develop#docs-sessions). A wallet gives you direct on-chain ownership of each deployment. It is also still required for the following, which credit deployments don't support yet:
 
-- live logs, and the in-browser attestation check for deployments on SEV-SNP and phone hosts (a deployment on an Enclave Shield host verifies in the browser for every account);
+- live logs, and the raw attestation document of a private deployment (the in-browser **Verify** check works for every account);
 - secrets and custom domains;
 - config overrides;
 - deploying apps that charge a publisher fee, and publishing your own apps.

@@ -95,3 +95,19 @@ export async function verifyShieldAppWeb({ apiBase = "https://api.enclave.host",
   return verifyShieldAppWith({ fetchImpl, randomBytes: (n) => globalThis.crypto.getRandomValues(new Uint8Array(n)), now: () => new Date() },
                              { apiBase, name, deployment, timeoutMs });
 }
+
+// ONE app's own SEV-SNP guest on a confidential server (verifier/web/snp-app.mjs has the flow): the server first
+// (verifyMetalBoxWeb), then the app guest's report from the app's own origin over this page's nonce, the binding of the key
+// the app's TLS certificate carries, HOST_DATA = the deployment id, the measurement against the relay's published prediction
+// (/v1/expected-guest) or a caller pin, and the same AMD chip as the server.
+// verifySnpAppWeb({ apiBase, name, deployment, expected?, fetchImpl?, timeoutMs? }) -> the Shield-app verdict shape
+import { verifySnpAppWith } from "./snp-app.mjs";
+import { TCB_FLOORS as SNP_TCB_FLOORS } from "../metal-box.mjs";
+export { SNP_APP_CHECK_ORDER, SNP_APP_CHECK_LABELS, SNP_APP_OMISSION_LABELS } from "./snp-app.mjs";
+export async function verifySnpAppWeb({ apiBase = "https://api.enclave.host", name, deployment, expected = null, fetchImpl = globalThis.fetch, timeoutMs = 45000 } = {}) {
+  const collateral = httpCollateral({ base: apiBase + KDS_MIRROR_PATH, fetchImpl, timeoutMs });
+  return verifySnpAppWith({ fetchImpl, collateral, verify: verifyEvidenceWeb, tcbFloors: SNP_TCB_FLOORS, now: () => new Date(),
+                            randomBytes: (n) => globalThis.crypto.getRandomValues(new Uint8Array(n)),
+                            verifyBox: (n) => verifyMetalBoxWeb({ apiBase, name: n, fetchImpl, timeoutMs: Math.min(timeoutMs, 20000) }) },
+                          { apiBase, name, deployment, expected, timeoutMs });
+}
