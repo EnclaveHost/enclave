@@ -25,6 +25,7 @@ Build tool, not distributed in the bundle: esbuild 0.28.1 (MIT).
 - `verifier/web/collateral.mjs`
 - `verifier/web/index.mjs`
 - `verifier/web/provider.mjs`
+- `verifier/web/pvm-app.mjs`
 - `verifier/web/pvm-host.mjs`
 - `verifier/web/shield-app.mjs`
 - `verifier/web/shield-host.mjs`
@@ -493,7 +494,7 @@ THE SOFTWARE.
 ### @noble/curves@1.9.1
 
 - package.json license: MIT; LICENSE file: `LICENSE` (MIT text)
-- bundled files (11): `esm/_shortw_utils.js`, `esm/abstract/curve.js`, `esm/abstract/edwards.js`, `esm/abstract/hash-to-curve.js`, `esm/abstract/modular.js`, `esm/abstract/montgomery.js`, `esm/abstract/utils.js`, `esm/abstract/weierstrass.js`, `esm/ed25519.js`, `esm/nist.js`, `esm/p256.js`
+- bundled files (12): `esm/_shortw_utils.js`, `esm/abstract/curve.js`, `esm/abstract/edwards.js`, `esm/abstract/hash-to-curve.js`, `esm/abstract/modular.js`, `esm/abstract/montgomery.js`, `esm/abstract/utils.js`, `esm/abstract/weierstrass.js`, `esm/ed25519.js`, `esm/nist.js`, `esm/p256.js`, `esm/secp256k1.js`
 
 ```
 The MIT License (MIT)
@@ -522,7 +523,7 @@ THE SOFTWARE.
 ### @noble/hashes@1.8.0
 
 - package.json license: MIT; LICENSE file: `LICENSE` (MIT text)
-- bundled files (6): `esm/_md.js`, `esm/_u64.js`, `esm/crypto.js`, `esm/hmac.js`, `esm/sha2.js`, `esm/utils.js`
+- bundled files (7): `esm/_md.js`, `esm/_u64.js`, `esm/crypto.js`, `esm/hmac.js`, `esm/sha2.js`, `esm/sha3.js`, `esm/utils.js`
 
 ```
 The MIT License (MIT)

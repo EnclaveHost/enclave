@@ -80,7 +80,7 @@ const ORDER_V3 = ["document", "googleChain", "secureVm", "release", "runtime", "
 const ORDER_V4 = [...ORDER_V3.slice(0, -1), "tlsKey", "transportKey"];
 // the order relay/pvm-evidence-core.mjs evaluates them in: a refusal at one means every earlier one held, every later one
 // was not reached (nonce, app and transportKey are compared here, beside the rules)
-const SEQUENCE = ["document", "runtime", "googleChain", "challenge", "secureVm", "release", "instance", "appKey", "tlsKey"];
+export const SEQUENCE = ["document", "runtime", "googleChain", "challenge", "secureVm", "release", "instance", "appKey", "tlsKey"];
 
 // reasonCheck(reason) -> the check a refusal of relay/pvm-evidence-core.mjs (or relay/avf-verify.mjs, inside it) belongs to
 export function reasonCheck(reason) {

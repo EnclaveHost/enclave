@@ -82,8 +82,11 @@ export function verifyBoxInBrowser(name, { apiOrigin = API_ORIGIN, mode = "snp" 
 //            this page mints, then the app guest's report under that boot's VSM identity key, over a fresh nonce.
 //   snp      its own SEV-SNP guest (verifier/web snp-app.mjs): the server's AMD report first, then the app guest's, fetched
 //            from the app's own origin over a fresh nonce, bound to the key its TLS certificate carries, on the same chip.
+//   avf      its own protected VM on a phone (verifier/web pvm-app.mjs): the phone's host VM first, then the app VM's evidence
+//            from the app's own origin over a fresh nonce, bound to its TLS key, and the VM proven the phone's (sibling key).
 // One run per deployment at a time; a result is reused for 60 s (the relay allows one report per app every 30 s).
-const APP_VERIFIERS = { "hv-node": ["verifyShieldAppWeb", "an Enclave Shield app"], snp: ["verifySnpAppWeb", "an app on a confidential server"] };
+const APP_VERIFIERS = { "hv-node": ["verifyShieldAppWeb", "an Enclave Shield app"], snp: ["verifySnpAppWeb", "an app on a confidential server"],
+                        avf: ["verifyPvmAppWeb", "an app on a phone host"] };
 export const appVerifiable = (mode) => !!APP_VERIFIERS[mode];
 const _appCache = new Map();   // deployment id -> { at, promise }
 export function verifyAppInBrowser(name, deployment, { apiOrigin = API_ORIGIN, mode = "hv-node" } = {}) {
