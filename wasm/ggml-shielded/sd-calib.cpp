@@ -123,8 +123,9 @@ static capture g_cap;
 
 static bool excluded(const std::string &name) {
     if (name.find("adaLN_modulation") != std::string::npos || name.find("t_embedder") != std::string::npos) return true;
-    /* caption-token layers: only image rows are calibrated (see the lead rows below) */
-    if (name.find("context_refiner") != std::string::npos || name.find("cap_embedder") != std::string::npos) return true;
+    /* the caption embedder is small and stays in the enclave; the context refiner's rows are
+     * all caption rows, so it is calibrated on exactly those, like any other site */
+    if (name.find("cap_embedder") != std::string::npos) return true;
     /* SD_CALIB_ONLY=<prefix>[,<prefix>...]: observe only these sites (to add a few to an
      * existing calibration) */
     static const char *only = getenv("SD_CALIB_ONLY");
@@ -433,7 +434,10 @@ int main(int argc, char **argv) {
             fprintf(stderr, "[sd-calib] %-70s K=%-6lld rows=%-9lld members=%zu k=%-3d af=%-3d headroom=%.2fx\n",
                     g.c_str(), (long long)K, (long long)s.m_total, s.members.size(), best.k, best.af, best.headroom);
         std::string emit_key = g;
-        if (!s.members.count(g)) {
+        const bool lead_key = g.rfind("lead:", 0) == 0;
+        if (lead_key && s.members.count(g.substr(5))) {
+            /* a caption-row site: its members carry the plain names */
+        } else if (!s.members.count(g)) {
             emit_key = *s.members.begin();
             fprintf(stderr, "[sd-calib] WARNING: %s folds to %s, absent here; emitted under its own name, members stay in the enclave\n",
                     emit_key.c_str(), g.c_str());
