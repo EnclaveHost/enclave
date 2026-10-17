@@ -426,6 +426,23 @@ static int shield_mount_volume(void) {
     if (mkdir(dir, 0755) != 0 && errno != EEXIST) return -1;
     if (mount("/dev/mapper/shieldvol", dir, "ext4", MS_RDONLY | MS_NODEV | MS_NOSUID | MS_NOEXEC, "noload") != 0) return -1;
     printf("DOM Shield model volume: dm-verity root %s, %llu blocks, mounted read-only at %s\n", root, dblocks, dir);
+    /* 4 MiB read-ahead on the verity device and its disk. The app's cgroup cannot keep the
+     * multi-GB model files cached, so they are re-read by page faults that walk each file in
+     * order (a layer at a time); with the 128 KiB default every fault was a small verified
+     * read (~300 MB/s in the guest). Every block read ahead is still hashed against the root. */
+    for (int i = 0; i < 16; i++) {
+        char p[96], nm[32] = "";
+        snprintf(p, sizeof p, "/sys/block/dm-%d/dm/name", i);
+        FILE *nf = fopen(p, "r");
+        if (!nf) continue;
+        const int got = fscanf(nf, "%31s", nm);
+        fclose(nf);
+        if (got == 1 && !strcmp(nm, "shieldvol")) {
+            snprintf(p, sizeof p, "/sys/block/dm-%d/queue/read_ahead_kb", i);
+            if (write_sysctl(p, "4096") == 0) printf("DOM Shield model volume: read-ahead 4096 KiB\n");
+        }
+    }
+    (void)write_sysctl("/sys/block/vda/queue/read_ahead_kb", "4096");
     return 0;
 }
 
@@ -674,6 +691,16 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = "SHIELDED_MASK_CHACHA16=1";
             envp[ei++] = "SHIELDED_REFILL_VECTOR_CRT=1";
             envp[ei++] = "SHIELDED_LOOKAHEAD=1";
+            /* Nothing of the DiT's weights on the CPU's path during a step: in this guest's
+             * 4.8 GiB cgroup the 5 GB Q4 model cannot stay cached, so every CPU-side matmul
+             * re-read it through dm-verity (~5 GB a step). The caption rows go out under their
+             * own calibration ("lead:" sites), the bf16 refiners as float sources; only the idle
+             * mint reads the model. The field work is split over four threads by rows. */
+            envp[ei++] = "SHIELDED_LEAD_EXCHANGE=1";
+            envp[ei++] = "SHIELDED_SOURCE_FLOAT=1";
+            envp[ei++] = "SHIELDED_FIELD_THREADS=4";
+            envp[ei++] = "SHIELDED_FIELD_SPINS=20000";
+            envp[ei++] = "SHIELDED_PAD_WAIT_US=5000";
             /* stable-diffusion.cpp: RoPE in one fused pass (bit-identical), and the measured tiny
              * autoencoder (TAEF1, FLUX.1's latent space, which Z-Image uses) for the decode. */
             envp[ei++] = "SD_ROPE_FUSED=1";
