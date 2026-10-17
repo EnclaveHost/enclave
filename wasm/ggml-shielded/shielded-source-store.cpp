@@ -17,10 +17,16 @@
 #include "shielded-tee.h"
 #include "shielded-simd.h"
 #include "shielded-source-quant.h"
+#define GGML_COMMON_DECL_CPP
+#include "ggml-common.h"
+static_assert(offsetof(block_q4_K, scales) == 4, "q4_K: d and dmin open the block");
 #include <algorithm>
 #include <cmath>
 #include <immintrin.h>
 #include <cstring>
+#include <mutex>
+#include <atomic>
+#include <cstdio>
 #include <omp.h>
 #include <oneapi/dnnl/dnnl.h>
 #include <stdexcept>
@@ -43,6 +49,13 @@ struct sh_source_store {
 // for the block scale and the field's own half helpers for the encoding. Admission compares
 // every regenerated row with the registered (reference-encoded) weight, so a mismatch refuses
 // the store; it can never mint a wrong pad.
+// sh_half_to_float, by table: 65536 entries computed BY sh_half_to_float, so every value is the
+// helper's own. The helper's ldexpf/scalbnf was a measurable share of each re-encode.
+static float g_h2f[65536];
+static std::once_flag g_h2f_once;
+static inline float h2f(uint16_t h) { return g_h2f[h]; }
+static void h2f_init() { std::call_once(g_h2f_once, [] { for (uint32_t h = 0; h < 65536; h++) g_h2f[h] = sh_half_to_float((uint16_t)h); }); }
+
 static inline __m512 roundf_exact(__m512 v) {
   const __m512 t = _mm512_roundscale_ps(v, _MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC);
   const __m512 frac = _mm512_sub_ps(v, t);                       // exact for |v| < 2^23
@@ -67,7 +80,7 @@ static bool encode_row_fast(const float *x, int64_t K, int8_t *out, std::vector<
     const __m512i q1 = _mm512_cvttps_epi32(roundf_exact(_mm512_mul_ps(v1, vid)));
     _mm_storeu_si128((__m128i *)(qs.data() + b * SH_QK), _mm512_cvtepi32_epi8(q0));
     _mm_storeu_si128((__m128i *)(qs.data() + b * SH_QK + 16), _mm512_cvtepi32_epi8(q1));
-    const double dd = fabs((double)sh_half_to_float(dh[b]));
+    const double dd = fabs((double)h2f(dh[b]));
     if (dd == 0.0) continue;
     const __m512i a0 = _mm512_abs_epi32(q0), a1 = _mm512_abs_epi32(q1);
     const int qmax = std::max(_mm512_reduce_max_epi32(a0), _mm512_reduce_max_epi32(a1));
@@ -81,9 +94,9 @@ static bool encode_row_fast(const float *x, int64_t K, int8_t *out, std::vector<
     const float mul = ldexpf(1.0f, cand - SH_FRAC);
     bool ok = true;
     for (int64_t b = 0; b < nb && ok; b++) {
-      const float v = sh_half_to_float(dh[b]) * mul;
+      const float v = h2f(dh[b]) * mul;
       if (!std::isfinite(v)) { ok = false; break; }
-      const __m512 d256 = _mm512_set1_ps(sh_half_to_float(sh_float_to_half(v)) * 256.0f);
+      const __m512 d256 = _mm512_set1_ps(h2f(sh_float_to_half(v)) * 256.0f);
       for (int h = 0; h < 2; h++) {
         const __m512 q = _mm512_cvtepi32_ps(_mm512_cvtepi8_epi32(_mm_loadu_si128((const __m128i *)(qs.data() + b * SH_QK + 16 * h))));
         const __m512 w = _mm512_roundscale_ps(_mm512_add_ps(_mm512_mul_ps(d256, q), half), _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC);
@@ -96,6 +109,82 @@ static bool encode_row_fast(const float *x, int64_t K, int8_t *out, std::vector<
   return false;
 }
 
+// ggml's dequantize_row_q4_K / _q6_K (ggml-quants.c), sixteen values at a time with the same float
+// operations in the same order (this file is built with -ffp-contract=off). Whether they ARE the
+// reference's bits depends on how ggml-base was compiled, so each type is compared with ggml's own
+// to_float on the first row it decodes and used only if every byte agrees (dq_admit); admission
+// then compares the whole re-encoded weight with the registered encoding as before.
+static inline void q4k_scale_min(int j, const uint8_t *q, uint8_t *d, uint8_t *m) {
+  if (j < 4) { *d = q[j] & 63; *m = q[j + 4] & 63; }
+  else { *d = (q[j + 4] & 0xF) | ((q[j - 4] >> 6) << 4); *m = (q[j + 4] >> 4) | ((q[j - 0] >> 6) << 4); }
+}
+static inline __m512 u8x16_to_ps(__m128i v) { return _mm512_cvtepi32_ps(_mm512_cvtepu8_epi32(v)); }
+static void dq_q4_K(const block_q4_K *x, float *y, int64_t k) {
+  for (int64_t i = 0; i < k / QK_K; i++) {
+    const uint8_t *q = x[i].qs;
+    uint16_t dh[2];                                  // the block opens with d, dmin (ggml_half each)
+    memcpy(dh, &x[i], sizeof dh);
+    const float d = h2f(dh[0]), dmin = h2f(dh[1]);
+    int is = 0;
+    for (int j = 0; j < QK_K; j += 64) {
+      uint8_t sc, m;
+      q4k_scale_min(is + 0, x[i].scales, &sc, &m);
+      const __m512 d1 = _mm512_set1_ps(d * sc), m1 = _mm512_set1_ps(dmin * m);
+      q4k_scale_min(is + 1, x[i].scales, &sc, &m);
+      const __m512 d2 = _mm512_set1_ps(d * sc), m2 = _mm512_set1_ps(dmin * m);
+      for (int h = 0; h < 2; h++) {
+        const __m128i b = _mm_loadu_si128((const __m128i *)(q + 16 * h));
+        const __m128i lo = _mm_and_si128(b, _mm_set1_epi8(0xF)), hi = _mm_and_si128(_mm_srli_epi16(b, 4), _mm_set1_epi8(0xF));
+        _mm512_storeu_ps(y + 16 * h, _mm512_sub_ps(_mm512_mul_ps(d1, u8x16_to_ps(lo)), m1));
+        _mm512_storeu_ps(y + 32 + 16 * h, _mm512_sub_ps(_mm512_mul_ps(d2, u8x16_to_ps(hi)), m2));
+      }
+      y += 64; q += 32; is += 2;
+    }
+  }
+}
+static void dq_q6_K(const block_q6_K *x, float *y, int64_t k) {
+  for (int64_t i = 0; i < k / QK_K; i++) {
+    const float d = h2f(x[i].d);
+    const uint8_t *ql = x[i].ql, *qh = x[i].qh;
+    const int8_t *sc = x[i].scales;
+    for (int n = 0; n < QK_K; n += 128) {
+      for (int h = 0; h < 2; h++) {                 // l = 16h .. 16h+15, is = h
+        const __m512i l0 = _mm512_cvtepu8_epi32(_mm_loadu_si128((const __m128i *)(ql + 16 * h)));
+        const __m512i l32 = _mm512_cvtepu8_epi32(_mm_loadu_si128((const __m128i *)(ql + 32 + 16 * h)));
+        const __m512i hh = _mm512_cvtepu8_epi32(_mm_loadu_si128((const __m128i *)(qh + 16 * h)));
+        const __m512i f = _mm512_set1_epi32(0xF), t = _mm512_set1_epi32(3), k32 = _mm512_set1_epi32(32);
+        const __m512i q1 = _mm512_sub_epi32(_mm512_or_si512(_mm512_and_si512(l0, f), _mm512_slli_epi32(_mm512_and_si512(hh, t), 4)), k32);
+        const __m512i q2 = _mm512_sub_epi32(_mm512_or_si512(_mm512_and_si512(l32, f), _mm512_slli_epi32(_mm512_and_si512(_mm512_srli_epi32(hh, 2), t), 4)), k32);
+        const __m512i q3 = _mm512_sub_epi32(_mm512_or_si512(_mm512_srli_epi32(l0, 4), _mm512_slli_epi32(_mm512_and_si512(_mm512_srli_epi32(hh, 4), t), 4)), k32);
+        const __m512i q4 = _mm512_sub_epi32(_mm512_or_si512(_mm512_srli_epi32(l32, 4), _mm512_slli_epi32(_mm512_and_si512(_mm512_srli_epi32(hh, 6), t), 4)), k32);
+        _mm512_storeu_ps(y + 16 * h + 0,  _mm512_mul_ps(_mm512_set1_ps(d * sc[h + 0]), _mm512_cvtepi32_ps(q1)));
+        _mm512_storeu_ps(y + 16 * h + 32, _mm512_mul_ps(_mm512_set1_ps(d * sc[h + 2]), _mm512_cvtepi32_ps(q2)));
+        _mm512_storeu_ps(y + 16 * h + 64, _mm512_mul_ps(_mm512_set1_ps(d * sc[h + 4]), _mm512_cvtepi32_ps(q3)));
+        _mm512_storeu_ps(y + 16 * h + 96, _mm512_mul_ps(_mm512_set1_ps(d * sc[h + 6]), _mm512_cvtepi32_ps(q4)));
+      }
+      y += 128; ql += 64; qh += 32; sc += 8;
+    }
+  }
+}
+// per type: 0 not yet compared, 1 agrees with ggml's to_float, -1 does not (reference used)
+static std::atomic<int> g_dq_state[GGML_TYPE_COUNT];
+static void dequantize(const ggml_type_traits *tr, ggml_type type, const uint8_t *row, float *y, int64_t K) {
+  void (*fast)(const void *, float *, int64_t) =
+      type == GGML_TYPE_Q4_K ? [](const void *x, float *o, int64_t k) { dq_q4_K((const block_q4_K *)x, o, k); } :
+      type == GGML_TYPE_Q6_K ? [](const void *x, float *o, int64_t k) { dq_q6_K((const block_q6_K *)x, o, k); } : nullptr;
+  if (!fast || K % QK_K || g_dq_state[type].load(std::memory_order_acquire) < 0) { tr->to_float(row, y, K); return; }
+  if (g_dq_state[type].load(std::memory_order_acquire) == 0) {
+    std::vector<float> ref((size_t)K);
+    tr->to_float(row, ref.data(), K);
+    fast(row, y, K);
+    const bool same = !memcmp(ref.data(), y, (size_t)K * sizeof(float));
+    g_dq_state[type].store(same ? 1 : -1, std::memory_order_release);
+    if (!same) { fprintf(stderr, "[shielded] source store: vector %s dequantizer differs from ggml's; using ggml's\n", ggml_type_name(type)); memcpy(y, ref.data(), (size_t)K * sizeof(float)); }
+    return;
+  }
+  fast(row, y, K);
+}
+
 // rows [j, j + nr) of the store (store-relative), encoded into out (nr * K bytes)
 static void encode_rows(const sh_source_store *s, int64_t j, int64_t nr, int8_t *out,
                         std::vector<float> &f32, std::vector<uint8_t> &q8) {
@@ -105,6 +194,7 @@ static void encode_rows(const sh_source_store *s, int64_t j, int64_t nr, int8_t 
   (void)q8;
   const ggml_type_traits *tr = ggml_get_type_traits(s->type);
   require(tr && tr->to_float, "no dequantizer");
+  h2f_init();
   for (int64_t r = 0; r < nr; r++) {
     const uint8_t *row = s->src + (size_t)(s->col0 + j + r) * s->row_bytes;
     if (s->type == GGML_TYPE_Q8_0) {   /* registration encodes q8_0 blocks directly, so must this */
@@ -112,7 +202,7 @@ static void encode_rows(const sh_source_store *s, int64_t j, int64_t nr, int8_t 
       require(sh_prepare_weight_rows_range(row, s->K, 1, 0, 1, out + (size_t)r * s->K, &f) >= 0, "encode");
       continue;
     }
-    tr->to_float(row, f32.data(), s->K);
+    dequantize(tr, s->type, row, f32.data(), s->K);
     require(encode_row_fast(f32.data(), s->K, out + (size_t)r * s->K, qs, dh), "encode");
   }
 }
@@ -194,7 +284,7 @@ struct omp_one {
 // u[i] = r[i] . W (mod M), the same arithmetic as sh_compact_refill over regenerated tiles.
 extern "C" int sh_source_store_refill(void *ctx, const int32_t *r, int b, int32_t *u, int64_t stride) {
   auto *s = static_cast<sh_source_store *>(ctx);
-  if (!s || !r || !u || b < 1 || b > 64 || stride < s->N || stride > (1 << 21)) return SH_ERR_RANGE;
+  if (!s || !r || !u || b < 1 || b > 256 || stride < s->N || stride > (1 << 21)) return SH_ERR_RANGE;
   auto wipe = [&] { for (int i = 0; i < b; i++) memset(u + (int64_t)i * stride, 0, (size_t)s->N * 4); };
   try {
     const size_t n = (size_t)b * s->K;
