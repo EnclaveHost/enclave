@@ -2526,7 +2526,10 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
             if (told.insert(nm).second)
                 fprintf(stderr, "[shielded] %s: claimed but not registered; computing it "
                                 "in the enclave (nothing offloaded for this site)\n", nm.c_str());
-            sh_plain_mul_mat(node->src[0], a, node);
+            /* On the CPU backend's own kernels (threaded, vectorized), not the scalar hatch: a
+             * calibrated site the card budget could not place (Z-Image's bf16 noise refiner
+             * at 100 milli) took ~70 s of every step through sh_plain_mul_mat. */
+            if (!sh_cpu_compute(node)) sh_plain_mul_mat(node->src[0], a, node);
             s.local_nodes++; done[i] = 1; if (!idx_of.empty()) produced[i] = 1;
             continue;
         }
