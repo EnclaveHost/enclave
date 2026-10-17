@@ -2118,6 +2118,36 @@ static void sh_mask_range_fn(void *ctx, int64_t lo, int64_t hi) {
                           mr->p0 + lo, mr->p1 + lo, mr->p2 + lo);
 }
 
+/* Rows of a wide exchange are independent: the unmask + Freivalds LHS (and the
+ * RHS when it was not overlapped) and the mask run over row ranges on the
+ * SHIELDED_FIELD_THREADS pool, one dispatch per exchange instead of one per row. */
+typedef struct {
+    const sh_simd *simd; const uint8_t *ym; size_t yw; const int32_t *const *up; int64_t u_off;
+    const int32_t *s32; const int32_t *st32; int64_t N, K; int64_t *y; int64_t ystr;
+    const int64_t *x; const int64_t *fv_rhs; bool overlap; atomic_int bad;
+} sh_unmask_rows;
+static void sh_unmask_rows_fn(void *ctx, int64_t lo, int64_t hi) {
+    sh_unmask_rows *u = (sh_unmask_rows *)ctx;
+    for (int64_t row = lo; row < hi; row++) {
+        int64_t lhs[SH_FV_REPS], rhs_local[SH_FV_REPS];
+        if (u->yw == 3)
+            u->simd->unmask24_fv(u->ym + (size_t)row * u->N * 3, u->up[row] + u->u_off, u->s32, SH_FV_REPS, u->N, u->y + (size_t)row * u->ystr, lhs);
+        else
+            u->simd->unmask_fv((const int32_t *)u->ym + (size_t)row * u->N, u->up[row] + u->u_off, u->s32, SH_FV_REPS, u->N, u->y + (size_t)row * u->ystr, lhs);
+        const int64_t *rhs = u->fv_rhs + (size_t)row * SH_FV_REPS;
+        if (!u->overlap) { u->simd->fv_dots_x(u->x + (size_t)row * u->K, u->st32, SH_FV_REPS, u->K, rhs_local); rhs = rhs_local; }
+        for (int r = 0; r < SH_FV_REPS; r++) if (lhs[r] != rhs[r]) atomic_store_explicit(&u->bad, 1, memory_order_relaxed);
+    }
+}
+typedef struct { const sh_simd *simd; const int64_t *x; const int32_t *const *rp; int8_t *planes; int64_t m, K; } sh_mask_rows;
+static void sh_mask_rows_fn(void *ctx, int64_t lo, int64_t hi) {
+    const sh_mask_rows *mr = (const sh_mask_rows *)ctx;
+    for (int64_t row = lo; row < hi; row++)
+        mr->simd->mask_planes(mr->x + (size_t)row * mr->K, mr->rp[row], (size_t)mr->K,
+                              mr->planes + (size_t)row * mr->K, mr->planes + ((size_t)mr->m + row) * mr->K,
+                              mr->planes + ((size_t)2 * mr->m + row) * mr->K);
+}
+
 static int take_pads(sh_link *l, sh_group *g, int m, int *slots) {
     pthread_mutex_lock(&l->pool_mu);
     l->spill_last_take = now_ms();               /* the link is busy: no new spill mints */
@@ -2968,7 +2998,10 @@ static int sh_link_gemm_stride_one(sh_link *l, const int *nodes, size_t n_nodes,
      * K with no reduction, and it sits on the one thread a decode round is
      * serialized on. SHIELDED_FIELD_THREADS spreads it; width 1 is this loop. */
     const double tk_a = now_ms();
-    for (int32_t row = 0; row < m; row++) {
+    if (m > 1 && sh_par_width() > 1) {
+        sh_mask_rows mr = { l->simd, x_field, (const int32_t *const *)l->rp, l->planes, m, K };
+        sh_par_for(m, 1, sh_mask_rows_fn, &mr);
+    } else for (int32_t row = 0; row < m; row++) {
         sh_mask_range mr = { l->simd, x_field + (size_t)row * K, l->rp[row],
                              l->planes + (size_t)row * K,
                              l->planes + ((size_t)m + row) * K,
@@ -3070,7 +3103,14 @@ static int sh_link_gemm_stride_one(sh_link *l, const int *nodes, size_t n_nodes,
             int64_t *y = y_out[i];
             const int64_t ystr = y_stride ? y_stride[i] : nd->N;   /* wider row: a column-split slice */
             bool ok = true;
-            if (l->verify) {
+            if (l->verify && m > 1 && sh_par_width() > 1) {
+                const double t3 = now_ms();
+                sh_unmask_rows ur = { l->simd, ym, yw, (const int32_t *const *)l->up, nd->u_off, nd->s32, nd->st32, nd->N, K,
+                                      y, ystr, x_field, overlap ? l->fv_rhs + i * (size_t)m * SH_FV_REPS : NULL, overlap, 0 };
+                sh_par_for(m, 1, sh_unmask_rows_fn, &ur);
+                ok = atomic_load(&ur.bad) == 0;
+                l->profile.unmask_lhs_ms += now_ms() - t3;
+            } else if (l->verify) {
                 /* Profile split: [3] is the fused unmask + lhs pass over y,
                  * [4] the rhs pass over x. */
                 for (int32_t row = 0; row < m; row++) {
