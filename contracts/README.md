@@ -14,6 +14,16 @@ caller --(enclave attest / verifier)--> enclave   fresh SEV-SNP report over the 
 ```
 
 ## Files
+
+Production custody uses the original book-bound
+`contracts/EnclaveSecretVaultV2.sol`, verified against the deployed vault at
+`0xE48699B8401564aaCe7A814AE4569b67a3F7eEF5`. The administrator can migrate its
+ledger and session-factory bindings through the existing AddressBook.
+The optional pinned-authority variant is preserved separately under
+`contracts/variants/`; it is not a required migration target for retiring Nan.
+`scripts/deploy-secret-vault-v2.mjs` currently builds that optional variant,
+not a replacement for the production vault.
+
 - `contracts/EnclaveRegistry.sol` — the registry (open, no deps, ~120 lines).
 - `contracts/EnclaveRegistry.abi.json` — ABI for JS callers (re-emitted by the deploy script).
 - `scripts/deploy-registry.mjs` — compile + deploy + wire config (mirrors the other deploy scripts).

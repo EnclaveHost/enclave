@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-// Deploy EnclaveSecretVaultV2 (docs/security/secret-custody-v2-spec.md §1).
+// Deploy the OPTIONAL pinned-authority EnclaveSecretVaultV2 variant.
+// This is not the canonical production vault and is not required for Nan retirement.
+// The original production source remains contracts/EnclaveSecretVaultV2.sol.
 //
 //   NETWORK=base  HOST_OWNERSHIP=0x… DEPLOYER_PRIVATE_KEY=0x… node scripts/deploy-secret-vault-v2.mjs --dry-run      compile + print the plan
 //   NETWORK=base  HOST_OWNERSHIP=0x… DEPLOYER_PRIVATE_KEY=0x… node scripts/deploy-secret-vault-v2.mjs                 deploy (asks first)
@@ -39,11 +41,16 @@ export const NETWORKS = {
 export const BOOK_KEY = "secretVaultV2";
 const die = (m) => { const e = new Error(m); e.fatal = true; throw e; };
 
-export const compileSecretVaultV2 = () => compileContract("EnclaveSecretVaultV2");
+// contracts/EnclaveSecretVaultV2.sol is the ORIGINAL book-bound vault deployed at Base 0xE48699B8… (production custody).
+// This script deploys the optional pinned-authority VARIANT (deployed once at 0x56b81b39…, three-argument constructor),
+// kept at contracts/variants/ and compiled under its historical unit name so its bytecode and metadata are unchanged.
+export const PINNED_VARIANT_SOURCE = "contracts/variants/EnclaveSecretVaultV2PinnedAuthorities.sol";
+export const compileSecretVaultV2 = () => compileContract("EnclaveSecretVaultV2", PINNED_VARIANT_SOURCE);
+export const compileOriginalSecretVaultV2 = () => compileContract("EnclaveSecretVaultV2", "contracts/EnclaveSecretVaultV2.sol");
 export const compileHostOwnership = () => compileContract("EnclaveHostOwnership");
-function compileContract(name) {
+function compileContract(name, file = "contracts/" + name + ".sol") {
   const out = JSON.parse(solc.compile(JSON.stringify({ language: "Solidity",
-    sources: { [name+".sol"]: { content: fs.readFileSync(path.join(REPO,"contracts",name+".sol"), "utf8") } },
+    sources: { [name+".sol"]: { content: fs.readFileSync(path.join(REPO, file), "utf8") } },
     settings: { viaIR: true, optimizer: { enabled: true, runs: 200 }, outputSelection: { "*": { "*": ["abi", "evm.bytecode.object", "evm.deployedBytecode.object", "evm.deployedBytecode.immutableReferences", "evm.deployedBytecode.linkReferences"] } } } })));
   const errs = (out.errors || []).filter((e) => e.severity === "error");
   if (errs.length) die("solc:\n" + errs.map((e) => e.formattedMessage).join("\n"));

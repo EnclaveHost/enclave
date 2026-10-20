@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import { Test } from "forge-std/Test.sol";
-import { EnclaveSecretVaultV2, IVaultV2Ledger } from "../../EnclaveSecretVaultV2.sol";
+import { EnclaveSecretVaultV2, IVaultV2Ledger } from "../../variants/EnclaveSecretVaultV2PinnedAuthorities.sol";
 import { EnclaveHostOwnership } from "../../EnclaveHostOwnership.sol";
 import { EnclaveRegistry } from "../../EnclaveRegistry.sol";
 
