@@ -43,6 +43,27 @@ still contains the (unreachable, refused) split-engine code until the payload is
 serves a real boundary: the attestation and its key binding, the model pin and the per-tensor verified loader, the encrypted
 store, the fail-closed evidence checks.
 
+## Publishing a signed Android host release
+
+From the repository root, publish the standalone, non-debuggable release APK and its matching `.idsig` to explicitly
+chosen SSH targets:
+
+```sh
+scripts/publish-android-host.sh shielded/anchor/avf/out/anchor-pvm-cpu-release.apk \
+  2026.10.20.1 --target releases-a --target releases-b --directory /srv/android
+```
+
+Use SSH configuration aliases for ports, proxies or IPv6. The script has no default server; the destination directory
+defaults to `/opt/enclave-get/android`. Each target needs SSH access, `sha256sum`, and a web server configured to serve
+that directory. APK signature, debug-mode and v4 Merkle-root checks run before any upload. Each uploaded APK's checksum
+is checked before `latest.json` is replaced; earlier versions remain available.
+
+Targets update sequentially. A failure stops the command, so already-updated targets may serve the new release while
+others retain the previous one. Inspect those targets before retrying, and avoid concurrent publication commands.
+Publishing does not alter platform admission: the admitting relays must separately trust the approved release code
+hash and signing authority. This distribution path alone does not establish independent Android host discovery or
+attestation verification.
+
 ## Capability and eligibility contract
 
 A phone is admitted as a pVM CPU host by the relay from **evidence**, never from its model name (relay/pvm-cpu-tier.mjs,
