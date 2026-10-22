@@ -151,8 +151,9 @@ group's shared WebPKI key is refused, and so is a leaf for any other key.
   - the unchanged `verifyMeasuredControl` at that address;
   - a fresh platform host policy decision for THAT registry id.
 
-  The advertiser is never judged. While the accepted policy denies any `chipId`, every native route is refused, because
-  no source maps the verified SNP CHIP_ID to the policy's 32-byte chip value.
+  The advertiser is never judged. The chip is the verifier's: `0x` + sha256 of the verified 64-byte CHIP_ID (null when
+  masked or zero). It is added to that host's chain facts, never replacing them, so a `chipId` deny or allowlist entry
+  matches per host. A host whose chip is not proven is refused while the policy denies any `chipId`.
 
 Issuance remains a deployment prerequisite: the native CA key is held in one place today (the minipc control VM).
 Distributed issuance or custody is not provided here.

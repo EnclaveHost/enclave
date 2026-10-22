@@ -243955,6 +243955,11 @@ config ${digestHex}
 // metal/measured-control-verify.mjs
 import https6 from "node:https";
 import { randomBytes as randomBytes26, X509Certificate as X509Certificate13 } from "node:crypto";
+function policyChipIdOf(claims) {
+  const c = String(claims?.chipId ?? "");
+  if (!/^[0-9a-f]{128}$/.test(c) || !/[1-9a-f]/.test(c) || claims.maskChipKey === true) return null;
+  return "0x" + sha256Hex4(Buffer.from(c, "hex"));
+}
 function endpointOf(raw) {
   let u3;
   try {
@@ -244111,6 +244116,7 @@ async function verifyMeasuredControl({ url: url2, expect: expect2 = {}, collater
     return result("rejected");
   }
   pass("report", `SEV-SNP report verified: measurement ${identity2.measurement.slice(0, 16)}\u2026 is allowed, it binds this statement and our nonce, its role is the control guest, HOST_DATA binds the config`);
+  identity2.chipId = policyChipIdOf(v.claims);
   try {
     const a = await tlsGet(url2, "/v1/attestation", { timeoutMs, pinSha256: st3.keys.controlTls.spkiSha256, maxBytes: 1024 * 1024 });
     const j3 = a.status === 200 ? JSON.parse(a.body.toString("utf8")) : null;

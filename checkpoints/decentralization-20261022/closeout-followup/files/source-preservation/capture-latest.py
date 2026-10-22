@@ -65,7 +65,7 @@ for directory in ('direct-hardware-canary/canary', 'direct-hardware-canary/test'
             paths.add(p)
 for directory in ('direct-hardware-canary', 'native-control-attested', 'storage-client-interop'):
     for p in (base / directory).iterdir():
-        if p.is_file() and not p.is_symlink() and p.suffix in ('.txt', '.md', '.py', '.sh', '.mjs'):
+        if p.is_file() and not p.is_symlink() and p.suffix in ('.txt', '.md', '.py', '.sh', '.mjs', '.patch', '.sha256'):
             paths.add(p)
 for relative in ('metal/guest/gsup.mjs', 'metal/guest/measured-control.mjs', 'relay/native-discovery.mjs',
                  'test/native-discovery.test.mjs', 'test/native-control-attested.test.mjs', 'network/native-control-routes.mjs', 'scripts/native-control-certificate.mjs'):
@@ -95,6 +95,12 @@ for p in (base / 'public-validation').rglob('*'):
     if p.is_file() and not p.is_symlink():
         paths.add(p)
 for p in (base / 'native-issuer-recovery').glob('*.md'):
+    paths.add(p)
+for name in ('native-issuer-implementation-task.txt', 'platform-forwarding-pin-task.txt', 'storage-lease16-format-review-task.txt'):
+    paths.add(base / name)
+for name in ('RESULT.json', 'RESULT-lease16.json', 'RESULT-lease16.v1.json'):
+    paths.add(base / 'storage-client-interop' / name)
+for p in (base / 'source-preservation').glob('review-*.py'):
     paths.add(p)
 paths.add(Path(__file__).resolve())
 entries = []

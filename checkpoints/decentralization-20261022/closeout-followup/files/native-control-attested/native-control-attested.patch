@@ -1,0 +1,2120 @@
+diff --git a/docs/design/nan-retirement.md b/docs/design/nan-retirement.md
+index 122918e67..f539dad3e 100644
+--- a/docs/design/nan-retirement.md
++++ b/docs/design/nan-retirement.md
+@@ -147,7 +147,7 @@ A deployment label without a current verified route now returns SERVFAIL rather
+ 
+ ### Direct-IP recovery ingress
+ 
+-Providers can opt into a loopback-only `noSniRoute` for a valid ClientHello without SNI. Unknown SNI and malformed TLS remain closed. The recovery Caddy front has a public IP certificate and serves only the configured recovery/control paths; arbitrary destinations are not accepted. Provider-local routes carry `api.enclavehost.eth` and `mcp.enclavehost.eth` to the migrated control TLS service. Public native metadata is implemented in `relay/native-discovery.mjs`; no application signing key or credential is exposed there.
++Providers can opt into a loopback-only `noSniRoute` for a valid ClientHello without SNI. Unknown SNI and malformed TLS remain closed. The recovery Caddy front has a public IP certificate and serves only the configured recovery/control paths; arbitrary destinations are not accepted. Provider-local routes carry `api.enclavehost.eth` and `mcp.enclavehost.eth` to the migrated control TLS service. Public native metadata is implemented in `relay/native-discovery.mjs`; no application signing key or credential is exposed there. Its control names no longer carry fixed provider addresses. A control route is served only from `network/native-control-routes.mjs`, and only for an address where all of the following hold: a native-CA leaf for the name carries a measured control guest's ATTESTED key; that boot passes the unchanged measured-control verification, including the original registry; and the platform host policy admits that registry host now. The advertiser of the address is never the identity judged. Without such a route, or without that configuration, the name answers 503 `control_route_unavailable` (docs/network/measured-control-guest.md, "Native control names").
+ 
+ ### Attested release credentials after recovery
+ 
+diff --git a/docs/network/measured-control-guest.md b/docs/network/measured-control-guest.md
+index 7ae27aed5..1cb214865 100644
+--- a/docs/network/measured-control-guest.md
++++ b/docs/network/measured-control-guest.md
+@@ -115,6 +115,49 @@ Per-app guests are still launched by guestd on the host and attested separately
+ 
+ Legacy metal boots (no `metal.control` token) take exactly the previous path.
+ 
++## Native control names (optional `nativeControl`)
++
++A guest that runs the platform API role can also serve the native control names `api.enclavehost.eth` and
++`mcp.enclavehost.eth`. Native clients verify these names with the existing native CA. The guest presents, for exactly
++these SNI names, a native-CA leaf whose public key is THIS boot's attested control TLS key. Nothing else is accepted: the
++group's shared WebPKI key is refused, and so is a leaf for any other key.
++
++- **Config.** `"nativeControl": { "names": [<sorted subset of the two names>], "caSha256": "<sha256 of the native CA DER>" }`.
++  It needs `platformApi`, and the names must differ from `platformApi.hostname`. HOST_DATA binds it like every member. The
++  statement then states `native: { names, caSha256 }`; other statements keep their exact bytes.
++- **Certificate.** The leaf is public, and the CA holder issues it OUTSIDE the guest, over the attested public key.
++  The guest's private key never leaves the guest. Run `scripts/native-control-certificate.mjs`:
++  - `request` verifies the boot against its trusted config, measurements and the original registry;
++  - `issue` runs where the CA key is kept, reading the key only through openssl;
++  - `install` sends the leaf over a connection pinned to the attested key on the secure socket.
++- **Acceptance.** The front accepts `PUT /.well-known/enclave-native-certificate` only under these conditions:
++  - one install at a time;
++  - a declared length up to 16 KiB;
++  - the body within 10 s;
++  - the chain is the leaf plus the bound CA;
++  - the leaf carries the guest's own key;
++  - a real TLS handshake under that CA succeeds for every bound name;
++  - the leaf expires strictly later than the installed one.
++
++  A refused or interrupted install leaves the current leaf serving.
++- **Serving.** A native name with no current leaf fails the handshake; it is never served under another key. SNI and Host
++  must name the same native name, or the front answers 421. `api.enclavehost.eth` reaches the platform API role exactly as
++  its WebPKI host does. `mcp.enclavehost.eth` reaches the relay's own MCP endpoint (`/mcp` on that host, path and query
++  kept). The hosted independent MCP adapter's `POST /mcp` route is unchanged.
++- **Discovery.** `network/native-control-routes.mjs` takes candidate addresses from kind-9 `native-control` ads in the pinned
++  service index. For each address it checks, in order:
++  - the native TLS connection;
++  - the leaf key equals the attested key;
++  - the unchanged `verifyMeasuredControl` at that address;
++  - a fresh platform host policy decision for THAT registry id.
++
++  The advertiser is never judged. The chip is the verifier's: `0x` + sha256 of the verified 64-byte CHIP_ID (null when
++  masked or zero). It is added to that host's chain facts, never replacing them, so a `chipId` deny or allowlist entry
++  matches per host. A host whose chip is not proven is refused while the policy denies any `chipId`.
++
++Issuance remains a deployment prerequisite: the native CA key is held in one place today (the minipc control VM).
++Distributed issuance or custody is not provided here.
++
+ ## Platform limits
+ 
+ - **SEV-SNP only.** HOST_DATA binding and the evidence path are implemented for SNP. TDX is refused.
+diff --git a/docs/network/platform-host-policy.md b/docs/network/platform-host-policy.md
+index 673231a0f..a077ef6e4 100644
+--- a/docs/network/platform-host-policy.md
++++ b/docs/network/platform-host-policy.md
+@@ -45,6 +45,13 @@ Each entry's `kind` is one of `registryId`, `operator`, `owner`, `chipId` or `en
+ 
+ - `owner` means the **accepted** host wallet on the host-ownership extension, read at the
+   agreed block, never a value the host reports about itself.
++- `chipId` is `0x` + lowercase hex sha256 of the 64-byte SEV-SNP report CHIP_ID: the EnclaveSecretVaultV2
++  `Machine.chipId`. No chain read carries a chip. An entry is matched only where an enforcement point supplies a
++  chip that a VCEK-verified report proved:
++  - custody v2 machines (the vault record, checked against the member's verified quote);
++  - native control routes (`network/native-control-routes.mjs`, from `verifyMeasuredControl`'s verified report).
++  Where a native control host's chip is not proven, a `chipId` denial refuses instead of admitting. Other enforcement
++  points that judge only registry facts do not see chip entries.
+ - Denials always win.
+ - Expiry never lifts a ban. A stale policy refuses NEW hosts.
+ 
+diff --git a/metal/guest/gsup.mjs b/metal/guest/gsup.mjs
+index 0aee1b4ea..ce9e07044 100644
+--- a/metal/guest/gsup.mjs
++++ b/metal/guest/gsup.mjs
+@@ -431,10 +431,13 @@ async function startDirectControl() {
+   fs.writeFileSync(P.serveConfig, JSON.stringify({ statement: P.statement, tlsKey: P.tlsKey, tlsCert: P.tlsCert, port: plan.config.controlPort,
+     upstream: { host: '127.0.0.1', port: 8080 }, mode: MODE, vcekB64: typeof fw.vcek === 'string' ? fw.vcek : '',
+     routes: plan.mcp ? [plan.mcp.route] : [],
+-    ...(plan.platformApi ? { hostRoutes: [plan.platformApi.hostRoute], prefixRoutes: [plan.platformApi.prefixRoute], sni: plan.platformApi.sni } : {}) }), { mode: 0o600 });
++    ...(plan.platformApi ? { hostRoutes: [plan.platformApi.hostRoute], prefixRoutes: [plan.platformApi.prefixRoute], sni: plan.platformApi.sni } : {}),
++    // native control names (bound nativeControl): served only with the control key and a CA leaf over it, installed after boot
++    ...(plan.native ? { native: plan.native } : {}) }), { mode: 0o600 });
+   log(`direct control: config ${plan.digest.slice(0, 16)}… ${plan.bound ? 'BOUND by HOST_DATA' : `NOT BOUND (mode=${MODE} has no report: a lab launch that proves nothing)`}; `
+     + `operator ${plan.config.identity.operator}${plan.selling ? '' : ' (no operator key: not selling)'}; proof key, session key and control TLS key minted in this guest `
+-    + `(TLS sha256:${keys.controlTls.spkiSha256.slice(0, 16)}…); front on :${plan.config.controlPort}`);
++    + `(TLS sha256:${keys.controlTls.spkiSha256.slice(0, 16)}…); front on :${plan.config.controlPort}`
++    + (plan.native ? `; native names ${plan.native.names.join(', ')} wait for a native CA leaf over that key` : ''));
+   status({ ok: true, configDigest: plan.digest, hostData: plan.hostData, bound: plan.bound, controlPort: plan.config.controlPort, controlTlsSpkiSha256: keys.controlTls.spkiSha256 });
+   start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], plan.env, { cwd: '/app' });
+   // the agent serves the loopback RAD the supervisor's claim gate reads (teeOk); no relay, no tunnel, no token
+diff --git a/metal/guest/measured-control.mjs b/metal/guest/measured-control.mjs
+index 454ccb063..fde7b2bfa 100644
+--- a/metal/guest/measured-control.mjs
++++ b/metal/guest/measured-control.mjs
+@@ -37,6 +37,15 @@
+ //     seals the group's state key only to this attested boot. The front routes Host = platformApi.hostname to the role's
+ //     API port and /platform-api/* to its peer port. Absent: the config, its digest, the statement and the services are
+ //     exactly what they were.
++//   * nativeControl (optional, needs platformApi): the native control names (api/mcp.enclavehost.eth) this guest serves
++//     itself. A native client verifies those names with the existing native CA, so the front presents, for exactly these
++//     SNI names, a CA-issued leaf whose public key is THIS boot's attested control TLS key: the private key never leaves the
++//     guest, the leaf is public and is issued outside it (scripts/native-control-certificate.mjs), and it is installed over
++//     the front (NATIVE_CERT_PATH), which accepts it only after a real TLS handshake under the bound CA proves it covers
++//     every bound name with this guest's own key. The statement names the bound names and CA, so a verifier binds the
++//     native endpoint to this attested boot, its registry entry and the platform host policy decision for it. No leaf, an
++//     expired one, or SNI and Host that disagree: the native name is refused, never served under another key or route.
++//     Both names reach the platform API role (mcp.enclavehost.eth as the relay's own /mcp). Absent: nothing changes.
+ //   * platformPolicyCarriers (optional): how THIS guest's platform host policy gate (supervisor.js, the shared
+ //     windows/node/host-admission.bundle.mjs createHostServiceGate) obtains the administrator's ANCHORED policy document
+ //     without a fleet mirror: { peers?: [http(s) base URLs of policy-mirror roles on other hosts], serviceIndex?: the
+@@ -56,7 +65,8 @@ import http from 'node:http';
+ import https from 'node:https';
+ import net from 'node:net';
+ import tls from 'node:tls';
+-import { createHash, createPublicKey, generateKeyPairSync, randomBytes, sign as cryptoSign } from 'node:crypto';
++import { createHash, createPublicKey, generateKeyPairSync, randomBytes, sign as cryptoSign, X509Certificate } from 'node:crypto';
++import { duplexPair } from 'node:stream';
+ import { createRequire } from 'node:module';
+ import { fileURLToPath, pathToFileURL } from 'node:url';
+ import { checkTransit, leaseGasGuest, withLeaseGasEnv } from './lease-gas-conduit.bundle.mjs';
+@@ -109,7 +119,7 @@ const intIn = (v, lo, hi, what) => { if (!Number.isSafeInteger(v) || v < lo || v
+ /** The owner's config, strictly validated and canonical. Nothing is defaulted except controlPort. -> frozen object */
+ export function canonicalDirectConfig(raw) {
+   // every field is required except the optional leaseGas (checked below when present)
+-  const OPTIONAL_MEMBERS = ['leaseGas', 'mcp', 'platformApi', 'ownerNomination', 'platformPolicyCarriers'];
++  const OPTIONAL_MEMBERS = ['leaseGas', 'mcp', 'platformApi', 'ownerNomination', 'platformPolicyCarriers', 'nativeControl'];
+   const fields = raw && typeof raw === 'object' && !Array.isArray(raw) && OPTIONAL_MEMBERS.some((k) => Object.hasOwn(raw, k))
+     ? Object.fromEntries(Object.entries(raw).filter(([k]) => !OPTIONAL_MEMBERS.includes(k))) : raw;
+   only(fields, ['format', 'chainId', 'contracts', 'profileDigest', 'rpcs', 'quorum', 'releaseId', 'replicas', 'identity', 'selling', 'isolation',
+@@ -173,6 +183,7 @@ export function canonicalDirectConfig(raw) {
+     operator: raw.identity.operator.toLowerCase(), publicUrl: raw.identity.publicUrl, registry: contracts.registry }) : null;
+   if (mcp && platformApi && [platformApi.apiPort, platformApi.peerPort].includes(mcp.port)) bad('mcp.port must differ from both platformApi ports');
+   const platformPolicyCarriers = raw.platformPolicyCarriers !== undefined ? directPolicyCarriers(raw.platformPolicyCarriers) : null;
++  const nativeControl = raw.nativeControl !== undefined ? directNativeControl(raw.nativeControl, { platformApi }) : null;
+   return deepFreeze({
+     format: CONFIG_FORMAT, chainId: CHAIN_ID, contracts, profileDigest: raw.profileDigest, rpcs, quorum, releaseId: raw.releaseId,
+     replicas: { gateways, storagePlan: storagePlan === null ? null : JSON.parse(canonicalJson(storagePlan)) },
+@@ -186,8 +197,23 @@ export function canonicalDirectConfig(raw) {
+     ...(platformApi ? { platformApi } : {}),
+     ...(ownerNomination ? { ownerNomination } : {}),
+     ...(platformPolicyCarriers ? { platformPolicyCarriers } : {}),
++    ...(nativeControl ? { nativeControl } : {}),
+   });
+ }
++// The bound native control member (see the header): which native control names this guest serves, and the native CA whose
++// leaf over the attested control key it accepts. Strict, nothing defaulted, written in its canonical form (names sorted).
++export const NATIVE_NAMES = Object.freeze(['api.enclavehost.eth', 'mcp.enclavehost.eth']);
++function directNativeControl(raw, { platformApi }) {
++  only(raw, ['names', 'caSha256'], 'nativeControl');
++  if (!platformApi) bad('nativeControl needs the platformApi member: the native control names are served by the platform API role');
++  if (!Array.isArray(raw.names) || raw.names.length < 1 || raw.names.some((n) => !NATIVE_NAMES.includes(n)) || new Set(raw.names).size !== raw.names.length)
++    bad(`nativeControl.names: one or more of ${NATIVE_NAMES.join(', ')}, each once`);
++  const names = [...raw.names].sort();
++  if (names.join() !== raw.names.join()) bad('nativeControl.names must be written sorted');
++  if (names.includes(platformApi.hostname)) bad('nativeControl.names must not include platformApi.hostname: a native name never shares the WebPKI route');
++  if (typeof raw.caSha256 !== 'string' || !HEX64.test(raw.caSha256)) bad('nativeControl.caSha256: sha256 (64 lowercase hex) of the native CA certificate (DER)');
++  return { names, caSha256: raw.caSha256 };
++}
+ // The bound policy-carrier member (see the header). The shape is the runner's / the host bundle's carrier setting
+ // (network/policy-carriers.mjs validateCarrierBases, network/service-index.mjs validateIndexPin), restricted to what a measured
+ // guest can reach: network carriers only. Strict, nothing defaulted, written in its canonical form.
+@@ -373,6 +399,15 @@ export function directPlatformApiLaunch(cfg, { paths = GUEST_PATHS, bundle = PLA
+     prefixRoute: { prefix: PLATFORM_API_PREFIX, upstream: { host: '127.0.0.1', port: pa.peerPort } },
+     sni: { [pa.hostname]: { certFile: paths.platformApiDir + '/webpki/cert.pem', keyFile: paths.platformApiDir + '/webpki/key.pem' } } };
+ }
++/**
++ * The native control names of a bound config, as the front serves them: the bound names and CA, where an installed leaf is
++ * kept (this boot's RAM fs), and the platform API role they reach. -> null when the config has no nativeControl member.
++ */
++export function directNativeLaunch(cfg, { paths = GUEST_PATHS } = {}) {
++  if (!cfg.nativeControl) return null;
++  return { names: [...cfg.nativeControl.names], caSha256: cfg.nativeControl.caSha256, certificateFile: paths.nativeCertificate,
++    upstream: { host: '127.0.0.1', port: cfg.platformApi.apiPort }, apiHost: cfg.platformApi.hostname };
++}
+ // The bound lease-gas member: exactly a conduit transit (lease-gas-conduit.mjs leaseGasTransit makes one from the host form),
+ // re-checked as PUBLISHED (an owner document a verifier recomputes: no RPC query, which could hold a key), chain 8453.
+ function directLeaseGas(raw) {
+@@ -402,6 +437,7 @@ export const GUEST_PATHS = Object.freeze({
+   mcpStoragePlan: '/run/measured-control/mcp-storage-plan.json', mcpState: '/run/measured-control/mcp-state',
+   platformApiConfig: '/run/measured-control/platform-api.json', platformApiHandoffKey: '/run/measured-control/platform-api-handoff.key',
+   platformApiDir: '/run/measured-control/platform-api',
++  nativeCertificate: '/run/measured-control/native-certificate.pem',
+   // the supervisor image's shared host-admission bundle (supervisor.js imports it): checked only when the config names carriers
+   hostAdmissionBundle: '/app/windows/node/host-admission.bundle.mjs',
+ });
+@@ -570,7 +606,8 @@ export async function planDirectBoot({ cmdline, fw = {}, reportHostData = '', ca
+   const platformApi = directPlatformApiLaunch(config, { paths });
+   if (platformApi && platformApi.refused) return { ok: false, reasons: [platformApi.refused], mode, digest, hostData };
+   if (platformApi) Object.assign(files, platformApi.files);
+-  return { ok: true, config, digest, hostData, bound, mode, env, files, operator, selling: !!fw.registryKey, mcp, platformApi };
++  const native = directNativeLaunch(config, { paths });
++  return { ok: true, config, digest, hostData, bound, mode, env, files, operator, selling: !!fw.registryKey, mcp, platformApi, native };
+ }
+ 
+ // ---- keys minted in the guest ---------------------------------------------------------------------------------------------
+@@ -636,6 +673,8 @@ export function controlStatement({ config, digest, hostData, mode, keys, runtime
+     keys: { proof: { curve: 'secp256k1', publicKey: keys.proof.publicKey }, session: keys.session.jwk, controlTls: { spkiSha256: keys.controlTls.spkiSha256 },
+       // only a guest that runs the platform API role names its handoff key: every other statement keeps its exact bytes
+       ...(keys.platformApi ? { platformApi: { publicKey: keys.platformApi.publicKey } } : {}) },
++    // only a guest bound to serve native control names states them (and the CA): every other statement keeps its exact bytes
++    ...(config.nativeControl ? { native: { names: [...config.nativeControl.names], caSha256: config.nativeControl.caSha256 } } : {}),
+     runtime: { gsupSha256: runtime.gsupSha256 ?? null, helperSha256: runtime.helperSha256 ?? null, supervisorSha256: runtime.supervisorSha256 ?? null,
+       ...(runtime.mcpSha256 !== undefined ? { mcpSha256: runtime.mcpSha256 } : {}),
+       ...(runtime.platformApiSha256 !== undefined ? { platformApiSha256: runtime.platformApiSha256 } : {}) },
+@@ -649,8 +688,13 @@ export function parseStatement(text) {
+   if (typeof text !== 'string' || Buffer.byteLength(text) > MAX_STATEMENT_BYTES) bad('statement must be a string up to 8 KiB');
+   let o; try { o = JSON.parse(text); } catch { bad('statement is not JSON'); }
+   if (canonicalJson(o) !== text) bad('statement is not in canonical form: the bound bytes are exactly the served bytes');
+-  only(Object.hasOwn(o || {}, 'ownerNomination') ? Object.fromEntries(Object.entries(o).filter(([k]) => k !== 'ownerNomination')) : o,
++  only(o && typeof o === 'object' && !Array.isArray(o) ? Object.fromEntries(Object.entries(o).filter(([k]) => k !== 'ownerNomination' && k !== 'native')) : o,
+     ['format', 'role', 'mode', 'chainId', 'configDigest', 'hostData', 'identity', 'keys', 'runtime', 'bootId'], 'statement');
++  if (Object.hasOwn(o, 'native')) {
++    only(o.native, ['names', 'caSha256'], 'statement native names');
++    if (!Array.isArray(o.native.names) || !o.native.names.length || o.native.names.some((n) => !NATIVE_NAMES.includes(n)) || [...new Set(o.native.names)].sort().join() !== o.native.names.join()
++        || !HEX64.test(o.native.caSha256)) bad('statement native names malformed');
++  }
+   if (Object.hasOwn(o, 'ownerNomination')) {
+     only(o.ownerNomination, ['ownershipContract', 'ownershipCodeHash', 'hostId', 'owner'], 'statement owner nomination');
+     if (!/^0x[0-9a-f]{40}$/.test(o.ownerNomination.ownershipContract) || !/^0x[0-9a-f]{40}$/.test(o.ownerNomination.owner)
+@@ -698,16 +742,67 @@ export function configfsReporter({ root = '/sys/kernel/config/tsm/report', vcekB
+ /** HOST_DATA (bytes 0xC0..0xE0) of a raw SNP report, hex, or '' when the report is too short. */
+ export const hostDataOfReport = (report) => (Buffer.isBuffer(report) && report.length >= 0xe0 ? report.subarray(0xc0, 0xe0).toString('hex') : '');
+ 
++// ---- the native control certificate --------------------------------------------------------------------------------------
++export const NATIVE_CERT_PATH = '/.well-known/enclave-native-certificate';
++export const MAX_NATIVE_CHAIN_BYTES = 16384;
++const NATIVE_BODY_MS = 10000;
++const PEM_CERT = /-----BEGIN CERTIFICATE-----\r?\n[A-Za-z0-9+/=\r\n]+?-----END CERTIFICATE-----\r?\n?/g;
++/** One TLS handshake over an in-memory pair: this guest's key and `leafPem` serve; Node/OpenSSL's verifier checks it for `name`. */
++function handshake({ keyPem, leafPem, caPem, name, timeoutMs = 5000 }) {
++  return new Promise((resolve, reject) => {
++    const [a, b] = duplexPair();
++    const server = new tls.TLSSocket(a, { isServer: true, secureContext: tls.createSecureContext({ key: keyPem, cert: leafPem, minVersion: 'TLSv1.2' }) });
++    const client = tls.connect({ socket: b, servername: name, ca: caPem, rejectUnauthorized: true, minVersion: 'TLSv1.2' });
++    let done = false;
++    const finish = (e) => { if (done) return; done = true; clearTimeout(t); client.destroy(); server.destroy(); if (e) reject(e); else resolve(); };
++    const t = setTimeout(() => finish(new Error('handshake timed out')), timeoutMs);
++    server.on('error', () => {});
++    client.once('secureConnect', () => finish(client.authorized ? null : new Error(String(client.authorizationError || 'not authorized'))));
++    client.once('error', (e) => finish(e));
++  });
++}
++/**
++ * Accept a native control certificate chain (the leaf, then the native CA certificate) for this guest -> { leafPem, caPem,
++ * validFrom, validTo } (ms), or throws. The CA must be the bound one (sha256 of its DER); the leaf must not be a CA, must carry
++ * exactly this guest's control TLS public key, and must pass a real TLS handshake under that CA for EVERY bound name.
++ */
++export async function checkNativeCertificate(chainPem, { keyPem, caSha256, names, now = Date.now() }) {
++  if (typeof chainPem !== 'string' || Buffer.byteLength(chainPem) > MAX_NATIVE_CHAIN_BYTES) bad(`a native certificate chain is PEM text up to ${MAX_NATIVE_CHAIN_BYTES} bytes`);
++  const blocks = chainPem.match(PEM_CERT) || [];
++  if (blocks.length !== 2 || blocks.join('').replace(/\r/g, '').trim() !== chainPem.replace(/\r/g, '').trim()) bad('a native certificate chain is exactly two PEM certificates: the leaf, then the native CA');
++  let leaf, ca;
++  try { leaf = new X509Certificate(blocks[0]); ca = new X509Certificate(blocks[1]); } catch (e) { bad(`unparseable certificate: ${e.message}`); }
++  if (sha256Hex(ca.raw) !== caSha256 || !ca.ca) bad('the chain does not end in the bound native CA');
++  if (leaf.ca) bad('the leaf is a CA certificate');
++  const own = createPublicKey(keyPem).export({ type: 'spki', format: 'der' });
++  if (!leaf.publicKey.export({ type: 'spki', format: 'der' }).equals(own)) bad('the leaf does not certify this guest\'s attested control TLS key');
++  const validFrom = Date.parse(leaf.validFrom), validTo = Date.parse(leaf.validTo);
++  if (!(validFrom <= now && now < validTo)) bad('the leaf is not valid now');
++  for (const name of names) {
++    try { await handshake({ keyPem, leafPem: blocks[0], caPem: blocks[1], name }); }
++    catch (e) { bad(`the leaf does not serve ${name} under the native CA: ${String(e.message).slice(0, 160)}`); }
++  }
++  return { leafPem: blocks[0], caPem: blocks[1], validFrom, validTo };
++}
++
+ // ---- the control front ----------------------------------------------------------------------------------------------------
+ const HOP = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade', 'host']);
+ /**
+  * The TLS front of the control guest. evidence: GET EVIDENCE_PATH?nonce=<64 hex>. Anything else: proxied to the
+  * in-guest supervisor, path and query only (never an absolute URL: no SSRF through the front).
+  * opts: { statementText, keyPem, certPem, reporter(reportData64) -> {report, certs}, upstream: {host, port}, mode }
++ * native (directNativeLaunch, optional): the bound native control names, served only with keyPem and an installed CA leaf.
++ * The returned server has installNativeCertificate(chainPem) (also PUT NATIVE_CERT_PATH) when native is given.
+  */
+ export function createControlFront({ statementText, keyPem, certPem, reporter, upstream = { host: '127.0.0.1', port: 8080 }, mode = 'snp', maxQueue = 8, routes = [],
+-                                    hostRoutes = [], prefixRoutes = [], sni = {} }) {
+-  parseStatement(statementText);
++                                    hostRoutes = [], prefixRoutes = [], sni = {}, native = null }) {
++  const statement = parseStatement(statementText);
++  // native control names: exactly the bound ones the statement names, to the platform API role, and never a shared SNI file
++  if (native) {
++    if (!statement.native || !Array.isArray(native.names) || native.names.join() !== statement.native.names.join() || native.caSha256 !== statement.native.caSha256
++        || native.upstream?.host !== '127.0.0.1' || !Number.isInteger(native.upstream?.port) || !HOSTNAME.test(String(native.apiHost)) || native.names.includes(native.apiHost)
++        || Object.keys(sni).some((n) => native.names.includes(n.toLowerCase()))) bad('front native names must be the statement\'s bound names and CA, to the platform API role, with no SNI certificate of their own');
++  } else if (statement.native) bad('the statement names native control names but the front was given none');
+   // routes: [{ path, upstream, rewrite }] - an EXACT path (query kept) sent to another in-guest loopback service under a
+   // fixed rewritten path (the hosted MCP: MCP_ROUTE -> its /p/<profile>). Everything else still goes to the supervisor.
+   for (const r of routes) if (!/^\/[a-z0-9-]+$/.test(String(r.path)) || r.path === EVIDENCE_PATH || r.upstream?.host !== '127.0.0.1' || !/^\/[a-z0-9/-]+$/.test(String(r.rewrite)))
+@@ -719,10 +814,31 @@ export function createControlFront({ statementText, keyPem, certPem, reporter, u
+   for (const r of prefixRoutes) if (!/^\/[a-z0-9-]+\/$/.test(String(r.prefix)) || r.upstream?.host !== '127.0.0.1' || !Number.isInteger(r.upstream?.port)) bad('front prefix routes are /<name>/ to a 127.0.0.1 service');
+   const hostOfReq = (req) => String(req.headers.host || '').toLowerCase().replace(/:\d+$/, '').replace(/\.+$/, '');
+   const routeOf = (req, pathname) => hostRoutes.find((r) => r.host === hostOfReq(req)) || prefixRoutes.find((r) => pathname.startsWith(r.prefix)) || routes.find((r) => pathname === r.path) || null;
++  // the native leaf over THIS guest's control key (checkNativeCertificate), held in memory; a native name is served only with it
++  // ONE install at a time, no queue: a second one is refused before its body is read (the PUT path), so an unauthenticated
++  // installer holds at most one MAX_NATIVE_CHAIN_BYTES body and one verification. The installed leaf changes only when a
++  // new one passed every check AND expires strictly later (a replayed or reissued shorter leaf never rolls expiry back);
++  // a refused, interrupted or failed install leaves the current one serving.
++  let nativeCert = null, installing = false, bodyHeld = false;
++  const nativeCtx = () => (nativeCert && Date.now() >= nativeCert.validFrom && Date.now() < nativeCert.validTo ? nativeCert.ctx : null);
++  const installNativeCertificate = async (chainPem) => {
++    if (installing) throw new ControlError('another native certificate install is in progress');
++    installing = true;
++    try {
++      const c = await checkNativeCertificate(chainPem, { keyPem, caSha256: native.caSha256, names: native.names });
++      if (nativeCert && Date.now() < nativeCert.validTo && c.validTo <= nativeCert.validTo) bad('the installed native certificate expires no earlier than this one');
++      const ctx = tls.createSecureContext({ key: keyPem, cert: c.leafPem, minVersion: 'TLSv1.2' });
++      if (native.certificateFile) { const tmp = native.certificateFile + '.tmp'; fs.writeFileSync(tmp, c.leafPem + c.caPem, { mode: 0o644 }); fs.renameSync(tmp, native.certificateFile); }
++      nativeCert = { ...c, ctx };
++      return { names: native.names, validFrom: new Date(c.validFrom).toISOString(), validTo: new Date(c.validTo).toISOString() };
++    } finally { installing = false; }
++  };
+   // a WebPKI certificate for a routed hostname, provisioned inside the guest (certificate role) at sni[name]; read per handshake
+   const sniCache = new Map();
+   const SNICallback = (name, cb) => {
+-    const s = sni[String(name || '').toLowerCase()];
++    const lname = String(name || '').toLowerCase();
++    if (native && native.names.includes(lname)) { const ctx = nativeCtx(); return ctx ? cb(null, ctx) : cb(new Error(`no current native certificate for ${lname}`)); }
++    const s = sni[lname];
+     if (!s) return cb(null, null);
+     try {
+       const st = fs.statSync(s.certFile).mtimeMs + ':' + fs.statSync(s.keyFile).mtimeMs, c = sniCache.get(name);
+@@ -754,7 +870,49 @@ export function createControlFront({ statementText, keyPem, certPem, reporter, u
+         .finally(() => { queued--; });
+       return;
+     }
++    if (native && u.pathname === NATIVE_CERT_PATH) {
++      if (req.method === 'GET') {
++        if (!nativeCert) return json(res, 404, { error: 'no_native_certificate' });
++        res.writeHead(200, { 'content-type': 'application/x-pem-file', 'cache-control': 'no-store' }); return res.end(nativeCert.leafPem + nativeCert.caPem);
++      }
++      if (req.method !== 'PUT') return json(res, 405, { error: 'method' });
++      // refused BEFORE any body byte is kept: a declared length within the bound, and no install already holding the slot
++      const len = Number(req.headers['content-length']);
++      if (req.headers['transfer-encoding'] || !Number.isSafeInteger(len) || len < 1) return json(res, 411, { error: 'length_required' });
++      if (len > MAX_NATIVE_CHAIN_BYTES) return json(res, 413, { error: 'too_large' });
++      if (installing || bodyHeld) return json(res, 429, { error: 'busy' });
++      bodyHeld = true;
++      const chunks = []; let size = 0, released = false;
++      const release = () => { if (!released) { released = true; bodyHeld = false; clearTimeout(timer); } };
++      const timer = setTimeout(() => { release(); json(res, 408, { error: 'body_timeout' }); req.destroy(); }, NATIVE_BODY_MS);
++      req.on('data', (c) => { size += c.length; if (size > len) { release(); json(res, 413, { error: 'too_large' }); req.destroy(); } else chunks.push(c); });
++      req.on('close', release);
++      req.on('error', release);
++      req.on('end', () => {
++        if (released) return;
++        release();
++        installNativeCertificate(Buffer.concat(chunks).toString('utf8')).then((r) => json(res, 200, r),
++          (e) => json(res, /in progress/.test(String(e?.message)) ? 429 : 400, { error: 'native_certificate_refused', message: String(e?.message || e).slice(0, 300) }));
++      });
++      return;
++    }
+     const headers = {}; for (const [k, v] of Object.entries(req.headers)) if (!HOP.has(k.toLowerCase())) headers[k] = v;
++    if (native) {
++      const h = hostOfReq(req), sn = String(req.socket.servername || '').toLowerCase();
++      if (native.names.includes(h) || native.names.includes(sn)) {
++        // a native name only on a connection made (and authenticated) for that very name: never under another SNI key
++        if (h !== sn) return json(res, 421, { error: 'misdirected_request', message: 'a native control name is served only on a TLS connection made for that name' });
++        Object.assign(headers, { host: native.apiHost, 'x-enclave-client-ip': String(req.socket.remoteAddress || '').replace(/^::ffff:/, '') });
++        // the platform API, exactly as on its WebPKI host; mcp.enclavehost.eth is the relay's own MCP endpoint (/mcp on that host)
++        const toPath = (h === 'mcp.enclavehost.eth' ? '/mcp' : u.pathname) + u.search;
++        const up = http.request({ host: native.upstream.host, port: native.upstream.port, method: req.method, path: toPath, headers }, (r) => {
++          const hh = {}; for (const [k, v] of Object.entries(r.headers)) if (!HOP.has(k.toLowerCase())) hh[k] = v;
++          res.writeHead(r.statusCode || 502, hh); r.pipe(res);
++        });
++        up.on('error', () => { if (!res.headersSent) json(res, 502, { error: 'service_unreachable' }); else res.destroy(); });
++        return req.pipe(up);
++      }
++    }
+     const route = routeOf(req, u.pathname), to = route ? route.upstream : upstream;
+     // a host-routed service (the platform API) learns the client's address only from this front: the TCP peer, never a
+     // client-written header
+@@ -770,7 +928,14 @@ export function createControlFront({ statementText, keyPem, certPem, reporter, u
+   });
+   // upgrades (the platform API's websocket routes) only on a host route; the supervisor's own surface takes none here
+   server.on('upgrade', (req, socket, head) => {
+-    const route = hostRoutes.find((r) => r.host === hostOfReq(req));
++    let route = hostRoutes.find((r) => r.host === hostOfReq(req));
++    if (native) {
++      const h = hostOfReq(req), sn = String(req.socket.servername || '').toLowerCase();
++      if (native.names.includes(h) || native.names.includes(sn)) {
++        if (h !== sn || h !== 'api.enclavehost.eth') { socket.end('HTTP/1.1 421 Misdirected Request\r\ncontent-length: 0\r\n\r\n'); return; }
++        route = { host: native.apiHost, upstream: native.upstream };
++      }
++    }
+     if (!route || !String(req.url || '').startsWith('/') || String(req.url).startsWith('//')) { socket.end('HTTP/1.1 404 Not Found\r\ncontent-length: 0\r\n\r\n'); return; }
+     const headers = { ...req.headers, host: route.host,
+       'x-enclave-client-ip': String(req.socket.remoteAddress || '').replace(/^::ffff:/, '') };
+@@ -781,6 +946,7 @@ export function createControlFront({ statementText, keyPem, certPem, reporter, u
+     });
+     up.on('error', () => socket.destroy()); socket.on('error', () => up.destroy());
+   });
++  if (native) { server.installNativeCertificate = installNativeCertificate; server.nativeState = () => ({ installing, bodyHeld, validTo: nativeCert ? nativeCert.validTo : null }); }
+   return server;
+ }
+ 
+@@ -792,7 +958,10 @@ async function serveMain(argv) {
+     certPem: fs.readFileSync(cfg.tlsCert, 'utf8'), reporter: configfsReporter({ vcekB64: cfg.vcekB64 || '' }), upstream: cfg.upstream, mode: cfg.mode,
+     routes: Array.isArray(cfg.routes) ? cfg.routes : [],
+     hostRoutes: Array.isArray(cfg.hostRoutes) ? cfg.hostRoutes : [], prefixRoutes: Array.isArray(cfg.prefixRoutes) ? cfg.prefixRoutes : [],
+-    sni: cfg.sni && typeof cfg.sni === 'object' ? cfg.sni : {} });
++    sni: cfg.sni && typeof cfg.sni === 'object' ? cfg.sni : {}, native: cfg.native || null });
++  // a native leaf already installed this boot (a restarted front): accepted again only through the same checks
++  if (cfg.native && fs.existsSync(cfg.native.certificateFile)) await front.installNativeCertificate(fs.readFileSync(cfg.native.certificateFile, 'utf8'))
++    .then((r) => console.log(`[control] native control certificate for ${r.names.join(', ')} until ${r.validTo}`), (e) => console.error(`[control] installed native certificate refused: ${e.message}`));
+   front.listen(cfg.port, '0.0.0.0', () => console.log(`[control] measured control front on :${cfg.port} (mode ${cfg.mode}); evidence at ${EVIDENCE_PATH}`));
+ }
+ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url) && process.argv[2] === 'serve')
+diff --git a/metal/guest/platform-api.bundle.mjs b/metal/guest/platform-api.bundle.mjs
+index ccc67951e..5c5007439 100644
+--- a/metal/guest/platform-api.bundle.mjs
++++ b/metal/guest/platform-api.bundle.mjs
+@@ -117488,7 +117488,7 @@ var require_x509_cjs = __commonJS({
+     var _X509Certificate_signature;
+     var _X509Certificate_extensions;
+     var _X509Certificate_publicKey;
+-    var X509Certificate14 = class extends PemData {
++    var X509Certificate15 = class extends PemData {
+       get publicKey() {
+         if (!tslib.__classPrivateFieldGet(this, _X509Certificate_publicKey, "f")) {
+           tslib.__classPrivateFieldSet(this, _X509Certificate_publicKey, new PublicKey(this.asn.tbsCertificate.subjectPublicKeyInfo), "f");
+@@ -117736,13 +117736,13 @@ var require_x509_cjs = __commonJS({
+       }
+     };
+     _X509Certificate_tbs = /* @__PURE__ */ new WeakMap(), _X509Certificate_serialNumber = /* @__PURE__ */ new WeakMap(), _X509Certificate_subjectName = /* @__PURE__ */ new WeakMap(), _X509Certificate_subject = /* @__PURE__ */ new WeakMap(), _X509Certificate_issuerName = /* @__PURE__ */ new WeakMap(), _X509Certificate_issuer = /* @__PURE__ */ new WeakMap(), _X509Certificate_notBefore = /* @__PURE__ */ new WeakMap(), _X509Certificate_notAfter = /* @__PURE__ */ new WeakMap(), _X509Certificate_signatureAlgorithm = /* @__PURE__ */ new WeakMap(), _X509Certificate_signature = /* @__PURE__ */ new WeakMap(), _X509Certificate_extensions = /* @__PURE__ */ new WeakMap(), _X509Certificate_publicKey = /* @__PURE__ */ new WeakMap();
+-    X509Certificate14.NAME = "Certificate";
++    X509Certificate15.NAME = "Certificate";
+     var X509Certificates = class extends Array {
+       constructor(param) {
+         super();
+         if (PemData.isAsnEncoded(param)) {
+           this.import(param);
+-        } else if (param instanceof X509Certificate14) {
++        } else if (param instanceof X509Certificate15) {
+           this.push(param);
+         } else if (Array.isArray(param)) {
+           for (const item of param) {
+@@ -117776,7 +117776,7 @@ var require_x509_cjs = __commonJS({
+         this.clear();
+         for (const item of signedData.certificates || []) {
+           if (item.certificate) {
+-            this.push(new X509Certificate14(item.certificate));
++            this.push(new X509Certificate15(item.certificate));
+           }
+         }
+       }
+@@ -117981,7 +117981,7 @@ var require_x509_cjs = __commonJS({
+           throw Error("Cannot convert ASN.1 signature value to WebCrypto format");
+         }
+         asnX509.signatureValue = asnSignature;
+-        return new X509Certificate14(asn1Schema.AsnConvert.serialize(asnX509));
++        return new X509Certificate15(asn1Schema.AsnConvert.serialize(asnX509));
+       }
+     };
+     var _X509CrlEntry_serialNumber;
+@@ -118197,7 +118197,7 @@ var require_x509_cjs = __commonJS({
+         let publicKey;
+         const paramsKey = params.publicKey;
+         try {
+-          if (paramsKey instanceof X509Certificate14) {
++          if (paramsKey instanceof X509Certificate15) {
+             keyAlgorithm = {
+               ...paramsKey.publicKey.algorithm,
+               ...paramsKey.signatureAlgorithm
+@@ -118401,7 +118401,7 @@ var require_x509_cjs = __commonJS({
+     exports.TextObject = TextObject;
+     exports.UPN = UPN;
+     exports.URL = URL2;
+-    exports.X509Certificate = X509Certificate14;
++    exports.X509Certificate = X509Certificate15;
+     exports.X509CertificateGenerator = X509CertificateGenerator;
+     exports.X509Certificates = X509Certificates;
+     exports.X509ChainBuilder = X509ChainBuilder2;
+@@ -243177,7 +243177,8 @@ import http7 from "node:http";
+ import https5 from "node:https";
+ import net6 from "node:net";
+ import tls2 from "node:tls";
+-import { createHash as createHash36, createPublicKey as createPublicKey16, generateKeyPairSync as generateKeyPairSync5, randomBytes as randomBytes25, sign as cryptoSign2 } from "node:crypto";
++import { createHash as createHash36, createPublicKey as createPublicKey16, generateKeyPairSync as generateKeyPairSync5, randomBytes as randomBytes25, sign as cryptoSign2, X509Certificate as X509Certificate12 } from "node:crypto";
++import { duplexPair } from "node:stream";
+ import { fileURLToPath as fileURLToPath3, pathToFileURL } from "node:url";
+ function canonicalJson(v) {
+   if (v === null || typeof v === "boolean" || typeof v === "string") return JSON.stringify(v);
+@@ -243211,7 +243212,7 @@ function url(v, what) {
+   return u3;
+ }
+ function canonicalDirectConfig(raw) {
+-  const OPTIONAL_MEMBERS = ["leaseGas", "mcp", "platformApi", "ownerNomination", "platformPolicyCarriers"];
++  const OPTIONAL_MEMBERS = ["leaseGas", "mcp", "platformApi", "ownerNomination", "platformPolicyCarriers", "nativeControl"];
+   const fields2 = raw && typeof raw === "object" && !Array.isArray(raw) && OPTIONAL_MEMBERS.some((k3) => Object.hasOwn(raw, k3)) ? Object.fromEntries(Object.entries(raw).filter(([k3]) => !OPTIONAL_MEMBERS.includes(k3))) : raw;
+   only(fields2, [
+     "format",
+@@ -243291,6 +243292,7 @@ function canonicalDirectConfig(raw) {
+   }) : null;
+   if (mcp && platformApi && [platformApi.apiPort, platformApi.peerPort].includes(mcp.port)) bad6("mcp.port must differ from both platformApi ports");
+   const platformPolicyCarriers = raw.platformPolicyCarriers !== void 0 ? directPolicyCarriers(raw.platformPolicyCarriers) : null;
++  const nativeControl = raw.nativeControl !== void 0 ? directNativeControl(raw.nativeControl, { platformApi }) : null;
+   return deepFreeze({
+     format: CONFIG_FORMAT,
+     chainId: CHAIN_ID4,
+@@ -243310,9 +243312,21 @@ function canonicalDirectConfig(raw) {
+     ...mcp ? { mcp } : {},
+     ...platformApi ? { platformApi } : {},
+     ...ownerNomination ? { ownerNomination } : {},
+-    ...platformPolicyCarriers ? { platformPolicyCarriers } : {}
++    ...platformPolicyCarriers ? { platformPolicyCarriers } : {},
++    ...nativeControl ? { nativeControl } : {}
+   });
+ }
++function directNativeControl(raw, { platformApi }) {
++  only(raw, ["names", "caSha256"], "nativeControl");
++  if (!platformApi) bad6("nativeControl needs the platformApi member: the native control names are served by the platform API role");
++  if (!Array.isArray(raw.names) || raw.names.length < 1 || raw.names.some((n) => !NATIVE_NAMES.includes(n)) || new Set(raw.names).size !== raw.names.length)
++    bad6(`nativeControl.names: one or more of ${NATIVE_NAMES.join(", ")}, each once`);
++  const names = [...raw.names].sort();
++  if (names.join() !== raw.names.join()) bad6("nativeControl.names must be written sorted");
++  if (names.includes(platformApi.hostname)) bad6("nativeControl.names must not include platformApi.hostname: a native name never shares the WebPKI route");
++  if (typeof raw.caSha256 !== "string" || !HEX647.test(raw.caSha256)) bad6("nativeControl.caSha256: sha256 (64 lowercase hex) of the native CA certificate (DER)");
++  return { names, caSha256: raw.caSha256 };
++}
+ function directPolicyCarriers(raw) {
+   if (!raw || typeof raw !== "object" || Array.isArray(raw)) bad6("platformPolicyCarriers must be an object");
+   for (const k3 of ["importDir", "policyMirrorStateDir"])
+@@ -243492,10 +243506,14 @@ function parseStatement(text) {
+   }
+   if (canonicalJson(o) !== text) bad6("statement is not in canonical form: the bound bytes are exactly the served bytes");
+   only(
+-    Object.hasOwn(o || {}, "ownerNomination") ? Object.fromEntries(Object.entries(o).filter(([k3]) => k3 !== "ownerNomination")) : o,
++    o && typeof o === "object" && !Array.isArray(o) ? Object.fromEntries(Object.entries(o).filter(([k3]) => k3 !== "ownerNomination" && k3 !== "native")) : o,
+     ["format", "role", "mode", "chainId", "configDigest", "hostData", "identity", "keys", "runtime", "bootId"],
+     "statement"
+   );
++  if (Object.hasOwn(o, "native")) {
++    only(o.native, ["names", "caSha256"], "statement native names");
++    if (!Array.isArray(o.native.names) || !o.native.names.length || o.native.names.some((n) => !NATIVE_NAMES.includes(n)) || [...new Set(o.native.names)].sort().join() !== o.native.names.join() || !HEX647.test(o.native.caSha256)) bad6("statement native names malformed");
++  }
+   if (Object.hasOwn(o, "ownerNomination")) {
+     only(o.ownerNomination, ["ownershipContract", "ownershipCodeHash", "hostId", "owner"], "statement owner nomination");
+     if (!/^0x[0-9a-f]{40}$/.test(o.ownerNomination.ownershipContract) || !/^0x[0-9a-f]{40}$/.test(o.ownerNomination.owner) || !/^0x[0-9a-f]{64}$/.test(o.ownerNomination.ownershipCodeHash) || !/^0x[0-9a-f]{64}$/.test(o.ownerNomination.hostId)) bad6("statement owner nomination malformed");
+@@ -243552,6 +243570,54 @@ function configfsReporter({ root: root3 = "/sys/kernel/config/tsm/report", vcekB
+     }
+   };
+ }
++function handshake({ keyPem, leafPem, caPem, name, timeoutMs = 5e3 }) {
++  return new Promise((resolve3, reject) => {
++    const [a, b4] = duplexPair();
++    const server2 = new tls2.TLSSocket(a, { isServer: true, secureContext: tls2.createSecureContext({ key: keyPem, cert: leafPem, minVersion: "TLSv1.2" }) });
++    const client = tls2.connect({ socket: b4, servername: name, ca: caPem, rejectUnauthorized: true, minVersion: "TLSv1.2" });
++    let done = false;
++    const finish = (e) => {
++      if (done) return;
++      done = true;
++      clearTimeout(t);
++      client.destroy();
++      server2.destroy();
++      if (e) reject(e);
++      else resolve3();
++    };
++    const t = setTimeout(() => finish(new Error("handshake timed out")), timeoutMs);
++    server2.on("error", () => {
++    });
++    client.once("secureConnect", () => finish(client.authorized ? null : new Error(String(client.authorizationError || "not authorized"))));
++    client.once("error", (e) => finish(e));
++  });
++}
++async function checkNativeCertificate(chainPem, { keyPem, caSha256, names, now = Date.now() }) {
++  if (typeof chainPem !== "string" || Buffer.byteLength(chainPem) > MAX_NATIVE_CHAIN_BYTES) bad6(`a native certificate chain is PEM text up to ${MAX_NATIVE_CHAIN_BYTES} bytes`);
++  const blocks = chainPem.match(PEM_CERT) || [];
++  if (blocks.length !== 2 || blocks.join("").replace(/\r/g, "").trim() !== chainPem.replace(/\r/g, "").trim()) bad6("a native certificate chain is exactly two PEM certificates: the leaf, then the native CA");
++  let leaf, ca2;
++  try {
++    leaf = new X509Certificate12(blocks[0]);
++    ca2 = new X509Certificate12(blocks[1]);
++  } catch (e) {
++    bad6(`unparseable certificate: ${e.message}`);
++  }
++  if (sha256Hex4(ca2.raw) !== caSha256 || !ca2.ca) bad6("the chain does not end in the bound native CA");
++  if (leaf.ca) bad6("the leaf is a CA certificate");
++  const own = createPublicKey16(keyPem).export({ type: "spki", format: "der" });
++  if (!leaf.publicKey.export({ type: "spki", format: "der" }).equals(own)) bad6("the leaf does not certify this guest's attested control TLS key");
++  const validFrom = Date.parse(leaf.validFrom), validTo = Date.parse(leaf.validTo);
++  if (!(validFrom <= now && now < validTo)) bad6("the leaf is not valid now");
++  for (const name of names) {
++    try {
++      await handshake({ keyPem, leafPem: blocks[0], caPem: blocks[1], name });
++    } catch (e) {
++      bad6(`the leaf does not serve ${name} under the native CA: ${String(e.message).slice(0, 160)}`);
++    }
++  }
++  return { leafPem: blocks[0], caPem: blocks[1], validFrom, validTo };
++}
+ function createControlFront({
+   statementText,
+   keyPem,
+@@ -243563,18 +243629,47 @@ function createControlFront({
+   routes = [],
+   hostRoutes = [],
+   prefixRoutes = [],
+-  sni = {}
++  sni = {},
++  native = null
+ }) {
+-  parseStatement(statementText);
++  const statement = parseStatement(statementText);
++  if (native) {
++    if (!statement.native || !Array.isArray(native.names) || native.names.join() !== statement.native.names.join() || native.caSha256 !== statement.native.caSha256 || native.upstream?.host !== "127.0.0.1" || !Number.isInteger(native.upstream?.port) || !HOSTNAME.test(String(native.apiHost)) || native.names.includes(native.apiHost) || Object.keys(sni).some((n) => native.names.includes(n.toLowerCase()))) bad6("front native names must be the statement's bound names and CA, to the platform API role, with no SNI certificate of their own");
++  } else if (statement.native) bad6("the statement names native control names but the front was given none");
+   for (const r of routes) if (!/^\/[a-z0-9-]+$/.test(String(r.path)) || r.path === EVIDENCE_PATH || r.upstream?.host !== "127.0.0.1" || !/^\/[a-z0-9/-]+$/.test(String(r.rewrite)))
+     bad6("front routes are exact /<name> paths to a 127.0.0.1 service under a fixed path");
+   for (const r of hostRoutes) if (!HOSTNAME.test(String(r.host)) || r.upstream?.host !== "127.0.0.1" || !Number.isInteger(r.upstream?.port)) bad6("front host routes name a DNS host and a 127.0.0.1 service");
+   for (const r of prefixRoutes) if (!/^\/[a-z0-9-]+\/$/.test(String(r.prefix)) || r.upstream?.host !== "127.0.0.1" || !Number.isInteger(r.upstream?.port)) bad6("front prefix routes are /<name>/ to a 127.0.0.1 service");
+   const hostOfReq = (req) => String(req.headers.host || "").toLowerCase().replace(/:\d+$/, "").replace(/\.+$/, "");
+   const routeOf = (req, pathname) => hostRoutes.find((r) => r.host === hostOfReq(req)) || prefixRoutes.find((r) => pathname.startsWith(r.prefix)) || routes.find((r) => pathname === r.path) || null;
++  let nativeCert = null, installing = false, bodyHeld = false;
++  const nativeCtx = () => nativeCert && Date.now() >= nativeCert.validFrom && Date.now() < nativeCert.validTo ? nativeCert.ctx : null;
++  const installNativeCertificate = async (chainPem) => {
++    if (installing) throw new ControlError("another native certificate install is in progress");
++    installing = true;
++    try {
++      const c = await checkNativeCertificate(chainPem, { keyPem, caSha256: native.caSha256, names: native.names });
++      if (nativeCert && Date.now() < nativeCert.validTo && c.validTo <= nativeCert.validTo) bad6("the installed native certificate expires no earlier than this one");
++      const ctx = tls2.createSecureContext({ key: keyPem, cert: c.leafPem, minVersion: "TLSv1.2" });
++      if (native.certificateFile) {
++        const tmp = native.certificateFile + ".tmp";
++        fs24.writeFileSync(tmp, c.leafPem + c.caPem, { mode: 420 });
++        fs24.renameSync(tmp, native.certificateFile);
++      }
++      nativeCert = { ...c, ctx };
++      return { names: native.names, validFrom: new Date(c.validFrom).toISOString(), validTo: new Date(c.validTo).toISOString() };
++    } finally {
++      installing = false;
++    }
++  };
+   const sniCache = /* @__PURE__ */ new Map();
+   const SNICallback = (name, cb2) => {
+-    const s = sni[String(name || "").toLowerCase()];
++    const lname = String(name || "").toLowerCase();
++    if (native && native.names.includes(lname)) {
++      const ctx = nativeCtx();
++      return ctx ? cb2(null, ctx) : cb2(new Error(`no current native certificate for ${lname}`));
++    }
++    const s = sni[lname];
+     if (!s) return cb2(null, null);
+     try {
+       const st3 = fs24.statSync(s.certFile).mtimeMs + ":" + fs24.statSync(s.keyFile).mtimeMs, c = sniCache.get(name);
+@@ -243615,8 +243710,73 @@ function createControlFront({
+       });
+       return;
+     }
++    if (native && u3.pathname === NATIVE_CERT_PATH) {
++      if (req.method === "GET") {
++        if (!nativeCert) return json2(res, 404, { error: "no_native_certificate" });
++        res.writeHead(200, { "content-type": "application/x-pem-file", "cache-control": "no-store" });
++        return res.end(nativeCert.leafPem + nativeCert.caPem);
++      }
++      if (req.method !== "PUT") return json2(res, 405, { error: "method" });
++      const len = Number(req.headers["content-length"]);
++      if (req.headers["transfer-encoding"] || !Number.isSafeInteger(len) || len < 1) return json2(res, 411, { error: "length_required" });
++      if (len > MAX_NATIVE_CHAIN_BYTES) return json2(res, 413, { error: "too_large" });
++      if (installing || bodyHeld) return json2(res, 429, { error: "busy" });
++      bodyHeld = true;
++      const chunks = [];
++      let size10 = 0, released = false;
++      const release = () => {
++        if (!released) {
++          released = true;
++          bodyHeld = false;
++          clearTimeout(timer);
++        }
++      };
++      const timer = setTimeout(() => {
++        release();
++        json2(res, 408, { error: "body_timeout" });
++        req.destroy();
++      }, NATIVE_BODY_MS);
++      req.on("data", (c) => {
++        size10 += c.length;
++        if (size10 > len) {
++          release();
++          json2(res, 413, { error: "too_large" });
++          req.destroy();
++        } else chunks.push(c);
++      });
++      req.on("close", release);
++      req.on("error", release);
++      req.on("end", () => {
++        if (released) return;
++        release();
++        installNativeCertificate(Buffer.concat(chunks).toString("utf8")).then(
++          (r) => json2(res, 200, r),
++          (e) => json2(res, /in progress/.test(String(e?.message)) ? 429 : 400, { error: "native_certificate_refused", message: String(e?.message || e).slice(0, 300) })
++        );
++      });
++      return;
++    }
+     const headers = {};
+     for (const [k3, v] of Object.entries(req.headers)) if (!HOP.has(k3.toLowerCase())) headers[k3] = v;
++    if (native) {
++      const h3 = hostOfReq(req), sn3 = String(req.socket.servername || "").toLowerCase();
++      if (native.names.includes(h3) || native.names.includes(sn3)) {
++        if (h3 !== sn3) return json2(res, 421, { error: "misdirected_request", message: "a native control name is served only on a TLS connection made for that name" });
++        Object.assign(headers, { host: native.apiHost, "x-enclave-client-ip": String(req.socket.remoteAddress || "").replace(/^::ffff:/, "") });
++        const toPath2 = (h3 === "mcp.enclavehost.eth" ? "/mcp" : u3.pathname) + u3.search;
++        const up3 = http7.request({ host: native.upstream.host, port: native.upstream.port, method: req.method, path: toPath2, headers }, (r) => {
++          const hh2 = {};
++          for (const [k3, v] of Object.entries(r.headers)) if (!HOP.has(k3.toLowerCase())) hh2[k3] = v;
++          res.writeHead(r.statusCode || 502, hh2);
++          r.pipe(res);
++        });
++        up3.on("error", () => {
++          if (!res.headersSent) json2(res, 502, { error: "service_unreachable" });
++          else res.destroy();
++        });
++        return req.pipe(up3);
++      }
++    }
+     const route = routeOf(req, u3.pathname), to3 = route ? route.upstream : upstream;
+     if (route && route.host) {
+       headers.host = route.host;
+@@ -243636,7 +243796,17 @@ function createControlFront({
+     req.pipe(up2);
+   });
+   server2.on("upgrade", (req, socket, head) => {
+-    const route = hostRoutes.find((r) => r.host === hostOfReq(req));
++    let route = hostRoutes.find((r) => r.host === hostOfReq(req));
++    if (native) {
++      const h3 = hostOfReq(req), sn3 = String(req.socket.servername || "").toLowerCase();
++      if (native.names.includes(h3) || native.names.includes(sn3)) {
++        if (h3 !== sn3 || h3 !== "api.enclavehost.eth") {
++          socket.end("HTTP/1.1 421 Misdirected Request\r\ncontent-length: 0\r\n\r\n");
++          return;
++        }
++        route = { host: native.apiHost, upstream: native.upstream };
++      }
++    }
+     if (!route || !String(req.url || "").startsWith("/") || String(req.url).startsWith("//")) {
+       socket.end("HTTP/1.1 404 Not Found\r\ncontent-length: 0\r\n\r\n");
+       return;
+@@ -243656,6 +243826,10 @@ function createControlFront({
+     up2.on("error", () => socket.destroy());
+     socket.on("error", () => up2.destroy());
+   });
++  if (native) {
++    server2.installNativeCertificate = installNativeCertificate;
++    server2.nativeState = () => ({ installing, bodyHeld, validTo: nativeCert ? nativeCert.validTo : null });
++  }
+   return server2;
+ }
+ async function serveMain(argv) {
+@@ -243671,11 +243845,13 @@ async function serveMain(argv) {
+     routes: Array.isArray(cfg3.routes) ? cfg3.routes : [],
+     hostRoutes: Array.isArray(cfg3.hostRoutes) ? cfg3.hostRoutes : [],
+     prefixRoutes: Array.isArray(cfg3.prefixRoutes) ? cfg3.prefixRoutes : [],
+-    sni: cfg3.sni && typeof cfg3.sni === "object" ? cfg3.sni : {}
++    sni: cfg3.sni && typeof cfg3.sni === "object" ? cfg3.sni : {},
++    native: cfg3.native || null
+   });
++  if (cfg3.native && fs24.existsSync(cfg3.native.certificateFile)) await front.installNativeCertificate(fs24.readFileSync(cfg3.native.certificateFile, "utf8")).then((r) => console.log(`[control] native control certificate for ${r.names.join(", ")} until ${r.validTo}`), (e) => console.error(`[control] installed native certificate refused: ${e.message}`));
+   front.listen(cfg3.port, "0.0.0.0", () => console.log(`[control] measured control front on :${cfg3.port} (mode ${cfg3.mode}); evidence at ${EVIDENCE_PATH}`));
+ }
+-var CONFIG_FORMAT, STATEMENT_FORMAT, EVIDENCE_FORMAT, DOMAIN, EVIDENCE_PATH, CHAIN_ID4, sha25616, sha256Hex4, CONTROL_ROLE, MAX_STATEMENT_BYTES, ControlError, bad6, deepFreeze, ADDR5, ZERO_ADDR3, HEX647, REQUIRED_CONTRACTS, OPTIONAL_CONTRACTS, IPV4, hostOf, intIn, CARRIER_BASE, MAX_CARRIERS, MCP_FIELDS, PA_FIELDS, HOSTNAME, PLATFORM_API_ROLE_ENV, SECRET_NAME, configDigest, hostDataHex, GUEST_PATHS, DIRECT_FLAVOR_KEYS, jwkThumbprint3, bindingFor, HOP;
++var CONFIG_FORMAT, STATEMENT_FORMAT, EVIDENCE_FORMAT, DOMAIN, EVIDENCE_PATH, CHAIN_ID4, sha25616, sha256Hex4, CONTROL_ROLE, MAX_STATEMENT_BYTES, ControlError, bad6, deepFreeze, ADDR5, ZERO_ADDR3, HEX647, REQUIRED_CONTRACTS, OPTIONAL_CONTRACTS, IPV4, hostOf, intIn, NATIVE_NAMES, CARRIER_BASE, MAX_CARRIERS, MCP_FIELDS, PA_FIELDS, HOSTNAME, PLATFORM_API_ROLE_ENV, SECRET_NAME, configDigest, hostDataHex, GUEST_PATHS, DIRECT_FLAVOR_KEYS, jwkThumbprint3, bindingFor, NATIVE_CERT_PATH, MAX_NATIVE_CHAIN_BYTES, NATIVE_BODY_MS, PEM_CERT, HOP;
+ var init_measured_control = __esm({
+   "metal/guest/measured-control.mjs"() {
+     init_lease_gas_conduit_bundle();
+@@ -243721,6 +243897,7 @@ var init_measured_control = __esm({
+       if (!Number.isSafeInteger(v) || v < lo2 || v > hi2) bad6(`${what} must be an integer ${lo2}..${hi2}`);
+       return v;
+     };
++    NATIVE_NAMES = Object.freeze(["api.enclavehost.eth", "mcp.enclavehost.eth"]);
+     CARRIER_BASE = /^https?:\/\/[A-Za-z0-9.-]{1,200}(?::[0-9]{1,5})?(?:\/[A-Za-z0-9._~-]{1,64}){0,8}$/;
+     MAX_CARRIERS = 16;
+     MCP_FIELDS = ["port", "managementDirectories", "capacityDirectories", "capacityCold", "maxHosts", "storagePlan", "grantFrontend", "sessionScan", "usdc"];
+@@ -243755,12 +243932,17 @@ config ${digestHex}
+       platformApiConfig: "/run/measured-control/platform-api.json",
+       platformApiHandoffKey: "/run/measured-control/platform-api-handoff.key",
+       platformApiDir: "/run/measured-control/platform-api",
++      nativeCertificate: "/run/measured-control/native-certificate.pem",
+       // the supervisor image's shared host-admission bundle (supervisor.js imports it): checked only when the config names carriers
+       hostAdmissionBundle: "/app/windows/node/host-admission.bundle.mjs"
+     });
+     DIRECT_FLAVOR_KEYS = Object.freeze(["CHAIN_ID", "USDC_ADDRESS", "PAYMENT_WINDOW_SEC", "GRACE_SEC", "PAY_POLL_SEC", "SESSION_TTL"]);
+     jwkThumbprint3 = (jwk) => sha25616(`{"crv":"${jwk.crv}","kty":"${jwk.kty}","x":"${jwk.x}","y":"${jwk.y}"}`).toString("base64url");
+     bindingFor = (statementText, nonce3) => reportDataFor(statementText, nonce3).subarray(0, 32);
++    NATIVE_CERT_PATH = "/.well-known/enclave-native-certificate";
++    MAX_NATIVE_CHAIN_BYTES = 16384;
++    NATIVE_BODY_MS = 1e4;
++    PEM_CERT = /-----BEGIN CERTIFICATE-----\r?\n[A-Za-z0-9+/=\r\n]+?-----END CERTIFICATE-----\r?\n?/g;
+     HOP = /* @__PURE__ */ new Set(["connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade", "host"]);
+     if (process.argv[1] && path9.resolve(process.argv[1]) === fileURLToPath3(import.meta.url) && process.argv[2] === "serve")
+       serveMain(process.argv).catch((e) => {
+@@ -243772,7 +243954,12 @@ config ${digestHex}
+ 
+ // metal/measured-control-verify.mjs
+ import https6 from "node:https";
+-import { randomBytes as randomBytes26, X509Certificate as X509Certificate12 } from "node:crypto";
++import { randomBytes as randomBytes26, X509Certificate as X509Certificate13 } from "node:crypto";
++function policyChipIdOf(claims) {
++  const c = String(claims?.chipId ?? "");
++  if (!/^[0-9a-f]{128}$/.test(c) || !/[1-9a-f]/.test(c) || claims.maskChipKey === true) return null;
++  return "0x" + sha256Hex4(Buffer.from(c, "hex"));
++}
+ function endpointOf(raw) {
+   let u3;
+   try {
+@@ -243815,7 +244002,7 @@ function tlsGet(origin, pathAndQuery, { timeoutMs = 15e3, maxBytes = MAX_EVIDENC
+     });
+     req.on("socket", (s) => s.once("secureConnect", () => {
+       try {
+-        peerSpki = new X509Certificate12(s.getPeerCertificate(true).raw).publicKey.export({ type: "spki", format: "der" });
++        peerSpki = new X509Certificate13(s.getPeerCertificate(true).raw).publicKey.export({ type: "spki", format: "der" });
+       } catch (e) {
+         req.destroy(new Error(`no peer certificate: ${e.message}`));
+         return;
+@@ -243929,6 +244116,7 @@ async function verifyMeasuredControl({ url: url2, expect: expect2 = {}, collater
+     return result("rejected");
+   }
+   pass("report", `SEV-SNP report verified: measurement ${identity2.measurement.slice(0, 16)}\u2026 is allowed, it binds this statement and our nonce, its role is the control guest, HOST_DATA binds the config`);
++  identity2.chipId = policyChipIdOf(v.claims);
+   try {
+     const a = await tlsGet(url2, "/v1/attestation", { timeoutMs, pinSha256: st3.keys.controlTls.spkiSha256, maxBytes: 1024 * 1024 });
+     const j3 = a.status === 200 ? JSON.parse(a.body.toString("utf8")) : null;
+@@ -244062,7 +244250,7 @@ import http8 from "node:http";
+ import https7 from "node:https";
+ import net7 from "node:net";
+ import { spawn as spawn2 } from "node:child_process";
+-import { createHash as createHash37, createHmac as createHmac10, timingSafeEqual as timingSafeEqual16, X509Certificate as X509Certificate13 } from "node:crypto";
++import { createHash as createHash37, createHmac as createHmac10, timingSafeEqual as timingSafeEqual16, X509Certificate as X509Certificate14 } from "node:crypto";
+ import { fileURLToPath as fileURLToPath4 } from "node:url";
+ 
+ // node_modules/@noble/curves/esm/ed25519.js
+@@ -245823,7 +246011,7 @@ ${target}`).digest("hex");
+ }
+ var spkiOf = (cert) => {
+   try {
+-    return new X509Certificate13(cert.raw).publicKey.export({ type: "spki", format: "der" });
++    return new X509Certificate14(cert.raw).publicKey.export({ type: "spki", format: "der" });
+   } catch {
+     return Buffer.alloc(0);
+   }
+diff --git a/metal/guest/platform-api.bundle.mjs.manifest.json b/metal/guest/platform-api.bundle.mjs.manifest.json
+index 13e06000c..c64984d99 100644
+--- a/metal/guest/platform-api.bundle.mjs.manifest.json
++++ b/metal/guest/platform-api.bundle.mjs.manifest.json
+@@ -1,17 +1,17 @@
+ {
+   "bundle": "metal/guest/platform-api.bundle.mjs",
+   "entry": "metal/guest/platform-api-entry.mjs",
+-  "sha256": "ede48c36cb30b36dc7f2b5d308660a195d2dd257aeb73f18d6468c0d5f9d0c8c",
+-  "bytes": 8520656,
++  "sha256": "3078345b9e27594d9964998a3f638ff4a9727abef0bcd8cf02abacd993162e4c",
++  "bytes": 8531780,
+   "inputs": {
+     "custody/hpke.mjs": "1806a74c947db89db0e410c370ad7963eac9fa30d1807d8f55846690fafc0c03",
+     "metal/guest/lease-gas-conduit.bundle.mjs": "421d6584daa3acdfd7b459094576b46d7eafefe15f30c04e1f831ccbd34ba8d6",
+-    "metal/guest/measured-control.mjs": "f2648d65a16654d35f396bbc10e73e6c2e4a10624093275c66013f546aa9f3e6",
++    "metal/guest/measured-control.mjs": "318a84ceefecbcf3bc434cfcc2705193cbb8721cbff13cedc7fe6c197011c105",
+     "metal/guest/owner-nomination.mjs": "a2fb3eb63dc88684862bda401b9534a0a19befb4f007a3ad65e640d8325431d0",
+     "metal/guest/platform-api-entry.mjs": "b704d6ced7b8922179366cf76733e67899937696170b964018655824b2257638",
+     "metal/guest/platform-api-role.mjs": "3bcee3dfe3da8bcb4cdbdc98412f1aca426a8c1a020ab99f4bea7991e3f64812",
+     "metal/guest/platform-api-verify.mjs": "167548660773db10639efa9f3b3a7a10dc352b63c6aa068b6e61c6e172342342",
+-    "metal/measured-control-verify.mjs": "121ae7abc1d0430fe064f2ab888746fa70c6cac4097650610912aa3e45e8fcbf",
++    "metal/measured-control-verify.mjs": "2137d39e9dfb17d79ae8540c54ff28531bdd1b503ce8af4189f170a8a8f6b341",
+     "network/host-services/argv-guard.mjs": "35238208b03e4377f7dfc8c82a5b42f2b55211a935928a7d31148ed8d52b35cb",
+     "network/registry-abi.mjs": "4973d7ad4800b683d23ff531dd2bfabb5cd00ba3c46767f223b53965839fc02d",
+     "node_modules/@noble/ciphers/esm/_polyval.js": "93b718b57b8a6739b62145e6ba82ac0be5f225ba6754d825427fef8010b142e6",
+diff --git a/metal/measured-control-verify.mjs b/metal/measured-control-verify.mjs
+index 08ae768da..f666e504f 100644
+--- a/metal/measured-control-verify.mjs
++++ b/metal/measured-control-verify.mjs
+@@ -32,6 +32,15 @@ const HEX96 = /^[0-9a-f]{96}$/;
+ const keccakBytes = (b) => keccak256(b);
+ export const registryIdOf = (publicUrl) => keccak256(toHex(String(publicUrl).replace(/\/+$/, '')));   // EnclaveRegistry.idOf(endpoint)
+ export const proofAddressOf = (statement) => addressOfPublicKey(statement.keys.proof.publicKey, keccakBytes);
++/**
++ * The platform host policy's chipId for a VERIFIED report's claims: "0x" + sha256 of the 64-byte SNP CHIP_ID (the
++ * EnclaveSecretVaultV2 Machine.chipId, custody/v2/daemon.mjs). null for a zero (masked) or malformed CHIP_ID.
++ */
++export function policyChipIdOf(claims) {
++  const c = String(claims?.chipId ?? '');
++  if (!/^[0-9a-f]{128}$/.test(c) || !/[1-9a-f]/.test(c) || claims.maskChipKey === true) return null;
++  return '0x' + sha256Hex(Buffer.from(c, 'hex'));
++}
+ 
+ function endpointOf(raw) {
+   let u; try { u = new URL(String(raw)); } catch { throw new Error('control endpoint is not a URL'); }
+@@ -131,6 +140,8 @@ export async function verifyMeasuredControl({ url, expect = {}, collateral = nul
+     return result('rejected');   // "limited" too: an omitted security check is not readiness
+   }
+   pass('report', `SEV-SNP report verified: measurement ${identity.measurement.slice(0, 16)}… is allowed, it binds this statement and our nonce, its role is the control guest, HOST_DATA binds the config`);
++  // the chip, only from a report the verifier accepted (VCEK-signed, VCEK hardware id = CHIP_ID); null when masked or zero
++  identity.chipId = policyChipIdOf(v.claims);
+   // 6. the running supervisor holds the minted keys (a second connection, pinned to the attested key)
+   try {
+     const a = await tlsGet(url, '/v1/attestation', { timeoutMs, pinSha256: st.keys.controlTls.spkiSha256, maxBytes: 1024 * 1024 });
+diff --git a/network/native-control-routes.mjs b/network/native-control-routes.mjs
+new file mode 100644
+index 000000000..3ba6a6cd2
+--- /dev/null
++++ b/network/native-control-routes.mjs
+@@ -0,0 +1,290 @@
++// Native CONTROL routes (relay/native-discovery.mjs): where api.enclavehost.eth and mcp.enclavehost.eth are served, without a
++// fixed fleet address and without trusting whoever advertised the address.
++//
++// An advertisement only says "try this IPv4 address". What is served is decided by the SERVING identity, proven per address:
++//   1. NATIVE TLS: a connection to <address>:443 with SNI <name>, verified by Node/OpenSSL against the native CA only, with
++//      the hostname check. On that same connection the guest's evidence document is read: its statement must bind <name>
++//      to that CA (statement.native, from the HOST_DATA-bound config), and the leaf's public key must be the statement's
++//      attested control TLS key - so whatever terminates this connection holds the measured guest's minted key;
++//   2. ATTESTATION, unchanged (metal/measured-control-verify.mjs verifyMeasuredControl at https://<address>, port 443, no
++//      SNI: the same front, the same key): AMD chain, an allowed measurement, report bound to our fresh nonce, the control
++//      role, HOST_DATA = the stated config, the TLS peer = that key, the supervisor holding the minted keys, and the ORIGINAL
++//      EnclaveRegistry row (through the RPC quorum) active with the bound operator and this boot's proof key. Same boot and
++//      key as step 1, or nothing;
++//   3. ADMISSION, fresh: the platform host policy decision for THAT registry id (the serving host, never the advertiser),
++//      admit === true, with the decision's registry row naming the same operator. A ban on the host's registry id, operator,
++//      accepted owner or registered endpoint withdraws the route at the next refresh. A chipId entry is matched against
++//      the chip the verifier proved for that boot (nativeHostDecision: "0x" + sha256 of the 64-byte CHIP_ID, the custody
++//      vault's Machine.chipId); if no chip is proven, any chipId denial refuses the route instead of admitting it.
++// A route is the exact address verified, lives at most routeTtlMs (60 s, as an app route record) and never past the leaf, and
++// the configured failure domain (the DigitalOcean fleet) is never probed. No route: native discovery answers unavailable.
++//
++// The advertisements are EnclaveServiceIndex ads of kind 9 ("native-control"; the contract accepts any kind but 0). The shared
++// reader (network/service-index.mjs, an image input) names only its own kinds, so this module reads kind 9 through the SAME
++// agreedRead quorum rule and pin check, and prepareControlAd builds the publication the existing CLI sends
++// (scripts/network/service-index.mjs send --prepared).
++import https from 'node:https';
++import tls from 'node:tls';
++import { randomBytes, X509Certificate } from 'node:crypto';
++import { keccak256, encodeFunctionData } from 'viem';
++import { agreedRead, peerList, validateIndexPin, publishTypedData, SERVICE_INDEX_ABI, AD_VERSION, LIMITS, publicIPv4, QuorumError } from './service-index.mjs';
++import { verifyMeasuredControl } from '../metal/measured-control-verify.mjs';
++import { parseStatement, sha256Hex, EVIDENCE_PATH, EVIDENCE_FORMAT, NATIVE_NAMES } from '../metal/guest/measured-control.mjs';
++import { judgeHost } from './platform-host-policy.mjs';
++
++export const CONTROL_KIND = 9;
++export const CONTROL_KIND_NAME = 'native-control';
++export { NATIVE_NAMES };
++const lc = (s) => String(s || '').toLowerCase();
++const ADDR = /^0x[0-9a-fA-F]{40}$/;
++
++/** An advertised control endpoint -> its IPv4 address: exactly https://<public IPv4>/ (port 443). Throws otherwise. */
++export function controlEndpointAddress(endpoint) {
++  let u; try { u = new URL(endpoint); } catch { throw new Error('not a URL'); }
++  if (u.protocol !== 'https:' || (u.port !== '' && u.port !== '443')) throw new Error('a native control endpoint is https on port 443');
++  if (u.username || u.password || u.search || u.hash || u.pathname !== '/') throw new Error('a native control endpoint is a bare https origin');
++  if (!publicIPv4(u.hostname)) throw new Error('a native control endpoint is a public IPv4 literal');
++  return u.hostname;
++}
++
++/** The unsigned publication of a native-control ad, in the shape scripts/network/service-index.mjs sign/send take. */
++export function prepareControlAd({ pin, operator, slot, sequence, ttlSec = 30 * 86400, endpoints, now = Date.now }) {
++  pin = validateIndexPin(pin);
++  if (!ADDR.test(String(operator)) || !Number.isInteger(slot) || slot < 0 || slot >= LIMITS.slots) throw new Error('operator and slot 0..7 required');
++  if (!Array.isArray(endpoints) || !endpoints.length || endpoints.length > LIMITS.endpoints) throw new Error('1 to 4 endpoints');
++  const eps = endpoints.map((e) => `https://${controlEndpointAddress(e)}/`);
++  if (!Number.isSafeInteger(ttlSec) || ttlSec < 60 || ttlSec > LIMITS.ttlSec) throw new Error('ttl must be 60 s to 90 days');
++  const expiresAt = BigInt(Math.floor(now() / 1000) + ttlSec), descriptor = '0x' + '0'.repeat(64);
++  return { action: 'publish', pin, typedData: publishTypedData({ chainId: pin.chainId, index: pin.address, operator: lc(operator), slot, kind: CONTROL_KIND, sequence, expiresAt, descriptor, endpoints: eps }),
++    call: { to: pin.address, from: lc(operator), data: encodeFunctionData({ abi: SERVICE_INDEX_ABI, functionName: 'publish', args: [slot, CONTROL_KIND, AD_VERSION, BigInt(sequence), expiresAt, descriptor, eps] }) } };
++}
++
++/**
++ * Candidate addresses from the pinned index, read at ONE block two RPCs return identically (agreedRead): named operators
++ * first (get(operator, slot) for every slot, so listing spam cannot hide them), then up to `window` listed kind-9 ads.
++ * -> { candidates: [{ address, operator, slot, expiresAt (ms) }], rejected: [{ operator, slot, endpoint?, reason }], blockNumber, complete }
++ */
++export async function readControlCandidates({ peers, clients, indexPin, operators = [], window = 256, now = Date.now, ...policy }) {
++  const pin = validateIndexPin(indexPin);
++  const list = peerList({ peers, clients, methods: ['getCode', 'readContract'] });
++  if (!Array.isArray(operators) || operators.length > 32 || operators.some((o) => !ADDR.test(String(o)))) throw new Error('at most 32 operator addresses');
++  if (!Number.isSafeInteger(window) || window < 1 || window > LIMITS.perKind) throw new Error(`window must be 1..${LIMITS.perKind}`);
++  const wanted = operators.flatMap((o) => [...Array(LIMITS.slots).keys()].map((slot) => ({ operator: lc(o), slot })));
++  const r = await agreedRead({ peers: list, chainId: pin.chainId, now, ...policy, read: async (c, blockNumber, call) => {
++    const code = await call('code', () => c.getCode({ address: pin.address, blockNumber }));
++    const value = { codeHash: code ? keccak256(code) : null, ads: [], total: 0n, lookups: [] };
++    if (value.codeHash !== pin.codeHash) return value;
++    for (const w of wanted) value.lookups.push(await call(`get ${w.operator}/${w.slot}`, () => c.readContract({ address: pin.address, abi: SERVICE_INDEX_ABI, functionName: 'get', args: [w.operator, w.slot], blockNumber })));
++    for (let at = 0n; value.ads.length < window; at += BigInt(LIMITS.page)) {
++      const limit = BigInt(Math.min(LIMITS.page, window - value.ads.length));
++      const [out, t] = await call(`page ${CONTROL_KIND}@${at}`, () => c.readContract({ address: pin.address, abi: SERVICE_INDEX_ABI, functionName: 'page', args: [CONTROL_KIND, at, limit], blockNumber }));
++      value.total = t; value.ads.push(...out);
++      if (out.length < Number(limit) || at + BigInt(out.length) >= t) break;
++    }
++    return value;
++  } });
++  const v = r.value;
++  if (v.codeHash !== pin.codeHash) throw new QuorumError(`the agreed code at ${pin.address} is ${v.codeHash || 'absent'}, not the pinned ${pin.codeHash}`, r.evidence);
++  const ts = BigInt(r.timestamp), candidates = [], rejected = [], seen = new Set();
++  for (const a of [...v.lookups, ...v.ads]) {
++    if (!a || /^0x0{40}$/i.test(a.operator) || Number(a.kind) !== CONTROL_KIND) continue;
++    const base = { operator: lc(a.operator), slot: Number(a.slot) };
++    if (BigInt(a.expiresAt) <= ts) continue;
++    if (Number(a.version) !== AD_VERSION) { rejected.push({ ...base, reason: `ad format version ${a.version}` }); continue; }
++    for (const e of a.endpoints) {
++      let address; try { address = controlEndpointAddress(e); } catch (x) { rejected.push({ ...base, endpoint: String(e).slice(0, 80), reason: x.message }); continue; }
++      if (seen.has(address)) continue;
++      seen.add(address); candidates.push({ address, ...base, expiresAt: Number(a.expiresAt) * 1000 });
++    }
++  }
++  return { candidates, rejected, blockNumber: r.blockNumber, complete: BigInt(v.ads.length) >= BigInt(v.total) };
++}
++
++/**
++ * Step 1: the evidence document over a NATIVE connection to dial(address) with SNI `name`, the leaf verified under caPem only.
++ * -> { spkiSha256, validTo (ms), statement (parsed), statementText }
++ */
++export function nativeEvidence({ dial, name, caPem, timeoutMs = 8000, maxBytes = 256 * 1024 }) {
++  return new Promise((resolve, reject) => {
++    let leaf = null;
++    const req = https.request({ host: dial.host, port: dial.port, servername: name, ca: caPem, rejectUnauthorized: true, agent: false, timeout: timeoutMs, minVersion: 'TLSv1.2',
++      checkServerIdentity: (_h, cert) => tls.checkServerIdentity(name, cert), method: 'GET', path: `${EVIDENCE_PATH}?nonce=${randomBytes(32).toString('hex')}`,
++      headers: { host: name, accept: 'application/json' } }, (res) => {
++      const chunks = []; let n = 0;
++      res.on('data', (c) => { n += c.length; if (n > maxBytes) req.destroy(new Error('evidence too large')); else chunks.push(c); });
++      res.on('end', () => {
++        try {
++          if (res.statusCode !== 200) throw new Error(`evidence HTTP ${res.statusCode}`);
++          const ev = JSON.parse(Buffer.concat(chunks).toString('utf8'));
++          if (ev?.format !== EVIDENCE_FORMAT) throw new Error('not a control evidence document');
++          resolve({ ...leaf, statement: parseStatement(ev.statement), statementText: ev.statement });
++        } catch (e) { reject(e); }
++      });
++      res.on('error', reject);
++    });
++    req.on('socket', (s) => s.once('secureConnect', () => {
++      try { const c = new X509Certificate(s.getPeerCertificate().raw); leaf = { spkiSha256: sha256Hex(c.publicKey.export({ type: 'spki', format: 'der' })), validTo: Date.parse(c.validTo) }; }
++      catch (e) { req.destroy(new Error(`no peer certificate: ${e.message}`)); }
++    }));
++    req.on('timeout', () => req.destroy(new Error(`no answer within ${timeoutMs} ms`)));
++    req.on('error', (e) => reject(new Error(String(e.message).slice(0, 200))));
++    req.end();
++  });
++}
++
++/**
++ * Steps 1-3 for one address. -> { address, names: [served], registryId, operator, bootId, expiresAt, refused: [{ name, reason }] }
++ * Throws when the address serves no name. decideHost(registryId, { chipId }) -> the platform host policy decision (fresh);
++ * chipId is the verifier's (identity.chipId), never an advertisement's, statement's or certificate's.
++ */
++export async function verifyNativeControlEndpoint({ address, names = NATIVE_NAMES, caPem, expect, collateral, registry, decideHost, dial = (a) => ({ host: a, port: 443 }),
++  timeoutMs = 8000, routeTtlMs = 60_000, now = Date.now, verify = verifyMeasuredControl }) {
++  if (typeof decideHost !== 'function') throw new Error('a platform host policy decision is required');
++  const caSha256 = sha256Hex(new X509Certificate(caPem).raw), d = dial(address), refused = [], ok = [];
++  for (const name of names) {
++    try {
++      const n = await nativeEvidence({ dial: d, name, caPem, timeoutMs });
++      if (!n.statement.native || !n.statement.native.names.includes(name) || n.statement.native.caSha256 !== caSha256) throw new Error(`the attested boot is not bound to serve ${name} under this native CA`);
++      if (n.spkiSha256 !== n.statement.keys.controlTls.spkiSha256) throw new Error('the native certificate is not over the attested control key');
++      ok.push({ name, ...n });
++    } catch (e) { refused.push({ name, reason: String(e.message).slice(0, 200) }); }
++  }
++  if (!ok.length) throw new Error(`no native name: ${refused.map((r) => `${r.name}: ${r.reason}`).join('; ')}`);
++  const st = ok[0].statement;
++  if (ok.some((n) => n.spkiSha256 !== ok[0].spkiSha256 || n.statement.bootId !== st.bootId)) throw new Error('the native names are served by different keys or boots');
++  const v = await verify({ url: `https://${d.host}:${d.port}`, collateral, registry, timeoutMs,
++    expect: { ...expect, configDigest: st.configDigest } });
++  if (v.status !== 'verified') throw new Error(`attestation ${v.status}: ${v.reasons.filter((r) => /^(REJECT|UNKNOWN|PENDING)|report:/.test(r)).slice(-2).join('; ').slice(0, 300)}`);
++  if (v.identity.controlTlsSpkiSha256 !== ok[0].spkiSha256 || v.identity.bootId !== st.bootId) throw new Error('the attested boot is not the one that answered the native connection');
++  let dec;
++  try { dec = await decideHost(v.identity.registryId, { chipId: v.identity.chipId ?? null }); } catch (e) { throw new Error(`platform host policy unreadable: ${String(e.message).slice(0, 160)}`); }
++  if (!dec || dec.admit !== true) throw new Error(`refused by the platform host policy: ${dec?.reason || dec?.status || 'no decision'}`);
++  if (!dec.host || lc(dec.host.operator) !== v.identity.operator || dec.host.active === false) throw new Error('the policy decision names another registry row than the attested host');
++  const expiresAt = Math.min(now() + routeTtlMs, ...ok.map((n) => n.validTo));
++  return { address, names: ok.map((n) => n.name), registryId: v.identity.registryId, operator: v.identity.operator, bootId: st.bootId, expiresAt, refused };
++}
++
++/**
++ * The platform host policy decision for the ATTESTED host, with its VERIFIED chip. `decision` is the policy runtime's fresh
++ * decision for the registry id (chain facts at an agreed block, the anchored policy, the book owner's authority); the
++ * runtime reads no chip, so a decision the accepted policy itself made (an admit, or a refusal by its entries) is judged
++ * again by the gate's own judgeHost with exactly those chain facts PLUS chipId - nothing else is added and no chain fact is
++ * replaced. Any other outcome (not activated, behind, authority, inactive, unreadable) stands. With no proven chip, an
++ * admit under a policy that denies any chipId is refused ("chip-unproven"); an allowlist chip entry simply does not match.
++ * -> { admit, status, reason, host }
++ */
++const POLICY_JUDGED = ['current', 'stale-grace', 'stale'];
++export function nativeHostDecision(decision, acceptedPolicy = null, chipId = null, { now = Date.now } = {}) {
++  if (!decision) return { admit: false, status: 'undecided', reason: 'no decision' };
++  const chip = typeof chipId === 'string' && /^0x[0-9a-f]{64}$/.test(chipId) ? chipId : null;
++  const judged = acceptedPolicy && (decision.admit === true ? decision.status !== 'not-activated' && decision.status !== 'off' : POLICY_JUDGED.includes(decision.status));
++  if (!judged) return decision;
++  if (!decision.host || typeof decision.host !== 'object') return { ...decision, admit: false, status: 'undecided', reason: 'the decision carries no registry facts' };
++  const host = { ...decision.host, chipId: chip };
++  const j = judgeHost(acceptedPolicy, host, Math.floor(now() / 1000), { previouslyAdmitted: false });
++  if (j.admit && !chip && Array.isArray(acceptedPolicy.deny) && acceptedPolicy.deny.some((e) => e && e.kind === 'chipId'))
++    return { admit: false, status: 'chip-unproven', reason: `platform policy #${acceptedPolicy.sequence} denies by chipId and this host's chip is not proven: refused`, host };
++  return { ...j, host };
++}
++
++const bounded = (p, ms, what) => { let t; return Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error(`${what} timed out after ${ms} ms`)), ms); t.unref?.(); })]).finally(() => clearTimeout(t)); };
++/**
++ * One discovery round -> { routes: { [name]: { addresses, expiresAt } }, verified, excluded, rejected, blockNumber }.
++ * readCandidates() -> readControlCandidates' result; verifyEndpoint(address) -> verifyNativeControlEndpoint's result.
++ */
++export async function discoverControlRoutes({ readCandidates, verifyEndpoint, excludeAddresses = [], names = NATIVE_NAMES, maxProbes = 16, endpointDeadlineMs = 45_000,
++  routeTtlMs = 60_000, now = Date.now }) {
++  const read = await readCandidates(), excluded = [], rejected = [...(read.rejected || [])], probes = [];
++  const exclude = new Set(excludeAddresses);
++  for (const c of read.candidates) {
++    if (exclude.has(c.address)) { excluded.push({ address: c.address, operator: c.operator, reason: 'in the excluded failure domain' }); continue; }
++    if (probes.length >= maxProbes) { rejected.push({ address: c.address, operator: c.operator, reason: `probe budget (${maxProbes}) exhausted` }); continue; }
++    probes.push(c);
++  }
++  const results = await Promise.all(probes.map((c) => bounded(verifyEndpoint(c.address), endpointDeadlineMs, `verifying ${c.address}`).then((r) => ({ c, r }), (e) => ({ c, e }))));
++  const at = now(), routes = {}, verified = [];
++  for (const { c, r, e } of results) {
++    if (e) { rejected.push({ address: c.address, operator: c.operator, reason: String(e.message).slice(0, 300) }); continue; }
++    verified.push({ ...r, advertisedBy: c.operator });
++    for (const x of r.refused || []) rejected.push({ address: c.address, name: x.name, reason: x.reason });
++  }
++  for (const name of names) {
++    const ok = verified.filter((v) => v.names.includes(name) && Math.min(v.expiresAt, read.candidates.find((c) => c.address === v.address).expiresAt) > at);
++    if (ok.length) routes[name] = { addresses: ok.map((v) => v.address),
++      expiresAt: Math.min(at + routeTtlMs, ...ok.map((v) => Math.min(v.expiresAt, read.candidates.find((c) => c.address === v.address).expiresAt))) };
++  }
++  return { routes, verified, excluded, rejected, blockNumber: read.blockNumber ?? null };
++}
++
++/**
++ * A single-flight cache of the route map: reused until its earliest route expires (at most routeTtlMs), refreshed in the
++ * background after half of that; a failed round is remembered for retryMs. No admission outlives a route's own expiry.
++ */
++export function cachedControlRoutes(discover, { retryMs = 10_000, log = () => {}, now = Date.now } = {}) {
++  let last = null, failed = null, inflight = null;
++  const refresh = () => {
++    if (!inflight) inflight = Promise.resolve().then(discover).then((r) => {
++      const at = now(), exp = Object.values(r.routes).map((x) => x.expiresAt);
++      last = { at, until: exp.length ? Math.min(...exp) : at + retryMs, map: { routes: r.routes } }; failed = null;
++      log(`[native-discovery] control routes: ${Object.entries(r.routes).map(([n, x]) => `${n}=${x.addresses.join('|')}`).join(' ') || 'none'} (${r.verified.length} verified, ${r.excluded.length} excluded, ${r.rejected.length} rejected)`);
++      return last.map;
++    }, (e) => { failed = { at: now(), error: e }; log(`[native-discovery] control route discovery failed: ${String(e?.message || e).slice(0, 300)}`); throw e; })
++      .finally(() => { inflight = null; });
++    return inflight;
++  };
++  return async () => {
++    const t = now();
++    if (last && last.until > t) { if (t - last.at > (last.until - last.at) / 2) refresh().catch(() => {}); return last.map; }
++    if (failed && t - failed.at < retryMs && !inflight) throw failed.error;
++    return refresh();
++  };
++}
++
++const list = (v) => String(v || '').split(',').map((x) => x.trim()).filter(Boolean);
++/**
++ * The deployed discovery's control-route source from its environment -> getControlRoutes(). Everything is explicit:
++ *   NATIVE_CONTROL_SERVICE_INDEX  <index address>@<runtime code hash> (the pinned EnclaveServiceIndex, Base 8453)
++ *   NATIVE_CONTROL_RPCS           2-8 Base RPC URLs of distinct providers (the index read, and the registry quorum)
++ *   NATIVE_CONTROL_QUORUM         registry quorum (default: all of them)
++ *   NATIVE_CONTROL_REGISTRY       the ORIGINAL EnclaveRegistry address
++ *   NATIVE_CONTROL_MEASUREMENTS   the reviewed control-image launch digests (96 hex, comma-separated)
++ *   NATIVE_CONTROL_EXCLUDE        REQUIRED: IPv4 addresses never probed or served (the DigitalOcean fleet)
++ *   NATIVE_CONTROL_OPERATORS      optional operator addresses read directly
++ *   ENCLAVE_PLATFORM_HOST_POLICY* the unchanged platform host policy resolution (production unless explicitly "off")
++ */
++export async function controlRoutesFromEnv(env, { caPem, log = () => {}, fetch = globalThis.fetch, now = Date.now,
++  // test fixtures only (offline): the SYNTHETIC AMD collateral and its pinned ARK, and loopback ports for public addresses
++  collateral: testCollateral = null, roots = null, dial = undefined } = {}) {
++  const m = /^(0x[0-9a-fA-F]{40})@(0x[0-9a-fA-F]{64})$/.exec(String(env.NATIVE_CONTROL_SERVICE_INDEX || '').trim());
++  if (!m) throw new Error('NATIVE_CONTROL_SERVICE_INDEX must be <index address>@<runtime code hash>');
++  const indexPin = validateIndexPin({ chainId: 8453, address: m[1], codeHash: m[2].toLowerCase() });
++  const rpcs = list(env.NATIVE_CONTROL_RPCS);
++  if (rpcs.length < 2 || rpcs.length > 8) throw new Error('NATIVE_CONTROL_RPCS: 2 to 8 Base RPC URLs of distinct providers');
++  const quorum = env.NATIVE_CONTROL_QUORUM ? Number(env.NATIVE_CONTROL_QUORUM) : rpcs.length;
++  if (!Number.isInteger(quorum) || quorum < 2 || quorum > rpcs.length) throw new Error('NATIVE_CONTROL_QUORUM: 2 to the number of RPCs');
++  if (!ADDR.test(String(env.NATIVE_CONTROL_REGISTRY || '')) || /^0x0{40}$/i.test(env.NATIVE_CONTROL_REGISTRY)) throw new Error('NATIVE_CONTROL_REGISTRY: the original EnclaveRegistry address');
++  const measurements = list(env.NATIVE_CONTROL_MEASUREMENTS).map(lc);
++  if (!measurements.length || measurements.some((x) => !/^[0-9a-f]{96}$/.test(x))) throw new Error('NATIVE_CONTROL_MEASUREMENTS: the reviewed control-image launch digests (96 hex)');
++  const exclude = list(env.NATIVE_CONTROL_EXCLUDE);
++  if (!exclude.length || exclude.some((x) => !/^(\d{1,3}\.){3}\d{1,3}$/.test(x))) throw new Error('NATIVE_CONTROL_EXCLUDE is required: the IPv4 failure domain (the DigitalOcean fleet) never probed or served');
++  const operators = list(env.NATIVE_CONTROL_OPERATORS);
++  const { rpcPeers } = await import('./policy-carriers.mjs');
++  const { createHostPolicyRuntime, resolveHostPolicyConfig } = await import('./host-policy-runtime.mjs');
++  const { PRODUCTION_BOOK } = await import('./platform-host-policy-config.mjs');
++  const { freshAdmissions } = await import('./host-policy-adapters.mjs');
++  const { quorumRegistry } = await import('../metal/guest/platform-api-verify.mjs');
++  const { httpCollateral } = await import('../verifier/collateral.mjs');
++  const { TCB_FLOORS } = await import('../verifier/metal-box.mjs');
++  const peers = rpcPeers(rpcs);
++  const runtime = createHostPolicyRuntime(resolveHostPolicyConfig({ env, chainId: 8453, book: PRODUCTION_BOOK }), { fetch, log });
++  // explicit "off" serves NOTHING here: an endpoint routed for the platform's own control names is always judged
++  if (!runtime) throw new Error('native control routes need the platform host policy: it is explicitly off');
++  const decide = freshAdmissions(runtime.gate);
++  const decideHost = async (id, { chipId = null } = {}) => nativeHostDecision((await decide([id]))[lc(id)], runtime.gate.accepted()?.policy || null, chipId, { now });
++  const registry = quorumRegistry({ rpcs, quorum, registry: env.NATIVE_CONTROL_REGISTRY.toLowerCase() });
++  const collateral = testCollateral || httpCollateral({ fetchImpl: fetch });
++  const expect = { measurements, minTcb: TCB_FLOORS, crl: 'required', ...(roots ? { roots } : {}) };
++  return cachedControlRoutes(() => discoverControlRoutes({ now, excludeAddresses: exclude,
++    readCandidates: () => readControlCandidates({ peers, indexPin, operators, now }),
++    verifyEndpoint: (address) => verifyNativeControlEndpoint({ address, caPem, expect, collateral, registry, now, decideHost, ...(dial ? { dial } : {}) }) }), { log, now });
++}
+diff --git a/relay/native-discovery.mjs b/relay/native-discovery.mjs
+index bbd521cd8..5810a0f5c 100644
+--- a/relay/native-discovery.mjs
++++ b/relay/native-discovery.mjs
+@@ -1,24 +1,39 @@
+ // Public routing metadata only. Application traffic never crosses this process.
+ import http from 'node:http';
++import net from 'node:net';
+ import {readFile} from 'node:fs/promises';
+ import {fileURLToPath} from 'node:url';
+ import {X509Certificate,createHash} from 'node:crypto';
+ export const ROOT='enclavehost.eth';
+-const SERVICES=new Set(['api','mcp']);
++const CONTROL=new Set(['api','mcp'].map(s=>s+'.'+ROOT));
++// Control names carry no fixed fleet address. A native-CA certificate alone proves only that a key may serve the name, not
++// which registry host serves it, so an advertisement is never admitted by its advertiser. The only control route source is
++// network/native-control-routes.mjs, which binds each address to the measured boot holding that key, its original registry
++// entry and a fresh platform host policy decision for THAT host. Not configured: control names answer unavailable.
++const NON_PUBLIC=new net.BlockList();
++for(const [a,p] of [['0.0.0.0',8],['10.0.0.0',8],['100.64.0.0',10],['127.0.0.0',8],['169.254.0.0',16],['172.16.0.0',12],['192.0.0.0',24],['192.0.2.0',24],
++ ['192.168.0.0',16],['198.18.0.0',15],['198.51.100.0',24],['203.0.113.0',24],['224.0.0.0',3]])NON_PUBLIC.addSubnet(a,p,'ipv4');
++const publicIPv4=a=>typeof a==='string'&&net.isIPv4(a)&&!NON_PUBLIC.check(a,'ipv4');
+ export function routeFor(name, map, now=Date.now()) {
+  if(typeof name!=='string'||name!==name.toLowerCase()||name.length>253)return null;
+- if(name.endsWith('.'+ROOT) && SERVICES.has(name.slice(0,-ROOT.length-1)))
+-  return {name, addresses:['134.199.235.187','134.209.248.172','165.245.191.129','146.190.246.39'],port:443,kind:'control'};
++ if(CONTROL.has(name)){
++  const row=map?.routes?.[name];
++  if(!row||!(row.expiresAt>now)||!Array.isArray(row.addresses)||!row.addresses.length||!row.addresses.every(publicIPv4))return null;
++  return {name,addresses:[...row.addresses],port:443,kind:'control',expiresAt:row.expiresAt};
++ }
+  const m=name.match(/^([0-9a-f]{8})\.app\.enclavehost\.eth$/);
+  if(!m)return null;
+  const row=map?.labels?.[m[1]];
+  if(!row||!(row.expiresAt>now)||!row.addresses?.length)return null;
+  return {name,addresses:row.addresses,port:443,kind:'application',expiresAt:row.expiresAt};
+ }
+-export function createDiscovery({getRoutes,caPem}){
++const bounded=(p,ms)=>{let t;return Promise.race([p,new Promise((_,reject)=>{t=setTimeout(()=>reject(Error('route source timed out')),ms);t.unref?.();})]).finally(()=>clearTimeout(t));};
++// getControlRoutes: an AUTHENTICATED route source, () -> { routes: { [name]: { addresses, expiresAt } } }, or null (none
++// exists yet: control names answer 503). Every route source is bounded by timeoutMs.
++export function createDiscovery({getRoutes,getControlRoutes=null,caPem,timeoutMs=15000}){
+  const fingerprint=createHash('sha256').update(new X509Certificate(caPem).raw).digest('hex');
+  return http.createServer(async(req,res)=>{
+-  const json=(status,obj)=>{res.writeHead(status,{'content-type':'application/json','cache-control':'no-store'});res.end(JSON.stringify(obj));};
++  const json=(status,obj,extra={})=>{res.writeHead(status,{'content-type':'application/json','cache-control':'no-store',...extra});res.end(JSON.stringify(obj));};
+   let u; try { u=new URL(req.url,'http://localhost'); } catch { return json(400,{error:'invalid_url'}); }
+   if(req.method!=='GET')return json(405,{error:'method_not_allowed'});
+   if(u.pathname==='/native/ca.pem') {res.writeHead(200,{'content-type':'application/x-pem-file','cache-control':'public,max-age=3600'});return res.end(caPem);}
+@@ -26,17 +41,30 @@ export function createDiscovery({getRoutes,caPem}){
+   if(u.pathname!=='/native/resolve')return json(404,{error:'not_found'});
+   try {
+    const name=u.searchParams.get('name');
+-   const route=routeFor(name,name?.endsWith('.app.'+ROOT)?await getRoutes():null);
++   const control=CONTROL.has(name);
++   if(control&&!getControlRoutes)return json(503,{error:'control_route_unavailable'},{'retry-after':'300'});
++   const map=control?await bounded(getControlRoutes(),timeoutMs):name?.endsWith('.app.'+ROOT)?await bounded(getRoutes(),timeoutMs):null;
++   const route=routeFor(name,map);
++   if(!route&&control)return json(503,{error:'control_route_unavailable'},{'retry-after':'30'});
+    if(!route)return json(404,{error:'no_current_route'});
+    return json(200,{...route,caSha256:fingerprint});
+   }catch{return json(503,{error:'route_discovery_unavailable'});}
+  });
+ }
++/**
++ * The deployed service's options: the local relay's verified application route map and, only when NATIVE_CONTROL_SERVICE_INDEX
++ * is configured, the attested control route source (loaded then, so an unconfigured service needs nothing beside this file).
++ */
++export async function deployedOptions(caPem,{routeMapUrl='http://127.0.0.1:8100/v1/network/routes',env={},log=()=>{},controlSource=null}={}){
++ const getRoutes=async()=>{
++  const r=await fetch(routeMapUrl,{signal:AbortSignal.timeout(5000)});
++  if(!r.ok)throw new Error('route map unavailable');return r.json();
++ };
++ if(!String(env.NATIVE_CONTROL_SERVICE_INDEX||'').trim())return {caPem,getRoutes};
++ const fromEnv=controlSource||(await import('../network/native-control-routes.mjs')).controlRoutesFromEnv;
++ return {caPem,getRoutes,getControlRoutes:await fromEnv(env,{caPem,log})};
++}
+ if(process.argv[1]===fileURLToPath(import.meta.url)){
+  const caPem=await readFile(process.env.NATIVE_CA_CERT||'/var/lib/enclave-native-ca/ca.pem','utf8');
+- const server=createDiscovery({caPem,getRoutes:async()=>{
+-  const r=await fetch('http://127.0.0.1:8100/v1/network/routes',{signal:AbortSignal.timeout(5000)});
+-  if(!r.ok)throw new Error('route map unavailable');return r.json();
+- }});
+- server.listen(8187,'127.0.0.1');
++ createDiscovery(await deployedOptions(caPem,{env:process.env,log:(m)=>console.log(m)})).listen(8187,'127.0.0.1');
+ }
+diff --git a/scripts/native-control-certificate.mjs b/scripts/native-control-certificate.mjs
+new file mode 100644
+index 000000000..9ac6f956e
+--- /dev/null
++++ b/scripts/native-control-certificate.mjs
+@@ -0,0 +1,168 @@
++#!/usr/bin/env node
++// scripts/native-control-certificate.mjs -- the native CA's leaf for ONE measured control boot (metal/guest/measured-control.mjs
++// nativeControl): the existing native CA certifies that boot's ATTESTED control TLS public key for the native control names
++// the boot is bound to serve. The guest's private key never leaves the guest; the leaf is public; the CA key stays wherever its
++// holder keeps it (it is read only by openssl, from the path given, and never copied, printed or logged).
++//
++//   request  --control-url https://<ip>:<port> --config <the host's direct config JSON> --measurement <96 hex>... --rpc A --rpc B
++//            [--quorum N] [--registry 0x..] --out request.json
++//            verifyMeasuredControl (unchanged: AMD chain, measurement, HOST_DATA = that config, TLS peer = attested key,
++//            supervisor keys, ORIGINAL registry through the RPC quorum) must say "verified"; the evidence is then re-read over a
++//            connection pinned to the attested key (same boot), and the request names that key, the boot and the bound names.
++//   issue    --request request.json --ca-cert ca.pem --ca-key <path> [--days 1..7] --out chain.pem
++//            run by the CA holder, offline: the leaf (SAN = the bound names, serverAuth) over the request's public key,
++//            followed by the CA certificate. The CA certificate must be the one the boot is bound to (its sha256).
++//   install  --chain chain.pem --control-url https://<ip>:<port> --spki <sha256 of the attested key>
++//            PUT to the guest's front over a connection pinned to the attested key; the guest accepts it only after its own
++//            checks (bound CA, its own key, every bound name through a real TLS handshake).
++// Issuance is the CA holder's decision for this boot. It does not replace the platform host policy: discovery still judges
++// the boot's registry host freshly (network/native-control-routes.mjs), so a later ban withdraws it.
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import http from 'node:http';
++import net from 'node:net';
++import tls from 'node:tls';
++import { execFileSync } from 'node:child_process';
++import { X509Certificate, createPublicKey, randomBytes } from 'node:crypto';
++import { fileURLToPath } from 'node:url';
++import { parseStatement, sha256Hex, NATIVE_NAMES, EVIDENCE_FORMAT, EVIDENCE_PATH, NATIVE_CERT_PATH } from '../metal/guest/measured-control.mjs';
++
++export const REQUEST_FORMAT = 'enclave-native-certificate-request/v1';
++export const MAX_DAYS = 7;   // the existing native service certificate lifetime (renewed, never long-lived)
++const spkiOf = (pem) => new X509Certificate(pem).publicKey.export({ type: 'spki', format: 'der' });
++
++/**
++ * The request for one VERIFIED boot. evidence: the evidence JSON re-read over a connection pinned to identity's key;
++ * identity: verifyMeasuredControl(...).identity of a "verified" result. -> request object (public data only).
++ */
++export function nativeCertificateRequest({ evidence, identity }) {
++  if (!evidence || evidence.format !== EVIDENCE_FORMAT || typeof evidence.certificate !== 'string') throw new Error('evidence: the control front\'s evidence document is required');
++  const st = parseStatement(evidence.statement);
++  if (!identity || st.bootId !== identity.bootId || st.keys.controlTls.spkiSha256 !== identity.controlTlsSpkiSha256) throw new Error('the evidence is not from the verified boot');
++  if (!st.native) throw new Error('this boot is not bound to serve native control names (no nativeControl in its config)');
++  const spki = spkiOf(evidence.certificate);
++  if (sha256Hex(spki) !== st.keys.controlTls.spkiSha256) throw new Error('the evidence certificate does not carry the attested control key');
++  return { format: REQUEST_FORMAT, names: [...st.native.names], caSha256: st.native.caSha256, spkiSha256: st.keys.controlTls.spkiSha256,
++    spkiPem: createPublicKey({ key: spki, format: 'der', type: 'spki' }).export({ type: 'spki', format: 'pem' }),
++    bootId: st.bootId, configDigest: st.configDigest, operator: st.identity.operator, publicUrl: st.identity.publicUrl, registryId: identity.registryId ?? null };
++}
++
++function checkRequest(r) {
++  if (!r || r.format !== REQUEST_FORMAT) throw new Error(`request format must be ${REQUEST_FORMAT}`);
++  if (!Array.isArray(r.names) || !r.names.length || r.names.some((n) => !NATIVE_NAMES.includes(n)) || new Set(r.names).size !== r.names.length) throw new Error('request names must be native control names');
++  if (!/^[0-9a-f]{64}$/.test(String(r.caSha256)) || !/^[0-9a-f]{64}$/.test(String(r.spkiSha256))) throw new Error('request caSha256/spkiSha256 malformed');
++  const k = createPublicKey(r.spkiPem);
++  if (sha256Hex(k.export({ type: 'spki', format: 'der' })) !== r.spkiSha256) throw new Error('request public key is not the attested key it names');
++  return k;
++}
++
++/** The CA holder's issuance -> the chain PEM (leaf, then the CA certificate). The CA key is read by openssl only. */
++export function issueNativeCertificate({ request, caCertFile, caKeyFile, days = MAX_DAYS, openssl = 'openssl', tmpRoot = os.tmpdir() }) {
++  const key = checkRequest(request);
++  if (!Number.isSafeInteger(days) || days < 1 || days > MAX_DAYS) throw new Error(`days: 1 to ${MAX_DAYS}`);
++  const caPem = fs.readFileSync(caCertFile, 'utf8'), ca = new X509Certificate(caPem);
++  if (sha256Hex(ca.raw) !== request.caSha256) throw new Error('this CA is not the native CA the boot is bound to');
++  const dir = fs.mkdtempSync(path.join(tmpRoot, 'native-leaf-'));
++  try {
++    fs.writeFileSync(path.join(dir, 'pub.pem'), key.export({ type: 'spki', format: 'pem' }));
++    fs.writeFileSync(path.join(dir, 'ext'), 'basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=serverAuth\n'
++      + `subjectAltName=${request.names.map((n) => 'DNS:' + n).join(',')}\n`);
++    execFileSync(openssl, ['x509', '-new', '-force_pubkey', 'pub.pem', '-subj', `/CN=${request.names[0]}`, '-CA', path.resolve(caCertFile), '-CAkey', path.resolve(caKeyFile),
++      '-set_serial', '0x' + randomBytes(16).toString('hex').replace(/^[89a-f]/, '1'), '-days', String(days), '-sha256', '-extfile', 'ext', '-out', 'leaf.pem'],
++      { cwd: dir, stdio: ['ignore', 'pipe', 'pipe'] });
++    const leafPem = fs.readFileSync(path.join(dir, 'leaf.pem'), 'utf8');
++    if (sha256Hex(spkiOf(leafPem)) !== request.spkiSha256 || !new X509Certificate(leafPem).checkIssued(ca)) throw new Error('openssl produced an unexpected leaf');
++    return leafPem + (caPem.endsWith('\n') ? caPem : caPem + '\n');
++  } catch (e) {
++    // openssl's own message only (it never prints key material); never the arguments
++    throw new Error(`issuance failed: ${String(e.stderr || e.message).split('\n').filter(Boolean).slice(-2).join(' ').slice(0, 300)}`);
++  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
++}
++
++/**
++ * The attested control key's TLS connection: the handshake completes, and the peer's SPKI is compared on THAT secure socket
++ * before any request byte exists. (rejectUnauthorized:false with a checkServerIdentity-only pin is not a pin: Node skips
++ * checkServerIdentity when chain validation already failed, so a self-signed impostor would be accepted.)
++ */
++export function pinnedSocket(controlUrl, spkiSha256, { timeoutMs = 15000 } = {}) {
++  const u = new URL(controlUrl);
++  if (u.protocol !== 'https:' || !/^[0-9a-f]{64}$/.test(String(spkiSha256))) return Promise.reject(new Error('an https control URL and the attested key digest are required'));
++  const host = u.hostname.replace(/^\[|\]$/g, '');
++  return new Promise((resolve, reject) => {
++    const s = tls.connect({ host, port: Number(u.port || 443), rejectUnauthorized: false, minVersion: 'TLSv1.2', ...(net.isIP(host) ? {} : { servername: host }) });
++    const t = setTimeout(() => { s.destroy(); reject(new Error(`no TLS handshake within ${timeoutMs} ms`)); }, timeoutMs);
++    s.once('error', (e) => { clearTimeout(t); reject(e); });
++    s.once('secureConnect', () => {
++      clearTimeout(t);
++      let got = null;
++      try { got = sha256Hex(new X509Certificate(s.getPeerCertificate().raw).publicKey.export({ type: 'spki', format: 'der' })); } catch {}
++      if (got !== spkiSha256) { s.destroy(); return reject(new Error('the endpoint is not the attested key')); }
++      resolve(s);
++    });
++  });
++}
++/** One HTTP request over pinnedSocket (nothing is sent before the key matched). */
++export async function pinnedRequest(controlUrl, { method = 'GET', path: p, body = null, spkiSha256, timeoutMs = 15000 }) {
++  const sock = await pinnedSocket(controlUrl, spkiSha256, { timeoutMs });
++  const u = new URL(controlUrl);
++  return new Promise((resolve, reject) => {
++    const req = http.request({ createConnection: () => sock, host: u.hostname, port: u.port || 443, method, path: p, timeout: timeoutMs,
++      headers: { host: u.host, ...(body ? { 'content-type': 'application/x-pem-file', 'content-length': Buffer.byteLength(body) } : {}) } }, (res) => {
++      const chunks = []; let n = 0;
++      res.on('data', (c) => { n += c.length; if (n > 512 * 1024) req.destroy(new Error('answer too large')); else chunks.push(c); });
++      res.on('end', () => { sock.destroy(); resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString('utf8') }); });
++    });
++    req.on('timeout', () => req.destroy(new Error(`no answer within ${timeoutMs} ms`)));
++    req.on('error', (e) => { sock.destroy(); reject(e); });
++    req.end(body || undefined);
++  });
++}
++export const installNativeCertificate = ({ controlUrl, chainPem, spkiSha256, timeoutMs }) => pinnedRequest(controlUrl, { method: 'PUT', path: NATIVE_CERT_PATH, body: chainPem, spkiSha256, timeoutMs });
++
++// ---- command line -----------------------------------------------------------------------------------------------------------
++function args(argv) {
++  const o = { _: [] }, multi = new Set(['measurement', 'rpc']);
++  for (let i = 0; i < argv.length; i++) {
++    const a = argv[i];
++    if (!a.startsWith('--')) { o._.push(a); continue; }
++    const k = a.slice(2), v = argv[++i];
++    if (v === undefined) throw new Error(`--${k} needs a value`);
++    if (multi.has(k)) (o[k] ||= []).push(v); else o[k] = v;
++  }
++  return o;
++}
++const need = (o, ...ks) => { for (const k of ks) if (o[k] === undefined) throw new Error(`--${k} is required`); };
++const writeNew = (file, text) => fs.writeFileSync(file, text, { flag: 'wx', mode: 0o644 });
++export async function main(argv = process.argv.slice(2), out = (s) => process.stdout.write(s + '\n')) {
++  const o = args(argv), cmd = o._[0];
++  if (cmd === 'request') {
++    need(o, 'control-url', 'config', 'measurement', 'rpc', 'out');
++    const { verifyMeasuredControl } = await import('../metal/measured-control-verify.mjs');
++    const { quorumRegistry } = await import('../metal/guest/platform-api-verify.mjs');
++    const { httpCollateral } = await import('../verifier/collateral.mjs');
++    const { TCB_FLOORS } = await import('../verifier/metal-box.mjs');
++    const config = JSON.parse(fs.readFileSync(o.config, 'utf8'));
++    const registry = quorumRegistry({ rpcs: o.rpc, quorum: Number(o.quorum || o.rpc.length), registry: o.registry || config.contracts?.registry });
++    const v = await verifyMeasuredControl({ url: o['control-url'], expect: { config, measurements: o.measurement, minTcb: TCB_FLOORS }, collateral: httpCollateral(), registry });
++    if (v.status !== 'verified') throw new Error(`the boot is not verified (${v.status}): ${v.reasons.slice(-3).join('; ')}`);
++    const r = await pinnedRequest(o['control-url'], { path: `${EVIDENCE_PATH}?nonce=${randomBytes(32).toString('hex')}`, spkiSha256: v.identity.controlTlsSpkiSha256 });
++    if (r.status !== 200) throw new Error(`evidence re-read: HTTP ${r.status}`);
++    const req = nativeCertificateRequest({ evidence: JSON.parse(r.body), identity: v.identity });
++    writeNew(o.out, JSON.stringify(req, null, 2) + '\n');
++    out(JSON.stringify({ out: o.out, names: req.names, spkiSha256: req.spkiSha256, bootId: req.bootId, registryId: req.registryId }));
++  } else if (cmd === 'issue') {
++    need(o, 'request', 'ca-cert', 'ca-key', 'out');
++    const chain = issueNativeCertificate({ request: JSON.parse(fs.readFileSync(o.request, 'utf8')), caCertFile: o['ca-cert'], caKeyFile: o['ca-key'], days: Number(o.days || MAX_DAYS) });
++    writeNew(o.out, chain);
++    const leaf = new X509Certificate(chain.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/)[0]);
++    out(JSON.stringify({ out: o.out, subjectAltName: leaf.subjectAltName, validTo: leaf.validTo }));
++  } else if (cmd === 'install') {
++    need(o, 'chain', 'control-url', 'spki');
++    const r = await installNativeCertificate({ controlUrl: o['control-url'], chainPem: fs.readFileSync(o.chain, 'utf8'), spkiSha256: o.spki });
++    out(r.body.trim());
++    if (r.status !== 200) throw new Error(`the guest refused the certificate: HTTP ${r.status}`);
++  } else throw new Error('commands: request | issue | install');
++}
++if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url))
++  main().catch((e) => { process.stderr.write(`native-control-certificate: ${e.message}\n`); process.exit(1); });
+diff --git a/test/native-control-attested.test.mjs b/test/native-control-attested.test.mjs
+new file mode 100644
+index 000000000..b7cad015e
+--- /dev/null
++++ b/test/native-control-attested.test.mjs
+@@ -0,0 +1,516 @@
++// Native control names bound to the measured control guest's ATTESTED key (metal/guest/measured-control.mjs nativeControl,
++// scripts/native-control-certificate.mjs, network/native-control-routes.mjs). What runs here:
++//   * the REAL control front, statement, certificate checks, issuance tool and discovery wiring (controlRoutesFromEnv);
++//   * REAL TLS everywhere (a throwaway native CA and a rogue CA, minted with openssl per run);
++//   * the REAL measured-control verifier and repository SNP verifier, fed a SYNTHETIC AMD-shaped chain
++//     (test/helpers/snp-synth.mjs). That proves the protocol wiring only - nothing about AMD hardware or a real measurement;
++//   * the REAL registry quorum reader and service-index quorum reader over in-process JSON-RPC servers, and the REAL platform
++//     host policy gate over test/helpers/platform-policy-world.mjs (an admin-signed, anchored policy) - no injected decision;
++//   * the REAL production MCP handler (relay/mcp.js handleMcp) behind the native mcp name.
++// Public addresses (44.0.0.x, a DigitalOcean address) are dialed to loopback ports; nothing leaves 127.0.0.1.
++import test, { after } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import net from 'node:net';
++import tls from 'node:tls';
++import http from 'node:http';
++import https from 'node:https';
++import path from 'node:path';
++import { execFileSync } from 'node:child_process';
++import { X509Certificate, generateKeyPairSync, randomBytes, createHash } from 'node:crypto';
++import * as viem from 'viem';
++import { decodeFunctionData, encodeFunctionResult, keccak256, toHex } from 'viem';
++import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
++import { synthChain, synthReport } from './helpers/snp-synth.mjs';
++import { platformPolicyWorld, REGISTRY } from './helpers/platform-policy-world.mjs';
++import { memoryCollateral } from '../verifier/collateral.mjs';
++import { TCB_FLOORS } from '../verifier/metal-box.mjs';
++import { hostABI } from '../network/registry-abi.mjs';
++import { SERVICE_INDEX_ABI, AD_VERSION } from '../network/service-index.mjs';
++import * as MC from '../metal/guest/measured-control.mjs';
++import { verifyMeasuredControl, registryIdOf, policyChipIdOf } from '../metal/measured-control-verify.mjs';
++import { quorumRegistry } from '../metal/guest/platform-api-verify.mjs';
++import { nativeCertificateRequest, issueNativeCertificate, installNativeCertificate, pinnedRequest, main as certCli } from '../scripts/native-control-certificate.mjs';
++import { controlRoutesFromEnv, readControlCandidates, prepareControlAd, nativeHostDecision, CONTROL_KIND } from '../network/native-control-routes.mjs';
++import { createDiscovery } from '../relay/native-discovery.mjs';
++import { handleMcp, isMcpHost } from '../relay/mcp.js';
++
++const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'native-attested-'));
++const servers = [], sockets = new Set();
++const track = (s) => { servers.push(s); s.on('connection', (c) => { sockets.add(c); c.on('close', () => sockets.delete(c)); }); return s; };
++after(() => { for (const c of sockets) c.destroy(); for (const s of servers) { try { s.close(); } catch {} } fs.rmSync(tmp, { recursive: true, force: true }); });
++const listen = async (s) => { track(s); await new Promise((r) => s.listen(0, '127.0.0.1', r)); return s.address().port; };
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const API = 'api.enclavehost.eth', MCP = 'mcp.enclavehost.eth', PA_HOST = 'api.enclave.host';
++const DO = ['134.199.235.187', '134.209.248.172', '165.245.191.129', '146.190.246.39'];
++const ZA = '0x' + '00'.repeat(20), Z32 = '0x' + '00'.repeat(32);
++const a = (n) => '0x' + n.toString(16).padStart(40, '0');
++
++// ---- throwaway certificate authorities (openssl) ----------------------------------------------------------------------------
++const o = (args) => execFileSync('openssl', args, { cwd: tmp, stdio: ['ignore', 'pipe', 'pipe'] });
++const read = (f) => fs.readFileSync(path.join(tmp, f), 'utf8');
++const stamp = (ms) => new Date(ms).toISOString().replace(/[-:T]/g, '').slice(0, 14) + 'Z';
++function mintCa(name) {
++  o(['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-keyout', `${name}.key`, '-out', `${name}.pem`, '-subj', `/CN=${name}`, '-days', '2',
++    '-addext', 'basicConstraints=critical,CA:TRUE', '-addext', 'keyUsage=critical,keyCertSign,cRLSign']);
++  const pem = read(`${name}.pem`);
++  return { pem, certFile: path.join(tmp, `${name}.pem`), keyFile: path.join(tmp, `${name}.key`), sha256: MC.sha256Hex(new X509Certificate(pem).raw) };
++}
++const NCA = mintCa('native-ca'), ROGUE = mintCa('rogue-ca');
++let leafN = 0;
++/** A CA-signed leaf over an arbitrary public key (what a CA holder COULD issue), for the refusal cases. -> chain PEM */
++function leafOver(publicKeyPem, ca, names, { notBefore = Date.now() - 3600e3, notAfter = Date.now() + 86400e3, extraSan = [] } = {}) {
++  const n = ++leafN; fs.writeFileSync(path.join(tmp, `pub${n}.pem`), publicKeyPem);
++  fs.writeFileSync(path.join(tmp, `ext${n}`), `basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=serverAuth\nsubjectAltName=${[...names.map((x) => 'DNS:' + x), ...extraSan].join(',')}\n`);
++  o(['x509', '-new', '-force_pubkey', `pub${n}.pem`, '-subj', `/CN=${names[0]}`, '-CA', ca.certFile, '-CAkey', ca.keyFile, '-set_serial', String(1000 + n),
++    '-not_before', stamp(notBefore), '-not_after', stamp(notAfter), '-sha256', '-extfile', `ext${n}`, '-out', `leaf${n}.pem`]);
++  return read(`leaf${n}.pem`) + ca.pem;
++}
++
++// ---- synthetic AMD chain (fixture: proves wiring, not hardware) -------------------------------------------------------------
++const S = synthChain({ extraVceks: 1 });
++// two chips under the same synthetic ASK, each with its own VCEK: chip "a" (S.chip) and chip "b"
++const CHIPS = { a: S, b: { ...S, chip: S.otherVceks[0].chip, vcekKey: S.otherVceks[0].key, vcekDer: S.otherVceks[0].der } };
++const VCEK_BY_CHIP = Object.fromEntries(Object.values(CHIPS).map((c) => [c.chip.toString('hex'), c.vcekDer]));
++const BASE_COL = memoryCollateral({ chains: { Genoa: S.chainPem }, crls: { Genoa: S.crlDer } });
++const COL = { ...BASE_COL, vcek: (product, chipHex) => (VCEK_BY_CHIP[chipHex] ? { der: VCEK_BY_CHIP[chipHex], source: 'memory' } : null) };
++const H = (chip) => '0x' + createHash('sha256').update(chip).digest('hex');   // custody/v2/daemon.mjs sha(probe.chipId)
++const ROOTS = new Map([['Genoa', S.arkFp]]);
++const MEAS = '77'.repeat(48);
++
++// ---- the chain: registry rows (shared with the policy world) and kind-9 index ads, over loopback JSON-RPC ---------------------
++const HOSTS = {};                       // registryId -> { operator, active, endpoint, owner, proofKey }
++const ADS = [];                         // { operator, slot, endpoints, ttlSec }
++const INDEX = '0x' + '5a'.repeat(20), INDEX_CODE = '0x6080604052600a';
++const INDEX_PIN = { chainId: 8453, address: INDEX, codeHash: keccak256(INDEX_CODE) };
++const t0 = Date.now();
++const head = () => 1000 + Math.floor((Date.now() - t0) / 1000);
++const blockAt = (n) => ({ number: toHex(n), hash: keccak256(toHex(n, { size: 32 })), parentHash: keccak256(toHex(n - 1, { size: 32 })), timestamp: toHex(Math.floor(t0 / 1000) + (n - 1000)),
++  transactions: [], gasLimit: '0x1c9c380', gasUsed: '0x0', baseFeePerGas: '0x1', difficulty: '0x0', logsBloom: '0x' + '00'.repeat(256), miner: ZA, nonce: '0x0000000000000000',
++  sha3Uncles: Z32, stateRoot: Z32, receiptsRoot: Z32, transactionsRoot: Z32, extraData: '0x', size: '0x1', uncles: [], mixHash: Z32, totalDifficulty: '0x0' });
++const adRow = (x, ts) => ({ operator: x.operator, slot: x.slot, kind: x.kind ?? CONTROL_KIND, version: AD_VERSION, sequence: 1n, expiresAt: BigInt(ts + x.ttlSec), updatedAt: BigInt(ts), descriptor: Z32, endpoints: x.endpoints });
++function rpcAnswer({ method, params }) {
++  if (method === 'eth_chainId') return '0x2105';
++  if (method === 'eth_blockNumber') return toHex(head());
++  if (method === 'eth_getBlockByNumber') return blockAt(params[0] === 'latest' ? head() : Number(params[0]));
++  if (method === 'eth_getCode') return String(params[0]).toLowerCase() === INDEX ? INDEX_CODE : '0x';
++  if (method === 'eth_call') {
++    const { to, data } = params[0], T = String(to).toLowerCase(), ts = Math.floor(t0 / 1000) + (Number(params[1]) - 1000 || 0);
++    if (T === INDEX) {
++      const { functionName, args } = decodeFunctionData({ abi: SERVICE_INDEX_ABI, data });
++      if (functionName === 'page') { const all = ADS.filter((x) => (x.kind ?? CONTROL_KIND) === Number(args[0])); return encodeFunctionResult({ abi: SERVICE_INDEX_ABI, functionName, result: [all.slice(Number(args[1]), Number(args[1] + args[2])).map((x) => adRow(x, ts)), BigInt(all.length)] }); }
++      if (functionName === 'get') { const x = ADS.find((y) => y.operator.toLowerCase() === args[0].toLowerCase() && y.slot === Number(args[1]));
++        return encodeFunctionResult({ abi: SERVICE_INDEX_ABI, functionName, result: x ? adRow(x, ts) : { operator: ZA, slot: 0, kind: 0, version: 0, sequence: 0n, expiresAt: 0n, updatedAt: 0n, descriptor: Z32, endpoints: [] } }); }
++    }
++    if (T === REGISTRY) {
++      const { args } = decodeFunctionData({ abi: hostABI, data }), h = HOSTS[String(args[0]).toLowerCase()];
++      return encodeFunctionResult({ abi: hostABI, functionName: 'get', result: { endpoint: h?.endpoint || '', repo: '', measurement: Z32, operator: h?.operator || ZA, registeredAt: 1n, lastSeen: 1n,
++        active: !!h?.active, cpuPricePerSec6: 0n, gpuPricePerSec6: 0n, proofKey: h?.proofKey || ZA, payoutWallet: ZA } });
++    }
++    throw new Error(`unscripted call to ${T}`);
++  }
++  throw new Error(`unsupported ${method}`);
++}
++const RPCS = [];
++test.before(async () => {
++  for (let i = 0; i < 3; i++) {
++    const s = http.createServer((req, res) => { const c = []; req.on('data', (d) => c.push(d)); req.on('end', () => {
++      const one = (q) => { try { return { jsonrpc: '2.0', id: q.id, result: rpcAnswer(q) }; } catch (e) { return { jsonrpc: '2.0', id: q.id, error: { code: -32000, message: e.message } }; } };
++      const b = JSON.parse(Buffer.concat(c)); res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(Array.isArray(b) ? b.map(one) : one(b))); }); });
++    RPCS.push(`http://127.0.0.1:${await listen(s)}`);
++  }
++});
++const registryReader = () => quorumRegistry({ rpcs: RPCS, quorum: 3, registry: REGISTRY });
++
++// ---- one measured control guest stand-in: the real front over this boot's minted keys ------------------------------------------
++const PA = () => ({ apiPort: 8098, peerPort: 8099, hostname: PA_HOST,
++  members: [0, 1, 2].map((i) => ({ operator: a(0xb0 + i), publicUrl: `https://member-${i}.example.org`, controlUrl: `https://198.51.100.${10 + i}:8444` })),
++  measurements: [MEAS], minTcb: null, admins: [a(0xad)], recovery: ['11'.repeat(32)], archives: ['https://archive.example'], archiveMs: 30000,
++  relayEnv: { ADDRESS_BOOK_ADDRESS: '0xab214342d5a490150a4a977063a2f88e21f80907' }, leaseMs: 10000 });
++const RAW = ({ operator, publicUrl, native = true }) => ({
++  format: MC.CONFIG_FORMAT, chainId: 8453,
++  contracts: { registry: REGISTRY, deployments: a(0x12), appCatalog: a(0x13), proofOfTime: a(0x14), enclavePay: a(0), verificationFees: a(0), sessionVaultFactory: a(0), secretVaultV2: a(0) },
++  profileDigest: null, rpcs: ['https://rpc-a.example/v1', 'https://rpc-b.example'], quorum: 2, releaseId: 'ab'.repeat(32),
++  replicas: { gateways: ['https://replica.example'], storagePlan: null }, identity: { publicUrl, repo: 'owner/enclave', operator },
++  selling: { cpuPrice6: 14, payout: null }, isolation: { managerUrl: 'http://10.0.2.2:8095', dataAddr: '10.0.2.2:8096' }, hostAdmissionSha256: null, controlPort: 8444,
++  platformApi: PA(), ...(native ? { nativeControl: { names: [API, MCP], caSha256: NCA.sha256 } } : {}) });
++// the platform API role's port, as the relay behind it selects MCP (relay/api-relay.js: isMcpHost(routingHost) || /mcp || /mcp/)
++async function roleUpstream(log) {
++  return listen(http.createServer((req, res) => {
++    const u = new URL(req.url, 'http://x'), host = req.headers['x-forwarded-host'] || req.headers.host;
++    log.push({ method: req.method, path: req.url, host: req.headers.host, ip: req.headers['x-enclave-client-ip'], auth: req.headers.authorization || null });
++    if (isMcpHost(host) || u.pathname === '/mcp' || u.pathname === '/mcp/') return handleMcp(req, res, u);
++    res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ role: 'platform-api', path: req.url }));
++  }));
++}
++let gN = 0;
++async function guest({ operator = privateKeyToAccount(generatePrivateKey()).address.toLowerCase(), native = true, register = true, publicUrl = `https://host-${++gN}.example.org`, chip = 'a' } = {}) {
++  const d = path.join(tmp, `guest-${gN}-${randomBytes(3).toString('hex')}`); fs.mkdirSync(d);
++  const P = { ...MC.GUEST_PATHS, runDir: d, sessionDir: path.join(d, 'session'), tlsKey: path.join(d, 'tls-key.pem'), tlsCert: path.join(d, 'tls-cert.pem'),
++    platformApiHandoffKey: path.join(d, 'handoff.key'), nativeCertificate: path.join(d, 'native.pem') };
++  const raw = RAW({ operator, publicUrl, native }), config = MC.canonicalDirectConfig(raw), digest = MC.configDigest(config), hostData = MC.hostDataHex(digest);
++  const keys = MC.mintControlKeys({ paths: P }); keys.platformApi = { publicKey: MC.mintPlatformApiKey({ paths: P }) };
++  const st = MC.controlStatement({ config, digest, hostData, mode: 'snp', keys });
++  const proofKey = MC.addressOfPublicKey(keys.proof.publicKey, viem.keccak256), kid = MC.jwkThumbprint(keys.session.jwk);
++  const supPort = await listen(http.createServer((req, res) => { res.writeHead(200, { 'content-type': 'application/json' });
++    res.end(JSON.stringify(req.url === '/v1/attestation' ? { proofKey: { address: proofKey }, sessionKey: { kid } } : { supervisor: true, path: req.url })); }));
++  const roleLog = [], rolePort = await roleUpstream(roleLog);
++  // the group's shared WebPKI key for platformApi.hostname (another key than the control key)
++  const web = generateKeyPairSync('ec', { namedCurve: 'P-256' });
++  const webKey = path.join(d, 'webpki-key.pem'), webCert = path.join(d, 'webpki-cert.pem');
++  fs.writeFileSync(webKey, web.privateKey.export({ type: 'pkcs8', format: 'pem' })); fs.writeFileSync(webCert, MC.selfSignedCert(web.privateKey, web.publicKey, { cn: PA_HOST }));
++  // the role's API port: the same upstream the WebPKI host route uses (in the guest both are platformApi.apiPort)
++  const launched = MC.directNativeLaunch(config, { paths: P }), nat = launched && { ...launched, upstream: { host: '127.0.0.1', port: rolePort } };
++  const keyPem = fs.readFileSync(P.tlsKey, 'utf8');
++  const front = MC.createControlFront({ statementText: st.text, keyPem, certPem: keys.controlTls.certPem, mode: 'snp',
++    reporter: async (rd) => ({ report: synthReport(CHIPS[chip], { reportData: rd, hostData: Buffer.from(hostData, 'hex') }), certs: null }),
++    upstream: { host: '127.0.0.1', port: supPort }, hostRoutes: [{ host: PA_HOST, upstream: { host: '127.0.0.1', port: rolePort } }],
++    sni: { [PA_HOST]: { certFile: webCert, keyFile: webKey } }, native: nat });
++  const port = await listen(front);
++  const g = { raw, config, keys, st, stObj: MC.parseStatement(st.text), keyPem, port, url: `https://127.0.0.1:${port}`, front, roleLog, operator, publicUrl,
++    registryId: registryIdOf(publicUrl).toLowerCase(), proofKey, web: { publicKeyPem: web.publicKey.export({ type: 'spki', format: 'pem' }) },
++    spki: keys.controlTls.spkiSha256, controlPublicPem: new X509Certificate(keys.controlTls.certPem).publicKey.export({ type: 'spki', format: 'pem' }) };
++  if (register) HOSTS[g.registryId] = { operator, active: true, endpoint: publicUrl, owner: ZA, proofKey };
++  return g;
++}
++/** The CA holder's flow: verify the boot against its TRUSTED config (never an advertiser's claim), request, issue, install. */
++async function adminIssue(g, { days = 1 } = {}) {
++  const v = await verifyMeasuredControl({ url: g.url, expect: { config: g.raw, measurements: [MEAS], minTcb: TCB_FLOORS, roots: ROOTS }, collateral: COL, registry: registryReader() });
++  assert.equal(v.status, 'verified', v.reasons.join('\n'));
++  const ev = await pinnedRequest(g.url, { path: `${MC.EVIDENCE_PATH}?nonce=${randomBytes(32).toString('hex')}`, spkiSha256: v.identity.controlTlsSpkiSha256 });
++  const request = nativeCertificateRequest({ evidence: JSON.parse(ev.body), identity: v.identity });
++  const chain = issueNativeCertificate({ request, caCertFile: NCA.certFile, caKeyFile: NCA.keyFile, days, tmpRoot: tmp });
++  const r = await installNativeCertificate({ controlUrl: g.url, chainPem: chain, spkiSha256: g.spki });
++  assert.equal(r.status, 200, r.body);
++  return { chain, request };
++}
++/** A native client: SNI `name`, the native CA only, the hostname check. */
++function nativeCall(port, name, { host = name, method = 'GET', path: p = '/v1/health', body = null, headers = {}, ca = NCA.pem } = {}) {
++  return new Promise((resolve, reject) => {
++    let spki = null;
++    const req = https.request({ host: '127.0.0.1', port, servername: name, ca, rejectUnauthorized: true, agent: false, method, path: p,
++      checkServerIdentity: (_h, c) => tls.checkServerIdentity(name, c), headers: { host, ...headers, ...(body ? { 'content-length': Buffer.byteLength(body) } : {}) } }, (res) => {
++      const c = []; res.on('data', (d) => c.push(d)); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(c).toString('utf8'), spki }));
++    });
++    req.on('socket', (s) => s.once('secureConnect', () => { spki = MC.sha256Hex(new X509Certificate(s.getPeerCertificate().raw).publicKey.export({ type: 'spki', format: 'der' })); }));
++    req.on('error', reject); req.end(body || undefined);
++  });
++}
++/** A raw PUT to the install path (any TLS client: the path is public). */
++function rawPut(port, body, { chunked = false, hold = false } = {}) {
++  return new Promise((resolve, reject) => {
++    const req = https.request({ host: '127.0.0.1', port, method: 'PUT', path: MC.NATIVE_CERT_PATH, rejectUnauthorized: false, agent: false,
++      headers: chunked ? {} : { 'content-length': Buffer.byteLength(body) } }, (res) => { const c = []; res.on('data', (d) => c.push(d)); res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(c).toString() })); });
++    req.on('error', reject);
++    if (hold) { req.write(body.slice(0, 10)); return resolve(req); }
++    if (chunked) { req.write(body); req.end(); } else req.end(body);
++  });
++}
++
++// ---- 1. config, statement, front construction ---------------------------------------------------------------------------------
++test('nativeControl is a strict optional member: it needs platformApi, names the native names sorted and the CA; the statement states it', async () => {
++  const base = RAW({ operator: a(0x99), publicUrl: 'https://x.example.org', native: false });
++  const plain = MC.canonicalDirectConfig(base);
++  assert.equal(plain.nativeControl, undefined);
++  const ok = MC.canonicalDirectConfig({ ...base, nativeControl: { names: [API, MCP], caSha256: NCA.sha256 } });
++  assert.notEqual(MC.configDigest(ok), MC.configDigest(plain), 'HOST_DATA binds the native member');
++  const refuse = (nc, re, b = base) => assert.throws(() => MC.canonicalDirectConfig({ ...b, nativeControl: nc }), re);
++  refuse({ names: [API], caSha256: NCA.sha256 }, /needs the platformApi/, (({ platformApi, ...r }) => r)(base));
++  refuse({ names: [MCP, API], caSha256: NCA.sha256 }, /sorted/);
++  refuse({ names: ['get.enclavehost.eth'], caSha256: NCA.sha256 }, /one or more of/);
++  refuse({ names: [API, API], caSha256: NCA.sha256 }, /each once/);
++  refuse({ names: [API], caSha256: 'xx' }, /caSha256/);
++  refuse({ names: [API], caSha256: NCA.sha256, port: 443 }, /unknown field/);
++  refuse({ names: [API], caSha256: NCA.sha256 }, /must not include platformApi.hostname/, { ...base, platformApi: { ...PA(), hostname: API } });
++  const g = await guest({ register: false });
++  assert.deepEqual(g.stObj.native, { names: [API, MCP], caSha256: NCA.sha256 });
++  assert.throws(() => MC.parseStatement(g.st.text.replace(`"caSha256":"${NCA.sha256}"`, '"caSha256":"zz"')), /native names malformed|canonical/);
++  // the front refuses native routing the statement does not state, and a statement's names without the front's
++  assert.throws(() => MC.createControlFront({ statementText: g.st.text, keyPem: g.keyPem, certPem: g.keys.controlTls.certPem, reporter: null }), /names native control names/);
++  const plainSt = MC.controlStatement({ config: plain, digest: MC.configDigest(plain), hostData: MC.hostDataHex(MC.configDigest(plain)), mode: 'snp', keys: g.keys });
++  assert.equal(MC.parseStatement(plainSt.text).native, undefined);
++  assert.throws(() => MC.createControlFront({ statementText: plainSt.text, keyPem: g.keyPem, certPem: g.keys.controlTls.certPem, reporter: null,
++    native: MC.directNativeLaunch(ok) }), /statement's bound names/);
++  assert.throws(() => MC.createControlFront({ statementText: g.st.text, keyPem: g.keyPem, certPem: g.keys.controlTls.certPem, reporter: null,
++    native: MC.directNativeLaunch(g.config), sni: { [API]: { certFile: 'x', keyFile: 'y' } } }), /no SNI certificate of their own/);
++});
++
++// ---- 2. the front before and after a certificate ---------------------------------------------------------------------------------
++test('no leaf: a native name is refused at the handshake and never routed through another key; the WebPKI route is unchanged', async () => {
++  const g = await guest({ register: false });
++  await assert.rejects(nativeCall(g.port, API), /disconnected|alert|handshake|ECONNRESET|socket hang up/i);
++  // the control certificate (no SNI) with a native Host: misdirected, the role is never reached
++  const r = await pinnedRequest(g.url, { path: '/v1/x', spkiSha256: g.spki }).catch((e) => e);
++  assert.equal(r.status, 200, 'the plain control path still reaches the supervisor');
++  // servername '' : no SNI (Node's agent would otherwise derive SNI from the Host header)
++  const viaControl = await new Promise((resolve, reject) => { const q = https.request({ host: '127.0.0.1', port: g.port, path: '/v1/x', servername: '', rejectUnauthorized: false, agent: false, headers: { host: API } },
++    (res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); }); q.on('error', reject); q.end(); });
++  assert.equal(viaControl, 421);
++  // the platform API's own WebPKI name: its SNI file and its host route, exactly as before
++  const web = await new Promise((resolve, reject) => { let k = null; const q = https.request({ host: '127.0.0.1', port: g.port, servername: PA_HOST, path: '/v1/x', rejectUnauthorized: false, agent: false, headers: { host: PA_HOST } },
++    (res) => { const c = []; res.on('data', (d) => c.push(d)); res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(c).toString(), k })); });
++    q.on('socket', (s) => s.once('secureConnect', () => { k = new X509Certificate(s.getPeerCertificate().raw).publicKey.export({ type: 'spki', format: 'pem' }); })); q.on('error', reject); q.end(); });
++  assert.equal(web.status, 200); assert.equal(web.k, g.web.publicKeyPem, 'the shared WebPKI key on its own name');
++  assert.deepEqual(JSON.parse(web.body), { role: 'platform-api', path: '/v1/x' });
++  assert.equal(g.roleLog.length, 1);
++});
++
++test('install refusals leave the current leaf serving; installs are bounded (one at a time, declared length, released on abort)', async () => {
++  const g = await guest({ register: true });
++  await adminIssue(g);
++  const before = (await nativeCall(g.port, API)).spki;
++  assert.equal(before, g.spki, 'the native leaf carries the attested control key');
++  const validTo0 = g.front.nativeState().validTo;
++  const refused = async (chain, re) => { const r = await rawPut(g.port, chain); assert.equal(r.status, 400, r.body); assert.match(JSON.parse(r.body).message, re); };
++  await refused(leafOver(g.web.publicKeyPem, NCA, [API, MCP]), /does not certify this guest/);                     // the shared group WebPKI key
++  await refused(leafOver(g.controlPublicPem, ROGUE, [API, MCP]), /bound native CA/);                               // another CA
++  await refused(leafOver(g.controlPublicPem, NCA, [API]), /does not serve mcp\.enclavehost\.eth/);                 // a bound name missing
++  await refused(leafOver(g.controlPublicPem, NCA, [API, MCP], { notBefore: Date.now() - 7200e3, notAfter: Date.now() - 3600e3 }), /not valid now/);
++  await refused(leafOver(g.controlPublicPem, NCA, [API, MCP]) + NCA.pem, /exactly two PEM certificates/);
++  // a replayed or reissued leaf that expires no later never replaces the installed one
++  await refused(leafOver(g.controlPublicPem, NCA, [API, MCP], { notAfter: validTo0 - 60e3 }), /expires no earlier/);
++  await refused(leafOver(g.controlPublicPem, NCA, [API, MCP], { notAfter: validTo0 }), /expires no earlier/);
++  assert.equal(g.front.nativeState().validTo, validTo0);
++  assert.equal((await nativeCall(g.port, API)).spki, before, 'still serving after every refusal');
++  // bounds: a declared length is required and bounded before any body is kept
++  const big = 'x'.repeat(MC.MAX_NATIVE_CHAIN_BYTES + 1);
++  assert.equal((await rawPut(g.port, big)).status, 413);
++  assert.equal((await rawPut(g.port, 'abc', { chunked: true })).status, 411);
++  // one body at a time: a second installer is refused while the first holds the slot; an abandoned body releases it
++  const held = await rawPut(g.port, leafOver(g.controlPublicPem, NCA, [API, MCP]), { hold: true });
++  await sleep(100);
++  assert.equal(g.front.nativeState().bodyHeld, true);
++  assert.equal((await rawPut(g.port, leafOver(g.controlPublicPem, NCA, [API, MCP]))).status, 429);
++  held.destroy(); await sleep(150);
++  assert.deepEqual([g.front.nativeState().bodyHeld, g.front.nativeState().installing], [false, false], 'released on abort');
++  // a later leaf replaces it
++  const later = leafOver(g.controlPublicPem, NCA, [API, MCP], { notAfter: validTo0 + 3600e3 });
++  const ok = await rawPut(g.port, later); assert.equal(ok.status, 200, ok.body);
++  assert.equal(Date.parse(JSON.parse(ok.body).validTo), Math.floor((validTo0 + 3600e3) / 1000) * 1000);
++  // one verification at a time: a second install while one is being checked is refused, never queued
++  const first = g.front.installNativeCertificate(leafOver(g.controlPublicPem, NCA, [API, MCP], { notAfter: validTo0 + 7200e3 }));
++  await assert.rejects(g.front.installNativeCertificate(leafOver(g.controlPublicPem, NCA, [API, MCP], { notAfter: validTo0 + 7300e3 })), /in progress/);
++  await first;
++  assert.equal(g.front.nativeState().installing, false);
++});
++
++test('native requests: SNI and Host agree, both names reach the platform API role; mcp is the production MCP handler at /mcp', async () => {
++  const g = await guest({ register: true });
++  await adminIssue(g);
++  const r = await nativeCall(g.port, API, { path: '/v1/health?x=1', headers: { 'x-enclave-client-ip': '6.6.6.6', authorization: 'Bearer t' } });
++  assert.equal(r.status, 200); assert.deepEqual(JSON.parse(r.body), { role: 'platform-api', path: '/v1/health?x=1' });
++  const last = g.roleLog.at(-1);
++  assert.equal(last.host, PA_HOST, 'the role sees exactly its WebPKI host'); assert.equal(last.ip, '127.0.0.1', 'the front writes the client address'); assert.equal(last.auth, 'Bearer t');
++  // native mcp: the relay's own MCP endpoint, every path at /mcp, query kept; POST JSON-RPC, GET info, SSE refusal, CORS preflight
++  const init = await nativeCall(g.port, MCP, { method: 'POST', path: '/', headers: { 'content-type': 'application/json', authorization: 'Bearer tok' },
++    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 't', version: '1' } } }) });
++  assert.equal(init.status, 200, init.body); assert.equal(JSON.parse(init.body).result.serverInfo.name.length > 0, true);
++  assert.equal(g.roleLog.at(-1).path, '/mcp'); assert.equal(g.roleLog.at(-1).auth, 'Bearer tok');
++  const list = await nativeCall(g.port, MCP, { method: 'POST', path: '/anything?q=2', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }) });
++  assert.ok(JSON.parse(list.body).result.tools.length > 10); assert.equal(g.roleLog.at(-1).path, '/mcp?q=2');
++  assert.equal((await nativeCall(g.port, MCP, { path: '/' })).status, 200);
++  assert.equal((await nativeCall(g.port, MCP, { path: '/', headers: { accept: 'text/event-stream' } })).status, 405);
++  assert.equal((await nativeCall(g.port, MCP, { method: 'OPTIONS', path: '/' })).status, 204);
++  // the evidence is answered on a native connection (what discovery reads); SNI and Host that disagree are misdirected
++  assert.equal(JSON.parse((await nativeCall(g.port, API, { path: `${MC.EVIDENCE_PATH}?nonce=${'ab'.repeat(32)}` })).body).format, MC.EVIDENCE_FORMAT);
++  const n = g.roleLog.length;
++  assert.equal((await nativeCall(g.port, API, { host: MCP })).status, 421);
++  assert.equal((await nativeCall(g.port, API, { host: PA_HOST })).status, 421);
++  assert.equal(g.roleLog.length, n, 'nothing misdirected reaches the role');
++  await assert.rejects(nativeCall(g.port, API, { ca: ROGUE.pem }), /self.signed|unable to verify|certificate/i);
++});
++
++test('an installed leaf that expires stops the native name; the CLI issues without printing key material', async () => {
++  const g = await guest({ register: false });
++  const short = leafOver(g.controlPublicPem, NCA, [API, MCP], { notAfter: Date.now() + 2500 });
++  assert.equal((await rawPut(g.port, short)).status, 200);
++  assert.equal((await nativeCall(g.port, API)).status, 200);
++  await sleep(2700);
++  await assert.rejects(nativeCall(g.port, API), /disconnected|alert|handshake|ECONNRESET|socket hang up|expired/i);
++  // the issuance command: request -> chain; the CA must be the bound one; the output carries no private key
++  const evText = (await pinnedRequest(g.url, { path: `${MC.EVIDENCE_PATH}?nonce=${'cd'.repeat(32)}`, spkiSha256: g.spki })).body;
++  const identity = { bootId: g.stObj.bootId, controlTlsSpkiSha256: g.spki, registryId: g.registryId };
++  const req = nativeCertificateRequest({ evidence: JSON.parse(evText), identity });
++  assert.throws(() => nativeCertificateRequest({ evidence: JSON.parse(evText), identity: { ...identity, bootId: 'ff'.repeat(16) } }), /not from the verified boot/);
++  fs.writeFileSync(path.join(tmp, 'req.json'), JSON.stringify(req));
++  assert.throws(() => issueNativeCertificate({ request: req, caCertFile: ROGUE.certFile, caKeyFile: ROGUE.keyFile, tmpRoot: tmp }), /not the native CA the boot is bound to/);
++  assert.throws(() => issueNativeCertificate({ request: req, caCertFile: NCA.certFile, caKeyFile: NCA.keyFile, days: 30, tmpRoot: tmp }), /days: 1 to 7/);
++  const out = []; const chainFile = path.join(tmp, `chain-${randomBytes(3).toString('hex')}.pem`);
++  await certCli(['issue', '--request', path.join(tmp, 'req.json'), '--ca-cert', NCA.certFile, '--ca-key', NCA.keyFile, '--days', '1', '--out', chainFile], (s) => out.push(s));
++  const chain = fs.readFileSync(chainFile, 'utf8');
++  assert.ok(!/PRIVATE KEY/.test(chain + out.join('')));
++  assert.equal(new X509Certificate(chain).subjectAltName, `DNS:${API}, DNS:${MCP}`);
++  assert.equal((await installNativeCertificate({ controlUrl: g.url, chainPem: chain, spkiSha256: g.spki })).status, 200);
++  assert.equal((await nativeCall(g.port, MCP, { path: '/' })).status, 200);
++});
++
++test('the issuance tool pins the attested key on the secure socket: a wrong-key self-signed peer gets no request byte', async () => {
++  const g = await guest({ register: false });
++  const k = generateKeyPairSync('ec', { namedCurve: 'P-256' }); let bytes = 0;
++  const impostor = tls.createServer({ key: k.privateKey.export({ type: 'pkcs8', format: 'pem' }), cert: MC.selfSignedCert(k.privateKey, k.publicKey) }, (s) => { s.on('data', (d) => { bytes += d.length; }); s.on('error', () => {}); });
++  const port = await listen(impostor);
++  const chain = leafOver(g.controlPublicPem, NCA, [API, MCP]);
++  await assert.rejects(installNativeCertificate({ controlUrl: `https://127.0.0.1:${port}`, chainPem: chain, spkiSha256: g.spki }), /not the attested key/);
++  await assert.rejects(pinnedRequest(`https://127.0.0.1:${port}`, { path: '/', spkiSha256: g.spki }), /not the attested key/);
++  await sleep(100);
++  assert.equal(bytes, 0, 'no HTTP byte reached the impostor');
++  assert.equal((await installNativeCertificate({ controlUrl: g.url, chainPem: chain, spkiSha256: g.spki })).status, 200, 'the real guest, same tool');
++});
++
++// ---- chip identity: derivation from the VERIFIED report, and the decision with and without a proven chip ---------------------
++test('chip: identity.chipId is sha256 of the verified CHIP_ID, only on the verified path; the decision adds it to chain facts only', async () => {
++  const g = await guest(), g2 = await guest({ chip: 'b' });
++  const v = await verifyMeasuredControl({ url: g.url, expect: { config: g.raw, measurements: [MEAS], minTcb: TCB_FLOORS, roots: ROOTS }, collateral: COL, registry: registryReader() });
++  assert.equal(v.status, 'verified', v.reasons.join('\n'));
++  assert.equal(v.identity.chipId, H(S.chip), 'the custody vault / daemon derivation');
++  const v2 = await verifyMeasuredControl({ url: g2.url, expect: { config: g2.raw, measurements: [MEAS], minTcb: TCB_FLOORS, roots: ROOTS }, collateral: COL, registry: registryReader() });
++  assert.equal(v2.identity.chipId, H(CHIPS.b.chip)); assert.notEqual(v2.identity.chipId, v.identity.chipId);
++  // no chip unless the report verified: a measurement the owner did not expect stops before the chip is read
++  const bad = await verifyMeasuredControl({ url: g.url, expect: { config: g.raw, measurements: ['66'.repeat(48)], minTcb: TCB_FLOORS, roots: ROOTS }, collateral: COL, registry: registryReader() });
++  assert.equal(bad.status, 'rejected'); assert.equal(bad.identity.chipId, undefined);
++  for (const c of [{ chipId: '00'.repeat(64) }, { chipId: 'ab'.repeat(64), maskChipKey: true }, { chipId: 'AB'.repeat(64) }, { chipId: 'ab'.repeat(32) }, {}, null])
++    assert.equal(policyChipIdOf(c), null, JSON.stringify(c));
++  assert.equal(policyChipIdOf({ chipId: S.chip.toString('hex'), maskChipKey: false }), H(S.chip));
++  // the decision: the gate's judgeHost over the runtime's chain facts plus ONLY the proven chip
++  const host = { registryId: g.registryId, operator: g.operator, active: true, endpoint: g.publicUrl, owner: ZA };
++  const pol = (o) => ({ sequence: 7, expiresAt: 0, maxStaleSec: 0, mode: 'denylist', deny: [], admit: [], ...o });
++  const admitted = { admit: true, status: 'current', reason: null, host };
++  const chipBan = pol({ deny: [{ kind: 'chipId', value: H(S.chip), reason: 'chip ban' }] });
++  assert.match(nativeHostDecision(admitted, chipBan, H(S.chip)).reason, /banned by platform policy #7 \(chipId\)/);
++  assert.equal(nativeHostDecision(admitted, chipBan, H(CHIPS.b.chip)).admit, true, 'another chip is not banned');
++  assert.equal(nativeHostDecision(admitted, chipBan, null).status, 'chip-unproven', 'no proven chip under a chip denial: refused');
++  assert.equal(nativeHostDecision(admitted, pol({}), null).admit, true, 'no chip entries: unchanged');
++  const allow = pol({ mode: 'allowlist', admit: [{ kind: 'chipId', value: H(S.chip) }] });
++  assert.equal(nativeHostDecision({ admit: false, status: 'current', reason: 'not admitted by platform allowlist #7', host }, allow, H(S.chip)).admit, true);
++  assert.equal(nativeHostDecision({ admit: false, status: 'current', reason: 'not admitted', host }, allow, null).admit, false, 'an unproven chip matches no admit entry');
++  // chain facts are never replaced: an operator ban stands for an unbanned chip; outcomes the policy did not make stand
++  assert.match(nativeHostDecision({ admit: false, status: 'current', reason: 'x', host }, pol({ deny: [{ kind: 'operator', value: g.operator, reason: 'abuse' }] }), H(CHIPS.b.chip)).reason, /\(operator\)/);
++  for (const d of [{ admit: true, status: 'not-activated', host }, { admit: false, status: 'behind', host }, { admit: false, status: 'inactive', host }, { admit: false, status: 'authority', host }])
++    assert.deepEqual(nativeHostDecision(d, allow, H(S.chip)), d);
++  assert.equal(nativeHostDecision({ admit: true, status: 'current' }, chipBan, H(CHIPS.b.chip)).admit, false, 'no registry facts: refused');
++});
++
++// ---- 3. discovery: the advertised address, the serving identity, the original registry and the ANCHORED admin policy ----------
++test('discovery serves only attested, registered, admitted serving hosts; an unbanned advertiser cannot republish a banned host', async (t) => {
++  const W = await platformPolicyWorld(t, { hosts: HOSTS });
++  const A = await guest(), B = await guest({ chip: 'b' }), C = await guest({ native: false }), D = await guest();
++  await adminIssue(A); await adminIssue(B); await adminIssue(D);
++  HOSTS[D.registryId].proofKey = a(0xdead);                               // D's registry row names another proof key
++  // an impostor whose OWN key the native CA (mistakenly) certified, relaying everything else to A
++  const ik = generateKeyPairSync('ec', { namedCurve: 'P-256' });
++  const iChain = leafOver(ik.publicKey.export({ type: 'spki', format: 'pem' }), NCA, [API, MCP]);
++  const impostor = https.createServer({ key: ik.privateKey.export({ type: 'pkcs8', format: 'pem' }), cert: iChain.split(/(?<=-----END CERTIFICATE-----\n)/)[0] }, (req, res) => {
++    const up = https.request({ host: '127.0.0.1', port: A.port, method: req.method, path: req.url, headers: req.headers, servername: req.socket.servername || undefined, rejectUnauthorized: false, agent: false },
++      (r) => { res.writeHead(r.statusCode, r.headers); r.pipe(res); }); up.on('error', () => res.destroy()); req.pipe(up); });
++  const PORTS = { '44.0.0.1': A.port, '44.0.0.2': B.port, '44.0.0.3': await listen(impostor), '44.0.0.4': C.port, '44.0.0.5': D.port, [DO[0]]: A.port };
++  const dial = (addr) => ({ host: '127.0.0.1', port: PORTS[addr] ?? 1 });
++  const X = a(0x1111), Y = B.operator;                                     // X: an unbanned advertiser; Y: B's own operator
++  ADS.length = 0;
++  ADS.push({ operator: X, slot: 0, ttlSec: 3600, endpoints: ['https://44.0.0.2/', 'https://44.0.0.3/', 'https://44.0.0.1/', `https://${DO[0]}/`] },
++           { operator: Y, slot: 0, ttlSec: 3600, endpoints: ['https://44.0.0.2/'] },
++           { operator: a(0x2222), slot: 1, ttlSec: 3600, endpoints: ['https://44.0.0.4/', 'https://44.0.0.5/', 'http://44.0.0.9/'] });
++  const env = (extra = {}) => ({ ...W.env(), NATIVE_CONTROL_SERVICE_INDEX: `${INDEX}@${INDEX_PIN.codeHash}`, NATIVE_CONTROL_RPCS: RPCS.join(','), NATIVE_CONTROL_REGISTRY: REGISTRY,
++    NATIVE_CONTROL_MEASUREMENTS: MEAS, NATIVE_CONTROL_EXCLUDE: DO.join(','), ...extra });
++  const caFetch = (url, init = {}) => new Promise((resolve, reject) => {
++    const q = https.request(url, { method: init.method || 'GET', ca: fs.readFileSync(W.ca), headers: init.headers }, (res) => { const c = []; res.on('data', (d) => c.push(d));
++      res.on('end', () => resolve(new Response(Buffer.concat(c), { status: res.statusCode }))); }); q.on('error', reject); q.end(); });
++  const logs = [];
++  const routes = async (extra) => (await controlRoutesFromEnv(env(extra), { caPem: NCA.pem, fetch: caFetch, log: (m) => logs.push(m), collateral: COL, roots: ROOTS, dial }))();
++  // the admin bans B's OPERATOR (an anchored, signed policy, read through the real gate); X, who advertises B, is not banned
++  await W.publish({ deny: [{ kind: 'operator', value: B.operator, reason: 'abuse' }] });
++  let r = await routes();
++  assert.deepEqual(r.routes[API].addresses, ['44.0.0.1']); assert.deepEqual(r.routes[MCP].addresses, ['44.0.0.1']);
++  assert.ok(r.routes[API].expiresAt <= Date.now() + 60_000);
++  assert.match(logs.at(-1), /1 verified/);
++  // the same round's evidence (the functions controlRoutesFromEnv composes, one round, no cache), every refusal named
++  const round = async () => {
++    const m = await import('../network/native-control-routes.mjs');
++    const { createHostPolicyRuntime, resolveHostPolicyConfig } = await import('../network/host-policy-runtime.mjs');
++    const { freshAdmissions } = await import('../network/host-policy-adapters.mjs');
++    const { rpcPeers } = await import('../network/policy-carriers.mjs');
++    const rt = createHostPolicyRuntime(resolveHostPolicyConfig({ env: W.env(), chainId: 8453 }), { fetch: caFetch });
++    const decide = freshAdmissions(rt.gate);
++    return m.discoverControlRoutes({ excludeAddresses: DO, readCandidates: () => m.readControlCandidates({ peers: rpcPeers(RPCS), indexPin: INDEX_PIN }),
++      verifyEndpoint: (address) => m.verifyNativeControlEndpoint({ address, caPem: NCA.pem, dial, collateral: COL, registry: registryReader(),
++        expect: { measurements: [MEAS], minTcb: TCB_FLOORS, roots: ROOTS },
++        decideHost: async (id, { chipId }) => m.nativeHostDecision((await decide([id]))[id.toLowerCase()], rt.gate.accepted()?.policy, chipId) }) });
++  };
++  let detail = await round();
++  const rej = (addr) => detail.rejected.filter((x) => x.address === addr).map((x) => x.reason).join(' | ');
++  assert.deepEqual(detail.verified.map((v) => [v.address, v.registryId, v.advertisedBy]), [['44.0.0.1', A.registryId, X]], 'identity is the attested host, not the advertiser');
++  assert.match(rej('44.0.0.2'), /refused by the platform host policy: banned by platform policy #1 \(operator\)/, 'B: banned, whoever advertises it');
++  assert.match(rej('44.0.0.3'), /not over the attested control key/, 'the impostor relays A\'s evidence but not A\'s key');
++  assert.match(rej('44.0.0.4'), /not bound to serve|unable to verify|self.signed|certificate/i, 'C: no native binding');
++  assert.match(rej('44.0.0.5'), /attestation pending|proof key/, 'D: the registry names another proof key');
++  assert.deepEqual(detail.excluded.map((x) => x.address), [DO[0]], 'the fleet address is never probed');
++  assert.ok(detail.rejected.some((x) => /http/.test(x.endpoint || x.reason || '')));
++  // the admin lifts B's ban: B is served (the decision was always on B, the serving host)
++  await W.publish({ deny: [] });
++  r = await routes();
++  assert.deepEqual(r.routes[API].addresses.sort(), ['44.0.0.1', '44.0.0.2']);
++  // a ban on A's REGISTRY ID (host-level) withdraws A, though X (unbanned) still advertises it
++  await W.publish({ deny: [{ kind: 'registryId', value: A.registryId, reason: 'host ban' }] });
++  r = await routes();
++  assert.deepEqual(r.routes[API].addresses, ['44.0.0.2']);
++  // CHIP bans, matched against the chip the verifier proved for each boot ("0x" + sha256 of the 64-byte CHIP_ID). A's
++  // certificate now carries a label naming B's chip, and X (unbanned) still advertises A: neither changes A's chip.
++  const labelled = leafOver(A.controlPublicPem, NCA, [API, MCP], { notAfter: Date.now() + 3 * 86400e3, extraSan: [`URI:urn:enclave:chip:${H(CHIPS.b.chip)}`] });
++  assert.equal((await installNativeCertificate({ controlUrl: A.url, chainPem: labelled, spkiSha256: A.spki })).status, 200);
++  await W.publish({ deny: [{ kind: 'chipId', value: H(CHIPS.a.chip), reason: 'chip ban' }] });
++  r = await routes();
++  assert.deepEqual(r.routes[API].addresses, ['44.0.0.2'], 'chip a banned, chip b served');
++  detail = await round();
++  assert.match(rej('44.0.0.1'), /banned by platform policy #\d+ \(chipId\): chip ban/);
++  // allowlist by chip: exactly the admitted chip's host
++  await W.publish({ mode: 'allowlist', admit: [{ kind: 'chipId', value: H(CHIPS.b.chip) }] });
++  r = await routes();
++  assert.deepEqual(r.routes[API].addresses, ['44.0.0.2']);
++  await W.publish({ mode: 'allowlist', admit: [{ kind: 'chipId', value: H(CHIPS.a.chip) }] });
++  r = await routes();
++  assert.deepEqual(r.routes[API].addresses, ['44.0.0.1']);
++  // the chip is ADDED to the chain facts, never replacing them: B's operator ban holds although B's chip is admitted
++  await W.publish({ mode: 'allowlist', admit: [{ kind: 'chipId', value: H(CHIPS.b.chip) }], deny: [{ kind: 'operator', value: B.operator, reason: 'abuse' }] });
++  r = await routes();
++  assert.deepEqual(r.routes, {});
++  // policy unreadable (every policy RPC down): nothing is served
++  await W.publish({ deny: [] });
++  W.setDown(true);
++  r = await routes();
++  assert.deepEqual(r.routes, {});
++  W.setDown(false);
++  // the policy's own registry row (the book's registry, read at the policy's agreed block) must name the ATTESTED operator:
++  // a row that disagrees with the attestation's registry read refuses that host
++  W.state.hosts = { ...HOSTS, [A.registryId]: { ...HOSTS[A.registryId], operator: a(0x7777) } };
++  r = await routes();
++  assert.deepEqual(r.routes[API].addresses, ['44.0.0.2']);
++  W.state.hosts = HOSTS;
++  // a measurement the reviewer did not approve: nothing is served
++  r = await routes({ NATIVE_CONTROL_MEASUREMENTS: '66'.repeat(48) });
++  assert.deepEqual(r.routes, {});
++  // explicit policy off is a refusal for native control routes, not an open door
++  await assert.rejects(controlRoutesFromEnv(env({ ENCLAVE_PLATFORM_HOST_POLICY: 'off' }), { caPem: NCA.pem, fetch: caFetch, collateral: COL, roots: ROOTS, dial }), /explicitly off/);
++  // end to end through native discovery's resolver: exactly the verified address, the native CA's fingerprint
++  const getControlRoutes = await controlRoutesFromEnv(env(), { caPem: NCA.pem, fetch: caFetch, collateral: COL, roots: ROOTS, dial });
++  const server = createDiscovery({ caPem: NCA.pem, getRoutes: async () => ({}), getControlRoutes, timeoutMs: 30_000 });
++  const port = await listen(server);
++  const res = await (await fetch(`http://127.0.0.1:${port}/native/resolve?name=${MCP}`)).json();
++  assert.deepEqual(res.addresses.sort(), ['44.0.0.1', '44.0.0.2']); assert.equal(res.kind, 'control'); assert.equal(res.port, 443); assert.equal(res.caSha256, NCA.sha256);
++});
++
++test('candidates: kind-9 ads read at one agreed block; bad endpoints and expired ads dropped; the publication is the CLI\'s shape', async () => {
++  ADS.length = 0;
++  ADS.push({ operator: a(0x31), slot: 0, ttlSec: 3600, endpoints: ['https://44.0.0.1/', 'https://44.0.0.1:443/', 'https://44.0.0.2:8443/', 'https://10.0.0.1/', 'https://ctl.example.org/'] },
++           { operator: a(0x32), slot: 2, ttlSec: 0, endpoints: ['https://44.0.0.7/'] },
++           { operator: a(0x33), slot: 0, ttlSec: 3600, kind: 1, endpoints: ['https://44.0.0.8/'] },
++           { operator: a(0x34), slot: 5, ttlSec: 3600, endpoints: ['https://44.0.0.6/'] });
++  const { rpcPeers } = await import('../network/policy-carriers.mjs');
++  const r = await readControlCandidates({ peers: rpcPeers(RPCS), indexPin: INDEX_PIN, operators: [a(0x34)] });
++  assert.deepEqual(r.candidates.map((c) => c.address), ['44.0.0.6', '44.0.0.1'], 'named operators first; one entry per address');
++  assert.equal(r.rejected.filter((x) => x.operator === a(0x31)).length, 3);
++  await assert.rejects(readControlCandidates({ peers: rpcPeers(RPCS), indexPin: { ...INDEX_PIN, codeHash: '0x' + '12'.repeat(32) } }), /not the pinned/);
++  const prep = prepareControlAd({ pin: INDEX_PIN, operator: a(0x31), slot: 0, sequence: 1, endpoints: ['https://44.0.0.1'] });
++  assert.equal(prep.typedData.message.kind, CONTROL_KIND); assert.deepEqual(prep.typedData.message.endpoints, ['https://44.0.0.1/']);
++  assert.equal(decodeFunctionData({ abi: SERVICE_INDEX_ABI, data: prep.call.data }).args[1], CONTROL_KIND);
++  assert.throws(() => prepareControlAd({ pin: INDEX_PIN, operator: a(0x31), slot: 0, sequence: 1, endpoints: ['https://10.0.0.1/'] }), /public IPv4/);
++});
+diff --git a/test/native-discovery.test.mjs b/test/native-discovery.test.mjs
+index e5e6d88d0..df44d6f21 100644
+--- a/test/native-discovery.test.mjs
++++ b/test/native-discovery.test.mjs
+@@ -2,33 +2,114 @@ import test from 'node:test';
+ import assert from 'node:assert/strict';
+ import {readFile} from 'node:fs/promises';
+ import {createHash,X509Certificate} from 'node:crypto';
+-import {createDiscovery,routeFor} from '../relay/native-discovery.mjs';
++import http from 'node:http';
++import {createDiscovery,routeFor,deployedOptions} from '../relay/native-discovery.mjs';
+ 
+-test('native control recovery names use the four provider addresses',()=>{
++const DO=['134.199.235.187','134.209.248.172','165.245.191.129','146.190.246.39'];
++
++test('native control names route only to a route from a control source, never to a fixed fleet',async()=>{
++ const now=Date.now(),map={routes:{'api.enclavehost.eth':{addresses:['44.0.0.1','44.0.0.2'],expiresAt:now+1000},'mcp.enclavehost.eth':{addresses:['44.0.0.1'],expiresAt:now+1000}}};
+  for(const service of ['api','mcp']){
+-  const r=routeFor(service+'.enclavehost.eth',null);
+-  assert.equal(r.kind,'control');assert.equal(r.port,443);
+-  assert.deepEqual(r.addresses,['134.199.235.187','134.209.248.172','165.245.191.129','146.190.246.39']);
++  const name=service+'.enclavehost.eth',r=routeFor(name,map,now);
++  assert.equal(r.kind,'control');assert.equal(r.port,443);assert.equal(r.expiresAt,now+1000);
++  assert.deepEqual(r.addresses,map.routes[name].addresses);
++  assert.equal(routeFor(name,null,now),null);assert.equal(routeFor(name,{},now),null);
++  assert.equal(routeFor(name,map,now+1000),null,'expired');
+  }
+- for(const name of ['api.enclavehost.eth.attacker.test','API.enclavehost.eth','other.enclavehost.eth','api.enclave.host',null])assert.equal(routeFor(name,null),null);
++ assert.equal(routeFor('api.enclavehost.eth',{routes:{'mcp.enclavehost.eth':map.routes['mcp.enclavehost.eth']}},now),null,'one name never borrows another');
++ const src=await readFile(new URL('../relay/native-discovery.mjs',import.meta.url),'utf8');
++ for(const ip of DO)assert.ok(!src.includes(ip),`no fixed fleet address ${ip}`);
++ // still deployable as the single file it is today (/opt/enclave-recovery/discovery.mjs, no node_modules)
++ assert.deepEqual([...src.matchAll(/^import .* from '([^']+)';$/gm)].map(m=>m[1]).filter(x=>!x.startsWith('node:')),[]);
++});
++
++test('malformed control addresses are never served',()=>{
++ const now=Date.now(),at=(addresses)=>routeFor('api.enclavehost.eth',{routes:{'api.enclavehost.eth':{addresses,expiresAt:now+1000}}},now);
++ for(const addresses of [[],['10.0.0.1'],['127.0.0.1'],['100.64.1.1'],['169.254.1.1'],['203.0.113.5'],['224.0.0.1'],['255.255.255.255'],['0.1.2.3'],['44.0.0.01'],['2001:db8::1'],['44.0.0.1','192.168.1.1'],['44.0.0.1:443'],['api.example.org'],[44],[null],'44.0.0.1',null])
++  assert.equal(at(addresses),null,JSON.stringify(addresses));
++ assert.equal(routeFor('api.enclavehost.eth',{routes:{'api.enclavehost.eth':{addresses:['44.0.0.1'],expiresAt:'never'}}},now),null);
++});
++
++test('unknown native names have no route',()=>{
++ const now=Date.now(),map={routes:{'api.enclavehost.eth':{addresses:['44.0.0.1'],expiresAt:now+1000}},labels:{'1234abcd':{addresses:['8.8.4.4'],expiresAt:now+1000}}};
++ for(const name of ['api.enclavehost.eth.attacker.test','API.enclavehost.eth','other.enclavehost.eth','api.enclave.host','x.api.enclavehost.eth','enclavehost.eth','app.enclavehost.eth',
++  '1234abcd.app.enclavehost.eth.evil','1234ABCD.app.enclavehost.eth','a'.repeat(254),null,undefined,42])assert.equal(routeFor(name,map,now),null,String(name));
+ });
+ 
+ test('native application discovery never returns an expired or absent route',()=>{
+  const now=Date.now(),name='1234abcd.app.enclavehost.eth';
+  const map={labels:{'1234abcd':{addresses:['8.8.4.4'],expiresAt:now+1000}}};
+- assert.deepEqual(routeFor(name,map,now).addresses,['8.8.4.4']);
++ assert.deepEqual(routeFor(name,map,now),{name,addresses:['8.8.4.4'],port:443,kind:'application',expiresAt:now+1000});
+  assert.equal(routeFor(name,map,now+1000),null);assert.equal(routeFor(name,{},now),null);
+  assert.equal(routeFor('nested.'+name,map,now),null);
++ assert.equal(routeFor(name,{routes:{[name]:{addresses:['8.8.4.4'],expiresAt:now+1000}}},now),null,'an application name never reads the control map');
+ });
+ 
+-test('native discovery publishes only public CA and routing metadata and refuses missing authority',async t=>{
++async function serve(t,opts){
+  const caPem=await readFile(new URL('./fixtures/amd/Genoa-cert_chain.pem',import.meta.url),'utf8');
+- let reads=0;const server=createDiscovery({caPem,getRoutes:async()=>{reads++;throw Error('offline');}});
++ const server=createDiscovery({caPem,...opts});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>{server.closeAllConnections();server.close();});
+  const origin='http://127.0.0.1:'+server.address().port;
+- const status=await(await fetch(origin+'/native/status')).json();assert.equal(status.caSha256,createHash('sha256').update(new X509Certificate(caPem).raw).digest('hex'));
+- assert.equal((await fetch(origin+'/native/resolve?name=api.enclavehost.eth')).status,200);assert.equal(reads,0);
+- assert.equal((await fetch(origin+'/native/resolve?name=1234abcd.app.enclavehost.eth')).status,503);assert.equal(reads,1);
+- assert.equal((await fetch(origin+'/native/private.key')).status,404);
++ return {caPem,origin,get:async(p)=>{const r=await fetch(origin+p);return {status:r.status,headers:r.headers,body:await r.json().catch(()=>null)};}};
++}
++
++test('native discovery publishes only public CA and routing metadata and refuses missing authority',async t=>{
++ let reads=0;const {caPem,origin,get}=await serve(t,{getRoutes:async()=>{reads++;throw Error('offline');}});
++ const status=(await get('/native/status')).body;assert.equal(status.caSha256,createHash('sha256').update(new X509Certificate(caPem).raw).digest('hex'));
++ const control=await get('/native/resolve?name=api.enclavehost.eth');
++ assert.equal(control.status,503);assert.equal(control.body.error,'control_route_unavailable');assert.ok(control.headers.get('retry-after'));assert.equal(reads,0);
++ assert.equal((await get('/native/resolve?name=1234abcd.app.enclavehost.eth')).status,503);assert.equal(reads,1);
++ assert.equal((await get('/native/resolve?name=other.enclavehost.eth')).status,404);assert.equal(reads,1);
++ assert.equal((await get('/native/private.key')).status,404);
+  assert.equal((await fetch(origin+'/native/status',{method:'POST'})).status,405);
+ });
++
++test('native discovery serves verified control routes and answers unavailable, never another address, otherwise',async t=>{
++ let now=Date.now(),controlReads=0,appReads=0,mode='ok';
++ const getControlRoutes=async()=>{controlReads++;
++  if(mode==='throw')throw Error('quorum down');
++  if(mode==='hang')return new Promise(()=>{});
++  return {routes:mode==='empty'?{}:{'api.enclavehost.eth':{addresses:['44.0.0.1'],expiresAt:mode==='expired'?now-1:Date.now()+60_000}}};};
++ const getRoutes=async()=>{appReads++;return {labels:{'1234abcd':{addresses:['8.8.4.4'],expiresAt:Date.now()+60_000}}};};
++ const {get}=await serve(t,{getRoutes,getControlRoutes,timeoutMs:300});
++ const ok=await get('/native/resolve?name=api.enclavehost.eth');
++ assert.equal(ok.status,200);assert.deepEqual(ok.body.addresses,['44.0.0.1']);assert.equal(ok.body.kind,'control');assert.match(ok.body.caSha256,/^[0-9a-f]{64}$/);
++ for(const [m,code,error] of [['empty',503,'control_route_unavailable'],['expired',503,'control_route_unavailable'],['throw',503,'route_discovery_unavailable'],['hang',503,'route_discovery_unavailable']]){
++  mode=m;const t0=Date.now(),r=await get('/native/resolve?name=api.enclavehost.eth');
++  assert.equal(r.status,code,m);assert.equal(r.body.error,error,m);assert.ok(!JSON.stringify(r.body).match(/\d+\.\d+\.\d+\.\d+/),m);
++  assert.ok(Date.now()-t0<3000,`${m} is bounded`);
++ }
++ assert.equal(appReads,0,'control names never read the application route map');
++ mode='ok';const app=await get('/native/resolve?name=1234abcd.app.enclavehost.eth');
++ assert.equal(app.status,200);assert.deepEqual(app.body.addresses,['8.8.4.4']);assert.equal(app.body.kind,'application');
++ const reads=controlReads;assert.equal((await get('/native/resolve?name=1234abcd.app.enclavehost.eth')).status,200);assert.equal(controlReads,reads,'application names never read control routes');
++ assert.equal((await get('/native/resolve?name=other.enclavehost.eth')).status,404);
++ mode='ok';assert.equal((await get('/native/resolve?name=mcp.enclavehost.eth')).status,503,'a verified api route is not an mcp route');
++});
++
++test('deployed configuration has no control route source: no advertisement or route-map field can supply one',async t=>{
++ const now=Date.now(),served=[];
++ // the local relay's route map, carrying an attempted control route beside a real application route
++ const relay=http.createServer((req,res)=>{served.push(req.url);res.writeHead(200,{'content-type':'application/json'});
++  res.end(JSON.stringify({labels:{'1234abcd':{addresses:['8.8.4.4'],expiresAt:now+60_000}},routes:{'api.enclavehost.eth':{addresses:['44.0.0.6'],expiresAt:now+60_000}}}));});
++ await new Promise(r=>relay.listen(0,'127.0.0.1',r));t.after(()=>relay.close());
++ const caPem=await readFile(new URL('./fixtures/amd/Genoa-cert_chain.pem',import.meta.url),'utf8');
++ const opts=await deployedOptions(caPem,{routeMapUrl:`http://127.0.0.1:${relay.address().port}/v1/network/routes`,env:{NATIVE_CONTROL_EXCLUDE:'134.199.235.187'}});
++ assert.deepEqual(Object.keys(opts).sort(),['caPem','getRoutes']);
++ const server=createDiscovery(opts);
++ await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(()=>{server.closeAllConnections();server.close();});
++ const get=async(n)=>{const r=await fetch(`http://127.0.0.1:${server.address().port}/native/resolve?name=${n}`);return {status:r.status,body:await r.json()};};
++ for(const n of ['api.enclavehost.eth','mcp.enclavehost.eth']){const r=await get(n);assert.equal(r.status,503);assert.equal(r.body.error,'control_route_unavailable');}
++ assert.equal(served.length,0,'control names never read the application route map');
++ const app=await get('1234abcd.app.enclavehost.eth');assert.equal(app.status,200);assert.deepEqual(app.body.addresses,['8.8.4.4']);assert.equal(served.length,1);
++});
++
++test('a configured control source is the attested one, loaded only when NATIVE_CONTROL_SERVICE_INDEX is set',async()=>{
++ const caPem=await readFile(new URL('./fixtures/amd/Genoa-cert_chain.pem',import.meta.url),'utf8');
++ let seen=null;const source=async(env,o)=>{seen={env,caPem:o.caPem};return async()=>({routes:{}});};
++ const opts=await deployedOptions(caPem,{env:{NATIVE_CONTROL_SERVICE_INDEX:'0x'+'5a'.repeat(20)+'@0x'+'11'.repeat(32)},controlSource:source});
++ assert.deepEqual(Object.keys(opts).sort(),['caPem','getControlRoutes','getRoutes']);assert.equal(seen.caPem,caPem);
++ // the real source refuses an incomplete configuration instead of starting without one of its checks
++ const {controlRoutesFromEnv}=await import('../network/native-control-routes.mjs');
++ await assert.rejects(deployedOptions(caPem,{env:{NATIVE_CONTROL_SERVICE_INDEX:'0x'+'5a'.repeat(20)+'@0x'+'11'.repeat(32)},controlSource:controlRoutesFromEnv}),/NATIVE_CONTROL_RPCS/);
++});

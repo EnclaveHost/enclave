@@ -1,0 +1,477 @@
+{
+ "schema": "storage-client-interop/1",
+ "at": "2026-10-22",
+ "verdict": "PASS (run i6: 42/42 checks, queue EXIT 0, peak 1237 MiB @1536)",
+ "question": "U1: does the exact final privacy-fixed sia-s3 wasm 00e9cde0 make its FIRST fenced (C2) boot on an account written by the exact live 0.1.8 wasm, against the v28 backend, read every byte back, enroll the account, and lock out 0.1.8?",
+ "answer": "yes, locally, within the scope below",
+ "inputs": {
+  "adapter-retained/bafybeib7at4cxxzmlp3wb7v45zrhbuggwzegspcacfylztslbcnoe6qrqu.bin": "d1ddecfe7c3e1d06d1921eb779e135f3a64f185a4dbcdd989f56e22f603e07d3",
+  "storage-wasm-validation/artifacts/candidate-00e9cde0.wasm": "00e9cde0929dc7b8726ca4b7b9c9afb51ec4bf6d952039c907c032256ec79afc",
+  "claude-resumed-20261022/storage-sdk-regressions/out/c2e-a/harness-block": "cac6651329468aaeb2dd4d90ac9b924a891b121edbe17d2515b34b0dae97eafa",
+  "resume-after-checkpoint-20261022/storage-client-interop/egress_socks5.py": "77fad264406da15a85830ce1559fbd04feb2f9464b01576512a525112da09086",
+  "claude-resumed-20261022/storage-funding-test-fix/snapshots/c2-enclave/GeoLite2-City.mmdb": "18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933",
+  "notes": {
+   "v018": "live sia-s3 0.1.8 catalog CID bafybeib7at4cxxzmlp3wb7v45zrhbuggwzegspcacfylztslbcnoe6qrqu (index 7, cron-startup-20261021/storage-network/chain-storage.json); the retained .bin re-hashes to that CID",
+   "final": "00e9cde0: not rebuilt",
+   "backend": "harness-block c2e: `go version -m` -> go.sia.tech/indexd => storage-funding-test-fix/snapshots/c2-enclave (inventory 2e8faf80, the 2c0e5b06 source)"
+  }
+ },
+ "runtime": {
+  "wasmtime": "wasmtime 49.0.3 (f96eabaa1 2026-10-14)",
+  "postgres": "postgres (PostgreSQL) 18.6",
+  "isolation": {
+   "netInterfaces": [
+    "lo"
+   ],
+   "uid": 1000,
+   "pid": 1
+  },
+  "egressConnects": 362
+ },
+ "source": {
+  "interop.py": "867859479308a461b4911b501a735f79f9eb80c6331e9c6b90799c7d702198a3",
+  "run-ns.sh": "777db307708b630c3ff16b6f31823fe973247125a92b1ebfbba1e93dacf18f49",
+  "egress_socks5.py": "77fad264406da15a85830ce1559fbd04feb2f9464b01576512a525112da09086",
+  "selfcheck_helpers.py": "e240969890ac09c6baa029df01bcb657a2686c3f00ce99f45726caece6bc49df",
+  "NOTE.md": "65c54c785f62fb8992533de81ac7576f9eb7c56e4c67b24d674f6da8786b8932"
+ },
+ "patchesToOwnHarness": {
+  "fix-1-netns-check.diff": "isolation precheck read /sys/class/net (host sysfs); now /proc/net/dev (per netns). i1 was refused by it before anything started",
+  "fix-2-pg-socket-path.diff": "Unix socket path 108 > 107 bytes; socket dir is now a short owned mkdtemp under /tmp, removed in close(); a failed PG start removes its own data",
+  "fix-3-memory-trim.diff": "PostgreSQL shared_buffers 64 -> 16 MB (kept); whole-object GETs streamed into sha256 (kept)",
+  "fix-4-stream-bodies.diff": "request bodies generated and streamed in 1 MiB chunks with explicit Content-Length (still plain non-chunked PUTs; same keys and sizes; selfcheck_helpers.py proves equality with whole-buffer computation, logs/selfcheck-1.out); its GOMEMLIMIT 192 was REVERTED to 256 for the 1536 run",
+  "fix-5-compaction-age-wait.diff": "0.1.8 compacts only objects older than 300 s (store.rs:496): wait 420 s instead of 300 s"
+ },
+ "runs": [
+  {
+   "id": "i1",
+   "cap": 1024,
+   "result": "REFUSED by own isolation precheck before anything started (sysfs check bug, fix-1)",
+   "queueExit": 1
+  },
+  {
+   "id": "i2",
+   "cap": 1024,
+   "result": "PostgreSQL FATAL: socket path too long (fix-2); own pg/data removed afterwards (runs/i2/CLEANUP.txt)",
+   "queueExit": 1
+  },
+  {
+   "id": "i3",
+   "cap": 1024,
+   "result": "GUARD-STOPPED (99), NOT a result: during 0.1.8's buffered 48 MiB PUT",
+   "guard": {
+    "exit": "1",
+    "peakTreeRssMiB": 1028,
+    "line": "[memory-guard] exit=1 peakTreeRssMiB=1028 minHostAvailableMiB=87982 STOPPED: process tree RSS 1028 MiB > 1024 MiB"
+   },
+   "atPeak": "wasmtime:396 harness-block:227 python3:87 postgres:47 postgres:39 postgres:38 postgres:35 postgres:30"
+  },
+  {
+   "id": "i4",
+   "cap": 1024,
+   "result": "GUARD-STOPPED (99), NOT a result: same point after fix-3",
+   "guard": {
+    "exit": "1",
+    "peakTreeRssMiB": 1027,
+    "line": "[memory-guard] exit=1 peakTreeRssMiB=1027 minHostAvailableMiB=88056 STOPPED: process tree RSS 1027 MiB > 1024 MiB"
+   },
+   "atPeak": "wasmtime:397 harness-block:234 python3:88 postgres:40 postgres:36 postgres:36 postgres:35 postgres:27"
+  },
+  {
+   "id": "i5",
+   "cap": 1536,
+   "result": "41 PASS / 1 FAIL: '0.1.8 compactor packed small objects' (harness wait shorter than 0.1.8's 300 s age rule, fix-5); every U1 check passed but packed legacy slabs were not covered",
+   "guard": {
+    "exit": "1",
+    "peakTreeRssMiB": 1273,
+    "line": "[memory-guard] exit=1 peakTreeRssMiB=1273 minHostAvailableMiB=87681"
+   },
+   "atPeak": "harness-block:527 wasmtime:384 postgres:43 postgres:40 postgres:38 postgres:35 python3:32 postgres:27"
+  },
+  {
+   "id": "i6",
+   "cap": 1536,
+   "result": "42 PASS / 0 FAIL",
+   "guard": {
+    "exit": "0",
+    "peakTreeRssMiB": 1237,
+    "line": "[memory-guard] exit=0 peakTreeRssMiB=1237 minHostAvailableMiB=86780"
+   },
+   "atPeak": "harness-block:492 wasmtime:384 postgres:41 postgres:40 postgres:37 postgres:37 python3:32 postgres:27",
+   "wallS": 524,
+   "diskBeforeCleanupMiB": 2420
+  }
+ ],
+ "checks": [
+  {
+   "name": "backend: the harness indexer's PostgreSQL schema is exactly v28 (c2-enclave)",
+   "ok": true,
+   "detail": "28"
+  },
+  {
+   "name": "L: the exact 0.1.8 wasm becomes ready on the v28 backend (unenrolled account)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "L: 0.1.8 PUT ipfs/a.txt (1024 B)",
+   "ok": true,
+   "detail": "200 b''"
+  },
+  {
+   "name": "L: 0.1.8 PUT ipfs/dir/b (100000 B)",
+   "ok": true,
+   "detail": "200 b''"
+  },
+  {
+   "name": "L: 0.1.8 PUT git/objects/c (700000 B)",
+   "ok": true,
+   "detail": "200 b''"
+  },
+  {
+   "name": "L: 0.1.8 PUT jot/d (3000000 B)",
+   "ok": true,
+   "detail": "200 b''"
+  },
+  {
+   "name": "L: 0.1.8 PUT jot/gone (2048 B)",
+   "ok": true,
+   "detail": "200 b''"
+  },
+  {
+   "name": "L: 0.1.8 PUT machines/alpine/e (12582912 B)",
+   "ok": true,
+   "detail": "200 b''"
+  },
+  {
+   "name": "L: 0.1.8 PUT machines/two-slab (50331648 B)",
+   "ok": true,
+   "detail": "200 b''"
+  },
+  {
+   "name": "L: 0.1.8 PUT ipfs/a.txt (5000 B)",
+   "ok": true,
+   "detail": "200 b''"
+  },
+  {
+   "name": "L: 0.1.8 DELETE jot/gone",
+   "ok": true,
+   "detail": "204"
+  },
+  {
+   "name": "L: 0.1.8 conditional PUT If-None-Match:* on an existing key is 412 (and changes nothing)",
+   "ok": true,
+   "detail": "412"
+  },
+  {
+   "name": "L: 0.1.8 completed multipart upload git/packs/mp",
+   "ok": true,
+   "detail": "200"
+  },
+  {
+   "name": "L: 0.1.8 leaves an OPEN multipart upload jot/open (1 part)",
+   "ok": true,
+   "detail": "200"
+  },
+  {
+   "name": "L: 0.1.8's compactor packed small objects (packed-slab legacy format)",
+   "ok": true,
+   "detail": "{'compacted_objects': 4, 'compactions': 11, 'last_compaction': '2026-10-22T20:52:10.477874950+00:00', 'last_error': None}"
+  },
+  {
+   "name": "L: 0.1.8 reads its own writes: every key reads back byte-exact (7 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "L: 0.1.8 reads its own writes: ranged reads (incl. across the slab boundary) are byte-exact",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "L: 0.1.8 reads its own writes: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "L: indexd DB before the first fenced boot: no fence, not in CAS mode (legacy account)",
+   "ok": true,
+   "detail": "{'fence': False, 'casMode': False, 'seqEnabled': False, 'eventSeq': 0, 'fencePending': False, 'objects': 9}"
+  },
+  {
+   "name": "C: final 00e9cde0 makes its first fenced (C2) boot on the 0.1.8-written account and becomes ready",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "C: /healthz reports C2 verified and fence mode required",
+   "ok": true,
+   "detail": "{'authority': 'lease17 chain 31337 ledger 0x1111111111111111111111111111111111111111 deployment 0x2222222222222222222222222222222222222222222222222222222222222222 generation 1', 'ballot': {'counter': 1, 'gen': '0x11000000000001', 'iid': 'ae5f384f'}, 'c2': {'noCloneAssumed': False, 'verified': True}, 'isolation': 'Snp', 'mode': 'required', 'policy': {'ok': True, 'warnings': ['isolation Snp: no recorded no-clone evidence, and none assumed: C2 (verified at boot on every indexer) keeps storage semantics for copies of this instance']}, 'reballots': 0, 'superseded': None}"
+  },
+  {
+   "name": "C: first maintenance wrote the single-indexer membership record (admitted, epoch 1, stable)",
+   "ok": true,
+   "detail": "{'record': {'admitted': True, 'epoch': 1}, 'membership': {'epoch': 1, 'phase': 'stable', 'ready': True, 'reason': None, 'target': 1}}"
+  },
+  {
+   "name": "C: indexd DB after the first fenced boot: fence installed and the account is in CAS mode (enrolled)",
+   "ok": true,
+   "detail": "{'fence': True, 'casMode': True, 'seqEnabled': True, 'eventSeq': 16, 'fencePending': False, 'objects': 10}"
+  },
+  {
+   "name": "C: final reads the 0.1.8 writes: every key reads back byte-exact (7 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "C: final reads the 0.1.8 writes: ranged reads (incl. across the slab boundary) are byte-exact",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "C: final reads the 0.1.8 writes: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "C: the open 0.1.8 multipart upload is listed by the final wasm",
+   "ok": true,
+   "detail": "200 b'<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n<ListMultipartUploadsResult><Bucket>jot</Bucket><IsTruncated>false</IsTruncated><Upload><Key>open</Key><UploadId>4c1dd26599820f2a80b72027efd5e26b</UploadId><Initiated>2026-10-22T20:46:58.000Z</Initiated></Upload></ListMultipartUploadsResult>'"
+  },
+  {
+   "name": "C: the final wasm completes the 0.1.8 upload (0.1.8 part 1 + its own part 2) and it reads back",
+   "ok": true,
+   "detail": "part 200 complete 200 [(1, '\"4a3c87cc672c574f970588e6b71f0304\"'), (2, '\"74cf3094ff51ce4f173f4bbc87d63a27\"')]"
+  },
+  {
+   "name": "C: the final wasm writes new, overwrites a 0.1.8 key and deletes a 0.1.8 key",
+   "ok": true,
+   "detail": "(200, 200, 204)"
+  },
+  {
+   "name": "C: after the final wasm's writes: every key reads back byte-exact (8 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "C: after the final wasm's writes: ranged reads (incl. across the slab boundary) are byte-exact",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "C: after the final wasm's writes: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "C: a new final instance (generation 2) boots on the enrolled account",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "C: after restart: every key reads back byte-exact (8 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "C: after restart: ranged reads (incl. across the slab boundary) are byte-exact",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "C: after restart: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "O: 0.1.8 on the enrolled account cannot write: its PUT and DELETE are refused",
+   "ok": true,
+   "detail": "ready True PUT 500 DELETE 500"
+  },
+  {
+   "name": "O: the refused 0.1.8 attempts changed nothing in indexd (same event head and object count)",
+   "ok": true,
+   "detail": "{'before': {'fence': True, 'casMode': True, 'seqEnabled': True, 'eventSeq': 29, 'fencePending': False, 'objects': 13}, 'after': {'fence': True, 'casMode': True, 'seqEnabled': True, 'eventSeq': 29, 'fencePending': False, 'objects': 13}}"
+  },
+  {
+   "name": "O: the final wasm (generation 3) boots after the 0.1.8 attempt",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "O: the 0.1.8 PUT is absent",
+   "ok": true,
+   "detail": "404"
+  },
+  {
+   "name": "O: final state unchanged by the old client: every key reads back byte-exact (8 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "O: final state unchanged by the old client: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  }
+ ],
+ "evidence": {
+  "indexdDatabase": {
+   "dbVersion": "28",
+   "beforeEnrollment": {
+    "fence": false,
+    "casMode": false,
+    "seqEnabled": false,
+    "eventSeq": 0,
+    "fencePending": false,
+    "objects": 9
+   },
+   "afterEnrollment": {
+    "fence": true,
+    "casMode": true,
+    "seqEnabled": true,
+    "eventSeq": 16,
+    "fencePending": false,
+    "objects": 10
+   },
+   "beforeOld": {
+    "fence": true,
+    "casMode": true,
+    "seqEnabled": true,
+    "eventSeq": 29,
+    "fencePending": false,
+    "objects": 13
+   },
+   "afterOld": {
+    "fence": true,
+    "casMode": true,
+    "seqEnabled": true,
+    "eventSeq": 29,
+    "fencePending": false,
+    "objects": 13
+   }
+  },
+  "healthz018BeforeStop": {
+   "app": "sia-s3/0.1.8",
+   "bytes": 73011016,
+   "compactor": {
+    "compacted_objects": 4,
+    "compactions": 11,
+    "last_compaction": "2026-10-22T20:52:10.477874950+00:00",
+    "last_error": null
+   },
+   "keys": 7,
+   "objects": 9,
+   "openUploads": 1,
+   "ready": true,
+   "smallUnpacked": 3
+  },
+  "healthzFinalFirstBoot": {
+   "writerFence": {
+    "authority": "lease17 chain 31337 ledger 0x1111111111111111111111111111111111111111 deployment 0x2222222222222222222222222222222222222222222222222222222222222222 generation 1",
+    "ballot": {
+     "counter": 1,
+     "gen": "0x11000000000001",
+     "iid": "ae5f384f"
+    },
+    "c2": {
+     "noCloneAssumed": false,
+     "verified": true
+    },
+    "isolation": "Snp",
+    "mode": "required",
+    "policy": {
+     "ok": true,
+     "warnings": [
+      "isolation Snp: no recorded no-clone evidence, and none assumed: C2 (verified at boot on every indexer) keeps storage semantics for copies of this instance"
+     ]
+    },
+    "reballots": 0,
+    "superseded": null
+   },
+   "replica": {
+    "admitted": true,
+    "epoch": 1
+   },
+   "membership": {
+    "epoch": 1,
+    "phase": "stable",
+    "ready": true,
+    "reason": null,
+    "target": 1
+   }
+  },
+  "instances": [
+   {
+    "op": "v018-writer instance",
+    "maxRssMiB": 383,
+    "sampledPeakRssMiB": 383,
+    "wallS": 364.3,
+    "status": 15
+   },
+   {
+    "op": "final-first-boot instance",
+    "maxRssMiB": 162,
+    "sampledPeakRssMiB": 162,
+    "wallS": 82.5,
+    "status": 15
+   },
+   {
+    "op": "final-restart instance",
+    "maxRssMiB": 85,
+    "sampledPeakRssMiB": 43,
+    "wallS": 32.8,
+    "status": 15
+   },
+   {
+    "op": "v018-after-enrollment instance",
+    "maxRssMiB": 147,
+    "sampledPeakRssMiB": 148,
+    "wallS": 4.9,
+    "status": 15
+   },
+   {
+    "op": "final-after-old instance",
+    "maxRssMiB": 85,
+    "sampledPeakRssMiB": 39,
+    "wallS": 30.1,
+    "status": 15
+   }
+  ]
+ },
+ "provenFacts": [
+  "the exact 0.1.8 wasm runs against the v28 schema on an unenrolled account (PUT/GET/range/list/DELETE/If-None-Match 412/multipart, compaction into packed slabs)",
+  "the exact 00e9cde0 first fenced boot on that account: ready in ~2 s; healthz C2 verified, mode required; membership record admitted epoch 1 stable",
+  "indexd's own DB: before = no fence, cas_mode false, seq off; after = fence set, cas_mode true, seq_enabled true (enrolled)",
+  "every 0.1.8 object (packed small, 12 MiB, 48 MiB two-slab, completed multipart, overwritten key) reads back byte-exact whole and ranged (incl. across the 40 MiB slab boundary); listings exact; the deleted key stays absent",
+  "an OPEN 0.1.8 multipart upload is listed by 00e9cde0 and completed with 0.1.8's part 1 plus its own part 2",
+  "00e9cde0 writes, overwrites a 0.1.8 key and deletes a 0.1.8 key; a restarted instance (gen 2) reads everything",
+  "0.1.8 restarted on the ENROLLED account: still reports ready, but its PUT and DELETE return HTTP 500 and indexd's event head and object count are unchanged; the later 00e9cde0 (gen 3) sees no trace"
+ ],
+ "scope": {
+  "backend": "REAL indexd code (c2-enclave source, schema exactly 28) in-process in harness-block, with a NEW PostgreSQL 18.6 cluster (fsync=off, shared_buffers 16 MB) and 30 real coreutils RHP4/SiaMux hosts with on-disk sector files; synthetic V2 test chain",
+  "notTheBinary": "the 2c0e5b06 binary itself cannot join a test chain (mainnet network); its schema-28 startup is role28-1's evidence",
+  "client": "the exact production artifacts under wasmtime 49.0.3; all component dials through the local SOCKS egress front (362 CONNECTs)",
+  "noMocks": "no mock indexer, SDK or host in the data path",
+  "isolation": "private network namespace (only lo), private PID namespace, uid 1000; no public Sia, RPC, DNS or live storage reachable"
+ },
+ "limits": [
+  "N=1, W=1 (the production T1 enrollment shape); the 1->3 membership migration is not exercised here",
+  "writer authority is the e2e fixture lease17 fact; the front/relay binding that delivers it in production is not exercised",
+  "egress is a local SOCKS5 front, not the Shield egress or the measured 'egress: public-web' policy",
+  "small fixture data set (8 keys, ~73 MB), not the production volume (1491 objects); synthetic keys and data only; no production object, key, wallet or backup used",
+  "0.1.8 ran with compactEverySecs 30 (production default is longer) so packing happens within the run; production version config otherwise matched (buckets ipfs/git/jot/machines), without _media",
+  "not covered: >64 MiB streamed 0.1.8 PUTs, concurrency, real Sia network latency or failures, indexd crash during enrollment",
+  "operational finding: after enrollment a lingering 0.1.8 instance keeps reporting ready and answers writes with 500 (safe: nothing changes). Stop 0.1.8 BEFORE the first fenced boot (one writer)"
+ ],
+ "cleanup": {
+  "i6": {
+   "hostSectorsRemoved": true,
+   "pgDataRemoved": true,
+   "pgSocketDirRemoved": true,
+   "pidsLeftInNamespace": []
+  },
+  "postRunHost": "no harness/postgres/wasmtime/egress/driver process of any interop run; no /tmp/u1pg-* dir; runs/ hold logs/results only (i6 100 KB)",
+  "unrelated": "wasmtime pid 2090486 (enclavedns, ~/Projects/enclave-apps-dns) is not this work's and was left alone"
+ },
+ "notDone": "no production, SSH, live RPC, public Sia, wallet, enrollment of any real account, rebuild of 00e9cde0, Git commit or push"
+}

@@ -1,0 +1,11 @@
+--- /tmp/interop.prefix.py	2026-10-22 13:31:59.761666663 -0700
++++ interop.py	2026-10-22 13:31:59.770258104 -0700
+@@ -75,7 +75,7 @@
+         R["inputs"][os.path.relpath(p, WORK)] = got
+         if got != want:
+             raise SystemExit(f"pin mismatch {p}: {got} != {want}")
+-    nets = sorted(os.listdir("/sys/class/net"))
++    nets = sorted(l.split(":")[0].strip() for l in open("/proc/net/dev").read().splitlines()[2:])   # per network namespace (sysfs is not)
+     R["isolation"] = {"netInterfaces": nets, "uid": os.getuid(), "pid": os.getpid()}
+     if nets != ["lo"] or os.getuid() == 0 or os.getpid() > 50:
+         raise SystemExit(f"refused: not in the private namespaces (interfaces {nets}, uid {os.getuid()}, pid {os.getpid()})")

@@ -1,0 +1,387 @@
+{
+ "schema": "storage-client-interop-lease16/1",
+ "at": "2026-10-22",
+ "verdict": {
+  "l1Original": "FAIL as run: queue exit 1, 32 PASS / 1 FAIL (unchanged, runs/l1/results.json a7f3406e5f635427)",
+  "soleFailure": "'C: the ballot generation is the lease16 generation': healthz 0x10032153d80003 vs expected string 0x0010032153d80003 - the same integer; a driver string-padding comparison",
+  "correctedAssertionReplay": "PASS: fix-7 canonical numeric fence_gen/gen_matches applied to l1's RETAINED healthz and DB values, 34/34 cases (10 positive, 23 negative + 1 bound), queue 256 EXIT 0 (logs/replay2-gen-l1.json). NOT a rerun; l1 is not relabeled green",
+  "earlierOfflineCheck": "logs/reeval-l1.json (numeric only, no shape bounds) is superseded by the replay, kept as history",
+  "runtimeFault": "none found: every other l1 check (DB generations, enrollment, reads, writes, restart, superseded 503, stale refusal, old-client refusal) passed as run"
+ },
+ "closes": "i6's authority gap: i6 used a fixture lease17 fact; production uses the EXISTING ledger 16d (lease16). Ledger 17 is not required and was not used.",
+ "authority": {
+  "form": "storage-hosted-placement/e2e/placement_e2e.py (fad23623) lease16(): {source lease16, chainId 8453, ledger 0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b (ledger 16d id, never contacted), deployment = sha256('storage-hosted-placement fixture deployment') (NOT a real id), claimBlock, claimLogIndex}",
+  "delivery": "through the front's reserved names: owner config holds '$ENCLAVE_WRITER_AUTHORITY' and '$ENCLAVE_INSTANCE_ISOLATION'; the values come as env from the (fixture) front; isolation vbs (Shield front constant)",
+  "generationRule": "16<<48 | claimBlock<<16 | claimLogIndex (sia-s3 fencing.rs:26-27,56); FenceToken = gen(8 BE) | counter(8 BE) | iid(16) (sia_storage fence.rs:27-30)",
+  "claims": {
+   "claim1": {
+    "source": "lease16",
+    "chainId": 8453,
+    "ledger": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
+    "deployment": "0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81",
+    "claimBlock": 52515800,
+    "claimLogIndex": 3
+   },
+   "claim2": {
+    "source": "lease16",
+    "chainId": 8453,
+    "ledger": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
+    "deployment": "0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81",
+    "claimBlock": 52520000,
+    "claimLogIndex": 0
+   },
+   "gen1": "0x0010032153d80003",
+   "gen2": "0x0010032164400000"
+  }
+ },
+ "run": {
+  "id": "l1",
+  "cap": 1536,
+  "queueExit": 1,
+  "guard": "[memory-guard] exit=1 peakTreeRssMiB=936 minHostAvailableMiB=88080",
+  "atPeak": "harness-block:430 wasmtime:157 postgres:41 postgres:37 postgres:37 postgres:37 python3:32 python3:27",
+  "wallS": 181,
+  "egressConnects": 277,
+  "diskBeforeCleanupMiB": 860,
+  "cleanup": {
+   "hostSectorsRemoved": true,
+   "pgDataRemoved": true,
+   "pgSocketDirRemoved": true,
+   "pidsLeftInNamespace": []
+  },
+  "checksPassed": 32,
+  "checksFailed": 1,
+  "failedOriginal": [
+   {
+    "name": "C: the ballot generation is the lease16 generation (16<<48 | claimBlock<<16 | logIndex)",
+    "ok": false,
+    "detail": "{'ballot': {'counter': 1, 'gen': '0x10032153d80003', 'iid': '870502aa'}, 'want': '0x0010032153d80003'}"
+   }
+  ],
+  "reevaluation": {
+   "file": "logs/reeval-l1.json",
+   "sha256": "15aef6b8276bb09412245c501cd9e2a7e1996fd4e2b54f19549a344f2ce8ceae",
+   "correctedVerdict": "PASS",
+   "cause": "harness compared strings: healthz prints the u64 unpadded (0x10032153d80003), the driver expected 16-digit zero padding (0x0010032153d80003)"
+  }
+ },
+ "checks": [
+  {
+   "name": "backend: the harness indexer's PostgreSQL schema is exactly v28 (c2-enclave)",
+   "ok": true,
+   "detail": "28"
+  },
+  {
+   "name": "L: the exact 0.1.8 wasm becomes ready on the v28 backend (unenrolled account)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "L: 0.1.8 PUT ipfs/legacy/one",
+   "ok": true,
+   "detail": "200 b''"
+  },
+  {
+   "name": "L: 0.1.8 reads its own write: every key reads back byte-exact (1 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "L: 0.1.8 reads its own write: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "L: indexd DB before the first fenced boot: no fence, not in CAS mode",
+   "ok": true,
+   "detail": "{'fenceHex': None, 'fenceGeneration': None, 'fenceCounter': None, 'casMode': False, 'seqEnabled': False, 'eventSeq': 0, 'objects': 1}"
+  },
+  {
+   "name": "C: final 00e9cde0 under a lease16 (ledger 16d) fact makes its FIRST fenced C2 boot on the 0.1.8 account",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "C: /healthz names the lease16 authority (ledger 16d, claim 52515800/3), isolation Vbs, C2 verified, mode required",
+   "ok": true,
+   "detail": "{'authority': 'lease16 chain 8453 ledger 0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b deployment 0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81 claim 52515800/3', 'ballot': {'counter': 1, 'gen': '0x10032153d80003', 'iid': '870502aa'}, 'c2': {'noCloneAssumed': False, 'verified': True}, 'isolation': 'Vbs', 'mode': 'required', 'policy': {'ok': True, 'warnings': ['isolation Vbs: no recorded no-clone evidence, and none assumed: C2 (verified at boot on every indexer) keeps storage semantics for copies of this instance']}, 'reballots': 0, 'superseded': None}"
+  },
+  {
+   "name": "C: the ballot generation is the lease16 generation (16<<48 | claimBlock<<16 | logIndex)",
+   "ok": false,
+   "detail": "{'ballot': {'counter': 1, 'gen': '0x10032153d80003', 'iid': '870502aa'}, 'want': '0x0010032153d80003'}"
+  },
+  {
+   "name": "C: membership record admitted at epoch 1 (stable)",
+   "ok": true,
+   "detail": "{'record': {'admitted': True, 'epoch': 1}, 'membership': {'epoch': 1, 'phase': 'stable', 'ready': True, 'reason': None, 'target': 1}}"
+  },
+  {
+   "name": "C: indexd DB: the INSTALLED fence carries the lease16 generation and the account is in CAS mode (enrolled)",
+   "ok": true,
+   "detail": "{'fenceHex': '0010032153d800030000000000000001870502aa0bc5afc762b4d4dab3406fc2', 'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 1, 'casMode': True, 'seqEnabled': True, 'eventSeq': 2, 'objects': 2}"
+  },
+  {
+   "name": "C: final reads the 0.1.8 object: every key reads back byte-exact (1 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "C: final reads the 0.1.8 object: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "C: final PUT under lease16 claim 1",
+   "ok": true,
+   "detail": "200"
+  },
+  {
+   "name": "C: after the final PUT: every key reads back byte-exact (2 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "C: after the final PUT: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "C: a restart under the SAME lease16 claim boots (new instance, same generation)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "C: after the same-claim restart: every key reads back byte-exact (2 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "C: after the same-claim restart: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "C: indexd DB after the restart: same lease16 generation, a higher ballot counter",
+   "ok": true,
+   "detail": "{'before': {'fenceHex': '0010032153d800030000000000000001870502aa0bc5afc762b4d4dab3406fc2', 'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 1, 'casMode': True, 'seqEnabled': True, 'eventSeq': 2, 'objects': 2}, 'after': {'fenceHex': '0010032153d800030000000000000002d8d7d467b1fd6793f0041d0be426cbd3', 'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 2, 'casMode': True, 'seqEnabled': True, 'eventSeq': 5, 'objects': 4}}"
+  },
+  {
+   "name": "S: a later lease16 claim (52520000/0) boots and takes over",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "S: indexd DB: the installed fence now carries the claim-2 generation",
+   "ok": true,
+   "detail": "{'fenceHex': '00100321644000000000000000000001137460c7bce9ef6c3e7ddcddf7dc05b9', 'fenceGeneration': '0x0010032164400000', 'fenceCounter': 1, 'casMode': True, 'seqEnabled': True, 'eventSeq': 5, 'objects': 4}"
+  },
+  {
+   "name": "S: the superseded claim-1 instance refuses reads and writes (503)",
+   "ok": true,
+   "detail": "GET 503 PUT 503"
+  },
+  {
+   "name": "S: claim 2 serves everything: every key reads back byte-exact (2 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "S: claim 2 serves everything: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "S: claim 2 writes",
+   "ok": true,
+   "detail": "200"
+  },
+  {
+   "name": "S: a NEW instance under the stale claim 1 never becomes ready and serves nothing",
+   "ok": true,
+   "detail": "ready False GET 503"
+  },
+  {
+   "name": "S: indexd DB: the stale attempt did not lower or replace the claim-2 fence",
+   "ok": true,
+   "detail": "{'before': {'fenceHex': '00100321644000000000000000000001137460c7bce9ef6c3e7ddcddf7dc05b9', 'fenceGeneration': '0x0010032164400000', 'fenceCounter': 1, 'casMode': True, 'seqEnabled': True, 'eventSeq': 9, 'objects': 5}, 'after': {'fenceHex': '00100321644000000000000000000001137460c7bce9ef6c3e7ddcddf7dc05b9', 'fenceGeneration': '0x0010032164400000', 'fenceCounter': 1, 'casMode': True, 'seqEnabled': True, 'eventSeq': 9, 'objects': 5}}"
+  },
+  {
+   "name": "S: the refused claim-1 PUT is absent",
+   "ok": true,
+   "detail": "404"
+  },
+  {
+   "name": "S: claim 2 after the stale attempt: every key reads back byte-exact (3 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "S: claim 2 after the stale attempt: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "O: 0.1.8 on the lease16-enrolled account cannot write (PUT and DELETE refused)",
+   "ok": true,
+   "detail": "ready True PUT 500 DELETE 500"
+  },
+  {
+   "name": "O: indexd unchanged by the refused 0.1.8 attempts (fence, event head, object count)",
+   "ok": true,
+   "detail": "{'before': {'fenceHex': '00100321644000000000000000000001137460c7bce9ef6c3e7ddcddf7dc05b9', 'fenceGeneration': '0x0010032164400000', 'fenceCounter': 1, 'casMode': True, 'seqEnabled': True, 'eventSeq': 9, 'objects': 5}, 'after': {'fenceHex': '00100321644000000000000000000001137460c7bce9ef6c3e7ddcddf7dc05b9', 'fenceGeneration': '0x0010032164400000', 'fenceCounter': 1, 'casMode': True, 'seqEnabled': True, 'eventSeq': 9, 'objects': 5}}"
+  }
+ ],
+ "backendFenceEvidence": {
+  "dbVersion": "28",
+  "beforeEnrollment": {
+   "fenceHex": null,
+   "fenceGeneration": null,
+   "fenceCounter": null,
+   "casMode": false,
+   "seqEnabled": false,
+   "eventSeq": 0,
+   "objects": 1
+  },
+  "afterEnrollment": {
+   "fenceHex": "0010032153d800030000000000000001870502aa0bc5afc762b4d4dab3406fc2",
+   "fenceGeneration": "0x0010032153d80003",
+   "fenceCounter": 1,
+   "casMode": true,
+   "seqEnabled": true,
+   "eventSeq": 2,
+   "objects": 2
+  },
+  "afterRestart": {
+   "fenceHex": "0010032153d800030000000000000002d8d7d467b1fd6793f0041d0be426cbd3",
+   "fenceGeneration": "0x0010032153d80003",
+   "fenceCounter": 2,
+   "casMode": true,
+   "seqEnabled": true,
+   "eventSeq": 5,
+   "objects": 4
+  },
+  "afterClaim2": {
+   "fenceHex": "00100321644000000000000000000001137460c7bce9ef6c3e7ddcddf7dc05b9",
+   "fenceGeneration": "0x0010032164400000",
+   "fenceCounter": 1,
+   "casMode": true,
+   "seqEnabled": true,
+   "eventSeq": 5,
+   "objects": 4
+  },
+  "beforeStale": {
+   "fenceHex": "00100321644000000000000000000001137460c7bce9ef6c3e7ddcddf7dc05b9",
+   "fenceGeneration": "0x0010032164400000",
+   "fenceCounter": 1,
+   "casMode": true,
+   "seqEnabled": true,
+   "eventSeq": 9,
+   "objects": 5
+  },
+  "afterStale": {
+   "fenceHex": "00100321644000000000000000000001137460c7bce9ef6c3e7ddcddf7dc05b9",
+   "fenceGeneration": "0x0010032164400000",
+   "fenceCounter": 1,
+   "casMode": true,
+   "seqEnabled": true,
+   "eventSeq": 9,
+   "objects": 5
+  },
+  "beforeOld": {
+   "fenceHex": "00100321644000000000000000000001137460c7bce9ef6c3e7ddcddf7dc05b9",
+   "fenceGeneration": "0x0010032164400000",
+   "fenceCounter": 1,
+   "casMode": true,
+   "seqEnabled": true,
+   "eventSeq": 9,
+   "objects": 5
+  },
+  "afterOld": {
+   "fenceHex": "00100321644000000000000000000001137460c7bce9ef6c3e7ddcddf7dc05b9",
+   "fenceGeneration": "0x0010032164400000",
+   "fenceCounter": 1,
+   "casMode": true,
+   "seqEnabled": true,
+   "eventSeq": 9,
+   "objects": 5
+  }
+ },
+ "provenFacts": [
+  "the exact 0.1.8 wasm writes on the v28 backend (unenrolled: fence NULL, cas_mode false)",
+  "the exact final 00e9cde0 makes its FIRST fenced C2 boot under a lease16 (ledger 16d) fact delivered via the reserved front names: healthz authority 'lease16 chain 8453 ledger 0xb178\u2026 claim 52515800/3', Vbs, C2 verified, record admitted epoch 1 stable",
+  "indexd's own accounts.fence after enrollment starts 0x0010032153d80003 = 16<<48|52515800<<16|3 (counter 1), cas_mode true, seq_enabled true",
+  "the 0.1.8 object reads back byte-exact; the final wasm's PUT reads back; a same-claim restart boots with fence counter 2 (same generation) and reads everything",
+  "a later claim 52520000/0 takes over: fence generation 0x0010032164400000; the claim-1 instance then answers 503 to GET and PUT; claim 2 serves and writes",
+  "a NEW instance under the stale claim 1 never becomes ready (120 s), serves 503, and leaves fence and event head unchanged; its refused PUT is absent",
+  "0.1.8 on the lease16-enrolled account: still reports ready, PUT and DELETE return 500, indexd fence/event head/object count unchanged"
+ ],
+ "scope": {
+  "backend": "real indexd code (c2-enclave source, schema exactly 28) in harness-block c2e cac66513 + own PostgreSQL 18.6 + 30 real RHP4/SiaMux hosts with sector files; synthetic V2 test chain",
+  "client": "exact artifacts 0.1.8 d1ddecfe and final 00e9cde0 under wasmtime 49.0.3; dials via a local SOCKS5 egress front",
+  "isolation": "private network (lo only) + PID namespaces, uid 1000; no public Sia, RPC, DNS or live storage",
+  "noMocks": "no mock indexer, SDK or host",
+  "notCovered": [
+   "the 2c0e5b06 binary bytes (test chain: source build instead; its schema 28 is role28-1's evidence)",
+   "the real front/relay deriving the lease16 fact from the chain (the fact is the placement fixture's, delivered as the front would)",
+   "Shield egress / measured 'egress: public-web'",
+   "N=3 membership migration (N=1 here)",
+   "production data volume, the production app key, the live Claimed log values"
+  ],
+  "notRepeated": "packing, multipart, ranged and large-object reads (i6 42/42)"
+ },
+ "activation": {
+  "authorizedForWorker": false,
+  "firstLiveCasEnrollment": "ROOT/owner only; not performed",
+  "preconditions": [
+   "live indexd v28 (done), 0 CAS-enrolled accounts, a fresh coupled pre-enrollment backup (root holds 20261022T191749Z-603f3b39; take a new one immediately before) and the refreshed cold snapshot",
+   "front + relay with the lease16 writer-authority binding DEPLOYED (relay lease-generation with LEASE_GENERATION_STATE persistent and CATALOG_RPCS >= 2 hosts; measured front images); without it sia-s3 C2 never becomes ready",
+   "C2 catalog version: 00e9cde0 + storage-rollout-inventory/sia-s3-app/config.template.json (6e31a0bc) PLUS the live 0.1.8 '_media' block (thumbnail/banner; present in the live config, absent from the template); memMb decided; published by the sia-s3 slug owner",
+   "secrets: $SIAS3_REPLICAS = [{name:'minipc', indexer:'https://sia.enclave.host', appKey: the SAME app key 0.1.8 uses}] (N=1, W=1); S3 credentials unchanged"
+  ],
+  "sequence": [
+   "1. root: read-only SQL on the live account row: fence IS NULL, cas_mode false; record event_seq/object count",
+   "2. owner: stop the 0.1.8 deployment and confirm it is gone (ONE writer; the adapter's writes fail during the window)",
+   "3. owner: switch the deployment to the C2 version (signature); the front delivers the lease16 fact of the deployment's real Claimed log",
+   "4. verify /healthz: writerFence.authority 'lease16 chain 8453 ledger 0xb1783b61\u2026 claim <block>/<log>', c2.verified, replicas[0].record.admitted epoch 1 stable",
+   "5. root read-only SQL: accounts.fence first 8 bytes == 16<<48|<block><<16|<log>, cas_mode true, seq_enabled true; object count = before + membership record(s)",
+   "6. read back known adapter CIDs, then one write; expect ~20-25 min NOT READY after a fresh claim (front-binding notes)"
+  ],
+  "rollbackLimit": [
+   "before step 3 completes enrollment: redeploy 0.1.8 (account still unenrolled) - full rollback",
+   "after enrollment: NO online downgrade. 0.1.8 cannot write (proven here: 500, indexd unchanged) and indexd rollback-c2 refuses while an account is enrolled (c2 production rehearsal S8). Options: stay on/redeploy the C2 version, or root restores the pre-enrollment coupled backup on the same VM with the same seed, losing writes made after it",
+   "a later lease claim supersedes automatically; a stale claim never serves (proven here)"
+  ],
+  "notCompletion": "N=1 enrollment is a compatibility step toward distributed storage (C2 single writer on the existing indexer); distributed storage needs N>=3 admitted, funded replicas in distinct failure domains and the 1->3 membership change (storage-activation-next/ACTIONS.json T2)"
+ },
+ "sources": {
+  "interop16.py": "2902715e039f732b204061001fbbacdfac26fc5c33ae70cc9a2832e07eb44d8b",
+  "run-ns16.sh": "8db55d767ac72e165f188b441a324eea92b010fcf45b3a0bc73378a026415c37",
+  "NOTE-lease16.md": "1830365c08c6948b2ec880b70bef65b2c234907dc8da64817f53a73744defd62",
+  "replay_gen_l1.py": "c2b67f3526de08cc4d3611ac1bd6e54803fc8277a3b257d38852af9063985956",
+  "reeval_l1.py": "eb829bfd9d9ed1fbc259c7a61cc0719369f0fdd14655a954f2b73efbb6c8dcb2",
+  "egress_socks5.py": "77fad264406da15a85830ce1559fbd04feb2f9464b01576512a525112da09086"
+ },
+ "sourceAsRun": {
+  "interop16.py@l1": "37c046d71f4524f23f386df5649a4e6ff3b3449665aaf6eb93e670c3d661faa5 (logs/run-l1.source.sha256)",
+  "since": "fix-6 then fix-7 (assertion form only; not re-executed against the backend)"
+ },
+ "inputs": {
+  "adapter-retained/bafybeib7at4cxxzmlp3wb7v45zrhbuggwzegspcacfylztslbcnoe6qrqu.bin": "d1ddecfe7c3e1d06d1921eb779e135f3a64f185a4dbcdd989f56e22f603e07d3",
+  "storage-wasm-validation/artifacts/candidate-00e9cde0.wasm": "00e9cde0929dc7b8726ca4b7b9c9afb51ec4bf6d952039c907c032256ec79afc",
+  "claude-resumed-20261022/storage-sdk-regressions/out/c2e-a/harness-block": "cac6651329468aaeb2dd4d90ac9b924a891b121edbe17d2515b34b0dae97eafa",
+  "resume-after-checkpoint-20261022/storage-client-interop/egress_socks5.py": "77fad264406da15a85830ce1559fbd04feb2f9464b01576512a525112da09086",
+  "claude-resumed-20261022/storage-funding-test-fix/snapshots/c2-enclave/GeoLite2-City.mmdb": "18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933"
+ },
+ "notDone": "no production, SSH, live RPC, public Sia, wallet, funding, real enrollment, contract or ledger change, rebuild, Git commit or push",
+ "correctedAssertion": {
+  "function": "interop16.py fence_gen()/gen_matches(): '0x' + 1..16 hex digits, value < 2^63; refuses no-prefix, empty, non-hex, 17+ digits, top bit set, whitespace, signs, underscores, '0X', non-strings; equality only with an int",
+  "diff": "logs/fix-7-canonical-generation.diff (also applied to the 4 DB generation checks, which had passed by exact string)",
+  "replayScript": "replay_gen_l1.py",
+  "replayOutputs": [
+   "logs/replay-gen-l1.json (first replay; one cross-check expression rewritten for clarity)",
+   "logs/replay2-gen-l1.json (final)"
+  ]
+ },
+ "ledger16": "the final runtime 00e9cde0 boots, enrolls and is superseded under lease16 facts of the EXISTING ledger 16d with no ledger-17 element and no new contract (as observed in l1)"
+}

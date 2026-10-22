@@ -1,0 +1,68 @@
+--- /tmp/i16.prev7.py	2026-10-22 14:05:09.235273464 -0700
++++ interop16.py	2026-10-22 14:05:09.244316894 -0700
+@@ -547,6 +547,22 @@
+             "claimBlock": claim_block, "claimLogIndex": log_index}
+ 
+ 
++def fence_gen(value):
++    """the canonical fence generation from a reported hex string, or None if the shape is wrong: '0x' + 1..16 lowercase or
++    uppercase hex digits (healthz prints the u64 unpadded; the DB column is the 16-digit big-endian prefix), value below
++    2^63 (FenceToken refuses a set top bit: sia_storage fence.rs:24). Booleans, numbers, signs, spaces, '_' are refused."""
++    if not isinstance(value, str) or not re.fullmatch(r"0x[0-9a-fA-F]{1,16}", value):
++        return None
++    n = int(value[2:], 16)
++    return n if n < (1 << 63) else None
++
++
++def gen_matches(reported, want):
++    """True only when `reported` is a well-formed generation equal to the integer `want`"""
++    g = fence_gen(reported)
++    return g is not None and isinstance(want, int) and g == want
++
++
+ def gen16(claim_block, log_index):
+     return (GEN_LEASE16 << GEN_SHIFT) | (claim_block << 16) | log_index
+ 
+@@ -622,14 +638,14 @@
+               str(wf.get("authority", "")).startswith(f"lease16 chain 8453 ledger {LEDGER16D} deployment {FIXTURE_DEPLOYMENT} claim 52515800/3")
+               and wf.get("isolation") == "Vbs" and (wf.get("c2") or {}).get("verified") is True and wf.get("mode") == "required", wf)
+         check("C: the ballot generation is the lease16 generation (16<<48 | claimBlock<<16 | logIndex)",
+-              int(str((wf.get("ballot") or {}).get("gen", "0x0")), 16) == gen16(*CLAIM1), {"ballot": wf.get("ballot"), "want": R["lease16"]["gen1"]})   # numeric: healthz prints the u64 unpadded
++              gen_matches((wf.get("ballot") or {}).get("gen"), gen16(*CLAIM1)), {"ballot": wf.get("ballot"), "want": R["lease16"]["gen1"]})   # canonical numeric (fix-7)
+         rep = (hz.get("replicas") or [{}])[0]
+         check("C: membership record admitted at epoch 1 (stable)", (rep.get("record") or {}).get("admitted") is True and (rep.get("membership") or {}).get("phase") == "stable",
+               {"record": rep.get("record"), "membership": rep.get("membership")})
+         R["db"]["afterEnrollment"] = fence_row(pg, pk)
+         a = R["db"]["afterEnrollment"]
+         check("C: indexd DB: the INSTALLED fence carries the lease16 generation and the account is in CAS mode (enrolled)",
+-              a["fenceGeneration"] == R["lease16"]["gen1"] and a["casMode"] and a["seqEnabled"], a)
++              gen_matches(a["fenceGeneration"], gen16(*CLAIM1)) and a["casMode"] and a["seqEnabled"], a)
+         verify_all(c1, "C: final reads the 0.1.8 object", ranges=False)
+         st, _, _ = put(c1, "jot", "by-final/one", "final1", 2 * MIB)
+         check("C: final PUT under lease16 claim 1", st == 200, st)
+@@ -641,14 +657,14 @@
+             R["db"]["afterRestart"] = fence_row(pg, pk)
+             b = R["db"]["afterRestart"]
+             check("C: indexd DB after the restart: same lease16 generation, a higher ballot counter",
+-                  b["fenceGeneration"] == R["lease16"]["gen1"] and b["fenceCounter"] > a["fenceCounter"], {"before": a, "after": b})
++                  gen_matches(b["fenceGeneration"], gen16(*CLAIM1)) and b["fenceCounter"] > a["fenceCounter"], {"before": a, "after": b})
+ 
+         # ---------------- S: a LATER lease16 claim supersedes; the earlier generation is refused ----------------
+             c2 = Instance("final-lease16-claim2", "final", cfg_final, cw["final"], front_env(lease16(*CLAIM2)))
+             if check("S: a later lease16 claim (52520000/0) boots and takes over", c2.wait_ready()):
+                 R["db"]["afterClaim2"] = fence_row(pg, pk)
+                 f2 = R["db"]["afterClaim2"]
+-                check("S: indexd DB: the installed fence now carries the claim-2 generation", f2["fenceGeneration"] == R["lease16"]["gen2"], f2)
++                check("S: indexd DB: the installed fence now carries the claim-2 generation", gen_matches(f2["fenceGeneration"], gen16(*CLAIM2)), f2)
+                 st, _, _ = s3(c1b, "GET", "ipfs", "legacy/one")
+                 st2, _, _ = s3(c1b, "PUT", "ipfs", "by-claim1-after-claim2", body=b"must be refused")
+                 check("S: the superseded claim-1 instance refuses reads and writes (503)", st == 503 and st2 == 503, f"GET {st} PUT {st2}")
+@@ -664,7 +680,7 @@
+                 stale.stop()
+                 R["db"]["afterStale"] = fence_row(pg, pk)
+                 check("S: indexd DB: the stale attempt did not lower or replace the claim-2 fence",
+-                      R["db"]["afterStale"]["fenceHex"] == R["db"]["beforeStale"]["fenceHex"] and R["db"]["afterStale"]["fenceGeneration"] == R["lease16"]["gen2"]
++                      R["db"]["afterStale"]["fenceHex"] == R["db"]["beforeStale"]["fenceHex"] and gen_matches(R["db"]["afterStale"]["fenceGeneration"], gen16(*CLAIM2))
+                       and R["db"]["afterStale"]["eventSeq"] == R["db"]["beforeStale"]["eventSeq"], {"before": R["db"]["beforeStale"], "after": R["db"]["afterStale"]})
+                 st, _, _ = s3(c2, "GET", "ipfs", "by-claim1-after-claim2")
+                 check("S: the refused claim-1 PUT is absent", st == 404, st)

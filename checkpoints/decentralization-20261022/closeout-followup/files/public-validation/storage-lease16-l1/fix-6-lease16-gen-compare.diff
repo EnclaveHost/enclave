@@ -1,0 +1,11 @@
+--- /tmp/i16.prev.py	2026-10-22 14:03:36.598319657 -0700
++++ interop16.py	2026-10-22 14:03:36.607697205 -0700
+@@ -622,7 +622,7 @@
+               str(wf.get("authority", "")).startswith(f"lease16 chain 8453 ledger {LEDGER16D} deployment {FIXTURE_DEPLOYMENT} claim 52515800/3")
+               and wf.get("isolation") == "Vbs" and (wf.get("c2") or {}).get("verified") is True and wf.get("mode") == "required", wf)
+         check("C: the ballot generation is the lease16 generation (16<<48 | claimBlock<<16 | logIndex)",
+-              (wf.get("ballot") or {}).get("gen") == R["lease16"]["gen1"], {"ballot": wf.get("ballot"), "want": R["lease16"]["gen1"]})
++              int(str((wf.get("ballot") or {}).get("gen", "0x0")), 16) == gen16(*CLAIM1), {"ballot": wf.get("ballot"), "want": R["lease16"]["gen1"]})   # numeric: healthz prints the u64 unpadded
+         rep = (hz.get("replicas") or [{}])[0]
+         check("C: membership record admitted at epoch 1 (stable)", (rep.get("record") or {}).get("admitted") is True and (rep.get("membership") or {}).get("phase") == "stable",
+               {"record": rep.get("record"), "membership": rep.get("membership")})

@@ -1,0 +1,54 @@
+--- /tmp/interop.prefix2.py	2026-10-22 13:33:27.522301786 -0700
++++ interop.py	2026-10-22 13:33:36.687423146 -0700
+@@ -87,8 +87,19 @@
+ class PG:
+     def __init__(self):
+         self.dir = os.path.join(RUN, "pg")
+-        self.data, self.sock = os.path.join(self.dir, "data"), os.path.join(self.dir, "sock")
+-        os.makedirs(self.sock, mode=0o700)
++        self.data = os.path.join(self.dir, "data")
++        os.makedirs(self.dir)
++        # the Unix socket path must stay under 107 bytes: a short, owned, private dir (removed in close())
++        import tempfile
++        self.sock = tempfile.mkdtemp(prefix=f"u1pg-{run_id}-", dir="/tmp")
++        R["pgSocketDir"] = self.sock
++        try:
++            self._start()
++        except BaseException:
++            self.close()
++            raise
++
++    def _start(self):
+         self.pwfile = os.path.join(self.dir, "pw")
+         fd = os.open(self.pwfile, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+         os.write(fd, secrets.token_hex(24).encode()); os.close(fd)
+@@ -117,11 +128,15 @@
+         return r.stdout.strip()
+ 
+     def close(self):
+-        subprocess.run([os.path.join(PGBIN, "pg_ctl"), "-D", self.data, "-m", "fast", "-w", "-t", "60", "stop"], env=self.env, capture_output=True)
+-        try:
+-            self.p.wait(timeout=60)
+-        except subprocess.TimeoutExpired:
+-            self.p.kill()
++        if getattr(self, "p", None) is not None:
++            subprocess.run([os.path.join(PGBIN, "pg_ctl"), "-D", self.data, "-m", "fast", "-w", "-t", "60", "stop"], env=self.env, capture_output=True)
++            try:
++                self.p.wait(timeout=60)
++            except subprocess.TimeoutExpired:
++                self.p.kill()
++                self.p.wait(timeout=30)
++        shutil.rmtree(self.data, ignore_errors=True)
++        shutil.rmtree(self.sock, ignore_errors=True)
+ 
+ 
+ # ---------------- harness (real indexd + RHP4 hosts) ----------------
+@@ -582,7 +597,7 @@
+         for f in os.listdir(RUN):
+             if f.endswith(".cwasm"):
+                 os.remove(os.path.join(RUN, f))
+-        R["cleanup"] = {"hostSectorsRemoved": not os.path.exists(os.path.join(RUN, "harness", "hosts")), "pgDataRemoved": not os.path.exists(pg.data),
++        R["cleanup"] = {"hostSectorsRemoved": not os.path.exists(os.path.join(RUN, "harness", "hosts")), "pgDataRemoved": not os.path.exists(pg.data), "pgSocketDirRemoved": not os.path.exists(pg.sock),
+                         "pidsLeftInNamespace": sorted(int(p) for p in os.listdir("/proc") if p.isdigit() and int(p) != os.getpid())}
+         R["finished"] = time.time()
+         R["passed"] = sum(c["ok"] for c in R["checks"])

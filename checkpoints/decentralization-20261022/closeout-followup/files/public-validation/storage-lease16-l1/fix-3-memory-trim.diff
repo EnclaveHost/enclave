@@ -1,0 +1,79 @@
+--- /tmp/interop.prefix3.py	2026-10-22 13:34:54.146700589 -0700
++++ interop.py	2026-10-22 13:34:54.155600858 -0700
+@@ -108,7 +108,7 @@
+                         "--auth-host=scram-sha-256", "-E", "UTF8", "--locale=C"], env=self.env, check=True, capture_output=True)
+         self.log = open(os.path.join(RUN, "postgres.log"), "w")
+         self.p = subprocess.Popen([os.path.join(PGBIN, "postgres"), "-D", self.data, "-c", "listen_addresses=127.0.0.1", "-p", "5432",
+-                                   "-c", f"unix_socket_directories={self.sock}", "-c", "shared_buffers=64MB", "-c", "max_connections=200",
++                                   "-c", f"unix_socket_directories={self.sock}", "-c", "shared_buffers=16MB", "-c", "max_connections=200",
+                                    "-c", "fsync=off"], env=self.env, stdout=self.log, stderr=subprocess.STDOUT)
+         for _ in range(60):
+             if subprocess.run([os.path.join(PGBIN, "pg_isready"), "-h", self.sock, "-p", "5432"], env=self.env, capture_output=True).returncode == 0:
+@@ -324,7 +324,7 @@
+     return urllib.parse.quote(s, safe="-_.~" + ("/" if keep_slash else ""))
+ 
+ 
+-def s3(inst, method, bucket=None, key="", query=None, body=b"", headers=None, raw_path=None, sign=True, timeout=1800):
++def s3(inst, method, bucket=None, key="", query=None, body=b"", headers=None, raw_path=None, sign=True, timeout=1800, sink=None):
+     """SigV4-signed S3 request (copied from e2e.py; bucket is a parameter here)"""
+     query = query or {}
+     headers = dict(headers or {})
+@@ -349,7 +349,16 @@
+     c = http.client.HTTPConnection(*inst.ep, timeout=timeout)
+     c.request(method, path + ("?" + qs if qs else ""), body=body, headers=headers)
+     r = c.getresponse()
+-    out = r.read()
++    if sink is not None:            # stream the body into a hash (as e2e.py), never held in driver memory
++        out, n = b"", 0
++        while True:
++            chunk = r.read(1 << 20)
++            if not chunk:
++                break
++            sink.update(chunk); n += len(chunk)
++        sink.n = n
++    else:
++        out = r.read()
+     c.close()
+     return r.status, {k.lower(): v for k, v in r.getheaders()}, out
+ 
+@@ -394,6 +403,26 @@
+     return st, uid, done
+ 
+ 
++class Sink:
++    def __init__(self):
++        self.h, self.n = hashlib.sha256(), 0
++
++    def update(self, b):
++        self.h.update(b)
++
++    def hexdigest(self):
++        return self.h.hexdigest()
++
++
++DIGESTS = {}
++
++
++def expected_digest(tag, n):
++    if (tag, n) not in DIGESTS:
++        DIGESTS[(tag, n)] = sha(expected_bytes(tag, n))
++    return DIGESTS[(tag, n)]
++
++
+ def expected_bytes(tag, n):
+     if tag.startswith("mp:"):
+         return b"".join(data(t, int(x)) for t, x in (p.rsplit(":", 1) for p in tag[3:].split("+")))
+@@ -404,9 +433,10 @@
+     """every expected key: whole GET byte-exact; ranged GETs on the big ones; listing per bucket == expected exactly"""
+     bad = []
+     for (b, k), (tag, n) in sorted(EXP.items()):
+-        st, _, out = s3(inst, "GET", b, k)
+-        if st != 200 or sha(out) != sha(expected_bytes(tag, n)):
+-            bad.append(f"{b}/{k}: {st} {len(out)}/{n}")
++        hs = Sink()
++        st, _, _ = s3(inst, "GET", b, k, sink=hs)
++        if st != 200 or hs.hexdigest() != expected_digest(tag, n):
++            bad.append(f"{b}/{k}: {st} {hs.n}/{n}")
+     check(f"{label}: every key reads back byte-exact ({len(EXP)} keys)", not bad, bad)
+     if ranges:
+         rb = []

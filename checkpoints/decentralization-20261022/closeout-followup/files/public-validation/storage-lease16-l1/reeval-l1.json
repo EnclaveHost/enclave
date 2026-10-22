@@ -1,0 +1,17 @@
+{
+ "source": "runs/l1/results.json",
+ "sourceSha256": "a7f3406e5f635427585225f83ebfad852672e04c323a24debf92883bd8d8d199",
+ "originalCheck": {
+  "name": "C: the ballot generation is the lease16 generation (16<<48 | claimBlock<<16 | logIndex)",
+  "ok": false,
+  "detail": "{'ballot': {'counter': 1, 'gen': '0x10032153d80003', 'iid': '870502aa'}, 'want': '0x0010032153d80003'}"
+ },
+ "cause": "harness compared strings: healthz prints the u64 unpadded (0x10032153d80003), the driver expected 16-digit zero padding (0x0010032153d80003)",
+ "ballotGenReported": "0x10032153d80003",
+ "expectedGen": "0x10032153d80003",
+ "fenceFirst8BytesHex": "0010032153d80003",
+ "ballotEqualsLease16Gen": true,
+ "dbFenceEqualsLease16Gen": true,
+ "ballotEqualsDbFence": true,
+ "correctedVerdict": "PASS"
+}

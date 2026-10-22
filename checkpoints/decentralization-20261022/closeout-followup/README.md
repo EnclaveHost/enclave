@@ -30,3 +30,11 @@ The bare direct-control hardware canary ran once on real SNP hardware and passed
 Storage integration i6 passed all 42 checks, including actual legacy packed objects, ranged reads, multipart continuation, restart durability and old-client write refusal after CAS enrollment. It used real client binaries and indexd/RHP4/PostgreSQL with a synthetic Sia chain and a lease17 fixture. A focused existing-lease16 check is underway; a new contract version is not a migration prerequisite. See files/public-validation/storage-interop-i6.json.
 
 The chip-admission review found the existing custody mapping, sha256 of the raw 64-byte SNP chip identifier. Native-control source is being updated to enforce bans per authenticated chip instead of blanket refusal. Native CA issuance/recovery placement remains under investigation. Ongoing implementation drafts are not deployed or complete.
+
+## Source and compatibility follow-up at 21:08 UTC
+
+Native endpoint binding and per-chip policy enforcement are committed as 8e77ff1eca24be3c02e281dc9f431af597165adf on candidate/decentralized-control-20261022. The source report lists the focused tests and regenerated platform API bundle. It has not been built into a new measured image or deployed.
+
+The existing-ledger16 real-WASM integration l1 completed with 32 passing checks and one failed string-format assertion: differently padded hex values represented the same integer. Retained runtime evidence passed numeric re-evaluation; the corrected bounded assertion and malformed/wrong-generation negatives were tested separately. Original exit 1 remains recorded. This demonstrates the existing lease16 protocol in the isolated runtime; it is not a live claim or first production CAS enrollment.
+
+Issuer placement/recovery now has a source-grounded plan using the existing measured platform API group's replicated admin credentials. Implementation is active in an isolated checkout. A separately identified standby forwarding TLS-pin defect is being fixed before composition. Neither workstream is deployed.

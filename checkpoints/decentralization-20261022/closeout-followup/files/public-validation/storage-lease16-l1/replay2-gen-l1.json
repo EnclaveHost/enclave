@@ -1,0 +1,221 @@
+{
+ "kind": "corrected-assertion replay on retained l1 evidence (NOT a test rerun; l1 original stays exit 1, 32 PASS / 1 FAIL)",
+ "interop16Sha256": "2902715e039f732b204061001fbbacdfac26fc5c33ae70cc9a2832e07eb44d8b",
+ "l1ResultsSha256": "a7f3406e5f635427585225f83ebfad852672e04c323a24debf92883bd8d8d199",
+ "l1Original": {
+  "passed": 32,
+  "failed": 1,
+  "failedChecks": [
+   "C: the ballot generation is the lease16 generation (16<<48 | claimBlock<<16 | logIndex)"
+  ]
+ },
+ "cases": [
+  {
+   "name": "healthz claim-1 ballot gen (unpadded) == lease16 gen 1",
+   "got": true,
+   "expect": true,
+   "ok": true
+  },
+  {
+   "name": "indexd fence generation afterEnrollment (0x0010032153d80003) == expected",
+   "got": true,
+   "expect": true,
+   "ok": true
+  },
+  {
+   "name": "indexd fence generation afterRestart (0x0010032153d80003) == expected",
+   "got": true,
+   "expect": true,
+   "ok": true
+  },
+  {
+   "name": "indexd fence generation afterClaim2 (0x0010032164400000) == expected",
+   "got": true,
+   "expect": true,
+   "ok": true
+  },
+  {
+   "name": "indexd fence generation beforeStale (0x0010032164400000) == expected",
+   "got": true,
+   "expect": true,
+   "ok": true
+  },
+  {
+   "name": "indexd fence generation afterStale (0x0010032164400000) == expected",
+   "got": true,
+   "expect": true,
+   "ok": true
+  },
+  {
+   "name": "indexd fence generation beforeOld (0x0010032164400000) == expected",
+   "got": true,
+   "expect": true,
+   "ok": true
+  },
+  {
+   "name": "indexd fence generation afterOld (0x0010032164400000) == expected",
+   "got": true,
+   "expect": true,
+   "ok": true
+  },
+  {
+   "name": "healthz ballot == indexd installed fence prefix (same integer, different padding)",
+   "got": true,
+   "expect": true,
+   "ok": true
+  },
+  {
+   "name": "generation rule: G1 == 0x10032153d80003, G2 == 0x10032164400000",
+   "got": true,
+   "expect": true,
+   "ok": true
+  },
+  {
+   "name": "claim-1 ballot vs claim-2 generation",
+   "got": false,
+   "expect": false,
+   "ok": true
+  },
+  {
+   "name": "claim-2 DB fence vs claim-1 generation",
+   "got": false,
+   "expect": false,
+   "ok": true
+  },
+  {
+   "name": "off by one",
+   "got": false,
+   "expect": false,
+   "ok": true
+  },
+  {
+   "name": "other log index (52515800/4)",
+   "got": false,
+   "expect": false,
+   "ok": true
+  },
+  {
+   "name": "lease17-ranked generation for the same claim bits",
+   "got": false,
+   "expect": false,
+   "ok": true
+  },
+  {
+   "name": "want not an int ('0x10032153d80003' string)",
+   "got": false,
+   "expect": false,
+   "ok": true
+  },
+  {
+   "name": "malformed '10032153d80003' refused",
+   "got": null,
+   "expect": null,
+   "ok": true
+  },
+  {
+   "name": "malformed '0x' refused",
+   "got": null,
+   "expect": null,
+   "ok": true
+  },
+  {
+   "name": "malformed '0xZZ' refused",
+   "got": null,
+   "expect": null,
+   "ok": true
+  },
+  {
+   "name": "malformed '0x11111111111111111' refused",
+   "got": null,
+   "expect": null,
+   "ok": true
+  },
+  {
+   "name": "malformed '0x8000000000000000' refused",
+   "got": null,
+   "expect": null,
+   "ok": true
+  },
+  {
+   "name": "malformed ' 0x10032153d80003' refused",
+   "got": null,
+   "expect": null,
+   "ok": true
+  },
+  {
+   "name": "malformed '0x10032153d80003 ' refused",
+   "got": null,
+   "expect": null,
+   "ok": true
+  },
+  {
+   "name": "malformed '-0x1' refused",
+   "got": null,
+   "expect": null,
+   "ok": true
+  },
+  {
+   "name": "malformed '0x1_0' refused",
+   "got": null,
+   "expect": null,
+   "ok": true
+  },
+  {
+   "name": "malformed '0X10032153d80003' refused",
+   "got": null,
+   "expect": null,
+   "ok": true
+  },
+  {
+   "name": "malformed '0x+1' refused",
+   "got": null,
+   "expect": null,
+   "ok": true
+  },
+  {
+   "name": "malformed '' refused",
+   "got": null,
+   "expect": null,
+   "ok": true
+  },
+  {
+   "name": "malformed None refused",
+   "got": null,
+   "expect": null,
+   "ok": true
+  },
+  {
+   "name": "malformed 4507041302839299 refused",
+   "got": null,
+   "expect": null,
+   "ok": true
+  },
+  {
+   "name": "malformed True refused",
+   "got": null,
+   "expect": null,
+   "ok": true
+  },
+  {
+   "name": "malformed 1.5 refused",
+   "got": null,
+   "expect": null,
+   "ok": true
+  },
+  {
+   "name": "malformed ['0x1'] refused",
+   "got": null,
+   "expect": null,
+   "ok": true
+  },
+  {
+   "name": "max allowed 0x7fffffffffffffff parses",
+   "got": 9223372036854775807,
+   "expect": 9223372036854775807,
+   "ok": true
+  }
+ ],
+ "positives": 10,
+ "negatives": 23,
+ "allExpectationsHold": true
+}

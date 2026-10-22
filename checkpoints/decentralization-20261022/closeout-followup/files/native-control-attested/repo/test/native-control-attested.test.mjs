@@ -18,7 +18,7 @@ import http from 'node:http';
 import https from 'node:https';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { X509Certificate, generateKeyPairSync, randomBytes } from 'node:crypto';
+import { X509Certificate, generateKeyPairSync, randomBytes, createHash } from 'node:crypto';
 import * as viem from 'viem';
 import { decodeFunctionData, encodeFunctionResult, keccak256, toHex } from 'viem';
 import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
@@ -29,7 +29,7 @@ import { TCB_FLOORS } from '../verifier/metal-box.mjs';
 import { hostABI } from '../network/registry-abi.mjs';
 import { SERVICE_INDEX_ABI, AD_VERSION } from '../network/service-index.mjs';
 import * as MC from '../metal/guest/measured-control.mjs';
-import { verifyMeasuredControl, registryIdOf } from '../metal/measured-control-verify.mjs';
+import { verifyMeasuredControl, registryIdOf, policyChipIdOf } from '../metal/measured-control-verify.mjs';
 import { quorumRegistry } from '../metal/guest/platform-api-verify.mjs';
 import { nativeCertificateRequest, issueNativeCertificate, installNativeCertificate, pinnedRequest, main as certCli } from '../scripts/native-control-certificate.mjs';
 import { controlRoutesFromEnv, readControlCandidates, prepareControlAd, nativeHostDecision, CONTROL_KIND } from '../network/native-control-routes.mjs';
@@ -60,17 +60,22 @@ function mintCa(name) {
 const NCA = mintCa('native-ca'), ROGUE = mintCa('rogue-ca');
 let leafN = 0;
 /** A CA-signed leaf over an arbitrary public key (what a CA holder COULD issue), for the refusal cases. -> chain PEM */
-function leafOver(publicKeyPem, ca, names, { notBefore = Date.now() - 3600e3, notAfter = Date.now() + 86400e3 } = {}) {
+function leafOver(publicKeyPem, ca, names, { notBefore = Date.now() - 3600e3, notAfter = Date.now() + 86400e3, extraSan = [] } = {}) {
   const n = ++leafN; fs.writeFileSync(path.join(tmp, `pub${n}.pem`), publicKeyPem);
-  fs.writeFileSync(path.join(tmp, `ext${n}`), `basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=serverAuth\nsubjectAltName=${names.map((x) => 'DNS:' + x).join(',')}\n`);
+  fs.writeFileSync(path.join(tmp, `ext${n}`), `basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=serverAuth\nsubjectAltName=${[...names.map((x) => 'DNS:' + x), ...extraSan].join(',')}\n`);
   o(['x509', '-new', '-force_pubkey', `pub${n}.pem`, '-subj', `/CN=${names[0]}`, '-CA', ca.certFile, '-CAkey', ca.keyFile, '-set_serial', String(1000 + n),
     '-not_before', stamp(notBefore), '-not_after', stamp(notAfter), '-sha256', '-extfile', `ext${n}`, '-out', `leaf${n}.pem`]);
   return read(`leaf${n}.pem`) + ca.pem;
 }
 
 // ---- synthetic AMD chain (fixture: proves wiring, not hardware) -------------------------------------------------------------
-const S = synthChain();
-const COL = memoryCollateral({ chains: { Genoa: S.chainPem }, vceks: { Genoa: S.vcekDer }, crls: { Genoa: S.crlDer } });
+const S = synthChain({ extraVceks: 1 });
+// two chips under the same synthetic ASK, each with its own VCEK: chip "a" (S.chip) and chip "b"
+const CHIPS = { a: S, b: { ...S, chip: S.otherVceks[0].chip, vcekKey: S.otherVceks[0].key, vcekDer: S.otherVceks[0].der } };
+const VCEK_BY_CHIP = Object.fromEntries(Object.values(CHIPS).map((c) => [c.chip.toString('hex'), c.vcekDer]));
+const BASE_COL = memoryCollateral({ chains: { Genoa: S.chainPem }, crls: { Genoa: S.crlDer } });
+const COL = { ...BASE_COL, vcek: (product, chipHex) => (VCEK_BY_CHIP[chipHex] ? { der: VCEK_BY_CHIP[chipHex], source: 'memory' } : null) };
+const H = (chip) => '0x' + createHash('sha256').update(chip).digest('hex');   // custody/v2/daemon.mjs sha(probe.chipId)
 const ROOTS = new Map([['Genoa', S.arkFp]]);
 const MEAS = '77'.repeat(48);
 
@@ -140,7 +145,7 @@ async function roleUpstream(log) {
   }));
 }
 let gN = 0;
-async function guest({ operator = privateKeyToAccount(generatePrivateKey()).address.toLowerCase(), native = true, register = true, publicUrl = `https://host-${++gN}.example.org` } = {}) {
+async function guest({ operator = privateKeyToAccount(generatePrivateKey()).address.toLowerCase(), native = true, register = true, publicUrl = `https://host-${++gN}.example.org`, chip = 'a' } = {}) {
   const d = path.join(tmp, `guest-${gN}-${randomBytes(3).toString('hex')}`); fs.mkdirSync(d);
   const P = { ...MC.GUEST_PATHS, runDir: d, sessionDir: path.join(d, 'session'), tlsKey: path.join(d, 'tls-key.pem'), tlsCert: path.join(d, 'tls-cert.pem'),
     platformApiHandoffKey: path.join(d, 'handoff.key'), nativeCertificate: path.join(d, 'native.pem') };
@@ -159,7 +164,7 @@ async function guest({ operator = privateKeyToAccount(generatePrivateKey()).addr
   const launched = MC.directNativeLaunch(config, { paths: P }), nat = launched && { ...launched, upstream: { host: '127.0.0.1', port: rolePort } };
   const keyPem = fs.readFileSync(P.tlsKey, 'utf8');
   const front = MC.createControlFront({ statementText: st.text, keyPem, certPem: keys.controlTls.certPem, mode: 'snp',
-    reporter: async (rd) => ({ report: synthReport(S, { reportData: rd, hostData: Buffer.from(hostData, 'hex') }), certs: null }),
+    reporter: async (rd) => ({ report: synthReport(CHIPS[chip], { reportData: rd, hostData: Buffer.from(hostData, 'hex') }), certs: null }),
     upstream: { host: '127.0.0.1', port: supPort }, hostRoutes: [{ host: PA_HOST, upstream: { host: '127.0.0.1', port: rolePort } }],
     sni: { [PA_HOST]: { certFile: webCert, keyFile: webKey } }, native: nat });
   const port = await listen(front);
@@ -353,10 +358,43 @@ test('the issuance tool pins the attested key on the secure socket: a wrong-key 
   assert.equal((await installNativeCertificate({ controlUrl: g.url, chainPem: chain, spkiSha256: g.spki })).status, 200, 'the real guest, same tool');
 });
 
+// ---- chip identity: derivation from the VERIFIED report, and the decision with and without a proven chip ---------------------
+test('chip: identity.chipId is sha256 of the verified CHIP_ID, only on the verified path; the decision adds it to chain facts only', async () => {
+  const g = await guest(), g2 = await guest({ chip: 'b' });
+  const v = await verifyMeasuredControl({ url: g.url, expect: { config: g.raw, measurements: [MEAS], minTcb: TCB_FLOORS, roots: ROOTS }, collateral: COL, registry: registryReader() });
+  assert.equal(v.status, 'verified', v.reasons.join('\n'));
+  assert.equal(v.identity.chipId, H(S.chip), 'the custody vault / daemon derivation');
+  const v2 = await verifyMeasuredControl({ url: g2.url, expect: { config: g2.raw, measurements: [MEAS], minTcb: TCB_FLOORS, roots: ROOTS }, collateral: COL, registry: registryReader() });
+  assert.equal(v2.identity.chipId, H(CHIPS.b.chip)); assert.notEqual(v2.identity.chipId, v.identity.chipId);
+  // no chip unless the report verified: a measurement the owner did not expect stops before the chip is read
+  const bad = await verifyMeasuredControl({ url: g.url, expect: { config: g.raw, measurements: ['66'.repeat(48)], minTcb: TCB_FLOORS, roots: ROOTS }, collateral: COL, registry: registryReader() });
+  assert.equal(bad.status, 'rejected'); assert.equal(bad.identity.chipId, undefined);
+  for (const c of [{ chipId: '00'.repeat(64) }, { chipId: 'ab'.repeat(64), maskChipKey: true }, { chipId: 'AB'.repeat(64) }, { chipId: 'ab'.repeat(32) }, {}, null])
+    assert.equal(policyChipIdOf(c), null, JSON.stringify(c));
+  assert.equal(policyChipIdOf({ chipId: S.chip.toString('hex'), maskChipKey: false }), H(S.chip));
+  // the decision: the gate's judgeHost over the runtime's chain facts plus ONLY the proven chip
+  const host = { registryId: g.registryId, operator: g.operator, active: true, endpoint: g.publicUrl, owner: ZA };
+  const pol = (o) => ({ sequence: 7, expiresAt: 0, maxStaleSec: 0, mode: 'denylist', deny: [], admit: [], ...o });
+  const admitted = { admit: true, status: 'current', reason: null, host };
+  const chipBan = pol({ deny: [{ kind: 'chipId', value: H(S.chip), reason: 'chip ban' }] });
+  assert.match(nativeHostDecision(admitted, chipBan, H(S.chip)).reason, /banned by platform policy #7 \(chipId\)/);
+  assert.equal(nativeHostDecision(admitted, chipBan, H(CHIPS.b.chip)).admit, true, 'another chip is not banned');
+  assert.equal(nativeHostDecision(admitted, chipBan, null).status, 'chip-unproven', 'no proven chip under a chip denial: refused');
+  assert.equal(nativeHostDecision(admitted, pol({}), null).admit, true, 'no chip entries: unchanged');
+  const allow = pol({ mode: 'allowlist', admit: [{ kind: 'chipId', value: H(S.chip) }] });
+  assert.equal(nativeHostDecision({ admit: false, status: 'current', reason: 'not admitted by platform allowlist #7', host }, allow, H(S.chip)).admit, true);
+  assert.equal(nativeHostDecision({ admit: false, status: 'current', reason: 'not admitted', host }, allow, null).admit, false, 'an unproven chip matches no admit entry');
+  // chain facts are never replaced: an operator ban stands for an unbanned chip; outcomes the policy did not make stand
+  assert.match(nativeHostDecision({ admit: false, status: 'current', reason: 'x', host }, pol({ deny: [{ kind: 'operator', value: g.operator, reason: 'abuse' }] }), H(CHIPS.b.chip)).reason, /\(operator\)/);
+  for (const d of [{ admit: true, status: 'not-activated', host }, { admit: false, status: 'behind', host }, { admit: false, status: 'inactive', host }, { admit: false, status: 'authority', host }])
+    assert.deepEqual(nativeHostDecision(d, allow, H(S.chip)), d);
+  assert.equal(nativeHostDecision({ admit: true, status: 'current' }, chipBan, H(CHIPS.b.chip)).admit, false, 'no registry facts: refused');
+});
+
 // ---- 3. discovery: the advertised address, the serving identity, the original registry and the ANCHORED admin policy ----------
 test('discovery serves only attested, registered, admitted serving hosts; an unbanned advertiser cannot republish a banned host', async (t) => {
   const W = await platformPolicyWorld(t, { hosts: HOSTS });
-  const A = await guest(), B = await guest(), C = await guest({ native: false }), D = await guest();
+  const A = await guest(), B = await guest({ chip: 'b' }), C = await guest({ native: false }), D = await guest();
   await adminIssue(A); await adminIssue(B); await adminIssue(D);
   HOSTS[D.registryId].proofKey = a(0xdead);                               // D's registry row names another proof key
   // an impostor whose OWN key the native CA (mistakenly) certified, relaying everything else to A
@@ -386,7 +424,7 @@ test('discovery serves only attested, registered, admitted serving hosts; an unb
   assert.ok(r.routes[API].expiresAt <= Date.now() + 60_000);
   assert.match(logs.at(-1), /1 verified/);
   // the same round's evidence (the functions controlRoutesFromEnv composes, one round, no cache), every refusal named
-  const detail = await (async () => {
+  const round = async () => {
     const m = await import('../network/native-control-routes.mjs');
     const { createHostPolicyRuntime, resolveHostPolicyConfig } = await import('../network/host-policy-runtime.mjs');
     const { freshAdmissions } = await import('../network/host-policy-adapters.mjs');
@@ -395,8 +433,10 @@ test('discovery serves only attested, registered, admitted serving hosts; an unb
     const decide = freshAdmissions(rt.gate);
     return m.discoverControlRoutes({ excludeAddresses: DO, readCandidates: () => m.readControlCandidates({ peers: rpcPeers(RPCS), indexPin: INDEX_PIN }),
       verifyEndpoint: (address) => m.verifyNativeControlEndpoint({ address, caPem: NCA.pem, dial, collateral: COL, registry: registryReader(),
-        expect: { measurements: [MEAS], minTcb: TCB_FLOORS, roots: ROOTS }, decideHost: async (id) => m.nativeHostDecision((await decide([id]))[id.toLowerCase()], rt.gate.accepted()?.policy) }) });
-  })();
+        expect: { measurements: [MEAS], minTcb: TCB_FLOORS, roots: ROOTS },
+        decideHost: async (id, { chipId }) => m.nativeHostDecision((await decide([id]))[id.toLowerCase()], rt.gate.accepted()?.policy, chipId) }) });
+  };
+  let detail = await round();
   const rej = (addr) => detail.rejected.filter((x) => x.address === addr).map((x) => x.reason).join(' | ');
   assert.deepEqual(detail.verified.map((v) => [v.address, v.registryId, v.advertisedBy]), [['44.0.0.1', A.registryId, X]], 'identity is the attested host, not the advertiser');
   assert.match(rej('44.0.0.2'), /refused by the platform host policy: banned by platform policy #1 \(operator\)/, 'B: banned, whoever advertises it');
@@ -413,11 +453,26 @@ test('discovery serves only attested, registered, admitted serving hosts; an unb
   await W.publish({ deny: [{ kind: 'registryId', value: A.registryId, reason: 'host ban' }] });
   r = await routes();
   assert.deepEqual(r.routes[API].addresses, ['44.0.0.2']);
-  // a chipId denial cannot be matched to a verified chip here: every native route is refused, not served past it
-  await W.publish({ deny: [{ kind: 'chipId', value: '0x' + 'ab'.repeat(32), reason: 'chip ban' }] });
+  // CHIP bans, matched against the chip the verifier proved for each boot ("0x" + sha256 of the 64-byte CHIP_ID). A's
+  // certificate now carries a label naming B's chip, and X (unbanned) still advertises A: neither changes A's chip.
+  const labelled = leafOver(A.controlPublicPem, NCA, [API, MCP], { notAfter: Date.now() + 3 * 86400e3, extraSan: [`URI:urn:enclave:chip:${H(CHIPS.b.chip)}`] });
+  assert.equal((await installNativeCertificate({ controlUrl: A.url, chainPem: labelled, spkiSha256: A.spki })).status, 200);
+  await W.publish({ deny: [{ kind: 'chipId', value: H(CHIPS.a.chip), reason: 'chip ban' }] });
+  r = await routes();
+  assert.deepEqual(r.routes[API].addresses, ['44.0.0.2'], 'chip a banned, chip b served');
+  detail = await round();
+  assert.match(rej('44.0.0.1'), /banned by platform policy #\d+ \(chipId\): chip ban/);
+  // allowlist by chip: exactly the admitted chip's host
+  await W.publish({ mode: 'allowlist', admit: [{ kind: 'chipId', value: H(CHIPS.b.chip) }] });
+  r = await routes();
+  assert.deepEqual(r.routes[API].addresses, ['44.0.0.2']);
+  await W.publish({ mode: 'allowlist', admit: [{ kind: 'chipId', value: H(CHIPS.a.chip) }] });
+  r = await routes();
+  assert.deepEqual(r.routes[API].addresses, ['44.0.0.1']);
+  // the chip is ADDED to the chain facts, never replacing them: B's operator ban holds although B's chip is admitted
+  await W.publish({ mode: 'allowlist', admit: [{ kind: 'chipId', value: H(CHIPS.b.chip) }], deny: [{ kind: 'operator', value: B.operator, reason: 'abuse' }] });
   r = await routes();
   assert.deepEqual(r.routes, {});
-  assert.equal(nativeHostDecision({ admit: true, status: 'current' }, { sequence: 9, deny: [{ kind: 'chipId', value: '0x' + 'ab'.repeat(32) }] }).admit, false);
   // policy unreadable (every policy RPC down): nothing is served
   await W.publish({ deny: [] });
   W.setDown(true);
