@@ -1,0 +1,524 @@
+{
+  "at": "2026-10-22T23:29:49.607Z",
+  "block": "52961219",
+  "heads": [
+    {
+      "rpc": "https://mainnet.base.org",
+      "head": "52961221",
+      "error": null
+    },
+    {
+      "rpc": "https://base-rpc.publicnode.com",
+      "head": "52961221",
+      "error": null
+    },
+    {
+      "rpc": "https://base-rpc.polkachu.com",
+      "head": "52961221",
+      "error": null
+    }
+  ],
+  "agreeing": true,
+  "hosts": [
+    "base-rpc.polkachu.com",
+    "base-rpc.publicnode.com"
+  ],
+  "reads": [
+    {
+      "rpc": "https://mainnet.base.org",
+      "error": "An unknown RPC error occurred."
+    },
+    {
+      "rpc": "https://base-rpc.publicnode.com",
+      "blockHash": "0x39712a4f82e3a95d1dbca8ab4dcca31102a84b643c2b1a17baa6a21fb473f866",
+      "timestamp": "1792711785",
+      "gasPrice": "6000000",
+      "renewQuote": "1381847540910",
+      "claimQuote": "2282239371703",
+      "senderBalance": "1853872178228523",
+      "vaultForAdmin": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+      "rows": [
+        {
+          "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+          "ledgerId": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "leaseUntil": "1792649861",
+          "appRef": "catalog://0x550d4da98ad8ece07c0def18c095c7f01bc695727a35d953a2096c49713eaef7/4",
+          "label": {
+            "name": "Jot",
+            "slug": "jot",
+            "version": "1.0.4",
+            "appActive": true,
+            "yanked": false,
+            "catalogApp": "0x550d4da98ad8ece07c0def18c095c7f01bc695727a35d953a2096c49713eaef7",
+            "catalogVersion": "4"
+          },
+          "owner_": {
+            "kind": "admin EOA"
+          },
+          "enabled": true,
+          "balanceWei": "1171161869710",
+          "maxPerOpWei": "31092172031561"
+        },
+        {
+          "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+          "ledgerId": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "leaseUntil": "1792657223",
+          "appRef": "catalog://0x9afdfb401d6f2cfea70c446f9f5874bbca8ce7dd116e2b15715312d8d32a65ef/5",
+          "label": {
+            "name": "IPNS Publisher",
+            "slug": "ipns-publisher",
+            "version": "1.0.5",
+            "appActive": true,
+            "yanked": false,
+            "catalogApp": "0x9afdfb401d6f2cfea70c446f9f5874bbca8ce7dd116e2b15715312d8d32a65ef",
+            "catalogVersion": "5"
+          },
+          "owner_": {
+            "kind": "admin EOA"
+          },
+          "enabled": true,
+          "balanceWei": "1016277190539",
+          "maxPerOpWei": "31092172031561"
+        },
+        {
+          "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+          "ledgerId": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "leaseUntil": "1792660709",
+          "appRef": "catalog://0xa856a26bd6ab39807baa0b6d9a54eaa7b29eeda18be71cd6b75e4d1b65922094/69",
+          "label": {
+            "name": "RISC Box",
+            "slug": "risc-box",
+            "version": "0.6.69",
+            "appActive": true,
+            "yanked": false,
+            "catalogApp": "0xa856a26bd6ab39807baa0b6d9a54eaa7b29eeda18be71cd6b75e4d1b65922094",
+            "catalogVersion": "69"
+          },
+          "owner_": {
+            "kind": "admin EOA"
+          },
+          "enabled": true,
+          "balanceWei": "1017666736286",
+          "maxPerOpWei": "31092172031561"
+        },
+        {
+          "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+          "ledgerId": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "leaseUntil": "1792663729",
+          "appRef": "catalog://0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc/0",
+          "label": {
+            "name": "API MCP Adapter",
+            "slug": "api-mcp-adapter",
+            "version": "1.0.0",
+            "appActive": true,
+            "yanked": false,
+            "catalogApp": "0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc",
+            "catalogVersion": "0"
+          },
+          "owner_": {
+            "kind": "admin EOA"
+          },
+          "enabled": true,
+          "balanceWei": "812572514527",
+          "maxPerOpWei": "31092172031561"
+        },
+        {
+          "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+          "ledgerId": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "leaseUntil": "1792671243",
+          "appRef": "catalog://0x093fa91736c2639e93867b76074c6c4dbc5e49150faf4e8618bdf45e30d275c6/7",
+          "label": {
+            "name": "Sia S3",
+            "slug": "sia-s3",
+            "version": "0.1.8",
+            "appActive": true,
+            "yanked": false,
+            "catalogApp": "0x093fa91736c2639e93867b76074c6c4dbc5e49150faf4e8618bdf45e30d275c6",
+            "catalogVersion": "7"
+          },
+          "owner_": {
+            "kind": "admin EOA"
+          },
+          "enabled": true,
+          "balanceWei": "359879005798",
+          "maxPerOpWei": "31092172031561"
+        },
+        {
+          "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+          "ledgerId": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "leaseUntil": "1792675415",
+          "appRef": "catalog://0xf1897f065ed94bc096d351b831514311e08b30702148c639cbaf8d0deb74d03a/3",
+          "label": {
+            "name": "Cron",
+            "slug": "cron",
+            "version": "1.0.3",
+            "appActive": true,
+            "yanked": false,
+            "catalogApp": "0xf1897f065ed94bc096d351b831514311e08b30702148c639cbaf8d0deb74d03a",
+            "catalogVersion": "3"
+          },
+          "owner_": {
+            "kind": "admin EOA"
+          },
+          "enabled": true,
+          "balanceWei": "216033940371",
+          "maxPerOpWei": "31092172031561"
+        },
+        {
+          "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+          "ledgerId": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "leaseUntil": "1792679201",
+          "appRef": "catalog://0xfd420627abb04e52e7d12e3a535e2df94a048ba51c0b0fec173e9e7de2e24b28/5",
+          "label": {
+            "name": "Depot",
+            "slug": "depot",
+            "version": "0.1.5",
+            "appActive": true,
+            "yanked": false,
+            "catalogApp": "0xfd420627abb04e52e7d12e3a535e2df94a048ba51c0b0fec173e9e7de2e24b28",
+            "catalogVersion": "5"
+          },
+          "owner_": {
+            "kind": "admin EOA"
+          },
+          "enabled": true,
+          "balanceWei": "1242671026630",
+          "maxPerOpWei": "31092172031561"
+        },
+        {
+          "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+          "ledgerId": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+          "owner": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+          "active": true,
+          "leaseUntil": "1792692447",
+          "appRef": "catalog://0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06/5",
+          "label": {
+            "name": "EnclaveDNS",
+            "slug": "enclavedns",
+            "version": "0.1.5",
+            "appActive": true,
+            "yanked": false,
+            "catalogApp": "0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06",
+            "catalogVersion": "5"
+          },
+          "owner_": {
+            "kind": "contract",
+            "eip1167Clone": true,
+            "codeHash": "0x3028a275d579db5365554abb3dc85acee22d8a6bb7ace5e230a9adb89bc92a30",
+            "vaultOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+            "factoryVaultForAdmin": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D"
+          },
+          "enabled": true,
+          "balanceWei": "1364175002269",
+          "maxPerOpWei": "31092172031561"
+        },
+        {
+          "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+          "ledgerId": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "leaseUntil": "1792691977",
+          "appRef": "catalog://0xefc67700f25204b843dadb224520bbc73ac9755d3b9c2aed9183443bccf5c8e6/42",
+          "label": {
+            "name": "Image Generator",
+            "slug": "image-generator",
+            "version": "1.1.16",
+            "appActive": true,
+            "yanked": false,
+            "catalogApp": "0xefc67700f25204b843dadb224520bbc73ac9755d3b9c2aed9183443bccf5c8e6",
+            "catalogVersion": "42"
+          },
+          "owner_": {
+            "kind": "admin EOA"
+          },
+          "enabled": true,
+          "balanceWei": "1225205548185",
+          "maxPerOpWei": "31092172031561"
+        },
+        {
+          "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+          "ledgerId": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "leaseUntil": "1792696837",
+          "appRef": "catalog://0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737/85",
+          "label": {
+            "name": "EyesOff AI",
+            "slug": "eyesoff-ai",
+            "version": "1.0.85",
+            "appActive": true,
+            "yanked": false,
+            "catalogApp": "0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737",
+            "catalogVersion": "85"
+          },
+          "owner_": {
+            "kind": "admin EOA"
+          },
+          "enabled": true,
+          "balanceWei": "462360721036",
+          "maxPerOpWei": "31092172031561"
+        }
+      ]
+    },
+    {
+      "rpc": "https://base-rpc.polkachu.com",
+      "blockHash": "0x39712a4f82e3a95d1dbca8ab4dcca31102a84b643c2b1a17baa6a21fb473f866",
+      "timestamp": "1792711785",
+      "gasPrice": "6000000",
+      "renewQuote": "1381847540910",
+      "claimQuote": "2282239371703",
+      "senderBalance": "1853872178228523",
+      "vaultForAdmin": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+      "rows": [
+        {
+          "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+          "ledgerId": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "leaseUntil": "1792649861",
+          "appRef": "catalog://0x550d4da98ad8ece07c0def18c095c7f01bc695727a35d953a2096c49713eaef7/4",
+          "label": {
+            "name": "Jot",
+            "slug": "jot",
+            "version": "1.0.4",
+            "appActive": true,
+            "yanked": false,
+            "catalogApp": "0x550d4da98ad8ece07c0def18c095c7f01bc695727a35d953a2096c49713eaef7",
+            "catalogVersion": "4"
+          },
+          "owner_": {
+            "kind": "admin EOA"
+          },
+          "enabled": true,
+          "balanceWei": "1171161869710",
+          "maxPerOpWei": "31092172031561"
+        },
+        {
+          "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+          "ledgerId": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "leaseUntil": "1792657223",
+          "appRef": "catalog://0x9afdfb401d6f2cfea70c446f9f5874bbca8ce7dd116e2b15715312d8d32a65ef/5",
+          "label": {
+            "name": "IPNS Publisher",
+            "slug": "ipns-publisher",
+            "version": "1.0.5",
+            "appActive": true,
+            "yanked": false,
+            "catalogApp": "0x9afdfb401d6f2cfea70c446f9f5874bbca8ce7dd116e2b15715312d8d32a65ef",
+            "catalogVersion": "5"
+          },
+          "owner_": {
+            "kind": "admin EOA"
+          },
+          "enabled": true,
+          "balanceWei": "1016277190539",
+          "maxPerOpWei": "31092172031561"
+        },
+        {
+          "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+          "ledgerId": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "leaseUntil": "1792660709",
+          "appRef": "catalog://0xa856a26bd6ab39807baa0b6d9a54eaa7b29eeda18be71cd6b75e4d1b65922094/69",
+          "label": {
+            "name": "RISC Box",
+            "slug": "risc-box",
+            "version": "0.6.69",
+            "appActive": true,
+            "yanked": false,
+            "catalogApp": "0xa856a26bd6ab39807baa0b6d9a54eaa7b29eeda18be71cd6b75e4d1b65922094",
+            "catalogVersion": "69"
+          },
+          "owner_": {
+            "kind": "admin EOA"
+          },
+          "enabled": true,
+          "balanceWei": "1017666736286",
+          "maxPerOpWei": "31092172031561"
+        },
+        {
+          "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+          "ledgerId": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "leaseUntil": "1792663729",
+          "appRef": "catalog://0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc/0",
+          "label": {
+            "name": "API MCP Adapter",
+            "slug": "api-mcp-adapter",
+            "version": "1.0.0",
+            "appActive": true,
+            "yanked": false,
+            "catalogApp": "0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc",
+            "catalogVersion": "0"
+          },
+          "owner_": {
+            "kind": "admin EOA"
+          },
+          "enabled": true,
+          "balanceWei": "812572514527",
+          "maxPerOpWei": "31092172031561"
+        },
+        {
+          "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+          "ledgerId": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "leaseUntil": "1792671243",
+          "appRef": "catalog://0x093fa91736c2639e93867b76074c6c4dbc5e49150faf4e8618bdf45e30d275c6/7",
+          "label": {
+            "name": "Sia S3",
+            "slug": "sia-s3",
+            "version": "0.1.8",
+            "appActive": true,
+            "yanked": false,
+            "catalogApp": "0x093fa91736c2639e93867b76074c6c4dbc5e49150faf4e8618bdf45e30d275c6",
+            "catalogVersion": "7"
+          },
+          "owner_": {
+            "kind": "admin EOA"
+          },
+          "enabled": true,
+          "balanceWei": "359879005798",
+          "maxPerOpWei": "31092172031561"
+        },
+        {
+          "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+          "ledgerId": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "leaseUntil": "1792675415",
+          "appRef": "catalog://0xf1897f065ed94bc096d351b831514311e08b30702148c639cbaf8d0deb74d03a/3",
+          "label": {
+            "name": "Cron",
+            "slug": "cron",
+            "version": "1.0.3",
+            "appActive": true,
+            "yanked": false,
+            "catalogApp": "0xf1897f065ed94bc096d351b831514311e08b30702148c639cbaf8d0deb74d03a",
+            "catalogVersion": "3"
+          },
+          "owner_": {
+            "kind": "admin EOA"
+          },
+          "enabled": true,
+          "balanceWei": "216033940371",
+          "maxPerOpWei": "31092172031561"
+        },
+        {
+          "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+          "ledgerId": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "leaseUntil": "1792679201",
+          "appRef": "catalog://0xfd420627abb04e52e7d12e3a535e2df94a048ba51c0b0fec173e9e7de2e24b28/5",
+          "label": {
+            "name": "Depot",
+            "slug": "depot",
+            "version": "0.1.5",
+            "appActive": true,
+            "yanked": false,
+            "catalogApp": "0xfd420627abb04e52e7d12e3a535e2df94a048ba51c0b0fec173e9e7de2e24b28",
+            "catalogVersion": "5"
+          },
+          "owner_": {
+            "kind": "admin EOA"
+          },
+          "enabled": true,
+          "balanceWei": "1242671026630",
+          "maxPerOpWei": "31092172031561"
+        },
+        {
+          "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+          "ledgerId": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+          "owner": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+          "active": true,
+          "leaseUntil": "1792692447",
+          "appRef": "catalog://0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06/5",
+          "label": {
+            "name": "EnclaveDNS",
+            "slug": "enclavedns",
+            "version": "0.1.5",
+            "appActive": true,
+            "yanked": false,
+            "catalogApp": "0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06",
+            "catalogVersion": "5"
+          },
+          "owner_": {
+            "kind": "contract",
+            "eip1167Clone": true,
+            "codeHash": "0x3028a275d579db5365554abb3dc85acee22d8a6bb7ace5e230a9adb89bc92a30",
+            "vaultOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+            "factoryVaultForAdmin": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D"
+          },
+          "enabled": true,
+          "balanceWei": "1364175002269",
+          "maxPerOpWei": "31092172031561"
+        },
+        {
+          "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+          "ledgerId": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "leaseUntil": "1792691977",
+          "appRef": "catalog://0xefc67700f25204b843dadb224520bbc73ac9755d3b9c2aed9183443bccf5c8e6/42",
+          "label": {
+            "name": "Image Generator",
+            "slug": "image-generator",
+            "version": "1.1.16",
+            "appActive": true,
+            "yanked": false,
+            "catalogApp": "0xefc67700f25204b843dadb224520bbc73ac9755d3b9c2aed9183443bccf5c8e6",
+            "catalogVersion": "42"
+          },
+          "owner_": {
+            "kind": "admin EOA"
+          },
+          "enabled": true,
+          "balanceWei": "1225205548185",
+          "maxPerOpWei": "31092172031561"
+        },
+        {
+          "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+          "ledgerId": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "leaseUntil": "1792696837",
+          "appRef": "catalog://0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737/85",
+          "label": {
+            "name": "EyesOff AI",
+            "slug": "eyesoff-ai",
+            "version": "1.0.85",
+            "appActive": true,
+            "yanked": false,
+            "catalogApp": "0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737",
+            "catalogVersion": "85"
+          },
+          "owner_": {
+            "kind": "admin EOA"
+          },
+          "enabled": true,
+          "balanceWei": "462360721036",
+          "maxPerOpWei": "31092172031561"
+        }
+      ]
+    }
+  ]
+}

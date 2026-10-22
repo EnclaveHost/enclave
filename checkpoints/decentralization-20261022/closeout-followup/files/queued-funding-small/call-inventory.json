@@ -1,0 +1,124 @@
+{
+  "to": "0xcA11bde05977b3631167028862bE2a173976CA11",
+  "value": "1000000000000000",
+  "selector": "0x174dea71",
+  "dataBytes": 2628,
+  "dataSha256": "026ff9b9a7398aae3ac0aa2f62a6c0fbbc36f32fcb999c0638c577551346d5d7",
+  "dataKeccak256": "0xb51be0cc4af00548dd53762a47d4f6ae76231b91585e8b534ef415b1d6c32456",
+  "verified": {
+    "calls": 10,
+    "totalWei": "1000000000000000"
+  },
+  "calls": [
+    {
+      "i": 0,
+      "target": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
+      "allowFailure": false,
+      "valueWei": "100000000000000",
+      "callData": "0xb214faa5a77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "function": "deposit(bytes32)",
+      "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "creditedOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "label": "Jot 1.0.4 (catalog 0x550d4d v4)"
+    },
+    {
+      "i": 1,
+      "target": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
+      "allowFailure": false,
+      "valueWei": "100000000000000",
+      "callData": "0xb214faa5d9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "function": "deposit(bytes32)",
+      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "creditedOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "label": "IPNS Publisher 1.0.5 (catalog 0x9afdfb v5)"
+    },
+    {
+      "i": 2,
+      "target": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
+      "allowFailure": false,
+      "valueWei": "100000000000000",
+      "callData": "0xb214faa5e64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "function": "deposit(bytes32)",
+      "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "creditedOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "label": "RISC Box 0.6.69 (catalog 0xa856a2 v69)"
+    },
+    {
+      "i": 3,
+      "target": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
+      "allowFailure": false,
+      "valueWei": "100000000000000",
+      "callData": "0xb214faa5a69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "function": "deposit(bytes32)",
+      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "creditedOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "label": "API MCP Adapter 1.0.0 (catalog 0x5bca36 v0)"
+    },
+    {
+      "i": 4,
+      "target": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
+      "allowFailure": false,
+      "valueWei": "100000000000000",
+      "callData": "0xb214faa5ef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "function": "deposit(bytes32)",
+      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "creditedOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "label": "Sia S3 0.1.8 (catalog 0x093fa9 v7)"
+    },
+    {
+      "i": 5,
+      "target": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
+      "allowFailure": false,
+      "valueWei": "100000000000000",
+      "callData": "0xb214faa538f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "function": "deposit(bytes32)",
+      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "creditedOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "label": "Cron 1.0.3 (catalog 0xf1897f v3)"
+    },
+    {
+      "i": 6,
+      "target": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
+      "allowFailure": false,
+      "valueWei": "100000000000000",
+      "callData": "0xb214faa5c13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+      "function": "deposit(bytes32)",
+      "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+      "creditedOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "label": "Depot 0.1.5 (catalog 0xfd4206 v5)"
+    },
+    {
+      "i": 7,
+      "target": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
+      "allowFailure": false,
+      "valueWei": "100000000000000",
+      "callData": "0xb214faa559f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "function": "deposit(bytes32)",
+      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "creditedOwner": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+      "label": "EnclaveDNS 0.1.5 (catalog 0x85f28c v5)"
+    },
+    {
+      "i": 8,
+      "target": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
+      "allowFailure": false,
+      "valueWei": "100000000000000",
+      "callData": "0xb214faa5da09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+      "function": "deposit(bytes32)",
+      "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+      "creditedOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "label": "Image Generator 1.1.16 (catalog 0xefc677 v42)"
+    },
+    {
+      "i": 9,
+      "target": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
+      "allowFailure": false,
+      "valueWei": "100000000000000",
+      "callData": "0xb214faa59eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "function": "deposit(bytes32)",
+      "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "creditedOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "label": "EyesOff AI 1.0.85 (catalog 0xd8ec1d v85)"
+    }
+  ]
+}

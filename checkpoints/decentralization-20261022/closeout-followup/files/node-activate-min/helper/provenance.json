@@ -1,0 +1,79 @@
+{
+ "sources": {
+  "df2e58f2": "work/root-control-rpc-final-20261022/control-package/helper/node-hold-cutover.ps1",
+  "656d642a": "work/resume-after-checkpoint-20261022/node-restart-final/helper/node-pair-restart.ps1 (frozen, tested)"
+ },
+ "verbatim": {
+  "Iso": "df2e58f2 L74-74",
+  "Left": "df2e58f2 L75-75",
+  "NowS": "df2e58f2 L84-84",
+  "LeaseLeft": "df2e58f2 L85-85",
+  "Lim": "df2e58f2 L87-87",
+  "NeedForward": "df2e58f2 L88-88",
+  "UpdateDecision": "df2e58f2 L94-105",
+  "UpdateState": "df2e58f2 L107-111",
+  "Now": "df2e58f2 L134-134",
+  "NowMs": "df2e58f2 L135-135",
+  "IsoMs": "df2e58f2 L136-136",
+  "Sha": "df2e58f2 L149-149",
+  "Log": "df2e58f2 L150-151",
+  "Final": "df2e58f2 L152-152",
+  "Invoke-BoundedQuery": "df2e58f2 L156-193",
+  "Query": "df2e58f2 L196-204",
+  "PollRoom": "df2e58f2 L207-207",
+  "Utc": "df2e58f2 L208-208",
+  "ProcessRows": "df2e58f2 L209-213",
+  "ById": "df2e58f2 L214-217",
+  "Same": "df2e58f2 L218-220",
+  "NodeProcs": "df2e58f2 L221-231",
+  "Privacy": "df2e58f2 L232-234",
+  "Listeners": "df2e58f2 L235-241",
+  "Manager": "df2e58f2 L242-243",
+  "HostState": "df2e58f2 L251-257",
+  "Vms": "df2e58f2 L258-264",
+  "Known": "df2e58f2 L266-266",
+  "ReadinessNumber": "df2e58f2 L267-271",
+  "OwnsAgentPort": "df2e58f2 L293-297",
+  "LogFrom": "df2e58f2 L315-320",
+  "WaitNodeGone": "df2e58f2 L354-365",
+  "Invoke-TaskCommand": "df2e58f2 L368-392",
+  "NodeTask": "df2e58f2 L393-404",
+  "StopNode": "df2e58f2 L406-431",
+  "NodeStopped": "df2e58f2 L432-432",
+  "Identity": "df2e58f2 L530-533"
+ },
+ "reused656d": [
+  "ForwardLeft",
+  "Others",
+  "HyperV",
+  "TaskAction",
+  "UpdateHorizon",
+  "RunningSetDiff",
+  "UnchangedFiles",
+  "PairNow",
+  "NewIdentity",
+  "Invoke-SwapChild",
+  "SwapJournal",
+  "SwapStep",
+  "SwapPair"
+ ],
+ "modified656d": [
+  "BeforeStop",
+  "Recovery"
+ ],
+ "new": [
+  "RestartMin",
+  "PassStarted",
+  "ServingRows",
+  "OwnedNow",
+  "RestartNode",
+  "WaitServing"
+ ],
+ "dropped656d": [
+  "LeaseReady (verbatim)",
+  "AgentUp (verbatim)",
+  "StartNode (replaced by RestartNode + WaitServing)"
+ ],
+ "templateSha256": "a0e3da7bf5790810d003af86c1b894dc7d32aa2971e5fdbfb4af18559f421f2b",
+ "helperSha256": "7ac1d8734af872c7c7309ebe7bc8d00981de48d5e99d41c73a4315cef24f79ed"
+}

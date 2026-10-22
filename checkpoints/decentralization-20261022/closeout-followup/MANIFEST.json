@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-22T23:32:47.884507+00:00",
+  "capturedAt": "2026-10-22T23:43:44.152747+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
     {
@@ -2139,6 +2139,153 @@
       "bytes": 2020
     },
     {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/INITIAL.md",
+      "stored": "files/node-activate-min/INITIAL.md",
+      "sha256": "d815e1cdb9a1668290821e69beca0821af6730572776221846b1e9b6be333656",
+      "bytes": 8331
+    },
+    {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/RESULT.md",
+      "stored": "files/node-activate-min/RESULT.md",
+      "sha256": "d2389797246f801d38f901d1fc9cbabac06987112ff3c25cf29e9983328c02ad",
+      "bytes": 8226
+    },
+    {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/helper/node-pair-activate.ps1",
+      "stored": "files/node-activate-min/helper/node-pair-activate.ps1",
+      "sha256": "7ac1d8734af872c7c7309ebe7bc8d00981de48d5e99d41c73a4315cef24f79ed",
+      "bytes": 67104
+    },
+    {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/helper/provenance.json",
+      "stored": "files/node-activate-min/helper/provenance.json",
+      "sha256": "2a7c2805d799c3d691ea6a2468b21556f99330fb2bc1e44e5954d0618290f258",
+      "bytes": 2224
+    },
+    {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/jobs/mutants-r1.py",
+      "stored": "files/node-activate-min/jobs/mutants-r1.py",
+      "sha256": "bc28ad24391470ada096d2d3ceb4182105df411466ee479953506d0b057fa6ce",
+      "bytes": 4148
+    },
+    {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/jobs/mutants-r1.sh",
+      "stored": "files/node-activate-min/jobs/mutants-r1.sh",
+      "sha256": "91b071fb180815a7a034b9a0ce38eeee0db9dbd5f9079ea99ef36ba52b1a02d1",
+      "bytes": 355
+    },
+    {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/jobs/suite-r1.sh",
+      "stored": "files/node-activate-min/jobs/suite-r1.sh",
+      "sha256": "43caaf8fccaffd14fffed5117e1a6a7e6bc00d6753abae0071b97e95a7dee2db",
+      "bytes": 1170
+    },
+    {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/offline.sh",
+      "stored": "files/node-activate-min/offline.sh",
+      "sha256": "06867971564b76c0326f90a9897b33c2daa1b1e8636816ba733b2e6b8319ad3d",
+      "bytes": 781
+    },
+    {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/q.sh",
+      "stored": "files/node-activate-min/q.sh",
+      "sha256": "67ea1f6e3a7b66ce7aee4dd767ae9181cafd79f4ce566976735d266e0c68614b",
+      "bytes": 914
+    },
+    {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/source/node-hold-cutover.df2e58f2.ps1",
+      "stored": "files/node-activate-min/source/node-hold-cutover.df2e58f2.ps1",
+      "sha256": "df2e58f2569d04b2021a570d8525769ef84976335d2c2657e7e2a3a92604a5d8",
+      "bytes": 69674
+    },
+    {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/stub/scp",
+      "stored": "files/node-activate-min/stub/scp",
+      "sha256": "7a5186d7ff86f7ccb2b34d9ca828c6408f03af074dcfcc04dd69ddbe5d5eafa3",
+      "bytes": 98
+    },
+    {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/stub/sftp",
+      "stored": "files/node-activate-min/stub/sftp",
+      "sha256": "2dd2ab985db95d131cb1eb828406feff77202176fd497c880223edae709d08e3",
+      "bytes": 99
+    },
+    {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/stub/ssh",
+      "stored": "files/node-activate-min/stub/ssh",
+      "sha256": "f7a98be4cd1c0103434ea308f952c705e77bc63a099d29fc2719ea68ec1ee64d",
+      "bytes": 98
+    },
+    {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/tools/activate-template.ps1",
+      "stored": "files/node-activate-min/tools/activate-template.ps1",
+      "sha256": "a0e3da7bf5790810d003af86c1b894dc7d32aa2971e5fdbfb4af18559f421f2b",
+      "bytes": 49976
+    },
+    {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/tools/activate-test.py",
+      "stored": "files/node-activate-min/tools/activate-test.py",
+      "sha256": "63c9c0531d384fc04730ec40ed72d1fef56e3099da1f31fb7192fe08309f092c",
+      "bytes": 22125
+    },
+    {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/tools/ast-case-lint.ps1",
+      "stored": "files/node-activate-min/tools/ast-case-lint.ps1",
+      "sha256": "aa637f83c597798f2a5948b94103fa27925bf7c6fbdc2a33621dc0414af0c8a2",
+      "bytes": 1570
+    },
+    {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/tools/compose.py",
+      "stored": "files/node-activate-min/tools/compose.py",
+      "sha256": "beb8ac75bbb4be61cdb126285f891340b4690fa90e682961f13bcea840109c35",
+      "bytes": 3446
+    },
+    {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/tools/pair-mock.ps1",
+      "stored": "files/node-activate-min/tools/pair-mock.ps1",
+      "sha256": "4aea08a1814c6b8f33446b5f5717046dd529b1696d5bdb60c4a3bd6a159f7bd5",
+      "bytes": 13345
+    },
+    {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/tools/pair-test.py",
+      "stored": "files/node-activate-min/tools/pair-test.py",
+      "sha256": "2c29575bbe124a1fd58e4d771fefb31285479d1bbde30ef0cb5ee6faf1ca66da",
+      "bytes": 26596
+    },
+    {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/tools/provenance-test.ps1",
+      "stored": "files/node-activate-min/tools/provenance-test.ps1",
+      "sha256": "8fcf695e0a75c5da43b0a27006d65c80024abdd7738dfdc611bd22f1a1597962",
+      "bytes": 2005
+    },
+    {
+      "label": "SOURCE ONLY: not run natively, not activated",
+      "source": "work/resume-after-checkpoint-20261022/node-activate-min/tools/swap-prelude.ps1",
+      "stored": "files/node-activate-min/tools/swap-prelude.ps1",
+      "sha256": "507c36b911bbfe863f0e335e88507b3ab23e6866623632281dcb36cb89276590",
+      "bytes": 2928
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/node-pair-runner/PARAMS.md",
       "stored": "files/node-pair-runner/PARAMS.md",
       "sha256": "435a382a943cdd021de6a6d8d98f93c351207e301b67ac1a29cceaa4f32b42d7",
@@ -2721,6 +2868,12 @@
       "bytes": 1594
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/public-health/ROOT-WINDOW-WATCH-STOP.json",
+      "stored": "files/public-health/ROOT-WINDOW-WATCH-STOP.json",
+      "sha256": "67ba87e000c9b45a8cdd4ea271749fbd96e5c21fc661201e0626c1706ba74bf6",
+      "bytes": 293
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/public-health/adapter-cert-state.json",
       "stored": "files/public-health/adapter-cert-state.json",
       "sha256": "754f4752e62fdac45e0e68dea9ce7da9d23a1fa4f3aa6e0b07d65da063b6ba22",
@@ -2833,6 +2986,12 @@
       "stored": "files/public-health/host-renewal-followup.json",
       "sha256": "57d2590774a7ef1eaf797c11f2df37b34e765d1b8abf4e7e15a1230a84188be3",
       "bytes": 2677
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/public-health/node-pair-window-latest.json",
+      "stored": "files/public-health/node-pair-window-latest.json",
+      "sha256": "ca31668377c21531b07e19fd642b153f3ee23c2bfc2a055d3c861a884177e8fb",
+      "bytes": 1336
     },
     {
       "source": "work/resume-after-checkpoint-20261022/public-health/probe.py",
@@ -2953,6 +3112,12 @@
       "stored": "files/public-health/sponsor-rpc-read.py",
       "sha256": "4ef038d70db441f5bff16a65ba1e82ce2542b96abdae18264b0b6cce9cfebcab",
       "bytes": 1631
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/public-health/watch-node-pair-window.py",
+      "stored": "files/public-health/watch-node-pair-window.py",
+      "sha256": "3660c1b4358c2b0c45d7e4dab6c0472d549fc053f4da873fbfbe652c48bbd004",
+      "bytes": 2163
     },
     {
       "source": "work/resume-after-checkpoint-20261022/public-validation/admission-and-control-front-progress.json",
@@ -3147,6 +3312,139 @@
       "bytes": 322
     },
     {
+      "label": "UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)",
+      "source": "work/resume-after-checkpoint-20261022/queued-funding-small/RESULT.md",
+      "stored": "files/queued-funding-small/RESULT.md",
+      "sha256": "3fcac19f7a933f3f936f5c7343d502df63d9cb03bfcfb9b8c139a61d24bb6360",
+      "bytes": 15038
+    },
+    {
+      "label": "UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)",
+      "source": "work/resume-after-checkpoint-20261022/queued-funding-small/batch-evidence.json",
+      "stored": "files/queued-funding-small/batch-evidence.json",
+      "sha256": "4eaccbb331e99dbc570f70a444eaf2bdaf39604d4dea63d5226b45ec338df161",
+      "bytes": 9083
+    },
+    {
+      "label": "UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)",
+      "source": "work/resume-after-checkpoint-20261022/queued-funding-small/batch-plan-small.mjs",
+      "stored": "files/queued-funding-small/batch-plan-small.mjs",
+      "sha256": "f0908a9864c7b7c933687398060307817eb2d025ab9da2faee2f595e72a7ec7c",
+      "bytes": 14161
+    },
+    {
+      "label": "UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)",
+      "source": "work/resume-after-checkpoint-20261022/queued-funding-small/batch-proposal.json",
+      "stored": "files/queued-funding-small/batch-proposal.json",
+      "sha256": "7d41c668b600f400618e0fe4f115212fc1c339180ee72398d212ed42d8610b06",
+      "bytes": 9132
+    },
+    {
+      "label": "UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)",
+      "source": "work/resume-after-checkpoint-20261022/queued-funding-small/batch-topup-small.mjs",
+      "stored": "files/queued-funding-small/batch-topup-small.mjs",
+      "sha256": "824f20d5097becba1e2cca04a92d1b70370e9a6e24bdf5557efc37a1d8fb64ed",
+      "bytes": 15383
+    },
+    {
+      "label": "UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)",
+      "source": "work/resume-after-checkpoint-20261022/queued-funding-small/call-inventory.json",
+      "stored": "files/queued-funding-small/call-inventory.json",
+      "sha256": "88aac59d3a3846380292a8cba7ce769e7a916f9be7493560ebb8145b3dbd0617",
+      "bytes": 5356
+    },
+    {
+      "label": "UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)",
+      "source": "work/resume-after-checkpoint-20261022/queued-funding-small/l1-fee.json",
+      "stored": "files/queued-funding-small/l1-fee.json",
+      "sha256": "6114f4af8bb6e4f3a18d00118fa8c8742a337ddedeb78a364a0d01be47ec8477",
+      "bytes": 357
+    },
+    {
+      "label": "UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)",
+      "source": "work/resume-after-checkpoint-20261022/queued-funding-small/l1fee.mjs",
+      "stored": "files/queued-funding-small/l1fee.mjs",
+      "sha256": "2776d063118e64c35a795d02bc143a49fb094b15e78f0095610e4963aff7f81e",
+      "bytes": 1537
+    },
+    {
+      "label": "UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)",
+      "source": "work/resume-after-checkpoint-20261022/queued-funding-small/manifest.json",
+      "stored": "files/queued-funding-small/manifest.json",
+      "sha256": "b7606a5e3228ba26b41bd846c8f60c9e6bf1583dfcf826f456dcb00b780d1857",
+      "bytes": 3204
+    },
+    {
+      "label": "UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)",
+      "source": "work/resume-after-checkpoint-20261022/queued-funding-small/phase-a-reads.json",
+      "stored": "files/queued-funding-small/phase-a-reads.json",
+      "sha256": "c44c1a3920bf4b542c4d9e663210860f1efd13268795c957c9cb2d91f4c93893",
+      "bytes": 20599
+    },
+    {
+      "label": "UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)",
+      "source": "work/resume-after-checkpoint-20261022/queued-funding-small/review-small.mjs",
+      "stored": "files/queued-funding-small/review-small.mjs",
+      "sha256": "49d7f2986f0b9e83c18738b362a4974b1c8b15741a6e33856b7ea79c64b4a824",
+      "bytes": 20291
+    },
+    {
+      "label": "UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)",
+      "source": "work/resume-after-checkpoint-20261022/queued-funding-small/run-serial-tests.sh",
+      "stored": "files/queued-funding-small/run-serial-tests.sh",
+      "sha256": "54e5467d94db8443a5d4e0f68e893dc621e1a33d4f588f130475aefceffb8ca3",
+      "bytes": 293
+    },
+    {
+      "label": "UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)",
+      "source": "work/resume-after-checkpoint-20261022/queued-funding-small/run-tests.sh",
+      "stored": "files/queued-funding-small/run-tests.sh",
+      "sha256": "6b78b361286519816b3edaddc4a64cad201db095ad61f00358f82df3e111ed40",
+      "bytes": 378
+    },
+    {
+      "label": "UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)",
+      "source": "work/resume-after-checkpoint-20261022/queued-funding-small/serial-fetch.mjs",
+      "stored": "files/queued-funding-small/serial-fetch.mjs",
+      "sha256": "76dce40475e9ca38a4b9f2623f7c334659a18e54b3248d6626ca78a57a286004",
+      "bytes": 1721
+    },
+    {
+      "label": "UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)",
+      "source": "work/resume-after-checkpoint-20261022/queued-funding-small/serve-small.mjs",
+      "stored": "files/queued-funding-small/serve-small.mjs",
+      "sha256": "44a9333c35c7144b2f53874b28a9b549876b8c19ca889b9b4237f8e4cbf01bca",
+      "bytes": 6931
+    },
+    {
+      "label": "UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)",
+      "source": "work/resume-after-checkpoint-20261022/queued-funding-small/simulation.json",
+      "stored": "files/queued-funding-small/simulation.json",
+      "sha256": "136ecfdbc27cd3b74cc3aeb56b6f3162fb9cee436b8b4a29efe613b0d47f7a4e",
+      "bytes": 1949
+    },
+    {
+      "label": "UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)",
+      "source": "work/resume-after-checkpoint-20261022/queued-funding-small/summary.json",
+      "stored": "files/queued-funding-small/summary.json",
+      "sha256": "cf01b4bf56242348def051e2835c5b44ced41bf61174afc078c3a964100c5a27",
+      "bytes": 12560
+    },
+    {
+      "label": "UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)",
+      "source": "work/resume-after-checkpoint-20261022/queued-funding-small/test/batch-plan-small.test.mjs",
+      "stored": "files/queued-funding-small/test/batch-plan-small.test.mjs",
+      "sha256": "de7996c24faabd13433ff7a6a5e0c95bdbc88edbfc0f4d1e7b049e1811fc351f",
+      "bytes": 18135
+    },
+    {
+      "label": "UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)",
+      "source": "work/resume-after-checkpoint-20261022/queued-funding-small/test/serial-fetch.test.mjs",
+      "stored": "files/queued-funding-small/test/serial-fetch.test.mjs",
+      "sha256": "bda72e34065460aea9bf55c63cd5b1016ba0390f9fbcea9824b7ce8b70454ae8",
+      "bytes": 6724
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/relay-release-list-review/INITIAL.md",
       "stored": "files/relay-release-list-review/INITIAL.md",
       "sha256": "ccb01ee59ed4c61b1699f59972692ec474c788299c49da5fa2a1c61d35279e43",
@@ -3261,6 +3559,18 @@
       "bytes": 1088
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-live/nucbox-queued-state.json",
+      "stored": "files/relay-release-live/nucbox-queued-state.json",
+      "sha256": "458cdb34214a9f993702974098bf3e9761eea05513c177fa79e55ba413878f83",
+      "bytes": 7712
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-live/nucbox-queued-state.py",
+      "stored": "files/relay-release-live/nucbox-queued-state.py",
+      "sha256": "1f79e538ff614a9a4d1059ab2174a7dc42f8383b0d6011f190d10cf196649f61",
+      "bytes": 864
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/relay-release-live/postdeploy-verification.json",
       "stored": "files/relay-release-live/postdeploy-verification.json",
       "sha256": "1ee7a8cbdd494aeebb489af304c69aac72418c59a44bf761f5f96248c7ee0407",
@@ -3293,8 +3603,8 @@
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
       "stored": "files/source-preservation/capture-latest.py",
-      "sha256": "4fa720a8f3ffaf23fd43d83751b34132eaaa0a052de55a35970fe6e47b0bd96b",
-      "bytes": 16941
+      "sha256": "2b2f1391eba8f250d9ac69a4bc64f924c974f80ddb4f06f7dd2c498e999e4901",
+      "bytes": 18928
     },
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/review-candidate-findings.py",
@@ -3557,10 +3867,5 @@
     "live run directories and raw transcripts",
     "generated images/binaries and dependency caches",
     "copied base trees preserved earlier"
-  ],
-  "deferred": [
-    "files/public-health/ROOT-WINDOW-WATCH-STOP.json",
-    "files/public-health/node-pair-window-latest.json",
-    "files/public-health/watch-node-pair-window.py"
   ]
 }

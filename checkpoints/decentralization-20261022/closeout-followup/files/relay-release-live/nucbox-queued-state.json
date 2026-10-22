@@ -1,0 +1,180 @@
+{
+  "at": "2026-10-22T23:35:45.6709671Z",
+  "deployments": [
+    {
+      "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
+      "status": "queued",
+      "leaseUntil": null,
+      "reason": "the ledger will not let this box claim it: its rate cap, its funded balance or a live lease says no (this box charges 47/sec per whole node, 1% of it here)",
+      "error": null
+    },
+    {
+      "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
+      "status": "refused",
+      "leaseUntil": null,
+      "reason": "This version requires catalog approval; pending versions may only be deployed PRIVATE for testing.",
+      "error": null
+    },
+    {
+      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "status": "claiming",
+      "leaseUntil": 1792663729,
+      "reason": "claim failed: app-funded claim not sent: lease-gas RPC quorum cannot read the configured chain; this host's ETH is never used instead",
+      "error": null
+    },
+    {
+      "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "status": "failed",
+      "leaseUntil": 1792660709,
+      "reason": "claim failed: app-funded claim not sent: lease-gas RPC quorum cannot read the configured chain; this host's ETH is never used instead",
+      "error": null
+    },
+    {
+      "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "status": "claiming",
+      "leaseUntil": 1792649861,
+      "reason": "the lease expired; a new claim must pass the current funding and hosting policy",
+      "error": null
+    },
+    {
+      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "status": "claiming",
+      "leaseUntil": 1792671243,
+      "reason": "claim failed: app-funded claim not sent: no relay landed the claim: http://127.0.0.1:8549: 422 Unaffordable the app's reserve, per-operation cap or epoch cap does not cover the expected charge; https://134.209.248.172: 422 Unaffordable the app's reserve, per-operation cap or epoch cap does not cover the expected charge; this host's ETH is never used instead",
+      "error": null
+    },
+    {
+      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "status": "running",
+      "leaseUntil": 1792713731,
+      "reason": null,
+      "error": null
+    },
+    {
+      "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+      "status": "claiming",
+      "leaseUntil": 1792677359,
+      "reason": "claim failed: app-funded claim not sent: lease-gas RPC quorum cannot read the configured chain; this host's ETH is never used instead",
+      "error": null
+    },
+    {
+      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "status": "failed",
+      "leaseUntil": 1792692447,
+      "reason": "claim failed: app-funded claim not sent: no relay landed the claim: http://127.0.0.1:8549: 422 Unaffordable the app's reserve, per-operation cap or epoch cap does not cover the expected charge; https://134.209.248.172: 422 Unaffordable the app's reserve, per-operation cap or epoch cap does not cover the expected charge; this host's ETH is never used instead",
+      "error": null
+    },
+    {
+      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "status": "failed",
+      "leaseUntil": 1792657223,
+      "reason": "claim failed: app-funded claim not sent: lease-gas RPC quorum did not agree on the pinned reserve, executor and ledger bindings; this host's ETH is never used instead",
+      "error": null
+    },
+    {
+      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "status": "claiming",
+      "leaseUntil": 1792675415,
+      "reason": "claim failed: app-funded claim not sent: no relay landed the claim: http://127.0.0.1:8549: 422 Unaffordable the app's reserve, per-operation cap or epoch cap does not cover the expected charge; https://134.209.248.172: 422 Unaffordable the app's reserve, per-operation cap or epoch cap does not cover the expected charge; this host's ETH is never used instead",
+      "error": null
+    },
+    {
+      "id": "0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7",
+      "status": "stopped",
+      "leaseUntil": null,
+      "reason": "the lease expired; a new claim must pass the current funding and hosting policy",
+      "error": null
+    },
+    {
+      "id": "0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1",
+      "status": "stopped",
+      "leaseUntil": null,
+      "reason": "the lease expired; a new claim must pass the current funding and hosting policy",
+      "error": null
+    },
+    {
+      "id": "0x2b84a09895ca94ef8bc8c61c7376154e3c1cc661f12693fb7583d9c19ce59889",
+      "status": "refused",
+      "leaseUntil": null,
+      "reason": "it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer",
+      "error": null
+    },
+    {
+      "id": "0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8",
+      "status": "refused",
+      "leaseUntil": null,
+      "reason": "it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer",
+      "error": null
+    },
+    {
+      "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+      "status": "refused",
+      "leaseUntil": null,
+      "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app",
+      "error": null
+    },
+    {
+      "id": "0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595",
+      "status": "refused",
+      "leaseUntil": null,
+      "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app",
+      "error": null
+    },
+    {
+      "id": "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76",
+      "status": "refused",
+      "leaseUntil": null,
+      "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app",
+      "error": null
+    },
+    {
+      "id": "0xaf9fbf3ecb9adc6736aac19c4a1690db1f9dafe427d1b06985737943cde065ef",
+      "status": "refused",
+      "leaseUntil": null,
+      "reason": "Pinned to host 0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658; fallback is disabled.",
+      "error": null
+    },
+    {
+      "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+      "status": "refused",
+      "leaseUntil": null,
+      "reason": "it needs the attested model volumes qwen-image-2512-sd, realesrgan-x4plus-sd, which this box does not offer",
+      "error": null
+    },
+    {
+      "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "status": "refused",
+      "leaseUntil": null,
+      "reason": "it needs the attested model volume qwen3.8-27b-mtp-q4-vl-gguf, which this box does not offer",
+      "error": null
+    }
+  ],
+  "readiness": {
+    "sequence": 603,
+    "startedAt": 1792711792230,
+    "completedAt": 0,
+    "inFlight": true,
+    "deployments": [
+      {
+        "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
+        "sequence": 603,
+        "status": "pending"
+      },
+      {
+        "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
+        "sequence": 603,
+        "status": "pending"
+      },
+      {
+        "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+        "sequence": 603,
+        "status": "pending"
+      },
+      {
+        "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+        "sequence": 603,
+        "status": "pending"
+      }
+    ]
+  }
+}

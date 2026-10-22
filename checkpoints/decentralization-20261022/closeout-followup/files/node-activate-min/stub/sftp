@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "sftp: denied by native-issuer-implementation stub (no remote access)" >&2
+exit 255

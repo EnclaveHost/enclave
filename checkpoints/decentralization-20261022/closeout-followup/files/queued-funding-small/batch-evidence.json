@@ -1,0 +1,217 @@
+{
+  "format": "enclave-reserve-batch-evidence/v1",
+  "chainId": 8453,
+  "collectedAt": "2026-10-22T23:30:26.955Z",
+  "reads": [
+    {
+      "rpc": "https://mainnet.base.org",
+      "error": "An unknown RPC error occurred."
+    },
+    {
+      "rpc": "https://base-rpc.publicnode.com",
+      "chainId": 8453,
+      "blockNumber": "52961234",
+      "blockHash": "0x4554e144b9c4d6c7e9dea3e72c0cebd3a5d5dcda991369f749fc53e8f0e2dff7",
+      "timestamp": "1792711815",
+      "multicall3CodeHash": "0xd5c15df687b16f2ff992fc8d767b4216323184a2bbc6ee2f9c398c318e770891",
+      "reserveCodeHash": "0xcc00efe9c79c17b34ef9edc2720939030834bf168abc52cea14dcb224304a979",
+      "ledgerCodeHash": "0x71d50076336283e774ba2ef8d5cbf7602e9cdc5dd918a7e7390c743367766682",
+      "reservePaused": false,
+      "rows": [
+        {
+          "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+          "ledgerId": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "enabled": true,
+          "blocked": false,
+          "balanceWei": "1171161869710"
+        },
+        {
+          "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+          "ledgerId": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "enabled": true,
+          "blocked": false,
+          "balanceWei": "1016277190539"
+        },
+        {
+          "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+          "ledgerId": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "enabled": true,
+          "blocked": false,
+          "balanceWei": "1017666736286"
+        },
+        {
+          "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+          "ledgerId": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "enabled": true,
+          "blocked": false,
+          "balanceWei": "812572514527"
+        },
+        {
+          "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+          "ledgerId": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "enabled": true,
+          "blocked": false,
+          "balanceWei": "359879005798"
+        },
+        {
+          "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+          "ledgerId": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "enabled": true,
+          "blocked": false,
+          "balanceWei": "216033940371"
+        },
+        {
+          "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+          "ledgerId": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "enabled": true,
+          "blocked": false,
+          "balanceWei": "1242671026630"
+        },
+        {
+          "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+          "ledgerId": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+          "owner": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+          "active": true,
+          "enabled": true,
+          "blocked": false,
+          "balanceWei": "1364175002269"
+        },
+        {
+          "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+          "ledgerId": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "enabled": true,
+          "blocked": false,
+          "balanceWei": "1225205548185"
+        },
+        {
+          "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+          "ledgerId": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "enabled": true,
+          "blocked": false,
+          "balanceWei": "462360721036"
+        }
+      ]
+    },
+    {
+      "rpc": "https://base-rpc.polkachu.com",
+      "chainId": 8453,
+      "blockNumber": "52961234",
+      "blockHash": "0x4554e144b9c4d6c7e9dea3e72c0cebd3a5d5dcda991369f749fc53e8f0e2dff7",
+      "timestamp": "1792711815",
+      "multicall3CodeHash": "0xd5c15df687b16f2ff992fc8d767b4216323184a2bbc6ee2f9c398c318e770891",
+      "reserveCodeHash": "0xcc00efe9c79c17b34ef9edc2720939030834bf168abc52cea14dcb224304a979",
+      "ledgerCodeHash": "0x71d50076336283e774ba2ef8d5cbf7602e9cdc5dd918a7e7390c743367766682",
+      "reservePaused": false,
+      "rows": [
+        {
+          "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+          "ledgerId": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "enabled": true,
+          "blocked": false,
+          "balanceWei": "1171161869710"
+        },
+        {
+          "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+          "ledgerId": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "enabled": true,
+          "blocked": false,
+          "balanceWei": "1016277190539"
+        },
+        {
+          "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+          "ledgerId": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "enabled": true,
+          "blocked": false,
+          "balanceWei": "1017666736286"
+        },
+        {
+          "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+          "ledgerId": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "enabled": true,
+          "blocked": false,
+          "balanceWei": "812572514527"
+        },
+        {
+          "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+          "ledgerId": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "enabled": true,
+          "blocked": false,
+          "balanceWei": "359879005798"
+        },
+        {
+          "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+          "ledgerId": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "enabled": true,
+          "blocked": false,
+          "balanceWei": "216033940371"
+        },
+        {
+          "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+          "ledgerId": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "enabled": true,
+          "blocked": false,
+          "balanceWei": "1242671026630"
+        },
+        {
+          "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+          "ledgerId": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+          "owner": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+          "active": true,
+          "enabled": true,
+          "blocked": false,
+          "balanceWei": "1364175002269"
+        },
+        {
+          "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+          "ledgerId": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "enabled": true,
+          "blocked": false,
+          "balanceWei": "1225205548185"
+        },
+        {
+          "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+          "ledgerId": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "active": true,
+          "enabled": true,
+          "blocked": false,
+          "balanceWei": "462360721036"
+        }
+      ]
+    }
+  ]
+}

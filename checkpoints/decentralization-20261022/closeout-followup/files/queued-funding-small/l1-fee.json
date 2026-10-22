@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-22T23:30:48.544Z",
+  "out": [
+    {
+      "rpc": "https://mainnet.base.org",
+      "block": "52961250",
+      "sizeBytes": "2728",
+      "l1FeeUpperBoundWei": "9704334215"
+    },
+    {
+      "rpc": "https://base-rpc.polkachu.com",
+      "block": "52961250",
+      "sizeBytes": "2728",
+      "l1FeeUpperBoundWei": "9704334215"
+    }
+  ]
+}

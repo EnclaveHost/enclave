@@ -1,0 +1,5 @@
+{
+  "at": "2026-10-22T23:19:40.731146+00:00",
+  "pid": 1989276,
+  "reason": "Read-only observation stopped deliberately to free shared small lane for urgent relay tests. New measured first pass602s invalidates proposed540s activation budget; no activation attempted. Not a failed app test."
+}

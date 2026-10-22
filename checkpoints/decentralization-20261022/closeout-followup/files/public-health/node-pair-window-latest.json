@@ -1,0 +1,51 @@
+{
+  "at": "2026-10-22T23:19:11.7489000Z",
+  "now": 1792711151,
+  "running": [
+    {
+      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "leaseUntil": 1792711627
+    }
+  ],
+  "readiness": {
+    "sequence": 602,
+    "startedAt": 1792711102078,
+    "completedAt": 0,
+    "inFlight": true,
+    "deployments": [
+      {
+        "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
+        "sequence": 602,
+        "status": "pending"
+      },
+      {
+        "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
+        "sequence": 602,
+        "status": "pending"
+      },
+      {
+        "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+        "sequence": 602,
+        "status": "pending"
+      },
+      {
+        "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+        "sequence": 602,
+        "status": "pending"
+      },
+      {
+        "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+        "sequence": 602,
+        "status": "pending"
+      }
+    ]
+  },
+  "update": {
+    "state": "Ready",
+    "enabled": true,
+    "next": "2026-10-23T00:13:36.0000000Z"
+  },
+  "observedAt": "2026-10-22T23:19:11.837880+00:00",
+  "windowCandidate": false,
+  "leaseSecondsLeft": 476
+}

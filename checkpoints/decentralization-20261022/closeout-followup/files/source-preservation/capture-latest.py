@@ -225,6 +225,27 @@ for p in release_live.iterdir():
     if p.is_file() and not p.is_symlink() and p.suffix in ('.py', '.json'):
         paths.add(p)
 paths.add(base / 'native-production-next/RESULT.md')
+# The 0.0001 ETH x 10 queued-app reserve top-up (PROPOSAL + wallet handoff source): authored code, manifest, tests, RESULT and
+# the PUBLIC proposal/evidence/call inventory/simulation/summary. Never state.json, journal/, request.json, local-url.txt
+# (the page token), logs/ (raw runs and debug probes) or tmp/.
+small = base / 'queued-funding-small'
+for name in ('batch-topup-small.mjs', 'batch-plan-small.mjs', 'serve-small.mjs', 'serial-fetch.mjs', 'review-small.mjs', 'l1fee.mjs',
+             'manifest.json', 'test/batch-plan-small.test.mjs', 'test/serial-fetch.test.mjs', 'run-tests.sh', 'run-serial-tests.sh', 'RESULT.md',
+             'batch-proposal.json', 'batch-evidence.json', 'phase-a-reads.json', 'call-inventory.json', 'simulation.json', 'l1-fee.json', 'summary.json'):
+    paths.add(small / name)
+# The node-only activation window (node-pair-activate): SOURCE ONLY, never run natively. Its frozen df2e58f2 source copy,
+# helper, tools, jobs, ssh/scp/sftp deny stubs and offline/queue runners; never logs/, tmp/, __pycache__ or mutant copies.
+activate = base / 'node-activate-min'
+for name in ('INITIAL.md', 'RESULT.md', 'offline.sh', 'q.sh'):
+    paths.add(activate / name)
+for directory in ('source', 'helper', 'tools', 'jobs', 'stub'):
+    for p in (activate / directory).rglob('*'):
+        if p.is_file() and not p.is_symlink() and '__pycache__' not in p.parts and 'mutants' not in p.parts:
+            paths.add(p)
+# what each new group IS, recorded on its manifest entries (nothing here is activated by this checkpoint)
+LABELS = {'queued-funding-small/': 'UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent '
+                                   'tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)',
+          'node-activate-min/': 'SOURCE ONLY: not run natively, not activated'}
 paths.add(Path(__file__).resolve())
 # Mutation tests temporarily edit the issuer's working tree. Preserve their saved
 # unmutated inputs, never an intentionally disabled security check.
@@ -261,7 +282,8 @@ for p in sorted(paths):
         out.chmod(0o644)
     out.write_bytes(data)
     out.chmod(0o644 | (p.stat().st_mode & 0o111))
-    entries.append({'source': str(p.relative_to(root)), 'stored': str(out.relative_to(dest)),
+    label = next((v for k, v in LABELS.items() if str(rel).startswith(k)), None)
+    entries.append({**({'label': label} if label else {}), 'source': str(p.relative_to(root)), 'stored': str(out.relative_to(dest)),
                     'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data),
                     **({'capturedFromUnmutatedBackup': str(actual.relative_to(root))} if actual != p else {})})
 manifest = {'capturedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
