@@ -1,0 +1,39 @@
+{
+ "stage": "<STAGE from runs/stage-*.json, e.g. C:\\ProgramData\\Enclave\\staging\\nodepair-0123456789ab>",
+ "runId": "<unique lowercase id, e.g. identify-20261022t2300z-a1b2c3>",
+ "boundSec": 300,
+ "nodeExe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+ "nodeSha": null,
+ "bundleSwap": {
+  "path": "<STAGE from runs/stage-*.json, e.g. C:\\ProgramData\\Enclave\\staging\\nodepair-0123456789ab>\\bundle-swap.ps1",
+  "sha": "21d85c69b2b70564cc04f7ea7d72e9f763ef8ae65059fdb9972f0413f042b103"
+ },
+ "files": [
+  {
+   "name": "chain.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\chain.mjs",
+   "oldSha": null,
+   "newSha": "<the staged chain.mjs sha (stage receipt inputs.chain.mjs.sha)>",
+   "newFile": "<STAGE from runs/stage-*.json, e.g. C:\\ProgramData\\Enclave\\staging\\nodepair-0123456789ab>\\files\\chain.mjs",
+   "workDir": "<STAGE from runs/stage-*.json, e.g. C:\\ProgramData\\Enclave\\staging\\nodepair-0123456789ab>\\swap-chain.mjs"
+  },
+  {
+   "name": "host.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\host.mjs",
+   "oldSha": null,
+   "newSha": "<the staged host.mjs sha (stage receipt inputs.host.mjs.sha)>",
+   "newFile": "<STAGE from runs/stage-*.json, e.g. C:\\ProgramData\\Enclave\\staging\\nodepair-0123456789ab>\\files\\host.mjs",
+   "workDir": "<STAGE from runs/stage-*.json, e.g. C:\\ProgramData\\Enclave\\staging\\nodepair-0123456789ab>\\swap-host.mjs"
+  }
+ ],
+ "unchangedFiles": [
+  {
+   "path": "C:\\ProgramData\\Enclave\\run-node.cmd",
+   "sha": null
+  },
+  {
+   "path": "C:\\ProgramData\\Enclave\\node-config.local.cmd",
+   "sha": null
+  }
+ ]
+}

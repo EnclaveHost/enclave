@@ -178,7 +178,7 @@ paths.add(base / 'native-issuer-implementation/MANIFEST.json')
 for directory in ('native-issuer-implementation/jobs', 'node-restart-final', 'native-handoff-final', 'platform-api-admin-final', 'node-pair-runner'):
     for p in (base / directory).rglob('*'):
         rel = p.relative_to(base / directory)
-        if any(part in ('logs', 'runs', 'tmp', 'secrets', 'node_modules', '.git', '__pycache__') for part in rel.parts):
+        if any(part in ('logs', 'runs', 'tmp', 'secrets', 'node_modules', '.git', '__pycache__', 'mutants') for part in rel.parts):
             continue
         if directory in ('native-handoff-final', 'platform-api-admin-final') and rel.parts and (rel.parts[0].startswith(('base-', 'mutant-')) or rel.parts[0] in ('repo', 'fixtures')):
             continue  # existing Git base trees are already preserved; collect only authored review/job files here
@@ -193,6 +193,23 @@ for name in ('RESULT.md', 'PINS.sha256'):
     if p.is_file():
         paths.add(p)
 paths.add(base / 'node-restart-final/helper/provenance.json')
+# The runner's explicit public params examples (every live identity null or a placeholder); its generated
+# mutant copies (mutants/) and run receipts (runs/) are excluded above.
+for name in ('params.identify.example.json', 'params.apply.example.json'):
+    paths.add(base / 'node-pair-runner' / name)
+# The native final canary's AUTHORED launcher, verifier, tests, tools and stub ssh/scp/sftp, its frozen pins (tree.sha256 is
+# the pinned source list of FROZEN-PINS.json) and root's launch review. Never its staged source tree (tree/), run
+# directories (runs/), raw or redirected logs (rawlogs/, logs/, public/) or dependency copies.
+canary = base / 'native-final-canary'
+for directory in ('canary', 'test', 'tools', 'bin'):
+    for p in (canary / directory).rglob('*'):
+        if p.is_file() and not p.is_symlink() and '__pycache__' not in p.parts:
+            paths.add(p)
+for p in canary.iterdir():
+    if p.is_file() and not p.is_symlink() and p.suffix in ('.md', '.json', '.sha256'):
+        paths.add(p)
+# The canary's sanitized public verdict (hashes, booleans and limits only), outside the work tree.
+outputs = [root / 'outputs/decentralization-audit/native-control-hardware-canary-20261022.json']
 paths.add(base / 'adapter-admission-review/ROOT-FAILED-REGRESSION-STOP.json')
 paths.add(Path(__file__).resolve())
 # Mutation tests temporarily edit the issuer's working tree. Preserve their saved
@@ -208,6 +225,8 @@ for proc in Path('/proc').iterdir():
             issuer_mutation_active = True
     except (OSError, PermissionError):
         continue
+assert not (base / 'outputs').exists(), 'a work directory named outputs would collide with the stored outputs/ prefix'
+paths.update(outputs)
 entries = []
 unchanged = []
 for p in sorted(paths):
@@ -217,7 +236,7 @@ for p in sorted(paths):
     limit = 32_000_000 if p.name.endswith('.bundle.mjs') else 5_000_000
     assert len(data) < limit, p
     data.decode('utf-8')
-    rel = p.relative_to(base)
+    rel = p.relative_to(base) if p.is_relative_to(base) else Path('outputs') / p.relative_to(root / 'outputs')
     old = prior / rel
     if old.is_file() and old.read_bytes() == data:
         unchanged.append(str(old.relative_to(repo)))

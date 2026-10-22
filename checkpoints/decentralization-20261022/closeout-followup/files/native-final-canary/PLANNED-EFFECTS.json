@@ -1,0 +1,80 @@
+{
+ "format": "direct-control-canary-planned-effects/1",
+ "executedBy": "root only, after review; NOT executed by Claude",
+ "process": {
+  "creates": [
+   "one transient user scope enclave-direct-control-canary-<stamp>-<rand>",
+   "one launcher (node) in its own session/process group",
+   "one QEMU (SNP guest) via qemu-restrict.sh exec",
+   "one verifier (node)"
+  ],
+  "signals": "only the launcher process group while an owned (pid,starttime) member is alive in it; only the run's own scope via systemctl --user stop",
+  "neverSignalled": [
+   "protected QEMU 3483499 (enclave-metal.service)",
+   "protected QEMU 3817658 (enclave-custodian-v2.service)",
+   "any process by name",
+   "any user service"
+  ]
+ },
+ "memory": {
+  "guestMiB": 4096,
+  "scopeMemoryMaxMiB": 6144,
+  "memoryGuardMaxRssMiB": 6144,
+  "hostFloorMiB": 16384,
+  "admissionMiB": 23552,
+  "queueLanes": "both taken exclusively, non-blocking (98 if busy)"
+ },
+ "time": {
+  "verifierDeadlineS": 210,
+  "childTimeoutS": 330,
+  "killAfterS": 40,
+  "cleanupBoundS": "~22"
+ },
+ "disk": {
+  "runDir": "runs/<stamp> 0700 (logs/results kept)",
+  "private": "runs/<stamp>/private 0700: fw_cfg (0600), test pairing key, host config, collateral copy - removed by the child, or by the parent after proven absence",
+  "imageRead": "read-only by QEMU"
+ },
+ "network": {
+  "guest": "slirp restrict=on: no host (10.0.2.2) and no outside address; one hostfwd 127.0.0.1:<ephemeral> -> guest 8444 (attested control front)",
+  "host": {
+   "kds": "--kds on (default): AMD KDS GETs only if the cached collateral lacks/needs refresh; off: none",
+   "registry": "--registry on (default): read-only eth_call of the original EnclaveRegistry through https://base-rpc.publicnode.com + https://mainnet.base.org; off: none",
+   "loopback": "127.0.0.1:<ephemeral> control front"
+  }
+ },
+ "secrets": {
+  "created": [
+   "a random 32-byte test pairing key (private/, 0600, deleted; redacted from the sanitized serial log)"
+  ],
+  "neverPresent": [
+   "registry/operator key",
+   "fleet secret",
+   "tunnel token",
+   "ACME/EAB",
+   "wallet",
+   "production config"
+  ]
+ },
+ "production": {
+  "changes": "none",
+  "contracts": "none (read-only registry lookup at most)",
+  "dns": "none",
+  "allowlists": "none",
+  "guestd": "never contacted (refused stand-in ports + restricted net)",
+  "nativeControl": "none: the owner config has no nativeControl member (refused by owner-config.mjs) and acceptance requires a statement with no native member; no native CA, leaf, service-index ad or discovery config is touched"
+ },
+ "limits": [
+  "bare direct control only: no MCP/Platform API/native control names/apps/registration",
+  "registry expected pending; never faked",
+  "one chip, one boot, 4 vCPUs",
+  "host node v22 runs the verifier; the guest runs the image's own runtime",
+  "no API, MCP or native TLS success can be claimed from this run"
+ ],
+ "image": {
+  "dir": "native-final-image/image/dist-direct-493ee9ee0",
+  "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+  "measurement": "fe897820f632bae497511a229f0c74465dade8841d5807f8287a3a2caa928d22c8d79c24ffa9b1f9554434b483fae38f"
+ },
+ "adaptedFrom": "direct-hardware-canary/PLANNED-EFFECTS.json (root-reviewed); effects unchanged, image and bare-role scope updated"
+}

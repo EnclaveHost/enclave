@@ -1,0 +1,47 @@
+{
+  "verifiedAt": "2026-10-22T22:57:52.111581+00:00",
+  "run": "20261022T225651Z",
+  "status": "PASS: bare native-control image hardware verification",
+  "sourceCommit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+  "measurement": "fe897820f632bae497511a229f0c74465dade8841d5807f8287a3a2caa928d22c8d79c24ffa9b1f9554434b483fae38f",
+  "productionActivated": false,
+  "registry": "pending",
+  "checks": {
+    "verifier: statement": true,
+    "verifier: config + HOST_DATA": true,
+    "verifier: TLS peer = attested control key": true,
+    "verifier: AMD report verified with the expected measurement": true,
+    "verifier: running supervisor holds the minted keys": true,
+    "evidence: HTTP 200": true,
+    "evidence: statement config digest = owner config": true,
+    "evidence: statement HOST_DATA = owner config": true,
+    "evidence: TLS peer = statement control key": true,
+    "evidence: same boot as the verifier (control key)": true,
+    "evidence: mode snp": true,
+    "evidence: runtime gsup/helper/supervisor = the built image inputs": true,
+    "evidence: bare roles (no mcpSha256, no platformApiSha256)": true,
+    "evidence: bare roles (no native control names in the statement)": true
+  },
+  "cleanup": {
+    "cgroupObserved": true,
+    "cgroupEmpty": true,
+    "ownedAbsenceProven": true,
+    "privateAbsent": true,
+    "productionQemusAndUserServicesUnchanged": true
+  },
+  "limits": [
+    "One bare guest on one physical host",
+    "No API/MCP/native certificate issuance, group failover or registration proof",
+    "No provider-loss or full feature-parity claim"
+  ],
+  "evidence": {
+    "attempt.json": "75cbc35fe059c157cfcd87797a1b940c9935550de17a7f35c01856911f24b882",
+    "result.json": "ba1195316a8eb0be973194608b5c4b00cf28180e7c5fea33908bdd7eba7890e8",
+    "terminal.json": "8879142738baa92a044ee76678e49aa576f74f0e70638be40a57f58a22d6d6f2",
+    "verify-result.json": "c4853a67ed7bc8f3487fd6093cef9a8227f2c576952870fb0d3562776982b10e",
+    "memory.log": "cc84a25a886a56f7c38f5f82b7fb9b24da47c11ce852607420b7bbb4f87aee29",
+    "preflight.txt": "1f1d850b5545118de337c367d2fc29b9ec2233213dbca79b66b8928e02550fdc",
+    "owner-config.json": "8386ac9628410e35607da8bc590b87193290326106262f401912ce28fef086e1",
+    "qemu-argv.json": "49e5dc5d9d7390040a714b8b691217ad0d988a7118a7266849de7d7fe483f2f5"
+  }
+}

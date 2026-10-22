@@ -1,0 +1,160 @@
+{
+ "format": "direct-control-canary-sources/1",
+ "written": "2026-10-22T22:54:24.563059+00:00",
+ "adaptedFrom": {
+  "dir": "<work>/resume-after-checkpoint-20261022/direct-hardware-canary (root-reviewed; FROZEN-PINS 6025fff2; run 20261022T205536Z PASS on the 6f2c7da4 image; never written by this package)",
+  "rootLaunchReview": "direct-hardware-canary/ROOT-LAUNCH-REVIEW.json (2026-10-22T20:55:07Z)"
+ },
+ "imageSource": {
+  "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+  "tree": "b21163723ea789db13ff84d148e309e2709a89f4",
+  "publishedDescendant": "dfe020abf (root published to candidate/decentralized-control-20261022); 493ee9ee..dfe020abf touches only docs/network/hosted-platform-api.md, scripts/platform-api-admin.mjs, test/platform-api-admin-cli.test.mjs, test/platform-api-admin-status.test.mjs - none is used by the canary tree (launcher, verifier, config, memory-guard)",
+  "staged": {
+   "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+   "tree": "b21163723ea789db13ff84d148e309e2709a89f4",
+   "method": "git archive of the commit (read-only checkout native-final-image/src)",
+   "sourceFiles": 8345,
+   "sourceListSha256": "ccb2420be9738f43023443147d1ba19711c98d9e549c2090eb9f815b68770511",
+   "nodeModules": {
+    "from": "work/enclave/node_modules (real copy)",
+    "lockPackagesChecked": 139,
+    "mismatches": [],
+    "mismatchCount": 0,
+    "verifierClosureMismatches": []
+   }
+  }
+ },
+ "unchangedSince6f2c7da4InTheTree": "metal/enclave-metal.mjs, verifier/, test/helpers/memory-guard.mjs, contracts/deployments/, package-lock.json (git diff 6f2c7da4 493ee9ee); changed and used: metal/measured-control-verify.mjs (+policyChipIdOf, identity.chipId), metal/guest/measured-control.mjs (nativeControl member, statement native), metal/guest/platform-api-verify.mjs (used only with --registry on)",
+ "image": {
+  "dir": "<work>/resume-after-checkpoint-20261022/native-final-image/image/dist-direct-493ee9ee0",
+  "receipt": "native-final-image/public/BUILD-RECEIPT.json (78306775...)",
+  "measurement": "fe897820f632bae497511a229f0c74465dade8841d5807f8287a3a2caa928d22c8d79c24ffa9b1f9554434b483fae38f",
+  "parameters": "SNP, 4 vCPUs, family 26 model 2 stepping 1, QEMU, OVMF 142589cc",
+  "expectedRuntime": {
+   "gsupSha256": "07e0583974818a5b4be5fe3051844db99794594fb4d8d2dce9217c1706c09ae0",
+   "helperSha256": "26a8982c52497d88d7d0885f63a4b4b8056da3ac1192ab03fdac94426a6185fc",
+   "supervisorSha256": "2c87a36fbffe9ff151f32e38c212ffd03a6d69ec85ec646eca79421c2cc6de65"
+  }
+ },
+ "external": {
+  "ovmf": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
+  "qemu /usr/bin/qemu-system-x86_64 (QEMU 11.1.2)": "a2250f5e2b3b07c754473c0817df1cccf6c3c2443fc616dc474c4c311fa6ef1c",
+  "node /usr/bin/node (v22.23.3)": "7af789e55afc0975d66bb19ccbc5a3b60c4b838f61d1ec10a117832ba70baaf9",
+  "collateralSource": "/home/steven/enclave-prod/capacity-audit/state/amd (public AMD Turin chain valid to 2048, CRL thisUpdate 2026-09-22 nextUpdate 2026-11-09, 1 VCEK; COPIED at run time, fingerprinted before/after, never written)",
+  "protectedIdentities": {
+   "3483499 (enclave-metal.service QEMU)": 87503396,
+   "3817658 (enclave-custodian-v2.service QEMU)": 32598976,
+   "checkedAt": "2026-10-22 ~22:51Z read-only and in the preflight: unchanged from the reviewed values"
+  }
+ },
+ "files": {
+  "bin/scp": {
+   "old": "9305c6f76cc65bcafe96110a2f0fc02597603c9a35a3101966119360e48dbf44",
+   "new": "1d48f5c0fc33ac48840817c2d3a381d1372aec738db38486220f9fb180c4a7dc",
+   "status": "adapted",
+   "change": "stub log path/name -> native-final-canary"
+  },
+  "bin/sftp": {
+   "old": "52434582a974c39655582f6f4bed89bb9c5cb2e4cd2198e6761ef28af321a7bd",
+   "new": "4f28ff5001552508314932c36759ba0c681da6741406c87430784394ef2acdf1",
+   "status": "adapted",
+   "change": "stub log path/name -> native-final-canary"
+  },
+  "bin/ssh": {
+   "old": "ea2ed034610e66777062820080d3f536139793c47a7fc570c26699ded0432dfd",
+   "new": "afcec2bc6d8c7b9ad277c1f87b972240b414debaffcf3451f465ef09998df100",
+   "status": "adapted",
+   "change": "stub log path/name -> native-final-canary"
+  },
+  "canary/owner-config.mjs": {
+   "old": "3509db936da3328a4f45aa13b68a06edbb9f8da31986733cb8f3d2c286e556e8",
+   "new": "79c592e0570ac9e431d0b3411fd334b4aac441d9f92d06b34038d9683f38b9ab",
+   "status": "adapted",
+   "change": "nativeControl (new optional member at 493ee9ee) added to the bare-config refusal list; header comments"
+  },
+  "canary/qemu-restrict.sh": {
+   "old": "3fd3a1dc0d6bce94217fd06c3cddde57697e3a9da4a8adea303c7f991bf9d75f",
+   "new": "3fd3a1dc0d6bce94217fd06c3cddde57697e3a9da4a8adea303c7f991bf9d75f",
+   "status": "unchanged"
+  },
+  "canary/run-canary.py": {
+   "old": "a82b6eafcfc51430011c3f6c1b1e41c280731e2c7030f0ba8d256224d6fb509d",
+   "new": "bc3397efbf369774b7a6ed9d68e0dbc2eb1add2925af9e1e288dce0f30f45140",
+   "status": "adapted",
+   "change": "IMAGE/RECEIPT/INPUTS -> native-final-image (dist-direct-493ee9ee0, public/BUILD-RECEIPT.json, public/inputs-precheck.json); docstrings; result scope sentence names no native control names. Every gate/bound/ownership/cleanup/acceptance rule unchanged."
+  },
+  "canary/verify-canary.mjs": {
+   "old": "67979154f53d96c7b9fd0a5fd605911257b8c145911638eb7547aa17f2003d4f",
+   "new": "a5bea76c39f843286bae41f472d9771269a37b5bce85b80f10c276dc7404255e",
+   "status": "adapted",
+   "change": "one REQUIRED bare-role check: the statement has no `native` member (493ee9ee statements carry one only for a bound nativeControl); identity.chipId (new in 493 verifier) reported as a diagnostic; header comments"
+  },
+  "test/canary-launcher.test.mjs": {
+   "old": "c652b77a7234a1bc3e7ee0e97352c53d55e4465eeff6dedd34d3ccfc5f67ebb7",
+   "new": "b6584803da9985f9152cbbeb09ff0cfe7274040d2b825411390f3413e31554aa",
+   "status": "adapted",
+   "change": "IMAGE path; noNative in the acceptance fixture + 2 mutations (native present, check absent); nativeControl in the bare-config assertion"
+  },
+  "test/fake-qemu.sh": {
+   "old": "4599e22c159ab4f1e012ae336bba4f2c128d7385ad2f0a5ce511b02237f9d1af",
+   "new": "4599e22c159ab4f1e012ae336bba4f2c128d7385ad2f0a5ce511b02237f9d1af",
+   "status": "unchanged"
+  },
+  "test/supervise_driver.py": {
+   "old": "ea5009d9e8e6d6de7d934a0440d3b5e9fbf3d638cbd27ab6b3db29e0b1a9d92a",
+   "new": "ea5009d9e8e6d6de7d934a0440d3b5e9fbf3d638cbd27ab6b3db29e0b1a9d92a",
+   "status": "unchanged"
+  },
+  "test/test_run_canary.py": {
+   "old": "d0052d5170ac62697bc040444d1ffe46f34bc850325cc74e465258b5b50b2973",
+   "new": "d0052d5170ac62697bc040444d1ffe46f34bc850325cc74e465258b5b50b2973",
+   "status": "unchanged"
+  },
+  "tools/crl-info.mjs": {
+   "old": "ff60823358bb3552bba4ac892ccdc1cb60987067e568f13ce79f760db315a580",
+   "new": "ff60823358bb3552bba4ac892ccdc1cb60987067e568f13ce79f760db315a580",
+   "status": "unchanged"
+  },
+  "tools/env.sh": {
+   "old": "27c55f45e3efa01d5afb2b3997c691be741fc1b916319fd55f1ea450c2d0e5aa",
+   "new": "f1afda9fd9336a4fdd7361d63437722111076eaa460a5614970ac039f5fb1db0",
+   "status": "adapted",
+   "change": "D -> native-final-canary"
+  },
+  "tools/freeze-and-preflight.sh": {
+   "old": "105bb59db68ccf0f0f6c426929aafe901fc47be9f17ad5224cc26b0d1c115a39",
+   "new": "105bb59db68ccf0f0f6c426929aafe901fc47be9f17ad5224cc26b0d1c115a39",
+   "status": "unchanged"
+  },
+  "tools/freeze.py": {
+   "old": "ec2ec2bb3dc4c8420991cab44f57444cc538c73fc89ec21e37a4aaf4d4e15d94",
+   "new": "5ad7308132539f7b72507eb0de844d879c33800f35c72b2169b5f412a3c24ff4",
+   "status": "adapted",
+   "change": "sourceCommit/sourceTree -> 493ee9ee/b2116372"
+  },
+  "tools/prepare.sh": {
+   "old": null,
+   "new": "ad227ec36ec2a39cd45463c777ba248eecf65292967a928114dd0363a0ac9049",
+   "status": "new",
+   "change": "NEW: one 512 job = stage-tree, unit-checks, then (only if both pass) freeze + read-only preflight"
+  },
+  "tools/q.sh": {
+   "old": "91de07048551deb30575e01ef6251a28fa4a75d1ebda6d984fac2677058672ec",
+   "new": "91de07048551deb30575e01ef6251a28fa4a75d1ebda6d984fac2677058672ec",
+   "status": "unchanged"
+  },
+  "tools/stage-tree.sh": {
+   "old": "0da7babf4dd73e6366b1c0cf522549f471c0edd18d208c4ff895542fc95de419",
+   "new": "14ca931e500a46632b0a77a743c73f56b576c6b349747d774a88a8ee2c345d19",
+   "status": "adapted",
+   "change": "SRC -> native-final-image/src, commit/tree -> 493ee9ee/b2116372; queue note 512"
+  },
+  "tools/unit-checks.sh": {
+   "old": "9968937e7e02df9eaefea9b1326b12bb258e2c46e3d6720fa3be68b2ba76d803",
+   "new": "58ae3cc39fc5ab436a35d5fadeac440b3e8fcbaa70d7b09d0c28a47771aecd76",
+   "status": "adapted",
+   "change": "comment: queue 512"
+  }
+ },
+ "delta": "public/SOURCE-DELTA.diff"
+}

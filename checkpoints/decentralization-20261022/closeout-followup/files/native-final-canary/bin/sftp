@@ -1,0 +1,5 @@
+#!/bin/sh
+# native-final-canary stub: remote shells are DENIED for every command of this canary (root rule). Never execs the real one.
+echo "$(date -u +%FT%TZ) sftp $*" >> "/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-final-canary/logs/ssh-stub-invocations.log"
+echo "sftp: denied by the native-final-canary stub (no SSH)" >&2
+exit 255

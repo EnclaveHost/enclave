@@ -1,0 +1,20 @@
+{
+  "reviewedAt": "2026-10-22T22:56:50.815429+00:00",
+  "reviewer": "root",
+  "frozenPinsSha256": "280c89d36914b92c3f04668778dc3072ab0ff082e724dfc991d35feb98ad4aa7",
+  "decision": "One bounded bare493 hardware canary; --kds off --registry off; shared queue lanes acquired internally",
+  "basis": [
+    "Reviewed full runtime source delta versus earlier root-approved canary; only new image paths and additional bare-role checks",
+    "Inspected main supervision and queue/memory/network restrictions; protected identities checked at run time",
+    "4096MiB guest, 6144MiB isolated scope, 16384MiB host floor, no production activation or registry keys"
+  ],
+  "acceptance": [
+    "Actual hardware report matches fe897820 measurement and bound config/TLS/runtime",
+    "All acceptance checks true including bare native role absence",
+    "Terminal cgroup observed and empty, owned absence proved, private directory gone",
+    "Protected production QEMU and service identities unchanged"
+  ],
+  "limits": [
+    "Bare runtime hardware proof only, not API/MCP readiness, registration, native certificate issuance or provider outage"
+  ]
+}
