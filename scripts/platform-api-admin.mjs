@@ -82,7 +82,7 @@ export async function recover({ platformApi, targetStatementText, account = null
 
 // ---- the command line ------------------------------------------------------------------------------------------------------
 function postJson(url, body) {
-  const u = new URL(url), data = Buffer.from(JSON.stringify(body)), lib = u.protocol === "https:" ? https : http;
+  const u = new URL(url), data = body === undefined ? null : Buffer.from(JSON.stringify(body)), lib = u.protocol === "https:" ? https : http;
   return new Promise((ok, no) => {
     const r = lib.request({ host: u.hostname, port: u.port, method: body === undefined ? "GET" : "POST", path: u.pathname, rejectUnauthorized: false, timeout: 30000,
       headers: body === undefined ? {} : { "content-type": "application/json", "content-length": data.length } }, (res) => {
