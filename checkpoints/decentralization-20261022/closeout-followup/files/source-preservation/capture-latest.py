@@ -10,13 +10,16 @@ repo = root / 'work/source-checkpoint-20261022/main-repo'
 dest = repo / 'checkpoints/decentralization-20261022/closeout-followup'
 prior = repo / 'checkpoints/decentralization-20261022/closeout-drafts/files'
 paths = set()
-for directory in ('controller-bounds-validation', 'postgres-init-stage'):
+for directory in ('controller-bounds-validation', 'postgres-init-stage', 'production-final'):
     for p in (base / directory).rglob('*'):
         rel = p.relative_to(base / directory)
         if any(x in ('logs', 'runs', '__pycache__', 'secrets') for x in rel.parts):
             continue
         if p.is_file() and not p.is_symlink() and not p.name.startswith('logs-'):
             paths.add(p)
+for p in (base / 'production-run').iterdir():
+    if p.is_file() and p.suffix in ('.py', '.sh'):
+        paths.add(p)
 for directory in ('src', 'tools', 'base', 'patches'):
     for p in (base / 'measured-composition' / directory).rglob('*'):
         if p.is_file() and not p.is_symlink() and '__pycache__' not in p.parts:

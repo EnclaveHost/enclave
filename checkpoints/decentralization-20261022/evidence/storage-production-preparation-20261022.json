@@ -1,0 +1,52 @@
+{
+  "verifiedAt": "2026-10-22T19:23:49.234251+00:00",
+  "goal": "Provider-independent infrastructure with Enclave admin controls retained",
+  "integration": {
+    "run": "2303c2fd33d86cc0",
+    "manifest": "b7d2aae03a74cd4276bd2adbce124d330cc7481d5acc546dbc77e518b15627f3",
+    "stagesPassed": 8,
+    "recoveryChecksPassed": 9,
+    "cleanupCertain": true,
+    "productionControllerSha256": "1543577f4bdbc1bc94dca950e55ac0ece5eb6a65272622aa90244ef2ba7c0e83"
+  },
+  "backup": {
+    "allMemberHashesMatch": true,
+    "archive": "indexd-minipc-fresh-20261022T191749Z-603f3b39.tar.gpg",
+    "archiveSha256": "97ecb817bf410b4dcb448bd8e3c9b75551e25725a723e43731456f5375ed096e",
+    "archiveSha256MatchesReceipt": true,
+    "authenticatedDecryptionPassed": true,
+    "counts": {
+      "accounts": 1,
+      "contracts": 78,
+      "objects": 1491,
+      "slabs": 562
+    },
+    "coupledAndResumed": true,
+    "dbVersion": 26,
+    "manifestEqualsPullTimeManifest": true,
+    "membersExactlyExpected": true,
+    "pass": true,
+    "plaintextPersistedLocally": false,
+    "problems": [],
+    "runId": "20261022T191749Z-603f3b39",
+    "verifiedAt": "2026-10-22T19:19:16Z"
+  },
+  "livePostgres": {
+    "unitChange": "Added --init; all other service unit bytes unchanged",
+    "unitSha256": "59b60ddd739d3ff5e27317faf794f4c25ce150acff38d2ec1a3de0322afdd183",
+    "comparison": "PASS (init)",
+    "sameDatabaseIdentityAndMetadata": true,
+    "indexdResumed": true,
+    "schema": 26,
+    "runningBinarySha256": "2d7a637e843500f7bd1864d76e1fa310e3163e57adc5d8c19e43598e827de5dc",
+    "restartCount": 0
+  },
+  "evidence": {
+    "work/resume-after-checkpoint-20261022/production-run/pg-init-before.out": "5000eda8a30029b61c54ae3c7de0d69ed56eae1d953ebab22aedb1fbe9a8c47c",
+    "work/resume-after-checkpoint-20261022/production-run/pg-init-after.out": "4278a0ed826abd627ba176a833510c54ad08e8ba8797ebee40cea21442f064ab",
+    "work/resume-after-checkpoint-20261022/production-run/pg-init-resumed-state.out": "0c94c497e73981299ed73fbd361fa3149490ae6721b5e662958fa80fea7e7ee7",
+    "work/resume-after-checkpoint-20261022/production-run/fresh-status.out": "70ae44b4cf7e9e57ecd0d05d95749ad67172614dad37f179f63454f0cd5761b3",
+    "work/resume-after-checkpoint-20261022/production-run/fresh-remove.out": "53f7f0f4ef05546b098d8068a4199db2a420b012ce5c5d09bab50ca8685865af"
+  },
+  "remaining": "Schema upgrades, distributed storage roles, control-image and provider cutover remain unfinished."
+}

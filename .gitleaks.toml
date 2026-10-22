@@ -419,6 +419,7 @@ targetRules = ["generic-api-key"]
 paths = [
   '''^checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/tree-a\.inventory\.json$''',
   '''^checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/tree-b\.inventory\.json$''',
+  '''^checkpoints/decentralization-20261022/closeout-followup/files/measured-composition/tree-c\.inventory\.json$''',
 ]
 regexTarget = "line"
 regexes = ['''^\s*"relay/vbs-credential\.mjs": "b36a2d037323b1e145c82529faffb94a1ecbdc0658c5c5c5c4d08a29c5692a77",?\s*$''']

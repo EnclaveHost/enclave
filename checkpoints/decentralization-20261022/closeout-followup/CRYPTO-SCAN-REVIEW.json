@@ -1,0 +1,92 @@
+{
+  "classification": "All 17 custom scanner findings independently verified as SHA256 source-file digests, not private keys",
+  "inventory": "checkpoints/decentralization-20261022/closeout-followup/files/measured-composition/tree-c.inventory.json",
+  "verified": [
+    {
+      "line": 319,
+      "source": ".github/workflows/secret-scan.yml",
+      "sha256": "a264288de54452fcd78207d36ca7f8dbcca118e346aa6e670ffe7b1481217ff0"
+    },
+    {
+      "line": 428,
+      "source": "contracts/deployments/secret-vault-base.json",
+      "sha256": "29129038bf4be9ecb6bf1865206dd40f9ac1514e2e0b414fbaac2296e497ecdd"
+    },
+    {
+      "line": 429,
+      "source": "contracts/deployments/secret-vault-v2-base.json",
+      "sha256": "da337e5a373e65a0c5840d120d627b653b094a9795baa909dc73c2167329a0db"
+    },
+    {
+      "line": 832,
+      "source": "docs/security/secret-custody-v2-spec.md",
+      "sha256": "7c779a1a1e0edbc1790d54d69348f7557209a4df8cc00e34b9d641393c960bf4"
+    },
+    {
+      "line": 833,
+      "source": "docs/security/secret-custody-v2.md",
+      "sha256": "8012bfae98f052ee8125f2e683d06eeca3d28e43605652a5256c40388ff0d8d7"
+    },
+    {
+      "line": 834,
+      "source": "docs/security/secret-custody.md",
+      "sha256": "6731d931400da0778296ecabf39ea8e97bd19caecfdcf83c67c9a7636c548134"
+    },
+    {
+      "line": 850,
+      "source": "e2e/private-access.config.mjs",
+      "sha256": "81816b2ea1aec40e2490c22292f09dc91c684e18be59c2db2fa5c991b126984c"
+    },
+    {
+      "line": 851,
+      "source": "e2e/private-access/private-app.spec.mjs",
+      "sha256": "82b1f30944fbe7a3dfbbce47f915da4d995e4f67ffb19bb77824abcd65f22218"
+    },
+    {
+      "line": 2676,
+      "source": "scripts/deploy-secret-vault-v2.mjs",
+      "sha256": "f147aad9857302b72a6fac944e544464c83124ee11102f26a3acf65551ad3f89"
+    },
+    {
+      "line": 2677,
+      "source": "scripts/deploy-secret-vault.mjs",
+      "sha256": "c5a1601d55ccb8e6c7d266546ae9d1b35121e8cfa9b66132249017b160bdafd6"
+    },
+    {
+      "line": 6946,
+      "source": "test/helpers/private-app-supervisor.mjs",
+      "sha256": "08a2218c8efd32cb4639b3d4426189147eaabd62dffe69a5d8c55f43d5d04e8b"
+    },
+    {
+      "line": 7145,
+      "source": "test/private-app-auth.test.mjs",
+      "sha256": "118c0b17d50900709014bd02f3c6dec097ac5e713c0281761fa73c50989f2454"
+    },
+    {
+      "line": 7146,
+      "source": "test/private-app-frontends.test.mjs",
+      "sha256": "28828269962e7c276bfe9f1469111c89645cb94398d7a690eaad7a68ec14b66d"
+    },
+    {
+      "line": 7147,
+      "source": "test/private-app-live-edit.test.mjs",
+      "sha256": "16c80db3b8141a9865a9b14d1a64eff0aa315abc859d0902d252b3c41660b7c0"
+    },
+    {
+      "line": 7217,
+      "source": "test/secret-scan-tooling.test.mjs",
+      "sha256": "ebaff94c22c76b95b38320844c2b96d4f102e572359d1b85bd7d6394e4927b70"
+    },
+    {
+      "line": 7529,
+      "source": "test/windows-node-private-paths.test.mjs",
+      "sha256": "b37621201a45d6a17b8ea7a03cd3f22e947b8352daf0ad44d4d02252c7a5b3a3"
+    },
+    {
+      "line": 7530,
+      "source": "test/windows-node-private.test.mjs",
+      "sha256": "267a6e01c253b9e071d660beb05d0c9d823db92685f05d10a4697e11b42e0c36"
+    }
+  ],
+  "override": "Use repository-documented one-command --no-verify override for confirmed false positives; independent gitleaks scan required before push."
+}

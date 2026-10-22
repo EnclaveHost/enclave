@@ -1,0 +1,24 @@
+--- ../restore-timeout-diagnosis/r3/run-integration.py	2026-10-22 12:02:02.001909822 -0700
++++ integration-r4/run-integration.py	2026-10-22 12:16:45.262956412 -0700
+@@ -1,7 +1,8 @@
+ #!/usr/bin/env python3
+ """ROOT ONLY. ONE derived, isolated integration run of the storage-migration-r5 rev2 controller WITH the restore-timeout
+-fix (restore-timeout-diagnosis/fix/replicactl.fixture-r5.restorefix.py = 2ab98b4d + fix/apply_restorefix.py) on REAL
+-PostgreSQL. r3 (PROPOSED): only that controller pin and the kept server log (pg-server.log) differ from r2.
++fix AND the controller bounds delta (controller-bounds-validation/derived/replicactl.fixture-r5.restorefix.bounds.py =
++restore fix 4e0a76a0 + frozen CONTROLLER-BOUNDS-PROPOSAL.patch 561af966, equivalence-checked by derive.py) on REAL
++PostgreSQL. r4: only that controller pin differs from restore-timeout-diagnosis/r3 (a0ec6e8c, refined barrier).
+ 
+ It is the root-passed eight-stage C2 fixture (storage-enclave-fixture, run 32418fa137c5c05c), with exactly these
+ derivations (run-integration.patch vs the frozen run-c2-fixture.py 4b09043a):
+@@ -49,8 +50,8 @@
+     "migration/down-28-to-27.sql": "629f186e28a7f48a36e9bd9ac94139e6a3d24c40784fc26c6190075d212cc873",
+     "migration/up-27-to-28.sql": "1043b6452c0279258214ee3527d80d9d2962fea7f3202505acb02b81fc35a225",
+ }
+-CONTROLLER = W / "resume-after-checkpoint-20261022/restore-timeout-diagnosis/fix/replicactl.fixture-r5.restorefix.py"
+-CONTROLLER_SHA = "4e0a76a039bbc126df0d23855106f95e5dd9ea424cce7973cc65f34538b337a3"
++CONTROLLER = HERE / "replicactl.fixture.py"
++CONTROLLER_SHA = "0a6f56868d481238815f8b8dca41c764790cd38a55030854cedaab047d281a98"
+ CHECKS = HERE / "integration_checks.py"
+ 
+ 

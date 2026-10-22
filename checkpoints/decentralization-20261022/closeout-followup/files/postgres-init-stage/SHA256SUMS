@@ -1,0 +1,11 @@
+a986abf5e06bddb07b82be2f0702960ba72bb99645b232cc581b5527473c1b51  ./RECIPE.md
+10a15fa4f5f1a8c698e732de68ecfc374f3bb81b8329610f53883f3ea2c9457a  ./RESULT.json
+2e56c3a5f0f67951eedd235be4f4bd10c133a71e18c6eeca8a49ef6f327cb2e3  ./compare.py
+59b60ddd739d3ff5e27317faf794f4c25ce150acff38d2ec1a3de0322afdd183  ./enclave-indexd-postgres.service.candidate
+c98b6dea7500e9519bbfb117bff5390061d8aadb652ef4fe7cf5114f01ffbea7  ./enclave-indexd-postgres.service.init.patch
+e0a45f510d35181c02800f08a65d1b6da308dbc236ff4b495c11d9ba7d280012  ./enclave-indexd-postgres.service.rollback-e0a45f51
+ef6bd64944aee872a0ed0fd1a6ba6bee6451d15286ba4e2bf979053c66a50090  ./logs-compare1.guard.log
+c439fb91af346b5be730353c653f79749f626b91aaec399cced4cb190a30c5a7  ./logs-compare1.out
+b83bcae3597fce241d122c433c55fa3db4f62cef5affc876a6c44e9e5ffe7e13  ./logs-systemd-analyze.txt
+78db5755fa212b710a1b74199d702fe3378a26bcb928ea20c1697b170a561f61  ./pg-init-probe.sh
+d8d20a53aded7aa5b15f9cea156454a7f17ee3d0ad7dec6848bf45f8b994f347  ./test/test_compare.py

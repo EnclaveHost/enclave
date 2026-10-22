@@ -1,0 +1,88 @@
+{
+ "package": "postgres-init-stage",
+ "date": "2026-10-22",
+ "status": "PREPARED, NOT APPLIED: candidate unit + rollback copy + patch + read-only probe + local compare + ROOT recipe. Nothing ran on the VM; no SSH, no production, no Docker restart.",
+ "change": "ONE token `--init` added after `--rm` in ExecStart of enclave-indexd-postgres.service; every other byte identical (image digest, bind mount, --network host, --read-only, --memory 1g, env-file, tmpfs, postgres args, ExecStop, Restart, TimeoutStopSec, Install)",
+ "why": "defense in depth for the restore-timeout defect class: with docker-init as PID 1, an orphaned SIGKILLed process is reaped by tini, not by the postmaster (restore-timeout-diagnosis E3, run 6470d167633652ac: r5 timeout shape -> no crash, sentinel rc 0). The controller restore fix (fd097a2a; root integration-r3 a4cdf02552931ec3 PASS) remains required; r5 3e8a8c3f stays forbidden.",
+ "pins": {
+  "liveUnit": {
+   "source": "work/storage-vm/enclave-indexd-postgres.service",
+   "sha256": "e0a45f510d35181c02800f08a65d1b6da308dbc236ff4b495c11d9ba7d280012",
+   "liveEvidence": "preflight/readiness-1.out (r4 preflight, preflight.started=2026-10-22T18:23:17Z, preflight.complete=yes; root refers to this read as 18:19) line pg.unit.fragment_sha256=e0a45f51...; evaluated-1-framed.json READY_FOR_FRESH_BACKUP; pg.container_config_image postgres@sha256:74935e72..., pg.server_version 18.6, db.version 26, binary 2d7a637e",
+   "captureSha256": {
+    "readiness-1.out": "2b17860ae08f0210a00b70edce0b304999ae4e63da08969177cc466f4df1b70d",
+    "readiness-1.capture": "b4fa8c0f59869d11d46fa8cb1819f67dfb9e750ab57f68f4e79b7c5edabccbab"
+   }
+  },
+  "candidateUnit": {
+   "file": "enclave-indexd-postgres.service.candidate",
+   "sha256": "59b60ddd739d3ff5e27317faf794f4c25ce150acff38d2ec1a3de0322afdd183"
+  },
+  "rollbackUnit": {
+   "file": "enclave-indexd-postgres.service.rollback-e0a45f51",
+   "sha256": "e0a45f510d35181c02800f08a65d1b6da308dbc236ff4b495c11d9ba7d280012",
+   "identicalToLiveSource": true
+  },
+  "patch": {
+   "file": "enclave-indexd-postgres.service.init.patch",
+   "sha256": "c98b6dea7500e9519bbfb117bff5390061d8aadb652ef4fe7cf5114f01ffbea7"
+  },
+  "probe": {
+   "file": "pg-init-probe.sh",
+   "sha256": "78db5755fa212b710a1b74199d702fe3378a26bcb928ea20c1697b170a561f61",
+   "embeds": "claude-resumed-20261022/control-package/storage-migration/controller-profile/migration/digest.sql 7f4b137f (verbatim, checked)"
+  },
+  "compare": {
+   "file": "compare.py",
+   "sha256": "2e56c3a5f0f67951eedd235be4f4bd10c133a71e18c6eeca8a49ef6f327cb2e3"
+  },
+  "recipe": {
+   "file": "RECIPE.md",
+   "sha256": "a986abf5e06bddb07b82be2f0702960ba72bb99645b232cc581b5527473c1b51"
+  }
+ },
+ "checks": [
+  {
+   "what": "exact one-token diff",
+   "result": "PASS: same line count, exactly one line differs, its tokens equal the old ones plus exactly one --init (26 -> 27 tokens)"
+  },
+  {
+   "what": "systemd-analyze verify (systemd 262) on both units",
+   "result": "rc 0, no output for both (logs-systemd-analyze.txt)"
+  },
+  {
+   "what": "pg-init-probe.sh",
+   "result": "bash -n OK; embedded digest.sql verbatim; read-only, bounded SQL (GNU timeout --foreground in the container + statement/lock timeouts), env NAMES only. NOT executed against a real server (it needs the indexd schema/production container; no new fixture built, per scope)"
+  },
+  {
+   "what": "test/test_compare.py (queue 256)",
+   "log": "logs-compare1.out",
+   "result": "OK: 2 tests: init and rollback accepted; 18 single-key mutants rejected (system identifier, digest, db_version, mounts, image, network, memory, env names, PID 1, init flag, unclean startup, pending reload, extra sessions, unit hash, no restart, not ready, digest rc, indexd active), plus an --init state rejected as rollback and a non-original BEFORE rejected"
+  }
+ ],
+ "recipePlacement": "PRODUCTION-RECIPE.md: after \u00a72 (fresh encrypted coupled backup B2' complete, sourceResumed, archive verified) and before \u00a7L (which expects indexd running 2d7a637e); indexd downtime ~1-3 min",
+ "recipeSteps": [
+  "I0 read-only gates: live unit e0a45f51 644 root:root no drop-ins; docker-init component; one unnamed --rm --init --network none container from the present image prints docker-init (else STOP, nothing changed)",
+  "I1 stage new/old units in /root/pg-init-<IRID> (0700), hashes",
+  "I2 stop enclave-indexd FIRST (it Requires the PG unit); BEFORE probe",
+  "I3 systemctl stop PG (docker stop --time 120); journal 'database system is shut down'; container absent (exited leftover: docker rm without -f/-v only)",
+  "I4 install candidate 0644 root:root, daemon-reload, hash 59b60ddd, NeedDaemonReload=no, ExecStart has --init",
+  "I5 start PG; probe 'wait'; compare.py --expect init PASS (identity/data/config equal; PID 1 docker-init; clean restart)",
+  "I6 start indexd; vm-state.sh \u00a71 conditions; continue \u00a7L"
+ ],
+ "rollback": "R1 stop indexd then PG, container absent; R2 install the exact old unit (staged copy or local rollback-e0a45f51), daemon-reload, hash e0a45f51; R3 start, probe wait, compare.py ORIGINAL-before vs rollback --expect rollback PASS; R4 resume indexd. Never docker volume rm / docker rm -v|-f / touch the bind data dir / postgres.env.",
+ "effects": {
+  "preflight": "r4 preflight will then read pg.unit.fragment_sha256=59b60ddd... (INFO key in evaluate-preflight.py, not a blocker)",
+  "G4": "B2' runs before step I under the old unit (root's order), so the B2 runner's non-foreground timeout gap is closed only for later steps"
+ },
+ "untouched": [
+  "work/storage-vm/enclave-indexd-postgres.service (e0a45f51)",
+  "production VM, units, containers, data, postgres.env",
+  "controllers, recipes of other workers",
+  "Git, funds, admin"
+ ],
+ "notDone": [
+  "applying the unit (root, in the window, after review)",
+  "a live run of pg-init-probe.sh (first use is root's I2 BEFORE probe; an incomplete probe makes compare.py FAIL, never PASS)"
+ ]
+}

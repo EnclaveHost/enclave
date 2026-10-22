@@ -1,0 +1,129 @@
+{
+ "package": "controller-bounds-validation",
+ "date": "2026-10-22",
+ "status": "LOCALLY VALIDATED; integration r4 LAUNCHED BY ROOT, result pending (not observed or claimed here)",
+ "rootRuns": {
+  "what": "ONE isolated run: the root-passed eight-stage C2 fixture plus X1-X8 (restore-timeout-diagnosis r3 refined barrier checks) with the BOUNDED fixture controller",
+  "cwd": "/home/steven/Documents/Codex/2026-10-18/wo",
+  "plan": "python3 work/claude-test-queue.py --mib 256 --log work/resume-after-checkpoint-20261022/controller-bounds-validation/integration-r4/logs/plan.guard.log -- python3 -B -u work/resume-after-checkpoint-20261022/controller-bounds-validation/integration-r4/run-integration.py --plan",
+  "execute": "python3 work/claude-test-queue.py --mib 768 --log work/resume-after-checkpoint-20261022/controller-bounds-validation/integration-r4/logs/run1.guard.log -- python3 -B -u work/resume-after-checkpoint-20261022/controller-bounds-validation/integration-r4/run-integration.py --execute b7d2aae03a74cd4276bd2adbce124d330cc7481d5acc546dbc77e518b15627f3",
+  "manifest": "b7d2aae03a74cd4276bd2adbce124d330cc7481d5acc546dbc77e518b15627f3",
+  "queueRules": "exit 98 = not started: retry with a new log, never in parallel; exit 99 = killed. Neither is a pass. The PostgreSQL container has its own 256 MiB cap (as r3 a4cdf025: peak tree RSS 450 MiB at 768).",
+  "recover": "python3 -B work/resume-after-checkpoint-20261022/controller-bounds-validation/integration-r4/run-integration.py --recover <runId>   (labelled cleanup only, if a run is interrupted)",
+  "pass": "result.json outcome stages-and-checks-passed, exit 0, cleanup certain",
+  "ifItFails": "Do not adopt 1543577f. The production fallback is the restore fix fd097a2a alone (G1 open). To separate a harness failure from a controller failure, the discriminating run is the same r3 harness (restore-timeout-diagnosis/r3, a0ec6e8c) with 4e0a76a0. Root decides whether to run it.",
+  "preserved": "Root's r3 receipt (controller-integration-r3, run a4cdf02552931ec3, harness 8beea793 + 4e0a76a0) is untouched. r4 writes only integration-r4/runs and integration-r4/logs.",
+  "observedLaunch": {
+   "at": "2026-10-22T19:18:34Z (approx., runs dir mtime)",
+   "runId": "2303c2fd33d86cc0",
+   "manifest": "b7d2aae0... (the one prepared here)",
+   "guardLog": "logs/root-final-integration.guard.log",
+   "owner": "root; not touched, waited on or duplicated by this worker"
+  }
+ },
+ "integrationR4Files": {
+  "integration-r4/run-integration.py": "ec6864328094ba20b9d5bd007e8063856f549f6972e762dd30bb9122b57e772e",
+  "integration-r4/integration_checks.py": "538c28d43f1bab992c4dc87f3d3f25524bc86bd91e6a8ac492d7ab1b58415cbf",
+  "integration-r4/replicactl.fixture.py": "0a6f56868d481238815f8b8dca41c764790cd38a55030854cedaab047d281a98"
+ },
+ "integrationR4Derivation": {
+  "tool": "derive_integration_r4.py (exact text replacements; refuses to overwrite)",
+  "fromRun": "restore-timeout-diagnosis/r3/run-integration.py a0ec6e8cea1afd827a4fd9ca5744c54de12d7ff629b925a29815c175d8ac105b: only the docstring lines and CONTROLLER/CONTROLLER_SHA differ (integration-r4.run-integration.r3-to-r4.patch)",
+  "checks": "restore-timeout-diagnosis/r3/integration_checks.py 538c28d43f1bab992c4dc87f3d3f25524bc86bd91e6a8ac492d7ab1b58415cbf, byte-identical (refined barrier: fresh snapshot per poll, bounded sleep, witness and identity checks)",
+  "note": "the refined r3 harness itself was never run by anyone. r4 is its first run, with the bounded controller."
+ },
+ "controller": {
+  "productionFinal": {
+   "file": "work/resume-after-checkpoint-20261022/controller-bounds-validation/frozen/replicactl.r5-production.restorefix.bounds.py",
+   "sha256": "1543577f4bdbc1bc94dca950e55ac0ece5eb6a65272622aa90244ef2ba7c0e83",
+   "base": "restore fix fd097a2a2f480e0d0aded033effb2f7992b8852f43e2f3f072bff1056fef4452",
+   "patch": "frozen/CONTROLLER-BOUNDS-PROPOSAL.patch 561af966e550b138a1fd31d19d7255090799531279e7b8e59fd022928f2db00d (+34 -15)",
+   "changedFromFrozenProposal": "nothing: frozen at 1543577f; no real issue required a source change"
+  },
+  "fixtureDerived": {
+   "file": "work/resume-after-checkpoint-20261022/controller-bounds-validation/derived/replicactl.fixture-r5.restorefix.bounds.py",
+   "sha256": "0a6f56868d481238815f8b8dca41c764790cd38a55030854cedaab047d281a98",
+   "base": "4e0a76a039bbc126df0d23855106f95e5dd9ea424cce7973cc65f34538b337a3",
+   "equivalence": "derive.py: E1 pins, E2 the patch reproduces 1543577f, E3 the same 14 change blocks (50 lines), E4 the fixture/production difference untouched, E5 compiles (logs/derive.out)"
+  }
+ },
+ "b2Runner": {
+  "file": "work/resume-after-checkpoint-20261022/controller-bounds-validation/b2/vm_fresh_backup.foreground.py",
+  "sha256": "62f4369029f6f66d1811ce25f9358a326b030913f67e1592df0f367600c67eb4",
+  "base": "1460169a15b7bc44748d0f8a6891f208ca045cf92de6abdcedc74956c0c5d1c6 (unchanged, not mutated)",
+  "patch": "b2/B2-RUNNER-FOREGROUND.patch d7a81f3772ceaa50b827bfdec379bfc9203de285fad0c3d009e24d6410858af9",
+  "change": "--foreground on the in-container psql and pg_dump timeouts; the pre-stop probe also requires `timeout --foreground 5 true` (BusyBox refused before anything stops); docstring and refusal text"
+ },
+ "evidence": {
+  "realPostgres": {
+   "run": "73bdaa1334c68be5",
+   "result": "work/resume-after-checkpoint-20261022/controller-bounds-validation/runs/73bdaa1334c68be5.result.json",
+   "manifest": "1f14320d4a4a15b0c047443a66aa4c95d11e6962ba8051c4ee8ff41cc63bd7bd",
+   "image": "postgres@sha256:74935e72... (c2fx pin; --pull never), PostgreSQL 18.6, GNU coreutils timeout 9.7, postmaster PID 1",
+   "summary": {
+    "C1p-sql-tag-options": "PASS",
+    "C1f-sql-tag-options": "PASS",
+    "C2-successful-backup-and-verify": "PASS",
+    "C3-bounded-blocked-psql": "PASS",
+    "C4-container-kill-path": "PASS",
+    "C5-bounded-pgdump-held-lock": "PASS",
+    "C6a-b2-copy-psql-shape": "PASS",
+    "C6b-b2-copy-pgdump-term-phase": "PASS",
+    "C6c-b2-copy-kill-phase-foreground": "PASS",
+    "C6d-b2-original-pgdump-term-phase": "PASS",
+    "C6e-NEGATIVE-b2-original-kill-phase": "PASS"
+   },
+   "cleanupCertain": true,
+   "queue": "768 MiB, peak tree RSS 123 MiB; container 256 MiB",
+   "keyFacts": [
+    "C1: the server sees statement_timeout = t, lock_timeout 30s and application_name replicactl-<RUN_ID>; the running query is observed under exactly that tag; a SQL error stays psql exit 3",
+    "C2: bounded cmd_backup + the restore fix's verify_backup give ok, cleanupOk, scratch dropped",
+    "C3: psql blocked on a held lock raised at 4.04 s (t=4); its backend is gone, and the holder is unaffected",
+    "C4: GNU timeout --foreground KILLed psql at 3.04 s, rc 137 (host bound t+15 = 18 s); its backend is gone",
+    "C5: pg_dump is observed under the exact tag waiting on the Lock; cmd_backup died 'pg_dump failed' at 4.06 s; the backup has NO manifest, and verify_backup of it is ok false with nothing created. The KILLed client's lock-waiting backend ended at 30.6 s = pg_dump's server-side --lock-wait-timeout",
+    "C6a-c: the B2 copy's shapes answer, are bounded (rc 124 at 2.0 s; KILL phase rc 137 at 6.0 s) and are reaped: no crash, no orphan",
+    "C6d: the ORIGINAL runner's TERM phase is reaped (no crash)",
+    "C6e NEGATIVE CONTROL: the ORIGINAL runner's KILL phase crash-restarts PostgreSQL ('untracked child process ... signal 9', reinitializing, sentinel rc 2). G4 was real",
+    "every non-negative case: unrelated sentinel rc 0, no crash line, PID 1 and checkpointer unchanged, no tool process or zombie left"
+   ]
+  },
+  "units": {
+   "file": "test_units.py",
+   "result": "6/6 OK on both copies (logs/units3-1.out): GNU guard refusal before any stop, systemctl timeouts 30/120/240/70, secs never 0, psql/pg_dump command shapes, die/stderr runId"
+  },
+  "b2RunnerMocks": {
+   "result": "16/16 OK: the runner's own test_runner.py (byte-identical copy in b2/test) with FB_RUNNER = the copy (logs/b2runner-1.out; env passthrough shown in logs/envcheck-1.out)"
+  },
+  "harnessFixesDuringThisWork": [
+   "test_units: the subprocess stub leaked into the global module (restored per subtest)",
+   "test_units: the two copies shared a backup dir within one second (separated)",
+   "validate.py, before its only run: a KILLed client's lock-waiting backend lingers until the server-side bound, so C3/C5 now assert that bound instead of an immediate disappearance"
+  ]
+ },
+ "productionRecipe": {
+  "file": "work/resume-after-checkpoint-20261022/controller-bounds-validation/PRODUCTION-RECIPE.final.md",
+  "supersedes": "production-migration-closeout/PRODUCTION-RECIPE.md 912b4705",
+  "uses": {
+   "controller": "1543577f",
+   "b2Runner": "62f43690",
+   "vmState": "production-migration-closeout/vm-state.sh 5ac71122",
+   "profile": "production-migration-closeout/live-primary.profile.proposed.json abcd3612"
+  },
+  "appSmoke": "Indexd health is judged against an L7 baseline of direct indexd probes (readiness: adminState/network/dbVersion/routes; digest; NRestarts/warnings). The app smoke (sia-s3) is recorded in the baseline. A failure already present there (e.g. an unfunded lease) is pre-existing, not a regression, and it never gates the step. No funding gate."
+ },
+ "safeNextAction": "Root runs integration r4 once (rootRuns.execute). On PASS: execute PRODUCTION-RECIPE.final.md with controller 1543577f and B2 runner 62f43690. On FAIL: do not adopt the bounds; decide between the fallback fd097a2a (G1 open) and a fix.",
+ "trueBlockers": [
+  "integration r4 (root) has not run: the bounds are validated locally on real PostgreSQL, but not yet through the eight stages plus X1-X8"
+ ],
+ "rootDecisions": [
+  "profile values (production-migration-closeout/live-primary.profile.proposed.json)",
+  "--acknowledge-cas-downgrade only if a v28 rollback ever meets enrolled accounts",
+  "G5: the archive restore onto the VM is untested (last resort only)"
+ ],
+ "notDone": [
+  "no SSH, production, wallet, funds, Git or contract-admin change",
+  "no full 8-stage integration run",
+  "unchanged diagnostics not re-run",
+  "original runner 1460169a and all other workers' frozen files untouched"
+ ]
+}
